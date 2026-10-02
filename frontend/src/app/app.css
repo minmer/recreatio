@@ -1732,6 +1732,42 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-entry-more { margin-left: auto; }
 .wk-entry-body { display: grid; gap: 0.6rem; padding: 0 0.2rem 1rem; }
 
+/* -- 0077: die Liste einer wiederkehrenden Erweiterung — Zeitraum, Antippen, Verlauf, Summen -- */
+.wk-entry-who { display: grid; gap: 0.1rem; min-width: 10rem; flex: 1 1 12rem; }
+.wk-entry-sub { font-size: 0.85rem; color: var(--wk-muted); overflow-wrap: anywhere; }
+.wk-entry-words { font-style: italic; }
+.wk-round-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.6rem; margin: 0.4rem 0; }
+.wk-round-bar .wk-btn { min-width: 2.6rem; padding-inline: 0.6rem; font-size: 1.1rem; line-height: 1; }
+.wk-round-now { min-width: 11rem; text-align: center; font-size: 1.02rem; }
+.wk-round-chips { display: inline-flex; flex-wrap: wrap; gap: 0.35rem; }
+.wk-round-chip {
+  min-height: 2.5rem; min-width: 2.75rem; padding: 0.3rem 0.75rem; border: 1px solid var(--wk-line); border-radius: 999px;
+  background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: 0.88rem; cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.wk-round-chip:hover { background: var(--wk-soft); }
+.wk-round-chip:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-round-chip.is-on { background: var(--wk-accent); border-color: var(--wk-accent); color: var(--wk-on-accent); font-weight: 600; }
+.wk-round-chip.is-on::before { content: "✓ "; }
+.wk-round-chip.is-waiting { opacity: 0.6; }
+.wk-round-totals { margin-top: 0.8rem; padding: 0.6rem 0.8rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-soft); }
+.wk-round-totals p { margin: 0; }
+.wk-round-totals p + p { margin-top: 0.25rem; }
+.wk-round-past { display: grid; gap: 0.4rem; }
+.wk-round-past .wk-h3 { margin: 0; }
+.wk-round-history { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.wk-round-cell {
+  display: grid; justify-items: center; gap: 0.05rem; min-width: 2.9rem; padding: 0.25rem 0.35rem; border: 1px solid var(--wk-line);
+  border-radius: 6px; background: var(--wk-surface); color: var(--wk-muted); font: inherit; font-size: 0.72rem; cursor: pointer;
+}
+.wk-round-cell strong { font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.wk-round-cell.has { color: var(--wk-ink); }
+.wk-round-cell.has strong { color: var(--wk-accent); }
+.wk-round-cell.is-on { border-color: var(--wk-accent); box-shadow: inset 0 0 0 1px var(--wk-accent); }
+.wk-round-cell:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-office-add { margin-top: 0.8rem; padding: 0.8rem; border: 1px dashed var(--wk-line); border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) { .wk-round-chip { transition: none; } }
+
 .wk-danger { color: var(--wk-danger); }
 
 /* Mehrere geöffnete Plätze auf einer Seite: je einer ein Abschnitt, mit Namen. */

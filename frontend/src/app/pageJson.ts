@@ -113,6 +113,8 @@ export function exportPage(now: PageNow): Record<string, unknown> {
 /** Ein Modul aus dem Bausteinverwalter. */
 export function exportModule(module: {
   readonly moduleId: string; readonly kind: string; readonly name: string; readonly config: RawConfig;
+  /** 0047/0077 — ein Formular, das ein anderes erweitert: wessen, wer es ausfüllt, wie oft. */
+  readonly extendsId?: string | null; readonly audience?: string; readonly repeat?: string;
 }, form?: FormContent): Record<string, unknown> {
   const def = partOf(module.kind);
   return {
@@ -121,6 +123,7 @@ export function exportModule(module: {
     id: module.moduleId,
     kind: module.kind,
     name: module.name,
+    ...(module.extendsId == null ? {} : { extends: module.extendsId, audience: module.audience ?? 'person', repeat: module.repeat ?? 'once' }),
     config: def === undefined ? { ...module.config } : def.json.toJson(module.config),
     ...(form === undefined ? {} : { questions: form.questions, design: form.design })
   };
@@ -615,7 +618,9 @@ Co robi import tutaj: zmienia TEN moduł — jego nazwę i treść — na wszyst
   "kind" — rodzaj; musi się zgadzać z otwartym modułem
   "name" — nazwa na liście modułów
   "config" — treść, zależna od rodzaju (niżej)${form ? `
-  "questions", "design" — pytania i układ formularza (niżej)` : ''}
+  "questions", "design" — pytania i układ formularza (niżej)
+  "extends", "audience" — tylko w rozszerzeniu formularza: który formularz rozszerza i kto je wypełnia ("person" — osoba przez swój link, "office" — tylko koordynator). Tylko informacja — import ich nie zmienia
+  "repeat" — tylko w rozszerzeniu: jak często każda osoba z listy dostaje wpis — "once" (raz), "day", "week", "month", "year". Import zmienia to, dopóki rozszerzenie nie ma żadnego wpisu` : ''}
 
 ${def === undefined ? `Rodzaj „${kind}” nie jest znany tej wersji — "config" przechodzi bez zmian.` : kindSection(def)}
 ${form ? `\n${FORM_SECTION()}\n` : ''}`;

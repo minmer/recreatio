@@ -33,7 +33,10 @@ import {
   editField, moveAnswers, sealQuestion, type MovedValue,
   AUDIENCE_LABEL
 } from './form';
-import { ExtensionEntry, ExtensionSheet } from './ExtensionSheet';
+import { ListJsonPanel } from './ListJsonPanel';
+import { ExtensionEntry, ExtensionSheet, OfficeAdd } from './ExtensionSheet';
+import { REPEAT_LABEL, REPEATS, repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
+import { filledNow } from './steps';
 import { readForm, type ReadForm } from './formRead';
 import { newId } from './ids';
 import { viewPath } from './routes';
@@ -104,6 +107,13 @@ import { FormLogic } from './FormLogic';
 /** Die Reiter eines Formulars: einrichten (vier) — lesen — handeln. */
 type FormTabName = 'settings' | 'questions' | 'layout' | 'logic' | 'entries' | 'steps' | 'people';
 
+/*
+ * Welcher Reiter je Formular zuletzt offen war — solange die Seite lebt. Die
+ * Ansicht wird nach jeder Änderung am Baustein neu aufgebaut; ohne das spränge
+ * sie dabei auf ihren Anfangsreiter zurück.
+ */
+const lastTab = new Map<string, FormTabName>();
+
 export function FormOffice({ partId, config, who, standsOn, module, onModuleChanged }: {
   partId: string;
 
@@ -139,7 +149,14 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    * Einsendungen —, und wer nur jemanden anrufen wollte, scrollte durch die
    * Einrichtung.
    */
-  const [tab, setTab] = useState<FormTabName>(module !== undefined ? 'settings' : 'questions');
+  /*
+   * 0077 — eine WIEDERKEHRENDE Erweiterung, die schon Fragen hat, öffnet auf
+   * ihrer Liste: wer „Odwiedziny" aufschlägt, will den Monat abhaken, nicht
+   * die Einstellungen lesen.
+   */
+  const [tab, pickTab] = useState<FormTabName>(lastTab.get(partId) ?? (module === undefined ? 'questions'
+    : module.extendsId !== null && repeatOf(module.repeat) !== 'once' && module.fields > 0 ? 'people' : 'settings'));
+  const setTab = (next: FormTabName) => { lastTab.set(partId, next); pickTab(next); };
 
   /* Welche Antwortbereiche schon annehmen können (0022) — je Bereich ein Paar. */
   const [intakes, setIntakes] = useState<ReadonlyMap<string, boolean>>(new Map());
@@ -504,7 +521,14 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
     const exts = new Map<string, ReadForm>();
     for (const ext of (await loadSteps(partId).catch(() => null))?.extensions ?? []) {
       try {
-        exts.set(ext.moduleId, await readForm(ext.moduleId, ring));
+        /*
+         * 0077 — eine WIEDERKEHRENDE Erweiterung hat je Mensch und Zeitraum eine
+         * Einsendung; in der Zeile eines Menschen steht die des LAUFENDEN. Alle
+         * Zeiträume zeigt die Liste der Erweiterung selbst.
+         */
+        const repeat = repeatOf(ext.repeat);
+        const now = roundOf(repeat);
+        exts.set(ext.moduleId, await readForm(ext.moduleId, ring, repeat === 'once' ? {} : { range: { from: now, to: now } }));
       } catch {
         // Nicht lesbar — die Zeile sagt es.
       }
@@ -969,7 +993,11 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
              * Link gehören dem erweiterten Formular — die Ergänzung kommt über
              * denselben Link.
              */
-            <ExtensionOf row={module!} />
+            <ExtensionOf
+              row={module!}
+              busy={busy !== null}
+              onRepeat={(repeat) => moduleAct('Zapisywanie…', () => updateModule(module!.moduleId, { repeat }))}
+            />
           ) : (
             <>
               {/* WAS NACH DEM ABSENDEN KOMMT — und was der Mensch mit seinem Link bekommt. */}
@@ -1037,6 +1065,8 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
           baseId={module!.extendsId!}
           audience={module!.audience}
           who={who}
+          repeat={module!.repeat}
+          name={module!.name}
         />
       )}
 
@@ -1246,6 +1276,17 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
       {/* == 3. HANDELN ===================================================== */}
 
+      {/*
+        0077 — JEMANDEN SELBST EINTRAGEN: wer am Telefon zusagt, auf einem
+        Zettel steht oder gar nicht selbst handelt, kommt so auf die Liste.
+        Ausserhalb des Kastens darunter: der verschwindet, während die Liste neu
+        gelesen wird — und nähme das offene Formular mit, mitten beim Eintragen
+        mehrerer Menschen.
+      */}
+      {tab === 'people' && !isExtension && ring !== null && readAreas !== null && (
+        <OfficeAdd formId={partId} fields={fields} design={design} onAdded={reread} />
+      )}
+
       {tab === 'people' && readAreas !== null && reading === null && !isExtension && (
         <>
           {/*
@@ -1295,6 +1336,17 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             onError={setFailed}
             onChanged={reread}
           />
+
+          {/* 0077 — die ganze Liste als JSON: eine vorhandene Liste in einem Zug herein, oder hinaus zum Bearbeiten. */}
+          {ring !== null && (
+            <ListJsonPanel
+              who={who}
+              formId={partId}
+              formName={module?.name ?? conf.title ?? 'Formularz'}
+              extensions={stepInfo?.extensions ?? []}
+              onDone={reread}
+            />
+          )}
         </>
       )}
     </>
@@ -1474,7 +1526,10 @@ function People({
     hasSeat: s.seatId !== null,
     confirmedAt: s.confirmedAt,
     extensions: stepInfo.extensions,
-    filled: new Map(s.extensions.map((e) => [e.moduleId, e.submittedAt])),
+    /* 0077 — eine wiederkehrende Erweiterung gilt als ausgefüllt, wenn sie es für den LAUFENDEN Zeitraum ist. */
+    filled: new Map(s.extensions
+      .filter((e) => filledNow(stepInfo.extensions.find((x) => x.moduleId === e.moduleId)?.repeat, e))
+      .map((e) => [e.moduleId, e.submittedAt])),
     steps: stepInfo.steps,
     marks: s.marks
   });
@@ -1711,6 +1766,8 @@ function People({
                   */}
                   {(stepInfo?.extensions ?? []).map((ext) => {
                     const data = extData.get(ext.moduleId);
+                    const repeat = repeatOf(ext.repeat);
+                    const round = roundOf(repeat);
 
                     return (
                       <section key={ext.moduleId} className="wk-ext-entry">
@@ -1718,6 +1775,8 @@ function People({
                           {ext.name}
                           <span className="wk-row-side">
                             {ext.audience === 'office' ? ' · tylko koordynator' : ' · uzupełnia osoba'}
+                            {/* 0077 — hier steht der LAUFENDE Zeitraum; alle zeigt die Liste der Erweiterung. */}
+                            {repeat !== 'once' && <> · {roundLabel(repeat, round)} · <a className="wk-link" href={viewPath('modules', 'form', ext.moduleId)}>wszystkie okresy</a></>}
                           </span>
                         </h4>
                         {data === undefined ? (
@@ -1727,8 +1786,9 @@ function People({
                             extensionId={ext.moduleId}
                             ext={data}
                             baseRegistrationId={s.registrationId}
-                            entry={data.registrations.find((r) => r.baseId === s.registrationId)}
+                            entry={data.registrations.find((r) => r.baseId === s.registrationId && (r.round ?? '') === round)}
                             editable={ext.audience === 'office'}
+                            round={round}
                             onSaved={() => void onChanged()}
                           />
                         )}
@@ -1752,7 +1812,11 @@ function People({
                       onChanged={onChanged}
                     />
                   ) : (
-                    <p className="wk-hint">To zgłoszenie przyszło bez miejsca — nie ma linku, który można by wysłać.</p>
+                    <p className="wk-hint">
+                      {s.byOffice === true
+                        ? 'Osoba dopisana przez koordynatora — nie ma własnego linku.'
+                        : 'To zgłoszenie przyszło bez miejsca — nie ma linku, który można by wysłać.'}
+                    </p>
                   )}
 
                   {/*
@@ -1814,6 +1878,7 @@ function Extensions({ base, extensions, busy, onCreated, onError }: {
 }) {
   const [name, setName] = useState('');
   const [audience, setAudience] = useState<'person' | 'office'>('person');
+  const [repeat, setRepeat] = useState<Repeat>('once');
   const [saving, setSaving] = useState(false);
   const [made, setMade] = useState<string | null>(null);
 
@@ -1824,7 +1889,7 @@ function Extensions({ base, extensions, busy, onCreated, onError }: {
     try {
       const moduleId = newId();
       await createModule(moduleId, 'form', name.trim(), base.areaId, base.forKind, '{}',
-        { extendsId: base.moduleId, audience });
+        { extendsId: base.moduleId, audience, repeat });
       setMade(moduleId);
       setName('');
       await onCreated();
@@ -1843,6 +1908,11 @@ function Extensions({ base, extensions, busy, onCreated, onError }: {
         swój link, albo wypełnia je tylko koordynator — dla siebie. Każde ma własne pytania.
         Na mapie logiki strony możesz z nich zrobić krok („Zgłoszenie wysłane").
       </p>
+      <p className="wk-hint">
+        Rozszerzenie może się <strong>powtarzać</strong> — co dzień, tydzień, miesiąc albo rok: wtedy każda osoba
+        z listy dostaje osobny wpis na każdy okres (odwiedziny chorych co miesiąc, obecność na spotkaniach,
+        składka). Pytania „tak / nie” zaznacza się w nim jednym dotknięciem.
+      </p>
 
       {extensions.length > 0 && (
         <ul className="wk-list">
@@ -1850,7 +1920,7 @@ function Extensions({ base, extensions, busy, onCreated, onError }: {
             <li className="wk-row" key={e.moduleId}>
               <span>
                 <strong>{e.name}</strong>
-                <span className="wk-row-side"> · {AUDIENCE_LABEL[e.audience]}{e.closed ? ' · zamknięte' : ''}</span>
+                <span className="wk-row-side"> · {AUDIENCE_LABEL[e.audience]}{repeatOf(e.repeat) !== 'once' ? ` · ${REPEAT_LABEL[repeatOf(e.repeat)]}` : ''}{e.closed ? ' · zamknięte' : ''}</span>
               </span>
               <a className="wk-link-btn" href={viewPath('modules', 'form', e.moduleId)}>Otwórz</a>
             </li>
@@ -1875,6 +1945,14 @@ function Extensions({ base, extensions, busy, onCreated, onError }: {
           <option value="person">wypełnia osoba</option>
           <option value="office">tylko koordynator</option>
         </select>
+        <select
+          value={repeat}
+          aria-label="Jak często"
+          disabled={busy || saving}
+          onChange={(e) => setRepeat(repeatOf(e.target.value))}
+        >
+          {REPEATS.map((r) => <option key={r} value={r}>{REPEAT_LABEL[r]}</option>)}
+        </select>
         <button type="submit" className="wk-btn" disabled={busy || saving || name.trim() === ''}>
           {saving ? 'Zakładanie…' : 'Dodaj rozszerzenie'}
         </button>
@@ -1889,8 +1967,14 @@ function Extensions({ base, extensions, busy, onCreated, onError }: {
   );
 }
 
-/** Eine Erweiterung sagt, wessen sie ist und wer sie ausfüllt. */
-function ExtensionOf({ row }: { row: ModuleRow }) {
+/**
+ * Eine Erweiterung sagt, wessen sie ist, wer sie ausfüllt — und wie oft (0077).
+ * Wie oft lässt sich ändern, solange nichts eingetragen ist: jede Einsendung
+ * trägt den Zeitraum IHRER Art.
+ */
+function ExtensionOf({ row, busy, onRepeat }: { row: ModuleRow; busy: boolean; onRepeat: (repeat: Repeat) => void }) {
+  const repeat = repeatOf(row.repeat);
+
   return (
     <div className="wk-note">
       <p>
@@ -1898,6 +1982,19 @@ function ExtensionOf({ row }: { row: ModuleRow }) {
         <a className="wk-link" href={viewPath('modules', 'form', row.extendsId ?? '')}>otwórz formularz główny</a>.
         {' '}Wypełnia: <strong>{row.audience === 'public' ? AUDIENCE_LABEL.public : AUDIENCE_LABEL[row.audience]}</strong>.
       </p>
+      <label className="wk-inline">
+        <span>Powtarza się:</span>
+        <select value={repeat} disabled={busy || row.entries > 0} onChange={(e) => onRepeat(repeatOf(e.target.value))}>
+          {REPEATS.map((r) => <option key={r} value={r}>{REPEAT_LABEL[r]}</option>)}
+        </select>
+        <span className="wk-hint">
+          {row.entries > 0
+            ? 'Są już wpisy — powtarzania nie da się zmienić.'
+            : repeat === 'once'
+              ? 'Jeden wpis na osobę.'
+              : 'Osobny wpis na każdy okres — w zakładce „Osoby” przełączasz okres u góry.'}
+        </span>
+      </label>
       <p className="wk-hint">
         {row.audience === 'office'
           ? 'Odpowiedzi widzi tylko kancelaria. W zakładce „Osoby" wpisujesz je przy każdej osobie; możesz też postawić ten formularz na swojej stronie koordynatora — pokaże tam tę samą listę.'

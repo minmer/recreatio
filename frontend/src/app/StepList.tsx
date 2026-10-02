@@ -19,7 +19,7 @@ import { FormCard } from './FormCard';
 import { newId } from './ids';
 import type { SeatView } from './seatContext';
 import {
-  dueText, markOwnStep, markStep, progressOf, saveSteps, stepsFor,
+  dueText, filledNow, markOwnStep, markStep, progressOf, saveSteps, stepsFor,
   type DoneBy, type ExtensionInfo, type OpenStep, type StepDraft, type StepState
 } from './steps';
 import { OwnSubmissions } from './Submission';
@@ -78,8 +78,9 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
         const states = stepsFor({
           hasSeat: true,
           confirmedAt: form.confirmedAt,
-          extensions: form.extensions.map((e) => ({ moduleId: e.moduleId, name: e.name, audience: 'person' as const })),
-          filled: new Map(form.extensions.flatMap((e) => (e.registrationId === null ? [] : [[e.moduleId, e.registrationId] as const]))),
+          extensions: form.extensions.map((e) => ({ moduleId: e.moduleId, name: e.name, audience: 'person' as const, repeat: e.repeat })),
+          /* 0077 — eine wiederkehrende Ergänzung ist erledigt, wenn sie es für den LAUFENDEN Zeitraum ist. */
+          filled: new Map(form.extensions.flatMap((e) => (e.registrationId === null || !filledNow(e.repeat, e) ? [] : [[e.moduleId, e.registrationId] as const]))),
           steps: form.steps,
           marks: form.marks
         }).filter((s) => s.visibleToPerson);

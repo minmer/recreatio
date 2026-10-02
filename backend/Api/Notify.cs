@@ -199,6 +199,15 @@ public static class Notify
                 FROM app.registration r
                 JOIN app.module m ON m.id = r.part_id
                 WHERE r.submitted_at > @since AND r.is_hidden = 0 AND r.withdrawn_at IS NULL
+                  /*
+                   * 0077 — nur, was ein MENSCH eingesandt hat. Was die Kanzlei
+                   * selbst eintraegt (jemanden auf die Liste, eine Erweiterung
+                   * „nur fuer den Koordinator", den Haken eines Monats), ist
+                   * keine Neuigkeit fuer sie — sonst meldete die Glocke jeden
+                   * eigenen Haken.
+                   */
+                  AND r.by_office = 0
+                  AND (r.access_id IS NOT NULL OR r.role_id IS NOT NULL OR r.claim_sha256 IS NOT NULL)
                   AND m.area_id IN ({names})
                 GROUP BY m.id, m.name
                 ORDER BY MAX(r.submitted_at) DESC;

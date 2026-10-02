@@ -17,7 +17,7 @@
 
 import { useState } from 'react';
 
-import type { OpenField } from './form';
+import { isYes, YES, type OpenField } from './form';
 import { missingIn, type GroupItem, type LayoutItem, type Outcome } from './formDesign';
 import { Phones } from './Phones';
 import { PostalInput } from './PostalInput';
@@ -193,6 +193,25 @@ function FieldRow({ fieldId, fields, answers, outcome, onAnswer }: FlowProps & {
       <div className={f.isHalfWidth ? 'wk-field wk-field-half' : 'wk-field'}>
         <span>{label}{required && ' *'}</span>
         <PostalInput value={value} onChange={set} />
+        {f.help !== null && <span className="wk-hint">{f.help}</span>}
+        {(outcome.messages.get(fieldId) ?? []).map((text, i) => <span className="wk-form-msg" key={i}>{text}</span>)}
+      </div>
+    );
+  }
+
+  /*
+   * 0077 — „TAK / NIE" IST EIN KÄSTCHEN. Bis hierher war diese Frage ein
+   * Textfeld: man tippte „tak" — oder „Tak", „x", „jest". Angekreuzt trägt sie
+   * `YES`, sonst nichts; was früher getippt wurde, liest `isYes` duldsam.
+   * „Wymagane" heisst hier: muss angekreuzt sein (eine Zustimmung).
+   */
+  if (f.kind === 'checkbox' && f.label !== null) {
+    return (
+      <div className={f.isHalfWidth ? 'wk-field wk-field-half' : 'wk-field'}>
+        <label className="wk-check">
+          <input type="checkbox" checked={isYes(value)} onChange={(e) => set(e.target.checked ? YES : '')} />
+          <span>{label}{required && ' *'}</span>
+        </label>
         {f.help !== null && <span className="wk-hint">{f.help}</span>}
         {(outcome.messages.get(fieldId) ?? []).map((text, i) => <span className="wk-form-msg" key={i}>{text}</span>)}
       </div>

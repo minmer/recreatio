@@ -256,7 +256,8 @@ async function formOf(me: Opener, row: DigestForm, since: string, shownCount: nu
   const after = Date.parse(since);
   const { registrations } = await loadRegistrations(row.moduleId);
   const fresh = registrations
-    .filter((r) => !r.hidden && r.withdrawnAt === null && Date.parse(r.submittedAt) > after)
+    /* 0077 — nur, was ein Mensch eingesandt hat: was die Kanzlei selbst einträgt, ist für sie keine Neuigkeit. */
+    .filter((r) => !r.hidden && r.withdrawnAt === null && r.byOffice !== true && Date.parse(r.submittedAt) > after)
     .sort((a, b) => Date.parse(b.submittedAt) - Date.parse(a.submittedAt))
     .slice(0, 6);
 

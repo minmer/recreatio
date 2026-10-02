@@ -115,8 +115,8 @@ public static class Module
                    (SELECT COUNT(*) FROM app.slug_field f WHERE f.part_id = m.id) AS fields,
                    (SELECT COUNT(*) FROM app.registration g WHERE g.part_id = m.id) AS entries,
 
-                   /* 0047 — erweitert es ein anderes Formular, und wer füllt es aus? */
-                   m.extends_id, m.audience
+                   /* 0047 — erweitert es ein anderes Formular, und wer füllt es aus? 0077 — wie oft? */
+                   m.extends_id, m.audience, m.repeat_kind
             FROM app.module m
             LEFT JOIN app.area a ON a.id = m.area_id
             WHERE
@@ -176,7 +176,10 @@ public static class Module
 
                 /* 0047 — die Erweiterung: wessen, und wer sie ausfüllt. */
                 extendsId = reader.IsDBNull(16) ? null : Ids.ToText(reader.GetGuid(16)),
-                audience = reader.GetString(17)
+                audience = reader.GetString(17),
+
+                /* 0077 — eine Erweiterung, die sich wiederholt: once, day, week, month, year. */
+                repeat = reader.GetString(18)
             });
         }
 
@@ -203,7 +206,10 @@ public static class Module
          * ausfüllt: `person` (der Mensch über seinen Link) oder `office`
          * (nur die Kanzlei).
          */
-        string? ExtendsId = null, string? Audience = null);
+        string? ExtendsId = null, string? Audience = null,
+
+        /* 0077 — wie oft die Erweiterung je Mensch ausgefüllt wird: once (Vorgabe), day, week, month, year. */
+        string? Repeat = null);
 
     /// <summary>Wovon ein Baustein handeln kann (0038).</summary>
     private static readonly string[] Subjects = ["none", "person", "group", "role"];
@@ -287,6 +293,7 @@ public static class Module
          */
         Guid? extendsId = null;
         var audience = "public";
+        var repeat = Rounds.Once;
 
         if (!string.IsNullOrWhiteSpace(body.ExtendsId))
         {
@@ -327,6 +334,21 @@ public static class Module
             extendsId = baseId;
             areaId ??= based.Value.AreaId;
             forKind = based.Value.ForKind;
+
+            /* 0077 — wie oft: einmal je Mensch, oder je Tag, Woche, Monat, Jahr. */
+            repeat = string.IsNullOrWhiteSpace(body.Repeat) ? Rounds.Once : body.Repeat.Trim().ToLowerInvariant();
+            if (!Rounds.IsKind(repeat))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest,
+                    "Powtarzanie: once, day, week, month albo year.");
+                return;
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(body.Repeat) && body.Repeat.Trim().ToLowerInvariant() != Rounds.Once)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                "Powtarza się tylko rozszerzenie — zwykły formularz jest samą listą osób.");
+            return;
         }
 
         if (areaId is not null
@@ -338,12 +360,13 @@ public static class Module
         }
 
         await using var cmd = new SqlCommand("""
-            INSERT INTO app.module (id, area_id, kind, name, config, created_at, for_kind, extends_id, audience)
-            VALUES (@id, @area, @kind, @name, @config, @now, @for, @extends, @audience);
+            INSERT INTO app.module (id, area_id, kind, name, config, created_at, for_kind, extends_id, audience, repeat_kind)
+            VALUES (@id, @area, @kind, @name, @config, @now, @for, @extends, @audience, @repeat);
             """, connection);
 
         cmd.Parameters.AddWithValue("@extends", (object?)extendsId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@audience", audience);
+        cmd.Parameters.AddWithValue("@repeat", repeat);
 
         cmd.Parameters.AddWithValue("@id", moduleId);
         cmd.Parameters.AddWithValue("@area", (object?)areaId ?? DBNull.Value);
@@ -383,7 +406,10 @@ public static class Module
         bool? Closed = null, ControllerIn? Controller = null, IReadOnlyList<ResealIn>? Reseal = null,
 
         /* 0043 — der Aufbau, unter dem Schluessel des neuen Bereichs. */
-        string? DesignSealed = null, int? DesignEpoch = null);
+        string? DesignSealed = null, int? DesignEpoch = null,
+
+        /* 0077 — wie oft eine Erweiterung ausgefüllt wird. Nur, solange nichts eingetragen ist. */
+        string? Repeat = null);
 
     /// <summary>
     /// Umbenennen, den Bereich setzen, die Einstellung aendern.
@@ -415,6 +441,41 @@ public static class Module
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "Tego modułu nie prowadzisz.");
             return;
+        }
+
+        /*
+         * 0077 — WIE OFT. Zu ändern nur an einer Erweiterung, und nur, solange
+         * nichts eingetragen ist: jede Einsendung trägt den Zeitraum IHRER Art,
+         * und ein „2026-10" passt in keine Woche.
+         */
+        string? repeat = null;
+
+        if (!string.IsNullOrWhiteSpace(body.Repeat))
+        {
+            repeat = body.Repeat.Trim().ToLowerInvariant();
+
+            if (!Rounds.IsKind(repeat))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Powtarzanie: once, day, week, month albo year.");
+                return;
+            }
+
+            if (repeat == found.Value.Repeat)
+            {
+                repeat = null;
+            }
+            else if (found.Value.ExtendsId is null)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "Powtarza się tylko rozszerzenie — zwykły formularz jest samą listą osób.");
+                return;
+            }
+            else if (found.Value.Entries > 0)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "To rozszerzenie ma już wpisy — powtarzanie zmienia się tylko w pustym.");
+                return;
+            }
         }
 
         Guid? areaId = found.Value.AreaId;
@@ -636,6 +697,7 @@ public static class Module
                        area_id = @area,
                        for_kind = @for,
                        config = CASE WHEN @config IS NULL THEN config ELSE @config END,
+                       repeat_kind = COALESCE(@repeat, repeat_kind),
                        closed_at = CASE WHEN @closed IS NULL THEN closed_at
                                         WHEN @closed = 1 THEN COALESCE(closed_at, @now)
                                         ELSE NULL END,
@@ -650,6 +712,7 @@ public static class Module
                 cmd.Parameters.AddWithValue("@area", (object?)areaId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@config", (object?)body.Config ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@closed", body.Closed is null ? DBNull.Value : body.Closed.Value);
+                cmd.Parameters.AddWithValue("@repeat", (object?)repeat ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
                 cmd.Parameters.AddWithValue("@touch", touchController ? 1 : 0);
                 cmd.Parameters.AddWithValue("@cName", (object?)controllerName ?? DBNull.Value);
@@ -784,7 +847,8 @@ public static class Module
 
     internal readonly record struct Row(
         Guid Id, Guid? AreaId, string Kind, string Name, string ForKind,
-        int Used, int Fields, int Entries, Guid? ExtendsId = null, string Audience = "public");
+        int Used, int Fields, int Entries, Guid? ExtendsId = null, string Audience = "public",
+        string Repeat = Rounds.Once);
 
     internal static async Task<Row?> ReadAsync(
         SqlConnection connection, Guid id, CancellationToken ct)
@@ -794,7 +858,7 @@ public static class Module
                    (SELECT COUNT(*) FROM app.slug_part p WHERE p.module_id = m.id),
                    (SELECT COUNT(*) FROM app.slug_field f WHERE f.part_id = m.id),
                    (SELECT COUNT(*) FROM app.registration g WHERE g.part_id = m.id),
-                   m.extends_id, m.audience
+                   m.extends_id, m.audience, m.repeat_kind
             FROM app.module m WHERE m.id = @id;
             """, connection);
 
@@ -808,7 +872,7 @@ public static class Module
             reader.IsDBNull(1) ? null : reader.GetGuid(1),
             reader.GetString(2), reader.GetString(3), reader.GetString(4),
             reader.GetInt32(5), reader.GetInt32(6), reader.GetInt32(7),
-            reader.IsDBNull(8) ? null : reader.GetGuid(8), reader.GetString(9));
+            reader.IsDBNull(8) ? null : reader.GetGuid(8), reader.GetString(9), reader.GetString(10));
     }
 
     /// <summary>

@@ -11,6 +11,7 @@
  * gezeichnet wurden. Was blieb, ist der Umgang mit dem Ding.
  */
 
+import type { Repeat } from './rounds';
 import { call } from './session';
 
 /**
@@ -106,6 +107,9 @@ export interface ModuleRow {
 
   /** Wer es ausfüllt (0047): jeder, der Mensch selbst als Ergänzung, oder nur die Kanzlei. */
   readonly audience: 'public' | 'person' | 'office';
+
+  /** 0077 — wie oft eine Erweiterung je Mensch ausgefüllt wird (`rounds.ts`). Fehlt es: einmal. */
+  readonly repeat?: Repeat;
 }
 
 /**
@@ -137,14 +141,19 @@ export const createModule = (
    * EINE ERWEITERUNG (0047): welches Formular, und wer sie ausfüllt. Bereich
    * und „wovon" übernimmt der Dienst vom erweiterten Formular.
    */
-  extension?: { readonly extendsId: string; readonly audience: 'person' | 'office' }
+  extension?: {
+    readonly extendsId: string; readonly audience: 'person' | 'office';
+    /** 0077 — einmal je Mensch, oder je Tag, Woche, Monat, Jahr. */
+    readonly repeat?: Repeat;
+  }
 ): Promise<{ moduleId: string }> =>
   call('/workspace/module', {
     method: 'POST',
     body: JSON.stringify({
       moduleId, kind, name, areaId, forKind, config: config ?? '{}',
       extendsId: extension?.extendsId ?? null,
-      audience: extension?.audience ?? null
+      audience: extension?.audience ?? null,
+      repeat: extension?.repeat ?? null
     })
   });
 
@@ -171,6 +180,9 @@ export const updateModule = (
     /** Der Aufbau, unter dem Schlüssel des neuen Bereichs (0043) — Pflicht, wenn es einen gibt. */
     designSealed?: string;
     designEpoch?: number;
+
+    /** 0077 — wie oft eine Erweiterung ausgefüllt wird. Nur, solange sie leer ist (sonst 409). */
+    repeat?: Repeat;
   }
 ): Promise<{ moduleId: string; areaId: string | null; name: string }> =>
   call(`/workspace/module/${encodeURIComponent(moduleId)}`, {

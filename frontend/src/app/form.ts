@@ -22,12 +22,23 @@ import {
 import { newId } from './ids';
 import { newLink, seatAad, type Link, type SubmittedValue } from './seat';
 import { sealLink } from './seatCheck';
+import type { Repeat } from './rounds';
 import { call } from './session';
 import type { SealedDesign } from './formDesign';
 import type { Controller } from './intake';
 
 export const FIELD_KINDS = ['line', 'text', 'choice', 'date', 'number', 'checkbox', 'email', 'phone'] as const;
 export type FieldKind = (typeof FIELD_KINDS)[number];
+
+/**
+ * „TAK" — was eine angekreuzte Frage der Art „Tak / nie" trägt (0077). Nicht
+ * angekreuzt ist leer. Gelesen wird duldsam: bis 0077 war diese Frage ein
+ * Textfeld, und in alten Einsendungen steht, was jemand tippte.
+ */
+export const YES = 'tak';
+
+export const isYes = (value: string | undefined | null): boolean =>
+  /^(tak|t|yes|y|true|1|x|✓|✔)$/i.test((value ?? '').trim());
 
 export const KIND_LABEL: Record<FieldKind, string> = {
   line: 'Jedna linia',
@@ -370,6 +381,9 @@ export interface PublicForm {
 
   /** Welches Formular dieses ergänzt — `null` bei einem gewöhnlichen. */
   readonly extendsId: string | null;
+
+  /** 0077 — wie oft eine Erweiterung je Mensch ausgefüllt wird (`rounds.ts`). Fehlt es: einmal. */
+  readonly repeat?: Repeat;
 }
 
 /** Wer ein Formular ausfüllt (0047). */
@@ -477,6 +491,9 @@ export interface SubmitTo {
    * `seat` — der Mensch ergänzt über SEINEN Link seine eigene Einsendung.
    */
   readonly baseRegistrationId?: string;
+
+  /** 0077 — bei einer WIEDERKEHRENDEN Ergänzung: der laufende Zeitraum (`roundOf`). */
+  readonly round?: string;
 }
 
 /**
@@ -611,7 +628,8 @@ export async function submitForm(
         seatToken: to.seat?.token ?? null,
         roleId: to.roleId ?? null,
         seat,
-        baseRegistrationId: to.baseRegistrationId ?? null
+        baseRegistrationId: to.baseRegistrationId ?? null,
+        round: to.round ?? null
       })
     });
 
@@ -714,12 +732,24 @@ export interface Submission {
   /** Bei einer Ergänzung (0047): die Einsendung, die sie erweitert. */
   readonly baseId: string | null;
 
-  /** Was diese Einsendung ergänzt — je Erweiterung höchstens eine (0047). */
+  /** 0077 — bei einer wiederkehrenden Erweiterung: für welchen Zeitraum (`''` sonst). */
+  readonly round?: string;
+
+  /** 0077 — die Kanzlei hat eingetragen (jemanden auf die Liste, oder eine Erweiterung für ihn). */
+  readonly byOffice?: boolean;
+
+  /**
+   * Was diese Einsendung ergänzt — je Erweiterung EINE Zeile: bei einer
+   * wiederkehrenden (0077) die JÜNGSTE, mit ihrem Zeitraum (`round`) und der
+   * Zahl aller (`rounds`).
+   */
   readonly extensions: readonly {
     readonly moduleId: string;
     readonly registrationId: string;
     readonly submittedAt: string;
     readonly confirmedAt: string | null;
+    readonly round?: string;
+    readonly rounds?: number;
   }[];
 
   /** Welche von Hand angelegten Schritte abgehakt sind (0047). */
@@ -734,9 +764,17 @@ export interface StepMark {
 }
 
 export const loadRegistrations = (
-  partId: string, withHidden = false
-): Promise<{ registrations: readonly Submission[] }> =>
-  call(`/workspace/part/${encodeURIComponent(partId)}/registrations${withHidden ? '?hidden=1' : ''}`);
+  partId: string, withHidden = false,
+
+  /** 0077 — nur ein Abschnitt der Zeit einer wiederkehrenden Erweiterung (beide einschliesslich). */
+  range?: { readonly from: string; readonly to: string }
+): Promise<{ registrations: readonly Submission[] }> => {
+  const q = new URLSearchParams();
+  if (withHidden) q.set('hidden', '1');
+  if (range !== undefined) { q.set('from', range.from); q.set('to', range.to); }
+  const tail = q.toString();
+  return call(`/workspace/part/${encodeURIComponent(partId)}/registrations${tail === '' ? '' : `?${tail}`}`);
+};
 
 /**
  * Aus der Liste nehmen — oder zurückholen.
@@ -1044,22 +1082,30 @@ async function sealEach(
 }
 
 /**
- * DIE KANZLEI FÜLLT EINE ERWEITERUNG AUS (0047) — für einen Menschen, zu
- * seiner Einsendung. Bei einer, die nur sie sieht, ohne Hülle für den Platz.
+ * DIE KANZLEI TRÄGT EIN — zwei Fälle, ein Weg.
+ *
+ * <b>Eine Erweiterung</b> (0047), für einen Menschen, zu seiner Einsendung
+ * (`baseRegistrationId`); bei einer, die nur sie sieht, ohne Hülle für den
+ * Platz. Bei einer WIEDERKEHRENDEN (0077) für einen Zeitraum (`round`).
+ *
+ * <b>Einen Menschen selbst</b> (0077), in ein gewöhnliches Formular —
+ * `baseRegistrationId` ist `null`. Wer am Telefon zusagt oder auf einem Zettel
+ * steht, kommt so auf die Liste; er hat dann keinen Link (keinen Platz).
  */
 export async function addOfficeEntry(
-  extensionId: string, baseRegistrationId: string, answers: readonly Answer[],
+  formId: string, baseRegistrationId: string | null, answers: readonly Answer[],
   keys: {
     readonly intakes: ReadonlyMap<string, Uint8Array>;
     readonly areaOf: ReadonlyMap<string, string>;
     readonly seatKey: Uint8Array | null;
-  }
+  },
+  round = ''
 ): Promise<{ registrationId: string }> {
   const values = await sealEach(answers.filter((a) => a.value.trim() !== ''), keys);
 
-  return call(`/workspace/part/${encodeURIComponent(extensionId)}/entry`, {
+  return call(`/workspace/part/${encodeURIComponent(formId)}/entry`, {
     method: 'POST',
-    body: JSON.stringify({ baseRegistrationId, values })
+    body: JSON.stringify({ baseRegistrationId, values, round })
   });
 }
 

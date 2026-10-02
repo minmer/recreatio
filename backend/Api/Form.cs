@@ -481,6 +481,7 @@ public static partial class Form
                 partId = Ids.ToText(id),
                 audience = shape.Value.Audience,
                 extendsId = Ids.ToText(shape.Value.ExtendsId!.Value),
+                repeat = shape.Value.Repeat,
                 forKind = "none",
                 closed = false,
                 controller = (object?)null,
@@ -561,7 +562,10 @@ public static partial class Form
 
             /* 0047 — ein Formular, das ein anderes erweitert, und wer es ausfüllt. */
             audience = shape?.Audience ?? "public",
-            extendsId = shape?.ExtendsId is Guid based ? Ids.ToText(based) : null
+            extendsId = shape?.ExtendsId is Guid based ? Ids.ToText(based) : null,
+
+            /* 0077 — wie oft eine Erweiterung ausgefüllt wird: once, day, week, month, year. */
+            repeat = shape?.Repeat ?? Rounds.Once
         });
     }
 
@@ -624,7 +628,10 @@ public static partial class Form
         SelfSeat? Seat,
 
         /* 0047 — welche Einsendung eine Erweiterung ergänzt. */
-        string? BaseRegistrationId = null);
+        string? BaseRegistrationId = null,
+
+        /* 0077 — für welchen Zeitraum (bei einer wiederkehrenden Erweiterung): der laufende. */
+        string? Round = null);
 
     /// <summary>
     /// Eine Einsendung — ohne Konto.
@@ -841,6 +848,7 @@ public static partial class Form
          */
         var shape = await ShapeAsync(connection, id, ctx.RequestAborted);
         Guid? baseId = null;
+        var round = string.Empty;
 
         if (shape?.Audience == "office")
         {
@@ -873,7 +881,22 @@ public static partial class Form
                 }
             }
 
-            if (await ExtensionOfAsync(connection, id, wanted, ctx.RequestAborted) is not null)
+            /*
+             * 0077 — EINE WIEDERKEHRENDE ERGÄNZUNG: der Mensch schreibt in den
+             * LAUFENDEN Zeitraum, einmal. Den Schlüssel rechnet sein Browser
+             * (er weiss, welcher Tag bei ihm ist); der Dienst nimmt nur einen,
+             * der gerade irgendwo auf der Welt gilt.
+             */
+            round = (body.Round ?? string.Empty).Trim();
+
+            if (!Rounds.Valid(shape.Value.Repeat, round) || !Rounds.Current(shape.Value.Repeat, round, DateTimeOffset.UtcNow))
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "To uzupełnienie wypełnia się za bieżący okres — odśwież stronę i spróbuj ponownie.");
+                return;
+            }
+
+            if (await ExtensionOfAsync(connection, id, wanted, round, ctx.RequestAborted) is not null)
             {
                 await Fail(ctx, StatusCodes.Status409Conflict,
                     "To jest już uzupełnione — popraw odpowiedzi w swoim zgłoszeniu.");
@@ -984,8 +1007,8 @@ public static partial class Form
 
             await using (var insert = new SqlCommand("""
                 INSERT INTO app.registration
-                    (id, part_id, access_id, role_id, claim_sha256, submitted_at, base_id, confirmed_at)
-                VALUES (@id, @part, @access, @role, @claim, @now, @base, @confirmed);
+                    (id, part_id, access_id, role_id, claim_sha256, submitted_at, base_id, confirmed_at, round_key)
+                VALUES (@id, @part, @access, @role, @claim, @now, @base, @confirmed, @round);
                 """, connection, tx))
             {
                 insert.Parameters.AddWithValue("@id", registrationId);
@@ -995,6 +1018,7 @@ public static partial class Form
                 insert.Parameters.AddBlob("@claim", claim);
                 insert.Parameters.AddWithValue("@now", now);
                 insert.Parameters.AddWithValue("@base", (object?)baseId ?? DBNull.Value);
+                insert.Parameters.AddWithValue("@round", round);
 
                 /* Eine Ergänzung hat er eben selbst getippt — sie muss er nicht noch einmal durchsehen. */
                 insert.Parameters.AddWithValue("@confirmed", baseId is null ? DBNull.Value : now);
@@ -1314,7 +1338,7 @@ public static partial class Form
          */
         var readable = fields.Where(f => mine.Contains(f.AreaId)).Select(f => f.Id).ToHashSet();
 
-        var rows = new List<(Guid Id, Guid? Seat, DateTimeOffset At, DateTimeOffset? Gone, bool Hidden, DateTimeOffset? Confirmed, Guid? Base)>();
+        var rows = new List<(Guid Id, Guid? Seat, DateTimeOffset At, DateTimeOffset? Gone, bool Hidden, DateTimeOffset? Confirmed, Guid? Base, string Round, bool ByOffice)>();
 
         /*
          * Versteckte kommen nur mit, wenn danach gefragt wird — sonst waere
@@ -1323,14 +1347,49 @@ public static partial class Form
          */
         var withHidden = ctx.Request.Query["hidden"] == "1";
 
+        /*
+         * 0077 — NUR EIN ABSCHNITT DER ZEIT. Eine wiederkehrende Erweiterung
+         * traegt je Mensch und Zeitraum eine Einsendung; nach ein paar Jahren
+         * sind das tausende. Die Liste fragt deshalb nach einem Abschnitt
+         * (from und to, beide einschliesslich) — die Schluessel einer Art
+         * ordnen sich als Text so, wie die Zeit laeuft.
+         */
+        var from = ctx.Request.Query["from"].ToString();
+        var to = ctx.Request.Query["to"].ToString();
+
+        if (from.Length > 10 || to.Length > 10)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny okres.");
+            return;
+        }
+
+        /*
+         * WELCHE Einsendungen — als EINE Bedingung, die alle Abfragen unten
+         * teilen. Vorher ging je Einsendung ein Parameter hinaus; bei 2100
+         * hoert der Server auf zu zaehlen.
+         */
+        var which = "part_id = @part"
+            + (withHidden ? "" : " AND is_hidden = 0")
+            + (from.Length == 0 ? "" : " AND round_key >= @from")
+            + (to.Length == 0 ? "" : " AND round_key <= @to");
+
+        void Bind(SqlCommand command)
+        {
+            command.Parameters.AddWithValue("@part", id);
+            if (from.Length > 0) command.Parameters.AddWithValue("@from", from);
+            if (to.Length > 0) command.Parameters.AddWithValue("@to", to);
+        }
+
+        var theseIds = $"SELECT id FROM app.registration WHERE {which}";
+
         await using (var cmd = new SqlCommand($"""
-            SELECT id, access_id, submitted_at, withdrawn_at, is_hidden, confirmed_at, base_id
+            SELECT id, access_id, submitted_at, withdrawn_at, is_hidden, confirmed_at, base_id, round_key, by_office
             FROM app.registration
-            WHERE part_id = @part {(withHidden ? "" : "AND is_hidden = 0")}
+            WHERE {which}
             ORDER BY submitted_at DESC;
             """, connection))
         {
-            cmd.Parameters.AddWithValue("@part", id);
+            Bind(cmd);
 
             await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
             while (await reader.ReadAsync(ctx.RequestAborted))
@@ -1342,7 +1401,9 @@ public static partial class Form
                     reader.IsDBNull(3) ? null : reader.GetDateTimeOffset(3),
                     reader.GetBoolean(4),
                     reader.IsDBNull(5) ? null : reader.GetDateTimeOffset(5),
-                    reader.IsDBNull(6) ? null : reader.GetGuid(6)));
+                    reader.IsDBNull(6) ? null : reader.GetGuid(6),
+                    reader.GetString(7),
+                    reader.GetBoolean(8)));
             }
         }
 
@@ -1350,13 +1411,11 @@ public static partial class Form
 
         if (rows.Count > 0)
         {
-            var names = string.Join(", ", rows.Select((_, i) => $"@r{i}"));
-
             await using var cmd = new SqlCommand(
                 $"SELECT registration_id, field_id, value_sealed, wrapped_key, office_key_sealed "
-                + $"FROM app.registration_value WHERE registration_id IN ({names});", connection);
+                + $"FROM app.registration_value WHERE registration_id IN ({theseIds});", connection);
 
-            for (var i = 0; i < rows.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", rows[i].Id);
+            Bind(cmd);
 
             await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
             while (await reader.ReadAsync(ctx.RequestAborted))
@@ -1400,13 +1459,11 @@ public static partial class Form
 
         if (rows.Count > 0)
         {
-            var names = string.Join(", ", rows.Select((_, i) => $"@c{i}"));
-
             await using var cmd = new SqlCommand(
                 $"SELECT registration_id, field_id, sent_at, expires_at, verified_at, origin "
-                + $"FROM app.value_check WHERE registration_id IN ({names});", connection);
+                + $"FROM app.value_check WHERE registration_id IN ({theseIds});", connection);
 
-            for (var i = 0; i < rows.Count; i++) cmd.Parameters.AddWithValue($"@c{i}", rows[i].Id);
+            Bind(cmd);
 
             await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
             while (await reader.ReadAsync(ctx.RequestAborted))
@@ -1429,9 +1486,8 @@ public static partial class Form
         }
 
         /* 0047 — was diese Einsendungen erweitert, und was an ihnen abgehakt ist. */
-        var ids = rows.Select(r => r.Id).ToList();
-        var extensions = await ExtensionsOfAsync(connection, ids, ctx.RequestAborted);
-        var stepMarks = await MarksOfAsync(connection, ids, ctx.RequestAborted);
+        var extensions = rows.Count == 0 ? [] : await ExtensionsOfAsync(connection, theseIds, Bind, ctx.RequestAborted);
+        var stepMarks = rows.Count == 0 ? [] : await MarksOfAsync(connection, theseIds, Bind, ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new
         {
@@ -1442,6 +1498,10 @@ public static partial class Form
 
                 /* Bei einer Erweiterung: die Einsendung, die sie ergänzt (0047). */
                 baseId = r.Base is null ? null : Ids.ToText(r.Base.Value),
+
+                /* 0077 — der Zeitraum einer wiederkehrenden Erweiterung ('' sonst), und ob die Kanzlei eingetragen hat. */
+                round = r.Round,
+                byOffice = r.ByOffice,
                 extensions = extensions.TryGetValue(r.Id, out var ext) ? ext : [],
                 marks = stepMarks.TryGetValue(r.Id, out var done) ? done : [],
                 seatId = r.Seat is null ? null : Ids.ToText(r.Seat.Value),

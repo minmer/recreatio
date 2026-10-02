@@ -39,63 +39,92 @@ public static partial class Form
 
     /* -- Was ein Formular ist -------------------------------------------------- */
 
-    /// <summary>Erweitert dieses Formular ein anderes, und wer fuellt es aus?</summary>
-    internal readonly record struct Shape(Guid? ExtendsId, string Audience);
+    /// <summary>Erweitert dieses Formular ein anderes, wer fuellt es aus — und wie oft (0077)?</summary>
+    internal readonly record struct Shape(Guid? ExtendsId, string Audience, string Repeat = Rounds.Once);
 
     internal static async Task<Shape?> ShapeAsync(SqlConnection connection, Guid moduleId, CancellationToken ct)
     {
         await using var cmd = new SqlCommand(
-            "SELECT extends_id, audience FROM app.module WHERE id = @id;", connection);
+            "SELECT extends_id, audience, repeat_kind FROM app.module WHERE id = @id;", connection);
         cmd.Parameters.AddWithValue("@id", moduleId);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;
 
-        return new Shape(reader.IsDBNull(0) ? null : reader.GetGuid(0), reader.GetString(1));
+        return new Shape(reader.IsDBNull(0) ? null : reader.GetGuid(0), reader.GetString(1), reader.GetString(2));
     }
 
-    /// <summary>Die Einsendung einer Erweiterung zu dieser Einsendung — oder <c>null</c>.</summary>
+    /// <summary>
+    /// Die Einsendung einer Erweiterung zu dieser Einsendung, fuer DIESEN
+    /// Zeitraum (0077; bei einer einmaligen der leere) — oder <c>null</c>.
+    /// </summary>
     private static async Task<Guid?> ExtensionOfAsync(
-        SqlConnection connection, Guid extensionId, Guid baseRegistrationId, CancellationToken ct)
+        SqlConnection connection, Guid extensionId, Guid baseRegistrationId, string round, CancellationToken ct)
     {
         await using var cmd = new SqlCommand(
-            "SELECT TOP 1 id FROM app.registration WHERE part_id = @part AND base_id = @base;", connection);
+            "SELECT TOP 1 id FROM app.registration WHERE part_id = @part AND base_id = @base AND round_key = @round;",
+            connection);
         cmd.Parameters.AddWithValue("@part", extensionId);
         cmd.Parameters.AddWithValue("@base", baseRegistrationId);
+        cmd.Parameters.AddWithValue("@round", round);
 
         return await cmd.ExecuteScalarAsync(ct) is Guid found ? found : null;
     }
 
-    /// <summary>Je Einsendung: was sie erweitert — welche Erweiterung, welche Einsendung, wann.</summary>
+    /// <summary>
+    /// Je Einsendung: was sie erweitert — welche Erweiterung, welche Einsendung, wann.
+    ///
+    /// <para>
+    /// <b>Je Erweiterung EINE Zeile: die juengste</b> (0077). Eine wiederkehrende
+    /// Erweiterung haette sonst je Mensch hunderte — und gefragt ist hier nur,
+    /// ob der LAUFENDE Zeitraum ausgefuellt ist. Weil nichts in die Zukunft
+    /// eingetragen wird, ist das genau dann der Fall, wenn die juengste ihn
+    /// traegt (<c>round</c>). <c>rounds</c> sagt, wie viele es insgesamt sind.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>baseIdsSql</c>: eine Unterabfrage, die die Einsendungen nennt — keine
+    /// Liste von Parametern: eine Liste mit 2100 Menschen sprengte sie.
+    /// </para>
+    /// </summary>
     private static async Task<Dictionary<Guid, List<object>>> ExtensionsOfAsync(
-        SqlConnection connection, IReadOnlyList<Guid> registrationIds, CancellationToken ct)
+        SqlConnection connection, string baseIdsSql, Action<SqlCommand> bind, CancellationToken ct)
     {
         var out_ = new Dictionary<Guid, List<object>>();
-        if (registrationIds.Count == 0) return out_;
-
-        var names = string.Join(", ", registrationIds.Select((_, i) => $"@b{i}"));
 
         await using var cmd = new SqlCommand($"""
-            SELECT base_id, part_id, id, submitted_at, confirmed_at
-            FROM app.registration
-            WHERE base_id IN ({names});
+            SELECT x.base_id, x.part_id, x.id, x.submitted_at, x.confirmed_at, x.round_key, x.n
+            FROM (
+                SELECT r.base_id, r.part_id, r.id, r.submitted_at, r.confirmed_at, r.round_key,
+                       ROW_NUMBER() OVER (PARTITION BY r.base_id, r.part_id ORDER BY r.round_key DESC, r.submitted_at DESC) AS place,
+                       COUNT(*) OVER (PARTITION BY r.base_id, r.part_id) AS n
+                FROM app.registration r
+                WHERE r.base_id IN ({baseIdsSql})
+            ) x
+            WHERE x.place = 1;
             """, connection);
 
-        for (var i = 0; i < registrationIds.Count; i++) cmd.Parameters.AddWithValue($"@b{i}", registrationIds[i]);
+        bind(cmd);
 
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
-            var key = reader.GetGuid(0);
-            if (!out_.TryGetValue(key, out var list)) out_[key] = list = [];
-
-            list.Add(new
+            while (await reader.ReadAsync(ct))
             {
-                moduleId = Ids.ToText(reader.GetGuid(1)),
-                registrationId = Ids.ToText(reader.GetGuid(2)),
-                submittedAt = reader.GetDateTimeOffset(3),
-                confirmedAt = reader.IsDBNull(4) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(4)
-            });
+                var key = reader.GetGuid(0);
+                if (!out_.TryGetValue(key, out var list)) out_[key] = list = [];
+
+                list.Add(new
+                {
+                    moduleId = Ids.ToText(reader.GetGuid(1)),
+                    registrationId = Ids.ToText(reader.GetGuid(2)),
+                    submittedAt = reader.GetDateTimeOffset(3),
+                    confirmedAt = reader.IsDBNull(4) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(4),
+
+                    /* 0077 — der Zeitraum der juengsten Einsendung, und wie viele es gibt. */
+                    round = reader.GetString(5),
+                    rounds = reader.GetInt32(6)
+                });
+            }
         }
 
         return out_;
@@ -103,20 +132,17 @@ public static partial class Form
 
     /// <summary>Je Einsendung: welche Schritte abgehakt sind, wann, und ob vom Menschen selbst.</summary>
     private static async Task<Dictionary<Guid, List<object>>> MarksOfAsync(
-        SqlConnection connection, IReadOnlyList<Guid> registrationIds, CancellationToken ct)
+        SqlConnection connection, string registrationIdsSql, Action<SqlCommand> bind, CancellationToken ct)
     {
         var out_ = new Dictionary<Guid, List<object>>();
-        if (registrationIds.Count == 0) return out_;
-
-        var names = string.Join(", ", registrationIds.Select((_, i) => $"@m{i}"));
 
         await using var cmd = new SqlCommand($"""
             SELECT registration_id, step_id, done_at, by_person
             FROM app.step_mark
-            WHERE registration_id IN ({names});
+            WHERE registration_id IN ({registrationIdsSql});
             """, connection);
 
-        for (var i = 0; i < registrationIds.Count; i++) cmd.Parameters.AddWithValue($"@m{i}", registrationIds[i]);
+        bind(cmd);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
@@ -187,7 +213,7 @@ public static partial class Form
         var out_ = new List<object>();
 
         await using var cmd = new SqlCommand($"""
-            SELECT id, name, audience, closed_at, created_at
+            SELECT id, name, audience, closed_at, created_at, repeat_kind
             FROM app.module
             WHERE extends_id = @m {(audience is null ? "" : "AND audience = @audience")}
             ORDER BY created_at;
@@ -203,7 +229,10 @@ public static partial class Form
                 moduleId = Ids.ToText(reader.GetGuid(0)),
                 name = reader.GetString(1),
                 audience = reader.GetString(2),
-                closed = !reader.IsDBNull(3)
+                closed = !reader.IsDBNull(3),
+
+                /* 0077 — wie oft sie je Mensch ausgefuellt wird. */
+                repeat = reader.GetString(5)
             });
         }
 
@@ -479,32 +508,52 @@ public static partial class Form
 
     /* -- Was nur die Kanzlei ausfuellt ------------------------------------------------ */
 
-    public sealed record EntryRequest(string BaseRegistrationId, IReadOnlyList<ValueIn>? Values);
+    public sealed record EntryRequest(
+        string? BaseRegistrationId, IReadOnlyList<ValueIn>? Values,
+
+        /* 0077 — fuer welchen Zeitraum (bei einer wiederkehrenden Erweiterung): 2026-10, 2026-W40, … */
+        string? Round = null);
 
     /// <summary>
-    /// DIE KANZLEI FUELLT EINE ERWEITERUNG AUS — fuer einen Menschen, zu seiner
-    /// Einsendung.
+    /// DIE KANZLEI TRAEGT EIN — zwei Faelle, ein Weg.
     ///
     /// <para>
+    /// <b>Eine Erweiterung, fuer einen Menschen, zu seiner Einsendung</b> (0047).
     /// Eine Erweiterung „nur fuer den Koordinator" ist genau das: seine Notizen
     /// zu jedem Kandidaten. Die Werte gehen unter die Annahme ihres Bereichs wie
     /// jede Antwort; eine Huelle fuer den Platz gibt es NICHT — der Mensch sieht
     /// davon nichts. Fuellt die Kanzlei eine Erweiterung aus, die sonst der
     /// Mensch ausfuellt (er hat es auf Papier gebracht), darf sie die Huelle fuer
     /// seinen Platz mitschicken; dann liest er es wie seine eigene Angabe.
+    /// Einmal je Mensch — und bei einer WIEDERKEHRENDEN (0077) einmal je Mensch
+    /// und Zeitraum (<c>round</c>); danach berichtigt sie, wie jede Einsendung.
     /// </para>
     ///
-    /// <para>Einmal je Mensch — danach berichtigt sie, wie jede Einsendung.</para>
+    /// <para>
+    /// <b>Einen Menschen selbst, in ein gewoehnliches Formular</b> (0077) — ohne
+    /// <c>baseRegistrationId</c>. Wer am Telefon zusagt, auf einem Zettel steht
+    /// oder gar nicht selbst handelt (ein Kranker, den der Priester besucht),
+    /// kommt so auf die Liste: eine Einsendung ohne Platz, Rolle und Quittung
+    /// (<c>by_office</c>). Das gilt auch fuer ein geschlossenes Formular — zu
+    /// ist es fuer die, die sich selbst eintragen.
+    /// </para>
     /// </summary>
     private static async Task EntryAsync(HttpContext ctx, Db db, Guid id, EntryRequest body)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
-        if (!Guid.TryParse(body.BaseRegistrationId, out var baseId))
+        Guid? baseId = null;
+
+        if (!string.IsNullOrWhiteSpace(body.BaseRegistrationId))
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelne zgłoszenie.");
-            return;
+            if (!Guid.TryParse(body.BaseRegistrationId, out var given))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelne zgłoszenie.");
+                return;
+            }
+
+            baseId = given;
         }
 
         var values = body.Values ?? [];
@@ -532,37 +581,74 @@ public static partial class Form
         }
 
         var shape = await ShapeAsync(connection, id, ctx.RequestAborted);
-        if (shape?.ExtendsId is not Guid baseModule)
+        if (shape is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego formularza nie ma.");
+            return;
+        }
+
+        var extension = shape.Value.ExtendsId is not null;
+
+        if (extension && baseId is null)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                "To rozszerzenie — wpis należy do zgłoszenia, które uzupełnia.");
+            return;
+        }
+
+        if (!extension && baseId is not null)
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Ten formularz niczego nie rozszerza.");
             return;
         }
 
-        Guid? access;
+        /* 0077 — der Zeitraum: seiner Art entsprechend, und nie aus der Zukunft. */
+        var round = (body.Round ?? string.Empty).Trim();
+        var now = DateTimeOffset.UtcNow;
 
-        await using (var find = new SqlCommand(
-            "SELECT access_id FROM app.registration WHERE id = @base AND part_id = @part;", connection))
+        if (!Rounds.Valid(shape.Value.Repeat, round))
         {
-            find.Parameters.AddWithValue("@base", baseId);
-            find.Parameters.AddWithValue("@part", baseModule);
-
-            await using var reader = await find.ExecuteReaderAsync(ctx.RequestAborted);
-            if (!await reader.ReadAsync(ctx.RequestAborted))
-            {
-                await Fail(ctx, StatusCodes.Status404NotFound, "Nie ma zgłoszenia, które to uzupełnia.");
-                return;
-            }
-
-            access = reader.IsDBNull(0) ? null : reader.GetGuid(0);
-        }
-
-        if (await ExtensionOfAsync(connection, id, baseId, ctx.RequestAborted) is not null)
-        {
-            await Fail(ctx, StatusCodes.Status409Conflict, "To jest już uzupełnione — popraw odpowiedzi.");
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                shape.Value.Repeat == Rounds.Once
+                    ? "Ten formularz wypełnia się raz — bez okresu."
+                    : "Nieczytelny okres wpisu.");
             return;
         }
 
-        var person = shape.Value.Audience == "person";
+        if (!Rounds.NotAhead(shape.Value.Repeat, round, now))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, "Ten okres jeszcze się nie zaczął.");
+            return;
+        }
+
+        Guid? access = null;
+
+        if (baseId is not null)
+        {
+            await using (var find = new SqlCommand(
+                "SELECT access_id FROM app.registration WHERE id = @base AND part_id = @part;", connection))
+            {
+                find.Parameters.AddWithValue("@base", baseId.Value);
+                find.Parameters.AddWithValue("@part", shape.Value.ExtendsId!.Value);
+
+                await using var reader = await find.ExecuteReaderAsync(ctx.RequestAborted);
+                if (!await reader.ReadAsync(ctx.RequestAborted))
+                {
+                    await Fail(ctx, StatusCodes.Status404NotFound, "Nie ma zgłoszenia, które to uzupełnia.");
+                    return;
+                }
+
+                access = reader.IsDBNull(0) ? null : reader.GetGuid(0);
+            }
+
+            if (await ExtensionOfAsync(connection, id, baseId.Value, round, ctx.RequestAborted) is not null)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, "To jest już uzupełnione — popraw odpowiedzi.");
+                return;
+            }
+        }
+
+        var person = extension && shape.Value.Audience == "person";
         var fields = await ReadFieldsAsync(connection, id, ctx.RequestAborted);
         var known = fields.Select(f => f.Id).ToHashSet();
         var parsed = new List<(Guid Field, byte[] Sealed, byte[] Wrapped, byte[]? ForSeat)>();
@@ -584,15 +670,14 @@ public static partial class Form
         }
 
         var registrationId = Ids.NewId();
-        var now = DateTimeOffset.UtcNow;
 
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
 
         try
         {
             await using (var insert = new SqlCommand("""
-                INSERT INTO app.registration (id, part_id, access_id, submitted_at, base_id)
-                VALUES (@id, @part, @access, @now, @base);
+                INSERT INTO app.registration (id, part_id, access_id, submitted_at, base_id, round_key, by_office)
+                VALUES (@id, @part, @access, @now, @base, @round, @byOffice);
                 """, connection, tx))
             {
                 insert.Parameters.AddWithValue("@id", registrationId);
@@ -601,7 +686,9 @@ public static partial class Form
                 /* Nur was der Mensch sieht, haengt an seinem Platz. */
                 insert.Parameters.AddWithValue("@access", person && access is not null ? access.Value : DBNull.Value);
                 insert.Parameters.AddWithValue("@now", now);
-                insert.Parameters.AddWithValue("@base", baseId);
+                insert.Parameters.AddWithValue("@base", (object?)baseId ?? DBNull.Value);
+                insert.Parameters.AddWithValue("@round", round);
+                insert.Parameters.AddWithValue("@byOffice", true);
                 await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
             }
 
@@ -635,7 +722,12 @@ public static partial class Form
             throw;
         }
 
-        await ctx.Response.WriteAsJsonAsync(new { registrationId = Ids.ToText(registrationId), baseId = Ids.ToText(baseId) });
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            registrationId = Ids.ToText(registrationId),
+            baseId = baseId is null ? null : Ids.ToText(baseId.Value),
+            round
+        });
     }
 
     /* -- Fuer den Platz: was zu tun ist ----------------------------------------------- */
@@ -680,9 +772,14 @@ public static partial class Form
             var extensions = new List<object>();
 
             await using (var cmd = new SqlCommand("""
-                SELECT m.id, m.name, m.closed_at,
-                       (SELECT TOP 1 x.id FROM app.registration x WHERE x.part_id = m.id AND x.base_id = @reg)
+                SELECT m.id, m.name, m.closed_at, x.id, m.repeat_kind, x.round_key
                 FROM app.module m
+                OUTER APPLY (
+                    /* 0077 — die juengste: bei einer wiederkehrenden die des letzten Zeitraums. */
+                    SELECT TOP 1 r.id, r.round_key FROM app.registration r
+                    WHERE r.part_id = m.id AND r.base_id = @reg
+                    ORDER BY r.round_key DESC, r.submitted_at DESC
+                ) x
                 WHERE m.extends_id = @part AND m.audience = N'person'
                 ORDER BY m.created_at;
                 """, connection))
@@ -698,7 +795,11 @@ public static partial class Form
                         moduleId = Ids.ToText(reader.GetGuid(0)),
                         name = reader.GetString(1),
                         closed = !reader.IsDBNull(2),
-                        registrationId = reader.IsDBNull(3) ? null : Ids.ToText(reader.GetGuid(3))
+                        registrationId = reader.IsDBNull(3) ? null : Ids.ToText(reader.GetGuid(3)),
+
+                        /* 0077 — wie oft, und welchen Zeitraum die juengste Einsendung traegt. */
+                        repeat = reader.GetString(4),
+                        round = reader.IsDBNull(5) ? null : reader.GetString(5)
                     });
                 }
             }

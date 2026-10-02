@@ -17,6 +17,7 @@ import { readConfig, updateModule, type ModuleRow } from './module';
 import { configFromJson, documentKind, exportModule, moduleDescription, replacing } from './pageJson';
 import { partLabel } from './parts/registry';
 import { asRecord, asText, count } from './event/kit';
+import { REPEAT_LABEL, REPEATS, repeatOf, type Repeat } from './rounds';
 import type { Who } from './session';
 
 /**
@@ -56,7 +57,7 @@ export function QuestionOptions({ answersTo, onAnswersTo, replace, onReplace }: 
 }
 
 /** Der Inhalt eines Dokuments für dieses Modul — aus einem Modul, einem Eintrag einer Seite oder als blosser Inhalt. */
-function contentOf(doc: unknown, kind: string): { config?: unknown; name?: string; questions?: unknown; design?: unknown } | { error: string } {
+function contentOf(doc: unknown, kind: string): { config?: unknown; name?: string; questions?: unknown; design?: unknown; repeat?: Repeat } | { error: string } {
   const root = asRecord(doc);
   const said = documentKind(doc);
   if (said === 'page' || said === 'legacy') return { error: 'To dokument całej strony — importuj go w edytorze strony.' };
@@ -68,7 +69,9 @@ function contentOf(doc: unknown, kind: string): { config?: unknown; name?: strin
     ...(wrapped ? { config: root.config } : said === 'unknown' && !has('questions') && !has('design') ? { config: root } : {}),
     ...(asText(root.name).trim() !== '' ? { name: asText(root.name).trim() } : {}),
     ...(has('questions') ? { questions: root.questions } : {}),
-    ...(has('design') ? { design: root.design } : {})
+    ...(has('design') ? { design: root.design } : {}),
+    /* 0077 — wie oft eine Erweiterung ausgefüllt wird. Ein unbekanntes Wort ist keines. */
+    ...((REPEATS as readonly string[]).includes(asText(root.repeat)) ? { repeat: asText(root.repeat) as Repeat } : {})
   };
 }
 
@@ -94,6 +97,11 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
         if (content.design !== undefined) lines.push(content.design === null ? 'Układ: zwykła lista.' : 'Układ i logika: z dokumentu.');
       }
     }
+    if (content.repeat !== undefined && content.repeat !== repeatOf(row.repeat)) {
+      if (row.extendsId === null) warnings.push('"repeat" ma tylko rozszerzenie formularza — pominięte.');
+      else if (row.entries > 0) warnings.push('To rozszerzenie ma już wpisy — "repeat" zostaje bez zmian.');
+      else lines.push(`Powtarzanie: ${REPEAT_LABEL[content.repeat]}.`);
+    }
     if (asText(asRecord(doc).id) !== '' && asText(asRecord(doc).id) !== row.moduleId) {
       warnings.push('Dokument pochodzi z innego modułu — jego treść zostanie przeniesiona tutaj.');
     }
@@ -111,6 +119,11 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
       stage('Zmiana nazwy…');
       await updateModule(row.moduleId, { name: content.name });
       lines.push(`Nazwa: „${content.name}”.`);
+    }
+    if (content.repeat !== undefined && content.repeat !== repeatOf(row.repeat) && row.extendsId !== null && row.entries === 0) {
+      stage('Zmiana powtarzania…');
+      await updateModule(row.moduleId, { repeat: content.repeat });
+      lines.push(`Powtarzanie: ${REPEAT_LABEL[content.repeat]}.`);
     }
     if (content.config !== undefined) {
       const patch = replacing(readConfig(row.config), configFromJson(row.kind, content.config));
@@ -136,7 +149,7 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
       lead={<>Nazwa i treść tego modułu{form ? ', jego pytania i układ' : ''} jako JSON. Import zmienia ten moduł na każdej stronie, na której stoi — bez tworzenia go od nowa.</>}
       fileName={`modul-${row.kind}-${row.moduleId.slice(0, 8)}.json`}
       exportDoc={async () => exportModule(
-        { moduleId: row.moduleId, kind: row.kind, name: row.name, config: readConfig(row.config) },
+        { moduleId: row.moduleId, kind: row.kind, name: row.name, config: readConfig(row.config), extendsId: row.extendsId, audience: row.audience, repeat: repeatOf(row.repeat) },
         form ? await readFormContent(who, row.moduleId) : undefined
       )}
       description={() => moduleDescription(row.kind)}

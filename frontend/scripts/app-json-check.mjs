@@ -28,6 +28,7 @@ await writeFile(entry, `
 export { PARTS, partOf } from '${app}parts/registry';
 export * from '${app}pageJson';
 export { QUESTION_EXAMPLE, QUESTION_KEYS, readQuestions } from '${app}formJson';
+export { ENTRIES_FORMAT, ENTRIES_KEYS, ONCE_KEY, answerKeys, entriesDescription, exportEntries, planEntries } from '${app}entriesJson';
 export { BREAKPOINTS } from '${app}layout';
 `);
 await build({
@@ -233,6 +234,91 @@ try {
   assert.equal(example.parts.length, m.pageExample().modules.length);
   assert.ok(example.forms.size === 1, 'the example form carries questions');
   ok('descriptions: every kind and every key, for page, part and module; the page example imports cleanly');
+
+  {
+  /* -- 0077: eine Erweiterung, die sich wiederholt — im JSON des Moduls ----------------- */
+  const extModule = m.exportModule({ moduleId: 'e1', kind: 'form', name: 'Odwiedziny', config: {}, extendsId: 'b1', audience: 'office', repeat: 'month' });
+  assert.equal(extModule.repeat, 'month');
+  assert.equal(extModule.extends, 'b1');
+  assert.equal(extModule.audience, 'office');
+  assert.equal('repeat' in m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Chorzy', config: {} }), false, 'a plain form carries no repeat');
+  for (const key of ['"repeat" — ', '"extends", "audience" — ']) assert.ok(m.moduleDescription('form').includes(key), `form module description explains ${key}`);
+  ok('module JSON: an extension says what it extends, who fills it and how often');
+
+  /* -- 0077: die Liste eines Formulars als JSON ------------------------------------------- */
+  const field = (fieldId, label, kind = 'line', identityRole = 'none', options = []) =>
+    ({ fieldId, label, kind, identityRole, options, help: null, areaId: 'a', labelAreaId: 'a', labelEpoch: 1, epoch: 1, position: 0, isRequired: false, isHalfWidth: false, selfEdit: true, linkCheck: false, labelSealed: '', helpSealed: null, optionsSealed: null });
+  const baseFields = [field('f-imie', 'Imię', 'line', 'given_name'), field('f-nazw', 'Nazwisko', 'line', 'surname'), field('f-adres', 'Adres', 'line', 'address'), field('f-uw', 'Uwagi', 'text'), field('f-uw2', 'Uwagi', 'text')];
+  const visitFields = [field('v-k', 'Komunia', 'checkbox'), field('v-s', 'Spowiedź', 'checkbox'), field('v-n', 'Namaszczenie', 'checkbox'), field('v-u', 'Uwagi', 'text')];
+  const noteFields = [field('n-1', 'Notatka', 'text')];
+  const ctx = {
+    formId: 'form-1', formName: 'Chorzy', fields: baseFields,
+    extensions: [
+      { moduleId: 'ext-visits', name: 'Odwiedziny', audience: 'office', repeat: 'month', fields: visitFields },
+      { moduleId: 'ext-notes', name: 'Notatki', audience: 'office', repeat: 'once', fields: noteFields },
+      { moduleId: 'ext-self', name: 'Ankieta', audience: 'person', repeat: 'once', fields: noteFields }
+    ],
+    existing: [
+      {
+        registrationId: 'r-anna', hasSeat: false,
+        answers: new Map([['f-imie', 'Anna'], ['f-nazw', 'Kowalska'], ['f-adres', 'ul. Długa 5']]),
+        records: new Map([
+          ['ext-visits', new Map([['2026-09', { registrationId: 'x-1', values: new Map([['v-k', 'tak'], ['v-u', 'słaba']]) }]])],
+          ['ext-notes', new Map([['', { registrationId: 'x-2', values: new Map([['n-1', 'dzwonić przed']]) }]])]
+        ])
+      },
+      { registrationId: 'r-jan', hasSeat: true, answers: new Map([['f-imie', 'Jan'], ['f-nazw', 'Nowak']]), records: new Map() }
+    ]
+  };
+  const at = new Date(2026, 9, 2, 12, 0, 0);
+
+  const keysOf = m.answerKeys(baseFields);
+  assert.equal(keysOf.get('f-imie'), 'Imię');
+  assert.equal(keysOf.get('f-uw'), 'f-uw', 'two questions with one label fall back to their ids');
+
+  const exported = m.exportEntries(ctx);
+  assert.equal(exported.format, m.ENTRIES_FORMAT);
+  assert.deepEqual(exported.entries[0].answers, { 'Imię': 'Anna', 'Nazwisko': 'Kowalska', 'Adres': 'ul. Długa 5' });
+  assert.deepEqual(exported.entries[0].records, { Odwiedziny: { '2026-09': { Komunia: true, Uwagi: 'słaba' } }, Notatki: { [m.ONCE_KEY]: { Notatka: 'dzwonić przed' } } });
+  assert.equal('records' in exported.entries[1], false);
+
+  const again = m.planEntries(exported, ctx, at);
+  assert.deepEqual([again.add.length, again.change.length, again.recordsNew.length, again.recordsChange.length, again.warnings.length], [0, 0, 0, 0, 0], 'an export imports as "nothing to change"');
+
+  const plan = m.planEntries({
+    format: m.ENTRIES_FORMAT, version: 1,
+    entries: [
+      { id: 'r-anna', answers: { Adres: 'ul. Krótka 1', 'Imię': 'Anna' }, records: { Odwiedziny: { '2026-09': { Komunia: false, 'Spowiedź': true }, '2026-10': { Komunia: true, Namaszczenie: 'tak' }, '2026-11': { Komunia: true }, '2026-13': { Komunia: true } }, Ankieta: { once: { Notatka: 'x' } }, Brak: {} } },
+      { answers: { 'imię': 'Jan', Nazwisko: 'Nowak', Adres: 'ul. Nowa 2' } },
+      { answers: { 'Imię': 'Maria', Nazwisko: 'Wiśniewska', Telefon: '600' }, records: { odwiedziny: { '2026-10': { Komunia: true } } } },
+      { answers: {} },
+      'not an entry'
+    ]
+  }, ctx, at);
+  assert.equal(plan.add.length, 1);
+  assert.equal(plan.add[0].name, 'Maria Wiśniewska');
+  assert.deepEqual(plan.add[0].answers, [{ fieldId: 'f-imie', value: 'Maria' }, { fieldId: 'f-nazw', value: 'Wiśniewska' }]);
+  assert.deepEqual(plan.change, [{ registrationId: 'r-anna', answers: [{ fieldId: 'f-adres', value: 'ul. Krótka 1' }] }], 'only what differs is revised');
+  assert.deepEqual(plan.recordsChange, [{ extensionId: 'ext-visits', registrationId: 'x-1', answers: [{ fieldId: 'v-k', value: '' }, { fieldId: 'v-s', value: 'tak' }] }]);
+  assert.deepEqual(plan.recordsNew, [
+    { extensionId: 'ext-visits', base: { registrationId: 'r-anna' }, round: '2026-10', answers: [{ fieldId: 'v-k', value: 'tak' }, { fieldId: 'v-n', value: 'tak' }] },
+    { extensionId: 'ext-visits', base: { ref: 0 }, round: '2026-10', answers: [{ fieldId: 'v-k', value: 'tak' }] }
+  ]);
+  const said = plan.warnings.join('\n');
+  for (const part of ['jeszcze się nie zaczął', '„2026-13”', 'wypełnia osoba przez swój link', 'nie ma rozszerzenia „Brak”', 'nie ma pytania „Telefon”', 'bez żadnej odpowiedzi', 'to nie jest obiekt', 'dopasowan', 'własny link']) {
+    assert.ok(said.includes(part), `a warning says: ${part}\n${said}`);
+  }
+  assert.ok('error' in m.planEntries({ format: 'recreatio/page', entries: [] }, ctx, at));
+  assert.ok('error' in m.planEntries({ format: m.ENTRIES_FORMAT }, ctx, at));
+
+  const listDoc = m.entriesDescription(ctx, at);
+  for (const key of Object.keys(m.ENTRIES_KEYS)) assert.ok(listDoc.includes(`"${key}" — `), `list description explains ${key}`);
+  for (const part of ['"Imię" — ', '"Odwiedziny" — co miesiąc', '"Komunia" — tak / nie', '"2026-10"', '"Notatki" — jednorazowe']) assert.ok(listDoc.includes(part), `list description names ${part}`);
+  assert.ok(!listDoc.includes('"Ankieta"'), 'extensions the person fills are not offered for import');
+  const fromExample = m.planEntries(JSON.parse(listDoc.slice(listDoc.indexOf('Przykład:') + 'Przykład:'.length)), { ...ctx, existing: [] }, at);
+  assert.ok(!('error' in fromExample) && fromExample.warnings.length === 0 && fromExample.add.length === 2 && fromExample.recordsNew.length === 1, 'the example in the list description imports cleanly');
+  ok('list JSON: export round-trips, new and changed people, records per period, warnings, a description built from the form');
+  }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;
   await rm(workspace, { recursive: true, force: true });

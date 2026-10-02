@@ -16,6 +16,45 @@ internal static class PlatformChecks
         Catalog(check);
         LinkAims(check);
         PushAssertion(check);
+        RoundKeys(check);
+    }
+
+    /// <summary>0077 — der Zeitraum einer wiederkehrenden Erweiterung: dieselbe Tabelle wie rounds.ts.</summary>
+    private static void RoundKeys(Action<bool, string> check)
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "round-keys.json");
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+
+        foreach (var row in doc.RootElement.GetProperty("keys").EnumerateArray())
+        {
+            var day = DateOnly.ParseExact(row.GetProperty("date").GetString()!, "yyyy-MM-dd");
+            foreach (var kind in new[] { "day", "week", "month", "year" })
+            {
+                var expected = row.GetProperty(kind).GetString();
+                var got = Rounds.Of(kind, day);
+                check(got == expected, $"round {kind} of {day:yyyy-MM-dd} → {expected} (got {got})");
+                check(Rounds.Valid(kind, got), $"round {kind} {got} is valid");
+            }
+            check(Rounds.Of("once", day) == "", "round once has no key");
+        }
+
+        foreach (var row in doc.RootElement.GetProperty("valid").EnumerateArray())
+        {
+            var kind = row[0].GetString()!;
+            var round = row[1].GetString();
+            var expected = row[2].GetBoolean();
+            check(Rounds.IsKind(kind) && Rounds.Valid(kind, round) == expected || !Rounds.IsKind(kind) && !expected,
+                $"round {kind} \"{round}\" valid = {expected}");
+        }
+
+        var now = DateTimeOffset.Parse("2026-10-31T11:00:00Z");
+        check(Rounds.NotAhead("month", "2026-10", now), "round: the running month is not ahead");
+        check(Rounds.NotAhead("month", "2026-11", now), "round: at UTC+14 November has already begun");
+        check(!Rounds.NotAhead("month", "2026-12", now), "round: a month that has begun nowhere is refused");
+        check(Rounds.NotAhead("month", "2025-03", now), "round: the past is always allowed (for the office)");
+        check(Rounds.Current("month", "2026-10", now) && Rounds.Current("month", "2026-11", now), "round: a person writes into the month that runs somewhere");
+        check(!Rounds.Current("month", "2026-09", now), "round: a person does not write into last month");
+        check(Rounds.Current("once", "", now) && !Rounds.Current("once", "2026-10", now), "round: once has only the empty key");
     }
 
     private static void Invites(Action<bool, string> check)

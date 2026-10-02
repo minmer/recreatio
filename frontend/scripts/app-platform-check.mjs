@@ -27,6 +27,10 @@ export { periodStarts, remindersOf, upcomingReminders } from '${app}tasks';
 export { nextDelay, whatRings, toldOf, openChatOf, DEFAULT_SETTINGS } from '${app}notify';
 export { viewPath } from '${app}routes';
 export { lineText, pickSpeaker, unreadOf, conversationTitle, MAX_LINES } from '${app}notifyRich';
+export { roundOf, roundValid, shiftRound, roundLabel, roundShort, roundRange, roundsBetween, roundAhead, repeatOf } from '${app}rounds';
+export { quickFields, chipText, isBlank, byPerson, tallyOf, tallyText, addressOrder, cellText, roundsCsv } from '${app}roundSheet';
+export { filledNow, stepsFor } from '${app}steps';
+export { isYes, YES } from '${app}form';
 export { linkSecrets, aimOf } from '${app}linkAccess';
 export { keepLinkFromAddress, linkHref, freshLink } from '${app}linkKeep';
 export { safeLink, itemFieldAad, linkWord, putText, emptyTexts } from '${app}calendar';
@@ -226,6 +230,105 @@ try {
   assert.equal(m.conversationTitle(chatShape('seat'), { areaName: 'Oaza', seatName: 'Jan' }, peers, isMine), 'Rozmowa z: Jan');
   assert.equal(m.conversationTitle(chatShape('self'), digestRow, peers, isMine), 'Notatki');
   ok('rich notifications: a line per message (attachments, forwarded, clipped), a person speaks first, unread after the mark, titles by kind');
+
+  /* 0077 — der Zeitraum einer wiederkehrenden Erweiterung: dieselbe Tabelle wie Rounds.cs. */
+  const rounds = JSON.parse(await readFile(join(process.cwd(), '../backend/Api.Tests/round-keys.json'), 'utf8'));
+  for (const row of rounds.keys) {
+    const [y, mo, d] = row.date.split('-').map(Number);
+    const at = new Date(y, mo - 1, d, 12, 0, 0);
+    for (const kind of ['day', 'week', 'month', 'year']) {
+      assert.equal(m.roundOf(kind, at), row[kind], `${kind} of ${row.date}`);
+      assert.equal(m.roundValid(kind, row[kind]), true);
+    }
+    assert.equal(m.roundOf('once', at), '');
+  }
+  for (const [kind, key, expected] of rounds.valid) assert.equal(m.roundValid(kind, key), expected, `valid ${kind} "${key}"`);
+  for (const [kind, key, by, expected] of rounds.shift) assert.equal(m.shiftRound(kind, key, by), expected, `shift ${kind} ${key} by ${by}`);
+  /* Spät am Abend und kurz nach Mitternacht: der Tag DIESES Ortes zählt, nicht der in UTC. */
+  assert.equal(m.roundOf('day', new Date(2026, 9, 31, 23, 59)), '2026-10-31');
+  assert.equal(m.roundOf('month', new Date(2026, 10, 1, 0, 1)), '2026-11');
+  assert.equal(m.roundLabel('month', '2026-10'), 'październik 2026');
+  assert.equal(m.roundLabel('day', '2026-10-02'), '2 października 2026 (pt)');
+  assert.equal(m.roundLabel('week', '2026-W40'), 'tydzień 40 (28.09–4.10.2026)');
+  assert.equal(m.roundLabel('week', '2026-W53'), 'tydzień 53 (28.12.2026–3.01.2027)');
+  assert.equal(m.roundLabel('year', '2026'), '2026');
+  assert.equal(m.roundShort('month', '2026-10'), 'paź');
+  assert.equal(m.roundShort('week', '2026-W05'), 'T5');
+  assert.deepEqual(m.roundRange('month', '2026-10'), { from: '2026-01', to: '2026-12', label: '2026' });
+  assert.deepEqual(m.roundRange('day', '2024-02-10'), { from: '2024-02-01', to: '2024-02-29', label: 'luty 2024' });
+  assert.deepEqual(m.roundRange('week', '2026-W40'), { from: '2026-W01', to: '2026-W53', label: '2026' });
+  assert.deepEqual(m.roundRange('year', '2026'), { from: '2017', to: '2026', label: '2017–2026' });
+  assert.equal(m.roundsBetween('month', '2026-01', '2026-12').length, 12);
+  assert.equal(m.roundsBetween('week', '2026-W01', '2026-W53').length, 53);
+  assert.deepEqual(m.roundsBetween('day', '2026-02-27', '2026-03-01'), ['2026-02-27', '2026-02-28', '2026-03-01']);
+  assert.equal(m.roundAhead('month', '2026-11', new Date(2026, 9, 31, 23, 0)), true);
+  assert.equal(m.roundAhead('month', '2026-10', new Date(2026, 9, 31, 23, 0)), false);
+  assert.equal(m.repeatOf('month'), 'month');
+  assert.equal(m.repeatOf(undefined), 'once');
+  assert.equal(m.repeatOf('hourly'), 'once');
+  ok('rounds: day, ISO week, month and year keys agree with the service table; labels, shifting across years, ranges');
+
+  /* 0077 — die Liste einer wiederkehrenden Erweiterung: was sich rechnen lässt. */
+  {
+    const q = (fieldId, label, kind = 'checkbox', options = []) => ({ fieldId, label, kind, options, identityRole: 'none' });
+    const sheetFields = [q('k', 'Komunia'), q('s', 'Spowiedź'), q('n', 'Namaszczenie chorych?'), q('u', 'Uwagi', 'text'), q('o', 'Ofiara', 'number'), q('w', 'Stan', 'choice', ['dobry', 'słaby']), q('z', null)];
+    for (const yes of ['tak', 'TAK', ' t ', 'yes', 'true', '1', 'x', '✓']) assert.equal(m.isYes(yes), true, `"${yes}" is a yes`);
+    for (const no of ['', 'nie', 'no', '0', 'może', undefined, null]) assert.equal(m.isYes(no), false, `"${no}" is not a yes`);
+    assert.deepEqual(m.quickFields(sheetFields).map((x) => x.fieldId), ['k', 's', 'n'], 'only readable yes/no questions can be tapped');
+    assert.equal(m.chipText('Komunia'), 'Komunia');
+    assert.equal(m.chipText('Namaszczenie chorych?'), 'Namaszczenie…');
+    assert.equal(m.isBlank(undefined), true);
+    assert.equal(m.isBlank(new Map([['k', ''], ['u', '  ']])), true);
+    assert.equal(m.isBlank(new Map([['k', ''], ['u', 'x']])), false);
+
+    const rec = (registrationId, baseId, round, values) => ({ registrationId, baseId, round, values: new Map(Object.entries(values)) });
+    const all = [
+      rec('1', 'anna', '2026-09', { k: 'tak', s: 'tak', o: '20', w: 'dobry' }),
+      rec('2', 'anna', '2026-10', { k: 'tak', n: 'tak', u: 'w szpitalu', o: '10,50', w: 'słaby' }),
+      rec('3', 'jan', '2026-10', { k: 'tak', w: 'słaby' }),
+      rec('4', 'jan', '2026-08', { k: '', u: '' })
+    ];
+    const month = m.tallyOf(sheetFields, all.filter((r) => r.round === '2026-10'));
+    assert.equal(month.records, 2);
+    assert.deepEqual([month.yes.get('k'), month.yes.get('s') ?? 0, month.yes.get('n')], [2, 0, 1]);
+    assert.equal(month.sums.get('o'), 10.5, 'a comma is a decimal point here');
+    assert.deepEqual([...month.choices.get('w')], [['słaby', 2]]);
+    const year = m.tallyOf(sheetFields, all);
+    assert.equal(year.records, 3, 'a record in which nothing stands does not count');
+    assert.equal(year.yes.get('k'), 3);
+    assert.equal(m.tallyText(sheetFields, month), 'Komunia 2 · Spowiedź 0 · Namaszczenie chorych? 1 · Ofiara 10.5 · Stan: słaby 2');
+    const mine = m.byPerson(all);
+    assert.equal(mine.get('anna').get('2026-10').registrationId, '2');
+    assert.equal(m.cellText(m.quickFields(sheetFields), mine.get('anna').get('2026-10')), 'K N');
+    assert.equal(m.cellText(m.quickFields(sheetFields), mine.get('jan').get('2026-08')), '', 'an empty record shows as nothing');
+    assert.equal(m.cellText(m.quickFields(sheetFields), rec('9', 'x', '2026-10', { u: 'tylko notatka' })), '•');
+    assert.ok(m.addressOrder('ul. Długa 2, 34-600 Limanowa', 'ul. Długa 10, 34-600 Limanowa') < 0, 'house 2 comes before house 10');
+    assert.ok(m.addressOrder('', 'ul. Długa 1') > 0, 'people without an address go last');
+    const csv = m.roundsCsv('month', sheetFields, [{ baseId: 'anna', name: 'Kowalska; Anna' }, { baseId: 'jan', name: 'Nowak Jan' }], all);
+    const csvLines = csv.replace('\uFEFF', '').trim().split('\r\n');
+    assert.equal(csvLines[0], 'Osoba;Okres;Okres (klucz);Komunia;Spowiedź;Namaszczenie chorych?;Uwagi;Ofiara;Stan');
+    assert.equal(csvLines.length, 4, 'one line per record that says something');
+    assert.equal(csvLines[1], '"Kowalska; Anna";wrzesień 2026;2026-09;tak;tak;;;20;dobry');
+    assert.equal(csvLines[3], 'Nowak Jan;październik 2026;2026-10;tak;;;;;słaby');
+
+    /* Ein Schritt für den LAUFENDEN Zeitraum. */
+    const oct = new Date(2026, 9, 2, 12, 0, 0);
+    assert.equal(m.filledNow('once', { round: '' }, oct), true);
+    assert.equal(m.filledNow(undefined, { round: '' }, oct), true);
+    assert.equal(m.filledNow('month', { round: '2026-10' }, oct), true);
+    assert.equal(m.filledNow('month', { round: '2026-09' }, oct), false, 'last month does not fill this month');
+    assert.equal(m.filledNow('month', undefined, oct), false);
+    const stepStates = m.stepsFor({
+      hasSeat: false, confirmedAt: null, steps: [], marks: [], now: oct,
+      extensions: [{ moduleId: 'e', name: 'Odwiedziny', audience: 'office', repeat: 'month' }, { moduleId: 'p', name: 'Raport', audience: 'person', repeat: 'week' }],
+      filled: new Map([['e', '2026-10-02T10:00:00Z']])
+    });
+    assert.equal(stepStates[0].label, 'Odwiedziny — październik 2026');
+    assert.equal(stepStates[0].status, 'done');
+    assert.equal(stepStates[1].label, 'Uzupełnij: Raport — tydzień 40 (28.09–4.10.2026)');
+    assert.equal(stepStates[1].status, 'todo');
+    ok('round sheet: yes/no reading, tap fields, totals per period and year, history cells, route order, CSV, steps for the running period');
+  }
 
   /* -- 5. Links mit Zugang --------------------------------------------------------------------- */
 

@@ -14,7 +14,7 @@
 import { loadPublicKey, myEpochKeys } from './area';
 import { fromBase64Url } from './crypto';
 import {
-  loadFields, loadRegistrations, openFields, readAcross,
+  loadFields, loadRegistrations, openFields, readAcross, rewrapToOffice,
   type IntakeKey, type OpenField, type Submission
 } from './form';
 import { openDesign, type FormDesign } from './formDesign';
@@ -53,7 +53,14 @@ async function epochKey(ring: Ring, areaId: string, epoch: number): Promise<Uint
   return undefined;
 }
 
-export async function readForm(partId: string, ring: Ring): Promise<ReadForm> {
+/**
+ * @param options.range 0077 — nur ein Abschnitt der Zeit einer wiederkehrenden
+ *   Erweiterung (ein Jahr, ein Monat): sie hat je Mensch und Zeitraum eine
+ *   Einsendung, und alle auf einmal wären nach Jahren tausende.
+ */
+export async function readForm(
+  partId: string, ring: Ring, options: { readonly range?: { readonly from: string; readonly to: string } } = {}
+): Promise<ReadForm> {
   const { fields: sealed, design: shut } = await loadFields(partId);
 
   /* Die Fragen — unter dem Schlüssel des Formulars (0042). */
@@ -94,12 +101,25 @@ export async function readForm(partId: string, ring: Ring): Promise<ReadForm> {
   }
 
   const areaOf = new Map(sealed.map((f) => [f.fieldId, f.areaId]));
-  const { registrations } = await loadRegistrations(partId, false);
+  const { registrations } = await loadRegistrations(partId, false, options.range);
   const opened = new Map<string, ReadonlyMap<string, string>>();
+  const pending: { fieldId: string; registrationId: string; officeKeySealed: string }[] = [];
 
   for (const one of registrations) {
-    opened.set(one.registrationId, (await readAcross(one, keys, areaOf)).values);
+    const read = await readAcross(one, keys, areaOf);
+    opened.set(one.registrationId, read.values);
+    for (const again of read.toRewrap) pending.push({ ...again, registrationId: one.registrationId });
   }
+
+  /*
+   * RSA IST DER UMSCHLAG, NICHT DER TRESOR (0037) — auch hier. Was eben unter
+   * dem RSA-Umschlag der Annahme aufging, wird unter dem Schlüssel der
+   * Amtsrolle neu versiegelt; das nächste Öffnen kostet dann je Wert kein RSA
+   * mehr. Bei einer wiederkehrenden Erweiterung (0077) ist das der Unterschied
+   * zwischen einer Liste, die sofort dasteht, und einer, auf die man am
+   * Telefon wartet. Still: es ändert nicht, wer lesen darf.
+   */
+  if (pending.length > 0) void rewrapToOffice(partId, pending).catch(() => undefined);
 
   return { fields, design, registrations, opened, intakes, areaOf };
 }

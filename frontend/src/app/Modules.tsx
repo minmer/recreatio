@@ -332,7 +332,7 @@ function ModulePage({ module: row, areas, who, busy, onAct, onReload }: {
          * gehören in den ersten — zum Einrichten, nicht über alle drei.
          */
         <FormOffice
-          key={round}
+          key={`${row.moduleId}:${round}`}
           partId={row.moduleId}
           config={readConfig(row.config)}
           who={who}

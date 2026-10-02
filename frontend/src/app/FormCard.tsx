@@ -34,6 +34,8 @@ import type { Ring } from './keys';
 import { evaluate, layoutWith, missingIn, openDesign, type FormDesign } from './formDesign';
 import { FormFlow, isRequired } from './FormFlow';
 import { ExtensionSheet } from './ExtensionSheet';
+import { repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
+import { filledNow } from './steps';
 import { keysFor } from './ringOf';
 import { bindSeat, seatPath, type Link } from './seat';
 import { useSeats, type SeatView } from './seatContext';
@@ -234,8 +236,12 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
    * für alle anderen nichts als der Satz, dass es das gibt.
    */
   if (form.audience === 'office' && form.extendsId !== null) {
-    return <OfficeOnly partId={partId} baseId={form.extendsId} title={title} />;
+    return <OfficeOnly partId={partId} baseId={form.extendsId} title={title} repeat={repeatOf(form.repeat)} />;
   }
+
+  /* 0077 — eine WIEDERKEHRENDE Ergänzung: der Mensch füllt sie je Zeitraum aus, hier für den laufenden. */
+  const repeat = repeatOf(form.repeat);
+  const round = roundOf(repeat);
 
   /*
    * EINE ERGÄNZUNG, die der Mensch ausfüllt (0047): zu SEINER Einsendung,
@@ -246,7 +252,9 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
     : givenSeat ?? (person?.chosen?.kind === 'seat' ? person.chosen.seat : null)
       ?? (openSeats.length === 1 ? openSeats[0] : null);
   const extBase = extSeat?.forms.find((f) => f.formId === form.extendsId) ?? null;
-  const extDone = extBase?.extensions.find((e) => e.moduleId === partId)?.registrationId ?? null;
+  const extLatest = extBase?.extensions.find((e) => e.moduleId === partId);
+  const extDone = extLatest !== undefined && extLatest.registrationId !== null && filledNow(repeat, extLatest)
+    ? extLatest.registrationId : null;
 
   if (extension) {
     const head = title !== '' && <h2 className="wk-card-title">{title}</h2>;
@@ -278,7 +286,9 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
       return (
         <>
           {head}
-          <p className="wk-done">Uzupełnione — dziękujemy.</p>
+          <p className="wk-done">
+            {repeat === 'once' ? 'Uzupełnione — dziękujemy.' : `Uzupełnione za ${roundLabel(repeat, round)} — dziękujemy.`}
+          </p>
           <OwnSubmissions seat={extSeat} formId={partId} show={null} />
         </>
       );
@@ -410,7 +420,8 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
         await submitForm(partId, given, {
           areas: form.areas, fields: form.fields,
           seat: { token: extSeat.token, key: extSeat.seatKey },
-          baseRegistrationId: extBase.registrationId
+          baseRegistrationId: extBase.registrationId,
+          round
         });
 
         setSent(true);
@@ -641,7 +652,7 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
  * des erweiterten Formulars, je mit seinen Notizen. Alle anderen sehen einen
  * Satz: ein leerer Kasten sähe kaputt aus.
  */
-function OfficeOnly({ partId, baseId, title }: { partId: string; baseId: string; title: string }) {
+function OfficeOnly({ partId, baseId, title, repeat }: { partId: string; baseId: string; title: string; repeat: Repeat }) {
   const [who, setWho] = useState<Who | null | undefined>(undefined);
 
   useEffect(() => {
@@ -658,7 +669,7 @@ function OfficeOnly({ partId, baseId, title }: { partId: string; baseId: string;
       ) : who === null ? (
         <p className="wk-card-muted">Ten formularz wypełnia koordynator — po zalogowaniu.</p>
       ) : (
-        <ExtensionSheet extensionId={partId} baseId={baseId} audience="office" who={who} />
+        <ExtensionSheet extensionId={partId} baseId={baseId} audience="office" who={who} repeat={repeat} name={title} />
       )}
     </>
   );

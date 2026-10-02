@@ -23,6 +23,7 @@
 
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from './crypto';
 import type { StepMark } from './form';
+import { repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
 import { call } from './session';
 
 export type DoneBy = 'office' | 'person';
@@ -52,7 +53,20 @@ export interface ExtensionInfo {
   readonly name: string;
   readonly audience: 'person' | 'office';
   readonly closed: boolean;
+
+  /** 0077 — wie oft sie je Mensch ausgefüllt wird. Fehlt es: einmal. */
+  readonly repeat?: Repeat;
 }
+
+/**
+ * IST DIE ERWEITERUNG AUSGEFÜLLT — bei einer wiederkehrenden (0077): für den
+ * LAUFENDEN Zeitraum? Der Dienst nennt je Erweiterung die jüngste Einsendung
+ * und ihren Zeitraum; weil nichts in die Zukunft eingetragen wird, ist der
+ * laufende genau dann ausgefüllt, wenn die jüngste ihn trägt.
+ */
+export const filledNow = (
+  repeat: Repeat | undefined, latest: { readonly round?: string | null } | undefined | null, now: Date = new Date()
+): boolean => latest != null && (repeatOf(repeat) === 'once' || latest.round === roundOf(repeatOf(repeat), now));
 
 /* -- Die Etiketten ------------------------------------------------------------ */
 
@@ -158,8 +172,11 @@ export interface SeatFormSealed {
     readonly moduleId: string;
     readonly name: string;
     readonly closed: boolean;
-    /** Seine Ergänzung — oder `null`: noch nicht ausgefüllt. */
+    /** Seine Ergänzung — oder `null`: noch nicht ausgefüllt. Bei einer wiederkehrenden (0077): die jüngste. */
     readonly registrationId: string | null;
+    /** 0077 — wie oft, und welchen Zeitraum die jüngste trägt. */
+    readonly repeat?: Repeat;
+    readonly round?: string | null;
   }[];
   readonly steps: readonly SealedStep[];
   readonly marks: readonly StepMark[];
@@ -207,9 +224,13 @@ export function stepsFor(input: {
   /** Ob es einen Link gibt — ohne ihn gibt es nichts durchzusehen. */
   readonly hasSeat: boolean;
   readonly confirmedAt: string | null;
-  readonly extensions: readonly { readonly moduleId: string; readonly name: string; readonly audience: 'person' | 'office' }[];
+  readonly extensions: readonly {
+    readonly moduleId: string; readonly name: string; readonly audience: 'person' | 'office';
+    /** 0077 — eine wiederkehrende steht als Schritt für den LAUFENDEN Zeitraum da. */
+    readonly repeat?: Repeat;
+  }[];
 
-  /** Welche Erweiterungen ausgefüllt sind — Erweiterung → wann. */
+  /** Welche Erweiterungen ausgefüllt sind — Erweiterung → wann. Bei einer wiederkehrenden: nur, wenn für den laufenden Zeitraum (`filledNow`). */
   readonly filled: ReadonlyMap<string, string>;
   readonly steps: readonly OpenStep[];
   readonly marks: readonly StepMark[];
@@ -235,10 +256,12 @@ export function stepsFor(input: {
   for (const ext of input.extensions) {
     const at = input.filled.get(ext.moduleId) ?? null;
     const person = ext.audience === 'person';
+    const repeat = repeatOf(ext.repeat);
+    const name = repeat === 'once' ? ext.name : `${ext.name} — ${roundLabel(repeat, roundOf(repeat, now))}`;
 
     out.push({
       key: `ext:${ext.moduleId}`,
-      label: person ? `Uzupełnij: ${ext.name}` : ext.name,
+      label: person ? `Uzupełnij: ${name}` : name,
       help: person ? null : 'Wypełnia koordynator — osoba tego nie widzi.',
       source: 'auto', doneBy: person ? 'person' : 'office', visibleToPerson: person,
       status: state(at, null), doneAt: at, dueAt: null,
