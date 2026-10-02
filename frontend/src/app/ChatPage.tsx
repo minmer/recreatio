@@ -25,7 +25,7 @@ import {
   Avatar, ChatHeader, ChatLog, Composer, Icon, lastEditable, listTime, plural, PopMenu, SendAs, useButtonMenu, useChatChrome,
   withDelete, withEdit, type ComposerHandle, type MenuItem, type MessageHandlers, type MessageRules, type ReplyTarget, type Shown
 } from './ChatKit';
-import { availableNow, chatEndpoint, reportChatSeen } from './chatFeatures';
+import { chatEndpoint, reportChatSeen } from './chatFeatures';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import { ensurePrivateArea } from './agenda';
@@ -42,7 +42,6 @@ import { HistoryDialog } from './MessageBits';
 import { Modal } from './Modal';
 import type { Ring, SealedRole } from './keys';
 import { keysFor } from './ringOf';
-import { notices } from './platform';
 import { useRemembered } from './prefs';
 import { myRoleNames } from './roleNames';
 import { viewPath } from './routes';
@@ -204,7 +203,6 @@ function ChatList({ me, current }: { me: Me; current: string | undefined }) {
   const [query, setQuery] = useState('');
   const [panel, setPanel] = useState<'prefs' | 'codes' | null>(null);
   const [opening, setOpening] = useState(false);
-  const previous = useRef<Map<string, string | null> | null>(null);
   const [chats, setChats] = useState<readonly ChatRow[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const areas = useAreas();
@@ -212,16 +210,12 @@ function ChatList({ me, current }: { me: Me; current: string | undefined }) {
 
   const look = useCallback(async () => {
     try {
+      /*
+       * Gemeldet wird hier nicht mehr (0076): `notify.ts` meldet jede Rozmowa —
+       * in der App mit Inhalt und Antwortfeld. Eine Meldung von hier trüge
+       * dieselbe Marke und ersetzte die mit Inhalt durch eine ohne.
+       */
       const found = (await loadChats()).chats;
-      if (previous.current !== null && notices.allowed()) {
-        for (const chat of found) {
-          if (chat.unread > 0 && chat.lastMessageAt !== previous.current.get(chat.chatId) && chat.preferences
-            && !chat.preferences.muted && !chat.preferences.archived && availableNow(chat.preferences)) {
-            notices.show({ title: 'Nowa wiadomość', body: 'Masz nową wiadomość w rozmowie.', tag: chat.chatId, open: viewPath('chat', chat.chatId) });
-          }
-        }
-      }
-      previous.current = new Map(found.map(c => [c.chatId, c.lastMessageAt]));
       setChats(found);
       setFailed(null);
 
@@ -708,7 +702,8 @@ function InviteePicker({ known, chosen, single, busy, onChange }: {
 
 function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   const endpoint = chatEndpoint(chatId);
-  const extras = useChatExtras(endpoint);
+  /* 0076 — gemeldet wird über `notify.ts` (die Glocke), nicht noch einmal hier. */
+  const extras = useChatExtras(endpoint, { notify: false });
   const areas = useAreas();
   const [chat, setChat] = useState<ChatDetail | null | undefined>(undefined);
   const [keys, setKeys] = useState<ReadonlyMap<number, Uint8Array>>(new Map());

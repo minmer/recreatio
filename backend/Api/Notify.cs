@@ -241,6 +241,14 @@ public static class Notify
 
                 /* Was sich melden darf — ohne stumme und archivierte Rozmowy. */
                 loud = loudTotal,
+
+                /*
+                 * 0076 — die jüngste ungelesene laute Nachricht, als Zeit. Daran
+                 * sieht das Telefon (auch mit den blossen Zahlen) eine NEUE
+                 * Nachricht, wenn die Summe gleich blieb — eine Rozmowa gelesen,
+                 * in einer anderen etwas Neues —, und öffnet nur dann den Inhalt.
+                 */
+                newestAt = chats.Where(c => !c.Quiet).Select(c => c.Last).Max(),
                 list = countsOnly ? [] : chats.OrderByDescending(c => c.Last).Take(30).Select(c => (object)new
                 {
                     chatId = Ids.ToText(c.Id),

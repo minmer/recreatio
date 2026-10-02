@@ -26,6 +26,7 @@ export { planRegistryImport, registryDescription, exportRegistry } from '${app}p
 export { periodStarts, remindersOf, upcomingReminders } from '${app}tasks';
 export { nextDelay, whatRings, toldOf, openChatOf, DEFAULT_SETTINGS } from '${app}notify';
 export { viewPath } from '${app}routes';
+export { lineText, pickSpeaker, unreadOf, conversationTitle, MAX_LINES } from '${app}notifyRich';
 export { linkSecrets, aimOf } from '${app}linkAccess';
 export { keepLinkFromAddress, linkHref, freshLink } from '${app}linkKeep';
 export { safeLink, itemFieldAad, linkWord, putText, emptyTexts } from '${app}calendar';
@@ -188,6 +189,43 @@ try {
   assert.equal(m.openChatOf(chatBase, true), null, 'the list is not a chat');
   assert.equal(m.openChatOf(m.viewPath('tasks'), true), null);
   ok('notifications: rings per chat (a read chat does not hide a new one), never the open chat, muted ones or the first state');
+
+  /* 0076 — was in der Meldung steht: geöffnet auf dem Gerät. */
+  assert.equal(m.lineText(null), 'Wiadomość, której to urządzenie nie może otworzyć');
+  assert.equal(m.lineText({ text: '  Cześć\n\nco  słychać? ', name: null }), 'Cześć co słychać?', 'whitespace folds to one line');
+  const attached = (type, name = 'a') => ({ id: '00000000-0000-0000-0000-000000000000', name, type, size: 1, key: 'k'.repeat(43) });
+  assert.equal(m.lineText({ text: '', name: null, attachments: [attached('image/jpeg')] }), 'Zdjęcie');
+  assert.equal(m.lineText({ text: '', name: null, attachments: [attached('audio/webm'), attached('image/png')] }), 'Wiadomość głosowa (+1)');
+  assert.equal(m.lineText({ text: '', name: null, attachments: [attached('application/pdf', 'plan.pdf')] }), 'Plik: plan.pdf');
+  assert.equal(m.lineText({ text: 'Zobacz', name: null, attachments: [attached('image/png')] }), 'Zobacz (załączniki: 1)');
+  assert.equal(m.lineText({ text: 'x', name: null, forwarded: true }), 'Przekazane: x');
+  assert.equal(m.lineText({ text: 'a'.repeat(900), name: null }).length, 600, 'long messages are clipped');
+
+  const roleKinds = { p: 'person', r: 'role', q: 'role' };
+  assert.equal(m.pickSpeaker(['r', 'p'], () => true, (id) => roleKinds[id]), 'p', 'a person speaks before a role');
+  assert.equal(m.pickSpeaker(['r', 'p'], (id) => id !== 'p', (id) => roleKinds[id]), 'r', 'only roles that may sign');
+  assert.equal(m.pickSpeaker(['r'], () => false, (id) => roleKinds[id]), null, 'read-only: no reply field');
+
+  const sealed = (id, at, author, deleted = false) => ({ messageId: id, authorRoleId: author, authorSeatId: null, epoch: 1, bodySealed: 'x', createdAt: at, deletedAt: deleted ? at : null });
+  const msgs = [
+    sealed('1', '2026-10-02T10:00:00Z', 'them'), sealed('2', '2026-10-02T10:01:00Z', 'me'),
+    sealed('3', '2026-10-02T10:02:00Z', 'them'), sealed('4', '2026-10-02T10:03:00Z', 'them', true), sealed('5', '2026-10-02T10:04:00Z', 'them')
+  ];
+  const isMine = (id) => id === 'me';
+  assert.deepEqual(m.unreadOf(msgs, '2026-10-02T10:01:30Z', isMine, 2).map((x) => x.messageId), ['3', '5'], 'after the read mark, theirs, not deleted');
+  assert.deepEqual(m.unreadOf(msgs, null, isMine, 1).map((x) => x.messageId), ['5'], 'never read: the unread count from the end');
+  const lots = Array.from({ length: 20 }, (_, i) => sealed(String(i), new Date(Date.UTC(2026, 9, 2, 11, i)).toISOString(), 'them'));
+  assert.equal(m.unreadOf(lots, '2026-10-02T09:00:00Z', isMine, 20).length, m.MAX_LINES, 'at most MAX_LINES lines');
+
+  const peers = new Map([['other', 'Anna']]);
+  const chatShape = (kind, extra = {}) => ({ kind, members: [{ roleId: 'me' }, { roleId: 'other' }], seats: [], ...extra });
+  const digestRow = { areaName: 'Oaza', seatName: null };
+  assert.equal(m.conversationTitle(chatShape('direct'), digestRow, peers, isMine), 'Anna', 'direct: the other person');
+  assert.equal(m.conversationTitle(chatShape('direct'), digestRow, new Map(), isMine), 'Oaza', 'direct without a readable name: the area');
+  assert.equal(m.conversationTitle(chatShape('group'), digestRow, peers, isMine), 'Oaza');
+  assert.equal(m.conversationTitle(chatShape('seat'), { areaName: 'Oaza', seatName: 'Jan' }, peers, isMine), 'Rozmowa z: Jan');
+  assert.equal(m.conversationTitle(chatShape('self'), digestRow, peers, isMine), 'Notatki');
+  ok('rich notifications: a line per message (attachments, forwarded, clipped), a person speaks first, unread after the mark, titles by kind');
 
   /* -- 5. Links mit Zugang --------------------------------------------------------------------- */
 

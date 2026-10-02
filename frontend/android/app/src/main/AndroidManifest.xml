@@ -75,6 +75,19 @@
         <meta-data android:name="firebase_analytics_collection_enabled" android:value="false" />
 
         <!--
+          0076 — was der Mensch an einer Meldung tut (antworten, „Przeczytane",
+          „Zrobione", wegwischen) und der Wecker für Aufgaben. Beide nur für die
+          App selbst; den Neustart des Telefons meldet das System trotzdem.
+        -->
+        <receiver android:name=".ActionReceiver" android:exported="false" />
+        <receiver android:name=".ReminderReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!--
           0067 — Erinnerungen an Aufgaben liegen geplant im Wecker des Systems. Nach
           einem Neustart stellt der Empfänger des Plugins sie wieder hin; der
           Arbeiter im Hintergrund (WorkManager) bringt seinen eigenen mit.

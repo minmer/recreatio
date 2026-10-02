@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  0076 — NUR IM DEBUG-BAU: ein Prüfstand für den Wecker. Auf einem Emulator ohne
+  Google-Dienste kommt kein Firebase-Signal; dieser Empfänger tut, was das
+  Signal täte (RichWork.check):
+
+    adb shell am broadcast -n pl.recreatio.app/.DebugWake -a pl.recreatio.app.DEBUG_WAKE
+
+  Im Release-Bau (Google Play) gibt es ihn nicht.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <receiver android:name=".DebugWake" android:exported="true">
+            <intent-filter>
+                <action android:name="pl.recreatio.app.DEBUG_WAKE" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -5,6 +5,10 @@
  * <b>Sie fragt nicht selbst</b> — sie zeigt, was `notify.ts` im Takt holt,
  * und plant die Erinnerungen an Aufgaben (einmal je halbe Stunde und beim
  * Zurückkommen; Aufgaben ändern sich selten).
+ *
+ * 0076 — in der App stehen in den Meldungen die Inhalte selbst (wer, was, ein
+ * Antwortfeld); geöffnet auf dem Telefon (`notifyRich.ts`). Die Einstellungen
+ * sagen, ob das bei geschlossener App geht (Klucz: Zachowany auf diesem Gerät).
  */
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -12,30 +16,20 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { background, native, notices, type BackgroundStatus } from './platform';
 import {
   applyBackground, chatLabel, current, loadDevices, loadSettings, dropDevice, markSeen, onToast, planReminders, refresh, saveSettings,
-  start, subscribe, thisDevice, type DeviceList, type NotifySettings, type Reminder, type Toast
+  start, subscribe, thisDevice, type DeviceList, type NotifySettings, type Toast
 } from './notify';
+import { remindersFor } from './notifyRich';
+import { knownDevice } from './kept';
 import { keysFor } from './ringOf';
 import { viewPath } from './routes';
-import type { Who } from './session';
-import { loadTasks, openTasks, upcomingReminders } from './tasks';
+import { keepsKey, type Who } from './session';
 
 const REMINDERS_EVERY = 30 * 60_000;
 
-/** Die Erinnerungen der nächsten sieben Tage in den Wecker. */
+/** Die Erinnerungen der nächsten sieben Tage in den Wecker — Titel nur, wenn der Schlüssel offen ist. */
 async function planFor(who: Who): Promise<void> {
-  const now = new Date();
-  const { tasks } = await loadTasks(new Date(now.getTime() - 86400_000), new Date(now.getTime() + 7 * 86400_000));
-  const withReminders = tasks.filter((t) => (t.remind ?? 0) !== 0);
-  if (withReminders.length === 0) { await planReminders([]); return; }
-
-  /* Titel nur, wenn der Schlüssel offen ist — sonst „Zadanie", die Zeit stimmt trotzdem. */
   const { ring } = await keysFor(who).catch(() => ({ ring: null }));
-  const named = ring === null ? withReminders.map((t) => ({ ...t, title: 'Zadanie', notes: null })) : await openTasks(ring, withReminders);
-
-  const list: Reminder[] = named.flatMap((task) => upcomingReminders(task, now).map((r) => ({
-    taskId: task.taskId, occurrenceAt: r.occurrenceAt, kind: r.kind, at: r.at, title: task.title
-  })));
-  await planReminders(list.sort((a, b) => a.at.getTime() - b.at.getTime()));
+  await planReminders(await remindersFor(ring));
 }
 
 export function NotifyBell({ who }: { who: Who }) {
@@ -44,7 +38,7 @@ export function NotifyBell({ who }: { who: Who }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
-  useEffect(() => start(), []);
+  useEffect(() => start(who), [who]);
 
   /*
    * In der App, bei jedem Start (0075): erst, wenn klar ist, ob Meldungen
@@ -171,7 +165,7 @@ export function NotifyBell({ who }: { who: Who }) {
         </div>
       )}
 
-      {settingsOpen && <NotifySettingsPanel settings={state.settings} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <NotifySettingsPanel who={who} settings={state.settings} onClose={() => setSettingsOpen(false)} />}
 
       <div className="wk-toasts" aria-live="polite">
         {toast !== null && (
@@ -233,7 +227,31 @@ const BACKGROUND: readonly { value: NotifySettings['backgroundMinutes']; label: 
   { value: 180, label: 'co 3 godziny (najmniej baterii)' }
 ];
 
-function NotifySettingsPanel({ settings, onClose }: { settings: NotifySettings; onClose: () => void }) {
+/**
+ * 0076 — kann das Telefon bei GESCHLOSSENER App den Inhalt öffnen? Dazu muss
+ * der Schlüssel auf diesem Gerät verwahrt sein (Klucz: Zachowany) — der Läufer
+ * im Hintergrund hat kein Passwort.
+ */
+function contentWords(kept: boolean | null, phone: BackgroundStatus | null): string {
+  if (kept === null) return 'Sprawdzanie…';
+  if (!kept) {
+    return 'Gdy aplikacja jest otwarta, treść widać zawsze. Żeby widzieć ją i odpowiadać także przy zamkniętej aplikacji, '
+      + 'włącz Konto → Klucz: Zachowany na tym telefonie. Bez tego przy zamkniętej aplikacji przychodzi tylko liczba nowości.';
+  }
+  const last = phone?.richResult ?? null;
+  const when = phone?.richAt === null || phone?.richAt === undefined ? '' : ` (ostatnio ${new Date(phone.richAt).toLocaleString('pl-PL')})`;
+  if (last === 'locked:session') return `Sesja na tym telefonie wygasła — zaloguj się ponownie, żeby treść wracała do powiadomień${when}.`;
+  if (last === 'locked:key') return `Telefon nie mógł otworzyć klucza — otwórz aplikację raz z hasłem${when}.`;
+  if (last !== null && last.startsWith('failed')) return `Ostatnie otwieranie treści nie powiodło się${when}; spróbujemy przy następnej nowości.`;
+  return `Treść jest odszyfrowywana tylko na tym telefonie — Firebase przenosi wyłącznie pusty sygnał. Na odpowiedź z powiadomienia wystarczy wpisać tekst${when}.`;
+}
+
+function NotifySettingsPanel({ who, settings, onClose }: { who: Who; settings: NotifySettings; onClose: () => void }) {
+  const [kept, setKept] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!native) return;
+    void knownDevice().then((on) => setKept(keepsKey(who) && on !== null)).catch(() => setKept(false));
+  }, [who]);
   const [allowed, setAllowed] = useState(notices.allowed());
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -251,7 +269,7 @@ function NotifySettingsPanel({ settings, onClose }: { settings: NotifySettings; 
   const set = (patch: Partial<NotifySettings>) => {
     const next = { ...settings, ...patch };
     saveSettings(next);
-    if (native && ('backgroundMinutes' in patch || 'chats' in patch || 'forms' in patch || 'links' in patch)) {
+    if (native && ('backgroundMinutes' in patch || 'chats' in patch || 'forms' in patch || 'links' in patch || 'contents' in patch || 'reminders' in patch)) {
       setBusy(true);
       void applyBackground(next)
         .then(() => setNote(next.backgroundMinutes === 0 ? 'Sprawdzanie w tle wyłączone.' : 'Zapisano.'))
@@ -283,6 +301,18 @@ function NotifySettingsPanel({ settings, onClose }: { settings: NotifySettings; 
         <label className="wk-check"><input type="checkbox" checked={settings.links} onChange={(e) => set({ links: e.target.checked })} /> <span>dołączeniach przez linki dostępu</span></label>
         <label className="wk-check"><input type="checkbox" checked={settings.reminders} onChange={(e) => set({ reminders: e.target.checked })} /> <span>przypomnieniach o zadaniach</span></label>
       </fieldset>
+
+      {native && (
+        <fieldset className="wk-field">
+          <legend>Treść w powiadomieniach</legend>
+          <label className="wk-check">
+            <input type="checkbox" checked={settings.contents} onChange={(e) => set({ contents: e.target.checked })} />
+            {' '}<span>pokazuj, kto pisze i co, nazwiska ze zgłoszeń i tytuły zadań — z odpowiedzią prosto z powiadomienia</span>
+          </label>
+          {settings.contents && <span className="wk-hint">{contentWords(kept, phone)}</span>}
+          {settings.contents && <span className="wk-hint">Na zablokowanym ekranie Android pokazuje tylko „Nowa wiadomość", jeśli tak ustawiono ukrywanie poufnych treści w ustawieniach telefonu.</span>}
+        </fieldset>
+      )}
 
       {native ? (
         <label className="wk-field">

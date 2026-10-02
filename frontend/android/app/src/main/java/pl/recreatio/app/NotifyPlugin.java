@@ -12,22 +12,31 @@ import androidx.work.NetworkType;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
  * DER ARBEITER IM HINTERGRUND, von der Seite aus gestellt (0067).
  *
  * <code>
- *   configure(api, token, intervalMinutes, chats, forms, links)
- *   stop()                 kein Arbeiter, kein Kennzeichen
- *   seen(unread, forms, links, since)   was die App gerade gezeigt hat
+ *   configure(api, token, intervalMinutes, chats, forms, links, contents, reminders)
+ *   stop()                 kein Arbeiter, kein Kennzeichen, keine Meldungen, kein Wecker
+ *   seen(unread, forms, links, since, chats)   was die App gerade gezeigt hat
  *   status()
+ *   present(news)          0076: Meldungen mit Inhalt (Notices)
+ *   plan(reminders)        0076: der Wecker für Aufgaben (Reminders)
+ *   dismiss(chatId)        0076: die Rozmowa ist offen — ihre Meldung weg
  *   Ereignis "check"       0075: ein Wecksignal kam, während die App vorn ist
  * </code>
  *
@@ -80,6 +89,8 @@ public class NotifyPlugin extends Plugin {
                 .putBoolean("chats", call.getBoolean("chats", true))
                 .putBoolean("forms", call.getBoolean("forms", true))
                 .putBoolean("links", call.getBoolean("links", true))
+                .putBoolean("contents", call.getBoolean("contents", true))
+                .putBoolean("reminders", call.getBoolean("reminders", true))
                 .apply();
 
         Constraints constraints = new Constraints.Builder()
@@ -105,7 +116,12 @@ public class NotifyPlugin extends Plugin {
     @PluginMethod
     public void stop(PluginCall call) {
         WorkManager.getInstance(getContext()).cancelUniqueWork(WORK);
+        WorkManager.getInstance(getContext()).cancelUniqueWork(RichWork.WORK_CHECK);
         PushSetup.stop(getContext());
+        /* 0076 — beim Abmelden: keine Inhalte mehr auf dem Bildschirm, kein Wecker, keine offene Seite im Hintergrund. */
+        Notices.clearAll(getContext());
+        Reminders.clear(getContext());
+        RunnerHost.shutdown();
         prefs().edit().clear().apply();
         call.resolve();
     }
@@ -118,6 +134,63 @@ public class NotifyPlugin extends Plugin {
                 .putInt("seenLinks", call.getInt("links", 0))
                 .putString("since", call.getString("since", ""))
                 .apply();
+
+        /* 0076 — welche Rozmowy noch Ungelesenes haben; die Meldungen der übrigen gehen weg. */
+        JSArray chats = call.getArray("chats");
+        if (chats != null) {
+            try {
+                Set<String> unread = new HashSet<>();
+                for (int i = 0; i < chats.length(); i++) unread.add(chats.getString(i));
+                Notices.keepOnly(getContext(), unread);
+            } catch (Exception ignored) {
+                // Beim nächsten Mal.
+            }
+        }
+        call.resolve();
+    }
+
+    /** 0076 — die Seite hat geöffnet, was neu ist; das Telefon zeigt es (und entscheidet, was klingelt). */
+    @PluginMethod
+    public void present(PluginCall call) {
+        JSObject news = call.getObject("news");
+        if (news == null) {
+            call.reject("news is required");
+            return;
+        }
+        getBridge().execute(() -> {
+            try {
+                Notices.present(getContext(), new JSONObject(news.toString()));
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("present failed", e);
+            }
+        });
+    }
+
+    /** 0076 — die Erinnerungen in den Wecker des Telefons (ersetzt, was geplant war). */
+    @PluginMethod
+    public void plan(PluginCall call) {
+        JSArray list = call.getArray("reminders");
+        try {
+            Reminders.plan(getContext(), list == null ? new JSONArray() : new JSONArray(list.toString()));
+            prefs().edit().putLong("planAt", System.currentTimeMillis()).apply();
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("plan failed", e);
+        }
+    }
+
+    /** 0076 — die Rozmowa ist offen: ihre Meldung weg. */
+    @PluginMethod
+    public void dismiss(PluginCall call) {
+        String chatId = call.getString("chatId");
+        if (chatId != null) {
+            try {
+                Notices.dismissChat(getContext(), chatId);
+            } catch (Exception ignored) {
+                // Nichts zu sehen.
+            }
+        }
         call.resolve();
     }
 
@@ -129,6 +202,11 @@ public class NotifyPlugin extends Plugin {
         /* 0075 — kann Firebase (mit diesem Bau, auf diesem Telefon), und kam die Kennung beim Dienst an? */
         out.put("pushBuilt", PushSetup.ready(getContext()));
         out.put("push", PushSetup.active(getContext()));
+        /* 0076 — Inhalt in den Meldungen, und wie der Läufer zuletzt ausging. */
+        out.put("contents", prefs().getBoolean("contents", true));
+        long richAt = prefs().getLong("richAt", 0);
+        out.put("richAt", richAt == 0 ? null : Inbox.iso(richAt));
+        out.put("richResult", prefs().getString("richResult", null));
         call.resolve(out);
     }
 }

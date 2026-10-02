@@ -7,7 +7,13 @@ import { call } from './session';
 import type { Ring } from './keys';
 import { chatEndpoint } from './chatFeatures';
 
-export function useChatExtras(endpoint: string) {
+/**
+ * `notify`: selbst melden, wenn die Seite verdeckt ist. Im Arbeitsplatz nicht
+ * (0076) — dort meldet `notify.ts` jede Rozmowa, in der App mit Inhalt und
+ * Antwortfeld; eine zweite Meldung daneben wäre doppelt. Auf einer Seite und
+ * für den Menschen mit Link (ohne Konto, ohne Glocke) bleibt es hier.
+ */
+export function useChatExtras(endpoint: string, { notify = true }: { notify?: boolean } = {}) {
   const [features, setFeatures] = useState<Features | null>(null);
   const [search, setSearch] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -24,7 +30,7 @@ export function useChatExtras(endpoint: string) {
       if (loading || Date.now() < retryAt) return;
       loading = true;
       return call<Features>(`${endpoint}/features`).then(f => { if (live) {
-      if (lastMessage.current !== undefined && f.lastMessageAt !== lastMessage.current && f.lastMessageAt
+      if (notify && lastMessage.current !== undefined && f.lastMessageAt !== lastMessage.current && f.lastMessageAt
         && document.visibilityState !== 'visible' && !f.effective.muted && !f.effective.archived && availableNow(f.effective))
         notices.show({ title: 'Nowa wiadomość', body: 'W rozmowie pojawiła się wiadomość.', tag: endpoint });
       lastMessage.current = f.lastMessageAt; setFeatures(f); setLoadError(null); failures = 0;

@@ -32,8 +32,9 @@
  * Browser als Hinweis auf der Seite (`onToast`).
  */
 
-import { API, call } from './session';
+import { API, call, keepsKey, type Who } from './session';
 import { background, native, notices } from './platform';
+import { gatherNews, type ReminderNotice } from './notifyRich';
 import { viewPath } from './routes';
 import { toBase64Url } from './crypto';
 
@@ -58,7 +59,7 @@ export interface Digest {
   readonly now: string;
   readonly since: string;
   readonly total: number;
-  readonly chats: { readonly unread: number; readonly loud: number; readonly list: readonly DigestChat[] };
+  readonly chats: { readonly unread: number; readonly loud: number; readonly list: readonly DigestChat[]; /** 0076 */ readonly newestAt?: string | null };
   readonly registrations: { readonly count: number; readonly list: readonly DigestForm[] };
   readonly links: number;
   readonly tasks: number;
@@ -76,10 +77,16 @@ export interface NotifySettings {
   readonly reminders: boolean;
   /** Nur in der App: wie oft im Hintergrund nachgesehen wird (0 = nie). */
   readonly backgroundMinutes: 0 | 15 | 30 | 60 | 180;
+  /**
+   * 0076 — nur in der App: der INHALT in der Meldung (wer schreibt, was, ein
+   * Antwortfeld; Namen aus Anmeldungen; Titel der Aufgaben). Geöffnet wird auf
+   * diesem Telefon; Firebase sieht davon nichts. Aus: nur Zahlen, wie bisher.
+   */
+  readonly contents: boolean;
 }
 
 export const DEFAULT_SETTINGS: NotifySettings = {
-  chats: true, forms: true, links: true, reminders: true, backgroundMinutes: 15
+  chats: true, forms: true, links: true, reminders: true, backgroundMinutes: 15, contents: true
 };
 
 const SETTINGS_SLOT = 'recreatio:notify:settings';
@@ -172,6 +179,9 @@ let told: Told | null = null;
 /** 0075 — weckt Firebase dieses Telefon? Dann meldet bei verdeckter Seite der Wecker, nicht die Seite (sonst doppelt). */
 let pushActive = false;
 
+/** 0076 — wer angemeldet ist: damit öffnet die Seite den Inhalt der Meldungen (App, vorn). */
+let richWho: Who | null = null;
+
 const visible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
 
 function schedule(): void {
@@ -206,7 +216,11 @@ function accept(digest: Digest, mine: boolean): void {
   if (mine) {
     channel?.postMessage({ digest });
     ring(digest);
-    void background.seen({ unread: digest.chats.loud, forms: digest.registrations.count, links: digest.links, since: seenSince() });
+    void background.seen({
+      unread: digest.chats.loud, forms: digest.registrations.count, links: digest.links, since: seenSince(),
+      /* 0076 — welche Rozmowy noch Ungelesenes haben: die Meldungen der übrigen nimmt das Telefon weg. */
+      chats: digest.chats.list.filter((c) => !c.quiet && c.unread > 0).map((c) => c.chatId)
+    });
   } else if (told !== null) {
     /* Der andere Tab hat schon gemeldet — dasselbe klingelt hier nicht noch einmal. */
     told = toldOf(digest);
@@ -304,9 +318,32 @@ function tell(notice: { title: string; body: string; tag: string; open: string }
  * aus der Liste der Rozmowy, ChatPage.tsx).
  */
 function ring(digest: Digest): void {
-  const plan = whatRings(told, digest, store.settings, openChatOf(window.location.hash, visible()));
+  const openChat = openChatOf(window.location.hash, visible());
+  const plan = whatRings(told, digest, store.settings, openChat);
   told = toldOf(digest);
 
+  /*
+   * 0076 — IN DER APP MIT INHALT: wer schreibt, was, ein Antwortfeld. Geöffnet
+   * hier (die Seite hat den Schlüssel); was neu klingelt, entscheidet das
+   * Telefon. Ist die Seite verdeckt und Firebase weckt, macht das der Läufer.
+   */
+  const anything = plan.chats.length > 0 || plan.forms || plan.links;
+  if (anything && native && store.settings.contents && richWho !== null && (visible() || !pushActive)) {
+    const who = richWho;
+    void gatherNews(who, {
+      since: seenSince(), skipChat: openChat, replyable: keepsKey(who), settings: store.settings
+    }).then((news) => {
+      if (news.state === 'open') return background.present(news);
+      ringPlain(digest, plan);
+      return undefined;
+    }).catch(() => ringPlain(digest, plan));
+    return;
+  }
+  ringPlain(digest, plan);
+}
+
+/** Ohne Inhalt: nur, wo es etwas gibt und wie viel (wie 0067). */
+function ringPlain(digest: Digest, plan: Ringing): void {
   const [newest, ...others] = plan.chats;
   if (newest !== undefined) {
     const more = others.reduce((n, c) => n + c.unread, 0);
@@ -350,10 +387,19 @@ export function markSeen(): void {
  * DEN TAKT STARTEN — einmal je Tab, solange jemand angemeldet ist. Die
  * Horcher stellen die Uhr nur um; sie fragen nie öfter, als `nextDelay` sagt.
  */
-export function start(): () => void {
+export function start(who: Who | null = null): () => void {
   if (running) return () => undefined;
   running = true;
+  richWho = who;
   store.settings = loadSettings();
+
+  /* 0076 — wer eine Rozmowa öffnet, braucht ihre Meldung nicht mehr. */
+  const onHash = () => {
+    const chatId = openChatOf(window.location.hash, true);
+    if (chatId !== null) void background.dismiss(chatId);
+  };
+  window.addEventListener('hashchange', onHash);
+  onHash();
 
   const onVisible = () => {
     if (visible() && Date.now() - store.lastAt > 30_000) void refresh();
@@ -391,35 +437,23 @@ export function start(): () => void {
     window.removeEventListener('online', onOnline);
     window.removeEventListener('offline', schedule);
     channel?.removeEventListener('message', onMessage);
+    window.removeEventListener('hashchange', onHash);
     offCheck();
+    richWho = null;
   };
 }
 
 /* -- Erinnerungen an Aufgaben ---------------------------------------------------- */
 
-export interface Reminder {
-  readonly taskId: string;
-  readonly occurrenceAt: string;
-  readonly kind: 'start' | 'middle' | 'end';
-  readonly at: Date;
-  readonly title: string;
-}
-
-const REMINDER_WORD: Record<Reminder['kind'], string> = {
-  start: 'Czas zacząć',
-  middle: 'Połowa czasu minęła',
-  end: 'Zbliża się koniec'
-};
-
-/** Die Erinnerungen in den Wecker — ersetzt, was vorher geplant war. */
-export async function planReminders(list: readonly Reminder[]): Promise<void> {
+/**
+ * Die Erinnerungen in den Wecker — ersetzt, was vorher geplant war. Die Liste
+ * rechnet `notifyRich.remindersFor` (dieselbe, die der Läufer im Hintergrund
+ * plant); in der App trägt die Meldung „Zrobione" (0076).
+ */
+export async function planReminders(list: readonly ReminderNotice[]): Promise<void> {
   if (!store.settings.reminders) { await notices.plan([]); return; }
   await notices.plan(list.map((r) => ({
-    tag: `task:${r.taskId}:${r.occurrenceAt}:${r.kind}`,
-    title: r.title,
-    body: REMINDER_WORD[r.kind],
-    at: r.at,
-    open: viewPath('tasks')
+    tag: r.tag, title: r.title, body: r.body, at: new Date(r.at), open: r.open, taskId: r.taskId, occurrenceAt: r.occurrenceAt
   })));
 }
 
@@ -488,7 +522,8 @@ export async function applyBackground(settings: NotifySettings): Promise<void> {
 
   const done = await background.configure({
     api: API, token: device.token, intervalMinutes: Math.max(15, settings.backgroundMinutes),
-    chats: settings.chats, forms: settings.forms, links: settings.links
+    chats: settings.chats, forms: settings.forms, links: settings.links,
+    contents: settings.contents, reminders: settings.reminders
   });
 
   pushActive = pushFor(listed, device.deviceId);

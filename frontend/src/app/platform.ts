@@ -40,6 +40,24 @@ interface KeyVaultPlugin {
 const KeyVault = registerPlugin<KeyVaultPlugin>('KeyVault');
 
 /**
+ * 0076 — DER LÄUFER der App (`runner.ts`): eine unsichtbare WebView ohne die
+ * Brücke von Capacitor. Sie reicht die Ablage selbst herein (RunnerHost.java),
+ * über denselben Schlüssel im Android Keystore wie KeyVaultPlugin.
+ */
+interface RunnerVault {
+  vaultGet(slot: string): string | null;
+  vaultPut(slot: string, value: string): boolean;
+  vaultDrop(slot: string): void;
+}
+
+const runnerVault: RunnerVault | undefined = typeof window === 'undefined'
+  ? undefined
+  : (window as Window & { RecreatioRunner?: RunnerVault }).RecreatioRunner;
+
+/** Läuft das hier im Läufer der App (unsichtbar, im Hintergrund)? */
+export const inRunner: boolean = runnerVault !== undefined;
+
+/**
  * Kleines, das einen Neustart übersteht — und NICHT mehr.
  *
  * <b>Jeder Fehlschlag heisst „nichts da".</b> Ein gesperrter Speicher (privates
@@ -49,6 +67,7 @@ const KeyVault = registerPlugin<KeyVaultPlugin>('KeyVault');
 export const vault = {
   async get(slot: string): Promise<string | null> {
     try {
+      if (runnerVault !== undefined) return runnerVault.vaultGet(slot) ?? null;
       if (native) return (await KeyVault.get({ slot })).value ?? null;
       return localStorage.getItem(slot);
     } catch {
@@ -58,6 +77,7 @@ export const vault = {
 
   async put(slot: string, value: string): Promise<boolean> {
     try {
+      if (runnerVault !== undefined) return runnerVault.vaultPut(slot, value);
       if (native) await KeyVault.put({ slot, value });
       else localStorage.setItem(slot, value);
       return true;
@@ -68,7 +88,8 @@ export const vault = {
 
   async drop(slot: string): Promise<void> {
     try {
-      if (native) await KeyVault.drop({ slot });
+      if (runnerVault !== undefined) runnerVault.vaultDrop(slot);
+      else if (native) await KeyVault.drop({ slot });
       else localStorage.removeItem(slot);
     } catch { /* gesperrt heisst: liegt ohnehin nichts */ }
   }
@@ -178,29 +199,29 @@ export const notices = {
    * In der App liegen sie im Wecker des Systems (ungenau erlaubt — kein
    * „genauer Wecker", den Google Play nur Weckern erlaubt); im Browser nur,
    * solange der Tab offen ist, und höchstens einen Tag voraus.
+   *
+   * 0076 — in der App plant sie der eigene Wecker (Reminders.java), denselben,
+   * den auch der Läufer im Hintergrund füllt; die Meldung trägt „Zrobione".
+   * Was noch über das Plugin geplant lag (0067), wird einmal zurückgenommen.
    */
-  async plan(list: readonly (Notice & { at: Date })[]): Promise<void> {
+  async plan(list: readonly (Notice & { at: Date; taskId?: string; occurrenceAt?: string | null })[]): Promise<void> {
     const wanted = new Map(list.map((n) => [n.tag, n]));
 
     if (native) {
       await prepared;
       let before: string[] = [];
       try { before = JSON.parse(localStorage.getItem(PLANNED_SLOT) ?? '[]') as string[]; } catch { before = []; }
-      const stale = before.filter((tag) => !wanted.has(tag));
-      if (stale.length > 0) {
-        await LocalNotifications.cancel({ notifications: stale.map((tag) => ({ id: numberOf(tag) })) }).catch(() => undefined);
+      if (before.length > 0) {
+        await LocalNotifications.cancel({ notifications: before.map((tag) => ({ id: numberOf(tag) })) }).catch(() => undefined);
+        try { localStorage.removeItem(PLANNED_SLOT); } catch { /* nichts */ }
       }
-      if (!notices.allowed()) { localStorage.setItem(PLANNED_SLOT, '[]'); return; }
-      const fresh = list.filter((n) => n.at.getTime() > Date.now() + 30_000).slice(0, 60);
-      if (fresh.length > 0) {
-        await LocalNotifications.schedule({
-          notifications: fresh.map((n) => ({
-            id: numberOf(n.tag), title: n.title, body: n.body, channelId: CHANNEL_TASKS, smallIcon: 'ic_stat_recreatio',
-            schedule: { at: n.at, allowWhileIdle: true }, extra: { open: n.open ?? '' }
-          }))
-        }).catch(() => undefined);
-      }
-      localStorage.setItem(PLANNED_SLOT, JSON.stringify(fresh.map((n) => n.tag)));
+      const fresh = notices.allowed() ? list.filter((n) => n.at.getTime() > Date.now() + 30_000).slice(0, 60) : [];
+      await NotifyNative.plan({
+        reminders: fresh.map((n) => ({
+          tag: n.tag, title: n.title, body: n.body, at: n.at.toISOString(), ms: n.at.getTime(), open: n.open ?? '',
+          taskId: n.taskId ?? '', occurrenceAt: n.occurrenceAt ?? null
+        }))
+      }).catch(() => undefined);
       return;
     }
 
@@ -254,15 +275,37 @@ export interface BackgroundStatus {
   readonly intervalMinutes: number;
   readonly pushBuilt?: boolean;
   readonly push?: boolean;
+  /** 0076 — Inhalt in den Meldungen: eingeschaltet, und wie der Läufer zuletzt ausging. */
+  readonly contents?: boolean;
+  readonly richAt?: string | null;
+  /** `open`, `locked:key`, `locked:session`, `failed:…` */
+  readonly richResult?: string | null;
+}
+
+/** 0076 — eine Erinnerung für den Wecker des Telefons (Reminders.java). */
+export interface NativeReminder {
+  readonly tag: string;
+  readonly title: string;
+  readonly body: string;
+  readonly at: string;
+  readonly ms: number;
+  readonly open: string;
+  readonly taskId: string;
+  readonly occurrenceAt: string | null;
 }
 
 interface NotifyPluginApi {
   configure(options: {
     api: string; token: string; intervalMinutes: number; chats: boolean; forms: boolean; links: boolean;
+    contents: boolean; reminders: boolean;
   }): Promise<{ push?: boolean }>;
   stop(): Promise<void>;
-  seen(options: { unread: number; forms: number; links: number; since: string }): Promise<void>;
+  seen(options: { unread: number; forms: number; links: number; since: string; chats?: readonly string[] }): Promise<void>;
   status(): Promise<BackgroundStatus>;
+  /** 0076 — Meldungen mit Inhalt zeigen (die Seite, wenn die App vorn ist; JSON wie `notifyRich.News`). */
+  present(options: { news: unknown }): Promise<void>;
+  plan(options: { reminders: readonly NativeReminder[] }): Promise<void>;
+  dismiss(options: { chatId: string }): Promise<void>;
   addListener(event: 'check', fn: () => void): Promise<{ remove: () => Promise<void> }>;
 }
 
@@ -284,6 +327,12 @@ export const background = {
   seen: (options: Parameters<NotifyPluginApi['seen']>[0]) =>
     native ? NotifyNative.seen(options).catch(() => undefined) : Promise.resolve(),
   status: (): Promise<BackgroundStatus> => (native ? NotifyNative.status().catch(() => NO_BACKGROUND) : Promise.resolve(NO_BACKGROUND)),
+
+  /** 0076 — Meldungen mit Inhalt (Gespräch mit Antwortfeld, Anmeldungen, Links); das Telefon entscheidet, was neu klingelt. */
+  present: (news: unknown): Promise<void> => (native ? NotifyNative.present({ news }).catch(() => undefined) : Promise.resolve()),
+
+  /** 0076 — die Meldung einer Rozmowa wegnehmen (sie ist gerade offen). */
+  dismiss: (chatId: string): Promise<void> => (native ? NotifyNative.dismiss({ chatId }).catch(() => undefined) : Promise.resolve()),
 
   /**
    * 0075 — der Wecker kam, während die App vorn ist: die Seite soll jetzt

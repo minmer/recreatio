@@ -13,10 +13,13 @@
  * wieder in dieser Prüfung, und sie wäre so nutzlos wie die gemeinsame.
  * Die Weiche wird von `tsconfig.json` mitgeprüft, das ohnehin alles umfasst.
  *
+ * `src/runner.ts` (0076) kommt mit: der Läufer der App im Hintergrund lädt
+ * nur Teile des Neubaus.
+ *
  * `src/vite-env.d.ts` kommt mit, weil ohne sie weder `import.meta.env` noch
  * der Import einer `.css` einen Typ hat.
  */
 {
   "extends": "./tsconfig.json",
-  "include": ["src/app", "src/vite-env.d.ts"]
+  "include": ["src/app", "src/runner.ts", "src/vite-env.d.ts"]
 }

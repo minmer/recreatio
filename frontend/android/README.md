@@ -67,7 +67,7 @@ Notes:
 | Links | Links to `recreatio.pl` open in the app. |
 | Back button | Closes an open dialog first, then goes back in history, then moves the app to the background. |
 | Downloads | `<a download>` of a `blob:` goes through the system file picker (`FileSaverPlugin`). |
-| Notifications | Shown while the app runs (`@capacitor/local-notifications`), also in the foreground, except for the chat that is open. A WorkManager job checks every 15 min or more while the app is closed (`NotifyWorker`). With Firebase built in, the service wakes the phone at once (`PushService`, see below). On the first start the app asks for notification permission once. |
+| Notifications | With content, opened on the phone: chats as conversations with a reply field, forms with names, task reminders with **Zrobione** (`Notices`, see below). Shown also while the app is open, except for the chat that is open. A WorkManager job checks every 15 min or more while the app is closed (`NotifyWorker`). With Firebase built in, the service wakes the phone at once (`PushService`). On the first start the app asks for notification permission once. |
 | Theme | Follows the system's light/dark mode, including the status bar icons. |
 
 In code, everything platform-specific lives in `src/app/platform.ts` (vault, notices, saveBlob) and `src/shell.ts` (start, links, back button, downloads). The native side is `android/app/src/main/java/pl/recreatio/app/`.
@@ -96,6 +96,29 @@ Firebase Cloud Messaging is only a **wake-up signal**. It carries `{"kind":"chec
 3. The service needs the project's service account key: `Push:Fcm:ServiceAccountFile` in `backend/Api/appsettings.json`. It points at `secrets/firebase-service-account.json` (gitignored, published with the API). A relative path counts from the app folder. The log says `Push on — Firebase project …` or why push is off.
 
 *Powiadomienia → Ustawienia* shows whether push works on this phone. All three parts must be there: the app built with Firebase, the service with the key, and the phone's token received.
+
+### Content and direct replies (0076)
+
+Notifications show **who wrote what**: chats in conversation style, with **Odpowiedz** (a reply field) and **Przeczytane**. Forms show the registrant's name, link joins show the link and area, and task reminders show the title with **Zrobione**. Firebase still carries only `{"kind":"check"}`. The content travels sealed over the app's own connection and is opened on the phone:
+
+| Step | Where |
+| --- | --- |
+| Wake-up (push, or the 15-minute check) | `PushService` → `RichWork` → `Inbox.check` |
+| Nothing new (counts and newest message unchanged)? Stop, no WebView. | `Inbox.check` |
+| Open the content: an invisible WebView loads the app's own `runner.html` from the APK, with the same session and key vault | `RunnerHost` → `src/runner.ts` → `notifyRich.ts` |
+| Show it; only new lines alert; swiped-away chats come back only with something new | `Notices` |
+| Reply, Przeczytane, Zrobione: the runner seals, signs and sends; a retry never sends twice | `ActionReceiver` → `RichWork` |
+| Task reminders with titles, in the phone's own alarm, re-planned after a reboot | `Reminders`, `ReminderReceiver` |
+
+The crypto is not re-implemented in Java. The runner is the app's own TypeScript, the same code that seals in the chat. When the app is open, the page opens the content itself and hands it to `Notices` (`NotifyPlugin.present`).
+
+**It needs the key on the phone.** That means *Konto → Klucz: Zachowany*, or the app still running with the key in memory. Otherwise the notification shows only the counts, as before. The settings panel says which case applies. On a lock screen that hides sensitive content, Android shows only „Nowa wiadomość". Content can be switched off: *Powiadomienia → Ustawienia → Treść w powiadomieniach*.
+
+**Testing without Google services.** A debug build has a test receiver (`src/debug`, absent from release builds) that does what a push would do:
+
+```sh
+adb shell am broadcast -n pl.recreatio.app/.DebugWake -a pl.recreatio.app.DEBUG_WAKE
+```
 
 ## Not there yet
 

@@ -32,6 +32,16 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      /*
+       * 0076 — zwei Einstiege: die Seite, und der Läufer der App
+       * (`runner.html`), den die App im Hintergrund in eine unsichtbare
+       * WebView lädt, um Meldungen mit Inhalt zu füllen. Er teilt die Bündel
+       * des Neubaus und lädt nichts vom Altbestand.
+       */
+      input: {
+        main: 'index.html',
+        runner: 'runner.html'
+      },
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {

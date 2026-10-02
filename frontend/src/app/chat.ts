@@ -232,7 +232,13 @@ export async function chatKeysOf(
  */
 export interface Attachment { id: string; name: string; type: string; size: number; key: string; }
 export interface MessageExtras { forwarded?: boolean; attachments?: readonly Attachment[]; replyTo?: string; replyText?: string; }
-export interface SendOptions extends MessageExtras { sendAt?: string; /** 0068 — in welches Thema. */ topicId?: string | null; }
+export interface SendOptions extends MessageExtras {
+  sendAt?: string;
+  /** 0068 — in welches Thema. */
+  topicId?: string | null;
+  /** 0076 — eine Kennung von aussen (die Antwort aus der Meldung): ein zweiter Versuch schickt nicht doppelt. */
+  messageId?: string;
+}
 
 export interface Opened extends MessageExtras {
   readonly text: string;
@@ -360,12 +366,12 @@ export async function editMessage(
 
 /** Eine Nachricht versiegeln — unter dem jüngsten Chatschlüssel, mit Verfasser im Etikett. */
 export async function sealMessage(
-  keys: ReadonlyMap<number, Uint8Array>, authorId: string, text: string, name: string | null, extras: MessageExtras = {}
+  keys: ReadonlyMap<number, Uint8Array>, authorId: string, text: string, name: string | null, extras: MessageExtras & { messageId?: string } = {}
 ): Promise<{ messageId: string; epoch: number; sealedBody: Uint8Array; signedAt: number; bodyHash: Uint8Array }> {
   const newest = newestKey(keys);
   if (newest === null) throw new WorkspaceError('Nie masz klucza tej rozmowy — nie da się napisać.');
 
-  const messageId = newId();
+  const messageId = extras.messageId ?? newId();
   const sealedBody = await sealText(newest.key, messageAad(messageId, authorId), encodeBody(text, name, extras));
   return {
     messageId, epoch: newest.epoch, sealedBody,
