@@ -494,6 +494,10 @@ export const setSeatLevel = (
  * Bereich hat seine eigenen Rollen. Was die Rolle schon gelesen hat, bleibt
  * bei ihr; `note` sagt das.
  */
+/** 0081 — einen Bereich umbenennen (wer ihn führt). Der Name steht offen da — bei „Napisz do nas" liest ihn die Person mit dem Link. */
+export const renameArea = (areaId: string, name: string): Promise<{ areaId: string; name: string }> =>
+  call(`/workspace/area/${encodeURIComponent(areaId)}/name`, { method: 'POST', body: JSON.stringify({ name }) });
+
 export const dropFromArea = (
   areaId: string, roleId: string
 ): Promise<{ areaId: string; roleId: string; dropped: boolean; note: string }> =>

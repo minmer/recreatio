@@ -66,7 +66,10 @@ public static class Audience
     /// </summary>
     private static readonly Dictionary<string, string> Subjects = new()
     {
-        ["chat"] = "SELECT area_id FROM app.chat WHERE id = @id AND kind IN (N'area', N'channel')"
+        ["chat"] = "SELECT area_id FROM app.chat WHERE id = @id AND kind IN (N'area', N'channel')",
+
+        /* 0081 — „Napisz do nas": sein Bereich sind die Rollen, die antworten; seine Formulare, wer anfangen darf (One). */
+        ["module"] = "SELECT area_id FROM app.module WHERE id = @id AND kind = N'seat-ask' AND area_id IS NOT NULL"
     };
 
     /// <summary>
@@ -181,7 +184,34 @@ public static class Audience
 
     public static void Map(WebApplication app)
     {
+        app.MapGet("/workspace/audience/{kind}/{id:guid}/forms", ListAsync);
         app.MapPost("/workspace/audience/{kind}/{id:guid}/forms", LinkAsync);
+    }
+
+    /// <summary>Der Bereich eines Dings — oder null: das Ding gibt es nicht, oder es nimmt keine Formulare.</summary>
+    private static async Task<Guid?> AreaOfAsync(SqlConnection connection, string kind, Guid id, CancellationToken ct)
+    {
+        if (!Subjects.TryGetValue(kind, out var areaOf)) return null;
+        await using var cmd = new SqlCommand(areaOf, connection);
+        cmd.Parameters.AddWithValue("@id", id);
+        return await cmd.ExecuteScalarAsync(ct) as Guid?;
+    }
+
+    /// <summary>Die Formulare eines Dings — für wen dessen Bereich liest.</summary>
+    private static async Task ListAsync(HttpContext ctx, Db db, string kind, Guid id)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var areaId = await AreaOfAsync(connection, kind, id, ctx.RequestAborted);
+        if (areaId is null || !await Area.MayAsync(connection, who.Value.AccountId, areaId.Value, Capability.Read, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego tu nie ma.");
+            return;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { kind, id = Ids.ToText(id), forms = await FormsOfAsync(connection, kind, id, ctx.RequestAborted) });
     }
 
     public sealed record LinkRequest(string ModuleId, bool Linked, string? ByRoleId = null);
@@ -203,20 +233,14 @@ public static class Audience
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
-        if (!Subjects.TryGetValue(kind, out var areaOf) || !Guid.TryParse(body.ModuleId, out var moduleId))
+        if (!Subjects.ContainsKey(kind) || !Guid.TryParse(body.ModuleId, out var moduleId))
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung.");
             return;
         }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
-
-        Guid? areaId;
-        await using (var cmd = new SqlCommand(areaOf, connection))
-        {
-            cmd.Parameters.AddWithValue("@id", id);
-            areaId = await cmd.ExecuteScalarAsync(ctx.RequestAborted) as Guid?;
-        }
+        var areaId = await AreaOfAsync(connection, kind, id, ctx.RequestAborted);
 
         /* Die Rollen dieses Kontos, die im Bereich schreiben — eine davon hängt an. */
         var leading = new List<Guid>();

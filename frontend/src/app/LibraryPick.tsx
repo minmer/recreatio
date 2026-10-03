@@ -16,9 +16,9 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { loadLibraries, loadPublished, openLibraries, summaryOf, type OpenLibrary, type PublishedItem } from './library';
 import { kindOf, str, type LibEntry } from './libraryKinds';
 import type { LibraryStore } from './libraryStore';
-import { useMe } from './me';
+import { useMe, useWho } from './me';
 import { viewPath } from './routes';
-import { whoIsThere, WorkspaceError, type Who } from './session';
+import { WorkspaceError, type Who } from './session';
 
 /** Wie ein Eintrag als Wahl erscheint: Titel und, wo es hilft, etwas dazu. */
 export function entryLine(entry: LibEntry, store: LibraryStore): string {
@@ -144,17 +144,6 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
 
 /* -- Im Seiteneditor ------------------------------------------------------------------------- */
 
-/** Wer angemeldet ist — für Stellen, denen es niemand hereinreicht (die Felder eines Bausteins). */
-function useWho(given: Who | null | undefined): Who | null | undefined {
-  const [found, setFound] = useState<Who | null | undefined>(given);
-  useEffect(() => {
-    if (given !== undefined) { setFound(given); return undefined; }
-    let alive = true;
-    void whoIsThere().then((one) => { if (alive) setFound(one); });
-    return () => { alive = false; };
-  }, [given]);
-  return found;
-}
 
 /** Die Bibliotheken, die ich lesen kann — mit Namen (dafür braucht es die Schlüssel). */
 export function useLibraries(given?: Who | null): readonly OpenLibrary[] | null | undefined {

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Kernel;
 using Microsoft.Data.SqlClient;
 
@@ -9,26 +8,23 @@ namespace Api;
 /// mit einem" (<see cref="AudienceMode.One"/>) selbst an.
 ///
 /// <para>
-/// <b>Der Baustein sagt, an wen.</b> Ein Baustein der Art <c>seat-ask</c>
-/// nennt in <c>to</c> die Bereiche, an die man schreiben kann — die Rollen
-/// darin antworten. Angeboten wird davon, was mit dem Menschen zu tun hat
-/// (<see cref="Audience.MayMeetAsync"/>, dieselbe Regel, nach der ein Bereich
-/// ihn anschreiben darf): ein Baustein holt niemandem Menschen, mit denen er
-/// nichts zu tun hat, und niemand schreibt an einen Bereich, den kein
-/// Baustein anbietet.
+/// <b>Der Baustein ist ein Ding mit Odbiorcy</b> (<see cref="Audience"/>,
+/// Art <c>module</c>): SEIN Bereich — eigens angelegt, mit genau den Rollen,
+/// die antworten — und SEINE Formulare (<c>app.audience_form</c>). Anfangen
+/// darf, wer eines davon ausgefüllt hat (<see cref="Audience.PeopleOf"/>);
+/// die Rozmowa liegt am Bereich des Bausteins, und nur er bekommt ihren
+/// Schlüssel — die anderen aus dem Formular sehen sie nicht.
 /// </para>
 ///
 /// <para>
 /// <b>Schlüssel gibt es noch keinen.</b> Die Rozmowa entsteht leer; den
-/// Chatschlüssel verpackt ihm ein Mitglied, sobald dessen App sie sieht
-/// (die Glocke fragt danach, `waiting` in <c>/workspace/notifications</c>).
-/// Bis dahin hält sein Browser, was er schreibt.
+/// Chatschlüssel verpackt ihm die App eines Mitglieds, sobald sie die Glocke
+/// fragt (`waiting` in <c>/workspace/notifications</c>). Bis dahin hält sein
+/// Browser, was er schreibt.
 /// </para>
 /// </summary>
 public static partial class Chat
 {
-    private const string AskKind = "seat-ask";
-
     private static void MapAsk(WebApplication app)
     {
         app.MapGet("/seat/{token}/ask/{moduleId:guid}", AskListAsync);
@@ -38,59 +34,38 @@ public static partial class Chat
     public sealed record AskRequest(string AreaId);
 
     /// <summary>
-    /// Der Platz hinter dem Token und die Bereiche, an die er über diesen
-    /// Baustein schreiben kann — in der Reihenfolge des Bausteins, mit Namen.
-    /// Sonst null (und 404 geschrieben).
+    /// Der Platz hinter dem Token und an wen er über diesen Baustein schreiben
+    /// kann — der Bereich des Bausteins, wenn er zu dessen Menschen gehört;
+    /// sonst niemand. Ohne lebenden Platz oder Baustein: null (und 404).
     /// </summary>
     private static async Task<(Guid Seat, List<(Guid Area, string Name)> To)?> AskOfAsync(
         HttpContext ctx, SqlConnection connection, string token, Guid moduleId)
     {
         var seat = await Seat.LiveSeatAsync(connection, token, gated: true, ctx.RequestAborted);
-
-        string? config = null;
-        if (seat is not null)
-        {
-            await using var cmd = new SqlCommand("SELECT config FROM app.module WHERE id = @id AND kind = @kind;", connection);
-            cmd.Parameters.AddWithValue("@id", moduleId);
-            cmd.Parameters.AddWithValue("@kind", AskKind);
-            config = await cmd.ExecuteScalarAsync(ctx.RequestAborted) as string;
-        }
-
-        if (seat is null || config is null)
+        if (seat is null)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Tego tu nie ma.");
             return null;
         }
 
-        var wanted = new List<Guid>();
-        try
+        var to = new List<(Guid, string)>();
+        await using (var cmd = new SqlCommand($"""
+            SELECT m.area_id, a.name
+            FROM app.module m
+            JOIN app.area a ON a.id = m.area_id
+            JOIN app.access s ON s.id = @seat
+            WHERE m.id = @module AND m.kind = N'seat-ask'
+              AND {Audience.PeopleOf("module", "m.id", "m.area_id")};
+            """, connection))
         {
-            using var doc = JsonDocument.Parse(config);
-            if (doc.RootElement.ValueKind == JsonValueKind.Object
-                && doc.RootElement.TryGetProperty("to", out var to) && to.ValueKind == JsonValueKind.String)
-            {
-                foreach (var one in (to.GetString() ?? string.Empty).Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
-                {
-                    if (Guid.TryParse(one, out var id) && !wanted.Contains(id)) wanted.Add(id);
-                }
-            }
-        }
-        catch (JsonException)
-        {
-            // Eine unlesbare Tafel bietet niemanden an.
-        }
+            cmd.Parameters.AddWithValue("@seat", seat.Value.Id);
+            cmd.Parameters.AddWithValue("@module", moduleId);
 
-        var out_ = new List<(Guid, string)>();
-        foreach (var area in wanted.Take(20))
-        {
-            if (!await Audience.MayMeetAsync(connection, seat.Value.Id, area, ctx.RequestAborted)) continue;
-
-            await using var name = new SqlCommand("SELECT name FROM app.area WHERE id = @id;", connection);
-            name.Parameters.AddWithValue("@id", area);
-            if (await name.ExecuteScalarAsync(ctx.RequestAborted) is string called) out_.Add((area, called));
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted)) to.Add((reader.GetGuid(0), reader.GetString(1)));
         }
 
-        return (seat.Value.Id, out_);
+        return (seat.Value.Id, to);
     }
 
     private static async Task<Guid?> SeatChatAtAsync(SqlConnection connection, Guid seat, Guid area, CancellationToken ct)
@@ -101,7 +76,7 @@ public static partial class Chat
         return await cmd.ExecuteScalarAsync(ct) as Guid?;
     }
 
-    /// <summary>An wen dieser Baustein den Menschen schreiben lässt — und wo er es schon tut.</summary>
+    /// <summary>An wen dieser Baustein den Menschen schreiben lässt — und ob die Rozmowa schon da ist.</summary>
     private static async Task AskListAsync(HttpContext ctx, Db db, string token, Guid moduleId)
     {
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
@@ -119,8 +94,8 @@ public static partial class Chat
     }
 
     /// <summary>
-    /// DIE ROZMOWA ANFANGEN — mit einem der angebotenen Bereiche. Gibt es sie
-    /// schon (er, oder der Bereich, hat schon angefangen), ist SIE es.
+    /// DIE ROZMOWA ANFANGEN. Gibt es sie schon (er, oder der Bereich, hat
+    /// schon angefangen), ist SIE es.
     /// </summary>
     private static async Task AskStartAsync(HttpContext ctx, Db db, Push push, string token, Guid moduleId, AskRequest body)
     {
@@ -130,7 +105,7 @@ public static partial class Chat
 
         if (!Guid.TryParse(body.AreaId, out var areaId) || !found.Value.To.Any(t => t.Area == areaId))
         {
-            await Fail(ctx, StatusCodes.Status404NotFound, "Tu nie można napisać do tej grupy.");
+            await Fail(ctx, StatusCodes.Status404NotFound, "Z Twojego linku nie można tu napisać.");
             return;
         }
 

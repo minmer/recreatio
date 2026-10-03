@@ -20,7 +20,7 @@ export function AudienceForms({ kind, subjectId, mode, forms, byRoleId, what, on
   /** Woran die Formulare hängen — wie der Dienst es kennt (`chat`). */
   kind: string;
   subjectId: string;
-  mode: Exclude<AudienceMode, 'one'>;
+  mode: AudienceMode;
   forms: readonly AudienceForm[];
 
   /** Meine Rolle, die im Bereich schreibt — ohne sie wird nur gezeigt. */
@@ -62,7 +62,9 @@ export function AudienceForms({ kind, subjectId, mode, forms, byRoleId, what, on
     <>
       <h2 className="wk-h2">Formularze ({forms.length})</h2>
       <p className="wk-hint">
-        Kto wypełnił dołączony formularz, {othersWrite(mode) ? 'czyta i pisze w' : 'czyta'} {what} — ze swojego linku, bez konta.
+        {mode === 'one'
+          ? <>Kto wypełnił dołączony formularz, może tu zacząć rozmowę — ze swojego linku, bez konta. Widzi ją tylko on i odpowiadający.</>
+          : <>Kto wypełnił dołączony formularz, {othersWrite(mode) ? 'czyta i pisze w' : 'czyta'} {what} — ze swojego linku, bez konta.</>}
         {' '}Nie liczą się zgłoszenia wycofane ani ukryte na liście.
       </p>
 

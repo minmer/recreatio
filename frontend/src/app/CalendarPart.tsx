@@ -44,11 +44,10 @@ import { accessWords, heldLinkKeys, heldProofs, type HeldInfo } from './linkAcce
 import { useLinkMe } from './linkMe';
 import { addDays, longDate, monthTitle, rangeTitle, sameDay, startOfDay } from './dayMath';
 import { useNow } from './MassParts';
-import { useMe, type Me } from './me';
+import { useMe, useWho, type Me } from './me';
 import { Modal } from './Modal';
 import type { PartContext } from './part';
 import { usePerson } from './pagePerson';
-import { whoIsThere, type Who } from './session';
 
 const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 
@@ -58,17 +57,6 @@ interface Opened {
   readonly events: readonly CalEvent[];
   readonly details: ReadonlyMap<string, Detail>;
   readonly calendars: readonly { id: string; areaId: string | null; title: string | null; description: string | null }[];
-}
-
-/** Wer angemeldet ist — `undefined`: noch nicht nachgesehen. */
-function useWho(): Who | null | undefined {
-  const [who, setWho] = useState<Who | null | undefined>(undefined);
-  useEffect(() => {
-    let alive = true;
-    whoIsThere().then((found) => { if (alive) setWho(found); }).catch(() => { if (alive) setWho(null); });
-    return () => { alive = false; };
-  }, []);
-  return who;
 }
 
 /**

@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react';
 import type { Ring, SealedRole } from './keys';
 import { keysFor } from './ringOf';
 import { myRoleNames } from './roleNames';
-import type { Who } from './session';
+import { whoIsThere, type Who } from './session';
 
 export interface Me {
   readonly ring: Ring;
@@ -21,6 +21,22 @@ export interface Me {
   readonly roles: readonly SealedRole[];
   readonly person: SealedRole;
   readonly names: ReadonlyMap<string, string>;
+}
+
+/**
+ * Wer angemeldet ist — für Stellen, denen es niemand hereinreicht (ein Baustein
+ * auf einer Seite, die Felder eines Bausteins). `given`: schon bekannt, dann
+ * dieser. `undefined`: wird noch nachgesehen.
+ */
+export function useWho(given?: Who | null): Who | null | undefined {
+  const [found, setFound] = useState<Who | null | undefined>(given);
+  useEffect(() => {
+    if (given !== undefined) { setFound(given); return undefined; }
+    let alive = true;
+    void whoIsThere().then((one) => { if (alive) setFound(one); }).catch(() => { if (alive) setFound(null); });
+    return () => { alive = false; };
+  }, [given]);
+  return found;
 }
 
 /** `undefined`: wird geholt. `null`: der Schlüssel ist zu (die Karte fragt nach dem Passwort) oder es gibt keine Person. */

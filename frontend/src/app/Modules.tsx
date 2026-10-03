@@ -431,7 +431,7 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
       <section className="wk-form">
         <h2 className="wk-h2">Treść</h2>
         {def.missing(config) !== null && <p className="wk-blocker">{def.missing(config)}</p>}
-        <Editor raw={config} onSet={queue} busy={busy} ctx={{ path: row.pages[0] ?? null }} />
+        <Editor raw={config} onSet={queue} busy={busy} ctx={{ path: row.pages[0] ?? null, moduleId: row.moduleId }} />
         <p className="wk-hint" role="status">{saving ? 'Zapisywanie…' : 'Zmiany zapisują się same.'}</p>
         {failed !== null && <p className="wk-error">{failed}</p>}
       </section>

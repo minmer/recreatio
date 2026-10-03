@@ -66,6 +66,9 @@ public static class Area
         app.MapPost("/workspace/area/{id:guid}/seat-level", SetSeatLevelAsync);
         app.MapPost("/workspace/area/{id:guid}/drop", DropAsync);
 
+        /* 0081 — umbenennen: wer den Bereich führt. */
+        app.MapPost("/workspace/area/{id:guid}/name", RenameAsync);
+
         /*
          * DIE VORLAGE DES PORTALS (0028) — eine ganz gewoehnliche Seite, deren
          * Bausteine jeder Platz dieses Bereichs zu sehen bekommt. Eine Vorlage
@@ -1378,6 +1381,40 @@ public static class Area
             /* Ehrlich gesagt, nicht verschwiegen. */
             note = "Klucz, który ta rola już otworzyła, zostaje u niej. Odcięty jest dostęp do tego, co dalej."
         });
+    }
+
+    public sealed record RenameRequest(string Name);
+
+    /// <summary>
+    /// 0081 — EIN BEREICH BEKOMMT EINEN NEUEN NAMEN. Der Name steht offen da
+    /// (wie beim Anlegen) — beim Baustein „Napisz do nas" ist er das, was der
+    /// Mensch mit dem Link liest: „Napisz do: …". Umbenennen darf, wer ihn führt.
+    /// </summary>
+    private static async Task RenameAsync(HttpContext ctx, Db db, Guid id, RenameRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var name = (body.Name ?? string.Empty).Trim();
+        if (name.Length is 0 or > MaxName)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Obszar potrzebuje nazwy.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        if (!await MayAsync(connection, who.Value.AccountId, id, Capability.Admin, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Nazwę zmienia ten, kto prowadzi obszar.");
+            return;
+        }
+
+        await using var cmd = new SqlCommand("UPDATE app.area SET name = @name WHERE id = @id;", connection);
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@name", name);
+        await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        await ctx.Response.WriteAsJsonAsync(new { areaId = Ids.ToText(id), name });
     }
 
     internal static async Task<bool> MayAsync(

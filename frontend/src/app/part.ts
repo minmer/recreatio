@@ -412,6 +412,9 @@ export interface EditorContext {
    * Baustein noch nirgends steht; dann lassen sich nur Adressen eintragen.
    */
   readonly path: string | null;
+
+  /** 0081 — der Baustein dieser Stelle (`null`: noch nicht gespeichert) — „Napisz do nas" hängt seine Rollen und Formulare daran. */
+  readonly moduleId?: string | null;
 }
 
 export interface EditorProps {

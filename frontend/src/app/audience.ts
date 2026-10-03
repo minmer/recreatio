@@ -40,6 +40,10 @@ export interface AudienceForm {
   readonly people: number;
 }
 
+/** Die Formulare an einem Ding — für wen dessen Bereich liest (0081). */
+export const loadAudienceForms = (kind: string, id: string): Promise<{ forms: readonly AudienceForm[] }> =>
+  call(`/workspace/audience/${encodeURIComponent(kind)}/${encodeURIComponent(id)}/forms`);
+
 /**
  * Ein Formular an ein Ding hängen — oder ab. Dürfen muss beides: im Bereich
  * des Dings schreiben, und das Formular sehen (seinen Bereich oder einen

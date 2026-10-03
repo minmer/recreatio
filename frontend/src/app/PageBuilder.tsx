@@ -597,7 +597,7 @@ function Fields({ part, size, busy, onSet, path }: {
       {def.missing(part.config) !== null && <p className="wk-blocker">{def.missing(part.config)}</p>}
 
       {/* 0063 — ein Baustein mit eigenem Editor (Listen von Listen) bringt ihn selbst mit. */}
-      {def.Editor !== null && <def.Editor raw={part.config} onSet={onSet} ctx={{ path }} busy={busy} />}
+      {def.Editor !== null && <def.Editor raw={part.config} onSet={onSet} ctx={{ path, moduleId: part.moduleId }} busy={busy} />}
 
       {def.fields.map((field) => {
         const value = part.config[field.key] ?? '';

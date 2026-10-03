@@ -71,6 +71,22 @@ public static class Module
 
         var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
 
+        /* 0081 — welche Formulare an einem Baustein hängen (Audience, „Napisz do nas"): wer dort schreiben darf. */
+        var audience = new Dictionary<Guid, List<string>>();
+        await using (var forms = new SqlCommand("""
+            IF OBJECT_ID(N'app.audience_form', N'U') IS NOT NULL
+                SELECT subject_id, module_id FROM app.audience_form WHERE subject_kind = N'module';
+            """, connection))
+        await using (var read = await forms.ExecuteReaderAsync(ctx.RequestAborted))
+        {
+            while (await read.ReadAsync(ctx.RequestAborted))
+            {
+                var subject = read.GetGuid(0);
+                if (!audience.TryGetValue(subject, out var list)) audience[subject] = list = [];
+                list.Add(Ids.ToText(read.GetGuid(1)));
+            }
+        }
+
         await using var cmd = new SqlCommand($"""
             SELECT m.id, m.area_id, m.kind, m.name, m.config, m.created_at, m.for_kind,
                    a.name AS area_name,
@@ -179,7 +195,10 @@ public static class Module
                 audience = reader.GetString(17),
 
                 /* 0077 — eine Erweiterung, die sich wiederholt: once, day, week, month, year. */
-                repeat = reader.GetString(18)
+                repeat = reader.GetString(18),
+
+                /* 0081 — die Formulare, deren Menschen an diesen Baustein schreiben dürfen. */
+                formIds = audience.TryGetValue(reader.GetGuid(0), out var aud) ? aud : []
             });
         }
 
