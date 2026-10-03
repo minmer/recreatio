@@ -11,7 +11,7 @@
 import type { CSSProperties } from 'react';
 
 import { keyOf } from './dayMath';
-import { byDay, CONFESSION, dayKey, hour, massesOnly, shortDayLabel, type PublicMass } from './mass';
+import { byDay, dayKey, DEVOTION, hour, isMass, massesOnly, shortDayLabel, type PublicMass } from './mass';
 import { isAhead, nextOf, soon, type MassView } from './massShape';
 import {
   daysWith, DayBlock, Intentions, onlyMasses, same, Times, type Ctx, type Day
@@ -59,7 +59,8 @@ export function Glance({ shown, services, now, anchor, place, calendarSet, onOpe
    */
   const start = next !== null ? dayKey(next.startsAt) : keyOf(anchor ?? now);
   const days: Day[] = daysWith(shown.confessions ? services : masses)
-    .filter((one) => one.key >= start && one.masses.some((m) => m.kind !== CONFESSION));
+    /* 0079 — ein Tag mit einem Nabożeństwo (Droga Krzyżowa am Freitag) ist einer, zu dem man kommt; einer nur mit Beichte nicht. */
+    .filter((one) => one.key >= start && one.masses.some((m) => isMass(m) || m.kind === DEVOTION));
 
   if (days.length === 0) return <p className="wk-card-muted">Brak mszy w tych dniach.</p>;
 

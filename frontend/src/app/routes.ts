@@ -379,7 +379,7 @@ export const VIEWS = {
    */
   calendar: 'Kalendarz',
   tasks: 'Zadania',
-  masses: 'Msze i intencje',
+  masses: 'Msze i nabożeństwa',
 
   /*
    * Was man sich für eine Zeit nehmen kann (0039) — das Treffen mit dem

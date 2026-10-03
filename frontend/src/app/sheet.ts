@@ -107,6 +107,9 @@ const collectiveName = (mass: PublicMass) =>
  * Intention verschwindet nicht: die Uhrzeit bleibt, denn die Messe findet statt.
  */
 function intentionsOf(mass: PublicMass): string {
+  /* 0079 — eine abgesagte Messe steht da, als abgesagt: wer den Bogen liest, sucht sie sonst. */
+  if (mass.status === 'cancelled') return '<div class="one"><em>msza odwołana</em></div>';
+
   const ones = single(mass).map((i) => i.text);
   const many = collective(mass);
 

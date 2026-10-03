@@ -11,6 +11,7 @@
  *   7. Program: ein Baum aus Teilen, nach Stelle und Zeit.
  *   9. Der Schlüssel zum Lesen: offengelegt, sonst aus der eigenen Zuteilung — und was es kostet.
  *  10. Als Link handeln: die Beweise im Kopf, ein Bund aus Linkrollen.
+ *  11. Gottesdienst (0079): Messe, Beichte, Nabożeństwo — was eine Messe ist, was aushängt, was gedruckt wird.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -44,6 +45,10 @@ export { sha256Bytes, toBase64Url, wrapKey, seal, aad, Field } from '${app}crypt
 export { call, carryLinks, LINKS_HEADER } from '${app}session';
 export { Ring } from '${app}keys';
 export { areaReader } from '${app}areaRead';
+export { isMass, massesOnly, othersOnly, intentionsWord, SERVICE_KINDS } from '${app}mass';
+export { isLiturgy, OWN_KINDS, kindWord } from '${app}agenda';
+export { ITEM_KINDS } from '${app}calendar';
+export { intentionsSheetHtml } from '${app}sheet';
 export { epochAad } from '${app}area';
 `);
 await build({
@@ -601,6 +606,35 @@ try {
       globalThis.fetch = realFetch;
     }
     ok('acting as a link: proofs in the header only while switched on, a ring of link roles opens what is sealed for them');
+  }
+
+  /* -- 11. Gottesdienst (0079) ----------------------------------------------------------------- */
+  {
+    const at = (h) => `2026-10-05T${h}:00+02:00`;
+    const service = (kind, h, extra = {}) => ({
+      itemId: kind + h, kind, occurrenceAt: at(h), startsAt: at(h), endsAt: at(h), status: 'planned', title: null,
+      calendarId: 'c', calendarTitle: 'c', areaName: 'a', timeZone: 'Europe/Warsaw', intentions: [], ...extra
+    });
+    const day = [
+      service('mass', '07:00', { intentions: [{ ordinal: 0, text: 'Za śp. Jana', kind: 'single' }] }),
+      service('devotion', '17:30', { title: 'Różaniec' }),
+      service('confession', '17:00'),
+      service('mass', '18:00', { status: 'cancelled', skipped: true })
+    ];
+    assert.deepEqual(m.massesOnly(day).map((x) => x.kind), ['mass', 'mass'], 'a devotion is not a mass (it used to be: "all but confession")');
+    assert.deepEqual(m.othersOnly(day).map((x) => x.kind).sort(), ['confession', 'devotion']);
+    assert.ok(m.ITEM_KINDS.includes('devotion') && m.SERVICE_KINDS.includes('devotion'), 'the devotion is a kind, like ck_item_kind (0079)');
+    assert.ok(['mass', 'confession', 'devotion'].every((k) => m.isLiturgy(k) && m.OWN_KINDS.includes(k)), 'every service is edited in the calendar now');
+    assert.ok(!m.isLiturgy('appointment') && !m.isLiturgy(undefined));
+    assert.equal(m.kindWord('devotion'), 'Nabożeństwo');
+    assert.deepEqual([1, 2, 4, 5, 12, 22, 25].map(m.intentionsWord),
+      ['1 intencja', '2 intencje', '4 intencje', '5 intencji', '12 intencji', '22 intencje', '25 intencji']);
+
+    const html = m.intentionsSheetHtml(day, new Date('2026-10-05T00:00:00+02:00'), new Date('2026-10-05T23:59:00+02:00'));
+    assert.ok(html.includes('Za śp. Jana'), 'the sheet prints the intentions');
+    assert.ok(!html.includes('Różaniec'), 'a devotion is not on the sheet of intentions');
+    assert.ok(html.includes('msza odwołana'), 'a cancelled mass stands on the sheet, as cancelled');
+    ok('services (0079): a devotion is no mass, every service is edited in the calendar, the sheet says "odwołana", Polish plural of intentions');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

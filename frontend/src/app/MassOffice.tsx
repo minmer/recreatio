@@ -1,10 +1,25 @@
 /**
- * Die Kanzlei: Messen anlegen, Intentionen eintippen, den Bogen drucken.
+ * Die Kanzlei: Messen, Beichte und Nabożeństwa planen und ändern, Intentionen
+ * eintippen und pflegen, den Bogen drucken.
  *
  * <b>Sie hängt am KALENDER, nicht an der Adresse.</b> Eine Messe ist ein
  * Kalendereintrag mit `kind: 'mass'`; welcher Kalender in Frage kommt, sagt
  * `loadCalendars` — und die Liste IST die Berechtigung: dort steht nur, worauf
  * man ein Zertifikat auf den Bereich hat. Wer nichts sieht, darf nichts.
+ *
+ * <b>0079 — alles lässt sich ändern.</b> Vorher liess sich hier eine Messe
+ * anlegen und nie wieder anfassen (der Kalender verwies hierher, und hier gab
+ * es kein Ändern), und an einer Intention nur der Text. Jetzt:
+ *
+ * <code>
+ *   Plan        jedes Vorkommen: ändern (der Termin-Dialog des Kalenders — mit
+ *               „ten i następne"), absagen, zurückholen, im Kalender zeigen
+ *   Intencje    Text, Art, Stand (odprawiona), Reihenfolge, wer sie liest,
+ *               Geber und Gabe (versiegelt), an eine andere Messe verlegen, löschen
+ * </code>
+ *
+ * Die Intentionen gehen mit, wenn eine Messe sich ändert — der Dienst ordnet
+ * sie dem Tag zu und sagt es, wenn einer die Messe fehlen würde.
  *
  * <b>Warum ein eigener Eingabemodus.</b> Intentionen kommen in Reihen: die
  * Kanzlei hat einen Zettel mit zwanzig und tippt sie hintereinander ab. Bei
@@ -32,16 +47,25 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { kindWord, loadAgenda, openAgenda, restoreOne } from './agenda';
 import {
-  addItem, loadCalendars, REPEAT_LABEL, type CalendarRow, type ItemKind, type RepeatKind
+  addItem, loadCalendars, REPEAT_LABEL, setPeople, type CalendarRow, type Duty, type ItemKind, type RepeatKind
 } from './calendar';
+import { NO_BOOKINGS, sameInstant } from './calendarBookings';
+import { buildEvents, type CalEvent } from './calendarModel';
+import { areaKeys, newestKey } from './chat';
+import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from './crypto';
+import { EventDialog } from './EventDialog';
 import {
-  addIntention, CONFESSION, KIND_LABEL, MASS, WEEKDAY_BITS,
-  dayKey, dayLabel, firstOnOrAfter, hour, loadOffice, loadPlan, massesOnly, positionInDay,
+  addIntention, CONFESSION, DEVOTION, DEVOTION_NAMES, deleteIntention, INTENTION_STATUS_LABEL, intentionsWord,
+  isMass, KIND_LABEL, MASS, SERVICE_LABEL, WEEKDAY_BITS,
+  dayKey, dayLabel, firstOnOrAfter, hour, loadOffice, loadPlan, positionInDay,
   updateIntention, type IntentionKind, type OfficeIntention, type OfficeMass
 } from './mass';
 import { createCalendar, loadCalendars as loadAllCalendars, setOccurrence } from './calendar';
 import { loadAreas, type AreaRow } from './area';
+import { useMe, type Me } from './me';
+import { useAreaPeople, type Candidate } from './PeoplePicker';
 import { printIntentions, sheetWeek } from './sheet';
 import {
   loadClaims, loadResources, officeAdd, officeClose, officeRemove, updateResource,
@@ -50,7 +74,7 @@ import {
 import { loadSeats } from './seat';
 import { loadRoles, selfOf } from './roles';
 import { viewPath } from './routes';
-import { WorkspaceError } from './session';
+import { WorkspaceError, type Who } from './session';
 import { AreaOptions } from './AreaOptions';
 import { useRecent } from './prefs';
 
@@ -66,7 +90,26 @@ const todayKey = (): string => dayKey(new Date().toISOString());
 /** Der Schlüssel eines Vorkommens: dieselbe Messe kann in zwei Kalendern liegen. */
 const keyOf = (mass: OfficeMass): string => `${mass.itemId}-${mass.occurrenceAt}`;
 
-export function MassOffice() {
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+type OfficeTab = 'intentions' | 'plan' | 'new' | 'terms' | 'print';
+
+/* Welcher Reiter zuletzt offen war — solange die Seite lebt. */
+let lastTab: OfficeTab = 'intentions';
+
+/**
+ * @param trail 0079 — `#/workspace/masses/<kalendarz>/<dzień>/<msza>`: gleich
+ *   an dieser Messe aufschlagen (aus dem Kalender: „Otwórz w Msze i intencje").
+ */
+export function MassOffice({ who, trail = [], heading = false }: {
+  who: Who;
+  trail?: readonly string[];
+  /** Mit eigener Überschrift — im Editor einer Seite; im Arbeitsplatz steht sie schon oben. */
+  heading?: boolean;
+}) {
+  const me = useMe(who);
+  const wanted = { calendar: trail[0] ?? '', day: DAY.test(trail[1] ?? '') ? trail[1]! : '', item: trail[2] ?? '' };
+
   /*
    * 0054 — WELCHER TERMINARZ ZULETZT: nach dem Neuladen steht der, an dem man
    * gerade arbeitete, und nicht der alphabetisch erste. Gemerkt versiegelt.
@@ -78,23 +121,41 @@ export function MassOffice() {
      können, weiss nur diese Liste. */
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [chosen, setChosen] = useState<string>('');
-  const [from, setFrom] = useState(todayKey);
-  const [masses, setMasses] = useState<readonly OfficeMass[]>([]);
+  const [from, setFrom] = useState(() => wanted.day !== '' ? wanted.day : todayKey());
+  const [services, setServices] = useState<readonly OfficeMass[]>([]);
   const [at, setAt] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const [tab, pickTab] = useState<OfficeTab>(() => (wanted.item !== '' ? 'intentions' : lastTab));
+  const setTab = (next: OfficeTab) => { lastTab = next; pickTab(next); };
+
+  /* Der Termin-Dialog des Kalenders, wenn eine Messe geändert wird. */
+  const [editing, setEditing] = useState<CalEvent | null>(null);
+  const [allCalendars, setAllCalendars] = useState<readonly CalendarRow[]>([]);
+
+  /* Einmal zur Messe aus der Adresse gesprungen — danach bewegt man sich selbst. */
+  const jumped = useRef(false);
 
   useEffect(() => {
     loadCalendars()
       .then((found) => {
-        setCalendars(found.calendars);
+        setAllCalendars(found.calendars);
+        setCalendars(found.calendars.filter((c) => c.archived !== true));
       })
       .catch(() => setCalendars([]));
 
     loadAreas().then((found) => setAreas(found.areas)).catch(() => setAreas([]));
   }, []);
 
+  /*
+   * Nur MESSEN führt die Eingabe — die Beichte und das Nabożeństwo haben keine
+   * Intentionen, und eine abgesagte Messe nimmt keine an. Bei Strg+Enter geriete
+   * man sonst ungewollt hinein.
+   */
+  const masses = services.filter((m) => isMass(m) && m.status !== 'cancelled');
+
   const load = useCallback(async () => {
-    if (chosen === '') { setMasses([]); return; }
+    if (chosen === '') { setServices([]); return; }
 
     try {
       const start = new Date(`${from}T00:00:00`);
@@ -102,17 +163,18 @@ export function MassOffice() {
       end.setDate(end.getDate() + WINDOW_DAYS);
 
       const found = await loadOffice(chosen, start, end);
+      setServices(found.masses);
+      const list = found.masses.filter((m) => isMass(m) && m.status !== 'cancelled');
 
-      /*
-       * Nur Messen. Die Beichte hat keine Intentionen; sie hier zu zeigen wäre
-       * eine Einladung, etwas einzutragen, das nirgends vorgelesen wird — und
-       * bei Strg+Enter geriete man ungewollt hinein.
-       */
-      const list = massesOnly(found.masses);
-      setMasses(list);
+      /* Aus dem Kalender gekommen: genau diese Messe. */
+      if (!jumped.current && wanted.item !== '') {
+        jumped.current = true;
+        const found2 = list.findIndex((m) => m.itemId === wanted.item && dayKey(m.startsAt) === wanted.day);
+        if (found2 >= 0) { setAt(found2); return; }
+      }
       setAt((current) => Math.min(current, Math.max(0, list.length - 1)));
     } catch (e) {
-      setMasses([]);
+      setServices([]);
       setError(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać planu.');
     }
   }, [chosen, from]);
@@ -125,11 +187,13 @@ export function MassOffice() {
    */
   const act = async (what: string, todo: () => Promise<unknown>) => {
     setError(null);
+    setDone(null);
 
     try {
       await todo();
       const found = await loadAllCalendars();
-      setCalendars(found.calendars);
+      setAllCalendars(found.calendars);
+      setCalendars(found.calendars.filter((c) => c.archived !== true));
       await load();
     } catch (e) {
       setError(e instanceof WorkspaceError ? e.message : `Nie udało się: ${what}`);
@@ -138,27 +202,93 @@ export function MassOffice() {
 
   useEffect(() => {
     if (chosen !== '' || calendars === null || calendars.length === 0 || !recent.ready) return;
+    const fromAddress = calendars.find((c) => c.calendarId === wanted.calendar);
     const last = recent.last(calendars, (c) => c.calendarId);
-    setChosen((last ?? calendars[0]).calendarId);
+    setChosen((fromAddress ?? last ?? calendars[0]).calendarId);
   }, [calendars, chosen, recent]);
+
+  /**
+   * DIESE MESSE ÄNDERN — im Termin-Dialog des Kalenders, mit allem, was er
+   * kann (Zeit, Wiederholung, „ten i następne", wer feiert, absagen). Er
+   * braucht den Eintrag, wie der Kalender ihn kennt: aus der Agenda, geöffnet.
+   */
+  const edit = async (one: OfficeMass) => {
+    setError(null);
+    if (me == null) {
+      setError('Bez kluczy w tej karcie nie da się zmieniać wpisów — zaloguj się ponownie.');
+      return;
+    }
+
+    try {
+      const start = new Date(one.startsAt);
+      const agenda = await loadAgenda(new Date(start.getTime() - 60_000), new Date(start.getTime() + 60_000));
+      const opened = await openAgenda(me.ring, agenda.occurrences, areas);
+      const event = buildEvents(opened, [], NO_BOOKINGS)
+        .find((e) => e.item?.occurrence.itemId === one.itemId && sameInstant(e.item.occurrence.occurrenceAt, one.occurrenceAt));
+
+      if (event === undefined) {
+        setError('Tego wpisu nie ma w Twoim kalendarzu — nie możesz go zmieniać.');
+        return;
+      }
+      setEditing(event);
+    } catch (e) {
+      setError(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć wpisu.');
+    }
+  };
+
+  /** Ein Vorkommen absagen — oder zurückholen. */
+  const toggleOne = (one: OfficeMass) => {
+    const when = `${dayLabel(one.startsAt)} ${hour(one.startsAt)}`;
+
+    if (one.skipped === true) {
+      void act('Przywracanie…', async () => {
+        await restoreOne(one.itemId, one.occurrenceAt);
+        setDone(`Przywrócono: ${SERVICE_LABEL[one.kind] ?? 'wpis'} ${when}.`);
+      });
+      return;
+    }
+
+    if (!window.confirm(`Odwołać tylko ten termin: ${SERVICE_LABEL[one.kind] ?? 'wpis'} ${when}? Seria zostaje.`)) return;
+    void act('Odwoływanie…', async () => {
+      await setOccurrence(one.itemId, one.occurrenceAt, { cancelled: true });
+      setDone(`Odwołano: ${SERVICE_LABEL[one.kind] ?? 'wpis'} ${when}. Można to cofnąć — „Przywróć".`);
+    });
+  };
 
   const calendar = (calendars ?? []).find((c) => c.calendarId === chosen);
   const mass = masses[at];
+
+  /*
+   * WER IN DER GRUPPE IST — einmal je Kalender: für „kto odprawia" an jeder
+   * Zeile des Plans und für die Auswahl an jeder Intention. Ohne Schlüssel in
+   * diesem Tab bleibt es bei „osoba" und ohne Auswahl.
+   */
+  const candidates = usePeople(me ?? null, calendar?.areaId ?? null);
+  const names = new Map<string, string>([...(me?.names ?? new Map<string, string>()), ...(candidates ?? []).map((c): [string, string] => [c.roleId, c.name])]);
 
   /*
    * Das Datumsfeld zeigt den Tag der GERADE bearbeiteten Messe, nicht den
    * Anfang des Fensters. Sonst stünde dort noch Sonntag, während man längst den
    * Montag einträgt — und man trüge in dem Glauben ein, es sei noch Sonntag.
    */
-  const shownDay = mass === undefined ? from : dayKey(mass.startsAt);
+  const shownDay = tab === 'intentions' && mass !== undefined ? dayKey(mass.startsAt) : from;
 
-  const goToDay = (wanted: string) => {
-    const found = firstOnOrAfter(masses, wanted);
-    if (found >= 0) { setAt(found); return; }
+  const goToDay = (day: string) => {
+    if (day === '') return;
+    if (tab === 'intentions') {
+      const found = firstOnOrAfter(masses, day);
+      if (found >= 0) { setAt(found); return; }
+    }
 
-    // Ausserhalb des Fensters: neu laden und vorn anfangen.
-    setFrom(wanted);
+    // Ausserhalb des Fensters (oder im Plan): neu laden und vorn anfangen.
+    setFrom(day);
     setAt(0);
+  };
+
+  /* Aus dem Plan zu einer Messe: die Eingabe ihrer Intentionen. */
+  const toIntentions = (one: OfficeMass) => {
+    const index = masses.findIndex((m) => keyOf(m) === keyOf(one));
+    if (index >= 0) { setAt(index); setTab('intentions'); }
   };
 
   if (calendars === null) return <p className="wk-note">Wczytywanie…</p>;
@@ -182,7 +312,7 @@ export function MassOffice() {
 
   return (
     <>
-      <h3 className="wk-h2">Msze i intencje</h3>
+      {heading && <h3 className="wk-h2">Msze, nabożeństwa i intencje</h3>}
 
       <div className="wk-mo-top">
         <label className="wk-field">
@@ -203,7 +333,7 @@ export function MassOffice() {
           <input type="date" value={shownDay} onChange={(e) => goToDay(e.target.value)} />
         </label>
 
-        {masses.length > 0 && (
+        {tab === 'intentions' && masses.length > 0 && (
           <label className="wk-field">
             <span>Msza</span>
             {/* Alle Messen des Fensters, nicht nur die des Tages — Strg+Enter
@@ -219,50 +349,87 @@ export function MassOffice() {
             </select>
           </label>
         )}
+
+        <a className="wk-link-btn" href={viewPath('calendar', shownDay)}>Ten dzień w kalendarzu</a>
       </div>
 
-      {masses.length === 0 && (
-        <p className="wk-note">
-          Przez najbliższe dwa tygodnie od tego dnia nie ma żadnej mszy w planie.
-          Załóż ją niżej — jeden wpis powtarzający się wystarcza na cały okres.
-        </p>
+      <div className="wk-tabs" role="tablist">
+        {([
+          ['intentions', 'Intencje'], ['plan', 'Plan i zmiany'], ['new', 'Nowy wpis'], ['terms', 'Terminy do zapisów'], ['print', 'Wydruk']
+        ] as const).map(([value, text]) => (
+          <button key={value} type="button" role="tab" aria-selected={tab === value} className={tab === value ? 'wk-tab wk-tab-on' : 'wk-tab'}
+            onClick={() => setTab(value)}>{text}</button>
+        ))}
+      </div>
+
+      {error !== null && <p className="wk-error">{error}</p>}
+      {done !== null && <p className="wk-done">{done}</p>}
+
+      {tab === 'intentions' && (
+        <>
+          {masses.length === 0 && (
+            <p className="wk-note">
+              Przez najbliższe dwa tygodnie od tego dnia nie ma żadnej mszy w planie.
+              Załóż ją w „Nowy wpis" — jeden wpis powtarzający się wystarcza na cały okres.
+            </p>
+          )}
+
+          {mass !== undefined && (
+            <MassEntry
+              key={keyOf(mass)}
+              me={me ?? null}
+              mass={mass}
+              masses={masses}
+              candidates={candidates}
+              names={names}
+              position={label(masses, at)}
+              /* „Weiter" endet am Rand des FENSTERS, nicht des Tages. */
+              hasNext={at + 1 < masses.length}
+              onNextMass={() => setAt((n) => Math.min(n + 1, masses.length - 1))}
+              onEdit={() => void edit(mass)}
+              onChanged={() => void load()}
+              onError={setError}
+            />
+          )}
+
+          <p className="wk-mo-keys">
+            <kbd>Enter</kbd> zapisuje i zostaje przy tej mszy ·{' '}
+            <kbd>Ctrl</kbd>+<kbd>Enter</kbd> zapisuje i przechodzi do następnej —
+            także na następny dzień · <kbd>Esc</kbd> czyści pole
+          </p>
+        </>
       )}
 
-      {mass !== undefined && (
-        <MassEntry
-          key={keyOf(mass)}
-          mass={mass}
-          position={label(masses, at)}
-          /* „Weiter" endet am Rand des FENSTERS, nicht des Tages. */
-          hasNext={at + 1 < masses.length}
-          onNextMass={() => setAt((n) => Math.min(n + 1, masses.length - 1))}
-          onChanged={() => void load()}
-          onError={setError}
+      {tab === 'plan' && (
+        <Plan
+          services={services}
+          names={names}
+          onIntentions={toIntentions}
+          onEdit={(one) => void edit(one)}
+          onToggle={toggleOne}
         />
       )}
 
-      {error !== null && <p className="wk-error">{error}</p>}
+      {tab === 'new' && calendar !== undefined && (
+        <ServiceForm calendar={calendar} onAdded={(what) => { setDone(what); void load(); }} />
+      )}
 
-      <p className="wk-mo-keys">
-        <kbd>Enter</kbd> zapisuje i zostaje przy tej mszy ·{' '}
-        <kbd>Ctrl</kbd>+<kbd>Enter</kbd> zapisuje i przechodzi do następnej —
-        także na następny dzień · <kbd>Esc</kbd> czyści pole
-      </p>
+      {/*
+        DIE TERMINE STEHEN IN EINEM EIGENEN REITER: eine Messe trägt Intentionen,
+        ein Termin trägt Menschen. Derselbe Kalender, dasselbe Fenster — andere
+        Arbeit (siehe `Appointments`).
+      */}
+      {tab === 'terms' && calendar !== undefined && <Appointments calendar={calendar} from={shownDay} />}
 
-      {calendar !== undefined && (
-        <>
-          <ServiceForm calendar={calendar} onAdded={() => void load()} />
+      {tab === 'print' && calendar !== undefined && <PrintSheet calendarId={calendar.calendarId} />}
 
-          {/*
-            DIE TERMINE STEHEN UNTER DEM ANLEGEN, nicht darüber: wer
-            hierherkommt, kommt meistens wegen der Messen. Sie hängen am selben
-            Kalender und am selben Fenster — aber an anderer Arbeit, und darum
-            in einer eigenen Liste (siehe `Appointments`).
-          */}
-          <Appointments calendar={calendar} from={shownDay} />
-
-          <PrintSheet calendarId={calendar.calendarId} />
-        </>
+      {editing !== null && me != null && (
+        <EventDialog
+          me={me} areas={areas} calendars={allCalendars}
+          target={{ at: 'event', event: editing }}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setDone('Zapisano zmiany.'); void load(); }}
+        />
       )}
     </>
   );
@@ -274,13 +441,117 @@ function label(masses: readonly OfficeMass[], at: number): string {
   return `${where.at} z ${where.of}`;
 }
 
+/* -- Der Plan: jedes Vorkommen, mit dem, was sich daran ändern lässt ------------- */
+
+/**
+ * DER PLAN DER ZWEI WOCHEN — Messen, Beichte, Nabożeństwa, Tag für Tag. Jede
+ * Zeile sagt, was sie ist (und ob abgesagt oder verlegt), wie viele
+ * Intentionen sie trägt und wer feiert; und sie lässt sich ändern, absagen,
+ * zurückholen, im Kalender zeigen.
+ */
+function Plan({ services, names, onIntentions, onEdit, onToggle }: {
+  services: readonly OfficeMass[];
+  names: ReadonlyMap<string, string>;
+  onIntentions: (one: OfficeMass) => void;
+  onEdit: (one: OfficeMass) => void;
+  onToggle: (one: OfficeMass) => void;
+}) {
+  if (services.length === 0) {
+    return <p className="wk-empty">W tych dwóch tygodniach nie ma żadnej mszy, spowiedzi ani nabożeństwa. Załóż je w „Nowy wpis".</p>;
+  }
+
+  const days = new Map<string, OfficeMass[]>();
+  for (const one of services) {
+    const key = dayKey(one.startsAt);
+    days.set(key, [...(days.get(key) ?? []), one]);
+  }
+
+  return (
+    <div className="wk-mo-plan">
+      {[...days.entries()].map(([key, list]) => (
+        <section key={key} className="wk-mo-plan-day">
+          <h4 className="wk-mass-day-name">{dayLabel(list[0].startsAt)}</h4>
+          <ul className="wk-list">
+            {list.map((one) => {
+              const live = one.intentions.filter((i) => i.status !== 'cancelled').length;
+              const off = one.status === 'cancelled';
+              return (
+                <li key={keyOf(one)} className={`wk-row wk-mo-plan-row${off ? ' is-cancelled' : ''}`}>
+                  <span className="wk-mo-plan-main">
+                    <strong>{hour(one.startsAt)}</strong>
+                    <span className="wk-tag">{SERVICE_LABEL[one.kind] ?? one.kind}</span>
+                    {(one.title ?? '') !== '' && <span>{one.title}</span>}
+                    {one.kind === CONFESSION && <span className="wk-row-side">do {hour(one.endsAt)}</span>}
+                    {off && <span className="wk-tag wk-tag-warn">{one.skipped === true ? 'odwołana (tylko ten termin)' : 'odwołana'}</span>}
+                    {one.moved === true && !off && <span className="wk-tag">przeniesiona</span>}
+                    {isMass(one) && <span className="wk-row-side">{live === 0 ? 'bez intencji' : intentionsWord(live)}</span>}
+                    <PeopleLine mass={one} names={names} />
+                  </span>
+                  <span className="wk-appt-actions">
+                    {isMass(one) && !off && (
+                      <button type="button" className="wk-link-btn" onClick={() => onIntentions(one)}>Intencje</button>
+                    )}
+                    {!(one.skipped === true) && (
+                      <button type="button" className="wk-link-btn" onClick={() => onEdit(one)}>Zmień</button>
+                    )}
+                    {(one.skipped === true || !off) && (
+                      <button type="button" className={one.skipped === true ? 'wk-link-btn' : 'wk-link-btn wk-danger'} onClick={() => onToggle(one)}>
+                        {one.skipped === true ? 'Przywróć' : 'Odwołaj'}
+                      </button>
+                    )}
+                    <a className="wk-link-btn" href={viewPath('calendar', dayKey(one.startsAt))}>W kalendarzu</a>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/* -- Wer feiert ------------------------------------------------------------------ */
+
+/** Wer feiert, leitet, Beichte hört — mit Namen, wo die Gruppe sie kennt. */
+function PeopleLine({ mass, names }: { mass: OfficeMass; names: ReadonlyMap<string, string> }) {
+  const people = mass.people ?? [];
+  if (people.length === 0) return null;
+  const word = mass.kind === MASS ? 'odprawia' : mass.kind === DEVOTION ? 'prowadzi' : mass.kind === CONFESSION ? 'spowiada' : 'obecni';
+
+  return (
+    <span className="wk-row-side wk-mo-people">
+      {' · '}{word}: {people.map((p) => names.get(p.roleId) ?? 'osoba').join(', ')}
+    </span>
+  );
+}
+
+/**
+ * Die Menschen eines Bereichs — nur mit Schlüsselbund; sonst `null` (dann
+ * keine Auswahl). `useAreaPeople` braucht einen Bund; ohne ihn fragt es nicht.
+ */
+function usePeople(me: Me | null, areaId: string | null): readonly Candidate[] | null {
+  const people = useAreaPeople(me ?? (NO_ME as Me), me === null ? null : areaId);
+  return me === null ? null : people;
+}
+
+/* Für den Fall ohne Bund: `useAreaPeople` liest ihn dann nie (ohne Bereich fragt es nicht). */
+const NO_ME = null as unknown;
+
 /* -- Eine Messe mit ihren Intentionen -------------------------------------- */
 
-function MassEntry({ mass, position, hasNext, onNextMass, onChanged, onError }: {
+function MassEntry({ me, mass, masses, candidates: people, names, position, hasNext, onNextMass, onEdit, onChanged, onError }: {
+  me: Me | null;
   mass: OfficeMass;
+  /** Alle Messen des Fensters — wohin eine Intention verlegt werden kann. */
+  masses: readonly OfficeMass[];
+  /** Die Menschen der Gruppe — `null` ohne Schlüssel. */
+  candidates: readonly Candidate[] | null;
+  names: ReadonlyMap<string, string>;
   position: string;
   hasNext: boolean;
   onNextMass: () => void;
+  onEdit: () => void;
   onChanged: () => void;
   onError: (message: string | null) => void;
 }) {
@@ -288,6 +559,13 @@ function MassEntry({ mass, position, hasNext, onNextMass, onChanged, onError }: 
   const [kind, setKind] = useState<IntentionKind>('single');
   const [busy, setBusy] = useState(false);
   const field = useRef<HTMLInputElement>(null);
+
+  /* Wer eine Intention lesen kann: die Menschen des Bereichs — die, die schon feiern, zuerst. */
+  const celebrants = (mass.people ?? []).filter((p) => p.duty === 'celebrant').map((p) => p.roleId);
+  const candidates = people === null ? null : [
+    ...people.filter((p) => celebrants.includes(p.roleId)),
+    ...people.filter((p) => !celebrants.includes(p.roleId))
+  ];
 
   /*
    * Beim Wechsel der Messe steht der Kursor sofort im Feld. Ohne das müsste
@@ -341,6 +619,43 @@ function MassEntry({ mass, position, hasNext, onNextMass, onChanged, onError }: 
     void save(e.ctrlKey || e.metaKey);
   };
 
+  /* Nach der Messe: alle angenommenen als gelesen — ein Griff statt zwanzig. */
+  const past = new Date(mass.endsAt).getTime() <= Date.now();
+  const open = mass.intentions.filter((i) => i.status === 'accepted');
+  const markAll = async () => {
+    setBusy(true);
+    onError(null);
+    try {
+      for (const one of open) await updateIntention(one.intentionId, { status: 'celebrated' });
+      onChanged();
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się oznaczyć.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /* Die Reihenfolge des Vorlesens: mit dem Nachbarn tauschen. */
+  const ordered = [...mass.intentions].sort((a, b) => a.ordinal - b.ordinal);
+  const swap = async (index: number, by: -1 | 1) => {
+    const a = ordered[index];
+    const b = ordered[index + by];
+    if (a === undefined || b === undefined) return;
+    setBusy(true);
+    try {
+      /* Gleiche Stellen (alte Einträge) bekommen erst eigene. */
+      const ordA = a.ordinal === b.ordinal ? index : a.ordinal;
+      const ordB = a.ordinal === b.ordinal ? index + by : b.ordinal;
+      await updateIntention(a.intentionId, { ordinal: ordB });
+      await updateIntention(b.intentionId, { ordinal: ordA });
+      onChanged();
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zmienić kolejności.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const singles = mass.intentions.filter((i) => i.kind === 'single' && i.status !== 'cancelled');
 
   return (
@@ -348,26 +663,51 @@ function MassEntry({ mass, position, hasNext, onNextMass, onChanged, onError }: 
       <header className="wk-mo-head">
         <strong>{hour(mass.startsAt)}</strong>
         {(mass.title ?? '') !== '' && <span className="wk-mass-title">{mass.title}</span>}
+        {mass.moved === true && <span className="wk-tag">przeniesiona</span>}
         <span className="wk-row-side">{dayLabel(mass.startsAt)} · {position}</span>
+        <PeopleLine mass={mass} names={names} />
+        <span className="wk-mo-head-actions">
+          <button type="button" className="wk-link-btn" onClick={onEdit}>Zmień mszę</button>
+          {past && open.length > 0 && (
+            <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void markAll()}>
+              Oznacz jako odprawione ({open.length})
+            </button>
+          )}
+        </span>
       </header>
 
-      {mass.intentions.length === 0 ? (
+      {ordered.length === 0 ? (
         <p className="wk-empty">Bez intencji.</p>
       ) : (
         <ul className="wk-list">
-          {mass.intentions.map((one) => (
-            <Row key={one.intentionId} intention={one} onChanged={onChanged} onError={onError} />
+          {ordered.map((one, index) => (
+            <Row
+              key={one.intentionId}
+              me={me}
+              mass={mass}
+              intention={one}
+              masses={masses}
+              candidates={candidates}
+              first={index === 0}
+              last={index === ordered.length - 1}
+              onUp={() => void swap(index, -1)}
+              onDown={() => void swap(index, 1)}
+              onChanged={onChanged}
+              onError={onError}
+            />
           ))}
         </ul>
       )}
 
       {/*
         Zwei einzelne Intentionen heissen zwei Priester. Das ist der Grund, aus
-        dem es die Unterscheidung überhaupt gibt — also steht es da.
+        dem es die Unterscheidung überhaupt gibt — also steht es da, und mit
+        ihr, wie viele schon eingeteilt sind.
       */}
       {singles.length > 1 && (
         <p className="wk-mo-need">
-          {singles.length} pojedyncze — potrzeba {singles.length} kapłanów.
+          {singles.length} pojedyncze — potrzeba {singles.length} kapłanów
+          {celebrants.length > 0 && ` (odprawia: ${celebrants.length})`}.
         </p>
       )}
 
@@ -379,6 +719,7 @@ function MassEntry({ mass, position, hasNext, onNextMass, onChanged, onError }: 
           maxLength={400}
           disabled={busy}
           placeholder="Za śp. Jana Kowalskiego"
+          aria-label="Nowa intencja"
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKey}
         />
@@ -386,6 +727,7 @@ function MassEntry({ mass, position, hasNext, onNextMass, onChanged, onError }: 
         <select
           value={kind}
           disabled={busy}
+          aria-label="Rodzaj nowej intencji"
           onChange={(e) => setKind(e.target.value as IntentionKind)}
         >
           <option value="single">{KIND_LABEL.single}</option>
@@ -397,66 +739,247 @@ function MassEntry({ mass, position, hasNext, onNextMass, onChanged, onError }: 
 }
 
 /**
- * Eine Zeile, unmittelbar änderbar.
+ * Eine Intention — unmittelbar änderbar.
  *
- * Gespeichert wird beim VERLASSEN des Feldes und nicht bei jedem Anschlag: ein
- * Aufruf je Buchstabe wäre ein Aufruf je Buchstabe.
+ * Der Text wird beim VERLASSEN des Feldes gespeichert und nicht bei jedem
+ * Anschlag: ein Aufruf je Buchstabe wäre ein Aufruf je Buchstabe. Alles andere
+ * (Art, Stand, wer sie liest) sofort beim Wählen.
  */
-function Row({ intention, onChanged, onError }: {
+function Row({ me, mass, intention, masses, candidates, first, last, onUp, onDown, onChanged, onError }: {
+  me: Me | null;
+  mass: OfficeMass;
   intention: OfficeIntention;
+  masses: readonly OfficeMass[];
+  candidates: readonly Candidate[] | null;
+  first: boolean;
+  last: boolean;
+  onUp: () => void;
+  onDown: () => void;
   onChanged: () => void;
   onError: (message: string | null) => void;
 }) {
   const [text, setText] = useState(intention.text);
   const [busy, setBusy] = useState(false);
+  const [more, setMore] = useState(false);
   const cancelled = intention.status === 'cancelled';
+
+  useEffect(() => { setText(intention.text); }, [intention.text]);
+
+  const change = async (body: Parameters<typeof updateIntention>[1], failed = 'Nie udało się zapisać.') => {
+    setBusy(true);
+    onError(null);
+    try {
+      await updateIntention(intention.intentionId, body);
+      onChanged();
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : failed);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const commit = async () => {
     const value = text.trim();
     if (value === '' || value === intention.text) { setText(intention.text); return; }
-
-    setBusy(true);
-    try {
-      await updateIntention(intention.intentionId, { text: value });
-      onChanged();
-    } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
-      setText(intention.text);
-    } finally { setBusy(false); }
+    await change({ text: value });
   };
 
-  const toggle = async () => {
+  /*
+   * WER SIE LIEST — und, wenn er an dieser Messe noch nicht steht, steht er
+   * jetzt dort (Kto odprawia, nur dieser Termin). Sonst sähe der Priester die
+   * Intention, aber die Messe nicht in seinem Kalender.
+   */
+  const pickCelebrant = async (roleId: string) => {
     setBusy(true);
+    onError(null);
     try {
-      await updateIntention(intention.intentionId, {
-        status: cancelled ? 'accepted' : 'cancelled'
-      });
+      await updateIntention(intention.intentionId, { celebrantRoleId: roleId });
+      const present = mass.people ?? [];
+      if (roleId !== '' && !present.some((p) => p.roleId === roleId)) {
+        await setPeople(mass.itemId, [
+          ...present.map((p) => ({ roleId: p.roleId, duty: p.duty as Duty })),
+          { roleId, duty: 'celebrant' as Duty }
+        ], mass.occurrenceAt);
+      }
       onChanged();
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zmienić.');
-    } finally { setBusy(false); }
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się przypisać.');
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const remove = async () => {
+    if (!window.confirm(`Usunąć intencję „${intention.text}"? Tego nie da się cofnąć.`)) return;
+    setBusy(true);
+    try {
+      await deleteIntention(intention.intentionId);
+      onChanged();
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const others = masses.filter((m) => keyOf(m) !== keyOf(mass));
 
   return (
-    <li className="wk-row wk-mo-int" data-cancelled={cancelled}>
+    <li className="wk-row wk-mo-int" data-cancelled={cancelled} data-status={intention.status}>
+      <span className="wk-mo-order">
+        <button type="button" className="wk-icon-btn" aria-label="Wyżej" title="Wyżej" disabled={busy || first} onClick={onUp}>↑</button>
+        <button type="button" className="wk-icon-btn" aria-label="Niżej" title="Niżej" disabled={busy || last} onClick={onDown}>↓</button>
+      </span>
+
       <input
         type="text"
         value={text}
         maxLength={400}
         disabled={busy || cancelled}
+        aria-label="Treść intencji"
         onChange={(e) => setText(e.target.value)}
         onBlur={() => void commit()}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
       />
 
-      <span className="wk-row-side">
-        {KIND_LABEL[intention.kind as IntentionKind] ?? intention.kind}
-        {' · '}
-        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void toggle()}>
-          {cancelled ? 'Przywróć' : 'Wycofaj'}
+      <span className="wk-mo-int-controls">
+        <select value={intention.kind} disabled={busy} aria-label="Rodzaj" onChange={(e) => void change({ kind: e.target.value as IntentionKind })}>
+          <option value="single">{KIND_LABEL.single}</option>
+          <option value="collective">{KIND_LABEL.collective}</option>
+        </select>
+
+        <select value={intention.status} disabled={busy} aria-label="Stan" onChange={(e) => void change({ status: e.target.value })}>
+          {(['accepted', 'celebrated', 'cancelled'] as const).map((s) => <option key={s} value={s}>{INTENTION_STATUS_LABEL[s]}</option>)}
+        </select>
+
+        {candidates !== null && (
+          <select value={intention.celebrantRoleId ?? ''} disabled={busy} aria-label="Kto odprawia tę intencję"
+            onChange={(e) => void pickCelebrant(e.target.value)}>
+            <option value="">— kto odprawia —</option>
+            {candidates.map((c) => <option key={c.roleId} value={c.roleId}>{c.name}</option>)}
+          </select>
+        )}
+
+        <button type="button" className="wk-link-btn" aria-expanded={more} onClick={() => setMore((m) => !m)}>
+          {more ? 'Mniej' : 'Więcej'}
         </button>
       </span>
+
+      {more && (
+        <div className="wk-mo-int-more">
+          <Sealed me={me} mass={mass} intention={intention} busy={busy} onChanged={onChanged} onError={onError} />
+
+          {others.length > 0 && (
+            <label className="wk-field">
+              <span>Przenieś na inną mszę</span>
+              <select value="" disabled={busy} onChange={(e) => {
+                const target = others.find((m) => keyOf(m) === e.target.value);
+                if (target !== undefined) void change({ itemId: target.itemId, occurrenceAt: target.occurrenceAt }, 'Nie udało się przenieść.');
+              }}>
+                <option value="">— wybierz mszę —</option>
+                {others.map((m) => (
+                  <option key={keyOf(m)} value={keyOf(m)}>
+                    {dayLabel(m.startsAt)} {hour(m.startsAt)}{(m.title ?? '') === '' ? '' : ` — ${m.title}`}
+                  </option>
+                ))}
+              </select>
+              <span className="wk-hint">Inny termin poza tymi dwoma tygodniami: wybierz wyżej inny dzień.</span>
+            </label>
+          )}
+
+          {intention.status !== 'celebrated' && (
+            <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={() => void remove()}>Usuń intencję</button>
+          )}
+        </div>
+      )}
     </li>
+  );
+}
+
+/**
+ * KTO ZAMÓWIŁ I OFIARA — versiegelt, unter dem Schlüssel des Bereichs des
+ * Kalenders. Sie hängen an keinem Zettel an der Tür; der Dienst legt sie ab,
+ * ohne sie zu lesen (`app.mass_intention_field`).
+ */
+function Sealed({ me, mass, intention, busy: outerBusy, onChanged, onError }: {
+  me: Me | null;
+  mass: OfficeMass;
+  intention: OfficeIntention;
+  busy: boolean;
+  onChanged: () => void;
+  onError: (message: string | null) => void;
+}) {
+  const [giver, setGiver] = useState<string | null>(null);
+  const [offering, setOffering] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const aadOf = (field: 'giver' | 'offering') =>
+    aad('mass', 'intention', intention.intentionId, field === 'giver' ? Field.MassIntentionGiver : Field.MassIntentionOffering, 1);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const opened: Record<string, string> = {};
+      if (me !== null) {
+        for (const f of intention.fields) {
+          try {
+            const key = (await areaKeys(me.ring, f.areaId)).get(f.epoch);
+            if (key !== undefined) opened[f.field] = await openText(key, aadOf(f.field as 'giver' | 'offering'), fromBase64Url(f.sealed));
+          } catch { /* nicht für mich */ }
+        }
+      }
+      if (!alive) return;
+      setGiver(opened.giver ?? '');
+      setOffering(opened.offering ?? '');
+    })();
+    return () => { alive = false; };
+  }, [me, intention.intentionId, intention.fields]);
+
+  if (me === null || mass.areaId == null) {
+    return <p className="wk-hint">Ofiarodawca i ofiara są zaszyfrowane — bez kluczy w tej karcie ich nie widać.</p>;
+  }
+  if (giver === null || offering === null) return <p className="wk-hint">Odczytywanie…</p>;
+
+  const save = async () => {
+    setBusy(true);
+    onError(null);
+    setSaved(false);
+    try {
+      const newest = newestKey(await areaKeys(me.ring, mass.areaId!, true));
+      if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się zapisać.');
+      const seal = async (field: 'giver' | 'offering', value: string) => ({
+        field, areaId: mass.areaId!, epoch: newest.epoch,
+        sealed: toBase64Url(await sealText(newest.key, aadOf(field), value))
+      });
+      await updateIntention(intention.intentionId, {
+        fields: [await seal('giver', giver.trim()), await seal('offering', offering.trim())]
+      });
+      setSaved(true);
+      onChanged();
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="wk-mo-sealed">
+      <label className="wk-field">
+        <span>Kto zamówił</span>
+        <input value={giver} maxLength={200} disabled={busy || outerBusy} placeholder="np. rodzina Kowalskich, tel. …" onChange={(e) => { setGiver(e.target.value); setSaved(false); }} />
+      </label>
+      <label className="wk-field">
+        <span>Ofiara</span>
+        <input value={offering} maxLength={100} disabled={busy || outerBusy} placeholder="np. 50 zł" onChange={(e) => { setOffering(e.target.value); setSaved(false); }} />
+      </label>
+      <div className="wk-actions">
+        <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || outerBusy} onClick={() => void save()}>Zapisz</button>
+        {saved && <span className="wk-row-side">Zapisano.</span>}
+        <span className="wk-hint">Zaszyfrowane — w gablocie i na wydruku ich nie ma.</span>
+      </div>
+    </div>
   );
 }
 
@@ -1039,10 +1562,16 @@ function NewCalendar({ areas, busy, onAct }: {
 /** Die Wiederholungen, die für einen Gottesdienst Sinn ergeben. */
 const SERVICE_REPEATS: readonly RepeatKind[] = ['none', 'daily', 'weekly', 'monthly'];
 
-function ServiceForm({ calendar, onAdded }: { calendar: CalendarRow; onAdded: () => void }) {
+/** Wie lange, wenn niemand es sagt — die Beichte bis zur Messe, das Nabożeństwo eine halbe Stunde. */
+const MINUTES: Record<string, number> = { mass: 45, confession: 60, devotion: 30, appointment: 60 };
+
+function ServiceForm({ calendar, onAdded }: { calendar: CalendarRow; onAdded: (what: string) => void }) {
   const [kind, setKind] = useState<ItemKind>(MASS);
   const [date, setDate] = useState(todayKey);
   const [time, setTime] = useState('18:00');
+  /* 0079 — wie lange. Bei der Beichte steht es im Aushang („do 18:45"). */
+  const [minutes, setMinutes] = useState(String(calendar.durationMinutes ?? MINUTES.mass));
+  const pickKind = (next: ItemKind) => { setKind(next); setMinutes(String(MINUTES[next] ?? 60)); };
   const [title, setTitle] = useState('');
   const [repeat, setRepeat] = useState<RepeatKind>('none');
   const [weekdays, setWeekdays] = useState(0);
@@ -1096,6 +1625,7 @@ function ServiceForm({ calendar, onAdded }: { calendar: CalendarRow; onAdded: ()
         visibilityAreaId: calendar.areaId,
 
         kind, date, time,
+        minutes: Math.min(24 * 60, Math.max(5, Number(minutes) || MINUTES[kind] || 45)),
         titlePublic: title.trim() === '' ? undefined : title.trim(),
         repeat,
         weekdays: repeat === 'weekly' ? weekdays : undefined,
@@ -1103,7 +1633,7 @@ function ServiceForm({ calendar, onAdded }: { calendar: CalendarRow; onAdded: ()
       });
 
       setTitle('');
-      onAdded();
+      onAdded(`Założono: ${kindWord(kind).toLowerCase()} ${date} ${time}${repeat === 'none' ? '' : `, ${REPEAT_LABEL[repeat]} do ${until}`}.`);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się założyć.');
     } finally {
@@ -1122,10 +1652,11 @@ function ServiceForm({ calendar, onAdded }: { calendar: CalendarRow; onAdded: ()
         <span>Co</span>
         <select
           value={kind}
-          onChange={(e) => setKind(e.target.value as ItemKind)}
+          onChange={(e) => pickKind(e.target.value as ItemKind)}
         >
           <option value={MASS}>Msza</option>
           <option value={CONFESSION}>Spowiedź</option>
+          <option value={DEVOTION}>Nabożeństwo (różaniec, droga krzyżowa…)</option>
 
           {/*
             DER TERMIN — das, wofür die Firmlinge herkommen.
@@ -1164,8 +1695,16 @@ function ServiceForm({ calendar, onAdded }: { calendar: CalendarRow; onAdded: ()
       </label>
 
       <label className="wk-field">
+        <span>Czas trwania (min)</span>
+        <input type="number" min={5} max={1440} step={5} value={minutes} onChange={(e) => setMinutes(e.target.value)} />
+        {kind === CONFESSION && <span className="wk-hint">W gablocie: „Spowiedź do …" — koniec liczy się z czasu trwania.</span>}
+      </label>
+
+      <label className="wk-field">
         <span>Nazwa (widoczna w gablocie)</span>
-        <input value={title} placeholder="np. Msza św. nowennowa" onChange={(e) => setTitle(e.target.value)} />
+        <input value={title} list={kind === DEVOTION ? 'wk-mo-devotions' : undefined}
+          placeholder={kind === DEVOTION ? 'np. Różaniec' : kind === CONFESSION ? 'puste: „Spowiedź"' : 'np. Msza św. nowennowa'} onChange={(e) => setTitle(e.target.value)} />
+        {kind === DEVOTION && <datalist id="wk-mo-devotions">{DEVOTION_NAMES.map((n) => <option key={n} value={n} />)}</datalist>}
       </label>
 
       <label className="wk-field">
@@ -1201,7 +1740,8 @@ function ServiceForm({ calendar, onAdded }: { calendar: CalendarRow; onAdded: ()
 
       <p className="wk-hint">
         Godzina jest lokalna — 18:00 to osiemnasta w kościele, także po zmianie
-        czasu. Bez wybranych dni tygodnia obowiązuje dzień pierwszej mszy.
+        czasu. Bez wybranych dni tygodnia obowiązuje dzień pierwszego terminu.
+        Zmienisz wszystko później w „Plan i zmiany" albo w kalendarzu.
       </p>
 
       <p className="wk-hint">

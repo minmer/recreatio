@@ -16,7 +16,7 @@
  */
 
 import { createArea, loadAreas, type AreaRow } from './area';
-import { emptyTexts, itemFieldAad, putText, setOccurrence, type ItemField, type ItemTexts, type SealedField } from './calendar';
+import { emptyTexts, itemFieldAad, putText, setOccurrence, type ItemField, type ItemKind, type ItemTexts, type SealedField } from './calendar';
 import { areaKeys, newestKey } from './chat';
 import { fromBase64Url, openText, sealText, toBase64Url } from './crypto';
 import { newId } from './ids';
@@ -68,6 +68,9 @@ export interface AgendaOccurrence {
   readonly position?: number | null;
   readonly chatId?: string | null;
   readonly topicId?: string | null;
+
+  /** 0079 — an einer Messe: wie viele Intentionen (angenommen oder gefeiert). Sonst fehlt es. */
+  readonly intentions?: number | null;
 }
 
 export interface AgendaClaim {
@@ -86,12 +89,28 @@ export const loadAgenda = (from: Date, to: Date): Promise<{ occurrences: readonl
 
 /* -- Geöffnet ------------------------------------------------------------------- */
 
-/** Was man hier ändern darf — Messen und Beichten haben ihre eigene Stelle. */
-export const OWN_KINDS: readonly string[] = ['appointment', 'visit', 'task'];
+/**
+ * Was man hier ändern darf — 0079: alles, auch Messe, Beichte und Nabożeństwo.
+ * Vorher verwies der Kalender bei Messen auf „Msze i intencje", und dort gab
+ * es kein Ändern. Die Intentionen gehen jetzt mit (der Dienst ordnet sie dem
+ * Tag zu und sagt es, wenn einer die Messe fehlen würde).
+ */
+export const OWN_KINDS: readonly string[] = ['appointment', 'visit', 'task', 'mass', 'confession', 'devotion'];
+
+/**
+ * DER GOTTESDIENST — Messe, Beichte, Nabożeństwo. Er steht im Messplan, und sein
+ * Name hängt im Schaukasten: er bleibt OFFEN (`title_public`), statt
+ * versiegelt zu werden wie der Titel eines Treffens.
+ */
+export const LITURGY: readonly string[] = ['mass', 'confession', 'devotion'];
+export const isLiturgy = (kind: string | undefined | null): boolean => kind != null && LITURGY.includes(kind);
 
 const KIND_WORD: Record<string, string> = {
-  appointment: 'Termin', task: 'Zadanie', mass: 'Msza', confession: 'Spowiedź', visit: 'Odwiedziny'
+  appointment: 'Termin', task: 'Zadanie', mass: 'Msza', confession: 'Spowiedź', visit: 'Odwiedziny', devotion: 'Nabożeństwo'
 };
+
+/** Wie ein Eintrag ohne eigenen Namen heisst: „Msza", „Nabożeństwo". */
+export const kindWord = (kind: string): string => KIND_WORD[kind] ?? 'Termin';
 
 export interface OpenedItem {
   readonly occurrence: AgendaOccurrence;
@@ -224,6 +243,13 @@ export interface EventDraft {
   readonly parentItemId?: string | null;
   readonly position?: number | null;
   readonly origin?: { readonly chatId: string; readonly topicId: string | null } | null;
+
+  /**
+   * 0079 — WAS es ist. Fehlt es bei einem neuen Eintrag in einem Kalender,
+   * entscheidet der Kalender; beim Ändern bleibt es, was es war (vorher wurde
+   * hier jedes geänderte Ding zum Treffen).
+   */
+  readonly kind?: ItemKind;
 }
 
 /** „Bez końca" — eine Reihe braucht am Dienst ein Ende; zehn Jahre sind im Kalender keins. */
@@ -251,7 +277,13 @@ export async function saveEvent(ring: Ring, draft: EventDraft, itemId?: string):
     sealed: toBase64Url(await sealText(newest.key, fieldAad(id, field), text))
   });
 
-  const fields: SealedField[] = [await seal('title', draft.title.trim() || 'Termin')];
+  /*
+   * 0079 — DER NAME EINES GOTTESDIENSTES HÄNGT AUS: er geht offen hinaus
+   * (`titlePublic`) und wird nicht versiegelt — der Schaukasten hat keinen
+   * Schlüssel. Ohne Namen steht dort die Art („Msza").
+   */
+  const liturgy = isLiturgy(draft.kind);
+  const fields: SealedField[] = liturgy ? [] : [await seal('title', draft.title.trim() || 'Termin')];
   if (draft.location.trim() !== '') fields.push(await seal('location', draft.location.trim()));
   if (draft.notes.trim() !== '') fields.push(await seal('notes', draft.notes.trim()));
   if ((draft.link ?? '').trim() !== '') {
@@ -264,7 +296,7 @@ export async function saveEvent(ring: Ring, draft: EventDraft, itemId?: string):
     ownerRoleId: draft.ownerRoleId,
     visibilityAreaId: draft.areaId,
     /* Neu in einem Kalender: seine Art (Treffen, Messe …). Ändern geht hier nur bei Treffen und Besuchen. */
-    kind: itemId === undefined && draft.calendarId !== undefined ? null : 'appointment',
+    kind: draft.kind ?? (itemId === undefined && draft.calendarId !== undefined ? null : 'appointment'),
     calendarId: draft.calendarId ?? null,
     bookable: draft.bookable ?? null,
     capacity: draft.capacity ?? null,
@@ -273,7 +305,7 @@ export async function saveEvent(ring: Ring, draft: EventDraft, itemId?: string):
     time: draft.allDay ? '00:00' : draft.time,
     minutes: draft.minutes,
     allDay: draft.allDay,
-    titlePublic: null,
+    titlePublic: liturgy && draft.title.trim() !== '' ? draft.title.trim() : null,
     status: 'planned',
     repeat: draft.repeat,
     every: draft.every,
@@ -309,3 +341,16 @@ export const cancelOne = (itemId: string, occurrenceAt: string) =>
 /** Nur dieses eine Vorkommen — verschieben. */
 export const moveOne = (itemId: string, occurrenceAt: string, startsAt: Date) =>
   setOccurrence(itemId, occurrenceAt, { movedTo: startsAt.toISOString() });
+
+/** 0079 — ein abgesagtes oder verlegtes Vorkommen steht wieder, wie die Reihe es sagt. */
+export const restoreOne = (itemId: string, occurrenceAt: string) =>
+  setOccurrence(itemId, occurrenceAt, { restore: true });
+
+/**
+ * 0079 — „TA I NASTĘPNE": die Reihe `itemId` endet vor dem Tag von `from`, und
+ * die Reihe `to` (eben angelegt) übernimmt ab dann, was an den Vorkommen
+ * hängt — Intentionen, wer da sein muss, Reservierungen. Der Dienst ordnet
+ * nach dem Tag zu und ändert nichts, wenn einer Intention die Messe fehlte.
+ */
+export const handover = (itemId: string, to: string, from: string): Promise<{ until: string; intentions: number; people: number }> =>
+  call(`/workspace/item/${encodeURIComponent(itemId)}/handover`, { method: 'POST', body: JSON.stringify({ to, from }) });

@@ -35,6 +35,23 @@ import type { SealedField } from './calendar';
 export const MASS = 'mass';
 export const CONFESSION = 'confession';
 
+/** 0079 — das Nabożeństwo: Różaniec, Droga Krzyżowa … Im Plan wie die Beichte: ohne Intentionen. */
+export const DEVOTION = 'devotion';
+
+/** Was der Plan unter einem Gottesdienst versteht — und wie es heisst. */
+export const SERVICE_KINDS = [MASS, CONFESSION, DEVOTION] as const;
+export const SERVICE_LABEL: Record<string, string> = { mass: 'Msza', confession: 'Spowiedź', devotion: 'Nabożeństwo' };
+
+/**
+ * Was man als Namen eines Nabożeństwo meistens schreibt — vorgeschlagen, nicht
+ * vorgeschrieben. Der Name hängt im Schaukasten, wie er hier steht.
+ */
+export const DEVOTION_NAMES: readonly string[] = [
+  'Różaniec', 'Droga Krzyżowa', 'Gorzkie Żale', 'Nabożeństwo majowe', 'Nabożeństwo czerwcowe',
+  'Nabożeństwo różańcowe', 'Adoracja Najświętszego Sakramentu', 'Koronka do Miłosierdzia Bożego',
+  'Nowenna do Matki Bożej Nieustającej Pomocy', 'Godzina Święta', 'Apel Jasnogórski', 'Nieszpory'
+];
+
 /**
  * Zwei Arten von Intentionen — und das ist keine Beschriftung.
  *
@@ -50,9 +67,20 @@ export const CONFESSION = 'confession';
 export const INTENTION_KINDS = ['single', 'collective'] as const;
 export type IntentionKind = (typeof INTENTION_KINDS)[number];
 
+/** „1 intencja", „3 intencje", „5 intencji". */
+export const intentionsWord = (n: number): string =>
+  `${n} ${n === 1 ? 'intencja' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'intencje' : 'intencji'}`;
+
 export const KIND_LABEL: Record<IntentionKind, string> = {
   single: 'pojedyncza',
   collective: 'zbiorowa'
+};
+
+/** Der Stand einer Intention — wie `ck_mass_intention_status`. */
+export const INTENTION_STATUS_LABEL: Record<string, string> = {
+  accepted: 'przyjęta',
+  celebrated: 'odprawiona',
+  cancelled: 'wycofana'
 };
 
 /**
@@ -105,6 +133,10 @@ export interface PublicMass {
   readonly areaName: string;
   readonly timeZone: string;
 
+  /** 0079 — nur dieses Vorkommen abgesagt (dann `status: 'cancelled'`), oder verlegt. Ältere Dienste nennen es nicht. */
+  readonly skipped?: boolean;
+  readonly moved?: boolean;
+
   readonly intentions: readonly PublicIntention[];
 }
 
@@ -126,6 +158,10 @@ export interface OfficeIntention extends PublicIntention {
 
 export interface OfficeMass extends Omit<PublicMass, 'intentions'> {
   readonly intentions: readonly OfficeIntention[];
+
+  /** 0079 — der Bereich des Kalenders, und wer feiert (Kto odprawia). */
+  readonly areaId?: string | null;
+  readonly people?: readonly { readonly roleId: string; readonly duty: string }[] | null;
 }
 
 export interface OfficePlan extends Omit<Plan, 'masses'> {
@@ -189,14 +225,22 @@ export const updateIntention = (
     status?: string;
     ordinal?: number;
     kind?: IntentionKind;
+    /** Leer (`''`): niemand mehr. */
     celebrantRoleId?: string;
     fields?: readonly SealedField[];
+    /** 0079 — an eine andere Messe verlegen. */
+    itemId?: string;
+    occurrenceAt?: string;
   }
 ): Promise<{ intentionId: string; updated: boolean }> =>
   call(
     `/workspace/intention/${encodeURIComponent(intentionId)}`,
     { method: 'POST', body: JSON.stringify(body) }
   );
+
+/** 0079 — eine Intention löschen (ein Tippfehler, doppelt eingetragen). Eine odprawiona nicht. */
+export const deleteIntention = (intentionId: string): Promise<{ intentionId: string; deleted: boolean }> =>
+  call(`/workspace/intention/${encodeURIComponent(intentionId)}/delete`, { method: 'POST' });
 
 /* -- Messe oder Beichte ---------------------------------------------------- */
 
@@ -215,11 +259,22 @@ export const updateIntention = (
  * beiden Seiten das Ergebnis zurueckcasten — und ein Cast ist genau die Stelle,
  * an der die Regel „was ist eine Messe" ein zweites Mal getippt wird.
  */
+/*
+ * 0079 — EINE MESSE IST `mass`, nicht „alles ausser der Beichte". Mit dem
+ * Nabożeństwo gibt es eine dritte Art; die alte Regel hätte den Rosenkranz zu
+ * einer Messe gemacht — mit Intentionen, im Bogen, bei „następna msza".
+ */
+export const isMass = (m: { readonly kind: string }): boolean => m.kind === MASS;
+
 export const massesOnly = <T extends PublicMass>(masses: readonly T[]): readonly T[] =>
-  masses.filter((m) => m.kind !== CONFESSION);
+  masses.filter(isMass);
 
 export const confessionsOnly = <T extends PublicMass>(masses: readonly T[]): readonly T[] =>
   masses.filter((m) => m.kind === CONFESSION);
+
+/** Beichte und Nabożeństwa — was neben den Messen im Plan steht. */
+export const othersOnly = <T extends PublicMass>(masses: readonly T[]): readonly T[] =>
+  masses.filter((m) => !isMass(m));
 
 /* -- Stunde und Tag -------------------------------------------------------- */
 

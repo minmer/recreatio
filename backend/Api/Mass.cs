@@ -36,7 +36,7 @@ namespace Api;
 /// mit offengelegter Epoche liegt; alles andere faellt gar nicht erst an.
 /// </para>
 /// </summary>
-public static class Mass
+public static partial class Mass
 {
     public const int MaxText = 400;
 
@@ -53,6 +53,7 @@ public static class Mass
 
         app.MapPost("/workspace/mass/{id:guid}/intention", AddIntentionAsync);
         app.MapPost("/workspace/intention/{id:guid}", UpdateIntentionAsync);
+        app.MapPost("/workspace/intention/{id:guid}/delete", DeleteIntentionAsync);
     }
 
     /* -- Der Aushang --------------------------------------------------------- */
@@ -63,8 +64,9 @@ public static class Mass
     private static async Task OfficeAsync(
         HttpContext ctx, Db db, string? calendar, string? from, string? to, string? kinds)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+        /* 0079 — ein Konto, oder die Links mit Zugang in diesem Browser (`Caller`) — wie im Kalender. */
+        var caller = await Callers.OfAsync(ctx, db);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
         if (!Kinds(kinds, out var wanted))
         {
@@ -72,17 +74,19 @@ public static class Mass
             return;
         }
 
-        await ShowAsync(ctx, db, calendar, from, to, who.Value.AccountId, wanted);
+        await ShowAsync(ctx, db, calendar, from, to, caller, wanted);
     }
 
     private sealed record Row(
         Guid Id, Guid CalendarId, string CalendarTitle, string AreaName, string Zone,
         string Kind, string? TitlePublic, DateTimeOffset StartsAt, DateTimeOffset EndsAt,
         string Status, string RepeatKind, int RepeatEvery,
-        int? Weekdays, DateTimeOffset? Until, int? Count);
+        int? Weekdays, DateTimeOffset? Until, int? Count, Guid AreaId);
 
+    /// <param name="Skipped">0079 — dieses eine Vorkommen ist abgesagt (eine Ausnahme), nicht die Reihe.</param>
     private sealed record Service(
-        Row Item, DateTimeOffset OccurrenceAt, DateTimeOffset StartsAt, DateTimeOffset EndsAt);
+        Row Item, DateTimeOffset OccurrenceAt, DateTimeOffset StartsAt, DateTimeOffset EndsAt,
+        bool Skipped = false, bool Moved = false);
 
     /// <summary>
     /// Welche Arten der Plan zeigt.
@@ -101,7 +105,7 @@ public static class Mass
     /// jemand einen leeren Plan und suchte den Fehler bei sich.
     /// </para>
     /// </summary>
-    private static readonly string[] Services = ["mass", "confession"];
+    private static readonly string[] Services = Calendar.ServiceKinds;
 
     private static bool Kinds(string? asked, out List<string> kinds)
     {
@@ -114,8 +118,7 @@ public static class Mass
         {
             var kind = one.ToLowerInvariant();
 
-            if (kind is not ("appointment" or "task" or "mass" or "confession" or "visit"))
-                return false;
+            if (!Calendar.ItemKinds.Contains(kind)) return false;
 
             if (!kinds.Contains(kind)) kinds.Add(kind);
         }
@@ -140,7 +143,7 @@ public static class Mass
     /// </para>
     /// </summary>
     private static async Task ShowAsync(
-        HttpContext ctx, Db db, string? calendar, string? from, string? to, Guid? accountId,
+        HttpContext ctx, Db db, string? calendar, string? from, string? to, Caller? caller,
         IReadOnlyList<string>? kinds = null)
     {
         kinds ??= Services;
@@ -169,7 +172,9 @@ public static class Mass
          * welche Bereiche kann dieser Leser oeffnen. Eine zweite Fassung davon
          * waere eine zweite Meinung darueber, was oeffentlich ist.
          */
-        var readable = await Calendar.ReadableAreasAsync(connection, accountId, ctx.RequestAborted);
+        var office = caller is not null;
+        var readable = await Calendar.ReadableAreasAsync(connection, caller?.AccountId, ctx.RequestAborted,
+            linkRoles: caller is { ByLinks: true } ? caller.RoleIds : null);
 
         if (readable.Count == 0)
         {
@@ -186,7 +191,7 @@ public static class Mass
         await using (var cmd = new SqlCommand($"""
             SELECT i.id, i.calendar_id, c.title, a.name, c.time_zone,
                    i.kind, i.title_public, i.starts_at, i.ends_at, i.status,
-                   i.repeat_kind, i.repeat_every, i.repeat_weekdays, i.repeat_until, i.repeat_count
+                   i.repeat_kind, i.repeat_every, i.repeat_weekdays, i.repeat_until, i.repeat_count, c.area_id
             FROM app.calendar_item i
             JOIN app.calendar c ON c.id = i.calendar_id
             JOIN app.area a     ON a.id = c.area_id
@@ -214,7 +219,8 @@ public static class Mass
                     reader.GetString(10), reader.GetInt32(11),
                     reader.IsDBNull(12) ? null : reader.GetByte(12),
                     reader.IsDBNull(13) ? null : reader.GetDateTimeOffset(13),
-                    reader.IsDBNull(14) ? null : reader.GetInt32(14)));
+                    reader.IsDBNull(14) ? null : reader.GetInt32(14),
+                    reader.GetGuid(15)));
             }
         }
 
@@ -227,7 +233,7 @@ public static class Mass
         var itemIds = rows.Select(r => r.Id).ToList();
         var exceptions = await ExceptionsAsync(connection, itemIds, ctx.RequestAborted);
         var intentions = await IntentionsAsync(
-            connection, itemIds, since, till, accountId is not null, ctx.RequestAborted);
+            connection, itemIds, since, till, office, ctx.RequestAborted);
 
         var services = new List<Service>();
 
@@ -241,20 +247,32 @@ public static class Mass
                 row.Until, row.Count, since, till, zone))
             {
                 var starts = at;
+                var skipped = false;
+                var moved = false;
 
+                /*
+                 * 0079 — EINE ABGESAGTE MESSE STEHT DA, als abgesagt. Vorher fiel sie
+                 * still aus dem Plan: wer am Aushang 18:00 nicht fand, kam trotzdem —
+                 * und die Kanzlei konnte sie nicht zurückholen, weil sie sie nicht sah.
+                 */
                 if (exceptions.TryGetValue((row.Id, at), out var exception))
                 {
-                    if (exception.Cancelled) continue;
-                    if (exception.MovedTo is not null) starts = exception.MovedTo.Value;
+                    if (exception.Cancelled) skipped = true;
+                    else if (exception.MovedTo is not null) { starts = exception.MovedTo.Value; moved = true; }
                 }
 
                 if (starts < since || starts > till) continue;
 
-                services.Add(new Service(row, at, starts, starts + span));
+                services.Add(new Service(row, at, starts, starts + span, skipped, moved));
             }
         }
 
         services.Sort((a, b) => a.StartsAt.CompareTo(b.StartsAt));
+
+        /* 0079 — wer die Messe feiert (Kto odprawia, `calendar_presence`) — nur für die Kanzlei. */
+        var people = !office
+            ? null
+            : await Calendar.PeopleOfAsync(connection, itemIds, ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new
         {
@@ -270,14 +288,23 @@ public static class Mass
                 occurrenceAt = s.OccurrenceAt,
                 startsAt = s.StartsAt,
                 endsAt = s.EndsAt,
-                status = s.Item.Status,
+                status = s.Skipped ? "cancelled" : s.Item.Status,
                 title = s.Item.TitlePublic,
+
+                /* 0079 — nur dieses Vorkommen abgesagt (zurückholbar) — oder verlegt (die Adresse bleibt). */
+                skipped = s.Skipped,
+                moved = s.Moved,
 
                 // WO sie ist. Ohne das ist ein Sammelplan eine Liste von Uhrzeiten.
                 calendarId = Ids.ToText(s.Item.CalendarId),
                 calendarTitle = s.Item.CalendarTitle,
                 areaName = s.Item.AreaName,
                 timeZone = s.Item.Zone,
+
+                /* 0079 — für die Kanzlei: der Bereich (wer schreibt, versiegelt Geber und Gabe darunter) und wer feiert. */
+                areaId = !office ? null : Ids.ToText(s.Item.AreaId),
+                people = people is null ? null : Calendar.PeopleAt(people, s.Item.Id, s.OccurrenceAt)
+                    .Select(p => new { roleId = Ids.ToText(p.Role), duty = p.Duty }),
 
                 /*
                  * Am Schaukasten steht auch die ART. Wer eine Intention gibt, hat
@@ -292,7 +319,7 @@ public static class Mass
                 intentions = intentions
                     .Where(i => i.ItemId == s.Item.Id && i.At == s.OccurrenceAt)
                     .OrderBy(i => i.Ordinal)
-                    .Select(i => Told(i, accountId is not null))
+                    .Select(i => Told(i, office))
             })
         });
     }
@@ -341,8 +368,9 @@ public static class Mass
 
     private static async Task AddIntentionAsync(HttpContext ctx, Db db, Guid id, IntentionRequest body)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+        /* 0079 — ein Konto, oder die Links mit Zugang in diesem Browser (`Caller`) — wie im Kalender. */
+        var caller = await Callers.OfAsync(ctx, db);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
         var text = (body.Text ?? string.Empty).Trim();
         var kind = (body.Kind ?? "single").Trim().ToLowerInvariant();
@@ -393,14 +421,25 @@ public static class Mass
             return;
         }
 
-        if (!await Area.MayAsync(connection, who.Value.AccountId, item.Value.AreaId,
+        /*
+         * 0079 — NUR AN EINE MESSE, DIE STATTFINDET. Vorher nahm der Dienst
+         * jeden Zeitpunkt an; eine Intention an einer Uhrzeit, zu der es keine
+         * Messe gibt, stünde in keinem Plan — angenommen und nie gelesen.
+         */
+        if (!await TakesPlaceAsync(connection, id, at, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, "Tej mszy nie ma w planie w tym dniu — albo jest odwołana.");
+            return;
+        }
+
+        if (!await Area.MayAsync(connection, caller, item.Value.AreaId,
                 Capability.Write, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiej mszy nie ma.");
             return;
         }
 
-        if (!await MayAllAsync(connection, who.Value.AccountId, sealedFields, ctx.RequestAborted))
+        if (!await MayAllAsync(connection, caller, sealedFields, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden,
                 "Pod obszar, w którym nie możesz pisać, nic nie schowasz.");
@@ -424,7 +463,7 @@ public static class Mass
             ordinal = (int)(await next.ExecuteScalarAsync(ctx.RequestAborted) ?? 0);
         }
 
-        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        var mine = caller.Roles;
         var intentionId = Ids.NewId();
         var now = DateTimeOffset.UtcNow;
 
@@ -474,14 +513,17 @@ public static class Mass
         });
     }
 
+    /// <param name="CelebrantRoleId">Fehlt: bleibt. Leer (""): niemand mehr (0079). Sonst diese Rolle.</param>
+    /// <param name="ItemId">0079 — an eine andere Messe verlegen: diese, an diesem Vorkommen (<c>OccurrenceAt</c>).</param>
     public sealed record UpdateRequest(
         string? Text, string? Status, int? Ordinal, string? Kind, string? CelebrantRoleId,
-        IReadOnlyList<Calendar.SealedField>? Fields);
+        IReadOnlyList<Calendar.SealedField>? Fields, string? ItemId = null, string? OccurrenceAt = null);
 
     private static async Task UpdateIntentionAsync(HttpContext ctx, Db db, Guid id, UpdateRequest body)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+        /* 0079 — ein Konto, oder die Links mit Zugang in diesem Browser (`Caller`) — wie im Kalender. */
+        var caller = await Callers.OfAsync(ctx, db);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
         var text = body.Text?.Trim();
         var status = body.Status?.Trim().ToLowerInvariant();
@@ -506,6 +548,7 @@ public static class Mass
         }
 
         Guid? celebrant = null;
+        var clearCelebrant = body.CelebrantRoleId is not null && body.CelebrantRoleId.Trim() == "";
         if (!string.IsNullOrWhiteSpace(body.CelebrantRoleId))
         {
             if (!Guid.TryParse(body.CelebrantRoleId, out var found))
@@ -520,6 +563,22 @@ public static class Mass
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, complaint);
             return;
+        }
+
+        /* 0079 — verlegen: an welche Messe, an welches Vorkommen. */
+        Guid? moveTo = null;
+        DateTimeOffset? moveAt = null;
+        if (body.ItemId is not null || body.OccurrenceAt is not null)
+        {
+            if (!Guid.TryParse(body.ItemId, out var target)
+                || !DateTimeOffset.TryParse(body.OccurrenceAt, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var targetAt))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna msza, na którą przenieść.");
+                return;
+            }
+            moveTo = target;
+            moveAt = targetAt;
         }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
@@ -544,18 +603,55 @@ public static class Mass
             return;
         }
 
-        if (!await Area.MayAsync(connection, who.Value.AccountId, item.Value.AreaId,
+        if (!await Area.MayAsync(connection, caller, item.Value.AreaId,
                 Capability.Write, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiej intencji nie ma.");
             return;
         }
 
-        if (!await MayAllAsync(connection, who.Value.AccountId, sealedFields, ctx.RequestAborted))
+        if (!await MayAllAsync(connection, caller, sealedFields, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden,
                 "Pod obszar, w którym nie możesz pisać, nic nie schowasz.");
             return;
+        }
+
+        /*
+         * 0079 — AN EINE ANDERE MESSE. Dieselben Regeln wie beim Annehmen: eine
+         * Messe (keine Beichte), in einem Bereich, in dem man schreibt, an einem
+         * Tag, an dem sie stattfindet. Hinten angestellt, wenn keine Stelle
+         * genannt ist. Geber und Gabe gehen mit — ihre Hülle nennt die
+         * Intention, nicht die Messe.
+         */
+        int? appendAt = null;
+        if (moveTo is not null)
+        {
+            var target = await ItemAsync(connection, moveTo.Value, ctx.RequestAborted);
+            if (target is null || target.Value.Kind != "mass"
+                || !await Area.MayAsync(connection, caller, target.Value.AreaId, Capability.Write, ctx.RequestAborted))
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Takiej mszy nie ma — albo nie możesz w niej pisać.");
+                return;
+            }
+
+            if (!await TakesPlaceAsync(connection, moveTo.Value, moveAt!.Value, ctx.RequestAborted))
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, "Tej mszy nie ma w planie w tym dniu — albo jest odwołana.");
+                return;
+            }
+
+            if (body.Ordinal is null)
+            {
+                await using var next = new SqlCommand("""
+                    SELECT ISNULL(MAX(ordinal), -1) + 1 FROM app.mass_intention
+                    WHERE item_id = @item AND occurrence_at = @at AND id <> @id;
+                    """, connection);
+                next.Parameters.AddWithValue("@item", moveTo.Value);
+                next.Parameters.AddWithValue("@at", moveAt.Value);
+                next.Parameters.AddWithValue("@id", id);
+                appendAt = (int)(await next.ExecuteScalarAsync(ctx.RequestAborted) ?? 0);
+            }
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -575,7 +671,9 @@ public static class Mass
                     status            = ISNULL(@status, status),
                     kind              = ISNULL(@kind, kind),
                     ordinal           = ISNULL(@ord, ordinal),
-                    celebrant_role_id = ISNULL(@celebrant, celebrant_role_id),
+                    celebrant_role_id = CASE WHEN @clear = 1 THEN NULL ELSE ISNULL(@celebrant, celebrant_role_id) END,
+                    item_id           = ISNULL(@moveTo, item_id),
+                    occurrence_at     = ISNULL(@moveAt, occurrence_at),
                     updated_at        = @now
                 WHERE id = @id;
                 """, connection, tx))
@@ -585,7 +683,10 @@ public static class Mass
                     : text[..Math.Min(text.Length, MaxText)]);
                 update.Parameters.AddWithValue("@status", (object?)status ?? DBNull.Value);
                 update.Parameters.AddWithValue("@kind", (object?)kind ?? DBNull.Value);
-                update.Parameters.AddWithValue("@ord", (object?)body.Ordinal ?? DBNull.Value);
+                update.Parameters.AddWithValue("@ord", (object?)body.Ordinal ?? (object?)appendAt ?? DBNull.Value);
+                update.Parameters.AddWithValue("@clear", clearCelebrant);
+                update.Parameters.AddWithValue("@moveTo", (object?)moveTo ?? DBNull.Value);
+                update.Parameters.AddWithValue("@moveAt", (object?)moveAt ?? DBNull.Value);
                 update.Parameters.AddWithValue("@celebrant", (object?)celebrant ?? DBNull.Value);
                 update.Parameters.AddWithValue("@now", now);
                 update.Parameters.AddWithValue("@id", id);
@@ -597,6 +698,13 @@ public static class Mass
 
             await tx.CommitAsync(ctx.RequestAborted);
         }
+        catch (SqlException e) when (e.Number is 2601 or 2627)
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Ten kapłan ma już pojedynczą intencję na tej mszy — dwie pojedyncze to dwóch kapłanów.");
+            return;
+        }
         catch
         {
             await tx.RollbackAsync(ctx.RequestAborted);
@@ -604,6 +712,58 @@ public static class Mass
         }
 
         await ctx.Response.WriteAsJsonAsync(new { intentionId = Ids.ToText(id), updated = true });
+    }
+
+    /// <summary>
+    /// EINE INTENTION LÖSCHEN (0079) — ein Tippfehler, eine doppelt eingetragene.
+    /// Eine gefeierte bleibt: sie ist die Auskunft, dass die Messe gelesen
+    /// wurde. War das ein Irrtum, wird erst ihr Stand zurückgesetzt.
+    /// </summary>
+    private static async Task DeleteIntentionAsync(HttpContext ctx, Db db, Guid id)
+    {
+        /* 0079 — ein Konto, oder die Links mit Zugang in diesem Browser (`Caller`) — wie im Kalender. */
+        var caller = await Callers.OfAsync(ctx, db);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        Guid itemId;
+        string status;
+        await using (var find = new SqlCommand("SELECT item_id, status FROM app.mass_intention WHERE id = @id;", connection))
+        {
+            find.Parameters.AddWithValue("@id", id);
+            await using var reader = await find.ExecuteReaderAsync(ctx.RequestAborted);
+            if (!await reader.ReadAsync(ctx.RequestAborted))
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Takiej intencji nie ma.");
+                return;
+            }
+            itemId = reader.GetGuid(0);
+            status = reader.GetString(1);
+        }
+
+        var item = await ItemAsync(connection, itemId, ctx.RequestAborted);
+        if (item is null || !await Area.MayAsync(connection, caller, item.Value.AreaId, Capability.Write, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiej intencji nie ma.");
+            return;
+        }
+
+        if (status == "celebrated")
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Odprawionej intencji się nie usuwa — jeśli to pomyłka, zmień najpierw jej stan.");
+            return;
+        }
+
+        await using var drop = new SqlCommand("""
+            DELETE FROM app.mass_intention_field WHERE intention_id = @id;
+            DELETE FROM app.mass_intention WHERE id = @id;
+            """, connection);
+        drop.Parameters.AddWithValue("@id", id);
+        await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        await ctx.Response.WriteAsJsonAsync(new { intentionId = Ids.ToText(id), deleted = true });
     }
 
     /* -- Gemeinsames --------------------------------------------------------- */
@@ -669,11 +829,11 @@ public static class Mass
     /// </para>
     /// </summary>
     private static async Task<bool> MayAllAsync(
-        SqlConnection connection, Guid accountId, List<Sealing> fields, CancellationToken ct)
+        SqlConnection connection, Caller caller, List<Sealing> fields, CancellationToken ct)
     {
         foreach (var areaId in fields.Select(f => f.AreaId).Distinct())
         {
-            if (!await Area.MayAsync(connection, accountId, areaId, Capability.Write, ct)) return false;
+            if (!await Area.MayAsync(connection, caller, areaId, Capability.Write, ct)) return false;
         }
 
         return true;
@@ -713,6 +873,36 @@ public static class Mass
 
             await upsert.ExecuteNonQueryAsync(ct);
         }
+    }
+
+    /// <summary>
+    /// Findet diese Messe an diesem Vorkommen statt — gehört der Zeitpunkt zur
+    /// Reihe, und ist er nicht abgesagt? (Verlegt ist in Ordnung: die Adresse
+    /// bleibt der ursprüngliche Beginn.)
+    /// </summary>
+    private static async Task<bool> TakesPlaceAsync(SqlConnection connection, Guid itemId, DateTimeOffset at, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("""
+            SELECT i.starts_at, i.repeat_kind, i.repeat_every, i.repeat_weekdays, i.repeat_until, i.repeat_count, c.time_zone,
+                   (SELECT TOP 1 x.cancelled FROM app.calendar_exception x WHERE x.item_id = i.id AND x.original_start = @at)
+            FROM app.calendar_item i JOIN app.calendar c ON c.id = i.calendar_id
+            WHERE i.id = @id;
+            """, connection);
+        cmd.Parameters.AddWithValue("@id", itemId);
+        cmd.Parameters.AddWithValue("@at", at);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return false;
+        if (!reader.IsDBNull(7) && reader.GetBoolean(7)) return false;
+
+        var found = Calendar.Occurrences(
+            reader.GetDateTimeOffset(0), reader.GetString(1), reader.GetInt32(2),
+            reader.IsDBNull(3) ? null : reader.GetByte(3),
+            reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4),
+            reader.IsDBNull(5) ? null : reader.GetInt32(5),
+            at.AddSeconds(-1), at.AddSeconds(1), Zones.Of(reader.GetString(6)));
+
+        return found.Contains(at);
     }
 
     /// <summary>Der Kalendereintrag hinter einer Messe: welcher Bereich, welche Art.</summary>

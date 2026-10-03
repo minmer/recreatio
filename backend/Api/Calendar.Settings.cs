@@ -37,7 +37,7 @@ public static partial class Calendar
         string? Title, string? Description, string? ItemKind, string? VisibilityAreaId, int? DurationMinutes,
         BookingRules? Booking, bool? Archived);
 
-    private static readonly string[] CalendarKinds = ["appointment", "mass", "confession", "visit"];
+    private static readonly string[] CalendarKinds = ["appointment", "mass", "confession", "visit", "devotion"];
 
     /// <summary>Die Regeln prüfen — gemeinsam für Anlegen und Ändern. <c>null</c>: der Fehler ist geschrieben.</summary>
     private static async Task<(string? Description, string? Kind, Guid? Visibility, bool VisibilityGiven, int? Duration)?> RulesAsync(

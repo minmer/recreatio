@@ -32,8 +32,6 @@ public static class Agenda
 {
     private static readonly string[] SealableFields = ["title", "location", "notes", "link", "link_label"];
 
-    /// <summary>Was man hier ändern darf. Alles andere hat seine eigene Stelle (Msze i intencje, Rezerwacje).</summary>
-    private static readonly string[] OwnKinds = ["appointment", "visit", "task"];
 
     public static void Map(WebApplication app)
     {
@@ -41,6 +39,9 @@ public static class Agenda
         app.MapPost("/workspace/area/{id:guid}/item", AddToAreaAsync);
         app.MapPost("/workspace/item/{id:guid}", UpdateAsync);
         app.MapPost("/workspace/item/{id:guid}/delete", DeleteAsync);
+
+        /* 0079 — „ta i następne”: eine Reihe ab einem Tag an eine neue übergeben. */
+        app.MapPost("/workspace/item/{id:guid}/handover", HandoverAsync);
     }
 
     /* ======================================================================
@@ -248,6 +249,10 @@ public static class Agenda
 
         /* 0058 — wer bei welchem Termin da sein muss, und ob ich es bin. */
         var people = await Calendar.PeopleOfAsync(connection, itemIds, ctx.RequestAborted);
+
+        /* 0079 — wie viele Intentionen an jeder Messe hängen. */
+        var intentionCounts = await Mass.CountsAsync(connection,
+            rows.Where(r => r.Kind == "mass").Select(r => r.Id).Distinct().ToList(), since.AddDays(-1), till, ctx.RequestAborted);
         var myRoles = mine.Select(r => r.Id).ToHashSet();
 
         var occurrences = new List<object>();
@@ -298,6 +303,9 @@ public static class Agenda
                     position = row.Position,
                     chatId = row.ChatId is null ? null : Ids.ToText(row.ChatId.Value),
                     topicId = row.TopicId is null ? null : Ids.ToText(row.TopicId.Value),
+
+                    /* 0079 — an einer Messe: wie viele Intentionen (angenommen oder gefeiert). */
+                    intentions = row.Kind == "mass" ? intentionCounts.GetValueOrDefault((row.Id, at)) : (int?)null,
 
                     /* 0058 — wer da sein muss; `mine`: eine meiner Rollen. */
                     people = present.Select(p => new { roleId = Ids.ToText(p.Role), duty = p.Duty }),
@@ -382,7 +390,14 @@ public static class Agenda
         var status = (body.Status ?? "planned").Trim().ToLowerInvariant();
         var repeat = (body.Repeat ?? "none").Trim().ToLowerInvariant();
 
-        if (!OwnKinds.Contains(kind)) { error = "Tu zmienia się spotkania, odwiedziny i zadania — msze w „Msze i intencje”."; return null; }
+        /*
+         * 0079 — JEDE ART wird hier geändert, auch Messe, Beichte, Nabożeństwo.
+         * Vorher verwies der Kalender bei Messen auf „Msze i intencje", und dort
+         * gab es kein Ändern: eine Messe liess sich anlegen und nie wieder
+         * anfassen. Was an ihr hängt (die Intentionen), wandert jetzt mit
+         * (`Mass.Carry.cs`).
+         */
+        if (!Calendar.ItemKinds.Contains(kind)) { error = "Nieznany rodzaj wpisu."; return null; }
         if (status is not ("planned" or "confirmed" or "cancelled")) { error = "Stan: planowane, potwierdzone albo odwołane."; return null; }
         if (repeat is not ("none" or "daily" or "weekly" or "monthly" or "yearly")) { error = "Nieznane powtórzenie."; return null; }
 
@@ -549,9 +564,12 @@ public static class Agenda
             return;
         }
 
-        if (!OwnKinds.Contains(was.Kind))
+        /* Eine Messe mit Intentionen wird nichts anderes — sie stünden sonst an einer Beichte. */
+        if (was.Kind == "mass" && parsed.Kind != "mass"
+            && await Mass.LiveCountAsync(connection, null, id, null, ctx.RequestAborted) > 0)
         {
-            await Fail(ctx, StatusCodes.Status409Conflict, "Msze i spowiedzi zmienia się w „Msze i intencje” — wiszą na nich intencje.");
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Na tę mszę są przyjęte intencje — nie może stać się innym wpisem. Przenieś je najpierw na inne msze.");
             return;
         }
 
@@ -637,6 +655,23 @@ public static class Agenda
         var link = await Calendar.ProgramLinkAsync(ctx, connection, caller, id, body);
         if (link is null) return;
 
+        /*
+         * 0079 — DIE INTENTIONEN GEHEN MIT, nach dem Tag. Fehlt einer ihr Tag,
+         * wird nichts geändert und gesagt, welche es sind.
+         */
+        Mass.Carried? intentions = null;
+        if (timing)
+        {
+            intentions = await Mass.PlanCarryAsync(connection, null, id, null,
+                new Mass.Series(starts, parsed.Repeat, every, weekdays, until, count, zone), sameItem: true, ctx.RequestAborted);
+
+            if (intentions.Lost.Count > 0)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, Mass.LostMessage(intentions.Lost, zone));
+                return;
+            }
+        }
+
         var now = DateTimeOffset.UtcNow;
         var titlePublic = (body.TitlePublic ?? string.Empty).Trim();
         (int Moved, int Dropped) carried = (0, 0);
@@ -702,6 +737,8 @@ public static class Agenda
                 carried = await CarryAlongAsync(connection, tx, id, was, starts, ends, parsed.Repeat, every, weekdays,
                     until, count, ctx.RequestAborted);
 
+                if (intentions is not null) await Mass.ApplyCarryAsync(connection, tx, id, id, intentions, ctx.RequestAborted);
+
                 await using var drop = new SqlCommand("DELETE FROM app.calendar_exception WHERE item_id = @id;", connection, tx);
                 drop.Parameters.AddWithValue("@id", id);
                 await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
@@ -719,7 +756,10 @@ public static class Agenda
         {
             itemId = Ids.ToText(id), startsAt = starts, endsAt = ends, timing,
             /* 0058 — wie viele Reservierungen mitgerückt sind, und wie viele keinen Termin mehr hatten. */
-            claimsMoved = carried.Moved, claimsDropped = carried.Dropped
+            claimsMoved = carried.Moved, claimsDropped = carried.Dropped,
+
+            /* 0079 — wie viele Vorkommen ihre Intentionen mitgenommen haben. */
+            intentionsMoved = intentions?.Count ?? 0
         });
     }
 
@@ -743,12 +783,6 @@ public static class Agenda
             return;
         }
 
-        if (!OwnKinds.Contains(was.Kind))
-        {
-            await Fail(ctx, StatusCodes.Status409Conflict, "Msze i spowiedzi usuwa się w „Msze i intencje”.");
-            return;
-        }
-
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
         try
         {
@@ -763,6 +797,19 @@ public static class Agenda
                     UNION ALL
                     SELECT c.id, t.depth + 1 FROM app.calendar_item c JOIN tree t ON c.parent_item_id = t.id WHERE t.depth < 16)
                 SELECT id, depth INTO #gone FROM tree;
+
+                /*
+                    0079 — ANGENOMMENE INTENTIONEN halten die Messe: wer die Reihe
+                    loswerden will, beendet sie (Kończy się) — die gelesenen
+                    Intentionen der vergangenen Wochen bleiben dann stehen.
+                    Zurückgezogene gehen mit.
+                */
+                IF EXISTS (SELECT 1 FROM app.mass_intention WHERE item_id IN (SELECT id FROM #gone)
+                           AND status IN (N'accepted', N'celebrated'))
+                    THROW 50079, N'intentions', 1;
+                DELETE FROM app.mass_intention_field
+                 WHERE intention_id IN (SELECT id FROM app.mass_intention WHERE item_id IN (SELECT id FROM #gone));
+                DELETE FROM app.mass_intention WHERE item_id IN (SELECT id FROM #gone);
                 DELETE FROM app.calendar_field WHERE item_id IN (SELECT id FROM #gone);
                 DELETE FROM app.calendar_exception WHERE item_id IN (SELECT id FROM #gone);
                 DELETE FROM app.calendar_presence WHERE item_id IN (SELECT id FROM #gone);
@@ -778,6 +825,13 @@ public static class Agenda
             await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
             await tx.CommitAsync(ctx.RequestAborted);
         }
+        catch (SqlException e) when (e.Number == 50079)
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Na tej mszy są przyjęte intencje — przenieś je na inne msze albo zakończ serię (Kończy się: w dniu…) zamiast ją usuwać.");
+            return;
+        }
         catch (SqlException e) when (e.Number == 547)
         {
             await tx.RollbackAsync(ctx.RequestAborted);
@@ -792,6 +846,208 @@ public static class Agenda
         }
 
         await ctx.Response.WriteAsJsonAsync(new { itemId = Ids.ToText(id), deleted = true });
+    }
+
+    /* ======================================================================
+       „TA I NASTĘPNE" — EINE REIHE AB EINEM TAG ÜBERGEBEN (0079)
+       ====================================================================== */
+
+    public sealed record HandoverRequest(string? To, string? From);
+
+    /// <summary>
+    /// DIE REIHE ENDET VOR DIESEM TAG, und eine neue übernimmt ab ihm — mit
+    /// allem, was an ihren Vorkommen hängt.
+    ///
+    /// <para>
+    /// <b>Das ist die Änderung, die eine Pfarrei wirklich macht.</b> „Ab dem
+    /// 1. November ist die Abendmesse um 17:00" — nicht „die Abendmesse war
+    /// immer um 17:00". Die ganze Reihe zu ändern schriebe die vergangenen
+    /// Messen um, mitsamt ihren gelesenen Intentionen. Hier bleibt die alte
+    /// Reihe, wie sie war, bis zum Vortag; die neue (vom Browser angelegt, weil
+    /// ihre Felder unter IHRER Kennung versiegelt sind) bekommt ab dem Tag:
+    /// </para>
+    ///
+    /// <code>
+    ///   Intentionen         nach dem Tag — fehlt einer der Tag, wird nichts geändert
+    ///   Wer da sein muss    je Vorkommen nach dem Tag; die Liste der Reihe, wenn die neue keine hat
+    ///   Reservierungen      nach dem Tag, im selben Kalender; sonst abgelehnt, wie beim Absagen
+    /// </code>
+    ///
+    /// <para>
+    /// Schlägt es fehl, löscht der Browser die neue Reihe wieder — sie trägt
+    /// dann noch nichts.
+    /// </para>
+    /// </summary>
+    private static async Task HandoverAsync(HttpContext ctx, Db db, Guid id, HandoverRequest body)
+    {
+        var caller = await Callers.OfAsync(ctx, db);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        if (!Guid.TryParse(body.To, out var to) || to == id
+            || !DateTimeOffset.TryParse(body.From, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.RoundtripKind, out var from))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny termin albo dzień.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var was = await ExistingAsync(connection, id, ctx.RequestAborted);
+        var next = await ExistingAsync(connection, to, ctx.RequestAborted);
+        if (was is null || next is null
+            || !await Area.MayAsync(connection, caller, was.AreaId, Capability.Write, ctx.RequestAborted)
+            || !await Area.MayAsync(connection, caller, next.AreaId, Capability.Write, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego terminu nie ma — albo nie możesz go zmieniać.");
+            return;
+        }
+
+        if (was.RepeatKind == "none")
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "To nie jest seria — zmień ten jeden termin.");
+            return;
+        }
+
+        var zone = Zones.Of(was.Zone);
+        var cut = TimeZoneInfo.ConvertTime(from, zone).Date;
+        var since = Zones.AtLocal(cut, zone);
+        var until = Zones.AtLocal(cut.AddDays(-1).Add(new TimeSpan(23, 59, 59)), zone);
+
+        var before = Calendar.Occurrences(was.StartsAt, was.RepeatKind, was.RepeatEvery, was.Weekdays,
+            was.Until, was.Count, was.StartsAt, until, zone);
+        if (before.Count == 0)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Od tego dnia zaczyna się cała seria — zmień ją w całości.");
+            return;
+        }
+
+        var series = new Mass.Series(next.StartsAt, next.RepeatKind, next.RepeatEvery, next.Weekdays,
+            next.Until, next.Count, Zones.Of(next.Zone));
+
+        var intentions = await Mass.PlanCarryAsync(connection, null, id, since, series, sameItem: false, ctx.RequestAborted);
+        if (intentions.Lost.Count > 0)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Mass.LostMessage(intentions.Lost, zone));
+            return;
+        }
+
+        var span = next.EndsAt - next.StartsAt;
+        var sameCalendar = was.CalendarId == next.CalendarId;
+        var now = DateTimeOffset.UtcNow;
+        var people = 0;
+        var occurrences = 0;
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+        try
+        {
+            /* Die alte Reihe endet am Vortag. Eine Anzahl bleibt stehen — sie kann früher enden, nie später. */
+            await using (var end = new SqlCommand("""
+                UPDATE app.calendar_item SET repeat_until = @until, updated_at = @now WHERE id = @id;
+                DELETE FROM app.calendar_exception WHERE item_id = @id AND original_start >= @since;
+                """, connection, tx))
+            {
+                end.Parameters.AddWithValue("@id", id);
+                end.Parameters.AddWithValue("@until", until);
+                end.Parameters.AddWithValue("@since", since);
+                end.Parameters.AddWithValue("@now", now);
+                await end.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await Mass.ApplyCarryAsync(connection, tx, id, to, intentions, ctx.RequestAborted);
+
+            /* Wer bei einzelnen Vorkommen da sein muss — nach dem Tag; ohne Tag fällt es fort. */
+            var keys = new List<DateTimeOffset>();
+            await using (var find = new SqlCommand("""
+                SELECT occurrence_at FROM app.calendar_presence WHERE item_id = @id AND occurrence_at >= @since
+                UNION SELECT occurrence_at FROM app.claim WHERE item_id = @id AND occurrence_at >= @since
+                UNION SELECT occurrence_at FROM app.offer_state WHERE item_id = @id AND occurrence_at >= @since;
+                """, connection, tx))
+            {
+                find.Parameters.AddWithValue("@id", id);
+                find.Parameters.AddWithValue("@since", since);
+                await using var reader = await find.ExecuteReaderAsync(ctx.RequestAborted);
+                while (await reader.ReadAsync(ctx.RequestAborted)) keys.Add(reader.GetDateTimeOffset(0));
+            }
+
+            foreach (var (key, target) in Mass.ByDay(keys, series))
+            {
+                await using var carry = new SqlCommand(target is not null && sameCalendar ? """
+                    UPDATE app.calendar_presence SET item_id = @to, occurrence_at = @target WHERE item_id = @id AND occurrence_at = @at;
+                    UPDATE app.claim SET item_id = @to, occurrence_at = @target, starts_at = @target, ends_at = @end
+                     WHERE item_id = @id AND occurrence_at = @at;
+                    UPDATE app.offer_state SET item_id = @to, occurrence_at = @target WHERE item_id = @id AND occurrence_at = @at;
+                    """ : target is not null ? """
+                    UPDATE app.calendar_presence SET item_id = @to, occurrence_at = @target WHERE item_id = @id AND occurrence_at = @at;
+                    UPDATE app.claim
+                       SET status = N'declined', awaits = NULL, decided_at = @now,
+                           invite_sha256 = NULL, invite_until = NULL, invite_sealed = NULL
+                     WHERE item_id = @id AND occurrence_at = @at AND status IN (N'pending', N'confirmed');
+                    DELETE FROM app.offer_state WHERE item_id = @id AND occurrence_at = @at;
+                    """ : """
+                    DELETE FROM app.calendar_presence WHERE item_id = @id AND occurrence_at = @at;
+                    UPDATE app.claim
+                       SET status = N'declined', awaits = NULL, decided_at = @now,
+                           invite_sha256 = NULL, invite_until = NULL, invite_sealed = NULL
+                     WHERE item_id = @id AND occurrence_at = @at AND status IN (N'pending', N'confirmed');
+                    DELETE FROM app.offer_state WHERE item_id = @id AND occurrence_at = @at;
+                    """, connection, tx);
+                carry.Parameters.AddWithValue("@id", id);
+                carry.Parameters.AddWithValue("@at", key);
+                carry.Parameters.AddWithValue("@to", to);
+                carry.Parameters.AddWithValue("@target", (object?)target ?? DBNull.Value);
+                carry.Parameters.AddWithValue("@end", target is null ? DBNull.Value : target.Value + span);
+                carry.Parameters.AddWithValue("@now", now);
+                await carry.ExecuteNonQueryAsync(ctx.RequestAborted);
+                occurrences++;
+            }
+
+            /* Die Liste der REIHE — „kto odprawia" — gilt weiter, wenn die neue Reihe noch keine hat. */
+            var seriesPeople = new List<(Guid Role, string Duty)>();
+            await using (var list = new SqlCommand("""
+                SELECT p.role_id, p.duty FROM app.calendar_presence p
+                WHERE p.item_id = @id AND p.occurrence_at IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM app.calendar_presence q WHERE q.item_id = @to AND q.occurrence_at IS NULL);
+                """, connection, tx))
+            {
+                list.Parameters.AddWithValue("@id", id);
+                list.Parameters.AddWithValue("@to", to);
+                await using var reader = await list.ExecuteReaderAsync(ctx.RequestAborted);
+                while (await reader.ReadAsync(ctx.RequestAborted)) seriesPeople.Add((reader.GetGuid(0), reader.GetString(1)));
+            }
+
+            foreach (var (role, duty) in seriesPeople)
+            {
+                await using var add = new SqlCommand("""
+                    INSERT INTO app.calendar_presence (id, item_id, occurrence_at, role_id, duty, created_at)
+                    VALUES (@pid, @to, NULL, @role, @duty, @now);
+                    """, connection, tx);
+                add.Parameters.AddWithValue("@pid", Ids.NewId());
+                add.Parameters.AddWithValue("@to", to);
+                add.Parameters.AddWithValue("@role", role);
+                add.Parameters.AddWithValue("@duty", duty);
+                add.Parameters.AddWithValue("@now", now);
+                await add.ExecuteNonQueryAsync(ctx.RequestAborted);
+                people++;
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            itemId = Ids.ToText(id),
+            to = Ids.ToText(to),
+            until,
+            intentions = intentions.Count,
+            people,
+            occurrences
+        });
     }
 
     private static Task Fail(HttpContext ctx, int status, string message)

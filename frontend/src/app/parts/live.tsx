@@ -42,7 +42,7 @@ export const massesPart = definePart<MassConfig>({
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
   example: { title: 'Porządek mszy', calendar: '<id-kalendarza>', days: '7' },
-  label: 'Msze i intencje',
+  label: 'Msze i nabożeństwa',
   use: 'Porządek mszy z kalendarza, z intencjami.',
   box: { colSpan: 3, rowSpan: 3 },
 

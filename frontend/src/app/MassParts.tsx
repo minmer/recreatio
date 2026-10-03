@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 
 import { keyOf } from './dayMath';
 import {
-  byDay, CONFESSION, dayKey, fullDayLabel, hour, loadPlan, type PublicMass
+  byDay, CONFESSION, dayKey, DEVOTION, fullDayLabel, hour, isMass, loadPlan, type PublicMass
 } from './mass';
 import { isAhead, soon, type MassView } from './massShape';
 
@@ -148,7 +148,7 @@ export function everyDay(services: readonly PublicMass[], dates: readonly Date[]
   return dates.map((date) => found.get(keyOf(date)) ?? { key: keyOf(date), date, masses: [] });
 }
 
-export const onlyMasses = (day: Day): readonly PublicMass[] => day.masses.filter((m) => m.kind !== CONFESSION);
+export const onlyMasses = (day: Day): readonly PublicMass[] => day.masses.filter(isMass);
 
 /* -- Uhrzeiten nebeneinander ------------------------------------------------------- */
 
@@ -197,7 +197,7 @@ export function DayBlock({ ctx, day, onOpen }: { ctx: Ctx; day: Day; onOpen?: (d
       {past.length > 0 && (
         <details className="wk-mass-past">
           <summary>
-            Wcześniej: {past.filter((m) => m.kind !== CONFESSION).map((m) => hour(m.startsAt)).join(' · ')
+            Wcześniej: {past.filter(isMass).map((m) => hour(m.startsAt)).join(' · ')
               || past.map((m) => hour(m.startsAt)).join(' · ')}
           </summary>
           {past.map((m) => <Row key={massKey(m)} ctx={ctx} mass={m} />)}
@@ -210,24 +210,37 @@ export function DayBlock({ ctx, day, onOpen }: { ctx: Ctx; day: Day; onOpen?: (d
   );
 }
 
-/** Eine Messe (oder Beichte) in einem Tag: Uhrzeit links, alles andere daneben. */
+/** Eine Messe (oder Beichte, oder ein Nabożeństwo) in einem Tag: Uhrzeit links, alles andere daneben. */
 export function Row({ ctx, mass }: { ctx: Ctx; mass: PublicMass }) {
   const confession = mass.kind === CONFESSION;
+  const devotion = mass.kind === DEVOTION;
   const cancelled = mass.status === 'cancelled';
   const isNext = same(mass, ctx.next);
   const when = isNext ? soon(mass, ctx.now) : null;
   const past = !cancelled && !isAhead(mass, ctx.now);
 
   const cls = ['wk-mass-row',
-    confession && 'is-confession', cancelled && 'is-cancelled', isNext && 'is-next', past && 'is-past']
+    confession && 'is-confession', devotion && 'is-devotion', cancelled && 'is-cancelled', isNext && 'is-next', past && 'is-past']
     .filter(Boolean).join(' ');
 
   return (
     <div className={cls}>
       <span className="wk-mass-hour">{hour(mass.startsAt)}</span>
       <span className="wk-mass-what">
-        {confession ? (
-          <span className="wk-mass-title">Spowiedź do {hour(mass.endsAt)}</span>
+        {confession || devotion ? (
+          /*
+           * 0079 — Beichte und Nabożeństwo: ihr Name (oder die Art) — die Beichte
+           * mit ihrem Ende, weil man wissen will, bis wann man kommen kann.
+           */
+          <span className="wk-mass-head">
+            <span className="wk-mass-title">
+              {(mass.title ?? '').trim() !== '' ? mass.title : confession ? 'Spowiedź' : 'Nabożeństwo'}
+              {confession && ` do ${hour(mass.endsAt)}`}
+            </span>
+            {when !== null && !cancelled && <span className="wk-mass-soon">{when}</span>}
+            {cancelled && <span className="wk-mass-off">{confession ? 'odwołana' : 'odwołane'}</span>}
+            {ctx.place && <span className="wk-mass-where">{mass.calendarTitle}</span>}
+          </span>
         ) : (
           <>
             {((mass.title ?? '') !== '' || when !== null || cancelled) && (

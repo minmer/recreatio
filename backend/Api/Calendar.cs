@@ -49,6 +49,19 @@ public static partial class Calendar
 
     private const int MaxOccurrences = 2000;
 
+    /// <summary>
+    /// Die Arten eines Eintrags — wie `ck_item_kind` (0079: dazu `devotion`, das Nabożeństwo).
+    /// EINE Liste: vorher stand sie an vier Stellen, und jede neue Art haette
+    /// an einer davon gefehlt.
+    /// </summary>
+    public static readonly string[] ItemKinds = ["appointment", "task", "mass", "confession", "visit", "devotion"];
+
+    /// <summary>
+    /// DER GOTTESDIENST — was im Messplan steht: Messe, Beichte, Nabożeństwo.
+    /// Nur die Messe traegt Intentionen (`Mass.AddIntentionAsync`).
+    /// </summary>
+    public static readonly string[] ServiceKinds = ["mass", "confession", "devotion"];
+
     /// <summary>Die Felder, die versiegelt liegen duerfen — wie `ck_calendar_field_name`.</summary>
     private static readonly string[] SealableFields = ["title", "location", "notes", "link", "link_label"];
 
@@ -362,10 +375,10 @@ public static partial class Calendar
         var ownRules = await ItemRulesAsync(ctx, db, body);
         if (ownRules is null) return;
 
-        if (kind is not ("appointment" or "task" or "mass" or "confession" or "visit"))
+        if (!ItemKinds.Contains(kind))
         {
             await Fail(ctx, StatusCodes.Status400BadRequest,
-                "Rodzaj: spotkanie, zadanie, msza, spowiedź albo odwiedziny.");
+                "Rodzaj: spotkanie, zadanie, msza, spowiedź, nabożeństwo albo odwiedziny.");
             return;
         }
 
@@ -635,7 +648,8 @@ public static partial class Calendar
 
     /* -- Eine Ausnahme in der Reihe ----------------------------------------- */
 
-    public sealed record ExceptionRequest(string OriginalStart, bool? Cancelled, string? MovedTo);
+    /// <param name="Restore">0079 — die Ausnahme aufheben: das Vorkommen steht wieder, wie die Reihe es sagt.</param>
+    public sealed record ExceptionRequest(string OriginalStart, bool? Cancelled, string? MovedTo, bool? Restore = null);
 
     /// <summary>
     /// Ein einzelnes Vorkommen absagen oder verschieben.
@@ -674,8 +688,9 @@ public static partial class Calendar
         }
 
         var cancelled = body.Cancelled ?? false;
+        var restore = body.Restore ?? false;
 
-        if (!cancelled && movedTo is null)
+        if (!cancelled && movedTo is null && !restore)
         {
             await Fail(ctx, StatusCodes.Status400BadRequest,
                 "Wyjątek bez treści: albo odwołanie, albo przeniesienie.");
@@ -695,6 +710,40 @@ public static partial class Calendar
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego wpisu nie ma.");
             return;
+        }
+
+        /*
+         * 0079 — WIEDERHERSTELLEN. Eine abgesagte Messe liess sich bisher nicht
+         * zurückholen: wer sich verklickt hatte, musste eine neue anlegen — und
+         * die Intentionen hingen an der alten. Die Ausnahme fällt einfach fort.
+         */
+        if (restore)
+        {
+            await using var undo = new SqlCommand(
+                "DELETE FROM app.calendar_exception WHERE item_id = @item AND original_start = @at;", connection);
+            undo.Parameters.AddWithValue("@item", id);
+            undo.Parameters.AddWithValue("@at", original);
+            var undone = await undo.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+            await ctx.Response.WriteAsJsonAsync(new { itemId = Ids.ToText(id), originalStart = original, restored = undone > 0 });
+            return;
+        }
+
+        /*
+         * 0079 — EINE MESSE MIT INTENTIONEN WIRD NICHT STILL ABGESAGT. Die
+         * Intentionen hingen sonst an einem Vorkommen, das der Plan nicht mehr
+         * zeigt — angenommen, und nirgends gelesen. Erst verlegen (`Mass`),
+         * dann absagen. Verschieben geht immer: die Adresse bleibt.
+         */
+        if (cancelled)
+        {
+            var live = await Mass.LiveCountAsync(connection, null, id, original, ctx.RequestAborted);
+            if (live > 0)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    $"Na tę mszę są przyjęte intencje ({live}) — przenieś je na inną mszę, zanim ją odwołasz.");
+                return;
+            }
         }
 
         /*

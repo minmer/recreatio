@@ -27,7 +27,7 @@ import { Modal } from './Modal';
 import { WorkspaceError } from './session';
 import { PRIVATE, writableGroups } from './WhoSees';
 
-const KINDS: readonly CalendarKind[] = ['appointment', 'mass', 'confession', 'visit'];
+const KINDS: readonly CalendarKind[] = ['appointment', 'mass', 'confession', 'devotion', 'visit'];
 const DURATIONS: readonly number[] = [15, 20, 30, 40, 45, 60, 90, 120, 180, 240];
 
 type BookingMode = 'none' | 'all' | 'marked';
@@ -163,7 +163,7 @@ export function CalendarSettings({ me, areas, calendar, onClose, onSaved }: {
         </div>
 
         {kind === 'mass' && (
-          <p className="wk-hint">Intencje do mszy przyjmuje się w „Msze i intencje". Kto odprawia, wpiszesz przy terminie.</p>
+          <p className="wk-hint">Intencje przyjmuje się przy mszy — w kalendarzu albo w „Msze i nabożeństwa". Kto odprawia, wpiszesz przy terminie.</p>
         )}
 
         {!ownerIsPrivate && (

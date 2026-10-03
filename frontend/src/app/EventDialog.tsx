@@ -23,19 +23,23 @@
 import { useState } from 'react';
 
 import {
-  cancelOne, deleteEvent, ensurePrivateArea, forever, moveOne, saveEvent, type OpenedItem, type RepeatKind
+  cancelOne, deleteEvent, ensurePrivateArea, forever, handover, isLiturgy, moveOne, saveEvent, type OpenedItem, type RepeatKind
 } from './agenda';
 import { areaPath, type AreaRow } from './area';
 import { AreaOptions } from './AreaOptions';
-import { CALENDAR_KIND_LABEL, DUTY_LABEL, safeLink, setPeople, setProgramParent, type CalendarRow, type Duty } from './calendar';
+import {
+  CALENDAR_KIND_LABEL, DUTY_LABEL, ITEM_LABEL, safeLink, setPeople, setProgramParent,
+  type CalendarRow, type Duty, type ItemKind
+} from './calendar';
 import { programOf, type CalEvent } from './calendarModel';
 import { longDate } from './dayMath';
 import type { Me } from './me';
 import { ItemLink } from './ItemLink';
+import { IntentionsPanel } from './IntentionsPanel';
+import { DEVOTION_NAMES } from './mass';
 import { Modal } from './Modal';
 import { nameOfPinned, PeoplePicker, useAreaPeople, type Pinned } from './PeoplePicker';
 import { useRecent } from './prefs';
-import { viewPath } from './routes';
 import { WorkspaceError } from './session';
 import { bitOf, fromLocal, groupName, localDate, localTime, PRIVATE, Weekdays, writableGroups } from './WhoSees';
 
@@ -62,6 +66,18 @@ export type EventTarget = {
     readonly title?: string;
   }
   | { readonly at: 'event'; readonly event: CalEvent };
+
+/**
+ * 0079 — WIE „wer da sein muss" heisst, nach der Art: wer die Messe feiert,
+ * wer Beichte hört, wer das Nabożeństwo leitet. Und mit welcher Pflicht ein
+ * neuer Name hineinkommt.
+ */
+const peopleWord = (kind: string): string =>
+  kind === 'mass' ? 'Kto odprawia' : kind === 'confession' ? 'Kto spowiada' : kind === 'devotion' ? 'Kto prowadzi' : 'Kto musi być';
+const dutyOf = (kind: string): Duty => (kind === 'mass' ? 'celebrant' : kind === 'devotion' ? 'lead' : 'present');
+
+/** Die Arten, die ein Eintrag in einem Kalender einer Gruppe haben kann — in dieser Reihenfolge angeboten. */
+const KINDS_OFFERED: readonly ItemKind[] = ['appointment', 'mass', 'confession', 'devotion', 'visit'];
 
 /** Wie ein Kalender in einer Auswahl heisst: sein Name, und wessen er ist. */
 export function calendarLabel(areas: readonly AreaRow[], calendar: CalendarRow): string {
@@ -213,7 +229,6 @@ function Details({ me, areas, calendars, event, onClose, onSaved }: {
   const when = event.allDay
     ? longDate(event.start)
     : `${longDate(event.start)}, ${time(event.start)}–${time(event.end)}`;
-  const isMass = occurrence?.kind === 'mass' || occurrence?.kind === 'confession';
   const repeating = occurrence !== undefined && occurrence.series.repeatKind !== 'none';
 
   const savePeople = async () => {
@@ -243,6 +258,12 @@ function Details({ me, areas, calendars, event, onClose, onSaved }: {
       {item?.notes && <p className="wk-ev-notes">{item.notes}</p>}
       {item?.link && <p><ItemLink url={item.link} label={item.linkLabel} /></p>}
 
+      {/* 0079 — was an dieser Messe gelesen wird. */}
+      {occurrence?.kind === 'mass' && (
+        <IntentionsPanel calendarId={occurrence.calendarId} itemId={occurrence.itemId} occurrenceAt={occurrence.occurrenceAt}
+          start={event.start} editable={calendar?.mayWrite === true} />
+      )}
+
       {/* 0058 — wer da sein muss. */}
       {occurrence !== undefined && (occurrence.people?.length ?? 0) > 0 && !editing && (
         <p className="wk-ev-people">
@@ -264,7 +285,7 @@ function Details({ me, areas, calendars, event, onClose, onSaved }: {
                 onClick={() => setScope('all')}>Cała seria</button>
             </div>
           )}
-          <PeoplePicker me={me} candidates={candidates} value={pinned} onChange={setPinned} defaultDuty={isMass ? 'celebrant' : 'present'} />
+          <PeoplePicker me={me} candidates={candidates} value={pinned} onChange={setPinned} defaultDuty={dutyOf(occurrence?.kind ?? '')} />
           {failed !== null && <p className="wk-error">{failed}</p>}
           <div className="wk-actions">
             <button type="button" className="wk-btn" disabled={busy} onClick={() => void savePeople()}>{busy ? 'Zapisywanie…' : 'Zapisz'}</button>
@@ -280,21 +301,14 @@ function Details({ me, areas, calendars, event, onClose, onSaved }: {
         </p>
       )}
 
-      {item !== undefined && !item.editable && isMass && (
-        <p className="wk-note">
-          Msze i spowiedzi zmienia się w <a className="wk-link" href={viewPath('masses')}>Msze i intencje</a> — wiszą
-          na nich intencje. {mayPin ? 'Kto odprawia, wpiszesz tutaj.' : ''}
-        </p>
-      )}
-
-      {item !== undefined && !item.editable && !isMass && !mayPin && (
+      {item !== undefined && !item.editable && !mayPin && (
         <p className="wk-hint">Ten termin możesz tylko oglądać — w jego kalendarzu nie piszesz.</p>
       )}
 
       <div className="wk-actions">
         {mayPin && !editing && (
           <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setEditing(true)}>
-            {isMass ? 'Kto odprawia' : 'Kto musi być'}
+            {peopleWord(occurrence?.kind ?? '')}
           </button>
         )}
         <button type="button" className="wk-btn" onClick={onClose}>Zamknij</button>
@@ -351,8 +365,21 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
   const isPrivate = calendarId === PRIVATE || calendarArea === personal?.areaId;
   const defaultVisibility = calendar?.visibilityAreaId ?? calendar?.areaId ?? personal?.areaId ?? PRIVATE;
 
-  const [scope, setScope] = useState<'one' | 'all'>('all');
-  const [title, setTitle] = useState(item?.title ?? (target.at === 'new' ? target.title ?? '' : ''));
+  /*
+   * 0079 — „TA I NASTĘPNE": ab diesem Vorkommen. So ändert eine Pfarrei ihre
+   * Messzeiten („ab November um 17:00"); die ganze Reihe zu ändern schriebe
+   * die vergangenen Messen um. Beim Gottesdienst ist es deshalb die Vorgabe,
+   * sobald es Vorkommen davor gibt.
+   */
+  const hasEarlier = series !== undefined && occurrence !== undefined && repeating
+    && new Date(occurrence.occurrenceAt).getTime() > new Date(series.startsAt).getTime();
+  const [scope, setScope] = useState<'one' | 'following' | 'all'>(() => (hasEarlier && isLiturgy(occurrence?.kind) ? 'following' : 'all'));
+
+  /* Ein Eintrag ohne eigenen Namen („Msza") bekommt ein leeres Feld — sonst hiesse er nach dem Speichern so. */
+  const [title, setTitle] = useState(item !== undefined && !item.named ? '' : item?.title ?? (target.at === 'new' ? target.title ?? '' : ''));
+
+  /* 0079 — WAS es ist. Vorher entschied das allein der Kalender — und jedes geänderte Ding wurde zum Treffen. */
+  const [kind, setKind] = useState<ItemKind>(() => (occurrence?.kind as ItemKind | undefined) ?? calendar?.itemKind ?? 'appointment');
 
   /* 0070 — Teil welches Termins: `undefined` heisst „bleibt", `null` „keiner mehr". */
   const [parentItemId, setParentItemId] = useState<string | null | undefined>(
@@ -371,10 +398,13 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
   /* Die Felder zeigen die Reihe, wenn „cała seria" gemeint ist, sonst dieses Vorkommen. Ein neuer dauert, wie sein Kalender sagt. */
   const initialEnd = target.at === 'new' && !target.allDay && calendar?.durationMinutes !== undefined
     ? new Date(start.getTime() + calendar.durationMinutes * 60_000) : (repeating ? seriesEnd : end);
-  const [date, setDate] = useState(localDate(repeating ? seriesStart : start));
-  const [from, setFrom] = useState(localTime(repeating ? seriesStart : start));
-  const [endDate, setEndDate] = useState(localDate(new Date(initialEnd.getTime() - (allDay ? 1 : 0))));
-  const [to, setTo] = useState(localTime(initialEnd));
+  const followStart = occurrence !== undefined ? new Date(occurrence.occurrenceAt) : start;
+  const followEnd = new Date(followStart.getTime() + (seriesEnd.getTime() - seriesStart.getTime()));
+  const opening = scope === 'following' ? { s: followStart, e: followEnd } : repeating ? { s: seriesStart, e: initialEnd } : { s: start, e: initialEnd };
+  const [date, setDate] = useState(localDate(opening.s));
+  const [from, setFrom] = useState(localTime(opening.s));
+  const [endDate, setEndDate] = useState(localDate(new Date(opening.e.getTime() - (allDay ? 1 : 0))));
+  const [to, setTo] = useState(localTime(opening.e));
   const [endTouched, setEndTouched] = useState(target.at !== 'new');
 
   const [repeat, setRepeat] = useState<RepeatKind>(series?.repeatKind ?? 'none');
@@ -402,9 +432,9 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
   const bookableNow = bookable ?? booking?.mode === 'all';
 
   /* Nur dieses Vorkommen: dann gelten sein Tag und seine Zeit. */
-  const pickScope = (next: 'one' | 'all') => {
+  const pickScope = (next: 'one' | 'following' | 'all') => {
     setScope(next);
-    const base = next === 'one' ? { s: start, e: end } : { s: seriesStart, e: seriesEnd };
+    const base = next === 'one' ? { s: start, e: end } : next === 'following' ? { s: followStart, e: followEnd } : { s: seriesStart, e: seriesEnd };
     setDate(localDate(base.s)); setFrom(localTime(base.s));
     setEndDate(localDate(new Date(base.e.getTime() - (allDay ? 1 : 0)))); setTo(localTime(base.e));
   };
@@ -413,6 +443,8 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
   const pickCalendar = (next: string) => {
     setCalendarId(next);
     const chosen = calendars.find((c) => c.calendarId === next);
+    /* Ein neuer Eintrag ist, was sein Kalender führt (Msze → msza) — man kann es danach ändern. */
+    if (item === undefined) setKind(chosen?.itemKind ?? 'appointment');
     if (!endTouched && !allDay && chosen?.durationMinutes !== undefined) {
       const endAt = new Date(fromLocal(date, from).getTime() + chosen.durationMinutes * 60_000);
       setEndDate(localDate(endAt)); setTo(localTime(endAt));
@@ -452,8 +484,11 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
     if (calendarId !== PRIVATE) recent.touch(calendarId);
 
     const cap = capacity.trim() === '' ? null : Math.max(1, Number(capacity) || 1);
+    const following = item !== undefined && repeating && scope === 'following' && hasEarlier;
     const id = await saveEvent(me.ring, {
-      parentItemId,
+      /* Im eigenen Kalender gibt es keinen Gottesdienst — sonst bleibt die Art, was sie ist (auch ein Zadanie). */
+      kind: isPrivate && isLiturgy(kind) ? 'appointment' : kind,
+      parentItemId: following ? null : parentItemId,
       origin: target.at === 'new' ? target.origin ?? undefined : undefined,
       title, location, notes, link, linkLabel, areaId: seenBy,
       ownerRoleId: me.person.id,
@@ -465,37 +500,110 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
       bookable: booking === null ? null : bookable,
       capacity: booking === null ? null : cap,
       reserveAreaId: booking === null || reserveArea === '' ? null : reserveArea
-    }, item?.occurrence.itemId);
+    }, following ? undefined : item?.occurrence.itemId);
+
+    /*
+     * „TA I NASTĘPNE": die neue Reihe steht; jetzt endet die alte vor diesem
+     * Tag und gibt ab, was an ihren Vorkommen hängt. Lehnt der Dienst ab (einer
+     * Intention fehlte die Messe), fällt die neue Reihe wieder weg — sie trägt
+     * noch nichts.
+     */
+    if (following && item !== undefined) {
+      try {
+        await handover(item.occurrence.itemId, id, item.occurrence.occurrenceAt);
+      } catch (e) {
+        await deleteEvent(id).catch(() => undefined);
+        throw e;
+      }
+    }
 
     if (pinnedChanged && !isPrivate) await setPeople(id, pinned);
   });
 
+  /*
+   * 0079 — DIE REIHE VOR DIESEM TAG BEENDEN: „od tego dnia już nie". Die
+   * vergangenen Vorkommen bleiben, mit allem, was an ihnen hing. Hängen an
+   * späteren noch Intentionen, sagt der Dienst welche, und ändert nichts.
+   */
+  const endBefore = () => run(async () => {
+    if (item === undefined || series === undefined) return;
+    const last = new Date(item.occurrence.occurrenceAt);
+    last.setDate(last.getDate() - 1);
+    await saveEvent(me.ring, {
+      kind: (item.occurrence.kind as ItemKind) ?? 'appointment',
+      title: item.named ? item.title : '', location: item.location ?? '', notes: item.notes ?? '',
+      link: item.link ?? '', linkLabel: item.linkLabel ?? '',
+      areaId: item.occurrence.visibilityAreaId, ownerRoleId: item.occurrence.ownerRoleId,
+      date: localDate(seriesStart), time: localTime(seriesStart),
+      minutes: Math.round((seriesEnd.getTime() - seriesStart.getTime()) / 60_000), allDay: item.occurrence.allDay,
+      repeat: series.repeatKind as RepeatKind, every: series.repeatEvery, weekdays: series.repeatWeekdays ?? 0,
+      until: localDate(last), count: series.repeatCount ?? null,
+      calendarId: item.occurrence.calendarId,
+      bookable: item.occurrence.bookable ?? null, capacity: item.occurrence.capacity ?? null,
+      reserveAreaId: item.occurrence.reserveAreaId ?? null
+    }, item.occurrence.itemId);
+  });
+
   const remove = () => {
     if (item === undefined) return;
+    if (repeating && scope === 'following' && hasEarlier) {
+      if (window.confirm('Zakończyć serię przed tym dniem? Wcześniejsze terminy zostają.')) void endBefore();
+      return;
+    }
     const one = repeating && scope === 'one';
     if (!window.confirm(one ? 'Odwołać tylko ten termin?' : 'Usunąć ten termin (całą serię)?')) return;
     void run(() => one ? cancelOne(item.occurrence.itemId, item.occurrence.occurrenceAt) : deleteEvent(item.occurrence.itemId));
   };
 
   const onlyTime = item !== undefined && repeating && scope === 'one';
-  const kind = calendar?.itemKind ?? 'appointment';
+  const liturgy = !isPrivate && isLiturgy(kind);
 
   return (
-    <Modal title={item === undefined ? (kind === 'mass' ? 'Nowa msza' : 'Nowy termin') : 'Termin'} onClose={onClose} wide>
+    <Modal title={item === undefined ? `Nowy wpis: ${ITEM_LABEL[kind] ?? 'termin'}` : liturgy ? (ITEM_LABEL[kind] ?? 'Termin').replace(/^./, (c) => c.toUpperCase()) : 'Termin'} onClose={onClose} wide>
+      {/* 0079 — was an dieser Messe gelesen wird, hier und nicht in einer anderen Ansicht. */}
+      {item !== undefined && item.occurrence.kind === 'mass' && (
+        <IntentionsPanel calendarId={item.occurrence.calendarId} itemId={item.occurrence.itemId}
+          occurrenceAt={item.occurrence.occurrenceAt} start={start} editable />
+      )}
+
       <form className="wk-form wk-ev-form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
         {repeating && (
           <div className="wk-seg wk-ev-scope" role="group" aria-label="Co zmieniasz">
             <button type="button" aria-pressed={scope === 'one'} className={scope === 'one' ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
               onClick={() => pickScope('one')}>Tylko ten termin</button>
+            {hasEarlier && (
+              <button type="button" aria-pressed={scope === 'following'} className={scope === 'following' ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
+                onClick={() => pickScope('following')}>Ten i następne</button>
+            )}
             <button type="button" aria-pressed={scope === 'all'} className={scope === 'all' ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
               onClick={() => pickScope('all')}>Cała seria</button>
           </div>
         )}
 
+        {scope === 'following' && hasEarlier && (
+          <p className="wk-hint">Zmiana obowiązuje od tego dnia — wcześniejsze terminy zostają, jak były. Intencje, obsada i zapisy przechodzą na nowe godziny według dnia.</p>
+        )}
+        {scope === 'all' && repeating && liturgy && hasEarlier && (
+          <p className="wk-hint">Zmieniasz całą serię — także terminy, które już były. Zwykle właściwe jest „Ten i następne".</p>
+        )}
+
+        {!isPrivate && !onlyTime && (
+          <label className="wk-field">
+            <span>Rodzaj</span>
+            <select value={kind} onChange={(e) => setKind(e.target.value as ItemKind)}>
+              {(KINDS_OFFERED.includes(kind) ? KINDS_OFFERED : [...KINDS_OFFERED, kind]).map((one) => <option key={one} value={one}>{ITEM_LABEL[one]}</option>)}
+            </select>
+            {kind === 'mass' && <span className="wk-hint">Msza przyjmuje intencje — tutaj i w „Msze i nabożeństwa".</span>}
+          </label>
+        )}
+
         <label className="wk-field">
-          <span>Tytuł</span>
-          <input value={title} disabled={onlyTime} maxLength={200} placeholder={kind === 'mass' ? 'np. Msza św. niedzielna' : 'np. Spotkanie z rodzicami'}
+          <span>{liturgy ? 'Nazwa (widoczna w gablocie)' : 'Tytuł'}</span>
+          <input value={title} disabled={onlyTime} maxLength={200} list={kind === 'devotion' ? 'wk-devotion-names' : undefined}
+            placeholder={kind === 'mass' ? 'np. Msza św. niedzielna — puste: sama godzina' : kind === 'devotion' ? 'np. Różaniec' : kind === 'confession' ? 'puste: „Spowiedź"' : 'np. Spotkanie z rodzicami'}
             onChange={(e) => setTitle(e.target.value)} />
+          {kind === 'devotion' && <datalist id="wk-devotion-names">{DEVOTION_NAMES.map((n) => <option key={n} value={n} />)}</datalist>}
+          {liturgy && <span className="wk-hint">Nazwa jest jawna — stoi w planie i w gablocie. Miejsce i notatka zostają zaszyfrowane.</span>}
         </label>
 
         <div className="wk-ev-when-row">
@@ -642,9 +750,9 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
 
             {!isPrivate && calendarArea !== null && (
               <div className="wk-field">
-                <span>{kind === 'mass' ? 'Kto odprawia' : 'Kto musi być'}</span>
+                <span>{peopleWord(kind)}</span>
                 <PeoplePicker me={me} candidates={candidates} value={pinned} onChange={setPinned}
-                  defaultDuty={(kind === 'mass' ? 'celebrant' : 'present') as Duty} />
+                  defaultDuty={dutyOf(kind)} />
               </div>
             )}
 
@@ -707,9 +815,9 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
             <p className="wk-hint">Przesuwasz tylko ten jeden termin — reszta serii zostaje, jak była. Rezerwacje przechodzą razem z nim.</p>
             {!isPrivate && calendarArea !== null && (
               <div className="wk-field">
-                <span>{kind === 'mass' ? 'Kto odprawia ten termin' : 'Kto musi być na tym terminie'}</span>
+                <span>{peopleWord(kind)} — ten termin</span>
                 <PeoplePicker me={me} candidates={candidates} value={pinned} onChange={setPinned}
-                  defaultDuty={(kind === 'mass' ? 'celebrant' : 'present') as Duty} />
+                  defaultDuty={dutyOf(kind)} />
               </div>
             )}
           </>
@@ -722,7 +830,7 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
           <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onClose}>Anuluj</button>
           {item !== undefined && (
             <button type="button" className="wk-link-btn wk-danger wk-ev-delete" disabled={busy} onClick={remove}>
-              {repeating && scope === 'one' ? 'Odwołaj ten termin' : 'Usuń'}
+              {repeating && scope === 'one' ? 'Odwołaj ten termin' : repeating && scope === 'following' && hasEarlier ? 'Zakończ serię przed tym dniem' : 'Usuń'}
             </button>
           )}
         </div>

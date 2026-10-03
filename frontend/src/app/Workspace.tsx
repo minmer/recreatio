@@ -148,7 +148,7 @@ function Tiles({ desk, who }: { desk: Desk; who: Who }) {
         </Tile>
 
         <Tile view="masses">
-          <p className="wk-empty">Msze, intencje i wydruk do gabloty.</p>
+          <p className="wk-empty">Msze, spowiedź, nabożeństwa — plan, zmiany, intencje i wydruk do gabloty.</p>
         </Tile>
 
         <Tile view="chat">
@@ -243,9 +243,9 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'addresses') return <Addresses desk={desk} who={who} onChanged={onChanged} />;
   if (view === 'roles') return <RoleGraph who={who} />;
   if (view === 'areas') return <Areas who={who} trail={trail} />;
-  if (view === 'calendar') return <CalendarApp who={who} />;
+  if (view === 'calendar') return <CalendarApp who={who} trail={trail} />;
   if (view === 'tasks') return <TasksView who={who} />;
-  if (view === 'masses') return <MassOffice />;
+  if (view === 'masses') return <MassOffice who={who} trail={trail} />;
   if (view === 'bookings') return <Reservations trail={trail} />;
   if (view === 'account') return <Account who={who} />;
   if (view === 'chat') return <ChatView who={who} trail={trail} />;

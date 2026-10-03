@@ -26,7 +26,8 @@ import { newId } from './ids';
 import { call } from './session';
 
 /** Die Arten, die ein Eintrag haben kann — wie `ck_item_kind`. */
-export const ITEM_KINDS = ['appointment', 'task', 'mass', 'confession', 'visit'] as const;
+/* 0079 — dazu `devotion`: das Nabożeństwo (Różaniec, Droga Krzyżowa, Gorzkie Żale …). */
+export const ITEM_KINDS = ['appointment', 'task', 'mass', 'confession', 'visit', 'devotion'] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
 
 export const ITEM_LABEL: Record<ItemKind, string> = {
@@ -34,7 +35,8 @@ export const ITEM_LABEL: Record<ItemKind, string> = {
   task: 'zadanie',
   mass: 'msza',
   confession: 'spowiedź',
-  visit: 'odwiedziny'
+  visit: 'odwiedziny',
+  devotion: 'nabożeństwo'
 };
 
 export const REPEAT_KINDS = ['none', 'daily', 'weekly', 'monthly', 'yearly'] as const;
@@ -181,13 +183,14 @@ export interface CalendarBooking {
   readonly perPerson: number;
 }
 
-export type CalendarKind = 'appointment' | 'mass' | 'confession' | 'visit';
+export type CalendarKind = 'appointment' | 'mass' | 'confession' | 'visit' | 'devotion';
 
 export const CALENDAR_KIND_LABEL: Record<CalendarKind, string> = {
   appointment: 'spotkania',
   mass: 'msze',
   confession: 'spowiedzi',
-  visit: 'odwiedziny'
+  visit: 'odwiedziny',
+  devotion: 'nabożeństwa'
 };
 
 export interface CalendarRow {
@@ -397,8 +400,9 @@ export const setProgramParent = (itemId: string, parentItemId: string | null, po
 export const setOccurrence = (
   itemId: string,
   originalStart: string,
-  body: { cancelled?: boolean; movedTo?: string }
-): Promise<{ itemId: string; originalStart: string; cancelled: boolean; movedTo: string | null }> =>
+  /* 0079 — `restore`: die Ausnahme aufheben (eine abgesagte Messe zurückholen). */
+  body: { cancelled?: boolean; movedTo?: string; restore?: boolean }
+): Promise<{ itemId: string; originalStart: string; cancelled?: boolean; movedTo?: string | null; restored?: boolean }> =>
   call(`/workspace/item/${encodeURIComponent(itemId)}/occurrence`, {
     method: 'POST',
     body: JSON.stringify({ originalStart, ...body })

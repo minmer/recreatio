@@ -42,6 +42,7 @@ import { CALENDAR_KIND_LABEL, loadCalendars, type CalendarRow } from './calendar
 import { CalendarSettings } from './CalendarSettings';
 import { calendarLabel, EventDialog, type EventTarget } from './EventDialog';
 import { ItemLink } from './ItemLink';
+import { intentionsWord } from './mass';
 import { useNow } from './MassParts';
 import { Modal } from './Modal';
 import { useMe, type Me } from './me';
@@ -70,15 +71,20 @@ const RAIL = 13;
 
 const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 
-export function CalendarApp({ who }: { who: Who }) {
+/**
+ * `trail`: 0079 — `#/workspace/calendar/2026-10-05` schlägt den Kalender an diesem
+ * Tag auf (aus „Msze i intencje": „W kalendarzu").
+ */
+export function CalendarApp({ who, trail = [] }: { who: Who; trail?: readonly string[] }) {
   const me = useMe(who);
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(trail[0] ?? '') ? new Date(`${trail[0]}T00:00:00`) : undefined;
 
   if (me === undefined) return <p className="wk-lede">Wczytywanie…</p>;
   if (me === null) {
     return <p className="wk-note">Bez klucza w tej karcie kalendarz jest zamknięty — zaloguj się ponownie albo odblokuj klucz.</p>;
   }
 
-  return <Calendar me={me} />;
+  return <Calendar key={trail[0] ?? ''} me={me} at={day} />;
 }
 
 interface Loaded {
@@ -97,9 +103,12 @@ interface Loaded {
  * gibt es keine Aufgaben und keine eigenen Buchungen darin, und neue Termine
  * gehen nur in diese Kalender.
  */
-export function Calendar({ me, scope, startNew }: {
+export function Calendar({ me, scope, startNew, at }: {
   me: Me;
   scope?: readonly string[];
+
+  /** Aufschlagen an diesem Tag — statt heute. */
+  at?: Date;
 
   /** Einmal gefragt, sobald die Kalender da sind: gleich einen neuen Termin aufmachen? („+ Termin" auf der Kachel einer Seite.) */
   startNew?: () => boolean;
@@ -122,7 +131,7 @@ export function Calendar({ me, scope, startNew }: {
   const [settings, setSettings] = useState<CalendarRow | 'new' | null>(null);
   const [calendarsOpen, setCalendarsOpen] = useState(false);
 
-  const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
+  const [anchor, setAnchor] = useState(() => startOfDay(at ?? new Date()));
   const now = useNow();
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [data, setData] = useState<Loaded | null>(null);
@@ -405,6 +414,11 @@ function Badges({ event }: { event: CalEvent }) {
   if (event.booking !== undefined && waitsForOffice(event.booking)) {
     return <span className="wk-ev-badges"><span className="wk-ev-wait" title="czeka na potwierdzenie">?</span></span>;
   }
+  /* 0079 — an einer Messe: wie viele Intentionen. Eine Messe ohne ist eine Auskunft (noch frei). */
+  const intentions = event.item?.occurrence.intentions;
+  if (intentions != null && intentions > 0) {
+    return <span className="wk-ev-badges"><span className="wk-ev-intcount" title={intentionsWord(intentions)}>{intentions} int.</span></span>;
+  }
   return null;
 }
 
@@ -639,7 +653,8 @@ export function ListView({ from, events, marks, now, areas, onOpen, onTasks }: {
       return <>{e.offer.taken}/{e.offer.capacity} zajęte{waits > 0 && <strong className="wk-res-waitnote"> · {waits} czeka</strong>}</>;
     }
     if (e.booking !== undefined) return <>{holderName(e.booking)}{waitsForOffice(e.booking) && <strong className="wk-res-waitnote"> · czeka</strong>}</>;
-    return <>{groupName(areas, e.areaId)}{e.source === 'claim' ? ' · rezerwacja' : ''}</>;
+    const intentions = e.item?.occurrence.intentions;
+    return <>{groupName(areas, e.areaId)}{e.source === 'claim' ? ' · rezerwacja' : ''}{intentions != null && intentions > 0 ? ` · ${intentionsWord(intentions)}` : ''}</>;
   };
 
   return (

@@ -283,7 +283,7 @@ export function PageEditor({ path, who, onOpenModule }: {
         Ein Henne-Ei-Fall ist das nicht: man legt den Baustein ab, speichert die
         Module, und die Kanzlei steht da — bevor die erste Messe existiert.
       */}
-      {parts.some((part) => part.kind === 'masses') && <MassOffice />}
+      {parts.some((part) => part.kind === 'masses') && <MassOffice who={who} heading />}
 
       {/*
         HIER STANDEN: die Fragen des Formulars, „Kto ma dostęp" und „Otwórz

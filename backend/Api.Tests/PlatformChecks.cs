@@ -17,6 +17,7 @@ internal static class PlatformChecks
         LinkAims(check);
         PushAssertion(check);
         RoundKeys(check);
+        MassCarry(check);
     }
 
     /// <summary>0077 — der Zeitraum einer wiederkehrenden Erweiterung: dieselbe Tabelle wie rounds.ts.</summary>
@@ -171,6 +172,45 @@ internal static class PlatformChecks
         var proof = Kernel.Base64Url.Encode(new byte[32]);
         check(HeldLinks.Proofs($"{proof},{proof},xx,{Kernel.Base64Url.Encode(new byte[31])}").Count == 1, "links: proofs are 32 bytes, each once");
         check(HeldLinks.Proofs(string.Join(",", Enumerable.Range(0, 30).Select(i => Kernel.Base64Url.Encode(Enumerable.Repeat((byte)i, 32).ToArray())))).Count == HeldLinks.Max, "links: at most twenty");
+    }
+
+    /// <summary>
+    /// 0079 — die Intentionen wandern mit der Messe, nach dem TAG: eine neue
+    /// Uhrzeit nimmt sie mit (auch über die Zeitumstellung), ein weggefallener
+    /// Tag oder ein früheres Ende lässt sie ohne Messe — dann ändert der Dienst nichts.
+    /// </summary>
+    private static void MassCarry(Action<bool, string> check)
+    {
+        var zone = Zones.Of("Europe/Warsaw");
+        DateTimeOffset At(int month, int day, int hour, int minute = 0) =>
+            Zones.AtLocal(new DateTime(2026, month, day, hour, minute, 0), zone);
+
+        /* Pn i śr 18:00, od 5 października do końca roku. */
+        const int monWed = 1 | 4;
+        var until = At(12, 31, 23, 59);
+        var keys = new[] { At(10, 7, 18), At(10, 26, 18), At(11, 2, 18), At(12, 30, 18) };
+
+        var later = Mass.ByDay(keys, new Mass.Series(At(10, 5, 18, 30), "weekly", 1, monWed, until, null, zone));
+        check(later[At(10, 7, 18)] == At(10, 7, 18, 30), "carry: 18:00 → 18:30 on the same Wednesday");
+        check(later[At(10, 26, 18)] == At(10, 26, 18, 30), "carry: across the change of time the wall clock stays (26.10 18:30 CET)");
+        check(later.Values.All(v => v is not null), "carry: every intention keeps its mass");
+
+        var noWednesday = Mass.ByDay(keys, new Mass.Series(At(10, 5, 18), "weekly", 1, 1, until, null, zone));
+        check(noWednesday[At(10, 7, 18)] is null && noWednesday[At(12, 30, 18)] is null, "carry: Wednesday taken away — its intentions have no mass");
+        check(noWednesday[At(10, 26, 18)] == At(10, 26, 18) && noWednesday[At(11, 2, 18)] == At(11, 2, 18), "carry: Mondays stay where they were");
+
+        var shorter = Mass.ByDay(keys, new Mass.Series(At(10, 5, 18), "weekly", 1, monWed, At(11, 30, 23, 59), null, zone));
+        check(shorter[At(11, 2, 18)] == At(11, 2, 18) && shorter[At(12, 30, 18)] is null, "carry: the series ends earlier — December has no mass");
+
+        var counted = Mass.ByDay(keys, new Mass.Series(At(10, 5, 18), "weekly", 1, monWed, null, 4, zone));
+        check(counted[At(10, 7, 18)] is not null && counted[At(10, 26, 18)] is null, "carry: a count ends the series too");
+
+        /* „Ta i następne": ab 2. November eine neue Reihe um 17:00 — nur die Tage ab dann. */
+        var handed = Mass.ByDay(new[] { At(11, 2, 18), At(12, 30, 18) }, new Mass.Series(At(11, 2, 17), "weekly", 1, monWed, until, null, zone));
+        check(handed[At(11, 2, 18)] == At(11, 2, 17) && handed[At(12, 30, 18)] == At(12, 30, 17), "carry: handed over to a new series at 17:00");
+
+        var said = Mass.LostMessage(new[] { At(10, 7, 18), At(12, 30, 18) }, zone);
+        check(said.Contains("7.10.2026 18:00") && said.Contains("30.12.2026 18:00"), "carry: the refusal names the days in local time");
     }
 
     private static void PushAssertion(Action<bool, string> check)

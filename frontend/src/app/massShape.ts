@@ -212,9 +212,9 @@ function glanceSays(shown: MassView): string {
       : 'Godziny mszy dziś i następnego dnia.';
     case 'ticker': return 'Najbliższa msza z intencją, za nią kolejne godziny.';
     case 'spotlight': return 'Najbliższa msza z intencjami, pod nią godziny na kolejne dni.';
-    case 'day': return 'Jeden dzień msza po mszy, z intencjami i spowiedzią; następny w jednym wierszu.';
-    case 'columns': return `${days(shown.days)} obok siebie (${shown.columns} kolumny), z intencjami i spowiedzią.`;
-    case 'stack': return `${days(shown.days)} jeden pod drugim, z intencjami i spowiedzią.`;
+    case 'day': return 'Jeden dzień msza po mszy, z intencjami, spowiedzią i nabożeństwami; następny w jednym wierszu.';
+    case 'columns': return `${days(shown.days)} obok siebie (${shown.columns} kolumny), z intencjami, spowiedzią i nabożeństwami.`;
+    case 'stack': return `${days(shown.days)} jeden pod drugim, z intencjami, spowiedzią i nabożeństwami.`;
   }
 }
 
