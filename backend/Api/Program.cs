@@ -123,6 +123,9 @@ Bookings.Map(app);
 /* 0052 — Rozmowy: Chats auf dem Kern der Bereiche. */
 Chat.Map(app);
 
+/* 0080 — die drei Zugänge (Kanał, gemeinsam, einer mit einem) und die Formulare an einem Ding. */
+Audience.Map(app);
+
 /* 0054 — persönlich: der eigene Kalender, Aufgaben, der gemerkte Stand, das Menü einer Seite. */
 Agenda.Map(app);
 Tasks.Map(app);

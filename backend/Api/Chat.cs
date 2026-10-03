@@ -79,6 +79,7 @@ public static partial class Chat
         /* 0053 — den Plaetzen des Bereichs den Chatschluessel weitergeben. */
         app.MapPost("/workspace/chat/{id:guid}/seats", GrantSeatsAsync);
 
+
         /*
          * 0053 — DER MENSCH MIT DEM LINK. Ohne Konto; der Link (sein Token)
          * ist der Ausweis, wie bei allem anderen unter `/seat/`.
@@ -156,14 +157,14 @@ public static partial class Chat
     }
 
     /// <summary>
-    /// Welche Plaetze in dieser Rozmowa mitschreiben — als SQL fuer eine
+    /// Welche Plaetze in dieser Rozmowa dabei sind — als SQL fuer eine
     /// Unterabfrage ueber `s` (app.access) und `c` (app.chat): im Bereich
-    /// alle Plaetze des Bereichs, in der eines Platzes (0069) nur er.
+    /// alle Plaetze des Bereichs und der Formulare der Rozmowa (0080), in der
+    /// eines Platzes (0069) nur er.
     /// </summary>
-    private const string SeatOfChat =
-        "((c.kind = N'area' AND s.area_id = c.area_id) OR (c.kind = N'seat' AND s.id = c.seat_id))";
+    private static readonly string SeatOfChat = ChatRules.SeatOfChat;
 
-    private static bool HasSeats(ChatRow chat) => chat.Kind is "area" or "seat";
+    private static bool HasSeats(ChatRow chat) => ChatRules.HasSeats(chat.Kind);
 
     /// <summary>Der Chat — wenn dieses Konto ihn lesen darf; sonst null (und 404 geschrieben).</summary>
     private static async Task<(ChatRow Chat, List<Guid> Mine, Guid Account)?> ReadableAsync(
@@ -263,6 +264,7 @@ public static partial class Chat
 
         var members = await MembersOfAsync(connection, rows.Select(r => r.Area).Distinct().ToList(), ctx.RequestAborted);
         var sealedNames = await NamesOfAsync(connection, rows.Select(r => r.Area).Distinct().ToList(), ctx.RequestAborted);
+        var forms = await Audience.FormsAsync(connection, "chat", rows.Where(r => r.Kind is "area" or "channel").Select(r => r.Id).ToList(), ctx.RequestAborted);
         var commonPreferences = await PreferencesOfAsync(connection, who.Value.AccountId, Guid.Empty, ctx.RequestAborted) ?? new();
         var preferences = new Dictionary<Guid, Preferences>();
         foreach (var row in rows)
@@ -287,6 +289,9 @@ public static partial class Chat
                 /* 0069 — die Rozmowa mit einem Platz: mit wem (der Name, den die Kanzlei am Platz fuehrt). */
                 seatId = r.Seat is null ? null : Ids.ToText(r.Seat.Value),
                 seatName = r.SeatName,
+
+                /* 0080 — die Formulare, deren Menschen in dieser Rozmowa (diesem Kanał) dabei sind. */
+                formIds = forms.TryGetValue(r.Id, out var f) ? f.Select(x => Ids.ToText(x.ModuleId)).ToList() : [],
                 members = members.TryGetValue(r.Area, out var m) ? m : [],
                 names = sealedNames.TryGetValue(r.Area, out var n) ? n : []
             })
@@ -410,11 +415,20 @@ public static partial class Chat
             return;
         }
 
-        if (body.Kind is not ("area" or "group" or "direct" or "self" or "seat") || body.PostingPolicy is not ("legacy" or "members" or "writers"))
+        if (body.Kind is not ("area" or "channel" or "group" or "direct" or "self" or "seat") || body.PostingPolicy is not ("legacy" or "members" or "writers"))
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Rodzaj rozmowy: area, group, direct, self albo seat.");
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Rodzaj rozmowy: area, channel, group, direct, self albo seat.");
             return;
         }
+
+        /*
+         * 0080 — DER KANAŁ ist eine eigene Art: im Bereich schreiben die
+         * Schreibenden, alle anderen lesen. Ein Browser von gestern legt ihn
+         * noch als Rozmowa des Bereichs mit `writers` an — das ist derselbe
+         * Wunsch. Und in der Rozmowa des Bereichs schreibt jeder darin.
+         */
+        var kind = body.Kind == "area" && body.PostingPolicy == "writers" ? "channel" : body.Kind;
+        var policy = kind == "channel" ? "writers" : body.PostingPolicy;
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
@@ -426,11 +440,11 @@ public static partial class Chat
         }
 
         /* 0069 — mit einem Menschen vom Formular spricht, wer dessen Antworten lesen darf. */
-        var needed = body.Kind == "area" ? Writers : body.Kind == "seat" ? Readers : ["admin"];
+        var needed = kind is "area" or "channel" ? Writers : kind == "seat" ? Readers : ["admin"];
         if (!(await HoldingAsync(connection, [asRole], areaId, needed, ctx.RequestAborted)).Contains(asRole))
         {
-            await Fail(ctx, StatusCodes.Status403Forbidden, body.Kind == "area"
-                ? "Rozmowę obszaru zakłada ktoś, kto w nim pisze."
+            await Fail(ctx, StatusCodes.Status403Forbidden, kind == "area" ? "Rozmowę obszaru zakłada ktoś, kto w nim pisze."
+                : kind == "channel" ? "Kanał obszaru zakłada ktoś, kto w nim pisze."
                 : "Ta rola nie prowadzi obszaru tej rozmowy.");
             return;
         }
@@ -440,7 +454,7 @@ public static partial class Chat
          * Bereich dieser Person (0054) — dort ist niemand sonst, und je Person
          * gibt es ihn nur einmal, also auch nur eine solche Rozmowa.
          */
-        if (body.Kind == "self")
+        if (kind == "self")
         {
             await using var own = new SqlCommand("SELECT personal_role_id FROM app.area WHERE id = @area;", connection);
             own.Parameters.AddWithValue("@area", areaId);
@@ -451,13 +465,30 @@ public static partial class Chat
             }
         }
 
+        /* 0080 — der eigene Bereich einer Gruppe, eines Gesprächs zu zweit, der Notatki IST schon eine Rozmowa: kein Kanał daneben. */
+        if (kind == "channel")
+        {
+            await using var own = new SqlCommand(
+                "SELECT TOP 1 1 FROM app.chat WHERE area_id = @area AND kind IN (N'group', N'direct', N'self');", connection);
+            own.Parameters.AddWithValue("@area", areaId);
+            if (await own.ExecuteScalarAsync(ctx.RequestAborted) is not null)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, "Ten obszar należy do własnej rozmowy (grupy, we dwoje, notatek) — kanał załóż w innym obszarze.");
+                return;
+            }
+        }
+
         /*
-         * 0069 — DIE ROZMOWA MIT EINEM PLATZ. Er muss leben und zu DIESEM
-         * Bereich gehoeren; je Platz gibt es sie einmal — wer eine zweite
-         * anlegen will, bekommt die erste.
+         * 0069 — DIE ROZMOWA MIT EINEM PLATZ. Er muss leben; je Platz und
+         * Bereich gibt es sie einmal — wer eine zweite anlegen will, bekommt
+         * die erste.
+         *
+         * 0080 — der Zugang „einer mit einem" (`Audience`): an JEDEM Bereich,
+         * der mit ihm zu tun hat (`Audience.MayMeetAsync`) — etwa „Ksiądz",
+         * ohne dass alle mitlesen, die „Kandydaci" lesen.
          */
         Guid? seatId = null;
-        if (body.Kind == "seat")
+        if (kind == "seat")
         {
             if (!Guid.TryParse(body.SeatId, out var wanted))
             {
@@ -465,20 +496,16 @@ public static partial class Chat
                 return;
             }
 
-            await using (var live = new SqlCommand($"SELECT 1 FROM app.access s WHERE s.id = @seat AND s.area_id = @area AND {LiveSeat("s")};", connection))
+            if (!await Audience.MayMeetAsync(connection, wanted, areaId, ctx.RequestAborted))
             {
-                live.Parameters.AddWithValue("@seat", wanted);
-                live.Parameters.AddWithValue("@area", areaId);
-                live.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
-                if (await live.ExecuteScalarAsync(ctx.RequestAborted) is null)
-                {
-                    await Fail(ctx, StatusCodes.Status404NotFound, "Tej osoby z linkiem nie ma w tym obszarze — albo jej link już nie działa.");
-                    return;
-                }
+                await Fail(ctx, StatusCodes.Status404NotFound,
+                    "Ta osoba nie wypełniła formularza tego obszaru (ani obszaru pod nim) — albo jej link już nie działa.");
+                return;
             }
 
-            await using var existing = new SqlCommand("SELECT id FROM app.chat WHERE seat_id = @seat;", connection);
+            await using var existing = new SqlCommand("SELECT id FROM app.chat WHERE seat_id = @seat AND area_id = @area;", connection);
             existing.Parameters.AddWithValue("@seat", wanted);
+            existing.Parameters.AddWithValue("@area", areaId);
             if (await existing.ExecuteScalarAsync(ctx.RequestAborted) is Guid already)
             {
                 ctx.Response.StatusCode = StatusCodes.Status409Conflict;
@@ -490,7 +517,7 @@ public static partial class Chat
         }
 
         string? pair = null;
-        if (body.Kind == "direct")
+        if (kind == "direct")
         {
             if (!Guid.TryParse(body.WithRoleId, out var with) || with == asRole)
             {
@@ -530,8 +557,8 @@ public static partial class Chat
         insert.Parameters.AddWithValue("@id", chatId);
         insert.Parameters.AddWithValue("@seat", (object?)seatId ?? DBNull.Value);
         insert.Parameters.AddWithValue("@area", areaId);
-        insert.Parameters.AddWithValue("@kind", body.Kind);
-        insert.Parameters.AddWithValue("@policy", body.PostingPolicy);
+        insert.Parameters.AddWithValue("@kind", kind);
+        insert.Parameters.AddWithValue("@policy", policy);
         insert.Parameters.AddWithValue("@pair", (object?)pair ?? DBNull.Value);
         insert.Parameters.AddWithValue("@by", asRole);
         insert.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
@@ -542,11 +569,29 @@ public static partial class Chat
         }
         catch (SqlException e) when (e.Number is 2601 or 2627)
         {
-            await Fail(ctx, StatusCodes.Status409Conflict, seatId is null ? "Ten obszar ma już swoją rozmowę." : "Ta rozmowa już istnieje.");
+            /* 0080 — die Rozmowa (der Kanał) dieses Bereichs gibt es schon: dann ist SIE es. */
+            Guid? had = null;
+            if (kind is "area" or "channel")
+            {
+                await using var find = new SqlCommand(kind == "channel"
+                    ? "SELECT id FROM app.chat WHERE area_id = @area AND kind = N'channel';"
+                    : "SELECT id FROM app.chat WHERE area_id = @area AND seat_id IS NULL AND kind <> N'channel';", connection);
+                find.Parameters.AddWithValue("@area", areaId);
+                had = await find.ExecuteScalarAsync(ctx.RequestAborted) as Guid?;
+            }
+
+            ctx.Response.StatusCode = StatusCodes.Status409Conflict;
+            await ctx.Response.WriteAsJsonAsync(new
+            {
+                error = seatId is not null ? "Ta rozmowa już istnieje."
+                    : kind == "channel" ? "Ten obszar ma już swój kanał." : "Ten obszar ma już swoją rozmowę.",
+                verdict = had is null ? null : "exists",
+                chatId = had is null ? null : Ids.ToText(had.Value)
+            });
             return;
         }
 
-        await ctx.Response.WriteAsJsonAsync(new { chatId = Ids.ToText(chatId), areaId = Ids.ToText(areaId), kind = body.Kind });
+        await ctx.Response.WriteAsJsonAsync(new { chatId = Ids.ToText(chatId), areaId = Ids.ToText(areaId), kind });
     }
 
     /* ======================================================================
@@ -604,7 +649,10 @@ public static partial class Chat
 
             /* 0053 — die Menschen mit Link, und ob ihr Schluessel schon bei ihnen ist (0069: in der eines Platzes nur er). */
             seatId = chat.SeatId is null ? null : Ids.ToText(chat.SeatId.Value),
-            seats = HasSeats(chat) ? await SeatsOfAsync(connection, chat, ctx.RequestAborted) : []
+            seats = HasSeats(chat) ? await SeatsOfAsync(connection, chat, ctx.RequestAborted) : [],
+
+            /* 0080 — die Formulare, deren Menschen hier dabei sind (Audience). */
+            forms = chat.Kind is "area" or "channel" ? await Audience.FormsOfAsync(connection, "chat", chat.Id, ctx.RequestAborted) : []
         });
     }
 
@@ -613,14 +661,13 @@ public static partial class Chat
     /// — dieselbe Bedingung wie <c>Seat.LiveSeatAsync(gated: true)</c>, als SQL
     /// fuer eine Unterabfrage. Braucht <c>@now</c>.
     /// </summary>
-    private static string LiveSeat(string a) =>
-        $"{a}.revoked_at IS NULL AND {a}.status = N'active' AND ({a}.expires_at IS NULL OR {a}.expires_at > @now) "
-        + $"AND ({a}.verify_hash IS NULL OR {a}.verified_at IS NOT NULL)";
+    private static string LiveSeat(string a) => Audience.LiveSeat(a);
 
     /// <summary>
-    /// DIE PLAETZE EINES BEREICHS, die in seiner Rozmowa mitschreiben — mit dem
-    /// oeffentlichen Schluessel, unter den ein Mitglied ihnen den Chatschluessel
-    /// verpackt, und den Epochen, fuer die er schon da ist.
+    /// DIE PLAETZE EINER ROZMOWA — die des Bereichs und seiner Formulare (0080),
+    /// in der mit einem Platz nur er — mit dem oeffentlichen Schluessel, unter
+    /// den ein Mitglied ihnen den Chatschluessel verpackt, und den Epochen, fuer
+    /// die er schon da ist.
     ///
     /// <para>
     /// Der Name ist der, den die Kanzlei am Platz fuehrt (`recipient_name`) —
@@ -633,14 +680,14 @@ public static partial class Chat
 
         await using (var cmd = new SqlCommand($"""
             SELECT s.id, s.recipient_name, i.wrap_public_key
-            FROM app.access s
+            FROM app.chat c
+            JOIN app.access s ON {SeatOfChat}
             LEFT JOIN app.seat_identity i ON i.access_id = s.id
-            WHERE s.area_id = @area AND {LiveSeat("s")} {(chat.SeatId is null ? "" : "AND s.id = @only")}
+            WHERE c.id = @chat AND {LiveSeat("s")}
             ORDER BY s.recipient_name, s.created_at;
             """, connection))
         {
-            cmd.Parameters.AddWithValue("@area", chat.AreaId);
-            if (chat.SeatId is not null) cmd.Parameters.AddWithValue("@only", chat.SeatId.Value);
+            cmd.Parameters.AddWithValue("@chat", chat.Id);
             cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
 
             await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -1303,7 +1350,7 @@ public static partial class Chat
 
         if (!HasSeats(chat))
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Osoby z linkiem są tylko w rozmowie obszaru i w rozmowie z nimi samymi.");
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Osoby z linkiem są tylko w rozmowie i kanale obszaru oraz w rozmowie z nimi samymi.");
             return;
         }
 
@@ -1348,20 +1395,18 @@ public static partial class Chat
                 SELECT @chat, s.id, @epoch, @key, @by, @now
                 FROM app.access s
                 JOIN app.seat_identity i ON i.access_id = s.id
-                WHERE s.id = @seat AND s.area_id = @area AND {LiveSeat("s")}
-                  AND (@only IS NULL OR s.id = @only)
+                JOIN app.chat c ON c.id = @chat
+                WHERE s.id = @seat AND {SeatOfChat} AND {LiveSeat("s")}
                   AND NOT EXISTS (SELECT 1 FROM app.chat_seat_key k
                                    WHERE k.chat_id = @chat AND k.access_id = @seat AND k.epoch = @epoch);
                 """, connection);
 
             insert.Parameters.AddWithValue("@chat", chat.Id);
             insert.Parameters.AddWithValue("@seat", seatId);
-            insert.Parameters.AddWithValue("@area", chat.AreaId);
             insert.Parameters.AddWithValue("@epoch", epoch);
             insert.Parameters.AddWithValue("@key", wrapped);
             insert.Parameters.AddWithValue("@by", byRole);
             insert.Parameters.AddWithValue("@now", now);
-            insert.Parameters.Add("@only", System.Data.SqlDbType.UniqueIdentifier).Value = (object?)chat.SeatId ?? DBNull.Value;
 
             try
             {
@@ -1376,16 +1421,31 @@ public static partial class Chat
         await ctx.Response.WriteAsJsonAsync(new { chatId = Ids.ToText(chat.Id), granted });
     }
 
-    /// <summary>Der Platz hinter dem Token und der Chat — wenn der Chat seinem Bereich gehoert. Sonst 404.</summary>
+    /// <summary>Der Platz hinter dem Token und der Chat — wenn der Platz dazugehoert (<see cref="SeatOfChat"/>). Sonst 404.</summary>
     private static async Task<((Guid Id, Guid AreaId) Seat, ChatRow Chat)?> SeatChatAsync(
         HttpContext ctx, SqlConnection connection, string token, Guid chatId)
     {
         var seat = await Seat.LiveSeatAsync(connection, token, gated: true, ctx.RequestAborted);
         var chat = seat is null ? null : await ChatOfAsync(connection, chatId, ctx.RequestAborted);
 
-        /* 0069 — die Rozmowa seines Bereichs, oder seine eigene; keine eines anderen Platzes. */
-        if (seat is null || chat is null || chat.AreaId != seat.Value.AreaId
-            || !(chat.Kind == "area" || (chat.Kind == "seat" && chat.SeatId == seat.Value.Id)))
+        /*
+         * 0069 — die Rozmowa seines Bereichs, oder seine eigene; keine eines anderen Platzes.
+         * 0080 — und die Rozmowa und der Kanał, zu denen eines seiner Formulare gehoert; die
+         * eigene auch an einem anderen Bereich als dem seines Platzes.
+         */
+        var belongs = false;
+        if (seat is not null && chat is not null && HasSeats(chat))
+        {
+            await using var cmd = new SqlCommand($"""
+                SELECT 1 FROM app.chat c JOIN app.access s ON s.id = @seat
+                WHERE c.id = @chat AND {SeatOfChat};
+                """, connection);
+            cmd.Parameters.AddWithValue("@seat", seat.Value.Id);
+            cmd.Parameters.AddWithValue("@chat", chat.Id);
+            belongs = await cmd.ExecuteScalarAsync(ctx.RequestAborted) is not null;
+        }
+
+        if (seat is null || chat is null || !belongs)
         {
             // Wie ueberall unter `/seat/`: was es nicht gibt und was nicht zu diesem Link gehoert, sieht gleich aus.
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiej rozmowy nie ma.");
@@ -1396,7 +1456,8 @@ public static partial class Chat
     }
 
     /// <summary>
-    /// DIE ROZMOWY DIESES LINKS — die seines Bereichs, mit den Huellen des
+    /// DIE ROZMOWY DIESES LINKS — die seines Bereichs, die seiner Formulare
+    /// (0080) und die mit ihm selbst, mit den Huellen des
     /// Chatschluessels, soweit ein Mitglied sie schon weitergegeben hat, und
     /// mit seiner eigenen Identitaet (oder <c>null</c>: noch keine).
     /// </summary>
@@ -1414,7 +1475,7 @@ public static partial class Chat
         var identity = await IdentityOfAsync(connection, seat.Value.Id, ctx.RequestAborted);
 
         var chats = new List<(Guid Id, Guid Area, string Name, int Epoch, DateTimeOffset? Last, string Kind, int Unread)>();
-        await using (var cmd = new SqlCommand("""
+        await using (var cmd = new SqlCommand($"""
             SELECT c.id, c.area_id, a.name, a.current_epoch, c.last_message_at, c.kind,
                    (SELECT COUNT(*) FROM app.chat_message m
                      WHERE m.chat_id = c.id AND m.schedule_state = N'sent' AND m.deleted_at IS NULL
@@ -1423,11 +1484,11 @@ public static partial class Chat
                                                      WHERE p.chat_id = c.id AND p.principal_id = @seat), '0001-01-01')) AS unread
             FROM app.chat c
             JOIN app.area a ON a.id = c.area_id
-            WHERE c.area_id = @area AND (c.kind = N'area' OR (c.kind = N'seat' AND c.seat_id = @seat))
-            ORDER BY CASE WHEN c.kind = N'seat' THEN 0 ELSE 1 END;
+            JOIN app.access s ON s.id = @seat
+            WHERE {SeatOfChat}
+            ORDER BY CASE c.kind WHEN N'seat' THEN 0 WHEN N'channel' THEN 1 ELSE 2 END, a.name;
             """, connection))
         {
-            cmd.Parameters.AddWithValue("@area", seat.Value.AreaId);
             cmd.Parameters.AddWithValue("@seat", seat.Value.Id);
 
             await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
@@ -1465,7 +1526,7 @@ public static partial class Chat
                 currentEpoch = c.Epoch,
                 lastMessageAt = c.Last,
 
-                /* 0069 — `seat`: die Rozmowa nur mit der Kanzlei; `area`: die mit allen im Bereich. */
+                /* 0069 — `seat`: die Rozmowa nur mit der Kanzlei; `area`: die mit allen im Bereich. 0080 — `channel`: er liest. */
                 kind = c.Kind,
                 unread = c.Unread,
                 keys = keys.TryGetValue(c.Id, out var k) ? k : []

@@ -39,8 +39,11 @@ export interface SeatChatRow {
   readonly currentEpoch: number;
   readonly lastMessageAt: string | null;
 
-  /** 0069 — `seat`: die Rozmowa nur mit der Kanzlei; `area`: die mit allen im Bereich. Und was ungelesen ist. */
-  readonly kind?: 'area' | 'seat';
+  /**
+   * 0069 — `seat`: die Rozmowa nur mit der Kanzlei; `area`: die mit allen im Bereich. Und was ungelesen ist.
+   * 0080 — `channel`: der Kanał eines Bereichs, in dem er nur liest — über seinen Bereich oder ein Formular.
+   */
+  readonly kind?: 'area' | 'channel' | 'seat';
   readonly unread?: number;
 
   /** Der Chatschlüssel je Epoche, verpackt für diesen Platz — leer, solange ihn kein Mitglied weitergegeben hat. */

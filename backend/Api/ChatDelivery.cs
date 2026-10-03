@@ -17,7 +17,8 @@ public sealed class ChatDelivery(Db db, Push push, ILogger<ChatDelivery> logger)
     {
         await using var c = await db.OpenAsync(ct);
         await using var tx = (SqlTransaction)await c.BeginTransactionAsync(ct);
-        await using var cmd = new SqlCommand("""
+        /* 0080 — im Kanał schreibt nur, wer im Bereich schreibt; dabei ist ein Platz, wie ChatRules.SeatOfChat sagt. */
+        await using var cmd = new SqlCommand($"""
             DECLARE @now datetimeoffset(7) = SYSDATETIMEOFFSET();
             DECLARE @sent TABLE(chat_id uniqueidentifier);
             UPDATE m WITH (UPDLOCK)
@@ -27,11 +28,10 @@ public sealed class ChatDelivery(Db db, Push push, ILogger<ChatDelivery> logger)
                     WHERE r.id = m.author_role_id AND r.revoked_at IS NULL
                       AND cert.scope_kind = N'area' AND cert.scope_id = c.area_id
                       AND cert.revoked_at IS NULL AND cert.expires_at > @now
-                      AND (cert.capability IN (N'write', N'admin') OR (cert.capability = N'read'
+                      AND (cert.capability IN (N'write', N'admin') OR (cert.capability = N'read' AND c.kind <> N'channel'
                            AND (c.posting_policy = N'members' OR (c.posting_policy = N'legacy' AND c.kind IN (N'area', N'seat')))))))
                 OR (m.author_access_id IS NOT NULL AND c.kind IN (N'area', N'seat') AND c.posting_policy <> N'writers' AND EXISTS (
-                    SELECT 1 FROM app.access s WHERE s.id = m.author_access_id AND s.area_id = c.area_id
-                      AND (c.seat_id IS NULL OR c.seat_id = s.id)
+                    SELECT 1 FROM app.access s WHERE s.id = m.author_access_id AND {ChatRules.SeatOfChat}
                       AND s.revoked_at IS NULL AND s.status = N'active' AND (s.expires_at IS NULL OR s.expires_at > @now)
                       AND (s.verify_hash IS NULL OR s.verified_at IS NOT NULL)))) THEN N'sent' ELSE N'failed' END,
                 created_at = @now, changed_at = @now

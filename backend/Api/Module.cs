@@ -834,6 +834,7 @@ public static class Module
             DELETE FROM app.slug_field WHERE part_id = @id;
             DELETE FROM app.form_design WHERE module_id = @id;
             DELETE FROM app.form_step WHERE module_id = @id;
+            IF OBJECT_ID(N'app.audience_form', N'U') IS NOT NULL DELETE FROM app.audience_form WHERE module_id = @id;
             DELETE FROM app.module WHERE id = @id;
             """, connection);
 

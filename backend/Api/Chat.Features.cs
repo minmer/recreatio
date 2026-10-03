@@ -70,6 +70,13 @@ public static partial class Chat
         if (actor is null) return;
         if (!actor.Moderates) { await Fail(ctx, 403, "Tylko prowadzący zmienia zasady rozmowy."); return; }
         if (body.PostingPolicy is not ("legacy" or "members" or "writers")) { await Fail(ctx, 400, "Nieznana zasada."); return; }
+        /* 0080 — in der Rozmowa des Bereichs schreiben alle, im Kanał die Schreibenden: das sagt die Art, nicht eine Zasada. */
+        if (ChatRules.FixedPolicy(actor.Chat.Kind))
+        {
+            await Fail(ctx, 409, actor.Chat.Kind == "self" ? "W notatkach piszesz tylko Ty."
+                : "W rozmowie obszaru piszą wszyscy, w kanale — ci, którzy w obszarze piszą. Żeby było inaczej, załóż kanał albo rozmowę obok.");
+            return;
+        }
         await using var cmd = new SqlCommand("UPDATE app.chat SET posting_policy = @policy WHERE id = @id;", c);
         cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@policy", body.PostingPolicy);
         await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);

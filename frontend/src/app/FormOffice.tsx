@@ -54,24 +54,41 @@ import { checkText, openLink, type CheckAnswer } from './seatCheck';
 import { WorkspaceError, type Who } from './session';
 import { loadChats, startSeatChat } from './chat';
 import { loadMembers } from './area';
+import { meetingAreas } from './audience';
 
 /**
  * 0069 — „NAPISZ DO TEJ OSOBY": die Rozmowa mit dem Menschen hinter diesem
  * Platz. Gibt es sie, öffnet sie sich; sonst entsteht sie — angelegt von einer
  * meiner Rollen, die den Bereich liest. Den Schlüssel gibt mein Browser ihm,
  * sobald er sie das erste Mal öffnet.
+ *
+ * 0080 — der Zugang „jeden na jeden" (`audience.ts`): AN WELCHEM BEREICH,
+ * wählt, wer schreibt — der des Formulars, einer seiner Fragen, der des
+ * Platzes, oder einer darüber (`meetingAreas`). Mitlesen alle, die diesen
+ * Bereich lesen; die anderen aus dem Formular nicht. Je Bereich eine Rozmowa.
  */
-function WriteToSeat({ seatId, areaId, ring, busy, onError }: {
-  seatId: string; areaId: string | null; ring: Ring; busy: boolean; onError: (message: string | null) => void;
+function WriteToSeat({ seatId, near, areas, ring, busy, onError }: {
+  seatId: string;
+
+  /** Die Bereiche, mit denen dieser Mensch zu tun hat — der nächste zuerst. */
+  near: readonly (string | null)[];
+  areas: readonly AreaRow[];
+  ring: Ring;
+  busy: boolean;
+  onError: (message: string | null) => void;
 }) {
   const [working, setWorking] = useState(false);
-  const go = async () => {
+  const [choosing, setChoosing] = useState(false);
+  const [pick, setPick] = useState('');
+  const [had, setHad] = useState<ReadonlyMap<string, string>>(new Map());
+  const choices = meetingAreas(areas, near);
+
+  const open = async (areaId: string) => {
     setWorking(true);
     onError(null);
     try {
-      const had = (await loadChats()).chats.find((c) => c.seatId === seatId);
-      if (had !== undefined) { window.location.hash = viewPath('chat', had.chatId); return; }
-      if (areaId === null) throw new WorkspaceError('Nie widać, do którego obszaru należy ta osoba — odśwież stronę.');
+      const existing = (await loadChats()).chats.find((c) => c.seatId === seatId && c.areaId === areaId);
+      if (existing !== undefined) { window.location.hash = viewPath('chat', existing.chatId); return; }
       const { members } = await loadMembers(areaId);
       const as = members.find((m) => ring.has(m.roleId) && m.kind !== 'account'
         && (m.capabilities.includes('read') || m.capabilities.includes('write') || m.capabilities.includes('admin')));
@@ -84,8 +101,46 @@ function WriteToSeat({ seatId, areaId, ring, busy, onError }: {
       setWorking(false);
     }
   };
+
+  /* Ein Bereich zur Wahl: gleich hinein. Mehrere: wählen — einer, in dem es die Rozmowa schon gibt, steht vorn. */
+  const begin = async () => {
+    onError(null);
+    if (choices.length === 0) { onError('Nie czytasz żadnego obszaru, z którego można napisać do tej osoby.'); return; }
+    if (choices.length === 1) { await open(choices[0].areaId); return; }
+    try {
+      const mine = (await loadChats()).chats.filter((c) => c.seatId === seatId);
+      setHad(new Map(mine.map((c) => [c.areaId, c.chatId])));
+      setPick(mine.find((c) => choices.some((a) => a.areaId === c.areaId))?.areaId ?? choices[0].areaId);
+      setChoosing(true);
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć rozmowy.');
+    }
+  };
+
+  if (choosing) {
+    return (
+      <span className="wk-seat-meet">
+        <label>
+          <span>Rozmowa z obszaru</span>{' '}
+          <select value={pick} disabled={working} onChange={(e) => setPick(e.target.value)}>
+            {choices.map((a) => (
+              <option key={a.areaId} value={a.areaId} title={areaPath(areas, a.areaId).full}>
+                {areaPath(areas, a.areaId).short}{had.has(a.areaId) ? ' — rozmowa już jest' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="button" className="wk-link-btn" disabled={busy || working || pick === ''} onClick={() => void open(pick)}>
+          {working ? 'Otwieranie…' : had.has(pick) ? 'Otwórz' : 'Zacznij'}
+        </button>
+        <button type="button" className="wk-link-btn" disabled={working} onClick={() => setChoosing(false)}>Anuluj</button>
+        <span className="wk-hint">Czytają ją ta osoba i wszyscy, którzy mają dostęp do wybranego obszaru — inni z formularza nie.</span>
+      </span>
+    );
+  }
+
   return (
-    <button type="button" className="wk-link-btn" disabled={busy || working} onClick={() => void go()}>
+    <button type="button" className="wk-link-btn" disabled={busy || working} onClick={() => void begin()}>
       {working ? 'Otwieranie…' : 'Napisz do tej osoby'}
     </button>
   );
@@ -1335,6 +1390,8 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             opened={opened}
             fields={fields}
             seatAreas={areasHere}
+            formAreas={[module?.areaId ?? null, ...areasHere]}
+            areas={areas}
             stepInfo={stepInfo}
             extData={extData}
             ring={ring}
@@ -1484,7 +1541,7 @@ const base = () => `${window.location.origin}${window.location.pathname}`;
  * Öffnen fragen und tut es noch nicht, entsteht beim Tipp ein neuer.
  */
 function People({
-  partId, config, onConfig, submissions, opened, fields, seatAreas, stepInfo, extData, ring, busy,
+  partId, config, onConfig, submissions, opened, fields, seatAreas, formAreas, areas, stepInfo, extData, ring, busy,
   onHide, onRemove, onError, onChanged
 }: {
   partId: string;
@@ -1499,6 +1556,10 @@ function People({
 
   /** Die Bereiche, in denen die Plätze dieses Formulars liegen. */
   seatAreas: readonly string[];
+
+  /** 0080 — die Bereiche des Formulars selbst (sein eigener, dann die seiner Fragen) — und alle, die ich sehe. */
+  formAreas: readonly (string | null)[];
+  areas: readonly AreaRow[];
 
   /** Die Schritte und Erweiterungen (0047) — `null`: noch nicht geladen. */
   stepInfo: { steps: readonly OpenStep[]; extensions: readonly ExtensionInfo[] } | null;
@@ -1841,7 +1902,7 @@ function People({
                   <div className="wk-actions">
                     {/* 0069 — eine Rozmowa nur mit diesem Menschen; die anderen, die das Formular ausgefüllt haben, sehen sie nicht. */}
                     {s.seatId !== null && ring !== null && (
-                      <WriteToSeat seatId={s.seatId} areaId={links.areaOf(s.seatId)} ring={ring} busy={busy} onError={onError} />
+                      <WriteToSeat seatId={s.seatId} near={[...formAreas, links.areaOf(s.seatId)]} areas={areas} ring={ring} busy={busy} onError={onError} />
                     )}
                     <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onHide(s)}>
                       {s.hidden ? 'Przywróć' : 'Ukryj'}

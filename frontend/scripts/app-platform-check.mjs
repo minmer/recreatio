@@ -12,6 +12,7 @@
  *   9. Der Schlüssel zum Lesen: offengelegt, sonst aus der eigenen Zuteilung — und was es kostet.
  *  10. Als Link handeln: die Beweise im Kopf, ein Bund aus Linkrollen.
  *  11. Gottesdienst (0079): Messe, Beichte, Nabożeństwo — was eine Messe ist, was aushängt, was gedruckt wird.
+ *  12. Odbiorcy (0080): die drei Zugänge — Kanał, gemeinsam, einer mit einem — und mit welchen Bereichen einer allein spricht.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -49,6 +50,8 @@ export { isMass, massesOnly, othersOnly, intentionsWord, SERVICE_KINDS } from '$
 export { isLiturgy, OWN_KINDS, kindWord } from '${app}agenda';
 export { ITEM_KINDS } from '${app}calendar';
 export { intentionsSheetHtml } from '${app}sheet';
+export { meetingAreas, othersWrite } from '${app}audience';
+export { chatMode, hasSeats, fixedPolicy } from '${app}chat';
 export { epochAad } from '${app}area';
 `);
 await build({
@@ -635,6 +638,26 @@ try {
     assert.ok(!html.includes('Różaniec'), 'a devotion is not on the sheet of intentions');
     assert.ok(html.includes('msza odwołana'), 'a cancelled mass stands on the sheet, as cancelled');
     ok('services (0079): a devotion is no mass, every service is edited in the calendar, the sheet says "odwołana", Polish plural of intentions');
+  }
+
+  /* -- 12. Odbiorcy (0080) ------------------------------------------------------------------- */
+  {
+    assert.deepEqual(['channel', 'area', 'seat', 'group', 'direct', 'self'].map(m.chatMode), ['channel', 'together', 'one', null, null, null],
+      'the chats of an area are the three accesses; own chats are none of them');
+    assert.deepEqual(['channel', 'area', 'seat', 'group'].map(m.hasSeats), [true, true, true, false], 'people with a link are in the three accesses only');
+    assert.deepEqual(['area', 'channel', 'self', 'group', 'seat'].map(m.fixedPolicy), [true, true, true, false, false], 'the kind decides who writes in a conversation and a channel');
+    assert.deepEqual(['channel', 'together', 'one'].map(m.othersWrite), [false, true, true], 'in a channel the others listen');
+
+    /* Parafia → Bierzmowanie → { Kandydaci, Ksiądz }; Oaza nebenan; Prywatne liest nur jemand anders. */
+    const area = (areaId, parentAreaId, myLevel = 'read') => ({ areaId, parentAreaId, myLevel, name: areaId });
+    const areas = [area('parafia', null, 'admin'), area('bierzmowanie', 'parafia'), area('kandydaci', 'bierzmowanie'),
+      area('ksiadz', 'bierzmowanie', 'admin'), area('oaza', 'parafia'), area('obcy', 'parafia', null)];
+    const near = m.meetingAreas(areas, ['parafia', 'kandydaci', 'ksiadz', 'kandydaci']);
+    assert.deepEqual(near.map((a) => a.areaId), ['parafia', 'kandydaci', 'ksiadz', 'bierzmowanie'],
+      "one-to-one: the form's own areas first, then everything above them, each once — never a sibling");
+    assert.deepEqual(m.meetingAreas(areas, ['obcy', null, undefined, '']).map((a) => a.areaId), ['parafia'], 'an area I do not read is skipped, its parent is not');
+    assert.deepEqual(m.meetingAreas(areas, ['nirgends']), [], 'an unknown area offers nothing');
+    ok("audience (0080): channel, together, one; seats only in those; one-to-one with the form's areas and those above");
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

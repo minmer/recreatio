@@ -35,7 +35,7 @@ import { Segment } from './Areas';
 import {
   addToChat, areaKeys, authorOf, chatKeysOf, deleteMessage, deliverPending, deliverSeatKeys, editMessage, loadChat, loadChats,
   loadMessages, loadVersions, looksLikeCode, markRead, openMessage, openNames, openVersion, restoreMessage, roleCard,
-  sendMessage, setMemberName, startAreaChat, startOwnChat, startSelfChat,
+  sendMessage, setMemberName, startAreaChat, startOwnChat, startSelfChat, chatMode, fixedPolicy,
   type ChatDetail, type ChatRow, type Invitee, type Opened, type SealedMessage, type SealedVersion, type SendOptions
 } from './chat';
 import { HistoryDialog } from './MessageBits';
@@ -52,6 +52,8 @@ import { EventDialog } from './EventDialog';
 import type { Me as Person } from './me';
 import { TaskDialog } from './TaskDialog';
 import { LinkedDialog, MoveToTopic, TopicBar } from './TopicBar';
+import { AudienceForms } from './AudienceForms';
+import { othersWrite } from './audience';
 
 /* -- Gemeinsam ----------------------------------------------------------------- */
 
@@ -164,6 +166,8 @@ function useTitles(me: Me, chats: readonly ChatRow[], areas: readonly AreaRow[])
         if (chat.kind === 'self') { out.set(chat.chatId, 'Notatki'); continue; }
         /* 0069 — mit einem Menschen vom Formular: sein Name, wie die Kanzlei ihn am Platz führt. */
         if (chat.kind === 'seat') { out.set(chat.chatId, `Rozmowa z: ${chat.seatName ?? 'osobą z formularza'}`); continue; }
+        /* 0080 — der Kanał steht neben der Rozmowa desselben Bereichs: am Namen unterscheidbar. */
+        if (chat.kind === 'channel') { out.set(chat.chatId, `Kanał: ${titleOfArea(areas, chat.areaId, chat.areaName)}`); continue; }
         if (chat.kind !== 'direct') { out.set(chat.chatId, titleOfArea(areas, chat.areaId, chat.areaName)); continue; }
         const other = chat.members.find((m) => !me.ring.has(m.roleId)) ?? chat.members.find((m) => !me.roles.some((r) => r.id === m.roleId));
         if (other === undefined) { out.set(chat.chatId, 'Rozmowa'); continue; }
@@ -195,7 +199,8 @@ const kindText = (chat: ChatRow) => {
   if (chat.kind === 'direct') return 'rozmowa we dwoje';
   if (chat.kind === 'seat') return `osoba z formularza · ${titleOfSeatArea(chat)}`;
   if (chat.kind === 'group') return `grupa · ${people}`;
-  return `obszar · ${people}${chat.seats > 0 ? ` · ${chat.seats} z linkiem` : ''}`;
+  const linked = chat.seats > 0 ? ` · ${chat.seats} z linkiem` : '';
+  return `${chat.kind === 'channel' ? 'kanał' : 'obszar'} · ${people}${linked}`;
 };
 
 function ChatList({ me, current }: { me: Me; current: string | undefined }) {
@@ -443,7 +448,7 @@ function MyCodes({ me, bare = false }: { me: Me; bare?: boolean }) {
 
 /* -- Neu ------------------------------------------------------------------------------ */
 
-type Mode = 'area' | 'direct' | 'group';
+type Mode = 'area' | 'channel' | 'direct' | 'group';
 
 /** Wen ich schon kenne — aus meinen Rozmowy, mit dem Namen, den sie dort tragen. */
 function useKnown(me: Me, chats: readonly ChatRow[]): readonly Invitee[] {
@@ -489,8 +494,15 @@ function NewChat({ me }: { me: Me }) {
 
   const known = useKnown(me, chats);
   const speakers = me.roles.filter((r) => me.ring.maySign(r.id));
-  const withChat = new Set(chats.map((c) => c.areaId));
-  const writable = areas.filter((a) => (a.myLevel === 'write' || a.myLevel === 'admin') && !withChat.has(a.areaId));
+  /*
+   * 0080 — ein Bereich hat höchstens eine Rozmowa und einen Kanał, nebeneinander.
+   * Die eigenen Bereiche einer Gruppe, eines Gesprächs zu zweit, der Notatki
+   * bekommen keinen dazu — sie SIND schon eine Rozmowa.
+   */
+  const forArea = mode === 'area' || mode === 'channel';
+  const own = new Set(chats.filter((c) => c.kind === 'group' || c.kind === 'direct' || c.kind === 'self').map((c) => c.areaId));
+  const taken = new Set(chats.filter((c) => c.kind === mode).map((c) => c.areaId));
+  const writable = areas.filter((a) => (a.myLevel === 'write' || a.myLevel === 'admin') && !own.has(a.areaId) && !taken.has(a.areaId));
 
   const go = (chatId: string) => { window.location.hash = viewPath('chat', chatId); };
 
@@ -503,13 +515,13 @@ function NewChat({ me }: { me: Me }) {
   };
 
   const create = () => void run('Zakładanie rozmowy…', async () => {
-    if (mode === 'area') {
+    if (forArea) {
       if (areaId === '') throw new WorkspaceError('Wybierz obszar.');
       /* Welche meiner Rollen dort schreibt — sie legt den Chat an. */
       const { members } = await loadMembers(areaId);
       const writer = members.find((m) => me.ring.has(m.roleId) && (m.capabilities.includes('write') || m.capabilities.includes('admin')));
       if (writer === undefined) throw new WorkspaceError('Żadna z Twoich ról nie pisze w tym obszarze.');
-      go(await startAreaChat(areaId, writer.roleId, channel));
+      go(await startAreaChat(areaId, writer.roleId, mode === 'channel'));
       return;
     }
 
@@ -540,19 +552,23 @@ function NewChat({ me }: { me: Me }) {
         options={[
           { value: 'direct' as const, label: 'We dwoje' },
           { value: 'group' as const, label: 'Grupa' },
-          { value: 'area' as const, label: 'Dla obszaru' }
+          { value: 'area' as const, label: 'Rozmowa obszaru' },
+          { value: 'channel' as const, label: 'Kanał obszaru' }
         ]}
         busy={busy !== null}
-        onPick={(next) => { setMode(next); setInvitees([]); }}
+        onPick={(next) => { setMode(next); setInvitees([]); setAreaId(''); }}
       />
 
       <form className="wk-form" onSubmit={(e) => { e.preventDefault(); create(); }}>
-        {mode !== 'direct' && <label><input type="checkbox" checked={channel} onChange={e => setChannel(e.target.checked)} /> Kanał: publikują tylko osoby z prawem zapisu w obszarze</label>}
-        {mode === 'area' ? (
+        {mode === 'group' && <label><input type="checkbox" checked={channel} onChange={e => setChannel(e.target.checked)} /> Kanał: publikują tylko osoby z prawem zapisu w obszarze</label>}
+        {forArea ? (
           <>
             <p className="wk-hint">
-              Rozmowa istniejącego obszaru: są w niej wszyscy, którzy mają do niego dostęp — i nikt więcej.
-              Kogo dodasz do obszaru, ten będzie też w rozmowie.
+              {mode === 'channel'
+                ? 'Kanał istniejącego obszaru: piszą ci, którzy mają w obszarze prawo zapisu; pozostali czytają — także osoby z linkiem do obszaru. '
+                : 'Rozmowa istniejącego obszaru: piszą w niej wszyscy, którzy mają do niego dostęp, i osoby z linkiem do obszaru. '}
+              W ustawieniach dołączysz formularze — kto je wypełnił, {mode === 'channel' ? 'też czyta' : 'też pisze'}, ze swojego linku, bez konta.
+              {' '}Obszar może mieć jedno i drugie. Rozmowę z jedną osobą z formularza zaczniesz na liście osób formularza („Napisz do tej osoby").
             </p>
             <label className="wk-field">
               <span>Obszar</span>
@@ -561,7 +577,7 @@ function NewChat({ me }: { me: Me }) {
                 <AreaOptions areas={areas} only={writable} />
               </select>
             </label>
-            {writable.length === 0 && <p className="wk-empty">Każdy obszar, w którym piszesz, ma już swoją rozmowę.</p>}
+            {writable.length === 0 && <p className="wk-empty">{mode === 'channel' ? 'Każdy obszar, w którym piszesz, ma już swój kanał.' : 'Każdy obszar, w którym piszesz, ma już swoją rozmowę.'}</p>}
           </>
         ) : (
           <>
@@ -603,7 +619,7 @@ function NewChat({ me }: { me: Me }) {
 
         <div className="wk-actions">
           <button type="submit" className="wk-btn" disabled={busy !== null}>
-            {mode === 'direct' ? 'Rozpocznij rozmowę' : mode === 'group' ? 'Załóż grupę' : 'Załóż rozmowę obszaru'}
+            {mode === 'direct' ? 'Rozpocznij rozmowę' : mode === 'group' ? 'Załóż grupę' : mode === 'channel' ? 'Załóż kanał' : 'Załóż rozmowę obszaru'}
           </button>
         </div>
       </form>
@@ -868,7 +884,8 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   }, [chatId, shown, talk]);
 
   const moderates = chat != null && chat.certifiers.length > 0 && chat.kind !== 'direct';
-  const chrome = useChatChrome({ endpoint, extras, keys: talk, canModerate: moderates && chat?.kind !== 'self', onPolicy: () => void lookChat() });
+  /* 0080 — in der Rozmowa des Bereichs und im Kanał sagt die Art, wer schreibt: dort gibt es keine Zasada zum Umstellen. */
+  const chrome = useChatChrome({ endpoint, extras, keys: talk, canModerate: moderates && chat != null && !fixedPolicy(chat.kind), onPolicy: () => void lookChat() });
 
   const speakers = useMemo(() => (chat == null ? [] : chat.writers.filter((id) => me.ring.maySign(id))
     .sort((a, b) => Number(me.roles.find((r) => r.id === b)?.kind === 'person') - Number(me.roles.find((r) => r.id === a)?.kind === 'person'))),
@@ -891,7 +908,9 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   const seatChat = chat.kind === 'seat';
   const title = self ? 'Notatki'
     : seatChat ? `Rozmowa z: ${chat.seats[0]?.name ?? 'osobą z formularza'}`
-    : other !== undefined ? nameOf(other.roleId, other.kind, names, me.names) : titleOfArea(areas, chat.areaId, chat.areaName);
+    : other !== undefined ? nameOf(other.roleId, other.kind, names, me.names)
+    : chat.kind === 'channel' ? `Kanał: ${titleOfArea(areas, chat.areaId, chat.areaName)}`
+    : titleOfArea(areas, chat.areaId, chat.areaName);
 
   /* 0068 — das gewählte Thema, wenn es das noch gibt. */
   const currentTopic = topic !== '' && topics.some((t) => t.topicId === topic) ? topic : null;
@@ -925,7 +944,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
     canDelete: (message) => message.deletedAt === null && (mine(message) || moderates),
     canRestore: (message) => message.deletedAt !== null && ((mine(message) && message.deletedBy === 'author') || moderates),
     canPin: moderates,
-    group: chat.kind === 'group' || chat.kind === 'area',
+    group: chat.kind === 'group' || chat.kind === 'area' || chat.kind === 'channel',
     receipts: !self
   };
 
@@ -992,7 +1011,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
     { label: self ? 'Mój prywatny obszar' : 'Obszar tej rozmowy', icon: 'area', onSelect: () => { window.location.hash = viewPath('areas', chat.areaId); } }
   ];
 
-  const readOnly = speakers.length === 0 ? 'W tej rozmowie tylko czytasz.'
+  const readOnly = speakers.length === 0 ? (chat.kind === 'channel' ? 'W tym kanale piszą ci, którzy mają w obszarze prawo zapisu — Ty czytasz.' : 'W tej rozmowie tylko czytasz.')
     : extras.features?.canWrite === false ? 'Ten kanał pozwala Ci tylko czytać.'
     : null;
 
@@ -1143,7 +1162,11 @@ function ChatSettings({ me, chat, names, keys, onChanged }: {
     <section className="wk-chat-settings">
       <p className="wk-hint">
         {chat.kind === 'area'
-          ? 'To rozmowa obszaru: są w niej wszyscy, którzy mają dostęp do obszaru.'
+          ? 'To rozmowa obszaru: piszą w niej wszyscy, którzy mają dostęp do obszaru, osoby z linkiem do niego i osoby z dołączonych formularzy.'
+          : chat.kind === 'channel'
+            ? 'To kanał obszaru: piszą ci, którzy mają w obszarze prawo zapisu; pozostali — także osoby z linkiem i z dołączonych formularzy — czytają.'
+          : chat.kind === 'seat'
+            ? 'To rozmowa z jedną osobą z formularza: piszą w niej ta osoba i wszyscy, którzy mają dostęp do obszaru — inni z formularza jej nie widzą.'
           : 'Ta rozmowa ma własny obszar — to ci sami ludzie. Dodawać i usuwać możesz tutaj albo w „Obszarach".'}
         {' '}<a className="wk-link" href={viewPath('areas', chat.areaId)}>Obszar tej rozmowy</a>
       </p>
@@ -1172,13 +1195,19 @@ function ChatSettings({ me, chat, names, keys, onChanged }: {
         })}
       </ul>
 
-      {chat.kind === 'area' && <LinkPeople chat={chat} />}
+      {/* 0080 — die Formulare dieses Zugangs: wer sie ausgefüllt hat, ist dabei (`AudienceForms`, für jedes Ding dasselbe). */}
+      {(chat.kind === 'area' || chat.kind === 'channel') && chat.forms !== undefined && (
+        <AudienceForms kind="chat" subjectId={chat.chatId} mode={chat.kind === 'channel' ? 'channel' : 'together'} forms={chat.forms}
+          byRoleId={chat.members.find((m) => me.ring.has(m.roleId) && (m.capabilities.includes('write') || m.capabilities.includes('admin')))?.roleId ?? null}
+          what={chat.kind === 'channel' ? 'ten kanał' : 'tę rozmowę'} onChanged={onChanged} />
+      )}
+      {(chat.kind === 'area' || chat.kind === 'channel') && <LinkPeople chat={chat} />}
 
       {issuer !== null && chat.kind !== 'direct' && (
         <form className="wk-form" onSubmit={(e) => {
           e.preventDefault();
           void run('Dodawanie…', async () => {
-            for (const one of adding) await addToChat(me.ring, chat, one, issuer, chat.postingPolicy === 'writers' ? 'read' : 'write');
+            for (const one of adding) await addToChat(me.ring, chat, one, issuer, chat.kind === 'channel' || chat.postingPolicy === 'writers' ? 'read' : 'write');
             const said = `Dodano: ${adding.map((a) => a.name).join(', ')}.`;
             setAdding([]);
             return said;
@@ -1226,10 +1255,12 @@ function ChatSettings({ me, chat, names, keys, onChanged }: {
  * dem nimmt die Kanzlei den Link.
  */
 function LinkPeople({ chat }: { chat: ChatDetail }) {
+  const mode = chatMode(chat.kind);
+  const writes = mode !== null && othersWrite(mode);
   if (chat.seats.length === 0) {
     return (
       <p className="wk-hint">
-        Osoby z linkiem do tego obszaru (np. z formularza) też tu piszą — na razie nie ma żadnej.
+        Osoby z linkiem do tego obszaru i z dołączonych formularzy też tu {writes ? 'piszą' : 'czytają'} — na razie nie ma żadnej.
       </p>
     );
   }
@@ -1243,8 +1274,8 @@ function LinkPeople({ chat }: { chat: ChatDetail }) {
     <>
       <h2 className="wk-h2">Osoby z linkiem ({chat.seats.length})</h2>
       <p className="wk-hint">
-        Każdy, kto ma link do tego obszaru, czyta i pisze w tej rozmowie — bez konta. Klucz do niej
-        przekazuje im przeglądarka uczestnika, który zajrzy tutaj; do reszty obszaru nie dostają dostępu.
+        Każdy, kto ma link do tego obszaru albo wypełnił dołączony formularz, {writes ? 'czyta i pisze w tej rozmowie' : 'czyta ten kanał'} — bez
+        konta. Klucz przekazuje im przeglądarka uczestnika, który zajrzy tutaj; do reszty obszaru nie dostają dostępu.
       </p>
       <ul className="wk-list">
         {chat.seats.map((one, i) => (

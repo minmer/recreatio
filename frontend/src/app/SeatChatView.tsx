@@ -30,11 +30,21 @@ import { WorkspaceError } from './session';
 import { createTopic, loadTopics, openTopics, type Topic } from './chatTopics';
 import { TopicBar } from './TopicBar';
 
-/** 0069 — wie eine Rozmowa für den Menschen mit dem Link heisst, und wer darin liest. */
-const seatTitle = (row: SeatChatRow) => row.kind === 'seat' ? 'Rozmowa z prowadzącymi' : `Rozmowa: ${row.areaName}`;
-const seatWho = (row: SeatChatRow) => row.kind === 'seat'
-  ? 'Tylko Ty i osoby prowadzące — inni, którzy wypełnili formularz, jej nie widzą. Treść szyfruje Twoja przeglądarka.'
+/*
+ * 0069 — wie eine Rozmowa für den Menschen mit dem Link heisst, und wer darin liest.
+ * 0080 — drei Arten: mit den Prowadzący EINES Bereichs (es kann mehrere geben,
+ * daher mit Namen), der Kanał (er liest) und die Rozmowa der Gruppe (alle schreiben).
+ */
+const seatTitle = (row: SeatChatRow) =>
+  row.kind === 'seat' ? `Rozmowa z prowadzącymi · ${row.areaName}`
+  : row.kind === 'channel' ? `Kanał: ${row.areaName}`
+  : `Rozmowa: ${row.areaName}`;
+const seatWho = (row: SeatChatRow) =>
+  row.kind === 'seat' ? `Tylko Ty i osoby prowadzące „${row.areaName}" — inni, którzy wypełnili formularz, jej nie widzą. Treść szyfruje Twoja przeglądarka.`
+  : row.kind === 'channel' ? `Piszą prowadzący „${row.areaName}"; Ty czytasz — razem z innymi, którzy wypełnili formularz. Treść szyfruje Twoja przeglądarka.`
   : `Czytają i piszą wszyscy z grupy „${row.areaName}" — także kancelaria. Treść szyfruje Twoja przeglądarka.`;
+const seatName = (row: SeatChatRow) =>
+  row.kind === 'seat' ? 'Rozmowa z prowadzącymi' : row.kind === 'channel' ? <>Kanał „{row.areaName}"</> : <>Rozmowa grupy „{row.areaName}"</>;
 
 interface Ready {
   readonly row: SeatChatRow;
@@ -252,7 +262,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
   if (keys.size === 0) {
     return (
       <p className="wk-note">
-        {chat.row.kind === 'seat' ? 'Rozmowa z prowadzącymi' : <>Rozmowa grupy „{chat.row.areaName}"</>} otworzy się tutaj, gdy tylko ktoś z prowadzących do niej
+        {seatName(chat.row)} otworzy się tutaj, gdy tylko ktoś z prowadzących do niej
         zajrzy — wtedy jego przeglądarka przekaże Ci klucz. Strona sprawdza to sama; nie musisz nic robić.
       </p>
     );
@@ -310,8 +320,9 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
   };
 
   const subtitle = chrome.status.typing ? <span className="ch-typing">ktoś pisze…</span>
-    : chat.row.kind === 'seat' ? 'Ty i osoby prowadzące'
-    : chrome.status.channel ? `kanał grupy „${chat.row.areaName}"` : `grupa „${chat.row.areaName}"`;
+    : chat.row.kind === 'seat' ? `Ty i osoby prowadzące „${chat.row.areaName}"`
+    : chat.row.kind === 'channel' || chrome.status.channel ? `kanał „${chat.row.areaName}" — czytasz` : `grupa „${chat.row.areaName}"`;
+  const listens = chat.row.kind === 'channel' || extras.features?.canWrite === false;
 
   /* JAK SIĘ PODPISAĆ — nad polem, dopóki nie ma podpisu albo gdy ktoś chce go zmienić. */
   const nameBar = naming || signed === '' ? (
@@ -334,7 +345,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
       {chrome.banner}
       {failed !== null && <p className="ch-bar is-error">{failed}</p>}
 
-      <TopicBar topics={topics} current={topic} canCreate={identity !== null} canManage={false}
+      <TopicBar topics={topics} current={topic} canCreate={identity !== null && !listens} canManage={false}
         onPick={setTopic}
         onCreate={async (title) => { const id = await createTopic(endpoint, keys, title, null); await lookTopics(); setTopic(id); }} />
 
@@ -356,7 +367,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
       <Composer
         ref={composer}
         endpoint={endpoint}
-        readOnly={extras.features?.canWrite === false ? 'Ten kanał pozwala Ci tylko czytać.' : null}
+        readOnly={listens ? 'Ten kanał pozwala Ci tylko czytać.' : null}
         placeholder={signed !== '' ? `Wiadomość jako ${signed}` : 'Wiadomość'}
         reply={reply}
         onClearReply={() => setReply(null)}

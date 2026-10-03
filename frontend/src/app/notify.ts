@@ -370,7 +370,7 @@ function ringPlain(digest: Digest, plan: Ringing): void {
 
 /** Wie eine Rozmowa in einer Meldung heisst — der Name des Bereichs, bei einem Platz die Person. */
 export const chatLabel = (c: DigestChat): string =>
-  c.kind === 'seat' && c.seatName !== null ? `Rozmowa z: ${c.seatName}` : c.areaName;
+  c.kind === 'seat' && c.seatName !== null ? `Rozmowa z: ${c.seatName}` : c.kind === 'channel' ? `Kanał: ${c.areaName}` : c.areaName;
 
 /** „Gesehen": was jetzt in der Glocke steht, gilt nicht mehr als neu. */
 export function markSeen(): void {

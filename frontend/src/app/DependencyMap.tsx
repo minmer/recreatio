@@ -25,6 +25,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 
 import { loadCalendars, type CalendarRow } from './calendar';
+import { linkAudienceForm } from './audience';
 import { loadChats, type ChatRow } from './chat';
 import { loadDesk, type Desk } from './desk';
 import { newId } from './ids';
@@ -72,6 +73,12 @@ function sourceKey(kind: string, target: Kind): { key: string; many: boolean } |
 }
 
 const idsIn = (value: string | undefined) => (value ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+
+/** Wie eine Rozmowa auf der Karte heisst — der Kanał neben der Rozmowa desselben Bereichs. */
+const chatLabel = (c: ChatRow | undefined) => c === undefined ? 'rozmowa' : c.kind === 'channel' ? `Kanał: ${c.areaName}` : c.areaName;
+
+/** 0080 — woran ein Formular hängen kann: die Rozmowa und der Kanał eines Bereichs (`audience.ts`). */
+const takesForms = (c: ChatRow | undefined) => c !== undefined && (c.kind === 'area' || c.kind === 'channel');
 
 interface World {
   readonly desk: Desk;
@@ -145,11 +152,20 @@ export function DependencyMap() {
         if (field === null) continue;
         for (const id of idsIn(config[field.key])) {
           const label = target === 'calendar' ? world.calendars.find((c) => c.calendarId === id)?.title ?? 'kalendarz'
-            : target === 'chat' ? world.chats.find((c) => c.chatId === id)?.areaName ?? 'rozmowa'
+            : target === 'chat' ? chatLabel(world.chats.find((c) => c.chatId === id))
             : 'biblioteka';
           place(`${target}:${id}`, { kind: target, label, sub: target === 'library' ? id.slice(0, 8) : '' });
           lines.push({ id: `src:${m.moduleId}:${target}:${id}`, source: `module:${m.moduleId}`, target: `${target}:${id}`, label: 'z', data: { rel: 'source', key: field.key, many: field.many, id } });
         }
+      }
+    }
+    /* 0080 — ein Formular an einer Rozmowa: wer es ausgefüllt hat, liest (Kanał) oder schreibt mit. */
+    for (const c of world.chats) {
+      for (const moduleId of c.formIds ?? []) {
+        if (!modules.some((m) => m.moduleId === moduleId)) continue;
+        place(`chat:${c.chatId}`, { kind: 'chat', label: chatLabel(c), sub: '', href: viewPath('chat', c.chatId) });
+        lines.push({ id: `aud:${moduleId}:${c.chatId}`, source: `module:${moduleId}`, target: `chat:${c.chatId}`,
+          label: c.kind === 'channel' ? 'czytają' : 'piszą', data: { rel: 'audience', chatId: c.chatId, moduleId } });
       }
     }
     for (const c of world.calendars.filter((x) => x.archived !== true)) place(`calendar:${c.calendarId}`, { kind: 'calendar', label: c.title, sub: c.areaName });
@@ -185,6 +201,14 @@ export function DependencyMap() {
       const m = moduleOf(c.source);
       const [target, id] = c.target.split(':') as [Kind, string];
       if (m === undefined || id === undefined) return;
+
+      /* 0080 — ein Formular zu einer Rozmowa: wer es ausgefüllt hat, ist dabei. */
+      const chat = target === 'chat' ? world.chats.find((x) => x.chatId === id) : undefined;
+      if (m.kind === 'form' && takesForms(chat)) {
+        if (!window.confirm(`Dołączyć formularz „${m.name}" do: ${chatLabel(chat)}? Kto go wypełnił, ${chat?.kind === 'channel' ? 'będzie czytać ten kanał' : 'będzie czytać i pisać w tej rozmowie'}.`)) return;
+        void act('Dołączanie formularza…', () => linkAudienceForm('chat', id, m.moduleId, true));
+        return;
+      }
       const field = sourceKey(m.kind, target);
       if (field === null) { setFailed(`Moduł „${partOf(m.kind)?.label ?? m.kind}" nie bierze danych z: ${KIND_WORD[target]}.`); return; }
       const config = readConfig(m.config);
@@ -204,6 +228,11 @@ export function DependencyMap() {
           const page = await loadPage(path);
           await saveParts(path, page.parts.map(toDraft).filter((p) => p.moduleId !== m.moduleId));
         });
+      } else if (rel === 'audience') {
+        const info = edge.data as { chatId: string; moduleId: string };
+        const m = moduleOf(edge.source);
+        if (!window.confirm(`Odłączyć formularz „${m?.name ?? 'formularz'}"? Kto go wypełnił, przestanie widzieć tę rozmowę.`)) { void look(); continue; }
+        void act('Odłączanie formularza…', () => linkAudienceForm('chat', info.chatId, info.moduleId, false));
       } else if (rel === 'source') {
         const m = moduleOf(edge.source);
         const info = edge.data as { key: string; many: boolean; id: string };
@@ -223,7 +252,8 @@ export function DependencyMap() {
     <div className="wk-dep">
       <p className="wk-lede">
         Strony, moduły i to, skąd moduły biorą dane. Przeciągnij linię od strony do modułu, żeby postawić go na stronie,
-        albo od modułu do kalendarza, biblioteki lub rozmowy, żeby ustawić źródło. Zaznacz linię i naciśnij Delete, żeby ją usunąć.
+        albo od modułu do kalendarza, biblioteki lub rozmowy, żeby ustawić źródło — od formularza do rozmowy lub kanału, żeby osoby,
+        które go wypełniły, były w niej. Zaznacz linię i naciśnij Delete, żeby ją usunąć.
         Dwuklik otwiera rzecz.
       </p>
       <label className="wk-check"><input type="checkbox" checked={onlyUsed} onChange={(e) => setOnlyUsed(e.target.checked)} /> <span>tylko moduły, które są na stronach</span></label>

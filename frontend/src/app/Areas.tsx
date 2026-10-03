@@ -36,7 +36,7 @@ import {
 } from './area';
 import { namesInArea, type Called } from './called';
 import {
-  areaKeys, loadAreaNames, loadChats, looksLikeCode, openNames, roleCard, setMemberName, startAreaChat
+  areaKeys, loadAreaNames, loadChats, looksLikeCode, openNames, roleCard, setMemberName, startAreaChat, type ChatRow
 } from './chat';
 import { useCrumbs, type Crumb } from './crumbTrail';
 import type { Ring, SealedRole } from './keys';
@@ -467,7 +467,7 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
             <a className="wk-crumb-link" href={viewPath('areas', parent.areaId)}>{parent.name}</a>
           </Fact>
         )}
-        <Fact label="Rozmowa"><AreaChat area={area} ring={ring} busy={busy} onAct={onAct} /></Fact>
+        <Fact label="Rozmowy"><AreaChat area={area} ring={ring} busy={busy} onAct={onAct} /></Fact>
       </dl>
 
       {/*
@@ -850,8 +850,12 @@ function AddRole({ area, ring, graph, self, members, names, busy, onAct }: {
 }
 
 /**
- * ROZMOWA TEGO OBSZARU (0052) — dieselben Menschen, dieselben Schlüssel. Wer
+ * ROZMOWY TEGO OBSZARU (0052) — dieselben Menschen, dieselben Schlüssel. Wer
  * hier hineinkommt, ist in der Rozmowa; wer dort hinzugefügt wird, steht hier.
+ *
+ * 0080 — zwei nebeneinander: die Rozmowa, in der alle schreiben, und der
+ * Kanał, in dem die Schreibenden schreiben und die anderen lesen. Die mit
+ * einzelnen Menschen aus Formularen stehen in „Rozmowy", nicht hier.
  */
 function AreaChat({ area, ring, busy, onAct }: {
   area: AreaRow;
@@ -859,33 +863,45 @@ function AreaChat({ area, ring, busy, onAct }: {
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
-  const [chatId, setChatId] = useState<string | null | undefined>(undefined);
+  const [chats, setChats] = useState<readonly ChatRow[] | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
     void loadChats()
-      .then((found) => { if (alive) setChatId(found.chats.find((c) => c.areaId === area.areaId)?.chatId ?? null); })
-      .catch(() => { if (alive) setChatId(null); });
+      .then((found) => { if (alive) setChats(found.chats.filter((c) => c.areaId === area.areaId)); })
+      .catch(() => { if (alive) setChats([]); });
     return () => { alive = false; };
   }, [area.areaId]);
 
-  if (chatId === undefined) return <>…</>;
-  if (chatId !== null) return <a className="wk-crumb-link" href={viewPath('chat', chatId)}>Otwórz</a>;
-  if (ring === null || (area.myLevel !== 'write' && area.myLevel !== 'admin')) return <>—</>;
+  if (chats === undefined) return <>…</>;
 
-  return (
-    <button type="button" className="wk-link-btn" disabled={busy}
-      onClick={() => void onAct('Zakładanie rozmowy…', async () => {
-        const { members } = await loadMembers(area.areaId);
-        /* Welche MEINER Rollen hier schreibt — sie legt die Rozmowa an. */
-        const writer = members.find((m) => ring.has(m.roleId) && (m.capabilities.includes('write') || m.capabilities.includes('admin')));
-        if (writer === undefined) throw new WorkspaceError('Żadna z Twoich ról nie pisze w tym obszarze.');
-        const made = await startAreaChat(area.areaId, writer.roleId);
-        window.location.hash = viewPath('chat', made);
-      })}>
-      Załóż
-    </button>
-  );
+  /* Ein eigener Bereich einer Gruppe, eines Gesprächs zu zweit, der Notatki: er IST die Rozmowa. */
+  const own = chats.find((c) => c.kind === 'group' || c.kind === 'direct' || c.kind === 'self');
+  if (own !== undefined) return <a className="wk-crumb-link" href={viewPath('chat', own.chatId)}>Otwórz</a>;
+
+  const mayStart = ring !== null && (area.myLevel === 'write' || area.myLevel === 'admin');
+  const one = (kind: 'area' | 'channel', label: string) => {
+    const had = chats.find((c) => c.kind === kind);
+    if (had !== undefined) return <a key={kind} className="wk-crumb-link" href={viewPath('chat', had.chatId)}>{label}</a>;
+    if (!mayStart || ring === null) return null;
+    return (
+      <button key={kind} type="button" className="wk-link-btn" disabled={busy}
+        onClick={() => void onAct(kind === 'channel' ? 'Zakładanie kanału…' : 'Zakładanie rozmowy…', async () => {
+          const { members } = await loadMembers(area.areaId);
+          /* Welche MEINER Rollen hier schreibt — sie legt die Rozmowa an. */
+          const writer = members.find((m) => ring.has(m.roleId) && (m.capabilities.includes('write') || m.capabilities.includes('admin')));
+          if (writer === undefined) throw new WorkspaceError('Żadna z Twoich ról nie pisze w tym obszarze.');
+          const made = await startAreaChat(area.areaId, writer.roleId, kind === 'channel');
+          window.location.hash = viewPath('chat', made);
+        })}>
+        Załóż: {label.toLowerCase()}
+      </button>
+    );
+  };
+
+  const shown = [one('area', 'Rozmowa'), one('channel', 'Kanał')].filter((x) => x !== null);
+  if (shown.length === 0) return <>—</>;
+  return <>{shown.map((x, i) => <span key={i}>{i > 0 ? ' · ' : ''}{x}</span>)}</>;
 }
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {

@@ -438,6 +438,10 @@ public static class AccountDeletion
              WHERE scope_id IN (SELECT id FROM #chats) OR scope_id IN (SELECT id FROM #dead);
         DELETE FROM app.chat_message_version
          WHERE message_id IN (SELECT id FROM app.chat_message WHERE chat_id IN (SELECT id FROM #chats));
+        -- 0080: Formulare an einer Rozmowa (Audience) — von beiden Seiten her.
+        IF OBJECT_ID(N'app.audience_form', N'U') IS NOT NULL
+            DELETE FROM app.audience_form
+             WHERE (subject_kind = N'chat' AND subject_id IN (SELECT id FROM #chats)) OR module_id IN (SELECT id FROM #mods);
         DELETE FROM app.chat_read     WHERE chat_id IN (SELECT id FROM #chats);
         DELETE FROM app.chat_seat_key WHERE chat_id IN (SELECT id FROM #chats);
         DELETE FROM app.chat_message  WHERE chat_id IN (SELECT id FROM #chats);

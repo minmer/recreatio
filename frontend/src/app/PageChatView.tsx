@@ -34,7 +34,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   areaKeys, authorOf, chatKeysOf, deleteMessage, deliverSeatKeys, editMessage, loadChat, loadMessages, loadVersions,
-  markRead, openMessage, openNames, openVersion, restoreMessage, sendMessage,
+  markRead, openMessage, openNames, openVersion, restoreMessage, sendMessage, fixedPolicy,
   type ChatDetail, type Opened, type SealedMessage, type SealedVersion, type SendOptions
 } from './chat';
 import type { Ring } from './keys';
@@ -250,7 +250,8 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
   }, [chatId, shown, talk, open]);
 
   const moderates = (chat?.certifiers.length ?? 0) > 0 && chat?.kind !== 'direct';
-  const chrome = useChatChrome({ endpoint, extras, keys: talk, canModerate: moderates && chat?.kind !== 'self', onPolicy: () => void look() });
+  /* 0080 — in der Rozmowa des Bereichs und im Kanał sagt die Art, wer schreibt. */
+  const chrome = useChatChrome({ endpoint, extras, keys: talk, canModerate: moderates && chat != null && !fixedPolicy(chat.kind), onPolicy: () => void look() });
 
   if (chat === undefined) return <p className="wk-card-muted">Wczytywanie rozmowy…</p>;
   if (chat === null) {

@@ -34,11 +34,27 @@ import {
   aad, derive, Field, fromBase64Url, KEY_SIZE, openText, sealText, sha256Bytes, signCanonical, toBase64Url,
   wrapKeyP256
 } from './crypto';
+import type { AudienceForm, AudienceMode } from './audience';
 import { newId } from './ids';
 import type { Ring, SealedRole } from './keys';
 import { call, WorkspaceError } from './session';
 
-export type ChatKind = 'area' | 'group' | 'direct' | 'self' | 'seat';
+export type ChatKind = 'area' | 'channel' | 'group' | 'direct' | 'self' | 'seat';
+
+/**
+ * 0080 — DIE DREI ZUGÄNGE (`audience.ts`) als Rozmowy eines Bereichs: der
+ * Kanał (`channel`), die Rozmowa aller (`area`), die mit einem Menschen
+ * (`seat`). Ein Bereich kann Kanał und Rozmowa nebeneinander haben. Gruppen,
+ * zu zweit und Notatki haben keine Menschen mit Link.
+ */
+export const chatMode = (kind: ChatKind): AudienceMode | null =>
+  kind === 'channel' ? 'channel' : kind === 'area' ? 'together' : kind === 'seat' ? 'one' : null;
+
+/** Wo Menschen mit Link dabei sind (0053/0069/0080). */
+export const hasSeats = (kind: ChatKind): boolean => chatMode(kind) !== null;
+
+/** In der Rozmowa des Bereichs und im Kanał sagt die Art, wer schreibt — keine umstellbare Zasada (0080). */
+export const fixedPolicy = (kind: ChatKind): boolean => kind === 'area' || kind === 'channel' || kind === 'self';
 
 export interface ChatMember {
   readonly roleId: string;
@@ -73,6 +89,9 @@ export interface ChatRow {
   /** 0069 — die Rozmowa mit einem Platz: welcher, und wie die Kanzlei ihn führt. */
   readonly seatId?: string | null;
   readonly seatName?: string | null;
+
+  /** 0080 — die Formulare, deren Menschen in dieser Rozmowa (diesem Kanał) dabei sind. */
+  readonly formIds?: readonly string[];
 }
 
 /** Ein Mensch mit Link in der Rozmowa seines Bereichs (0053). */
@@ -97,6 +116,9 @@ export interface ChatDetail extends Omit<ChatRow, 'unread' | 'seats' | 'pendingS
   readonly certifiers: readonly string[];
 
   readonly seats: readonly ChatSeat[];
+
+  /** 0080 — nur in der Rozmowa und im Kanał eines Bereichs; ein alter Dienst schickt sie nicht. */
+  readonly forms?: readonly AudienceForm[];
 }
 
 export interface SealedMessage {
@@ -418,8 +440,8 @@ export async function sendMessage(
 export async function deliverSeatKeys(
   chat: ChatDetail, areaKeys: ReadonlyMap<number, Uint8Array>, byRoleId: string
 ): Promise<number> {
-  /* 0069 — auch in der Rozmowa mit EINEM Platz: der Dienst nimmt dort nur seinen Schlüssel an. */
-  if (chat.kind !== 'area' && chat.kind !== 'seat') return 0;
+  /* 0069 — auch in der Rozmowa mit EINEM Platz: der Dienst nimmt dort nur seinen Schlüssel an. 0080 — und im Kanał. */
+  if (!hasSeats(chat.kind)) return 0;
 
   const mine = await chatKeysOf(chat.chatId, areaKeys);
   const keys: { seatId: string; epoch: number; keyWrapped: string }[] = [];
@@ -439,13 +461,16 @@ export async function deliverSeatKeys(
     }
   }
 
-  if (keys.length === 0) return 0;
-
-  const done = await call<{ granted: number }>(`/workspace/chat/${encodeURIComponent(chat.chatId)}/seats`, {
-    method: 'POST',
-    body: JSON.stringify({ byRoleId, keys })
-  });
-  return done.granted;
+  /* 0080 — ein Kanał mit einem ganzen Formular: der Dienst nimmt höchstens 500 auf einmal. */
+  let granted = 0;
+  for (let at = 0; at < keys.length; at += 400) {
+    const done = await call<{ granted: number }>(`/workspace/chat/${encodeURIComponent(chat.chatId)}/seats`, {
+      method: 'POST',
+      body: JSON.stringify({ byRoleId, keys: keys.slice(at, at + 400) })
+    });
+    granted += done.granted;
+  }
+  return granted;
 }
 
 /**
@@ -454,7 +479,7 @@ export async function deliverSeatKeys(
  */
 export async function deliverPending(ring: Ring, chats: readonly ChatRow[]): Promise<void> {
   for (const row of chats) {
-    if ((row.kind !== 'area' && row.kind !== 'seat') || row.pendingSeats === 0) continue;
+    if (!hasSeats(row.kind) || row.pendingSeats === 0) continue;
     try {
       const chat = await loadChat(row.chatId);
       const by = chat.writers[0];
@@ -497,10 +522,13 @@ const createChat = (body: {
 }) => call<{ chatId: string }>('/workspace/chats', { method: 'POST', body: JSON.stringify(body) });
 
 /**
- * 0069 — DIE ROZMOWA MIT EINEM MENSCHEN VOM FORMULAR. Sie liegt am Bereich
- * seines Platzes (alle, die ihn lesen, lesen mit), aber nur ER bekommt ihren
- * Schlüssel — nicht die anderen, die dasselbe Formular ausgefüllt haben.
- * Gibt es sie schon, ist SIE es.
+ * 0069 — DIE ROZMOWA MIT EINEM MENSCHEN VOM FORMULAR. Alle, die ihren Bereich
+ * lesen, lesen mit, aber nur ER bekommt ihren Schlüssel — nicht die anderen,
+ * die dasselbe Formular ausgefüllt haben. Gibt es sie schon, ist SIE es.
+ *
+ * 0080 — <b>an welchem Bereich</b>, wählt, wer sie anlegt: an dem seines
+ * Platzes, dem des Formulars, einem seiner Fragen — oder einem darüber
+ * (etwa „Ksiądz" statt allen, die „Kandydaci" lesen). Je Bereich eine.
  */
 export async function startSeatChat(areaId: string, asRoleId: string, seatId: string): Promise<string> {
   const chatId = newId();
@@ -509,19 +537,34 @@ export async function startSeatChat(areaId: string, asRoleId: string, seatId: st
     return chatId;
   } catch (e) {
     if (e instanceof WorkspaceError && e.verdict === 'exists') {
-      const had = (await loadChats()).chats.find((c) => c.seatId === seatId);
+      const had = (await loadChats()).chats.find((c) => c.seatId === seatId && c.areaId === areaId);
       if (had !== undefined) return had.chatId;
     }
     throw e;
   }
 }
 
-/** Der Chat eines BESTEHENDEN Bereichs — wer dort schreibt, legt ihn an. */
+/**
+ * Der Chat eines BESTEHENDEN Bereichs — wer dort schreibt, legt ihn an.
+ *
+ * 0080 — <b>`channel`</b>: der Kanał (es schreiben die Schreibenden, die
+ * anderen lesen), sonst die Rozmowa, in der jeder schreibt. Ein Bereich hat
+ * höchstens einen von jedem; gibt es ihn schon, ist ER es.
+ */
 export async function startAreaChat(areaId: string, asRoleId: string, channel = false): Promise<string> {
   const chatId = newId();
-  await createChat({ chatId, areaId, kind: 'area', asRoleId, postingPolicy: channel ? 'writers' : 'legacy' });
-  return chatId;
+  try {
+    await createChat({ chatId, areaId, kind: channel ? 'channel' : 'area', asRoleId, postingPolicy: channel ? 'writers' : 'legacy' });
+    return chatId;
+  } catch (e) {
+    if (e instanceof WorkspaceError && e.verdict === 'exists') {
+      const had = (await loadChats()).chats.find((c) => c.areaId === areaId && c.kind === (channel ? 'channel' : 'area'));
+      if (had !== undefined) return had.chatId;
+    }
+    throw e;
+  }
 }
+
 
 /**
  * 0062 — NOTATKI: die Rozmowa mit sich selbst. Sie liegt im EIGENEN Bereich

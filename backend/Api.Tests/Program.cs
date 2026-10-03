@@ -17,6 +17,30 @@ foreach (var kind in new[] { "area", "group", "direct", "seat" })
     Check(!ChatRules.SeatCanWrite(kind, "writers"), $"{kind}: seat cannot publish in channel");
     Check(ChatRules.SeatCanWrite(kind, "members") == (kind is "area" or "seat"), $"{kind}: seats only access area and own chats");
 }
+/* 0080 — the channel is a kind of its own: area writers publish, everyone else (seats included) listens, whatever the policy says. */
+foreach (var policy in new[] { "legacy", "members", "writers" })
+{
+    Check(ChatRules.Speakers("channel", policy).SequenceEqual(["write", "admin"]), $"channel/{policy}: only area writers publish");
+    Check(!ChatRules.SeatCanWrite("channel", policy), $"channel/{policy}: a seat listens");
+}
+Check(ChatRules.HasSeats("channel") && ChatRules.HasSeats("area") && ChatRules.HasSeats("seat"), "seats are in area, channel and seat chats");
+Check(!ChatRules.HasSeats("group") && !ChatRules.HasSeats("direct") && !ChatRules.HasSeats("self"), "no seats in own chats");
+Check(ChatRules.FixedPolicy("area") && ChatRules.FixedPolicy("channel") && !ChatRules.FixedPolicy("group") && !ChatRules.FixedPolicy("seat"),
+    "the kind decides who writes in area chats and channels; groups keep their policy");
+/* 0080 — the three accesses are general (Audience); a chat kind is one of them, or none. */
+Check(ChatRules.ModeOf("channel") == AudienceMode.Channel && ChatRules.ModeOf("area") == AudienceMode.Together
+    && ChatRules.ModeOf("seat") == AudienceMode.One && ChatRules.ModeOf("group") is null, "chat kinds are the three accesses");
+Check(!Audience.SeatWrites(AudienceMode.Channel) && Audience.SeatWrites(AudienceMode.Together) && Audience.SeatWrites(AudienceMode.One),
+    "a person with a link listens in a channel, writes together and one-to-one");
+Check(!Audience.Speakers(AudienceMode.Channel).Contains("read") && Audience.Speakers(AudienceMode.Together).Contains("read"),
+    "area readers write together, not in a channel");
+var people = Audience.PeopleOf("chat", "c.id", "c.area_id");
+Check(people.Contains("app.audience_form") && people.Contains("N'chat'") && people.Contains("is_hidden = 0") && people.Contains("withdrawn_at IS NULL")
+    && people.Contains("s.area_id = c.area_id"), "a thing's people: seats of its area, and its forms' people — not withdrawn, not hidden");
+Check(ChatRules.SeatOfChat.Contains(people), "the chat asks the audience who its people are");
+var unknown = false;
+try { Audience.PeopleOf("nothing", "x.id", "x.area_id"); } catch (ArgumentException) { unknown = true; }
+Check(unknown, "only registered things have an audience");
 var now = DateTimeOffset.Parse("2026-09-30T12:00:00Z");
 Check(ChatRules.ValidSchedule(null, now), "immediate message accepted");
 Check(!ChatRules.ValidSchedule(now, now), "schedule at current instant rejected");

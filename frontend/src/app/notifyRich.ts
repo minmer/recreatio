@@ -185,7 +185,8 @@ export function conversationTitle(
     const name = other === undefined ? undefined : names.get(other.roleId);
     if (name !== undefined && name.trim() !== '') return name;
   }
-  return row.areaName;
+  /* 0080 — der Kanał steht neben der Rozmowa desselben Bereichs. */
+  return chat.kind === 'channel' ? `Kanał: ${row.areaName}` : row.areaName;
 }
 
 /* -- Öffnen --------------------------------------------------------------------- */
@@ -236,7 +237,7 @@ async function conversationOf(me: Opener, row: DigestChat, replyable: boolean, s
   return {
     chatId: chat.chatId,
     title: conversationTitle(chat, row, names, mine),
-    group: chat.kind === 'area' || chat.kind === 'group',
+    group: chat.kind === 'area' || chat.kind === 'channel' || chat.kind === 'group',
     unread: row.unread,
     lastMessageAt: row.lastMessageAt,
     unchanged: false,
