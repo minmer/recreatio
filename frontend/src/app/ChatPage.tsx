@@ -498,11 +498,17 @@ function NewChat({ me }: { me: Me }) {
    * 0080 — ein Bereich hat höchstens eine Rozmowa und einen Kanał, nebeneinander.
    * Die eigenen Bereiche einer Gruppe, eines Gesprächs zu zweit, der Notatki
    * bekommen keinen dazu — sie SIND schon eine Rozmowa.
+   *
+   * Ein Bereich, der DIESE Art schon hat, bleibt in der Liste und sagt es
+   * („kanał już jest"); gewählt, öffnet er sie. Vorher fehlte er still — und
+   * die Listen für Kanał und Rozmowa sahen grundlos verschieden aus.
    */
   const forArea = mode === 'area' || mode === 'channel';
   const own = new Set(chats.filter((c) => c.kind === 'group' || c.kind === 'direct' || c.kind === 'self').map((c) => c.areaId));
-  const taken = new Set(chats.filter((c) => c.kind === mode).map((c) => c.areaId));
-  const writable = areas.filter((a) => (a.myLevel === 'write' || a.myLevel === 'admin') && !own.has(a.areaId) && !taken.has(a.areaId));
+  const writable = areas.filter((a) => (a.myLevel === 'write' || a.myLevel === 'admin') && !own.has(a.areaId));
+  const existing = forArea ? chats.find((c) => c.kind === mode && c.areaId === areaId) : undefined;
+  const takenNote = (id: string) => chats.some((c) => c.kind === mode && c.areaId === id)
+    ? (mode === 'channel' ? 'kanał już jest' : 'rozmowa już jest') : null;
 
   const go = (chatId: string) => { window.location.hash = viewPath('chat', chatId); };
 
@@ -517,6 +523,7 @@ function NewChat({ me }: { me: Me }) {
   const create = () => void run('Zakładanie rozmowy…', async () => {
     if (forArea) {
       if (areaId === '') throw new WorkspaceError('Wybierz obszar.');
+      if (existing !== undefined) { go(existing.chatId); return; }
       /* Welche meiner Rollen dort schreibt — sie legt den Chat an. */
       const { members } = await loadMembers(areaId);
       const writer = members.find((m) => me.ring.has(m.roleId) && (m.capabilities.includes('write') || m.capabilities.includes('admin')));
@@ -574,10 +581,10 @@ function NewChat({ me }: { me: Me }) {
               <span>Obszar</span>
               <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
                 <option value="">— wybierz —</option>
-                <AreaOptions areas={areas} only={writable} />
+                <AreaOptions areas={areas} only={writable} note={takenNote} />
               </select>
             </label>
-            {writable.length === 0 && <p className="wk-empty">{mode === 'channel' ? 'Każdy obszar, w którym piszesz, ma już swój kanał.' : 'Każdy obszar, w którym piszesz, ma już swoją rozmowę.'}</p>}
+            {writable.length === 0 && <p className="wk-empty">Nie piszesz w żadnym obszarze — {mode === 'channel' ? 'kanał' : 'rozmowę obszaru'} zakłada ktoś z prawem zapisu.</p>}
           </>
         ) : (
           <>
@@ -619,7 +626,9 @@ function NewChat({ me }: { me: Me }) {
 
         <div className="wk-actions">
           <button type="submit" className="wk-btn" disabled={busy !== null}>
-            {mode === 'direct' ? 'Rozpocznij rozmowę' : mode === 'group' ? 'Załóż grupę' : mode === 'channel' ? 'Załóż kanał' : 'Załóż rozmowę obszaru'}
+            {mode === 'direct' ? 'Rozpocznij rozmowę' : mode === 'group' ? 'Załóż grupę'
+              : mode === 'channel' ? (existing !== undefined ? 'Otwórz kanał' : 'Załóż kanał')
+              : existing !== undefined ? 'Otwórz rozmowę obszaru' : 'Załóż rozmowę obszaru'}
           </button>
         </div>
       </form>

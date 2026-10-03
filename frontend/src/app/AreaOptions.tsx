@@ -12,12 +12,15 @@
 
 import { areaPath, inOrder, type AreaRow } from './area';
 
-export function AreaOptions({ areas, only }: {
+export function AreaOptions({ areas, only, note }: {
   /** ALLE sichtbaren Bereiche — aus ihnen wird der Weg gebildet. */
   areas: readonly AreaRow[];
 
   /** Welche davon zur Wahl stehen. Fehlt es, alle. */
   only?: readonly AreaRow[];
+
+  /** Was hinter einem Bereich steht („kanał już jest") — statt dass er still fehlt. */
+  note?: (areaId: string) => string | null;
 }) {
   const offered = new Set((only ?? areas).map((a) => a.areaId));
 
@@ -32,7 +35,8 @@ export function AreaOptions({ areas, only }: {
         .filter(({ area }) => offered.has(area.areaId))
         .map(({ area }) => {
           const path = areaPath(areas, area.areaId);
-          return <option key={area.areaId} value={area.areaId} title={path.full}>{path.short}</option>;
+          const said = note?.(area.areaId) ?? null;
+          return <option key={area.areaId} value={area.areaId} title={path.full}>{path.short}{said === null ? '' : ` — ${said}`}</option>;
         })}
 
       {strays.map((a) => <option key={a.areaId} value={a.areaId}>{a.name}</option>)}
