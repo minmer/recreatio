@@ -237,6 +237,13 @@ export interface PartModule {
   readonly fullscreen: boolean;
 
   /**
+   * 0081 — SEIN BEREICH GEHÖRT SEINEM EDITOR: „Napisz do nas" legt ihn selbst
+   * an (die Rollen, die antworten). Die Auswahl „Obszar" der Moduleinstellungen
+   * stünde dann daneben und könnte ihn wegnehmen — sie fehlt.
+   */
+  readonly ownArea: boolean;
+
+  /**
    * Der duldsame Leser allein, Tafel hinein und Gestalt heraus.
    *
    * Er steht hier, damit sich prüfen lässt, was ein halb ausgefüllter Baustein
@@ -442,6 +449,7 @@ export function definePart<C>(spec: {
   shows: (config: C, size: PartSize) => string;
   strip?: { title: string; open: string };
   fullscreen?: boolean;
+  ownArea?: boolean;
   Editor?: ComponentType<EditorProps>;
 
   /**
@@ -480,6 +488,7 @@ export function definePart<C>(spec: {
     shows: (raw, size) => spec.shows(spec.read(raw), size),
     strip: spec.strip ?? null,
     fullscreen: spec.fullscreen ?? false,
+    ownArea: spec.ownArea ?? false,
     read: spec.read,
     Editor: spec.Editor ?? null,
     json: spec.json ?? flatJson(spec.fields, spec.extra ?? [], spec.example)

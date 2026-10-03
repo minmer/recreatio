@@ -389,6 +389,7 @@ export const seatAskPart = definePart<AskConfig>({
 
   fields: [],
   Editor: AskSetup,
+  ownArea: true,
 
   read: (raw: RawConfig): AskConfig => ({ title: text(raw, 'title') }),
   hasContent: () => true,

@@ -7,7 +7,8 @@
 
 import { useEffect, useState } from 'react';
 
-import { areaKeys, looksLikeCode, openNames, roleCard, type ChatRow, type Invitee } from './chat';
+import { loadAreas, loadMembers } from './area';
+import { areaKeys, loadAreaNames, looksLikeCode, openNames, roleCard, type ChatRow, type Invitee } from './chat';
 import type { Ring } from './keys';
 import { WorkspaceError } from './session';
 
@@ -46,6 +47,46 @@ export function useKnown(me: Pick<Me, 'ring' | 'names'> | null, chats: readonly 
     })();
     return () => { alive = false; };
   }, [key]);
+
+  return known;
+}
+
+/**
+ * 0081 — WEN ICH AUS MEINEN BEREICHEN KENNE: die Rollen der Bereiche, in
+ * denen ich bin, mit dem Namen, den sie dort tragen — etwa „Ksiądz" einer
+ * anderen Person in „Bierzmowanie". Einmal je Ansicht; die eigenen nicht.
+ */
+export function useKnownInAreas(me: Pick<Me, 'ring' | 'names'> | null): readonly Invitee[] {
+  const [known, setKnown] = useState<readonly Invitee[]>([]);
+
+  useEffect(() => {
+    if (me === null) { setKnown([]); return undefined; }
+    let alive = true;
+    void (async () => {
+      const out = new Map<string, Invitee>();
+      const { areas } = await loadAreas().catch(() => ({ areas: [] }));
+      await Promise.all(areas.filter((a) => a.myLevel !== null && a.personal !== true).map(async (a) => {
+        try {
+          const [{ members }, { names: sealed }] = await Promise.all([loadMembers(a.areaId), loadAreaNames(a.areaId)]);
+          let names = new Map<string, string>();
+          try { names = await openNames(await areaKeys(me.ring, a.areaId), a.areaId, sealed); } catch { /* ohne Namen */ }
+          for (const m of members) {
+            if (me.ring.has(m.roleId) || m.kind === 'account') continue;
+            const name = nameOf(m.roleId, m.kind, names, me.names);
+            const had = out.get(m.roleId);
+            /* Ein Name schlägt die blosse Kennung. */
+            if (had === undefined || (had.name.includes(' · ') && !name.includes(' · '))) {
+              out.set(m.roleId, { roleId: m.roleId, kind: m.kind, wrapPublicKey: m.wrapPublicKey, name });
+            }
+          }
+        } catch {
+          // Ein Bereich, der nicht aufgeht, hält die anderen nicht auf.
+        }
+      }));
+      if (alive) setKnown([...out.values()].sort((x, y) => x.name.localeCompare(y.name, 'pl')));
+    })();
+    return () => { alive = false; };
+  }, [me]);
 
   return known;
 }

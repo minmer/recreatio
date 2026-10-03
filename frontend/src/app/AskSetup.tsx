@@ -22,7 +22,7 @@ import { areaKeys, loadAreaNames, loadChats, openNames, setMemberName, type Chat
 import { useMe, useWho } from './me';
 import { loadModules, updateModule, type ModuleRow } from './module';
 import type { EditorProps } from './part';
-import { InviteePicker, KIND, nameOf, useKnown } from './RolePicker';
+import { InviteePicker, KIND, nameOf, useKnown, useKnownInAreas } from './RolePicker';
 import { WorkspaceError } from './session';
 
 interface Answerer {
@@ -73,12 +73,16 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
   useEffect(() => { void look().catch(() => setRow(null)); }, [look]);
   useEffect(() => { void loadChats().then((found) => setChats(found.chats)).catch(() => undefined); }, []);
 
-  /* Wen ich anbieten kann: zuerst meine eigenen Rollen, dann wen ich aus Rozmowy kenne. */
-  const others = useKnown(me ?? null, chats);
-  const known = useMemo<readonly Invitee[]>(() => me == null ? [] : [
-    ...me.roles.map((r) => ({ roleId: r.id, kind: r.kind as Invitee['kind'], wrapPublicKey: r.wrapPublicKey, name: `${me.names.get(r.id) ?? KIND[r.kind] ?? 'rola'} (Ty)` })),
-    ...others
-  ].filter((one) => !answerers.some((a) => a.roleId === one.roleId)), [me, others, answerers]);
+  /* Wen ich anbieten kann: zuerst meine eigenen Rollen, dann die aus meinen Bereichen und Rozmowy. */
+  const fromChats = useKnown(me ?? null, chats);
+  const fromAreas = useKnownInAreas(me ?? null);
+  const known = useMemo<readonly Invitee[]>(() => {
+    if (me == null) return [];
+    const out = new Map<string, Invitee>();
+    for (const r of me.roles) out.set(r.id, { roleId: r.id, kind: r.kind as Invitee['kind'], wrapPublicKey: r.wrapPublicKey, name: `${me.names.get(r.id) ?? KIND[r.kind] ?? 'rola'} (Ty)` });
+    for (const one of [...fromAreas, ...fromChats]) if (!out.has(one.roleId)) out.set(one.roleId, one);
+    return [...out.values()].filter((one) => !answerers.some((a) => a.roleId === one.roleId));
+  }, [me, fromAreas, fromChats, answerers]);
 
   const run = async (what: string, todo: () => Promise<void>) => {
     setWorking(what);

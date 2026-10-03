@@ -18,7 +18,7 @@ import { useEffect, useState } from 'react';
 import type { AreaRow } from './area';
 import { AreaOptions } from './AreaOptions';
 import { removeModule, SUBJECT_LABEL, SUBJECTS, updateModule, type ModuleRow, type Resealed, type Subject } from './module';
-import { takesEntries } from './parts/registry';
+import { partOf, takesEntries } from './parts/registry';
 import { viewPath } from './routes';
 
 export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
@@ -81,6 +81,9 @@ export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
         <input value={name} disabled={busy} onChange={(e) => setName(e.target.value)} />
       </label>
 
+      {partOf(row.kind)?.ownArea === true ? (
+        <p className="wk-hint">Obszar tego modułu to ci, którzy odpowiadają — ustawiasz ich niżej, w „Treść".</p>
+      ) : (
       <label className="wk-field">
         <span>{reseal !== undefined ? 'Obszar formularza' : 'Obszar'}</span>
         <select
@@ -99,6 +102,7 @@ export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
           </span>
         )}
       </label>
+      )}
 
       {asks && (
         <label className="wk-field">
