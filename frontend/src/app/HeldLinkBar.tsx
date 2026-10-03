@@ -8,6 +8,11 @@
  * Eintragen im Kalender (`linkMe.ts`). Mit dem Konto gilt er auf jedem Gerät
  * und im ganzen Arbeitsplatz (`#/dolacz/<T>`, dort wird gewählt, eingelöst).
  *
+ * <b>Angeboten wird das nur dem, der angemeldet ist</b> (Wunsch 2026-10-03).
+ * Wer ohne Konto kommt, hat den Link meist aus einer Nachricht und will die
+ * Seite sehen — ein „Dodaj do konta" schickte ihn zu einer Anmeldung, um die
+ * er nicht gebeten hat. Ihm sagt die Leiste nur, was der Link hier gibt.
+ *
  * <b>Wer angemeldet ist, handelt als sein Konto</b> — und ein Link, den es
  * nicht hat, zählt im Arbeitsplatz nicht. Das war ein stiller Verlust: der
  * Link lag im Browser, die Leiste war nach dem ersten Bild fort, und im
@@ -132,41 +137,48 @@ export function HeldLinkBar({ who }: { who?: Who }) {
       window.removeEventListener('hashchange', moved);
     };
   }, []);
-  const [held, setHeld] = useState<HeldInfo | null | undefined>(undefined);
-  const [owned, setOwned] = useState(false);
-  const [signedIn, setSignedIn] = useState(who !== undefined);
+  /*
+   * Was der Link gibt, ob jemand angemeldet ist, und ob dessen Konto ihn schon
+   * hält — ALLES, bevor die Leiste steht. Kam die Anmeldung erst danach, stand
+   * einen Augenblick lang der falsche Satz da (oder der Knopf bei einem
+   * Besucher, der nie gefragt war).
+   */
+  const [seen, setSeen] = useState<{ held: HeldInfo | null; signedIn: boolean; owned: boolean } | undefined>(undefined);
 
   useEffect(() => {
     if (arrived === null) return undefined;
     let alive = true;
-    setHeld(undefined);
-    setOwned(false);
+    setSeen(undefined);
     void (async () => {
+      let held: HeldInfo | null = null;
       try {
-        const keys = await heldLinkKeys();
-        const mine = keys.links.find((l) => l.token === arrived.token) ?? null;
-        if (!alive) return;
-        setHeld(mine);
-        /* Schon im Konto? Dann ist der Knopf überflüssig. */
-        const me = who ?? await whoIsThere().catch(() => null);
-        if (alive) setSignedIn(me !== null);
-        if (me !== null && mine?.info != null) {
-          const ring = (await keysFor(me).catch(() => null))?.ring ?? null;
-          if (alive && ring !== null && ring.has(mine.info.roleId)) setOwned(true);
-        }
+        held = (await heldLinkKeys()).links.find((l) => l.token === arrived.token) ?? null;
       } catch {
-        if (alive) setHeld(null);
+        held = null;
       }
+
+      const me = who ?? await whoIsThere().catch(() => null);
+
+      /* Schon im Konto? Dann ist der Knopf überflüssig. */
+      let owned = false;
+      if (me !== null && held?.info != null) {
+        const ring = (await keysFor(me).catch(() => null))?.ring ?? null;
+        owned = ring !== null && ring.has(held.info.roleId);
+      }
+
+      if (alive) setSeen({ held, signedIn: me !== null, owned });
     })();
     return () => { alive = false; };
   }, [arrived, who]);
 
   /* Kein frischer Link: im Arbeitsplatz die, die das Konto noch nicht hat. */
   if (arrived === null) return who === undefined ? null : <Unjoined who={who} />;
-  if (held === undefined) return null;
+  if (seen === undefined) return null;
 
   const close = () => { dismissFresh(); setArrived(null); };
-  const info = held?.info ?? null;
+  const info = seen.held?.info ?? null;
+  const { signedIn, owned } = seen;
+  const writes = info !== null && info.areas.some((a) => a.capability === 'write' || a.capability === 'admin');
 
   return (
     <aside className={`wk-heldlink${info === null ? ' is-dead' : ''}`} role="status" aria-label="Link z dostępem">
@@ -181,15 +193,16 @@ export function HeldLinkBar({ who }: { who?: Who }) {
         <>
           <p>
             <strong>Otwarto z linku{info.label !== null ? ` „${info.label}”` : ''}</strong> — {describeLink(info)}.
-            {owned ? ' Ten dostęp masz też na koncie.' : ' Działa w tej przeglądarce, razem z innymi linkami otwartymi tutaj.'}
+            {owned ? ' Ten dostęp masz też na koncie.'
+              : signedIn ? ' Działa w tej przeglądarce, razem z innymi linkami otwartymi tutaj.'
+                : ` Działa w tej przeglądarce, bez logowania${writes ? ' — w kalendarzu także dopisywanie' : ''}.`}
           </p>
-          {!owned && (
+          {/* Dem Konto hinzufügen — nur wer angemeldet ist, bekommt es angeboten. */}
+          {signedIn && !owned && (
             <div className="wk-actions">
               <a className="wk-btn wk-btn-line" href={`#/dolacz/${arrived.token}`}>Dodaj do konta</a>
               <span className="wk-hint">
-                {signedIn
-                  ? 'Jesteś zalogowany — w warsztacie i przy dopisywaniu działa to, co ma konto. Na koncie dostęp działa też na każdym urządzeniu.'
-                  : `Bez konta działa w tej przeglądarce${info.capability === 'read' ? '' : ' — w kalendarzu na stronie także dopisywanie'}. Na koncie: na każdym urządzeniu i w całym warsztacie.`}
+                Jesteś zalogowany — w warsztacie i przy dopisywaniu działa to, co ma konto. Na koncie dostęp działa też na każdym urządzeniu.
               </span>
             </div>
           )}

@@ -334,7 +334,8 @@ function ReadOnlyCalendar({ calendarIds, me, identity, signedIn, ctx, onAdd }: {
    */
   const here = new Set(data.calendars.map((c) => c.areaId).filter((id): id is string => id !== null));
   const joinable = onAdd !== undefined ? [] : held.filter((one) => one.info !== null
-    && (me === null || !me.ring.has(one.info.roleId))
+    /* Ohne Bund in diesem Tab lässt sich nicht sagen, ob das Konto ihn schon hat — dann nichts behaupten. */
+    && me !== null && !me.ring.has(one.info.roleId)
     && one.info.areas.some((a) => here.has(a.areaId) && (a.capability === 'write' || a.capability === 'admin')));
 
   return (

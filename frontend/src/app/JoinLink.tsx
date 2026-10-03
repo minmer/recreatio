@@ -10,6 +10,8 @@
 import { useEffect, useState } from 'react';
 
 import { accessWords, linkSecrets, redeemLink, showLink, type LinkInfo } from './linkAccess';
+import { loadCalendars } from './calendar';
+import { useLinkMe } from './linkMe';
 import type { SealedRole } from './keys';
 import { forgetKeys, keysFor } from './ringOf';
 import { personsOf } from './roles';
@@ -144,26 +146,87 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
 
 /**
  * Ohne Anmeldung, auf `#/dolacz/<T>`: der Link gilt in diesem Browser schon
- * (`linkKeep`) — wer kein Konto will, geht gleich zum Ziel.
+ * (`linkKeep`). Diese Seite sagt, WAS er hier gibt und wohin es geht — das
+ * Ziel, der Kalender.
+ *
+ * <b>Kein „dem Konto hinzufügen"</b> (Wunsch 2026-10-03): das wird nur dem
+ * angeboten, der angemeldet ist. Vorher stand hier zuerst die Anmeldung, und
+ * wer kein Konto hatte, hielt den Link für einen, der ein Konto verlangt. Die
+ * Anmeldung bleibt einen Klick entfernt — für den, der schon eines hat; erst
+ * danach fragt `JoinLink`, ob der Link ins Konto soll.
  */
-export function JoinWithoutAccount({ token }: { token: string | null }) {
-  const [info, setInfo] = useState<LinkInfo | null>(null);
+export function JoinWithoutAccount({ token, onSignIn }: { token: string | null; onSignIn: () => void }) {
+  const [info, setInfo] = useState<LinkInfo | null | undefined>(undefined);
+  const me = useLinkMe(true);
+  const [calendar, setCalendar] = useState(false);
+
   useEffect(() => {
     let alive = true;
-    if (token === null) return undefined;
-    void linkSecrets(token).then((s) => showLink(s.lookup)).then((found) => { if (alive) setInfo(found); }).catch(() => undefined);
+    if (token === null || token === '') { setInfo(null); return undefined; }
+    void linkSecrets(token).then((s) => showLink(s.lookup))
+      .then((found) => { if (alive) setInfo(found); }, () => { if (alive) setInfo(null); });
     return () => { alive = false; };
   }, [token]);
-  if (info === null || info.state !== null) return null;
+
+  /* Der Kalender — nur, wenn die Bereiche dieses Links einen haben. */
+  useEffect(() => {
+    if (me == null || info == null) return undefined;
+    let alive = true;
+    const areas = new Set(info.areas.map((a) => a.areaId));
+    loadCalendars()
+      .then((got) => got.calendars.some((c) => areas.has(c.areaId) && c.archived !== true), () => false)
+      .then((has) => { if (alive) setCalendar(has); });
+    return () => { alive = false; };
+  }, [me, info]);
+
+  if (info === undefined) return <p className="wk-lede">Sprawdzanie linku…</p>;
+
+  const signIn = (
+    <p className="wk-hint">
+      Masz konto? <button type="button" className="wk-link-btn" onClick={onSignIn}>Zaloguj się</button>
+    </p>
+  );
+
+  if (info === null) {
+    return (
+      <>
+        <h1 className="wk-h1">Link z dostępem</h1>
+        <p className="wk-error">Takiego linku nie ma — skopiuj go jeszcze raz w całości.</p>
+        {signIn}
+      </>
+    );
+  }
+
+  const writes = info.areas.some((a) => a.capability === 'write' || a.capability === 'admin');
+
   return (
-    <div className="wk-note wk-join-free">
-      <p><strong>{info.label ?? 'Link'}</strong> — {accessWords(info.areas)}.</p>
-      <p>
-        Bez konta ten dostęp działa w tej przeglądarce — na stronach, do których prowadzi (w kalendarzu na stronie także
-        dopisywanie, jeśli link na to pozwala).{info.aim !== null && <> <a href={`#/${info.aim}`}>Otwórz bez logowania</a>.</>}
-        {' '}Z kontem — na każdym urządzeniu i w całym warsztacie.
-      </p>
-    </div>
+    <>
+      <h1 className="wk-h1">Link z dostępem{info.label !== null ? `: ${info.label}` : ''}</h1>
+
+      <dl className="wk-facts">
+        <div className="wk-fact"><dt>Dostęp</dt><dd><ul className="wk-link-access">{info.areas.length === 0 ? <li>—</li> : info.areas.map((a) => <li key={a.areaId}><strong>{a.name}</strong> — {LEVEL_SAYS[a.capability] ?? a.capability}</li>)}</ul></dd></div>
+        <div className="wk-fact"><dt>Ważny do</dt><dd>{new Date(info.expiresAt).toLocaleDateString('pl-PL')}</dd></div>
+      </dl>
+
+      {info.state !== null ? (
+        <p className="wk-warn">{STATE_WORD[info.state] ?? 'Ten link już nie działa.'}</p>
+      ) : (
+        <>
+          <p className="wk-lede">
+            Działa w tej przeglądarce, bez logowania — na stronach tych obszarów
+            {calendar ? <> i w ich kalendarzu{writes ? ', także dopisywanie terminów' : ''}</> : null}.
+          </p>
+          {(info.aim !== null || calendar) && (
+            <div className="wk-actions">
+              {info.aim !== null && <a className="wk-btn" href={`#/${info.aim}`}>Otwórz</a>}
+              {calendar && <a className={info.aim !== null ? 'wk-btn wk-btn-line' : 'wk-btn'} href={viewPath('calendar')}>Kalendarz</a>}
+            </div>
+          )}
+        </>
+      )}
+
+      {signIn}
+    </>
   );
 }
 

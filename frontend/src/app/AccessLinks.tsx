@@ -284,7 +284,7 @@ function NewLink({ ring, self, areas, focusAreaId, busy, onCreate }: {
 
       <label className="wk-check">
         <input type="checkbox" checked={once} onChange={(e) => setOnce(e.target.checked)} />
-        <span>Jednorazowy — po dołączeniu jednej osoby do konta link przestaje działać</span>
+        <span>Jednorazowy — po dołączeniu jednej osoby do konta link przestaje działać (wcześniej działa w każdej przeglądarce, w której go otwarto)</span>
       </label>
 
       <label className="wk-field">

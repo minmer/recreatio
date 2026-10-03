@@ -10,6 +10,7 @@
  *   6. LaTeX: Fussnoten mit Quellen, Zitate, Überschriften, Źródła; entschärfte Zeichen.
  *   7. Program: ein Baum aus Teilen, nach Stelle und Zeit.
  *   9. Der Schlüssel zum Lesen: offengelegt, sonst aus der eigenen Zuteilung — und was es kostet.
+ *  10. Als Link handeln: die Beweise im Kopf, ein Bund aus Linkrollen.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -39,7 +40,9 @@ export { latexEscape, textToLatex, projectToLatex, missingKeys } from '${app}lib
 export { openProgram, countParts } from '${app}program';
 export { placeDay, treeOrder } from '${app}calendarModel';
 export { titleFrom } from '${app}chatTopics';
-export { sha256Bytes, toBase64Url, wrapKey } from '${app}crypto';
+export { sha256Bytes, toBase64Url, wrapKey, seal, aad, Field } from '${app}crypto';
+export { call, carryLinks, LINKS_HEADER } from '${app}session';
+export { Ring } from '${app}keys';
 export { areaReader } from '${app}areaRead';
 export { epochAad } from '${app}area';
 `);
@@ -525,6 +528,79 @@ try {
       globalThis.fetch = realFetch;
     }
     ok('reading key: published first, then the own grant; right epoch only; a visitor pays one request, signed in without keys is "locked"');
+  }
+
+  /* -- 10. Als Link handeln (`linkMe.ts`, `Caller` im Dienst) ------------------------------------ */
+  /*
+   * Ein Link mit Zugang ist eine Rolle. Ohne Konto handelt der Browser als sie: die Beweise reisen
+   * im Kopf mit — aber erst, wenn es eingeschaltet ist, und nicht mehr nach einer Anmeldung —, und
+   * ein Bund aus Linkrollen öffnet, was für die Linkrolle versiegelt wurde.
+   */
+  {
+    const realFetch = globalThis.fetch;
+    const seen = [];
+    const grants = new Map();
+    const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+    globalThis.fetch = async (url, init) => {
+      const path = String(url).replace(/^https?:\/\/[^/]+/, '');
+      seen.push({ path, links: new Headers(init?.headers ?? {}).get(m.LINKS_HEADER) });
+      const hit = /^\/workspace\/area\/([^/]+)\/keys$/.exec(path);
+      if (hit !== null) return json(200, { keys: grants.get(hit[1]) ?? [] });
+      return path === '/area/closed/key' ? json(404, { error: 'nie' }) : json(200, { ok: true });
+    };
+
+    try {
+      await m.call('/workspace/calendars');
+      assert.equal(seen.at(-1).links, null, 'a visitor without links sends no proofs');
+
+      m.carryLinks(async () => ['proofA', 'proofB']);
+      await m.call('/workspace/calendars');
+      assert.equal(seen.at(-1).links, 'proofA,proofB', 'acting as links: the proofs travel in the header');
+      await m.call('/workspace/item/x', { method: 'POST', body: '{}' });
+      assert.equal(seen.at(-1).links, 'proofA,proofB', 'on writes too');
+
+      m.carryLinks(async () => { throw new Error('storage gone'); });
+      await m.call('/workspace/calendars');
+      assert.equal(seen.at(-1).links, null, 'proofs that cannot be made never break the request');
+
+      m.carryLinks(async () => []);
+      await m.call('/workspace/calendars');
+      assert.equal(seen.at(-1).links, null, 'no links, no header');
+
+      m.carryLinks(null);
+      await m.call('/workspace/calendars');
+      assert.equal(seen.at(-1).links, null, 'switched off (a sign-in does this): the account acts');
+
+      /* Der Bund aus Linkrollen: der Rollenschlüssel kommt aus dem Link, nicht aus einem Konto. */
+      const pair = await crypto.subtle.generateKey(
+        { name: 'RSA-OAEP', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['encrypt', 'decrypt']);
+      const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey));
+      const pkcs8 = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey));
+      const roleKey = new Uint8Array(32).fill(9);
+      const areaKey = new Uint8Array(32).fill(4);
+      const role = {
+        id: 'link-role', kind: 'role', isPersonal: false, createdAt: '', displayNameSealed: null, wrapPublicKey: '', signPublicKey: '',
+        wrapPrivateSealed: m.toBase64Url(await m.seal(roleKey, m.aad('kernel', 'role', 'link-role', m.Field.RoleWrapPrivate, 1), pkcs8)),
+        signPrivateSealed: null, keyLayout: 1
+      };
+      const ring = m.Ring.ofRoles([{ role, key: roleKey }]);
+      assert.ok(ring.has('link-role') && !ring.has('someone-else'));
+      assert.deepEqual(await ring.wrapPrivate('link-role'), pkcs8, 'the ring opens the wrap key of the link role');
+
+      grants.set('closed', [{ roleId: 'link-role', epoch: 1, sealedBlob: m.toBase64Url(await m.wrapKey(spki, m.epochAad('closed', 1), areaKey)) }]);
+      assert.deepEqual(await m.areaReader(ring).key('closed', 1), areaKey, 'and with it the area key sealed for the link role');
+
+      /* `null` heisst: kein Weg über das Konto — dann wird die Sitzung gar nicht erst gefragt. */
+      seen.length = 0;
+      const noAccount = m.areaReader(null);
+      assert.equal(await noAccount.key('closed', 1), undefined);
+      assert.equal(noAccount.account(), 'none');
+      assert.ok(!seen.some((one) => one.path === '/session'), 'told there is no account, the reader does not ask for one');
+    } finally {
+      m.carryLinks(null);
+      globalThis.fetch = realFetch;
+    }
+    ok('acting as a link: proofs in the header only while switched on, a ring of link roles opens what is sealed for them');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

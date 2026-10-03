@@ -195,15 +195,21 @@ export function App() {
       );
     }
 
+    /*
+     * DER LINK OHNE ZIEL (`#/dolacz/<T>`), ohne Konto: was er hier gibt und
+     * wohin es geht — KEIN Angebot, ihn einem Konto hinzuzufügen. Das bekommt
+     * nur, wer angemeldet ist (`JoinLink`); die Anmeldung ist einen Klick weit.
+     */
+    if (address.route === 'dolacz' && !signInWanted) {
+      return (
+        <Shell>
+          <JoinWithoutAccount token={address.slug} onSignIn={() => setSignInWanted(true)} />
+        </Shell>
+      );
+    }
+
     return (
       <Shell>
-        {address.route === 'dolacz' && (
-          <>
-            <p className="wk-note">Masz zaproszenie. Zaloguj się albo załóż konto, żeby dodać ten dostęp do konta.</p>
-            <JoinWithoutAccount token={address.slug} />
-          </>
-        )}
-
         {/*
           Die übrigen Teile des Arbeitsplatzes brauchen ein Konto — und das wird
           GESAGT, statt den Menschen mit seinem Link vor einem Anmeldeformular
@@ -211,9 +217,8 @@ export function App() {
         */}
         {linked && view !== 'calendar' && (
           <p className="wk-note">
-            Masz w tej przeglądarce link z dostępem. Ta część warsztatu działa tylko z kontem: zaloguj się
-            albo załóż konto, a link dodasz do niego jednym przyciskiem. Bez konta link działa na stronach
-            i w <a className="wk-link" href={viewPath('calendar')}>kalendarzu</a>.
+            Ta część warsztatu działa tylko z kontem. Link z dostępem, który masz w tej przeglądarce, działa
+            bez logowania na stronach i w <a className="wk-link" href={viewPath('calendar')}>kalendarzu</a>.
           </p>
         )}
         <SignIn onDone={setWho} />
