@@ -37,7 +37,6 @@ import {
 } from './module';
 import { setPartConfig } from './form';
 import { PARTS, partLabel, partOf, takesEntries } from './parts/registry';
-import { PickAreas } from './PickAreas';
 import { PickChat } from './PickChat';
 import { PickForm, PickQuestions, pickedForm } from './FormPick';
 import { PickResource } from './PickResource';
@@ -473,8 +472,6 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
 
         const input = field.kind === 'chat' ? (
           <PickChat value={value} busy={busy} onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }} />
-        ) : field.kind === 'areas' ? (
-          <PickAreas value={value} busy={busy} onPick={(ids) => { setConfig({ ...config, [field.key]: ids }); void save(field.key, ids); }} />
         ) : field.kind === 'calendar' ? (
           <PickCalendar value={value} busy={busy} onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }} />
         ) : field.kind === 'calendarItem' ? (

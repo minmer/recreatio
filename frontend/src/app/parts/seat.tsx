@@ -19,6 +19,7 @@
 
 import type { ReactNode } from 'react';
 
+import { AskSetup } from '../AskSetup';
 import { definePart, picked, text, type RawConfig } from '../part';
 import { usePerson } from '../pagePerson';
 import { SeatTools } from '../SeatBar';
@@ -367,36 +368,30 @@ export const seatChatPart = definePart<ChatConfig>({
 
 interface AskConfig {
   readonly title: string;
-
-  /** An wen er schreiben kann — Bereiche, deren Rollen antworten (je einer eine eigene Rozmowa). */
-  readonly to: readonly string[];
 }
 
 /**
  * „NAPISZ DO NAS" — der Mensch mit dem Link fängt die Rozmowa „jeden na
- * jeden" selbst an, mit einem der genannten Bereiche (`audience.ts`, Zugang
- * `one`). Der Dienst bietet davon nur an, was mit seinem Formular zu tun hat
- * (`Chat.Ask.cs`); die anderen aus dem Formular sehen seine Rozmowa nicht.
+ * jeden" (`audience.ts`, Zugang `one`) selbst an. WER ANTWORTET und AUS
+ * WELCHEN FORMULAREN man schreiben darf, steht nicht in der Tafel, sondern am
+ * Baustein: sein Bereich mit den gewählten Rollen und seine Formulare
+ * (`AskSetup`, `Chat.Ask.cs`). Die anderen aus dem Formular sehen seine
+ * Rozmowa nicht.
  */
 export const seatAskPart = definePart<AskConfig>({
   kind: 'seat-ask',
 
-  example: { title: 'Napisz do nas', to: '<id-obszaru-1>,<id-obszaru-2>' },
+  example: { title: 'Napisz do księdza' },
+  extra: [{ key: 'title', shape: 'line', says: 'nagłówek; kto odpowiada i z których formularzy można pisać, ustawia się w module (nie w JSON)' }],
   label: 'Napisz do nas',
-  use: 'Osoba z linkiem sama zaczyna rozmowę z wybranymi rolami (obszarem) — inni z formularza jej nie widzą.',
+  use: 'Osoba z linkiem (z wybranych formularzy) sama zaczyna rozmowę z wybranymi rolami — inni z formularza jej nie widzą.',
   box: { colSpan: 3, rowSpan: 5 },
 
-  fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Napisz do księdza' },
-    { key: 'to', label: 'Do kogo można napisać', kind: 'areas' }
-  ],
+  fields: [],
+  Editor: AskSetup,
 
-  read: (raw: RawConfig): AskConfig => ({
-    title: text(raw, 'title'),
-    to: text(raw, 'to').split(',').map((one) => one.trim()).filter((one) => one !== '')
-  }),
+  read: (raw: RawConfig): AskConfig => ({ title: text(raw, 'title') }),
   hasContent: () => true,
-  missing: (config) => config.to.length === 0 ? 'Wybierz, do kogo osoba z linkiem może napisać.' : null,
   strip: { title: 'Napisz do nas', open: 'Otwórz rozmowę' },
   fullscreen: true,
   shows: (_config, size) => size.height === 'strip'

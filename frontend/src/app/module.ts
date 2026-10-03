@@ -110,6 +110,9 @@ export interface ModuleRow {
 
   /** 0077 — wie oft eine Erweiterung je Mensch ausgefüllt wird (`rounds.ts`). Fehlt es: einmal. */
   readonly repeat?: Repeat;
+
+  /** 0081 — die Formulare, deren Menschen an diesen Baustein schreiben dürfen („Napisz do nas"). */
+  readonly formIds?: readonly string[];
 }
 
 /**

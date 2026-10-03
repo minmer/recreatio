@@ -24,7 +24,6 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { areaPath, loadAreas, type AreaRow } from './area';
 import { loadCalendars, type CalendarRow } from './calendar';
 import { linkAudienceForm } from './audience';
 import { loadChats, type ChatRow } from './chat';
@@ -68,10 +67,9 @@ const NODE_TYPES = { box: Box };
 function sourceKey(kind: string, target: Kind): { key: string; many: boolean } | null {
   const def = partOf(kind);
   if (def === undefined) return null;
-  const want = target === 'calendar' ? ['calendar', 'calendars'] : target === 'library' ? ['library'] : target === 'chat' ? ['chat']
-    : target === 'area' ? ['areas'] : [];
+  const want = target === 'calendar' ? ['calendar', 'calendars'] : target === 'library' ? ['library'] : target === 'chat' ? ['chat'] : [];
   const field = def.fields.find((f) => want.includes(f.kind));
-  return field === undefined ? null : { key: field.key, many: field.kind === 'calendars' || field.kind === 'areas' };
+  return field === undefined ? null : { key: field.key, many: field.kind === 'calendars' };
 }
 
 const idsIn = (value: string | undefined) => (value ?? '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -88,7 +86,6 @@ interface World {
   readonly calendars: readonly CalendarRow[];
   readonly libraries: readonly LibraryRow[];
   readonly chats: readonly ChatRow[];
-  readonly areas: readonly AreaRow[];
 }
 
 export function DependencyMap() {
@@ -99,12 +96,11 @@ export function DependencyMap() {
 
   const look = useCallback(async () => {
     try {
-      const [desk, modules, calendars, libraries, chats, areas] = await Promise.all([
+      const [desk, modules, calendars, libraries, chats] = await Promise.all([
         loadDesk(), loadModules(), loadCalendars().catch(() => ({ calendars: [] as readonly CalendarRow[] })),
-        loadLibraries().catch(() => ({ libraries: [] as readonly LibraryRow[] })), loadChats().catch(() => ({ chats: [] as readonly ChatRow[] })),
-        loadAreas().catch(() => ({ areas: [] as readonly AreaRow[] }))
+        loadLibraries().catch(() => ({ libraries: [] as readonly LibraryRow[] })), loadChats().catch(() => ({ chats: [] as readonly ChatRow[] }))
       ]);
-      setWorld({ desk, modules: modules.modules, calendars: calendars.calendars, libraries: libraries.libraries, chats: chats.chats, areas: areas.areas });
+      setWorld({ desk, modules: modules.modules, calendars: calendars.calendars, libraries: libraries.libraries, chats: chats.chats });
       setFailed(null);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać mapy.');
@@ -151,20 +147,27 @@ export function DependencyMap() {
         lines.push({ id: `data:${m.moduleId}`, source: `module:${m.moduleId}`, target: `area:${m.areaId}`, label: 'dane w', deletable: false, className: 'is-fixed', data: { rel: 'fixed' } });
       }
       const config = readConfig(m.config);
-      /* 0081 — und die Bereiche, an die ein Baustein schreiben lässt („Napisz do nas"): Linie „do". */
-      for (const target of ['calendar', 'library', 'chat', 'area'] as const) {
+      for (const target of ['calendar', 'library', 'chat'] as const) {
         const field = sourceKey(m.kind, target);
         if (field === null) continue;
         for (const id of idsIn(config[field.key])) {
           const label = target === 'calendar' ? world.calendars.find((c) => c.calendarId === id)?.title ?? 'kalendarz'
             : target === 'chat' ? chatLabel(world.chats.find((c) => c.chatId === id))
-            : target === 'area' ? (world.areas.some((a) => a.areaId === id) ? areaPath(world.areas, id).short : 'obszar')
             : 'biblioteka';
-          place(`${target}:${id}`, { kind: target, label, sub: target === 'library' ? id.slice(0, 8) : '', href: target === 'area' ? viewPath('areas', id) : undefined });
-          lines.push({ id: `src:${m.moduleId}:${target}:${id}`, source: `module:${m.moduleId}`, target: `${target}:${id}`, label: target === 'area' ? 'do' : 'z', data: { rel: 'source', key: field.key, many: field.many, id } });
+          place(`${target}:${id}`, { kind: target, label, sub: target === 'library' ? id.slice(0, 8) : '' });
+          lines.push({ id: `src:${m.moduleId}:${target}:${id}`, source: `module:${m.moduleId}`, target: `${target}:${id}`, label: 'z', data: { rel: 'source', key: field.key, many: field.many, id } });
         }
       }
     }
+    /* 0081 — ein Formular an „Napisz do nas": wer es ausgefüllt hat, darf dort anfangen. */
+    for (const m of modules) {
+      for (const formId of m.formIds ?? []) {
+        if (!modules.some((x) => x.moduleId === formId)) continue;
+        lines.push({ id: `ask:${formId}:${m.moduleId}`, source: `module:${formId}`, target: `module:${m.moduleId}`,
+          label: 'piszą do', data: { rel: 'ask', subject: m.moduleId, moduleId: formId } });
+      }
+    }
+
     /* 0080 — ein Formular an einer Rozmowa: wer es ausgefüllt hat, liest (Kanał) oder schreibt mit. */
     for (const c of world.chats) {
       for (const moduleId of c.formIds ?? []) {
@@ -208,6 +211,14 @@ export function DependencyMap() {
       const [target, id] = c.target.split(':') as [Kind, string];
       if (m === undefined || id === undefined) return;
 
+      /* 0081 — ein Formular zu „Napisz do nas": wer es ausgefüllt hat, darf dort anfangen. */
+      const target2 = target === 'module' ? world.modules.find((x) => x.moduleId === id) : undefined;
+      if (m.kind === 'form' && target2?.kind === 'seat-ask') {
+        if (!window.confirm(`Dołączyć formularz „${m.name}" do „${target2.name}"? Kto go wypełnił, będzie mógł tam zacząć rozmowę.`)) return;
+        void act('Dołączanie formularza…', () => linkAudienceForm('module', id, m.moduleId, true));
+        return;
+      }
+
       /* 0080 — ein Formular zu einer Rozmowa: wer es ausgefüllt hat, ist dabei. */
       const chat = target === 'chat' ? world.chats.find((x) => x.chatId === id) : undefined;
       if (m.kind === 'form' && takesForms(chat)) {
@@ -234,6 +245,11 @@ export function DependencyMap() {
           const page = await loadPage(path);
           await saveParts(path, page.parts.map(toDraft).filter((p) => p.moduleId !== m.moduleId));
         });
+      } else if (rel === 'ask') {
+        const info = edge.data as { subject: string; moduleId: string };
+        const m = moduleOf(edge.source);
+        if (!window.confirm(`Odłączyć formularz „${m?.name ?? 'formularz'}"? Kto go wypełnił, nie zacznie już tu rozmowy (zaczęte zostają).`)) { void look(); continue; }
+        void act('Odłączanie formularza…', () => linkAudienceForm('module', info.subject, info.moduleId, false));
       } else if (rel === 'audience') {
         const info = edge.data as { chatId: string; moduleId: string };
         const m = moduleOf(edge.source);
