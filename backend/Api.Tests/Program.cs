@@ -41,6 +41,8 @@ Check(ChatRules.SeatOfChat.Contains(people), "the chat asks the audience who its
 var unknown = false;
 try { Audience.PeopleOf("nothing", "x.id", "x.area_id"); } catch (ArgumentException) { unknown = true; }
 Check(unknown, "only registered things have an audience");
+/* 0081 — „Napisz do nas" is a thing with an audience too: its forms' people may start there. */
+Check(Audience.PeopleOf("module", "m.id", "m.area_id").Contains("af.subject_kind = N'module'"), "a module's people come from its forms");
 var now = DateTimeOffset.Parse("2026-09-30T12:00:00Z");
 Check(ChatRules.ValidSchedule(null, now), "immediate message accepted");
 Check(!ChatRules.ValidSchedule(now, now), "schedule at current instant rejected");
