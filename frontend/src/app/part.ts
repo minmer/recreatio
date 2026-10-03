@@ -142,6 +142,8 @@ export interface PartContext {
  * Feld, das an der anderen Stelle zum Textkasten wird.
  */
 export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'calendar' | 'calendars' | 'chat' | 'library' | 'libraryEntry'
+  /* 0081 — Bereiche (ihre Rollen), etwa: an wen eine Person mit Link schreiben kann. */
+  | 'areas'
   /* 0070 — ein Termin eines Kalenders (`of` nennt das Feld mit dem Kalender). */
   | 'calendarItem';
 
@@ -314,7 +316,7 @@ export interface ExtraKey {
 
 /** Wie ein Feld der Tafel im JSON steht. */
 const shapeOfField = (kind: FieldKind): JsonShape =>
-  kind === 'text' ? 'lines' : kind === 'calendars' || kind === 'questions' ? 'ids' : 'line';
+  kind === 'text' ? 'lines' : kind === 'calendars' || kind === 'questions' || kind === 'areas' ? 'ids' : 'line';
 
 /** Was eine Feldart im JSON heisst — für die Beschreibung. */
 const FIELD_SAYS: Record<FieldKind, string> = {
@@ -328,7 +330,8 @@ const FIELD_SAYS: Record<FieldKind, string> = {
   chat: 'identyfikator rozmowy grupy — najprościej wybrać w edytorze',
   library: 'identyfikator biblioteki — najprościej wybrać w edytorze',
   libraryEntry: 'identyfikator opublikowanego wpisu biblioteki — najprościej wybrać w edytorze',
-  calendarItem: 'identyfikator terminu z wybranego kalendarza — najprościej wybrać w edytorze'
+  calendarItem: 'identyfikator terminu z wybranego kalendarza — najprościej wybrać w edytorze',
+  areas: 'lista identyfikatorów obszarów (odpowiadają ich role) — najprościej wybrać w edytorze'
 };
 
 /** Eine Zeile des JSON als gespeicherter Wert — oder `null`: nichts. */

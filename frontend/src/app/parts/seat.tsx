@@ -24,7 +24,7 @@ import { usePerson } from '../pagePerson';
 import { SeatTools } from '../SeatBar';
 import { seatName, useSeats, type SeatView } from '../seatContext';
 import { PageSteps } from '../PageLogicView';
-import { SeatChatBody } from '../SeatChatView';
+import { SeatAskBody, SeatChatBody } from '../SeatChatView';
 import { OwnSubmissions } from '../Submission';
 
 /**
@@ -338,7 +338,7 @@ export const seatChatPart = definePart<ChatConfig>({
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
   example: { title: 'Rozmowa grupy' },
   label: 'Rozmowa grupy',
-  use: 'Rozmowa obszaru, do którego prowadzi link — osoba z linkiem czyta w niej i pisze.',
+  use: 'Rozmowy osoby z linkiem: z prowadzącymi, kanały i rozmowy grup, do których należy.',
   box: { colSpan: 3, rowSpan: 5 },
 
   fields: [{ key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Rozmowa grupy' }],
@@ -359,6 +359,57 @@ export const seatChatPart = definePart<ChatConfig>({
       empty="Tu pojawi się rozmowa grupy — dla osoby, która otworzy swój link."
     >
       {(seat) => <SeatChatBody seat={seat} />}
+    </OnSeat>
+  )
+});
+
+/* -- Er fängt selbst an (0081) ------------------------------------------------------ */
+
+interface AskConfig {
+  readonly title: string;
+
+  /** An wen er schreiben kann — Bereiche, deren Rollen antworten (je einer eine eigene Rozmowa). */
+  readonly to: readonly string[];
+}
+
+/**
+ * „NAPISZ DO NAS" — der Mensch mit dem Link fängt die Rozmowa „jeden na
+ * jeden" selbst an, mit einem der genannten Bereiche (`audience.ts`, Zugang
+ * `one`). Der Dienst bietet davon nur an, was mit seinem Formular zu tun hat
+ * (`Chat.Ask.cs`); die anderen aus dem Formular sehen seine Rozmowa nicht.
+ */
+export const seatAskPart = definePart<AskConfig>({
+  kind: 'seat-ask',
+
+  example: { title: 'Napisz do nas', to: '<id-obszaru-1>,<id-obszaru-2>' },
+  label: 'Napisz do nas',
+  use: 'Osoba z linkiem sama zaczyna rozmowę z wybranymi rolami (obszarem) — inni z formularza jej nie widzą.',
+  box: { colSpan: 3, rowSpan: 5 },
+
+  fields: [
+    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Napisz do księdza' },
+    { key: 'to', label: 'Do kogo można napisać', kind: 'areas' }
+  ],
+
+  read: (raw: RawConfig): AskConfig => ({
+    title: text(raw, 'title'),
+    to: text(raw, 'to').split(',').map((one) => one.trim()).filter((one) => one !== '')
+  }),
+  hasContent: () => true,
+  missing: (config) => config.to.length === 0 ? 'Wybierz, do kogo osoba z linkiem może napisać.' : null,
+  strip: { title: 'Napisz do nas', open: 'Otwórz rozmowę' },
+  fullscreen: true,
+  shows: (_config, size) => size.height === 'strip'
+    ? 'Nagłówek i przycisk — rozmowa rozwija się po kliknięciu.'
+    : 'Przycisk „Napisz do: …", a potem rozmowa tej osoby z wybranymi rolami.',
+
+  View: ({ config, ctx }) => (
+    <OnSeat
+      title={config.title}
+      fallback="Napisz do nas"
+      empty="Tu osoba, która otworzy swój link, napisze do wybranych osób — tylko one i ona widzą tę rozmowę."
+    >
+      {(seat) => <SeatAskBody seat={seat} moduleId={ctx.moduleId} />}
     </OnSeat>
   )
 });

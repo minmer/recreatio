@@ -33,7 +33,7 @@ import { chatEndpoint, reportChatSeen } from './chatFeatures';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
-  areaKeys, authorOf, chatKeysOf, deleteMessage, deliverSeatKeys, editMessage, loadChat, loadMessages, loadVersions,
+  areaKeys, authorOf, chatKeysOf, deleteMessage, deliverSeatKeys, editMessage, keyHolderOf, loadChat, loadMessages, loadVersions,
   markRead, openMessage, openNames, openVersion, restoreMessage, sendMessage, fixedPolicy,
   type ChatDetail, type Opened, type SealedMessage, type SealedVersion, type SendOptions
 } from './chat';
@@ -170,7 +170,7 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
       setUnreadAfter((was) => (was === undefined ? found.readAt : was));
 
       /* Wer mit Link wartet, bekommt seinen Schlüssel, sobald ein Mitglied hereinschaut. */
-      const by = found.writers[0];
+      const by = keyHolderOf(found, ring);
       if (by !== undefined && found.seats.some((one) => one.wrapPublicKey !== null && !one.epochs.includes(found.currentEpoch))) {
         void deliverSeatKeys(found, held, by).catch(() => undefined);
       }

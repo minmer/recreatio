@@ -23,8 +23,9 @@ import { authorOf, openMessage, openVersion, type Opened, type SealedMessage, ty
 import { HistoryDialog } from './MessageBits';
 import type { SeatView } from './seatContext';
 import {
-  chatNameFor, deleteSeatMessage, editSeatMessage, keepChatName, loadSeatChats, loadSeatMessages, loadSeatVersions,
-  restoreSeatMessage, seatChatKeys, seatIdentity, sendSeatMessage, type SeatChatRow, type SeatIdentity
+  chatNameFor, deleteSeatMessage, editSeatMessage, keepChatName, keepQueued, loadAsk, loadSeatChats, loadSeatMessages, loadSeatVersions,
+  queuedFor, restoreSeatMessage, seatChatKeys, seatIdentity, sendSeatMessage, startAsk,
+  type AskTarget, type Queued, type SeatChatRow, type SeatIdentity
 } from './seatChat';
 import { WorkspaceError } from './session';
 import { createTopic, loadTopics, openTopics, type Topic } from './chatTopics';
@@ -56,6 +57,9 @@ interface SeatChats {
   readonly chats: readonly Ready[] | undefined;
   readonly identity: SeatIdentity | null;
   readonly failed: string | null;
+
+  /** Noch einmal nachsehen — etwa nachdem er selbst eine Rozmowa angefangen hat (0081). */
+  readonly look: () => Promise<void>;
 }
 
 /** Die Rozmowy eines Platzes, mit den Schlüsseln, die schon bei ihm sind. */
@@ -94,7 +98,7 @@ export function useSeatChats(seat: SeatView): SeatChats {
     return () => window.clearInterval(timer);
   }, [waiting, look]);
 
-  return { chats, identity, failed };
+  return { chats, identity, failed, look };
 }
 
 /** Für die eingebauten Abschnitte: je Rozmowa ein Abschnitt — oder nichts. */
@@ -149,6 +153,132 @@ export function SeatChatBody({ seat, only }: { seat: SeatView; only?: string }) 
       ))}
       {chats.length === 1 && <p className="wk-hint">{seatWho(chats[0].row)}</p>}
     </>
+  );
+}
+
+/**
+ * 0081 — „NAPISZ DO NAS": der Mensch mit dem Link fängt die Rozmowa „jeden na
+ * jeden" mit einem der Bereiche an, die der Baustein nennt. Der Dienst bietet
+ * davon nur an, was mit ihm zu tun hat; gibt es die Rozmowa schon (er oder der
+ * Bereich hat angefangen), steht sie gleich da.
+ */
+export function SeatAskBody({ seat, moduleId }: { seat: SeatView; moduleId: string }) {
+  const { chats, identity, look } = useSeatChats(seat);
+  const [to, setTo] = useState<readonly AskTarget[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const { token } = seat;
+
+  const lookTo = useCallback(async () => {
+    try {
+      setTo((await loadAsk(token, moduleId)).to);
+    } catch (e) {
+      setTo([]);
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się sprawdzić, do kogo można napisać.');
+    }
+  }, [token, moduleId]);
+  useEffect(() => { void lookTo(); }, [lookTo]);
+
+  if (to === null || chats === undefined) return <p className="wk-card-muted">Wczytywanie…</p>;
+  if (to.length === 0) return <p className="wk-card-muted">{failed ?? 'Z Twojego linku nie można stąd do nikogo napisać.'}</p>;
+
+  const start = async (target: AskTarget) => {
+    setBusy(target.areaId);
+    setFailed(null);
+    try {
+      await startAsk(token, moduleId, target.areaId);
+      await lookTo();
+      await look();
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zacząć rozmowy.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <>
+      {to.map((target) => {
+        const ready = target.chatId === null ? undefined : chats.find((one) => one.row.chatId === target.chatId);
+        return (
+          <section key={target.areaId} className="wk-seat-chat">
+            {to.length > 1 && <h3 className="wk-seat-who">Do: {target.name}</h3>}
+            {ready !== undefined
+              ? <SeatChatRoom seat={seat} chat={ready} identity={identity} />
+              : (
+                <div className="wk-actions">
+                  <button type="button" className="wk-btn" disabled={busy !== null} onClick={() => void start(target)}>
+                    {busy === target.areaId ? 'Otwieranie…' : `Napisz do: ${target.name}`}
+                  </button>
+                </div>
+              )}
+            <p className="wk-hint">Rozmowę widzisz Ty i osoby prowadzące „{target.name}" — inni, którzy wypełnili formularz, jej nie widzą.</p>
+          </section>
+        );
+      })}
+      {failed !== null && <p className="wk-error">{failed}</p>}
+    </>
+  );
+}
+
+/**
+ * 0081 — DIE ROZMOWA IST DA, DER SCHLÜSSEL NOCH NICHT. Er kann schon
+ * schreiben: der Browser hält es (`queuedFor`) und schickt es, sobald der
+ * Schlüssel ankommt. Im Kanał gibt es nichts zu schreiben — dort nur der Satz.
+ */
+function Waiting({ seat, row }: { seat: SeatView; row: SeatChatRow }) {
+  const [list, setList] = useState<readonly Queued[]>(() => queuedFor(seat.seatId, row.chatId));
+  const [text, setText] = useState('');
+  const known = chatNameFor(seat.seatId);
+  const [name, setName] = useState(() => known ?? seat.recipientName ?? '');
+  const writes = row.kind !== 'channel';
+
+  const keep = (next: readonly Queued[]) => { keepQueued(seat.seatId, row.chatId, next); setList(next); };
+  const add = () => {
+    const said = text.trim();
+    if (said === '' || name.trim() === '') return;
+    keepChatName(seat.seatId, name.trim());
+    keep([...list, { text: said, at: new Date().toISOString() }]);
+    setText('');
+  };
+
+  return (
+    <div className="wk-seat-wait">
+      <p className="wk-note">
+        {seatName(row)} otworzy się tutaj, gdy tylko ktoś z prowadzących będzie w aplikacji — wtedy jego przeglądarka
+        przekaże Ci klucz. Strona sprawdza to sama; nie musisz nic robić.
+      </p>
+      {writes && (
+        <>
+          {list.length > 0 && (
+            <ul className="wk-seat-queue">
+              {list.map((one, at) => (
+                <li key={`${one.at}-${at}`}>
+                  <span>{one.text}</span>
+                  <button type="button" className="wk-link-btn" onClick={() => keep(list.filter((_, i) => i !== at))}>Usuń</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {list.length > 0 && <p className="wk-hint">Czeka na wysłanie — pójdzie samo, gdy rozmowa się otworzy (z tego urządzenia).</p>}
+          <form className="wk-form" onSubmit={(e) => { e.preventDefault(); add(); }}>
+            {known === null && (
+              <label className="wk-field">
+                <span>Jak się podpisać</span>
+                <input value={name} maxLength={80} placeholder="np. Jan Kowalski" onChange={(e) => setName(e.target.value)} />
+              </label>
+            )}
+            <label className="wk-field">
+              <span>{list.length === 0 ? 'Możesz już napisać' : 'Dopisz'}</span>
+              <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} />
+            </label>
+            <div className="wk-actions">
+              <button type="submit" className="wk-btn" disabled={text.trim() === '' || name.trim() === ''}>Zostaw wiadomość</button>
+            </div>
+          </form>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -250,6 +380,37 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
     return () => window.clearInterval(timer);
   }, [loaded, token, chatId, last, lastId, open, pullChanged]);
 
+  /*
+   * 0081 — WAS WARTETE, GEHT JETZT HINAUS: sobald der Schlüssel da ist, die
+   * Identität steht und das erste Bild geladen ist — einmal, der Reihe nach.
+   */
+  const flushing = useRef(false);
+  useEffect(() => {
+    if (keys.size === 0 || identity === null || !loaded || flushing.current) return;
+    const waiting = queuedFor(seatId, chatId);
+    const signedAs = chatNameFor(seatId) ?? seat.recipientName ?? '';
+    if (waiting.length === 0 || signedAs.trim() === '') return;
+    flushing.current = true;
+    void (async () => {
+      let left = [...waiting];
+      try {
+        for (const one of waiting) {
+          const done = await sendSeatMessage(token, seatId, chatId, keys, identity, one.text, signedAs, {});
+          left = left.slice(1);
+          keepQueued(seatId, chatId, left);
+          setShown((was) => [...(was ?? []), {
+            message: { messageId: done.messageId, authorRoleId: null, authorSeatId: seatId, epoch: done.epoch, bodySealed: '', createdAt: done.createdAt, deletedAt: null, topicId: null },
+            opened: { text: one.text, name: signedAs }
+          }]);
+        }
+      } catch (e) {
+        setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać czekającej wiadomości.');
+      } finally {
+        flushing.current = false;
+      }
+    })();
+  }, [keys, identity, loaded, token, seatId, chatId, seat.recipientName]);
+
   const earlier = useCallback(async () => {
     const first = shown?.[0];
     if (first === undefined) return;
@@ -259,14 +420,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
     setMore(messages.length >= 60);
   }, [token, chatId, shown, open]);
 
-  if (keys.size === 0) {
-    return (
-      <p className="wk-note">
-        {seatName(chat.row)} otworzy się tutaj, gdy tylko ktoś z prowadzących do niej
-        zajrzy — wtedy jego przeglądarka przekaże Ci klucz. Strona sprawdza to sama; nie musisz nic robić.
-      </p>
-    );
-  }
+  if (keys.size === 0) return <Waiting seat={seat} row={chat.row} />;
 
   const signed = name.trim();
   const mine = (message: SealedMessage) => message.authorSeatId === seatId;

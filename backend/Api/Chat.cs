@@ -56,6 +56,7 @@ public static partial class Chat
     {
         MapFeatures(app);
         MapTopics(app);
+        MapAsk(app);
         app.MapGet("/workspace/chats", ListAsync);
         app.MapPost("/workspace/chats", CreateAsync);
         app.MapGet("/workspace/chat/{id:guid}", ShowAsync);

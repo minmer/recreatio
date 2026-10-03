@@ -34,7 +34,7 @@
 
 import { API, call, keepsKey, type Who } from './session';
 import { background, native, notices } from './platform';
-import { gatherNews, type ReminderNotice } from './notifyRich';
+import { gatherNews, handOverWaiting, type ReminderNotice } from './notifyRich';
 import { viewPath } from './routes';
 import { toBase64Url } from './crypto';
 
@@ -59,7 +59,11 @@ export interface Digest {
   readonly now: string;
   readonly since: string;
   readonly total: number;
-  readonly chats: { readonly unread: number; readonly loud: number; readonly list: readonly DigestChat[]; /** 0076 */ readonly newestAt?: string | null };
+  readonly chats: {
+    readonly unread: number; readonly loud: number; readonly list: readonly DigestChat[]; /** 0076 */ readonly newestAt?: string | null;
+    /** 0081 — Rozmowy, in denen ein Mensch mit Link auf seinen Schlüssel wartet. */
+    readonly waiting?: readonly string[];
+  };
   readonly registrations: { readonly count: number; readonly list: readonly DigestForm[] };
   readonly links: number;
   readonly tasks: number;
@@ -215,6 +219,7 @@ function accept(digest: Digest, mine: boolean): void {
   emit();
   if (mine) {
     channel?.postMessage({ digest });
+    handOverKeys(digest);
     ring(digest);
     void background.seen({
       unread: digest.chats.loud, forms: digest.registrations.count, links: digest.links, since: seenSince(),
@@ -225,6 +230,18 @@ function accept(digest: Digest, mine: boolean): void {
     /* Der andere Tab hat schon gemeldet — dasselbe klingelt hier nicht noch einmal. */
     told = toldOf(digest);
   }
+}
+
+/*
+ * 0081 — DEN SCHLÜSSEL WEITERGEBEN, wo jemand mit Link wartet: nur der Tab, der
+ * gefragt hat, und einer nach dem anderen.
+ */
+let handing = false;
+function handOverKeys(digest: Digest): void {
+  const waiting = digest.chats.waiting ?? [];
+  if (waiting.length === 0 || richWho === null || handing) return;
+  handing = true;
+  void handOverWaiting(richWho, waiting).catch(() => 0).finally(() => { handing = false; });
 }
 
 /* -- Was klingelt ---------------------------------------------------------------- */

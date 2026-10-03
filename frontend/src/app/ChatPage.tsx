@@ -35,7 +35,7 @@ import { Segment } from './Areas';
 import {
   addToChat, areaKeys, authorOf, chatKeysOf, deleteMessage, deliverPending, deliverSeatKeys, editMessage, loadChat, loadChats,
   loadMessages, loadVersions, looksLikeCode, markRead, openMessage, openNames, openVersion, restoreMessage, roleCard,
-  sendMessage, setMemberName, startAreaChat, startOwnChat, startSelfChat, chatMode, fixedPolicy,
+  sendMessage, setMemberName, startAreaChat, startOwnChat, startSelfChat, chatMode, fixedPolicy, keyHolderOf,
   type ChatDetail, type ChatRow, type Invitee, type Opened, type SealedMessage, type SealedVersion, type SendOptions
 } from './chat';
 import { HistoryDialog } from './MessageBits';
@@ -782,7 +782,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
       setUnreadAfter((was) => (was === undefined ? found.readAt : was));
 
       /* Wer mit Link wartet, bekommt seinen Schlüssel, sobald jemand von hier hereinschaut. */
-      const by = found.writers[0];
+      const by = keyHolderOf(found, me.ring);
       if (by !== undefined && found.seats.some((one) => one.wrapPublicKey !== null && !one.epochs.includes(found.currentEpoch))) {
         void deliverSeatKeys(found, held, by).catch(() => undefined);
       }

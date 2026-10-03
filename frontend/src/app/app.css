@@ -7112,3 +7112,9 @@ a.wk-toast-body:focus-visible { outline: 2px solid var(--wk-accent); outline-off
 .wk-seat-meet label { display: inline-flex; align-items: center; gap: 6px; }
 .wk-seat-meet select { max-width: 100%; }
 .wk-seat-meet .wk-hint { flex-basis: 100%; margin: 0; }
+
+/* 0081 — was der Mensch mit Link schon geschrieben hat, solange der Schlüssel unterwegs ist. */
+.wk-seat-wait { display: grid; gap: 10px; }
+.wk-seat-queue { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.wk-seat-queue li { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; padding: 8px 12px; border: 1px dashed var(--wk-line); border-radius: 12px; background: var(--wk-soft); color: var(--wk-ink); }
+.wk-seat-queue li span { white-space: pre-wrap; overflow-wrap: anywhere; }

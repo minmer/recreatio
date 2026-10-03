@@ -188,6 +188,37 @@ public static class Notify
         for (var i = 0; i < chats.Count; i++)
             if (await Chat.QuietAsync(connection, account, chats[i].Id, ct)) chats[i] = chats[i] with { Quiet = true };
 
+        /*
+         * -- 0081: WER AUF SEINEN SCHLÜSSEL WARTET. Rozmowy meiner Bereiche, in denen
+         * ein Mensch mit Link schon da ist (seine Identität steht), aber den
+         * Chatschlüssel der laufenden Epoche noch nicht hat — etwa weil er eben
+         * selbst angefangen hat („Napisz do nas"). Die App eines Mitglieds gibt ihn
+         * weiter, sobald sie das hier liest; niemand muss dafür die Rozmowa öffnen.
+         */
+        var waiting = new List<Guid>();
+        if (!countsOnly && mine.Count > 0)
+        {
+            var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
+            await using var cmd = new SqlCommand($"""
+                SELECT TOP 20 c.id FROM app.chat c
+                JOIN app.area a ON a.id = c.area_id
+                WHERE c.kind IN (N'area', N'channel', N'seat')
+                  AND c.area_id IN (
+                    SELECT scope_id FROM app.certificate
+                    WHERE scope_kind = N'area' AND revoked_at IS NULL AND expires_at > @now
+                      AND capability IN (N'read', N'write', N'admin') AND subject_role_id IN ({names}))
+                  AND EXISTS (
+                    SELECT 1 FROM app.access s JOIN app.seat_identity i ON i.access_id = s.id
+                    WHERE {ChatRules.SeatOfChat} AND {Audience.LiveSeat("s")}
+                      AND NOT EXISTS (SELECT 1 FROM app.chat_seat_key k
+                                       WHERE k.chat_id = c.id AND k.access_id = s.id AND k.epoch = a.current_epoch));
+                """, connection);
+            cmd.Parameters.AddWithValue("@now", now);
+            for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i]);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) waiting.Add(reader.GetGuid(0));
+        }
+
         /* -- Anmeldungen: neu seit `since`, in Formularen, deren Bereich ich lesen kann. */
         var held = await Agenda.HeldAreasAsync(connection, account, ct);
         var forms = new List<(Guid Id, string Name, int Count, DateTimeOffset Last)>();
@@ -258,6 +289,9 @@ public static class Notify
                  * in einer anderen etwas Neues —, und öffnet nur dann den Inhalt.
                  */
                 newestAt = chats.Where(c => !c.Quiet).Select(c => c.Last).Max(),
+
+                /* 0081 — wo ein Mensch mit Link auf seinen Schlüssel wartet: die App gibt ihn weiter. */
+                waiting = waiting.Select(Ids.ToText).ToList(),
                 list = countsOnly ? [] : chats.OrderByDescending(c => c.Last).Take(30).Select(c => (object)new
                 {
                     chatId = Ids.ToText(c.Id),

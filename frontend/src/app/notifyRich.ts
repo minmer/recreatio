@@ -20,7 +20,7 @@
 
 import { loadAreas } from './area';
 import {
-  areaKeys, chatKeysOf, loadAreaNames, loadChat, loadMessages, markRead, openMessage, openNames, sendMessage,
+  areaKeys, chatKeysOf, handOver, loadAreaNames, loadChat, loadMessages, markRead, openMessage, openNames, sendMessage,
   type ChatDetail, type Opened, type SealedMessage
 } from './chat';
 import { fullNameOf, loadFields, loadRegistrations, openSubmission, type Submission } from './form';
@@ -203,6 +203,18 @@ async function opener(who: Who | null): Promise<Opener | 'session' | 'key'> {
   const { ring, graph } = await keysFor(who);
   if (ring === null) return 'key';
   return { who, ring, roles: graph.roles.filter((r) => r.kind !== 'account' && ring.has(r.id)) };
+}
+
+/**
+ * 0081 — WER AUF SEINEN SCHLÜSSEL WARTET, bekommt ihn von dieser App: die
+ * Glocke nennt die Rozmowy (`waiting`), der Schlüsselbund dieses Geräts
+ * verpackt ihn. Ohne offenen Schlüsselbund geschieht nichts — beim nächsten Mal.
+ */
+export async function handOverWaiting(who: Who, chatIds: readonly string[]): Promise<number> {
+  if (chatIds.length === 0) return 0;
+  const me = await opener(who);
+  if (me === 'session' || me === 'key') return 0;
+  return handOver(me.ring, chatIds);
 }
 
 const locked = (reason: 'session' | 'key'): News => ({ state: 'locked', reason, conversations: [], forms: [], links: null, reminders: null });

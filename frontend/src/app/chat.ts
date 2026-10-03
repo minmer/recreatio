@@ -478,17 +478,35 @@ export async function deliverSeatKeys(
  * und weitergeben. Leise — was nicht klappt, klappt beim nächsten Mal.
  */
 export async function deliverPending(ring: Ring, chats: readonly ChatRow[]): Promise<void> {
-  for (const row of chats) {
-    if (!hasSeats(row.kind) || row.pendingSeats === 0) continue;
+  await handOver(ring, chats.filter((row) => hasSeats(row.kind) && row.pendingSeats > 0).map((row) => row.chatId));
+}
+
+/**
+ * Welche meiner Rollen den Schlüssel weitergibt — wer schreibt, sonst wer
+ * den Bereich liest (im Kanał schreibt nicht jeder, der den Schlüssel hat).
+ */
+export const keyHolderOf = (chat: ChatDetail, ring: Ring): string | undefined =>
+  chat.writers[0] ?? chat.members.find((m) => ring.has(m.roleId) && m.kind !== 'account'
+    && (m.capabilities.includes('read') || m.capabilities.includes('write') || m.capabilities.includes('admin')))?.roleId;
+
+/**
+ * 0081 — DEN SCHLÜSSEL WEITERGEBEN, ohne die Rozmowa zu öffnen: für die, die
+ * die Glocke als wartend meldet (`waiting`), oder die die Liste zeigt. Leise
+ * — was nicht klappt, klappt beim nächsten Mal.
+ */
+export async function handOver(ring: Ring, chatIds: readonly string[]): Promise<number> {
+  let granted = 0;
+  for (const chatId of chatIds) {
     try {
-      const chat = await loadChat(row.chatId);
-      const by = chat.writers[0];
+      const chat = await loadChat(chatId);
+      const by = keyHolderOf(chat, ring);
       if (by === undefined) continue;
-      await deliverSeatKeys(chat, await areaKeys(ring, chat.areaId), by);
+      granted += await deliverSeatKeys(chat, await areaKeys(ring, chat.areaId), by);
     } catch {
       // Beim nächsten Mal.
     }
   }
+  return granted;
 }
 
 /** Wie jemand in diesem Bereich heisst — versiegelt, nur für seine Mitglieder lesbar. */

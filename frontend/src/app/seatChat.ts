@@ -202,3 +202,49 @@ export function keepChatName(seatId: string, name: string): void {
     // Dann fragt die Seite beim nächsten Mal wieder.
   }
 }
+
+/* -- „Napisz do nas" (0081): der Mensch fängt an ---------------------------------- */
+
+/** An wen ein Baustein „Napisz do nas" schreiben lässt — und wo die Rozmowa schon da ist. */
+export interface AskTarget {
+  readonly areaId: string;
+  readonly name: string;
+  readonly chatId: string | null;
+}
+
+export const loadAsk = (token: string, moduleId: string): Promise<{ to: readonly AskTarget[] }> =>
+  call(`${seatPath(token)}/ask/${encodeURIComponent(moduleId)}`);
+
+/** Die Rozmowa mit diesem Bereich anfangen — gibt es sie schon, ist SIE es. */
+export const startAsk = (token: string, moduleId: string, areaId: string): Promise<{ chatId: string; started: boolean }> =>
+  call(`${seatPath(token)}/ask/${encodeURIComponent(moduleId)}`, { method: 'POST', body: JSON.stringify({ areaId }) });
+
+/*
+ * WAS WARTET — solange der Chatschlüssel noch nicht bei ihm ist, hält der
+ * Browser, was er schreibt (nur hier, unverschlüsselt im eigenen Gerät, wie
+ * ein Entwurf), und schickt es, sobald die Rozmowa aufgeht.
+ */
+export interface Queued {
+  readonly text: string;
+  readonly at: string;
+}
+
+const queueKey = (seatId: string, chatId: string) => `rc-chat-queue:${seatId}:${chatId}`;
+
+export function queuedFor(seatId: string, chatId: string): readonly Queued[] {
+  try {
+    const found = JSON.parse(window.localStorage.getItem(queueKey(seatId, chatId)) ?? '[]') as unknown;
+    return Array.isArray(found) ? found.filter((one): one is Queued => typeof one?.text === 'string' && typeof one?.at === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export function keepQueued(seatId: string, chatId: string, list: readonly Queued[]): void {
+  try {
+    if (list.length === 0) window.localStorage.removeItem(queueKey(seatId, chatId));
+    else window.localStorage.setItem(queueKey(seatId, chatId), JSON.stringify(list));
+  } catch {
+    // Ohne Speicher bleibt es nur in diesem Fenster.
+  }
+}

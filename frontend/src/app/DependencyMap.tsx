@@ -24,6 +24,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
+import { areaPath, loadAreas, type AreaRow } from './area';
 import { loadCalendars, type CalendarRow } from './calendar';
 import { linkAudienceForm } from './audience';
 import { loadChats, type ChatRow } from './chat';
@@ -67,9 +68,10 @@ const NODE_TYPES = { box: Box };
 function sourceKey(kind: string, target: Kind): { key: string; many: boolean } | null {
   const def = partOf(kind);
   if (def === undefined) return null;
-  const want = target === 'calendar' ? ['calendar', 'calendars'] : target === 'library' ? ['library'] : target === 'chat' ? ['chat'] : [];
+  const want = target === 'calendar' ? ['calendar', 'calendars'] : target === 'library' ? ['library'] : target === 'chat' ? ['chat']
+    : target === 'area' ? ['areas'] : [];
   const field = def.fields.find((f) => want.includes(f.kind));
-  return field === undefined ? null : { key: field.key, many: field.kind === 'calendars' };
+  return field === undefined ? null : { key: field.key, many: field.kind === 'calendars' || field.kind === 'areas' };
 }
 
 const idsIn = (value: string | undefined) => (value ?? '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -86,6 +88,7 @@ interface World {
   readonly calendars: readonly CalendarRow[];
   readonly libraries: readonly LibraryRow[];
   readonly chats: readonly ChatRow[];
+  readonly areas: readonly AreaRow[];
 }
 
 export function DependencyMap() {
@@ -96,11 +99,12 @@ export function DependencyMap() {
 
   const look = useCallback(async () => {
     try {
-      const [desk, modules, calendars, libraries, chats] = await Promise.all([
+      const [desk, modules, calendars, libraries, chats, areas] = await Promise.all([
         loadDesk(), loadModules(), loadCalendars().catch(() => ({ calendars: [] as readonly CalendarRow[] })),
-        loadLibraries().catch(() => ({ libraries: [] as readonly LibraryRow[] })), loadChats().catch(() => ({ chats: [] as readonly ChatRow[] }))
+        loadLibraries().catch(() => ({ libraries: [] as readonly LibraryRow[] })), loadChats().catch(() => ({ chats: [] as readonly ChatRow[] })),
+        loadAreas().catch(() => ({ areas: [] as readonly AreaRow[] }))
       ]);
-      setWorld({ desk, modules: modules.modules, calendars: calendars.calendars, libraries: libraries.libraries, chats: chats.chats });
+      setWorld({ desk, modules: modules.modules, calendars: calendars.calendars, libraries: libraries.libraries, chats: chats.chats, areas: areas.areas });
       setFailed(null);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać mapy.');
@@ -147,15 +151,17 @@ export function DependencyMap() {
         lines.push({ id: `data:${m.moduleId}`, source: `module:${m.moduleId}`, target: `area:${m.areaId}`, label: 'dane w', deletable: false, className: 'is-fixed', data: { rel: 'fixed' } });
       }
       const config = readConfig(m.config);
-      for (const target of ['calendar', 'library', 'chat'] as const) {
+      /* 0081 — und die Bereiche, an die ein Baustein schreiben lässt („Napisz do nas"): Linie „do". */
+      for (const target of ['calendar', 'library', 'chat', 'area'] as const) {
         const field = sourceKey(m.kind, target);
         if (field === null) continue;
         for (const id of idsIn(config[field.key])) {
           const label = target === 'calendar' ? world.calendars.find((c) => c.calendarId === id)?.title ?? 'kalendarz'
             : target === 'chat' ? chatLabel(world.chats.find((c) => c.chatId === id))
+            : target === 'area' ? (world.areas.some((a) => a.areaId === id) ? areaPath(world.areas, id).short : 'obszar')
             : 'biblioteka';
-          place(`${target}:${id}`, { kind: target, label, sub: target === 'library' ? id.slice(0, 8) : '' });
-          lines.push({ id: `src:${m.moduleId}:${target}:${id}`, source: `module:${m.moduleId}`, target: `${target}:${id}`, label: 'z', data: { rel: 'source', key: field.key, many: field.many, id } });
+          place(`${target}:${id}`, { kind: target, label, sub: target === 'library' ? id.slice(0, 8) : '', href: target === 'area' ? viewPath('areas', id) : undefined });
+          lines.push({ id: `src:${m.moduleId}:${target}:${id}`, source: `module:${m.moduleId}`, target: `${target}:${id}`, label: target === 'area' ? 'do' : 'z', data: { rel: 'source', key: field.key, many: field.many, id } });
         }
       }
     }
