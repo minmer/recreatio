@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { loadPage, savePage, savePageLook, saveParts, toDraft, type DraftPart } from './page';
+import { loadPage, savePage, savePageLook, savePageSubject, saveParts, toDraft, type DraftPart } from './page';
 import { MassOffice } from './MassOffice';
 import { MenuEditor } from './MenuEditor';
 import { PageBuilder } from './PageBuilder';
@@ -24,6 +24,7 @@ import { pagePath } from './routes';
 import { SlidesEditor } from './SlidesEditor';
 import { PageJson } from './PageJsonPanel';
 import { NO_LOOK, readLook, writeLook, type Look } from './slides';
+import { readSubject, SubjectSettings, writeSubject, type SubjectDecl } from './pageSubject';
 import { WorkspaceError, type Who } from './session';
 
 export function PageEditor({ path, who, onOpenModule }: {
@@ -41,6 +42,10 @@ export function PageEditor({ path, who, onOpenModule }: {
   const [mode, setMode] = useState<'page' | 'slides'>('page');
   const [pageLook, setPageLook] = useState<Look>(NO_LOOK);
   const [lookDirty, setLookDirty] = useState(false);
+
+  /* 0082 — „Wybór na stronie": wovon die Seite handelt. Eigener Knopf — er gilt sofort für alle Bausteine. */
+  const [subject, setSubject] = useState<SubjectDecl | null>(null);
+  const [subjectDirty, setSubjectDirty] = useState(false);
 
   /* Die Karte der Seite (0048) — und ob sie gerade aufgeklappt ist. */
   const [logic, setLogic] = useState<string | null>(null);
@@ -70,6 +75,7 @@ export function PageEditor({ path, who, onOpenModule }: {
       setLogic(page.logic ?? null);
       setMode(page.mode === 'slides' ? 'slides' : 'page');
       setPageLook(readLook(page.theme));
+      setSubject(readSubject(page.subject ?? null));
     } catch {
       // Eine Adresse ohne Seite ist der Normalfall beim ersten Mal.
       setTitle('');
@@ -78,10 +84,12 @@ export function PageEditor({ path, who, onOpenModule }: {
       setLogic(null);
       setMode('page');
       setPageLook(NO_LOOK);
+      setSubject(null);
     }
 
     setDirty(false);
     setLookDirty(false);
+    setSubjectDirty(false);
 
 
     setReady(true);
@@ -157,6 +165,22 @@ export function PageEditor({ path, who, onOpenModule }: {
           <a className="wk-link" href={pagePath(path)}>Zobacz stronę</a>
         </div>
       </form>
+
+      {/*
+        0082 — WOVON DIE SEITE HANDELT. Etwa „ein Mensch aus dem Formular
+        Zapisy": oben auf der Seite steht dann die Auswahl (◀ ▶), und die
+        Bausteine „Panel osoby" zeigen den Gewählten.
+      */}
+      <details className="wk-fold" open={subject !== null || subjectDirty}>
+        <summary>Wybór na stronie{subject === null ? '' : ' — ustawiony'}</summary>
+        <SubjectSettings value={subject} busy={busy !== null} onChange={(next) => { setSubject(next); setSubjectDirty(true); }} />
+        <div className="wk-actions">
+          <button type="button" className="wk-btn" disabled={busy !== null || !subjectDirty}
+            onClick={() => void act('Zapisywanie wyboru…', () => savePageSubject(path, writeSubject(subject)))}>
+            {busy ?? 'Zapisz wybór'}
+          </button>
+        </div>
+      </details>
 
       <h3 className="wk-h2">Moduły</h3>
 
@@ -242,7 +266,7 @@ export function PageEditor({ path, who, onOpenModule }: {
         Ereignis des Altbestands an (vorher `SlidesImport`).
       */}
       <PageJson
-        now={{ path, title, lead, mode, look: pageLook, parts, logic }}
+        now={{ path, title, lead, mode, look: pageLook, parts, logic, subject: writeSubject(subject) }}
         who={who}
         unsaved={dirty || lookDirty}
         onDone={async () => { await look(true); setMenuKey((n) => n + 1); }}

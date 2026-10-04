@@ -7,6 +7,8 @@
  *   Strona  ──pokazuje──▶  Moduł  ──dane w──▶  Obszar
  *                             └──z kalendarza / biblioteki / rozmowy──▶  …
  *   Moduł (rozszerzenie) ──rozszerza──▶ Formularz
+ *   Moduł (Lista osób) ──z formularza──▶ Formularz, ──otwiera──▶ Strona     (0082)
+ *   Strona ──wybór: osoba z formularza──▶ Formularz                          (0082)
  * </code>
  *
  * <b>Bearbeiten durch Ziehen.</b> Eine Linie von einer Seite zu einem
@@ -31,7 +33,8 @@ import { loadDesk, type Desk } from './desk';
 import { newId } from './ids';
 import { loadLibraries, type LibraryRow } from './library';
 import { loadModules, readConfig, updateModule, type ModuleRow } from './module';
-import { loadPage, saveParts, toDraft } from './page';
+import { loadPage, savePageSubject, saveParts, toDraft } from './page';
+import { readSubject, subjectKindOf } from './pageSubject';
 import { partOf } from './parts/registry';
 import { viewPath } from './routes';
 import { WorkspaceError } from './session';
@@ -52,7 +55,8 @@ const KIND_WORD: Record<Kind, string> = {
 function Box({ data }: NodeProps<Data>) {
   return (
     <div className={`wk-dep-node is-${data.kind}`}>
-      {data.kind !== 'page' && <Handle type="target" position={Position.Left} />}
+      {/* 0082 — auch eine Seite ist Ziel: ein Baustein öffnet sie („Lista osób" → die Seite eines Menschen). */}
+      <Handle type="target" position={Position.Left} />
       <span className="wk-dep-kind">{KIND_WORD[data.kind]}</span>
       <strong>{data.label}</strong>
       {data.sub !== '' && <span className="wk-dep-sub">{data.sub}</span>}
@@ -63,11 +67,16 @@ function Box({ data }: NodeProps<Data>) {
 
 const NODE_TYPES = { box: Box };
 
+/** Wovon ein Baustein etwas nimmt — 0082 auch ein Formular (seine Menschen) und eine Seite (die er öffnet). */
+type Source = 'calendar' | 'library' | 'chat' | 'page' | 'form';
+
+const SOURCES: readonly Source[] = ['calendar', 'library', 'chat', 'page', 'form'];
+
 /** Welche Quelle eine Art kennt — und unter welchem Schlüssel ihrer Tafel. */
-function sourceKey(kind: string, target: Kind): { key: string; many: boolean } | null {
+function sourceKey(kind: string, target: Source): { key: string; many: boolean } | null {
   const def = partOf(kind);
   if (def === undefined) return null;
-  const want = target === 'calendar' ? ['calendar', 'calendars'] : target === 'library' ? ['library'] : target === 'chat' ? ['chat'] : [];
+  const want: readonly string[] = target === 'calendar' ? ['calendar', 'calendars'] : [target];
   const field = def.fields.find((f) => want.includes(f.kind));
   return field === undefined ? null : { key: field.key, many: field.kind === 'calendars' };
 }
@@ -147,10 +156,18 @@ export function DependencyMap() {
         lines.push({ id: `data:${m.moduleId}`, source: `module:${m.moduleId}`, target: `area:${m.areaId}`, label: 'dane w', deletable: false, className: 'is-fixed', data: { rel: 'fixed' } });
       }
       const config = readConfig(m.config);
-      for (const target of ['calendar', 'library', 'chat'] as const) {
+      for (const target of SOURCES) {
         const field = sourceKey(m.kind, target);
         if (field === null) continue;
         for (const id of idsIn(config[field.key])) {
+          /* 0082 — eine Seite und ein Formular stehen schon auf der Karte; fehlen sie (nicht meine), keine Linie ins Leere. */
+          if (target === 'page' || target === 'form') {
+            const node = target === 'page' ? `page:${id.replace(/^#?\/*/, '')}` : `module:${id}`;
+            if (!out.some((n) => n.id === node)) continue;
+            lines.push({ id: `src:${m.moduleId}:${target}:${id}`, source: `module:${m.moduleId}`, target: node,
+              label: target === 'page' ? 'otwiera' : 'z formularza', data: { rel: 'source', key: field.key, many: field.many, id } });
+            continue;
+          }
           const label = target === 'calendar' ? world.calendars.find((c) => c.calendarId === id)?.title ?? 'kalendarz'
             : target === 'chat' ? chatLabel(world.chats.find((c) => c.chatId === id))
             : 'biblioteka';
@@ -159,6 +176,18 @@ export function DependencyMap() {
         }
       }
     }
+    /* 0082 — „Wybór na stronie": die Seite handelt von einem Menschen aus diesem Formular. */
+    for (const p of pages) {
+      const decl = readSubject(p.subject ?? null);
+      const kind = decl === null ? undefined : subjectKindOf(decl.kind);
+      if (decl === null || kind === undefined) continue;
+      for (const id of kind.uses(decl)) {
+        if (!modules.some((m) => m.moduleId === id)) continue;
+        lines.push({ id: `subj:${p.path}:${id}`, source: `page:${p.path}`, target: `module:${id}`,
+          label: `wybór: ${kind.label.toLowerCase()}`, className: 'is-subject', data: { rel: 'subject', path: p.path } });
+      }
+    }
+
     /* 0081 — ein Formular an „Napisz do nas": wer es ausgefüllt hat, darf dort anfangen. */
     for (const m of modules) {
       for (const formId of m.formIds ?? []) {
@@ -226,8 +255,13 @@ export function DependencyMap() {
         void act('Dołączanie formularza…', () => linkAudienceForm('chat', id, m.moduleId, true));
         return;
       }
-      const field = sourceKey(m.kind, target);
-      if (field === null) { setFailed(`Moduł „${partOf(m.kind)?.label ?? m.kind}" nie bierze danych z: ${KIND_WORD[target]}.`); return; }
+      /* 0082 — ein Baustein zu einem Formular (seine Menschen) oder zu einer Seite (die er öffnet). */
+      const source: Source | null = target === 'module' ? (target2?.kind === 'form' ? 'form' : null) : target === 'area' ? null : target;
+      const field = source === null ? null : sourceKey(m.kind, source);
+      if (field === null) {
+        setFailed(`Moduł „${partOf(m.kind)?.label ?? m.kind}" nie bierze danych z: ${source === 'form' ? 'formularz' : KIND_WORD[target]}.`);
+        return;
+      }
       const config = readConfig(m.config);
       const next = field.many ? [...new Set([...idsIn(config[field.key]), id])].join(',') : id;
       void act('Ustawianie źródła…', () => updateModule(m.moduleId, { config: JSON.stringify({ ...config, [field.key]: next }) }));
@@ -255,6 +289,10 @@ export function DependencyMap() {
         const m = moduleOf(edge.source);
         if (!window.confirm(`Odłączyć formularz „${m?.name ?? 'formularz'}"? Kto go wypełnił, przestanie widzieć tę rozmowę.`)) { void look(); continue; }
         void act('Odłączanie formularza…', () => linkAudienceForm('chat', info.chatId, info.moduleId, false));
+      } else if (rel === 'subject') {
+        const info = edge.data as { path: string };
+        if (!window.confirm(`Zdjąć „Wybór na stronie" ze strony ${info.path}? Moduły „Panel osoby" przestaną tam kogokolwiek pokazywać.`)) { void look(); continue; }
+        void act('Zdejmowanie wyboru…', () => savePageSubject(info.path, null));
       } else if (rel === 'source') {
         const m = moduleOf(edge.source);
         const info = edge.data as { key: string; many: boolean; id: string };
@@ -274,8 +312,8 @@ export function DependencyMap() {
     <div className="wk-dep">
       <p className="wk-lede">
         Strony, moduły i to, skąd moduły biorą dane. Przeciągnij linię od strony do modułu, żeby postawić go na stronie,
-        albo od modułu do kalendarza, biblioteki lub rozmowy, żeby ustawić źródło — od formularza do rozmowy lub kanału, żeby osoby,
-        które go wypełniły, były w niej. Zaznacz linię i naciśnij Delete, żeby ją usunąć.
+        albo od modułu do kalendarza, biblioteki, rozmowy, formularza lub strony, żeby ustawić źródło (np. „Lista osób” → formularz
+        i strona osoby) — od formularza do rozmowy lub kanału, żeby osoby, które go wypełniły, były w niej. Zaznacz linię i naciśnij Delete, żeby ją usunąć.
         Dwuklik otwiera rzecz.
       </p>
       <label className="wk-check"><input type="checkbox" checked={onlyUsed} onChange={(e) => setOnlyUsed(e.target.checked)} /> <span>tylko moduły, które są na stronach</span></label>

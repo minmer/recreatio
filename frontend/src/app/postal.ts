@@ -82,13 +82,46 @@ export function norm(kind: PartKind | 'house' | 'unit', text: string | null | un
   return out.replace(/ +/g, ' ').trim();
 }
 
-/** Wie ein Teil angezeigt wird: wie getippt; „ul." fällt weg (die Straße ist die Regel). */
+const ROMAN = /^(x{0,3})(ix|iv|v?i{0,3})$/;
+const PARTICLES = new Set(['i', 'w', 'we', 'z', 'ze', 'nad', 'pod', 'przy', 'na', 'u', 'do', 'od', 'po', 'o']);
+const LOWER_PREFIXES = new Set(['al.', 'pl.', 'os.', 'bulw.']);
+
+/**
+ * 0082 — DIE ÜBLICHE SCHREIBWEISE für ganz klein oder ganz groß Getipptes
+ * („długa", „JANA PAWŁA II"): jedes Wort groß, römische Zahlen ganz groß,
+ * kleine Wörter („nad", „i") und „al.", „pl.", „os." klein. Gemischt
+ * Geschriebenes bleibt, wie es ist. Wie `Postal.Proper` (postal-norms.json).
+ */
+export function proper(text: string): string {
+  const letters = [...text].filter((ch) => /\p{L}/u.test(ch));
+  if (letters.length === 0) return text;
+  const allLower = letters.every((ch) => ch === ch.toLowerCase());
+  const allUpper = letters.every((ch) => ch === ch.toUpperCase());
+  if (!allLower && !allUpper) return text;
+
+  const cap = (piece: string) => {
+    if (piece.length >= 2 && ROMAN.test(piece)) return piece.toUpperCase();
+    const at = [...piece].findIndex((ch) => /\p{L}/u.test(ch));
+    if (at < 0) return piece;
+    const chars = [...piece];
+    chars[at] = chars[at].toUpperCase();
+    return chars.join('');
+  };
+
+  return text.toLowerCase().split(' ').map((word, i) =>
+    word === '' || (i === 0 && LOWER_PREFIXES.has(word)) || (i > 0 && PARTICLES.has(word))
+      ? word
+      : word.split('-').map(cap).join('-')
+  ).join(' ');
+}
+
+/** Wie ein Teil angezeigt wird: wie getippt; „ul." fällt weg (die Straße ist die Regel); 0082 — ganz klein oder ganz groß: die übliche Schreibweise. */
 export function display(kind: PartKind | 'house' | 'unit', text: string | null | undefined): string {
   let raw = collapse(text);
   if (kind === 'postcode') return norm('postcode', raw) || raw;
   if (kind === 'street') raw = raw.replace(PLAIN_STREET_PREFIX, '');
   if (kind === 'house' || kind === 'unit') return raw.replace(/ /g, '').toUpperCase();
-  return raw.slice(0, 200);
+  return proper(raw).slice(0, 200);
 }
 
 /** Ohne Ort: der Ort der Post. */
@@ -227,6 +260,81 @@ export function houseOrder(a: string, b: string): number {
   }
   return a.localeCompare(b, 'pl', { numeric: true });
 }
+
+/* -- 0082: eine Schreibweise für jede Adresse der Datenbank ----------------------------------- */
+
+type Named = Pick<Address, 'postcode' | 'post' | 'locality' | 'district' | 'street'>;
+
+/** Die Teile in ihrer Schreibweise — ohne das Verzeichnis zu fragen. */
+export const tidyParts = (a: Address): Address => ({
+  postcode: display('postcode', a.postcode), post: display('post', a.post), locality: display('locality', a.locality),
+  district: display('district', a.district), street: display('street', a.street), house: display('house', a.house), unit: display('unit', a.unit)
+});
+
+/**
+ * Die Teile, wie sie im gemeinsamen Verzeichnis heissen (`/addresses/normalize`).
+ * Nur Teile, keine Hausnummern. `register`: was fehlt, kommt hinein — das darf
+ * nur, wer angemeldet ist; sonst wird nur nachgeschlagen.
+ */
+export const canonicalParts = (addresses: readonly Named[], register = false): Promise<{ addresses: readonly Named[] }> =>
+  call('/addresses/normalize', { method: 'POST', body: JSON.stringify({ addresses, register }) });
+
+/** Eine Adresse vorher und nachher — `doubt`: der Zerleger war sich nicht sicher, also nicht ohne Blick übernehmen. */
+export interface Tidied {
+  readonly line: string;
+  readonly tidy: string;
+  readonly doubt: boolean;
+}
+
+const IGNORED_WORDS = new Set(['ul', 'ulica', 'm', 'lok', 'mieszk']);
+/* Wörter ohne Ziffern — die Ziffern zählt `digitsOf` (eine Postleitzahl darf ihren Bindestrich bekommen). */
+const wordsOf = (text: string) => new Set(norm('locality', text).split(' ').filter((w) => w !== '' && !IGNORED_WORDS.has(w) && !/\d/.test(w)));
+const digitsOf = (text: string) => [...text.replace(/\D/g, '')].sort().join('');
+
+/**
+ * ADRESSEN IN IHRER EINEN FORM — überall in der Datenbank dieselbe: jede
+ * Zeile zerlegt (`parseAddress`), ihre Teile so geschrieben, wie das
+ * gemeinsame Verzeichnis sie schreibt (sonst `display`), und wieder
+ * zusammengesetzt (`formatAddress`). Ohne Netz: nur die Schreibweise.
+ *
+ * <b>Verloren geht nichts ungesehen.</b> Fehlt danach eine Ziffer oder ein
+ * Wort, das vorher dastand, oder steckt „ul." mitten in der Straße, ist der
+ * Zerleger unsicher gewesen (`doubt`) — das übernimmt niemand ohne Blick.
+ */
+export async function normalizeAddressLines(lines: readonly string[], register = false): Promise<Tidied[]> {
+  const parsed = lines.map((line) => tidyParts(parseAddress(line)));
+  const named = new Map<string, Named>();
+  for (const p of parsed) {
+    if (isEmpty(p)) continue;
+    const one: Named = { postcode: p.postcode, post: p.post, locality: p.locality, district: p.district, street: p.street };
+    named.set(JSON.stringify(one), one);
+  }
+
+  const canon = new Map<string, Named>();
+  const unique = [...named.entries()];
+  for (let at = 0; at < unique.length; at += 500) {
+    const chunk = unique.slice(at, at + 500);
+    try {
+      const { addresses } = await canonicalParts(chunk.map(([, one]) => one), register);
+      chunk.forEach(([key], i) => { if (addresses[i] !== undefined) canon.set(key, addresses[i]); });
+    } catch {
+      // Ohne Verzeichnis: die Schreibweise allein.
+    }
+  }
+
+  return lines.map((line, i) => {
+    const p = parsed[i];
+    if (isEmpty(p)) return { line, tidy: line, doubt: false };
+    const key = JSON.stringify({ postcode: p.postcode, post: p.post, locality: p.locality, district: p.district, street: p.street });
+    const tidy = formatAddress({ ...p, ...(canon.get(key) ?? {}) });
+    const lost = [...wordsOf(line)].some((w) => !wordsOf(tidy).has(w)) || [...wordsOf(tidy)].some((w) => !wordsOf(line).has(w));
+    const doubt = lost || digitsOf(line) !== digitsOf(tidy) || /\s(ul|al|pl|os)\.?\s/i.test(p.street);
+    return { line, tidy, doubt };
+  });
+}
+
+/** Eine Adresse — für eine Eingabe, die gerade verlassen wird. */
+export const normalizeAddressLine = async (line: string): Promise<Tidied> => (await normalizeAddressLines([line]))[0];
 
 /* -- Der Dienst ------------------------------------------------------------------------------ */
 

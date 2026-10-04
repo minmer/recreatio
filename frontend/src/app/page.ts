@@ -74,6 +74,13 @@ export interface PageContent {
    */
   readonly mode?: 'page' | 'slides';
   readonly theme?: string | null;
+
+  /**
+   * 0082 — WOVON DIE SEITE HANDELT („Wybór na stronie"), als JSON — etwa
+   * `{"kind":"entry","form":"…"}`: ein Mensch aus diesem Formular. Oben
+   * steht dann die Auswahl, und die Bausteine nehmen sie (`pageSubject.tsx`).
+   */
+  readonly subject?: string | null;
 }
 
 /** Ein Eintrag des Menüs (siehe `menu.ts`). */
@@ -144,6 +151,13 @@ export const savePageLogic = (path: string, logic: string | null): Promise<{ sav
   call(`/workspace/page-logic/${encodePath(path)}`, {
     method: 'PUT',
     body: JSON.stringify({ logic })
+  });
+
+/** 0082 — „Wybór na stronie" speichern; `null` nimmt ihn weg. */
+export const savePageSubject = (path: string, subject: string | null): Promise<{ subject: string | null }> =>
+  call(`/workspace/page-subject/${encodePath(path)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ subject })
   });
 
 /** Ein Baustein, wie ihn der Editor hält: ausgepackt. */

@@ -31,6 +31,7 @@ import { WorkspaceError, type Who } from './session';
 import type { Ring } from './keys';
 import { Unlock } from './Unlock';
 import { AreaOptions } from './AreaOptions';
+import { TidyEverything } from './TidyEverything';
 
 type Tab = 'addresses' | 'kolenda' | 'import';
 
@@ -71,6 +72,9 @@ export function Kartoteka({ who, trail }: { who: Who; trail: readonly string[] }
           którzy prowadzą obszar; dane rodzin szyfruje kluczem obszaru Twoja przeglądarka.
         </p>
       ) : <Registry key={area.areaId} area={area} ring={ring} />}
+
+      {/* 0082 — dieselbe eine Form für jede Adresse der Datenbank, nicht nur die der Kartoteka. */}
+      <TidyEverything ring={ring} />
     </div>
   );
 }

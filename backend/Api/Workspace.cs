@@ -87,6 +87,7 @@ public static class Workspace
         var pages = await PagesOfAsync(connection, roles, ctx.RequestAborted);
 
         var areasOf = new Dictionary<string, List<string>>();
+        var subjectOf = new Dictionary<string, string>();
         if (pages.Count > 0)
         {
             var names = string.Join(", ", pages.Select((_, i) => $"@p{i}"));
@@ -104,6 +105,20 @@ public static class Workspace
                 if (!areasOf.TryGetValue(path, out var list)) areasOf[path] = list = [];
                 list.Add(Ids.ToText(reader.GetGuid(1)));
             }
+        }
+
+        /* 0082 — wovon eine Seite handelt („Wybór na stronie"): fuer die Karte der Abhaengigkeiten (Seite → Formular). */
+        if (pages.Count > 0)
+        {
+            var names = string.Join(", ", pages.Select((_, i) => $"@p{i}"));
+            await using var cmd = new SqlCommand($"""
+                SELECT path, page_subject FROM app.slug
+                WHERE path IN ({names}) AND page_subject IS NOT NULL;
+                """, connection);
+            for (var i = 0; i < pages.Count; i++) cmd.Parameters.AddWithValue($"@p{i}", pages[i].Item1);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted)) subjectOf[reader.GetString(0)] = reader.GetString(1);
         }
 
         await ctx.Response.WriteAsJsonAsync(new
@@ -129,7 +144,10 @@ public static class Workspace
                 internalForRoleId = p.InternalFor is null ? null : Ids.ToText(p.InternalFor.Value),
 
                 /* Nur mit Zugang (0051): an welche Bereiche die Seite gebunden ist — leer: oeffentlich. */
-                accessAreaIds = areasOf.TryGetValue(p.Path, out var bound) ? bound : []
+                accessAreaIds = areasOf.TryGetValue(p.Path, out var bound) ? bound : [],
+
+                /* 0082 — „Wybór na stronie" (JSON, im Browser gelesen) — oder null. */
+                subject = subjectOf.TryGetValue(p.Path, out var subject) ? subject : null
             })
         });
     }

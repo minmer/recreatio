@@ -4,13 +4,13 @@
  *
  * <b>Die Rollen bekommen einen eigenen Bereich</b> — wie eine Gruppe in den
  * Rozmowy: Zugang zur Rozmowa IST Zugang zum Bereich (0052). Der Baustein
- * trägt ihn als seinen Bereich (\`module.area_id\`); sein Name ist, was die
+ * trägt ihn als seinen Bereich (`module.area_id`); sein Name ist, was die
  * Person mit dem Link liest („Napisz do: …"). Wer ihn anlegt, legt ihn als
  * eine der gewählten eigenen Rollen an — sonst als seine Person, und ist dann
  * selbst dabei.
  *
  * <b>Die Formulare</b> hängen am Baustein wie an jedem Ding mit Odbiorcy
- * (\`AudienceForms\`, Art \`module\`, Zugang \`one\`).
+ * (`AudienceForms`, Art `module`, Zugang `one`).
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';

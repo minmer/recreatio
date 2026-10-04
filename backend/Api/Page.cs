@@ -53,6 +53,9 @@ public static class Page
 
         /* 0062 — Seite oder Slajdy, und ihr Aussehen. */
         app.MapPut("/workspace/page-look/{*path}", SaveLookAsync);
+
+        /* 0082 — worum es auf der Seite geht („Wybór na stronie"). */
+        app.MapPut("/workspace/page-subject/{*path}", SaveSubjectAsync);
     }
 
     public sealed record SaveRequest(string Title, string? Lead);
@@ -346,7 +349,7 @@ public static class Page
     {
         Guid slugId, askedId;
         Guid? internalFor;
-        string? title = null, lead = null, aliasOf = null, logic = null, mode = null, theme = null;
+        string? title = null, lead = null, aliasOf = null, logic = null, mode = null, theme = null, subject = null;
         DateTimeOffset? updatedAt = null;
 
         /*
@@ -367,7 +370,8 @@ public static class Page
                    s.id,
                    CASE WHEN t.id IS NULL THEN s.page_logic ELSE t.page_logic END,
                    CASE WHEN t.id IS NULL THEN s.page_mode ELSE t.page_mode END,
-                   CASE WHEN t.id IS NULL THEN s.page_theme ELSE t.page_theme END
+                   CASE WHEN t.id IS NULL THEN s.page_theme ELSE t.page_theme END,
+                   CASE WHEN t.id IS NULL THEN s.page_subject ELSE t.page_subject END
             FROM app.slug s
             LEFT JOIN app.slug t ON s.alias_of IS NOT NULL AND t.path = s.alias_of
             LEFT JOIN app.slug_page p ON p.slug_id = COALESCE(t.id, s.id)
@@ -400,6 +404,7 @@ public static class Page
             logic = reader.IsDBNull(8) ? null : reader.GetString(8);
             mode = reader.IsDBNull(9) ? null : reader.GetString(9);
             theme = reader.IsDBNull(10) ? null : reader.GetString(10);
+            subject = reader.IsDBNull(11) ? null : reader.GetString(11);
         }
 
         /*
@@ -464,6 +469,9 @@ public static class Page
 
             /* 0062 — Seite oder Slajdy, und wie sie aussehen. */
             mode = mode ?? "page", theme,
+
+            /* 0082 — worum es auf der Seite geht (JSON, im Browser gelesen). */
+            subject,
             menu = menu is null ? null : new { from = menu.Value.From, items = menu.Value.Items }
         });
     }
@@ -646,6 +654,76 @@ public static class Page
         await save.ExecuteNonQueryAsync(ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new { path = wanted, saved = true });
+    }
+
+    public sealed record SubjectRequest(string? Subject);
+
+    private const int MaxSubject = 2000;
+
+    /// <summary>
+    /// 0082 — WORUM ES AUF DER SEITE GEHT speichern („Wybór na stronie"): etwa
+    /// <c>{"kind":"entry","form":"…"}</c> — ein Mensch aus diesem Formular.
+    /// Wie die Karte: der Dienst prüft nur, dass es JSON ist und nicht zu
+    /// gross; gelesen wird im Browser. <c>null</c> nimmt es weg.
+    /// </summary>
+    private static async Task SaveSubjectAsync(HttpContext ctx, Db db, string path, SubjectRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var wanted = Slug.Normalise(path);
+        if (!Slug.IsWellFormed(wanted))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "To nie jest adres.");
+            return;
+        }
+
+        var subject = string.IsNullOrWhiteSpace(body.Subject) ? null : body.Subject;
+        if (subject is not null)
+        {
+            if (subject.Length > MaxSubject)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Wybór na stronie jest za długi.");
+                return;
+            }
+            try { using var _ = System.Text.Json.JsonDocument.Parse(subject); }
+            catch (System.Text.Json.JsonException)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny wybór na stronie.");
+                return;
+            }
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var row = await RowAsync(connection, wanted, ctx.RequestAborted);
+        if (row is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
+            return;
+        }
+
+        if (row.Value.AliasOf is not null)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                $"Ten adres jest tylko innym wejściem do „{row.Value.AliasOf}” — wybór zmienia się tam.");
+            return;
+        }
+
+        var grip = await Access.OfAsync(connection, who.Value.AccountId, wanted, ctx.RequestAborted);
+        if (!grip.MayWrite)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden,
+                "Tego adresu nie prowadzi żadna z Twoich ról i nie masz do niego prawa zapisu.");
+            return;
+        }
+
+        await using var save = new SqlCommand("UPDATE app.slug SET page_subject = @subject WHERE id = @id;", connection);
+        save.Parameters.AddWithValue("@subject", (object?)subject ?? DBNull.Value);
+        save.Parameters.AddWithValue("@id", row.Value.Id);
+        await save.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        await ctx.Response.WriteAsJsonAsync(new { path = wanted, subject });
     }
 
     public sealed record LookRequest(string? Mode, string? Theme);

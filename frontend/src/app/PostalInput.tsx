@@ -15,7 +15,7 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 
 import {
-  complete, display, EMPTY_ADDRESS, formatAddress, isEmpty, parseAddress, PART_LABEL, suggestParts,
+  complete, display, EMPTY_ADDRESS, formatAddress, isEmpty, normalizeAddressLine, parseAddress, PART_LABEL, suggestParts,
   type Address, type PartKind, type PartRow
 } from './postal';
 
@@ -34,6 +34,24 @@ export function PostalInput({ value, onChange, onParts, parts: given, compact = 
   const [parts, setParts] = useState<Address>(() => given ?? (value ? parseAddress(value) : EMPTY_ADDRESS));
   const [line, setLine] = useState(value ?? '');
   const [open, setOpen] = useState(() => compact || (value ?? '') !== '');
+  const [unsure, setUnsure] = useState(false);
+
+  /*
+   * 0082 — WER DIE ZEILE VERLÄSST, bekommt die Adresse in ihrer einen Form:
+   * Teile wie im gemeinsamen Verzeichnis, wieder zusammengesetzt — dieselbe
+   * wie überall in der Datenbank (`normalizeAddressLines`). War der Zerleger
+   * unsicher, bleibt die Zeile, wie sie ist, und die Teile stehen offen da.
+   */
+  const settle = async (typed: string) => {
+    if (typed.trim() === '') return;
+    const done = await normalizeAddressLine(typed);
+    const p = parseAddress(done.doubt ? typed : done.tidy);
+    setParts(p);
+    setOpen(true);
+    setUnsure(done.doubt);
+    onParts?.(p);
+    if (!done.doubt && done.tidy !== typed) { setLine(done.tidy); onChange?.(done.tidy); }
+  };
 
   /* Von aussen geändert (ein anderer Mensch gewählt, die Antwort neu geladen): neu zerlegen. */
   useEffect(() => {
@@ -45,6 +63,7 @@ export function PostalInput({ value, onChange, onParts, parts: given, compact = 
   }, [value, given]);
 
   const commit = (next: Address) => {
+    setUnsure(false);
     setParts(next);
     const formatted = isEmpty(next) ? '' : formatAddress(next);
     setLine(formatted);
@@ -58,7 +77,7 @@ export function PostalInput({ value, onChange, onParts, parts: given, compact = 
         <div className="wk-postal-line">
           <input value={line} placeholder="np. ul. Długa 5/3, 31-147 Kraków" autoComplete="street-address"
             onChange={(e) => { setLine(e.target.value); onChange?.(e.target.value); }}
-            onBlur={() => { if (line.trim() !== '') { const p = parseAddress(line); setParts(p); setOpen(true); onParts?.(p); } }} />
+            onBlur={() => { void settle(line); }} />
           <button type="button" className="wk-link-btn" onClick={() => {
             if (!open && line.trim() !== '') { const p = parseAddress(line); setParts(p); onParts?.(p); }
             setOpen((was) => !was);
@@ -66,6 +85,9 @@ export function PostalInput({ value, onChange, onParts, parts: given, compact = 
         </div>
       )}
 
+      {open && unsure && (
+        <span className="wk-hint wk-postal-tip">Sprawdź części poniżej — nie wszystko w tym adresie dało się jednoznacznie rozpoznać.</span>
+      )}
       {open && (
         <div className="wk-postal-parts">
           {(['street', 'house', 'unit', 'locality', 'district', 'postcode', 'post'] as const).map((key) => (
@@ -115,7 +137,7 @@ function PartField({ kind, value, parentHint, onChange }: {
       <input value={draft} list={suggests ? id : undefined} inputMode={kind === 'postcode' ? 'numeric' : undefined}
         placeholder={kind === 'postcode' ? '00-000' : kind === 'street' && parentHint !== '' ? `ulica w: ${parentHint}` : undefined}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => { const shown = kind === 'postcode' || kind === 'house' || kind === 'unit' || kind === 'street' ? display(kind, draft) : draft.trim(); if (shown !== value) onChange(shown); }} />
+        onBlur={() => { const shown = display(kind, draft); if (shown !== value) onChange(shown); }} />
       {suggests && <datalist id={id}>{options.map((o) => <option key={o} value={o} />)}</datalist>}
     </label>
   );

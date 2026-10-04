@@ -150,6 +150,22 @@ try {
   assert.equal(JSON.parse(back.logic).nodes[0].partId, ids[1], 'the logic still points at the same place');
   ok('page export → import (replace): same places, same modules, same content, layout, slides, look, menu and logic');
 
+  /* 0082 — „Wybór na stronie": ein Objekt im Dokument, an Ort und Stelle. */
+  const decl = { kind: 'entry', form: shared, list: 'zz-probe/lista' };
+  const withSubject = { ...now, subject: JSON.stringify(decl) };
+  const subjectDoc = JSON.parse(JSON.stringify(m.exportPage(withSubject)));
+  assert.deepEqual(subjectDoc.subject, decl, 'the subject is exported as an object');
+  assert.equal(doc.subject, null, 'a page without one says null');
+  assert.equal(m.planImport(subjectDoc, withSubject, m.DEFAULT_IMPORT).subject, undefined, 'an unchanged subject is not rewritten');
+  assert.equal(m.planImport({ ...subjectDoc, subject: null }, withSubject, m.DEFAULT_IMPORT).subject, null, 'null takes it away');
+  assert.deepEqual(JSON.parse(m.planImport(subjectDoc, now, m.DEFAULT_IMPORT).subject), decl, 'a new one is set');
+  const odd = m.planImport({ ...subjectDoc, subject: { kind: 'nonsense' } }, now, m.DEFAULT_IMPORT);
+  assert.ok(odd.subject === undefined && odd.warnings.some((w) => w.includes('nonsense')), 'an unknown kind is reported and left alone');
+  const lacking = m.planImport({ ...subjectDoc, subject: { kind: 'entry' } }, now, m.DEFAULT_IMPORT);
+  assert.ok(lacking.subject !== undefined && lacking.warnings.some((w) => w.includes('formularz')), 'what is missing is said');
+  assert.ok(m.pageDescription().includes('"subject" — ') && m.pageDescription().includes('"entry"'), 'the description explains it');
+  ok('page subject (0082): exported as an object, imported in place, removed with null, unknown kinds and gaps reported');
+
   /* Eine Änderung im Dokument — an Ort und Stelle. */
   doc.modules[0].config.body = ['Raz', 'Dwa', 'Trzy'];
   doc.modules[1].config.note = 'Nowa uwaga';

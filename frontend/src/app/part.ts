@@ -143,7 +143,9 @@ export interface PartContext {
  */
 export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'calendar' | 'calendars' | 'chat' | 'library' | 'libraryEntry'
   /* 0070 — ein Termin eines Kalenders (`of` nennt das Feld mit dem Kalender). */
-  | 'calendarItem';
+  | 'calendarItem'
+  /* 0082 — eine Seite (ihr Pfad), gewählt aus den eigenen. */
+  | 'page';
 
 export interface FieldDef {
   readonly key: string;
@@ -335,7 +337,8 @@ const FIELD_SAYS: Record<FieldKind, string> = {
   chat: 'identyfikator rozmowy grupy — najprościej wybrać w edytorze',
   library: 'identyfikator biblioteki — najprościej wybrać w edytorze',
   libraryEntry: 'identyfikator opublikowanego wpisu biblioteki — najprościej wybrać w edytorze',
-  calendarItem: 'identyfikator terminu z wybranego kalendarza — najprościej wybrać w edytorze'
+  calendarItem: 'identyfikator terminu z wybranego kalendarza — najprościej wybrać w edytorze',
+  page: 'ścieżka strony, np. "parafia/bierzmowanie/kandydat" — najprościej wybrać w edytorze'
 };
 
 /** Eine Zeile des JSON als gespeicherter Wert — oder `null`: nichts. */

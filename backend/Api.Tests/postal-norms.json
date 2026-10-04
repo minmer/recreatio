@@ -1,5 +1,5 @@
 {
-  "_": "0071 — dieselbe Tabelle für Postal.Norm (C#, PlatformChecks.cs) und postal.ts norm (app-platform-check.mjs). Laufen beide auseinander, fände die Suche im Browser eine Straße, die der Dienst als neue anlegt.",
+  "_": "0071 — dieselbe Tabelle für Postal.Norm (C#, PlatformChecks.cs) und postal.ts norm (app-platform-check.mjs). Laufen beide auseinander, fände die Suche im Browser eine Straße, die der Dienst als neue anlegt. 0082 — \"display\": die eine Schreibweise (Postal.Display / postal.ts display).",
   "norm": [
     ["street", "ul. Długa", "dluga"],
     ["street", "Ulica  Długa", "dluga"],
@@ -29,5 +29,27 @@
     [["", "Kraków", "", "", "ul. Długa", "5", "3"], ["31-147", "Kraków", "Kraków", "", "Długa", "5", "3"], false],
     [["31-147", "Kraków", "", "", "ul. Długa", "5", "3"], ["31-147", "Kraków", "Kraków", "", "Dluga", "5", "3"], true],
     [["", "", "Zawoja", "", "", "1234", ""], ["", "", "ZAWOJA", "", "", "1234", ""], true]
+  ],
+  "display": [
+    ["street", "długa", "Długa"],
+    ["street", "ul. długa", "Długa"],
+    ["street", "JANA PAWŁA II", "Jana Pawła II"],
+    ["street", "al. jana pawła ii", "al. Jana Pawła II"],
+    ["street", "3 maja", "3 Maja"],
+    ["street", "św. floriana", "Św. Floriana"],
+    ["street", "os. kalinowe", "os. Kalinowe"],
+    ["street", "pl. wolności", "pl. Wolności"],
+    ["street", "Armii Krajowej", "Armii Krajowej"],
+    ["street", "McDonalda", "McDonalda"],
+    ["street", "  armii   krajowej ", "Armii Krajowej"],
+    ["locality", "bielsko-biała", "Bielsko-Biała"],
+    ["locality", "brzeg nad odrą", "Brzeg nad Odrą"],
+    ["locality", "KRAKÓW", "Kraków"],
+    ["locality", "kraków", "Kraków"],
+    ["district", "nowa huta", "Nowa Huta"],
+    ["post", "kraków 1", "Kraków 1"],
+    ["postcode", "31147", "31-147"],
+    ["house", " 12 b ", "12B"],
+    ["unit", "3a", "3A"]
   ]
 }

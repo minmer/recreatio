@@ -45,6 +45,9 @@ public static partial class Postal
 
         app.MapPut("/workspace/household/{id:guid}", SaveHouseholdAsync);
         app.MapPost("/workspace/household/{id:guid}/delete", DeleteHouseholdAsync);
+
+        /* 0082 — dieselbe Schreibweise für jede Adresse der Datenbank (Postal.Everywhere.cs). */
+        MapEverywhere(app);
     }
 
     /* ======================================================================
@@ -93,13 +96,17 @@ public static partial class Postal
         return Spaces().Replace(sb.ToString(), " ").Trim();
     }
 
-    /// <summary>Wie ein Teil angezeigt wird: wie getippt, Leerraum zusammengezogen; „ul." fällt weg, die Straße ist die Regel.</summary>
+    /// <summary>
+    /// Wie ein Teil angezeigt wird: wie getippt, Leerraum zusammengezogen; „ul." fällt weg, die Straße ist die Regel.
+    /// 0082 — ganz klein oder ganz groß Getipptes bekommt die übliche Schreibweise (<see cref="Proper"/>).
+    /// </summary>
     public static string Display(string kind, string? text)
     {
         var raw = Spaces().Replace((text ?? "").Trim(), " ");
         if (kind == "postcode") return Norm("postcode", raw);
         if (kind == "street") raw = PlainStreetPrefix().Replace(raw, "");
         if (kind is "house" or "unit") return raw.Replace(" ", "").ToUpperInvariant();
+        raw = Proper(raw);
         return raw.Length > MaxName ? raw[..MaxName] : raw;
     }
 

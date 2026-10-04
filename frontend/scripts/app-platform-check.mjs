@@ -13,6 +13,7 @@
  *  10. Als Link handeln: die Beweise im Kopf, ein Bund aus Linkrollen.
  *  11. Gottesdienst (0079): Messe, Beichte, Nabożeństwo — was eine Messe ist, was aushängt, was gedruckt wird.
  *  12. Odbiorcy (0080): die drei Zugänge — Kanał, gemeinsam, einer mit einem — und mit welchen Bereichen einer allein spricht.
+ *  13. Zwei Seiten (0082): die Liste und der eine Mensch — dieselbe Reihenfolge, derselbe Filter, über die Adresse.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -53,6 +54,8 @@ export { intentionsSheetHtml } from '${app}sheet';
 export { meetingAreas, othersWrite } from '${app}audience';
 export { chatMode, hasSeats, fixedPolicy } from '${app}chat';
 export { epochAad } from '${app}area';
+export { deskRows, pickRows, neighbours, readEntryQuery, entryQueryString, withEntryQuery, filterWords, stepKindsOf, folded, readSections, PANEL_SECTIONS, NO_FILTER } from '${app}entryDesk';
+export { readSubject, writeSubject, subjectKindOf } from '${app}pageSubject';
 `);
 await build({
   entryPoints: [entry],
@@ -85,7 +88,10 @@ try {
   for (const [a, b, same] of table.keys) {
     assert.equal(m.keyOf(place(a)) === m.keyOf(place(b)), same, `key ${a} vs ${b}`);
   }
-  ok(`postal: ${table.norm.length} norms and ${table.keys.length} keys agree with the service table`);
+  for (const [kind, input, expected] of table.display) {
+    assert.equal(m.display(kind, input), expected, `display ${kind} "${input}"`);
+  }
+  ok(`postal: ${table.norm.length} norms, ${table.keys.length} keys and ${table.display.length} spellings agree with the service table`);
 
   const cases = [
     ['ul. Długa 5/3, 31-147 Kraków', { street: 'Długa', house: '5', unit: '3', postcode: '31-147', post: 'Kraków' }],
@@ -110,6 +116,21 @@ try {
   }
   assert.equal(m.formatAddress(m.parseAddress('ul. Długa 5/3, 31-147 Kraków')), 'ul. Długa 5/3, 31-147 Kraków');
   ok('postal: an address written back out reads in as the same place');
+
+  /* 0082 — eine Schreibweise für jede Adresse der Datenbank (hier ohne Dienst: nur die Schreibweise). */
+  const tidied = await m.normalizeAddressLines([
+    'ul. długa 5/3, 31147 kraków', '31-147 Kraków, Długa 5 m. 3', 'Zawoja 1234, 34-222 Zawoja', 'Kraków ul. Długa 5', '', 'JANA PAWŁA II 12, KRAKÓW'
+  ]);
+  assert.equal(tidied[0].tidy, 'ul. Długa 5/3, 31-147 Kraków');
+  assert.equal(tidied[0].doubt, false, 'a lower-case address is only respelled');
+  assert.equal(tidied[1].tidy, 'ul. Długa 5/3, 31-147 Kraków', 'the same place, written the other way round, ends up the same');
+  assert.equal(tidied[2].tidy, 'Zawoja 1234, 34-222 Zawoja', 'a village without streets stays');
+  assert.equal(tidied[3].doubt, true, '„ul." in the middle of the street: the splitter was unsure — nobody takes it unseen');
+  assert.equal(tidied[4].tidy, '', 'nothing stays nothing');
+  assert.equal(tidied[5].tidy, 'ul. Jana Pawła II 12, Kraków');
+  const again = await m.normalizeAddressLines(tidied.map((t) => t.tidy));
+  again.forEach((t, i) => assert.equal(t.tidy, tidied[i].tidy, `normalizing twice changes nothing: "${tidied[i].tidy}"`));
+  ok('postal (0082): one spelling for every address — respelled, reordered, unsure ones flagged, twice is once');
 
   assert.deepEqual(['10', '2A', '2', '1', '10/3'].sort(m.houseOrder), ['1', '2', '2A', '10', '10/3']);
   assert.equal(m.keyOf(m.complete({ ...m.EMPTY_ADDRESS, post: 'Kraków', street: 'Długa', house: '5' })),
@@ -658,6 +679,69 @@ try {
     assert.deepEqual(m.meetingAreas(areas, ['obcy', null, undefined, '']).map((a) => a.areaId), ['parafia'], 'an area I do not read is skipped, its parent is not');
     assert.deepEqual(m.meetingAreas(areas, ['nirgends']), [], 'an unknown area offers nothing');
     ok("audience (0080): channel, together, one; seats only in those; one-to-one with the form's areas and those above");
+  }
+
+  /* -- 13. Zwei Seiten: Lista osób und Panel osoby (0082) ------------------------------------ */
+  {
+    const field = (fieldId, identityRole, kind = 'line') => ({ fieldId, identityRole, kind, label: fieldId, areaId: 'a', options: [] });
+    const fields = [field('imie', 'given_name'), field('nazwisko', 'surname'), field('tel', 'phone', 'phone'), field('parafia', 'none')];
+    const sub = (id, at, extra = {}) => ({
+      registrationId: id, submittedAt: at, seatId: 's-' + id, confirmedAt: null, hidden: false, withdrawnAt: null,
+      values: [], checks: [], marks: [], extensions: [], ...extra
+    });
+    const registrations = [
+      sub('r1', '2026-09-03', { confirmedAt: '2026-09-05', marks: [{ stepId: 'zgoda', doneAt: '2026-09-10' }] }),
+      sub('r2', '2026-09-01'),
+      sub('r3', '2026-09-02', { hidden: true }),
+      sub('r4', '2026-09-04')
+    ];
+    const opened = new Map([
+      ['r1', new Map([['imie', 'Łukasz'], ['nazwisko', 'Nowak'], ['tel', '600 700 800'], ['parafia', 'św. Anny']])],
+      ['r2', new Map([['imie', 'Anna'], ['nazwisko', 'Kowalska'], ['tel', '601 000 111']])],
+      ['r3', new Map([['imie', 'Ola'], ['nazwisko', 'Zielińska']])],
+      ['r4', new Map([['imie', 'Anna'], ['nazwisko', 'Kowalska'], ['parafia', 'Grzegórzki']])]
+    ]);
+    const info = { steps: [{ stepId: 'zgoda', key: 'zgoda', label: 'Zgoda rodziców', help: null, dueAt: null, doneBy: 'office', areaId: 'a', epoch: 1, position: 0 }], extensions: [] };
+    const rows = m.deskRows({ registrations, fields, opened }, info);
+    const ids = (list) => list.map((r) => r.s.registrationId);
+
+    assert.deepEqual(ids(rows), ['r2', 'r4', 'r1', 'r3'], 'by name (Polish order), the same name by the time it came — one order on both pages');
+    assert.equal(rows[2].name, 'Łukasz Nowak');
+    assert.deepEqual(rows[2].phones.map((p) => p.dial), ['+48600700800']);
+
+    const shown = m.pickRows(rows, m.NO_FILTER);
+    assert.deepEqual(ids(shown), ['r2', 'r4', 'r1'], 'the hidden one only on request');
+    assert.deepEqual(ids(m.pickRows(rows, { ...m.NO_FILTER, hidden: true })), ['r2', 'r4', 'r1', 'r3']);
+    assert.deepEqual(ids(m.pickRows(rows, { ...m.NO_FILTER, q: 'lukasz' })), ['r1'], 'search without diacritics');
+    assert.deepEqual(ids(m.pickRows(rows, { ...m.NO_FILTER, q: '600700' })), ['r1'], 'a number found without its spaces');
+    assert.deepEqual(ids(m.pickRows(rows, { ...m.NO_FILTER, q: 'grzegorzki' })), ['r4'], 'in any answer');
+    assert.deepEqual(ids(m.pickRows(rows, { ...m.NO_FILTER, step: 'todo:step:zgoda' })), ['r2', 'r4'], 'who still lacks the step');
+    assert.deepEqual(ids(m.pickRows(rows, { ...m.NO_FILTER, step: 'done' })), ['r1']);
+    assert.deepEqual(m.stepKindsOf(rows).map(([key]) => key), ['confirm', 'step:zgoda']);
+    assert.equal(m.filterWords({ q: 'kow', step: 'todo:step:zgoda', hidden: true }, m.stepKindsOf(rows)), 'brakuje: Zgoda rodziców · „kow" · z ukrytymi');
+
+    const lacking = m.pickRows(rows, { ...m.NO_FILTER, step: 'todo:step:zgoda' });
+    assert.deepEqual([m.neighbours(rows, lacking, 'r2').prev, ids([m.neighbours(rows, lacking, 'r2').next])[0], m.neighbours(rows, lacking, 'r2').at], [null, 'r4', 1],
+      '◀ ▶ walk the filtered list');
+    const outside = m.neighbours(rows, lacking, 'r1');
+    assert.deepEqual([ids([outside.prev])[0], outside.next, outside.at], ['r4', null, 0], 'outside the filter: the neighbours it would stand between');
+    assert.deepEqual(ids([m.neighbours(rows, lacking, null).next]), ['r2'], 'nobody chosen: ▶ goes to the first');
+
+    const query = { id: 'r4', filter: { q: 'anna kow', step: 'todo:step:zgoda', hidden: false }, from: 'parafia/kandydaci' };
+    const text = m.entryQueryString(query);
+    assert.deepEqual(m.readEntryQuery('#/parafia/kandydat' + text), query, 'the address carries choice, filter and the list it came from');
+    assert.equal(m.withEntryQuery('#/parafia/kandydat?part=x&wpis=old', { ...query, filter: m.NO_FILTER, from: null }), '#/parafia/kandydat?part=x&wpis=r4',
+      'other keys stay, ours are replaced');
+    assert.equal(m.withEntryQuery('#/p?wpis=r4', { id: null, filter: m.NO_FILTER, from: null }), '#/p', 'nothing to say — no question mark');
+
+    assert.deepEqual(m.readSections(''), m.PANEL_SECTIONS, 'an empty choice of sections is all of them');
+    assert.deepEqual(m.readSections('steps, nonsense,answers'), ['answers', 'steps'], 'in their own order, unknown ones dropped');
+
+    assert.deepEqual(m.readSubject('{"kind":"entry","form":"f1"}'), { kind: 'entry', form: 'f1' });
+    assert.equal(m.readSubject('{"form":"f1"}'), null, 'without a kind there is no choice');
+    assert.equal(m.readSubject('nonsense'), null);
+    assert.equal(m.subjectKindOf('entry').missing({ kind: 'entry' }), 'Wybierz formularz.');
+    ok('two pages (0082): one order, filter by text/step/hidden, ◀ ▶ along the filtered list, the address carries it all');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

@@ -36,11 +36,14 @@ import {
 import { ListJsonPanel } from './ListJsonPanel';
 import { ExtensionEntry, ExtensionSheet, OfficeAdd } from './ExtensionSheet';
 import { REPEAT_LABEL, REPEATS, repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
-import { filledNow } from './steps';
-import { readForm, type ReadForm } from './formRead';
+import { type ReadForm } from './formRead';
+import {
+  deskChanged, deskRows, formAreasOf, openStepInfo, PANEL_SECTIONS, readExtensions, seatAreasOf, stepKindsOf, stepMatches,
+  numbersOf, STEP_CHOICES, type DeskRow, type EntryDesk, type Numbered, type PanelSection, type StepInfo
+} from './entryDesk';
 import { newId } from './ids';
 import { viewPath } from './routes';
-import { loadSteps, openSteps, progressOf, stepsFor, type ExtensionInfo, type OpenStep, type StepState } from './steps';
+import { loadSteps, progressOf, type ExtensionInfo } from './steps';
 import { PersonSteps, StepsEditor, stepsKey } from './StepList';
 import { createIntake, loadIntake, loadPublicIntake, openIntakeKey } from './intake';
 import type { Ring, SealedRole } from './keys';
@@ -146,7 +149,11 @@ function WriteToSeat({ seatId, near, areas, ring, busy, onError }: {
   );
 }
 import { Unlock } from './Unlock';
-import { dialable, joinPhones, normalisePhone, splitPhones, tidyPhones, withPhone } from './phone';
+import { joinPhones, splitPhones, withPhone } from './phone';
+import { crookedOf, seatKeyFinder, straighten as straightenAll, tidyKindOf, type Crooked } from './answerTidy';
+import { TidyList, toggled } from './TidyList';
+import { plural } from './ChatKit';
+import { PostalInput } from './PostalInput';
 import { LINK, renderSms, smsHref, usesHole, VERIFY } from './sms';
 import { AreaOptions } from './AreaOptions';
 import { FormTable } from './FormTable';
@@ -276,7 +283,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    * übrigen ergeben. `extData`: was je Erweiterung eingetragen ist — für die
    * Zeile eines Menschen.
    */
-  const [stepInfo, setStepInfo] = useState<{ steps: readonly OpenStep[]; extensions: readonly ExtensionInfo[] } | null>(null);
+  const [stepInfo, setStepInfo] = useState<StepInfo | null>(null);
   const [extData, setExtData] = useState<ReadonlyMap<string, ReadForm>>(new Map());
 
   /** Eine Erweiterung (0047) — dann ist manches anders: keine eigene Liste, keine Schritte, kein Portal. */
@@ -310,28 +317,10 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    */
   /**
    * Die Schritte laden und aufmachen — mit dem Epochenschlüssel, mit dem jeder
-   * versiegelt wurde (aus der Zuteilung, sonst dem veröffentlichten).
+   * versiegelt wurde (aus der Zuteilung, sonst dem veröffentlichten) — `entryDesk.ts`.
    */
   const loadStepInfo = useCallback(async (bund: Ring) => {
-    try {
-      const { steps, extensions } = await loadSteps(partId);
-      const held = new Map<string, Map<number, Uint8Array>>();
-
-      for (const areaId of new Set(steps.map((one) => one.areaId))) {
-        const keys = await myEpochKeys(bund, areaId).catch(() => new Map<number, Uint8Array>());
-        try {
-          const open = await loadPublicKey(areaId);
-          if (!keys.has(open.epoch)) keys.set(open.epoch, fromBase64Url(open.key));
-        } catch {
-          // Nicht offengelegt.
-        }
-        held.set(areaId, keys);
-      }
-
-      setStepInfo({ steps: await openSteps(steps, (areaId, epoch) => held.get(areaId)?.get(epoch)), extensions });
-    } catch {
-      setStepInfo(null);
-    }
+    setStepInfo(await openStepInfo(partId, bund).catch(() => null));
   }, [partId]);
 
   const look = useCallback(async () => {
@@ -581,21 +570,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
      * eigenen Versuch: eine, deren Bereich dieser Browser nicht liest, fehlt
      * nur selbst.
      */
-    const exts = new Map<string, ReadForm>();
-    for (const ext of (await loadSteps(partId).catch(() => null))?.extensions ?? []) {
-      try {
-        /*
-         * 0077 — eine WIEDERKEHRENDE Erweiterung hat je Mensch und Zeitraum eine
-         * Einsendung; in der Zeile eines Menschen steht die des LAUFENDEN. Alle
-         * Zeiträume zeigt die Liste der Erweiterung selbst.
-         */
-        const repeat = repeatOf(ext.repeat);
-        const now = roundOf(repeat);
-        exts.set(ext.moduleId, await readForm(ext.moduleId, ring, repeat === 'once' ? {} : { range: { from: now, to: now } }));
-      } catch {
-        // Nicht lesbar — die Zeile sagt es.
-      }
-    }
+    const exts = await readExtensions((await loadSteps(partId).catch(() => null))?.extensions ?? [], ring);
     setExtData(exts);
 
     /*
@@ -639,95 +614,64 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
   const areasHere = [...new Set(fields.map((f) => f.areaId))];
 
   /*
-   * Welche Nummern anders dastehen, als sie heute gespeichert würden. Gerechnet
-   * wird auf dem, was AUFGEGANGEN ist — eine Hülle, die niemand öffnen kann,
-   * lässt sich auch nicht geraderücken.
+   * 0082 — WAS ANDERS DASTEHT, als es heute gespeichert würde: Telefonnummern
+   * und Adressen (`answerTidy.ts`, dieselbe Stelle wie der Durchgang über alle
+   * Formulare in der Kartoteka). Gerechnet auf dem, was AUFGEGANGEN ist.
    */
-  const phoneFields = fields.filter((f) => f.kind === 'phone');
-
-  const crooked = submissions.flatMap((s) => {
-    const opened_ = opened.get(s.registrationId);
-    if (opened_ === undefined) return [];
-
-    return phoneFields.flatMap((f) => {
-      const raw = opened_.get(f.fieldId);
-      if (raw === undefined || raw.trim() === '') return [];
-
-      const tidy = tidyPhones(raw);
-
-      return tidy === raw ? [] : [{ registrationId: s.registrationId, fieldId: f.fieldId, tidy }];
-    });
-  });
+  const tidyFields = fields.filter((f) => tidyKindOf(f) !== null);
+  const [crooked, setCrooked] = useState<readonly Crooked[]>([]);
+  const [tidyOpen, setTidyOpen] = useState(false);
+  const [skipped, setSkipped] = useState<ReadonlySet<string>>(new Set());
+  const crookedKey = (c: Crooked) => `${c.registrationId}|${c.fieldId}`;
+  useEffect(() => {
+    let alive = true;
+    if (tidyFields.length === 0) { setCrooked([]); return undefined; }
+    void crookedOf({ fields, registrations: submissions, opened })
+      .then((found) => {
+        if (!alive) return;
+        setCrooked(found);
+        /* Was der Zerleger nicht sicher wusste, ist zunächst NICHT angehakt. */
+        setSkipped(new Set(found.filter((c) => c.doubt).map(crookedKey)));
+      })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fields, submissions, opened]);
 
   /**
-   * Sie alle auf einmal geraderücken.
-   *
-   * <b>Der Platzschlüssel muss mit.</b> Eine Korrektur, die den Wert nur für
-   * das Amt neu versiegelt, nähme dem Menschen seine eigene Angabe weg — in
-   * seinem Portal stünde danach nichts mehr. Deshalb wird er für jede
-   * Einsendung mit Platz geholt (über die Epoche oder die Annahme, 0027).
+   * Die angehakten auf einmal geraderücken — neu versiegelt wie jede
+   * Berichtigung der Kanzlei: für das Amt UND für den Menschen (sein
+   * Platzschlüssel muss mit, sonst nähme die Korrektur ihm seine Angabe weg).
    */
   const straighten = async () => {
     if (ring === null) throw new WorkspaceError('Bez hasła nie da się poprawić.');
     if (readAreas === null) throw new WorkspaceError('Najpierw otwórz zgłoszenia.');
 
-    /*
-     * WIE VIELE ES WAREN, bevor es keine mehr sind. Nach dem Neulesen ist
-     * `crooked` leer — dann liesse sich nicht mehr sagen, ob der Knopf zehn
-     * Nummern gerichtet hat oder gar nichts tat.
-     */
-    const howMany = crooked.length;
-    const people = new Set(crooked.map((one) => one.registrationId)).size;
+    const keys = new Set(crooked.filter((c) => !skipped.has(crookedKey(c))).map(crookedKey));
 
     /*
-     * Je Einsendung UND Bereich: eine Nummer wird unter der Annahme IHRES
-     * Bereichs neu verpackt — bei mehreren Bereichen nicht unter irgendeiner.
+     * Noch einmal gerechnet, diesmal MIT Eintrag ins gemeinsame Verzeichnis —
+     * dann schreibt die nächste Adresse (auch in einem anderen Formular) diese
+     * Straße genauso. Übernommen wird, was angehakt war.
      */
-    const areaOf = new Map(fields.map((f) => [f.fieldId, f.areaId]));
-    const groups = new Map<string, { registrationId: string; areaId: string; answers: { fieldId: string; value: string }[] }>();
+    const fresh = await crookedOf({ fields, registrations: submissions, opened }, true);
+    const chosen = fresh.filter((c) => keys.has(crookedKey(c)));
+    const phones = chosen.filter((c) => c.kind === 'phone').length;
 
-    for (const one of crooked) {
-      const areaId = areaOf.get(one.fieldId);
-      if (areaId === undefined) continue;
-
-      const slot = `${one.registrationId}|${areaId}`;
-      const entry = groups.get(slot) ?? { registrationId: one.registrationId, areaId, answers: [] };
-      entry.answers.push({ fieldId: one.fieldId, value: one.tidy });
-      groups.set(slot, entry);
-    }
-
-    const intakes = new Map<string, Uint8Array>();
-
-    for (const { registrationId, areaId, answers } of groups.values()) {
-      const seatId = submissions.find((s) => s.registrationId === registrationId)?.seatId ?? null;
-
-      const seatKey = seatId === null
-        ? null
-        : await seatRowOf(seatId, ring).then((r) => r.key).catch(() => null);
-
-      if (!intakes.has(areaId)) intakes.set(areaId, fromBase64Url((await loadPublicIntake(areaId)).publicKey));
-
-      await reviseAsOffice(registrationId, answers, { intakePublic: intakes.get(areaId)!, seatKey });
-    }
+    const areaOf = new Map(fields.map((field) => [field.fieldId, field.areaId]));
+    const done = await straightenAll(ring, { registrations: submissions, areaOf }, chosen, seatKeyFinder(ring));
+    setTidyOpen(false);
 
     await read();
 
     /*
      * ERST NACH `read` — es setzt seine eigene Auskunft und würde diese sonst
-     * überschreiben.
-     *
-     * Und die Bestätigungen: wer eine Nummer neu schreibt, hat für den Dienst
-     * eine ANDERE Nummer, und die ist ungeprüft (0030). Das geschieht
-     * serverseitig, ohne dass jemand daran denken müsste — aber wer eben noch
-     * ein Häkchen gesehen hat, soll erfahren, warum es weg ist.
+     * überschreiben. Eine neu geschriebene Nummer ist für den Dienst eine
+     * ANDERE Nummer, ungeprüft (0030) — wer eben ein Häkchen sah, soll wissen, warum es weg ist.
      */
-    setNote(
-      howMany === 1
-        ? 'Poprawiono numer telefonu w jednej odpowiedzi. Jeśli był potwierdzony, '
-          + 'potwierdzenie wygasło — to już inny zapis numeru.'
-        : `Poprawiono numery telefonu w ${howMany} odpowiedziach `
-          + `(${people === 1 ? 'jedna osoba' : people + ' osób'}). `
-          + 'Potwierdzenia tych numerów wygasły — to już inny zapis numeru.');
+    setNote(`Uporządkowano ${done.values} ${done.values === 1 ? 'odpowiedź' : 'odpowiedzi'} `
+      + `(${done.people === 1 ? 'jedna osoba' : done.people + ' osób'}).`
+      + (phones > 0 ? ' Potwierdzenia poprawionych numerów wygasły — to już inny zapis numeru.' : ''));
   };
 
   /*
@@ -1359,27 +1303,48 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
       {tab === 'people' && readAreas !== null && reading === null && !isExtension && (
         <>
           {/*
-            „NORMALIZUJ NUMERY" STEHT IMMER DA, sobald das Formular überhaupt
-            nach einer Nummer fragt — und nicht erst, wenn etwas krumm ist.
-            Abgeblendet, mit dem Grund darunter.
+            „UPORZĄDKUJ DANE" STEHT IMMER DA, sobald das Formular nach einer
+            Nummer oder einer Adresse fragt — und nicht erst, wenn etwas krumm
+            ist. Abgeblendet, mit dem Grund darunter. 0082: auch Adressen, mit
+            einer Vorschau zum Abhaken.
           */}
-          {phoneFields.length > 0 && (
+          {tidyFields.length > 0 && (
             <div className="wk-actions">
               <button
                 type="button" className="wk-link-btn"
                 disabled={busy !== null || crooked.length === 0}
-                onClick={() => void act('Poprawianie numerów…', straighten)}
+                onClick={() => setTidyOpen((was) => !was)}
               >
-                {crooked.length === 0 ? 'Normalizuj numery' : `Normalizuj numery (${crooked.length})`}
+                {crooked.length === 0 ? 'Uporządkuj dane' : `Uporządkuj dane (${crooked.length})`}
               </button>
               <span className="wk-hint">
                 {crooked.length === 0
-                  ? 'Wszystkie numery są już w jednej postaci.'
-                  : crooked.length === 1
-                    ? 'Jeden numer jest zapisany inaczej niż reszta — zostanie zapisany jako +48 600 700 800.'
-                    : `${crooked.length} numerów jest zapisanych inaczej niż reszta — zostaną zapisane jako +48 600 700 800.`}
+                  ? 'Numery telefonu i adresy są już zapisane w jednej postaci.'
+                  : [
+                    [crooked.filter((c) => c.kind === 'phone').length, 'numer', 'numery', 'numerów'] as const,
+                    [crooked.filter((c) => c.kind === 'address').length, 'adres', 'adresy', 'adresów'] as const
+                  ].filter(([n]) => n > 0).map(([n, one, few, many]) => `${n} ${plural(n, one, few, many)}`).join(' i ')
+                    + ' zapisano inaczej, niż zapisuje je reszta bazy.'}
               </span>
             </div>
+          )}
+          {tidyOpen && crooked.length > 0 && (
+            <section className="wk-tidy">
+              <p className="wk-hint">
+                Numery jako +48 600 700 800, adresy tak, jak w kartotece (ulica i numer, miejscowość, kod i poczta).
+                Zaznaczone „sprawdź" nie dało się rozpoznać na pewno — są odznaczone.
+              </p>
+              <TidyList
+                items={crooked.map((c) => ({ key: crookedKey(c), before: c.value, after: c.tidy, doubt: c.doubt }))}
+                skipped={skipped} busy={busy !== null} onToggle={(key) => setSkipped((was) => toggled(was, key))} />
+              <div className="wk-actions">
+                <button type="button" className="wk-btn" disabled={busy !== null || crooked.every((c) => skipped.has(crookedKey(c)))}
+                  onClick={() => void act('Porządkowanie…', straighten)}>
+                  Zapisz zaznaczone ({crooked.filter((c) => !skipped.has(crookedKey(c))).length})
+                </button>
+                <button type="button" className="wk-link-btn" disabled={busy !== null} onClick={() => setTidyOpen(false)}>Anuluj</button>
+              </div>
+            </section>
           )}
 
           <People
@@ -1447,53 +1412,13 @@ function FormTab({ now, mine, onPick, children }: {
 /* -- Die Menschen, die sich eingetragen haben ------------------------------- */
 
 /**
- * Wer ein Mensch in dieser Liste ist: sein Name und ALLE seine Nummern.
- *
- * <b>Aus den GENORMTEN Fragen zuerst</b> (0038): Imię und Nazwisko, sonst
- * das alte „name". Fehlt beides, die erste ausgefüllte einzeilige Antwort —
- * irgendetwas muss in der Zeile stehen, woran man den Menschen erkennt.
- *
- * <b>Alle Nummern, nicht die erste.</b> Ein Bogen fragt oft nach Mutter UND
- * Vater; wer nur die erste sah, rief immer dieselbe an. Dieselbe Nummer in
- * zwei Fragen steht einmal da.
- */
-function whoIn(
-  values: Map<string, string> | undefined, fields: readonly OpenField[]
-): { name: string; phones: readonly Numbered[] } {
-  if (values === undefined) return { name: '— zapieczętowane —', phones: [] };
-
-  const of = (role: IdentityRole) => {
-    const field = fields.find((f) => f.identityRole === role);
-    return field === undefined ? null : values.get(field.fieldId)?.trim() || null;
-  };
-
-  const nick = of('nickname');
-  /* Derselbe volle Name wie am Platz und im Kalender (`fullNameOf`) — ohne den Spitznamen, der steht daneben. */
-  const full = fullNameOf(fields.filter((f) => f.identityRole !== 'nickname'), (fieldId) => values.get(fieldId));
-  const first = fields.find((f) => f.kind === 'line' && (values.get(f.fieldId)?.trim() ?? '') !== '');
-
-  const name = full !== null
-    ? (nick !== null ? `${full} („${nick}")` : full)
-    : nick ?? (first === undefined ? null : values.get(first.fieldId)!.trim()) ?? '— bez imienia —';
-
-  const seen = new Set<string>();
-  const phones = numbersOf(values, fields).filter((one) => {
-    if (seen.has(one.dial)) return false;
-    seen.add(one.dial);
-    return true;
-  });
-
-  return { name, phones };
-}
-
-/**
  * Was in einer Nachricht für DIESEN Menschen eingesetzt wird — nach
  * Beschriftung der Frage, dazu `{imie}` und `{osoba}`.
  *
  * `{imie}` neben `{osoba}` — der Altbestand hatte beide, und aus gutem Grund:
  * „Cześć Anna Kowalska" grüsst niemand.
  */
-function holesOf(values: Map<string, string> | undefined, fields: readonly OpenField[]): Map<string, string> {
+function holesOf(values: ReadonlyMap<string, string> | undefined, fields: readonly OpenField[]): Map<string, string> {
   const out = new Map<string, string>();
   if (values === undefined) return out;
 
@@ -1515,7 +1440,7 @@ function holesOf(values: Map<string, string> | undefined, fields: readonly OpenF
 }
 
 /** Was ein neuer Link dieses Menschen beim ersten Öffnen fragt — seine Antworten auf die gewählten Fragen. */
-const checkOf = (values: Map<string, string> | undefined, fields: readonly OpenField[]): readonly CheckAnswer[] =>
+const checkOf = (values: ReadonlyMap<string, string> | undefined, fields: readonly OpenField[]): readonly CheckAnswer[] =>
   fields.filter((f) => f.linkCheck)
     .map((f) => ({ fieldId: f.fieldId, kind: f.kind, value: values?.get(f.fieldId) ?? '' }));
 
@@ -1551,7 +1476,7 @@ function People({
   onConfig: (next: Record<string, string>) => void;
 
   submissions: readonly Submission[];
-  opened: Map<string, Map<string, string>>;
+  opened: ReadonlyMap<string, ReadonlyMap<string, string>>;
   fields: readonly OpenField[];
 
   /** Die Bereiche, in denen die Plätze dieses Formulars liegen. */
@@ -1562,7 +1487,7 @@ function People({
   areas: readonly AreaRow[];
 
   /** Die Schritte und Erweiterungen (0047) — `null`: noch nicht geladen. */
-  stepInfo: { steps: readonly OpenStep[]; extensions: readonly ExtensionInfo[] } | null;
+  stepInfo: StepInfo | null;
 
   /** Was jede Erweiterung über diese Menschen weiss (0047). */
   extData: ReadonlyMap<string, ReadForm>;
@@ -1597,31 +1522,13 @@ function People({
    */
   const [stepFilter, setStepFilter] = useState('');
 
-  const statesOf = (s: Submission): readonly StepState[] => stepInfo === null ? [] : stepsFor({
-    hasSeat: s.seatId !== null,
-    confirmedAt: s.confirmedAt,
-    extensions: stepInfo.extensions,
-    /* 0077 — eine wiederkehrende Erweiterung gilt als ausgefüllt, wenn sie es für den LAUFENDEN Zeitraum ist. */
-    filled: new Map(s.extensions
-      .filter((e) => filledNow(stepInfo.extensions.find((x) => x.moduleId === e.moduleId)?.repeat, e))
-      .map((e) => [e.moduleId, e.submittedAt])),
-    steps: stepInfo.steps,
-    marks: s.marks
-  });
-
-  const everyone = submissions
-    .map((s) => ({ s, values: opened.get(s.registrationId), states: statesOf(s), ...whoIn(opened.get(s.registrationId), fields) }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+  /* 0082 — dieselben Zeilen, dieselbe Reihenfolge und derselbe Filter wie auf den Seiten „Lista osób" und „Panel osoby" (`entryDesk.ts`). */
+  const everyone = deskRows({ registrations: submissions, opened, fields }, stepInfo);
 
   /* Welche Schritte es gibt — aus der ersten Zeile, die welche hat (alle haben dieselben, bis auf den Link). */
-  const stepKinds = [...new Map(everyone.flatMap((r) => r.states).map((st) => [st.key, st.label])).entries()];
+  const stepKinds = stepKindsOf(everyone);
 
-  const rows = everyone.filter((r) =>
-    stepFilter === '' ? true
-    : stepFilter === 'open' ? r.states.some((st) => st.status !== 'done')
-    : stepFilter === 'done' ? r.states.length > 0 && r.states.every((st) => st.status === 'done')
-    : stepFilter === 'overdue' ? r.states.some((st) => st.status === 'overdue')
-    : r.states.some((st) => `todo:${st.key}` === stepFilter && st.status !== 'done'));
+  const rows = everyone.filter((r) => stepMatches(stepFilter, r.states));
 
   if (everyone.length === 0) return <p className="wk-empty">Nikt się jeszcze nie zapisał.</p>;
 
@@ -1696,10 +1603,7 @@ function People({
           <label className="wk-inline">
             <span className="wk-hint">Pokaż:</span>
             <select value={stepFilter} onChange={(e) => setStepFilter(e.target.value)} aria-label="Filtr kroków">
-              <option value="">wszystkie osoby</option>
-              <option value="open">komuś czegoś brakuje</option>
-              <option value="overdue">coś po terminie</option>
-              <option value="done">wszystko zrobione</option>
+              {STEP_CHOICES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
               {stepKinds.map(([key, label]) => (
                 <option key={key} value={`todo:${key}`}>brakuje: {label}</option>
               ))}
@@ -1824,105 +1728,21 @@ function People({
 
               {open && (
                 <div className="wk-entry-body">
-                  <p className="wk-hint">
-                    Wysłano {new Date(s.submittedAt).toLocaleString('pl-PL')}
-                    {s.confirmedAt !== null && ` · dane potwierdzone przez osobę ${new Date(s.confirmedAt).toLocaleString('pl-PL')}`}
-                  </p>
-
-                  <Answers values={values} fields={fields} sealed={s.values.length} checks={s.checks} />
-
-                  {/* WAS NOCH ZU TUN IST (0047) — und hier abhaken, was die Kanzlei abhakt. */}
-                  <PersonSteps registrationId={s.registrationId} states={states} onChanged={onChanged} onError={onError} />
-
-                  {/*
-                    DIE ERWEITERUNGEN (0047) — was der Mensch ergänzt hat, und
-                    was der Koordinator zu ihm notiert. Das Zweite schreibt er
-                    gleich hier.
-                  */}
-                  {(stepInfo?.extensions ?? []).map((ext) => {
-                    const data = extData.get(ext.moduleId);
-                    const repeat = repeatOf(ext.repeat);
-                    const round = roundOf(repeat);
-
-                    return (
-                      <section key={ext.moduleId} className="wk-ext-entry">
-                        <h4 className="wk-h3">
-                          {ext.name}
-                          <span className="wk-row-side">
-                            {ext.audience === 'office' ? ' · tylko koordynator' : ' · uzupełnia osoba'}
-                            {/* 0077 — hier steht der LAUFENDE Zeitraum; alle zeigt die Liste der Erweiterung. */}
-                            {repeat !== 'once' && <> · {roundLabel(repeat, round)} · <a className="wk-link" href={viewPath('modules', 'form', ext.moduleId)}>wszystkie okresy</a></>}
-                          </span>
-                        </h4>
-                        {data === undefined ? (
-                          <p className="wk-empty">Tego rozszerzenia nie otworzysz tym kluczem.</p>
-                        ) : (
-                          <ExtensionEntry
-                            extensionId={ext.moduleId}
-                            ext={data}
-                            baseRegistrationId={s.registrationId}
-                            entry={data.registrations.find((r) => r.baseId === s.registrationId && (r.round ?? '') === round)}
-                            editable={ext.audience === 'office'}
-                            round={round}
-                            onSaved={() => void onChanged()}
-                          />
-                        )}
-                      </section>
-                    );
-                  })}
-
-                  {/*
-                    DER LINK — nur, wo es einen Platz gibt. Eine Einsendung ohne
-                    Platz hat nichts, worauf ein Link zeigen könnte.
-                  */}
-                  {s.seatId !== null ? (
-                    <SendPanel
-                      seatId={s.seatId}
-                      registrationId={s.registrationId}
-                      checks={s.checks}
-                      values={values}
-                      fields={fields}
-                      links={links}
-                      onError={onError}
-                      onChanged={onChanged}
-                    />
-                  ) : (
-                    <p className="wk-hint">
-                      {s.byOffice === true
-                        ? 'Osoba dopisana przez koordynatora — nie ma własnego linku.'
-                        : 'To zgłoszenie przyszło bez miejsca — nie ma linku, który można by wysłać.'}
-                    </p>
-                  )}
-
-                  {/*
-                    ZWEI VERSCHIEDENE DINGE, verschieden benannt. „Ukryj" räumt
-                    die Liste auf und lässt die Hüllen liegen; „Usuń" nimmt die
-                    Bytes fort — und fragt deshalb vorher, wie der Altbestand.
-                  */}
-                  <div className="wk-actions">
-                    {/* 0069 — eine Rozmowa nur mit diesem Menschen; die anderen, die das Formular ausgefüllt haben, sehen sie nicht. */}
-                    {s.seatId !== null && ring !== null && (
-                      <WriteToSeat seatId={s.seatId} near={[...formAreas, links.areaOf(s.seatId)]} areas={areas} ring={ring} busy={busy} onError={onError} />
-                    )}
-                    <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onHide(s)}>
-                      {s.hidden ? 'Przywróć' : 'Ukryj'}
-                    </button>
-                    <button
-                      type="button" className="wk-link-btn wk-danger" disabled={busy}
-                      onClick={() => {
-                        if (window.confirm(`Usunąć zgłoszenie: ${name}? Odpowiedzi zostaną skasowane bez możliwości odtworzenia — także przez prowadzącego usługę.`)) {
-                          onRemove(s);
-                        }
-                      }}
-                    >
-                      Usuń bezpowrotnie
-                    </button>
-                  </div>
-                  <p className="wk-hint">
-                    „Ukryj" nic nie kasuje — wiersz znika z listy, a zapieczętowane
-                    odpowiedzi zostają. Miejsce osoby zostaje też po usunięciu:
-                    zabierasz zgłoszenie, nie dostęp.
-                  </p>
+                  <EntryPanel
+                    row={{ s, values, name, phones, states }}
+                    fields={fields}
+                    stepInfo={stepInfo}
+                    extData={extData}
+                    links={links}
+                    formAreas={formAreas}
+                    areas={areas}
+                    ring={ring}
+                    busy={busy}
+                    onHide={onHide}
+                    onRemove={onRemove}
+                    onError={onError}
+                    onChanged={onChanged}
+                  />
                 </div>
               )}
             </li>
@@ -1930,6 +1750,215 @@ function People({
         })}
       </ul>
     </section>
+  );
+}
+
+/**
+ * 0082 — EIN MENSCH, mit allem, was die Kanzlei zu ihm hat: seine Antworten,
+ * seine Schritte, was er ergänzt hat, sein Link, die Rozmowa mit ihm.
+ *
+ * <b>Dasselbe an zwei Stellen.</b> In „Osoby" klappt es unter einer Zeile
+ * auf; auf einer Seite mit „Wybór na stronie" steht es als Baustein „Panel
+ * osoby" — für den Menschen, der oben gewählt ist. Dort lässt es sich auch in
+ * Stücke teilen (`sections`): die Antworten in einer Kachel, die Schritte in
+ * einer anderen.
+ */
+function EntryPanel({
+  row, fields, stepInfo, extData, links, formAreas, areas, ring, busy, sections = PANEL_SECTIONS,
+  onHide, onRemove, onError, onChanged
+}: {
+  row: DeskRow;
+  fields: readonly OpenField[];
+  stepInfo: StepInfo | null;
+  extData: ReadonlyMap<string, ReadForm>;
+  links: SeatLinks;
+  formAreas: readonly (string | null)[];
+  areas: readonly AreaRow[];
+  ring: Ring | null;
+  busy: boolean;
+  sections?: readonly PanelSection[];
+  onHide: (s: Submission) => void;
+  onRemove: (s: Submission) => void;
+  onError: (message: string | null) => void;
+  onChanged: () => Promise<void>;
+}) {
+  const { s, values, name, states } = row;
+  const on = new Set(sections);
+
+  return (
+    <>
+      {on.has('answers') && (
+        <>
+          <p className="wk-hint">
+            Wysłano {new Date(s.submittedAt).toLocaleString('pl-PL')}
+            {s.confirmedAt !== null && ` · dane potwierdzone przez osobę ${new Date(s.confirmedAt).toLocaleString('pl-PL')}`}
+          </p>
+          <Answers values={values} fields={fields} sealed={s.values.length} checks={s.checks} />
+        </>
+      )}
+
+      {on.has('steps') && (
+        <>
+          {/* WAS NOCH ZU TUN IST (0047) — und hier abhaken, was die Kanzlei abhakt. */}
+          <PersonSteps registrationId={s.registrationId} states={states} onChanged={onChanged} onError={onError} />
+        </>
+      )}
+
+      {on.has('extensions') && (
+        <>
+          {/*
+            DIE ERWEITERUNGEN (0047) — was der Mensch ergänzt hat, und
+            was der Koordinator zu ihm notiert. Das Zweite schreibt er
+            gleich hier.
+          */}
+          {(stepInfo?.extensions ?? []).map((ext) => {
+            const data = extData.get(ext.moduleId);
+            const repeat = repeatOf(ext.repeat);
+            const round = roundOf(repeat);
+
+            return (
+              <section key={ext.moduleId} className="wk-ext-entry">
+                <h4 className="wk-h3">
+                  {ext.name}
+                  <span className="wk-row-side">
+                    {ext.audience === 'office' ? ' · tylko koordynator' : ' · uzupełnia osoba'}
+                    {/* 0077 — hier steht der LAUFENDE Zeitraum; alle zeigt die Liste der Erweiterung. */}
+                    {repeat !== 'once' && <> · {roundLabel(repeat, round)} · <a className="wk-link" href={viewPath('modules', 'form', ext.moduleId)}>wszystkie okresy</a></>}
+                  </span>
+                </h4>
+                {data === undefined ? (
+                  <p className="wk-empty">Tego rozszerzenia nie otworzysz tym kluczem.</p>
+                ) : (
+                  <ExtensionEntry
+                    extensionId={ext.moduleId}
+                    ext={data}
+                    baseRegistrationId={s.registrationId}
+                    entry={data.registrations.find((r) => r.baseId === s.registrationId && (r.round ?? '') === round)}
+                    editable={ext.audience === 'office'}
+                    round={round}
+                    onSaved={() => void onChanged()}
+                  />
+                )}
+              </section>
+            );
+          })}
+        </>
+      )}
+
+      {on.has('link') && (
+        <>
+          {/*
+            DER LINK — nur, wo es einen Platz gibt. Eine Einsendung ohne
+            Platz hat nichts, worauf ein Link zeigen könnte.
+          */}
+          {s.seatId !== null ? (
+            <SendPanel
+              seatId={s.seatId}
+              registrationId={s.registrationId}
+              checks={s.checks}
+              values={values}
+              fields={fields}
+              links={links}
+              onError={onError}
+              onChanged={onChanged}
+            />
+          ) : (
+            <p className="wk-hint">
+              {s.byOffice === true
+                ? 'Osoba dopisana przez koordynatora — nie ma własnego linku.'
+                : 'To zgłoszenie przyszło bez miejsca — nie ma linku, który można by wysłać.'}
+            </p>
+          )}
+        </>
+      )}
+
+      {on.has('actions') && (
+        <>
+          {/*
+            ZWEI VERSCHIEDENE DINGE, verschieden benannt. „Ukryj" räumt
+            die Liste auf und lässt die Hüllen liegen; „Usuń" nimmt die
+            Bytes fort — und fragt deshalb vorher, wie der Altbestand.
+          */}
+          <div className="wk-actions">
+            {/* 0069 — eine Rozmowa nur mit diesem Menschen; die anderen, die das Formular ausgefüllt haben, sehen sie nicht. */}
+            {s.seatId !== null && ring !== null && (
+              <WriteToSeat seatId={s.seatId} near={[...formAreas, links.areaOf(s.seatId)]} areas={areas} ring={ring} busy={busy} onError={onError} />
+            )}
+            <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onHide(s)}>
+              {s.hidden ? 'Przywróć' : 'Ukryj'}
+            </button>
+            <button
+              type="button" className="wk-link-btn wk-danger" disabled={busy}
+              onClick={() => {
+                if (window.confirm(`Usunąć zgłoszenie: ${name}? Odpowiedzi zostaną skasowane bez możliwości odtworzenia — także przez prowadzącego usługę.`)) {
+                  onRemove(s);
+                }
+              }}
+            >
+              Usuń bezpowrotnie
+            </button>
+          </div>
+          <p className="wk-hint">
+            „Ukryj" nic nie kasuje — wiersz znika z listy, a zapieczętowane
+            odpowiedzi zostają. Miejsce osoby zostaje też po usunięciu:
+            zabierasz zgłoszenie, nie dostęp.
+          </p>
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * 0082 — „PANEL OSOBY" auf einer Seite: ein Mensch aus den gelesenen
+ * Einsendungen (`entryDesk.ts`), mit eigenem Zustand für Fehler und Arbeit.
+ * Was sich an ihm ändert, sagt es weiter (`deskChanged`) — dann lesen die
+ * Auswahl oben und jede andere Kachel neu.
+ */
+export function EntryDeskPanel({ desk, row, ring, sections }: {
+  desk: EntryDesk;
+  row: DeskRow;
+  ring: Ring;
+  sections: readonly PanelSection[];
+}) {
+  const links = useSeatLinks(seatAreasOf(desk), ring);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  const act = async (what: string, todo: () => Promise<unknown>) => {
+    setBusy(what);
+    setFailed(null);
+    try {
+      await todo();
+      deskChanged(desk.formId);
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="wk-entry-body wk-entry-desk">
+      {failed !== null && <p className="wk-error">{failed}</p>}
+      {busy !== null && <p className="wk-hint" role="status">{busy}</p>}
+      <EntryPanel
+        row={row}
+        fields={desk.form.fields}
+        stepInfo={desk.info}
+        extData={desk.extData}
+        links={links}
+        formAreas={formAreasOf(desk)}
+        areas={desk.areas}
+        ring={ring}
+        busy={busy !== null}
+        sections={sections}
+        onHide={(s) => void act(s.hidden ? 'Przywracanie…' : 'Ukrywanie…', () => hideSubmission(s.registrationId, !s.hidden))}
+        onRemove={(s) => void act('Usuwanie…', () => removeSubmission(s.registrationId))}
+        onError={setFailed}
+        onChanged={async () => { await links.reload(); deskChanged(desk.formId); }}
+      />
+    </div>
   );
 }
 
@@ -2090,7 +2119,7 @@ function ExtensionOf({ row, busy, onRepeat }: { row: ModuleRow; busy: boolean; o
  * den Fragen und der INHALT von dem, was aufging.
  */
 function Answers({ values, fields, sealed, checks }: {
-  values: Map<string, string> | undefined;
+  values: ReadonlyMap<string, string> | undefined;
   fields: readonly OpenField[];
   sealed: number;
 
@@ -2499,10 +2528,11 @@ function ControllerForm({ value, busy, onSave }: {
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="np. Parafia św. Kazimierza" />
       </label>
 
-      <label className="wk-field">
+      {/* 0082 — auch die Adresse des Verantwortlichen in der einen Form der Datenbank. */}
+      <div className="wk-field">
         <span>Adres</span>
-        <input value={address} onChange={(e) => setAddress(e.target.value)} />
-      </label>
+        <PostalInput value={address} onChange={setAddress} />
+      </div>
 
       <label className="wk-field">
         <span>E-mail (opcjonalnie)</span>
@@ -2691,61 +2721,6 @@ function SelfEditBox({ value, onChange }: { value: boolean; onChange: (next: boo
 
 export default FormOffice;
 
-/* -- Welche Werte Nummern sind --------------------------------------------- */
-
-/** Eine Nummer dieser Einsendung — und woher wir wissen, dass es eine ist. */
-type Numbered = {
-  readonly fieldId: string;
-
-  /** Wählbar, ohne Leerzeichen — das Ziel von `sms:` und `tel:`. */
-  readonly dial: string;
-
-  /** Lesbar, wie sie in der Liste steht. */
-  readonly shown: string;
-
-  /**
-   * Die Frage dazu gibt es nicht mehr. Dass dies eine Nummer ist, schliessen
-   * wir aus ihrer GESTALT — und deshalb entscheidet der Mensch, nicht wir.
-   */
-  readonly orphan: boolean;
-};
-
-/**
- * Die Nummern einer Einsendung.
- *
- * <b>Eine bekannte Frage sagt es selbst.</b> Steht dort „Telefon", sind es
- * Nummern; steht dort etwas anderes, sind es keine — auch dann nicht, wenn
- * neun Ziffern dastehen. `1993-07-16` ergibt `+4819930716`, und ein
- * Geburtsdatum als Handynummer zu führen ist schlimmer als gar nichts zu
- * erkennen.
- *
- * <b>Eine Frage, die es nicht mehr gibt, ist der andere Fall.</b> Dort steht
- * niemand mehr, der sagen könnte, was der Wert ist — aber die Kanzlei SIEHT
- * ihn. Sie bekommt den Knopf angeboten und entscheidet; geraten wird nur, wem
- * er angeboten wird, nie was damit geschieht.
- */
-function numbersOf(
-  values: Map<string, string> | undefined, fields: readonly OpenField[]
-): readonly Numbered[] {
-  if (values === undefined) return [];
-
-  const out: Numbered[] = [];
-
-  for (const [fieldId, text] of values) {
-    const field = fields.find((f) => f.fieldId === fieldId);
-    if (field !== undefined && field.kind !== 'phone') continue;
-
-    for (const one of splitPhones(text)) {
-      const dial = dialable(one);
-      if (dial === null) continue;
-
-      out.push({ fieldId, dial, shown: normalisePhone(one) ?? one, orphan: field === undefined });
-    }
-  }
-
-  return out;
-}
-
 /* -- Die Links der Menschen, für die Kanzlei (0046) ------------------------ */
 
 /**
@@ -2929,7 +2904,7 @@ function SendPanel({
   /** Welche Einsendung — eine Bestätigung hängt am WERT, nicht am Menschen. */
   readonly registrationId: string;
 
-  values: Map<string, string> | undefined;
+  values: ReadonlyMap<string, string> | undefined;
   fields: readonly OpenField[];
 
   /** Was an einzelnen Werten schon bestätigt ist (0030). */
@@ -3514,30 +3489,6 @@ function LinkCheckBox({ partId, fields, busy, onSaved, onError }: {
  * einmal (`straighten`); die Liste der Menschen hat ihren eigenen Weg
  * (`useSeatLinks`).
  */
-async function seatRowOf(seatId: string, ring: Ring): Promise<{ key: Uint8Array; under: string | null }> {
-  const mine = (await loadAreas()).areas;
-
-  for (const area of mine) {
-    const { seats } = await loadSeats(area.areaId).catch(() => ({ seats: [] as readonly SeatRow[] }));
-    const row = seats.find((s) => s.seatId === seatId);
-    if (row === undefined) continue;
-
-    const areaKey = (await myEpochKeys(ring, area.areaId)).get(area.currentEpoch);
-
-    let intake: Uint8Array | undefined;
-    if (row.origin === 'self') {
-      intake = await openIntakeKey(await loadIntake(area.areaId), ring);
-    }
-
-    const key = await officeSeatKey(row, areaKey ?? new Uint8Array(32), intake);
-    if (key === null) throw new WorkspaceError('Do tego miejsca nie ma klucza.');
-
-    return { key, under: row.under };
-  }
-
-  throw new WorkspaceError('Tego miejsca nie ma wśród Twoich obszarów.');
-}
-
 /* -- Die Überschrift ------------------------------------------------------- */
 
 /**

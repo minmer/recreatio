@@ -58,6 +58,9 @@ export interface PageCard {
   /** Eine eigene Domain, die hierher zeigt, oder `null`. */
   readonly host: string | null;
 
+  /** 0082 — „Wybór na stronie" (JSON, `pageSubject.tsx`) — oder `null`. */
+  readonly subject?: string | null;
+
   /**
    * WESSEN Seite das ist — `null` heisst öffentlich.
    *

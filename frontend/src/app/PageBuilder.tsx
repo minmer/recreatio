@@ -36,6 +36,7 @@ import { partSize, SIZE_WORD, type PartSize } from './part';
 import { PARTS, partLabel, partOf } from './parts/registry';
 import { PickModule } from './PickModule';
 import { PickForm, PickQuestions, pickedForm } from './FormPick';
+import { PickPage } from './PickPage';
 import { PickCalendar, PickCalendarItem, PickCalendars } from './PickCalendar';
 import { PickChat } from './PickChat';
 import { PickResource } from './PickResource';
@@ -604,7 +605,7 @@ function Fields({ part, size, busy, onSet, path }: {
 
         return (
           /* Eine Auswahl mit mehreren Knöpfen darin ist kein <label>: ein Klick daneben träfe den ersten. */
-          <Wrap as={field.kind === 'questions' || field.kind === 'form' || field.kind === 'calendars' || field.kind === 'calendarItem' ? 'div' : 'label'} className={`wk-field${empty ? ' is-empty' : ''}`} key={field.key}>
+          <Wrap as={field.kind === 'questions' || field.kind === 'form' || field.kind === 'calendars' || field.kind === 'calendarItem' || field.kind === 'page' ? 'div' : 'label'} className={`wk-field${empty ? ' is-empty' : ''}`} key={field.key}>
             <span>{field.label}</span>
 
             {field.kind === 'calendar' ? (
@@ -621,6 +622,8 @@ function Fields({ part, size, busy, onSet, path }: {
               <PickLibraryEntry library={part.config[field.of ?? ''] ?? ''} kinds={field.entryKinds ?? ['text']} value={value} busy={busy} optional={field.optional} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'resource' ? (
               <PickResource value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
+            ) : field.kind === 'page' ? (
+              <PickPage value={value} busy={busy} onPick={(path) => onSet({ [field.key]: path })} />
             ) : field.kind === 'form' ? (
               <PickForm value={value} busy={busy} onPick={(id) => onSet(pickedForm(def, field.key, id))} />
             ) : field.kind === 'questions' ? (

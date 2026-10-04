@@ -21,7 +21,7 @@ import { JsonPanel, type JsonPreview } from './JsonPanel';
 import { adoptMenuOf, loadMenu, saveMenu } from './menu';
 import { loadModules, readConfig, updateModule } from './module';
 import { QuestionOptions } from './ModuleJson';
-import { loadPage, savePage, savePageLogic, savePageLook, saveParts, type DraftPart } from './page';
+import { loadPage, savePage, savePageLogic, savePageLook, savePageSubject, saveParts, type DraftPart } from './page';
 import {
   configFromJson, DEFAULT_IMPORT, documentKind, exportPage, legacyPagesOf, pageDescription, PART_FORMAT, partDescription,
   planImport, replacing, sameConfig, type ImportOptions, type PageNow
@@ -142,6 +142,11 @@ export function PageJson({ now, who, unsaved, onDone }: {
     if (done.logic !== undefined) {
       stage('Zapisywanie mapy logiki…');
       await savePageLogic(path, done.logic);
+    }
+
+    if (done.subject !== undefined) {
+      stage('Zapisywanie wyboru na stronie…');
+      await savePageSubject(path, done.subject);
     }
 
     await onDone();

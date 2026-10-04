@@ -39,6 +39,7 @@ import { setPartConfig } from './form';
 import { PARTS, partLabel, partOf, takesEntries } from './parts/registry';
 import { PickChat } from './PickChat';
 import { PickForm, PickQuestions, pickedForm } from './FormPick';
+import { PickPage } from './PickPage';
 import { PickResource } from './PickResource';
 import { PickLibrary, PickLibraryEntry } from './LibraryPick';
 import { PickCalendar, PickCalendarItem } from './PickCalendar';
@@ -487,6 +488,8 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
             busy={busy}
             onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }}
           />
+        ) : field.kind === 'page' ? (
+          <PickPage value={value} busy={busy} onPick={(path) => { setConfig({ ...config, [field.key]: path }); void save(field.key, path); }} />
         ) : field.kind === 'form' ? (
           <PickForm value={value} busy={busy} onPick={(id) => void saveMany(pickedForm(def, field.key, id))} />
         ) : field.kind === 'questions' ? (

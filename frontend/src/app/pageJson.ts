@@ -30,6 +30,7 @@ import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Bre
 import type { MenuState } from './menu';
 import type { DraftPart, MenuItem } from './page';
 import { GATE_KINDS, INPUT_KINDS, PAGE_NODE_LABEL, readLogic, type PageLogic } from './pageLogic';
+import { readSubject, subjectDescription, subjectKindOf, writeSubject } from './pageSubject';
 import type { PartModule, RawConfig } from './part';
 import { PARTS, partOf } from './parts/registry';
 import { DEFAULT_THEMES, readLayers, readSlide, type Look, type Theme } from './slides';
@@ -52,6 +53,8 @@ export interface PageNow {
   readonly look: Look;
   readonly parts: readonly DraftPart[];
   readonly logic: string | null;
+  /** 0082 — „Wybór na stronie" (JSON) — fehlt: keiner. */
+  readonly subject?: string | null;
   /** `null`: nicht geladen — dann steht das Menü nicht im Export. */
   readonly menu: MenuState | null;
   /** Modul → Name, soweit bekannt. */
@@ -100,6 +103,7 @@ export function exportPage(now: PageNow): Record<string, unknown> {
     cover: now.look.cover,
     ...(menu === undefined ? {} : { menu }),
     logic: readLogic(now.logic),
+    subject: readSubject(now.subject ?? null),
     modules: now.parts.map((part) => {
       const moduleId = part.moduleId ?? part.id;
       return exportEntry(part, {
@@ -227,6 +231,8 @@ export interface PagePlan {
   readonly look?: Look;
   readonly menu?: { readonly items: readonly MenuItem[] } | { readonly from: string } | null;
   readonly logic?: string | null;
+  /** 0082 — „Wybór na stronie" (JSON); `null` nimmt ihn weg. */
+  readonly subject?: string | null;
   readonly parts: readonly DraftPart[];
   /** Was ein Modul nach dem Speichern tragen soll (Stelle → Tafel) — geteilte Module folgen dem Entwurf nicht von selbst. */
   readonly configs: ReadonlyMap<string, RawConfig>;
@@ -449,6 +455,23 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
     }
   }
 
+  /* 0082 — „Wybór na stronie". */
+  if (kind === 'page' && has(root, 'subject')) {
+    const decl = root.subject === null ? null : readSubject(root.subject);
+    const known = decl === null ? undefined : subjectKindOf(decl.kind);
+    if (root.subject !== null && (decl === null || known === undefined)) {
+      warnings.push(decl === null ? '"subject" nie ma "kind" — wybór na stronie zostaje jak jest.' : `"subject": nieznany rodzaj „${decl.kind}” — wybór na stronie zostaje jak jest.`);
+    } else {
+      const next = writeSubject(decl);
+      if (next !== writeSubject(readSubject(now.subject ?? null))) {
+        plan.subject = next;
+        lines.push(decl === null || known === undefined ? 'Wybór na stronie: brak.' : `Wybór na stronie: ${known.label.toLowerCase()}.`);
+        const missing = decl === null || known === undefined ? null : known.missing(decl);
+        if (missing !== null) warnings.push(`Wybór na stronie: ${missing}`);
+      }
+    }
+  }
+
   if (!has(plan, 'logic') && now.logic !== null && replace) {
     const logic = readLogic(now.logic);
     const here = new Set(parts.map((p) => p.id));
@@ -570,6 +593,7 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
   "cover" — tło slajdu tytułowego: lista warstw (niżej)
   "menu" — null (bez menu), lista pozycji albo { "from": "ścieżka" } (to samo menu co na innej Twojej stronie)
       pozycja: { "label", "kind": "abs" (ścieżka od korzenia, np. "parafia/zapisy") | "rel" (względem tej strony) | "url" (pełny adres) | "none" (sam nagłówek), "target", "children": [pozycje] }
+  "subject" — wybór na stronie: u góry strony wybiera się jedną rzecz, a moduły (np. "entry-panel") ją pokazują. ${subjectDescription()}
   "logic" — mapa logiki strony (kiedy który moduł jest widoczny, kroki osoby) albo null. Najprościej układać ją w edytorze; w JSON: { "version": 1, "nodes": [...], "edges": [...] }
       węzeł: { "id", "kind", "x", "y", ... } — kind: ${([...INPUT_KINDS, ...GATE_KINDS, 'part', 'step'] as const).map((k) => `"${k}" (${PAGE_NODE_LABEL[k]})`).join(', ')}
       "part" ma "partId" (= "id" modułu) i "message"; "step" ma "label", "help", "dueAt" (RRRR-MM-DD), "goto" (= "id" modułu);

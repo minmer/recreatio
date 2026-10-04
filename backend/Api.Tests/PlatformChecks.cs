@@ -142,6 +142,13 @@ internal static class PlatformChecks
             check(same == row[2].GetBoolean(), $"postal key: {row[0]} vs {row[1]} → {row[2]}");
         }
 
+        /* 0082 — die eine Schreibweise, dieselbe wie postal.ts display. */
+        foreach (var row in doc.RootElement.GetProperty("display").EnumerateArray())
+        {
+            var got = Api.Postal.Display(row[0].GetString()!, row[1].GetString());
+            check(got == row[2].GetString(), $"postal display {row[0]} \"{row[1]}\" → \"{row[2]}\" (got \"{got}\")");
+        }
+
         check(Api.Postal.Check(new(null, "", "", "", "", "", "", "")) is not null, "postal: an empty address is refused");
         check(Api.Postal.Check(new(null, "3114", "Kraków", "", "", "Długa", "5", "")) is not null, "postal: a malformed postcode is refused");
         check(Api.Postal.Check(new(null, "", "", "", "", "", "12", "")) is not null, "postal: a house number alone is no address");

@@ -57,9 +57,11 @@ async function epochKey(ring: Ring, areaId: string, epoch: number): Promise<Uint
  * @param options.range 0077 — nur ein Abschnitt der Zeit einer wiederkehrenden
  *   Erweiterung (ein Jahr, ein Monat): sie hat je Mensch und Zeitraum eine
  *   Einsendung, und alle auf einmal wären nach Jahren tausende.
+ * @param options.hidden 0082 — auch die ausgeblendeten (die Liste der Menschen, „Pokaż też ukryte").
  */
 export async function readForm(
-  partId: string, ring: Ring, options: { readonly range?: { readonly from: string; readonly to: string } } = {}
+  partId: string, ring: Ring,
+  options: { readonly range?: { readonly from: string; readonly to: string }; readonly hidden?: boolean } = {}
 ): Promise<ReadForm> {
   const { fields: sealed, design: shut } = await loadFields(partId);
 
@@ -101,7 +103,7 @@ export async function readForm(
   }
 
   const areaOf = new Map(sealed.map((f) => [f.fieldId, f.areaId]));
-  const { registrations } = await loadRegistrations(partId, false, options.range);
+  const { registrations } = await loadRegistrations(partId, options.hidden === true, options.range);
   const opened = new Map<string, ReadonlyMap<string, string>>();
   const pending: { fieldId: string; registrationId: string; officeKeySealed: string }[] = [];
 

@@ -6850,6 +6850,7 @@ a.wk-toast-body:focus-visible { outline: 2px solid var(--wk-accent); outline-off
 .wk-dep { display: grid; gap: 0.6rem; }
 .wk-dep-canvas { height: min(75vh, 46rem); border: 1px solid var(--wk-line); border-radius: 8px; background: var(--wk-surface); }
 .wk-dep-canvas .react-flow__edge.is-fixed path { stroke-dasharray: 4 4; opacity: 0.6; }
+.wk-dep-canvas .react-flow__edge.is-subject path { stroke: var(--wk-accent); stroke-dasharray: 2 3; }
 .wk-dep-canvas .react-flow__edge-textbg { fill: var(--wk-surface); }
 .wk-dep-canvas .react-flow__edge-text { fill: var(--wk-muted); font-size: 10px; }
 .wk-dep-node {
@@ -7118,3 +7119,79 @@ a.wk-toast-body:focus-visible { outline: 2px solid var(--wk-accent); outline-off
 .wk-seat-queue { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .wk-seat-queue li { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; padding: 8px 12px; border: 1px dashed var(--wk-line); border-radius: 12px; background: var(--wk-soft); color: var(--wk-ink); }
 .wk-seat-queue li span { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* 0082 — „tak było → tak będzie": was in die eine Form gebracht wird (Telefon, Adresse), zum Abhaken. */
+.wk-tidy, .wk-tidy-all { display: grid; gap: 10px; }
+.wk-tidy-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 60vh; overflow: auto; }
+.wk-tidy-row label { display: flex; gap: 10px; align-items: baseline; padding: 6px 10px; border: 1px solid var(--wk-line); border-radius: 8px; background: var(--wk-surface); cursor: pointer; }
+.wk-tidy-row.is-doubt label { border-style: dashed; background: var(--wk-soft); }
+.wk-tidy-text { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; min-width: 0; }
+.wk-tidy-where { flex-basis: 100%; font-size: 0.85em; color: var(--wk-muted); }
+.wk-tidy-before { color: var(--wk-muted); text-decoration: line-through; overflow-wrap: anywhere; }
+.wk-tidy-arrow { color: var(--wk-muted); }
+.wk-tidy-after { color: var(--wk-ink); font-weight: 600; overflow-wrap: anywhere; }
+
+/* -- 0082: Wybór na stronie — eine Person aus einem Formular ---------------- */
+
+/* Eine Zeile über den Bausteinen: woher, wer, ◀ ▶, wievielter, Filter. Kein Kasten um die Seite — ein Streifen. */
+.wk-subject { display: grid; gap: 0.5rem; margin: 0.4rem 0 1rem; }
+.wk-subject-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem;
+  padding: 0.5rem 0.7rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface);
+}
+.wk-subject-bar.is-waiting { display: block; }
+.wk-subject-back { white-space: nowrap; }
+.wk-subject-of {
+  font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wk-muted);
+  max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wk-subject-pick {
+  font: inherit; font-weight: 600; color: var(--wk-ink); background: var(--wk-surface);
+  padding: 0.3rem 0.5rem; border: 1px solid var(--wk-line); border-radius: 4px; min-width: 0; max-width: min(22rem, 100%);
+}
+.wk-subject-name { font-size: 1.05rem; min-width: 0; overflow-wrap: anywhere; }
+.wk-subject-nav { display: inline-flex; align-items: center; gap: 0.4rem; flex: 1 1 16rem; min-width: 0; max-width: 30rem; }
+.wk-subject-nav .wk-subject-pick { flex: 1 1 auto; max-width: none; }
+.wk-subject-step {
+  font: inherit; line-height: 1; padding: 0.35rem 0.6rem; border: 1px solid var(--wk-line); border-radius: 4px;
+  background: var(--wk-soft); color: var(--wk-ink); cursor: pointer;
+}
+.wk-subject-step:hover:not(:disabled) { border-color: var(--wk-accent); color: var(--wk-accent); }
+.wk-subject-step:disabled { opacity: 0.4; cursor: default; }
+.wk-subject-step:focus-visible, .wk-subject-pick:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-subject-at { font-size: 0.85rem; color: var(--wk-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wk-subject-settings { display: grid; gap: 0.6rem; margin-top: 0.6rem; }
+
+/* Der Filter: Suche, Schritt, auch ausgeblendete — dieselbe Zeile in der Liste und oben auf der Seite eines Menschen. */
+.wk-entry-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.7rem; margin: 0.3rem 0 0.5rem; }
+.wk-entry-filter input[type="search"] {
+  font: inherit; flex: 1 1 12rem; min-width: 0; padding: 0.35rem 0.55rem;
+  border: 1px solid var(--wk-line); border-radius: 4px; background: var(--wk-surface); color: var(--wk-ink);
+}
+.wk-entry-filter select {
+  font: inherit; padding: 0.35rem 0.5rem; border: 1px solid var(--wk-line); border-radius: 4px;
+  background: var(--wk-surface); color: var(--wk-ink); max-width: 100%;
+}
+.wk-entry-filter .wk-inline input { min-width: 0; }
+
+/* Lista osób — schmal: Namen untereinander; breit: eine Tabelle, die für sich seitwärts rollt. */
+.wk-entry-picks { list-style: none; margin: 0; padding: 0; display: grid; }
+.wk-entry-picks li {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.3rem 0.6rem;
+  padding: 0.45rem 0.2rem; border-bottom: 1px solid var(--wk-line);
+}
+.wk-entry-open { font-weight: 600; }
+.wk-entry-table-wrap { overflow-x: auto; max-width: 100%; }
+.wk-entry-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.wk-entry-table th, .wk-entry-table td { text-align: left; vertical-align: top; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--wk-line); }
+.wk-entry-table thead th { font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--wk-muted); background: var(--wk-soft); white-space: nowrap; }
+.wk-entry-table td { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-entry-table td .wk-entry-phone { display: block; }
+.wk-entry-table tbody th { white-space: nowrap; }
+.wk-entry-table tr.is-here, .wk-entry-picks li.is-here { background: var(--wk-soft); box-shadow: inset 3px 0 0 var(--wk-accent); }
+.wk-entry-table tr.is-muted, .wk-entry-picks li.is-muted { opacity: 0.6; }
+
+/* Panel osoby — der Gewählte, dann die Teile. */
+.wk-entry-desk { padding: 0; border: 0; }
+.wk-entry-who { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0 0 0.5rem; }
+.wk-entry-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; margin: 0; }

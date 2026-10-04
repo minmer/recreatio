@@ -26,6 +26,7 @@ import { PageSlides } from './PageSlides';
 import { PersonAccessGate, PersonPicker, PersonProvider, usePerson } from './pagePerson';
 import { NoAccess, PageAccessContext } from './pageAccess';
 import { PageLogicProvider } from './PageLogicView';
+import { PageSubjectProvider, SubjectBar } from './pageSubject';
 import { PersonalSections, SeatBar } from './SeatBar';
 import { SiteMenu } from './SiteMenu';
 import { SeatContext, SeatStateContext, useSeats, useSeatStates, type SeatState } from './seatContext';
@@ -139,6 +140,8 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
     <WithSeat path={page.path}>
       <PageAccessContext.Provider value={page.access ?? null}>
       <PersonProvider path={page.path}>
+        {/* 0082 — WOVON DIE SEITE HANDELT („Wybór na stronie"): oben gewählt, von jedem Baustein genommen. */}
+        <PageSubjectProvider subject={page.subject} path={page.path}>
         <PageLogicProvider logic={page.logic}>
           {/* 0054 — das Menü dieser Seite oder der nächsten darüber; es steht in der Kopfleiste. */}
           {page.menu != null && page.menu.items.length > 0 && (
@@ -169,6 +172,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
               Formular und die persönlichen Bausteine lesen dieselbe Wahl.
             */}
             <div className="wk-page-top"><PersonPicker /></div>
+            <SubjectBar />
 
             {/*
               WER OBEN GEWÄHLT IST, MUSS ZUGANG HABEN — auf einer Seite nur mit
@@ -186,6 +190,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
           </UntilConfirmed>
           </>)}
         </PageLogicProvider>
+        </PageSubjectProvider>
       </PersonProvider>
       </PageAccessContext.Provider>
     </WithSeat>
@@ -324,7 +329,7 @@ function SlidesBody({ path, parts, theme, title, lead }: {
       look={look}
       title={title}
       lead={lead}
-      extra={<><SeatBar path={path} /><div className="wk-page-top"><PersonPicker /></div></>}
+      extra={<><SeatBar path={path} /><div className="wk-page-top"><PersonPicker /></div><SubjectBar /></>}
       after={personal === null ? undefined : <PersonalSections seat={personal} />}
     />
   );

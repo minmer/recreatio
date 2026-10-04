@@ -32,6 +32,7 @@ import { calendarPart } from './calendar';
 import { chatPart } from './chat';
 import { contactPart } from './contact';
 import { costsPart } from './costs';
+import { entryListPart, entryPanelPart } from './entries';
 import { factsPart } from './facts';
 import { faqPart } from './faq';
 import { filesPart } from './files';
@@ -83,6 +84,10 @@ export const PARTS: readonly PartModule[] = [
   formPart,
   slotsPart,
   chatPart,
+
+  /* 0082 — für die Kanzlei: alle Menschen eines Formulars, und einer davon (oben auf der Seite gewählt). */
+  entryListPart,
+  entryPanelPart,
 
   /* Was nur hinter einem persönlichen Link etwas zeigt (0028). */
   seatSubmissionPart,
