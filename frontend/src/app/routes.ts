@@ -110,7 +110,7 @@ export type Route = keyof typeof ROUTES;
  * wenn der Altbestand fort ist, fällt er weg — dann gehört jede Adresse dem
  * Neubau, und diese Liste verschwindet.
  */
-export const PAGES = ['parish', 'start', 'lo13', 'dk', 'deletion'] as const;
+export const PAGES = ['parish', 'start', 'lo13', 'dk', 'deletion', 'events'] as const;
 
 export const isPage = (word: string): boolean => (PAGES as readonly string[]).includes(word);
 

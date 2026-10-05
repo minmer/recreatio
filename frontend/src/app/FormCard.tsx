@@ -23,7 +23,7 @@
  * Platz geben kann: wenn der Bereich gar keine Annahme hat.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { areaReader, type AccountWay } from './areaRead';
 import {
@@ -93,6 +93,9 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
 
   /** Dopisane do istniejącego miejsca (0045) — dann gibt es keinen neuen Link. */
   const [attached, setAttached] = useState<string | null>(null);
+
+  /** Ausgefüllt „za kogoś innego": der Link gehört dann dem anderen, nicht dem, der hier sitzt. */
+  const [forOther, setForOther] = useState(false);
 
   /*
    * DIE WAHL DER SEITE (0045). Handelt der Bogen von einer PERSON, gilt, wer
@@ -226,8 +229,25 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
    * dem Bogen und nicht dem Menschen; sie zu löschen wäre eine Strafe fürs
    * Umschalten.
    */
+  /*
+   * Für wen die genormten Felder zuletzt eingetragen wurden. Wechselt die Wahl
+   * auf NIEMANDEN („za kogoś innego"), gehen sie wieder heraus — sonst stünde
+   * der eigene Name im Bogen eines anderen, und der Platz trüge ihn.
+   */
+  const filledFor = useRef<string | null>(null);
+
   useEffect(() => {
-    if (whomRing === null || whom === null) return;
+    if (whomRing === null || whom === null) {
+      if (filledFor.current !== null) {
+        filledFor.current = null;
+        setAnswers((before) => {
+          const next = { ...before };
+          for (const field of fields) if (personFieldOf(field.identityRole) !== null) next[field.fieldId] = '';
+          return next;
+        });
+      }
+      return;
+    }
 
     let dropped = false;
 
@@ -247,6 +267,7 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
 
         return next;
       });
+      filledFor.current = whom;
     })();
 
     /* Wer schnell zweimal umschaltet, bekommt sonst die erste Antwort
@@ -391,12 +412,20 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
 
         {link !== null ? (
           <>
-            <p className="wk-hint">
-              <strong>To jest Twój adres.</strong> Pod nim zobaczysz to, co
-              wpisałeś — i to, co parafia do Ciebie napisze. Zapisz go albo dodaj
-              do zakładek: <strong>widzisz go tylko teraz</strong>, bo u nas
-              zapisany jest wyłącznie jego odcisk. Nikt Ci go nie odtworzy.
-            </p>
+            {forOther ? (
+              <p className="wk-hint">
+                <strong>To jest adres osoby, za którą wypełniłeś formularz.</strong> Przekaż go jej —
+                pod nim zobaczy swoje zgłoszenie i to, co parafia do niej napisze.{' '}
+                <strong>Widzisz go tylko teraz</strong>, bo u nas zapisany jest wyłącznie jego odcisk.
+              </p>
+            ) : (
+              <p className="wk-hint">
+                <strong>To jest Twój adres.</strong> Pod nim zobaczysz to, co
+                wpisałeś — i to, co parafia do Ciebie napisze. Zapisz go albo dodaj
+                do zakładek: <strong>widzisz go tylko teraz</strong>, bo u nas
+                zapisany jest wyłącznie jego odcisk. Nikt Ci go nie odtworzy.
+              </p>
+            )}
 
             <textarea
               readOnly rows={3} className="wk-mono"
@@ -408,7 +437,7 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
                 className="wk-btn"
                 href={seatPath(link, landed)}
               >
-                Otwórz moją stronę
+                {forOther ? 'Otwórz stronę tej osoby' : 'Otwórz moją stronę'}
               </a>
             </div>
           </>
@@ -544,6 +573,7 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
       setClaim(done.claim);
       setLink(done.link);
       setLanded(done.under);
+      setForOther(forWhom === null && pageDecides && person.options.some((one) => one.kind === 'role'));
       setSent(true);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać.');
@@ -577,7 +607,7 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
               </a>
             </span>
           ))}
-          . To, co wypełnisz poniżej, będzie Twoim własnym zgłoszeniem — inne osoby dopisujesz na liście.
+          . Osobę bez własnego linku (np. zapisaną przez telefon) dopiszesz na liście przyciskiem „Dodaj osobę”.
         </p>
       )}
 
@@ -606,13 +636,34 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
         Es gibt sie nur für Angemeldete, die überhaupt mehr als nichts
         halten. Alle anderen füllen den Bogen aus wie immer.
       */}
-      {/* Die Wahl oben gilt — hier nur, WER es ist. */}
-      {!extension && pageDecides && person.chosen !== null && !nameless && !form.closed && !blind && (
-        <p className="wk-hint">
-          {person.chosen.kind === 'seat'
-            ? <>Zgłoszenie zostanie dopisane do miejsca <strong>{person.chosen.name}</strong> (ten sam link).</>
-            : <>Zgłoszenie dla: <strong>{person.chosen.name}</strong> — pola wypełnią się Twoimi zapisanymi danymi.</>}
-          {' '}Zmienisz to u góry strony.
+      {/*
+        Die Wahl oben gilt — hier nur, WER es ist, und der Weg zu „jemand
+        anderes". Er steht HIER und nicht nur oben: die Auswahl oben zeigt
+        sich nicht, solange es genau eine Wahl gibt (die eigene Person), und
+        „Zmienisz to u góry strony" zeigte dann ins Leere.
+      */}
+      {!extension && pageDecides && (person.chosen !== null || person.options.length > 0) && !nameless && !form.closed && !blind && (
+        <p className="wk-hint wk-form-whom">
+          {person.chosen === null ? (
+            <>
+              Wypełniasz za <strong>kogoś innego</strong> — wpisz poniżej jego dane. Po wysłaniu dostaniesz link
+              dla tej osoby: przekaż go jej, żeby mogła sprawdzić swoje zgłoszenie.{' '}
+              {(() => {
+                const back = person.options.find((one) => one.kind === 'role' && one.isMine) ?? person.options[0];
+                return back === undefined ? null : (
+                  <button type="button" className="wk-link-btn" onClick={() => person.choose(back.id)}>Wróć do: {back.name}</button>
+                );
+              })()}
+            </>
+          ) : (
+            <>
+              {person.chosen.kind === 'seat'
+                ? <>Zgłoszenie zostanie dopisane do miejsca <strong>{person.chosen.name}</strong> (ten sam link).</>
+                : <>Zgłoszenie dla: <strong>{person.chosen.name}</strong> — pola wypełnią się Twoimi zapisanymi danymi.</>}
+              {' '}
+              <button type="button" className="wk-link-btn" onClick={() => person.choose(null)}>Wypełnij za kogoś innego</button>
+            </>
+          )}
         </p>
       )}
 
