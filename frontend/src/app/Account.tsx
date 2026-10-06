@@ -27,6 +27,7 @@ import { keysFor } from './ringOf';
 import { myRoleNames } from './roleNames';
 import { selfOf } from './roles';
 import { loadMySeats, openMine as openMySeat, type MySeat } from './seat';
+import { PasswordInput } from './PasswordInput';
 import {
   deleteAccount, deletionPreview, keepHeldKey, WorkspaceError,
   type DeletionPreview, type KeyKeeping, type Who
@@ -385,7 +386,7 @@ function DeleteAccount({ who }: { who: Who }) {
               </label>
               <label className="wk-field">
                 <span>Hasło</span>
-                <input type="password" value={password} autoComplete="current-password" onChange={(e) => setPassword(e.target.value)} />
+                <PasswordInput value={password} autoComplete="current-password" onChange={setPassword} />
               </label>
             </>
           )}

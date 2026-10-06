@@ -33,6 +33,7 @@ import { useState } from 'react';
 import { forgetKeys, keysFor } from './ringOf';
 import { createRole } from './roles';
 import { register, signIn, WorkspaceError, type Who } from './session';
+import { PasswordInput } from './PasswordInput';
 
 type Mode = 'in' | 'new';
 
@@ -152,11 +153,10 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
 
       <label className="wk-field">
         <span>Hasło</span>
-        <input
-          type="password"
+        <PasswordInput
           value={password}
           autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={setPassword}
         />
       </label>
 

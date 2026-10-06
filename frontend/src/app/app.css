@@ -250,6 +250,31 @@ code {
 
 .wk-field input:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
 
+/* Ein Passwort mit Auge (`PasswordInput`): das Auge sitzt im Feld, rechts. */
+.wk-password { position: relative; display: inline-grid; min-width: 0; }
+.wk-field > .wk-password { display: grid; color: inherit; font-size: inherit; }
+.wk-password input {
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 2.6rem 0.5rem 0.6rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 3px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+}
+.wk-password input:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+/* Edge bringt ein eigenes Auge mit — zwei Augen nebeneinander wären eins zu viel. */
+.wk-password input::-ms-reveal, .wk-password input::-ms-clear { display: none; }
+.wk-password-eye {
+  position: absolute; top: 50%; right: 0.3rem; transform: translateY(-50%);
+  display: grid; place-items: center; width: 2rem; height: 2rem; padding: 0;
+  border: 0; border-radius: 3px; background: transparent; color: var(--wk-muted); cursor: pointer;
+}
+.wk-password-eye:hover:not(:disabled), .wk-password-eye[aria-pressed="true"] { color: var(--wk-ink); }
+.wk-password-eye:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-password-eye svg { width: 1.15rem; height: 1.15rem; }
+
 .wk-hint { margin: 0; font-size: 0.82rem; color: var(--wk-muted); }
 .wk-error { margin: 0; font-size: 0.9rem; color: var(--wk-danger); }
 
@@ -1198,7 +1223,7 @@ code {
 
 .wk-field textarea:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
 
-.wk-actions input[type="password"] {
+.wk-actions > input[type="password"] {
   font: inherit;
   padding: 0.5rem 0.6rem;
   border: 1px solid var(--wk-line);

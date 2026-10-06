@@ -12,6 +12,7 @@ import { useState } from 'react';
 
 import { forgetKeys } from './ringOf';
 import { keepsKey, unlock, WorkspaceError, type Who } from './session';
+import { PasswordInput } from './PasswordInput';
 
 export function Unlock({ who, onDone, why }: {
   who: Who;
@@ -59,13 +60,7 @@ export function Unlock({ who, onDone, why }: {
       </p>
 
       <div className="wk-actions">
-        <input
-          type="password"
-          value={password}
-          autoComplete="current-password"
-          placeholder="Hasło"
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <PasswordInput value={password} autoComplete="current-password" placeholder="Hasło" onChange={setPassword} />
         <button type="submit" className="wk-btn" disabled={busy || password === ''}>
           {busy ? 'Liczenie klucza…' : 'Otwórz klucze'}
         </button>
