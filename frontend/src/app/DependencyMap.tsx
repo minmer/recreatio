@@ -36,7 +36,7 @@ import { loadModules, readConfig, updateModule, type ModuleRow } from './module'
 import { loadPage, savePageSubject, saveParts, toDraft } from './page';
 import { readSubject, subjectKindOf } from './pageSubject';
 import { partOf } from './parts/registry';
-import { viewPath } from './routes';
+import { pageSteps, viewPath } from './routes';
 import { WorkspaceError } from './session';
 
 type Kind = 'page' | 'module' | 'area' | 'calendar' | 'library' | 'chat';
@@ -126,7 +126,7 @@ export function DependencyMap() {
 
     pages.forEach((p, i) => out.push({
       id: `page:${p.path}`, type: 'box', position: { x: 0, y: i * 80 },
-      data: { kind: 'page', label: p.path === '' ? '(start)' : p.path, sub: p.host ?? '', href: viewPath('pages', p.path) }
+      data: { kind: 'page', label: p.path === '' ? 'recreatio.pl' : p.path, sub: p.host ?? '', href: viewPath('pages', ...pageSteps(p.path)) }
     }));
 
     modules.forEach((m, i) => {

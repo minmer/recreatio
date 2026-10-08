@@ -37,7 +37,7 @@ import { setPartConfig } from './form';
 import { newId } from './ids';
 import { COLUMNS, type Breakpoint, type Frame, type Layout } from './layout';
 import { saveParts, type DraftPart } from './page';
-import { PATH_SHAPE, viewPath } from './routes';
+import { pageSteps, PATH_SHAPE, viewPath } from './routes';
 import { pageLink } from './seatKeep';
 import { WorkspaceError } from './session';
 
@@ -299,7 +299,7 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
       await setPartConfig(moduleId, { portalUnder: where });
 
       onSet(where);
-      window.location.hash = viewPath('pages', ...where.split('/'));
+      window.location.hash = viewPath('pages', ...pageSteps(where));
     } catch (e) {
       said(e, 'Nie udało się założyć portalu.');
     } finally {
@@ -394,7 +394,7 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
 
       {has && (
         <div className="wk-actions">
-          <a className="wk-btn" href={viewPath('pages', ...portalUnder.split('/'))}>
+          <a className="wk-btn" href={viewPath('pages', ...pageSteps(portalUnder))}>
             Otwórz tę stronę
           </a>
         </div>

@@ -463,6 +463,20 @@ export const viewPath = (view: View, ...trail: readonly string[]): string =>
   path('workspace', null, view, ...trail.filter((one) => one !== ''));
 
 /**
+ * DIE WURZEL IM ARBEITSPLATZ — `recreatio.pl` selbst.
+ *
+ * Im Register heisst sie nichts (der leere Pfad), und genau deshalb hatte sie
+ * hier keine Adresse: `viewPath('pages', '')` ist die Seitenliste, und „Edytuj
+ * stronę" an der Zeile „recreatio.pl" führte zurück auf die Liste. Ein Schritt
+ * `~` steht für sie — in einem Pfad des Registers kann er nie vorkommen.
+ */
+export const ROOT_STEP = '~';
+
+/** Die Schritte zur Bearbeitung einer Seite: `viewPath('pages', ...pageSteps(path))` — auch für die Wurzel. */
+export const pageSteps = (pagePath: string): readonly string[] =>
+  pagePath === '' ? [ROOT_STEP] : pagePath.split('/');
+
+/**
  * Ein Formular gleich auf seiner LISTE aufschlagen: `viewPath('modules',
  * 'form', id, PEOPLE_TAB)`. Der Zusatz gilt einmal — die Bausteinansicht nimmt
  * ihn und schreibt die Adresse wieder ohne ihn hin.

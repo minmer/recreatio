@@ -65,7 +65,8 @@ export { paperNeeded, sheetOf, parentalConsentOf, ageFields, PAPER_MINOR } from 
 export { NEEDS, readNeeds, needsJson, lockedOf, layoutWithout, logicWithout } from '${app}formTemplates';
 export { asked, takenOff } from '${app}form';
 export { splitAt, pageLink, keepFromAddress } from '${app}seatKeep';
-export { parsePath } from '${app}routes';
+export { parsePath, pageSteps, ROOT_STEP } from '${app}routes';
+export { splitTrail } from '${app}Workspace';
 export { slideInAddress, anchorInAddress, slideByAnchor, addressWithSlide } from '${app}slides';
 export { ownAddress, atProblem } from '${app}Portal';
 export { entering, deckAt, pinnedPosition, motionOf, enterStyle, frameAt, mixColor, colorsAt, colorsOf, calmer } from '${app}slideMotion';
@@ -1043,6 +1044,20 @@ try {
     assert.equal(m.atProblem('?s=3'), null);
     assert.equal(m.atProblem('#a#b') !== null && m.atProblem('?miejsce=x') !== null && m.atProblem('#a b') !== null && m.atProblem('s=3') !== null, true);
     ok('own address: pasted as from the address bar (with or without host, #/ or not), or only a suffix; the suffix checked like the service');
+
+    /* recreatio.pl selbst: der leere Pfad bekommt eine Adresse im Arbeitsplatz. */
+    const known = new Set(['', 'parish', 'parish/zapisy']);
+    const id = '01a11cc4-718f-720e-8bef-ff0f7b6d3900';
+    assert.deepEqual(m.pageSteps(''), [m.ROOT_STEP]);
+    assert.deepEqual(m.pageSteps('parish/zapisy'), ['parish', 'zapisy']);
+    assert.equal(m.viewPath('pages', ...m.pageSteps('')), '#/workspace/pages/~', 'the root has an editor address');
+    assert.notEqual(m.viewPath('pages', ...m.pageSteps('')), m.viewPath('pages'), 'not the list of pages');
+    assert.deepEqual(m.splitTrail([m.ROOT_STEP], known), { path: '', moduleId: null }, 'the root opens its editor');
+    assert.deepEqual(m.splitTrail([m.ROOT_STEP, id], known), { path: '', moduleId: id }, 'a module on the root');
+    assert.deepEqual(m.splitTrail([], known), { path: null, moduleId: null }, 'no trail: the list');
+    assert.deepEqual(m.splitTrail(['parish', 'zapisy'], known), { path: 'parish/zapisy', moduleId: null });
+    assert.deepEqual(m.splitTrail(['parish', id], known), { path: 'parish', moduleId: id });
+    ok('root page: recreatio.pl itself is edited at #/workspace/pages/~ (and its modules below it)');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

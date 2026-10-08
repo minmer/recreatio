@@ -478,7 +478,7 @@ public static class Page
 
     /* -- Schreiben ---------------------------------------------------------- */
 
-    private static async Task SaveAsync(HttpContext ctx, Db db, string path, SaveRequest body)
+    private static async Task SaveAsync(HttpContext ctx, Db db, string? path, SaveRequest body)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
@@ -594,7 +594,7 @@ public static class Page
     /// Zeichenkette, die kein JSON ist, legte jede Seite lahm, die sie liest.
     /// </para>
     /// </summary>
-    private static async Task SaveLogicAsync(HttpContext ctx, Db db, string path, LogicRequest body)
+    private static async Task SaveLogicAsync(HttpContext ctx, Db db, string? path, LogicRequest body)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
@@ -666,7 +666,7 @@ public static class Page
     /// Wie die Karte: der Dienst prüft nur, dass es JSON ist und nicht zu
     /// gross; gelesen wird im Browser. <c>null</c> nimmt es weg.
     /// </summary>
-    private static async Task SaveSubjectAsync(HttpContext ctx, Db db, string path, SubjectRequest body)
+    private static async Task SaveSubjectAsync(HttpContext ctx, Db db, string? path, SubjectRequest body)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
@@ -757,7 +757,7 @@ public static class Page
     /// liest; hier wird nur geprüft, dass es JSON ist und nicht zu gross.
     /// </para>
     /// </summary>
-    private static async Task SaveLookAsync(HttpContext ctx, Db db, string path, LookRequest body)
+    private static async Task SaveLookAsync(HttpContext ctx, Db db, string? path, LookRequest body)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }

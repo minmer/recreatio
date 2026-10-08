@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { PATH_SHAPE, viewPath, VIEWS, type Spot, type View } from './routes';
+import { pageSteps, PATH_SHAPE, ROOT_STEP, viewPath, VIEWS, type Spot, type View } from './routes';
 import { useCrumbs } from './crumbTrail';
 import { FormOffice } from './FormOffice';
 import { loadModules, readConfig, type ModuleRow } from './module';
@@ -277,6 +277,12 @@ export function splitTrail(trail: readonly string[], known: ReadonlySet<string>)
   readonly path: string | null;
   readonly moduleId: string | null;
 } {
+  /* Die Wurzel (`~`, `pageSteps`): recreatio.pl selbst — und ein Baustein darauf. */
+  if (trail[0] === ROOT_STEP) {
+    const under = trail[1];
+    return { path: '', moduleId: under !== undefined && UUID.test(under) ? under : null };
+  }
+
   const whole = trail.join('/');
   if (trail.length === 0) return { path: null, moduleId: null };
 
@@ -349,7 +355,7 @@ function Pages({ desk, who, trail, onClaimed }: {
 
   useCrumbs([
     ...steps.map((one, at) => ({
-      label: one,
+      label: one === ROOT_STEP ? 'recreatio.pl' : one,
       href: viewPath('pages', ...steps.slice(0, at + 1))
     })),
     ...(moduleId === null
@@ -418,7 +424,7 @@ function Pages({ desk, who, trail, onClaimed }: {
       ) : (
         <>
         <RecentRow scope="pages" items={desk.pages.map((one) => ({
-          id: one.path, label: one.path, href: viewPath('pages', ...one.path.split('/'))
+          id: one.path, label: one.path === '' ? 'recreatio.pl' : one.path, href: viewPath('pages', ...pageSteps(one.path))
         }))} />
         <SlugTree
           nodes={treeOf(desk.pages)}
@@ -429,7 +435,7 @@ function Pages({ desk, who, trail, onClaimed }: {
             /* Noch einmal auf dieselbe: zumachen. Wie vorher, nur jetzt als Adresse. */
             window.location.hash = editing === path
               ? viewPath('pages')
-              : viewPath('pages', ...path.split('/'));
+              : viewPath('pages', ...pageSteps(path));
           }}
           onChanged={onClaimed}
         />
@@ -463,7 +469,7 @@ function Pages({ desk, who, trail, onClaimed }: {
         <PageEditor
           path={editing}
           who={who}
-          onOpenModule={(id) => { window.location.hash = viewPath('pages', ...editing.split('/'), id); }}
+          onOpenModule={(id) => { window.location.hash = viewPath('pages', ...pageSteps(editing), id); }}
         />
       )}
 

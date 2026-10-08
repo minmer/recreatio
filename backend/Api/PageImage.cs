@@ -103,7 +103,7 @@ public static class PageImage
 
     /// <summary>Wer auf dieser Adresse schreiben darf — dieselbe Frage wie beim Titel.</summary>
     private static async Task<(Guid SlugId, Guid Role)?> WriterAsync(
-        HttpContext ctx, Db db, SqlConnection connection, string path)
+        HttpContext ctx, Db db, SqlConnection connection, string? path)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return null; }
@@ -133,7 +133,7 @@ public static class PageImage
         return (slugId, grip.ViaRoleId ?? grip.OwnerRoleId.Value);
     }
 
-    private static async Task UploadAsync(HttpContext ctx, Db db, IConfiguration config, string path, string? name)
+    private static async Task UploadAsync(HttpContext ctx, Db db, IConfiguration config, string? path, string? name)
     {
         var type = (ctx.Request.ContentType ?? string.Empty).Split(';')[0].Trim().ToLowerInvariant();
         if (!Allowed(type))
@@ -202,7 +202,7 @@ public static class PageImage
     }
 
     /// <summary>Die Bilder dieser Adresse — für die Auswahl im Editor, neueste zuerst.</summary>
-    private static async Task ListAsync(HttpContext ctx, Db db, string path)
+    private static async Task ListAsync(HttpContext ctx, Db db, string? path)
     {
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var writer = await WriterAsync(ctx, db, connection, path);
