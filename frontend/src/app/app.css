@@ -7220,3 +7220,60 @@ a.wk-toast-body:focus-visible { outline: 2px solid var(--wk-accent); outline-off
 .wk-entry-desk { padding: 0; border: 0; }
 .wk-entry-who { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0 0 0.5rem; }
 .wk-entry-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; margin: 0; }
+
+/* -- 0083: Zgody, po wysłaniu, wydruk do podpisu, gotowe wzory ------------- */
+
+/* Eine Zustimmung: der Name fett, darunter der ganze Wortlaut — gelesen wird, bevor angekreuzt wird. */
+.wk-consent-row { align-items: flex-start; }
+.wk-consent-row input { margin-top: 0.2rem; flex: none; }
+.wk-consent-row > span { display: grid; gap: 0.2rem; }
+.wk-consent-text { display: block; font-size: 0.84rem; line-height: 1.45; color: var(--wk-muted); font-weight: 400; }
+.wk-tile-lines .wk-consent-text, .wk-card-lines .wk-consent-text { margin-top: 0.15rem; }
+
+/* Nach dem Absenden: der eigene Text, und der Hinweis auf das Blatt zum Unterschreiben. */
+.wk-after-text { display: grid; gap: 0.5rem; }
+.wk-after-text p { margin: 0; line-height: 1.5; }
+.wk-paper-note {
+  display: grid; gap: 0.6rem; padding: 0.8rem 0.9rem; border: 1px solid var(--wk-held-line); border-radius: 6px;
+  background: var(--wk-held-bg); color: var(--wk-held-ink);
+}
+.wk-paper-note p { margin: 0; line-height: 1.5; }
+.wk-paper-note .wk-btn { justify-self: start; }
+
+.wk-fieldset { display: grid; gap: 0.75rem; margin: 0; padding: 0.8rem 0.9rem 0.9rem; border: 1px solid var(--wk-line); border-radius: 6px; min-width: 0; }
+.wk-fieldset > legend { padding: 0 0.3rem; font-weight: 600; font-size: 0.95rem; }
+
+/* Gotowe wzory — je einer mit Satz und Knopf. */
+.wk-template-list { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.6rem; }
+.wk-template { display: grid; gap: 0.3rem; padding: 0.7rem 0.8rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); }
+.wk-template .wk-btn { justify-self: start; }
+
+/*
+   DAS BLATT ZUM UNTERSCHREIBEN: am Bildschirm unsichtbar, beim Drucken
+   allein. Nur während des Druckens hängt es an <body> (\`wk-printing\`); das
+   Drucken einer gewöhnlichen Seite bleibt, wie es war.
+*/
+.wk-print-sheet { display: none; }
+@media print {
+  body.wk-printing > *:not(.wk-print-sheet) { display: none !important; }
+  body.wk-printing { background: #fff !important; }
+  body.wk-printing .wk-print-sheet {
+    display: block; color: #000; background: #fff; font: 10.5pt/1.35 "Segoe UI", system-ui, sans-serif;
+  }
+  .wk-print-sheet header h1 { margin: 0 0 0.15rem; font-size: 15pt; }
+  .wk-print-sheet .wk-print-org { margin: 0 0 0.6rem; font-size: 9pt; }
+  .wk-print-sheet .wk-print-body { display: grid; gap: 0.5rem; }
+  .wk-print-sheet section h2 { margin: 0 0 0.2rem; font-size: 10.5pt; border-bottom: 1px solid #000; }
+  .wk-print-sheet dl { display: grid; grid-template-columns: 1fr 1fr; gap: 0.15rem 1rem; margin: 0; }
+  .wk-print-sheet dl > div { display: flex; gap: 0.4rem; break-inside: avoid; }
+  .wk-print-sheet dt { color: #444; }
+  .wk-print-sheet dt::after { content: ":"; }
+  .wk-print-sheet dd { margin: 0; font-weight: 600; }
+  .wk-print-sheet ul { margin: 0; padding-left: 1rem; display: grid; gap: 0.2rem; font-size: 9.5pt; }
+  .wk-print-sheet .wk-print-notes { margin-top: 0.6rem; font-size: 7.5pt; color: #333; }
+  .wk-print-sheet .wk-print-notes p { margin: 0 0 0.2rem; }
+  .wk-print-sheet footer { margin-top: 1rem; }
+  .wk-print-sheet .wk-print-trace { font-size: 8.5pt; margin: 0 0 2.2rem; }
+  .wk-print-sheet .wk-print-sign { display: grid; grid-template-columns: 1fr 1.4fr; gap: 3rem; }
+  .wk-print-sheet .wk-print-sign span { border-top: 1px solid #000; padding-top: 0.2rem; font-size: 8.5pt; text-align: center; }
+}

@@ -14,6 +14,7 @@
  *  11. Gottesdienst (0079): Messe, Beichte, Nabożeństwo — was eine Messe ist, was aushängt, was gedruckt wird.
  *  12. Odbiorcy (0080): die drei Zugänge — Kanał, gemeinsam, einer mit einem — und mit welchen Bereichen einer allein spricht.
  *  13. Zwei Seiten (0082): die Liste und der eine Mensch — dieselbe Reihenfolge, derselbe Filter, über die Adresse.
+ *  14. Zgody (0083): PESEL, das Alter in der Logik, eine Zustimmung mit ihrem Wortlaut, Papier, das Blatt, die Wzory.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -56,6 +57,11 @@ export { chatMode, hasSeats, fixedPolicy } from '${app}chat';
 export { epochAad } from '${app}area';
 export { deskRows, pickRows, neighbours, readEntryQuery, entryQueryString, withEntryQuery, filterWords, stepKindsOf, folded, readSections, PANEL_SECTIONS, NO_FILTER } from '${app}entryDesk';
 export { readSubject, writeSubject, subjectKindOf } from '${app}pageSubject';
+export { peselValid, peselBirth, birthOf, ageOn } from '${app}pesel';
+export { consentValue, consentGiven, consentText, shownAnswer } from '${app}form';
+export { evaluate } from '${app}formDesign';
+export { paperNeeded, sheetOf } from '${app}SignSheet';
+export { FORM_TEMPLATES } from '${app}formTemplates';
 `);
 await build({
   entryPoints: [entry],
@@ -742,6 +748,110 @@ try {
     assert.equal(m.readSubject('nonsense'), null);
     assert.equal(m.subjectKindOf('entry').missing({ kind: 'entry' }), 'Wybierz formularz.');
     ok('two pages (0082): one order, filter by text/step/hidden, ◀ ▶ along the filtered list, the address carries it all');
+  }
+
+  /* -- 14. Zgody, ubezpieczenie (0083) --------------------------------------------------------- */
+  {
+    assert.equal(m.peselValid('44051401359'), true, 'a valid PESEL (1944)');
+    assert.equal(m.peselValid('44051401358'), false, 'a wrong check digit');
+    assert.equal(m.peselValid('4405140135'), false, 'ten digits');
+    assert.equal(m.peselBirth('02270803624'), '2002-07-08', 'the month carries the century: +20 for 20xx');
+    assert.equal(m.peselValid('02270803624'), true);
+    assert.equal(m.peselBirth('44051401359'), '1944-05-14');
+    assert.equal(m.peselBirth('00023012345'), null, 'no 30 February');
+    assert.equal(m.birthOf('2012-03-04'), '2012-03-04', 'a date is a date of birth');
+    assert.equal(m.birthOf('02270803624'), '2002-07-08', 'so is a valid PESEL');
+    assert.equal(m.birthOf('2012-02-30'), null);
+    assert.equal(m.ageOn('2008-07-10', '2026-07-09'), 17, 'the day before the birthday');
+    assert.equal(m.ageOn('2008-07-10', '2026-07-10'), 18, 'on the birthday');
+    ok('PESEL: check digit, century in the month, a real date; age in whole years on a given day');
+
+    /* Die Logik: Wiek(Data urodzenia) < 18 → zeige den Elternteil. */
+    const design = {
+      version: 1,
+      layout: [{ type: 'field', id: 'born' }, { type: 'group', id: 'g', kind: 'group', title: 'Rodzic', items: [{ type: 'field', id: 'guardian' }] }],
+      nodes: [
+        { id: 'a', kind: 'age', x: 0, y: 0, fieldId: 'born', value: '2026-07-10' },
+        { id: 'c', kind: 'const', x: 0, y: 0, value: '18' },
+        { id: 'lt', kind: 'compare', x: 0, y: 0, op: 'lt' },
+        { id: 's', kind: 'show', x: 0, y: 0, target: 'g' }
+      ],
+      edges: [{ id: 'e1', from: 'a', to: 'lt', port: 'a' }, { id: 'e2', from: 'c', to: 'lt', port: 'b' }, { id: 'e3', from: 'lt', to: 's', port: 'in' }]
+    };
+    assert.ok(m.evaluate(design, {}).hidden.has('guardian'), 'no date yet: the guardian waits');
+    assert.ok(!m.evaluate(design, { born: '2010-01-01' }).hidden.has('guardian'), 'a minor: the guardian is asked');
+    assert.ok(m.evaluate(design, { born: '2008-07-10' }).hidden.has('guardian'), 'eighteen on the day: no guardian');
+    assert.ok(!m.evaluate(design, { born: '10291412345' }).hidden.has('guardian') === m.peselValid('10291412345'), 'a PESEL counts only when valid');
+    assert.equal(m.evaluate(design, { born: '2010-01-01' }).values.get('a'), '16');
+    ok('logic: the age node gives whole years from a date or PESEL on the chosen day; empty is never "under 18"');
+
+    const v = m.consentValue('  Wyrażam zgodę.  ');
+    assert.equal(v, 'tak: Wyrażam zgodę.', 'a consent keeps its wording');
+    assert.ok(m.consentGiven(v) && m.consentGiven('tak') && !m.consentGiven('') && !m.consentGiven('nie'));
+    assert.equal(m.consentText(v), 'Wyrażam zgodę.');
+    assert.equal(m.shownAnswer('consent', v), 'tak', 'in a table: just "tak"');
+    assert.equal(m.shownAnswer('consent', ''), '');
+    assert.equal(m.paperNeeded(null, () => v), false, 'no rule — no paper');
+    assert.equal(m.paperNeeded({ title: null, text: null, paper: 'always', signer: null }, () => undefined), true);
+    assert.equal(m.paperNeeded({ title: null, text: null, paper: 'cp', signer: null }, (id) => (id === 'cp' ? v : undefined)), true, 'the parental consent is ticked');
+    assert.equal(m.paperNeeded({ title: null, text: null, paper: 'cp', signer: null }, () => undefined), false, 'an adult never saw it');
+    ok('consent: "tak: <wording>", shown as "tak", paper when always or when the chosen consent is given');
+
+    /* Das Blatt: Reihenfolge des Formulars, nur Sichtbares, Zustimmungen mit IHREM Wortlaut. */
+    const field = (fieldId, kind, label, position, extra = {}) => ({
+      fieldId, kind, label, position, help: null, options: [], areaId: 'a', epoch: 1, isRequired: false, isHalfWidth: false,
+      identityRole: 'none', selfEdit: true, linkCheck: false, labelSealed: '', helpSealed: null, optionsSealed: null, ...extra
+    });
+    const open = {
+      form: { title: 'Zgoda', controller: null, after: null },
+      fields: [
+        field('given', 'line', 'Imię', 0), field('born', 'date', 'Data urodzenia', 1, { identityRole: 'born' }),
+        field('guardian', 'line', 'Rodzic', 2), field('cp', 'consent', 'Zgoda na udział', 3, { help: 'Dzisiejszy tekst.' }),
+        field('img', 'consent', 'Wizerunek', 4, { help: 'Zgoda na wizerunek.' })
+      ],
+      design: { ...design, layout: [{ type: 'field', id: 'given' }, ...design.layout, { type: 'field', id: 'cp' }, { type: 'field', id: 'img' }, { type: 'text', id: 't', text: 'Klauzula.' }] },
+      account: null
+    };
+    const sheet = m.sheetOf(open, new Map([['given', 'Ola'], ['born', '2012-05-01'], ['guardian', 'Anna'], ['cp', 'tak: Tekst z dnia zgody.']]));
+    assert.deepEqual(sheet.blocks.flatMap((b) => b.rows.map((r) => `${r.label}=${r.value}`)), ['Imię=Ola', 'Data urodzenia=01.05.2012', 'Rodzic=Anna']);
+    assert.deepEqual(sheet.statements.map((st) => [st.label, st.given, st.text]),
+      [['Zgoda na udział', true, 'Tekst z dnia zgody.'], ['Wizerunek', false, 'Zgoda na wizerunek.']], 'the wording of the day of consent, not today’s');
+    assert.deepEqual(sheet.notes, ['Klauzula.']);
+    const adult = m.sheetOf(open, new Map([['given', 'Jan'], ['born', '1990-01-01'], ['guardian', 'x']]));
+    assert.ok(!adult.blocks.some((b) => b.rows.some((r) => r.label === 'Rodzic')), 'what the logic hid is not printed');
+    ok('sign sheet: the form’s order, visible answers only, dates in Polish, consents with their own wording');
+
+    /* Die Wzory: jede Kennung im Aufbau und in der Logik zeigt auf etwas, das es gibt. */
+    for (const t of m.FORM_TEMPLATES) {
+      const ids = new Set(t.questions.map((q) => q.id));
+      const walk = (items) => items.flatMap((i) => (i.type === 'group' ? [i.id, ...walk(i.items)] : [i.id]));
+      const placed = walk(t.layout);
+      for (const q of t.questions) assert.ok(placed.includes(q.id), `${t.id}: ${q.id} is placed`);
+      const known = new Set([...ids, ...placed]);
+      for (const n of t.nodes) {
+        if (n.fieldId !== undefined) assert.ok(ids.has(n.fieldId), `${t.id}: node ${n.id} reads a question`);
+        if (n.target !== undefined) assert.ok(known.has(n.target), `${t.id}: node ${n.id} targets something placed`);
+      }
+      const nodes = new Set(t.nodes.map((n) => n.id));
+      for (const e of t.edges) assert.ok(nodes.has(e.from) && nodes.has(e.to), `${t.id}: edge ${e.id}`);
+      if (t.paper !== undefined && t.paper !== 'always') assert.equal(t.questions.find((q) => q.id === t.paper)?.kind, 'consent', `${t.id}: paper follows a consent`);
+      for (const q of t.questions.filter((one) => one.kind === 'consent')) assert.ok((q.help ?? '').length > 40, `${t.id}: ${q.id} has its wording`);
+      /* Was ein „Pokaż" verbergen kann, darf nicht von sich aus Pflicht sein — der Dienst prüft Pflicht ohne die Logik. */
+      const groupOf = (items, inside) => items.flatMap((i) => (i.type === 'group' ? groupOf(i.items, [...inside, i.id]) : [[i.id, inside]]));
+      const within = new Map(groupOf(t.layout, []));
+      const hideable = new Set(t.nodes.filter((n) => n.kind === 'show').map((n) => n.target));
+      for (const q of t.questions) {
+        const hidden = hideable.has(q.id) || (within.get(q.id) ?? []).some((g) => hideable.has(g));
+        if (hidden) assert.ok(!q.required, `${t.id}: ${q.id} can be hidden — required only through the logic`);
+      }
+    }
+    const parent = m.FORM_TEMPLATES.find((t) => t.id === 'parent');
+    const minor = m.evaluate({ version: 1, layout: parent.layout, nodes: parent.nodes, edges: parent.edges }, { born: '2015-01-01' });
+    const grown = m.evaluate({ version: 1, layout: parent.layout, nodes: parent.nodes, edges: parent.edges }, { born: '1990-01-01' });
+    assert.ok(!minor.hidden.has('gGuardian') && !minor.hidden.has('consentParticipation'), 'a child: guardian and parental consent');
+    assert.ok(grown.hidden.has('gGuardian') && grown.hidden.has('consentParticipation'), 'an adult: neither');
+    assert.ok(minor.required.has('guardian') && minor.required.has('consentParticipation') && !grown.required.has('guardian'), 'required for a child only');
+    ok('templates: every placement and every logic reference resolves; the parental part shows for minors only');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

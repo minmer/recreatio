@@ -97,7 +97,7 @@ const NODE_TYPES = { logic: LogicNodeView };
 /* -- Die Palette ------------------------------------------------------------------- */
 
 const PALETTE: readonly { title: string; kinds: readonly NodeKind[] }[] = [
-  { title: 'Wejścia', kinds: ['answer', 'const'] },
+  { title: 'Wejścia', kinds: ['answer', 'const', 'age'] },
   { title: 'Logika', kinds: ['compare', 'and', 'or', 'not', 'xor'] },
   { title: 'Wyjścia', kinds: ['show', 'message', 'label', 'require'] }
 ];
@@ -159,6 +159,7 @@ export function FormLogic({ design, layout, fields, busy, onSave }: {
     switch (n.kind) {
       case 'answer': return n.fieldId === undefined ? '— wybierz pytanie —' : byField.get(n.fieldId)?.label ?? '(usunięte pytanie)';
       case 'const': return `„${n.value ?? ''}"`;
+      case 'age': return `${n.fieldId === undefined ? '— wybierz datę albo PESEL —' : byField.get(n.fieldId)?.label ?? '(usunięte pytanie)'}${(n.value ?? '') === '' ? '' : ` · na ${n.value}`}`;
       case 'compare': return COMPARE_LABEL[n.op ?? 'eq'];
       case 'show':
       case 'require': return nameOf(n.target);
@@ -254,7 +255,27 @@ export function FormLogic({ design, layout, fields, busy, onSave }: {
   const chosen = nodes.find((n) => n.id === selected) ?? null;
 
   /* Die Fragen, deren Antworten die Logik liest — für die Vorschau. */
-  const read = [...new Set(nodes.filter((n) => n.kind === 'answer' && n.fieldId !== undefined).map((n) => n.fieldId!))];
+  const read = [...new Set(nodes.filter((n) => (n.kind === 'answer' || n.kind === 'age') && n.fieldId !== undefined).map((n) => n.fieldId!))];
+
+  /*
+   * 0083 — WAS „POKAŻ" VERBERGEN KANN, DARF NICHT VON SICH AUS PFLICHT SEIN.
+   * Der Dienst prüft „wymagane", ohne die Logik zu sehen (sie ist versiegelt):
+   * wem die Frage verborgen blieb, der käme nicht durch. Pflicht nur unter der
+   * Bedingung: der Knoten „Wymagane".
+   */
+  const clash = useMemo(() => {
+    const shown = new Set(nodes.filter((n) => n.kind === 'show' && n.target !== undefined).map((n) => n.target!));
+    const out: string[] = [];
+    const walk = (items: readonly LayoutItem[], under: boolean) => {
+      for (const item of items) {
+        const hideable = under || shown.has(item.id);
+        if (item.type === 'group') walk(item.items, hideable);
+        else if (item.type === 'field' && hideable && byField.get(item.id)?.isRequired === true) out.push(byField.get(item.id)?.label ?? 'pytanie');
+      }
+    };
+    walk(layout, false);
+    return out;
+  }, [nodes, layout, byField]);
 
   return (
     <section className="wk-logic">
@@ -308,6 +329,14 @@ export function FormLogic({ design, layout, fields, busy, onSave }: {
           )}
         </aside>
       </div>
+
+      {clash.length > 0 && (
+        <p className="wk-warn">
+          Logika może ukryć pytania oznaczone jako wymagane: {clash.join(', ')}. Usługa sprawdza „wymagane” bez logiki —
+          kto ich nie zobaczy, nie wyśle formularza. Odznacz „Wymagane” przy pytaniu i dodaj tu węzeł „Wymagane” z tym samym
+          warunkiem co „Pokaż”.
+        </p>
+      )}
 
       {/* -- Die Vorschau ------------------------------------------------------ */}
       <details className="wk-fold" open={read.length > 0}>
@@ -371,6 +400,28 @@ function Inspector({ node, fields, targets, onPatch, onDrop }: {
             {fields.map((f) => <option key={f.fieldId} value={f.fieldId}>{f.label ?? 'zapieczętowane pytanie'}</option>)}
           </select>
         </label>
+      )}
+
+      {node.kind === 'age' && (
+        <>
+          <label className="wk-field">
+            <span>Wiek z pytania (data urodzenia albo PESEL)</span>
+            <select value={node.fieldId ?? ''} onChange={(e) => onPatch({ fieldId: e.target.value || undefined })}>
+              <option value="">— wybierz —</option>
+              {fields.filter((f) => f.kind === 'date' || f.kind === 'pesel' || f.identityRole === 'born').map((f) => (
+                <option key={f.fieldId} value={f.fieldId}>{f.label ?? 'zapieczętowane pytanie'}</option>
+              ))}
+            </select>
+          </label>
+          <label className="wk-field">
+            <span>Wiek w dniu (puste: dziś)</span>
+            <input type="date" value={node.value ?? ''} onChange={(e) => onPatch({ value: e.target.value || undefined })} />
+            <span className="wk-hint">
+              Np. dzień wyjazdu. Wynik to pełne lata — połącz go z „Porównanie" (A &lt; 18), żeby pokazać pola dla niepełnoletnich.
+              Bez daty (albo z błędnym PESEL-em) wynik jest pusty i porównanie nie jest spełnione.
+            </span>
+          </label>
+        </>
       )}
 
       {node.kind === 'const' && (

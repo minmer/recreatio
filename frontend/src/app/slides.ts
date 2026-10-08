@@ -9,7 +9,10 @@
  * <code>
  *   Seite (slug.page_mode)    'page' — Bausteine im Raster · 'slides' — je Baustein ein Slajd
  *   Aussehen (page_theme)     hell/dunkel/automatisch, vier Farben, der Titelslajd
- *   Slajd (layout.slide)      Name im Menü des Slajds, Hintergrundschichten
+ *   Slajd (layout.slide)      Name im Menü des Slajds, Hintergrundschichten,
+ *                             0084: wie er kommt (transition), wie sein Inhalt
+ *                             erscheint (enter), eigene Farben (colors), und ob der
+ *                             Baustein über die Slajdy hinweg bleibt (stage)
  * </code>
  *
  * <b>Duldsam wie alles, was als Zeichenkette vom Dienst kommt:</b> ein kaputter
@@ -226,6 +229,81 @@ export function writeLook(look: Look): string | null {
 export const resolveTheme = (theme: Theme | null, dark: boolean): Theme =>
   theme ?? APP_THEMES[dark ? 'dark' : 'light'];
 
+/* -- Wie ein Slajd kommt (0084) ------------------------------------------------- */
+
+/**
+ * WIE DIESER SLAJD DEN VORIGEN ABLÖST — gerechnet aus der Stelle der Bahn,
+ * nicht aus einer Uhr: wer langsam zieht, sieht das Ablösen langsam, wer
+ * zurückzieht, sieht es rückwärts (`slideMotion.ts`).
+ */
+export const TRANSITIONS = ['scroll', 'fade', 'cover', 'reveal', 'zoom', 'side'] as const;
+export type Transition = (typeof TRANSITIONS)[number];
+
+export const TRANSITION_LABEL: Record<Transition, string> = {
+  scroll: 'Przewinięcie — wjeżdża od dołu, jak kartka (zwykłe)',
+  fade: 'Przenikanie — poprzedni stoi, ten pojawia się na nim',
+  cover: 'Nakrycie — ten wjeżdża na poprzedni, który stoi i przygasa',
+  reveal: 'Odsłonięcie — poprzedni odjeżdża w górę i odsłania ten',
+  zoom: 'Przybliżenie — poprzedni rośnie i znika, ten wyłania się z głębi',
+  side: 'Z boku — ten wjeżdża z prawej, poprzedni odsuwa się w lewo'
+};
+
+/** Wie der INHALT eines Slajds erscheint, während er hereinkommt — ebenfalls an der Bahn, nicht an der Uhr. */
+export const ENTERS = ['none', 'rise', 'fade', 'zoom', 'left', 'right'] as const;
+export type Enter = (typeof ENTERS)[number];
+
+export const ENTER_LABEL: Record<Enter, string> = {
+  none: 'Bez efektu',
+  rise: 'Wynurza się z dołu',
+  fade: 'Rozjaśnia się',
+  zoom: 'Przybliża się',
+  left: 'Wsuwa się z lewej',
+  right: 'Wsuwa się z prawej'
+};
+
+/** Eigene Farben eines Slajds — `null` je Farbe: die der Seite. Zwischen zwei Slajdy gehen sie fliessend über. */
+export interface SlideColors {
+  readonly accent: string | null;
+  readonly ink: string | null;
+  readonly ground: string | null;
+  readonly muted: string | null;
+}
+
+export const COLOR_KEYS = ['accent', 'ink', 'ground', 'muted'] as const;
+
+/* -- Was über die Slajdy hinweg bleibt (0084) -------------------------------------- */
+
+/**
+ * WO EIN WANDERNDER BAUSTEIN AUF EINEM SLAJD STEHT. `x`, `y` — seine Mitte, in
+ * Prozent der Bühne; `w` — seine Breite in Prozent (auf schmalen Schirmen
+ * breiter); `scale`, `rotate` (Grad), `opacity` 0–1.
+ */
+export interface StageFrame {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly scale: number;
+  readonly rotate: number;
+  readonly opacity: number;
+}
+
+export const STAGE_FRAME: StageFrame = { x: 50, y: 50, w: 30, scale: 1, rotate: 0, opacity: 1 };
+
+/** Der Titelslajd, wo ein wandernder Baustein auf ihm steht. */
+export const COVER_KEY = 'cover';
+
+/**
+ * EIN BAUSTEIN, DER DEN WECHSEL ÜBERLEBT: er bekommt keinen eigenen Slajd,
+ * sondern steht über allen und wechselt seinen Platz von einem zum nächsten.
+ * `frames` — je Slajd (die Kennung seines Bausteins, oder `cover`) ein Platz;
+ * zwischen zwei Plätzen gleitet er, vor dem ersten und nach dem letzten bleibt
+ * er stehen. `bare` — ohne Tafel (ein Logo, ein Bild, ein grosser Knopf).
+ */
+export interface Stage {
+  readonly frames: Readonly<Record<string, StageFrame>>;
+  readonly bare: boolean;
+}
+
 /* -- Ein Slajd ------------------------------------------------------------------ */
 
 /** Was ein Baustein als Slajd trägt (`layout.slide`). */
@@ -233,15 +311,92 @@ export interface SlideLook {
   /** Sein Name im Menü der Slajdy — leer: der Titel des Bausteins, sonst seine Art. */
   readonly label: string;
   readonly layers: readonly Layer[];
+  /** 0084 — wie er den vorigen ablöst (Vorgabe: `scroll`, wie bisher). */
+  readonly transition: Transition;
+  /** 0084 — wie sein Inhalt erscheint (Vorgabe: `none`, wie bisher). */
+  readonly enter: Enter;
+  readonly colors: SlideColors | null;
+  /** 0084 — nicht `null`: der Baustein wandert über die Slajdy, statt selbst einer zu sein. */
+  readonly stage: Stage | null;
 }
 
-export function readSlide(layout: Layout): SlideLook {
-  const one = record(layout.slide);
-  return { label: str(one.label).trim(), layers: readLayers(one.layers) };
+const between = (value: unknown, min: number, max: number, fallback: number): number =>
+  Math.min(max, Math.max(min, num(value, fallback)));
+
+function readFrame(value: unknown): StageFrame | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const one = record(value);
+  return {
+    x: between(one.x, -50, 150, STAGE_FRAME.x),
+    y: between(one.y, -50, 150, STAGE_FRAME.y),
+    w: between(one.w, 4, 100, STAGE_FRAME.w),
+    scale: between(one.scale, 0.1, 4, STAGE_FRAME.scale),
+    rotate: between(one.rotate, -360, 360, STAGE_FRAME.rotate),
+    opacity: between(one.opacity, 0, 1, STAGE_FRAME.opacity)
+  };
 }
 
-export const withSlide = (layout: Layout, slide: SlideLook): Layout =>
-  ({ ...layout, slide: { label: slide.label, layers: slide.layers } });
+const colorOrNull = (value: unknown): string | null => (typeof value === 'string' && value.trim() !== '' ? value.trim() : null);
+
+/** Ein Slajd aus dem, was gespeichert liegt (oder in einem Dokument steht) — duldsam. */
+export function readSlideValue(value: unknown): SlideLook {
+  const one = record(value);
+  const transition = str(one.transition) as Transition;
+  const enter = str(one.enter) as Enter;
+
+  const c = record(one.colors);
+  const colors: SlideColors = { accent: colorOrNull(c.accent), ink: colorOrNull(c.ink), ground: colorOrNull(c.ground), muted: colorOrNull(c.muted) };
+
+  let stage: Stage | null = null;
+  if (typeof one.stage === 'object' && one.stage !== null) {
+    const raw = record(record(one.stage).frames);
+    const frames: Record<string, StageFrame> = {};
+    for (const [key, frame] of Object.entries(raw)) {
+      const read = readFrame(frame);
+      if (read !== null && key.trim() !== '') frames[key.trim()] = read;
+    }
+    stage = { frames, bare: record(one.stage).bare === true };
+  }
+
+  return {
+    label: str(one.label).trim(),
+    layers: readLayers(one.layers),
+    transition: TRANSITIONS.includes(transition) ? transition : 'scroll',
+    enter: ENTERS.includes(enter) ? enter : 'none',
+    colors: COLOR_KEYS.some((k) => colors[k] !== null) ? colors : null,
+    stage
+  };
+}
+
+export const readSlide = (layout: Layout): SlideLook => readSlideValue(layout.slide);
+
+/**
+ * Ein Slajd, wie er gespeichert wird und im JSON steht — KNAPP: was der
+ * Vorgabe entspricht, fehlt. Ein Slajd ohne die Neuerungen von 0084 sieht
+ * genauso aus wie vorher.
+ */
+export function slideJson(slide: SlideLook): Record<string, unknown> {
+  const colors = slide.colors === null ? null
+    : Object.fromEntries(COLOR_KEYS.filter((k) => slide.colors![k] !== null).map((k) => [k, slide.colors![k]]));
+  return {
+    label: slide.label,
+    layers: slide.layers,
+    ...(slide.transition === 'scroll' ? {} : { transition: slide.transition }),
+    ...(slide.enter === 'none' ? {} : { enter: slide.enter }),
+    ...(colors === null || Object.keys(colors).length === 0 ? {} : { colors }),
+    ...(slide.stage === null ? {} : { stage: { frames: slide.stage.frames, ...(slide.stage.bare ? { bare: true } : {}) } })
+  };
+}
+
+export const withSlide = (layout: Layout, slide: SlideLook): Layout => ({ ...layout, slide: slideJson(slide) });
+
+/** Die Kennungen, auf die die Plätze eines wandernden Bausteins zeigen — nach einem Import die neuen. */
+export function remapStage(slide: SlideLook, ids: ReadonlyMap<string, string>): SlideLook {
+  if (slide.stage === null) return slide;
+  const frames: Record<string, StageFrame> = {};
+  for (const [key, frame] of Object.entries(slide.stage.frames)) frames[ids.get(key) ?? key] = frame;
+  return { ...slide, stage: { ...slide.stage, frames } };
+}
 
 /**
  * Wie ein Slajd als Adresse heisst — aus seinem Namen, Buchstabe für Buchstabe

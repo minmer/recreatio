@@ -83,7 +83,11 @@ export const formPart = definePart<FormConfig>({
   example: {
     title: 'Zapisy na pielgrzymkę',
     portalUnder: 'parafia/pielgrzymka',
-    smsTemplates: JSON.stringify([{ label: 'Przypomnienie', text: 'Jutro wyjazd o 7:00 spod kościoła.' }])
+    smsTemplates: JSON.stringify([{ label: 'Przypomnienie', text: 'Jutro wyjazd o 7:00 spod kościoła.' }]),
+    sentTitle: 'Dziękujemy za zapisanie!',
+    sentText: 'Zbiórka w sobotę o 7:00 przed kościołem.\n\nZabierz legitymację szkolną.',
+    paper: 'always',
+    paperSigner: 'czytelny podpis rodzica / opiekuna prawnego'
   },
 
   /* Was der Bogen trägt, ohne dass die Seite es zeigt — eingestellt wird es in seinem Reiter „Ustawienia". */
@@ -96,7 +100,15 @@ export const formPart = definePart<FormConfig>({
     {
       key: 'smsTemplates', shape: 'json', says: 'Szablony wiadomości do zgłoszonych — lista',
       inside: { '[].label': 'Nazwa szablonu', '[].text': 'Treść wiadomości' }
-    }
+    },
+    /* 0083 — was nach dem Absenden dasteht, und ob ein Ausdruck unterschrieben werden muss. */
+    { key: 'sentTitle', shape: 'line', says: 'Nagłówek po wysłaniu (zamiast „Zgłoszenie przyjęte.”)' },
+    { key: 'sentText', shape: 'line', says: 'Tekst po wysłaniu — "\\n" nowa linia, pusta linia nowy akapit' },
+    {
+      key: 'paper', shape: 'line',
+      says: 'Podpis odręczny na wydruku: "always" (zawsze) albo identyfikator pytania „Zgoda / oświadczenie” lub „Tak / nie” — wtedy, gdy zaznaczone (np. zgoda rodzica, którą widzą tylko niepełnoletni)'
+    },
+    { key: 'paperSigner', shape: 'line', says: 'Kto podpisuje — napis pod linią podpisu na wydruku' }
   ],
   label: 'Formularz',
   use: 'Pytania i zgłoszenia; każdy dostaje własny adres.',

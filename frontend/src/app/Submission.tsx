@@ -29,7 +29,7 @@
 import { useState } from 'react';
 
 import { fromBase64Url } from './crypto';
-import { reviseSubmission, type OwnAnswer } from './form';
+import { consentGiven, consentText, reviseSubmission, type OwnAnswer } from './form';
 import { loadPublicIntake } from './intake';
 import { Phones } from './Phones';
 import { rotateSeat, seatPath, type SubmittedValue } from './seat';
@@ -37,6 +37,7 @@ import { confirmSubmission } from './seatCheck';
 import type { SeatView } from './seatContext';
 import { forget, markReplaced, underOf } from './seatKeep';
 import { WorkspaceError } from './session';
+import { SignSheetButton } from './SignSheet';
 
 /**
  * Welche eigenen Einsendungen ein Portal zeigt — und von jeder welche Antworten.
@@ -67,16 +68,25 @@ export function OwnSubmissions({ seat, formId, show }: {
     <>
       {registrations.map((registrationId) => {
         const these = mine.filter((v) => v.registrationId === registrationId);
+        /* 0083 — das Blatt zum Unterschreiben, wenn das Formular für diese Antworten Papier verlangt. Aus ALLEN Antworten, nicht nur den gezeigten. */
+        const all = new Map(seat.opened.filter((o) => o.registrationId === registrationId && o.value !== null).map((o) => [o.fieldId, o.value!]));
         const block = (
-          <Submission
-            key={registrationId}
-            seat={seat}
-            values={these}
-            open={seat.opened.filter((o) => o.registrationId === registrationId && shown(o))}
-          />
+          <>
+            <Submission
+              key={registrationId}
+              seat={seat}
+              values={these}
+              open={seat.opened.filter((o) => o.registrationId === registrationId && shown(o))}
+            />
+            {these[0] !== undefined && (
+              <div className="wk-actions">
+                <SignSheetButton formId={these[0].formId} values={all} submittedAt={these[0].submittedAt} className="wk-btn wk-btn-quiet" />
+              </div>
+            )}
+          </>
         );
 
-        if (registrations.length === 1) return block;
+        if (registrations.length === 1) return <section key={registrationId}>{block}</section>;
 
         return (
           <section className="wk-seat-one" key={registrationId}>
@@ -245,7 +255,12 @@ export function Submission({ seat, values, open, review = false }: {
       <div key={one.fieldId}>
         <dt className="wk-row-side">{one.label ?? 'zapieczętowane pytanie'}</dt>
         <dd>
-          {one.value ?? 'zapieczętowane'}
+          {/* 0083 — eine Zustimmung: ja oder nein, und der Wortlaut, dem zugestimmt wurde. */}
+          {row?.kind === 'consent'
+            ? (one.value === null ? 'zapieczętowane' : consentGiven(one.value)
+              ? <>✓ tak <span className="wk-consent-text">{consentText(one.value)}</span></>
+              : '— nie (zgoda nie została udzielona albo ją wycofano)')
+            : one.value ?? 'zapieczętowane'}
 
           {/*
             NUR, WAS EIN GEKLICKTER LINK BELEGT (0030/0031): dass unter DIESER
@@ -323,7 +338,20 @@ export function Submission({ seat, values, open, review = false }: {
               Wie im Formular: eine Nummer wird zum Plättchen, eine Auswahl
               bleibt eine Auswahl, ein längerer Text ein längerer Text.
             */}
-            {kind === 'phone' ? (
+            {kind === 'consent' ? (
+              /*
+               * 0083 — EINE ZUSTIMMUNG LÄSST SICH ZURÜCKNEHMEN, so leicht, wie sie
+               * gegeben wurde (RODO Art. 7 Abs. 3) — und wiedergeben, mit dem
+               * Wortlaut von damals. Eine nie gegebene gibt man im Formular.
+               */
+              <span className="wk-check">
+                <input
+                  type="checkbox" checked={consentGiven(value)} disabled={busy || !consentGiven(one.value)}
+                  onChange={(e) => set(e.target.checked ? one.value ?? '' : '')}
+                />
+                <span>{consentGiven(value) ? 'tak' : 'nie — wycofana'}{consentGiven(one.value) ? '' : ' (zgody udzielasz w formularzu)'}</span>
+              </span>
+            ) : kind === 'phone' ? (
               <Phones value={value} disabled={busy} onChange={set} />
             ) : kind === 'choice' && one.options.length > 0 ? (
               <select value={value} disabled={busy} onChange={(e) => set(e.target.value)}>

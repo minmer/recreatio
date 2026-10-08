@@ -27,7 +27,7 @@ import { call } from './session';
 import type { SealedDesign } from './formDesign';
 import type { Controller } from './intake';
 
-export const FIELD_KINDS = ['line', 'text', 'choice', 'date', 'number', 'checkbox', 'email', 'phone'] as const;
+export const FIELD_KINDS = ['line', 'text', 'choice', 'date', 'number', 'checkbox', 'email', 'phone', 'consent', 'pesel'] as const;
 export type FieldKind = (typeof FIELD_KINDS)[number];
 
 /**
@@ -40,6 +40,33 @@ export const YES = 'tak';
 export const isYes = (value: string | undefined | null): boolean =>
   /^(tak|t|yes|y|true|1|x|✓|✔)$/i.test((value ?? '').trim());
 
+/*
+ * 0083 — EINE ZUSTIMMUNG (Art „consent") trägt den WORTLAUT, dem zugestimmt
+ * wurde: „tak: Jako rodzic albo opiekun prawny wyrażam zgodę …". RODO Art. 7
+ * Abs. 1 verlangt, zeigen zu können, WOZU jemand ja gesagt hat — und der Text
+ * einer Frage lässt sich später ändern. Die Antwort behält den alten.
+ * Nicht zugestimmt ist leer.
+ */
+export const consentValue = (statement: string): string => `${YES}: ${statement.trim()}`;
+
+/** Zugestimmt? Auch ein blosses „tak" (eine Frage, die vorher „Tak / nie" war). */
+export const consentGiven = (value: string | undefined | null): boolean =>
+  /^tak(:|$)/i.test((value ?? '').trim()) || isYes(value);
+
+/** Der Wortlaut, dem zugestimmt wurde — ohne das „tak:" davor. */
+export const consentText = (value: string | undefined | null): string =>
+  (value ?? '').trim().replace(/^tak:\s*/i, '');
+
+/**
+ * Wie eine Antwort in einer Liste oder Tabelle dasteht: eine Zustimmung als
+ * „tak" (der Wortlaut steht in der Antwort selbst und auf dem Ausdruck), ein
+ * „Tak / nie" als „tak", alles andere, wie es ist.
+ */
+export const shownAnswer = (kind: string | undefined, value: string): string =>
+  kind === 'consent' ? (consentGiven(value) ? 'tak' : '')
+  : kind === 'checkbox' ? (isYes(value) ? 'tak' : value.trim() === '' ? '' : value)
+  : value;
+
 export const KIND_LABEL: Record<FieldKind, string> = {
   line: 'Jedna linia',
   text: 'Dłuższy tekst',
@@ -48,7 +75,9 @@ export const KIND_LABEL: Record<FieldKind, string> = {
   number: 'Liczba',
   checkbox: 'Tak / nie',
   email: 'E-mail',
-  phone: 'Telefon'
+  phone: 'Telefon',
+  consent: 'Zgoda / oświadczenie',
+  pesel: 'PESEL'
 };
 
 /**
@@ -384,6 +413,30 @@ export interface PublicForm {
 
   /** 0077 — wie oft eine Erweiterung je Mensch ausgefüllt wird (`rounds.ts`). Fehlt es: einmal. */
   readonly repeat?: Repeat;
+
+  /** 0083 — wie es heisst (die Überschrift auf der Seite, sonst der Name) — für den Ausdruck. */
+  readonly title?: string | null;
+
+  /** 0083 — was nach dem Absenden dasteht, und ob ein Ausdruck unterschrieben werden muss. */
+  readonly after?: AfterSend | null;
+}
+
+/**
+ * 0083 — NACH DEM ABSENDEN, eingestellt am Formular (Ustawienia):
+ *
+ * <code>
+ *   title    statt „Zgłoszenie przyjęte."
+ *   text     ein eigener Text darunter (mehrere Zeilen)
+ *   paper    "always" — immer auf Papier unterschreiben; die Kennung einer
+ *            Frage (Zgoda, Tak / nie) — dann, wenn sie angekreuzt ist
+ *   signer   wer unterschreibt — unter der Linie auf dem Ausdruck
+ * </code>
+ */
+export interface AfterSend {
+  readonly title: string | null;
+  readonly text: string | null;
+  readonly paper: string | null;
+  readonly signer: string | null;
 }
 
 /** Wer ein Formular ausfüllt (0047). */

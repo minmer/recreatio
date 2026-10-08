@@ -58,7 +58,15 @@ public static partial class Form
     ];
 
     private static readonly string[] Kinds =
-        ["line", "text", "choice", "date", "number", "checkbox", "email", "phone"];
+        ["line", "text", "choice", "date", "number", "checkbox", "email", "phone",
+
+         /*
+          * Eine ZUSTIMMUNG mit ihrem Wortlaut (die Antwort traegt den Text, dem
+          * zugestimmt wurde — RODO Art. 7 Abs. 1), und eine PESEL-Nummer (im
+          * Browser auf ihre Pruefziffer geprueft). Der Dienst liest keine
+          * Antwort; fuer ihn sind es zwei Woerter mehr.
+          */
+         "consent", "pesel"];
 
     public static void Map(WebApplication app)
     {
@@ -565,7 +573,17 @@ public static partial class Form
             extendsId = shape?.ExtendsId is Guid based ? Ids.ToText(based) : null,
 
             /* 0077 — wie oft eine Erweiterung ausgefüllt wird: once, day, week, month, year. */
-            repeat = shape?.Repeat ?? Rounds.Once
+            repeat = shape?.Repeat ?? Rounds.Once,
+
+            /* 0083 — wie es heisst (fuer den Ausdruck), und was nach dem Absenden dasteht. */
+            title = whole?.Title,
+            after = whole?.After is null ? null : new
+            {
+                title = whole.After.Title,
+                text = whole.After.Text,
+                paper = whole.After.Paper,
+                signer = whole.After.Signer
+            }
         });
     }
 
@@ -2665,7 +2683,56 @@ public static partial class Form
     }
 
     /// <summary>Das Formular als Ganzes: wovon es handelt, ob es offen ist, wer fuer die Daten steht.</summary>
-    private sealed record Whole(string ForKind, bool Closed, (string Name, string? Address, string? Email)? Controller);
+    private sealed record Whole(
+        string ForKind, bool Closed, (string Name, string? Address, string? Email)? Controller,
+
+        /// <summary>Wie das Formular heisst — die Ueberschrift auf der Seite, sonst sein Name (fuer den Ausdruck).</summary>
+        string? Title = null,
+
+        /// <summary>Was nach dem Absenden dasteht, und ob ein Ausdruck unterschrieben werden muss (siehe <see cref="AfterOf"/>).</summary>
+        After? After = null);
+
+    /// <summary>
+    /// <para>
+    /// <b>NACH DEM ABSENDEN</b> — aus den Einstellungen des Bausteins: eine eigene
+    /// Ueberschrift (<c>sentTitle</c>, sonst „Zgłoszenie przyjęte."), ein eigener
+    /// Text darunter (<c>sentText</c>), und ob das Ausgefuellte auf Papier
+    /// unterschrieben werden muss (<c>paper</c>: <c>always</c>, oder die Kennung
+    /// einer Frage — dann, wenn sie angekreuzt ist; <c>paperSigner</c>: wer
+    /// unterschreibt).
+    /// </para>
+    /// <para>
+    /// Hinaus geht NUR das, nicht die ganze Tafel: dort stehen auch die
+    /// Vorlagen der Nachrichten, und die gehoeren der Kanzlei.
+    /// </para>
+    /// </summary>
+    private sealed record After(string? Title, string? Text, string? Paper, string? Signer);
+
+    private static After? AfterOf(string? config)
+    {
+        if (string.IsNullOrWhiteSpace(config)) return null;
+
+        Dictionary<string, string>? read;
+        try { read = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(config); }
+        catch (System.Text.Json.JsonException) { return null; }
+        if (read is null) return null;
+
+        string? Get(string key) => read.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v.Trim() : null;
+
+        var after = new After(Get("sentTitle"), Get("sentText"), Get("paper"), Get("paperSigner"));
+        return after is { Title: null, Text: null, Paper: null, Signer: null } ? null : after;
+    }
+
+    private static string? TitleOf(string? config)
+    {
+        if (string.IsNullOrWhiteSpace(config)) return null;
+        try
+        {
+            var read = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(config);
+            return read is not null && read.TryGetValue("title", out var t) && !string.IsNullOrWhiteSpace(t) ? t.Trim() : null;
+        }
+        catch (System.Text.Json.JsonException) { return null; }
+    }
 
     /// <summary>
     /// <para>
@@ -2682,7 +2749,8 @@ public static partial class Form
                    COALESCE(m.controller_name, b.controller_name),
                    CASE WHEN m.controller_name IS NULL THEN b.controller_address ELSE m.controller_address END,
                    CASE WHEN m.controller_name IS NULL THEN b.controller_email ELSE m.controller_email END,
-                   c.name, c.address, c.email
+                   c.name, c.address, c.email,
+                   m.config, m.name
             FROM app.module m
             LEFT JOIN app.module b ON b.id = m.extends_id
             OUTER APPLY (
@@ -2705,7 +2773,9 @@ public static partial class Form
             : Text(5) is string area ? (area, Text(6), Text(7))
             : null;
 
-        return new Whole(reader.GetString(0), !reader.IsDBNull(1), controller);
+        var config = Text(8);
+        return new Whole(reader.GetString(0), !reader.IsDBNull(1), controller,
+            Title: TitleOf(config) ?? Text(9), After: AfterOf(config));
     }
 
     /* -- Eine Frage aendern (0042) ------------------------------------------ */

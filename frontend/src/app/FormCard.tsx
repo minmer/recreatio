@@ -25,12 +25,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { areaReader, type AccountWay } from './areaRead';
+import { type AccountWay } from './areaRead';
 import {
-  fullNameOf, loadForm, openFields, submitForm, type Answer, type OpenField, type PublicForm
+  fullNameOf, submitForm, type Answer, type OpenField, type PublicForm
 } from './form';
 import type { Ring } from './keys';
-import { evaluate, layoutWith, missingIn, openDesign, type FormDesign } from './formDesign';
+import { evaluate, layoutWith, missingIn, type FormDesign } from './formDesign';
 import { FormFlow, isRequired } from './FormFlow';
 import { ExtensionSheet } from './ExtensionSheet';
 import { REPEAT_LABEL, repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
@@ -43,6 +43,8 @@ import { whoIsThere, WorkspaceError, type Who } from './session';
 import { usePerson } from './pagePerson';
 import { detailsOf, personFieldOf, subjectsFor, type Subject } from './subject';
 import { OwnSubmissions } from './Submission';
+import { openPublicForm, paperNeeded, SignSheetButton } from './SignSheet';
+import { peselBirth, peselValid } from './pesel';
 
 export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }: {
   partId: string;
@@ -73,6 +75,9 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
   /** Wohin der Platz gehört — der Dienst hat es entschieden, nicht wir. */
   const [landed, setLanded] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+
+  /** 0083 — wann es abging: steht auf dem Ausdruck zum Unterschreiben. */
+  const [sentAt, setSentAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -115,7 +120,9 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
 
   const look = useCallback(async () => {
     try {
-      const found = await loadForm(partId);
+      /* 0083 — dasselbe Aufmachen wie für den Ausdruck (`SignSheet.openPublicForm`). */
+      const opened = await openPublicForm(partId);
+      const found = opened.form;
       setForm(found);
 
       /*
@@ -131,23 +138,9 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
        * den dieser Browser gar nicht liest, fehlt einfach; `openFields` lässt
        * sein Feld dann zu.
        */
-      const reader = areaReader();
-      const keys = new Map<string, Uint8Array>();
-
-      for (const f of found.fields) {
-        const areaId = f.labelAreaId ?? f.areaId;
-        if (keys.has(areaId)) continue;
-
-        const key = await reader.key(areaId, f.labelEpoch ?? f.epoch);
-        if (key !== undefined) keys.set(areaId, key);
-      }
-
-      setFields(await openFields(found.fields, keys));
-      setDesign(await openDesign(
-        found.design ?? null,
-        found.design == null ? undefined : await reader.key(found.design.areaId, found.design.epoch),
-        partId));
-      setAccount(reader.account());
+      setFields(opened.fields);
+      setDesign(opened.design);
+      setAccount(opened.account);
       setFailed(null);
 
       /*
@@ -339,8 +332,9 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
         <>
           {head}
           <p className="wk-done">
-            {repeat === 'once' ? 'Uzupełnione — dziękujemy.' : `Uzupełnione za ${roundLabel(repeat, round)} — dziękujemy.`}
+            {form.after?.title ?? (repeat === 'once' ? 'Uzupełnione — dziękujemy.' : `Uzupełnione za ${roundLabel(repeat, round)} — dziękujemy.`)}
           </p>
+          {form.after?.text != null && <AfterText text={form.after.text} />}
           <OwnSubmissions seat={extSeat} formId={partId} show={null} />
         </>
       );
@@ -402,7 +396,28 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
     return (
       <>
         {title !== '' && <h2 className="wk-card-title">{title}</h2>}
-        <p className="wk-done">Zgłoszenie przyjęte.</p>
+        <p className="wk-done">{form.after?.title ?? 'Zgłoszenie przyjęte.'}</p>
+        {form.after?.text != null && <AfterText text={form.after.text} />}
+
+        {/*
+          0083 — AUF PAPIER UNTERSCHREIBEN, wenn das Formular es für DIESE
+          Antworten verlangt (etwa: die Zustimmung der Eltern ist angekreuzt).
+          Gedruckt wird, was eben hinausging.
+        */}
+        {paperNeeded(form.after, (id) => (outcome.hidden.has(id) ? undefined : answers[id])) && (
+          <div className="wk-paper-note">
+            <p>
+              <strong>To trzeba jeszcze podpisać odręcznie.</strong> Wydrukuj zgłoszenie, podpisz je
+              {form.after?.signer != null ? ` (${form.after.signer})` : ''} i oddaj organizatorowi — bez tego zgłoszenie nie jest kompletne.
+              Wydruk znajdziesz też później pod swoim linkiem.
+            </p>
+            <SignSheetButton
+              formId={partId}
+              values={new Map(fields.filter((f) => !outcome.hidden.has(f.fieldId)).map((f) => [f.fieldId, answers[f.fieldId] ?? '']))}
+              submittedAt={sentAt}
+            />
+          </div>
+        )}
 
         {attached !== null && (
           <p className="wk-hint">
@@ -459,6 +474,10 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
     .map((id) => byId.get(id))
     .filter((f): f is OpenField => f !== undefined);
 
+  /* 0083 — ein PESEL mit falscher Prüfziffer geht nicht hinaus: der Versicherer schickte die Liste zurück. */
+  const wrong = fields.filter((f) => f.kind === 'pesel' && !outcome.hidden.has(f.fieldId)
+    && (answers[f.fieldId] ?? '').trim() !== '' && !peselValid(answers[f.fieldId] ?? ''));
+
   const send = async () => {
     setBusy(true);
     setFailed(null);
@@ -484,6 +503,7 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
           round
         });
 
+        setSentAt(new Date().toISOString());
         setSent(true);
         extSeat.reload();
         return;
@@ -510,6 +530,7 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
         });
 
         setAttached(person?.chosen?.name ?? 'wybranej osoby');
+        setSentAt(new Date().toISOString());
         setSent(true);
         pageSeat.reload();
         return;
@@ -574,6 +595,7 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
       setLink(done.link);
       setLanded(done.under);
       setForOther(forWhom === null && pageDecides && person.options.some((one) => one.kind === 'role'));
+      setSentAt(new Date().toISOString());
       setSent(true);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać.');
@@ -727,19 +749,31 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
             fields={byId}
             answers={answers}
             outcome={outcome}
-            onAnswer={(fieldId, value) => setAnswers((before) => ({ ...before, [fieldId]: value }))}
+            onAnswer={(fieldId, value) => setAnswers((before) => {
+              const next = { ...before, [fieldId]: value };
+              /* 0083 — aus einem gültigen PESEL folgt das Geburtsdatum, wenn es noch leer ist. */
+              const born = byId.get(fieldId)?.kind === 'pesel' && peselValid(value) ? peselBirth(value) : null;
+              const bornField = born === null ? undefined : fields.find((f) => f.identityRole === 'born' && f.kind === 'date');
+              if (bornField !== undefined && born !== null && (next[bornField.fieldId] ?? '').trim() === '') next[bornField.fieldId] = born;
+              return next;
+            })}
           />
 
           {failed !== null && <p className="wk-error">{failed}</p>}
 
           <div className="wk-actions">
-            <button type="submit" className="wk-btn" disabled={busy || missing.length > 0}>
+            <button type="submit" className="wk-btn" disabled={busy || missing.length > 0 || wrong.length > 0}>
               {busy ? 'Wysyłanie…' : 'Wyślij'}
             </button>
 
             {missing.length > 0 && (
               <span className="wk-blocker">
                 Brakuje: {missing.map((f) => outcome.labels.get(f.fieldId) ?? f.label ?? 'zapieczętowane').join(', ')}
+              </span>
+            )}
+            {wrong.length > 0 && (
+              <span className="wk-blocker">
+                Popraw: {wrong.map((f) => outcome.labels.get(f.fieldId) ?? f.label ?? 'PESEL').join(', ')}
               </span>
             )}
           </div>
@@ -798,6 +832,17 @@ function OfficeOnly({ partId, baseId, title, repeat }: { partId: string; baseId:
         <ExtensionSheet extensionId={partId} baseId={baseId} audience="office" who={who} repeat={repeat} name={title} />
       )}
     </>
+  );
+}
+
+/** 0083 — der eigene Text nach dem Absenden: Zeile für Zeile, wie eingegeben. */
+function AfterText({ text }: { text: string }) {
+  return (
+    <div className="wk-after-text">
+      {text.split(/\n{2,}/).map((para, i) => (
+        <p key={i}>{para.split('\n').map((line, j) => <span key={j}>{j > 0 && <br />}{line}</span>)}</p>
+      ))}
+    </div>
   );
 }
 

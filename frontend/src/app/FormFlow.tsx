@@ -17,8 +17,9 @@
 
 import { useState } from 'react';
 
-import { isYes, YES, type OpenField } from './form';
+import { consentGiven, consentValue, isYes, YES, type OpenField } from './form';
 import { missingIn, type GroupItem, type LayoutItem, type Outcome } from './formDesign';
+import { peselDigits, peselValid } from './pesel';
 import { Phones } from './Phones';
 import { PostalInput } from './PostalInput';
 
@@ -200,6 +201,29 @@ function FieldRow({ fieldId, fields, answers, outcome, onAnswer }: FlowProps & {
   }
 
   /*
+   * 0083 — EINE ZUSTIMMUNG: das Kästchen, der Name fett, darunter der GANZE
+   * Wortlaut (die Podpowiedź der Frage) — gelesen wird, bevor angekreuzt wird.
+   * Angekreuzt trägt die Antwort genau diesen Wortlaut (`consentValue`): ändert
+   * die Kanzlei später den Text, bleibt nachweisbar, wozu DIESER Mensch ja sagte.
+   * „Wymagane" heisst: ohne sie geht das Formular nicht ab.
+   */
+  if (f.kind === 'consent' && f.label !== null) {
+    const statement = f.help ?? f.label;
+    return (
+      <div className={f.isHalfWidth ? 'wk-field wk-field-half wk-consent' : 'wk-field wk-consent'}>
+        <label className="wk-check wk-consent-row">
+          <input type="checkbox" checked={consentGiven(value)} onChange={(e) => set(e.target.checked ? consentValue(statement) : '')} />
+          <span>
+            <strong>{label}{required && ' *'}</strong>
+            {f.help !== null && <span className="wk-consent-text">{f.help}</span>}
+          </span>
+        </label>
+        {(outcome.messages.get(fieldId) ?? []).map((text, i) => <span className="wk-form-msg" key={i}>{text}</span>)}
+      </div>
+    );
+  }
+
+  /*
    * 0077 — „TAK / NIE" IST EIN KÄSTCHEN. Bis hierher war diese Frage ein
    * Textfeld: man tippte „tak" — oder „Tak", „x", „jest". Angekreuzt trägt sie
    * `YES`, sonst nichts; was früher getippt wurde, liest `isYes` duldsam.
@@ -231,6 +255,20 @@ function FieldRow({ fieldId, fields, answers, outcome, onAnswer }: FlowProps & {
           <option value="">—</option>
           {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
+      ) : f.kind === 'pesel' ? (
+        /*
+         * 0083 — ELF ZIFFERN, mit Prüfziffer. Gesagt wird es, sobald elf
+         * dastehen (oder mehr) — nicht beim Tippen der dritten.
+         */
+        <>
+          <input
+            inputMode="numeric" autoComplete="off" maxLength={13} value={value}
+            onChange={(e) => set(peselDigits(e.target.value))}
+          />
+          {value.length >= 11 && !peselValid(value) && (
+            <span className="wk-form-msg">To nie jest poprawny PESEL — sprawdź cyfry.</span>
+          )}
+        </>
       ) : f.kind === 'phone' ? (
         /*
          * Eine Nummer wird zum Plättchen, sobald sie fertig ist — und das `+48`

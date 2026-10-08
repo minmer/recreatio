@@ -31,8 +31,10 @@ import {
   type ValueCheck,
   type FieldKind, type IdentityRole, type OpenField, type SealedField, type Submission,
   editField, moveAnswers, sealQuestion, type MovedValue,
-  AUDIENCE_LABEL
+  AUDIENCE_LABEL, consentGiven, consentText
 } from './form';
+import { applyTemplate, FORM_TEMPLATES, type FormTemplate } from './formTemplates';
+import { SignSheetButton } from './SignSheet';
 import { ListJsonPanel } from './ListJsonPanel';
 import { ExtensionEntry, ExtensionSheet, OfficeAdd } from './ExtensionSheet';
 import { REPEAT_LABEL, REPEATS, repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
@@ -288,6 +290,14 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
   /** Eine Erweiterung (0047) — dann ist manches anders: keine eigene Liste, keine Schritte, kein Portal. */
   const isExtension = module !== undefined && module.extendsId !== null;
+
+  /*
+   * 0083 — DIE TABELLE AUCH FÜR EINE ERWEITERUNG, die einmal ausgefüllt wird:
+   * etwa „Dane do ubezpieczenia" über den Link — ihre CSV ist die Liste für
+   * den Versicherer. Eine wiederkehrende hat dafür ihre eigene Liste je Zeitraum.
+   */
+  const tableToo = isExtension && repeatOf(module?.repeat) === 'once';
+  const readsHere = (t: FormTabName) => (t === 'entries' && (!isExtension || tableToo)) || (t === 'people' && !isExtension);
   const conf = saved ?? config;
 
   /*
@@ -702,7 +712,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
   };
 
   useEffect(() => {
-    if ((tab !== 'entries' && tab !== 'people') || isExtension || autoTried || ring === null
+    if (!readsHere(tab) || autoTried || ring === null
       || readAreas !== null || areasHere.length === 0) return;
     setAutoTried(true);
     openAll('Otwieranie zgłoszeń…');
@@ -930,7 +940,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
         <FormTab now={tab} mine="questions" onPick={setTab}>Pytania</FormTab>
         {module !== undefined && <FormTab now={tab} mine="layout" onPick={setTab}>Układ</FormTab>}
         {module !== undefined && <FormTab now={tab} mine="logic" onPick={setTab}>Logika</FormTab>}
-        {!isExtension && (
+        {(!isExtension || tableToo) && (
           <FormTab now={tab} mine="entries" onPick={setTab}>
             Zgłoszenia{submissions.length > 0 ? ` (${submissions.length})` : ''}
           </FormTab>
@@ -995,6 +1005,16 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
           <Naming
             partId={partId}
             value={conf.title ?? ''}
+            busy={busy !== null}
+            onSaved={setSaved}
+            onError={setFailed}
+          />
+
+          {/* 0083 — WAS NACH DEM ABSENDEN DASTEHT, und ob unterschrieben werden muss. */}
+          <AfterSendSettings
+            partId={partId}
+            config={conf}
+            fields={fields}
             busy={busy !== null}
             onSaved={setSaved}
             onError={setFailed}
@@ -1119,6 +1139,19 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
               />
             ))}
 
+          {/* 0083 — GOTOWE WZORY: Zgoda rodzica, wyjazd, ubezpieczenie — als gewöhnliche Fragen, Aufbau und Logik. */}
+          {module !== undefined && ring !== null && (
+            <Templates
+              module={module}
+              who={who}
+              answersTo={areasHere[0] ?? module.areaId}
+              areas={areas}
+              busy={busy !== null}
+              onApply={(what, todo) => act(what, todo)}
+              onConfig={setSaved}
+            />
+          )}
+
           {fields.length === 0 ? (
             <p className="wk-empty">Jeszcze żadnego pytania.</p>
           ) : (
@@ -1227,7 +1260,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
       {/* == 2 und 3: was dafür aufgemacht werden muss ======================== */}
 
-      {(tab === 'entries' || tab === 'people') && !isExtension && (
+      {readsHere(tab) && (
         <>
           {areasHere.length === 0 ? (
             <p className="wk-empty">Najpierw pytania — bez nich nie ma zgłoszeń.</p>
@@ -1729,6 +1762,7 @@ function People({
               {open && (
                 <div className="wk-entry-body">
                   <EntryPanel
+                    formId={partId}
                     row={{ s, values, name, phones, states }}
                     fields={fields}
                     stepInfo={stepInfo}
@@ -1764,9 +1798,11 @@ function People({
  * einer anderen.
  */
 function EntryPanel({
-  row, fields, stepInfo, extData, links, formAreas, areas, ring, busy, sections = PANEL_SECTIONS,
+  formId, row, fields, stepInfo, extData, links, formAreas, areas, ring, busy, sections = PANEL_SECTIONS,
   onHide, onRemove, onError, onChanged
 }: {
+  /** 0083 — welches Formular (für den Ausdruck zum Unterschreiben). */
+  formId: string;
   row: DeskRow;
   fields: readonly OpenField[];
   stepInfo: StepInfo | null;
@@ -1794,6 +1830,12 @@ function EntryPanel({
             {s.confirmedAt !== null && ` · dane potwierdzone przez osobę ${new Date(s.confirmedAt).toLocaleString('pl-PL')}`}
           </p>
           <Answers values={values} fields={fields} sealed={s.values.length} checks={s.checks} />
+          {/* 0083 — auch die Kanzlei druckt das Blatt (für den, der seines vergessen hat). */}
+          {values !== undefined && values.size > 0 && (
+            <div className="wk-actions">
+              <SignSheetButton formId={formId} values={values} submittedAt={s.submittedAt} when="ruled" className="wk-link-btn" />
+            </div>
+          )}
         </>
       )}
 
@@ -1943,6 +1985,7 @@ export function EntryDeskPanel({ desk, row, ring, sections }: {
       {failed !== null && <p className="wk-error">{failed}</p>}
       {busy !== null && <p className="wk-hint" role="status">{busy}</p>}
       <EntryPanel
+        formId={desk.formId}
         row={row}
         fields={desk.form.fields}
         stepInfo={desk.info}
@@ -1959,6 +2002,197 @@ export function EntryDeskPanel({ desk, row, ring, sections }: {
         onChanged={async () => { await links.reload(); deskChanged(desk.formId); }}
       />
     </div>
+  );
+}
+
+/* -- 0083: Zustimmungen, nach dem Absenden, Wzory ------------------------- */
+
+/** Der Wortlaut einer Zustimmung — nur bei der Art „Zgoda / oświadczenie". */
+function ConsentText({ kind, value, onChange, edited = false }: {
+  kind: FieldKind;
+  value: string;
+  onChange: (next: string) => void;
+  edited?: boolean;
+}) {
+  if (kind !== 'consent') return null;
+  return (
+    <label className="wk-field">
+      <span>Treść oświadczenia — to, na co osoba się zgadza</span>
+      <textarea rows={4} value={value} onChange={(e) => onChange(e.target.value)}
+        placeholder="np. Jako rodzic albo opiekun prawny wyrażam zgodę na udział mojego dziecka…" />
+      <span className="wk-hint">
+        Pokazuje się w całości pod polem do zaznaczenia; „Pytanie” to krótka nazwa (np. „Zgoda na udział”).
+        {edited
+          ? ' Zmiana dotyczy tylko nowych odpowiedzi — każda udzielona zgoda zachowuje treść, na którą ją wyrażono.'
+          : ' Zaznaczona zgoda zapisuje się razem z tą treścią — późniejsza zmiana jej nie podmienia.'}
+      </span>
+    </label>
+  );
+}
+
+/**
+ * NACH DEM ABSENDEN — eine eigene Überschrift, ein eigener Text, und ob das
+ * Ausgefüllte auf Papier unterschrieben werden muss (immer, oder wenn eine
+ * bestimmte Zustimmung angekreuzt ist). Gespeichert am Formular; draussen
+ * liest es `after` des öffentlichen Formulars.
+ */
+function AfterSendSettings({ partId, config, fields, busy, onSaved, onError }: {
+  partId: string;
+  config: Record<string, string>;
+  fields: readonly OpenField[];
+  busy: boolean;
+  onSaved: (next: Record<string, string>) => void;
+  onError: (message: string | null) => void;
+}) {
+  const [title, setTitle] = useState(config.sentTitle ?? '');
+  const [text, setText] = useState(config.sentText ?? '');
+  const [paper, setPaper] = useState(config.paper ?? '');
+  const [signer, setSigner] = useState(config.paperSigner ?? '');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setTitle(config.sentTitle ?? '');
+    setText(config.sentText ?? '');
+    setPaper(config.paper ?? '');
+    setSigner(config.paperSigner ?? '');
+  }, [config.sentTitle, config.sentText, config.paper, config.paperSigner]);
+
+  const ticks = fields.filter((f) => f.kind === 'consent' || f.kind === 'checkbox');
+  const dirty = title !== (config.sentTitle ?? '') || text !== (config.sentText ?? '')
+    || paper !== (config.paper ?? '') || signer !== (config.paperSigner ?? '');
+
+  const save = async () => {
+    setSaving(true);
+    onError(null);
+    try {
+      const done = await setPartConfig(partId, { sentTitle: title.trim(), sentText: text.trim(), paper, paperSigner: signer.trim() });
+      onSaved(done.config);
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <fieldset className="wk-fieldset wk-after-settings">
+      <legend>Po wysłaniu</legend>
+      <label className="wk-field">
+        <span>Nagłówek po wysłaniu</span>
+        <input value={title} disabled={busy || saving} placeholder="Zgłoszenie przyjęte." onChange={(e) => setTitle(e.target.value)} />
+      </label>
+      <label className="wk-field">
+        <span>Tekst po wysłaniu (nieobowiązkowo)</span>
+        <textarea rows={4} value={text} disabled={busy || saving} onChange={(e) => setText(e.target.value)}
+          placeholder="np. Dziękujemy! Zbiórka w sobotę o 8:00 przed kościołem. Zabierz legitymację." />
+        <span className="wk-hint">
+          Widzi go osoba zaraz po wysłaniu (także po uzupełnieniu przez swój link). Pusta linia zaczyna nowy akapit.
+          Link do strony osoby i pokwitowanie pokazują się zawsze — tego nie da się wyłączyć.
+        </span>
+      </label>
+      <label className="wk-field">
+        <span>Podpis odręczny na wydruku</span>
+        <select value={paper} disabled={busy || saving} onChange={(e) => setPaper(e.target.value)}>
+          <option value="">nie trzeba</option>
+          <option value="always">zawsze — każdy drukuje i podpisuje</option>
+          {ticks.map((f) => (
+            <option key={f.fieldId} value={f.fieldId}>gdy zaznaczono: {f.label ?? 'pytanie'}</option>
+          ))}
+          {paper !== '' && paper !== 'always' && !ticks.some((f) => f.fieldId === paper) && (
+            <option value={paper}>(pytanie, którego już nie ma)</option>
+          )}
+        </select>
+        <span className="wk-hint">
+          Zgoda rodzica za niepełnoletnie dziecko musi być podpisana odręcznie — zaznaczenie pola na stronie nie jest
+          podpisem. Wtedy po wysłaniu (i później pod linkiem osoby) pojawia się „Drukuj do podpisu”: jedna strona A4
+          z danymi, zgodami w ich brzmieniu i miejscem na podpis.
+        </span>
+      </label>
+      {paper !== '' && (
+        <label className="wk-field">
+          <span>Kto podpisuje (pod linią na wydruku)</span>
+          <input value={signer} disabled={busy || saving} placeholder="czytelny podpis" onChange={(e) => setSigner(e.target.value)} />
+        </label>
+      )}
+      <div className="wk-actions">
+        <button type="button" className="wk-btn" disabled={busy || saving || !dirty} onClick={() => void save()}>
+          {saving ? 'Zapisywanie…' : 'Zapisz'}
+        </button>
+      </div>
+    </fieldset>
+  );
+}
+
+/**
+ * GOTOWE WZORY — ein Klick, und das Formular hat die Fragen, Gruppen und Logik
+ * einer Zgoda rodzica, eines Wyjazd oder der Daten für die Versicherung
+ * (`formTemplates.ts`). Was es schon gibt, wird weiterbenutzt.
+ */
+function Templates({ module, who, answersTo, areas, busy, onApply, onConfig }: {
+  module: ModuleRow;
+  who: Who;
+  answersTo: string | null;
+  areas: readonly AreaRow[];
+  busy: boolean;
+  onApply: (what: string, todo: () => Promise<unknown>) => Promise<void>;
+  /** Die Einstellungen danach — sonst schriebe „Po wysłaniu" den alten Stand zurück. */
+  onConfig: (next: Record<string, string>) => void;
+}) {
+  const [target, setTarget] = useState(answersTo ?? '');
+  const [stage, setStage] = useState<string | null>(null);
+  const [said, setSaid] = useState<string | null>(null);
+  const usable = areas.filter((a) => a.heldEpochs > 0);
+
+  useEffect(() => { if (answersTo !== null) setTarget(answersTo); }, [answersTo]);
+
+  const apply = (template: FormTemplate) => {
+    if (!window.confirm(`Dodać do formularza wzór „${template.label}”? Pytania, które już są (imię, nazwisko, data urodzenia), zostaną wykorzystane, nowe trafią na koniec.`)) return;
+    void onApply('Dodawanie wzoru…', async () => {
+      try {
+        setSaid(null);
+        const done = await applyTemplate(who, module, template, target === '' ? null : target, setStage);
+        if (done.config !== null) onConfig(done.config);
+        setSaid([
+          `Wzór „${template.label}”: nowych pytań ${done.added}${done.reused > 0 ? `, wykorzystane istniejące: ${done.reused}` : ''}.`,
+          ...done.warnings
+        ].join(' '));
+      } finally {
+        setStage(null);
+      }
+    });
+  };
+
+  return (
+    <details className="wk-fold wk-templates">
+      <summary>Gotowe wzory: zgoda rodzica, wyjazd, ubezpieczenie</summary>
+      <p className="wk-hint">
+        Wzór dodaje zwykłe pytania, grupy i logikę — potem zmienisz w nich wszystko. Pola dla rodzica pokazują się tylko,
+        gdy uczestnik ma mniej niż 18 lat (węzeł „Wiek” w zakładce „Logika”). Wzory można łączyć, np. „Zgoda rodzica” +
+        „Ubezpieczenie” — dane, które już są, nie powtórzą się.
+      </p>
+      {answersTo === null && (
+        <label className="wk-field">
+          <span>Odpowiedzi trafiają do obszaru</span>
+          <select value={target} disabled={busy} onChange={(e) => setTarget(e.target.value)}>
+            <option value="">—</option>
+            <AreaOptions areas={areas} only={usable} />
+          </select>
+        </label>
+      )}
+      <ul className="wk-template-list">
+        {FORM_TEMPLATES.map((one) => (
+          <li key={one.id} className="wk-template">
+            <strong>{one.label}</strong>
+            <span className="wk-hint">{one.use}</span>
+            <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || target === ''} onClick={() => apply(one)}>
+              Dodaj do formularza
+            </button>
+          </li>
+        ))}
+      </ul>
+      {stage !== null && <p className="wk-working">{stage}</p>}
+      {said !== null && <p className="wk-done" role="status">{said}</p>}
+    </details>
   );
 }
 
@@ -2210,7 +2444,12 @@ function Answers({ values, fields, sealed, checks }: {
       {known.map((f) => (
         <li key={f.fieldId}>
           <strong>{f.label ?? 'zapieczętowane pytanie'}:</strong>{' '}
-          {values.get(f.fieldId)}{mark(f.fieldId)}
+          {f.kind === 'consent' ? (
+            /* 0083 — tak oder nein; und der Wortlaut, dem zugestimmt wurde (nicht der heutige der Frage). */
+            consentGiven(values.get(f.fieldId))
+              ? <>✓ tak <span className="wk-consent-text">{consentText(values.get(f.fieldId))}</span></>
+              : '— nie'
+          ) : values.get(f.fieldId)}{mark(f.fieldId)}
         </li>
       ))}
 
@@ -2283,6 +2522,8 @@ function NewFieldForm({
   const [selfEdit, setSelfEdit] = useState(true);
   const [identity, setIdentity] = useState<IdentityRole>('none');
   const [options, setOptions] = useState('');
+  /* 0083 — der Wortlaut einer Zustimmung (sonst eine Podpowiedź). */
+  const [help, setHelp] = useState('');
   const [working, setWorking] = useState(false);
   const [stage, setStage] = useState<string | null>(null);
 
@@ -2346,6 +2587,7 @@ function NewFieldForm({
         labelArea,
         areaId: area.areaId, areaKey, epoch: area.currentEpoch,
         kind, position, label,
+        help: help.trim() === '' ? undefined : help.trim(),
         options: kind === 'choice' ? options.split('\n') : undefined,
         isRequired: required,
         identityRole: identity,
@@ -2354,6 +2596,7 @@ function NewFieldForm({
 
       setLabel('');
       setOptions('');
+      setHelp('');
       setIdentity('none');
       setKind('line');
       onAdded();
@@ -2412,6 +2655,8 @@ function NewFieldForm({
         </label>
       )}
 
+      <ConsentText kind={kind} value={help} onChange={setHelp} />
+
       {/*
         WOHIN die Antwort geht. Je Feld, nicht je Formular — damit ein Bogen
         Fragen stellen kann, deren Antworten an verschiedene Stellen gehören.
@@ -2446,7 +2691,7 @@ function NewFieldForm({
       <div className="wk-actions">
         <button
           type="submit" className="wk-btn"
-          disabled={busy || working || label.trim() === '' || areaId === ''}
+          disabled={busy || working || label.trim() === '' || areaId === '' || (kind === 'consent' && help.trim() === '')}
         >
           {working ? 'Dodawanie…' : 'Dodaj'}
         </button>
@@ -2642,10 +2887,14 @@ function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
         <input value={label} onChange={(e) => setLabel(e.target.value)} />
       </label>
 
-      <label className="wk-field">
-        <span>Podpowiedź pod pytaniem (opcjonalnie)</span>
-        <input value={help} onChange={(e) => setHelp(e.target.value)} />
-      </label>
+      {kind === 'consent' ? (
+        <ConsentText kind={kind} value={help} onChange={setHelp} edited />
+      ) : (
+        <label className="wk-field">
+          <span>Podpowiedź pod pytaniem (opcjonalnie)</span>
+          <input value={help} onChange={(e) => setHelp(e.target.value)} />
+        </label>
+      )}
 
       <label className="wk-field">
         <span>Rodzaj</span>

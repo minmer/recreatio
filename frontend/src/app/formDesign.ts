@@ -9,7 +9,8 @@
  *            „page"  (nacheinander — die nächste erst, wenn die vorige erfüllt ist) oder
  *            „tab"   (nebeneinander — alle zugleich erreichbar),
  *            und sie liegen ineinander, so tief man will
- *   logic    ein Graph: Eingänge (die Antwort auf eine Frage, ein fester Wert),
+ *   logic    ein Graph: Eingänge (die Antwort auf eine Frage, ein fester Wert,
+ *            0083 das Alter aus einem Datum oder PESEL),
  *            Vergleiche und Verknüpfungen (und, oder, nicht, entweder-oder),
  *            Ausgänge (zeigen, Hinweis unter der Frage, Name der Frage, Pflicht)
  * </code>
@@ -24,6 +25,7 @@
  */
 
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from './crypto';
+import { ageOn, birthOf } from './pesel';
 import { call } from './session';
 
 /* -- Der Aufbau --------------------------------------------------------------- */
@@ -62,7 +64,7 @@ export const COMPARE_LABEL: Record<CompareOp, string> = {
 export const UNARY: readonly CompareOp[] = ['filled', 'empty'];
 
 export const NODE_KINDS = [
-  'answer', 'const',
+  'answer', 'const', 'age',
   'compare', 'and', 'or', 'not', 'xor',
   'show', 'message', 'label', 'require'
 ] as const;
@@ -71,6 +73,7 @@ export type NodeKind = (typeof NODE_KINDS)[number];
 export const NODE_LABEL: Record<NodeKind, string> = {
   answer: 'Odpowiedź',
   const: 'Wartość',
+  age: 'Wiek',
   compare: 'Porównanie',
   and: 'I',
   or: 'LUB',
@@ -85,7 +88,7 @@ export const NODE_LABEL: Record<NodeKind, string> = {
 export type NodeRole = 'input' | 'gate' | 'output';
 
 export const roleOf = (kind: NodeKind): NodeRole =>
-  kind === 'answer' || kind === 'const' ? 'input'
+  kind === 'answer' || kind === 'const' || kind === 'age' ? 'input'
   : kind === 'show' || kind === 'message' || kind === 'label' || kind === 'require' ? 'output'
   : 'gate';
 
@@ -96,6 +99,7 @@ export function portsOf(kind: NodeKind): readonly { readonly port: Port; readonl
   switch (kind) {
     case 'answer':
     case 'const':
+    case 'age':
       return [];
     case 'compare':
       return [{ port: 'a', many: false }, { port: 'b', many: false }];
@@ -114,10 +118,10 @@ export interface LogicNode {
   readonly x: number;
   readonly y: number;
 
-  /** `answer`: welche Frage. */
+  /** `answer`, `age`: welche Frage. */
   readonly fieldId?: string;
 
-  /** `const`: der Wert. `message` / `label`: der Text. */
+  /** `const`: der Wert. `message` / `label`: der Text. `age`: an welchem Tag (YYYY-MM-DD; leer: heute). */
   readonly value?: string;
 
   /** `compare`: wie verglichen wird. */
@@ -375,6 +379,17 @@ export function evaluate(design: FormDesign, answers: Readonly<Record<string, st
     switch (node.kind) {
       case 'answer': v = node.fieldId === undefined ? '' : answers[node.fieldId] ?? ''; break;
       case 'const': v = node.value ?? ''; break;
+      /*
+       * 0083 — DAS ALTER in vollen Jahren, aus einem Datum oder einem PESEL;
+       * am Tag des Knotens (der Beginn des Wyjazd), sonst heute. Ohne lesbares
+       * Datum: leer — und leer ist nie „jünger als 18".
+       */
+      case 'age': {
+        const born = birthOf(node.fieldId === undefined ? '' : answers[node.fieldId]);
+        const years = born === null ? null : ageOn(born, node.value);
+        v = years === null ? '' : String(years);
+        break;
+      }
       case 'compare': v = compare(node.op ?? 'eq', first('a'), first('b')); break;
       case 'and': { const all = on('in'); v = all.length > 0 && all.every(truthy); break; }
       case 'or': v = on('in').some(truthy); break;

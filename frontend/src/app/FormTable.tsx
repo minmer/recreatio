@@ -23,7 +23,7 @@
 
 import { useMemo, useState } from 'react';
 
-import type { OpenField, Submission } from './form';
+import { shownAnswer, type OpenField, type Submission } from './form';
 import { saveBlob } from './platform';
 
 /** Wie viele verschiedene Antworten eine Frage höchstens haben darf, um einen Filter zu bekommen. */
@@ -61,13 +61,20 @@ export function FormTable({ fields, submissions, opened, fileName }: {
   const [filters, setFilters] = useState<ReadonlyMap<string, string>>(new Map());
   const [sort, setSort] = useState<Sort>({ key: 'at', dir: -1 });
 
-  const rows: readonly Row[] = useMemo(() => submissions.map((s) => ({
-    id: s.registrationId,
-    at: s.submittedAt,
-    hidden: s.hidden,
-    withdrawn: s.withdrawnAt !== null,
-    values: opened.get(s.registrationId) ?? new Map<string, string>()
-  })), [submissions, opened]);
+  /* 0083 — eine Zustimmung steht als „tak" in der Tabelle (und in der CSV); ihr Wortlaut bleibt in der Antwort und auf dem Ausdruck. */
+  const consents = useMemo(() => new Set(fields.filter((f) => f.kind === 'consent').map((f) => f.fieldId)), [fields]);
+
+  const rows: readonly Row[] = useMemo(() => submissions.map((s) => {
+    const values = opened.get(s.registrationId) ?? new Map<string, string>();
+    return {
+      id: s.registrationId,
+      at: s.submittedAt,
+      hidden: s.hidden,
+      withdrawn: s.withdrawnAt !== null,
+      values: consents.size === 0 ? values
+        : new Map([...values].map(([key, v]) => [key, consents.has(key) ? shownAnswer('consent', v) : v]))
+    };
+  }), [submissions, opened, consents]);
 
   /*
    * DIE SPALTEN: die Fragen von heute in ihrer Reihenfolge — und dahinter jede

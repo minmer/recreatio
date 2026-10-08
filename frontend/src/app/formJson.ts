@@ -61,7 +61,7 @@ export const QUESTION_KEYS: Readonly<Record<string, string>> = {
   'questions[].id': 'Identyfikator pytania. Ten z eksportu — pytanie zostanie zmienione (odpowiedzi zostają). Nowy albo własny (np. "q1") — powstanie nowe pytanie; tej samej nazwy można użyć w "design"',
   'questions[].kind': `Rodzaj: ${FIELD_KINDS.map((k) => `"${k}"`).join(', ')}`,
   'questions[].label': 'Treść pytania',
-  'questions[].help': 'Podpowiedź pod pytaniem (albo null)',
+  'questions[].help': 'Podpowiedź pod pytaniem (albo null). Przy "consent" — pełna treść oświadczenia; zaznaczona zgoda zapisuje się razem z nią ("tak: …"). "pesel" sprawdza cyfrę kontrolną',
   'questions[].options': 'Możliwości wyboru — lista (tylko dla "choice")',
   'questions[].required': 'true — odpowiedź wymagana',
   'questions[].halfWidth': 'true — pole na pół szerokości',
@@ -74,7 +74,7 @@ export const QUESTION_KEYS: Readonly<Record<string, string>> = {
   'design.layout[].type': '"field" — pytanie, "text" — tekst między pytaniami, "group" — grupa (patrz wyżej)',
   'design.layout[].id': 'Przy "field": identyfikator pytania (także własny z "questions", np. "q1"); przy tekście i grupie: dowolny, niepowtarzalny',
   'design.layout[].text': 'Przy "text": treść',
-  'design.nodes': 'Węzły logiki: {"id","kind","x","y", "fieldId"?, "value"?, "op"?, "target"?}; kind: answer, const, compare, and, or, not, xor, show, message, label, require',
+  'design.nodes': 'Węzły logiki: {"id","kind","x","y", "fieldId"?, "value"?, "op"?, "target"?}; kind: answer, const, age, compare, and, or, not, xor, show, message, label, require. "age" — wiek w pełnych latach z pytania z datą urodzenia albo PESEL-em ("fieldId"), w dniu "value" (RRRR-MM-DD; puste — dziś); porównany z 18 pokazuje pola dla niepełnoletnich',
   'design.edges': 'Połączenia logiki: {"id","from","to","port":"a"|"b"|"in"}'
 };
 
