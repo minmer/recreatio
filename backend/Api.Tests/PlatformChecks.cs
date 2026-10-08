@@ -18,6 +18,47 @@ internal static class PlatformChecks
         PushAssertion(check);
         RoundKeys(check);
         MassCarry(check);
+        PageModes(check);
+        FormNeeds(check);
+    }
+
+    /// <summary>0085 — die drei Arten einer Seite; was keine ist, wird eine Seite mit Bausteinen.</summary>
+    private static void PageModes(Action<bool, string> check)
+    {
+        check(Page.ModeOf("presentation") == "presentation", "page mode: a presentation is kept");
+        check(Page.ModeOf("slides") == "slides" && Page.ModeOf("page") == "page", "page mode: slides and page stay");
+        check(Page.ModeOf(null) == "page" && Page.ModeOf("Presentation") == "page" && Page.ModeOf("show") == "page", "page mode: anything else is a page");
+        check(Page.ModeOf("presentation").Length <= 16, "page mode: fits the column (0085: nvarchar(16))");
+        check(Page.MaxTheme >= 64000, "page look: room for the scenes of a presentation");
+    }
+
+    /// <summary>0086 — die Fragen eingeschalteter Wymagania sind gesperrt; eine kaputte Einstellung sperrt nichts.</summary>
+    private static void FormNeeds(Action<bool, string> check)
+    {
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        var needs = System.Text.Json.JsonSerializer.Serialize(new object[]
+        {
+            new { id = "minor", label = "Niepełnoletni", fields = new[] { a.ToString() } },
+            new { id = "health", label = "Zdrowie", fields = new[] { b.ToString(), "nie-guid" } }
+        });
+        var config = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string> { ["needs"] = needs, ["paper"] = "minor" });
+
+        var locked = Form.LockedFields(config);
+        check(locked.Count == 2 && locked[a] == "Niepełnoletni" && locked[b] == "Zdrowie", "needs: the questions of each requirement are locked, under its name");
+        check(Form.LockedFields(null).Count == 0 && Form.LockedFields("{}").Count == 0, "needs: none set, nothing locked");
+        check(Form.LockedFields("{\"needs\":\"[1,2\"}").Count == 0, "needs: an unreadable setting locks nothing");
+        check(Form.LockedFields("{\"needs\":\"{}\"}").Count == 0, "needs: not a list, nothing locked");
+        check(Form.LockedFields("nie json").Count == 0, "needs: an unreadable config locks nothing");
+
+        check(Form.PortalAt("?s=3") == "?s=3" && Form.PortalAt(" #zapisy ") == "#zapisy" && Form.PortalAt("?s=2&x=1#twoje") == "?s=2&x=1#twoje",
+            "portal suffix: a slide, an anchor, both");
+        check(Form.PortalAt("s=3") is null && Form.PortalAt("?") is null && Form.PortalAt("#") is null && Form.PortalAt("") is null,
+            "portal suffix: starts with ? or # and says something");
+        check(Form.PortalAt("?miejsce=a.b") is null && Form.PortalAt("?s=1&MIEJSCE=x") is null && Form.PortalAt("?miejsce") is null,
+            "portal suffix: cannot imitate the seat");
+        check(Form.PortalAt("#a b") is null && Form.PortalAt("#a\"b") is null && Form.PortalAt("#a#b") is null && Form.PortalAt("?" + new string('x', 400)) is null,
+            "portal suffix: no spaces, no quotes, one anchor, short");
     }
 
     /// <summary>0077 — der Zeitraum einer wiederkehrenden Erweiterung: dieselbe Tabelle wie rounds.ts.</summary>

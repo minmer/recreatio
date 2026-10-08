@@ -15,6 +15,7 @@
  *  12. Odbiorcy (0080): die drei Zugänge — Kanał, gemeinsam, einer mit einem — und mit welchen Bereichen einer allein spricht.
  *  13. Zwei Seiten (0082): die Liste und der eine Mensch — dieselbe Reihenfolge, derselbe Filter, über die Adresse.
  *  14. Zgody (0083): PESEL, das Alter in der Logik, eine Zustimmung mit ihrem Wortlaut, Papier, das Blatt, die Wzory.
+ *  15. Slajdy (0084): wie sie sich ablösen, wie der Inhalt erscheint, Farben, die mitgehen, und die Bühne.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -60,8 +61,15 @@ export { readSubject, writeSubject, subjectKindOf } from '${app}pageSubject';
 export { peselValid, peselBirth, birthOf, ageOn } from '${app}pesel';
 export { consentValue, consentGiven, consentText, shownAnswer } from '${app}form';
 export { evaluate } from '${app}formDesign';
-export { paperNeeded, sheetOf } from '${app}SignSheet';
-export { FORM_TEMPLATES } from '${app}formTemplates';
+export { paperNeeded, sheetOf, parentalConsentOf, ageFields, PAPER_MINOR } from '${app}SignSheet';
+export { NEEDS, readNeeds, needsJson, lockedOf, layoutWithout, logicWithout } from '${app}formTemplates';
+export { asked, takenOff } from '${app}form';
+export { splitAt, pageLink, keepFromAddress } from '${app}seatKeep';
+export { parsePath } from '${app}routes';
+export { slideInAddress, anchorInAddress, slideByAnchor, addressWithSlide } from '${app}slides';
+export { ownAddress, atProblem } from '${app}Portal';
+export { entering, deckAt, pinnedPosition, motionOf, enterStyle, frameAt, mixColor, colorsAt, colorsOf, calmer } from '${app}slideMotion';
+export { readSlideValue, slideJson, remapStage } from '${app}slides';
 `);
 await build({
   entryPoints: [entry],
@@ -797,6 +805,27 @@ try {
     assert.equal(m.paperNeeded({ title: null, text: null, paper: 'cp', signer: null }, () => undefined), false, 'an adult never saw it');
     ok('consent: "tak: <wording>", shown as "tak", paper when always or when the chosen consent is given');
 
+    {
+      /* „niepełnoletni": aus Geburtsdatum oder PESEL, am Tag des Ausfüllens — ohne eines davon kein Papier. */
+      const minor = { title: null, text: null, paper: m.PAPER_MINOR, signer: null };
+      const people = [{ fieldId: 'b', kind: 'date', identityRole: 'born' }, { fieldId: 'p', kind: 'pesel', identityRole: null }, { fieldId: 'x', kind: 'line', identityRole: null }];
+      const ans = (map) => (id) => map[id];
+      assert.equal(m.paperNeeded(minor, ans({ b: '2010-05-01' }), { fields: people, on: '2026-10-07' }), true, 'sixteen: paper');
+      assert.equal(m.paperNeeded(minor, ans({ b: '2008-10-07' }), { fields: people, on: '2026-10-07' }), false, 'eighteen today: no paper');
+      assert.equal(m.paperNeeded(minor, ans({ b: '2008-10-08' }), { fields: people, on: '2026-10-07' }), true, 'eighteen tomorrow: still paper');
+      assert.equal(m.paperNeeded(minor, ans({ p: '10250112347' }), { fields: people, on: '2026-10-07' }), true, 'a PESEL of 1 May 2010: paper');
+      assert.equal(m.paperNeeded(minor, ans({}), { fields: people, on: '2026-10-07' }), false, 'no birth date given: it cannot say');
+      assert.equal(m.paperNeeded(minor, ans({ b: '2010-05-01' }), {}), false, 'a form that does not ask for the age: no paper');
+      assert.deepEqual(m.ageFields(people).map((x) => x.fieldId), ['b', 'p'], 'birth date and PESEL tell the age');
+      const ticks = [
+        { fieldId: 'safe', kind: 'checkbox', label: 'Zobowiązuję się przestrzegać zasad bezpieczeństwa', help: null },
+        { fieldId: 'pc', kind: 'checkbox', label: 'Potwierdzam, że przekażę podpisaną zgodę rodzica / opiekuna na udział w warsztatach.', help: null }
+      ];
+      assert.equal(m.parentalConsentOf(ticks)?.fieldId, 'pc', 'the parental consent of a form made before 0083 is found for the hint');
+      assert.equal(m.parentalConsentOf([ticks[0], { fieldId: 'n', kind: 'line', label: 'Imię rodzica', help: null }]), null, 'a name of a parent is no consent');
+      ok('paper for minors: from the birth date or PESEL on the day of filling; a parental consent without paper is found for the hint');
+    }
+
     /* Das Blatt: Reihenfolge des Formulars, nur Sichtbares, Zustimmungen mit IHREM Wortlaut. */
     const field = (fieldId, kind, label, position, extra = {}) => ({
       fieldId, kind, label, position, help: null, options: [], areaId: 'a', epoch: 1, isRequired: false, isHalfWidth: false,
@@ -821,8 +850,8 @@ try {
     assert.ok(!adult.blocks.some((b) => b.rows.some((r) => r.label === 'Rodzic')), 'what the logic hid is not printed');
     ok('sign sheet: the form’s order, visible answers only, dates in Polish, consents with their own wording');
 
-    /* Die Wzory: jede Kennung im Aufbau und in der Logik zeigt auf etwas, das es gibt. */
-    for (const t of m.FORM_TEMPLATES) {
+    /* Die Wymagania (0086): jede Kennung im Aufbau und in der Logik zeigt auf etwas, das es gibt. */
+    for (const t of m.NEEDS) {
       const ids = new Set(t.questions.map((q) => q.id));
       const walk = (items) => items.flatMap((i) => (i.type === 'group' ? [i.id, ...walk(i.items)] : [i.id]));
       const placed = walk(t.layout);
@@ -834,7 +863,7 @@ try {
       }
       const nodes = new Set(t.nodes.map((n) => n.id));
       for (const e of t.edges) assert.ok(nodes.has(e.from) && nodes.has(e.to), `${t.id}: edge ${e.id}`);
-      if (t.paper !== undefined && t.paper !== 'always') assert.equal(t.questions.find((q) => q.id === t.paper)?.kind, 'consent', `${t.id}: paper follows a consent`);
+      if (t.paper !== undefined) assert.ok(['always', 'minor'].includes(t.paper) || t.questions.find((q) => q.id === t.paper)?.kind === 'consent', `${t.id}: paper is a rule the sheet knows`);
       for (const q of t.questions.filter((one) => one.kind === 'consent')) assert.ok((q.help ?? '').length > 40, `${t.id}: ${q.id} has its wording`);
       /* Was ein „Pokaż" verbergen kann, darf nicht von sich aus Pflicht sein — der Dienst prüft Pflicht ohne die Logik. */
       const groupOf = (items, inside) => items.flatMap((i) => (i.type === 'group' ? groupOf(i.items, [...inside, i.id]) : [[i.id, inside]]));
@@ -845,13 +874,175 @@ try {
         if (hidden) assert.ok(!q.required, `${t.id}: ${q.id} can be hidden — required only through the logic`);
       }
     }
-    const parent = m.FORM_TEMPLATES.find((t) => t.id === 'parent');
+    const parent = m.NEEDS.find((t) => t.id === 'minor');
     const minor = m.evaluate({ version: 1, layout: parent.layout, nodes: parent.nodes, edges: parent.edges }, { born: '2015-01-01' });
     const grown = m.evaluate({ version: 1, layout: parent.layout, nodes: parent.nodes, edges: parent.edges }, { born: '1990-01-01' });
-    assert.ok(!minor.hidden.has('gGuardian') && !minor.hidden.has('consentParticipation'), 'a child: guardian and parental consent');
-    assert.ok(grown.hidden.has('gGuardian') && grown.hidden.has('consentParticipation'), 'an adult: neither');
+    assert.ok(!minor.hidden.has('gGuardian'), 'a child: guardian and parental consent');
+    assert.ok(grown.hidden.has('gGuardian'), 'an adult: neither');
     assert.ok(minor.required.has('guardian') && minor.required.has('consentParticipation') && !grown.required.has('guardian'), 'required for a child only');
-    ok('templates: every placement and every logic reference resolves; the parental part shows for minors only');
+    assert.equal(parent.paper, m.PAPER_MINOR, 'minors: the print follows the age, not a tick');
+    ok('needs: every placement and every logic reference resolves; the parental part shows for minors only, printed for minors');
+  }
+
+  /* -- 15. Slajdy: der Wechsel und die Bühne (0084) ------------------------------------------------ */
+  {
+    /* Drei Slajdy: 800 hoch (ein Schirm), 1600 (zwei), 800. Schirm 800. */
+    const frames = [{ start: 0, height: 800 }, { start: 800, height: 1600 }, { start: 2400, height: 800 }];
+    const vh = 800;
+    assert.equal(m.entering(frames, 0, 0, vh), 1, 'the first slide is always there');
+    assert.equal(m.entering(frames, 1, 0, vh), 0, 'the second starts below the screen');
+    assert.equal(m.entering(frames, 1, 400, vh), 0.5, 'half way in');
+    assert.equal(m.entering(frames, 1, 800, vh), 1);
+    assert.equal(m.entering(frames, 2, 1600, vh), 0, 'while reading the long slide nothing changes');
+    assert.equal(m.entering(frames, 2, 2000, vh), 0.5);
+    assert.equal(m.deckAt(frames, 0, vh), 0);
+    assert.equal(m.deckAt(frames, 400, vh), 0.5);
+    assert.equal(m.deckAt(frames, 1200, vh), 1, 'inside the long slide the deck stands on it');
+    assert.equal(m.deckAt(frames, 2400, vh), 2);
+    assert.equal(m.pinnedPosition(frames[1], 400, vh), 800, 'held at its top while coming in');
+    assert.equal(m.pinnedPosition(frames[1], 2000, vh), 1600, 'held at its end while going');
+    ok('slides: how far a slide has come in and where the deck stands — from the track, slides of any height');
+
+    const kinds = ['scroll', 'fade', 'reveal'];
+    const still = m.motionOf(frames, 1, 1200, vh, kinds);
+    assert.deepEqual([still.pin, still.opacity], [false, 1], 'at rest: nothing');
+    const fadeIn = m.motionOf(frames, 1, 400, vh, kinds);
+    assert.ok(fadeIn.pin && fadeIn.opacity === 0.5, 'fade: the new one stands and shows through');
+    const fadeOut = m.motionOf(frames, 0, 400, vh, kinds);
+    assert.ok(fadeOut.pin && fadeOut.opacity === 1, 'fade: the old one stands under it');
+    const revealOut = m.motionOf(frames, 1, 2000, vh, kinds);
+    const revealIn = m.motionOf(frames, 2, 2000, vh, kinds);
+    assert.ok(!revealOut.pin && revealOut.above && revealIn.pin, 'reveal: the old one leaves on top, the new one waits beneath');
+    assert.equal(m.calmer('zoom', true), 'fade', 'less motion: everything blends');
+    assert.equal(m.calmer('scroll', true), 'scroll');
+    const zoom = m.motionOf(frames, 1, 400, vh, ['scroll', 'zoom', 'scroll'], true);
+    assert.equal(zoom.scale, 1, 'and nothing zooms then');
+    const rise = m.enterStyle('rise', 0);
+    assert.ok(rise.opacity === 0 && rise.y > 0 && m.enterStyle('rise', 1).y === 0, 'content rises into place');
+    assert.deepEqual(m.enterStyle('none', 0.3), { opacity: 1, x: 0, y: 0, scale: 1 });
+    ok('slides: each transition holds, blends, covers or reveals at the right edge; content appears with the slide; calmer on request');
+
+    const places = new Map([[0, { x: 80, y: 20, w: 20, scale: 1, rotate: 0, opacity: 1 }], [2, { x: 20, y: 70, w: 40, scale: 2, rotate: 90, opacity: 0.5 }]]);
+    assert.deepEqual(m.frameAt(places, 0), places.get(0));
+    assert.deepEqual(m.frameAt(places, -1), places.get(0), 'before the first place it stays');
+    assert.deepEqual(m.frameAt(places, 5), places.get(2), 'after the last it stays');
+    const mid = m.frameAt(places, 1);
+    assert.deepEqual([mid.x, mid.y, mid.w, mid.scale, mid.rotate, mid.opacity], [50, 45, 30, 1.5, 45, 0.75], 'half way: half way, across a slide without its own place');
+    assert.equal(m.frameAt(new Map(), 1), null);
+    ok('stage: a module travels from its place on one slide to the next, glides over slides without a place, stays before and after');
+
+    assert.equal(m.mixColor('#000000', '#ffffff', 0.5), '#808080');
+    assert.equal(m.mixColor('red', '#ffffff', 0.4), 'red', 'names switch in the middle');
+    const page = { accent: '#000000', ink: '#ffffff', ground: '#101010', muted: '#888888' };
+    const each = [m.colorsOf(page, null), m.colorsOf(page, { accent: '#ffffff', ink: null, ground: null, muted: null })];
+    assert.equal(m.colorsAt(each, 0.5).accent, '#808080', 'colours travel with the slide');
+    assert.equal(m.colorsAt(each, 0.5).ink, '#ffffff', 'what a slide does not set stays the page’s');
+    ok('colours: a slide’s own colours blend into the next, the rest stays the page’s');
+
+    const look = m.readSlideValue({ label: ' X ', layers: [], transition: 'cover', enter: 'nonsense', colors: { ink: '#ffffff', accent: '' },
+      stage: { frames: { a: { x: 500, w: 1 }, '': { x: 1 } }, bare: 'yes' } });
+    assert.equal(look.label, 'X');
+    assert.equal(look.transition, 'cover');
+    assert.equal(look.enter, 'none', 'an unknown entrance is none');
+    assert.deepEqual(look.colors, { accent: null, ink: '#ffffff', ground: null, muted: null });
+    assert.deepEqual(Object.keys(look.stage.frames), ['a'], 'a place without a slide falls away');
+    assert.equal(look.stage.frames.a.x, 150, 'positions are bounded');
+    assert.equal(look.stage.frames.a.w, 4);
+    assert.equal(look.stage.bare, false, 'only true is bare');
+    assert.deepEqual(m.slideJson(m.readSlideValue({ label: 'Old', layers: [] })), { label: 'Old', layers: [] }, 'an old slide stays exactly as it was');
+    assert.deepEqual(Object.keys(m.remapStage(look, new Map([['a', 'z']])).stage.frames), ['z']);
+    ok('slide JSON: tolerant reading, bounded places, defaults left out, old slides unchanged, places follow new ids');
+  }
+
+  /* -- 16. Wymagania, zdjęte pytania, własny adres (0086) ------------------------------------------ */
+  {
+    /* Was eingeschaltet ist: duldsam gelesen, gesperrt nach Namen. */
+    const on = m.readNeeds(JSON.stringify([
+      { id: 'minor', label: 'Niepełnoletni', fields: ['a', 'b'], added: ['b'], items: ['g1'], nodes: ['n1'], edges: ['e1'], paper: true },
+      { id: 'health', fields: ['c', 7], added: [], items: [], nodes: [], edges: [] },
+      { id: 'minor', fields: ['x'] },
+      'nonsense'
+    ]));
+    assert.deepEqual(on.map((n) => n.id), ['minor', 'health'], 'one row per need, nonsense skipped');
+    assert.equal(on[1].label, 'Zdrowie i dieta, pomoc w nagłym wypadku', 'a missing name comes from the need');
+    assert.deepEqual(on[1].fields, ['c'], 'only ids');
+    assert.equal(on[0].paper, true);
+    assert.deepEqual(m.readNeeds('{"minor":{}}'), [], 'not a list: nothing on');
+    assert.deepEqual(m.readNeeds('[1'), [], 'unreadable: nothing on');
+    assert.equal(m.needsJson([]), '', 'none on: the key goes away');
+    assert.deepEqual(m.readNeeds(m.needsJson(on)), on, 'round trip');
+    const locks = m.lockedOf(on);
+    assert.equal(locks.fields.get('a'), 'Niepełnoletni');
+    assert.ok(locks.fields.has('c') && locks.nodes.has('n1') && locks.edges.has('e1') && !locks.fields.has('x'));
+    ok('needs: tolerant list in the config, locks by question and logic, round trip');
+
+    /* Ausschalten: die eigenen Gruppen gehen, was jemand hineingeschoben hat, rückt an ihre Stelle. */
+    const layout = [
+      { type: 'field', id: 'name' },
+      { type: 'group', id: 'g1', kind: 'group', title: 'Rodzic', items: [{ type: 'field', id: 'b' }, { type: 'field', id: 'own' }] },
+      { type: 'text', id: 't1', text: 'RODO' },
+      { type: 'group', id: 'g2', kind: 'page', title: 'Krok', items: [{ type: 'field', id: 'b' }] }
+    ];
+    assert.deepEqual(m.layoutWithout(layout, new Set(['g1', 't1']), new Set(['b'])), [
+      { type: 'field', id: 'name' },
+      { type: 'field', id: 'own' },
+      { type: 'group', id: 'g2', kind: 'page', title: 'Krok', items: [] }
+    ], 'its groups and texts go, its questions go, a question someone moved in stays');
+    const logic = m.logicWithout({
+      nodes: [{ id: 'n1' }, { id: 'n2' }, { id: 'n3' }],
+      edges: [{ id: 'e1', from: 'n1', to: 'n2' }, { id: 'e2', from: 'n2', to: 'n3' }, { id: 'e3', from: 'n3', to: 'n1' }]
+    }, new Set(['n1']), new Set(['e1']));
+    assert.deepEqual(logic.nodes.map((n) => n.id), ['n2', 'n3']);
+    assert.deepEqual(logic.edges.map((e) => e.id), ['e2'], 'its edges and every edge on its nodes go');
+    ok('needs off: layout without its groups (own questions kept), logic without its nodes and edges');
+
+    /* Vom Formular genommen. */
+    const qs = [{ fieldId: 'a', removedAt: null }, { fieldId: 'b', removedAt: '2026-10-08T10:00:00Z' }, { fieldId: 'c' }];
+    assert.deepEqual(m.asked(qs).map((q) => q.fieldId), ['a', 'c']);
+    assert.deepEqual(m.takenOff(qs).map((q) => q.fieldId), ['b']);
+    ok('removed questions: asked vs taken off');
+
+    /* Der Link mit dem Zusatz der Kanzlei — und wieder heraus. */
+    assert.deepEqual(m.splitAt('?s=3&x=1#zapisy'), { params: ['s=3', 'x=1'], anchor: 'zapisy' });
+    assert.deepEqual(m.splitAt('?miejsce=a.b&s=2'), { params: ['s=2'], anchor: '' }, 'a seat in the suffix falls away');
+    assert.equal(m.pageLink('events/rocket2026', 'TOK', 'KEY'), '#/events/rocket2026?miejsce=TOK.KEY', 'without a suffix: as before');
+    assert.equal(m.pageLink('events/rocket2026', 'TOK', 'KEY', '?s=3'), '#/events/rocket2026?s=3&miejsce=TOK.KEY');
+    assert.equal(m.pageLink('events/rocket2026', 'TOK', 'KEY', '#twoje-zgloszenie'), '#/events/rocket2026?miejsce=TOK.KEY#twoje-zgloszenie');
+    assert.equal(m.pageLink('a/b', 'T', 'K', '?s=2#x'), '#/a/b?s=2&miejsce=T.K#x');
+    assert.equal(m.keepFromAddress('#/events/rocket2026?s=3&miejsce=TOK.AAAA#twoje'), '#/events/rocket2026?s=3#twoje', 'the seat leaves, the rest stays');
+    assert.equal(m.keepFromAddress('#/events/rocket2026?miejsce=TOK.AAAA#twoje'), '#/events/rocket2026#twoje');
+    assert.equal(m.keepFromAddress('#/events/rocket2026#twoje'), null, 'no seat: the address stays as it is');
+    assert.equal(m.viewPath !== undefined, true);
+    const path = m.parsePath('#/events/rocket2026#twoje');
+    assert.equal(JSON.stringify(path).includes('#'), false, 'an anchor is not part of the page');
+    assert.deepEqual(m.parsePath('#/events/rocket2026#twoje'), m.parsePath('#/events/rocket2026'));
+    assert.deepEqual(m.parsePath('#/events/rocket2026?s=2#twoje'), m.parsePath('#/events/rocket2026'));
+    ok('seat link: the office suffix (?s=, #anchor) around the seat; the seat leaves the address, the suffix stays; the path ignores it');
+
+    /* Der Slajd aus dem Anker. */
+    const slides = [{ id: 'p1', label: 'Start' }, { id: 'p2', label: 'Zapisy' }, { id: 'p3', label: 'Twoje zgłoszenie' }];
+    assert.equal(m.anchorInAddress('#/events/rocket2026?s=2#Twoje-Zgloszenie'), 'twoje-zgloszenie');
+    assert.equal(m.anchorInAddress('#/events/rocket2026?s=2'), '');
+    assert.equal(m.slideByAnchor(slides, 'twoje-zgloszenie'), 2, 'by the name of the slide');
+    assert.equal(m.slideByAnchor(slides, 'p2'), 1, 'by the id of its part');
+    assert.equal(m.slideByAnchor(slides, 'nic'), null);
+    assert.equal(m.slideInAddress('#/a?s=3#x'), 2, 'a number and an anchor: the number');
+    assert.equal(m.addressWithSlide('#/a#twoje', 2), '#/a?s=3', 'the slide replaces the anchor');
+    assert.equal(m.addressWithSlide('#/a?s=3#twoje', 0), '#/a');
+    ok('slides: a slide by anchor (name or part id), the number wins, the address then follows the slide');
+
+    /* Die eigene Adresse, wie man sie kopiert hat. */
+    assert.deepEqual(m.ownAddress('https://recreatio.pl/#/events/rocket2026?s=3'), { under: 'events/rocket2026', at: '?s=3' });
+    assert.deepEqual(m.ownAddress('recreatio.pl/events/rocket2026#zapisy'), { under: 'events/rocket2026', at: '#zapisy' });
+    assert.deepEqual(m.ownAddress('recreatio.pl/#/Events/Rocket2026/#twoje'), { under: 'events/rocket2026', at: '#twoje' });
+    assert.deepEqual(m.ownAddress('http://localhost:5173/#/zz/rakieta?s=2#x'), { under: 'zz/rakieta', at: '?s=2#x' });
+    assert.deepEqual(m.ownAddress('events/rocket2026'), { under: 'events/rocket2026', at: '' });
+    assert.deepEqual(m.ownAddress('#twoje'), { under: '', at: '#twoje' }, 'only a suffix: the page chosen above');
+    assert.deepEqual(m.ownAddress('?s=4'), { under: '', at: '?s=4' });
+    assert.equal(m.ownAddress('   '), null);
+    assert.equal(m.atProblem('?s=3'), null);
+    assert.equal(m.atProblem('#a#b') !== null && m.atProblem('?miejsce=x') !== null && m.atProblem('#a b') !== null && m.atProblem('s=3') !== null, true);
+    ok('own address: pasted as from the address bar (with or without host, #/ or not), or only a suffix; the suffix checked like the service');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

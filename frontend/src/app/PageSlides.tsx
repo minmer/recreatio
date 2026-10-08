@@ -21,8 +21,8 @@ import type { DraftPart } from './page';
 import { partSize, text } from './part';
 import { usePageLogic } from './pageLogic';
 import { partLabel, partOf } from './parts/registry';
-import { SlideDeck, type DeckSlide } from './SlideDeck';
-import { readSlide, type Look } from './slides';
+import { SlideDeck, type DeckActor, type DeckSlide } from './SlideDeck';
+import { COVER_KEY, readSlide, type Look, type StageFrame } from './slides';
 
 /** Diese Arten brauchen Breite — ein Kalender in 52 rem ist ein gequetschter Kalender. */
 const WIDE = new Set(['calendar', 'masses', 'slots', 'chat', 'form', 'hero', 'shortinfos', 'plan', 'map', 'costs', 'people', 'gallery', 'writing', 'writings', 'quotes']);
@@ -59,9 +59,13 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
   const hasCover = (title ?? '').trim() !== '' || (lead ?? '').trim() !== '';
   const slides: DeckSlide[] = [];
 
+  /* 0084 — wer auf der Bühne steht, bekommt keinen eigenen Slajd. */
+  const onStage = shown.filter((part) => readSlide(part.layout).stage !== null);
+  const ownSlides = shown.filter((part) => readSlide(part.layout).stage === null);
+
   if (hasCover) {
     slides.push({
-      key: 'cover',
+      key: COVER_KEY,
       label: (title ?? '').trim() || 'Start',
       layers: look.cover,
       content: (
@@ -74,7 +78,7 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
     });
   }
 
-  shown.forEach((part, index) => {
+  ownSlides.forEach((part, index) => {
     const def = partOf(part.kind);
     const slide = readSlide(part.layout);
     const canFull = def !== undefined && def.fullscreen && !hidden.has(part.id);
@@ -84,6 +88,9 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
       label: slideLabelOf(part),
       layers: slide.layers,
       wide: WIDE.has(part.kind),
+      transition: slide.transition,
+      enter: slide.enter,
+      colors: slide.colors,
       content: (
         <>
           {!hasCover && index === 0 && extra !== undefined && <div className="wk-deck-extra">{extra}</div>}
@@ -113,16 +120,44 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
     slides.push({ key: 'personal', label: 'Twoje sprawy', layers: [], content: <div className="wk-deck-card">{after}</div> });
   }
 
-  if (!hasCover && shown.length === 0 && extra !== undefined) {
+  if (!hasCover && ownSlides.length === 0 && extra !== undefined) {
     slides.push({ key: 'extra', label: 'Start', layers: look.cover, content: <div className="wk-deck-extra">{extra}</div> });
   }
+
+  /*
+   * 0084 — DIE BÜHNE. Jeder wandernde Baustein mit seinen Plätzen, nach der
+   * Stelle des Slajds in der Folge. Ein Platz auf einem Slajd, den es nicht
+   * (mehr) gibt, fällt still weg.
+   */
+  const indexOf = new Map(slides.map((slide, index) => [slide.key, index]));
+  const actors: DeckActor[] = onStage.flatMap((part): DeckActor[] => {
+    const def = partOf(part.kind);
+    const stage = readSlide(part.layout).stage!;
+    const frames = new Map<number, StageFrame>();
+    for (const [key, frame] of Object.entries(stage.frames)) {
+      const at = indexOf.get(key);
+      if (at !== undefined) frames.set(at, frame);
+    }
+    if (frames.size === 0 || def === undefined) return [];
+    const width = Math.max(...[...frames.values()].map((f) => f.w));
+    const size = partSize({ colSpan: width >= 60 ? 6 : width >= 45 ? 4 : width >= 30 ? 3 : 2, rowSpan: 3 });
+    const view = <def.View raw={part.config} ctx={{ moduleId: part.moduleId ?? part.id, size }} />;
+    return [{
+      key: part.id,
+      frames,
+      bare: stage.bare,
+      content: stage.bare
+        ? <div className={`wk-deck-actor-bare wk-card-${part.kind}`}>{view}</div>
+        : <article className={`wk-card wk-card-${part.kind} wk-deck-card`} data-w={size.width} data-h={size.height}>{view}</article>
+    }];
+  });
 
   const opened = whole === null ? undefined : shown.find((one) => one.id === whole);
   const openedDef = opened === undefined ? undefined : partOf(opened.kind);
 
   return (
     <>
-      <SlideDeck slides={slides} theme={look.theme} title={title} embedded={embedded} control={control} />
+      <SlideDeck slides={slides} actors={actors} theme={look.theme} title={title} embedded={embedded} control={control} />
 
       {opened !== undefined && openedDef !== undefined && (
         <Fullscreen title={text(opened.config, 'title') || openedDef.label} onClose={() => setWhole(null)}>

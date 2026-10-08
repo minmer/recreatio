@@ -70,9 +70,11 @@ export interface PageContent {
 
   /**
    * 0062 — WIE DIE SEITE ERSCHEINT: `page` — Bausteine im Raster, `slides` —
-   * jeder Baustein ein Slajd. `theme` ist das Aussehen als JSON (`slides.ts`).
+   * jeder Baustein ein Slajd; 0085 `presentation` — Szenen, auf denen die
+   * Bausteine frei stehen. `theme` ist das Aussehen als JSON (`slides.ts`,
+   * die Szenen darin unter "show" — `presentation.ts`).
    */
-  readonly mode?: 'page' | 'slides';
+  readonly mode?: PageMode;
   readonly theme?: string | null;
 
   /**
@@ -82,6 +84,15 @@ export interface PageContent {
    */
   readonly subject?: string | null;
 }
+
+/** Die drei Arten einer Seite (0062, 0085). */
+export type PageMode = 'page' | 'slides' | 'presentation';
+
+export const PAGE_MODES: readonly PageMode[] = ['page', 'slides', 'presentation'];
+
+/** Was der Dienst nennt — duldsam: was keine der drei ist, ist eine Seite mit Bausteinen. */
+export const pageModeOf = (value: unknown): PageMode =>
+  value === 'slides' || value === 'presentation' ? value : 'page';
 
 /** Ein Eintrag des Menüs (siehe `menu.ts`). */
 export interface MenuItem {
@@ -137,9 +148,9 @@ export const savePage = (
     body: JSON.stringify(body)
   });
 
-/** 0062 — Seite oder Slajdy, und ihr Aussehen. `theme: null` — automatisch. */
+/** 0062 — Seite, Slajdy oder (0085) Prezentacja, und ihr Aussehen. `theme: null` — automatisch. */
 export const savePageLook = (
-  path: string, look: { readonly mode: 'page' | 'slides'; readonly theme: string | null }
+  path: string, look: { readonly mode: PageMode; readonly theme: string | null }
 ): Promise<{ mode: string; theme: string | null }> =>
   call(`/workspace/page-look/${encodePath(path)}`, {
     method: 'PUT',

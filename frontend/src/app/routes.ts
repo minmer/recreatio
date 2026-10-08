@@ -221,8 +221,8 @@ export function parsePath(hash: string): Address {
   const afterHash = marker >= 0 ? hash.slice(marker + 1) : hash;
 
   // Alles ab `?` oder `&` gehört nicht mehr zum Pfad. Ein Geheimnis im
-  // Fragment darf davon nichts abbekommen.
-  const path = afterHash.split(/[?&]/)[0];
+  // Fragment darf davon nichts abbekommen. 0086: ein Anker (`#/seite#zapisy`) auch nicht.
+  const path = afterHash.split(/[?&#]/)[0];
 
   const segments: string[] = [];
   for (const raw of path.split('/')) {

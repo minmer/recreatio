@@ -404,7 +404,7 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
           Antworten verlangt (etwa: die Zustimmung der Eltern ist angekreuzt).
           Gedruckt wird, was eben hinausging.
         */}
-        {paperNeeded(form.after, (id) => (outcome.hidden.has(id) ? undefined : answers[id])) && (
+        {paperNeeded(form.after, (id) => (outcome.hidden.has(id) ? undefined : answers[id]), { fields }) && (
           <div className="wk-paper-note">
             <p>
               <strong>To trzeba jeszcze podpisać odręcznie.</strong> Wydrukuj zgłoszenie, podpisz je
@@ -444,13 +444,13 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
 
             <textarea
               readOnly rows={3} className="wk-mono"
-              value={`${window.location.origin}${window.location.pathname}${seatPath(link, landed)}`}
+              value={`${window.location.origin}${window.location.pathname}${seatPath(link, landed, form.after?.at)}`}
             />
 
             <div className="wk-actions">
               <a
                 className="wk-btn"
-                href={seatPath(link, landed)}
+                href={seatPath(link, landed, form.after?.at)}
               >
                 {forOther ? 'Otwórz stronę tej osoby' : 'Otwórz moją stronę'}
               </a>

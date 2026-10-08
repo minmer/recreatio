@@ -19,7 +19,7 @@
  * hätte.
  */
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { areaPath, loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from './area';
 import { fromBase64Url } from './crypto';
@@ -31,10 +31,11 @@ import {
   type ValueCheck,
   type FieldKind, type IdentityRole, type OpenField, type SealedField, type Submission,
   editField, moveAnswers, sealQuestion, type MovedValue,
-  AUDIENCE_LABEL, consentGiven, consentText
+  AUDIENCE_LABEL, consentGiven, consentText,
+  addOfficeEntry, asked, restoreField, reviseAcrossAsOffice, takenOff, type Answer
 } from './form';
-import { applyTemplate, FORM_TEMPLATES, type FormTemplate } from './formTemplates';
-import { SignSheetButton } from './SignSheet';
+import { applyNeed, dropNeed, lockedOf, NEEDS, readNeeds, type FormNeed } from './formTemplates';
+import { ageFields, PAPER_MINOR, parentalConsentOf, SignSheetButton } from './SignSheet';
 import { ListJsonPanel } from './ListJsonPanel';
 import { ExtensionEntry, ExtensionSheet, OfficeAdd } from './ExtensionSheet';
 import { REPEAT_LABEL, REPEATS, repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
@@ -158,7 +159,7 @@ import { plural } from './ChatKit';
 import { PostalInput } from './PostalInput';
 import { LINK, renderSms, smsHref, usesHole, VERIFY } from './sms';
 import { AreaOptions } from './AreaOptions';
-import { FormTable } from './FormTable';
+import { FormTable, type TableChange } from './FormTable';
 import { ModuleSettings } from './ModuleSettings';
 import { createModule, updateModule, type ModuleRow, type Resealed, type ResealIn } from './module';
 import {
@@ -236,7 +237,14 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
   const [ring, setRing] = useState<Ring | null>(null);
   const [person, setPerson] = useState<SealedRole | null>(null);
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
-  const [fields, setFields] = useState<readonly OpenField[]>([]);
+  /* 0086 — ALLE Fragen, auch die vom Formular genommenen: ihre Antworten bleiben lesbar. */
+  const [allFields, setFields] = useState<readonly OpenField[]>([]);
+
+  /** Was das Formular fragt — daraus wird es gebaut, ausgefüllt, gedruckt. */
+  const fields = useMemo(() => asked(allFields), [allFields]);
+
+  /** Was vom Formular genommen ist — es steht nur noch bei den Antworten. */
+  const removedFields = useMemo(() => takenOff(allFields), [allFields]);
   const [submissions, setSubmissions] = useState<readonly Submission[]>([]);
   const [opened, setOpened] = useState<Map<string, Map<string, string>>>(new Map());
   const [busy, setBusy] = useState<string | null>(null);
@@ -299,6 +307,12 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
   const tableToo = isExtension && repeatOf(module?.repeat) === 'once';
   const readsHere = (t: FormTabName) => (t === 'entries' && (!isExtension || tableToo)) || (t === 'people' && !isExtension);
   const conf = saved ?? config;
+
+  /* 0086 — was die eingeschalteten Wymagania sperren: Fragen, Logik. */
+  const locks = useMemo(() => lockedOf(readNeeds(conf.needs)), [conf.needs]);
+
+  /** Eine Auskunft über das eben Entfernte („zdjęte z formularza — odpowiedzi zostają"). */
+  const [removedNote, setRemovedNote] = useState<string | null>(null);
 
   /*
    * AUFBAU UND LOGIK (0043) — ein versiegeltes Dokument je Formular.
@@ -518,7 +532,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
     setSubmissions(registrations);
     setReadAreas(keys.map((one) => one.areaId));
 
-    const areaOf = new Map(fields.map((f) => [f.fieldId, f.areaId]));
+    const areaOf = new Map(allFields.map((f) => [f.fieldId, f.areaId]));
     const named: { seatId: string; name: string }[] = [];
 
     const out = new Map<string, Map<string, string>>();
@@ -621,7 +635,8 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
     }
   };
 
-  const areasHere = [...new Set(fields.map((f) => f.areaId))];
+  /* 0086 — auch die Bereiche der vom Formular genommenen Fragen: ihre Antworten sollen aufgehen. */
+  const areasHere = [...new Set(allFields.map((f) => f.areaId))];
 
   /*
    * 0082 — WAS ANDERS DASTEHT, als es heute gespeichert würde: Telefonnummern
@@ -751,7 +766,8 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    */
   const resealFor = async (target: string): Promise<Resealed> => {
     const { key, epoch } = await keyOf(target);
-    const unread = fields.filter((f) => f.label === null);
+    /* 0086 — auch die vom Formular genommenen: ihre Beschriftung muss lesbar bleiben. */
+    const unread = allFields.filter((f) => f.label === null);
     if (unread.length > 0) {
       throw new WorkspaceError('Nie każde pytanie da się teraz odczytać — bez tego nie da się ich przepieczętować.');
     }
@@ -760,7 +776,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
     }
 
     const out: ResealIn[] = [];
-    for (const f of fields) {
+    for (const f of allFields) {
       out.push({
         fieldId: f.fieldId,
         ...(await sealQuestion(key, f.fieldId, { label: f.label!, help: f.help, options: f.options })),
@@ -793,7 +809,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
   const byId = new Map(fields.map((f) => [f.fieldId, f]));
 
   /* Fragen, die noch unter dem Schlüssel ihrer Antworten liegen, nicht des Formulars. */
-  const stale = module?.areaId == null ? [] : fields.filter((f) => f.labelAreaId !== module.areaId);
+  const stale = module?.areaId == null ? [] : allFields.filter((f) => f.labelAreaId !== module.areaId);
 
   const resealStale = async () => {
     for (const f of stale) {
@@ -917,6 +933,49 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
   const reread = async () => { if (readAreas !== null) await read(); };
 
+  /**
+   * 0086 — DIE TABELLE SPEICHERN: geänderte Zellen je Einsendung neu versiegelt
+   * (für das Amt UND, wo es einen Platz gibt, für den Menschen — sonst nähme
+   * ihm die Korrektur seine Angabe weg), neue Zeilen als Einträge der Kanzlei.
+   */
+  const saveTable = async (changes: readonly TableChange[], added: readonly (readonly Answer[])[]): Promise<string | null> => {
+    if (ring === null) throw new WorkspaceError('Bez hasła nie da się zapisać.');
+
+    const intakes = new Map<string, Uint8Array>();
+    for (const areaId of new Set(allFields.map((f) => f.areaId))) {
+      try { intakes.set(areaId, fromBase64Url((await loadPublicIntake(areaId)).publicKey)); } catch { /* ohne Annahme: diese Fragen nicht */ }
+    }
+    const areaOf = new Map(allFields.map((f) => [f.fieldId, f.areaId]));
+    const seats = seatKeyFinder(ring);
+    let blind = 0;
+
+    for (const one of changes) {
+      const seatId = submissions.find((r) => r.registrationId === one.registrationId)?.seatId ?? null;
+      const seatKey = seatId === null ? null : await seats(seatId).then((r) => r.key).catch(() => null);
+      if (seatId !== null && seatKey === null) blind += 1;
+      await reviseAcrossAsOffice(one.registrationId, one.answers, { intakes, areaOf, seatKey });
+    }
+
+    for (const answers of added) {
+      await addOfficeEntry(partId, null, answers, { intakes, areaOf, seatKey: null });
+    }
+
+    await read();
+
+    /*
+     * ERST NACH `read` — es setzt seine eigene Auskunft, und die Tabelle
+     * entsteht dabei neu (ihre eigene Meldung ginge mit ihr). Die Auskunft
+     * steht über der Tabelle und bleibt.
+     */
+    const cells = changes.reduce((n, one) => n + one.answers.length, 0);
+    setNote([
+      cells > 0 ? `Zapisano zmienione odpowiedzi: ${cells}.` : '',
+      added.length > 0 ? `Dopisano osób: ${added.length}.` : '',
+      blind === 0 ? '' : `${blind === 1 ? 'Jedna osoba nie zobaczy' : `${blind} osób nie zobaczy`} poprawionych odpowiedzi w swoim linku — do jej miejsca nie ma tu klucza.`
+    ].filter((x) => x !== '').join(' '));
+    return null;
+  };
+
   return (
     <>
       {failed !== null && <p className="wk-error">{failed}</p>}
@@ -1038,8 +1097,14 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
                 moduleId={partId}
                 standsOn={standsOn ?? []}
                 portalUnder={(conf.portalUnder ?? '').trim()}
+                portalAt={(conf.portalAt ?? '').trim()}
                 ownerRoleId={person?.id ?? null}
-                onSet={(where) => setSaved({ ...conf, portalUnder: where })}
+                onSet={(where, at) => {
+                  const next: Record<string, string> = { ...conf, portalUnder: where };
+                  if (at === '') delete next.portalAt;
+                  else if (at !== undefined) next.portalAt = at;
+                  setSaved(next);
+                }}
               />
 
               {/*
@@ -1139,18 +1204,25 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
               />
             ))}
 
-          {/* 0083 — GOTOWE WZORY: Zgoda rodzica, wyjazd, ubezpieczenie — als gewöhnliche Fragen, Aufbau und Logik. */}
+          {/*
+            0086 — WYMAGANIA zum Ankreuzen: Niepełnoletni (mit Ausdruck), Zdrowie,
+            Ubezpieczenie, Zasady. Ihre Fragen lassen sich nicht löschen, solange
+            sie eingeschaltet sind — verschieben schon.
+          */}
           {module !== undefined && ring !== null && (
-            <Templates
+            <NeedsPanel
               module={module}
               who={who}
+              config={conf}
               answersTo={areasHere[0] ?? module.areaId}
               areas={areas}
               busy={busy !== null}
-              onApply={(what, todo) => act(what, todo)}
+              onAct={(what, todo) => act(what, todo)}
               onConfig={setSaved}
             />
           )}
+
+          {removedNote !== null && <p className="wk-done" role="status">{removedNote}</p>}
 
           {fields.length === 0 ? (
             <p className="wk-empty">Jeszcze żadnego pytania.</p>
@@ -1182,6 +1254,11 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
                       {f.identityRole !== 'none' && ` · ${IDENTITY_LABEL[f.identityRole]}`}
                       {' · → '}{areaLabel(f.areaId)}
                     </span>
+                    {locks.fields.has(f.fieldId) && (
+                      <span className="wk-tag wk-tag-need" title="Nie da się go usunąć, dopóki wymaganie jest zaznaczone — można je przesunąć i zmienić jego treść.">
+                        wymaganie: {locks.fields.get(f.fieldId)}
+                      </span>
+                    )}
                   </span>
 
                   <span className="wk-row-side">
@@ -1193,8 +1270,16 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
                     </button>
                     {' · '}
                     <button
-                      type="button" className="wk-link-btn" disabled={busy !== null}
-                      onClick={() => void act('Usuwanie…', () => removeField(f.fieldId))}
+                      type="button" className="wk-link-btn" disabled={busy !== null || locks.fields.has(f.fieldId)}
+                      title={locks.fields.has(f.fieldId) ? `Należy do wymagania „${locks.fields.get(f.fieldId)}” — najpierw je odznacz.` : undefined}
+                      onClick={() => void act('Usuwanie…', async () => {
+                        setRemovedNote(null);
+                        const done = await removeField(f.fieldId);
+                        /* 0086 — mit Antworten: vom Formular genommen, nicht gelöscht. */
+                        if (done.kept === true) {
+                          setRemovedNote(`„${f.label ?? 'Pytanie'}” zdjęto z formularza — nikt go już nie dostanie, a dotychczasowe odpowiedzi zostają w zgłoszeniach. Można je przywrócić niżej.`);
+                        }
+                      })}
                     >
                       Usuń
                     </button>
@@ -1204,12 +1289,40 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             </ul>
           )}
 
+          {/* 0086 — VOM FORMULAR GENOMMEN: ihre Antworten bleiben; zurückholen geht. */}
+          {removedFields.length > 0 && (
+            <details className="wk-fold wk-taken-off">
+              <summary>Zdjęte z formularza ({removedFields.length}) — ich odpowiedzi zostają w zgłoszeniach</summary>
+              <ul className="wk-list">
+                {removedFields.map((f) => (
+                  <li className="wk-row wk-row-muted" key={f.fieldId}>
+                    <span>
+                      <strong>{f.label ?? 'zapieczętowane'}</strong>
+                      <span className="wk-row-side">
+                        {' · '}{KIND_LABEL[f.kind]}
+                        {f.removedAt != null && ` · zdjęte ${new Date(f.removedAt).toLocaleDateString('pl-PL')}`}
+                      </span>
+                    </span>
+                    <span className="wk-row-side">
+                      <button
+                        type="button" className="wk-link-btn" disabled={busy !== null}
+                        onClick={() => void act('Przywracanie…', async () => { setRemovedNote(null); await restoreField(f.fieldId); })}
+                      >
+                        Przywróć
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
           {ring !== null && (
             <NewFieldForm
               areas={areas}
               ring={ring}
               partId={partId}
-              position={fields.length}
+              position={allFields.length}
               taken={fields.map((f) => f.identityRole).filter((r) => r !== 'none')}
               formAreaId={module?.areaId ?? null}
               officeRoleId={person?.id ?? null}
@@ -1251,6 +1364,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             design={current}
             layout={layout}
             fields={fields}
+            locked={locks}
             busy={busy !== null}
             onSave={(nodes, edges) => void act('Zapisywanie logiki…',
               () => saveDesignNow({ ...current, layout, nodes, edges }))}
@@ -1314,9 +1428,12 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
       {tab === 'entries' && readAreas !== null && reading === null && (
         <FormTable
           fields={fields}
+          removed={removedFields}
           submissions={submissions}
           opened={opened}
           fileName={module?.name ?? conf.title ?? 'zgloszenia'}
+          onSave={ring === null ? undefined : saveTable}
+          canAdd={!isExtension}
         />
       )}
 
@@ -1387,6 +1504,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             submissions={submissions}
             opened={opened}
             fields={fields}
+            removed={removedFields}
             seatAreas={areasHere}
             formAreas={[module?.areaId ?? null, ...areasHere]}
             areas={areas}
@@ -1499,7 +1617,7 @@ const base = () => `${window.location.origin}${window.location.pathname}`;
  * Öffnen fragen und tut es noch nicht, entsteht beim Tipp ein neuer.
  */
 function People({
-  partId, config, onConfig, submissions, opened, fields, seatAreas, formAreas, areas, stepInfo, extData, ring, busy,
+  partId, config, onConfig, submissions, opened, fields, removed = [], seatAreas, formAreas, areas, stepInfo, extData, ring, busy,
   onHide, onRemove, onError, onChanged
 }: {
   partId: string;
@@ -1511,6 +1629,9 @@ function People({
   submissions: readonly Submission[];
   opened: ReadonlyMap<string, ReadonlyMap<string, string>>;
   fields: readonly OpenField[];
+
+  /** 0086 — die vom Formular genommenen Fragen: ihre Antworten stehen beim Menschen dabei. */
+  removed?: readonly OpenField[];
 
   /** Die Bereiche, in denen die Plätze dieses Formulars liegen. */
   seatAreas: readonly string[];
@@ -1546,7 +1667,7 @@ function People({
   /** Welche Nummer gerade vorbereitet wird. */
   const [working, setWorking] = useState<string | null>(null);
 
-  const links = useSeatLinks(seatAreas, ring);
+  const links = useSeatLinks(seatAreas, ring, { under: (config.portalUnder ?? '').trim(), at: (config.portalAt ?? '').trim() });
 
   /*
    * NACH SCHRITTEN FILTERN (0047) — „wer hat die Zustimmung noch nicht
@@ -1765,6 +1886,7 @@ function People({
                     formId={partId}
                     row={{ s, values, name, phones, states }}
                     fields={fields}
+                    removed={removed}
                     stepInfo={stepInfo}
                     extData={extData}
                     links={links}
@@ -1798,13 +1920,16 @@ function People({
  * einer anderen.
  */
 function EntryPanel({
-  formId, row, fields, stepInfo, extData, links, formAreas, areas, ring, busy, sections = PANEL_SECTIONS,
+  formId, row, fields, removed = [], stepInfo, extData, links, formAreas, areas, ring, busy, sections = PANEL_SECTIONS,
   onHide, onRemove, onError, onChanged
 }: {
   /** 0083 — welches Formular (für den Ausdruck zum Unterschreiben). */
   formId: string;
   row: DeskRow;
   fields: readonly OpenField[];
+
+  /** 0086 — die vom Formular genommenen Fragen, deren Antworten noch dastehen. */
+  removed?: readonly OpenField[];
   stepInfo: StepInfo | null;
   extData: ReadonlyMap<string, ReadForm>;
   links: SeatLinks;
@@ -1829,7 +1954,7 @@ function EntryPanel({
             Wysłano {new Date(s.submittedAt).toLocaleString('pl-PL')}
             {s.confirmedAt !== null && ` · dane potwierdzone przez osobę ${new Date(s.confirmedAt).toLocaleString('pl-PL')}`}
           </p>
-          <Answers values={values} fields={fields} sealed={s.values.length} checks={s.checks} />
+          <Answers values={values} fields={removed.length === 0 ? fields : [...fields, ...removed]} sealed={s.values.length} checks={s.checks} />
           {/* 0083 — auch die Kanzlei druckt das Blatt (für den, der seines vergessen hat). */}
           {values !== undefined && values.size > 0 && (
             <div className="wk-actions">
@@ -1988,6 +2113,7 @@ export function EntryDeskPanel({ desk, row, ring, sections }: {
         formId={desk.formId}
         row={row}
         fields={desk.form.fields}
+        removed={desk.form.removed}
         stepInfo={desk.info}
         extData={desk.extData}
         links={links}
@@ -2058,6 +2184,10 @@ function AfterSendSettings({ partId, config, fields, busy, onSaved, onError }: {
   }, [config.sentTitle, config.sentText, config.paper, config.paperSigner]);
 
   const ticks = fields.filter((f) => f.kind === 'consent' || f.kind === 'checkbox');
+  /* Woraus das Alter folgt — ohne Geburtsdatum oder PESEL weiss das Formular nicht, wer minderjährig ist. */
+  const knowsAge = ageFields(fields).length > 0;
+  /* Fragt das Formular nach der Zustimmung eines Elternteils, druckt aber nichts? Dann ein Vorschlag. */
+  const parental = paper === '' ? parentalConsentOf(ticks) : null;
   const dirty = title !== (config.sentTitle ?? '') || text !== (config.sentText ?? '')
     || paper !== (config.paper ?? '') || signer !== (config.paperSigner ?? '');
 
@@ -2095,6 +2225,9 @@ function AfterSendSettings({ partId, config, fields, busy, onSaved, onError }: {
         <select value={paper} disabled={busy || saving} onChange={(e) => setPaper(e.target.value)}>
           <option value="">nie trzeba</option>
           <option value="always">zawsze — każdy drukuje i podpisuje</option>
+          <option value={PAPER_MINOR} disabled={!knowsAge && paper !== PAPER_MINOR}>
+            niepełnoletni — wg daty urodzenia albo PESEL{knowsAge ? '' : ' (formularz o nie nie pyta)'}
+          </option>
           {ticks.map((f) => (
             <option key={f.fieldId} value={f.fieldId}>gdy zaznaczono: {f.label ?? 'pytanie'}</option>
           ))}
@@ -2104,10 +2237,34 @@ function AfterSendSettings({ partId, config, fields, busy, onSaved, onError }: {
         </select>
         <span className="wk-hint">
           Zgoda rodzica za niepełnoletnie dziecko musi być podpisana odręcznie — zaznaczenie pola na stronie nie jest
-          podpisem. Wtedy po wysłaniu (i później pod linkiem osoby) pojawia się „Drukuj do podpisu”: jedna strona A4
-          z danymi, zgodami w ich brzmieniu i miejscem na podpis.
+          podpisem. Wtedy po wysłaniu (i później pod linkiem osoby, w „Twoje zgłoszenie”) pojawia się „Drukuj do podpisu”:
+          jedna strona A4 z danymi, zgodami w ich brzmieniu i miejscem na podpis.
         </span>
+        {paper === PAPER_MINOR && !knowsAge && (
+          <span className="wk-warn">Formularz nie pyta o datę urodzenia ani PESEL — nie wiadomo, kto jest niepełnoletni, więc wydruk się nie pokaże.</span>
+        )}
       </label>
+      {parental !== null && (
+        <div className="wk-paper-note" role="note">
+          <p>
+            <strong>Ten formularz pyta o zgodę rodzica</strong> („{parental.label ?? 'pytanie'}”), ale wydruk do podpisu jest
+            wyłączony — osoby nie widzą „Drukuj do podpisu” ani po wysłaniu, ani w „Twoje zgłoszenie”.
+          </p>
+          <div className="wk-actions">
+            <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || saving}
+              onClick={() => { setPaper(parental.fieldId); if (signer.trim() === '') setSigner('czytelny podpis rodzica / opiekuna prawnego'); }}>
+              Drukuj, gdy zaznaczono to pytanie
+            </button>
+            {knowsAge && (
+              <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || saving}
+                onClick={() => { setPaper(PAPER_MINOR); if (signer.trim() === '') setSigner('czytelny podpis rodzica / opiekuna prawnego'); }}>
+                Drukuj dla niepełnoletnich
+              </button>
+            )}
+          </div>
+          <p className="wk-hint">Potem „Zapisz” poniżej.</p>
+        </div>
+      )}
       {paper !== '' && (
         <label className="wk-field">
           <span>Kto podpisuje (pod linią na wydruku)</span>
@@ -2124,51 +2281,70 @@ function AfterSendSettings({ partId, config, fields, busy, onSaved, onError }: {
 }
 
 /**
- * GOTOWE WZORY — ein Klick, und das Formular hat die Fragen, Gruppen und Logik
- * einer Zgoda rodzica, eines Wyjazd oder der Daten für die Versicherung
- * (`formTemplates.ts`). Was es schon gibt, wird weiterbenutzt.
+ * 0086 — WYMAGANIA FORMULARZA, zum Ankreuzen (`formTemplates.ts`): was ein
+ * Wydarzenie verlangt — Minderjährige mit Ausdruck für die Eltern, Zdrowie,
+ * Ubezpieczenie, Zasady. Eingeschaltet bringt jedes seine Fragen, Gruppen und
+ * Logik mit (was es schon gibt, wird weiterbenutzt) und sperrt sie gegen das
+ * Löschen; ausgeschaltet nimmt es sie wieder mit — Antworten bleiben.
  */
-function Templates({ module, who, answersTo, areas, busy, onApply, onConfig }: {
+function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct, onConfig }: {
   module: ModuleRow;
   who: Who;
+  config: Record<string, string>;
   answersTo: string | null;
   areas: readonly AreaRow[];
   busy: boolean;
-  onApply: (what: string, todo: () => Promise<unknown>) => Promise<void>;
+  onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
   /** Die Einstellungen danach — sonst schriebe „Po wysłaniu" den alten Stand zurück. */
   onConfig: (next: Record<string, string>) => void;
 }) {
   const [target, setTarget] = useState(answersTo ?? '');
   const [stage, setStage] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
+  /** Welches Wymaganie gerade ausgeschaltet werden soll — erst nach „Wyłącz" geschieht es. */
+  const [leaving, setLeaving] = useState<string | null>(null);
   const usable = areas.filter((a) => a.heldEpochs > 0);
+  const on = readNeeds(config.needs);
 
   useEffect(() => { if (answersTo !== null) setTarget(answersTo); }, [answersTo]);
 
-  const apply = (template: FormTemplate) => {
-    if (!window.confirm(`Dodać do formularza wzór „${template.label}”? Pytania, które już są (imię, nazwisko, data urodzenia), zostaną wykorzystane, nowe trafią na koniec.`)) return;
-    void onApply('Dodawanie wzoru…', async () => {
-      try {
-        setSaid(null);
-        const done = await applyTemplate(who, module, template, target === '' ? null : target, setStage);
-        if (done.config !== null) onConfig(done.config);
-        setSaid([
-          `Wzór „${template.label}”: nowych pytań ${done.added}${done.reused > 0 ? `, wykorzystane istniejące: ${done.reused}` : ''}.`,
-          ...done.warnings
-        ].join(' '));
-      } finally {
-        setStage(null);
-      }
-    });
-  };
+  const turnOn = (need: FormNeed) => void onAct(`Włączanie: ${need.label}…`, async () => {
+    try {
+      setSaid(null);
+      const done = await applyNeed(who, module, need, target === '' ? null : target, config, setStage);
+      onConfig(done.config);
+      setSaid([
+        `„${need.label}”: nowych pytań ${done.added}${done.reused > 0 ? `, wykorzystane istniejące: ${done.reused}` : ''}.`,
+        ...done.warnings
+      ].join(' '));
+    } finally {
+      setStage(null);
+    }
+  });
+
+  const turnOff = (need: FormNeed) => void onAct(`Wyłączanie: ${need.label}…`, async () => {
+    try {
+      setSaid(null);
+      setLeaving(null);
+      const done = await dropNeed(who, module, need.id, config, setStage);
+      onConfig(done.config);
+      setSaid([
+        `„${need.label}” wyłączone: usunięte pytania ${done.removed}`
+          + (done.kept > 0 ? `, zdjęte z formularza (mają odpowiedzi — zostają w zgłoszeniach) ${done.kept}` : '') + '.',
+        ...done.warnings
+      ].join(' '));
+    } finally {
+      setStage(null);
+    }
+  });
 
   return (
-    <details className="wk-fold wk-templates">
-      <summary>Gotowe wzory: zgoda rodzica, wyjazd, ubezpieczenie</summary>
+    <section className="wk-needs" aria-label="Wymagania formularza">
+      <h3 className="wk-h3">Wymagania formularza</h3>
       <p className="wk-hint">
-        Wzór dodaje zwykłe pytania, grupy i logikę — potem zmienisz w nich wszystko. Pola dla rodzica pokazują się tylko,
-        gdy uczestnik ma mniej niż 18 lat (węzeł „Wiek” w zakładce „Logika”). Wzory można łączyć, np. „Zgoda rodzica” +
-        „Ubezpieczenie” — dane, które już są, nie powtórzą się.
+        Zaznacz, czego wymaga to wydarzenie — formularz dostanie potrzebne pytania, grupy i logikę (dane, które już są,
+        nie powtórzą się). Dopóki wymaganie jest zaznaczone, jego pytań nie da się usunąć; można je przesuwać (zakładka
+        „Układ”) i zmieniać ich treść.
       </p>
       {answersTo === null && (
         <label className="wk-field">
@@ -2179,20 +2355,46 @@ function Templates({ module, who, answersTo, areas, busy, onApply, onConfig }: {
           </select>
         </label>
       )}
-      <ul className="wk-template-list">
-        {FORM_TEMPLATES.map((one) => (
-          <li key={one.id} className="wk-template">
-            <strong>{one.label}</strong>
-            <span className="wk-hint">{one.use}</span>
-            <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || target === ''} onClick={() => apply(one)}>
-              Dodaj do formularza
-            </button>
-          </li>
-        ))}
+      <ul className="wk-need-list">
+        {NEEDS.map((need) => {
+          const active = on.find((one) => one.id === need.id);
+          return (
+            <li key={need.id} className={active === undefined ? 'wk-need' : 'wk-need is-on'}>
+              <label className="wk-need-pick">
+                <input
+                  type="checkbox" checked={active !== undefined}
+                  disabled={busy || (active === undefined && target === '')}
+                  onChange={() => (active === undefined ? turnOn(need) : setLeaving(need.id))}
+                />
+                <span>
+                  <strong>{need.label}</strong>
+                  <span className="wk-hint">{need.use}</span>
+                  {active !== undefined && (
+                    <span className="wk-hint wk-need-holds">
+                      Pytania: {active.fields.length}{active.nodes.length > 0 && ` · logika: ${active.nodes.length} węzłów`}
+                      {active.paper === true && ' · wydruk do podpisu dla niepełnoletnich'}
+                    </span>
+                  )}
+                </span>
+              </label>
+              {leaving === need.id && active !== undefined && (
+                <div className="wk-need-leave" role="group" aria-label={`Wyłączyć: ${need.label}`}>
+                  <span className="wk-hint">
+                    Pytania dodane przez to wymaganie znikną z formularza ({active.added.length}); te, na które ktoś już
+                    odpowiedział, zostaną tylko zdjęte — ich odpowiedzi zostają w zgłoszeniach.
+                    {active.paper === true && ' Wydruk do podpisu też się wyłączy.'}
+                  </span>
+                  <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => turnOff(need)}>Wyłącz i usuń pytania</button>
+                  <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setLeaving(null)}>Anuluj</button>
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
       {stage !== null && <p className="wk-working">{stage}</p>}
       {said !== null && <p className="wk-done" role="status">{said}</p>}
-    </details>
+    </section>
   );
 }
 
@@ -2442,8 +2644,8 @@ function Answers({ values, fields, sealed, checks }: {
   return (
     <ul className="wk-tile-lines">
       {known.map((f) => (
-        <li key={f.fieldId}>
-          <strong>{f.label ?? 'zapieczętowane pytanie'}:</strong>{' '}
+        <li key={f.fieldId} className={f.removedAt != null ? 'wk-answer-off' : undefined}>
+          <strong>{f.label ?? 'zapieczętowane pytanie'}{f.removedAt != null && <span className="wk-row-side"> (zdjęte z formularza)</span>}:</strong>{' '}
           {f.kind === 'consent' ? (
             /* 0083 — tak oder nein; und der Wortlaut, dem zugestimmt wurde (nicht der heutige der Frage). */
             consentGiven(values.get(f.fieldId))
@@ -3005,7 +3207,7 @@ interface SeatLinks {
 }
 
 /** Die ganze Adresse eines Links — die Seite, unter der der Platz hängt, mit dem Platz daran. */
-const linkUrl = (link: Link, under: string | null) => `${base()}${seatPath(link, under)}`;
+const linkUrl = (link: Link, under: string | null, at?: string | null) => `${base()}${seatPath(link, under, at)}`;
 
 /**
  * DIE LINKS DER MENSCHEN — gelesen, nicht neu gewürfelt.
@@ -3022,8 +3224,20 @@ const linkUrl = (link: Link, under: string | null) => `${base()}${seatPath(link,
  * Anmeldung, der nie verschickt wurde. Dann entsteht der neue beim
  * Verschicken, und nur dann.
  */
-function useSeatLinks(areaIds: readonly string[], ring: Ring | null): SeatLinks {
+function useSeatLinks(
+  areaIds: readonly string[], ring: Ring | null,
+  /** 0086 — die Seite nach dem Absenden und ihr Zusatz (`portalAt`): der Link öffnet dort, wo die Kanzlei es will. */
+  portal: { readonly under: string; readonly at: string } | null = null
+): SeatLinks {
   const [rows, setRows] = useState<ReadonlyMap<string, SeatRow>>(new Map());
+
+  /* Der Zusatz gilt nur an der Seite, für die er gewählt ist — ein Platz von früher hängt vielleicht anderswo. */
+  const portalRef = useRef(portal);
+  portalRef.current = portal;
+  const urlOf = (link: Link, under: string | null): string => {
+    const p = portalRef.current;
+    return linkUrl(link, under, p !== null && p.at !== '' && under !== null && under.toLowerCase() === p.under.toLowerCase() ? p.at : null);
+  };
 
   /* Stabil über das Zeichnen hinweg — die Funktionen unten lesen immer den neuesten Stand. */
   const found = useRef(new Map<string, { row: SeatRow; areaId: string }>());
@@ -3081,7 +3295,7 @@ function useSeatLinks(areaIds: readonly string[], ring: Ring | null): SeatLinks 
   const peek = useCallback(async (seatId: string): Promise<string | null> => {
     const one = found.current.get(seatId);
     const known = links.current.get(seatId);
-    if (known !== undefined) return linkUrl(known, one?.row.under ?? null);
+    if (known !== undefined) return urlOf(known, one?.row.under ?? null);
 
     if (one === undefined || one.row.linkSealed === null || one.row.revokedAt !== null) return null;
 
@@ -3089,14 +3303,14 @@ function useSeatLinks(areaIds: readonly string[], ring: Ring | null): SeatLinks 
     if (link === null) return null;
 
     links.current.set(seatId, link);
-    return linkUrl(link, one.row.under);
+    return urlOf(link, one.row.under);
   }, [key]);
 
   const renew = useCallback(async (seatId: string, check: readonly CheckAnswer[]): Promise<string> => {
     const link = await relinkSeat(seatId, await key(seatId), check);
     links.current.set(seatId, link);
     await reload();
-    return linkUrl(link, found.current.get(seatId)?.row.under ?? null);
+    return urlOf(link, found.current.get(seatId)?.row.under ?? null);
   }, [key, reload]);
 
   const forSms = useCallback(async (seatId: string, check: readonly CheckAnswer[]): Promise<string> => {

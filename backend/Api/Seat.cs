@@ -879,7 +879,9 @@ public static class Seat
         var askable = new Dictionary<Guid, bool>();
 
         await using (var ask = new SqlCommand("""
-            SELECT f.id, f.self_edit
+            SELECT f.id,
+                   /* 0086 — eine vom Formular genommene Frage wird nicht mehr berichtigt. */
+                   CASE WHEN f.removed_at IS NULL THEN f.self_edit ELSE CAST(0 AS bit) END
             FROM app.registration r
             JOIN app.slug_field f ON f.part_id = r.part_id
             WHERE r.id = @reg;
@@ -1329,7 +1331,9 @@ public static class Seat
                    r.part_id,
                    r.confirmed_at AS registration_confirmed,
                    COALESCE(f.label_area_id, f.area_id), COALESCE(f.label_epoch, f.epoch),
-                   f.options_sealed, f.self_edit
+                   f.options_sealed,
+                   /* 0086 — seine Antwort auf eine vom Formular genommene Frage sieht er, aendern kann er sie nicht. */
+                   CASE WHEN f.removed_at IS NULL THEN f.self_edit ELSE CAST(0 AS bit) END
             FROM app.registration r
             JOIN app.registration_value v ON v.registration_id = r.id
             JOIN app.slug_field f         ON f.id = v.field_id

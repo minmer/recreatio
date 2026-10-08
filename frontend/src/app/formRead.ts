@@ -14,7 +14,7 @@
 import { loadPublicKey, myEpochKeys } from './area';
 import { fromBase64Url } from './crypto';
 import {
-  loadFields, loadRegistrations, openFields, readAcross, rewrapToOffice,
+  asked, loadFields, loadRegistrations, openFields, readAcross, rewrapToOffice, takenOff,
   type IntakeKey, type OpenField, type Submission
 } from './form';
 import { openDesign, type FormDesign } from './formDesign';
@@ -22,7 +22,14 @@ import { loadIntake, loadPublicIntake, openIntakeKey } from './intake';
 import type { Ring } from './keys';
 
 export interface ReadForm {
+  /** Die Fragen, die das Formular stellt. */
   readonly fields: readonly OpenField[];
+
+  /**
+   * 0086 — die vom Formular genommenen: gefragt wird nicht mehr, ihre
+   * Antworten stehen aber in `opened` — wer Antworten ZEIGT, nimmt sie dazu.
+   */
+  readonly removed: readonly OpenField[];
   readonly design: FormDesign | null;
   readonly registrations: readonly Submission[];
 
@@ -123,5 +130,5 @@ export async function readForm(
    */
   if (pending.length > 0) void rewrapToOffice(partId, pending).catch(() => undefined);
 
-  return { fields, design, registrations, opened, intakes, areaOf };
+  return { fields: asked(fields), removed: takenOff(fields), design, registrations, opened, intakes, areaOf };
 }

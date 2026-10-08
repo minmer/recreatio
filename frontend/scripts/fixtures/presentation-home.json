@@ -1,0 +1,812 @@
+{
+  "format": "recreatio/page",
+  "version": 1,
+  "path": "start",
+  "title": "REcreatio",
+  "lead": null,
+  "mode": "presentation",
+  "theme": {
+    "mode": "light",
+    "accent": "#2f5d46",
+    "ink": "#171a16",
+    "ground": "#f7f8f5",
+    "muted": "#7c8479",
+    "night": {
+      "accent": "#8fc4a8",
+      "ink": "#eceee8",
+      "ground": "#141713",
+      "muted": "#838b7e"
+    }
+  },
+  "cover": [],
+  "show": {
+    "format": "screen",
+    "fonts": "spectral",
+    "nav": "none",
+    "scenes": [
+      {
+        "key": "start",
+        "label": "REcreatio",
+        "colors": {
+          "accent": "#9ed3b4",
+          "ink": "#f2f4ef",
+          "ground": "#14180f|#0b0d08",
+          "muted": "#79806f"
+        },
+        "hint": "Przewiń",
+        "words": {
+          "list": [
+            "colligere",
+            "novatio",
+            "conciliatio",
+            "fectio",
+            "dintegratio",
+            "ditus",
+            "cognitio",
+            "stitutio",
+            "generatio",
+            "paratio",
+            "latio",
+            "quies",
+            "surrectio"
+          ],
+          "prefix": "RE",
+          "count": 39,
+          "seed": 2026
+        }
+      },
+      {
+        "key": "calosc",
+        "label": "Człowiek jest całością",
+        "steps": 4,
+        "change": "fly",
+        "grow": {
+          "from": 0.8,
+          "to": 1.08
+        },
+        "thread": "dots"
+      },
+      {
+        "key": "czlowiek",
+        "label": "Człowiek potrzebuje człowieka",
+        "steps": 3,
+        "grow": {
+          "from": 0.8,
+          "to": 1.08
+        },
+        "thread": "dots"
+      },
+      {
+        "key": "dane",
+        "label": "Twoje dane są twoje",
+        "steps": 3,
+        "grow": {
+          "from": 0.8,
+          "to": 1.08
+        },
+        "thread": "dots"
+      },
+      {
+        "key": "dzieje",
+        "label": "Jak to się dzieje",
+        "change": "build"
+      },
+      {
+        "key": "kontakt",
+        "label": "Kontakt",
+        "change": "build",
+        "keep": true,
+        "colors": {
+          "accent": "#9ed3b4",
+          "ink": "#f2f4ef",
+          "muted": "#8d9585"
+        }
+      }
+    ]
+  },
+  "modules": [
+    {
+      "id": "start-znak",
+      "kind": "image",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "start": {
+            "x": 50,
+            "y": 37,
+            "w": 35,
+            "z": -320,
+            "tall": {
+              "w": 74
+            }
+          }
+        },
+        "skin": "plain",
+        "arrive": "none"
+      },
+      "config": {
+        "url": "/logo_inv.svg",
+        "alt": "REcreatio"
+      }
+    },
+    {
+      "id": "start-zdanie",
+      "kind": "text",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "start": {
+            "x": 50,
+            "y": 56,
+            "w": 36,
+            "z": -980,
+            "tall": {
+              "w": 76
+            }
+          }
+        },
+        "skin": "plain",
+        "type": "display",
+        "align": "center",
+        "arrive": "none"
+      },
+      "config": {
+        "title": "Inicjatywa starająca się o integralny rozwój człowieka"
+      }
+    },
+    {
+      "id": "calosc-1",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "calosc": {
+            "x": 52,
+            "y": 28,
+            "w": 76,
+            "max": 22,
+            "step": 0,
+            "tall": {
+              "x": 50,
+              "y": 19
+            }
+          }
+        },
+        "skin": "bubble",
+        "type": "title",
+        "arrive": "zoom",
+        "span": 0.55
+      },
+      "config": {
+        "title": "Człowiek jest całością"
+      }
+    },
+    {
+      "id": "calosc-2",
+      "kind": "text",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "calosc": {
+            "x": 79,
+            "y": 52,
+            "w": 84,
+            "max": 30,
+            "step": 1,
+            "tall": {
+              "x": 67,
+              "y": 50,
+              "max": 22
+            }
+          }
+        },
+        "skin": "bubble",
+        "type": "body",
+        "arrive": "zoom",
+        "delay": 0.12,
+        "span": 0.55
+      },
+      "config": {
+        "body": [
+          "Nie rozwijamy się osobno duchowo, intelektualnie, emocjonalnie czy fizycznie. To wszystko spotyka się w jednym człowieku i w jednym życiu. Dlatego REcreatio chce tworzyć okazje do wzrostu w różnych wymiarach — przez formację, rozmowę, pracę, naukę, ruch, odpoczynek, kulturę i modlitwę."
+        ]
+      }
+    },
+    {
+      "id": "calosc-3",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "calosc": {
+            "x": 52,
+            "y": 76,
+            "w": 70,
+            "max": 21,
+            "step": 2,
+            "tall": {
+              "x": 50,
+              "y": 81,
+              "w": 76,
+              "max": 18
+            }
+          }
+        },
+        "skin": "bubble",
+        "type": "close",
+        "arrive": "zoom",
+        "delay": 0.24,
+        "span": 0.55
+      },
+      "config": {
+        "body": [
+          "Nie kolejna dziedzina życia.",
+          "Bardziej ludzkie życie jako całość."
+        ]
+      }
+    },
+    {
+      "id": "calosc-4",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "calosc": {
+            "x": 25,
+            "y": 52,
+            "w": 40,
+            "step": 3,
+            "tall": {
+              "x": 33,
+              "y": 50
+            }
+          }
+        },
+        "skin": "pill",
+        "type": "note",
+        "arrive": "zoom",
+        "delay": 0.36,
+        "span": 0.55
+      },
+      "config": {
+        "body": [
+          "w sobie · we wspólnocie · z Bogiem"
+        ]
+      }
+    },
+    {
+      "id": "czlowiek-1",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "czlowiek": {
+            "x": 71.68,
+            "y": 68.43,
+            "w": 76,
+            "max": 22,
+            "step": 0,
+            "tall": {
+              "x": 62.39,
+              "y": 71.22
+            }
+          }
+        },
+        "skin": "bubble",
+        "type": "title",
+        "arrive": "zoom",
+        "span": 0.55
+      },
+      "config": {
+        "title": "Człowiek potrzebuje człowieka"
+      }
+    },
+    {
+      "id": "czlowiek-2",
+      "kind": "text",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "czlowiek": {
+            "x": 26.15,
+            "y": 58.94,
+            "w": 84,
+            "max": 30,
+            "step": 1,
+            "tall": {
+              "x": 33.73,
+              "y": 58.96,
+              "max": 22
+            }
+          }
+        },
+        "skin": "bubble",
+        "type": "body",
+        "arrive": "zoom",
+        "delay": 0.12,
+        "span": 0.55
+      },
+      "config": {
+        "body": [
+          "Nie chcemy tworzyć kolejnego miejsca, które zatrzymuje człowieka przed ekranem. Chcemy wykorzystywać współczesne możliwości, aby łatwiej było się spotkać, coś razem zorganizować, uczyć się, wyruszyć w drogę, przeczytać dobrą książkę czy zbudować wspólnotę.",
+          "Wracamy do rzeczy podstawowych — relacji, odpowiedzialności, dobrej rozmowy, wspólnej pracy, odpoczynku i modlitwy — korzystając z narzędzi współczesnego świata tam, gdzie rzeczywiście pomagają."
+        ]
+      }
+    },
+    {
+      "id": "czlowiek-3",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "czlowiek": {
+            "x": 58.17,
+            "y": 28.63,
+            "w": 70,
+            "max": 21,
+            "step": 2,
+            "tall": {
+              "x": 53.88,
+              "y": 19.82,
+              "w": 76,
+              "max": 18
+            }
+          }
+        },
+        "skin": "bubble",
+        "type": "close",
+        "arrive": "zoom",
+        "delay": 0.24,
+        "span": 0.55
+      },
+      "config": {
+        "body": [
+          "Narzędzia mają prowadzić do życia.",
+          "Nie życie do narzędzi."
+        ]
+      }
+    },
+    {
+      "id": "dane-1",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "dane": {
+            "x": 25.05,
+            "y": 53.51,
+            "w": 76,
+            "max": 22,
+            "step": 0,
+            "tall": {
+              "x": 33.03,
+              "y": 51.95
+            }
+          }
+        },
+        "skin": "bubble",
+        "type": "title",
+        "arrive": "zoom",
+        "span": 0.55
+      },
+      "config": {
+        "title": "Twoje dane są twoje"
+      }
+    },
+    {
+      "id": "dane-2",
+      "kind": "text",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "dane": {
+            "x": 64.01,
+            "y": 30.5,
+            "w": 84,
+            "max": 30,
+            "step": 1,
+            "tall": {
+              "x": 57.56,
+              "y": 22.23,
+              "max": 22
+            }
+          }
+        },
+        "skin": "bubble",
+        "type": "body",
+        "arrive": "zoom",
+        "delay": 0.12,
+        "span": 0.55
+      },
+      "config": {
+        "body": [
+          "Nie chcemy budować systemu, który wie o człowieku więcej, niż naprawdę potrzebuje.",
+          "REcreatio ma zbierać tylko te dane, które są konieczne do działania konkretnej funkcji. Dostęp do informacji powinny mieć tylko osoby, którym został on rzeczywiście nadany — nie jeden administrator, który z definicji może zobaczyć wszystko.",
+          "Nie chcemy śledzić użytkowników ani tworzyć ich profili na podstawie aktywności. Bezpieczeństwo i prywatność mają wynikać ze sposobu, w jaki system jest zbudowany, a nie tylko z regulaminu."
+        ]
+      }
+    },
+    {
+      "id": "dane-3",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "dane": {
+            "x": 66.94,
+            "y": 71.99,
+            "w": 70,
+            "max": 21,
+            "step": 2,
+            "tall": {
+              "x": 59.41,
+              "y": 75.82,
+              "w": 76,
+              "max": 18
+            }
+          }
+        },
+        "skin": "bubble",
+        "type": "close",
+        "arrive": "zoom",
+        "delay": 0.24,
+        "span": 0.55
+      },
+      "config": {
+        "body": [
+          "Mniej danych.",
+          "Mniej śledzenia.",
+          "Mniej zbędnego dostępu.",
+          "",
+          "Więcej kontroli po stronie człowieka.",
+          "",
+          "Prywatność przez ograniczenie.",
+          "Nie przez obietnicę."
+        ]
+      }
+    },
+    {
+      "id": "dzieje-1",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "dzieje": {
+            "x": 25,
+            "y": 25,
+            "w": 50,
+            "h": 50
+          }
+        },
+        "skin": "panel",
+        "type": "heading",
+        "fill": "#ece0c9|#2a2113",
+        "media": {
+          "url": "/Hortus.jpg",
+          "at": "57% 50%"
+        },
+        "arrive": "from-left",
+        "delay": 0.15,
+        "span": 0.4
+      },
+      "config": {
+        "title": "Hortus Dei",
+        "body": [
+          "Dom w Limanowej, w budowie, na około 52 osoby. Rekolekcje, dni skupienia, formacja, edukacja i wypoczynek. Pomyślany dla grup — parafii, wspólnot, ministrantów, duszpasterstw, harcerstwa, szkół, rodzin i inicjatyw młodzieżowych.",
+          "[Zobacz ośrodek](#/rc/osrodek)"
+        ]
+      }
+    },
+    {
+      "id": "dzieje-2",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "dzieje": {
+            "x": 25,
+            "y": 75,
+            "w": 50,
+            "h": 50
+          }
+        },
+        "skin": "panel",
+        "type": "heading",
+        "fill": "#22402f|#1b3225",
+        "ink": "#e8efe6|#dfeade",
+        "accent": "#e8efe6|#dfeade",
+        "media": {
+          "url": "/Events.jpg",
+          "at": "50% 42%",
+          "side": "before"
+        },
+        "valign": "end",
+        "arrive": "from-left",
+        "delay": 0.3,
+        "span": 0.4
+      },
+      "config": {
+        "title": "Wydarzenia",
+        "body": [
+          "Rekolekcje, pielgrzymki piesze i rowerowe, wyprawy oraz wydarzenia sportowo-formacyjne. Wysiłek, modlitwa, przyroda, rozmowa i przekraczanie własnych granic.",
+          "[Zobacz wydarzenia](#/rc/wydarzenia)"
+        ]
+      }
+    },
+    {
+      "id": "dzieje-3",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "dzieje": {
+            "x": 75,
+            "y": 25,
+            "w": 50,
+            "h": 50
+          }
+        },
+        "skin": "panel",
+        "type": "heading",
+        "fill": "#0a1c2f",
+        "ink": "#e6ecf3",
+        "accent": "#f95e3f",
+        "media": {
+          "url": "/cogita/logo/Cogita_Plain.svg",
+          "at": "78% 52%",
+          "fit": "contain",
+          "size": 52,
+          "max": 13,
+          "opacity": 0.85,
+          "fade": false
+        },
+        "align": "end",
+        "arrive": "from-right",
+        "delay": 0.45,
+        "span": 0.4
+      },
+      "config": {
+        "title": "Cogita",
+        "body": [
+          "Środowisko do nauki: teksty, storyboardy, zbiory i powtórki.",
+          "[Zobacz Cogitę](#/rc/cogita)"
+        ]
+      }
+    },
+    {
+      "id": "dzieje-4",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "dzieje": {
+            "x": 75,
+            "y": 75,
+            "w": 50,
+            "h": 50
+          }
+        },
+        "skin": "panel",
+        "type": "heading",
+        "fill": "#d0d9d5|#141c19",
+        "align": "end",
+        "valign": "end",
+        "arrive": "from-right",
+        "delay": 0.6,
+        "span": 0.4
+      },
+      "config": {
+        "title": "I dalej",
+        "body": [
+          "Działalność wydawnicza i spis książek, materiały edukacyjne, portal edukacyjny oraz projekty dla dzieci, młodzieży i rodzin.",
+          "[Zobacz bibliotekę](#/rc/biblioteka)"
+        ]
+      }
+    },
+    {
+      "id": "dzieje-tytul",
+      "kind": "text",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 1
+      },
+      "show": {
+        "places": {
+          "dzieje": {
+            "x": 50,
+            "y": 48,
+            "w": 60
+          }
+        },
+        "skin": "plain",
+        "type": "heading",
+        "origin": "bottom",
+        "align": "center",
+        "span": 1
+      },
+      "config": {
+        "title": "Jak to się dzieje"
+      }
+    },
+    {
+      "id": "dzieje-etapy",
+      "kind": "text",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 1
+      },
+      "show": {
+        "places": {
+          "dzieje": {
+            "x": 50,
+            "y": 53,
+            "w": 60
+          }
+        },
+        "skin": "plain",
+        "type": "note",
+        "origin": "top",
+        "align": "center",
+        "span": 1
+      },
+      "config": {
+        "body": [
+          "Te części są na różnych etapach."
+        ]
+      }
+    },
+    {
+      "id": "kolo",
+      "kind": "shape",
+      "size": {
+        "colSpan": 2,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "dzieje": {
+            "x": 50,
+            "y": 50,
+            "w": 100,
+            "max": 15
+          },
+          "kontakt": {
+            "x": 50,
+            "y": 50,
+            "w": 100,
+            "max": 15,
+            "scale": 26
+          }
+        },
+        "skin": "plain",
+        "arrive": "grow",
+        "span": 1,
+        "ease": "in"
+      },
+      "config": {
+        "shape": "circle",
+        "fill": "#14180f|#0b0d08"
+      }
+    },
+    {
+      "id": "znak",
+      "kind": "image",
+      "size": {
+        "colSpan": 2,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "dzieje": {
+            "x": 50,
+            "y": 50,
+            "w": 100,
+            "max": 9
+          },
+          "kontakt": {
+            "x": 16,
+            "y": 18,
+            "w": 100,
+            "max": 16
+          }
+        },
+        "skin": "plain",
+        "span": 1,
+        "ease": "linear",
+        "layer": 1
+      },
+      "config": {
+        "url": "/logo_inv.svg",
+        "alt": "REcreatio"
+      }
+    },
+    {
+      "id": "kontakt",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "kontakt": {
+            "x": 4.4,
+            "y": 34,
+            "w": 84,
+            "max": 34,
+            "tall": {
+              "x": 5,
+              "y": 26,
+              "w": 90,
+              "max": null
+            }
+          }
+        },
+        "skin": "plain",
+        "type": "kicker",
+        "origin": "top-left",
+        "delay": 0.45,
+        "span": 0.55
+      },
+      "config": {
+        "title": "Kontakt",
+        "body": [
+          "# [mleczek_grzegorzki@outlook.com](mailto:mleczek_grzegorzki@outlook.com)",
+          "ks. Michał Mleczek",
+          "ul. Żuławskiego 3E",
+          "34-600 Limanowa",
+          "> REcreatio: Fundacja jeszcze nie istnieje. Nie ma numeru KRS, zarządu ani statutu, nie zbieramy darowizn i nie podajemy numeru konta.",
+          "[O inicjatywie](#/rc/o-nas) · [Przejrzystość](#/rc/przejrzystosc) · [Kontakt](#/rc/kontakt)"
+        ]
+      }
+    }
+  ]
+}

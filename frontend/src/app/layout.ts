@@ -43,8 +43,9 @@ export interface Frame {
  * Die Anordnung je Bildschirmgrösse — und (0062) das Aussehen des Bausteins als
  * Slajd (`slide`), das `slides.ts` liest. Das Raster kennt es nicht und trägt es
  * nur mit: wer einen Baustein verschiebt, nimmt seinen Hintergrund mit.
+ * Ebenso (0085) seine Plätze in einer Präsentation (`show`, `presentation.ts`).
  */
-export type Layout = Partial<Record<Breakpoint, Frame>> & { readonly slide?: unknown };
+export type Layout = Partial<Record<Breakpoint, Frame>> & { readonly slide?: unknown; readonly show?: unknown };
 
 /** Ein Baustein, so weit das Raster ihn kennt: Kennung, Art, Anordnung. */
 export interface Placed {

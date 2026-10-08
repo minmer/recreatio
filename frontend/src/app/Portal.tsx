@@ -21,6 +21,12 @@
  * <b>Angelegt wird sie NICHT leer.</b> Ein Portal ohne den Baustein, der die
  * eigene Einsendung zeigt, ist kein Portal — es ist eine leere Seite hinter
  * einem geheimen Link.
+ *
+ * <b>0086 — und eine eigene Adresse.</b> Die Seite allein reicht nicht, wenn
+ * sie aus Slajdy besteht und der Mensch auf „Twoje zgłoszenie" landen soll:
+ * dann gehört ein Zusatz dazu — `#twoje-zgloszenie`, `?s=3`, `?part=…`. Man
+ * fügt die Adresse ein, wie sie in der Adresszeile steht; der Link hängt den
+ * Schlüssel des Menschen selbst daran.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -32,6 +38,7 @@ import { newId } from './ids';
 import { COLUMNS, type Breakpoint, type Frame, type Layout } from './layout';
 import { saveParts, type DraftPart } from './page';
 import { PATH_SHAPE, viewPath } from './routes';
+import { pageLink } from './seatKeep';
 import { WorkspaceError } from './session';
 
 /**
@@ -94,6 +101,42 @@ const SEED: readonly { kind: string; rowSpan: number; config: Record<string, str
   }
 ];
 
+/**
+ * 0086 — EINE EIGENE ADRESSE, wie man sie kopiert hat: `https://recreatio.pl/#/events/rocket2026?s=3`,
+ * `recreatio.pl/events/rocket2026#zapisy`, `events/rocket2026#twoje` — oder nur der Zusatz
+ * (`#twoje`, `?s=3`) für die Seite, die schon gewählt ist (`under` leer). `null`: nichts drin.
+ */
+export function ownAddress(text: string): { readonly under: string; readonly at: string } | null {
+  let t = text.trim();
+  if (t === '') return null;
+
+  /* Nur ein Zusatz: „?s=3", „#zapisy" (aber nicht „#/seite"). */
+  if (t.startsWith('?') || (t.startsWith('#') && !t.startsWith('#/'))) return { under: '', at: t };
+
+  t = t.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/#?]*/i, '');
+  /* Ein Rechnername ohne Protokoll: der erste Teil mit Punkt oder Doppelpunkt (`recreatio.pl`, `localhost:5173`). */
+  const head = /^[^/#?]+/.exec(t)?.[0] ?? '';
+  if (/[.:]/.test(head)) t = t.slice(head.length);
+  t = t.replace(/^\/+/, '').replace(/^#\/?/, '').replace(/^\/+/, '');
+
+  const cut = t.search(/[?#]/);
+  let path = (cut < 0 ? t : t.slice(0, cut)).replace(/\/+$/, '');
+  try { path = decodeURIComponent(path); } catch { /* bleibt roh */ }
+  return { under: path.toLowerCase(), at: cut < 0 ? '' : t.slice(cut) };
+}
+
+/** Dasselbe wie der Dienst (`Form.PortalAt`): ? oder # vorn, keine Leerzeichen, nicht der Platz selbst. */
+export function atProblem(at: string): string | null {
+  if (at === '') return null;
+  if (at.length > 300) return 'Dopisek jest za długi (najwyżej 300 znaków).';
+  if (at[0] !== '?' && at[0] !== '#') return 'Dopisek zaczyna się od „?” albo „#”.';
+  if (/[\s<>"'`\\]/.test(at)) return 'Dopisek bez spacji i cudzysłowów.';
+  if (at.indexOf('#') !== at.lastIndexOf('#')) return 'Tylko jedna kotwica „#”.';
+  if (/(^\?|&)miejsce(=|&|#|$)/i.test(at)) return 'Klucz osoby link dopisze sam — usuń „miejsce=…”.';
+  if (at === '?' || at === '#') return 'Po „?” albo „#” coś musi stać.';
+  return null;
+}
+
 /** Dieselbe Anordnung in jeder Grösse — volle Breite, der Reihe nach. */
 function fullWidth(row: number, rowSpan: number): Layout {
   const out: Partial<Record<Breakpoint, Frame>> = {};
@@ -108,7 +151,7 @@ function fullWidth(row: number, rowSpan: number): Layout {
   return out;
 }
 
-export function Portal({ moduleId, standsOn, portalUnder, ownerRoleId, onSet }: {
+export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRoleId, onSet }: {
   moduleId: string;
 
   /**
@@ -124,16 +167,23 @@ export function Portal({ moduleId, standsOn, portalUnder, ownerRoleId, onSet }: 
   /** Worauf der Bogen heute zeigt. Leer heisst: der Dienst leitet es ab. */
   portalUnder: string;
 
+  /** 0086 — der Zusatz zur Adresse (`?s=3`, `#zapisy`) — leer: keiner. */
+  portalAt?: string;
+
   /** Wer eine neue Unterseite führen soll. */
   ownerRoleId: string | null;
 
-  /** Nach dem Setzen — damit die Einstellung im Bild nachzieht. */
-  onSet: (portalUnder: string) => void;
+  /** Nach dem Setzen — damit die Einstellung im Bild nachzieht. `portalAt`: `undefined` — unverändert, `''` — weg. */
+  onSet: (portalUnder: string, portalAt?: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [pages, setPages] = useState<readonly PageCard[]>([]);
   const [wanted, setWanted] = useState('');
+  const [own, setOwn] = useState(portalUnder === '' ? portalAt : `${portalUnder}${portalAt}`);
+
+  /* Kommt eine andere Einstellung herein (gespeichert, anderswo geändert), steht sie im Feld. */
+  useEffect(() => { setOwn(portalUnder === '' ? portalAt : `${portalUnder}${portalAt}`); }, [portalUnder, portalAt]);
 
   const look = useCallback(async () => {
     try { setPages((await loadDesk()).pages); } catch { setPages([]); }
@@ -192,14 +242,15 @@ export function Portal({ moduleId, standsOn, portalUnder, ownerRoleId, onSet }: 
   const said = (e: unknown, what: string) =>
     setFailed(e instanceof WorkspaceError ? e.message : what);
 
-  /** Auf eine Seite zeigen, die es schon gibt. */
+  /** Auf eine Seite zeigen, die es schon gibt. Eine andere Seite: der Zusatz der alten passt nicht mehr (0086). */
   const point = async (where: string) => {
     setBusy(true);
     setFailed(null);
 
     try {
-      await setPartConfig(moduleId, { portalUnder: where });
-      onSet(where);
+      const dropAt = portalAt !== '' && where !== portalUnder;
+      await setPartConfig(moduleId, dropAt ? { portalUnder: where, portalAt: '' } : { portalUnder: where });
+      onSet(where, dropAt ? '' : undefined);
     } catch (e) {
       said(e, 'Nie udało się zapisać.');
     } finally {
@@ -256,6 +307,33 @@ export function Portal({ moduleId, standsOn, portalUnder, ownerRoleId, onSet }: 
     }
   };
 
+  /* -- 0086: die eigene Adresse -------------------------------------------------- */
+  const parsed = ownAddress(own);
+  const ownUnder = parsed === null ? '' : parsed.under === '' ? (portalUnder !== '' ? portalUnder : derived ?? '') : parsed.under;
+  const ownAt = parsed?.at ?? '';
+  const ownBlocker =
+    parsed === null ? null
+    : ownUnder === '' ? 'Wpisz adres strony.'
+    : !PATH_SHAPE.test(ownUnder) ? 'Nie rozpoznaję adresu strony — wklej go tak, jak stoi w pasku adresu.'
+    : !nowhere && pages.length > 0 && !choices.some((one) => one.path === ownUnder)
+      ? `recreatio.pl/${ownUnder} nie może być stroną po wysłaniu tego formularza — wybierz stronę z listy wyżej.`
+    : atProblem(ownAt);
+  const ownSame = parsed !== null && ownUnder === portalUnder && ownAt === portalAt;
+
+  const saveOwn = async () => {
+    if (parsed === null || ownBlocker !== null) return;
+    setBusy(true);
+    setFailed(null);
+    try {
+      await setPartConfig(moduleId, { portalUnder: ownUnder, portalAt: ownAt });
+      onSet(ownUnder, ownAt);
+    } catch (e) {
+      said(e, 'Nie udało się zapisać adresu.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const path = wanted.trim().replace(/^\/+|\/+$/g, '');
   const taken = pages.some((one) => one.path === path);
 
@@ -291,7 +369,7 @@ export function Portal({ moduleId, standsOn, portalUnder, ownerRoleId, onSet }: 
 
       {opens !== null && (
         <p className="wk-warn">
-          Link otwiera <code>recreatio.pl/{opens}</code>
+          Link otwiera <code>recreatio.pl/{opens}{portalAt}</code>
           {!has && ' — tak wychodzi z ustawień, nikt tego nie wybrał.'}
         </p>
       )}
@@ -328,6 +406,53 @@ export function Portal({ moduleId, standsOn, portalUnder, ownerRoleId, onSet }: 
         busy={busy}
         onPick={(where) => void point(where)}
       />
+
+      {/*
+        0086 — EIGENE ADRESSE: dieselbe Seite, dazu ein Anker oder Parameter —
+        der Link öffnet den Slajd „Twoje zgłoszenie" statt des ersten.
+      */}
+      <details className="wk-fold wk-own-address" open={portalAt !== ''}>
+        <summary>Własny adres — z „#” albo parametrami</summary>
+        <label className="wk-field">
+          <span>Adres strony po wysłaniu</span>
+          <input
+            value={own}
+            placeholder="np. recreatio.pl/#/events/rocket2026#twoje-zgloszenie"
+            disabled={busy}
+            onChange={(e) => setOwn(e.target.value)}
+          />
+          <span className="wk-hint">
+            Wklej adres strony (z listy wyżej) i dopisz za nim: „#nazwa-slajdu” — link otworzy ten slajd (nazwa jak w
+            menu slajdów, np. „#twoje-zgloszenie”), „?s=3” — trzeci slajd, „?part=…” — konkretny moduł. Sam dopisek
+            („#…” albo „?…”) dotyczy strony wybranej wyżej. Klucz osoby link doda sam.
+          </span>
+        </label>
+        {parsed !== null && ownBlocker === null && (
+          <p className="wk-hint">
+            Link osoby: <code>recreatio.pl/{pageLink(ownUnder, '…', '…', ownAt).replace(/%E2%80%A6/g, '…')}</code>
+          </p>
+        )}
+        {ownBlocker !== null && !busy && <p className="wk-blocker">{ownBlocker}</p>}
+        <div className="wk-actions">
+          <button type="button" className="wk-btn" disabled={busy || parsed === null || ownBlocker !== null || ownSame} onClick={() => void saveOwn()}>
+            Zapisz adres
+          </button>
+          {portalAt !== '' && (
+            <button
+              type="button" className="wk-link-btn" disabled={busy}
+              onClick={() => void (async () => {
+                setBusy(true);
+                setFailed(null);
+                try { await setPartConfig(moduleId, { portalAt: '' }); onSet(portalUnder, ''); }
+                catch (e) { said(e, 'Nie udało się zapisać.'); }
+                finally { setBusy(false); }
+              })()}
+            >
+              Bez dopisku
+            </button>
+          )}
+        </div>
+      </details>
 
       {/*
         EINE NEUE, unter einem Namen, den man selbst wählt. Vorher stand hier

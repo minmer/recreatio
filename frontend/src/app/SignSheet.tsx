@@ -29,6 +29,7 @@ import {
   consentGiven, consentText, isYes, loadForm, openFields, type AfterSend, type OpenField, type PublicForm
 } from './form';
 import { EMPTY_DESIGN, evaluate, layoutWith, openDesign, type FormDesign, type LayoutItem } from './formDesign';
+import { ageOn, birthOf } from './pesel';
 
 /* -- Ein öffentliches Formular, aufgemacht ------------------------------------------ */
 
@@ -81,18 +82,65 @@ export function openPublicFormKept(partId: string): Promise<OpenForm> {
 
 /* -- Wann auf Papier ----------------------------------------------------------------- */
 
+/** Die Regel „niepełnoletni": Papier für jeden unter 18 — aus Geburtsdatum oder PESEL. */
+export const PAPER_MINOR = 'minor';
+
+/** Was eine Frage sein muss, damit aus ihr das Alter folgt. */
+type AgeField = Pick<OpenField, 'fieldId' | 'kind' | 'identityRole'>;
+
+/** Fragen, aus denen sich das Geburtsdatum ergibt: „Data urodzenia" (Rolle `born`), ein Datum dieser Rolle, ein PESEL. */
+export const ageFields = (fields: readonly AgeField[]): AgeField[] =>
+  fields.filter((f) => f.identityRole === 'born' || f.kind === 'pesel');
+
+/** Das Geburtsdatum eines Ausgefüllten — das erste, das sich lesen lässt. */
+export function birthFrom(fields: readonly AgeField[], valueOf: (fieldId: string) => string | undefined): string | null {
+  for (const f of ageFields(fields)) {
+    const birth = birthOf(valueOf(f.fieldId));
+    if (birth !== null) return birth;
+  }
+  return null;
+}
+
 /**
  * Muss DIESES Ausgefüllte auf Papier unterschrieben werden? `always` — immer;
- * die Kennung einer Frage — wenn sie angekreuzt ist (eine Zustimmung, ein
+ * `minor` — wenn der Mensch am Tag des Ausfüllens (`on`, sonst heute) noch
+ * keine 18 ist (aus Geburtsdatum oder PESEL; ohne eines davon nicht); die
+ * Kennung einer Frage — wenn sie angekreuzt ist (eine Zustimmung, ein
  * „Tak / nie"); sonst nicht.
  */
-export function paperNeeded(after: AfterSend | null | undefined, valueOf: (fieldId: string) => string | undefined): boolean {
+export function paperNeeded(
+  after: AfterSend | null | undefined,
+  valueOf: (fieldId: string) => string | undefined,
+  person: { readonly fields?: readonly AgeField[]; readonly on?: string | null } = {}
+): boolean {
   const rule = after?.paper?.trim() ?? '';
   if (rule === '') return false;
   if (rule === 'always') return true;
+  if (rule === PAPER_MINOR) {
+    const birth = birthFrom(person.fields ?? [], valueOf);
+    const age = birth === null ? null : ageOn(birth, person.on ?? null);
+    return age !== null && age < 18;
+  }
   const value = valueOf(rule);
   return consentGiven(value) || isYes(value);
 }
+
+/**
+ * EINE ZUSTIMMUNG DER ELTERN, die noch auf kein Papier führt? Für den Hinweis in
+ * „Po wysłaniu": ein Formular, das nach der Zustimmung eines Elternteils fragt
+ * (eine Zustimmung oder ein „Tak / nie", deren Wortlaut von Eltern oder
+ * Erziehungsberechtigten und ihrer Zustimmung oder Unterschrift spricht), aber
+ * nichts drucken lässt — wie die Zapisy, die vor 0083 entstanden sind.
+ */
+export function parentalConsentOf<F extends Pick<OpenField, 'fieldId' | 'kind' | 'label' | 'help'>>(fields: readonly F[]): F | null {
+  const parent = /rodzic|opiekun|parent|guardian/i;
+  const consent = /zgod|podpis|consent|sign/i;
+  return fields.find((f) => (f.kind === 'consent' || f.kind === 'checkbox')
+    && parent.test(`${f.label ?? ''} ${f.help ?? ''}`) && consent.test(`${f.label ?? ''} ${f.help ?? ''}`)) ?? null;
+}
+
+/** Der Tag aus einem Zeitpunkt (`2026-10-07T…`) — für das Alter am Tag des Ausfüllens. */
+const dayOf = (iso: string | null): string | null => (iso === null ? null : /^\d{4}-\d{2}-\d{2}/.exec(iso)?.[0] ?? null);
 
 /* -- Das Blatt ------------------------------------------------------------------------ */
 
@@ -253,7 +301,8 @@ export function SignSheetButton({ formId, values, submittedAt, when = 'needed', 
 
   if (open === null) return null;
   const after = open.form.after ?? null;
-  const show = when === 'ruled' ? (after?.paper ?? '') !== '' : paperNeeded(after, (id) => values.get(id));
+  const show = when === 'ruled' ? (after?.paper ?? '') !== ''
+    : paperNeeded(after, (id) => values.get(id), { fields: open.fields, on: dayOf(submittedAt) });
   if (!show) return null;
 
   return (

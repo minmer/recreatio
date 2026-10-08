@@ -73,6 +73,8 @@ public static partial class Form
         app.MapPost("/workspace/part/{id:guid}/field", AddFieldAsync);
         app.MapGet("/workspace/part/{id:guid}/fields", FieldsAsync);
         app.MapPost("/workspace/field/{id:guid}/remove", RemoveFieldAsync);
+        /* 0086 — eine vom Formular genommene Frage zurückholen. */
+        app.MapPost("/workspace/field/{id:guid}/restore", RestoreFieldAsync);
 
         /*
          * EINE FRAGE AENDERN (0042) — ihren Text, ihre Form, und wohin ihre
@@ -350,7 +352,7 @@ public static partial class Form
 
         if (!mayWrite)
         {
-            var asked = await ReadFieldsAsync(connection, id, ctx.RequestAborted);
+            var asked = await ReadFieldsAsync(connection, id, ctx.RequestAborted, withRemoved: true);
             var any = false;
 
             foreach (var areaId in asked.Select(f => f.AreaId).Distinct())
@@ -391,7 +393,7 @@ public static partial class Form
         await ctx.Response.WriteAsJsonAsync(new
         {
             partId = Ids.ToText(id),
-            fields = (await ReadFieldsAsync(connection, id, ctx.RequestAborted)).Select(Told),
+            fields = (await ReadFieldsAsync(connection, id, ctx.RequestAborted, withRemoved: true)).Select(Told),
             design = await DesignAsync(connection, id, ctx.RequestAborted)
         });
     }
@@ -440,23 +442,132 @@ public static partial class Form
             return;
         }
 
+        /*
+         * 0086 — EINE FRAGE EINES WYMAGANIE bleibt, solange es eingeschaltet
+         * ist: ohne Geburtsdatum weiss das Formular nicht, wer minderjährig ist,
+         * ohne die Zustimmung druckt es nichts. Verschieben darf man sie.
+         */
+        var locked = await LockedFieldsAsync(connection, partId, ctx.RequestAborted);
+        if (locked.TryGetValue(id, out var need))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                $"To pytanie należy do wymagania „{need}” — można je przesunąć albo zmienić jego brzmienie, ale usunąć dopiero po wyłączeniu wymagania.");
+            return;
+        }
+
+        bool answered;
         await using (var used = new SqlCommand(
             "SELECT TOP 1 1 FROM app.registration_value WHERE field_id = @id;", connection))
         {
             used.Parameters.AddWithValue("@id", id);
-            if (await used.ExecuteScalarAsync(ctx.RequestAborted) is not null)
-            {
-                await Fail(ctx, StatusCodes.Status409Conflict,
-                    "Na to pole ktoś już odpowiedział. Usunięcie zostawiłoby odpowiedź bez pytania.");
-                return;
-            }
+            answered = await used.ExecuteScalarAsync(ctx.RequestAborted) is not null;
+        }
+
+        /*
+         * 0086 — MIT ANTWORTEN wird sie vom Formular GENOMMEN, nicht gelöscht:
+         * niemand bekommt sie mehr, ihre Antworten stehen weiter in der Tabelle
+         * der Kanzlei. Ohne Antworten ist sie wirklich weg.
+         */
+        if (answered)
+        {
+            await using var off = new SqlCommand(
+                "UPDATE app.slug_field SET removed_at = @now WHERE id = @id AND removed_at IS NULL;", connection);
+            off.Parameters.AddWithValue("@id", id);
+            off.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            await off.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+            await ctx.Response.WriteAsJsonAsync(new { fieldId = Ids.ToText(id), removed = true, kept = true });
+            return;
         }
 
         await using var drop = new SqlCommand("DELETE FROM app.slug_field WHERE id = @id;", connection);
         drop.Parameters.AddWithValue("@id", id);
         await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
 
-        await ctx.Response.WriteAsJsonAsync(new { fieldId = Ids.ToText(id), removed = true });
+        await ctx.Response.WriteAsJsonAsync(new { fieldId = Ids.ToText(id), removed = true, kept = false });
+    }
+
+    /// <summary>0086 — eine vom Formular genommene Frage zurückholen; sie wird wieder gestellt.</summary>
+    private static async Task RestoreFieldAsync(HttpContext ctx, Db db, Guid id)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        Guid partId;
+        await using (var find = new SqlCommand("SELECT part_id FROM app.slug_field WHERE id = @id;", connection))
+        {
+            find.Parameters.AddWithValue("@id", id);
+            if (await find.ExecuteScalarAsync(ctx.RequestAborted) is not Guid found)
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Takiego pola nie ma.");
+                return;
+            }
+            partId = found;
+        }
+
+        var sheet = await SheetAsync(connection, partId, ctx.RequestAborted);
+        if (sheet is null || !await MayWriteSheetAsync(connection, who.Value.AccountId, sheet, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, NotYours);
+            return;
+        }
+
+        await using var back = new SqlCommand("UPDATE app.slug_field SET removed_at = NULL WHERE id = @id;", connection);
+        back.Parameters.AddWithValue("@id", id);
+        await back.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        await ctx.Response.WriteAsJsonAsync(new { fieldId = Ids.ToText(id), restored = true });
+    }
+
+    /// <summary>
+    /// 0086 — DIE FRAGEN DER EINGESCHALTETEN WYMAGANIA (`config.needs`):
+    /// Kennung → Name des Wymaganie. Die Einstellung liest der Dienst ohnehin
+    /// (sie ist nicht versiegelt) — also prüft er auch hier und nicht nur der Browser.
+    /// </summary>
+    internal static async Task<Dictionary<Guid, string>> LockedFieldsAsync(SqlConnection connection, Guid moduleId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("SELECT config FROM app.module WHERE id = @id;", connection);
+        cmd.Parameters.AddWithValue("@id", moduleId);
+        return LockedFields(await cmd.ExecuteScalarAsync(ct) as string);
+    }
+
+    /// <summary>Dasselbe aus dem Text der Einstellung — ohne Datenbank, zum Prüfen.</summary>
+    public static Dictionary<Guid, string> LockedFields(string? config)
+    {
+        var out_ = new Dictionary<Guid, string>();
+        if (string.IsNullOrWhiteSpace(config)) return out_;
+
+        try
+        {
+            var flat = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(config);
+            if (flat is null || !flat.TryGetValue("needs", out var needs) || string.IsNullOrWhiteSpace(needs)) return out_;
+
+            /* Eine Liste: [{ "id", "label", "fields": [kennungen], … }] (formTemplates.ts). */
+            using var doc = System.Text.Json.JsonDocument.Parse(needs);
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Array) return out_;
+
+            foreach (var need in doc.RootElement.EnumerateArray())
+            {
+                if (need.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                var id = need.TryGetProperty("id", out var i) && i.ValueKind == System.Text.Json.JsonValueKind.String ? i.GetString() ?? "" : "";
+                var label = need.TryGetProperty("label", out var l) && l.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? l.GetString() ?? id : id;
+                if (!need.TryGetProperty("fields", out var fields) || fields.ValueKind != System.Text.Json.JsonValueKind.Array) continue;
+                foreach (var one in fields.EnumerateArray())
+                {
+                    if (one.ValueKind == System.Text.Json.JsonValueKind.String && Guid.TryParse(one.GetString(), out var fieldId))
+                        out_.TryAdd(fieldId, label);
+                }
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            /* Unlesbar heisst: nichts gesperrt — eine kaputte Einstellung darf das Formular nicht festnageln. */
+        }
+
+        return out_;
     }
 
     /* -- Das oeffentliche Formular ------------------------------------------ */
@@ -582,7 +693,10 @@ public static partial class Form
                 title = whole.After.Title,
                 text = whole.After.Text,
                 paper = whole.After.Paper,
-                signer = whole.After.Signer
+                signer = whole.After.Signer,
+
+                /* 0086 — der Zusatz zur Adresse der Seite nach dem Absenden (`#twoje-zgloszenie`, `?s=3`). */
+                at = whole.After.At
             }
         });
     }
@@ -1324,7 +1438,7 @@ public static partial class Form
          * lesen darf, in die dieses Formular schreibt.
          */
         var mayWrite = await MayWriteSheetAsync(connection, who.Value.AccountId, sheet, ctx.RequestAborted);
-        var fields = await ReadFieldsAsync(connection, id, ctx.RequestAborted);
+        var fields = await ReadFieldsAsync(connection, id, ctx.RequestAborted, withRemoved: true);
 
         var mine = new HashSet<Guid>();
 
@@ -1543,10 +1657,15 @@ public static partial class Form
 
     /* -- Gemeinsames -------------------------------------------------------- */
 
+    /// <summary>
+    /// Eine Frage, wie sie in der Datenbank steht. <c>RemovedAt</c> (0086): vom
+    /// Formular genommen — gefragt wird sie nicht mehr, ihre Antworten bleiben.
+    /// </summary>
     internal sealed record FieldRow(
         Guid Id, Guid AreaId, string Kind, int Position, byte[] Label, byte[]? Help,
         byte[]? Options, int Epoch, bool IsRequired, bool IsHalfWidth, string IdentityRole,
-        Guid? LabelAreaId = null, int? LabelEpoch = null, bool SelfEdit = true, bool LinkCheck = false);
+        Guid? LabelAreaId = null, int? LabelEpoch = null, bool SelfEdit = true, bool LinkCheck = false,
+        DateTimeOffset? RemovedAt = null);
 
     /// <summary>
     /// Wie eine Frage hinausgeht. <c>labelAreaId</c> / <c>labelEpoch</c> sind
@@ -1572,7 +1691,10 @@ public static partial class Form
         selfEdit = f.SelfEdit,
 
         /* Beim ersten Oeffnen eines Links zu bestaetigen (0046)? */
-        linkCheck = f.LinkCheck
+        linkCheck = f.LinkCheck,
+
+        /* 0086 — vom Formular genommen (nur die Kanzlei bekommt solche zu sehen). */
+        removedAt = f.RemovedAt
     };
 
     /// <summary>
@@ -1616,17 +1738,22 @@ public static partial class Form
     /// Genau das ist einmal passiert, und zwar nur auf dem Weg der Kanzlei.
     /// </para>
     /// </summary>
+    /// <param name="withRemoved">
+    /// 0086 — auch die vom Formular genommenen Fragen: für die Kanzlei (ihre
+    /// Antworten bleiben lesbar) und für die Frage, wer was darf. Das Formular
+    /// selbst und das Absenden kennen sie nicht mehr.
+    /// </param>
     private static async Task<List<FieldRow>> ReadFieldsAsync(
-        SqlConnection connection, Guid partId, CancellationToken ct)
+        SqlConnection connection, Guid partId, CancellationToken ct, bool withRemoved = false)
     {
         var fields = new List<FieldRow>();
 
-        await using var cmd = new SqlCommand("""
+        await using var cmd = new SqlCommand($"""
             SELECT id, area_id, kind, position, label_sealed, help_sealed, options_sealed,
                    epoch, is_required, is_half_width, identity_role, label_area_id, label_epoch,
-                   self_edit, link_check
+                   self_edit, link_check, removed_at
             FROM app.slug_field
-            WHERE part_id = @part
+            WHERE part_id = @part{(withRemoved ? "" : " AND removed_at IS NULL")}
             ORDER BY position;
             """, connection);
 
@@ -1644,7 +1771,8 @@ public static partial class Form
                 reader.IsDBNull(11) ? null : reader.GetGuid(11),
                 reader.IsDBNull(12) ? null : reader.GetInt32(12),
                 reader.GetBoolean(13),
-                reader.GetBoolean(14)));
+                reader.GetBoolean(14),
+                reader.IsDBNull(15) ? null : reader.GetDateTimeOffset(15)));
         }
 
         return fields;
@@ -1951,7 +2079,7 @@ public static partial class Form
 
         if (!mayWrite)
         {
-            var fields = await ReadFieldsAsync(connection, id, ctx.RequestAborted);
+            var fields = await ReadFieldsAsync(connection, id, ctx.RequestAborted, withRemoved: true);
             var any = false;
 
             foreach (var areaId in fields.Select(f => f.AreaId).Distinct())
@@ -2139,6 +2267,19 @@ public static partial class Form
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, NotAnchorable);
             return;
+        }
+
+        /* 0086 — der Zusatz zur Adresse (`?s=3`, `#zapisy`): lesbar, oder gar nicht. */
+        if (set.TryGetValue("portalAt", out var at) && at.Trim() != "")
+        {
+            var normal = PortalAt(at);
+            if (normal is null)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest,
+                    $"Dopisek do adresu zaczyna się od „?” albo „#”, bez spacji i bez „{SeatParam}=”, najwyżej {MaxPortalAt} znaków.");
+                return;
+            }
+            set["portalAt"] = normal;
         }
 
         string? current;
@@ -2439,7 +2580,7 @@ public static partial class Form
 
         if (await MayWriteSheetAsync(connection, who.Value.AccountId, sheet, ctx.RequestAborted)) return true;
 
-        var fields = await ReadFieldsAsync(connection, partId, ctx.RequestAborted);
+        var fields = await ReadFieldsAsync(connection, partId, ctx.RequestAborted, withRemoved: true);
 
         foreach (var areaId in fields.Select(f => f.AreaId).Distinct())
         {
@@ -2706,7 +2847,40 @@ public static partial class Form
     /// Vorlagen der Nachrichten, und die gehoeren der Kanzlei.
     /// </para>
     /// </summary>
-    private sealed record After(string? Title, string? Text, string? Paper, string? Signer);
+    /// <param name="At">
+    /// 0086 — was an die Adresse der Seite gehängt wird (`portalAt`): `?s=3`
+    /// (ein Slajd), `?part=<kennung>` (ein Baustein), `#zapisy` (ein Slajd nach
+    /// seinem Namen) — der Link des Menschen öffnet die Seite genau dort.
+    /// </param>
+    private sealed record After(string? Title, string? Text, string? Paper, string? Signer, string? At = null);
+
+    /// <summary>Was der Platz eines Menschen in der Adresse traegt (`seatKeep.ts`) — der Zusatz darf es nicht nachmachen.</summary>
+    private const string SeatParam = "miejsce";
+
+    private const int MaxPortalAt = 300;
+
+    /// <summary>
+    /// 0086 — DER ZUSATZ ZUR ADRESSE, geprueft: beginnt mit `?` oder `#`,
+    /// keine Leerzeichen, keine Zeichen, die aus einem Link etwas anderes
+    /// machen, nicht der Platz selbst. <c>null</c> heisst: so nicht.
+    /// </summary>
+    public static string? PortalAt(string? text)
+    {
+        var at = (text ?? string.Empty).Trim();
+        if (at.Length == 0 || at.Length > MaxPortalAt) return null;
+        if (at[0] != '?' && at[0] != '#') return null;
+        if (at.Any(c => char.IsWhiteSpace(c) || char.IsControl(c) || c is '<' or '>' or '"' or '\'' or '`' or '\\')) return null;
+
+        var hash = at.IndexOf('#');
+        var query = hash < 0 ? at : at[..hash];
+        if (query.TrimStart('?').Split('&').Any(p => p.Equals(SeatParam, StringComparison.OrdinalIgnoreCase)
+                || p.StartsWith(SeatParam + "=", StringComparison.OrdinalIgnoreCase))) return null;
+
+        /* Ein zweites `#` haette keinen Sinn — der Anker ist der Rest. */
+        if (hash >= 0 && at.IndexOf('#', hash + 1) >= 0) return null;
+
+        return at == "?" || at == "#" ? null : at;
+    }
 
     private static After? AfterOf(string? config)
     {
@@ -2719,8 +2893,8 @@ public static partial class Form
 
         string? Get(string key) => read.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v.Trim() : null;
 
-        var after = new After(Get("sentTitle"), Get("sentText"), Get("paper"), Get("paperSigner"));
-        return after is { Title: null, Text: null, Paper: null, Signer: null } ? null : after;
+        var after = new After(Get("sentTitle"), Get("sentText"), Get("paper"), Get("paperSigner"), PortalAt(Get("portalAt")));
+        return after is { Title: null, Text: null, Paper: null, Signer: null, At: null } ? null : after;
     }
 
     private static string? TitleOf(string? config)

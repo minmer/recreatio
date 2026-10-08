@@ -21,6 +21,7 @@
 import { useState } from 'react';
 
 import { definePart, lines, text, type RawConfig } from '../part';
+import { RichLine } from '../richText';
 
 interface Config {
   readonly title: string;
@@ -32,12 +33,13 @@ const read = (raw: RawConfig): Config => ({
   body: lines(raw, 'body')
 });
 
-/** Eine Zeile des Textes: Zwischenüberschrift oder Absatz. */
+/**
+ * Eine Zeile des Textes: Zwischenüberschrift, Absatz — und seit 0085 eine
+ * grosse Zeile (`# `), eine leise (`> `), Verweise (`[Napis](adres)`) und eine
+ * Zeile nur aus Verweisen als Reihe (`richText.tsx`).
+ */
 function Line({ line }: { line: string }) {
-  const heading = /^#{2,3}\s+(.*)$/.exec(line);
-  return heading !== null
-    ? <h3 className="wk-card-sub">{heading[1]}</h3>
-    : <p className="wk-card-text">{line}</p>;
+  return <RichLine line={line} />;
 }
 
 function TextView({ config, strip }: { config: Config; strip: boolean }) {
@@ -75,7 +77,7 @@ export const textPart = definePart<Config>({
 
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line' },
-    { key: 'body', label: 'Treść', kind: 'text', hint: 'Akapit w wierszu; „## " na początku robi śródtytuł' }
+    { key: 'body', label: 'Treść', kind: 'text', hint: 'Akapit w wierszu; „## " — śródtytuł, „# " — duża linia, „> " — mała; link: [napis](https://… albo #/strona)' }
   ],
 
   read,

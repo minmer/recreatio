@@ -851,7 +851,7 @@ public static partial class Form
     {
         if (await MayWriteSheetAsync(connection, accountId, sheet, ct)) return true;
 
-        var fields = await ReadFieldsAsync(connection, sheet.ModuleId, ct);
+        var fields = await ReadFieldsAsync(connection, sheet.ModuleId, ct, withRemoved: true);
 
         foreach (var areaId in fields.Select(f => f.AreaId).Distinct())
         {

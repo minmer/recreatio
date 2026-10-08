@@ -106,14 +106,23 @@ const COLUMN: Record<ReturnType<typeof roleOf>, number> = { input: 40, gate: 340
 
 /* -- Der Editor --------------------------------------------------------------------- */
 
-export function FormLogic({ design, layout, fields, busy, onSave }: {
+export function FormLogic({ design, layout, fields, busy, onSave, locked }: {
   design: FormDesign;
   /** Der vollständige Aufbau — daraus die Ziele von „Pokaż". */
   layout: readonly LayoutItem[];
   fields: readonly OpenField[];
   busy: boolean;
   onSave: (nodes: readonly LogicNode[], edges: readonly LogicEdge[]) => void;
+
+  /**
+   * 0086 — DIE LOGIK EINES EINGESCHALTETEN WYMAGANIE (Kennung → sein Name):
+   * „Wiek < 18 → pokaż rodzica" lässt sich verschieben, aber weder löschen noch
+   * umstellen — sonst druckte das Formular für Minderjährige nichts mehr.
+   */
+  locked?: { readonly nodes: ReadonlyMap<string, string>; readonly edges: ReadonlySet<string> };
 }) {
+  const lockedNodes = locked?.nodes ?? new Map<string, string>();
+  const lockedEdges = locked?.edges ?? new Set<string>();
   const [nodes, setNodes] = useState<readonly LogicNode[]>(design.nodes);
   const [edges, setEdges] = useState<readonly LogicEdge[]>(design.edges);
   const [selected, setSelected] = useState<string | null>(null);
@@ -178,13 +187,15 @@ export function FormLogic({ design, layout, fields, busy, onSave }: {
     type: 'logic',
     position: { x: n.x, y: n.y },
     selected: n.id === selected,
-    data: { node: n, summary: summary(n), preview: outcome.values.get(n.id) }
+    deletable: !lockedNodes.has(n.id),
+    data: { node: n, summary: lockedNodes.has(n.id) ? `${summary(n)} · wymaganie` : summary(n), preview: outcome.values.get(n.id) }
   }));
 
   const rfEdges: Edge[] = edges.map((e) => {
     const on = outcome.values.get(e.from);
     return {
       id: e.id, source: e.from, target: e.to, sourceHandle: 'out', targetHandle: e.port,
+      deletable: !lockedEdges.has(e.id),
       animated: on === true,
       style: { strokeWidth: 2, stroke: on === true ? 'var(--wk-ok)' : 'var(--wk-muted)' }
     };
@@ -208,8 +219,8 @@ export function FormLogic({ design, layout, fields, busy, onSave }: {
     const many = portsOf(to.kind).find((p) => p.port === port)?.many ?? false;
 
     setEdges((was) => [
-      /* Ein Anschluss für EINE Kante: die neue ersetzt die alte. */
-      ...was.filter((e) => many || !(e.to === c.target && e.port === port)),
+      /* Ein Anschluss für EINE Kante: die neue ersetzt die alte — eine gesperrte (0086) bleibt. */
+      ...was.filter((e) => many || lockedEdges.has(e.id) || !(e.to === c.target && e.port === port)),
       { id: newId(), from: c.source!, to: c.target!, port }
     ]);
   };
@@ -227,11 +238,12 @@ export function FormLogic({ design, layout, fields, busy, onSave }: {
 
   const edgeChanges = (changes: EdgeChange[]) => {
     for (const ch of changes) {
-      if (ch.type === 'remove') setEdges((was) => was.filter((e) => e.id !== ch.id));
+      if (ch.type === 'remove' && !lockedEdges.has(ch.id)) setEdges((was) => was.filter((e) => e.id !== ch.id));
     }
   };
 
   const drop = (id: string) => {
+    if (lockedNodes.has(id)) return;
     setNodes((was) => was.filter((n) => n.id !== id));
     setEdges((was) => was.filter((e) => e.from !== id && e.to !== id));
     setSelected((was) => (was === id ? null : was));
@@ -249,8 +261,10 @@ export function FormLogic({ design, layout, fields, busy, onSave }: {
     setSelected(node.id);
   };
 
-  const patch = (id: string, change: Partial<LogicNode>) =>
+  const patch = (id: string, change: Partial<LogicNode>) => {
+    if (lockedNodes.has(id)) return;
     setNodes((was) => was.map((n) => n.id === id ? { ...n, ...change } : n));
+  };
 
   const chosen = nodes.find((n) => n.id === selected) ?? null;
 
@@ -323,6 +337,7 @@ export function FormLogic({ design, layout, fields, busy, onSave }: {
               node={chosen}
               fields={fields}
               targets={targets}
+              lockedBy={lockedNodes.get(chosen.id) ?? null}
               onPatch={(change) => patch(chosen.id, change)}
               onDrop={() => drop(chosen.id)}
             />
@@ -379,18 +394,26 @@ export function FormLogic({ design, layout, fields, busy, onSave }: {
 }
 
 /** Was sich an EINEM Knoten einstellen lässt — je nach Art. */
-function Inspector({ node, fields, targets, onPatch, onDrop }: {
+function Inspector({ node, fields, targets, lockedBy, onPatch, onDrop }: {
   node: LogicNode;
   fields: readonly OpenField[];
   targets: readonly { id: string; label: string; field: boolean }[];
+  /** 0086 — der Name des Wymaganie, zu dem der Knoten gehört; `null`: frei. */
+  lockedBy: string | null;
   onPatch: (change: Partial<LogicNode>) => void;
   onDrop: () => void;
 }) {
   const fieldTargets = targets.filter((t) => t.field);
 
   return (
-    <div className="wk-form">
+    <fieldset className="wk-form wk-bare-fieldset" disabled={lockedBy !== null}>
       <h3 className="wk-h2">{NODE_LABEL[node.kind]}</h3>
+      {lockedBy !== null && (
+        <p className="wk-hint">
+          Należy do wymagania „{lockedBy}” — można go przesunąć, ale zmienić albo usunąć dopiero po wyłączeniu
+          wymagania (zakładka „Pytania”).
+        </p>
+      )}
 
       {node.kind === 'answer' && (
         <label className="wk-field">
@@ -486,10 +509,12 @@ function Inspector({ node, fields, targets, onPatch, onDrop }: {
         </label>
       )}
 
-      <div className="wk-actions">
-        <button type="button" className="wk-link-btn wk-danger" onClick={onDrop}>Usuń węzeł</button>
-      </div>
-    </div>
+      {lockedBy === null && (
+        <div className="wk-actions">
+          <button type="button" className="wk-link-btn wk-danger" onClick={onDrop}>Usuń węzeł</button>
+        </div>
+      )}
+    </fieldset>
   );
 }
 

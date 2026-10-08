@@ -4579,6 +4579,23 @@ body.has-deck { overflow: hidden; }
   .wk-deck-layer, .wk-deck-bigtext { transform: none !important; }
 }
 
+/* -- 0084: die Bühne — Bausteine, die den Wechsel der Slajdy überleben ------ */
+.wk-deck-stage { position: absolute; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; }
+.wk-deck-actor {
+  position: absolute;
+  width: var(--actor-w);
+  max-width: 96%;
+  pointer-events: auto;
+  will-change: transform, left, top, opacity;
+  transform-origin: 50% 50%;
+}
+@media (max-width: 640px) { .wk-deck-actor { width: var(--actor-w-narrow); } }
+.wk-deck-actor > .wk-deck-card { box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28); }
+.wk-deck-actor-bare { color: var(--deck-ink); }
+.wk-deck-actor-bare .wk-card-title { margin: 0; font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif; font-size: clamp(1.5rem, 3.4vw, 2.4rem); }
+.wk-deck-actor-bare img { display: block; max-width: 100%; height: auto; }
+
+
 /* -- Der Editor der Slajdy (0062): links die Folge, rechts die Vorschau ----- */
 .se {
   display: grid;
@@ -4625,6 +4642,18 @@ body.has-deck { overflow: hidden; }
 .se-body { display: grid; gap: 0.7rem; padding: 0.3rem 0.8rem 0.9rem; border-top: 1px solid var(--wk-line); }
 
 .se-layers { display: grid; gap: 0.6rem; }
+
+/* 0084 — der Wechsel eines Slajds, und die Bühne. */
+.se-motion { display: grid; gap: 0.7rem; }
+.se-num.is-stage { color: var(--wk-accent); }
+.se-stage-toggle { align-items: flex-start; line-height: 1.45; }
+.se-stage-toggle input { margin-top: 0.2rem; flex: none; }
+.se-stage { display: grid; gap: 0.6rem; }
+.se-stage-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; }
+.se-stage-slide { display: grid; gap: 0.4rem; padding: 0.45rem 0.6rem; border: 1px solid var(--wk-line); border-radius: 6px; }
+.se-stage-slide.is-set { border-color: var(--wk-accent); }
+.se-stage-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.se-stage-places { display: flex; flex-wrap: wrap; gap: 0.2rem 0.7rem; }
 .se-layer { border: 1px solid var(--wk-line); border-radius: 6px; padding: 0.5rem 0.7rem 0.7rem; display: grid; gap: 0.45rem; margin: 0; }
 .se-layer legend { display: flex; align-items: center; gap: 0.6rem; font-weight: 600; font-size: 0.9rem; padding: 0 0.3rem; }
 .se-inline { display: grid; grid-template-columns: 7rem minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; font-size: 0.92rem; }
@@ -7243,10 +7272,47 @@ a.wk-toast-body:focus-visible { outline: 2px solid var(--wk-accent); outline-off
 .wk-fieldset { display: grid; gap: 0.75rem; margin: 0; padding: 0.8rem 0.9rem 0.9rem; border: 1px solid var(--wk-line); border-radius: 6px; min-width: 0; }
 .wk-fieldset > legend { padding: 0 0.3rem; font-weight: 600; font-size: 0.95rem; }
 
-/* Gotowe wzory — je einer mit Satz und Knopf. */
-.wk-template-list { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.6rem; }
-.wk-template { display: grid; gap: 0.3rem; padding: 0.7rem 0.8rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); }
-.wk-template .wk-btn { justify-self: start; }
+/*
+   0086 — WYMAGANIA: je eines ein Kästchen mit Satz; eingeschaltet mit Rand in
+   der Farbe für „gilt", und darunter, was es hält. Ausschalten fragt in der Zeile.
+*/
+.wk-needs { display: grid; gap: 0.5rem; padding: 0.8rem 0.9rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); }
+.wk-needs > .wk-h3, .wk-needs > p { margin: 0; }
+.wk-need-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.wk-need { display: grid; gap: 0.5rem; padding: 0.6rem 0.75rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-bg, transparent); }
+.wk-need.is-on { border-color: var(--wk-ok); }
+.wk-need-pick { display: flex; gap: 0.6rem; align-items: flex-start; cursor: pointer; }
+.wk-need-pick input { margin-top: 0.25rem; flex: none; width: 1.05rem; height: 1.05rem; }
+.wk-need-pick > span { display: grid; gap: 0.2rem; min-width: 0; }
+.wk-need-holds { color: var(--wk-ok); }
+.wk-need-leave { display: flex; flex-wrap: wrap; gap: 0.5rem 0.8rem; align-items: center; padding: 0.55rem 0.7rem; border-radius: 6px; background: var(--wk-held-bg); color: var(--wk-held-ink); }
+.wk-need-leave .wk-hint { flex: 1 1 18rem; color: inherit; }
+.wk-tag-need { margin-left: 0.5rem; border-color: var(--wk-ok); color: var(--wk-ok); background: transparent; }
+
+/* 0086 — vom Formular genommen: leiser, mit dem Weg zurück. */
+.wk-taken-off .wk-list { margin-top: 0.4rem; }
+.wk-answer-off { color: var(--wk-muted); }
+
+/* Eine Gruppe von Feldern ohne Rahmen — nur, um sie auf einmal abzuschalten. */
+.wk-bare-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+
+/* 0086 — die Tabelle zum Schreiben: Felder in den Zellen, geänderte und neue Zeilen erkennbar. */
+.wk-table-edit { display: grid; gap: 0.3rem; padding: 0.6rem 0.75rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-soft); }
+.wk-table-edit .wk-actions { margin: 0; }
+.wk-entries.is-editing .wk-table td { white-space: normal; }
+.wk-entries.is-editing .wk-table input:not([type="checkbox"]),
+.wk-entries.is-editing .wk-table select,
+.wk-entries.is-editing .wk-table textarea {
+  width: 100%; min-width: 9rem; box-sizing: border-box; padding: 0.25rem 0.4rem; font: inherit; font-size: 0.88rem;
+  border: 1px solid var(--wk-line); border-radius: 4px; background: var(--wk-surface); color: inherit;
+}
+.wk-entries.is-editing .wk-table textarea { min-width: 12rem; resize: vertical; }
+.wk-entries.is-editing .wk-table input[type="checkbox"] { width: 1.05rem; height: 1.05rem; }
+.wk-row-changed td { background: var(--wk-held-bg); }
+.wk-row-new td { background: var(--wk-soft); }
+
+/* 0086 — eigene Adresse nach dem Absenden. */
+.wk-own-address code { word-break: break-all; }
 
 /*
    DAS BLATT ZUM UNTERSCHREIBEN: am Bildschirm unsichtbar, beim Drucken
@@ -7277,3 +7343,366 @@ a.wk-toast-body:focus-visible { outline: 2px solid var(--wk-accent); outline-off
   .wk-print-sheet .wk-print-sign { display: grid; grid-template-columns: 1fr 1.4fr; gap: 3rem; }
   .wk-print-sheet .wk-print-sign span { border-top: 1px solid #000; padding-top: 0.2rem; font-size: 8.5pt; text-align: center; }
 }
+
+/* ==========================================================================
+   PREZENTACJA (0085) — Szenen, auf denen die Bausteine frei stehen.
+   Die Masse sind die der Startseite des Altbestands (`legacy/public/
+   public.css`, .rc-*): die Blase, die Pointe, der Satz im Raum, die Viertel,
+   die Wortwolke. Gerechnet in Einheiten der BÜHNE (cqw, cqh, cqmin) statt des
+   Fensters — dieselbe Bühne steht als Seite, als Vorschau im Editor und als
+   Vortrag auf dem ganzen Bildschirm. Die Farben kommen als --pz-*; die
+   Bausteine darin lesen die des Arbeitsplatzes (--wk-*), die hier auf die der
+   Szene umgestellt werden.
+   ========================================================================== */
+
+.pz {
+  --pz-line: color-mix(in srgb, var(--pz-ink) 14%, transparent);
+  --pz-chrome-ink: var(--pz-ink);
+  --pz-chrome-ground: var(--pz-ground);
+
+  position: relative;
+  /* Eine eigene Schichtung: die Ebenen der Szenen (z-index) bleiben in der Bühne — der Rahmen des Editors liegt darüber. */
+  isolation: isolate;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--pz-ground);
+  color: var(--pz-ink);
+  font-family: var(--pz-text);
+}
+.pz.is-page { position: fixed; left: 0; right: 0; bottom: 0; top: 0; z-index: 30; }
+.pz.is-present { position: fixed; inset: 0; z-index: 1000; }
+.pz.is-box { height: min(72vh, 44rem); border: 1px solid var(--wk-line); border-radius: 8px; }
+.pz.is-box:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.pz.is-dark { color-scheme: dark; }
+.pz.is-light { color-scheme: light; }
+body.has-pz { overflow: hidden; }
+
+.pz-viewport { position: relative; grid-row: 2; min-height: 0; display: grid; place-items: center; overflow: hidden; }
+.pz-stage {
+  position: relative;
+  overflow: hidden;
+  container: pz / size;
+  touch-action: pinch-zoom;
+  overscroll-behavior: none;
+  background: var(--pz-ground);
+}
+/* Die Fassung der Bühne — im Editor verkleinert sie einen echten Schirm (`virtual`). */
+.pz-frame { position: relative; overflow: hidden; }
+.pz-frame.is-virtual { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.pz.is-box { min-height: 0; }
+.pz.is-fixed .pz-viewport { background: color-mix(in srgb, var(--pz-ground) 80%, #000); }
+.pz-empty { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--pz-muted); }
+
+/* -- Eine Szene ----------------------------------------------------------- */
+.pz-scene {
+  --wk-ground: var(--pz-ground);
+  --wk-ink: var(--pz-ink);
+  --wk-muted: var(--pz-muted);
+  --wk-accent: var(--pz-accent);
+  --wk-line: var(--pz-line);
+  --wk-surface: color-mix(in srgb, var(--pz-ground) 90%, var(--pz-ink) 10%);
+  --wk-soft: color-mix(in srgb, var(--pz-ground) 84%, var(--pz-ink) 16%);
+
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: var(--pz-ink);
+  transform-origin: 50% 50%;
+  will-change: opacity, transform;
+}
+.pz-ground { position: absolute; inset: 0; background: var(--pz-scene-ground, transparent); }
+.pz-layer { position: absolute; inset: 0; }
+.pz-layer.is-bigtext { display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.pz-bigtext { display: grid; gap: 0.05rem; padding: 0 6cqw; }
+.pz-bigtext span {
+  display: block; font-family: var(--pz-display); font-weight: 700; font-size: 15cqmin; line-height: 0.86;
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--pz-ink); overflow-wrap: anywhere;
+}
+.pz-content { position: absolute; inset: 0; transform-origin: 50% 50%; will-change: transform; }
+
+/* Der Raum: eine echte Perspektive; bewegt wird die Kamera (Altbestand: .rc-space, .rc-cam). */
+.pz-space { position: absolute; inset: 0; overflow: hidden; }
+.pz-cam { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform; }
+.pz-word {
+  position: absolute; margin: 0; white-space: nowrap; line-height: 1;
+  font-family: var(--pz-display); font-style: italic; font-weight: 300; color: var(--pz-ink);
+}
+.pz-word-pre { font-style: normal; font-weight: 400; font-size: 1.32em; letter-spacing: -0.01em; }
+
+/* Der Faden zwischen den Schritten (Altbestand: .rc-thread). */
+.pz-thread { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.pz-thread polyline { stroke: var(--pz-accent); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; opacity: 0.5; }
+.pz-thread.is-dots polyline { stroke-dasharray: 2 6; }
+
+/* Der Hinweis unten — er fliegt nicht mit. */
+.pz-hint {
+  position: absolute; left: 50%; bottom: 2rem; transform: translateX(-50%); margin: 0; z-index: 5;
+  display: flex; align-items: center; gap: 0.85rem;
+  font-family: var(--pz-ui); font-size: 0.7rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--pz-muted);
+}
+.pz-hint i { display: block; width: 1px; height: 2.2rem; background: currentColor; transform-origin: top; animation: pz-drop 2s ease-in-out infinite; }
+@keyframes pz-drop {
+  0%, 100% { transform: scaleY(0.3); opacity: 0.4; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .pz-hint i { animation: none; } }
+
+/* -- Ein Baustein auf der Bühne -------------------------------------------- */
+.pz-el { position: absolute; left: 50%; top: 50%; margin: 0; transform-origin: 50% 50%; will-change: transform, opacity; }
+.pz-box {
+  position: relative; display: grid; gap: 0.6rem; min-width: 0; height: 100%; box-sizing: border-box;
+  color: var(--pz-box-ink, inherit); overflow-wrap: break-word;
+}
+.pz-body { min-width: 0; display: grid; gap: 0.6rem; }
+.pz-box.align-center { text-align: center; justify-items: center; }
+.pz-box.align-end { text-align: right; justify-items: end; }
+.pz-box.valign-center { align-content: center; }
+/* Ausgerichtet wird der Text, nicht seine Breite: der Inhalt nimmt die ganze Breite, die Zeilen stehen rechts oder mittig. */
+.pz-box.align-center > .pz-body, .pz-box.align-end > .pz-body { justify-self: stretch; }
+.pz-box.align-center .pz-text { justify-items: center; }
+.pz-box.align-end .pz-text { justify-items: end; }
+.pz-box.valign-end { align-content: end; }
+
+.skin-card .pz-box {
+  padding: clamp(0.9rem, 2.4cqmin, 1.6rem);
+  border: 1px solid var(--pz-line); border-radius: 10px;
+  background: color-mix(in srgb, var(--pz-paper) 80%, transparent); backdrop-filter: blur(8px);
+}
+/* Die Blase (Altbestand: .rc-bubble) — die betonte trägt den Akzent am Rand. */
+.skin-bubble .pz-box {
+  padding: 1.3rem 1.5rem;
+  border: 1px solid color-mix(in oklab, var(--pz-line), var(--pz-accent) calc(var(--pz-f, 0) * 100%));
+  border-radius: 1.75rem;
+  background: var(--pz-paper);
+  box-shadow: 0 14px 40px rgb(20 24 15 / 0.10);
+}
+.skin-pill .pz-box { padding: 0.7rem 1.3rem; border-radius: 999px; background: var(--pz-paper); box-shadow: 0 8px 24px rgb(20 24 15 / 0.08); }
+.pz-el.skin-pill { width: auto !important; max-width: 90%; white-space: nowrap; }
+/* Das Feld (Altbestand: die Viertel) — Fläche mit Text und Bild, ohne Rundung. */
+.skin-panel .pz-box {
+  grid-template-rows: auto minmax(0, 1fr); gap: 0; align-content: stretch;
+  background: var(--pz-paper); overflow: hidden;
+}
+.skin-panel .pz-body { padding: clamp(1.2rem, 4cqh, 3rem) clamp(1.2rem, 4cqw, 3.5rem); align-content: start; gap: 0.4rem; }
+.skin-panel .pz-box.media-before { grid-template-rows: minmax(0, 1fr) auto; }
+.skin-panel .pz-box.media-before .pz-body { align-content: end; }
+.skin-panel .pz-box.media-behind { grid-template-rows: minmax(0, 1fr); }
+.pz-media { min-height: 0; justify-self: stretch; align-self: stretch; background-repeat: no-repeat; pointer-events: none; }
+.pz-media.at-behind { position: absolute; inset: 0; }
+.pz-media.at-after.is-fade { -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 30%); mask-image: linear-gradient(to bottom, transparent 0%, #000 30%); }
+.pz-media.at-before.is-fade { -webkit-mask-image: linear-gradient(to top, transparent 0%, #000 30%); mask-image: linear-gradient(to top, transparent 0%, #000 30%); }
+.pz-box.media-behind .pz-body { position: relative; }
+.skin-plain .pz-box, .skin-plain .pz-body { gap: 0.4rem; }
+
+.pz-el.is-selected { outline: 1px dashed var(--pz-accent); outline-offset: 3px; }
+.pz.is-editing .pz-el { cursor: pointer; }
+.pz.is-editing .pz-el a { pointer-events: none; }
+
+/* Ein Baustein, der sich auf der Seite als Tafel zeigt, steht hier ohne zweite Tafel. */
+.pz-card { display: grid; gap: 0.7rem; min-width: 0; }
+.pz-card { background: none; border: 0; padding: 0; box-shadow: none; border-radius: 0; }
+.pz-card .wk-card-title { margin: 0; font-family: var(--pz-display); font-size: clamp(1.3rem, 2.6cqw, 2.2rem); font-weight: 500; line-height: 1.15; }
+
+/* -- Ein Text, der sich selbst gestaltet (Altbestand: .rc-bub-*) ------------ */
+.pz-text { display: grid; gap: 0.6rem; min-width: 0; }
+.pz-text .pz-title { margin: 0; font-family: var(--pz-display); text-wrap: balance; }
+.pz-text p, .pz-text h3 { margin: 0; }
+.pz-text .wk-card-text { font-size: clamp(1rem, 1.45cqw, 1.18rem); line-height: 1.55; text-wrap: pretty; }
+.pz-text .wk-card-lead { font-size: clamp(1.3rem, 2.6cqw, 2rem); line-height: 1.25; }
+.pz-text .wk-card-quiet { font-family: var(--pz-ui); font-size: 0.84rem; line-height: 1.55; color: var(--pz-muted); }
+.pz-text .wk-card-links { display: flex; flex-wrap: wrap; gap: 1.25rem; font-family: var(--pz-ui); font-size: 0.9rem; }
+.pz-box.align-center .wk-card-links { justify-content: center; }
+.pz-box.align-end .wk-card-links { justify-content: flex-end; }
+.pz-text a { color: inherit; text-underline-offset: 4px; }
+.pz-text .wk-card-links a { color: var(--pz-accent); }
+
+.type-display .pz-title {
+  font-size: clamp(1.5rem, 3.9cqmin, 2.6rem); font-weight: 300; line-height: 1.3; letter-spacing: -0.015em; text-wrap: pretty;
+}
+.pz.is-tall .type-display .pz-title { font-size: clamp(1.5rem, 6cqmin, 2.4rem); }
+.type-title .pz-title {
+  font-size: clamp(1.35rem, 2.6cqw, 2rem); font-weight: 400; line-height: 1.15; letter-spacing: 0.01em; text-transform: uppercase;
+}
+/* Nagłówek z treścią (Altbestand: die Viertel — .rc-work-h, .rc-work-b, .rc-work-a). */
+.type-heading { gap: 0.4rem; }
+.type-heading .pz-title { margin: 0 0 0.2rem; font-size: clamp(1.5rem, 2.6cqw, 2.1rem); font-weight: 300; line-height: 1.15; letter-spacing: -0.02em; }
+.type-heading .wk-card-text { margin: 0 0 0.7rem; font-size: clamp(1rem, 1.25cqw, 1.125rem); line-height: 1.62; opacity: 0.82; }
+.type-heading .wk-card-links { display: grid; gap: 0.4rem; font-size: 0.88rem; justify-self: stretch; }
+.type-heading .wk-card-links a { font-weight: 500; text-decoration: none; border-bottom: 1px solid currentColor; padding-bottom: 2px; }
+.type-body .pz-title { font-size: clamp(1.1rem, 1.8cqw, 1.4rem); font-weight: 600; }
+.pz-close {
+  display: flex; flex-direction: column; gap: 0.15em; margin: 0;
+  font-size: clamp(1.1rem, 1.9cqw, 1.5rem); font-style: italic; font-weight: 300; line-height: 1.25;
+  color: var(--pz-accent); text-wrap: balance;
+}
+.pz-close .pz-gapline { display: block; height: 0.5em; }
+.type-close .pz-title { font-size: clamp(1.1rem, 1.9cqw, 1.5rem); color: var(--pz-accent); }
+.type-note .pz-title, .type-note .wk-card-text {
+  margin: 0; font-family: var(--pz-ui); font-size: 0.8rem; letter-spacing: 0.12em; color: var(--pz-muted); font-weight: 400;
+}
+
+/* Hochkant ist die Breite knapp (Altbestand: @media (orientation: portrait)). */
+.pz.is-tall .skin-bubble .pz-box { padding: 1.05rem 1.2rem; }
+.pz.is-tall .type-body .wk-card-text { font-size: 0.95rem; }
+.pz.is-tall .pz-close { font-size: clamp(0.95rem, 4cqw, 1.2rem); }
+.pz.is-tall .skin-panel .pz-body { padding: 1rem 1.1rem; gap: 0.3rem; }
+.pz.is-tall .type-heading .pz-title { font-size: clamp(1.05rem, 4.6cqw, 1.5rem); }
+.pz.is-tall .type-heading .wk-card-text { font-size: 0.82rem; line-height: 1.4; }
+.pz.is-tall .type-heading .wk-card-links { font-size: 0.72rem; }
+
+/* Ein festes Bild (16:9, 4:3) wächst wie eine Folie: Schrift in Teilen der Bühne, ohne Grenzen. */
+.pz.is-fixed .type-display .pz-title { font-size: 3.9cqmin; }
+.pz.is-fixed .type-title .pz-title { font-size: 2.6cqw; }
+.pz.is-fixed .type-heading .pz-title { font-size: 2.6cqw; }
+.pz.is-fixed .pz-text .wk-card-text { font-size: 1.45cqw; }
+.pz.is-fixed .pz-text .wk-card-lead { font-size: 2.6cqw; }
+.pz.is-fixed .pz-close, .pz.is-fixed .type-close .pz-title { font-size: 1.9cqw; }
+.pz.is-fixed .type-note .pz-title, .pz.is-fixed .type-note .wk-card-text, .pz.is-fixed .pz-text .wk-card-quiet { font-size: 1.05cqw; }
+.pz.is-fixed .skin-bubble .pz-box { padding: 1.6cqw 1.9cqw; border-radius: 2.2cqw; }
+
+/* -- Leisten ---------------------------------------------------------------- */
+.pz-nav {
+  grid-row: 1; z-index: 3; display: flex; gap: 0.25rem; padding: 0.45rem clamp(0.6rem, 3vw, 1.6rem);
+  overflow-x: auto; scrollbar-width: none;
+  background: color-mix(in srgb, var(--pz-chrome-ground) 93%, transparent);
+  border-bottom: 1px solid var(--pz-line);
+}
+.pz-nav::-webkit-scrollbar { display: none; }
+.pz-nav button {
+  flex-shrink: 0; border: 1px solid transparent; border-radius: 999px; padding: 0.25rem 0.8rem; background: none;
+  color: color-mix(in srgb, var(--pz-chrome-ink) 70%, transparent); font: inherit; font-family: var(--pz-ui); font-size: 0.86rem;
+  white-space: nowrap; cursor: pointer;
+}
+.pz-nav button:hover { color: var(--pz-chrome-ink); border-color: var(--pz-line); }
+.pz-nav button.is-active { color: var(--pz-chrome-ink); border-color: var(--pz-accent); }
+.pz-dots {
+  position: absolute; right: clamp(0.4rem, 1.6vw, 1.2rem); top: 50%; transform: translateY(-50%); z-index: 3000;
+  display: grid; gap: 0.55rem;
+}
+.pz-dots button {
+  width: 0.62rem; height: 0.62rem; padding: 0; border-radius: 999px; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--pz-chrome-ink) 60%, transparent); background: transparent;
+  transition: background 160ms ease, transform 160ms ease;
+}
+.pz-dots button.is-active { background: var(--pz-chrome-ink); transform: scale(1.25); }
+.pz-dots button:focus-visible, .pz-nav button:focus-visible, .pz-tools button:focus-visible { outline: 2px solid var(--pz-accent); outline-offset: 2px; }
+.pz-tools {
+  position: absolute; right: clamp(0.4rem, 1.6vw, 1rem); bottom: calc(0.6rem + env(safe-area-inset-bottom, 0px)); z-index: 3000;
+  display: flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.3rem; border-radius: 999px;
+  background: color-mix(in srgb, var(--pz-chrome-ground) 72%, transparent); backdrop-filter: blur(8px);
+  color: var(--pz-chrome-ink); font-family: var(--pz-ui); font-size: 0.78rem; opacity: 0.55; transition: opacity 200ms ease;
+}
+.pz-tools:hover, .pz-tools:focus-within { opacity: 1; }
+.pz-tools button {
+  min-width: 1.9rem; height: 1.9rem; padding: 0 0.5rem; border: 1px solid transparent; border-radius: 999px; background: none;
+  color: inherit; font: inherit; cursor: pointer;
+}
+.pz-tools button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--pz-chrome-ink) 40%, transparent); }
+.pz-tools button:disabled { opacity: 0.35; cursor: default; }
+.pz-count { font-variant-numeric: tabular-nums; padding: 0 0.3rem; }
+.pz-present { font-weight: 600; }
+.pz-extra {
+  position: absolute; left: clamp(0.6rem, 2vw, 1.2rem); top: clamp(0.6rem, 2vh, 1.2rem); z-index: 3000; max-width: min(28rem, 90%);
+  display: grid; gap: 0.6rem;
+}
+.pz-extra:empty, .pz-extra > .wk-page-top:empty { display: none; }
+
+/* -- Bild und Fläche (0085) — auch auf gewöhnlichen Seiten -------------------- */
+.wk-image { margin: 0; display: grid; gap: 0.4rem; min-width: 0; }
+.wk-image-img { display: block; width: 100%; height: auto; }
+.wk-image.is-cover .wk-image-img { aspect-ratio: 4 / 3; }
+.pz .wk-image.is-cover, .pz .wk-image.is-cover .wk-image-link { height: 100%; }
+.pz .wk-image.is-cover .wk-image-img { height: 100%; aspect-ratio: auto; }
+.wk-image-link { display: block; }
+.wk-image-caption { display: grid; gap: 0.1rem; font-size: 0.88rem; color: var(--wk-muted); }
+.pz .wk-image-caption { font-style: italic; color: var(--pz-accent); font-size: clamp(0.95rem, 1.6cqw, 1.3rem); }
+.wk-image-edit { display: grid; gap: 0.45rem; }
+.wk-shape { width: 100%; min-height: 4rem; }
+.wk-shape.is-circle { aspect-ratio: 1; min-height: 0; border-radius: 50%; }
+.wk-shape.is-rounded { border-radius: 1.2rem; }
+.wk-shape.is-line { min-height: 0; height: 2px; }
+.pz .wk-shape { min-height: 0; }
+.pz .wk-shape.is-rect, .pz .wk-shape.is-rounded { height: 100%; }
+
+/* Text (0085): eine grosse Zeile, eine leise, eine Reihe von Verweisen — auch im Raster. */
+.wk-card-lead { margin: 0; font-size: 1.3rem; line-height: 1.3; }
+.wk-card-quiet { margin: 0; font-size: 0.84rem; color: var(--wk-muted); }
+.wk-card-links { margin: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; }
+.wk-card-gap { display: block; height: 0.5em; }
+
+/* -- Der Editor der Präsentation --------------------------------------------- */
+.pe { display: grid; gap: 1.2rem; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 1100px) {
+  .pe { grid-template-columns: minmax(22rem, 0.8fr) minmax(0, 1.2fr); }
+  .pe-main { position: sticky; top: 4.5rem; }
+}
+.pe-side { display: grid; gap: 0.9rem; min-width: 0; }
+.pe-main { display: grid; gap: 0.5rem; min-width: 0; }
+.pe-show { display: grid; gap: 0.6rem; }
+.pe-night { display: grid; gap: 0.5rem; }
+.pe-empty { display: grid; gap: 0.5rem; }
+.pe-scenes, .pe-pieces { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.pe-scene, .pe-pieces button {
+  width: 100%; display: flex; align-items: center; gap: 0.55rem; padding: 0.4rem 0.55rem; text-align: left;
+  border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); color: var(--wk-ink); font: inherit; cursor: pointer;
+}
+.pe-pieces button { display: grid; gap: 0.05rem; }
+.pe-scenes li.is-on .pe-scene, .pe-pieces li.is-on button { border-color: var(--wk-accent); box-shadow: inset 3px 0 0 var(--wk-accent); }
+.pe-num {
+  flex: none; width: 1.7rem; height: 1.7rem; display: grid; place-items: center; border-radius: 999px;
+  background: var(--wk-soft); font-size: 0.8rem; font-variant-numeric: tabular-nums;
+}
+.pe-scene-name { display: grid; min-width: 0; }
+.pe-scene-name strong, .pe-pieces strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pe-scene-name span, .pe-pieces span { font-size: 0.8rem; color: var(--wk-muted); }
+.pe-scene-tools { flex-wrap: wrap; gap: 0.3rem 0.8rem; }
+.pe-scene-settings { display: grid; gap: 0.6rem; }
+.pe-arrange { display: grid; gap: 0.3rem; }
+.pe-arrange .wk-actions { flex-wrap: wrap; gap: 0.2rem 0.9rem; }
+.pe-add { display: grid; gap: 0.4rem; }
+.pe-elsewhere { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.3rem; }
+.pe-elsewhere li { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.pe-piece { display: grid; gap: 0.6rem; padding: 0.8rem 0.9rem; border: 1px solid var(--wk-accent); border-radius: 8px; background: var(--wk-surface); }
+.pe-piece .pb-h { margin: 0; }
+.pe-media { display: grid; gap: 0.45rem; border: 1px solid var(--wk-line); border-radius: 6px; padding: 0.5rem 0.7rem 0.7rem; margin: 0; }
+.pe-media legend { font-weight: 600; font-size: 0.9rem; padding: 0 0.3rem; }
+.pe-travel { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; }
+.pe-num-field { grid-template-columns: 9rem minmax(0, 1fr) 5rem; }
+.pe-num-field input[type='number'] { width: 100%; box-sizing: border-box; }
+
+.pe-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.7rem; }
+.pe-bar-scene { font-weight: 600; min-width: 8rem; }
+.pe-steps { display: inline-flex; gap: 0.2rem; }
+.pe-steps button {
+  min-width: 1.8rem; height: 1.8rem; border: 1px solid var(--wk-line); border-radius: 999px; background: none;
+  color: var(--wk-ink); font: inherit; font-size: 0.8rem; cursor: pointer;
+}
+.pe-steps button.is-on { border-color: var(--wk-accent); background: var(--wk-soft); }
+.pe-main-hint { margin: 0; }
+.pe-canvas { position: relative; outline: none; }
+.pe-canvas.is-tall { max-width: 26rem; justify-self: center; width: 100%; }
+.pe-canvas:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 3px; }
+.pe-canvas .pz.is-box { height: auto; }
+.pe-frame { position: absolute; z-index: 5; border: 1.5px solid var(--wk-accent); border-radius: 2px; cursor: move; touch-action: none; }
+.pe-grip {
+  position: absolute; width: 0.75rem; height: 0.75rem; border-radius: 2px; background: var(--wk-accent); border: 1px solid var(--wk-ground);
+  touch-action: none;
+}
+.pe-grip.is-w { right: -0.42rem; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+.pe-grip.is-h { bottom: -0.42rem; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+.pe-grip.is-wh { right: -0.42rem; bottom: -0.42rem; cursor: nwse-resize; }
+.pe-guide { position: absolute; z-index: 4; pointer-events: none; background: color-mix(in srgb, var(--wk-accent) 70%, transparent); }
+.pe-guide.is-x { width: 1px; }
+.pe-guide.is-y { height: 1px; }
+
+/* 0085 — der Nagłówek in der Farbe des Akzents (Altbestand: Kontakt), und ein Feld ohne Bild. */
+.type-kicker { gap: 0.9rem; }
+.type-kicker .pz-title { font-size: clamp(1.3rem, 2.2cqw, 1.7rem); font-weight: 600; line-height: 1.2; color: var(--pz-accent); }
+.type-kicker .wk-card-text { font-size: clamp(0.95rem, 1.25cqw, 1.05rem); line-height: 1.45; opacity: 0.78; }
+.type-kicker .wk-card-text + .wk-card-text { margin-top: -0.75rem; }
+.type-kicker .wk-card-quiet { margin-top: 0.3rem; }
+.pz.is-fixed .type-kicker .pz-title { font-size: 2.2cqw; }
+.skin-panel .pz-box:not(.has-media) { grid-template-rows: minmax(0, 1fr); }
+.skin-panel .pz-box.valign-end:not(.has-media) > .pz-body { align-self: end; }
+.skin-panel .pz-box.valign-center:not(.has-media) > .pz-body { align-self: center; }

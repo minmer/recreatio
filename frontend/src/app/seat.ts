@@ -75,7 +75,7 @@ export function newLink(): { link: Link; key: Uint8Array } {
  * nichts, und in seinem Protokoll steht nur, dass jemand die Startseite geholt
  * hat.
  */
-export const seatPath = (link: Link, under?: string | null): string => {
+export const seatPath = (link: Link, under?: string | null, at?: string | null): string => {
   const tail = `${encodeURIComponent(link.token)}/${encodeURIComponent(link.key)}`;
 
   /*
@@ -86,7 +86,7 @@ export const seatPath = (link: Link, under?: string | null): string => {
    */
   return under === undefined || under === null || under === ''
     ? `#/seat/${tail}`
-    : pageLink(under, link.token, link.key);
+    : pageLink(under, link.token, link.key, at);
 };
 
 /* -- Was ein Platz AUSSERDEM aufschliesst ---------------------------------- */

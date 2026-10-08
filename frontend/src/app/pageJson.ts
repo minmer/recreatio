@@ -28,12 +28,18 @@ import { QUESTION_EXAMPLE, QUESTION_KEYS, type FormContent } from './formJson';
 import { newId } from './ids';
 import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Breakpoint, type Frame, type Layout } from './layout';
 import type { MenuState } from './menu';
-import type { DraftPart, MenuItem } from './page';
+import { PAGE_MODES, type DraftPart, type MenuItem, type PageMode } from './page';
 import { GATE_KINDS, INPUT_KINDS, PAGE_NODE_LABEL, readLogic, type PageLogic } from './pageLogic';
 import { readSubject, subjectDescription, subjectKindOf, writeSubject } from './pageSubject';
 import type { PartModule, RawConfig } from './part';
 import { PARTS, partOf } from './parts/registry';
-import { DEFAULT_THEMES, readLayers, readSlide, type Look, type Theme } from './slides';
+import {
+  ARRIVALS, EASES, FONT_PAIRS, FORMATS, NAVS, ORIGINS, pieceJson, readPiece, readPieceValue, readShow, SCENE_CHANGES, showJson, SKINS,
+  TEXT_TYPES, THREADS, withPiece, type Piece
+} from './presentation';
+import {
+  DEFAULT_THEMES, ENTERS, readLayers, readPalette, readSlide, readSlideValue, remapStage, slideJson, TRANSITIONS, withSlide, type Look, type Theme
+} from './slides';
 import { importLegacy, legacyPages } from './SlidesImport';
 
 export const PAGE_FORMAT = 'recreatio/page';
@@ -49,7 +55,7 @@ export interface PageNow {
   readonly path: string;
   readonly title: string;
   readonly lead: string;
-  readonly mode: 'page' | 'slides';
+  readonly mode: PageMode;
   readonly look: Look;
   readonly parts: readonly DraftPart[];
   readonly logic: string | null;
@@ -73,14 +79,18 @@ export function exportEntry(part: DraftPart, extra: { name?: string; form?: Form
     const frame = part.layout[bp];
     if (frame !== undefined) layout[bp] = frame;
   }
-  const slide = readSlide(part.layout);
+  /* Knapp: was der Vorgabe entspricht, fehlt (0084) — ein Slajd von früher sieht aus wie früher. */
+  const slide = slideJson(readSlide(part.layout));
+  const plain = part.layout.slide === undefined && Object.keys(slide).length === 2 && slide.label === '' && (slide.layers as unknown[]).length === 0;
 
   return {
     id: part.id,
     module: part.moduleId ?? part.id,
     ...(extra.name === undefined ? {} : { name: extra.name }),
     kind: part.kind,
-    ...(part.layout.slide === undefined && slide.label === '' && slide.layers.length === 0 ? {} : { slide }),
+    ...(plain ? {} : { slide }),
+    /* 0085 — wo er in der Präsentation steht (nur, wenn er dort steht). */
+    ...(part.layout.show === undefined ? {} : { show: pieceJson(readPiece(part.layout)) }),
     layout,
     config: def === undefined ? { ...part.config } : def.json.toJson(part.config),
     ...(extra.form === undefined ? {} : { questions: extra.form.questions, design: extra.form.design })
@@ -101,6 +111,8 @@ export function exportPage(now: PageNow): Record<string, unknown> {
     mode: now.mode,
     theme: now.look.theme,
     cover: now.look.cover,
+    /* 0085 — die Szenen einer Präsentation (auch, wenn die Seite gerade anders erscheint: sie gehen nicht verloren). */
+    ...(now.look.show === undefined ? {} : { show: showJson(readShow(now.look.show)) }),
     ...(menu === undefined ? {} : { menu }),
     logic: readLogic(now.logic),
     subject: readSubject(now.subject ?? null),
@@ -194,7 +206,46 @@ function readTheme(value: unknown): Theme | null | undefined {
   if (mode !== 'dark' && mode !== 'light') return undefined;
   const color = (key: 'accent' | 'ink' | 'ground' | 'muted') =>
     (/^#[0-9a-f]{6}$/i.test(asText(theme[key])) ? asText(theme[key]) : DEFAULT_THEMES[mode][key]);
-  return { mode, accent: color('accent'), ink: color('ink'), ground: color('ground'), muted: color('muted') };
+  /* 0085 — Nachtfarben: nur, wenn alle vier echte Farben sind. */
+  const night = readPalette(theme.night);
+  const nightOk = night !== null && Object.values(night).every((c) => /^#[0-9a-f]{6}$/i.test(c));
+  return { mode, accent: color('accent'), ink: color('ink'), ground: color('ground'), muted: color('muted'), ...(nightOk ? { night } : {}) };
+}
+
+/** 0085 — was an einem Platz in der Präsentation nicht stimmt, in Worten. */
+function pieceWarnings(said: Record<string, unknown>, where: string): string[] {
+  const out: string[] = [];
+  const check = (key: string, list: readonly string[], fallback: string) => {
+    if (has(said, key) && !list.includes(asText(said[key]))) out.push(`${where}: "show.${key}" „${asText(said[key])}” — dozwolone: ${list.join(', ')}; będzie "${fallback}".`);
+  };
+  check('skin', SKINS, 'card');
+  check('type', TEXT_TYPES, 'auto');
+  check('arrive', ARRIVALS, 'fade');
+  check('ease', EASES, 'inOut');
+  check('origin', ORIGINS, 'center');
+  if (has(said, 'places') && (typeof said.places !== 'object' || said.places === null || Array.isArray(said.places))) {
+    out.push(`${where}: "show.places" to nie obiekt { "klucz sceny": miejsce } — moduł nie stanie w prezentacji.`);
+  }
+  return out;
+}
+
+/** 0085 — was an den Szenen nicht stimmt. */
+function showWarnings(value: unknown): string[] {
+  const out: string[] = [];
+  const root = asRecord(value);
+  if (has(root, 'format') && !(FORMATS as readonly string[]).includes(asText(root.format))) out.push(`"show.format" „${asText(root.format)}” — dozwolone: ${FORMATS.join(', ')}; będzie "screen".`);
+  if (has(root, 'fonts') && !(FONT_PAIRS as readonly string[]).includes(asText(root.fonts))) out.push(`"show.fonts" „${asText(root.fonts)}” — dozwolone: ${FONT_PAIRS.join(', ')}; będzie "app".`);
+  if (has(root, 'nav') && !(NAVS as readonly string[]).includes(asText(root.nav))) out.push(`"show.nav" „${asText(root.nav)}” — dozwolone: ${NAVS.join(', ')}; będzie "labels".`);
+  asArray(root.scenes).forEach((raw, i) => {
+    const scene = asRecord(raw);
+    if (has(scene, 'change') && !(SCENE_CHANGES as readonly string[]).includes(asText(scene.change))) {
+      out.push(`Scena ${i + 1}: "change" „${asText(scene.change)}” — dozwolone: ${SCENE_CHANGES.join(', ')}; będzie "fade".`);
+    }
+    if (has(scene, 'thread') && !(THREADS as readonly string[]).includes(asText(scene.thread))) {
+      out.push(`Scena ${i + 1}: "thread" „${asText(scene.thread)}” — dozwolone: ${THREADS.join(', ')}; będzie "none".`);
+    }
+  });
+  return out;
 }
 
 const MENU_KINDS: readonly MenuItem['kind'][] = ['abs', 'rel', 'url', 'none'];
@@ -227,7 +278,7 @@ export interface PagePlan {
   readonly legacy: boolean;
   readonly title?: string;
   readonly lead?: string | null;
-  readonly mode?: 'page' | 'slides';
+  readonly mode?: PageMode;
   readonly look?: Look;
   readonly menu?: { readonly items: readonly MenuItem[] } | { readonly from: string } | null;
   readonly logic?: string | null;
@@ -361,17 +412,42 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
       : frames.desktop?.size ?? match?.layout.desktop?.size ?? def?.box ?? { colSpan: 6, rowSpan: 3 };
 
     const slide = has(entry, 'slide')
-      ? { label: asText(asRecord(entry.slide).label).trim(), layers: readLayers(asRecord(entry.slide).layers) }
-      : match === undefined ? undefined : match.layout.slide === undefined ? undefined : readSlide(match.layout);
+      ? slideJson(readSlideValue(entry.slide))
+      : match === undefined ? undefined : match.layout.slide === undefined ? undefined : slideJson(readSlide(match.layout));
+    const said = asRecord(entry.slide);
+    if (has(said, 'transition') && !(TRANSITIONS as readonly string[]).includes(asText(said.transition))) {
+      warnings.push(`Moduł ${index + 1}: "slide.transition" „${asText(said.transition)}” — dozwolone: ${TRANSITIONS.join(', ')}; będzie "scroll".`);
+    }
+    if (has(said, 'enter') && !(ENTERS as readonly string[]).includes(asText(said.enter))) {
+      warnings.push(`Moduł ${index + 1}: "slide.enter" „${asText(said.enter)}” — dozwolone: ${ENTERS.join(', ')}; będzie "none".`);
+    }
+
+    /* 0085 — sein Platz in der Präsentation: aus dem Dokument, sonst der bisherige. "show": null nimmt ihn heraus. */
+    const shown: Piece | undefined = has(entry, 'show')
+      ? (entry.show === null ? undefined : readPieceValue(entry.show))
+      : match === undefined || match.layout.show === undefined ? undefined : readPiece(match.layout);
+    if (has(entry, 'show') && entry.show !== null) warnings.push(...pieceWarnings(asRecord(entry.show), `Moduł ${index + 1}`));
 
     const keepPlace = match !== undefined && !complete && !has(entry, 'size') && !has(entry, 'layout');
     const place = !keepPlace && !(complete && (replace || match !== undefined));
     const frameLayout: Layout = keepPlace ? stripSlide(match!.layout) : complete && !place ? frames : {};
-    const layout: Layout = slide === undefined ? frameLayout : { ...frameLayout, slide };
+    const sliding: Layout = slide === undefined ? frameLayout : { ...frameLayout, slide };
+    const layout: Layout = shown === undefined ? sliding : withPiece(sliding, shown);
 
     made.push({ part: { id, moduleId, kind: kindSaid, layout, config }, place, size });
     if (match !== undefined) updated += 1; else added += 1;
   });
+
+  /*
+   * 0084 — DIE PLÄTZE AUF DER BÜHNE zeigen auf Slajdy (Kennungen der Stellen).
+   * Ein Dokument von woanders oder mit eigenen Namen ("a") bekommt hier neue
+   * Kennungen — die Plätze folgen ihnen.
+   */
+  for (const m of made) {
+    if (m.part.layout.slide === undefined) continue;
+    const look = readSlide(m.part.layout);
+    if (look.stage !== null) m.part = { ...m.part, layout: withSlide(m.part.layout, remapStage(look, ids)) };
+  }
 
   /* Die Anordnung: ersetzt, oder die bisherige mit den geänderten an ihrer Stelle und den neuen dahinter. */
   const byId = new Map(made.map((m) => [m.part.id, m]));
@@ -414,16 +490,26 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
       const lead = typeof root.lead === 'string' && root.lead.trim() !== '' ? root.lead.trim() : null;
       if ((lead ?? '') !== now.lead.trim()) { plan.lead = lead; lines.push(lead === null ? 'Tekst strony: usunięty.' : 'Tekst strony: nowy.'); }
     }
-    if (root.mode === 'page' || root.mode === 'slides') {
-      if (root.mode !== now.mode) lines.push(root.mode === 'slides' ? 'Wygląd: slajdy.' : 'Wygląd: strona z modułami.');
-      plan.mode = root.mode;
-    } else if (has(root, 'mode')) warnings.push(`"mode" „${asText(root.mode)}” — dozwolone "page" albo "slides"; zostaje jak jest.`);
-    if (has(root, 'theme') || has(root, 'cover')) {
+    if ((PAGE_MODES as readonly unknown[]).includes(root.mode)) {
+      const mode = root.mode as PageMode;
+      if (mode !== now.mode) lines.push(mode === 'slides' ? 'Wygląd: slajdy.' : mode === 'presentation' ? 'Wygląd: prezentacja.' : 'Wygląd: strona z modułami.');
+      plan.mode = mode;
+    } else if (has(root, 'mode')) warnings.push(`"mode" „${asText(root.mode)}” — dozwolone "page", "slides" albo "presentation"; zostaje jak jest.`);
+    if (has(root, 'theme') || has(root, 'cover') || has(root, 'show')) {
       const theme = has(root, 'theme') ? readTheme(root.theme) : now.look.theme;
       if (theme === undefined) warnings.push('"theme" nie ma "mode" ("dark", "light" albo "auto") — kolory zostają jak są.');
-      const look = { theme: theme === undefined ? now.look.theme : theme, cover: has(root, 'cover') ? readLayers(root.cover) : now.look.cover };
+      if (has(root, 'show') && root.show !== null) warnings.push(...showWarnings(root.show));
+      const show = has(root, 'show') ? (root.show === null ? undefined : showJson(readShow(root.show))) : now.look.show;
+      const look: Look = {
+        theme: theme === undefined ? now.look.theme : theme,
+        cover: has(root, 'cover') ? readLayers(root.cover) : now.look.cover,
+        ...(show === undefined ? {} : { show })
+      };
       if (JSON.stringify(look) !== JSON.stringify(now.look)) plan.look = look;
-      if (plan.look !== undefined) lines.push(`Kolory: ${plan.look.theme === null ? 'automatyczne' : plan.look.theme.mode === 'dark' ? 'ciemne' : 'jasne'}${has(root, 'cover') ? `, tło tytułu: ${count(plan.look.cover.length, 'warstwa', 'warstwy', 'warstw')}` : ''}.`);
+      if (plan.look !== undefined) {
+        lines.push(`Kolory: ${plan.look.theme === null ? 'automatyczne' : plan.look.theme.night != null ? 'jasne i nocne (jak urządzenie)' : plan.look.theme.mode === 'dark' ? 'ciemne' : 'jasne'}${has(root, 'cover') ? `, tło tytułu: ${count(plan.look.cover.length, 'warstwa', 'warstwy', 'warstw')}` : ''}.`);
+        if (has(root, 'show') && plan.look.show !== undefined) lines.push(`Prezentacja: ${count(readShow(plan.look.show).scenes.length, 'scena', 'sceny', 'scen')}.`);
+      }
     }
     if (has(root, 'menu')) {
       if (root.menu === null) { plan.menu = null; lines.push('Menu: bez menu.'); }
@@ -472,6 +558,13 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
     }
   }
 
+  /* 0085 — ein Platz auf einer Szene, die es nicht gibt, steht nirgends. */
+  {
+    const scenes = new Set(readShow((plan.look ?? now.look).show).scenes.map((sc) => sc.key));
+    const lost = parts.reduce((n, p) => n + Object.keys(readPiece(p.layout).places).filter((key) => !scenes.has(key)).length, 0);
+    if (lost > 0) warnings.push(`Prezentacja: ${count(lost, 'miejsce wskazuje', 'miejsca wskazują', 'miejsc wskazuje')} scenę, której nie ma w "show.scenes" — nie będzie widoczne.`);
+  }
+
   if (!has(plan, 'logic') && now.logic !== null && replace) {
     const logic = readLogic(now.logic);
     const here = new Set(parts.map((p) => p.id));
@@ -483,7 +576,7 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
 }
 
 const stripSlide = (layout: Layout): Layout => {
-  const { slide: _slide, ...frames } = layout;
+  const { slide: _slide, show: _show, ...frames } = layout;
   return frames;
 };
 
@@ -520,7 +613,60 @@ const LAYERS = `Warstwy tła ("cover" strony, "slide.layers" modułu) — od ty�
   { "kind": "gradient", "speed": 0.12, "angle": 168, "from": "#12203a", "via": null, "to": "#060a12" }
   { "kind": "image", "speed": 0.34, "url": "https://…/tlo.jpg", "opacity": 0.45, "blend": "normal"|"multiply"|"screen"|"overlay"|"soft-light", "position": "center" }
   { "kind": "bigtext", "speed": 0.95, "lines": ["TRASA"], "opacity": 0.1, "color": null }
-  "speed" 0–1 — jak wolno warstwa przesuwa się przy przewijaniu; "opacity" 0–1. Obraz może być plikiem strony: "page-image:<id>".`;
+  "speed" 0–1 — jak wolno warstwa przesuwa się przy przewijaniu; "opacity" 0–1. Obraz może być plikiem strony: "page-image:<id>".
+
+Slajd modułu ("slide") — wszystko poza "label" i "layers" jest nieobowiązkowe:
+  "transition" — jak ten slajd zastępuje poprzedni: "scroll" (wjeżdża od dołu, zwykłe), "fade" (przenika), "cover" (nakrywa poprzedni, który przygasa), "reveal" (poprzedni odjeżdża i go odsłania), "zoom" (przybliżenie), "side" (z prawej). Idzie za przewijaniem, nie za zegarem
+  "enter" — jak pojawia się treść: "none", "rise", "fade", "zoom", "left", "right"
+  "colors" — własne kolory slajdu, przechodzą płynnie między slajdami: { "accent", "ink", "ground", "muted" } ("#rrggbb"; pominięty — jak strona)
+  "stage" — moduł NIE ma własnego slajdu: stoi nad wszystkimi i przy zmianie slajdu przesuwa się na swoje miejsce na następnym:
+      { "frames": { "<id modułu-slajdu albo "cover">": { "x": 50, "y": 50, "w": 30, "scale": 1, "rotate": 0, "opacity": 1 } }, "bare": false }
+      "x", "y" — środek w procentach sceny; "w" — szerokość w procentach; między slajdami z miejscem przesuwa się płynnie, przed pierwszym i po ostatnim stoi; "bare": true — bez ramki (logo, obraz)`;
+
+const PRESENTATION = `## Prezentacja ("mode": "presentation")
+Sceny to ekrany; moduły stoją na nich w dowolnym miejscu. Scena może mieć kilka kroków — wtedy wyróżnienie przechodzi z modułu na moduł, a scena idzie za wyróżnionym. Moduł z miejscem na kilku scenach wędruje: przy zmianie sceny przechodzi płynnie na swoje następne miejsce. Wszystko idzie za przewijaniem (kółko, palec, strzałki), w „Pokazie” — za klawiaturą i kliknięciem.
+
+"show" strony:
+  "format" — "screen" (cały ekran, jak strona startowa; na telefonie pionowo — z miejscami "tall"), "wide" (16:9), "classic" (4:3)
+  "fonts" — pismo: "app", "spectral" (Spectral + IBM Plex Sans), "cormorant" (Cormorant Garamond + Source Sans), "plex" (IBM Plex Sans)
+  "nav" — pasek scen: "labels" (nazwy u góry), "dots" (kropki z prawej), "none"
+  "scenes" — lista scen w kolejności:
+    "key" — klucz sceny (krótki, unikalny, np. "start"); miejsca modułów wskazują scenę po kluczu
+    "label" — nazwa w pasku; link "#nazwa" w tekście prowadzi do tej sceny
+    "steps" — ile kroków (postojów) ma scena; domyślnie 1
+    "change" — jak zastępuje poprzednią: "fade" (przenikanie), "build" (scena jest od razu, jej moduły wchodzą każdy po swojemu — "arrive"), "fly" (kamera przelatuje przez POPRZEDNIĄ scenę — jej moduły z głębią i chmurę słów), "rise", "zoom", "cover", "reveal", "side", "cut"
+    "keep" — true: poprzednia scena zostaje pod spodem, aż przejście się skończy (przy "fade", "build", "rise")
+    "duration" — ile trwa skok do tej sceny w ms (domyślnie 700, przy "fly" 1700)
+    "colors" — { "accent", "ink", "ground" (tło sceny), "muted" } — pominięte: jak cała prezentacja
+    "layers" — warstwy tła (jak przy slajdach, bez przesuwania)
+    "grow" — { "from": 0.8, "to": 1.08 } — scena rośnie od wejścia do ostatniego kroku
+    "follow" — { "wide": 0.45, "tall": 1 } — jak mocno scena przesuwa się, by wyróżniony moduł stał w środku (szeroki / wąski ekran)
+    "emphasis" — false: kroki nie wyróżniają modułów (domyślnie true: niewyróżnione bledną i odsuwają się od środka)
+    "thread" — nitka przez moduły z krokami, w kolejności kroków: "none", "line", "dots"
+    "hint" — mała podpowiedź na dole (np. "Przewiń"); znika, gdy ruszysz dalej
+    "words" — chmura słów w głębi: { "list": ["colligere", …], "prefix": "RE", "count": 39, "seed": 7, "color": null }
+    "depth" — { "perspective": 1000, "travel": 2200, "linger": true } — głębia sceny i jak daleko przelatuje kamera; "linger" — zwalnia przy najgłębszym module
+
+"show" modułu:
+  "places" — { "<klucz sceny>": miejsce } — jedno miejsce: moduł należy do tej sceny; kilka: wędruje
+    miejsce: { "x": 50, "y": 50, "w": 30, "h": null, "max": null, "rotate": 0, "scale": 1, "opacity": 1, "z": 0, "step": null, "tall": null }
+      "x", "y" — punkt modułu (zwykle środek — zob. "origin") w procentach sceny; "w" — szerokość w procentach szerokości; "h" — wysokość w procentach wysokości (null — jak treść)
+      "max" — najwyżej tyle szerokości w rem (np. 22): na dużym ekranie moduł nie rośnie dalej, na telefonie bierze "w" procent
+      "z" — głębia w pikselach (0 płasko, −980 daleko); "step" — w którym kroku sceny jest wyróżniony (od 0)
+      "tall" — inne wartości na wąskim ekranie: { "x", "y", "w", "h", "max", "scale", "rotate" } (tylko te, które się różnią)
+  "skin" — oprawa: "plain" (bez tła), "card" (tafla), "bubble" (bańka), "pill" (pigułka), "panel" (pole wypełniające "w"×"h")
+  "type" — tylko "text": "auto" (jak na stronie), "display" (wielkie zdanie — nagłówek strony), "title" (wersaliki), "heading" (nagłówek z treścią), "kicker" (nagłówek w kolorze akcentu z treścią), "body" (akapity), "close" (puenta: kursywa w kolorze akcentu, pusta linia dzieli grupy), "note" (mały dopisek)
+  "fill", "ink", "accent" — kolor tła, pisma i akcentu (linki, puenta): "#rrggbb", para "jasny|ciemny" albo nazwa: "accent", "ink", "ground", "muted"
+  "origin" — który punkt modułu stoi na "x", "y": "center" (domyślnie), "top-left", "top", "top-right", "left", "right", "bottom-left", "bottom", "bottom-right"
+  "media" — obraz w oprawie: { "url", "at": "57% 50%", "fit": "cover"|"contain", "size": 60, "max": null, "opacity": 1, "fade": true, "side": "after"|"before"|"behind" } — przy "contain": "size" w procentach miejsca, "max" najwyżej tyle rem
+  "align", "valign" — "start", "center", "end"
+  "arrive" — jak się pojawia: "none", "fade", "rise", "zoom", "grow", "left", "right", "from-left", "from-right", "from-top", "from-bottom" (z "from-…" wjeżdża zza krawędzi)
+  "delay", "span" — kiedy w przejściu zaczyna (0–1) i jaką jego część trwa (0–1)
+  "ease" — ruch wędrującego: "inOut", "linear", "in" (przyspiesza), "out"
+  "hold" — true: stoi też przed pierwszym i po ostatnim swoim miejscu
+  "layer" — wyżej z przodu; wędrujący od 10 stoi nad wszystkimi scenami
+
+Tekst ("text") w prezentacji i na stronie: "## " — śródtytuł, "# " — duża linia, "> " — mała, cicha linia, [napis](https://… | #/strona | #scena | mailto:… | tel:…) — link; linia z samych linków to rząd linków.`;
 
 const FORM_SECTION = () => `## Pytania formularza (moduł "form")
 Wpis modułu "form" — na stronie i w eksporcie modułu — może nieść jego pytania i układ. Pytania są szyfrowane w przeglądarce kluczem obszaru formularza: eksport pokazuje tylko te, które da się otworzyć Twoimi kluczami (inne mają "label": null i przy imporcie zostają nietknięte). Import pieczętuje nowe i zmienione pytania tutaj, zanim trafią do usługi.
@@ -537,7 +683,8 @@ const ENTRY_KEYS: Readonly<Record<string, string>> = {
   module: 'Moduł, który to miejsce pokazuje (ten sam moduł może stać na kilku stronach). Przy nowym miejscu pominięty — powstaje nowy moduł; przy miejscu z "id" — zostaje dotychczasowy',
   name: 'Nazwa modułu na liście modułów (opcjonalnie)',
   kind: 'Rodzaj modułu — lista niżej',
-  slide: 'Jak wygląda jako slajd: { "label": nazwa w menu slajdów (z niej kotwica "#nazwa"), "layers": [warstwy tła] }',
+  slide: 'Jak wygląda jako slajd: { "label": nazwa w menu slajdów (z niej kotwica "#nazwa"), "layers": [warstwy tła], "transition", "enter", "colors", "stage" } — szczegóły niżej (Slajd modułu)',
+  show: 'Gdzie stoi w prezentacji ("mode": "presentation"): { "places": { "<klucz sceny>": miejsce }, "skin", "type", … } — szczegóły niżej (Prezentacja). null — zdejmuje moduł z prezentacji',
   size: 'Rozmiar, gdy nie podajesz "layout": { "colSpan": 2|3|4|6, "rowSpan": 1|3|5 } — 1 pasek, 3 blok, 5 wysoki. Miejsce: pierwsze wolne',
   layout: 'Dokładne miejsce na siatce dla "desktop" (6 kolumn), "tablet" (4) i "mobile" (2): { "position": { "row", "col" }, "size": { "colSpan", "rowSpan" } }. Pominięty — moduł zostaje, gdzie był (nowy: pierwsze wolne miejsce)',
   config: 'Treść modułu — zależy od rodzaju (niżej). Pominięta — treść zostaje bez zmian',
@@ -559,10 +706,13 @@ export function pageExample(): Record<string, unknown> {
     cover: [],
     menu: [{ label: 'Parafia', kind: 'abs', target: 'parafia', children: [] }, { label: 'Zapisy', kind: 'rel', target: 'zapisy', children: [] }],
     logic: null,
-    modules: sample.map((def) => ({
+    modules: sample.map((def, i) => ({
+      ...(i === 0 ? { id: 'start' } : {}),
       kind: def.kind,
       ...(def.kind === 'form' ? { name: 'Zapisy 2026' } : {}),
-      slide: { label: def.label, layers: [] },
+      slide: i === 1 ? { label: def.label, layers: [], transition: 'fade', enter: 'rise' }
+        : i === 2 ? { label: def.label, layers: [], colors: { accent: '#d3a25e' }, stage: { frames: { start: { x: 80, y: 18, w: 22, scale: 1, rotate: 0, opacity: 1 } }, bare: true } }
+        : { label: def.label, layers: [] },
       size: def.box,
       config: def.json.example,
       ...(def.kind === 'form' ? QUESTION_EXAMPLE : {})
@@ -588,9 +738,10 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
   "path" — tylko informacja; import zawsze trafia na otwartą stronę
   "title" — tytuł strony
   "lead" — tekst pod tytułem (albo null)
-  "mode" — "page": moduły na siatce; "slides": każdy moduł to osobny slajd
-  "theme" — kolory: null (automatyczne — jak w aplikacji) albo { "mode": "dark"|"light", "accent", "ink", "ground", "muted" } (kolory "#rrggbb")
+  "mode" — "page": moduły na siatce; "slides": każdy moduł to osobny slajd; "presentation": sceny z modułami w dowolnym miejscu (niżej: Prezentacja)
+  "theme" — kolory: null (automatyczne — jak w aplikacji) albo { "mode": "dark"|"light", "accent", "ink", "ground", "muted" } (kolory "#rrggbb"); z "night": { "accent", "ink", "ground", "muted" } strona idzie za urządzeniem — jasne kolory w dzień, te w nocy
   "cover" — tło slajdu tytułowego: lista warstw (niżej)
+  "show" — sceny prezentacji (niżej: Prezentacja)
   "menu" — null (bez menu), lista pozycji albo { "from": "ścieżka" } (to samo menu co na innej Twojej stronie)
       pozycja: { "label", "kind": "abs" (ścieżka od korzenia, np. "parafia/zapisy") | "rel" (względem tej strony) | "url" (pełny adres) | "none" (sam nagłówek), "target", "children": [pozycje] }
   "subject" — wybór na stronie: u góry strony wybiera się jedną rzecz, a moduły (np. "entry-panel") ją pokazują. ${subjectDescription()}
@@ -606,6 +757,8 @@ ${keyLines(ENTRY_KEYS)}
 
 ${LAYERS}
 
+${PRESENTATION}
+
 ## Rodzaje modułów
 ${PARTS.map(kindSection).join('\n\n')}
 
@@ -613,7 +766,48 @@ ${FORM_SECTION()}
 
 ## Przykład całej strony
 ${pretty(pageExample())}
+
+## Przykład prezentacji
+${pretty(presentationExample())}
 `;
+}
+
+/**
+ * 0085 — EINE KLEINE PRÄSENTATION: der Flug durch den Raum, eine Szene mit
+ * Schritten am Faden, ein Kreis, der zum Grund wächst. Steht in der
+ * Beschreibung und lässt sich ohne Warnung importieren (`app-json-check`).
+ */
+export function presentationExample(): Record<string, unknown> {
+  return {
+    format: PAGE_FORMAT,
+    version: 1,
+    path: 'parafia/rekolekcje',
+    title: 'Rekolekcje',
+    lead: null,
+    mode: 'presentation',
+    theme: { mode: 'light', accent: '#2f5d46', ink: '#171a16', ground: '#f7f8f5', muted: '#7c8479', night: { accent: '#8fc4a8', ink: '#eceee8', ground: '#141713', muted: '#838b7e' } },
+    cover: [],
+    show: {
+      format: 'screen',
+      fonts: 'spectral',
+      nav: 'dots',
+      scenes: [
+        { key: 'start', label: 'Start', colors: { ground: '#14180f', ink: '#f2f4ef' }, hint: 'Przewiń', words: { list: ['colligere', 'novatio', 'quies'], prefix: 'RE', count: 15, seed: 7 } },
+        { key: 'dni', label: 'Trzy dni', steps: 3, change: 'fly', grow: { from: 0.8, to: 1.08 }, thread: 'dots' },
+        { key: 'zapisy', label: 'Zapisy', colors: { ink: '#f2f4ef', accent: '#9ed3b4' } }
+      ]
+    },
+    modules: [
+      { id: 'haslo', kind: 'text', size: { colSpan: 6, rowSpan: 3 }, show: { places: { start: { x: 50, y: 56, w: 40, z: -980 } }, skin: 'plain', type: 'display', align: 'center' }, config: { title: 'Trzy dni, jedna wspólnota' } },
+      ...['Piątek — przyjazd', 'Sobota — droga', 'Niedziela — powrót'].map((title, step) => ({
+        id: `dzien${step + 1}`, kind: 'text', size: { colSpan: 3, rowSpan: 3 },
+        show: { places: { dni: { x: [30, 70, 50][step], y: [32, 40, 72][step], w: 24, step } }, skin: 'bubble', type: 'title', arrive: 'zoom', delay: step * 0.12, span: 0.55 },
+        config: { title }
+      })),
+      { id: 'kolo', kind: 'shape', size: { colSpan: 2, rowSpan: 2 }, show: { places: { dni: { x: 50, y: 50, w: 12, opacity: 0 }, zapisy: { x: 50, y: 50, w: 12, scale: 22 } }, skin: 'plain', ease: 'in', layer: -2 }, config: { shape: 'circle', fill: '#14180f' } },
+      { id: 'zapis', kind: 'text', size: { colSpan: 3, rowSpan: 3 }, show: { places: { zapisy: { x: 34, y: 52, w: 40 } }, skin: 'plain', type: 'heading', arrive: 'fade', delay: 0.45, span: 0.55 }, config: { title: 'Zapisy', body: ['# [zapisy@example.pl](mailto:zapisy@example.pl)', '> Zapisy do 15 maja.'] } }
+    ]
+  };
 }
 
 /** Die Beschreibung eines einzelnen Bausteins — neben seinem Import im Editor. */

@@ -1,6 +1,7 @@
 /**
- * 0083 — GOTOWE WZORY: Zgoda rodzica, wyjazd, ubezpieczenie — als gewöhnliche
- * Fragen, Aufbau und Logik eines Formulars.
+ * 0083 — GOTOWE WZORY, 0086 — WYMAGANIA: Zgoda rodzica, Zdrowie, Ubezpieczenie,
+ * Zasady — als gewöhnliche Fragen, Aufbau und Logik eines Formulars, zum
+ * Ankreuzen (unten: „Die Wymagania").
  *
  * <b>Kein eigener Baustein, kein eigener Speicher.</b> Der Altbestand hatte
  * dafür die „Karta uczestnika" (`legacy/pages/events/parts/cardLevels.ts`):
@@ -18,14 +19,14 @@
  * sie ändert, ändert sie für künftige Antworten — jede gegebene Zustimmung
  * trägt ihren eigenen Text (`consentValue`).
  *
- * <b>Mehrere Wzory in einem Formular</b> gehen: was es schon gibt (Imię,
+ * <b>Mehrere Wymagania in einem Formular</b> gehen: was es schon gibt (Imię,
  * Nazwisko, Data urodzenia — genormte Angaben), wird nicht doppelt gefragt,
  * sondern weiterbenutzt.
  */
 
 import { loadAreas, myEpochKeys } from './area';
 import { readFormContent, writeFormContent, type QuestionJson } from './formJson';
-import { setPartConfig, type FieldKind, type IdentityRole } from './form';
+import { removeField, restoreField, setPartConfig, type FieldKind, type IdentityRole } from './form';
 import { layoutWith, type FormDesign, type LayoutItem, type LogicEdge, type LogicNode } from './formDesign';
 import { newId } from './ids';
 import { loadModules, type ModuleRow } from './module';
@@ -109,20 +110,38 @@ const INFO =
   + 'ich sprostowania, usunięcia i ograniczenia przetwarzania; zgody można wycofać w każdej chwili przez swój link albo u '
   + 'organizatora. Przysługuje skarga do Prezesa Urzędu Ochrony Danych Osobowych.';
 
-/* -- Die Wzory ----------------------------------------------------------------------- */
+/* -- Die Wymagania ------------------------------------------------------------------- */
 
-export interface FormTemplate {
-  readonly id: string;
+/**
+ * 0086 — WAS EIN WYDARZENIE VERLANGT, zum Ankreuzen: „Niepełnoletni potrzebują
+ * pisemnej zgody rodzica", „Zdrowie i dieta", „Ubezpieczenie", „Zasady".
+ *
+ * <b>Eingeschaltet</b> bringt ein Wymaganie seine Fragen, Gruppen, Logik und —
+ * bei den Minderjährigen — den Ausdruck zum Unterschreiben mit; was das
+ * Formular schon fragt (Imię, Nazwisko, Data urodzenia), wird weiterbenutzt.
+ * <b>Solange es eingeschaltet ist</b>, lassen sich seine Fragen und seine
+ * Logik nicht löschen — verschieben und umformulieren schon. Der Dienst prüft
+ * das auch (`config.needs`, `Form.LockedFields`).
+ * <b>Ausgeschaltet</b> nimmt es mit, was es hinzugefügt hat: Fragen ohne
+ * Antworten verschwinden, Fragen mit Antworten werden vom Formular genommen
+ * (die Antworten bleiben in den Zgłoszenia), Logik und Ausdruck gehen.
+ */
+export type NeedId = 'minor' | 'health' | 'insurance' | 'rules';
+
+export interface FormNeed {
+  readonly id: NeedId;
+  /** Der Satz am Kästchen. */
   readonly label: string;
+  /** Was es dem Formular gibt. */
   readonly use: string;
   readonly questions: readonly Q[];
   readonly layout: readonly LayoutItem[];
   readonly nodes: readonly LogicNode[];
   readonly edges: readonly LogicEdge[];
-  /** Wann auf Papier: `always` oder die (lokale) Kennung einer Zustimmung. */
+  /** Wann auf Papier: `minor` (Minderjährige), `always`. */
   readonly paper?: string;
   readonly signer?: string;
-  /** Ein Schritt, den die Kanzlei abhakt — etwa „Zgoda podpisana — oddana". */
+  /** Ein Schritt, den die Kanzlei abhakt — etwa „Zgoda rodzica podpisana — oddana". */
   readonly step?: string;
 }
 
@@ -146,9 +165,6 @@ const minorLogic = (shows: readonly string[], requires: readonly string[]): { no
   ]
 });
 
-const MINOR_SHOWS = ['gGuardian', 'consentParticipation'] as const;
-const MINOR_NEEDS = ['guardian', 'guardianPhone', 'consentParticipation'] as const;
-
 /** „Tak" bei einer Frage → zeige und verlange ihre Erklärung. */
 const detailLogic = (yes: string, detail: string, y: number): { nodes: LogicNode[]; edges: LogicEdge[] } => ({
   nodes: [
@@ -162,76 +178,169 @@ const detailLogic = (yes: string, detail: string, y: number): { nodes: LogicNode
   ]
 });
 
-const SIGNER = 'czytelny podpis rodzica / opiekuna prawnego';
+export const NEED_SIGNER = 'czytelny podpis rodzica / opiekuna prawnego';
 
-const parent = minorLogic(MINOR_SHOWS, MINOR_NEEDS);
+const minor = minorLogic(['gGuardian'], ['guardian', 'guardianPhone', 'consentParticipation']);
 
-const trip = (() => {
-  const minor = minorLogic(MINOR_SHOWS, MINOR_NEEDS);
-  const health = detailLogic('health', 'healthDetail', 320);
-  const diet = detailLogic('diet', 'dietDetail', 540);
-  return { nodes: [...minor.nodes, ...health.nodes, ...diet.nodes], edges: [...minor.edges, ...health.edges, ...diet.edges] };
+/* Jedes Wymaganie zeichnet seine Logik in einem eigenen Streifen — zusammen überlappen sie nicht. */
+const health = (() => {
+  const a = detailLogic('health', 'healthDetail', 460);
+  const b = detailLogic('diet', 'dietDetail', 640);
+  return { nodes: [...a.nodes, ...b.nodes], edges: [...a.edges, ...b.edges] };
 })();
 
-export const FORM_TEMPLATES: readonly FormTemplate[] = [
+export const NEEDS: readonly FormNeed[] = [
   {
-    id: 'parent',
-    label: 'Zgoda rodzica (dla niepełnoletnich)',
-    use: 'Uczestnik, data urodzenia; dla niepełnoletniego rodzic z telefonem i zgoda na udział — do wydrukowania i podpisania odręcznie. Wizerunek dobrowolnie.',
-    questions: [Q_GIVEN, Q_SURNAME, Q_BORN, Q_GNAME, Q_GPHONE, C_PARTICIPATION, C_RULES, C_IMAGE],
+    id: 'minor',
+    label: 'Niepełnoletni potrzebują pisemnej zgody rodzica',
+    use: 'Data urodzenia uczestnika; gdy ma mniej niż 18 lat (w dniu wypełnienia) — rodzic z telefonem i jego zgoda na udział. '
+      + 'Po wysłaniu niepełnoletni dostaje wydruk do podpisania odręcznie, a koordynator odhacza oddaną zgodę.',
+    questions: [Q_GIVEN, Q_SURNAME, Q_BORN, Q_GNAME, Q_GPHONE, C_PARTICIPATION],
     layout: [
       group('gParticipant', 'Uczestnik', ['given', 'surname', 'born']),
-      group('gGuardian', 'Rodzic / opiekun prawny', ['guardian', 'guardianPhone']),
-      group('gConsents', 'Oświadczenia i zgody', ['consentParticipation', 'consentRules', 'consentImage']),
-      { type: 'text', id: 'tInfo', text: INFO }
+      group('gGuardian', 'Rodzic / opiekun prawny', ['guardian', 'guardianPhone', 'consentParticipation'])
     ],
-    nodes: parent.nodes, edges: parent.edges,
-    paper: 'consentParticipation', signer: SIGNER, step: 'Zgoda rodzica podpisana — oddana'
+    nodes: minor.nodes, edges: minor.edges,
+    paper: 'minor', signer: NEED_SIGNER, step: 'Zgoda rodzica podpisana — oddana'
   },
   {
-    id: 'trip',
-    label: 'Wyjazd: zgoda rodzica, zdrowie, pomoc w nagłym wypadku',
-    use: 'Jak wyżej, a do tego pytania „tak / nie” o zdrowie i dietę (z wyjaśnieniem przy „tak”), pomoc w nagłym wypadku, zgoda na dane o zdrowiu i zasady udziału.',
-    questions: [Q_GIVEN, Q_SURNAME, Q_BORN, Q_GNAME, Q_GPHONE, Q_HEALTH, Q_HEALTH_D, Q_DIET, Q_DIET_D,
-      C_PARTICIPATION, C_MEDICAL, C_HEALTH, C_RULES, C_IMAGE],
-    layout: [
-      group('gParticipant', 'Uczestnik', ['given', 'surname', 'born']),
-      group('gGuardian', 'Rodzic / opiekun prawny', ['guardian', 'guardianPhone']),
-      group('gHealth', 'Zdrowie i dieta', ['health', 'healthDetail', 'diet', 'dietDetail']),
-      group('gConsents', 'Oświadczenia i zgody', ['consentParticipation', 'consentMedical', 'consentHealth', 'consentRules', 'consentImage']),
-      { type: 'text', id: 'tInfo', text: INFO }
-    ],
-    nodes: trip.nodes, edges: trip.edges,
-    paper: 'consentParticipation', signer: SIGNER, step: 'Zgoda rodzica podpisana — oddana'
+    id: 'health',
+    label: 'Zdrowie i dieta, pomoc w nagłym wypadku',
+    use: 'Pytania „tak / nie” o zdrowie i dietę (przy „tak” — krótkie wyjaśnienie), zgoda na pomoc w nagłym wypadku i na dane o zdrowiu (art. 9 RODO).',
+    questions: [Q_HEALTH, Q_HEALTH_D, Q_DIET, Q_DIET_D, C_MEDICAL, C_HEALTH],
+    layout: [group('gHealth', 'Zdrowie i dieta', ['health', 'healthDetail', 'diet', 'dietDetail', 'consentMedical', 'consentHealth'])],
+    nodes: health.nodes, edges: health.edges
   },
   {
     id: 'insurance',
-    label: 'Dane do ubezpieczenia (NNW)',
-    use: 'Imię, nazwisko, data urodzenia, PESEL (sprawdzany) i adres — to, czego potrzebuje ubezpieczyciel — oraz informacja, że dane trafią do niego. Lista do ubezpieczenia: zakładka „Zgłoszenia” → CSV.',
+    label: 'Ubezpieczenie NNW',
+    use: 'Imię, nazwisko, data urodzenia, PESEL (sprawdzany) i adres — to, czego potrzebuje ubezpieczyciel — oraz informacja, że dane trafią do niego. Lista: zakładka „Zgłoszenia” → CSV.',
     questions: [Q_GIVEN, Q_SURNAME, Q_BORN, Q_PESEL, Q_ADDRESS, C_INSURANCE],
     layout: [group('gInsurance', 'Dane do ubezpieczenia', ['given', 'surname', 'born', 'pesel', 'address', 'consentInsurance'])],
+    nodes: [], edges: []
+  },
+  {
+    id: 'rules',
+    label: 'Zasady udziału, wizerunek i informacja o danych',
+    use: 'Akceptacja zasad (wymagana), dobrowolna zgoda na wizerunek i informacja z art. 13 RODO pod pytaniami.',
+    questions: [C_RULES, C_IMAGE],
+    layout: [group('gRules', 'Oświadczenia i zgody', ['consentRules', 'consentImage']), { type: 'text', id: 'tInfo', text: INFO }],
     nodes: [], edges: []
   }
 ];
 
-/* -- Anwenden ------------------------------------------------------------------------ */
+export const needOf = (id: string): FormNeed | undefined => NEEDS.find((one) => one.id === id);
 
-export interface TemplateResult {
+/* -- Was ein eingeschaltetes Wymaganie hält (config.needs) ----------------------------- */
+
+/**
+ * In der Einstellung `needs` des Formulars — eine Liste, eine Zeile je
+ * eingeschaltetem Wymaganie, mit den Kennungen dessen, was es hält.
+ */
+export interface NeedOn {
+  readonly id: string;
+  readonly label: string;
+  /** ALLE seine Fragen — auch die weiterbenutzten. Gesperrt, solange es eingeschaltet ist. */
+  readonly fields: readonly string[];
+  /** Die, die es selbst angelegt hat — beim Ausschalten gehen nur sie. */
+  readonly added: readonly string[];
+  /** Seine Gruppen und Texte im Aufbau. */
+  readonly items: readonly string[];
+  /** Seine Logik. */
+  readonly nodes: readonly string[];
+  readonly edges: readonly string[];
+  /** Hat es die Regel „do podpisu” gesetzt? Dann nimmt es sie beim Ausschalten mit. */
+  readonly paper?: boolean;
+}
+
+const ids = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x !== '') : []);
+
+/** Duldsam gelesen: Unlesbares heisst „nichts eingeschaltet". */
+export function readNeeds(text: string | null | undefined): NeedOn[] {
+  if (text == null || text.trim() === '') return [];
+  let raw: unknown;
+  try { raw = JSON.parse(text); } catch { return []; }
+  if (!Array.isArray(raw)) return [];
+  const out: NeedOn[] = [];
+  for (const one of raw) {
+    if (typeof one !== 'object' || one === null) continue;
+    const r = one as Record<string, unknown>;
+    if (typeof r.id !== 'string' || r.id === '' || out.some((x) => x.id === r.id)) continue;
+    out.push({
+      id: r.id,
+      label: typeof r.label === 'string' && r.label !== '' ? r.label : needOf(r.id)?.label ?? r.id,
+      fields: ids(r.fields), added: ids(r.added), items: ids(r.items), nodes: ids(r.nodes), edges: ids(r.edges),
+      ...(r.paper === true ? { paper: true } : {})
+    });
+  }
+  return out;
+}
+
+/** Zurück in die Einstellung — leer, wenn keines eingeschaltet ist (dann fällt der Schlüssel weg). */
+export const needsJson = (needs: readonly NeedOn[]): string => (needs.length === 0 ? '' : JSON.stringify(needs));
+
+/** Was gesperrt ist — Frage, Knoten → der Name des Wymaganie; Kanten als Menge. */
+export function lockedOf(needs: readonly NeedOn[]): {
+  readonly fields: ReadonlyMap<string, string>;
+  readonly nodes: ReadonlyMap<string, string>;
+  readonly edges: ReadonlySet<string>;
+} {
+  const fields = new Map<string, string>();
+  const nodes = new Map<string, string>();
+  const edges = new Set<string>();
+  for (const need of needs) {
+    for (const id of need.fields) if (!fields.has(id)) fields.set(id, need.label);
+    for (const id of need.nodes) if (!nodes.has(id)) nodes.set(id, need.label);
+    for (const id of need.edges) edges.add(id);
+  }
+  return { fields, nodes, edges };
+}
+
+/**
+ * Ein Aufbau ohne die Gruppen und Texte eines Wymaganie. Was in einer seiner
+ * Gruppen steht und nicht ihm gehört (jemand hat eine eigene Frage
+ * hineingeschoben), rückt an die Stelle der Gruppe — es geht nichts verloren.
+ */
+export function layoutWithout(layout: readonly LayoutItem[], items: ReadonlySet<string>, fields: ReadonlySet<string>): LayoutItem[] {
+  return layout.flatMap((item): LayoutItem[] => {
+    if (item.type === 'field') return fields.has(item.id) ? [] : [item];
+    if (item.type === 'group') {
+      const inner = layoutWithout(item.items, items, fields);
+      return items.has(item.id) ? inner : [{ ...item, items: inner }];
+    }
+    return items.has(item.id) ? [] : [item];
+  });
+}
+
+/** Eine Logik ohne die Knoten und Kanten eines Wymaganie — und ohne Kanten, die an einem davon hingen. */
+export function logicWithout(
+  design: { readonly nodes: readonly LogicNode[]; readonly edges: readonly LogicEdge[] },
+  nodes: ReadonlySet<string>, edges: ReadonlySet<string>
+): { nodes: LogicNode[]; edges: LogicEdge[] } {
+  return {
+    nodes: design.nodes.filter((n) => !nodes.has(n.id)),
+    edges: design.edges.filter((e) => !edges.has(e.id) && !nodes.has(e.from) && !nodes.has(e.to))
+  };
+}
+
+/* -- Einschalten --------------------------------------------------------------------- */
+
+export interface NeedResult {
   readonly added: number;
   readonly reused: number;
   readonly warnings: readonly string[];
-  /** Die Einstellungen des Formulars danach (`paper`, `paperSigner`) — `null`: unverändert. */
-  readonly config: Record<string, string> | null;
+  /** Die Einstellungen des Formulars danach. */
+  readonly config: Record<string, string>;
 }
 
-/** Kennungen eines Wzór frisch machen — zweimal angewendet, darf nichts zusammenfallen. */
-function fresh(template: FormTemplate, reused: ReadonlyMap<string, string>): {
+/** Kennungen eines Wymaganie frisch machen — zweimal angewendet, darf nichts zusammenfallen. */
+function fresh(need: FormNeed, reused: ReadonlyMap<string, string>): {
   questions: QuestionJson[]; design: FormDesign; local: ReadonlyMap<string, string>;
 } {
   const local = new Map<string, string>();
   const idOf = (id: string) => reused.get(id) ?? local.get(id) ?? (() => { const next = `tpl-${newId()}`; local.set(id, next); return next; })();
 
-  const questions = template.questions.filter((q) => !reused.has(q.id)).map((q): QuestionJson => ({
+  const questions = need.questions.filter((q) => !reused.has(q.id)).map((q): QuestionJson => ({
     id: idOf(q.id), kind: q.kind, label: q.label, help: q.help ?? null, options: [],
     required: q.required ?? false, halfWidth: q.half ?? false, identity: q.identity ?? 'none',
     selfEdit: q.selfEdit ?? true, answersTo: ''
@@ -247,75 +356,187 @@ function fresh(template: FormTemplate, reused: ReadonlyMap<string, string>): {
     local,
     design: {
       version: 1,
-      layout: template.layout.map(item),
-      nodes: template.nodes.map((n) => ({
+      layout: need.layout.map(item),
+      nodes: need.nodes.map((n) => ({
         ...n, id: idOf(n.id),
         ...(n.fieldId === undefined ? {} : { fieldId: idOf(n.fieldId) }),
         ...(n.target === undefined ? {} : { target: idOf(n.target) })
       })),
-      edges: template.edges.map((e) => ({ ...e, id: idOf(e.id), from: idOf(e.from), to: idOf(e.to) }))
+      edges: need.edges.map((e) => ({ ...e, id: idOf(e.id), from: idOf(e.from), to: idOf(e.to) }))
     }
   };
 }
 
+/** Die Kennungen der Gruppen und Texte eines Aufbaus (ohne die Fragen). */
+const itemIds = (layout: readonly LayoutItem[]): string[] =>
+  layout.flatMap((one) => (one.type === 'field' ? [] : one.type === 'group' ? [one.id, ...itemIds(one.items)] : [one.id]));
+
 /**
- * EINEN WZÓR AN EIN FORMULAR — Fragen ans Ende, Gruppen und Logik zu dem, was
- * schon da ist (nicht statt dessen), die Einstellung „do podpisu", und der
- * Schritt der Kanzlei am Hauptformular.
+ * EIN WYMAGANIE EINSCHALTEN — Fragen ans Ende, Gruppen und Logik zu dem, was
+ * schon da ist (nicht statt dessen), die Regel „do podpisu", der Schritt der
+ * Kanzlei — und in `config.needs`, was es jetzt hält.
  */
-export async function applyTemplate(
-  who: Who, module: ModuleRow, template: FormTemplate, answersTo: string | null,
-  onStage?: (what: string) => void
-): Promise<TemplateResult> {
+export async function applyNeed(
+  who: Who, module: ModuleRow, need: FormNeed, answersTo: string | null,
+  config: Readonly<Record<string, string>>, onStage?: (what: string) => void
+): Promise<NeedResult> {
+  const before = readNeeds(config.needs);
+  if (before.some((one) => one.id === need.id)) throw new WorkspaceError(`„${need.label}” jest już włączone.`);
+
   onStage?.('Czytanie formularza…');
   const now = await readFormContent(who, module.moduleId);
-  if (now.unread > 0) throw new WorkspaceError('Części pytań tego formularza nie da się odczytać — wzór mógłby je zdublować. Otwórz formularz z kluczem jego obszaru.');
+  if (now.unread > 0) throw new WorkspaceError('Części pytań tego formularza nie da się odczytać — wymaganie mogłoby je zdublować. Otwórz formularz z kluczem jego obszaru.');
 
-  /* Was es schon gibt (genormte Angaben), wird weiterbenutzt. */
+  /*
+   * Was es schon gibt (genormte Angaben), wird weiterbenutzt. 0086 — und was
+   * vom Formular genommen ist (ein Wymaganie, das aus- und wieder eingeschaltet
+   * wird): dieselbe Angabe oder dieselbe Frage kommt mit ihren Antworten
+   * zurück, statt neben ihnen ein zweites Mal zu entstehen.
+   */
   const reused = new Map<string, string>();
-  for (const q of template.questions) {
-    if ((q.identity ?? 'none') === 'none') continue;
-    const there = now.questions.find((one) => one.identity === q.identity);
-    if (there !== undefined) reused.set(q.id, there.id);
+  const back: string[] = [];
+  for (const q of need.questions) {
+    const identity = q.identity ?? 'none';
+    const there = identity === 'none' ? undefined : now.questions.find((one) => one.identity === identity);
+    if (there !== undefined) { reused.set(q.id, there.id); continue; }
+    const gone = (now.removed ?? []).find((one) => (identity !== 'none' && one.identity === identity)
+      || (one.kind === q.kind && one.label !== null && one.label.trim() === q.label));
+    if (gone !== undefined && !back.includes(gone.id)) { reused.set(q.id, gone.id); back.push(gone.id); }
+  }
+  for (const id of back) {
+    onStage?.('Przywracanie pytań…');
+    await restoreField(id);
   }
 
-  const { questions, design: added, local } = fresh(template, reused);
+  const { questions, design: added, local } = fresh(need, reused);
 
-  /* Der Aufbau: was dasteht (ohne Aufbau: die Fragen in ihrer Reihenfolge), dann der Wzór. */
-  const before = now.design;
+  /* Der Aufbau: was dasteht (ohne Aufbau: die Fragen in ihrer Reihenfolge), dann das Wymaganie. */
+  const was = now.design;
   const merged: FormDesign = {
     version: 1,
-    layout: [...layoutWith(before?.layout ?? [], now.questions.map((q) => q.id)), ...added.layout],
-    nodes: [...(before?.nodes ?? []), ...added.nodes],
-    edges: [...(before?.edges ?? []), ...added.edges]
+    layout: [...layoutWith(was?.layout ?? [], now.questions.map((q) => q.id)), ...added.layout],
+    nodes: [...(was?.nodes ?? []), ...added.nodes],
+    edges: [...(was?.edges ?? []), ...added.edges]
   };
 
   const written = await writeFormContent(who, { moduleId: module.moduleId, areaId: module.areaId }, { questions, design: merged },
     { replace: false, answersTo, onStage });
   const warnings = [...written.warnings];
-  let config: Record<string, string> | null = null;
 
-  /* „Do podpisu": die Kennung der Zustimmung, wie sie jetzt heisst. */
-  if (template.paper !== undefined) {
-    const paper = template.paper === 'always' ? 'always'
-      : reused.get(template.paper) ?? written.ids.get(local.get(template.paper) ?? '') ?? null;
-    if (paper === null) warnings.push('Nie udało się ustawić „do podpisu” — ustaw je w zakładce „Ustawienia”.');
-    else {
-      onStage?.('Ustawianie wydruku do podpisu…');
-      config = (await setPartConfig(module.moduleId, { paper, ...(template.signer === undefined ? {} : { paperSigner: template.signer }) })).config;
-    }
+  const made = [
+    ...back,
+    ...need.questions.filter((q) => !reused.has(q.id))
+      .map((q) => written.ids.get(local.get(q.id) ?? '')).filter((id): id is string => id !== undefined)
+  ];
+  const all = need.questions.map((q) => reused.get(q.id) ?? written.ids.get(local.get(q.id) ?? ''))
+    .filter((id): id is string => id !== undefined);
+
+  /*
+   * „DO PODPISU": für Minderjährige. Steht schon „zawsze", bleibt es — das ist
+   * mehr; eine Regel „wenn angekreuzt" (vor 0086 von Hand gesetzt) weicht.
+   */
+  const set: Record<string, string> = {};
+  let paper = false;
+  if (need.paper !== undefined && (config.paper ?? '') !== 'always') {
+    set.paper = need.paper;
+    if (need.signer !== undefined) set.paperSigner = need.signer;
+    paper = true;
   }
 
-  if (template.step !== undefined) {
+  const on: NeedOn = {
+    id: need.id, label: need.label, fields: all, added: made,
+    items: itemIds(added.layout), nodes: added.nodes.map((n) => n.id), edges: added.edges.map((e) => e.id),
+    ...(paper ? { paper: true } : {})
+  };
+  set.needs = needsJson([...before, on]);
+
+  onStage?.('Zapisywanie wymagań formularza…');
+  const saved = (await setPartConfig(module.moduleId, set)).config;
+
+  if (need.step !== undefined) {
     try {
       onStage?.('Dodawanie kroku dla koordynatora…');
-      await addOfficeStep(who, module, template.step);
+      await addOfficeStep(who, module, need.step);
     } catch (e) {
-      warnings.push(`Krok „${template.step}” nie powstał: ${e instanceof WorkspaceError ? e.message : 'nie udało się'} — dodasz go w zakładce „Znaczniki”.`);
+      warnings.push(`Krok „${need.step}” nie powstał: ${e instanceof WorkspaceError ? e.message : 'nie udało się'} — dodasz go w zakładce „Znaczniki”.`);
     }
   }
 
-  return { added: written.added, reused: reused.size, warnings, config };
+  if (back.length > 0) warnings.push(`Wróciły do formularza pytania zdjęte wcześniej (${back.length}) — razem z odpowiedziami.`);
+  return { added: made.length - back.length, reused: reused.size - back.length, warnings, config: saved };
+}
+
+/* -- Ausschalten --------------------------------------------------------------------- */
+
+export interface NeedDropped {
+  /** Ganz gelöscht (ohne Antworten). */
+  readonly removed: number;
+  /** Vom Formular genommen — ihre Antworten bleiben in den Zgłoszenia. */
+  readonly kept: number;
+  readonly warnings: readonly string[];
+  readonly config: Record<string, string>;
+}
+
+/**
+ * EIN WYMAGANIE AUSSCHALTEN. Erst die Sperre (sonst lehnte der Dienst das
+ * Entfernen ab), dann seine eigenen Fragen — die, die noch ein anderes
+ * eingeschaltetes Wymaganie braucht, bleiben —, dann seine Gruppen und Logik.
+ * Der Schritt der Kanzlei bleibt: an ihm hängen vielleicht schon Häkchen.
+ */
+export async function dropNeed(
+  who: Who, module: ModuleRow, needId: string,
+  config: Readonly<Record<string, string>>, onStage?: (what: string) => void
+): Promise<NeedDropped> {
+  const before = readNeeds(config.needs);
+  const gone = before.find((one) => one.id === needId);
+  if (gone === undefined) throw new WorkspaceError('To wymaganie nie jest włączone.');
+  const rest = before.filter((one) => one.id !== needId);
+
+  const set: Record<string, string> = { needs: needsJson(rest) };
+  if (gone.paper === true && (config.paper ?? '') === (needOf(needId)?.paper ?? '')) {
+    set.paper = '';
+    if ((config.paperSigner ?? '') === (needOf(needId)?.signer ?? '')) set.paperSigner = '';
+  }
+  onStage?.('Zapisywanie wymagań formularza…');
+  const saved = (await setPartConfig(module.moduleId, set)).config;
+
+  const still = new Set(rest.flatMap((one) => one.fields));
+  const leaving = gone.added.filter((id) => !still.has(id));
+  const warnings: string[] = [];
+  let removed = 0;
+  let kept = 0;
+  for (const id of leaving) {
+    onStage?.('Usuwanie pytań wymagania…');
+    try {
+      const done = await removeField(id);
+      if (done.kept === true) kept += 1; else removed += 1;
+    } catch (e) {
+      /* Schon von Hand entfernt — nichts zu tun. Sonst sagen, was blieb. */
+      if (!(e instanceof WorkspaceError && /nie ma/i.test(e.message))) {
+        warnings.push(`Pytanie ${id.slice(0, 8)} zostaje: ${e instanceof WorkspaceError ? e.message : 'nie udało się usunąć'}.`);
+      }
+    }
+  }
+
+  /* Der Aufbau und die Logik ohne das, was es mitgebracht hat. */
+  const now = await readFormContent(who, module.moduleId);
+  if (now.design !== null) {
+    const logic = logicWithout(now.design, new Set(gone.nodes), new Set(gone.edges));
+    const design: FormDesign = {
+      ...now.design,
+      layout: layoutWithout(now.design.layout, new Set(gone.items), new Set(leaving)),
+      nodes: logic.nodes,
+      edges: logic.edges
+    };
+    if (JSON.stringify(design) !== JSON.stringify(now.design)) {
+      onStage?.('Zapisywanie układu…');
+      const written = await writeFormContent(who, { moduleId: module.moduleId, areaId: module.areaId }, { design },
+        { replace: false, answersTo: null, onStage });
+      warnings.push(...written.warnings);
+    }
+  }
+
+  return { removed, kept, warnings, config: saved };
 }
 
 const localDay = (iso: string): string => {

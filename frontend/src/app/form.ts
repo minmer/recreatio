@@ -343,7 +343,21 @@ export interface SealedField {
 
   /** Fragt der Link beim ersten Öffnen nach dieser Angabe (0046)? */
   readonly linkCheck: boolean;
+
+  /**
+   * 0086 — VOM FORMULAR GENOMMEN (wann): gefragt wird sie nicht mehr, ihre
+   * Antworten bleiben. Nur die Kanzlei bekommt solche Fragen (`loadFields`).
+   */
+  readonly removedAt?: string | null;
 }
+
+/** 0086 — die Fragen, die das Formular stellt (ohne die vom Formular genommenen). */
+export const asked = <F extends { readonly removedAt?: string | null }>(fields: readonly F[]): F[] =>
+  fields.filter((f) => f.removedAt == null);
+
+/** 0086 — die vom Formular genommenen: ihre Antworten stehen noch in den Zgłoszenia. */
+export const takenOff = <F extends { readonly removedAt?: string | null }>(fields: readonly F[]): F[] =>
+  fields.filter((f) => f.removedAt != null);
 
 export const loadFields = (partId: string): Promise<{
   fields: readonly SealedField[];
@@ -370,8 +384,18 @@ export const setLinkCheck = (
 export const openLabel = (fieldId: string, labelSealed: string, key: Uint8Array): Promise<string | null> =>
   quietly(() => openText(key, labelAad(fieldId), fromBase64Url(labelSealed)));
 
-export const removeField = (fieldId: string): Promise<{ removed: boolean }> =>
+/**
+ * Eine Frage entfernen. 0086 — hat schon jemand geantwortet, wird sie vom
+ * Formular GENOMMEN (`kept`): niemand bekommt sie mehr, ihre Antworten bleiben
+ * in den Zgłoszenia, und sie lässt sich zurückholen. Ohne Antworten ist sie weg.
+ * Eine Frage eines eingeschalteten Wymaganie lehnt der Dienst ab.
+ */
+export const removeField = (fieldId: string): Promise<{ removed: boolean; kept?: boolean }> =>
   call(`/workspace/field/${encodeURIComponent(fieldId)}/remove`, { method: 'POST' });
+
+/** 0086 — eine vom Formular genommene Frage zurückholen; sie wird wieder gestellt. */
+export const restoreField = (fieldId: string): Promise<{ restored: boolean }> =>
+  call(`/workspace/field/${encodeURIComponent(fieldId)}/restore`, { method: 'POST' });
 
 /* -- Das öffentliche Formular ----------------------------------------------- */
 
@@ -437,6 +461,9 @@ export interface AfterSend {
   readonly text: string | null;
   readonly paper: string | null;
   readonly signer: string | null;
+
+  /** 0086 — was an die Adresse der Seite gehängt wird (`portalAt`): `?s=3`, `#zapisy`, `?part=<kennung>`. */
+  readonly at?: string | null;
 }
 
 /** Wer ein Formular ausfüllt (0047). */

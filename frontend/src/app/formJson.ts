@@ -12,7 +12,8 @@
  * (oder mit einer, die es hier nicht gibt, etwa "q1") wird neu angelegt; wo
  * der Aufbau (`design`) oder die Logik der Seite sie nennen, wird die neue
  * Kennung eingesetzt. Gelöscht wird nur auf ausdrücklichen Wunsch — und eine
- * Frage mit Antworten lehnt der Dienst ohnehin ab.
+ * Frage mit Antworten nimmt der Dienst nur vom Formular (0086): ihre Antworten
+ * bleiben, und nennt ein Dokument sie wieder, kommt sie zurück.
  *
  * <b>Die Reihenfolge</b> vorhandener Fragen lässt sich nicht umstellen (es gibt
  * dafür keinen Weg im Dienst); neue kommen ans Ende. Wie das Formular sie
@@ -22,7 +23,7 @@
 import { loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from './area';
 import { fromBase64Url } from './crypto';
 import {
-  addField, editField, FIELD_KINDS, IDENTITY_ROLES, loadFields, openFields, removeField,
+  addField, asked, editField, FIELD_KINDS, IDENTITY_ROLES, loadFields, openFields, removeField, restoreField,
   type FieldKind, type IdentityRole, type OpenField
 } from './form';
 import { openDesign, readDesign, saveDesign, sealDesign, type FormDesign, type LayoutItem } from './formDesign';
@@ -50,6 +51,9 @@ export interface QuestionJson {
 
 export interface FormContent {
   readonly questions: readonly QuestionJson[];
+
+  /** 0086 — die vom Formular genommenen Fragen (nicht im Export; ein Wymaganie holt sie zurück, statt sie neu anzulegen). */
+  readonly removed?: readonly QuestionJson[];
   readonly design: FormDesign | null;
   /** Wie viele Fragen sich hier nicht öffnen liessen (kein Schlüssel). */
   readonly unread: number;
@@ -58,7 +62,7 @@ export interface FormContent {
 /** Was jeder Schlüssel bedeutet — für die Beschreibung neben dem Import. */
 export const QUESTION_KEYS: Readonly<Record<string, string>> = {
   questions: 'Pytania formularza — lista, w kolejności',
-  'questions[].id': 'Identyfikator pytania. Ten z eksportu — pytanie zostanie zmienione (odpowiedzi zostają). Nowy albo własny (np. "q1") — powstanie nowe pytanie; tej samej nazwy można użyć w "design"',
+  'questions[].id': 'Identyfikator pytania. Ten z eksportu — pytanie zostanie zmienione (odpowiedzi zostają). Nowy albo własny (np. "q1") — powstanie nowe pytanie; tej samej nazwy można użyć w "design". Pytanie zdjęte z formularza (miało odpowiedzi) nie jest w eksporcie; jego identyfikator w dokumencie przywraca je razem z odpowiedziami',
   'questions[].kind': `Rodzaj: ${FIELD_KINDS.map((k) => `"${k}"`).join(', ')}`,
   'questions[].label': 'Treść pytania',
   'questions[].help': 'Podpowiedź pod pytaniem (albo null). Przy "consent" — pełna treść oświadczenia; zaznaczona zgoda zapisuje się razem z nią ("tak: …"). "pesel" sprawdza cyfrę kontrolną',
@@ -160,9 +164,12 @@ const asQuestion = (f: OpenField): QuestionJson => ({
 
 export async function readFormContent(who: Who, moduleId: string): Promise<FormContent> {
   const loaded = await loadFields(moduleId);
+  /* 0086 — was vom Formular genommen ist, gehört nicht mehr zu seinem Inhalt (es steht daneben, in `removed`). */
   const under = loaded.fields.flatMap((f) => [f.labelAreaId ?? f.areaId]);
   const keys = await keysOf(who, [...under, ...(loaded.design === null ? [] : [loaded.design.areaId])]);
-  const fields = [...await openFields(loaded.fields, keys.open)].sort((a, b) => a.position - b.position);
+  const every = [...await openFields(loaded.fields, keys.open)].sort((a, b) => a.position - b.position);
+  const fields = asked(every);
+  const gone = every.filter((f) => f.removedAt != null);
 
   let design: FormDesign | null = null;
   if (loaded.design !== null) {
@@ -179,7 +186,7 @@ export async function readFormContent(who: Who, moduleId: string): Promise<FormC
     design = await openDesign(loaded.design, key, moduleId);
   }
 
-  return { questions: fields.map(asQuestion), design, unread: fields.filter((f) => f.label === null).length };
+  return { questions: fields.map(asQuestion), removed: gone.map(asQuestion), design, unread: fields.filter((f) => f.label === null).length };
 }
 
 /* -- Schreiben -------------------------------------------------------------------- */
@@ -281,7 +288,20 @@ export async function writeFormContent(
   const wanted = readQuestions(doc.questions, warnings);
   const loaded = await loadFields(form.moduleId);
   const keys = await keysOf(who, loaded.fields.map((f) => f.labelAreaId ?? f.areaId));
-  const now = [...await openFields(loaded.fields, keys.open)].sort((a, b) => a.position - b.position);
+  const every = [...await openFields(loaded.fields, keys.open)].sort((a, b) => a.position - b.position);
+
+  /*
+   * 0086 — EINE VOM FORMULAR GENOMMENE FRAGE, die das Dokument wieder nennt,
+   * kommt zurück (mit ihren Antworten) und wird wie jede vorhandene behandelt.
+   */
+  const named = new Set(wanted.map((q) => q.id));
+  for (const f of every) {
+    if (f.removedAt == null || !named.has(f.fieldId)) continue;
+    options.onStage?.(`Przywracanie pytania „${f.label ?? f.fieldId}”…`);
+    await restoreField(f.fieldId);
+    warnings.push(`„${f.label ?? f.fieldId}” wraca do formularza — razem z dotychczasowymi odpowiedziami.`);
+  }
+  const now = every.filter((f) => f.removedAt == null || named.has(f.fieldId));
   const byId = new Map(now.map((f) => [f.fieldId, f]));
 
   let formArea = form.areaId;
@@ -322,8 +342,8 @@ export async function writeFormContent(
     changed += 1;
   }
 
-  /* Dann die neuen — ans Ende. */
-  let position = now.length;
+  /* Dann die neuen — ans Ende (hinter allen, auch den vom Formular genommenen). */
+  let position = every.length;
   const intakes = new Set<string>();
   for (const q of fresh) {
     const target = q.answersTo ?? options.answersTo ?? formArea ?? now[0]?.areaId ?? null;
@@ -358,7 +378,7 @@ export async function writeFormContent(
     added += 1;
   }
 
-  /* Gelöscht wird nur auf Wunsch — und eine Frage mit Antworten lehnt der Dienst ab. */
+  /* Gelöscht wird nur auf Wunsch — eine Frage mit Antworten nimmt der Dienst nur vom Formular (0086). */
   let removed = 0;
   if (options.replace) {
     const keep = new Set(wanted.map((q) => q.id));

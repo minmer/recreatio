@@ -19,12 +19,21 @@
  * sind („tak / nie", die Pfarrei). Namen und Nummern wiederholen sich nicht —
  * dort hilft das Suchfeld, und ein Filter mit einer Zeile je Mensch wäre
  * bloss die Liste noch einmal.
+ *
+ * <b>0086 — und zum SCHREIBEN.</b> „Edytuj w tabeli" macht jede Zelle einer
+ * gestellten Frage zu einem Eingabefeld, und „Dodaj wiersz" setzt jemanden
+ * auf die Liste — die Kanzlei trägt eine Liste vom Papier ab, oder rückt
+ * zwanzig Antworten auf einmal gerade. Gespeichert wird wie jede Berichtigung
+ * der Kanzlei: neu versiegelt, für das Amt und für den Menschen. Die Spalten
+ * der vom Formular genommenen Fragen stehen mit ihren Antworten da — lesen ja,
+ * schreiben nein: gefragt wird danach nicht mehr.
  */
 
 import { useMemo, useState } from 'react';
 
-import { shownAnswer, type OpenField, type Submission } from './form';
+import { consentGiven, consentValue, isYes, shownAnswer, YES, type Answer, type OpenField, type Submission } from './form';
 import { saveBlob } from './platform';
+import { WorkspaceError } from './session';
 
 /** Wie viele verschiedene Antworten eine Frage höchstens haben darf, um einen Filter zu bekommen. */
 const FILTERABLE = 8;
@@ -37,6 +46,9 @@ interface Column {
   readonly label: string;
   readonly numeric: boolean;
   readonly choice: boolean;
+
+  /** 0086 — die Frage hinter der Spalte, wenn sie gestellt wird: nur dann lässt sich die Zelle schreiben. */
+  readonly field: OpenField | null;
 }
 
 interface Row {
@@ -49,20 +61,54 @@ interface Row {
 
 type Sort = { readonly key: string; readonly dir: 1 | -1 };
 
-export function FormTable({ fields, submissions, opened, fileName }: {
+/** 0086 — was an EINER Einsendung geändert wurde. */
+export interface TableChange {
+  readonly registrationId: string;
+  readonly answers: readonly Answer[];
+}
+
+/** Keine vom Formular genommenen Fragen — eine feste Liste, damit die Rechnungen unten nicht bei jedem Zeichnen neu laufen. */
+const NONE: readonly OpenField[] = [];
+
+export function FormTable({ fields, removed = NONE, submissions, opened, fileName, onSave, canAdd = false }: {
   fields: readonly OpenField[];
+
+  /** 0086 — die vom Formular genommenen Fragen: ihre Spalten stehen mit Beschriftung da, zum Lesen. */
+  removed?: readonly OpenField[];
   submissions: readonly Submission[];
   opened: ReadonlyMap<string, ReadonlyMap<string, string>>;
 
   /** Wie die heruntergeladene Datei heisst — der Name des Formulars. */
   fileName: string;
+
+  /**
+   * 0086 — die geänderten Zellen und die neuen Zeilen speichern. Fehlt es, ist
+   * die Tabelle nur zum Lesen. Zurück kommt eine Auskunft (oder `null`).
+   */
+  onSave?: (changes: readonly TableChange[], added: readonly (readonly Answer[])[]) => Promise<string | null>;
+
+  /** Neue Zeilen — nur bei einem gewöhnlichen Formular (eine Erweiterung gehört zu einer Einsendung). */
+  canAdd?: boolean;
 }) {
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<ReadonlyMap<string, string>>(new Map());
   const [sort, setSort] = useState<Sort>({ key: 'at', dir: -1 });
 
+  /* -- 0086: Schreiben ------------------------------------------------------------- */
+  const [editing, setEditing] = useState(false);
+  /** Einsendung → Frage → neuer Wert (nur, was angefasst wurde). */
+  const [draft, setDraft] = useState<ReadonlyMap<string, ReadonlyMap<string, string>>>(new Map());
+  /** Die neuen Zeilen — je eine Frage → Wert. */
+  const [fresh, setFresh] = useState<readonly Readonly<Record<string, string>>[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [said, setSaid] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  /** Der gespeicherte Wert einer Zelle — roh, wie er aufging (eine Zustimmung mit ihrem Wortlaut). */
+  const rawOf = (registrationId: string, fieldId: string) => opened.get(registrationId)?.get(fieldId) ?? '';
+
   /* 0083 — eine Zustimmung steht als „tak" in der Tabelle (und in der CSV); ihr Wortlaut bleibt in der Antwort und auf dem Ausdruck. */
-  const consents = useMemo(() => new Set(fields.filter((f) => f.kind === 'consent').map((f) => f.fieldId)), [fields]);
+  const consents = useMemo(() => new Set([...fields, ...removed].filter((f) => f.kind === 'consent').map((f) => f.fieldId)), [fields, removed]);
 
   const rows: readonly Row[] = useMemo(() => submissions.map((s) => {
     const values = opened.get(s.registrationId) ?? new Map<string, string>();
@@ -82,23 +128,77 @@ export function FormTable({ fields, submissions, opened, fileName }: {
    * wäre ein Wert, der stillschweigend nicht mehr vorkommt.
    */
   const columns: readonly Column[] = useMemo(() => {
-    const known = new Set(fields.map((f) => f.fieldId));
+    const known = new Set([...fields, ...removed].map((f) => f.fieldId));
     const orphans = new Set<string>();
     for (const row of rows) for (const id of row.values.keys()) if (!known.has(id)) orphans.add(id);
 
+    /* 0086 — eine vom Formular genommene Frage nur, wenn jemand auf sie geantwortet hat. */
+    const answered = new Set<string>();
+    for (const row of rows) for (const [id, v] of row.values) if (v.trim() !== '') answered.add(id);
+
     return [
-      { key: 'at', label: 'Wysłano', numeric: false, choice: false },
+      { key: 'at', label: 'Wysłano', numeric: false, choice: false, field: null },
       ...fields.map((f) => ({
         key: f.fieldId,
         label: f.label ?? 'zapieczętowane pytanie',
         numeric: f.kind === 'number',
-        choice: f.kind === 'choice'
+        choice: f.kind === 'choice',
+        field: f.label === null ? null : f
+      })),
+      ...removed.filter((f) => answered.has(f.fieldId)).map((f) => ({
+        key: f.fieldId,
+        label: `${f.label ?? 'zapieczętowane pytanie'} (zdjęte z formularza)`,
+        numeric: f.kind === 'number',
+        choice: f.kind === 'choice',
+        field: null
       })),
       ...[...orphans].map((id) => ({
-        key: id, label: `pytanie usunięte (${id.slice(0, 8)})`, numeric: false, choice: false
+        key: id, label: `pytanie usunięte (${id.slice(0, 8)})`, numeric: false, choice: false, field: null
       }))
     ];
-  }, [fields, rows]);
+  }, [fields, removed, rows]);
+
+  const writable = columns.filter((c) => c.field !== null);
+
+  /** Was in einer Zelle steht, während geschrieben wird — der Entwurf, sonst das Gespeicherte. */
+  const draftOf = (registrationId: string, fieldId: string) => draft.get(registrationId)?.get(fieldId) ?? rawOf(registrationId, fieldId);
+
+  const setCell = (registrationId: string, fieldId: string, value: string) => setDraft((was) => {
+    const next = new Map(was);
+    const row = new Map(next.get(registrationId) ?? new Map<string, string>());
+    if (value.trim() === rawOf(registrationId, fieldId).trim()) row.delete(fieldId); else row.set(fieldId, value);
+    if (row.size === 0) next.delete(registrationId); else next.set(registrationId, row);
+    return next;
+  });
+
+  const changes: readonly TableChange[] = [...draft].map(([registrationId, cells]) => ({
+    registrationId,
+    answers: [...cells].map(([fieldId, value]) => ({ fieldId, value }))
+  })).filter((one) => one.answers.length > 0);
+
+  const added: readonly (readonly Answer[])[] = fresh
+    .map((one) => Object.entries(one).filter(([, v]) => v.trim() !== '').map(([fieldId, value]) => ({ fieldId, value })))
+    .filter((one) => one.length > 0);
+
+  const touched = changes.reduce((n, one) => n + one.answers.length, 0) + added.length;
+
+  const stop = () => { setEditing(false); setDraft(new Map()); setFresh([]); setFailed(null); };
+
+  const save = async () => {
+    if (onSave === undefined || touched === 0) return;
+    setSaving(true);
+    setFailed(null);
+    setSaid(null);
+    try {
+      /* Was gespeichert wurde, sagt der Aufrufer (über der Tabelle — sie entsteht beim Neulesen neu); `null`: schon gesagt. */
+      setSaid(await onSave(changes, added));
+      stop();
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać tabeli.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const cell = (row: Row, key: string): string =>
     key === 'at' ? new Date(row.at).toLocaleString('pl-PL') : row.values.get(key) ?? '';
@@ -167,10 +267,10 @@ export function FormTable({ fields, submissions, opened, fileName }: {
     return next;
   });
 
-  if (rows.length === 0) return <p className="wk-empty">Nie ma jeszcze żadnego zgłoszenia.</p>;
+  if (rows.length === 0 && (onSave === undefined || !canAdd)) return <p className="wk-empty">Nie ma jeszcze żadnego zgłoszenia.</p>;
 
   return (
-    <div className="wk-entries">
+    <div className={editing ? 'wk-entries is-editing' : 'wk-entries'}>
       <div className="wk-entries-bar">
         <label className="wk-field">
           <span>Szukaj w odpowiedziach</span>
@@ -194,15 +294,46 @@ export function FormTable({ fields, submissions, opened, fileName }: {
           {shown.length === rows.length ? `${rows.length} zgłoszeń` : `${shown.length} z ${rows.length} zgłoszeń`}
         </span>
         <button
-          type="button" className="wk-link-btn" disabled={shown.length === 0}
+          type="button" className="wk-link-btn" disabled={shown.length === 0 || editing}
           onClick={() => download(fileName, columns, shown, cell)}
         >
           Pobierz CSV ({shown.length})
         </button>
+        {onSave !== undefined && !editing && (
+          <button
+            type="button" className="wk-btn wk-btn-quiet" disabled={writable.length === 0}
+            onClick={() => { setEditing(true); setSaid(null); setFailed(null); if (rows.length === 0 && canAdd) setFresh([{}]); }}
+          >
+            Edytuj w tabeli
+          </button>
+        )}
       </div>
       <p className="wk-hint">
         Plik CSV zawiera odszyfrowane odpowiedzi — na tym komputerze nic ich już nie chroni.
       </p>
+
+      {/* 0086 — DAS SCHREIBEN: was geändert ist, wie viele neue Zeilen, und die Knöpfe. */}
+      {editing && (
+        <div className="wk-table-edit" role="group" aria-label="Edycja tabeli">
+          <span className="wk-hint">
+            Zmień odpowiedzi w komórkach{canAdd ? ' albo dopisz nowe osoby' : ''} i zapisz. Kolumn pytań zdjętych z
+            formularza nie da się zmieniać. Zmiana numeru telefonu kasuje jego potwierdzenie.
+          </span>
+          <div className="wk-actions">
+            <button type="button" className="wk-btn" disabled={saving || touched === 0} onClick={() => void save()}>
+              {saving ? 'Zapisywanie…' : `Zapisz zmiany (${touched})`}
+            </button>
+            {canAdd && (
+              <button type="button" className="wk-link-btn" disabled={saving} onClick={() => setFresh((was) => [{}, ...was])}>
+                + Dodaj wiersz
+              </button>
+            )}
+            <button type="button" className="wk-link-btn" disabled={saving} onClick={stop}>Odrzuć zmiany</button>
+          </div>
+        </div>
+      )}
+      {failed !== null && <p className="wk-error">{failed}</p>}
+      {said !== null && <p className="wk-done" role="status">{said}</p>}
 
       <div className="wk-table-wrap">
         <table className="wk-table">
@@ -222,11 +353,33 @@ export function FormTable({ fields, submissions, opened, fileName }: {
             </tr>
           </thead>
           <tbody>
+            {/* 0086 — die neuen Zeilen oben, solange geschrieben wird. */}
+            {editing && fresh.map((one, at) => (
+              <tr key={`new-${at}`} className="wk-row-new">
+                {columns.map((c) => (
+                  <td key={c.key}>
+                    {c.key === 'at' ? (
+                      <span className="wk-tag">nowy</span>
+                    ) : c.field !== null ? (
+                      <CellInput
+                        field={c.field} value={one[c.key] ?? ''} original="" cell={`new${at}|${c.key}`}
+                        onChange={(value) => setFresh((was) => was.map((r, i) => (i === at ? { ...r, [c.key]: value } : r)))}
+                      />
+                    ) : null}
+                  </td>
+                ))}
+              </tr>
+            ))}
             {shown.map((row) => (
-              <tr key={row.id} className={row.hidden || row.withdrawn ? 'wk-row-muted' : undefined}>
+              <tr key={row.id} className={row.hidden || row.withdrawn ? 'wk-row-muted' : draft.has(row.id) ? 'wk-row-changed' : undefined}>
                 {columns.map((c, i) => (
                   <td key={c.key} className={c.numeric ? 'wk-num' : undefined}>
-                    {cell(row, c.key)}
+                    {editing && c.field !== null && !row.withdrawn ? (
+                      <CellInput
+                        field={c.field} value={draftOf(row.id, c.key)} original={rawOf(row.id, c.key)} cell={`${row.id}|${c.key}`}
+                        onChange={(value) => setCell(row.id, c.key, value)}
+                      />
+                    ) : cell(row, c.key)}
                     {i === 0 && row.hidden && <span className="wk-tag">ukryte</span>}
                     {i === 0 && row.withdrawn && <span className="wk-tag">wycofane</span>}
                   </td>
@@ -238,6 +391,55 @@ export function FormTable({ fields, submissions, opened, fileName }: {
       </div>
     </div>
   );
+}
+
+/**
+ * 0086 — EINE ZELLE ZUM SCHREIBEN, nach der Art ihrer Frage. Eine Zustimmung
+ * bleibt bei ihrem Wortlaut: wer sie nur stehen lässt, ändert nichts; wer sie
+ * neu ankreuzt, trägt den heutigen Text der Frage ein.
+ */
+function CellInput({ field, value, original, cell, onChange }: {
+  field: OpenField;
+  value: string;
+  original: string;
+  /** `Einsendung|Frage` — damit sich die Zelle finden lässt. */
+  cell: string;
+  onChange: (value: string) => void;
+}) {
+  const label = field.label ?? 'pytanie';
+
+  switch (field.kind) {
+    case 'checkbox':
+      return <input type="checkbox" data-cell={cell} aria-label={label} checked={isYes(value)} onChange={(e) => onChange(e.target.checked ? YES : '')} />;
+    case 'consent':
+      return (
+        <input
+          type="checkbox" data-cell={cell} aria-label={label} checked={consentGiven(value)}
+          onChange={(e) => onChange(!e.target.checked ? '' : consentGiven(original) ? original : consentValue(field.help ?? field.label ?? ''))}
+        />
+      );
+    case 'choice': {
+      const options = value !== '' && !field.options.includes(value) ? [...field.options, value] : field.options;
+      return (
+        <select data-cell={cell} aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
+          <option value="">—</option>
+          {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      );
+    }
+    case 'date':
+      return <input type="date" data-cell={cell} aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} />;
+    case 'text':
+      return <textarea data-cell={cell} aria-label={label} rows={2} value={value} onChange={(e) => onChange(e.target.value)} />;
+    default:
+      return (
+        <input
+          type={field.kind === 'email' ? 'email' : field.kind === 'phone' ? 'tel' : 'text'}
+          inputMode={field.kind === 'number' || field.kind === 'pesel' ? 'numeric' : undefined}
+          data-cell={cell} aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}
+        />
+      );
+  }
 }
 
 /**

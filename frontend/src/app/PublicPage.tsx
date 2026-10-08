@@ -22,6 +22,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadPage, toDraft, type PageContent } from './page';
 import { InHeader } from './headerSlot';
 import { PageParts } from './PageParts';
+import { PagePresentation } from './PagePresentation';
 import { PageSlides } from './PageSlides';
 import { PersonAccessGate, PersonPicker, PersonProvider, usePerson } from './pagePerson';
 import { NoAccess, PageAccessContext } from './pageAccess';
@@ -158,6 +159,13 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
             <UntilConfirmed path={page.path}>
               <PersonAccessGate>
                 <SlidesBody path={page.path} parts={parts} theme={page.theme ?? null} title={page.title} lead={page.lead} />
+              </PersonAccessGate>
+            </UntilConfirmed>
+          ) : page.mode === 'presentation' ? (
+            /* 0085 — ALS PREZENTACJA: Szenen, auf denen die Bausteine frei stehen. */
+            <UntilConfirmed path={page.path}>
+              <PersonAccessGate>
+                <ShowBody path={page.path} parts={parts} theme={page.theme ?? null} title={page.title} />
               </PersonAccessGate>
             </UntilConfirmed>
           ) : (<>
@@ -329,6 +337,34 @@ function SlidesBody({ path, parts, theme, title, lead }: {
       look={look}
       title={title}
       lead={lead}
+      extra={<><SeatBar path={path} /><div className="wk-page-top"><PersonPicker /></div><SubjectBar /></>}
+      after={personal === null ? undefined : <PersonalSections seat={personal} />}
+    />
+  );
+}
+
+/**
+ * 0085 — DIE SEITE ALS PRÄSENTATION. Titel und Vorspann der Seite stehen nicht
+ * darauf (die Szenen sagen, was sie sagen); für wen, und die Links, stehen
+ * klein oben links, solange es etwas zu sagen gibt.
+ */
+function ShowBody({ path, parts, theme, title }: {
+  path: string;
+  parts: ReturnType<typeof toDraft>[];
+  theme: string | null;
+  title: string | null;
+}) {
+  const chosen = usePerson()?.chosen ?? null;
+  const exact = useMemo(() => new Set(seatsExactly(path)), [path, chosen]);
+  const look = useMemo(() => readLook(theme), [theme]);
+  const personal = !parts.some((one) => one.kind.startsWith('seat-'))
+    && chosen?.kind === 'seat' && exact.has(chosen.seat.token) ? chosen.seat : null;
+
+  return (
+    <PagePresentation
+      parts={parts}
+      look={look}
+      title={title}
       extra={<><SeatBar path={path} /><div className="wk-page-top"><PersonPicker /></div><SubjectBar /></>}
       after={personal === null ? undefined : <PersonalSections seat={personal} />}
     />

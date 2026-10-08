@@ -20,7 +20,7 @@ import { useEffect, useState } from 'react';
 
 import { loadPublicKey, myEpochKeys } from './area';
 import { fromBase64Url } from './crypto';
-import { loadFields, loadForm, openFields, type OpenField, type SealedField } from './form';
+import { asked, loadFields, loadForm, openFields, type OpenField, type SealedField } from './form';
 import { loadModules, type ModuleRow } from './module';
 import type { PartModule } from './part';
 import { keysFor } from './ringOf';
@@ -101,7 +101,8 @@ export async function questionsOf(formId: string): Promise<readonly OpenField[]>
   let sealed: readonly SealedField[];
 
   try {
-    sealed = (await loadFields(formId)).fields;
+    /* 0086 — nur, was das Formular fragt. */
+    sealed = asked((await loadFields(formId)).fields);
   } catch {
     sealed = (await loadForm(formId)).fields;
   }

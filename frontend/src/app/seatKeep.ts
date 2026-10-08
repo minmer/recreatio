@@ -192,9 +192,30 @@ export const heldSeats = (): readonly string[] =>
  */
 const PARAM = 'miejsce';
 
-/** Die Adresse einer Seite MIT einem Platz — was verschickt wird. */
-export function pageLink(under: string, token: string, keyText: string): string {
-  return `#/${under.split('/').map(encodeURIComponent).join('/')}?${PARAM}=${encodeURIComponent(token)}.${encodeURIComponent(keyText)}`;
+/**
+ * 0086 — DER ZUSATZ ZUR ADRESSE, den die Kanzlei gewählt hat (`portalAt`):
+ * seine Parameter (`s=3`, `part=…`) und sein Anker (`zapisy`). Was sich als
+ * Platz ausgäbe, fällt weg — der Platz kommt aus dem Link selbst.
+ */
+export function splitAt(at: string | null | undefined): { readonly params: readonly string[]; readonly anchor: string } {
+  const text = (at ?? '').trim();
+  const hash = text.indexOf('#');
+  const query = hash < 0 ? text : text.slice(0, hash);
+  const anchor = hash < 0 ? '' : text.slice(hash + 1).trim();
+  const params = query.replace(/^\?/, '').split('&')
+    .filter((one) => one !== '' && one.toLowerCase() !== PARAM && !one.toLowerCase().startsWith(`${PARAM}=`));
+  return { params, anchor };
+}
+
+/**
+ * Die Adresse einer Seite MIT einem Platz — was verschickt wird. 0086: mit dem
+ * Zusatz der Kanzlei (`?s=3`, `#zapisy`) — der Platz kommt hinter dessen
+ * Parameter, der Anker ans Ende: `#/<seite>?s=3&miejsce=…#zapisy`.
+ */
+export function pageLink(under: string, token: string, keyText: string, at?: string | null): string {
+  const { params, anchor } = splitAt(at);
+  const seat = `${PARAM}=${encodeURIComponent(token)}.${encodeURIComponent(keyText)}`;
+  return `#/${under.split('/').map(encodeURIComponent).join('/')}?${[...params, seat].join('&')}${anchor === '' ? '' : `#${anchor}`}`;
 }
 
 /**
@@ -235,7 +256,12 @@ export const freshSeat = (): FreshSeat | null => fresh;
  */
 export function keepFromAddress(hash: string): string | null {
   const marker = hash.indexOf('#');
-  const after = marker >= 0 ? hash.slice(marker + 1) : hash;
+  const whole = marker >= 0 ? hash.slice(marker + 1) : hash;
+
+  /* 0086 — ein Anker hinter allem (`…?miejsce=…#zapisy`) gehört der Seite und bleibt stehen. */
+  const second = whole.indexOf('#');
+  const after = second >= 0 ? whole.slice(0, second) : whole;
+  const anchor = second >= 0 ? whole.slice(second) : '';
 
   const cut = after.search(/[?&]/);
   const raw = cut >= 0 ? after.slice(0, cut) : after;
@@ -271,7 +297,7 @@ export function keepFromAddress(hash: string): string | null {
     if (token !== undefined && token !== '') keep(token, keyText, under === '' ? null : under);
 
     const rest = params.filter((one) => one !== carried);
-    return `#/${raw.replace(/^\/+/, '')}${rest.length > 0 ? `?${rest.join('&')}` : ''}`;
+    return `#/${raw.replace(/^\/+/, '')}${rest.length > 0 ? `?${rest.join('&')}` : ''}${anchor}`;
   }
 
   const at = segments[0] === 'seat' ? 0 : segments.indexOf('portal');
@@ -296,7 +322,7 @@ export function keepFromAddress(hash: string): string | null {
    */
   const page = segments.slice(0, at);
   keep(token, keyText, pathOf(page));
-  return `#/${page.join('/')}`;
+  return `#/${page.join('/')}${anchor}`;
 }
 
 /* -- Und wieder hinein ----------------------------------------------------- */

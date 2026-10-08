@@ -15,13 +15,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { loadPage, savePage, savePageLook, savePageSubject, saveParts, toDraft, type DraftPart } from './page';
+import { loadPage, pageModeOf, savePage, savePageLook, savePageSubject, saveParts, toDraft, type DraftPart, type PageMode } from './page';
 import { MassOffice } from './MassOffice';
 import { MenuEditor } from './MenuEditor';
 import { PageBuilder } from './PageBuilder';
 import { logicKey, PageLogicEditor } from './PageLogicEditor';
 import { pagePath } from './routes';
 import { SlidesEditor } from './SlidesEditor';
+import { PresentationEditor } from './PresentationEditor';
 import { PageJson } from './PageJsonPanel';
 import { NO_LOOK, readLook, writeLook, type Look } from './slides';
 import { readSubject, SubjectSettings, writeSubject, type SubjectDecl } from './pageSubject';
@@ -38,8 +39,8 @@ export function PageEditor({ path, who, onOpenModule }: {
   const [lead, setLead] = useState('');
   const [parts, setParts] = useState<readonly DraftPart[]>([]);
 
-  /* 0062 — Seite oder Slajdy, und ihr Aussehen. Gespeichert mit den Modulen. */
-  const [mode, setMode] = useState<'page' | 'slides'>('page');
+  /* 0062 — Seite oder Slajdy (0085: oder Prezentacja), und ihr Aussehen. Gespeichert mit den Modulen. */
+  const [mode, setMode] = useState<PageMode>('page');
   const [pageLook, setPageLook] = useState<Look>(NO_LOOK);
   const [lookDirty, setLookDirty] = useState(false);
 
@@ -73,7 +74,7 @@ export function PageEditor({ path, who, onOpenModule }: {
       setLead(page.lead ?? '');
       setParts(page.parts.map(toDraft));
       setLogic(page.logic ?? null);
-      setMode(page.mode === 'slides' ? 'slides' : 'page');
+      setMode(pageModeOf(page.mode));
       setPageLook(readLook(page.theme));
       setSubject(readSubject(page.subject ?? null));
     } catch {
@@ -190,7 +191,7 @@ export function PageEditor({ path, who, onOpenModule }: {
         — wie die Ereignisseiten des Altbestands.
       */}
       <div className="wk-seg" role="group" aria-label="Rodzaj strony">
-        {([['page', 'Strona z modułami'], ['slides', 'Slajdy — każdy moduł osobno']] as const).map(([value, label]) => (
+        {([['page', 'Strona z modułami'], ['slides', 'Slajdy — każdy moduł osobno'], ['presentation', 'Prezentacja — sceny, moduły w dowolnym miejscu']] as const).map(([value, label]) => (
           <button key={value} type="button" aria-pressed={mode === value} disabled={busy !== null}
             className={mode === value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
             onClick={() => { if (mode !== value) { setMode(value); setLookDirty(true); } }}>
@@ -199,7 +200,29 @@ export function PageEditor({ path, who, onOpenModule }: {
         ))}
       </div>
 
-      {mode === 'slides' ? (
+      {mode === 'presentation' ? (
+        /*
+          0085 — PREZENTACJA: Szenen, auf denen die Bausteine frei stehen, mit
+          Schritten, Übergängen, einer Kamera durch den Raum und Bausteinen, die
+          von einer Szene zur nächsten wandern.
+        */
+        <PresentationEditor
+          path={path}
+          parts={parts}
+          look={pageLook}
+          title={title}
+          busy={busy !== null}
+          onChange={(next) => { setParts(next); setDirty(true); }}
+          onLook={(next) => { setPageLook(next); setLookDirty(true); }}
+          onOpenModule={(moduleId, next) => {
+            setParts(next);
+            void act('Zapisywanie modułów…', () => saveParts(path, next)).then(() => {
+              setDirty(false);
+              onOpenModule(moduleId);
+            });
+          }}
+        />
+      ) : mode === 'slides' ? (
         <SlidesEditor
           path={path}
           parts={parts}
@@ -248,12 +271,12 @@ export function PageEditor({ path, who, onOpenModule }: {
           type="button"
           className="wk-btn"
           disabled={busy !== null || (!dirty && !lookDirty)}
-          onClick={() => void act(mode === 'slides' ? 'Zapisywanie slajdów…' : 'Zapisywanie modułów…', async () => {
+          onClick={() => void act(mode === 'slides' ? 'Zapisywanie slajdów…' : mode === 'presentation' ? 'Zapisywanie prezentacji…' : 'Zapisywanie modułów…', async () => {
             if (dirty) await saveParts(path, parts);
             if (lookDirty) await savePageLook(path, { mode, theme: writeLook(pageLook) });
           })}
         >
-          {busy ?? (mode === 'slides' ? 'Zapisz slajdy' : 'Zapisz moduły')}
+          {busy ?? (mode === 'slides' ? 'Zapisz slajdy' : mode === 'presentation' ? 'Zapisz prezentację' : 'Zapisz moduły')}
         </button>
 
         {!dirty && !lookDirty && busy === null && <span className="wk-blocker">Nic się nie zmieniło.</span>}

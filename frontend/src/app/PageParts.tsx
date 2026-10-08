@@ -27,7 +27,7 @@ import { partSize, text, type PartModule, type PartSize, type RawConfig } from '
 import { usePageLogic } from './pageLogic';
 import { slideLabelOf } from './PageSlides';
 import { partOf } from './parts/registry';
-import { anchorOf } from './slides';
+import { anchorInAddress, anchorOf } from './slides';
 
 /**
  * 0063 — „#zapisy" IM RASTER. Ein Knopf im Tytuł oder ein Verweis im Text, der
@@ -85,9 +85,16 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
     setWhole(null);
   };
 
-  /* 0067 — aus einem Widget gekommen (`?part=<kennung>`): zu diesem Baustein springen. */
+  /*
+   * 0067 — aus einem Widget gekommen (`?part=<kennung>`): zu diesem Baustein
+   * springen. 0086 — auch nach einem Anker (`#zapisy`): der Baustein, dessen
+   * Überschrift so heisst — etwa im Link nach dem Absenden.
+   */
   useEffect(() => {
-    const wanted = /[?&]part=([0-9a-f-]{36})/i.exec(window.location.hash)?.[1];
+    const anchor = anchorInAddress(window.location.hash);
+    const wanted = /[?&]part=([0-9a-f-]{36})/i.exec(window.location.hash)?.[1]
+      ?? (anchor === '' ? undefined : parts.find((part) => part.id.toLowerCase() === anchor
+        || (typeof part.config.title === 'string' && anchorOf(part.config.title) === anchor))?.id);
     if (wanted === undefined) return undefined;
     const timer = window.setTimeout(() => document.getElementById(`part-${wanted}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
     return () => window.clearTimeout(timer);

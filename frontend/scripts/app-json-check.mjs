@@ -166,6 +166,34 @@ try {
   assert.ok(m.pageDescription().includes('"subject" — ') && m.pageDescription().includes('"entry"'), 'the description explains it');
   ok('page subject (0082): exported as an object, imported in place, removed with null, unknown kinds and gaps reported');
 
+  /* 0084 — Slajdy: wie sie kommen, wie der Inhalt erscheint, Farben, die Bühne — und die Plätze folgen neuen Kennungen. */
+  {
+    const moving = m.planImport({
+      format: m.PAGE_FORMAT,
+      modules: [
+        { id: 'a', kind: 'text', slide: { label: 'A', layers: [], transition: 'zoom', enter: 'rise', colors: { accent: '#ff0000' } }, config: { title: 'A' } },
+        { id: 'b', kind: 'notice', slide: { label: 'Logo', layers: [], stage: { frames: { a: { x: 10, y: 20, w: 15 }, cover: { x: 80 } }, bare: true } }, config: { body: 'Zapisy!' } },
+        { kind: 'text', slide: { label: 'C', layers: [], transition: 'wiggle' }, config: { title: 'C' } }
+      ]
+    }, { ...now, parts: [] }, m.DEFAULT_IMPORT);
+    const [a, b, c] = moving.parts;
+    assert.equal(a.layout.slide.transition, 'zoom');
+    assert.equal(a.layout.slide.enter, 'rise');
+    assert.deepEqual(a.layout.slide.colors, { accent: '#ff0000' }, 'only the colours given are stored');
+    const frames = b.layout.slide.stage.frames;
+    assert.ok(frames[a.id] !== undefined && frames.cover !== undefined && frames.a === undefined, 'stage places follow the new id of their slide');
+    assert.equal(frames[a.id].scale, 1, 'missing numbers take their default');
+    assert.equal(b.layout.slide.stage.bare, true);
+    assert.equal(c.layout.slide.transition, undefined, 'an unknown transition falls back to the default (and is not stored)');
+    assert.ok(moving.warnings.some((w) => w.includes('wiggle')), 'and it is reported');
+    const out = JSON.parse(JSON.stringify(m.exportPage({ ...now, parts: moving.parts })));
+    assert.deepEqual(out.modules[1].slide.stage.frames[a.id], frames[a.id], 'the stage goes out as it came in');
+    assert.equal(out.modules[2].slide.transition, undefined, 'defaults are left out of the export');
+    const again = m.planImport(out, { ...now, parts: moving.parts }, { ...m.DEFAULT_IMPORT, replace: true });
+    assert.deepEqual(again.parts.map((p) => p.layout.slide), moving.parts.map((p) => p.layout.slide), 'export → import changes nothing');
+    ok('slides (0084): transition, entrance, colours and stage survive export → import; stage places follow new ids; bad values reported');
+  }
+
   /* Eine Änderung im Dokument — an Ort und Stelle. */
   doc.modules[0].config.body = ['Raz', 'Dwa', 'Trzy'];
   doc.modules[1].config.note = 'Nowa uwaga';

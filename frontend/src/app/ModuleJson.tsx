@@ -50,7 +50,7 @@ export function QuestionOptions({ answersTo, onAnswersTo, replace, onReplace }: 
       <p className="wk-hint">Kto ma klucz tego obszaru, czyta odpowiedzi. Formularz bez własnego obszaru dostaje ten obszar.</p>
       <label className="pe-check">
         <input type="checkbox" checked={replace} onChange={(e) => onReplace(e.target.checked)} />
-        <span>Usuń pytania, których nie ma w dokumencie (pytań z odpowiedziami usługa nie usunie)</span>
+        <span>Usuń pytania, których nie ma w dokumencie (pytania z odpowiedziami zostaną tylko zdjęte z formularza — ich odpowiedzi zostają; pytań włączonych wymagań nie da się usunąć)</span>
       </label>
     </div>
   );

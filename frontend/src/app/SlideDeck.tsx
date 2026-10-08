@@ -15,6 +15,13 @@
  * Verlauf: wer sie kopiert, teilt die Stelle, und wer sie öffnet, landet dort
  * — erst, wenn jeder Slajd gemessen ist, sonst landete er mitten in einem
  * früheren.
+ *
+ * <b>0084 — der Wechsel selbst</b> (`slideMotion.ts`): wie ein Slajd den
+ * vorigen ablöst (wjeżdża, przenika, nakrywa, odsłania, przybliża, z boku), wie
+ * sein Inhalt erscheint, Farben, die fliessend mitgehen, und Bausteine auf der
+ * BÜHNE, die keinen eigenen Slajd haben, sondern über allen stehen und ihren
+ * Platz von einem zum nächsten wechseln. Alles aus der Stelle der Bahn — der
+ * Finger, nicht eine Uhr, bestimmt, wie weit ein Wechsel ist.
  */
 
 import {
@@ -22,9 +29,12 @@ import {
 } from 'react';
 
 import {
-  addressWithSlide, anchorOf, defaultLayers, imageUrl, resolveTheme, slideInAddress,
-  type Layer, type Theme
+  addressWithSlide, anchorInAddress, anchorOf, defaultLayers, imageUrl, resolveTheme, slideByAnchor, slideInAddress,
+  type Enter, type Layer, type SlideColors, type StageFrame, type Theme, type Transition
 } from './slides';
+import {
+  colorsAt, colorsOf, deckAt, enterStyle, entering, frameAt, motionOf, pinnedPosition
+} from './slideMotion';
 import { useSlideScroll } from './useSlideScroll';
 
 export interface DeckSlide {
@@ -34,6 +44,23 @@ export interface DeckSlide {
 
   /** Breiter Inhalt — ein Kalender, eine Buchung — bekommt mehr Breite als ein Text. */
   readonly wide?: boolean;
+  readonly content: ReactNode;
+
+  /** 0084 — wie er den vorigen ablöst; wie sein Inhalt erscheint; seine eigenen Farben. */
+  readonly transition?: Transition;
+  readonly enter?: Enter;
+  readonly colors?: SlideColors | null;
+}
+
+/**
+ * 0084 — EIN BAUSTEIN AUF DER BÜHNE: kein eigener Slajd, sondern über allen,
+ * mit einem Platz je Slajd (nach der Stelle in der Folge), zwischen denen er
+ * gleitet.
+ */
+export interface DeckActor {
+  readonly key: string;
+  readonly frames: ReadonlyMap<number, StageFrame>;
+  readonly bare: boolean;
   readonly content: ReactNode;
 }
 
@@ -55,18 +82,47 @@ export function usePrefersDark(): boolean {
   return dark;
 }
 
+/** „Weniger Bewegung" im System — dann blenden Slajdy nur über, nichts fliegt. */
+export function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const on = () => setReduced(query.matches);
+    query.addEventListener('change', on);
+    return () => query.removeEventListener('change', on);
+  }, []);
+  return reduced;
+}
+
 function gradientOf(layer: Layer): string | undefined {
   if (layer.kind !== 'gradient') return undefined;
   const stops = layer.via ? `${layer.from}, ${layer.via}, ${layer.to}` : `${layer.from}, ${layer.to}`;
   return `linear-gradient(${layer.angle}deg, ${stops})`;
 }
 
+/**
+ * 0086 — WELCHER SLAJD IN DER ADRESSE STEHT: `?s=3`, die Kennung eines
+ * Bausteins (`?part=…`, wie aus einem Widget) oder ein Anker nach dem Namen
+ * des Slajd (`#zapisy`) — so öffnet der Link nach dem Absenden genau dort.
+ */
+function slideFromAddress(hash: string, slides: readonly DeckSlide[]): number | null {
+  const n = slideInAddress(hash);
+  if (n !== null) return n;
+  const part = /[?&]part=([0-9a-f-]{36})/i.exec(hash)?.[1]?.toLowerCase();
+  const byPart = part === undefined ? -1 : slides.findIndex((one) => one.key.toLowerCase() === part);
+  if (byPart >= 0) return byPart;
+  return slideByAnchor(slides.map((one) => ({ id: one.key, label: one.label })), anchorInAddress(hash));
+}
+
 /** Ein normaler Klick — ein Klick mit Strg oder Umschalt will einen neuen Tab und bekommt ihn. */
 const plain = (event: React.MouseEvent) =>
   event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 
-export function SlideDeck({ slides, theme, title, embedded = false, control }: {
+export function SlideDeck({ slides, actors = [], theme, title, embedded = false, control }: {
   slides: readonly DeckSlide[];
+  /** 0084 — Bausteine auf der Bühne: über allen Slajdy, mit einem Platz je Slajd. */
+  actors?: readonly DeckActor[];
   /** `null` — automatisch: die Farben des Arbeitsplatzes, hell oder dunkel wie das Gerät. */
   theme: Theme | null;
   /** Unten links, klein: wessen Slajdy das sind. */
@@ -79,6 +135,7 @@ export function SlideDeck({ slides, theme, title, embedded = false, control }: {
   const look = resolveTheme(theme, dark);
   const scroll = useSlideScroll(slides.length, { keyboard: !embedded });
   const { scrollToSlide, geometry, measured, viewportRef } = scroll;
+  const reduced = usePrefersReducedMotion();
 
   useEffect(() => {
     if (control !== undefined) control.current = { go: scrollToSlide };
@@ -102,7 +159,7 @@ export function SlideDeck({ slides, theme, title, embedded = false, control }: {
 
   /* -- Der Slajd aus der Adresse ---------------------------------------------- */
 
-  const [wanted] = useState<number | null>(() => (embedded ? null : slideInAddress(window.location.hash)));
+  const [wanted] = useState<number | null>(() => (embedded ? null : slideFromAddress(window.location.hash, slides)));
   const wantsJump = wanted !== null && wanted > 0 && wanted < slides.length;
   const [jumped, setJumped] = useState(!wantsJump);
   /** Wo der Sprung die Bahn hingestellt hat — solange der Leser sie nicht selbst bewegt. */
@@ -137,10 +194,12 @@ export function SlideDeck({ slides, theme, title, embedded = false, control }: {
    */
   const activeRef = useRef(0);
   activeRef.current = scroll.activeIndex;
+  const slidesRef = useRef(slides);
+  slidesRef.current = slides;
   useEffect(() => {
     if (embedded) return undefined;
     const onHash = () => {
-      const n = slideInAddress(window.location.hash) ?? 0;
+      const n = slideFromAddress(window.location.hash, slidesRef.current) ?? 0;
       if (n !== activeRef.current && n < slides.length) scrollToSlide(n);
     };
     window.addEventListener('hashchange', onHash);
@@ -170,11 +229,23 @@ export function SlideDeck({ slides, theme, title, embedded = false, control }: {
     scrollToSlide(index);
   };
 
+  /* -- 0084: wo die Folge gerade steht, und was daraus folgt ---------------- */
+
+  const vh = scroll.viewportHeight;
+  const at = deckAt(geometry, scroll.position, vh);
+  const kinds = slides.map((slide) => slide.transition ?? 'scroll');
+
+  /* Die Farben gehen mit: zwischen zwei Slajdy mit eigenen Farben fliessend. */
+  const pageColors = { accent: look.accent, ink: look.ink, ground: look.ground, muted: look.muted };
+  const colors = slides.some((slide) => slide.colors != null)
+    ? colorsAt(slides.map((slide) => colorsOf(pageColors, slide.colors)), at) ?? pageColors
+    : pageColors;
+
   const vars = {
-    '--deck-accent': look.accent,
-    '--deck-ink': look.ink,
-    '--deck-ground': look.ground,
-    '--deck-muted': look.muted,
+    '--deck-accent': colors.accent,
+    '--deck-ink': colors.ink,
+    '--deck-ground': colors.ground,
+    '--deck-muted': colors.muted,
     ...(embedded ? {} : { top: `${top}px` })
   } as CSSProperties;
 
@@ -208,12 +279,36 @@ export function SlideDeck({ slides, theme, title, embedded = false, control }: {
             /* Ohne eigene Schichten: der Grund des Themas und der Name als blasser Schriftzug — passt sich an hell und dunkel an. */
             const layers = slide.layers.length > 0 ? slide.layers : defaultLayers(slide.label, look);
 
+            /*
+             * 0084 — IM WECHSEL. Ein festgehaltener Slajd läuft nicht mit der
+             * Bahn: er steht auf dem Schirm (seine eigene Stelle, `pinned`), und
+             * seine Schichten rechnen von dort. Dazu Deckkraft, Grösse, Seite,
+             * Abdunkeln — je nach Art des Wechsels.
+             */
+            const motion = motionOf(geometry, index, scroll.position, vh, kinds, reduced);
+            const pinned = motion.pin ? pinnedPosition(frame, scroll.position, vh) : scroll.position;
+            const moved = scroll.position - pinned;
+            const sectionStyle: CSSProperties = { height: `${frame.height}px` };
+            if (motion !== undefined && (motion.pin || motion.scale !== 1 || motion.shift !== 0 || motion.opacity !== 1 || motion.dim !== 0 || motion.above)) {
+              sectionStyle.transform = `translate3d(${motion.shift}%, ${moved}px, 0) scale(${motion.scale})`;
+              sectionStyle.transformOrigin = `50% ${pinned - frame.start + vh / 2}px`;
+              sectionStyle.opacity = motion.opacity;
+              if (motion.dim > 0) sectionStyle.filter = `brightness(${1 - motion.dim})`;
+              if (motion.above) sectionStyle.zIndex = 3;
+            }
+            const appear = enterStyle(slide.enter ?? 'none', entering(geometry, index, scroll.position, vh), reduced);
+            const contentStyle: CSSProperties | undefined = slide.enter === undefined || slide.enter === 'none' ? undefined : {
+              opacity: appear.opacity,
+              transform: `translate3d(${appear.x}px, ${appear.y}px, 0) scale(${appear.scale})`
+            };
+
             return (
               <section
                 key={slide.key}
                 id={`slajd-${anchorOf(slide.label)}`}
                 className={`wk-deck-slide${active === index ? ' is-active' : ''}`}
-                style={{ height: `${frame.height}px` }}
+                style={sectionStyle}
+                data-transition={slide.transition ?? 'scroll'}
                 aria-label={slide.label}
               >
                 {layers.map((layer, n) => {
@@ -223,7 +318,7 @@ export function SlideDeck({ slides, theme, title, embedded = false, control }: {
                      Text darin bewegt sich (Altbestand, EventShell).
                   */
                   const speed = layer.kind === 'bigtext' ? 0 : layer.speed;
-                  const local = scroll.position - frame.start;
+                  const local = pinned - frame.start;
                   const span = frame.height + scroll.viewportHeight;
                   const style: CSSProperties = {
                     height: `${scroll.viewportHeight + speed * span}px`,
@@ -244,7 +339,7 @@ export function SlideDeck({ slides, theme, title, embedded = false, control }: {
                       {layer.kind === 'bigtext' && (
                         <div className="wk-deck-bigtext" style={{
                           opacity: layer.opacity,
-                          transform: `translate3d(0, ${(0.5 - frame.visibleProgress) * scroll.viewportHeight * layer.speed}px, 0)`
+                          transform: `translate3d(0, ${(0.5 - Math.min(1, Math.max(0, (pinned - frame.start + vh) / (frame.height + vh)))) * scroll.viewportHeight * layer.speed}px, 0)`
                         }}>
                           {layer.lines.map((line, i) => (
                             <span key={i} style={layer.color ? { color: layer.color } : undefined}>{line}</span>
@@ -259,6 +354,7 @@ export function SlideDeck({ slides, theme, title, embedded = false, control }: {
                 <div className="wk-deck-content-layer" style={{ height: `${frame.height}px` }}>
                   <div
                     className={`wk-deck-content${slide.wide === true ? ' is-wide' : ''}`}
+                    style={contentStyle}
                     ref={(element) => { scroll.contentRefs.current[index] = element; }}
                   >
                     {slide.content}
@@ -268,6 +364,35 @@ export function SlideDeck({ slides, theme, title, embedded = false, control }: {
             );
           })}
         </div>
+
+        {/*
+          0084 — DIE BÜHNE: Bausteine, die den Wechsel überleben. Sie stehen
+          über allen Slajdy und gleiten von ihrem Platz auf dem einen zu dem
+          auf dem nächsten — im selben Mass, in dem die Bahn sich bewegt.
+        */}
+        {actors.length > 0 && (
+          <div className="wk-deck-stage">
+            {actors.map((actor) => {
+              const place = frameAt(actor.frames, at);
+              if (place === null) return null;
+              const style = {
+                left: `${place.x}%`,
+                top: `${place.y}%`,
+                '--actor-w': `${place.w}%`,
+                '--actor-w-narrow': `${Math.min(92, place.w * 1.8)}%`,
+                transform: `translate(-50%, -50%) rotate(${place.rotate}deg) scale(${place.scale})`,
+                opacity: place.opacity,
+                pointerEvents: place.opacity < 0.05 ? 'none' : undefined
+              } as CSSProperties;
+              return (
+                <div key={actor.key} className={`wk-deck-actor${actor.bare ? ' is-bare' : ''}`} style={style}
+                  aria-hidden={place.opacity < 0.05 ? true : undefined}>
+                  {actor.content}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <footer className="wk-deck-foot">

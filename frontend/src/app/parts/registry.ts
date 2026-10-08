@@ -39,6 +39,7 @@ import { filesPart } from './files';
 import { galleryPart } from './gallery';
 import { heroPart } from './hero';
 import { hoursPart } from './hours';
+import { imagePart } from './image';
 import { linksPart } from './links';
 import { mapPart } from './map';
 import { formPart, massesPart, slotsPart } from './live';
@@ -46,6 +47,7 @@ import { noticePart } from './notice';
 import { peoplePart } from './people';
 import { planPart } from './plan';
 import { programPart } from './program';
+import { shapePart } from './shape';
 import { seatAskPart, seatChatPart, seatNotePart, seatSharedPart, seatStepsPart, seatSubmissionPart } from './seat';
 import { textPart } from './text';
 import { quotesPart } from './quotes';
@@ -59,6 +61,10 @@ export const PARTS: readonly PartModule[] = [
   hoursPart,
   contactPart,
   linksPart,
+
+  /* 0085 — ein Bild und eine Fläche: gebraucht von der Präsentation, auf jeder Seite zu haben. */
+  imagePart,
+  shapePart,
 
   /* Was eine Ereignisseite trägt (0063, aus dem Altbestand). */
   heroPart,

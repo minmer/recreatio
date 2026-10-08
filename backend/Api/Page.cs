@@ -728,7 +728,24 @@ public static class Page
 
     public sealed record LookRequest(string? Mode, string? Theme);
 
-    private const int MaxTheme = 8000;
+    /// <summary>
+    /// 0085 — eine Präsentation trägt ihre Szenen im Aussehen ("show"): Namen,
+    /// Hintergründe, Übergänge, eine Wortwolke. Achttausend Zeichen reichten
+    /// für vier Farben und einen Titelslajd, nicht für zwanzig Szenen.
+    /// </summary>
+    public const int MaxTheme = 64000;
+
+    /// <summary>
+    /// WIE DIE SEITE ERSCHEINT — die drei Arten (0062, 0085). Was keine davon
+    /// ist, wird zur Seite mit Bausteinen: ein Wert, den diese Fassung nicht
+    /// kennt, macht nichts kaputt.
+    /// </summary>
+    public static string ModeOf(string? said) => said switch
+    {
+        "slides" => "slides",
+        "presentation" => "presentation",
+        _ => "page"
+    };
 
     /// <summary>
     /// 0062 — WIE DIE SEITE ERSCHEINT: als Seite mit Bausteinen im Raster, oder
@@ -752,7 +769,7 @@ public static class Page
             return;
         }
 
-        var mode = body.Mode is "slides" ? "slides" : "page";
+        var mode = ModeOf(body.Mode);
         var theme = string.IsNullOrWhiteSpace(body.Theme) ? null : body.Theme;
 
         if (theme is not null)

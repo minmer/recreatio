@@ -167,6 +167,20 @@ export interface Theme {
   readonly ink: string;
   readonly ground: string;
   readonly muted: string;
+  /**
+   * 0085 — DIE FARBEN FÜR DIE NACHT: steht hier etwas, folgt die Seite dem
+   * Gerät — hell mit den Farben oben, dunkel mit diesen (wie die Startseite
+   * des Altbestands). Fehlt es, gilt immer `mode`.
+   */
+  readonly night?: Palette | null;
+}
+
+/** Die vier Farben ohne den Modus. */
+export interface Palette {
+  readonly accent: string;
+  readonly ink: string;
+  readonly ground: string;
+  readonly muted: string;
 }
 
 /** Die Vorgaben je Modus — wie im Altbestand, damit ein umgezogenes Ereignis gleich aussieht. */
@@ -196,6 +210,12 @@ const STARTING_GROUND: Record<ThemeMode, { from: string; to: string }> = {
 export interface Look {
   readonly theme: Theme | null;
   readonly cover: readonly Layer[];
+  /**
+   * 0085 — die Szenen einer Präsentation, so wie sie im Aussehen liegen
+   * (`presentation.ts` liest sie). Hier nur mitgetragen: wer die Seite als
+   * Slajdy speichert, verliert sie nicht.
+   */
+  readonly show?: unknown;
 }
 
 export const NO_LOOK: Look = { theme: null, cover: [] };
@@ -205,29 +225,50 @@ export function readLook(json: string | null | undefined): Look {
   try {
     const one = record(JSON.parse(json));
     const mode = str(one.mode);
+    const night = readPalette(one.night);
     const theme: Theme | null = mode === 'dark' || mode === 'light'
       ? {
         mode,
         accent: str(one.accent, DEFAULT_THEMES[mode].accent),
         ink: str(one.ink, DEFAULT_THEMES[mode].ink),
         ground: str(one.ground, DEFAULT_THEMES[mode].ground),
-        muted: str(one.muted, DEFAULT_THEMES[mode].muted)
+        muted: str(one.muted, DEFAULT_THEMES[mode].muted),
+        ...(night === null ? {} : { night })
       }
       : null;
-    return { theme, cover: readLayers(record(one.cover).layers) };
+    return { theme, cover: readLayers(record(one.cover).layers), ...(one.show === undefined || one.show === null ? {} : { show: one.show }) };
   } catch {
     return NO_LOOK;
   }
 }
 
 export function writeLook(look: Look): string | null {
-  if (look.theme === null && look.cover.length === 0) return null;
-  return JSON.stringify({ ...(look.theme ?? { mode: 'auto' }), cover: { layers: look.cover } });
+  const show = look.show ?? null;
+  if (look.theme === null && look.cover.length === 0 && show === null) return null;
+  const { night, ...theme } = look.theme ?? { mode: 'auto' as const, night: null };
+  return JSON.stringify({
+    ...theme,
+    ...(night == null ? {} : { night }),
+    cover: { layers: look.cover },
+    ...(show === null ? {} : { show })
+  });
 }
 
-/** Das Thema, das gerade gilt — beim automatischen das des Geräts. */
+/** 0085 — vier Farben aus dem Gespeicherten; fehlt eine, gibt es keine Nachtfarben. */
+export function readPalette(value: unknown): Palette | null {
+  const one = record(value);
+  const accent = str(one.accent).trim(), ink = str(one.ink).trim(), ground = str(one.ground).trim(), muted = str(one.muted).trim();
+  return accent !== '' && ink !== '' && ground !== '' && muted !== '' ? { accent, ink, ground, muted } : null;
+}
+
+/**
+ * Das Thema, das gerade gilt — beim automatischen das des Geräts; mit
+ * Nachtfarben (0085) auf einem dunklen Gerät diese.
+ */
 export const resolveTheme = (theme: Theme | null, dark: boolean): Theme =>
-  theme ?? APP_THEMES[dark ? 'dark' : 'light'];
+  theme === null ? APP_THEMES[dark ? 'dark' : 'light']
+  : dark && theme.night != null ? { mode: 'dark', ...theme.night }
+  : theme;
 
 /* -- Wie ein Slajd kommt (0084) ------------------------------------------------- */
 
@@ -412,13 +453,40 @@ export const anchorOf = (label: string): string =>
  * ohne Zahl. Hinter `?` liest die Weiche nichts mehr (`parsePath`).
  */
 export function slideInAddress(hash: string): number | null {
-  const at = hash.indexOf('?');
+  const plain = withoutAnchor(hash);
+  const at = plain.indexOf('?');
   if (at < 0) return null;
-  const n = Number.parseInt(new URLSearchParams(hash.slice(at + 1)).get('s') ?? '', 10);
+  const n = Number.parseInt(new URLSearchParams(plain.slice(at + 1)).get('s') ?? '', 10);
   return Number.isFinite(n) && n >= 1 ? n - 1 : null;
 }
 
+/**
+ * 0086 — DER ANKER IN DER ADRESSE: `#/<seite>#zapisy` (oder `…?s=2#zapisy`) —
+ * der Teil hinter der zweiten Raute, kleingeschrieben; leer, wenn keiner da ist.
+ * So führt ein Link (etwa der nach dem Absenden) auf einen Slajd nach seinem Namen.
+ */
+export function anchorInAddress(hash: string): string {
+  const first = hash.indexOf('#');
+  const second = first < 0 ? -1 : hash.indexOf('#', first + 1);
+  if (second < 0) return '';
+  try { return decodeURIComponent(hash.slice(second + 1)).trim().toLowerCase(); } catch { return hash.slice(second + 1).trim().toLowerCase(); }
+}
+
+/** Die Adresse ohne ihren Anker. */
+const withoutAnchor = (hash: string): string => {
+  const first = hash.indexOf('#');
+  const second = first < 0 ? -1 : hash.indexOf('#', first + 1);
+  return second < 0 ? hash : hash.slice(0, second);
+};
+
+/** Welcher Slajd zu einem Anker gehört — nach seinem Namen (`anchorOf`) oder der Kennung seines Bausteins. */
+export function slideByAnchor(slides: readonly { readonly id?: string; readonly label: string }[], anchor: string): number | null {
+  if (anchor === '') return null;
+  const at = slides.findIndex((one) => anchorOf(one.label) === anchor || (one.id !== undefined && one.id.toLowerCase() === anchor));
+  return at < 0 ? null : at;
+}
+
 export function addressWithSlide(hash: string, index: number): string {
-  const base = hash.split('?')[0];
+  const base = withoutAnchor(hash).split('?')[0];
   return index <= 0 ? base : `${base}?s=${index + 1}`;
 }
