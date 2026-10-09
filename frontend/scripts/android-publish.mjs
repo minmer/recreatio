@@ -17,7 +17,7 @@
  *
  * <b>Die allererste Fassung</b> lädt man in der Play Console von Hand hoch:
  * vorher kennt Google den Paketnamen nicht, und die Schnittstelle kann keine
- * App anlegen. Danach macht es dieses Skript (und deploy-frontend.bat).
+ * App anlegen. Danach macht es dieses Skript (und deploy-app.bat).
  *
  * Ohne Abhängigkeiten: das Token entsteht hier (JWT, RS256, node:crypto), die
  * Aufrufe sind die „Edits" der Android Publisher API v3 — öffnen, hochladen,

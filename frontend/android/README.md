@@ -30,7 +30,7 @@ npm run android:publish         # newest AAB → Google Play, internal testing, 
 npm run android:apk -- --debug  # debug build, WebView inspectable via chrome://inspect
 ```
 
-**`deploy-frontend.bat` builds the app too.** It deploys the site to `docs/`, then builds the APK and AAB from the same `dist/` (`--skip-web`), and uploads the AAB to Google Play if `~/.recreatio/android/play-service-account.json` exists. Without the signing key it skips the app; `deploy-frontend.bat --web-only` skips it on purpose.
+**Two deploy files.** `deploy-web.bat` deploys the site to `docs/`. `deploy-app.bat` builds the APK and AAB and uploads the AAB to Google Play if `~/.recreatio/android/play-service-account.json` exists. Without the signing key it stops. `deploy-app.bat --skip-web` builds the app from the `dist/` that `deploy-web.bat` left, so the app carries exactly the files that went online. Without it, the app builds the site itself and `docs/` stays untouched.
 
 `android:apk` does four things:
 

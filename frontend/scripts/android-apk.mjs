@@ -3,7 +3,7 @@
  *
  * <code>
  *   npm run android:apk                  APK, unterschrieben (GrapheneOS & Co.)
- *   npm run android:release              APK + AAB (Play) — das, was deploy-frontend.bat baut
+ *   npm run android:release              APK + AAB (Play) — das, was deploy-app.bat baut
  *   npm run android:apk -- --debug       zum Prüfen: WebView per chrome://inspect erreichbar
  *   … -- --skip-web                      die Seite nicht neu bauen, `dist/` so nehmen, wie es ist
  * </code>

@@ -12,14 +12,15 @@ The scripts that use them:
 | `npm run android:release` | Builds the APK and AAB into `frontend/android-out/`. |
 | `npm run android:publish` | Uploads the newest AAB to Play: internal testing, as a draft. |
 | `npm run android:publish -- --listing-only` | Uploads only the texts and images. |
-| `deploy-frontend.bat` | Deploys the website, builds the app from the same build, and uploads it if the service account exists. |
+| `deploy-web.bat` | Deploys the website: builds the frontend into `docs/`. |
+| `deploy-app.bat` | Builds the app (APK and AAB) and uploads it if the service account exists. With `--skip-web` it uses the build of the last `deploy-web.bat`. |
 
 ## Before the first upload
 
 Do these in this order:
 
 1. **Deploy the API.** It contains account deletion (`AccountDeletion.cs`). Use the usual Webio publish (`-p:PublishProfile=Webio -p:IsGetPasswordEnabled=true`).
-2. **Deploy the website** (`deploy-frontend.bat`, then commit and push `docs/`). It brings three things online:
+2. **Deploy the website** (`deploy-web.bat`, then commit and push `docs/`). It brings three things online:
    - `https://recreatio.pl/prywatnosc/`, the privacy policy. **Have the parish review it**: controller, age limit, contacts.
    - `https://recreatio.pl/usun-konto/`, the account deletion page.
    - `https://recreatio.pl/.well-known/assetlinks.json`, so recreatio.pl links open in the app. `public/.nojekyll` makes GitHub Pages serve the dot-folder.
@@ -103,7 +104,7 @@ The remaining questions:
    - optionally *Release to production*.
 4. **Test it** with `npm run android:publish -- --dry-run`, then `npm run android:publish`.
 
-After that, `deploy-frontend.bat` builds and uploads to **internal testing as a draft** on every deploy. You roll it out in the console, or directly with:
+After that, `deploy-app.bat` builds and uploads to **internal testing as a draft** every time you run it. You roll it out in the console, or directly with:
 
 ```sh
 npm run android:publish -- --status=completed                        # internal testing, live for testers
@@ -114,5 +115,5 @@ npm run android:publish -- --listing                                 # also upda
 ## Every update
 1. If the backend changed, deploy the API first. The app carries its frontend and needs the matching API.
 2. Update `release-notes/pl-PL.txt` and `release-notes/en-US.txt`.
-3. Run `deploy-frontend.bat`, then commit and push `docs/`. The version number rises by itself (minutes since 2026).
+3. Run `deploy-web.bat`, then commit and push `docs/`. Then run `deploy-app.bat --skip-web`, so the app carries the same build. The version number rises by itself (minutes since 2026).
 4. Roll out the draft in the Play Console, or promote it from internal to production.
