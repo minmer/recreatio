@@ -39,7 +39,13 @@ export const GROUP_LABEL: Record<GroupKind, string> = {
 };
 
 export interface FieldItem { readonly type: 'field'; readonly id: string }
-export interface TextItem { readonly type: 'text'; readonly id: string; readonly text: string }
+/**
+ * Ein Text zwischen den Fragen. `sign` — eine ERKLÄRUNG, DIE AUF PAPIER
+ * UNTERSCHRIEBEN WIRD (etwa die Zustimmung der Eltern): im Formular steht sie
+ * zum Lesen, ohne Kästchen, das niemand rechtlich ankreuzen kann; auf dem
+ * Ausdruck steht sie über der Linie für die Unterschrift.
+ */
+export interface TextItem { readonly type: 'text'; readonly id: string; readonly text: string; readonly sign?: boolean }
 export interface GroupItem {
   readonly type: 'group';
   readonly id: string;
@@ -159,7 +165,7 @@ function readItem(raw: unknown, depth: number): LayoutItem | null {
   if (id === undefined || id === '') return null;
 
   if (o.type === 'field') return { type: 'field', id };
-  if (o.type === 'text') return { type: 'text', id, text: str(o.text) ?? '' };
+  if (o.type === 'text') return { type: 'text', id, text: str(o.text) ?? '', ...(o.sign === true ? { sign: true } : {}) };
   if (o.type === 'group') {
     const kind: GroupKind = o.kind === 'page' || o.kind === 'tab' ? o.kind : 'group';
     const items = Array.isArray(o.items)

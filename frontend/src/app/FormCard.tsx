@@ -759,6 +759,28 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
             })}
           />
 
+          {/*
+            0087 — DIE ZUSTIMMUNG AUF PAPIER, AM ENDE DES FORMULARS: kein Häkchen,
+            das das Kind statt der Eltern setzt, sondern das Blatt zum
+            Unterschreiben — schon jetzt zu drucken, und nach dem Absenden wieder.
+          */}
+          {paperNeeded(form.after, (id) => (outcome.hidden.has(id) ? undefined : answers[id]), { fields }) && (
+            <div className="wk-paper-note wk-paper-end">
+              <p>
+                <strong>Zgoda do podpisania odręcznie.</strong> Wydrukuj ją, podpisz
+                {form.after?.signer != null ? ` (${form.after.signer})` : ''} i oddaj organizatorowi. Wydruk będzie też po
+                wysłaniu i pod Twoim linkiem.
+              </p>
+              <SignSheetButton
+                formId={partId}
+                values={new Map(fields.filter((f) => !outcome.hidden.has(f.fieldId)).map((f) => [f.fieldId, answers[f.fieldId] ?? '']))}
+                submittedAt={null}
+                className="wk-btn wk-btn-quiet"
+                label="Drukuj zgodę do podpisu"
+              />
+            </div>
+          )}
+
           {failed !== null && <p className="wk-error">{failed}</p>}
 
           <div className="wk-actions">

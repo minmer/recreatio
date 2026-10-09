@@ -1077,6 +1077,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             busy={busy !== null}
             onSaved={setSaved}
             onError={setFailed}
+            onNeeds={module === undefined ? undefined : () => setTab('questions')}
           />
 
           {isExtension ? (
@@ -2162,13 +2163,15 @@ function ConsentText({ kind, value, onChange, edited = false }: {
  * bestimmte Zustimmung angekreuzt ist). Gespeichert am Formular; draussen
  * liest es `after` des öffentlichen Formulars.
  */
-function AfterSendSettings({ partId, config, fields, busy, onSaved, onError }: {
+function AfterSendSettings({ partId, config, fields, busy, onSaved, onError, onNeeds }: {
   partId: string;
   config: Record<string, string>;
   fields: readonly OpenField[];
   busy: boolean;
   onSaved: (next: Record<string, string>) => void;
   onError: (message: string | null) => void;
+  /** 0087 — zu den Wymagania (Reiter „Pytania"): dort wird „Niepełnoletni…" eingeschaltet. */
+  onNeeds?: () => void;
 }) {
   const [title, setTitle] = useState(config.sentTitle ?? '');
   const [text, setText] = useState(config.sentText ?? '');
@@ -2186,8 +2189,14 @@ function AfterSendSettings({ partId, config, fields, busy, onSaved, onError }: {
   const ticks = fields.filter((f) => f.kind === 'consent' || f.kind === 'checkbox');
   /* Woraus das Alter folgt — ohne Geburtsdatum oder PESEL weiss das Formular nicht, wer minderjährig ist. */
   const knowsAge = ageFields(fields).length > 0;
-  /* Fragt das Formular nach der Zustimmung eines Elternteils, druckt aber nichts? Dann ein Vorschlag. */
-  const parental = paper === '' ? parentalConsentOf(ticks) : null;
+  /*
+   * Fragt das Formular nach der Zustimmung eines Elternteils als KÄSTCHEN? Dann
+   * ein Vorschlag (0087): ein Häkchen setzt das Kind, nicht der Elternteil —
+   * und als Pflichtfeld hält es jeden auf. Der Weg ist das Wymaganie
+   * „Niepełnoletni…": die Zustimmung als Erklärung, gedruckt am Ende.
+   */
+  const consentTick = parentalConsentOf(ticks);
+  const parental = consentTick !== null && (paper === '' || consentTick.isRequired) ? consentTick : null;
   const dirty = title !== (config.sentTitle ?? '') || text !== (config.sentText ?? '')
     || paper !== (config.paper ?? '') || signer !== (config.paperSigner ?? '');
 
@@ -2247,22 +2256,29 @@ function AfterSendSettings({ partId, config, fields, busy, onSaved, onError }: {
       {parental !== null && (
         <div className="wk-paper-note" role="note">
           <p>
-            <strong>Ten formularz pyta o zgodę rodzica</strong> („{parental.label ?? 'pytanie'}”), ale wydruk do podpisu jest
-            wyłączony — osoby nie widzą „Drukuj do podpisu” ani po wysłaniu, ani w „Twoje zgłoszenie”.
+            <strong>Ten formularz każe zaznaczyć zgodę rodzica</strong> („{parental.label ?? 'pytanie'}”)
+            {parental.isRequired ? ' — bez zaznaczenia nikt go nie wyśle' : ''}
+            {paper === '' ? ', a wydruku do podpisu nie ma' : ''}. Zaznaczenie nie jest podpisem rodzica — zaznacza je dziecko.
+          </p>
+          <p>
+            Lepiej: w zakładce „Pytania” zaznacz wymaganie <strong>„Niepełnoletni potrzebują pisemnej zgody rodzica”</strong>.
+            Formularz zapyta o datę urodzenia, a niepełnoletni zobaczy treść zgody bez pola do zaznaczenia i na końcu
+            formularza (oraz po wysłaniu) wydrukuje ją do podpisu. Potem to pole usuń — dotychczasowe odpowiedzi zostaną
+            w zgłoszeniach.
           </p>
           <div className="wk-actions">
-            <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || saving}
-              onClick={() => { setPaper(parental.fieldId); if (signer.trim() === '') setSigner('czytelny podpis rodzica / opiekuna prawnego'); }}>
-              Drukuj, gdy zaznaczono to pytanie
-            </button>
-            {knowsAge && (
+            {onNeeds !== undefined && (
+              <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || saving} onClick={onNeeds}>
+                Przejdź do wymagań
+              </button>
+            )}
+            {knowsAge && paper !== PAPER_MINOR && (
               <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || saving}
                 onClick={() => { setPaper(PAPER_MINOR); if (signer.trim() === '') setSigner('czytelny podpis rodzica / opiekuna prawnego'); }}>
                 Drukuj dla niepełnoletnich
               </button>
             )}
           </div>
-          <p className="wk-hint">Potem „Zapisz” poniżej.</p>
         </div>
       )}
       {paper !== '' && (

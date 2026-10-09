@@ -849,7 +849,25 @@ try {
     assert.deepEqual(sheet.notes, ['Klauzula.']);
     const adult = m.sheetOf(open, new Map([['given', 'Jan'], ['born', '1990-01-01'], ['guardian', 'x']]));
     assert.ok(!adult.blocks.some((b) => b.rows.some((r) => r.label === 'Rodzic')), 'what the logic hid is not printed');
+    assert.deepEqual(sheet.signed, [], 'nothing to sign without a statement');
     ok('sign sheet: the form’s order, visible answers only, dates in Polish, consents with their own wording');
+
+    /* 0087 — die Zustimmung der Eltern als Erklärung zum Unterschreiben: kein Kästchen, auf dem Blatt über der Linie. */
+    {
+      const need = m.NEEDS.find((t) => t.id === 'minor');
+      const qs = need.questions.map((q, i) => field(q.id, q.kind, q.label, i, { identityRole: q.identity ?? 'none' }));
+      const form = { form: { title: 'Rakieta', controller: null, after: null }, fields: qs, design: { version: 1, layout: need.layout, nodes: need.nodes, edges: need.edges }, account: null };
+      assert.ok(!need.questions.some((q) => q.kind === 'consent' || q.kind === 'checkbox'), 'minors: nothing to tick');
+      const child = m.sheetOf(form, new Map([['given', 'Kuba'], ['surname', 'Mały'], ['born', '2012-03-04'], ['guardian', 'Ewa Mała'], ['guardianPhone', '+48 600 700 800']]));
+      assert.equal(child.signed.length, 1, 'a child: the approval is on the sheet, to be signed');
+      assert.ok(child.signed[0].startsWith('Zgoda rodzica / opiekuna prawnego na udział.') && child.signed[0].includes('wyrażam zgodę'));
+      assert.ok(!child.notes.some((n) => n.includes('wyrażam zgodę')), 'not as small print');
+      const grown = m.sheetOf(form, new Map([['given', 'Jan'], ['surname', 'Duży'], ['born', '1990-01-01']]));
+      assert.deepEqual(grown.signed, [], 'an adult: no parental approval');
+      const outcome = m.evaluate({ version: 1, layout: need.layout, nodes: need.nodes, edges: need.edges }, { born: '2012-03-04' });
+      assert.ok([...outcome.required].every((id) => id === 'guardian' || id === 'guardianPhone'), 'required for a child: the parent and the phone, no tick');
+      ok('minors: the parental approval is read in the form and signed on the printed sheet — no checkbox to force');
+    }
 
     /* Die Wymagania (0086): jede Kennung im Aufbau und in der Logik zeigt auf etwas, das es gibt. */
     for (const t of m.NEEDS) {
@@ -880,7 +898,7 @@ try {
     const grown = m.evaluate({ version: 1, layout: parent.layout, nodes: parent.nodes, edges: parent.edges }, { born: '1990-01-01' });
     assert.ok(!minor.hidden.has('gGuardian'), 'a child: guardian and parental consent');
     assert.ok(grown.hidden.has('gGuardian'), 'an adult: neither');
-    assert.ok(minor.required.has('guardian') && minor.required.has('consentParticipation') && !grown.required.has('guardian'), 'required for a child only');
+    assert.ok(minor.required.has('guardian') && minor.required.has('guardianPhone') && !grown.required.has('guardian'), 'required for a child only');
     assert.equal(parent.paper, m.PAPER_MINOR, 'minors: the print follows the age, not a tick');
     ok('needs: every placement and every logic reference resolves; the parental part shows for minors only, printed for minors');
   }

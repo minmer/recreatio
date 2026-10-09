@@ -162,6 +162,8 @@ interface Statement { readonly label: string; readonly given: boolean; readonly 
 /** Was auf dem Blatt steht — in der Reihenfolge des Formulars, nur was sichtbar war. */
 export function sheetOf(open: OpenForm, values: ReadonlyMap<string, string>): {
   blocks: Block[]; statements: Statement[]; notes: string[];
+  /** 0087 — Erklärungen, die hier unterschrieben werden (Texte `sign`, die sichtbar waren). */
+  signed: string[];
 } {
   const byId = new Map(open.fields.map((f) => [f.fieldId, f]));
   const sorted = [...open.fields].sort((a, b) => a.position - b.position);
@@ -172,11 +174,15 @@ export function sheetOf(open: OpenForm, values: ReadonlyMap<string, string>): {
   const blocks: Block[] = [{ title: '', rows: [] }];
   const statements: Statement[] = [];
   const notes: string[] = [];
+  const signed: string[] = [];
 
   const walk = (items: readonly LayoutItem[], block: Block) => {
     for (const item of items) {
       if (outcome.hidden.has(item.id)) continue;
-      if (item.type === 'text') { if (item.text.trim() !== '') notes.push(item.text.trim()); continue; }
+      if (item.type === 'text') {
+        if (item.text.trim() !== '') (item.sign === true ? signed : notes).push(item.text.trim());
+        continue;
+      }
       if (item.type === 'group') {
         const inner: Block = { title: item.title.trim(), rows: [] };
         blocks.push(inner);
@@ -204,11 +210,11 @@ export function sheetOf(open: OpenForm, values: ReadonlyMap<string, string>): {
   };
   walk(layout, blocks[0]);
 
-  return { blocks: blocks.filter((b) => b.rows.length > 0), statements, notes };
+  return { blocks: blocks.filter((b) => b.rows.length > 0), statements, notes, signed };
 }
 
 function Sheet({ open, values, submittedAt }: { open: OpenForm; values: ReadonlyMap<string, string>; submittedAt: string | null }) {
-  const { blocks, statements, notes } = useMemo(() => sheetOf(open, values), [open, values]);
+  const { blocks, statements, notes, signed } = useMemo(() => sheetOf(open, values), [open, values]);
   const c = open.form.controller;
 
   return (
@@ -246,6 +252,13 @@ function Sheet({ open, values, submittedAt }: { open: OpenForm; values: Readonly
         )}
       </div>
 
+      {/* 0087 — was hier unterschrieben wird, steht gross über der Linie. */}
+      {signed.length > 0 && (
+        <section className="wk-print-approval">
+          {signed.map((text, i) => text.split(/\n+/).map((line, j) => <p key={`${i}-${j}`}>{line}</p>))}
+        </section>
+      )}
+
       {notes.length > 0 && (
         <section className="wk-print-notes">
           {notes.map((n, i) => <p key={i}>{n}</p>)}
@@ -273,12 +286,14 @@ function Sheet({ open, values, submittedAt }: { open: OpenForm; values: Readonly
  *   verlangt (der Mensch); `ruled`: wenn das Formular überhaupt eine Regel für
  *   Papier hat (die Kanzlei druckt auch für den, der sein Blatt vergessen hat).
  */
-export function SignSheetButton({ formId, values, submittedAt, when = 'needed', className = 'wk-btn' }: {
+export function SignSheetButton({ formId, values, submittedAt, when = 'needed', className = 'wk-btn', label = 'Drukuj do podpisu' }: {
   formId: string;
   values: ReadonlyMap<string, string>;
+  /** `null` — noch nicht abgeschickt (0087: am Ende des Formulars). */
   submittedAt: string | null;
   when?: 'needed' | 'ruled';
   className?: string;
+  label?: string;
 }) {
   const [open, setOpen] = useState<OpenForm | null>(null);
   const [printing, setPrinting] = useState(false);
@@ -307,7 +322,7 @@ export function SignSheetButton({ formId, values, submittedAt, when = 'needed', 
 
   return (
     <>
-      <button type="button" className={className} onClick={() => setPrinting(true)}>Drukuj do podpisu</button>
+      <button type="button" className={className} onClick={() => setPrinting(true)}>{label}</button>
       {printing && createPortal(<Sheet open={open} values={values} submittedAt={submittedAt} />, document.body)}
     </>
   );

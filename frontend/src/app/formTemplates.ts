@@ -66,11 +66,16 @@ const Q_ADDRESS: Q = { id: 'address', kind: 'line', label: 'Adres zamieszkania',
 const Q_GNAME: Q = { id: 'guardian', kind: 'line', label: 'Imię i nazwisko rodzica / opiekuna prawnego' };
 const Q_GPHONE: Q = { id: 'guardianPhone', kind: 'phone', label: 'Telefon rodzica / opiekuna', help: 'Numer czynny przez cały czas trwania wydarzenia.' };
 
-const C_PARTICIPATION: Q = {
-  id: 'consentParticipation', kind: 'consent', label: 'Zgoda rodzica na udział',
-  help: 'Jako rodzic albo opiekun prawny wyrażam zgodę na udział mojego dziecka w tym wydarzeniu na warunkach '
-    + 'podanych przez organizatora. Oświadczam, że znam jego stan zdrowia i nie widzę przeciwwskazań do udziału.'
-};
+/*
+ * 0087 — DIE ZUSTIMMUNG DER ELTERN IST KEIN KÄSTCHEN. Ein Häkchen setzt das Kind,
+ * nicht der Elternteil, und es ist keine Unterschrift; das Formular zwang aber
+ * jeden Minderjährigen, es zu setzen. Jetzt steht sie als Erklärung im
+ * Formular (`sign`) und auf dem Ausdruck über der Linie, auf der der
+ * Elternteil unterschreibt — gedruckt am Ende des Formulars oder danach.
+ */
+const APPROVAL = 'Zgoda rodzica / opiekuna prawnego na udział.\n'
+  + 'Jako rodzic albo opiekun prawny wyrażam zgodę na udział mojego dziecka w tym wydarzeniu na warunkach '
+  + 'podanych przez organizatora. Oświadczam, że znam jego stan zdrowia i nie widzę przeciwwskazań do udziału.';
 const C_MEDICAL: Q = {
   id: 'consentMedical', kind: 'consent', label: 'Pomoc w nagłym wypadku', required: true,
   help: 'W razie zagrożenia zdrowia lub życia zgadzam się na wezwanie pomocy medycznej i udzielenie niezbędnej '
@@ -180,7 +185,7 @@ const detailLogic = (yes: string, detail: string, y: number): { nodes: LogicNode
 
 export const NEED_SIGNER = 'czytelny podpis rodzica / opiekuna prawnego';
 
-const minor = minorLogic(['gGuardian'], ['guardian', 'guardianPhone', 'consentParticipation']);
+const minor = minorLogic(['gGuardian'], ['guardian', 'guardianPhone']);
 
 /* Jedes Wymaganie zeichnet seine Logik in einem eigenen Streifen — zusammen überlappen sie nicht. */
 const health = (() => {
@@ -193,12 +198,15 @@ export const NEEDS: readonly FormNeed[] = [
   {
     id: 'minor',
     label: 'Niepełnoletni potrzebują pisemnej zgody rodzica',
-    use: 'Data urodzenia uczestnika; gdy ma mniej niż 18 lat (w dniu wypełnienia) — rodzic z telefonem i jego zgoda na udział. '
-      + 'Po wysłaniu niepełnoletni dostaje wydruk do podpisania odręcznie, a koordynator odhacza oddaną zgodę.',
-    questions: [Q_GIVEN, Q_SURNAME, Q_BORN, Q_GNAME, Q_GPHONE, C_PARTICIPATION],
+    use: 'Data urodzenia uczestnika; gdy ma mniej niż 18 lat (w dniu wypełnienia) — rodzic z telefonem i treść jego zgody, '
+      + 'bez pola do zaznaczenia. Na końcu formularza (i po wysłaniu) niepełnoletni drukuje zgodę, rodzic ją podpisuje, '
+      + 'a koordynator odhacza oddaną zgodę.',
+    questions: [Q_GIVEN, Q_SURNAME, Q_BORN, Q_GNAME, Q_GPHONE],
     layout: [
       group('gParticipant', 'Uczestnik', ['given', 'surname', 'born']),
-      group('gGuardian', 'Rodzic / opiekun prawny', ['guardian', 'guardianPhone', 'consentParticipation'])
+      { type: 'group', id: 'gGuardian', kind: 'group', title: 'Rodzic / opiekun prawny', items: [
+        field('guardian'), field('guardianPhone'), { type: 'text', id: 'tApproval', text: APPROVAL, sign: true }
+      ] }
     ],
     nodes: minor.nodes, edges: minor.edges,
     paper: 'minor', signer: NEED_SIGNER, step: 'Zgoda rodzica podpisana — oddana'

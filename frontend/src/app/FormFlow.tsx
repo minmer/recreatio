@@ -67,7 +67,14 @@ function Items(props: FlowProps) {
         if (one.type === 'field') return <FieldRow key={one.id} {...props} fieldId={one.id} />;
 
         if (one.type === 'text') {
-          return one.text.trim() === '' ? null : (
+          if (one.text.trim() === '') return null;
+          /* 0087 — eine Erklärung zum Unterschreiben: lesen, nicht ankreuzen; unterschrieben wird auf dem Ausdruck. */
+          return one.sign === true ? (
+            <div className="wk-form-sign" key={one.id}>
+              <p>{one.text}</p>
+              <span className="wk-hint">Podpisuje się odręcznie na wydruku — przycisk „Drukuj zgodę do podpisu” jest na końcu formularza.</span>
+            </div>
+          ) : (
             <p className="wk-form-text" key={one.id}>{one.text}</p>
           );
         }

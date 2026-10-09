@@ -1971,6 +1971,19 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 
 .wk-layout-text textarea.wk-layout-what { resize: vertical; }
 
+/* 0087 — ein Text mit dem Schalter „do podpisu na wydruku“ darunter. */
+.wk-layout-textbox { display: grid; gap: 0.3rem; }
+.wk-layout-textbox textarea {
+  font: inherit; font-size: 0.92rem; padding: 0.3rem 0.5rem; border: 1px solid var(--wk-line); border-radius: 3px;
+  background: var(--wk-surface); color: var(--wk-ink); resize: vertical; width: 100%; box-sizing: border-box;
+}
+.wk-layout-textbox .wk-check { font-size: 0.85rem; color: var(--wk-muted); }
+
+/* 0087 — eine Erklärung zum Unterschreiben: gelesen, nicht angekreuzt. */
+.wk-form-sign { display: grid; gap: 0.35rem; padding: 0.7rem 0.85rem; border-left: 3px solid var(--wk-accent); background: var(--wk-soft); border-radius: 0 4px 4px 0; }
+.wk-form-sign p { margin: 0; white-space: pre-wrap; font-size: 0.94rem; line-height: 1.5; }
+.wk-paper-end .wk-btn { justify-self: start; }
+
 .wk-layout-group-head { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .wk-layout-group-head input { flex: 1 1 10rem; min-width: 0; }
 
@@ -7336,6 +7349,9 @@ a.wk-toast-body:focus-visible { outline: 2px solid var(--wk-accent); outline-off
   .wk-print-sheet dt::after { content: ":"; }
   .wk-print-sheet dd { margin: 0; font-weight: 600; }
   .wk-print-sheet ul { margin: 0; padding-left: 1rem; display: grid; gap: 0.2rem; font-size: 9.5pt; }
+  .wk-print-sheet .wk-print-approval { margin-top: 0.8rem; padding: 0.5rem 0.6rem; border: 1px solid #000; font-size: 10pt; break-inside: avoid; }
+  .wk-print-sheet .wk-print-approval p { margin: 0 0 0.25rem; }
+  .wk-print-sheet .wk-print-approval p:first-child { font-weight: 700; }
   .wk-print-sheet .wk-print-notes { margin-top: 0.6rem; font-size: 7.5pt; color: #333; }
   .wk-print-sheet .wk-print-notes p { margin: 0 0 0.2rem; }
   .wk-print-sheet footer { margin-top: 1rem; }

@@ -182,16 +182,33 @@ function Level({ items, parent, fields, onDraft, onAdd }: {
             )}
 
             {item.type === 'text' && (
-              <textarea
-                className="wk-layout-what"
-                rows={2}
-                value={item.text}
-                placeholder="Tekst między pytaniami"
-                onChange={(e) => {
-                  const text = e.target.value;
-                  onDraft((was) => change(was, item.id, (one) => ({ ...one, text } as LayoutItem)));
-                }}
-              />
+              <span className="wk-layout-what wk-layout-textbox">
+                <textarea
+                  rows={2}
+                  value={item.text}
+                  placeholder="Tekst między pytaniami"
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    onDraft((was) => change(was, item.id, (one) => ({ ...one, text } as LayoutItem)));
+                  }}
+                />
+                {/* 0087 — eine Erklärung, die auf dem Ausdruck unterschrieben wird (statt eines Kästchens). */}
+                <label className="wk-check">
+                  <input
+                    type="checkbox" checked={item.sign === true}
+                    onChange={(e) => {
+                      const sign = e.target.checked;
+                      onDraft((was) => change(was, item.id, (one) => {
+                        if (one.type !== 'text') return one;
+                        const { sign: _was, ...rest } = one;
+                        void _was;
+                        return (sign ? { ...rest, sign: true } : rest) as LayoutItem;
+                      }));
+                    }}
+                  />
+                  {' '}do podpisu na wydruku (zgoda, oświadczenie — bez pola do zaznaczenia)
+                </label>
+              </span>
             )}
 
             {item.type === 'group' && (
