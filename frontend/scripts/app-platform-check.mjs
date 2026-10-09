@@ -43,7 +43,7 @@ export { keepLinkFromAddress, linkHref, freshLink } from '${app}linkKeep';
 export { safeLink, itemFieldAad, linkWord, putText, emptyTexts } from '${app}calendar';
 export { latexEscape, textToLatex, projectToLatex, missingKeys } from '${app}libraryLatex';
 export { openProgram, countParts } from '${app}program';
-export { placeDay, treeOrder } from '${app}calendarModel';
+export { placeDay, treeOrder, taskMarks, marksOn, railDay } from '${app}calendarModel';
 export { titleFrom } from '${app}chatTopics';
 export { sha256Bytes, toBase64Url, wrapKey, seal, aad, Field } from '${app}crypto';
 export { call, carryLinks, LINKS_HEADER } from '${app}session';
@@ -61,7 +61,7 @@ export { readSubject, writeSubject, subjectKindOf } from '${app}pageSubject';
 export { peselValid, peselBirth, birthOf, ageOn } from '${app}pesel';
 export { consentValue, consentGiven, consentText, shownAnswer } from '${app}form';
 export { evaluate } from '${app}formDesign';
-export { paperNeeded, sheetOf, parentalConsentOf, ageFields, PAPER_MINOR } from '${app}SignSheet';
+export { paperNeeded, sheetOf, parentalConsentOf, ageFields, PAPER_MINOR, printedByDefault } from '${app}SignSheet';
 export { NEEDS, readNeeds, needsJson, lockedOf, layoutWithout, logicWithout } from '${app}formTemplates';
 export { asked, takenOff } from '${app}form';
 export { splitAt, pageLink, keepFromAddress } from '${app}seatKeep';
@@ -835,7 +835,7 @@ try {
     const open = {
       form: { title: 'Zgoda', controller: null, after: null },
       fields: [
-        field('given', 'line', 'Imię', 0), field('born', 'date', 'Data urodzenia', 1, { identityRole: 'born' }),
+        field('given', 'line', 'Imię', 0, { identityRole: 'given_name' }), field('born', 'date', 'Data urodzenia', 1, { identityRole: 'born' }),
         field('guardian', 'line', 'Rodzic', 2), field('cp', 'consent', 'Zgoda na udział', 3, { help: 'Dzisiejszy tekst.' }),
         field('img', 'consent', 'Wizerunek', 4, { help: 'Zgoda na wizerunek.' })
       ],
@@ -843,7 +843,8 @@ try {
       account: null
     };
     const sheet = m.sheetOf(open, new Map([['given', 'Ola'], ['born', '2012-05-01'], ['guardian', 'Anna'], ['cp', 'tak: Tekst z dnia zgody.']]));
-    assert.deepEqual(sheet.blocks.flatMap((b) => b.rows.map((r) => `${r.label}=${r.value}`)), ['Imię=Ola', 'Data urodzenia=01.05.2012', 'Rodzic=Anna']);
+    assert.deepEqual(sheet.blocks.map((b) => [b.title, b.rows.map((r) => `${r.label}=${r.value}`)]),
+      [['Uczestnik', ['Imię i nazwisko=Ola']], ['Rodzic / opiekun prawny', ['Rodzic=Anna']]], 'the name and the parent — not the age');
     assert.deepEqual(sheet.statements.map((st) => [st.label, st.given, st.text]),
       [['Zgoda na udział', true, 'Tekst z dnia zgody.'], ['Wizerunek', false, 'Zgoda na wizerunek.']], 'the wording of the day of consent, not today’s');
     assert.deepEqual(sheet.notes, ['Klauzula.']);
@@ -851,6 +852,43 @@ try {
     assert.ok(!adult.blocks.some((b) => b.rows.some((r) => r.label === 'Rodzic')), 'what the logic hid is not printed');
     assert.deepEqual(sheet.signed, [], 'nothing to sign without a statement');
     ok('sign sheet: the form’s order, visible answers only, dates in Polish, consents with their own wording');
+
+    /* 0087 — wie „Zapisy Rocket 2026": aufs Blatt nur der Name, die Eltern, ihre Telefone und das Formale. */
+    {
+      const rocket = [
+        field('g', 'line', 'Imię', 0, { identityRole: 'given_name' }), field('s', 'line', 'Nazwisko', 1, { identityRole: 'surname' }),
+        field('ph', 'phone', 'Twój telefon', 2, { identityRole: 'phone' }), field('school', 'line', 'Szkoła i klasa', 3),
+        field('why', 'text', 'Co najbardziej interesuje Cię w fizyce lub inżynierii?', 4),
+        field('pn', 'line', 'Imię i nazwisko rodzica / opiekuna prawnego', 5), field('pp', 'phone', 'Telefon rodzica / opiekuna', 6),
+        field('confirm', 'checkbox', 'Potwierdzam, że przekażę podpisaną zgodę rodzica / opiekuna na udział w warsztatach.', 7),
+        field('safe', 'checkbox', 'Zobowiązuję się przestrzegać zasad bezpieczeństwa obowiązujących podczas testów i startów.', 8),
+        field('born', 'date', 'Data urodzenia', 9, { identityRole: 'born' }),
+        field('cp', 'consent', 'Zgoda rodzica na udział', 10, { help: 'Jako rodzic albo opiekun prawny wyrażam zgodę na udział mojego dziecka.' }),
+        field('img', 'consent', 'Wizerunek', 11, { help: 'Zgoda na publikację wizerunku.' })
+      ];
+      const form = (layout) => ({ form: { title: 'Rocket', controller: null, after: null }, fields: rocket, design: { version: 1, layout, nodes: [], edges: [] }, account: null });
+      const plain = rocket.map((q) => ({ type: 'field', id: q.fieldId }));
+      const answers = new Map([['g', 'Julian'], ['s', 'Mirek'], ['ph', '+48 790 294 459'], ['school', 'XIII LO 1D'], ['why', 'Piękno świata'],
+        ['pn', 'Jarosław Mirek'], ['pp', '+48 668 350 103'], ['confirm', 'tak'], ['safe', 'tak'], ['born', '2011-01-01'], ['img', 'tak: Zgoda na publikację wizerunku.']]);
+      const sheet = m.sheetOf(form([...plain, { type: 'text', id: 'rodo', text: 'Dane wykorzystamy do przygotowania zgody.' }]), answers);
+      assert.deepEqual(sheet.blocks.map((b) => [b.title, b.rows.map((r) => `${r.label}=${r.value}`)]), [
+        ['Uczestnik', ['Imię i nazwisko=Julian Mirek']],
+        ['Rodzic / opiekun prawny', ['Imię i nazwisko rodzica / opiekuna prawnego=Jarosław Mirek', 'Telefon rodzica / opiekuna=+48 668 350 103']]
+      ], 'name, parent, parent\'s phone — no age, no school, no own phone, no interests');
+      assert.deepEqual(sheet.statements.map((st) => [st.given, st.label]), [
+        [true, 'Potwierdzam, że przekażę podpisaną zgodę rodzica / opiekuna na udział w warsztatach.'],
+        [true, 'Zobowiązuję się przestrzegać zasad bezpieczeństwa obowiązujących podczas testów i startów.'],
+        [true, 'Wizerunek']
+      ], 'the declarations and consents stay');
+      assert.deepEqual(sheet.signed, ['Zgoda rodzica na udział.\nJako rodzic albo opiekun prawny wyrażam zgodę na udział mojego dziecka.'],
+        'the parents\' consent is what is signed — not „NIE" because the child ticked nothing');
+      assert.deepEqual(sheet.notes, ['Dane wykorzystamy do przygotowania zgody.'], 'the formal notes stay');
+      /* Je Frage umstellbar: die Schule dazu, den Namen weg. */
+      const tuned = m.sheetOf(form(plain.map((it) => (it.id === 'school' ? { ...it, print: true } : it.id === 's' ? { ...it, print: false } : it))), answers);
+      assert.deepEqual(tuned.blocks[0].rows.map((r) => `${r.label}=${r.value}`), ['Imię i nazwisko=Julian', 'Szkoła i klasa=XIII LO 1D'], 'per question: on or off the sheet');
+      assert.equal(m.printedByDefault({ kind: 'checkbox', label: 'Jest coś w stanie zdrowia, o czym powinniśmy wiedzieć', identityRole: 'none' }), false, 'a yes/no that is data, not a declaration');
+      ok('sign sheet (0087): only the participant\'s name, the parents and their phones, and the formal parts; adjustable per question');
+    }
 
     /* 0087 — die Zustimmung der Eltern als Erklärung zum Unterschreiben: kein Kästchen, auf dem Blatt über der Linie. */
     {
@@ -1076,6 +1114,55 @@ try {
     assert.deepEqual(m.splitTrail(['parish', 'zapisy'], known), { path: 'parish/zapisy', moduleId: null });
     assert.deepEqual(m.splitTrail(['parish', id], known), { path: 'parish', moduleId: id });
     ok('root page: recreatio.pl itself is edited at #/workspace/pages/~ (and its modules below it)');
+  }
+
+  /* -- 17. Aufgaben bleiben sichtbar, bis sie erledigt oder ausgelassen sind (0088) ------------------- */
+  {
+    const now = new Date(2026, 9, 9, 12, 0);
+    const day = (d, h = 9) => new Date(2026, 9, d, h, 0);
+    const occ = (at, minutes = 30, decided = null) => ({
+      at: at.toISOString(), endsAt: new Date(at.getTime() + minutes * 60_000).toISOString(),
+      doneAt: decided === 'done' ? at.toISOString() : null, doneBy: null,
+      skippedAt: decided === 'skipped' ? at.toISOString() : null, skippedBy: null
+    });
+    const task = (id, extra) => ({
+      taskId: id, areaId: 'a', ownerRoleId: 'r', kind: 'window', timeZone: 'Europe/Warsaw', startsAt: day(1).toISOString(),
+      windowMinutes: 30, everyMinutes: null, repeatKind: 'none', repeatEvery: 1, repeatWeekdays: null, repeatUntil: null, repeatCount: null,
+      epoch: 1, titleSealed: '', notesSealed: null, createdAt: day(1).toISOString(), occurrences: [], lastDoneAt: null, lastDoneBy: null,
+      dueAt: null, skippedAt: null, title: id, notes: null, ...extra
+    });
+    const week = { from: new Date(2026, 9, 5), to: new Date(2026, 9, 12) };
+    const tasks = [
+      /* vor zwei Monaten, nie erledigt — kam als „overdue" */
+      task('old', { overdue: [occ(new Date(2026, 7, 3, 9, 0))], overdueMore: 4 }),
+      /* Montag dieser Woche, liegen geblieben */
+      task('monday', { occurrences: [occ(day(5))] }),
+      /* Dienstag, erledigt — bleibt an seinem Tag */
+      task('tuesday', { occurrences: [occ(day(6), 30, 'done')] }),
+      /* Mittwoch, ausgelassen */
+      task('wednesday', { occurrences: [occ(day(7), 30, 'skipped')] }),
+      /* heute später */
+      task('later', { occurrences: [occ(day(9, 18))] }),
+      /* „co pewien czas", seit zehn Tagen fällig */
+      task('water', { kind: 'after', everyMinutes: 3 * 1440, dueAt: new Date(2026, 8, 29, 9, 0).toISOString() })
+    ];
+    const marks = m.taskMarks(tasks, now, week);
+    const on = (d) => m.marksOn(marks, d).map((x) => x.task.taskId).sort();
+    assert.deepEqual(on(new Date(2026, 9, 9)), ['later', 'monday', 'old', 'water'], 'today: what is later today, and everything left open — however old');
+    assert.deepEqual(on(new Date(2026, 9, 5)), [], 'Monday no longer holds what moved to today');
+    assert.deepEqual(on(new Date(2026, 9, 6)), ['tuesday'], 'done stays on its day');
+    assert.deepEqual(on(new Date(2026, 9, 7)), ['wednesday'], 'skipped stays on its day');
+    const old = marks.find((x) => x.task.taskId === 'old');
+    assert.ok(old.carried && old.state === 'missed', 'carried, still missed');
+    assert.ok(!m.railDay(marks, new Date(2026, 9, 9)).some((r) => r.mark.carried), 'what is carried has no hour on today\'s rail');
+    assert.ok(!m.railDay(marks, new Date(2026, 9, 5)).some((r) => r.mark.task.taskId === 'monday'), 'nor on its old day');
+
+    /* In eine vergangene Woche geblättert (heute nicht im Bild): dort steht es an seinem Tag. */
+    const back = m.taskMarks(tasks, now, { from: new Date(2026, 8, 28), to: new Date(2026, 9, 5) });
+    assert.deepEqual(m.marksOn(back, new Date(2026, 8, 28)).map((x) => x.task.taskId), [], 'nothing of those tasks happened that week');
+    const lastWeek = m.taskMarks([task('fri', { occurrences: [occ(new Date(2026, 9, 2, 9, 0))] })], now, { from: new Date(2026, 8, 28), to: new Date(2026, 9, 5) });
+    assert.deepEqual(m.marksOn(lastWeek, new Date(2026, 9, 2)).map((x) => x.task.taskId), ['fri'], 'browsing back: on its own day');
+    ok('tasks (0088): what is neither done nor skipped stays in view on today — however long ago; done and skipped stay on their day');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

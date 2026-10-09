@@ -78,6 +78,7 @@ export const QUESTION_KEYS: Readonly<Record<string, string>> = {
   'design.layout[].type': '"field" — pytanie, "text" — tekst między pytaniami, "group" — grupa (patrz wyżej)',
   'design.layout[].id': 'Przy "field": identyfikator pytania (także własny z "questions", np. "q1"); przy tekście i grupie: dowolny, niepowtarzalny',
   'design.layout[].text': 'Przy "text": treść',
+  'design.layout[].print': 'Przy "field": true / false — czy odpowiedź trafia na wydruk do podpisu. Pominięte: imię i nazwisko, dane rodzica (imię, telefon), zgody i oświadczenia tak; reszta (wiek, szkoła…) nie',
   'design.layout[].sign': 'Przy "text": true — oświadczenie do podpisu na wydruku (np. zgoda rodzica): w formularzu do przeczytania, bez pola do zaznaczenia; na wydruku nad linią podpisu',
   'design.nodes': 'Węzły logiki: {"id","kind","x","y", "fieldId"?, "value"?, "op"?, "target"?}; kind: answer, const, age, compare, and, or, not, xor, show, message, label, require. "age" — wiek w pełnych latach z pytania z datą urodzenia albo PESEL-em ("fieldId"), w dniu "value" (RRRR-MM-DD; puste — dziś); porównany z 18 pokazuje pola dla niepełnoletnich',
   'design.edges': 'Połączenia logiki: {"id","from","to","port":"a"|"b"|"in"}'
@@ -91,7 +92,7 @@ export const QUESTION_EXAMPLE = {
   ],
   design: {
     version: 1,
-    layout: [{ type: 'field', id: 'q1' }, { type: 'text', id: 't1', text: 'Zakwaterowanie' }, { type: 'field', id: 'q2' },
+    layout: [{ type: 'field', id: 'q1' }, { type: 'text', id: 't1', text: 'Zakwaterowanie' }, { type: 'field', id: 'q2', print: true },
       { type: 'text', id: 't2', text: 'Wyrażam zgodę na udział mojego dziecka.', sign: true }],
     nodes: [],
     edges: []

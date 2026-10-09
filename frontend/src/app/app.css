@@ -1972,6 +1972,10 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-layout-text textarea.wk-layout-what { resize: vertical; }
 
 /* 0087 — ein Text mit dem Schalter „do podpisu na wydruku“ darunter. */
+/* 0087 — je Frage: kommt sie auf das Blatt zum Unterschreiben? */
+.wk-layout-field { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; }
+.wk-layout-print { margin-left: auto; font-size: 0.82rem; color: var(--wk-muted); white-space: nowrap; }
+
 .wk-layout-textbox { display: grid; gap: 0.3rem; }
 .wk-layout-textbox textarea {
   font: inherit; font-size: 0.92rem; padding: 0.3rem 0.5rem; border: 1px solid var(--wk-line); border-radius: 3px;

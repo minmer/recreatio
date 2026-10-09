@@ -51,6 +51,12 @@ public static class Tasks
     /// <summary>So viele Vorkommen eines Zeitraums rechnet eine Antwort höchstens aus.</summary>
     private const int MaxPeriods = 1000;
 
+    /// <summary>
+    /// 0088 — so viele OFFENE VORKOMMEN VON FRÜHER gibt eine Antwort je Aufgabe mit
+    /// (die jüngsten); wie viele es darüber hinaus sind, sagt `overdueMore`.
+    /// </summary>
+    private const int MaxOverdue = 30;
+
     public static void Map(WebApplication app)
     {
         app.MapGet("/workspace/tasks", ListAsync);
@@ -413,6 +419,16 @@ public static class Tasks
     }
 
     /// <summary>
+    /// 0088 — DIE VORKOMMEN, DIE LIEGEN BLIEBEN: vor dem gezeigten Zeitraum
+    /// (<paramref name="shownFrom"/>), vorbei, und weder erledigt noch abgesagt.
+    /// Rein und ohne Datenbank — deshalb öffentlich und prüfbar.
+    /// </summary>
+    public static List<DateTimeOffset> LeftOpen(
+        IEnumerable<DateTimeOffset> occurrences, int windowMinutes, IReadOnlySet<DateTimeOffset> decided,
+        DateTimeOffset shownFrom, DateTimeOffset now) =>
+        occurrences.Where(at => at < shownFrom && at.AddMinutes(windowMinutes) < now && !decided.Contains(at)).ToList();
+
+    /// <summary>
     /// 0066 — WANN ERINNERT WIRD an ein Vorkommen von <paramref name="windowMinutes"/>
     /// Dauer: am Anfang, in der Mitte, gegen Ende (eine Viertelstunde davor;
     /// bei einem kürzeren Fenster an dessen Ende). Ohne Dauer gibt es nur den Anfang.
@@ -468,7 +484,11 @@ public static class Tasks
             while (await reader.ReadAsync(ctx.RequestAborted)) tasks.Add(Read(reader));
         }
 
-        /* Was erledigt wurde — im Zeitraum (und für `after` das jeweils letzte, gleich wann). */
+        /*
+         * Was erledigt wurde — bis zum Ende des Zeitraums, auch davor (0088): ob
+         * ein Vorkommen von vor Wochen noch offen ist, weiss nur, wer auch seine
+         * Entscheidungen kennt. Für `after` zählt ohnehin die jeweils letzte.
+         */
         var done = new Dictionary<Guid, List<(DateTimeOffset At, DateTimeOffset DoneAt, Guid By, string State)>>();
         if (tasks.Count > 0)
         {
@@ -477,7 +497,7 @@ public static class Tasks
                 SELECT d.task_id, d.occurrence_at, d.done_at, d.done_by_role_id, d.state
                 FROM app.task_done d
                 WHERE d.task_id IN ({names})
-                  AND (d.occurrence_at BETWEEN @from AND @to
+                  AND (d.occurrence_at <= @to
                        OR d.occurrence_at = (SELECT MAX(x.occurrence_at) FROM app.task_done x WHERE x.task_id = d.task_id))
                 ORDER BY d.task_id, d.occurrence_at;
                 """, connection);
@@ -513,6 +533,17 @@ public static class Tasks
                     Minuten wieder gefragt werden.
                 */
                 var settled = mine.Count == 0 ? ((DateTimeOffset At, DateTimeOffset DoneAt, Guid By, string State)?)null : mine.MaxBy(d => d.At);
+
+                /*
+                    0088 — WAS LIEGEN BLIEB, BLEIBT SICHTBAR: die Vorkommen VOR dem
+                    Zeitraum, die vorbei sind und weder erledigt noch abgesagt —
+                    gleich wie lange her. Der Kalender stellt sie auf heute.
+                */
+                var shownFrom = since.AddMinutes(-task.WindowMinutes);
+                var decided = mine.Select(d => d.At).ToHashSet();
+                var left = task.Kind == "after" || task.StartsAt >= shownFrom
+                    ? new List<DateTimeOffset>()
+                    : LeftOpen(OccurrencesOf(task, task.StartsAt, shownFrom), task.WindowMinutes, decided, shownFrom, now);
                 var doneOnes = mine.Where(d => d.State == "done").ToList();
                 var last = doneOnes.Count == 0 ? ((DateTimeOffset At, DateTimeOffset DoneAt, Guid By, string State)?)null : doneOnes.MaxBy(d => d.At);
 
@@ -564,6 +595,19 @@ public static class Tasks
                                     .Select(r => new { kind = r.Kind, at = r.At }).ToList()
                             };
                         }).ToList(),
+
+                    /* 0088 — offen geblieben, vor dem Zeitraum: die jüngsten, und wie viele es noch mehr sind. */
+                    overdue = left.Skip(Math.Max(0, left.Count - MaxOverdue)).Select(at => new
+                    {
+                        at,
+                        endsAt = at.AddMinutes(task.WindowMinutes),
+                        doneAt = (DateTimeOffset?)null,
+                        doneBy = (string?)null,
+                        skippedAt = (DateTimeOffset?)null,
+                        skippedBy = (string?)null,
+                        reminders = new List<object>()
+                    }).ToList(),
+                    overdueMore = Math.Max(0, left.Count - MaxOverdue),
 
                     /* after: zuletzt erledigt, und wann wieder fällig. */
                     lastDoneAt = last?.DoneAt,

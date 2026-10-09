@@ -28,7 +28,7 @@ import { areaReader, type AccountWay } from './areaRead';
 import {
   consentGiven, consentText, isYes, loadForm, openFields, type AfterSend, type OpenField, type PublicForm
 } from './form';
-import { EMPTY_DESIGN, evaluate, layoutWith, openDesign, type FormDesign, type LayoutItem } from './formDesign';
+import { EMPTY_DESIGN, evaluate, layoutWith, openDesign, type FieldItem, type FormDesign, type LayoutItem } from './formDesign';
 import { ageOn, birthOf } from './pesel';
 
 /* -- Ein öffentliches Formular, aufgemacht ------------------------------------------ */
@@ -155,6 +155,42 @@ const plMoment = (iso: string | null): string => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' });
 };
 
+/* -- Was auf das Blatt kommt (0087) ------------------------------------------------------ */
+
+/**
+ * <b>Das Blatt ist die Zustimmung, nicht das Formular.</b> Darauf gehört, worauf
+ * sich die Unterschrift bezieht: wer teilnimmt (sein Name — nicht sein Alter),
+ * wer unterschreibt und wie man ihn erreicht (Eltern, ihre Telefone), und das
+ * Formale (Erklärungen, Zustimmungen, Hinweise zu den Daten, der Verantwortliche).
+ * Schule, Interessen, die eigene Nummer des Kindes stehen in der Liste der
+ * Kanzlei, nicht auf dem Papier. Wer es anders braucht, stellt es je Frage im
+ * „Układ" um (`print`).
+ */
+const PARENT = /rodzic|opiekun|parent|guardian/i;
+
+/** Ein „Tak / nie", das eine ERKLÄRUNG ist (ich bestätige, verpflichte mich, stimme zu …), keine Angabe. */
+const DECLARES = /^(potwierdzam|zobowi[aą]zuj|o[sś]wiadczam|akceptuj|wyra[zż]am|zgadzam|przyjmuj|znam|zapozna)/i;
+
+type Printable = Pick<OpenField, 'kind' | 'label' | 'identityRole'> & { readonly help?: string | null };
+
+/** Über einen Elternteil (sein Name, seine Nummer) — nach der Beschriftung der Frage. */
+const aboutParent = (f: Printable): boolean => PARENT.test(f.label ?? '');
+
+/** Die Zustimmung der Eltern selbst: sie wird unterschrieben, nicht als „tak / nie" gedruckt. */
+const parentsConsent = (f: Printable): boolean => f.kind === 'consent' && PARENT.test(`${f.label ?? ''} ${f.help ?? ''}`);
+
+/** Kommt diese Frage ohne eigene Einstellung auf das Blatt? */
+export function printedByDefault(f: Printable): boolean {
+  if (f.identityRole === 'given_name' || f.identityRole === 'surname') return true;
+  if (f.kind === 'consent') return true;
+  if (f.kind === 'checkbox') return DECLARES.test((f.label ?? '').trim()) || /zgod/i.test(f.label ?? '');
+  if (f.kind === 'line' || f.kind === 'phone' || f.kind === 'email') return aboutParent(f);
+  return false;
+}
+
+/** Mit der Einstellung im Aufbau (`print`), sonst nach der Regel. */
+export const printedOn = (f: Printable, item?: Pick<FieldItem, 'print'>): boolean => item?.print ?? printedByDefault(f);
+
 interface Row { readonly label: string; readonly value: string }
 interface Block { readonly title: string; readonly rows: Row[] }
 interface Statement { readonly label: string; readonly given: boolean; readonly text: string }
@@ -171,44 +207,58 @@ export function sheetOf(open: OpenForm, values: ReadonlyMap<string, string>): {
   const answers: Record<string, string> = Object.fromEntries(values);
   const outcome = evaluate({ ...(open.design ?? EMPTY_DESIGN), layout }, answers);
 
-  const blocks: Block[] = [{ title: '', rows: [] }];
   const statements: Statement[] = [];
   const notes: string[] = [];
   const signed: string[] = [];
 
-  const walk = (items: readonly LayoutItem[], block: Block) => {
+  /* 0087 — wer teilnimmt (der Name in einer Zeile), wer unterschreibt, und sonst nur, was eigens aufs Blatt gestellt ist. */
+  const name: string[] = [];
+  const person: Row[] = [];
+  const parent: Row[] = [];
+
+  const walk = (items: readonly LayoutItem[]) => {
     for (const item of items) {
       if (outcome.hidden.has(item.id)) continue;
       if (item.type === 'text') {
         if (item.text.trim() !== '') (item.sign === true ? signed : notes).push(item.text.trim());
         continue;
       }
-      if (item.type === 'group') {
-        const inner: Block = { title: item.title.trim(), rows: [] };
-        blocks.push(inner);
-        walk(item.items, inner);
-        continue;
-      }
+      if (item.type === 'group') { walk(item.items); continue; }
+
       const f = byId.get(item.id);
-      if (f === undefined) continue;
+      if (f === undefined || !printedOn(f, item)) continue;
       const value = values.get(f.fieldId) ?? '';
       const label = outcome.labels.get(f.fieldId) ?? f.label ?? 'pytanie';
 
+      if (f.identityRole === 'given_name' || f.identityRole === 'surname') {
+        if (value.trim() !== '') name.push(value.trim());
+        continue;
+      }
       if (f.kind === 'consent') {
         const given = consentGiven(value);
-        statements.push({ label, given, text: given ? consentText(value) || (f.help ?? label) : (f.help ?? label) });
+        const wording = given ? consentText(value) || (f.help ?? label) : (f.help ?? label);
+        /* Die Zustimmung der Eltern ist, was hier unterschrieben wird — kein „NIE", weil das Kind nichts angekreuzt hat. */
+        if (parentsConsent(f)) signed.push(`${label}.\n${wording}`);
+        else statements.push({ label, given, text: wording });
+        continue;
+      }
+      if (f.kind === 'checkbox') {
+        statements.push({ label, given: isYes(value), text: '' });
         continue;
       }
       if (value.trim() === '') continue;
-      block.rows.push({
+      (aboutParent(f) ? parent : person).push({
         label,
-        value: f.kind === 'checkbox' ? (isYes(value) ? 'TAK' : value)
-          : f.kind === 'date' || f.identityRole === 'born' ? plDate(value)
-          : value
+        value: f.kind === 'date' || f.identityRole === 'born' ? plDate(value) : value
       });
     }
   };
-  walk(layout, blocks[0]);
+  walk(layout);
+
+  const blocks: Block[] = [
+    { title: 'Uczestnik', rows: [...(name.length > 0 ? [{ label: 'Imię i nazwisko', value: name.join(' ') }] : []), ...person] },
+    { title: 'Rodzic / opiekun prawny', rows: parent }
+  ];
 
   return { blocks: blocks.filter((b) => b.rows.length > 0), statements, notes, signed };
 }
@@ -245,7 +295,7 @@ function Sheet({ open, values, submittedAt }: { open: OpenForm; values: Readonly
             <h2>Oświadczenia i zgody</h2>
             <ul>
               {statements.map((s, i) => (
-                <li key={i}><b>{s.given ? 'TAK' : 'NIE'}</b> <strong>{s.label}:</strong> {s.text}</li>
+                <li key={i}><b>{s.given ? 'TAK' : 'NIE'}</b> {s.text === '' ? s.label : <><strong>{s.label}:</strong> {s.text}</>}</li>
               ))}
             </ul>
           </section>

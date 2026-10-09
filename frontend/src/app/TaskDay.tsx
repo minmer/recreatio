@@ -23,10 +23,13 @@ import { groupName } from './WhoSees';
 
 const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 
-/** Wann — das Fenster, oder bei „co pewien czas" der Abstand. */
+const shortDate = (at: Date) => at.toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'numeric' });
+
+/** Wann — das Fenster, oder bei „co pewien czas" der Abstand. 0088: was von früher heute steht, mit seinem Tag. */
 function whenOf(mark: TaskMark): string {
   if (mark.occurrence === null) return `${everyWords(mark.task.everyMinutes ?? 0)} · na ${time(mark.start)}`;
-  return mark.end.getTime() - mark.start.getTime() >= 60_000 ? `${time(mark.start)}–${time(mark.end)}` : time(mark.start);
+  const hours = mark.end.getTime() - mark.start.getTime() >= 60_000 ? `${time(mark.start)}–${time(mark.end)}` : time(mark.start);
+  return mark.carried ? `${shortDate(mark.start)}, ${hours}` : hours;
 }
 
 /** Der Stand in Worten — was man als Erstes wissen will. */
@@ -36,7 +39,7 @@ function stateOf(mark: TaskMark, now: Date): string {
     case 'skipped': return 'pominięte';
     case 'open': return `teraz · jeszcze ${howLong(mark.end, now).replace('za ', '')}`;
     case 'due': return 'do zrobienia';
-    case 'missed': return 'przegapione';
+    case 'missed': return mark.carried ? `zaległe ${howLong(mark.start, now).replace(' temu', '')}` : 'przegapione';
     case 'late': return `zaległe ${howLong(mark.start, now).replace(' temu', '')}`;
     case 'upcoming': return howLong(mark.start, now);
   }
@@ -67,7 +70,8 @@ export function TaskPill({ marks, onOpen, mini = false }: { marks: readonly Task
   */
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const past = marks.every((m) => m.start < today);
+  /* 0088 — nach dem Tag, an dem es STEHT: was von früher heute steht, ist heute zu tun. */
+  const past = marks.every((m) => m.on < today);
   const behindWord = past ? 'przegapione' : 'zaległe';
 
   const words = [`zrobione ${t.settled} z ${t.total}`];
@@ -120,6 +124,10 @@ export function TaskDay({ me, day, marks, areas, now, onClose, onChanged, onOpen
 
   const t = tally(marks);
 
+  /* 0088 — noch ältere Liegengebliebene, die nicht mitgekommen sind (je Aufgabe höchstens die jüngsten). */
+  const more = [...new Map(marks.filter((m) => m.carried).map((m) => [m.task.taskId, m.task.overdueMore ?? 0])).values()]
+    .reduce((n, one) => n + one, 0);
+
   return (
     <Modal title={`Zadania · ${longDate(day)}`} onClose={onClose}>
       <p className="wk-hint">
@@ -158,6 +166,12 @@ export function TaskDay({ me, day, marks, areas, now, onClose, onChanged, onOpen
           );
         })}
       </ul>
+
+      {more > 0 && (
+        <p className="wk-hint">
+          I jeszcze {more} starszych zaległych — pokażą się tu, gdy te zostaną zrobione albo pominięte.
+        </p>
+      )}
 
       {failed !== null && <p className="wk-error">{failed}</p>}
 

@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { OpenField } from './form';
 import { GROUP_LABEL, type GroupItem, type GroupKind, type LayoutItem } from './formDesign';
+import { printedByDefault } from './SignSheet';
 import { newId } from './ids';
 
 /* -- Der Baum, als reine Umformungen ----------------------------------------------- */
@@ -176,8 +177,30 @@ function Level({ items, parent, fields, onDraft, onAdd }: {
         <li key={item.id} className={`wk-layout-row wk-layout-${item.type}`}>
           <div className="wk-layout-head">
             {item.type === 'field' && (
-              <span className="wk-layout-what">
+              <span className="wk-layout-what wk-layout-field">
                 <strong>{fields.get(item.id)?.label ?? 'zapieczętowane pytanie'}</strong>
+                {/*
+                  0087 — AUF DAS BLATT ZUM UNTERSCHREIBEN? Von selbst: Name, Eltern,
+                  ihre Telefone, Zustimmungen und Erklärungen. Was gleich der Regel
+                  ist, wird nicht gespeichert.
+                */}
+                {fields.get(item.id) !== undefined && (
+                  <label className="wk-check wk-layout-print" title="Czy odpowiedź trafia na wydruk do podpisu">
+                    <input
+                      type="checkbox"
+                      checked={item.print ?? printedByDefault(fields.get(item.id)!)}
+                      onChange={(e) => {
+                        const print = e.target.checked;
+                        const auto = printedByDefault(fields.get(item.id)!);
+                        onDraft((was) => change(was, item.id, (one) => {
+                          if (one.type !== 'field') return one;
+                          return (print === auto ? { type: 'field', id: one.id } : { type: 'field', id: one.id, print }) as LayoutItem;
+                        }));
+                      }}
+                    />
+                    {' '}na wydruku
+                  </label>
+                )}
               </span>
             )}
 

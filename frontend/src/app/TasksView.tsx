@@ -149,7 +149,8 @@ function Tasks({ me }: { me: Me }) {
   /* Die Fenster, sortiert nach dem, was sie gerade sind. */
   /* 0066 — ein Zeitraum (`period`) ist ein Fenster mit freiem Abstand: dieselben Zeilen. */
   const windows: Row[] = tasks.filter((t) => t.kind !== 'after')
-    .flatMap((task) => task.occurrences.map((occurrence) => ({ key: `${task.taskId}:${occurrence.at}`, task, occurrence, at: new Date(occurrence.at) })))
+    .flatMap((task) => [...(task.overdue ?? []), ...task.occurrences]
+      .map((occurrence) => ({ key: `${task.taskId}:${occurrence.at}`, task, occurrence, at: new Date(occurrence.at) })))
     .sort((a, b) => a.at.getTime() - b.at.getTime());
 
   /*
@@ -161,11 +162,11 @@ function Tasks({ me }: { me: Me }) {
     taskUrgency(b.task, b.occurrence, now) - taskUrgency(a.task, a.occurrence, now);
 
   const endOfToday = addDays(new Date(today), 1);
-  const yesterday = addDays(new Date(today), -1);
   const state = (row: Row) => windowState(row.occurrence!, now);
 
   const openNow = windows.filter((r) => state(r) === 'open').sort(byUrgency);
-  const missed = windows.filter((r) => state(r) === 'missed' && r.at >= yesterday).sort(byUrgency);
+  /* 0088 — alles Liegengebliebene, gleich wie alt: es bleibt, bis jemand es abhakt oder auslässt. */
+  const missed = windows.filter((r) => state(r) === 'missed').sort(byUrgency);
   const later = windows.filter((r) => state(r) === 'upcoming' && r.at < endOfToday);
   const soon = windows.filter((r) => state(r) === 'upcoming' && r.at >= endOfToday && r.at < addDays(new Date(today), 7));
   /*

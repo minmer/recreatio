@@ -38,7 +38,12 @@ export const GROUP_LABEL: Record<GroupKind, string> = {
   tab: 'Zakładka'
 };
 
-export interface FieldItem { readonly type: 'field'; readonly id: string }
+/**
+ * Eine Frage an ihrer Stelle. `print` (0087) — ob ihre Antwort auf das Blatt zum
+ * Unterschreiben kommt; fehlt es, entscheidet `printedByDefault` (`SignSheet.tsx`):
+ * der Name, die Eltern, ihre Telefone und das Formale — nicht das Alter, nicht der Rest.
+ */
+export interface FieldItem { readonly type: 'field'; readonly id: string; readonly print?: boolean }
 /**
  * Ein Text zwischen den Fragen. `sign` — eine ERKLÄRUNG, DIE AUF PAPIER
  * UNTERSCHRIEBEN WIRD (etwa die Zustimmung der Eltern): im Formular steht sie
@@ -164,7 +169,7 @@ function readItem(raw: unknown, depth: number): LayoutItem | null {
   const id = str(o.id);
   if (id === undefined || id === '') return null;
 
-  if (o.type === 'field') return { type: 'field', id };
+  if (o.type === 'field') return { type: 'field', id, ...(typeof o.print === 'boolean' ? { print: o.print } : {}) };
   if (o.type === 'text') return { type: 'text', id, text: str(o.text) ?? '', ...(o.sign === true ? { sign: true } : {}) };
   if (o.type === 'group') {
     const kind: GroupKind = o.kind === 'page' || o.kind === 'tab' ? o.kind : 'group';

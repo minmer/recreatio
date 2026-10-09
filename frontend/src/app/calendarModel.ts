@@ -272,6 +272,14 @@ export interface TaskMark {
   readonly end: Date;
   readonly state: TaskState;
   readonly areaId: string;
+
+  /**
+   * 0088 — AN WELCHEM TAG ES STEHT. Meist der Tag seines Anfangs; was vorbei ist
+   * und weder erledigt noch abgesagt, steht HEUTE — gleich wie lange es her ist
+   * (`carried`), bis jemand es abhakt oder auslässt.
+   */
+  readonly on: Date;
+  readonly carried: boolean;
 }
 
 /** Erledigt oder abgesagt — dann drängt es nicht mehr. */
@@ -285,25 +293,42 @@ export const behind = (mark: TaskMark): boolean => mark.state === 'missed' || ma
 
 export function taskMarks(tasks: readonly OpenTask[], now: Date, range: { from: Date; to: Date }): TaskMark[] {
   const out: TaskMark[] = [];
+  const today = startOfDay(now);
+  /* Heute steht im gezeigten Zeitraum — dann gehört das Liegengebliebene dorthin. */
+  const todayShown = today < range.to && addDays(today, 1) > range.from;
 
   for (const task of tasks) {
     if (task.kind !== 'after') {
-      for (const occurrence of task.occurrences) {
+      for (const occurrence of [...(task.overdue ?? []), ...task.occurrences]) {
         const start = new Date(occurrence.at);
+        const state = windowState(occurrence, now);
+        /*
+           0088 — VORBEI, ABER NICHT ENTSCHIEDEN: es steht heute, nicht an seinem
+           Tag — auch nach Wochen. Wer in eine vergangene Woche blättert, sieht
+           es dort, solange heute nicht im Bild ist.
+        */
+        const carried = state === 'missed' && start < today && todayShown;
+        if (state === 'missed' && start < today && !todayShown && (start < range.from || start >= range.to)) continue;
         out.push({
           key: `t:${task.taskId}:${occurrence.at}`,
           task, occurrence, start,
           end: new Date(Math.max(new Date(occurrence.endsAt).getTime(), start.getTime())),
-          state: windowState(occurrence, now),
-          areaId: task.areaId
+          state,
+          areaId: task.areaId,
+          on: carried ? today : startOfDay(start),
+          carried
         });
       }
     } else {
       const { due, late } = afterState(task, now);
       /* Ist sie überfällig, steht sie HEUTE da — nicht an einem vergangenen Tag, den niemand mehr ansieht. */
-      const shown = late && due < startOfDay(now) ? now : due;
+      const carried = late && due < today;
+      const shown = carried ? now : due;
       if (shown >= range.from && shown < range.to) {
-        out.push({ key: `a:${task.taskId}`, task, occurrence: null, start: shown, end: shown, state: late ? 'late' : 'due', areaId: task.areaId });
+        out.push({
+          key: `a:${task.taskId}`, task, occurrence: null, start: shown, end: shown, state: late ? 'late' : 'due', areaId: task.areaId,
+          on: startOfDay(shown), carried
+        });
       }
     }
   }
@@ -314,8 +339,7 @@ export function taskMarks(tasks: readonly OpenTask[], now: Date, range: { from: 
 /** Die Aufgaben EINES Tages — nach ihrem Anfang; ein Fenster über Mitternacht gehört zu dem Tag, an dem es aufgeht. */
 export const marksOn = (marks: readonly TaskMark[], day: Date): TaskMark[] => {
   const from = startOfDay(day).getTime();
-  const to = addDays(startOfDay(day), 1).getTime();
-  return marks.filter((m) => m.start.getTime() >= from && m.start.getTime() < to);
+  return marks.filter((m) => m.on.getTime() === from);
 };
 
 /** Der Stand eines Tages, für die Zeile über dem Raster und die Monatszelle. */
@@ -351,6 +375,8 @@ export function railDay(marks: readonly TaskMark[], day: Date): Railed[] {
   const out: Railed[] = [];
 
   for (const mark of marks) {
+    /* Was von früher heute steht, hat heute keine Uhrzeit — es steht in der Zeile des Tages, nicht auf der Schiene. */
+    if (mark.carried) continue;
     const start = mark.start.getTime();
     const end = Math.max(mark.end.getTime(), start + 20 * 60_000);
     if (end <= from || start >= to) continue;

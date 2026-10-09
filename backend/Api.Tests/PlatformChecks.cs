@@ -12,6 +12,7 @@ internal static class PlatformChecks
     {
         Invites(check);
         TaskPeriods(check);
+        TasksLeftOpen(check);
         Postal(check);
         Catalog(check);
         LinkAims(check);
@@ -116,6 +117,31 @@ internal static class PlatformChecks
         check(Roles.CheckInvite(Good() with { Label = new string('x', 201) }) is not null, "invite: label at most 200");
         check(Roles.CheckInvite(Good() with { TokenSealed = Kernel.Base64Url.Encode(new byte[64]) }) is null, "invite: a sealed token may come along");
         check(Roles.CheckInvite(Good() with { TokenSealed = Kernel.Base64Url.Encode(new byte[600]) }) is not null, "invite: sealed token at most 512 bytes");
+    }
+
+    /// <summary>0088 — was liegen blieb (vorbei, nicht entschieden), bleibt offen — gleich wie lange her.</summary>
+    private static void TasksLeftOpen(Action<bool, string> check)
+    {
+        var zone = Zones.Of("Europe/Warsaw");
+        var first = Zones.AtLocal(new DateTime(2025, 1, 6, 21, 0, 0), zone);
+        var now = Zones.AtLocal(new DateTime(2026, 10, 9, 12, 0, 0), zone);
+        var shownFrom = Zones.AtLocal(new DateTime(2026, 10, 5, 0, 0, 0), zone);
+
+        /* Einmalig, vor anderthalb Jahren, nie erledigt: bleibt. */
+        var once = Calendar.Occurrences(first, "none", 1, null, null, null, first, shownFrom, zone);
+        check(Tasks.LeftOpen(once, 15, new HashSet<DateTimeOffset>(), shownFrom, now).SequenceEqual(once), "left open: a one-off task from long ago stays open");
+        check(Tasks.LeftOpen(once, 15, new HashSet<DateTimeOffset>(once), shownFrom, now).Count == 0, "left open: done or skipped, it is gone");
+
+        /* Täglich: jedes entschiedene Vorkommen fällt weg, die übrigen bleiben. */
+        var daily = Calendar.Occurrences(first, "daily", 1, null, null, null, first, shownFrom, zone);
+        var decided = daily.Take(daily.Count - 2).ToHashSet();
+        var left = Tasks.LeftOpen(daily, 15, decided, shownFrom, now);
+        check(left.Count == 2 && left.All(at => at < shownFrom), "left open: daily — only the undecided ones, all before the shown range");
+
+        /* Was im gezeigten Zeitraum liegt oder noch läuft, gehört nicht dazu. */
+        var running = new[] { now.AddMinutes(-5) };
+        check(Tasks.LeftOpen(running, 60, new HashSet<DateTimeOffset>(), now.AddDays(-1), now).Count == 0, "left open: an occurrence still running is not left open");
+        check(Tasks.LeftOpen(new[] { shownFrom.AddHours(1) }, 15, new HashSet<DateTimeOffset>(), shownFrom, now).Count == 0, "left open: the shown range has its own");
     }
 
     private static void TaskPeriods(Action<bool, string> check)

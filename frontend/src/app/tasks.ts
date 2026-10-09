@@ -73,6 +73,14 @@ export interface TaskRow {
   readonly notesSealed: string | null;
   readonly createdAt: string;
   readonly occurrences: readonly TaskOccurrence[];
+
+  /**
+   * 0088 — WAS LIEGEN BLIEB: Vorkommen VOR dem abgefragten Zeitraum, vorbei und
+   * weder erledigt noch abgesagt — gleich wie lange her (die jüngsten
+   * `MaxOverdue`; wie viele es darüber hinaus sind: `overdueMore`).
+   */
+  readonly overdue?: readonly TaskOccurrence[];
+  readonly overdueMore?: number;
   readonly lastDoneAt: string | null;
   readonly lastDoneBy: string | null;
   readonly dueAt: string | null;
