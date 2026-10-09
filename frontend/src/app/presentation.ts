@@ -283,11 +283,17 @@ export interface Piece {
   readonly hold: boolean;
   /** Vor und hinter anderen: höher steht vorn. */
   readonly layer: number;
+  /**
+   * 0089 — EIN KNOPF: je Szene (nach ihrer Kennung), wohin ein Klick auf ihn
+   * führt — eine Szene, `end` oder `link:<id>`; leer: noch nirgends hin.
+   * Steht eine Szene hier, ist er auf ihr ein Ausgang (`showPaths.ts`).
+   */
+  readonly go: Readonly<Record<string, string>>;
 }
 
 export const PIECE: Piece = {
   places: {}, skin: 'card', type: 'auto', fill: null, ink: null, accent: null, origin: 'center', media: null, align: 'start', valign: 'start',
-  arrive: 'fade', delay: 0, span: 0.6, ease: 'inOut', hold: false, layer: 0
+  arrive: 'fade', delay: 0, span: 0.6, ease: 'inOut', hold: false, layer: 0, go: {}
 };
 
 /* -- Eine Szene ---------------------------------------------------------------------- */
@@ -343,12 +349,24 @@ export interface Scene {
   readonly hint: string;
   readonly words: Words | null;
   readonly depth: Depth;
+  /**
+   * 0089 — WOHIN „DALEJ" FÜHRT (Pfeile, Rad, Finger, Leertaste): eine Szene,
+   * `end` oder `link:<id>`. `null`: zur nächsten in der Liste — wie bisher.
+   */
+  readonly next: string | null;
 }
 
 export const SCENE: Omit<Scene, 'key'> = {
   label: '', steps: 1, change: 'fade', keep: false, duration: 700, colors: null, layers: [], grow: null,
-  follow: { wide: 0.45, tall: 1 }, emphasis: true, thread: 'none', hint: '', words: null, depth: DEPTH
+  follow: { wide: 0.45, tall: 1 }, emphasis: true, thread: 'none', hint: '', words: null, depth: DEPTH, next: null
 };
+
+/** 0089 — EIN WEG HINAUS: eine Seite im Netz oder hier (`#/…`), auf die ein Ausgang führen kann. */
+export interface ShowLink {
+  readonly id: string;
+  readonly label: string;
+  readonly href: string;
+}
 
 /** Die ganze Präsentation (im Aussehen der Seite, unter "show"). */
 export interface Show {
@@ -356,9 +374,13 @@ export interface Show {
   readonly fonts: FontPair;
   readonly nav: Nav;
   readonly scenes: readonly Scene[];
+  /** 0089 — die Wege hinaus. */
+  readonly links: readonly ShowLink[];
+  /** 0089 — wo die Knoten in der Karte der Wege stehen (Szene, `link:<id>`, `end`) — nur für den Editor. */
+  readonly map: Readonly<Record<string, { readonly x: number; readonly y: number }>>;
 }
 
-export const NO_SHOW: Show = { format: 'screen', fonts: 'app', nav: 'labels', scenes: [] };
+export const NO_SHOW: Show = { format: 'screen', fonts: 'app', nav: 'labels', scenes: [], links: [], map: {} };
 
 /* -- Duldsame Leser ------------------------------------------------------------------- */
 
@@ -456,8 +478,19 @@ export function readPieceValue(value: unknown): Piece {
     span: within(one.span, [0.05, 1], PIECE.span),
     ease: oneOf(one.ease, EASES, PIECE.ease),
     hold: one.hold === true,
-    layer: Math.round(within(one.layer, [-20, 20], PIECE.layer))
+    layer: Math.round(within(one.layer, [-20, 20], PIECE.layer)),
+    go: readGo(one.go)
   };
+}
+
+/** 0089 — die Ausgänge eines Knopfes: Szene → Ziel (Kennungen kurz, Ziele kurz). */
+function readGo(value: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, target] of Object.entries(record(value))) {
+    if (key.trim() === '' || key.length > 64 || typeof target !== 'string') continue;
+    out[key.trim()] = target.trim().slice(0, 80);
+  }
+  return out;
 }
 
 export const readPiece = (layout: Layout): Piece => readPieceValue(layout.show);
@@ -516,6 +549,7 @@ export function pieceJson(piece: Piece): Record<string, unknown> {
   if (piece.ease !== PIECE.ease) out.ease = piece.ease;
   if (piece.hold) out.hold = true;
   if (piece.layer !== PIECE.layer) out.layer = piece.layer;
+  if (Object.keys(piece.go).length > 0) out.go = piece.go;
   return out;
 }
 
@@ -584,8 +618,35 @@ export function readScene(value: unknown, index: number): Scene {
       perspective: within(depth.perspective, [200, 4000], DEPTH.perspective),
       travel: within(depth.travel, [0, 8000], DEPTH.travel),
       linger: depth.linger !== false
-    }
+    },
+    next: typeof one.next === 'string' && one.next.trim() !== '' ? one.next.trim().slice(0, 80) : null
   };
+}
+
+/** 0089 — die Wege hinaus: jeder mit Kennung und einer Adresse, die ein Verweis sein darf (`textLink`). */
+function readLinks(value: unknown): ShowLink[] {
+  const seen = new Set<string>();
+  const out: ShowLink[] = [];
+  for (const raw of Array.isArray(value) ? value.slice(0, 40) : []) {
+    const one = record(raw);
+    const id = str(one.id).trim().slice(0, 40);
+    const href = textLink(str(one.href));
+    if (id === '' || seen.has(id) || href === null) continue;
+    seen.add(id);
+    out.push({ id, label: str(one.label).trim().slice(0, 80), href });
+  }
+  return out;
+}
+
+/** 0089 — wo die Knoten der Karte stehen. */
+function readMap(value: unknown): Record<string, { x: number; y: number }> {
+  const out: Record<string, { x: number; y: number }> = {};
+  for (const [key, raw] of Object.entries(record(value)).slice(0, 200)) {
+    const at = record(raw);
+    if (key.length > 90 || typeof at.x !== 'number' || typeof at.y !== 'number') continue;
+    out[key] = { x: Math.round(within(at.x, [-20000, 20000], 0)), y: Math.round(within(at.y, [-20000, 20000], 0)) };
+  }
+  return out;
 }
 
 /** Die Präsentation aus dem, was im Aussehen der Seite unter "show" liegt. */
@@ -604,7 +665,9 @@ export function readShow(value: unknown): Show {
     format: oneOf(one.format, FORMATS, NO_SHOW.format),
     fonts: oneOf(one.fonts, FONT_PAIRS, NO_SHOW.fonts),
     nav: oneOf(one.nav, NAVS, NO_SHOW.nav),
-    scenes
+    scenes,
+    links: readLinks(one.links),
+    map: readMap(one.map)
   };
 }
 
@@ -642,6 +705,7 @@ export function sceneJson(scene: Scene): Record<string, unknown> {
       ...(scene.depth.linger !== DEPTH.linger ? { linger: scene.depth.linger } : {})
     };
   }
+  if (scene.next !== null) out.next = scene.next;
   return out;
 }
 
@@ -650,7 +714,9 @@ export function showJson(show: Show): Record<string, unknown> {
     format: show.format,
     ...(show.fonts !== NO_SHOW.fonts ? { fonts: show.fonts } : {}),
     ...(show.nav !== NO_SHOW.nav ? { nav: show.nav } : {}),
-    scenes: show.scenes.map(sceneJson)
+    scenes: show.scenes.map(sceneJson),
+    ...(show.links.length > 0 ? { links: show.links.map((l) => ({ id: l.id, label: l.label, href: l.href })) } : {}),
+    ...(Object.keys(show.map).length > 0 ? { map: show.map } : {})
   };
 }
 

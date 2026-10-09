@@ -10,6 +10,9 @@
  * <b>Breit und hoch</b> (beim Format „cały ekran"): wer auf „wąski" stellt,
  * sieht das Telefon hochkant, und was er dort zieht, gilt nur dort (`tall`).
  *
+ * <b>Wege</b> (0089): „Przejścia" zeigt statt der Leinwand die Karte der Szenen
+ * (`PathsEditor`) — Ausgänge, Knöpfe, Wege hinaus.
+ *
  * <b>Ein Baustein ist derselbe wie auf der Seite</b>: ein Text bleibt ein Text,
  * ein Kalender ein Kalender — hier bekommt er dazu einen Platz je Szene, eine
  * Hülle und eine Art zu kommen. Steht er auf mehreren Szenen, wandert er.
@@ -32,6 +35,8 @@ import {
   type Align, type Media, type Piece, type Place, type Scene, type Show, type TallPlace
 } from './presentation';
 import { ARRANGEMENT_LABEL, ARRANGEMENTS, arrange, depthScale, zonesOf, type Arrangement } from './presentationMotion';
+import { PathsEditor } from './PathsEditor';
+import { END, routeTo, targetLabel, targetOptions, withGo, withNext } from './showPaths';
 import { ColorField, LayerEditor, ThemeEditor } from './SlidesEditor';
 import { usePrefersDark } from './SlideDeck';
 import { COLOR_KEYS, DEFAULT_THEMES, resolveTheme, type Look, type SlideColors } from './slides';
@@ -88,8 +93,10 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
   const [step, setStep] = useState(0);
   const [tallView, setTallView] = useState(false);
   const [playing, setPlaying] = useState(false);
-  /* Ein Vortrag auf dem ganzen Bildschirm, mit dem, was gerade im Editor steht — ab der gewählten Szene. */
-  const [presentAt, setPresentAt] = useState<number | null>(null);
+  /* 0089 — die Karte der Wege statt der Leinwand. */
+  const [mapping, setMapping] = useState(false);
+  /* Ein Vortrag auf dem ganzen Bildschirm, mit dem, was gerade im Editor steht — ab der gewählten Szene, auf dem Weg dorthin. */
+  const [present, setPresent] = useState<{ readonly at: number; readonly route: readonly string[] } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
   const scenes = show.scenes;
@@ -130,9 +137,9 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
     if (!window.confirm(`Usunąć scenę „${scene.label || index + 1}"? Moduły zostają na stronie; znikają tylko ich miejsca na tej scenie.`)) return;
     onChange(parts.map((part) => {
       const piece = readPiece(part.layout);
-      if (piece.places[scene.key] === undefined) return part;
+      if (piece.places[scene.key] === undefined && piece.go[scene.key] === undefined) return part;
       const { [scene.key]: _gone, ...places } = piece.places;
-      return { ...part, layout: withPiece(part.layout, { ...piece, places }) };
+      return { ...part, layout: withPiece(part.layout, withGo({ ...piece, places }, scene.key, undefined)) };
     }));
     setShow({ ...show, scenes: scenes.filter((_, i) => i !== index) });
     setSceneAt(Math.max(0, index - 1));
@@ -433,7 +440,10 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
                 <span className="pe-num">{i + 1}</span>
                 <span className="pe-scene-name">
                   <strong>{sc.label || `Scena ${i + 1}`}</strong>
-                  <span>{i === 0 ? 'początek' : SCENE_CHANGE_LABEL[sc.change].split(' — ')[0].toLowerCase()}{sc.steps > 1 ? ` · ${sc.steps} kroków` : ''}</span>
+                  <span>
+                    {i === 0 ? 'początek' : SCENE_CHANGE_LABEL[sc.change].split(' — ')[0].toLowerCase()}{sc.steps > 1 ? ` · ${sc.steps} kroków` : ''}
+                    {sc.next !== null ? ` · dalej: ${targetLabel(show, sc.next, 'następna')}` : ''}
+                  </span>
                 </span>
               </button>
             </li>
@@ -453,7 +463,7 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
         {scene !== undefined && (
           <details className="wk-fold pe-scene-fold" open>
             <summary>Scena „{scene.label || index + 1}"</summary>
-            <SceneSettings key={scene.key} scene={scene} first={index === 0} next={scenes[index + 1]} path={path} theme={theme}
+            <SceneSettings key={scene.key} scene={scene} show={show} first={index === 0} next={scenes[index + 1]} path={path} theme={theme}
               need={stepsNeeded(scene.key, parts.map((p) => readPiece(p.layout)))} busy={busy} onChange={setScene} />
           </details>
         )}
@@ -528,6 +538,7 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
           <PieceSettings
             key={chosen.id}
             part={chosen}
+            show={show}
             scene={scene}
             scenes={scenes}
             tall={tall}
@@ -573,15 +584,35 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
             </span>
           )}
           <span className="wk-seg" role="group" aria-label="Widok">
-            <button type="button" className={!playing ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={!playing} onClick={() => setPlaying(false)}>Układanie</button>
-            <button type="button" className={playing ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={playing} onClick={() => { setPlaying(true); setSelected(null); }}>Podgląd</button>
+            <button type="button" className={!playing && !mapping ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={!playing && !mapping} onClick={() => { setPlaying(false); setMapping(false); }}>Układanie</button>
+            <button type="button" className={playing ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={playing} onClick={() => { setPlaying(true); setMapping(false); setSelected(null); }}>Podgląd</button>
+            <button type="button" className={mapping ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={mapping} onClick={() => { setMapping(true); setPlaying(false); setSelected(null); }}>Przejścia</button>
           </span>
-          <button type="button" className="wk-btn wk-btn-quiet pe-present" disabled={scenes.length === 0} onClick={() => setPresentAt(at)}
+          <button type="button" className="wk-btn wk-btn-quiet pe-present" disabled={scenes.length === 0} onClick={() => {
+            if (scene === undefined) return;
+            /* 0089 — auf dem Weg zu dieser Szene: von der ersten dorthin, dann „dalej". */
+            const route = routeTo(show, parts.map((p) => readPiece(p.layout)), scene.key);
+            const along = zonesOf(route.map((key) => scenes.find((sc) => sc.key === key)?.steps ?? 1));
+            const here = Math.max(0, route.indexOf(scene.key));
+            /* Der Vortrag läuft aus der Leinwand — aus der Karte heraus geht es dorthin zurück. */
+            setMapping(false);
+            setPresent({ at: (along[here]?.at ?? 0) + Math.min(step, scene.steps - 1), route });
+          }}
             title="Na pełnym ekranie: strzałki, spacja albo kliknięcie — dalej; Esc — koniec">
             Pokaz
           </button>
         </div>
 
+        {mapping ? (
+          <PathsEditor
+            show={show}
+            parts={parts}
+            busy={busy}
+            onShow={setShow}
+            onParts={onChange}
+            onOpenScene={(i) => { setSceneAt(i); setStep(0); setMapping(false); }}
+          />
+        ) : (<>
         <p className="wk-hint pe-main-hint">
           {playing
             ? 'Podgląd — przewijaj w ramce (kółko, palec, strzałki po kliknięciu w ramkę). Tak zobaczy to gość, bez zapisywania.'
@@ -602,8 +633,9 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
             onPick={playing ? undefined : (key) => setSelected(key === '' ? null : key)}
             onStage={setStageEl}
             control={control}
-            presentAt={presentAt}
-            onPresentEnd={() => setPresentAt(null)}
+            presentAt={present?.at ?? null}
+            presentRoute={present?.route ?? null}
+            onPresentEnd={() => setPresent(null)}
             virtual={virtual}
           />
           {frame !== null && !playing && (
@@ -631,6 +663,7 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
             }} />
           )}
         </div>
+        </>)}
       </div>
     </div>
   );
@@ -709,8 +742,8 @@ function Num({ label, value, min, max, step, busy, onChange, hint }: {
   );
 }
 
-function SceneSettings({ scene, first, next, path, theme, need, busy, onChange }: {
-  scene: Scene; first: boolean; next: Scene | undefined; path: string; theme: ReturnType<typeof resolveTheme>; need: number; busy: boolean;
+function SceneSettings({ scene, show, first, next, path, theme, need, busy, onChange }: {
+  scene: Scene; show: Show; first: boolean; next: Scene | undefined; path: string; theme: ReturnType<typeof resolveTheme>; need: number; busy: boolean;
   onChange: (next: Scene) => void;
 }) {
   const colors: SlideColors = scene.colors ?? { accent: null, ink: null, ground: null, muted: null };
@@ -750,6 +783,16 @@ function SceneSettings({ scene, first, next, path, theme, need, busy, onChange }
 
       <Num label="Kroki" value={scene.steps} min={need} max={50} step={1} busy={busy} onChange={(steps) => onChange({ ...scene, steps: Math.max(need, Math.round(steps)) })}
         hint="Ile postojów ma scena. Moduł z krokiem jest wtedy wyróżniony." />
+
+      {/* 0089 — wohin „dalej" führt: die nächste der Liste, eine andere Szene, das Ende oder hinaus. */}
+      <label className="wk-field">
+        <span>„Dalej” (strzałki, przewijanie) prowadzi do</span>
+        <select value={scene.next ?? ''} disabled={busy} onChange={(e) => onChange(withNext(scene, e.target.value === '' ? null : e.target.value))}>
+          <option value="">następnej na liście ({next === undefined ? 'koniec' : next.label || 'Scena'})</option>
+          {targetOptions(show).filter((o) => o.value !== scene.key).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <span className="wk-hint">Rozgałęzienia, przyciski i linki na zewnątrz — w widoku „Przejścia”.</span>
+      </label>
       <label className="wk-check">
         <input type="checkbox" checked={scene.emphasis} disabled={busy} onChange={(e) => onChange({ ...scene, emphasis: e.target.checked })} />
         <span>Kroki wyróżniają swoje moduły (pozostałe bledną i odsuwają się)</span>
@@ -855,8 +898,9 @@ function SceneSettings({ scene, first, next, path, theme, need, busy, onChange }
 
 /* -- Ein Baustein ------------------------------------------------------------------------- */
 
-function PieceSettings({ part, scene, scenes, tall, path, busy, onPiece, onPart, onPlace, onDelete, onOpenModule }: {
+function PieceSettings({ part, show, scene, scenes, tall, path, busy, onPiece, onPart, onPlace, onDelete, onOpenModule }: {
   part: DraftPart;
+  show: Show;
   scene: Scene;
   scenes: readonly Scene[];
   tall: boolean;
@@ -892,6 +936,26 @@ function PieceSettings({ part, scene, scenes, tall, path, busy, onPiece, onPart,
           onPickModule={(moduleId) => onPart({ ...part, moduleId })}
           onMadeModule={onOpenModule}
         />
+      </details>
+
+      {/* 0089 — ein Knopf: auf dieser Szene ein Ausgang, mit eigenem Ziel. */}
+      <details className="wk-fold pe-go" open={piece.go[scene.key] !== undefined}>
+        <summary>Przycisk{piece.go[scene.key] !== undefined ? ` → ${targetLabel(show, piece.go[scene.key], 'nigdzie')}` : ''}</summary>
+        <label className="wk-check">
+          <input type="checkbox" checked={piece.go[scene.key] !== undefined} disabled={busy}
+            onChange={(ev) => onPiece(withGo(piece, scene.key, ev.target.checked ? '' : undefined))} />
+          <span>Na tej scenie to przycisk — kliknięcie prowadzi dalej</span>
+        </label>
+        {piece.go[scene.key] !== undefined && (
+          <label className="wk-field">
+            <span>Prowadzi do</span>
+            <select value={piece.go[scene.key]} disabled={busy} onChange={(ev) => onPiece(withGo(piece, scene.key, ev.target.value))}>
+              <option value="">— nigdzie (jeszcze) —</option>
+              {targetOptions(show).filter((o) => o.value !== scene.key || o.value === END).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <span className="wk-hint">Linki na zewnątrz dodasz w widoku „Przejścia”.</span>
+          </label>
+        )}
       </details>
 
       <details className="wk-fold" open>

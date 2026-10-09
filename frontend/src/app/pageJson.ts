@@ -37,6 +37,7 @@ import {
   ARRIVALS, EASES, FONT_PAIRS, FORMATS, NAVS, ORIGINS, pieceJson, readPiece, readPieceValue, readShow, SCENE_CHANGES, showJson, SKINS,
   TEXT_TYPES, THREADS, withPiece, type Piece
 } from './presentation';
+import { brokenTarget } from './showPaths';
 import {
   DEFAULT_THEMES, ENTERS, readLayers, readPalette, readSlide, readSlideValue, remapStage, slideJson, TRANSITIONS, withSlide, type Look, type Theme
 } from './slides';
@@ -563,6 +564,12 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
     const scenes = new Set(readShow((plan.look ?? now.look).show).scenes.map((sc) => sc.key));
     const lost = parts.reduce((n, p) => n + Object.keys(readPiece(p.layout).places).filter((key) => !scenes.has(key)).length, 0);
     if (lost > 0) warnings.push(`Prezentacja: ${count(lost, 'miejsce wskazuje', 'miejsca wskazują', 'miejsc wskazuje')} scenę, której nie ma w "show.scenes" — nie będzie widoczne.`);
+
+    /* 0089 — ein Ausgang, der auf nichts zeigt: „dalej" geht dann zur nächsten der Liste, ein Knopf nirgends hin. */
+    const show = readShow((plan.look ?? now.look).show);
+    const broken = show.scenes.filter((sc) => brokenTarget(show, sc.next)).length
+      + parts.reduce((n, p) => n + Object.values(readPiece(p.layout).go).filter((t) => brokenTarget(show, t)).length, 0);
+    if (broken > 0) warnings.push(`Prezentacja: ${count(broken, 'wyjście („next” albo „go”) prowadzi', 'wyjścia prowadzą', 'wyjść prowadzi')} do sceny albo linku, których nie ma — „dalej” pójdzie do następnej sceny, przycisk nigdzie.`);
   }
 
   if (!has(plan, 'logic') && now.logic !== null && replace) {
@@ -625,11 +632,14 @@ Slajd modułu ("slide") — wszystko poza "label" i "layers" jest nieobowiązkow
 
 const PRESENTATION = `## Prezentacja ("mode": "presentation")
 Sceny to ekrany; moduły stoją na nich w dowolnym miejscu. Scena może mieć kilka kroków — wtedy wyróżnienie przechodzi z modułu na moduł, a scena idzie za wyróżnionym. Moduł z miejscem na kilku scenach wędruje: przy zmianie sceny przechodzi płynnie na swoje następne miejsce. Wszystko idzie za przewijaniem (kółko, palec, strzałki), w „Pokazie” — za klawiaturą i kliknięciem.
+Sceny nie muszą iść po kolei: każda ma jedno wejście i wyjścia — „dalej” (strzałki, przewijanie: "next") i przyciski (moduły z "go"). Wyjście prowadzi do sceny, do końca ("end") albo na zewnątrz ("link:<id>" z "links"). Kto naciśnie przycisk, idzie dalej tą drogą; wstecz — drogą, którą przyszedł.
 
 "show" strony:
   "format" — "screen" (cały ekran, jak strona startowa; na telefonie pionowo — z miejscami "tall"), "wide" (16:9), "classic" (4:3)
   "fonts" — pismo: "app", "spectral" (Spectral + IBM Plex Sans), "cormorant" (Cormorant Garamond + Source Sans), "plex" (IBM Plex Sans)
   "nav" — pasek scen: "labels" (nazwy u góry), "dots" (kropki z prawej), "none"
+  "links" — drogi na zewnątrz: [{ "id": "zapisy", "label": "Zapisz się", "href": "https://…" | "#/strona" | "mailto:…" }] — wyjście sceny albo przycisku prowadzi tam przez "link:<id>"
+  "map" — gdzie stoją sceny na mapie przejść w edytorze: { "<klucz sceny>" | "link:<id>" | "end": { "x", "y" } } — tylko dla edytora
   "scenes" — lista scen w kolejności:
     "key" — klucz sceny (krótki, unikalny, np. "start"); miejsca modułów wskazują scenę po kluczu
     "label" — nazwa w pasku; link "#nazwa" w tekście prowadzi do tej sceny
@@ -646,6 +656,7 @@ Sceny to ekrany; moduły stoją na nich w dowolnym miejscu. Scena może mieć ki
     "hint" — mała podpowiedź na dole (np. "Przewiń"); znika, gdy ruszysz dalej
     "words" — chmura słów w głębi: { "list": ["colligere", …], "prefix": "RE", "count": 39, "seed": 7, "color": null }
     "depth" — { "perspective": 1000, "travel": 2200, "linger": true } — głębia sceny i jak daleko przelatuje kamera; "linger" — zwalnia przy najgłębszym module
+    "next" — dokąd prowadzi „dalej” (strzałki, przewijanie): klucz sceny, "end" (tu koniec) albo "link:<id>"; pominięte — następna scena na liście
 
 "show" modułu:
   "places" — { "<klucz sceny>": miejsce } — jedno miejsce: moduł należy do tej sceny; kilka: wędruje
@@ -665,6 +676,7 @@ Sceny to ekrany; moduły stoją na nich w dowolnym miejscu. Scena może mieć ki
   "ease" — ruch wędrującego: "inOut", "linear", "in" (przyspiesza), "out"
   "hold" — true: stoi też przed pierwszym i po ostatnim swoim miejscu
   "layer" — wyżej z przodu; wędrujący od 10 stoi nad wszystkimi scenami
+  "go" — moduł jest przyciskiem: { "<klucz sceny>": cel } — na tej scenie kliknięcie prowadzi do celu (klucz sceny, "end" albo "link:<id>"; "" — jeszcze nigdzie)
 
 Tekst ("text") w prezentacji i na stronie: "## " — śródtytuł, "# " — duża linia, "> " — mała, cicha linia, [napis](https://… | #/strona | #scena | mailto:… | tel:…) — link; linia z samych linków to rząd linków.`;
 
@@ -794,8 +806,9 @@ export function presentationExample(): Record<string, unknown> {
       scenes: [
         { key: 'start', label: 'Start', colors: { ground: '#14180f', ink: '#f2f4ef' }, hint: 'Przewiń', words: { list: ['colligere', 'novatio', 'quies'], prefix: 'RE', count: 15, seed: 7 } },
         { key: 'dni', label: 'Trzy dni', steps: 3, change: 'fly', grow: { from: 0.8, to: 1.08 }, thread: 'dots' },
-        { key: 'zapisy', label: 'Zapisy', colors: { ink: '#f2f4ef', accent: '#9ed3b4' } }
-      ]
+        { key: 'zapisy', label: 'Zapisy', colors: { ink: '#f2f4ef', accent: '#9ed3b4' }, next: 'link:parafia' }
+      ],
+      links: [{ id: 'parafia', label: 'Strona parafii', href: '#/parafia' }]
     },
     modules: [
       { id: 'haslo', kind: 'text', size: { colSpan: 6, rowSpan: 3 }, show: { places: { start: { x: 50, y: 56, w: 40, z: -980 } }, skin: 'plain', type: 'display', align: 'center' }, config: { title: 'Trzy dni, jedna wspólnota' } },
@@ -805,7 +818,8 @@ export function presentationExample(): Record<string, unknown> {
         config: { title }
       })),
       { id: 'kolo', kind: 'shape', size: { colSpan: 2, rowSpan: 2 }, show: { places: { dni: { x: 50, y: 50, w: 12, opacity: 0 }, zapisy: { x: 50, y: 50, w: 12, scale: 22 } }, skin: 'plain', ease: 'in', layer: -2 }, config: { shape: 'circle', fill: '#14180f' } },
-      { id: 'zapis', kind: 'text', size: { colSpan: 3, rowSpan: 3 }, show: { places: { zapisy: { x: 34, y: 52, w: 40 } }, skin: 'plain', type: 'heading', arrive: 'fade', delay: 0.45, span: 0.55 }, config: { title: 'Zapisy', body: ['# [zapisy@example.pl](mailto:zapisy@example.pl)', '> Zapisy do 15 maja.'] } }
+      { id: 'zapis', kind: 'text', size: { colSpan: 3, rowSpan: 3 }, show: { places: { zapisy: { x: 34, y: 52, w: 40 } }, skin: 'plain', type: 'heading', arrive: 'fade', delay: 0.45, span: 0.55 }, config: { title: 'Zapisy', body: ['# [zapisy@example.pl](mailto:zapisy@example.pl)', '> Zapisy do 15 maja.'] } },
+      { id: 'skrot', kind: 'text', size: { colSpan: 2, rowSpan: 1 }, show: { places: { start: { x: 50, y: 84, w: 22 } }, skin: 'pill', type: 'note', align: 'center', go: { start: 'zapisy' } }, config: { title: 'Od razu do zapisów' } }
     ]
   };
 }

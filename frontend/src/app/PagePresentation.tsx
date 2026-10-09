@@ -67,7 +67,7 @@ function ShowText({ raw, type, first }: { raw: Record<string, string>; type: Tex
 
 export function PagePresentation({
   parts, look, title, extra, after, mode = 'page', frozen = null, boxAspect = null, selected = null, onPick, onStage, onActive, control,
-  presentAt = null, onPresentEnd, virtual = null
+  presentAt = null, presentRoute = null, onPresentEnd, virtual = null
 }: {
   parts: readonly DraftPart[];
   look: Look;
@@ -86,11 +86,13 @@ export function PagePresentation({
   virtual?: { readonly w: number; readonly h: number } | null;
   /** Von aussen: ein Vortrag ab dieser Stelle (der Editor) — und was danach. */
   presentAt?: number | null;
+  /** 0089 — und auf welchem Weg (der Editor: der Weg zur gewählten Szene). */
+  presentRoute?: readonly string[] | null;
   onPresentEnd?: () => void;
 }) {
   const logic = usePageLogic();
   /* Ein Vortrag auf dem ganzen Bildschirm — von der Stelle aus, an der die Seite gerade steht; sie selbst steht solange still. */
-  const [presenting, setPresenting] = useState<number | null>(null);
+  const [presenting, setPresenting] = useState<{ readonly at: number; readonly route: readonly string[] | null } | null>(null);
   const own = useRef<DriveControl | null>(null);
   const ctl = control ?? own;
   const show = readShow(look.show);
@@ -130,7 +132,8 @@ export function PagePresentation({
   });
 
   const stop = useCallback(() => { setPresenting(null); onPresentEnd?.(); }, [onPresentEnd]);
-  const showing = presentAt ?? presenting;
+  /* 0089 — der Vortrag geht den Weg weiter, den die Seite (oder der Editor) gerade geht. */
+  const showing = presentAt !== null ? { at: presentAt, route: presentRoute } : presenting;
   const side = extra === undefined && after === undefined ? undefined : <>{extra}{after}</>;
 
   return (
@@ -141,7 +144,7 @@ export function PagePresentation({
         theme={look.theme}
         title={title}
         mode={mode}
-        frozen={presenting ?? frozen}
+        frozen={presenting?.at ?? frozen}
         boxAspect={boxAspect}
         virtual={virtual}
         extra={side}
@@ -150,10 +153,10 @@ export function PagePresentation({
         onStage={onStage}
         onActive={onActive}
         control={ctl}
-        onPresent={mode === 'page' ? () => setPresenting(ctl.current?.at() ?? 0) : undefined}
+        onPresent={mode === 'page' ? () => setPresenting({ at: ctl.current?.at() ?? 0, route: ctl.current?.route?.() ?? null }) : undefined}
       />
       {showing !== null && createPortal(
-        <PresentationView show={show} pieces={pieces} theme={look.theme} title={title} mode="present" startAt={showing} onExit={stop} />,
+        <PresentationView show={show} pieces={pieces} theme={look.theme} title={title} mode="present" startAt={showing.at} startRoute={showing.route} onExit={stop} />,
         document.body
       )}
     </>

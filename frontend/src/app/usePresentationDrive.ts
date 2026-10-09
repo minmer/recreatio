@@ -58,6 +58,8 @@ export interface DriveControl {
   /** Ein Schritt vor oder zurück — in einer Szene von Schritt zu Schritt, an ihrem Rand zur nächsten. */
   readonly stepBy: (dir: 1 | -1) => void;
   readonly at: () => number;
+  /** 0089 — der Weg, auf dem die Bühne gerade ist (die Kennungen ihrer Szenen) — für einen Vortrag, der dort weitergeht. */
+  readonly route?: () => readonly string[];
 }
 
 export interface DriveOptions {
@@ -76,6 +78,12 @@ export interface DriveOptions {
   /** Wo es anfängt. */
   readonly start?: number;
   readonly onPaint: (s: number) => void;
+  /**
+   * 0089 — ÜBER DEN RAND: „dalej" nach der letzten Szene (oder zurück vor die
+   * erste). Wohin es dann geht, weiss die Bühne (ein Weg zurück, hinaus) —
+   * `key`: Taste, Knopf, Klick; `gesture`: Rad oder Finger.
+   */
+  readonly onBeyond?: (dir: 1 | -1, via: 'key' | 'gesture') => void;
 }
 
 /**
@@ -257,7 +265,7 @@ export function usePresentationDrive(box: MutableRefObject<HTMLElement | null>, 
 
       push = 0;
       const next = list[index + dir];
-      if (next === undefined) return;
+      if (next === undefined) { opts.current.onBeyond?.(dir, 'gesture'); return; }
       /* Rückwärts landet man am ENDE der vorigen — dort, wo man sie verlassen hat. */
       go(dir > 0 ? next.at : next.to, speed, durationBetween(index, index + dir), true);
     };
@@ -269,7 +277,7 @@ export function usePresentationDrive(box: MutableRefObject<HTMLElement | null>, 
       const want = Math.round(target) + dir;
       if (want >= zone.at && want <= zone.to) { go(want, 0, 700, true); return; }
       const next = list[index + dir];
-      if (next === undefined) return;
+      if (next === undefined) { opts.current.onBeyond?.(dir, 'key'); return; }
       go(dir > 0 ? next.at : next.to, 0, durationBetween(index, index + dir), true);
     };
 

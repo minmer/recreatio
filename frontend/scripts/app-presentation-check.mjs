@@ -28,6 +28,7 @@ const app = join(process.cwd(), 'src/app/').replace(/\\/g, '/');
 await writeFile(entry, `
 export * from '${app}presentationMotion';
 export * from '${app}presentation';
+export { END, LINK, resolveTarget, nextOf, chainFrom, routeOf, branch, routeTo, reachable, autoMap, targetOptions, withGo, withNext, brokenTarget } from '${app}showPaths';
 export { planImport, exportPage, presentationExample, pageDescription, DEFAULT_IMPORT } from '${app}pageJson';
 export { readLook, writeLook, resolveTheme } from '${app}slides';
 export { lineKind, RichLine } from '${app}richText';
@@ -320,7 +321,7 @@ try {
     assert.ok(odd.warnings.some((w) => w.includes('warp')) && odd.warnings.some((w) => w.includes('glass')), 'unknown values are reported');
 
     const doc = m.pageDescription();
-    for (const key of ['"show" — ', '"places" — ', '"skin" — ', '"arrive" — ', '"origin" — ', '"max" — ', '"words" — ', '"change" — ', '"keep" — ', '"night"', '"presentation"']) {
+    for (const key of ['"show" — ', '"places" — ', '"skin" — ', '"arrive" — ', '"origin" — ', '"max" — ', '"words" — ', '"change" — ', '"keep" — ', '"night"', '"presentation"', '"next" — ', '"go" — ', '"links" — ', '"map" — ']) {
       assert.ok(doc.includes(key), `the description explains ${key}`);
     }
     for (const t of m.SCENE_CHANGES) assert.ok(doc.includes(`"${t}"`), `the description names the change ${t}`);
@@ -343,6 +344,73 @@ try {
     assert.ok(html('[O nas](#/rc/o-nas) · [Kontakt](#/rc/kontakt)').includes('wk-card-links'), 'a row of links');
     assert.equal(html(''), '', 'an empty line in a paragraph text is nothing');
     ok('text: large and quiet lines, links (safe), a row of links — on pages and on the stage');
+  }
+
+  /* -- 9. Wege (0089): ein Eingang, mehrere Ausgänge, Wege hinaus ----------------------------- */
+  {
+    const scene = (key, extra = {}) => m.readScene({ key, label: key.toUpperCase(), ...extra }, 0);
+    const show = (scenes, links = []) => ({ ...m.NO_SHOW, scenes, links });
+    const piece = (places, go) => ({ ...m.PIECE, places: Object.fromEntries(places.map((k) => [k, m.PLACE])), go });
+
+    /* Ohne Wege: die Liste — wie bisher. */
+    const plain = show([scene('a'), scene('b'), scene('c')]);
+    assert.deepEqual(m.routeOf(plain), ['a', 'b', 'c'], 'no paths: the list, as before');
+    assert.deepEqual(m.nextOf(plain, 'c'), { kind: 'end' });
+
+    /* A → (dalej) B1 → C; A → (Knopf) B2 → C; C → hinaus. */
+    const links = [{ id: 'www', label: 'Strona', href: 'https://recreatio.pl' }];
+    const net = show([scene('a'), scene('b1', { next: 'c' }), scene('b2'), scene('c', { next: 'link:www' })], links);
+    const pieces = [piece(['a'], { a: 'b2' })];
+    assert.deepEqual(m.routeOf(net), ['a', 'b1', 'c'], 'the way without a button skips the other branch');
+    assert.deepEqual(m.nextOf(net, 'c'), { kind: 'link', link: links[0] }, '„dalej" at the end leads out');
+    assert.deepEqual(m.resolveTarget(net, 'nic'), { kind: 'none' }, 'a target that does not exist is nothing');
+
+    /* Der Knopf auf A: der Weg bis A bleibt, ab dort B2 → C. */
+    const pressed = m.branch(net, m.routeOf(net), 0, 'b2');
+    assert.deepEqual(pressed, { route: ['a', 'b2', 'c'], index: 1 }, 'a button: the way so far, then the new branch');
+    /* Zurück auf eine Szene, die schon hinter einem liegt: der Weg bleibt. */
+    const loop = m.branch(net, ['a', 'b2', 'c'], 2, 'a');
+    assert.deepEqual(loop, { route: ['a', 'b2', 'c'], index: 0 }, 'back to a scene behind: the way stays');
+    /* Eine Schleife hört auf, statt endlos zu werden. */
+    const circle = show([scene('x'), scene('y', { next: 'x' })]);
+    assert.deepEqual(m.routeOf(circle), ['x', 'y'], 'a loop stops where it began');
+    assert.deepEqual(m.chainFrom(net, 'b2', new Set(['a'])), ['b2', 'c']);
+
+    /* Der Weg zu einer Szene (ein Vortrag ab dort): über den Knopf. */
+    assert.deepEqual(m.routeTo(net, pieces, 'b2'), ['a', 'b2', 'c'], 'the way to a scene goes through the button that leads there');
+    assert.deepEqual(m.routeTo(net, [], 'b2'), ['b2', 'c'], 'unreachable: the way starts there');
+    assert.deepEqual([...m.reachable(net, pieces)].sort(), ['a', 'b1', 'b2', 'c']);
+    assert.deepEqual([...m.reachable(net, [])].sort(), ['a', 'b1', 'c'], 'without the button nobody reaches B2');
+
+    /* Die Karte: jede Szene, jeder Weg hinaus und das Ende haben einen Platz; der Weg ohne Knopf in der ersten Reihe. */
+    const map = m.autoMap(net, pieces);
+    assert.ok(['a', 'b1', 'b2', 'c', 'link:www', 'end'].every((k) => map[k] !== undefined), 'every node has a place');
+    assert.ok(map.a.y === 0 && map.b1.y === 0 && map.c.y === 0 && map.b2.y > 0, 'the main way on top, the branch below');
+    assert.deepEqual(m.targetOptions(net).map((o) => o.value), ['a', 'b1', 'b2', 'c', 'link:www', 'end']);
+
+    /* Gespeichert und gelesen: nur, was gilt; ein Weg hinaus nur mit einer Adresse, die ein Verweis sein darf. */
+    const read = m.readShow({ scenes: [{ key: 'a', next: 'b' }, { key: 'b' }], links: [{ id: 'ok', label: 'Ok', href: 'www.example.pl' }, { id: 'bad', href: 'javascript:alert(1)' }], map: { a: { x: 10.4, y: 20 } } });
+    assert.equal(read.scenes[0].next, 'b');
+    assert.equal(read.scenes[1].next, null, 'no exit given: the next in the list');
+    assert.deepEqual(read.links, [{ id: 'ok', label: 'Ok', href: 'https://www.example.pl' }], 'a script is no way out');
+    assert.deepEqual(read.map, { a: { x: 10, y: 20 } });
+    assert.deepEqual(m.readShow(m.showJson(read)), read, 'round trip');
+    const p = m.readPieceValue({ places: { a: {} }, go: { a: 'b', '': 'x', b: 5 } });
+    assert.deepEqual(p.go, { a: 'b' }, 'a button: scene → target');
+    assert.deepEqual(m.pieceJson(p).go, { a: 'b' });
+    assert.equal(m.pieceJson(m.readPieceValue({ places: { a: {} } })).go, undefined, 'no button, no key');
+    assert.deepEqual(m.withGo(p, 'a', undefined).go, {}, 'the button can go again');
+    assert.equal(m.withNext(read.scenes[0], '').next, null);
+
+    /* Import: ein Ausgang ins Nichts wird gesagt. */
+    const now = { path: 'zz/x', title: 't', lead: '', mode: 'presentation', look: m.readLook(null, 'presentation'), parts: [], logic: null, menu: null };
+    const doc = { ...m.presentationExample(), show: { ...m.presentationExample().show, scenes: [{ key: 'start', next: 'nowhere' }, { key: 'dni' }, { key: 'zapisy' }] } };
+    const planned = m.planImport(doc, now, { ...m.DEFAULT_IMPORT, replace: true });
+    assert.ok(planned.warnings.some((w) => w.includes('do sceny albo linku, których nie ma')), 'an exit into nothing is reported');
+    const example = m.readShow(m.presentationExample().show);
+    assert.deepEqual(m.routeOf(example), ['start', 'dni', 'zapisy'], 'the example: in order');
+    assert.equal(m.nextOf(example, 'zapisy').kind, 'link', 'the example ends with a way out');
+    ok('paths: one entrance, many exits — the way without a button, branching keeps the way so far, loops stop, the way to a scene, ways out (safe), JSON and warnings');
   }
 } finally {
   await rm(workspace, { recursive: true, force: true });

@@ -13,6 +13,10 @@
  * Editors, auf Wunsch stehend an einer Stelle) und der ganze Bildschirm
  * (`present` — ein Vortrag: Pfeile, Klick, Fernbedienung).
  *
+ * <b>Welche Szenen, in welcher Folge</b> (0089): die des WEGES, den dieser
+ * Zuschauer geht (`showPaths.ts`) — ohne Knöpfe die Liste, mit Knöpfen das,
+ * wofür er sich entschieden hat. Der Editor (wer Bausteine wählt) sieht die Liste.
+ *
  * <b>Wo ein Baustein steht</b>: in seiner Szene (ein Platz) — dann kommt und
  * geht er mit ihr, wandert mit ihrer Betonung und fliegt mit ihrer Kamera; oder
  * über den Szenen (er wandert) — dann zwischen der Szene, auf der er zuerst
@@ -33,6 +37,7 @@ import {
   activeScene, arriveProgress, arriveStyle, betweenOf, clamp01, depthFade, emphasisOf, EMPHASIS, enteredOf, flightCurve,
   growAt, journeyAt, panAt, sceneState, scatterWords, walkOf, yieldOf, zonesOf, type Stepped, type Zone
 } from './presentationMotion';
+import { branch, goOf, nextOf, routeOf, type Target } from './showPaths';
 import { ShowDark } from './showContext';
 import { usePrefersDark, usePrefersReducedMotion } from './SlideDeck';
 import { addressWithSlide, anchorOf, imageUrl, resolveTheme, slideInAddress, type Layer, type Theme } from './slides';
@@ -98,7 +103,7 @@ const plainClick = (event: React.MouseEvent) =>
   event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 
 export function PresentationView({
-  show, pieces, theme, title = null, mode, frozen = null, startAt = null, boxAspect = null, virtual = null, extra, control, selected = null,
+  show, pieces, theme, title = null, mode, frozen = null, startAt = null, startRoute = null, boxAspect = null, virtual = null, extra, control, selected = null,
   onPick, onStage, onActive, onPresent, onExit
 }: {
   show: Show;
@@ -111,6 +116,8 @@ export function PresentationView({
   frozen?: number | null;
   /** Hier anfangen (ein Vortrag dort, wo die Seite gerade stand). */
   startAt?: number | null;
+  /** 0089 — auf diesem Weg (die Kennungen seiner Szenen) — ein Vortrag geht den Weg weiter, den die Seite ging. */
+  startRoute?: readonly string[] | null;
   /** Im Kasten: dieses Seitenverhältnis (breit/hoch auf der Leinwand des Editors). */
   boxAspect?: number | null;
   /**
@@ -137,7 +144,22 @@ export function PresentationView({
   const faces = FONT_FACES[show.fonts];
   useFonts(show.fonts);
 
-  const scenes = show.scenes;
+  /*
+   * 0089 — DER WEG. Wer Bausteine wählt (der Editor), sieht die Liste; jeder
+   * andere die Szenen des Weges, den er geht — ohne Knöpfe ist das die Liste.
+   */
+  const branching = onPick === undefined;
+  const byKey = useMemo(() => new Map(show.scenes.map((sc) => [sc.key, sc])), [show.scenes]);
+  const [route, setRoute] = useState<readonly string[]>(() => (startRoute !== null && startRoute.length > 0 ? startRoute : routeOf(show)));
+  const routeOk = route.length > 0 ? route.every((k) => byKey.has(k)) : show.scenes.length === 0;
+  /* Ist eine Szene des Weges fort (der Editor hat sie gelöscht), beginnt der Weg neu. */
+  useEffect(() => { if (!routeOk) setRoute(routeOf(show)); }, [routeOk, show]);
+  const scenes: readonly Scene[] = useMemo(
+    () => (!branching ? show.scenes : (routeOk ? route : routeOf(show)).map((k) => byKey.get(k)!)),
+    [branching, show, route, routeOk, byKey]);
+  const routeRef = useRef<readonly string[]>([]);
+  routeRef.current = scenes.map((sc) => sc.key);
+
   const zones: Zone[] = useMemo(() => zonesOf(scenes.map((sc) => sc.steps)), [scenes]);
   const changes = useMemo(() => scenes.map((sc) => sc.change), [scenes]);
   const keeps = useMemo(() => scenes.map((sc) => sc.keep), [scenes]);
@@ -403,10 +425,67 @@ export function PresentationView({
     reduced,
     frozen,
     start,
-    onPaint: (s) => paintRef.current(s)
+    onPaint: (s) => paintRef.current(s),
+    onBeyond: (dir, via) => {
+      /* 0089 — „dalej" nach der letzten Szene des Weges: zurück (eine Schleife) oder hinaus. */
+      if (!branching || dir < 0 || scenes.length === 0) return;
+      const last = scenes.length - 1;
+      const target = nextOf(show, scenes[last].key);
+      if (target.kind === 'scene') follow(target, last);
+      else if (target.kind === 'link' && via === 'key') follow(target, last);
+    }
   });
 
-  useEffect(() => { if (control !== undefined) control.current = drive.current; });
+  useEffect(() => {
+    if (control !== undefined) control.current = drive.current === null ? null : { ...drive.current, route: () => routeRef.current };
+  });
+
+  /* -- 0089: Ausgänge — ein Knopf, „dalej" über den Rand, ein Weg hinaus ------------------- */
+
+  /** Ein Weg hinaus: im Editor in einem neuen Fenster (er bleibt offen), sonst hier. */
+  const openLink = (href: string) => {
+    if (href.startsWith('#') && !href.startsWith('#/')) {
+      const index = anchors.get(href.slice(1).toLowerCase());
+      if (index !== undefined) drive.current?.toScene(index);
+      return;
+    }
+    if (/^(mailto|tel):/i.test(href)) { window.location.href = href; return; }
+    if (mode === 'box') { window.open(href.startsWith('#') ? `${window.location.pathname}${href}` : href, '_blank', 'noopener'); return; }
+    if (href.startsWith('#')) { window.location.hash = href.slice(1); return; }
+    window.location.assign(href);
+  };
+
+  /** Wohin ein Ausgang führt — von Szene `from` des Weges aus. */
+  const pending = useRef<number | null>(null);
+  const follow = (target: Target, from: number) => {
+    if (target.kind === 'link') { openLink(target.link.href); return; }
+    if (target.kind !== 'scene') return;
+    const now = routeRef.current;
+    const made = branch(show, now, from, target.key);
+    if (made.route === now) { drive.current?.toScene(made.index); return; }
+    /* Erst steht der neue Weg (die Bahn wird neu vermessen), dann fährt sie hin. */
+    pending.current = made.index;
+    setRoute(made.route);
+  };
+  useEffect(() => {
+    if (pending.current === null) return;
+    const index = pending.current;
+    pending.current = null;
+    drive.current?.toScene(index);
+  }, [route, drive]);
+
+  /** Ein Knopf wurde gedrückt: auf seiner Szene (ein wandernder — auf der, die gerade dran ist). */
+  const press = (key: string): boolean => {
+    const one = placed.find((p) => p.key === key);
+    if (one === undefined) return false;
+    const from = one.travel ? activeRef.current : one.home;
+    const sc = scenes[from];
+    if (sc === undefined) return false;
+    const target = goOf(show, one.piece, sc.key);
+    if (target.kind === 'none') return false;
+    follow(target, from);
+    return true;
+  };
 
   /* Nach jedem Bauen: an derselben Stelle neu malen (neue Elemente kennen ihre Lage noch nicht). */
   useLayoutEffect(() => { paintRef.current(drive.current?.at() ?? frozen ?? start); });
@@ -454,12 +533,18 @@ export function PresentationView({
       }
       return;
     }
+    /* 0089 — ein Knopf: dorthin, wohin er auf seiner Szene führt. */
+    const button = target.closest<HTMLElement>('[data-pz-go]');
+    if (button !== null && branching && press(button.dataset.pzGo ?? '')) { event.preventDefault(); return; }
     if (mode === 'present' && target.closest('button, input, select, textarea, label, summary, [role="button"]') === null) {
       drive.current?.stepBy(1);
     }
   };
 
   /* -- Zeichnen ---------------------------------------------------------------------- */
+
+  const ending = branching && scenes.length > 0 && active === scenes.length - 1 ? nextOf(show, scenes[active].key) : null;
+  const wayOut = ending !== null && ending.kind === 'link' ? ending.link : null;
 
   const vars = {
     '--pz-accent': look.accent,
@@ -490,6 +575,8 @@ export function PresentationView({
 
   const pieceView = (one: Placed) => {
     const p = one.piece;
+    /* 0089 — ein Knopf (auf einer seiner Szenen ein Ausgang): fokussierbar, mit Eingabe und Leertaste zu drücken. */
+    const isGo = branching && Object.values(p.go).some((t) => t.trim() !== '');
     const fill = resolveColor(p.fill, dark);
     const ink = resolveColor(p.ink, dark);
     const accent = resolveColor(p.accent, dark);
@@ -507,8 +594,20 @@ export function PresentationView({
       <div
         key={one.key}
         ref={(el) => { pieceEls.current.set(one.key, el); }}
-        className={`pz-el skin-${p.skin} type-${p.type} kind-${one.kind}${one.travel ? ' is-travel' : ''}${selected === one.key ? ' is-selected' : ''}${p.layer < 0 ? ' is-under' : ''}`}
+        className={`pz-el skin-${p.skin} type-${p.type} kind-${one.kind}${one.travel ? ' is-travel' : ''}${selected === one.key ? ' is-selected' : ''}${p.layer < 0 ? ' is-under' : ''}${isGo ? ' is-go' : ''}`}
         data-pz-piece={one.key}
+        {...(isGo ? {
+          'data-pz-go': one.key,
+          role: 'button',
+          tabIndex: 0,
+          onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
+            if ((event.key === 'Enter' || event.key === ' ') && event.target === event.currentTarget) {
+              event.preventDefault();
+              event.stopPropagation();
+              press(one.key);
+            }
+          }
+        } : {})}
         style={{
           visibility: 'hidden', transformOrigin: `${pin.x * 100}% ${pin.y * 100}%`,
           ...(accent === null ? {} : { '--pz-accent': accent } as CSSProperties)
@@ -650,6 +749,13 @@ export function PresentationView({
         )}
 
         {extra !== undefined && mode === 'page' && <div className="pz-extra">{extra}</div>}
+
+        {/* 0089 — am Ende eines Weges, der hinausführt: der Weg hinaus, sichtbar (das Rad führt nicht von selbst fort). */}
+        {wayOut !== null && (
+          <a className="pz-exit" href={wayOut.href} onClick={(event) => { if (plainClick(event)) { event.preventDefault(); openLink(wayOut.href); } }}>
+            {wayOut.label || 'Dalej'} <span aria-hidden="true">→</span>
+          </a>
+        )}
 
         {(mode === 'present' || (mode === 'page' && show.nav !== 'none')) && scenes.length > 0 && (
           <div className="pz-tools">
