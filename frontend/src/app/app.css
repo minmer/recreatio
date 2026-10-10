@@ -6792,6 +6792,16 @@ h5.lib-h { font-size: 1rem; font-style: italic; }
 .wk-bell-item { display: flex; justify-content: space-between; gap: 0.6rem; padding: 0.4rem 0.45rem; border-radius: 4px; color: var(--wk-ink); text-decoration: none; font-size: 0.92rem; }
 .wk-bell-item:hover { background: var(--wk-soft); }
 .wk-bell-n { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--wk-accent); }
+/* 0090 — „nowe": was seit dem vorigen Öffnen kam (Liste der Osoby). */
+.wk-tag.wk-tag-new { border-color: var(--wk-accent); color: var(--wk-accent); background: transparent; margin-left: 0.4rem; }
+.wk-new-filter { padding: 0.2rem 0.65rem; border: 1px solid var(--wk-accent); border-radius: 999px; background: transparent; color: var(--wk-accent); font: inherit; font-size: 0.88rem; font-variant-numeric: tabular-nums; cursor: pointer; }
+.wk-new-filter.is-on { background: var(--wk-accent); color: var(--wk-surface); }
+.wk-new-filter:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+/* 0090 — ein Eintrag mit „przejrzane" daneben. */
+.wk-bell-row { display: flex; align-items: center; gap: 0.2rem; }
+.wk-bell-row .wk-bell-item { flex: 1; min-width: 0; }
+.wk-bell-done { flex: none; width: 2rem; height: 2rem; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--wk-muted); font: inherit; cursor: pointer; }
+.wk-bell-done:hover, .wk-bell-done:focus-visible { border-color: var(--wk-line); color: var(--wk-accent); background: var(--wk-soft); }
 .wk-bell-settings {
   position: fixed; inset: auto 1rem 1rem auto; z-index: 70; width: min(26rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); overflow: auto;
   display: grid; gap: 0.7rem; padding: 1rem; border: 1px solid var(--wk-line); border-radius: 8px; background: var(--wk-surface); color: var(--wk-ink);
@@ -7790,3 +7800,44 @@ body.has-pz { overflow: hidden; }
 .skin-panel .pz-box:not(.has-media) { grid-template-rows: minmax(0, 1fr); }
 .skin-panel .pz-box.valign-end:not(.has-media) > .pz-body { align-self: end; }
 .skin-panel .pz-box.valign-center:not(.has-media) > .pz-body { align-self: center; }
+
+/* 0091 — eine Rolle wählen (Link, Formular): je Rolle, wozu sie führt; „Nowa rola" mit ihren Bereichen. */
+.wk-role-choice { border: 0; padding: 0; margin: 0; display: grid; gap: 0.35rem; min-width: 0; }
+.wk-role-choice legend { font-size: 0.85rem; color: var(--wk-muted); margin-bottom: 0.3rem; padding: 0; }
+.wk-role-choice > ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.wk-role-choice > ul > li { border: 1px solid var(--wk-line); border-radius: 5px; padding: 0.5rem 0.65rem; display: grid; gap: 0.4rem; background: var(--wk-surface); }
+.wk-role-choice > ul > li.is-on { border-color: var(--wk-accent); }
+.wk-role-option { display: flex; align-items: baseline; gap: 0.55rem; cursor: pointer; }
+.wk-role-option > span { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.5rem; min-width: 0; }
+.wk-role-option strong { overflow-wrap: anywhere; }
+.wk-role-option .wk-hint { flex: 1 1 100%; margin: 0; }
+.wk-role-lead { margin-left: 1.6rem; font-size: 0.86rem; }
+.wk-role-new { display: grid; gap: 0.45rem; margin-left: 1.6rem; }
+.wk-role-new-areas { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.wk-role-new-areas li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; }
+.wk-link-roles { margin: 0.15rem 0; font-size: 0.92rem; }
+.wk-member-role { display: grid; gap: 0.5rem; padding-top: 0.6rem; border-top: 1px solid var(--wk-line); }
+.wk-member-role .wk-h2 { margin: 0; }
+.wk-member-now { display: grid; gap: 0.15rem; padding: 0.55rem 0.7rem; border-left: 3px solid var(--wk-accent); background: var(--wk-soft); border-radius: 0 4px 4px 0; }
+.wk-member-now p { margin: 0; }
+.wk-member-choose { display: grid; gap: 0.5rem; }
+
+/* 0092 — „Teraz" ganz oben im Warsztat: das Neue links, schnelle Wege und das zuletzt Geöffnete rechts. */
+.wk-now { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1rem; margin: 0.4rem 0 1.6rem; }
+@media (max-width: 52rem) { .wk-now { grid-template-columns: 1fr; } }
+.wk-now > div { border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); padding: 0.85rem 1rem; display: grid; gap: 0.55rem; align-content: start; min-width: 0; }
+.wk-now-h { margin: 0; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wk-muted); }
+.wk-now-calm { margin: 0; color: var(--wk-muted); }
+.wk-now-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; }
+.wk-now-list li { display: flex; align-items: center; gap: 0.2rem; }
+.wk-now-list a { flex: 1; min-width: 0; display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) auto; align-items: baseline; gap: 0.6rem; padding: 0.45rem 0.5rem; border-radius: 4px; color: var(--wk-ink); text-decoration: none; }
+.wk-now-list a:hover, .wk-now-list a:focus-visible { background: var(--wk-soft); }
+.wk-now-kind { font-size: 0.74rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--wk-muted); }
+.wk-now-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-now-n { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--wk-accent); white-space: nowrap; }
+@media (max-width: 30rem) { .wk-now-list a { grid-template-columns: minmax(0, 1fr) auto; } .wk-now-kind { display: none; } }
+.wk-now-quick { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.wk-now-quick a { padding: 0.35rem 0.8rem; border: 1px solid var(--wk-line); border-radius: 4px; color: var(--wk-ink); text-decoration: none; font-size: 0.92rem; }
+.wk-now-quick a:hover, .wk-now-quick a:focus-visible { border-color: var(--wk-accent); color: var(--wk-accent); }
+.wk-now .wk-recent { margin: 0; }
+.wk-tiles-head { margin: 0 0 0.2rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wk-muted); }

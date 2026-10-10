@@ -19,6 +19,7 @@ import { loadPublic, type Occurrence } from './calendar';
 import { aad, Field, fromBase64Url, openText } from './crypto';
 import { openSubmitted, type OwnAnswer } from './form';
 import { isChallenge, loadPortal, openGrants, openPortal, type Portal } from './seat';
+import { openSeatRoles } from './memberRole';
 import type { SeatChallenge } from './seatCheck';
 import type { SeatView } from './seatContext';
 import { openSteps, type SeatForm } from './steps';
@@ -176,6 +177,15 @@ export function useSeat(token: string, keyText: string | null): Opened {
       const keys = await openGrants(found.grants, key);
       const rows: Shared[] = [];
 
+      /*
+       * 0091 — UND WAS SEINE ROLLE AUFSCHLIESST (die seines Formulars): ihre
+       * Bereiche mit ihren Kalendern, wie die Klasse. Schon gezeigte Bereiche
+       * kommen nicht doppelt.
+       */
+      const viaRoles = await openSeatRoles(found.seatId, key, found.roles).catch(() => null);
+      const fromRoles = (viaRoles?.areas ?? []).filter((a) => !found.grants.some((g) => g.areaId === a.areaId));
+      if (fromRoles.length > 0) setSharedNames([...found.grants.map((g) => g.areaName), ...fromRoles.map((a) => a.name)]);
+
       const from = new Date();
       from.setHours(0, 0, 0, 0);
       const to = new Date(from);
@@ -196,6 +206,23 @@ export function useSeat(token: string, keyText: string | null): Opened {
               when: one.startsAt,
               what: await titleOf(one, classKey.key)
             });
+          }
+        }
+      }
+
+      for (const area of fromRoles) {
+        const epochs = viaRoles?.areaKeys.get(area.areaId);
+        if (epochs === undefined) continue;
+        for (const calendar of area.calendars) {
+          let days;
+          try { days = await loadPublic(calendar.calendarId, from, to, undefined, token); }
+          catch { continue; }
+
+          for (const one of days.occurrences) {
+            /* Ein Titel liegt unter der Epoche, in der er entstand — die Rolle hat sie alle, seit sie dabei ist. */
+            const sealedTitle = one.fields.find((f) => f.field === 'title');
+            const roleKey = sealedTitle === undefined ? undefined : epochs.get(sealedTitle.epoch);
+            rows.push({ name: area.name, when: one.startsAt, what: roleKey === undefined ? one.titlePublic : await titleOf(one, roleKey) });
           }
         }
       }

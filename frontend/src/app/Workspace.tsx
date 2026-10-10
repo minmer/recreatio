@@ -40,6 +40,7 @@ import { Kartoteka } from './Kartoteka';
 import { claimSlug, loadDesk, takers, type Desk } from './desk';
 import { roleLabel, useRoleNames } from './roleNames';
 import { treeOf } from './tree';
+import { NowPanel } from './NowPanel';
 
 export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   /** `undefined` = noch nicht nachgesehen, `null` = ging nicht. */
@@ -126,10 +127,11 @@ function Tiles({ desk, who }: { desk: Desk; who: Who }) {
   return (
     <>
       <h1 className="wk-h1">Warsztat</h1>
-      <p className="wk-lede">
-        Tu jest to, do czego masz klucze. Kliknij kafelek, żeby otworzyć go na całość.
-      </p>
 
+      {/* 0092 — zuerst, was neu ist und woran man zuletzt war; die Kacheln darunter, für alles andere. */}
+      <NowPanel desk={desk} />
+
+      <h2 className="wk-tiles-head">Wszystko</h2>
       <div className="wk-tiles">
         <Tile view="areas">
           <p className="wk-empty">Klucze: obszar, jego epoki i to, kto je trzyma.</p>

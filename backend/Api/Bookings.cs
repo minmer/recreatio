@@ -479,6 +479,7 @@ public static partial class Bookings
             await using var seat = new SqlCommand($"""
                 SELECT CASE WHEN EXISTS (SELECT 1 FROM app.access WHERE id = @h AND area_id IN ({areas}))
                               OR EXISTS (SELECT 1 FROM app.access_grant WHERE access_id = @h AND area_id IN ({areas}))
+                              OR EXISTS (SELECT 1 FROM app.access_role_area WHERE access_id = @h AND area_id IN ({areas}))
                             THEN 1 ELSE 0 END;
                 """, connection, tx);
             seat.Parameters.AddWithValue("@h", holder);

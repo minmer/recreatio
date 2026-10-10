@@ -166,7 +166,10 @@ export const Field = {
   TopicTitle: 'title',
 
   /* 0071 — ein Haushalt im Adressverzeichnis (Kolęda), EIN Dokument unter dem Bereichsschlüssel. */
-  Household: 'household'
+  Household: 'household',
+
+  /* 0091 — der Schlüssel einer Rolle unter dem Platzschlüssel (ein Mensch ohne Konto gehört über sein Formular zu ihr). */
+  SeatRoleKey: 'seat_role_key'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

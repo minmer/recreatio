@@ -65,11 +65,13 @@ internal static class Callers
                 await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted));
         }
 
-        var links = await HeldLinks.RolesAsync(connection, ctx.Request.Headers[Header].ToString(), ctx.RequestAborted);
-        if (links.Count == 0) return null;
-
-        /* Eine Linkrolle ist eine gewöhnliche Rolle: kein Konto, keine Person, eine Stufe darunter. */
-        return new Caller(null, links.Select(id => new Workspace.RoleRow(id, "role", false, 1)).ToList());
+        /*
+         * Eine Linkrolle ist eine gewöhnliche Rolle: kein Konto, keine Person, eine
+         * Stufe darunter. 0091: mit allem, was sie hält — gibt der Link eine Rolle
+         * („Rada parafialna"), darf er, was die Rolle darf.
+         */
+        var links = await HeldLinks.RoleRowsAsync(connection, ctx.Request.Headers[Header].ToString(), ctx.RequestAborted);
+        return links.Count == 0 ? null : new Caller(null, links);
     }
 
     /// <summary>Für Stellen, die ihre Verbindung erst später öffnen: einmal kurz nachsehen, wer ruft.</summary>

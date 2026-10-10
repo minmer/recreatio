@@ -243,7 +243,10 @@ public static class Page
                   AND (a.verify_hash IS NULL OR a.verified_at IS NOT NULL)
                   AND (EXISTS (SELECT 1 FROM app.access_slug g
                                 WHERE g.access_id = a.id AND g.slug_id IN (@slug, @asked))
-                       OR a.area_id IN (SELECT w.area_id FROM app.slug_area w WHERE w.slug_id = @slug));
+                       OR a.area_id IN (SELECT w.area_id FROM app.slug_area w WHERE w.slug_id = @slug)
+                       /* 0091 — oder seine Rolle (die seines Formulars) liest einen der Bereiche der Seite. */
+                       OR EXISTS (SELECT 1 FROM app.access_role_area rx JOIN app.slug_area w ON w.area_id = rx.area_id
+                                   WHERE rx.access_id = a.id AND w.slug_id = @slug));
                 """, connection);
 
             cmd.Parameters.AddWithValue("@token",
@@ -326,7 +329,9 @@ public static class Page
                   AND a.revoked_at IS NULL AND a.status = N'active'
                   AND (EXISTS (SELECT 1 FROM app.access_slug g
                                 WHERE g.access_id = a.id AND g.slug_id IN (@slug, @asked))
-                       OR a.area_id IN (SELECT w.area_id FROM app.slug_area w WHERE w.slug_id = @slug))
+                       OR a.area_id IN (SELECT w.area_id FROM app.slug_area w WHERE w.slug_id = @slug)
+                       OR EXISTS (SELECT 1 FROM app.access_role_area rx JOIN app.slug_area w ON w.area_id = rx.area_id
+                                   WHERE rx.access_id = a.id AND w.slug_id = @slug))
                 OPTION (MAXRECURSION {RoleGraph.MaxDepth + 1});
                 """, connection);
 

@@ -26,16 +26,22 @@
  * Seiten und Kalendern den Beweis mit (`heldProofs`) und öffnet mit den
  * Schlüsseln der Linkrolle (`heldLinkKeys`), was sie lesen darf. Einem
  * Konto hinzugefügt (`redeemLink`) gilt er überall und zum Schreiben.
+ *
+ * <b>Ein Link gibt eine ROLLE (0091)</b>, nicht Bereiche: die Linkrolle hält
+ * die gewählten Rollen („Rada parafialna"), und was die Rolle darf, darf wer
+ * den Link hat. Ändert sich die Rolle, ändert sich jeder Link mit, der sie
+ * gibt. Ältere Links, die Bereiche direkt geben, gelten weiter.
  */
 
 import { epochAad, joinArea, loadMembers } from './area';
+import { walkBundle, type RoleBundle } from './roleBundle';
 import {
   aad, derive, Field, fromBase64Url, open, seal, sha256Bytes, toBase64Url, unwrapKey, wrapKey, KEY_SIZE
 } from './crypto';
 import { heldLinks, linkGeneration, linkHref, nameLink } from './linkKeep';
 import { newId } from './ids';
 import type { Ring, SealedRole } from './keys';
-import { createRoleWithKeys, signEdge } from './roles';
+import { addHolder, createRoleWithKeys, signEdge } from './roles';
 import { call, WorkspaceError } from './session';
 
 export type LinkLevel = 'read' | 'write' | 'admin';
@@ -69,6 +75,8 @@ export interface LinkRow {
   readonly tokenSealed: string | null;
   /** 0073 — wo er aufgeht (der Weg hinter `#/`), `null`: auf der Seite „Dołącz". */
   readonly aim: string | null;
+  /** 0091 — die Rollen, die er gibt (leer: ein Link der alten Art, direkt zu Bereichen; fehlt beim alten Dienst). */
+  readonly roles?: readonly string[];
 }
 
 export interface LinkInfo {
@@ -84,6 +92,8 @@ export interface LinkInfo {
   readonly sealedRoleKey: string;
   readonly areas: readonly LinkArea[];
   readonly aim: string | null;
+  /** 0091 — die Rollen, die er gibt (ihre Namen liegen verschlossen). */
+  readonly roles?: readonly string[];
 }
 
 const PROOF_INFO = 'recreatio:v1:invite:proof';
@@ -177,8 +187,13 @@ export async function createLink(
   holder: SealedRole,
   what: {
     label: string;
-    /** 0074 — je Bereich seine eigene Stufe: in der Rada lesen, in der Oaza schreiben. */
-    areas: readonly { readonly areaId: string; readonly capability: LinkLevel }[];
+    /** 0074 — je Bereich seine eigene Stufe: in der Rada lesen, in der Oaza schreiben. Die alte Art; neu: `roles`. */
+    areas?: readonly { readonly areaId: string; readonly capability: LinkLevel }[];
+    /**
+     * 0091 — DIE ROLLEN, DIE DER LINK GIBT. `lead`: wer ihn einlöst, führt die
+     * Rolle (nimmt in ihrem Namen auf); sonst gehört er nur dazu.
+     */
+    roles?: readonly { readonly roleId: string; readonly lead: boolean }[];
     /** Nach dem ersten Einlösen gilt er nicht mehr. */
     once: boolean;
     maxUses?: number | null;
@@ -188,26 +203,48 @@ export async function createLink(
   },
   progress: (step: string) => void = () => undefined
 ): Promise<{ url: string; invitationId: string; token: string }> {
-  if (what.areas.length === 0) throw new WorkspaceError('Wybierz co najmniej jeden obszar.');
-  /* Die stärkste Stufe steht am Link selbst — sie entscheidet, ob der Signierschlüssel mitgeht. */
-  const strongest = highestLevel(what.areas.map((a) => a.capability));
+  const areas = what.areas ?? [];
+  const roles = what.roles ?? [];
+  if (areas.length === 0 && roles.length === 0) throw new WorkspaceError('Wybierz rolę, którą daje link.');
+  /*
+   * Die stärkste Stufe steht am Link selbst — sie entscheidet, ob der
+   * Signierschlüssel der Linkrolle mitgeht. Bei Rollen: „prowadzi", wenn er
+   * eine davon führen lässt, sonst nur dabei sein („czyta" — was die Rolle
+   * darf, sagen ihre Bereiche, nicht der Link).
+   */
+  const strongest = roles.length > 0
+    ? (roles.some((r) => r.lead) ? 'admin' : 'read')
+    : highestLevel(areas.map((a) => a.capability));
 
   /* Erst prüfen, ob ich überall hineinlassen darf — bevor eine Rolle entsteht, die dann nirgends hinein kann. */
   const issuers = new Map<string, string>();
-  for (const { areaId } of what.areas) {
+  for (const { areaId } of areas) {
     const issuer = await issuerIn(ring, areaId);
     if (issuer === null) throw new WorkspaceError('W jednym z wybranych obszarów nie możesz nikogo wpuścić.');
     issuers.set(areaId, issuer);
+  }
+  for (const { roleId, lead } of roles) {
+    if (!ring.has(roleId)) throw new WorkspaceError('Link może dawać tylko rolę, którą masz.');
+    if (lead && !ring.maySign(roleId)) throw new WorkspaceError('Prowadzenie roli może dać tylko ten, kto ją prowadzi.');
   }
 
   progress('Liczenie kluczy linku…');
   const label = what.label.trim() === '' ? 'Link' : what.label.trim();
   const role = await createRoleWithKeys(ring, holder, { kind: 'role', name: `Link: ${label}` });
 
-  for (const { areaId, capability } of what.areas) {
+  for (const { areaId, capability } of areas) {
     progress('Otwieranie obszarów dla linku…');
     await joinArea(ring, areaId, { id: role.id, kind: 'role', wrapPublicKey: role.wrapPublicKey },
       issuers.get(areaId)!, capability);
+  }
+
+  /* 0091 — die Linkrolle HÄLT die gewählten Rollen: unterschrieben in ihrem Namen, mit dem eben entstandenen Schlüssel. */
+  if (roles.length > 0) {
+    const withLink = ring.withRole(role.role, role.roleKey, role.signKey);
+    for (const { roleId, lead } of roles) {
+      progress('Łączenie linku z rolą…');
+      await addHolder(withLink, roleId, role.role, 'holds', lead);
+    }
   }
 
   progress('Pieczętowanie linku…');
@@ -341,7 +378,10 @@ export interface HeldRole {
   readonly label: string | null;
   readonly roleKey: Uint8Array;
   readonly wrapPrivateSealed: string;
+  /** Was diese Rolle SELBST darf — daran wählt `linkMe`, als wer geschrieben wird. */
   readonly areas: readonly LinkArea[];
+  /** 0091 — nicht die Linkrolle selbst, sondern eine, die sie hält (die Rolle, die der Link gibt). */
+  readonly via?: string;
 }
 
 export interface HeldKeys {
@@ -365,6 +405,8 @@ interface HeldAnswer {
     readonly wrapPrivateSealed: string | null;
     readonly areas: readonly LinkArea[];
     readonly grants: readonly { areaId: string; epoch: number; sealedBlob: string }[];
+    /** 0091 — der Weg zu den Rollen, die der Link gibt (fehlt beim alten Dienst). */
+    readonly bundle?: RoleBundle;
   }[];
 }
 
@@ -413,7 +455,13 @@ export function heldLinkKeys(): Promise<HeldKeys> {
           await open(mine.sealKey, keysAad(link.invitationId), fromBase64Url(link.sealedRoleKey)))) as { roleKey: string };
         const roleKey = fromBase64Url(sealed.roleKey);
         const wrapPrivate = await open(roleKey, roleWrapAad(link.roleId), fromBase64Url(link.wrapPrivateSealed));
-        roles.push({ token: mine.token, roleId: link.roleId, label: link.label, roleKey, wrapPrivateSealed: link.wrapPrivateSealed, areas: link.areas });
+        const names = new Map(link.areas.map((a) => [a.areaId, a.name]));
+        const own = link.bundle?.roles.find((r) => r.roleId === link.roleId)?.rights;
+        roles.push({
+          token: mine.token, roleId: link.roleId, label: link.label, roleKey, wrapPrivateSealed: link.wrapPrivateSealed,
+          /* Was die Linkrolle selbst darf; ein alter Dienst sagt das nicht — dann, was der Link gibt. */
+          areas: own === undefined ? link.areas : own.map((r) => ({ areaId: r.areaId, name: names.get(r.areaId) ?? '', capability: r.capability }))
+        });
         for (const grant of link.grants) {
           try {
             const key = await unwrapKey(wrapPrivate, epochAad(grant.areaId, grant.epoch), fromBase64Url(grant.sealedBlob));
@@ -421,6 +469,28 @@ export function heldLinkKeys(): Promise<HeldKeys> {
             epochs.set(grant.epoch, key);
             areaKeys.set(grant.areaId, epochs);
           } catch { /* eine Zuteilung, die nicht aufgeht, nimmt den anderen nichts */ }
+        }
+
+        /*
+         * 0091 — DIE ROLLEN, DIE DER LINK GIBT: von der Linkrolle aus, so weit die
+         * Hüllen reichen. Jede wird eine Rolle dieses Browsers (`linkMe`), mit
+         * dem, was sie selbst darf.
+         */
+        if (link.bundle !== undefined) {
+          const walked = await walkBundle(new Map([[link.roleId, roleKey]]), link.bundle);
+          for (const [areaId, epochs] of walked.areaKeys) {
+            const had = areaKeys.get(areaId) ?? new Map<number, Uint8Array>();
+            for (const [epoch, key] of epochs) had.set(epoch, key);
+            areaKeys.set(areaId, had);
+          }
+          for (const [roleId, key] of walked.roleKeys) {
+            const held = link.bundle.roles.find((r) => r.roleId === roleId);
+            if (roleId === link.roleId || held?.wrapPrivateSealed == null || roles.some((r) => r.roleId === roleId)) continue;
+            roles.push({
+              token: mine.token, roleId, label: link.label, roleKey: key, wrapPrivateSealed: held.wrapPrivateSealed, via: link.roleId,
+              areas: (held.rights ?? []).map((r) => ({ areaId: r.areaId, name: names.get(r.areaId) ?? '', capability: r.capability }))
+            });
+          }
         }
       } catch { /* der Link passt nicht zu seinen Schlüsseln — dann nur, was der Dienst ohnehin zeigt */ }
     }

@@ -132,6 +132,8 @@ export function exportModule(module: {
   readonly moduleId: string; readonly kind: string; readonly name: string; readonly config: RawConfig;
   /** 0047/0077 — ein Formular, das ein anderes erweitert: wessen, wer es ausfüllt, wie oft. */
   readonly extendsId?: string | null; readonly audience?: string; readonly repeat?: string;
+  /** 0091 — die Rolle, die seine Menschen bekommen. */
+  readonly memberRole?: string | null;
 }, form?: FormContent): Record<string, unknown> {
   const def = partOf(module.kind);
   return {
@@ -142,7 +144,8 @@ export function exportModule(module: {
     name: module.name,
     ...(module.extendsId == null ? {} : { extends: module.extendsId, audience: module.audience ?? 'person', repeat: module.repeat ?? 'once' }),
     config: def === undefined ? { ...module.config } : def.json.toJson(module.config),
-    ...(form === undefined ? {} : { questions: form.questions, design: form.design })
+    ...(form === undefined ? {} : { questions: form.questions, design: form.design }),
+    ...(module.memberRole == null ? {} : { memberRole: module.memberRole })
   };
 }
 
@@ -852,7 +855,8 @@ Co robi import tutaj: zmienia TEN moduł — jego nazwę i treść — na wszyst
   "config" — treść, zależna od rodzaju (niżej)${form ? `
   "questions", "design" — pytania i układ formularza (niżej)
   "extends", "audience" — tylko w rozszerzeniu formularza: który formularz rozszerza i kto je wypełnia ("person" — osoba przez swój link, "office" — tylko koordynator). Tylko informacja — import ich nie zmienia
-  "repeat" — tylko w rozszerzeniu: jak często każda osoba z listy dostaje wpis — "once" (raz), "day", "week", "month", "year". Import zmienia to, dopóki rozszerzenie nie ma żadnego wpisu` : ''}
+  "repeat" — tylko w rozszerzeniu: jak często każda osoba z listy dostaje wpis — "once" (raz), "day", "week", "month", "year". Import zmienia to, dopóki rozszerzenie nie ma żadnego wpisu
+  "memberRole" — rola uczestników: identyfikator roli, którą dostaje każdy, kto wyśle formularz (dostęp do jej obszarów, stron, kalendarzy, rozmów); null — żadna. Import ustawia ją tylko, jeśli masz tę rolę; kto już do niej należy, zostaje. Obecne zgłoszenia przenosi się w module („Przenieś obecne zgłoszenia")` : ''}
 
 ${def === undefined ? `Rodzaj „${kind}” nie jest znany tej wersji — "config" przechodzi bez zmian.` : kindSection(def)}
 ${form ? `\n${FORM_SECTION()}\n` : ''}`;

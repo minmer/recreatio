@@ -66,11 +66,21 @@ public static class HeldLinks
         return held;
     }
 
-    /// <summary>Die Linkrollen zu den Beweisen in der Adresse — kurz, für die Leser von Seite und Kalender.</summary>
-    public static async Task<List<Guid>> RolesAsync(SqlConnection connection, string? links, CancellationToken ct)
+    /// <summary>
+    /// Die Rollen zu den Beweisen in der Adresse — kurz, für die Leser von
+    /// Seite und Kalender. 0091: die Linkrollen UND was sie halten — ein Link,
+    /// der eine Rolle gibt, gibt, was die Rolle darf.
+    /// </summary>
+    public static async Task<List<Guid>> RolesAsync(SqlConnection connection, string? links, CancellationToken ct) =>
+        (await RoleRowsAsync(connection, links, ct)).Select(r => r.Id).ToList();
+
+    /// <summary>Wie <see cref="RolesAsync"/>, mit der Art jeder Rolle — für den Rufer.</summary>
+    public static async Task<List<Workspace.RoleRow>> RoleRowsAsync(SqlConnection connection, string? links, CancellationToken ct)
     {
         var proofs = Proofs(links);
-        return proofs.Count == 0 ? [] : (await ValidAsync(connection, proofs, ct)).Select(h => h.RoleId).Distinct().ToList();
+        if (proofs.Count == 0) return [];
+        var held = (await ValidAsync(connection, proofs, ct)).Select(h => h.RoleId).Distinct().ToList();
+        return await Workspace.ClosureAsync(connection, held, ct);
     }
 
     /// <summary>Die Bereiche, deren Schlüssel die Linkrollen halten — das, was sie lesen.</summary>

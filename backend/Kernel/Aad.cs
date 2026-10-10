@@ -333,7 +333,15 @@ public enum Field
     /// der Kolęda) als EIN Dokument unter dem Schlüssel des Bereichs, dem das
     /// Adressverzeichnis gehört. Die Adresse selbst liegt offen daneben.
     /// </summary>
-    Household
+    Household,
+
+    /// <summary>
+    /// 0091 — der Schlüssel einer ROLLE, versiegelt unter dem Platzschlüssel: ein
+    /// Platz (Mensch ohne Konto) gehört über sein Formular zu der Rolle, und der
+    /// Browser eines Mitglieds gibt ihm ihren Schlüssel. Je Platz UND Rolle ein
+    /// Etikett — eine Hülle lässt sich nicht an einen anderen Platz hängen.
+    /// </summary>
+    SeatRoleKey
 }
 
 /// <summary>
@@ -498,6 +506,7 @@ public readonly record struct Aad
         Field.LibraryName             => "library_name",
         Field.LibraryEntry            => "library_entry",
         Field.Household               => "household",
+        Field.SeatRoleKey             => "seat_role_key",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

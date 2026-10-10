@@ -1251,8 +1251,43 @@ public static class Seat
             template,
 
             /* 0047 — was dieser Mensch noch tun muss: Erweiterungen, die er ausfüllt, und Schritte. */
-            forms = await Form.SeatFormsAsync(connection, seatId, ctx.RequestAborted)
+            forms = await Form.SeatFormsAsync(connection, seatId, ctx.RequestAborted),
+
+            /* 0091 — die Rollen, zu denen er gehört (die seines Formulars): ihr Schlüssel unter dem Platzschlüssel, und der Weg zu ihren Bereichen. */
+            roles = await SeatRolesAsync(connection, seatId, ctx.RequestAborted)
         });
+    }
+
+    /// <summary>
+    /// 0091 — WAS SEINE ROLLEN AUFSCHLIESSEN. Je Rolle, deren Schlüssel schon
+    /// unter dem Platzschlüssel liegt, die Hülle; dazu der Weg von dort zu
+    /// ihren Bereichen (<see cref="RoleBundle"/>). Wartet eine noch auf ihren
+    /// Schlüssel, steht sie mit <c>keySealed = null</c> da — der Platz gehört
+    /// schon dazu, nur lesen kann er noch nicht.
+    /// </summary>
+    internal static async Task<object> SeatRolesAsync(SqlConnection connection, Guid seatId, CancellationToken ct)
+    {
+        var held = new List<object>();
+        var opened = new List<Guid>();
+        await using (var cmd = new SqlCommand($"""
+            SELECT ar.role_id, ar.key_sealed FROM app.access_role ar
+            JOIN app.access s ON s.id = ar.access_id
+            JOIN app.role r ON r.id = ar.role_id AND r.revoked_at IS NULL
+            WHERE ar.access_id = @seat AND {Form.LiveMember};
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("@seat", seatId);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var role = reader.GetGuid(0);
+                var key = reader.IsDBNull(1) ? null : (byte[])reader[1];
+                if (key is not null) opened.Add(role);
+                held.Add(new { roleId = Ids.ToText(role), keySealed = key is null ? null : Base64Url.Encode(key) });
+            }
+        }
+
+        return new { held, bundle = opened.Count == 0 ? null : await RoleBundle.BuildAsync(connection, opened, ct) };
     }
 
     /// <summary>

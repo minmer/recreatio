@@ -30,11 +30,17 @@
  * <b>Gemeldet wird auch, wenn die Seite vorn ist</b> (0075) — nur nicht die
  * Rozmowa, die gerade offen ist. In der App als Meldung des Systems, im
  * Browser als Hinweis auf der Seite (`onToast`).
+ *
+ * <b>„Przejrzane" gilt für das KONTO</b> (0090), nicht für den Browser: die
+ * Marke liegt beim Dienst (`markSeen`, `markFormSeen`, `markLinksSeen`).
+ * Was ein Gerät als gesehen meldet, ist auf allen anderen auch nicht mehr neu
+ * — und was niemand gesehen hat, bleibt neu, statt nach drei Tagen zu
+ * verschwinden.
  */
 
 import { API, call, keepsKey, type Who } from './session';
 import { background, native, notices } from './platform';
-import { gatherNews, handOverWaiting, type ReminderNotice } from './notifyRich';
+import { gatherNews, handOverRoleWaiting, handOverWaiting, type ReminderNotice } from './notifyRich';
 import { viewPath } from './routes';
 import { toBase64Url } from './crypto';
 
@@ -53,11 +59,15 @@ export interface DigestForm {
   readonly name: string;
   readonly count: number;
   readonly lastAt: string;
+  /** 0090 — seit wann hier neu gilt (die Marke des Formulars, sonst die allgemeine). Fehlt beim alten Dienst. */
+  readonly since?: string;
 }
 
 export interface Digest {
   readonly now: string;
   readonly since: string;
+  /** 0090 — seit wann Links als neu gelten. Fehlt beim alten Dienst. */
+  readonly linksSince?: string;
   readonly total: number;
   readonly chats: {
     readonly unread: number; readonly loud: number; readonly list: readonly DigestChat[]; /** 0076 */ readonly newestAt?: string | null;
@@ -67,6 +77,8 @@ export interface Digest {
   readonly registrations: { readonly count: number; readonly list: readonly DigestForm[] };
   readonly links: number;
   readonly tasks: number;
+  /** 0091 — Formulare, deren Menschen auf den Schlüssel ihrer Rolle warten (fehlt beim alten Dienst). */
+  readonly roles?: { readonly waiting: readonly string[] };
   readonly nextPollSeconds: number;
 }
 
@@ -112,14 +124,29 @@ export function saveSettings(next: NotifySettings): void {
   emit();
 }
 
-/** Seit wann „neu" gilt — für Anmeldungen und Links; zuletzt, als die Glocke geöffnet wurde. */
-function seenSince(): string {
+/**
+ * Die Marke DIESES Browsers — nur noch für einen Dienst vor 0090, der keine
+ * eigene hält. Der neue nimmt sie höchstens als spätere Grenze; die Wahrheit
+ * ist seine Marke des Kontos. `null`: keine (dann fragt der Browser ohne).
+ */
+function localSeen(): string | null {
   try {
     const raw = localStorage.getItem(SEEN_SLOT);
     if (raw !== null && !Number.isNaN(Date.parse(raw))) return raw;
   } catch { /* nichts */ }
-  return new Date(Date.now() - 3 * 86400_000).toISOString();
+  return null;
 }
+
+/** Seit wann „neu" gilt — wie der Dienst es zuletzt sagte (0090), sonst die Marke hier, sonst drei Tage. */
+function seenSince(): string {
+  return store.digest?.since ?? localSeen() ?? new Date(Date.now() - 3 * 86400_000).toISOString();
+}
+
+/** Die Frage nach den Zahlen — mit der Marke dieses Browsers nur, wenn er eine hat. */
+export const digestPath = (): string => {
+  const local = localSeen();
+  return local === null ? '/workspace/notifications' : `/workspace/notifications?since=${encodeURIComponent(local)}`;
+};
 
 /* -- Wie lange bis zur nächsten Frage ------------------------------------------ */
 
@@ -203,7 +230,7 @@ function schedule(): void {
 export async function refresh(): Promise<void> {
   if (!running) return;
   try {
-    const digest = await call<Digest>(`/workspace/notifications?since=${encodeURIComponent(seenSince())}`);
+    const digest = await call<Digest>(digestPath());
     store.failures = 0;
     accept(digest, true);
   } catch {
@@ -222,7 +249,9 @@ function accept(digest: Digest, mine: boolean): void {
     handOverKeys(digest);
     ring(digest);
     void background.seen({
-      unread: digest.chats.loud, forms: digest.registrations.count, links: digest.links, since: seenSince(),
+      unread: digest.chats.loud, forms: digest.registrations.count, links: digest.links, since: digest.since,
+      /* 0090 — welche Formulare noch Neues haben: die Meldungen der übrigen nimmt das Telefon weg (auch, was anderswo gesehen wurde). */
+      formIds: digest.registrations.list.map((f) => f.moduleId),
       /* 0076 — welche Rozmowy noch Ungelesenes haben: die Meldungen der übrigen nimmt das Telefon weg. */
       chats: digest.chats.list.filter((c) => !c.quiet && c.unread > 0).map((c) => c.chatId)
     });
@@ -239,9 +268,14 @@ function accept(digest: Digest, mine: boolean): void {
 let handing = false;
 function handOverKeys(digest: Digest): void {
   const waiting = digest.chats.waiting ?? [];
-  if (waiting.length === 0 || richWho === null || handing) return;
+  const roles = digest.roles?.waiting ?? [];
+  if ((waiting.length === 0 && roles.length === 0) || richWho === null || handing) return;
   handing = true;
-  void handOverWaiting(richWho, waiting).catch(() => 0).finally(() => { handing = false; });
+  const who = richWho;
+  /* 0091 — und die Schlüssel der Rollen an die Menschen der Formulare, die darauf warten. */
+  void handOverWaiting(who, waiting).catch(() => 0)
+    .then(() => handOverRoleWaiting(who, roles).catch(() => 0))
+    .finally(() => { handing = false; });
 }
 
 /* -- Was klingelt ---------------------------------------------------------------- */
@@ -389,15 +423,67 @@ function ringPlain(digest: Digest, plan: Ringing): void {
 export const chatLabel = (c: DigestChat): string =>
   c.kind === 'seat' && c.seatName !== null ? `Rozmowa z: ${c.seatName}` : c.kind === 'channel' ? `Kanał: ${c.areaName}` : c.areaName;
 
-/** „Gesehen": was jetzt in der Glocke steht, gilt nicht mehr als neu. */
+/* -- Gesehen (0090: für das Konto) ---------------------------------------------------- */
+
+export type SeenKind = 'all' | 'form' | 'links';
+
+/** Die Marke beim Dienst setzen. `before`: die vorige — was danach kam, war für dieses Konto neu. */
+export const postSeen = (kind: SeenKind, subject: string | null = null, at: string | null = null): Promise<{ seenAt: string; before: string | null }> =>
+  call('/workspace/notifications/seen', { method: 'POST', body: JSON.stringify({ kind, subject, at }) });
+
+/** Die Zahlen hier gleich anpassen — der Dienst bestätigt beim nächsten Nachsehen. */
+function settle(change: (digest: Digest) => Digest): void {
+  if (store.digest === null) return;
+  store.digest = change(store.digest);
+  emit();
+  told = told === null ? null : toldOf(store.digest);
+  channel?.postMessage({ digest: store.digest });
+}
+
+const withForms = (digest: Digest, list: readonly DigestForm[]): Digest => {
+  const count = list.reduce((n, f) => n + f.count, 0);
+  return { ...digest, registrations: { count, list }, total: digest.chats.unread + count + digest.links };
+};
+
+/** Nach der Marke noch einmal nachsehen — aber nicht, wenn gerade niemand fragt (abgemeldet). */
+const recheck = () => { if (running) void refresh(); };
+
+/**
+ * „Gesehen": was jetzt in der Glocke steht, gilt nicht mehr als neu — für das
+ * KONTO, auf jedem Gerät (0090). Die Marke hier bleibt für einen Dienst, der
+ * noch keine eigene hält.
+ */
 export function markSeen(): void {
   const now = store.digest?.now ?? new Date().toISOString();
   try { localStorage.setItem(SEEN_SLOT, now); } catch { /* nichts */ }
-  if (store.digest !== null) {
-    store.digest = { ...store.digest, registrations: { count: 0, list: [] }, links: 0, total: store.digest.chats.unread };
-    emit();
+  settle((digest) => ({ ...withForms(digest, []), links: 0, total: digest.chats.unread }));
+  void postSeen('all', null, now).then(recheck, () => undefined);
+}
+
+/**
+ * Die Zgłoszenia EINES Formulars gesehen — die Kanzlei hat seine Liste
+ * geöffnet. Gibt zurück, seit wann für dieses Konto etwas neu war (`null`:
+ * weiss niemand): was danach kam, darf in der Liste „nowe" heissen.
+ */
+export async function markFormSeen(moduleId: string): Promise<string | null> {
+  const row = store.digest?.registrations.list.find((f) => f.moduleId === moduleId);
+  const fallback = row?.since ?? store.digest?.since ?? null;
+  settle((digest) => withForms(digest, digest.registrations.list.filter((f) => f.moduleId !== moduleId)));
+  try {
+    const { before } = await postSeen('form', moduleId);
+    recheck();
+    /* Die allgemeine Marke kann später liegen als die des Formulars — dann gilt sie. */
+    return before === null ? fallback : fallback !== null && Date.parse(fallback) > Date.parse(before) ? fallback : before;
+  } catch {
+    return fallback;
   }
-  if (told !== null) told = { ...told, forms: 0, links: 0 };
+}
+
+/** Wer über Links hereinkam: gesehen (die Liste der Links ist offen). */
+export function markLinksSeen(): void {
+  if ((store.digest?.links ?? 0) === 0) return;
+  settle((digest) => ({ ...digest, links: 0, total: digest.chats.unread + digest.registrations.count }));
+  void postSeen('links').then(recheck, () => undefined);
 }
 
 /**

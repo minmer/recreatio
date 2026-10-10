@@ -118,6 +118,9 @@ public static partial class Roles
 
         /* 0065 — Links mit Zugang zu Bereichen (Roles.Invites.cs). */
         MapInvites(app);
+
+        /* 0091 — welche Rolle wozu Zugang gibt (Roles.Reach.cs): zum Wählen für Links und Formulare. */
+        app.MapGet("/workspace/roles/reach", ReachAsync);
     }
 
     /* -- Was hereinkommt ---------------------------------------------------- */

@@ -1118,8 +1118,12 @@ public static partial class Calendar
          */
         if (seatId is not null)
         {
-            await using var granted = new SqlCommand(
-                "SELECT area_id FROM app.access_grant WHERE access_id = @seat;", connection);
+            /* 0091 — und die Bereiche der Rolle seines Formulars. */
+            await using var granted = new SqlCommand("""
+                SELECT area_id FROM app.access_grant WHERE access_id = @seat
+                UNION
+                SELECT area_id FROM app.access_role_area WHERE access_id = @seat;
+                """, connection);
 
             granted.Parameters.AddWithValue("@seat", seatId.Value);
 

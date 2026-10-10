@@ -90,12 +90,18 @@ public static class Audience
     public static string PeopleOf(string kind, string subjectId, string areaId, string seat = "s")
     {
         if (!Subjects.ContainsKey(kind)) throw new ArgumentException($"No audience for {kind}.", nameof(kind));
+        /*
+         * 0091 — UND WER ÜBER EINE ROLLE DAZUGEHÖRT: ein Platz, dessen Rolle
+         * (die seines Formulars) im Bereich liest. Die Rolle sagt, wozu sie
+         * Zugang gibt; der Platz muss nicht mehr einzeln aufgezählt werden.
+         */
         return $"""
             ({seat}.area_id = {areaId} OR EXISTS (
                 SELECT 1 FROM app.audience_form af
                 JOIN app.registration ar ON ar.part_id = af.module_id
                 WHERE af.subject_kind = N'{kind}' AND af.subject_id = {subjectId} AND ar.access_id = {seat}.id
-                  AND ar.withdrawn_at IS NULL AND ar.is_hidden = 0))
+                  AND ar.withdrawn_at IS NULL AND ar.is_hidden = 0)
+             OR EXISTS (SELECT 1 FROM app.access_role_area rx WHERE rx.access_id = {seat}.id AND rx.area_id = {areaId}))
             """;
     }
 
@@ -116,6 +122,9 @@ public static class Audience
                 UNION
                 SELECT f.area_id FROM app.registration g JOIN app.slug_field f ON f.part_id = g.part_id
                  WHERE g.access_id = @seat AND g.withdrawn_at IS NULL
+                UNION
+                /* 0091 — die Bereiche seiner Rolle. */
+                SELECT rx.area_id FROM app.access_role_area rx WHERE rx.access_id = @seat
             ),
             up AS (
                 SELECT id FROM near

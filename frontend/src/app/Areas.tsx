@@ -304,7 +304,7 @@ export function Areas({ who, trail }: { who: Who; trail: readonly string[] }) {
         <details className="wk-links-all">
           <summary className="wk-h2">Linki dostępu</summary>
           <p className="wk-hint">
-            Link z dostępem do jednego albo kilku obszarów. Kto go otworzy i się zaloguje, dołącza do nich ze swojego konta.
+            Link, który daje rolę — a rola daje dostęp do swoich obszarów. Kto go otworzy, ma ten dostęp od razu w tej przeglądarce; kto doda go do konta, ma go wszędzie.
           </p>
           <AccessLinks ring={ring} self={person} areas={areas} busy={busy !== null} onAct={act} />
         </details>

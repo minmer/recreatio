@@ -31,6 +31,9 @@ public static class Notify
     public static void Map(WebApplication app)
     {
         app.MapGet("/workspace/notifications", DigestAsync);
+
+        /* 0090 — „przejrzane" je Konto: alles, ein Formular, die Links. */
+        app.MapPost("/workspace/notifications/seen", SeenAsync);
         app.MapGet("/workspace/notify-devices", DevicesAsync);
         app.MapPost("/workspace/notify-devices", RegisterAsync);
         app.MapDelete("/workspace/notify-devices/{id:guid}", RevokeAsync);
@@ -45,6 +48,15 @@ public static class Notify
     public sealed record DeviceRequest(string Token, string? Label, string? Platform);
 
     public sealed record PushTokenRequest(string? PushToken);
+
+    /// <summary>0090 — was gesehen ist: <c>all</c>, <c>form</c> (mit <c>subject</c>) oder <c>links</c>; bis <c>at</c> (ohne: jetzt).</summary>
+    public sealed record SeenRequest(string? Kind, string? Subject, string? At);
+
+    /// <summary>Weiter zurück als so viele Tage gilt nichts mehr als neu.</summary>
+    private const int MaxNewDays = 60;
+
+    /// <summary>So viel war vor 0090 neu — die erste Marke eines Kontos steht so weit zurück.</summary>
+    private const int FirstNewDays = 3;
 
     /// <summary>Das Gerät nach seinem Kennzeichen (<c>X-Notify-Token</c>) — <c>null</c>: unbekannt oder zurückgezogen.</summary>
     private static async Task<Guid?> DeviceOfAsync(HttpContext ctx, SqlConnection connection)
@@ -94,7 +106,108 @@ public static class Notify
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
-        await ctx.Response.WriteAsJsonAsync(await BuildAsync(connection, who.Value.AccountId, Since(since), ctx.RequestAborted));
+        await ctx.Response.WriteAsJsonAsync(await BuildAsync(connection, who.Value.AccountId, Asked(since), ctx.RequestAborted));
+    }
+
+    /// <summary>
+    /// 0090 — GESEHEN, FÜR DAS KONTO. Die Marke wandert nur vorwärts: ein
+    /// Gerät, das spät mit einer alten Zeit kommt, macht nichts wieder neu.
+    /// „Alles" räumt die engeren Marken weg, die es jetzt einschliesst.
+    /// </summary>
+    private static async Task SeenAsync(HttpContext ctx, Db db, SeenRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var kind = body.Kind ?? "all";
+        if (kind is not ("all" or "form" or "links"))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Rodzaj: all, form albo links.");
+            return;
+        }
+
+        var subject = Guid.Empty;
+        if (kind == "form" && !Guid.TryParse(body.Subject, out subject))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Którego formularza?");
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var at = Asked(body.At) ?? now;
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        if (kind == "form")
+        {
+            await using var known = new SqlCommand("SELECT COUNT(*) FROM app.module WHERE id = @id;", connection);
+            known.Parameters.AddWithValue("@id", subject);
+            if ((int)(await known.ExecuteScalarAsync(ctx.RequestAborted))! == 0)
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Takiego formularza nie ma.");
+                return;
+            }
+        }
+
+        var before = await MarkAsync(connection, who.Value.AccountId, kind, subject, at, ctx.RequestAborted);
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            kind,
+            subjectId = kind == "form" ? Ids.ToText(subject) : null,
+            seenAt = before is { } b && b > at ? b : at,
+            before
+        });
+    }
+
+    /// <summary>Eine Marke setzen (nie zurück) — gibt die vorige zurück, <c>null</c>: es gab keine.</summary>
+    internal static async Task<DateTimeOffset?> MarkAsync(SqlConnection connection, Guid account, string kind, Guid subject, DateTimeOffset at, CancellationToken ct)
+    {
+        DateTimeOffset? before = null;
+        await using (var cmd = new SqlCommand("""
+            DECLARE @before datetimeoffset(7) = (SELECT seen_at FROM app.notify_seen WITH (UPDLOCK, HOLDLOCK)
+                                                  WHERE account_id = @account AND kind = @kind AND subject_id = @subject);
+            IF @before IS NULL
+                INSERT INTO app.notify_seen (account_id, kind, subject_id, seen_at) VALUES (@account, @kind, @subject, @at);
+            ELSE IF @before < @at
+                UPDATE app.notify_seen SET seen_at = @at WHERE account_id = @account AND kind = @kind AND subject_id = @subject;
+            IF @kind = N'all'
+                DELETE FROM app.notify_seen WHERE account_id = @account AND kind <> N'all' AND seen_at <= @at;
+            SELECT @before;
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("@account", account);
+            cmd.Parameters.Add("@kind", System.Data.SqlDbType.NVarChar, 8).Value = kind;
+            cmd.Parameters.AddWithValue("@subject", subject);
+            cmd.Parameters.AddWithValue("@at", at);
+            if (await cmd.ExecuteScalarAsync(ct) is DateTimeOffset found) before = found;
+        }
+        return before;
+    }
+
+    /// <summary>
+    /// Die Marken eines Kontos: „alles" (fehlt sie, steht sie ab jetzt drei Tage
+    /// zurück), die Links, je Formular.
+    /// </summary>
+    internal static async Task<(DateTimeOffset All, DateTimeOffset? Links)> MarksAsync(SqlConnection connection, Guid account, DateTimeOffset now, CancellationToken ct)
+    {
+        DateTimeOffset? all = null, links = null;
+        await using (var cmd = new SqlCommand(
+            "SELECT kind, seen_at FROM app.notify_seen WHERE account_id = @account AND kind IN (N'all', N'links');", connection))
+        {
+            cmd.Parameters.AddWithValue("@account", account);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                if (reader.GetString(0) == "all") all = reader.GetDateTimeOffset(1); else links = reader.GetDateTimeOffset(1);
+            }
+        }
+
+        if (all is null)
+        {
+            all = now.AddDays(-FirstNewDays);
+            await MarkAsync(connection, account, "all", Guid.Empty, all.Value, ct);
+        }
+        return (all.Value, links);
     }
 
     private static async Task DeviceDigestAsync(HttpContext ctx, Db db, string? since)
@@ -124,26 +237,42 @@ public static class Notify
             account = found;
         }
 
-        await ctx.Response.WriteAsJsonAsync(await BuildAsync(connection, account, Since(since), ctx.RequestAborted, countsOnly: true));
+        await ctx.Response.WriteAsJsonAsync(await BuildAsync(connection, account, Asked(since), ctx.RequestAborted, countsOnly: true));
     }
 
-    /// <summary>Ohne Angabe: die letzten drei Tage. Weiter zurück als 60 Tage fragt niemand sinnvoll.</summary>
-    private static DateTimeOffset Since(string? text)
+    /// <summary>
+    /// Eine Zeit vom Gerät — <c>null</c>: keine (oder unlesbar). Weiter zurück
+    /// als 60 Tage fragt niemand sinnvoll, in der Zukunft liegt nichts.
+    /// </summary>
+    private static DateTimeOffset? Asked(string? text)
     {
         var now = DateTimeOffset.UtcNow;
         if (!DateTimeOffset.TryParse(text, System.Globalization.CultureInfo.InvariantCulture,
-                System.Globalization.DateTimeStyles.RoundtripKind, out var since)) return now.AddDays(-3);
-        return since < now.AddDays(-60) ? now.AddDays(-60) : since > now ? now : since;
+                System.Globalization.DateTimeStyles.RoundtripKind, out var at)) return null;
+        return at < now.AddDays(-MaxNewDays) ? now.AddDays(-MaxNewDays) : at > now ? now : at;
     }
+
+    /// <summary>Die spätere von zwei Zeiten — <c>null</c> zählt nicht.</summary>
+    private static DateTimeOffset Later(DateTimeOffset one, DateTimeOffset? other) => other is { } o && o > one ? o : one;
 
     /// <summary>
     /// Die Zahlen eines Kontos. <paramref name="countsOnly"/>: für das Gerät —
     /// ohne Namen von Bereichen und Formularen (die Benachrichtigung auf dem
     /// Sperrbildschirm sagt „3 nowe wiadomości", nicht wo).
+    ///
+    /// <para>
+    /// 0090 — NEU IST, WAS DAS KONTO NOCH NICHT GESEHEN HAT. Die Marken liegen
+    /// beim Dienst (<see cref="MarksAsync"/>); <paramref name="asked"/> (ein
+    /// Gerät mit eigener, älterer Marke im Speicher) kann nur weiter nach vorn
+    /// rücken, nie etwas wieder neu machen.
+    /// </para>
     /// </summary>
-    internal static async Task<object> BuildAsync(SqlConnection connection, Guid account, DateTimeOffset since, CancellationToken ct, bool countsOnly = false)
+    internal static async Task<object> BuildAsync(SqlConnection connection, Guid account, DateTimeOffset? asked, CancellationToken ct, bool countsOnly = false)
     {
         var now = DateTimeOffset.UtcNow;
+        var marks = await MarksAsync(connection, account, now, ct);
+        var since = Later(Later(now.AddDays(-MaxNewDays), marks.All), asked);
+        var linksSince = Later(since, marks.Links);
         var mine = (await Workspace.RolesOfAsync(connection, account, ct)).Select(r => r.Id).ToList();
 
         /* -- Rozmowy: ungelesen, was nicht von mir kommt (wie die Liste der Rozmowy). */
@@ -219,17 +348,45 @@ public static class Notify
             while (await reader.ReadAsync(ct)) waiting.Add(reader.GetGuid(0));
         }
 
-        /* -- Anmeldungen: neu seit `since`, in Formularen, deren Bereich ich lesen kann. */
+        /*
+         * -- 0091: WER AUF DEN SCHLÜSSEL SEINER ROLLE WARTET. Formulare, deren Rolle ich
+         * halte und deren Menschen ich öffnen kann (die Kanzlei): dort hat jemand
+         * eingesandt und gehört schon dazu, aber den Schlüssel der Rolle hat er noch
+         * nicht. Der Browser gibt ihn weiter, sobald er das hier liest (`memberRole.ts`).
+         */
+        var rolesWaiting = new List<Guid>();
+        if (!countsOnly && mine.Count > 0)
+        {
+            var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
+            await using var cmd = new SqlCommand($"""
+                SELECT DISTINCT TOP 20 ar.module_id FROM app.access_role ar
+                JOIN app.access s ON s.id = ar.access_id
+                JOIN app.module m ON m.id = ar.module_id AND m.member_role_id = ar.role_id
+                WHERE ar.key_sealed IS NULL AND ar.role_id IN ({names})
+                  AND {Form.LiveMember} AND {Form.OpensSeat(names)};
+                """, connection);
+            cmd.Parameters.AddWithValue("@now", now);
+            for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i]);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) rolesWaiting.Add(reader.GetGuid(0));
+        }
+
+        /*
+         * -- Anmeldungen: neu seit `since`, in Formularen, deren Bereich ich lesen kann —
+         *    und, 0090, nach der Marke des Formulars (die Kanzlei hat die Liste geöffnet).
+         */
         var held = await Agenda.HeldAreasAsync(connection, account, ct);
-        var forms = new List<(Guid Id, string Name, int Count, DateTimeOffset Last)>();
+        var forms = new List<(Guid Id, string Name, int Count, DateTimeOffset Last, DateTimeOffset Since)>();
         if (held.Count > 0)
         {
             var names = string.Join(", ", held.Select((_, i) => $"@h{i}"));
             await using var cmd = new SqlCommand($"""
-                SELECT m.id, m.name, COUNT(*), MAX(r.submitted_at)
+                SELECT m.id, m.name, COUNT(*), MAX(r.submitted_at), MAX(s.seen_at)
                 FROM app.registration r
                 JOIN app.module m ON m.id = r.part_id
-                WHERE r.submitted_at > @since AND r.is_hidden = 0 AND r.withdrawn_at IS NULL
+                LEFT JOIN app.notify_seen s ON s.account_id = @account AND s.kind = N'form' AND s.subject_id = m.id
+                WHERE r.submitted_at > @since AND (s.seen_at IS NULL OR r.submitted_at > s.seen_at)
+                  AND r.is_hidden = 0 AND r.withdrawn_at IS NULL
                   /*
                    * 0077 — nur, was ein MENSCH eingesandt hat. Was die Kanzlei
                    * selbst eintraegt (jemanden auf die Liste, eine Erweiterung
@@ -244,13 +401,17 @@ public static class Notify
                 ORDER BY MAX(r.submitted_at) DESC;
                 """, connection);
             cmd.Parameters.AddWithValue("@since", since);
+            cmd.Parameters.AddWithValue("@account", account);
             for (var i = 0; i < held.Count; i++) cmd.Parameters.AddWithValue($"@h{i}", held[i]);
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
-                forms.Add((reader.GetGuid(0), reader.GetString(1), reader.GetInt32(2), reader.GetDateTimeOffset(3)));
+            {
+                forms.Add((reader.GetGuid(0), reader.GetString(1), reader.GetInt32(2), reader.GetDateTimeOffset(3),
+                    Later(since, reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4))));
+            }
         }
 
-        /* -- Links mit Zugang (0065): wer seit `since` über einen meiner Links hereinkam. */
+        /* -- Links mit Zugang (0065): wer seit `linksSince` über einen meiner Links hereinkam. */
         var links = 0;
         if (mine.Count > 0)
         {
@@ -260,7 +421,7 @@ public static class Notify
                 JOIN app.invitation i ON i.id = x.invitation_id
                 WHERE x.redeemed_at > @since AND i.purpose = N'area-link' AND i.created_by_role_id IN ({names});
                 """, connection);
-            cmd.Parameters.AddWithValue("@since", since);
+            cmd.Parameters.AddWithValue("@since", linksSince);
             for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i]);
             links = (int)(await cmd.ExecuteScalarAsync(ct))!;
         }
@@ -274,6 +435,9 @@ public static class Notify
         {
             now,
             since,
+
+            /* 0090 — seit wann Links als neu gelten (die Marke der Links kann später liegen). */
+            linksSince,
             total = unreadTotal + formsTotal + links,
             chats = new
             {
@@ -311,11 +475,17 @@ public static class Notify
                     moduleId = Ids.ToText(f.Id),
                     name = f.Name,
                     count = f.Count,
-                    lastAt = f.Last
+                    lastAt = f.Last,
+
+                    /* 0090 — seit wann hier neu gilt: die Marke des Formulars, sonst die allgemeine. */
+                    since = f.Since
                 }).ToList()
             },
             links,
             tasks,
+
+            /* 0091 — Formulare, deren Menschen auf den Schlüssel ihrer Rolle warten: die App gibt ihn weiter. */
+            roles = new { waiting = rolesWaiting.Select(Ids.ToText).ToList() },
 
             /* Ein Rat, kein Befehl: ist etwas offen, lohnt eine Minute; sonst reichen zwei. */
             nextPollSeconds = unreadTotal + formsTotal > 0 ? 60 : 120

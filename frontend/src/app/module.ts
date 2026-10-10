@@ -113,6 +113,9 @@ export interface ModuleRow {
 
   /** 0081 — die Formulare, deren Menschen an diesen Baustein schreiben dürfen („Napisz do nas"). */
   readonly formIds?: readonly string[];
+
+  /** 0091 — die Rolle, die jeder bekommt, der dieses Formular einsendet (`null`: keine; fehlt beim alten Dienst). */
+  readonly memberRoleId?: string | null;
 }
 
 /**

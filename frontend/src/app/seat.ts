@@ -239,7 +239,7 @@ export async function setNotes(
  * alte Epoche, ein fehlender Annahmeschlüssel — darf die Liste nicht leeren.
  */
 export async function officeSeatKey(
-  row: SeatRow, areaKey: Uint8Array, intakePrivate?: Uint8Array
+  row: Pick<SeatRow, 'seatId' | 'origin' | 'seatKeyForIntake' | 'seatKeyForArea'>, areaKey: Uint8Array, intakePrivate?: Uint8Array
 ): Promise<Uint8Array | null> {
   const label = seatAad(row.seatId);
 
@@ -347,6 +347,13 @@ export interface Portal {
 
   /** Was dieser Mensch noch tun muss (0047): Ergänzungen, die er ausfüllt, und Schritte. */
   readonly forms: readonly SeatFormSealed[];
+
+  /**
+   * 0091 — die Rollen, zu denen dieser Mensch gehört (die seines Formulars):
+   * ihr Schlüssel unter dem Platzschlüssel (`null`: wartet noch) und der Weg
+   * zu ihren Bereichen. Fehlt beim alten Dienst.
+   */
+  readonly roles?: import('./memberRole').SeatRoles;
 
   /**
    * Die VORLAGE, aus der sich dieses Portal zeichnet (0028) — oder `null`.

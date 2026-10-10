@@ -154,16 +154,23 @@ public static partial class Roles
         await ctx.Response.WriteAsJsonAsync(new { invitationId = Ids.ToText(id) });
     }
 
-    /// <summary>Die Bereiche, zu denen eine Linkrolle Zugang hat — mit Namen (sie liegen im Klartext).</summary>
-    private static async Task<List<object>> AreasOfRoleAsync(SqlConnection connection, Guid roleId, CancellationToken ct)
+    /// <summary>
+    /// Die Bereiche, zu denen eine Rolle Zugang hat — mit Namen (sie liegen im
+    /// Klartext). 0091: auch über die Rollen, die sie hält — ein Link, der
+    /// „Rada parafialna" gibt, gibt deren Bereiche.
+    /// </summary>
+    internal static async Task<List<object>> AreasOfRoleAsync(SqlConnection connection, Guid roleId, CancellationToken ct)
     {
-        await using var cmd = new SqlCommand("""
+        var reach = (await Workspace.ClosureAsync(connection, [roleId], ct)).Select(r => r.Id).ToList();
+        if (reach.Count == 0) return [];
+        var names = string.Join(", ", reach.Select((_, i) => $"@r{i}"));
+        await using var cmd = new SqlCommand($"""
             SELECT a.id, a.name, c.capability
             FROM app.certificate c JOIN app.area a ON a.id = c.scope_id
-            WHERE c.scope_kind = N'area' AND c.subject_role_id = @role AND c.revoked_at IS NULL AND c.expires_at > @now
+            WHERE c.scope_kind = N'area' AND c.subject_role_id IN ({names}) AND c.revoked_at IS NULL AND c.expires_at > @now
             ORDER BY a.name;
             """, connection);
-        cmd.Parameters.AddWithValue("@role", roleId);
+        for (var i = 0; i < reach.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", reach[i]);
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
         var areas = new Dictionary<Guid, (string Name, string Capability)>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -177,6 +184,21 @@ public static partial class Roles
         return areas.Select(a => (object)new { areaId = Ids.ToText(a.Key), name = a.Value.Name, capability = a.Value.Capability }).ToList();
 
         static int Rank(string c) => c switch { "admin" => 3, "write" => 2, "read" => 1, _ => 0 };
+    }
+
+    /// <summary>0091 — die Rollen, die eine (Link-)Rolle unmittelbar hält: das, was der Link gibt.</summary>
+    internal static async Task<List<string>> HeldRoleIdsAsync(SqlConnection connection, Guid roleId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("""
+            SELECT e.to_role_id FROM app.role_edge e JOIN app.role r ON r.id = e.to_role_id AND r.revoked_at IS NULL
+            WHERE e.from_role_id = @role AND e.revoked_at IS NULL AND e.edge_kind = N'holds'
+            ORDER BY e.created_at;
+            """, connection);
+        cmd.Parameters.AddWithValue("@role", roleId);
+        var held = new List<string>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) held.Add(Ids.ToText(reader.GetGuid(0)));
+        return held;
     }
 
     private static async Task ListInvitesAsync(HttpContext ctx, Db db)
@@ -242,6 +264,9 @@ public static partial class Roles
                 tokenSealed = row.TokenSealed is null ? null : Base64Url.Encode(row.TokenSealed),
                 aim = row.Aim,
                 areas = await AreasOfRoleAsync(connection, row.Role, ctx.RequestAborted),
+
+                /* 0091 — die Rollen, die der Link gibt (ihre Namen öffnet der Browser). Leer: ein Link der alten Art, direkt zu Bereichen. */
+                roles = await HeldRoleIdsAsync(connection, row.Role, ctx.RequestAborted),
                 redeemed
             });
         }
@@ -298,7 +323,8 @@ public static partial class Roles
             expiresAt = r.Expires,
             sealedRoleKey = Base64Url.Encode(r.Sealed),
             aim = r.Aim,
-            areas = await AreasOfRoleAsync(connection, r.Role, ctx.RequestAborted)
+            areas = await AreasOfRoleAsync(connection, r.Role, ctx.RequestAborted),
+            roles = await HeldRoleIdsAsync(connection, r.Role, ctx.RequestAborted)
         });
     }
 
@@ -396,7 +422,14 @@ public static partial class Roles
                 sealedRoleKey = Base64Url.Encode(sealedKey!),
                 wrapPrivateSealed = wrapPrivate is null ? null : Base64Url.Encode(wrapPrivate),
                 areas = await AreasOfRoleAsync(connection, link.RoleId, ctx.RequestAborted),
-                grants
+                grants,
+
+                /*
+                 * 0091 — DER WEG ZU DEN ROLLEN, DIE DER LINK GIBT: ihre Hüllen, wer sie
+                 * hält, ihre Epochen. Aufzumachen mit dem Schlüssel der Linkrolle,
+                 * also nur mit T.
+                 */
+                bundle = await RoleBundle.BuildAsync(connection, [link.RoleId], ctx.RequestAborted)
             });
         }
 

@@ -162,7 +162,7 @@ export async function createRoleWithKeys(
   ring: Ring,
   holder: SealedRole,
   options: { kind: NewKind; name: string }
-): Promise<{ id: string; roleKey: Uint8Array; signKey: Uint8Array; wrapPublicKey: string }> {
+): Promise<{ id: string; roleKey: Uint8Array; signKey: Uint8Array; wrapPublicKey: string; role: SealedRole }> {
   const id = newId();
   const pair = await newRolePair();
   const roleKey = crypto.getRandomValues(new Uint8Array(KEY_SIZE));
@@ -215,7 +215,20 @@ export async function createRoleWithKeys(
     })
   });
 
-  return { id, roleKey, signKey, wrapPublicKey: toBase64Url(pair.wrapPublicKey) };
+  /*
+   * 0091 — die Rolle, wie der Bund sie kennt: wer gleich danach in ihrem Namen
+   * unterschreibt (ein Link, der eine Rolle HÄLT), braucht sie, bevor der
+   * Graph neu geladen ist (`Ring.withRole`).
+   */
+  const role: SealedRole = {
+    id, kind: options.kind, isPersonal: false, createdAt: new Date().toISOString(),
+    displayNameSealed: toBase64Url(displayNameSealed),
+    wrapPublicKey: toBase64Url(pair.wrapPublicKey), signPublicKey: toBase64Url(pair.signPublicKey),
+    wrapPrivateSealed: toBase64Url(wrapPrivateSealed), signPrivateSealed: toBase64Url(signPrivateSealed),
+    keyLayout: 1
+  };
+
+  return { id, roleKey, signKey, wrapPublicKey: toBase64Url(pair.wrapPublicKey), role };
 }
 
 /**
@@ -236,7 +249,14 @@ export async function createRoleWithKeys(
  * das, statt eine Schranke zu behaupten.
  */
 export async function addHolder(
-  ring: Ring, roleId: string, holder: SealedRole, edgeKind: EdgeKind = 'holds'
+  ring: Ring, roleId: string, holder: SealedRole, edgeKind: EdgeKind = 'holds',
+
+  /**
+   * 0091 — führt der neue Halter die Rolle (bekommt er den Signierschlüssel)?
+   * `false`: er gehört nur dazu — so gibt ein Link „Członek" eine Rolle, ohne
+   * dass wer ihn einlöst in ihrem Namen aufnehmen könnte.
+   */
+  lead = true
 ): Promise<{ id: string }> {
   const grantSealedBlob = await wrapKey(
     fromBase64Url(holder.wrapPublicKey),
@@ -256,7 +276,7 @@ export async function addHolder(
    * `null` heisst: die Rolle ist noch in der alten Form, in der ein Schlüssel
    * beides öffnete. Dann gibt es nichts gesondert weiterzugeben.
    */
-  const mine = edgeKind === 'holds' ? ring.signKeyOf(roleId) : null;
+  const mine = edgeKind === 'holds' && lead ? ring.signKeyOf(roleId) : null;
 
   const signGrantSealedBlob = mine === null ? undefined : toBase64Url(await wrapKey(
     fromBase64Url(holder.wrapPublicKey),

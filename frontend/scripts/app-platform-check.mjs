@@ -16,6 +16,7 @@
  *  13. Zwei Seiten (0082): die Liste und der eine Mensch — dieselbe Reihenfolge, derselbe Filter, über die Adresse.
  *  14. Zgody (0083): PESEL, das Alter in der Logik, eine Zustimmung mit ihrem Wortlaut, Papier, das Blatt, die Wzory.
  *  15. Slajdy (0084): wie sie sich ablösen, wie der Inhalt erscheint, Farben, die mitgehen, und die Bühne.
+ *  18. Przejrzane je Konto (0090) und Zugang über eine Rolle (0091): der Weg von einer Rolle zu ihren Bereichen.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -71,6 +72,11 @@ export { slideInAddress, anchorInAddress, slideByAnchor, addressWithSlide } from
 export { ownAddress, atProblem } from '${app}Portal';
 export { entering, deckAt, pinnedPosition, motionOf, enterStyle, frameAt, mixColor, colorsAt, colorsOf, calmer } from '${app}slideMotion';
 export { readSlideValue, slideJson, remapStage } from '${app}slides';
+export { digestPath } from '${app}notify';
+export { walkBundle, mergeAreaKeys, rememberSeatAreaKeys, seatAreaKey } from '${app}roleBundle';
+export { reachWords, draftProblem } from '${app}commonRole';
+export { seatRoleAad, openSeatRoles } from '${app}memberRole';
+export { aadText, open, fromBase64Url } from '${app}crypto';
 `);
 await build({
   entryPoints: [entry],
@@ -1163,6 +1169,73 @@ try {
     const lastWeek = m.taskMarks([task('fri', { occurrences: [occ(new Date(2026, 9, 2, 9, 0))] })], now, { from: new Date(2026, 8, 28), to: new Date(2026, 9, 5) });
     assert.deepEqual(m.marksOn(lastWeek, new Date(2026, 9, 2)).map((x) => x.task.taskId), ['fri'], 'browsing back: on its own day');
     ok('tasks (0088): what is neither done nor skipped stays in view on today — however long ago; done and skipped stay on their day');
+  }
+
+  /* -- 18. Przejrzane je Konto (0090), Zugang über eine Rolle (0091) ---------------------------------- */
+  {
+    /* 0090 — ohne eigene Marke fragt der Browser ohne `since`: neu ist, was das KONTO nicht gesehen hat. */
+    const hadStorage = globalThis.localStorage;
+    const slots = new Map();
+    globalThis.localStorage = { getItem: (k) => slots.get(k) ?? null, setItem: (k, v) => slots.set(k, String(v)), removeItem: (k) => slots.delete(k) };
+    assert.equal(m.digestPath(), '/workspace/notifications', 'no mark in this browser: the account decides');
+    localStorage.setItem('recreatio:notify:seen', '2026-10-01T10:00:00.000Z');
+    assert.equal(m.digestPath(), '/workspace/notifications?since=2026-10-01T10%3A00%3A00.000Z', 'an old browser mark only narrows (for a service before 0090)');
+    globalThis.localStorage = hadStorage;
+
+    /*
+     * 0091 — der Weg: Linkrolle L hält Rolle T, T hält U; T hat Rada (Epoche 1, 2), U hat Oaza.
+     * Von L aus geht alles auf; von T aus nur T und U; eine kaputte Hülle nimmt den anderen nichts.
+     */
+    const pairOf = async () => {
+      const pair = await crypto.subtle.generateKey({ name: 'RSA-OAEP', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['encrypt', 'decrypt']);
+      return { spki: new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey)), pkcs8: new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey)) };
+    };
+    const [L, T, U] = [await pairOf(), await pairOf(), await pairOf()];
+    const key = (n) => new Uint8Array(32).fill(n);
+    const roleKeys = { L: key(1), T: key(2), U: key(3) };
+    const wrapSealed = async (id, pair) => m.toBase64Url(await m.seal(roleKeys[id], m.aad('kernel', 'role', id, m.Field.RoleWrapPrivate, 1), pair.pkcs8));
+    const grantFor = async (holder, id) => ({ holderRoleId: holder, roleId: id, sealedBlob: m.toBase64Url(await m.wrapKey({ L, T, U }[holder].spki, m.aad('kernel', 'role_grant', id, m.Field.RoleWrapPrivate, 1), roleKeys[id])) });
+    const epochFor = async (holder, areaId, epoch, k) => ({ roleId: holder, areaId, epoch, sealedBlob: m.toBase64Url(await m.wrapKey({ L, T, U }[holder].spki, m.epochAad(areaId, epoch), k)) });
+    const bundle = {
+      roles: [
+        { roleId: 'L', kind: 'role', wrapPrivateSealed: await wrapSealed('L', L), rights: [] },
+        { roleId: 'T', kind: 'group', wrapPrivateSealed: await wrapSealed('T', T), rights: [{ areaId: 'rada', capability: 'write' }] },
+        { roleId: 'U', kind: 'group', wrapPrivateSealed: await wrapSealed('U', U), rights: [{ areaId: 'oaza', capability: 'read' }] }
+      ],
+      roleGrants: [await grantFor('L', 'T'), await grantFor('T', 'U'), { holderRoleId: 'L', roleId: 'X', sealedBlob: 'AAAA' }],
+      epochGrants: [await epochFor('T', 'rada', 1, key(11)), await epochFor('T', 'rada', 2, key(12)), await epochFor('U', 'oaza', 1, key(21)),
+        { roleId: 'T', areaId: 'zle', epoch: 1, sealedBlob: 'AAAA' }],
+      areas: [{ areaId: 'rada', name: 'Rada', calendars: [] }, { areaId: 'oaza', name: 'Oaza', calendars: [] }]
+    };
+    const fromLink = await m.walkBundle(new Map([['L', roleKeys.L]]), bundle);
+    assert.deepEqual([...fromLink.roleKeys.keys()].sort(), ['L', 'T', 'U'], 'from the link role: the role it holds, and what that holds');
+    assert.deepEqual(fromLink.areaKeys.get('rada')?.get(2), key(12), 'every epoch of the role');
+    assert.deepEqual(fromLink.areaKeys.get('oaza')?.get(1), key(21), 'and the areas of the role it holds');
+    assert.ok(!fromLink.areaKeys.has('zle'), 'a broken envelope is skipped, the others stay');
+    const fromRole = await m.walkBundle(new Map([['T', roleKeys.T]]), bundle);
+    assert.ok(!fromRole.roleKeys.has('L') && fromRole.roleKeys.has('U'), 'from a role: only downwards — never up to who holds it');
+    assert.equal((await m.walkBundle(new Map([['T', key(99)]]), bundle)).areaKeys.size, 0, 'a wrong start key opens nothing');
+    assert.equal((await m.walkBundle(new Map([['T', roleKeys.T]]), null)).areaKeys.size, 0, 'no bundle (an old service): nothing, no error');
+
+    /* Ein Platz (Mensch ohne Konto): der Rollenschlüssel unter seinem Platzschlüssel — je Platz UND Rolle ein Etikett. */
+    const seatKey = key(42);
+    const sealedForSeat = m.toBase64Url(await m.seal(seatKey, m.seatRoleAad('seat-1', 'T'), roleKeys.T));
+    assert.notEqual(m.aadText(m.seatRoleAad('seat-1', 'T')), m.aadText(m.seatRoleAad('seat-2', 'T')), 'another seat, another label');
+    await assert.rejects(m.open(seatKey, m.seatRoleAad('seat-2', 'T'), m.fromBase64Url(sealedForSeat)), 'an envelope cannot be moved to another seat');
+    const seat = await m.openSeatRoles('seat-1', seatKey, { held: [{ roleId: 'T', keySealed: sealedForSeat }, { roleId: 'W', keySealed: null }], bundle });
+    assert.deepEqual(seat.areaKeys.get('rada')?.get(1), key(11), 'the seat reads the role\'s areas');
+    assert.deepEqual(seat.areas.map((a) => a.name).sort(), ['Oaza', 'Rada']);
+    assert.equal(seat.waiting, 1, 'a role whose key has not come yet is counted, not an error');
+    assert.deepEqual(m.seatAreaKey('oaza', 1), key(21), 'and remembered in this tab — a calendar on a page finds them like a link\'s');
+    assert.equal((await m.openSeatRoles('seat-9', seatKey, { held: [{ roleId: 'T', keySealed: sealedForSeat }], bundle })).areaKeys.size, 0, 'with the label of another seat: nothing');
+
+    /* Wie eine Rolle sich vorstellt, und was einer neuen fehlt. */
+    assert.equal(m.reachWords([{ areaId: 'r', name: 'Rada', capability: 'write' }, { areaId: 'o', name: 'Oaza', capability: 'read' }]), 'Rada — pisze · Oaza — czyta');
+    assert.equal(m.reachWords([]), 'jeszcze bez obszarów');
+    assert.ok(m.draftProblem({ name: ' ', areas: [{ areaId: 'r', capability: 'read' }] }) !== null, 'a new role needs a name');
+    assert.ok(m.draftProblem({ name: 'Rada', areas: [] }) !== null, 'and at least one area');
+    assert.equal(m.draftProblem({ name: 'Rada', areas: [{ areaId: 'r', capability: 'read' }] }), null);
+    ok('roles (0090/0091): a browser without its own mark lets the account decide; from a link or a seat the way to the role\'s areas opens — only downwards, per seat and role, broken envelopes skipped');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

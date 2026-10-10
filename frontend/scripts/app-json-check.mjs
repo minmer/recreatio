@@ -286,8 +286,11 @@ try {
   assert.equal(extModule.extends, 'b1');
   assert.equal(extModule.audience, 'office');
   assert.equal('repeat' in m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Chorzy', config: {} }), false, 'a plain form carries no repeat');
-  for (const key of ['"repeat" — ', '"extends", "audience" — ']) assert.ok(m.moduleDescription('form').includes(key), `form module description explains ${key}`);
-  ok('module JSON: an extension says what it extends, who fills it and how often');
+  for (const key of ['"repeat" — ', '"extends", "audience" — ', '"memberRole" — ']) assert.ok(m.moduleDescription('form').includes(key), `form module description explains ${key}`);
+  /* 0091 — die Rolle seiner Menschen geht mit; ohne Rolle steht kein Schlüssel da. */
+  assert.equal(m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, memberRole: 'r1' }).memberRole, 'r1');
+  assert.equal('memberRole' in m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, memberRole: null }), false, 'no role, no key');
+  ok('module JSON: an extension says what it extends, who fills it and how often; a form carries the role of its people');
 
   /* -- 0077: die Liste eines Formulars als JSON ------------------------------------------- */
   const field = (fieldId, label, kind = 'line', identityRole = 'none', options = []) =>

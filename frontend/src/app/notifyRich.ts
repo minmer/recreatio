@@ -28,6 +28,7 @@ import { loadIntake, openIntakeKey } from './intake';
 import type { Ring, SealedRole } from './keys';
 import { loadLinks } from './linkAccess';
 import type { Digest, DigestChat, DigestForm } from './notify';
+import { handOverRoleKeys } from './memberRole';
 import { keysFor } from './ringOf';
 import { myRoleNames } from './roleNames';
 import { viewPath } from './routes';
@@ -217,6 +218,29 @@ export async function handOverWaiting(who: Who, chatIds: readonly string[]): Pro
   return handOver(me.ring, chatIds);
 }
 
+/**
+ * 0091 — WER AUF DEN SCHLÜSSEL SEINER ROLLE WARTET (ein Mensch, der ein
+ * Formular mit Rolle eingesandt hat), bekommt ihn ebenso von dieser App: die
+ * Glocke nennt die Formulare (`roles.waiting`), der Schlüsselbund verpackt
+ * den Rollenschlüssel unter jedem Platzschlüssel, den er öffnen kann.
+ */
+export async function handOverRoleWaiting(who: Who, moduleIds: readonly string[]): Promise<number> {
+  if (moduleIds.length === 0) return 0;
+  const me = await opener(who);
+  if (me === 'session' || me === 'key') return 0;
+  let done = 0;
+  for (const moduleId of moduleIds) {
+    /* Ging es eben nicht (ein Platz, dessen Schlüssel dieses Gerät nicht öffnet), nicht jede Minute von vorn. */
+    if (Date.now() - (roleTried.get(moduleId) ?? 0) < 10 * 60_000) continue;
+    const now = await handOverRoleKeys(me.ring, moduleId).catch(() => 0);
+    if (now === 0) roleTried.set(moduleId, Date.now()); else roleTried.delete(moduleId);
+    done += now;
+  }
+  return done;
+}
+
+const roleTried = new Map<string, number>();
+
 const locked = (reason: 'session' | 'key'): News => ({ state: 'locked', reason, conversations: [], forms: [], links: null, reminders: null });
 
 async function conversationOf(me: Opener, row: DigestChat, replyable: boolean, shownAt: string | undefined): Promise<Conversation> {
@@ -384,7 +408,11 @@ export async function gatherNews(who: Who | null, o: GatherOptions): Promise<New
   const me = await opener(who);
   if (me === 'session' || me === 'key') return locked(me);
 
-  const digest = await call<Digest>(`/workspace/notifications?since=${encodeURIComponent(o.since)}`);
+  /*
+   * 0090 — ohne `since`: neu ist, was das KONTO noch nicht gesehen hat (die Marke
+   * liegt beim Dienst). Die Zeit des Telefons wäre eine zweite Wahrheit daneben.
+   */
+  const digest = await call<Digest>('/workspace/notifications');
   const replyable = o.replyable ?? true;
 
   const conversations: Conversation[] = [];
@@ -403,14 +431,14 @@ export async function gatherNews(who: Who | null, o: GatherOptions): Promise<New
   if (o.settings.forms) {
     for (const row of digest.registrations.list.slice(0, 6)) {
       try {
-        forms.push(await formOf(me, row, o.since, o.formsShown?.[row.moduleId]));
+        forms.push(await formOf(me, row, row.since ?? o.since, o.formsShown?.[row.moduleId]));
       } catch {
         forms.push({ moduleId: row.moduleId, name: row.name, count: row.count, unchanged: false, entries: [], open: viewPath('modules', 'form', row.moduleId) });
       }
     }
   }
 
-  const links = o.settings.links ? await linksOf(me, digest.links, o.since, o.linksShown).catch(() => null) : null;
+  const links = o.settings.links ? await linksOf(me, digest.links, digest.linksSince ?? o.since, o.linksShown).catch(() => null) : null;
   const reminders = o.reminders === true
     ? (o.settings.reminders ? await remindersFor(me.ring).catch(() => null) : [])
     : null;

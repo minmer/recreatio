@@ -537,6 +537,30 @@ final class Notices {
         summary(context, chats);
     }
 
+    /**
+     * 0090 — die Seite sagt, welche Formulare noch Neues haben; die übrigen
+     * gehen weg. „Przejrzane" gilt für das Konto: was am Rechner gesehen
+     * wurde, soll auf dem Telefon nicht weiter als neu stehen. Ohne Links
+     * (keine neuen mehr) geht auch deren Meldung.
+     */
+    static synchronized void keepForms(Context context, Set<String> fresh, boolean links) throws JSONException {
+        JSONObject forms = load(context, "forms");
+        List<String> gone = new ArrayList<>();
+        for (Iterator<String> it = forms.keys(); it.hasNext(); ) {
+            String id = it.next();
+            if (!fresh.contains(id)) gone.add(id);
+        }
+        for (String id : gone) {
+            forms.remove(id);
+            cancel(context, numberOf("form:" + id));
+        }
+        if (!gone.isEmpty()) save(context, "forms", forms);
+        if (!links) {
+            save(context, "links", new JSONObject());
+            cancel(context, numberOf("links"));
+        }
+    }
+
     /** Die Antwort steht sofort im Gespräch (sonst dreht Android weiter) — „wysyłanie…", bis der Läufer fertig ist. */
     static synchronized void replying(Context context, String chatId, String messageId, String text) throws JSONException {
         JSONObject chats = load(context, "chats");

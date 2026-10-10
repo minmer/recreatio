@@ -588,6 +588,8 @@ public static class AccountDeletion
         DELETE FROM app.chat_read     WHERE account_id = @account;
         IF OBJECT_ID('app.notify_device', 'U') IS NOT NULL
             DELETE FROM app.notify_device WHERE account_id = @account;
+        IF OBJECT_ID('app.notify_seen', 'U') IS NOT NULL
+            DELETE FROM app.notify_seen WHERE account_id = @account;
         UPDATE app.slug SET claimed_by_account_id = NULL WHERE claimed_by_account_id = @account;
         DELETE FROM app.account WHERE id = @account;
 

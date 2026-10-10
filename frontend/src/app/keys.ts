@@ -209,6 +209,18 @@ export class Ring {
     return new Ring(new Map(held.map((one) => [one.role.id, one.key])), new Map(held.map((one) => [one.role.id, one.role])));
   }
 
+  /**
+   * 0091 — DERSELBE BUND UND EINE ROLLE MEHR, die gerade hier entstanden ist
+   * (ihre Schlüssel liegen offen in diesem Browser). Ohne das müsste, wer eine
+   * Rolle anlegt und gleich in ihrem Namen unterschreibt, erst den ganzen
+   * Graphen neu laden und laufen. Der alte Bund bleibt, wie er war.
+   */
+  withRole(role: SealedRole, key: Uint8Array, signKey?: Uint8Array): Ring {
+    const signKeys = new Map(this.signKeys);
+    if (signKey !== undefined) signKeys.set(role.id, signKey);
+    return new Ring(new Map(this.keys).set(role.id, key), new Map(this.roles).set(role.id, role), signKeys);
+  }
+
   /** Hält dieser Bund den Schlüssel dieser Rolle? */
   has = (roleId: string): boolean => this.keys.has(roleId);
 

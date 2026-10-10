@@ -1,6 +1,12 @@
 /**
  * LINKI DOSTĘPU (0065) — anlegen, wieder zeigen, zurückziehen.
  *
+ * <b>0091: ein Link gibt eine ROLLE.</b> Gewählt wird nicht mehr Bereich für
+ * Bereich, sondern die Rolle, die sagt, wozu sie führt („Rada parafialna —
+ * Rada pisze · Ogłoszenia czyta") — oder gleich hier eine neue. Ändert sich
+ * die Rolle, ändert sich jeder Link mit. Alte Links (direkt zu Bereichen)
+ * stehen weiter in der Liste und gelten.
+ *
  * <b>Ein Link, mehrere Bereiche.</b> Wer ihn einlöst, steht danach in jedem
  * der gewählten Bereiche mit derselben Stufe — als Mensch mit eigenem Konto,
  * nicht als Platz. Deshalb die Frage „einmalig?": ein Link für EINE Person
@@ -22,15 +28,17 @@ import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
 import {
-  accessWords, aimOf, createLink, heldLinkKeys, linkState, linkUrl, linkUrlOf, loadLinks, revokeLink, setLinkAim, LINK_LEVELS,
-  type HeldInfo, type LinkLevel, type LinkRow
+  accessWords, aimOf, createLink, heldLinkKeys, linkState, linkUrl, linkUrlOf, loadLinks, revokeLink, setLinkAim,
+  type HeldInfo, type LinkRow
 } from './linkAccess';
 import { forgetLink } from './linkKeep';
+import { createCommonRole, reachWords, type NewRoleDraft } from './commonRole';
+import { CommonRoleChoice, EMPTY_DRAFT, NEW_ROLE, useGivableRoles } from './CommonRoleField';
+import { markLinksSeen } from './notify';
 import type { AreaRow } from './area';
 import { loadDesk, type PageCard } from './desk';
 import type { Ring, SealedRole } from './keys';
 import { WorkspaceError } from './session';
-import { Segment } from './Areas';
 import { describeLink, useHeldLinksStamp } from './HeldLinkBar';
 
 /**
@@ -93,6 +101,8 @@ export function AccessLinks({ ring, self, areas, focusAreaId, busy, onAct }: {
     try {
       setLinks((await loadLinks()).invites);
       setFailed(null);
+      /* 0090 — wer über Links hereinkam, steht hier: für das Konto gesehen. */
+      markLinksSeen();
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać linków.');
     }
@@ -146,9 +156,17 @@ export function AccessLinks({ ring, self, areas, focusAreaId, busy, onAct }: {
         areas={areas}
         focusAreaId={focusAreaId}
         busy={busy}
-        onCreate={(what) => onAct('Tworzenie linku…', async () => {
+        onCreate={(what) => onAct(what.draft === null ? 'Tworzenie linku…' : 'Tworzenie roli i linku…', async () => {
           if (ring === null || self === null) throw new WorkspaceError('Najpierw podaj hasło.');
-          const out = await createLink(ring, self, what);
+          /* 0091 — eine neue Rolle zuerst; der Link hält sie danach wie jede andere. */
+          let bund = ring;
+          const roles = [...what.roles];
+          if (what.draft !== null) {
+            const made = await createCommonRole(ring, self, what.draft.role);
+            bund = made.ring;
+            roles.push({ roleId: made.roleId, lead: what.draft.lead });
+          }
+          const out = await createLink(bund, self, { label: what.label, roles, once: what.once, expiresDays: what.expiresDays, aim: what.aim });
           setMade({ url: out.url, label: what.label.trim() || 'Link' });
           madeHere.set(out.invitationId, out.token);
           await look();
@@ -194,39 +212,55 @@ export function AccessLinks({ ring, self, areas, focusAreaId, busy, onAct }: {
   );
 }
 
+/** Was ein neuer Link gibt (0091): Rollen — und vielleicht eine neue, die erst beim Absenden entsteht. */
+export interface NewLinkWhat {
+  label: string;
+  roles: { roleId: string; lead: boolean }[];
+  draft: { role: NewRoleDraft; lead: boolean } | null;
+  once: boolean;
+  expiresDays: number;
+  aim: string | null;
+}
+
 function NewLink({ ring, self, areas, focusAreaId, busy, onCreate }: {
   ring: Ring | null;
   self: SealedRole | null;
   areas: readonly AreaRow[];
   focusAreaId?: string;
   busy: boolean;
-  onCreate: (what: { label: string; areas: { areaId: string; capability: LinkLevel }[]; once: boolean; expiresDays: number; aim: string | null }) => Promise<void>;
+  onCreate: (what: NewLinkWhat) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
   const [once, setOnce] = useState(true);
   const [days, setDays] = useState(30);
   const [aimText, setAimText] = useState('');
-  /* 0074 — je gewähltem Bereich seine Stufe; gewählt ist, was hier steht. */
-  const [levels, setLevels] = useState<ReadonlyMap<string, LinkLevel>>(() => new Map(focusAreaId === undefined ? [] : [[focusAreaId, 'read']]));
-  const picked = useMemo(() => new Set(levels.keys()), [levels]);
-  const choices = useAimChoices(picked);
-  const aim = aimOf(aimText);
+  /* 0091 — gewählte Rollen (→ führt, wer den Link einlöst, sie mit?) und der Entwurf einer neuen. */
+  const [picked, setPicked] = useState<ReadonlyMap<string, boolean>>(new Map());
+  const [draft, setDraft] = useState<NewRoleDraft>(EMPTY_DRAFT);
+  const { roles, failed } = useGivableRoles(open ? ring : null);
 
-  /* Nur Bereiche, in die ich hineinlassen darf — und nie der eigene, private. */
-  const possible = areas.filter((a) => a.mayCertify && a.personal !== true);
+  /* Wohin die gewählten Rollen führen — die Seiten dieser Bereiche stehen beim Ziel vorne. */
+  const reached = useMemo(() => new Set([
+    ...(roles ?? []).filter((r) => picked.has(r.roleId)).flatMap((r) => r.areas.map((a) => a.areaId)),
+    ...(picked.has(NEW_ROLE) ? draft.areas.map((a) => a.areaId) : [])
+  ]), [roles, picked, draft]);
+  const choices = useAimChoices(reached);
+  const aim = aimOf(aimText);
 
   const blocker =
     ring === null ? 'Najpierw podaj hasło.'
     : self === null ? 'Konto nie prowadzi jeszcze żadnej osoby.'
-    : picked.size === 0 ? 'Wybierz co najmniej jeden obszar.'
+    : picked.size === 0 ? 'Wybierz rolę, którą daje link — albo utwórz nową.'
+    : picked.has(NEW_ROLE) && draft.name.trim() === '' ? 'Nazwij nową rolę.'
+    : picked.has(NEW_ROLE) && draft.areas.length === 0 ? 'Zaznacz obszary, do których nowa rola daje dostęp.'
     : label.trim() === '' ? 'Nazwij link — np. „Rada parafialna" albo imię osoby.'
     : 'error' in aim ? aim.error
     : null;
 
   if (!open) {
     return (
-      <button type="button" className="wk-tree-add" disabled={busy || possible.length === 0} onClick={() => setOpen(true)}>
+      <button type="button" className="wk-tree-add" disabled={busy} onClick={() => setOpen(true)}>
         <span aria-hidden="true">+</span> Nowy link dostępu
       </button>
     );
@@ -236,10 +270,17 @@ function NewLink({ ring, self, areas, focusAreaId, busy, onCreate }: {
     <form className="wk-form wk-add-role" onSubmit={(e) => {
       e.preventDefault();
       if (blocker !== null || 'error' in aim) return;
-      void onCreate({ label, areas: [...levels].map(([areaId, capability]) => ({ areaId, capability })), once, expiresDays: days, aim: aim.aim }).then(() => {
+      void onCreate({
+        label,
+        roles: [...picked].filter(([roleId]) => roleId !== NEW_ROLE).map(([roleId, lead]) => ({ roleId, lead })),
+        draft: picked.has(NEW_ROLE) ? { role: draft, lead: picked.get(NEW_ROLE) === true } : null,
+        once, expiresDays: days, aim: aim.aim
+      }).then(() => {
         setOpen(false);
         setLabel('');
         setAimText('');
+        setPicked(new Map());
+        setDraft(EMPTY_DRAFT);
       });
     }}>
       <h3 className="wk-h2">Nowy link dostępu</h3>
@@ -250,35 +291,10 @@ function NewLink({ ring, self, areas, focusAreaId, busy, onCreate }: {
         <span className="wk-hint">Nazwę widzi ten, kto otworzy link — zanim dołączy.</span>
       </label>
 
-      <fieldset className="wk-field wk-link-areas">
-        <legend>Obszary</legend>
-        {possible.map((a) => (
-          <label key={a.areaId} className="wk-check">
-            <input type="checkbox" checked={picked.has(a.areaId)} onChange={(e) => setLevels((was) => {
-              const next = new Map(was);
-              if (e.target.checked) next.set(a.areaId, 'read'); else next.delete(a.areaId);
-              return next;
-            })} />
-            <span>{a.name}</span>
-          </label>
-        ))}
-      </fieldset>
-
-      {levels.size > 0 && (
-        <div className="wk-field wk-link-levels">
-          <span>Co może — w każdym obszarze osobno</span>
-          <ul>
-            {[...levels].map(([areaId, level]) => (
-              <li key={areaId}>
-                <strong>{possible.find((a) => a.areaId === areaId)?.name ?? 'obszar'}</strong>
-                <Segment now={level} busy={busy} onPick={(next: LinkLevel) => setLevels((was) => new Map(was).set(areaId, next))}
-                  options={LINK_LEVELS.map((l) => ({ value: l.value, label: l.label }))} />
-                <span className="wk-hint">{LINK_LEVELS.find((l) => l.value === level)?.says}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <CommonRoleChoice roles={roles} failed={failed} areas={areas} focusAreaId={focusAreaId} many busy={busy}
+        picked={picked} onPicked={setPicked} draft={draft} onDraft={setDraft}
+        leadLabel="może też zapraszać innych do tej roli" />
+      <p className="wk-hint">Kto ma link, ma to, co daje rola. Zmienisz obszary roli — zmienią się dla wszystkich jej linków i formularzy.</p>
 
       <AimField value={aimText} onChange={setAimText} choices={choices} />
 
@@ -343,6 +359,23 @@ function AimField({ value, onChange, choices }: {
   );
 }
 
+/** 0091 — die Namen der Rollen, die ein Link gibt (offen, wo mein Bund sie kennt). */
+function useRoleNames(ring: Ring | null, ids: readonly string[]): readonly string[] {
+  const [names, setNames] = useState<readonly string[]>([]);
+  const key = ids.join(',');
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const out: string[] = [];
+      for (const id of ids) out.push((ring === null ? null : await ring.name(id)) ?? 'rola');
+      if (alive) setNames(out);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ring, key]);
+  return names;
+}
+
 function LinkItem({ row, ring, busy, shown, onShow, onHide, onAim, onRevoke }: {
   row: LinkRow;
   ring: Ring | null;
@@ -358,6 +391,7 @@ function LinkItem({ row, ring, busy, shown, onShow, onHide, onAim, onRevoke }: {
   const active = row.redeemed.filter((r) => r.active).length;
   const [asking, setAsking] = useState(false);
   const [aiming, setAiming] = useState(false);
+  const roleNames = useRoleNames(ring, row.roles ?? []);
 
   return (
     <li className="wk-link-item">
@@ -365,8 +399,9 @@ function LinkItem({ row, ring, busy, shown, onShow, onHide, onAim, onRevoke }: {
         <strong>{row.label ?? 'Link'}</strong>
         <span className={state === 'działa' ? 'wk-tag wk-tag-open' : 'wk-tag'}>{state}</span>
       </div>
+      {roleNames.length > 0 && <p className="wk-link-roles">{roleNames.length === 1 ? 'Rola' : 'Role'}: <strong>{roleNames.join(', ')}</strong>{row.capability === 'admin' ? ' (może zapraszać innych)' : ''}</p>}
       <p className="wk-hint">
-        {accessWords(row.areas)}
+        {roleNames.length > 0 ? reachWords(row.areas) : accessWords(row.areas)}
         {' · '}{row.maxUses === 1 ? 'jednorazowy' : row.maxUses === null ? 'wielokrotny' : `do ${row.maxUses} osób`}
         {' · '}użyty {row.used}×{active > 0 ? `, ${active} z dostępem` : ''}
         {' · '}ważny do {new Date(row.expiresAt).toLocaleDateString('pl-PL')}

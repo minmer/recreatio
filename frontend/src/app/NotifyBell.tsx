@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { background, native, notices, type BackgroundStatus } from './platform';
 import {
-  applyBackground, chatLabel, current, loadDevices, loadSettings, dropDevice, markSeen, onToast, planReminders, refresh, saveSettings,
+  applyBackground, chatLabel, current, loadDevices, loadSettings, dropDevice, markFormSeen, markLinksSeen, markSeen, onToast, planReminders, refresh, saveSettings,
   start, subscribe, thisDevice, type DeviceList, type NotifySettings, type Toast
 } from './notify';
 import { remindersFor } from './notifyRich';
@@ -129,20 +129,29 @@ export function NotifyBell({ who }: { who: Who }) {
                 ))}
               </Group>
 
+              {/* 0090 — neu, bis jemand mit diesem Konto es gesehen hat: die Liste geöffnet oder hier abgehakt. */}
               <Group title="Nowe zgłoszenia" empty="Nic nowego od ostatniego razu.">
                 {d.registrations.list.map((f) => (
-                  <a key={f.moduleId} className="wk-bell-item" href={viewPath('modules', 'form', f.moduleId)} onClick={() => setOpen(false)}>
-                    <span>{f.name}</span>
-                    <span className="wk-bell-n">{f.count}</span>
-                  </a>
+                  <div key={f.moduleId} className="wk-bell-row">
+                    <a className="wk-bell-item" href={viewPath('modules', 'form', f.moduleId)} onClick={() => setOpen(false)}>
+                      <span>{f.name}</span>
+                      <span className="wk-bell-n">{f.count}</span>
+                    </a>
+                    <button type="button" className="wk-bell-done" title="Przejrzane — nie pokazuj już jako nowe"
+                      aria-label={`${f.name}: przejrzane`} onClick={() => void markFormSeen(f.moduleId)}>✓</button>
+                  </div>
                 ))}
               </Group>
 
               {d.links > 0 && (
                 <Group title="Linki dostępu">
-                  <a className="wk-bell-item" href={viewPath('areas')} onClick={() => setOpen(false)}>
-                    <span>Dołączyło przez link</span><span className="wk-bell-n">{d.links}</span>
-                  </a>
+                  <div className="wk-bell-row">
+                    <a className="wk-bell-item" href={viewPath('areas')} onClick={() => setOpen(false)}>
+                      <span>Dołączyło przez link</span><span className="wk-bell-n">{d.links}</span>
+                    </a>
+                    <button type="button" className="wk-bell-done" title="Przejrzane — nie pokazuj już jako nowe"
+                      aria-label="Dołączenia przez link: przejrzane" onClick={markLinksSeen}>✓</button>
+                  </div>
                 </Group>
               )}
 
@@ -156,7 +165,7 @@ export function NotifyBell({ who }: { who: Who }) {
 
               <div className="wk-actions">
                 {(d.registrations.count > 0 || d.links > 0) && (
-                  <button type="button" className="wk-link-btn" onClick={markSeen}>Oznacz jako przejrzane</button>
+                  <button type="button" className="wk-link-btn" onClick={markSeen}>Oznacz wszystko jako przejrzane</button>
                 )}
                 <button type="button" className="wk-link-btn" onClick={() => { setSettingsOpen(true); setOpen(false); }}>Ustawienia…</button>
               </div>

@@ -300,7 +300,7 @@ interface NotifyPluginApi {
     contents: boolean; reminders: boolean;
   }): Promise<{ push?: boolean }>;
   stop(): Promise<void>;
-  seen(options: { unread: number; forms: number; links: number; since: string; chats?: readonly string[] }): Promise<void>;
+  seen(options: { unread: number; forms: number; links: number; since: string; chats?: readonly string[]; formIds?: readonly string[] }): Promise<void>;
   status(): Promise<BackgroundStatus>;
   /** 0076 — Meldungen mit Inhalt zeigen (die Seite, wenn die App vorn ist; JSON wie `notifyRich.News`). */
   present(options: { news: unknown }): Promise<void>;

@@ -29,6 +29,7 @@ import { fromBase64Url } from './crypto';
 import type { Ring } from './keys';
 import { heldAreaKey } from './linkAccess';
 import { keysFor } from './ringOf';
+import { seatAreaKey } from './roleBundle';
 import { whoIsThere } from './session';
 
 /**
@@ -92,6 +93,10 @@ export function areaReader(given?: Ring | null): AreaReader {
 
     const linked = await heldAreaKey(areaId, epoch);
     if (linked !== null) return linked;
+
+    /* 0091 — was die Rolle eines Platzes in diesem Tab aufgeschlossen hat (sein Formular gab sie ihm). */
+    const seated = seatAreaKey(areaId, epoch);
+    if (seated !== null) return seated;
 
     const bund = await ring();
     if (bund === null) return undefined;

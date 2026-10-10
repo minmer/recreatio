@@ -164,6 +164,9 @@ public static partial class Form
 
         /* 0047 — Erweiterungen und Schritte (Form.Extension.cs). */
         MapExtension(app);
+
+        /* 0091 — die Rolle der Menschen eines Formulars (Form.Members.cs). */
+        MapMembers(app);
     }
 
     /* -- Felder pflegen ----------------------------------------------------- */
@@ -1174,6 +1177,14 @@ public static partial class Form
 
                 await add.ExecuteNonQueryAsync(ctx.RequestAborted);
             }
+
+            /*
+             * 0091 — DIE ROLLE DES FORMULARS. Wer es einsendet, gehört zu ihr: sein
+             * Platz hält sie, und was sie darf, darf er (`access_role_area`). Den
+             * Schlüssel der Rolle bekommt er, sobald der Browser eines Mitglieds
+             * vorbeikommt (`Form.Members.cs`); bis dahin wartet die Zeile.
+             */
+            if (seatId is not null) await JoinMemberRoleAsync(connection, tx, id, seatId.Value, now, ctx.RequestAborted);
 
             await tx.CommitAsync(ctx.RequestAborted);
         }

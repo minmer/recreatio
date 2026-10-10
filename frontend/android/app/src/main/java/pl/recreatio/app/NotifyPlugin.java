@@ -146,6 +146,18 @@ public class NotifyPlugin extends Plugin {
                 // Beim nächsten Mal.
             }
         }
+
+        /* 0090 — welche Formulare noch Neues haben (fehlt bei einer älteren Seite: dann nichts wegnehmen). */
+        JSArray formIds = call.getArray("formIds");
+        if (formIds != null) {
+            try {
+                Set<String> fresh = new HashSet<>();
+                for (int i = 0; i < formIds.length(); i++) fresh.add(formIds.getString(i));
+                Notices.keepForms(getContext(), fresh, call.getInt("links", 0) > 0);
+            } catch (Exception ignored) {
+                // Beim nächsten Mal.
+            }
+        }
         call.resolve();
     }
 

@@ -219,6 +219,48 @@ public static class Workspace
         return roles;
     }
 
+    /// <summary>
+    /// 0091 — WAS DIESE ROLLEN ERREICHEN: sie selbst und alles, was sie halten
+    /// (nur <c>holds</c>, wie bei <see cref="RolesOfAsync"/>). Für die Rollen,
+    /// die kein Konto als Wurzel haben: Links mit Zugang, die eine Rolle geben,
+    /// und Rollen eines Platzes. <c>depth</c> 1 für die Ausgangsrollen — sie sind
+    /// nie die eigene Person.
+    /// </summary>
+    public static async Task<List<RoleRow>> ClosureAsync(
+        SqlConnection connection, IReadOnlyCollection<Guid> start, CancellationToken ct)
+    {
+        var roles = new List<RoleRow>();
+        if (start.Count == 0) return roles;
+
+        var names = string.Join(", ", start.Select((_, i) => $"@s{i}"));
+        await using var cmd = new SqlCommand($"""
+            WITH held (id, depth) AS (
+                SELECT r.id, 1 FROM app.role r WHERE r.id IN ({names}) AND r.revoked_at IS NULL
+
+                UNION ALL
+
+                SELECT e.to_role_id, h.depth + 1
+                FROM held h
+                JOIN app.role_edge e ON e.from_role_id = h.id AND e.revoked_at IS NULL
+                                    AND e.edge_kind = N'holds'
+                JOIN app.role r      ON r.id = e.to_role_id AND r.revoked_at IS NULL
+                WHERE h.depth <= {RoleGraph.MaxDepth}
+            )
+            SELECT r.id, r.kind, MIN(h.depth) AS depth
+            FROM held h
+            JOIN app.role r ON r.id = h.id
+            GROUP BY r.id, r.kind, r.created_at
+            ORDER BY MIN(h.depth), r.created_at
+            OPTION (MAXRECURSION {RoleGraph.MaxDepth + 2});
+            """, connection);
+        var i = 0;
+        foreach (var id in start) cmd.Parameters.AddWithValue($"@s{i++}", id);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) roles.Add(new RoleRow(reader.GetGuid(0), reader.GetString(1), false, reader.GetInt32(2)));
+        return roles;
+    }
+
     /// <summary>Die Adressen, die diese Rollen führen.</summary>
     private static async Task<List<(string Path, Guid RoleId, DateTimeOffset ClaimedAt,
         string? AliasOf, string? Host, Guid? InternalFor)>> PagesOfAsync(

@@ -18,6 +18,7 @@ import { configFromJson, documentKind, exportModule, moduleDescription, replacin
 import { partLabel } from './parts/registry';
 import { asRecord, asText, count } from './event/kit';
 import { REPEAT_LABEL, REPEATS, repeatOf, type Repeat } from './rounds';
+import { setMemberRole } from './memberRole';
 import type { Who } from './session';
 
 /**
@@ -57,7 +58,7 @@ export function QuestionOptions({ answersTo, onAnswersTo, replace, onReplace }: 
 }
 
 /** Der Inhalt eines Dokuments für dieses Modul — aus einem Modul, einem Eintrag einer Seite oder als blosser Inhalt. */
-function contentOf(doc: unknown, kind: string): { config?: unknown; name?: string; questions?: unknown; design?: unknown; repeat?: Repeat } | { error: string } {
+function contentOf(doc: unknown, kind: string): { config?: unknown; name?: string; questions?: unknown; design?: unknown; repeat?: Repeat; memberRole?: string | null } | { error: string } {
   const root = asRecord(doc);
   const said = documentKind(doc);
   if (said === 'page' || said === 'legacy') return { error: 'To dokument całej strony — importuj go w edytorze strony.' };
@@ -71,7 +72,9 @@ function contentOf(doc: unknown, kind: string): { config?: unknown; name?: strin
     ...(has('questions') ? { questions: root.questions } : {}),
     ...(has('design') ? { design: root.design } : {}),
     /* 0077 — wie oft eine Erweiterung ausgefüllt wird. Ein unbekanntes Wort ist keines. */
-    ...((REPEATS as readonly string[]).includes(asText(root.repeat)) ? { repeat: asText(root.repeat) as Repeat } : {})
+    ...((REPEATS as readonly string[]).includes(asText(root.repeat)) ? { repeat: asText(root.repeat) as Repeat } : {}),
+    /* 0091 — die Rolle seiner Menschen: eine Kennung, oder null (keine). */
+    ...(has('memberRole') ? { memberRole: root.memberRole === null ? null : asText(root.memberRole).trim() || null } : {})
   };
 }
 
@@ -101,6 +104,10 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
       if (row.extendsId === null) warnings.push('"repeat" ma tylko rozszerzenie formularza — pominięte.');
       else if (row.entries > 0) warnings.push('To rozszerzenie ma już wpisy — "repeat" zostaje bez zmian.');
       else lines.push(`Powtarzanie: ${REPEAT_LABEL[content.repeat]}.`);
+    }
+    if (content.memberRole !== undefined && content.memberRole !== (row.memberRoleId ?? null)) {
+      if (!form || row.extendsId !== null) warnings.push('"memberRole" ma tylko formularz (nie rozszerzenie) — pominięte.');
+      else lines.push(content.memberRole === null ? 'Rola uczestników: żadna (kto już należy, zostaje).' : 'Rola uczestników: z dokumentu — jeśli ją masz.');
     }
     if (asText(asRecord(doc).id) !== '' && asText(asRecord(doc).id) !== row.moduleId) {
       warnings.push('Dokument pochodzi z innego modułu — jego treść zostanie przeniesiona tutaj.');
@@ -133,6 +140,15 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
         lines.push('Treść zapisana.');
       }
     }
+    if (form && row.extendsId === null && content.memberRole !== undefined && content.memberRole !== (row.memberRoleId ?? null)) {
+      stage('Ustawianie roli uczestników…');
+      try {
+        await setMemberRole(row.moduleId, content.memberRole);
+        lines.push(content.memberRole === null ? 'Rola uczestników: żadna.' : 'Rola uczestników ustawiona.');
+      } catch (e) {
+        warnings.push(`Rola uczestników nie została ustawiona: ${e instanceof Error ? e.message : 'nie udało się'}`);
+      }
+    }
     if (form && (content.questions !== undefined || content.design !== undefined)) {
       const written = await writeFormContent(who, { moduleId: row.moduleId, areaId: row.areaId }, content,
         { replace, answersTo: answersTo === '' ? null : answersTo, onStage: stage });
@@ -149,7 +165,7 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
       lead={<>Nazwa i treść tego modułu{form ? ', jego pytania i układ' : ''} jako JSON. Import zmienia ten moduł na każdej stronie, na której stoi — bez tworzenia go od nowa.</>}
       fileName={`modul-${row.kind}-${row.moduleId.slice(0, 8)}.json`}
       exportDoc={async () => exportModule(
-        { moduleId: row.moduleId, kind: row.kind, name: row.name, config: readConfig(row.config), extendsId: row.extendsId, audience: row.audience, repeat: repeatOf(row.repeat) },
+        { moduleId: row.moduleId, kind: row.kind, name: row.name, config: readConfig(row.config), extendsId: row.extendsId, audience: row.audience, repeat: repeatOf(row.repeat), memberRole: row.memberRoleId ?? null },
         form ? await readFormContent(who, row.moduleId) : undefined
       )}
       description={() => moduleDescription(row.kind)}

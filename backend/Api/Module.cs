@@ -132,7 +132,10 @@ public static class Module
                    (SELECT COUNT(*) FROM app.registration g WHERE g.part_id = m.id) AS entries,
 
                    /* 0047 — erweitert es ein anderes Formular, und wer füllt es aus? 0077 — wie oft? */
-                   m.extends_id, m.audience, m.repeat_kind
+                   m.extends_id, m.audience, m.repeat_kind,
+
+                   /* 0091 — die Rolle, die seine Menschen bekommen. */
+                   m.member_role_id
             FROM app.module m
             LEFT JOIN app.area a ON a.id = m.area_id
             WHERE
@@ -198,7 +201,10 @@ public static class Module
                 repeat = reader.GetString(18),
 
                 /* 0081 — die Formulare, deren Menschen an diesen Baustein schreiben dürfen. */
-                formIds = audience.TryGetValue(reader.GetGuid(0), out var aud) ? aud : []
+                formIds = audience.TryGetValue(reader.GetGuid(0), out var aud) ? aud : [],
+
+                /* 0091 — die Rolle, die jeder bekommt, der es einsendet (null: keine). */
+                memberRoleId = reader.IsDBNull(19) ? null : Ids.ToText(reader.GetGuid(19))
             });
         }
 

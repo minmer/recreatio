@@ -58,6 +58,9 @@ import {
 } from './seat';
 import { checkText, openLink, type CheckAnswer } from './seatCheck';
 import { WorkspaceError, type Who } from './session';
+import { markFormSeen } from './notify';
+import { handOverRoleKeys } from './memberRole';
+import { MemberRoleSettings } from './MemberRoleSettings';
 import { loadChats, startSeatChat } from './chat';
 import { loadMembers } from './area';
 import { meetingAreas } from './audience';
@@ -247,6 +250,14 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
   const removedFields = useMemo(() => takenOff(allFields), [allFields]);
   const [submissions, setSubmissions] = useState<readonly Submission[]>([]);
   const [opened, setOpened] = useState<Map<string, Map<string, string>>>(new Map());
+
+  /**
+   * 0090 — SEIT WANN FÜR DIESES KONTO ETWAS NEU WAR, als die Liste zum ersten
+   * Mal aufging. Die Liste aufzumachen heisst: gesehen (die Glocke und das
+   * Telefon hören auf, sie als neu zu melden) — die Zeilen von danach tragen
+   * hier trotzdem „nowe", bis zum nächsten Öffnen.
+   */
+  const [newSince, setNewSince] = useState<{ partId: string; at: string | null } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -391,6 +402,9 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
     if (bund === null) return;
 
+    /* 0091 — wer über dieses Formular zur Rolle gehört und noch auf ihren Schlüssel wartet, bekommt ihn jetzt (still). */
+    void handOverRoleKeys(bund, partId).catch(() => 0);
+
     /*
      * Die Schlüssel der Bereiche, die ich halte — JEDER in seinem eigenen
      * Versuch. Ein Bereich, der seinen nicht hergibt, lässt nur seine eigenen
@@ -531,6 +545,9 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
     setShutAreas(shut);
     setSubmissions(registrations);
     setReadAreas(keys.map((one) => one.areaId));
+
+    /* 0090 — gesehen, für das Konto; „nowe" bleibt an dem, was seit dem vorigen Mal kam. */
+    void markFormSeen(partId).then((at) => setNewSince((was) => (was?.partId === partId ? was : { partId, at })));
 
     const areaOf = new Map(allFields.map((f) => [f.fieldId, f.areaId]));
     const named: { seatId: string; name: string }[] = [];
@@ -1108,6 +1125,9 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
                 }}
               />
 
+              {/* 0091 — WELCHE ROLLE die Menschen dieses Formulars bekommen, und wozu sie führt. */}
+              <MemberRoleSettings partId={partId} ring={ring} person={person} areas={areas} onRingChanged={() => void look()} />
+
               {/*
                 DAS ERSTE ÖFFNEN EINES LINKS (0046) — was gefragt wird. Die
                 Nachricht selbst schreibt die Kanzlei dort, wo sie sie verschickt:
@@ -1502,6 +1522,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             partId={partId}
             config={conf}
             onConfig={setSaved}
+            newSince={newSince?.partId === partId ? newSince.at : null}
             submissions={submissions}
             opened={opened}
             fields={fields}
@@ -1618,7 +1639,7 @@ const base = () => `${window.location.origin}${window.location.pathname}`;
  * Öffnen fragen und tut es noch nicht, entsteht beim Tipp ein neuer.
  */
 function People({
-  partId, config, onConfig, submissions, opened, fields, removed = [], seatAreas, formAreas, areas, stepInfo, extData, ring, busy,
+  partId, config, onConfig, newSince = null, submissions, opened, fields, removed = [], seatAreas, formAreas, areas, stepInfo, extData, ring, busy,
   onHide, onRemove, onError, onChanged
 }: {
   partId: string;
@@ -1626,6 +1647,9 @@ function People({
   /** Die Einstellungen des Bausteins — darin die gespeicherten Szablony. */
   config: Record<string, string>;
   onConfig: (next: Record<string, string>) => void;
+
+  /** 0090 — was danach kam, war für dieses Konto neu, als die Liste aufging. `null`: weiss niemand. */
+  newSince?: string | null;
 
   submissions: readonly Submission[];
   opened: ReadonlyMap<string, ReadonlyMap<string, string>>;
@@ -1677,13 +1701,21 @@ function People({
    */
   const [stepFilter, setStepFilter] = useState('');
 
+  /* 0090 — nur die neuen zeigen. */
+  const [onlyNew, setOnlyNew] = useState(false);
+
   /* 0082 — dieselben Zeilen, dieselbe Reihenfolge und derselbe Filter wie auf den Seiten „Lista osób" und „Panel osoby" (`entryDesk.ts`). */
   const everyone = deskRows({ registrations: submissions, opened, fields }, stepInfo);
 
   /* Welche Schritte es gibt — aus der ersten Zeile, die welche hat (alle haben dieselben, bis auf den Link). */
   const stepKinds = stepKindsOf(everyone);
 
-  const rows = everyone.filter((r) => stepMatches(stepFilter, r.states));
+  /* 0090 — neu: nach der Marke von vorhin eingesandt, von einem Menschen (was die Kanzlei selbst einträgt, ist für sie nichts Neues). */
+  const after = newSince === null ? Number.NaN : Date.parse(newSince);
+  const isNew = (s: Submission): boolean => !Number.isNaN(after) && Date.parse(s.submittedAt) > after && s.byOffice !== true && !s.hidden && s.withdrawnAt === null;
+  const freshCount = everyone.filter((r) => isNew(r.s)).length;
+
+  const rows = everyone.filter((r) => stepMatches(stepFilter, r.states) && (!onlyNew || freshCount === 0 || isNew(r.s)));
 
   if (everyone.length === 0) return <p className="wk-empty">Nikt się jeszcze nie zapisał.</p>;
 
@@ -1754,6 +1786,13 @@ function People({
       <div className="wk-sms-bar">
         <h3 className="wk-h2">Osoby ({rows.length === everyone.length ? rows.length : `${rows.length} z ${everyone.length}`})</h3>
 
+        {freshCount > 0 && (
+          <button type="button" className={onlyNew ? 'wk-new-filter is-on' : 'wk-new-filter'} aria-pressed={onlyNew}
+            title="Zgłoszenia, które przyszły od Twojego poprzedniego przeglądania" onClick={() => setOnlyNew((was) => !was)}>
+            nowe: {freshCount}
+          </button>
+        )}
+
         {stepKinds.length > 0 && (
           <label className="wk-inline">
             <span className="wk-hint">Pokaż:</span>
@@ -1815,6 +1854,7 @@ function People({
             <li key={s.registrationId} className={s.hidden || s.withdrawnAt !== null ? 'wk-entry is-muted' : 'wk-entry'}>
               <div className="wk-entry-head">
                 <strong className="wk-entry-name">{name}</strong>
+                {isNew(s) && <span className="wk-tag wk-tag-new">nowe</span>}
 
                 {/*
                   JEDE NUMMER EIN ANRUF — und im SMS-Durchgang daneben ihr
