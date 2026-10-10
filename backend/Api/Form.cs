@@ -184,7 +184,10 @@ public static partial class Form
         string? LabelAreaId = null, int? LabelEpoch = null,
 
         /* Darf der Mensch die Antwort ueber seinen Link berichtigen (0044)? Vorgabe: ja. */
-        bool? SelfEdit = null);
+        bool? SelfEdit = null,
+
+        /* 0093 — schreibt und berichtigt NUR der Mensch (die Kanzlei liest, aendert nie)? Vorgabe: nein. */
+        bool? PersonOnly = null);
 
     /// <summary>
     /// Ein Feld anlegen.
@@ -291,10 +294,10 @@ public static partial class Form
             INSERT INTO app.slug_field
                 (id, part_id, area_id, kind, position, label_sealed, help_sealed, options_sealed,
                  epoch, is_required, is_half_width, identity_role, created_at,
-                 label_area_id, label_epoch, self_edit)
+                 label_area_id, label_epoch, self_edit, person_only)
             VALUES (@id, @part, @area, @kind, @pos, @label, @help, @options,
                     @epoch, @required, @half, @identity, @now,
-                    @labelArea, @labelEpoch, @selfEdit);
+                    @labelArea, @labelEpoch, @selfEdit, @personOnly);
             """, connection);
 
         insert.Parameters.AddWithValue("@labelArea", (object?)labelArea ?? DBNull.Value);
@@ -311,7 +314,9 @@ public static partial class Form
         insert.Parameters.AddWithValue("@epoch", body.Epoch);
         insert.Parameters.AddWithValue("@required", body.IsRequired ?? false);
         insert.Parameters.AddWithValue("@half", body.IsHalfWidth ?? false);
-        insert.Parameters.AddWithValue("@selfEdit", body.SelfEdit ?? true);
+        /* 0093 — was nur der Mensch schreibt, muss er auch berichtigen koennen: sonst koennte es niemand. */
+        insert.Parameters.AddWithValue("@selfEdit", (body.SelfEdit ?? true) || body.PersonOnly == true);
+        insert.Parameters.AddWithValue("@personOnly", body.PersonOnly == true);
         insert.Parameters.AddWithValue("@identity", identity);
         insert.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
 
@@ -1676,7 +1681,7 @@ public static partial class Form
         Guid Id, Guid AreaId, string Kind, int Position, byte[] Label, byte[]? Help,
         byte[]? Options, int Epoch, bool IsRequired, bool IsHalfWidth, string IdentityRole,
         Guid? LabelAreaId = null, int? LabelEpoch = null, bool SelfEdit = true, bool LinkCheck = false,
-        DateTimeOffset? RemovedAt = null);
+        DateTimeOffset? RemovedAt = null, bool PersonOnly = false);
 
     /// <summary>
     /// Wie eine Frage hinausgeht. <c>labelAreaId</c> / <c>labelEpoch</c> sind
@@ -1700,6 +1705,9 @@ public static partial class Form
         isHalfWidth = f.IsHalfWidth,
         identityRole = f.IdentityRole,
         selfEdit = f.SelfEdit,
+
+        /* 0093 — schreibt und berichtigt nur der Mensch; die Kanzlei liest. */
+        personOnly = f.PersonOnly,
 
         /* Beim ersten Oeffnen eines Links zu bestaetigen (0046)? */
         linkCheck = f.LinkCheck,
@@ -1762,7 +1770,7 @@ public static partial class Form
         await using var cmd = new SqlCommand($"""
             SELECT id, area_id, kind, position, label_sealed, help_sealed, options_sealed,
                    epoch, is_required, is_half_width, identity_role, label_area_id, label_epoch,
-                   self_edit, link_check, removed_at
+                   self_edit, link_check, removed_at, person_only
             FROM app.slug_field
             WHERE part_id = @part{(withRemoved ? "" : " AND removed_at IS NULL")}
             ORDER BY position;
@@ -1783,7 +1791,8 @@ public static partial class Form
                 reader.IsDBNull(12) ? null : reader.GetInt32(12),
                 reader.GetBoolean(13),
                 reader.GetBoolean(14),
-                reader.IsDBNull(15) ? null : reader.GetDateTimeOffset(15)));
+                reader.IsDBNull(15) ? null : reader.GetDateTimeOffset(15),
+                reader.GetBoolean(16)));
         }
 
         return fields;
@@ -1900,6 +1909,20 @@ public static partial class Form
 
     public sealed record OfficeValue(string FieldId, string Sealed, string WrappedKey, string? SeatKeySealed);
 
+    /// <summary>0093 — was die Kanzlei hoert, wenn sie eine Antwort aendern will, die nur der Mensch schreibt.</summary>
+    internal const string PersonOnlyWords = "Tę odpowiedź wpisuje i poprawia tylko sama osoba — kancelaria może ją czytać, ale nie zmieniać.";
+
+    /// <summary>0093 — ist unter diesen Fragen eine, die nur der Mensch schreibt?</summary>
+    internal static async Task<bool> TouchesPersonOnlyAsync(SqlConnection connection, IReadOnlyList<Guid> fieldIds, CancellationToken ct)
+    {
+        if (fieldIds.Count == 0) return false;
+        var names = string.Join(", ", fieldIds.Distinct().Select((_, i) => $"@f{i}"));
+        await using var cmd = new SqlCommand($"SELECT COUNT(*) FROM app.slug_field WHERE person_only = 1 AND id IN ({names});", connection);
+        var i = 0;
+        foreach (var id in fieldIds.Distinct()) cmd.Parameters.AddWithValue($"@f{i++}", id);
+        return (int)(await cmd.ExecuteScalarAsync(ct))! > 0;
+    }
+
     public sealed record OfficeReviseRequest(IReadOnlyList<OfficeValue> Values);
 
     /// <summary>
@@ -1960,6 +1983,13 @@ public static partial class Form
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
         if (!await MayTendAsync(ctx, db, connection, id)) return;
+
+        /* 0093 — was nur der Mensch schreibt, aendert die Kanzlei nicht. */
+        if (await TouchesPersonOnlyAsync(connection, parsed.Select(p => p.Field).ToList(), ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, PersonOnlyWords);
+            return;
+        }
 
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
 
@@ -2981,7 +3011,10 @@ public static partial class Form
         string? MoveTo = null, IReadOnlyList<MovedValue>? Moved = null,
 
         /* Fehlt es, bleibt es, wie es war (0044). */
-        bool? SelfEdit = null);
+        bool? SelfEdit = null,
+
+        /* 0093 — nur der Mensch schreibt und berichtigt; fehlt es, bleibt es, wie es war. */
+        bool? PersonOnly = null);
 
     /// <summary>
     /// Eine vorhandene Frage aendern.
@@ -3190,7 +3223,8 @@ public static partial class Form
                        label_area_id = @labelArea, label_epoch = @labelEpoch,
                        kind = @kind, is_required = @required, is_half_width = @half,
                        identity_role = @identity,
-                       self_edit = COALESCE(@selfEdit, self_edit),
+                       person_only = COALESCE(@personOnly, person_only),
+                       self_edit = CASE WHEN COALESCE(@personOnly, person_only) = 1 THEN 1 ELSE COALESCE(@selfEdit, self_edit) END,
                        area_id = COALESCE(@moveTo, area_id)
                  WHERE id = @id;
                 """, connection, tx))
@@ -3206,6 +3240,7 @@ public static partial class Form
                 save.Parameters.AddWithValue("@identity", identity);
                 save.Parameters.AddWithValue("@moveTo", (object?)moveTo ?? DBNull.Value);
                 save.Parameters.Add("@selfEdit", System.Data.SqlDbType.Bit).Value = (object?)body.SelfEdit ?? DBNull.Value;
+                save.Parameters.Add("@personOnly", System.Data.SqlDbType.Bit).Value = (object?)body.PersonOnly ?? DBNull.Value;
                 save.Parameters.AddWithValue("@id", id);
                 await save.ExecuteNonQueryAsync(ctx.RequestAborted);
             }

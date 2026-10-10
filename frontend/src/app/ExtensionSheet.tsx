@@ -85,16 +85,17 @@ export function ExtensionEntry({ extensionId, ext, baseRegistrationId, entry, ed
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
-  const byId = useMemo(() => new Map(ext.fields.map((f) => [f.fieldId, f])), [ext.fields]);
-  const layout = useMemo(
-    () => layoutWith(ext.design?.layout ?? [], ext.fields.map((f) => f.fieldId)), [ext.design, ext.fields]);
+  /* 0093 — was nur der Mensch schreibt, steht hier zum Lesen, nicht zum Schreiben. */
+  const writable = useMemo(() => ext.fields.filter((f) => f.personOnly !== true), [ext.fields]);
+  const byId = useMemo(() => new Map(writable.map((f) => [f.fieldId, f])), [writable]);
+  const layout = useMemo(() => layoutWith(ext.design?.layout ?? [], writable.map((f) => f.fieldId)), [ext.design, writable]);
   const outcome = useMemo(
     () => evaluate({ version: 1, layout, nodes: ext.design?.nodes ?? [], edges: ext.design?.edges ?? [] }, answers),
     [layout, ext.design, answers]);
 
   const start = () => {
     const from: Record<string, string> = {};
-    for (const f of ext.fields) from[f.fieldId] = values?.get(f.fieldId) ?? '';
+    for (const f of writable) from[f.fieldId] = values?.get(f.fieldId) ?? '';
     setAnswers(from);
     setFailed(null);
     setEditing(true);
@@ -108,7 +109,7 @@ export function ExtensionEntry({ extensionId, ext, baseRegistrationId, entry, ed
 
     try {
       /* Nur, was zu sehen war — eine verborgene Frage schreibt nichts. */
-      const shown = ext.fields.filter((f) => !outcome.hidden.has(f.fieldId));
+      const shown = writable.filter((f) => !outcome.hidden.has(f.fieldId));
       const keys = { intakes: ext.intakes, areaOf: ext.areaOf, seatKey: null };
 
       if (entry === undefined) {
@@ -180,10 +181,11 @@ export function ExtensionEntry({ extensionId, ext, baseRegistrationId, entry, ed
 
       {editable && (
         <div className="wk-actions">
-          <button type="button" className="wk-link-btn" onClick={start} disabled={ext.fields.length === 0}>
+          <button type="button" className="wk-link-btn" onClick={start} disabled={writable.length === 0}>
             {entry === undefined ? 'Uzupełnij' : 'Edytuj'}
           </button>
           {ext.fields.length === 0 && <span className="wk-hint">To rozszerzenie nie ma jeszcze pytań.</span>}
+          {ext.fields.length > 0 && writable.length === 0 && <span className="wk-hint">Te odpowiedzi wpisuje i poprawia tylko sama osoba.</span>}
         </div>
       )}
     </>
@@ -201,7 +203,7 @@ export function ExtensionEntry({ extensionId, ext, baseRegistrationId, entry, ed
  * <b>Pflichtfragen halten die Kanzlei nicht auf</b> — sie weiss oft erst den
  * Namen und die Adresse, und trägt den Rest nach. Nur ganz leer geht nicht.
  */
-export function OfficeAdd({ formId, fields, design, onAdded, label = 'Dodaj osobę' }: {
+export function OfficeAdd({ formId, fields: allFields, design, onAdded, label = 'Dodaj osobę' }: {
   formId: string;
   fields: readonly OpenField[];
   design: FormDesign | null;
@@ -214,6 +216,8 @@ export function OfficeAdd({ formId, fields, design, onAdded, label = 'Dodaj osob
   const [failed, setFailed] = useState<string | null>(null);
   const [done, setDone] = useState(0);
 
+  /* 0093 — was nur der Mensch schreibt, trägt die Kanzlei nicht für ihn ein. */
+  const fields = useMemo(() => allFields.filter((f) => f.personOnly !== true), [allFields]);
   const byId = useMemo(() => new Map(fields.map((f) => [f.fieldId, f])), [fields]);
   const layout = useMemo(() => layoutWith(design?.layout ?? [], fields.map((f) => f.fieldId)), [design, fields]);
   const outcome = useMemo(

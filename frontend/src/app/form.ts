@@ -181,6 +181,9 @@ export interface NewField {
 
   /** Darf der Mensch die Antwort später über seinen Link berichtigen (0044)? Vorgabe: ja. */
   readonly selfEdit?: boolean;
+
+  /** 0093 — schreibt und berichtigt NUR der Mensch (die Kanzlei liest, ändert nie)? Vorgabe: nein. */
+  readonly personOnly?: boolean;
 }
 
 export async function addField(partId: string, what: NewField): Promise<{ fieldId: string }> {
@@ -201,7 +204,8 @@ export async function addField(partId: string, what: NewField): Promise<{ fieldI
       isRequired: what.isRequired ?? false,
       isHalfWidth: what.isHalfWidth ?? false,
       identityRole: what.identityRole ?? 'none',
-      selfEdit: what.selfEdit ?? true
+      selfEdit: what.selfEdit ?? true,
+      personOnly: what.personOnly ?? false
     })
   });
 }
@@ -247,6 +251,9 @@ export interface FieldEdit {
   /** Darf der Mensch sie selbst berichtigen (0044)? Fehlt es, bleibt es, wie es war. */
   readonly selfEdit?: boolean;
 
+  /** 0093 — nur der Mensch schreibt und berichtigt. Fehlt es, bleibt es, wie es war. */
+  readonly personOnly?: boolean;
+
   /** Wohin die Antworten ab jetzt gehen — mit JEDER vorhandenen neu verpackt (`moveAnswers`). */
   readonly moveTo?: { readonly areaId: string; readonly moved: readonly MovedValue[] };
 }
@@ -263,6 +270,7 @@ export async function editField(fieldId: string, e: FieldEdit): Promise<{ areaId
       isHalfWidth: e.isHalfWidth,
       identityRole: e.identityRole,
       selfEdit: e.selfEdit ?? null,
+      personOnly: e.personOnly ?? null,
       moveTo: e.moveTo?.areaId ?? null,
       moved: e.moveTo?.moved ?? null
     })
@@ -340,6 +348,13 @@ export interface SealedField {
 
   /** Darf der Mensch die Antwort über seinen Link berichtigen (0044)? */
   readonly selfEdit: boolean;
+
+  /**
+   * 0093 — WPISUJE TYLKO OSOBA: die Kanzlei liest die Antwort, ändert sie aber
+   * nie — weder berichtigen noch an ihrer Stelle eintragen (der Dienst lehnt es
+   * ab). Fehlt beim alten Dienst.
+   */
+  readonly personOnly?: boolean;
 
   /** Fragt der Link beim ersten Öffnen nach dieser Angabe (0046)? */
   readonly linkCheck: boolean;

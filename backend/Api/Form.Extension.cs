@@ -665,6 +665,13 @@ public static partial class Form
                 return;
             }
 
+            /* 0093 — was nur der Mensch schreibt, traegt die Kanzlei auch nicht an seiner Stelle ein. */
+            if (fields.First(f => f.Id == fieldId).PersonOnly)
+            {
+                await Fail(ctx, StatusCodes.Status403Forbidden, PersonOnlyWords);
+                return;
+            }
+
             /* Was nur die Kanzlei sieht, bekommt keine Huelle fuer den Platz. */
             parsed.Add((fieldId, sealedValue, wrapped, person && access is not null ? Optional(one.SeatKeySealed) : null));
         }

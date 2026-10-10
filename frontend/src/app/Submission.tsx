@@ -182,6 +182,16 @@ export function Submission({ seat, values, open, review = false }: {
 
   const changed = editable.filter((one) => (draft[one.fieldId] ?? '') !== (one.value ?? ''));
 
+  /*
+   * 0093 — EIN NEUER LINK NUR, WO ER HINGEHT. Der neue Link (0046) ist für eine
+   * geänderte Nummer oder Adresse da: der alte könnte bei der falschen gelandet
+   * sein. Wer nur seine Ziele oder eine Bemerkung berichtigt, behält seinen Link
+   * — sonst ginge jedes Mal der aus der SMS kaputt.
+   */
+  const reaches = (fieldId: string) => { const kind = rowOf(fieldId)?.kind; return kind === 'phone' || kind === 'email'; };
+  const rotates = changed.some((one) => reaches(one.fieldId));
+  const mayRotate = editable.some((one) => reaches(one.fieldId));
+
   /**
    * „Wszystko się zgadza" — einmal für die ganze Einsendung.
    *
@@ -222,6 +232,9 @@ export function Submission({ seat, values, open, review = false }: {
         { intakePublic: fromBase64Url(intake.publicKey), seatKey });
 
       setEditing(false);
+
+      /* Nichts geändert, wohin ein Link geht: der Link bleibt (0093). */
+      if (!rotates) { seat.reload(); return; }
 
       /*
        * DER NEUE LINK (0046). Gespeichert ist schon — schlägt nur das hier
@@ -296,10 +309,10 @@ export function Submission({ seat, values, open, review = false }: {
                 </button>
               )}
             </div>
-            {editable.length > 0 && (
+            {mayRotate && (
               <p className="wk-hint">
-                Po poprawce dostaniesz nowy link — obecny przestanie działać. To
-                na wypadek, gdyby trafił pod zły numer.
+                Po poprawce numeru telefonu albo adresu e-mail dostaniesz nowy link — obecny
+                przestanie działać. To na wypadek, gdyby trafił pod zły numer.
               </p>
             )}
           </>
@@ -387,8 +400,8 @@ export function Submission({ seat, values, open, review = false }: {
 
       <p className="wk-hint">
         Zmiany pieczętujemy w tej przeglądarce. Usługa zapisze je, nie mogąc ich
-        odczytać. Po zapisaniu dostaniesz <strong>nowy link</strong> — obecny
-        przestanie działać.
+        odczytać.
+        {rotates && <> Zmieniasz numer albo e-mail — po zapisaniu dostaniesz <strong>nowy link</strong>, a obecny przestanie działać.</>}
       </p>
 
       <div className="wk-actions">

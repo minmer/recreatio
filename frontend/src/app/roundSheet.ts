@@ -28,9 +28,9 @@ export interface RoundRecord {
 /** Mehr Plättchen passen nicht in eine Zeile am Telefon. */
 export const MAX_QUICK = 6;
 
-/** Die Fragen, die sich in der Zeile antippen lassen: „Tak / nie", lesbar. */
+/** Die Fragen, die sich in der Zeile antippen lassen: „Tak / nie", lesbar — und von der Kanzlei zu schreiben (0093: nicht, was nur der Mensch schreibt). */
 export const quickFields = (fields: readonly OpenField[]): OpenField[] =>
-  fields.filter((f) => f.kind === 'checkbox' && f.label !== null).slice(0, MAX_QUICK);
+  fields.filter((f) => f.kind === 'checkbox' && f.label !== null && f.personOnly !== true).slice(0, MAX_QUICK);
 
 /** Die Beschriftung eines Plättchens — die Frage, gekürzt, wenn sie lang ist. */
 export function chipText(label: string): string {

@@ -44,7 +44,7 @@ export const tidyKindOf = (field: Pick<OpenField, 'kind' | 'identityRole'>): Tid
  * Teile der Adressen kommen ins gemeinsame Verzeichnis (nur angemeldet).
  */
 export async function crookedOf(form: {
-  readonly fields: readonly Pick<OpenField, 'fieldId' | 'kind' | 'identityRole'>[];
+  readonly fields: readonly Pick<OpenField, 'fieldId' | 'kind' | 'identityRole' | 'personOnly'>[];
   readonly registrations: readonly Pick<Submission, 'registrationId'>[];
   readonly opened: ReadonlyMap<string, ReadonlyMap<string, string>>;
 }, register = false): Promise<Crooked[]> {
@@ -55,7 +55,8 @@ export async function crookedOf(form: {
     const values = form.opened.get(s.registrationId);
     if (values === undefined) continue;
     for (const f of form.fields) {
-      const kind = tidyKindOf(f);
+      /* 0093 — was nur der Mensch schreibt, rückt die Kanzlei auch nicht gerade. */
+      const kind = f.personOnly === true ? null : tidyKindOf(f);
       const raw = values.get(f.fieldId);
       if (kind === null || raw === undefined || raw.trim() === '') continue;
       if (kind === 'phone') {

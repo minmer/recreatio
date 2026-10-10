@@ -49,6 +49,9 @@ interface Column {
 
   /** 0086 — die Frage hinter der Spalte, wenn sie gestellt wird: nur dann lässt sich die Zelle schreiben. */
   readonly field: OpenField | null;
+
+  /** 0093 — schreibt nur der Mensch: die Kanzlei liest die Zelle, schreibt sie nie. */
+  readonly locked?: boolean;
 }
 
 interface Row {
@@ -143,7 +146,8 @@ export function FormTable({ fields, removed = NONE, submissions, opened, fileNam
         label: f.label ?? 'zapieczętowane pytanie',
         numeric: f.kind === 'number',
         choice: f.kind === 'choice',
-        field: f.label === null ? null : f
+        field: f.label === null ? null : f,
+        locked: f.personOnly === true
       })),
       ...removed.filter((f) => answered.has(f.fieldId)).map((f) => ({
         key: f.fieldId,
@@ -346,6 +350,7 @@ export function FormTable({ fields, removed = NONE, submissions, opened, fileNam
                 >
                   <button type="button" className="wk-th-sort" onClick={() => pickSort(c.key)}>
                     {c.label}
+                    {editing && c.locked === true && <span className="wk-hint" title="Tę odpowiedź wpisuje i poprawia tylko sama osoba"> (tylko osoba)</span>}
                     <span aria-hidden="true">{sort.key === c.key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}</span>
                   </button>
                 </th>
@@ -360,7 +365,7 @@ export function FormTable({ fields, removed = NONE, submissions, opened, fileNam
                   <td key={c.key}>
                     {c.key === 'at' ? (
                       <span className="wk-tag">nowy</span>
-                    ) : c.field !== null ? (
+                    ) : c.field !== null && c.locked !== true ? (
                       <CellInput
                         field={c.field} value={one[c.key] ?? ''} original="" cell={`new${at}|${c.key}`}
                         onChange={(value) => setFresh((was) => was.map((r, i) => (i === at ? { ...r, [c.key]: value } : r)))}
@@ -374,7 +379,7 @@ export function FormTable({ fields, removed = NONE, submissions, opened, fileNam
               <tr key={row.id} className={row.hidden || row.withdrawn ? 'wk-row-muted' : draft.has(row.id) ? 'wk-row-changed' : undefined}>
                 {columns.map((c, i) => (
                   <td key={c.key} className={c.numeric ? 'wk-num' : undefined}>
-                    {editing && c.field !== null && !row.withdrawn ? (
+                    {editing && c.field !== null && c.locked !== true && !row.withdrawn ? (
                       <CellInput
                         field={c.field} value={draftOf(row.id, c.key)} original={rawOf(row.id, c.key)} cell={`${row.id}|${c.key}`}
                         onChange={(value) => setCell(row.id, c.key, value)}

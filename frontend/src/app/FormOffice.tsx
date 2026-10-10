@@ -19,7 +19,7 @@
  * hätte.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { areaPath, loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from './area';
 import { fromBase64Url } from './crypto';
@@ -834,7 +834,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
       await saveField(f, {
         label: f.label, help: f.help, options: f.options, kind: f.kind,
         isRequired: f.isRequired, isHalfWidth: f.isHalfWidth, identityRole: f.identityRole,
-        selfEdit: f.selfEdit, areaId: f.areaId
+        selfEdit: f.selfEdit, personOnly: f.personOnly === true, areaId: f.areaId
       });
     }
   };
@@ -940,6 +940,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
       label: change.label, help: change.help, options: change.options,
       kind: change.kind, isRequired: change.isRequired, isHalfWidth: change.isHalfWidth,
       selfEdit: change.selfEdit,
+      personOnly: change.personOnly,
       identityRole: change.identityRole,
       moveTo
     });
@@ -1271,7 +1272,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
                     <span className="wk-row-side">
                       {' · '}{KIND_LABEL[f.kind]}
                       {f.isRequired && ' · wymagane'}
-                      {!f.selfEdit && ' · po wysłaniu tylko do odczytu'}
+                      {f.personOnly === true ? ' · wpisuje i poprawia tylko osoba' : !f.selfEdit && ' · po wysłaniu tylko do odczytu'}
                       {f.identityRole !== 'none' && ` · ${IDENTITY_LABEL[f.identityRole]}`}
                       {' · → '}{areaLabel(f.areaId)}
                     </span>
@@ -2778,6 +2779,8 @@ function NewFieldForm({
   const [areaId, setAreaId] = useState('');
   const [required, setRequired] = useState(false);
   const [selfEdit, setSelfEdit] = useState(true);
+  /* 0093 — nur der Mensch schreibt und berichtigt. */
+  const [personOnly, setPersonOnly] = useState(false);
   const [identity, setIdentity] = useState<IdentityRole>('none');
   const [options, setOptions] = useState('');
   /* 0083 — der Wortlaut einer Zustimmung (sonst eine Podpowiedź). */
@@ -2849,7 +2852,8 @@ function NewFieldForm({
         options: kind === 'choice' ? options.split('\n') : undefined,
         isRequired: required,
         identityRole: identity,
-        selfEdit
+        selfEdit: selfEdit || personOnly,
+        personOnly
       });
 
       setLabel('');
@@ -2934,7 +2938,7 @@ function NewFieldForm({
         </span>
       </label>
 
-      <SelfEditBox value={selfEdit} onChange={setSelfEdit} />
+      <WhoEditsBox selfEdit={selfEdit} personOnly={personOnly} onChange={(next) => { setSelfEdit(next.selfEdit); setPersonOnly(next.personOnly); }} />
 
       <p className="wk-hint">
         {formAreaId !== null
@@ -3078,6 +3082,9 @@ interface FieldChange {
   /** Darf der Mensch die Antwort über seinen Link berichtigen (0044)? */
   readonly selfEdit: boolean;
 
+  /** 0093 — schreibt und berichtigt nur der Mensch (die Kanzlei liest)? */
+  readonly personOnly?: boolean;
+
   /** Wohin die Antworten gehen — ein anderer als bisher heisst: umziehen. */
   readonly areaId: string;
 }
@@ -3104,6 +3111,7 @@ function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
   const [identity, setIdentity] = useState<IdentityRole>(field.identityRole);
   const [required, setRequired] = useState(field.isRequired);
   const [selfEdit, setSelfEdit] = useState(field.selfEdit);
+  const [personOnly, setPersonOnly] = useState(field.personOnly === true);
   const [options, setOptions] = useState(field.options.join('\n'));
   const [areaId, setAreaId] = useState(field.areaId);
 
@@ -3125,7 +3133,8 @@ function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
         onSave({
           label, help: help.trim() === '' ? null : help,
           options: kind === 'choice' ? options.split('\n') : [],
-          kind, isRequired: required, isHalfWidth: field.isHalfWidth, identityRole: identity, selfEdit, areaId
+          kind, isRequired: required, isHalfWidth: field.isHalfWidth, identityRole: identity,
+          selfEdit: selfEdit || personOnly, personOnly, areaId
         });
       }}
     >
@@ -3191,7 +3200,7 @@ function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
         </span>
       </label>
 
-      <SelfEditBox value={selfEdit} onChange={setSelfEdit} />
+      <WhoEditsBox selfEdit={selfEdit} personOnly={personOnly} onChange={(next) => { setSelfEdit(next.selfEdit); setPersonOnly(next.personOnly); }} />
 
       <div className="wk-actions">
         <button type="submit" className="wk-btn" disabled={busy || label.trim() === ''}>
@@ -3210,19 +3219,39 @@ function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
  * und der Dienst prüft sie bei jeder Berichtigung über den Link. Die Kanzlei
  * selbst ändert weiter alles.
  */
-function SelfEditBox({ value, onChange }: { value: boolean; onChange: (next: boolean) => void }) {
+/**
+ * KTO ZMIENIA ODPOWIEDŹ — eine Wahl statt eines Hakens (0044, 0093). Die
+ * dritte Möglichkeit ist die für die eigenen Worte eines Menschen (seine
+ * Ziele, ein Zeugnis): die Kanzlei liest, ändert aber nie; der Dienst lehnt
+ * es ab, nicht nur die Oberfläche.
+ */
+const WHO_EDITS: readonly { key: 'both' | 'office' | 'person'; label: string; says: string }[] = [
+  { key: 'both', label: 'Osoba i kancelaria', says: 'Osoba w swoim portalu zobaczy „Popraw dane"; kancelaria też może poprawić.' },
+  { key: 'office', label: 'Tylko kancelaria', says: 'Osoba zobaczy odpowiedź, ale zmienić ją może tylko kancelaria.' },
+  { key: 'person', label: 'Tylko osoba', says: 'Wpisuje i poprawia tylko sama osoba (przez swój link). Kancelaria może ją czytać, ale nie zmieni jej ani nie wpisze za nią.' }
+];
+
+function WhoEditsBox({ selfEdit, personOnly, onChange }: {
+  selfEdit: boolean;
+  personOnly: boolean;
+  onChange: (next: { selfEdit: boolean; personOnly: boolean }) => void;
+}) {
+  const now = personOnly ? 'person' : selfEdit ? 'both' : 'office';
+  const name = useId();
   return (
-    <label className="wk-field">
-      <span>
-        <input type="checkbox" checked={value} onChange={() => onChange(!value)} />
-        {' '}Osoba może później sama poprawić tę odpowiedź
-      </span>
-      <span className="wk-hint">
-        {value
-          ? 'W swoim portalu (link po wysłaniu) zobaczy przycisk „Popraw dane".'
-          : 'Odpowiedź zobaczy, ale zmienić ją może tylko kancelaria.'}
-      </span>
-    </label>
+    <fieldset className="wk-field wk-who-edits">
+      <legend>Kto może zmieniać odpowiedź</legend>
+      <div className="wk-seg" role="radiogroup">
+        {WHO_EDITS.map((one) => (
+          <label key={one.key} className={one.key === now ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}>
+            <input type="radio" name={name} value={one.key} checked={one.key === now} data-who-edits={one.key}
+              onChange={() => onChange({ selfEdit: one.key !== 'office', personOnly: one.key === 'person' })} />
+            {one.label}
+          </label>
+        ))}
+      </div>
+      <span className="wk-hint">{WHO_EDITS.find((one) => one.key === now)?.says}</span>
+    </fieldset>
   );
 }
 

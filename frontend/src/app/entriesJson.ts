@@ -226,6 +226,8 @@ export function planEntries(doc: unknown, ctx: EntriesContext, now: Date = new D
     for (const [key, value] of Object.entries(answersIn)) {
       const field = byKey.get(fold(key));
       if (field === undefined) { warnings.push(`${where}: nie ma pytania „${key}” — pominięte.`); continue; }
+      /* 0093 — was nur der Mensch schreibt, schreibt kein Import der Kanzlei. */
+      if (field.personOnly === true) { warnings.push(`${where}: na „${key}” odpowiada tylko sama osoba — pominięte.`); continue; }
       const text = valueFor(field, value);
       if (text === null) { warnings.push(`${where}: odpowiedź na „${key}” to nie tekst, liczba ani true/false — pominięta.`); continue; }
       given.set(field.fieldId, text);
@@ -296,6 +298,7 @@ export function planEntries(doc: unknown, ctx: EntriesContext, now: Date = new D
         for (const [key, value] of Object.entries(values)) {
           const field = extFields.get(fold(key));
           if (field === undefined) { warnings.push(`${where}: „${ext.name}” nie ma pytania „${key}” — pominięte.`); continue; }
+          if (field.personOnly === true) { warnings.push(`${where}: na „${key}” („${ext.name}”) odpowiada tylko sama osoba — pominięte.`); continue; }
           const text = valueFor(field, value);
           if (text === null) { warnings.push(`${where}: odpowiedź na „${key}” to nie tekst, liczba ani true/false — pominięta.`); continue; }
           wanted.set(field.fieldId, text);

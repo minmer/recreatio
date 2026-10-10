@@ -46,6 +46,8 @@ export interface QuestionJson {
   readonly halfWidth: boolean;
   readonly identity: IdentityRole;
   readonly selfEdit: boolean;
+  /** 0093 — schreibt und berichtigt nur der Mensch; die Kanzlei liest. Fehlt: nein. */
+  readonly personOnly?: boolean;
   readonly answersTo: string;
 }
 
@@ -71,6 +73,7 @@ export const QUESTION_KEYS: Readonly<Record<string, string>> = {
   'questions[].halfWidth': 'true — pole na pół szerokości',
   'questions[].identity': `Której danej osoby dotyczy (formularz wypełnia ją sam z profilu): ${IDENTITY_ROLES.map((r) => `"${r}"`).join(', ')}; zwykłe pytanie: "none"`,
   'questions[].selfEdit': 'true — osoba może później poprawić odpowiedź przez swój link',
+  'questions[].personOnly': 'true — odpowiedź wpisuje i poprawia tylko sama osoba (przez swój link); kancelaria ją czyta, ale nie zmienia i nie wpisuje za nią (np. własne cele kandydata). Włącza też "selfEdit". Pominięte: false',
   'questions[].answersTo': 'Identyfikator obszaru, do którego trafiają odpowiedzi (kto je czyta). Pominięty: obszar wybrany przy imporcie. Zmiana przy istniejącym pytaniu nie przenosi odpowiedzi — to robi się w module',
   design: 'Układ i logika formularza (albo null — zwykła lista). Wymaga obszaru formularza',
   'design.version': 'Zawsze 1',
@@ -160,6 +163,7 @@ const asQuestion = (f: OpenField): QuestionJson => ({
   halfWidth: f.isHalfWidth,
   identity: f.identityRole,
   selfEdit: f.selfEdit,
+  ...(f.personOnly === true ? { personOnly: true } : {}),
   answersTo: f.areaId
 });
 
@@ -218,6 +222,7 @@ interface Wanted {
   readonly halfWidth: boolean;
   readonly identity: IdentityRole;
   readonly selfEdit: boolean;
+  readonly personOnly: boolean;
   readonly answersTo: string | null;
 }
 
@@ -248,7 +253,8 @@ export function readQuestions(value: unknown, warnings: string[]): Wanted[] {
       required: bool(q.required, false),
       halfWidth: bool(q.halfWidth, false),
       identity,
-      selfEdit: bool(q.selfEdit, true),
+      selfEdit: bool(q.selfEdit, true) || bool(q.personOnly, false),
+      personOnly: bool(q.personOnly, false),
       answersTo: str(q.answersTo).trim() === '' ? null : str(q.answersTo).trim()
     });
   });
@@ -331,7 +337,8 @@ export async function writeFormContent(
       warnings.push(`„${q.label}”: odpowiedzi zostają w dotychczasowym obszarze — przeniesienie robi się w module.`);
     }
     const differs = f.kind !== q.kind || f.label !== q.label || (f.help ?? null) !== q.help || !same(f.options, q.options)
-      || f.isRequired !== q.required || f.isHalfWidth !== q.halfWidth || f.identityRole !== q.identity || f.selfEdit !== q.selfEdit;
+      || f.isRequired !== q.required || f.isHalfWidth !== q.halfWidth || f.identityRole !== q.identity || f.selfEdit !== q.selfEdit
+      || (f.personOnly === true) !== q.personOnly;
     if (!differs) { unchanged += 1; continue; }
 
     options.onStage?.(`Pieczętowanie pytania „${q.label}”…`);
@@ -340,7 +347,8 @@ export async function writeFormContent(
       key,
       labelArea: formArea === null ? null : { areaId: formArea, epoch },
       label: q.label, help: q.help, options: q.kind === 'choice' ? q.options : [],
-      kind: q.kind, isRequired: q.required, isHalfWidth: q.halfWidth, identityRole: q.identity, selfEdit: q.selfEdit
+      kind: q.kind, isRequired: q.required, isHalfWidth: q.halfWidth, identityRole: q.identity, selfEdit: q.selfEdit,
+      personOnly: q.personOnly
     });
     changed += 1;
   }
@@ -374,7 +382,8 @@ export async function writeFormContent(
       labelArea,
       kind: q.kind, position, label: q.label, help: q.help ?? undefined,
       options: q.kind === 'choice' ? q.options : undefined,
-      isRequired: q.required, isHalfWidth: q.halfWidth, identityRole: q.identity, selfEdit: q.selfEdit
+      isRequired: q.required, isHalfWidth: q.halfWidth, identityRole: q.identity, selfEdit: q.selfEdit,
+      personOnly: q.personOnly
     });
     if (q.id !== '') ids.set(q.id, done.fieldId);
     position += 1;

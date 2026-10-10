@@ -7841,3 +7841,12 @@ body.has-pz { overflow: hidden; }
 .wk-now-quick a:hover, .wk-now-quick a:focus-visible { border-color: var(--wk-accent); color: var(--wk-accent); }
 .wk-now .wk-recent { margin: 0; }
 .wk-tiles-head { margin: 0 0 0.2rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wk-muted); }
+
+/* 0093 — „Kto może zmieniać odpowiedź": drei Möglichkeiten als Segment, mit echten Radios darunter. */
+.wk-who-edits { border: 0; padding: 0; margin: 0; display: grid; gap: 0.35rem; min-width: 0; }
+.wk-who-edits legend { font-size: 0.85rem; color: var(--wk-muted); padding: 0; margin-bottom: 0.3rem; }
+.wk-who-edits .wk-seg-opt { position: relative; cursor: pointer; }
+.wk-who-edits .wk-seg-opt input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.wk-who-edits .wk-seg-opt:focus-within { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+/* In der Tabelle: eine Zelle, die nur der Mensch ändert. */
+.wk-cell-locked { color: var(--wk-muted); cursor: not-allowed; }
