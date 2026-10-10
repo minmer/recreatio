@@ -52,6 +52,8 @@ export interface DigestChat {
   readonly lastMessageAt: string | null;
   readonly seatName: string | null;
   readonly quiet: boolean;
+  /** 0094 — zu welchem Bereich (fehlt beim alten Dienst). */
+  readonly areaId?: string;
 }
 
 export interface DigestForm {
@@ -61,6 +63,14 @@ export interface DigestForm {
   readonly lastAt: string;
   /** 0090 — seit wann hier neu gilt (die Marke des Formulars, sonst die allgemeine). Fehlt beim alten Dienst. */
   readonly since?: string;
+  /** 0094 — zu welchem Bereich (fehlt beim alten Dienst). */
+  readonly areaId?: string | null;
+}
+
+/** 0094 — etwas, das auf die Kanzlei wartet: je Ding (Zasób, Formular) wie viel. */
+export interface DigestWaiting {
+  readonly count: number;
+  readonly list: readonly { readonly id?: string; readonly resourceId?: string; readonly moduleId?: string; readonly name: string; readonly areaId: string | null; readonly count: number }[];
 }
 
 export interface Digest {
@@ -79,6 +89,10 @@ export interface Digest {
   readonly tasks: number;
   /** 0091 — Formulare, deren Menschen auf den Schlüssel ihrer Rolle warten (fehlt beim alten Dienst). */
   readonly roles?: { readonly waiting: readonly string[] };
+  /** 0094 — Reservierungen, die auf ein Ja der Kanzlei warten (fehlt beim alten Dienst). */
+  readonly bookings?: DigestWaiting;
+  /** 0094 — Schritte der Kanzlei nach ihrer Frist (fehlt beim alten Dienst). */
+  readonly steps?: DigestWaiting;
   readonly nextPollSeconds: number;
 }
 

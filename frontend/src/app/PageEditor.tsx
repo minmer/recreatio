@@ -27,14 +27,23 @@ import { PageJson } from './PageJsonPanel';
 import { NO_LOOK, readLook, writeLook, type Look } from './slides';
 import { readSubject, SubjectSettings, writeSubject, type SubjectDecl } from './pageSubject';
 import { WorkspaceError, type Who } from './session';
+import { DisplaySwitch } from './DisplaySwitch';
+import { useDisplay } from './display';
+import { ShareButton } from './Share';
 
-export function PageEditor({ path, who, onOpenModule }: {
+export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
   path: string;
   who: Who;
+
+  /** 0094 — die Bereiche, zu denen die Seite Zugang verlangt (`PageCard`) — für „Udostępnij". */
+  accessAreaIds?: readonly string[];
 
   /** Den Baustein aufschlagen — als Unterseite DIESER Seite (`Workspace`). */
   onOpenModule: (moduleId: string) => void;
 }) {
+  /* 0094 — einfach: Bausteine, Aussehen, Speichern; erweitert: dazu die Karte und das JSON. */
+  const display = useDisplay('pageEditor');
+
   const [title, setTitle] = useState('');
   const [lead, setLead] = useState('');
   const [parts, setParts] = useState<readonly DraftPart[]>([]);
@@ -118,7 +127,10 @@ export function PageEditor({ path, who, onOpenModule }: {
 
   return (
     <div className="wk-page-edit">
-      <h3 className="wk-h2">recreatio.pl/{path}</h3>
+      <div className="wk-view-title">
+        <h3 className="wk-h2">recreatio.pl/{path}</h3>
+        <DisplaySwitch tool="pageEditor" />
+      </div>
 
       {/*
         0054 — DAS MENÜ, über allem anderen: es steht auch über der Seite, und
@@ -164,6 +176,10 @@ export function PageEditor({ path, who, onOpenModule }: {
           </button>
 
           <a className="wk-link" href={pagePath(path)}>Zobacz stronę</a>
+
+          {/* 0094 — die Adresse weitergeben; verlangt die Seite Zugang, mit einem Link, der ihn gibt. */}
+          <ShareButton who={who} label="Udostępnij" className="wk-link-btn"
+            target={{ title: title.trim() === '' ? path : title.trim(), aim: path, areaIds: accessAreaIds, open: accessAreaIds.length === 0 }} />
         </div>
       </form>
 
@@ -172,6 +188,7 @@ export function PageEditor({ path, who, onOpenModule }: {
         Zapisy": oben auf der Seite steht dann die Auswahl (◀ ▶), und die
         Bausteine „Panel osoby" zeigen den Gewählten.
       */}
+      {(display.extended || subject !== null) && (
       <details className="wk-fold" open={subject !== null || subjectDirty}>
         <summary>Wybór na stronie{subject === null ? '' : ' — ustawiony'}</summary>
         <SubjectSettings value={subject} busy={busy !== null} onChange={(next) => { setSubject(next); setSubjectDirty(true); }} />
@@ -182,6 +199,7 @@ export function PageEditor({ path, who, onOpenModule }: {
           </button>
         </div>
       </details>
+      )}
 
       <h3 className="wk-h2">Moduły</h3>
 
@@ -288,18 +306,29 @@ export function PageEditor({ path, who, onOpenModule }: {
         daneben die Beschreibung, wie das Dokument aussieht. Nimmt auch ein
         Ereignis des Altbestands an (vorher `SlidesImport`).
       */}
-      <PageJson
-        now={{ path, title, lead, mode, look: pageLook, parts, logic, subject: writeSubject(subject) }}
-        who={who}
-        unsaved={dirty || lookDirty}
-        onDone={async () => { await look(true); setMenuKey((n) => n + 1); }}
-      />
+      {display.extended && (
+        <PageJson
+          now={{ path, title, lead, mode, look: pageLook, parts, logic, subject: writeSubject(subject) }}
+          who={who}
+          unsaved={dirty || lookDirty}
+          onDone={async () => { await look(true); setMenuKey((n) => n + 1); }}
+        />
+      )}
 
       {/*
         DIE KARTE DER SEITE (0048): wann welcher Baustein zu sehen ist, und
         die Schritte, aus denen „Kroki osoby" seine Liste zeichnet. Zugeklappt
         — sie ist gross, und nicht jede Seite braucht sie.
       */}
+      {!display.extended ? (
+        logic !== null && (
+          <p className="wk-hint" data-logic-note="">
+            Ta strona ma mapę logiki (co kiedy widać).{' '}
+            <button type="button" className="wk-link-btn" onClick={() => display.pick('full')}>Pokaż mapę</button>
+          </p>
+        )
+      ) : (
+      <>
       <h3 className="wk-h2">
         Mapa logiki strony{' '}
         <button type="button" className="wk-link-btn" aria-expanded={mapOpen} onClick={() => setMapOpen(!mapOpen)}>
@@ -320,6 +349,8 @@ export function PageEditor({ path, who, onOpenModule }: {
             onSaved={setLogic}
           />
         )
+      )}
+      </>
       )}
 
       {/*

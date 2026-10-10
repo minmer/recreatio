@@ -419,7 +419,13 @@ export const VIEWS = {
    * der Schlüssel lebt. Sie steht NICHT bei „Obszary": dort geht es um
    * Schlüssel, die Inhalte öffnen, hier um den, der das Konto öffnet.
    */
-  account: 'Konto'
+  account: 'Konto',
+
+  /*
+   * 0094 — EIN WIDOK: die Seite des Warsztat, wie ein Widok sie beschreibt
+   * (`#/workspace/widok/<kennung>`). Ohne Kennung der zuletzt offene.
+   */
+  widok: 'Widok'
 } as const;
 
 export type View = keyof typeof VIEWS;

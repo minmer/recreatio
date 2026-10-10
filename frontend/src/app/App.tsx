@@ -39,6 +39,8 @@ import { ViewGuard } from './ViewGuard';
 import { Workspace } from './Workspace';
 import { JoinLink, JoinWithoutAccount } from './JoinLink';
 import { NotifyBell } from './NotifyBell';
+import { PhoneBar } from './PhoneBar';
+import { SearchButton, SearchPalette } from './SearchPalette';
 import { Widget } from './Widget';
 import { forgetNotifications } from './notify';
 
@@ -300,6 +302,9 @@ function Shell({
 
           {spot !== undefined && <Crumbs spot={spot} />}
 
+          {/* 0094 — ein Feld für alles (Ctrl K). */}
+          {who !== undefined && spot !== undefined && <SearchButton />}
+
           {/* 0067 — was neu ist: ungelesene Nachrichten, neue Anmeldungen, Aufgaben. */}
           {who !== undefined && <NotifyBell who={who} />}
 
@@ -319,6 +324,9 @@ function Shell({
           <ViewGuard>{children}</ViewGuard>
         </HeaderSlotContext.Provider>
       </main>
+      {/* 0094 — Szukaj (Ctrl K) und, am Telefon, der Streifen unten — nur im Arbeitsplatz. */}
+      {who !== undefined && spot !== undefined && <SearchPalette />}
+      {who !== undefined && spot !== undefined && <PhoneBar spot={spot} />}
     </div>
   );
 }

@@ -28,12 +28,26 @@ import { myRoleNames } from './roleNames';
 import { selfOf } from './roles';
 import { loadMySeats, openMine as openMySeat, type MySeat } from './seat';
 import { PasswordInput } from './PasswordInput';
+import { useCrumbs } from './crumbTrail';
+import { viewPath } from './routes';
+import { WorkspaceLook } from './WorkspaceLook';
 import {
   deleteAccount, deletionPreview, keepHeldKey, WorkspaceError,
   type DeletionPreview, type KeyKeeping, type Who
 } from './session';
 
-export function Account({ who }: { who: Who }) {
+/** 0094 — `#/workspace/account/widok`: Wygląd warsztatu; sonst das Konto. */
+export function Account({ who, trail = [] }: { who: Who; trail?: readonly string[] }) {
+  if (trail[0] === 'widok') return <LookPage />;
+  return <AccountPage who={who} />;
+}
+
+function LookPage() {
+  useCrumbs([{ label: 'Wygląd warsztatu', href: null }]);
+  return <WorkspaceLook />;
+}
+
+function AccountPage({ who }: { who: Who }) {
   const [mode, setMode] = useState<KeyKeeping | null>(null);
   const [devices, setDevices] = useState<readonly KeptDevice[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -149,6 +163,14 @@ export function Account({ who }: { who: Who }) {
       {failed !== null && <p className="wk-error">{failed}</p>}
       {said !== null && <p className="wk-done">{said}</p>}
       {busy !== null && <p className="wk-hint">{busy}</p>}
+
+      {/* 0094 — was der Arbeitsplatz zeigt: eigene Seite, weil sie wächst. */}
+      <h2 className="wk-h2">Wygląd warsztatu</h2>
+      <p className="wk-hint">
+        Widok prosty czy rozszerzony w każdej części, kolejność powiadomień,
+        Twoje widoki:{' '}
+        <a href={viewPath('account', 'widok')} data-look-link="">ustaw wygląd warsztatu</a>.
+      </p>
 
       <h2 className="wk-h2">Klucz</h2>
 

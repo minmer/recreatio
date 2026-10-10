@@ -276,7 +276,7 @@ public static class Notify
         var mine = (await Workspace.RolesOfAsync(connection, account, ct)).Select(r => r.Id).ToList();
 
         /* -- Rozmowy: ungelesen, was nicht von mir kommt (wie die Liste der Rozmowy). */
-        var chats = new List<(Guid Id, string Area, string Kind, int Unread, DateTimeOffset? Last, string? Seat, bool Quiet)>();
+        var chats = new List<(Guid Id, string Area, string Kind, int Unread, DateTimeOffset? Last, string? Seat, bool Quiet, Guid AreaId)>();
         if (mine.Count > 0)
         {
             var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
@@ -287,7 +287,8 @@ public static class Notify
                            AND (r.read_at IS NULL OR m.created_at > r.read_at)
                            AND (m.author_role_id IS NULL OR m.author_role_id NOT IN ({names}))) AS unread,
                        c.last_message_at,
-                       (SELECT x.recipient_name FROM app.access x WHERE x.id = c.seat_id)
+                       (SELECT x.recipient_name FROM app.access x WHERE x.id = c.seat_id),
+                       c.area_id
                 FROM app.chat c
                 JOIN app.area a ON a.id = c.area_id
                 LEFT JOIN app.chat_read r ON r.chat_id = c.id AND r.account_id = @account
@@ -309,7 +310,8 @@ public static class Notify
                 var unread = reader.GetInt32(3);
                 if (unread == 0) continue;
                 chats.Add((reader.GetGuid(0), reader.GetString(1), reader.GetString(2), unread,
-                    reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4), reader.IsDBNull(5) ? null : reader.GetString(5), false));
+                    reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4), reader.IsDBNull(5) ? null : reader.GetString(5), false,
+                    reader.GetGuid(6)));
             }
         }
 
@@ -376,12 +378,12 @@ public static class Notify
          *    und, 0090, nach der Marke des Formulars (die Kanzlei hat die Liste geöffnet).
          */
         var held = await Agenda.HeldAreasAsync(connection, account, ct);
-        var forms = new List<(Guid Id, string Name, int Count, DateTimeOffset Last, DateTimeOffset Since)>();
+        var forms = new List<(Guid Id, string Name, int Count, DateTimeOffset Last, DateTimeOffset Since, Guid? AreaId)>();
         if (held.Count > 0)
         {
             var names = string.Join(", ", held.Select((_, i) => $"@h{i}"));
             await using var cmd = new SqlCommand($"""
-                SELECT m.id, m.name, COUNT(*), MAX(r.submitted_at), MAX(s.seen_at)
+                SELECT m.id, m.name, COUNT(*), MAX(r.submitted_at), MAX(s.seen_at), m.area_id
                 FROM app.registration r
                 JOIN app.module m ON m.id = r.part_id
                 LEFT JOIN app.notify_seen s ON s.account_id = @account AND s.kind = N'form' AND s.subject_id = m.id
@@ -397,7 +399,7 @@ public static class Notify
                   AND r.by_office = 0
                   AND (r.access_id IS NOT NULL OR r.role_id IS NOT NULL OR r.claim_sha256 IS NOT NULL)
                   AND m.area_id IN ({names})
-                GROUP BY m.id, m.name
+                GROUP BY m.id, m.name, m.area_id
                 ORDER BY MAX(r.submitted_at) DESC;
                 """, connection);
             cmd.Parameters.AddWithValue("@since", since);
@@ -407,7 +409,8 @@ public static class Notify
             while (await reader.ReadAsync(ct))
             {
                 forms.Add((reader.GetGuid(0), reader.GetString(1), reader.GetInt32(2), reader.GetDateTimeOffset(3),
-                    Later(since, reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4))));
+                    Later(since, reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4)),
+                    reader.IsDBNull(5) ? null : reader.GetGuid(5)));
             }
         }
 
@@ -424,6 +427,57 @@ public static class Notify
             cmd.Parameters.AddWithValue("@since", linksSince);
             for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i]);
             links = (int)(await cmd.ExecuteScalarAsync(ct))!;
+        }
+
+        /*
+         * -- 0094: WAS AUF EINE ENTSCHEIDUNG DER KANZLEI WARTET. Nur, wo ich schreibe —
+         *    entscheiden kann nur, wer dort schreibt.
+         *      bookings  Reservierungen, die auf ein Ja warten (noch nicht vorbei)
+         *      steps     Schritte, die die Kanzlei abhakt, deren Frist vorbei ist
+         */
+        var bookings = new List<(Guid Id, string Name, Guid AreaId, int Count)>();
+        var steps = new List<(Guid Id, string Name, Guid? AreaId, int Count)>();
+        if (!countsOnly && mine.Count > 0)
+        {
+            var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
+            var writable = $"""
+                SELECT scope_id FROM app.certificate
+                WHERE scope_kind = N'area' AND revoked_at IS NULL AND expires_at > @now
+                  AND capability IN (N'write', N'admin') AND subject_role_id IN ({names})
+                """;
+
+            await using (var cmd = new SqlCommand($"""
+                SELECT TOP 30 r.id, r.name, r.area_id, COUNT(*)
+                FROM app.claim c JOIN app.resource r ON r.id = c.resource_id
+                WHERE c.status = N'pending' AND c.awaits = N'office' AND c.ends_at > @now
+                  AND r.area_id IN ({writable})
+                GROUP BY r.id, r.name, r.area_id
+                ORDER BY COUNT(*) DESC;
+                """, connection))
+            {
+                cmd.Parameters.AddWithValue("@now", now);
+                for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i]);
+                await using var reader = await cmd.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct)) bookings.Add((reader.GetGuid(0), reader.GetString(1), reader.GetGuid(2), reader.GetInt32(3)));
+            }
+
+            await using (var cmd = new SqlCommand($"""
+                SELECT TOP 30 m.id, m.name, m.area_id, COUNT(*)
+                FROM app.form_step st
+                JOIN app.module m ON m.id = st.module_id
+                JOIN app.registration g ON g.part_id = st.module_id AND g.withdrawn_at IS NULL AND g.is_hidden = 0
+                WHERE st.done_by = N'office' AND st.due_at IS NOT NULL AND st.due_at < @now
+                  AND NOT EXISTS (SELECT 1 FROM app.step_mark k WHERE k.step_id = st.id AND k.registration_id = g.id)
+                  AND m.area_id IN ({writable})
+                GROUP BY m.id, m.name, m.area_id
+                ORDER BY COUNT(*) DESC;
+                """, connection))
+            {
+                cmd.Parameters.AddWithValue("@now", now);
+                for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i]);
+                await using var reader = await cmd.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct)) steps.Add((reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetGuid(2), reader.GetInt32(3)));
+            }
         }
 
         var tasks = await Tasks.OpenNowAsync(connection, held, now, ct);
@@ -464,7 +518,10 @@ public static class Notify
                     unread = c.Unread,
                     lastMessageAt = c.Last,
                     seatName = c.Seat,
-                    quiet = c.Quiet
+                    quiet = c.Quiet,
+
+                    /* 0094 — zu welchem Bereich (für den Widok obszaru). */
+                    areaId = Ids.ToText(c.AreaId)
                 }).ToList()
             },
             registrations = new
@@ -478,7 +535,10 @@ public static class Notify
                     lastAt = f.Last,
 
                     /* 0090 — seit wann hier neu gilt: die Marke des Formulars, sonst die allgemeine. */
-                    since = f.Since
+                    since = f.Since,
+
+                    /* 0094 — zu welchem Bereich (für den Widok obszaru). */
+                    areaId = f.AreaId is null ? null : Ids.ToText(f.AreaId.Value)
                 }).ToList()
             },
             links,
@@ -486,6 +546,18 @@ public static class Notify
 
             /* 0091 — Formulare, deren Menschen auf den Schlüssel ihrer Rolle warten: die App gibt ihn weiter. */
             roles = new { waiting = rolesWaiting.Select(Ids.ToText).ToList() },
+
+            /* 0094 — was auf die Kanzlei wartet: Reservierungen zum Bestätigen, Schritte nach ihrer Frist. */
+            bookings = new
+            {
+                count = bookings.Sum(b => b.Count),
+                list = bookings.Select(b => (object)new { resourceId = Ids.ToText(b.Id), name = b.Name, areaId = Ids.ToText(b.AreaId), count = b.Count }).ToList()
+            },
+            steps = new
+            {
+                count = steps.Sum(x => x.Count),
+                list = steps.Select(x => (object)new { moduleId = Ids.ToText(x.Id), name = x.Name, areaId = x.AreaId is null ? null : Ids.ToText(x.AreaId.Value), count = x.Count }).ToList()
+            },
 
             /* Ein Rat, kein Befehl: ist etwas offen, lohnt eine Minute; sonst reichen zwei. */
             nextPollSeconds = unreadTotal + formsTotal > 0 ? 60 : 120

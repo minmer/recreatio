@@ -13,6 +13,7 @@
  *   4. Neue Einträge bekommen neue Kennungen und einen freien Platz; die Karte
  *      der Seite folgt ihnen.
  *   5. Die Beschreibung nennt jede Art und jeden Schlüssel.
+ *   6. 0094 — ein Widok: jeder Schlüssel des Exports beschrieben, das Beispiel importiert sauber.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -30,6 +31,7 @@ export * from '${app}pageJson';
 export { QUESTION_EXAMPLE, QUESTION_KEYS, readQuestions } from '${app}formJson';
 export { ENTRIES_FORMAT, ENTRIES_KEYS, ONCE_KEY, answerKeys, entriesDescription, exportEntries, planEntries } from '${app}entriesJson';
 export { BREAKPOINTS } from '${app}layout';
+export { exportView, planViewImport, viewDescription, viewExample, VIEW_FORMAT, PART_DEFS } from '${app}workspaceViews';
 `);
 await build({
   entryPoints: [entry],
@@ -365,6 +367,27 @@ try {
   const fromExample = m.planEntries(JSON.parse(listDoc.slice(listDoc.indexOf('Przykład:') + 'Przykład:'.length)), { ...ctx, existing: [] }, at);
   assert.ok(!('error' in fromExample) && fromExample.warnings.length === 0 && fromExample.add.length === 2 && fromExample.recordsNew.length === 1, 'the example in the list description imports cleanly');
   ok('list JSON: export round-trips, new and changed people, records per period, warnings, a description built from the form');
+  }
+
+  /* -- 6. Ein Widok (0094) ------------------------------------------------------------------- */
+  {
+    const areas = [{ areaId: 'b', name: 'Bierzmowanie', parentAreaId: null }];
+    const view = { id: 'own:1', name: 'B', kind: 'own', areaIds: ['b'], parts: m.PART_DEFS.map((def) => ({ kind: def.kind, mode: def.modes.at(-1).id })) };
+    const doc = m.exportView(view, areas);
+    const described = m.viewDescription();
+    for (const path of [...pathsOf(doc), ...pathsOf(m.viewExample())]) {
+      const key = path.split('.').at(-1).replace('[]', '');
+      assert.ok(described.includes(`"${key}" — `), `view description explains ${path}`);
+    }
+    for (const def of m.PART_DEFS) assert.ok(described.includes(`  "${def.kind}" — `), `view description lists ${def.kind}`);
+    const back = m.planViewImport(JSON.parse(JSON.stringify(doc)), { ...view, parts: [] }, areas);
+    assert.ok(!('error' in back) && back.warnings.length === 0, 'a view round-trips');
+    assert.deepEqual(back.view.parts, view.parts, 'every part with its way');
+    const example = JSON.parse(described.slice(described.indexOf('Przykład:') + 'Przykład:'.length));
+    assert.equal(example.format, m.VIEW_FORMAT);
+    const fromExample = m.planViewImport(example, { id: 'own:2', name: 'x', kind: 'own', areaIds: [], parts: [] }, areas);
+    assert.ok(!('error' in fromExample) && fromExample.warnings.length === 0 && fromExample.view.areaIds[0] === 'b', 'the example in the description imports cleanly (its area found by name)');
+    ok('view JSON (0094): every exported key described, round trip, the example imports cleanly');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

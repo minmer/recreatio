@@ -48,6 +48,12 @@ import { Unlock } from './Unlock';
 import { AreaOptions } from './AreaOptions';
 import { RecentRow, useTouched } from './Recent';
 import { AccessLinks } from './AccessLinks';
+import type { Desk } from './desk';
+import { DisplaySwitch } from './DisplaySwitch';
+import { useDisplay } from './display';
+import { ShareButton } from './Share';
+import { WorkspaceHome } from './WorkspaceHome';
+import { areaViewId } from './workspaceViews';
 
 /**
  * Die Stufen in der Sprache, die im Haus gesprochen wird.
@@ -103,7 +109,9 @@ const viewOf = (trail: readonly string[]): View =>
   : trail[0] === NEW ? { at: NEW }
   : { at: 'area', areaId: trail[0] };
 
-export function Areas({ who, trail }: { who: Who; trail: readonly string[] }) {
+export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]; desk: Desk }) {
+  /* 0094 — einfach: der Widok obszaru; erweitert: die Einzelheiten (Schlüssel, Rollen, Stufen). */
+  const display = useDisplay('areas');
   const [areas, setAreas] = useState<readonly AreaRow[] | null | undefined>(undefined);
   const [ring, setRing] = useState<Ring | null>(null);
   const [person, setPerson] = useState<SealedRole | null>(null);
@@ -212,6 +220,37 @@ export function Areas({ who, trail }: { who: Who; trail: readonly string[] }) {
     if (shown === null) {
       /* Weggefallen, während er offen war. */
       return <p className="wk-empty">Tego obszaru już nie ma.</p>;
+    }
+
+    /*
+     * 0094 — EINFACH: der WIDOK OBSZARU. Was neu ist, Termine, Rozmowy,
+     * Formulare, Menschen, Seiten und Zugang dieses Bereichs — derselbe Widok wie
+     * auf der Seite des Warsztat, nur für ihn. Der eigene, private Bereich hat
+     * keinen (dort gibt es nichts zu teilen); er zeigt seine Einzelheiten.
+     */
+    if (!display.extended && shown.personal !== true) {
+      const parent = shown.parentAreaId === null ? null : areas.find((a) => a.areaId === shown.parentAreaId) ?? null;
+      return (
+        <>
+          {head}
+          <WorkspaceHome who={who} desk={desk} viewId={areaViewId(shown.areaId)} heading={(
+            <div className="wk-area-head">
+              <div className="wk-view-title">
+                <h1 className="wk-h1">{shown.name}</h1>
+                <DisplaySwitch tool="areas" />
+              </div>
+              <p className="wk-hint">
+                {shown.myLevel === null ? '' : `Ty: ${LEVEL_NAME[shown.myLevel]}`}
+                {parent !== null && <> · wewnątrz: <a href={viewPath('areas', parent.areaId)}>{parent.name}</a></>}
+              </p>
+              {shown.mayCertify && (
+                <ShareButton who={who} label="Udostępnij obszar" className="wk-btn wk-btn-small"
+                  target={{ title: shown.name, aim: null, areaIds: [shown.areaId] }} />
+              )}
+            </div>
+          )} />
+        </>
+      );
     }
 
     return (
@@ -449,7 +488,11 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
         <b>`h1` und nicht `h2`.</b> Seit der Weg oben die Ansicht nennt, steht
         hier die einzige Überschrift der Seite.
       */}
-      <h1 className="wk-h1">{area.name}</h1>
+      <div className="wk-view-title">
+        <h1 className="wk-h1">{area.name}</h1>
+        {/* 0094 — zurück zum Widok obszaru (einfach), oder hier bleiben. */}
+        {area.personal !== true && <DisplaySwitch tool="areas" />}
+      </div>
 
       {/*
         VIER ANGABEN ALS VIER FELDER. Als Satz mit Trennpunkten musste man ihn

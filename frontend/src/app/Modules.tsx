@@ -26,7 +26,7 @@
  * dorthin.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { areaPath, loadAreas, type AreaRow } from './area';
 import { useCrumbs, type Crumb } from './crumbTrail';
@@ -49,6 +49,9 @@ import { WorkspaceError, type Who } from './session';
 import { AreaOptions } from './AreaOptions';
 import { ModuleSettings } from './ModuleSettings';
 import { ModuleJson } from './ModuleJson';
+import { useDisplay } from './display';
+import { plural } from './ChatKit';
+import { current as notifyNow, subscribe as notifySubscribe } from './notify';
 import { useRecent } from './prefs';
 import { RecentRow, useTouched } from './Recent';
 
@@ -88,6 +91,10 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
   const [failed, setFailed] = useState<string | null>(null);
 
   const view = viewOf(trail);
+
+  /* 0094 — einfach: die Formulare; erweitert: jede Art, Unbenutzte, die Karte. */
+  const modulesDisplay = useDisplay('modules');
+  const { digest } = useSyncExternalStore(notifySubscribe, notifyNow);
 
   /* 0054 — zuletzt benutzte Bausteine zuerst, gemerkt versiegelt. */
   useTouched('modules', view.at === 'one' ? view.moduleId : null);
@@ -174,6 +181,43 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
   );
 
   /* -- 1. Die Arten -------------------------------------------------------- */
+
+  if (view.at === 'kinds' && !modulesDisplay.extended) {
+    /*
+     * 0094 — EINFACH: die Formulare, mit dem, was neu ist, zuerst. Andere
+     * Bausteine (Texte, Messpläne …) setzt man auf der Seite; hier sind sie der
+     * erweiterte Weg.
+     */
+    const fresh = new Map((digest?.registrations.list ?? []).map((one) => [one.moduleId, one.count]));
+    const forms = all.filter((one) => one.kind === 'form' && one.extendsId === null)
+      .sort((a, b) => (fresh.get(b.moduleId) ?? 0) - (fresh.get(a.moduleId) ?? 0) || a.name.localeCompare(b.name, 'pl'));
+    return (
+      <>
+        {head}
+        <ul className="wk-tree" data-simple-forms="">
+          {forms.map((one) => (
+            <li key={one.moduleId}>
+              <a className="wk-tree-row" href={viewPath('modules', 'form', one.moduleId)}>
+                <span className="wk-tree-name">{one.name}</span>
+                <span className="wk-tags">
+                  {one.areaId !== null && <span className="wk-tag">{areaPath(areas, one.areaId).short || one.areaName}</span>}
+                  {one.closed && <span className="wk-tag">zamknięty</span>}
+                  {(fresh.get(one.moduleId) ?? 0) > 0 && <span className="wk-tag wk-tag-new">nowe: {fresh.get(one.moduleId)}</span>}
+                </span>
+                <span className="wk-tree-mine">{one.entries} {plural(one.entries, 'zgłoszenie', 'zgłoszenia', 'zgłoszeń')}</span>
+              </a>
+            </li>
+          ))}
+          <li>
+            <a className="wk-tree-add" href={viewPath('modules', 'form', NEW)}>
+              <span aria-hidden="true">+</span> Nowy formularz
+            </a>
+          </li>
+        </ul>
+        {forms.length === 0 && <p className="wk-empty">Nie masz jeszcze formularza. Najprościej: na stronie warsztatu „Co chcesz zrobić?" → „Zapisy na wydarzenie".</p>}
+      </>
+    );
+  }
 
   if (view.at === 'kinds') {
     return (
@@ -317,6 +361,9 @@ function ModulePage({ module: row, areas, who, busy, onAct, onReload, onList }: 
 }) {
   /* 0064 — nach einem Import mit Fragen liest das Formular neu. */
   const [round, setRound] = useState(0);
+  /* 0094 — das JSON ist der erweiterte Weg (bei einem Formular der der Formulare). */
+  const modulesDisplay = useDisplay('modules');
+  const formsDisplay = useDisplay('forms');
 
   return (
     <>
@@ -365,8 +412,10 @@ function ModulePage({ module: row, areas, who, busy, onAct, onReload, onList }: 
         </>
       )}
 
-      {/* 0064 — dieses Modul als JSON: Name, Inhalt, bei einem Formular Fragen und Aufbau. */}
-      <ModuleJson row={row} who={who} onDone={async () => { await onReload(); setRound((n) => n + 1); }} />
+      {/* 0064 — dieses Modul als JSON: Name, Inhalt, bei einem Formular Fragen und Aufbau. 0094: der erweiterte Weg. */}
+      {(row.kind === 'form' ? formsDisplay.extended : modulesDisplay.extended) && (
+        <ModuleJson row={row} who={who} onDone={async () => { await onReload(); setRound((n) => n + 1); }} />
+      )}
     </>
   );
 }

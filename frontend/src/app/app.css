@@ -7822,25 +7822,12 @@ body.has-pz { overflow: hidden; }
 .wk-member-now p { margin: 0; }
 .wk-member-choose { display: grid; gap: 0.5rem; }
 
-/* 0092 — „Teraz" ganz oben im Warsztat: das Neue links, schnelle Wege und das zuletzt Geöffnete rechts. */
-.wk-now { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1rem; margin: 0.4rem 0 1.6rem; }
-@media (max-width: 52rem) { .wk-now { grid-template-columns: 1fr; } }
-.wk-now > div { border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); padding: 0.85rem 1rem; display: grid; gap: 0.55rem; align-content: start; min-width: 0; }
-.wk-now-h { margin: 0; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wk-muted); }
+/* 0092/0094 — ruhig, wenn nichts wartet; die schnellen Wege als Knöpfe nebeneinander. */
 .wk-now-calm { margin: 0; color: var(--wk-muted); }
-.wk-now-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; }
-.wk-now-list li { display: flex; align-items: center; gap: 0.2rem; }
-.wk-now-list a { flex: 1; min-width: 0; display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) auto; align-items: baseline; gap: 0.6rem; padding: 0.45rem 0.5rem; border-radius: 4px; color: var(--wk-ink); text-decoration: none; }
-.wk-now-list a:hover, .wk-now-list a:focus-visible { background: var(--wk-soft); }
-.wk-now-kind { font-size: 0.74rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--wk-muted); }
-.wk-now-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wk-now-n { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--wk-accent); white-space: nowrap; }
-@media (max-width: 30rem) { .wk-now-list a { grid-template-columns: minmax(0, 1fr) auto; } .wk-now-kind { display: none; } }
 .wk-now-quick { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.wk-now-quick a { padding: 0.35rem 0.8rem; border: 1px solid var(--wk-line); border-radius: 4px; color: var(--wk-ink); text-decoration: none; font-size: 0.92rem; }
-.wk-now-quick a:hover, .wk-now-quick a:focus-visible { border-color: var(--wk-accent); color: var(--wk-accent); }
-.wk-now .wk-recent { margin: 0; }
-.wk-tiles-head { margin: 0 0 0.2rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wk-muted); }
+.wk-now-quick a, .wk-now-quick button { padding: 0.35rem 0.8rem; border: 1px solid var(--wk-line); border-radius: 4px; background: transparent; color: var(--wk-ink); text-decoration: none; font: inherit; font-size: 0.92rem; cursor: pointer; }
+.wk-now-quick a:hover, .wk-now-quick a:focus-visible, .wk-now-quick button:hover, .wk-now-quick button:focus-visible { border-color: var(--wk-accent); color: var(--wk-accent); }
+.wk-now-quick kbd { margin-left: 0.3rem; font: inherit; font-size: 0.72rem; color: var(--wk-muted); }
 
 /* 0093 — „Kto może zmieniać odpowiedź": drei Möglichkeiten als Segment, mit echten Radios darunter. */
 .wk-who-edits { border: 0; padding: 0; margin: 0; display: grid; gap: 0.35rem; min-width: 0; }
@@ -7850,3 +7837,208 @@ body.has-pz { overflow: hidden; }
 .wk-who-edits .wk-seg-opt:focus-within { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
 /* In der Tabelle: eine Zelle, die nur der Mensch ändert. */
 .wk-cell-locked { color: var(--wk-muted); cursor: not-allowed; }
+
+/* ==========================================================================
+   0094 — WIDOKI, SPOSÓB WYŚWIETLANIA, POWIADOMIENIA, SZUKAJ, PASEK NA TELEFONIE
+   ========================================================================== */
+
+/* Der Titel eines Teils, und daneben sein Auswahlfeld. */
+.wk-view-title { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.wk-view-title .wk-h1, .wk-view-title .wk-h2 { margin: 0; }
+
+/* „Sposób wyświetlania" — klein, damit es dem Titel nicht die Schau stiehlt. */
+.wk-display { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.7rem; font-size: 0.88rem; }
+.wk-display-pick { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--wk-muted); }
+.wk-display-pick select, .wk-part-mode, .wk-view-pick select, .wk-look-tool select {
+  padding: 0.2rem 0.45rem; border: 1px solid var(--wk-line); border-radius: 4px;
+  background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: 0.88rem;
+}
+.wk-display-pick select:focus-visible, .wk-part-mode:focus-visible, .wk-view-pick select:focus-visible, .wk-look-tool select:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-display-save { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; }
+.wk-display-says { flex-basis: 100%; margin: 0; }
+/* Im Titel steht die Erklärung erst, wenn man etwas anderes ausprobiert. */
+.wk-view-title .wk-display:not(:has(.wk-display-save)) .wk-display-says { display: none; }
+
+/* Ein Teil, den es nur im erweiterten Weg gibt (Role, Adresy). */
+.wk-only-extended { display: grid; gap: 0.7rem; justify-items: start; padding: 1rem 1.1rem; border: 1px dashed var(--wk-line); border-radius: 6px; }
+
+/* Der Widok: Kopf, dann die Teile im Raster — breite über die ganze Zeile. */
+.wk-view { display: grid; gap: 1rem; min-width: 0; }
+.wk-view-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.wk-view-head .wk-h1 { margin-right: auto; }
+.wk-view-pick { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; color: var(--wk-muted); }
+.wk-view-parts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 25rem), 1fr)); gap: 1rem; align-items: start; }
+.wk-area-head { display: grid; gap: 0.35rem; justify-items: start; }
+.wk-area-head .wk-hint { margin: 0; }
+
+.wk-part { display: grid; gap: 0.6rem; align-content: start; min-width: 0; padding: 0.85rem 1rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); }
+.wk-part.is-wide { grid-column: 1 / -1; }
+.wk-part-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.6rem; }
+.wk-part-title { flex: 1 1 auto; margin: 0; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wk-muted); }
+.wk-part-mode { font-size: 0.82rem; }
+.wk-part-save { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.7rem; padding: 0.4rem 0.6rem; border-left: 3px solid var(--wk-accent); background: var(--wk-soft); border-radius: 0 4px 4px 0; }
+.wk-part-move { display: inline-flex; gap: 0.15rem; }
+.wk-part-body { display: grid; gap: 0.5rem; min-width: 0; }
+.wk-part-foot { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; font-size: 0.9rem; }
+
+.wk-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 1.9rem; height: 1.9rem;
+  border: 1px solid var(--wk-line); border-radius: 4px; background: var(--wk-surface); color: var(--wk-ink); font: inherit; cursor: pointer;
+}
+.wk-icon-btn:hover:not(:disabled) { border-color: var(--wk-accent); color: var(--wk-accent); }
+.wk-icon-btn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-icon-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* Listen in den Teilen: eine Zeile, der Name zuerst, Angaben daneben. */
+.wk-part-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.1rem; }
+.wk-part-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15rem 0.6rem; padding: 0.35rem 0.45rem; border-radius: 4px; }
+.wk-part-list li:hover { background: var(--wk-soft); }
+.wk-part-list li > :first-child { flex: 1 1 10rem; min-width: 0; overflow-wrap: anywhere; }
+.wk-part-list li > a:first-child { color: var(--wk-ink); text-decoration: none; font-weight: 500; }
+.wk-part-list li > a:first-child:hover, .wk-part-list li > a:first-child:focus-visible { color: var(--wk-accent); text-decoration: underline; }
+.wk-part-list .wk-hint { margin: 0; font-size: 0.85rem; }
+.wk-part-list li.is-late .wk-hint { color: var(--wk-danger); }
+.wk-part-path { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.9rem; }
+.wk-part-acts { display: inline-flex; flex-wrap: wrap; gap: 0.2rem 0.7rem; margin-left: auto; }
+
+/* Najbliższe terminy: Tag als Zwischenzeile, Uhrzeit in einer Spalte. */
+.wk-agenda { display: grid; gap: 0.6rem; }
+.wk-agenda section { display: grid; gap: 0.15rem; }
+.wk-agenda-day { margin: 0; font-size: 0.85rem; font-weight: 600; }
+.wk-agenda-day a { color: var(--wk-ink); text-decoration: none; }
+.wk-agenda-day a:hover { color: var(--wk-accent); }
+.wk-agenda-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.1rem; }
+.wk-agenda-list li { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) auto; align-items: baseline; gap: 0.6rem; padding: 0.2rem 0.4rem; border-radius: 4px; }
+.wk-agenda-list li:hover { background: var(--wk-soft); }
+.wk-agenda-list .wk-hint { margin: 0; font-size: 0.82rem; }
+.wk-agenda-time { color: var(--wk-muted); font-variant-numeric: tabular-nums; font-size: 0.88rem; }
+.wk-agenda-what { color: var(--wk-ink); text-decoration: none; overflow-wrap: anywhere; }
+.wk-agenda-what:hover { color: var(--wk-accent); text-decoration: underline; }
+@media (max-width: 30rem) { .wk-agenda-list li { grid-template-columns: 4.2rem minmax(0, 1fr); } .wk-agenda-list .wk-hint { grid-column: 2; } }
+
+/* Ostatnio: die Reihen, und der Satz nur, wenn noch keine dasteht. */
+.wk-recent-block { display: grid; gap: 0.2rem; }
+.wk-recent-block .wk-recent { margin: 0; }
+.wk-recent-block:has(.wk-recent) .wk-recent-empty { display: none; }
+.wk-recent-empty { margin: 0; }
+
+/* Czeka na Ciebie — dieselben Zeilen in der Glocke und im Teil. */
+.wk-alert-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.1rem; }
+.wk-alert-list li { display: flex; align-items: center; gap: 0.2rem; }
+/* Die Art klein über der Zeile — so bleibt dem Namen die ganze Breite, auch in einem schmalen Teil. */
+.wk-alert-list a {
+  flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 0 0.6rem;
+  padding: 0.4rem 0.5rem; border-radius: 4px; color: var(--wk-ink); text-decoration: none;
+}
+.wk-alert-list a:hover, .wk-alert-list a:focus-visible { background: var(--wk-soft); }
+.wk-alert-list.is-compact a { grid-template-columns: minmax(0, 1fr) auto; }
+.wk-alert-kind { grid-column: 1 / -1; font-size: 0.7rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--wk-muted); }
+.wk-alert-what { min-width: 0; overflow-wrap: anywhere; }
+.wk-alert-n { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--wk-accent); white-space: nowrap; }
+
+/* Kolejność powiadomień: an/aus und ↑ ↓. */
+.wk-alert-order { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; counter-reset: alert; }
+.wk-alert-order li { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.65rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); counter-increment: alert; }
+.wk-alert-order li::before { content: counter(alert); min-width: 1.2rem; color: var(--wk-muted); font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+.wk-alert-order li.is-off { background: transparent; border-style: dashed; }
+.wk-alert-order li.is-off strong { color: var(--wk-muted); font-weight: 500; }
+.wk-alert-order .wk-check { flex: 1; min-width: 0; }
+.wk-alert-order .wk-check > span { display: grid; gap: 0.05rem; }
+.wk-alert-order .wk-hint { margin: 0; font-size: 0.85rem; }
+.wk-alert-move { display: inline-flex; gap: 0.15rem; }
+
+/* Dostosuj widok, Nowy widok. */
+.wk-view-editor, .wk-view-new { display: grid; gap: 0.8rem; padding: 0.9rem 1rem; border: 1px solid var(--wk-accent); border-radius: 6px; background: var(--wk-soft); }
+.wk-view-new .wk-h2 { margin: 0; }
+.wk-view-editor-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 0.6rem 1rem; }
+.wk-view-areas { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; border: 0; padding: 0; margin: 0; }
+.wk-view-areas legend { padding: 0; margin-bottom: 0.3rem; font-size: 0.85rem; color: var(--wk-muted); }
+
+/* Co chcesz zrobić? — Karten, die man drückt. */
+.wk-starters { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr)); gap: 0.6rem; }
+.wk-starter {
+  width: 100%; height: 100%; display: grid; gap: 0.2rem; align-content: start; padding: 0.75rem 0.9rem; text-align: left;
+  border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-ground); color: var(--wk-ink); font: inherit; cursor: pointer;
+}
+.wk-starter span { color: var(--wk-muted); font-size: 0.9rem; }
+.wk-starter:hover { border-color: var(--wk-accent); }
+.wk-starter:hover strong { color: var(--wk-accent); }
+.wk-starter:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-starter-done { display: grid; gap: 0.7rem; }
+.wk-share { gap: 0.7rem; }
+
+/* Die Kacheln in einem Teil: ohne die Höhe der alten Startseite. */
+.wk-part .wk-tiles { margin-top: 0; }
+.wk-part .wk-tile { min-height: 0; }
+
+/* Strony, einfach: eine Zeile je Seite. */
+.wk-page-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.wk-page-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.7rem; padding: 0.55rem 0.75rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); }
+.wk-page-path { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; color: var(--wk-ink); text-decoration: none; }
+.wk-page-path:hover, .wk-page-path:focus-visible { color: var(--wk-accent); text-decoration: underline; }
+.wk-page-list .wk-part-acts { margin-left: 0; }
+
+/* Wygląd warsztatu (Konto). */
+.wk-look { display: grid; gap: 0.9rem; }
+.wk-look .wk-h2 { margin: 0.8rem 0 0; }
+.wk-look-tools, .wk-look-views { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.wk-look-tool { display: grid; grid-template-columns: 10rem minmax(0, 15rem) minmax(0, 1fr); align-items: center; gap: 0.3rem 0.8rem; padding: 0.45rem 0.65rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); }
+.wk-look-tool label { font-weight: 600; }
+.wk-look-tool .wk-hint { margin: 0; font-size: 0.85rem; }
+@media (max-width: 46rem) { .wk-look-tool { grid-template-columns: minmax(0, 1fr); } }
+.wk-look-views li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.6rem; padding: 0.5rem 0.65rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); }
+.wk-look-views li > a { font-weight: 600; color: var(--wk-ink); }
+.wk-look-views .wk-tags { display: inline-flex; gap: 0.3rem; }
+.wk-look-views .wk-tag-new { margin-left: 0; }
+.wk-look-views .wk-hint { flex-basis: 100%; margin: 0; font-size: 0.85rem; }
+
+/* Szukaj — die Lupe oben steht vor der Glocke und schiebt beide nach rechts. */
+.wk-search-btn {
+  margin-left: auto; display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem;
+  border: 1px solid transparent; border-radius: 999px; background: none; color: var(--wk-muted); cursor: pointer;
+}
+.wk-search-btn:hover { background: var(--wk-soft); color: var(--wk-ink); }
+.wk-search-btn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-search-btn + .wk-bell { margin-left: 0; }
+.wk-search { display: grid; gap: 0.5rem; min-width: 0; }
+.wk-search-input { width: 100%; box-sizing: border-box; padding: 0.6rem 0.75rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: 1.05rem; }
+.wk-search-input:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-search .wk-hint, .wk-search .wk-empty { margin: 0; }
+.wk-search-hits { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.05rem; max-height: min(60vh, 28rem); overflow: auto; }
+.wk-search-hits a { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.1rem 0.8rem; padding: 0.45rem 0.6rem; border-radius: 4px; color: var(--wk-ink); text-decoration: none; }
+.wk-search-hits a.is-active { background: var(--wk-soft); box-shadow: inset 3px 0 0 var(--wk-accent); }
+.wk-search-label { min-width: 0; overflow-wrap: anywhere; }
+.wk-search-kind { font-size: 0.78rem; color: var(--wk-muted); }
+
+/* Der Streifen unten — nur am Telefon. */
+.wk-phone-bar { display: none; }
+@media (max-width: 46rem) {
+  .wk-phone-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 55;
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 0.25rem 0.25rem calc(0.25rem + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--wk-line); background: var(--wk-ground);
+  }
+  .wk-phone-bar a, .wk-phone-bar button {
+    position: relative; display: grid; justify-items: center; gap: 0.05rem; padding: 0.3rem 0.1rem; min-height: 3rem;
+    border: 0; border-radius: 6px; background: none; color: var(--wk-muted); font: inherit; font-size: 0.7rem; text-decoration: none; cursor: pointer;
+  }
+  .wk-phone-bar svg { width: 1.4rem; height: 1.4rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .wk-phone-bar [aria-current="page"] { color: var(--wk-accent); font-weight: 600; }
+  .wk-phone-bar a:focus-visible, .wk-phone-bar button:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+  .wk-phone-badge {
+    position: absolute; top: 0.1rem; left: calc(50% + 0.35rem); min-width: 1.05rem; height: 1.05rem; padding: 0 0.25rem;
+    border-radius: 999px; background: var(--wk-accent); color: var(--wk-on-accent); font-size: 0.65rem; font-weight: 700; line-height: 1.05rem; text-align: center;
+  }
+  .wk-root:has(.wk-phone-bar) .wk-main:not(:has(.ch-app)) { padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); }
+  /* In einer offenen Rozmowa gehört der Platz unten dem Schreibfeld. */
+  .wk-root:has(.ch-app.has-room) .wk-phone-bar { display: none; }
+  .wk-root:has(.wk-phone-bar):not(:has(.ch-app.has-room)) .ch-app { height: calc(100dvh - var(--ch-top, 56px) - 0.8rem - 3.8rem - env(safe-area-inset-bottom, 0px)); }
+  /* Die Lupe hat unten ihren Platz. */
+  .wk-search-btn { display: none; }
+  .wk-search-btn + .wk-bell { margin-left: auto; }
+}
+.wk-phone-more { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; }
+.wk-phone-more a { display: block; padding: 0.65rem 0.75rem; border-radius: 6px; color: var(--wk-ink); text-decoration: none; }
+.wk-phone-more a:hover, .wk-phone-more a:focus-visible { background: var(--wk-soft); }
+@media print { .wk-phone-bar, .wk-search-btn { display: none !important; } }

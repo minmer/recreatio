@@ -61,6 +61,8 @@ import { WorkspaceError, type Who } from './session';
 import { markFormSeen } from './notify';
 import { handOverRoleKeys } from './memberRole';
 import { MemberRoleSettings } from './MemberRoleSettings';
+import { DisplaySwitch } from './DisplaySwitch';
+import { useDisplay } from './display';
 import { loadChats, startSeatChat } from './chat';
 import { loadMembers } from './area';
 import { meetingAreas } from './audience';
@@ -175,6 +177,9 @@ import { FormLogic } from './FormLogic';
 /** Die Reiter eines Formulars: einrichten (vier) — lesen — handeln. */
 type FormTabName = 'settings' | 'questions' | 'layout' | 'logic' | 'entries' | 'steps' | 'people';
 
+/** 0094 — die Reiter des einfachen Weges. */
+const SIMPLE_TABS: readonly FormTabName[] = ['people', 'questions', 'settings'];
+
 /*
  * Welcher Reiter je Formular zuletzt offen war — solange die Seite lebt. Die
  * Ansicht wird nach jeder Änderung am Baustein neu aufgebaut; ohne das spränge
@@ -225,14 +230,26 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    * ihrer Liste: wer „Odwiedziny" aufschlägt, will den Monat abhaken, nicht
    * die Einstellungen lesen.
    */
-  const [tab, pickTab] = useState<FormTabName>(() => {
+  /*
+   * 0094 — EINFACH: drei Reiter (Zgłoszenia, Formularz, Ustawienia); erweitert:
+   * alle. Ein Reiter, den der einfache Weg nicht hat, fällt auf den ersten
+   * sinnvollen zurück — wer ihn will, wählt den erweiterten Weg.
+   */
+  const formsDisplay = useDisplay('forms');
+  const simple = !formsDisplay.extended;
+  /* Einfach: wo es Zgłoszenia gibt, dort — sonst das Formular selbst. */
+  const simpleDefault: FormTabName = module === undefined ? 'questions' : module.entries > 0 || (module.extendsId !== null && module.fields > 0) ? 'people' : 'questions';
+  const [chosenTab, pickTab] = useState<FormTabName>(() => {
     /* Die Adresse verlangt die Liste: das gilt wie eine eigene Wahl, also bleibt es auch nach dem Neuaufbau. */
     if (onList === true) { lastTab.set(partId, 'people'); return 'people'; }
 
-    return lastTab.get(partId) ?? (module === undefined ? 'questions'
+    return lastTab.get(partId) ?? (simple ? simpleDefault : module === undefined ? 'questions'
       : module.extendsId !== null && repeatOf(module.repeat) !== 'once' && module.fields > 0 ? 'people' : 'settings');
   });
   const setTab = (next: FormTabName) => { lastTab.set(partId, next); pickTab(next); };
+  const tab: FormTabName = simple && !SIMPLE_TABS.includes(chosenTab) ? simpleDefault : chosenTab;
+  /* Ein Reiter des erweiterten Weges, aus dem einfachen geöffnet: der Weg wird ausprobiert (und lässt sich merken). */
+  const openExtended = (next: FormTabName) => { formsDisplay.pick('full'); setTab(next); };
 
   /* Welche Antwortbereiche schon annehmen können (0022) — je Bereich ein Paar. */
   const [intakes, setIntakes] = useState<ReadonlyMap<string, boolean>>(new Map());
@@ -1012,6 +1029,18 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
         />
       )}
 
+      {/* 0094 — einfach oder erweitert (gemerkt mit „Zapisz"). */}
+      <DisplaySwitch tool="forms" />
+
+      {simple ? (
+        <div className="wk-tabs" role="tablist">
+          <FormTab now={tab} mine="people" onPick={setTab}>
+            Zgłoszenia{(module?.entries ?? submissions.length) > 0 ? ` (${submissions.length > 0 ? submissions.length : module?.entries ?? 0})` : ''}
+          </FormTab>
+          <FormTab now={tab} mine="questions" onPick={setTab}>Formularz</FormTab>
+          {module !== undefined && <FormTab now={tab} mine="settings" onPick={setTab}>Ustawienia</FormTab>}
+        </div>
+      ) : (
       <div className="wk-tabs" role="tablist">
         {module !== undefined && <FormTab now={tab} mine="settings" onPick={setTab}>Ustawienia</FormTab>}
         <FormTab now={tab} mine="questions" onPick={setTab}>Pytania</FormTab>
@@ -1025,6 +1054,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
         {module !== undefined && !isExtension && <FormTab now={tab} mine="steps" onPick={setTab}>Znaczniki</FormTab>}
         <FormTab now={tab} mine="people" onPick={setTab}>Osoby</FormTab>
       </div>
+      )}
 
       {/* == 1. DAS FORMULAR ALS GANZES ======================================= */}
 
@@ -1034,13 +1064,16 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
           {staleNotice}
           {hiddenNotice}
 
-          <ModuleSettings
-            row={module}
-            areas={areas}
-            busy={busy !== null}
-            onAct={moduleAct}
-            reseal={resealFor}
-          />
+          {/* 0094 — Bereich, Art, neu versiegeln: der erweiterte Weg. */}
+          {!simple && (
+            <ModuleSettings
+              row={module}
+              areas={areas}
+              busy={busy !== null}
+              onAct={moduleAct}
+              reseal={resealFor}
+            />
+          )}
 
           {/*
             OFFEN ODER GESCHLOSSEN (0042). Geschlossen nimmt das Formular
@@ -1134,13 +1167,15 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
                 Nachricht selbst schreibt die Kanzlei dort, wo sie sie verschickt:
                 unter „Osoby", mit „Napisz SMS".
               */}
-              <LinkCheckBox
-                partId={partId}
-                fields={fields}
-                busy={busy !== null}
-                onSaved={() => void look()}
-                onError={setFailed}
-              />
+              {!simple && (
+                <LinkCheckBox
+                  partId={partId}
+                  fields={fields}
+                  busy={busy !== null}
+                  onSaved={() => void look()}
+                  onError={setFailed}
+                />
+              )}
 
               {/* WAS DIESES FORMULAR ERWEITERT (0047) — für die Kanzlei, und für den Menschen später. */}
               <Extensions
@@ -1547,8 +1582,16 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             onChanged={reread}
           />
 
+          {/* 0094 — die Tabelle (mit CSV) und die Znaczniki sind der erweiterte Weg; ein Klick dorthin. */}
+          {simple && (
+            <p className="wk-part-foot">
+              {(!isExtension || tableToo) && <button type="button" className="wk-link-btn" onClick={() => openExtended('entries')}>Tabela i plik CSV</button>}
+              {' '}<button type="button" className="wk-link-btn" onClick={() => openExtended('steps')}>Znaczniki (kroki osób)</button>
+            </p>
+          )}
+
           {/* 0077 — die ganze Liste als JSON: eine vorhandene Liste in einem Zug herein, oder hinaus zum Bearbeiten. */}
-          {ring !== null && (
+          {ring !== null && !simple && (
             <ListJsonPanel
               who={who}
               formId={partId}

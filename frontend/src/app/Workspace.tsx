@@ -27,7 +27,7 @@ import { Areas } from './Areas';
 import { Modules } from './Modules';
 import { Reservations } from './Reservations';
 import { CalendarApp } from './CalendarApp';
-import { ChatTileBody, ChatView } from './ChatPage';
+import { ChatView } from './ChatPage';
 import { MassOffice } from './MassOffice';
 import { PageEditor } from './PageEditor';
 import { RoleGraph } from './RoleGraph';
@@ -40,7 +40,12 @@ import { Kartoteka } from './Kartoteka';
 import { claimSlug, loadDesk, takers, type Desk } from './desk';
 import { roleLabel, useRoleNames } from './roleNames';
 import { treeOf } from './tree';
-import { NowPanel } from './NowPanel';
+import { WorkspaceHome } from './WorkspaceHome';
+import { DisplaySwitch } from './DisplaySwitch';
+import { useDisplay, type Tool } from './display';
+import { ShareButton } from './Share';
+import { MINE } from './workspaceViews';
+import { DESK_EVENT } from './viewData';
 
 export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   /** `undefined` = noch nicht nachgesehen, `null` = ging nicht. */
@@ -58,6 +63,13 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   }, []);
 
   useEffect(() => { void look(); }, [look]);
+
+  /* 0094 — ein Anfang (`Starters`) hat eine Seite angelegt: die Liste der Strony neu. */
+  useEffect(() => {
+    const again = () => void look();
+    window.addEventListener(DESK_EVENT, again);
+    return () => window.removeEventListener(DESK_EVENT, again);
+  }, [look]);
 
   /*
    * Eine Ansicht, die es nicht gibt (`#/workspace/kalender`). Sie wird NICHT
@@ -104,7 +116,13 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
           eigenen Namen (`AreaPage`), und der ist der richtige.
         */}
         {/* Rozmowy (0062) tragen ihren Namen selbst — oben in der Liste, wie in einer Chat-App. */}
-        {spot.trail.length === 0 && spot.view !== 'chat' && <h1 className="wk-h1">{VIEWS[spot.view]}</h1>}
+        {spot.trail.length === 0 && spot.view !== 'chat' && spot.view !== 'widok' && (
+          <div className="wk-view-title">
+            <h1 className="wk-h1">{VIEWS[spot.view]}</h1>
+            {/* 0094 — einfach oder erweitert, für diesen Teil (gemerkt mit „Zapisz"). */}
+            {TOOL_OF[spot.view] !== undefined && <DisplaySwitch tool={TOOL_OF[spot.view]!} />}
+          </div>
+        )}
 
         <Inside
           view={spot.view}
@@ -117,107 +135,28 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
     );
   }
 
-  return <Tiles desk={desk} who={who} />;
+  /* 0094 — die Seite des Warsztat ist ein Widok (`WorkspaceHome`): was neu ist, Termine, Teile auf Wunsch. */
+  return <WorkspaceHome who={who} desk={desk} />;
 }
 
-/* -- Die Kacheln ----------------------------------------------------------- */
+/** Welche Ansicht welchen Teil mit eigenem Weg hat (`display.ts`). */
+const TOOL_OF: Partial<Record<View, Tool>> = {
+  areas: 'areas', modules: 'modules', pages: 'pages', roles: 'roles', addresses: 'addresses'
+};
 
-function Tiles({ desk, who }: { desk: Desk; who: Who }) {
-  const names = useRoleNames(who);
+/**
+ * 0094 — EIN TEIL NUR IM ERWEITERTEN WEG (Role, Adresy i domeny): im einfachen
+ * steht, wo man dasselbe findet, und wie man ihn trotzdem öffnet.
+ */
+function OnlyExtended({ tool, children, where }: { tool: Tool; children: React.ReactNode; where: React.ReactNode }) {
+  const display = useDisplay(tool);
+  if (display.extended) return <>{children}</>;
   return (
-    <>
-      <h1 className="wk-h1">Warsztat</h1>
-
-      {/* 0092 — zuerst, was neu ist und woran man zuletzt war; die Kacheln darunter, für alles andere. */}
-      <NowPanel desk={desk} />
-
-      <h2 className="wk-tiles-head">Wszystko</h2>
-      <div className="wk-tiles">
-        <Tile view="areas">
-          <p className="wk-empty">Klucze: obszar, jego epoki i to, kto je trzyma.</p>
-        </Tile>
-
-        <Tile view="bookings">
-          <p className="wk-empty">Terminy u księdza, sale, dom — i kto co zajął.</p>
-        </Tile>
-
-        <Tile view="calendar">
-          <p className="wk-empty">Twoje terminy i terminy Twoich grup — dzień, tydzień, miesiąc.</p>
-        </Tile>
-
-        <Tile view="tasks">
-          <p className="wk-empty">Co masz zrobić: o określonej porze albo co pewien czas.</p>
-        </Tile>
-
-        <Tile view="masses">
-          <p className="wk-empty">Msze, spowiedź, nabożeństwa — plan, zmiany, intencje i wydruk do gabloty.</p>
-        </Tile>
-
-        <Tile view="chat">
-          <ChatTileBody />
-        </Tile>
-
-        <Tile view="library">
-          <p className="wk-empty">Źródła, cytaty i Twoje teksty — kazania, książki — z przypisami; publikujesz, co chcesz.</p>
-        </Tile>
-
-        <Tile view="registry">
-          <p className="wk-empty">Adresy parafii w częściach, rodziny pod nimi i plan kolędy — z filtrami po ulicy, dniu i stanie.</p>
-        </Tile>
-
-        <Tile view="modules">
-          <p className="wk-empty">
-            Formularze, plany mszy, teksty — rzeczy, które strony pokazują.
-          </p>
-        </Tile>
-
-        <Tile view="pages" count={desk.pages.length}>
-          {desk.pages.length === 0 ? (
-            <p className="wk-empty">Nie prowadzisz jeszcze żadnego adresu.</p>
-          ) : (
-            <ul className="wk-tile-lines">
-              {desk.pages.slice(0, 3).map((page) => (
-                <li key={page.path}><code>recreatio.pl/{page.path}</code></li>
-              ))}
-              {desk.pages.length > 3 && <li className="wk-empty">i {desk.pages.length - 3} więcej</li>}
-            </ul>
-          )}
-        </Tile>
-
-        <Tile
-          view="addresses"
-          count={desk.pages.filter((page) => page.aliasOf !== null || page.host !== null).length}
-        >
-          <p className="wk-empty">Drugie wejście na stronę: alias albo własna domena.</p>
-        </Tile>
-
-        <Tile view="roles" count={desk.roles.length}>
-          <ul className="wk-tile-lines">
-            {desk.roles.map((role) => <li key={role.id}>{roleLabel(role, names)}</li>)}
-          </ul>
-        </Tile>
-
-        <Tile view="account">
-          <p className="wk-empty">Hasło, klucz i urządzenia, które go pamiętają.</p>
-        </Tile>
-      </div>
-    </>
-  );
-}
-
-function Tile({ view, count, children }: {
-  view: View;
-  count?: number;
-  children: React.ReactNode;
-}) {
-  return (
-    <a className="wk-tile" href={viewPath(view)}>
-      <span className="wk-tile-head">
-        <span className="wk-tile-name">{VIEWS[view]}</span>
-        {count !== undefined && <span className="wk-tile-count">{count}</span>}
-      </span>
-      {children}
-    </a>
+    <div className="wk-only-extended">
+      <p className="wk-lede">{where}</p>
+      <button type="button" className="wk-btn wk-btn-quiet" data-show-extended={tool}
+        onClick={() => display.pick(display.def.modes.find((one) => one.extended)!.id)}>Pokaż mimo to</button>
+    </div>
   );
 }
 
@@ -242,14 +181,28 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'pages') {
     return <Pages desk={desk} who={who} trail={trail} onClaimed={onChanged} />;
   }
-  if (view === 'addresses') return <Addresses desk={desk} who={who} onChanged={onChanged} />;
-  if (view === 'roles') return <RoleGraph who={who} />;
-  if (view === 'areas') return <Areas who={who} trail={trail} />;
+  if (view === 'addresses') {
+    return (
+      <OnlyExtended tool="addresses" where={<>Alias albo własną domenę ustawia się rzadko — dlatego ta część jest w widoku rozszerzonym. Twoje strony są w <a href={viewPath('pages')}>Stronach</a>.</>}>
+        <Addresses desk={desk} who={who} onChanged={onChanged} />
+      </OnlyExtended>
+    );
+  }
+  if (view === 'roles') {
+    return (
+      <OnlyExtended tool="roles" where={<>Kto ma dostęp, widać w każdym <a href={viewPath('areas')}>obszarze</a> (część „Osoby" i „Dostęp") i przy linkach. Graf wszystkich ról jest w widoku rozszerzonym.</>}>
+        <RoleGraph who={who} />
+      </OnlyExtended>
+    );
+  }
+  if (view === 'areas') return <Areas who={who} trail={trail} desk={desk} />;
+  /* 0094 — ein Widok aus der Adresse (`#/workspace/widok/<kennung>`). */
+  if (view === 'widok') return <WorkspaceHome who={who} desk={desk} viewId={trail[0] ?? MINE} />;
   if (view === 'calendar') return <CalendarApp who={who} trail={trail} />;
   if (view === 'tasks') return <TasksView who={who} />;
   if (view === 'masses') return <MassOffice who={who} trail={trail} />;
   if (view === 'bookings') return <Reservations trail={trail} />;
-  if (view === 'account') return <Account who={who} />;
+  if (view === 'account') return <Account who={who} trail={trail} />;
   if (view === 'chat') return <ChatView who={who} trail={trail} />;
   if (view === 'library') return <LibraryView who={who} trail={trail} />;
   if (view === 'registry') return <Kartoteka who={who} trail={trail} />;
@@ -416,6 +369,8 @@ function Pages({ desk, who, trail, onClaimed }: {
     }
   };
 
+  const pagesDisplay = useDisplay('pages');
+
   return (
     <>
       {desk.pages.length === 0 ? (
@@ -423,6 +378,13 @@ function Pages({ desk, who, trail, onClaimed }: {
           Nie prowadzisz jeszcze żadnego adresu. Adres się przejmuje: musi być
           na liście i trzeba mieć do niego kod.
         </p>
+      ) : !pagesDisplay.extended ? (
+        /* 0094 — EINFACH: die Seiten untereinander; offen ist eine, dann nur der Weg zurück. */
+        editing === null && moduleId === null ? (
+          <PageList desk={desk} who={who} />
+        ) : (
+          <p><a className="wk-link-btn" href={viewPath('pages')}>‹ Wszystkie strony</a></p>
+        )
       ) : (
         <>
         <RecentRow scope="pages" items={desk.pages.map((one) => ({
@@ -471,6 +433,7 @@ function Pages({ desk, who, trail, onClaimed }: {
         <PageEditor
           path={editing}
           who={who}
+          accessAreaIds={desk.pages.find((one) => one.path === editing)?.accessAreaIds ?? []}
           onOpenModule={(id) => { window.location.hash = viewPath('pages', ...pageSteps(editing), id); }}
         />
       )}
@@ -541,6 +504,38 @@ function Pages({ desk, who, trail, onClaimed }: {
           </div>
         </form>
       </details>
+    </>
+  );
+}
+
+/**
+ * 0094 — DIE STRONY, EINFACH: jede Seite eine Zeile — öffnen, bearbeiten,
+ * teilen. Der Baum (Unterseiten, Übernehmen) ist der erweiterte Weg.
+ */
+function PageList({ desk, who }: { desk: Desk; who: Who }) {
+  const pages = desk.pages.filter((one) => one.aliasOf === null).sort((a, b) => a.path.localeCompare(b.path));
+  return (
+    <>
+      <RecentRow scope="pages" items={pages.map((one) => ({
+        id: one.path, label: one.path === '' ? 'recreatio.pl' : one.path, href: viewPath('pages', ...pageSteps(one.path))
+      }))} />
+      <ul className="wk-page-list">
+        {pages.map((one) => {
+          const areas = one.accessAreaIds ?? [];
+          return (
+            <li key={one.path} data-page={one.path}>
+              <a className="wk-page-path" href={viewPath('pages', ...pageSteps(one.path))}>{one.path === '' ? 'recreatio.pl' : one.path}</a>
+              {areas.length > 0 && <span className="wk-tag">z dostępem</span>}
+              <span className="wk-part-acts">
+                <a className="wk-link-btn" href={`#/${one.path}`}>Otwórz</a>
+                <a className="wk-link-btn" href={viewPath('pages', ...pageSteps(one.path))}>Edytuj</a>
+                <ShareButton who={who} label="Udostępnij" className="wk-link-btn"
+                  target={{ title: one.path === '' ? 'recreatio.pl' : one.path, aim: one.path === '' ? null : one.path, areaIds: areas, open: areas.length === 0 }} />
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </>
   );
 }

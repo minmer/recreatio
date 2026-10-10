@@ -15,10 +15,12 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { background, native, notices, type BackgroundStatus } from './platform';
 import {
-  applyBackground, chatLabel, current, loadDevices, loadSettings, dropDevice, markFormSeen, markLinksSeen, markSeen, onToast, planReminders, refresh, saveSettings,
+  applyBackground, current, loadDevices, loadSettings, dropDevice, markSeen, onToast, planReminders, refresh, saveSettings,
   start, subscribe, thisDevice, type DeviceList, type NotifySettings, type Toast
 } from './notify';
 import { remindersFor } from './notifyRich';
+import { alertCount, alertItems, useAlertSettings } from './alerts';
+import { AlertRows } from './AlertList';
 import { knownDevice } from './kept';
 import { keysFor } from './ringOf';
 import { viewPath } from './routes';
@@ -103,7 +105,9 @@ export function NotifyBell({ who }: { who: Who }) {
   }, [open]);
 
   const d = state.digest;
-  const count = d === null ? 0 : d.chats.unread + d.registrations.count + d.links;
+  const [alertSettings] = useAlertSettings();
+  const items = alertItems(d, null, alertSettings, null);
+  const count = alertCount(d, alertSettings);
 
   return (
     <div className="wk-bell" ref={box}>
@@ -120,54 +124,17 @@ export function NotifyBell({ who }: { who: Who }) {
         <div className="wk-bell-panel" role="dialog" aria-label="Powiadomienia">
           {d === null ? <p className="wk-hint">Sprawdzanie…</p> : (
             <>
-              <Group title="Rozmowy" empty="Wszystko przeczytane.">
-                {d.chats.list.map((c) => (
-                  <a key={c.chatId} className="wk-bell-item" href={viewPath('chat', c.chatId)} onClick={() => setOpen(false)}>
-                    <span>{chatLabel(c)}{c.quiet ? ' (wyciszona)' : ''}</span>
-                    <span className="wk-bell-n">{c.unread}</span>
-                  </a>
-                ))}
-              </Group>
-
-              {/* 0090 — neu, bis jemand mit diesem Konto es gesehen hat: die Liste geöffnet oder hier abgehakt. */}
-              <Group title="Nowe zgłoszenia" empty="Nic nowego od ostatniego razu.">
-                {d.registrations.list.map((f) => (
-                  <div key={f.moduleId} className="wk-bell-row">
-                    <a className="wk-bell-item" href={viewPath('modules', 'form', f.moduleId)} onClick={() => setOpen(false)}>
-                      <span>{f.name}</span>
-                      <span className="wk-bell-n">{f.count}</span>
-                    </a>
-                    <button type="button" className="wk-bell-done" title="Przejrzane — nie pokazuj już jako nowe"
-                      aria-label={`${f.name}: przejrzane`} onClick={() => void markFormSeen(f.moduleId)}>✓</button>
-                  </div>
-                ))}
-              </Group>
-
-              {d.links > 0 && (
-                <Group title="Linki dostępu">
-                  <div className="wk-bell-row">
-                    <a className="wk-bell-item" href={viewPath('areas')} onClick={() => setOpen(false)}>
-                      <span>Dołączyło przez link</span><span className="wk-bell-n">{d.links}</span>
-                    </a>
-                    <button type="button" className="wk-bell-done" title="Przejrzane — nie pokazuj już jako nowe"
-                      aria-label="Dołączenia przez link: przejrzane" onClick={markLinksSeen}>✓</button>
-                  </div>
-                </Group>
-              )}
-
-              {d.tasks > 0 && (
-                <Group title="Zadania">
-                  <a className="wk-bell-item" href={viewPath('tasks')} onClick={() => setOpen(false)}>
-                    <span>Do zrobienia teraz</span><span className="wk-bell-n">{d.tasks}</span>
-                  </a>
-                </Group>
-              )}
+              {/* 0094 — in der Reihenfolge, die das Konto gewählt hat (Konto → Wygląd warsztatu); ✓ wo es geht (0090). */}
+              {items.length === 0
+                ? <p className="wk-hint">Nic nowego — wszystko przejrzane.</p>
+                : <AlertRows items={items} onPick={() => setOpen(false)} />}
 
               <div className="wk-actions">
                 {(d.registrations.count > 0 || d.links > 0) && (
                   <button type="button" className="wk-link-btn" onClick={markSeen}>Oznacz wszystko jako przejrzane</button>
                 )}
                 <button type="button" className="wk-link-btn" onClick={() => { setSettingsOpen(true); setOpen(false); }}>Ustawienia…</button>
+                <a className="wk-link-btn" href={viewPath('account', 'widok')} onClick={() => setOpen(false)}>Kolejność</a>
               </div>
             </>
           )}
@@ -202,16 +169,6 @@ const askedBefore = (): boolean => {
 const markAsked = (): void => {
   try { localStorage.setItem(ASKED_SLOT, new Date().toISOString()); } catch { /* dann eben beim nächsten Start noch einmal */ }
 };
-
-function Group({ title, empty, children }: { title: string; empty?: string; children: React.ReactNode }) {
-  const items = Array.isArray(children) ? children.filter(Boolean) : children === null || children === false ? [] : [children];
-  return (
-    <section className="wk-bell-group">
-      <h3>{title}</h3>
-      {items.length === 0 ? (empty !== undefined && <p className="wk-hint">{empty}</p>) : children}
-    </section>
-  );
-}
 
 /**
  * 0075 — kommt eine Nachricht SOFORT (Push) oder erst beim nächsten Nachsehen?
