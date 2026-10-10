@@ -144,7 +144,11 @@ export function SeatTools({ seat }: { seat: SeatView }) {
  * nichts von dem, was er geschickt hat. Also erscheint es dann hier — und nur
  * auf DER Seite, zu der sein Link geführt hat, nicht auf jeder des Hauses.
  */
-export function PersonalSections({ seat }: { seat: SeatView }) {
+export function PersonalSections({ seat, chats = true }: {
+  seat: SeatView;
+  /** 0095 — ohne die Rozmowy: die Seite zeigt ihre Rozmowa schon als Baustein. */
+  chats?: boolean;
+}) {
   return (
     <>
       {seat.note !== null && (
@@ -185,10 +189,12 @@ export function PersonalSections({ seat }: { seat: SeatView }) {
         </Zone>
       )}
 
-      {/* 0053 — die Rozmowa seiner Gruppe, wenn sie eine hat. */}
-      <SeatChatSections seat={seat} frame={(title, who, body, key) => (
-        <Zone key={key} title={title} who={who}>{body}</Zone>
-      )} />
+      {/* 0053 — die Rozmowa seiner Gruppe, wenn sie eine hat (0095: nicht noch einmal, wenn die Seite sie zeigt). */}
+      {chats && (
+        <SeatChatSections seat={seat} frame={(title, who, body, key) => (
+          <Zone key={key} title={title} who={who}>{body}</Zone>
+        )} />
+      )}
     </>
   );
 }

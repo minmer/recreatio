@@ -18,6 +18,7 @@
  *  15. Slajdy (0084): wie sie sich ablösen, wie der Inhalt erscheint, Farben, die mitgehen, und die Bühne.
  *  18. Przejrzane je Konto (0090) und Zugang über eine Rolle (0091): der Weg von einer Rolle zu ihren Bereichen.
  *  19. Widoki (0094): Mój widok, einer je Bereich, eigene; Wege je Teil; Powiadomienia in eigener Reihenfolge; Szukaj.
+ *  20. In einer Rozmowa spricht eine Person (0095): Rolle, dann Person; „Anna Nowak (Rada)"; die Rolle reist in der Hülle mit.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -83,6 +84,8 @@ export { readAlerts, alertsJson, moveAlert, toggleAlert, shownKinds, alertItems,
 export { modeOf, TOOLS } from '${app}display';
 export { fold, searchHits } from '${app}search';
 export { slugOf } from '${app}Starters';
+export { personsHolding, speakersOf, chooseSpeaker, isMine, messageAuthor, authorText, speakerText, speakerKey, throughRole } from '${app}chatAuthor';
+export { sealMessage, openMessage } from '${app}chat';
 `);
 await build({
   entryPoints: [entry],
@@ -1391,6 +1394,84 @@ try {
     assert.equal(m.slugOf('Rekolekcje 2027 — Łódź!'), 'rekolekcje-2027-lodz');
     assert.equal(m.slugOf('!!!'), 'wydarzenie', 'nothing left: a word that works');
     ok('views (0094): my view, one per area and own views — a part\'s way saved in its view, tolerant reading, JSON both ways; every tool simple first; alerts in the own order (new kinds at their place, off not counted, area views only their areas); search without diacritics');
+  }
+
+  /* -- 20. In einer Rozmowa spricht eine Person (0095) ------------------------------------------------ */
+  {
+    /*
+     * Das Konto: Anna (Person) und ihr Kind Ola (Person, von Anna gehalten); Anna hält „Rada", Ola hält „Schola",
+     * beide halten „Rodzice". Eine abgelaufene Kante zählt nicht.
+     */
+    const graph = {
+      roles: [
+        { id: 'anna', kind: 'person' }, { id: 'ola', kind: 'person' },
+        { id: 'rada', kind: 'group' }, { id: 'schola', kind: 'group' }, { id: 'rodzice', kind: 'role' }, { id: 'stara', kind: 'role' }
+      ],
+      edges: [
+        { fromRoleId: 'anna', toRoleId: 'ola', edgeKind: 'holds' },
+        { fromRoleId: 'anna', toRoleId: 'rada', edgeKind: 'holds' },
+        { fromRoleId: 'ola', toRoleId: 'schola', edgeKind: 'holds' },
+        { fromRoleId: 'anna', toRoleId: 'rodzice', edgeKind: 'holds' },
+        { fromRoleId: 'ola', toRoleId: 'rodzice', edgeKind: 'holds' },
+        { fromRoleId: 'anna', toRoleId: 'stara', edgeKind: 'holds', expiresAt: '2020-01-01T00:00:00Z' },
+        { fromRoleId: 'rada', toRoleId: 'schola', edgeKind: 'read' }
+      ]
+    };
+    assert.deepEqual(m.personsHolding(graph, 'anna'), ['anna'], 'a person speaks for herself');
+    assert.deepEqual(m.personsHolding(graph, 'rada'), ['anna'], 'Rada: the person holding it');
+    assert.deepEqual(m.personsHolding(graph, 'schola').sort(), ['anna', 'ola'], 'held through a held person counts (Anna holds Ola, Ola holds Schola) — a read edge does not');
+    assert.deepEqual(m.personsHolding(graph, 'rodzice').sort(), ['anna', 'ola']);
+    assert.deepEqual(m.personsHolding(graph, 'stara'), [], 'an expired edge holds nothing');
+
+    const all = () => true;
+    const list = m.speakersOf(['rada', 'anna', 'rodzice', 'nie-moja'], graph, (id) => id !== 'nie-moja');
+    assert.deepEqual(list.map(m.speakerKey), ['anna|anna', 'rada|anna', 'rodzice|anna', 'rodzice|ola'], 'herself first; then role by role, each with its persons; what cannot be signed is left out');
+    assert.equal(m.speakersOf(['stara'], graph, all).length, 0, 'a writer role no person holds: nobody can speak — a person is needed');
+
+    assert.equal(m.speakerKey(m.chooseSpeaker(list, 'rodzice|ola')), 'rodzice|ola', 'the remembered choice');
+    assert.equal(m.speakerKey(m.chooseSpeaker(list, 'rodzice')), 'rodzice|anna', 'an old choice (role only) takes its first person');
+    assert.equal(m.speakerKey(m.chooseSpeaker(list, '', 'ola')), 'rodzice|ola', 'the person chosen on the page');
+    assert.equal(m.speakerKey(m.chooseSpeaker(list, 'gone|x')), 'anna|anna', 'otherwise the first — herself');
+    assert.equal(m.chooseSpeaker([], 'x'), null);
+
+    const message = (over) => ({ messageId: 'm1', authorRoleId: 'rada', authorSeatId: null, epoch: 1, bodySealed: '', createdAt: '', deletedAt: null, ...over });
+    const holds = (id) => ['anna', 'ola', 'rada', 'rodzice'].includes(id);
+    assert.ok(m.isMine(message({ authorPersonId: 'anna' }), holds), 'my role, my person: mine');
+    assert.ok(!m.isMine(message({ authorPersonId: 'jan' }), holds), 'my role but another person of the group: not mine');
+    assert.ok(m.isMine(message({}), holds), 'an older message without person: by the role, as before');
+
+    const names = new Map([['anna', 'Anna Nowak'], ['rada', 'Rada parafialna'], ['jan', 'Jan Kowalski']]);
+    const look = { name: (id) => names.get(id), seat: (id) => (id === 's1' ? { name: 'Ewa Lis', via: 'Rodzice' } : undefined) };
+    assert.equal(m.authorText(m.messageAuthor(message({ authorPersonId: 'jan' }), { text: '', name: 'J.K.', via: null }, look)), 'Jan Kowalski (Rada parafialna)', 'a person through a role: the person, the role in parentheses');
+    assert.equal(m.authorText(m.messageAuthor(message({ authorRoleId: 'anna', authorPersonId: 'anna' }), null, look)), 'Anna Nowak', 'a person as herself: no parentheses');
+    assert.equal(m.authorText(m.messageAuthor(message({ authorPersonId: 'x' }), { text: '', name: 'Piotr Zieliński', via: 'Rada' }, { name: () => undefined })),
+      'Piotr Zieliński (Rada)', 'without the names of the area (a seat reads): what the message says');
+    assert.equal(m.authorText(m.messageAuthor(message({}), null, look)), 'Rada parafialna', 'an older message without person: the role, as before');
+    assert.equal(m.authorText(m.messageAuthor(message({ authorRoleId: null, authorSeatId: 's1' }), null, look)), 'Ewa Lis (Rodzice)', 'a person from a link: the link in parentheses');
+    assert.equal(m.authorText(m.messageAuthor(message({ authorRoleId: null, authorSeatId: 's2' }), { text: '', name: 'Ola z formularza', via: null }, look)), 'Ola z formularza', 'a person from a form: her name');
+    assert.equal(m.speakerText({ roleId: 'rada', personId: 'anna' }, (id) => names.get(id)), 'Anna Nowak (Rada parafialna)');
+    assert.equal(m.speakerText({ roleId: 'anna', personId: 'anna' }, (id) => names.get(id)), 'Anna Nowak');
+
+    /* The role travels sealed in the message — read back by whoever holds the chat key. */
+    const key = new Uint8Array(32).fill(7);
+    const keys = new Map([[1, key]]);
+    const sealed = await m.sealMessage(keys, 'rada', 'Dzień dobry', 'Anna Nowak', { via: 'Rada parafialna' });
+    const back = await m.openMessage(keys, { messageId: sealed.messageId, authorRoleId: 'rada', authorSeatId: null, epoch: 1,
+      bodySealed: m.toBase64Url(sealed.sealedBody), createdAt: '', deletedAt: null });
+    assert.equal(back.name, 'Anna Nowak');
+    assert.equal(back.via, 'Rada parafialna', 'the role in the sealed body');
+    const plain = await m.sealMessage(keys, 'anna', 'Hej', 'Anna Nowak');
+    const plainBack = await m.openMessage(keys, { messageId: plain.messageId, authorRoleId: 'anna', authorSeatId: null, epoch: 1,
+      bodySealed: m.toBase64Url(plain.sealedBody), createdAt: '', deletedAt: null });
+    assert.equal(plainBack.via, null, 'as herself: no role in the body');
+
+    /* Unread: a message of a group-mate through the same role is someone else's. */
+    const msgs = [
+      { messageId: 'a', authorRoleId: 'rada', authorPersonId: 'jan', authorSeatId: null, epoch: 1, bodySealed: '', createdAt: '2026-10-11T10:00:00Z', deletedAt: null },
+      { messageId: 'b', authorRoleId: 'rada', authorPersonId: 'anna', authorSeatId: null, epoch: 1, bodySealed: '', createdAt: '2026-10-11T10:01:00Z', deletedAt: null }
+    ];
+    assert.deepEqual(m.unreadOf(msgs, null, holds, 2).map((x) => x.messageId), ['a'], 'a group-mate writing through Rada is news for me; my own is not');
+    ok('one person speaks (0095): role then person, held through held persons, herself first; „Anna Nowak (Rada)" also without area names; a group-mate is not me; the role travels sealed');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

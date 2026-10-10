@@ -34,6 +34,9 @@ export interface SeatView {
 
   readonly recipientName: string | null;
 
+  /** 0095 — eine Person aus einem Link: durch welchen Link sie da ist. */
+  readonly via: string | null;
+
   /** Die Nachricht des Amtes, schon aufgemacht. */
   readonly note: string | null;
 

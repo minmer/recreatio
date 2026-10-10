@@ -39,12 +39,21 @@ public static partial class Chat
 
     private sealed record MessageRow(
         Guid Id, Guid ChatId, Guid? AuthorRole, Guid? AuthorSeat, int Version, bool Deleted,
-        Guid? DeletedByRole, Guid? DeletedBySeat);
+        Guid? DeletedByRole, Guid? DeletedBySeat, Guid? AuthorPerson = null)
+    {
+        /*
+         * 0095 — MEINE NACHRICHT: die Rolle UND die Person, die durch sie sprach,
+         * gehören diesem Konto. Wer dieselbe Gruppe hält, ist nicht der Verfasser.
+         */
+        public bool OwnedBy(IReadOnlyCollection<Guid> mine) =>
+            AuthorRole is Guid role && mine.Contains(role) && (AuthorPerson is not Guid person || mine.Contains(person));
+    }
 
     private static async Task<MessageRow?> MessageOfAsync(SqlConnection connection, Guid id, CancellationToken ct)
     {
         await using var cmd = new SqlCommand("""
-            SELECT id, chat_id, author_role_id, author_access_id, version, deleted_at, deleted_by_role_id, deleted_by_access_id
+            SELECT id, chat_id, author_role_id, author_access_id, version, deleted_at, deleted_by_role_id, deleted_by_access_id,
+                   author_person_id
             FROM app.chat_message WHERE id = @id AND schedule_state = N'sent';
             """, connection);
         cmd.Parameters.AddWithValue("@id", id);
@@ -57,7 +66,8 @@ public static partial class Chat
             reader.IsDBNull(3) ? null : reader.GetGuid(3),
             reader.GetInt32(4), !reader.IsDBNull(5),
             reader.IsDBNull(6) ? null : reader.GetGuid(6),
-            reader.IsDBNull(7) ? null : reader.GetGuid(7));
+            reader.IsDBNull(7) ? null : reader.GetGuid(7),
+            reader.IsDBNull(8) ? null : reader.GetGuid(8));
     }
 
     /// <summary>Wer in einer Rozmowa (nicht zu zweit) moderiert — admin oder certify im Bereich.</summary>
@@ -169,7 +179,7 @@ public static partial class Chat
         if (seen is null) return;
         var (chat, mine, _) = seen.Value;
 
-        if (message.AuthorRole is not Guid author || !mine.Contains(author))
+        if (message.AuthorRole is not Guid author || !message.OwnedBy(mine))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "Zmienić możesz tylko swoją wiadomość.");
             return;
@@ -320,7 +330,7 @@ public static partial class Chat
             return;
         }
 
-        var ownDeletion = message.AuthorRole is Guid author && mine.Contains(author) && message.DeletedByRole == author;
+        var ownDeletion = message.AuthorRole is Guid author && message.OwnedBy(mine) && message.DeletedByRole == author;
         if (!ownDeletion && !await ModeratesAsync(connection, chat, mine, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden,
@@ -415,7 +425,7 @@ public static partial class Chat
 
         if (message.Deleted)
         {
-            var ownDeletion = message.AuthorRole is Guid author && mine.Contains(author) && message.DeletedByRole == author;
+            var ownDeletion = message.AuthorRole is Guid author && message.OwnedBy(mine) && message.DeletedByRole == author;
             if (!ownDeletion && !await ModeratesAsync(connection, chat, mine, ctx.RequestAborted))
             {
                 await Fail(ctx, StatusCodes.Status403Forbidden, "Wersje usuniętej wiadomości widzi tylko ten, kto może ją przywrócić.");
@@ -428,6 +438,7 @@ public static partial class Chat
             messageId = Ids.ToText(id),
             authorRoleId = message.AuthorRole is null ? null : Ids.ToText(message.AuthorRole.Value),
             authorSeatId = message.AuthorSeat is null ? null : Ids.ToText(message.AuthorSeat.Value),
+            authorPersonId = message.AuthorPerson is null ? null : Ids.ToText(message.AuthorPerson.Value),
             versions = await VersionListAsync(connection, id, ctx.RequestAborted)
         });
     }
@@ -457,6 +468,7 @@ public static partial class Chat
             messageId = Ids.ToText(id),
             authorRoleId = message.AuthorRole is null ? null : Ids.ToText(message.AuthorRole.Value),
             authorSeatId = message.AuthorSeat is null ? null : Ids.ToText(message.AuthorSeat.Value),
+            authorPersonId = message.AuthorPerson is null ? null : Ids.ToText(message.AuthorPerson.Value),
             versions = await VersionListAsync(connection, id, ctx.RequestAborted)
         });
     }

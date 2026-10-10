@@ -22,7 +22,7 @@
 
 import { CommonPreferencesDialog, ForwardDialog, useChatExtras } from './ChatExtras';
 import {
-  Avatar, ChatHeader, ChatLog, Composer, Icon, lastEditable, listTime, plural, PopMenu, SendAs, useButtonMenu, useChatChrome,
+  Avatar, ChatHeader, ChatLog, Composer, Icon, lastEditable, listTime, plural, PopMenu, useButtonMenu, useChatChrome,
   withDelete, withEdit, type ComposerHandle, type MenuItem, type MessageHandlers, type MessageRules, type ReplyTarget, type Shown
 } from './ChatKit';
 import { chatEndpoint, reportChatSeen } from './chatFeatures';
@@ -55,6 +55,10 @@ import { LinkedDialog, MoveToTopic, TopicBar } from './TopicBar';
 import { InviteePicker, KIND, nameOf, shortId, useKnown } from './RolePicker';
 import { AudienceForms } from './AudienceForms';
 import { othersWrite } from './audience';
+import {
+  chooseSpeaker, isMine, messageAuthor, authorText, speakerKey, speakersOf, speakerText, throughRole, type GraphLike
+} from './chatAuthor';
+import { SpeakerPick } from './SpeakerPick';
 
 /* -- Gemeinsam ----------------------------------------------------------------- */
 
@@ -62,6 +66,9 @@ interface Me {
   readonly ring: Ring;
   readonly roles: readonly SealedRole[];
   readonly names: ReadonlyMap<string, string>;
+
+  /** 0095 — wer welche Rolle hält: daraus, welche Person durch welche Rolle spricht. */
+  readonly graph: GraphLike;
 }
 
 /** Schlüsselbund und eigene Rollen — einmal je Ansicht. */
@@ -75,7 +82,8 @@ function useMe(who: Who): Me | null | undefined {
         const { ring, graph } = await keysFor(who);
         if (ring === null) { if (alive) setMe(null); return; }
         const names = await myRoleNames(who).catch(() => new Map<string, string>());
-        if (alive) setMe({ ring, roles: graph.roles.filter((r) => r.kind !== 'account' && ring.has(r.id)), names });
+        const roles = graph.roles.filter((r) => r.kind !== 'account' && ring.has(r.id));
+        if (alive) setMe({ ring, roles, names, graph: { roles, edges: graph.edges } });
       } catch {
         if (alive) setMe(null);
       }
@@ -667,7 +675,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
       if (by !== undefined && found.seats.some((one) => one.wrapPublicKey !== null && !one.epochs.includes(found.currentEpoch))) {
         void deliverSeatKeys(found, held, by).catch(() => undefined);
       }
-      return { found, held: derived };
+      return { found, held: derived, area: held };
     } catch (e) {
       setChat(null);
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć rozmowy.');
@@ -698,14 +706,20 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
        * keinen Namen trägt, bekommt den eigenen: sonst sähen die anderen an
        * seinen Nachrichten nur eine Kennung.
        */
-      for (const roleId of got.found.writers) {
+      /*
+       * 0095 — und WER DURCH EINE ROLLE spricht, stellt sich als Person vor:
+       * „Anna Nowak (Rada)" — ihr Name unter dem Schlüssel des Bereichs (die
+       * Namen liegen unter ihm, nicht unter dem der Rozmowa).
+       */
+      const introduce = new Set([...got.found.writers, ...speakersOf(got.found.writers, me.graph, (id) => me.ring.maySign(id)).map((one) => one.personId)]);
+      for (const roleId of introduce) {
         if (got.found.names.some((n) => n.roleId === roleId)) continue;
         const mine = me.names.get(roleId);
-        if (mine !== undefined) void setMemberName(got.found.areaId, got.held, roleId, mine, roleId).catch(() => undefined);
+        if (mine !== undefined) void setMemberName(got.found.areaId, got.area, roleId, mine, roleId).catch(() => undefined);
       }
     })();
     return () => { alive = false; };
-  }, [chatId, lookChat, me.names]);
+  }, [chatId, lookChat, me.names, me.graph, me.ring]);
 
   /*
    * 0059 — WAS SICH AN SCHON GEZEIGTEN NACHRICHTEN GEÄNDERT HAT: bearbeitet,
@@ -777,11 +791,16 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   /* 0080 — in der Rozmowa des Bereichs und im Kanał sagt die Art, wer schreibt: dort gibt es keine Zasada zum Umstellen. */
   const chrome = useChatChrome({ endpoint, extras, keys: talk, canModerate: moderates && chat != null && !fixedPolicy(chat.kind), onPolicy: () => void lookChat() });
 
-  const speakers = useMemo(() => (chat == null ? [] : chat.writers.filter((id) => me.ring.maySign(id))
-    .sort((a, b) => Number(me.roles.find((r) => r.id === b)?.kind === 'person') - Number(me.roles.find((r) => r.id === a)?.kind === 'person'))),
-  [chat, me.ring, me.roles]);
-  const as = speakers.includes(picked) ? picked
-    : speakers.find((id) => me.roles.find((r) => r.id === id)?.kind === 'person') ?? speakers[0] ?? '';
+  /*
+   * 0095 — WER SPRICHT: eine Rolle, die hier schreibt, und eine eigene Person,
+   * die sie hält. Die Wahl merkt sich die Rozmowa (`rola|osoba`).
+   */
+  const speakers = useMemo(() => (chat == null ? [] : speakersOf(chat.writers, me.graph, (id) => me.ring.maySign(id))),
+    [chat, me.graph, me.ring]);
+  const speaker = chooseSpeaker(speakers, picked);
+  const as = speaker?.roleId ?? '';
+  /* Schreiben dürfte eine Rolle, aber keine eigene Person hält sie — dann fehlt die Person. */
+  const noPerson = chat != null && speakers.length === 0 && chat.writers.some((id) => me.ring.maySign(id));
 
   if (chat === undefined) return <p className="ch-empty">Wczytywanie…</p>;
   if (chat === null) {
@@ -807,8 +826,10 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   const person = me.roles.find((r) => r.kind === 'person') ?? null;
   const asPerson: Person | null = person === null ? null : { ring: me.ring, roles: me.roles, person, names: me.names };
   const kindOf = (roleId: string) => chat.members.find((m) => m.roleId === roleId)?.kind;
-  const label = (id: string) => names.get(id) ?? me.names.get(id) ?? `rola ${shortId(id)}`;
-  const mine = (message: SealedMessage) => message.authorRoleId !== null && me.ring.has(message.authorRoleId);
+  const known = (id: string) => names.get(id) ?? me.names.get(id) ?? null;
+  /* 0095 — meine: die Rolle UND die Person, die durch sie sprach. */
+  const mine = (message: SealedMessage) => isMine(message, (id) => me.ring.has(id));
+  const persons = new Set(speakers.map((one) => one.personId));
 
   /*
    * WER SCHREIBT. Eine Rolle heisst, wie der Bereich sie nennt — sonst wie sie
@@ -817,12 +838,16 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
    * wenn ich hier als mehr als eine Rolle schreibe.
    */
   const authorName = (message: SealedMessage, opened: Opened | null) => {
-    if (message.authorSeatId !== null) {
-      return opened?.name ?? chat.seats.find((one) => one.seatId === message.authorSeatId)?.name ?? 'osoba z linkiem';
-    }
-    const roleId = message.authorRoleId ?? '';
-    if (mine(message)) return speakers.length > 1 ? `${label(roleId)} (Ty)` : 'Ty';
-    return names.get(roleId) ?? me.names.get(roleId) ?? opened?.name ?? nameOf(roleId, kindOf(roleId), names, me.names);
+    const author = messageAuthor(message, opened, {
+      name: (id) => names.get(id) ?? me.names.get(id) ?? (message.authorPersonId == null && id === message.authorRoleId && opened?.name == null ? nameOf(id, kindOf(id), names, me.names) : null),
+      seat: (seatId) => chat.seats.find((one) => one.seatId === seatId)
+    });
+    /*
+     * Die eigenen: „Ty" — mit der Rolle, wenn durch sie geschrieben; mit dem
+     * Namen, wenn hier mehr als eine eigene Person spricht (die eines Kindes).
+     */
+    if (mine(message)) return persons.size > 1 ? `${authorText(author)} · Ty` : author.via === null ? 'Ty' : `Ty (${author.via})`;
+    return authorText(author);
   };
 
   const rules: MessageRules = {
@@ -861,14 +886,19 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   };
 
   const send = async (body: string, options: SendOptions) => {
-    if (as === '') throw new WorkspaceError('W tej rozmowie tylko czytasz.');
-    /* Der Name reist in der Nachricht mit — für die, die die Namen des Bereichs nicht lesen (0053). */
-    const name = names.get(as) ?? me.names.get(as) ?? null;
-    const done = await sendMessage(me.ring, chat.chatId, talk, as, body, name, { ...options, topicId: currentTopic });
+    if (speaker === null) throw new WorkspaceError(noPerson ? 'Do rozmowy potrzebna jest osoba — załóż ją w Koncie.' : 'W tej rozmowie tylko czytasz.');
+    /*
+     * Die Person und, wenn durch eine Rolle, die Rolle reisen in der Nachricht
+     * mit — für die, die die Namen des Bereichs nicht lesen (0053, 0095).
+     */
+    const name = known(speaker.personId);
+    const via = throughRole(speaker) ? known(speaker.roleId) : null;
+    const done = await sendMessage(me.ring, chat.chatId, talk, speaker.roleId, body, name,
+      { ...options, topicId: currentTopic, personId: speaker.personId, via });
     if (options.sendAt === undefined) {
       setShown((was) => [...(was ?? []), {
-        message: { messageId: done.messageId, authorRoleId: as, authorSeatId: null, epoch: done.epoch, bodySealed: '', createdAt: done.createdAt, deletedAt: null, topicId: currentTopic },
-        opened: { text: body, name, ...options }
+        message: { messageId: done.messageId, authorRoleId: speaker.roleId, authorPersonId: speaker.personId, authorSeatId: null, epoch: done.epoch, bodySealed: '', createdAt: done.createdAt, deletedAt: null, topicId: currentTopic },
+        opened: { text: body, name, ...options, via }
       }]);
     }
   };
@@ -901,7 +931,8 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
     { label: self ? 'Mój prywatny obszar' : 'Obszar tej rozmowy', icon: 'area', onSelect: () => { window.location.hash = viewPath('areas', chat.areaId); } }
   ];
 
-  const readOnly = speakers.length === 0 ? (chat.kind === 'channel' ? 'W tym kanale piszą ci, którzy mają w obszarze prawo zapisu — Ty czytasz.' : 'W tej rozmowie tylko czytasz.')
+  const readOnly = noPerson ? 'Do rozmowy potrzebna jest osoba (imię i nazwisko) — załóż ją w Koncie, w zakładce „Role".'
+    : speakers.length === 0 ? (chat.kind === 'channel' ? 'W tym kanale piszą ci, którzy mają w obszarze prawo zapisu — Ty czytasz.' : 'W tej rozmowie tylko czytasz.')
     : extras.features?.canWrite === false ? 'Ten kanał pozwala Ci tylko czytać.'
     : null;
 
@@ -951,7 +982,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
         ref={composer}
         endpoint={endpoint}
         readOnly={readOnly}
-        placeholder={speakers.length > 1 ? `Wiadomość jako ${label(as)}` : self ? 'Notatka' : 'Wiadomość'}
+        placeholder={speaker !== null && speakers.length > 1 ? `Wiadomość jako ${speakerText(speaker, known)}` : self ? 'Notatka' : 'Wiadomość'}
         reply={reply}
         onClearReply={() => setReply(null)}
         editing={editing === null ? null : { id: editing.message.messageId, text: editing.opened.text }}
@@ -964,7 +995,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
         }}
         onScheduled={chrome.scheduled.refresh}
         before={chrome.chip}
-        sendAs={speakers.length > 1 ? <SendAs speakers={speakers} speaker={as} nameOf={label} onPick={setAs} /> : null}
+        sendAs={speaker !== null && speakers.length > 1 ? <SpeakerPick speakers={speakers} speaker={speaker} name={known} onPick={(one) => setAs(speakerKey(one))} /> : null}
       />
 
       {chrome.dialogs}

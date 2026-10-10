@@ -30,6 +30,8 @@ import { loadLinks } from './linkAccess';
 import type { Digest, DigestChat, DigestForm } from './notify';
 import { handOverRoleKeys } from './memberRole';
 import { keysFor } from './ringOf';
+import { authorText, chooseSpeaker, messageAuthor, speakersOf, throughRole } from './chatAuthor';
+import type { RoleEdge } from './roles';
 import { myRoleNames } from './roleNames';
 import { viewPath } from './routes';
 import { call, type Who, WorkspaceError } from './session';
@@ -168,7 +170,9 @@ export function unreadOf(
   messages: readonly SealedMessage[], readAt: string | null, mine: (roleId: string) => boolean, unread: number
 ): SealedMessage[] {
   const after = readAt === null ? null : Date.parse(readAt);
-  const theirs = messages.filter((m) => m.deletedAt === null && !(m.authorRoleId !== null && mine(m.authorRoleId))
+  /* 0095 — meine: die Rolle UND die Person; ein anderer aus derselben Gruppe schreibt nicht als ich. */
+  const theirs = messages.filter((m) => m.deletedAt === null
+    && !(m.authorRoleId !== null && mine(m.authorRoleId) && (m.authorPersonId == null || mine(m.authorPersonId)))
     && (after === null || Date.parse(m.createdAt) > after));
   const wanted = Math.max(1, Math.min(MAX_LINES, after === null ? unread : theirs.length));
   return theirs.slice(-wanted);
@@ -196,6 +200,8 @@ interface Opener {
   readonly who: Who;
   readonly ring: Ring;
   readonly roles: readonly SealedRole[];
+  /** 0095 — wer welche Rolle hält: welche Person durch welche Rolle spricht. */
+  readonly edges: readonly RoleEdge[];
 }
 
 /** Schlüsselbund und Rollen — oder warum nicht. */
@@ -203,7 +209,7 @@ async function opener(who: Who | null): Promise<Opener | 'session' | 'key'> {
   if (who === null) return 'session';
   const { ring, graph } = await keysFor(who);
   if (ring === null) return 'key';
-  return { who, ring, roles: graph.roles.filter((r) => r.kind !== 'account' && ring.has(r.id)) };
+  return { who, ring, roles: graph.roles.filter((r) => r.kind !== 'account' && ring.has(r.id)), edges: graph.edges };
 }
 
 /**
@@ -263,9 +269,11 @@ async function conversationOf(me: Opener, row: DigestChat, replyable: boolean, s
   const lines: NoticeLine[] = [];
   for (const message of unreadOf(messages, chat.readAt, mine, row.unread)) {
     const opened = await openMessage(talk, message);
-    const author = message.authorSeatId !== null
-      ? opened?.name ?? chat.seats.find((one) => one.seatId === message.authorSeatId)?.name ?? 'Osoba z linkiem'
-      : names.get(message.authorRoleId ?? '') ?? opened?.name ?? 'Ktoś';
+    /* 0095 — „Anna Nowak (Rada)": die Person, und die Rolle, durch die sie spricht. */
+    const author = authorText(messageAuthor(message, opened, {
+      name: (id) => names.get(id),
+      seat: (seatId) => chat.seats.find((one) => one.seatId === seatId)
+    }));
     lines.push({ id: message.messageId, author, text: lineText(opened), at: message.createdAt, ms: Date.parse(message.createdAt), mine: false });
   }
 
@@ -472,13 +480,20 @@ export async function replyIn(
   }
   const held = await areaKeys(me.ring, chat.areaId, true);
   const talk = await chatKeysOf(chat.chatId, held);
-  const as = pickSpeaker(chat.writers, (id) => me.ring.maySign(id), (id) => me.roles.find((r) => r.id === id)?.kind);
-  if (as === null) throw new WorkspaceError('W tej rozmowie tylko czytasz.');
+  /* 0095 — eine Person spricht: am liebsten als sie selbst, sonst durch eine Rolle, die sie hält. */
+  const as = chooseSpeaker(speakersOf(chat.writers, { roles: me.roles, edges: me.edges }, (id) => me.ring.maySign(id)), null);
+  if (as === null) {
+    throw new WorkspaceError(chat.writers.some((id) => me.ring.maySign(id)) ? 'Do rozmowy potrzebna jest osoba — załóż ją w aplikacji.' : 'W tej rozmowie tylko czytasz.');
+  }
 
   /* Der Name reist mit — für die, die die Namen des Bereichs nicht lesen (0053). */
   const names = await openNames(held, chat.areaId, chat.names);
-  const name = names.get(as) ?? (await myRoleNames(me.who).catch(() => new Map<string, string>())).get(as) ?? null;
-  const done = await sendMessage(me.ring, chat.chatId, talk, as, body, name, messageId === undefined ? {} : { messageId });
+  const own = await myRoleNames(me.who).catch(() => new Map<string, string>());
+  const known = (id: string) => names.get(id) ?? own.get(id) ?? null;
+  const name = known(as.personId);
+  const via = throughRole(as) ? known(as.roleId) : null;
+  const done = await sendMessage(me.ring, chat.chatId, talk, as.roleId, body, name,
+    { ...(messageId === undefined ? {} : { messageId }), personId: as.personId, via });
   return { messageId: done.messageId, at: done.createdAt, author: name ?? 'Ty' };
 }
 

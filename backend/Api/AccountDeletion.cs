@@ -535,6 +535,9 @@ public static class AccountDeletion
         DELETE FROM app.invitation_redemption
          WHERE role_id IN (SELECT id FROM #doomed)
             OR invitation_id IN (SELECT id FROM app.invitation WHERE role_id IN (SELECT id FROM #doomed));
+        -- 0095 — Personen aus den Links dieses Kontos: ihr Link geht, sie gehen mit.
+        UPDATE app.access SET revoked_at = COALESCE(revoked_at, @now), status = N'revoked', invitation_id = NULL
+         WHERE invitation_id IN (SELECT id FROM app.invitation WHERE role_id IN (SELECT id FROM #doomed));
         DELETE FROM app.invitation WHERE role_id IN (SELECT id FROM #doomed);
 
         DELETE FROM app.key_grant

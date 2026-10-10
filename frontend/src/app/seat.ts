@@ -336,6 +336,8 @@ export interface Portal {
   readonly seatKeySealed: string;
   readonly epoch: number;
   readonly recipientName: string | null;
+  /** 0095 — eine Person aus einem Link: der Name des Links (in einer Rozmowa in Klammern hinter ihrem). */
+  readonly via?: string | null;
   readonly personalNoteSealed: string | null;
   readonly expiresAt: string | null;
 

@@ -18,6 +18,7 @@ import { personsOf } from './roles';
 import { tilesPath, viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
+import { LinkChatsSection } from './LinkChatJoin';
 import type { Ring } from './keys';
 
 /** 0074 — was eine Stufe in einem Bereich heisst, ausführlich. */
@@ -222,6 +223,9 @@ export function JoinWithoutAccount({ token, onSignIn }: { token: string | null; 
               {calendar && <a className={info.aim !== null ? 'wk-btn wk-btn-line' : 'wk-btn'} href={viewPath('calendar')}>Kalendarz</a>}
             </div>
           )}
+
+          {/* 0095 — die Rozmowy dieses Links: mit der eigenen Person, sonst „Przedstaw się". */}
+          <LinkChatsSection invitationId={info.invitationId} />
         </>
       )}
 

@@ -285,7 +285,9 @@ public static class Notify
                        (SELECT COUNT(*) FROM app.chat_message m
                          WHERE m.chat_id = c.id AND m.schedule_state = N'sent' AND m.deleted_at IS NULL
                            AND (r.read_at IS NULL OR m.created_at > r.read_at)
-                           AND (m.author_role_id IS NULL OR m.author_role_id NOT IN ({names}))) AS unread,
+                           AND (m.author_role_id IS NULL OR m.author_role_id NOT IN ({names})
+                                /* 0095 — ein anderer aus derselben Gruppe: dieselbe Rolle, eine fremde Person */
+                                OR (m.author_person_id IS NOT NULL AND m.author_person_id NOT IN ({names})))) AS unread,
                        c.last_message_at,
                        (SELECT x.recipient_name FROM app.access x WHERE x.id = c.seat_id),
                        c.area_id

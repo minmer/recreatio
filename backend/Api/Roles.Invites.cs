@@ -614,7 +614,10 @@ public static partial class Roles
         var dropped = 0;
         if (body.DropMembers)
         {
+            /* 0095 — und die Personen, die sich über den Link vorgestellt haben (Plätze am Link). */
             await using var drop = new SqlCommand("""
+                UPDATE app.access SET revoked_at = COALESCE(revoked_at, @now), status = N'revoked'
+                 WHERE invitation_id = @id AND revoked_at IS NULL;
                 UPDATE app.role_edge SET revoked_at = @now
                  WHERE to_role_id = @role AND revoked_at IS NULL
                    AND from_role_id IN (SELECT role_id FROM app.invitation_redemption WHERE invitation_id = @id);

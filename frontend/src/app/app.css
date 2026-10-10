@@ -8042,3 +8042,34 @@ body.has-pz { overflow: hidden; }
 .wk-phone-more a { display: block; padding: 0.65rem 0.75rem; border-radius: 6px; color: var(--wk-ink); text-decoration: none; }
 .wk-phone-more a:hover, .wk-phone-more a:focus-visible { background: var(--wk-soft); }
 @media print { .wk-phone-bar, .wk-search-btn { display: none !important; } }
+
+/* ==========================================================================
+   0095 — IN EINER ROZMOWA SPRICHT EINE PERSON: sich vorstellen, Rozmowy eines Links
+   ========================================================================== */
+
+/* Ein Platz ohne Wahl: das Bild der Person, kein Knopf. */
+span.ch-sendas { cursor: default; }
+
+/* Przedstaw się — Imię und Nazwisko nebeneinander, wo Platz ist. */
+/* Fliessend statt Raster: zwei Felder nebeneinander, wo Platz ist — und nie breiter als der Platz (ein Raster mit zwei Spalten schob die Seite am Telefon auf). */
+.wk-introduce { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem 0.8rem; min-width: 0; }
+.wk-introduce > .wk-hint, .wk-introduce > .wk-error, .wk-introduce > .wk-actions { flex: 1 1 100%; margin: 0; }
+.wk-introduce .wk-field { flex: 1 1 11rem; min-width: 0; margin: 0; }
+.wk-introduce .wk-field input { width: 100%; box-sizing: border-box; min-width: 0; }
+.ch-namebar.wk-introduce { padding: 0.4rem 0.3rem 0.2rem; }
+.ch-namebar.wk-introduce label { display: grid; gap: 0.2rem; flex: none; }
+
+/* Die Rozmowy eines Links, auf seiner Seite. */
+.wk-link-chats { display: grid; gap: 0.5rem; margin-top: 0.6rem; }
+.wk-link-chats .wk-h2 { margin: 0; }
+.wk-link-chat-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.wk-link-chat-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.8rem; padding: 0.6rem 0.75rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); }
+.wk-link-chat-list > li > span { flex: 1 1 12rem; min-width: 0; }
+/* Im Listeneintrag eine ganze Zeile — und nie breiter als er (sonst schöbe das Raster mit zwei Spalten die Seite auf). */
+.wk-link-chat-list > li > .wk-introduce { flex: 1 1 100%; min-width: 0; }
+
+/* Lesen über einen Link, ohne Person: unter dem Verlauf statt des Feldes. */
+.wk-link-read-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; margin: 0; padding: 0.6rem 0.8rem; border-top: 1px solid var(--wk-line); background: var(--wk-surface); color: var(--wk-muted); font-size: 0.9rem; }
+.wk-link-read-bar > span { flex: 1 1 14rem; min-width: 0; }
+.wk-link-room .wk-introduce { padding: 0.6rem 0.8rem; border-top: 1px solid var(--wk-line); background: var(--wk-surface); }
+.wk-link-chat-list > li > .wk-link-room { flex: 1 1 100%; min-width: 0; }

@@ -263,7 +263,9 @@ public static partial class Chat
         await cmd.ExecuteNonQueryAsync(ctx.RequestAborted); await ctx.Response.WriteAsJsonAsync(new { saved = true });
     }
     private static string OwnerPredicate(Actor a) => a.Seat ? "author_access_id = @p" :
-        a.Roles.Count == 0 ? "1 = 0" : "author_role_id IN (" + string.Join(",", a.Roles.Select((_, i) => $"@r{i}")) + ")";
+        /* 0095 — die eigene: die Rolle UND die Person, die durch sie sprach (nicht die eines anderen aus derselben Gruppe). */
+        a.Roles.Count == 0 ? "1 = 0" : "author_role_id IN (" + string.Join(",", a.Roles.Select((_, i) => $"@r{i}")) + ")"
+            + " AND (author_person_id IS NULL OR author_person_id IN (" + string.Join(",", a.Roles.Select((_, i) => $"@r{i}")) + "))";
     private static void OwnerParameters(SqlCommand cmd, Actor a)
     {
         cmd.Parameters.AddWithValue("@p", a.Principal);
@@ -274,7 +276,7 @@ public static partial class Chat
         await using var c = await db.OpenAsync(ctx.RequestAborted);
         var actor = await ActorAsync(ctx, db, c, id); if (actor is null) return;
         await using var cmd = new SqlCommand($"""
-            SELECT TOP 100 id, scheduled_at, schedule_state, epoch, body_sealed, author_role_id, author_access_id, created_at FROM app.chat_message
+            SELECT TOP 100 id, scheduled_at, schedule_state, epoch, body_sealed, author_role_id, author_access_id, created_at, author_person_id FROM app.chat_message
             WHERE chat_id = @id AND schedule_state IN (N'pending', N'failed') AND {OwnerPredicate(actor)} ORDER BY scheduled_at;
             """, c);
         cmd.Parameters.AddWithValue("@id", id); OwnerParameters(cmd, actor);
@@ -283,7 +285,8 @@ public static partial class Chat
         while (await r.ReadAsync(ctx.RequestAborted)) rows.Add(new { messageId = Ids.ToText(r.GetGuid(0)), sendAt = r.GetDateTimeOffset(1), state = r.GetString(2), epoch = r.GetInt32(3),
             bodySealed = r.IsDBNull(4) ? null : Base64Url.Encode((byte[])r[4]),
             authorRoleId = r.IsDBNull(5) ? null : Ids.ToText(r.GetGuid(5)), authorSeatId = r.IsDBNull(6) ? null : Ids.ToText(r.GetGuid(6)),
-            createdAt = r.GetDateTimeOffset(7), deletedAt = (DateTimeOffset?)null });
+            createdAt = r.GetDateTimeOffset(7), deletedAt = (DateTimeOffset?)null,
+            authorPersonId = r.IsDBNull(8) ? null : Ids.ToText(r.GetGuid(8)) });
         await ctx.Response.WriteAsJsonAsync(new { messages = rows });
     }
     public sealed record ScheduleRequest(DateTimeOffset SendAt);

@@ -246,6 +246,7 @@ export function useSeat(token: string, keyText: string | null): Opened {
     seatId: portal.seatId,
     seatKey,
     recipientName: portal.recipientName,
+    via: portal.via ?? null,
     note,
     submitted: portal.submitted,
     opened: mine,

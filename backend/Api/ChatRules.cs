@@ -48,4 +48,63 @@ public static class ChatRules
 
     public static bool ValidSchedule(DateTimeOffset? at, DateTimeOffset now) =>
         at is null || (at > now && at < now.AddYears(1));
+
+    /*
+     * 0095 — IN EINER ROZMOWA SPRICHT EINE PERSON. Wer über eine Rolle schreibt,
+     * die keine Person ist („Rada", ein Link), sagt, WELCHE seiner Personen
+     * durch sie spricht — sie steht dann vor der Rolle: „Anna Nowak (Rada)".
+     */
+
+    /// <summary>Was aus der Frage „wer spricht" wird: eine Person, oder warum nicht.</summary>
+    public sealed record Speaking(Guid? Person, int Status, string? Error);
+
+    /// <summary>
+    /// DIE PERSON, DIE DURCH <paramref name="author"/> SPRICHT.
+    /// <list type="bullet">
+    ///   <item>Ist die Rolle selbst eine Person, ist sie es — eine andere Angabe ist ein Fehler.</item>
+    ///   <item>Sonst eine der <paramref name="candidates"/> (die Personen des Kontos, die die Rolle halten):
+    ///         die genannte, oder — ohne Angabe — die einzige.</item>
+    /// </list>
+    /// </summary>
+    public static Speaking PersonFor(Guid author, bool authorIsPerson, IReadOnlyCollection<Guid> candidates, Guid? asked)
+    {
+        if (authorIsPerson)
+        {
+            return asked is null || asked == author
+                ? new Speaking(author, 200, null)
+                : new Speaking(null, 400, "Ta osoba pisze sama za siebie — nie przez inną.");
+        }
+
+        if (candidates.Count == 0)
+        {
+            return new Speaking(null, 403, "Do rozmowy potrzebna jest osoba, która trzyma tę rolę.");
+        }
+
+        if (asked is Guid one)
+        {
+            return candidates.Contains(one)
+                ? new Speaking(one, 200, null)
+                : new Speaking(null, 403, "Ta osoba nie pisze przez tę rolę.");
+        }
+
+        return candidates.Count == 1
+            ? new Speaking(candidates.First(), 200, null)
+            : new Speaking(null, 400, "Wybierz, która osoba pisze przez tę rolę.");
+    }
+
+    /// <summary>
+    /// 0095 — DER NAME EINER PERSON AUS EINEM LINK: Vor- und Nachname, beide da,
+    /// ohne Steuerzeichen, zusammen höchstens 200 Zeichen. <c>null</c>: unbrauchbar.
+    /// </summary>
+    public static string? PersonName(string? given, string? surname)
+    {
+        static string Clean(string? text) =>
+            string.Join(' ', new string((text ?? string.Empty).Where(c => !char.IsControl(c)).ToArray())
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+        var first = Clean(given);
+        var last = Clean(surname);
+        if (first.Length is 0 or > 80 || last.Length is 0 or > 100) return null;
+        return $"{first} {last}";
+    }
 }

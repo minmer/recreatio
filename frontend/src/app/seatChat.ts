@@ -59,6 +59,13 @@ const seatPath = (token: string) => `/seat/${encodeURIComponent(token)}`;
 
 const identityAad = (seatId: string) => aad('seat', 'identity', seatId, Field.SeatIdentity, 1);
 
+/**
+ * 0095 — DEN NAMEN AM EIGENEN PLATZ setzen (Vor- und Nachname), wenn er noch
+ * keinen trägt: in einer Rozmowa spricht eine Person.
+ */
+export const nameSeat = (token: string, givenName: string, surname: string): Promise<{ name: string; changed: boolean }> =>
+  call(`${seatPath(token)}/name`, { method: 'POST', body: JSON.stringify({ givenName, surname }) });
+
 export const loadSeatChats = (token: string): Promise<{
   seatId: string; identity: SeatIdentitySealed | null; chats: readonly SeatChatRow[];
 }> => call(`${seatPath(token)}/chats`);

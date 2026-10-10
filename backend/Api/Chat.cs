@@ -57,6 +57,7 @@ public static partial class Chat
         MapFeatures(app);
         MapTopics(app);
         MapAsk(app);
+        MapLinkPersons(app);
         app.MapGet("/workspace/chats", ListAsync);
         app.MapPost("/workspace/chats", CreateAsync);
         app.MapGet("/workspace/chat/{id:guid}", ShowAsync);
@@ -227,7 +228,9 @@ public static partial class Chat
                    (SELECT COUNT(*) FROM app.chat_message m
                      WHERE m.chat_id = c.id AND m.schedule_state = N'sent' AND m.deleted_at IS NULL
                        AND (r.read_at IS NULL OR m.created_at > r.read_at)
-                       AND (m.author_role_id IS NULL OR m.author_role_id NOT IN ({names}))) AS unread,
+                       AND (m.author_role_id IS NULL OR m.author_role_id NOT IN ({names})
+                            /* 0095 — ein anderer aus derselben Gruppe: dieselbe Rolle, eine fremde Person */
+                            OR (m.author_person_id IS NOT NULL AND m.author_person_id NOT IN ({names})))) AS unread,
                    (SELECT COUNT(*) FROM app.access s
                      WHERE {SeatOfChat} AND {LiveSeat("s")}) AS seats,
                    (SELECT COUNT(*) FROM app.access s
@@ -677,10 +680,13 @@ public static partial class Chat
     /// </summary>
     private static async Task<List<object>> SeatsOfAsync(SqlConnection connection, ChatRow chat, CancellationToken ct)
     {
-        var rows = new List<(Guid Id, string? Name, byte[]? Wrap)>();
+        var rows = new List<(Guid Id, string? Name, byte[]? Wrap, string? Via)>();
 
         await using (var cmd = new SqlCommand($"""
-            SELECT s.id, s.recipient_name, i.wrap_public_key
+            SELECT s.id, s.recipient_name, i.wrap_public_key,
+                   /* 0095 — eine Person aus einem Link: der Name des Links (in Klammern hinter ihrem). */
+                   CASE WHEN s.invitation_id IS NULL THEN NULL
+                        ELSE COALESCE(NULLIF(LTRIM(RTRIM((SELECT iv.label FROM app.invitation iv WHERE iv.id = s.invitation_id))), N''), N'Link') END
             FROM app.chat c
             JOIN app.access s ON {SeatOfChat}
             LEFT JOIN app.seat_identity i ON i.access_id = s.id
@@ -695,7 +701,7 @@ public static partial class Chat
             while (await reader.ReadAsync(ct))
             {
                 rows.Add((reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetString(1),
-                    reader.IsDBNull(2) ? null : (byte[])reader[2]));
+                    reader.IsDBNull(2) ? null : (byte[])reader[2], reader.IsDBNull(3) ? null : reader.GetString(3)));
             }
         }
 
@@ -718,6 +724,7 @@ public static partial class Chat
         {
             seatId = Ids.ToText(r.Id),
             name = r.Name,
+            via = r.Via,
 
             /* `null`: er hat die Rozmowa noch nie geoeffnet — dann gibt es nichts, wofuer man verpacken koennte. */
             wrapPublicKey = r.Wrap is null ? null : Base64Url.Encode(r.Wrap),
@@ -771,7 +778,7 @@ public static partial class Chat
 
         await using (var cmd = new SqlCommand($"""
             SELECT TOP {take} id, author_role_id, epoch, body_sealed, created_at, deleted_at, signature, signed_at,
-                   author_access_id, version, edited_at, deleted_by_role_id, deleted_by_access_id, topic_id
+                   author_access_id, version, edited_at, deleted_by_role_id, deleted_by_access_id, topic_id, author_person_id
             FROM app.chat_message
             WHERE chat_id = @chat AND schedule_state = N'sent'
               {(topic is null ? "" : "AND topic_id = @topic")}
@@ -818,7 +825,10 @@ public static partial class Chat
                         : "moderator",
 
                     /* 0068 — zu welchem Thema. */
-                    topicId = reader.IsDBNull(13) ? null : Ids.ToText(reader.GetGuid(13))
+                    topicId = reader.IsDBNull(13) ? null : Ids.ToText(reader.GetGuid(13)),
+
+                    /* 0095 — welche Person durch die Rolle sprach (fehlt bei älteren Nachrichten und bei Plätzen). */
+                    authorPersonId = reader.IsDBNull(14) ? null : Ids.ToText(reader.GetGuid(14))
                 });
             }
         }
@@ -830,7 +840,10 @@ public static partial class Chat
     }
 
     public sealed record PostRequest(string MessageId, string AuthorRoleId, int Epoch, string BodySealed,
-        string Signature, long SignedAt, DateTimeOffset? SendAt = null, string? TopicId = null);
+        string Signature, long SignedAt, DateTimeOffset? SendAt = null, string? TopicId = null,
+
+        /* 0095 — welche Person des Kontos durch die Rolle spricht (bei einer Person: sie selbst). */
+        string? PersonId = null);
 
     /// <summary>Was an einer Nachricht zu pruefen ist, bevor jemand gefragt wird, wer sie schreibt.</summary>
     private sealed record Incoming(Guid MessageId, int Epoch, byte[] Body, byte[] BodyHash, byte[] Signature,
@@ -908,7 +921,7 @@ public static partial class Chat
     /// <summary>Die Zeile — und der Chat bekommt seinen Zeitpunkt. 409, wenn es sie schon gibt.</summary>
     private static async Task<DateTimeOffset?> InsertAsync(
         HttpContext ctx, SqlConnection connection, ChatRow chat, Incoming message, Guid? authorRole, Guid? authorSeat, DateTimeOffset? sendAt = null,
-        string? topicText = null)
+        string? topicText = null, Guid? authorPerson = null)
     {
         /* 0068 — das Thema muss in DIESER Rozmowa liegen. */
         var topic = await TopicOfChatAsync(ctx, connection, chat, topicText);
@@ -922,8 +935,8 @@ public static partial class Chat
             await using (var insert = new SqlCommand("""
                 INSERT INTO app.chat_message
                     (id, chat_id, author_role_id, author_access_id, epoch, body_sealed, body_sha256,
-                     signature, signed_at, created_at, scheduled_at, schedule_state, topic_id)
-                VALUES (@id, @chat, @author, @seat, @epoch, @body, @hash, @sig, @signed, @now, @due, @state, @topic);
+                     signature, signed_at, created_at, scheduled_at, schedule_state, topic_id, author_person_id)
+                VALUES (@id, @chat, @author, @seat, @epoch, @body, @hash, @sig, @signed, @now, @due, @state, @topic, @person);
                 INSERT INTO app.chat_message_version
                     (message_id, version, epoch, body_sealed, body_sha256, signature, signed_at, created_at)
                 VALUES (@id, 1, @epoch, @body, @hash, @sig, @signed, @now);
@@ -938,6 +951,7 @@ public static partial class Chat
                 insert.Parameters.AddWithValue("@chat", chat.Id);
                 insert.Parameters.AddWithValue("@author", (object?)authorRole ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@seat", (object?)authorSeat ?? DBNull.Value);
+                insert.Parameters.AddWithValue("@person", (object?)authorPerson ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@epoch", message.Epoch);
                 insert.Parameters.AddWithValue("@body", message.Body);
                 insert.Parameters.AddWithValue("@hash", message.BodyHash);
@@ -998,6 +1012,14 @@ public static partial class Chat
             return;
         }
 
+        /* 0095 — WER SPRICHT: eine Person des Kontos, die die Rolle hält. */
+        var speaking = await SpeakingAsync(connection, account, author, body.PersonId, ctx.RequestAborted);
+        if (speaking.Person is null)
+        {
+            await Fail(ctx, speaking.Status, speaking.Error ?? "Do rozmowy potrzebna jest osoba.");
+            return;
+        }
+
         if (!await EpochExistsAsync(ctx, connection, chat, message.Epoch)) return;
 
         byte[]? signKey;
@@ -1014,7 +1036,7 @@ public static partial class Chat
         }
 
         if (!await ValidSendAtAsync(ctx, body.SendAt)) return;
-        var at = await InsertAsync(ctx, connection, chat, message, author, null, body.SendAt, body.TopicId);
+        var at = await InsertAsync(ctx, connection, chat, message, author, null, body.SendAt, body.TopicId, speaking.Person);
         if (at is null) return;
 
         /* Was ich selbst schreibe, habe ich gelesen — ausserhalb der Nachricht: ein Streit darum darf sie nicht kosten. */
@@ -1024,6 +1046,37 @@ public static partial class Chat
         if (body.SendAt is null) push.Chat(chat.Id, account);
 
         await ctx.Response.WriteAsJsonAsync(new { messageId = Ids.ToText(message.MessageId), createdAt = at.Value });
+    }
+
+    /// <summary>
+    /// 0095 — WELCHE PERSON DES KONTOS DURCH <paramref name="author"/> SPRICHT
+    /// (<see cref="ChatRules.PersonFor"/>): die Rolle selbst, wenn sie eine
+    /// Person ist; sonst die genannte unter denen, die die Rolle halten — ohne
+    /// Angabe die einzige.
+    /// </summary>
+    internal static async Task<ChatRules.Speaking> SpeakingAsync(
+        SqlConnection connection, Guid account, Guid author, string? personText, CancellationToken ct)
+    {
+        Guid? asked = null;
+        if (!string.IsNullOrWhiteSpace(personText))
+        {
+            if (!Guid.TryParse(personText, out var named)) return new ChatRules.Speaking(null, 400, "Nieczytelna kennung osoby.");
+            asked = named;
+        }
+
+        var roles = await Workspace.RolesOfAsync(connection, account, ct);
+        var isPerson = roles.Any(r => r.Id == author && r.Kind == "person");
+        var candidates = new List<Guid>();
+
+        if (!isPerson)
+        {
+            foreach (var person in roles.Where(r => r.Kind == "person"))
+            {
+                if ((await Workspace.ClosureAsync(connection, [person.Id], ct)).Any(r => r.Id == author)) candidates.Add(person.Id);
+            }
+        }
+
+        return ChatRules.PersonFor(author, isPerson, candidates, asked);
     }
 
     private static bool VerifySignature(MessageVersionRecord record, byte[] spki, byte[] signature)
@@ -1114,8 +1167,9 @@ public static partial class Chat
 
         Guid chatId;
         Guid? author;
+        Guid? person;
         await using (var cmd = new SqlCommand(
-            "SELECT chat_id, author_role_id FROM app.chat_message WHERE id = @id AND deleted_at IS NULL AND schedule_state = N'sent';", connection))
+            "SELECT chat_id, author_role_id, author_person_id FROM app.chat_message WHERE id = @id AND deleted_at IS NULL AND schedule_state = N'sent';", connection))
         {
             cmd.Parameters.AddWithValue("@id", id);
             await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
@@ -1128,6 +1182,9 @@ public static partial class Chat
 
             /* NULL: ein Platz hat sie geschrieben (0053) — dann nimmt sie nur er selbst zurueck, oder wer moderiert. */
             author = reader.IsDBNull(1) ? null : reader.GetGuid(1);
+
+            /* 0095 — und die Person, die durch die Rolle sprach: eine andere Person derselben Gruppe ist nicht der Verfasser. */
+            person = reader.IsDBNull(2) ? null : reader.GetGuid(2);
         }
 
         var seen = await ReadableAsync(ctx, db, connection, chatId);
@@ -1137,7 +1194,8 @@ public static partial class Chat
         /* Zu zweit loescht niemand die Worte des anderen — auch nicht, wer den Bereich angelegt hat. */
         var mayModerate = chat.Kind != "direct"
             && (await HoldingAsync(connection, mine, chat.AreaId, ["admin", "certify"], ctx.RequestAborted)).Count > 0;
-        if (!(author is Guid role && mine.Contains(role)) && !mayModerate)
+        var own = author is Guid role && mine.Contains(role) && (person is not Guid speaker || mine.Contains(speaker));
+        if (!own && !mayModerate)
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "Usunąć może tylko autor albo ten, kto prowadzi rozmowę.");
             return;
@@ -1149,8 +1207,8 @@ public static partial class Chat
          * der Verfasser selbst, oder wer moderiert — dann holt sie auch nur
          * jemand zurück, der moderiert.
          */
-        Guid? by = author is Guid own && mine.Contains(own)
-            ? own
+        Guid? by = own
+            ? author
             : (await HoldingAsync(connection, mine, chat.AreaId, ["admin", "certify"], ctx.RequestAborted)).FirstOrDefault();
 
         await using var drop = new SqlCommand("""
@@ -1212,8 +1270,15 @@ public static partial class Chat
             return;
         }
 
+        /*
+         * 0095 — IM BEREICH STEHT AUCH, WER ÜBER EINE ROLLE HEREINKOMMT: eine
+         * Person, die „Rada" hält, schreibt in der Rozmowa der Rada — und ihr
+         * Name soll dort lesbar sein, ohne dass sie selbst ein Zertifikat trägt.
+         */
+        var reach = (await Workspace.ClosureAsync(connection, [roleId], ctx.RequestAborted)).Select(r => r.Id).ToList();
+
         var own = roleId == byRole
-            && (await HoldingAsync(connection, [roleId], id, Readers, ctx.RequestAborted)).Contains(roleId);
+            && (await HoldingAsync(connection, reach, id, Readers, ctx.RequestAborted)).Count > 0;
         var certifies = (await HoldingAsync(connection, [byRole], id, ["admin", "certify"], ctx.RequestAborted)).Contains(byRole);
 
         if (!own && !certifies)
@@ -1222,8 +1287,8 @@ public static partial class Chat
             return;
         }
 
-        /* Nur fuer jemanden, der wirklich im Bereich steht. */
-        if (!(await HoldingAsync(connection, [roleId], id, [.. Readers, "certify"], ctx.RequestAborted)).Contains(roleId))
+        /* Nur fuer jemanden, der wirklich im Bereich steht — selbst oder über eine Rolle, die er hält. */
+        if ((await HoldingAsync(connection, reach, id, [.. Readers, "certify"], ctx.RequestAborted)).Count == 0)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Tej roli nie ma w obszarze.");
             return;

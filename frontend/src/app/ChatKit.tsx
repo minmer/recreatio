@@ -20,12 +20,22 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
-import { authorOf, openMessage, type Attachment, type Opened, type SealedMessage, type SendOptions } from './chat';
+import { authorOf as roleOrSeatOf, openMessage, type Attachment, type Opened, type SealedMessage, type SendOptions } from './chat';
 import { PreferencesEditor, type useChatExtras } from './ChatExtras';
 import { availableNow, downloadAttachment, photoForChat, uploadAttachment, type Features, type Mark } from './chatFeatures';
 import { Modal } from './Modal';
 import { saveBlob } from './platform';
 import { call } from './session';
+
+/*
+ * 0095 — WER SPRICHT, für die Gruppen im Verlauf, die Farbe und das Bild: die
+ * PERSON, nicht nur die Rolle — zwei Menschen, die beide durch „Rada" schreiben,
+ * sind zwei Absender.
+ */
+const authorOf = (message: SealedMessage): string =>
+  message.authorPersonId != null && message.authorPersonId !== message.authorRoleId
+    ? `${roleOrSeatOf(message)}|${message.authorPersonId}`
+    : roleOrSeatOf(message);
 
 export interface Shown {
   readonly message: SealedMessage;
@@ -428,7 +438,7 @@ export function ChatHeader({ back, title, avatar, subtitle, menu, search, onSear
       <button type="button" className="ch-icon-btn" aria-label="Szukaj w rozmowie" title="Szukaj" onClick={() => setSearching(true)}>
         <Icon name="search" />
       </button>
-      <button
+      {menu.length > 0 && <button
         type="button"
         className="ch-icon-btn"
         aria-label="Więcej opcji rozmowy"
@@ -438,7 +448,7 @@ export function ChatHeader({ back, title, avatar, subtitle, menu, search, onSear
         onClick={(e) => more.toggle(e.currentTarget)}
       >
         <Icon name="more" />
-      </button>
+      </button>}
       {more.open !== null && (
         <PopMenu anchor={{ rect: more.open.rect }} from={more.open.from} label="Opcje rozmowy" items={menu} onClose={more.close} />
       )}
@@ -665,6 +675,11 @@ export interface MessageRules {
   readonly group: boolean;
   /** Häkchen an den eigenen: gesendet ✓, gelesen ✓✓. */
   readonly receipts: boolean;
+  /**
+   * 0095 — NUR LESEN (ein Link ohne Person): an einer Nachricht nur „Kopiuj
+   * tekst" — kein Antworten, keine Reaktion, kein Merken; dazu braucht es eine Person.
+   */
+  readonly readOnly?: boolean;
 }
 
 export interface MessageHandlers {
@@ -903,7 +918,7 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
         onJump={jumpTo}
         onReact={(emoji) => mark(message.messageId, 'reaction', emoji)}
         onHistory={() => on.history(message)}
-        onSwipe={() => { if (item.opened !== null && message.deletedAt === null) on.reply(message, item.opened, author); }}
+        onSwipe={() => { if (rules.readOnly !== true && item.opened !== null && message.deletedAt === null) on.reply(message, item.opened, author); }}
       />
     );
   });
@@ -1010,7 +1025,9 @@ function MessageMenu({ menu, marks, rules, on, onClose, onMark, onCopy, onDelete
   const gone = message.deletedAt !== null;
   const items: MenuItem[] = [];
 
-  if (!gone && opened !== null) {
+  if (!gone && opened !== null && rules.readOnly === true) {
+    if (opened.text !== '') items.push({ label: 'Kopiuj tekst', icon: 'copy', onSelect: () => onCopy(opened.text) });
+  } else if (!gone && opened !== null) {
     items.push({ label: 'Odpowiedz', icon: 'reply', onSelect: () => on.reply(message, opened, menu.author) });
     if (opened.text !== '') items.push({ label: 'Kopiuj tekst', icon: 'copy', onSelect: () => onCopy(opened.text) });
     if (on.forward !== undefined) {
@@ -1044,7 +1061,7 @@ function MessageMenu({ menu, marks, rules, on, onClose, onMark, onCopy, onDelete
 
   return (
     <PopMenu anchor={menu.anchor} from={menu.from} label="Opcje wiadomości" items={items} onClose={onClose}>
-      {!gone && opened !== null && (
+      {!gone && opened !== null && rules.readOnly !== true && (
         <div className="ch-pop-reacts" role="group" aria-label="Reakcje">
           {REACTIONS.map((emoji) => {
             const pressed = marks.some((m) => m.mine && m.kind === 'reaction' && m.value === emoji);
@@ -1178,7 +1195,8 @@ function MessageRow({ endpoint, item, mine, start, end, author, note, group, rec
       )}
       {shift > 0 && <span className="ch-swipe" style={{ opacity: Math.min(1, shift / 56) }}><Icon name="reply" /></span>}
       <div className={cls('ch-bubble', gone && 'is-gone', big && 'is-emoji', visual && text === '' && 'is-media')} onContextMenu={openHere}>
-        {group && !mine && start && (
+        {/* 0095 — die eigene trägt eine Zeile, wenn sie mehr sagt als „Ty" (durch eine Rolle, eine andere eigene Person). */}
+        {group && (!mine || author !== 'Ty') && start && (
           <div className="ch-author" style={{ '--ch-h': hueOf(authorOf(message)) } as CSSProperties}>
             {author}{note !== null && <span className="ch-author-note"> · {note}</span>}
           </div>

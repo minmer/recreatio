@@ -31,7 +31,7 @@ import { PageSubjectProvider, SubjectBar } from './pageSubject';
 import { PersonalSections, SeatBar } from './SeatBar';
 import { SiteMenu } from './SiteMenu';
 import { SeatContext, SeatStateContext, useSeats, useSeatStates, type SeatState } from './seatContext';
-import { freshSeat, heldSeats, seatsExactly, seatsFor } from './seatKeep';
+import { freshSeat, heldSeats, SEATS_EVENT, seatsExactly, seatsFor } from './seatKeep';
 import { heldProofs } from './linkAccess';
 import { useHeldLinksStamp } from './HeldLinkBar';
 import { useSeat } from './seatView';
@@ -193,7 +193,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
                 Keine persönlichen Bausteine auf dieser Seite? Dann die eingebauten
                 Abschnitte — für den Gewählten, wenn sein Link HIERHER geführt hat.
               */}
-              {!parts.some((one) => one.kind.startsWith('seat-')) && <Fallback path={page.path} />}
+              {!parts.some((one) => one.kind.startsWith('seat-')) && <Fallback path={page.path} chats={!parts.some((one) => one.kind === 'chat')} />}
             </PersonAccessGate>
           </UntilConfirmed>
           </>)}
@@ -225,7 +225,14 @@ function WithSeat({ path, children }: { path: string; children: React.ReactNode 
    */
   /* Ein neuer Link auf DIESELBE Seite bringt einen neuen Platz — also auch nach ihm neu lesen. */
   const arrived = freshSeat()?.token ?? null;
-  const tokens = useMemo(() => seatsFor(path), [path, arrived]);
+  /* 0095 — und nach einer Person, die sich hier über einen Link vorgestellt hat. */
+  const [added, setAdded] = useState(0);
+  useEffect(() => {
+    const again = () => setAdded((n) => n + 1);
+    window.addEventListener(SEATS_EVENT, again);
+    return () => window.removeEventListener(SEATS_EVENT, again);
+  }, []);
+  const tokens = useMemo(() => seatsFor(path), [path, arrived, added]);
 
   return <OpenAll tokens={tokens}>{children}</OpenAll>;
 }
@@ -338,7 +345,7 @@ function SlidesBody({ path, parts, theme, title, lead }: {
       title={title}
       lead={lead}
       extra={<><SeatBar path={path} /><div className="wk-page-top"><PersonPicker /></div><SubjectBar /></>}
-      after={personal === null ? undefined : <PersonalSections seat={personal} />}
+      after={personal === null ? undefined : <PersonalSections seat={personal} chats={!parts.some((one) => one.kind === 'chat')} />}
     />
   );
 }
@@ -366,18 +373,18 @@ function ShowBody({ path, parts, theme, title }: {
       look={look}
       title={title}
       extra={<><SeatBar path={path} /><div className="wk-page-top"><PersonPicker /></div><SubjectBar /></>}
-      after={personal === null ? undefined : <PersonalSections seat={personal} />}
+      after={personal === null ? undefined : <PersonalSections seat={personal} chats={!parts.some((one) => one.kind === 'chat')} />}
     />
   );
 }
 
 /** Die eingebauten Abschnitte — für den Gewählten, wenn sein Link GENAU hierher geführt hat. */
-function Fallback({ path }: { path: string }) {
+function Fallback({ path, chats }: { path: string; chats: boolean }) {
   const chosen = usePerson()?.chosen ?? null;
   const exact = useMemo(() => new Set(seatsExactly(path)), [path, chosen]);
 
   if (chosen?.kind !== 'seat' || !exact.has(chosen.seat.token)) return null;
-  return <PersonalSections seat={chosen.seat} />;
+  return <PersonalSections seat={chosen.seat} chats={chats} />;
 }
 
 export default PublicPage;

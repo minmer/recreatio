@@ -3,8 +3,11 @@ import { areaKeys, chatKeysOf, loadChat, loadChats, openNames, sendMessage, type
 import { availableNow, defaultPreferences, downloadAttachment, uploadAttachment, type Features, type Preferences } from './chatFeatures';
 import { Modal } from './Modal';
 import { notices } from './platform';
-import { call } from './session';
+import { call, whoIsThere } from './session';
 import type { Ring } from './keys';
+import { speakerKey, speakersOf, speakerText, throughRole, type GraphLike, type Speaker } from './chatAuthor';
+import { keysFor } from './ringOf';
+import { myRoleNames } from './roleNames';
 import { chatEndpoint } from './chatFeatures';
 
 /**
@@ -98,21 +101,39 @@ export function ForwardDialog({ endpoint, opened, ring, onClose }: { endpoint: s
   const [detail, setDetail] = useState<ChatDetail | null>(null);
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
   const [as, setAs] = useState('');
+  /* 0095 — als wer: eine Rolle der Ziel-Rozmowa und eine eigene Person, die sie hält. */
+  const [graph, setGraph] = useState<GraphLike | null>(null);
+  const [own, setOwn] = useState<ReadonlyMap<string, string>>(new Map());
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => { let live = true; void loadChats().then(r => { if (live) setChats(r.chats); }).catch(e => setError(String(e.message))); return () => { live = false; }; }, []);
   useEffect(() => {
+    let live = true;
+    void (async () => {
+      const who = await whoIsThere();
+      if (who === null) return;
+      const [found, names] = await Promise.all([keysFor(who), myRoleNames(who)]);
+      if (!live) return;
+      setGraph({ roles: found.graph.roles.filter(r => r.kind !== 'account' && ring.has(r.id)), edges: found.graph.edges });
+      setOwn(names);
+    })().catch(() => undefined);
+    return () => { live = false; };
+  }, [ring]);
+  const speakers: Speaker[] = detail && graph ? speakersOf(detail.writers, graph, id => ring.maySign(id)) : [];
+  const speaker = speakers.find(one => speakerKey(one) === as) ?? speakers[0] ?? null;
+  const known = (id: string) => names.get(id) ?? own.get(id) ?? null;
+  useEffect(() => {
     setDetail(null); setAs(''); if (!target) return;
     let live = true;
     void (async () => { const d = await loadChat(target); const n = await openNames(await areaKeys(ring, d.areaId), d.areaId, d.names);
-      if (live) { setDetail(d); setNames(n); setAs(d.writers.find(id => ring.maySign(id)) ?? ''); }
+      if (live) { setDetail(d); setNames(n); setAs(''); }
     })().catch(e => setError(String(e.message)));
     return () => { live = false; };
   }, [target, ring]);
   useEffect(() => { if (!done) return; const t = window.setTimeout(onClose, 900); return () => window.clearTimeout(t); }, [done, onClose]);
   const send = async () => {
-    if (!detail || !as || busy) return; setBusy(true); setError('');
+    if (!detail || !speaker || busy) return; setBusy(true); setError('');
     try {
       const dest = chatEndpoint(target); const attachments: Attachment[] = [];
       for (const a of opened.attachments ?? []) {
@@ -120,7 +141,9 @@ export function ForwardDialog({ endpoint, opened, ring, onClose }: { endpoint: s
         attachments.push(await uploadAttachment(dest, new File([blob], a.name, { type: a.type })));
       }
       const keys = await chatKeysOf(target, await areaKeys(ring, detail.areaId, true));
-      await sendMessage(ring, target, keys, as, opened.text, names.get(as) ?? null, { attachments, forwarded: true });
+      await sendMessage(ring, target, keys, speaker.roleId, opened.text, known(speaker.personId), {
+        attachments, forwarded: true, personId: speaker.personId, via: throughRole(speaker) ? known(speaker.roleId) : null
+      });
       setDone(true);
     } catch (e) { setError(e instanceof Error ? e.message : 'Nie udało się przekazać.'); } finally { setBusy(false); }
   };
@@ -130,12 +153,12 @@ export function ForwardDialog({ endpoint, opened, ring, onClose }: { endpoint: s
     <label className="wk-field"><span>Do rozmowy</span><select disabled={busy || done} value={target} onChange={e => setTarget(e.target.value)}><option value="">Wybierz…</option>
       {chats.filter(c => chatEndpoint(c.chatId) !== endpoint).map(c => <option key={c.chatId} value={c.chatId}>{label(c)}</option>)}
     </select></label>
-    {detail && <label className="wk-field"><span>Jako</span><select disabled={busy || done} value={as} onChange={e => setAs(e.target.value)}>
-      {detail.writers.filter(id => ring.maySign(id)).map(id => <option key={id} value={id}>{names.get(id) ?? id}</option>)}
+    {detail && speakers.length > 1 && <label className="wk-field"><span>Jako</span><select disabled={busy || done} value={speaker === null ? '' : speakerKey(speaker)} onChange={e => setAs(e.target.value)}>
+      {speakers.map(one => <option key={speakerKey(one)} value={speakerKey(one)}>{speakerText(one, known)}</option>)}
     </select></label>}
-    {detail && !detail.writers.some(id => ring.maySign(id)) && <p className="wk-hint">W tej rozmowie tylko czytasz.</p>}
+    {detail && graph && speakers.length === 0 && <p className="wk-hint">{detail.writers.some(id => ring.maySign(id)) ? 'Do rozmowy potrzebna jest osoba — załóż ją w Koncie.' : 'W tej rozmowie tylko czytasz.'}</p>}
     <div className="wk-actions">
-      <button type="button" className="wk-btn" disabled={busy || done || !as} onClick={() => void send()}>{done ? 'Przekazano' : busy ? 'Przekazywanie…' : 'Przekaż'}</button>
+      <button type="button" className="wk-btn" disabled={busy || done || !speaker} onClick={() => void send()}>{done ? 'Przekazano' : busy ? 'Przekazywanie…' : 'Przekaż'}</button>
       <button type="button" className="wk-link-btn" disabled={busy} onClick={onClose}>Anuluj</button>
     </div>
     {done && <p className="wk-done" role="status">Przekazano.</p>}

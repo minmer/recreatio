@@ -175,6 +175,17 @@ export function forget(token: string): void {
 export const heldSeats = (): readonly string[] =>
   [...read()].sort((a, b) => b.at - a.at).map((one) => one.token);
 
+/** Der Schlüssel des Links eines behaltenen Platzes, als Text — für seine eigene Ansicht (`#/seat/<token>/<key>`). */
+export const keyTextOf = (token: string): string | null => read().find((one) => one.token === token)?.key ?? null;
+
+/**
+ * 0095 — EIN NEUER PLATZ IN DIESEM BROWSER, ohne dass ein Link geöffnet wurde
+ * (eine Person, die sich über einen Link vorgestellt hat): die Seite liest ihre
+ * Plätze neu (`PublicPage`), und die Wahl oben findet ihn.
+ */
+export const SEATS_EVENT = 'recreatio:seats';
+export const announceSeats = (): void => { window.dispatchEvent(new Event(SEATS_EVENT)); };
+
 /* -- Der Weg aus der Adresse heraus ---------------------------------------- */
 
 /**

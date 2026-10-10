@@ -60,6 +60,21 @@ Check(Chat.AvailableAt(prefs with { UseAvailability = false }, now), "disabled s
 var fold = prefs with { Windows = [new(0, 120, 180)] };
 Check(Chat.AvailableAt(fold, DateTimeOffset.Parse("2026-10-25T00:30:00Z")), "first repeated hour");
 Check(Chat.AvailableAt(fold, DateTimeOffset.Parse("2026-10-25T01:30:00Z")), "second repeated hour");
+/* 0095 — in a conversation a PERSON speaks: herself, or through a role she holds. */
+{
+    var anna = Guid.NewGuid(); var jan = Guid.NewGuid(); var rada = Guid.NewGuid();
+    Check(ChatRules.PersonFor(anna, true, [], null) is { Person: var p1, Status: 200 } && p1 == anna, "a person speaks for herself");
+    Check(ChatRules.PersonFor(anna, true, [], jan).Status == 400, "a person role cannot carry another person");
+    Check(ChatRules.PersonFor(rada, false, [anna], null).Person == anna, "the only person holding the role is assumed");
+    Check(ChatRules.PersonFor(rada, false, [anna, jan], null) is { Person: null, Status: 400 }, "two persons: one must be chosen");
+    Check(ChatRules.PersonFor(rada, false, [anna, jan], jan).Person == jan, "the chosen person speaks");
+    Check(ChatRules.PersonFor(rada, false, [anna], jan).Status == 403, "a person who does not hold the role cannot speak through it");
+    Check(ChatRules.PersonFor(rada, false, [], null).Status == 403, "a role nobody of the account holds as a person cannot speak");
+    Check(ChatRules.PersonName("  Anna ", " Nowak-Kowalska ") == "Anna Nowak-Kowalska", "a link person: name and surname, trimmed");
+    Check(ChatRules.PersonName("Anna", "  ") is null && ChatRules.PersonName("", "Nowak") is null, "both parts are needed");
+    Check(ChatRules.PersonName("Anna\u0000\u0007", "Maria  Nowak") == "Anna Maria Nowak", "control characters and double spaces go");
+    Check(ChatRules.PersonName(new string('a', 81), "Nowak") is null, "an overlong name is refused");
+}
 await ApiErrorChecks.RunAsync(Check);
 FileLoggerChecks.Run(Check);
 PageFileChecks.Run(Check);

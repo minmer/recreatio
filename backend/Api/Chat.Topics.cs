@@ -236,19 +236,22 @@ public static partial class Chat
 
         Guid chatId;
         Guid? author;
-        await using (var cmd = new SqlCommand("SELECT chat_id, author_role_id FROM app.chat_message WHERE id = @id;", connection))
+        Guid? person;
+        await using (var cmd = new SqlCommand("SELECT chat_id, author_role_id, author_person_id FROM app.chat_message WHERE id = @id;", connection))
         {
             cmd.Parameters.AddWithValue("@id", id);
             await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
             if (!await reader.ReadAsync(ctx.RequestAborted)) { await Fail(ctx, StatusCodes.Status404NotFound, "Takiej wiadomości nie ma."); return; }
             chatId = reader.GetGuid(0);
             author = reader.IsDBNull(1) ? null : reader.GetGuid(1);
+            person = reader.IsDBNull(2) ? null : reader.GetGuid(2);
         }
 
         var actor = await ActorAsync(ctx, db, connection, chatId);
         if (actor is null) return;
 
-        if (!actor.Moderates && !(author is not null && actor.Roles.Contains(author.Value)))
+        /* 0095 — der Verfasser: seine Rolle UND die Person, die durch sie sprach. */
+        if (!actor.Moderates && !(author is not null && actor.Roles.Contains(author.Value) && (person is null || actor.Roles.Contains(person.Value))))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "Przenieść może autor albo moderator.");
             return;

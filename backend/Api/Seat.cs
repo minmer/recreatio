@@ -470,6 +470,14 @@ public static class Seat
         await ctx.Response.WriteAsJsonAsync(new { seatId = Ids.ToText(seat.Value.Id), rotated = true });
     }
 
+    /// <summary>0095 — wie der Link heisst, durch den eine Person da ist; ohne Namen: „Link".</summary>
+    internal static async Task<string> LinkLabelAsync(SqlConnection connection, Guid invitationId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("SELECT label FROM app.invitation WHERE id = @id;", connection);
+        cmd.Parameters.AddWithValue("@id", invitationId);
+        return await cmd.ExecuteScalarAsync(ct) is string label && label.Trim() != string.Empty ? label.Trim() : "Link";
+    }
+
     /// <summary>
     /// Der Platz hinter einem Token — lebendig, und mit <paramref name="gated"/>
     /// nur, wenn er nicht mehr auf seine erste Bestaetigung wartet.
@@ -1135,7 +1143,7 @@ public static class Seat
             OUTPUT inserted.id, inserted.area_id, inserted.seat_key_sealed, inserted.epoch,
                    inserted.recipient_name, inserted.personal_note_sealed, inserted.expires_at,
                    inserted.verify_hash, inserted.verified_at, inserted.verify_fields,
-                   inserted.verify_failures
+                   inserted.verify_failures, inserted.invitation_id
              WHERE token_sha256 = @token
                AND revoked_at IS NULL
                AND status = N'active'
@@ -1160,6 +1168,7 @@ public static class Seat
         bool asksFirst;
         string? verifyFieldsText;
         int failures;
+        Guid? invitationId;
 
         await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
         {
@@ -1180,7 +1189,11 @@ public static class Seat
             asksFirst = !reader.IsDBNull(7) && reader.IsDBNull(8);
             verifyFieldsText = reader.IsDBNull(9) ? null : reader.GetString(9);
             failures = reader.GetInt32(10);
+            invitationId = reader.IsDBNull(11) ? null : reader.GetGuid(11);
         }
+
+        /* 0095 — die Person eines Links: durch welchen Link sie da ist (sein Name steht in Klammern hinter ihrem). */
+        var via = invitationId is Guid link ? await LinkLabelAsync(connection, link, ctx.RequestAborted) : null;
 
         /*
          * ERST BESTAETIGEN, DANN OEFFNEN (0046). Solange der Link beim ersten
@@ -1243,6 +1256,7 @@ public static class Seat
             epoch,
 
             recipientName,
+            via,
             personalNoteSealed = personalNote is null ? null : Base64Url.Encode(personalNote),
             expiresAt,
 

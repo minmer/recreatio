@@ -99,6 +99,9 @@ export interface ChatSeat {
   readonly seatId: string;
   readonly name: string | null;
 
+  /** 0095 — eine Person aus einem Link: der Name des Links (in Klammern hinter ihrem). */
+  readonly via?: string | null;
+
   /** `null`: er hat die Rozmowa noch nie geöffnet — dann ist nichts zu verpacken. */
   readonly wrapPublicKey: string | null;
 
@@ -141,6 +144,13 @@ export interface SealedMessage {
 
   /** 0068 — zu welchem Thema. */
   readonly topicId?: string | null;
+
+  /**
+   * 0095 — WELCHE PERSON durch die Rolle sprach (vom Dienst geprüft): bei
+   * einer Person sie selbst, bei „Rada" eine, die sie hält. Fehlt bei älteren
+   * Nachrichten und bei Plätzen.
+   */
+  readonly authorPersonId?: string | null;
 }
 
 /** Eine Fassung aus der Geschichte einer Nachricht (0058). */
@@ -253,13 +263,23 @@ export async function chatKeysOf(
  * Mensch mit dem Link hält nur den Chatschlüssel.
  */
 export interface Attachment { id: string; name: string; type: string; size: number; key: string; }
-export interface MessageExtras { forwarded?: boolean; attachments?: readonly Attachment[]; replyTo?: string; replyText?: string; }
+export interface MessageExtras {
+  forwarded?: boolean; attachments?: readonly Attachment[]; replyTo?: string; replyText?: string;
+  /**
+   * 0095 — DURCH WELCHE ROLLE die Person spricht, wenn es keine Person ist
+   * („Rada", der Name eines Links) — für die, die die Namen des Bereichs nicht
+   * lesen: sie sehen „Anna Nowak (Rada)".
+   */
+  via?: string | null;
+}
 export interface SendOptions extends MessageExtras {
   sendAt?: string;
   /** 0068 — in welches Thema. */
   topicId?: string | null;
   /** 0076 — eine Kennung von aussen (die Antwort aus der Meldung): ein zweiter Versuch schickt nicht doppelt. */
   messageId?: string;
+  /** 0095 — welche Person durch die Rolle spricht (der Dienst prüft, dass sie zum Konto gehört und die Rolle hält). */
+  personId?: string | null;
 }
 
 export interface Opened extends MessageExtras {
@@ -267,7 +287,10 @@ export interface Opened extends MessageExtras {
   readonly name: string | null;
 }
 
-const encodeBody = (text: string, name: string | null, extras: MessageExtras = {}) => JSON.stringify({ text, name, forwarded: extras.forwarded, attachments: extras.attachments, replyTo: extras.replyTo, replyText: extras.replyText });
+const encodeBody = (text: string, name: string | null, extras: MessageExtras = {}) => JSON.stringify({
+  text, name, via: extras.via ?? undefined,
+  forwarded: extras.forwarded, attachments: extras.attachments, replyTo: extras.replyTo, replyText: extras.replyText
+});
 
 function decodeBody(plain: string): Opened {
   try {
@@ -279,7 +302,8 @@ function decodeBody(plain: string): Opened {
         && typeof a.key === 'string' && /^[A-Za-z0-9_-]{43}$/.test(a.key) && typeof a.size === 'number' && a.size >= 0
       ).slice(0, 8) : [];
       return { attachments, forwarded: found.forwarded === true, replyTo: typeof found.replyTo === 'string' ? found.replyTo : undefined,
-        replyText: typeof found.replyText === 'string' ? found.replyText.slice(0, 500) : undefined, text: found.text, name: typeof found.name === 'string' && found.name.trim() !== '' ? found.name : null };
+        replyText: typeof found.replyText === 'string' ? found.replyText.slice(0, 500) : undefined, text: found.text, name: typeof found.name === 'string' && found.name.trim() !== '' ? found.name : null,
+        via: typeof found.via === 'string' && found.via.trim() !== '' ? found.via.trim().slice(0, 200) : null };
     }
   } catch {
     // Kein Umschlag — dann ist es der Text selbst.
@@ -418,7 +442,8 @@ export async function sendMessage(
     body: JSON.stringify({
       messageId, authorRoleId, epoch,
       bodySealed: toBase64Url(sealedBody), signature: toBase64Url(signature), signedAt, sendAt: options.sendAt,
-      topicId: options.topicId ?? null
+      topicId: options.topicId ?? null,
+      personId: options.personId ?? null
     })
   });
   return { ...done, epoch };
