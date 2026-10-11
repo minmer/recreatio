@@ -28,9 +28,9 @@ import { PageSteps } from '../PageLogicView';
 import { usePageLogic } from '../pageLogic';
 import { SeatSteps } from '../StepList';
 import { SeatAskBody, SeatChatBody } from '../SeatChatView';
-import { answerTask, stepsFor, type StepState } from '../steps';
+import { answerPresence, answerTask, stepsFor, type StepState } from '../steps';
 import { OwnSubmissions, ReviewSubmissions } from '../Submission';
-import { TaskCard } from '../TaskCard';
+import { TaskCard, takenOf } from '../TaskCard';
 
 /**
  * Die zwei Zustände, die alle drei kennen — und der Inhalt danach.
@@ -372,8 +372,9 @@ function SeatTasks({ seat, formId }: { seat: SeatView; formId: string | null }) 
 
   const card = ({ form, s }: (typeof rows)[number]) => (
     <li key={`${form.registrationId}:${s.stepId}`} className="wk-task-item">
-      <TaskCard label={s.label} help={s.help} task={s.task!}
-        onChange={async (change) => { await answerTask(seat.token, form.registrationId, s.stepId!, change); seat.reload(); }} />
+      <TaskCard label={s.label} help={s.help} task={s.task!} taken={takenOf(form.taken, s.stepId!)}
+        onChange={async (change) => { await answerTask(seat.token, form.registrationId, s.stepId!, change); seat.reload(); }}
+        onPresence={async (change) => { await answerPresence(seat.token, form.registrationId, s.stepId!, change); seat.reload(); }} />
     </li>
   );
 

@@ -1082,6 +1082,8 @@ public static partial class Module
             DELETE FROM app.form_design WHERE module_id = @id;
             DELETE FROM app.task_answer WHERE step_id IN (SELECT id FROM app.form_step WHERE module_id = @id);
             DELETE FROM app.task_day WHERE step_id IN (SELECT id FROM app.form_step WHERE module_id = @id);
+            DELETE FROM app.task_presence WHERE step_id IN (SELECT id FROM app.form_step WHERE module_id = @id);
+            DELETE FROM app.task_duty WHERE step_id IN (SELECT id FROM app.form_step WHERE module_id = @id);
             DELETE FROM app.form_step WHERE module_id = @id;
             IF OBJECT_ID(N'app.audience_form', N'U') IS NOT NULL
                 DELETE FROM app.audience_form WHERE module_id = @id OR (subject_kind = N'module' AND subject_id = @id);

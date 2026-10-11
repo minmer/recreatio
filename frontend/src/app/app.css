@@ -8176,3 +8176,43 @@ span.ch-sendas { cursor: default; }
 /* 0099 — Unterformular löschen: die Rückfrage unter den Reitern, über die ganze Breite. */
 .wk-family-remove { flex-basis: 100%; margin: 0.2rem 0 0.4rem; }
 .wk-family-remove p { margin: 0 0 0.4rem; }
+
+/* -- 0099: Zaproszenie — je Termin eine Zeile: będę / nie wiem / nie będę, die Funktion, die Liste ---- */
+.wk-task-dates { display: grid; gap: 0.4rem; }
+.wk-date-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; }
+.wk-date { display: grid; gap: 0.35rem; padding: 0.45rem 0.55rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-ground); min-width: 0; }
+.wk-date.is-yes, .wk-date.is-present { border-color: var(--wk-held-line); }
+.wk-date.is-no, .wk-date.is-absent { border-color: var(--wk-shut-line); }
+.wk-date-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.7rem; }
+.wk-date-when { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wk-date-was { margin: 0; font-size: 0.9rem; color: var(--wk-muted); }
+.wk-date-was.is-present { color: var(--wk-free-ink); font-weight: 600; }
+.wk-date .wk-seg-opt, .wk-sheet-row .wk-seg-opt { font-size: 0.85rem; padding: 0.3rem 0.65rem; }
+.wk-seg-opt.is-on { background: var(--wk-accent); border-left-color: var(--wk-accent); color: var(--wk-on-accent); }
+.wk-seg-opt.is-on:disabled { opacity: 1; }
+.wk-duties { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.4rem; }
+.wk-duty { font: inherit; font-size: 0.85rem; padding: 0.25rem 0.6rem; border-radius: 999px; border: 1px solid var(--wk-line); background: var(--wk-surface); color: var(--wk-ink); cursor: pointer; }
+.wk-duty.is-on { background: var(--wk-accent); border-color: var(--wk-accent); color: var(--wk-on-accent); }
+.wk-duty:disabled:not(.is-on) { cursor: default; opacity: 0.5; text-decoration: line-through; }
+.wk-duty:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-duty-room { color: inherit; opacity: 0.75; font-variant-numeric: tabular-nums; }
+.wk-task-item, .wk-task-duties { display: grid; gap: 0.45rem; padding: 0.5rem 0.6rem; border-left: 3px solid var(--wk-line); }
+.wk-task-duties input:not([type]) { min-width: 0; flex: 1 1 12rem; }
+
+/* Lista obecności bei der Kanzlei */
+.wk-sheets { display: grid; gap: 0.9rem; }
+.wk-sheet { display: grid; gap: 0.5rem; padding: 0.75rem 0.85rem; border: 1px solid var(--wk-line); border-radius: 8px; background: var(--wk-surface); min-width: 0; }
+.wk-sheet > .wk-h3, .wk-sheet > .wk-hint { margin: 0; }
+.wk-sheet-sum { margin: 0; font-variant-numeric: tabular-nums; }
+.wk-sheet-duties { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.15rem; font-size: 0.92rem; }
+.wk-sheet-rows { list-style: none; margin: 0; padding: 0; display: grid; }
+.wk-sheet-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.7rem; padding: 0.4rem 0; border-top: 1px solid var(--wk-line); }
+.wk-sheet-name { flex: 1 1 11rem; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  .wk-date .wk-seg { display: flex; width: 100%; }
+  .wk-date .wk-seg-opt { flex: 1 1 0; text-align: center; white-space: nowrap; padding-left: 0.3rem; padding-right: 0.3rem; }
+}
+/* Im Editor der Aufgaben: Häkchen und kleine Zahlen nicht auf die Mindestbreite der Eingaben ziehen. */
+.wk-task-edit .wk-inline input[type="checkbox"] { min-width: 0; }
+.wk-task-duties .wk-inline input[type="number"] { min-width: 0; width: 5em; }
+.wk-task-duties .wk-inline input[data-duty-label] { flex: 1 1 12rem; }

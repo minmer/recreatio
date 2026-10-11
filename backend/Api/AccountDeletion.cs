@@ -483,6 +483,14 @@ public static class AccountDeletion
          WHERE step_id IN (SELECT id FROM app.form_step
                             WHERE module_id IN (SELECT id FROM #mods) OR area_id IN (SELECT id FROM #dead))
             OR registration_id IN (SELECT id FROM app.registration WHERE part_id IN (SELECT id FROM #mods));
+        -- 0099: was zu den Terminen gesagt wurde, und die Funktionen darin
+        DELETE FROM app.task_presence
+         WHERE step_id IN (SELECT id FROM app.form_step
+                            WHERE module_id IN (SELECT id FROM #mods) OR area_id IN (SELECT id FROM #dead))
+            OR registration_id IN (SELECT id FROM app.registration WHERE part_id IN (SELECT id FROM #mods));
+        DELETE FROM app.task_duty
+         WHERE step_id IN (SELECT id FROM app.form_step
+                            WHERE module_id IN (SELECT id FROM #mods) OR area_id IN (SELECT id FROM #dead));
         DELETE FROM app.step_mark
          WHERE step_id IN (SELECT id FROM app.form_step
                             WHERE module_id IN (SELECT id FROM #mods) OR area_id IN (SELECT id FROM #dead))

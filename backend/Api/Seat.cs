@@ -93,6 +93,9 @@ public static class Seat
 
         /* 0098 — eine Aufgabe: przyjmuję / pomijam / odmawiam, und an welchen Tagen getan. */
         app.MapPost("/seat/{token}/task", OwnTaskAsync);
+
+        /* 0099 — zu einem Termin: będę / nie wiem / nie będę, die Funktion, und (wenn er es selbst einträgt) da gewesen. */
+        app.MapPost("/seat/{token}/presence", OwnPresenceAsync);
     }
 
     /*
@@ -423,6 +426,41 @@ public static class Seat
         }
 
         var done = await Form.SetTaskAsync(connection, stepId, registrationId, body.Answer, body.Days, byPerson: true,
+            seatId: seat.Value.Id, ctx.RequestAborted);
+
+        if (done is null)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "To zadanie nie jest Twoje.");
+            return;
+        }
+        if (done.Value.Error is { } error)
+        {
+            await Fail(ctx, done.Value.Status, error);
+            return;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { stepId = Ids.ToText(stepId), saved = true });
+    }
+
+    /// <summary>0099 — was der Mensch zu einem Termin sagt, welche Funktion er nimmt, und ob er da war — über seinen Link.</summary>
+    private static async Task OwnPresenceAsync(HttpContext ctx, Db db, string token, Form.PresenceRequest body)
+    {
+        if (!Guid.TryParse(body.RegistrationId, out var registrationId) || !Guid.TryParse(body.StepId, out var stepId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelne zadanie.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var seat = await LiveSeatAsync(connection, token, gated: true, ctx.RequestAborted);
+        if (seat is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
+            return;
+        }
+
+        var done = await Form.SetPresenceAsync(connection, stepId, registrationId, body, byPerson: true,
             seatId: seat.Value.Id, ctx.RequestAborted);
 
         if (done is null)

@@ -48,6 +48,7 @@ import { newId } from './ids';
 import { viewPath } from './routes';
 import { loadSteps, progressOf, type ExtensionInfo } from './steps';
 import { PersonSteps, StepsEditor, stepsKey } from './StepList';
+import { TaskSheets } from './TaskSheet';
 import { createIntake, loadIntake, loadPublicIntake, openIntakeKey } from './intake';
 import type { Ring, SealedRole } from './keys';
 import { Portal } from './Portal';
@@ -336,7 +337,8 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    * den Versicherer. Eine wiederkehrende hat dafür ihre eigene Liste je Zeitraum.
    */
   const tableToo = isExtension && repeatOf(module?.repeat) === 'once';
-  const readsHere = (t: FormTabName) => (t === 'entries' && (!isExtension || tableToo)) || (t === 'people' && !isExtension);
+  /* 0099 — auch „Zadania": die Lista obecności braucht die Namen. */
+  const readsHere = (t: FormTabName) => (t === 'entries' && (!isExtension || tableToo)) || ((t === 'people' || t === 'steps') && !isExtension);
   const conf = saved ?? config;
 
   /* 0086 — was die eingeschalteten Wymagania sperren: Fragen, Logik. */
@@ -1201,6 +1203,11 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
       )}
 
       {/* == DIE SCHRITTE (0047) =============================================== */}
+
+      {/* 0099 — LISTA OBECNOŚCI: je Aufgabe an Terminen, je Termin — wer kommt, welche Funktion, wer war da. */}
+      {tab === 'steps' && module !== undefined && !isExtension && stepInfo !== null && readAreas !== null && (
+        <TaskSheets steps={stepInfo.steps} rows={deskRows({ registrations: submissions, opened, fields }, stepInfo)} onChanged={reread} />
+      )}
 
       {tab === 'steps' && module !== undefined && !isExtension && (
         stepInfo === null ? (

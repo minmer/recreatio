@@ -25,6 +25,8 @@
  *  23. Zadania dla osób (0098): welche Tage zählen, die Phasen, erfüllt mit genug Tagen, der Plan in Worten, im Fortschritt.
  *  24. Seite und Formular (0099): am Telefon die Folge, die für das Telefon gelegt wurde; ein Unterformular ohne Fragen
  *      ist kein Schritt.
+ *  25. Zaproszenia (0099): eine Aufgabe an Terminen eines Kalenders — die Termine im Zeitraum, der Plan in Worten,
+ *      będę / nie wiem / nie będę, Funktionen mit Platz, die Liste danach, wer zu allem abgesagt hat.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -100,6 +102,7 @@ export {
 export { hostPair, askNameFor, openAskNames } from '${app}holderNames';
 export { taskDays, taskDay, phaseOf, progressOf as taskProgress, planText, weekdayBit, nextDay, reportsUntil, chipText as taskChip } from '${app}candidateTasks';
 export { byReadingOrder } from '${app}layout';
+export { datesOf, declinedAll, attendanceOn, dutyRoom, termsText } from '${app}candidateTasks';
 `);
 await build({
   entryPoints: [entry],
@@ -1705,6 +1708,63 @@ try {
     }).map((s) => s.key);
     assert.deepEqual(keys, ['confirm', 'ext:full', 'ext:old-service'], 'a sub-form without questions is no step');
     ok('page and form (0099): the phone in its own order, a sub-form without questions is no step');
+  }
+
+  /* -- 25. Zaproszenia (0099) ---------------------------------------------------------------------- */
+  {
+    const at = (day, hour) => new Date(`${day}T${hour}:00`).toISOString();
+    const date = (day, from = '19:00', to = '20:30') => ({ day, startsAt: at(day, from), endsAt: at(day, to) });
+    const series = {
+      startsOn: '2026-10-01', endsOn: '2026-12-31', schedule: 'item', weekdays: null, atMinute: null, minutes: null,
+      needed: 2, showFrom: null, reportUntil: null, itemId: 'i', presence: true,
+      dates: [date('2026-10-04'), date('2026-10-11'), date('2026-10-18'), date('2027-01-03')]
+    };
+    const feast = { ...series, startsOn: '2026-10-18', endsOn: '2026-10-18', needed: null, dates: [date('2026-10-18', '10:00', '12:00')] };
+
+    assert.deepEqual(m.datesOf(series).map((d) => d.day), ['2026-10-04', '2026-10-11', '2026-10-18'], 'only the dates inside the period');
+    assert.deepEqual(m.taskDays(series, '2026-10-12'), ['2026-10-04', '2026-10-11'], 'the dates up to a day');
+    assert.equal(m.planText(feast), 'niedziela, 18 października · 10:00–12:00');
+    assert.equal(m.phaseOf(feast, '2026-10-02'), 'upcoming', 'an invitation stands there at once — one says before whether one comes');
+    assert.equal(m.phaseOf({ ...feast, showFrom: '2026-10-10' }, '2026-10-02'), 'hidden', '… unless „widoczne od" says later');
+    assert.equal(m.planText(series), '3 terminy · 4–18 października · 19:00–20:30');
+    assert.equal(m.planText({ ...series, dates: [] }), 'brak terminów w tym okresie (termin zmieniony albo usunięty z kalendarza)');
+    assert.deepEqual([1, 2, 4, 5, 12, 22, 25].map(m.termsText),
+      ['1 termin', '2 terminy', '4 terminy', '5 terminów', '12 terminów', '22 terminy', '25 terminów']);
+
+    /* Nachher: da gewesen (ein Tag), nicht da, entschuldigt — oder nichts. */
+    const state = { stepId: 's', answer: null, days: ['2026-10-04'], presence: [
+      { day: '2026-10-11', answer: 'no', dutyId: null, absence: 'excused' },
+      { day: '2026-10-18', answer: 'yes', dutyId: 'd1', absence: null }
+    ] };
+    assert.equal(m.attendanceOn(state, '2026-10-04'), 'present');
+    assert.equal(m.attendanceOn(state, '2026-10-11'), 'excused');
+    assert.equal(m.attendanceOn(state, '2026-10-18'), null);
+
+    /* Zu allem abgesagt (oder entschuldigt): nicht überfällig. Ohne Fragen vorher: nie. */
+    const no = (day) => ({ day, answer: 'no', dutyId: null, absence: null });
+    assert.equal(m.declinedAll(series, { stepId: 's', answer: null, days: [], presence: ['2026-10-04', '2026-10-11', '2026-10-18'].map(no) }), true);
+    assert.equal(m.declinedAll(series, state), false, 'was there once');
+    assert.equal(m.declinedAll({ ...series, presence: false }, { stepId: 's', answer: null, days: [], presence: ['2026-10-04'].map(no) }), false);
+
+    /* Eine Funktion mit Platz — und ohne Grenze. */
+    assert.deepEqual(m.dutyRoom(2, 1), { free: 1, full: false });
+    assert.deepEqual(m.dutyRoom(1, 1), { free: 0, full: true });
+    assert.deepEqual(m.dutyRoom(null, 7), { free: null, full: false });
+
+    /* Im Fortschritt: erfüllt mit genug Anwesenheit; nach dem Ende ohne sie überfällig — ausser abgesagt. */
+    const step = { stepId: 's', position: 0, areaId: 'a', epoch: 1, labelSealed: '', helpSealed: null, doneBy: 'office', visibleToPerson: true,
+      dueAt: null, kind: 'task', task: series, label: 'Spotkanie', help: null, duties: [{ dutyId: 'd1', label: 'Krzyż', capacity: 1 }] };
+    const states = (now, tasks) => m.stepsFor({
+      hasSeat: false, confirmedAt: null, extensions: [], filled: new Map(), marks: [], forPerson: true, now: new Date(`${now}T12:00:00`),
+      steps: [step], tasks
+    });
+    const two = { stepId: 's', answer: null, days: ['2026-10-04', '2026-10-11'], presence: [] };
+    assert.equal(states('2026-10-12', [two])[0].status, 'done', 'two of two');
+    assert.equal(states('2027-01-20', [])[0].status, 'overdue', 'over, never there');
+    assert.equal(states('2027-01-20', [{ stepId: 's', answer: null, days: [], presence: ['2026-10-04', '2026-10-11', '2026-10-18'].map(no) }])[0].status, 'todo', 'said no to all');
+    assert.equal(states('2026-10-12', [two])[0].task.doneBy, 'office', 'the office keeps the list');
+    assert.equal(states('2026-10-12', [two])[0].task.duties[0].label, 'Krzyż');
+    ok('invitations (0099): a task on calendar dates — the dates in the period, the plan in words, the list after, functions with room, who said no to all');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

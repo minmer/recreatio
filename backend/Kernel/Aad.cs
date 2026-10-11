@@ -103,6 +103,13 @@ public enum Field
     StepHelp,
 
     /// <summary>
+    /// 0099 — eine Funktion in einem Termin, die wählt, wer kommt („Krzyż",
+    /// „Świece"), versiegelt unter dem Schluessel des Formularbereichs wie die
+    /// Aufgabe, zu der sie gehoert.
+    /// </summary>
+    TaskDutyLabel,
+
+    /// <summary>
     /// 0052 — eine Nachricht einer Rozmowa, versiegelt unter dem Epochenschluessel
     /// des Bereichs, an dem der Chat liegt. Der Dienst liest sie nie.
     /// </summary>
@@ -469,6 +476,7 @@ public readonly record struct Aad
         Field.SeatLink                => "seat_link",
         Field.StepLabel               => "step_label",
         Field.StepHelp                => "step_help",
+        Field.TaskDutyLabel           => "task_duty_label",
         Field.ChatMessage             => "chat_message",
         Field.AreaMemberName          => "area_member_name",
         Field.ChatSeatKey             => "chat_seat_key",

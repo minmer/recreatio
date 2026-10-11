@@ -1905,6 +1905,7 @@ public static partial class Form
                     OR registration_id IN (SELECT id FROM app.registration WHERE base_id = @id);
                 DELETE FROM app.task_answer WHERE registration_id = @id;
                 DELETE FROM app.task_day WHERE registration_id = @id;
+                DELETE FROM app.task_presence WHERE registration_id = @id;
                 DELETE FROM app.value_check
                  WHERE registration_id = @id
                     OR registration_id IN (SELECT id FROM app.registration WHERE base_id = @id);

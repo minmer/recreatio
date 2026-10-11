@@ -16,16 +16,19 @@
 
 import { useState } from 'react';
 
-import { isoDay, planText, WEEKDAYS } from './candidateTasks';
+import { isoDay, periodText, planText, WEEKDAYS } from './candidateTasks';
+import { PickCalendar, PickCalendarItem } from './PickCalendar';
 import { FormCard } from './FormCard';
 import { newId } from './ids';
 import type { SeatView } from './seatContext';
 import {
-  answerTask, answerTaskAsOffice, dueText, filledNow, markOwnStep, markStep, progressOf, saveSteps, stepsFor, taskIn,
-  type DoneBy, type ExtensionInfo, type OpenStep, type StepDraft, type StepState, type TaskDraft, type TaskSchedule
+  answerPresence, answerPresenceAsOffice, answerTask, answerTaskAsOffice, dueText, filledNow, markOwnStep, markStep, progressOf,
+  saveSteps, stepsFor, taskIn,
+  type DoneBy, type DutyDraft, type ExtensionInfo, type OpenStep, type StepDraft, type StepState, type TaskDraft,
+  type TaskSchedule
 } from './steps';
 import { OwnSubmissions } from './Submission';
-import { TaskCard } from './TaskCard';
+import { TaskCard, takenOf } from './TaskCard';
 import { WorkspaceError } from './session';
 
 /** Das Zeichen vor einem Schritt — die Form trägt die Aussage, nicht nur die Farbe. */
@@ -110,8 +113,9 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
                 if (s.task !== undefined && s.stepId !== null) {
                   return (
                     <li key={s.key} className={`wk-step is-${s.status}`}>
-                      <TaskCard label={s.label} help={s.help} task={s.task}
-                        onChange={async (change) => { await answerTask(seat.token, form.registrationId, s.stepId!, change); seat.reload(); }} />
+                      <TaskCard label={s.label} help={s.help} task={s.task} taken={takenOf(form.taken, s.stepId!)}
+                        onChange={async (change) => { await answerTask(seat.token, form.registrationId, s.stepId!, change); seat.reload(); }}
+                        onPresence={async (change) => { await answerPresence(seat.token, form.registrationId, s.stepId!, change); seat.reload(); }} />
                     </li>
                   );
                 }
@@ -211,7 +215,8 @@ export function PersonSteps({ registrationId, states, onChanged, onError }: {
           /* 0098 — eine Aufgabe: die Kanzlei trägt für den Menschen ein (er hat es gesagt, sie hat ihn gesehen). */
           <li key={s.key} className={`wk-step is-${s.status}`}>
             <TaskCard label={s.label} help={s.help} task={s.task} office
-              onChange={async (change) => { await answerTaskAsOffice(registrationId, s.stepId!, change); await onChanged(); }} />
+              onChange={async (change) => { await answerTaskAsOffice(registrationId, s.stepId!, change); await onChanged(); }}
+              onPresence={async (change) => { await answerPresenceAsOffice(registrationId, s.stepId!, change); await onChanged(); }} />
           </li>
         ) : (
           <li key={s.key} className={`wk-step is-${s.status}`}>
@@ -265,7 +270,10 @@ const draftOf = (s: OpenStep): StepDraft => ({
       startsOn: s.task.startsOn, endsOn: s.task.endsOn, schedule: s.task.schedule, weekdays: s.task.weekdays ?? 16,
       at: timeOf(s.task.atMinute), minutes: s.task.minutes === null ? '' : String(s.task.minutes),
       needed: s.task.needed === null ? '' : String(s.task.needed),
-      showFrom: s.task.showFrom ?? '', reportUntil: s.task.reportUntil ?? ''
+      showFrom: s.task.showFrom ?? '', reportUntil: s.task.reportUntil ?? '',
+      /* 0099 — an Terminen: der Kalender, der Eintrag, vorher fragen, die Funktionen. */
+      calendarId: s.task.calendarId ?? '', itemId: s.task.itemId ?? '', presence: s.task.presence === true,
+      duties: (s.duties ?? []).map((d) => ({ dutyId: d.dutyId, label: d.label ?? '', capacity: d.capacity === null ? '' : String(d.capacity) }))
     }
   } : {})
 });
@@ -277,7 +285,10 @@ function newTask(): StepDraft {
   const last = new Date(now.getFullYear(), now.getMonth() + 2, 0);
   return {
     stepId: newId(), label: '', help: '', doneBy: 'person', visibleToPerson: true, dueAt: '', kind: 'task',
-    task: { startsOn: isoDay(first), endsOn: isoDay(last), schedule: 'daily', weekdays: 16, at: '', minutes: '', needed: '', showFrom: '', reportUntil: '' }
+    task: {
+      startsOn: isoDay(first), endsOn: isoDay(last), schedule: 'daily', weekdays: 16, at: '', minutes: '', needed: '', showFrom: '', reportUntil: '',
+      calendarId: '', itemId: '', presence: false, duties: []
+    }
   };
 }
 
@@ -288,6 +299,9 @@ function taskProblem(t: TaskDraft): string | null {
   if (t.schedule === 'weekly' && t.weekdays === 0) return 'wybierz dni tygodnia';
   if (t.showFrom !== '' && t.showFrom > t.startsOn) return '„widoczne od" po początku';
   if (t.reportUntil !== '' && t.reportUntil < t.endsOn) return '„zaznaczać do" przed końcem';
+  if (t.schedule === 'item' && (t.itemId ?? '') === '') return 'wybierz termin z kalendarza';
+  if ((t.duties ?? []).some((d) => d.capacity.trim() !== '' && !(Number.isInteger(Number(d.capacity)) && Number(d.capacity) >= 1 && Number(d.capacity) <= 500)))
+    return 'ile osób w funkcji: liczba od 1 do 500 albo puste';
   return null;
 }
 
@@ -535,6 +549,22 @@ function TaskEdit({ draft, onChange, onMove, onRemove, first, last }: {
     const p = taskIn(t);
     return { ...p, schedule: t.schedule, weekdays: p.weekdays } as const;
   })() : null;
+  const item = t.schedule === 'item';
+  const duties = t.duties ?? [];
+  const setDuty = (i: number, patch: Partial<DutyDraft>) => setTask({ duties: duties.map((d, at) => (at === i ? { ...d, ...patch } : d)) });
+
+  /*
+   * 0099 — EINEN TERMIN GEWÄHLT: der Zeitraum beginnt an seinem (nächsten) Tag;
+   * ein einzelner endet dort auch, eine Reihe mit ihrem letzten Termin im Jahr
+   * — höchstens drei Monate, zum Anpassen.
+   */
+  const pickItem = (itemId: string, found?: { readonly start: Date; readonly last: Date; readonly count: number }) => {
+    if (found === undefined) { setTask({ itemId }); return; }
+    const limit = new Date(found.start);
+    limit.setMonth(limit.getMonth() + 3);
+    const end = found.count <= 1 ? found.start : found.last < limit ? found.last : limit;
+    setTask({ itemId, startsOn: isoDay(found.start), endsOn: isoDay(end) });
+  };
 
   return (
     <>
@@ -558,8 +588,51 @@ function TaskEdit({ draft, onChange, onMove, onRemove, first, last }: {
             <option value="daily">codziennie</option>
             <option value="weekly">w wybrane dni tygodnia</option>
             <option value="any">raz, w dowolnym dniu okresu</option>
+            <option value="item">terminy z kalendarza (spotkanie, nabożeństwo, uroczystość)</option>
           </select></label>
       </div>
+      {item && (
+        <div className="wk-task-item" data-task-item="">
+          <div className="wk-inline wk-task-edit-line">
+            <label className="wk-inline"><span className="wk-hint">Kalendarz</span>
+              <PickCalendar value={t.calendarId ?? ''} busy={false} allowAll={false} onPick={(calendarId) => setTask({ calendarId, itemId: '' })} /></label>
+            <label className="wk-inline"><span className="wk-hint">Termin</span>
+              <PickCalendarItem calendarId={t.calendarId ?? ''} value={t.itemId ?? ''} busy={false} withParts={false} onPick={pickItem} /></label>
+          </div>
+          <p className="wk-hint">
+            Osoba zobaczy terminy tego wpisu z okresu powyżej — przesunięte tak jak w kalendarzu, bez odwołanych.
+            Seria (np. spotkania co tydzień): ustaw okres, z którego terminy się liczą.
+          </p>
+          <label className="wk-inline">
+            <input type="checkbox" checked={t.presence === true} data-task-presence=""
+              onChange={(e) => setTask({ presence: e.target.checked })} />
+            <span>Pytaj przed każdym terminem: <em>będę / jeszcze nie wiem / nie będę</em></span>
+          </label>
+          {t.presence === true && (
+            <div className="wk-task-duties" data-task-duties="">
+              <span className="wk-hint">
+                Funkcje do wyboru dla tych, którzy będą (np. ministranci: krzyż, świece, kadzidło) — puste „ile osób": bez limitu.
+              </span>
+              {duties.map((d, i) => (
+                <div key={d.dutyId} className="wk-inline" data-task-duty={d.dutyId}>
+                  <input value={d.label} placeholder="np. Kadzidło" aria-label="Funkcja" data-duty-label=""
+                    onChange={(e) => setDuty(i, { label: e.target.value })} />
+                  <label className="wk-inline"><span className="wk-hint">ile osób</span>
+                    <input type="number" min={1} max={500} value={d.capacity} style={{ width: '5em' }} data-duty-capacity=""
+                      onChange={(e) => setDuty(i, { capacity: e.target.value })} /></label>
+                  <button type="button" className="wk-link-btn wk-danger" onClick={() => setTask({ duties: duties.filter((_, at) => at !== i) })}>Usuń</button>
+                </div>
+              ))}
+              {duties.length < 30 && (
+                <button type="button" className="wk-link-btn" data-add-duty=""
+                  onClick={() => setTask({ duties: [...duties, { dutyId: newId(), label: '', capacity: '' }] })}>
+                  + Dodaj funkcję
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {t.schedule === 'weekly' && (
         <div className="wk-inline wk-task-weekdays" role="group" aria-label="Dni tygodnia">
           {WEEKDAYS.map((w) => (
@@ -572,23 +645,34 @@ function TaskEdit({ draft, onChange, onMove, onRemove, first, last }: {
         </div>
       )}
       <div className="wk-inline wk-task-edit-line">
-        <label className="wk-inline"><span className="wk-hint">Godzina</span>
-          <input type="time" value={t.at} data-task-at="" onChange={(e) => setTask({ at: e.target.value })} /></label>
-        <label className="wk-inline"><span className="wk-hint">Czas trwania (min)</span>
-          <input type="number" min={1} max={1440} value={t.minutes} style={{ width: '6em' }} onChange={(e) => setTask({ minutes: e.target.value })} /></label>
-        <label className="wk-inline"><span className="wk-hint">Ile razy, by było wykonane</span>
+        {!item && (
+          <>
+            <label className="wk-inline"><span className="wk-hint">Godzina</span>
+              <input type="time" value={t.at} data-task-at="" onChange={(e) => setTask({ at: e.target.value })} /></label>
+            <label className="wk-inline"><span className="wk-hint">Czas trwania (min)</span>
+              <input type="number" min={1} max={1440} value={t.minutes} style={{ width: '6em' }} onChange={(e) => setTask({ minutes: e.target.value })} /></label>
+          </>
+        )}
+        <label className="wk-inline"><span className="wk-hint">{item ? 'Ile obecności, by było wykonane' : 'Ile razy, by było wykonane'}</span>
           <input type="number" min={1} max={400} value={t.needed} placeholder="1" style={{ width: '5em' }} data-task-needed=""
             onChange={(e) => setTask({ needed: e.target.value })} /></label>
+        <label className="wk-inline"><span className="wk-hint">Wykonanie zaznacza</span>
+          <select value={draft.doneBy} data-task-done-by="" onChange={(e) => onChange({ doneBy: e.target.value === 'office' ? 'office' : 'person' })}>
+            <option value="person">osoba sama</option>
+            <option value="office">kancelaria (lista obecności)</option>
+          </select></label>
       </div>
       <div className="wk-inline wk-task-edit-line">
         <label className="wk-inline"><span className="wk-hint">Widoczne od</span>
           <input type="date" value={t.showFrom} onChange={(e) => setTask({ showFrom: e.target.value })} /></label>
         <label className="wk-inline"><span className="wk-hint">Zaznaczać do</span>
           <input type="date" value={t.reportUntil} onChange={(e) => setTask({ reportUntil: e.target.value })} /></label>
-        <span className="wk-hint">(puste: od początku okresu · do tygodnia po końcu)</span>
+        <span className="wk-hint">{item ? '(puste: od razu · do tygodnia po końcu)' : '(puste: od początku okresu · do tygodnia po końcu)'}</span>
       </div>
       <p className={problem === null ? 'wk-hint' : 'wk-warn'} data-task-preview="">
-        {problem === null ? `Osoba zobaczy: ${planText(plan!)}` : `Do poprawienia: ${problem}.`}
+        {problem !== null ? `Do poprawienia: ${problem}.`
+          : item ? `Osoba zobaczy terminy z okresu ${periodText(plan!)}${t.presence === true ? ' i odpowie przed każdym: będę / jeszcze nie wiem / nie będę' : ''}${duties.some((d) => d.label.trim() !== '') ? ', potem wybierze funkcję' : ''}.`
+          : `Osoba zobaczy: ${planText(plan!)}`}
       </p>
       <div className="wk-inline">
         <button type="button" className="wk-link-btn" disabled={first} onClick={() => onMove(-1)} aria-label="Wyżej">↑</button>

@@ -97,6 +97,23 @@ Check(Chat.AvailableAt(fold, DateTimeOffset.Parse("2026-10-25T01:30:00Z")), "sec
     Check(Form.ReadTaskPlan("2026-10-05", "2026-10-06", "weekly", 16, null, null, null, null, null).Error is not null, "a period without any of its weekdays is refused");
     Check(Form.ReadTaskPlan("2026-10-01", "2026-10-31", "any", null, null, null, null, "2026-10-05", null).Error is not null, "visible from after the start is refused");
     Check(Form.ReadTaskPlan("2026-10-01", "2026-10-31", "any", null, null, null, null, "2026-09-25", "2026-11-15").Plan is { ReportsUntil.Month: 11, ReportsUntil.Day: 15 }, "a film any day in October, shown from 25 September, marks until 15 November");
+
+    /* 0099 — an Terminen eines Kalenders: welcher, vorher fragen, wer die Liste führt; die Tage sind die Termine. */
+    var item = Guid.NewGuid();
+    var meetings = Form.ReadTaskPlan("2026-10-01", "2026-12-31", "item", null, 19 * 60, 90, 2, null, null, item.ToString(), true, "office");
+    Check(meetings.Plan is { Schedule: "item", Presence: true, DoneBy: "office", AtMinute: null, Minutes: null } && meetings.Plan.ItemId == item,
+        "a task on calendar dates: the item, asked before, the office keeps the list (time comes from the calendar)");
+    Check(Form.ReadTaskPlan("2026-10-01", "2026-12-31", "item", null, null, null, null, null, null).Error is not null, "calendar dates without an item are refused");
+    Check(Form.ReadTaskPlan("2026-10-01", "2026-10-31", "daily", null, null, null, null, null, null, null, true).Error is not null, "asking before is only for calendar dates");
+    Check(Form.ReadTaskPlan("2026-10-01", "2026-10-31", "daily", null, null, null, null, null, null, null, false, "nobody").Error is not null, "who keeps the list: person or office");
+    var dated = meetings.Plan! with
+    {
+        Dates = [new Form.TaskDate(new DateOnly(2026, 10, 4), DateTimeOffset.Parse("2026-10-04T17:00:00Z"), DateTimeOffset.Parse("2026-10-04T18:30:00Z"))]
+    };
+    Check(Form.TaskDay(dated, new DateOnly(2026, 10, 4)) && !Form.TaskDay(dated, new DateOnly(2026, 10, 5)), "on calendar dates: the date yes, the next day no");
+    Check(Form.DatesProblem(dated) is not null, "one date cannot be needed twice");
+    Check(Form.DatesProblem(dated with { Dates = [] }) is not null, "no dates in the period is said");
+    Check(Form.DatesProblem(dated with { Needed = 1 }) is null, "one date, needed once: fine");
 }
 await ApiErrorChecks.RunAsync(Check);
 FileLoggerChecks.Run(Check);

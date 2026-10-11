@@ -139,6 +139,9 @@ export const Field = {
   StepLabel: 'step_label',
   StepHelp: 'step_help',
 
+  /* 0099 — eine Funktion in einem Termin („Krzyż", „Świece"), unter dem Schlüssel des Formulars. */
+  TaskDutyLabel: 'task_duty_label',
+
   /* 0052 — eine Nachricht einer Rozmowa, und wie jemand in einem Bereich heisst. */
   ChatMessage: 'chat_message',
   AreaMemberName: 'area_member_name',

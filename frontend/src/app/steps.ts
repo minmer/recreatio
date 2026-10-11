@@ -21,7 +21,7 @@
  * er davon nichts.
  */
 
-import { phaseOf, progressOf as taskProgressOf, type TaskPhase } from './candidateTasks';
+import { declinedAll, phaseOf, progressOf as taskProgressOf, type TaskPhase } from './candidateTasks';
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from './crypto';
 import type { StepMark } from './form';
 import { openFormNames, type FormNameIn } from './names';
@@ -36,8 +36,47 @@ export type DoneBy = 'office' | 'person';
  */
 export type StepKind = 'mark' | 'task';
 
-/** 0098 — wann eine Aufgabe gilt: einmal in beliebigem Tag, jeden Tag, an Wochentagen. */
-export type TaskSchedule = 'any' | 'daily' | 'weekly';
+/**
+ * 0098 — wann eine Aufgabe gilt: einmal in beliebigem Tag, jeden Tag, an
+ * Wochentagen; 0099 — an den TERMINEN eines Kalendereintrags (`item`): eine
+ * Reihe von Treffen, ein Fest, das Nabożeństwo der Pfarrei.
+ */
+export type TaskSchedule = 'any' | 'daily' | 'weekly' | 'item';
+
+/** 0099 — ein Termin der Aufgabe, wie der Dienst ihn aus dem Kalender rechnet. */
+export interface TaskDate {
+  /** Der Tag, an dem er beginnt (YYYY-MM-DD, dort, wo der Kalender ist). */
+  readonly day: string;
+  readonly startsAt: string;
+  readonly endsAt: string;
+}
+
+/** 0099 — eine Funktion in den Terminen („Krzyż", „Świece"), die wählt, wer kommt; versiegelt wie die Aufgabe. */
+export interface SealedDuty {
+  readonly dutyId: string;
+  readonly position: number;
+  readonly areaId: string;
+  readonly epoch: number;
+  readonly labelSealed: string;
+  /** Wie viele sie nehmen können — `null`: beliebig viele. */
+  readonly capacity: number | null;
+}
+
+/** 0099 — eine Funktion, geöffnet. */
+export interface TaskDuty {
+  readonly dutyId: string;
+  /** `null`: der Schlüssel des Formulars liegt nicht offen. */
+  readonly label: string | null;
+  readonly capacity: number | null;
+}
+
+/** 0099 — wie voll eine Funktion an einem Termin ist (nur die Zahl). */
+export interface DutyTaken {
+  readonly stepId: string;
+  readonly day: string;
+  readonly dutyId: string;
+  readonly count: number;
+}
 
 /** 0098 — der Plan einer Aufgabe, wie der Dienst ihn hält (Tage als YYYY-MM-DD). */
 export interface TaskPlan {
@@ -54,6 +93,28 @@ export interface TaskPlan {
   /** Ab wann der Mensch sie sieht (fehlt: ab Beginn) und bis wann er Tage einträgt (fehlt: 7 Tage nach Ende). */
   readonly showFrom: string | null;
   readonly reportUntil: string | null;
+
+  /** 0099 — an Terminen: welcher Kalendereintrag (und sein Kalender), ob VORHER gefragt wird, die Termine, die Funktionen. */
+  readonly itemId?: string | null;
+  readonly calendarId?: string | null;
+  readonly presence?: boolean;
+  readonly dates?: readonly TaskDate[] | null;
+  readonly duties?: readonly SealedDuty[];
+}
+
+/** 0099 — was jemand VOR einem Termin sagt. */
+export type PresenceAnswer = 'yes' | 'maybe' | 'no';
+
+/** 0099 — was die Kanzlei NACH dem Termin einträgt, wenn jemand nicht da war (da gewesen: ein Tag in `days`). */
+export type Absence = 'absent' | 'excused';
+
+/** 0099 — je Termin: die Antwort vorher, die Funktion, und — wenn nicht da gewesen — warum. */
+export interface PresenceState {
+  readonly day: string;
+  readonly answer: PresenceAnswer | null;
+  readonly dutyId: string | null;
+  readonly absence: Absence | null;
+  readonly byPerson?: boolean;
 }
 
 /** 0098 — was der Mensch zu einer Aufgabe sagt. */
@@ -66,6 +127,9 @@ export interface TaskState {
   readonly answeredAt?: string | null;
   readonly byPerson?: boolean;
   readonly days: readonly string[];
+
+  /** 0099 — je Termin (fehlt beim alten Dienst). */
+  readonly presence?: readonly PresenceState[];
 }
 
 /** Ein von Hand angelegter Schritt, wie der Dienst ihn hält — die Beschriftung versiegelt. */
@@ -89,6 +153,9 @@ export interface OpenStep extends SealedStep {
   /** `null`: der Schlüssel des Formulars liegt nicht offen. */
   readonly label: string | null;
   readonly help: string | null;
+
+  /** 0099 — die Funktionen einer Aufgabe an Terminen, geöffnet. */
+  readonly duties?: readonly TaskDuty[];
 }
 
 /** Eine Erweiterung, aus der sich ein Schritt von selbst ergibt. */
@@ -119,6 +186,8 @@ export const filledNow = (
 
 const labelAad = (stepId: string) => aad('form', 'step', stepId, Field.StepLabel, 1);
 const helpAad = (stepId: string) => aad('form', 'step', stepId, Field.StepHelp, 1);
+/** 0099 — eine Funktion: an ihre Kennung gebunden, unter dem Schlüssel des Formulars. */
+export const dutyAad = (dutyId: string) => aad('form', 'duty', dutyId, Field.TaskDutyLabel, 1);
 
 /** Aufmachen — mit dem Schlüssel des Formularbereichs in der Epoche, mit der versiegelt wurde. */
 export async function openSteps(
@@ -135,7 +204,16 @@ export async function openSteps(
     const help = key === undefined || one.helpSealed === null ? null
       : await openText(key, helpAad(one.stepId), fromBase64Url(one.helpSealed)).catch(() => null);
 
-    out.push({ ...one, label, help });
+    /* 0099 — die Funktionen liegen unter demselben Schlüssel (ihrer Epoche). */
+    const duties: TaskDuty[] = [];
+    for (const d of one.task?.duties ?? []) {
+      const dutyKey = keyOf(d.areaId, d.epoch);
+      const dutyLabel = dutyKey === undefined ? null
+        : await openText(dutyKey, dutyAad(d.dutyId), fromBase64Url(d.labelSealed)).catch(() => null);
+      duties.push({ dutyId: d.dutyId, label: dutyLabel, capacity: d.capacity });
+    }
+
+    out.push({ ...one, label, help, ...(duties.length > 0 ? { duties } : {}) });
   }
 
   return out;
@@ -169,6 +247,14 @@ export interface StepDraft {
   readonly task?: TaskDraft;
 }
 
+/** 0099 — eine Funktion, wie sie im Editor steht. */
+export interface DutyDraft {
+  readonly dutyId: string;
+  readonly label: string;
+  /** Wie viele — als Text, leer: beliebig viele. */
+  readonly capacity: string;
+}
+
 /** 0098 — der Plan einer Aufgabe, wie er im Editor steht. */
 export interface TaskDraft {
   readonly startsOn: string;
@@ -182,6 +268,12 @@ export interface TaskDraft {
   readonly needed: string;
   readonly showFrom: string;
   readonly reportUntil: string;
+
+  /** 0099 — an Terminen: der Kalender und der Eintrag (leer: keiner), vorher fragen, die Funktionen. */
+  readonly calendarId?: string;
+  readonly itemId?: string;
+  readonly presence?: boolean;
+  readonly duties?: readonly DutyDraft[];
 }
 
 const minuteOf = (time: string): number | null => {
@@ -198,9 +290,15 @@ const numberOf = (text: string): number | null => {
 export const taskIn = (t: TaskDraft) => ({
   startsOn: t.startsOn, endsOn: t.endsOn, schedule: t.schedule,
   weekdays: t.schedule === 'weekly' ? t.weekdays : null,
-  atMinute: minuteOf(t.at), minutes: numberOf(t.minutes), needed: numberOf(t.needed),
-  showFrom: t.showFrom === '' ? null : t.showFrom, reportUntil: t.reportUntil === '' ? null : t.reportUntil
+  atMinute: t.schedule === 'item' ? null : minuteOf(t.at), minutes: t.schedule === 'item' ? null : numberOf(t.minutes),
+  needed: numberOf(t.needed),
+  showFrom: t.showFrom === '' ? null : t.showFrom, reportUntil: t.reportUntil === '' ? null : t.reportUntil,
+  itemId: t.schedule === 'item' && (t.itemId ?? '') !== '' ? t.itemId! : null,
+  presence: t.schedule === 'item' && t.presence === true
 });
+
+/** 0099 — „ile osób" einer Funktion: eine Zahl, oder `null` (beliebig viele). */
+export const capacityOf = (text: string): number | null => numberOf(text);
 
 /**
  * Die von Hand angelegten Schritte speichern — ALLE, in dieser Reihenfolge,
@@ -219,12 +317,23 @@ export async function saveSteps(
     helpSealed: one.help.trim() === ''
       ? null
       : toBase64Url(await sealText(formKey.key, helpAad(one.stepId), one.help.trim())),
-    doneBy: one.kind === 'task' ? 'person' : one.doneBy,
+    /* 0099 — bei einer Aufgabe: wer die Teilnahme einträgt (der Mensch, oder die Kanzlei nach der Liste). */
+    doneBy: one.doneBy,
     visibleToPerson: one.kind === 'task' || one.doneBy === 'person' || one.visibleToPerson,
     /* Bis zum Ende des Tages — „do 15 sierpnia" heisst: auch am 15. noch. */
     dueAt: one.kind === 'task' || one.dueAt === '' ? null : new Date(`${one.dueAt}T23:59:59`).toISOString(),
     kind: one.kind ?? 'mark',
-    task: one.kind === 'task' && one.task !== undefined ? taskIn(one.task) : null
+    task: one.kind === 'task' && one.task !== undefined ? {
+      ...taskIn(one.task),
+      /* 0099 — die Funktionen: nur mit „vorher fragen", die Beschriftung versiegelt wie die der Aufgabe. */
+      duties: one.task.schedule === 'item' && one.task.presence === true
+        ? await Promise.all((one.task.duties ?? []).filter((d) => d.label.trim() !== '').map(async (d) => ({
+          dutyId: d.dutyId,
+          labelSealed: toBase64Url(await sealText(formKey.key, dutyAad(d.dutyId), d.label.trim())),
+          capacity: capacityOf(d.capacity)
+        })))
+        : []
+    } : null
   })));
 
   return call(`/workspace/part/${encodeURIComponent(partId)}/steps`, {
@@ -273,6 +382,31 @@ export const answerTaskAsOffice = (registrationId: string, stepId: string, chang
     body: JSON.stringify({ stepId, answer: change.answer ?? null, days: change.days ?? null })
   });
 
+/**
+ * 0099 — ZU EINEM TERMIN: `answer` (yes, maybe, no; `none` nimmt es zurück),
+ * `dutyId` (eine Funktion; `''`: keine) und `attendance` (present; die
+ * Kanzlei auch absent, excused; `none`: nichts). Was fehlt, bleibt.
+ */
+export interface PresenceChange {
+  readonly day: string;
+  readonly answer?: PresenceAnswer | 'none';
+  readonly dutyId?: string;
+  readonly attendance?: 'present' | Absence | 'none';
+}
+
+const presenceBody = (registrationId: string, stepId: string, change: PresenceChange) => JSON.stringify({
+  registrationId, stepId, day: change.day,
+  answer: change.answer ?? null, dutyId: change.dutyId ?? null, attendance: change.attendance ?? null
+});
+
+/** Der Mensch selbst, über seinen Link. */
+export const answerPresence = (token: string, registrationId: string, stepId: string, change: PresenceChange): Promise<{ saved: boolean }> =>
+  call(`/seat/${encodeURIComponent(token)}/presence`, { method: 'POST', body: presenceBody(registrationId, stepId, change) });
+
+/** Die Kanzlei — für ihn, und nach dem Termin die Liste. */
+export const answerPresenceAsOffice = (registrationId: string, stepId: string, change: PresenceChange): Promise<{ tasks: readonly TaskState[] }> =>
+  call(`/workspace/registration/${encodeURIComponent(registrationId)}/presence`, { method: 'POST', body: presenceBody(registrationId, stepId, change) });
+
 /* -- Was der Platz bekommt ---------------------------------------------------------- */
 
 /**
@@ -304,6 +438,9 @@ export interface SeatFormSealed {
 
   /** 0098 — was er zu den Aufgaben gesagt hat, und an welchen Tagen er sie getan hat (fehlt beim alten Dienst). */
   readonly tasks?: readonly TaskState[];
+
+  /** 0099 — wie voll die Funktionen in den Terminen sind (nur Zahlen). */
+  readonly taken?: readonly DutyTaken[];
 }
 
 export interface SeatForm extends Omit<SeatFormSealed, 'steps'> {
@@ -345,6 +482,11 @@ export interface StepState {
     readonly done: number;
     readonly needed: number;
     readonly fulfilled: boolean;
+    /** 0099 — die Funktionen in den Terminen (geöffnet), und wer die Teilnahme einträgt. */
+    readonly duties: readonly TaskDuty[];
+    readonly doneBy: DoneBy;
+    /** 0099 — zu jedem Termin abgesagt (nie bei Aufgaben ohne Fragen vorher). */
+    readonly declined: boolean;
   };
 }
 
@@ -430,18 +572,20 @@ export function stepsFor(input: {
       const progress = taskProgressOf(plan, said);
       const ended = phase === 'reporting' || phase === 'over';
       const last = said?.days.length ? said.days[said.days.length - 1] : null;
+      /* 0099 — wer zu jedem Termin abgesagt hat (oder entschuldigt fehlte), ist nicht überfällig. */
+      const declined = declinedAll(plan, said);
 
       out.push({
         key: `task:${one.stepId}`,
         label: one.label ?? 'Zadanie (zapieczętowane)',
         help: one.help,
-        source: 'hand', doneBy: 'person', visibleToPerson: true,
+        source: 'hand', doneBy: one.doneBy, visibleToPerson: true,
         status: progress.fulfilled ? 'done'
-          : ended && progress.answer !== 'refused' && progress.answer !== 'passed' ? 'overdue' : 'todo',
+          : ended && progress.answer !== 'refused' && progress.answer !== 'passed' && !declined ? 'overdue' : 'todo',
         doneAt: progress.fulfilled && last !== null ? `${last}T12:00:00` : null,
         dueAt: null,
         extensionId: null, stepId: one.stepId,
-        task: { plan, state: said, phase, ...progress }
+        task: { plan, state: said, phase, ...progress, duties: one.duties ?? [], doneBy: one.doneBy, declined }
       });
       continue;
     }
