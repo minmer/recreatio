@@ -394,11 +394,16 @@ export const cells = (pixels: number, cellSize: number): number => {
  *
  * Bei gleichem Platz entscheidet die bisherige Folge — `sort` ist in modernem
  * JavaScript stabil, also wackelt nichts, was nicht wackeln muss.
+ *
+ * <b>Zum ZEICHNEN aber die gezeigte Grösse</b> (0099, `breakpoint`): das Raster
+ * legt die Bausteine in dieser Folge hin. Nach dem Desktop-Rahmen gezeichnet,
+ * fiel das Telefon in der Folge des Schreibtischs untereinander — nicht in der,
+ * die im Editor für das Telefon gelegt wurde.
  */
-export function byReadingOrder<T extends Placed>(parts: readonly T[]): T[] {
+export function byReadingOrder<T extends Placed>(parts: readonly T[], breakpoint: Breakpoint = 'desktop'): T[] {
   return [...parts].sort((a, b) => {
-    const one = frameFor(a, 'desktop').position;
-    const two = frameFor(b, 'desktop').position;
+    const one = frameFor(a, breakpoint).position;
+    const two = frameFor(b, breakpoint).position;
 
     return one.row === two.row ? one.col - two.col : one.row - two.row;
   });

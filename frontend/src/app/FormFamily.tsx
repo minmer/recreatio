@@ -9,13 +9,17 @@
  *
  * Vorher lagen die Unterformulare nur in den Einstellungen des Hauptformulars
  * („Rozszerzenia" → Otwórz) — in der einfachen Liste gar nicht.
+ *
+ * 0099 — und ein Unterformular lässt sich hier auch wieder LÖSCHEN, solange
+ * niemand etwas eingetragen hat: mit Rückfrage, und steht es auf einer Seite,
+ * wird es von dort mitgenommen (der Dienst prüft, ob man die Seite bearbeitet).
  */
 
 import { useEffect, useState } from 'react';
 
 import { FORM_MAP } from './FormList';
 import { newId } from './ids';
-import { createModule, loadModules, updateModule, type FormGroup, type ModuleRow } from './module';
+import { createModule, loadModules, removeModule, updateModule, type FormGroup, type ModuleRow } from './module';
 import { REPEAT_LABEL, REPEATS, repeatOf, type Repeat } from './rounds';
 import { viewPath } from './routes';
 import { WorkspaceError } from './session';
@@ -30,6 +34,8 @@ export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [round, setRound] = useState(0);
+  const [removing, setRemoving] = useState(false);
+  useEffect(() => { setRemoving(false); }, [module.moduleId]);
 
   useEffect(() => {
     let alive = true;
@@ -63,6 +69,23 @@ export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged
     }
   };
 
+  /* 0099 — das offene Unterformular löschen; danach steht das Hauptformular da. */
+  const remove = async () => {
+    if (module.extendsId === null) return;
+    setBusy(true);
+    setFailed(null);
+    try {
+      await removeModule(module.moduleId, { fromPages: module.usedOnPages > 0 });
+      setRemoving(false);
+      onChanged?.();
+      window.location.hash = viewPath('modules', 'form', module.extendsId);
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć podformularza.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   /* Das offene Formular frisch aus dem Aufrufer — die Liste kann einen Augenblick älter sein. */
   const tab = (listed: ModuleRow, sub: boolean, form: ModuleRow = listed.moduleId === module.moduleId ? module : listed) => (
     <a key={form.moduleId} className={form.moduleId === module.moduleId ? 'wk-family-tab is-on' : 'wk-family-tab'}
@@ -85,7 +108,45 @@ export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged
       <div className="wk-family-side">
         <a className="wk-link-btn" href={viewPath('modules', FORM_MAP, mainId)} data-family-map="">Mapa</a>
         {group !== null && <span className="wk-tag">grupa: {group.name}</span>}
+        {module.extendsId !== null && !removing && (
+          <button type="button" className="wk-link-btn wk-danger-link" data-sub-remove="" onClick={() => setRemoving(true)}>Usuń podformularz</button>
+        )}
       </div>
+
+      {removing && module.extendsId !== null && (
+        <div className="wk-note wk-delete-warn wk-family-remove" data-sub-remove-ask="">
+          {module.entries > 0 ? (
+            <>
+              <p>
+                Do „{module.name}" są już wpisy ({module.entries}) — należą do osób, więc podformularza nie da się usunąć.
+                Można go zamknąć w zakładce „Ustawienia": nowych wpisów już nie będzie.
+              </p>
+              <div className="wk-actions">
+                <button type="button" className="wk-link-btn" onClick={() => setRemoving(false)}>Rozumiem</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p>
+                <strong>Usunąć podformularz „{module.name}"?</strong> Znikną jego pytania, układ i logika,
+                a osoby nie zobaczą już kroku „Uzupełnij". Tego nie da się cofnąć.
+              </p>
+              {module.pages.length > 0 && (
+                <p>
+                  Stoi na {module.pages.length === 1 ? 'stronie' : 'stronach'}{' '}
+                  {module.pages.map((p) => (p === '' ? 'recreatio.pl' : p)).join(', ')} — {module.pages.length === 1 ? 'zostanie z niej zdjęty' : 'zostanie z nich zdjęty'}.
+                </p>
+              )}
+              <div className="wk-actions">
+                <button type="button" className="wk-btn wk-btn-danger" disabled={busy} data-sub-remove-go="" onClick={() => void remove()}>
+                  {busy ? 'Usuwanie…' : 'Usuń podformularz'}
+                </button>
+                <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setRemoving(false)}>Anuluj</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {adding && main !== null && (
         <form className="wk-inline wk-family-new" onSubmit={(e) => { e.preventDefault(); void add(); }}>

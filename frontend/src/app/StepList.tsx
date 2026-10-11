@@ -6,7 +6,8 @@
  *                 Ergänzen gleich an Ort und Stelle
  *   PersonSteps   bei der Kanzlei, in der Zeile eines Menschen: abhaken
  *   StepsEditor   im Reiter „Kroki": die von selbst entstandenen ansehen, die
- *                 von Hand anlegen, ordnen, mit Frist versehen
+ *                 von Hand anlegen, ordnen, mit Frist versehen — und (0098)
+ *                 die Aufgaben mit Zeitraum (`TaskCard` zeigt sie)
  * </code>
  *
  * <b>Dieselbe Rechnung überall</b> (`steps.stepsFor`) — was die Kanzlei als
@@ -15,14 +16,16 @@
 
 import { useState } from 'react';
 
+import { isoDay, planText, WEEKDAYS } from './candidateTasks';
 import { FormCard } from './FormCard';
 import { newId } from './ids';
 import type { SeatView } from './seatContext';
 import {
-  dueText, filledNow, markOwnStep, markStep, progressOf, saveSteps, stepsFor,
-  type DoneBy, type ExtensionInfo, type OpenStep, type StepDraft, type StepState
+  answerTask, answerTaskAsOffice, dueText, filledNow, markOwnStep, markStep, progressOf, saveSteps, stepsFor, taskIn,
+  type DoneBy, type ExtensionInfo, type OpenStep, type StepDraft, type StepState, type TaskDraft, type TaskSchedule
 } from './steps';
 import { OwnSubmissions } from './Submission';
+import { TaskCard } from './TaskCard';
 import { WorkspaceError } from './session';
 
 /** Das Zeichen vor einem Schritt — die Form trägt die Aussage, nicht nur die Farbe. */
@@ -78,11 +81,14 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
         const states = stepsFor({
           hasSeat: true,
           confirmedAt: form.confirmedAt,
-          extensions: form.extensions.map((e) => ({ moduleId: e.moduleId, name: e.name, audience: 'person' as const, repeat: e.repeat })),
+          extensions: form.extensions.map((e) => ({ moduleId: e.moduleId, name: e.name, audience: 'person' as const, repeat: e.repeat, questions: e.questions })),
           /* 0077 — eine wiederkehrende Ergänzung ist erledigt, wenn sie es für den LAUFENDEN Zeitraum ist. */
           filled: new Map(form.extensions.flatMap((e) => (e.registrationId === null || !filledNow(e.repeat, e) ? [] : [[e.moduleId, e.registrationId] as const]))),
           steps: form.steps,
-          marks: form.marks
+          marks: form.marks,
+          /* 0098 — die Aufgaben: was er gesagt hat, seine Tage; vor „widoczne od" noch nicht. */
+          tasks: form.tasks,
+          forPerson: true
         }).filter((s) => s.visibleToPerson);
 
         const { done, total } = progressOf(states);
@@ -100,6 +106,16 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
                 const open = openKey === `${form.registrationId}|${s.key}`;
                 const toggle = () => setOpenKey(open ? null : `${form.registrationId}|${s.key}`);
 
+                /* 0098 — eine Aufgabe: ihre eigene Karte, mit Entscheidung und Tagen. */
+                if (s.task !== undefined && s.stepId !== null) {
+                  return (
+                    <li key={s.key} className={`wk-step is-${s.status}`}>
+                      <TaskCard label={s.label} help={s.help} task={s.task}
+                        onChange={async (change) => { await answerTask(seat.token, form.registrationId, s.stepId!, change); seat.reload(); }} />
+                    </li>
+                  );
+                }
+
                 return (
                   <li key={s.key} className={`wk-step is-${s.status}`}>
                     <div className="wk-step-head">
@@ -112,7 +128,7 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
                         </span>
                         {s.help !== null && s.key !== 'confirm' && <p className="wk-hint">{s.help}</p>}
                         {s.key === 'confirm' && s.status !== 'done' && (
-                          <p className="wk-hint">Przejrzyj swoje dane u góry strony i potwierdź je.</p>
+                          <p className="wk-hint">Przejrzyj swoje dane w zgłoszeniu i potwierdź je.</p>
                         )}
                         {s.source === 'hand' && s.doneBy === 'office' && s.status !== 'done' && (
                           <p className="wk-hint">Odhacza kancelaria, gdy to otrzyma.</p>
@@ -191,7 +207,13 @@ export function PersonSteps({ registrationId, states, onChanged, onError }: {
     <div className="wk-steps">
       <h4 className="wk-h3">Postęp</h4>
       <ol className="wk-step-list">
-        {states.map((s) => (
+        {states.map((s) => s.task !== undefined && s.stepId !== null ? (
+          /* 0098 — eine Aufgabe: die Kanzlei trägt für den Menschen ein (er hat es gesagt, sie hat ihn gesehen). */
+          <li key={s.key} className={`wk-step is-${s.status}`}>
+            <TaskCard label={s.label} help={s.help} task={s.task} office
+              onChange={async (change) => { await answerTaskAsOffice(registrationId, s.stepId!, change); await onChanged(); }} />
+          </li>
+        ) : (
           <li key={s.key} className={`wk-step is-${s.status}`}>
             <div className="wk-step-head">
               <Mark status={s.status} />
@@ -227,14 +249,47 @@ export function PersonSteps({ registrationId, states, onChanged, onError }: {
 
 /* -- Wo sie angelegt werden ---------------------------------------------------------------- */
 
+const timeOf = (minute: number | null): string =>
+  minute === null ? '' : `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+
 const draftOf = (s: OpenStep): StepDraft => ({
   stepId: s.stepId,
   label: s.label ?? '',
   help: s.help ?? '',
   doneBy: s.doneBy,
   visibleToPerson: s.visibleToPerson,
-  dueAt: s.dueAt === null ? '' : new Date(s.dueAt).toLocaleDateString('sv-SE')
+  dueAt: s.dueAt === null ? '' : new Date(s.dueAt).toLocaleDateString('sv-SE'),
+  kind: s.kind ?? 'mark',
+  ...(s.kind === 'task' && s.task != null ? {
+    task: {
+      startsOn: s.task.startsOn, endsOn: s.task.endsOn, schedule: s.task.schedule, weekdays: s.task.weekdays ?? 16,
+      at: timeOf(s.task.atMinute), minutes: s.task.minutes === null ? '' : String(s.task.minutes),
+      needed: s.task.needed === null ? '' : String(s.task.needed),
+      showFrom: s.task.showFrom ?? '', reportUntil: s.task.reportUntil ?? ''
+    }
+  } : {})
 });
+
+/** Eine neue Aufgabe: der nächste Monat, jeden Tag. */
+function newTask(): StepDraft {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const last = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+  return {
+    stepId: newId(), label: '', help: '', doneBy: 'person', visibleToPerson: true, dueAt: '', kind: 'task',
+    task: { startsOn: isoDay(first), endsOn: isoDay(last), schedule: 'daily', weekdays: 16, at: '', minutes: '', needed: '', showFrom: '', reportUntil: '' }
+  };
+}
+
+/** Was am Plan einer Aufgabe nicht stimmt — bevor der Dienst es sagt. */
+function taskProblem(t: TaskDraft): string | null {
+  if (t.startsOn === '' || t.endsOn === '') return 'podaj okres';
+  if (t.endsOn < t.startsOn) return 'koniec przed początkiem';
+  if (t.schedule === 'weekly' && t.weekdays === 0) return 'wybierz dni tygodnia';
+  if (t.showFrom !== '' && t.showFrom > t.startsOn) return '„widoczne od" po początku';
+  if (t.reportUntil !== '' && t.reportUntil < t.endsOn) return '„zaznaczać do" przed końcem';
+  return null;
+}
 
 /**
  * Der Reiter „Kroki".
@@ -248,7 +303,7 @@ const draftOf = (s: OpenStep): StepDraft => ({
  * (`stepsKey`): neu geladen heisst neu angefangen.
  */
 export const stepsKey = (steps: readonly OpenStep[]): string =>
-  steps.map((s) => `${s.stepId}:${s.label ?? ''}:${s.help ?? ''}:${s.doneBy}:${s.visibleToPerson}:${s.dueAt ?? ''}`).join('|');
+  steps.map((s) => `${s.stepId}:${s.label ?? ''}:${s.help ?? ''}:${s.doneBy}:${s.visibleToPerson}:${s.dueAt ?? ''}:${s.kind ?? 'mark'}:${JSON.stringify(s.task ?? null)}`).join('|');
 
 export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved, onError }: {
   partId: string;
@@ -280,6 +335,11 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
 
   const save = async () => {
     if (formKey === null) return;
+    const wrong = drafts.find((d) => d.kind === 'task' && d.label.trim() !== '' && d.task !== undefined && taskProblem(d.task) !== null);
+    if (wrong !== undefined) {
+      onError(`Zadanie „${wrong.label.trim()}": ${taskProblem(wrong.task!)}.`);
+      return;
+    }
     setSaving(true);
     onError(null);
 
@@ -295,42 +355,46 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
 
   return (
     <section className="wk-panel">
-      <p className="wk-note">
-        <strong>Kroki osoby układasz na stronie</strong> — w „Mapie logiki strony", pod modułami:
-        każdy krok to węzeł, który jest zrobiony, gdy spełnione jest to, co do niego podłączysz.
-        Tutaj są <strong>znaczniki</strong>: to, czego nie widać w danych, więc ktoś musi to
-        odhaczyć. Mapa może ich używać jako wejść („Znacznik").
-      </p>
+      {formKey === null && (
+        <p className="wk-warn">
+          Zadania i znaczniki pieczętuje się kluczem obszaru formularza — ustaw obszar w „Ustawieniach"
+          albo otwórz formularz kontem, które ten obszar czyta.
+        </p>
+      )}
+      {unreadable && (
+        <p className="wk-warn">Części zadań lub znaczników nie da się odczytać tym kluczem — zapisanie ich nadpisze.</p>
+      )}
 
-      <h3 className="wk-h2">Postęp liczony sam</h3>
+      {/*
+        0098 — ZADANIA DLA OSÓB: przez jakiś czas, z decyzją osoby i dniami
+        („W październiku różaniec codziennie o 18:00", „Piątki: różaniec po
+        angielsku", „Obejrzyj film do końca miesiąca"). Sie stehen oben: die
+        Zakładka heißt im einfachen Weg „Zadania".
+      */}
+      <h3 className="wk-h2">Zadania dla osób</h3>
       <p className="wk-hint">
-        Z linku osoby i z rozszerzeń tego formularza — widać go przy każdej osobie w zakładce „Osoby".
+        Zadanie stoi u osoby przez swój okres. Osoba je przyjmuje, pomija albo odmawia — i zaznacza dni,
+        w które je wykonała. Kancelaria widzi to przy każdej osobie i może wpisać za nią.
       </p>
-      <ul className="wk-step-list">
-        <li className="wk-step">
-          <div className="wk-step-head">
-            <span className="wk-step-mark" aria-hidden="true">○</span>
-            <div className="wk-step-text">
-              <strong>Sprawdzenie i potwierdzenie danych</strong>
-              <span className="wk-row-side"> · osoba, po pierwszym otwarciu linku</span>
-            </div>
-          </div>
-        </li>
-        {extensions.map((e) => (
-          <li className="wk-step" key={e.moduleId}>
-            <div className="wk-step-head">
-              <span className="wk-step-mark" aria-hidden="true">○</span>
-              <div className="wk-step-text">
-                <strong>{e.audience === 'person' ? `Uzupełnij: ${e.name}` : e.name}</strong>
-                <span className="wk-row-side">
-                  {e.audience === 'person' ? ' · wypełnia osoba przez swój link' : ' · wypełnia koordynator, osoba tego nie widzi'}
-                  {e.closed && ' · zamknięte'}
-                </span>
-              </div>
-            </div>
+      {!drafts.some((d) => d.kind === 'task') && <p className="wk-empty">Jeszcze żadnego zadania.</p>}
+
+      <ol className="wk-step-edit" data-task-editor="">
+        {drafts.map((d, i) => d.kind !== 'task' || d.task === undefined ? null : (
+          <li key={d.stepId} className="wk-step-edit-row wk-task-edit" data-task-draft={d.stepId}>
+            <TaskEdit draft={d} onChange={(patch) => set(i, patch)}
+              onMove={(by) => move(i, by)} first={i === drafts.findIndex((x) => x.kind === 'task')}
+              last={i === drafts.length - 1 - [...drafts].reverse().findIndex((x) => x.kind === 'task')}
+              onRemove={() => setDrafts(drafts.filter((_, at) => at !== i))} />
           </li>
         ))}
-      </ul>
+      </ol>
+
+      <div className="wk-actions">
+        <button type="button" className="wk-link-btn" disabled={drafts.length >= 60} data-add-task=""
+          onClick={() => setDrafts([...drafts, newTask()])}>
+          + Dodaj zadanie
+        </button>
+      </div>
 
       <h3 className="wk-h2">Znaczniki</h3>
       <p className="wk-hint">
@@ -338,20 +402,10 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
         kto odhacza — kancelaria (gdy to dostanie) albo osoba sama, w swoim linku.
       </p>
 
-      {formKey === null && (
-        <p className="wk-warn">
-          Znaczniki pieczętuje się kluczem obszaru formularza — ustaw obszar w „Ustawieniach"
-          albo otwórz formularz kontem, które ten obszar czyta.
-        </p>
-      )}
-      {unreadable && (
-        <p className="wk-warn">Części znaczników nie da się odczytać tym kluczem — zapisanie ich nadpisze.</p>
-      )}
-
-      {drafts.length === 0 && <p className="wk-empty">Jeszcze żadnego.</p>}
+      {drafts.every((d) => d.kind === 'task') && <p className="wk-empty">Jeszcze żadnego.</p>}
 
       <ol className="wk-step-edit">
-        {drafts.map((d, i) => (
+        {drafts.map((d, i) => d.kind === 'task' ? null : (
           <li key={d.stepId} className="wk-step-edit-row">
             <label className="wk-field">
               <span>Znacznik</span>
@@ -395,19 +449,23 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
 
       <div className="wk-actions">
         <button
-          type="button" className="wk-link-btn" disabled={drafts.length >= 30}
+          type="button" className="wk-link-btn" disabled={drafts.length >= 60}
           onClick={() => setDrafts([...drafts, {
-            stepId: newId(), label: '', help: '', doneBy: 'office', visibleToPerson: true, dueAt: ''
+            stepId: newId(), label: '', help: '', doneBy: 'office', visibleToPerson: true, dueAt: '', kind: 'mark'
           }])}
         >
           + Dodaj znacznik
         </button>
+      </div>
+
+      {/* Ein Speichern für beide — Zadania und Znaczniki sind dieselben Zeilen (form_step). */}
+      <div className="wk-actions">
         <button
           type="button" className="wk-btn"
           disabled={busy || saving || !changed || formKey === null}
           onClick={() => void save()}
         >
-          {saving ? 'Zapisywanie…' : 'Zapisz znaczniki'}
+          {saving ? 'Zapisywanie…' : 'Zapisz zadania i znaczniki'}
         </button>
         {changed && (
           <button type="button" className="wk-link-btn" disabled={saving} onClick={() => setDrafts(steps.map(draftOf))}>
@@ -416,8 +474,127 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
         )}
       </div>
       {drafts.some((d) => d.label.trim() === '') && (
-        <p className="wk-hint">Znaczniki bez nazwy nie zostaną zapisane.</p>
+        <p className="wk-hint">Zadania i znaczniki bez nazwy nie zostaną zapisane.</p>
       )}
+
+      <h3 className="wk-h2">Postęp liczony sam</h3>
+      <p className="wk-hint">
+        Z linku osoby i z rozszerzeń tego formularza — widać go przy każdej osobie w jej zgłoszeniu.
+      </p>
+      <ul className="wk-step-list">
+        <li className="wk-step">
+          <div className="wk-step-head">
+            <span className="wk-step-mark" aria-hidden="true">○</span>
+            <div className="wk-step-text">
+              <strong>Sprawdzenie i potwierdzenie danych</strong>
+              <span className="wk-row-side"> · osoba, po pierwszym otwarciu linku</span>
+            </div>
+          </div>
+        </li>
+        {extensions.map((e) => (
+          <li className="wk-step" key={e.moduleId}>
+            <div className="wk-step-head">
+              <span className="wk-step-mark" aria-hidden="true">○</span>
+              <div className="wk-step-text">
+                <strong>{e.audience === 'person' ? `Uzupełnij: ${e.name}` : e.name}</strong>
+                <span className="wk-row-side">
+                  {e.audience === 'person' ? ' · wypełnia osoba przez swój link' : ' · wypełnia koordynator, osoba tego nie widzi'}
+                  {e.closed && ' · zamknięte'}
+                  {e.questions === 0 && ' · bez pytań — nie liczy się, dopóki ich nie dodasz'}
+                </span>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <p className="wk-note">
+        <strong>Kroki osoby układasz na stronie</strong> — w „Mapie logiki strony", pod modułami:
+        każdy krok to węzeł, który jest zrobiony, gdy spełnione jest to, co do niego podłączysz.
+        Zadania i znaczniki mapa może używać jako wejść („Znacznik"; zadanie liczy się, gdy osoba
+        zaznaczyła dość dni).
+      </p>
     </section>
+  );
+}
+
+/* -- 0098: eine Aufgabe bearbeiten ---------------------------------------------------------------- */
+
+function TaskEdit({ draft, onChange, onMove, onRemove, first, last }: {
+  draft: StepDraft;
+  onChange: (patch: Partial<StepDraft>) => void;
+  onMove: (by: -1 | 1) => void;
+  onRemove: () => void;
+  first: boolean;
+  last: boolean;
+}) {
+  const t = draft.task!;
+  const setTask = (patch: Partial<TaskDraft>) => onChange({ task: { ...t, ...patch } });
+  const problem = taskProblem(t);
+  const plan = problem === null ? (() => {
+    const p = taskIn(t);
+    return { ...p, schedule: t.schedule, weekdays: p.weekdays } as const;
+  })() : null;
+
+  return (
+    <>
+      <label className="wk-field">
+        <span>Zadanie</span>
+        <input value={draft.label} placeholder="np. Różaniec w kościele" data-task-label=""
+          onChange={(e) => onChange({ label: e.target.value })} />
+      </label>
+      <label className="wk-field">
+        <span>Opis dla osoby — gdzie, co zabrać (opcjonalnie)</span>
+        <textarea rows={2} value={draft.help} placeholder="np. Kościół parafialny, boczna nawa." data-task-help=""
+          onChange={(e) => onChange({ help: e.target.value })} />
+      </label>
+      <div className="wk-inline wk-task-edit-line">
+        <label className="wk-inline"><span className="wk-hint">Od</span>
+          <input type="date" value={t.startsOn} data-task-starts="" onChange={(e) => setTask({ startsOn: e.target.value })} /></label>
+        <label className="wk-inline"><span className="wk-hint">do</span>
+          <input type="date" value={t.endsOn} data-task-ends="" onChange={(e) => setTask({ endsOn: e.target.value })} /></label>
+        <label className="wk-inline"><span className="wk-hint">Kiedy</span>
+          <select value={t.schedule} data-task-schedule="" onChange={(e) => setTask({ schedule: e.target.value as TaskSchedule })}>
+            <option value="daily">codziennie</option>
+            <option value="weekly">w wybrane dni tygodnia</option>
+            <option value="any">raz, w dowolnym dniu okresu</option>
+          </select></label>
+      </div>
+      {t.schedule === 'weekly' && (
+        <div className="wk-inline wk-task-weekdays" role="group" aria-label="Dni tygodnia">
+          {WEEKDAYS.map((w) => (
+            <label key={w.bit} className="wk-inline">
+              <input type="checkbox" checked={(t.weekdays & w.bit) !== 0} data-task-weekday={w.bit}
+                onChange={(e) => setTask({ weekdays: e.target.checked ? t.weekdays | w.bit : t.weekdays & ~w.bit })} />
+              <span>{w.short}</span>
+            </label>
+          ))}
+        </div>
+      )}
+      <div className="wk-inline wk-task-edit-line">
+        <label className="wk-inline"><span className="wk-hint">Godzina</span>
+          <input type="time" value={t.at} data-task-at="" onChange={(e) => setTask({ at: e.target.value })} /></label>
+        <label className="wk-inline"><span className="wk-hint">Czas trwania (min)</span>
+          <input type="number" min={1} max={1440} value={t.minutes} style={{ width: '6em' }} onChange={(e) => setTask({ minutes: e.target.value })} /></label>
+        <label className="wk-inline"><span className="wk-hint">Ile razy, by było wykonane</span>
+          <input type="number" min={1} max={400} value={t.needed} placeholder="1" style={{ width: '5em' }} data-task-needed=""
+            onChange={(e) => setTask({ needed: e.target.value })} /></label>
+      </div>
+      <div className="wk-inline wk-task-edit-line">
+        <label className="wk-inline"><span className="wk-hint">Widoczne od</span>
+          <input type="date" value={t.showFrom} onChange={(e) => setTask({ showFrom: e.target.value })} /></label>
+        <label className="wk-inline"><span className="wk-hint">Zaznaczać do</span>
+          <input type="date" value={t.reportUntil} onChange={(e) => setTask({ reportUntil: e.target.value })} /></label>
+        <span className="wk-hint">(puste: od początku okresu · do tygodnia po końcu)</span>
+      </div>
+      <p className={problem === null ? 'wk-hint' : 'wk-warn'} data-task-preview="">
+        {problem === null ? `Osoba zobaczy: ${planText(plan!)}` : `Do poprawienia: ${problem}.`}
+      </p>
+      <div className="wk-inline">
+        <button type="button" className="wk-link-btn" disabled={first} onClick={() => onMove(-1)} aria-label="Wyżej">↑</button>
+        <button type="button" className="wk-link-btn" disabled={last} onClick={() => onMove(1)} aria-label="Niżej">↓</button>
+        <button type="button" className="wk-link-btn wk-danger" onClick={onRemove}>Usuń</button>
+      </div>
+    </>
   );
 }

@@ -25,6 +25,7 @@
  * Ansicht; was geschützt sein muss, schützt der Schlüssel.
  */
 
+import { progressOf as taskProgress } from './candidateTasks';
 import { createContext, useContext } from 'react';
 
 import { sha256, toBase64Url } from './crypto';
@@ -236,7 +237,12 @@ export async function factsOfSeat(
   ]);
 
   const confirmed = new Set(seat.forms.filter((f) => f.confirmedAt !== null).map((f) => f.formId));
-  const marks = new Set(seat.forms.flatMap((f) => f.marks.map((m) => m.stepId)));
+  /* 0098 — eine Aufgabe zählt als gesetzter Znacznik, sobald sie erfüllt ist (genug Tage). */
+  const marks = new Set([
+    ...seat.forms.flatMap((f) => f.marks.map((m) => m.stepId)),
+    ...seat.forms.flatMap((f) => f.steps.filter((s) => s.kind === 'task' && s.task != null
+      && taskProgress(s.task, f.tasks?.find((t) => t.stepId === s.stepId)).fulfilled).map((s) => s.stepId))
+  ]);
 
   const answers = new Map<string, string>();
   for (const one of seat.opened) if (one.value !== null) answers.set(one.fieldId, one.value);

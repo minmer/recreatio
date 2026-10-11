@@ -103,11 +103,12 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
   const hidden = logic?.outcome.hidden ?? new Set<string>();
   const messages = logic?.outcome.messages ?? new Map<string, string>();
 
+  /* 0099 — in der Folge der GEZEIGTEN Grösse: am Telefon die, die im Editor für das Telefon gelegt wurde. */
   const shown = byReadingOrder(parts.filter((part) => {
     if (hidden.has(part.id) && !messages.has(part.id)) return false;
     const def = partOf(part.kind);
     return def === undefined || def.hasContent(part.config);
-  }));
+  }), breakpoint);
 
   if (shown.length === 0) return null;
 

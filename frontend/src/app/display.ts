@@ -48,7 +48,7 @@ export const TOOLS: readonly ToolDef[] = [
     extended('full', 'Szczegóły obszaru', 'Także epoki i klucze, role z poziomami, dostęp dla wszystkich, ustawienia.')
   ] },
   { tool: 'forms', label: 'Formularz', modes: [
-    simple('simple', 'Trzy zakładki', 'Zgłoszenia, Formularz i Ustawienia — to, czego używa się co dzień.'),
+    simple('simple', 'Cztery zakładki', 'Zgłoszenia, Formularz, Zadania i Ustawienia — to, czego używa się co dzień.'),
     extended('full', 'Wszystkie zakładki', 'Także układ i logika, znaczniki, tabela zgłoszeń, JSON.')
   ] },
   { tool: 'modules', label: 'Moduły', modes: [

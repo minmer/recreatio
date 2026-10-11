@@ -347,5 +347,6 @@ export async function updateModule(
   });
 }
 
-export const removeModule = (moduleId: string): Promise<{ removed: boolean }> =>
-  call(`/workspace/module/${encodeURIComponent(moduleId)}`, { method: 'DELETE' });
+/** `fromPages` (0099) — nur für ein Unterformular: auch von den Seiten nehmen, auf denen es steht. */
+export const removeModule = (moduleId: string, options: { readonly fromPages?: boolean } = {}): Promise<{ removed: boolean }> =>
+  call(`/workspace/module/${encodeURIComponent(moduleId)}${options.fromPages === true ? '?fromPages=true' : ''}`, { method: 'DELETE' });

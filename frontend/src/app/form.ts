@@ -880,6 +880,9 @@ export interface Submission {
 
   /** Welche von Hand angelegten Schritte abgehakt sind (0047). */
   readonly marks: readonly StepMark[];
+
+  /** 0098 — was er zu den Aufgaben gesagt hat, und an welchen Tagen er sie getan hat. */
+  readonly tasks?: readonly import('./steps').TaskState[];
 }
 
 /** Ein abgehakter Schritt (0047). */

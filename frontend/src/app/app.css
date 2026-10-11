@@ -161,6 +161,24 @@ body {
 
 /* Der Platz, in den eine Seite ihr Menü zeichnet (headerSlot.tsx). Leer nimmt er nichts ein. */
 .wk-top-menu { display: flex; align-items: center; min-width: 0; }
+
+/* 0099 — „Edytuj stronę" in der Kopfleiste: nur für den, der die Seite bearbeiten darf. */
+.wk-top-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.6rem;
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--wk-accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.wk-top-edit:hover { border-color: var(--wk-accent); }
+.wk-top-edit:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+@media (max-width: 639px) { .wk-top-edit-more { display: none; } }
 .wk-top-menu:empty { display: none; }
 
 .wk-top-in-wide { width: min(100%, 110rem); }
@@ -177,17 +195,6 @@ body {
 .wk-brand:hover { color: var(--wk-accent); }
 .wk-brand:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 3px; }
 
-/* Solange der Neubau nicht traegt, steht das an der Kopfleiste — nicht in
-   einer Fussnote, die niemand liest. */
-.wk-stage {
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--wk-accent);
-  border: 1px solid var(--wk-line);
-  border-radius: 999px;
-  padding: 0.05rem 0.5rem;
-}
 
 /* Die Spalte steht in der Mitte — und zwar mit `width: min(100%, …)` und nicht
    mit `width: 100%` plus `max-width`.
@@ -4329,8 +4336,6 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-note.wk-delete-warn { border-left-color: var(--wk-danger); margin: 0.6rem 0; }
 .wk-note.wk-delete-warn ul { margin: 0.3rem 0; padding-left: 1.2rem; }
 
-/* In der App (shell.ts setzt .is-app): kein Bau-Etikett im Kopf — im Laden ist sie „REcreatio", nicht „Neubau". */
-.is-app .wk-stage { display: none; }
 
 
 /* -- Das Menü in der Kopfleiste ---------------------------------------------
@@ -8142,3 +8147,32 @@ span.ch-sendas { cursor: default; }
 .wk-fmap-canvas .react-flow__edge.is-logic path { stroke: var(--wk-held-line); stroke-dasharray: 5 4; stroke-width: 1.6; }
 .wk-fmap-canvas .react-flow__edge.is-role path { stroke: var(--wk-ok); stroke-dasharray: 2 3; }
 .wk-fmap-canvas .react-flow__edge.is-stands path, .wk-fmap-canvas .react-flow__edge.is-filled path { stroke: var(--wk-muted); }
+
+/* -- 0098: Zadania dla osób — eine Aufgabe mit Zeitraum, Entscheidung und Tagen -------------------- */
+.wk-task { display: grid; gap: 0.45rem; padding: 0.75rem 0.85rem; border: 1px solid var(--wk-line); border-radius: 8px; background: var(--wk-surface); min-width: 0; }
+.wk-task.is-done { border-color: var(--wk-free-line); }
+.wk-task.is-refused, .wk-task.is-passed { opacity: 0.85; }
+.wk-task-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.wk-task-title { font-size: 1rem; overflow-wrap: anywhere; }
+.wk-task-status { font-size: 0.8rem; padding: 0.1rem 0.5rem; border-radius: 999px; border: 1px solid var(--wk-line); color: var(--wk-muted); white-space: nowrap; }
+.wk-task-status.is-done { border-color: var(--wk-free-line); background: var(--wk-free-bg); color: var(--wk-free-ink); }
+.wk-task-status.is-accepted { border-color: var(--wk-held-line); background: var(--wk-held-bg); color: var(--wk-held-ink); }
+.wk-task-status.is-refused { border-color: var(--wk-shut-line); background: var(--wk-shut-bg); color: var(--wk-shut-ink); }
+.wk-task-plan { margin: 0; color: var(--wk-ink); font-variant-numeric: tabular-nums; }
+.wk-task-when { margin: 0; color: var(--wk-muted); font-size: 0.9rem; }
+.wk-task-when:empty { display: none; }
+.wk-task-answers { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.wk-task-days { display: grid; gap: 0.4rem; }
+.wk-task-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.wk-task-day { font: inherit; font-size: 0.85rem; font-variant-numeric: tabular-nums; padding: 0.25rem 0.5rem; border-radius: 6px; border: 1px solid var(--wk-line); background: var(--wk-ground); color: var(--wk-ink); cursor: pointer; }
+.wk-task-day.is-on { background: var(--wk-accent); border-color: var(--wk-accent); color: var(--wk-on-accent); }
+.wk-task-day:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-task-day:disabled { cursor: default; opacity: 0.6; }
+.wk-task-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.wk-task-edit { display: grid; gap: 0.5rem; }
+.wk-task-edit-line, .wk-task-weekdays { flex-wrap: wrap; gap: 0.6rem; }
+.wk-step > .wk-task { margin: 0.2rem 0; }
+
+/* 0099 — Unterformular löschen: die Rückfrage unter den Reitern, über die ganze Breite. */
+.wk-family-remove { flex-basis: 100%; margin: 0.2rem 0 0.4rem; }
+.wk-family-remove p { margin: 0 0 0.4rem; }

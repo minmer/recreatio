@@ -180,7 +180,8 @@ import { FormLogic } from './FormLogic';
 type FormTabName = 'settings' | 'questions' | 'layout' | 'logic' | 'entries' | 'steps' | 'people';
 
 /** 0094 — die Reiter des einfachen Weges. */
-const SIMPLE_TABS: readonly FormTabName[] = ['people', 'questions', 'settings'];
+/* 0098 — „Zadania" (Znaczniki und Aufgaben für die Menschen) gehören zum Alltag eines Formulars. */
+const SIMPLE_TABS: readonly FormTabName[] = ['people', 'questions', 'steps', 'settings'];
 
 /*
  * Welcher Reiter je Formular zuletzt offen war — solange die Seite lebt. Die
@@ -1043,6 +1044,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             Zgłoszenia{(module?.entries ?? submissions.length) > 0 ? ` (${submissions.length > 0 ? submissions.length : module?.entries ?? 0})` : ''}
           </FormTab>
           <FormTab now={tab} mine="questions" onPick={setTab}>Formularz</FormTab>
+          {module !== undefined && !isExtension && <FormTab now={tab} mine="steps" onPick={setTab}>Zadania</FormTab>}
           {module !== undefined && <FormTab now={tab} mine="settings" onPick={setTab}>Ustawienia</FormTab>}
         </div>
       ) : (
@@ -1056,7 +1058,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             Zgłoszenia{submissions.length > 0 ? ` (${submissions.length})` : ''}
           </FormTab>
         )}
-        {module !== undefined && !isExtension && <FormTab now={tab} mine="steps" onPick={setTab}>Znaczniki</FormTab>}
+        {module !== undefined && !isExtension && <FormTab now={tab} mine="steps" onPick={setTab}>Znaczniki i zadania</FormTab>}
         <FormTab now={tab} mine="people" onPick={setTab}>Osoby</FormTab>
       </div>
       )}
@@ -1594,7 +1596,6 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
           {simple && (
             <p className="wk-part-foot">
               {(!isExtension || tableToo) && <button type="button" className="wk-link-btn" onClick={() => openExtended('entries')}>Tabela i plik CSV</button>}
-              {' '}<button type="button" className="wk-link-btn" onClick={() => openExtended('steps')}>Znaczniki (kroki osób)</button>
             </p>
           )}
 

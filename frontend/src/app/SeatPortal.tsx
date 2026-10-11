@@ -95,7 +95,8 @@ export function SeatPortal({ token, keyText, under }: {
 
       {failed !== null && <p className="wk-error">{failed}</p>}
 
-      {seat !== null && <ReviewSubmissions seat={seat} who={null} />}
+      {/* 0098 — mit einer Vorlage zeigt der Baustein „Zgłoszenie osoby" die Durchsicht, an seiner Stelle. */}
+      {seat !== null && template === null && <ReviewSubmissions seat={seat} who={null} />}
 
       {template !== null && <PageParts parts={template.parts.map(toDraft)} />}
 

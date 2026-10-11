@@ -110,11 +110,16 @@ export function OwnSubmissions({ seat, formId, show }: {
  * kann auf ihrer Seite nur einen Teil zeigen lassen — bestätigt wird aber das
  * Ganze, und vor allem die Kontakte, auf die sie ihre Nachrichten schickt.
  */
-export function ReviewSubmissions({ seat, who }: { seat: SeatView; who: string | null }) {
+export function ReviewSubmissions({ seat, who, formId = null }: {
+  seat: SeatView;
+  who: string | null;
+  /** 0098 — nur die Einsendungen dieses Formulars (der Baustein „Zgłoszenie osoby" zeigt eines). */
+  formId?: string | null;
+}) {
   if (seat.seatKey === null) return null;
 
   const waiting = [...new Set(seat.submitted
-    .filter((v) => v.confirmedAt === null)
+    .filter((v) => v.confirmedAt === null && (formId === null || v.formId === formId))
     .map((v) => v.registrationId))];
 
   if (waiting.length === 0) return null;

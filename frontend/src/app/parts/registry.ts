@@ -48,7 +48,7 @@ import { peoplePart } from './people';
 import { planPart } from './plan';
 import { programPart } from './program';
 import { shapePart } from './shape';
-import { seatAskPart, seatChatPart, seatNotePart, seatSharedPart, seatStepsPart, seatSubmissionPart } from './seat';
+import { seatAskPart, seatChatPart, seatNotePart, seatSharedPart, seatStepsPart, seatSubmissionPart, seatTasksPart } from './seat';
 import { textPart } from './text';
 import { quotesPart } from './quotes';
 import { writingPart } from './writing';
@@ -98,6 +98,8 @@ export const PARTS: readonly PartModule[] = [
   /* Was nur hinter einem persönlichen Link etwas zeigt (0028). */
   seatSubmissionPart,
   seatStepsPart,
+  /* 0098 — Aufgaben mit Zeitraum. */
+  seatTasksPart,
   seatNotePart,
   seatSharedPart,
   seatChatPart,

@@ -83,6 +83,21 @@ Check(Chat.AvailableAt(fold, DateTimeOffset.Parse("2026-10-25T01:30:00Z")), "sec
     Check(Names.Read(envelope, null).Error is not null && Names.Read(envelope, 0).Error is not null, "an envelope without its epoch: an error");
     Check(Names.Read("Jan Kowalski", 1).Error is not null, "a plaintext name instead of an envelope: an error");
 }
+/* 0098 — a task for a period: which days count, and what a plan must say. */
+{
+    var october = Form.ReadTaskPlan("2026-10-01", "2026-10-31", "daily", null, 18 * 60, 30, 5, null, null);
+    Check(october.Plan is { Schedule: "daily", AtMinute: 1080, Needed: 5 } && october.Plan.ReportsUntil == new DateOnly(2026, 11, 7), "a daily rosary in October, at 18:00, five times; marks until a week after");
+    Check(Form.TaskDay(october.Plan!, new DateOnly(2026, 10, 15)) && !Form.TaskDay(october.Plan!, new DateOnly(2026, 11, 1)), "a day in October counts, November does not");
+    Check(Form.WeekdayBit(new DateOnly(2026, 10, 12)) == 1 && Form.WeekdayBit(new DateOnly(2026, 10, 16)) == 16 && Form.WeekdayBit(new DateOnly(2026, 10, 18)) == 64, "Monday 1, Friday 16, Sunday 64");
+    var fridays = Form.ReadTaskPlan("2026-10-01", "2026-10-31", "weekly", 16, null, null, null, null, null).Plan!;
+    Check(Form.TaskDay(fridays, new DateOnly(2026, 10, 16)) && !Form.TaskDay(fridays, new DateOnly(2026, 10, 15)), "on Fridays: Friday yes, Thursday no");
+    Check(Form.ReadTaskPlan("2026-10-01", "2026-10-31", "weekly", 16, null, null, 6, null, null).Error is not null, "five Fridays cannot be needed six times");
+    Check(Form.ReadTaskPlan("2026-10-31", "2026-10-01", "daily", null, null, null, null, null, null).Error is not null, "an end before the start is refused");
+    Check(Form.ReadTaskPlan("2026-10-01", "2026-10-31", "weekly", null, null, null, null, null, null).Error is not null, "weekly without weekdays is refused");
+    Check(Form.ReadTaskPlan("2026-10-05", "2026-10-06", "weekly", 16, null, null, null, null, null).Error is not null, "a period without any of its weekdays is refused");
+    Check(Form.ReadTaskPlan("2026-10-01", "2026-10-31", "any", null, null, null, null, "2026-10-05", null).Error is not null, "visible from after the start is refused");
+    Check(Form.ReadTaskPlan("2026-10-01", "2026-10-31", "any", null, null, null, null, "2026-09-25", "2026-11-15").Plan is { ReportsUntil.Month: 11, ReportsUntil.Day: 15 }, "a film any day in October, shown from 25 September, marks until 15 November");
+}
 await ApiErrorChecks.RunAsync(Check);
 FileLoggerChecks.Run(Check);
 PageFileChecks.Run(Check);

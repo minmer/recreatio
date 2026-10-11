@@ -24,11 +24,11 @@ import { InHeader } from './headerSlot';
 import { PageParts } from './PageParts';
 import { PagePresentation } from './PagePresentation';
 import { PageSlides } from './PageSlides';
-import { PersonAccessGate, PersonPicker, PersonProvider, usePerson } from './pagePerson';
+import { PersonAccessGate, PersonPicker, PersonProvider } from './pagePerson';
 import { NoAccess, PageAccessContext } from './pageAccess';
 import { PageLogicProvider } from './PageLogicView';
 import { PageSubjectProvider, SubjectBar } from './pageSubject';
-import { PersonalSections, SeatBar } from './SeatBar';
+import { SeatBar } from './SeatBar';
 import { SiteMenu } from './SiteMenu';
 import { SeatContext, SeatStateContext, useSeats, useSeatStates, type SeatState } from './seatContext';
 import { freshSeat, heldSeats, SEATS_EVENT, seatsExactly, seatsFor } from './seatKeep';
@@ -37,6 +37,7 @@ import { useHeldLinksStamp } from './HeldLinkBar';
 import { useSeat } from './seatView';
 import { WorkspaceError } from './session';
 import { loadSite } from './site';
+import { pageSteps, viewPath } from './routes';
 import { readLook } from './slides';
 
 /**
@@ -152,6 +153,22 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
           )}
 
           {/*
+            0099 — WER DIE SEITE BEARBEITEN DARF, kommt von hier gleich in den
+            Editor: in der Kopfleiste, bei jeder Art der Seite (auch Slajdy und
+            Prezentacja), ohne den Inhalt zu verdecken.
+          */}
+          {page.editable === true && (
+            <InHeader>
+              <a className="wk-top-edit" href={viewPath('pages', ...pageSteps(page.aliasOf ?? page.path))} data-edit-page="">
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+                  <path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                </svg>
+                Edytuj<span className="wk-top-edit-more"> stronę</span>
+              </a>
+            </InHeader>
+          )}
+
+          {/*
             0062 — ALS SLAJDY: jeder Baustein ein Bildschirm, Titel und Vorspann
             auf dem ersten. Dieselben Schranken davor wie auf der Seite.
           */}
@@ -187,13 +204,14 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
               Zugang. Sonst steht statt der Bausteine, dass es ihn braucht.
             */}
             <PersonAccessGate>
-              <PageParts parts={parts} />
-
               {/*
-                Keine persönlichen Bausteine auf dieser Seite? Dann die eingebauten
-                Abschnitte — für den Gewählten, wenn sein Link HIERHER geführt hat.
+                0098 — NUR DIE BAUSTEINE DER SEITE. Vorher standen hier, wenn die
+                Seite keine persönlichen Bausteine hatte, die eingebauten Abschnitte
+                (Zgłoszenie, kroki, …) — von selbst, auf jeder Seite, zu der ein
+                Link führte. Was vom Formular erscheinen soll, legt die Kanzlei als
+                Baustein auf die Seite, an seine Stelle.
               */}
-              {!parts.some((one) => one.kind.startsWith('seat-')) && <Fallback path={page.path} chats={!parts.some((one) => one.kind === 'chat')} />}
+              <PageParts parts={parts} />
             </PersonAccessGate>
           </UntilConfirmed>
           </>)}
@@ -332,11 +350,7 @@ function SlidesBody({ path, parts, theme, title, lead }: {
   title: string | null;
   lead: string | null;
 }) {
-  const chosen = usePerson()?.chosen ?? null;
-  const exact = useMemo(() => new Set(seatsExactly(path)), [path, chosen]);
   const look = useMemo(() => readLook(theme), [theme]);
-  const personal = !parts.some((one) => one.kind.startsWith('seat-'))
-    && chosen?.kind === 'seat' && exact.has(chosen.seat.token) ? chosen.seat : null;
 
   return (
     <PageSlides
@@ -345,7 +359,6 @@ function SlidesBody({ path, parts, theme, title, lead }: {
       title={title}
       lead={lead}
       extra={<><SeatBar path={path} /><div className="wk-page-top"><PersonPicker /></div><SubjectBar /></>}
-      after={personal === null ? undefined : <PersonalSections seat={personal} chats={!parts.some((one) => one.kind === 'chat')} />}
     />
   );
 }
@@ -361,11 +374,7 @@ function ShowBody({ path, parts, theme, title }: {
   theme: string | null;
   title: string | null;
 }) {
-  const chosen = usePerson()?.chosen ?? null;
-  const exact = useMemo(() => new Set(seatsExactly(path)), [path, chosen]);
   const look = useMemo(() => readLook(theme), [theme]);
-  const personal = !parts.some((one) => one.kind.startsWith('seat-'))
-    && chosen?.kind === 'seat' && exact.has(chosen.seat.token) ? chosen.seat : null;
 
   return (
     <PagePresentation
@@ -373,18 +382,8 @@ function ShowBody({ path, parts, theme, title }: {
       look={look}
       title={title}
       extra={<><SeatBar path={path} /><div className="wk-page-top"><PersonPicker /></div><SubjectBar /></>}
-      after={personal === null ? undefined : <PersonalSections seat={personal} chats={!parts.some((one) => one.kind === 'chat')} />}
     />
   );
-}
-
-/** Die eingebauten Abschnitte — für den Gewählten, wenn sein Link GENAU hierher geführt hat. */
-function Fallback({ path, chats }: { path: string; chats: boolean }) {
-  const chosen = usePerson()?.chosen ?? null;
-  const exact = useMemo(() => new Set(seatsExactly(path)), [path, chosen]);
-
-  if (chosen?.kind !== 'seat' || !exact.has(chosen.seat.token)) return null;
-  return <PersonalSections seat={chosen.seat} chats={chats} />;
 }
 
 export default PublicPage;

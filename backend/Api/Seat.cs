@@ -90,6 +90,9 @@ public static class Seat
 
         /* 0047 — einen Schritt selbst abhaken, den der Mensch selbst abhakt. */
         app.MapPost("/seat/{token}/step", OwnStepAsync);
+
+        /* 0098 — eine Aufgabe: przyjmuję / pomijam / odmawiam, und an welchen Tagen getan. */
+        app.MapPost("/seat/{token}/task", OwnTaskAsync);
     }
 
     /*
@@ -398,6 +401,44 @@ public static class Seat
     /// „ZROBIONE" — ein Schritt, den der Mensch selbst abhakt (0047). Nur einer,
     /// der dafuer angelegt ist, und nur an einer Einsendung seines Platzes.
     /// </summary>
+    /// <summary>
+    /// 0098 — was der Mensch zu einer Aufgabe sagt (przyjmuję, pomijam, odmawiam)
+    /// und an welchen Tagen er sie getan hat — über seinen Link.
+    /// </summary>
+    private static async Task OwnTaskAsync(HttpContext ctx, Db db, string token, Form.TaskRequest body)
+    {
+        if (!Guid.TryParse(body.RegistrationId, out var registrationId) || !Guid.TryParse(body.StepId, out var stepId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelne zadanie.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var seat = await LiveSeatAsync(connection, token, gated: true, ctx.RequestAborted);
+        if (seat is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
+            return;
+        }
+
+        var done = await Form.SetTaskAsync(connection, stepId, registrationId, body.Answer, body.Days, byPerson: true,
+            seatId: seat.Value.Id, ctx.RequestAborted);
+
+        if (done is null)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "To zadanie nie jest Twoje.");
+            return;
+        }
+        if (done.Value.Error is { } error)
+        {
+            await Fail(ctx, done.Value.Status, error);
+            return;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { stepId = Ids.ToText(stepId), saved = true });
+    }
+
     private static async Task OwnStepAsync(HttpContext ctx, Db db, string token, OwnStepRequest body)
     {
         if (!Guid.TryParse(body.RegistrationId, out var registrationId) || !Guid.TryParse(body.StepId, out var stepId))

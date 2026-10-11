@@ -21,6 +21,7 @@
  * er davon nichts.
  */
 
+import { phaseOf, progressOf as taskProgressOf, type TaskPhase } from './candidateTasks';
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from './crypto';
 import type { StepMark } from './form';
 import { openFormNames, type FormNameIn } from './names';
@@ -28,6 +29,44 @@ import { repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
 import { call } from './session';
 
 export type DoneBy = 'office' | 'person';
+
+/**
+ * 0098 — WAS FÜR EIN SCHRITT: ein Znacznik (einmal abgehakt) oder eine
+ * AUFGABE mit Zeitraum, zu der der Mensch selbst etwas sagt (`candidateTasks.ts`).
+ */
+export type StepKind = 'mark' | 'task';
+
+/** 0098 — wann eine Aufgabe gilt: einmal in beliebigem Tag, jeden Tag, an Wochentagen. */
+export type TaskSchedule = 'any' | 'daily' | 'weekly';
+
+/** 0098 — der Plan einer Aufgabe, wie der Dienst ihn hält (Tage als YYYY-MM-DD). */
+export interface TaskPlan {
+  readonly startsOn: string;
+  readonly endsOn: string;
+  readonly schedule: TaskSchedule;
+  /** Bits: pn 1, wt 2, śr 4, czw 8, pt 16, sob 32, ndz 64 — nur bei `weekly`. */
+  readonly weekdays: number | null;
+  /** Die Uhrzeit, um nachzuschlagen, wann man hingeht (Minuten nach Mitternacht), und wie lange. */
+  readonly atMinute: number | null;
+  readonly minutes: number | null;
+  /** Wie viele Tage es braucht, damit sie erfüllt ist (fehlt: 1). */
+  readonly needed: number | null;
+  /** Ab wann der Mensch sie sieht (fehlt: ab Beginn) und bis wann er Tage einträgt (fehlt: 7 Tage nach Ende). */
+  readonly showFrom: string | null;
+  readonly reportUntil: string | null;
+}
+
+/** 0098 — was der Mensch zu einer Aufgabe sagt. */
+export type TaskAnswer = 'accepted' | 'passed' | 'refused';
+
+/** 0098 — seine Antwort und die Tage, an denen er sie getan hat. */
+export interface TaskState {
+  readonly stepId: string;
+  readonly answer: TaskAnswer | null;
+  readonly answeredAt?: string | null;
+  readonly byPerson?: boolean;
+  readonly days: readonly string[];
+}
 
 /** Ein von Hand angelegter Schritt, wie der Dienst ihn hält — die Beschriftung versiegelt. */
 export interface SealedStep {
@@ -40,6 +79,10 @@ export interface SealedStep {
   readonly doneBy: DoneBy;
   readonly visibleToPerson: boolean;
   readonly dueAt: string | null;
+
+  /** 0098 — fehlt beim alten Dienst: dann ein Znacznik. */
+  readonly kind?: StepKind;
+  readonly task?: TaskPlan | null;
 }
 
 export interface OpenStep extends SealedStep {
@@ -57,6 +100,9 @@ export interface ExtensionInfo {
 
   /** 0077 — wie oft sie je Mensch ausgefüllt wird. Fehlt es: einmal. */
   readonly repeat?: Repeat;
+
+  /** 0099 — wie viele Fragen sie hat; ohne Fragen ist sie noch kein Schritt. Fehlt beim alten Dienst. */
+  readonly questions?: number;
 }
 
 /**
@@ -117,7 +163,44 @@ export interface StepDraft {
 
   /** `YYYY-MM-DD` oder leer. */
   readonly dueAt: string;
+
+  /** 0098 — ein Znacznik oder eine Aufgabe, und ihr Plan (als Eingaben: Texte). */
+  readonly kind?: StepKind;
+  readonly task?: TaskDraft;
 }
+
+/** 0098 — der Plan einer Aufgabe, wie er im Editor steht. */
+export interface TaskDraft {
+  readonly startsOn: string;
+  readonly endsOn: string;
+  readonly schedule: TaskSchedule;
+  readonly weekdays: number;
+  /** `HH:MM` oder leer. */
+  readonly at: string;
+  /** Minuten als Text, oder leer. */
+  readonly minutes: string;
+  readonly needed: string;
+  readonly showFrom: string;
+  readonly reportUntil: string;
+}
+
+const minuteOf = (time: string): number | null => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
+  return m === null ? null : Number(m[1]) * 60 + Number(m[2]);
+};
+
+const numberOf = (text: string): number | null => {
+  const n = Number(text.trim());
+  return text.trim() === '' || !Number.isInteger(n) ? null : n;
+};
+
+/** 0098 — der Plan, wie ihn der Dienst nimmt. */
+export const taskIn = (t: TaskDraft) => ({
+  startsOn: t.startsOn, endsOn: t.endsOn, schedule: t.schedule,
+  weekdays: t.schedule === 'weekly' ? t.weekdays : null,
+  atMinute: minuteOf(t.at), minutes: numberOf(t.minutes), needed: numberOf(t.needed),
+  showFrom: t.showFrom === '' ? null : t.showFrom, reportUntil: t.reportUntil === '' ? null : t.reportUntil
+});
 
 /**
  * Die von Hand angelegten Schritte speichern — ALLE, in dieser Reihenfolge,
@@ -136,10 +219,12 @@ export async function saveSteps(
     helpSealed: one.help.trim() === ''
       ? null
       : toBase64Url(await sealText(formKey.key, helpAad(one.stepId), one.help.trim())),
-    doneBy: one.doneBy,
-    visibleToPerson: one.doneBy === 'person' || one.visibleToPerson,
+    doneBy: one.kind === 'task' ? 'person' : one.doneBy,
+    visibleToPerson: one.kind === 'task' || one.doneBy === 'person' || one.visibleToPerson,
     /* Bis zum Ende des Tages — „do 15 sierpnia" heisst: auch am 15. noch. */
-    dueAt: one.dueAt === '' ? null : new Date(`${one.dueAt}T23:59:59`).toISOString()
+    dueAt: one.kind === 'task' || one.dueAt === '' ? null : new Date(`${one.dueAt}T23:59:59`).toISOString(),
+    kind: one.kind ?? 'mark',
+    task: one.kind === 'task' && one.task !== undefined ? taskIn(one.task) : null
   })));
 
   return call(`/workspace/part/${encodeURIComponent(partId)}/steps`, {
@@ -162,6 +247,30 @@ export const markOwnStep = (
   call(`/seat/${encodeURIComponent(token)}/step`, {
     method: 'POST',
     body: JSON.stringify({ registrationId, stepId, done })
+  });
+
+/**
+ * 0098 — WAS JEMAND ZU EINER AUFGABE SAGT: `answer` (accepted, passed, refused;
+ * `none` nimmt es zurück) und/oder ALLE Tage, an denen er sie getan hat. Wer
+ * Tage einträgt, hat sie angenommen.
+ */
+export interface TaskChange {
+  readonly answer?: TaskAnswer | 'none';
+  readonly days?: readonly string[];
+}
+
+/** Der Mensch selbst, über seinen Link. */
+export const answerTask = (token: string, registrationId: string, stepId: string, change: TaskChange): Promise<{ saved: boolean }> =>
+  call(`/seat/${encodeURIComponent(token)}/task`, {
+    method: 'POST',
+    body: JSON.stringify({ registrationId, stepId, answer: change.answer ?? null, days: change.days ?? null })
+  });
+
+/** Die Kanzlei für ihn — er hat es ihr gesagt, oder sie hat ihn gesehen. */
+export const answerTaskAsOffice = (registrationId: string, stepId: string, change: TaskChange): Promise<{ tasks: readonly TaskState[] }> =>
+  call(`/workspace/registration/${encodeURIComponent(registrationId)}/task`, {
+    method: 'POST',
+    body: JSON.stringify({ stepId, answer: change.answer ?? null, days: change.days ?? null })
   });
 
 /* -- Was der Platz bekommt ---------------------------------------------------------- */
@@ -187,9 +296,14 @@ export interface SeatFormSealed {
     /** 0077 — wie oft, und welchen Zeitraum die jüngste trägt. */
     readonly repeat?: Repeat;
     readonly round?: string | null;
+    /** 0099 — wie viele Fragen sie hat (fehlt beim alten Dienst). */
+    readonly questions?: number;
   }[];
   readonly steps: readonly SealedStep[];
   readonly marks: readonly StepMark[];
+
+  /** 0098 — was er zu den Aufgaben gesagt hat, und an welchen Tagen er sie getan hat (fehlt beim alten Dienst). */
+  readonly tasks?: readonly TaskState[];
 }
 
 export interface SeatForm extends Omit<SeatFormSealed, 'steps'> {
@@ -222,6 +336,16 @@ export interface StepState {
 
   /** Ein von Hand angelegter Schritt: welcher. */
   readonly stepId: string | null;
+
+  /** 0098 — eine Aufgabe: ihr Plan, was er gesagt hat, wie weit er ist, und wo im Zeitraum sie steht. */
+  readonly task?: {
+    readonly plan: TaskPlan;
+    readonly state: TaskState | undefined;
+    readonly phase: TaskPhase;
+    readonly done: number;
+    readonly needed: number;
+    readonly fulfilled: boolean;
+  };
 }
 
 /**
@@ -238,12 +362,18 @@ export function stepsFor(input: {
     readonly moduleId: string; readonly name: string; readonly audience: 'person' | 'office';
     /** 0077 — eine wiederkehrende steht als Schritt für den LAUFENDEN Zeitraum da. */
     readonly repeat?: Repeat;
+    /** 0099 — `0`: noch ohne Fragen, also kein Schritt (bei niemandem „do zrobienia"). */
+    readonly questions?: number;
   }[];
 
   /** Welche Erweiterungen ausgefüllt sind — Erweiterung → wann. Bei einer wiederkehrenden: nur, wenn für den laufenden Zeitraum (`filledNow`). */
   readonly filled: ReadonlyMap<string, string>;
   readonly steps: readonly OpenStep[];
   readonly marks: readonly StepMark[];
+  /** 0098 — seine Antworten und Tage zu den Aufgaben. */
+  readonly tasks?: readonly TaskState[];
+  /** 0098 — für den Menschen: Aufgaben vor „widoczne od" stehen noch nicht da. */
+  readonly forPerson?: boolean;
   readonly now?: Date;
 }): readonly StepState[] {
   const now = input.now ?? new Date();
@@ -264,6 +394,12 @@ export function stepsFor(input: {
   }
 
   for (const ext of input.extensions) {
+    /*
+     * 0099 — EIN UNTERFORMULAR OHNE FRAGEN ist noch keiner: auszufüllen gibt es
+     * nichts. Vorher stand es bei der Kanzlei „do zrobienia", und der Mensch
+     * fand an seiner Stelle nur „Tu nie ma formularza" (jetzt: „…nie ma jeszcze pytań").
+     */
+    if (ext.questions === 0) continue;
     const at = input.filled.get(ext.moduleId) ?? null;
     const person = ext.audience === 'person';
     const repeat = repeatOf(ext.repeat);
@@ -279,7 +415,37 @@ export function stepsFor(input: {
     });
   }
 
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
   for (const one of input.steps) {
+    /*
+     * 0098 — EINE AUFGABE: erledigt mit genug Tagen; nach ihrem Ende ohne genug
+     * Tage überfällig — ausser er hat sie ausdrücklich ausgelassen oder abgelehnt.
+     */
+    if (one.kind === 'task' && one.task != null) {
+      const plan = one.task;
+      const phase = phaseOf(plan, today);
+      if (input.forPerson === true && phase === 'hidden') continue;
+      const said = input.tasks?.find((t) => t.stepId === one.stepId);
+      const progress = taskProgressOf(plan, said);
+      const ended = phase === 'reporting' || phase === 'over';
+      const last = said?.days.length ? said.days[said.days.length - 1] : null;
+
+      out.push({
+        key: `task:${one.stepId}`,
+        label: one.label ?? 'Zadanie (zapieczętowane)',
+        help: one.help,
+        source: 'hand', doneBy: 'person', visibleToPerson: true,
+        status: progress.fulfilled ? 'done'
+          : ended && progress.answer !== 'refused' && progress.answer !== 'passed' ? 'overdue' : 'todo',
+        doneAt: progress.fulfilled && last !== null ? `${last}T12:00:00` : null,
+        dueAt: null,
+        extensionId: null, stepId: one.stepId,
+        task: { plan, state: said, phase, ...progress }
+      });
+      continue;
+    }
+
     const mark = input.marks.find((m) => m.stepId === one.stepId) ?? null;
 
     out.push({

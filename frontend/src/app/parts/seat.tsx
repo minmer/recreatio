@@ -25,8 +25,12 @@ import { usePerson } from '../pagePerson';
 import { SeatTools } from '../SeatBar';
 import { seatName, useSeats, type SeatView } from '../seatContext';
 import { PageSteps } from '../PageLogicView';
+import { usePageLogic } from '../pageLogic';
+import { SeatSteps } from '../StepList';
 import { SeatAskBody, SeatChatBody } from '../SeatChatView';
-import { OwnSubmissions } from '../Submission';
+import { answerTask, stepsFor, type StepState } from '../steps';
+import { OwnSubmissions, ReviewSubmissions } from '../Submission';
+import { TaskCard } from '../TaskCard';
 
 /**
  * Die zwei Zustände, die alle drei kennen — und der Inhalt danach.
@@ -162,11 +166,21 @@ export const seatSubmissionPart = definePart<SubmissionConfig>({
     >
       {(seat) => (
         <>
-          <OwnSubmissions
-            seat={seat}
-            formId={config.form}
-            show={config.show === 'all' ? null : config.show}
-          />
+          {/*
+            0098 — DIE DURCHSICHT GEHÖRT HIERHER, an die Stelle dieses Bausteins:
+            solange die Einsendung nicht bestätigt ist, steht hier „Sprawdź swoje
+            dane" mit ALLEN Angaben (bestätigt wird das Ganze). Vorher stand sie
+            oben auf jeder Seite, auf die der Link führte.
+          */}
+          {seat.seatKey !== null && seat.submitted.some((v) => v.confirmedAt === null && (config.form === null || v.formId === config.form))
+            ? <ReviewSubmissions seat={seat} who={null} formId={config.form} />
+            : (
+              <OwnSubmissions
+                seat={seat}
+                formId={config.form}
+                show={config.show === 'all' ? null : config.show}
+              />
+            )}
           <SeatTools seat={seat} />
         </>
       )}
@@ -273,10 +287,17 @@ interface StepsConfig {
  * „KROKI OSOBY" — die Liste entsteht auf der KARTE DER SEITE (0048): jeder
  * Knoten „Krok" ist eine Zeile, erledigt, wenn gilt, was an seinem Eingang
  * hängt. Der Baustein selbst hat nichts einzustellen ausser der Überschrift.
+ *
+ * 0099 — OHNE KROKI AUF DER KARTE die Schritte des Formulars selbst: Daten
+ * bestätigen, „Uzupełnij: …" (gleich hier auszufüllen), Znaczniki, Zadania —
+ * dieselben, die die Kanzlei bei der Person sieht. Vorher stand hier dann
+ * „Nie ma tu nic do zrobienia", während die Kanzlei „do zrobienia" las.
  */
 function StepsCard({ title }: { title: string }) {
   const person = usePerson();
   const seats = useSeats();
+  const logic = usePageLogic();
+  const mapped = logic !== null && logic.logic.nodes.some((node) => node.kind === 'step');
   const head = <h2 className="wk-card-title">{title === '' ? 'Twoje kroki' : title}</h2>;
 
   /* Die Wahl oben gilt; ohne Wahl (die Ansicht eines Platzes) der eine offene Platz. */
@@ -295,7 +316,7 @@ function StepsCard({ title }: { title: string }) {
     );
   }
 
-  return <>{head}<PageSteps seat={seat} /></>;
+  return <>{head}{mapped || seat === null ? <PageSteps seat={seat} /> : <SeatSteps seat={seat} formId={null} />}</>;
 }
 
 export const seatStepsPart = definePart<StepsConfig>({
@@ -304,7 +325,7 @@ export const seatStepsPart = definePart<StepsConfig>({
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
   example: { title: 'Twoje kroki' },
   label: 'Kroki osoby',
-  use: 'Lista kroków osoby — układasz ją na mapie logiki strony, pod modułami.',
+  use: 'Lista kroków osoby — z mapy logiki strony, a bez kroków na mapie: kroki formularza (potwierdzenie danych, uzupełnienia, znaczniki, zadania).',
   box: { colSpan: 3, rowSpan: 3 },
 
   fields: [
@@ -320,6 +341,92 @@ export const seatStepsPart = definePart<StepsConfig>({
     : 'Lista kroków osoby, z tym, co już zrobione.',
 
   View: ({ config }) => <StepsCard title={config.title} />
+});
+
+/* -- Seine Aufgaben mit Zeitraum (0098) ------------------------------------------ */
+
+interface TasksConfig {
+  readonly title: string;
+
+  /** Aus welchem Formular — `null`: aus allen, die der Mensch eingesandt hat. */
+  readonly form: string | null;
+}
+
+const PHASE_ORDER: Record<NonNullable<StepState['task']>['phase'], number> = { active: 0, upcoming: 1, reporting: 2, over: 3, hidden: 4 };
+
+/**
+ * „ZADANIA" — was in einem Zeitraum zu tun ist: die laufenden und kommenden
+ * oben, mit przyjmuję / pomijam / odmawiam und den Tagen; die vergangenen
+ * zugeklappt darunter.
+ */
+function SeatTasks({ seat, formId }: { seat: SeatView; formId: string | null }) {
+  const rows = seat.forms
+    .filter((form) => formId === null || form.formId === formId)
+    .flatMap((form) => stepsFor({
+      hasSeat: false, confirmedAt: null, extensions: [], filled: new Map(),
+      steps: form.steps.filter((s) => s.kind === 'task'), marks: [], tasks: form.tasks, forPerson: true
+    }).filter((s) => s.task !== undefined && s.stepId !== null).map((s) => ({ form, s })))
+    .sort((a, b) => PHASE_ORDER[a.s.task!.phase] - PHASE_ORDER[b.s.task!.phase] || a.s.task!.plan.startsOn.localeCompare(b.s.task!.plan.startsOn));
+
+  if (rows.length === 0) return <p className="wk-card-muted">Na razie nie ma żadnych zadań.</p>;
+
+  const card = ({ form, s }: (typeof rows)[number]) => (
+    <li key={`${form.registrationId}:${s.stepId}`} className="wk-task-item">
+      <TaskCard label={s.label} help={s.help} task={s.task!}
+        onChange={async (change) => { await answerTask(seat.token, form.registrationId, s.stepId!, change); seat.reload(); }} />
+    </li>
+  );
+
+  const now = rows.filter((r) => r.s.task!.phase !== 'over');
+  const past = rows.filter((r) => r.s.task!.phase === 'over');
+
+  return (
+    <div className="wk-tasks" data-seat-tasks="">
+      {now.length > 0 ? <ul className="wk-task-list">{now.map(card)}</ul> : <p className="wk-card-muted">Teraz nie ma zadań do zrobienia.</p>}
+      {past.length > 0 && (
+        <details className="wk-fold">
+          <summary>Zakończone ({past.length})</summary>
+          <ul className="wk-task-list">{past.map(card)}</ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
+export const seatTasksPart = definePart<TasksConfig>({
+  kind: 'seat-tasks',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: { title: 'Twoje zadania', form: '<id-formularza>' },
+  label: 'Zadania osoby',
+  use: 'Zadania na pewien czas (np. różaniec w październiku) — osoba je przyjmuje, pomija albo odmawia i zaznacza dni.',
+  box: { colSpan: 3, rowSpan: 3 },
+
+  fields: [
+    { key: 'form', label: 'Z którego formularza', kind: 'form', optional: true },
+    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Twoje zadania' }
+  ],
+
+  read: (raw: RawConfig): TasksConfig => ({
+    title: text(raw, 'title'),
+    form: text(raw, 'form') === '' ? null : text(raw, 'form')
+  }),
+
+  hasContent: () => true,
+  strip: { title: 'Twoje zadania', open: 'Pokaż zadania' },
+  shows: (_config, size) => size.height === 'strip'
+    ? 'Nagłówek i przycisk — zadania rozwijają się po kliknięciu.'
+    : 'Zadania osoby na teraz: decyzja i dni wykonania; zakończone zwinięte poniżej.',
+
+  View: ({ config }) => (
+    <OnSeat
+      title={config.title}
+      fallback="Twoje zadania"
+      empty="Tu pojawią się zadania osoby, która otworzy swój link."
+    >
+      {(seat) => <SeatTasks seat={seat} formId={config.form} />}
+    </OnSeat>
+  )
 });
 
 /* -- Die Rozmowa seiner Gruppe (0053) ------------------------------------------ */

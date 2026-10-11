@@ -146,7 +146,9 @@ export const entryStates = (info: StepInfo | null, s: Submission): readonly Step
     .filter((e) => filledNow(info.extensions.find((x) => x.moduleId === e.moduleId)?.repeat, e))
     .map((e) => [e.moduleId, e.submittedAt])),
   steps: info.steps,
-  marks: s.marks
+  marks: s.marks,
+  /* 0098 — was er zu den Aufgaben gesagt hat, und seine Tage. */
+  tasks: s.tasks
 });
 
 /**

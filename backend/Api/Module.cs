@@ -994,7 +994,12 @@ public static partial class Module
     /// geschickt haben.
     /// </para>
     /// </summary>
-    private static async Task RemoveAsync(HttpContext ctx, Db db, Guid id)
+    /// <param name="fromPages">
+    /// 0099 — nur fuer ein UNTERFORMULAR: es auch von den Seiten nehmen, auf
+    /// denen es steht — wenn der Aufrufer jede davon bearbeiten darf. Wer ein
+    /// Unterformular loswerden will, soll nicht erst jede Seite suchen muessen.
+    /// </param>
+    private static async Task RemoveAsync(HttpContext ctx, Db db, Guid id, bool? fromPages)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
@@ -1014,11 +1019,36 @@ public static partial class Module
             return;
         }
 
-        if (found.Value.Used > 0)
+        var offPages = fromPages == true && found.Value.ExtendsId is not null && found.Value.Used > 0;
+
+        if (found.Value.Used > 0 && !offPages)
         {
             await Fail(ctx, StatusCodes.Status409Conflict,
                 $"Ten moduł stoi jeszcze na {found.Value.Used} stronach — najpierw go stamtąd zdejmij.");
             return;
+        }
+
+        if (offPages)
+        {
+            var paths = new List<string>();
+            await using (var where = new SqlCommand("""
+                SELECT DISTINCT s.path FROM app.slug_part p JOIN app.slug s ON s.id = p.slug_id WHERE p.module_id = @id;
+                """, connection))
+            {
+                where.Parameters.AddWithValue("@id", id);
+                await using var reader = await where.ExecuteReaderAsync(ctx.RequestAborted);
+                while (await reader.ReadAsync(ctx.RequestAborted)) paths.Add(reader.GetString(0));
+            }
+
+            foreach (var path in paths)
+            {
+                if (!(await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted)).MayWrite)
+                {
+                    await Fail(ctx, StatusCodes.Status403Forbidden,
+                        $"Ten podformularz stoi na stronie „{(path == Slug.Home ? "recreatio.pl" : path)}\", której nie edytujesz — tam trzeba go zdjąć.");
+                    return;
+                }
+            }
         }
 
         if (found.Value.Entries > 0)
@@ -1040,16 +1070,27 @@ public static partial class Module
             }
         }
 
+        /* Alles oder nichts — eine Seite ohne den Baustein, aber mit seinen Fragen, hilft niemandem. */
         await using var cmd = new SqlCommand("""
+            SET XACT_ABORT ON;
+            BEGIN TRANSACTION;
+            IF @offPages = 1 DELETE FROM app.slug_part WHERE module_id = @id;
+            /* 0091 — ein Rollenzugang „über dieses Formular" bleibt, nur ohne das Formular. */
+            IF OBJECT_ID(N'app.access_role', N'U') IS NOT NULL
+                UPDATE app.access_role SET module_id = NULL WHERE module_id = @id;
             DELETE FROM app.slug_field WHERE part_id = @id;
             DELETE FROM app.form_design WHERE module_id = @id;
+            DELETE FROM app.task_answer WHERE step_id IN (SELECT id FROM app.form_step WHERE module_id = @id);
+            DELETE FROM app.task_day WHERE step_id IN (SELECT id FROM app.form_step WHERE module_id = @id);
             DELETE FROM app.form_step WHERE module_id = @id;
             IF OBJECT_ID(N'app.audience_form', N'U') IS NOT NULL
                 DELETE FROM app.audience_form WHERE module_id = @id OR (subject_kind = N'module' AND subject_id = @id);
             DELETE FROM app.module WHERE id = @id;
+            COMMIT TRANSACTION;
             """, connection);
 
         cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@offPages", offPages);
         await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new { moduleId = Ids.ToText(id), removed = true });

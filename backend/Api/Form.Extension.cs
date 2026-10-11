@@ -26,14 +26,17 @@ namespace Api;
 /// </summary>
 public static partial class Form
 {
-    /// <summary>Mehr Schritte als das ist keine Liste mehr, sondern ein Handbuch.</summary>
-    private const int MaxSteps = 30;
+    /// <summary>Mehr Schritte als das ist keine Liste mehr, sondern ein Handbuch (0098: mit den Aufgaben eines Jahres).</summary>
+    private const int MaxSteps = 60;
 
     private static void MapExtension(WebApplication app)
     {
         app.MapGet("/workspace/part/{id:guid}/steps", StepsAsync);
         app.MapPost("/workspace/part/{id:guid}/steps", SaveStepsAsync);
         app.MapPost("/workspace/registration/{id:guid}/step", MarkAsync);
+
+        /* 0098 — eine Aufgabe: was der Mensch sagt, an welchen Tagen er sie getan hat (die Kanzlei für ihn). */
+        app.MapPost("/workspace/registration/{id:guid}/task", OfficeTaskAsync);
         app.MapPost("/workspace/part/{id:guid}/entry", EntryAsync);
     }
 
@@ -165,7 +168,12 @@ public static partial class Form
 
     private sealed record StepRow(
         Guid Id, int Position, Guid AreaId, int Epoch, byte[] Label, byte[]? Help,
-        string DoneBy, bool VisibleToPerson, DateTimeOffset? DueAt);
+        string DoneBy, bool VisibleToPerson, DateTimeOffset? DueAt,
+
+        /* 0098 — ein Znacznik (mark) oder eine Aufgabe mit Zeitraum (task), und deren Plan. */
+        string Kind = "mark", TaskPlan? Plan = null);
+
+    private static string? DayText(DateOnly? day) => day?.ToString("yyyy-MM-dd");
 
     private static object ToldStep(StepRow s) => new
     {
@@ -177,7 +185,20 @@ public static partial class Form
         helpSealed = s.Help is null ? null : Base64Url.Encode(s.Help),
         doneBy = s.DoneBy,
         visibleToPerson = s.VisibleToPerson,
-        dueAt = s.DueAt
+        dueAt = s.DueAt,
+        kind = s.Kind,
+        task = s.Plan is null ? null : new
+        {
+            startsOn = DayText(s.Plan.StartsOn),
+            endsOn = DayText(s.Plan.EndsOn),
+            schedule = s.Plan.Schedule,
+            weekdays = s.Plan.Weekdays,
+            atMinute = s.Plan.AtMinute,
+            minutes = s.Plan.Minutes,
+            needed = s.Plan.Needed,
+            showFrom = DayText(s.Plan.ShowFrom),
+            reportUntil = DayText(s.Plan.ReportUntil)
+        }
     };
 
     private static async Task<List<StepRow>> ReadStepsAsync(
@@ -186,7 +207,8 @@ public static partial class Form
         var steps = new List<StepRow>();
 
         await using var cmd = new SqlCommand($"""
-            SELECT id, position, area_id, epoch, label_sealed, help_sealed, done_by, visible_to_person, due_at
+            SELECT id, position, area_id, epoch, label_sealed, help_sealed, done_by, visible_to_person, due_at,
+                   kind, starts_on, ends_on, schedule, weekdays, at_minute, minutes, needed, show_from, report_until
             FROM app.form_step
             WHERE module_id = @m {(personOnly ? "AND visible_to_person = 1" : "")}
             ORDER BY position;
@@ -196,11 +218,19 @@ public static partial class Form
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
+            static DateOnly? Day(SqlDataReader r, int i) => r.IsDBNull(i) ? null : DateOnly.FromDateTime(r.GetDateTime(i));
+            var kind = reader.GetString(9);
+            var plan = kind == "task" && Day(reader, 10) is { } starts && Day(reader, 11) is { } ends
+                ? new TaskPlan(starts, ends, reader.GetString(12), Names.Int(reader, 13), Names.Int(reader, 14),
+                    Names.Int(reader, 15), Names.Int(reader, 16), Day(reader, 17), Day(reader, 18))
+                : null;
+
             steps.Add(new StepRow(
                 reader.GetGuid(0), reader.GetInt32(1), reader.GetGuid(2), reader.GetInt32(3),
                 (byte[])reader[4], reader.IsDBNull(5) ? null : (byte[])reader[5],
                 reader.GetString(6), reader.GetBoolean(7),
-                reader.IsDBNull(8) ? null : reader.GetDateTimeOffset(8)));
+                reader.IsDBNull(8) ? null : reader.GetDateTimeOffset(8),
+                kind, plan));
         }
 
         return steps;
@@ -213,7 +243,8 @@ public static partial class Form
         var out_ = new List<object>();
 
         await using var cmd = new SqlCommand($"""
-            SELECT id, name, audience, closed_at, created_at, repeat_kind, area_id, name_sealed, name_epoch
+            SELECT id, name, audience, closed_at, created_at, repeat_kind, area_id, name_sealed, name_epoch,
+                   (SELECT COUNT(*) FROM app.slug_field f WHERE f.part_id = module.id AND f.removed_at IS NULL)
             FROM app.module
             WHERE extends_id = @m {(audience is null ? "" : "AND audience = @audience")}
             ORDER BY created_at;
@@ -237,7 +268,10 @@ public static partial class Form
                 closed = !reader.IsDBNull(3),
 
                 /* 0077 — wie oft sie je Mensch ausgefuellt wird. */
-                repeat = reader.GetString(5)
+                repeat = reader.GetString(5),
+
+                /* 0099 — ohne Fragen ist sie noch kein Schritt: es gibt nichts auszufuellen. */
+                questions = reader.GetInt32(9)
             });
         }
 
@@ -281,7 +315,14 @@ public static partial class Form
 
     public sealed record StepIn(
         string StepId, string AreaId, int Epoch, string LabelSealed, string? HelpSealed,
-        string DoneBy, bool VisibleToPerson, DateTimeOffset? DueAt);
+        string DoneBy, bool VisibleToPerson, DateTimeOffset? DueAt,
+
+        /* 0098 — eine Aufgabe mit Zeitraum (task) statt eines Znacznik (mark), und ihr Plan. */
+        string? Kind = null, TaskIn? Task = null);
+
+    public sealed record TaskIn(
+        string? StartsOn, string? EndsOn, string? Schedule, int? Weekdays, int? AtMinute, int? Minutes, int? Needed,
+        string? ShowFrom, string? ReportUntil);
 
     public sealed record StepsRequest(IReadOnlyList<StepIn>? Steps);
 
@@ -333,7 +374,7 @@ public static partial class Form
             return;
         }
 
-        var parsed = new List<(Guid Id, int Epoch, byte[] Label, byte[]? Help, string DoneBy, bool Visible, DateTimeOffset? Due)>();
+        var parsed = new List<(Guid Id, int Epoch, byte[] Label, byte[]? Help, string DoneBy, bool Visible, DateTimeOffset? Due, TaskPlan? Plan)>();
 
         foreach (var one in given)
         {
@@ -352,6 +393,22 @@ public static partial class Form
                 return;
             }
 
+            /* 0098 — eine Aufgabe: der Mensch sagt, was er damit macht; sie hat einen Zeitraum statt einer Frist. */
+            TaskPlan? plan = null;
+            if ((one.Kind ?? "mark").Trim().ToLowerInvariant() == "task")
+            {
+                var t = one.Task;
+                var (read, problem) = ReadTaskPlan(t?.StartsOn, t?.EndsOn, t?.Schedule, t?.Weekdays, t?.AtMinute, t?.Minutes, t?.Needed, t?.ShowFrom, t?.ReportUntil);
+                if (read is null)
+                {
+                    await Fail(ctx, StatusCodes.Status400BadRequest, problem ?? "Nieczytelny plan zadania.");
+                    return;
+                }
+                plan = read;
+                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), "person", true, null, plan));
+                continue;
+            }
+
             var doneBy = (one.DoneBy ?? string.Empty).Trim().ToLowerInvariant();
             if (doneBy is not ("office" or "person"))
             {
@@ -361,7 +418,7 @@ public static partial class Form
 
             /* Was der Mensch abhaken soll, muss er sehen. */
             parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), doneBy,
-                doneBy == "person" || one.VisibleToPerson, one.DueAt));
+                doneBy == "person" || one.VisibleToPerson, one.DueAt, null));
         }
 
         if (parsed.Select(p => p.Id).Distinct().Count() != parsed.Count)
@@ -380,6 +437,10 @@ public static partial class Form
             await using (var drop = new SqlCommand($"""
                 DELETE FROM app.step_mark
                  WHERE step_id IN (SELECT id FROM app.form_step WHERE module_id = @m AND id NOT IN ({names}));
+                DELETE FROM app.task_answer
+                 WHERE step_id IN (SELECT id FROM app.form_step WHERE module_id = @m AND id NOT IN ({names}));
+                DELETE FROM app.task_day
+                 WHERE step_id IN (SELECT id FROM app.form_step WHERE module_id = @m AND id NOT IN ({names}));
                 DELETE FROM app.form_step WHERE module_id = @m AND id NOT IN ({names});
                 """, connection, tx))
             {
@@ -397,14 +458,44 @@ public static partial class Form
                         UPDATE app.form_step
                            SET position = @pos, area_id = @area, epoch = @epoch,
                                label_sealed = @label, help_sealed = @help,
-                               done_by = @doneBy, visible_to_person = @visible, due_at = @due
+                               done_by = @doneBy, visible_to_person = @visible, due_at = @due,
+                               kind = @kind, starts_on = @starts, ends_on = @ends, schedule = @schedule, weekdays = @weekdays,
+                               at_minute = @at, minutes = @minutes, needed = @needed, show_from = @showFrom, report_until = @reportUntil
                          WHERE id = @id AND module_id = @m;
                     ELSE
                         INSERT INTO app.form_step
                             (id, module_id, position, area_id, epoch, label_sealed, help_sealed,
-                             done_by, visible_to_person, due_at, created_at)
-                        VALUES (@id, @m, @pos, @area, @epoch, @label, @help, @doneBy, @visible, @due, @now);
+                             done_by, visible_to_person, due_at, created_at,
+                             kind, starts_on, ends_on, schedule, weekdays, at_minute, minutes, needed, show_from, report_until)
+                        VALUES (@id, @m, @pos, @area, @epoch, @label, @help, @doneBy, @visible, @due, @now,
+                                @kind, @starts, @ends, @schedule, @weekdays, @at, @minutes, @needed, @showFrom, @reportUntil);
+
+                    /* 0098 — Tage, die nach einem geänderten Plan nicht mehr dazugehören, gehen
+                       (1900-01-01 war ein Montag: so ergibt sich das Bit des Wochentags ohne DATEFIRST). */
+                    IF @kind = N'task'
+                        DELETE FROM app.task_day
+                         WHERE step_id = @id
+                           AND (day < @starts OR day > @ends
+                                OR (@schedule = N'weekly' AND (@weekdays & POWER(2, DATEDIFF(day, '19000101', day) % 7)) = 0));
+                    ELSE
+                    BEGIN
+                        DELETE FROM app.task_day WHERE step_id = @id;
+                        DELETE FROM app.task_answer WHERE step_id = @id;
+                    END
                     """, connection, tx);
+
+                var plan = one.Plan;
+                object Day(DateOnly? d) => d is null ? DBNull.Value : d.Value.ToDateTime(TimeOnly.MinValue);
+                save.Parameters.AddWithValue("@kind", plan is null ? "mark" : "task");
+                save.Parameters.Add("@starts", System.Data.SqlDbType.Date).Value = Day(plan?.StartsOn);
+                save.Parameters.Add("@ends", System.Data.SqlDbType.Date).Value = Day(plan?.EndsOn);
+                save.Parameters.AddWithValue("@schedule", (object?)plan?.Schedule ?? DBNull.Value);
+                save.Parameters.AddWithValue("@weekdays", (object?)plan?.Weekdays ?? DBNull.Value);
+                save.Parameters.AddWithValue("@at", (object?)plan?.AtMinute ?? DBNull.Value);
+                save.Parameters.AddWithValue("@minutes", (object?)plan?.Minutes ?? DBNull.Value);
+                save.Parameters.AddWithValue("@needed", (object?)plan?.Needed ?? DBNull.Value);
+                save.Parameters.Add("@showFrom", System.Data.SqlDbType.Date).Value = Day(plan?.ShowFrom);
+                save.Parameters.Add("@reportUntil", System.Data.SqlDbType.Date).Value = Day(plan?.ReportUntil);
 
                 save.Parameters.AddWithValue("@id", one.Id);
                 save.Parameters.AddWithValue("@m", sheet.ModuleId);
@@ -481,7 +572,7 @@ public static partial class Form
             SELECT COUNT(*)
             FROM app.form_step s
             JOIN app.registration r ON r.part_id = s.module_id
-            WHERE s.id = @step AND r.id = @reg
+            WHERE s.id = @step AND r.id = @reg AND s.kind = N'mark'
               {(personOnly ? "AND s.done_by = N'person' AND r.access_id = @seat AND r.withdrawn_at IS NULL" : "")};
             """, connection))
         {
@@ -784,7 +875,8 @@ public static partial class Form
             var extensions = new List<object>();
 
             await using (var cmd = new SqlCommand("""
-                SELECT m.id, m.name, m.closed_at, x.id, m.repeat_kind, x.round_key, m.area_id, m.name_sealed, m.name_epoch
+                SELECT m.id, m.name, m.closed_at, x.id, m.repeat_kind, x.round_key, m.area_id, m.name_sealed, m.name_epoch,
+                       (SELECT COUNT(*) FROM app.slug_field f WHERE f.part_id = m.id AND f.removed_at IS NULL)
                 FROM app.module m
                 OUTER APPLY (
                     /* 0077 — die juengste: bei einer wiederkehrenden die des letzten Zeitraums. */
@@ -816,12 +908,18 @@ public static partial class Form
 
                         /* 0077 — wie oft, und welchen Zeitraum die juengste Einsendung traegt. */
                         repeat = reader.GetString(4),
-                        round = reader.IsDBNull(5) ? null : reader.GetString(5)
+                        round = reader.IsDBNull(5) ? null : reader.GetString(5),
+
+                        /* 0099 — ohne Fragen kein Schritt „Uzupełnij". */
+                        questions = reader.GetInt32(9)
                     });
                 }
             }
 
             var steps = await ReadStepsAsync(connection, part, personOnly: true, ct);
+
+            /* 0098 — was er zu den Aufgaben gesagt hat, und an welchen Tagen er sie getan hat. */
+            var tasks = await TasksOfAsync(connection, "@reg", c => c.Parameters.AddWithValue("@reg", registrationId), ct);
 
             /* Nur die Haken an Schritten, die er sieht — von den übrigen nicht einmal, dass es sie gibt. */
             var marks = new List<object>();
@@ -852,7 +950,8 @@ public static partial class Form
                 confirmedAt = confirmed,
                 extensions,
                 steps = steps.Select(ToldStep),
-                marks
+                marks,
+                tasks = tasks.TryGetValue(registrationId, out var said) ? said : []
             });
         }
 

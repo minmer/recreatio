@@ -8,8 +8,10 @@
  * deshalb hier und erscheint auf jeder Seite, auf der ein Platz offen ist.
  *
  * <code>
- *   SeatBar           oben auf der Seite: was nicht aufging, die Frage beim
- *                     ersten Öffnen und die Durchsicht der Angaben (0046)
+ *   SeatBar           oben auf der Seite: was nicht aufging und die Frage beim
+ *                     ersten Öffnen (0046). 0098: die Durchsicht der Angaben steht
+ *                     NICHT mehr hier, sondern im Baustein „Zgłoszenie osoby" — nur
+ *                     wo er auf der Seite liegt, und an seiner Stelle
  *   SeatTools         das Binden an ein Konto
  *   PersonalSections  die eingebauten Abschnitte — wo die Seite keine eigenen hat
  *   MyLink, BindSeat  einzeln, für die Ansicht eines Platzes ohne Seite
@@ -23,12 +25,12 @@ import { keysFor } from './ringOf';
 import { useRoleNames } from './roleNames';
 import { bindSeat } from './seat';
 import { FirstOpen } from './FirstOpen';
-import { seatName, useSeats, useSeatStates, type SeatView } from './seatContext';
+import { useSeatStates, type SeatView } from './seatContext';
 import { SeatChatSections } from './SeatChatView';
 import { freshSeat, linkTo, seatsExactly, wasReplaced } from './seatKeep';
 import { whoIsThere, WorkspaceError, type Who } from './session';
 import { SeatSteps } from './StepList';
-import { OwnSubmissions, ReviewSubmissions } from './Submission';
+import { OwnSubmissions } from './Submission';
 
 /* -- Oben auf der Seite ----------------------------------------------------- */
 
@@ -51,7 +53,6 @@ import { OwnSubmissions, ReviewSubmissions } from './Submission';
  */
 export function SeatBar({ path }: { path: string }) {
   const states = useSeatStates();
-  const seats = useSeats();
   const fresh = freshSeat();
 
   const here = fresh !== null && fresh.under === path ? fresh : null;
@@ -75,9 +76,6 @@ export function SeatBar({ path }: { path: string }) {
 
   /* ERST BESTÄTIGEN (0046) — je Link, der darauf wartet. */
   const asking = states.filter((one) => one.state === 'verify' && one.challenge !== null && mine.has(one.token));
-
-  /* DANN DURCHSEHEN (0046) — was noch niemand als richtig bestätigt hat. */
-  const reviewing = seats.filter((one) => mine.has(one.token));
 
   return (
     <>
@@ -103,10 +101,11 @@ export function SeatBar({ path }: { path: string }) {
         <FirstOpen key={one.token} token={one.token} challenge={one.challenge!} onPassed={one.reload} />
       ))}
 
-      {/* Solange ein Link fragt, wer da ist, steht KEINE Angabe da — auch keine zum Durchsehen. */}
-      {asking.length === 0 && reviewing.map((seat, i) => (
-        <ReviewSubmissions key={seat.token} seat={seat} who={reviewing.length > 1 ? seatName(seat, i) : null} />
-      ))}
+      {/*
+        0098 — DIE ANGABEN STEHEN NUR, WO IHR BAUSTEIN LIEGT. Hier stand die
+        Durchsicht („Sprawdź swoje dane") oben auf jeder Seite, zu der ein Link
+        führte; jetzt zeigt sie der Baustein „Zgłoszenie osoby" an seiner Stelle.
+      */}
     </>
   );
 }

@@ -294,8 +294,8 @@ function Shell({
             und die eine Stelle, an der jeder zuerst klickt, wenn er sich
             verlaufen hat.
           */}
+          {/* Ohne Bau-Etikett („Neubau"): der Neubau ist die Seite, und so heisst sie auch. */}
           <a className="wk-brand" href={path('workspace')}>REcreatio</a>
-          <span className="wk-stage">Neubau</span>
 
           {/* Das Menü der Seite — direkt in der Kopfleiste, nicht als zweiter Streifen darunter. */}
           <div className="wk-top-menu" ref={setSlot} />

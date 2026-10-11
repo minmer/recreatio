@@ -158,7 +158,9 @@ export function SlotCard({ title, resource }: {
   /*
    * DER TERMIN, DER SCHON WAR. Er zählt nicht mehr als gehalten (`live`) —
    * aber wer ihn hatte, soll ihn sehen und nicht die Liste, als hätte er nie
-   * gewählt. Einen weiteren wählt er, wenn er will, mit einem Klick.
+   * gewählt. 0099: und dabei bleibt es — nach dem Termin ist der Baustein nur
+   * noch zum Lesen (Wunsch der Kanzlei); vorher stand hier „Wybierz kolejny
+   * termin".
    */
   const past = holder === null ? [] : data.mine
     .filter((c) => c.status === 'confirmed' && new Date(c.endsAt).getTime() <= Date.now())
@@ -239,14 +241,6 @@ export function SlotCard({ title, resource }: {
           <p className="wk-slot-label">Twój termin</p>
           <p className="wk-slot-when">{span(lastPast.startsAt, lastPast.endsAt, rules)}</p>
           <p className="wk-slot-note">Ten termin już się odbył.</p>
-          {!atLimit && (
-            <div className="wk-actions">
-              <button type="button" className="wk-link-btn" disabled={busy !== null}
-                onClick={() => setPicking({ replaces: null })}>
-                Wybierz kolejny termin
-              </button>
-            </div>
-          )}
         </article>
       )}
 

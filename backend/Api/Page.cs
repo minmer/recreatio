@@ -467,10 +467,19 @@ public static class Page
          */
         var menu = await Menu.ForPageAsync(connection, aliasOf ?? wanted, includeSelf: true, ctx.RequestAborted);
 
+        /*
+         * 0099 — DARF DIESES KONTO DIE SEITE BEARBEITEN? Dann steht oben „Edytuj
+         * stronę" und führt gleich in den Editor. Bearbeitet wird, wo der Inhalt
+         * liegt: bei einem Alias sein Ziel. Ohne Sitzung keine Anfrage.
+         */
+        var editable = false;
+        if (await Auth.WhoAsync(ctx, db) is { } me)
+            editable = (await Access.OfAsync(connection, me.AccountId, aliasOf ?? wanted, ctx.RequestAborted)).MayWrite;
+
         /* 0048 — die Karte der Seite: was wann zu sehen ist, und die Schritte. */
         await ctx.Response.WriteAsJsonAsync(new
         {
-            path = wanted, aliasOf, title, lead, updatedAt, parts, logic, access,
+            path = wanted, aliasOf, title, lead, updatedAt, parts, logic, access, editable,
 
             /* 0062 — Seite oder Slajdy, und wie sie aussehen. */
             mode = mode ?? "page", theme,

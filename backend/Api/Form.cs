@@ -622,7 +622,8 @@ public static partial class Form
         var fields = await ReadFieldsAsync(connection, id, ctx.RequestAborted);
         if (fields.Count == 0)
         {
-            await Fail(ctx, StatusCodes.Status404NotFound, "Tu nie ma formularza.");
+            /* 0099 — es gibt ihn, nur noch ohne Fragen: das sagen, statt „hier ist keiner". */
+            await Fail(ctx, StatusCodes.Status404NotFound, "Ten formularz nie ma jeszcze pytań.");
             return;
         }
 
@@ -1666,6 +1667,9 @@ public static partial class Form
         var extensions = rows.Count == 0 ? [] : await ExtensionsOfAsync(connection, theseIds, Bind, ctx.RequestAborted);
         var stepMarks = rows.Count == 0 ? [] : await MarksOfAsync(connection, theseIds, Bind, ctx.RequestAborted);
 
+        /* 0098 — was jeder zu den Aufgaben gesagt hat, und an welchen Tagen er sie getan hat. */
+        var taskState = rows.Count == 0 ? [] : await TasksOfAsync(connection, theseIds, Bind, ctx.RequestAborted);
+
         await ctx.Response.WriteAsJsonAsync(new
         {
             partId = Ids.ToText(id),
@@ -1681,6 +1685,7 @@ public static partial class Form
                 byOffice = r.ByOffice,
                 extensions = extensions.TryGetValue(r.Id, out var ext) ? ext : [],
                 marks = stepMarks.TryGetValue(r.Id, out var done) ? done : [],
+                tasks = taskState.TryGetValue(r.Id, out var said) ? said : [],
                 seatId = r.Seat is null ? null : Ids.ToText(r.Seat.Value),
                 submittedAt = r.At,
                 withdrawnAt = r.Gone,
@@ -1898,6 +1903,8 @@ public static partial class Form
             await using (var cmd = new SqlCommand("""
                 DELETE FROM app.step_mark WHERE registration_id = @id
                     OR registration_id IN (SELECT id FROM app.registration WHERE base_id = @id);
+                DELETE FROM app.task_answer WHERE registration_id = @id;
+                DELETE FROM app.task_day WHERE registration_id = @id;
                 DELETE FROM app.value_check
                  WHERE registration_id = @id
                     OR registration_id IN (SELECT id FROM app.registration WHERE base_id = @id);

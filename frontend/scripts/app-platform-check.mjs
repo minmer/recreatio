@@ -22,6 +22,9 @@
  *  21. Gruppen von Formularen (0096): Ordner, Unterformulare unter dem Hauptformular, was die Karten der Seiten brauchen, die Karte.
  *  22. Namen liegen nie offen (0097): die Etiketten (und dieselben im Kernel), Vor- und Nachname, versiegeln und öffnen —
  *      unter einem Bereich, für die Annahme, für den Gastgeber.
+ *  23. Zadania dla osób (0098): welche Tage zählen, die Phasen, erfüllt mit genug Tagen, der Plan in Worten, im Fortschritt.
+ *  24. Seite und Formular (0099): am Telefon die Folge, die für das Telefon gelegt wurde; ein Unterformular ohne Fragen
+ *      ist kein Schritt.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -95,6 +98,8 @@ export {
   personName, nameText, sealName, openWith, sealForIntake, openFromIntake, sealForPublic, openForPrivate
 } from '${app}names';
 export { hostPair, askNameFor, openAskNames } from '${app}holderNames';
+export { taskDays, taskDay, phaseOf, progressOf as taskProgress, planText, weekdayBit, nextDay, reportsUntil, chipText as taskChip } from '${app}candidateTasks';
+export { byReadingOrder } from '${app}layout';
 `);
 await build({
   entryPoints: [entry],
@@ -1614,6 +1619,92 @@ try {
     assert.equal(stranger.size, 0, 'only the host opens it');
     assert.deepEqual(await m.askNameFor('ask2', null, 'Ewa Lis'), {}, 'no host key: no name for the host');
     ok('names never lie open (0097): labels (and the same in the kernel), name and surname, sealing and opening — under an area, for the intake, for the host');
+  }
+
+  /* -- 23. Zadania dla osób (0098) ----------------------------------------------------------------- */
+  {
+    const plan = (over = {}) => ({
+      startsOn: '2026-10-01', endsOn: '2026-10-31', schedule: 'daily', weekdays: null, atMinute: 18 * 60, minutes: 30,
+      needed: null, showFrom: null, reportUntil: null, ...over
+    });
+    const rosary = plan({ needed: 5 });
+    const fridays = plan({ schedule: 'weekly', weekdays: 16, atMinute: 19 * 60 + 30, minutes: null });
+    const film = plan({ schedule: 'any', atMinute: null, minutes: 120, showFrom: '2026-09-25', reportUntil: '2026-11-15' });
+
+    assert.equal(m.weekdayBit('2026-10-12'), 1, 'Monday');
+    assert.equal(m.weekdayBit('2026-10-16'), 16, 'Friday');
+    assert.equal(m.taskDays(rosary).length, 31, 'every day of October');
+    assert.deepEqual(m.taskDays(fridays), ['2026-10-02', '2026-10-09', '2026-10-16', '2026-10-23', '2026-10-30'], 'the Fridays of October');
+    assert.deepEqual(m.taskDays(fridays, '2026-10-12'), ['2026-10-02', '2026-10-09'], 'up to a day');
+    assert.equal(m.nextDay(fridays, '2026-10-11'), '2026-10-16', 'the next Friday');
+    assert.equal(m.nextDay(fridays, '2026-10-31'), null, 'none left');
+
+    assert.equal(m.phaseOf(film, '2026-09-20'), 'hidden');
+    assert.equal(m.phaseOf(film, '2026-09-26'), 'upcoming', 'shown before it starts');
+    assert.equal(m.phaseOf(rosary, '2026-09-26'), 'hidden', 'without „widoczne od": from its start');
+    assert.equal(m.phaseOf(rosary, '2026-10-15'), 'active');
+    assert.equal(m.reportsUntil(rosary), '2026-11-07', 'a week after its end');
+    assert.equal(m.phaseOf(rosary, '2026-11-05'), 'reporting');
+    assert.equal(m.phaseOf(rosary, '2026-11-08'), 'over');
+    assert.equal(m.phaseOf(film, '2026-11-12'), 'reporting', 'until its own „zaznaczać do"');
+
+    const days = (...d) => ({ stepId: 's', answer: 'accepted', days: d });
+    assert.deepEqual(m.taskProgress(rosary, days('2026-10-01', '2026-10-02', '2026-10-03')), { answer: 'accepted', done: 3, needed: 5, fulfilled: false });
+    assert.equal(m.taskProgress(rosary, days('2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05')).fulfilled, true, 'five days: done');
+    assert.equal(m.taskProgress(fridays, days('2026-10-03')).done, 0, 'a Saturday does not count for a Friday task');
+    assert.equal(m.taskProgress(film, undefined).answer, null);
+
+    assert.equal(m.planText(rosary), '1–31 października · codziennie · 18:00, 30 min');
+    assert.equal(m.planText(fridays), '1–31 października · w piątki · 19:30');
+    assert.equal(m.planText(film), '1–31 października · w dowolnym dniu · 2 godz.');
+    assert.equal(m.taskChip('2026-10-16'), 'pt 16.10');
+
+    /* Im Fortschritt: eine Aufgabe ist ein Schritt; vor „widoczne od" sieht der Mensch sie nicht; nach dem Ende ohne Tage überfällig. */
+    const step = (stepId, task) => ({
+      stepId, position: 0, areaId: 'a', epoch: 1, labelSealed: '', helpSealed: null, doneBy: 'person', visibleToPerson: true,
+      dueAt: null, kind: 'task', task, label: stepId, help: null
+    });
+    const at = (day) => new Date(day + 'T12:00:00');
+    const states = (now, tasks, forPerson = true) => m.stepsFor({
+      hasSeat: false, confirmedAt: null, extensions: [], filled: new Map(), marks: [], forPerson, now: at(now),
+      steps: [step('rosary', rosary), step('film', plan({ showFrom: '2026-10-10', startsOn: '2026-10-20', schedule: 'any' }))], tasks
+    });
+    assert.deepEqual(states('2026-10-05', []).map((s) => s.key), ['task:rosary'], 'the film is not shown yet');
+    assert.deepEqual(states('2026-10-05', [], false).map((s) => s.key), ['task:rosary', 'task:film'], 'the office sees both');
+    const five = [{ stepId: 'rosary', answer: 'accepted', days: ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05'] }];
+    assert.equal(states('2026-10-06', five)[0].status, 'done');
+    assert.equal(states('2026-11-02', [])[0].status, 'overdue', 'over, without days');
+    assert.equal(states('2026-11-02', [{ stepId: 'rosary', answer: 'refused', days: [] }])[0].status, 'todo', 'refused is a decision, not overdue');
+    assert.equal(states('2026-10-12', [])[0].task.phase, 'active');
+    ok('tasks for people (0098): which days count, phases from „widoczne od" to „zaznaczać do", done with enough days, the plan in words, in the progress');
+  }
+
+  /* -- 24. Seite und Formular (0099) --------------------------------------------------------------- */
+  {
+    /* Die Seite der Firmung, wie sie liegt: am Schreibtisch zwei Spalten, am Telefon eine eigene Folge. */
+    const frame = (row, col, colSpan, rowSpan = 3) => ({ position: { row, col }, size: { colSpan, rowSpan } });
+    const part = (id, desktop, mobile) => ({ id, layout: { desktop, ...(mobile === undefined ? {} : { mobile }) } });
+    const page = [
+      part('ask', frame(4, 1, 3), frame(7, 1, 2, 1)),
+      part('slots', frame(4, 4, 3), frame(5, 1, 2, 1)),
+      part('text', frame(1, 1, 2), frame(1, 1, 2, 1)),
+      part('steps', frame(1, 3, 4), frame(2, 1, 2)),
+      part('form', frame(7, 4, 3), frame(6, 1, 2, 1)),
+      part('chat', frame(7, 1, 3), frame(8, 1, 2, 1)),
+      part('old', frame(10, 1, 6))
+    ];
+    const ids = (list) => list.map((p) => p.id);
+    assert.deepEqual(ids(m.byReadingOrder(page)), ['text', 'steps', 'ask', 'slots', 'chat', 'form', 'old'], 'the desk: row by row');
+    assert.deepEqual(ids(m.byReadingOrder(page, 'mobile')), ['text', 'steps', 'slots', 'form', 'ask', 'chat', 'old'],
+      'the phone: as laid out for the phone (one without its own phone frame keeps its desk row)');
+
+    const ext = (moduleId, questions) => ({ moduleId, name: moduleId, audience: 'person', questions });
+    const keys = m.stepsFor({
+      hasSeat: true, confirmedAt: null, filled: new Map(), steps: [], marks: [],
+      extensions: [ext('empty', 0), ext('full', 3), ext('old-service', undefined)]
+    }).map((s) => s.key);
+    assert.deepEqual(keys, ['confirm', 'ext:full', 'ext:old-service'], 'a sub-form without questions is no step');
+    ok('page and form (0099): the phone in its own order, a sub-form without questions is no step');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;
