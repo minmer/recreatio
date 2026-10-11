@@ -13,7 +13,8 @@ import { AreaOptions } from './AreaOptions';
 import { setPartConfig } from './form';
 import { readFormContent, writeFormContent } from './formJson';
 import { JsonPanel, type JsonPreview } from './JsonPanel';
-import { readConfig, updateModule, type ModuleRow } from './module';
+import { createFormGroup, loadModules, readConfig, updateModule, type ModuleRow } from './module';
+import { newId } from './ids';
 import { configFromJson, documentKind, exportModule, moduleDescription, replacing } from './pageJson';
 import { partLabel } from './parts/registry';
 import { asRecord, asText, count } from './event/kit';
@@ -58,7 +59,11 @@ export function QuestionOptions({ answersTo, onAnswersTo, replace, onReplace }: 
 }
 
 /** Der Inhalt eines Dokuments für dieses Modul — aus einem Modul, einem Eintrag einer Seite oder als blosser Inhalt. */
-function contentOf(doc: unknown, kind: string): { config?: unknown; name?: string; questions?: unknown; design?: unknown; repeat?: Repeat; memberRole?: string | null } | { error: string } {
+function contentOf(doc: unknown, kind: string): {
+  config?: unknown; name?: string; questions?: unknown; design?: unknown; repeat?: Repeat; memberRole?: string | null;
+  /** 0096 — wer ein Unterformular ausfüllt; die Gruppe (ein Name, oder null: keine). */
+  audience?: 'person' | 'office'; group?: string | null;
+} | { error: string } {
   const root = asRecord(doc);
   const said = documentKind(doc);
   if (said === 'page' || said === 'legacy') return { error: 'To dokument całej strony — importuj go w edytorze strony.' };
@@ -74,7 +79,9 @@ function contentOf(doc: unknown, kind: string): { config?: unknown; name?: strin
     /* 0077 — wie oft eine Erweiterung ausgefüllt wird. Ein unbekanntes Wort ist keines. */
     ...((REPEATS as readonly string[]).includes(asText(root.repeat)) ? { repeat: asText(root.repeat) as Repeat } : {}),
     /* 0091 — die Rolle seiner Menschen: eine Kennung, oder null (keine). */
-    ...(has('memberRole') ? { memberRole: root.memberRole === null ? null : asText(root.memberRole).trim() || null } : {})
+    ...(has('memberRole') ? { memberRole: root.memberRole === null ? null : asText(root.memberRole).trim() || null } : {}),
+    ...(asText(root.audience) === 'person' || asText(root.audience) === 'office' ? { audience: asText(root.audience) as 'person' | 'office' } : {}),
+    ...(has('group') ? { group: root.group === null ? null : asText(root.group).trim() || null } : {})
   };
 }
 
@@ -109,6 +116,14 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
       if (!form || row.extendsId !== null) warnings.push('"memberRole" ma tylko formularz (nie rozszerzenie) — pominięte.');
       else lines.push(content.memberRole === null ? 'Rola uczestników: żadna (kto już należy, zostaje).' : 'Rola uczestników: z dokumentu — jeśli ją masz.');
     }
+    if (content.audience !== undefined && row.extendsId !== null && content.audience !== row.audience) {
+      if (row.entries > 0) warnings.push('Ten podformularz ma już wpisy — "audience" zostaje bez zmian.');
+      else lines.push(`Kto wypełnia: ${content.audience === 'office' ? 'tylko koordynator' : 'osoba przez swój link'}.`);
+    }
+    if (content.group !== undefined) {
+      if (!form) warnings.push('"group" ma tylko formularz — pominięte.');
+      else lines.push(content.group === null ? 'Grupa: żadna.' : `Grupa: „${content.group}" (jeśli jej nie ma — powstanie).`);
+    }
     if (asText(asRecord(doc).id) !== '' && asText(asRecord(doc).id) !== row.moduleId) {
       warnings.push('Dokument pochodzi z innego modułu — jego treść zostanie przeniesiona tutaj.');
     }
@@ -131,6 +146,24 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
       stage('Zmiana powtarzania…');
       await updateModule(row.moduleId, { repeat: content.repeat });
       lines.push(`Powtarzanie: ${REPEAT_LABEL[content.repeat]}.`);
+    }
+    if (content.audience !== undefined && row.extendsId !== null && content.audience !== row.audience && row.entries === 0) {
+      stage('Zmiana: kto wypełnia…');
+      await updateModule(row.moduleId, { audience: content.audience });
+      lines.push(`Kto wypełnia: ${content.audience === 'office' ? 'tylko koordynator' : 'osoba przez swój link'}.`);
+    }
+    if (form && content.group !== undefined) {
+      stage('Grupa formularzy…');
+      if (content.group === null) {
+        await updateModule(row.moduleId, { clearGroup: true });
+        lines.push('Grupa: żadna.');
+      } else {
+        const wanted = content.group;
+        const known = ((await loadModules()).groups ?? []).find((g) => g.name.toLocaleLowerCase('pl') === wanted.toLocaleLowerCase('pl'));
+        const groupId = known?.groupId ?? (await createFormGroup(newId(), wanted)).groupId;
+        await updateModule(row.moduleId, { groupId });
+        lines.push(known === undefined ? `Grupa „${wanted}" założona, formularz w niej.` : `Grupa: „${known.name}".`);
+      }
     }
     if (content.config !== undefined) {
       const patch = replacing(readConfig(row.config), configFromJson(row.kind, content.config));
@@ -165,7 +198,10 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
       lead={<>Nazwa i treść tego modułu{form ? ', jego pytania i układ' : ''} jako JSON. Import zmienia ten moduł na każdej stronie, na której stoi — bez tworzenia go od nowa.</>}
       fileName={`modul-${row.kind}-${row.moduleId.slice(0, 8)}.json`}
       exportDoc={async () => exportModule(
-        { moduleId: row.moduleId, kind: row.kind, name: row.name, config: readConfig(row.config), extendsId: row.extendsId, audience: row.audience, repeat: repeatOf(row.repeat), memberRole: row.memberRoleId ?? null },
+        {
+          moduleId: row.moduleId, kind: row.kind, name: row.name, config: readConfig(row.config), extendsId: row.extendsId, audience: row.audience, repeat: repeatOf(row.repeat), memberRole: row.memberRoleId ?? null,
+          group: row.groupId == null ? null : ((await loadModules()).groups ?? []).find((g) => g.groupId === row.groupId)?.name ?? null
+        },
         form ? await readFormContent(who, row.moduleId) : undefined
       )}
       description={() => moduleDescription(row.kind)}

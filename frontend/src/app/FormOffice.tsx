@@ -62,6 +62,7 @@ import { markFormSeen } from './notify';
 import { handOverRoleKeys } from './memberRole';
 import { MemberRoleSettings } from './MemberRoleSettings';
 import { DisplaySwitch } from './DisplaySwitch';
+import { FormBasics, FormFamily } from './FormFamily';
 import { useDisplay } from './display';
 import { loadChats, startSeatChat } from './chat';
 import { loadMembers } from './area';
@@ -1029,6 +1030,9 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
         />
       )}
 
+      {/* 0096 — das Hauptformular und seine Unterformulare: öffnen, bearbeiten, eines dazu; die Karte. */}
+      {module !== undefined && module.kind === 'form' && <FormFamily module={module} onChanged={() => void onModuleChanged?.()} />}
+
       {/* 0094 — einfach oder erweitert (gemerkt mit „Zapisz"). */}
       <DisplaySwitch tool="forms" />
 
@@ -1063,6 +1067,9 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
           {/* Wer „czy formularz jest czytelny dla wszystkich" fragt, steht HIER. */}
           {staleNotice}
           {hiddenNotice}
+
+          {/* 0096 — Name, Gruppe, und bei einem Unterformular wer es ausfüllt: auch im einfachen Weg. */}
+          <FormBasics module={module} busy={busy !== null} onAct={moduleAct} withName={simple} />
 
           {/* 0094 — Bereich, Art, neu versiegeln: der erweiterte Weg. */}
           {!simple && (

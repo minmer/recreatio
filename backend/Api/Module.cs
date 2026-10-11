@@ -27,7 +27,7 @@ namespace Api;
 /// Zeile und nicht in einer Bedingung, die jemand richtig schreiben muss.
 /// </para>
 /// </summary>
-public static class Module
+public static partial class Module
 {
     public const int MaxName = 200;
 
@@ -40,6 +40,9 @@ public static class Module
         app.MapPost("/workspace/module", CreateAsync);
         app.MapPost("/workspace/module/{id:guid}", UpdateAsync);
         app.MapDelete("/workspace/module/{id:guid}", RemoveAsync);
+
+        /* 0096 — Gruppen von Formularen (ein Ordner). */
+        MapGroups(app);
     }
 
     /* -- Was ich sehe --------------------------------------------------------- */
@@ -65,7 +68,7 @@ public static class Module
         var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
         if (mine.Count == 0)
         {
-            await ctx.Response.WriteAsJsonAsync(new { modules = Array.Empty<object>() });
+            await ctx.Response.WriteAsJsonAsync(new { modules = Array.Empty<object>(), groups = Array.Empty<object>() });
             return;
         }
 
@@ -135,7 +138,10 @@ public static class Module
                    m.extends_id, m.audience, m.repeat_kind,
 
                    /* 0091 — die Rolle, die seine Menschen bekommen. */
-                   m.member_role_id
+                   m.member_role_id,
+
+                   /* 0096 — in welcher Gruppe von Formularen, an welcher Stelle. */
+                   m.form_group_id, m.group_position
             FROM app.module m
             LEFT JOIN app.area a ON a.id = m.area_id
             WHERE
@@ -204,11 +210,16 @@ public static class Module
                 formIds = audience.TryGetValue(reader.GetGuid(0), out var aud) ? aud : [],
 
                 /* 0091 — die Rolle, die jeder bekommt, der es einsendet (null: keine). */
-                memberRoleId = reader.IsDBNull(19) ? null : Ids.ToText(reader.GetGuid(19))
+                memberRoleId = reader.IsDBNull(19) ? null : Ids.ToText(reader.GetGuid(19)),
+
+                /* 0096 — die Gruppe von Formularen (ein Ordner), und die Stelle darin. */
+                groupId = reader.IsDBNull(20) ? null : Ids.ToText(reader.GetGuid(20)),
+                groupPosition = reader.IsDBNull(21) ? (int?)null : reader.GetInt32(21)
             });
         }
 
-        await ctx.Response.WriteAsJsonAsync(new { modules });
+        await reader.CloseAsync();
+        await ctx.Response.WriteAsJsonAsync(new { modules, groups = await GroupsOfAsync(connection, mine, ctx.RequestAborted) });
     }
 
     /* -- Anlegen ------------------------------------------------------------- */
@@ -434,7 +445,13 @@ public static class Module
         string? DesignSealed = null, int? DesignEpoch = null,
 
         /* 0077 — wie oft eine Erweiterung ausgefüllt wird. Nur, solange nichts eingetragen ist. */
-        string? Repeat = null);
+        string? Repeat = null,
+
+        /* 0096 — wer ein Unterformular ausfüllt (person | office), solange nichts eingetragen ist. */
+        string? Audience = null,
+
+        /* 0096 — in welche Gruppe von Formularen (oder aus ihr heraus). */
+        string? GroupId = null, bool ClearGroup = false);
 
     /// <summary>
     /// Umbenennen, den Bereich setzen, die Einstellung aendern.
@@ -501,6 +518,53 @@ public static class Module
                     "To rozszerzenie ma już wpisy — powtarzanie zmienia się tylko w pustym.");
                 return;
             }
+        }
+
+        /*
+         * 0096 — WER EIN UNTERFORMULAR AUSFÜLLT: die Person über ihren Link, oder
+         * nur die Kanzlei. Zu ändern, solange nichts eingetragen ist — wer schon
+         * ausgefüllt hat, tat es unter der alten Regel.
+         */
+        string? audience = null;
+        if (!string.IsNullOrWhiteSpace(body.Audience))
+        {
+            audience = body.Audience.Trim().ToLowerInvariant();
+            if (audience is not ("person" or "office"))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Kto wypełnia: person albo office.");
+                return;
+            }
+
+            if (audience == found.Value.Audience) audience = null;
+            else if (found.Value.ExtendsId is null)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, "To ustawia się tylko w podformularzu.");
+                return;
+            }
+            else if (found.Value.Entries > 0)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, "Ten podformularz ma już wpisy — kto wypełnia, zmienia się tylko w pustym.");
+                return;
+            }
+        }
+
+        /* 0096 — in eine Gruppe (die ich sehe) oder aus ihr heraus. */
+        Guid? groupWanted = null;
+        var groupTouched = body.ClearGroup || !string.IsNullOrWhiteSpace(body.GroupId);
+        var groupMine = groupTouched ? await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted) : [];
+        if (!body.ClearGroup && !string.IsNullOrWhiteSpace(body.GroupId))
+        {
+            if (!Guid.TryParse(body.GroupId, out var g) || !(await GroupAccessAsync(connection, g, groupMine, ctx.RequestAborted)).Sees)
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Takiej grupy nie ma.");
+                return;
+            }
+            if (found.Value.Kind != "form")
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, "Do grupy formularzy trafiają tylko formularze.");
+                return;
+            }
+            groupWanted = g;
         }
 
         Guid? areaId = found.Value.AreaId;
@@ -746,6 +810,19 @@ public static class Module
                 cmd.Parameters.AddWithValue("@id", id);
 
                 await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            if (audience is not null)
+            {
+                await using var who2 = new SqlCommand("UPDATE app.module SET audience = @aud WHERE id = @id;", connection, tx);
+                who2.Parameters.AddWithValue("@aud", audience);
+                who2.Parameters.AddWithValue("@id", id);
+                await who2.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            if (groupTouched)
+            {
+                await PlaceInGroupAsync(connection, tx, found.Value, groupWanted, groupMine, ctx.RequestAborted);
             }
 
             if (designSealed is not null)

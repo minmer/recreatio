@@ -8073,3 +8073,72 @@ span.ch-sendas { cursor: default; }
 .wk-link-read-bar > span { flex: 1 1 14rem; min-width: 0; }
 .wk-link-room .wk-introduce { padding: 0.6rem 0.8rem; border-top: 1px solid var(--wk-line); background: var(--wk-surface); }
 .wk-link-chat-list > li > .wk-link-room { flex: 1 1 100%; min-width: 0; }
+
+/* ==========================================================================
+   0096 — GRUPY FORMULARZY, PODFORMULARZE, MAPA FORMULARZY
+   ========================================================================== */
+
+/* Die Liste: Gruppen als Abschnitte, Unterformulare eingerückt. */
+.wk-form-groups { display: grid; gap: 1rem; }
+.wk-fgroup { display: grid; gap: 0.4rem; padding: 0.7rem 0.8rem; border: 1px solid var(--wk-line); border-radius: 8px; background: var(--wk-surface); }
+.wk-fgroup.is-loose { background: transparent; border-style: dashed; }
+.wk-fgroup-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; }
+.wk-fgroup-name { flex: 1 1 auto; margin: 0; font-size: 1rem; font-weight: 600; }
+.wk-fgroup.is-loose .wk-fgroup-name { color: var(--wk-muted); font-weight: 500; }
+.wk-fgroup > .wk-empty { margin: 0; }
+.wk-form-list, .wk-form-subs { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }
+.wk-form-subs { margin-left: 1.6rem; padding-left: 0.6rem; border-left: 2px solid var(--wk-line); }
+.wk-form-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.6rem; }
+.wk-form-row > .wk-tree-row { flex: 1 1 18rem; min-width: 0; }
+.wk-form-row.is-sub .wk-tree-name { font-weight: 500; }
+.wk-form-row-acts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.wk-form-row-acts select { padding: 0.15rem 0.35rem; border: 1px solid var(--wk-line); border-radius: 4px; background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: 0.82rem; max-width: 12rem; }
+.wk-new-group { flex-wrap: wrap; gap: 0.4rem 0.6rem; }
+.wk-new-group .wk-hint { flex-basis: 100%; margin: 0; }
+
+/* Oben im Formular: das Hauptformular und seine Unterformulare als Reiter. */
+.wk-family { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; padding: 0.4rem 0; border-bottom: 1px solid var(--wk-line); }
+.wk-family-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; flex: 1 1 auto; min-width: 0; }
+.wk-family-tab { padding: 0.3rem 0.7rem; border: 1px solid var(--wk-line); border-radius: 999px; color: var(--wk-ink); text-decoration: none; font-size: 0.88rem; overflow-wrap: anywhere; }
+.wk-family-tab:hover, .wk-family-tab:focus-visible { border-color: var(--wk-accent); color: var(--wk-accent); }
+.wk-family-tab.is-on { background: var(--wk-accent); border-color: var(--wk-accent); color: var(--wk-on-accent); }
+.wk-family-who { opacity: 0.8; font-size: 0.8rem; }
+.wk-family-add { padding: 0.3rem 0.7rem; border: 1px dashed var(--wk-line); border-radius: 999px; background: transparent; color: var(--wk-accent); font: inherit; font-size: 0.88rem; cursor: pointer; }
+.wk-family-add:hover, .wk-family-add:focus-visible { border-color: var(--wk-accent); }
+.wk-family-side { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; }
+.wk-family-new { flex-basis: 100%; flex-wrap: wrap; gap: 0.4rem 0.6rem; }
+.wk-family-new input { flex: 1 1 14rem; min-width: 0; }
+.wk-family-new .wk-hint { flex-basis: 100%; margin: 0; }
+.wk-form-basics { gap: 0.6rem; }
+.wk-form-basics .wk-inline { flex-wrap: wrap; align-items: flex-end; gap: 0.4rem 0.6rem; }
+.wk-form-basics .wk-inline .wk-field { flex: 1 1 16rem; min-width: 0; }
+
+/* Die Karte der Formulare. */
+.wk-fmap-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.4rem 0.8rem; }
+.wk-fmap-head select { max-width: 22rem; }
+.wk-fmap-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; font-size: 0.8rem; color: var(--wk-muted); }
+.wk-fmap-legend li { display: inline-flex; align-items: center; gap: 0.35rem; }
+.wk-fmap-legend li::before { content: ''; width: 1.6rem; height: 0; border-top: 2px solid var(--wk-muted); }
+.wk-fmap-legend li.is-extends::before { border-top-color: var(--wk-accent); }
+.wk-fmap-legend li.is-link::before { border-top: 2px dashed var(--wk-accent); }
+.wk-fmap-legend li.is-logic::before { border-top: 2px dashed var(--wk-held-line); }
+.wk-fmap-legend li.is-role::before { border-top: 2px dotted var(--wk-ok); }
+.wk-fmap-canvas { height: min(78vh, 52rem); }
+.wk-fmap-node {
+  display: grid; gap: 0.08rem; width: 15.5rem; padding: 0.45rem 0.6rem; border: 1px solid var(--wk-line);
+  border-left-width: 4px; border-radius: 6px; background: var(--wk-surface); color: var(--wk-ink); font-size: 0.8rem; cursor: pointer;
+}
+.wk-fmap-node strong { overflow-wrap: anywhere; font-size: 0.86rem; }
+.wk-fmap-node.is-main { border-left-color: var(--wk-accent); }
+.wk-fmap-node.is-sub { border-left-color: var(--wk-free-line); }
+.wk-fmap-node.is-page { border-left-color: var(--wk-ink); width: 13rem; }
+.wk-fmap-node.is-role { border-left-color: var(--wk-ok); width: 13rem; }
+.wk-fmap-warn { color: var(--wk-danger); font-size: 0.74rem; }
+.wk-fmap-group { width: 100%; height: 100%; padding: 0.4rem 0.7rem; border: 2px dashed var(--wk-accent); border-radius: 10px; background: color-mix(in srgb, var(--wk-accent) 6%, transparent); box-sizing: border-box; }
+.wk-fmap-group strong { display: block; font-size: 0.9rem; }
+.wk-fmap-canvas .react-flow__node-groupBox { padding: 0; border: 0; background: transparent; }
+.wk-fmap-canvas .react-flow__edge.is-extends path { stroke: var(--wk-accent); stroke-width: 2; }
+.wk-fmap-canvas .react-flow__edge.is-link path { stroke: var(--wk-accent); stroke-dasharray: 6 4; }
+.wk-fmap-canvas .react-flow__edge.is-logic path { stroke: var(--wk-held-line); stroke-dasharray: 5 4; stroke-width: 1.6; }
+.wk-fmap-canvas .react-flow__edge.is-role path { stroke: var(--wk-ok); stroke-dasharray: 2 3; }
+.wk-fmap-canvas .react-flow__edge.is-stands path, .wk-fmap-canvas .react-flow__edge.is-filled path { stroke: var(--wk-muted); }

@@ -19,6 +19,7 @@
  *  18. Przejrzane je Konto (0090) und Zugang über eine Rolle (0091): der Weg von einer Rolle zu ihren Bereichen.
  *  19. Widoki (0094): Mój widok, einer je Bereich, eigene; Wege je Teil; Powiadomienia in eigener Reihenfolge; Szukaj.
  *  20. In einer Rozmowa spricht eine Person (0095): Rolle, dann Person; „Anna Nowak (Rada)"; die Rolle reist in der Hülle mit.
+ *  21. Gruppen von Formularen (0096): Ordner, Unterformulare unter dem Hauptformular, was die Karten der Seiten brauchen, die Karte.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -86,6 +87,7 @@ export { fold, searchHits } from '${app}search';
 export { slugOf } from '${app}Starters';
 export { personsHolding, speakersOf, chooseSpeaker, isMine, messageAuthor, authorText, speakerText, speakerKey, throughRole } from '${app}chatAuthor';
 export { sealMessage, openMessage } from '${app}chat';
+export { formSections, moveInGroup, logicDependencies, formMapModel } from '${app}formGroups';
 `);
 await build({
   entryPoints: [entry],
@@ -1472,6 +1474,84 @@ try {
     ];
     assert.deepEqual(m.unreadOf(msgs, null, holds, 2).map((x) => x.messageId), ['a'], 'a group-mate writing through Rada is news for me; my own is not');
     ok('one person speaks (0095): role then person, held through held persons, herself first; „Anna Nowak (Rada)" also without area names; a group-mate is not me; the role travels sealed');
+  }
+
+  /* -- 21. Gruppen von Formularen (0096) ---------------------------------------------------------- */
+  {
+    const group = (groupId, name) => ({ groupId, name, createdAt: '', mine: true, manages: true });
+    const form = (moduleId, name, over = {}) => ({
+      moduleId, name, kind: 'form', extendsId: null, audience: 'public', repeat: 'once', groupId: null, groupPosition: null,
+      pages: [], config: '{}', memberRoleId: null, entries: 0, closed: false, ...over
+    });
+    const groups = [group('g1', 'Bierzmowanie'), group('g0', 'Archiwum')];
+    const modules = [
+      form('zap', 'Zapisy do bierzmowania', { groupId: 'g1', groupPosition: 0, pages: ['p/signin'], config: JSON.stringify({ portalUnder: 'p/candidate' }), memberRoleId: 'r1', entries: 84 }),
+      form('z1', '1. Zadania', { extendsId: 'zap', audience: 'person', pages: ['p/candidate'] }),
+      form('z2', '2. Zadania', { extendsId: 'zap', audience: 'person', groupId: 'g1' }),
+      form('z3', '3. Zadania', { extendsId: 'zap', audience: 'person', groupId: 'nieznana' }),
+      form('z4', 'Stare zadania', { extendsId: 'zap', audience: 'person', groupId: 'g0' }),
+      form('inne', 'Odwiedziny chorych'),
+      form('notes', 'Notatki', { extendsId: 'inne', audience: 'office', repeat: 'month' }),
+      form('sierota', 'Bez głównego', { extendsId: 'niewidoczny', audience: 'person' }),
+      { ...form('txt', 'Tekst powitania'), kind: 'text' }
+    ];
+    const sections = m.formSections(modules, groups);
+    const shape = sections.map((sec) => [sec.group?.groupId ?? null, sec.items.map((i) => [i.form.moduleId, i.subs.map((x) => x.moduleId)])]);
+    assert.deepEqual(shape, [
+      ['g0', [['z4', []]]],
+      ['g1', [['zap', ['z1', 'z2', 'z3']]]],
+      [null, [['sierota', []], ['inne', ['notes']]]]
+    ], 'groups by name; a sub-form under its main form unless it sits in another group; an unknown group counts as none; one without a visible main form stands alone; only forms');
+    assert.deepEqual(m.formSections([], [group('g9', 'Pusta')]).map((sec) => [sec.group?.groupId, sec.items.length]), [['g9', 0]], 'an empty group still shows');
+    assert.deepEqual(m.moveInGroup(['a', 'b', 'c'], 'c', -1), ['a', 'c', 'b']);
+    assert.deepEqual(m.moveInGroup(['a', 'b', 'c'], 'a', -1), ['a', 'b', 'c'], 'at the edge it stays');
+
+    /* What the maps of the pages need from forms. */
+    const node = (id, kind, over = {}) => ({ id, kind, x: 0, y: 0, ...over });
+    const needs = m.logicDependencies([{
+      path: 'p/candidate',
+      parts: [{ id: 'part-z2', moduleId: 'z2', kind: 'form' }, { id: 'part-t', moduleId: 'txt', kind: 'text' }],
+      logic: {
+        version: 1,
+        nodes: [
+          node('n1', 'registered', { formId: 'z1' }), node('g', 'and'), node('n0', 'link'),
+          node('show-z2', 'part', { partId: 'part-z2' }),
+          node('n3', 'answer', { formId: 'zap', fieldId: 'f1', op: 'filled' }), node('show-t', 'part', { partId: 'part-t' }),
+          node('s1', 'step', { label: 'Rozmowa z księdzem' })
+        ],
+        edges: [
+          { id: 'e1', from: 'n1', to: 'g', port: 'in' }, { id: 'e2', from: 'n0', to: 'g', port: 'in' }, { id: 'e3', from: 'g', to: 'show-z2', port: 'show' },
+          { id: 'e4', from: 'n3', to: 'show-t', port: 'show' }, { id: 'e5', from: 'n1', to: 's1', port: 'done' }
+        ]
+      }
+    }, { path: 'p/bez-mapy', parts: [], logic: null }]);
+    const said = needs.map((n) => `${n.from}>${n.moduleId ?? 'step:' + n.step}:${n.condition}`).sort();
+    assert.deepEqual(said, ['z1>step:Rozmowa z księdzem:wysłany', 'z1>z2:wysłany', 'zap>txt:odpowiedź'], 'through gates back to the inputs that name a form');
+
+    /* The map. */
+    const identity = new Map([['zap', ['given_name', 'surname', 'phone']], ['inne', ['none']]]);
+    const map = m.formMapModel({ sections, identity, needs, moduleName: (id) => modules.find((x) => x.moduleId === id)?.name ?? null, roleName: () => 'Kandydaci' });
+    const byId = new Map(map.nodes.map((n) => [n.id, n]));
+    const has = (from, to, kind, label) => map.edges.some((e) => e.from === from && e.to === to && e.kind === kind && (label === undefined || e.label.includes(label)));
+    assert.ok(byId.get('group:g1')?.kind === 'group' && byId.get('form:zap')?.parent === 'group:g1', 'a group is a box; its forms stand inside');
+    const zap = byId.get('form:zap');
+    assert.ok(zap.lines.includes('po wysłaniu: link osoby') && zap.lines.some((l) => l.includes('Imię, Nazwisko')) && zap.lines.some((l) => l.startsWith('Telefon')), 'where the link starts, and which answers it needs');
+    assert.ok(byId.get('form:inne').warnings.some((w) => w.includes('Imię i Nazwisko')), 'a main form without a name: said');
+    assert.ok(has('in:p/signin', 'form:zap', 'stands', 'zapisy'), 'the page with the form');
+    assert.ok(has('form:zap', 'out:p/candidate', 'link', 'link osoby otwiera'), 'where the link of the person opens');
+    assert.ok(has('form:zap', 'form:z1', 'extends', 'uzupełnia przez swój link') && has('form:inne', 'form:notes', 'extends', 'notatki koordynatora'));
+    assert.ok(has('form:zap', 'form:z4', 'extends'), 'a sub-form in another group: the edge across the boxes');
+    assert.ok(has('form:zap', 'role:r1', 'role') && byId.get('role:r1')?.label === 'Kandydaci');
+    assert.ok(has('form:z1', 'out:p/candidate', 'filled', 'wypełniane na'), 'where a sub-form is filled');
+    assert.ok(has('form:z1', 'form:z2', 'logic', 'pokazany, gdy wysłany'), 'one form needs another one sent');
+    assert.ok(has('form:zap', 'out:p/candidate', 'logic', '„Tekst powitania" widać, gdy odpowiedź'));
+    assert.ok(has('form:z1', 'out:p/candidate', 'logic', 'krok „Rozmowa z księdzem"'));
+    assert.ok(!map.nodes.some((n) => n.id === 'form:txt'), 'only forms are forms on this map');
+    const focus = m.formMapModel({ sections, identity, needs, moduleName: () => null, roleName: () => null, focus: 'z2' });
+    const ids = new Set(focus.nodes.map((n) => n.id));
+    assert.ok(ids.has('form:zap') && ids.has('form:z1') && ids.has('form:z4') && ids.has('group:g0') && !ids.has('form:inne') && !ids.has('form:notes'),
+      'one family: the main form, its sub-forms, and the groups they stand in — nothing else');
+    ok('form groups (0096): folders by name with their forms in order, sub-forms under their main form; what page maps need from forms; the map: link, answers, sub-forms, roles, dependencies, one family');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

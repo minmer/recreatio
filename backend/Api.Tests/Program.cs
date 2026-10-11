@@ -75,6 +75,10 @@ Check(Chat.AvailableAt(fold, DateTimeOffset.Parse("2026-10-25T01:30:00Z")), "sec
     Check(ChatRules.PersonName("Anna\u0000\u0007", "Maria  Nowak") == "Anna Maria Nowak", "control characters and double spaces go");
     Check(ChatRules.PersonName(new string('a', 81), "Nowak") is null, "an overlong name is refused");
 }
+/* 0096 — a group of forms has a clean name. */
+Check(Module.GroupName("  Zadania   na  rok ") == "Zadania na rok", "a group name: trimmed, single spaces");
+Check(Module.GroupName(" \t ") is null && Module.GroupName(null) is null, "a group needs a name");
+Check(Module.GroupName("A\u0007B") == "AB" && Module.GroupName(new string('x', 201)) is null, "no control characters, at most 200");
 await ApiErrorChecks.RunAsync(Check);
 FileLoggerChecks.Run(Check);
 PageFileChecks.Run(Check);

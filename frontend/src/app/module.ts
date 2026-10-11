@@ -116,6 +116,25 @@ export interface ModuleRow {
 
   /** 0091 — die Rolle, die jeder bekommt, der dieses Formular einsendet (`null`: keine; fehlt beim alten Dienst). */
   readonly memberRoleId?: string | null;
+
+  /** 0096 — die Gruppe von Formularen (ein Ordner), in der es steht, und an welcher Stelle. */
+  readonly groupId?: string | null;
+  readonly groupPosition?: number | null;
+}
+
+/**
+ * GRUPA FORMULARZY (0096) — ein Ordner: Formulare und Unterformulare unter
+ * einem Namen, in einer Reihenfolge. Für den Menschen, der ausfüllt, ändert
+ * sich nichts.
+ */
+export interface FormGroup {
+  readonly groupId: string;
+  readonly name: string;
+  readonly createdAt: string;
+  /** Von mir angelegt. */
+  readonly mine: boolean;
+  /** Darf ich sie umbenennen, ordnen, auflösen (angelegt oder ein Formular darin geführt)? */
+  readonly manages: boolean;
 }
 
 /**
@@ -136,8 +155,21 @@ export interface ResealIn {
   readonly labelEpoch: number;
 }
 
-export const loadModules = (): Promise<{ modules: readonly ModuleRow[] }> =>
+export const loadModules = (): Promise<{ modules: readonly ModuleRow[]; groups?: readonly FormGroup[] }> =>
   call('/workspace/modules');
+
+/* -- 0096: Gruppen von Formularen ------------------------------------------------------------ */
+
+export const createFormGroup = (groupId: string, name: string): Promise<{ groupId: string; name: string }> =>
+  call('/workspace/form-groups', { method: 'POST', body: JSON.stringify({ groupId, name }) });
+
+/** Umbenennen und/oder ordnen (`order`: die Formulare der Gruppe in ihrer neuen Folge). */
+export const updateFormGroup = (groupId: string, change: { name?: string; order?: readonly string[] }): Promise<{ saved: boolean }> =>
+  call(`/workspace/form-group/${encodeURIComponent(groupId)}`, { method: 'POST', body: JSON.stringify(change) });
+
+/** Die Gruppe auflösen — ihre Formulare bleiben, nur lose. */
+export const removeFormGroup = (groupId: string): Promise<{ removed: boolean }> =>
+  call(`/workspace/form-group/${encodeURIComponent(groupId)}`, { method: 'DELETE' });
 
 export const createModule = (
   moduleId: string, kind: string, name: string, areaId: string | null,
@@ -189,6 +221,13 @@ export const updateModule = (
 
     /** 0077 — wie oft eine Erweiterung ausgefüllt wird. Nur, solange sie leer ist (sonst 409). */
     repeat?: Repeat;
+
+    /** 0096 — wer ein Unterformular ausfüllt. Nur, solange es leer ist (sonst 409). */
+    audience?: 'person' | 'office';
+
+    /** 0096 — in welche Gruppe von Formularen; `clearGroup`: aus ihr heraus. */
+    groupId?: string;
+    clearGroup?: boolean;
   }
 ): Promise<{ moduleId: string; areaId: string | null; name: string }> =>
   call(`/workspace/module/${encodeURIComponent(moduleId)}`, {

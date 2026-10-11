@@ -288,7 +288,10 @@ try {
   assert.equal(extModule.extends, 'b1');
   assert.equal(extModule.audience, 'office');
   assert.equal('repeat' in m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Chorzy', config: {} }), false, 'a plain form carries no repeat');
-  for (const key of ['"repeat" — ', '"extends", "audience" — ', '"memberRole" — ']) assert.ok(m.moduleDescription('form').includes(key), `form module description explains ${key}`);
+  for (const key of ['"repeat" — ', '"extends", "audience" — ', '"memberRole" — ', '"group" — ']) assert.ok(m.moduleDescription('form').includes(key), `form module description explains ${key}`);
+  /* 0096 — die Gruppe (der Ordner) geht mit ihrem Namen mit; ohne Gruppe kein Schlüssel. */
+  assert.equal(m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, group: 'Bierzmowanie 2027' }).group, 'Bierzmowanie 2027');
+  assert.equal('group' in m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, group: null }), false, 'no group, no key');
   /* 0091 — die Rolle seiner Menschen geht mit; ohne Rolle steht kein Schlüssel da. */
   assert.equal(m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, memberRole: 'r1' }).memberRole, 'r1');
   assert.equal('memberRole' in m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, memberRole: null }), false, 'no role, no key');

@@ -44,13 +44,15 @@ import { PickResource } from './PickResource';
 import { PickLibrary, PickLibraryEntry } from './LibraryPick';
 import { PickCalendar, PickCalendarItem } from './PickCalendar';
 import { DependencyMap } from './DependencyMap';
+import { FORM_MAP, FormList } from './FormList';
+import { FormMap } from './FormMap';
+import type { FormGroup } from './module';
 import { PEOPLE_TAB, viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { AreaOptions } from './AreaOptions';
 import { ModuleSettings } from './ModuleSettings';
 import { ModuleJson } from './ModuleJson';
 import { useDisplay } from './display';
-import { plural } from './ChatKit';
 import { current as notifyNow, subscribe as notifySubscribe } from './notify';
 import { useRecent } from './prefs';
 import { RecentRow, useTouched } from './Recent';
@@ -86,6 +88,8 @@ export function viewOf(trail: readonly string[]): View {
 
 export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) {
   const [modules, setModules] = useState<readonly ModuleRow[] | null>(null);
+  /* 0096 — die Gruppen von Formularen (Ordner). */
+  const [groups, setGroups] = useState<readonly FormGroup[]>([]);
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -102,7 +106,9 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
 
   const look = useCallback(async () => {
     try {
-      setModules((await loadModules()).modules);
+      const loaded = await loadModules();
+      setModules(loaded.modules);
+      setGroups(loaded.groups ?? []);
       setAreas((await loadAreas()).areas);
       setFailed(null);
     } catch (e) {
@@ -136,7 +142,9 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
 
   /* -- Der Weg oben im Kopf ------------------------------------------------ */
 
-  const crumbs: Crumb[] = trail[0] === MAP ? [{ label: 'Mapa zależności', href: null }] : view.at === 'kinds' ? [] : [
+  const crumbs: Crumb[] = trail[0] === MAP ? [{ label: 'Mapa zależności', href: null }]
+    : trail[0] === FORM_MAP ? [{ label: 'Mapa formularzy', href: null }]
+    : view.at === 'kinds' ? [] : [
     {
       label: partLabel(view.kind),
       href: viewPath('modules', view.kind),
@@ -173,6 +181,9 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
   /* 0072 — die Karte: Seiten, Bausteine und ihre Quellen, zum Ansehen und Umhängen. */
   if (trail[0] === MAP) return <DependencyMap />;
 
+  /* 0096 — die Karte der Formulare: Gruppen, Unterformulare, wo der Link entsteht, was wovon abhängt. */
+  if (trail[0] === FORM_MAP) return <FormMap focus={trail[1] ?? null} />;
+
   const head = (
     <>
       {failed !== null && <p className="wk-error">{failed}</p>}
@@ -189,32 +200,13 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
      * erweiterte Weg.
      */
     const fresh = new Map((digest?.registrations.list ?? []).map((one) => [one.moduleId, one.count]));
-    const forms = all.filter((one) => one.kind === 'form' && one.extendsId === null)
-      .sort((a, b) => (fresh.get(b.moduleId) ?? 0) - (fresh.get(a.moduleId) ?? 0) || a.name.localeCompare(b.name, 'pl'));
+    /* 0096 — die Formulare in ihren Gruppen, Unterformulare unter ihrem Hauptformular. */
     return (
       <>
         {head}
-        <ul className="wk-tree" data-simple-forms="">
-          {forms.map((one) => (
-            <li key={one.moduleId}>
-              <a className="wk-tree-row" href={viewPath('modules', 'form', one.moduleId)}>
-                <span className="wk-tree-name">{one.name}</span>
-                <span className="wk-tags">
-                  {one.areaId !== null && <span className="wk-tag">{areaPath(areas, one.areaId).short || one.areaName}</span>}
-                  {one.closed && <span className="wk-tag">zamknięty</span>}
-                  {(fresh.get(one.moduleId) ?? 0) > 0 && <span className="wk-tag wk-tag-new">nowe: {fresh.get(one.moduleId)}</span>}
-                </span>
-                <span className="wk-tree-mine">{one.entries} {plural(one.entries, 'zgłoszenie', 'zgłoszenia', 'zgłoszeń')}</span>
-              </a>
-            </li>
-          ))}
-          <li>
-            <a className="wk-tree-add" href={viewPath('modules', 'form', NEW)}>
-              <span aria-hidden="true">+</span> Nowy formularz
-            </a>
-          </li>
-        </ul>
-        {forms.length === 0 && <p className="wk-empty">Nie masz jeszcze formularza. Najprościej: na stronie warsztatu „Co chcesz zrobić?" → „Zapisy na wydarzenie".</p>}
+        <div data-simple-forms="">
+          <FormList modules={all} groups={groups} areas={areas} fresh={fresh} busy={busy !== null} onAct={act} />
+        </div>
       </>
     );
   }
@@ -226,7 +218,10 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
 
         <RecentRow scope="modules" items={all.map((m) => ({ id: m.moduleId, label: `${m.name} · ${partLabel(m.kind)}`, href: viewPath('modules', m.kind, m.moduleId) }))} />
 
-        <p><a className="wk-btn wk-btn-quiet" href={viewPath('modules', MAP)}>Mapa zależności — strony, moduły, źródła</a></p>
+        <p className="wk-actions">
+          <a className="wk-btn wk-btn-quiet" href={viewPath('modules', MAP)}>Mapa zależności — strony, moduły, źródła</a>
+          <a className="wk-btn wk-btn-quiet" href={viewPath('modules', FORM_MAP)}>Mapa formularzy — grupy, podformularze, link osoby</a>
+        </p>
 
         <Unused modules={all} busy={busy !== null} onAct={act} />
 

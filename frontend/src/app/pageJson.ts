@@ -134,6 +134,8 @@ export function exportModule(module: {
   readonly extendsId?: string | null; readonly audience?: string; readonly repeat?: string;
   /** 0091 — die Rolle, die seine Menschen bekommen. */
   readonly memberRole?: string | null;
+  /** 0096 — der Name der Gruppe (des Ordners), in dem das Formular steht. */
+  readonly group?: string | null;
 }, form?: FormContent): Record<string, unknown> {
   const def = partOf(module.kind);
   return {
@@ -145,7 +147,8 @@ export function exportModule(module: {
     ...(module.extendsId == null ? {} : { extends: module.extendsId, audience: module.audience ?? 'person', repeat: module.repeat ?? 'once' }),
     config: def === undefined ? { ...module.config } : def.json.toJson(module.config),
     ...(form === undefined ? {} : { questions: form.questions, design: form.design }),
-    ...(module.memberRole == null ? {} : { memberRole: module.memberRole })
+    ...(module.memberRole == null ? {} : { memberRole: module.memberRole }),
+    ...(module.group == null ? {} : { group: module.group })
   };
 }
 
@@ -854,7 +857,8 @@ Co robi import tutaj: zmienia TEN moduł — jego nazwę i treść — na wszyst
   "name" — nazwa na liście modułów
   "config" — treść, zależna od rodzaju (niżej)${form ? `
   "questions", "design" — pytania i układ formularza (niżej)
-  "extends", "audience" — tylko w rozszerzeniu formularza: który formularz rozszerza i kto je wypełnia ("person" — osoba przez swój link, "office" — tylko koordynator). Tylko informacja — import ich nie zmienia
+  "extends", "audience" — tylko w rozszerzeniu (podformularzu): który formularz rozszerza i kto je wypełnia ("person" — osoba przez swój link, "office" — tylko koordynator). "extends" to tylko informacja; "audience" import zmienia, dopóki podformularz nie ma żadnego wpisu
+  "group" — grupa formularzy (folder), w której stoi: jej nazwa; null — bez grupy. Import przenosi formularz do grupy o tej nazwie (jeśli jej nie ma — zakłada ją). Dla wypełniających nic się nie zmienia
   "repeat" — tylko w rozszerzeniu: jak często każda osoba z listy dostaje wpis — "once" (raz), "day", "week", "month", "year". Import zmienia to, dopóki rozszerzenie nie ma żadnego wpisu
   "memberRole" — rola uczestników: identyfikator roli, którą dostaje każdy, kto wyśle formularz (dostęp do jej obszarów, stron, kalendarzy, rozmów); null — żadna. Import ustawia ją tylko, jeśli masz tę rolę; kto już do niej należy, zostaje. Obecne zgłoszenia przenosi się w module („Przenieś obecne zgłoszenia")` : ''}
 
