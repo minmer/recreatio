@@ -71,7 +71,8 @@ export function SeatPortal({ token, keyText, under }: {
       )}
 
       <h1 className="wk-h1">
-        {template?.title ?? (portal.recipientName === null ? 'Twoje miejsce' : portal.recipientName)}
+        {/* 0097 — der Name aus seiner eigenen, versiegelten Kopie (`useSeat` öffnet sie mit seinem Schlüssel). */}
+        {template?.title ?? seat?.recipientName ?? 'Twoje miejsce'}
       </h1>
 
       <p className="wk-lede">

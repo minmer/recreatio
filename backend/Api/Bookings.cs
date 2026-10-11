@@ -198,7 +198,15 @@ public static partial class Bookings
 
         /* Wann der Erste ja gesagt hat — NULL: er entscheidet noch (0050). */
         DateTimeOffset? HostConfirmedAt = null,
-        DateTimeOffset? CreatedAt = null)
+        DateTimeOffset? CreatedAt = null,
+
+        /*
+         * 0097 — WER ES HÄLT, NIE OFFEN: für die Kanzlei (unter dem
+         * Bereichsschlüssel ODER für die Annahme verpackt), für den Gastgeber
+         * (seine Bitte, ECIES), und dessen P-256-Paar.
+         */
+        byte[]? HolderSealed = null, int? HolderEpoch = null, byte[]? HolderWrapped = null,
+        byte[]? AskSealed = null, byte[]? HostPublic = null, byte[]? HostPrivate = null)
     {
         /// <summary>
         /// Haelt DIESER ihn — ein Platz oder eine Rolle (0045)? Die Kennungen
@@ -210,7 +218,8 @@ public static partial class Bookings
     private const string ClaimColumns = """
         id, resource_id, starts_at, ends_at, item_id, occurrence_at, access_id, role_id,
         group_id, status, awaits, invite_sha256, invite_until, invite_sealed, holder_name,
-        host_confirmed_at, created_at
+        host_confirmed_at, created_at,
+        holder_name_sealed, holder_name_epoch, holder_name_wrapped, ask_name_sealed, host_wrap_public, host_wrap_private_sealed
         """;
 
     private static ClaimRow ReadClaim(SqlDataReader r) => new(
@@ -226,7 +235,13 @@ public static partial class Bookings
         r.IsDBNull(13) ? null : (byte[])r[13],
         r.IsDBNull(14) ? null : r.GetString(14),
         r.IsDBNull(15) ? null : r.GetDateTimeOffset(15),
-        r.IsDBNull(16) ? null : r.GetDateTimeOffset(16));
+        r.IsDBNull(16) ? null : r.GetDateTimeOffset(16),
+        r.IsDBNull(17) ? null : (byte[])r[17],
+        r.IsDBNull(18) ? null : r.GetInt32(18),
+        r.IsDBNull(19) ? null : (byte[])r[19],
+        r.IsDBNull(20) ? null : (byte[])r[20],
+        r.IsDBNull(21) ? null : (byte[])r[21],
+        r.IsDBNull(22) ? null : (byte[])r[22]);
 
     /// <summary>
     /// ZAEHLT GEGEN DIE GRENZE?
@@ -628,7 +643,7 @@ public static partial class Bookings
         /* Statt eines Platzes: eine eigene Person (mit Anmeldung). */
         string? RoleId = null,
 
-        /* Wie sie heisst — OFFEN, damit die Kanzlei weiss, wer da sitzt. */
+        /* 0045: wie sie heisst — 0097: nicht mehr offen; ein mitgeschickter Klartext wird nicht gespeichert. */
         string? Name = null,
 
         /* Die Kennung, die der Browser gewuerfelt hat — der Code ist an sie gebunden. */
@@ -643,7 +658,17 @@ public static partial class Bookings
         string? InviteSealed = null,
 
         /* Einen eigenen Termin gegen diesen tauschen — in EINEM Schritt. */
-        string? Replaces = null);
+        string? Replaces = null,
+
+        /*
+         * 0097 — der Name, versiegelt. Für die Kanzlei: unter dem Schlüssel des
+         * Bereichs des Dings (HolderNameEpoch) ODER mit einem Wegwerfschlüssel,
+         * der für die Annahme des Bereichs verpackt ist (HolderNameWrapped). Für
+         * den Gastgeber, wenn er um Mitnahme bittet: AskNameSealed (ECIES auf
+         * seinen Schlüssel). Wird DIESER Anspruch der Gastgeber: sein Paar.
+         */
+        string? HolderNameSealed = null, int? HolderNameEpoch = null, string? HolderNameWrapped = null,
+        string? AskNameSealed = null, string? HostWrapPublic = null, string? HostWrapPrivateSealed = null);
 
     private static async Task ClaimAsync(HttpContext ctx, Db db, ClaimRequest body)
     {
@@ -652,7 +677,12 @@ public static partial class Bookings
 
     public sealed record AskRequest(
         string ResourceId, string ItemId, string OccurrenceAt, string? Seat,
-        string? RoleId = null, string? Name = null);
+        string? RoleId = null, string? Name = null,
+        string? HolderNameSealed = null, int? HolderNameEpoch = null, string? HolderNameWrapped = null,
+        string? AskNameSealed = null,
+
+        /* 0097 — die Kennung würfelt der Browser: an sie sind die Hüllen des Namens gebunden. */
+        string? ClaimId = null);
 
     /// <summary>
     /// Um Mitnahme bitten — der zweite Weg hinein, wenn der Code fehlt.
@@ -667,7 +697,9 @@ public static partial class Bookings
     {
         await TakeAsync(ctx, db,
             new ClaimRequest(body.ResourceId, body.ItemId, body.OccurrenceAt, null, null, body.Seat, null, null,
-                RoleId: body.RoleId, Name: body.Name),
+                RoleId: body.RoleId,
+                HolderNameSealed: body.HolderNameSealed, HolderNameEpoch: body.HolderNameEpoch,
+                HolderNameWrapped: body.HolderNameWrapped, AskNameSealed: body.AskNameSealed, ClaimId: body.ClaimId),
             asking: true);
     }
 
@@ -836,8 +868,34 @@ public static partial class Bookings
             }
         }
 
-        var name = string.IsNullOrWhiteSpace(body.Name) ? null : body.Name.Trim();
-        if (name is not null && name.Length > MaxName) name = name[..MaxName];
+        /*
+         * 0097 — DER NAME, VERSIEGELT. Unter dem Bereichsschlüssel (die Epoche
+         * muss es geben, und sie darf nicht offen sein) oder für die Annahme —
+         * eines von beiden. Was nicht passt, wird weggelassen: der Termin steht
+         * trotzdem, die Kanzlei sieht dann „bez nazwy".
+         */
+        var holderSealed = Names.Blob(body.HolderNameSealed);
+        int? holderEpoch = null;
+        var holderWrapped = Names.Blob(body.HolderNameWrapped);
+        if (holderSealed is not null)
+        {
+            if (holderWrapped is null && body.HolderNameEpoch is int e && e >= 1
+                && await Names.EpochProblemAsync(connection, null, resource.AreaId, e, person: true, ctx.RequestAborted) is null)
+            {
+                holderEpoch = e;
+            }
+            else if (holderWrapped is null || body.HolderNameEpoch is not null)
+            {
+                holderSealed = null;
+                holderWrapped = null;
+            }
+        }
+        else holderWrapped = null;
+
+        var askSealed = asking ? Names.Blob(body.AskNameSealed) : null;
+        var hostPublic = Names.Blob(body.HostWrapPublic, min: 60, max: 256);
+        var hostPrivate = Names.Blob(body.HostWrapPrivateSealed, max: 512);
+        if (hostPublic is null || hostPrivate is null) { hostPublic = null; hostPrivate = null; }
 
         var tree = await TreeAsync(connection, null, resource, ctx.RequestAborted);
         string? code = null;
@@ -997,11 +1055,15 @@ public static partial class Bookings
                 INSERT INTO app.claim
                     (id, resource_id, starts_at, ends_at, item_id, occurrence_at, access_id, role_id,
                      group_id, status, awaits, invite_sha256, invite_until, invite_sealed, holder_name,
-                     created_at)
+                     created_at,
+                     holder_name_sealed, holder_name_epoch, holder_name_wrapped, ask_name_sealed,
+                     host_wrap_public, host_wrap_private_sealed)
                 VALUES
                     (@id, @r, @s, @e, @item, @at, @access, @role,
-                     @group, @status, @awaits, @hash, @until, @sealed, @name,
-                     @now);
+                     @group, @status, @awaits, @hash, @until, @sealed, NULL,
+                     @now,
+                     @holderSealed, @holderEpoch, @holderWrapped, @askSealed,
+                     @hostPublic, @hostPrivate);
                 """, connection, tx))
             {
                 insert.Parameters.AddWithValue("@id", claimId);
@@ -1025,8 +1087,15 @@ public static partial class Bookings
                 insert.Parameters.AddWithValue("@until",
                     hash is null ? DBNull.Value : now.AddMinutes(HostDecisionMinutes));
                 insert.Parameters.AddBlob("@sealed", sealedCode);
-                insert.Parameters.AddWithValue("@name", (object?)name ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@now", now);
+                insert.Parameters.AddBlob("@holderSealed", holderSealed);
+                insert.Parameters.AddWithValue("@holderEpoch", (object?)holderEpoch ?? DBNull.Value);
+                insert.Parameters.AddBlob("@holderWrapped", holderWrapped);
+                insert.Parameters.AddBlob("@askSealed", askSealed);
+
+                /* Sein Paar nur, wenn er wirklich der Gastgeber wird (0050) — sonst brauchte es niemand. */
+                insert.Parameters.AddBlob("@hostPublic", hash is null ? null : hostPublic);
+                insert.Parameters.AddBlob("@hostPrivate", hash is null ? null : hostPrivate);
 
                 await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
             }
@@ -1730,6 +1799,9 @@ public static partial class Bookings
         var rules = new
         {
             resourceId = Ids.ToText(found.Id),
+
+            /* 0097 — unter dem Schlüssel (oder für die Annahme) dieses Bereichs versiegelt eine Person ihren Namen für die Kanzlei. */
+            areaId = Ids.ToText(found.AreaId),
             name = found.Name,
             kind = found.Kind,
             mode = found.Mode,
@@ -1804,6 +1876,9 @@ public static partial class Bookings
                     /* Der Erste entscheidet noch, ob er einlaedt — bis `inviteUntil` (0050). */
                     hostPending = host is not null && HostUndecided(host, now),
 
+                    /* 0097 — sein öffentlicher Schlüssel: wer um Mitnahme bittet, versiegelt seinen Namen darauf. */
+                    hostWrapPublic = host?.HostPublic is null ? null : Base64Url.Encode(host.HostPublic),
+
                     myClaimId = myClaim is null ? null : Ids.ToText(myClaim.Id),
                     myStatus = myClaim?.Status,
                     hosting,
@@ -1811,8 +1886,8 @@ public static partial class Bookings
                     /* Geschlossen, und von wem (0049) — der Gastgeber darf nur seins wieder öffnen. */
                     closedBy,
 
-                    /* Wer um Mitnahme bittet — nur fuer den Gastgeber, und nur der
-                       Name, den die Kanzlei dem Platz gab. */
+                    /* Wer um Mitnahme bittet — nur fuer den Gastgeber: der Name,
+                       versiegelt auf seinen Schluessel (0097). */
                     asks = hosting
                         ? await AsksAsync(connection, claims, ctx.RequestAborted)
                         : []
@@ -1906,7 +1981,10 @@ public static partial class Bookings
                 inviteUntil = c.InviteUntil,
 
                 /* Der Code, versiegelt unter dem Schluessel des Halters — lesen kann ihn nur er (0045). */
-                inviteSealed = c.InviteSealed is null ? null : Base64Url.Encode(c.InviteSealed)
+                inviteSealed = c.InviteSealed is null ? null : Base64Url.Encode(c.InviteSealed),
+
+                /* 0097 — sein privater Schlüssel (unter dem des Halters): damit öffnet er die Namen derer, die bitten. */
+                hostWrapPrivateSealed = c.HostPrivate is null ? null : Base64Url.Encode(c.HostPrivate)
             });
         }
 
@@ -1920,9 +1998,10 @@ public static partial class Bookings
 
         foreach (var c in claims.Where(c => c.Status == "pending" && c.Awaits == "host"))
         {
-            string? name = c.HolderName;
+            /* 0097 — der Name für den Gastgeber, versiegelt auf seinen Schlüssel; offen nur ein alter. */
+            string? name = c.AskSealed is null ? c.HolderName : null;
 
-            if (name is null && c.AccessId is not null)
+            if (name is null && c.AskSealed is null && c.AccessId is not null)
             {
                 await using var cmd = new SqlCommand(
                     "SELECT recipient_name FROM app.access WHERE id = @a;", connection);
@@ -1930,7 +2009,7 @@ public static partial class Bookings
                 name = await cmd.ExecuteScalarAsync(ct) as string;
             }
 
-            asks.Add(new { claimId = Ids.ToText(c.Id), name });
+            asks.Add(new { claimId = Ids.ToText(c.Id), name, nameSealed = c.AskSealed is null ? null : Base64Url.Encode(c.AskSealed) });
         }
 
         return asks;
@@ -2278,9 +2357,9 @@ public static partial class Bookings
     /// Wer was haelt — MIT Namen, fuer die, die den Bereich lesen duerfen.
     ///
     /// <para>
-    /// Der Name ist der, den die Kanzlei dem Platz gab (`recipient_name`,
-    /// offen, damit sie ihn zuordnen kann). Was jemand im Formular geschrieben
-    /// hat, liegt versiegelt beim Formular und wird dort geoeffnet.
+    /// Der Name ist der, den die Kanzlei dem Platz gab — 0097: versiegelt, unter
+    /// dem Schluessel des Bereichs des Platzes (oder am Anspruch, unter dem des
+    /// Dings); geoeffnet wird er im Browser der Kanzlei.
     /// </para>
     /// </summary>
     private static async Task OfficeClaimsAsync(
@@ -2316,7 +2395,11 @@ public static partial class Bookings
                    c.host_confirmed_at,
 
                    /* Ein Platz ohne Namen: wann er sich angemeldet hat — damit die Kanzlei ihn findet. */
-                   (SELECT MIN(g.submitted_at) FROM app.registration g WHERE g.access_id = c.access_id)
+                   (SELECT MIN(g.submitted_at) FROM app.registration g WHERE g.access_id = c.access_id),
+
+                   /* 0097 — die Namen, versiegelt: der des Platzes (sein Bereich), der am Anspruch (der des Dings). */
+                   a.name_sealed, a.name_epoch, a.area_id,
+                   c.holder_name_sealed, c.holder_name_epoch, c.holder_name_wrapped
             FROM app.claim c
             LEFT JOIN app.access a ON a.id = c.access_id
             WHERE c.resource_id = @r AND c.status <> N'released'
@@ -2357,6 +2440,12 @@ public static partial class Bookings
                     hosting = Hosts(office, now),
                     hostPending = HostUndecided(office, now),
                     name = reader.IsDBNull(7) ? null : reader.GetString(7),
+                    seatNameSealed = Names.B64(reader, 17),
+                    seatNameEpoch = Names.Int(reader, 18),
+                    seatAreaId = reader.IsDBNull(19) ? null : Ids.ToText(reader.GetGuid(19)),
+                    holderNameSealed = Names.B64(reader, 20),
+                    holderNameEpoch = Names.Int(reader, 21),
+                    holderNameWrapped = Names.B64(reader, 22),
                     registeredAt = reader.IsDBNull(16) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(16),
                     roleId = reader.IsDBNull(8) ? null : Ids.ToText(reader.GetGuid(8)),
                     createdAt = reader.GetDateTimeOffset(9),
@@ -2370,7 +2459,10 @@ public static partial class Bookings
 
                     /* Von der Kanzlei eingetragen (0049) — und ob mit Link oder nur mit Namen. */
                     byOffice = reader.GetBoolean(13),
-                    withLink = !reader.IsDBNull(14)
+                    withLink = !reader.IsDBNull(14),
+
+                    /* 0097 — welcher Platz: an seine Kennung ist die Hülle seines Namens gebunden. */
+                    seatId = reader.IsDBNull(14) ? null : Ids.ToText(reader.GetGuid(14))
                 });
             }
         }
@@ -2510,7 +2602,9 @@ public static partial class Bookings
         await ctx.Response.WriteAsJsonAsync(new { itemId = Ids.ToText(itemId), occurrenceAt = at, closed = body.Closed });
     }
 
-    public sealed record OfficeAddRequest(string ItemId, string OccurrenceAt, string? SeatId, string? Name);
+    /* 0097 — `Name` (Klartext) nimmt der Dienst nicht mehr: der Name ohne Link kommt versiegelt. */
+    public sealed record OfficeAddRequest(string ItemId, string OccurrenceAt, string? SeatId, string? Name,
+        string? NameSealed = null, int? NameEpoch = null, string? ClaimId = null);
 
     /// <summary>
     /// DIE KANZLEI TRAEGT JEMANDEN EIN — auch ueber die Plaetze hinaus, auch in
@@ -2542,8 +2636,20 @@ public static partial class Bookings
         resource = ForOffer(resource, offer);
 
         Guid? seatId = null;
-        string? name = string.IsNullOrWhiteSpace(body.Name) ? null : body.Name.Trim();
-        if (name is not null && name.Length > MaxName) name = name[..MaxName];
+
+        /* 0097 — ein Name ohne Link kommt versiegelt, unter dem Schlüssel des Bereichs des Dings. */
+        var (named, namedEpoch, namedError) = Names.Read(body.NameSealed, body.NameEpoch);
+        if (namedError is not null)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, namedError);
+            return;
+        }
+
+        if (named is not null && await Names.EpochProblemAsync(connection, null, resource.AreaId, namedEpoch, person: true, ctx.RequestAborted) is { } problem)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, problem);
+            return;
+        }
 
         if (!string.IsNullOrWhiteSpace(body.SeatId))
         {
@@ -2553,9 +2659,9 @@ public static partial class Bookings
                 return;
             }
 
-            /* Ein Platz, den diese Kanzlei sieht — und der noch gilt. */
+            /* Ein Platz, den diese Kanzlei sieht — und der noch gilt. Sein Name steht an ihm, nicht am Anspruch. */
             await using var find = new SqlCommand("""
-                SELECT area_id, recipient_name FROM app.access
+                SELECT area_id FROM app.access
                 WHERE id = @id AND revoked_at IS NULL AND status = N'active';
                 """, connection);
             find.Parameters.AddWithValue("@id", seat);
@@ -2569,7 +2675,6 @@ public static partial class Bookings
                     return;
                 }
                 seatArea = reader.GetGuid(0);
-                name ??= reader.IsDBNull(1) ? null : reader.GetString(1);
             }
 
             var who = await Auth.WhoAsync(ctx, db);
@@ -2581,21 +2686,22 @@ public static partial class Bookings
 
             seatId = seat;
         }
-        else if (name is null)
+        else if (named is null)
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Wybierz osobę albo wpisz imię i nazwisko.");
             return;
         }
 
-        var claimId = Ids.NewId();
+        /* 0097 — die Kennung würfelt der Browser: an sie ist die Hülle des Namens gebunden. */
+        var claimId = Guid.TryParse(body.ClaimId, out var chosen) && chosen != Guid.Empty ? chosen : Ids.NewId();
 
         await using var insert = new SqlCommand("""
             INSERT INTO app.claim
                 (id, resource_id, starts_at, ends_at, item_id, occurrence_at, access_id, role_id,
-                 group_id, status, awaits, holder_name, by_office, created_at, decided_at)
+                 group_id, status, awaits, holder_name_sealed, holder_name_epoch, by_office, created_at, decided_at)
             VALUES
                 (@id, @r, @s, @e, @item, @at, @access, NULL,
-                 @id, N'confirmed', NULL, @name, 1, @now, @now);
+                 @id, N'confirmed', NULL, @named, @namedEpoch, 1, @now, @now);
             """, connection);
 
         insert.Parameters.AddWithValue("@id", claimId);
@@ -2605,7 +2711,8 @@ public static partial class Bookings
         insert.Parameters.AddWithValue("@item", itemId);
         insert.Parameters.AddWithValue("@at", at);
         insert.Parameters.AddWithValue("@access", (object?)seatId ?? DBNull.Value);
-        insert.Parameters.AddWithValue("@name", (object?)name ?? DBNull.Value);
+        insert.Parameters.AddBlob("@named", seatId is null ? named : null);
+        insert.Parameters.AddWithValue("@namedEpoch", seatId is null && named is not null ? namedEpoch : DBNull.Value);
         insert.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
 
         try
@@ -2623,7 +2730,6 @@ public static partial class Bookings
         await ctx.Response.WriteAsJsonAsync(new
         {
             claimId = Ids.ToText(claimId),
-            name,
             taken,
             capacity = resource.Capacity,
             over = taken > resource.Capacity

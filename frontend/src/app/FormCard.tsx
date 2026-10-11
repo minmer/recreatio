@@ -550,9 +550,8 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
               epoch: form.fields.find((f) => f.areaId === home)?.epoch ?? 1,
               /*
                * Der Name des Gemeinten geht VOR dem, was im Feld steht:
-               * gewählt zu haben ist genauer als getippt zu haben. Er steht
-               * offen am Platz, damit die Kanzlei ihn zuordnen kann, BEVOR
-               * sie ihn verschickt — deshalb wird er hier nicht versiegelt.
+               * gewählt zu haben ist genauer als getippt zu haben. 0097: er
+               * geht versiegelt an den Platz (`submitForm`), nie offen.
                */
               /*
                * IMIĘ I NAZWISKO, nicht das erste Namensfeld: bei getrennten

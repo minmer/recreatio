@@ -341,7 +341,34 @@ public enum Field
     /// Browser eines Mitglieds gibt ihm ihren Schlüssel. Je Platz UND Rolle ein
     /// Etikett — eine Hülle lässt sich nicht an einen anderen Platz hängen.
     /// </summary>
-    SeatRoleKey
+    SeatRoleKey,
+
+    /// <summary>
+    /// 0097 — der Name eines Formulars, unter dem Schlüssel seines Bereichs (dort
+    /// liegen auch seine Fragen): lesen kann ihn, wer die Fragen lesen kann.
+    /// </summary>
+    ModuleName,
+
+    /// <summary>0097 — der Name einer Gruppe von Formularen, unter dem Schlüssel ihres Bereichs.</summary>
+    FormGroupName,
+
+    /// <summary>
+    /// 0097 — der Name des Menschen an einem Platz: einmal unter dem Schlüssel
+    /// seines Bereichs (für die Kanzlei und die Mitglieder), einmal unter dem
+    /// Platzschlüssel (für ihn selbst). Zwei Etiketten — die eine Hülle lässt
+    /// sich nicht an die Stelle der anderen schieben.
+    /// </summary>
+    SeatName,
+    SeatOwnName,
+
+    /// <summary>
+    /// 0097 — wer einen Termin hält: für die Kanzlei (Bereichsschlüssel oder
+    /// Annahme), für den Gastgeber (sein P-256-Schlüssel), und dessen privater
+    /// Schlüssel unter dem Schlüssel des Halters.
+    /// </summary>
+    ClaimHolderName,
+    ClaimAskName,
+    ClaimHostWrap
 }
 
 /// <summary>
@@ -507,6 +534,13 @@ public readonly record struct Aad
         Field.LibraryEntry            => "library_entry",
         Field.Household               => "household",
         Field.SeatRoleKey             => "seat_role_key",
+        Field.ModuleName              => "module_name",
+        Field.FormGroupName           => "form_group_name",
+        Field.SeatName                => "seat_name",
+        Field.SeatOwnName             => "seat_own_name",
+        Field.ClaimHolderName         => "claim_holder_name",
+        Field.ClaimAskName            => "claim_ask_name",
+        Field.ClaimHostWrap           => "claim_host_wrap",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

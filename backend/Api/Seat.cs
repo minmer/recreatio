@@ -160,7 +160,8 @@ public static class Seat
                     WHERE g.access_id = a.id ORDER BY LEN(s.path)) AS under_path,
                    a.link_sealed, a.verify_fields, a.verified_at,
                    CAST(CASE WHEN a.verify_hash IS NULL THEN 0 ELSE 1 END AS bit) AS asks,
-                   a.verify_failures
+                   a.verify_failures,
+                   a.name_sealed, a.name_epoch, a.own_name_sealed
             FROM app.access a
             WHERE a.area_id = @area
             ORDER BY a.created_at DESC;
@@ -176,7 +177,18 @@ public static class Seat
             seats.Add(new
             {
                 seatId = Ids.ToText(reader.GetGuid(0)),
+
+                /*
+                 * 0097 — der Name, versiegelt unter dem Schlüssel dieses Bereichs.
+                 * `recipientName` nur bei einem alten Platz, bis ihn ein Browser
+                 * der Kanzlei versiegelt hat.
+                 */
                 recipientName = reader.IsDBNull(1) ? null : reader.GetString(1),
+                nameSealed = Names.B64(reader, 20),
+                nameEpoch = Names.Int(reader, 21),
+
+                /* In einem jawny Bereich gibt es keine Kopie unter seinem Schlüssel: dann die eigene, an die die Kanzlei über den Platzschlüssel kommt. */
+                ownNameSealed = Names.B64(reader, 22),
                 seatKeyForArea = reader.IsDBNull(2) ? null : Base64Url.Encode((byte[])reader[2]),
                 seatKeyForIntake = reader.IsDBNull(12) ? null : Base64Url.Encode((byte[])reader[12]),
                 origin = reader.GetString(13),
@@ -501,7 +513,8 @@ public static class Seat
         return await reader.ReadAsync(ct) ? (reader.GetGuid(0), reader.GetGuid(1)) : null;
     }
 
-    public sealed record SeatName(string SeatId, string Name);
+    /// <summary>0097 — der Name, versiegelt: für die Kanzlei (Bereichsschlüssel) und, wo der Browser ihn hat, für den Menschen selbst (Platzschlüssel).</summary>
+    public sealed record SeatName(string SeatId, string? NameSealed, int? NameEpoch, string? OwnNameSealed = null);
 
     public sealed record NamesRequest(IReadOnlyList<SeatName>? Names);
 
@@ -521,7 +534,9 @@ public static class Seat
     /// <b>Nur ERGÄNZT, nie überschrieben.</b> Ein Name, den jemand von Hand
     /// gesetzt hat („Janek, brat Oli"), bleibt; ersetzt wird nur ein leerer
     /// oder einer, der im neuen enthalten ist — „Węglowski" wird „Jan
-    /// Węglowski", aber nichts anderes.
+    /// Węglowski", aber nichts anderes. 0097: das entscheidet der Browser, der
+    /// beide lesen kann; der Dienst sieht keinen Namen mehr und nimmt nur die
+    /// Hüllen (und löscht dabei einen alten Klartext).
     /// </para>
     /// </summary>
     private static async Task NamesAsync(HttpContext ctx, Db db, NamesRequest body)
@@ -545,9 +560,11 @@ public static class Seat
         {
             if (!Guid.TryParse(one.SeatId, out var seatId)) continue;
 
-            var name = (one.Name ?? string.Empty).Trim();
-            if (name.Length == 0) continue;
-            if (name.Length > 200) name = name[..200];
+            var (named, epoch, error) = Names.Read(one.NameSealed, one.NameEpoch);
+            var own = Names.Blob(one.OwnNameSealed);
+
+            /* In einem jawny Bereich gibt es keine Kopie unter seinem Schlüssel — dann genügt die eigene (die Kanzlei kommt über die Annahme an sie). */
+            if (error is not null || (named is null && own is null)) continue;
 
             var area = await AreaOfAsync(connection, seatId, ctx.RequestAborted);
             if (area is null) continue;
@@ -558,17 +575,20 @@ public static class Seat
                 mayWrite[area.Value] = may;
             }
 
-            if (!may) continue;
+            if (!may || (named is not null && await Names.EpochProblemAsync(connection, null, area.Value, epoch, person: true, ctx.RequestAborted) is not null)) continue;
 
             await using var cmd = new SqlCommand("""
                 UPDATE app.access
-                   SET recipient_name = @name
-                 WHERE id = @id
-                   AND (recipient_name IS NULL OR LTRIM(RTRIM(recipient_name)) = N''
-                        OR (LEN(@name) > LEN(recipient_name) AND CHARINDEX(recipient_name, @name) > 0));
+                   SET name_sealed = COALESCE(@named, name_sealed),
+                       name_epoch = CASE WHEN @named IS NULL THEN name_epoch ELSE @epoch END,
+                       own_name_sealed = COALESCE(@own, own_name_sealed),
+                       recipient_name = NULL
+                 WHERE id = @id;
                 """, connection);
 
-            cmd.Parameters.AddWithValue("@name", name);
+            cmd.Parameters.AddBlob("@named", named);
+            cmd.Parameters.AddWithValue("@epoch", named is null ? DBNull.Value : epoch);
+            cmd.Parameters.AddBlob("@own", own);
             cmd.Parameters.AddWithValue("@id", seatId);
             updated += await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
         }
@@ -1143,7 +1163,8 @@ public static class Seat
             OUTPUT inserted.id, inserted.area_id, inserted.seat_key_sealed, inserted.epoch,
                    inserted.recipient_name, inserted.personal_note_sealed, inserted.expires_at,
                    inserted.verify_hash, inserted.verified_at, inserted.verify_fields,
-                   inserted.verify_failures, inserted.invitation_id
+                   inserted.verify_failures, inserted.invitation_id,
+                   inserted.own_name_sealed, inserted.name_sealed, inserted.name_epoch
              WHERE token_sha256 = @token
                AND revoked_at IS NULL
                AND status = N'active'
@@ -1163,6 +1184,8 @@ public static class Seat
         byte[] seatKeySealed;
         int epoch;
         string? recipientName;
+        byte[]? ownName, named;
+        int? namedEpoch;
         byte[]? personalNote;
         DateTimeOffset? expiresAt;
         bool asksFirst;
@@ -1190,6 +1213,11 @@ public static class Seat
             verifyFieldsText = reader.IsDBNull(9) ? null : reader.GetString(9);
             failures = reader.GetInt32(10);
             invitationId = reader.IsDBNull(11) ? null : reader.GetGuid(11);
+
+            /* 0097 — wie er heisst: unter seinem Platzschlüssel (seine Kopie) und unter dem des Bereichs. */
+            ownName = reader.IsDBNull(12) ? null : (byte[])reader[12];
+            named = reader.IsDBNull(13) ? null : (byte[])reader[13];
+            namedEpoch = Names.Int(reader, 14);
         }
 
         /* 0095 — die Person eines Links: durch welchen Link sie da ist (sein Name steht in Klammern hinter ihrem). */
@@ -1255,7 +1283,11 @@ public static class Seat
             seatKeySealed = Base64Url.Encode(seatKeySealed),
             epoch,
 
+            /* 0097 — offen nur bei einem alten Platz, bis die Kanzlei ihn versiegelt hat. */
             recipientName,
+            ownNameSealed = ownName is null ? null : Base64Url.Encode(ownName),
+            nameSealed = named is null ? null : Base64Url.Encode(named),
+            nameEpoch = namedEpoch,
             via,
             personalNoteSealed = personalNote is null ? null : Base64Url.Encode(personalNote),
             expiresAt,
@@ -1663,7 +1695,8 @@ public static class Seat
         await using var cmd = new SqlCommand($"""
             SELECT a.id, a.area_id, ar.name, a.recipient_name,
                    h.role_id, h.seat_key_sealed, a.epoch,
-                   a.personal_note_sealed, a.status, a.expires_at
+                   a.personal_note_sealed, a.status, a.expires_at,
+                   a.own_name_sealed
             FROM app.access_holder h
             JOIN app.access a  ON a.id = h.access_id
             JOIN app.area   ar ON ar.id = a.area_id
@@ -1677,7 +1710,7 @@ public static class Seat
 
         /* Erst sammeln, dann den Leser schliessen — siehe `OpenAsync`. */
         var rows = new List<(Guid Seat, Guid Area, string AreaName, string? Name, Guid Role,
-            byte[] KeySealed, int Epoch, byte[]? Note, string Status, DateTimeOffset? Until)>();
+            byte[] KeySealed, int Epoch, byte[]? Note, string Status, DateTimeOffset? Until, byte[]? OwnName)>();
 
         await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
         {
@@ -1689,7 +1722,8 @@ public static class Seat
                     reader.GetGuid(4), (byte[])reader[5], reader.GetInt32(6),
                     reader.IsDBNull(7) ? null : (byte[])reader[7],
                     reader.GetString(8),
-                    reader.IsDBNull(9) ? null : reader.GetDateTimeOffset(9)));
+                    reader.IsDBNull(9) ? null : reader.GetDateTimeOffset(9),
+                    reader.IsDBNull(10) ? null : (byte[])reader[10]));
             }
         }
 
@@ -1702,7 +1736,9 @@ public static class Seat
                 seatId = Ids.ToText(r.Seat),
                 areaId = Ids.ToText(r.Area),
                 areaName = r.AreaName,
+                /* 0097 — seine Kopie, unter dem Platzschlüssel (den diese Rolle öffnet); offen nur ein alter. */
                 recipientName = r.Name,
+                ownNameSealed = r.OwnName is null ? null : Base64Url.Encode(r.OwnName),
                 roleId = Ids.ToText(r.Role),
 
                 // Unter dem OEFFENTLICHEN Schluessel dieser Rolle verpackt.

@@ -23,6 +23,7 @@
 
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from './crypto';
 import type { StepMark } from './form';
+import { openFormNames, type FormNameIn } from './names';
 import { repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
 import { call } from './session';
 
@@ -96,10 +97,15 @@ export async function openSteps(
 
 /* -- Beim Dienst ---------------------------------------------------------------- */
 
-export const loadSteps = (partId: string): Promise<{
+/** Die Schritte eines Formulars und seine Erweiterungen — deren Namen geöffnet (0097: sie liegen versiegelt unter ihrem Bereich). */
+export async function loadSteps(partId: string): Promise<{
   steps: readonly SealedStep[];
   extensions: readonly ExtensionInfo[];
-}> => call(`/workspace/part/${encodeURIComponent(partId)}/steps`);
+}> {
+  const got = await call<{ steps: readonly SealedStep[]; extensions: readonly (Omit<ExtensionInfo, 'name'> & FormNameIn)[] }>(
+    `/workspace/part/${encodeURIComponent(partId)}/steps`);
+  return { steps: got.steps, extensions: await openFormNames(got.extensions, 'Rozszerzenie') };
+}
 
 /** Ein Schritt, wie ihn die Kanzlei gerade bearbeitet — offen. */
 export interface StepDraft {
@@ -170,7 +176,11 @@ export interface SeatFormSealed {
   readonly confirmedAt: string | null;
   readonly extensions: readonly {
     readonly moduleId: string;
+    /** 0097 — geöffnet (`seatView`); vom Dienst kommt er versiegelt unter `areaId`, offen nur ein alter. */
     readonly name: string;
+    readonly areaId?: string | null;
+    readonly nameSealed?: string | null;
+    readonly nameEpoch?: number | null;
     readonly closed: boolean;
     /** Seine Ergänzung — oder `null`: noch nicht ausgefüllt. Bei einer wiederkehrenden (0077): die jüngste. */
     readonly registrationId: string | null;

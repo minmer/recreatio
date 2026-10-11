@@ -43,6 +43,9 @@ import { background, native, notices } from './platform';
 import { gatherNews, handOverRoleWaiting, handOverWaiting, type ReminderNotice } from './notifyRich';
 import { viewPath } from './routes';
 import { toBase64Url } from './crypto';
+import { openDigest } from './digestNames';
+import { sealLegacyNamesQuietly } from './nameSeal';
+import { keysFor } from './ringOf';
 
 export interface DigestChat {
   readonly chatId: string;
@@ -50,7 +53,12 @@ export interface DigestChat {
   readonly kind: string;
   readonly unread: number;
   readonly lastMessageAt: string | null;
+  /** 0097 — geöffnet von `openDigest`: der Name liegt versiegelt unter dem Schlüssel des Bereichs des Platzes. */
   readonly seatName: string | null;
+  readonly seatId?: string | null;
+  readonly seatNameSealed?: string | null;
+  readonly seatNameEpoch?: number | null;
+  readonly seatAreaId?: string | null;
   readonly quiet: boolean;
   /** 0094 — zu welchem Bereich (fehlt beim alten Dienst). */
   readonly areaId?: string;
@@ -58,7 +66,10 @@ export interface DigestChat {
 
 export interface DigestForm {
   readonly moduleId: string;
+  /** 0097 — geöffnet von `openDigest` (versiegelt unter dem Schlüssel seines Bereichs); ohne Schlüssel „Formularz". */
   readonly name: string;
+  readonly nameSealed?: string | null;
+  readonly nameEpoch?: number | null;
   readonly count: number;
   readonly lastAt: string;
   /** 0090 — seit wann hier neu gilt (die Marke des Formulars, sonst die allgemeine). Fehlt beim alten Dienst. */
@@ -70,7 +81,11 @@ export interface DigestForm {
 /** 0094 — etwas, das auf die Kanzlei wartet: je Ding (Zasób, Formular) wie viel. */
 export interface DigestWaiting {
   readonly count: number;
-  readonly list: readonly { readonly id?: string; readonly resourceId?: string; readonly moduleId?: string; readonly name: string; readonly areaId: string | null; readonly count: number }[];
+  readonly list: readonly {
+    readonly id?: string; readonly resourceId?: string; readonly moduleId?: string; readonly name: string; readonly areaId: string | null; readonly count: number;
+    /** 0097 — ein Formular: sein Name versiegelt (`openDigest` öffnet ihn). */
+    readonly nameSealed?: string | null; readonly nameEpoch?: number | null;
+  }[];
 }
 
 export interface Digest {
@@ -244,7 +259,8 @@ function schedule(): void {
 export async function refresh(): Promise<void> {
   if (!running) return;
   try {
-    const digest = await call<Digest>(digestPath());
+    /* 0097 — die Namen kommen versiegelt; geöffnet wird hier, auf dem Gerät. */
+    const digest = await openDigest(await call<Digest>(digestPath()));
     store.failures = 0;
     accept(digest, true);
   } catch {
@@ -261,6 +277,7 @@ function accept(digest: Digest, mine: boolean): void {
   if (mine) {
     channel?.postMessage({ digest });
     handOverKeys(digest);
+    sealOldNames();
     ring(digest);
     void background.seen({
       unread: digest.chats.loud, forms: digest.registrations.count, links: digest.links, since: digest.since,
@@ -290,6 +307,19 @@ function handOverKeys(digest: Digest): void {
   void handOverWaiting(who, waiting).catch(() => 0)
     .then(() => handOverRoleWaiting(who, roles).catch(() => 0))
     .finally(() => { handing = false; });
+}
+
+/*
+ * 0097 — WAS NOCH OFFEN DASTEHT (alte Namen von Formularen und Menschen),
+ * versiegelt der Browser, der den Schlüssel hat — still, höchstens alle zehn
+ * Minuten, und nur der Tab, der gefragt hat.
+ */
+function sealOldNames(): void {
+  const who = richWho;
+  if (who === null) return;
+  void keysFor(who)
+    .then(({ ring }) => (ring === null ? null : sealLegacyNamesQuietly(who.accountId, ring)))
+    .catch(() => null);
 }
 
 /* -- Was klingelt ---------------------------------------------------------------- */

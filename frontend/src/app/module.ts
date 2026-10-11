@@ -11,8 +11,9 @@
  * gezeichnet wurden. Was blieb, ist der Umgang mit dem Ding.
  */
 
+import { groupNameAad, moduleNameAad, nameText, openName, sealUnderArea } from './names';
 import type { Repeat } from './rounds';
-import { call } from './session';
+import { call, WorkspaceError } from './session';
 
 /**
  * Der Inhalt eines Bausteins, aus seinem gespeicherten `config` gelesen.
@@ -72,7 +73,19 @@ export interface ModuleRow {
   readonly areaId: string | null;
   readonly areaName: string | null;
   readonly kind: string;
+
+  /**
+   * Wie er heisst. 0097 — bei einem Formular liegt der Name versiegelt unter
+   * dem Schlüssel seines Bereichs; `loadModules` öffnet ihn. Geht er nicht auf
+   * (dieser Browser liest den Bereich nicht), steht hier ein Ersatz und
+   * `nameLocked` ist gesetzt.
+   */
   readonly name: string;
+  readonly nameSealed?: string | null;
+  readonly nameEpoch?: number | null;
+  readonly nameLocked?: boolean;
+  /** 0097 — ein Formular ganz ohne Namen (auf einer Seite angelegt): `name` ist nur der Ersatz. */
+  readonly nameMissing?: boolean;
   readonly config: string | null;
   readonly createdAt: string;
 
@@ -129,7 +142,12 @@ export interface ModuleRow {
  */
 export interface FormGroup {
   readonly groupId: string;
+  /** 0097 — der Bereich der Gruppe: unter seinem Schlüssel liegt ihr Name (`loadModules` öffnet ihn). */
+  readonly areaId?: string | null;
   readonly name: string;
+  readonly nameSealed?: string | null;
+  readonly nameEpoch?: number | null;
+  readonly nameLocked?: boolean;
   readonly createdAt: string;
   /** Von mir angelegt. */
   readonly mine: boolean;
@@ -155,23 +173,75 @@ export interface ResealIn {
   readonly labelEpoch: number;
 }
 
-export const loadModules = (): Promise<{ modules: readonly ModuleRow[]; groups?: readonly FormGroup[] }> =>
-  call('/workspace/modules');
+type RawRow = Omit<ModuleRow, 'name'> & { readonly name: string | null };
+type RawGroup = Omit<FormGroup, 'name'> & { readonly name?: string | null };
+
+/** 0097 — wie ein Formular heisst, das (noch) keinen lesbaren Namen hat: nach seiner Seite. */
+export const unnamedForm = (row: Pick<ModuleRow, 'pages'>): string =>
+  row.pages.length > 0 ? `Formularz na /${row.pages[0]}` : 'Formularz bez nazwy';
+
+/**
+ * Die Bausteine — mit geöffneten Namen (0097). Ein Formularname, der nicht
+ * aufgeht, bekommt einen Ersatz und `nameLocked`; ein alter, noch offener
+ * steht, wie er ist, bis ein Browser der Kanzlei ihn versiegelt.
+ */
+export async function loadModules(): Promise<{ modules: readonly ModuleRow[]; groups?: readonly FormGroup[] }> {
+  const raw = await call<{ modules: readonly RawRow[]; groups?: readonly RawGroup[] }>('/workspace/modules');
+
+  const modules = await Promise.all(raw.modules.map(async (row): Promise<ModuleRow> => {
+    if (row.nameSealed == null) return row.name !== null ? { ...row, name: row.name } : { ...row, name: row.kind === 'form' ? unnamedForm(row) : row.kind, nameMissing: true };
+    const opened = await openName(row.areaId, row, moduleNameAad(row.moduleId));
+    return opened === null ? { ...row, name: unnamedForm(row), nameLocked: true } : { ...row, name: opened };
+  }));
+
+  const groups = raw.groups === undefined ? undefined : await Promise.all(raw.groups.map(async (group): Promise<FormGroup> => {
+    const opened = await openName(group.areaId, group, groupNameAad(group.groupId));
+    return opened === null ? { ...group, name: group.name ?? 'Grupa formularzy', nameLocked: true } : { ...group, name: opened };
+  }));
+
+  return groups === undefined ? { modules } : { modules, groups };
+}
 
 /* -- 0096: Gruppen von Formularen ------------------------------------------------------------ */
 
-export const createFormGroup = (groupId: string, name: string): Promise<{ groupId: string; name: string }> =>
-  call('/workspace/form-groups', { method: 'POST', body: JSON.stringify({ groupId, name }) });
+/** 0097 — eine Gruppe gehört einem Bereich: unter seinem Schlüssel liegt ihr Name. */
+export async function createFormGroup(groupId: string, name: string, areaId: string): Promise<{ groupId: string; name: string }> {
+  const clean = nameText(name);
+  if (clean === '') throw new WorkspaceError('Grupa potrzebuje nazwy.');
+  await call('/workspace/form-groups', {
+    method: 'POST',
+    body: JSON.stringify({ groupId, areaId, ...await sealUnderArea(areaId, groupNameAad(groupId), clean) })
+  });
+  return { groupId, name: clean };
+}
 
-/** Umbenennen und/oder ordnen (`order`: die Formulare der Gruppe in ihrer neuen Folge). */
-export const updateFormGroup = (groupId: string, change: { name?: string; order?: readonly string[] }): Promise<{ saved: boolean }> =>
-  call(`/workspace/form-group/${encodeURIComponent(groupId)}`, { method: 'POST', body: JSON.stringify(change) });
+/** Umbenennen (unter dem Schlüssel des Bereichs der Gruppe) und/oder ordnen (`order`: die Formulare der Gruppe in ihrer neuen Folge). */
+export async function updateFormGroup(
+  groupId: string, change: { name?: string; order?: readonly string[] }, areaId?: string | null
+): Promise<{ saved: boolean }> {
+  let named = {};
+  if (change.name !== undefined) {
+    const clean = nameText(change.name);
+    if (clean === '') throw new WorkspaceError('Grupa potrzebuje nazwy.');
+    if (areaId == null) throw new WorkspaceError('Ta grupa nie ma obszaru — jej nazwy nie ma czym zapieczętować.');
+    named = await sealUnderArea(areaId, groupNameAad(groupId), clean);
+  }
+  return call(`/workspace/form-group/${encodeURIComponent(groupId)}`, {
+    method: 'POST',
+    body: JSON.stringify({ ...named, ...(change.order === undefined ? {} : { order: change.order }) })
+  });
+}
 
 /** Die Gruppe auflösen — ihre Formulare bleiben, nur lose. */
 export const removeFormGroup = (groupId: string): Promise<{ removed: boolean }> =>
   call(`/workspace/form-group/${encodeURIComponent(groupId)}`, { method: 'DELETE' });
 
-export const createModule = (
+/**
+ * Einen Baustein anlegen. 0097 — ein FORMULAR braucht einen Bereich: unter
+ * seinem Schlüssel wird der Name versiegelt, offen geht er nicht hinaus. Bei
+ * einer Erweiterung ist es der Bereich des erweiterten Formulars.
+ */
+export async function createModule(
   moduleId: string, kind: string, name: string, areaId: string | null,
   forKind: Subject = 'none', config?: string,
 
@@ -184,16 +254,25 @@ export const createModule = (
     /** 0077 — einmal je Mensch, oder je Tag, Woche, Monat, Jahr. */
     readonly repeat?: Repeat;
   }
-): Promise<{ moduleId: string }> =>
-  call('/workspace/module', {
+): Promise<{ moduleId: string }> {
+  const clean = nameText(name);
+  let named: Record<string, unknown> = { name: clean };
+
+  if (kind === 'form') {
+    if (areaId === null) throw new WorkspaceError('Formularz potrzebuje obszaru — pod jego kluczem leży nazwa.');
+    named = { ...await sealUnderArea(areaId, moduleNameAad(moduleId), clean) };
+  }
+
+  return call('/workspace/module', {
     method: 'POST',
     body: JSON.stringify({
-      moduleId, kind, name, areaId, forKind, config: config ?? '{}',
+      moduleId, kind, ...named, areaId, forKind, config: config ?? '{}',
       extendsId: extension?.extendsId ?? null,
       audience: extension?.audience ?? null,
       repeat: extension?.repeat ?? null
     })
   });
+}
 
 /**
  * Umbenennen, den Bereich setzen, die Einstellung ändern — und beim
@@ -203,7 +282,7 @@ export const createModule = (
  * Frage neu versiegelt mitschickt</b> (`reseal`, 0042). Der Dienst selbst
  * kann nichts umschlüsseln; ohne die neuen Hüllen lehnt er ab.
  */
-export const updateModule = (
+export async function updateModule(
   moduleId: string,
   change: {
     name?: string; areaId?: string; clearArea?: boolean; config?: string;
@@ -228,12 +307,45 @@ export const updateModule = (
     /** 0096 — in welche Gruppe von Formularen; `clearGroup`: aus ihr heraus. */
     groupId?: string;
     clearGroup?: boolean;
+  },
+
+  /**
+   * 0097 — was der Browser über den Baustein weiss: ob er ein Formular ist, in
+   * welchem Bereich er steht, wie er (geöffnet) heisst. Fehlt es und ändert sich
+   * der Name oder der Bereich, wird nachgesehen.
+   */
+  known?: Pick<ModuleRow, 'kind' | 'areaId' | 'name' | 'nameLocked' | 'nameMissing'>
+): Promise<{ moduleId: string; areaId: string | null; name: string | null }> {
+  const { name, ...rest } = change;
+  let named: Record<string, unknown> = name === undefined ? {} : { name: nameText(name) };
+
+  const moving = change.clearArea === true || change.areaId !== undefined;
+  if (name !== undefined || moving) {
+    const row = known ?? (await loadModules()).modules.find((one) => one.moduleId === moduleId);
+    if (row === undefined) throw new WorkspaceError('Takiego modułu nie ma.');
+
+    if (row.kind === 'form') {
+      const target = change.clearArea === true ? null : change.areaId ?? row.areaId;
+      const reallyMoving = target !== row.areaId;
+
+      /* Der Name geht neu versiegelt mit — der neue, oder beim Umzug der alte unter dem neuen Schlüssel. */
+      const text = name !== undefined ? nameText(name) : reallyMoving && row.nameLocked !== true && row.nameMissing !== true ? row.name : null;
+      named = {};
+      if (text !== null) {
+        if (text === '') throw new WorkspaceError('Formularz potrzebuje nazwy.');
+        if (target === null) throw new WorkspaceError('Formularz potrzebuje obszaru — pod jego kluczem leży nazwa.');
+        named = { ...await sealUnderArea(target, moduleNameAad(moduleId), text) };
+      } else if (reallyMoving && row.nameLocked === true) {
+        throw new WorkspaceError('Nazwy tego formularza nie da się otworzyć — bez niej nie przeniesiesz go do innego obszaru.');
+      }
+    }
   }
-): Promise<{ moduleId: string; areaId: string | null; name: string }> =>
-  call(`/workspace/module/${encodeURIComponent(moduleId)}`, {
+
+  return call(`/workspace/module/${encodeURIComponent(moduleId)}`, {
     method: 'POST',
-    body: JSON.stringify(change)
+    body: JSON.stringify({ ...rest, ...named })
   });
+}
 
 export const removeModule = (moduleId: string): Promise<{ removed: boolean }> =>
   call(`/workspace/module/${encodeURIComponent(moduleId)}`, { method: 'DELETE' });

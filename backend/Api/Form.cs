@@ -696,6 +696,12 @@ public static partial class Form
 
             /* 0083 — wie es heisst (fuer den Ausdruck), und was nach dem Absenden dasteht. */
             title = whole?.Title,
+
+            /* 0097 — sein Name, versiegelt unter dem Schluessel seines Bereichs; der Browser oeffnet ihn, wenn er die Fragen oeffnen kann. */
+            nameAreaId = whole?.AreaId is Guid nameArea ? Ids.ToText(nameArea) : null,
+            nameSealed = whole?.NameSealed is null ? null : Base64Url.Encode(whole.NameSealed),
+            nameEpoch = whole?.NameEpoch,
+            name = whole?.NameSealed is null ? whole?.PlainName : null,
             after = whole?.After is null ? null : new
             {
                 title = whole.After.Title,
@@ -761,7 +767,16 @@ public static partial class Form
          * eingegeben — er gilt als bestaetigt.
          */
         string? VerifySha256 = null,
-        IReadOnlyList<string>? VerifyFields = null);
+        IReadOnlyList<string>? VerifyFields = null,
+
+        /*
+         * 0097 — WIE ER HEISST, NIE OFFEN. `RecipientName` (ein alter Browser)
+         * wird nicht mehr gespeichert. Der Name kommt versiegelt: unter dem
+         * Platzschlüssel (für ihn selbst) und — nur wenn dieser Browser den
+         * Schlüssel des Bereichs hat — unter dem Bereichsschlüssel; sonst
+         * versiegelt ihn die Kanzlei, sobald sie die Einsendung aufmacht.
+         */
+        string? OwnNameSealed = null, string? NameSealed = null, int? NameEpoch = null);
 
     public sealed record SubmitRequest(
         IReadOnlyList<ValueIn> Values, string? ClaimSha256, string? SeatToken, string? RoleId,
@@ -1066,10 +1081,10 @@ public static partial class Form
                 await using (var open = new SqlCommand("""
                     INSERT INTO app.access
                         (id, area_id, token_sha256, seat_key_sealed, seat_key_for_intake, epoch,
-                         recipient_name, origin, created_by_role_id, created_at,
+                         name_sealed, name_epoch, own_name_sealed, origin, created_by_role_id, created_at,
                          link_sealed, verify_hash, verify_fields, verified_at)
                     VALUES (@id, @area, @token, @forLink, @forIntake, @epoch,
-                            @name, N'self', NULL, @now,
+                            @named, @namedEpoch, @ownName, N'self', NULL, @now,
                             @linkSealed, @verifyHash, @verifyFields, @verifiedAt);
                     """, connection, tx))
                 {
@@ -1079,8 +1094,9 @@ public static partial class Form
                     open.Parameters.AddBlob("@forLink", seat.ForLink);
                     open.Parameters.AddBlob("@forIntake", seat.ForIntake);
                     open.Parameters.AddWithValue("@epoch", seat.Epoch);
-                    open.Parameters.AddWithValue("@name",
-                        seat.RecipientName is null ? DBNull.Value : seat.RecipientName);
+                    open.Parameters.AddBlob("@named", seat.Named);
+                    open.Parameters.AddWithValue("@namedEpoch", seat.Named is null ? DBNull.Value : seat.NamedEpoch);
+                    open.Parameters.AddBlob("@ownName", seat.OwnName);
                     open.Parameters.AddWithValue("@now", now);
                     open.Parameters.AddBlob("@linkSealed", seat.LinkSealed);
                     open.Parameters.AddBlob("@verifyHash", seat.VerifyHash);
@@ -1239,8 +1255,9 @@ public static partial class Form
 
     private readonly record struct SelfSeatRow(
         Guid Id, Guid AreaId, byte[] TokenHash, byte[] ForLink, byte[] ForIntake,
-        int Epoch, string? RecipientName, IReadOnlyList<Guid> SlugIds, string? UnderPath,
-        byte[]? AreaKey, byte[]? LinkSealed = null, byte[]? VerifyHash = null, string? VerifyFields = null);
+        int Epoch, IReadOnlyList<Guid> SlugIds, string? UnderPath,
+        byte[]? AreaKey, byte[]? LinkSealed = null, byte[]? VerifyHash = null, string? VerifyFields = null,
+        byte[]? OwnName = null, byte[]? Named = null, int NamedEpoch = 0);
 
     /// <summary>
     /// Den mitgeschickten Platz pruefen — und dabei die eine Frage stellen, die
@@ -1409,10 +1426,21 @@ public static partial class Form
 
         if (anchor is not null) slugIds.Add(anchor.Value);
 
-        var name = (body.RecipientName ?? string.Empty).Trim();
+        /*
+         * 0097 — der Name, versiegelt. Eine unbrauchbare Hülle, oder eine unter
+         * einem offenen Schlüssel, wird weggelassen, nicht abgelehnt: die
+         * Anmeldung steht für sich, und die Kanzlei versiegelt den Namen nach.
+         */
+        var ownName = Names.Blob(body.OwnNameSealed);
+        var (sealedName, sealedEpoch, sealedError) = Names.Read(body.NameSealed, body.NameEpoch);
+        if (sealedName is not null
+            && (sealedError is not null
+                || await Names.EpochProblemAsync(connection, null, areaId, sealedEpoch, person: true, ctx.RequestAborted) is not null))
+        {
+            sealedName = null;
+        }
 
         return new SelfSeatRow(seatId, areaId, tokenHash, forLink, forIntake, body.Epoch,
-            name == "" ? null : name[..Math.Min(name.Length, 200)],
             slugIds, anchor is null ? null : anchorPath,
 
             /* Unlesbar heisst: nicht mitgegeben. Kein Grund, die ganze
@@ -1420,7 +1448,8 @@ public static partial class Form
             TryBlob(body.AreaKeySealed),
             TryBlob(body.LinkSealed),
             TryBlob(body.VerifySha256) is { Length: 32 } proof ? proof : null,
-            VerifyFieldsText(body.VerifyFields));
+            VerifyFieldsText(body.VerifyFields),
+            ownName, sealedName, sealedName is null ? 0 : sealedEpoch);
     }
 
     /* -- Was die Kanzlei sieht ---------------------------------------------- */
@@ -2868,11 +2897,14 @@ public static partial class Form
     private sealed record Whole(
         string ForKind, bool Closed, (string Name, string? Address, string? Email)? Controller,
 
-        /// <summary>Wie das Formular heisst — die Ueberschrift auf der Seite, sonst sein Name (fuer den Ausdruck).</summary>
+        /// <summary>Wie das Formular heisst — die Ueberschrift auf der Seite (fuer den Ausdruck). Sonst sein Name, den der Browser oeffnet (0097).</summary>
         string? Title = null,
 
         /// <summary>Was nach dem Absenden dasteht, und ob ein Ausdruck unterschrieben werden muss (siehe <see cref="AfterOf"/>).</summary>
-        After? After = null);
+        After? After = null,
+
+        /// <summary>0097 — sein Name: versiegelt unter dem Schluessel seines Bereichs (oder, bei einem alten, noch offen).</summary>
+        Guid? AreaId = null, byte[]? NameSealed = null, int? NameEpoch = null, string? PlainName = null);
 
     /// <summary>
     /// <para>
@@ -2965,7 +2997,7 @@ public static partial class Form
                    CASE WHEN m.controller_name IS NULL THEN b.controller_address ELSE m.controller_address END,
                    CASE WHEN m.controller_name IS NULL THEN b.controller_email ELSE m.controller_email END,
                    c.name, c.address, c.email,
-                   m.config, m.name
+                   m.config, m.name, m.area_id, m.name_sealed, m.name_epoch
             FROM app.module m
             LEFT JOIN app.module b ON b.id = m.extends_id
             OUTER APPLY (
@@ -2990,7 +3022,11 @@ public static partial class Form
 
         var config = Text(8);
         return new Whole(reader.GetString(0), !reader.IsDBNull(1), controller,
-            Title: TitleOf(config) ?? Text(9), After: AfterOf(config));
+            Title: TitleOf(config), After: AfterOf(config),
+            AreaId: reader.IsDBNull(10) ? null : reader.GetGuid(10),
+            NameSealed: reader.IsDBNull(11) ? null : (byte[])reader[11],
+            NameEpoch: reader.IsDBNull(12) ? null : reader.GetInt32(12),
+            PlainName: Text(9));
     }
 
     /* -- Eine Frage aendern (0042) ------------------------------------------ */

@@ -92,19 +92,9 @@ public static class ChatRules
             : new Speaking(null, 400, "Wybierz, która osoba pisze przez tę rolę.");
     }
 
-    /// <summary>
-    /// 0095 — DER NAME EINER PERSON AUS EINEM LINK: Vor- und Nachname, beide da,
-    /// ohne Steuerzeichen, zusammen höchstens 200 Zeichen. <c>null</c>: unbrauchbar.
-    /// </summary>
-    public static string? PersonName(string? given, string? surname)
-    {
-        static string Clean(string? text) =>
-            string.Join(' ', new string((text ?? string.Empty).Where(c => !char.IsControl(c)).ToArray())
-                .Split(' ', StringSplitOptions.RemoveEmptyEntries));
-
-        var first = Clean(given);
-        var last = Clean(surname);
-        if (first.Length is 0 or > 80 || last.Length is 0 or > 100) return null;
-        return $"{first} {last}";
-    }
+    /*
+     * 0097 — den Namen einer Person aus einem Link (Vor- und Nachname, beide da,
+     * ohne Steuerzeichen) setzt der BROWSER zusammen (`linkPerson.ts`
+     * `personName`) und versiegelt ihn; der Dienst sieht ihn nicht mehr.
+     */
 }

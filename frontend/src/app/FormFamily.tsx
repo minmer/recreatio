@@ -133,7 +133,7 @@ export function FormBasics({ module, busy, onAct, withName = true }: {
     <div className="wk-form wk-form-basics" data-form-basics="">
       {withName && <form className="wk-inline" onSubmit={(e) => {
         e.preventDefault();
-        if (name.trim() !== '' && name.trim() !== module.name) void onAct('Zmiana nazwy…', () => updateModule(module.moduleId, { name: name.trim() }));
+        if (name.trim() !== '' && name.trim() !== module.name) void onAct('Zmiana nazwy…', () => updateModule(module.moduleId, { name: name.trim() }, module));
       }}>
         <label className="wk-field">
           <span>Nazwa {module.extendsId === null ? 'formularza' : 'podformularza'}</span>

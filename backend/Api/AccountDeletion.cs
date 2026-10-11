@@ -502,6 +502,10 @@ public static class AccountDeletion
         DELETE FROM app.module      WHERE id IN (SELECT id FROM #mods);
 
         -- Was sonst am Bereich hängt
+        -- 0097 — eine Gruppe von Formularen gehört ihrem Bereich; ihre Formulare anderswo stehen danach lose.
+        UPDATE app.module SET form_group_id = NULL, group_position = NULL
+         WHERE form_group_id IN (SELECT id FROM app.form_group WHERE area_id IN (SELECT id FROM #dead));
+        DELETE FROM app.form_group       WHERE area_id IN (SELECT id FROM #dead);
         DELETE FROM app.intake           WHERE area_id IN (SELECT id FROM #dead);
         DELETE FROM app.person_release   WHERE area_id IN (SELECT id FROM #dead);
         DELETE FROM app.area_member_name WHERE area_id IN (SELECT id FROM #dead);

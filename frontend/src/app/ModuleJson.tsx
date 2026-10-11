@@ -139,7 +139,7 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
 
     if (content.name !== undefined && content.name !== row.name) {
       stage('Zmiana nazwy…');
-      await updateModule(row.moduleId, { name: content.name });
+      await updateModule(row.moduleId, { name: content.name }, row);
       lines.push(`Nazwa: „${content.name}”.`);
     }
     if (content.repeat !== undefined && content.repeat !== repeatOf(row.repeat) && row.extendsId !== null && row.entries === 0) {
@@ -160,7 +160,9 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
       } else {
         const wanted = content.group;
         const known = ((await loadModules()).groups ?? []).find((g) => g.name.toLocaleLowerCase('pl') === wanted.toLocaleLowerCase('pl'));
-        const groupId = known?.groupId ?? (await createFormGroup(newId(), wanted)).groupId;
+        /* 0097 — eine neue Gruppe gehört dem Bereich des Formulars: unter seinem Schlüssel liegt ihr Name. */
+        if (known === undefined && row.areaId === null) throw new Error('Formularz bez obszaru — grupy nie da się założyć.');
+        const groupId = known?.groupId ?? (await createFormGroup(newId(), wanted, row.areaId!)).groupId;
         await updateModule(row.moduleId, { groupId });
         lines.push(known === undefined ? `Grupa „${wanted}" założona, formularz w niej.` : `Grupa: „${known.name}".`);
       }

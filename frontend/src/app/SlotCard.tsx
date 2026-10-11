@@ -35,6 +35,7 @@ import {
   hostClose, resignHost, takeOffer, takeSpan, type Busy, type Holder, type MyClaim, type Offer, type Offers,
   type Rules
 } from './resource';
+import { openAskNames } from './holderNames';
 import { useSeats } from './seatContext';
 import { WorkspaceError } from './session';
 
@@ -45,13 +46,13 @@ function useHolder(): Holder | null {
 
   if (person === null) {
     const seat = seats[0];
-    return seat === undefined ? null : { kind: 'seat', token: seat.token, key: seat.seatKey };
+    return seat === undefined ? null : { kind: 'seat', token: seat.token, key: seat.seatKey, name: seat.recipientName };
   }
 
   const chosen = person.chosen;
   if (chosen === null) return null;
 
-  if (chosen.kind === 'seat') return { kind: 'seat', token: chosen.seat.token, key: chosen.seat.seatKey };
+  if (chosen.kind === 'seat') return { kind: 'seat', token: chosen.seat.token, key: chosen.seat.seatKey, name: chosen.seat.recipientName };
 
   try {
     return { kind: 'role', roleId: chosen.id, key: chosen.ring.keyOf(chosen.id), name: chosen.name };
@@ -363,6 +364,16 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
 
   useEffect(() => { if (fresh !== null) setCode(fresh.code); }, [fresh]);
 
+  /* 0097 — die Namen derer, die bitten: versiegelt auf meinen Schlüssel als Gastgeber. */
+  const [askNames, setAskNames] = useState<ReadonlyMap<string, string>>(new Map());
+  const asks = offer?.asks;
+  useEffect(() => {
+    if (asks === undefined || asks.length === 0) return;
+    let alive = true;
+    void openAskNames(claim.claimId, claim.hostWrapPrivateSealed, holder.key, asks).then((found) => { if (alive) setAskNames(found); });
+    return () => { alive = false; };
+  }, [claim.claimId, claim.hostWrapPrivateSealed, holder.key, asks]);
+
   const minutes = Math.round((new Date(claim.endsAt).getTime() - new Date(claim.startsAt).getTime()) / 60000);
   const deciding = claim.hostPending === true;
   const hostOpen = claim.hosting && !deciding && claim.inviteUntil !== null && new Date(claim.inviteUntil).getTime() > Date.now();
@@ -489,7 +500,7 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
               <strong>Prośby o dołączenie</strong>
               {offer.asks.map((ask) => (
                 <p key={ask.claimId}>
-                  {ask.name ?? 'ktoś bez nazwy'}
+                  {askNames.get(ask.claimId) ?? 'ktoś bez nazwy'}
                   {' — '}
                   <button type="button" className="wk-link-btn" disabled={busy}
                     onClick={() => void onAct('Przyjmowanie…', () => hostDecides(ask.claimId, true, holder))}>
@@ -688,7 +699,7 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
 
   const take = (withCode?: string) => holder !== null && void onAct(replaces !== null ? 'Zamienianie…' : 'Zapisywanie…', async () => {
     try {
-      const done = await takeOffer(rules.resourceId, offer, holder, withCode, replaces ?? undefined);
+      const done = await takeOffer(rules, offer, holder, withCode, replaces ?? undefined);
       onTaken(done.claimId, done.inviteCode, holder.key !== null);
     } catch (e) {
       /*
@@ -765,7 +776,7 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
                     nie jest Twój. Odpowiedź pojawi się tutaj.
                   </p>
                   <button type="button" className="wk-btn" disabled={busy}
-                    onClick={() => void onAct('Wysyłanie prośby…', () => askToJoin(rules.resourceId, offer, holder))}>
+                    onClick={() => void onAct('Wysyłanie prośby…', () => askToJoin(rules, offer, holder))}>
                     Poproś o dołączenie
                   </button>
                 </section>
@@ -951,7 +962,7 @@ function OpenAsk({ busyTimes, rules, holder, atLimit, busy, onAct }: {
             <button
               type="button" className="wk-btn" disabled={busy || chosen === null}
               onClick={() => chosen !== null && void onAct('Wysyłanie…',
-                () => takeSpan(rules.resourceId, chosen.starts, chosen.ends, holder))}
+                () => takeSpan(rules, chosen.starts, chosen.ends, holder))}
             >
               {rules.approval === 'office' ? 'Zapytaj' : 'Rezerwuję'}
             </button>

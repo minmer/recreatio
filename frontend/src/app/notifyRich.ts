@@ -19,6 +19,7 @@
  */
 
 import { loadAreas } from './area';
+import { openDigest } from './digestNames';
 import {
   areaKeys, chatKeysOf, handOver, loadAreaNames, loadChat, loadMessages, markRead, openMessage, openNames, sendMessage,
   type ChatDetail, type Opened, type SealedMessage
@@ -420,7 +421,8 @@ export async function gatherNews(who: Who | null, o: GatherOptions): Promise<New
    * 0090 — ohne `since`: neu ist, was das KONTO noch nicht gesehen hat (die Marke
    * liegt beim Dienst). Die Zeit des Telefons wäre eine zweite Wahrheit daneben.
    */
-  const digest = await call<Digest>('/workspace/notifications');
+  /* 0097 — die Namen kommen versiegelt und werden hier, auf dem Telefon, geöffnet — wie die Nachrichten. */
+  const digest = await openDigest(await call<Digest>('/workspace/notifications'));
   const replyable = o.replyable ?? true;
 
   const conversations: Conversation[] = [];

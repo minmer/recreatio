@@ -24,7 +24,8 @@ import { chatSeatAad, sealMessage, sealVersion, versionValue, type SendOptions, 
 import {
   aad, Field, fromBase64Url, newSeatPairs, openText, sealText, signCanonicalP256, toBase64Url, unwrapKeyP256
 } from './crypto';
-import { call } from './session';
+import { personName, sealName, seatOwnNameAad } from './names';
+import { call, WorkspaceError } from './session';
 
 export interface SeatIdentitySealed {
   readonly wrapPublicKey: string;
@@ -63,8 +64,18 @@ const identityAad = (seatId: string) => aad('seat', 'identity', seatId, Field.Se
  * 0095 — DEN NAMEN AM EIGENEN PLATZ setzen (Vor- und Nachname), wenn er noch
  * keinen trägt: in einer Rozmowa spricht eine Person.
  */
-export const nameSeat = (token: string, givenName: string, surname: string): Promise<{ name: string; changed: boolean }> =>
-  call(`${seatPath(token)}/name`, { method: 'POST', body: JSON.stringify({ givenName, surname }) });
+export async function nameSeat(
+  token: string, seatId: string, seatKey: Uint8Array, givenName: string, surname: string
+): Promise<{ name: string; changed: boolean }> {
+  /* 0097 — der Name geht versiegelt, unter dem eigenen Platzschlüssel; der Dienst sieht ihn nicht. */
+  const name = personName(givenName, surname);
+  if (name === null) throw new WorkspaceError('Podaj imię i nazwisko.');
+  const done = await call<{ changed: boolean }>(`${seatPath(token)}/name`, {
+    method: 'POST',
+    body: JSON.stringify({ ownNameSealed: await sealName(seatKey, seatOwnNameAad(seatId), name) })
+  });
+  return { name, changed: done.changed };
+}
 
 export const loadSeatChats = (token: string): Promise<{
   seatId: string; identity: SeatIdentitySealed | null; chats: readonly SeatChatRow[];

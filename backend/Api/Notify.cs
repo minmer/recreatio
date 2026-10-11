@@ -276,7 +276,9 @@ public static class Notify
         var mine = (await Workspace.RolesOfAsync(connection, account, ct)).Select(r => r.Id).ToList();
 
         /* -- Rozmowy: ungelesen, was nicht von mir kommt (wie die Liste der Rozmowy). */
-        var chats = new List<(Guid Id, string Area, string Kind, int Unread, DateTimeOffset? Last, string? Seat, bool Quiet, Guid AreaId)>();
+        /* 0097 — der Name am Platz geht versiegelt hinaus (unter dem Schlüssel seines Bereichs); das Gerät öffnet ihn, wie eine Nachricht. */
+        var chats = new List<(Guid Id, string Area, string Kind, int Unread, DateTimeOffset? Last, string? Seat, bool Quiet, Guid AreaId,
+            byte[]? SeatSealed, int? SeatEpoch, Guid? SeatArea, Guid? SeatId)>();
         if (mine.Count > 0)
         {
             var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
@@ -289,11 +291,13 @@ public static class Notify
                                 /* 0095 — ein anderer aus derselben Gruppe: dieselbe Rolle, eine fremde Person */
                                 OR (m.author_person_id IS NOT NULL AND m.author_person_id NOT IN ({names})))) AS unread,
                        c.last_message_at,
-                       (SELECT x.recipient_name FROM app.access x WHERE x.id = c.seat_id),
-                       c.area_id
+                       seat.recipient_name,
+                       c.area_id,
+                       seat.name_sealed, seat.name_epoch, seat.area_id, c.seat_id
                 FROM app.chat c
                 JOIN app.area a ON a.id = c.area_id
                 LEFT JOIN app.chat_read r ON r.chat_id = c.id AND r.account_id = @account
+                OUTER APPLY (SELECT x.recipient_name, x.name_sealed, x.name_epoch, x.area_id FROM app.access x WHERE x.id = c.seat_id) seat
                 WHERE c.last_message_at IS NOT NULL
                   AND (r.read_at IS NULL OR c.last_message_at > r.read_at)
                   AND c.area_id IN (
@@ -313,7 +317,9 @@ public static class Notify
                 if (unread == 0) continue;
                 chats.Add((reader.GetGuid(0), reader.GetString(1), reader.GetString(2), unread,
                     reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4), reader.IsDBNull(5) ? null : reader.GetString(5), false,
-                    reader.GetGuid(6)));
+                    reader.GetGuid(6),
+                    reader.IsDBNull(7) ? null : (byte[])reader[7], Names.Int(reader, 8), reader.IsDBNull(9) ? null : reader.GetGuid(9),
+                    reader.IsDBNull(10) ? null : reader.GetGuid(10)));
             }
         }
 
@@ -380,12 +386,13 @@ public static class Notify
          *    und, 0090, nach der Marke des Formulars (die Kanzlei hat die Liste geöffnet).
          */
         var held = await Agenda.HeldAreasAsync(connection, account, ct);
-        var forms = new List<(Guid Id, string Name, int Count, DateTimeOffset Last, DateTimeOffset Since, Guid? AreaId)>();
+        /* 0097 — der Name eines Formulars: versiegelt (Sealed, Epoch); offen nur ein alter, bis er versiegelt ist. */
+        var forms = new List<(Guid Id, string? Name, int Count, DateTimeOffset Last, DateTimeOffset Since, Guid? AreaId, byte[]? Sealed, int? Epoch)>();
         if (held.Count > 0)
         {
             var names = string.Join(", ", held.Select((_, i) => $"@h{i}"));
             await using var cmd = new SqlCommand($"""
-                SELECT m.id, m.name, COUNT(*), MAX(r.submitted_at), MAX(s.seen_at), m.area_id
+                SELECT m.id, m.name, COUNT(*), MAX(r.submitted_at), MAX(s.seen_at), m.area_id, m.name_sealed, m.name_epoch
                 FROM app.registration r
                 JOIN app.module m ON m.id = r.part_id
                 LEFT JOIN app.notify_seen s ON s.account_id = @account AND s.kind = N'form' AND s.subject_id = m.id
@@ -401,7 +408,7 @@ public static class Notify
                   AND r.by_office = 0
                   AND (r.access_id IS NOT NULL OR r.role_id IS NOT NULL OR r.claim_sha256 IS NOT NULL)
                   AND m.area_id IN ({names})
-                GROUP BY m.id, m.name, m.area_id
+                GROUP BY m.id, m.name, m.area_id, m.name_sealed, m.name_epoch
                 ORDER BY MAX(r.submitted_at) DESC;
                 """, connection);
             cmd.Parameters.AddWithValue("@since", since);
@@ -410,9 +417,10 @@ public static class Notify
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
-                forms.Add((reader.GetGuid(0), reader.GetString(1), reader.GetInt32(2), reader.GetDateTimeOffset(3),
+                forms.Add((reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetInt32(2), reader.GetDateTimeOffset(3),
                     Later(since, reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4)),
-                    reader.IsDBNull(5) ? null : reader.GetGuid(5)));
+                    reader.IsDBNull(5) ? null : reader.GetGuid(5),
+                    reader.IsDBNull(6) ? null : (byte[])reader[6], Names.Int(reader, 7)));
             }
         }
 
@@ -438,7 +446,7 @@ public static class Notify
          *      steps     Schritte, die die Kanzlei abhakt, deren Frist vorbei ist
          */
         var bookings = new List<(Guid Id, string Name, Guid AreaId, int Count)>();
-        var steps = new List<(Guid Id, string Name, Guid? AreaId, int Count)>();
+        var steps = new List<(Guid Id, string? Name, Guid? AreaId, int Count, byte[]? Sealed, int? Epoch)>();
         if (!countsOnly && mine.Count > 0)
         {
             var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
@@ -464,21 +472,23 @@ public static class Notify
             }
 
             await using (var cmd = new SqlCommand($"""
-                SELECT TOP 30 m.id, m.name, m.area_id, COUNT(*)
+                SELECT TOP 30 m.id, m.name, m.area_id, COUNT(*), m.name_sealed, m.name_epoch
                 FROM app.form_step st
                 JOIN app.module m ON m.id = st.module_id
                 JOIN app.registration g ON g.part_id = st.module_id AND g.withdrawn_at IS NULL AND g.is_hidden = 0
                 WHERE st.done_by = N'office' AND st.due_at IS NOT NULL AND st.due_at < @now
                   AND NOT EXISTS (SELECT 1 FROM app.step_mark k WHERE k.step_id = st.id AND k.registration_id = g.id)
                   AND m.area_id IN ({writable})
-                GROUP BY m.id, m.name, m.area_id
+                GROUP BY m.id, m.name, m.area_id, m.name_sealed, m.name_epoch
                 ORDER BY COUNT(*) DESC;
                 """, connection))
             {
                 cmd.Parameters.AddWithValue("@now", now);
                 for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i]);
                 await using var reader = await cmd.ExecuteReaderAsync(ct);
-                while (await reader.ReadAsync(ct)) steps.Add((reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetGuid(2), reader.GetInt32(3)));
+                while (await reader.ReadAsync(ct))
+                    steps.Add((reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetGuid(2), reader.GetInt32(3),
+                        reader.IsDBNull(4) ? null : (byte[])reader[4], Names.Int(reader, 5)));
             }
         }
 
@@ -519,7 +529,13 @@ public static class Notify
                     kind = c.Kind,
                     unread = c.Unread,
                     lastMessageAt = c.Last,
-                    seatName = c.Seat,
+                    seatName = c.SeatSealed is null ? c.Seat : null,
+
+                    /* 0097 — mit wem (eine Rozmowa mit einem Platz): versiegelt unter dem Schlüssel seines Bereichs. */
+                    seatNameSealed = c.SeatSealed is null ? null : Base64Url.Encode(c.SeatSealed),
+                    seatNameEpoch = c.SeatEpoch,
+                    seatAreaId = c.SeatArea is null ? null : Ids.ToText(c.SeatArea.Value),
+                    seatId = c.SeatId is null ? null : Ids.ToText(c.SeatId.Value),
                     quiet = c.Quiet,
 
                     /* 0094 — zu welchem Bereich (für den Widok obszaru). */
@@ -532,7 +548,11 @@ public static class Notify
                 list = countsOnly ? [] : forms.Take(30).Select(f => (object)new
                 {
                     moduleId = Ids.ToText(f.Id),
-                    name = f.Name,
+                    name = f.Sealed is null ? f.Name : null,
+
+                    /* 0097 — versiegelt unter dem Schlüssel seines Bereichs; geöffnet wird auf dem Gerät. */
+                    nameSealed = f.Sealed is null ? null : Base64Url.Encode(f.Sealed),
+                    nameEpoch = f.Epoch,
                     count = f.Count,
                     lastAt = f.Last,
 
@@ -558,7 +578,12 @@ public static class Notify
             steps = new
             {
                 count = steps.Sum(x => x.Count),
-                list = steps.Select(x => (object)new { moduleId = Ids.ToText(x.Id), name = x.Name, areaId = x.AreaId is null ? null : Ids.ToText(x.AreaId.Value), count = x.Count }).ToList()
+                list = steps.Select(x => (object)new
+                {
+                    moduleId = Ids.ToText(x.Id), name = x.Sealed is null ? x.Name : null,
+                    nameSealed = x.Sealed is null ? null : Base64Url.Encode(x.Sealed), nameEpoch = x.Epoch,
+                    areaId = x.AreaId is null ? null : Ids.ToText(x.AreaId.Value), count = x.Count
+                }).ToList()
             },
 
             /* Ein Rat, kein Befehl: ist etwas offen, lohnt eine Minute; sonst reichen zwei. */

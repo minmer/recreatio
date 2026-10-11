@@ -1094,9 +1094,9 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
   const seat = (one: OfficeMass, who: { seatId?: string; name?: string }) => {
     if (resource == null) return;
     void officeAct('Dopisywanie…', async () => {
-      const done = await officeAdd(resource.resourceId, { itemId: one.itemId, occurrenceAt: one.occurrenceAt }, who);
+      const done = await officeAdd(resource, { itemId: one.itemId, occurrenceAt: one.occurrenceAt }, who);
       setAdding(null);
-      return `Dopisano: ${done.name ?? 'osobę'} — ${stamp(one.startsAt)}${done.over ? ` (ponad limit: ${done.taken} z ${done.capacity})` : ''}.`;
+      return `Dopisano: ${who.name ?? 'osobę'} — ${stamp(one.startsAt)}${done.over ? ` (ponad limit: ${done.taken} z ${done.capacity})` : ''}.`;
     });
   };
 

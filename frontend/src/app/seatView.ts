@@ -20,6 +20,7 @@ import { aad, Field, fromBase64Url, openText } from './crypto';
 import { openSubmitted, type OwnAnswer } from './form';
 import { isChallenge, loadPortal, openGrants, openPortal, type Portal } from './seat';
 import { openSeatRoles } from './memberRole';
+import { moduleNameAad, openWith, seatNameAad, seatOwnNameAad } from './names';
 import type { SeatChallenge } from './seatCheck';
 import type { SeatView } from './seatContext';
 import { openSteps, type SeatForm } from './steps';
@@ -70,6 +71,9 @@ export function useSeat(token: string, keyText: string | null): Opened {
   const [forms, setForms] = useState<readonly SeatForm[]>([]);
   const [challenge, setChallenge] = useState<SeatChallenge | null>(null);
 
+  /* 0097 — wie er heisst: aus seiner eigenen Kopie (unter dem Platzschlüssel), sonst der des Bereichs. */
+  const [ownName, setOwnName] = useState<string | null>(null);
+
   const look = useCallback(async () => {
     try {
       const reply = await loadPortal(token);
@@ -117,8 +121,12 @@ export function useSeat(token: string, keyText: string | null): Opened {
       } catch {
         setSeatKey(null);
         setNote(null);
+        setOwnName(null);
         return;
       }
+
+      /* 0097 — sein Name, unter seinem eigenen Schlüssel versiegelt. */
+      let own = found.ownNameSealed == null ? null : await openWith(key, seatOwnNameAad(found.seatId), found.ownNameSealed);
 
       /*
        * WAS ER SELBST EINGETRAGEN HAT (0027) — beim Firmling sein Formular.
@@ -130,6 +138,13 @@ export function useSeat(token: string, keyText: string | null): Opened {
        * zu, steht die Antwort trotzdem da, nur ohne Beschriftung.
        */
       const reader = areaReader();
+
+      /* Keine eigene Kopie (ein älterer Platz)? Dann die des Bereichs, wenn dieser Browser ihn liest. */
+      if (own === null && found.nameSealed != null && found.nameEpoch != null) {
+        const areaKey = await reader.key(found.areaId, found.nameEpoch);
+        if (areaKey !== undefined) own = await openWith(areaKey, seatNameAad(found.seatId), found.nameSealed);
+      }
+      setOwnName(own);
 
       if (found.submitted.length > 0) {
         const epochs = new Map<string, Uint8Array>();
@@ -162,8 +177,15 @@ export function useSeat(token: string, keyText: string | null): Opened {
 
       const opened: SeatForm[] = [];
       for (const form of found.forms ?? []) {
+        /* 0097 — die Namen seiner Uzupełnienia liegen unter dem Schlüssel ihrer Fragen. */
+        const extensions = await Promise.all(form.extensions.map(async (x) => {
+          if (x.nameSealed == null || x.nameEpoch == null || x.areaId == null) return { ...x, name: x.name ?? 'Uzupełnienie' };
+          const nameKey = await reader.key(x.areaId, x.nameEpoch);
+          return { ...x, name: (nameKey === undefined ? null : await openWith(nameKey, moduleNameAad(x.moduleId), x.nameSealed)) ?? 'Uzupełnienie' };
+        }));
         opened.push({
           ...form,
+          extensions,
           steps: await openSteps(form.steps, (areaId, epoch) => stepKeys.get(`${areaId}:${epoch}`))
         });
       }
@@ -245,7 +267,7 @@ export function useSeat(token: string, keyText: string | null): Opened {
     token,
     seatId: portal.seatId,
     seatKey,
-    recipientName: portal.recipientName,
+    recipientName: ownName ?? portal.recipientName,
     via: portal.via ?? null,
     note,
     submitted: portal.submitted,

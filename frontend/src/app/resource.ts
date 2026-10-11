@@ -13,8 +13,10 @@
  */
 
 import { aad, Field, fromBase64Url, openText, sealText, sha256, toBase64Url } from './crypto';
+import { askNameFor, holderNameFor, hostPair, openHolderNames } from './holderNames';
 import { newId } from './ids';
-import { call } from './session';
+import { nameText, writeKey, claimHolderAad, sealName } from './names';
+import { call, WorkspaceError } from './session';
 
 /** Wer die Zeit wählt: die Kanzlei (`offered`) oder wer fragt (`open`). */
 export type Mode = 'offered' | 'open';
@@ -32,6 +34,8 @@ export const KIND_LABEL: Record<Kind, string> = {
 /** Die Regeln eines Dings — so, wie jeder sie sehen darf. */
 export interface Rules {
   readonly resourceId: string;
+  /** 0097 — der Bereich des Dings: unter seinem Schlüssel (oder für seine Annahme) versiegelt eine Person ihren Namen. */
+  readonly areaId?: string;
   readonly name: string;
   readonly kind: Kind;
   readonly mode: Mode;
@@ -82,8 +86,11 @@ export interface Offer {
   readonly myStatus: Status | null;
   readonly hosting: boolean;
 
-  /** Wer um Mitnahme bittet — nur für den Gastgeber, und nur der Name des Platzes. */
-  readonly asks: readonly { claimId: string; name: string | null }[];
+  /** Wer um Mitnahme bittet — nur für den Gastgeber: 0097 der Name versiegelt auf seinen Schlüssel (`openAskNames`). */
+  readonly asks: readonly { claimId: string; name: string | null; nameSealed?: string | null }[];
+
+  /** 0097 — der öffentliche Schlüssel des Gastgebers: wer um Mitnahme bittet, versiegelt seinen Namen darauf. */
+  readonly hostWrapPublic?: string | null;
 
   /** Der Erste entscheidet noch, ob er einlädt — bis `inviteUntil` (0050). */
   readonly hostPending?: boolean;
@@ -114,6 +121,9 @@ export interface MyClaim {
 
   /** Der eigene Code, versiegelt unter dem Schlüssel des Halters (0045) — oder `null`. */
   readonly inviteSealed: string | null;
+
+  /** 0097 — als Gastgeber: der private Schlüssel (unter dem des Halters), mit dem er die Namen derer öffnet, die bitten. */
+  readonly hostWrapPrivateSealed?: string | null;
 }
 
 /** Belegt — ohne Namen. `whole`: ein Teil des Baums darüber oder darunter. */
@@ -141,13 +151,20 @@ export interface Offers {
  * einmal, wie bisher.
  */
 export type Holder =
-  | { readonly kind: 'seat'; readonly token: string; readonly key: Uint8Array | null }
+  | { readonly kind: 'seat'; readonly token: string; readonly key: Uint8Array | null; readonly name?: string | null }
   | { readonly kind: 'role'; readonly roleId: string; readonly key: Uint8Array; readonly name: string | null };
 
-/** Wie sich ein Halter dem Dienst ausweist — nie mit seinem Schlüssel. */
+/** Wie sich ein Halter dem Dienst ausweist — nie mit seinem Schlüssel, und (0097) nie mit seinem offenen Namen. */
 const who = (holder: Holder) => holder.kind === 'seat'
   ? { seat: holder.token }
-  : { roleId: holder.roleId, name: holder.name };
+  : { roleId: holder.roleId };
+
+/** Der Bereich des Dings — aus den Regeln, wie sie der Dienst schickt. */
+type Thing = Pick<Rules, 'resourceId' | 'areaId'>;
+
+/** 0097 — der Name einer Person (nicht eines Platzes: dessen Name steht am Platz) für die Kanzlei. */
+const officeName = (claimId: string, thing: Thing, holder: Holder) =>
+  holder.kind === 'role' ? holderNameFor(claimId, thing.areaId, holder.name) : Promise.resolve({});
 
 /** Was an einem Ding frei ist — und, mit einem Halter, was er schon hält. */
 export function loadOffers(resource: string, holder?: Holder | null,
@@ -220,7 +237,7 @@ export async function openInvite(claim: Pick<MyClaim, 'claimId' | 'inviteSealed'
  * erste auf dem Termin, nimmt der Dienst seinen Abdruck und das Siegel; der
  * Code selbst geht nie hinaus. Wird er es nicht, wirft der Dienst beides weg.
  */
-export async function takeOffer(resourceId: string, offer: Pick<Offer, 'itemId' | 'occurrenceAt'>,
+export async function takeOffer(thing: Thing, offer: Pick<Offer, 'itemId' | 'occurrenceAt'>,
   holder: Holder, code?: string, replaces?: string): Promise<Taken> {
   const claimId = newId();
   const mine = holder.key === null ? null : newInviteCode();
@@ -228,13 +245,17 @@ export async function takeOffer(resourceId: string, offer: Pick<Offer, 'itemId' 
   const done = await call<Taken>('/resource/claim', {
     method: 'POST',
     body: JSON.stringify({
-      resourceId, itemId: offer.itemId, occurrenceAt: offer.occurrenceAt,
+      resourceId: thing.resourceId, itemId: offer.itemId, occurrenceAt: offer.occurrenceAt,
       ...who(holder),
+      ...await officeName(claimId, thing, holder),
       code: code?.trim() || null,
       claimId,
       ...(mine === null || holder.key === null ? {} : {
         inviteSha256: toBase64Url(await inviteHash(mine)),
-        inviteSealed: toBase64Url(await sealText(holder.key, inviteAad(claimId), mine))
+        inviteSealed: toBase64Url(await sealText(holder.key, inviteAad(claimId), mine)),
+
+        /* 0097 — wird er Gastgeber, öffnet er mit diesem Paar die Namen derer, die bitten. */
+        ...await hostPair(claimId, holder.key)
       }),
       replaces: replaces ?? null
     })
@@ -249,26 +270,35 @@ export async function takeOffer(resourceId: string, offer: Pick<Offer, 'itemId' 
  * `groupId` bündelt mehrere zu EINER Anfrage — das Haus für drei Nächte und
  * die Kapelle für einen Nachmittag. Die Kanzlei sagt zu allen auf einmal ja.
  */
-export const takeSpan = (resourceId: string, startsAt: Date, endsAt: Date,
-  holder: Holder, groupId?: string): Promise<Taken> =>
-  call('/resource/claim', {
+export async function takeSpan(thing: Thing, startsAt: Date, endsAt: Date,
+  holder: Holder, groupId?: string): Promise<Taken> {
+  const claimId = newId();
+  return call('/resource/claim', {
     method: 'POST',
     body: JSON.stringify({
-      resourceId, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(),
-      ...who(holder), groupId: groupId ?? null
+      resourceId: thing.resourceId, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(),
+      ...who(holder), ...await officeName(claimId, thing, holder), claimId, groupId: groupId ?? null
     })
   });
+}
 
 export const releaseClaim = (claimId: string, holder: Holder): Promise<{ released: boolean }> =>
   call('/resource/release', { method: 'POST', body: JSON.stringify({ claimId, ...who(holder) }) });
 
 /** Um Mitnahme bitten, wenn der Code fehlt. */
-export const askToJoin = (resourceId: string, offer: Pick<Offer, 'itemId' | 'occurrenceAt'>,
-  holder: Holder): Promise<Taken> =>
-  call('/resource/ask', {
+export async function askToJoin(thing: Thing, offer: Pick<Offer, 'itemId' | 'occurrenceAt' | 'hostWrapPublic'>,
+  holder: Holder): Promise<Taken> {
+  const claimId = newId();
+  return call('/resource/ask', {
     method: 'POST',
-    body: JSON.stringify({ resourceId, itemId: offer.itemId, occurrenceAt: offer.occurrenceAt, ...who(holder) })
+    body: JSON.stringify({
+      resourceId: thing.resourceId, itemId: offer.itemId, occurrenceAt: offer.occurrenceAt, ...who(holder), claimId,
+      ...await officeName(claimId, thing, holder),
+      /* 0097 — und für den Gastgeber, versiegelt auf seinen Schlüssel. */
+      ...await askNameFor(claimId, offer.hostWrapPublic, holder.name)
+    })
   });
+}
 
 /**
  * DAS VORRECHT ABGEBEN — „ich lade niemanden ein". Die freien Plätze gehören
@@ -374,6 +404,15 @@ export interface OfficeClaim {
   /** Von der Kanzlei eingetragen (0049) — und ob mit Link oder nur mit Namen. */
   readonly byOffice?: boolean;
   readonly withLink?: boolean;
+
+  /** 0097 — die Namen, versiegelt (`loadClaims` öffnet sie): der des Platzes, der am Anspruch. */
+  readonly seatId?: string | null;
+  readonly seatNameSealed?: string | null;
+  readonly seatNameEpoch?: number | null;
+  readonly seatAreaId?: string | null;
+  readonly holderNameSealed?: string | null;
+  readonly holderNameEpoch?: number | null;
+  readonly holderNameWrapped?: string | null;
 }
 
 /** Ein geschlossener Termin (0049) — und wer ihn geschlossen hat. */
@@ -383,25 +422,39 @@ export interface ClosedTerm {
   readonly closedBy: 'office' | 'host';
 }
 
-export const loadClaims = (resourceId: string): Promise<{
+/** Wer was hält — 0097: die Namen kommen versiegelt und werden hier geöffnet. */
+export async function loadClaims(resourceId: string): Promise<{
   resource: ResourceRow;
   claims: readonly OfficeClaim[];
   closed?: readonly ClosedTerm[];
-}> =>
-  call(`/workspace/resource/${encodeURIComponent(resourceId)}/claims`);
+}> {
+  const got = await call<{ resource: ResourceRow; claims: readonly OfficeClaim[]; closed?: readonly ClosedTerm[] }>(
+    `/workspace/resource/${encodeURIComponent(resourceId)}/claims`);
+  return { ...got, claims: await openHolderNames(got.claims, () => got.resource.areaId) };
+}
 
 /**
  * Die Kanzlei trägt jemanden ein (0049) — auch über die Plätze hinaus. Mit
  * `seatId` einen Menschen mit Link, sonst nur einen Namen.
  */
-export const officeAdd = (
-  resourceId: string, term: { itemId: string; occurrenceAt: string },
+export async function officeAdd(
+  resource: { readonly resourceId: string; readonly areaId: string }, term: { itemId: string; occurrenceAt: string },
   who: { seatId?: string; name?: string }
-) =>
-  call<{ claimId: string; name: string | null; taken: number; capacity: number; over: boolean }>(
-    `/workspace/resource/${encodeURIComponent(resourceId)}/add`, {
-      method: 'POST', body: JSON.stringify({ ...term, seatId: who.seatId ?? null, name: who.name ?? null })
-    });
+): Promise<{ claimId: string; taken: number; capacity: number; over: boolean }> {
+  /* 0097 — ein Name ohne Link geht versiegelt, unter dem Schlüssel des Bereichs des Dings; an die Kennung, die der Browser würfelt, ist die Hülle gebunden. */
+  let named = {};
+  const text = nameText(who.name ?? '');
+  if (who.seatId === undefined && text !== '') {
+    const { epoch, key } = await writeKey(resource.areaId, { person: true });
+    const claimId = newId();
+    named = { claimId, nameSealed: await sealName(key, claimHolderAad(claimId), text), nameEpoch: epoch };
+  } else if (who.seatId === undefined) {
+    throw new WorkspaceError('Wybierz osobę albo wpisz imię i nazwisko.');
+  }
+  return call(`/workspace/resource/${encodeURIComponent(resource.resourceId)}/add`, {
+    method: 'POST', body: JSON.stringify({ ...term, seatId: who.seatId ?? null, ...named })
+  });
+}
 
 /** Die Kanzlei trägt jemanden aus (0049). */
 export const officeRemove = (claimId: string) =>

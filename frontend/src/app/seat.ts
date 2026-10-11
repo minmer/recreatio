@@ -35,6 +35,8 @@ import type { PagePart } from './page';
 import { checkFor, sealLink, type CheckAnswer, type SeatChallenge } from './seatCheck';
 import type { SeatFormSealed } from './steps';
 import { pageLink } from './seatKeep';
+import { loadIntake, openIntakeKey } from './intake';
+import { nameKey, openSeatName, openWith, ringOrNull, seatOwnNameAad } from './names';
 import { call } from './session';
 
 /* -- Die Etiketten, an EINER Stelle ---------------------------------------- */
@@ -152,7 +154,17 @@ export async function openGrants(
 
 export interface SeatRow {
   readonly seatId: string;
+
+  /**
+   * Wie der Mensch heisst — 0097: geöffnet von `loadSeats` (versiegelt unter dem
+   * Schlüssel dieses Bereichs, `nameSealed`); offen kommt er nur bei einem
+   * alten Platz, bis ihn ein Browser der Kanzlei versiegelt hat.
+   */
   readonly recipientName: string | null;
+  readonly nameSealed?: string | null;
+  readonly nameEpoch?: number | null;
+  /** 0097 — seine eigene Kopie: in einem jawny Bereich die einzige (die Kanzlei öffnet sie über den Platzschlüssel). */
+  readonly ownNameSealed?: string | null;
 
   /**
    * Der Weg der Kanzlei zum Platzschlüssel — GENAU EINER je Zeile (0027).
@@ -201,8 +213,34 @@ export interface SeatRow {
   readonly locked: boolean;
 }
 
-export const loadSeats = (areaId: string): Promise<{ seats: readonly SeatRow[] }> =>
-  call(`/workspace/area/${encodeURIComponent(areaId)}/seats`);
+/**
+ * Die Plätze eines Bereichs — mit geöffneten Namen (0097): die Kopie unter dem
+ * Schlüssel des Bereichs, sonst (in einem jawny Bereich) die eigene des Platzes,
+ * an die die Kanzlei über ihre Annahme kommt.
+ */
+export async function loadSeats(areaId: string): Promise<{ seats: readonly SeatRow[] }> {
+  const got = await call<{ seats: readonly SeatRow[] }>(`/workspace/area/${encodeURIComponent(areaId)}/seats`);
+  let intake: Promise<Uint8Array | null> | null = null;
+  const intakeKey = () => (intake ??= (async () => {
+    const ring = await ringOrNull();
+    return ring === null ? null : openIntakeKey(await loadIntake(areaId), ring);
+  })().catch(() => null));
+
+  return {
+    seats: await Promise.all(got.seats.map(async (row) => {
+      let name = await openSeatName({ ...row, areaId });
+      if (name === null && row.ownNameSealed != null) {
+        const areaKey = row.origin === 'self' ? undefined : await nameKey(areaId, row.epoch).catch(() => undefined);
+        const intakePrivate = row.origin === 'self' ? await intakeKey() : null;
+        const seatKey = row.origin === 'self'
+          ? (intakePrivate === null ? null : await officeSeatKey(row, new Uint8Array(0), intakePrivate))
+          : (areaKey === undefined ? null : await officeSeatKey(row, areaKey));
+        if (seatKey !== null) name = await openWith(seatKey, seatOwnNameAad(row.seatId), row.ownNameSealed);
+      }
+      return { ...row, recipientName: name };
+    }))
+  };
+}
 
 export interface OpenedSeat {
   readonly personal: string | null;
@@ -317,13 +355,7 @@ export async function rotateSeat(token: string, seatId: string, seatKey: Uint8Ar
   return link;
 }
 
-/**
- * Den vollen Namen an die Plätze schreiben — aus den Antworten, die die
- * Kanzlei gerade geöffnet hat. Der Dienst ERGÄNZT nur (ein leerer Name, oder
- * „Węglowski" → „Jan Węglowski"); einen von Hand gesetzten lässt er stehen.
- */
-export const nameSeats = (names: readonly { seatId: string; name: string }[]): Promise<{ updated: number }> =>
-  call('/workspace/seats/names', { method: 'POST', body: JSON.stringify({ names }) });
+/* 0097 — den vollen Namen an die Plätze schreiben: `nameSeal.ts` `sealSeatNames` (versiegelt). */
 
 export const revokeSeat = (seatId: string): Promise<{ revoked: boolean }> =>
   call(`/workspace/seat/${encodeURIComponent(seatId)}/revoke`, { method: 'POST' });
@@ -335,7 +367,14 @@ export interface Portal {
   readonly areaId: string;
   readonly seatKeySealed: string;
   readonly epoch: number;
+
+  /** Offen nur bei einem alten Platz, bis die Kanzlei ihn versiegelt hat (0097). */
   readonly recipientName: string | null;
+
+  /** 0097 — wie er heisst: unter dem Platzschlüssel (seine Kopie) und unter dem des Bereichs. */
+  readonly ownNameSealed?: string | null;
+  readonly nameSealed?: string | null;
+  readonly nameEpoch?: number | null;
   /** 0095 — eine Person aus einem Link: der Name des Links (in einer Rozmowa in Klammern hinter ihrem). */
   readonly via?: string | null;
   readonly personalNoteSealed: string | null;
@@ -491,7 +530,9 @@ export interface MySeat {
   readonly seatId: string;
   readonly areaId: string;
   readonly areaName: string;
+  /** 0097 — geöffnet aus seiner eigenen Kopie (`loadMySeats` mit Bund); offen nur bei einem alten. */
   readonly recipientName: string | null;
+  readonly ownNameSealed?: string | null;
   readonly roleId: string;
   readonly seatKeySealed: string;
   readonly epoch: number;
@@ -501,8 +542,19 @@ export interface MySeat {
   readonly grants: readonly SeatGrant[];
 }
 
-export const loadMySeats = (): Promise<{ seats: readonly MySeat[] }> =>
-  call('/workspace/seats');
+/** Meine Plätze — mit dem Bund auch ihre Namen (die eigene Kopie, unter dem Platzschlüssel, 0097). */
+export async function loadMySeats(ring?: Ring | null): Promise<{ seats: readonly MySeat[] }> {
+  const got = await call<{ seats: readonly MySeat[] }>('/workspace/seats');
+  if (ring == null) return got;
+  return {
+    seats: await Promise.all(got.seats.map(async (seat) => {
+      if (seat.ownNameSealed == null) return seat;
+      const seatKey = await quietly(async () => unwrapKey(await ring.wrapPrivate(seat.roleId), seatAad(seat.seatId), fromBase64Url(seat.seatKeySealed)));
+      const name = seatKey === null ? null : await openWith(seatKey, seatOwnNameAad(seat.seatId), seat.ownNameSealed);
+      return { ...seat, recipientName: name ?? seat.recipientName };
+    }))
+  };
+}
 
 /**
  * Einen gebundenen Platz öffnen — OHNE den Link.

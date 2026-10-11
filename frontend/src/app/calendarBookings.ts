@@ -17,6 +17,7 @@
  * wer darin schreibt (`mayDecide`).
  */
 
+import { openHolderNames } from './holderNames';
 import type { Status } from './resource';
 import { call } from './session';
 
@@ -40,8 +41,18 @@ export interface HeldClaim {
   readonly status: Status;
   readonly awaits: 'office' | 'host' | null;
   readonly groupId: string;
-  /** Der Name, den die Kanzlei dem Platz gab — oder den die Person beim Nehmen mitschickte. */
+  /**
+   * Der Name, den die Kanzlei dem Platz gab — oder den die Person beim Nehmen
+   * mitschickte. 0097: geöffnet von `loadBookings` (er kommt versiegelt).
+   */
   readonly name: string | null;
+  readonly seatId?: string | null;
+  readonly seatNameSealed?: string | null;
+  readonly seatNameEpoch?: number | null;
+  readonly seatAreaId?: string | null;
+  readonly holderNameSealed?: string | null;
+  readonly holderNameEpoch?: number | null;
+  readonly holderNameWrapped?: string | null;
   readonly registeredAt: string | null;
   readonly roleId: string | null;
   readonly createdAt: string;
@@ -79,8 +90,19 @@ export interface AgendaBookings {
 
 export const NO_BOOKINGS: AgendaBookings = { resources: [], offers: [], bookings: [], waiting: [] };
 
-export const loadBookings = (from: Date, to: Date): Promise<AgendaBookings> =>
-  call(`/workspace/agenda/bookings?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`);
+/** Die Reservierungen im Zeitraum — 0097: die Namen kommen versiegelt und werden hier geöffnet. */
+export async function loadBookings(from: Date, to: Date): Promise<AgendaBookings> {
+  const got = await call<AgendaBookings>(
+    `/workspace/agenda/bookings?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`);
+  const areaOf = new Map(got.resources.map((r) => [r.resourceId, r.areaId]));
+  const openAll = (resourceId: string, claims: readonly HeldClaim[]) => openHolderNames(claims, () => areaOf.get(resourceId));
+  return {
+    ...got,
+    offers: await Promise.all(got.offers.map(async (offer) => ({ ...offer, claims: await openAll(offer.resourceId, offer.claims) }))),
+    bookings: await Promise.all(got.bookings.map(async (one) => ({ ...one, claim: (await openAll(one.resourceId, [one.claim]))[0]! }))),
+    waiting: await Promise.all(got.waiting.map(async (one) => ({ ...one, claim: (await openAll(one.resourceId, [one.claim]))[0]! })))
+  };
+}
 
 /** Dieselbe Zeit — die Zeichenketten des Dienstes tragen ihre Zone, verglichen wird der Augenblick. */
 export const sameInstant = (a: string, b: string): boolean => new Date(a).getTime() === new Date(b).getTime();

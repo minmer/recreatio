@@ -31,8 +31,10 @@ namespace Api;
 /// </summary>
 public static partial class Bookings
 {
+    /// <summary>0097 — <c>Name</c> offen nur bei einem alten; sonst der des Platzes versiegelt (<c>Seat*</c>) und der am Anspruch (<c>Row.Holder*</c>).</summary>
     private sealed record Held(
-        ClaimRow Row, string? Name, DateTimeOffset? RegisteredAt, bool ByOffice, bool WithLink);
+        ClaimRow Row, string? Name, DateTimeOffset? RegisteredAt, bool ByOffice, bool WithLink,
+        byte[]? SeatSealed = null, int? SeatEpoch = null, Guid? SeatArea = null);
 
     /// <summary>
     /// WER HÄLT WAS an einem Ding — lebende Ansprüche (wartend oder bestätigt),
@@ -48,7 +50,8 @@ public static partial class Bookings
         await using var cmd = new SqlCommand($"""
             SELECT {string.Join(", ", ClaimColumns.Split(',').Select(c => "c." + c.Trim()))},
                    COALESCE(a.recipient_name, c.holder_name), c.by_office,
-                   (SELECT MIN(g.submitted_at) FROM app.registration g WHERE g.access_id = c.access_id)
+                   (SELECT MIN(g.submitted_at) FROM app.registration g WHERE g.access_id = c.access_id),
+                   a.name_sealed, a.name_epoch, a.area_id
             FROM app.claim c
             LEFT JOIN app.access a ON a.id = c.access_id
             WHERE c.resource_id = @r
@@ -69,10 +72,12 @@ public static partial class Bookings
             var row = ReadClaim(reader);
             held.Add(new Held(
                 row,
-                reader.IsDBNull(17) ? null : reader.GetString(17),
-                reader.IsDBNull(19) ? null : reader.GetDateTimeOffset(19),
-                !reader.IsDBNull(18) && reader.GetBoolean(18),
-                row.AccessId is not null));
+                reader.IsDBNull(23) ? null : reader.GetString(23),
+                reader.IsDBNull(25) ? null : reader.GetDateTimeOffset(25),
+                !reader.IsDBNull(24) && reader.GetBoolean(24),
+                row.AccessId is not null,
+                reader.IsDBNull(26) ? null : (byte[])reader[26], Names.Int(reader, 27),
+                reader.IsDBNull(28) ? null : reader.GetGuid(28)));
         }
 
         return held;
@@ -88,6 +93,14 @@ public static partial class Bookings
         awaits = one.Row.Awaits,
         groupId = Ids.ToText(one.Row.GroupId),
         name = one.Name,
+
+        /* 0097 — die Namen, versiegelt: der des Platzes (unter dem Schlüssel seines Bereichs), der am Anspruch (der des Dings, oder für die Annahme). */
+        seatNameSealed = one.SeatSealed is null ? null : Base64Url.Encode(one.SeatSealed),
+        seatNameEpoch = one.SeatEpoch,
+        seatAreaId = one.SeatArea is null ? null : Ids.ToText(one.SeatArea.Value),
+        holderNameSealed = one.Row.HolderSealed is null ? null : Base64Url.Encode(one.Row.HolderSealed),
+        holderNameEpoch = one.Row.HolderEpoch,
+        holderNameWrapped = one.Row.HolderWrapped is null ? null : Base64Url.Encode(one.Row.HolderWrapped),
         registeredAt = one.RegisteredAt,
         roleId = one.Row.RoleId is null ? null : Ids.ToText(one.Row.RoleId.Value),
         createdAt = one.Row.CreatedAt,
@@ -95,6 +108,7 @@ public static partial class Bookings
         hostPending = HostUndecided(one.Row, now),
         byOffice = one.ByOffice,
         withLink = one.WithLink,
+        seatId = one.Row.AccessId is null ? null : Ids.ToText(one.Row.AccessId.Value),
         itemId = one.Row.ItemId is null ? null : Ids.ToText(one.Row.ItemId.Value),
         occurrenceAt = one.Row.OccurrenceAt
     };

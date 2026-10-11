@@ -141,7 +141,10 @@ public static partial class Module
                    m.member_role_id,
 
                    /* 0096 — in welcher Gruppe von Formularen, an welcher Stelle. */
-                   m.form_group_id, m.group_position
+                   m.form_group_id, m.group_position,
+
+                   /* 0097 — der Name eines Formulars: versiegelt unter dem Schlüssel seines Bereichs. */
+                   m.name_sealed, m.name_epoch
             FROM app.module m
             LEFT JOIN app.area a ON a.id = m.area_id
             WHERE
@@ -156,7 +159,7 @@ public static partial class Module
                          JOIN app.slug s ON s.id = p.slug_id
                         WHERE p.module_id = m.id
                           AND s.claimed_by_role_id IN ({names}))
-            ORDER BY m.kind, m.name;
+            ORDER BY m.kind, m.name, m.created_at;
             """, connection);
 
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
@@ -172,7 +175,11 @@ public static partial class Module
                 moduleId = Ids.ToText(reader.GetGuid(0)),
                 areaId = reader.IsDBNull(1) ? null : Ids.ToText(reader.GetGuid(1)),
                 kind = reader.GetString(2),
-                name = reader.GetString(3),
+
+                /* 0097 — offen nur bei Bausteinen, die kein Formular sind (und bei einem alten Formular, bis es versiegelt ist). */
+                name = reader.IsDBNull(3) ? null : reader.GetString(3),
+                nameSealed = Names.B64(reader, 22),
+                nameEpoch = Names.Int(reader, 23),
                 config = reader.IsDBNull(4) ? null : reader.GetString(4),
                 createdAt = reader.GetDateTimeOffset(5),
 
@@ -234,7 +241,7 @@ public static partial class Module
     /// </para>
     /// </summary>
     public sealed record CreateRequest(
-        string ModuleId, string Kind, string Name, string? AreaId, string? Config,
+        string ModuleId, string Kind, string? Name, string? AreaId, string? Config,
         string? ForKind = null,
 
         /*
@@ -245,7 +252,10 @@ public static partial class Module
         string? ExtendsId = null, string? Audience = null,
 
         /* 0077 — wie oft die Erweiterung je Mensch ausgefüllt wird: once (Vorgabe), day, week, month, year. */
-        string? Repeat = null);
+        string? Repeat = null,
+
+        /* 0097 — der Name eines Formulars, versiegelt unter dem Schlüssel seines Bereichs (`Name` bleibt dann leer). */
+        string? NameSealed = null, int? NameEpoch = null);
 
     /// <summary>Wovon ein Baustein handeln kann (0038).</summary>
     private static readonly string[] Subjects = ["none", "person", "group", "role"];
@@ -284,11 +294,32 @@ public static partial class Module
             return;
         }
 
-        var name = (body.Name ?? string.Empty).Trim();
-        if (name.Length is 0 or > MaxName)
+        /*
+         * 0097 — DER NAME EINES FORMULARS LIEGT NIE OFFEN. Er kommt versiegelt
+         * unter dem Schlüssel seines Bereichs; ein mitgeschickter Klartext wird
+         * nicht gespeichert. Andere Bausteine (Text, Kalender) behalten ihren
+         * offenen Namen.
+         */
+        string? name = null;
+        var (nameSealed, nameEpoch, nameError) = Names.Read(body.NameSealed, body.NameEpoch);
+
+        if (kind == "form")
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, $"Nazwa: od 1 do {MaxName} znaków.");
-            return;
+            if (nameError is not null || nameSealed is null)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest,
+                    nameError ?? "Nazwa formularza idzie zapieczętowana kluczem jego obszaru.");
+                return;
+            }
+        }
+        else
+        {
+            name = (body.Name ?? string.Empty).Trim();
+            if (name.Length is 0 or > MaxName)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, $"Nazwa: od 1 do {MaxName} znaków.");
+                return;
+            }
         }
 
         if ((body.Config?.Length ?? 0) > MaxConfig)
@@ -395,10 +426,29 @@ public static partial class Module
             return;
         }
 
+        /* Ein Formular ohne Bereich hätte keinen Schlüssel für seinen Namen — und keinen für seine Fragen. */
+        if (kind == "form")
+        {
+            if (areaId is null)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Formularz potrzebuje obszaru — pod jego kluczem leży nazwa.");
+                return;
+            }
+
+            if (await Names.EpochProblemAsync(connection, null, areaId.Value, nameEpoch, person: false, ctx.RequestAborted) is { } problem)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, problem);
+                return;
+            }
+        }
+
         await using var cmd = new SqlCommand("""
-            INSERT INTO app.module (id, area_id, kind, name, config, created_at, for_kind, extends_id, audience, repeat_kind)
-            VALUES (@id, @area, @kind, @name, @config, @now, @for, @extends, @audience, @repeat);
+            INSERT INTO app.module (id, area_id, kind, name, name_sealed, name_epoch, config, created_at, for_kind, extends_id, audience, repeat_kind)
+            VALUES (@id, @area, @kind, @name, @nameSealed, @nameEpoch, @config, @now, @for, @extends, @audience, @repeat);
             """, connection);
+
+        cmd.Parameters.AddBlob("@nameSealed", nameSealed);
+        cmd.Parameters.AddWithValue("@nameEpoch", nameSealed is null ? DBNull.Value : nameEpoch);
 
         cmd.Parameters.AddWithValue("@extends", (object?)extendsId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@audience", audience);
@@ -407,7 +457,7 @@ public static partial class Module
         cmd.Parameters.AddWithValue("@id", moduleId);
         cmd.Parameters.AddWithValue("@area", (object?)areaId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@kind", kind);
-        cmd.Parameters.AddWithValue("@name", name);
+        cmd.Parameters.AddWithValue("@name", (object?)name ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@config", (object?)body.Config ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
         cmd.Parameters.AddWithValue("@for", forKind);
@@ -451,7 +501,10 @@ public static partial class Module
         string? Audience = null,
 
         /* 0096 — in welche Gruppe von Formularen (oder aus ihr heraus). */
-        string? GroupId = null, bool ClearGroup = false);
+        string? GroupId = null, bool ClearGroup = false,
+
+        /* 0097 — der neue Name eines Formulars, versiegelt unter dem Schlüssel seines (neuen) Bereichs. */
+        string? NameSealed = null, int? NameEpoch = null);
 
     /// <summary>
     /// Umbenennen, den Bereich setzen, die Einstellung aendern.
@@ -736,11 +789,62 @@ public static partial class Module
             return;
         }
 
-        var name = (body.Name ?? found.Value.Name).Trim();
-        if (name.Length is 0 or > MaxName)
+        /*
+         * 0097 — DER NAME EINES FORMULARS kommt nur versiegelt, unter dem
+         * Schlüssel des Bereichs, in dem es danach steht. Zieht es um, muss er
+         * mit (wie die Fragen und der Aufbau) — sonst läge er unter einem
+         * Schlüssel, den der neue Bereich nicht hat.
+         */
+        var isForm = found.Value.Kind == "form";
+        var name = found.Value.Name;
+        var (nameSealed, nameEpoch, nameError) = Names.Read(body.NameSealed, body.NameEpoch);
+
+        if (nameError is not null)
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, $"Nazwa: od 1 do {MaxName} znaków.");
+            await Fail(ctx, StatusCodes.Status400BadRequest, nameError);
             return;
+        }
+
+        if (isForm)
+        {
+            if (!string.IsNullOrWhiteSpace(body.Name) && nameSealed is null)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nazwa formularza idzie zapieczętowana kluczem jego obszaru.");
+                return;
+            }
+
+            if (areaId is null && (nameSealed is not null || found.Value.HasSealedName))
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, "Formularz potrzebuje obszaru — pod jego kluczem leży nazwa.");
+                return;
+            }
+
+            if (nameSealed is not null)
+            {
+                if (await Names.EpochProblemAsync(connection, null, areaId!.Value, nameEpoch, person: false, ctx.RequestAborted) is { } problem)
+                {
+                    await Fail(ctx, StatusCodes.Status409Conflict, problem);
+                    return;
+                }
+
+                /* Mit dem versiegelten Namen geht auch ein alter offener. */
+                name = null;
+            }
+            else if (moving && found.Value.HasSealedName)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "Żeby zmienić obszar, trzeba przepieczętować też nazwę formularza — odśwież i spróbuj jeszcze raz.");
+                return;
+            }
+        }
+        else
+        {
+            name = (body.Name ?? found.Value.Name ?? string.Empty).Trim();
+            if (name.Length is 0 or > MaxName)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, $"Nazwa: od 1 do {MaxName} znaków.");
+                return;
+            }
         }
 
         if ((body.Config?.Length ?? 0) > MaxConfig)
@@ -783,6 +887,8 @@ public static partial class Module
             await using (var cmd = new SqlCommand("""
                 UPDATE app.module
                    SET name = @name,
+                       name_sealed = CASE WHEN @nameSealed IS NULL THEN name_sealed ELSE @nameSealed END,
+                       name_epoch = CASE WHEN @nameSealed IS NULL THEN name_epoch ELSE @nameEpoch END,
                        area_id = @area,
                        for_kind = @for,
                        config = CASE WHEN @config IS NULL THEN config ELSE @config END,
@@ -796,7 +902,9 @@ public static partial class Module
                  WHERE id = @id;
                 """, connection, tx))
             {
-                cmd.Parameters.AddWithValue("@name", name);
+                cmd.Parameters.AddWithValue("@name", (object?)name ?? DBNull.Value);
+                cmd.Parameters.AddBlob("@nameSealed", nameSealed);
+                cmd.Parameters.AddWithValue("@nameEpoch", nameSealed is null ? DBNull.Value : nameEpoch);
                 cmd.Parameters.AddWithValue("@for", forKind);
                 cmd.Parameters.AddWithValue("@area", (object?)areaId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@config", (object?)body.Config ?? DBNull.Value);
@@ -950,9 +1058,9 @@ public static partial class Module
     /* -- Gemeinsames --------------------------------------------------------- */
 
     internal readonly record struct Row(
-        Guid Id, Guid? AreaId, string Kind, string Name, string ForKind,
+        Guid Id, Guid? AreaId, string Kind, string? Name, string ForKind,
         int Used, int Fields, int Entries, Guid? ExtendsId = null, string Audience = "public",
-        string Repeat = Rounds.Once);
+        string Repeat = Rounds.Once, bool HasSealedName = false);
 
     internal static async Task<Row?> ReadAsync(
         SqlConnection connection, Guid id, CancellationToken ct)
@@ -962,7 +1070,8 @@ public static partial class Module
                    (SELECT COUNT(*) FROM app.slug_part p WHERE p.module_id = m.id),
                    (SELECT COUNT(*) FROM app.slug_field f WHERE f.part_id = m.id),
                    (SELECT COUNT(*) FROM app.registration g WHERE g.part_id = m.id),
-                   m.extends_id, m.audience, m.repeat_kind
+                   m.extends_id, m.audience, m.repeat_kind,
+                   CAST(CASE WHEN m.name_sealed IS NULL THEN 0 ELSE 1 END AS bit)
             FROM app.module m WHERE m.id = @id;
             """, connection);
 
@@ -974,9 +1083,10 @@ public static partial class Module
         return new Row(
             reader.GetGuid(0),
             reader.IsDBNull(1) ? null : reader.GetGuid(1),
-            reader.GetString(2), reader.GetString(3), reader.GetString(4),
+            reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3), reader.GetString(4),
             reader.GetInt32(5), reader.GetInt32(6), reader.GetInt32(7),
-            reader.IsDBNull(8) ? null : reader.GetGuid(8), reader.GetString(9), reader.GetString(10));
+            reader.IsDBNull(8) ? null : reader.GetGuid(8), reader.GetString(9), reader.GetString(10),
+            reader.GetBoolean(11));
     }
 
     /// <summary>

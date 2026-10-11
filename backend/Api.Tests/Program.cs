@@ -70,15 +70,19 @@ Check(Chat.AvailableAt(fold, DateTimeOffset.Parse("2026-10-25T01:30:00Z")), "sec
     Check(ChatRules.PersonFor(rada, false, [anna, jan], jan).Person == jan, "the chosen person speaks");
     Check(ChatRules.PersonFor(rada, false, [anna], jan).Status == 403, "a person who does not hold the role cannot speak through it");
     Check(ChatRules.PersonFor(rada, false, [], null).Status == 403, "a role nobody of the account holds as a person cannot speak");
-    Check(ChatRules.PersonName("  Anna ", " Nowak-Kowalska ") == "Anna Nowak-Kowalska", "a link person: name and surname, trimmed");
-    Check(ChatRules.PersonName("Anna", "  ") is null && ChatRules.PersonName("", "Nowak") is null, "both parts are needed");
-    Check(ChatRules.PersonName("Anna\u0000\u0007", "Maria  Nowak") == "Anna Maria Nowak", "control characters and double spaces go");
-    Check(ChatRules.PersonName(new string('a', 81), "Nowak") is null, "an overlong name is refused");
 }
-/* 0096 — a group of forms has a clean name. */
-Check(Module.GroupName("  Zadania   na  rok ") == "Zadania na rok", "a group name: trimmed, single spaces");
-Check(Module.GroupName(" \t ") is null && Module.GroupName(null) is null, "a group needs a name");
-Check(Module.GroupName("A\u0007B") == "AB" && Module.GroupName(new string('x', 201)) is null, "no control characters, at most 200");
+/* 0097 — names never lie in the open: the service only checks that a sealed name is an envelope, with its epoch. */
+{
+    var envelope = Kernel.Base64Url.Encode(new byte[60]);
+    Check(Names.Blob(envelope) is { Length: 60 }, "a sealed name: an envelope of a sane size");
+    Check(Names.Blob(Kernel.Base64Url.Encode(new byte[48])) is null, "shorter than header, nonce and tag: no envelope");
+    Check(Names.Blob(Kernel.Base64Url.Encode(new byte[1025])) is null, "longer than any name: refused");
+    Check(Names.Blob("Jan Kowalski") is null && Names.Blob(null) is null, "plaintext is not an envelope");
+    Check(Names.Read(null, null) is { Sealed: null, Error: null }, "nothing given: nothing, and no error");
+    Check(Names.Read(envelope, 3) is { Sealed.Length: 60, Epoch: 3, Error: null }, "an envelope with its epoch");
+    Check(Names.Read(envelope, null).Error is not null && Names.Read(envelope, 0).Error is not null, "an envelope without its epoch: an error");
+    Check(Names.Read("Jan Kowalski", 1).Error is not null, "a plaintext name instead of an envelope: an error");
+}
 await ApiErrorChecks.RunAsync(Check);
 FileLoggerChecks.Run(Check);
 PageFileChecks.Run(Check);

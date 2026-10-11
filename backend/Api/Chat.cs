@@ -213,7 +213,7 @@ public static partial class Chat
 
         var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
         var rows = new List<(Guid Id, Guid Area, string AreaName, string Kind, DateTimeOffset Created, DateTimeOffset? Last,
-            int Unread, int Seats, int Pending, Guid? Seat, string? SeatName)>();
+            int Unread, int Seats, int Pending, Guid? Seat, string? SeatName, byte[]? SeatSealed, int? SeatEpoch, Guid? SeatArea)>();
 
         /*
          * Ungelesen ist, was nicht von MIR kommt — auch was ein Platz schrieb
@@ -240,10 +240,12 @@ public static partial class Chat
                                         WHERE k.chat_id = c.id AND k.access_id = s.id
                                           AND k.epoch = a.current_epoch)) AS pending,
                    c.seat_id,
-                   (SELECT x.recipient_name FROM app.access x WHERE x.id = c.seat_id) AS seat_name
+                   seat.recipient_name AS seat_name,
+                   seat.name_sealed, seat.name_epoch, seat.area_id
             FROM app.chat c
             JOIN app.area a ON a.id = c.area_id
             LEFT JOIN app.chat_read r ON r.chat_id = c.id AND r.account_id = @account
+            OUTER APPLY (SELECT x.recipient_name, x.name_sealed, x.name_epoch, x.area_id FROM app.access x WHERE x.id = c.seat_id) seat
             WHERE c.area_id IN (
                 SELECT scope_id FROM app.certificate
                 WHERE scope_kind = N'area' AND revoked_at IS NULL AND expires_at > @now
@@ -262,7 +264,8 @@ public static partial class Chat
                 rows.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3),
                     reader.GetDateTimeOffset(4), reader.IsDBNull(5) ? null : reader.GetDateTimeOffset(5),
                     reader.GetInt32(6), reader.GetInt32(7), reader.GetInt32(8),
-                    reader.IsDBNull(9) ? null : reader.GetGuid(9), reader.IsDBNull(10) ? null : reader.GetString(10)));
+                    reader.IsDBNull(9) ? null : reader.GetGuid(9), reader.IsDBNull(10) ? null : reader.GetString(10),
+                    reader.IsDBNull(11) ? null : (byte[])reader[11], Names.Int(reader, 12), reader.IsDBNull(13) ? null : reader.GetGuid(13)));
             }
         }
 
@@ -292,7 +295,12 @@ public static partial class Chat
 
                 /* 0069 — die Rozmowa mit einem Platz: mit wem (der Name, den die Kanzlei am Platz fuehrt). */
                 seatId = r.Seat is null ? null : Ids.ToText(r.Seat.Value),
-                seatName = r.SeatName,
+
+                /* 0097 — versiegelt unter dem Schlüssel des Bereichs des Platzes; offen nur ein alter. */
+                seatName = r.SeatSealed is null ? r.SeatName : null,
+                seatNameSealed = r.SeatSealed is null ? null : Base64Url.Encode(r.SeatSealed),
+                seatNameEpoch = r.SeatEpoch,
+                seatAreaId = r.SeatArea is null ? null : Ids.ToText(r.SeatArea.Value),
 
                 /* 0080 — die Formulare, deren Menschen in dieser Rozmowa (diesem Kanał) dabei sind. */
                 formIds = forms.TryGetValue(r.Id, out var f) ? f.Select(x => Ids.ToText(x.ModuleId)).ToList() : [],
@@ -674,24 +682,26 @@ public static partial class Chat
     /// die er schon da ist.
     ///
     /// <para>
-    /// Der Name ist der, den die Kanzlei am Platz fuehrt (`recipient_name`) —
-    /// er steht ohnehin offen da, damit sie ihre Plaetze zuordnen kann.
+    /// Der Name ist der, den die Kanzlei am Platz fuehrt — 0097: versiegelt unter
+    /// dem Schluessel des Bereichs des Platzes (`nameSealed`), offen nur bei
+    /// einem alten, bis ihn ein Browser der Kanzlei versiegelt hat.
     /// </para>
     /// </summary>
     private static async Task<List<object>> SeatsOfAsync(SqlConnection connection, ChatRow chat, CancellationToken ct)
     {
-        var rows = new List<(Guid Id, string? Name, byte[]? Wrap, string? Via)>();
+        var rows = new List<(Guid Id, string? Name, byte[]? Wrap, string? Via, Guid Area, byte[]? Sealed, int? Epoch)>();
 
         await using (var cmd = new SqlCommand($"""
             SELECT s.id, s.recipient_name, i.wrap_public_key,
                    /* 0095 — eine Person aus einem Link: der Name des Links (in Klammern hinter ihrem). */
                    CASE WHEN s.invitation_id IS NULL THEN NULL
-                        ELSE COALESCE(NULLIF(LTRIM(RTRIM((SELECT iv.label FROM app.invitation iv WHERE iv.id = s.invitation_id))), N''), N'Link') END
+                        ELSE COALESCE(NULLIF(LTRIM(RTRIM((SELECT iv.label FROM app.invitation iv WHERE iv.id = s.invitation_id))), N''), N'Link') END,
+                   s.area_id, s.name_sealed, s.name_epoch
             FROM app.chat c
             JOIN app.access s ON {SeatOfChat}
             LEFT JOIN app.seat_identity i ON i.access_id = s.id
             WHERE c.id = @chat AND {LiveSeat("s")}
-            ORDER BY s.recipient_name, s.created_at;
+            ORDER BY s.created_at;
             """, connection))
         {
             cmd.Parameters.AddWithValue("@chat", chat.Id);
@@ -701,7 +711,8 @@ public static partial class Chat
             while (await reader.ReadAsync(ct))
             {
                 rows.Add((reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetString(1),
-                    reader.IsDBNull(2) ? null : (byte[])reader[2], reader.IsDBNull(3) ? null : reader.GetString(3)));
+                    reader.IsDBNull(2) ? null : (byte[])reader[2], reader.IsDBNull(3) ? null : reader.GetString(3),
+                    reader.GetGuid(4), reader.IsDBNull(5) ? null : (byte[])reader[5], Names.Int(reader, 6)));
             }
         }
 
@@ -723,7 +734,10 @@ public static partial class Chat
         return rows.Select(r => (object)new
         {
             seatId = Ids.ToText(r.Id),
-            name = r.Name,
+            name = r.Sealed is null ? r.Name : null,
+            nameSealed = r.Sealed is null ? null : Base64Url.Encode(r.Sealed),
+            nameEpoch = r.Epoch,
+            areaId = Ids.ToText(r.Area),
             via = r.Via,
 
             /* `null`: er hat die Rozmowa noch nie geoeffnet — dann gibt es nichts, wofuer man verpacken koennte. */

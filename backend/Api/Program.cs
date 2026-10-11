@@ -135,6 +135,9 @@ Menu.Map(app);
 /* Bausteine als eigene Dinge — die Seite zeigt sie nur (0036). */
 Module.Map(app);
 
+/* 0097 — Namen liegen nie offen: was noch offen dasteht, versiegelt der Browser. */
+Names.Map(app);
+
 /* 0064 — die Bibliothek: Werke, Zitate, Personen, Themen und die eigenen Texte. */
 Library.Map(app);
 LibraryCatalog.Map(app);

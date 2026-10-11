@@ -17,6 +17,7 @@
  */
 
 import type { AreaRow } from './area';
+import { openFormNames, type FormNameIn } from './names';
 import { call } from './session';
 
 export type AudienceMode = 'channel' | 'together' | 'one';
@@ -40,9 +41,12 @@ export interface AudienceForm {
   readonly people: number;
 }
 
-/** Die Formulare an einem Ding — für wen dessen Bereich liest (0081). */
-export const loadAudienceForms = (kind: string, id: string): Promise<{ forms: readonly AudienceForm[] }> =>
-  call(`/workspace/audience/${encodeURIComponent(kind)}/${encodeURIComponent(id)}/forms`);
+/** Die Formulare an einem Ding — für wen dessen Bereich liest (0081). 0097: ihre Namen kommen versiegelt und werden hier geöffnet. */
+export async function loadAudienceForms(kind: string, id: string): Promise<{ forms: readonly AudienceForm[] }> {
+  const got = await call<{ forms: readonly (Omit<AudienceForm, 'name'> & FormNameIn)[] }>(
+    `/workspace/audience/${encodeURIComponent(kind)}/${encodeURIComponent(id)}/forms`);
+  return { forms: await openFormNames(got.forms) };
+}
 
 /**
  * Ein Formular an ein Ding hängen — oder ab. Dürfen muss beides: im Bereich

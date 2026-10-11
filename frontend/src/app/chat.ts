@@ -37,6 +37,7 @@ import {
 import type { AudienceForm, AudienceMode } from './audience';
 import { newId } from './ids';
 import type { Ring, SealedRole } from './keys';
+import { forgetNameKeys, openFormNames, openSeatName } from './names';
 import { call, WorkspaceError } from './session';
 
 export type ChatKind = 'area' | 'channel' | 'group' | 'direct' | 'self' | 'seat';
@@ -86,9 +87,12 @@ export interface ChatRow {
   readonly seats: number;
   readonly pendingSeats: number;
 
-  /** 0069 — die Rozmowa mit einem Platz: welcher, und wie die Kanzlei ihn führt. */
+  /** 0069 — die Rozmowa mit einem Platz: welcher, und wie die Kanzlei ihn führt (0097: geöffnet von `loadChats`). */
   readonly seatId?: string | null;
   readonly seatName?: string | null;
+  readonly seatNameSealed?: string | null;
+  readonly seatNameEpoch?: number | null;
+  readonly seatAreaId?: string | null;
 
   /** 0080 — die Formulare, deren Menschen in dieser Rozmowa (diesem Kanał) dabei sind. */
   readonly formIds?: readonly string[];
@@ -97,7 +101,11 @@ export interface ChatRow {
 /** Ein Mensch mit Link in der Rozmowa seines Bereichs (0053). */
 export interface ChatSeat {
   readonly seatId: string;
+  /** 0097 — geöffnet von `loadChat`: der Name liegt versiegelt unter dem Schlüssel des Bereichs des Platzes. */
   readonly name: string | null;
+  readonly nameSealed?: string | null;
+  readonly nameEpoch?: number | null;
+  readonly areaId?: string | null;
 
   /** 0095 — eine Person aus einem Link: der Name des Links (in Klammern hinter ihrem). */
   readonly via?: string | null;
@@ -164,10 +172,26 @@ export interface SealedVersion {
 
 /* -- Der Dienst ------------------------------------------------------------ */
 
-export const loadChats = (): Promise<{ chats: readonly ChatRow[] }> => call('/workspace/chats');
+/** Die Rozmowy — 0097: der Name des Menschen einer Rozmowa mit einem Platz kommt versiegelt und wird hier geöffnet. */
+export async function loadChats(): Promise<{ chats: readonly ChatRow[] }> {
+  const got = await call<{ chats: readonly ChatRow[] }>('/workspace/chats');
+  return { chats: await Promise.all(got.chats.map(async (chat) => chat.seatId == null ? chat : {
+    ...chat,
+    seatName: await openSeatName({ seatId: chat.seatId, areaId: chat.seatAreaId, nameSealed: chat.seatNameSealed, nameEpoch: chat.seatNameEpoch, name: chat.seatName })
+  })) };
+}
 
-export const loadChat = (chatId: string): Promise<ChatDetail> =>
-  call(`/workspace/chat/${encodeURIComponent(chatId)}`);
+/** Die Namen der Menschen und der Formulare einer Rozmowa, geöffnet (0097). */
+export async function openChatNames<T extends Pick<ChatDetail, 'seats' | 'forms'>>(chat: T): Promise<T> {
+  return {
+    ...chat,
+    seats: await Promise.all(chat.seats.map(async (seat) => ({ ...seat, name: await openSeatName(seat) }))),
+    ...(chat.forms === undefined ? {} : { forms: await openFormNames(chat.forms) })
+  };
+}
+
+export const loadChat = async (chatId: string): Promise<ChatDetail> =>
+  openChatNames(await call<ChatDetail>(`/workspace/chat/${encodeURIComponent(chatId)}`));
 
 export const loadMessages = (
   chatId: string, page: { before?: string; after?: string; changed?: string; beforeId?: string; afterId?: string } = {}
@@ -231,6 +255,8 @@ const keyCache = new Map<string, Promise<Map<number, Uint8Array>>>();
 /** Bei der Abmeldung: die Schlüssel des einen gehören nicht in die Karte des nächsten. */
 export function forgetAreaKeys(): void {
   keyCache.clear();
+  /* 0097 — und die, mit denen Namen aufgehen. */
+  forgetNameKeys();
 }
 
 export function areaKeys(ring: Ring, areaId: string, fresh = false): Promise<Map<number, Uint8Array>> {

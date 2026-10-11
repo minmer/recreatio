@@ -54,7 +54,7 @@ import { Portal } from './Portal';
 import { keysFor } from './ringOf';
 import { selfOf } from './roles';
 import {
-  nameSeats, officeSeatKey, loadSeats, relinkSeat, revokeSeat, seatPath, type Link, type SeatRow
+  officeSeatKey, loadSeats, relinkSeat, revokeSeat, seatPath, type Link, type SeatRow
 } from './seat';
 import { checkText, openLink, type CheckAnswer } from './seatCheck';
 import { WorkspaceError, type Who } from './session';
@@ -168,6 +168,7 @@ import { AreaOptions } from './AreaOptions';
 import { FormTable, type TableChange } from './FormTable';
 import { ModuleSettings } from './ModuleSettings';
 import { createModule, updateModule, type ModuleRow, type Resealed, type ResealIn } from './module';
+import { sealSeatNames } from './nameSeal';
 import {
   EMPTY_DESIGN, layoutWith, openDesign, saveDesign, sealDesign,
   type FormDesign, type SealedDesign
@@ -640,7 +641,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
      * einen von Hand gesetzten Namen stehen. Still: es ändert nichts daran,
      * wer was lesen darf.
      */
-    if (named.length > 0) void nameSeats(named).catch(() => undefined);
+    if (named.length > 0) void sealSeatNames(named, ring, keys.map((one) => one.areaId)).catch(() => undefined);
 
     /*
      * WARUM NICHTS DASTEHT, wenn nichts dasteht. Ein leerer Kasten sieht aus

@@ -1038,7 +1038,9 @@ public static class Page
                        der auch woanders steht, tut es nicht: sonst aenderte das
                        Speichern einer Seite stillschweigend eine andere. */
                     UPDATE app.module
-                       SET kind = @kind, config = @config
+                       SET kind = @kind, config = @config,
+                           /* 0097 — wird er ein Formular, geht sein offener Name (der Name eines Formulars liegt nie offen). */
+                           name = CASE WHEN kind <> N'form' AND @kind = N'form' THEN NULL ELSE name END
                      WHERE id = @module
                        AND (SELECT COUNT(*) FROM app.slug_part p
                              WHERE p.module_id = @module AND p.id <> @id) = 0;
@@ -1053,11 +1055,13 @@ public static class Page
                 mint.Parameters.AddWithValue("@mine", moduleId == id ? 1 : 0);
 
                 /* Ein Name, unter dem er wiederzufinden ist. Die Kanzlei
-                   benennt ihn um, sobald sie ihn das erste Mal ansieht. */
+                   benennt ihn um, sobald sie ihn das erste Mal ansieht.
+                   0097 — ein Formular bekommt keinen: sein Name liegt nie offen,
+                   und der Dienst hat keinen Schlüssel, ihn zu versiegeln. Die
+                   Liste nennt es nach seiner Seite, bis jemand es benennt. */
+                var minted = $"{parts[i].Kind.Trim()} — {wanted}";
                 mint.Parameters.AddWithValue("@name",
-                    $"{parts[i].Kind.Trim()} — {wanted}".Length > 200
-                        ? $"{parts[i].Kind.Trim()} — {wanted}"[..200]
-                        : $"{parts[i].Kind.Trim()} — {wanted}");
+                    parts[i].Kind.Trim() == "form" ? DBNull.Value : minted.Length > 200 ? minted[..200] : minted);
 
                 await mint.ExecuteNonQueryAsync(ctx.RequestAborted);
             }

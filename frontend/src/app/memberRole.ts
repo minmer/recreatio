@@ -24,6 +24,7 @@ import { loadIntake, openIntakeKey } from './intake';
 import type { Ring } from './keys';
 import type { LinkArea } from './linkAccess';
 import { rememberSeatAreaKeys, walkBundle, type RoleBundle } from './roleBundle';
+import { openSeatName } from './names';
 import { officeSeatKey } from './seat';
 import { call } from './session';
 
@@ -34,7 +35,10 @@ export interface WaitingSeat {
   readonly origin: 'self' | 'office';
   readonly seatKeyForIntake: string | null;
   readonly seatKeyForArea: string | null;
+  /** 0097 — geöffnet von `loadFormMembers` (versiegelt unter dem Schlüssel seines Bereichs). */
   readonly recipientName: string | null;
+  readonly nameSealed?: string | null;
+  readonly nameEpoch?: number | null;
 }
 
 export interface MemberState {
@@ -56,7 +60,10 @@ export interface MemberState {
 
 const base = (partId: string) => `/workspace/part/${encodeURIComponent(partId)}/members`;
 
-export const loadFormMembers = (partId: string): Promise<MemberState> => call(base(partId));
+export async function loadFormMembers(partId: string): Promise<MemberState> {
+  const got = await call<MemberState>(base(partId));
+  return { ...got, waiting: await Promise.all(got.waiting.map(async (seat) => ({ ...seat, recipientName: await openSeatName(seat) }))) };
+}
 
 export const setMemberRole = (partId: string, roleId: string | null): Promise<{ roleId: string | null }> =>
   call(`${base(partId)}/role`, { method: 'POST', body: JSON.stringify({ roleId }) });

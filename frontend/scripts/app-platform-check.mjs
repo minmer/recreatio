@@ -20,6 +20,8 @@
  *  19. Widoki (0094): Mój widok, einer je Bereich, eigene; Wege je Teil; Powiadomienia in eigener Reihenfolge; Szukaj.
  *  20. In einer Rozmowa spricht eine Person (0095): Rolle, dann Person; „Anna Nowak (Rada)"; die Rolle reist in der Hülle mit.
  *  21. Gruppen von Formularen (0096): Ordner, Unterformulare unter dem Hauptformular, was die Karten der Seiten brauchen, die Karte.
+ *  22. Namen liegen nie offen (0097): die Etiketten (und dieselben im Kernel), Vor- und Nachname, versiegeln und öffnen —
+ *      unter einem Bereich, für die Annahme, für den Gastgeber.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -88,6 +90,11 @@ export { slugOf } from '${app}Starters';
 export { personsHolding, speakersOf, chooseSpeaker, isMine, messageAuthor, authorText, speakerText, speakerKey, throughRole } from '${app}chatAuthor';
 export { sealMessage, openMessage } from '${app}chat';
 export { formSections, moveInGroup, logicDependencies, formMapModel } from '${app}formGroups';
+export {
+  moduleNameAad, groupNameAad, seatNameAad, seatOwnNameAad, claimHolderAad, claimAskAad, hostWrapAad,
+  personName, nameText, sealName, openWith, sealForIntake, openFromIntake, sealForPublic, openForPrivate
+} from '${app}names';
+export { hostPair, askNameFor, openAskNames } from '${app}holderNames';
 `);
 await build({
   entryPoints: [entry],
@@ -1552,6 +1559,61 @@ try {
     assert.ok(ids.has('form:zap') && ids.has('form:z1') && ids.has('form:z4') && ids.has('group:g0') && !ids.has('form:inne') && !ids.has('form:notes'),
       'one family: the main form, its sub-forms, and the groups they stand in — nothing else');
     ok('form groups (0096): folders by name with their forms in order, sub-forms under their main form; what page maps need from forms; the map: link, answers, sub-forms, roles, dependencies, one family');
+  }
+
+  /* -- 22. Namen liegen nie offen (0097) ---------------------------------------------------------- */
+  {
+    /* Die Etiketten — und JEDES Etikett des Browsers steht auch im Kernel (Aad.cs): sonst ginge eine Hülle nur auf einer Seite auf. */
+    assert.equal(m.aadText(m.moduleNameAad('m1')), 'module:name:m1:module_name:1');
+    assert.equal(m.aadText(m.groupNameAad('g1')), 'form_group:name:g1:form_group_name:1');
+    assert.equal(m.aadText(m.seatNameAad('s1')), 'seat:name:s1:seat_name:1');
+    assert.equal(m.aadText(m.seatOwnNameAad('s1')), 'seat:own_name:s1:seat_own_name:1');
+    assert.equal(m.aadText(m.claimHolderAad('c1')), 'claim:holder_name:c1:claim_holder_name:1');
+    assert.equal(m.aadText(m.claimAskAad('c1')), 'claim:ask_name:c1:claim_ask_name:1');
+    assert.equal(m.aadText(m.hostWrapAad('c1')), 'claim:host_wrap:c1:claim_host_wrap:1');
+    const kernel = await readFile(join(process.cwd(), '..', 'backend', 'Kernel', 'Aad.cs'), 'utf8');
+    const missing = Object.values(m.Field).filter((label) => !kernel.includes(`=> "${label}"`));
+    assert.deepEqual(missing, [], 'every browser label is in the kernel');
+
+    /* Vor- und Nachname — beide, ohne Steuerzeichen und doppelte Leerzeichen (0095 im Dienst, seit 0097 hier). */
+    assert.equal(m.personName('  Anna ', ' Nowak-Kowalska '), 'Anna Nowak-Kowalska');
+    assert.equal(m.personName('Anna', '  '), null);
+    assert.equal(m.personName('', 'Nowak'), null);
+    assert.equal(m.personName('Anna\u0000\u0007', 'Maria  Nowak'), 'Anna Maria Nowak');
+    assert.equal(m.personName('a'.repeat(81), 'Nowak'), null);
+    assert.equal(m.nameText('  Zapisy   do  bierzmowania '), 'Zapisy do bierzmowania');
+    assert.equal(m.nameText('x'.repeat(250)).length, 200);
+
+    /* Unter einem Schlüssel: geht auf, mit dem falschen Etikett nicht, und kein Klartext in der Hülle. */
+    const key = new Uint8Array(32).map((_, i) => i + 1);
+    const sealed = await m.sealName(key, m.moduleNameAad('m1'), ' Zapisy do bierzmowania ');
+    assert.equal(await m.openWith(key, m.moduleNameAad('m1'), sealed), 'Zapisy do bierzmowania');
+    assert.equal(await m.openWith(key, m.moduleNameAad('m2'), sealed), null, 'bound to its form');
+    assert.equal(await m.openWith(key, m.seatNameAad('m1'), sealed), null, 'a form name is not a person name');
+    assert.ok(!Buffer.from(m.fromBase64Url(sealed)).toString('utf8').includes('Zapisy'), 'no plaintext in the envelope');
+
+    /* Für die Annahme (RSA): wer ohne Bereichsschlüssel einen Termin nimmt. */
+    const rsa = await crypto.subtle.generateKey({ name: 'RSA-OAEP', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['encrypt', 'decrypt']);
+    const spki = new Uint8Array(await crypto.subtle.exportKey('spki', rsa.publicKey));
+    const pkcs8 = new Uint8Array(await crypto.subtle.exportKey('pkcs8', rsa.privateKey));
+    const forOffice = await m.sealForIntake(spki, m.claimHolderAad('c1'), 'Jan Kowalski');
+    assert.equal(await m.openFromIntake(pkcs8, m.claimHolderAad('c1'), forOffice.sealed, forOffice.wrapped), 'Jan Kowalski');
+    assert.equal(await m.openFromIntake(pkcs8, m.claimHolderAad('c2'), forOffice.sealed, forOffice.wrapped), null);
+
+    /* Für den Gastgeber (P-256): sein Paar am Anspruch, die Bitte auf seinen Schlüssel — nur er öffnet sie. */
+    const holderKey = new Uint8Array(32).map((_, i) => 200 - i);
+    const host = await m.hostPair('host1', holderKey);
+    const asked = await m.askNameFor('ask1', host.hostWrapPublic, ' Ewa  Lis ');
+    const names = await m.openAskNames('host1', host.hostWrapPrivateSealed, holderKey, [
+      { claimId: 'ask1', name: null, nameSealed: asked.askNameSealed },
+      { claimId: 'old', name: 'Stary Zapis', nameSealed: null }
+    ]);
+    assert.equal(names.get('ask1'), 'Ewa Lis');
+    assert.equal(names.get('old'), 'Stary Zapis', 'an old one, still open, until it is sealed');
+    const stranger = await m.openAskNames('host1', host.hostWrapPrivateSealed, new Uint8Array(32), [{ claimId: 'ask1', name: null, nameSealed: asked.askNameSealed }]);
+    assert.equal(stranger.size, 0, 'only the host opens it');
+    assert.deepEqual(await m.askNameFor('ask2', null, 'Ewa Lis'), {}, 'no host key: no name for the host');
+    ok('names never lie open (0097): labels (and the same in the kernel), name and surname, sealing and opening — under an area, for the intake, for the host');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

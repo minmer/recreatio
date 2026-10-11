@@ -66,12 +66,13 @@ export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
     const again = moving && areaId !== '' && reseal !== undefined ? await reseal(areaId) : null;
 
     await updateModule(row.moduleId, {
-      name: name.trim(),
+      /* 0097 — nur ein geänderter Name geht mit (beim Formular versiegelt); ein Umzug versiegelt den alten neu. */
+      ...(name.trim() === row.name ? {} : { name: name.trim() }),
       ...(forKind === row.forKind ? {} : { forKind }),
       ...(areaId === '' ? (row.areaId === null ? {} : { clearArea: true }) : { areaId }),
       ...(again === null || again.fields.length === 0 ? {} : { reseal: again.fields }),
       ...(again?.design === undefined ? {} : { designSealed: again.design.sealed, designEpoch: again.design.epoch })
-    });
+    }, row);
   });
 
   return (

@@ -16,6 +16,7 @@
 import { useState } from 'react';
 
 import { areaPath, type AreaRow } from './area';
+import { AreaOptions } from './AreaOptions';
 import { plural } from './ChatKit';
 import { formSections, moveInGroup, type FormItem } from './formGroups';
 import { newId } from './ids';
@@ -40,9 +41,23 @@ export function FormList({ modules, groups, areas, fresh, busy, onAct }: {
   const sections = formSections(modules, groups);
   const hasGroups = groups.length > 0;
 
+  /*
+   * 0097 — EINE GRUPPE GEHÖRT EINEM BEREICH: unter seinem Schlüssel liegt ihr
+   * Name. Zur Wahl stehen die, in denen ich schreibe; vorgeschlagen der, in dem
+   * die meisten Formulare stehen.
+   */
+  const writable = areas.filter((a) => a.myLevel === 'write' || a.myLevel === 'admin');
+  const usual = (() => {
+    const count = new Map<string, number>();
+    for (const m of modules) if (m.kind === 'form' && m.areaId !== null && writable.some((a) => a.areaId === m.areaId)) count.set(m.areaId, (count.get(m.areaId) ?? 0) + 1);
+    return [...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? writable[0]?.areaId ?? '';
+  })();
+  const [newArea, setNewArea] = useState('');
+  const groupArea = newArea !== '' ? newArea : usual;
+
   const moveTo = (form: ModuleRow, value: string) => void onAct(
     value === '' ? 'Wyjmowanie z grupy…' : 'Przenoszenie do grupy…',
-    () => updateModule(form.moduleId, value === '' ? { clearGroup: true } : { groupId: value })
+    () => updateModule(form.moduleId, value === '' ? { clearGroup: true } : { groupId: value }, form)
   );
 
   const row = (form: ModuleRow, sub: boolean, order: readonly string[] | null, group: FormGroup | null) => {
@@ -112,13 +127,16 @@ export function FormList({ modules, groups, areas, fresh, busy, onAct }: {
       {making && (
         <form className="wk-inline wk-new-group" onSubmit={(e) => {
           e.preventDefault();
-          if (newName.trim() === '') return;
-          void onAct('Zakładanie grupy…', () => createFormGroup(newId(), newName.trim())).then(() => { setMaking(false); setNewName(''); });
+          if (newName.trim() === '' || groupArea === '') return;
+          void onAct('Zakładanie grupy…', () => createFormGroup(newId(), newName.trim(), groupArea)).then(() => { setMaking(false); setNewName(''); });
         }}>
           <input value={newName} autoFocus placeholder="np. Bierzmowanie 2027" aria-label="Nazwa grupy" data-new-group-name="" onChange={(e) => setNewName(e.target.value)} />
-          <button type="submit" className="wk-btn wk-btn-small" disabled={busy || newName.trim() === ''}>Utwórz grupę</button>
+          <select aria-label="Obszar grupy" value={groupArea} disabled={busy} data-new-group-area="" onChange={(e) => setNewArea(e.target.value)}>
+            <AreaOptions areas={areas} only={writable} />
+          </select>
+          <button type="submit" className="wk-btn wk-btn-small" disabled={busy || newName.trim() === '' || groupArea === ''}>Utwórz grupę</button>
           <button type="button" className="wk-link-btn" onClick={() => { setMaking(false); setNewName(''); }}>Anuluj</button>
-          <span className="wk-hint">Grupa to folder: formularze stoją w niej razem i w kolejności — dla wypełniających nic się nie zmienia.</span>
+          <span className="wk-hint">Grupa to folder: formularze stoją w niej razem i w kolejności — dla wypełniających nic się nie zmienia. Jej nazwa jest zaszyfrowana kluczem wybranego obszaru.</span>
         </form>
       )}
 
@@ -134,7 +152,7 @@ export function FormList({ modules, groups, areas, fresh, busy, onAct }: {
                   <form className="wk-inline" onSubmit={(e) => {
                     e.preventDefault();
                     if (name.trim() === '') return;
-                    void onAct('Zmiana nazwy grupy…', () => updateFormGroup(group.groupId, { name: name.trim() })).then(() => setNaming(null));
+                    void onAct('Zmiana nazwy grupy…', () => updateFormGroup(group.groupId, { name: name.trim() }, group.areaId)).then(() => setNaming(null));
                   }}>
                     <input value={name} autoFocus aria-label="Nazwa grupy" onChange={(e) => setName(e.target.value)} />
                     <button type="submit" className="wk-btn wk-btn-small" disabled={busy || name.trim() === ''}>Zapisz</button>

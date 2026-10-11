@@ -45,12 +45,18 @@ public static partial class Chat
 
     public sealed record LinkChatsRequest(string[]? Proofs);
 
+    /*
+     * 0097 — der Name kommt versiegelt: unter dem Schlüssel des Bereichs
+     * (NameSealed / NameEpoch, für die anderen in der Rozmowa) und unter dem
+     * Platzschlüssel (OwnNameSealed, für ihn selbst). Vor- und Nachname im
+     * Klartext (ein alter Browser) nimmt der Dienst nicht mehr an.
+     */
     public sealed record LinkPersonRequest(
         string? Proof, string? AreaId, int Epoch, string? SeatId, string? TokenSha256, string? SeatKeySealed,
-        string? SeatKeyForArea, string? LinkSealed, string? RoleKeySealed, string? GivenName, string? Surname,
-        string? UnderPath = null);
+        string? SeatKeyForArea, string? LinkSealed, string? RoleKeySealed,
+        string? UnderPath = null, string? NameSealed = null, int? NameEpoch = null, string? OwnNameSealed = null);
 
-    public sealed record SeatNameRequest(string? GivenName, string? Surname);
+    public sealed record SeatNameRequest(string? OwnNameSealed, string? NameSealed = null, int? NameEpoch = null);
 
     public sealed record LinkReadRequest(
         string[]? Proofs, string? Before = null, string? After = null, string? Changed = null,
@@ -241,8 +247,9 @@ public static partial class Chat
     /// </summary>
     private static async Task LinkPersonAsync(HttpContext ctx, Db db, LinkPersonRequest body)
     {
-        var name = ChatRules.PersonName(body.GivenName, body.Surname);
-        if (name is null)
+        var (named, namedEpoch, namedError) = Names.Read(body.NameSealed, body.NameEpoch);
+        var ownName = Names.Blob(body.OwnNameSealed);
+        if (namedError is not null || named is null || ownName is null)
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Podaj imię i nazwisko.");
             return;
@@ -303,6 +310,12 @@ public static partial class Chat
             }
         }
 
+        if (await Names.EpochProblemAsync(connection, null, areaId, namedEpoch, person: true, ctx.RequestAborted) is { } problem)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, problem);
+            return;
+        }
+
         var now = DateTimeOffset.UtcNow;
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
 
@@ -310,10 +323,10 @@ public static partial class Chat
         {
             await using (var insert = new SqlCommand("""
                 INSERT INTO app.access
-                    (id, area_id, token_sha256, seat_key_sealed, epoch, recipient_name, origin, created_by_role_id, created_at,
-                     seat_key_for_area, link_sealed, invitation_id)
-                VALUES (@id, @area, @token, @forLink, @epoch, @name, N'link', @role, @now,
-                        @forArea, @linkSealed, @link);
+                    (id, area_id, token_sha256, seat_key_sealed, epoch, name_sealed, name_epoch, own_name_sealed,
+                     origin, created_by_role_id, created_at, seat_key_for_area, link_sealed, invitation_id)
+                VALUES (@id, @area, @token, @forLink, @epoch, @named, @namedEpoch, @ownName,
+                        N'link', @role, @now, @forArea, @linkSealed, @link);
 
                 INSERT INTO app.access_role (access_id, role_id, module_id, key_sealed, granted_at, sealed_at, sealed_by_role_id)
                 VALUES (@id, @role, NULL, @roleKey, @now,
@@ -326,7 +339,9 @@ public static partial class Chat
                 insert.Parameters.Add("@token", System.Data.SqlDbType.VarBinary, 32).Value = tokenHash;
                 insert.Parameters.AddBlob("@forLink", forLink);
                 insert.Parameters.AddWithValue("@epoch", body.Epoch);
-                insert.Parameters.AddWithValue("@name", name);
+                insert.Parameters.AddBlob("@named", named);
+                insert.Parameters.AddWithValue("@namedEpoch", namedEpoch);
+                insert.Parameters.AddBlob("@ownName", ownName);
                 insert.Parameters.AddWithValue("@role", link.RoleId);
                 insert.Parameters.AddWithValue("@now", now);
                 insert.Parameters.AddBlob("@forArea", forArea);
@@ -366,7 +381,6 @@ public static partial class Chat
         {
             seatId = Ids.ToText(seatId),
             areaId = Ids.ToText(areaId),
-            name,
             via = await Seat.LinkLabelAsync(connection, link.InvitationId, ctx.RequestAborted)
         });
     }
@@ -376,11 +390,17 @@ public static partial class Chat
     /// In einer Rozmowa spricht eine Person (0095); ein Platz ohne Namen (von der
     /// Kanzlei ohne Namen ausgestellt, ein altes Formular) nennt ihn hier einmal.
     /// Einen vorhandenen ändert er nicht — das tut die Kanzlei.
+    ///
+    /// <para>
+    /// 0097 — versiegelt: unter seinem Platzschlüssel immer, unter dem Schlüssel
+    /// des Bereichs, wenn dieser Browser ihn hat (sonst tut es die Kanzlei).
+    /// </para>
     /// </summary>
     private static async Task SeatNameAsync(HttpContext ctx, Db db, string token, SeatNameRequest body)
     {
-        var name = ChatRules.PersonName(body.GivenName, body.Surname);
-        if (name is null)
+        var ownName = Names.Blob(body.OwnNameSealed);
+        var (named, namedEpoch, namedError) = Names.Read(body.NameSealed, body.NameEpoch);
+        if (ownName is null || namedError is not null)
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Podaj imię i nazwisko.");
             return;
@@ -395,15 +415,27 @@ public static partial class Chat
             return;
         }
 
+        if (named is not null
+            && (await Seat.AreaOfAsync(connection, seat.Value.Id, ctx.RequestAborted) is not Guid area
+                || await Names.EpochProblemAsync(connection, null, area, namedEpoch, person: true, ctx.RequestAborted) is not null))
+        {
+            named = null;
+        }
+
         await using var cmd = new SqlCommand("""
-            UPDATE app.access SET recipient_name = @name
-             WHERE id = @id AND (recipient_name IS NULL OR LTRIM(RTRIM(recipient_name)) = N'');
-            SELECT recipient_name FROM app.access WHERE id = @id;
+            UPDATE app.access
+               SET own_name_sealed = @own,
+                   name_sealed = COALESCE(@named, name_sealed),
+                   name_epoch = CASE WHEN @named IS NULL THEN name_epoch ELSE @epoch END
+             WHERE id = @id AND own_name_sealed IS NULL AND name_sealed IS NULL
+               AND (recipient_name IS NULL OR LTRIM(RTRIM(recipient_name)) = N'');
             """, connection);
         cmd.Parameters.AddWithValue("@id", seat.Value.Id);
-        cmd.Parameters.AddWithValue("@name", name);
+        cmd.Parameters.AddBlob("@own", ownName);
+        cmd.Parameters.AddBlob("@named", named);
+        cmd.Parameters.AddWithValue("@epoch", named is null ? DBNull.Value : namedEpoch);
 
-        var now = await cmd.ExecuteScalarAsync(ctx.RequestAborted) as string;
-        await ctx.Response.WriteAsJsonAsync(new { seatId = Ids.ToText(seat.Value.Id), name = now ?? name, changed = now == name });
+        var changed = await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) > 0;
+        await ctx.Response.WriteAsJsonAsync(new { seatId = Ids.ToText(seat.Value.Id), changed });
     }
 }

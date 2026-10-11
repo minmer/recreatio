@@ -20,6 +20,7 @@ import {
   toBase64Url, unwrapKey, wrapKey
 } from './crypto';
 import { newId } from './ids';
+import { nameKey, nameText, sealName, seatNameAad, seatOwnNameAad } from './names';
 import { newLink, seatAad, type Link, type SubmittedValue } from './seat';
 import { sealLink } from './seatCheck';
 import type { Repeat } from './rounds';
@@ -453,8 +454,18 @@ export interface PublicForm {
   /** 0077 — wie oft eine Erweiterung je Mensch ausgefüllt wird (`rounds.ts`). Fehlt es: einmal. */
   readonly repeat?: Repeat;
 
-  /** 0083 — wie es heisst (die Überschrift auf der Seite, sonst der Name) — für den Ausdruck. */
+  /** 0083 — wie es heisst (die Überschrift auf der Seite) — für den Ausdruck. */
   readonly title?: string | null;
+
+  /**
+   * 0097 — sein Name: versiegelt unter dem Schlüssel seines Bereichs (dort
+   * liegen auch seine Fragen); `name` offen nur bei einem alten, bis er
+   * versiegelt ist.
+   */
+  readonly nameAreaId?: string | null;
+  readonly nameSealed?: string | null;
+  readonly nameEpoch?: number | null;
+  readonly name?: string | null;
 
   /** 0083 — was nach dem Absenden dasteht, und ob ein Ausdruck unterschrieben werden muss. */
   readonly after?: AfterSend | null;
@@ -539,6 +550,19 @@ export async function openFields(
 }
 
 /* -- Einsenden -------------------------------------------------------------- */
+
+/** 0097 — der Name an einem neuen Platz: seine Kopie (Platzschlüssel), und die der Kanzlei, wenn der Schlüssel da ist. */
+async function sealedSeatName(
+  seatId: string, seatKey: Uint8Array, at: { readonly areaId: string; readonly epoch: number; readonly recipientName?: string }
+): Promise<{ ownNameSealed?: string; nameSealed?: string; nameEpoch?: number }> {
+  const name = nameText(at.recipientName ?? '');
+  if (name === '') return {};
+  const own = await sealName(seatKey, seatOwnNameAad(seatId), name);
+  const areaKey = await nameKey(at.areaId, at.epoch).catch(() => undefined);
+  return areaKey === undefined
+    ? { ownNameSealed: own }
+    : { ownNameSealed: own, nameSealed: await sealName(areaKey, seatNameAad(seatId), name), nameEpoch: at.epoch };
+}
 
 export interface Answer {
   readonly fieldId: string;
@@ -708,7 +732,14 @@ export async function submitForm(
 
       areaId: to.selfSeat.areaId,
       epoch: to.selfSeat.epoch,
-      recipientName: to.selfSeat.recipientName ?? null,
+
+      /*
+       * 0097 — WIE ER HEISST, NIE OFFEN: unter dem eigenen Platzschlüssel (er
+       * liest ihn in seinem Portal), und — nur wenn dieser Browser den Schlüssel
+       * des Bereichs hat — unter diesem; sonst versiegelt die Kanzlei ihn, sobald
+       * sie die Einsendung aufmacht. Ein offener Schlüssel nimmt der Dienst nicht.
+       */
+      ...await sealedSeatName(mine.seatId, mine.seatKey, to.selfSeat),
       underPath: to.selfSeat.underPath ?? null
     };
   }

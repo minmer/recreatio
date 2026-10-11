@@ -565,7 +565,8 @@ function IntroduceSeat({ seat, compact = false }: { seat: SeatView; compact?: bo
     setBusy(true);
     setFailed(null);
     try {
-      await nameSeat(seat.token, given.trim(), surname.trim());
+      if (seat.seatKey === null) throw new WorkspaceError('Ten link nie otwiera jeszcze klucza miejsca — odśwież stronę.');
+      await nameSeat(seat.token, seat.seatId, seat.seatKey, given.trim(), surname.trim());
       seat.reload();
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');

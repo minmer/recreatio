@@ -104,7 +104,7 @@ export function PageJson({ now, who, unsaved, onDone }: {
       for (const [id, name] of done.names) {
         const module = modules.find((m) => m.moduleId === moduleOf.get(id));
         if (module === undefined || module.name === name) continue;
-        try { await updateModule(module.moduleId, { name }); } catch (e) {
+        try { await updateModule(module.moduleId, { name }, module); } catch (e) {
           warnings.push(`Nazwa „${name}”: ${e instanceof WorkspaceError ? e.message : 'nie udało się zapisać'}.`);
         }
       }

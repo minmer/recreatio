@@ -179,7 +179,7 @@ function OfferView({ event, offer, resource, onClose, onChanged, onEdit }: {
           e.preventDefault();
           const who = name.trim();
           if (who === '') return;
-          void act('add', async () => { await officeAdd(resource.resourceId, term, { name: who }); setName(''); });
+          void act('add', async () => { await officeAdd(resource, term, { name: who }); setName(''); });
         }}>
           <label className="wk-field">
             <span>Dopisz osobę</span>

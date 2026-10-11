@@ -169,7 +169,21 @@ export const Field = {
   Household: 'household',
 
   /* 0091 — der Schlüssel einer Rolle unter dem Platzschlüssel (ein Mensch ohne Konto gehört über sein Formular zu ihr). */
-  SeatRoleKey: 'seat_role_key'
+  SeatRoleKey: 'seat_role_key',
+
+  /*
+   * 0097 — NAMEN LIEGEN NIE OFFEN (`names.ts`): der eines Formulars und einer
+   * Gruppe unter dem Schlüssel ihres Bereichs; der eines Menschen am Platz unter
+   * dem seines Bereichs UND unter dem Platzschlüssel; wer einen Termin hält, für
+   * die Kanzlei und für den Gastgeber.
+   */
+  ModuleName: 'module_name',
+  FormGroupName: 'form_group_name',
+  SeatName: 'seat_name',
+  SeatOwnName: 'seat_own_name',
+  ClaimHolderName: 'claim_holder_name',
+  ClaimAskName: 'claim_ask_name',
+  ClaimHostWrap: 'claim_host_wrap'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

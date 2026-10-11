@@ -213,7 +213,7 @@ public static partial class Form
         var out_ = new List<object>();
 
         await using var cmd = new SqlCommand($"""
-            SELECT id, name, audience, closed_at, created_at, repeat_kind
+            SELECT id, name, audience, closed_at, created_at, repeat_kind, area_id, name_sealed, name_epoch
             FROM app.module
             WHERE extends_id = @m {(audience is null ? "" : "AND audience = @audience")}
             ORDER BY created_at;
@@ -227,7 +227,12 @@ public static partial class Form
             out_.Add(new
             {
                 moduleId = Ids.ToText(reader.GetGuid(0)),
-                name = reader.GetString(1),
+
+                /* 0097 — versiegelt unter dem Schlüssel seines Bereichs; offen nur ein alter, bis er versiegelt ist. */
+                name = reader.IsDBNull(1) ? null : reader.GetString(1),
+                areaId = reader.IsDBNull(6) ? null : Ids.ToText(reader.GetGuid(6)),
+                nameSealed = Names.B64(reader, 7),
+                nameEpoch = Names.Int(reader, 8),
                 audience = reader.GetString(2),
                 closed = !reader.IsDBNull(3),
 
@@ -779,7 +784,7 @@ public static partial class Form
             var extensions = new List<object>();
 
             await using (var cmd = new SqlCommand("""
-                SELECT m.id, m.name, m.closed_at, x.id, m.repeat_kind, x.round_key
+                SELECT m.id, m.name, m.closed_at, x.id, m.repeat_kind, x.round_key, m.area_id, m.name_sealed, m.name_epoch
                 FROM app.module m
                 OUTER APPLY (
                     /* 0077 — die juengste: bei einer wiederkehrenden die des letzten Zeitraums. */
@@ -800,7 +805,12 @@ public static partial class Form
                     extensions.Add(new
                     {
                         moduleId = Ids.ToText(reader.GetGuid(0)),
-                        name = reader.GetString(1),
+
+                        /* 0097 — der Mensch öffnet den Namen mit dem Schlüssel, mit dem er die Fragen öffnet. */
+                        name = reader.IsDBNull(1) ? null : reader.GetString(1),
+                        areaId = reader.IsDBNull(6) ? null : Ids.ToText(reader.GetGuid(6)),
+                        nameSealed = Names.B64(reader, 7),
+                        nameEpoch = Names.Int(reader, 8),
                         closed = !reader.IsDBNull(2),
                         registrationId = reader.IsDBNull(3) ? null : Ids.ToText(reader.GetGuid(3)),
 

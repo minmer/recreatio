@@ -9,11 +9,16 @@ namespace Api;
 /// der Karte in einem Kasten. Für den Menschen, der ausfüllt, ändert sich nichts.
 ///
 /// <para>
-/// <b>Wer sie sieht:</b> wer sie angelegt hat, und jeder, der eines ihrer
-/// Formulare sieht. <b>Wer sie ändert</b> (umbenennen, ordnen, auflösen): wer
-/// sie angelegt hat, und wer eines ihrer Formulare pflegt. Ein Formular in eine
-/// Gruppe legen darf, wer das Formular pflegt und die Gruppe sieht
-/// (<see cref="UpdateAsync"/>).
+/// <b>Eine Gruppe gehört einem Bereich</b> (0097): unter seinem Schlüssel liegt
+/// ihr Name, offen steht er nirgends.
+/// </para>
+///
+/// <para>
+/// <b>Wer sie sieht:</b> wer sie angelegt hat, wer ihren Bereich liest, und
+/// jeder, der eines ihrer Formulare sieht. <b>Wer sie ändert</b> (umbenennen,
+/// ordnen, auflösen): wer sie angelegt hat, wer in ihrem Bereich schreibt, und
+/// wer eines ihrer Formulare pflegt. Ein Formular in eine Gruppe legen darf, wer
+/// das Formular pflegt und die Gruppe sieht (<see cref="UpdateAsync"/>).
 /// </para>
 /// </summary>
 public static partial class Module
@@ -25,17 +30,10 @@ public static partial class Module
         app.MapDelete("/workspace/form-group/{id:guid}", RemoveGroupAsync);
     }
 
-    public sealed record GroupCreateRequest(string? GroupId, string? Name);
+    /* 0097 — der Name kommt versiegelt, unter dem Schlüssel des Bereichs der Gruppe. */
+    public sealed record GroupCreateRequest(string? GroupId, string? AreaId, string? NameSealed, int? NameEpoch);
 
-    public sealed record GroupUpdateRequest(string? Name, IReadOnlyList<string>? Order);
-
-    /// <summary>Der Name einer Gruppe: ohne Steuerzeichen und doppelte Leerzeichen, 1 bis 200 Zeichen. <c>null</c>: unbrauchbar.</summary>
-    public static string? GroupName(string? text)
-    {
-        var clean = string.Join(' ', new string((text ?? string.Empty).Where(c => !char.IsControl(c)).ToArray())
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries));
-        return clean.Length is 0 or > MaxName ? null : clean;
-    }
+    public sealed record GroupUpdateRequest(string? NameSealed, int? NameEpoch, IReadOnlyList<string>? Order);
 
     /// <summary>Ein Baustein, den eine meiner Rollen sieht — als SQL über <paramref name="m"/> (app.module). Braucht <c>@now</c>.</summary>
     internal static string Visible(string m, string names) => $"""
@@ -58,6 +56,14 @@ public static partial class Module
                      WHERE p.module_id = {m}.id AND s.claimed_by_role_id IN ({names})))
         """;
 
+    /// <summary>Die Bereiche, die meine Rollen lesen (<paramref name="write"/>: in denen sie schreiben) — als SQL. Braucht <c>@now</c>.</summary>
+    private static string AreasOf(string names, bool write) => $"""
+        (SELECT c.scope_id FROM app.certificate c
+          WHERE c.scope_kind = N'area' AND c.revoked_at IS NULL AND c.expires_at > @now
+            {(write ? "AND c.capability IN (N'write', N'admin')" : "")}
+            AND c.subject_role_id IN ({names}))
+        """;
+
     private static void Roles(SqlCommand cmd, IReadOnlyList<Workspace.RoleRow> mine)
     {
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
@@ -74,15 +80,17 @@ public static partial class Module
         var names = NamesOf(mine);
 
         await using var cmd = new SqlCommand($"""
-            SELECT g.id, g.name, g.created_at,
+            SELECT g.id, g.area_id, g.name_sealed, g.name_epoch, g.created_at,
                    CAST(CASE WHEN g.created_by_role_id IN ({names}) THEN 1 ELSE 0 END AS bit) AS mine,
                    CAST(CASE WHEN g.created_by_role_id IN ({names})
+                               OR g.area_id IN {AreasOf(names, write: true)}
                                OR EXISTS (SELECT 1 FROM app.module m WHERE m.form_group_id = g.id AND {Tended("m", names)})
                              THEN 1 ELSE 0 END AS bit) AS manages
             FROM app.form_group g
             WHERE g.created_by_role_id IN ({names})
+               OR g.area_id IN {AreasOf(names, write: false)}
                OR EXISTS (SELECT 1 FROM app.module m WHERE m.form_group_id = g.id AND {Visible("m", names)})
-            ORDER BY g.name, g.created_at;
+            ORDER BY g.created_at;
             """, connection);
         Roles(cmd, mine);
 
@@ -92,53 +100,78 @@ public static partial class Module
             groups.Add(new
             {
                 groupId = Ids.ToText(reader.GetGuid(0)),
-                name = reader.GetString(1),
-                createdAt = reader.GetDateTimeOffset(2),
-                mine = reader.GetBoolean(3),
+
+                /* 0097 — der Name, versiegelt unter dem Schlüssel des Bereichs der Gruppe. */
+                areaId = reader.IsDBNull(1) ? null : Ids.ToText(reader.GetGuid(1)),
+                nameSealed = Names.B64(reader, 2),
+                nameEpoch = Names.Int(reader, 3),
+                createdAt = reader.GetDateTimeOffset(4),
+                mine = reader.GetBoolean(5),
                 /* Darf ich sie umbenennen, ordnen, auflösen? */
-                manages = reader.GetBoolean(4)
+                manages = reader.GetBoolean(6)
             });
         }
         return groups;
     }
 
-    /// <summary>Sehe ich diese Gruppe — und darf ich sie ändern?</summary>
-    private static async Task<(bool Sees, bool Manages)> GroupAccessAsync(
+    /// <summary>Sehe ich diese Gruppe — und darf ich sie ändern? Und welchem Bereich gehört sie?</summary>
+    private static async Task<(bool Sees, bool Manages, Guid? AreaId)> GroupAccessAsync(
         SqlConnection connection, Guid groupId, IReadOnlyList<Workspace.RoleRow> mine, CancellationToken ct)
     {
-        if (mine.Count == 0) return (false, false);
+        if (mine.Count == 0) return (false, false, null);
         var names = NamesOf(mine);
 
         await using var cmd = new SqlCommand($"""
             SELECT CAST(CASE WHEN g.created_by_role_id IN ({names})
+                               OR g.area_id IN {AreasOf(names, write: false)}
                                OR EXISTS (SELECT 1 FROM app.module m WHERE m.form_group_id = g.id AND {Visible("m", names)})
                              THEN 1 ELSE 0 END AS bit),
                    CAST(CASE WHEN g.created_by_role_id IN ({names})
+                               OR g.area_id IN {AreasOf(names, write: true)}
                                OR EXISTS (SELECT 1 FROM app.module m WHERE m.form_group_id = g.id AND {Tended("m", names)})
-                             THEN 1 ELSE 0 END AS bit)
+                             THEN 1 ELSE 0 END AS bit),
+                   g.area_id
             FROM app.form_group g WHERE g.id = @id;
             """, connection);
         cmd.Parameters.AddWithValue("@id", groupId);
         Roles(cmd, mine);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? (reader.GetBoolean(0), reader.GetBoolean(1)) : (false, false);
+        return await reader.ReadAsync(ct)
+            ? (reader.GetBoolean(0), reader.GetBoolean(1), reader.IsDBNull(2) ? null : reader.GetGuid(2))
+            : (false, false, null);
     }
 
-    /// <summary>Eine neue Gruppe — leer; Formulare kommen über das Formular hinein.</summary>
+    /// <summary>
+    /// Eine neue Gruppe — leer; Formulare kommen über das Formular hinein. Sie
+    /// gehört einem Bereich, in dem ich schreibe; ihr Name liegt unter seinem
+    /// Schlüssel (0097).
+    /// </summary>
     private static async Task CreateGroupAsync(HttpContext ctx, Db db, GroupCreateRequest body)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
-        var name = GroupName(body.Name);
-        if (name is null || !Guid.TryParse(body.GroupId, out var id))
+        var (nameSealed, nameEpoch, nameError) = Names.Read(body.NameSealed, body.NameEpoch);
+        if (!Guid.TryParse(body.GroupId, out var id) || !Guid.TryParse(body.AreaId, out var areaId) || nameError is not null || nameSealed is null)
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, $"Nazwa grupy: od 1 do {MaxName} znaków.");
+            await Fail(ctx, StatusCodes.Status400BadRequest, nameError ?? "Grupa potrzebuje obszaru i nazwy zapieczętowanej jego kluczem.");
             return;
         }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        if (!await Area.MayAsync(connection, who.Value.AccountId, areaId, Capability.Write, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
+            return;
+        }
+
+        if (await Names.EpochProblemAsync(connection, null, areaId, nameEpoch, person: false, ctx.RequestAborted) is { } problem)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, problem);
+            return;
+        }
+
         var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
         var by = mine.Where(r => r.Kind == "person").Select(r => (Guid?)r.Id).FirstOrDefault()
             ?? mine.Select(r => (Guid?)r.Id).FirstOrDefault();
@@ -150,10 +183,14 @@ public static partial class Module
 
         try
         {
-            await using var cmd = new SqlCommand(
-                "INSERT INTO app.form_group (id, name, created_by_role_id, created_at) VALUES (@id, @name, @by, @now);", connection);
+            await using var cmd = new SqlCommand("""
+                INSERT INTO app.form_group (id, area_id, name_sealed, name_epoch, created_by_role_id, created_at)
+                VALUES (@id, @area, @sealed, @epoch, @by, @now);
+                """, connection);
             cmd.Parameters.AddWithValue("@id", id);
-            cmd.Parameters.AddWithValue("@name", name);
+            cmd.Parameters.AddWithValue("@area", areaId);
+            cmd.Parameters.AddBlob("@sealed", nameSealed);
+            cmd.Parameters.AddWithValue("@epoch", nameEpoch);
             cmd.Parameters.AddWithValue("@by", by.Value);
             cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
             await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
@@ -164,10 +201,10 @@ public static partial class Module
             return;
         }
 
-        await ctx.Response.WriteAsJsonAsync(new { groupId = Ids.ToText(id), name });
+        await ctx.Response.WriteAsJsonAsync(new { groupId = Ids.ToText(id), areaId = Ids.ToText(areaId) });
     }
 
-    /// <summary>Umbenennen, und die Reihenfolge ihrer Formulare (die genannten zuerst, in dieser Folge).</summary>
+    /// <summary>Umbenennen (versiegelt, unter dem Schlüssel ihres Bereichs), und die Reihenfolge ihrer Formulare (die genannten zuerst, in dieser Folge).</summary>
     private static async Task UpdateGroupAsync(HttpContext ctx, Db db, Guid id, GroupUpdateRequest body)
     {
         var who = await Auth.WhoAsync(ctx, db);
@@ -187,13 +224,24 @@ public static partial class Module
             return;
         }
 
-        string? name = null;
-        if (body.Name is not null)
+        var (nameSealed, nameEpoch, nameError) = Names.Read(body.NameSealed, body.NameEpoch);
+        if (nameError is not null)
         {
-            name = GroupName(body.Name);
-            if (name is null)
+            await Fail(ctx, StatusCodes.Status400BadRequest, nameError);
+            return;
+        }
+
+        if (nameSealed is not null)
+        {
+            if (access.AreaId is null)
             {
-                await Fail(ctx, StatusCodes.Status400BadRequest, $"Nazwa grupy: od 1 do {MaxName} znaków.");
+                await Fail(ctx, StatusCodes.Status409Conflict, "Ta grupa nie ma obszaru — jej nazwy nie ma czym zapieczętować.");
+                return;
+            }
+
+            if (await Names.EpochProblemAsync(connection, null, access.AreaId.Value, nameEpoch, person: false, ctx.RequestAborted) is { } problem)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, problem);
                 return;
             }
         }
@@ -210,10 +258,12 @@ public static partial class Module
         }
 
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
-        if (name is not null)
+        if (nameSealed is not null)
         {
-            await using var rename = new SqlCommand("UPDATE app.form_group SET name = @name WHERE id = @id;", connection, tx);
-            rename.Parameters.AddWithValue("@name", name);
+            await using var rename = new SqlCommand(
+                "UPDATE app.form_group SET name_sealed = @sealed, name_epoch = @epoch WHERE id = @id;", connection, tx);
+            rename.Parameters.AddBlob("@sealed", nameSealed);
+            rename.Parameters.AddWithValue("@epoch", nameEpoch);
             rename.Parameters.AddWithValue("@id", id);
             await rename.ExecuteNonQueryAsync(ctx.RequestAborted);
         }

@@ -27,6 +27,8 @@ import { keysFor } from './ringOf';
 import { myRoleNames } from './roleNames';
 import { selfOf } from './roles';
 import { loadMySeats, openMine as openMySeat, type MySeat } from './seat';
+import { sealLegacyNames, unsealedCount } from './nameSeal';
+import { plural } from './ChatKit';
 import { PasswordInput } from './PasswordInput';
 import { useCrumbs } from './crumbTrail';
 import { viewPath } from './routes';
@@ -269,8 +271,59 @@ function AccountPage({ who }: { who: Who }) {
         <a href="/prywatnosc/">polityka prywatności</a>.
       </p>
 
+      {ring !== null && <SealNames ring={ring} />}
+
       <DeleteAccount who={who} />
     </>
+  );
+}
+
+/* -- 0097: Namen, die noch offen dastehen ------------------------------------------ */
+
+/**
+ * NAZWY — NIGDY JAWNIE. Nazwy formularzy i imiona osób leżą w bazie tylko
+ * zaszyfrowane; te sprzed tej zmiany szyfruje przeglądarka, która ma klucz
+ * (robi to sama przy otwarciu warsztatu). Tu widać, ile jeszcze zostało, i
+ * można to zrobić od razu.
+ */
+function SealNames({ ring }: { ring: Ring }) {
+  const [left, setLeft] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<string | null>(null);
+
+  const look = useCallback(() => { void unsealedCount().then(setLeft, () => setLeft(null)); }, []);
+  useEffect(look, [look]);
+
+  if (left === null) return null;
+
+  const run = async () => {
+    setBusy(true);
+    setSaid(null);
+    try {
+      const done = await sealLegacyNames(ring);
+      setSaid(`Zaszyfrowano: ${done.forms} ${plural(done.forms, 'nazwę formularza', 'nazwy formularzy', 'nazw formularzy')}, ${done.seats + done.claims} ${plural(done.seats + done.claims, 'imię osoby', 'imiona osób', 'imion osób')}.` +
+        (done.left > 0 ? ` Zostało ${done.left} — do nich ta przeglądarka nie ma klucza (albo obszar jest jawny).` : ''));
+    } catch {
+      setSaid('Nie udało się — spróbuj jeszcze raz.');
+    } finally {
+      setBusy(false);
+      look();
+    }
+  };
+
+  return (
+    <section className="wk-card" data-seal-names="">
+      <p className="wk-card-text">
+        Nazwy formularzy i imiona osób są w bazie zaszyfrowane — widzi je tylko ten, kto ma klucz obszaru.
+        {left === 0 ? ' Wszystkie, do których masz klucz, już są.' : ` Jeszcze ${left} ${plural(left, 'nazwa leży', 'nazwy leżą', 'nazw leży')} jawnie z czasów przed tą zmianą.`}
+      </p>
+      {left > 0 && (
+        <button type="button" className="wk-btn" disabled={busy} data-seal-names-run="" onClick={() => void run()}>
+          {busy ? 'Szyfrowanie…' : 'Zaszyfruj teraz'}
+        </button>
+      )}
+      {said !== null && <p className="wk-hint" role="status">{said}</p>}
+    </section>
   );
 }
 
@@ -443,7 +496,7 @@ function MySeats({ ring }: { ring: Ring }) {
   useEffect(() => {
     let alive = true;
 
-    void loadMySeats()
+    void loadMySeats(ring)
       .then(async ({ seats: found }) => {
         if (!alive) return;
         setSeats(found);

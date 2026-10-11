@@ -24,6 +24,7 @@ import { newId } from './ids';
 import { heldLinkKeys, heldProofs, linkSecrets } from './linkAccess';
 import { heldLinks } from './linkKeep';
 import { seatRoleAad } from './memberRole';
+import { openSeatName, personName, sealName, seatNameAad, seatOwnNameAad } from './names';
 import { newLink, seatAad } from './seat';
 import { loadSeatChats } from './seatChat';
 import { sealLink } from './seatCheck';
@@ -74,9 +75,11 @@ export async function loadLinkChat(chatId: string): Promise<LinkChatDetail | nul
   const proofs = await heldProofs();
   if (proofs.length === 0) return null;
   try {
-    return await call<LinkChatDetail>(`/links/chat/${encodeURIComponent(chatId)}`, {
+    const chat = await call<LinkChatDetail>(`/links/chat/${encodeURIComponent(chatId)}`, {
       method: 'POST', credentials: 'omit', body: JSON.stringify({ proofs })
     });
+    /* 0097 — die Namen der Menschen liegen unter dem Schlüssel ihres Bereichs; der Link öffnet ihn. */
+    return { ...chat, seats: await Promise.all(chat.seats.map(async (seat) => ({ ...seat, name: await openSeatName(seat) }))) };
   } catch {
     return null;
   }
@@ -125,7 +128,8 @@ export async function personFor(chatId: string): Promise<HeldPerson | null> {
 export async function createLinkPerson(
   chat: Pick<LinkChat, 'areaId' | 'invitationId' | 'linkRoleId'>, givenName: string, surname: string, under: string | null
 ): Promise<HeldPerson & { readonly seatId: string; readonly name: string; readonly via: string }> {
-  if (givenName.trim() === '' || surname.trim() === '') throw new WorkspaceError('Podaj imię i nazwisko.');
+  const name = personName(givenName, surname);
+  if (name === null) throw new WorkspaceError('Podaj imię i nazwisko.');
 
   const keys = await heldLinkKeys();
   const link = keys.links.find((one) => one.info?.invitationId === chat.invitationId);
@@ -145,7 +149,7 @@ export async function createLinkPerson(
   const seatKey = crypto.getRandomValues(new Uint8Array(KEY_SIZE));
   const label = seatAad(seatId);
 
-  const done = await call<{ seatId: string; areaId: string; name: string; via: string }>('/links/person', {
+  const done = await call<{ seatId: string; areaId: string; via: string }>('/links/person', {
     method: 'POST',
     credentials: 'omit',
     body: JSON.stringify({
@@ -158,15 +162,17 @@ export async function createLinkPerson(
       seatKeyForArea: toBase64Url(await seal(areaKey, label, seatKey)),
       linkSealed: await sealLink(seatId, seatKey, own),
       roleKeySealed: role === undefined ? null : toBase64Url(await seal(seatKey, seatRoleAad(seatId, role.roleId), role.roleKey)),
-      givenName: givenName.trim(),
-      surname: surname.trim(),
+      /* 0097 — der Name, versiegelt: für die anderen (Bereichsschlüssel) und für ihn selbst (Platzschlüssel). */
+      nameSealed: await sealName(areaKey, seatNameAad(seatId), name),
+      nameEpoch: epoch,
+      ownNameSealed: await sealName(seatKey, seatOwnNameAad(seatId), name),
       underPath: under
     })
   });
 
   remember(own.token, linkKey, under);
   announceSeats();
-  return { token: own.token, keyText: own.key, seatId: done.seatId, name: done.name, via: done.via };
+  return { token: own.token, keyText: own.key, seatId: done.seatId, name, via: done.via };
 }
 
 /** Die eigene Ansicht eines Platzes — dort stehen seine Rozmowy. */

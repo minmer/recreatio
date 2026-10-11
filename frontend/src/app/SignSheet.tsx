@@ -29,6 +29,7 @@ import {
   consentGiven, consentText, isYes, loadForm, openFields, type AfterSend, type OpenField, type PublicForm
 } from './form';
 import { EMPTY_DESIGN, evaluate, layoutWith, openDesign, type FieldItem, type FormDesign, type LayoutItem } from './formDesign';
+import { moduleNameAad, openWith } from './names';
 import { ageOn, birthOf } from './pesel';
 
 /* -- Ein öffentliches Formular, aufgemacht ------------------------------------------ */
@@ -39,6 +40,8 @@ export interface OpenForm {
   readonly design: FormDesign | null;
   /** Wie das Konto beim Aufmachen mitwirkte (für die Erklärung, warum etwas zu bleibt). */
   readonly account: AccountWay | null;
+  /** 0097 — der Name des Formulars, geöffnet mit dem Schlüssel seiner Fragen (oder `null`). */
+  readonly name: string | null;
 }
 
 /**
@@ -65,7 +68,14 @@ export async function openPublicForm(partId: string): Promise<OpenForm> {
     form.design == null ? undefined : await reader.key(form.design.areaId, form.design.epoch),
     partId);
 
-  return { form, fields, design, account: reader.account() };
+  /* 0097 — sein Name liegt unter demselben Schlüssel wie seine Fragen. */
+  let name = form.name ?? null;
+  if (form.nameSealed != null && form.nameEpoch != null && form.nameAreaId != null) {
+    const key = await reader.key(form.nameAreaId, form.nameEpoch);
+    name = key === undefined ? null : await openWith(key, moduleNameAad(partId), form.nameSealed);
+  }
+
+  return { form, fields, design, account: reader.account(), name };
 }
 
 /** Kurz behalten — ein Portal mit drei Einsendungen fragt nicht dreimal. */
@@ -270,7 +280,7 @@ function Sheet({ open, values, submittedAt }: { open: OpenForm; values: Readonly
   return (
     <div className="wk-print-sheet">
       <header>
-        <h1>{open.form.title ?? 'Formularz'}</h1>
+        <h1>{open.form.title ?? open.name ?? 'Formularz'}</h1>
         {c !== null && (
           <p className="wk-print-org">
             Administrator danych: {c.name}{c.address !== null ? `, ${c.address}` : ''}{c.email !== null ? ` (${c.email})` : ''}

@@ -33,6 +33,7 @@ import { savePage, saveParts } from './page';
 import { forgetKeys, keysFor } from './ringOf';
 import { selfOf } from './roles';
 import { pageSteps, viewPath } from './routes';
+import { createModule } from './module';
 import { call, WorkspaceError, type Who } from './session';
 import { areasNow, invalidate, refreshDesk } from './viewData';
 import { AreaOptions } from './AreaOptions';
@@ -118,7 +119,8 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
       /* Zapisy: das Formular im Bereich des Ereignisses, seine Fragen, die Seite, die Rolle. */
       setBusy('Tworzenie formularza…');
       const formId = newId();
-      await call('/workspace/module', { method: 'POST', body: JSON.stringify({ moduleId: formId, kind: 'form', name: name.trim(), areaId: area.areaId, forKind: 'person' }) });
+      /* 0097 — der Name des Formulars geht versiegelt, unter dem Schlüssel des Bereichs. */
+      await createModule(formId, 'form', name.trim(), area.areaId, 'person');
       await writeFormContent(who, { moduleId: formId, areaId: area.areaId }, {
         questions: [
           { id: 'q1', kind: 'line', label: 'Imię', required: true, halfWidth: true, identity: 'given_name' },
