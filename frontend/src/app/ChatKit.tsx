@@ -696,6 +696,9 @@ export interface MessageHandlers {
   readonly task?: (message: SealedMessage, opened: Opened) => void;
   readonly appointment?: (message: SealedMessage, opened: Opened) => void;
   readonly moveTopic?: (message: SealedMessage) => void;
+
+  /** 0101 — die markierten zusammen in ein Thema; `done` hebt die Markierung auf, wenn es geklappt hat. */
+  readonly collect?: (messages: readonly SealedMessage[], done: () => void) => void;
 }
 
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
@@ -770,6 +773,7 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
 
   const all = items ?? [];
   const visible = all.filter(({ message, opened }) => matches(message.messageId, opened));
+  const order = visible.map((v) => v.message.messageId);
   const view = `${search}|${filter}`;
 
   /* Wer wem antwortet: der Name steht im Zitat, wenn die Nachricht geladen ist. */
@@ -874,6 +878,34 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
     try { await navigator.clipboard.writeText(text); say('Skopiowano.'); } catch { say('Nie udało się skopiować.'); }
   };
 
+  /*
+   * 0101 — MARKIEREN. Wer mit der Maus über mehrere Nachrichten zieht, markiert
+   * NACHRICHTEN (nicht Text quer durch den Verlauf); „Zaznacz" im Menü (auch
+   * nach langem Drücken) beginnt dasselbe. Danach schaltet ein Klick eine
+   * Nachricht an oder ab; oben stehen die Zahl und was sich damit tun lässt —
+   * „Do tematu" trägt sie in ein Thema zusammen. Esc oder ✕ hört auf.
+   */
+  const [picked, setPicked] = useState<ReadonlySet<string> | null>(null);
+  const drag = useRef<{ from: string; base: ReadonlySet<string>; moved: boolean } | null>(null);
+  const swallow = useRef(false);
+  const picking = picked !== null;
+  useEffect(() => {
+    if (!picking) return undefined;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPicked(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [picking]);
+  const togglePick = (id: string) => setPicked((was) => {
+    const next = new Set(was ?? []);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next.size === 0 ? null : next;
+  });
+  const rowOf = (target: EventTarget | null): string | null => {
+    const row = target instanceof Element ? target.closest('.ch-row') : null;
+    return row !== null && row.id.startsWith('message-') ? row.id.slice('message-'.length) : null;
+  };
+  const chosen = picked === null ? [] : visible.filter((v) => picked.has(v.message.messageId));
+
   /* -- Die Zeilen: Tage, „Nieprzeczytane", Gruppen einer Person ----------------- */
 
   const rows: ReactNode[] = [];
@@ -916,7 +948,8 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
         features={features}
         replyAuthor={quoted === undefined ? null : rules.author(quoted.message, quoted.opened)}
         search={search}
-        onMenu={(anchor, from) => setMenu({ anchor, from, item, author })}
+        picked={picked === null ? null : picked.has(message.messageId)}
+        onMenu={(anchor, from) => { if (picked === null) setMenu({ anchor, from, item, author }); }}
         onJump={jumpTo}
         onReact={(emoji) => mark(message.messageId, 'reaction', emoji)}
         onHistory={() => on.history(message)}
@@ -942,6 +975,28 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
         if (files.length > 0) onFiles(files);
       }}
     >
+      {/* 0101 — was markiert ist, und was sich damit tun lässt. */}
+      {picked !== null && (
+        <div className="ch-pickbar" role="toolbar" aria-label="Zaznaczone wiadomości" data-pickbar="">
+          <button type="button" className="ch-icon-btn" aria-label="Anuluj zaznaczenie" title="Anuluj (Esc)" onClick={() => setPicked(null)}>
+            <Icon name="x" />
+          </button>
+          <strong className="ch-pickbar-count">Zaznaczone: {chosen.length}</strong>
+          <span className="ch-pickbar-actions">
+            {on.collect !== undefined && rules.readOnly !== true && (
+              <button type="button" className="wk-btn wk-btn-small" disabled={chosen.length === 0} data-pick-collect=""
+                onClick={() => on.collect!(chosen.map((v) => v.message), () => setPicked(null))}>
+                <Icon name="hash" /> Do tematu
+              </button>
+            )}
+            <button type="button" className="wk-link-btn" disabled={chosen.length === 0} onClick={() => {
+              void copy(chosen.filter((v) => v.opened !== null && v.message.deletedAt === null)
+                .map((v) => `${rules.author(v.message, v.opened)}, ${clock(v.message.createdAt)}: ${v.opened!.text || 'Załącznik'}`).join('\n'));
+            }}>Kopiuj</button>
+          </span>
+        </div>
+      )}
+
       {pin !== null && (
         <button type="button" className="ch-pinbar" onClick={() => { jumpTo(pin.message.messageId); setPinAt((n) => n + 1); }}>
           <Icon name="pin" />
@@ -952,7 +1007,40 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
         </button>
       )}
 
-      <div className="ch-log" ref={box} onScroll={onScroll} role="log" aria-live="polite" aria-relevant="additions">
+      <div className={cls('ch-log', picking && 'is-picking')} ref={box} onScroll={onScroll} role="log" aria-live="polite" aria-relevant="additions"
+        onMouseDown={(e) => {
+          swallow.current = false;
+          if (e.button !== 0) { drag.current = null; return; }
+          const id = rowOf(e.target);
+          const control = e.target instanceof Element && e.target.closest('a, button, input, textarea, select, audio, video') !== null;
+          drag.current = id === null || control ? null : { from: id, base: picked ?? new Set(), moved: false };
+        }}
+        onMouseMove={(e) => {
+          const d = drag.current;
+          if (d === null || (e.buttons & 1) === 0) return;
+          const id = rowOf(e.target);
+          if (id === null || (id === d.from && !d.moved)) return;
+          const a = order.indexOf(d.from);
+          const b = order.indexOf(id);
+          if (a < 0 || b < 0) return;
+          /* Über die eigene Blase hinaus: aus der Textauswahl wird eine Auswahl von Nachrichten. */
+          d.moved = true;
+          window.getSelection()?.removeAllRanges();
+          e.preventDefault();
+          setPicked(new Set([...d.base, ...order.slice(Math.min(a, b), Math.max(a, b) + 1)]));
+        }}
+        onMouseUp={() => { if (drag.current?.moved === true) swallow.current = true; drag.current = null; }}
+        onClickCapture={(e) => {
+          if (swallow.current) { swallow.current = false; e.preventDefault(); e.stopPropagation(); return; }
+          if (picked === null) return;
+          const id = rowOf(e.target);
+          if (id === null) return;
+          e.preventDefault();
+          e.stopPropagation();
+          togglePick(id);
+        }}
+        onContextMenuCapture={(e) => { if (picked !== null && rowOf(e.target) !== null) { e.preventDefault(); e.stopPropagation(); } }}
+      >
         <div className="ch-log-in" ref={inner}>
           {more && all.length > 0 && (
             <button type="button" className="ch-earlier" onClick={earlier}>Wczytaj wcześniejsze</button>
@@ -986,6 +1074,7 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
           onMark={mark}
           onCopy={(text) => void copy(text)}
           onDelete={setConfirm}
+          onPick={(id) => setPicked(new Set([id]))}
           onRestore={(message) => { void on.restore(message).then(() => say('Przywrócono.')).catch((e: unknown) => say(failure(e, 'Nie udało się przywrócić.'))); }}
         />
       )}
@@ -1011,7 +1100,7 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
   );
 }
 
-function MessageMenu({ menu, marks, rules, on, onClose, onMark, onCopy, onDelete, onRestore }: {
+function MessageMenu({ menu, marks, rules, on, onClose, onMark, onCopy, onDelete, onRestore, onPick }: {
   menu: OpenMenu;
   marks: readonly Mark[];
   rules: MessageRules;
@@ -1021,6 +1110,8 @@ function MessageMenu({ menu, marks, rules, on, onClose, onMark, onCopy, onDelete
   onCopy: (text: string) => void;
   onDelete: (message: SealedMessage) => void;
   onRestore: (message: SealedMessage) => void;
+  /** 0101 — Markieren beginnen, mit dieser Nachricht. */
+  onPick: (id: string) => void;
 }) {
   const { message, opened } = menu.item;
   const id = message.messageId;
@@ -1031,6 +1122,7 @@ function MessageMenu({ menu, marks, rules, on, onClose, onMark, onCopy, onDelete
     if (opened.text !== '') items.push({ label: 'Kopiuj tekst', icon: 'copy', onSelect: () => onCopy(opened.text) });
   } else if (!gone && opened !== null) {
     items.push({ label: 'Odpowiedz', icon: 'reply', onSelect: () => on.reply(message, opened, menu.author) });
+    items.push({ label: 'Zaznacz', icon: 'check', onSelect: () => onPick(id) });
     if (opened.text !== '') items.push({ label: 'Kopiuj tekst', icon: 'copy', onSelect: () => onCopy(opened.text) });
     if (on.forward !== undefined) {
       const forward = on.forward;
@@ -1080,7 +1172,7 @@ function MessageMenu({ menu, marks, rules, on, onClose, onMark, onCopy, onDelete
   );
 }
 
-function MessageRow({ endpoint, item, mine, start, end, author, note, group, receipts, marks, features, replyAuthor, search, onMenu, onJump, onReact, onHistory, onSwipe }: {
+function MessageRow({ endpoint, item, mine, start, end, author, note, group, receipts, marks, features, replyAuthor, search, picked = null, onMenu, onJump, onReact, onHistory, onSwipe }: {
   endpoint: string;
   item: Shown;
   mine: boolean;
@@ -1094,6 +1186,8 @@ function MessageRow({ endpoint, item, mine, start, end, author, note, group, rec
   features: Features | null;
   replyAuthor: string | null;
   search: string;
+  /** 0101 — `null`: es wird nicht markiert; sonst, ob diese markiert ist. */
+  picked?: boolean | null;
   onMenu: (anchor: Anchor, from: Element | null) => void;
   onJump: (id: string) => void;
   onReact: (emoji: string) => void;
@@ -1165,7 +1259,9 @@ function MessageRow({ endpoint, item, mine, start, end, author, note, group, rec
   return (
     <div
       id={`message-${message.messageId}`}
-      className={cls('ch-row', mine ? 'is-mine' : 'is-theirs', start && 'is-start', end && 'is-end', group && !mine && 'has-ava')}
+      className={cls('ch-row', mine ? 'is-mine' : 'is-theirs', start && 'is-start', end && 'is-end', group && !mine && 'has-ava',
+        picked !== null && 'is-picking', picked === true && 'is-picked')}
+      aria-selected={picked === null ? undefined : picked}
       style={shift > 0 ? { transform: `translateX(${shift}px)` } : undefined}
       onPointerDown={(e) => {
         if (e.pointerType !== 'touch') return;
@@ -1192,6 +1288,7 @@ function MessageRow({ endpoint, item, mine, start, end, author, note, group, rec
       }}
       onPointerCancel={end0}
     >
+      {picked !== null && <span className="ch-pick" aria-hidden="true">{picked && <Icon name="check" />}</span>}
       {group && !mine && (
         <span className="ch-ava-slot">{end && <Avatar seed={authorOf(message)} name={author} size="sm" />}</span>
       )}

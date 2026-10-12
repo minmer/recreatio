@@ -132,6 +132,64 @@ export function RenameTopic({ topic, keys, onClose, onDone }: {
 }
 
 /** Wohin eine Nachricht gehört — ein Thema oder keines. */
+/**
+ * 0101 — IN EIN THEMA ZUSAMMENTRAGEN: ein neues Thema (gleich mit den
+ * markierten Nachrichten darin) oder ein bestehendes — oder heraus aus jedem.
+ * Eine einzelne Nachricht („Przenieś do tematu") geht denselben Weg.
+ */
+export function CollectToTopic({ count, topics, canCreate, onCollect, onClose }: {
+  count: number;
+  topics: readonly Topic[];
+  canCreate: boolean;
+  onCollect: (target: { readonly topicId: string | null } | { readonly title: string }) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const open = topics.filter((t) => t.closedAt === null);
+
+  const go = async (target: { readonly topicId: string | null } | { readonly title: string }) => {
+    setBusy(true);
+    setFailed(null);
+    try {
+      await onCollect(target);
+    } catch (e) {
+      setFailed(e instanceof Error && e.message !== '' ? e.message : 'Nie udało się przenieść.');
+      setBusy(false);
+    }
+  };
+
+  const what = count === 1 ? 'wiadomość' : count < 5 ? `${count} wiadomości` : `${count} wiadomości`;
+
+  return (
+    <Modal title={count === 1 ? 'Przenieś do tematu' : `Zbierz w temat: ${what}`} onClose={onClose}>
+      {canCreate && (
+        <form className="ch-collect-new" onSubmit={(e) => { e.preventDefault(); if (title.trim() !== '') void go({ title: title.trim() }); }}>
+          <label className="wk-field">
+            <span>Nowy temat</span>
+            <input value={title} autoFocus maxLength={200} placeholder="np. Muzyka na rekolekcje" disabled={busy} data-collect-title=""
+              onChange={(e) => setTitle(e.target.value)} />
+          </label>
+          <button type="submit" className="wk-btn" disabled={busy || title.trim() === ''} data-collect-new="">
+            {busy ? 'Przenoszenie…' : count === 1 ? 'Utwórz temat i przenieś' : 'Utwórz temat i zbierz'}
+          </button>
+        </form>
+      )}
+      {open.length > 0 && <p className="wk-hint">{canCreate ? 'Albo do istniejącego tematu:' : 'Do tematu:'}</p>}
+      <ul className="ch-move-list">
+        {open.map((t) => (
+          <li key={t.topicId}>
+            <button type="button" className="ch-topic" disabled={busy} data-collect-topic={t.topicId} onClick={() => void go({ topicId: t.topicId })}># {t.title}</button>
+          </li>
+        ))}
+        <li><button type="button" className="ch-topic" disabled={busy} data-collect-topic="" onClick={() => void go({ topicId: null })}>Bez tematu</button></li>
+      </ul>
+      {failed !== null && <p className="wk-error">{failed}</p>}
+    </Modal>
+  );
+}
+
 export function MoveToTopic({ topics, current, onPick, onClose }: {
   topics: readonly Topic[]; current: string | null; onPick: (topicId: string | null) => void; onClose: () => void;
 }) {

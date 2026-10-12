@@ -85,6 +85,15 @@ export const closeTopic = (topicId: string, closed: boolean): Promise<{ updated:
 export const moveToTopic = (messageId: string, topicId: string | null): Promise<{ topicId: string | null }> =>
   call(`/workspace/chat/message/${encodeURIComponent(messageId)}/topic`, { method: 'POST', body: JSON.stringify({ topicId }) });
 
+/**
+ * 0101 — ZUSAMMENTRAGEN: mehrere Nachrichten in EIN Thema (`null`: ohne Thema).
+ * `moved`: die eingeordneten; `notYours`: fremde in einer Gruppe — die
+ * ordnet, wer moderiert.
+ */
+export const collectToTopic = (chatId: string, messageIds: readonly string[], topicId: string | null):
+  Promise<{ topicId: string | null; moved: readonly string[]; skipped: number; notYours: number }> =>
+  call(`/workspace/chat/${encodeURIComponent(chatId)}/topic/collect`, { method: 'POST', body: JSON.stringify({ messageIds, topicId }) });
+
 /** Termine, die aus dieser Rozmowa entstanden — so weit ich ihren Bereich lese. */
 export interface LinkedItem {
   readonly itemId: string;

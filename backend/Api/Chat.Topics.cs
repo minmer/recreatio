@@ -30,6 +30,9 @@ public static partial class Chat
         app.MapPost("/workspace/chat/{id:guid}/topics", CreateTopicAsync);
         app.MapPost("/workspace/chat/topic/{id:guid}", UpdateTopicAsync);
         app.MapPost("/workspace/chat/message/{id:guid}/topic", MoveToTopicAsync);
+
+        /* 0101 — mehrere zugleich: zusammengetragen in ein Thema. */
+        app.MapPost("/workspace/chat/{id:guid}/topic/collect", CollectToTopicAsync);
         app.MapGet("/workspace/chat/{id:guid}/linked", LinkedAsync);
 
         app.MapGet("/seat/{token}/chat/{id:guid}/topics", TopicsAsync);
@@ -41,6 +44,23 @@ public static partial class Chat
     public sealed record TopicUpdateRequest(string? TitleSealed, int? Epoch, bool? Closed);
 
     public sealed record MoveRequest(string? TopicId);
+
+    /// <summary>0101 — welche Nachrichten, und in welches Thema (leer: ohne Thema).</summary>
+    public sealed record CollectRequest(IReadOnlyList<string>? MessageIds, string? TopicId);
+
+    /// <summary>Wie viele Nachrichten auf einmal — ein Gespräch, kein Archiv.</summary>
+    private const int MaxCollect = 500;
+
+    /// <summary>
+    /// WER EINE NACHRICHT EINORDNEN DARF: wer moderiert; ihr Verfasser (seine
+    /// Rolle UND die Person, die durch sie sprach, 0095); und (0101) in einer
+    /// Rozmowa zu zweit jeder, der darin schreibt — dort moderiert niemand,
+    /// und Ordnen ist kein Ändern.
+    /// </summary>
+    private static bool MayFile(Actor actor, Guid? author, Guid? person) =>
+        actor.Moderates
+        || (author is not null && actor.Roles.Contains(author.Value) && (person is null || actor.Roles.Contains(person.Value)))
+        || (actor.Chat.Kind is "direct" or "self" && actor.Writes);
 
     /// <summary>Das Thema einer neuen Nachricht — wenn es eines in dieser Rozmowa ist. <c>Ok = false</c>: die Antwort ist geschrieben.</summary>
     private static async Task<(bool Ok, Guid? Id)?> TopicOfChatAsync(HttpContext ctx, SqlConnection connection, ChatRow chat, string? topicText)
@@ -250,8 +270,8 @@ public static partial class Chat
         var actor = await ActorAsync(ctx, db, connection, chatId);
         if (actor is null) return;
 
-        /* 0095 — der Verfasser: seine Rolle UND die Person, die durch sie sprach. */
-        if (!actor.Moderates && !(author is not null && actor.Roles.Contains(author.Value) && (person is null || actor.Roles.Contains(person.Value))))
+        /* 0095 — der Verfasser: seine Rolle UND die Person, die durch sie sprach; 0101 — zu zweit jeder, der schreibt. */
+        if (!MayFile(actor, author, person))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "Przenieść może autor albo moderator.");
             return;
@@ -267,6 +287,77 @@ public static partial class Chat
         await update.ExecuteNonQueryAsync(ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new { messageId = Ids.ToText(id), topicId = topic?.Id is null ? null : Ids.ToText(topic.Value.Id!.Value) });
+    }
+
+    /// <summary>
+    /// 0101 — ZUSAMMENTRAGEN: die markierten Nachrichten einer Rozmowa in EIN
+    /// Thema (oder aus jedem heraus). Was der Aufrufer nicht einordnen darf
+    /// (fremde in einer Gruppe, ohne zu moderieren), bleibt, wo es ist — und
+    /// die Antwort sagt, wie viele das waren.
+    /// </summary>
+    private static async Task CollectToTopicAsync(HttpContext ctx, Db db, Guid id, CollectRequest body)
+    {
+        var wanted = new HashSet<Guid>();
+        foreach (var text in body.MessageIds ?? [])
+        {
+            if (!Guid.TryParse(text, out var one)) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung wiadomości."); return; }
+            wanted.Add(one);
+        }
+        if (wanted.Count == 0 || wanted.Count > MaxCollect)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, $"Zaznacz od 1 do {MaxCollect} wiadomości.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var actor = await ActorAsync(ctx, db, connection, id);
+        if (actor is null) return;
+
+        var topic = await TopicOfChatAsync(ctx, connection, actor.Chat, body.TopicId);
+        if (topic is { Ok: false }) return;
+
+        var names = string.Join(", ", wanted.Select((_, i) => $"@m{i}"));
+        var allowed = new List<Guid>();
+        var found = 0;
+        await using (var cmd = new SqlCommand($"""
+            SELECT id, author_role_id, author_person_id FROM app.chat_message
+            WHERE chat_id = @chat AND deleted_at IS NULL AND id IN ({names});
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("@chat", id);
+            var i = 0;
+            foreach (var one in wanted) cmd.Parameters.AddWithValue($"@m{i++}", one);
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                found++;
+                if (MayFile(actor, reader.IsDBNull(1) ? null : reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetGuid(2)))
+                    allowed.Add(reader.GetGuid(0));
+            }
+        }
+
+        if (allowed.Count > 0)
+        {
+            var moving = string.Join(", ", allowed.Select((_, i) => $"@a{i}"));
+            await using var update = new SqlCommand($"""
+                UPDATE app.chat_message SET topic_id = @topic, changed_at = @now
+                WHERE chat_id = @chat AND id IN ({moving});
+                """, connection);
+            update.Parameters.AddWithValue("@chat", id);
+            update.Parameters.AddWithValue("@topic", (object?)topic?.Id ?? DBNull.Value);
+            update.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            for (var i = 0; i < allowed.Count; i++) update.Parameters.AddWithValue($"@a{i}", allowed[i]);
+            await update.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            topicId = topic?.Id is null ? null : Ids.ToText(topic.Value.Id!.Value),
+            moved = allowed.Select(Ids.ToText),
+            skipped = wanted.Count - allowed.Count,
+            /* Fremde in einer Gruppe — der Rest waren gelöschte oder nicht aus dieser Rozmowa. */
+            notYours = found - allowed.Count
+        });
     }
 
     /// <summary>

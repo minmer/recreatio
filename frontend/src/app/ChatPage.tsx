@@ -47,11 +47,11 @@ import { myRoleNames } from './roleNames';
 import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { loadCalendars, type CalendarRow } from './calendar';
-import { createTopic, loadTopics, moveToTopic, openTopics, titleFrom, type Topic } from './chatTopics';
+import { collectToTopic, createTopic, loadTopics, openTopics, titleFrom, type Topic } from './chatTopics';
 import { EventDialog } from './EventDialog';
 import type { Me as Person } from './me';
 import { TaskDialog } from './TaskDialog';
-import { LinkedDialog, MoveToTopic, TopicBar } from './TopicBar';
+import { CollectToTopic, LinkedDialog, TopicBar } from './TopicBar';
 import { InviteePicker, KIND, nameOf, shortId, useKnown } from './RolePicker';
 import { AudienceForms } from './AudienceForms';
 import { othersWrite } from './audience';
@@ -656,7 +656,14 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   const [linked, setLinked] = useState(false);
   const [taskFrom, setTaskFrom] = useState<{ message: SealedMessage; opened: Opened } | null>(null);
   const [eventFrom, setEventFrom] = useState<{ message: SealedMessage; opened: Opened; calendars: readonly CalendarRow[] } | null>(null);
-  const [moving, setMoving] = useState<SealedMessage | null>(null);
+  /* 0101 — was gerade in ein Thema zusammengetragen wird (eine Nachricht oder die markierten), und was danach gesagt wird. */
+  const [collecting, setCollecting] = useState<{ readonly messages: readonly SealedMessage[]; readonly done: () => void } | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (note === null) return undefined;
+    const timer = window.setTimeout(() => setNote(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [note]);
 
   /* Der Chat, seine Schlüssel, die Namen darin. */
   const lookChat = useCallback(async (freshKeys = false) => {
@@ -863,6 +870,9 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
     receipts: !self
   };
 
+  /* In Themen ordnen kann, wer eins anlegen darf — oder wo es schon welche gibt. */
+  const fileable = (speakers.length > 0 && !self) || topics.length > 0;
+
   const on: MessageHandlers = {
     reply: (message, opened, author) => { setEditing(null); setReply({ id: message.messageId, text: opened.text, author }); },
     edit: (message, opened) => { setReply(null); setEditing({ message, opened }); },
@@ -882,7 +892,10 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
     appointment: asPerson === null ? undefined : (message, opened) => {
       void loadCalendars().then(({ calendars }) => setEventFrom({ message, opened, calendars })).catch(() => undefined);
     },
-    moveTopic: topics.length === 0 ? undefined : (message) => setMoving(message)
+    moveTopic: !fileable ? undefined : (message) => setCollecting({ messages: [message], done: () => undefined }),
+
+    /* 0101 — die markierten zusammen in ein Thema. */
+    collect: !fileable ? undefined : (messages, done) => setCollecting({ messages, done })
   };
 
   const send = async (body: string, options: SendOptions) => {
@@ -950,6 +963,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
       />
       {chrome.banner}
       {failed !== null && <p className="ch-bar is-error">{failed}</p>}
+      {note !== null && <p className="ch-bar" role="status" data-chat-note="">{note}</p>}
 
       {/* 0068 — Tematy: Filter und Ziel des Schreibens. */}
       <TopicBar
@@ -1007,14 +1021,20 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
       {forward !== null && <ForwardDialog endpoint={endpoint} opened={forward} ring={me.ring} onClose={() => setForward(null)} />}
 
       {linked && <LinkedDialog ring={me.ring} chatId={chat.chatId} topics={topics} onClose={() => setLinked(false)} />}
-      {moving !== null && (
-        <MoveToTopic topics={topics} current={moving.topicId ?? null} onClose={() => setMoving(null)}
-          onPick={(id) => {
-            const target = moving;
-            setMoving(null);
-            void moveToTopic(target.messageId, id)
-              .then(() => { setShown((was) => (was ?? []).map((w) => w.message.messageId === target.messageId ? { ...w, message: { ...w.message, topicId: id } } : w)); void lookTopics(); })
-              .catch((e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się przenieść.'));
+      {collecting !== null && (
+        <CollectToTopic count={collecting.messages.length} topics={topics} canCreate={speakers.length > 0 && !self}
+          onClose={() => setCollecting(null)}
+          onCollect={async (target) => {
+            const topicId = 'title' in target ? await createTopic(endpoint, talk, target.title, as === '' ? null : as) : target.topicId;
+            const done = await collectToTopic(chat.chatId, collecting.messages.map((m) => m.messageId), topicId);
+            const moved = new Set(done.moved);
+            setShown((was) => (was ?? []).map((w) => (moved.has(w.message.messageId) ? { ...w, message: { ...w.message, topicId } } : w)));
+            await lookTopics();
+            const name = topicId === null ? null : 'title' in target ? target.title : topics.find((t) => t.topicId === topicId)?.title ?? 'temat';
+            collecting.done();
+            setCollecting(null);
+            setNote(`${moved.size === 1 ? 'Przeniesiono 1 wiadomość' : `Przeniesiono ${moved.size} wiadomości`}${name === null ? ' poza tematy' : ` do „${name}"`}.`
+              + (done.notYours > 0 ? ` ${done.notYours} cudzych przenosi prowadzący.` : ''));
           }} />
       )}
       {taskFrom !== null && asPerson !== null && (
