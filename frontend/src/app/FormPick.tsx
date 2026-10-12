@@ -138,45 +138,84 @@ export async function questionsOf(formId: string): Promise<readonly OpenField[]>
   return openFields(sealed, keys);
 }
 
-export function PickQuestions({ formId, value, busy, onPick }: {
+export function PickQuestions({ formId, value, busy, onPick, subforms = false }: {
   /** Das Formular, dessen Fragen gewählt werden — leer heisst: erst eines wählen. */
   formId: string;
   value: string;
   busy: boolean;
   onPick: (value: string) => void;
+
+  /**
+   * 0104 — AUCH DIE FRAGEN SEINER UNTERFORMULARE, je unter ihrem Namen: die
+   * Spalten der „Lista osób" (was die Person in „Cele" schrieb, die Notatka
+   * des Koordinators). „Wszystkie" nimmt sie dann mit.
+   */
+  subforms?: boolean;
 }) {
   const [fields, setFields] = useState<readonly OpenField[] | null>(null);
+  const [groups, setGroups] = useState<readonly { readonly moduleId: string; readonly name: string; readonly fields: readonly OpenField[] }[]>([]);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (formId === '') { setFields([]); return; }
+    if (formId === '') { setFields([]); setGroups([]); return; }
 
     let alive = true;
     setFields(null);
     setFailed(false);
 
-    questionsOf(formId)
-      .then((found) => { if (alive) setFields(found); })
-      .catch(() => { if (alive) { setFields([]); setFailed(true); } });
+    const load = async () => {
+      const main = await questionsOf(formId);
+      if (!subforms) return { main, subs: [] };
+      const modules = await loadModules().then((r) => r.modules).catch(() => [] as readonly ModuleRow[]);
+      const subs = await Promise.all(modules
+        .filter((m) => m.kind === 'form' && m.extendsId === formId)
+        .sort((a, b) => a.name.localeCompare(b.name, 'pl'))
+        .map(async (m) => ({ moduleId: m.moduleId, name: m.name, fields: await questionsOf(m.moduleId).catch(() => [] as readonly OpenField[]) })));
+      return { main, subs: subs.filter((g) => g.fields.length > 0) };
+    };
+
+    load()
+      .then(({ main, subs }) => { if (alive) { setFields(main); setGroups(subs); } })
+      .catch(() => { if (alive) { setFields([]); setGroups([]); setFailed(true); } });
 
     return () => { alive = false; };
-  }, [formId]);
+  }, [formId, subforms]);
 
   if (formId === '') return <span className="wk-hint">Najpierw wybierz formularz.</span>;
   if (fields === null) return <p className="wk-hint">Wczytywanie pytań…</p>;
   if (failed) return <span className="wk-blocker">Nie udało się wczytać pytań tego formularza.</span>;
 
+  const every = [...fields, ...groups.flatMap((g) => g.fields)];
   const all = value.trim() === '*';
-  const chosen = new Set(all ? fields.map((f) => f.fieldId)
+  const chosen = new Set(all ? every.map((f) => f.fieldId)
     : value.split(',').map((one) => one.trim()).filter((one) => one !== ''));
 
   /* Was gewählt ist und nicht mehr existiert — gelöschte Fragen fallen still heraus. */
   const toggle = (fieldId: string, on: boolean) => {
-    const next = fields.map((f) => f.fieldId).filter((id) => (id === fieldId ? on : chosen.has(id)));
+    const next = every.map((f) => f.fieldId).filter((id) => (id === fieldId ? on : chosen.has(id)));
     onPick(next.join(','));
   };
 
   const name = (f: OpenField, at: number) => f.label ?? `pytanie ${at + 1} (zapieczętowane)`;
+  const row = (f: OpenField, at: number) => (
+    <li key={f.fieldId}>
+      <label className="wk-check">
+        <input
+          type="checkbox"
+          checked={chosen.has(f.fieldId)}
+          disabled={busy || all}
+          onChange={(e) => toggle(f.fieldId, e.target.checked)}
+        />
+        <span>{name(f, at)}</span>
+      </label>
+      {/* Ob er sie ändern darf, sagt die Frage (0044) — hier nur zur Auskunft (bei Spalten unwichtig). */}
+      {!subforms && (
+        <span className="wk-row-side">
+          {f.selfEdit ? 'może poprawić' : 'tylko do odczytu'}
+        </span>
+      )}
+    </li>
+  );
 
   return (
     <div className="wk-pick-questions">
@@ -195,7 +234,7 @@ export function PickQuestions({ formId, value, busy, onPick }: {
           aria-pressed={!all}
           className={!all ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
           disabled={busy || !all}
-          onClick={() => onPick(fields.map((f) => f.fieldId).join(','))}
+          onClick={() => onPick(every.map((f) => f.fieldId).join(','))}
         >
           Tylko wybrane
         </button>
@@ -203,41 +242,33 @@ export function PickQuestions({ formId, value, busy, onPick }: {
 
       <span className="wk-hint">
         {all
-          ? 'Także odpowiedzi na pytania, które dopiszesz później.'
+          ? subforms ? 'Także pytania podformularzy i pytania, które dopiszesz później.' : 'Także odpowiedzi na pytania, które dopiszesz później.'
           : 'Pytanie dopisane później pojawi się tu dopiero, gdy je zaznaczysz.'}
       </span>
 
-      {fields.length === 0 ? (
+      {every.length === 0 ? (
         <span className="wk-hint">Ten formularz nie ma jeszcze pytań.</span>
       ) : (
         <ul className="wk-pick-list">
-          {fields.map((f, at) => (
-            <li key={f.fieldId}>
-              <label className="wk-check">
-                <input
-                  type="checkbox"
-                  checked={chosen.has(f.fieldId)}
-                  disabled={busy || all}
-                  onChange={(e) => toggle(f.fieldId, e.target.checked)}
-                />
-                <span>{name(f, at)}</span>
-              </label>
-              {/* Ob er sie ändern darf, sagt die Frage (0044) — hier nur zur Auskunft. */}
-              <span className="wk-row-side">
-                {f.selfEdit ? 'może poprawić' : 'tylko do odczytu'}
-              </span>
-            </li>
-          ))}
+          {fields.map(row)}
+          {groups.map((g) => [
+            <li key={`g:${g.moduleId}`} className="wk-pick-group" data-pick-subform={g.moduleId}>Podformularz „{g.name}"</li>,
+            ...g.fields.map(row)
+          ])}
         </ul>
       )}
 
       {!all && chosen.size === 0 && (
-        <span className="wk-blocker">Nic nie zaznaczono — ta osoba nie zobaczy żadnej odpowiedzi.</span>
+        <span className="wk-blocker">
+          {subforms ? 'Nic nie zaznaczono — lista pokaże tylko osoby i telefony.' : 'Nic nie zaznaczono — ta osoba nie zobaczy żadnej odpowiedzi.'}
+        </span>
       )}
 
-      <span className="wk-hint">
-        Czy odpowiedź można poprawić, ustawia się przy pytaniu w formularzu (zakładka „Pytania").
-      </span>
+      {!subforms && (
+        <span className="wk-hint">
+          Czy odpowiedź można poprawić, ustawia się przy pytaniu w formularzu (zakładka „Pytania").
+        </span>
+      )}
     </div>
   );
 }

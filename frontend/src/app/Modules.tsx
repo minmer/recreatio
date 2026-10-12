@@ -541,6 +541,7 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
             formId={config[field.of ?? ''] ?? ''}
             value={value}
             busy={busy}
+            subforms={field.subforms === true}
             onPick={(next) => void save(field.key, next)}
           />
         ) : field.kind === 'line' ? (

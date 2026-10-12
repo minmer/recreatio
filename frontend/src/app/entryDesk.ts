@@ -322,9 +322,16 @@ export interface EntryQuery {
   readonly id: string | null;
   readonly filter: EntryFilter;
   readonly from: string | null;
+
+  /**
+   * 0104 — AUS WELCHEM FORMULAR (`?formularz=`): die Liste schickt es mit.
+   * Dann wählt auch eine Seite ohne eigenen „Wybór na stronie" diesen Menschen
+   * — etwa die Seite, die die Kandydaci über ihren Link sehen.
+   */
+  readonly form?: string | null;
 }
 
-const KEYS = ['wpis', 'filtr', 'q', 'ukryte', 'z'] as const;
+const KEYS = ['wpis', 'filtr', 'q', 'ukryte', 'z', 'formularz'] as const;
 
 /** Der Teil nach `?` in der Raute — andere Schlüssel (`?part=` …) bleiben unberührt. */
 const paramsOf = (hash: string): URLSearchParams => {
@@ -338,7 +345,8 @@ export function readEntryQuery(hash: string): EntryQuery {
   return {
     id: text('wpis') === '' ? null : text('wpis'),
     filter: { q: p.get('q') ?? '', step: text('filtr'), hidden: text('ukryte') === '1' },
-    from: text('z') === '' ? null : text('z').replace(/^#?\/*/, '')
+    from: text('z') === '' ? null : text('z').replace(/^#?\/*/, ''),
+    ...(text('formularz') === '' ? {} : { form: text('formularz') })
   };
 }
 
@@ -351,6 +359,7 @@ export function entryQueryString(query: EntryQuery, keep: string = ''): string {
   if (query.filter.q.trim() !== '') p.set('q', query.filter.q);
   if (query.filter.hidden) p.set('ukryte', '1');
   if (query.from !== null) p.set('z', query.from);
+  if (query.form != null && query.form !== '') p.set('formularz', query.form);
   const text = p.toString();
   return text === '' ? '' : `?${text}`;
 }
@@ -381,6 +390,50 @@ export function readSections(text: string): readonly PanelSection[] {
   const wanted = new Set(text.split(',').map((one) => one.trim()));
   const out = PANEL_SECTIONS.filter((one) => wanted.has(one));
   return out.length === 0 ? PANEL_SECTIONS : out;
+}
+
+/* -- 0104: Spalten der „Lista osób" — auch aus den Unterformularen ---------------------- */
+
+/** Eine Spalte: eine Frage des Formulars — oder (0104) eines seiner Unterformulare. */
+export interface Column {
+  readonly id: string;
+  readonly label: string;
+  /** Aus welchem Unterformular — `null`: aus dem Formular selbst. */
+  readonly from: string | null;
+  readonly value: (row: DeskRow) => string;
+}
+
+/** 0104 — die Antwort in einem Unterformular: der laufende Zeitraum, sonst der jüngste Eintrag. */
+function subValue(data: ReadForm, row: DeskRow, fieldId: string): string {
+  const mine = data.registrations
+    .filter((r) => r.baseId === row.s.registrationId && r.withdrawnAt === null)
+    .sort((a, b) => (b.round ?? '').localeCompare(a.round ?? '') || b.submittedAt.localeCompare(a.submittedAt));
+  return mine.length === 0 ? '' : data.opened.get(mine[0].registrationId)?.get(fieldId) ?? '';
+}
+
+/**
+ * Die Antworten, die als Spalten dastehen — bei „wszystkie" ohne die, die schon
+ * im Namen und in den Nummern stehen; 0104 — dahinter die Fragen der
+ * Unterformulare (was die Person in „Cele" schrieb, die Notatka des Koordinators).
+ */
+export function columnsOf(desk: Pick<EntryDesk, 'form' | 'info' | 'extData'>, chosen: string): readonly Column[] {
+  const own = (f: OpenField): Column => ({ id: f.fieldId, label: f.label ?? 'pytanie', from: null, value: (row) => row.values?.get(f.fieldId) ?? '' });
+  const main = desk.form.fields.map(own);
+  const subs: Column[] = (desk.info?.extensions ?? []).flatMap((ext) => {
+    const data = desk.extData.get(ext.moduleId);
+    if (data === undefined) return [];
+    return data.fields.map((f): Column => ({ id: f.fieldId, label: f.label ?? 'pytanie', from: ext.name, value: (row) => subValue(data, row, f.fieldId) }));
+  });
+
+  if (chosen.trim() === '') return [];
+  if (chosen.trim() === '*') {
+    const shown = new Set(desk.form.fields
+      .filter((f) => f.kind !== 'phone' && !['given_name', 'surname', 'nickname', 'name'].includes(f.identityRole))
+      .map((f) => f.fieldId));
+    return [...main.filter((c) => shown.has(c.id)), ...subs];
+  }
+  const every = new Map([...main, ...subs].map((c) => [c.id, c] as const));
+  return chosen.split(',').map((one) => every.get(one.trim())).filter((c): c is Column => c !== undefined);
 }
 
 /* -- Einmal gelesen, kurz behalten ---------------------------------------------------- */

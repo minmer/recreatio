@@ -32,7 +32,9 @@ import {
 import type { Ring } from './keys';
 import { evaluate, layoutWith, missingIn, type FormDesign } from './formDesign';
 import { FormFlow, isRequired } from './FormFlow';
-import { ExtensionSheet } from './ExtensionSheet';
+import { ExtensionEntry, ExtensionSheet } from './ExtensionSheet';
+import { deskChanged } from './entryDesk';
+import { useEntrySubject, useOfficeSubject, type EntrySubject } from './entrySubject';
 import { REPEAT_LABEL, repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
 import { PEOPLE_TAB, viewPath } from './routes';
 import { filledNow, loadSteps, type ExtensionInfo } from './steps';
@@ -111,6 +113,8 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
    *   niemand              wie immer: selbst eintragen, neuer Link
    */
   const person = usePerson();
+  /* 0104 — die Seite handelt von EINEM Menschen (oben gewählt): ein Unterformular zeigt seinen Eintrag. */
+  const subject = useOfficeSubject(useEntrySubject());
   const openSeats = useSeats();
   const pageDecides = person !== null && form != null && form.forKind === 'person';
   const pageRole = pageDecides && person.chosen?.kind === 'role' ? person.chosen : null;
@@ -274,6 +278,16 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
 
   if (form === null) {
     return <p className="wk-card-muted">{failed ?? 'Tu nie ma formularza.'}</p>;
+  }
+
+  /*
+   * 0104 — AUF DER SEITE EINES MENSCHEN (oben gewählt — „Wybór na stronie",
+   * oder aus der „Lista osób" gekommen): ein Unterformular zeigt SEINEN
+   * Eintrag. Was der Koordinator ausfüllt, schreibt er hier; was die Person
+   * ausfüllt, liest er. Vorher stand hier die Liste aller 84 Menschen.
+   */
+  if (form.extendsId !== null && subject !== null && subject.formId === form.extendsId && givenSeat === undefined) {
+    return <SubjectSubform subject={subject} partId={partId} title={title} writable={form.audience === 'office'} repeat={repeatOf(form.repeat)} />;
   }
 
   /*
@@ -853,6 +867,37 @@ function OfficeOnly({ partId, baseId, title, repeat }: { partId: string; baseId:
         <ExtensionSheet extensionId={partId} baseId={baseId} audience="office" who={who} repeat={repeat} name={title} />
       )}
     </>
+  );
+}
+
+/** 0104 — ein Unterformular, für den oben gewählten Menschen: sein Eintrag, im laufenden Zeitraum. */
+function SubjectSubform({ subject, partId, title, writable, repeat }: {
+  subject: EntrySubject;
+  partId: string;
+  title: string;
+  writable: boolean;
+  repeat: Repeat;
+}) {
+  const head = title !== '' && <h2 className="wk-card-title">{title}</h2>;
+  const chosen = subject.chosen;
+  if (subject.desk === null || subject.ring == null) return <>{head}<p className="wk-card-muted">Osoba pojawi się tu po wyborze u góry strony.</p></>;
+  if (chosen === null) return <>{head}<p className="wk-card-muted">Wybierz osobę u góry strony.</p></>;
+  const data = subject.desk.extData.get(partId);
+  if (data === undefined) return <>{head}<p className="wk-card-muted">Tego podformularza nie otworzysz tym kluczem.</p></>;
+  const round = roundOf(repeat);
+  const entry = data.registrations.find((r) => r.baseId === chosen.s.registrationId && (r.round ?? '') === round);
+
+  return (
+    <div data-subject-subform={partId}>
+      {head}
+      <p className="wk-entry-who">
+        <strong>{chosen.name}</strong>
+        {repeat !== 'once' && <span className="wk-row-side"> · {roundLabel(repeat, round)}</span>}
+        {!writable && <span className="wk-row-side"> · uzupełnia osoba</span>}
+      </p>
+      <ExtensionEntry key={chosen.s.registrationId} extensionId={partId} ext={data} baseRegistrationId={chosen.s.registrationId}
+        entry={entry} editable={writable} round={round} onSaved={() => deskChanged(subject.formId)} />
+    </div>
   );
 }
 

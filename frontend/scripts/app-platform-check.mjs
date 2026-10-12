@@ -30,6 +30,8 @@
  *  26. Seite in Spalten (0101): jede Spalte für sich, am Ende in kürzere Spalten derselben Breite; Schritt „Wybierz termin" (0100).
  *  27. Schritt „Przeczytaj wiadomości" (0102): erledigt, solange in den gewählten Rozmowy (alle, jeden na jeden, Gruppe,
  *      Kanał; an einem Bereich oder an jedem) nichts Ungelesenes liegt — nie überfällig, niemand hakt ab.
+ *  28. Die Seite des Kandydaten aus der Liste (0104): die Liste schickt das Formular mit, die Seite wählt dann den Menschen
+ *      auch ohne eigenen „Wybór na stronie"; Spalten aus Unterformularen (laufender Zeitraum, sonst der jüngste Eintrag).
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -70,8 +72,8 @@ export { intentionsSheetHtml } from '${app}sheet';
 export { meetingAreas, othersWrite } from '${app}audience';
 export { chatMode, hasSeats, fixedPolicy } from '${app}chat';
 export { epochAad } from '${app}area';
-export { deskRows, pickRows, neighbours, readEntryQuery, entryQueryString, withEntryQuery, filterWords, stepKindsOf, folded, readSections, PANEL_SECTIONS, NO_FILTER } from '${app}entryDesk';
-export { readSubject, writeSubject, subjectKindOf } from '${app}pageSubject';
+export { columnsOf, deskRows, pickRows, neighbours, readEntryQuery, entryQueryString, withEntryQuery, filterWords, stepKindsOf, folded, readSections, PANEL_SECTIONS, NO_FILTER } from '${app}entryDesk';
+export { readSubject, writeSubject, subjectKindOf, implicitSubject } from '${app}pageSubject';
 export { peselValid, peselBirth, birthOf, ageOn } from '${app}pesel';
 export { consentValue, consentGiven, consentText, shownAnswer } from '${app}form';
 export { evaluate } from '${app}formDesign';
@@ -1879,6 +1881,41 @@ try {
     assert.deepEqual(states([])[0].chat, read.chat);
     assert.equal(states([{ stepId: 'r', doneAt: '2026-10-12T10:00:00Z', byPerson: true, chat: { unread: 0 } }])[0].status, 'done');
     ok('„Przeczytaj wiadomości" (0102): done while nothing is unread in the chosen chats — all, one-to-one, together, channel, at one area or any; never overdue');
+  }
+
+  /* -- 28. Die Seite des Kandydaten aus der Liste, Spalten aus Unterformularen (0104) ----------------------- */
+  {
+    const query = { id: 'r1', filter: m.NO_FILTER, from: 'parafia/koordynator', form: 'F' };
+    const text = m.entryQueryString(query);
+    assert.ok(text.includes('formularz=F'), 'the list sends the form along');
+    assert.deepEqual(m.readEntryQuery('#/parafia/kandydat' + text), query);
+    assert.deepEqual(m.implicitSubject('#/parafia/kandydat' + text), { kind: 'entry', form: 'F', list: 'parafia/koordynator' },
+      'a page without its own choice chooses the person from the address');
+    assert.equal(m.implicitSubject('#/parafia/kandydat?miejsce=t.k'), null, 'the candidate with his own link: no choice, nothing changes');
+    assert.equal(m.implicitSubject('#/parafia/kandydat?wpis=r1'), null, 'without the form there is no choice');
+
+    const field = (fieldId, label, extra = {}) => ({ fieldId, label, kind: 'line', identityRole: 'none', ...extra });
+    const desk = {
+      form: { fields: [field('g', 'Imię', { identityRole: 'given_name' }), field('p', 'Parafia'), field('t', 'Telefon', { kind: 'phone' })] },
+      info: { extensions: [{ moduleId: 'C', name: 'Cele' }, { moduleId: 'N', name: 'Notatki' }] },
+      extData: new Map([
+        ['C', { fields: [field('aim', 'Moje cele')], registrations: [
+          { registrationId: 'c1', baseId: 'r1', withdrawnAt: null, round: '', submittedAt: '2026-10-01T10:00:00Z' }
+        ], opened: new Map([['c1', new Map([['aim', 'Ewangelia']])]]) }],
+        ['N', { fields: [field('note', 'Notatka')], registrations: [
+          { registrationId: 'n1', baseId: 'r1', withdrawnAt: null, round: '2026-09', submittedAt: '2026-09-02T10:00:00Z' },
+          { registrationId: 'n2', baseId: 'r1', withdrawnAt: null, round: '2026-10', submittedAt: '2026-10-02T10:00:00Z' }
+        ], opened: new Map([['n1', new Map([['note', 'stara']])], ['n2', new Map([['note', 'nowa']])]]) }]
+      ])
+    };
+    const row = { s: { registrationId: 'r1' }, values: new Map([['g', 'Jan'], ['p', 'św. Jana']]) };
+    const all = m.columnsOf(desk, '*');
+    assert.deepEqual(all.map((c) => [c.id, c.from]), [['p', null], ['aim', 'Cele'], ['note', 'Notatki']],
+      'all: the form\'s answers (without name and phone), then the sub-forms\'');
+    assert.deepEqual(all.map((c) => c.value(row)), ['św. Jana', 'Ewangelia', 'nowa'], 'a repeating sub-form: its latest period');
+    assert.deepEqual(m.columnsOf(desk, 'note,p').map((c) => c.id), ['note', 'p'], 'chosen ones in their order, sub-form questions too');
+    assert.deepEqual(m.columnsOf(desk, ''), []);
+    ok('the candidate page from the list (0104): the list sends the form, the page chooses the person; sub-form answers as columns');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

@@ -19,8 +19,9 @@
  * Seite und der Editor bleiben, wie sie sind.
  */
 
-import { createContext, useContext, type ComponentType, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 
+import { readEntryQuery } from './entryDesk';
 import { entrySubjectKind } from './entrySubject';
 
 /** Was gespeichert ist: `{"kind":"entry","form":"…"}` — die Art sagt, was die übrigen Schlüssel bedeuten. */
@@ -73,9 +74,31 @@ export const writeSubject = (decl: SubjectDecl | null): string | null => (decl =
 
 const BarContext = createContext<ComponentType | null>(null);
 
+/**
+ * 0104 — DIE WAHL AUS DER ADRESSE, wo die Seite selbst keine trifft: kommt man
+ * aus der „Lista osób" (`?wpis=…&formularz=…`), handelt die Seite von diesem
+ * Menschen — auch die Seite, die die Kandydaci über ihren Link sehen. Ohne die
+ * beiden Schlüssel (der Kandydat mit seinem Link) bleibt alles, wie es war.
+ */
+export function implicitSubject(hash: string): SubjectDecl | null {
+  const query = readEntryQuery(hash);
+  if (query.id === null || query.form == null || query.form === '') return null;
+  return query.from === null ? { kind: 'entry', form: query.form } : { kind: 'entry', form: query.form, list: query.from };
+}
+
 /** Die Wahl für alles darunter — oder nichts, wo die Seite keine trifft (oder eine, die diese Fassung nicht kennt). */
 export function PageSubjectProvider({ subject, path, children }: { subject: string | null | undefined; path: string; children: ReactNode }) {
-  const decl = readSubject(subject);
+  const [hash, setHash] = useState(() => window.location.hash);
+  useEffect(() => {
+    const onHash = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  const fromAddress = implicitSubject(hash);
+  const formKey = fromAddress === null ? '' : `${String(fromAddress.form)}|${String(fromAddress.list ?? '')}`;
+  /* Dieselbe Wahl, solange Formular und Liste dieselben sind — ◀ ▶ ändern nur, WER gewählt ist. */
+  const implicit = useMemo(() => fromAddress, [formKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const decl = readSubject(subject) ?? implicit;
   const kind = decl === null ? undefined : subjectKindOf(decl.kind);
   if (decl === null || kind === undefined) return <>{children}</>;
 

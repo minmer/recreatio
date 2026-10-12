@@ -34,6 +34,8 @@ import { PickForm } from './FormPick';
 import { PickPage } from './PickPage';
 import type { Ring } from './keys';
 import { useWho } from './me';
+import { usePerson } from './pagePerson';
+import { useSeats } from './seatContext';
 import type { SubjectDecl, SubjectKind } from './pageSubject';
 import { keysFor } from './ringOf';
 import { pagePath, path as routePath } from './routes';
@@ -111,9 +113,13 @@ export const herePath = (): string =>
     .map((one) => { try { return decodeURIComponent(one); } catch { return one; } })
     .filter((one) => one !== '').join('/');
 
-/** Der Link auf die Seite eines Menschen — mit dem Filter und der Liste, aus der er kommt. */
-export const entryHref = (page: string, id: string, filter: EntryFilter, from: string | null): string =>
-  `${pagePath(page.replace(/^#?\/*/, ''))}${entryQueryString({ id, filter, from })}`;
+/**
+ * Der Link auf die Seite eines Menschen — mit dem Filter, der Liste, aus der er
+ * kommt, und (0104) dem Formular: so wählt ihn auch eine Seite ohne eigenen
+ * „Wybór na stronie" (`implicitSubject`).
+ */
+export const entryHref = (page: string, id: string, filter: EntryFilter, from: string | null, form: string | null = null): string =>
+  `${pagePath(page.replace(/^#?\/*/, ''))}${entryQueryString({ id, filter, from, form })}`;
 
 /**
  * Warum (noch) nichts dasteht — angemeldet? Passwort? Gelesen? Ein Satz, oder
@@ -201,6 +207,20 @@ const EntryContext = createContext<EntrySubject | null>(null);
 /** Die Wahl „osoba z formularza" dieser Seite — `null`: die Seite wählt keine. */
 export const useEntrySubject = (): EntrySubject | null => useContext(EntryContext);
 
+/**
+ * 0104 — GILT DIE WAHL FÜR DIESEN BESUCHER? Auf der Seite, die die Kandydaci
+ * über ihren Link sehen, steht sie für die Kanzlei. Wer als SEIN Platz da ist
+ * (oben gewählt), oder ohne Anmeldung mit einem Link in diesem Browser, sieht
+ * weiter sich selbst — und keine Leiste mit „zaloguj się".
+ */
+export function useOfficeSubject(subject: EntrySubject | null): EntrySubject | null {
+  const person = usePerson();
+  const seats = useSeats();
+  if (subject === null || person?.chosen?.kind === 'seat') return null;
+  if (subject.who === null && seats.length > 0) return null;
+  return subject;
+}
+
 const formOf = (decl: SubjectDecl): string => (typeof decl.form === 'string' ? decl.form.trim() : '');
 const listOf = (decl: SubjectDecl): string | null =>
   typeof decl.list === 'string' && decl.list.trim() !== '' ? decl.list.trim().replace(/^#?\/*/, '') : null;
@@ -232,7 +252,7 @@ function EntryProvider({ decl, children }: { decl: SubjectDecl; path: string; ch
  * Filter — und zurück zur Liste.
  */
 function EntryBar() {
-  const e = useEntrySubject();
+  const e = useOfficeSubject(useEntrySubject());
   const [filtering, setFiltering] = useState(false);
   if (e === null) return null;
 

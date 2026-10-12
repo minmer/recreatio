@@ -163,6 +163,9 @@ export interface FieldDef {
 
   /** Darf leer bleiben (dann: alle) — der Wähler bietet „wszystkie" an. */
   readonly optional?: boolean;
+
+  /** 0104 — bei `questions`: auch die Fragen der Unterformulare (die Spalten der „Lista osób"). */
+  readonly subforms?: boolean;
 }
 
 /* -- Ein Baustein, so wie ihn das Verzeichnis hält -------------------------- */

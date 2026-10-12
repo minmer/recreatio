@@ -8341,3 +8341,10 @@ span.ch-sendas { cursor: default; }
 /* -- 0103: ein Unterformular mit Neuem, unter seinem Hauptformular (Widok obszaru) -- */
 .wk-part-list li.is-sub { padding-left: 1.6rem; }
 .wk-part-list li.is-sub > a:first-child { font-weight: 400; }
+
+/* -- 0104: Spalten aus Unterformularen; die Seite des Kandydaten für die Kanzlei -- */
+.wk-th-from { display: block; font-size: 0.72rem; font-weight: 400; color: var(--wk-muted); text-transform: none; letter-spacing: 0; }
+.wk-pick-list .wk-pick-group { margin-top: 0.5rem; padding-top: 0.4rem; border-top: 1px solid var(--wk-line); font-size: 0.78rem; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--wk-muted); }
+.wk-office-view { display: grid; gap: 0.5rem; min-width: 0; }
+.wk-office-chat { display: grid; gap: 0.5rem; }

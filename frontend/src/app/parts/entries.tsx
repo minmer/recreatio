@@ -20,13 +20,12 @@ import { useEffect, useMemo, useRef } from 'react';
 import { plural } from '../ChatKit';
 import { EntryDeskPanel } from '../FormOffice';
 import {
-  PANEL_SECTION_LABEL, PANEL_SECTIONS, pickRows, readSections, stepKindsOf,
+  columnsOf, PANEL_SECTION_LABEL, PANEL_SECTIONS, pickRows, readSections, stepKindsOf,
   type DeskRow, type PanelSection
 } from '../entryDesk';
 import {
   EntryFilterBar, entryHref, herePath, OfficeGate, useEntryDesk, useEntryQuery, useEntrySubject, useOfficeRing
 } from '../entrySubject';
-import type { OpenField } from '../form';
 import { definePart, text, type EditorProps, type PartContext, type RawConfig } from '../part';
 import { progressOf } from '../steps';
 
@@ -58,15 +57,6 @@ interface ListConfig {
   readonly columns: string;
 }
 
-/** Die Antworten, die als Spalten dastehen — bei „wszystkie" ohne die, die schon im Namen und in den Nummern stehen. */
-function columnsOf(fields: readonly OpenField[], chosen: string): readonly OpenField[] {
-  if (chosen.trim() === '') return [];
-  if (chosen.trim() === '*') {
-    return fields.filter((f) => f.kind !== 'phone' && !['given_name', 'surname', 'nickname', 'name'].includes(f.identityRole));
-  }
-  const ids = chosen.split(',').map((one) => one.trim());
-  return ids.map((id) => fields.find((f) => f.fieldId === id)).filter((f): f is OpenField => f !== undefined);
-}
 
 function EntryListView({ config, ctx }: { config: ListConfig; ctx: PartContext }) {
   const { who, ring, retry } = useOfficeRing();
@@ -91,12 +81,11 @@ function EntryListView({ config, ctx }: { config: ListConfig; ctx: PartContext }
   const gate = OfficeGate({ who, ring, retry, desk, failed, what: 'Listę osób' });
   if (gate !== null) return <>{head}{gate}</>;
 
-  const fields = desk!.form.fields;
-  const columns = columnsOf(fields, config.columns);
+  const columns = columnsOf(desk!, config.columns);
   const page = config.page.replace(/^#?\/*/, '');
   const from = herePath();
   const wide = ctx.whole === true || ctx.size.width === 'wide' || ctx.size.width === 'full';
-  const link = (row: DeskRow) => (page === '' ? null : entryHref(page, row.s.registrationId, query.filter, from));
+  const link = (row: DeskRow) => (page === '' ? null : entryHref(page, row.s.registrationId, query.filter, from, config.form));
   const mark = (row: DeskRow) => (row.s.registrationId === query.id ? (el: HTMLElement | null) => { here.current = el; } : undefined);
   const name = (row: DeskRow) => {
     const href = link(row);
@@ -124,7 +113,11 @@ function EntryListView({ config, ctx }: { config: ListConfig; ctx: PartContext }
               <tr>
                 <th scope="col">Osoba</th>
                 <th scope="col">Telefon</th>
-                {columns.map((f) => <th key={f.fieldId} scope="col">{f.label ?? 'pytanie'}</th>)}
+                {columns.map((c) => (
+                  <th key={c.id} scope="col" data-column-from={c.from ?? ''}>
+                    {c.label}{c.from !== null && <span className="wk-th-from">{c.from}</span>}
+                  </th>
+                ))}
                 <th scope="col">Postęp</th>
               </tr>
             </thead>
@@ -134,9 +127,9 @@ function EntryListView({ config, ctx }: { config: ListConfig; ctx: PartContext }
                   className={[row.s.registrationId === query.id ? 'is-here' : '', row.s.hidden || row.s.withdrawnAt !== null ? 'is-muted' : ''].join(' ').trim() || undefined}>
                   <th scope="row">{name(row)}</th>
                   <td>{row.phones.map((p) => <a key={p.dial} className="wk-entry-phone" href={`tel:${p.dial}`}>{p.shown}</a>)}</td>
-                  {columns.map((f) => {
-                    const value = row.values?.get(f.fieldId) ?? '';
-                    return <td key={f.fieldId} title={value.length > 40 ? value : undefined}>{value}</td>;
+                  {columns.map((c) => {
+                    const value = c.value(row);
+                    return <td key={c.id} title={value.length > 40 ? value : undefined}>{value}</td>;
                   })}
                   <td><RowTags row={row} /></td>
                 </tr>
@@ -170,8 +163,8 @@ export const entryListPart = definePart<ListConfig>({
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Kandydaci' },
     { key: 'form', label: 'Formularz', kind: 'form' },
-    { key: 'page', label: 'Strona osoby', kind: 'page', hint: 'strona z „Wyborem na stronie”: osoba z tego formularza' },
-    { key: 'columns', label: 'Kolumny (na szerokim module)', kind: 'questions', of: 'form' }
+    { key: 'page', label: 'Strona osoby', kind: 'page', hint: 'np. strona kandydata (ta z jego linku) — otwarta z listy pokazuje wybraną osobę' },
+    { key: 'columns', label: 'Kolumny (na szerokim module)', kind: 'questions', of: 'form', subforms: true }
   ],
 
   read: (raw: RawConfig): ListConfig => ({

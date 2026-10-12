@@ -80,7 +80,7 @@ import { meetingAreas } from './audience';
  * Platzes, oder einer darüber (`meetingAreas`). Mitlesen alle, die diesen
  * Bereich lesen; die anderen aus dem Formular nicht. Je Bereich eine Rozmowa.
  */
-function WriteToSeat({ seatId, near, areas, ring, busy, onError }: {
+export function WriteToSeat({ seatId, near, areas, ring, busy, onError }: {
   seatId: string;
 
   /** Die Bereiche, mit denen dieser Mensch zu tun hat — der nächste zuerst. */

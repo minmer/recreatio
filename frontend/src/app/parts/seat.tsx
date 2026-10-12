@@ -17,7 +17,7 @@
  * da ist.
  */
 
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { AskSetup } from '../AskSetup';
 import { definePart, picked, text, type RawConfig } from '../part';
@@ -34,6 +34,75 @@ import { useSeatChatRows } from '../seatUnread';
 import { answerPresence, answerTask, stepsFor, type StepState } from '../steps';
 import { OwnSubmissions, ReviewSubmissions } from '../Submission';
 import { TaskCard, takenOf } from '../TaskCard';
+import { EntryDeskPanel, WriteToSeat } from '../FormOffice';
+import { deskChanged, formAreasOf, type DeskRow } from '../entryDesk';
+import { useEntrySubject, useOfficeSubject, type EntrySubject } from '../entrySubject';
+import { OfficeSeatChats } from '../OfficeSeatChats';
+import { PersonSteps } from '../StepList';
+import { modulesNow } from '../viewData';
+
+/*
+ * 0104 — DIE SEITE DES KANDYDATEN, VON DER KANZLEI GEÖFFNET.
+ *
+ * Kommt ein Koordinator aus der „Lista osób" (`?wpis=…&formularz=…`, oder die
+ * Seite wählt selbst „osoba z formularza"), zeigen die Bausteine eines Platzes
+ * nicht seinen eigenen (er hat keinen: „…nie otworzyła tu żadnego linku"),
+ * sondern den GEWÄHLTEN Menschen — so, wie die Kanzlei ihn liest: seine
+ * Antworten und Unterformulare (auch „tylko koordynator", hier zu schreiben),
+ * seine Schritte und Aufgaben, die Rozmowa mit ihm. Wer mit seinem Link kommt,
+ * sieht weiter sich selbst.
+ */
+function useOfficeView(): EntrySubject | null {
+  return useOfficeSubject(useEntrySubject());
+}
+
+type OfficeRender = (row: DeskRow, subject: EntrySubject) => ReactNode;
+
+function OfficeView({ head, subject, children }: { head: ReactNode; subject: EntrySubject; children: OfficeRender | undefined }) {
+  /* Warum (noch) nichts dasteht, sagt die Leiste oben; hier nur ein Satz. */
+  if (subject.desk === null || subject.ring == null) return <>{head}<p className="wk-card-muted">Dane osoby pojawią się po wyborze u góry strony.</p></>;
+  if (subject.chosen === null) return <>{head}<p className="wk-card-muted">Wybierz osobę u góry strony.</p></>;
+  return (
+    <>
+      {head}
+      <div className="wk-office-view" data-office-view="">
+        {children === undefined
+          ? <p className="wk-card-muted">Tę część osoba widzi w swoim linku — tu nie ma nic do pokazania o niej.</p>
+          : children(subject.chosen, subject)}
+      </div>
+    </>
+  );
+}
+
+/** Die Rozmowa „jeden na jeden" mit dem Gewählten — an einem Bereich, oder jede; ohne eine: anfangen. */
+function OfficeChats({ row, subject, areaId }: { row: DeskRow; subject: EntrySubject; areaId: string | null }) {
+  const [failed, setFailed] = useState<string | null>(null);
+  const desk = subject.desk!;
+  return (
+    <>
+      <OfficeSeatChats key={row.s.registrationId} seatId={row.s.seatId} areaId={areaId} ring={subject.ring!}
+        fallback={row.s.seatId === null ? null : (
+          <div className="wk-actions">
+            <WriteToSeat seatId={row.s.seatId} near={formAreasOf(desk)} areas={desk.areas} ring={subject.ring!} busy={false} onError={setFailed} />
+          </div>
+        )} />
+      {failed !== null && <p className="wk-error">{failed}</p>}
+    </>
+  );
+}
+
+/** „Napisz do nas": die Rozmowa an SEINEM Bereich (der Baustein hat einen eigenen). */
+function AskOffice({ moduleId, row, subject }: { moduleId: string; row: DeskRow; subject: EntrySubject }) {
+  const [areaId, setAreaId] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    modulesNow().then((all) => { if (alive) setAreaId(all.find((m) => m.moduleId === moduleId)?.areaId ?? null); })
+      .catch(() => { if (alive) setAreaId(null); });
+    return () => { alive = false; };
+  }, [moduleId]);
+  if (areaId === undefined) return <p className="wk-card-muted">Wczytywanie rozmowy…</p>;
+  return <OfficeChats row={row} subject={subject} areaId={areaId} />;
+}
 
 /**
  * Die zwei Zustände, die alle drei kennen — und der Inhalt danach.
@@ -45,15 +114,20 @@ import { TaskCard, takenOf } from '../TaskCard';
  * Einer allein steht ohne Namen da, wie bisher: über dem eigenen Zgłoszenie
  * noch einmal den eigenen Namen zu lesen, sagte nichts.
  */
-function OnSeat({ title, fallback, empty, children }: {
+function OnSeat({ title, fallback, empty, children, office }: {
   title: string;
   fallback: string;
   empty: string;
   children: (seat: SeatView) => ReactNode;
+  /** 0104 — was die Kanzlei hier über den oben gewählten Menschen sieht. */
+  office?: OfficeRender;
 }) {
   const seats = useSeats();
   const person = usePerson();
+  const subject = useOfficeView();
   const head = <h2 className="wk-card-title">{title === '' ? fallback : title}</h2>;
+
+  if (subject !== null) return <OfficeView head={head} subject={subject}>{office}</OfficeView>;
 
   /*
    * AUF EINER SEITE gilt die EINE Wahl von oben (`PersonPicker`): der
@@ -166,6 +240,9 @@ export const seatSubmissionPart = definePart<SubmissionConfig>({
       title={config.title}
       fallback="Twoje zgłoszenie"
       empty="Tu pojawi się zgłoszenie osoby, która otworzy swój link."
+      office={(row, e) => config.form !== null && config.form !== e.formId
+        ? <p className="wk-card-muted">Ten moduł pokazuje inny formularz niż ten, z którego wybrano osobę u góry strony.</p>
+        : <EntryDeskPanel desk={e.desk!} row={row} ring={e.ring!} sections={['answers', 'extensions']} />}
     >
       {(seat) => (
         <>
@@ -217,6 +294,7 @@ export const seatNotePart = definePart<NoteConfig>({
       title={config.title}
       fallback="Od kancelarii"
       empty="Tu pojawi się wiadomość, którą kancelaria napisze tej osobie."
+      office={() => <p className="wk-card-muted">Tu osoba widzi wiadomość od kancelarii, napisaną przy jej zgłoszeniu.</p>}
     >
       {(seat) => seat.note === null
         ? <p className="wk-empty">Nic tu jeszcze nie napisano.</p>
@@ -254,6 +332,7 @@ export const seatSharedPart = definePart<SharedConfig>({
       title={config.title}
       fallback="Wspólne terminy"
       empty="Tu pojawią się wspólne terminy, jeśli miejsce niesie klucz grupy."
+      office={() => <p className="wk-card-muted">Tu osoba widzi wspólne terminy swojej grupy.</p>}
     >
       {(seat) => seat.shared.length === 0 ? (
         <p className="wk-empty">Nic na najbliższe tygodnie.</p>
@@ -300,8 +379,18 @@ function StepsCard({ title }: { title: string }) {
   const person = usePerson();
   const seats = useSeats();
   const logic = usePageLogic();
+  const office = useOfficeView();
   const mapped = logic !== null && logic.logic.nodes.some((node) => node.kind === 'step');
   const head = <h2 className="wk-card-title">{title === '' ? 'Twoje kroki' : title}</h2>;
+
+  /* 0104 — die Kanzlei: die Schritte des oben gewählten Menschen, abzuhaken wie in „Osoby". */
+  if (office !== null) {
+    return (
+      <OfficeView head={head} subject={office}>
+        {(row, e) => <EntryDeskPanel desk={e.desk!} row={row} ring={e.ring!} sections={['steps']} />}
+      </OfficeView>
+    );
+  }
 
   /* Die Wahl oben gilt; ohne Wahl (die Ansicht eines Platzes) der eine offene Platz. */
   const seat = person !== null
@@ -444,6 +533,12 @@ export const seatTasksPart = definePart<TasksConfig>({
       title={config.title}
       fallback="Twoje zadania"
       empty="Tu pojawią się zadania osoby, która otworzy swój link."
+      office={(row, e) => {
+        const tasks = row.states.filter((s) => s.task !== undefined || s.chat !== undefined);
+        return tasks.length === 0
+          ? <p className="wk-card-muted">Ta osoba nie ma zadań.</p>
+          : <PersonSteps registrationId={row.s.registrationId} states={tasks} onChanged={() => deskChanged(e.formId)} onError={() => undefined} />;
+      }}
     >
       {(seat) => <SeatTasks seat={seat} formId={config.form} />}
     </OnSeat>
@@ -488,6 +583,7 @@ export const seatChatPart = definePart<ChatConfig>({
       title={config.title}
       fallback="Rozmowa grupy"
       empty="Tu pojawi się rozmowa grupy — dla osoby, która otworzy swój link."
+      office={(row, e) => <OfficeChats row={row} subject={e} areaId={null} />}
     >
       {(seat) => <SeatChatBody seat={seat} />}
     </OnSeat>
@@ -536,6 +632,7 @@ export const seatAskPart = definePart<AskConfig>({
       title={config.title}
       fallback="Napisz do nas"
       empty="Tu osoba, która otworzy swój link, napisze do wybranych osób — tylko one i ona widzą tę rozmowę."
+      office={(row, e) => <AskOffice moduleId={ctx.moduleId} row={row} subject={e} />}
     >
       {(seat) => <SeatAskBody seat={seat} moduleId={ctx.moduleId} />}
     </OnSeat>

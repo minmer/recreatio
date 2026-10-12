@@ -631,6 +631,7 @@ function Fields({ part, size, busy, onSet, path }: {
                 formId={part.config[field.of ?? ''] ?? ''}
                 value={value}
                 busy={busy}
+                subforms={field.subforms === true}
                 onPick={(next) => onSet({ [field.key]: next })}
               />
             ) : field.kind === 'line' ? (
