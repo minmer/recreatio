@@ -231,6 +231,12 @@ export interface PartModule {
   readonly strip: { readonly title: string; readonly open: string } | null;
 
   /**
+   * 0102 — WAS IM STREIFEN NEBEN DER ÜBERSCHRIFT STEHT, solange er zu ist:
+   * bei einer Rozmowa „3 nowe wiadomości". Fehlt es, nur Überschrift und Knopf.
+   */
+  readonly Peek?: ComponentType<{ readonly raw: RawConfig; readonly moduleId: string }> | null;
+
+  /**
    * 0054 — KANN ER DAS GANZE FENSTER BRAUCHEN? Ein Messplan mit Kalender,
    * eine Buchung, ein langes Formular, eine Rozmowa, ein langer Text: an der
    * Kachel steht dann ein Knopf, und im ganzen Fenster zeigt er sich in seiner
@@ -451,6 +457,8 @@ export function definePart<C>(spec: {
   View: ComponentType<{ config: C; ctx: PartContext }>;
   shows: (config: C, size: PartSize) => string;
   strip?: { title: string; open: string };
+  /** 0102 — siehe `PartModule.Peek`. */
+  peek?: ComponentType<{ config: C; moduleId: string }>;
   fullscreen?: boolean;
   ownArea?: boolean;
   Editor?: ComponentType<EditorProps>;
@@ -478,6 +486,10 @@ export function definePart<C>(spec: {
 
   View.displayName = `Part(${spec.kind})`;
 
+  const peek = spec.peek;
+  const Peek: PartModule['Peek'] = peek === undefined ? null
+    : ({ raw, moduleId }) => createElement(peek, { config: spec.read(raw), moduleId });
+
   return {
     kind: spec.kind,
     label: spec.label,
@@ -490,6 +502,7 @@ export function definePart<C>(spec: {
     View,
     shows: (raw, size) => spec.shows(spec.read(raw), size),
     strip: spec.strip ?? null,
+    Peek,
     fullscreen: spec.fullscreen ?? false,
     ownArea: spec.ownArea ?? false,
     read: spec.read,

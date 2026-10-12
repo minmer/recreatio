@@ -893,6 +893,9 @@ export interface StepMark {
 
   /** 0100 — bei „Wybierz termin": der Termin, den der Platz hält (wartend: `pending`). */
   readonly booking?: { readonly status: 'pending' | 'confirmed'; readonly startsAt: string; readonly endsAt: string };
+
+  /** 0102 — bei „Przeczytaj wiadomości": der Haken steht nur, solange nichts Ungelesenes liegt. */
+  readonly chat?: { readonly unread: number };
 }
 
 export const loadRegistrations = (

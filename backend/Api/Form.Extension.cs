@@ -173,6 +173,59 @@ public static partial class Form
             list.AddRange(marks);
         }
 
+        /* 0102 — die Schritte „Przeczytaj wiadomości": erledigt, solange nichts Ungelesenes liegt. */
+        foreach (var (key, marks) in await ChatMarksAsync(connection, registrationIdsSql, bind, ct))
+        {
+            if (!out_.TryGetValue(key, out var list)) out_[key] = list = [];
+            list.AddRange(marks);
+        }
+
+        return out_;
+    }
+
+    /// <summary>
+    /// 0102 — WIE EIN HAKEN: je Einsendung und Schritt „Przeczytaj wiadomości",
+    /// wenn in den gewählten Rozmowy ihres Platzes nichts Ungelesenes liegt —
+    /// mit dem Zeitpunkt, bis zu dem er zuletzt gelesen hat (sonst dem der
+    /// Einsendung: es gab nie etwas zu lesen). Liegt etwas da, fehlt der Haken.
+    /// Ungelesen ist, was nicht von ihm selbst kam und nach seinem `read_at`
+    /// geschrieben wurde — dieselbe Rechnung wie in seiner Liste der Rozmowy.
+    /// </summary>
+    internal static async Task<Dictionary<Guid, List<object>>> ChatMarksAsync(
+        SqlConnection connection, string registrationIdsSql, Action<SqlCommand> bind, CancellationToken ct)
+    {
+        const string chosen = "(st.chat_kind = N'all' OR c.kind = st.chat_kind) AND (st.chat_area_id IS NULL OR c.area_id = st.chat_area_id)";
+        var out_ = new Dictionary<Guid, List<object>>();
+        await using var cmd = new SqlCommand($"""
+            SELECT r.id, st.id, r.submitted_at,
+                   (SELECT COUNT(*) FROM app.chat c JOIN app.chat_message m ON m.chat_id = c.id
+                     WHERE {ChatRules.SeatOfChat} AND {chosen}
+                       AND m.schedule_state = N'sent' AND m.deleted_at IS NULL
+                       AND (m.author_access_id IS NULL OR m.author_access_id <> s.id)
+                       AND m.created_at > COALESCE((SELECT p.read_at FROM app.chat_presence p
+                                                     WHERE p.chat_id = c.id AND p.principal_id = s.id), '0001-01-01')) AS unread,
+                   (SELECT MAX(p.read_at) FROM app.chat c JOIN app.chat_presence p ON p.chat_id = c.id AND p.principal_id = s.id
+                     WHERE {ChatRules.SeatOfChat} AND {chosen}) AS seen
+            FROM app.registration r
+            JOIN app.form_step st ON st.module_id = r.part_id AND st.kind = N'chat'
+            JOIN app.access s ON s.id = r.access_id
+            WHERE r.id IN ({registrationIdsSql});
+            """, connection);
+        bind(cmd);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            if (reader.GetInt32(3) > 0) continue;
+            var key = reader.GetGuid(0);
+            if (!out_.TryGetValue(key, out var list)) out_[key] = list = [];
+            list.Add(new
+            {
+                stepId = Ids.ToText(reader.GetGuid(1)),
+                doneAt = reader.IsDBNull(4) ? reader.GetDateTimeOffset(2) : reader.GetDateTimeOffset(4),
+                byPerson = true,
+                chat = new { unread = 0 }
+            });
+        }
         return out_;
     }
 
@@ -229,7 +282,10 @@ public static partial class Form
         IReadOnlyList<DutyRow>? Duties = null, Guid? CalendarId = null,
 
         /* 0100 — „Wybierz termin": bei welchem Zasób (und wie er heisst — der Name hängt aus). */
-        Guid? ResourceId = null, string? ResourceName = null);
+        Guid? ResourceId = null, string? ResourceName = null,
+
+        /* 0102 — „Przeczytaj wiadomości": welche Rozmowy (all | seat | area | channel), an welchem Bereich, und wie er heisst. */
+        string? ChatKind = null, Guid? ChatAreaId = null, string? ChatAreaName = null);
 
     /// <summary>0099 — eine Funktion in den Terminen einer Aufgabe; die Beschriftung versiegelt.</summary>
     private sealed record DutyRow(Guid Id, int Position, Guid AreaId, int Epoch, byte[] Label, int? Capacity);
@@ -252,6 +308,12 @@ public static partial class Form
         {
             resourceId = s.ResourceId is { } resource ? Ids.ToText(resource) : null,
             resourceName = s.ResourceName
+        },
+        chat = s.Kind != "chat" ? null : new
+        {
+            kind = s.ChatKind ?? "all",
+            areaId = s.ChatAreaId is { } chatArea ? Ids.ToText(chatArea) : null,
+            areaName = s.ChatAreaName
         },
         task = s.Plan is null ? null : new
         {
@@ -290,7 +352,8 @@ public static partial class Form
         await using var cmd = new SqlCommand($"""
             SELECT id, position, area_id, epoch, label_sealed, help_sealed, done_by, visible_to_person, due_at,
                    kind, starts_on, ends_on, schedule, weekdays, at_minute, minutes, needed, show_from, report_until,
-                   item_id, presence, resource_id, (SELECT x.name FROM app.resource x WHERE x.id = form_step.resource_id)
+                   item_id, presence, resource_id, (SELECT x.name FROM app.resource x WHERE x.id = form_step.resource_id),
+                   chat_kind, chat_area_id, (SELECT x.name FROM app.area x WHERE x.id = form_step.chat_area_id)
             FROM app.form_step
             WHERE module_id = @m {(personOnly ? "AND visible_to_person = 1" : "")}
             ORDER BY position;
@@ -317,7 +380,10 @@ public static partial class Form
                     kind, plan)
                 {
                     ResourceId = reader.IsDBNull(21) ? null : reader.GetGuid(21),
-                    ResourceName = reader.IsDBNull(22) ? null : reader.GetString(22)
+                    ResourceName = reader.IsDBNull(22) ? null : reader.GetString(22),
+                    ChatKind = reader.IsDBNull(23) ? null : reader.GetString(23),
+                    ChatAreaId = reader.IsDBNull(24) ? null : reader.GetGuid(24),
+                    ChatAreaName = reader.IsDBNull(25) ? null : reader.GetString(25)
                 });
             }
         }
@@ -457,7 +523,10 @@ public static partial class Form
         string? Kind = null, TaskIn? Task = null,
 
         /* 0100 — „Wybierz termin" (booking): bei welchem Zasób. */
-        string? ResourceId = null);
+        string? ResourceId = null,
+
+        /* 0102 — „Przeczytaj wiadomości" (chat): welche Rozmowy (all | seat | area | channel), an welchem Bereich (leer: an jedem). */
+        string? ChatKind = null, string? ChatAreaId = null);
 
     public sealed record TaskIn(
         string? StartsOn, string? EndsOn, string? Schedule, int? Weekdays, int? AtMinute, int? Minutes, int? Needed,
@@ -520,7 +589,7 @@ public static partial class Form
         }
 
         var parsed = new List<(Guid Id, int Epoch, byte[] Label, byte[]? Help, string DoneBy, bool Visible, DateTimeOffset? Due, TaskPlan? Plan,
-            List<(Guid Id, byte[] Label, int? Capacity)> Duties, Guid? Resource)>();
+            List<(Guid Id, byte[] Label, int? Capacity)> Duties, Guid? Resource, (string Kind, Guid? Area)? Chat)>();
 
         foreach (var one in given)
         {
@@ -598,7 +667,7 @@ public static partial class Form
                 }
 
                 plan = read;
-                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), read.DoneBy, true, null, plan, duties, null));
+                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), read.DoneBy, true, null, plan, duties, null, null));
                 continue;
             }
 
@@ -620,7 +689,35 @@ public static partial class Form
                     await Fail(ctx, StatusCodes.Status400BadRequest, "Wybierz zasób, przy którym osoba wybiera termin.");
                     return;
                 }
-                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), "person", true, one.DueAt, null, [], resource));
+                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), "person", true, one.DueAt, null, [], resource, null));
+                continue;
+            }
+
+            /*
+             * 0102 — „PRZECZYTAJ WIADOMOŚCI": erledigt, solange in den gewählten
+             * Rozmowy seines Platzes nichts Ungelesenes liegt. Ein Bereich, wenn
+             * genannt, muss einer sein, den der Anlegende lesen darf.
+             */
+            if ((one.Kind ?? "mark").Trim().ToLowerInvariant() == "chat")
+            {
+                var chatKind = (one.ChatKind ?? "all").Trim().ToLowerInvariant();
+                if (chatKind is not ("all" or "seat" or "area" or "channel"))
+                {
+                    await Fail(ctx, StatusCodes.Status400BadRequest, "Wybierz, w której rozmowie osoba ma przeczytać wiadomości.");
+                    return;
+                }
+                Guid? chatArea = null;
+                if (!string.IsNullOrWhiteSpace(one.ChatAreaId))
+                {
+                    if (!Guid.TryParse(one.ChatAreaId, out var a)
+                        || !await Area.MayAsync(connection, who.Value.AccountId, a, Capability.Read, ctx.RequestAborted))
+                    {
+                        await Fail(ctx, StatusCodes.Status400BadRequest, "Tej rozmowy tu nie znasz — wybierz jedną ze swoich.");
+                        return;
+                    }
+                    chatArea = a;
+                }
+                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), "person", true, null, null, [], null, (chatKind, chatArea)));
                 continue;
             }
 
@@ -633,7 +730,7 @@ public static partial class Form
 
             /* Was der Mensch abhaken soll, muss er sehen. */
             parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), doneBy,
-                doneBy == "person" || one.VisibleToPerson, one.DueAt, null, [], null));
+                doneBy == "person" || one.VisibleToPerson, one.DueAt, null, [], null, null));
         }
 
         if (parsed.Select(p => p.Id).Distinct().Count() != parsed.Count)
@@ -680,17 +777,18 @@ public static partial class Form
                                done_by = @doneBy, visible_to_person = @visible, due_at = @due,
                                kind = @kind, starts_on = @starts, ends_on = @ends, schedule = @schedule, weekdays = @weekdays,
                                at_minute = @at, minutes = @minutes, needed = @needed, show_from = @showFrom, report_until = @reportUntil,
-                               item_id = @item, presence = @presence, resource_id = @resource
+                               item_id = @item, presence = @presence, resource_id = @resource,
+                               chat_kind = @chatKind, chat_area_id = @chatArea
                          WHERE id = @id AND module_id = @m;
                     ELSE
                         INSERT INTO app.form_step
                             (id, module_id, position, area_id, epoch, label_sealed, help_sealed,
                              done_by, visible_to_person, due_at, created_at,
                              kind, starts_on, ends_on, schedule, weekdays, at_minute, minutes, needed, show_from, report_until,
-                             item_id, presence, resource_id)
+                             item_id, presence, resource_id, chat_kind, chat_area_id)
                         VALUES (@id, @m, @pos, @area, @epoch, @label, @help, @doneBy, @visible, @due, @now,
                                 @kind, @starts, @ends, @schedule, @weekdays, @at, @minutes, @needed, @showFrom, @reportUntil,
-                                @item, @presence, @resource);
+                                @item, @presence, @resource, @chatKind, @chatArea);
 
                     /* 0098 — Tage, die nach einem geänderten Plan nicht mehr dazugehören, gehen
                        (1900-01-01 war ein Montag: so ergibt sich das Bit des Wochentags ohne DATEFIRST). */
@@ -721,7 +819,9 @@ public static partial class Form
 
                 var plan = one.Plan;
                 object Day(DateOnly? d) => d is null ? DBNull.Value : d.Value.ToDateTime(TimeOnly.MinValue);
-                save.Parameters.AddWithValue("@kind", one.Resource is not null ? "booking" : plan is null ? "mark" : "task");
+                save.Parameters.AddWithValue("@kind", one.Chat is not null ? "chat" : one.Resource is not null ? "booking" : plan is null ? "mark" : "task");
+                save.Parameters.AddWithValue("@chatKind", (object?)one.Chat?.Kind ?? DBNull.Value);
+                save.Parameters.Add("@chatArea", System.Data.SqlDbType.UniqueIdentifier).Value = (object?)one.Chat?.Area ?? DBNull.Value;
                 save.Parameters.Add("@resource", System.Data.SqlDbType.UniqueIdentifier).Value = (object?)one.Resource ?? DBNull.Value;
                 save.Parameters.Add("@starts", System.Data.SqlDbType.Date).Value = Day(plan?.StartsOn);
                 save.Parameters.Add("@ends", System.Data.SqlDbType.Date).Value = Day(plan?.EndsOn);
@@ -1240,6 +1340,10 @@ public static partial class Form
             /* 0100 — „Wybierz termin": der Termin, den sein Platz hält. */
             var booked = await BookingMarksAsync(connection, "@reg", c => c.Parameters.AddWithValue("@reg", registrationId), ct);
             if (booked.TryGetValue(registrationId, out var bookedMarks)) marks.AddRange(bookedMarks);
+
+            /* 0102 — „Przeczytaj wiadomości": nichts Ungelesenes in den gewählten Rozmowy. */
+            var read = await ChatMarksAsync(connection, "@reg", c => c.Parameters.AddWithValue("@reg", registrationId), ct);
+            if (read.TryGetValue(registrationId, out var readMarks)) marks.AddRange(readMarks);
 
             out_.Add(new
             {

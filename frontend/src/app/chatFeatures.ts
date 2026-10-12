@@ -89,7 +89,20 @@ export async function downloadAttachment(endpoint: string, attachment: Attachmen
   return new Blob([plaintext as BlobPart], { type: attachment.type || 'application/octet-stream' });
 }
 
+/**
+ * 0102 — GELESEN, und die Seite soll es wissen: was „N nowych" zeigt und der
+ * Schritt „Przeczytaj wiadomości" sehen nach, sobald ein Gelesen-bis WEITER
+ * gerückt ist (nicht bei jedem Nachladen, das nichts Neues brachte).
+ */
+export const CHAT_SEEN = 'rc:chat-seen';
+const seenThrough = new Map<string, number>();
+
 export function reportChatSeen(endpoint: string, through: string | null): void {
   if (document.visibilityState !== 'visible' || through === null) return;
-  void call(`${endpoint}/seen`, { method: 'POST', body: JSON.stringify({ through }) }).catch(() => undefined);
+  const at = new Date(through).getTime();
+  const moved = at > (seenThrough.get(endpoint) ?? -Infinity);
+  if (moved) seenThrough.set(endpoint, at);
+  void call(`${endpoint}/seen`, { method: 'POST', body: JSON.stringify({ through }) })
+    .then(() => { if (moved) window.dispatchEvent(new CustomEvent(CHAT_SEEN, { detail: { endpoint } })); })
+    .catch(() => undefined);
 }

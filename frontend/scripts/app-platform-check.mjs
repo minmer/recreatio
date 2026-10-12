@@ -28,6 +28,8 @@
  *  25. Zaproszenia (0099): eine Aufgabe an Terminen eines Kalenders — die Termine im Zeitraum, der Plan in Worten,
  *      będę / nie wiem / nie będę, Funktionen mit Platz, die Liste danach, wer zu allem abgesagt hat.
  *  26. Seite in Spalten (0101): jede Spalte für sich, am Ende in kürzere Spalten derselben Breite; Schritt „Wybierz termin" (0100).
+ *  27. Schritt „Przeczytaj wiadomości" (0102): erledigt, solange in den gewählten Rozmowy (alle, jeden na jeden, Gruppe,
+ *      Kanał; an einem Bereich oder an jedem) nichts Ungelesenes liegt — nie überfällig, niemand hakt ab.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -105,6 +107,8 @@ export { taskDays, taskDay, phaseOf, progressOf as taskProgress, planText, weekd
 export { byReadingOrder } from '${app}layout';
 export { respondedTo, doneDays } from '${app}candidateTasks';
 export { pack } from '${app}masonry';
+export { chatMatches, chatTargetText, unreadIn } from '${app}steps';
+export { newMessages } from '${app}seatUnread';
 export { datesOf, declinedAll, attendanceOn, dutyRoom, termsText } from '${app}candidateTasks';
 `);
 await build({
@@ -1841,6 +1845,40 @@ try {
     assert.equal(done.status, 'done');
     assert.deepEqual(done.booking, { resourceName: 'Spotkanie', chosen });
     ok('page in columns (0101) and „Wybierz termin" (0100): each column for itself, the tail into shorter columns of the same width, a booking finishes its step');
+  }
+
+  /* -- 27. Schritt „Przeczytaj wiadomości" (0102) ------------------------------------------------------ */
+  {
+    /* Seine Rozmowy, wie `/seat/…/chats` sie meldet: zwei mit den Prowadzący, die Gruppe, ein Kanał. */
+    const rows = [
+      { chatId: 's1', kind: 'seat', areaId: 'A', unread: 2 },
+      { chatId: 's2', kind: 'seat', areaId: 'B', unread: 0 },
+      { chatId: 'g', kind: 'area', areaId: 'A', unread: 1 },
+      { chatId: 'k', kind: 'channel', areaId: 'K', unread: 4 }
+    ];
+    assert.equal(m.unreadIn({ kind: 'all', areaId: null }, rows), 7, 'all of them');
+    assert.equal(m.unreadIn({ kind: 'seat', areaId: null }, rows), 2, 'one-to-one, at any area');
+    assert.equal(m.unreadIn({ kind: 'seat', areaId: 'B' }, rows), 0, 'one-to-one at one area');
+    assert.equal(m.unreadIn({ kind: 'area', areaId: 'A' }, rows), 1, 'the group together');
+    assert.equal(m.unreadIn({ kind: 'channel', areaId: 'K' }, rows), 4, 'the channel');
+    assert.equal(m.unreadIn({ kind: 'all', areaId: 'A' }, rows), 3, 'everything at one area');
+    assert.ok(!m.chatMatches({ kind: 'channel', areaId: null }, rows[0]));
+
+    assert.equal(m.chatTargetText({ kind: 'channel', areaId: 'K', areaName: 'Bierzmowanie' }), 'w kanale „Bierzmowanie"');
+    assert.equal(m.chatTargetText({ kind: 'seat', areaId: null, areaName: null }), 'w rozmowach z prowadzącymi');
+    assert.equal(m.chatTargetText({ kind: 'all', areaId: null, areaName: null }), 'we wszystkich rozmowach');
+    assert.deepEqual([1, 2, 5, 12, 22, 25].map(m.newMessages),
+      ['1 nowa wiadomość', '2 nowe wiadomości', '5 nowych wiadomości', '12 nowych wiadomości', '22 nowe wiadomości', '25 nowych wiadomości']);
+
+    /* Der Haken des Dienstes: da — erledigt; weg (Neues kam) — offen, aber nie überfällig, auch mit vergangener Frist. */
+    const read = { stepId: 'r', position: 0, areaId: 'a', epoch: 1, labelSealed: '', helpSealed: null, doneBy: 'person', visibleToPerson: true,
+      dueAt: '2020-01-01T00:00:00Z', kind: 'chat', chat: { kind: 'channel', areaId: 'K', areaName: 'Bierzmowanie' }, label: 'Przeczytaj', help: null };
+    const states = (marks) => m.stepsFor({ hasSeat: false, confirmedAt: null, extensions: [], filled: new Map(), steps: [read], marks });
+    assert.equal(states([])[0].status, 'todo', 'something unread: open, not overdue');
+    assert.equal(states([])[0].source, 'auto', 'nobody ticks it');
+    assert.deepEqual(states([])[0].chat, read.chat);
+    assert.equal(states([{ stepId: 'r', doneAt: '2026-10-12T10:00:00Z', byPerson: true, chat: { unread: 0 } }])[0].status, 'done');
+    ok('„Przeczytaj wiadomości" (0102): done while nothing is unread in the chosen chats — all, one-to-one, together, channel, at one area or any; never overdue');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

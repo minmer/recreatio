@@ -19,12 +19,15 @@ import { useState } from 'react';
 import { isoDay, periodText, planText, WEEKDAYS } from './candidateTasks';
 import { PickCalendar, PickCalendarItem } from './PickCalendar';
 import { PickResource } from './PickResource';
+import { PickChatTarget } from './PickChatTarget';
+import { ChatStep, chatStepStatus } from './ChatStep';
+import { useSeatChatRows } from './seatUnread';
 import { FormCard } from './FormCard';
 import { newId } from './ids';
 import type { SeatView } from './seatContext';
 import {
   answerPresence, answerPresenceAsOffice, answerTask, answerTaskAsOffice, dueText, filledNow, markOwnStep, markStep, progressOf,
-  saveSteps, stepsFor, taskIn,
+  saveSteps, stepsFor, taskIn, chatTargetText,
   type DoneBy, type DutyDraft, type ExtensionInfo, type OpenStep, type StepDraft, type StepState, type TaskDraft,
   type TaskSchedule
 } from './steps';
@@ -47,6 +50,10 @@ const STATUS_TEXT: Record<StepState['status'], string> = {
   overdue: 'po terminie'
 };
 
+/** 0102 — bei „Przeczytaj wiadomości" heisst erledigt: gelesen. */
+const statusText = (s: StepState): string =>
+  s.chat === undefined ? STATUS_TEXT[s.status] : s.status === 'done' ? 'przeczytane' : 'nieprzeczytane';
+
 /* -- Beim Menschen ---------------------------------------------------------------- */
 
 /**
@@ -60,6 +67,10 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
   const [failed, setFailed] = useState<string | null>(null);
 
   const forms = seat.forms.filter((f) => formId === null || f.formId === formId);
+
+  /* 0102 — „Przeczytaj wiadomości": der Stand live aus seinen Rozmowy (nur geholt, wenn es so einen Schritt gibt). */
+  const reads = forms.some((f) => f.steps.some((s) => s.kind === 'chat'));
+  const chatRows = useSeatChatRows(reads ? [seat.token] : []);
 
   if (forms.length === 0) {
     return <p className="wk-empty">Nie ma tu nic do zrobienia.</p>;
@@ -93,7 +104,8 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
           /* 0098 — die Aufgaben: was er gesagt hat, seine Tage; vor „widoczne od" noch nicht. */
           tasks: form.tasks,
           forPerson: true
-        }).filter((s) => s.visibleToPerson);
+        }).filter((s) => s.visibleToPerson)
+          .map((s) => (s.chat === undefined ? s : { ...s, status: chatStepStatus(s, chatRows) }));
 
         const { done, total } = progressOf(states);
 
@@ -119,6 +131,11 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
                         onPresence={async (change) => { await answerPresence(seat.token, form.registrationId, s.stepId!, change); seat.reload(); }} />
                     </li>
                   );
+                }
+
+                /* 0102 — „Przeczytaj wiadomości": eine schmale Zeile wie eine Aufgabe, mit „Czytaj". */
+                if (s.chat !== undefined) {
+                  return <li key={s.key} className={`wk-step is-${s.status}`}><ChatStep seat={seat} step={s} /></li>;
                 }
 
                 return (
@@ -249,13 +266,18 @@ export function PersonSteps({ registrationId, states, onChanged, onError }: {
               <div className="wk-step-text">
                 <strong>{s.label}</strong>
                 <span className="wk-row-side">
-                  {' · '}{STATUS_TEXT[s.status]}
+                  {' · '}{statusText(s)}
                   {s.doneAt !== null && ` ${new Date(s.doneAt).toLocaleDateString('pl-PL')}`}
                   {s.dueAt !== null && s.status !== 'done' && ` · do ${dueText(s.dueAt)}`}
                   {s.source === 'auto' ? ' · automatycznie' : s.doneBy === 'person' ? ' · odhacza osoba' : ''}
                   {!s.visibleToPerson && ' · osoba tego nie widzi'}
                 </span>
                 {s.booking !== undefined && <BookingLine booking={s.booking} />}
+                {s.chat !== undefined && (
+                  <p className="wk-hint" data-chat-line="">
+                    Nowe wiadomości {chatTargetText(s.chat)} — {s.status === 'done' ? 'wszystko przeczytane' : 'jeszcze nieprzeczytane'}.
+                  </p>
+                )}
               </div>
 
               {/* Von Hand angelegt: die Kanzlei darf jeden abhaken — auch den, den sonst der Mensch abhakt. */}
@@ -291,6 +313,7 @@ const draftOf = (s: OpenStep): StepDraft => ({
   dueAt: s.dueAt === null ? '' : new Date(s.dueAt).toLocaleDateString('sv-SE'),
   kind: s.kind ?? 'mark',
   ...(s.kind === 'booking' ? { resourceId: s.booking?.resourceId ?? '' } : {}),
+  ...(s.kind === 'chat' ? { chat: { kind: s.chat?.kind ?? 'all', areaId: s.chat?.areaId ?? '' } } : {}),
   ...(s.kind === 'task' && s.task != null ? {
     task: {
       startsOn: s.task.startsOn, endsOn: s.task.endsOn, schedule: s.task.schedule, weekdays: s.task.weekdays ?? 16,
@@ -344,7 +367,7 @@ function taskProblem(t: TaskDraft): string | null {
  * (`stepsKey`): neu geladen heisst neu angefangen.
  */
 export const stepsKey = (steps: readonly OpenStep[]): string =>
-  steps.map((s) => `${s.stepId}:${s.label ?? ''}:${s.help ?? ''}:${s.doneBy}:${s.visibleToPerson}:${s.dueAt ?? ''}:${s.kind ?? 'mark'}:${JSON.stringify(s.task ?? null)}`).join('|');
+  steps.map((s) => `${s.stepId}:${s.label ?? ''}:${s.help ?? ''}:${s.doneBy}:${s.visibleToPerson}:${s.dueAt ?? ''}:${s.kind ?? 'mark'}:${JSON.stringify(s.task ?? null)}:${JSON.stringify(s.booking ?? null)}:${JSON.stringify(s.chat ?? null)}`).join('|');
 
 export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved, onError }: {
   partId: string;
@@ -445,7 +468,8 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
       <h3 className="wk-h2">Znaczniki</h3>
       <p className="wk-hint">
         Wszystko, czego nie widać w danych: „Zgoda rodzica dostarczona", „Quiz sprawdzony". Wybierz,
-        kto odhacza — kancelaria (gdy to dostanie) albo osoba sama, w swoim linku.
+        kto odhacza — kancelaria (gdy to dostanie) albo osoba sama, w swoim linku. Znacznik może też odhaczać
+        się sam: gdy osoba wybierze termin albo dopóki ma przeczytane wiadomości (kanał, rozmowa grupy, rozmowa z prowadzącymi).
       </p>
 
       {drafts.every((d) => d.kind === 'task') && <p className="wk-empty">Jeszcze żadnego.</p>}
@@ -467,32 +491,45 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
               <label className="wk-inline">
                 <span className="wk-hint">Odhacza</span>
                 {/* 0100 — „sam": der Schritt erledigt sich, wenn die Person bei einem Zasób einen Termin nimmt. */}
-                <select value={d.kind === 'booking' ? 'booking' : d.doneBy} data-mark-done-by=""
+                {/* 0102 — „sam": oder er ist erledigt, solange in den gewählten Rozmowy nichts Ungelesenes liegt. */}
+                <select value={d.kind === 'booking' || d.kind === 'chat' ? d.kind : d.doneBy} data-mark-done-by=""
                   onChange={(e) => set(i, e.target.value === 'booking'
                     ? { kind: 'booking', doneBy: 'person', visibleToPerson: true, resourceId: d.resourceId ?? '' }
-                    : { kind: 'mark', doneBy: e.target.value as DoneBy })}>
+                    : e.target.value === 'chat'
+                      ? { kind: 'chat', doneBy: 'person', visibleToPerson: true, dueAt: '', chat: d.chat ?? { kind: 'all', areaId: '' } }
+                      : { kind: 'mark', doneBy: e.target.value as DoneBy })}>
                   <option value="office">kancelaria</option>
                   <option value="person">osoba sama</option>
                   <option value="booking">sam — gdy osoba wybierze termin</option>
+                  <option value="chat">sam — gdy osoba przeczyta wiadomości</option>
                 </select>
               </label>
+              {d.kind === 'chat' && (
+                <label className="wk-inline" data-mark-chat="">
+                  <span className="wk-hint">W</span>
+                  <PickChatTarget value={d.chat} onPick={(chat) => set(i, { chat })} />
+                </label>
+              )}
               {d.kind === 'booking' && (
                 <label className="wk-inline" data-mark-resource="">
                   <span className="wk-hint">Termin w</span>
                   <PickResource value={d.resourceId ?? ''} busy={false} onPick={(resourceId) => set(i, { resourceId })} />
                 </label>
               )}
-              {d.kind !== 'booking' && d.doneBy === 'office' && (
+              {d.kind !== 'booking' && d.kind !== 'chat' && d.doneBy === 'office' && (
                 <label className="wk-inline">
                   <input type="checkbox" checked={d.visibleToPerson}
                     onChange={(e) => set(i, { visibleToPerson: e.target.checked })} />
                   <span>osoba go widzi</span>
                 </label>
               )}
-              <label className="wk-inline">
-                <span className="wk-hint">Termin</span>
-                <input type="date" value={d.dueAt} onChange={(e) => set(i, { dueAt: e.target.value })} />
-              </label>
+              {/* 0102 — Nowe wiadomości przychodzą ciągle: to stan, nie termin. */}
+              {d.kind !== 'chat' && (
+                <label className="wk-inline">
+                  <span className="wk-hint">Termin</span>
+                  <input type="date" value={d.dueAt} onChange={(e) => set(i, { dueAt: e.target.value })} />
+                </label>
+              )}
               <button type="button" className="wk-link-btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Wyżej">↑</button>
               <button type="button" className="wk-link-btn" disabled={i === drafts.length - 1} onClick={() => move(i, 1)} aria-label="Niżej">↓</button>
               <button type="button" className="wk-link-btn wk-danger"
@@ -512,6 +549,16 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
           }])}
         >
           + Dodaj znacznik
+        </button>
+        {/* 0102 — gleich fertig: „Przeczytaj wiadomości", erledigt, solange nichts Ungelesenes liegt. */}
+        <button
+          type="button" className="wk-link-btn" disabled={drafts.length >= 60} data-add-read=""
+          onClick={() => setDrafts([...drafts, {
+            stepId: newId(), label: 'Przeczytaj nowe wiadomości', help: '', doneBy: 'person', visibleToPerson: true, dueAt: '',
+            kind: 'chat', chat: { kind: 'all', areaId: '' }
+          }])}
+        >
+          + Dodaj: przeczytaj wiadomości
         </button>
       </div>
 

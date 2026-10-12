@@ -34,7 +34,43 @@ export type DoneBy = 'office' | 'person';
  * 0098 — WAS FÜR EIN SCHRITT: ein Znacznik (einmal abgehakt) oder eine
  * AUFGABE mit Zeitraum, zu der der Mensch selbst etwas sagt (`candidateTasks.ts`).
  */
-export type StepKind = 'mark' | 'task' | 'booking';
+export type StepKind = 'mark' | 'task' | 'booking' | 'chat';
+
+/**
+ * 0102 — „PRZECZYTAJ WIADOMOŚCI": in welchen Rozmowy des Menschen nichts
+ * Ungelesenes liegen soll — in jeder, in denen mit den Prowadzący (jeden na
+ * jeden), in der seiner Gruppe (razem) oder im Kanał; an einem Bereich, oder
+ * an jedem (`areaId: null`).
+ */
+export type ChatTargetKind = 'all' | 'seat' | 'area' | 'channel';
+
+export interface ChatTarget {
+  readonly kind: ChatTargetKind;
+  readonly areaId: string | null;
+  /** Wie der Bereich heisst — der Name hängt aus, wie in der Liste der Rozmowy. */
+  readonly areaName: string | null;
+}
+
+/** „…w kanale „Bierzmowanie"" — wo die Wiadomości liegen, für den Menschen und die Kanzlei. */
+export function chatTargetText(target: ChatTarget): string {
+  const at = target.areaName === null ? null : `„${target.areaName}"`;
+  switch (target.kind) {
+    case 'seat': return at === null ? 'w rozmowach z prowadzącymi' : `w rozmowie z prowadzącymi ${at}`;
+    case 'area': return at === null ? 'w rozmowach grup' : `w rozmowie grupy ${at}`;
+    case 'channel': return at === null ? 'w kanałach' : `w kanale ${at}`;
+    default: return at === null ? 'we wszystkich rozmowach' : `we wszystkich rozmowach ${at}`;
+  }
+}
+
+/** Ob eine Rozmowa seines Platzes zu dem gehört, was der Schritt meint. */
+export const chatMatches = (target: Pick<ChatTarget, 'kind' | 'areaId'>, row: { readonly kind?: string; readonly areaId: string }): boolean =>
+  (target.kind === 'all' || (row.kind ?? 'area') === target.kind) && (target.areaId === null || row.areaId === target.areaId);
+
+/** Wie viele Wiadomości dort ungelesen liegen — aus seiner Liste der Rozmowy (`/seat/…/chats`). */
+export const unreadIn = (
+  target: Pick<ChatTarget, 'kind' | 'areaId'>,
+  rows: readonly { readonly kind?: string; readonly areaId: string; readonly unread?: number }[]
+): number => rows.filter((row) => chatMatches(target, row)).reduce((sum, row) => sum + (row.unread ?? 0), 0);
 
 /**
  * 0098 — wann eine Aufgabe gilt: einmal in beliebigem Tag, jeden Tag, an
@@ -150,6 +186,9 @@ export interface SealedStep {
 
   /** 0100 — „Wybierz termin": bei welchem Zasób (der Name hängt aus). */
   readonly booking?: { readonly resourceId: string | null; readonly resourceName: string | null } | null;
+
+  /** 0102 — „Przeczytaj wiadomości": in welchen Rozmowy. */
+  readonly chat?: ChatTarget | null;
 }
 
 export interface OpenStep extends SealedStep {
@@ -251,6 +290,9 @@ export interface StepDraft {
 
   /** 0100 — „Wybierz termin": der Zasób. */
   readonly resourceId?: string;
+
+  /** 0102 — „Przeczytaj wiadomości": welche Rozmowy (`areaId` leer: an jedem Bereich). */
+  readonly chat?: { readonly kind: ChatTargetKind; readonly areaId: string };
 }
 
 /** 0099 — eine Funktion, wie sie im Editor steht. */
@@ -330,6 +372,8 @@ export async function saveSteps(
     dueAt: one.kind === 'task' || one.dueAt === '' ? null : new Date(`${one.dueAt}T23:59:59`).toISOString(),
     kind: one.kind ?? 'mark',
     resourceId: one.kind === 'booking' ? one.resourceId ?? null : null,
+    chatKind: one.kind === 'chat' ? one.chat?.kind ?? 'all' : null,
+    chatAreaId: one.kind === 'chat' && (one.chat?.areaId ?? '') !== '' ? one.chat!.areaId : null,
     task: one.kind === 'task' && one.task !== undefined ? {
       ...taskIn(one.task),
       /* 0099 — die Funktionen: nur mit „vorher fragen", die Beschriftung versiegelt wie die der Aufgabe. */
@@ -487,6 +531,9 @@ export interface StepState {
     readonly chosen: { readonly status: 'pending' | 'confirmed'; readonly startsAt: string; readonly endsAt: string } | null;
   };
 
+  /** 0102 — „Przeczytaj wiadomości": in welchen Rozmowy; erledigt, solange dort nichts Ungelesenes liegt. */
+  readonly chat?: ChatTarget;
+
   /** 0098 — eine Aufgabe: ihr Plan, was er gesagt hat, wie weit er ist, und wo im Zeitraum sie steht. */
   readonly task?: {
     readonly plan: TaskPlan;
@@ -616,6 +663,24 @@ export function stepsFor(input: {
         status: state(mark?.doneAt ?? null, one.dueAt), doneAt: mark?.doneAt ?? null, dueAt: one.dueAt,
         extensionId: null, stepId: one.stepId,
         booking: { resourceName: one.booking?.resourceName ?? null, chosen: mark?.booking ?? null }
+      });
+      continue;
+    }
+
+    /*
+     * 0102 — „PRZECZYTAJ WIADOMOŚCI": der Dienst meldet den Haken, solange in
+     * den gewählten Rozmowy nichts Ungelesenes liegt. Kommt etwas Neues, ist er
+     * wieder offen — überfällig wird er nie, er ist ein Stand, keine Frist.
+     */
+    if (one.kind === 'chat') {
+      out.push({
+        key: `step:${one.stepId}`,
+        label: one.label ?? 'Przeczytaj wiadomości (zapieczętowane)',
+        help: one.help,
+        source: 'auto', doneBy: 'person', visibleToPerson: true,
+        status: mark !== null ? 'done' : 'todo', doneAt: mark?.doneAt ?? null, dueAt: null,
+        extensionId: null, stepId: one.stepId,
+        chat: one.chat ?? { kind: 'all', areaId: null, areaName: null }
       });
       continue;
     }

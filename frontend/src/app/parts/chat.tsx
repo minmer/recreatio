@@ -15,6 +15,7 @@
 
 import { definePart, text, type RawConfig } from '../part';
 import { PageChatCard } from '../PageChatView';
+import { PageChatPeek } from '../ChatPeek';
 
 interface ChatConfig {
   readonly title: string;
@@ -49,6 +50,8 @@ export const chatPart = definePart<ChatConfig>({
 
   /* Eine Rozmowa im Streifen wäre ein Guckloch — dort ein Knopf; sonst der Verlauf, hoch mit mehr davon. */
   strip: { title: 'Rozmowa', open: 'Otwórz rozmowę' },
+  /* 0102 — zugeklappt: wie viel Neues darin liegt (für den Platz oder das Konto, das hier schaut). */
+  peek: ({ config }) => <PageChatPeek chatId={config.chat} />,
   fullscreen: true,
   shows: (_config, size) => size.height === 'strip'
     ? 'Nagłówek i przycisk — rozmowa rozwija się po kliknięciu.'

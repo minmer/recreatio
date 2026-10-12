@@ -299,6 +299,8 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
 
   const [shown, setShown] = useState<readonly Shown[] | undefined>(undefined);
   const [more, setMore] = useState(false);
+  /* 0102 — bis wann er gelesen hatte, als die Rozmowa aufging: danach steht „Nieprzeczytane" (einmal gemerkt, es rückt beim Lesen nicht mit). */
+  const [unreadAfter] = useState<string | null>(chat.row.readAt ?? null);
   /* 0095 — wer hier spricht, ist die Person dieses Platzes: ihr Name (aus dem Formular oder dem Link), nicht ein frei getippter. */
   const signed = (seat.recipientName ?? '').trim();
   const via = seat.via;
@@ -512,6 +514,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
         onEarlier={earlier}
         empty="Jeszcze nikt nic nie napisał — możesz zacząć."
         onFiles={(files) => composer.current?.addFiles(files)}
+        unreadAfter={unreadAfter}
         search={extras.search}
         filter={extras.filter}
       />

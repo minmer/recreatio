@@ -47,6 +47,9 @@ export interface SeatChatRow {
   readonly kind?: 'area' | 'channel' | 'seat';
   readonly unread?: number;
 
+  /** 0102 — bis wann er gelesen hat (`null`: noch nie) — davor steht im Verlauf „Nieprzeczytane". */
+  readonly readAt?: string | null;
+
   /** Der Chatschlüssel je Epoche, verpackt für diesen Platz — leer, solange ihn kein Mitglied weitergegeben hat. */
   readonly keys: readonly { epoch: number; keyWrapped: string }[];
 }

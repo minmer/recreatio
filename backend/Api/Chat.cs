@@ -1554,14 +1554,15 @@ public static partial class Chat
 
         var identity = await IdentityOfAsync(connection, seat.Value.Id, ctx.RequestAborted);
 
-        var chats = new List<(Guid Id, Guid Area, string Name, int Epoch, DateTimeOffset? Last, string Kind, int Unread)>();
+        var chats = new List<(Guid Id, Guid Area, string Name, int Epoch, DateTimeOffset? Last, string Kind, int Unread, DateTimeOffset? ReadAt)>();
         await using (var cmd = new SqlCommand($"""
             SELECT c.id, c.area_id, a.name, a.current_epoch, c.last_message_at, c.kind,
                    (SELECT COUNT(*) FROM app.chat_message m
                      WHERE m.chat_id = c.id AND m.schedule_state = N'sent' AND m.deleted_at IS NULL
                        AND (m.author_access_id IS NULL OR m.author_access_id <> @seat)
                        AND m.created_at > COALESCE((SELECT p.read_at FROM app.chat_presence p
-                                                     WHERE p.chat_id = c.id AND p.principal_id = @seat), '0001-01-01')) AS unread
+                                                     WHERE p.chat_id = c.id AND p.principal_id = @seat), '0001-01-01')) AS unread,
+                   (SELECT p.read_at FROM app.chat_presence p WHERE p.chat_id = c.id AND p.principal_id = @seat) AS read_at
             FROM app.chat c
             JOIN app.area a ON a.id = c.area_id
             JOIN app.access s ON s.id = @seat
@@ -1575,7 +1576,8 @@ public static partial class Chat
             while (await reader.ReadAsync(ctx.RequestAborted))
             {
                 chats.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetInt32(3),
-                    reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4), reader.GetString(5), reader.GetInt32(6)));
+                    reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4), reader.GetString(5), reader.GetInt32(6),
+                    reader.IsDBNull(7) ? null : reader.GetDateTimeOffset(7)));
             }
         }
 
@@ -1609,6 +1611,9 @@ public static partial class Chat
                 /* 0069 — `seat`: die Rozmowa nur mit der Kanzlei; `area`: die mit allen im Bereich. 0080 — `channel`: er liest. */
                 kind = c.Kind,
                 unread = c.Unread,
+
+                /* 0102 — bis wann er gelesen hat: davor steht im Verlauf „Nieprzeczytane". */
+                readAt = c.ReadAt,
                 keys = keys.TryGetValue(c.Id, out var k) ? k : []
             })
         });

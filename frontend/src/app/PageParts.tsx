@@ -214,6 +214,7 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
               <Folded
                 def={def}
                 raw={part.config}
+                moduleId={part.moduleId ?? part.id}
                 size={size}
                 onOpen={() => setUnfolded((was) => new Set([...was, part.id]))}
               />
@@ -275,17 +276,21 @@ function FullIcon() {
  * Kein Abschneiden: ein halbes Formular ist schlechter als ein Knopf, der
  * sagt, dass hier eines ist.
  */
-function Folded({ def, raw, size, onOpen }: {
+function Folded({ def, raw, moduleId, size, onOpen }: {
   def: PartModule;
   raw: RawConfig;
+  moduleId: string;
   size: PartSize;
   onOpen: () => void;
 }) {
   const title = text(raw, 'title') || def.strip?.title || def.label;
+  const Peek = def.Peek ?? null;
 
   return (
     <>
       <h2 className="wk-card-title">{title}</h2>
+      {/* 0102 — was zugeklappt dasteht, z. B. „3 nowe wiadomości" an einer Rozmowa. */}
+      {Peek !== null && <Peek raw={raw} moduleId={moduleId} />}
       <button type="button" className="wk-btn wk-card-open" onClick={onOpen} title={def.shows(raw, size)}>
         {def.strip?.open ?? 'Pokaż'}
       </button>

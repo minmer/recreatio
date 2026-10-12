@@ -8323,3 +8323,17 @@ span.ch-sendas { cursor: default; }
 .wk-ptask-body { display: grid; gap: 0.45rem; padding: 0.1rem 0.85rem 0.75rem; }
 .wk-ptask-body[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { .wk-ptask-chev { transition: none; } }
+
+/* -- 0102: Ungelesenes — am zugeklappten Streifen einer Rozmowa, und der Schritt „Przeczytaj wiadomości" -- */
+.wk-card-peek { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.1rem 0.55rem; border-radius: 999px;
+  border: 1px solid var(--wk-held-line); background: var(--wk-held-bg); color: var(--wk-held-ink);
+  font-size: 0.8rem; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wk-card-peek::before { content: ''; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--wk-held-line); }
+.wk-pread .wk-ptask-row { cursor: default; }
+.wk-pread .wk-ptask-row:hover { background: none; }
+.wk-pread .wk-ptask-row > .wk-btn { flex: none; }
+.wk-ptask-status.is-unread { border-color: var(--wk-held-line); background: var(--wk-held-bg); color: var(--wk-held-ink); font-weight: 600; }
+/* Schmal (Telefon): Name über die ganze Breite, das Schild und „Czytaj" rechts darunter. */
+.wk-pread .wk-ptask-row { flex-wrap: wrap; row-gap: 0.35rem; }
+.wk-pread .wk-ptask-name { flex: 1 1 11rem; }
+.wk-pread .wk-ptask-status { margin-left: auto; }

@@ -28,6 +28,9 @@ import { PageSteps } from '../PageLogicView';
 import { usePageLogic } from '../pageLogic';
 import { SeatSteps } from '../StepList';
 import { SeatAskBody, SeatChatBody } from '../SeatChatView';
+import { SeatChatPeek } from '../ChatPeek';
+import { ChatStep, chatStepStatus } from '../ChatStep';
+import { useSeatChatRows } from '../seatUnread';
 import { answerPresence, answerTask, stepsFor, type StepState } from '../steps';
 import { OwnSubmissions, ReviewSubmissions } from '../Submission';
 import { TaskCard, takenOf } from '../TaskCard';
@@ -360,15 +363,25 @@ const PHASE_ORDER: Record<NonNullable<StepState['task']>['phase'], number> = { a
  * zugeklappt darunter.
  */
 function SeatTasks({ seat, formId }: { seat: SeatView; formId: string | null }) {
-  const rows = seat.forms
-    .filter((form) => formId === null || form.formId === formId)
+  const forms = seat.forms.filter((form) => formId === null || form.formId === formId);
+  const rows = forms
     .flatMap((form) => stepsFor({
       hasSeat: false, confirmedAt: null, extensions: [], filled: new Map(),
       steps: form.steps.filter((s) => s.kind === 'task'), marks: [], tasks: form.tasks, forPerson: true
     }).filter((s) => s.task !== undefined && s.stepId !== null).map((s) => ({ form, s })))
     .sort((a, b) => PHASE_ORDER[a.s.task!.phase] - PHASE_ORDER[b.s.task!.phase] || a.s.task!.plan.startsOn.localeCompare(b.s.task!.plan.startsOn));
 
-  if (rows.length === 0) return <p className="wk-card-muted">Na razie nie ma żadnych zadań.</p>;
+  /*
+   * 0102 — „PRZECZYTAJ WIADOMOŚCI" steht auch hier, oben: die Kanzlei legt es
+   * als Zadanie für die Kandydaci an, und hier schauen sie nach, was zu tun ist.
+   */
+  const reads = forms.flatMap((form) => stepsFor({
+    hasSeat: false, confirmedAt: null, extensions: [], filled: new Map(),
+    steps: form.steps.filter((s) => s.kind === 'chat'), marks: form.marks, forPerson: true
+  }).map((s) => ({ form, s })));
+  const chatRows = useSeatChatRows(reads.length > 0 ? [seat.token] : []);
+
+  if (rows.length === 0 && reads.length === 0) return <p className="wk-card-muted">Na razie nie ma żadnych zadań.</p>;
 
   const card = ({ form, s }: (typeof rows)[number]) => (
     <li key={`${form.registrationId}:${s.stepId}`} className="wk-task-item">
@@ -380,10 +393,17 @@ function SeatTasks({ seat, formId }: { seat: SeatView; formId: string | null }) 
 
   const now = rows.filter((r) => r.s.task!.phase !== 'over');
   const past = rows.filter((r) => r.s.task!.phase === 'over');
+  const readRows = reads.map(({ form, s }) => (
+    <li key={`${form.registrationId}:${s.stepId}`} className="wk-task-item">
+      <ChatStep seat={seat} step={{ ...s, status: chatStepStatus(s, chatRows) }} />
+    </li>
+  ));
 
   return (
     <div className="wk-tasks" data-seat-tasks="">
-      {now.length > 0 ? <ul className="wk-task-list">{now.map(card)}</ul> : <p className="wk-card-muted">Teraz nie ma zadań do zrobienia.</p>}
+      {now.length > 0 || readRows.length > 0
+        ? <ul className="wk-task-list">{readRows}{now.map(card)}</ul>
+        : <p className="wk-card-muted">Teraz nie ma zadań do zrobienia.</p>}
       {past.length > 0 && (
         <details className="wk-fold">
           <summary>Zakończone ({past.length})</summary>
@@ -456,6 +476,8 @@ export const seatChatPart = definePart<ChatConfig>({
   hasContent: () => true,
   /* Eine Rozmowa im Streifen wäre ein Guckloch — dort ein Knopf; sonst der Verlauf, hoch mit mehr davon. */
   strip: { title: 'Rozmowa grupy', open: 'Otwórz rozmowę' },
+  /* 0102 — zugeklappt: wie viel Neues in seinen Rozmowy liegt. */
+  peek: () => <SeatChatPeek kind="all" />,
   fullscreen: true,
   shows: (_config, size) => size.height === 'strip'
     ? 'Nagłówek i przycisk — rozmowa rozwija się po kliknięciu.'
@@ -502,6 +524,8 @@ export const seatAskPart = definePart<AskConfig>({
   read: (raw: RawConfig): AskConfig => ({ title: text(raw, 'title') }),
   hasContent: () => true,
   strip: { title: 'Napisz do nas', open: 'Otwórz rozmowę' },
+  /* 0102 — zugeklappt: was die Prowadzący ihm geschrieben haben und er noch nicht las. */
+  peek: () => <SeatChatPeek kind="seat" />,
   fullscreen: true,
   shows: (_config, size) => size.height === 'strip'
     ? 'Nagłówek i przycisk — rozmowa rozwija się po kliknięciu.'
