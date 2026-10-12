@@ -102,6 +102,7 @@ export {
 export { hostPair, askNameFor, openAskNames } from '${app}holderNames';
 export { taskDays, taskDay, phaseOf, progressOf as taskProgress, planText, weekdayBit, nextDay, reportsUntil, chipText as taskChip } from '${app}candidateTasks';
 export { byReadingOrder } from '${app}layout';
+export { respondedTo, doneDays } from '${app}candidateTasks';
 export { datesOf, declinedAll, attendanceOn, dutyRoom, termsText } from '${app}candidateTasks';
 `);
 await build({
@@ -1750,6 +1751,28 @@ try {
     assert.deepEqual(m.dutyRoom(2, 1), { free: 1, full: false });
     assert.deepEqual(m.dutyRoom(1, 1), { free: 0, full: true });
     assert.deepEqual(m.dutyRoom(null, 7), { free: null, full: false });
+
+    /* Ohne Zahl zählt die ANTWORT (2026-10-11): sich dazu stellen, nicht wie oft man da war. */
+    const stance = { startsOn: '2026-10-01', endsOn: '2026-10-31', schedule: 'any', weekdays: null, atMinute: null, minutes: null,
+      needed: null, showFrom: null, reportUntil: null };
+    assert.equal(m.taskProgress(stance, undefined).fulfilled, false, 'no answer yet');
+    assert.equal(m.taskProgress(stance, { stepId: 's', answer: 'refused', days: [] }).fulfilled, true, 'odmawiam is a stance too');
+    assert.equal(m.taskProgress(stance, { stepId: 's', answer: 'accepted', days: [] }).needed, null);
+    const answered = (...said) => ({ stepId: 's', answer: null, days: [], presence: said });
+    const yes = (day) => ({ day, answer: 'yes', dutyId: null, absence: null });
+    const maybe = (day) => ({ day, answer: 'maybe', dutyId: null, absence: null });
+    const ask = { ...series, needed: null };
+    assert.equal(m.taskProgress(ask, answered(yes('2026-10-04'), no('2026-10-11'), maybe('2026-10-18'))).fulfilled, false, '„jeszcze nie wiem" is not yet an answer');
+    assert.equal(m.taskProgress(ask, answered(yes('2026-10-04'), no('2026-10-11'), yes('2026-10-18'))).fulfilled, true, 'every date answered');
+
+    /* 0100 — der Kalender: je Tag tak / nie / jeszcze nie wiem. Ein „tak" an einem vergangenen Tag ist getan; bei Terminen mit Fragen vorher nicht. */
+    const october = { ...stance, schedule: 'daily' };
+    const daily = (...said) => ({ stepId: 's', answer: null, days: [], presence: said });
+    assert.deepEqual(m.doneDays(october, daily(yes('2026-10-02'), no('2026-10-03'), yes('2026-10-20')), '2026-10-10'), ['2026-10-02'], 'a past „tak" counts, a coming one not yet');
+    assert.deepEqual(m.doneDays(ask, answered(yes('2026-10-04')), '2026-10-10'), [], 'with asking before „tak" means „będę", not „byłem"');
+    assert.equal(m.respondedTo(october, daily(yes('2026-10-01'), no('2026-10-02'), maybe('2026-10-03')), '2026-10-03'), false, 'every day so far — „nie wiem" is not yet an answer');
+    assert.equal(m.respondedTo(october, daily(yes('2026-10-01'), no('2026-10-02'), yes('2026-10-03')), '2026-10-03'), true, 'every day so far answered; the coming ones do not hold it up');
+    assert.equal(m.respondedTo(october, daily(), '2026-09-20'), false, 'nothing said yet');
 
     /* Im Fortschritt: erfüllt mit genug Anwesenheit; nach dem Ende ohne sie überfällig — ausser abgesagt. */
     const step = { stepId: 's', position: 0, areaId: 'a', epoch: 1, labelSealed: '', helpSealed: null, doneBy: 'office', visibleToPerson: true,

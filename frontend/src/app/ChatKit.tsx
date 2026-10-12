@@ -23,6 +23,7 @@ import { createPortal } from 'react-dom';
 import { authorOf as roleOrSeatOf, openMessage, type Attachment, type Opened, type SealedMessage, type SendOptions } from './chat';
 import { PreferencesEditor, type useChatExtras } from './ChatExtras';
 import { availableNow, downloadAttachment, photoForChat, uploadAttachment, type Features, type Mark } from './chatFeatures';
+import { clock as playClock, play as playSound, seek as seekSound, toggle as toggleSound, useNowPlaying } from './mediaPlayer';
 import { Modal } from './Modal';
 import { saveBlob } from './platform';
 import { call } from './session';
@@ -80,6 +81,7 @@ const PATHS = {
   lock: <><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>,
   download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /><path d="M12 15V3" /></>,
   play: <path d="M6 3l14 9-14 9z" />,
+  pause: <><path d="M6 4h4v16H6z" /><path d="M14 4h4v16h-4z" /></>,
   ban: <><circle cx="12" cy="12" r="10" /><path d="m4.9 4.9 14.2 14.2" /></>,
   bookmark: <path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />,
   hash: <path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18" />,
@@ -1365,21 +1367,44 @@ function Media({ endpoint, a }: { endpoint: string; a: Attachment }) {
   );
 }
 
+/**
+ * EIN TON — über den EINEN Spieler der App (`mediaPlayer`): er spielt weiter,
+ * wenn man die Rozmowa verlässt oder die App in den Hintergrund legt; oben in
+ * der Kopfleiste steht dann, was spielt (`NowPlayingBar`).
+ */
 function Sound({ endpoint, a }: { endpoint: string; a: Attachment }) {
   const file = useOpenedFile(endpoint, a, a.size <= AUTO_BYTES);
   const voice = isVoice(a);
+  const now = useNowPlaying();
+  const mine = now?.key === a.id ? now : null;
+  const title = voice ? 'Wiadomość głosowa' : a.name;
+
+  const start = async () => {
+    if (mine !== null) { toggleSound(); return; }
+    const blob = await file.load();
+    if (blob !== null) playSound({ key: a.id, title, blob });
+  };
+
   return (
     <div className="ch-sound" ref={(el) => { file.spot.current = el; }}>
       <span className="ch-sound-head">
         <Icon name={voice ? 'mic' : 'music'} />
-        <span className="ch-file-name">{voice ? 'Wiadomość głosowa' : a.name}</span>
+        <span className="ch-file-name">{title}</span>
         <small>{sizeOf(a.size)}</small>
       </span>
-      {file.url !== null ? <audio controls preload="metadata" src={file.url} /> : (
-        <button type="button" className="wk-link-btn" disabled={file.busy} onClick={() => void file.load()}>
-          {file.busy ? 'Odszyfrowywanie…' : 'Odtwórz'}
+      <span className="ch-sound-play">
+        <button type="button" className="ch-icon-btn" disabled={file.busy} data-sound-play=""
+          aria-label={mine?.playing === true ? 'Wstrzymaj' : 'Odtwórz'} title={mine?.playing === true ? 'Wstrzymaj' : 'Odtwórz'}
+          onClick={() => void start()}>
+          <Icon name={mine?.playing === true ? 'pause' : 'play'} />
         </button>
-      )}
+        <input type="range" min={0} max={1000} step={1} aria-label="Pozycja nagrania" disabled={mine === null || mine.duration === null}
+          value={mine !== null && mine.duration ? Math.round((mine.time / mine.duration) * 1000) : 0}
+          onChange={(e) => seekSound(Number(e.target.value) / 1000)} />
+        <span className="ch-sound-time">
+          {file.busy ? 'Odszyfrowywanie…' : mine !== null ? `${playClock(mine.time)} / ${playClock(mine.duration)}` : ''}
+        </span>
+      </span>
       {file.failed !== null && <span className="wk-error">{file.failed}</span>}
     </div>
   );
@@ -1409,6 +1434,18 @@ export interface ReplyTarget {
 export interface EditTarget {
   readonly id: string;
   readonly text: string;
+}
+
+/** 0100 — eine Nachricht im Ausgang: wartet, geht gerade hinaus, oder ging nicht. */
+interface Outgoing {
+  readonly id: string;
+  readonly body: string;
+  readonly files: readonly File[];
+  readonly reply: ReplyTarget | null;
+  readonly sendAt?: string;
+  readonly state: 'waiting' | 'sending' | 'failed';
+  readonly note: string | null;
+  readonly error: string | null;
 }
 
 export interface ComposerHandle {
@@ -1610,6 +1647,16 @@ export const Composer = forwardRef<ComposerHandle, {
   /* Was schon hochgeladen ist: scheitert die Nachricht danach, lädt ein zweiter Versuch es nicht noch einmal hoch. */
   const uploaded = useRef(new WeakMap<File, Attachment>());
 
+  /*
+   * 0100 — DER AUSGANG. „Wyślij" leert das Feld SOFORT und gibt die Nachricht
+   * hierher; Fotos, Filme und Aufnahmen gehen im Hintergrund hinaus, eine nach
+   * der anderen (die Reihenfolge bleibt). Währenddessen schreibt man weiter —
+   * vorher stand der Text bis zum Ende des Hochladens im Feld, und was man
+   * inzwischen tippte, verschwand mit ihm.
+   */
+  const [outbox, setOutbox] = useState<readonly Outgoing[]>([]);
+  const running = useRef(false);
+
   /**
    * Dateien ins Feld. `shrink`: Fotos so, wie sie in eine Rozmowa gehören
    * (`photoForChat`) — aus „Zdjęcia i filmy", der Kamera, dem Einfügen und
@@ -1670,35 +1717,56 @@ export const Composer = forwardRef<ComposerHandle, {
     void call(`${endpoint}/typing`, { method: 'POST' }).catch(() => undefined);
   };
 
-  const deliver = async (body: string, list: readonly File[], sendAt?: string): Promise<boolean> => {
-    setBusy('Wysyłanie…');
-    setFailed(null);
-    try {
-      const attachments: Attachment[] = [];
-      for (const [i, file] of list.entries()) {
-        const done = uploaded.current.get(file);
-        if (done !== undefined) { attachments.push(done); continue; }
-        const which = list.length > 1 ? `pliku ${i + 1} z ${list.length}` : 'pliku';
-        setBusy(`Szyfrowanie ${which}…`);
-        const one = await uploadAttachment(endpoint, file, (part) => setBusy(`Wysyłanie ${which} · ${Math.min(99, Math.round(part * 100))}%`));
-        uploaded.current.set(file, one);
-        attachments.push(one);
-      }
-      setBusy('Wysyłanie…');
-      await onSend(body, {
-        attachments,
-        ...(reply !== null ? { replyTo: reply.id, replyText: (reply.text || 'Załącznik').slice(0, 500) } : {}),
-        ...(sendAt !== undefined ? { sendAt } : {})
-      });
-      onClearReply();
-      if (sendAt !== undefined) { setNotice(`Zaplanowano na ${whenLong(sendAt)}.`); onScheduled?.(); }
-      return true;
-    } catch (e) {
-      setFailed(failure(e, 'Nie udało się wysłać.'));
-      return false;
-    } finally {
-      setBusy(null);
+  /* Eine Nachricht aus dem Ausgang hinausschicken — mit ihrem eigenen Fortschritt. */
+  const deliver = async (item: Outgoing): Promise<void> => {
+    const note = (text: string) => setOutbox((was) => was.map((o) => (o.id === item.id ? { ...o, note: text } : o)));
+    const attachments: Attachment[] = [];
+    for (const [i, file] of item.files.entries()) {
+      const done = uploaded.current.get(file);
+      if (done !== undefined) { attachments.push(done); continue; }
+      const which = item.files.length > 1 ? `pliku ${i + 1} z ${item.files.length}` : 'pliku';
+      note(`Szyfrowanie ${which}…`);
+      const one = await uploadAttachment(endpoint, file, (part) => note(`Wysyłanie ${which} · ${Math.min(99, Math.round(part * 100))}%`));
+      uploaded.current.set(file, one);
+      attachments.push(one);
     }
+    note('Wysyłanie…');
+    await onSend(item.body, {
+      attachments,
+      ...(item.reply !== null ? { replyTo: item.reply.id, replyText: (item.reply.text || 'Załącznik').slice(0, 500) } : {}),
+      ...(item.sendAt !== undefined ? { sendAt: item.sendAt } : {})
+    });
+    if (item.sendAt !== undefined) { setNotice(`Zaplanowano na ${whenLong(item.sendAt)}.`); onScheduled?.(); }
+  };
+
+  /*
+   * DER AUSGANG LÄUFT: immer die erste, solange sie wartet. Scheitert eine,
+   * bleibt sie stehen (mit „Ponów" und „Usuń") — die danach warten, damit
+   * nichts die Reihenfolge überholt.
+   */
+  useEffect(() => {
+    const first = outbox[0];
+    if (running.current || first === undefined || first.state !== 'waiting') return;
+    running.current = true;
+    setOutbox((was) => was.map((o) => (o.id === first.id ? { ...o, state: 'sending' } : o)));
+    void deliver(first)
+      .then(() => setOutbox((was) => was.filter((o) => o.id !== first.id)))
+      .catch((e: unknown) => setOutbox((was) => was.map((o) => (o.id === first.id
+        ? { ...o, state: 'failed', note: null, error: failure(e, 'Nie udało się wysłać.') } : o))))
+      .finally(() => { running.current = false; setOutbox((was) => [...was]); });
+  }, [outbox]);
+
+  /* In den Ausgang — und das Feld ist sofort wieder frei. */
+  const enqueue = (body: string, list: readonly File[], sendAt?: string) => {
+    setFailed(null);
+    setOutbox((was) => [...was, { id: `${Date.now()}-${Math.random()}`, body, files: list, reply, sendAt, state: 'waiting', note: null, error: null }]);
+    onClearReply();
+  };
+
+  /* Das Feld behält den Fokus — auf dem Telefon bleibt die Tastatur offen, und die nächste Nachricht geht gleich. */
+  const keepFocus = () => {
+    const el = area.current;
+    if (el !== null && document.activeElement !== el) el.focus({ preventScroll: true });
   };
 
   const send = async (sendAt?: string) => {
@@ -1715,14 +1783,17 @@ export const Composer = forwardRef<ComposerHandle, {
     if (blocked !== null) { setFailed(blocked); return; }
     if (preparing > 0) return;
     if (body === '' && files.length === 0) return;
-    if (await deliver(body, files, sendAt)) { setText(''); setFiles([]); }
+    enqueue(body, files, sendAt);
+    setText('');
+    setFiles([]);
+    keepFocus();
   };
 
   const sendVoice = async () => {
     const file = await recorder.send();
     if (file === null) return;
     if (blocked !== null) { addFiles([file]); setFailed(blocked); return; }
-    await deliver('', [file]);
+    enqueue('', [file]);
   };
 
   /*
@@ -1762,7 +1833,11 @@ export const Composer = forwardRef<ComposerHandle, {
   }
 
   const content = text.trim() !== '' || files.length > 0 || preparing > 0;
-  const line = failed ?? recorder.failed ?? busy ?? (preparing > 0 ? 'Przygotowywanie zdjęć…' : null) ?? notice;
+  const sending = outbox.find((o) => o.state === 'sending') ?? null;
+  const queued = outbox.filter((o) => o.state === 'waiting').length;
+  const progress = sending === null ? null : `${sending.note ?? 'Wysyłanie…'}${queued > 0 ? ` · w kolejce: ${queued}` : ''}`;
+  const line = failed ?? recorder.failed ?? busy ?? progress ?? (preparing > 0 ? 'Przygotowywanie zdjęć…' : null) ?? notice;
+  const stuck = outbox.filter((o) => o.state === 'failed');
 
   return (
     <form className="ch-compose" onSubmit={(e) => { e.preventDefault(); void send(); }}>
@@ -1782,10 +1857,23 @@ export const Composer = forwardRef<ComposerHandle, {
         </div>
       )}
 
+      {/* 0100 — was nicht hinausging: bleibt, bis man es noch einmal schickt oder wegnimmt. */}
+      {stuck.map((o) => (
+        <div key={o.id} className="ch-outbox-fail" role="alert">
+          <Icon name="ban" />
+          <span className="ch-outbox-text">
+            <strong>Nie wysłano:</strong> {o.body !== '' ? `„${o.body.slice(0, 80)}${o.body.length > 80 ? '…' : ''}"` : `${o.files.length} ${plural(o.files.length, 'plik', 'pliki', 'plików')}`}
+            {o.error !== null && <span className="ch-outbox-why"> — {o.error}</span>}
+          </span>
+          <button type="button" className="wk-link-btn" onClick={() => setOutbox((was) => was.map((x) => (x.id === o.id ? { ...x, state: 'waiting', error: null } : x)))}>Ponów</button>
+          <button type="button" className="wk-link-btn" onClick={() => setOutbox((was) => was.filter((x) => x.id !== o.id))}>Usuń</button>
+        </div>
+      ))}
+
       {files.length > 0 && editing === null && (
         <div className="ch-files">
           {files.map((file, i) => (
-            <FileChip key={`${file.name}-${i}`} file={file} busy={busy !== null} onRemove={() => setFiles((was) => was.filter((_, j) => j !== i))} />
+            <FileChip key={`${file.name}-${i}`} file={file} busy={false} onRemove={() => setFiles((was) => was.filter((_, j) => j !== i))} />
           ))}
         </div>
       )}
@@ -1797,7 +1885,7 @@ export const Composer = forwardRef<ComposerHandle, {
           <span className="ch-rec-time" role="timer" aria-live="off">{mmss(recorder.seconds)}</span>
           <span className="ch-rec-hint">{recorder.state === 'asking' ? 'Otwieranie mikrofonu…' : 'Nagrywanie · najwyżej 5 minut'}</span>
           <button type="button" className="ch-send" aria-label="Wyślij nagranie" title="Wyślij" disabled={recorder.state !== 'recording' || busy !== null}
-            onClick={() => void sendVoice()}>
+            onMouseDown={(e) => e.preventDefault()} onClick={() => void sendVoice()}>
             <Icon name="send" />
           </button>
         </div>
@@ -1855,7 +1943,10 @@ export const Composer = forwardRef<ComposerHandle, {
               title={editing !== null ? 'Zapisz' : 'Wyślij · prawy przycisk albo przytrzymanie: zaplanuj'}
               disabled={busy !== null || preparing > 0 || (!content && editing === null)}
               onContextMenu={(e) => { if (editing !== null) return; e.preventDefault(); toggle('send', e.currentTarget); }}
+              /* 0100 — der Knopf nimmt dem Feld den Fokus nicht: die Tastatur bleibt, die nächste Nachricht geht gleich. */
+              onMouseDown={(e) => e.preventDefault()}
               onPointerDown={(e) => {
+                e.preventDefault();
                 if (e.pointerType !== 'touch' || editing !== null) return;
                 held.current = false;
                 const el = e.currentTarget;

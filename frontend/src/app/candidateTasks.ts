@@ -92,16 +92,62 @@ export function phaseOf(plan: TaskPlan, today: string): TaskPhase {
   return 'over';
 }
 
-/** Wie viele Tage es braucht. */
-export const neededOf = (plan: TaskPlan): number => Math.max(1, plan.needed ?? 1);
+/**
+ * Wie viele Tage es braucht — `null`: keine Zahl. Dann ist die Aufgabe
+ * erledigt, sobald der Mensch sich dazu GESTELLT hat (`respondedTo`): darum
+ * geht es meist (Wunsch der Kanzlei, 2026-10-11) — nicht, wie oft er da war.
+ */
+export const neededOf = (plan: TaskPlan): number | null => (plan.needed == null ? null : Math.max(1, plan.needed));
 
-/** Was der Mensch dazu gesagt hat, wie viele Tage er hat — und ob es reicht. */
+/**
+ * HAT ER SICH DAZU GESTELLT? Ohne Fragen vorher: przyjmuję, pomijam oder
+ * odmawiam (oder schon Tage eingetragen). Mit Fragen vor den Terminen: zu
+ * JEDEM Termin będę oder nie będę („jeszcze nie wiem" ist noch keine
+ * Antwort) — oder es steht schon fest, ob er da war.
+ */
+export function respondedTo(plan: TaskPlan, state: TaskState | undefined, today: string = isoDay(new Date())): boolean {
+  const settled = (day: string) => {
+    if ((state?.days ?? []).includes(day)) return true;
+    const said = presenceOn(state, day);
+    return said?.answer === 'yes' || said?.answer === 'no' || said?.absence != null;
+  };
+  if (plan.presence === true) {
+    const dates = datesOf(plan);
+    return dates.length > 0 && dates.every((d) => settled(d.day));
+  }
+
+  /*
+   * 0100 — JE TAG IM KALENDER: gestellt hat sich, wer zu jedem Tag bis heute
+   * tak oder nie gesagt hat (und überhaupt etwas). Kommende Tage halten es
+   * nicht auf — sonst wäre ein Sonntag im Juni schon im Oktober fällig.
+   * Die Entscheidung für das Ganze (0098) gilt weiter, wo sie gegeben ist.
+   */
+  if ((state?.answer ?? null) !== null) return true;
+  const all = taskDays(plan);
+  const past = all.filter((day) => day <= today);
+  return all.some(settled) && past.every(settled);
+}
+
+/**
+ * 0100 — DIE GETANEN TAGE: was eingetragen ist (`days`), und ein „tak" an einem
+ * Tag, der vorbei ist. Bei Terminen mit Fragen vorher nur die Liste — dort
+ * heisst „tak" „będę", nicht „byłem".
+ */
+export function doneDays(plan: TaskPlan, state: TaskState | undefined, today: string = isoDay(new Date())): string[] {
+  const days = new Set((state?.days ?? []).filter((day) => taskDay(plan, day)));
+  if (plan.presence !== true) {
+    for (const p of state?.presence ?? []) if (p.answer === 'yes' && p.day <= today && taskDay(plan, p.day)) days.add(p.day);
+  }
+  return [...days].sort();
+}
+
+/** Was der Mensch dazu gesagt hat, wie viele Tage er hat — und ob es reicht (mit Zahl: genug Tage; ohne: eine Antwort). */
 export function progressOf(plan: TaskPlan, state: TaskState | undefined): {
-  answer: TaskAnswer | null; done: number; needed: number; fulfilled: boolean;
+  answer: TaskAnswer | null; done: number; needed: number | null; fulfilled: boolean;
 } {
-  const done = (state?.days ?? []).filter((day) => taskDay(plan, day)).length;
+  const done = doneDays(plan, state).length;
   const needed = neededOf(plan);
-  return { answer: state?.answer ?? null, done, needed, fulfilled: done >= needed };
+  return { answer: state?.answer ?? null, done, needed, fulfilled: needed === null ? respondedTo(plan, state) : done >= needed };
 }
 
 /** Der nächste Tag, der zählt — heute eingeschlossen; `null`: keiner mehr. */
@@ -223,11 +269,11 @@ export const attendanceOn = (state: TaskState | undefined, day: string): Attenda
  * Aufgabe nicht überfällig — er hat es gesagt. Ohne Fragen vorher: nie.
  */
 export function declinedAll(plan: TaskPlan, state: TaskState | undefined): boolean {
-  if (plan.presence !== true) return false;
-  const dates = datesOf(plan);
-  return dates.length > 0 && dates.every((d) => {
-    if ((state?.days ?? []).includes(d.day)) return false;
-    const said = presenceOn(state, d.day);
+  /* 0100 — für jede Aufgabe: zu jedem ihrer Tage „nie" (oder entschuldigt gefehlt). */
+  const days = taskDays(plan);
+  return days.length > 0 && days.every((day) => {
+    if ((state?.days ?? []).includes(day)) return false;
+    const said = presenceOn(state, day);
     return said?.answer === 'no' || said?.absence === 'excused';
   });
 }
@@ -242,8 +288,8 @@ export function dutyRoom(capacity: number | null, taken: number): { readonly fre
 /** Bis wann der Mensch selbst antwortet: bis der Termin beginnt. */
 export const answerOpen = (date: TaskDate, now: Date = new Date()): boolean => new Date(date.startsAt) > now;
 
-/** Wie viel es braucht, in Worten — „5 razy", oder nichts bei einmal. */
+/** Wie viel es braucht, in Worten — „5 razy", oder nichts (einmal, oder: es zählt die Antwort). */
 export const neededText = (plan: TaskPlan): string | null => {
   const n = neededOf(plan);
-  return n === 1 ? null : `${n} razy`;
+  return n === null || n === 1 ? null : `${n} razy`;
 };

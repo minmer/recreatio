@@ -480,7 +480,8 @@ export interface StepState {
     readonly state: TaskState | undefined;
     readonly phase: TaskPhase;
     readonly done: number;
-    readonly needed: number;
+    /** `null`: keine Zahl — erledigt ist sie mit einer Antwort (`respondedTo`). */
+    readonly needed: number | null;
     readonly fulfilled: boolean;
     /** 0099 — die Funktionen in den Terminen (geöffnet), und wer die Teilnahme einträgt. */
     readonly duties: readonly TaskDuty[];

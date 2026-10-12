@@ -8216,3 +8216,53 @@ span.ch-sendas { cursor: default; }
 .wk-task-edit .wk-inline input[type="checkbox"] { min-width: 0; }
 .wk-task-duties .wk-inline input[type="number"] { min-width: 0; width: 5em; }
 .wk-task-duties .wk-inline input[data-duty-label] { flex: 1 1 12rem; }
+
+/* -- 0100: ein Spieler für die ganze App — der Ton in der Nachricht, und oben, was weiterspielt ------- */
+.ch-sound-play { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.ch-sound-play input[type="range"] { flex: 1 1 auto; min-width: 4rem; accent-color: var(--wk-accent); }
+.ch-sound-time { font-size: 0.74rem; color: var(--wk-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wk-now { display: inline-flex; align-items: center; gap: 0.35rem; margin-left: 0.6rem; padding: 0.15rem 0.35rem 0.15rem 0.2rem;
+  border: 1px solid var(--wk-line); border-radius: 999px; background: var(--wk-surface); font-size: 0.82rem; min-width: 0; max-width: 22rem; }
+.wk-now-btn { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border: 0; border-radius: 50%; background: transparent; color: var(--wk-accent); cursor: pointer; flex: none; }
+.wk-now-btn:hover { background: var(--wk-soft); }
+.wk-now-btn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-now-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.wk-now-time { color: var(--wk-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* -- 0100: der Ausgang einer Rozmowa — was nicht hinausging ------------------------------------------- */
+.ch-outbox-fail { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; padding: 0.35rem 0.6rem; margin: 0 0 0.35rem;
+  border: 1px solid var(--wk-shut-line); border-radius: 8px; background: var(--wk-shut-bg); color: var(--wk-shut-ink); font-size: 0.86rem; }
+.ch-outbox-fail .ch-i { width: 16px; height: 16px; flex: none; }
+.ch-outbox-text { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
+.ch-outbox-why { opacity: 0.85; }
+
+/* -- 0100: Zadanie — nur der Kalender; ein Klick: tak, zwei: nie, drei: nie wiem, vier: nichts ------- */
+.wk-taskcal { display: grid; gap: 0.5rem; }
+.wk-taskcal-how { margin: 0; font-size: 0.88rem; color: var(--wk-muted); }
+.wk-taskcal-word { font-weight: 700; }
+.wk-taskcal-word.is-yes { color: var(--wk-free-ink); }
+.wk-taskcal-word.is-no { color: var(--wk-shut-ink); }
+.wk-taskcal-word.is-maybe { color: var(--wk-held-ink); }
+.wk-taskcal-sheet { display: grid; gap: 0.35rem; max-width: 26rem; }
+.wk-taskcal-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.wk-taskcal-head strong { text-transform: capitalize; }
+.wk-taskcal-nav { font: inherit; font-size: 1.1rem; width: 2.2rem; height: 2.2rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); color: var(--wk-ink); cursor: pointer; }
+.wk-taskcal-nav:disabled { opacity: 0.35; cursor: default; }
+.wk-taskcal-nav:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-taskcal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.25rem; }
+.wk-taskcal-dow { text-align: center; font-size: 0.72rem; color: var(--wk-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.wk-taskcal-off, .wk-taskcal-gap { display: grid; place-items: center; aspect-ratio: 1; font-size: 0.85rem; color: var(--wk-muted); opacity: 0.45; font-variant-numeric: tabular-nums; }
+.wk-taskcal-day { position: relative; display: grid; place-items: center; aspect-ratio: 1; min-height: 2.4rem; padding: 0; font: inherit; font-size: 0.92rem;
+  font-variant-numeric: tabular-nums; border: 1px solid var(--wk-line); border-radius: 8px; background: var(--wk-surface); color: var(--wk-ink); cursor: pointer;
+  -webkit-tap-highlight-color: transparent; user-select: none; }
+.wk-taskcal-day:hover:not(:disabled) { border-color: var(--wk-accent); }
+.wk-taskcal-day:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-taskcal-day.is-yes { background: var(--wk-free-bg); border-color: var(--wk-free-line); color: var(--wk-free-ink); font-weight: 700; }
+.wk-taskcal-day.is-no { background: var(--wk-shut-bg); border-color: var(--wk-shut-line); color: var(--wk-shut-ink); font-weight: 700; }
+.wk-taskcal-day.is-maybe { background: var(--wk-held-bg); border-color: var(--wk-held-line); color: var(--wk-held-ink); font-weight: 700; }
+.wk-taskcal-day.is-today { box-shadow: inset 0 0 0 2px var(--wk-accent); }
+.wk-taskcal-day.is-shut { cursor: default; opacity: 0.7; }
+.wk-taskcal-mark { position: absolute; top: 2px; right: 4px; font-size: 0.65rem; line-height: 1; }
+.wk-taskcal-was { position: absolute; bottom: 3px; left: 50%; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--wk-muted); }
+.wk-taskcal-was.is-present { background: var(--wk-free-ink); }
+.wk-taskcal-was.is-absent { background: var(--wk-shut-ink); }

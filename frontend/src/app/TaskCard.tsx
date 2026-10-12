@@ -1,39 +1,36 @@
 /**
  * EINE AUFGABE (0098) — beim Menschen und bei der Kanzlei dieselbe Karte.
  *
- * <code>
- *   Różaniec w kościele                                  ✓ wykonane
- *   1–31 października · codziennie · 18:00, 30 min · potrzeba 5 razy
- *   [Przyjmuję] [Pomijam] [Odmawiam]            (oder: Twoja decyzja … zmień)
- *   Zaznacz dni wykonania:  [pn 6.10] [wt 7.10] [śr 8.10] …          [Zapisz dni]
- * </code>
- *
- * Wer Tage einträgt, hat angenommen. Tage aus der Zukunft gibt es nicht zum
- * Anklicken; nach „zaznaczać do" trägt nur noch die Kanzlei ein.
- *
- * <b>0099 — ZAPROSZENIE (Termine mit Fragen vorher):</b> statt der Entscheidung
- * und der Tage je Termin eine Zeile.
+ * <b>0100 — NUR DER KALENDER</b> (Wunsch der Kanzlei): die Tage der Aufgabe
+ * im Monatsblatt, und ein Klick auf einen Tag sagt etwas dazu — einmal tak,
+ * zweimal nie, dreimal jeszcze nie wiem, ein viertes Mal nichts. Vorher
+ * standen hier Przyjmuję / Pomijam / Odmawiam für das Ganze und darunter die
+ * Tage zum Abhaken; jetzt stellt man sich zu jedem Tag.
  *
  * <code>
- *   Odpust parafialny — służba                          będę
- *   sobota, 18 października · 10:00–12:00
- *   sob 18.10 · 10:00–12:00   [Będę] [Jeszcze nie wiem] [Nie będę]
- *       Co chcesz robić?  [Krzyż · wolne 1] [Świece · 1 z 2 wolne] [Kadzidło · zajęte]
- *   (nach dem Termin)   obecność ✓ · funkcja: Świece
+ *   Różaniec                                            tak 5 · nie 2
+ *   1–31 października · codziennie · 18:00, 30 min
+ *   Kliknij dzień: raz — tak, dwa razy — nie, trzy razy — jeszcze nie wiem, cztery razy — bez odpowiedzi.
+ *   ‹  październik 2026  ›
+ *   pn wt śr czw pt sob ndz
+ *          1  2  3   4   5 …          (ein Tag, der nicht dazugehört, ist nur eine Zahl)
  * </code>
  *
- * Bei der Kanzlei je Termin dazu die Liste: obecność / nieobecność /
- * usprawiedliwiona — dieselbe Zeile, die sie in „Lista obecności" für alle sieht.
+ * Ein „tak" an einem vergangenen Tag zählt als getan. Bei Terminen mit Fragen
+ * vorher (0099) antwortet der Mensch bis zum Beginn; ob er da war, trägt danach
+ * die Liste ein (ein Punkt im Tag), und unter dem Blatt wählt, wer „tak" sagt,
+ * seine Funktion. Bei der Kanzlei steht für solche Termine je Termin eine Zeile
+ * mit der Liste (obecność / nieobecność / usprawiedliwiona).
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
-  ANSWER_WORD, answerOpen, ATTENDANCE_WORD, attendanceOn, chipText, datesOf, dayText, dutyRoom, hoursOf, isoDay,
+  answerOpen, ATTENDANCE_WORD, attendanceOn, chipText, datesOf, dateOf, dayText, dutyRoom, hoursOf, isoDay,
   neededText, nextDay, planText, PRESENCE_THEY, PRESENCE_WORD, presenceOn, reportsUntil, taskDays, timeText
 } from './candidateTasks';
 import { WorkspaceError } from './session';
-import type { DutyTaken, PresenceAnswer, PresenceChange, StepState, TaskAnswer, TaskChange, TaskDate, TaskDuty } from './steps';
+import type { DutyTaken, PresenceAnswer, PresenceChange, StepState, TaskChange, TaskDate, TaskDuty } from './steps';
 
 type Task = NonNullable<StepState['task']>;
 
@@ -46,170 +43,287 @@ export const takenKey = (day: string, dutyId: string): string => `${day}|${dutyI
 export const takenOf = (taken: readonly DutyTaken[] | undefined, stepId: string): TakenMap =>
   new Map((taken ?? []).filter((t) => t.stepId === stepId).map((t) => [takenKey(t.day, t.dutyId), t.count] as const));
 
-export function TaskCard({ label, help, task, office = false, taken, onChange, onPresence }: {
+/** Ein Klick weiter: nichts → tak → nie → jeszcze nie wiem → nichts. */
+const NEXT: Record<PresenceAnswer | 'none', PresenceAnswer | 'none'> = { none: 'yes', yes: 'no', no: 'maybe', maybe: 'none' };
+
+const WORD: Record<PresenceAnswer | 'none', string> = { yes: 'tak', no: 'nie', maybe: 'jeszcze nie wiem', none: 'bez odpowiedzi' };
+const MARK: Record<PresenceAnswer, string> = { yes: '✓', no: '✕', maybe: '?' };
+
+export function TaskCard({ label, help, task, office = false, taken, onPresence }: {
   label: string;
   help: string | null;
   task: Task;
-  /** Die Kanzlei trägt für den Menschen ein — auch nach „zaznaczać do". */
+  /** Die Kanzlei sagt für den Menschen — auch nach „zaznaczać do". */
   office?: boolean;
   /** 0099 — wie voll die Funktionen sind (beim Menschen vom Dienst gezählt). */
   taken?: TakenMap;
-  onChange: (change: TaskChange) => Promise<void>;
-  /** 0099 — zu einem Termin: Antwort, Funktion, Liste. */
+  /** 0098 — die Entscheidung für das Ganze; seit 0100 nicht mehr angeboten (bleibt für Aufrufer). */
+  onChange?: (change: TaskChange) => Promise<void>;
+  /** Zu einem Tag: Antwort, Funktion, Liste. */
   onPresence?: (change: PresenceChange) => Promise<void>;
 }) {
   const { plan, phase, state } = task;
   const today = isoDay(new Date());
-  const saved = state?.days ?? [];
-  const [days, setDays] = useState<readonly string[]>(saved);
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
-  const [picked, setPicked] = useState('');
-  const savedKey = saved.join(',');
-
-  useEffect(() => { setDays(savedKey === '' ? [] : savedKey.split(',')); }, [savedKey]);
-
-  const act = async (change: () => Promise<void>) => {
-    setBusy(true);
-    setFailed(null);
-    try {
-      await change();
-    } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const asked = plan.presence === true && onPresence !== undefined;
-  const answer = state?.answer ?? null;
-  const mayAnswer = !asked && (office || phase !== 'over');
-  /* 0099 — trägt die Kanzlei die Teilnahme ein, zeigt der Mensch keine Tage an. */
-  const selfMarks = task.doneBy !== 'office';
-  const mayMark = !asked && (office || selfMarks)
-    && (office ? phase !== 'upcoming' && phase !== 'hidden' : phase === 'active' || phase === 'reporting') && answer !== 'refused';
-  const choosable = taskDays(plan, today);
-  const changed = [...days].sort().join(',') !== [...saved].sort().join(',');
-  const toggle = (day: string) => setDays(days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort());
+  const days = useMemo(() => taskDays(plan), [plan]);
+  const item = plan.schedule === 'item';
+  const asked = plan.presence === true;
 
   const coming = phase === 'upcoming' || phase === 'active' ? nextDay(plan, today) : null;
-  const at = plan.schedule === 'item'
+  const at = item
     ? (() => { const d = datesOf(plan).find((one) => one.day === coming); return d === undefined ? null : hoursOf(d); })()
     : timeText(plan);
   const need = neededText(plan);
-  const you = office ? 'Osoba' : 'Ty';
 
-  /* 0099 — beim Zaproszenie: was zum nächsten Termin gesagt ist, auf den man noch antworten kann. */
-  const nextOpen = asked ? datesOf(plan).find((d) => answerOpen(d)) ?? null : null;
-  const nextSaid = nextOpen !== null ? presenceOn(state, nextOpen.day)?.answer ?? null : null;
-  const status = task.fulfilled ? '✓ wykonane'
-    : asked ? (task.declined ? (office ? 'nie będzie' : 'nie będę') : nextSaid !== null ? (office ? PRESENCE_THEY : PRESENCE_WORD)[nextSaid] : nextOpen === null ? '' : 'czeka na odpowiedź')
-    : answer === null ? 'czeka na decyzję' : ANSWER_WORD[answer];
-  const tone = task.fulfilled ? 'done' : asked ? (nextSaid === 'yes' ? 'accepted' : nextSaid === 'no' || task.declined ? 'refused' : nextSaid === 'maybe' ? 'passed' : 'open') : answer ?? 'open';
+  /* Das Schild: erledigt (mit einer Zahl), sonst was zu den Tagen gesagt ist. */
+  const said = days.map((d) => presenceOn(state, d)?.answer ?? null);
+  const yes = said.filter((a) => a === 'yes').length;
+  const no = said.filter((a) => a === 'no').length;
+  const maybe = said.filter((a) => a === 'maybe').length;
+  const counted = task.needed !== null;
+  const words = office ? PRESENCE_THEY : PRESENCE_WORD;
+  const status = task.fulfilled && counted ? '✓ wykonane'
+    : days.length === 1 ? (said[0] === null ? 'czeka na odpowiedź' : asked ? words[said[0]] : WORD[said[0]])
+    : yes + no + maybe === 0 ? 'czeka na odpowiedź'
+    : [yes > 0 && `tak ${yes}`, no > 0 && `nie ${no}`, maybe > 0 && `? ${maybe}`].filter(Boolean).join(' · ');
+  const tone = task.fulfilled && counted ? 'done' : yes > 0 ? 'accepted' : no > 0 ? 'refused' : maybe > 0 ? 'passed' : 'open';
 
   return (
     <div className={`wk-task is-${tone}`} data-task={state?.stepId ?? ''}>
       <div className="wk-task-head">
         <strong className="wk-task-title">{label}</strong>
-        {status !== '' && <span className={`wk-task-status is-${tone}`}>{status}</span>}
+        <span className={`wk-task-status is-${tone}`}>{status}</span>
       </div>
       <p className="wk-task-plan">{planText(plan)}{need !== null && ` · potrzeba ${need}`}</p>
       {help !== null && help.trim() !== '' && <p className="wk-hint" style={{ whiteSpace: 'pre-wrap' }}>{help}</p>}
 
       <p className="wk-task-when">
         {phase === 'upcoming' && `Zaczyna się ${dayText(coming ?? plan.startsOn)}${at === null ? '' : `, ${at}`}.`}
-        {coming !== null && phase === 'active' && (coming === today ? `Dziś${at === null ? '' : `, ${at}`}.` : `Najbliżej: ${dayText(coming)}${at === null ? '' : `, ${at}`}.`)}
-        {phase === 'reporting' && (asked || !selfMarks ? 'Zakończone.' : `Zakończone — dni można zaznaczyć do ${dayText(reportsUntil(plan))}.`)}
+        {coming !== null && phase === 'active' && at !== null && (coming === today ? `Dziś, ${at}.` : `Najbliżej: ${dayText(coming)}, ${at}.`)}
+        {phase === 'reporting' && `Zakończone — odpowiadać można do ${dayText(reportsUntil(plan))}.`}
         {phase === 'over' && 'Zakończone.'}
-        {task.done > 0 && ` ${plan.schedule === 'item' ? 'Obecność' : 'Zaznaczone dni'}: ${task.done}${task.needed > 1 ? ` z ${task.needed}` : ''}.`}
-        {!office && !selfMarks && !asked && ' Obecność zaznacza kancelaria.'}
+        {task.done > 0 && ` ${item ? 'Obecność' : 'Zrobione'}: ${task.done}${task.needed !== null && task.needed > 1 ? ` z ${task.needed}` : ''}.`}
       </p>
 
-      {asked && (
-        <PresenceDates plan={plan} task={task} office={office} taken={taken} busy={busy}
-          onPresence={(change) => void act(() => onPresence!(change))} />
-      )}
+      {onPresence !== undefined && (office && asked
+        /* Bei der Kanzlei, für Termine mit Fragen vorher: je Termin eine Zeile, mit der Liste. */
+        ? <PresenceDates plan={plan} task={task} taken={taken} onPresence={onPresence} />
+        : <TaskCalendar task={task} days={days} office={office} taken={taken} onPresence={onPresence} />)}
+    </div>
+  );
+}
 
-      {mayAnswer && (
-        <div className="wk-task-answers" role="group" aria-label={`${label}: decyzja`}>
-          {answer === null ? (
-            <>
-              <button type="button" className="wk-btn" disabled={busy} data-task-answer="accepted" onClick={() => void act(() => onChange({ answer: 'accepted' }))}>Przyjmuję</button>
-              <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} data-task-answer="passed" onClick={() => void act(() => onChange({ answer: 'passed' }))}>Pomijam</button>
-              <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} data-task-answer="refused" onClick={() => void act(() => onChange({ answer: 'refused' }))}>Odmawiam</button>
-            </>
-          ) : (
-            <span className="wk-hint">
-              {you === 'Ty' ? 'Twoja decyzja' : 'Decyzja osoby'}: {ANSWER_WORD[answer]}
-              {state?.byPerson === false && answer !== null && ' (wpisała kancelaria)'}
-              {' · zmień: '}
-              {(['accepted', 'passed', 'refused'] as const).filter((a) => a !== answer).map((a: TaskAnswer, i) => (
-                <span key={a}>
-                  {i > 0 && ' · '}
-                  <button type="button" className="wk-link-btn" disabled={busy} data-task-answer={a} onClick={() => void act(() => onChange({ answer: a }))}>
-                    {a === 'accepted' ? 'przyjmuję' : a === 'passed' ? 'pomijam' : 'odmawiam'}
-                  </button>
-                </span>
-              ))}
-            </span>
-          )}
+/* -- 0100: das Monatsblatt ----------------------------------------------------------------------- */
+
+const MONTHS = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
+const WEEK = ['pn', 'wt', 'śr', 'czw', 'pt', 'sob', 'ndz'];
+
+/** Die Monate von … bis, als `YYYY-MM`. */
+function monthsOf(first: string, last: string): string[] {
+  const out: string[] = [];
+  const d = new Date(`${first.slice(0, 7)}-01T12:00:00`);
+  while (isoDay(d).slice(0, 7) <= last.slice(0, 7)) {
+    out.push(isoDay(d).slice(0, 7));
+    d.setMonth(d.getMonth() + 1);
+  }
+  return out;
+}
+
+function TaskCalendar({ task, days, office, taken, onPresence }: {
+  task: Task;
+  days: readonly string[];
+  office: boolean;
+  taken?: TakenMap;
+  onPresence: (change: PresenceChange) => Promise<void>;
+}) {
+  const { plan, phase, state } = task;
+  const today = isoDay(new Date());
+  const inPlan = useMemo(() => new Set(days), [days]);
+  const dates = useMemo(() => new Map(datesOf(plan).map((d) => [d.day, d] as const)), [plan]);
+  const months = useMemo(() => (days.length === 0 ? [] : monthsOf(days[0], days[days.length - 1])), [days]);
+  /* Das Blatt des heutigen Monats — vorher das erste, danach das letzte. */
+  const [month, setMonth] = useState(() => {
+    const here = months.indexOf(today.slice(0, 7));
+    return here >= 0 ? here : months.length > 0 && months[0] > today.slice(0, 7) ? 0 : Math.max(0, months.length - 1);
+  });
+  const shown = months[Math.min(month, months.length - 1)] ?? null;
+
+  /*
+   * SOFORT sichtbar, kurz danach gespeichert: wer viermal klickt, um zu
+   * „nichts" zurückzukommen, soll nicht vier Anfragen abwarten. Je Tag wartet
+   * die letzte Wahl einen Augenblick; gespeichert wird der Reihe nach.
+   */
+  const [local, setLocal] = useState<ReadonlyMap<string, PresenceAnswer | null>>(new Map());
+  const [failed, setFailed] = useState<string | null>(null);
+  const [saving, setSaving] = useState(0);
+  const timers = useRef(new Map<string, number>());
+  const chain = useRef<Promise<void>>(Promise.resolve());
+
+  const server = (day: string) => presenceOn(state, day)?.answer ?? null;
+  const shownAnswer = (day: string) => (local.has(day) ? local.get(day)! : server(day));
+
+  /* Was der Dienst inzwischen genauso hat, braucht keinen Vorrang mehr. */
+  useEffect(() => {
+    setLocal((was) => {
+      let changed = false;
+      const next = new Map(was);
+      for (const [day, answer] of was) {
+        if (!timers.current.has(day) && server(day) === answer) { next.delete(day); changed = true; }
+      }
+      return changed ? next : was;
+    });
+  }, [state]);
+
+  useEffect(() => () => { for (const t of timers.current.values()) window.clearTimeout(t); }, []);
+
+  /* Wer hier noch etwas sagen darf: die Kanzlei immer; der Mensch bis zum Beginn (Termine mit Fragen vorher) bzw. bis „zaznaczać do". */
+  const locked = (day: string): boolean => {
+    if (office) return false;
+    if (phase === 'over') return true;
+    const date = dates.get(day);
+    return plan.presence === true && date !== undefined && !answerOpen(date);
+  };
+
+  const click = (day: string) => {
+    if (locked(day)) return;
+    const next = NEXT[shownAnswer(day) ?? 'none'];
+    const value = next === 'none' ? null : next;
+    setFailed(null);
+    setLocal((was) => new Map(was).set(day, value));
+
+    const before = timers.current.get(day);
+    if (before !== undefined) window.clearTimeout(before);
+    timers.current.set(day, window.setTimeout(() => {
+      timers.current.delete(day);
+      setSaving((n) => n + 1);
+      chain.current = chain.current
+        .then(() => onPresence({ day, answer: value ?? 'none' }))
+        .catch((e: unknown) => {
+          setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+          setLocal((was) => { const n = new Map(was); n.delete(day); return n; });
+        })
+        .finally(() => setSaving((n) => n - 1));
+    }, 700));
+  };
+
+  if (days.length === 0 || shown === null) {
+    return <p className="wk-hint">W tym okresie nie ma dni tego zadania (termin zmieniony albo usunięty z kalendarza).</p>;
+  }
+
+  const first = dateOf(`${shown}-01`);
+  const lead = (first.getDay() + 6) % 7;
+  const length = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  const cells: (string | null)[] = [...Array<null>(lead).fill(null)];
+  for (let n = 1; n <= length; n += 1) cells.push(`${shown}-${String(n).padStart(2, '0')}`);
+
+  /* Unter dem Blatt: wer an einem Termin „tak" sagt, wählt seine Funktion. */
+  const choosing = task.duties.length > 0 && plan.presence === true
+    ? datesOf(plan).filter((d) => shownAnswer(d.day) === 'yes' && (office || answerOpen(d)))
+    : [];
+
+  return (
+    <div className="wk-taskcal" data-task-calendar="">
+      <p className="wk-taskcal-how">
+        Kliknij dzień: raz — <span className="wk-taskcal-word is-yes">tak</span>, dwa razy — <span className="wk-taskcal-word is-no">nie</span>,
+        {' '}trzy razy — <span className="wk-taskcal-word is-maybe">jeszcze nie wiem</span>, cztery razy — bez odpowiedzi.
+      </p>
+
+      <div className="wk-taskcal-sheet">
+        <div className="wk-taskcal-head">
+          <button type="button" className="wk-taskcal-nav" disabled={month <= 0} aria-label="Poprzedni miesiąc" onClick={() => setMonth(month - 1)}>‹</button>
+          <strong>{MONTHS[first.getMonth()]} {first.getFullYear()}</strong>
+          <button type="button" className="wk-taskcal-nav" disabled={month >= months.length - 1} aria-label="Następny miesiąc" onClick={() => setMonth(month + 1)}>›</button>
         </div>
-      )}
-
-      {mayMark && choosable.length > 0 && (
-        <div className="wk-task-days">
-          <span className="wk-hint">{office ? 'Dni wykonania (wpisuje kancelaria):' : plan.schedule === 'any' ? 'Dzień wykonania:' : 'Zaznacz dni wykonania:'}</span>
-          {plan.schedule === 'any' && choosable.length > 14 ? (
-            <div className="wk-inline">
-              {days.map((day) => (
-                <button key={day} type="button" className="wk-task-day is-on" disabled={busy} aria-pressed="true" onClick={() => toggle(day)} title="Usuń">
-                  {chipText(day)} ×
-                </button>
-              ))}
-              <input type="date" value={picked} min={plan.startsOn} max={choosable[choosable.length - 1]} aria-label="Dzień"
-                onChange={(e) => setPicked(e.target.value)} />
-              <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || picked === '' || !choosable.includes(picked) || days.includes(picked)}
-                onClick={() => { toggle(picked); setPicked(''); }}>Dodaj dzień</button>
-            </div>
-          ) : (
-            <div className="wk-task-chips">
-              {choosable.map((day) => (
-                <button key={day} type="button" className={days.includes(day) ? 'wk-task-day is-on' : 'wk-task-day'} disabled={busy}
-                  aria-pressed={days.includes(day)} data-task-day={day} onClick={() => toggle(day)}>
-                  {chipText(day)}
-                </button>
-              ))}
-            </div>
-          )}
-          {changed && (
-            <div className="wk-actions">
-              <button type="button" className="wk-btn" disabled={busy} data-task-save="" onClick={() => void act(() => onChange({ days }))}>
-                {busy ? 'Zapisywanie…' : `Zapisz dni (${days.length})`}
+        <div className="wk-taskcal-grid" role="group" aria-label={`${MONTHS[first.getMonth()]} ${first.getFullYear()}`}>
+          {WEEK.map((w) => <span key={w} className="wk-taskcal-dow" aria-hidden="true">{w}</span>)}
+          {cells.map((day, i) => {
+            if (day === null) return <span key={`gap-${i}`} className="wk-taskcal-gap" aria-hidden="true" />;
+            const number = Number(day.slice(8));
+            if (!inPlan.has(day)) return <span key={day} className="wk-taskcal-off" aria-hidden="true">{number}</span>;
+            const answer = shownAnswer(day);
+            const was = attendanceOn(state, day);
+            const date = dates.get(day);
+            const shut = locked(day);
+            const name = `${chipText(day)}${date !== undefined ? `, ${hoursOf(date)}` : ''}: ${WORD[answer ?? 'none']}${was !== null ? ` · ${ATTENDANCE_WORD[was]}` : ''}`;
+            return (
+              <button key={day} type="button" data-task-cal-day={day} data-answer={answer ?? 'none'}
+                className={`wk-taskcal-day is-${answer ?? 'none'}${day === today ? ' is-today' : ''}${shut ? ' is-shut' : ''}`}
+                aria-label={name} title={name} disabled={shut} onClick={() => click(day)}>
+                <span className="wk-taskcal-num">{number}</span>
+                {answer !== null && <span className="wk-taskcal-mark" aria-hidden="true">{MARK[answer]}</span>}
+                {was !== null && <span className={`wk-taskcal-was is-${was}`} aria-hidden="true" />}
               </button>
-              <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setDays(saved)}>Cofnij</button>
-            </div>
-          )}
+            );
+          })}
         </div>
-      )}
+      </div>
 
+      {choosing.map((d) => (
+        <div key={d.day} className="wk-duties" role="group" aria-label={`${chipText(d.day)}: funkcja`} data-duties-day={d.day}>
+          <span className="wk-hint">{chipText(d.day)} — {office ? 'funkcja:' : 'co chcesz robić?'}</span>
+          <DutyChips day={d.day} task={task} taken={taken} onPresence={onPresence} onFailed={setFailed} />
+        </div>
+      ))}
+
+      {saving > 0 && <p className="wk-hint" role="status">Zapisywanie…</p>}
       {failed !== null && <p className="wk-error">{failed}</p>}
     </div>
   );
 }
 
-/* -- 0099: je Termin eine Zeile ------------------------------------------------------------------- */
+/** Die Funktionen eines Termins — volle sind zu, ausser der eigenen. */
+function DutyChips({ day, task, taken, onPresence, onFailed }: {
+  day: string;
+  task: Task;
+  taken?: TakenMap;
+  onPresence: (change: PresenceChange) => Promise<void>;
+  onFailed: (message: string | null) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const said = presenceOn(task.state, day);
 
-const SHOWN = 3;
+  const pick = async (dutyId: string) => {
+    setBusy(true);
+    onFailed(null);
+    try {
+      await onPresence({ day, answer: 'yes', dutyId });
+    } catch (e) {
+      onFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
-function PresenceDates({ plan, task, office, taken, busy, onPresence }: {
+  return (
+    <>
+      {task.duties.map((d: TaskDuty) => {
+        const mine = said?.dutyId === d.dutyId;
+        const count = taken?.get(takenKey(day, d.dutyId)) ?? 0;
+        const room = dutyRoom(d.capacity, count);
+        return (
+          <button key={d.dutyId} type="button" className={mine ? 'wk-duty is-on' : 'wk-duty'} aria-pressed={mine}
+            disabled={busy || (room.full && !mine)} data-duty={d.dutyId}
+            onClick={() => void pick(mine ? '' : d.dutyId)}>
+            {d.label ?? 'funkcja'}
+            {mine ? ' ✓' : taken !== undefined && room.free !== null && (
+              <span className="wk-duty-room">{room.full ? ' · zajęte' : ` · wolne ${room.free}`}</span>
+            )}
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
+/* -- 0099: bei der Kanzlei je Termin eine Zeile (Termine mit Fragen vorher) ------------------------- */
+
+function PresenceDates({ plan, task, taken, onPresence }: {
   plan: Task['plan'];
   task: Task;
-  office: boolean;
   taken?: TakenMap;
-  busy: boolean;
-  onPresence: (change: PresenceChange) => void;
+  onPresence: (change: PresenceChange) => Promise<void>;
 }) {
-  const [all, setAll] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const dates = datesOf(plan);
   const now = new Date();
   const ahead = dates.filter((d) => answerOpen(d, now));
@@ -217,120 +331,78 @@ function PresenceDates({ plan, task, office, taken, busy, onPresence }: {
 
   if (dates.length === 0) return <p className="wk-hint">W tym okresie nie ma terminów (termin zmieniony albo usunięty z kalendarza).</p>;
 
-  /* Bei der Kanzlei alle Termine; beim Menschen die nächsten — und die vergangenen zugeklappt. */
-  const shownAhead = office || all ? ahead : ahead.slice(0, SHOWN);
-  const row = (date: TaskDate) => (
-    <DateRow key={date.day} date={date} task={task} office={office} taken={taken} busy={busy} onPresence={onPresence} />
-  );
+  const act = (change: PresenceChange) => {
+    setBusy(true);
+    setFailed(null);
+    void onPresence(change)
+      .catch((e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.'))
+      .finally(() => setBusy(false));
+  };
+
+  const row = (date: TaskDate) => <DateRow key={date.day} date={date} task={task} taken={taken} busy={busy} onPresence={act} />;
 
   return (
     <div className="wk-task-dates" data-presence-dates="">
-      {shownAhead.length > 0 && <ul className="wk-date-list">{shownAhead.map(row)}</ul>}
-      {!office && ahead.length > SHOWN && (
-        <button type="button" className="wk-link-btn" onClick={() => setAll(!all)}>
-          {all ? 'Pokaż mniej' : `Pokaż wszystkie terminy (${ahead.length})`}
-        </button>
-      )}
-      {behind.length > 0 && (office || ahead.length === 0
-        ? <ul className="wk-date-list">{behind.map(row)}</ul>
-        : (
-          <details className="wk-fold">
-            <summary>Minione terminy ({behind.length})</summary>
-            <ul className="wk-date-list">{behind.map(row)}</ul>
-          </details>
-        ))}
+      {ahead.length > 0 && <ul className="wk-date-list">{ahead.map(row)}</ul>}
+      {behind.length > 0 && <ul className="wk-date-list">{behind.map(row)}</ul>}
+      {failed !== null && <p className="wk-error">{failed}</p>}
     </div>
   );
 }
 
-function DateRow({ date, task, office, taken, busy, onPresence }: {
+function DateRow({ date, task, taken, busy, onPresence }: {
   date: TaskDate;
   task: Task;
-  office: boolean;
   taken?: TakenMap;
   busy: boolean;
   onPresence: (change: PresenceChange) => void;
 }) {
   const said = presenceOn(task.state, date.day);
   const answer = said?.answer ?? null;
-  const open = answerOpen(date);
-  const today = isoDay(new Date());
-  const markable = date.day <= today;
+  const markable = date.day <= isoDay(new Date());
   const attendance = attendanceOn(task.state, date.day);
-  const duties = task.duties;
-  const dutyName = (id: string | null) => duties.find((d) => d.dutyId === id)?.label ?? 'funkcja';
-  const words = office ? PRESENCE_THEY : PRESENCE_WORD;
-
-  const say = (a: PresenceAnswer) => onPresence({ day: date.day, answer: answer === a ? 'none' : a });
 
   return (
     <li className={`wk-date is-${attendance ?? answer ?? 'open'}`} data-presence-day={date.day}>
       <div className="wk-date-head">
         <span className="wk-date-when">{chipText(date.day)} · {hoursOf(date)}</span>
-
-        {/* VORHER: będę / jeszcze nie wiem / nie będę — beim Menschen bis zum Beginn, bei der Kanzlei immer. */}
-        {(open || office) && (
-          <span className="wk-seg" role="group" aria-label={`${chipText(date.day)}: odpowiedź`}>
-            {(['yes', 'maybe', 'no'] as const).map((a) => (
-              <button key={a} type="button" className={answer === a ? 'wk-seg-opt is-on' : 'wk-seg-opt'} aria-pressed={answer === a}
-                disabled={busy} data-presence-answer={a} onClick={() => say(a)} title={a === 'maybe' && !office ? 'Jeszcze nie wiem' : undefined}>
-                {a === 'yes' ? (office ? 'Będzie' : 'Będę') : a === 'maybe' ? (office ? 'Nie wie' : 'Nie wiem') : (office ? 'Nie będzie' : 'Nie będę')}
-              </button>
-            ))}
-          </span>
-        )}
-        {!open && !office && answer !== null && <span className="wk-hint">{words[answer]}</span>}
+        <span className="wk-seg" role="group" aria-label={`${chipText(date.day)}: odpowiedź`}>
+          {(['yes', 'maybe', 'no'] as const).map((a) => (
+            <button key={a} type="button" className={answer === a ? 'wk-seg-opt is-on' : 'wk-seg-opt'} aria-pressed={answer === a}
+              disabled={busy} data-presence-answer={a} onClick={() => onPresence({ day: date.day, answer: answer === a ? 'none' : a })}>
+              {a === 'yes' ? 'Będzie' : a === 'maybe' ? 'Nie wie' : 'Nie będzie'}
+            </button>
+          ))}
+        </span>
       </div>
 
-      {/* DIE FUNKTION — wer kommt, wählt, was er macht; volle sind zu, ausser der eigenen. */}
-      {answer === 'yes' && duties.length > 0 && (open || office) && (
+      {answer === 'yes' && task.duties.length > 0 && (
         <div className="wk-duties" role="group" aria-label="Funkcja">
-          <span className="wk-hint">{office ? 'Funkcja:' : 'Co chcesz robić?'}</span>
-          {duties.map((d: TaskDuty) => {
+          <span className="wk-hint">Funkcja:</span>
+          {task.duties.map((d: TaskDuty) => {
             const mine = said?.dutyId === d.dutyId;
-            const count = taken?.get(takenKey(date.day, d.dutyId)) ?? 0;
-            const room = dutyRoom(d.capacity, mine ? Math.max(0, count - 1) : count);
+            const room = dutyRoom(d.capacity, taken?.get(takenKey(date.day, d.dutyId)) ?? 0);
             return (
               <button key={d.dutyId} type="button" className={mine ? 'wk-duty is-on' : 'wk-duty'} aria-pressed={mine}
                 disabled={busy || (room.full && !mine)} data-duty={d.dutyId}
                 onClick={() => onPresence({ day: date.day, dutyId: mine ? '' : d.dutyId })}>
-                {d.label ?? 'funkcja'}
-                {mine ? ' ✓' : taken !== undefined && room.free !== null && (
-                  <span className="wk-duty-room">{room.full ? ' · zajęte' : ` · wolne ${room.free}`}</span>
-                )}
+                {d.label ?? 'funkcja'}{mine && ' ✓'}
               </button>
             );
           })}
         </div>
       )}
-      {answer === 'yes' && said?.dutyId != null && !open && !office && <p className="wk-hint">Funkcja: {dutyName(said.dutyId)}</p>}
 
-      {/* NACHHER: da gewesen? Die Kanzlei nach der Liste; der Mensch selbst, wenn er es einträgt. */}
-      {!open && (
-        office ? (
-          markable && (
-            <span className="wk-seg" role="group" aria-label={`${chipText(date.day)}: obecność`}>
-              {(['present', 'absent', 'excused'] as const).map((a) => (
-                <button key={a} type="button" className={attendance === a ? 'wk-seg-opt is-on' : 'wk-seg-opt'} aria-pressed={attendance === a}
-                  disabled={busy} data-attendance={a} onClick={() => onPresence({ day: date.day, attendance: attendance === a ? 'none' : a })}>
-                  {a === 'present' ? '✓ Obecność' : a === 'absent' ? 'Nieobecność' : 'Usprawiedliwiona'}
-                </button>
-              ))}
-            </span>
-          )
-        ) : attendance !== null ? (
-          <p className={`wk-date-was is-${attendance}`}>{attendance === 'present' ? '✓ obecność' : ATTENDANCE_WORD[attendance]}</p>
-        ) : task.doneBy !== 'office' && markable && task.phase !== 'over' ? (
-          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} data-attendance="present"
-            onClick={() => onPresence({ day: date.day, attendance: 'present' })}>
-            Zaznacz obecność
-          </button>
-        ) : markable ? (
-          <p className="wk-hint">Obecność zaznacza kancelaria.</p>
-        ) : null
-      )}
-      {!office && attendance === 'present' && task.doneBy !== 'office' && task.phase !== 'over' && (
-        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onPresence({ day: date.day, attendance: 'none' })}>Cofnij</button>
+      {/* NACHHER: da gewesen? */}
+      {markable && (
+        <span className="wk-seg" role="group" aria-label={`${chipText(date.day)}: obecność`}>
+          {(['present', 'absent', 'excused'] as const).map((a) => (
+            <button key={a} type="button" className={attendance === a ? 'wk-seg-opt is-on' : 'wk-seg-opt'} aria-pressed={attendance === a}
+              disabled={busy} data-attendance={a} onClick={() => onPresence({ day: date.day, attendance: attendance === a ? 'none' : a })}>
+              {a === 'present' ? '✓ Obecność' : a === 'absent' ? 'Nieobecność' : 'Usprawiedliwiona'}
+            </button>
+          ))}
+        </span>
       )}
     </li>
   );

@@ -43,6 +43,7 @@ import { PhoneBar } from './PhoneBar';
 import { SearchButton, SearchPalette } from './SearchPalette';
 import { Widget } from './Widget';
 import { forgetNotifications } from './notify';
+import { NowPlayingBar } from './NowPlayingBar';
 
 export function App() {
   const [address, setAddress] = useState<Address>(() => parsePath(window.location.hash));
@@ -299,6 +300,9 @@ function Shell({
 
           {/* Das Menü der Seite — direkt in der Kopfleiste, nicht als zweiter Streifen darunter. */}
           <div className="wk-top-menu" ref={setSlot} />
+
+          {/* 0100 — was aus einer Rozmowa weiterspielt, auf jeder Seite. */}
+          <NowPlayingBar />
 
           {spot !== undefined && <Crumbs spot={spot} />}
 

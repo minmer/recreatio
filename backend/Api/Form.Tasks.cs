@@ -403,11 +403,20 @@ public static partial class Form
 
         var plan = await PlanOfAsync(connection, stepId, ct);
         if (plan is null) return null;
-        if (plan.Schedule != "item") return (400, "To zadanie nie ma terminów z kalendarza.");
 
+        /*
+         * 0100 — JEDE AUFGABE nimmt Antworten je Tag (der Kalender auf ihrer Karte):
+         * bei Terminen ihre Termine, sonst die Tage ihres Plans — ein solcher Tag
+         * beginnt um Mitternacht, dort, wo die Pfarrei ist.
+         */
         if (!DateOnly.TryParseExact((body.Day ?? string.Empty).Trim(), "yyyy-MM-dd", out var day)) return (400, "Nieczytelny dzień.");
-        var date = (plan.Dates ?? []).FirstOrDefault(d => d.Day == day);
-        if (date is null) return (400, "Tego terminu nie ma w tym zadaniu.");
+        var date = plan.Schedule == "item"
+            ? (plan.Dates ?? []).FirstOrDefault(d => d.Day == day)
+            : TaskDay(plan, day)
+                ? new TaskDate(day, Zones.AtLocal(day.ToDateTime(TimeOnly.MinValue), Zones.Of(Zones.Home)),
+                    Zones.AtLocal(day.AddDays(1).ToDateTime(TimeOnly.MinValue), Zones.Of(Zones.Home)))
+                : null;
+        if (date is null) return (400, plan.Schedule == "item" ? "Tego terminu nie ma w tym zadaniu." : $"Dzień {day:yyyy-MM-dd} nie należy do tego zadania.");
 
         var answer = body.Answer?.Trim().ToLowerInvariant();
         if (answer is not (null or "yes" or "maybe" or "no" or "none")) return (400, "Odpowiedź: yes, maybe, no albo none.");
@@ -425,12 +434,15 @@ public static partial class Form
 
         var now = DateTimeOffset.UtcNow;
 
+        if (dutyGiven && !plan.Presence) return (400, "Funkcje są tylko przy terminach z pytaniem o obecność.");
+
         if (answer is not null || dutyGiven)
         {
-            if (!plan.Presence) return (400, "W tym zadaniu nie pyta się o obecność przed terminem.");
+            /* Termine mit Fragen vorher: der Mensch sagt es bis zum Beginn; dann nur noch die Kanzlei. */
+            if (byPerson && plan.Presence && now >= date.StartsAt) return (409, "Ten termin już się zaczął — odpowiedź zmienia już tylko kancelaria.");
 
-            /* Vorher sagt es der Mensch; hat der Termin begonnen, ändert es nur noch die Kanzlei. */
-            if (byPerson && now >= date.StartsAt) return (409, "Ten termin już się zaczął — odpowiedź zmienia już tylko kancelaria.");
+            /* Sonst bis „zaznaczać do" — wie die Tage. */
+            if (byPerson && !plan.Presence && Today() > plan.ReportsUntil) return (409, "To zadanie już się skończyło — powiedz o tym w kancelarii.");
         }
 
         if (attendance is not null)

@@ -653,9 +653,22 @@ function TaskEdit({ draft, onChange, onMove, onRemove, first, last }: {
               <input type="number" min={1} max={1440} value={t.minutes} style={{ width: '6em' }} onChange={(e) => setTask({ minutes: e.target.value })} /></label>
           </>
         )}
-        <label className="wk-inline"><span className="wk-hint">{item ? 'Ile obecności, by było wykonane' : 'Ile razy, by było wykonane'}</span>
-          <input type="number" min={1} max={400} value={t.needed} placeholder="1" style={{ width: '5em' }} data-task-needed=""
-            onChange={(e) => setTask({ needed: e.target.value })} /></label>
+        {/*
+          ZROBIONE, GDY — meist reicht, dass die Person sich dazu stellt
+          (przyjmuję / pomijam / odmawiam, oder zu jedem Termin będę / nie będę).
+          Nur wer es verlangt, nennt eine Zahl: so oft da gewesen, so oft getan.
+        */}
+        <label className="wk-inline"><span className="wk-hint">Zrobione, gdy</span>
+          <select value={t.needed.trim() === '' ? 'answer' : 'count'} data-task-done-when=""
+            onChange={(e) => setTask({ needed: e.target.value === 'count' ? (t.needed.trim() === '' ? '1' : t.needed) : '' })}>
+            <option value="answer">{t.presence === true ? 'osoba odpowie na każdy termin (będę / nie będę)' : 'osoba się ustosunkuje (przyjmuję / pomijam / odmawiam)'}</option>
+            <option value="count">{item ? 'obecność określoną liczbę razy' : 'wykonane określoną liczbę razy'}</option>
+          </select></label>
+        {t.needed.trim() !== '' && (
+          <label className="wk-inline"><span className="wk-hint">ile razy</span>
+            <input type="number" min={1} max={400} value={t.needed} style={{ width: '5em' }} data-task-needed=""
+              onChange={(e) => setTask({ needed: e.target.value })} /></label>
+        )}
         <label className="wk-inline"><span className="wk-hint">Wykonanie zaznacza</span>
           <select value={draft.doneBy} data-task-done-by="" onChange={(e) => onChange({ doneBy: e.target.value === 'office' ? 'office' : 'person' })}>
             <option value="person">osoba sama</option>

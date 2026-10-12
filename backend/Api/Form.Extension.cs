@@ -609,10 +609,17 @@ public static partial class Form
                     /* 0098 — Tage, die nach einem geänderten Plan nicht mehr dazugehören, gehen
                        (1900-01-01 war ein Montag: so ergibt sich das Bit des Wochentags ohne DATEFIRST). */
                     IF @kind = N'task'
+                    BEGIN
                         DELETE FROM app.task_day
                          WHERE step_id = @id
                            AND (day < @starts OR day > @ends
                                 OR (@schedule = N'weekly' AND (@weekdays & POWER(2, DATEDIFF(day, '19000101', day) % 7)) = 0));
+                        /* 0100 — die Antworten je Tag ebenso. */
+                        DELETE FROM app.task_presence
+                         WHERE step_id = @id
+                           AND (day < @starts OR day > @ends
+                                OR (@schedule = N'weekly' AND (@weekdays & POWER(2, DATEDIFF(day, '19000101', day) % 7)) = 0));
+                    END
                     ELSE
                     BEGIN
                         DELETE FROM app.task_day WHERE step_id = @id;
@@ -621,12 +628,9 @@ public static partial class Form
                         DELETE FROM app.task_duty WHERE step_id = @id;
                     END
 
-                    /* 0099 — ohne Fragen vorher keine Antworten dazu (die Liste — absence — bleibt). */
+                    /* 0099 — ohne Fragen vorher keine Funktionen (die Antworten je Tag bleiben — 0100: jede Aufgabe hat sie). */
                     IF @presence = 0
-                    BEGIN
-                        DELETE FROM app.task_presence WHERE step_id = @id AND absence IS NULL;
-                        UPDATE app.task_presence SET answer = NULL, duty_id = NULL WHERE step_id = @id;
-                    END
+                        UPDATE app.task_presence SET duty_id = NULL WHERE step_id = @id AND duty_id IS NOT NULL;
                     """, connection, tx);
 
                 var plan = one.Plan;
@@ -672,12 +676,6 @@ public static partial class Form
                     stale.Parameters.AddWithValue("@id", one.Id);
                     for (var i = 0; i < keepDays.Count; i++)
                         stale.Parameters.Add($"@d{i}", System.Data.SqlDbType.Date).Value = keepDays[i].ToDateTime(TimeOnly.MinValue);
-                    await stale.ExecuteNonQueryAsync(ctx.RequestAborted);
-                }
-                else
-                {
-                    await using var stale = new SqlCommand("DELETE FROM app.task_presence WHERE step_id = @id;", connection, tx);
-                    stale.Parameters.AddWithValue("@id", one.Id);
                     await stale.ExecuteNonQueryAsync(ctx.RequestAborted);
                 }
 
