@@ -117,15 +117,19 @@ export function respondedTo(plan: TaskPlan, state: TaskState | undefined, today:
   }
 
   /*
-   * 0100 — JE TAG IM KALENDER: gestellt hat sich, wer zu jedem Tag bis heute
-   * tak oder nie gesagt hat (und überhaupt etwas). Kommende Tage halten es
-   * nicht auf — sonst wäre ein Sonntag im Juni schon im Oktober fällig.
-   * Die Entscheidung für das Ganze (0098) gilt weiter, wo sie gegeben ist.
+   * 0100/0101 — JE TAG IM KALENDER: erfüllt (und grün) ist, wer zu JEDEM Tag
+   * bis heute tak oder nie gesagt hat. Kommende Tage halten es nicht auf —
+   * sonst wäre ein Sonntag im Juni schon im Oktober fällig. Vor dem ersten Tag
+   * ist noch nichts erfüllt. Die Entscheidung für das Ganze (0098) zählt nicht
+   * mehr: sie wird nicht mehr angeboten, und sie stand neben „czeka na
+   * odpowiedź" im selben Kasten.
+   *
+   * „Raz, w dowolnym dniu" (`any`): EIN Tag, an dem tak oder nie steht, genügt.
    */
-  if ((state?.answer ?? null) !== null) return true;
   const all = taskDays(plan);
+  if (plan.schedule === 'any') return all.some(settled);
   const past = all.filter((day) => day <= today);
-  return all.some(settled) && past.every(settled);
+  return past.length > 0 && past.every(settled);
 }
 
 /**

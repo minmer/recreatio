@@ -1756,7 +1756,8 @@ try {
     const stance = { startsOn: '2026-10-01', endsOn: '2026-10-31', schedule: 'any', weekdays: null, atMinute: null, minutes: null,
       needed: null, showFrom: null, reportUntil: null };
     assert.equal(m.taskProgress(stance, undefined).fulfilled, false, 'no answer yet');
-    assert.equal(m.taskProgress(stance, { stepId: 's', answer: 'refused', days: [] }).fulfilled, true, 'odmawiam is a stance too');
+    assert.equal(m.respondedTo(stance, { stepId: 's', answer: 'refused', days: [] }, '2026-10-12'), false, '0101: the old decision for the whole no longer counts');
+    assert.equal(m.respondedTo(stance, { stepId: 's', answer: null, days: [], presence: [no('2026-10-05')] }, '2026-10-12'), true, 'once, any day: one day said is enough');
     assert.equal(m.taskProgress(stance, { stepId: 's', answer: 'accepted', days: [] }).needed, null);
     const answered = (...said) => ({ stepId: 's', answer: null, days: [], presence: said });
     const yes = (day) => ({ day, answer: 'yes', dutyId: null, absence: null });
@@ -1773,6 +1774,7 @@ try {
     assert.equal(m.respondedTo(october, daily(yes('2026-10-01'), no('2026-10-02'), maybe('2026-10-03')), '2026-10-03'), false, 'every day so far — „nie wiem" is not yet an answer');
     assert.equal(m.respondedTo(october, daily(yes('2026-10-01'), no('2026-10-02'), yes('2026-10-03')), '2026-10-03'), true, 'every day so far answered; the coming ones do not hold it up');
     assert.equal(m.respondedTo(october, daily(), '2026-09-20'), false, 'nothing said yet');
+    assert.equal(m.respondedTo(october, daily(yes('2026-10-05')), '2026-09-20'), false, 'before the first day nothing is fulfilled yet');
 
     /* Im Fortschritt: erfüllt mit genug Anwesenheit; nach dem Ende ohne sie überfällig — ausser abgesagt. */
     const step = { stepId: 's', position: 0, areaId: 'a', epoch: 1, labelSealed: '', helpSealed: null, doneBy: 'office', visibleToPerson: true,

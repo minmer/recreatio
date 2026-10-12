@@ -8266,3 +8266,10 @@ span.ch-sendas { cursor: default; }
 .wk-taskcal-was { position: absolute; bottom: 3px; left: 50%; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--wk-muted); }
 .wk-taskcal-was.is-present { background: var(--wk-free-ink); }
 .wk-taskcal-was.is-absent { background: var(--wk-shut-ink); }
+
+/* -- 0101: erfüllt ist grün; der Kalender zugeklappt am Anfang ----------------------------------------- */
+.wk-task.is-fulfilled { border-color: var(--wk-free-line); background: var(--wk-free-bg); }
+.wk-task-status.is-fulfilled { border-color: var(--wk-free-line); background: var(--wk-free-bg); color: var(--wk-free-ink); font-weight: 600; }
+.wk-task.is-fulfilled .wk-taskcal-day:not(.is-yes):not(.is-no):not(.is-maybe) { background: var(--wk-surface); }
+.wk-task-toggle { justify-self: start; }
+.wk-task-body[hidden] { display: none; }

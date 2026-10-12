@@ -81,11 +81,22 @@ export function TaskCard({ label, help, task, office = false, taken, onPresence 
   const maybe = said.filter((a) => a === 'maybe').length;
   const counted = task.needed !== null;
   const words = office ? PRESENCE_THEY : PRESENCE_WORD;
-  const status = task.fulfilled && counted ? '✓ wykonane'
+  /*
+   * 0101 — ERFÜLLT IST GRÜN: mit einer Zahl „wykonane"; ohne, wenn zu jedem Tag
+   * bis heute etwas gesagt ist, „na bieżąco" — und nach dem letzten Tag
+   * „wykonane". (`is-fulfilled`, nicht `is-done`: das ist die durchgestrichene,
+   * blasse Aufgabe der eigenen Liste.)
+   */
+  const over = phase === 'reporting' || phase === 'over' || coming === null;
+  const status = task.fulfilled ? (counted || over ? '✓ wykonane' : '✓ na bieżąco')
     : days.length === 1 ? (said[0] === null ? 'czeka na odpowiedź' : asked ? words[said[0]] : WORD[said[0]])
     : yes + no + maybe === 0 ? 'czeka na odpowiedź'
     : [yes > 0 && `tak ${yes}`, no > 0 && `nie ${no}`, maybe > 0 && `? ${maybe}`].filter(Boolean).join(' · ');
-  const tone = task.fulfilled && counted ? 'done' : yes > 0 ? 'accepted' : no > 0 ? 'refused' : maybe > 0 ? 'passed' : 'open';
+  const tone = task.fulfilled ? 'fulfilled' : yes > 0 ? 'accepted' : no > 0 ? 'refused' : maybe > 0 ? 'passed' : 'open';
+
+  /* 0101 — zugeklappt am Anfang: erst die Karte, der Kalender auf einen Klick. */
+  const [open, setOpen] = useState(false);
+  const rows = office && asked;
 
   return (
     <div className={`wk-task is-${tone}`} data-task={state?.stepId ?? ''}>
@@ -104,10 +115,22 @@ export function TaskCard({ label, help, task, office = false, taken, onPresence 
         {task.done > 0 && ` ${item ? 'Obecność' : 'Zrobione'}: ${task.done}${task.needed !== null && task.needed > 1 ? ` z ${task.needed}` : ''}.`}
       </p>
 
-      {onPresence !== undefined && (office && asked
-        /* Bei der Kanzlei, für Termine mit Fragen vorher: je Termin eine Zeile, mit der Liste. */
-        ? <PresenceDates plan={plan} task={task} taken={taken} onPresence={onPresence} />
-        : <TaskCalendar task={task} days={days} office={office} taken={taken} onPresence={onPresence} />)}
+      {onPresence !== undefined && (
+        <button type="button" className={open || task.fulfilled ? 'wk-link-btn wk-task-toggle' : 'wk-btn wk-btn-quiet wk-task-toggle'}
+          aria-expanded={open} data-task-open="" onClick={() => setOpen(!open)}>
+          {open ? 'Zwiń' : rows ? 'Pokaż terminy' : task.fulfilled ? 'Pokaż kalendarz' : 'Odpowiedz w kalendarzu'}
+        </button>
+      )}
+
+      {/* Zugeklappt nur versteckt, nicht fort: was eben geklickt wurde, wird trotzdem gespeichert. */}
+      {onPresence !== undefined && (
+        <div hidden={!open} className="wk-task-body">
+          {rows
+            /* Bei der Kanzlei, für Termine mit Fragen vorher: je Termin eine Zeile, mit der Liste. */
+            ? <PresenceDates plan={plan} task={task} taken={taken} onPresence={onPresence} />
+            : <TaskCalendar task={task} days={days} office={office} taken={taken} onPresence={onPresence} />}
+        </div>
+      )}
     </div>
   );
 }
