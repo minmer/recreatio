@@ -43,7 +43,7 @@ import { loadSteps, openSteps } from './steps';
 /* -- Was der Editor über Formulare weiss ----------------------------------------------- */
 
 /** 0098 — `kind`: ein Znacznik, oder eine Aufgabe (zählt, sobald sie erfüllt ist). */
-interface Mark { readonly stepId: string; readonly label: string; readonly doneBy: 'office' | 'person'; readonly kind: 'mark' | 'task' }
+interface Mark { readonly stepId: string; readonly label: string; readonly doneBy: 'office' | 'person'; readonly kind: 'mark' | 'task' | 'booking' }
 
 /** Die Znaczniki eines Formulars, lesbar — mit dem offenen Schlüssel, sonst dem eigenen. */
 async function marksOf(formId: string, who: Who): Promise<readonly Mark[]> {
@@ -219,7 +219,7 @@ export function PageLogicEditor({ path, parts, logic: saved, who, onSaved }: {
       }
       case 'mark': {
         const m = marks.get(n.formId ?? '')?.find((one) => one.stepId === n.stepId);
-        return m === undefined ? (n.stepId === undefined ? '— wybierz znacznik —' : 'znacznik') : `${m.label} · ${m.kind === 'task' ? 'zadanie: wykonane' : m.doneBy === 'person' ? 'odhacza osoba' : 'odhacza kancelaria'}`;
+        return m === undefined ? (n.stepId === undefined ? '— wybierz znacznik —' : 'znacznik') : `${m.label} · ${m.kind === 'task' ? 'zadanie: wykonane' : m.kind === 'booking' ? 'termin wybrany' : m.doneBy === 'person' ? 'odhacza osoba' : 'odhacza kancelaria'}`;
       }
       case 'date': return n.date ? `${n.when === 'before' ? 'przed' : 'od'} ${n.date}` : '— wybierz datę —';
       default: return '';
@@ -536,10 +536,10 @@ function Inspector({ node, parts, partName, forms, questions, marks, onPatch, on
             <select value={node.stepId ?? ''} onChange={(e) => {
               const m = marks.find((one) => one.stepId === e.target.value);
               /* 0098 — eine Aufgabe zählt, sobald sie erfüllt ist; sie hat keinen Haken zum Anklicken. */
-              onPatch({ stepId: m?.stepId, markBy: m?.kind === 'task' ? undefined : m?.doneBy });
+              onPatch({ stepId: m?.stepId, markBy: m?.kind === 'mark' ? m.doneBy : undefined });
             }}>
               <option value="">— wybierz —</option>
-              {marks.map((m) => <option key={m.stepId} value={m.stepId}>{m.label} · {m.kind === 'task' ? 'zadanie: wykonane' : m.doneBy === 'person' ? 'odhacza osoba' : 'odhacza kancelaria'}</option>)}
+              {marks.map((m) => <option key={m.stepId} value={m.stepId}>{m.label} · {m.kind === 'task' ? 'zadanie: wykonane' : m.kind === 'booking' ? 'termin wybrany' : m.doneBy === 'person' ? 'odhacza osoba' : 'odhacza kancelaria'}</option>)}
             </select>
           </label>
         )

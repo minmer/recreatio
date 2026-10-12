@@ -764,6 +764,10 @@ code {
   align-items: stretch;
 }
 
+/* 0101 — gepackt: jede Spalte für sich; die Kacheln stehen dort, wo `masonry.pack` sie hinstellt. */
+.wk-page-grid.is-packed { display: block; position: relative; }
+.wk-page-grid.is-packed > .wk-card { box-sizing: border-box; }
+
 .wk-card {
   position: relative;
   display: grid;
@@ -8149,20 +8153,20 @@ span.ch-sendas { cursor: default; }
 .wk-fmap-canvas .react-flow__edge.is-stands path, .wk-fmap-canvas .react-flow__edge.is-filled path { stroke: var(--wk-muted); }
 
 /* -- 0098: Zadania dla osób — eine Aufgabe mit Zeitraum, Entscheidung und Tagen -------------------- */
-.wk-task { display: grid; gap: 0.45rem; padding: 0.75rem 0.85rem; border: 1px solid var(--wk-line); border-radius: 8px; background: var(--wk-surface); min-width: 0; }
-.wk-task.is-done { border-color: var(--wk-free-line); }
-.wk-task.is-refused, .wk-task.is-passed { opacity: 0.85; }
-.wk-task-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
-.wk-task-title { font-size: 1rem; overflow-wrap: anywhere; }
-.wk-task-status { font-size: 0.8rem; padding: 0.1rem 0.5rem; border-radius: 999px; border: 1px solid var(--wk-line); color: var(--wk-muted); white-space: nowrap; }
-.wk-task-status.is-done { border-color: var(--wk-free-line); background: var(--wk-free-bg); color: var(--wk-free-ink); }
-.wk-task-status.is-accepted { border-color: var(--wk-held-line); background: var(--wk-held-bg); color: var(--wk-held-ink); }
-.wk-task-status.is-refused { border-color: var(--wk-shut-line); background: var(--wk-shut-bg); color: var(--wk-shut-ink); }
-.wk-task-plan { margin: 0; color: var(--wk-ink); font-variant-numeric: tabular-nums; }
-.wk-task-when { margin: 0; color: var(--wk-muted); font-size: 0.9rem; }
-.wk-task-when:empty { display: none; }
-.wk-task-answers { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
-.wk-task-days { display: grid; gap: 0.4rem; }
+.wk-ptask { display: grid; gap: 0.45rem; padding: 0.75rem 0.85rem; border: 1px solid var(--wk-line); border-radius: 8px; background: var(--wk-surface); min-width: 0; }
+.wk-ptask.is-done { border-color: var(--wk-free-line); }
+.wk-ptask.is-refused, .wk-ptask.is-passed { opacity: 0.85; }
+.wk-ptask-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.wk-ptask-title { font-size: 1rem; overflow-wrap: anywhere; }
+.wk-ptask-status { font-size: 0.8rem; padding: 0.1rem 0.5rem; border-radius: 999px; border: 1px solid var(--wk-line); color: var(--wk-muted); white-space: nowrap; }
+.wk-ptask-status.is-done { border-color: var(--wk-free-line); background: var(--wk-free-bg); color: var(--wk-free-ink); }
+.wk-ptask-status.is-accepted { border-color: var(--wk-held-line); background: var(--wk-held-bg); color: var(--wk-held-ink); }
+.wk-ptask-status.is-refused { border-color: var(--wk-shut-line); background: var(--wk-shut-bg); color: var(--wk-shut-ink); }
+.wk-ptask-plan { margin: 0; color: var(--wk-ink); font-variant-numeric: tabular-nums; }
+.wk-ptask-when { margin: 0; color: var(--wk-muted); font-size: 0.9rem; }
+.wk-ptask-when:empty { display: none; }
+.wk-ptask-answers { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.wk-ptask-days { display: grid; gap: 0.4rem; }
 .wk-task-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .wk-task-day { font: inherit; font-size: 0.85rem; font-variant-numeric: tabular-nums; padding: 0.25rem 0.5rem; border-radius: 6px; border: 1px solid var(--wk-line); background: var(--wk-ground); color: var(--wk-ink); cursor: pointer; }
 .wk-task-day.is-on { background: var(--wk-accent); border-color: var(--wk-accent); color: var(--wk-on-accent); }
@@ -8171,7 +8175,7 @@ span.ch-sendas { cursor: default; }
 .wk-task-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
 .wk-task-edit { display: grid; gap: 0.5rem; }
 .wk-task-edit-line, .wk-task-weekdays { flex-wrap: wrap; gap: 0.6rem; }
-.wk-step > .wk-task { margin: 0.2rem 0; }
+.wk-step > .wk-ptask { margin: 0.2rem 0; }
 
 /* 0099 — Unterformular löschen: die Rückfrage unter den Reitern, über die ganze Breite. */
 .wk-family-remove { flex-basis: 100%; margin: 0.2rem 0 0.4rem; }
@@ -8268,11 +8272,11 @@ span.ch-sendas { cursor: default; }
 .wk-taskcal-was.is-absent { background: var(--wk-shut-ink); }
 
 /* -- 0101: erfüllt ist grün; der Kalender zugeklappt am Anfang ----------------------------------------- */
-.wk-task.is-fulfilled { border-color: var(--wk-free-line); background: var(--wk-free-bg); }
-.wk-task-status.is-fulfilled { border-color: var(--wk-free-line); background: var(--wk-free-bg); color: var(--wk-free-ink); font-weight: 600; }
-.wk-task.is-fulfilled .wk-taskcal-day:not(.is-yes):not(.is-no):not(.is-maybe) { background: var(--wk-surface); }
-.wk-task-toggle { justify-self: start; }
-.wk-task-body[hidden] { display: none; }
+.wk-ptask.is-fulfilled { border-color: var(--wk-free-line); background: var(--wk-free-bg); }
+.wk-ptask-status.is-fulfilled { border-color: var(--wk-free-line); background: var(--wk-free-bg); color: var(--wk-free-ink); font-weight: 600; }
+.wk-ptask.is-fulfilled .wk-taskcal-day:not(.is-yes):not(.is-no):not(.is-maybe) { background: var(--wk-surface); }
+.wk-ptask-toggle { justify-self: start; }
+.wk-ptask-body[hidden] { display: none; }
 
 /* -- 0101: Nachrichten markieren — und in ein Thema zusammentragen --------------------------------------- */
 /* Über dem Verlauf, nicht davor: sonst rückte der Verlauf beim Markieren nach unten — unter der Maus weg. */
@@ -8291,3 +8295,31 @@ span.ch-sendas { cursor: default; }
 .ch-collect-new { display: grid; gap: 0.5rem; margin-bottom: 0.6rem; }
 .ch-collect-new .wk-btn { justify-self: start; }
 .ch-pickbar-actions .wk-btn { display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap; }
+
+/* -- 0101: Rozmowy gruppiert — die mit Menschen aus einem Formular unter einer Zeile ------------------- */
+.ch-item.is-group .ch-ava { background: color-mix(in srgb, var(--wk-accent) 14%, var(--wk-surface)); color: var(--wk-accent); }
+.ch-group-arrow { display: inline-flex; flex: none; color: var(--wk-muted); transition: transform 0.15s ease; }
+.ch-group-arrow .ch-i { width: 16px; height: 16px; }
+.ch-group-arrow.is-open { transform: rotate(180deg); }
+.ch-group-list { margin: 0 0 0.3rem 1.4rem; padding: 0 0 0 0.5rem; list-style: none; border-left: 2px solid var(--wk-line); }
+.ch-item.is-nested { padding: 0.35rem 0.5rem; gap: 0.55rem; }
+.ch-item.is-nested .ch-item-title { font-weight: 500; font-size: 0.93rem; }
+@media (prefers-reduced-motion: reduce) { .ch-group-arrow { transition: none; } }
+
+/* -- 0101: die Aufgabe als schmale Zeile — ○/✓, Name, blasser Zeitraum, Schild, Pfeil ------------------- */
+.wk-ptask { padding: 0; gap: 0; }
+.wk-ptask-row { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.45rem 0.7rem; border: 0; border-radius: 8px;
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.wk-ptask-row:hover { background: color-mix(in srgb, var(--wk-accent) 6%, transparent); }
+.wk-ptask-row:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-ptask-dot { flex: none; display: grid; place-items: center; width: 1.15rem; height: 1.15rem; border: 2px solid var(--wk-line); border-radius: 50%; color: var(--wk-on-accent); }
+.wk-ptask-dot.is-ok { background: var(--wk-free-line); border-color: var(--wk-free-line); }
+.wk-ptask-name { display: flex; flex: 1; flex-wrap: wrap; align-items: baseline; gap: 0 0.6rem; min-width: 0; }
+.wk-ptask-name .wk-ptask-title { font-size: 0.97rem; }
+.wk-ptask-row .wk-ptask-plan { font-size: 0.78rem; color: var(--wk-muted); opacity: 0.85; }
+.wk-ptask-row .wk-ptask-status { font-size: 0.72rem; padding: 0.05rem 0.45rem; }
+.wk-ptask-chev { flex: none; display: inline-flex; color: var(--wk-muted); transition: transform 0.15s ease; }
+.wk-ptask-row[aria-expanded="true"] .wk-ptask-chev { transform: rotate(180deg); }
+.wk-ptask-body { display: grid; gap: 0.45rem; padding: 0.1rem 0.85rem 0.75rem; }
+.wk-ptask-body[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .wk-ptask-chev { transition: none; } }

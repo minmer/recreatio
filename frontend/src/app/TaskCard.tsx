@@ -98,39 +98,46 @@ export function TaskCard({ label, help, task, office = false, taken, onPresence 
   const [open, setOpen] = useState(false);
   const rows = office && asked;
 
+  /*
+   * 0101 — EINE SCHMALE ZEILE: links ○ oder ✓, der Name, daneben klein und
+   * blass der Zeitraum, rechts das Schild und ein Pfeil. Erst aufgeklappt die
+   * Beschreibung, wann es ist, und der Kalender. (`wk-ptask`, nicht `wk-task`:
+   * so heissen die eigenen Aufgaben im Kalender — dieselben Klassen hatten
+   * deren Liste mitgestaltet.)
+   */
   return (
-    <div className={`wk-task is-${tone}`} data-task={state?.stepId ?? ''}>
-      <div className="wk-task-head">
-        <strong className="wk-task-title">{label}</strong>
-        <span className={`wk-task-status is-${tone}`}>{status}</span>
-      </div>
-      <p className="wk-task-plan">{planText(plan)}{need !== null && ` · potrzeba ${need}`}</p>
-      {help !== null && help.trim() !== '' && <p className="wk-hint" style={{ whiteSpace: 'pre-wrap' }}>{help}</p>}
-
-      <p className="wk-task-when">
-        {phase === 'upcoming' && `Zaczyna się ${dayText(coming ?? plan.startsOn)}${at === null ? '' : `, ${at}`}.`}
-        {coming !== null && phase === 'active' && at !== null && (coming === today ? `Dziś, ${at}.` : `Najbliżej: ${dayText(coming)}, ${at}.`)}
-        {phase === 'reporting' && `Zakończone — odpowiadać można do ${dayText(reportsUntil(plan))}.`}
-        {phase === 'over' && 'Zakończone.'}
-        {task.done > 0 && ` ${item ? 'Obecność' : 'Zrobione'}: ${task.done}${task.needed !== null && task.needed > 1 ? ` z ${task.needed}` : ''}.`}
-      </p>
-
-      {onPresence !== undefined && (
-        <button type="button" className={open || task.fulfilled ? 'wk-link-btn wk-task-toggle' : 'wk-btn wk-btn-quiet wk-task-toggle'}
-          aria-expanded={open} data-task-open="" onClick={() => setOpen(!open)}>
-          {open ? 'Zwiń' : rows ? 'Pokaż terminy' : task.fulfilled ? 'Pokaż kalendarz' : 'Odpowiedz w kalendarzu'}
-        </button>
-      )}
+    <div className={`wk-ptask is-${tone}${open ? ' is-open' : ''}`} data-task={state?.stepId ?? ''}>
+      <button type="button" className="wk-ptask-row" aria-expanded={open} data-task-open="" onClick={() => setOpen(!open)}>
+        <span className={`wk-ptask-dot${task.fulfilled ? ' is-ok' : ''}`} aria-hidden="true">
+          {task.fulfilled && (
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+          )}
+        </span>
+        <span className="wk-ptask-name">
+          <strong className="wk-ptask-title">{label}</strong>
+          <span className="wk-ptask-plan">{planText(plan)}{need !== null && ` · potrzeba ${need}`}</span>
+        </span>
+        <span className={`wk-ptask-status is-${tone}`}>{status}</span>
+        <span className="wk-ptask-chev" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+        </span>
+      </button>
 
       {/* Zugeklappt nur versteckt, nicht fort: was eben geklickt wurde, wird trotzdem gespeichert. */}
-      {onPresence !== undefined && (
-        <div hidden={!open} className="wk-task-body">
-          {rows
-            /* Bei der Kanzlei, für Termine mit Fragen vorher: je Termin eine Zeile, mit der Liste. */
-            ? <PresenceDates plan={plan} task={task} taken={taken} onPresence={onPresence} />
-            : <TaskCalendar task={task} days={days} office={office} taken={taken} onPresence={onPresence} />}
-        </div>
-      )}
+      <div hidden={!open} className="wk-ptask-body">
+        {help !== null && help.trim() !== '' && <p className="wk-hint" style={{ whiteSpace: 'pre-wrap' }}>{help}</p>}
+        <p className="wk-ptask-when">
+          {phase === 'upcoming' && `Zaczyna się ${dayText(coming ?? plan.startsOn)}${at === null ? '' : `, ${at}`}.`}
+          {coming !== null && phase === 'active' && at !== null && (coming === today ? `Dziś, ${at}.` : `Najbliżej: ${dayText(coming)}, ${at}.`)}
+          {phase === 'reporting' && `Zakończone — odpowiadać można do ${dayText(reportsUntil(plan))}.`}
+          {phase === 'over' && 'Zakończone.'}
+          {task.done > 0 && ` ${item ? 'Obecność' : 'Zrobione'}: ${task.done}${task.needed !== null && task.needed > 1 ? ` z ${task.needed}` : ''}.`}
+        </p>
+        {onPresence !== undefined && (rows
+          /* Bei der Kanzlei, für Termine mit Fragen vorher: je Termin eine Zeile, mit der Liste. */
+          ? <PresenceDates plan={plan} task={task} taken={taken} onPresence={onPresence} />
+          : <TaskCalendar task={task} days={days} office={office} taken={taken} onPresence={onPresence} />)}
+      </div>
     </div>
   );
 }

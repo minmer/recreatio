@@ -150,20 +150,69 @@ public static partial class Form
 
         bind(cmd);
 
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                var key = reader.GetGuid(0);
+                if (!out_.TryGetValue(key, out var list)) out_[key] = list = [];
+
+                list.Add(new
+                {
+                    stepId = Ids.ToText(reader.GetGuid(1)),
+                    doneAt = reader.GetDateTimeOffset(2),
+                    byPerson = reader.GetBoolean(3)
+                });
+            }
+        }
+
+        /* 0100 — die Schritte „Wybierz termin": erledigt, sobald der Platz einen Termin hält. */
+        foreach (var (key, marks) in await BookingMarksAsync(connection, registrationIdsSql, bind, ct))
+        {
+            if (!out_.TryGetValue(key, out var list)) out_[key] = list = [];
+            list.AddRange(marks);
+        }
+
+        return out_;
+    }
+
+    /// <summary>
+    /// 0100 — WIE EIN HAKEN: je Einsendung und Schritt „Wybierz termin" der
+    /// jüngste Termin, den ihr Platz bei dem Zasób hält oder erbeten hat
+    /// (wartend zählt: der Mensch hat getan, was an ihm war). Mit dem Termin
+    /// selbst, damit man sieht, welcher.
+    /// </summary>
+    internal static async Task<Dictionary<Guid, List<object>>> BookingMarksAsync(
+        SqlConnection connection, string registrationIdsSql, Action<SqlCommand> bind, CancellationToken ct)
+    {
+        var out_ = new Dictionary<Guid, List<object>>();
+        await using var cmd = new SqlCommand($"""
+            SELECT r.id, s.id, c.status, c.starts_at, c.ends_at, c.created_at
+            FROM app.registration r
+            JOIN app.form_step s ON s.module_id = r.part_id AND s.kind = N'booking'
+            CROSS APPLY (
+                SELECT TOP 1 x.status, x.starts_at, x.ends_at, x.created_at
+                FROM app.claim x
+                WHERE x.resource_id = s.resource_id AND x.access_id = r.access_id
+                  AND x.status IN (N'pending', N'confirmed')
+                ORDER BY x.starts_at DESC
+            ) c
+            WHERE r.id IN ({registrationIdsSql}) AND r.access_id IS NOT NULL;
+            """, connection);
+        bind(cmd);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
             var key = reader.GetGuid(0);
             if (!out_.TryGetValue(key, out var list)) out_[key] = list = [];
-
             list.Add(new
             {
                 stepId = Ids.ToText(reader.GetGuid(1)),
-                doneAt = reader.GetDateTimeOffset(2),
-                byPerson = reader.GetBoolean(3)
+                doneAt = reader.GetDateTimeOffset(5),
+                byPerson = true,
+                booking = new { status = reader.GetString(2), startsAt = reader.GetDateTimeOffset(3), endsAt = reader.GetDateTimeOffset(4) }
             });
         }
-
         return out_;
     }
 
@@ -177,7 +226,10 @@ public static partial class Form
         string Kind = "mark", TaskPlan? Plan = null,
 
         /* 0099 — die Funktionen in ihren Terminen, und der Kalender des Termins (für den Editor). */
-        IReadOnlyList<DutyRow>? Duties = null, Guid? CalendarId = null);
+        IReadOnlyList<DutyRow>? Duties = null, Guid? CalendarId = null,
+
+        /* 0100 — „Wybierz termin": bei welchem Zasób (und wie er heisst — der Name hängt aus). */
+        Guid? ResourceId = null, string? ResourceName = null);
 
     /// <summary>0099 — eine Funktion in den Terminen einer Aufgabe; die Beschriftung versiegelt.</summary>
     private sealed record DutyRow(Guid Id, int Position, Guid AreaId, int Epoch, byte[] Label, int? Capacity);
@@ -196,6 +248,11 @@ public static partial class Form
         visibleToPerson = s.VisibleToPerson,
         dueAt = s.DueAt,
         kind = s.Kind,
+        booking = s.Kind != "booking" ? null : new
+        {
+            resourceId = s.ResourceId is { } resource ? Ids.ToText(resource) : null,
+            resourceName = s.ResourceName
+        },
         task = s.Plan is null ? null : new
         {
             startsOn = DayText(s.Plan.StartsOn),
@@ -233,7 +290,7 @@ public static partial class Form
         await using var cmd = new SqlCommand($"""
             SELECT id, position, area_id, epoch, label_sealed, help_sealed, done_by, visible_to_person, due_at,
                    kind, starts_on, ends_on, schedule, weekdays, at_minute, minutes, needed, show_from, report_until,
-                   item_id, presence
+                   item_id, presence, resource_id, (SELECT x.name FROM app.resource x WHERE x.id = form_step.resource_id)
             FROM app.form_step
             WHERE module_id = @m {(personOnly ? "AND visible_to_person = 1" : "")}
             ORDER BY position;
@@ -257,7 +314,11 @@ public static partial class Form
                     (byte[])reader[4], reader.IsDBNull(5) ? null : (byte[])reader[5],
                     reader.GetString(6), reader.GetBoolean(7),
                     reader.IsDBNull(8) ? null : reader.GetDateTimeOffset(8),
-                    kind, plan));
+                    kind, plan)
+                {
+                    ResourceId = reader.IsDBNull(21) ? null : reader.GetGuid(21),
+                    ResourceName = reader.IsDBNull(22) ? null : reader.GetString(22)
+                });
             }
         }
 
@@ -393,7 +454,10 @@ public static partial class Form
         string DoneBy, bool VisibleToPerson, DateTimeOffset? DueAt,
 
         /* 0098 — eine Aufgabe mit Zeitraum (task) statt eines Znacznik (mark), und ihr Plan. */
-        string? Kind = null, TaskIn? Task = null);
+        string? Kind = null, TaskIn? Task = null,
+
+        /* 0100 — „Wybierz termin" (booking): bei welchem Zasób. */
+        string? ResourceId = null);
 
     public sealed record TaskIn(
         string? StartsOn, string? EndsOn, string? Schedule, int? Weekdays, int? AtMinute, int? Minutes, int? Needed,
@@ -456,7 +520,7 @@ public static partial class Form
         }
 
         var parsed = new List<(Guid Id, int Epoch, byte[] Label, byte[]? Help, string DoneBy, bool Visible, DateTimeOffset? Due, TaskPlan? Plan,
-            List<(Guid Id, byte[] Label, int? Capacity)> Duties)>();
+            List<(Guid Id, byte[] Label, int? Capacity)> Duties, Guid? Resource)>();
 
         foreach (var one in given)
         {
@@ -534,7 +598,29 @@ public static partial class Form
                 }
 
                 plan = read;
-                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), read.DoneBy, true, null, plan, duties));
+                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), read.DoneBy, true, null, plan, duties, null));
+                continue;
+            }
+
+            /*
+             * 0100 — „WYBIERZ TERMIN": erledigt sich, wenn der Mensch bei diesem Zasób
+             * einen Termin nimmt. Wer ihn anlegt, muss den Zasób sehen dürfen.
+             */
+            if ((one.Kind ?? "mark").Trim().ToLowerInvariant() == "booking")
+            {
+                Guid? resourceArea = null;
+                if (Guid.TryParse(one.ResourceId, out var resource))
+                {
+                    await using var find = new SqlCommand("SELECT area_id FROM app.resource WHERE id = @id;", connection);
+                    find.Parameters.AddWithValue("@id", resource);
+                    resourceArea = await find.ExecuteScalarAsync(ctx.RequestAborted) is Guid a ? a : null;
+                }
+                if (resourceArea is null || !await Area.MayAsync(connection, who.Value.AccountId, resourceArea.Value, Capability.Read, ctx.RequestAborted))
+                {
+                    await Fail(ctx, StatusCodes.Status400BadRequest, "Wybierz zasób, przy którym osoba wybiera termin.");
+                    return;
+                }
+                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), "person", true, one.DueAt, null, [], resource));
                 continue;
             }
 
@@ -547,7 +633,7 @@ public static partial class Form
 
             /* Was der Mensch abhaken soll, muss er sehen. */
             parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), doneBy,
-                doneBy == "person" || one.VisibleToPerson, one.DueAt, null, []));
+                doneBy == "person" || one.VisibleToPerson, one.DueAt, null, [], null));
         }
 
         if (parsed.Select(p => p.Id).Distinct().Count() != parsed.Count)
@@ -594,17 +680,17 @@ public static partial class Form
                                done_by = @doneBy, visible_to_person = @visible, due_at = @due,
                                kind = @kind, starts_on = @starts, ends_on = @ends, schedule = @schedule, weekdays = @weekdays,
                                at_minute = @at, minutes = @minutes, needed = @needed, show_from = @showFrom, report_until = @reportUntil,
-                               item_id = @item, presence = @presence
+                               item_id = @item, presence = @presence, resource_id = @resource
                          WHERE id = @id AND module_id = @m;
                     ELSE
                         INSERT INTO app.form_step
                             (id, module_id, position, area_id, epoch, label_sealed, help_sealed,
                              done_by, visible_to_person, due_at, created_at,
                              kind, starts_on, ends_on, schedule, weekdays, at_minute, minutes, needed, show_from, report_until,
-                             item_id, presence)
+                             item_id, presence, resource_id)
                         VALUES (@id, @m, @pos, @area, @epoch, @label, @help, @doneBy, @visible, @due, @now,
                                 @kind, @starts, @ends, @schedule, @weekdays, @at, @minutes, @needed, @showFrom, @reportUntil,
-                                @item, @presence);
+                                @item, @presence, @resource);
 
                     /* 0098 — Tage, die nach einem geänderten Plan nicht mehr dazugehören, gehen
                        (1900-01-01 war ein Montag: so ergibt sich das Bit des Wochentags ohne DATEFIRST). */
@@ -635,7 +721,8 @@ public static partial class Form
 
                 var plan = one.Plan;
                 object Day(DateOnly? d) => d is null ? DBNull.Value : d.Value.ToDateTime(TimeOnly.MinValue);
-                save.Parameters.AddWithValue("@kind", plan is null ? "mark" : "task");
+                save.Parameters.AddWithValue("@kind", one.Resource is not null ? "booking" : plan is null ? "mark" : "task");
+                save.Parameters.Add("@resource", System.Data.SqlDbType.UniqueIdentifier).Value = (object?)one.Resource ?? DBNull.Value;
                 save.Parameters.Add("@starts", System.Data.SqlDbType.Date).Value = Day(plan?.StartsOn);
                 save.Parameters.Add("@ends", System.Data.SqlDbType.Date).Value = Day(plan?.EndsOn);
                 save.Parameters.AddWithValue("@schedule", (object?)plan?.Schedule ?? DBNull.Value);
@@ -1149,6 +1236,10 @@ public static partial class Form
                     });
                 }
             }
+
+            /* 0100 — „Wybierz termin": der Termin, den sein Platz hält. */
+            var booked = await BookingMarksAsync(connection, "@reg", c => c.Parameters.AddWithValue("@reg", registrationId), ct);
+            if (booked.TryGetValue(registrationId, out var bookedMarks)) marks.AddRange(bookedMarks);
 
             out_.Add(new
             {

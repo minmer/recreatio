@@ -254,6 +254,34 @@ function ChatList({ me, current }: { me: Me; current: string | undefined }) {
   const rows = (archived ? inArchive : others.filter((c) => c.preferences?.archived !== true))
     .filter((c) => fits(titles.get(c.chatId) ?? c.areaName));
 
+  /*
+   * 0101 — GRUPPIERT. Die Rozmowy mit Menschen aus einem Formular („Rozmowa z: …")
+   * stehen je Bereich der Prowadzący unter EINER Zeile, wie ein Thema: zugeklappt
+   * mit der Zahl der neuen, aufgeklappt die Menschen. Beim Suchen steht alles
+   * einzeln da; die geöffnete Rozmowa klappt ihre Gruppe von selbst auf.
+   */
+  const [openGroups, setOpenGroups] = useRemembered('chat.groups.open', '');
+  const opened = new Set(openGroups.split(',').filter((one) => one !== ''));
+  const toggleGroup = (key: string) => {
+    const next = new Set(opened);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    setOpenGroups([...next].join(','));
+  };
+  type Entry = { readonly kind: 'chat'; readonly chat: ChatRow } | { readonly kind: 'group'; readonly key: string; readonly title: string; readonly chats: ChatRow[] };
+  const entries: Entry[] = [];
+  {
+    const seatsByArea = new Map<string, ChatRow[]>();
+    for (const chat of rows) if (chat.kind === 'seat') seatsByArea.set(chat.areaId, [...(seatsByArea.get(chat.areaId) ?? []), chat]);
+    const placed = new Set<string>();
+    for (const chat of rows) {
+      const group = chat.kind === 'seat' && needle === '' ? seatsByArea.get(chat.areaId) ?? [] : [];
+      if (group.length < 2) { entries.push({ kind: 'chat', chat }); continue; }
+      if (placed.has(chat.areaId)) continue;
+      placed.add(chat.areaId);
+      entries.push({ kind: 'group', key: `seat:${chat.areaId}`, title: titleOfSeatArea(chat), chats: group });
+    }
+  }
+
   /* NOTATKI — beim ersten Mal entstehen der eigene Bereich (falls nötig) und die Rozmowa darin. */
   const openSelf = async () => {
     const person = me.roles.find((r) => r.kind === 'person' && me.ring.maySign(r.id));
@@ -272,6 +300,33 @@ function ChatList({ me, current }: { me: Me; current: string | undefined }) {
     } finally {
       setOpening(false);
     }
+  };
+
+  /* Eine Rozmowa in der Liste — in einer Gruppe ohne „Rozmowa z:" und ohne den Bereich (der steht an der Gruppe). */
+  const chatItem = (chat: ChatRow, nested: boolean) => {
+    const full = titles.get(chat.chatId) ?? chat.areaName;
+    const title = nested && chat.kind === 'seat' ? chat.seatName ?? 'osoba z formularza' : full;
+    const here = current === chat.chatId;
+    return (
+      <a className={`ch-item${nested ? ' is-nested' : ''}${here ? ' is-current' : ''}${chat.unread > 0 ? ' is-unread' : ''}`} href={viewPath('chat', chat.chatId)}
+        aria-current={here ? 'page' : undefined}>
+        <Avatar seed={seedOf(me, chat)} name={title} size={nested ? 'sm' : 'md'} />
+        <span className="ch-item-main">
+          <span className="ch-item-top">
+            <strong className="ch-item-title">{title}</strong>
+            {chat.lastMessageAt !== null && <time className="ch-item-time" dateTime={chat.lastMessageAt}>{listTime(chat.lastMessageAt)}</time>}
+          </span>
+          {(!nested || chat.unread > 0 || chat.preferences?.muted === true) && (
+            <span className="ch-item-bottom">
+              {!nested && <span className="ch-item-sub">{kindText(chat)}</span>}
+              {nested && <span className="ch-item-sub" />}
+              {chat.preferences?.muted === true && <span className="ch-item-muted"><Icon name="bell-off" label="wyciszona" /></span>}
+              {chat.unread > 0 && <span className="ch-badge" aria-label={`${chat.unread} nowych`}>{chat.unread}</span>}
+            </span>
+          )}
+        </span>
+      </a>
+    );
   };
 
   const menu: MenuItem[] = [
@@ -352,26 +407,34 @@ function ChatList({ me, current }: { me: Me; current: string | undefined }) {
           </li>
         )}
 
-        {rows.map((chat) => {
-          const title = titles.get(chat.chatId) ?? chat.areaName;
-          const here = current === chat.chatId;
+        {entries.map((entry) => {
+          if (entry.kind === 'chat') return <li key={entry.chat.chatId}>{chatItem(entry.chat, false)}</li>;
+          const unread = entry.chats.reduce((sum, c) => sum + c.unread, 0);
+          const last = entry.chats.map((c) => c.lastMessageAt).filter((at): at is string => at !== null).sort().pop() ?? null;
+          const inside = entry.chats.some((c) => c.chatId === current);
+          const open = opened.has(entry.key) || inside;
           return (
-            <li key={chat.chatId}>
-              <a className={`ch-item${here ? ' is-current' : ''}${chat.unread > 0 ? ' is-unread' : ''}`} href={viewPath('chat', chat.chatId)}
-                aria-current={here ? 'page' : undefined}>
-                <Avatar seed={seedOf(me, chat)} name={title} />
+            <li key={entry.key} className="ch-group">
+              <button type="button" className={`ch-item is-group${unread > 0 ? ' is-unread' : ''}`} aria-expanded={open} data-chat-group={entry.key}
+                onClick={() => toggleGroup(entry.key)}>
+                <span className="ch-ava is-md is-icon is-plain" aria-hidden="true"><Icon name="users" /></span>
                 <span className="ch-item-main">
                   <span className="ch-item-top">
-                    <strong className="ch-item-title">{title}</strong>
-                    {chat.lastMessageAt !== null && <time className="ch-item-time" dateTime={chat.lastMessageAt}>{listTime(chat.lastMessageAt)}</time>}
+                    <strong className="ch-item-title">{entry.title}</strong>
+                    {last !== null && <time className="ch-item-time" dateTime={last}>{listTime(last)}</time>}
                   </span>
                   <span className="ch-item-bottom">
-                    <span className="ch-item-sub">{kindText(chat)}</span>
-                    {chat.preferences?.muted === true && <span className="ch-item-muted"><Icon name="bell-off" label="wyciszona" /></span>}
-                    {chat.unread > 0 && <span className="ch-badge" aria-label={`${chat.unread} nowych`}>{chat.unread}</span>}
+                    <span className="ch-item-sub">osoby z formularza · {entry.chats.length} {plural(entry.chats.length, 'rozmowa', 'rozmowy', 'rozmów')}</span>
+                    {unread > 0 && <span className="ch-badge" aria-label={`${unread} nowych`}>{unread}</span>}
+                    <span className={`ch-group-arrow${open ? ' is-open' : ''}`} aria-hidden="true"><Icon name="chevron" /></span>
                   </span>
                 </span>
-              </a>
+              </button>
+              {open && (
+                <ul className="ch-group-list">
+                  {entry.chats.map((chat) => <li key={chat.chatId}>{chatItem(chat, true)}</li>)}
+                </ul>
+              )}
             </li>
           );
         })}

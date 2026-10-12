@@ -27,6 +27,7 @@
  *      ist kein Schritt.
  *  25. Zaproszenia (0099): eine Aufgabe an Terminen eines Kalenders — die Termine im Zeitraum, der Plan in Worten,
  *      będę / nie wiem / nie będę, Funktionen mit Platz, die Liste danach, wer zu allem abgesagt hat.
+ *  26. Seite in Spalten (0101): jede Spalte für sich, am Ende in kürzere Spalten derselben Breite; Schritt „Wybierz termin" (0100).
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -103,6 +104,7 @@ export { hostPair, askNameFor, openAskNames } from '${app}holderNames';
 export { taskDays, taskDay, phaseOf, progressOf as taskProgress, planText, weekdayBit, nextDay, reportsUntil, chipText as taskChip } from '${app}candidateTasks';
 export { byReadingOrder } from '${app}layout';
 export { respondedTo, doneDays } from '${app}candidateTasks';
+export { pack } from '${app}masonry';
 export { datesOf, declinedAll, attendanceOn, dutyRoom, termsText } from '${app}candidateTasks';
 `);
 await build({
@@ -1790,6 +1792,55 @@ try {
     assert.equal(states('2026-10-12', [two])[0].task.doneBy, 'office', 'the office keeps the list');
     assert.equal(states('2026-10-12', [two])[0].task.duties[0].label, 'Krzyż');
     ok('invitations (0099): a task on calendar dates — the dates in the period, the plan in words, the list after, functions with room, who said no to all');
+  }
+
+  /* -- 26. Seite in Spalten (0101), Schritt „Wybierz termin" (0100) --------------------------------- */
+  {
+    const at = (r, id) => r.placed.find((p) => p.id === id);
+    /* Links lang, rechts zwei kurze: der zweite kurze steht unter dem ersten, nicht unter dem langen. */
+    const two = m.pack([
+      { id: 'long', col: 1, span: 3, height: 600 },
+      { id: 'a', col: 4, span: 3, height: 100 },
+      { id: 'b', col: 4, span: 3, height: 100 }
+    ], 6, 16);
+    assert.equal(at(two, 'b').top, 116, 'each column for itself');
+    assert.equal(two.height, 600);
+
+    /* Unter dem langen einer mehr: er wandert rechts hinauf (dieselbe Breite). */
+    const tail = m.pack([
+      { id: 'long', col: 1, span: 3, height: 600 },
+      { id: 'a', col: 4, span: 3, height: 100 },
+      { id: 'last', col: 1, span: 3, height: 100 }
+    ], 6, 16);
+    assert.deepEqual([at(tail, 'last').col, at(tail, 'last').top], [4, 116], 'the last one moves to the column that ended earlier');
+
+    /* Breit passt nicht in schmal: ein Baustein über alle Spalten bleibt, wo er ist. */
+    const wide = m.pack([
+      { id: 'long', col: 1, span: 3, height: 600 },
+      { id: 'a', col: 4, span: 3, height: 100 },
+      { id: 'all', col: 1, span: 6, height: 50 }
+    ], 6, 16);
+    assert.deepEqual([at(wide, 'all').col, at(wide, 'all').top], [1, 616]);
+
+    /* Kein Wechsel für ein paar Pixel. */
+    const close = m.pack([
+      { id: 'x', col: 1, span: 3, height: 120 },
+      { id: 'y', col: 4, span: 3, height: 100 },
+      { id: 'z', col: 1, span: 3, height: 100 }
+    ], 6, 16);
+    assert.equal(at(close, 'z').col, 1, 'twenty pixels are not worth a move');
+
+    /* 0100 — „Wybierz termin": erledigt mit einem Termin des Platzes; niemand hakt ab. */
+    const booking = { stepId: 'b', position: 0, areaId: 'a', epoch: 1, labelSealed: '', helpSealed: null, doneBy: 'person', visibleToPerson: true,
+      dueAt: null, kind: 'booking', booking: { resourceId: 'r', resourceName: 'Spotkanie' }, label: 'Wybierz termin', help: null };
+    const states = (marks) => m.stepsFor({ hasSeat: false, confirmedAt: null, extensions: [], filled: new Map(), steps: [booking], marks });
+    assert.equal(states([])[0].status, 'todo');
+    assert.equal(states([])[0].source, 'auto', 'nobody ticks it');
+    const chosen = { status: 'pending', startsAt: '2026-10-15T08:00:00Z', endsAt: '2026-10-15T09:00:00Z' };
+    const done = states([{ stepId: 'b', doneAt: '2026-10-12T10:00:00Z', byPerson: true, booking: chosen }])[0];
+    assert.equal(done.status, 'done');
+    assert.deepEqual(done.booking, { resourceName: 'Spotkanie', chosen });
+    ok('page in columns (0101) and „Wybierz termin" (0100): each column for itself, the tail into shorter columns of the same width, a booking finishes its step');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

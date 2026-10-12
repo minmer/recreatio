@@ -908,7 +908,13 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
 
   /* -- Die Zeilen: Tage, „Nieprzeczytane", Gruppen einer Person ----------------- */
 
-  const rows: ReactNode[] = [];
+  /*
+   * 0101 — JE TAG EIN ABSCHNITT. Das Datum klebt oben, solange sein Tag zu
+   * sehen ist — und nur so lange: lagen alle Daten in EINEM Behälter, klebten
+   * sie übereinander („5 Wczoraj a": das breitere schaute unter dem schmaleren hervor).
+   */
+  const blocks: { key: string; nodes: ReactNode[] }[] = [];
+  let rows: ReactNode[] = [];
   let unreadPlaced = false;
   const unreadAt = unreadAfter === null ? null : new Date(unreadAfter).getTime();
   visible.forEach((item, i) => {
@@ -918,6 +924,8 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
     const mine = rules.mine(message);
     const newDay = prev === undefined || dayKey(prev.createdAt) !== dayKey(message.createdAt);
     if (newDay) {
+      rows = [];
+      blocks.push({ key: `d-${message.messageId}`, nodes: rows });
       rows.push(<div key={`d-${message.messageId}`} className="ch-day" role="separator"><span>{dayLabel(message.createdAt)}</span></div>);
     }
     let divider = false;
@@ -1050,7 +1058,7 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
           {items !== undefined && all.length > 0 && visible.length === 0 && (
             <p className="ch-empty">{search !== '' ? `Nic nie pasuje do „${search}" we wczytanych wiadomościach.` : 'Nie ma tu takich wiadomości.'}</p>
           )}
-          {rows}
+          {blocks.map((b) => <section key={b.key} className="ch-dayblock">{b.nodes}</section>)}
         </div>
       </div>
 

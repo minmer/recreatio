@@ -16,11 +16,12 @@
  * der die Seite führt: der eine soll ihn füllen, dem anderen sagt er nichts.
  */
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 
 import {
   byReadingOrder, COLUMNS, frameFor, snapColSpan, snapRowSpan, useBreakpoint
 } from './layout';
+import { pack } from './masonry';
 import { Fullscreen } from './Modal';
 import type { DraftPart } from './page';
 import { partSize, text, type PartModule, type PartSize, type RawConfig } from './part';
@@ -110,12 +111,60 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
     return def === undefined || def.hasContent(part.config);
   }), breakpoint);
 
+  /*
+   * 0101 — JEDE SPALTE FÜR SICH (`masonry.pack`). Die Bausteine werden gemessen
+   * und so hoch gestellt, wie es in IHREN Spalten geht; ein hoher daneben
+   * zieht niemanden mehr mit. Am Ende wandern die letzten in Spalten, die
+   * früher enden. Gemessen wird vor dem Zeichnen (useLayoutEffect) und wieder,
+   * sobald sich eine Kachel ändert (ein Bild lädt, ein Streifen klappt auf).
+   */
+  const cards = useRef(new Map<string, HTMLElement>());
+  const heights = useRef(new Map<string, number>()).current;
+  const [, redraw] = useState(0);
+  const remPx = typeof document === 'undefined' ? 16 : parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const gap = remPx;
+
+  /*
+   * Gemessen wird HIER, im Effekt — nicht in einer Zustandsfunktion: die
+   * läuft beim Zeichnen, wenn die Kacheln noch die alte Gestalt haben, und
+   * zwei Messungen derselben Kachel stritten sich dann ohne Ende (#185).
+   */
+  const measure = () => {
+    let changed = false;
+    for (const [id, el] of cards.current) {
+      const h = el.offsetHeight;
+      if (heights.get(id) !== h) { heights.set(id, h); changed = true; }
+    }
+    if (changed) redraw((n) => n + 1);
+  };
+  useLayoutEffect(measure);
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const watch = new ResizeObserver(() => measure());
+    for (const el of cards.current.values()) watch.observe(el);
+    return () => watch.disconnect();
+  });
+
   if (shown.length === 0) return null;
 
+  const boxes = shown.map((part) => {
+    const frame = frameFor(part, breakpoint);
+    return { part, frame, colSpan: snapColSpan(frame.size.colSpan, columns), rowSpan: snapRowSpan(frame.size.rowSpan) };
+  });
+  /* Vor dem ersten Messen: so hoch, wie der Editor sie gelegt hat. */
+  const guess = (rowSpan: number) => rowSpan * 5.25 * remPx + (rowSpan - 1) * gap;
+  const layout = pack(boxes.map((b) => ({
+    id: b.part.id, col: b.frame.position.col, span: b.colSpan, height: heights.get(b.part.id) ?? guess(b.rowSpan)
+  })), columns, gap);
+  const spot = new Map(layout.placed.map((p) => [p.id, p] as const));
+  const across = (n: number) => `(100% - ${columns - 1} * var(--page-gap)) / ${columns} * ${n}`;
+
   return (
-    <div className="wk-page-grid" style={{ '--page-cols': columns } as CSSProperties} onClick={jumpWithin}>
+    <div className="wk-page-grid is-packed" style={{ '--page-cols': columns, '--page-gap': '1rem', height: `${Math.ceil(layout.height)}px` } as CSSProperties}
+      onClick={jumpWithin}>
       {shown.map((part) => {
         const frame = frameFor(part, breakpoint);
+        const placed = spot.get(part.id);
 
         /*
          * Einmal gerechnet und weitergereicht: der Messplan entscheidet an
@@ -142,13 +191,17 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
           <article
             key={part.id}
             id={`part-${part.id}`}
+            ref={(el) => { if (el === null) cards.current.delete(part.id); else cards.current.set(part.id, el); }}
             data-anchor={anchorOf(slideLabelOf(part))}
             className={`wk-card wk-card-${part.kind}${canFull ? ' has-full' : ''}`}
             data-w={size.width}
             data-h={size.height}
             style={{
-              gridColumn: `${frame.position.col} / span ${box.colSpan}`,
-              gridRow: `span ${box.rowSpan}`
+              position: 'absolute',
+              top: `${placed?.top ?? 0}px`,
+              left: `calc(${across((placed?.col ?? frame.position.col) - 1)} + ${(placed?.col ?? frame.position.col) - 1} * var(--page-gap))`,
+              width: `calc(${across(box.colSpan)} + ${box.colSpan - 1} * var(--page-gap))`,
+              minHeight: `calc(${box.rowSpan} * 5.25rem + ${box.rowSpan - 1} * var(--page-gap))`
             }}
           >
             {hidden.has(part.id) ? (

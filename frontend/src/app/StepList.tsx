@@ -18,6 +18,7 @@ import { useState } from 'react';
 
 import { isoDay, periodText, planText, WEEKDAYS } from './candidateTasks';
 import { PickCalendar, PickCalendarItem } from './PickCalendar';
+import { PickResource } from './PickResource';
 import { FormCard } from './FormCard';
 import { newId } from './ids';
 import type { SeatView } from './seatContext';
@@ -137,7 +138,16 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
                         {s.source === 'hand' && s.doneBy === 'office' && s.status !== 'done' && (
                           <p className="wk-hint">Odhacza kancelaria, gdy to otrzyma.</p>
                         )}
+                        {s.booking !== undefined && <BookingLine booking={s.booking} />}
                       </div>
+
+                      {/* 0100 — „Wybierz termin": dorthin, wo die Termine auf der Seite stehen. */}
+                      {s.booking !== undefined && s.status !== 'done' && document.querySelector('.wk-card-slots') !== null && (
+                        <button type="button" className="wk-btn" data-step-booking=""
+                          onClick={() => document.querySelector('.wk-card-slots')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+                          Wybierz termin
+                        </button>
+                      )}
 
                       {/* Was der Mensch selbst tun kann — gleich hier. */}
                       {ext !== undefined && (
@@ -178,6 +188,20 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
 
       {failed !== null && <p className="wk-error">{failed}</p>}
     </>
+  );
+}
+
+/** 0100 — „Wybierz termin": welcher Termin gewählt ist (und ob er noch auf ein Ja wartet) — oder wo man wählt. */
+function BookingLine({ booking }: { booking: NonNullable<StepState['booking']> }) {
+  const when = booking.chosen === null ? null : new Date(booking.chosen.startsAt).toLocaleString('pl-PL', {
+    weekday: 'short', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
+  });
+  return (
+    <p className="wk-hint" data-booking-line="">
+      {when === null
+        ? `Termin wybierasz w rezerwacji${booking.resourceName !== null ? ` „${booking.resourceName}"` : ''}.`
+        : `Wybrany termin: ${when}${booking.chosen!.status === 'pending' ? ' — czeka na potwierdzenie' : ''}.`}
+    </p>
   );
 }
 
@@ -231,6 +255,7 @@ export function PersonSteps({ registrationId, states, onChanged, onError }: {
                   {s.source === 'auto' ? ' · automatycznie' : s.doneBy === 'person' ? ' · odhacza osoba' : ''}
                   {!s.visibleToPerson && ' · osoba tego nie widzi'}
                 </span>
+                {s.booking !== undefined && <BookingLine booking={s.booking} />}
               </div>
 
               {/* Von Hand angelegt: die Kanzlei darf jeden abhaken — auch den, den sonst der Mensch abhakt. */}
@@ -265,6 +290,7 @@ const draftOf = (s: OpenStep): StepDraft => ({
   visibleToPerson: s.visibleToPerson,
   dueAt: s.dueAt === null ? '' : new Date(s.dueAt).toLocaleDateString('sv-SE'),
   kind: s.kind ?? 'mark',
+  ...(s.kind === 'booking' ? { resourceId: s.booking?.resourceId ?? '' } : {}),
   ...(s.kind === 'task' && s.task != null ? {
     task: {
       startsOn: s.task.startsOn, endsOn: s.task.endsOn, schedule: s.task.schedule, weekdays: s.task.weekdays ?? 16,
@@ -300,6 +326,7 @@ function taskProblem(t: TaskDraft): string | null {
   if (t.showFrom !== '' && t.showFrom > t.startsOn) return '„widoczne od" po początku';
   if (t.reportUntil !== '' && t.reportUntil < t.endsOn) return '„zaznaczać do" przed końcem';
   if (t.schedule === 'item' && (t.itemId ?? '') === '') return 'wybierz termin z kalendarza';
+  /* (Ein Schritt „Wybierz termin" ohne Zasób prüft `save`.) */
   if ((t.duties ?? []).some((d) => d.capacity.trim() !== '' && !(Number.isInteger(Number(d.capacity)) && Number(d.capacity) >= 1 && Number(d.capacity) <= 500)))
     return 'ile osób w funkcji: liczba od 1 do 500 albo puste';
   return null;
@@ -352,6 +379,11 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
     const wrong = drafts.find((d) => d.kind === 'task' && d.label.trim() !== '' && d.task !== undefined && taskProblem(d.task) !== null);
     if (wrong !== undefined) {
       onError(`Zadanie „${wrong.label.trim()}": ${taskProblem(wrong.task!)}.`);
+      return;
+    }
+    const unbooked = drafts.find((d) => d.kind === 'booking' && d.label.trim() !== '' && (d.resourceId ?? '') === '');
+    if (unbooked !== undefined) {
+      onError(`Znacznik „${unbooked.label.trim()}": wybierz, przy czym osoba wybiera termin.`);
       return;
     }
     setSaving(true);
@@ -434,12 +466,23 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
             <div className="wk-inline">
               <label className="wk-inline">
                 <span className="wk-hint">Odhacza</span>
-                <select value={d.doneBy} onChange={(e) => set(i, { doneBy: e.target.value as DoneBy })}>
+                {/* 0100 — „sam": der Schritt erledigt sich, wenn die Person bei einem Zasób einen Termin nimmt. */}
+                <select value={d.kind === 'booking' ? 'booking' : d.doneBy} data-mark-done-by=""
+                  onChange={(e) => set(i, e.target.value === 'booking'
+                    ? { kind: 'booking', doneBy: 'person', visibleToPerson: true, resourceId: d.resourceId ?? '' }
+                    : { kind: 'mark', doneBy: e.target.value as DoneBy })}>
                   <option value="office">kancelaria</option>
                   <option value="person">osoba sama</option>
+                  <option value="booking">sam — gdy osoba wybierze termin</option>
                 </select>
               </label>
-              {d.doneBy === 'office' && (
+              {d.kind === 'booking' && (
+                <label className="wk-inline" data-mark-resource="">
+                  <span className="wk-hint">Termin w</span>
+                  <PickResource value={d.resourceId ?? ''} busy={false} onPick={(resourceId) => set(i, { resourceId })} />
+                </label>
+              )}
+              {d.kind !== 'booking' && d.doneBy === 'office' && (
                 <label className="wk-inline">
                   <input type="checkbox" checked={d.visibleToPerson}
                     onChange={(e) => set(i, { visibleToPerson: e.target.checked })} />

@@ -34,7 +34,7 @@ export type DoneBy = 'office' | 'person';
  * 0098 — WAS FÜR EIN SCHRITT: ein Znacznik (einmal abgehakt) oder eine
  * AUFGABE mit Zeitraum, zu der der Mensch selbst etwas sagt (`candidateTasks.ts`).
  */
-export type StepKind = 'mark' | 'task';
+export type StepKind = 'mark' | 'task' | 'booking';
 
 /**
  * 0098 — wann eine Aufgabe gilt: einmal in beliebigem Tag, jeden Tag, an
@@ -147,6 +147,9 @@ export interface SealedStep {
   /** 0098 — fehlt beim alten Dienst: dann ein Znacznik. */
   readonly kind?: StepKind;
   readonly task?: TaskPlan | null;
+
+  /** 0100 — „Wybierz termin": bei welchem Zasób (der Name hängt aus). */
+  readonly booking?: { readonly resourceId: string | null; readonly resourceName: string | null } | null;
 }
 
 export interface OpenStep extends SealedStep {
@@ -245,6 +248,9 @@ export interface StepDraft {
   /** 0098 — ein Znacznik oder eine Aufgabe, und ihr Plan (als Eingaben: Texte). */
   readonly kind?: StepKind;
   readonly task?: TaskDraft;
+
+  /** 0100 — „Wybierz termin": der Zasób. */
+  readonly resourceId?: string;
 }
 
 /** 0099 — eine Funktion, wie sie im Editor steht. */
@@ -323,6 +329,7 @@ export async function saveSteps(
     /* Bis zum Ende des Tages — „do 15 sierpnia" heisst: auch am 15. noch. */
     dueAt: one.kind === 'task' || one.dueAt === '' ? null : new Date(`${one.dueAt}T23:59:59`).toISOString(),
     kind: one.kind ?? 'mark',
+    resourceId: one.kind === 'booking' ? one.resourceId ?? null : null,
     task: one.kind === 'task' && one.task !== undefined ? {
       ...taskIn(one.task),
       /* 0099 — die Funktionen: nur mit „vorher fragen", die Beschriftung versiegelt wie die der Aufgabe. */
@@ -474,6 +481,12 @@ export interface StepState {
   /** Ein von Hand angelegter Schritt: welcher. */
   readonly stepId: string | null;
 
+  /** 0100 — „Wybierz termin": bei welchem Zasób, und der Termin, wenn einer gewählt ist. */
+  readonly booking?: {
+    readonly resourceName: string | null;
+    readonly chosen: { readonly status: 'pending' | 'confirmed'; readonly startsAt: string; readonly endsAt: string } | null;
+  };
+
   /** 0098 — eine Aufgabe: ihr Plan, was er gesagt hat, wie weit er ist, und wo im Zeitraum sie steht. */
   readonly task?: {
     readonly plan: TaskPlan;
@@ -592,6 +605,20 @@ export function stepsFor(input: {
     }
 
     const mark = input.marks.find((m) => m.stepId === one.stepId) ?? null;
+
+    /* 0100 — „WYBIERZ TERMIN": erledigt sich, sobald sein Platz einen Termin hält — niemand hakt ab. */
+    if (one.kind === 'booking') {
+      out.push({
+        key: `step:${one.stepId}`,
+        label: one.label ?? 'Wybór terminu (zapieczętowany)',
+        help: one.help,
+        source: 'auto', doneBy: 'person', visibleToPerson: true,
+        status: state(mark?.doneAt ?? null, one.dueAt), doneAt: mark?.doneAt ?? null, dueAt: one.dueAt,
+        extensionId: null, stepId: one.stepId,
+        booking: { resourceName: one.booking?.resourceName ?? null, chosen: mark?.booking ?? null }
+      });
+      continue;
+    }
 
     out.push({
       key: `step:${one.stepId}`,
