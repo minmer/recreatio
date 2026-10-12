@@ -23,7 +23,7 @@
 import type { Digest } from './notify';
 import { chatLabel } from './notify';
 import { useRemembered } from './prefs';
-import { viewPath } from './routes';
+import { formNewsPath, viewPath } from './routes';
 
 export type AlertKind = 'forms' | 'chats' | 'bookings' | 'steps' | 'tasks' | 'today' | 'links';
 
@@ -143,7 +143,7 @@ export function alertItems(
     if (kind === 'forms') {
       for (const f of digest?.registrations.list ?? []) {
         if (!inScope(f.areaId)) continue;
-        out.push({ kind, key: `f${f.moduleId}`, label: f.name, count: f.count, detail: `${f.count} ${plural(f.count, 'nowe', 'nowe', 'nowych')}`, href: viewPath('modules', 'form', f.moduleId), seen: { form: f.moduleId } });
+        out.push({ kind, key: `f${f.moduleId}`, label: f.name, count: f.count, detail: `${f.count} ${plural(f.count, 'nowe', 'nowe', 'nowych')}`, href: formNewsPath(f.moduleId), seen: { form: f.moduleId } });
       }
     } else if (kind === 'chats') {
       for (const c of (digest?.chats.list ?? []).filter((one) => one.unread > 0)) {
@@ -158,7 +158,7 @@ export function alertItems(
     } else if (kind === 'steps') {
       for (const s of digest?.steps?.list ?? []) {
         if (!inScope(s.areaId)) continue;
-        out.push({ kind, key: `s${s.moduleId ?? s.name}`, label: s.name, count: s.count, detail: `${s.count} ${plural(s.count, 'krok', 'kroki', 'kroków')} po terminie`, href: s.moduleId === undefined ? viewPath('modules') : viewPath('modules', 'form', s.moduleId) });
+        out.push({ kind, key: `s${s.moduleId ?? s.name}`, label: s.name, count: s.count, detail: `${s.count} ${plural(s.count, 'krok', 'kroki', 'kroków')} po terminie`, href: s.moduleId === undefined ? viewPath('modules') : formNewsPath(s.moduleId) });
       }
     } else if (kind === 'tasks') {
       if (scope === null && (digest?.tasks ?? 0) > 0) {

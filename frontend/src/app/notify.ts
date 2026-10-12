@@ -41,7 +41,7 @@
 import { API, call, keepsKey, type Who } from './session';
 import { background, native, notices } from './platform';
 import { gatherNews, handOverRoleWaiting, handOverWaiting, type ReminderNotice } from './notifyRich';
-import { viewPath } from './routes';
+import { formNewsPath, viewPath } from './routes';
 import { toBase64Url } from './crypto';
 import { openDigest } from './digestNames';
 import { sealLegacyNamesQuietly } from './nameSeal';
@@ -455,7 +455,7 @@ function ringPlain(digest: Digest, plan: Ringing): void {
       title: digest.registrations.count === 1 ? 'Nowe zgłoszenie' : `Nowe zgłoszenia: ${digest.registrations.count}`,
       body: form === undefined ? 'Ktoś wypełnił formularz.' : form.name,
       tag: 'forms',
-      open: form === undefined ? viewPath('modules') : viewPath('modules', 'form', form.moduleId)
+      open: form === undefined ? viewPath('modules') : formNewsPath(form.moduleId)
     }, 'news');
   }
   if (plan.links) {

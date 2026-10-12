@@ -489,5 +489,14 @@ export const pageSteps = (pagePath: string): readonly string[] =>
  */
 export const PEOPLE_TAB = 'osoby';
 
+/**
+ * 0103 — WOHIN EINE MELDUNG ÜBER NEUE MENSCHEN FÜHRT: zu DEM Formular, in das
+ * eingesandt wurde — auch zu einem Unterformular, nicht zu seinem
+ * Hauptformular —, gleich auf seiner Liste (nicht auf dem Reiter, der zuletzt
+ * offen war). Die Glocke, der Widok obszaru, die Liste der Formulare und die
+ * Meldungen des Telefons nehmen alle diese Adresse.
+ */
+export const formNewsPath = (moduleId: string): string => viewPath('modules', 'form', moduleId, PEOPLE_TAB);
+
 /** Die Adresse der Kacheln — das Ziel jedes Zurück-Pfeils. */
 export const tilesPath = (): string => path('workspace');

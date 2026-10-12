@@ -185,31 +185,68 @@ public static partial class Form
 
     /// <summary>
     /// 0102 — WIE EIN HAKEN: je Einsendung und Schritt „Przeczytaj wiadomości",
-    /// wenn in den gewählten Rozmowy ihres Platzes nichts Ungelesenes liegt —
-    /// mit dem Zeitpunkt, bis zu dem er zuletzt gelesen hat (sonst dem der
-    /// Einsendung: es gab nie etwas zu lesen). Liegt etwas da, fehlt der Haken.
-    /// Ungelesen ist, was nicht von ihm selbst kam und nach seinem `read_at`
-    /// geschrieben wurde — dieselbe Rechnung wie in seiner Liste der Rozmowy.
+    /// wenn in den gewählten Rozmowy nichts Ungelesenes liegt — mit dem
+    /// Zeitpunkt, bis zu dem zuletzt gelesen wurde (sonst dem der Einsendung:
+    /// es gab nie etwas zu lesen). Liegt etwas da, fehlt der Haken.
+    ///
+    /// <para>
+    /// <b>Seine Rozmowy</b> sind die seines Links (<c>SeatOfChat</c>); hat er
+    /// keinen (mit dem Konto eingesandt), die, die seine Person über ihre Rollen
+    /// liest — die Gruppe und der Kanał eines Bereichs. <b>Gelesen</b> hat er
+    /// über den Link ODER mit seinem Konto (<see cref="ChatReaders"/>) — dieselbe
+    /// Rechnung wie in der Liste der Rozmowy seines Links.
+    /// </para>
     /// </summary>
     internal static async Task<Dictionary<Guid, List<object>>> ChatMarksAsync(
         SqlConnection connection, string registrationIdsSql, Action<SqlCommand> bind, CancellationToken ct)
     {
-        const string chosen = "(st.chat_kind = N'all' OR c.kind = st.chat_kind) AND (st.chat_area_id IS NULL OR c.area_id = st.chat_area_id)";
+        const string chosen = "(st.chat_kind = N'all' OR c.kind = st.chat_kind) AND (st.chat_area_id IS NULL OR c.area = st.chat_area_id)";
         var out_ = new Dictionary<Guid, List<object>>();
         await using var cmd = new SqlCommand($"""
-            SELECT r.id, st.id, r.submitted_at,
-                   (SELECT COUNT(*) FROM app.chat c JOIN app.chat_message m ON m.chat_id = c.id
-                     WHERE {ChatRules.SeatOfChat} AND {chosen}
-                       AND m.schedule_state = N'sent' AND m.deleted_at IS NULL
-                       AND (m.author_access_id IS NULL OR m.author_access_id <> s.id)
-                       AND m.created_at > COALESCE((SELECT p.read_at FROM app.chat_presence p
-                                                     WHERE p.chat_id = c.id AND p.principal_id = s.id), '0001-01-01')) AS unread,
-                   (SELECT MAX(p.read_at) FROM app.chat c JOIN app.chat_presence p ON p.chat_id = c.id AND p.principal_id = s.id
-                     WHERE {ChatRules.SeatOfChat} AND {chosen}) AS seen
+            SET NOCOUNT ON;
+            DECLARE @keys TABLE (k uniqueidentifier PRIMARY KEY, seat uniqueidentifier NULL, role uniqueidentifier NULL,
+                                 part uniqueidentifier NOT NULL, submitted datetimeoffset NOT NULL);
+            INSERT INTO @keys (k, seat, role, part, submitted)
+            SELECT r.id, r.access_id, r.role_id, r.part_id, r.submitted_at
             FROM app.registration r
-            JOIN app.form_step st ON st.module_id = r.part_id AND st.kind = N'chat'
-            JOIN app.access s ON s.id = r.access_id
-            WHERE r.id IN ({registrationIdsSql});
+            WHERE r.id IN ({registrationIdsSql})
+              AND EXISTS (SELECT 1 FROM app.form_step st WHERE st.module_id = r.part_id AND st.kind = N'chat');
+
+            {ChatReaders.Fill}
+
+            DECLARE @chats TABLE (k uniqueidentifier NOT NULL, chat uniqueidentifier NOT NULL, kind nvarchar(16) NOT NULL,
+                                  area uniqueidentifier NOT NULL, at datetimeoffset NULL);
+
+            /* Mit Link: die Rozmowy des Platzes — mit den Prowadzący, die Gruppe, der Kanał. */
+            INSERT INTO @chats (k, chat, kind, area)
+            SELECT g.k, c.id, c.kind, c.area_id
+            FROM @keys g JOIN app.access s ON s.id = g.seat JOIN app.chat c ON {ChatRules.SeatOfChat};
+
+            /* Ohne Link (mit dem Konto eingesandt): was seine Person über ihre Rollen liest. */
+            WITH down (k, id, depth) AS (
+                SELECT k, role, 0 FROM @keys WHERE seat IS NULL AND role IS NOT NULL
+                UNION ALL
+                SELECT d.k, e.to_role_id, d.depth + 1
+                FROM down d
+                JOIN app.role_edge e ON e.from_role_id = d.id AND e.revoked_at IS NULL AND e.edge_kind = N'holds'
+                WHERE d.depth < {Kernel.RoleGraph.MaxDepth}
+            )
+            INSERT INTO @chats (k, chat, kind, area)
+            SELECT DISTINCT d.k, c.id, c.kind, c.area_id
+            FROM down d
+            JOIN app.certificate ce ON ce.subject_role_id = d.id AND ce.scope_kind = N'area' AND ce.revoked_at IS NULL
+                                   AND ce.expires_at > SYSDATETIMEOFFSET() AND ce.capability IN (N'read', N'write', N'admin')
+            JOIN app.chat c ON c.area_id = ce.scope_id AND c.kind IN (N'area', N'channel')
+            OPTION (MAXRECURSION {Kernel.RoleGraph.MaxDepth + 1});
+
+            UPDATE c SET at = {ChatReaders.ReadPoint("c.k", "c.chat")} FROM @chats c;
+
+            SELECT g.k, st.id, g.submitted,
+                   (SELECT COUNT(*) FROM @chats c JOIN app.chat_message m ON m.chat_id = c.chat
+                     WHERE c.k = g.k AND {chosen} AND {ChatReaders.Unread("g.k", "g.seat", "c.at")}) AS unread,
+                   (SELECT MAX(c.at) FROM @chats c WHERE c.k = g.k AND {chosen}) AS seen
+            FROM @keys g
+            JOIN app.form_step st ON st.module_id = g.part AND st.kind = N'chat';
             """, connection);
         bind(cmd);
         await using var reader = await cmd.ExecuteReaderAsync(ct);

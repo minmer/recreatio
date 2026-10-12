@@ -251,6 +251,11 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
       : module.extendsId !== null && repeatOf(module.repeat) !== 'once' && module.fields > 0 ? 'people' : 'settings');
   });
   const setTab = (next: FormTabName) => { lastTab.set(partId, next); pickTab(next); };
+  /*
+   * 0103 — DIE MELDUNG FÜHRT AUF DIE LISTE, auch wenn das Formular schon offen
+   * ist (dann baut es sich nicht neu auf, und der Anfangswert oben griffe nicht).
+   */
+  useEffect(() => { if (onList === true) setTab('people'); }, [onList]); // eslint-disable-line react-hooks/exhaustive-deps
   const tab: FormTabName = simple && !SIMPLE_TABS.includes(chosenTab) ? simpleDefault : chosenTab;
   /* Ein Reiter des erweiterten Weges, aus dem einfachen geöffnet: der Weg wird ausprobiert (und lässt sich merken). */
   const openExtended = (next: FormTabName) => { formsDisplay.pick('full'); setTab(next); };

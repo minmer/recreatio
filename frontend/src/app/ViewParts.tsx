@@ -29,7 +29,7 @@ import { partLabel } from './parts/registry';
 import { RecentRow } from './Recent';
 import { keysFor } from './ringOf';
 import { selfOf } from './roles';
-import { pageSteps, viewPath, VIEWS, type View } from './routes';
+import { formNewsPath, pageSteps, viewPath, VIEWS, type View } from './routes';
 import { loadSeats } from './seat';
 import { WorkspaceError, type Who } from './session';
 import { plural } from './ChatKit';
@@ -252,19 +252,36 @@ function FormsPart({ mode, scope }: PartProps) {
   if (modules === undefined) return <Waiting what="Wczytywanie formularzy…" />;
   if (modules === null) return <p className="wk-error">Nie udało się wczytać formularzy.</p>;
   const fresh = new Map((digest?.registrations.list ?? []).map((f) => [f.moduleId, f.count]));
+  const newIn = (moduleId: string) => fresh.get(moduleId) ?? 0;
+
+  /*
+   * 0103 — EIN UNTERFORMULAR MIT NEUEM steht unter seinem Hauptformular und
+   * führt zu SICH: vorher standen hier nur Hauptformulare, und was eine
+   * Person in „Cele" eintrug, sah man nirgends — oder landete im Hauptformular.
+   */
+  const freshSubs = (mainId: string) => modules
+    .filter((m) => m.kind === 'form' && m.extendsId === mainId && newIn(m.moduleId) > 0)
+    .sort((a, b) => newIn(b.moduleId) - newIn(a.moduleId) || a.name.localeCompare(b.name, 'pl'));
+  const newAll = (mainId: string) => newIn(mainId) + freshSubs(mainId).reduce((n, s) => n + newIn(s.moduleId), 0);
   const forms = modules.filter((m) => m.kind === 'form' && m.extendsId === null && inScope(scope, m.areaId))
-    .filter((m) => mode !== 'fresh' || (fresh.get(m.moduleId) ?? 0) > 0)
-    .sort((a, b) => (fresh.get(b.moduleId) ?? 0) - (fresh.get(a.moduleId) ?? 0) || a.name.localeCompare(b.name, 'pl'));
+    .filter((m) => mode !== 'fresh' || newAll(m.moduleId) > 0)
+    .sort((a, b) => newAll(b.moduleId) - newAll(a.moduleId) || a.name.localeCompare(b.name, 'pl'));
   if (forms.length === 0) return <p className="wk-now-calm">{mode === 'fresh' ? 'W formularzach nic nowego.' : 'Nie ma tu formularzy.'}</p>;
   return (
     <ul className="wk-part-list">
-      {forms.map((m) => (
+      {forms.flatMap((m) => [
         <li key={m.moduleId}>
-          <a href={viewPath('modules', 'form', m.moduleId)}>{m.name}</a>
+          <a href={newIn(m.moduleId) > 0 ? formNewsPath(m.moduleId) : viewPath('modules', 'form', m.moduleId)}>{m.name}</a>
           <span className="wk-hint">{m.entries} {plural(m.entries, 'zgłoszenie', 'zgłoszenia', 'zgłoszeń')}{m.closed ? ' · zamknięty' : ''}</span>
-          {(fresh.get(m.moduleId) ?? 0) > 0 && <span className="wk-tag wk-tag-new">nowe: {fresh.get(m.moduleId)}</span>}
-        </li>
-      ))}
+          {newIn(m.moduleId) > 0 && <span className="wk-tag wk-tag-new">nowe: {newIn(m.moduleId)}</span>}
+        </li>,
+        ...freshSubs(m.moduleId).map((s) => (
+          <li key={s.moduleId} className="is-sub" data-fresh-sub={s.moduleId}>
+            <a href={formNewsPath(s.moduleId)}><span aria-hidden="true">↳ </span>{s.name}</a>
+            <span className="wk-tag wk-tag-new">nowe: {newIn(s.moduleId)}</span>
+          </li>
+        ))
+      ])}
     </ul>
   );
 }

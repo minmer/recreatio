@@ -1555,14 +1555,22 @@ public static partial class Chat
         var identity = await IdentityOfAsync(connection, seat.Value.Id, ctx.RequestAborted);
 
         var chats = new List<(Guid Id, Guid Area, string Name, int Epoch, DateTimeOffset? Last, string Kind, int Unread, DateTimeOffset? ReadAt)>();
+
+        /*
+         * 0102 — GELESEN ÜBER DEN LINK ODER MIT DEM KONTO: was er in der App als
+         * seine Person gelesen hat, steht hier nicht noch einmal als neu
+         * (`ChatReaders`, dieselbe Rechnung wie der Schritt „Przeczytaj wiadomości").
+         */
         await using (var cmd = new SqlCommand($"""
+            SET NOCOUNT ON;
+            DECLARE @keys TABLE (k uniqueidentifier PRIMARY KEY, seat uniqueidentifier NULL, role uniqueidentifier NULL);
+            INSERT INTO @keys (k, seat, role) VALUES (@seat, @seat, NULL);
+            {ChatReaders.Fill}
+
             SELECT c.id, c.area_id, a.name, a.current_epoch, c.last_message_at, c.kind,
                    (SELECT COUNT(*) FROM app.chat_message m
-                     WHERE m.chat_id = c.id AND m.schedule_state = N'sent' AND m.deleted_at IS NULL
-                       AND (m.author_access_id IS NULL OR m.author_access_id <> @seat)
-                       AND m.created_at > COALESCE((SELECT p.read_at FROM app.chat_presence p
-                                                     WHERE p.chat_id = c.id AND p.principal_id = @seat), '0001-01-01')) AS unread,
-                   (SELECT p.read_at FROM app.chat_presence p WHERE p.chat_id = c.id AND p.principal_id = @seat) AS read_at
+                     WHERE m.chat_id = c.id AND {ChatReaders.Unread("@seat", "@seat", ChatReaders.ReadPoint("@seat", "c.id"))}) AS unread,
+                   {ChatReaders.ReadPoint("@seat", "c.id")} AS read_at
             FROM app.chat c
             JOIN app.area a ON a.id = c.area_id
             JOIN app.access s ON s.id = @seat

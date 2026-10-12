@@ -21,7 +21,7 @@ import { plural } from './ChatKit';
 import { formSections, moveInGroup, type FormItem } from './formGroups';
 import { newId } from './ids';
 import { createFormGroup, removeFormGroup, updateFormGroup, updateModule, type FormGroup, type ModuleRow } from './module';
-import { viewPath } from './routes';
+import { formNewsPath, viewPath } from './routes';
 
 export const FORM_MAP = 'mapa-formularzy';
 
@@ -65,7 +65,8 @@ export function FormList({ modules, groups, areas, fresh, busy, onAct }: {
     const at = order === null ? -1 : order.indexOf(form.moduleId);
     return (
       <div className={sub ? 'wk-form-row is-sub' : 'wk-form-row'} data-form-row={form.moduleId}>
-        <a className="wk-tree-row" href={viewPath('modules', 'form', form.moduleId)}>
+        {/* 0103 — mit Neuem gleich auf seine Liste. */}
+        <a className="wk-tree-row" href={n > 0 ? formNewsPath(form.moduleId) : viewPath('modules', 'form', form.moduleId)}>
           <span className="wk-tree-name">{sub && <span aria-hidden="true">↳ </span>}{form.name}</span>
           <span className="wk-tags">
             {form.extendsId !== null && <span className="wk-tag">{form.audience === 'office' ? 'tylko koordynator' : 'wypełnia osoba'}</span>}

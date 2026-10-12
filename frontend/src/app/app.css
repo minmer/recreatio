@@ -8337,3 +8337,7 @@ span.ch-sendas { cursor: default; }
 .wk-pread .wk-ptask-row { flex-wrap: wrap; row-gap: 0.35rem; }
 .wk-pread .wk-ptask-name { flex: 1 1 11rem; }
 .wk-pread .wk-ptask-status { margin-left: auto; }
+
+/* -- 0103: ein Unterformular mit Neuem, unter seinem Hauptformular (Widok obszaru) -- */
+.wk-part-list li.is-sub { padding-left: 1.6rem; }
+.wk-part-list li.is-sub > a:first-child { font-weight: 400; }

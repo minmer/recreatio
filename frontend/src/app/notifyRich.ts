@@ -34,7 +34,7 @@ import { keysFor } from './ringOf';
 import { authorText, chooseSpeaker, messageAuthor, speakersOf, throughRole } from './chatAuthor';
 import type { RoleEdge } from './roles';
 import { myRoleNames } from './roleNames';
-import { viewPath } from './routes';
+import { formNewsPath, viewPath } from './routes';
 import { call, type Who, WorkspaceError } from './session';
 import { loadTasks, markDone, openTasks, upcomingReminders, type ReminderKind } from './tasks';
 
@@ -294,7 +294,7 @@ async function conversationOf(me: Opener, row: DigestChat, replyable: boolean, s
 
 /** Die neuen Einsendungen eines Formulars, mit dem Namen aus den Antworten, wo er aufgeht. */
 async function formOf(me: Opener, row: DigestForm, since: string, shownCount: number | undefined): Promise<FormNews> {
-  const open = viewPath('modules', 'form', row.moduleId);
+  const open = formNewsPath(row.moduleId);
   if (shownCount !== undefined && shownCount === row.count) {
     return { moduleId: row.moduleId, name: row.name, count: row.count, unchanged: true, entries: [], open };
   }
@@ -443,7 +443,7 @@ export async function gatherNews(who: Who | null, o: GatherOptions): Promise<New
       try {
         forms.push(await formOf(me, row, row.since ?? o.since, o.formsShown?.[row.moduleId]));
       } catch {
-        forms.push({ moduleId: row.moduleId, name: row.name, count: row.count, unchanged: false, entries: [], open: viewPath('modules', 'form', row.moduleId) });
+        forms.push({ moduleId: row.moduleId, name: row.name, count: row.count, unchanged: false, entries: [], open: formNewsPath(row.moduleId) });
       }
     }
   }
