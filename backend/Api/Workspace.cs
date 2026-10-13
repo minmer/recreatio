@@ -121,9 +121,19 @@ public static class Workspace
             while (await reader.ReadAsync(ctx.RequestAborted)) subjectOf[reader.GetString(0)] = reader.GetString(1);
         }
 
+        var open = await OpenPagesAsync(connection, roles, pages.Select(p => p.Path).ToHashSet(StringComparer.Ordinal), ctx.RequestAborted);
+
         await ctx.Response.WriteAsJsonAsync(new
         {
             roles = roles.Select(r => new { id = Ids.ToText(r.Id), kind = r.Kind, isPersonal = r.IsPersonal, depth = r.Depth }),
+
+            /*
+             * 0106 — DIE SEITEN, AUF DENEN DIESES KONTO ARBEITET, ohne sie zu
+             * führen: ein Animator öffnet die Seite seiner Gruppe, ein Kandydat
+             * seine — vorbereitet von jemand anderem. Damit steht der Warsztat
+             * für sie nicht leer da („Nie prowadzisz żadnej strony").
+             */
+            open = open.Select(o => new { path = o.Path, title = o.Title, why = o.Why, edit = o.Edit }),
             pages = pages.Select(p => new
             {
                 path = p.Path,
@@ -142,6 +152,9 @@ public static class Workspace
                  * fragen und zweimal zeichnen.
                  */
                 internalForRoleId = p.InternalFor is null ? null : Ids.ToText(p.InternalFor.Value),
+
+                /* 0106 — der Titel der Seite, wenn sie schon einen hat. */
+                title = p.Title,
 
                 /* Nur mit Zugang (0051): an welche Bereiche die Seite gebunden ist — leer: oeffentlich. */
                 accessAreaIds = areasOf.TryGetValue(p.Path, out var bound) ? bound : [],
@@ -261,12 +274,75 @@ public static class Workspace
         return roles;
     }
 
+    /// <summary>
+    /// 0106 — SEITEN, DIE DIESES KONTO ÖFFNET, ABER NICHT FÜHRT — je mit dem Grund:
+    /// <list type="bullet">
+    ///   <item><c>area</c>: nur mit Zugang, an einen Bereich gebunden, den eine meiner Rollen liest (die Seite der Animatoren);</item>
+    ///   <item><c>editor</c>: ein Zertifikat auf die Adresse (bearbeiten, ohne sie zu führen);</item>
+    ///   <item><c>seat</c>: die Seite eines Platzes, den eine meiner Personen hält (der Kandydat, der seinen Link an sein Konto gebunden hat).</item>
+    /// </list>
+    /// Die eigenen (<paramref name="own"/>) und Zweitnamen fallen heraus.
+    /// </summary>
+    private static async Task<List<(string Path, string? Title, string Why, bool Edit)>> OpenPagesAsync(
+        SqlConnection connection, List<RoleRow> roles, HashSet<string> own, CancellationToken ct)
+    {
+        var found = new List<(string Path, string? Title, string Why, bool Edit)>();
+        if (roles.Count == 0) return found;
+
+        var names = string.Join(", ", roles.Select((_, i) => $"@r{i}"));
+        await using var cmd = new SqlCommand($"""
+            WITH hits (path, title, why, edit, rank) AS (
+                SELECT s.path, p.title, N'editor', CAST(1 AS bit), 0
+                FROM app.certificate c
+                JOIN app.slug s ON s.id = c.scope_id
+                LEFT JOIN app.slug_page p ON p.slug_id = s.id
+                WHERE s.alias_of IS NULL AND c.scope_kind = N'slug' AND c.subject_role_id IN ({names})
+                  AND c.revoked_at IS NULL AND c.expires_at > @now AND c.capability IN (N'write', N'admin')
+                UNION ALL
+                SELECT s.path, p.title, N'area', CAST(0 AS bit), 1
+                FROM app.slug_area w
+                JOIN app.slug s ON s.id = w.slug_id
+                LEFT JOIN app.slug_page p ON p.slug_id = s.id
+                WHERE s.alias_of IS NULL AND w.area_id IN (SELECT scope_id FROM app.certificate
+                                    WHERE scope_kind = N'area' AND revoked_at IS NULL AND expires_at > @now
+                                      AND capability IN (N'read', N'write', N'admin') AND subject_role_id IN ({names}))
+                UNION ALL
+                SELECT s.path, p.title, N'seat', CAST(0 AS bit), 2
+                FROM app.access_slug x
+                JOIN app.access a ON a.id = x.access_id AND a.revoked_at IS NULL AND a.status = N'active'
+                JOIN app.slug s ON s.id = x.slug_id
+                LEFT JOIN app.slug_page p ON p.slug_id = s.id
+                WHERE s.alias_of IS NULL AND x.access_id IN (
+                    SELECT h.access_id FROM app.access_holder h WHERE h.role_id IN ({names}) AND (h.until IS NULL OR h.until > @now)
+                    UNION
+                    SELECT r.access_id FROM app.registration r
+                     WHERE r.role_id IN ({names}) AND r.access_id IS NOT NULL AND r.withdrawn_at IS NULL)
+            )
+            SELECT h.path, MAX(h.title), (SELECT TOP 1 x.why FROM hits x WHERE x.path = h.path ORDER BY x.rank),
+                   CAST(MAX(CAST(h.edit AS int)) AS bit), MIN(h.rank)
+            FROM hits h
+            GROUP BY h.path
+            ORDER BY MIN(h.rank), h.path;
+            """, connection);
+        for (var i = 0; i < roles.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", roles[i].Id);
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var path = reader.GetString(0);
+            if (own.Contains(path)) continue;
+            found.Add((path, reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetString(2), reader.GetBoolean(3)));
+        }
+        return found;
+    }
+
     /// <summary>Die Adressen, die diese Rollen führen.</summary>
     private static async Task<List<(string Path, Guid RoleId, DateTimeOffset ClaimedAt,
-        string? AliasOf, string? Host, Guid? InternalFor)>> PagesOfAsync(
+        string? AliasOf, string? Host, Guid? InternalFor, string? Title)>> PagesOfAsync(
         SqlConnection connection, List<RoleRow> roles, CancellationToken ct)
     {
-        var pages = new List<(string, Guid, DateTimeOffset, string?, string?, Guid?)>();
+        var pages = new List<(string, Guid, DateTimeOffset, string?, string?, Guid?, string?)>();
 
         // Ohne Rollen gibt es nichts zu fragen. Ein `IN ()` ohne Werte wäre
         // ausserdem kein gültiges SQL.
@@ -274,9 +350,10 @@ public static class Workspace
 
         var names = string.Join(", ", roles.Select((_, i) => $"@r{i}"));
 
+        /* 0106 — mit dem Titel der Seite (`slug_page`), für „Twoje strony". */
         await using var cmd = new SqlCommand(
-            $"SELECT path, claimed_by_role_id, claimed_at, alias_of, host, internal_for_role_id "
-            + $"FROM app.slug WHERE claimed_by_role_id IN ({names}) ORDER BY path;", connection);
+            $"SELECT s.path, s.claimed_by_role_id, s.claimed_at, s.alias_of, s.host, s.internal_for_role_id, p.title "
+            + $"FROM app.slug s LEFT JOIN app.slug_page p ON p.slug_id = s.id WHERE s.claimed_by_role_id IN ({names}) ORDER BY s.path;", connection);
 
         for (var i = 0; i < roles.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", roles[i].Id);
 
@@ -286,7 +363,8 @@ public static class Workspace
             pages.Add((reader.GetString(0), reader.GetGuid(1), reader.GetDateTimeOffset(2),
                 reader.IsDBNull(3) ? null : reader.GetString(3),
                 reader.IsDBNull(4) ? null : reader.GetString(4),
-                reader.IsDBNull(5) ? null : reader.GetGuid(5)));
+                reader.IsDBNull(5) ? null : reader.GetGuid(5),
+                reader.IsDBNull(6) ? null : reader.GetString(6)));
         }
 
         return pages;

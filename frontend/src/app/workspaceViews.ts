@@ -24,7 +24,7 @@
 
 import type { DisplayMode } from './display';
 
-export type PartKind = 'alerts' | 'agenda' | 'tasks' | 'chats' | 'forms' | 'pages' | 'access' | 'people' | 'quick' | 'recent' | 'starters' | 'tiles';
+export type PartKind = 'mypages' | 'alerts' | 'agenda' | 'tasks' | 'chats' | 'forms' | 'pages' | 'access' | 'people' | 'quick' | 'recent' | 'starters' | 'tiles';
 
 export interface PartDef {
   readonly kind: PartKind;
@@ -41,6 +41,11 @@ export interface PartDef {
 const mode = (id: string, label: string, says: string, extended = false): DisplayMode => ({ id, label, says, extended });
 
 export const PART_DEFS: readonly PartDef[] = [
+  /* 0106 — wo man arbeitet: die eigenen Seiten UND die, die jemand anderes vorbereitet hat (Animator, Kandydat). */
+  { kind: 'mypages', label: 'Twoje strony', says: 'Strony, na których pracujesz — także przygotowane przez kogoś innego (np. strona Twojej grupy).', everywhere: true, modes: [
+    mode('cards', 'Karty', 'Duże przyciski: otwórz stronę.'),
+    mode('list', 'Lista', 'Krótka lista, z „Edytuj" przy stronach, które prowadzisz.')
+  ] },
   { kind: 'alerts', label: 'Czeka na Ciebie', says: 'Nowe zgłoszenia, wiadomości, rezerwacje, zaległe kroki — w Twojej kolejności.', modes: [
     mode('list', 'Lista', 'Każda rzecz osobno.'),
     mode('compact', 'Zwarte', 'Jedna linijka na rodzaj, z sumą.')
@@ -84,6 +89,8 @@ export const PART_DEFS: readonly PartDef[] = [
   ] },
   { kind: 'tiles', label: 'Wszystkie części warsztatu', says: 'Kafelki: kalendarz, msze, rezerwacje, biblioteka…', everywhere: true, modes: [
     mode('main', 'Najważniejsze', 'Części, z których korzysta się na co dzień.'),
+    /* 0106 — für wen keine Seite führt: nur, was er ohne eigene Seite braucht. */
+    mode('basic', 'Podstawowe', 'Kalendarz, zadania, rozmowy, obszary, konto.'),
     mode('all', 'Wszystkie', 'Także role, adresy i domeny.', true)
   ] }
 ];
@@ -124,6 +131,22 @@ export interface ViewsState {
 
 export const MINE = 'mine';
 export const EMPTY_VIEWS: ViewsState = { current: MINE, own: [], changed: {} };
+
+/**
+ * 0106 — „MÓJ WIDOK" FÜR WEN KEINE SEITE FÜHRT (ein Animator, ein Kandydat mit
+ * Konto): zuerst die Seiten, auf denen er arbeitet; dann, was auf ihn wartet,
+ * Termine, Rozmowy, Aufgaben. Keine „Gotowe początki" (Zapisy, Nowa grupa) und
+ * keine Kacheln zum Anlegen von Seiten und Formularen — ohne eigene Seite hat
+ * er nichts davon. Wer sie doch will, fügt sie in „Dostosuj widok" hinzu.
+ */
+export const TAKER_PARTS: readonly PartConfig[] = [
+  { kind: 'mypages', mode: 'cards' },
+  { kind: 'alerts', mode: 'list' },
+  { kind: 'agenda', mode: 'week' },
+  { kind: 'chats', mode: 'unread' },
+  { kind: 'tasks', mode: 'now' },
+  { kind: 'tiles', mode: 'basic' }
+];
 
 export const MINE_PARTS: readonly PartConfig[] = [
   { kind: 'alerts', mode: 'list' },
@@ -219,9 +242,10 @@ export const viewsJson = (state: ViewsState): string => JSON.stringify(state);
 
 /* -- Die Widoki ---------------------------------------------------------------------------- */
 
-export function mineView(state: ViewsState): ViewConfig {
+/** @param taker 0106 — das Konto führt keine Seite: dann ist die Vorgabe `TAKER_PARTS`. */
+export function mineView(state: ViewsState, taker = false): ViewConfig {
   const changed = state.changed[MINE];
-  return { id: MINE, name: changed?.name ?? 'Mój widok', kind: 'mine', areaIds: [], parts: changed?.parts ?? MINE_PARTS };
+  return { id: MINE, name: changed?.name ?? 'Mój widok', kind: 'mine', areaIds: [], parts: changed?.parts ?? (taker ? TAKER_PARTS : MINE_PARTS) };
 }
 
 export function areaView(state: ViewsState, area: ViewArea): ViewConfig {
@@ -231,9 +255,9 @@ export function areaView(state: ViewsState, area: ViewArea): ViewConfig {
 }
 
 /** Alle Widoki: „Mój widok", die eigenen, dann einer je Bereich (ohne den eigenen, privaten). */
-export function allViews(state: ViewsState, areas: readonly ViewArea[]): ViewConfig[] {
+export function allViews(state: ViewsState, areas: readonly ViewArea[], taker = false): ViewConfig[] {
   return [
-    mineView(state),
+    mineView(state, taker),
     ...state.own,
     ...areas.filter((a) => a.personal !== true).map((a) => areaView(state, a))
   ];

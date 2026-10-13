@@ -76,12 +76,38 @@ export interface PageCard {
    * und keine alte Rolle — heisst öffentlich.
    */
   readonly accessAreaIds?: readonly string[];
+
+  /** 0106 — der Titel der Seite (`null`: noch keiner). Fehlt beim alten Dienst. */
+  readonly title?: string | null;
+}
+
+/**
+ * 0106 — EINE SEITE, AUF DER DIESES KONTO ARBEITET, OHNE SIE ZU FÜHREN:
+ * `area` — nur mit Zugang, für einen Bereich, den es liest (die Seite der
+ * Animatoren); `editor` — es darf sie bearbeiten (Zertifikat); `seat` — die
+ * Seite seines eigenen Links (der Kandydat mit Konto).
+ */
+export interface OpenPageCard {
+  readonly path: string;
+  readonly title: string | null;
+  readonly why: 'area' | 'editor' | 'seat';
+  readonly edit: boolean;
 }
 
 export interface Desk {
   readonly roles: readonly RoleCard[];
   readonly pages: readonly PageCard[];
+
+  /** 0106 — fehlt beim alten Dienst. */
+  readonly open?: readonly OpenPageCard[];
 }
+
+/**
+ * 0106 — FÜHRT DIESES KONTO KEINE SEITE (ein Animator, ein Kandydat mit Konto),
+ * arbeitet es auf vorbereiteten Seiten: der Warsztat zeigt zuerst sie, und
+ * nicht das Anlegen von Seiten und Formularen, mit denen es nichts anfangen kann.
+ */
+export const leadsNoPage = (desk: Pick<Desk, 'pages'>): boolean => desk.pages.every((one) => one.aliasOf !== null);
 
 export const loadDesk = (): Promise<Desk> => call<Desk>('/workspace');
 

@@ -311,6 +311,69 @@ function PagesPart({ scope, desk, who }: PartProps) {
   );
 }
 
+/* -- 0106: Twoje strony ------------------------------------------------------------------- */
+
+/** Wie eine Seite heisst: ihr Titel, sonst ihre Adresse. */
+const pageName = (path: string, title: string | null | undefined): string =>
+  title != null && title.trim() !== '' ? title.trim() : path === '' ? 'recreatio.pl' : path;
+
+const WHY: Record<'own' | 'area' | 'editor' | 'seat', string> = {
+  own: 'prowadzisz tę stronę',
+  area: 'strona Twojej grupy',
+  editor: 'możesz ją edytować',
+  seat: 'Twoja strona (z Twojego linku)'
+};
+
+/**
+ * 0106 — „TWOJE STRONY": wo man arbeitet. Für einen Animator und einen
+ * Kandydaten mit Konto ist das die Seite, die jemand anderes vorbereitet hat
+ * (nur mit Zugang für seine Gruppe, oder die seines Links) — dort tut er fast
+ * alles. Wer Seiten führt, findet hier auch seine eigenen, mit „Edytuj".
+ */
+function MyPagesPart({ mode, desk }: PartProps) {
+  const own = desk.pages.filter((p) => p.aliasOf === null)
+    .map((p) => ({ path: p.path, title: p.title ?? null, why: 'own' as const, edit: true }));
+  const open = (desk.open ?? []).map((p) => ({ path: p.path, title: p.title, why: p.why, edit: p.edit }));
+  const all = [...open, ...own];
+
+  if (all.length === 0) {
+    return (
+      <p className="wk-now-calm">
+        Nie masz jeszcze żadnej strony. Stronę Twojej grupy przygotowuje osoba, która ją prowadzi — gdy da Ci do niej
+        dostęp, pojawi się tutaj.
+      </p>
+    );
+  }
+
+  if (mode === 'list') {
+    return (
+      <ul className="wk-part-list">
+        {all.slice(0, 20).map((p) => (
+          <li key={p.path} data-my-page={p.path}>
+            <a href={`#/${p.path}`}>{pageName(p.path, p.title)}</a>
+            <span className="wk-hint">{WHY[p.why]}</span>
+            {p.edit && <span className="wk-part-acts"><a className="wk-link-btn" href={viewPath('pages', ...pageSteps(p.path))}>Edytuj</a></span>}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  return (
+    <div className="wk-mypages">
+      {all.slice(0, 12).map((p) => (
+        <div key={p.path} className="wk-mypage" data-my-page={p.path} data-why={p.why}>
+          <a className="wk-mypage-open" href={`#/${p.path}`}>
+            <strong className="wk-mypage-title">{pageName(p.path, p.title)}</strong>
+            <span className="wk-mypage-why">{WHY[p.why]}</span>
+          </a>
+          {p.edit && <a className="wk-link-btn wk-mypage-edit" href={viewPath('pages', ...pageSteps(p.path))}>Edytuj</a>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* -- Dostęp -------------------------------------------------------------------------------- */
 
 function AccessPart({ mode, scope, view, who }: PartProps) {
@@ -459,11 +522,13 @@ const TILE_SAYS: Partial<Record<View, string>> = {
 
 const MAIN_TILES: readonly View[] = ['areas', 'calendar', 'tasks', 'chat', 'masses', 'bookings', 'modules', 'pages', 'library', 'registry', 'account'];
 const ALL_TILES: readonly View[] = [...MAIN_TILES, 'roles', 'addresses'];
+/* 0106 — ohne eigene Seite: nur, was man ohne sie braucht (kein Anlegen von Seiten und Formularen). */
+const BASIC_TILES: readonly View[] = ['calendar', 'tasks', 'chat', 'areas', 'account'];
 
 function TilesPart({ mode, desk }: PartProps) {
   return (
     <div className="wk-tiles">
-      {(mode === 'all' ? ALL_TILES : MAIN_TILES).map((view) => (
+      {(mode === 'all' ? ALL_TILES : mode === 'basic' ? BASIC_TILES : MAIN_TILES).map((view) => (
         <a key={view} className="wk-tile" href={viewPath(view)} data-tile={view}>
           <span className="wk-tile-head">
             <span className="wk-tile-name">{VIEWS[view]}</span>
@@ -483,6 +548,7 @@ function StartersPart({ who }: PartProps) {
 /* -- Die Zuordnung ------------------------------------------------------------------------ */
 
 export const PART_VIEWS: Record<PartKind, (props: PartProps) => ReactNode> = {
+  mypages: MyPagesPart,
   alerts: AlertsPart,
   agenda: AgendaPart,
   tasks: TasksPart,

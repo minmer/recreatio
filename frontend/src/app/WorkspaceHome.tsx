@@ -17,7 +17,7 @@ import { useId, useMemo, useState, type ReactNode } from 'react';
 
 import type { AreaRow } from './area';
 import { useCrumbs } from './crumbTrail';
-import type { Desk } from './desk';
+import { leadsNoPage, type Desk } from './desk';
 import { newId } from './ids';
 import { JsonPanel } from './JsonPanel';
 import { useRemembered } from './prefs';
@@ -49,7 +49,8 @@ export function WorkspaceHome({ who, desk, viewId, heading }: {
   const areas = useLoaded(() => areasNow(), []);
   const [state, setState] = useViews();
   const list = areas ?? [];
-  const views = allViews(state, list);
+  /* 0106 — wer keine Seite führt, sieht zuerst die Seiten, auf denen er arbeitet. */
+  const views = allViews(state, list, leadsNoPage(desk));
   const view = views.find((one) => one.id === (viewId ?? state.current)) ?? views[0];
   const scope = scopeOf(view, list);
   const [editing, setEditing] = useState(false);

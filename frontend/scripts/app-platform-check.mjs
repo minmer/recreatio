@@ -92,7 +92,8 @@ export { walkBundle, mergeAreaKeys, rememberSeatAreaKeys, seatAreaKey } from '${
 export { reachWords, draftProblem } from '${app}commonRole';
 export { seatRoleAad, openSeatRoles } from '${app}memberRole';
 export { aadText, open, fromBase64Url } from '${app}crypto';
-export { readViewsState, viewsJson, allViews, scopeOf, saveView, resetView, newView, removeView, pick as pickView, setPartMode, movePart, removePart, addPart, addable, exportView, planViewImport, viewDescription, MINE_PARTS, AREA_PARTS, PART_DEFS } from '${app}workspaceViews';
+export { readViewsState, viewsJson, allViews, scopeOf, saveView, resetView, newView, removeView, pick as pickView, setPartMode, movePart, removePart, addPart, addable, exportView, planViewImport, viewDescription, MINE_PARTS, AREA_PARTS, PART_DEFS, TAKER_PARTS } from '${app}workspaceViews';
+export { leadsNoPage } from '${app}desk';
 export { readAlerts, alertsJson, moveAlert, toggleAlert, shownKinds, alertItems, alertCount, ALERT_KINDS } from '${app}alerts';
 export { modeOf, TOOLS } from '${app}display';
 export { fold, searchHits } from '${app}search';
@@ -1287,6 +1288,17 @@ try {
     assert.deepEqual(views.map((v) => v.id), ['mine', 'area:p', 'area:s', 'area:x'], 'my view, then one per area — never the personal one');
     assert.deepEqual(views[0].parts, m.MINE_PARTS);
     assert.deepEqual(views[1].parts, m.AREA_PARTS);
+
+    /* 0106 — wer keine Seite führt (Animator, Kandydat mit Konto): zuerst „Twoje strony", kein Anlegen von Seiten und Formularen. */
+    assert.ok(m.leadsNoPage({ pages: [] }) && m.leadsNoPage({ pages: [{ aliasOf: 'parafia' }] }) && !m.leadsNoPage({ pages: [{ aliasOf: null }] }),
+      'only aliases are no page of one\'s own');
+    const taker = m.allViews(empty, areas, true)[0].parts;
+    assert.deepEqual(taker, m.TAKER_PARTS);
+    assert.equal(taker[0].kind, 'mypages', 'the pages one works on come first');
+    assert.ok(!taker.some((p) => p.kind === 'starters' || p.kind === 'quick') && taker.find((p) => p.kind === 'tiles')?.mode === 'basic',
+      'no ready-made beginnings, only the basic tiles');
+    assert.deepEqual(m.allViews(m.saveView(empty, { ...m.allViews(empty, areas, true)[0], parts: [{ kind: 'tiles', mode: 'all' }] }), areas, true)[0].parts,
+      [{ kind: 'tiles', mode: 'all' }], 'a view one changed stays as changed');
     assert.equal(m.scopeOf(views[0], areas), null, 'my view shows everything');
     assert.deepEqual([...m.scopeOf(views[1], areas)].sort(), ['p', 's', 'x'], 'an area view: the area and everything inside it, however deep');
 

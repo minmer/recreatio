@@ -8348,3 +8348,15 @@ span.ch-sendas { cursor: default; }
   letter-spacing: 0.04em; text-transform: uppercase; color: var(--wk-muted); }
 .wk-office-view { display: grid; gap: 0.5rem; min-width: 0; }
 .wk-office-chat { display: grid; gap: 0.5rem; }
+
+/* -- 0106: „Twoje strony" — die Seiten, auf denen man arbeitet, als große Karten -- */
+.wk-mypages { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: 0.6rem; }
+.wk-mypage { position: relative; display: grid; border: 1px solid var(--wk-line); border-radius: 4px; background: var(--wk-surface); min-width: 0; }
+.wk-mypage-open { display: grid; gap: 0.2rem; padding: 0.85rem 1rem; color: var(--wk-ink); text-decoration: none; border-radius: 4px; min-width: 0; }
+.wk-mypage:has(.wk-mypage-edit) .wk-mypage-open { padding-right: 4.5rem; }
+.wk-mypage-open:hover { background: color-mix(in srgb, var(--wk-accent) 7%, transparent); }
+.wk-mypage-open:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-mypage-title { font-size: 1.02rem; overflow-wrap: anywhere; }
+.wk-mypage-why { font-size: 0.82rem; color: var(--wk-muted); }
+.wk-mypage[data-why="area"], .wk-mypage[data-why="seat"] { border-color: color-mix(in srgb, var(--wk-accent) 45%, var(--wk-line)); }
+.wk-mypage-edit { position: absolute; top: 0.55rem; right: 0.7rem; font-size: 0.85rem; }
