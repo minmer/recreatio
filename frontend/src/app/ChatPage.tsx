@@ -34,7 +34,7 @@ import { AreaOptions } from './AreaOptions';
 import { Segment } from './Areas';
 import {
   addToChat, areaKeys, authorOf, chatKeysOf, deleteMessage, deliverPending, deliverSeatKeys, editMessage, loadChat, loadChats,
-  loadMessages, loadVersions, markRead, openMessage, openNames, openVersion, restoreMessage,
+  loadMessages, loadVersions, markRead, openMessage, openNames, openVersion, removeChat, restoreMessage, CHATS_CHANGED,
   sendMessage, setMemberName, startAreaChat, startOwnChat, startSelfChat, chatMode, fixedPolicy, keyHolderOf,
   type ChatDetail, type ChatRow, type Invitee, type Opened, type SealedMessage, type SealedVersion, type SendOptions
 } from './chat';
@@ -235,7 +235,10 @@ function ChatList({ me, current }: { me: Me; current: string | undefined }) {
   useEffect(() => {
     void look();
     const timer = window.setInterval(() => { void look(); }, 20_000);
-    return () => window.clearInterval(timer);
+    /* 0105 — eine Rozmowa wurde gelöscht: gleich neu, nicht erst in 20 Sekunden. */
+    const changed = () => { void look(); };
+    window.addEventListener(CHATS_CHANGED, changed);
+    return () => { window.clearInterval(timer); window.removeEventListener(CHATS_CHANGED, changed); };
   }, [look]);
 
   /* Eine Rozmowa geöffnet: ihre Zahl der neuen stimmt gleich danach nicht mehr. */
@@ -717,6 +720,8 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   const [topics, setTopics] = useState<readonly Topic[]>([]);
   const [topic, setTopic] = useRemembered(`chat.topic.${chatId}`, '');
   const [linked, setLinked] = useState(false);
+  /* 0105 — „Usuń rozmowę": erst fragen. */
+  const [removing, setRemoving] = useState(false);
   const [taskFrom, setTaskFrom] = useState<{ message: SealedMessage; opened: Opened } | null>(null);
   const [eventFrom, setEventFrom] = useState<{ message: SealedMessage; opened: Opened; calendars: readonly CalendarRow[] } | null>(null);
   /* 0101 — was gerade in ein Thema zusammengetragen wird (eine Nachricht oder die markierten), und was danach gesagt wird. */
@@ -1004,7 +1009,11 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
     ...chrome.items,
     { label: 'Zadania i terminy z rozmowy', icon: 'check' as const, onSelect: () => setLinked(true) },
     ...(self ? [] : [{ label: `Uczestnicy i ustawienia`, icon: 'users' as const, onSelect: () => setSettings(true) }]),
-    { label: self ? 'Mój prywatny obszar' : 'Obszar tej rozmowy', icon: 'area', onSelect: () => { window.location.hash = viewPath('areas', chat.areaId); } }
+    { label: self ? 'Mój prywatny obszar' : 'Obszar tej rozmowy', icon: 'area', onSelect: () => { window.location.hash = viewPath('areas', chat.areaId); } },
+    /* 0105 — wer den Bereich führt (zu zweit: jeder der beiden) löscht die Rozmowa für alle. */
+    ...(moderates || (chat.kind === 'direct' && chat.writers.length > 0)
+      ? [{ label: 'Usuń rozmowę', icon: 'trash' as const, danger: true, onSelect: () => setRemoving(true) }]
+      : [])
   ];
 
   const readOnly = noPerson ? 'Do rozmowy potrzebna jest osoba (imię i nazwisko) — załóż ją w Koncie, w zakładce „Role".'
@@ -1084,6 +1093,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
       {forward !== null && <ForwardDialog endpoint={endpoint} opened={forward} ring={me.ring} onClose={() => setForward(null)} />}
 
       {linked && <LinkedDialog ring={me.ring} chatId={chat.chatId} topics={topics} onClose={() => setLinked(false)} />}
+      {removing && <RemoveChat chatId={chat.chatId} title={title} kind={chat.kind} seats={chat.seats.length} onClose={() => setRemoving(false)} />}
       {collecting !== null && (
         <CollectToTopic count={collecting.messages.length} topics={topics} canCreate={speakers.length > 0 && !self}
           onClose={() => setCollecting(null)}
@@ -1320,3 +1330,57 @@ export function ChatTileBody() {
 }
 
 export default ChatView;
+
+/**
+ * 0105 — „USUŃ ROZMOWĘ": was geht und was bleibt, in Worten — und erst auf
+ * einen zweiten, ausdrücklichen Klick. Danach steht die Liste da.
+ */
+function RemoveChat({ chatId, title, kind, seats, onClose }: {
+  chatId: string;
+  title: string;
+  kind: ChatDetail['kind'];
+  seats: number;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  const remove = async () => {
+    setBusy(true);
+    setFailed(null);
+    try {
+      await removeChat(chatId);
+      window.dispatchEvent(new Event(CHATS_CHANGED));
+      onClose();
+      window.location.hash = viewPath('chat');
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć rozmowy.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Usunąć rozmowę?" onClose={onClose}>
+      <div className="wk-form" data-remove-chat="">
+        <p>
+          <strong>{title}</strong> zniknie dla wszystkich{kind === 'direct' ? ' — także dla drugiej osoby' : ''}
+          {seats > 0 ? ` — także dla osób z linkiem (${seats})` : ''}: wszystkie wiadomości, pliki i tematy.
+          Tego nie da się cofnąć.
+        </p>
+        <p className="wk-hint">
+          {kind === 'self'
+            ? 'Zostaje Twój prywatny obszar. Zadania i terminy utworzone z notatek zostają — bez odnośnika do nich.'
+            : 'Zostaje obszar rozmowy i jego uczestnicy — można w nim później zacząć nową rozmowę. Zadania i terminy utworzone z wiadomości zostają, bez odnośnika do rozmowy.'}
+        </p>
+        {failed !== null && <p className="wk-error">{failed}</p>}
+        <div className="wk-actions">
+          {/* Der Fokus steht zuerst auf „Anuluj" — Enter löscht nichts aus Versehen. */}
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={onClose}>Anuluj</button>
+          <button type="button" className="wk-btn wk-btn-danger" disabled={busy} data-remove-chat-confirm="" onClick={() => void remove()}>
+            {busy ? 'Usuwanie…' : 'Usuń rozmowę'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}

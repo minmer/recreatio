@@ -58,6 +58,8 @@ public static partial class Chat
         MapTopics(app);
         MapAsk(app);
         MapLinkPersons(app);
+        /* 0105 — eine Rozmowa löschen (für alle). */
+        MapRemove(app);
         app.MapGet("/workspace/chats", ListAsync);
         app.MapPost("/workspace/chats", CreateAsync);
         app.MapGet("/workspace/chat/{id:guid}", ShowAsync);

@@ -207,6 +207,17 @@ export const loadMessages = (
   return call(`/workspace/chat/${encodeURIComponent(chatId)}/messages${tail === '' ? '' : `?${tail}`}`);
 };
 
+/**
+ * 0105 — DIE ROZMOWA LÖSCHEN, für alle und unwiderruflich: Nachrichten,
+ * Dateien, Tematy. Der Bereich bleibt, Aufgaben und Termine aus der Rozmowa
+ * auch (ohne den Verweis). Darf, wer ihren Bereich führt — zu zweit: jeder der beiden.
+ */
+export const removeChat = (chatId: string): Promise<{ removed: boolean; messages: number; files: number }> =>
+  call(`/workspace/chat/${encodeURIComponent(chatId)}`, { method: 'DELETE' });
+
+/** 0105 — die Liste der Rozmowy liest neu (eine wurde gelöscht). */
+export const CHATS_CHANGED = 'rc:chats-changed';
+
 export const markRead = (chatId: string): Promise<{ read: boolean }> =>
   call(`/workspace/chat/${encodeURIComponent(chatId)}/read`, { method: 'POST' });
 
