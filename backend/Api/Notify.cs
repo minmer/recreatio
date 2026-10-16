@@ -492,6 +492,27 @@ public static class Notify
             }
         }
 
+        /*
+         * 0109 — POWTÓRKA CZEKA [P01, P03]: je Bibliothek, was jetzt dran ist — aus
+         * der einen offenen Zeit, die der Browser des Lernenden meldet. Ohne 0109
+         * gibt es die Tabelle nicht; dann steht hier nichts.
+         */
+        var learn = new List<(Guid Library, int Count, DateTimeOffset Due)>();
+        if (mine.Count > 0)
+        {
+            var learners = string.Join(", ", mine.Select((_, i) => $"@l{i}"));
+            await using var cmd = new SqlCommand($"""
+                IF OBJECT_ID('app.learn_due', 'U') IS NOT NULL
+                    SELECT library_id, SUM(due_count), MIN(due_at) FROM app.learn_due
+                    WHERE holder_role_id IN ({learners}) AND due_at IS NOT NULL AND due_at <= @now AND due_count > 0
+                    GROUP BY library_id;
+                """, connection);
+            cmd.Parameters.AddWithValue("@now", now);
+            for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@l{i}", mine[i]);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) learn.Add((reader.GetGuid(0), reader.GetInt32(1), reader.GetDateTimeOffset(2)));
+        }
+
         var tasks = await Tasks.OpenNowAsync(connection, held, now, ct);
         var unreadTotal = chats.Sum(c => c.Unread);
         var loudTotal = chats.Where(c => !c.Quiet).Sum(c => c.Unread);
@@ -565,6 +586,13 @@ public static class Notify
             },
             links,
             tasks,
+
+            /* 0109 — Powtórka czeka: je Bibliothek, wie viele Karten jetzt dran sind. */
+            learn = new
+            {
+                count = learn.Sum(l => l.Count),
+                list = countsOnly ? [] : learn.Select(l => (object)new { libraryId = Ids.ToText(l.Library), count = l.Count, dueAt = l.Due }).ToList()
+            },
 
             /* 0091 — Formulare, deren Menschen auf den Schlüssel ihrer Rolle warten: die App gibt ihn weiter. */
             roles = new { waiting = rolesWaiting.Select(Ids.ToText).ToList() },

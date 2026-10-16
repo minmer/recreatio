@@ -157,6 +157,7 @@ public static class AccountDeletion
         }
 
         var attachments = new List<Guid>();
+        var libraries = new List<Guid>();
         var removed = new Dictionary<string, int>();
 
         await using (var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted))
@@ -177,6 +178,11 @@ public static class AccountDeletion
                 {
                     for (var i = 0; i < reader.FieldCount; i++) removed[reader.GetName(i)] = reader.GetInt32(i);
                 }
+                /* 0109 — die Bibliotheken, deren Ordner (Cogita-Dateien) nach dem Commit gehen. */
+                if (await reader.NextResultAsync(ctx.RequestAborted))
+                {
+                    while (await reader.ReadAsync(ctx.RequestAborted)) libraries.Add(reader.GetGuid(0));
+                }
             }
 
             await tx.CommitAsync(ctx.RequestAborted);
@@ -192,6 +198,7 @@ public static class AccountDeletion
         {
             try { File.Delete(Chat.AttachmentFile(config, id)); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
+        foreach (var id in libraries) Library.DropFiles(config, id);
 
         ctx.Response.Cookies.Delete(Auth.Cookie, new CookieOptions
         {
@@ -341,6 +348,13 @@ public static class AccountDeletion
                            WHERE (f.area_id = a.id OR f.label_area_id = a.id)
                              AND f.part_id NOT IN (SELECT id FROM app.module WHERE area_id = a.id));
 
+        -- 0109: wo die Antworten anderer liegen (eine Klasse, ein Kurs), bleibt der Bereich.
+        IF OBJECT_ID('app.learn_batch', 'U') IS NOT NULL
+            DELETE FROM #dead
+             WHERE EXISTS (SELECT 1 FROM app.learn_batch b
+                            WHERE b.area_id = #dead.id
+                              AND (b.holder_role_id IS NULL OR b.holder_role_id NOT IN (SELECT id FROM #doomed)));
+
         INSERT INTO #orphan (id)
         SELECT id FROM #touched WHERE id NOT IN (SELECT id FROM #dead);
         """;
@@ -364,6 +378,7 @@ public static class AccountDeletion
         CREATE TABLE #mods (id uniqueidentifier PRIMARY KEY);
         CREATE TABLE #chats (id uniqueidentifier PRIMARY KEY);
         CREATE TABLE #files (id uniqueidentifier PRIMARY KEY);
+        CREATE TABLE #libs (id uniqueidentifier PRIMARY KEY);
 
         INSERT INTO #cals (id) SELECT id FROM app.calendar WHERE area_id IN (SELECT id FROM #dead);
         INSERT INTO #items (id)
@@ -458,6 +473,30 @@ public static class AccountDeletion
 
         -- Bibliotheken (0064) — mit allem, was darin steht, auch dem Veröffentlichten
         IF OBJECT_ID('app.library', 'U') IS NOT NULL
+            INSERT INTO #libs (id) SELECT id FROM app.library WHERE area_id IN (SELECT id FROM #dead);
+
+        -- 0109: Cogita — Sitzungen der sterbenden Bereiche, Antworten, Fassungen und Dateien ihrer Bibliotheken.
+        IF OBJECT_ID('app.cogita_session', 'U') IS NOT NULL
+        BEGIN
+            DELETE FROM app.cogita_game_position WHERE session_id IN (SELECT id FROM app.cogita_session WHERE area_id IN (SELECT id FROM #dead));
+            DELETE FROM app.cogita_game_state    WHERE session_id IN (SELECT id FROM app.cogita_session WHERE area_id IN (SELECT id FROM #dead));
+            DELETE FROM app.cogita_session_key   WHERE session_id IN (SELECT id FROM app.cogita_session WHERE area_id IN (SELECT id FROM #dead));
+            DELETE FROM app.cogita_session_event WHERE session_id IN (SELECT id FROM app.cogita_session WHERE area_id IN (SELECT id FROM #dead));
+            DELETE FROM app.cogita_session       WHERE area_id IN (SELECT id FROM #dead);
+            UPDATE app.cogita_session SET library_id = NULL WHERE library_id IN (SELECT id FROM #libs);
+        END
+        IF OBJECT_ID('app.learn_batch', 'U') IS NOT NULL
+        BEGIN
+            DELETE FROM app.learn_batch WHERE area_id IN (SELECT id FROM #dead) OR library_id IN (SELECT id FROM #libs);
+            DELETE FROM app.learn_due   WHERE library_id IN (SELECT id FROM #libs);
+        END
+        IF OBJECT_ID('app.library_entry_version', 'U') IS NOT NULL
+        BEGIN
+            DELETE FROM app.library_entry_version WHERE entry_id IN (SELECT id FROM app.library_entry WHERE library_id IN (SELECT id FROM #libs));
+            DELETE FROM app.library_file          WHERE library_id IN (SELECT id FROM #libs);
+        END
+
+        IF OBJECT_ID('app.library', 'U') IS NOT NULL
         BEGIN
             DELETE FROM app.library_public_ref
              WHERE entry_id IN (SELECT e.id FROM app.library_entry e JOIN app.library l ON l.id = e.library_id WHERE l.area_id IN (SELECT id FROM #dead))
@@ -540,6 +579,16 @@ public static class AccountDeletion
 
         -- ===== Was die Rollen anderswo hinterlassen =========================
 
+        -- 0109: die eigenen Fortschritte gehen mit; in fremden Sitzungen, was die Rollen schrieben.
+        IF OBJECT_ID('app.learn_batch', 'U') IS NOT NULL
+        BEGIN
+            DELETE FROM app.learn_batch WHERE holder_role_id IN (SELECT id FROM #doomed);
+            DELETE FROM app.learn_due   WHERE holder_role_id IN (SELECT id FROM #doomed);
+        END
+        IF OBJECT_ID('app.cogita_session_event', 'U') IS NOT NULL
+            DELETE FROM app.cogita_session_event
+             WHERE author_role_id IN (SELECT id FROM #doomed) OR author_person_id IN (SELECT id FROM #doomed);
+
         DELETE FROM app.person_release   WHERE role_id IN (SELECT id FROM #doomed);
         DELETE FROM app.person_value     WHERE role_id IN (SELECT id FROM #doomed);
         DELETE FROM app.area_member_name WHERE role_id IN (SELECT id FROM #doomed);
@@ -618,6 +667,7 @@ public static class AccountDeletion
 
         SELECT id FROM #files;
         SELECT @roles AS roles, @areas AS areas, @messages AS messages, @devices AS devices;
+        SELECT id FROM #libs;
         """;
 
     private static Task Fail(HttpContext ctx, int status, string message)
