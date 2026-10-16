@@ -37,9 +37,11 @@ import {
   ARRIVALS, EASES, FONT_PAIRS, FORMATS, NAVS, ORIGINS, pieceJson, readPiece, readPieceValue, readShow, SCENE_CHANGES, showJson, SKINS,
   TEXT_TYPES, THREADS, withPiece, type Piece
 } from './presentation';
+import { motionDescription, unknownMotions } from './motion';
 import { brokenTarget } from './showPaths';
 import {
-  DEFAULT_THEMES, ENTERS, readLayers, readPalette, readSlide, readSlideValue, remapStage, slideJson, TRANSITIONS, withSlide, type Look, type Theme
+  DECK_NAVS, deckJson, DEFAULT_THEMES, ENTERS, LAYER_KINDS, layersJson, readDeck, readLayers, readPalette, readSlide, readSlideValue, remapSlide, slideJson, TRANSITIONS,
+  withSlide, type DeckLook, type Look, type Theme
 } from './slides';
 import { importLegacy, legacyPages } from './SlidesImport';
 
@@ -111,9 +113,11 @@ export function exportPage(now: PageNow): Record<string, unknown> {
     lead: now.lead.trim() === '' ? null : now.lead,
     mode: now.mode,
     theme: now.look.theme,
-    cover: now.look.cover,
+    cover: layersJson(now.look.cover),
     /* 0085 — die Szenen einer Präsentation (auch, wenn die Seite gerade anders erscheint: sie gehen nicht verloren). */
     ...(now.look.show === undefined ? {} : { show: showJson(readShow(now.look.show)) }),
+    /* 0107 — die Folge als Ganzes: gemeinsames Tuch, Leiste, Titelslajd, Breite. */
+    ...(now.look.deck === undefined || deckJson(now.look.deck) === undefined ? {} : { deck: deckJson(now.look.deck) }),
     ...(menu === undefined ? {} : { menu }),
     logic: readLogic(now.logic),
     subject: readSubject(now.subject ?? null),
@@ -233,6 +237,26 @@ function pieceWarnings(said: Record<string, unknown>, where: string): string[] {
   if (has(said, 'places') && (typeof said.places !== 'object' || said.places === null || Array.isArray(said.places))) {
     out.push(`${where}: "show.places" to nie obiekt { "klucz sceny": miejsce } — moduł nie stanie w prezentacji.`);
   }
+  return out;
+}
+
+/** 0107 — Schichten, deren Art es nicht gibt (sie fallen weg), und Bewegungen, die das Wörterbuch nicht kennt. */
+function layerWarnings(value: unknown, where: string): string[] {
+  const out: string[] = [];
+  asArray(value).forEach((raw, i) => {
+    const one = asRecord(raw);
+    if (!(LAYER_KINDS as readonly string[]).includes(asText(one.kind))) out.push(`${where}, warstwa ${i + 1}: rodzaj „${asText(one.kind)}” — dozwolone: ${LAYER_KINDS.join(', ')}; pominięta.`);
+    for (const name of unknownMotions(one.motion)) out.push(`${where}, warstwa ${i + 1}: ruch „${name}” — nie ma go w słowniku; pominięty.`);
+  });
+  return out;
+}
+
+/** 0107 — was an der Folge nicht stimmt. */
+function deckWarnings(value: unknown): string[] {
+  const root = asRecord(value);
+  const out: string[] = [];
+  if (has(root, 'nav') && !(DECK_NAVS as readonly string[]).includes(asText(root.nav))) out.push(`"deck.nav" „${asText(root.nav)}” — dozwolone: ${DECK_NAVS.join(', ')}; będzie "labels".`);
+  out.push(...layerWarnings(root.backdrop, '"deck.backdrop"'));
   return out;
 }
 
@@ -428,6 +452,9 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
     if (has(said, 'enter') && !(ENTERS as readonly string[]).includes(asText(said.enter))) {
       warnings.push(`Moduł ${index + 1}: "slide.enter" „${asText(said.enter)}” — dozwolone: ${ENTERS.join(', ')}; będzie "none".`);
     }
+    /* 0107 — ein Name, den das Wörterbuch nicht kennt, bewegt nichts. */
+    for (const name of unknownMotions(said.motion)) warnings.push(`Moduł ${index + 1}: ruch "slide.motion" „${name}” — nie ma go w słowniku (niżej: Ruch); pominięty.`);
+    warnings.push(...layerWarnings(said.layers, `Moduł ${index + 1}: "slide.layers"`));
 
     /* 0085 — sein Platz in der Präsentation: aus dem Dokument, sonst der bisherige. "show": null nimmt ihn heraus. */
     const shown: Piece | undefined = has(entry, 'show')
@@ -453,7 +480,7 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
   for (const m of made) {
     if (m.part.layout.slide === undefined) continue;
     const look = readSlide(m.part.layout);
-    if (look.stage !== null) m.part = { ...m.part, layout: withSlide(m.part.layout, remapStage(look, ids)) };
+    if (look.stage !== null || look.with !== null) m.part = { ...m.part, layout: withSlide(m.part.layout, remapSlide(look, ids)) };
   }
 
   /* Die Anordnung: ersetzt, oder die bisherige mit den geänderten an ihrer Stelle und den neuen dahinter. */
@@ -502,20 +529,34 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
       if (mode !== now.mode) lines.push(mode === 'slides' ? 'Wygląd: slajdy.' : mode === 'presentation' ? 'Wygląd: prezentacja.' : 'Wygląd: strona z modułami.');
       plan.mode = mode;
     } else if (has(root, 'mode')) warnings.push(`"mode" „${asText(root.mode)}” — dozwolone "page", "slides" albo "presentation"; zostaje jak jest.`);
-    if (has(root, 'theme') || has(root, 'cover') || has(root, 'show')) {
+    if (has(root, 'theme') || has(root, 'cover') || has(root, 'show') || has(root, 'deck')) {
       const theme = has(root, 'theme') ? readTheme(root.theme) : now.look.theme;
       if (theme === undefined) warnings.push('"theme" nie ma "mode" ("dark", "light" albo "auto") — kolory zostają jak są.');
       if (has(root, 'show') && root.show !== null) warnings.push(...showWarnings(root.show));
+      if (has(root, 'cover')) warnings.push(...layerWarnings(root.cover, '"cover"'));
+      if (has(root, 'deck') && root.deck !== null) warnings.push(...deckWarnings(root.deck));
       const show = has(root, 'show') ? (root.show === null ? undefined : showJson(readShow(root.show))) : now.look.show;
+      /* 0107 — die Folge: "deck": null nimmt sie weg, ein leeres Objekt auch. */
+      const deck: DeckLook | undefined = has(root, 'deck') ? (root.deck === null ? undefined : readDeck(root.deck)) : now.look.deck;
       const look: Look = {
         theme: theme === undefined ? now.look.theme : theme,
         cover: has(root, 'cover') ? readLayers(root.cover) : now.look.cover,
-        ...(show === undefined ? {} : { show })
+        ...(show === undefined ? {} : { show }),
+        ...(deck === undefined || deckJson(deck) === undefined ? {} : { deck })
       };
       if (JSON.stringify(look) !== JSON.stringify(now.look)) plan.look = look;
       if (plan.look !== undefined) {
         lines.push(`Kolory: ${plan.look.theme === null ? 'automatyczne' : plan.look.theme.night != null ? 'jasne i nocne (jak urządzenie)' : plan.look.theme.mode === 'dark' ? 'ciemne' : 'jasne'}${has(root, 'cover') ? `, tło tytułu: ${count(plan.look.cover.length, 'warstwa', 'warstwy', 'warstw')}` : ''}.`);
         if (has(root, 'show') && plan.look.show !== undefined) lines.push(`Prezentacja: ${count(readShow(plan.look.show).scenes.length, 'scena', 'sceny', 'scen')}.`);
+        if (has(root, 'deck') && plan.look.deck !== undefined) {
+          const d = plan.look.deck;
+          lines.push(`Pokaz: ${[
+            d.backdrop.length > 0 ? `tło wspólne — ${count(d.backdrop.length, 'warstwa', 'warstwy', 'warstw')}` : null,
+            d.nav === 'dots' ? 'kropki zamiast nazw' : d.nav === 'none' ? 'bez paska' : null,
+            d.titleSlide ? null : 'bez slajdu tytułowego',
+            d.width === null ? null : `scena do ${d.width} rem`
+          ].filter((one) => one !== null).join(', ')}.`);
+        }
       }
     }
     if (has(root, 'menu')) {
@@ -626,15 +667,25 @@ const LAYERS = `Warstwy tła ("cover" strony, "slide.layers" modułu) — od ty�
   { "kind": "gradient", "speed": 0.12, "angle": 168, "from": "#12203a", "via": null, "to": "#060a12" }
   { "kind": "image", "speed": 0.34, "url": "https://…/tlo.jpg", "opacity": 0.45, "blend": "normal"|"multiply"|"screen"|"overlay"|"soft-light", "position": "center" }
   { "kind": "bigtext", "speed": 0.95, "lines": ["TRASA"], "opacity": 0.1, "color": null }
+  { "kind": "glow", "speed": 0.12, "color": "rgba(120, 170, 220, 0.18)", "x": 58, "y": 42, "size": 60, "opacity": 1, "blend": "normal" } — poświata: miękka plama światła; "x", "y" — środek w %, "size" — gdzie gaśnie (% odległości do najbliższej krawędzi)
+  { "kind": "vignette", "speed": 0, "strength": 0.35, "reach": 55, "color": "#000000" } — ciemne rogi: od "reach" % drogi do rogu ciemniej, w rogu "strength"
+  { "kind": "haze", "speed": 0.08, "color": "rgba(120, 170, 220, 0.08)", "depth": "rgba(30, 60, 100, 0.1)", "blur": 60, "opacity": 0.35, "motion": { "name": "drift" } } — mgła: dwie ciemne plamy ("depth") i jasna smuga ("color"), mocno rozmyte, dryfują
+  { "kind": "mesh", "speed": 0.05, "seed": 7, "count": 4, "color": "rgba(143, 208, 255, 0.25)", "glow": "rgba(167, 224, 255, 0.35)", "center": 0.82, "amplitude": 1, "opacity": 0.9, "dust": true, "motion": { "name": "sway" } } — nici: świecące linie fal nad dolną krawędzią z pyłem; "count" warstw, każda faluje po swojemu ("sway": 180–400 s); "center" — wysokość fali (0 góra, 1 dół)
+  { "kind": "waves", "speed": 0.05, "seed": 7, "count": 6, "hue": 188, "spread": 32, "opacity": 1, "blur": 1, "motion": [] } — fale: rozmyte pasma przy dole z jasnymi brzegami (barwa "hue"…"hue"+"spread"); w pokazie Cogita stoją — z "motion": { "name": "wave" } płyną
   "speed" 0–1 — jak wolno warstwa przesuwa się przy przewijaniu; "opacity" 0–1. Obraz może być plikiem strony: "page-image:<id>".
+  Kolory warstw mogą być nazwami: "ground", "accent", "ink", "muted" — wtedy idą za kolorami slajdów. "seed" — ta sama liczba daje ten sam obraz za każdym razem; "motion" — ruch warstwy (niżej: Ruch), "[]" — stoi.
 
 Slajd modułu ("slide") — wszystko poza "label" i "layers" jest nieobowiązkowe:
-  "transition" — jak ten slajd zastępuje poprzedni: "scroll" (wjeżdża od dołu, zwykłe), "fade" (przenika), "cover" (nakrywa poprzedni, który przygasa), "reveal" (poprzedni odjeżdża i go odsłania), "zoom" (przybliżenie), "side" (z prawej). Idzie za przewijaniem, nie za zegarem
+  "transition" — jak ten slajd zastępuje poprzedni: "scroll" (wjeżdża od dołu, zwykłe), "fade" (przenika), "cover" (nakrywa poprzedni, który przygasa), "reveal" (poprzedni odjeżdża i go odsłania), "zoom" (przybliżenie), "side" (z prawej), "dissolve" (rozmycie: poprzedni gaśnie, rozmywa się i opada o 12 px, ten wyostrza się, unosząc — jak pokaz Cogita). Idzie za przewijaniem, nie za zegarem
   "enter" — jak pojawia się treść: "none", "rise", "fade", "zoom", "left", "right"
   "colors" — własne kolory slajdu, przechodzą płynnie między slajdami: { "accent", "ink", "ground", "muted" } ("#rrggbb"; pominięty — jak strona)
   "stage" — moduł NIE ma własnego slajdu: stoi nad wszystkimi i przy zmianie slajdu przesuwa się na swoje miejsce na następnym:
       { "frames": { "<id modułu-slajdu albo "cover">": { "x": 50, "y": 50, "w": 30, "scale": 1, "rotate": 0, "opacity": 1 } }, "bare": false }
-      "x", "y" — środek w procentach sceny; "w" — szerokość w procentach; między slajdami z miejscem przesuwa się płynnie, przed pierwszym i po ostatnim stoi; "bare": true — bez ramki (logo, obraz)`;
+      "x", "y" — środek w procentach sceny; "w" — szerokość w procentach; między slajdami z miejscem przesuwa się płynnie, przed pierwszym i po ostatnim stoi; "bare": true — bez ramki (logo, obraz)
+      "max" — najwyżej tyle szerokości w rem (logo zostaje logo na dużym ekranie); "tall" — inne wartości na ekranie wyższym niż szeroki (telefon): { "x", "y", "w", "scale", "rotate", "opacity" } — tylko te, które się różnią; z własnym "w" na telefonie liczy się dokładnie ono
+  "motion" — ruch modułu na jego slajdzie albo na scenie (niżej: Ruch), np. { "name": "rise", "delay": 220 } — tekst unosi się po dotarciu slajdu
+  "layout" — gdzie stoi treść slajdu: { "align": "start"|"center"|"end", "valign": "start"|"center"|"end", "width": 68, "tall": { "align", "valign", "width" } } — "width" w procentach sceny (szerokość sceny — "deck.width"); "tall" — na telefonie; pominięte — na środku, wygodna szerokość tekstu
+  "with" — moduł NIE ma własnego slajdu: stoi obok innego na jego slajdzie, w jednym rzędzie: { "slide": "<id modułu>", "side": "end"|"start", "share": 42, "tallSide": "start"|"end" } — "side" po prawej / po lewej, "share" — % szerokości rzędu, "tallSide" — na telefonie nad nim / pod nim (obraz, animacja obok tekstu); "with": "<id>" też wystarczy`;
 
 const PRESENTATION = `## Prezentacja ("mode": "presentation")
 Sceny to ekrany; moduły stoją na nich w dowolnym miejscu. Scena może mieć kilka kroków — wtedy wyróżnienie przechodzi z modułu na moduł, a scena idzie za wyróżnionym. Moduł z miejscem na kilku scenach wędruje: przy zmianie sceny przechodzi płynnie na swoje następne miejsce. Wszystko idzie za przewijaniem (kółko, palec, strzałki), w „Pokazie” — za klawiaturą i kliknięciem.
@@ -722,19 +773,33 @@ export function pageExample(): Record<string, unknown> {
     mode: 'slides',
     theme: DEFAULT_THEMES.dark,
     cover: [],
+    /* 0107 — ein gemeinsames Tuch mit Schein und Nici, Punkte statt Namen, die Bühne höchstens 80 rem. */
+    deck: {
+      backdrop: [
+        { kind: 'glow', speed: 0.12, color: 'accent', x: 58, y: 42, size: 60, opacity: 0.3, blend: 'normal' },
+        { kind: 'mesh', speed: 0.05, seed: 7, count: 4, color: 'rgba(143, 208, 255, 0.25)', glow: 'rgba(167, 224, 255, 0.35)', center: 0.82, amplitude: 1, opacity: 0.9, dust: true, motion: { name: 'sway' } }
+      ],
+      nav: 'dots',
+      width: 80
+    },
     menu: [{ label: 'Parafia', kind: 'abs', target: 'parafia', children: [] }, { label: 'Zapisy', kind: 'rel', target: 'zapisy', children: [] }],
     logic: null,
-    modules: sample.map((def, i) => ({
-      ...(i === 0 ? { id: 'start' } : {}),
-      kind: def.kind,
-      ...(def.kind === 'form' ? { name: 'Zapisy 2026' } : {}),
-      slide: i === 1 ? { label: def.label, layers: [], transition: 'fade', enter: 'rise' }
-        : i === 2 ? { label: def.label, layers: [], colors: { accent: '#d3a25e' }, stage: { frames: { start: { x: 80, y: 18, w: 22, scale: 1, rotate: 0, opacity: 1 } }, bare: true } }
-        : { label: def.label, layers: [] },
-      size: def.box,
-      config: def.json.example,
-      ...(def.kind === 'form' ? QUESTION_EXAMPLE : {})
-    }))
+    modules: [
+      ...sample.map((def, i) => ({
+        ...(i === 0 ? { id: 'start' } : {}),
+        kind: def.kind,
+        ...(def.kind === 'form' ? { name: 'Zapisy 2026' } : {}),
+        slide: i === 0 ? { label: def.label, layers: [], layout: { align: 'start', width: 56, tall: { valign: 'end', width: 100 } } }
+          : i === 1 ? { label: def.label, layers: [], transition: 'dissolve', enter: 'rise', motion: { name: 'rise', delay: 220 } }
+          : i === 2 ? { label: def.label, layers: [], colors: { accent: '#d3a25e' }, stage: { frames: { start: { x: 80, y: 18, w: 22, scale: 1, rotate: 0, opacity: 1, max: 20, tall: { x: 50, y: 12, w: 40 } } }, bare: true } }
+          : { label: def.label, layers: [] },
+        size: def.box,
+        config: def.json.example,
+        ...(def.kind === 'form' ? QUESTION_EXAMPLE : {})
+      })),
+      /* 0107 — eine Animacja neben dem Hasło, auf dessen Slajd; auf dem Telefon darüber. */
+      { kind: 'animation', slide: { label: 'Mapa', layers: [], with: { slide: 'start', side: 'end', share: 42, tallSide: 'start' } }, size: { colSpan: 3, rowSpan: 3 }, config: { scene: 'map' } }
+    ]
   };
 }
 
@@ -760,6 +825,10 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
   "theme" — kolory: null (automatyczne — jak w aplikacji) albo { "mode": "dark"|"light", "accent", "ink", "ground", "muted" } (kolory "#rrggbb"); z "night": { "accent", "ink", "ground", "muted" } strona idzie za urządzeniem — jasne kolory w dzień, te w nocy
   "cover" — tło slajdu tytułowego: lista warstw (niżej)
   "show" — sceny prezentacji (niżej: Prezentacja)
+  "deck" — całość pokazu slajdów (tylko "mode": "slides"): { "backdrop": [warstwy], "nav": "labels"|"dots"|"none", "titleSlide": true|false, "width": 80 }
+      "backdrop" — tło wspólne: warstwy (jak niżej), które stoją za wszystkimi slajdami; slajdy przesuwają się nad nim przezroczyste, a ich własne warstwy leżą w nim i przechodzą płynnie jedna w drugą
+      "nav" — pasek: nazwy slajdów u góry (zwykły), kropki z prawej, bez paska; "titleSlide": false — bez slajdu tytułowego (pierwszy moduł jest pierwszym ekranem)
+      "width" — najwyżej tyle rem szerokości sceny: w niej liczą się miejsca modułów przechodzących i "layout" slajdów (null — całe okno)
   "menu" — null (bez menu), lista pozycji albo { "from": "ścieżka" } (to samo menu co na innej Twojej stronie)
       pozycja: { "label", "kind": "abs" (ścieżka od korzenia, np. "parafia/zapisy") | "rel" (względem tej strony) | "url" (pełny adres) | "none" (sam nagłówek), "target", "children": [pozycje] }
   "subject" — wybór na stronie: u góry strony wybiera się jedną rzecz, a moduły (np. "entry-panel") ją pokazują. ${subjectDescription()}
@@ -774,6 +843,9 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
 ${keyLines(ENTRY_KEYS)}
 
 ${LAYERS}
+
+## Ruch
+${motionDescription()}
 
 ${PRESENTATION}
 

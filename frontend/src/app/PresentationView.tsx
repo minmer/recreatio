@@ -39,6 +39,7 @@ import {
 } from './presentationMotion';
 import { branch, goOf, nextOf, routeOf, type Target } from './showPaths';
 import { ShowDark } from './showContext';
+import { LayerArt, layerBackground } from './deckLayers';
 import { usePrefersDark, usePrefersReducedMotion } from './SlideDeck';
 import { addressWithSlide, anchorOf, imageUrl, resolveTheme, slideInAddress, type Layer, type Theme } from './slides';
 import { usePresentationDrive, type DriveControl } from './usePresentationDrive';
@@ -85,18 +86,9 @@ function useFonts(pair: keyof typeof FONT_FACES): void {
   }, [pair]);
 }
 
+/** Der Grund einer Schicht — 0107: auch Schein und Ecken; Dunst, Nici und Fale liegen darin (`LayerArt`). */
 function layerStyle(layer: Layer): CSSProperties {
-  if (layer.kind === 'gradient') {
-    const stops = layer.via ? `${layer.from}, ${layer.via}, ${layer.to}` : `${layer.from}, ${layer.to}`;
-    return { background: `linear-gradient(${layer.angle}deg, ${stops})` };
-  }
-  if (layer.kind === 'image') {
-    return layer.url === '' ? {} : {
-      backgroundImage: `url(${JSON.stringify(imageUrl(layer.url))})`, backgroundSize: 'cover',
-      backgroundPosition: layer.position, opacity: layer.opacity, mixBlendMode: layer.blend
-    };
-  }
-  return {};
+  return layerBackground(layer);
 }
 
 const plainClick = (event: React.MouseEvent) =>
@@ -689,6 +681,7 @@ export function PresentationView({
                   <div className="pz-ground" aria-hidden="true" />
                   {sc.layers.map((layer, n) => (
                     <div key={n} className={`pz-layer is-${layer.kind}`} style={layerStyle(layer)} aria-hidden="true">
+                      <LayerArt layer={layer} />
                       {layer.kind === 'bigtext' && (
                         <div className="pz-bigtext" style={{ opacity: layer.opacity }}>
                           {layer.lines.map((line, k) => <span key={k} style={layer.color ? { color: layer.color } : undefined}>{line}</span>)}

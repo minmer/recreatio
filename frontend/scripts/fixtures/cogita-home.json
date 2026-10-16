@@ -1,0 +1,1004 @@
+{
+  "format": "recreatio/page",
+  "version": 1,
+  "path": "cogita",
+  "title": "Cogita",
+  "lead": null,
+  "mode": "slides",
+  "theme": {
+    "mode": "dark",
+    "accent": "#7ec8ff",
+    "ink": "#f4f7fb",
+    "ground": "#06162a",
+    "muted": "#bcc8d9"
+  },
+  "cover": [],
+  "deck": {
+    "backdrop": [
+      {
+        "kind": "vignette",
+        "speed": 0,
+        "strength": 0.35,
+        "reach": 55,
+        "color": "#000000"
+      },
+      {
+        "kind": "haze",
+        "speed": 0,
+        "color": "rgba(120, 170, 220, 0.08)",
+        "depth": "rgba(30, 60, 100, 0.1)",
+        "blur": 60,
+        "opacity": 0.35,
+        "motion": {
+          "name": "drift"
+        }
+      },
+      {
+        "kind": "mesh",
+        "speed": 0,
+        "seed": 2026,
+        "count": 4,
+        "color": "rgba(143, 208, 255, 0.25)",
+        "glow": "rgba(167, 224, 255, 0.35)",
+        "center": 0.82,
+        "amplitude": 1,
+        "opacity": 0.9,
+        "dust": true,
+        "motion": {
+          "name": "sway"
+        }
+      },
+      {
+        "kind": "waves",
+        "speed": 0,
+        "seed": 7,
+        "count": 6,
+        "hue": 188,
+        "spread": 32,
+        "opacity": 1,
+        "blur": 1,
+        "motion": []
+      }
+    ],
+    "nav": "dots",
+    "titleSlide": false,
+    "width": 80
+  },
+  "modules": [
+    {
+      "id": "logo",
+      "kind": "layers",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "slide": {
+        "label": "Znak Cogita",
+        "layers": [],
+        "stage": {
+          "frames": {
+            "wejscie": {
+              "x": 70,
+              "y": 50,
+              "w": 44,
+              "scale": 1.08,
+              "rotate": 0,
+              "opacity": 1,
+              "max": 32.5,
+              "tall": {
+                "x": 50,
+                "y": 20,
+                "w": 52,
+                "scale": 1.05
+              }
+            },
+            "mapa": {
+              "x": 16,
+              "y": 50,
+              "w": 44,
+              "scale": 0.5,
+              "rotate": 0,
+              "opacity": 0.82,
+              "max": 32.5,
+              "tall": {
+                "x": 11,
+                "y": 6,
+                "w": 44,
+                "scale": 0.32,
+                "opacity": 0.85
+              }
+            },
+            "biblioteka": {
+              "x": 16,
+              "y": 50,
+              "w": 44,
+              "scale": 0.5,
+              "rotate": 0,
+              "opacity": 0.82,
+              "max": 32.5,
+              "tall": {
+                "x": 11,
+                "y": 6,
+                "w": 44,
+                "scale": 0.32,
+                "opacity": 0.85
+              }
+            },
+            "na-zywo": {
+              "x": 16,
+              "y": 50,
+              "w": 44,
+              "scale": 0.5,
+              "rotate": 0,
+              "opacity": 0.82,
+              "max": 32.5,
+              "tall": {
+                "x": 11,
+                "y": 6,
+                "w": 44,
+                "scale": 0.32,
+                "opacity": 0.85
+              }
+            },
+            "postep": {
+              "x": 16,
+              "y": 50,
+              "w": 44,
+              "scale": 0.5,
+              "rotate": 0,
+              "opacity": 0.82,
+              "max": 32.5,
+              "tall": {
+                "x": 11,
+                "y": 6,
+                "w": 44,
+                "scale": 0.32,
+                "opacity": 0.85
+              }
+            },
+            "ochrona": {
+              "x": 16,
+              "y": 50,
+              "w": 44,
+              "scale": 0.5,
+              "rotate": 0,
+              "opacity": 0.82,
+              "max": 32.5,
+              "tall": {
+                "x": 11,
+                "y": 6,
+                "w": 44,
+                "scale": 0.32,
+                "opacity": 0.85
+              }
+            },
+            "dolacz": {
+              "x": 25,
+              "y": 50,
+              "w": 44,
+              "scale": 0.95,
+              "rotate": 0,
+              "opacity": 1,
+              "max": 32.5,
+              "tall": {
+                "x": 50,
+                "y": 22,
+                "w": 50,
+                "scale": 1
+              }
+            }
+          },
+          "bare": true
+        }
+      },
+      "config": {
+        "alt": "Cogita",
+        "layers": [
+          {
+            "url": "/cogita/logo/Cogita00.png",
+            "z": 3,
+            "shadow": "0 26px 60px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "float",
+              "x": 4,
+              "y": 6,
+              "duration": 3800
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita01.png",
+            "z": 3,
+            "shadow": "0 26px 60px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "float",
+              "x": 6,
+              "y": 8,
+              "duration": 4200
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita02.png",
+            "z": 3,
+            "shadow": "0 26px 60px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "float",
+              "x": -5,
+              "y": 7,
+              "duration": 3600
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita03.png",
+            "z": 3,
+            "shadow": "0 26px 60px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "float",
+              "x": 8,
+              "y": -4,
+              "duration": 4600
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita04.png",
+            "z": 3,
+            "shadow": "0 26px 60px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "float",
+              "x": -7,
+              "y": 5,
+              "duration": 4000
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita05.png",
+            "z": 3,
+            "shadow": "0 26px 60px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "float",
+              "x": 5,
+              "y": -6,
+              "duration": 3400
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita06.png",
+            "z": 3,
+            "shadow": "0 26px 60px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "float",
+              "x": -4,
+              "y": 9,
+              "duration": 4800
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita07.png",
+            "z": 3,
+            "shadow": "0 26px 60px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "float",
+              "x": 7,
+              "y": -5,
+              "duration": 3900
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita08.png",
+            "z": 3,
+            "shadow": "0 26px 60px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "float",
+              "x": -6,
+              "y": 6,
+              "duration": 4400
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita09.png",
+            "z": 3,
+            "shadow": "0 26px 60px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "float",
+              "x": 5,
+              "y": 5,
+              "duration": 3700
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita10.png",
+            "z": 3,
+            "shadow": "0 26px 60px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "float",
+              "x": -5,
+              "y": -4,
+              "duration": 4100
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita11.png",
+            "z": 3,
+            "shadow": "0 26px 60px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "float",
+              "x": 6,
+              "y": 8,
+              "duration": 4200
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita12.png",
+            "z": 2,
+            "shadow": "0 30px 70px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "assemble",
+              "delay": 0
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita13.png",
+            "z": 2,
+            "shadow": "0 30px 70px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "assemble",
+              "delay": 90
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita14.png",
+            "z": 2,
+            "shadow": "0 30px 70px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "assemble",
+              "delay": 180
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita15.png",
+            "z": 2,
+            "shadow": "0 30px 70px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "assemble",
+              "delay": 260
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita16.png",
+            "z": 2,
+            "shadow": "0 30px 70px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "assemble",
+              "delay": 340
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita17.png",
+            "z": 2,
+            "shadow": "0 30px 70px rgba(8, 20, 38, 0.6)",
+            "motion": {
+              "name": "assemble",
+              "delay": 420
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita18.png",
+            "z": 1,
+            "motion": {
+              "name": "assemble",
+              "delay": 520
+            }
+          },
+          {
+            "url": "/cogita/logo/Cogita19.png",
+            "z": 1,
+            "motion": {
+              "name": "assemble",
+              "delay": 620
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "wejscie",
+      "kind": "hero",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 3
+      },
+      "slide": {
+        "label": "Cogita",
+        "layers": [
+          {
+            "kind": "gradient",
+            "speed": 0,
+            "angle": 180,
+            "from": "#06162a",
+            "via": "#0c2d49",
+            "to": "#0a1c2f"
+          },
+          {
+            "kind": "glow",
+            "speed": 0,
+            "color": "rgba(120, 170, 220, 0.18)",
+            "x": 58,
+            "y": 42,
+            "size": 60,
+            "opacity": 1,
+            "blend": "normal"
+          }
+        ],
+        "transition": "dissolve",
+        "colors": {
+          "ground": "#06162a"
+        },
+        "layout": {
+          "align": "start",
+          "width": 48,
+          "tall": {
+            "valign": "end",
+            "width": 100
+          }
+        }
+      },
+      "config": {
+        "title": "",
+        "intro": "",
+        "badge": "Cogita",
+        "badgeLook": "kicker",
+        "size": "display",
+        "headline": "Cogita.",
+        "lede": null,
+        "paragraphs": [
+          "Scena wiedzy na żywo dla nauki i dialogu."
+        ],
+        "actions": [
+          {
+            "label": "Rozpocznij pokaz",
+            "href": "#mapa-wiedzy",
+            "variant": "cta"
+          }
+        ],
+        "footnote": "Wejdź i zobacz, jak prowadzi mapa wiedzy."
+      }
+    },
+    {
+      "id": "mapa",
+      "kind": "hero",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 3
+      },
+      "slide": {
+        "label": "Mapa wiedzy",
+        "layers": [
+          {
+            "kind": "gradient",
+            "speed": 0,
+            "angle": 180,
+            "from": "#061a2b",
+            "via": "#093b58",
+            "to": "#071f34"
+          },
+          {
+            "kind": "glow",
+            "speed": 0,
+            "color": "rgba(126, 190, 238, 0.18)",
+            "x": 58,
+            "y": 42,
+            "size": 60,
+            "opacity": 1,
+            "blend": "normal"
+          }
+        ],
+        "transition": "dissolve",
+        "colors": {
+          "ground": "#061a2b"
+        },
+        "motion": {
+          "name": "rise",
+          "delay": 1000
+        },
+        "layout": {
+          "align": "end",
+          "width": 69,
+          "tall": {
+            "width": 100
+          }
+        }
+      },
+      "config": {
+        "title": "",
+        "intro": "",
+        "badge": "Cogita",
+        "badgeLook": "kicker",
+        "size": "title",
+        "headline": "Nie dostajesz kolejnego kroku, zanim nie jesteś gotowy.",
+        "lede": null,
+        "paragraphs": [
+          "Nowa wiedza otwiera się dopiero, gdy rozumiesz poprzednią.",
+          "Gdy brakuje podstaw, Cogita je odbudowuje — i prowadzi dalej."
+        ],
+        "actions": [
+          {
+            "label": "Dalej: Jak prowadzi",
+            "href": "#biblioteka",
+            "variant": "cta"
+          }
+        ],
+        "footnote": "Drzewo wiedzy, które prowadzi."
+      }
+    },
+    {
+      "id": "mapa-obraz",
+      "kind": "animation",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "slide": {
+        "label": "Mapa wiedzy — obraz",
+        "layers": [],
+        "with": {
+          "slide": "mapa",
+          "side": "end",
+          "share": 44,
+          "tallSide": "start"
+        }
+      },
+      "config": {
+        "scene": "map",
+        "color": "#aae6ff",
+        "soft": "#8cc8ff",
+        "good": "#78e6aa",
+        "bad": "#ff7878",
+        "max": 27.5
+      }
+    },
+    {
+      "id": "biblioteka",
+      "kind": "hero",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 3
+      },
+      "slide": {
+        "label": "Biblioteka",
+        "layers": [
+          {
+            "kind": "gradient",
+            "speed": 0,
+            "angle": 180,
+            "from": "#081a2e",
+            "via": "#0d2f49",
+            "to": "#091f32"
+          },
+          {
+            "kind": "glow",
+            "speed": 0,
+            "color": "rgba(122, 175, 227, 0.14)",
+            "x": 58,
+            "y": 42,
+            "size": 60,
+            "opacity": 1,
+            "blend": "normal"
+          }
+        ],
+        "transition": "dissolve",
+        "colors": {
+          "ground": "#081a2e"
+        },
+        "motion": {
+          "name": "rise",
+          "delay": 220
+        },
+        "layout": {
+          "align": "end",
+          "width": 69,
+          "tall": {
+            "width": 100
+          }
+        }
+      },
+      "config": {
+        "title": "",
+        "intro": "",
+        "badge": "Cogita",
+        "badgeLook": "kicker",
+        "size": "title",
+        "headline": "Wiedza do ponownego użycia — nie tylko do czytania.",
+        "lede": null,
+        "paragraphs": [
+          "Zapisuj idee jako karty: streszczenie, cytat, źródło, tagi.",
+          "Potem układaj z nich argumenty i notatki, bez utraty kontekstu."
+        ],
+        "actions": [
+          {
+            "label": "Dalej: Współpraca na żywo",
+            "href": "#na-zywo",
+            "variant": "cta"
+          }
+        ],
+        "footnote": "Twoje pudełko wiedzy."
+      }
+    },
+    {
+      "id": "biblioteka-obraz",
+      "kind": "animation",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "slide": {
+        "label": "Biblioteka — obraz",
+        "layers": [],
+        "with": {
+          "slide": "biblioteka",
+          "side": "end",
+          "share": 44,
+          "tallSide": "start"
+        }
+      },
+      "config": {
+        "scene": "cards",
+        "color": "#aae6ff",
+        "soft": "#8cc8ff",
+        "good": "#78e6aa",
+        "bad": "#ff7878",
+        "max": 35
+      }
+    },
+    {
+      "id": "na-zywo",
+      "kind": "hero",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 3
+      },
+      "slide": {
+        "label": "Na żywo",
+        "layers": [
+          {
+            "kind": "gradient",
+            "speed": 0,
+            "angle": 180,
+            "from": "#07182d",
+            "via": "#0d2a49",
+            "to": "#081f34"
+          },
+          {
+            "kind": "glow",
+            "speed": 0,
+            "color": "rgba(116, 170, 224, 0.15)",
+            "x": 58,
+            "y": 42,
+            "size": 60,
+            "opacity": 1,
+            "blend": "normal"
+          }
+        ],
+        "transition": "dissolve",
+        "colors": {
+          "ground": "#07182d"
+        },
+        "motion": {
+          "name": "rise",
+          "delay": 220
+        },
+        "layout": {
+          "align": "end",
+          "width": 69,
+          "tall": {
+            "width": 100
+          }
+        }
+      },
+      "config": {
+        "title": "",
+        "intro": "",
+        "badge": "Cogita",
+        "badgeLook": "kicker",
+        "size": "title",
+        "headline": "Wiedza żyje w rozmowie.",
+        "lede": null,
+        "paragraphs": [
+          "Uczysz się szybciej, gdy myślisz razem z innymi.",
+          "Wspólna runda pytań i odpowiedzi zamienia naukę w dialog."
+        ],
+        "actions": [
+          {
+            "label": "Dalej: Wspólna gra",
+            "href": "#postep",
+            "variant": "cta"
+          }
+        ],
+        "footnote": "Pytaj, odpowiadaj, wyjaśniaj."
+      }
+    },
+    {
+      "id": "na-zywo-obraz",
+      "kind": "animation",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "slide": {
+        "label": "Na żywo — obraz",
+        "layers": [],
+        "with": {
+          "slide": "na-zywo",
+          "side": "end",
+          "share": 44,
+          "tallSide": "start"
+        }
+      },
+      "config": {
+        "scene": "round",
+        "color": "#aae6ff",
+        "soft": "#8cc8ff",
+        "good": "#78e6aa",
+        "bad": "#ff7878",
+        "max": 32.5
+      }
+    },
+    {
+      "id": "postep",
+      "kind": "hero",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 3
+      },
+      "slide": {
+        "label": "Postęp",
+        "layers": [
+          {
+            "kind": "gradient",
+            "speed": 0,
+            "angle": 180,
+            "from": "#071525",
+            "via": "#0e2945",
+            "to": "#081a2f"
+          },
+          {
+            "kind": "glow",
+            "speed": 0,
+            "color": "rgba(121, 175, 228, 0.14)",
+            "x": 58,
+            "y": 42,
+            "size": 60,
+            "opacity": 1,
+            "blend": "normal"
+          }
+        ],
+        "transition": "dissolve",
+        "colors": {
+          "ground": "#071525"
+        },
+        "motion": {
+          "name": "rise",
+          "delay": 220
+        },
+        "layout": {
+          "align": "end",
+          "width": 69,
+          "tall": {
+            "width": 100
+          }
+        }
+      },
+      "config": {
+        "title": "",
+        "intro": "",
+        "badge": "Cogita",
+        "badgeLook": "kicker",
+        "size": "title",
+        "headline": "Widzisz postęp — i co trenować dalej.",
+        "lede": null,
+        "paragraphs": [
+          "Śledź swój rozwój i porównuj się z grupą.",
+          "Znajduj luki i łącz się z osobami na podobnym poziomie."
+        ],
+        "actions": [
+          {
+            "label": "Dalej: Zaufanie i prywatność",
+            "href": "#ochrona",
+            "variant": "cta"
+          }
+        ],
+        "footnote": "Jasna informacja zwrotna."
+      }
+    },
+    {
+      "id": "postep-obraz",
+      "kind": "animation",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "slide": {
+        "label": "Postęp — obraz",
+        "layers": [],
+        "with": {
+          "slide": "postep",
+          "side": "end",
+          "share": 44,
+          "tallSide": "start"
+        }
+      },
+      "config": {
+        "scene": "progress",
+        "color": "#aae6ff",
+        "soft": "#8cc8ff",
+        "good": "#78e6aa",
+        "bad": "#ff7878",
+        "max": 35
+      }
+    },
+    {
+      "id": "ochrona",
+      "kind": "hero",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 3
+      },
+      "slide": {
+        "label": "Ochrona",
+        "layers": [
+          {
+            "kind": "gradient",
+            "speed": 0,
+            "angle": 180,
+            "from": "#071a2a",
+            "via": "#0a2742",
+            "to": "#07192d"
+          },
+          {
+            "kind": "glow",
+            "speed": 0,
+            "color": "rgba(150, 200, 240, 0.16)",
+            "x": 58,
+            "y": 42,
+            "size": 60,
+            "opacity": 1,
+            "blend": "normal"
+          }
+        ],
+        "transition": "dissolve",
+        "colors": {
+          "ground": "#071a2a"
+        },
+        "motion": {
+          "name": "rise",
+          "delay": 220
+        },
+        "layout": {
+          "align": "end",
+          "width": 69,
+          "tall": {
+            "width": 100
+          }
+        }
+      },
+      "config": {
+        "title": "",
+        "intro": "",
+        "badge": "Cogita",
+        "badgeLook": "kicker",
+        "size": "title",
+        "headline": "Otwarte, ale chronione.",
+        "lede": null,
+        "paragraphs": [
+          "To, co prywatne, pozostaje prywatne — dostęp jest kontrolowany, a dane chronione."
+        ],
+        "actions": [
+          {
+            "label": "Dalej: Dołącz",
+            "href": "#dolacz",
+            "variant": "cta"
+          }
+        ],
+        "footnote": "Zaufanie jako fundament."
+      }
+    },
+    {
+      "id": "ochrona-obraz",
+      "kind": "animation",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "slide": {
+        "label": "Ochrona — obraz",
+        "layers": [],
+        "with": {
+          "slide": "ochrona",
+          "side": "end",
+          "share": 44,
+          "tallSide": "start"
+        }
+      },
+      "config": {
+        "scene": "draw",
+        "color": "#aae6ff",
+        "soft": "#8cc8ff",
+        "good": "#78e6aa",
+        "bad": "#ff7878",
+        "max": 11.25,
+        "icon": "shield",
+        "glow": "tak"
+      }
+    },
+    {
+      "id": "dolacz",
+      "kind": "hero",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 3
+      },
+      "slide": {
+        "label": "Dołącz",
+        "layers": [
+          {
+            "kind": "gradient",
+            "speed": 0,
+            "angle": 180,
+            "from": "#071c31",
+            "via": "#0d3756",
+            "to": "#0a223a"
+          },
+          {
+            "kind": "glow",
+            "speed": 0,
+            "color": "rgba(158, 210, 247, 0.2)",
+            "x": 58,
+            "y": 42,
+            "size": 60,
+            "opacity": 1,
+            "blend": "normal"
+          }
+        ],
+        "transition": "dissolve",
+        "colors": {
+          "ground": "#071c31"
+        },
+        "motion": {
+          "name": "rise",
+          "delay": 220
+        },
+        "layout": {
+          "align": "end",
+          "width": 50,
+          "tall": {
+            "valign": "end",
+            "width": 100
+          }
+        }
+      },
+      "config": {
+        "title": "",
+        "intro": "",
+        "badge": "Cogita",
+        "badgeLook": "kicker",
+        "size": "title",
+        "headline": "Wejdź do Cogita.",
+        "lede": null,
+        "paragraphs": [
+          "Załóż konto i rozpocznij pierwszą scenę wiedzy."
+        ],
+        "actions": [
+          {
+            "label": "Zarejestruj się",
+            "href": "#/workspace",
+            "variant": "cta"
+          },
+          {
+            "label": "Wróć do początku",
+            "href": "#cogita",
+            "variant": "ghost"
+          }
+        ],
+        "footnote": "To zajmie chwilę."
+      }
+    }
+  ]
+}

@@ -28,6 +28,7 @@
 
 import type { PartModule } from '../part';
 
+import { animationPart } from './animation';
 import { calendarPart } from './calendar';
 import { chatPart } from './chat';
 import { contactPart } from './contact';
@@ -40,6 +41,7 @@ import { galleryPart } from './gallery';
 import { heroPart } from './hero';
 import { hoursPart } from './hours';
 import { imagePart } from './image';
+import { layersPart } from './layers';
 import { linksPart } from './links';
 import { mapPart } from './map';
 import { formPart, massesPart, slotsPart } from './live';
@@ -65,6 +67,10 @@ export const PARTS: readonly PartModule[] = [
   /* 0085 — ein Bild und eine Fläche: gebraucht von der Präsentation, auf jeder Seite zu haben. */
   imagePart,
   shapePart,
+
+  /* 0107 — aus dem Pokaz von Cogita: ein Bild aus Ebenen mit eigener Bewegung, und die bewegten Bilder selbst. */
+  layersPart,
+  animationPart,
 
   /* Was eine Ereignisseite trägt (0063, aus dem Altbestand). */
   heroPart,

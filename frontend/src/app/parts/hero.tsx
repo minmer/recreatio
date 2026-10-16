@@ -19,6 +19,10 @@ type Action = { label: string; href: string; variant: 'cta' | 'ghost' };
 
 type TitleConfig = {
   badge: string | null;
+  /** 0107 — die Plakietka als Pille (Vorgabe) oder als Nadtytuł: Versalien, gesperrt, in der Farbe des Akzents (Cogita). */
+  badgeLook: 'pill' | 'kicker';
+  /** 0107 — das Hasło gross (der erste Bildschirm) oder kleiner (die folgenden Slajdy eines Pokaz). */
+  size: 'display' | 'title';
   headline: string;
   lede: string | null;
   paragraphs: string[];
@@ -33,9 +37,11 @@ export const heroPart = defineEventPart<TitleConfig>({
   box: { colSpan: 6, rowSpan: 3 },
   ownHeading: true,
 
-  blank: () => ({ badge: null, headline: '', lede: null, paragraphs: [], actions: [], footnote: null }),
+  blank: () => ({ badge: null, badgeLook: 'pill', size: 'display', headline: '', lede: null, paragraphs: [], actions: [], footnote: null }),
   example: () => ({
     badge: '28–29.08.2026 · Kraków → Częstochowa',
+    badgeLook: 'pill',
+    size: 'display',
     headline: 'Pielgrzymka rowerowa',
     lede: 'Dwa dni, 140 km, jedna wspólnota.',
     paragraphs: ['Jedziemy razem na Jasną Górę — w swoim tempie, z przerwami na modlitwę i odpoczynek.'],
@@ -46,6 +52,8 @@ export const heroPart = defineEventPart<TitleConfig>({
   /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
   keys: {
     badge: 'Plakietka nad hasłem, np. termin i miejsce (albo null)',
+    badgeLook: '"pill" — plakietka w obwódce (zwykłe), "kicker" — nadtytuł: wersaliki, rozstrzelone, w kolorze akcentu',
+    size: '"display" — hasło bardzo duże (pierwszy ekran), "title" — mniejsze (kolejne slajdy pokazu, dłuższe hasła)',
     headline: 'Hasło — duży tytuł modułu',
     lede: 'Podtytuł przy haśle (albo null)',
     paragraphs: 'Akapity opisu — lista tekstów',
@@ -60,6 +68,8 @@ export const heroPart = defineEventPart<TitleConfig>({
     const record = asRecord(raw);
     return {
       badge: asOptionalText(record.badge),
+      badgeLook: asText(record.badgeLook) === 'kicker' ? 'kicker' : 'pill',
+      size: asText(record.size) === 'title' ? 'title' : 'display',
       headline: asText(record.headline).trim(),
       lede: asOptionalText(record.lede),
       paragraphs: asStringList(record.paragraphs),
@@ -78,14 +88,16 @@ export const heroPart = defineEventPart<TitleConfig>({
   Body: ({ config, ctx }) => {
     const actions = config.actions.filter((a) => a.label !== '' && a.href !== '');
     const strip = ctx.size.height === 'strip';
+    /* 0107 — ein kleineres Hasło ist eine Überschrift unter dem ersten Bildschirm, kein zweites h1. */
+    const Head = config.size === 'title' ? 'h2' : 'h1';
     return (
-      <section className={`ev-title${strip ? ' is-strip' : ''}`}>
-        {!strip && config.badge !== null && <p className="ev-badge">{config.badge}</p>}
+      <section className={`ev-title${strip ? ' is-strip' : ''}${config.size === 'title' ? ' is-title' : ''}`}>
+        {!strip && config.badge !== null && <p className={config.badgeLook === 'kicker' ? 'ev-kicker' : 'ev-badge'}>{config.badge}</p>}
         {config.headline !== '' && (
-          <h1>
+          <Head>
             {config.headline}
             {!strip && config.lede !== null && <span>{config.lede}</span>}
-          </h1>
+          </Head>
         )}
         {!strip && config.paragraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
         {actions.length > 0 && (
@@ -106,7 +118,19 @@ export const heroPart = defineEventPart<TitleConfig>({
   Edit: ({ config, onChange }) => (
     <>
       <TextRow label="Plakietka" value={config.badge ?? ''} hint="Np. termin i miejsce." onChange={(badge) => onChange({ ...config, badge: badge || null })} />
+      <SelectRow<TitleConfig['badgeLook']>
+        label="Wygląd plakietki"
+        value={config.badgeLook}
+        options={[{ value: 'pill', label: 'W obwódce' }, { value: 'kicker', label: 'Nadtytuł — wersaliki w kolorze akcentu' }]}
+        onChange={(badgeLook) => onChange({ ...config, badgeLook })}
+      />
       <TextRow label="Hasło" value={config.headline} onChange={(headline) => onChange({ ...config, headline })} />
+      <SelectRow<TitleConfig['size']>
+        label="Wielkość hasła"
+        value={config.size}
+        options={[{ value: 'display', label: 'Bardzo duże — pierwszy ekran' }, { value: 'title', label: 'Mniejsze — kolejne slajdy, dłuższe hasła' }]}
+        onChange={(size) => onChange({ ...config, size })}
+      />
       <TextRow label="Podtytuł" value={config.lede ?? ''} onChange={(lede) => onChange({ ...config, lede: lede || null })} />
       <LinesRow label="Akapity" values={config.paragraphs} rows={4} hint="Jeden akapit w wierszu." onChange={(paragraphs) => onChange({ ...config, paragraphs })} />
       <ListEditor<Action>

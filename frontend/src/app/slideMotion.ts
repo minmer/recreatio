@@ -19,7 +19,7 @@
  * Rein und ohne Oberfläche — geprüft in `app-platform-check`.
  */
 
-import type { Enter, SlideColors, StageFrame, Transition } from './slides';
+import { frameFor, type Enter, type SlideColors, type StageFrame, type Transition } from './slides';
 
 export interface DeckFrame {
   readonly start: number;
@@ -62,6 +62,8 @@ export function pinnedPosition(frame: DeckFrame, position: number, viewport: num
  *   shift     waagrecht, in Prozent seiner Breite
  *   dim       0–1, wie sehr er nachdunkelt (unter einem, der ihn bedeckt)
  *   above     über seinem Nachbarn (beim Odsłonięcie liegt der gehende oben)
+ *   lift      0107 — senkrecht, in Pixeln (beim Rozmycie: der gehende sinkt, der kommende steigt)
+ *   blur      0107 — Unschärfe in Pixeln
  * </code>
  */
 export interface Motion {
@@ -71,9 +73,14 @@ export interface Motion {
   readonly shift: number;
   readonly dim: number;
   readonly above: boolean;
+  readonly lift: number;
+  readonly blur: number;
 }
 
-export const STILL: Motion = { pin: false, opacity: 1, scale: 1, shift: 0, dim: 0, above: false };
+export const STILL: Motion = { pin: false, opacity: 1, scale: 1, shift: 0, dim: 0, above: false, lift: 0, blur: 0 };
+
+/** 0107 — der Wechsel des Altbestands von Cogita: 12 px Weg, 2 px Unschärfe. */
+export const DISSOLVE = { lift: 12, blur: 2 } as const;
 
 /**
  * Bei „weniger Bewegung" (System) wird aus jedem Übergang ein Überblenden —
@@ -90,6 +97,7 @@ function incoming(kind: Transition, t: number): Motion {
     case 'reveal': return { ...STILL, pin: true };
     case 'zoom': return { ...STILL, pin: true, opacity: e, scale: 0.88 + 0.12 * e };
     case 'side': return { ...STILL, pin: true, shift: (1 - e) * 100 };
+    case 'dissolve': return { ...STILL, pin: true, opacity: e, lift: (1 - e) * DISSOLVE.lift, blur: (1 - e) * DISSOLVE.blur };
     default: return STILL;
   }
 }
@@ -102,6 +110,8 @@ function outgoing(kind: Transition, t: number): Motion {
     case 'reveal': return { ...STILL, above: true };
     case 'zoom': return { ...STILL, pin: true, opacity: 1 - e, scale: 1 + 0.12 * e };
     case 'side': return { ...STILL, pin: true, shift: -35 * e, dim: 0.3 * e };
+    /* Beide gehen zugleich: der eine blendet aus, sinkt und verschwimmt, während der andere aufsteigt. */
+    case 'dissolve': return { ...STILL, pin: true, opacity: 1 - e, lift: e * DISSOLVE.lift, blur: e * DISSOLVE.blur };
     default: return STILL;
   }
 }
@@ -148,23 +158,49 @@ const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
  * Der Platz an der Stelle `at` (`deckAt`) — aus den Plätzen je Slajd. Zwischen
  * zwei Slajdy mit Platz gleitet er (auch über Slajdy ohne eigenen hinweg); vor
  * dem ersten und nach dem letzten bleibt er stehen. `null`: kein Platz überhaupt.
+ *
+ * 0107 — auf einem hohen Schirm (`tall`) mit den Werten für ihn; `max` (rem)
+ * gleitet mit, und ein Platz ohne Grenze lässt die des anderen gelten.
  */
-export function frameAt(frames: ReadonlyMap<number, StageFrame>, at: number): StageFrame | null {
+export function frameAt(frames: ReadonlyMap<number, StageFrame>, at: number, tall = false): StageFrame | null {
   const keys = [...frames.keys()].sort((a, b) => a - b);
   if (keys.length === 0) return null;
-  if (at <= keys[0]) return frames.get(keys[0])!;
-  if (at >= keys[keys.length - 1]) return frames.get(keys[keys.length - 1])!;
+  const get = (key: number): StageFrame => frameFor(frames.get(key)!, tall);
+  if (at <= keys[0]) return get(keys[0]);
+  if (at >= keys[keys.length - 1]) return get(keys[keys.length - 1]);
 
   let i = 0;
   while (i + 1 < keys.length && keys[i + 1] <= at) i += 1;
-  const from = frames.get(keys[i])!;
-  const to = frames.get(keys[i + 1])!;
+  const from = get(keys[i]);
+  const to = get(keys[i + 1]);
   const t = ease((at - keys[i]) / (keys[i + 1] - keys[i]));
+  const max = from.max == null ? to.max ?? null : to.max == null ? from.max : lerp(from.max, to.max, t);
 
   return {
     x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t), w: lerp(from.w, to.w, t),
-    scale: lerp(from.scale, to.scale, t), rotate: lerp(from.rotate, to.rotate, t), opacity: lerp(from.opacity, to.opacity, t)
+    scale: lerp(from.scale, to.scale, t), rotate: lerp(from.rotate, to.rotate, t), opacity: lerp(from.opacity, to.opacity, t),
+    ...(max === null ? {} : { max })
   };
+}
+
+/**
+ * 0107 — DAS GEMEINSAME TUCH: welche eigenen Schichten welcher Slajdy an der
+ * Stelle `at` zu sehen sind, und wie stark. Der jetzige liegt unten; der
+ * nächste blendet darüber ein (zwei Verläufe übereinander geblendet SIND der
+ * Übergang von einer Farbe zur anderen). Hat der nächste nichts Eigenes, blendet
+ * der jetzige aus — dann bleibt das gemeinsame Tuch allein.
+ *
+ * `has[i]`: hat Slajd i eigene Schichten.
+ */
+export function backdropAt(has: readonly boolean[], at: number): { readonly index: number; readonly opacity: number }[] {
+  if (has.length === 0) return [];
+  const i = Math.min(has.length - 1, Math.max(0, Math.floor(at)));
+  const j = Math.min(has.length - 1, i + 1);
+  const t = j === i ? 0 : ease(Math.min(1, Math.max(0, at - i)));
+  const out: { index: number; opacity: number }[] = [];
+  if (has[i]) out.push({ index: i, opacity: has[j] && j !== i ? 1 : 1 - t });
+  if (j !== i && has[j] && t > 0) out.push({ index: j, opacity: t });
+  return out.filter((one) => one.opacity > 0.001);
 }
 
 /* -- Farben, die mitgehen ------------------------------------------------------------- */

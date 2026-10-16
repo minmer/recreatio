@@ -1,0 +1,475 @@
+# Cogita in the workspace — the decided design
+
+Status: decided on 2026-10-15 from your answers on the page “Cogita rebuild questions” (https://claude.ai/artifact/YQqNZJkSHqu4NQSNhy4bwf). Nothing is built yet.
+
+- This file is the target. `CogitaAim.md`, `cogita-graph.md` and `COGITA_DESIGN_THINKING.md` remain as background.
+- A bracketed id such as [B11] points at the question on that page; F01–F47 are the old features and P01–P18 the integrations.
+- §18 lists how the open points were settled on 2026-10-15.
+
+## 1. The rule
+
+- **Nothing is lost.** Every ability of the old Cogita stays. It is reformed, and abilities may merge into broader pieces [A8].
+- **You declare, the code provides mechanics.** Kinds, questions, revisions, narratives, rules and looks are declared by you and reused as templates.
+- **No second structure or access model.** Areas, roles, links, seats and the library carry Cogita.
+- **The service stays blind by default** [N8]. The exceptions are in §15.
+- **Placement.** Cogita lives in the workspace: Biblioteka plus the learning tools. Public parts are pages [A1].
+  - The interface is Polish only [A3].
+  - cogita.pl comes later; public courses start on recreatio.pl [A2, P10].
+- **First uses** [A4]:
+  - your own study and sermon knowledge;
+  - confirmation candidates;
+  - school and catechesis classes;
+  - live quizzes at parish events.
+
+  Drill (revision) is built first [A5].
+- **Start empty.** No old data is carried over [A7].
+- **Legacy goes last.** Cogita is the last legacy part still in use. Once it is rebuilt, the whole legacy code goes [N7]: `frontend/src/legacy`, `backend/legacy` and the switch in `main.tsx`.
+
+## 2. Content: the library with a declared schema
+
+### 2.1 The store
+
+- **The 0064 library stays the store** [N1]: one sealed document per entry under the area key, incremental sync, and 409 `stale` on version conflicts.
+  - Area access is library access [L1].
+  - A course is one library, and an area may hold several [L7].
+- **No references into other libraries.** Copy what you need [B15].
+- **Big libraries** hold up to 50,000 entries [F6]. They get an encrypted copy in IndexedDB, sealed with the area key and cleared at sign-out [N2].
+  - The browser searches and filters; there are no blind indexes [N3].
+  - On a phone, entries are opened lazily against a local index rather than all at once.
+
+### 2.2 Schema as data
+
+**Kinds are entries of the system kind `kind`.** Each declares:
+- a name;
+- a **label pattern** such as `{givenNames} {surname}` [B8];
+- the **field that tells entries apart** in search results [F4];
+- its fields and its card templates [D8].
+
+**Field types** [B2]:
+- line, long text, and markup (with citations and footnotes);
+- number with a unit, and date with precision (year, month or day);
+- yes / no / unknown, and choice from a list;
+- reference to one or more kinds;
+- media (image, audio, video, document) and web address;
+- ordered list, and place (a geo point);
+- **range with several segments** [B6].
+
+Formula, code and duration are not field types.
+
+**Values:**
+- A field may be multi-value [B5].
+- A field declared “may be uncertain” carries, for each value [B3]:
+  - a state: known, approximate, disputed, unknown, not applicable or pending;
+  - a source;
+  - a note.
+- A source is a library work plus a locator (`s. 23`, `J 3,16`). The existing citation code formats it as a footnote [B4].
+
+**Relations:**
+- A reference field names the other side (“wrote” / “written by”), and the other side shows it as a backlink [B9].
+- A symmetric relation is stored once [B10].
+- A relation with data of its own is an entry of a relation kind [B9].
+
+**Several kinds per entity** [B11]. The entity has the union of their fields, and its label comes from its first kind.
+
+**Not wanted:**
+- subentities [B7];
+- per-statement aliases [B17];
+- private fields in your own kinds [B18]. The private fields of the built-in kinds stay.
+
+**Scope and templates:**
+- A schema belongs to one library [B12].
+- A schema template, with its card templates, is exported and imported as an independent copy [B12, D8].
+- A **public template library** on recreatio.pl, which you maintain, offers Słownictwo, Katechizm, Historia, Książki and others [B14].
+  - The old library templates (vocabulary, knowledge map, course, research, flashcards) become such templates, together with view presets [F05, F45].
+
+**Schema changes** keep the values of removed or retyped fields, marked “outside the schema”, until someone resolves them [B13].
+
+**The six built-in kinds** (person, work, quote, topic, text, project) become the editable starting schema [B1].
+- Citations, publication, the ISBN lookup and LaTeX keep running on the existing library code.
+- They find their fields through **field roles** (authors, title, year, container, locator…).
+
+**What the service sees** [B20]:
+- only `entity`; the kinds and their names stay inside the sealed document;
+- published entries keep a plain kind for public lists.
+
+**Merging duplicates** [B16] rewrites every reference onto the entry that stays. The other becomes a tombstone pointing at it.
+
+**Version history** [N9]: every save keeps the previous version, and restoring writes it again, as chat messages already do.
+
+**Beyond learning.** Your own kinds also hold non-learning data. The existing registries (Kartoteka, addresses) stay as they are [B19, P18].
+
+### 2.3 Views
+
+- A table with column filters and sorting, a tree by kind, and a graph canvas whose positions all authors share [F2, F3].
+- Saved views (filter, columns, sorting) can be shared by a link [F7].
+- Library content appears in the workspace search, Ctrl K [F5, P12].
+- “Looks per kind” replace the old approaches, such as the citation view and the vocabulary card [F47].
+
+## 3. Knowledge layer
+
+These are fixed system kinds that the engine understands. You may add fields to them [C1].
+
+| kind | what it is |
+|---|---|
+| `knowledge` | One statement in markup. Words link to entities as `[[Księgi Samuela\|@samuel]]`, inserted from the search overlay [C3]. It carries perspective tags from the library’s own tag set [C8] and a source as in §2.2. |
+| `text` | The existing library text. It embeds knowledge nodes the way it embeds quotes (`![@key]`) and serves as a narrative [C2, K1]. |
+| `topic` | A question, a heading or a curriculum node: answers (knowledge, texts), child topics, an attached entity, a level for depth [C9] and a landmark flag for threshold concepts [C11]. Dimensions (What, Why, How…) are child topics [C10]. |
+| `question` | A hand-written check: an answer form, expected and accepted answers, linked entities, and right and wrong exits used in flows [C4, D1]. |
+
+- **Parallel bundles** (“How is David shown in chapter 16, 17, 19?”) are proposed from a pattern for each entity of a set. The author confirms each one [C5].
+- **The pending list**, shared by all authors [C6], collects:
+  - open topics (“expand later”);
+  - knowledge and topics whose linked entity changed since an author last checked them [C7];
+  - cards flagged by learners [D12].
+
+## 4. One graph engine
+
+- **One editor for everything** [N4]: a React Flow editor core, a node registry with typed ports, evaluation in the browser, and JSON for every graph. Graphs are library entries.
+- **Palettes**:
+  - card templates (§5);
+  - revisions and dependencies (§6);
+  - conditions (below);
+  - flows (§8);
+  - game actions (§11).
+- **A Python node** runs Pyodide in the browser. It is loaded lazily (about 10 MB). The service never runs learner code [F12, D10].
+- **One logic engine** serves forms, pages, flows, characters, quests and games [G6].
+  - The form logic (0043) and page logic (0048) maps move onto it.
+  - New inputs: knowness, values, answers, visited steps, time, place.
+  - New actions: set a value, go to a step.
+
+## 5. Cards
+
+**Where cards come from:** templates per kind, plus hand-written `question` entries [D1]. A template is a graph built from these blocks [D2]:
+- a field of the entity, or a reference followed several steps deep;
+- a text pattern;
+- a mask: prefix, suffix or random, keeping a share;
+- pick one of a list (the chosen one and the rest);
+- distractors, and an image or audio prompt;
+- a random value and arithmetic. The old computed questions become these blocks [D9, F11];
+- a condition (only when a field is filled), and tolerance;
+- extra accepted answers;
+- order items and match pairs;
+- true or false from a comparison (“born before …?”);
+- Python.
+
+**Answer forms** [D3]:
+- typed text with a similarity threshold;
+- number with tolerance and unit, and date with precision;
+- one choice, several choices, and true or false;
+- ordering and matching;
+- a gap in a quote (the old fragment tree) [F10];
+- a self-graded flashcard [D4];
+- code (Python), and a point on an image or a map.
+
+There are no spoken answers.
+
+**Distractors** come from [D15]:
+- the same field of other entities of the kind;
+- only the current collection;
+- a list the author writes;
+- similar values.
+
+**One card per value.** A template can make one card for each value, such as each translation or each isotope [D11]. Vocabulary cards in both directions and “which language is this word” cards are templates [F09].
+
+**Checking** is one module [F13, D6]:
+- bidirectional, prefix and anchor comparison, similar letters, punctuation and a threshold;
+- it produces a per-character mask and partial correctness;
+- the template holds the settings, and a revision may override them [D5].
+
+**After answering** the learner sees the correct answer, the per-character comparison and the linked knowledge [D14].
+
+**Card history** is kept unless the expected answer changed [D7]. A learner can suspend a card for themselves and flag it for the authors [D12].
+
+**JSON:** new formats only. There is no converter for the old question JSON [D13].
+
+## 6. Revision, collections, knowness, dependencies
+
+**A revision is a graph that selects cards** [F15]. Its nodes:
+- sources: a kind, a collection, a topic subtree, a list;
+- dependency gates;
+- one strategy node from a fixed list, with its parameters [E6]: random fixed number, whole stack once, levels, time-knowness;
+- order and limits.
+
+**Collections** are saved filters with AND / OR groups, plus explicit lists [F1, F19].
+
+**Dependencies:**
+- Three kinds: prerequisite, elaboration and context. Each edge has an impact weight, and only prerequisites gate [E3].
+- Propagation: parent knowness += child knowness × impact [E4].
+- Dependencies inferred from flows and character hand-offs are proposed to the author, who confirms them [E5].
+
+**Knowness:**
+- The spec formula `knowledge(q1, d1, q2, d2, t)` (CogitaAim I.8.1), over a card’s latest answers [E1].
+- An entity, topic or collection averages its cards [E2].
+- It is computed in the browser [E7].
+
+## 7. Answers and progress
+
+- **Every answer is stored in the database, sealed.** Knowness and the statistics come from the answers [F16, F22].
+- **Knowness is saved too**, as a snapshot per card: the question id plus the direction. A template card’s question id is the stable id of the generated card.
+- **A declared storage area** receives a learner’s answers. A teacher who can read there sees the progress [E10].
+  - The course (library) declares the area; a revision, session or form step may override it.
+  - For your own study, it is your private area.
+- **Answers reach the storage area exactly the way a form reaches its office.** Each batch is sealed for the learner and for the area’s intake key, and whoever holds the role the intake was made for reads it. Learners write without reading one another.
+- **Progress is per person**, including several persons on one account [E11, F06]. Form people (seats) are always visible to their office [E10].
+- **Reminders.** The service sees one plain “next due” time per learner and library, and nothing more [E8].
+- **A learner’s place in a flow** is kept across devices, together with their progress [G14].
+- **Learners without an account** keep their progress in the browser and can save it to an account after signing in [L6, I13].
+- **Offline revision** [E9, F21]. A revision runs without the network. Its answers and knowness are saved later.
+  - The browser keeps a cache of some questions by itself.
+  - The Android app keeps a larger amount when the learner chooses one.
+  - Authoring stays online.
+  - The cached questions are sealed under the device’s own key: the vault of `kept.ts`, which in the app is the Android Keystore. Offline answers are sealed to public keys (the storage area’s intake and the learner’s own key), so answering needs no secret at all.
+  - In the strict key-keeping mode (`tab`), nothing is cached.
+
+## 8. Narratives
+
+There are three separate layers: content (§2–3), flow and look [G1].
+
+**A flow is a sealed library entry.** Publishing it creates or updates a page [G2].
+- A flow never holds text of its own. Everything a learner reads is a knowledge node, a text or an entity [G9].
+  - Step titles, choice labels and chapter names are flow data.
+
+**Step types** [G5]:
+- show an entity, knowledge or a topic; show content media;
+- a question with right and wrong exits; a choice;
+- a condition; changing a value;
+- chapters: split and join, only the remaining chapters offered, restart the chapter, go to its end [F32];
+- a sub-flow; a step repeated for each item of a set;
+- prerequisite: skip if known, otherwise explain;
+- expansion: explain a term in place when it is unknown;
+- a discovery or recall opening and ending [G13];
+- a character line; a hand-off to another flow; end or return.
+
+Each step opens on a new screen or expands in place [G12].
+
+**Narrative templates** are flows with slots ({person}, {collection}) [G7]. Each use points at the template and may override parts, and a change to the template reaches every use.
+
+**Looks:**
+- Kinds of look [G4]: reading, slides, presentation scenes, dialogue in chat bubbles [P05], flashcards, map exploration.
+- Reusable looks [G8]: themes, layouts per step type, how each kind is shown (a Person card), scene presets, transitions.
+- The motion dictionary of 0107 (`motion.ts`) is the transition and motion layer.
+
+**The player** is the presentation engine (0085, 0089). It is extended with question pieces, conditions from the logic engine and modules bound to library content [G3].
+
+**Media** — narration audio, images, video — are sealed library files [G10, F31]. Browser speech is not used [G11].
+
+**Other:**
+- Any flow can run live [G15].
+- Flow JSON imports notions and the graph together [F34].
+- The Cogita intro slides become a page: 0107 is porting them now [F35].
+
+## 9. Characters, values, quests
+
+- **A character is a kind you declare and mark “can speak”.** It has a portrait and a voice [H1].
+  - It is realized by a group of values that change for each learner as they use the course.
+  - Its lines are knowledge nodes.
+  - Lines fire through the logic engine, on values, knowness and visited steps [H2].
+- **Relations between characters are typed links** [H3]. Closeness is a value: flow steps change it, and so does the learner’s progress [H4].
+- **Age** is authoring data only [H5].
+- **A quest is a flow with goals** [H6].
+- **Values** are declared per library and kept between sessions, with a ledger [H7, F37]. Each declares:
+  - a scope: person, group or session;
+  - a visibility: all, group or person;
+  - a type, limits, and whether it is a score.
+
+## 10. Sessions
+
+**A session core of its own.** It shares pieces with the chat core [F23, I3]:
+- area-derived keys;
+- seat identities and key delivery;
+- link persons, signatures and presence.
+
+**Kinds of session** [I2]:
+- solo;
+- a shared link for people without an account;
+- group async, counted per member [E12, F28];
+- group sync: several persons on one device, switching who answers [F27];
+- live: a host, participants and a projector screen [F23];
+- storyboard session: joined by code, with answers and attempts per step and results for the owner [F33];
+- game session [F41].
+
+Modes are free, directed and algorithmic, and switching mode keeps your place [I1].
+
+**Realtime** is a SignalR hub in the API, on the same hosting [I4]. It uses WebSocket and falls back to SSE or long polling by itself. FCM only wakes phones (“a session is starting”), as it does for chat today.
+
+**Rules and presets** [I5, F24]:
+- The live rules become rule templates you declare: first-answer and all-answered actions, timers, speed and first-correct bonuses, penalties, streaks.
+- The old presets ship as templates.
+
+**Participants:**
+- Teams are an area role or a name typed when joining, and they have team scores [I6, F25].
+- Participants are accounts, form people, and link holders who introduce themselves [I7].
+- Joining again on another device needs the host’s approval [I8, F26].
+
+**Screens** [I9, I12, F29]:
+- the host: panel, question, score;
+- a participant: question, score, full screen;
+- the projector: a presentation-mode view.
+
+Phones stay awake.
+
+**Results:**
+- The host and the leaders’ area see everything; each participant sees their own [I10].
+- Answers also enter each participant’s progress (§7).
+- Sessions can be planned in the calendar, with a join link [I11, P02].
+
+**Shared revisions** are published revisions at a generated address [I13, F20] (see §14, publishing modules).
+
+## 11. Games
+
+**Games are part of the graph, not a module** [F36]. A game is made of:
+- flows;
+- the logic engine with location blocks [J5, F38]: geopoint, position, distance, entering a zone, N members present, every N seconds;
+- zones (point, radius, active window) that can open flow steps [F40, J6];
+- values with a ledger [F37];
+- layouts per role: host, group leader, participant [F39].
+
+**Uses:** a city game, a youth or camp game, a quiz with places [J1].
+
+**Triggers** are evaluated by the service on game data it can read [J2]. This is the first exception to blindness.
+- The service receives positions readable only while the game runs, and deletes them when it ends [J3].
+- Nobody but the host sees them.
+- Spoof detection runs on the host’s device [J4].
+
+## 12. Contributing and exploring
+
+- **Contributions** [K2, K3]:
+  - Every writer of the library’s area writes into the library directly. That is the library’s own confidence.
+  - Everyone else writes explanations, expansions and questions into a contribution area, and an author approves them before they join the course.
+- **Authors** see anonymous counts per card, such as “many learners stall here” [K4].
+- **Exploration** is a separate game-like map: fog, frontier, decay, landmarks [K5].
+- **Motivation** is chosen by the author per course [K6]. There are no leaderboards outside live sessions [K7].
+
+## 13. Access
+
+- **A course in areas** [L1, E10]:
+  - authors write in the content area;
+  - learners hold a role that reads it;
+  - sessions run in the class area;
+  - progress goes to the declared storage area.
+- **Readers do not see the authoring tools** [L2].
+- **No secret test areas.** Sessions send question copies without answers [L3].
+- **User types** (teacher, student, self-learner, researcher, casual) are starting presets of views and display modes [L4].
+- **Another organisation** gets access through a link role, as everywhere since 0091 [L8].
+
+## 14. In the workspace
+
+| where | what | id |
+|---|---|---|
+| Workspace views | The part “Nauka”: due now, progress, open sessions. The alert “Powtórka czeka”. | P01 |
+| Calendar | Revision as a repeating personal task with a link; sessions as appointments | P02 |
+| Notifications | Revision due; a session starting | P03 |
+| Chat | Discuss a card or a topic in a chat topic; turn a message into a question; the dialogue look | P04, P05 |
+| Pages | Modules: revision, live participant, live host, flow player, entity card, entity table, topic explorer, knowledge map | P06 |
+| Page subject | A page about one entity (“Kim był Dawid?”) | P07 |
+| Widgets | A revision, a quiz or a quote of the day on other websites | P08 |
+| Forms and steps | Learning targets as steps (“Naucz się: Modlitwy, 80%”), with progress in the office list; enrolling through a form | P09, L5 |
+| Publication | Public courses | P10 |
+| Publishing modules | One common way to publish any module directly (a form, a revision, a flow…) at `recreatio.pl/#/c/<id>`, owned by whoever publishes, without building a page by hand | F20 |
+| Search | Library content in Ctrl K | P12 |
+| JSON and your AI | Schema, entities, knowledge, questions and flows from a text: a prompt to copy and an import with review | P13 |
+| Android app | Reminders, the screen kept awake, offline practice | P17 |
+
+**Not wanted:**
+- printing (flashcards, tests, booklets) [K8, P11];
+- quizzes made from sermons [P14];
+- a shared Bible library [P15];
+- readings linked to verses [P16];
+- moving the Kartoteka [P18].
+
+**Dropped:**
+- the mock data generator [F07];
+- creation artifacts [F43];
+- the old Python exercise type, which becomes the Python node [F12].
+
+## 15. What the service sees
+
+| sealed | readable by the service |
+|---|---|
+| entries, kinds, templates, flows, looks, rules, media, versions | that an entry exists, its time and size, its library |
+| answers, knowness snapshots, places in flows, values | the holder, storage area, time and size of each batch; the next due time |
+| session events and results | the kind of session, participants’ ids, times |
+| — | game data while a game runs: positions and values [J2] |
+
+## 16. New storage (migrations)
+
+1. **Library:**
+   - the plain kind becomes `entity`, while published entries keep a public kind;
+   - `library_entry_version`;
+   - sealed library files.
+2. **Answers:** answer batches (holder, storage area, sealed batch with key copies) and the next due time.
+3. **Sessions:**
+   - sessions and session events;
+   - key delivery to seats, shared with chat;
+   - the realtime hub (no table).
+4. **Games:** game state the service can read, deleted when the game ends.
+5. **Forms:** the form step kind `learn` with its target.
+6. **Pages:** the register root `c` for modules published directly.
+
+## 17. Build order
+
+1. **Drill on your own library.**
+   - Schema as data, with the built-in kinds as the starting schema; merging; versions; the IndexedDB copy.
+   - The graph engine with the template palette and the Python node; the checking module and the answer forms.
+   - The knowledge kinds and the pending list.
+   - Revision graphs, knowness and dependencies.
+   - Answers in the storage area; next due; reminders; the Nauka part.
+   - Offline practice.
+2. **Publication:**
+   - publishing modules directly at `#/c/<id>`, starting with revisions;
+   - the page modules, the entity page subject and widgets;
+   - Ctrl K.
+3. **Forms:** learning steps for candidates and classes, enrolment, and seats’ progress in the office list.
+4. **Sessions:**
+   - the session core and the realtime hub;
+   - live sessions with rules and presets, teams, screens and results;
+   - group sync and async;
+   - calendar and notifications.
+5. **Narratives:**
+   - flows, looks and narrative templates;
+   - the presentation player;
+   - characters and values;
+   - storyboard sessions, the dialogue look and the exploration map.
+6. **Games:** zones, triggers on the service, location blocks, layouts per role.
+7. **Contributing** and anonymous counts. Then the legacy code is deleted.
+
+## 18. Settled on 2026-10-15
+
+| # | question | answer |
+|---|---|---|
+| 1 | Game positions [J2, J3] | The service reads them only while the game runs and deletes them at its end (§11). |
+| 2 | Printing [K8, P11] | No printing. |
+| 3 | cogita.pl [A2, P10] | Later. |
+| 4 | Session core [F23, I3] | Its own core, sharing pieces with chat (§10). |
+| 5 | Realtime [I4] | A SignalR hub on the same hosting (§10). |
+| 6 | “Own confidence” [K3] | Every writer of the library’s area writes directly (§12). |
+| 7 | Characters [H1] | A group of values that changes for the learner during use (§9). |
+| 8 | Offline [E9, F21] | Revision offline, saved later; browser cache plus a larger download in the app (§7). |
+| 9 | Storage area [E10] | Exactly the way a form reaches its office (§7). |
+| 10 | Text in flows [G9] | Titles and labels are flow data (§8). |
+| 11 | Generated pages [F20] | One common way to publish modules directly, under `c` (§14). |
+| 12 | Knowness [F16] | Saved with the question id and the direction (§7). |
+
+## 19. Built so far
+
+**Phase 1, step 1: the engine.** It needs no storage and changes nothing in the database or the existing screens. All of it lives in `frontend/src/app/cogita/` and is pure TypeScript:
+
+| file | what it does |
+|---|---|
+| `schema.ts` | Kinds as data. Field types, uncertain values with sources, dates with precision (including BC), ranges in several pieces, label patterns, several kinds per entity, backlinks with the other side's name, “outside the schema”, merging duplicates. |
+| `graph.ts` | The one graph model. Nodes, ports, edges, tolerant reading, refusal of circles and mismatched types, evaluation in order, errors kept per node. |
+| `check.ts` | Checking for all twelve answer forms. The text comparison produces a per-character mask and partial correctness. The old anchor method treated “Mickiewcz” as fully right; it is now an alignment. |
+| `knowness.ts` | The spec formula verbatim, due times, levels, averages, dependencies (prerequisite, elaboration, context with impact), propagation, gating, the snapshot per question and direction. |
+| `cards.ts` | The card template palette: 30 blocks, including Python, the quote fragment tree and “for each value”. It makes cards per entity, with keys and fingerprints. It also covers hand-written questions and topic cards. |
+| `revision.ts` | The revision palette: sources, filter, union, gate, strategy. The runner for random, once, levels and temporal is deterministic with a seed. Two behaviours differ from the old Cogita: |
+| | • In temporal mode a wrong answer keeps the card in the stack. Right after any answer the formula stands at 10^0.5, so it cannot decide that. |
+| | • In levels mode a run ends once every card has reached the top level. |
+
+`npm run app:check` runs `scripts/app-cogita-check.mjs`, which has 140 checks.
+
+**Next: step 2, the library on the schema.** This changes the stored entries of the existing library:
+- kinds become entries, and the built-in kinds become the starting schema with field roles;
+- the plain kind becomes `entity`;
+- version history and the IndexedDB copy.
+
+It needs a migration on the shared database.

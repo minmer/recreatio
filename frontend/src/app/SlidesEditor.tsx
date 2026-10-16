@@ -24,15 +24,16 @@ import { newId } from './ids';
 import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Layout } from './layout';
 import { type DraftPart } from './page';
 import { PartSettings } from './PageBuilder';
-import { PageSlides, slideLabelOf } from './PageSlides';
+import { deckParts, PageSlides, slideLabelOf } from './PageSlides';
 import { partSize } from './part';
 import { ImagePicker } from './PageFiles';
 import { PARTS, partLabel, partOf } from './parts/registry';
 import { usePrefersDark, type DeckControl } from './SlideDeck';
+import { MotionField } from './MotionField';
 import {
-  BLENDS, blankLayer, COLOR_KEYS, COVER_KEY, DEFAULT_THEMES, defaultLayers, ENTER_LABEL, ENTERS, readSlide, resolveTheme,
+  ALIGNS3, BLENDS, blankLayer, COLOR_KEYS, COVER_KEY, DEFAULT_THEMES, deckOf, defaultLayers, ENTER_LABEL, ENTERS, LAYER_KINDS, readSlide, resolveTheme,
   STAGE_FRAME, TRANSITION_LABEL, TRANSITIONS, withSlide,
-  type Blend, type Enter, type Layer, type LayerKind, type Look, type SlideColors, type SlideLook, type StageFrame,
+  type Align3, type Blend, type DeckLook, type DeckNav, type Enter, type Layer, type LayerKind, type Look, type SlideColors, type SlideLayout, type SlideLook, type StageFrame,
   type Theme, type ThemeMode, type Transition
 } from './slides';
 
@@ -53,21 +54,26 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
   const control = useRef<DeckControl | null>(null);
   const dark = usePrefersDark();
   const theme = resolveTheme(look.theme, dark);
-  const hasCover = title.trim() !== '' || lead.trim() !== '';
+  const whole = deckOf(look);
+  const hasCover = whole.titleSlide && (title.trim() !== '' || lead.trim() !== '');
 
   /*
    * Wo ein Slajd in der Vorschau steht: der Titelslajd zählt mit, wenn es ihn
    * gibt; ein Baustein auf der Bühne (0084) hat keinen eigenen — für ihn der
-   * erste Slajd, auf dem er einen Platz hat.
+   * erste Slajd, auf dem er einen Platz hat; einer neben einem anderen (0107)
+   * steht auf dessen Slajd.
    */
+  const own = deckParts(parts).own;
   const deck: { key: string; label: string }[] = [
     ...(hasCover ? [{ key: COVER_KEY, label: title.trim() || 'Start' }] : []),
-    ...parts.filter((p) => readSlide(p.layout).stage === null).map((p) => ({ key: p.id, label: slideLabelOf(p) }))
+    ...own.map((p) => ({ key: p.id, label: slideLabelOf(p) }))
   ];
   const deckIndex = (key: string) => deck.findIndex((one) => one.key === key);
   const showPart = (part: DraftPart) => {
-    const stage = readSlide(part.layout).stage;
-    const key = stage === null ? part.id : deck.find((one) => stage.frames[one.key] !== undefined)?.key;
+    const slide = readSlide(part.layout);
+    const stage = slide.stage;
+    const key = stage !== null ? deck.find((one) => stage.frames[one.key] !== undefined)?.key
+      : slide.with !== null && deckIndex(slide.with.slide) >= 0 ? slide.with.slide : part.id;
     const at = key === undefined ? -1 : deckIndex(key);
     if (at >= 0) control.current?.go(at);
   };
@@ -82,8 +88,8 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
     [next[index], next[to]] = [next[to], next[index]];
     onChange(next);
     /* Wohin der verschobene Slajd in der Vorschau gerückt ist — gezählt in der NEUEN Folge. */
-    const own = next.filter((p) => readSlide(p.layout).stage === null);
-    const at = own.findIndex((p) => p.id === parts[index].id);
+    const mine = deckParts(next).own;
+    const at = mine.findIndex((p) => p.id === parts[index].id);
     if (at >= 0) window.setTimeout(() => control.current?.go(at + (hasCover ? 1 : 0)), 50);
   };
 
@@ -107,6 +113,8 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
       <div className="se-side">
         <ThemeEditor look={look} busy={busy} onChange={onLook} />
 
+        <DeckEditor path={path} theme={theme} deck={whole} busy={busy} onChange={(deck) => onLook({ ...look, deck })} />
+
         <details className="wk-fold se-cover">
           <summary>Slajd tytułowy {hasCover ? '' : '(pojawi się, gdy strona ma tytuł albo tekst)'}</summary>
           <p className="wk-hint">Tytuł i tekst strony — na pierwszym slajdzie. Tutaj jego tło.</p>
@@ -128,6 +136,9 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
             const slide = readSlide(part.layout);
             const expanded = open === part.id;
             const onStage = slide.stage !== null;
+            /* 0107 — neben einem anderen, auf dessen Slajd (nur, wenn es den gibt). */
+            const beside = slide.with !== null && own.some((p) => p.id === slide.with!.slide) && slide.with.slide !== part.id;
+            const mainOf = beside ? parts.find((p) => p.id === slide.with!.slide) : undefined;
             const setSlide = (next: SlideLook) => replace(part.id, { ...part, layout: withSlide(part.layout, next) });
             const def = partOf(part.kind);
             const todo = def !== undefined && (def.missing(part.config) !== null
@@ -136,15 +147,17 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
             return (
               <li key={part.id} className={`se-item${expanded ? ' is-open' : ''}`}>
                 <div className="se-row">
-                  <button type="button" className={`se-num${onStage ? ' is-stage' : ''}`} title={onStage ? 'Na scenie — przechodzi między slajdami' : 'Pokaż w podglądzie'} onClick={() => show(index)}>
-                    {onStage ? '◆' : deckIndex(part.id) + 1}
+                  <button type="button" className={`se-num${onStage ? ' is-stage' : ''}${beside ? ' is-beside' : ''}`}
+                    title={onStage ? 'Na scenie — przechodzi między slajdami' : beside ? 'Obok innego modułu, na jego slajdzie' : 'Pokaż w podglądzie'} onClick={() => show(index)}>
+                    {onStage ? '◆' : beside ? '↳' : deckIndex(part.id) + 1}
                   </button>
                   <button type="button" className="se-name" aria-expanded={expanded}
                     onClick={() => { setOpen(expanded ? null : part.id); show(index); }}>
                     <strong>{slideLabelOf(part)}</strong>
                     <span className="se-kind">
                       {partLabel(part.kind)}{onStage ? ' · na scenie, przechodzi między slajdami' : ''}
-                      {!onStage && slide.transition !== 'scroll' ? ` · ${TRANSITION_LABEL[slide.transition].split(' — ')[0].toLowerCase()}` : ''}
+                      {mainOf !== undefined ? ` · obok „${slideLabelOf(mainOf)}”` : ''}
+                      {!onStage && !beside && slide.transition !== 'scroll' ? ` · ${TRANSITION_LABEL[slide.transition].split(' — ')[0].toLowerCase()}` : ''}
                       {todo ? ' · do uzupełnienia' : ''}
                     </span>
                   </button>
@@ -190,25 +203,60 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
                       0084 — AUF DER BÜHNE: kein eigener Slajd, sondern über allen,
                       mit einem Platz je Slajd, zu dem er beim Wechsel gleitet.
                     */}
-                    <label className="wk-check se-stage-toggle">
-                      <input type="checkbox" checked={onStage} disabled={busy}
-                        onChange={(e) => {
-                          const first = deck[0]?.key ?? COVER_KEY;
-                          setSlide({ ...slide, stage: e.target.checked ? { frames: { [first]: { ...STAGE_FRAME, x: 78, y: 22, w: 26 } }, bare: false } : null });
-                        }} />
-                      <span>
-                        <strong>Przechodzi między slajdami</strong> — nie ma własnego slajdu; stoi nad wszystkimi i przy zmianie
-                        slajdu przesuwa się na swoje miejsce na następnym (logo, przycisk „Zapisz się”, licznik, cytat).
-                      </span>
-                    </label>
+                    <fieldset className="se-where">
+                      <legend>Gdzie stoi</legend>
+                      <label className="wk-check">
+                        <input type="radio" name={`where-${part.id}`} checked={!onStage && !beside} disabled={busy}
+                          onChange={() => setSlide({ ...slide, stage: null, with: null })} />
+                        <span><strong>Własny slajd</strong></span>
+                      </label>
+                      <label className="wk-check se-stage-toggle">
+                        <input type="radio" name={`where-${part.id}`} checked={onStage} disabled={busy}
+                          onChange={() => {
+                            const first = deck[0]?.key ?? COVER_KEY;
+                            setSlide({ ...slide, with: null, stage: { frames: { [first]: { ...STAGE_FRAME, x: 78, y: 22, w: 26 } }, bare: false } });
+                          }} />
+                        <span>
+                          <strong>Przechodzi między slajdami</strong> — nie ma własnego slajdu; stoi nad wszystkimi i przy zmianie
+                          slajdu przesuwa się na swoje miejsce na następnym (logo, przycisk „Zapisz się”, licznik, cytat).
+                        </span>
+                      </label>
+                      {own.some((p) => p.id !== part.id) && (
+                        <label className="wk-check">
+                          <input type="radio" name={`where-${part.id}`} checked={beside} disabled={busy}
+                            onChange={() => {
+                              const main = own.find((p) => p.id !== part.id);
+                              if (main !== undefined) setSlide({ ...slide, stage: null, with: { slide: main.id, side: 'end', share: 45, tallSide: 'start' } });
+                            }} />
+                          <span>
+                            <strong>Obok innego modułu</strong> — na jego slajdzie, w jednym rzędzie (obraz, animacja obok tekstu); na telefonie nad nim albo pod nim.
+                          </span>
+                        </label>
+                      )}
+                    </fieldset>
+
+                    {beside && slide.with !== null && (
+                      <CompanionEditor slide={slide} mains={own.filter((p) => p.id !== part.id)} busy={busy} onChange={setSlide} />
+                    )}
+
+                    {/* 0107 — jeder, wo er auch steht, darf sich bewegen: ein Auftritt, wenn sein Slajd erreicht ist, eine Schleife. */}
+                    <details className="wk-fold">
+                      <summary>Ruch{slide.motion.length > 0 ? ` (${slide.motion.length})` : ''}</summary>
+                      <MotionField value={slide.motion} busy={busy} onChange={(motion) => setSlide({ ...slide, motion })} />
+                    </details>
 
                     {onStage ? (
                       <StageEditor slide={slide} deck={deck} busy={busy} onChange={setSlide} onShow={(key) => { const at = deckIndex(key); if (at >= 0) control.current?.go(at); }} />
-                    ) : (
+                    ) : beside ? null : (
                       <>
                         <details className="wk-fold">
                           <summary>Przejście i wejście{slide.transition !== 'scroll' || slide.enter !== 'none' || slide.colors !== null ? ' (ustawione)' : ''}</summary>
                           <MotionEditor slide={slide} first={deckIndex(part.id) === 0} busy={busy} onChange={setSlide} />
+                        </details>
+
+                        <details className="wk-fold">
+                          <summary>Układ{slide.layout !== null ? ' (ustawiony)' : ''}</summary>
+                          <LayoutEditor slide={slide} busy={busy} onChange={setSlide} />
                         </details>
 
                         <details className="wk-fold">
@@ -371,6 +419,34 @@ function StageEditor({ slide, deck, busy, onChange, onShow }: {
                   <StageNumber label="Skala" value={frame.scale} min={0.2} max={3} step={0.05} busy={busy} onChange={(scale) => setFrame(one.key, { ...frame, scale })} />
                   <StageNumber label="Obrót °" value={frame.rotate} min={-180} max={180} step={1} busy={busy} onChange={(rotate) => setFrame(one.key, { ...frame, rotate })} />
                   <StageNumber label="Krycie" value={frame.opacity} min={0} max={1} step={0.05} busy={busy} onChange={(opacity) => setFrame(one.key, { ...frame, opacity })} />
+                  <label className="se-inline">
+                    <span>Najwyżej (rem)</span>
+                    <input type="number" min={1} max={200} value={frame.max ?? ''} placeholder="bez granicy" disabled={busy}
+                      onChange={(e) => {
+                        const { max: _max, ...rest } = frame;
+                        setFrame(one.key, e.target.value.trim() === '' ? rest : { ...rest, max: Math.min(200, Math.max(1, Number(e.target.value))) });
+                      }} />
+                  </label>
+                  <details className="wk-fold se-stage-tall">
+                    <summary>Na telefonie{frame.tall != null ? ' (ustawione)' : ''}</summary>
+                    <label className="wk-check">
+                      <input type="checkbox" checked={frame.tall != null} disabled={busy}
+                        onChange={(e) => {
+                          const { tall: _tall, ...rest } = frame;
+                          setFrame(one.key, e.target.checked ? { ...rest, tall: { x: frame.x, y: frame.y, w: Math.min(92, frame.w * 1.8), scale: frame.scale } } : rest);
+                        }} />
+                      <span>Inne miejsce na ekranie wyższym niż szeroki</span>
+                    </label>
+                    {frame.tall != null && (
+                      <>
+                        <StageNumber label="x %" value={frame.tall.x ?? frame.x} min={0} max={100} step={1} busy={busy} onChange={(x) => setFrame(one.key, { ...frame, tall: { ...frame.tall, x } })} />
+                        <StageNumber label="y %" value={frame.tall.y ?? frame.y} min={0} max={100} step={1} busy={busy} onChange={(y) => setFrame(one.key, { ...frame, tall: { ...frame.tall, y } })} />
+                        <StageNumber label="Szerokość %" value={frame.tall.w ?? frame.w} min={5} max={100} step={1} busy={busy} onChange={(w) => setFrame(one.key, { ...frame, tall: { ...frame.tall, w } })} />
+                        <StageNumber label="Skala" value={frame.tall.scale ?? frame.scale} min={0.2} max={3} step={0.05} busy={busy} onChange={(scale) => setFrame(one.key, { ...frame, tall: { ...frame.tall, scale } })} />
+                        <StageNumber label="Krycie" value={frame.tall.opacity ?? frame.opacity} min={0} max={1} step={0.05} busy={busy} onChange={(opacity) => setFrame(one.key, { ...frame, tall: { ...frame.tall, opacity } })} />
+                      </>
+                    )}
+                  </details>
                 </>
               )}
             </li>
@@ -390,6 +466,140 @@ function StageNumber({ label, value, min, max, step, busy, onChange }: {
       <input type="range" min={min} max={max} step={step} value={value} disabled={busy} onChange={(e) => onChange(Number(e.target.value))} />
       <output>{Number.isInteger(step) ? Math.round(value) : value.toFixed(2)}</output>
     </label>
+  );
+}
+
+/* -- 0107: die Folge als Ganzes, wer neben wem, der Aufbau ------------------------------ */
+
+const NAV_LABEL: Record<DeckNav, string> = { labels: 'Nazwy slajdów u góry', dots: 'Kropki z prawej (jak pokaz Cogita)', none: 'Bez paska' };
+
+/** Was für alle Slajdy gilt: das gemeinsame Tuch, die Leiste, der Titelslajd, die Breite der Bühne. */
+function DeckEditor({ path, theme, deck, busy, onChange }: {
+  path: string;
+  theme: Theme;
+  deck: DeckLook;
+  busy: boolean;
+  onChange: (next: DeckLook) => void;
+}) {
+  return (
+    <details className="wk-fold se-deck">
+      <summary>Całość pokazu{deck.backdrop.length > 0 || deck.nav !== 'labels' || !deck.titleSlide || deck.width !== null ? ' (ustawione)' : ''}</summary>
+      <label className="se-inline">
+        <span>Pasek</span>
+        <select value={deck.nav} disabled={busy} onChange={(e) => onChange({ ...deck, nav: e.target.value as DeckNav })}>
+          {(['labels', 'dots', 'none'] as const).map((one) => <option key={one} value={one}>{NAV_LABEL[one]}</option>)}
+        </select>
+      </label>
+      <label className="wk-check">
+        <input type="checkbox" checked={!deck.titleSlide} disabled={busy} onChange={(e) => onChange({ ...deck, titleSlide: !e.target.checked })} />
+        <span>Bez slajdu tytułowego — pierwszy moduł jest pierwszym ekranem (tytuł strony zostaje w karcie przeglądarki i na dole)</span>
+      </label>
+      <label className="se-inline">
+        <span>Szerokość sceny (rem)</span>
+        <input type="number" min={20} max={240} value={deck.width ?? ''} placeholder="całe okno" disabled={busy}
+          onChange={(e) => onChange({ ...deck, width: e.target.value.trim() === '' ? null : Math.min(240, Math.max(20, Number(e.target.value))) })} />
+      </label>
+      <p className="wk-hint">
+        W tej szerokości liczą się miejsca modułów przechodzących między slajdami i układ slajdów — na szerokim ekranie obraz zostaje razem (80 rem — jak pokaz Cogita).
+      </p>
+      <details className="wk-fold">
+        <summary>Tło wspólne{deck.backdrop.length > 0 ? ` (${deck.backdrop.length})` : ''}</summary>
+        <p className="wk-hint">
+          Stoi za wszystkimi slajdami. Gdy jest, slajdy przesuwają się nad nim przezroczyste, a ich własne tła leżą w nim i przechodzą płynnie jedno w drugie (kolory, poświata) — nici, fale i mgła zostają.
+        </p>
+        <LayerEditor path={path} theme={theme} label="" layers={deck.backdrop} busy={busy} blank onChange={(backdrop) => onChange({ ...deck, backdrop })} />
+      </details>
+    </details>
+  );
+}
+
+/** Neben welchem Baustein, auf welcher Seite, wie breit — und auf dem Telefon darüber oder darunter. */
+function CompanionEditor({ slide, mains, busy, onChange }: {
+  slide: SlideLook;
+  mains: readonly DraftPart[];
+  busy: boolean;
+  onChange: (next: SlideLook) => void;
+}) {
+  const now = slide.with!;
+  const set = (patch: Partial<typeof now>) => onChange({ ...slide, with: { ...now, ...patch } });
+  return (
+    <div className="se-companion">
+      <label className="se-inline">
+        <span>Obok</span>
+        <select value={now.slide} disabled={busy} onChange={(e) => set({ slide: e.target.value })}>
+          {mains.map((p) => <option key={p.id} value={p.id}>{slideLabelOf(p)}</option>)}
+        </select>
+      </label>
+      <label className="se-inline">
+        <span>Z której strony</span>
+        <select value={now.side} disabled={busy} onChange={(e) => set({ side: e.target.value === 'start' ? 'start' : 'end' })}>
+          <option value="end">Po prawej</option>
+          <option value="start">Po lewej</option>
+        </select>
+      </label>
+      <label className="se-inline">
+        <span>Szerokość (% rzędu)</span>
+        <input type="number" min={10} max={90} value={now.share} disabled={busy} onChange={(e) => set({ share: Math.min(90, Math.max(10, Number(e.target.value) || 45)) })} />
+      </label>
+      <label className="se-inline">
+        <span>Na telefonie</span>
+        <select value={now.tallSide} disabled={busy} onChange={(e) => set({ tallSide: e.target.value === 'start' ? 'start' : 'end' })}>
+          <option value="start">Nad nim</option>
+          <option value="end">Pod nim</option>
+        </select>
+      </label>
+    </div>
+  );
+}
+
+const ALIGN_LABEL: Record<Align3, string> = { start: 'Z lewej', center: 'Na środku', end: 'Z prawej' };
+const VALIGN_LABEL: Record<Align3, string> = { start: 'U góry', center: 'Na środku', end: 'Na dole' };
+
+/** Wo der Inhalt des Slajds steht — und auf einem hohen Schirm (Telefon). */
+function LayoutEditor({ slide, busy, onChange }: { slide: SlideLook; busy: boolean; onChange: (next: SlideLook) => void }) {
+  const layout: SlideLayout = slide.layout ?? { align: 'center', valign: 'center', width: null, tall: null };
+  const set = (patch: Partial<SlideLayout>) => {
+    const next = { ...layout, ...patch };
+    const plain = next.align === 'center' && next.valign === 'center' && next.width === null && next.tall === null;
+    onChange({ ...slide, layout: plain ? null : next });
+  };
+  const tall = layout.tall ?? {};
+  const setTall = (patch: Record<string, unknown>) => {
+    const next = { ...tall, ...patch };
+    for (const key of Object.keys(next)) if ((next as Record<string, unknown>)[key] === undefined) delete (next as Record<string, unknown>)[key];
+    set({ tall: Object.keys(next).length === 0 ? null : next });
+  };
+  const width = (value: string): number | null => (value.trim() === '' ? null : Math.min(100, Math.max(10, Number(value))));
+  return (
+    <div className="se-layout">
+      <p className="wk-hint">Gdzie stoi treść slajdu w scenie (szerokość sceny — w „Całość pokazu”). Puste — na środku, wygodna szerokość tekstu.</p>
+      <label className="se-inline"><span>W poziomie</span>
+        <select value={layout.align} disabled={busy} onChange={(e) => set({ align: e.target.value as Align3 })}>
+          {ALIGNS3.map((a) => <option key={a} value={a}>{ALIGN_LABEL[a]}</option>)}
+        </select>
+      </label>
+      <label className="se-inline"><span>W pionie</span>
+        <select value={layout.valign} disabled={busy} onChange={(e) => set({ valign: e.target.value as Align3 })}>
+          {ALIGNS3.map((a) => <option key={a} value={a}>{VALIGN_LABEL[a]}</option>)}
+        </select>
+      </label>
+      <label className="se-inline"><span>Szerokość (% sceny)</span>
+        <input type="number" min={10} max={100} value={layout.width ?? ''} placeholder="zwykła" disabled={busy} onChange={(e) => set({ width: width(e.target.value) })} />
+      </label>
+      <fieldset className="se-layout-tall">
+        <legend>Na telefonie (ekran wyższy niż szeroki)</legend>
+        <label className="se-inline"><span>W pionie</span>
+          <select value={tall.valign ?? ''} disabled={busy} onChange={(e) => setTall({ valign: e.target.value === '' ? undefined : e.target.value })}>
+            <option value="">jak wyżej</option>
+            {ALIGNS3.map((a) => <option key={a} value={a}>{VALIGN_LABEL[a]}</option>)}
+          </select>
+        </label>
+        <label className="se-inline"><span>Szerokość (%)</span>
+          <input type="number" min={10} max={100} value={tall.width ?? ''} placeholder="jak wyżej" disabled={busy}
+            onChange={(e) => setTall({ width: e.target.value.trim() === '' ? undefined : width(e.target.value) })} />
+        </label>
+      </fieldset>
+    </div>
   );
 }
 
@@ -462,7 +672,11 @@ export function ColorField({ label, value, busy, onChange, allowEmpty = false }:
 
 /* -- Die Schichten ---------------------------------------------------------------- */
 
-const KIND_LABEL: Record<LayerKind, string> = { gradient: 'Gradient', image: 'Obraz', bigtext: 'Duży napis' };
+const KIND_LABEL: Record<LayerKind, string> = {
+  gradient: 'Gradient', image: 'Obraz', bigtext: 'Duży napis',
+  /* 0107 — die Luft des Pokaz von Cogita. */
+  glow: 'Poświata', vignette: 'Ciemne rogi', haze: 'Mgła', mesh: 'Nici', waves: 'Fale'
+};
 const BLEND_LABEL: Record<Blend, string> = {
   normal: 'Zwykłe', multiply: 'Mnożenie', screen: 'Rozjaśnianie', overlay: 'Nakładka', 'soft-light': 'Miękkie światło'
 };
@@ -471,15 +685,17 @@ const BLEND_LABEL: Record<Blend, string> = {
  * Die Schichten hinter einem Slajd, von hinten nach vorn (Altbestand: LayerEditor).
  * Leer heisst: das Tuch des Themas — es passt sich an hell und dunkel an.
  */
-export function LayerEditor({ path, theme, label, layers, busy, onChange }: {
+export function LayerEditor({ path, theme, label, layers, busy, onChange, blank = false }: {
   path: string;
   theme: Theme;
   label: string;
   layers: readonly Layer[];
   busy: boolean;
   onChange: (next: readonly Layer[]) => void;
+  /** 0107 — leer heisst leer (das gemeinsame Tuch): kein „Tło domyślne". */
+  blank?: boolean;
 }) {
-  if (layers.length === 0) {
+  if (layers.length === 0 && !blank) {
     return (
       <div className="se-layers">
         <p className="wk-hint">
@@ -520,8 +736,8 @@ export function LayerEditor({ path, theme, label, layers, busy, onChange }: {
           <label className="se-inline">
             <span>Rodzaj</span>
             <select value={layer.kind} disabled={busy}
-              onChange={(e) => update(index, { ...blankLayer(e.target.value as LayerKind, theme), speed: layer.speed })}>
-              {(['gradient', 'image', 'bigtext'] as const).map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+              onChange={(e) => update(index, { ...blankLayer(e.target.value as LayerKind, theme), speed: layer.speed } as Layer)}>
+              {LAYER_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
             </select>
           </label>
 
@@ -578,17 +794,63 @@ export function LayerEditor({ path, theme, label, layers, busy, onChange }: {
                 onChange={(color) => update(index, { ...layer, color: color.trim() === '' ? null : color })} />
             </>
           )}
+
+          {layer.kind === 'glow' && (
+            <>
+              <ColorField label="Kolor" value={layer.color} busy={busy} onChange={(color) => update(index, { ...layer, color })} />
+              <StageNumber label="x %" value={layer.x} min={0} max={100} step={1} busy={busy} onChange={(x) => update(index, { ...layer, x })} />
+              <StageNumber label="y %" value={layer.y} min={0} max={100} step={1} busy={busy} onChange={(y) => update(index, { ...layer, y })} />
+              <StageNumber label="Zasięg %" value={layer.size} min={5} max={200} step={1} busy={busy} onChange={(size) => update(index, { ...layer, size })} />
+              <Slider label="Krycie" value={layer.opacity} busy={busy} onChange={(opacity) => update(index, { ...layer, opacity })} />
+            </>
+          )}
+
+          {layer.kind === 'vignette' && (
+            <>
+              <Slider label="Siła" value={layer.strength} busy={busy} onChange={(strength) => update(index, { ...layer, strength })} />
+              <StageNumber label="Od (%)" value={layer.reach} min={0} max={99} step={1} busy={busy} onChange={(reach) => update(index, { ...layer, reach })} />
+            </>
+          )}
+
+          {layer.kind === 'haze' && (
+            <>
+              <ColorField label="Światło" value={layer.color} busy={busy} onChange={(color) => update(index, { ...layer, color })} />
+              <ColorField label="Cień" value={layer.depth} busy={busy} onChange={(depth) => update(index, { ...layer, depth })} />
+              <Slider label="Krycie" value={layer.opacity} busy={busy} onChange={(opacity) => update(index, { ...layer, opacity })} />
+              <MotionField value={layer.motion} busy={busy} kinds="loop" onChange={(motion) => update(index, { ...layer, motion })} />
+            </>
+          )}
+
+          {layer.kind === 'mesh' && (
+            <>
+              <ColorField label="Nici" value={layer.color} busy={busy} onChange={(color) => update(index, { ...layer, color })} />
+              <ColorField label="Blask" value={layer.glow} busy={busy} onChange={(glow) => update(index, { ...layer, glow })} />
+              <StageNumber label="Warstwy" value={layer.count} min={1} max={8} step={1} busy={busy} onChange={(count) => update(index, { ...layer, count })} />
+              <StageNumber label="Wysokość fali" value={layer.center} min={0} max={1} step={0.01} busy={busy} onChange={(center) => update(index, { ...layer, center })} />
+              <StageNumber label="Ziarno" value={layer.seed} min={0} max={9999} step={1} busy={busy} onChange={(seed) => update(index, { ...layer, seed })} />
+              <MotionField value={layer.motion} busy={busy} kinds="loop" onChange={(motion) => update(index, { ...layer, motion })} />
+            </>
+          )}
+
+          {layer.kind === 'waves' && (
+            <>
+              <StageNumber label="Pasma" value={layer.count} min={1} max={12} step={1} busy={busy} onChange={(count) => update(index, { ...layer, count })} />
+              <StageNumber label="Barwa (°)" value={layer.hue} min={0} max={360} step={1} busy={busy} onChange={(hue) => update(index, { ...layer, hue })} />
+              <StageNumber label="Ziarno" value={layer.seed} min={0} max={9999} step={1} busy={busy} onChange={(seed) => update(index, { ...layer, seed })} />
+              <MotionField value={layer.motion} busy={busy} kinds="loop" onChange={(motion) => update(index, { ...layer, motion })} />
+            </>
+          )}
         </fieldset>
       ))}
 
       <div className="wk-actions">
-        {(['gradient', 'image', 'bigtext'] as const).map((k) => (
-          <button key={k} type="button" className="wk-link-btn" disabled={busy || layers.length >= 6}
+        {LAYER_KINDS.map((k) => (
+          <button key={k} type="button" className="wk-link-btn" disabled={busy || layers.length >= 8}
             onClick={() => onChange([...layers, blankLayer(k, theme)])}>
             + {KIND_LABEL[k]}
           </button>
         ))}
-        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onChange([])}>Tło domyślne</button>
+        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onChange([])}>{blank ? 'Bez tła wspólnego' : 'Tło domyślne'}</button>
       </div>
     </div>
   );

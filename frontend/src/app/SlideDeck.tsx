@@ -28,12 +28,14 @@ import {
   useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactNode
 } from 'react';
 
+import { LayerArt, layerBackground } from './deckLayers';
+import { SlidePhase, type Phase } from './MotionBox';
 import {
-  addressWithSlide, anchorInAddress, anchorOf, defaultLayers, imageUrl, resolveTheme, slideByAnchor, slideInAddress,
-  type Enter, type Layer, type SlideColors, type StageFrame, type Theme, type Transition
+  addressWithSlide, anchorInAddress, anchorOf, defaultLayers, layoutFor, NO_DECK, resolveTheme, slideByAnchor, slideInAddress,
+  type DeckLook, type Enter, type Layer, type SlideColors, type SlideLayout, type StageFrame, type Theme, type Transition
 } from './slides';
 import {
-  colorsAt, colorsOf, deckAt, enterStyle, entering, frameAt, motionOf, pinnedPosition
+  backdropAt, colorsAt, colorsOf, deckAt, enterStyle, entering, frameAt, motionOf, pinnedPosition
 } from './slideMotion';
 import { useSlideScroll } from './useSlideScroll';
 
@@ -50,6 +52,8 @@ export interface DeckSlide {
   readonly transition?: Transition;
   readonly enter?: Enter;
   readonly colors?: SlideColors | null;
+  /** 0107 — wo sein Inhalt steht (links, rechts, unten …); fehlt: in der Mitte. */
+  readonly layout?: SlideLayout | null;
 }
 
 /**
@@ -62,6 +66,54 @@ export interface DeckActor {
   readonly frames: ReadonlyMap<number, StageFrame>;
   readonly bare: boolean;
   readonly content: ReactNode;
+}
+
+/** 0107 — wie hell eine Farbe ist (0–1); `null`: keine `#rrggbb`. */
+function lightness(hex: string): number | null {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (m === null) return null;
+  const n = Number.parseInt(m[1], 16);
+  const lin = (c: number) => { const v = c / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+}
+
+/**
+ * 0107 — DIE SCHRIFT AUF DEM AKZENT: weiss auf einem dunklen Akzent (wie
+ * bisher), auf einem hellen (Cogita: #7ec8ff) die dunklere der beiden Farben
+ * des Slajds — weiss auf Hellblau liest niemand.
+ */
+export function onAccent(accent: string, ink: string, ground: string): string {
+  const a = lightness(accent);
+  if (a === null || a < 0.4) return '#ffffff';
+  const i = lightness(ink) ?? 1;
+  const g = lightness(ground) ?? 0;
+  const darker = i < g ? ink : ground;
+  return (lightness(darker) ?? 0) < 0.2 ? darker : '#0b1420';
+}
+
+/** 0107 — Hochkant (ein Telefon): höher als breit. Dann gelten die Plätze und der Aufbau für hohe Schirme. */
+function useTall(ref: MutableRefObject<HTMLDivElement | null>): boolean {
+  const [tall, setTall] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (el === null) return undefined;
+    const measure = () => setTall(el.clientHeight > el.clientWidth * 1.05);
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(el);
+    window.addEventListener('resize', measure);
+    return () => { observer?.disconnect(); window.removeEventListener('resize', measure); };
+  }, [ref]);
+  return tall;
+}
+
+/** 0107 — eine Schicht hinter einem Slajd oder im Tuch: ihr Grund, und was in ihr liegt. */
+function LayerFace({ layer, style, className = '' }: { layer: Layer; style: CSSProperties; className?: string }) {
+  return (
+    <div className={`wk-deck-layer is-${layer.kind}${className}`} style={{ ...layerBackground(layer), ...style }} aria-hidden="true">
+      <LayerArt layer={layer} />
+    </div>
+  );
 }
 
 /** Von aussen steuern — der Editor springt zu dem Slajd, den man in der Liste anklickt. */
@@ -95,12 +147,6 @@ export function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-function gradientOf(layer: Layer): string | undefined {
-  if (layer.kind !== 'gradient') return undefined;
-  const stops = layer.via ? `${layer.from}, ${layer.via}, ${layer.to}` : `${layer.from}, ${layer.to}`;
-  return `linear-gradient(${layer.angle}deg, ${stops})`;
-}
-
 /**
  * 0086 — WELCHER SLAJD IN DER ADRESSE STEHT: `?s=3`, die Kennung eines
  * Bausteins (`?part=…`, wie aus einem Widget) oder ein Anker nach dem Namen
@@ -119,12 +165,14 @@ function slideFromAddress(hash: string, slides: readonly DeckSlide[]): number | 
 const plain = (event: React.MouseEvent) =>
   event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 
-export function SlideDeck({ slides, actors = [], theme, title, embedded = false, control }: {
+export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, embedded = false, control }: {
   slides: readonly DeckSlide[];
   /** 0084 — Bausteine auf der Bühne: über allen Slajdy, mit einem Platz je Slajd. */
   actors?: readonly DeckActor[];
   /** `null` — automatisch: die Farben des Arbeitsplatzes, hell oder dunkel wie das Gerät. */
   theme: Theme | null;
+  /** 0107 — die Folge als Ganzes: gemeinsames Tuch, Leiste, Breite der Bühne. */
+  deck?: DeckLook;
   /** Unten links, klein: wessen Slajdy das sind. */
   title?: string | null;
   /** In der Vorschau des Editors: in einem Kasten statt über dem Fenster, ohne Adresse, ohne Tasten. */
@@ -136,6 +184,9 @@ export function SlideDeck({ slides, actors = [], theme, title, embedded = false,
   const scroll = useSlideScroll(slides.length, { keyboard: !embedded });
   const { scrollToSlide, geometry, measured, viewportRef } = scroll;
   const reduced = usePrefersReducedMotion();
+  const tall = useTall(viewportRef);
+  /* 0107 — ein gemeinsames Tuch: die Slajdy rollen durchsichtig darüber, ihre eigenen Schichten liegen darin. */
+  const shared = deck.backdrop.length > 0;
 
   useEffect(() => {
     if (control !== undefined) control.current = { go: scrollToSlide };
@@ -246,38 +297,63 @@ export function SlideDeck({ slides, actors = [], theme, title, embedded = false,
     '--deck-ink': colors.ink,
     '--deck-ground': colors.ground,
     '--deck-muted': colors.muted,
+    /* 0107 — die Schrift auf dem Akzent: dunkel auf einem hellen. */
+    '--deck-on-accent': onAccent(colors.accent, colors.ink, colors.ground),
+    ...(deck.width === null ? {} : { '--deck-width': `${deck.width}rem` }),
     ...(embedded ? {} : { top: `${top}px` })
   } as CSSProperties;
 
   const base = embedded ? '' : window.location.hash.split('?')[0];
   const active = scroll.activeIndex;
 
+  /* 0107 — wie jeder Slajd gerade steht: der jetzige, zu sehen (er kommt oder geht), oder fort. */
+  const phaseOf = (index: number): Phase => (index === active ? 'here' : Math.abs(at - index) < 1 ? 'near' : 'away');
+
+  const labels = (
+    slides.map((slide, index) => (
+      embedded ? (
+        <button key={slide.key} type="button" className={active === index ? 'is-active' : ''} aria-label={deck.nav === 'dots' ? slide.label : undefined}
+          title={deck.nav === 'dots' ? slide.label : undefined} onClick={() => scrollToSlide(index)}>
+          {deck.nav === 'dots' ? null : slide.label}
+        </button>
+      ) : (
+        <a key={slide.key} className={active === index ? 'is-active' : ''} aria-current={active === index ? 'true' : undefined}
+          aria-label={deck.nav === 'dots' ? slide.label : undefined} title={deck.nav === 'dots' ? slide.label : undefined}
+          href={addressWithSlide(base, index)}
+          onClick={(event) => { if (!plain(event)) return; event.preventDefault(); scrollToSlide(index); }}>
+          {deck.nav === 'dots' ? null : slide.label}
+        </a>
+      )
+    ))
+  );
+
   return (
-    <div className={`wk-deck is-${look.mode}${embedded ? ' is-embedded' : ''}`} style={vars}>
-      <nav className="wk-deck-nav" aria-label="Slajdy">
-        {slides.map((slide, index) => (
-          embedded ? (
-            <button key={slide.key} type="button" className={active === index ? 'is-active' : ''}
-              onClick={() => scrollToSlide(index)}>
-              {slide.label}
-            </button>
-          ) : (
-            <a key={slide.key} className={active === index ? 'is-active' : ''} aria-current={active === index ? 'true' : undefined}
-              href={addressWithSlide(base, index)}
-              onClick={(event) => { if (!plain(event)) return; event.preventDefault(); scrollToSlide(index); }}>
-              {slide.label}
-            </a>
-          )
-        ))}
-      </nav>
+    <div className={`wk-deck is-${look.mode}${embedded ? ' is-embedded' : ''}${deck.nav !== 'labels' ? ` is-nav-${deck.nav}` : ''}${tall ? ' is-tall' : ''}`} style={vars}>
+      {deck.nav === 'labels' && <nav className="wk-deck-nav" aria-label="Slajdy">{labels}</nav>}
 
       <div className="wk-deck-viewport" ref={viewportRef}>
+        {/*
+          0107 — DAS GEMEINSAME TUCH: steht, während die Slajdy darüber rollen.
+          Unten die eigenen Schichten des jetzigen und des nächsten Slajds
+          (übereinander geblendet), darüber die gemeinsamen.
+        */}
+        {shared && (
+          <div className="wk-deck-backdrop" aria-hidden="true">
+            {backdropAt(slides.map((slide) => slide.layers.length > 0), at).map(({ index, opacity }) => (
+              <div key={slides[index].key} className="wk-deck-backdrop-slide" style={{ opacity }}>
+                {slides[index].layers.map((layer, n) => <LayerFace key={n} layer={layer} style={{ height: '100%' }} />)}
+              </div>
+            ))}
+            {deck.backdrop.map((layer, n) => <LayerFace key={`shared-${n}`} layer={layer} className=" is-shared" style={{ height: '100%' }} />)}
+          </div>
+        )}
+
         <div className="wk-deck-track" style={{ transform: `translate3d(0, ${-scroll.position}px, 0)` }} onClick={onTrackClick}>
           {slides.map((slide, index) => {
             const frame = geometry[index];
             if (frame === undefined) return null;
-            /* Ohne eigene Schichten: der Grund des Themas und der Name als blasser Schriftzug — passt sich an hell und dunkel an. */
-            const layers = slide.layers.length > 0 ? slide.layers : defaultLayers(slide.label, look);
+            /* Ohne eigene Schichten: der Grund des Themas und der Name als blasser Schriftzug — passt sich an hell und dunkel an. Mit Tuch: nichts (es liegt dahinter). */
+            const layers = shared ? [] : slide.layers.length > 0 ? slide.layers : defaultLayers(slide.label, look);
 
             /*
              * 0084 — IM WECHSEL. Ein festgehaltener Slajd läuft nicht mit der
@@ -289,11 +365,12 @@ export function SlideDeck({ slides, actors = [], theme, title, embedded = false,
             const pinned = motion.pin ? pinnedPosition(frame, scroll.position, vh) : scroll.position;
             const moved = scroll.position - pinned;
             const sectionStyle: CSSProperties = { height: `${frame.height}px` };
-            if (motion !== undefined && (motion.pin || motion.scale !== 1 || motion.shift !== 0 || motion.opacity !== 1 || motion.dim !== 0 || motion.above)) {
-              sectionStyle.transform = `translate3d(${motion.shift}%, ${moved}px, 0) scale(${motion.scale})`;
+            if (motion !== undefined && (motion.pin || motion.scale !== 1 || motion.shift !== 0 || motion.opacity !== 1 || motion.dim !== 0 || motion.above || motion.lift !== 0)) {
+              sectionStyle.transform = `translate3d(${motion.shift}%, ${moved + motion.lift}px, 0) scale(${motion.scale})`;
               sectionStyle.transformOrigin = `50% ${pinned - frame.start + vh / 2}px`;
               sectionStyle.opacity = motion.opacity;
-              if (motion.dim > 0) sectionStyle.filter = `brightness(${1 - motion.dim})`;
+              const filters = [motion.dim > 0 ? `brightness(${1 - motion.dim})` : '', motion.blur > 0.01 ? `blur(${motion.blur.toFixed(2)}px)` : ''].filter((f) => f !== '');
+              if (filters.length > 0) sectionStyle.filter = filters.join(' ');
               if (motion.above) sectionStyle.zIndex = 3;
             }
             const appear = enterStyle(slide.enter ?? 'none', entering(geometry, index, scroll.position, vh), reduced);
@@ -301,12 +378,14 @@ export function SlideDeck({ slides, actors = [], theme, title, embedded = false,
               opacity: appear.opacity,
               transform: `translate3d(${appear.x}px, ${appear.y}px, 0) scale(${appear.scale})`
             };
+            /* 0107 — wo der Inhalt steht: links, rechts, unten — in der Bühne der Folge, auf einem hohen Schirm anders. */
+            const place = slide.layout == null ? null : layoutFor(slide.layout, tall);
 
             return (
               <section
                 key={slide.key}
                 id={`slajd-${anchorOf(slide.label)}`}
-                className={`wk-deck-slide${active === index ? ' is-active' : ''}`}
+                className={`wk-deck-slide${active === index ? ' is-active' : ''}${shared ? ' is-clear' : ''}`}
                 style={sectionStyle}
                 data-transition={slide.transition ?? 'scroll'}
                 aria-label={slide.label}
@@ -321,21 +400,15 @@ export function SlideDeck({ slides, actors = [], theme, title, embedded = false,
                   const local = pinned - frame.start;
                   const span = frame.height + scroll.viewportHeight;
                   const style: CSSProperties = {
+                    ...layerBackground(layer),
                     height: `${scroll.viewportHeight + speed * span}px`,
                     transform: `translate3d(0, ${local * (1 - speed) - speed * scroll.viewportHeight}px, 0)`
                   };
-                  const gradient = gradientOf(layer);
-                  if (gradient !== undefined) style.background = gradient;
-                  if (layer.kind === 'image' && layer.url !== '') {
-                    style.backgroundImage = `url(${JSON.stringify(imageUrl(layer.url))})`;
-                    style.backgroundSize = 'cover';
-                    style.backgroundPosition = layer.position;
-                    style.opacity = layer.opacity;
-                    style.mixBlendMode = layer.blend;
-                  }
 
                   return (
                     <div key={n} className={`wk-deck-layer is-${layer.kind}`} style={style} aria-hidden="true">
+                      {/* 0107 — Dunst, Nici, Fale: mehr als ein Grund. */}
+                      <LayerArt layer={layer} />
                       {layer.kind === 'bigtext' && (
                         <div className="wk-deck-bigtext" style={{
                           opacity: layer.opacity,
@@ -351,13 +424,16 @@ export function SlideDeck({ slides, actors = [], theme, title, embedded = false,
                 })}
 
                 {/* Der Inhalt läuft mit Geschwindigkeit 1: keine Verschiebung, so hoch wie der Slajd. */}
-                <div className="wk-deck-content-layer" style={{ height: `${frame.height}px` }}>
+                <div className={`wk-deck-content-layer${place === null ? '' : ` is-placed is-v-${place.valign}`}`} style={{ height: `${frame.height}px` }}>
                   <div
-                    className={`wk-deck-content${slide.wide === true ? ' is-wide' : ''}`}
-                    style={contentStyle}
+                    className={`wk-deck-content${slide.wide === true ? ' is-wide' : ''}${place === null ? '' : ` is-placed is-${place.align}`}`}
+                    style={{ ...contentStyle, ...(place === null || place.width === null ? {} : { '--content-w': `${place.width}%` } as CSSProperties) }}
                     ref={(element) => { scroll.contentRefs.current[index] = element; }}
                   >
-                    {slide.content}
+                    {/* 0107 — was darauf steht, erfährt, ob sein Slajd der jetzige ist: Auftritte und Animacje laufen danach. */}
+                    <SlidePhase.Provider value={phaseOf(index)}>
+                      {slide.content}
+                    </SlidePhase.Provider>
                   </div>
                 </div>
               </section>
@@ -373,26 +449,34 @@ export function SlideDeck({ slides, actors = [], theme, title, embedded = false,
         {actors.length > 0 && (
           <div className="wk-deck-stage">
             {actors.map((actor) => {
-              const place = frameAt(actor.frames, at);
+              const place = frameAt(actor.frames, at, tall);
               if (place === null) return null;
+              /* 0107 — wer für hohe Schirme eigene Plätze hat, bekommt dort genau seine Breite (nicht die Vorgabe ×1,8). */
+              const ownTall = tall && [...actor.frames.values()].some((f) => f.tall?.w !== undefined);
               const style = {
                 left: `${place.x}%`,
                 top: `${place.y}%`,
                 '--actor-w': `${place.w}%`,
-                '--actor-w-narrow': `${Math.min(92, place.w * 1.8)}%`,
+                '--actor-w-narrow': `${ownTall ? place.w : Math.min(92, place.w * 1.8)}%`,
+                ...(place.max == null ? {} : { '--actor-max': `${place.max}rem` }),
                 transform: `translate(-50%, -50%) rotate(${place.rotate}deg) scale(${place.scale})`,
                 opacity: place.opacity,
                 pointerEvents: place.opacity < 0.05 ? 'none' : undefined
               } as CSSProperties;
               return (
-                <div key={actor.key} className={`wk-deck-actor${actor.bare ? ' is-bare' : ''}`} style={style}
+                <div key={actor.key} className={`wk-deck-actor${actor.bare ? ' is-bare' : ''}${place.max == null ? '' : ' has-max'}`} style={style}
                   aria-hidden={place.opacity < 0.05 ? true : undefined}>
-                  {actor.content}
+                  <SlidePhase.Provider value={place.opacity < 0.05 ? 'away' : 'here'}>
+                    {actor.content}
+                  </SlidePhase.Provider>
                 </div>
               );
             })}
           </div>
         )}
+
+        {/* 0107 — die Leiste als Punkte, rechts in der Mitte (wie der Pokaz von Cogita). */}
+        {deck.nav === 'dots' && slides.length > 1 && <nav className="wk-deck-dots" aria-label="Slajdy">{labels}</nav>}
       </div>
 
       <footer className="wk-deck-foot">
