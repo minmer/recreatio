@@ -6,23 +6,19 @@ export default defineConfig({
   base: '/',
   server: {
     proxy: {
-      // Die neue Plattform in der Entwicklung unter demselben Ursprung.
+      // Die Plattform (backend/Api) in der Entwicklung unter demselben Ursprung.
       //
       // Ohne diesen Umweg läge der Entwicklungsserver auf :5173 und die API auf
-      // :5292 — das ist seitenübergreifend, und ein SameSite=Lax-Cookie käme
-      // nie zurück. Man würde eine Stunde nach einem Fehler in der Anmeldung
-      // suchen, den es nicht gibt (RcCookiePolicy).
-      '/rc': {
-        target: process.env.VITE_RC_API_ORIGIN ?? 'http://localhost:5292',
-        changeOrigin: false
-      },
-
-      // Der Neubau (backend/Api), aus demselben Grund: ein Ursprung, kein CORS,
-      // und das Sitzungskeks kommt zurück. Seine Routen liegen an der Wurzel,
-      // deshalb wird /api abgeschnitten.
+      // einem eigenen Port — das ist seitenübergreifend, und ein SameSite=Lax-
+      // Cookie käme nie zurück: ein Ursprung, kein CORS, und das Sitzungskeks
+      // kommt zurück. Seine Routen liegen an der Wurzel, deshalb wird /api
+      // abgeschnitten. (Der Umweg `/rc` des Altbestands ist mit ihm gegangen.)
+      //
+      // 0109 — auch der WebSocket der Sitzungen (SignalR, `/api/cogita/hub`).
       '/api': {
         target: process.env.VITE_APP_API_ORIGIN ?? 'http://localhost:50994',
         changeOrigin: false,
+        ws: true,
         rewrite: (path) => path.replace(/^\/api/, '')
       }
     }

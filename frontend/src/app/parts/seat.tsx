@@ -114,7 +114,7 @@ function AskOffice({ moduleId, row, subject }: { moduleId: string; row: DeskRow;
  * Einer allein steht ohne Namen da, wie bisher: über dem eigenen Zgłoszenie
  * noch einmal den eigenen Namen zu lesen, sagte nichts.
  */
-function OnSeat({ title, fallback, empty, children, office }: {
+export function OnSeat({ title, fallback, empty, children, office }: {
   title: string;
   fallback: string;
   empty: string;

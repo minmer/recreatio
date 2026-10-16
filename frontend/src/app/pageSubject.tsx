@@ -13,16 +13,18 @@
  * (`?wpis=…`) — so lässt sich die Seite eines Menschen als Link weitergeben.
  *
  * <b>Eine Art je Datei, hier eingetragen</b> — wie die Bausteine
- * (`parts/registry.ts`). Heute eine: `entry`, ein Mensch aus einem Formular
- * (`entrySubject.tsx`). Eine weitere (ein Termin eines Kalenders, eine
- * Gruppe) bringt ihre Wahl, ihre Leiste oben und ihre Einstellungen mit; die
- * Seite und der Editor bleiben, wie sie sind.
+ * (`parts/registry.ts`): `entry`, ein Mensch aus einem Formular
+ * (`entrySubject.tsx`), und 0109 `entity`, ein veröffentlichter Eintrag einer
+ * Bibliothek (`cogita/entitySubject.tsx`). Eine weitere (ein Termin eines
+ * Kalenders, eine Gruppe) bringt ihre Wahl, ihre Leiste oben und ihre
+ * Einstellungen mit; die Seite und der Editor bleiben, wie sie sind.
  */
 
 import { createContext, useContext, useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 
 import { readEntryQuery } from './entryDesk';
 import { entrySubjectKind } from './entrySubject';
+import { entitySubjectKind } from './cogita/entitySubject';
 
 /** Was gespeichert ist: `{"kind":"entry","form":"…"}` — die Art sagt, was die übrigen Schlüssel bedeuten. */
 export type SubjectDecl = { readonly kind: string } & Readonly<Record<string, unknown>>;
@@ -54,7 +56,7 @@ export interface SubjectKind {
   readonly Settings: ComponentType<{ decl: SubjectDecl; busy: boolean; onChange: (next: SubjectDecl) => void }>;
 }
 
-export const SUBJECT_KINDS: readonly SubjectKind[] = [entrySubjectKind];
+export const SUBJECT_KINDS: readonly SubjectKind[] = [entrySubjectKind, entitySubjectKind];
 
 export const subjectKindOf = (kind: string): SubjectKind | undefined => SUBJECT_KINDS.find((one) => one.kind === kind);
 

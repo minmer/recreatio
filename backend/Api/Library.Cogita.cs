@@ -58,6 +58,7 @@ public static partial class Library
         app.MapGet("/library/{id:guid}/file/{fileId:guid}", PublicFileAsync);
 
         /* Ein Platz liest die Bibliothek eines Bereichs, den seine Rollen lesen. */
+        app.MapGet("/seat/{token}/library/{id:guid}", SeatLibraryRowAsync);
         app.MapGet("/seat/{token}/library/{id:guid}/entries", SeatEntriesAsync);
         app.MapGet("/seat/{token}/library/{id:guid}/file/{fileId:guid}", SeatFileAsync);
     }
@@ -101,6 +102,39 @@ public static partial class Library
             return null;
         }
         return library;
+    }
+
+    /// <summary>
+    /// Die Bibliothek, wie ein Platz sie sieht: ihr Bereich (daran hängen die
+    /// Schlüssel, die der Platz hält) und ihr versiegelter Name — dieselbe
+    /// Zeile wie in der Liste eines Kontos, ohne Schreibrecht.
+    /// </summary>
+    private static async Task SeatLibraryRowAsync(HttpContext ctx, Db db, string token, Guid id)
+    {
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        if (await SeatLibraryAsync(ctx, connection, token, id) is null) return;
+        await using var cmd = new SqlCommand("""
+            SELECT l.area_id, l.epoch, l.name_sealed, l.created_at,
+                   COALESCE((SELECT MAX(e.updated_at) FROM app.library_entry e WHERE e.library_id = l.id), l.updated_at),
+                   (SELECT COUNT(*) FROM app.library_entry e WHERE e.library_id = l.id AND e.deleted_at IS NULL),
+                   (SELECT COUNT(*) FROM app.library_entry e WHERE e.library_id = l.id AND e.published_at IS NOT NULL)
+            FROM app.library l WHERE l.id = @id;
+            """, connection);
+        cmd.Parameters.AddWithValue("@id", id);
+        await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+        if (!await reader.ReadAsync(ctx.RequestAborted)) { await Fail(ctx, StatusCodes.Status404NotFound, "Takiej biblioteki nie ma."); return; }
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            libraryId = Ids.ToText(id),
+            areaId = Ids.ToText(reader.GetGuid(0)),
+            epoch = reader.GetInt32(1),
+            nameSealed = Base64Url.Encode((byte[])reader[2]),
+            createdAt = reader.GetDateTimeOffset(3),
+            updatedAt = reader.GetDateTimeOffset(4),
+            entries = reader.GetInt32(5),
+            published = reader.GetInt32(6),
+            writes = false
+        }, ctx.RequestAborted);
     }
 
     /// <summary>Der Abgleich für einen Platz — dieselbe Antwort wie für ein Konto (<see cref="EntriesAsync"/>).</summary>

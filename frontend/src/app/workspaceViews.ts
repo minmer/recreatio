@@ -24,7 +24,7 @@
 
 import type { DisplayMode } from './display';
 
-export type PartKind = 'mypages' | 'alerts' | 'agenda' | 'tasks' | 'chats' | 'forms' | 'pages' | 'access' | 'people' | 'quick' | 'recent' | 'starters' | 'tiles';
+export type PartKind = 'mypages' | 'alerts' | 'agenda' | 'tasks' | 'chats' | 'forms' | 'pages' | 'access' | 'people' | 'quick' | 'recent' | 'starters' | 'tiles' | 'learn';
 
 export interface PartDef {
   readonly kind: PartKind;
@@ -86,6 +86,11 @@ export const PART_DEFS: readonly PartDef[] = [
   ] },
   { kind: 'starters', label: 'Co chcesz zrobić?', says: 'Gotowe początki: zapisy na wydarzenie, nowa grupa.', everywhere: true, modes: [
     mode('cards', 'Karty', 'Kilka pytań i wszystko gotowe.')
+  ] },
+  /* 0109 — Nauka: was jetzt dran ist, die Kurse, laufende Sitzungen. */
+  { kind: 'learn', label: 'Nauka', says: 'Powtórki na teraz, kursy i trwające sesje.', modes: [
+    mode('due', 'Na teraz', 'Co trzeba powtórzyć teraz, w każdej bibliotece.'),
+    mode('all', 'Kursy i sesje', 'Także Twoje kursy i trwające sesje.', true)
   ] },
   { kind: 'tiles', label: 'Wszystkie części warsztatu', says: 'Kafelki: kalendarz, msze, rezerwacje, biblioteka…', everywhere: true, modes: [
     mode('main', 'Najważniejsze', 'Części, z których korzysta się na co dzień.'),

@@ -14,10 +14,11 @@
 import { useEffect, useState } from 'react';
 
 import { areaKeys, newestKey } from './chat';
+import { idbDelete, idbForget, idbGet, idbPut } from './idb';
 import { newId } from './ids';
 import type { Ring } from './keys';
 import {
-  loadEntries, loadPublishedOne, openEntry, publishEntries, putEntry, removeEntry, sealEntry,
+  forgetLibraryNames, loadEntries, loadPublishedOne, openEntry, publishEntries, putEntry, removeEntry, sealEntry,
   type EntryDoc, type LibraryRow, type SealedEntry
 } from './library';
 import { originOf } from './libraryCite';
@@ -52,10 +53,34 @@ export function cleanData(data: EntryData): EntryData {
 
 const fold = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
 
+/*
+ * 0109 — DIE VERSIEGELTE ABSCHRIFT EINER BIBLIOTHEK im Browser [N2]. Eine
+ * grosse Bibliothek (bis 50 000 Einträge) lädt beim zweiten Öffnen nur, was
+ * sich seither geändert hat — auch nach einem Neustart. Abgelegt werden die
+ * Hüllen, wie der Dienst sie schickt: zu öffnen nur mit dem Schlüssel des
+ * Bereichs. Im strengen Betrieb (der Schlüssel lebt nur im Tab) und nach der
+ * Abmeldung liegt nichts.
+ */
+let cacheOn = false;
+
+/** Ob Abschriften abgelegt werden dürfen — `kept`: ja, `tab` oder niemand: nein. */
+export function setLibraryCache(on: boolean): void {
+  cacheOn = on;
+}
+
+interface Cached {
+  readonly v: 1;
+  readonly since: string;
+  readonly rows: readonly SealedEntry[];
+}
+
+const cacheKey = (libraryId: string) => `entries:${libraryId}`;
+
 export class LibraryStore implements Lookup {
   readonly libraryId: string;
   readonly areaId: string;
-  private readonly ring: Ring;
+  /** `null`: ein Speicher ohne Konto (`readOnlyStore`) — er liest nur, und er legt keine Abschrift ab. */
+  private readonly ring: Ring | null;
   private readonly entries = new Map<string, Entry>();
   private readonly keys = new Map<string, string>();
   private readonly listeners = new Set<() => void>();
@@ -63,13 +88,16 @@ export class LibraryStore implements Lookup {
   private syncing: Promise<void> | null = null;
   private backIndex: Map<string, Set<string>> | null = null;
   private searchIndex: Map<string, string> | null = null;
+  /** Die Hüllen, wie sie kamen — für die Abschrift (nur, wenn sie abgelegt werden darf). */
+  private readonly sealedRows = new Map<string, SealedEntry>();
+  private cacheWrite: number | null = null;
 
   /** Einträge, deren Hülle sich hier nicht öffnen lässt (Schlüssel einer fremden Epoche). */
   unreadable = 0;
   revision = 0;
   loaded = false;
 
-  constructor(ring: Ring, library: Pick<LibraryRow, 'libraryId' | 'areaId'>) {
+  constructor(ring: Ring | null, library: Pick<LibraryRow, 'libraryId' | 'areaId'>) {
     this.ring = ring;
     this.libraryId = library.libraryId;
     this.areaId = library.areaId;
@@ -166,16 +194,34 @@ export class LibraryStore implements Lookup {
     this.entries.delete(id);
   }
 
+  /** 0109 — woher die Schlüssel kommen, wenn kein Konto liest (ein Link, ein Platz: `areaReader`). */
+  private keySource: ((areaId: string, epochs: readonly number[]) => Promise<ReadonlyMap<number, Uint8Array>>) | null = null;
+
+  useKeys(source: (areaId: string, epochs: readonly number[]) => Promise<ReadonlyMap<number, Uint8Array>>): void {
+    this.keySource = source;
+  }
+
   private async keysFor(epochs: Iterable<number>): Promise<ReadonlyMap<number, Uint8Array>> {
+    if (this.keySource !== null) return this.keySource(this.areaId, [...new Set(epochs)]);
+    if (this.ring === null) return new Map();
     let keys = await areaKeys(this.ring, this.areaId);
     if ([...epochs].some((e) => !keys.has(e))) keys = await areaKeys(this.ring, this.areaId, true);
     return keys;
+  }
+
+  /** Ob dieser Speicher eine Abschrift auf dem Gerät halten darf — nur der eines Kontos, und nur bei `kept`. */
+  private get copies(): boolean {
+    return cacheOn && this.ring !== null;
   }
 
   private async absorb(rows: readonly SealedEntry[]): Promise<void> {
     const keys = await this.keysFor(rows.filter((r) => r.sealed !== null).map((r) => r.epoch));
     let unreadable = 0;
     for (const row of rows) {
+      if (this.copies) {
+        if (row.deletedAt !== null) this.sealedRows.delete(row.entryId);
+        else this.sealedRows.set(row.entryId, row);
+      }
       if (row.deletedAt !== null) { this.drop(row.entryId); continue; }
       const doc = await openEntry(keys, row);
       if (doc === null) { unreadable += 1; continue; }
@@ -188,21 +234,61 @@ export class LibraryStore implements Lookup {
     this.unreadable = this.since === null ? unreadable : this.unreadable + unreadable;
   }
 
+  /**
+   * Woher die Hüllen kommen — der Weg eines Kontos oder Links; ein Platz
+   * (`/seat/…/library`) setzt seinen eigenen (`readVia`).
+   */
+  private source: (since: string | null) => Promise<{ now: string; entries: readonly SealedEntry[] }> =
+    (since) => loadEntries(this.libraryId, since);
+
+  /** 0109 — die Hüllen über einen anderen Weg holen (ein Platz ohne Konto). */
+  readVia(source: (since: string | null) => Promise<{ now: string; entries: readonly SealedEntry[] }>): void {
+    this.source = source;
+  }
+
   /** Holen, was sich geändert hat — beim ersten Mal alles. Gleichzeitige Aufrufe teilen sich einen Gang. */
   sync(): Promise<void> {
     if (this.syncing !== null) return this.syncing;
     this.syncing = (async () => {
       try {
-        const { now, entries } = await loadEntries(this.libraryId, this.since);
+        /* 0109 — zuerst die Abschrift, dann nur, was seither geschah. */
+        if (this.since === null && this.copies) {
+          const cached = await idbGet<Cached>('library', cacheKey(this.libraryId));
+          if (cached !== null && cached.v === 1 && Array.isArray(cached.rows) && typeof cached.since === 'string') {
+            await this.absorb(cached.rows);
+            this.since = cached.since;
+            this.loaded = true;
+            this.changed();
+          }
+        }
+        const { now, entries } = await this.source(this.since);
         await this.absorb(entries);
         this.since = now;
         this.loaded = true;
         this.changed();
+        this.keepCopy();
       } finally {
         this.syncing = null;
       }
     })();
     return this.syncing;
+  }
+
+  /** Die Abschrift schreiben — einmal kurz nach dem letzten Abgleich, nicht bei jedem. */
+  private keepCopy(): void {
+    if (!this.copies || typeof window === 'undefined' || this.since === null) return;
+    if (this.cacheWrite !== null) window.clearTimeout(this.cacheWrite);
+    this.cacheWrite = window.setTimeout(() => {
+      this.cacheWrite = null;
+      if (!this.copies || this.since === null) return;
+      const doc: Cached = { v: 1, since: this.since, rows: [...this.sealedRows.values()] };
+      void idbPut('library', cacheKey(this.libraryId), doc);
+    }, 1500);
+  }
+
+  /** Die Abschrift dieser Bibliothek wegwerfen (sie wurde gelöscht). */
+  dropCopy(): void {
+    void idbDelete('library', cacheKey(this.libraryId));
   }
 
   /* -- Schreiben -------------------------------------------------------------------------- */
@@ -226,6 +312,7 @@ export class LibraryStore implements Lookup {
     const key = this.keyFor({ id, kind: input.kind, data }, input.key ?? before?.key);
     const doc: EntryDoc = { v: 1, id, kind: input.kind, ...(key === undefined ? {} : { key }), data };
 
+    if (this.ring === null) throw new WorkspaceError('Tę bibliotekę można tu tylko czytać.');
     const newest = newestKey(await areaKeys(this.ring, this.areaId, true));
     if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się tu zapisać.');
 
@@ -322,6 +409,40 @@ export class LibraryStore implements Lookup {
 /* -- Ein Speicher je Bibliothek und Tab ------------------------------------------------------ */
 
 const stores = new Map<string, LibraryStore>();
+
+/** 0109 — die Bibliotheken, die dieser Tab schon offen hat (für die Suche, Ctrl K). */
+export const loadedStores = (): LibraryStore[] => [...stores.values()].filter((s) => s.loaded);
+
+/**
+ * 0109 — BEI DER ABMELDUNG bleibt nichts aus den Bibliotheken: nicht im Tab
+ * (die offenen Einträge, die Namen), nicht auf dem Gerät (die Abschriften und
+ * die Powtórki für die Zeit ohne Netz). Was ohne Konto gelernt wurde
+ * (`progress`) gehört dem Gerät, und die Ablage (`outbox`) ist versiegelt und
+ * geht mit der nächsten Anmeldung desselben Halters hinaus — beide bleiben.
+ */
+export function forgetLibraries(): void {
+  cacheOn = false;
+  stores.clear();
+  forgetLibraryNames();
+  void idbForget('library', 'offline').catch(() => undefined);
+}
+
+/**
+ * 0109 — EIN SPEICHER OHNE KONTO: ein Platz liest die Bibliothek über seinen
+ * eigenen Weg (`/seat/…/library`) und mit den Schlüsseln, die er hält
+ * (`areaReader`). Er steht nicht in der Liste des Tabs — die gehört dem
+ * Konto —, schreibt nichts und legt nichts auf dem Gerät ab.
+ */
+export function readOnlyStore(
+  library: Pick<LibraryRow, 'libraryId' | 'areaId'>,
+  source: (since: string | null) => Promise<{ now: string; entries: readonly SealedEntry[] }>,
+  keys: (areaId: string, epochs: readonly number[]) => Promise<ReadonlyMap<number, Uint8Array>>
+): LibraryStore {
+  const store = new LibraryStore(null, library);
+  store.readVia(source);
+  store.useKeys(keys);
+  return store;
+}
 
 export function storeOf(ring: Ring, library: Pick<LibraryRow, 'libraryId' | 'areaId'>): LibraryStore {
   let store = stores.get(library.libraryId);

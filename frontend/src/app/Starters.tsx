@@ -14,6 +14,8 @@
  *   Zapisy na wydarzenie   Bereich · Formular (Imię, Nazwisko, Telefon, E-mail)
  *                          · Seite mit dem Formular · Rola uczestników
  *   Nowa grupa             Bereich · Rola członków · Rozmowa · Link zaproszenia
+ *   Kurs (0109)            Bereich · Bibliothek · Rola uczących się · Przyjęcia
+ *                          für die Antworten · Powtórka codzienna · Link zum Kurs
  * </code>
  */
 
@@ -26,6 +28,9 @@ import { createCommonRole } from './commonRole';
 import { loadDesk, type PageCard } from './desk';
 import { writeFormContent } from './formJson';
 import { newId } from './ids';
+import { createIntake } from './intake';
+import { createLibrary } from './library';
+import { storeOf } from './libraryStore';
 import { createLink } from './linkAccess';
 import { setMemberRole } from './memberRole';
 import { Modal } from './Modal';
@@ -38,13 +43,15 @@ import { call, WorkspaceError, type Who } from './session';
 import { areasNow, invalidate, refreshDesk } from './viewData';
 import { AreaOptions } from './AreaOptions';
 
-type Starter = 'signup' | 'group';
+type Starter = 'signup' | 'group' | 'course';
 
 const STARTERS: readonly { id: Starter; title: string; says: string; makes: string }[] = [
   { id: 'signup', title: 'Zapisy na wydarzenie', says: 'Rekolekcje, wyjazd, warsztaty — formularz zgłoszeń na stronie.',
     makes: 'Powstanie: obszar wydarzenia, formularz (imię, nazwisko, telefon, e-mail), strona z formularzem i rola uczestników.' },
   { id: 'group', title: 'Nowa grupa', says: 'Schola, oaza, rada — miejsce, rozmowa i link dla członków.',
-    makes: 'Powstanie: obszar grupy, rola członków, rozmowa grupy i link zaproszenia.' }
+    makes: 'Powstanie: obszar grupy, rola członków, rozmowa grupy i link zaproszenia.' },
+  { id: 'course', title: 'Kurs do nauki', says: 'Słówka, katechizm, przygotowanie do egzaminu — powtórki dla uczących się.',
+    makes: 'Powstanie: obszar kursu, biblioteka z codzienną powtórką, rola uczących się (czytają), przyjęcia odpowiedzi (widzisz postępy) i link dla uczących się.' }
 ];
 
 /** „Rekolekcje 2027" → „rekolekcje-2027" — so, wie eine Adresse heissen darf. */
@@ -103,6 +110,36 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
 
       setBusy('Tworzenie obszaru…');
       const area = await createArea(ring, person, name.trim(), parent === '' ? undefined : parent);
+
+      if (starter === 'course') {
+        /*
+         * 0109 — der Kurs: die Bibliothek im Bereich, die Antworten in DENSELBEN
+         * Bereich (Przyjęcia: nur das Amt öffnet sie), eine Powtórka aus allen
+         * Karten, und ein Link, der die Rolle gibt und in den Kurs führt.
+         */
+        setBusy('Zakładanie biblioteki…');
+        const libraryId = await createLibrary(ring, area.areaId, name.trim());
+        setBusy('Klucz przyjęć odpowiedzi (kilka sekund)…');
+        await createIntake(ring, area.areaId, person.id);
+        setBusy('Codzienna powtórka…');
+        const store = storeOf(ring, { libraryId, areaId: area.areaId });
+        await store.sync();
+        const [{ CogitaLibrary }, { REVISION_PRESETS }] = await Promise.all([import('./cogita/store'), import('./cogita/presets')]);
+        const lib = new CogitaLibrary(store, true);
+        await lib.saveDoc('revision', REVISION_PRESETS[0].make());
+        await lib.saveSettings({ storageAreaId: area.areaId, motivation: 'progress' });
+        const role = await createCommonRole(ring, person, { name: `Uczący się: ${name.trim()}`, areas: [{ areaId: area.areaId, capability: 'read' }] }, setBusy);
+        setBusy('Tworzenie linku dla uczących się…');
+        const link = await createLink(role.ring, person, {
+          label: name.trim(), roles: [{ roleId: role.roleId, lead: false }], once: false, expiresDays: 365,
+          aim: `workspace/library/${libraryId}/cogita`
+        });
+        forgetKeys();
+        invalidate();
+        refreshDesk();
+        setDone({ open: viewPath('library', libraryId, 'cogita', 'wpisy'), label: 'Dodaj pierwsze wpisy', link: link.url });
+        return;
+      }
 
       if (starter === 'group') {
         const role = await createCommonRole(ring, person, { name: `Członkowie: ${name.trim()}`, areas: [{ areaId: area.areaId, capability: 'write' }] }, setBusy);
@@ -172,8 +209,8 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
         <form className="wk-form" onSubmit={(e) => { e.preventDefault(); void run(); }}>
           <p className="wk-hint">{def.makes}</p>
           <label className="wk-field">
-            <span>{starter === 'group' ? 'Nazwa grupy' : 'Nazwa wydarzenia'}</span>
-            <input value={name} autoComplete="off" data-starter-name="" placeholder={starter === 'group' ? 'np. Schola' : 'np. Rekolekcje 2027'} onChange={(e) => setName(e.target.value)} />
+            <span>{starter === 'group' ? 'Nazwa grupy' : starter === 'course' ? 'Nazwa kursu' : 'Nazwa wydarzenia'}</span>
+            <input value={name} autoComplete="off" data-starter-name="" placeholder={starter === 'group' ? 'np. Schola' : starter === 'course' ? 'np. Bierzmowanie 2027 — pytania' : 'np. Rekolekcje 2027'} onChange={(e) => setName(e.target.value)} />
           </label>
           <label className="wk-field">
             <span>Wewnątrz obszaru (opcjonalnie)</span>

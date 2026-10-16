@@ -14,7 +14,7 @@
  * die Bibliothek auch lesen darf).
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 
 import { loadAreas, type AreaRow } from './area';
 import { ensurePrivateArea } from './agenda';
@@ -35,6 +35,9 @@ import { viewPath } from './routes';
 import { LibraryMap } from './LibraryMap';
 import { WorkspaceError, type Who } from './session';
 
+/* 0109 — Cogita ist ein eigenes Bündel: geladen erst mit dem Reiter „Nauka i kursy". */
+const CogitaHome = lazy(() => import('./cogita/CogitaHome').then((m) => ({ default: m.CogitaHome })));
+
 /** Die Reiter einer Bibliothek — Wort in der Adresse, Art, Name. */
 export const TABS = [
   { slug: 'teksty', kind: 'text' },
@@ -51,10 +54,10 @@ export function LibraryView({ who, trail }: { who: Who; trail: readonly string[]
   const me = useMe(who);
   if (me === undefined) return <p className="wk-lede">Wczytywanie…</p>;
   if (me === null) return <p className="wk-note">Bez klucza w tej karcie biblioteka jest zamknięta — zaloguj się ponownie albo odblokuj klucz.</p>;
-  return <Libraries me={me} trail={trail} />;
+  return <Libraries me={me} who={who} trail={trail} />;
 }
 
-function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
+function Libraries({ me, who, trail }: { me: Me; who: Who; trail: readonly string[] }) {
   const [libraries, setLibraries] = useState<readonly OpenLibrary[] | null>(null);
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
@@ -91,7 +94,7 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
 
   if (libraryId !== undefined) {
     if (current === null) return <p className="wk-empty">Tej biblioteki nie ma albo nie masz do niej klucza. <a href={viewPath('library')}>Wszystkie biblioteki</a></p>;
-    return <LibraryHome me={me} library={current} areas={areas} trail={trail.slice(1)} onChanged={() => setTick((n) => n + 1)} />;
+    return <LibraryHome me={me} who={who} library={current} areas={areas} trail={trail.slice(1)} onChanged={() => setTick((n) => n + 1)} />;
   }
 
   return <LibraryList me={me} libraries={libraries} areas={areas} onChanged={() => setTick((n) => n + 1)} />;
@@ -173,8 +176,9 @@ function LibraryList({ me, libraries, areas, onChanged }: {
 
 /* -- Eine Bibliothek -------------------------------------------------------------------------- */
 
-function LibraryHome({ me, library, areas, trail, onChanged }: {
+function LibraryHome({ me, who, library, areas, trail, onChanged }: {
   me: Me;
+  who: Who;
   library: OpenLibrary;
   areas: readonly AreaRow[];
   trail: readonly string[];
@@ -195,7 +199,7 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
     return <LibraryEditor store={store} library={library} entryId={null} kind={trail[1]!} preset={presetFrom(trail[2])} />;
   }
 
-  const tab = first === 'ustawienia' || first === 'json' || first === 'mapa' ? first : (TABS.find((t) => t.slug === first)?.slug ?? 'teksty');
+  const tab = first === 'ustawienia' || first === 'json' || first === 'mapa' || first === 'cogita' ? first : (TABS.find((t) => t.slug === first)?.slug ?? 'teksty');
 
   return (
     <>
@@ -209,11 +213,14 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
           </a>
         ))}
         <a className={tab === 'mapa' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'mapa')}>Mapa</a>
+        {/* 0109 — Cogita: lernen, Kurse, Sitzungen auf derselben Bibliothek. */}
+        <a className={tab === 'cogita' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'cogita')}>Nauka i kursy</a>
         <a className={tab === 'json' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'json')}>Import / eksport</a>
         <a className={tab === 'ustawienia' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'ustawienia')}>Ustawienia</a>
       </nav>
       <div className="wk-panel">
-        {tab === 'ustawienia' ? <Settings me={me} library={library} areas={areas} onChanged={onChanged} />
+        {tab === 'cogita' ? <Suspense fallback={<p className="wk-lede">Wczytywanie…</p>}><CogitaHome me={me} who={who} library={library} store={store} trail={trail.slice(1)} /></Suspense>
+          : tab === 'ustawienia' ? <Settings me={me} library={library} areas={areas} onChanged={onChanged} />
           : tab === 'json' ? <LibraryJson store={store} library={library} />
           : tab === 'mapa' ? <LibraryMap store={store} libraryId={library.libraryId} />
           : <KindList store={store} library={library} kind={TABS.find((t) => t.slug === tab)!.kind} />}

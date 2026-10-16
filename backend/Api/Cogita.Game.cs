@@ -91,7 +91,7 @@ public static partial class Cogita
     private static readonly HashSet<string> Scopes = new(StringComparer.Ordinal) { "player", "team", "session" };
 
     /// <summary>Was an Regeln nicht stimmt — <c>null</c>: alles gut.</summary>
-    internal static string? RulesProblem(GameRules rules)
+    public static string? RulesProblem(GameRules rules)
     {
         var zones = rules.Zones ?? [];
         var values = rules.Values ?? [];
@@ -127,7 +127,7 @@ public static partial class Cogita
 
     /* -- Rechnen ------------------------------------------------------------------------- */
 
-    internal static double Metres(double lat1, double lon1, double lat2, double lon2)
+    public static double Metres(double lat1, double lon1, double lat2, double lon2)
     {
         const double R = 6_371_000;
         double Rad(double d) => d * Math.PI / 180;
@@ -139,7 +139,7 @@ public static partial class Cogita
 
     private static bool Active(Zone z, DateTimeOffset now) => (z.From is null || z.From <= now) && (z.To is null || z.To >= now);
 
-    internal static List<string> ZonesAt(GameRules rules, double lat, double lon, DateTimeOffset now) =>
+    public static List<string> ZonesAt(GameRules rules, double lat, double lon, DateTimeOffset now) =>
         (rules.Zones ?? []).Where(z => Active(z, now) && Metres(lat, lon, z.Lat, z.Lon) <= z.Radius).Select(z => z.Id).ToList();
 
     private static string TargetOf(ValueDef def, string? player, string? team) => def.Scope switch
@@ -150,7 +150,7 @@ public static partial class Cogita
     };
 
     /// <summary>Die Aktionen eines Auslösers anwenden — die Werte im Rahmen, jede Änderung ins Kassenbuch.</summary>
-    internal static List<object> Apply(GameRules rules, GameState state, Trigger trigger, string? player, string? team, DateTimeOffset now)
+    public static List<object> Apply(GameRules rules, GameState state, Trigger trigger, string? player, string? team, DateTimeOffset now)
     {
         var done = new List<object>();
         var defs = (rules.Values ?? []).ToDictionary(v => v.Id, StringComparer.Ordinal);
@@ -178,7 +178,7 @@ public static partial class Cogita
     }
 
     /// <summary>Ein Spieler meldet seine Stelle: welche Zonen er betritt und verlässt, und was dabei auslöst.</summary>
-    internal static List<object> Move(GameRules rules, GameState state, string player, string? team, double lat, double lon, DateTimeOffset now)
+    public static List<object> Move(GameRules rules, GameState state, string player, string? team, double lat, double lon, DateTimeOffset now)
     {
         if (team is not null) state.Teams[player] = team;
         var was = state.Inside.TryGetValue(player, out var before) ? before : [];
@@ -206,7 +206,7 @@ public static partial class Cogita
     /// falsch war). <paramref name="fresh"/>: wer in den letzten zwei Minuten
     /// eine Stelle gemeldet hat.
     /// </summary>
-    internal static List<object> Tick(GameRules rules, GameState state, IReadOnlySet<string> fresh, DateTimeOffset now)
+    public static List<object> Tick(GameRules rules, GameState state, IReadOnlySet<string> fresh, DateTimeOffset now)
     {
         var fired = new List<object>();
         foreach (var trigger in rules.Triggers ?? [])

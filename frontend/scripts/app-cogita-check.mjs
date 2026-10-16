@@ -445,6 +445,202 @@ check('once the foundation is known, it joins the stack', opened.session.active.
 check('the answer gives the snapshot to keep', [opened.snapshot.question, opened.snapshot.direction, opened.snapshot.answers], ['vocab:v2', 'pl→en', 1]);
 check('the stand of the plan before a run', R.levelsOf(plan, () => [], 0), { unseen: 5, learning: 0, known: 0 });
 
+/* ══ 0109 — die Logik, die Abläufe, die Regeln, das Spiel, die Arten, das Weitergeben ══════════ */
+
+/*
+ * Dieselbe Rechnung, die die Seiten, die Sitzungen und die Kanzlei benutzen —
+ * gebaut mit dem, was diese Module mitziehen (der Dienst, die Schlüssel), aber
+ * ohne einen Aufruf: nur gerechnet.
+ */
+const more = ['logic', 'flow', 'rules', 'game', 'kinds', 'live'];
+const moreOut = join(workspace, 'more');
+await build({
+  entryPoints: { ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), libraryPublish: 'src/app/libraryPublish.ts', steps: 'src/app/steps.ts' },
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  outdir: moreOut,
+  define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) },
+  loader: { '.css': 'empty' },
+  logLevel: 'error'
+});
+/* Wie in app-json-check: ein BroadcastChannel des Schlüsselbunds hielte den Lauf sonst am Leben. */
+globalThis.BroadcastChannel = undefined;
+const loadMore = (name) => import(pathToFileURL(join(moreOut, `${name}.js`)).href);
+const [Lg, Fl, Ru, Ga, Ki, Li, Pub, St] = await Promise.all([...more, 'libraryPublish', 'steps'].map(loadMore));
+
+/* -- Die eine Logik ------------------------------------------------------------------------------- */
+
+check('compare: numbers as numbers', [Lg.compare('gt', '10', '9'), Lg.compare('le', '2', '2'), Lg.compare('ge', '1,5', '2')], [true, true, false]);
+check('compare: filled and empty', [Lg.compare('filled', '', ''), Lg.compare('empty', '', ''), Lg.compare('filled', 'x', '')], [false, true, true]);
+check('gates: and, or, xor, not', [Lg.gate('and', [true, false]), Lg.gate('or', [false, true]), Lg.gate('xor', [true, true, false]), Lg.gate('xor', [true]), Lg.gate('not', [false])], [false, true, false, true, true]);
+const facts = (over = {}) => ({ ...Lg.NO_FACTS, values: { hp: 4 }, visited: new Set(['s2']), answered: (id) => (id === 'q1' ? 1 : id === 'q2' ? 0.5 : null), now: new Date('2026-12-25T19:00:00'), ...over });
+check('a condition of conditions: a value and a visited step', Lg.holds(Lg.readCondition({ type: 'and', items: [{ type: 'value', value: 'hp', op: 'ge', than: 3 }, { type: 'visited', of: 's2' }] }), facts()), true);
+check('answered: at all, right, wrong', [
+  Lg.holds({ type: 'answered', of: 'q1' }, facts()), Lg.holds({ type: 'answered', of: 'q1', correct: true }, facts()),
+  Lg.holds({ type: 'answered', of: 'q2', correct: true }, facts()), Lg.holds({ type: 'answered', of: 'q2', correct: false }, facts()),
+  Lg.holds({ type: 'answered', of: 'q3' }, facts())
+], [true, true, false, true, false]);
+check('time: between days and hours', [
+  Lg.holds({ type: 'time', after: '2026-12-24', before: '2026-12-26', from: '18:00', to: '23:00' }, facts()),
+  Lg.holds({ type: 'time', after: '2026-12-24', before: '2026-12-26', from: '20:00' }, facts()),
+  Lg.holds({ type: 'time', before: '2026-12-24' }, facts())
+], [true, false, false]);
+check('place and zone', [
+  Lg.holds({ type: 'place', lat: 50.0614, lon: 19.9366, radius: 100 }, facts({ place: { lat: 50.0618, lon: 19.9369 } })),
+  Lg.holds({ type: 'place', lat: 50.0614, lon: 19.9366, radius: 10 }, facts({ place: { lat: 50.0700, lon: 19.9366 } })),
+  Lg.holds({ type: 'zone', of: 'rynek' }, facts({ zones: new Set(['rynek']) }))
+], [true, false, true]);
+check('no condition holds; nonsense is no condition', [Lg.holds(null, facts()), Lg.readCondition({ type: 'nonsense' })], [true, null]);
+check('actions: add within limits, and a jump', Lg.apply([{ type: 'add', value: 'hp', by: -10 }, { type: 'set', value: 'trust', to: 9 }, { type: 'go', step: 's9' }], { hp: 3 }, (id) => (id === 'trust' ? { max: 5 } : { min: 0 })), { values: { hp: 0, trust: 5 }, go: 's9' });
+
+/* -- Der Ablauf ----------------------------------------------------------------------------------- */
+
+const flowOf = (id, nodes, edges, extra = {}) => Fl.readFlow(id, { name: id, graph: { nodes, edges }, ...extra });
+const playCtx = (flows) => ({
+  facts: (s) => ({ ...Lg.NO_FACTS, values: s.values, visited: new Set(s.visited) }),
+  flows: (id) => flows[id],
+  members: (x) => (x === 'k-word' ? ['v1', 'v2'] : [])
+});
+const chapters = flowOf('ch', [
+  n('open', 'show'), n('hub', 'chapters', { chapters: [{ title: 'A' }, { title: 'B' }] }), n('a1', 'show'), n('aEnd', 'chapterEnd'),
+  n('b1', 'question', { of: 'q1' }), n('bEnd', 'chapterEnd'), n('bRe', 'restart'), n('fin', 'end')
+], [
+  l('1', 'open', 'next', 'hub', 'in'), l('2', 'hub', 'c0', 'a1', 'in'), l('3', 'hub', 'c1', 'b1', 'in'), l('4', 'hub', 'done', 'fin', 'in'),
+  l('5', 'a1', 'next', 'aEnd', 'in'), l('6', 'b1', 'right', 'bEnd', 'in'), l('7', 'b1', 'wrong', 'bRe', 'in')
+], { start: 'open' });
+{
+  const ctx = playCtx({ ch: chapters });
+  const s0 = Fl.startFlow(chapters);
+  const s1 = Fl.advance(chapters, s0, undefined, ctx);
+  const hub = chapters.graph.nodes.find((x) => x.id === 'hub');
+  check('a flow: the chapter choice offers both', [s1.step, Fl.chaptersLeft(hub, s1).map((c) => c.title)], ['hub', ['A', 'B']]);
+  const s3 = Fl.advance(chapters, Fl.advance(chapters, s1, 'c0', ctx), undefined, ctx);
+  check('the end of a chapter returns to the choice, without it', [s3.step, Fl.chaptersLeft(hub, s3).map((c) => c.title)], ['hub', ['B']]);
+  const s5 = Fl.advance(chapters, Fl.advance(chapters, s3, 'c1', ctx), 'wrong', ctx);
+  check('„od nowa" starts the chapter again', s5.step, 'b1');
+  const s6 = Fl.advance(chapters, s5, 'right', ctx);
+  check('all chapters done: the choice leads on, and the flow ends', [s6.ended, [...s6.chapters.hub].sort()], [true, [0, 1]]);
+}
+const logic = flowOf('lg', [
+  n('intro', 'show'), n('set1', 'set', { actions: [{ type: 'add', value: 'hp', by: 2 }] }),
+  n('cond', 'condition', { condition: { type: 'value', value: 'hp', op: 'ge', than: 2 } }), n('yes1', 'show'), n('no1', 'show')
+], [l('1', 'intro', 'next', 'set1', 'in'), l('2', 'set1', 'next', 'cond', 'in'), l('3', 'cond', 'yes', 'yes1', 'in'), l('4', 'cond', 'no', 'no1', 'in')], { start: 'intro' });
+{
+  const s = Fl.advance(logic, Fl.startFlow(logic), undefined, playCtx({ lg: logic }));
+  check('values and conditions go on by themselves', [s.step, s.values.hp], ['yes1', 2]);
+}
+const inner = flowOf('inner', [n('i1', 'show'), n('i2', 'return')], [l('1', 'i1', 'next', 'i2', 'in')], { start: 'i1' });
+const outer = flowOf('outer', [n('o1', 'subflow', { flow: 'inner' }), n('o2', 'show')], [l('1', 'o1', 'next', 'o2', 'in')], { start: 'o1' });
+{
+  const ctx = playCtx({ inner, outer });
+  const inside = Fl.advance(outer, Fl.startFlow(outer), undefined, ctx);
+  check('a subflow: in, with the way back on the stack', [inside.flow, inside.step, inside.stack.length], ['inner', 'i1', 1]);
+  const back = Fl.advance(inner, inside, undefined, ctx);
+  check('… and back out where it was entered', [back.flow, back.step, back.stack.length], ['outer', 'o2', 0]);
+}
+{
+  const each = flowOf('each', [n('e1', 'each', { flow: 'inner', kind: 'k-word' }), n('e2', 'show')], [l('1', 'e1', 'next', 'e2', 'in')], { start: 'e1' });
+  const ctx = playCtx({ inner, each });
+  const first = Fl.advance(each, Fl.startFlow(each), undefined, ctx);
+  const second = Fl.advance(inner, Fl.advance(inner, first, undefined, ctx), undefined, ctx);
+  check('„dla każdego": once per member, then on', [first.item, first.queue, Fl.advance(inner, first, undefined, ctx).item, second.flow, second.step], ['v1', ['v2'], 'v2', 'each', 'e2']);
+}
+{
+  const story = flowOf('story', [n('s1', 'line', { character: { slot: 'osoba' }, of: 'k1' })], [], { start: 's1', slots: [{ id: 'osoba', label: 'Osoba' }] });
+  const use = Fl.readFlow('use', { name: 'Użycie', template: 'story', fill: { osoba: 'p2' } });
+  const resolved = Fl.resolveFlow(use, (id) => (id === 'story' ? story : undefined));
+  check('a story template filled: the slot becomes the entry', [resolved.id, resolved.graph.nodes[0].config.character], ['use', 'p2']);
+}
+check('goals and lines follow the one logic', [
+  Fl.goalsReached(Fl.readFlow('g', { goals: [{ id: 'g1', title: 'Zdrowie', condition: { type: 'value', value: 'hp', op: 'ge', than: 3 } }, { id: 'g2', title: 'Nic' }] }), facts()),
+  Fl.linesNow(Fl.readFlow('l', { lines: [{ character: 'p2', of: 'k1' }, { character: 'p2', of: 'k2', condition: { type: 'visited', of: 'zz' } }] }), Fl.startFlow(Fl.readFlow('l', {})), facts()).map((x) => x.of)
+], [['g1'], ['k1']]);
+
+/* -- Die Regeln einer Sitzung ---------------------------------------------------------------------- */
+
+{
+  const points = Ru.scoreRound(Ru.DEFAULT_RULES, [
+    { participant: 'A', at: 1000, correctness: 1 }, { participant: 'C', at: 2000, correctness: 0 }, { participant: 'B', at: 3000, correctness: 1 }
+  ], 0, (who) => (who === 'A' ? [true] : []));
+  check('a round: first, speed and the streak count; a wrong answer costs nothing by default',
+    ['A', 'B', 'C'].map((p) => points.get(p).total), [2320, 1320, 0]);
+  check('a round: the parts of the first answer', (({ base, first, speed, streak }) => [base, first, speed, streak])(points.get('A')), [1000, 500, 500, 320]);
+  check('the round ends at the earlier clock', Ru.roundDeadline(Ru.DEFAULT_RULES, 0, 5000), { at: 15000, move: 'reveal' });
+  check('after the first answer the timer starts', Ru.onFirstAnswer(Ru.DEFAULT_RULES), 'start_timer');
+  check('rules read tolerantly: nonsense is the default', Ru.readRules('nonsense'), Ru.DEFAULT_RULES);
+  truth('every preset reads back as itself', Ru.PRESETS.every((pre) => JSON.stringify(Ru.readRules(pre.rules)) === JSON.stringify(pre.rules)));
+}
+
+/* -- Das Spiel und die Karte zum Entdecken --------------------------------------------------------- */
+
+{
+  const fog = Ga.fogOf([{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd', landmark: true }], [{ from: 'a', to: 'b' }, { from: 'b', to: 'c' }], (id) => (id === 'a' ? 1 : 0), () => false);
+  check('the fog: known, the frontier beside it, the rest hidden, landmarks always', ['a', 'b', 'c', 'd'].map((id) => fog.get(id)), ['known', 'frontier', 'fog', 'landmark']);
+  const fresh = Ga.fogOf([{ id: 'a' }, { id: 'b' }], [{ from: 'a', to: 'b' }], () => 0, () => false);
+  check('nothing known yet: the beginning is the frontier', [fresh.get('a'), fresh.get('b')], ['frontier', 'fog']);
+  const rings = Ga.ringsOf(['a', 'b', 'c'], [{ from: 'a', to: 'b' }, { from: 'a', to: 'c' }]);
+  check('the map: the root in the middle, the rest around it', [rings.get('a'), Math.round(Math.hypot(rings.get('b').x - 0.5, rings.get('b').y - 0.5) * 100)], [{ x: 0.5, y: 0.5 }, 25]);
+  const at = (s) => new Date(Date.UTC(2026, 9, 16, 12, 0, s)).toISOString();
+  const track = new Map([
+    ['walker', [{ player: 'walker', team: null, lat: 50.0614, lon: 19.9366, accuracy: 10, at: at(0) }, { player: 'walker', team: null, lat: 50.0615, lon: 19.9367, accuracy: 10, at: at(10) }]],
+    ['jumper', [{ player: 'jumper', team: null, lat: 50.0614, lon: 19.9366, accuracy: 10, at: at(0) }, { player: 'jumper', team: null, lat: 50.0714, lon: 19.9366, accuracy: 10, at: at(10) }]],
+    ['blurry', [{ player: 'blurry', team: null, lat: 50.0614, lon: 19.9366, accuracy: 900, at: at(0) }]]
+  ]);
+  check('suspicions: a jump of a kilometre in ten seconds, a blurry fix — not a walker', Ga.suspicions(track).map((x) => x.player), ['jumper', 'blurry']);
+  const rules = Ga.readGame({ zones: [{ id: 'z', lat: 50, lon: 19, radius: 0 }, { id: '', lat: 1, lon: 1 }], triggers: [{ id: 't', on: 'nonsense', actions: [{ do: 'add', value: 'pts', by: 5 }, 'x'] }] });
+  check('game rules read tolerantly', [rules.zones.length, rules.zones[0].radius, rules.triggers[0].on, rules.triggers[0].once, rules.triggers[0].actions.length], [1, 1, 'enter', true, 1]);
+}
+
+/* -- Die Arten im Klartext ------------------------------------------------------------------------- */
+
+{
+  check('an own entity keeps its kinds in the data, not as fields', Ki.entityOf({ id: 'x', kind: 'entity', data: { _kinds: ['k1'], text: 'a', _checked: 't' } }), { id: 'x', kinds: ['k1'], data: { text: 'a' } });
+  check('a built-in kind stays the plaintext kind, more kinds beside it', Ki.entityOf({ id: 'p', kind: 'person', data: { _kinds: ['k2'], name: 'A' } }).kinds, ['person', 'k2']);
+  check('which plaintext kind', [Ki.plainKindOf(['person', 'k1']), Ki.plainKindOf(['k1']), Ki.plainKindOf([])], ['person', 'entity', 'entity']);
+  check('writing an entity back keeps what is not a field', Ki.entryData({ kinds: ['person', 'k2'], data: { name: 'A', _x: 1 } }, 'person', { _checked: 't', _kinds: ['old'] }), { _checked: 't', name: 'A', _kinds: ['k2'] });
+  check('documents are not entities', Ki.entityOf({ id: 'r', kind: 'revision', data: {} }), null);
+  const over = Ki.kindDefs([{ id: 'o1', kind: 'kind', data: { builtin: 'person', name: 'Człowiek', label: '{name}', fields: [] } }]);
+  const person = over.find((k) => k.id === 'person');
+  truth('a built-in kind renamed keeps its fields', person.name === 'Człowiek' && person.fields.length > 0, { name: person.name, fields: person.fields.length });
+}
+
+/* -- Was zu den Teilnehmern geht -------------------------------------------------------------------- */
+
+{
+  const card = (answer) => ({ question: 'q', direction: 'd', key: 'k', prompt: [{ text: 'Ile?' }], answer, explain: ['e1'], fingerprint: 'f', varies: false });
+  const stripped = [
+    { form: 'text', accepted: ['dom'], rule: {} }, { form: 'one', options: ['a', 'b'], correct: 1 },
+    { form: 'order', items: ['1', '2'], shown: ['2', '1'] }, { form: 'match', left: ['a'], right: ['b'], pairs: [[0, 0]] },
+    { form: 'code', task: 't', starter: 's', createInput: 'ci', reference: 'r', cases: 3 }, { form: 'point', on: 'map', target: { lat: 50, lon: 19, r: 30 } }
+  ].map((a) => Li.stripCard(card(a)));
+  check('a card for the participants carries no answer', stripped.map((c) => c.answer.accepted ?? c.answer.correct ?? c.answer.items ?? c.answer.pairs ?? c.answer.reference ?? c.answer.target),
+    [[], -1, [], [], '', { lat: 0, lon: 0, r: 0 }]);
+  check('… but what is needed to answer stays (options, the shuffled order, both sides)', [stripped[1].answer.options, stripped[2].answer.shown, stripped[3].answer.left], [['a', 'b'], ['2', '1'], ['a']]);
+  check('… and nothing that explains it or tells the answer apart', [stripped[0].explain, stripped[0].fingerprint], [[], '']);
+}
+
+/* -- Was eine öffentliche Seite über ein Bündel erfährt ---------------------------------------------- */
+
+{
+  const look = { get: () => undefined, byKey: () => undefined };
+  const summary = Pub.publicSummary({ id: 'x', kind: 'entity', data: { _kinds: ['k1'], public: { format: 'recreatio.cogita.entity', title: 'Józef', kinds: ['Postać', 7], list: [{ label: 'Urodzony', text: 'ok. 1 r. p.n.e.' }, { label: 1 }] } } }, look, () => true);
+  check('an entity bundle tells its kinds and fields in words — nothing else', summary, { title: 'Józef', format: 'recreatio.cogita.entity', kinds: ['Postać'], list: [{ label: 'Urodzony', text: 'ok. 1 r. p.n.e.' }] });
+  check('a built-in kind publishes nothing from data.public', Pub.publicSummary({ id: 'p', kind: 'person', data: { name: 'A', public: { format: 'x' } } }, look, () => true).format, undefined);
+}
+
+/* -- Der Schritt „Naucz się" ----------------------------------------------------------------------- */
+
+{
+  const step = (over) => ({ stepId: 's1', position: 0, areaId: 'a', epoch: 1, labelSealed: '', helpSealed: null, doneBy: 'person', visibleToPerson: true, dueAt: null, kind: 'learn', label: 'Naucz się', help: null, learn: { libraryId: 'L', revisionId: null, threshold: 0.8 }, ...over });
+  const base = { hasSeat: false, confirmedAt: null, extensions: [], filled: new Map(), now: new Date('2026-10-16T12:00:00') };
+  const open = St.stepsFor({ ...base, steps: [step({})], marks: [] })[0];
+  const done = St.stepsFor({ ...base, steps: [step({})], marks: [{ stepId: 's1', doneAt: '2026-10-15T10:00:00Z' }] })[0];
+  const late = St.stepsFor({ ...base, steps: [step({ dueAt: '2026-10-01T23:59:59' })], marks: [] })[0];
+  check('learn: open, done when ticked, overdue after its date', [open.status, done.status, late.status], ['todo', 'done', 'overdue']);
+  check('learn: it ticks by itself (the browser at the threshold), for the person', [open.source, open.doneBy, open.visibleToPerson, open.learn.threshold], ['auto', 'person', true, 0.8]);
+}
+
 await rm(workspace, { recursive: true, force: true });
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

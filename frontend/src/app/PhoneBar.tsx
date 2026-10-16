@@ -15,7 +15,7 @@ import { current as notifyNow, subscribe as notifySubscribe } from './notify';
 import { tilesPath, VIEWS, viewPath, type Spot, type View } from './routes';
 import { SEARCH_EVENT } from './SearchPalette';
 
-const MORE: readonly View[] = ['areas', 'tasks', 'modules', 'pages', 'bookings', 'masses', 'library', 'registry', 'account'];
+const MORE: readonly View[] = ['areas', 'tasks', 'modules', 'pages', 'bookings', 'masses', 'library', 'learn', 'registry', 'account'];
 
 export function PhoneBar({ spot }: { spot: Spot }) {
   const { digest } = useSyncExternalStore(notifySubscribe, notifyNow);

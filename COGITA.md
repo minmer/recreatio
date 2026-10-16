@@ -452,24 +452,71 @@ Phones stay awake.
 
 ## 19. Built so far
 
-**Phase 1, step 1: the engine.** It needs no storage and changes nothing in the database or the existing screens. All of it lives in `frontend/src/app/cogita/` and is pure TypeScript:
+**State on 2026-10-16: every step of §17 is built.** Migration `0109_cogita.sql` is applied to the shared database. The legacy code is gone.
 
-| file | what it does |
+### Where it lives
+
+| part | files |
 |---|---|
-| `schema.ts` | Kinds as data. Field types, uncertain values with sources, dates with precision (including BC), ranges in several pieces, label patterns, several kinds per entity, backlinks with the other side's name, “outside the schema”, merging duplicates. |
-| `graph.ts` | The one graph model. Nodes, ports, edges, tolerant reading, refusal of circles and mismatched types, evaluation in order, errors kept per node. |
-| `check.ts` | Checking for all twelve answer forms. The text comparison produces a per-character mask and partial correctness. The old anchor method treated “Mickiewcz” as fully right; it is now an alignment. |
-| `knowness.ts` | The spec formula verbatim, due times, levels, averages, dependencies (prerequisite, elaboration, context with impact), propagation, gating, the snapshot per question and direction. |
-| `cards.ts` | The card template palette: 30 blocks, including Python, the quote fragment tree and “for each value”. It makes cards per entity, with keys and fingerprints. It also covers hand-written questions and topic cards. |
-| `revision.ts` | The revision palette: sources, filter, union, gate, strategy. The runner for random, once, levels and temporal is deterministic with a seed. Two behaviours differ from the old Cogita: |
-| | • In temporal mode a wrong answer keeps the card in the stack. Right after any answer the formula stands at 10^0.5, so it cannot decide that. |
-| | • In levels mode a run ends once every card has reached the top level. |
+| Engine (pure, checked without a browser) | `frontend/src/app/cogita/`: `schema`, `graph`, `check`, `knowness`, `cards`, `revision`, `logic` (the one logic, also used by forms and pages), `flow`, `rules`, `game`, `kinds` |
+| Library on the schema | `store.ts` (`CogitaLibrary`), `kinds.ts`, `versions.ts`, `files.ts`, `json.ts`, `presets.ts`; the IndexedDB copy in `libraryStore.ts` and `idb.ts` |
+| Learning | `learn.ts` (sealed batches, outbox, due), `holders.ts`, `offline.ts`, `python.ts` with `python.worker.ts` (Pyodide) |
+| Screens | `CogitaHome.tsx` (the library tab **Nauka i kursy**), `LearnView.tsx` (the workspace view **Nauka**), `LearnPart.tsx` (the view part), and the editors and players beside them |
+| Sessions | `live.ts` (keys, events, SignalR client with polling fallback), `Sessions.tsx`, `GamePanel.tsx` |
+| Public pages | `parts/cogita.tsx` (definitions) with `parts/cogitaViews.tsx` (loaded only when shown), `PublicRun.tsx`, `published.ts`, `entitySubject.tsx`, `seatLearn.ts` |
+| Forms | `LearnStep.tsx`; the step kind `learn` in `steps.ts` and `StepList.tsx` |
+| Service | `backend/Api/`: `Library.Cogita.cs` (versions, files, seat reading), `Cogita.cs` (batches, due, reports, the `c/` addresses), `Cogita.Session.cs`, `CogitaHub.cs` (`/cogita/hub`), `Cogita.Game.cs` (triggers, `CogitaClock`) |
 
-`npm run app:check` runs `scripts/app-cogita-check.mjs`, which has 140 checks.
+### Where it is used
 
-**Next: step 2, the library on the schema.** This changes the stored entries of the existing library:
-- kinds become entries, and the built-in kinds become the starting schema with field roles;
-- the plain kind becomes `entity`;
-- version history and the IndexedDB copy.
+- **Workspace.**
+  - The library tab **Nauka i kursy**: Nauka, Wpisy, Schemat, Szablony kart, Powtórki, Przebiegi, Sesje, Postępy, Mapa, Do zrobienia, Propozycje, Ustawienia, JSON. Readers see Nauka, Przebiegi, Sesje, Postępy, Mapa and Zaproponuj.
+  - The view **Nauka** (`#/workspace/learn`) and its part for views.
+  - The alert **Powtórka czeka** and a daily reminder.
+  - A revision becomes a daily task. A session goes into the area's calendar with its join link and code.
+  - Ctrl K finds entries and documents of the libraries opened in the tab.
+  - The starter **Kurs do nauki** creates an area, a library, the intake, a daily revision, a learners' role and a link.
+- **Pages.** Eight modules: `cogita-revision`, `cogita-flow`, `cogita-live`, `entity-card`, `entity-table`, `topic-explorer`, `knowledge-map`, `seat-learn`.
+  - The page subject **Wpis z biblioteki** (`entity`).
+  - `c/<8 characters>` addresses for modules published directly.
+- **Forms.** The step **Naucz się**.
+  - The browser of the person with the link measures the knowness and ticks the step at the threshold.
+  - The office sees the step in the list. The details are in Postępy.
 
-It needs a migration on the shared database.
+### Decided while building
+
+- **Stored entries are not rewritten.**
+  - Built-in kinds keep their plaintext kind.
+  - Own entities are `entity` entries, with their kinds in `_kinds`.
+  - A built-in kind can be renamed by a `kind` entry with `builtin`. Its fields keep their shape.
+- **Who learns where.**
+  - An account learns into the storage area (or its private area).
+  - A seat learns into the course area.
+  - Without an account, progress stays in the browser. It is taken over after signing in.
+- **Anonymous counts** come from runs with a library (account or seat). A public page has no route to the intake.
+- **Live sessions.**
+  - Answers are sealed to the area intake (without one, to the session key).
+  - The host scores in the browser.
+  - Joining with a code gives only the answer buttons. The questions stay on the screen.
+- **Size.** The Cogita screens, the page views and the learning step are separate bundles. A page without Cogita loads none of it.
+
+### Checks
+
+| check | count |
+|---|---|
+| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 183 |
+| `backend/Api.Tests` (22 of them for the game rules) | 408 |
+| `backend/Kernel.Tests` | 122 |
+
+The full `tsc -p tsconfig.json` is clean now that the legacy tree is gone.
+
+### Left open
+
+- **No browser drive yet.** No end-to-end run with `zz-probe-` data has been done for sessions, games or the learning step. The anonymous routes and the SignalR negotiation answer correctly on a local service against the migrated database.
+- **Legacy remnants, kept on purpose.** Six content files stay under `frontend/src/legacy/`:
+  - `content/pl.ts` with `content/types.ts` and `types/navigation.ts`;
+  - `public/content/pl.ts` with `public/content/types.ts` and `rc/lib/rcRoute.ts`.
+
+  The fixture generators `scripts/cogita-home.mjs` and `scripts/presentation-home.mjs` read them.
+- **Dead scripts.** `package.json` still lists `api:types`, `rc:*` and `public:check`. Their files are deleted, but the shared `package.json` is only appended to.
+- **Not touched.** `_reference/` is unchanged.

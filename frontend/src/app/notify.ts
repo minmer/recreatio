@@ -108,6 +108,8 @@ export interface Digest {
   readonly bookings?: DigestWaiting;
   /** 0094 — Schritte der Kanzlei nach ihrer Frist (fehlt beim alten Dienst). */
   readonly steps?: DigestWaiting;
+  /** 0109 — Powtórka czeka: je Bibliothek, wie viele Karten jetzt dran sind (fehlt beim alten Dienst). */
+  readonly learn?: { readonly count: number; readonly list: readonly { readonly libraryId: string; readonly count: number; readonly dueAt: string }[] };
   readonly nextPollSeconds: number;
 }
 
@@ -461,6 +463,26 @@ function ringPlain(digest: Digest, plan: Ringing): void {
   if (plan.links) {
     tell({ title: 'Ktoś dołączył przez link', body: 'Zobacz linki dostępu w Obszarach.', tag: 'links', open: viewPath('areas') }, 'news');
   }
+  ringLearn(digest);
+}
+
+/**
+ * 0109 — POWTÓRKA CZEKA [P03]: einmal am Tag, wenn etwas dran ist und
+ * Erinnerungen erlaubt sind. Die Zahl kommt aus der einen offenen Zeit je
+ * Bibliothek (`learn_due`) — der Dienst kennt keine Karte.
+ */
+const LEARN_DAY = 'recreatio:notify:learn-day';
+function ringLearn(digest: Digest): void {
+  const count = digest.learn?.count ?? 0;
+  if (count <= 0 || !store.settings.reminders) return;
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    if (localStorage.getItem(LEARN_DAY) === today) return;
+    localStorage.setItem(LEARN_DAY, today);
+  } catch {
+    return;
+  }
+  tell({ title: 'Powtórka czeka', body: count === 1 ? '1 karta do powtórzenia' : `${count} kart do powtórzenia`, tag: 'learn', open: viewPath('learn') }, 'news');
 }
 
 /** Wie eine Rozmowa in einer Meldung heisst — der Name des Bereichs, bei einem Platz die Person. */

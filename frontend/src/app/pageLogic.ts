@@ -28,6 +28,7 @@
 import { progressOf as taskProgress } from './candidateTasks';
 import { createContext, useContext } from 'react';
 
+import { gate } from './cogita/logic';
 import { sha256, toBase64Url } from './crypto';
 import type { SeatView } from './seatContext';
 
@@ -345,9 +346,8 @@ export function evaluatePage(
     switch (roleOfKind(node.kind)) {
       case 'input': v = read(node); break;
       case 'gate':
-        v = node.kind === 'and' ? ins.length > 0 && ins.every(Boolean)
-          : node.kind === 'or' ? ins.some(Boolean)
-          : !(ins[0] ?? false);
+        /* 0109 — die Tore der einen Logik (`cogita/logic.ts`). */
+        v = gate(node.kind === 'and' ? 'and' : node.kind === 'or' ? 'or' : 'not', ins);
         break;
       default: v = false;
     }

@@ -42,6 +42,11 @@ const entryAad = (entryId: string) => aad('library', 'entry', entryId, Field.Lib
 
 export const loadLibraries = (): Promise<{ libraries: readonly LibraryRow[] }> => call('/workspace/libraries');
 
+/** 0109 — die Namen, die dieser Tab schon geöffnet hat (für die Suche, Ctrl K); nur im Speicher. */
+const openedNames = new Map<string, string>();
+export const openedLibraryNames = (): ReadonlyMap<string, string> => openedNames;
+export const forgetLibraryNames = (): void => { openedNames.clear(); };
+
 export async function openLibraries(ring: Ring, rows: readonly LibraryRow[]): Promise<OpenLibrary[]> {
   const out: OpenLibrary[] = [];
   for (const row of rows) {
@@ -53,6 +58,7 @@ export async function openLibraries(ring: Ring, rows: readonly LibraryRow[]): Pr
       // Nicht lesbar — die Bibliothek steht trotzdem da, ohne Namen.
     }
     out.push({ ...row, name });
+    openedNames.set(row.libraryId, name);
   }
   return out;
 }
@@ -110,6 +116,22 @@ export interface EntryDoc {
 
 export const loadEntries = (libraryId: string, since: string | null): Promise<{ now: string; entries: readonly SealedEntry[] }> =>
   call(`/workspace/library/${encodeURIComponent(libraryId)}/entries${since === null ? '' : `?since=${encodeURIComponent(since)}`}`);
+
+/** 0109 — dieselben Wege für einen Platz: seine Bibliothek (ihr Bereich, ihr versiegelter Name) und ihre Hüllen. */
+export const loadSeatLibrary = (token: string, libraryId: string): Promise<LibraryRow> =>
+  call(`/seat/${encodeURIComponent(token)}/library/${encodeURIComponent(libraryId)}`);
+
+export const loadSeatEntries = (token: string, libraryId: string, since: string | null): Promise<{ now: string; entries: readonly SealedEntry[] }> =>
+  call(`/seat/${encodeURIComponent(token)}/library/${encodeURIComponent(libraryId)}/entries${since === null ? '' : `?since=${encodeURIComponent(since)}`}`);
+
+/** 0109 — den Namen mit einem Schlüssel öffnen, der nicht aus einem Bund kommt (ein Platz). */
+export async function libraryNameWith(key: Uint8Array, row: Pick<LibraryRow, 'libraryId' | 'nameSealed'>): Promise<string> {
+  try {
+    return await openText(key, nameAad(row.libraryId), fromBase64Url(row.nameSealed));
+  } catch {
+    return 'Biblioteka';
+  }
+}
 
 export async function sealEntry(key: Uint8Array, doc: EntryDoc): Promise<string> {
   return toBase64Url(await sealText(key, entryAad(doc.id), JSON.stringify(doc)));

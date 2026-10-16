@@ -25,7 +25,7 @@ import { chatLabel } from './notify';
 import { useRemembered } from './prefs';
 import { formNewsPath, viewPath } from './routes';
 
-export type AlertKind = 'forms' | 'chats' | 'bookings' | 'steps' | 'tasks' | 'today' | 'links';
+export type AlertKind = 'forms' | 'chats' | 'bookings' | 'steps' | 'tasks' | 'today' | 'links' | 'learn';
 
 export interface AlertKindDef {
   readonly kind: AlertKind;
@@ -42,6 +42,8 @@ export const ALERT_KINDS: readonly AlertKindDef[] = [
   { kind: 'steps', label: 'Kroki po terminie', says: 'Rzeczy do odhaczenia przez kancelarię, których termin minął (np. zgoda na papierze).', counts: true },
   { kind: 'tasks', label: 'Zadania na teraz', says: 'Zadania otwarte teraz albo zaległe.', counts: false },
   { kind: 'today', label: 'Terminy dziś', says: 'Spotkania i msze, które są dzisiaj.', counts: false },
+  /* 0109 — was in den eigenen Bibliotheken wieder dran ist: wie „dziś", etwas für jeden Tag. */
+  { kind: 'learn', label: 'Powtórka czeka', says: 'Karty, na które przyszła pora w Twoich kursach.', counts: false },
   { kind: 'links', label: 'Dołączenia przez link', says: 'Ktoś dołączył przez Twój link.', counts: true }
 ];
 
@@ -172,6 +174,11 @@ export function alertItems(
     } else if (kind === 'links') {
       if (scope === null && (digest?.links ?? 0) > 0) {
         out.push({ kind, key: 'links', label: 'Dołączyli przez link', count: digest!.links, detail: `${digest!.links}`, href: viewPath('areas'), seen: { links: true } });
+      }
+    } else if (kind === 'learn') {
+      const learn = digest?.learn;
+      if (scope === null && learn !== undefined && learn.count > 0) {
+        out.push({ kind, key: 'learn', label: 'Powtórka czeka', count: learn.count, detail: `${learn.count} ${plural(learn.count, 'karta', 'karty', 'kart')}`, href: viewPath('learn') });
       }
     }
   }

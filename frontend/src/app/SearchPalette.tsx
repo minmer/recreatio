@@ -72,8 +72,10 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     let live = true;
     void (async () => {
-      const [areas, modules, chats, desk] = await Promise.all([
-        areasNow().catch(() => []), modulesNow().catch(() => []), chatsNow().catch(() => []), loadDesk().catch(() => null)
+      const [areas, modules, chats, desk, library] = await Promise.all([
+        areasNow().catch(() => []), modulesNow().catch(() => []), chatsNow().catch(() => []), loadDesk().catch(() => null),
+        /* 0109 — die offenen Bibliotheken; die Rechnung dazu kommt mit Cogita, erst beim Suchen. */
+        import('./cogita/search').then((m) => m.libraryHits(), () => [])
       ]);
       if (!live) return;
       setFound([
@@ -83,7 +85,9 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
         ...(desk?.pages ?? []).filter((p) => p.aliasOf === null).map((p) => ({
           id: `page:${p.path}`, label: p.path === '' ? 'recreatio.pl' : p.path, kind: 'Strona', href: viewPath('pages', ...pageSteps(p.path))
         })),
-        ...chats.map((c) => ({ id: `chat:${c.chatId}`, label: chatName(c), kind: 'Rozmowa', href: viewPath('chat', c.chatId) }))
+        ...chats.map((c) => ({ id: `chat:${c.chatId}`, label: chatName(c), kind: 'Rozmowa', href: viewPath('chat', c.chatId) })),
+        /* 0109 — was in den offenen Bibliotheken steht [F5, P12]: Einträge, Wissen, Wiederholungen, Abläufe. */
+        ...library
       ]);
       setLoading(false);
     })();

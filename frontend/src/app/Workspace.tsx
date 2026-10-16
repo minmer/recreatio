@@ -14,7 +14,7 @@
  * behauptet, gerechnet zu haben.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
 import { pageSteps, PATH_SHAPE, ROOT_STEP, viewPath, VIEWS, type Spot, type View } from './routes';
 import { useCrumbs } from './crumbTrail';
@@ -46,6 +46,9 @@ import { useDisplay, type Tool } from './display';
 import { ShareButton } from './Share';
 import { MINE } from './workspaceViews';
 import { DESK_EVENT } from './viewData';
+
+/* 0109 — die Nauka als eigenes Bündel (Karten, Läufe, Sitzungen): erst, wenn man sie öffnet. */
+const LearnView = lazy(() => import('./cogita/LearnView').then((m) => ({ default: m.LearnView })));
 
 export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   /** `undefined` = noch nicht nachgesehen, `null` = ging nicht. */
@@ -205,6 +208,7 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'account') return <Account who={who} trail={trail} />;
   if (view === 'chat') return <ChatView who={who} trail={trail} />;
   if (view === 'library') return <LibraryView who={who} trail={trail} />;
+  if (view === 'learn') return <Suspense fallback={<p className="wk-lede">Wczytywanie…</p>}><LearnView who={who} trail={trail} /></Suspense>;
   if (view === 'registry') return <Kartoteka who={who} trail={trail} />;
 
   /* Jede Ansicht steht oben; was hier ankommt, gibt es (noch) nicht. */

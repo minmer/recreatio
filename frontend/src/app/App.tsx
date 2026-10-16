@@ -30,7 +30,7 @@ import { keepFromAddress } from './seatKeep';
 import { heldLinks, keepLinkFromAddress } from './linkKeep';
 import { HeldLinkBar } from './HeldLinkBar';
 import { LinkCalendar } from './LinkCalendar';
-import { signOut, whoIsThere, type Who } from './session';
+import { keepsKey, signOut, whoIsThere, type Who } from './session';
 import { PublicPage } from './PublicPage';
 import { SeatPortal } from './SeatPortal';
 import { SignIn } from './SignIn';
@@ -43,6 +43,7 @@ import { PhoneBar } from './PhoneBar';
 import { SearchButton, SearchPalette } from './SearchPalette';
 import { Widget } from './Widget';
 import { forgetNotifications } from './notify';
+import { forgetLibraries, setLibraryCache } from './libraryStore';
 import { NowPlayingBar } from './NowPlayingBar';
 
 export function App() {
@@ -98,6 +99,13 @@ export function App() {
   }, [address]);
 
   useEffect(() => { void look(); }, [look]);
+
+  /*
+   * 0109 — ABSCHRIFTEN DER BIBLIOTHEKEN nur, wo auch der Schlüssel bleiben darf
+   * (`kept`): im strengen Betrieb lebt er nur im Tab, und die Hüllen sollen es
+   * auch.
+   */
+  useEffect(() => { setLibraryCache(who != null && keepsKey(who)); }, [who]);
 
   /*
    * EINE EIGENE DOMAIN zeigt genau eine Seite, und welche, sagt das Register.
@@ -213,7 +221,7 @@ export function App() {
   /* 0065 — ein Link mit Zugang: erst angemeldet, dann das Zaproszenie. */
   if (address.route === 'dolacz') {
     return (
-      <Shell who={who} onSignOut={() => { void forgetNotifications().finally(() => signOut().then(() => { forgetState(); forgetAreaKeys(); setWho(null); })); }}>
+      <Shell who={who} onSignOut={() => { void forgetNotifications().finally(() => signOut().then(() => { forgetState(); forgetAreaKeys(); forgetLibraries(); setWho(null); })); }}>
         <JoinLink token={address.slug} who={who} />
       </Shell>
     );
@@ -233,7 +241,7 @@ export function App() {
       who={who}
       wide
       spot={spot}
-      onSignOut={() => { void forgetNotifications().finally(() => signOut().then(() => { forgetState(); forgetAreaKeys(); setWho(null); })); }}
+      onSignOut={() => { void forgetNotifications().finally(() => signOut().then(() => { forgetState(); forgetAreaKeys(); forgetLibraries(); setWho(null); })); }}
     >
       <Workspace spot={spot} who={who} />
     </Shell>

@@ -14,7 +14,7 @@
  * offen sieht, sieht der Mensch auch als offen.
  */
 
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 
 import { isoDay, periodText, planText, WEEKDAYS } from './candidateTasks';
 import { PickCalendar, PickCalendarItem } from './PickCalendar';
@@ -34,6 +34,10 @@ import {
 import { OwnSubmissions } from './Submission';
 import { TaskCard, takenOf } from './TaskCard';
 import { WorkspaceError } from './session';
+
+/* 0109 — „Naucz się" bringt Karten und Läufe mit: erst, wenn ein solcher Schritt dasteht. */
+const LearnStep = lazy(() => import('./cogita/LearnStep').then((m) => ({ default: m.LearnStep })));
+const PickLearn = lazy(() => import('./cogita/LearnStep').then((m) => ({ default: m.PickLearn })));
 
 /** Das Zeichen vor einem Schritt — die Form trägt die Aussage, nicht nur die Farbe. */
 function Mark({ status }: { status: StepState['status'] }) {
@@ -136,6 +140,11 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
                 /* 0102 — „Przeczytaj wiadomości": eine schmale Zeile wie eine Aufgabe, mit „Czytaj". */
                 if (s.chat !== undefined) {
                   return <li key={s.key} className={`wk-step is-${s.status}`}><ChatStep seat={seat} step={s} /></li>;
+                }
+
+                /* 0109 — „Naucz się": wie weit, und „Ucz się" an Ort und Stelle; die Schwelle hakt ab. */
+                if (s.learn !== undefined) {
+                  return <li key={s.key} className={`wk-step is-${s.status}`}><Suspense fallback={<p className="wk-hint">Wczytywanie…</p>}><LearnStep seat={seat} registrationId={form.registrationId} step={s} /></Suspense></li>;
                 }
 
                 return (
@@ -278,6 +287,11 @@ export function PersonSteps({ registrationId, states, onChanged, onError }: {
                     Nowe wiadomości {chatTargetText(s.chat)} — {s.status === 'done' ? 'wszystko przeczytane' : 'jeszcze nieprzeczytane'}.
                   </p>
                 )}
+                {s.learn !== undefined && (
+                  <p className="wk-hint" data-learn-line="">
+                    Nauka do {Math.round(s.learn.threshold * 100)}% znajomości — {s.status === 'done' ? 'osiągnięte' : 'jeszcze nie'}. Postępy: Biblioteka → Nauka i kursy → Postępy.
+                  </p>
+                )}
               </div>
 
               {/* Von Hand angelegt: die Kanzlei darf jeden abhaken — auch den, den sonst der Mensch abhakt. */}
@@ -314,6 +328,7 @@ const draftOf = (s: OpenStep): StepDraft => ({
   kind: s.kind ?? 'mark',
   ...(s.kind === 'booking' ? { resourceId: s.booking?.resourceId ?? '' } : {}),
   ...(s.kind === 'chat' ? { chat: { kind: s.chat?.kind ?? 'all', areaId: s.chat?.areaId ?? '' } } : {}),
+  ...(s.kind === 'learn' ? { learn: { libraryId: s.learn?.libraryId ?? '', revisionId: s.learn?.revisionId ?? '', threshold: s.learn?.threshold ?? 0.8 } } : {}),
   ...(s.kind === 'task' && s.task != null ? {
     task: {
       startsOn: s.task.startsOn, endsOn: s.task.endsOn, schedule: s.task.schedule, weekdays: s.task.weekdays ?? 16,
@@ -367,7 +382,7 @@ function taskProblem(t: TaskDraft): string | null {
  * (`stepsKey`): neu geladen heisst neu angefangen.
  */
 export const stepsKey = (steps: readonly OpenStep[]): string =>
-  steps.map((s) => `${s.stepId}:${s.label ?? ''}:${s.help ?? ''}:${s.doneBy}:${s.visibleToPerson}:${s.dueAt ?? ''}:${s.kind ?? 'mark'}:${JSON.stringify(s.task ?? null)}:${JSON.stringify(s.booking ?? null)}:${JSON.stringify(s.chat ?? null)}`).join('|');
+  steps.map((s) => `${s.stepId}:${s.label ?? ''}:${s.help ?? ''}:${s.doneBy}:${s.visibleToPerson}:${s.dueAt ?? ''}:${s.kind ?? 'mark'}:${JSON.stringify(s.task ?? null)}:${JSON.stringify(s.booking ?? null)}:${JSON.stringify(s.chat ?? null)}:${JSON.stringify(s.learn ?? null)}`).join('|');
 
 export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved, onError }: {
   partId: string;
@@ -407,6 +422,11 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
     const unbooked = drafts.find((d) => d.kind === 'booking' && d.label.trim() !== '' && (d.resourceId ?? '') === '');
     if (unbooked !== undefined) {
       onError(`Znacznik „${unbooked.label.trim()}": wybierz, przy czym osoba wybiera termin.`);
+      return;
+    }
+    const unlearned = drafts.find((d) => d.kind === 'learn' && d.label.trim() !== '' && (d.learn?.libraryId ?? '') === '');
+    if (unlearned !== undefined) {
+      onError(`Znacznik „${unlearned.label.trim()}": wybierz bibliotekę, z której osoba ma się nauczyć.`);
       return;
     }
     setSaving(true);
@@ -492,18 +512,29 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
                 <span className="wk-hint">Odhacza</span>
                 {/* 0100 — „sam": der Schritt erledigt sich, wenn die Person bei einem Zasób einen Termin nimmt. */}
                 {/* 0102 — „sam": oder er ist erledigt, solange in den gewählten Rozmowy nichts Ungelesenes liegt. */}
-                <select value={d.kind === 'booking' || d.kind === 'chat' ? d.kind : d.doneBy} data-mark-done-by=""
+                <select value={d.kind === 'booking' || d.kind === 'chat' || d.kind === 'learn' ? d.kind : d.doneBy} data-mark-done-by=""
                   onChange={(e) => set(i, e.target.value === 'booking'
                     ? { kind: 'booking', doneBy: 'person', visibleToPerson: true, resourceId: d.resourceId ?? '' }
                     : e.target.value === 'chat'
                       ? { kind: 'chat', doneBy: 'person', visibleToPerson: true, dueAt: '', chat: d.chat ?? { kind: 'all', areaId: '' } }
-                      : { kind: 'mark', doneBy: e.target.value as DoneBy })}>
+                      : e.target.value === 'learn'
+                        ? { kind: 'learn', doneBy: 'person', visibleToPerson: true, learn: d.learn ?? { libraryId: '', revisionId: '', threshold: 0.8 } }
+                        : { kind: 'mark', doneBy: e.target.value as DoneBy })}>
                   <option value="office">kancelaria</option>
                   <option value="person">osoba sama</option>
                   <option value="booking">sam — gdy osoba wybierze termin</option>
                   <option value="chat">sam — gdy osoba przeczyta wiadomości</option>
+                  <option value="learn">sam — gdy osoba się nauczy (Cogita)</option>
                 </select>
               </label>
+              {/* 0109 — „Naucz się": z której biblioteki, która powtórka, do ilu procent. */}
+              {d.kind === 'learn' && (
+                <span className="wk-inline" data-mark-learn="">
+                  <Suspense fallback={<span className="wk-hint">Wczytywanie…</span>}>
+                    <PickLearn value={d.learn ?? { libraryId: '', revisionId: '', threshold: 0.8 }} onPick={(learn) => set(i, { learn })} />
+                  </Suspense>
+                </span>
+              )}
               {d.kind === 'chat' && (
                 <label className="wk-inline" data-mark-chat="">
                   <span className="wk-hint">W</span>
@@ -516,7 +547,7 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
                   <PickResource value={d.resourceId ?? ''} busy={false} onPick={(resourceId) => set(i, { resourceId })} />
                 </label>
               )}
-              {d.kind !== 'booking' && d.kind !== 'chat' && d.doneBy === 'office' && (
+              {d.kind !== 'booking' && d.kind !== 'chat' && d.kind !== 'learn' && d.doneBy === 'office' && (
                 <label className="wk-inline">
                   <input type="checkbox" checked={d.visibleToPerson}
                     onChange={(e) => set(i, { visibleToPerson: e.target.checked })} />
@@ -559,6 +590,16 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
           }])}
         >
           + Dodaj: przeczytaj wiadomości
+        </button>
+        {/* 0109 — gleich fertig: „Naucz się", erledigt, sobald die Person die Karten bis zur Schwelle kann. */}
+        <button
+          type="button" className="wk-link-btn" disabled={drafts.length >= 60} data-add-learn=""
+          onClick={() => setDrafts([...drafts, {
+            stepId: newId(), label: 'Naucz się', help: '', doneBy: 'person', visibleToPerson: true, dueAt: '',
+            kind: 'learn', learn: { libraryId: '', revisionId: '', threshold: 0.8 }
+          }])}
+        >
+          + Dodaj: naucz się
         </button>
       </div>
 

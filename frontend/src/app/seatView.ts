@@ -24,6 +24,7 @@ import { moduleNameAad, openWith, seatNameAad, seatOwnNameAad } from './names';
 import type { SeatChallenge } from './seatCheck';
 import type { SeatView } from './seatContext';
 import { openSteps, type SeatForm } from './steps';
+import { rememberSeatAreaKeys } from './roleBundle';
 import { recall, remember } from './seatKeep';
 import { WorkspaceError } from './session';
 
@@ -198,6 +199,13 @@ export function useSeat(token: string, keyText: string | null): Opened {
        */
       const keys = await openGrants(found.grants, key);
       const rows: Shared[] = [];
+
+      /*
+       * 0109 — und für alles andere auf der Seite, das den Bereich liest (die
+       * Bibliothek eines Kurses, `areaReader`): nur im Speicher dieses Tabs,
+       * wie die Schlüssel der Rollen.
+       */
+      rememberSeatAreaKeys(new Map([...keys].map(([areaId, one]) => [areaId, new Map([[one.epoch, one.key]])])));
 
       /*
        * 0091 — UND WAS SEINE ROLLE AUFSCHLIESST (die seines Formulars): ihre

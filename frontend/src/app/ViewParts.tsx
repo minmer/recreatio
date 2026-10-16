@@ -38,6 +38,7 @@ import { Starters } from './Starters';
 import { afterState, loadTasks, markDone, openTasks, windowState, type OpenTask, type TaskOccurrence } from './tasks';
 import { agendaNow, areasNow, chatsNow, invalidate, linksNow, modulesNow, useLoaded } from './viewData';
 import type { PartKind, ViewConfig } from './workspaceViews';
+import { LearnPart } from './cogita/LearnPart';
 
 export interface PartProps {
   readonly mode: string;
@@ -512,6 +513,7 @@ const TILE_SAYS: Partial<Record<View, string>> = {
   bookings: 'Terminy u księdza, sale, dom — i kto co zajął.',
   chat: 'Rozmowy grup i osób.',
   library: 'Źródła, cytaty i Twoje teksty.',
+  learn: 'Powtórki, kursy, sesje i nauka bez internetu.',
   registry: 'Adresy parafii, rodziny, plan kolędy.',
   modules: 'Formularze i inne elementy stron.',
   pages: 'Twoje strony — edycja i udostępnianie.',
@@ -520,10 +522,10 @@ const TILE_SAYS: Partial<Record<View, string>> = {
   account: 'Hasło, klucz, urządzenia, wygląd warsztatu.'
 };
 
-const MAIN_TILES: readonly View[] = ['areas', 'calendar', 'tasks', 'chat', 'masses', 'bookings', 'modules', 'pages', 'library', 'registry', 'account'];
+const MAIN_TILES: readonly View[] = ['areas', 'calendar', 'tasks', 'chat', 'masses', 'bookings', 'modules', 'pages', 'library', 'learn', 'registry', 'account'];
 const ALL_TILES: readonly View[] = [...MAIN_TILES, 'roles', 'addresses'];
 /* 0106 — ohne eigene Seite: nur, was man ohne sie braucht (kein Anlegen von Seiten und Formularen). */
-const BASIC_TILES: readonly View[] = ['calendar', 'tasks', 'chat', 'areas', 'account'];
+const BASIC_TILES: readonly View[] = ['calendar', 'tasks', 'chat', 'learn', 'areas', 'account'];
 
 function TilesPart({ mode, desk }: PartProps) {
   return (
@@ -560,5 +562,6 @@ export const PART_VIEWS: Record<PartKind, (props: PartProps) => ReactNode> = {
   quick: QuickPart,
   recent: RecentPart,
   starters: StartersPart,
-  tiles: TilesPart
+  tiles: TilesPart,
+  learn: LearnPart
 };

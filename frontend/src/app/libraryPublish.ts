@@ -95,8 +95,24 @@ export function closure(start: Iterable<string>, look: Lookup): Set<string> {
   return seen;
 }
 
+/**
+ * 0109 — COGITA: ein Eintrag einer anderen Art (eine Wiederholung, ein Ablauf,
+ * eine Entität) trägt seine offene Fassung selbst — `data.public`, vom
+ * Browser vor dem Veröffentlichen gerechnet (die Karten einer Wiederholung,
+ * der Inhalt eines Ablaufs). Sonst geht von ihm nichts hinaus.
+ */
+const ownPublic = (entry: LibEntry): EntryData | null => {
+  if (kindOf(entry.kind) !== undefined) return null;
+  const value = entry.data.public;
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as EntryData : null;
+};
+
 /** Die offene Fassung: öffentliche Felder; die Gliederung eines Projekts nur mit veröffentlichten Texten. */
 export function publicDoc(entry: LibEntry, look: Lookup, isPublic: (id: string) => boolean): PublicDoc {
+  const own = ownPublic(entry);
+  if (own !== null) {
+    return { id: entry.id, kind: entry.kind, title: typeof own.title === 'string' ? own.title : entry.kind, data: own };
+  }
   const data = publicData(entry);
   if (entry.kind === 'project' && Array.isArray(data.outline)) {
     data.outline = outline(entry.data).filter((item) => !('text' in item) || isPublic(item.text));
@@ -111,6 +127,23 @@ const topicsOf = (entry: LibEntry, look: Lookup) =>
 /** Die Kurzfassung für Listen (und die öffentliche Suche) — je Art, was eine Liste zeigt. */
 export function publicSummary(entry: LibEntry, look: Lookup, isPublic: (id: string) => boolean): EntryData {
   const d = entry.data;
+  const own = ownPublic(entry);
+  if (own !== null) {
+    /* 0109 — ein Eintrag als Bündel trägt für Listen und Tabellen seine Arten und einige Felder in Worten. */
+    const kinds = Array.isArray(own.kinds) ? own.kinds.filter((k): k is string => typeof k === 'string').slice(0, 6) : [];
+    const list = Array.isArray(own.list) ? own.list.slice(0, 8).flatMap((one) => {
+      if (typeof one !== 'object' || one === null) return [];
+      const { label, text } = one as { label?: unknown; text?: unknown };
+      return typeof label === 'string' && typeof text === 'string' ? [{ label: label.slice(0, 80), text: clip(text, 240).text }] : [];
+    }) : [];
+    return {
+      title: typeof own.title === 'string' ? own.title : entry.kind,
+      ...(typeof own.summary === 'string' ? { summary: clip(own.summary, 600).text } : {}),
+      ...(typeof own.format === 'string' ? { format: own.format } : {}),
+      ...(kinds.length > 0 ? { kinds } : {}),
+      ...(list.length > 0 ? { list } : {})
+    };
+  }
   switch (entry.kind) {
     case 'text': {
       const project = look.get(ids(d, 'project')[0] ?? '');

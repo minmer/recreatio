@@ -1388,7 +1388,7 @@ try {
     assert.deepEqual(m.readAlerts(JSON.stringify({ order: ['forms', 'chats', 'tasks', 'today', 'links'] })).order, defaults.order,
       'kinds that came later (bookings, steps) join at their place');
     const mine = m.readAlerts(JSON.stringify({ order: ['links', 'forms', 'chats', 'chats', 'bogus', 'tasks', 'today'], off: ['today', 'bogus'] }));
-    assert.deepEqual(mine.order, ['links', 'forms', 'chats', 'bookings', 'steps', 'tasks', 'today'], 'own order kept, doubles and unknowns dropped, new kinds behind their neighbour');
+    assert.deepEqual(mine.order, ['links', 'forms', 'chats', 'bookings', 'steps', 'tasks', 'today', 'learn'], 'own order kept, doubles and unknowns dropped, new kinds behind their neighbour');
     assert.deepEqual(mine.off, ['today']);
     assert.deepEqual(m.readAlerts(m.alertsJson(mine)), mine, 'read back');
     assert.equal(m.moveAlert(defaults, 'forms', -1), defaults, 'at the top it stays');

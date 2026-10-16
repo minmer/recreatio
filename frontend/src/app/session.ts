@@ -183,7 +183,7 @@ export function carryLinks(proofs: (() => Promise<readonly string[]>) | null): v
  * „Dienst sagt nein" stehen hier EINMAL. Ein zweiter `fetch` daneben hätte
  * seine eigene Meinung zu allen dreien.
  */
-export async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function call<T>(path: string, init: RequestInit = {}, extra: Readonly<Record<string, string>> = {}): Promise<T> {
   let response: Response;
   try {
     const links = linkProofs === null ? [] : await linkProofs().catch(() => [] as readonly string[]);
@@ -194,8 +194,10 @@ export async function call<T>(path: string, init: RequestInit = {}): Promise<T> 
       credentials: 'include',
       headers: {
         Accept: 'application/json',
-        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(links.length > 0 ? { [LINKS_HEADER]: links.join(',') } : {})
+        ...(init.body ? { 'Content-Type': typeof init.body === 'string' ? 'application/json' : 'application/octet-stream' } : {}),
+        ...(links.length > 0 ? { [LINKS_HEADER]: links.join(',') } : {}),
+        /* 0109 — Köpfe einer Stelle (der Platz, das Geheimnis einer Sitzung). */
+        ...extra
       },
       ...init
     });

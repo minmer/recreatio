@@ -63,16 +63,13 @@ export type LayoutItem = FieldItem | TextItem | GroupItem;
 
 /* -- Die Logik ------------------------------------------------------------------ */
 
-export const COMPARE_OPS = ['eq', 'ne', 'gt', 'ge', 'lt', 'le', 'contains', 'filled', 'empty'] as const;
-export type CompareOp = (typeof COMPARE_OPS)[number];
+/*
+ * 0109 — Vergleich, Wahrheit und Tore stehen in der EINEN Logik (`cogita/logic.ts`):
+ * Formulare, Seiten, Abläufe, Gestalten und Spiele rechnen damit [G6].
+ */
+import { compare, COMPARE_OPS, gate, truthy, type CompareOp, type Value } from './cogita/logic';
 
-export const COMPARE_LABEL: Record<CompareOp, string> = {
-  eq: '=', ne: '≠', gt: '>', ge: '≥', lt: '<', le: '≤',
-  contains: 'zawiera', filled: 'wypełnione', empty: 'puste'
-};
-
-/** Die Vergleiche, die nur EINEN Eingang brauchen. */
-export const UNARY: readonly CompareOp[] = ['filled', 'empty'];
+export { asNumber, COMPARE_LABEL, COMPARE_OPS, compare, truthy, UNARY, type CompareOp } from './cogita/logic';
 
 export const NODE_KINDS = [
   'answer', 'const', 'age',
@@ -273,69 +270,6 @@ export function parentsOf(layout: readonly LayoutItem[]): ReadonlyMap<string, st
 
 /* -- Auswerten -------------------------------------------------------------------- */
 
-type Value = string | boolean;
-
-/**
- * Wann eine Antwort als „ja" gilt.
- *
- * Nicht leer — und nicht eines der Wörter, mit denen ein Mensch „nein" sagt.
- * Eine Frage „Tak / nie" soll sich direkt an ein UND hängen lassen, ohne
- * Vergleich dazwischen.
- */
-export function truthy(v: Value): boolean {
-  if (typeof v === 'boolean') return v;
-  const t = v.trim().toLocaleLowerCase('pl');
-  return t !== '' && !['nie', 'false', '0', 'no', 'n'].includes(t);
-}
-
-const asText = (v: Value): string => (typeof v === 'boolean' ? (v ? 'tak' : 'nie') : v);
-
-/** Eine Zahl — mit Komma oder Punkt —, sonst `null`. */
-export function asNumber(v: Value): number | null {
-  const t = asText(v).trim().replace(',', '.');
-  if (!/^[-+]?\d+(\.\d+)?$/.test(t)) return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
-}
-
-/**
- * Zwei Werte vergleichen — als Zahlen, wenn beide welche sind, sonst als Text.
- *
- * Ein Datum (`2011-04-02`) vergleicht sich als Text richtig; „10" und „9"
- * nur als Zahl. Grösser/kleiner mit einer leeren Seite ist nie wahr: wer
- * nichts geantwortet hat, ist nicht „jünger als 16".
- */
-export function compare(op: CompareOp, a: Value, b: Value): boolean {
-  const x = asText(a).trim();
-  const y = asText(b).trim();
-
-  if (op === 'filled') return x !== '';
-  if (op === 'empty') return x === '';
-  if (op === 'contains') return y !== '' && x.toLocaleLowerCase('pl').includes(y.toLocaleLowerCase('pl'));
-
-  const nx = asNumber(x);
-  const ny = asNumber(y);
-
-  if (op === 'eq' || op === 'ne') {
-    const same = nx !== null && ny !== null
-      ? nx === ny
-      : x.toLocaleLowerCase('pl') === y.toLocaleLowerCase('pl');
-    return op === 'eq' ? same : !same;
-  }
-
-  if (x === '' || y === '') return false;
-
-  const order = nx !== null && ny !== null
-    ? Math.sign(nx - ny)
-    : Math.sign(x.localeCompare(y, 'pl', { numeric: true }));
-
-  switch (op) {
-    case 'gt': return order > 0;
-    case 'ge': return order >= 0;
-    case 'lt': return order < 0;
-    default: return order <= 0;
-  }
-}
 
 export interface Outcome {
   /** Was nicht zu sehen ist — durch eine eigene Bedingung oder weil die Gruppe darüber fehlt. */
@@ -402,10 +336,10 @@ export function evaluate(design: FormDesign, answers: Readonly<Record<string, st
         break;
       }
       case 'compare': v = compare(node.op ?? 'eq', first('a'), first('b')); break;
-      case 'and': { const all = on('in'); v = all.length > 0 && all.every(truthy); break; }
-      case 'or': v = on('in').some(truthy); break;
-      case 'xor': v = on('in').filter(truthy).length % 2 === 1; break;
-      case 'not': v = !truthy(first('in')); break;
+      case 'and': v = gate('and', on('in')); break;
+      case 'or': v = gate('or', on('in')); break;
+      case 'xor': v = gate('xor', on('in')); break;
+      case 'not': v = gate('not', [first('in')]); break;
       default: v = truthy(first('in')); break;
     }
 

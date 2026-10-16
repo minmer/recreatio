@@ -110,9 +110,10 @@ const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v)
  * Ein Graph aus seinem JSON. Es fällt weg: ein Knoten ohne Kennung oder Typ,
  * eine doppelte Kennung, eine Kante zu einem Knoten, den es nicht gibt, eine
  * Schleife auf sich selbst, eine doppelte Kante, und jede Kante, die einen
- * Kreis schlösse — in der Reihenfolge, in der sie dastehen.
+ * Kreis schlösse — in der Reihenfolge, in der sie dastehen. `cycles`: ein Ablauf darf
+ * zurückführen (ein Kapitel neu, zurück zur Auswahl) — dann bleiben Kreise.
  */
-export function readGraph(raw: unknown): Graph {
+export function readGraph(raw: unknown, cycles = false): Graph {
   const doc = isObject(raw) ? raw : {};
   const nodes: GraphNode[] = [];
   const ids = new Set<string>();
@@ -139,7 +140,7 @@ export function readGraph(raw: unknown): Graph {
     };
     const pair = `${edge.from}\u0000${edge.out}\u0000${edge.to}\u0000${edge.in}`;
     if (edge.id === '' || edgeIds.has(edge.id) || !ids.has(edge.from) || !ids.has(edge.to)) continue;
-    if (edge.from === edge.to || pairs.has(pair) || wouldCycle(graph, edge.from, edge.to)) continue;
+    if (edge.from === edge.to || pairs.has(pair) || (!cycles && wouldCycle(graph, edge.from, edge.to))) continue;
     edgeIds.add(edge.id);
     pairs.add(pair);
     graph = { nodes, edges: [...graph.edges, edge] };
@@ -235,7 +236,7 @@ function portsOf<C>(palette: Palette<C>, node: GraphNode): Ports | null {
  * der Editor zeigen kann. Ein Eingang ohne `many` nimmt eine Kante: die neue
  * ersetzt die alte.
  */
-export function connect<C>(graph: Graph, palette: Palette<C>, edge: GraphEdge): { graph: Graph } | { error: string } {
+export function connect<C>(graph: Graph, palette: Palette<C>, edge: GraphEdge, cycles = false): { graph: Graph } | { error: string } {
   const from = graph.nodes.find((n) => n.id === edge.from);
   const to = graph.nodes.find((n) => n.id === edge.to);
   if (from === undefined || to === undefined) return { error: 'Nie ma takiego kroku.' };
@@ -245,7 +246,8 @@ export function connect<C>(graph: Graph, palette: Palette<C>, edge: GraphEdge): 
   const into = ins?.inputs.find((p) => p.id === edge.in);
   if (out === undefined || into === undefined) return { error: 'Nie ma takiego wejścia albo wyjścia.' };
   if (!compatible(out.type, into.type)) return { error: `To nie pasuje: „${out.label}" nie daje tego, czego potrzebuje „${into.label}".` };
-  if (wouldCycle(graph, edge.from, edge.to)) return { error: 'Tak powstałoby koło — krok zależałby od samego siebie.' };
+  if (!cycles && wouldCycle(graph, edge.from, edge.to)) return { error: 'Tak powstałoby koło — krok zależałby od samego siebie.' };
+  if (edge.from === edge.to) return { error: 'Krok nie może prowadzić do samego siebie.' };
   const kept = graph.edges.filter((e) =>
     e.id !== edge.id
     && !(e.from === edge.from && e.out === edge.out && e.to === edge.to && e.in === edge.in)
@@ -254,7 +256,7 @@ export function connect<C>(graph: Graph, palette: Palette<C>, edge: GraphEdge): 
 }
 
 /** Was am Graphen nicht stimmt — für den Editor, den Import und die Prüfung vor dem Lauf. */
-export function problemsOf<C>(graph: Graph, palette: Palette<C>): { readonly node?: string; readonly text: string }[] {
+export function problemsOf<C>(graph: Graph, palette: Palette<C>, cycles = false): { readonly node?: string; readonly text: string }[] {
   const out: { node?: string; text: string }[] = [];
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
   for (const node of graph.nodes) {
@@ -273,7 +275,7 @@ export function problemsOf<C>(graph: Graph, palette: Palette<C>): { readonly nod
     taken.set(key, (taken.get(key) ?? 0) + 1);
     if (!into.many && (taken.get(key) ?? 0) > 1) out.push({ node: to.id, text: `Wejście „${into.label}" przyjmuje jedno połączenie.` });
   }
-  if (order(graph) === null) out.push({ text: 'Graf ma koło.' });
+  if (!cycles && order(graph) === null) out.push({ text: 'Graf ma koło.' });
   return out;
 }
 

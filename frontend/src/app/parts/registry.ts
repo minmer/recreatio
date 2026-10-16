@@ -31,6 +31,7 @@ import type { PartModule } from '../part';
 import { animationPart } from './animation';
 import { calendarPart } from './calendar';
 import { chatPart } from './chat';
+import { cogitaFlowPart, cogitaLivePart, cogitaRevisionPart, entityCardPart, entityTablePart, knowledgeMapPart, seatLearnPart, topicExplorerPart } from './cogita';
 import { contactPart } from './contact';
 import { costsPart } from './costs';
 import { entryListPart, entryPanelPart } from './entries';
@@ -88,6 +89,14 @@ export const PARTS: readonly PartModule[] = [
   writingsPart,
   quotesPart,
 
+  /* 0109 — Cogita: was eine Bibliothek zum Lernen veröffentlicht — ohne Konto, Fortschritt im Browser. */
+  cogitaRevisionPart,
+  cogitaFlowPart,
+  knowledgeMapPart,
+  entityCardPart,
+  entityTablePart,
+  topicExplorerPart,
+
   /* Was seinen Inhalt woanders herholt. */
   massesPart,
   calendarPart,
@@ -96,6 +105,8 @@ export const PARTS: readonly PartModule[] = [
   formPart,
   slotsPart,
   chatPart,
+  /* 0109 — an einer Sitzung teilnehmen: Code oder Link. */
+  cogitaLivePart,
 
   /* 0082 — für die Kanzlei: alle Menschen eines Formulars, und einer davon (oben auf der Seite gewählt). */
   entryListPart,
@@ -109,7 +120,9 @@ export const PARTS: readonly PartModule[] = [
   seatNotePart,
   seatSharedPart,
   seatChatPart,
-  seatAskPart
+  seatAskPart,
+  /* 0109 — die Powtórki eines Kurses für den Menschen hinter dem Link. */
+  seatLearnPart
 ];
 
 const BY_KIND = new Map(PARTS.map((one) => [one.kind, one]));

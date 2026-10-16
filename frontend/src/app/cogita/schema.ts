@@ -147,6 +147,12 @@ export interface FieldDef {
   readonly role?: string;
   /** Was das Feld bedeutet — für die Beschreibung neben dem JSON. */
   readonly says?: string;
+  /**
+   * Geht nie in die offene Fassung — NUR bei den eingebauten Arten (Notizen,
+   * Stand der Arbeit). Eigene Arten haben keine privaten Felder [B18]; das
+   * Lesen eines Dokuments setzt es deshalb nie.
+   */
+  readonly private?: boolean;
 }
 
 /**
@@ -188,6 +194,8 @@ export interface MediaRef {
   readonly file: string;
   readonly type: MediaType;
   readonly name?: string;
+  /** Die genaue Art der Datei (image/png) — zum Öffnen im Browser. */
+  readonly mime?: string;
 }
 
 export interface GeoPoint {
@@ -557,7 +565,8 @@ export function readTyped(field: FieldDef, raw: unknown): FieldValue | undefined
       const type = pick(MEDIA_TYPES, raw.type);
       if (file === '' || type === undefined || !(field.media ?? MEDIA_TYPES).includes(type)) return undefined;
       const name = str(raw.name).trim();
-      return name === '' ? { file, type } : { file, type, name: clip(name, 200) };
+      const mime = str(raw.mime).trim();
+      return { file, type, ...(name === '' ? {} : { name: clip(name, 200) }), ...(/^[a-z]+\/[a-z0-9.+-]+$/i.test(mime) ? { mime: clip(mime, 100) } : {}) };
     }
     case 'list': {
       if (!Array.isArray(raw)) return undefined;

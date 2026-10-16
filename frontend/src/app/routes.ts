@@ -375,6 +375,13 @@ export const VIEWS = {
   library: 'Biblioteka',
 
   /*
+   * 0109 — NAUKA: was jetzt dran ist (über alle Bibliotheken), die Kurse,
+   * die man liest, Sitzungen, und das Lernen ohne Netz. Die Werkzeuge der
+   * Autoren stehen in der Bibliothek (Reiter „Nauka i kursy").
+   */
+  learn: 'Nauka',
+
+  /*
    * 0071 — DIE KARTOTEKA: Adressen eines Gebiets (der Pfarrei), die Familien
    * darin und die Kolęda Jahr für Jahr. Die Adressen in Teilen, die Familien
    * versiegelt.

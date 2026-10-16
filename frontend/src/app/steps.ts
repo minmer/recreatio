@@ -33,8 +33,17 @@ export type DoneBy = 'office' | 'person';
 /**
  * 0098 — WAS FÜR EIN SCHRITT: ein Znacznik (einmal abgehakt) oder eine
  * AUFGABE mit Zeitraum, zu der der Mensch selbst etwas sagt (`candidateTasks.ts`).
+ * 0109 — oder „Naucz się": erledigt, sobald er die Karten einer Bibliothek bis
+ * zur Schwelle kann (`cogita/LearnStep.tsx`).
  */
-export type StepKind = 'mark' | 'task' | 'booking' | 'chat';
+export type StepKind = 'mark' | 'task' | 'booking' | 'chat' | 'learn';
+
+/** 0109 — „Naucz się": aus welcher Bibliothek, welche Powtórka (`null`: alle Karten), bis zu welcher Kenntnis (0..1). */
+export interface LearnTarget {
+  readonly libraryId: string | null;
+  readonly revisionId: string | null;
+  readonly threshold: number;
+}
 
 /**
  * 0102 — „PRZECZYTAJ WIADOMOŚCI": in welchen Rozmowy des Menschen nichts
@@ -189,6 +198,9 @@ export interface SealedStep {
 
   /** 0102 — „Przeczytaj wiadomości": in welchen Rozmowy. */
   readonly chat?: ChatTarget | null;
+
+  /** 0109 — „Naucz się": was zu lernen ist. */
+  readonly learn?: LearnTarget | null;
 }
 
 export interface OpenStep extends SealedStep {
@@ -293,6 +305,9 @@ export interface StepDraft {
 
   /** 0102 — „Przeczytaj wiadomości": welche Rozmowy (`areaId` leer: an jedem Bereich). */
   readonly chat?: { readonly kind: ChatTargetKind; readonly areaId: string };
+
+  /** 0109 — „Naucz się": die Bibliothek, die Powtórka (leer: alle Karten), die Schwelle (0..1). */
+  readonly learn?: { readonly libraryId: string; readonly revisionId: string; readonly threshold: number };
 }
 
 /** 0099 — eine Funktion, wie sie im Editor steht. */
@@ -366,14 +381,17 @@ export async function saveSteps(
       ? null
       : toBase64Url(await sealText(formKey.key, helpAad(one.stepId), one.help.trim())),
     /* 0099 — bei einer Aufgabe: wer die Teilnahme einträgt (der Mensch, oder die Kanzlei nach der Liste). */
-    doneBy: one.doneBy,
-    visibleToPerson: one.kind === 'task' || one.doneBy === 'person' || one.visibleToPerson,
+    doneBy: one.kind === 'learn' ? 'person' : one.doneBy,
+    visibleToPerson: one.kind === 'task' || one.kind === 'learn' || one.doneBy === 'person' || one.visibleToPerson,
     /* Bis zum Ende des Tages — „do 15 sierpnia" heisst: auch am 15. noch. */
     dueAt: one.kind === 'task' || one.dueAt === '' ? null : new Date(`${one.dueAt}T23:59:59`).toISOString(),
     kind: one.kind ?? 'mark',
     resourceId: one.kind === 'booking' ? one.resourceId ?? null : null,
     chatKind: one.kind === 'chat' ? one.chat?.kind ?? 'all' : null,
     chatAreaId: one.kind === 'chat' && (one.chat?.areaId ?? '') !== '' ? one.chat!.areaId : null,
+    learnLibraryId: one.kind === 'learn' ? one.learn?.libraryId ?? null : null,
+    learnRevisionId: one.kind === 'learn' && (one.learn?.revisionId ?? '') !== '' ? one.learn!.revisionId : null,
+    learnThreshold: one.kind === 'learn' ? one.learn?.threshold ?? 0.8 : null,
     task: one.kind === 'task' && one.task !== undefined ? {
       ...taskIn(one.task),
       /* 0099 — die Funktionen: nur mit „vorher fragen", die Beschriftung versiegelt wie die der Aufgabe. */
@@ -534,6 +552,9 @@ export interface StepState {
   /** 0102 — „Przeczytaj wiadomości": in welchen Rozmowy; erledigt, solange dort nichts Ungelesenes liegt. */
   readonly chat?: ChatTarget;
 
+  /** 0109 — „Naucz się": was zu lernen ist; erledigt, wenn sein Browser die Schwelle gemeldet hat. */
+  readonly learn?: LearnTarget;
+
   /** 0098 — eine Aufgabe: ihr Plan, was er gesagt hat, wie weit er ist, und wo im Zeitraum sie steht. */
   readonly task?: {
     readonly plan: TaskPlan;
@@ -681,6 +702,23 @@ export function stepsFor(input: {
         status: mark !== null ? 'done' : 'todo', doneAt: mark?.doneAt ?? null, dueAt: null,
         extensionId: null, stepId: one.stepId,
         chat: one.chat ?? { kind: 'all', areaId: null, areaName: null }
+      });
+      continue;
+    }
+
+    /*
+     * 0109 — „NAUCZ SIĘ": erledigt, sobald sein Browser die Schwelle erreicht
+     * und abgehakt hat; mit Frist überfällig, wenn sie vorbei ist.
+     */
+    if (one.kind === 'learn') {
+      out.push({
+        key: `step:${one.stepId}`,
+        label: one.label ?? 'Naucz się (zapieczętowane)',
+        help: one.help,
+        source: 'auto', doneBy: 'person', visibleToPerson: true,
+        status: state(mark?.doneAt ?? null, one.dueAt), doneAt: mark?.doneAt ?? null, dueAt: one.dueAt,
+        extensionId: null, stepId: one.stepId,
+        learn: one.learn ?? { libraryId: null, revisionId: null, threshold: 0.8 }
       });
       continue;
     }

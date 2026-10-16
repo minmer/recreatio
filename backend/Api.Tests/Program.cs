@@ -120,4 +120,5 @@ FileLoggerChecks.Run(Check);
 PageFileChecks.Run(Check);
 LibraryChecks.Run(Check);
 PlatformChecks.Run(Check);
+CogitaChecks.Run(Check);
 Console.WriteLine($"Passed {checks} chat authorization, scheduling and availability checks.");
