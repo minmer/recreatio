@@ -22,7 +22,7 @@ import {
   createContext, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject
 } from 'react';
 
-import { dashOf, keyframesOf, motionDef, timingOf, type MotionUse } from './motion';
+import { dashArray, dashOf, isOnce, keyframesOf, motionDef, timingOf, type MotionUse } from './motion';
 
 export type Phase = 'here' | 'near' | 'away';
 
@@ -103,7 +103,7 @@ export function useMotion(ref: RefObject<HTMLElement | null>, use: MotionUse, ph
     const made = anim.current;
     const def = motionDef(use.name);
     if (made === null || def === undefined) return;
-    if (def.kind === 'enter') {
+    if (isOnce(use)) {
       if (phase === 'away') {
         if (replay || !played.current) { made.pause(); made.currentTime = 0; played.current = false; }
       } else if (phase === 'here' && !played.current) {
@@ -133,7 +133,7 @@ function MotionLayer({ use, phase, replay, last, className, style, children }: {
     <div
       ref={ref}
       className={`wk-motion is-${use.name}${className !== undefined && last ? ` ${className}` : ''}`}
-      style={{ ...(last ? style : undefined), ...(dash === null ? {} : { strokeDasharray: dash }) }}
+      style={{ ...(last ? style : undefined), ...(dash === null ? {} : { strokeDasharray: dashArray(dash) }) }}
     >
       {children}
     </div>

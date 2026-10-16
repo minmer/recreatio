@@ -234,6 +234,8 @@ function pieceWarnings(said: Record<string, unknown>, where: string): string[] {
   check('arrive', ARRIVALS, 'fade');
   check('ease', EASES, 'inOut');
   check('origin', ORIGINS, 'center');
+  /* 0108 — ein Ruch, den das Wörterbuch nicht kennt, bewegt nichts. */
+  for (const name of unknownMotions(said.motion)) out.push(`${where}: ruch "show.motion" „${name}” — nie ma go w słowniku (niżej: Ruch); pominięty.`);
   if (has(said, 'places') && (typeof said.places !== 'object' || said.places === null || Array.isArray(said.places))) {
     out.push(`${where}: "show.places" to nie obiekt { "klucz sceny": miejsce } — moduł nie stanie w prezentacji.`);
   }
@@ -267,6 +269,7 @@ function showWarnings(value: unknown): string[] {
   if (has(root, 'format') && !(FORMATS as readonly string[]).includes(asText(root.format))) out.push(`"show.format" „${asText(root.format)}” — dozwolone: ${FORMATS.join(', ')}; będzie "screen".`);
   if (has(root, 'fonts') && !(FONT_PAIRS as readonly string[]).includes(asText(root.fonts))) out.push(`"show.fonts" „${asText(root.fonts)}” — dozwolone: ${FONT_PAIRS.join(', ')}; będzie "app".`);
   if (has(root, 'nav') && !(NAVS as readonly string[]).includes(asText(root.nav))) out.push(`"show.nav" „${asText(root.nav)}” — dozwolone: ${NAVS.join(', ')}; będzie "labels".`);
+  out.push(...layerWarnings(root.backdrop, '"show.backdrop"'));
   asArray(root.scenes).forEach((raw, i) => {
     const scene = asRecord(raw);
     if (has(scene, 'change') && !(SCENE_CHANGES as readonly string[]).includes(asText(scene.change))) {
@@ -275,6 +278,7 @@ function showWarnings(value: unknown): string[] {
     if (has(scene, 'thread') && !(THREADS as readonly string[]).includes(asText(scene.thread))) {
       out.push(`Scena ${i + 1}: "thread" „${asText(scene.thread)}” — dozwolone: ${THREADS.join(', ')}; będzie "none".`);
     }
+    out.push(...layerWarnings(scene.layers, `Scena ${i + 1}: "layers"`));
   });
   return out;
 }
@@ -696,12 +700,14 @@ Sceny nie muszą iść po kolei: każda ma jedno wejście i wyjścia — „dale
   "fonts" — pismo: "app", "spectral" (Spectral + IBM Plex Sans), "cormorant" (Cormorant Garamond + Source Sans), "plex" (IBM Plex Sans)
   "nav" — pasek scen: "labels" (nazwy u góry), "dots" (kropki z prawej), "none"
   "links" — drogi na zewnątrz: [{ "id": "zapisy", "label": "Zapisz się", "href": "https://…" | "#/strona" | "mailto:…" }] — wyjście sceny albo przycisku prowadzi tam przez "link:<id>"
+  "width" — najwyżej tyle rem szerokości sceny: w niej liczą się miejsca modułów (x, y w procentach), tło zostaje na całym ekranie (np. 80 — jak pokaz Cogita); pominięte — całe okno
+  "backdrop" — tło wspólne: warstwy (jak przy slajdach: "gradient", "image", "glow", "vignette", "haze", "mesh", "waves" …), które stoją za wszystkimi scenami; sceny są wtedy przezroczyste, a ich własne tło (kolor "ground", warstwy "layers") leży w nim i przechodzi płynnie w tło następnej
   "map" — gdzie stoją sceny na mapie przejść w edytorze: { "<klucz sceny>" | "link:<id>" | "end": { "x", "y" } } — tylko dla edytora
   "scenes" — lista scen w kolejności:
     "key" — klucz sceny (krótki, unikalny, np. "start"); miejsca modułów wskazują scenę po kluczu
     "label" — nazwa w pasku; link "#nazwa" w tekście prowadzi do tej sceny
     "steps" — ile kroków (postojów) ma scena; domyślnie 1
-    "change" — jak zastępuje poprzednią: "fade" (przenikanie), "build" (scena jest od razu, jej moduły wchodzą każdy po swojemu — "arrive"), "fly" (kamera przelatuje przez POPRZEDNIĄ scenę — jej moduły z głębią i chmurę słów), "rise", "zoom", "cover", "reveal", "side", "cut"
+    "change" — jak zastępuje poprzednią: "fade" (przenikanie), "build" (scena jest od razu, jej moduły wchodzą każdy po swojemu — "arrive"), "fly" (kamera przelatuje przez POPRZEDNIĄ scenę — jej moduły z głębią i chmurę słów), "rise", "zoom", "cover", "reveal", "side", "cut", "dissolve" (rozmycie: poprzednia gaśnie, rozmywa się i opada o 12 px, ta wyostrza się, unosząc — jak pokaz Cogita)
     "keep" — true: poprzednia scena zostaje pod spodem, aż przejście się skończy (przy "fade", "build", "rise")
     "duration" — ile trwa skok do tej sceny w ms (domyślnie 700, przy "fly" 1700)
     "colors" — { "accent", "ink", "ground" (tło sceny), "muted" } — pominięte: jak cała prezentacja
@@ -734,6 +740,7 @@ Sceny nie muszą iść po kolei: każda ma jedno wejście i wyjścia — „dale
   "hold" — true: stoi też przed pierwszym i po ostatnim swoim miejscu
   "layer" — wyżej z przodu; wędrujący od 10 stoi nad wszystkimi scenami
   "go" — moduł jest przyciskiem: { "<klucz sceny>": cel } — na tej scenie kliknięcie prowadzi do celu (klucz sceny, "end" albo "link:<id>"; "" — jeszcze nigdzie)
+  "motion" — ruch według zegara (opis: Ruch): raz, gdy scena zostaje osiągnięta (np. { "name": "rise", "delay": 220 } — tekst unosi się po dotarciu), albo w pętli, dopóki moduł widać; niezależny od "arrive", które idzie za przewijaniem
 
 Tekst ("text") w prezentacji i na stronie: "## " — śródtytuł, "# " — duża linia, "> " — mała, cicha linia, [napis](https://… | #/strona | #scena | mailto:… | tel:…) — link; linia z samych linków to rząd linków.`;
 

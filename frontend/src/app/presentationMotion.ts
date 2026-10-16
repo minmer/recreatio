@@ -106,7 +106,13 @@ export interface SceneState {
   readonly above: boolean;
   /** Die FOLGENDE fliegt durch diese hindurch — dann fährt ihre Kamera (`flightCurve` von pOut). */
   readonly flown: boolean;
+  /** 0108 — senkrecht in Pixeln und Unschärfe (beim Rozmycie: die gehende sinkt, die kommende steigt). */
+  readonly lift: number;
+  readonly blur: number;
 }
+
+/** 0108 — der Wechsel des Pokaz von Cogita: 12 px Weg, 2 px Unschärfe. */
+export const DISSOLVE_SCENE = { lift: 12, blur: 2 } as const;
 
 const smooth = (t: number): number => t * t * (3 - 2 * t);
 
@@ -125,7 +131,7 @@ export function sceneState(
   const pIn = i === 0 ? 1 : enteredOf(zone, s);
   const pOut = i === zones.length - 1 ? 0 : leftOf(zone, s);
   const visible = pIn > 0 && pOut < 1;
-  let opacity = 1, x = 0, y = 0, scale = 1, dim = 0, above = false;
+  let opacity = 1, x = 0, y = 0, scale = 1, dim = 0, above = false, lift = 0, blur = 0;
   const flown = calmerChange(changes[i + 1] ?? 'fade', reduced) === 'fly';
 
   /* Kommen — nach der eigenen Art. */
@@ -142,6 +148,7 @@ export function sceneState(
       case 'cover': y = (1 - e) * 100; break;
       case 'reveal': break;
       case 'side': x = (1 - e) * 100; break;
+      case 'dissolve': opacity = pIn; lift = (1 - e) * DISSOLVE_SCENE.lift; blur = (1 - e) * DISSOLVE_SCENE.blur; break;
     }
   }
 
@@ -160,10 +167,12 @@ export function sceneState(
       case 'cover': dim = 0.35 * e; break;
       case 'reveal': y -= e * 100; above = true; break;
       case 'side': x -= e * 30; dim = 0.25 * e; break;
+      /* Beide zugleich: die eine blendet aus, sinkt und verschwimmt, während die andere aufsteigt. */
+      case 'dissolve': opacity *= 1 - pOut; lift += e * DISSOLVE_SCENE.lift; blur += e * DISSOLVE_SCENE.blur; break;
     }
   }
 
-  return { visible, pIn, pOut, opacity, x, y, scale, dim, above, flown };
+  return { visible, pIn, pOut, opacity, x, y, scale, dim, above, flown, lift, blur };
 }
 
 /**

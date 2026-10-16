@@ -30,7 +30,8 @@
  */
 
 import type { Layout } from './layout';
-import { COLOR_KEYS, readLayers, type Layer, type SlideColors } from './slides';
+import { motionsJson, readMotions, type MotionUse } from './motion';
+import { COLOR_KEYS, layersJson, readLayers, type Layer, type SlideColors } from './slides';
 
 /* -- Wörterbücher ------------------------------------------------------------------ */
 
@@ -42,7 +43,7 @@ import { COLOR_KEYS, readLayers, type Layer, type SlideColors } from './slides';
  * (deren Bausteine mit Tiefe und Wortwolke vorbeiziehen), während diese darunter
  * aufgeht.
  */
-export const SCENE_CHANGES = ['fade', 'build', 'fly', 'rise', 'zoom', 'cover', 'reveal', 'side', 'cut'] as const;
+export const SCENE_CHANGES = ['fade', 'build', 'fly', 'rise', 'zoom', 'cover', 'reveal', 'side', 'cut', 'dissolve'] as const;
 export type SceneChange = (typeof SCENE_CHANGES)[number];
 
 export const SCENE_CHANGE_LABEL: Record<SceneChange, string> = {
@@ -54,7 +55,9 @@ export const SCENE_CHANGE_LABEL: Record<SceneChange, string> = {
   cover: 'Nakrycie — ta wjeżdża od dołu na poprzednią',
   reveal: 'Odsłonięcie — poprzednia odjeżdża w górę i odsłania tę',
   side: 'Z boku — ta wjeżdża z prawej, poprzednia odsuwa się w lewo',
-  cut: 'Cięcie — bez przejścia'
+  cut: 'Cięcie — bez przejścia',
+  /* 0108 — der Wechsel des Pokaz von Cogita (.cogita-intro-slide: 480 ms, 12 px, Unschärfe 2 px). */
+  dissolve: 'Rozmycie — poprzednia gaśnie, rozmywa się i opada, ta wyostrza się, unosząc (jak pokaz Cogita)'
 };
 
 /** Wie ein Baustein erscheint, wenn seine Szene kommt (oder er seine erste erreicht). */
@@ -289,11 +292,17 @@ export interface Piece {
    * Steht eine Szene hier, ist er auf ihr ein Ausgang (`showPaths.ts`).
    */
   readonly go: Readonly<Record<string, string>>;
+  /**
+   * 0108 — SEINE BEWEGUNGEN nach der Uhr (`motion.ts`): ein Auftritt, wenn
+   * seine Szene erreicht ist (der Text steigt auf), eine Schleife, solange er
+   * zu sehen ist. Das Kommen mit der Bahn (`arrive`) bleibt davon unberührt.
+   */
+  readonly motion: readonly MotionUse[];
 }
 
 export const PIECE: Piece = {
   places: {}, skin: 'card', type: 'auto', fill: null, ink: null, accent: null, origin: 'center', media: null, align: 'start', valign: 'start',
-  arrive: 'fade', delay: 0, span: 0.6, ease: 'inOut', hold: false, layer: 0, go: {}
+  arrive: 'fade', delay: 0, span: 0.6, ease: 'inOut', hold: false, layer: 0, go: {}, motion: []
 };
 
 /* -- Eine Szene ---------------------------------------------------------------------- */
@@ -378,9 +387,18 @@ export interface Show {
   readonly links: readonly ShowLink[];
   /** 0089 — wo die Knoten in der Karte der Wege stehen (Szene, `link:<id>`, `end`) — nur für den Editor. */
   readonly map: Readonly<Record<string, { readonly x: number; readonly y: number }>>;
+  /**
+   * 0108 — DAS GEMEINSAME TUCH: Schichten hinter ALLEN Szenen, die stehen
+   * bleiben (Nici, Fale, Dunst). Sind welche da, sind die Szenen durchsichtig,
+   * und ihre eigenen Schichten liegen darin: beim Wechsel gehen sie fliessend
+   * ineinander über (wie bei den Slajdy, `DeckLook.backdrop`).
+   */
+  readonly backdrop: readonly Layer[];
+  /** 0108 — wie breit die Bühne höchstens ist (rem): die Plätze rechnen darin, der Hintergrund bleibt ganz. `null`: das Fenster. */
+  readonly width: number | null;
 }
 
-export const NO_SHOW: Show = { format: 'screen', fonts: 'app', nav: 'labels', scenes: [], links: [], map: {} };
+export const NO_SHOW: Show = { format: 'screen', fonts: 'app', nav: 'labels', scenes: [], links: [], map: {}, backdrop: [], width: null };
 
 /* -- Duldsame Leser ------------------------------------------------------------------- */
 
@@ -479,7 +497,8 @@ export function readPieceValue(value: unknown): Piece {
     ease: oneOf(one.ease, EASES, PIECE.ease),
     hold: one.hold === true,
     layer: Math.round(within(one.layer, [-20, 20], PIECE.layer)),
-    go: readGo(one.go)
+    go: readGo(one.go),
+    motion: readMotions(one.motion)
   };
 }
 
@@ -550,6 +569,8 @@ export function pieceJson(piece: Piece): Record<string, unknown> {
   if (piece.hold) out.hold = true;
   if (piece.layer !== PIECE.layer) out.layer = piece.layer;
   if (Object.keys(piece.go).length > 0) out.go = piece.go;
+  const motion = motionsJson(piece.motion);
+  if (motion !== undefined) out.motion = motion;
   return out;
 }
 
@@ -667,7 +688,9 @@ export function readShow(value: unknown): Show {
     nav: oneOf(one.nav, NAVS, NO_SHOW.nav),
     scenes,
     links: readLinks(one.links),
-    map: readMap(one.map)
+    map: readMap(one.map),
+    backdrop: readLayers(one.backdrop),
+    width: typeof one.width === 'number' && Number.isFinite(one.width) ? Math.min(240, Math.max(20, one.width)) : null
   };
 }
 
@@ -716,7 +739,9 @@ export function showJson(show: Show): Record<string, unknown> {
     ...(show.nav !== NO_SHOW.nav ? { nav: show.nav } : {}),
     scenes: show.scenes.map(sceneJson),
     ...(show.links.length > 0 ? { links: show.links.map((l) => ({ id: l.id, label: l.label, href: l.href })) } : {}),
-    ...(Object.keys(show.map).length > 0 ? { map: show.map } : {})
+    ...(Object.keys(show.map).length > 0 ? { map: show.map } : {}),
+    ...(show.backdrop.length > 0 ? { backdrop: layersJson(show.backdrop) } : {}),
+    ...(show.width !== null ? { width: show.width } : {})
   };
 }
 

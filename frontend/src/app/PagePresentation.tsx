@@ -28,7 +28,7 @@ import type { Look } from './slides';
 import type { DriveControl } from './usePresentationDrive';
 
 /** Diese Arten zeigen sich ohne Tafel — ein Bild ist ein Bild, ein Kształt eine Fläche. */
-const BARE = new Set(['image', 'shape']);
+const BARE = new Set(['image', 'shape', 'animation', 'layers']);
 
 /** Wie ein Baustein in der Liste heisst. */
 export const pieceLabelOf = (part: DraftPart): string =>

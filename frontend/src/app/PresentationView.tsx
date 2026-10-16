@@ -40,6 +40,8 @@ import {
 import { branch, goOf, nextOf, routeOf, type Target } from './showPaths';
 import { ShowDark } from './showContext';
 import { LayerArt, layerBackground } from './deckLayers';
+import { MotionBox, SlidePhase, type Phase } from './MotionBox';
+import { backdropAt } from './slideMotion';
 import { usePrefersDark, usePrefersReducedMotion } from './SlideDeck';
 import { addressWithSlide, anchorOf, imageUrl, resolveTheme, slideInAddress, type Layer, type Theme } from './slides';
 import { usePresentationDrive, type DriveControl } from './usePresentationDrive';
@@ -274,8 +276,14 @@ export function PresentationView({
   const hintEls = useRef<(HTMLParagraphElement | null)[]>([]);
   const wordEls = useRef<(HTMLSpanElement | null)[][]>([]);
   const pieceEls = useRef(new Map<string, HTMLDivElement | null>());
+  /* 0108 — das gemeinsame Tuch: je Szene ihre eigenen Schichten, dahinter. */
+  const shared = show.backdrop.length > 0;
+  const backdropEls = useRef<(HTMLDivElement | null)[]>([]);
   const [active, setActive] = useState(0);
   const activeRef = useRef(0);
+  /* 0108 — welche Szenen gerade auf der Bühne zu sehen sind (im Wechsel zwei): ihre Bewegungen dürfen laufen, alle anderen stehen und fangen von vorn an. */
+  const [seen, setSeen] = useState('0');
+  const seenRef = useRef('0');
 
   const paintRef = useRef<(s: number) => void>(() => undefined);
   paintRef.current = (s: number) => {
@@ -298,8 +306,10 @@ export function PresentationView({
       el.style.visibility = 'visible';
       el.removeAttribute('aria-hidden');
       el.style.opacity = String(st.opacity);
-      el.style.transform = st.x === 0 && st.y === 0 && st.scale === 1 ? '' : `translate3d(${st.x}%, ${st.y}%, 0) scale(${st.scale})`;
-      el.style.filter = st.dim > 0 ? `brightness(${1 - st.dim})` : '';
+      el.style.transform = st.x === 0 && st.y === 0 && st.scale === 1 && st.lift === 0 ? ''
+        : `translate3d(${st.x}%, ${st.lift === 0 ? `${st.y}%` : `calc(${st.y}% + ${st.lift.toFixed(2)}px)`}, 0) scale(${st.scale})`;
+      /* 0108 — beim Rozmycie verschwimmt die Szene ein wenig. */
+      el.style.filter = [st.dim > 0 ? `brightness(${1 - st.dim})` : '', st.blur > 0.01 ? `blur(${st.blur.toFixed(2)}px)` : ''].filter((f) => f !== '').join(' ');
       el.style.zIndex = String(10 * (i + 1) + (st.above ? 12 : 0));
 
       const content = contentEls.current[i];
@@ -384,10 +394,31 @@ export function PresentationView({
       el.style.pointerEvents = opacity > 0.3 ? 'auto' : 'none';
     }
 
+    /*
+     * 0108 — DAS GEMEINSAME TUCH: die eigenen Schichten der jetzigen Szene unten,
+     * die der nächsten blenden darüber ein (zwei Verläufe übereinander geblendet
+     * sind der Übergang von einer Farbe zur anderen).
+     */
+    if (shared) {
+      const at = zones.reduce((n, zone, k) => (k === 0 ? n : n + enteredOf(zone, s)), 0);
+      const seen = backdropAt(scenes.map((sc) => sc.layers.length > 0 || sc.colors?.ground != null), at);
+      backdropEls.current.forEach((el, i) => {
+        if (el === null || el === undefined) return;
+        const one = seen.find((v) => v.index === i);
+        el.style.opacity = one === undefined ? '0' : String(one.opacity);
+        el.style.visibility = one === undefined ? 'hidden' : 'visible';
+      });
+    }
+
     const now = activeScene(zones, s);
     if (now !== activeRef.current) {
       activeRef.current = now;
       setActive(now);
+    }
+    const visible = states.flatMap((st, i) => (st.visible ? [i] : [])).join(',');
+    if (visible !== seenRef.current) {
+      seenRef.current = visible;
+      setSeen(visible);
     }
 
     /* Die Leiste nimmt die Farben der Szene, die dran ist. */
@@ -547,6 +578,8 @@ export function PresentationView({
     '--pz-display': faces.display,
     '--pz-text': faces.text,
     '--pz-ui': faces.ui,
+    /* 0108 — die Bühne höchstens so breit: die Plätze rechnen darin, der Hintergrund bleibt ganz. */
+    ...(show.width === null ? {} : { '--pz-width': `${show.width}rem` }),
     ...(mode === 'page' ? { top: `${top}px` } : {}),
     ...(mode === 'box' && boxAspect !== null ? { aspectRatio: String(boxAspect), height: 'auto' } : {})
   } as CSSProperties;
@@ -610,11 +643,40 @@ export function PresentationView({
           style={{ ...(fill === null ? {} : { background: fill }), ...(ink === null ? {} : { color: ink, '--pz-box-ink': ink } as CSSProperties) }}
         >
           {media !== null && media.side !== 'after' && mediaEl}
-          <div className="pz-body">{one.content}</div>
+          <div className="pz-body">
+            {p.motion.length === 0 ? one.content : <MotionBox motions={p.motion} bare className="pz-move">{one.content}</MotionBox>}
+          </div>
           {media !== null && media.side === 'after' && mediaEl}
         </div>
       </div>
     );
+  };
+
+  const layerView = (layer: Layer, n: number, extra = '') => (
+    <div key={n} className={`pz-layer is-${layer.kind}${extra}`} style={layerStyle(layer)} aria-hidden="true">
+      <LayerArt layer={layer} />
+      {layer.kind === 'bigtext' && (
+        <div className="pz-bigtext" style={{ opacity: layer.opacity }}>
+          {layer.lines.map((line, k) => <span key={k} style={layer.color ? { color: layer.color } : undefined}>{line}</span>)}
+        </div>
+      )}
+    </div>
+  );
+
+  /*
+   * 0108 — wie eine Szene gerade steht: die jetzige, eine, die im Wechsel zu
+   * sehen ist, oder fort. Fort heisst auch: auf einem Sprung nur durchflogen —
+   * wer dann zu ihr kommt, sieht ihre Auftritte von vorn.
+   */
+  const shown = new Set(seen.split(',').map(Number));
+  const phaseOf = (i: number): Phase => (i === active ? 'here' : shown.has(i) ? 'near' : 'away');
+  /* Ein wandernder Baustein: da, solange die jetzige Szene zwischen seinem ersten und letzten Platz liegt (oder er stehen bleibt). */
+  const travelPhase = (one: Placed): Phase => {
+    const keys = [...one.places.keys()];
+    const first = Math.min(...keys);
+    const last = Math.max(...keys);
+    if (one.piece.hold || (active >= first && active <= last)) return 'here';
+    return active === first - 1 || active === last + 1 ? 'near' : 'away';
   };
 
   const threadOf = (i: number) => {
@@ -663,6 +725,18 @@ export function PresentationView({
           >
             {scenes.length === 0 && <p className="pz-empty">Ta prezentacja nie ma jeszcze żadnej sceny.</p>}
 
+            {shared && (
+              <div className="pz-backdrop" aria-hidden="true">
+                {scenes.map((sc, i) => (
+                  <div key={sc.key} className="pz-backdrop-scene" ref={(el) => { backdropEls.current[i] = el; }} style={{ ...sceneVars(sc), visibility: 'hidden' }}>
+                    <div className="pz-ground" />
+                    {sc.layers.map((layer, n) => layerView(layer, n))}
+                  </div>
+                ))}
+                {show.backdrop.map((layer, n) => layerView(layer, 1000 + n, ' is-shared'))}
+              </div>
+            )}
+
             {scenes.map((sc, i) => {
               const own = placed.filter((one) => !one.travel && one.home === i);
               const deep = own.filter((one) => one.deep);
@@ -672,24 +746,16 @@ export function PresentationView({
                 <section
                   key={sc.key}
                   ref={(el) => { sceneEls.current[i] = el; }}
-                  className={`pz-scene${active === i ? ' is-active' : ''}`}
+                  className={`pz-scene${active === i ? ' is-active' : ''}${shared ? ' is-clear' : ''}`}
                   id={`scena-${anchorOf(sc.label) || i + 1}`}
                   aria-label={sc.label || undefined}
                   data-change={sc.change}
                   style={{ ...sceneVars(sc), visibility: 'hidden' }}
                 >
-                  <div className="pz-ground" aria-hidden="true" />
-                  {sc.layers.map((layer, n) => (
-                    <div key={n} className={`pz-layer is-${layer.kind}`} style={layerStyle(layer)} aria-hidden="true">
-                      <LayerArt layer={layer} />
-                      {layer.kind === 'bigtext' && (
-                        <div className="pz-bigtext" style={{ opacity: layer.opacity }}>
-                          {layer.lines.map((line, k) => <span key={k} style={layer.color ? { color: layer.color } : undefined}>{line}</span>)}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  {!shared && <div className="pz-ground" aria-hidden="true" />}
+                  {!shared && sc.layers.map((layer, n) => layerView(layer, n))}
 
+                  <SlidePhase.Provider value={phaseOf(i)}>
                   {space && (
                     <div className="pz-space" style={{ perspective: `${sc.depth.perspective}px`, perspectiveOrigin: `${focus[i].x}% ${focus[i].y}%` }}>
                       <div className="pz-cam" ref={(el) => { camEls.current[i] = el; }}>
@@ -716,6 +782,7 @@ export function PresentationView({
                     {threadOf(i)}
                     {flat.map(pieceView)}
                   </div>
+                  </SlidePhase.Provider>
 
                   {sc.hint !== '' && (
                     <p className="pz-hint" aria-hidden="true" ref={(el) => { hintEls.current[i] = el; }}>
@@ -726,7 +793,12 @@ export function PresentationView({
               );
             })}
 
-            {placed.filter((one) => one.travel).map(pieceView)}
+            {/* 0108 — die wandernden Bausteine in der Breite der Bühne (`show.width`), jeder in seinem Stand. */}
+            <div className="pz-travel">
+              {placed.filter((one) => one.travel).map((one) => (
+                <SlidePhase.Provider key={one.key} value={travelPhase(one)}>{pieceView(one)}</SlidePhase.Provider>
+              ))}
+            </div>
           </div>
           </div>
         </div>

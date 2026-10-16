@@ -37,6 +37,7 @@ import {
 import { ARRANGEMENT_LABEL, ARRANGEMENTS, arrange, depthScale, zonesOf, type Arrangement } from './presentationMotion';
 import { PathsEditor } from './PathsEditor';
 import { END, routeTo, targetLabel, targetOptions, withGo, withNext } from './showPaths';
+import { MotionField } from './MotionField';
 import { ColorField, LayerEditor, ThemeEditor } from './SlidesEditor';
 import { usePrefersDark } from './SlideDeck';
 import { COLOR_KEYS, DEFAULT_THEMES, resolveTheme, type Look, type SlideColors } from './slides';
@@ -349,7 +350,8 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
   const moveDrag = (event: ReactPointerEvent<HTMLElement>) => {
     const d = drag.current;
     if (d === null || chosen === null || stageEl === null) return;
-    const rect = stageEl.getBoundingClientRect();
+    /* 0108 — die Plätze rechnen in der Breite der Bühne (`show.width`) — dort, wo die wandernden stehen. */
+    const rect = (stageEl.querySelector<HTMLElement>('.pz-travel') ?? stageEl).getBoundingClientRect();
     const dx = ((event.clientX - d.x0) / rect.width) * 100 * d.factor;
     const dy = ((event.clientY - d.y0) / rect.height) * 100 * d.factor;
     const base = effective(d.place);
@@ -407,7 +409,7 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
   return (
     <div className="pe">
       <div className="pe-side">
-        <ShowSettings look={look} show={show} busy={busy} onLook={onLook} onShow={setShow} />
+        <ShowSettings look={look} show={show} path={path} theme={theme} busy={busy} onLook={onLook} onShow={setShow} />
 
         <h4 className="pb-h">Sceny ({scenes.length})</h4>
         {scenes.length === 0 && (
@@ -671,8 +673,8 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
 
 /* -- Die ganze Präsentation -------------------------------------------------------------- */
 
-function ShowSettings({ look, show, busy, onLook, onShow }: {
-  look: Look; show: Show; busy: boolean; onLook: (next: Look) => void; onShow: (next: Show) => void;
+function ShowSettings({ look, show, path, theme, busy, onLook, onShow }: {
+  look: Look; show: Show; path: string; theme: ReturnType<typeof resolveTheme>; busy: boolean; onLook: (next: Look) => void; onShow: (next: Show) => void;
 }) {
   const night = look.theme?.night ?? null;
   return (
@@ -696,6 +698,20 @@ function ShowSettings({ look, show, busy, onLook, onShow }: {
           {NAVS.map((one) => <option key={one} value={one}>{NAV_LABEL[one]}</option>)}
         </select>
       </label>
+      {/* 0108 — die Bühne höchstens so breit, und das Tuch hinter allen Szenen. */}
+      <label className="wk-field">
+        <span>Szerokość sceny (rem)</span>
+        <input type="number" min={20} max={240} value={show.width ?? ''} placeholder="całe okno" disabled={busy}
+          onChange={(e) => onShow({ ...show, width: e.target.value.trim() === '' ? null : Math.min(240, Math.max(20, Number(e.target.value))) })} />
+        <span className="wk-hint">W tej szerokości liczą się miejsca modułów — na szerokim ekranie obraz zostaje razem (80 rem — jak pokaz Cogita). Tło zostaje na całym ekranie.</span>
+      </label>
+      <details className="wk-fold">
+        <summary>Tło wspólne{show.backdrop.length > 0 ? ` (${show.backdrop.length})` : ''}</summary>
+        <p className="wk-hint">
+          Stoi za wszystkimi scenami. Gdy jest, sceny są przezroczyste, a ich własne tła (kolor sceny, jej warstwy) leżą w nim i przechodzą płynnie jedno w drugie — nici, fale i mgła zostają.
+        </p>
+        <LayerEditor path={path} theme={theme} label="" layers={show.backdrop} busy={busy} blank onChange={(backdrop) => onShow({ ...show, backdrop })} />
+      </details>
       <ThemeEditor look={look} busy={busy} onChange={onLook} legend="Kolory" />
       {look.theme !== null && (
         <div className="pe-night">
@@ -1080,6 +1096,13 @@ function PieceSettings({ part, show, scene, scenes, tall, path, busy, onPiece, o
             </>
           )}
         </fieldset>
+      </details>
+
+      {/* 0108 — Bewegungen nach der Uhr: ein Auftritt, wenn die Szene erreicht ist, eine Schleife, solange er zu sehen ist. */}
+      <details className="wk-fold" open={piece.motion.length > 0}>
+        <summary>Ruch{piece.motion.length > 0 ? ` (${piece.motion.length})` : ''}</summary>
+        <p className="wk-hint">Po dotarciu sceny (raz) albo w kółko, dopóki widać — przesuwa się, rośnie, obraca, rozjaśnia, rysuje; albo gotowy ruch z pokazu Cogita.</p>
+        <MotionField value={piece.motion} busy={busy} onChange={(motion) => onPiece({ ...piece, motion })} />
       </details>
 
       <details className="wk-fold">
