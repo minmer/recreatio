@@ -45,17 +45,12 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            // hash-wasm gehört zur neuen Plattform und sonst nirgends hin.
-            // Im gemeinsamen vendor-Bündel lädt JEDE Altbestandsseite das
-            // Argon2-WebAssembly mit — für eine Funktion, die dort niemand
-            // aufruft.
+            // hash-wasm (Argon2 der Anmeldung) in einem eigenen Bündel: eine
+            // öffentliche Seite lädt das WebAssembly nicht mit.
             if (id.includes('/hash-wasm/')) return 'vendor-rc-crypto';
 
-            // reactflow gehört jetzt BEIDEN Seiten: dem Rollengraphen des
-            // Neubaus und den Cogita-Ansichten des Altbestands. Im gemeinsamen
-            // Bündel mit katex lüde der Arbeitsplatz einen Formelsatz mit, den
-            // dort niemand aufruft — 300 kB für eine Ansicht, die Kästchen und
-            // Pfeile zeichnet.
+            // reactflow nur für die Ansichten, die Kästchen und Pfeile zeichnen
+            // (Karten, Logik, Pfade) — nicht für jede Seite.
             if (id.includes('/reactflow/') || id.includes('/@reactflow/')) return 'vendor-flow';
 
             // ZXing liest Strichcodes nur, wo der Browser es nicht selbst kann
@@ -63,19 +58,9 @@ export default defineConfig({
             // Bündel lüde jede Seite 300 kB für einen Knopf in der Bibliothek.
             if (id.includes('/@zxing/')) return 'vendor-barcode';
 
-            if (
-              id.includes('/@dnd-kit/') ||
-              id.includes('/katex/') ||
-              id.includes('/react-katex/')
-            ) {
-              return 'vendor-cogita-ui';
-            }
+            // Ziehen und Ablegen braucht nur der Seitenbaukasten.
+            if (id.includes('/@dnd-kit/')) return 'vendor-dnd';
             return 'vendor';
-          }
-          if (id.includes('/src/legacy/pages/parish/')) return 'parish';
-          if (id.includes('/src/legacy/pages/cogita/') || id.includes('/src/legacy/cogita/')) return 'cogita';
-          if (id.includes('/src/legacy/pages/HomePage') || id.includes('/src/legacy/components/') || id.includes('/src/legacy/lib/')) {
-            return 'recreatio-core';
           }
           return undefined;
         }

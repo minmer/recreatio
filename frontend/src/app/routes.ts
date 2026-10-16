@@ -96,23 +96,14 @@ export const ROUTES = {
 
 export type Route = keyof typeof ROUTES;
 
-/**
- * Die Adressen, die der NEUBAU ausliefert.
- *
- * <b>Warum hier eine Liste steht und nicht eine Frage an den Dienst.</b> Die
- * Weiche in `main.tsx` entscheidet, BEVOR irgendetwas geladen ist, ob der
- * Altbestand oder der Neubau die Adresse bekommt — und sie kann dabei nicht auf
- * eine Antwort warten. Eine übernommene Adresse, die hier fehlt, landete beim
- * Altbestand, der sie nicht kennt.
- *
- * Die Liste ist damit der Spiegel von `app.slug` im Browser, und jede neue
- * Seite kostet einen Bau. Das ist der Preis für eine Weiche ohne Wartezeit;
- * wenn der Altbestand fort ist, fällt er weg — dann gehört jede Adresse dem
- * Neubau, und diese Liste verschwindet.
+/*
+ * Bis 2026-10-16 stand hier `PAGES`: die Seiten, die der Neubau statt des
+ * Altbestands ausliefern sollte — der Spiegel von `app.slug` im Browser, und
+ * jede neue Seite kostete einen Bau. Mit dem Altbestand ist die Liste fort:
+ * jedes Wort, das kein Teil ist, ist eine Seite, und ob es sie gibt, sagt das
+ * Register. Damit kein Wurzelname einen Teil verdeckt, sperrt der Dienst die
+ * Namen der Teile (`Slug.IsReserved`).
  */
-export const PAGES = ['parish', 'start', 'lo13', 'dk', 'deletion', 'events', 'cogita'] as const;
-
-export const isPage = (word: string): boolean => (PAGES as readonly string[]).includes(word);
 
 /**
  * Der Name, unter dem die Plattform zu Hause ist.
@@ -122,8 +113,8 @@ export const isPage = (word: string): boolean => (PAGES as readonly string[]).in
  * nicht: der Name selbst sagt, welche Seite gemeint ist, und den fragt der
  * Browser beim Dienst nach (`site.ts`).
  *
- * Steht hier und nicht in `site.ts`, weil die Weiche in `main.tsx` es wissen
- * muss, BEVOR irgendetwas geladen ist — und diese Datei bringt nichts mit.
+ * Steht hier und nicht in `site.ts`, weil `parsePath` und `App` es vor allem
+ * anderen brauchen — und diese Datei bringt nichts mit.
  */
 export const PRIMARY_HOST = 'recreatio.pl';
 
@@ -170,14 +161,6 @@ export interface Address {
   readonly slug: string | null;
   /** Was danach kommt: `#/workspace/groups/schola` ergibt `['schola']`. */
   readonly tail: readonly string[];
-  /**
-   * Ein erstes Segment, das kein Teil ist.
-   *
-   * Es wird NICHT stillschweigend zur Startseite: wer so einen Link bekommen
-   * hat, soll erfahren, dass ihm der Teil fehlt, statt auf einer Seite zu
-   * landen, die er nicht gesucht hat.
-   */
-  readonly stray: string | null;
 
   /**
    * Eine öffentliche Seite (`#/parish`), oder `null`.
@@ -204,7 +187,7 @@ export interface Address {
  * sie als leerer Pfad und zeigt als Alias auf `start`. Wer hier ankommt, ist
  * meistens ein Besucher — und der bekommt die Seite, nicht ein Anmeldeformular.
  */
-const HOME: Address = { route: 'workspace', slug: null, tail: [], stray: null, page: '', seat: null };
+const HOME: Address = { route: 'workspace', slug: null, tail: [], page: '', seat: null };
 
 /**
  * Das Wort, hinter dem ein Platz beginnt.
@@ -237,13 +220,16 @@ export function parsePath(hash: string): Address {
 
   if (segments.length === 0) return HOME;
 
+  const route = routeOf(segments[0]);
+
   /*
-   * Eine öffentliche Seite steht VOR der Suche nach einem Teil: `#/parish` ist
-   * keine Ansicht des Arbeitsplatzes, und niemand muss dafür angemeldet sein.
-   * Der ganze Pfad gehört ihr — `#/parish/proby` ist EINE Adresse und nicht
-   * eine Adresse mit einem Anhängsel.
+   * Was kein Teil ist, ist eine öffentliche Seite: `#/parish` ist keine Ansicht
+   * des Arbeitsplatzes, und niemand muss dafür angemeldet sein. Der ganze Pfad
+   * gehört ihr — `#/parish/proby` ist EINE Adresse und nicht eine Adresse mit
+   * einem Anhängsel. Ob es sie gibt, sagt das Register; eine, die es nicht
+   * gibt, sagt das selbst.
    */
-  if (isPage(segments[0])) {
+  if (route === null) {
     /*
      * `lo13/portal/<token>/<key>` ist KEINE Unterseite von lo13, sondern der
      * Platz eines Menschen. Die Seite davor bleibt stehen — sie sagt ihm, wo er
@@ -253,21 +239,13 @@ export function parsePath(hash: string): Address {
 
     if (at > 0) {
       return {
-        route: 'workspace', slug: null, tail: [], stray: null,
+        route: 'workspace', slug: null, tail: [],
         page: segments.slice(0, at).join('/'),
         seat: { token: segments[at + 1] ?? '', key: segments[at + 2] ?? null }
       };
     }
 
-    return {
-      route: 'workspace', slug: null, tail: [], stray: null,
-      page: segments.join('/'), seat: null
-    };
-  }
-
-  const route = routeOf(segments[0]);
-  if (route === null) {
-    return { route: 'workspace', slug: null, tail: [], stray: segments[0], page: null, seat: null };
+    return { route: 'workspace', slug: null, tail: [], page: segments.join('/'), seat: null };
   }
 
   const rest = segments.slice(1);
@@ -277,7 +255,6 @@ export function parsePath(hash: string): Address {
     route,
     slug: slugged ? (rest[0] ?? null) : null,
     tail: slugged ? rest.slice(1) : rest,
-    stray: null,
     page: null,
 
     /*

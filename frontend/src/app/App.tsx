@@ -100,25 +100,6 @@ export function App() {
   useEffect(() => { void look(); }, [look]);
 
   /*
-   * Eine Adresse, der der Teil fehlt (`#/schola`). Sie wird NICHT
-   * stillschweigend zur Startseite — wer so einen Link bekommen hat, soll
-   * erfahren, dass der Teil fehlt, statt woanders zu landen.
-   */
-  if (address.stray !== null) {
-    return (
-      <Shell>
-        <h1 className="wk-h1">Ta ścieżka nic tu nie znaczy</h1>
-        <p className="wk-lede">
-          Nic nie nazywa się samo <code>{address.stray}</code>. Każdy adres
-          podaje najpierw część, potem rzecz — na przykład{' '}
-          <code>{path('workspace')}</code>.
-        </p>
-        <p><a className="wk-link" href={path('workspace')}>Przejdź do warsztatu</a></p>
-      </Shell>
-    );
-  }
-
-  /*
    * EINE EIGENE DOMAIN zeigt genau eine Seite, und welche, sagt das Register.
    * Die Adresszeile gilt hier nicht: wer cogita.pl aufruft, meint cogita.pl und
    * nicht einen Teil des Arbeitsplatzes, der zufällig hinter derselben Raute

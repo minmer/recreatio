@@ -1118,6 +1118,17 @@ try {
     assert.deepEqual(m.parsePath('#/events/rocket2026?s=2#twoje'), m.parsePath('#/events/rocket2026'));
     ok('seat link: the office suffix (?s=, #anchor) around the seat; the seat leaves the address, the suffix stays; the path ignores it');
 
+    /* 2026-10-16 — ohne Altbestand: jedes Wort, das kein Teil ist, ist eine Seite. */
+    assert.equal(m.parsePath('#/cogita').page, 'cogita', 'a root that was never listed is a page');
+    assert.equal(m.parsePath('#/cogita/kursy/historia').page, 'cogita/kursy/historia', 'the whole path belongs to the page');
+    assert.equal(m.parsePath('#/nowa-strona').page, 'nowa-strona', 'a new root needs no new build');
+    assert.equal(m.parsePath('#/workspace/pages').page, null, 'the parts stay parts');
+    assert.equal(m.parsePath('#/widget/abc/parish').page, null);
+    assert.deepEqual(m.parsePath('#/nowa-strona/portal/TOK/KEY').seat, { token: 'TOK', key: 'KEY' }, 'a seat under any page');
+    assert.equal(m.parsePath('#/nowa-strona/portal/TOK/KEY').page, 'nowa-strona');
+    assert.equal('stray' in m.parsePath('#/cokolwiek'), false, 'nothing is a stray word any more');
+    ok('routing without the legacy switch: every word that is not a part is a page of the register');
+
     /* Der Slajd aus dem Anker. */
     const slides = [{ id: 'p1', label: 'Start' }, { id: 'p2', label: 'Zapisy' }, { id: 'p3', label: 'Twoje zgłoszenie' }];
     assert.equal(m.anchorInAddress('#/events/rocket2026?s=2#Twoje-Zgloszenie'), 'twoje-zgloszenie');

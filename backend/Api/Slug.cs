@@ -420,12 +420,26 @@ public static partial class Slug
     /// verdeckte eine Seite namens „portal" jeden dieser Links — und zwar
     /// lautlos, denn beide sähen gleich aus.
     /// </para>
+    ///
+    /// <para>
+    /// <b>Die Teile der Oberfläche</b> (`ROUTES` in `frontend/src/app/routes.ts`):
+    /// seit es dort keine Liste der Seiten mehr gibt (2026-10-16), ist jedes
+    /// Wort, das kein Teil ist, eine Seite. Eine Wurzel namens „seat" oder
+    /// „widget" wäre also nie zu sehen — sie verdeckte nichts, sie würde
+    /// verdeckt. Beide Listen müssen gleich bleiben.
+    /// </para>
     /// </summary>
-    public static bool IsReserved(string path) =>
-        path == "workspace" || path.StartsWith("workspace/", StringComparison.Ordinal)
-        || path == "portal"
-        || path.EndsWith("/portal", StringComparison.Ordinal)
-        || path.Contains("/portal/", StringComparison.Ordinal);
+    public static bool IsReserved(string path)
+    {
+        var root = path.Split('/')[0];
+        return Parts.Contains(root)
+            || path == "portal"
+            || path.EndsWith("/portal", StringComparison.Ordinal)
+            || path.Contains("/portal/", StringComparison.Ordinal);
+    }
+
+    /// <summary>Die Teile der Oberfläche — dieselben Wörter wie `ROUTES` im Browser.</summary>
+    private static readonly HashSet<string> Parts = new(StringComparer.Ordinal) { "workspace", "seat", "verify", "dolacz", "widget" };
 
     /// <summary>Die Vorfahren von <c>a/b/c</c>: <c>a</c> und <c>a/b</c>.</summary>
     public static IReadOnlyList<string> Ancestors(string path)
@@ -453,7 +467,7 @@ public static partial class Slug
 
         if (IsReserved(path))
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Adres „workspace” należy do samego warsztatu.");
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Ten adres należy do samej platformy (warsztat, linki, widżety).");
             return;
         }
 
@@ -1018,7 +1032,7 @@ public static partial class Slug
 
         if (IsReserved(path))
         {
-            Console.Error.WriteLine("  XX   \"workspace\" gehoert dem Arbeitsplatz selbst.");
+            Console.Error.WriteLine("  XX   Diese Adresse gehoert der Plattform selbst (workspace, seat, verify, dolacz, widget, portal).");
             return 1;
         }
 
