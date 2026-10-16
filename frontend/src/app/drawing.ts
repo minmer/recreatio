@@ -151,14 +151,22 @@ function readShape(value: unknown, depth: number, budget: { left: number }): Sha
   };
 }
 
+/**
+ * Ein gespeicherter Schlüssel als JSON. Eine ältere Fassung der Seite kannte
+ * `size`/`symbols`/`elements` nicht und schrieb eine Liste als Zeilen (ein
+ * Wert je Zeile, `part.ts` storedOf 'lines') — auch die liest sich hier.
+ */
 const parse = (text: string | undefined): unknown => {
   if (text === undefined || text.trim() === '') return undefined;
-  try { return JSON.parse(text) as unknown; } catch { return undefined; }
+  try { return JSON.parse(text) as unknown; } catch { /* vielleicht Zeilen */ }
+  try { return text.split('\n').filter((line) => line.trim() !== '').map((line) => JSON.parse(line) as unknown); } catch { return undefined; }
 };
 
 /** Eine Zeichnung aus der gespeicherten Tafel des Bausteins (`size`, `symbols`, `elements` als JSON). */
 export function readDrawing(raw: RawConfig): Drawing {
-  return drawingOf({ size: parse(raw.size), symbols: parse(raw.symbols), elements: parse(raw.elements), alt: raw.alt, max: parse(raw.max) });
+  /* Ein einzelnes Teil ohne Klammern (so auch eine Liste aus EINER Zeile) ist eine Liste aus einem. */
+  const list = (value: unknown): unknown => (typeof value === 'object' && value !== null && !Array.isArray(value) ? [value] : value);
+  return drawingOf({ size: parse(raw.size), symbols: list(parse(raw.symbols)), elements: list(parse(raw.elements)), alt: raw.alt, max: parse(raw.max) });
 }
 
 /** Eine Zeichnung aus einem Objekt — `size` [Breite, Höhe], `symbols` [{ name, shapes }], `elements`. */

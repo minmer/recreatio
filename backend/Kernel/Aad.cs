@@ -375,7 +375,22 @@ public enum Field
     /// </summary>
     ClaimHolderName,
     ClaimAskName,
-    ClaimHostWrap
+    ClaimHostWrap,
+
+    /// <summary>
+    /// 0109 — Cogita: eine Datei der Bibliothek (Erzählton, Bild, Film) unter dem
+    /// Schlüssel ihres Bereichs; ein Stapel Antworten unter seinem Zufallsschlüssel,
+    /// und dieser für den Lernenden und für die Annahme des Speicherbereichs;
+    /// eine Sitzung (ihr Titel, ihre Ereignisse, der Schlüssel für einen Platz);
+    /// die Fragen, die ein Gerät für das Lernen ohne Netz behält.
+    /// </summary>
+    LibraryFile,
+    LearnBatch,
+    LearnKey,
+    CogitaSession,
+    CogitaEvent,
+    CogitaSeatKey,
+    CogitaOffline
 }
 
 /// <summary>
@@ -549,6 +564,13 @@ public readonly record struct Aad
         Field.ClaimHolderName         => "claim_holder_name",
         Field.ClaimAskName            => "claim_ask_name",
         Field.ClaimHostWrap           => "claim_host_wrap",
+        Field.LibraryFile             => "library_file",
+        Field.LearnBatch              => "learn_batch",
+        Field.LearnKey                => "learn_key",
+        Field.CogitaSession           => "cogita_session",
+        Field.CogitaEvent             => "cogita_event",
+        Field.CogitaSeatKey           => "cogita_seat_key",
+        Field.CogitaOffline           => "cogita_offline",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

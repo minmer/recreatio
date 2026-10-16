@@ -221,6 +221,11 @@ try {
     assert.ok(depth <= m.DRAWING_LIMITS.depth + 1, 'nesting has an end');
     const raw = { size: '[200,100]', elements: JSON.stringify([{ type: 'rect', w: 5, h: 5 }]), alt: 'x', max: '12' };
     assert.equal(m.readDrawing(raw).max, 12, 'stored: every key as JSON text');
+    /* Eine ältere Fassung der Seite (vor 0108) speicherte die Listen beim Import als Zeilen. */
+    const lines = m.readDrawing({ size: '180\n220', elements: '{"type":"rect","w":5,"h":5}\n{"type":"circle","r":3}' });
+    assert.deepEqual([lines.w, lines.h, lines.elements.map((e) => e.type)], [180, 220, ['rect', 'circle']], 'a drawing an older page stored as lines still reads');
+    const one = m.readDrawing({ symbols: '{"name":"k","shapes":[{"type":"circle","r":2}]}', elements: '{"type":"use","use":"k"}' });
+    assert.deepEqual([one.symbols.size, one.elements.length, m.shapeCount(one)], [1, 1, 2], 'one line of one symbol, one element: a list of one');
 
     const html = quietly(() => m.renderToStaticMarkup(m.createElement(m.DrawingView, { drawing: d, identity: 'a' })));
     assert.ok(html.startsWith('<svg') && html.includes('viewBox="0 0 200 100"') && html.includes('aria-label="Kropka"'), 'an svg in its own space, described');

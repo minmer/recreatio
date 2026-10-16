@@ -186,7 +186,22 @@ export const Field = {
   SeatOwnName: 'seat_own_name',
   ClaimHolderName: 'claim_holder_name',
   ClaimAskName: 'claim_ask_name',
-  ClaimHostWrap: 'claim_host_wrap'
+  ClaimHostWrap: 'claim_host_wrap',
+
+  /*
+   * 0109 — COGITA: eine Datei der Bibliothek unter dem Schlüssel ihres
+   * Bereichs; ein Stapel Antworten unter seinem Zufallsschlüssel — und dieser
+   * für den Lernenden und für die Annahme des Speicherbereichs (wie ein
+   * Formular sein Amt erreicht); eine Sitzung (Titel, Ereignisse, der Schlüssel
+   * für einen Platz); was ein Gerät für das Lernen ohne Netz behält.
+   */
+  LibraryFile: 'library_file',
+  LearnBatch: 'learn_batch',
+  LearnKey: 'learn_key',
+  CogitaSession: 'cogita_session',
+  CogitaEvent: 'cogita_event',
+  CogitaSeatKey: 'cogita_seat_key',
+  CogitaOffline: 'cogita_offline'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

@@ -25,7 +25,7 @@ namespace Api;
 /// (<see cref="PublishedOneAsync"/>).
 /// </para>
 /// </summary>
-public static class Library
+public static partial class Library
 {
     private const int MaxName = 4096;
     private const long MaxSealed = 4L * 1024 * 1024;
@@ -56,6 +56,9 @@ public static class Library
         /* Ohne Konto — das ist der Zweck: wer die Predigt liest, sieht ihre Quellen. */
         app.MapGet("/library/{id:guid}/published", PublishedListAsync);
         app.MapGet("/library/{id:guid}/published/{entryId:guid}", PublishedOneAsync);
+
+        /* 0109 — Fassungen, versiegelte Dateien, Lesen über einen Platz oder Link (Library.Cogita.cs). */
+        MapCogita(app);
     }
 
     /* -- Prüfen, was hereinkommt ---------------------------------------------------------- */
@@ -260,7 +263,7 @@ public static class Library
     /// Veröffentlichten. Seiten, die einen ihrer Texte zeigten, sagen danach,
     /// dass er nicht mehr da ist.
     /// </summary>
-    private static async Task DeleteAsync(HttpContext ctx, Db db, Guid id)
+    private static async Task DeleteAsync(HttpContext ctx, Db db, IConfiguration config, Guid id)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
@@ -273,6 +276,11 @@ public static class Library
             DELETE FROM app.library_public_ref
              WHERE entry_id IN (SELECT id FROM app.library_entry WHERE library_id = @id)
                 OR ref_id   IN (SELECT id FROM app.library_entry WHERE library_id = @id);
+            DELETE FROM app.library_entry_version WHERE entry_id IN (SELECT id FROM app.library_entry WHERE library_id = @id);
+            DELETE FROM app.library_file WHERE library_id = @id;
+            DELETE FROM app.learn_batch WHERE library_id = @id;
+            DELETE FROM app.learn_due WHERE library_id = @id;
+            UPDATE app.cogita_session SET library_id = NULL WHERE library_id = @id;
             DELETE FROM app.library_entry WHERE library_id = @id;
             DELETE FROM app.library WHERE id = @id;
             """, connection, tx))
@@ -281,6 +289,9 @@ public static class Library
             await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
         }
         await tx.CommitAsync(ctx.RequestAborted);
+
+        /* 0109 — die versiegelten Dateien der Bibliothek liegen in ihrem eigenen Ordner. */
+        DropFiles(config, id);
 
         await ctx.Response.WriteAsJsonAsync(new { libraryId = Ids.ToText(id), deleted = true });
     }
@@ -295,23 +306,35 @@ public static class Library
     /// </summary>
     private static async Task EntriesAsync(HttpContext ctx, Db db, Guid id, string? since)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
-        DateTimeOffset? from = null;
-        if (!string.IsNullOrWhiteSpace(since))
+        if (!SinceOf(since, out var from))
         {
-            if (!DateTimeOffset.TryParse(since, out var parsed))
-            {
-                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny stan.");
-                return;
-            }
-            from = parsed.AddSeconds(-2);
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny stan.");
+            return;
         }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
-        if (await AllowedAsync(ctx, connection, who.Value.AccountId, id, Capability.Read) is null) return;
 
+        /* 0109 — lesen darf auch ein Link mit Zugang (der Rufer): wer einen Kurs liest, braucht kein Konto. */
+        var caller = await Callers.OfAsync(ctx, db, connection);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+        if (await ReadableAsync(ctx, connection, caller, id) is null) return;
+
+        await WriteEntriesAsync(ctx, connection, id, from);
+    }
+
+    /// <summary>`since` gelesen — zwei Sekunden früher, damit Gleichzeitiges nicht durchfällt; leer: alles.</summary>
+    private static bool SinceOf(string? since, out DateTimeOffset? from)
+    {
+        from = null;
+        if (string.IsNullOrWhiteSpace(since)) return true;
+        if (!DateTimeOffset.TryParse(since, out var parsed)) return false;
+        from = parsed.AddSeconds(-2);
+        return true;
+    }
+
+    /// <summary>Die Einträge (oder was sich seit <paramref name="from"/> geändert hat) — für Konto, Link und Platz dieselbe Antwort.</summary>
+    private static async Task WriteEntriesAsync(HttpContext ctx, SqlConnection connection, Guid id, DateTimeOffset? from)
+    {
         var now = DateTimeOffset.UtcNow;
         await using var cmd = new SqlCommand($"""
             SELECT id, kind, epoch, sealed, version, created_at, updated_at, deleted_at, published_at, published_as
@@ -423,15 +446,34 @@ public static class Library
         }
 
         var now = DateTimeOffset.UtcNow;
+
+        /*
+         * 0109 — DIE FASSUNGEN [N9]: was jetzt überschrieben wird, bleibt als
+         * Fassung stehen, mit dem Konto, das es geschrieben hatte. Wiederhergestellt
+         * wird im Browser — er öffnet die alte Hülle und speichert sie als neue.
+         */
+        if (had is not null)
+        {
+            await using var keep = new SqlCommand("""
+                INSERT INTO app.library_entry_version (entry_id, version, kind, epoch, sealed, written_at, written_by_account_id)
+                SELECT id, version, kind, epoch, sealed, updated_at, written_by_account_id
+                  FROM app.library_entry
+                 WHERE id = @id AND sealed IS NOT NULL
+                   AND NOT EXISTS (SELECT 1 FROM app.library_entry_version v WHERE v.entry_id = @id AND v.version = app.library_entry.version);
+                """, connection, tx);
+            keep.Parameters.AddWithValue("@id", entryId);
+            await keep.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
         await using (var save = new SqlCommand(had is null
             ? """
-              INSERT INTO app.library_entry (id, library_id, kind, epoch, sealed, version, created_at, updated_at)
-              VALUES (@id, @library, @kind, @epoch, @sealed, 1, @now, @now);
+              INSERT INTO app.library_entry (id, library_id, kind, epoch, sealed, version, created_at, updated_at, written_by_account_id)
+              VALUES (@id, @library, @kind, @epoch, @sealed, 1, @now, @now, @account);
               """
             : """
               UPDATE app.library_entry
                  SET kind = @kind, epoch = @epoch, sealed = @sealed, version = version + 1,
-                     updated_at = @now, deleted_at = NULL
+                     updated_at = @now, deleted_at = NULL, written_by_account_id = @account
                WHERE id = @id;
               """, connection, tx))
         {
@@ -441,6 +483,7 @@ public static class Library
             save.Parameters.AddWithValue("@epoch", body.Epoch);
             save.Parameters.AddBlob("@sealed", sealedBytes);
             save.Parameters.AddWithValue("@now", now);
+            save.Parameters.AddWithValue("@account", who.Value.AccountId);
             await save.ExecuteNonQueryAsync(ctx.RequestAborted);
         }
 
@@ -463,6 +506,12 @@ public static class Library
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
         int changed;
         await using (var drop = new SqlCommand("""
+            /* 0109 — die letzte Hülle bleibt als Fassung: ein gelöschter Eintrag lässt sich wiederholen. */
+            INSERT INTO app.library_entry_version (entry_id, version, kind, epoch, sealed, written_at, written_by_account_id)
+            SELECT id, version, kind, epoch, sealed, updated_at, written_by_account_id
+              FROM app.library_entry
+             WHERE id = @entry AND library_id = @library AND sealed IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM app.library_entry_version v WHERE v.entry_id = @entry AND v.version = app.library_entry.version);
             DELETE FROM app.library_public_ref WHERE entry_id = @entry OR ref_id = @entry;
             UPDATE app.library_entry
                SET sealed = NULL, deleted_at = @now, updated_at = @now, version = version + 1,

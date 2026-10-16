@@ -322,7 +322,10 @@ public static partial class Form
         Guid? ResourceId = null, string? ResourceName = null,
 
         /* 0102 — „Przeczytaj wiadomości": welche Rozmowy (all | seat | area | channel), an welchem Bereich, und wie er heisst. */
-        string? ChatKind = null, Guid? ChatAreaId = null, string? ChatAreaName = null);
+        string? ChatKind = null, Guid? ChatAreaId = null, string? ChatAreaName = null,
+
+        /* 0109 — „Naucz się": welche Bibliothek (und welche Wiederholung darin), bis zu welcher Kenntnis (0–1). */
+        Guid? LearnLibraryId = null, Guid? LearnRevisionId = null, double? LearnThreshold = null);
 
     /// <summary>0099 — eine Funktion in den Terminen einer Aufgabe; die Beschriftung versiegelt.</summary>
     private sealed record DutyRow(Guid Id, int Position, Guid AreaId, int Epoch, byte[] Label, int? Capacity);
@@ -351,6 +354,12 @@ public static partial class Form
             kind = s.ChatKind ?? "all",
             areaId = s.ChatAreaId is { } chatArea ? Ids.ToText(chatArea) : null,
             areaName = s.ChatAreaName
+        },
+        learn = s.Kind != "learn" ? null : new
+        {
+            libraryId = s.LearnLibraryId is { } library ? Ids.ToText(library) : null,
+            revisionId = s.LearnRevisionId is { } revision ? Ids.ToText(revision) : null,
+            threshold = s.LearnThreshold ?? 0.8
         },
         task = s.Plan is null ? null : new
         {
@@ -390,7 +399,8 @@ public static partial class Form
             SELECT id, position, area_id, epoch, label_sealed, help_sealed, done_by, visible_to_person, due_at,
                    kind, starts_on, ends_on, schedule, weekdays, at_minute, minutes, needed, show_from, report_until,
                    item_id, presence, resource_id, (SELECT x.name FROM app.resource x WHERE x.id = form_step.resource_id),
-                   chat_kind, chat_area_id, (SELECT x.name FROM app.area x WHERE x.id = form_step.chat_area_id)
+                   chat_kind, chat_area_id, (SELECT x.name FROM app.area x WHERE x.id = form_step.chat_area_id),
+                   learn_library_id, learn_revision_id, learn_threshold
             FROM app.form_step
             WHERE module_id = @m {(personOnly ? "AND visible_to_person = 1" : "")}
             ORDER BY position;
@@ -420,7 +430,10 @@ public static partial class Form
                     ResourceName = reader.IsDBNull(22) ? null : reader.GetString(22),
                     ChatKind = reader.IsDBNull(23) ? null : reader.GetString(23),
                     ChatAreaId = reader.IsDBNull(24) ? null : reader.GetGuid(24),
-                    ChatAreaName = reader.IsDBNull(25) ? null : reader.GetString(25)
+                    ChatAreaName = reader.IsDBNull(25) ? null : reader.GetString(25),
+                    LearnLibraryId = reader.IsDBNull(26) ? null : reader.GetGuid(26),
+                    LearnRevisionId = reader.IsDBNull(27) ? null : reader.GetGuid(27),
+                    LearnThreshold = reader.IsDBNull(28) ? null : reader.GetDouble(28)
                 });
             }
         }
@@ -563,7 +576,10 @@ public static partial class Form
         string? ResourceId = null,
 
         /* 0102 — „Przeczytaj wiadomości" (chat): welche Rozmowy (all | seat | area | channel), an welchem Bereich (leer: an jedem). */
-        string? ChatKind = null, string? ChatAreaId = null);
+        string? ChatKind = null, string? ChatAreaId = null,
+
+        /* 0109 — „Naucz się" (learn): die Bibliothek, wahlweise eine Wiederholung darin, und bis zu welcher Kenntnis (0–1). */
+        string? LearnLibraryId = null, string? LearnRevisionId = null, double? LearnThreshold = null);
 
     public sealed record TaskIn(
         string? StartsOn, string? EndsOn, string? Schedule, int? Weekdays, int? AtMinute, int? Minutes, int? Needed,
@@ -626,7 +642,8 @@ public static partial class Form
         }
 
         var parsed = new List<(Guid Id, int Epoch, byte[] Label, byte[]? Help, string DoneBy, bool Visible, DateTimeOffset? Due, TaskPlan? Plan,
-            List<(Guid Id, byte[] Label, int? Capacity)> Duties, Guid? Resource, (string Kind, Guid? Area)? Chat)>();
+            List<(Guid Id, byte[] Label, int? Capacity)> Duties, Guid? Resource, (string Kind, Guid? Area)? Chat,
+            (Guid Library, Guid? Revision, double Threshold)? Learn)>();
 
         foreach (var one in given)
         {
@@ -704,7 +721,7 @@ public static partial class Form
                 }
 
                 plan = read;
-                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), read.DoneBy, true, null, plan, duties, null, null));
+                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), read.DoneBy, true, null, plan, duties, null, null, null));
                 continue;
             }
 
@@ -726,7 +743,7 @@ public static partial class Form
                     await Fail(ctx, StatusCodes.Status400BadRequest, "Wybierz zasób, przy którym osoba wybiera termin.");
                     return;
                 }
-                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), "person", true, one.DueAt, null, [], resource, null));
+                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), "person", true, one.DueAt, null, [], resource, null, null));
                 continue;
             }
 
@@ -754,7 +771,56 @@ public static partial class Form
                     }
                     chatArea = a;
                 }
-                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), "person", true, null, null, [], null, (chatKind, chatArea)));
+                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), "person", true, null, null, [], null, (chatKind, chatArea), null));
+                continue;
+            }
+
+            /*
+             * 0109 — „NAUCZ SIĘ" [L5, P09]: erledigt, wenn die Kenntnis des Menschen in
+             * dieser Bibliothek (oder dieser Wiederholung) die Schwelle erreicht. Die
+             * Kenntnis rechnet sein Browser — der Dienst sieht sie nicht; die Kanzlei
+             * liest die Antworten im Bereich, in den sie gehen. Wer den Schritt anlegt,
+             * muss die Bibliothek lesen dürfen.
+             */
+            if ((one.Kind ?? "mark").Trim().ToLowerInvariant() == "learn")
+            {
+                Guid? libraryArea = null;
+                if (Guid.TryParse(one.LearnLibraryId, out var learnLibrary))
+                {
+                    await using var find = new SqlCommand("SELECT area_id FROM app.library WHERE id = @id;", connection);
+                    find.Parameters.AddWithValue("@id", learnLibrary);
+                    libraryArea = await find.ExecuteScalarAsync(ctx.RequestAborted) as Guid?;
+                }
+                if (libraryArea is null || !await Area.MayAsync(connection, who.Value.AccountId, libraryArea.Value, Capability.Read, ctx.RequestAborted))
+                {
+                    await Fail(ctx, StatusCodes.Status400BadRequest, "Wybierz bibliotekę, z której osoba ma się nauczyć.");
+                    return;
+                }
+                Guid? learnRevision = null;
+                if (!string.IsNullOrWhiteSpace(one.LearnRevisionId))
+                {
+                    if (!Guid.TryParse(one.LearnRevisionId, out var revision))
+                    {
+                        await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna powtórka.");
+                        return;
+                    }
+                    await using var entry = new SqlCommand("SELECT 1 FROM app.library_entry WHERE id = @id AND library_id = @library AND deleted_at IS NULL;", connection);
+                    entry.Parameters.AddWithValue("@id", revision);
+                    entry.Parameters.AddWithValue("@library", learnLibrary);
+                    if (await entry.ExecuteScalarAsync(ctx.RequestAborted) is null)
+                    {
+                        await Fail(ctx, StatusCodes.Status400BadRequest, "Tej powtórki nie ma w wybranej bibliotece.");
+                        return;
+                    }
+                    learnRevision = revision;
+                }
+                var threshold = one.LearnThreshold ?? 0.8;
+                if (double.IsNaN(threshold) || threshold < 0 || threshold > 1)
+                {
+                    await Fail(ctx, StatusCodes.Status400BadRequest, "Próg: od 0 do 100%.");
+                    return;
+                }
+                parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), "person", true, one.DueAt, null, [], null, null, (learnLibrary, learnRevision, threshold)));
                 continue;
             }
 
@@ -767,7 +833,7 @@ public static partial class Form
 
             /* Was der Mensch abhaken soll, muss er sehen. */
             parsed.Add((stepId, one.Epoch, label, Optional(one.HelpSealed), doneBy,
-                doneBy == "person" || one.VisibleToPerson, one.DueAt, null, [], null, null));
+                doneBy == "person" || one.VisibleToPerson, one.DueAt, null, [], null, null, null));
         }
 
         if (parsed.Select(p => p.Id).Distinct().Count() != parsed.Count)
@@ -815,17 +881,20 @@ public static partial class Form
                                kind = @kind, starts_on = @starts, ends_on = @ends, schedule = @schedule, weekdays = @weekdays,
                                at_minute = @at, minutes = @minutes, needed = @needed, show_from = @showFrom, report_until = @reportUntil,
                                item_id = @item, presence = @presence, resource_id = @resource,
-                               chat_kind = @chatKind, chat_area_id = @chatArea
+                               chat_kind = @chatKind, chat_area_id = @chatArea,
+                               learn_library_id = @learnLibrary, learn_revision_id = @learnRevision, learn_threshold = @learnThreshold
                          WHERE id = @id AND module_id = @m;
                     ELSE
                         INSERT INTO app.form_step
                             (id, module_id, position, area_id, epoch, label_sealed, help_sealed,
                              done_by, visible_to_person, due_at, created_at,
                              kind, starts_on, ends_on, schedule, weekdays, at_minute, minutes, needed, show_from, report_until,
-                             item_id, presence, resource_id, chat_kind, chat_area_id)
+                             item_id, presence, resource_id, chat_kind, chat_area_id,
+                             learn_library_id, learn_revision_id, learn_threshold)
                         VALUES (@id, @m, @pos, @area, @epoch, @label, @help, @doneBy, @visible, @due, @now,
                                 @kind, @starts, @ends, @schedule, @weekdays, @at, @minutes, @needed, @showFrom, @reportUntil,
-                                @item, @presence, @resource, @chatKind, @chatArea);
+                                @item, @presence, @resource, @chatKind, @chatArea,
+                                @learnLibrary, @learnRevision, @learnThreshold);
 
                     /* 0098 — Tage, die nach einem geänderten Plan nicht mehr dazugehören, gehen
                        (1900-01-01 war ein Montag: so ergibt sich das Bit des Wochentags ohne DATEFIRST). */
@@ -856,7 +925,10 @@ public static partial class Form
 
                 var plan = one.Plan;
                 object Day(DateOnly? d) => d is null ? DBNull.Value : d.Value.ToDateTime(TimeOnly.MinValue);
-                save.Parameters.AddWithValue("@kind", one.Chat is not null ? "chat" : one.Resource is not null ? "booking" : plan is null ? "mark" : "task");
+                save.Parameters.AddWithValue("@kind", one.Learn is not null ? "learn" : one.Chat is not null ? "chat" : one.Resource is not null ? "booking" : plan is null ? "mark" : "task");
+                save.Parameters.Add("@learnLibrary", System.Data.SqlDbType.UniqueIdentifier).Value = (object?)one.Learn?.Library ?? DBNull.Value;
+                save.Parameters.Add("@learnRevision", System.Data.SqlDbType.UniqueIdentifier).Value = (object?)one.Learn?.Revision ?? DBNull.Value;
+                save.Parameters.Add("@learnThreshold", System.Data.SqlDbType.Float).Value = (object?)one.Learn?.Threshold ?? DBNull.Value;
                 save.Parameters.AddWithValue("@chatKind", (object?)one.Chat?.Kind ?? DBNull.Value);
                 save.Parameters.Add("@chatArea", System.Data.SqlDbType.UniqueIdentifier).Value = (object?)one.Chat?.Area ?? DBNull.Value;
                 save.Parameters.Add("@resource", System.Data.SqlDbType.UniqueIdentifier).Value = (object?)one.Resource ?? DBNull.Value;
@@ -1000,7 +1072,7 @@ public static partial class Form
             SELECT COUNT(*)
             FROM app.form_step s
             JOIN app.registration r ON r.part_id = s.module_id
-            WHERE s.id = @step AND r.id = @reg AND s.kind = N'mark'
+            WHERE s.id = @step AND r.id = @reg AND {(personOnly ? "s.kind IN (N'mark', N'learn')" : "s.kind = N'mark'")}
               {(personOnly ? "AND s.done_by = N'person' AND r.access_id = @seat AND r.withdrawn_at IS NULL" : "")};
             """, connection))
         {

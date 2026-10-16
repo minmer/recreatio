@@ -46,6 +46,10 @@ builder.Services.AddSingleton<Push>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Push>());
 builder.Services.AddHostedService<ChatDelivery>();
 
+/* 0109 — Cogita: der Hub der Sitzungen (WebSocket, sonst fragt der Browser selbst) und der Takt der Spiele. */
+builder.Services.AddSignalR(options => { options.MaximumReceiveMessageSize = 64 * 1024; });
+builder.Services.AddHostedService<CogitaClock>();
+
 /*
  * Browser und Dienst liegen auf verschiedenen Herkünften, und die Sitzung reist
  * im Keks. Ohne `AllowCredentials` schickt der Browser ihn nicht mit — und ohne
@@ -141,6 +145,10 @@ Names.Map(app);
 /* 0064 — die Bibliothek: Werke, Zitate, Personen, Themen und die eigenen Texte. */
 Library.Map(app);
 LibraryCatalog.Map(app);
+
+/* 0109 — Cogita: Antworten und Kenntnis (versiegelt, an die Annahme), direkt veröffentlichte Bausteine, Sitzungen, Spiele. */
+Cogita.Map(app);
+app.MapHub<CogitaHub>("/cogita/hub");
 
 /* 0067 — Powiadomienia: was neu ist, als Zahlen; Geräte für die App im Hintergrund. */
 Notify.Map(app);
