@@ -217,8 +217,8 @@ function personLines(roles: readonly IdentityRole[]): { lines: string[]; warning
   const has = (r: IdentityRole) => roles.includes(r);
   const lines: string[] = [];
   const warnings: string[] = [];
-  const named = (has('given_name') && has('surname')) || has('name');
-  const who = (['given_name', 'surname', 'name'] as const).filter(has).map((r) => (r === 'name' ? 'Nazwisko' : IDENTITY_LABEL[r]));
+  const named = has('given_name') && has('surname');
+  const who = (['given_name', 'surname'] as const).filter(has).map((r) => IDENTITY_LABEL[r]);
   if (named) lines.push(`osoba: ${who.join(', ')} — jej podpis w rozmowach i na listach`);
   else warnings.push('brak pól Imię i Nazwisko — osoba nie będzie miała nazwy (rozmowy, listy)');
   const reach = (['phone', 'email'] as const).filter(has).map((r) => IDENTITY_LABEL[r]);

@@ -80,7 +80,7 @@ public static partial class Chat
         var actor = await ActorAsync(ctx, db, c, id);
         if (actor is null) return;
         if (!actor.Moderates) { await Fail(ctx, 403, "Tylko prowadzący zmienia zasady rozmowy."); return; }
-        if (body.PostingPolicy is not ("legacy" or "members" or "writers")) { await Fail(ctx, 400, "Nieznana zasada."); return; }
+        if (body.PostingPolicy is not ("members" or "writers")) { await Fail(ctx, 400, "Nieznana zasada."); return; }
         /* 0080 — in der Rozmowa des Bereichs schreiben alle, im Kanał die Schreibenden: das sagt die Art, nicht eine Zasada. */
         if (ChatRules.FixedPolicy(actor.Chat.Kind))
         {
@@ -89,7 +89,7 @@ public static partial class Chat
             return;
         }
         await using var cmd = new SqlCommand("UPDATE app.chat SET posting_policy = @policy WHERE id = @id;", c);
-        cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@policy", ChatRules.Explicit(actor.Chat.Kind, body.PostingPolicy));
+        cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@policy", body.PostingPolicy);
         await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
         await ctx.Response.WriteAsJsonAsync(new { saved = true });
     }

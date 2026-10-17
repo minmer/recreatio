@@ -28,7 +28,7 @@ import { WorkspaceError, type Who } from '../core/session';
 import { Unlock } from '../shell/Unlock';
 import { Loading } from '../ui/Loading';
 import { DOTS, NODE_TYPES, type NodeData } from './RoleNode';
-import { AccountPanel, HandOverBar, Panel } from './RolePanels';
+import { AccountPanel, Panel } from './RolePanels';
 
 /**
  * Wohin jemand die Knoten geschoben hat — je Konto, in DIESEM Browser.
@@ -136,10 +136,7 @@ export function RoleGraph({ who }: { who: Who }) {
       // damit Namen.
       const { ring: bund, graph } = await keysFor(who);
 
-      /*
-       * Das Konto heisst „Konto", was immer vor 0040 darunter versiegelt
-       * wurde — auch dort, wo es als Halter einer Person genannt wird.
-       */
+      /* Das Konto heisst „Konto" — auch dort, wo es als Halter einer Person genannt wird. */
       const opened = new Map(bund === null ? [] : await bund.names());
       if (graph.personRoleId !== null) opened.set(graph.personRoleId, 'Konto');
 
@@ -208,8 +205,7 @@ export function RoleGraph({ who }: { who: Who }) {
         data: {
           label: role.isPersonal ? 'Konto'
             : names.get(role.id) ?? (ring?.has(role.id) === true ? 'bez nazwy' : 'zapieczętowane'),
-          /* Am Zeiger erkannt, nicht an der Art: was der Dienst vor 0040
-             anlegte, trägt noch `person`. */
+          /* Am Zeiger erkannt: die Wurzel des Kontos (0040). */
           kind: role.isPersonal ? 'account' : role.kind,
           personal: role.isPersonal,
           locked: ring?.has(role.id) !== true
@@ -323,10 +319,6 @@ export function RoleGraph({ who }: { who: Who }) {
         trzymane — pociągnij ją, żeby przekazać rolę dalej.
       </p>
 
-      {ring !== null && (
-        <HandOverBar ring={ring} graph={data} names={names} onDone={() => { forgetKeys(); void look(); }} />
-      )}
-
       {/*
         DIE LEGENDE GEHÖRT NEBEN DEN GRAPHEN, nicht in eine Hilfe. Drei Farben
         ohne Erklärung sind drei Rätsel, und wer gerade ziehen will, schlägt
@@ -365,21 +357,6 @@ export function RoleGraph({ who }: { who: Who }) {
           Ułóż od nowa
         </button>
       </p>
-
-      {/*
-        WAS DIE STUFEN HEUTE SIND, ehrlich gesagt. Für Rollen, die noch in der
-        alten Form liegen (`keyLayout === 0`), öffnet EIN Schlüssel alles —
-        dort sind „pisze" und „czyta" Hausregeln und keine Schranke. Das zu
-        verschweigen hiesse, eine Sicherheit zu behaupten, die für diese Rollen
-        nicht gilt.
-      */}
-      {data.roles.some((r) => r.keyLayout === 0) && (
-        <p className="wk-note">
-          Część ról powstała, zanim rozdzielono czytanie od podpisywania. Dla nich
-          „pisze" i „czyta" są ustaleniem, nie zamkiem — kto je czyta, może też
-          działać w ich imieniu. Nowe role nie mają już tego problemu.
-        </p>
-      )}
 
       {ring === null && (
         <Unlock

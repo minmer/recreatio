@@ -194,7 +194,7 @@ public static partial class Bookings
         Guid Id, Guid ResourceId, DateTimeOffset StartsAt, DateTimeOffset EndsAt,
         Guid? ItemId, DateTimeOffset? OccurrenceAt, Guid? AccessId, Guid? RoleId, Guid GroupId,
         string Status, string? Awaits, byte[]? InviteSha256, DateTimeOffset? InviteUntil,
-        byte[]? InviteSealed, string? HolderName,
+        byte[]? InviteSealed,
 
         /* Wann der Erste ja gesagt hat — NULL: er entscheidet noch (0050). */
         DateTimeOffset? HostConfirmedAt = null,
@@ -217,7 +217,7 @@ public static partial class Bookings
 
     private const string ClaimColumns = """
         id, resource_id, starts_at, ends_at, item_id, occurrence_at, access_id, role_id,
-        group_id, status, awaits, invite_sha256, invite_until, invite_sealed, holder_name,
+        group_id, status, awaits, invite_sha256, invite_until, invite_sealed,
         host_confirmed_at, created_at,
         holder_name_sealed, holder_name_epoch, holder_name_wrapped, ask_name_sealed, host_wrap_public, host_wrap_private_sealed
         """;
@@ -233,15 +233,14 @@ public static partial class Bookings
         r.IsDBNull(11) ? null : (byte[])r[11],
         r.IsDBNull(12) ? null : r.GetDateTimeOffset(12),
         r.IsDBNull(13) ? null : (byte[])r[13],
-        r.IsDBNull(14) ? null : r.GetString(14),
+        r.IsDBNull(14) ? null : r.GetDateTimeOffset(14),
         r.IsDBNull(15) ? null : r.GetDateTimeOffset(15),
-        r.IsDBNull(16) ? null : r.GetDateTimeOffset(16),
-        r.IsDBNull(17) ? null : (byte[])r[17],
-        r.IsDBNull(18) ? null : r.GetInt32(18),
+        r.IsDBNull(16) ? null : (byte[])r[16],
+        r.IsDBNull(17) ? null : r.GetInt32(17),
+        r.IsDBNull(18) ? null : (byte[])r[18],
         r.IsDBNull(19) ? null : (byte[])r[19],
         r.IsDBNull(20) ? null : (byte[])r[20],
-        r.IsDBNull(21) ? null : (byte[])r[21],
-        r.IsDBNull(22) ? null : (byte[])r[22]);
+        r.IsDBNull(21) ? null : (byte[])r[21]);
 
     /// <summary>
     /// ZAEHLT GEGEN DIE GRENZE?
@@ -280,16 +279,8 @@ public static partial class Bookings
         c.InviteSha256 is not null && !SaidYes(c)
         && c.InviteUntil is not null && c.InviteUntil > now;
 
-    /// <summary>
-    /// HAT ER JA GESAGT? Mit Zeitpunkt — oder nach der alten Regel: ein
-    /// Fenster, das beim Nehmen gleich Stunden lang war, hat ein Dienst von
-    /// vor 0050 gesetzt (etwa zwischen der Umstellung der Datenbank und der
-    /// des Dienstes). Solche Gastgeber wurden nie gefragt und bleiben es.
-    /// </summary>
-    private static bool SaidYes(ClaimRow c) =>
-        c.HostConfirmedAt is not null
-        || (c.InviteUntil is not null && c.CreatedAt is not null
-            && c.InviteUntil.Value - c.CreatedAt.Value > TimeSpan.FromMinutes(HostDecisionMinutes + 5));
+    /// <summary>HAT ER JA GESAGT? Mit Zeitpunkt (0050; die Gastgeber von davor trägt 0112 nach).</summary>
+    private static bool SaidYes(ClaimRow c) => c.HostConfirmedAt is not null;
 
     /// <summary>Haelt gerade jemand die freien Plaetze — mit seinem Fenster oder seiner Bedenkzeit?</summary>
     private static bool HostWindowOpen(IEnumerable<ClaimRow> claims, DateTimeOffset now) =>

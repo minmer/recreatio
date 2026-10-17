@@ -40,8 +40,8 @@ export interface LibraryRow {
   readonly entries: number;
   readonly published: number;
   readonly writes: boolean;
-  /** 0110 — fehlt beim alten Dienst: dann eine Bibliothek. */
-  readonly kind?: LibraryKind;
+  /** 0110 — Bibliothek (`books`) oder Baza wiedzy (`knowledge`). */
+  readonly kind: LibraryKind;
 }
 
 export const libraryKindOf = (row: { readonly kind?: string | null }): LibraryKind => (row.kind === 'knowledge' ? 'knowledge' : 'books');

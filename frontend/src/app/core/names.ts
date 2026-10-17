@@ -45,7 +45,7 @@ export const hostWrapAad = (claimId: string): Aad => aad('claim', 'host_wrap', c
 
 /* -- Was über die Leitung kommt ------------------------------------------------------------------ */
 
-/** Ein versiegelter Name mit seiner Epoche — und, bei einem alten, der Klartext, bis er versiegelt ist. */
+/** Ein versiegelter Name mit seiner Epoche. */
 export interface SealedName {
   readonly nameSealed?: string | null;
   readonly nameEpoch?: number | null;
@@ -239,18 +239,15 @@ export const nameText = (text: string): string => clean(text).slice(0, 200);
 
 /* -- Ein Formular, wie es von irgendwoher kommt ------------------------------------------------- */
 
-/** Was ein Dienst über ein Formular schickt: versiegelt (unter seinem Bereich), oder — ein altes — noch offen. */
+/** Was ein Dienst über ein Formular schickt: sein Name, versiegelt unter dem Schlüssel seines Bereichs. */
 export interface FormNameIn extends SealedName {
   readonly moduleId: string;
   readonly areaId?: string | null;
-  readonly name?: string | null;
 }
 
-/** Der Name eines Formulars, geöffnet — oder der offene eines alten — oder der Ersatz. */
-export async function openFormName(form: FormNameIn, fallback = 'Formularz'): Promise<string> {
-  if (form.nameSealed != null) return (await openName(form.areaId, form, moduleNameAad(form.moduleId))) ?? fallback;
-  return form.name?.trim() || fallback;
-}
+/** Der Name eines Formulars, geöffnet — oder der Ersatz. */
+export const openFormName = async (form: FormNameIn, fallback = 'Formularz'): Promise<string> =>
+  (await openName(form.areaId, form, moduleNameAad(form.moduleId))) ?? fallback;
 
 /** Dasselbe für eine Liste: \`name\` geöffnet, der Rest bleibt. */
 export const openFormNames = <T extends FormNameIn>(forms: readonly T[], fallback?: string): Promise<(T & { readonly name: string })[]> =>
@@ -258,20 +255,16 @@ export const openFormNames = <T extends FormNameIn>(forms: readonly T[], fallbac
 
 /* -- Ein Mensch an einem Platz, wie er von irgendwoher kommt ------------------------------------------ */
 
-/** Was ein Dienst über einen Platz schickt: der Name versiegelt unter dem Schlüssel seines Bereichs, oder — ein alter — noch offen. */
+/** Was ein Dienst über einen Platz schickt: der Name versiegelt unter dem Schlüssel seines Bereichs. */
 export interface SeatNameIn extends SealedName {
   readonly seatId: string;
   /** Der Bereich des Platzes — unter seinem Schlüssel liegt die Kopie für die Kanzlei. */
   readonly areaId?: string | null;
-  readonly name?: string | null;
-  readonly recipientName?: string | null;
 }
 
-/** Wie der Mensch an diesem Platz heisst — geöffnet, oder der offene Name eines alten, oder `null`. */
-export async function openSeatName(seat: SeatNameIn): Promise<string | null> {
-  if (seat.nameSealed != null) return openName(seat.areaId, seat, seatNameAad(seat.seatId));
-  return (seat.name ?? seat.recipientName)?.trim() || null;
-}
+/** Wie der Mensch an diesem Platz heisst — geöffnet, oder `null`. */
+export const openSeatName = (seat: SeatNameIn): Promise<string | null> =>
+  openName(seat.areaId, seat, seatNameAad(seat.seatId));
 
 /** Der Schlüsselbund dieses Tabs — oder `null` (niemand angemeldet, oder der Bund ist zu). */
 export const ringOrNull = (): Promise<Ring | null> => ringNow(current());

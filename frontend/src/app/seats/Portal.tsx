@@ -93,12 +93,6 @@ const SEED: readonly { kind: string; rowSpan: number; config: Record<string, str
     rowSpan: 3,
     config: { title: 'Twoje zgłoszenie' }
   },
-  {
-    /* Und der Rückweg: was die Kanzlei diesem einen Menschen schreibt. */
-    kind: 'seat-note',
-    rowSpan: 2,
-    config: { title: 'Od kancelarii' }
-  }
 ];
 
 /**

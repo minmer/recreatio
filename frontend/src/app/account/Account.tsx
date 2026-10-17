@@ -31,8 +31,7 @@ import { forget as forgetState } from '../core/prefs';
 import { keysFor } from '../core/ringOf';
 import { myRoleNames } from '../roles/roleNames';
 import { selfOf } from '../roles/roles';
-import { loadMySeats, openMine as openMySeat, type MySeat } from '../seats/seat';
-import { sealLegacyNames, unsealedCount } from '../core/nameSeal';
+import { loadMySeats, type MySeat } from '../seats/seat';
 import { plural } from '../core/plural';
 import { PasswordInput } from '../ui/PasswordInput';
 import { useCrumbs } from '../shell/crumbTrail';
@@ -235,13 +234,6 @@ function AccountPage({ who }: { who: Who }) {
 function SecurityPage({ who }: { who: Who }) {
   useCrumbs([{ label: 'Bezpieczeństwo i klucze', href: null }]);
   const { mode, devices, here, busy, failed, choose, forget } = useKeeping(who);
-  const [ring, setRing] = useState<Ring | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    void keysFor(who).then(({ ring: bund }) => { if (alive) setRing(bund); }).catch(() => undefined);
-    return () => { alive = false; };
-  }, [who]);
 
   /* Geräte ohne Namen: dieses, und die anderen nach dem Tag, an dem sie dazukamen. */
   const ordered = [...devices].sort((a, b) => (a.deviceId === here ? -1 : b.deviceId === here ? 1 : a.createdAt.localeCompare(b.createdAt)));
@@ -301,57 +293,7 @@ function SecurityPage({ who }: { who: Who }) {
         <p className="wk-hint">Zapomniane urządzenie nie jest wylogowane — przy następnym otwarciu zapyta o hasło.</p>
       </section>
 
-      {ring !== null && <SealNames ring={ring} />}
     </div>
-  );
-}
-
-/* -- 0097: Namen, die noch offen dastehen ------------------------------------------ */
-
-/**
- * NAZWY — NIGDY JAWNIE. Nazwy formularzy i imiona osób leżą w bazie tylko
- * zaszyfrowane; te sprzed tej zmiany szyfruje przeglądarka, która ma klucz
- * (robi to sama przy otwarciu warsztatu). Tu widać, ile jeszcze zostało, i
- * można to zrobić od razu.
- */
-function SealNames({ ring }: { ring: Ring }) {
-  const [left, setLeft] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [said, setSaid] = useState<string | null>(null);
-
-  const look = useCallback(() => { void unsealedCount().then(setLeft, () => setLeft(null)); }, []);
-  useEffect(look, [look]);
-
-  if (left === null || (left === 0 && said === null)) return null;
-
-  const run = async () => {
-    setBusy(true);
-    setSaid(null);
-    try {
-      const done = await sealLegacyNames(ring);
-      setSaid(`Zaszyfrowano: ${done.forms} ${plural(done.forms, 'nazwę formularza', 'nazwy formularzy', 'nazw formularzy')}, ${done.seats + done.claims} ${plural(done.seats + done.claims, 'imię osoby', 'imiona osób', 'imion osób')}.` +
-        (done.left > 0 ? ` Zostało ${done.left} — do nich ta przeglądarka nie ma klucza (albo obszar jest jawny).` : ''));
-    } catch {
-      setSaid('Nie udało się — spróbuj jeszcze raz.');
-    } finally {
-      setBusy(false);
-      look();
-    }
-  };
-
-  return (
-    <section className="wk-card" data-seal-names="">
-      <p className="wk-card-text">
-        Nazwy formularzy i imiona osób są w bazie zaszyfrowane — widzi je tylko ten, kto ma klucz obszaru.
-        {left === 0 ? ' Wszystkie, do których masz klucz, już są.' : ` Jeszcze ${left} ${plural(left, 'nazwa leży', 'nazwy leżą', 'nazw leży')} jawnie z czasów przed tą zmianą.`}
-      </p>
-      {left > 0 && (
-        <button type="button" className="wk-btn" disabled={busy} data-seal-names-run="" onClick={() => void run()}>
-          {busy ? 'Szyfrowanie…' : 'Zaszyfruj teraz'}
-        </button>
-      )}
-      {said !== null && <p className="wk-hint" role="status">{said}</p>}
-    </section>
   );
 }
 
@@ -519,23 +461,12 @@ function DeleteAccount({ who }: { who: Who }) {
  */
 function MySeats({ ring }: { ring: Ring }) {
   const [seats, setSeats] = useState<readonly MySeat[] | null>(null);
-  const [notes, setNotes] = useState<Map<string, string | null>>(new Map());
 
   useEffect(() => {
     let alive = true;
 
     void loadMySeats(ring)
-      .then(async ({ seats: found }) => {
-        if (!alive) return;
-        setSeats(found);
-
-        const opened = new Map<string, string | null>();
-        for (const seat of found) {
-          try { opened.set(seat.seatId, await openMySeat(seat, ring)); }
-          catch { opened.set(seat.seatId, null); }
-        }
-        if (alive) setNotes(opened);
-      })
+      .then(({ seats: found }) => { if (alive) setSeats(found); })
       .catch(() => { if (alive) setSeats([]); });
 
     return () => { alive = false; };
@@ -554,11 +485,6 @@ function MySeats({ ring }: { ring: Ring }) {
               <strong>{seat.areaName}</strong>
               {seat.recipientName !== null && (
                 <span className="wk-row-side"> · {seat.recipientName}</span>
-              )}
-              {notes.get(seat.seatId) != null && (
-                <p className="wk-card-text" style={{ whiteSpace: 'pre-wrap' }}>
-                  {notes.get(seat.seatId)}
-                </p>
               )}
             </span>
             <span className="wk-row-side">{seat.status === 'revoked' ? 'link wycofany' : ''}</span>

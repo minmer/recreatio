@@ -84,10 +84,8 @@ public static partial class Slug
 
         try
         {
-            await using (var drop = new SqlCommand("""
-                DELETE FROM app.slug_area WHERE slug_id = @slug;
-                UPDATE app.slug SET internal_for_role_id = NULL WHERE id = @slug;
-                """, connection, tx))
+            await using (var drop = new SqlCommand(
+                "DELETE FROM app.slug_area WHERE slug_id = @slug;", connection, tx))
             {
                 drop.Parameters.AddWithValue("@slug", slugId);
                 await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
@@ -261,85 +259,5 @@ public static partial class Slug
             await tx.RollbackAsync(ctx.RequestAborted);
             throw;
         }
-    }
-
-    public sealed record InternalRequest(string Path, string? RoleId);
-
-    /// <summary>
-    /// Eine Unteradresse einer Rolle zuordnen — oder wieder freigeben.
-    ///
-    /// <para>
-    /// <c>roleId = null</c> macht sie wieder oeffentlich. Alles andere macht
-    /// sie zu IHRER Seite: sichtbar fuer wen die Rolle haelt, fuer das Amt, das
-    /// die Adresse fuehrt, und fuer einen Platz, dem sie zugeteilt wurde.
-    /// </para>
-    ///
-    /// <para>
-    /// <b>Die genannte Rolle muss nicht die eigene sein.</b> Eine Lehrerin
-    /// ordnet `lo13/anna` Annas Rolle zu, ohne sie zu halten — sonst koennte
-    /// niemand eine Seite fuer einen anderen einrichten. Es ist auch keine
-    /// Preisgabe: die Zuordnung NIMMT Sichtbarkeit weg, sie gibt keine.
-    /// </para>
-    /// </summary>
-    private static async Task InternalAsync(HttpContext ctx, Db db, InternalRequest body)
-    {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
-        var path = Normalise(body.Path);
-
-        Guid? roleId = null;
-        if (!string.IsNullOrWhiteSpace(body.RoleId))
-        {
-            if (!Guid.TryParse(body.RoleId, out var found))
-            {
-                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung roli.");
-                return;
-            }
-            roleId = found;
-        }
-
-        await using var connection = await db.OpenAsync(ctx.RequestAborted);
-
-        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
-        if (!grip.MayWrite)
-        {
-            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego adresu nie prowadzisz.");
-            return;
-        }
-
-        // Eine Seite nur fuer ein Konto waere eine Seite fuer niemanden (0040).
-        if (roleId is not null
-            && await Workspace.IsAnyAccountAsync(connection, null, roleId.Value, ctx.RequestAborted))
-        {
-            await Fail(ctx, StatusCodes.Status409Conflict, Workspace.AccountTakesNothing);
-            return;
-        }
-
-        await using var cmd = new SqlCommand(
-            "UPDATE app.slug SET internal_for_role_id = @role WHERE path = @path;", connection);
-
-        cmd.Parameters.AddWithValue("@role", (object?)roleId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@path", path);
-
-        try
-        {
-            if (await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 0)
-            {
-                await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
-                return;
-            }
-        }
-        catch (SqlException e) when (e.Number == 547)
-        {
-            await Fail(ctx, StatusCodes.Status404NotFound, "Takiej roli nie ma.");
-            return;
-        }
-
-        await ctx.Response.WriteAsJsonAsync(new
-        {
-            path,
-            internalForRoleId = roleId is null ? null : Ids.ToText(roleId.Value)
-        });
     }
 }

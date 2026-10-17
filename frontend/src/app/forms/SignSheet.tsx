@@ -69,7 +69,7 @@ export async function openPublicForm(partId: string): Promise<OpenForm> {
     partId);
 
   /* 0097 — sein Name liegt unter demselben Schlüssel wie seine Fragen. */
-  let name = form.name ?? null;
+  let name: string | null = null;
   if (form.nameSealed != null && form.nameEpoch != null && form.nameAreaId != null) {
     const key = await reader.key(form.nameAreaId, form.nameEpoch);
     name = key === undefined ? null : await openWith(key, moduleNameAad(partId), form.nameSealed);

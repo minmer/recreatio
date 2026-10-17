@@ -68,8 +68,7 @@ public static partial class Chat
                     DELETE FROM app.chat_presence WHERE chat_id = @chat;
                     DELETE FROM app.chat_preference WHERE scope_id = @chat;
                     DELETE FROM app.chat_message_version WHERE message_id IN (SELECT id FROM app.chat_message WHERE chat_id = @chat);
-                    IF OBJECT_ID(N'app.audience_form', N'U') IS NOT NULL
-                        DELETE FROM app.audience_form WHERE subject_kind = N'chat' AND subject_id = @chat;
+                    DELETE FROM app.audience_form WHERE subject_kind = N'chat' AND subject_id = @chat;
                     DELETE FROM app.chat_read WHERE chat_id = @chat;
                     DELETE FROM app.chat_seat_key WHERE chat_id = @chat;
                     DELETE FROM app.chat_message WHERE chat_id = @chat;

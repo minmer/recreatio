@@ -84,15 +84,10 @@ export const KIND_LABEL: Record<FieldKind, string> = {
  * Programm, dass zweimal dasselbe gemeint ist. Steht es hier, dann schon: dann
  * füllt der Bogen sich aus dem, was der Mensch EINMAL angelegt hat, und eine
  * Änderung dort ist eine Änderung überall.
- *
- * <b>`name` und `contact` bleiben.</b> Sie stehen in vorhandenen Zeilen. Sie zu
- * verbieten hiesse zu raten, was gemeint war — und „Name" ist nicht dasselbe
- * wie „Vorname".
  */
 export const IDENTITY_ROLES = [
   'none',
-  'given_name', 'surname', 'nickname', 'born', 'phone', 'email', 'address',
-  'name', 'contact'
+  'given_name', 'surname', 'nickname', 'born', 'phone', 'email', 'address'
 ] as const;
 
 export type IdentityRole = (typeof IDENTITY_ROLES)[number];
@@ -105,11 +100,7 @@ export const IDENTITY_LABEL: Record<IdentityRole, string> = {
   born: 'Data urodzenia',
   phone: 'Telefon',
   email: 'E-mail',
-  address: 'Adres',
-
-  /* Was vor 0038 dastand — auswählbar bleibt es nicht, lesbar schon. */
-  name: 'Nazwisko (dawne „name")',
-  contact: 'Kontakt (dawne „contact")'
+  address: 'Adres'
 };
 
 /**
@@ -119,7 +110,7 @@ export const IDENTITY_LABEL: Record<IdentityRole, string> = {
  * einer Bitte um Mitnahme. Vorher nahm jede Stelle das ERSTE Namensfeld, und
  * bei getrennten Feldern war das der Nachname allein.
  *
- * Reihenfolge: Vor- und Nachname, sonst das alte „name", sonst der Spitzname.
+ * Reihenfolge: Vor- und Nachname, sonst der Spitzname.
  * `null`, wenn der Bogen nach keinem fragt.
  */
 export function fullNameOf(
@@ -131,13 +122,8 @@ export function fullNameOf(
     return field === undefined ? null : valueOf(field.fieldId)?.trim() || null;
   };
 
-  const full = [of('given_name'), of('surname')].filter((part) => part !== null).join(' ') || of('name');
-  return full ?? of('nickname');
+  return [of('given_name'), of('surname')].filter((part) => part !== null).join(' ') || of('nickname');
 }
-
-/** Was man heute WÄHLEN kann — die beiden alten stehen nur noch in Zeilen. */
-export const CHOOSABLE_IDENTITY: readonly IdentityRole[] =
-  IDENTITY_ROLES.filter((r) => r !== 'name' && r !== 'contact');
 
 export const labelAad = (fieldId: string) => aad('form', 'field', fieldId, Field.EventFieldLabel, 1);
 const helpAad = (fieldId: string) => aad('form', 'field', fieldId, Field.EventFieldHelp, 1);
@@ -348,9 +334,9 @@ export interface SealedField {
   /**
    * 0093 — WPISUJE TYLKO OSOBA: die Kanzlei liest die Antwort, ändert sie aber
    * nie — weder berichtigen noch an ihrer Stelle eintragen (der Dienst lehnt es
-   * ab). Fehlt beim alten Dienst.
+   * ab).
    */
-  readonly personOnly?: boolean;
+  readonly personOnly: boolean;
 
   /** Fragt der Link beim ersten Öffnen nach dieser Angabe (0046)? */
   readonly linkCheck: boolean;
@@ -452,15 +438,10 @@ export interface PublicForm {
   /** 0083 — wie es heisst (die Überschrift auf der Seite) — für den Ausdruck. */
   readonly title?: string | null;
 
-  /**
-   * 0097 — sein Name: versiegelt unter dem Schlüssel seines Bereichs (dort
-   * liegen auch seine Fragen); `name` offen nur bei einem alten, bis er
-   * versiegelt ist.
-   */
+  /** 0097 — sein Name: versiegelt unter dem Schlüssel seines Bereichs (dort liegen auch seine Fragen). */
   readonly nameAreaId?: string | null;
   readonly nameSealed?: string | null;
   readonly nameEpoch?: number | null;
-  readonly name?: string | null;
 
   /** 0083 — was nach dem Absenden dasteht, und ob ein Ausdruck unterschrieben werden muss. */
   readonly after?: AfterSend | null;

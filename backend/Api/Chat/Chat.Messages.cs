@@ -84,16 +84,15 @@ public static partial class Chat
     ///
     /// <para>
     /// Der Name ist der, den die Kanzlei am Platz fuehrt — 0097: versiegelt unter
-    /// dem Schluessel des Bereichs des Platzes (`nameSealed`), offen nur bei
-    /// einem alten, bis ihn ein Browser der Kanzlei versiegelt hat.
+    /// dem Schluessel des Bereichs des Platzes (`nameSealed`).
     /// </para>
     /// </summary>
     private static async Task<List<object>> SeatsOfAsync(SqlConnection connection, ChatRow chat, CancellationToken ct)
     {
-        var rows = new List<(Guid Id, string? Name, byte[]? Wrap, string? Via, Guid Area, byte[]? Sealed, int? Epoch)>();
+        var rows = new List<(Guid Id, byte[]? Wrap, string? Via, Guid Area, byte[]? Sealed, int? Epoch)>();
 
         await using (var cmd = new SqlCommand($"""
-            SELECT s.id, s.recipient_name, i.wrap_public_key,
+            SELECT s.id, i.wrap_public_key,
                    /* 0095 — eine Person aus einem Link: der Name des Links (in Klammern hinter ihrem). */
                    CASE WHEN s.invitation_id IS NULL THEN NULL
                         ELSE COALESCE(NULLIF(LTRIM(RTRIM((SELECT iv.label FROM app.invitation iv WHERE iv.id = s.invitation_id))), N''), N'Link') END,
@@ -111,9 +110,9 @@ public static partial class Chat
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
-                rows.Add((reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetString(1),
-                    reader.IsDBNull(2) ? null : (byte[])reader[2], reader.IsDBNull(3) ? null : reader.GetString(3),
-                    reader.GetGuid(4), reader.IsDBNull(5) ? null : (byte[])reader[5], Names.Int(reader, 6)));
+                rows.Add((reader.GetGuid(0),
+                    reader.IsDBNull(1) ? null : (byte[])reader[1], reader.IsDBNull(2) ? null : reader.GetString(2),
+                    reader.GetGuid(3), reader.IsDBNull(4) ? null : (byte[])reader[4], Names.Int(reader, 5)));
             }
         }
 
@@ -135,7 +134,6 @@ public static partial class Chat
         return rows.Select(r => (object)new
         {
             seatId = Ids.ToText(r.Id),
-            name = r.Sealed is null ? r.Name : null,
             nameSealed = r.Sealed is null ? null : Base64Url.Encode(r.Sealed),
             nameEpoch = r.Epoch,
             areaId = Ids.ToText(r.Area),

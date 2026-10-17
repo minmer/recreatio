@@ -41,7 +41,6 @@ public static partial class Slug
 
         /* Der Unterbau einer uebernommenen Adresse — umhaengen und zuordnen. */
         app.MapPost("/workspace/slug/move", MoveAsync);
-        app.MapPost("/workspace/slug/internal", InternalAsync);
 
         /* 0051 — nur mit Zugang: an Bereiche gebunden, nicht an eine Rolle. */
         app.MapPost("/workspace/slug/areas", AreasAsync);

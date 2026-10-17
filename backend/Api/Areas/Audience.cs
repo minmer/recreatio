@@ -140,9 +140,11 @@ public static class Audience
         return await cmd.ExecuteScalarAsync(ct) is not null;
     }
 
-    /// <summary>Ein Formular an einem Ding: wie es heisst, wem es gehört, wie viele Menschen mit Link dadurch dabei sind.</summary>
-    /// <summary>0097 — der Name versiegelt (<c>NameSealed</c> unter dem Schlüssel von <c>AreaId</c>); <c>Name</c> nur bei einem alten, bis er versiegelt ist.</summary>
-    public sealed record Form(Guid ModuleId, string? Name, Guid? AreaId, string? AreaName, int People, byte[]? NameSealed = null, int? NameEpoch = null);
+    /// <summary>
+    /// Ein Formular an einem Ding: wie es heisst (0097: versiegelt unter dem Schlüssel
+    /// von <c>AreaId</c>), wem es gehört, wie viele Menschen mit Link dadurch dabei sind.
+    /// </summary>
+    public sealed record Form(Guid ModuleId, Guid? AreaId, string? AreaName, int People, byte[]? NameSealed = null, int? NameEpoch = null);
 
     /// <summary>Die Formulare je Ding — und wie viele lebende Links gerade dazugehören.</summary>
     public static async Task<Dictionary<Guid, List<Form>>> FormsAsync(
@@ -153,7 +155,7 @@ public static class Audience
 
         var names = string.Join(", ", subjects.Select((_, i) => $"@s{i}"));
         await using var cmd = new SqlCommand($"""
-            SELECT f.subject_id, f.module_id, m.name, m.area_id, a.name, m.name_sealed, m.name_epoch,
+            SELECT f.subject_id, f.module_id, m.area_id, a.name, m.name_sealed, m.name_epoch,
                    (SELECT COUNT(DISTINCT g.access_id) FROM app.registration g
                      JOIN app.access s ON s.id = g.access_id
                      WHERE g.part_id = f.module_id AND g.withdrawn_at IS NULL AND g.is_hidden = 0
@@ -173,9 +175,9 @@ public static class Audience
         {
             var subject = reader.GetGuid(0);
             if (!out_.TryGetValue(subject, out var list)) out_[subject] = list = [];
-            list.Add(new Form(reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetString(2),
-                reader.IsDBNull(3) ? null : reader.GetGuid(3), reader.IsDBNull(4) ? null : reader.GetString(4), reader.GetInt32(7),
-                reader.IsDBNull(5) ? null : (byte[])reader[5], reader.IsDBNull(6) ? null : reader.GetInt32(6)));
+            list.Add(new Form(reader.GetGuid(1),
+                reader.IsDBNull(2) ? null : reader.GetGuid(2), reader.IsDBNull(3) ? null : reader.GetString(3), reader.GetInt32(6),
+                reader.IsDBNull(4) ? null : (byte[])reader[4], reader.IsDBNull(5) ? null : reader.GetInt32(5)));
         }
 
         return out_;
@@ -187,7 +189,6 @@ public static class Audience
             .Select(x => (object)new
             {
                 moduleId = Ids.ToText(x.ModuleId),
-                name = x.Name,
                 nameSealed = x.NameSealed is null ? null : Base64Url.Encode(x.NameSealed),
                 nameEpoch = x.NameEpoch,
                 areaId = x.AreaId is null ? null : Ids.ToText(x.AreaId.Value),

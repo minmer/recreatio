@@ -26,19 +26,6 @@ public static class ChatRules
         : ModeOf(kind) is { } mode ? Audience.Speakers(mode)
         : policy == "members" ? Audience.Readers : Audience.Writers;
 
-    /// <summary>
-    /// 2026-10-17 — DIE ZASADA AUSGESCHRIEBEN. `legacy` hiess: in den Zugängen
-    /// mit Menschen (Rozmowa des Bereichs, einer mit einem) wie `members`, in den
-    /// eigenen Rozmowy (Gruppe, zu zweit, Notatki) wie `writers` — genau so
-    /// rechnen <see cref="Speakers"/>, <see cref="SeatCanWrite"/> und die
-    /// Zustellung. Neue Rozmowy bekommen die ausgeschriebene Zasada, alte stellt
-    /// die Übertragung um (<c>Transfer</c>); danach kann `legacy` gehen.
-    /// </summary>
-    public static string Explicit(string kind, string policy) =>
-        policy != "legacy" ? policy
-        : kind is "area" or "seat" ? "members"
-        : "writers";
-
     /// <summary>Ein Platz schreibt in der Rozmowa seines Bereichs — und in seiner eigenen (0069). Im Kanał liest er (0080).</summary>
     public static bool SeatCanWrite(string kind, string policy) =>
         ModeOf(kind) is { } mode && Audience.SeatWrites(mode) && policy != "writers";

@@ -61,45 +61,30 @@ export interface PageCard {
   /** 0082 — „Wybór na stronie" (JSON, `pageSubject.tsx`) — oder `null`. */
   readonly subject?: string | null;
 
-  /**
-   * WESSEN Seite das ist — `null` heisst öffentlich.
-   *
-   * Steht hier eine Rolle, liefert der Dienst die Seite nur an den aus, der sie
-   * hält, an das Amt, das die Adresse führt, und an einen Platz, dem sie
-   * zugeteilt wurde. Für alle anderen gibt es sie nicht — nicht „verboten",
-   * sondern nicht.
-   */
-  readonly internalForRoleId: string | null;
-
-  /**
-   * NUR MIT ZUGANG (0051): die Bereiche, an die die Seite gebunden ist. Leer —
-   * und keine alte Rolle — heisst öffentlich.
-   */
+  /** NUR MIT ZUGANG (0051): die Bereiche, an die die Seite gebunden ist. Leer heisst öffentlich. */
   readonly accessAreaIds?: readonly string[];
 
-  /** 0106 — der Titel der Seite (`null`: noch keiner). Fehlt beim alten Dienst. */
-  readonly title?: string | null;
+  /** 0106 — der Titel der Seite (`null`: noch keiner). */
+  readonly title: string | null;
 }
 
 /**
  * 0106 — EINE SEITE, AUF DER DIESES KONTO ARBEITET, OHNE SIE ZU FÜHREN:
  * `area` — nur mit Zugang, für einen Bereich, den es liest (die Seite der
- * Animatoren); `editor` — es darf sie bearbeiten (Zertifikat); `seat` — die
- * Seite seines eigenen Links (der Kandydat mit Konto).
+ * Animatoren); `seat` — die Seite seines eigenen Links (der Kandydat mit Konto).
  */
 export interface OpenPageCard {
   readonly path: string;
   readonly title: string | null;
-  readonly why: 'area' | 'editor' | 'seat';
-  readonly edit: boolean;
+  readonly why: 'area' | 'seat';
 }
 
 export interface Desk {
   readonly roles: readonly RoleCard[];
   readonly pages: readonly PageCard[];
 
-  /** 0106 — fehlt beim alten Dienst. */
-  readonly open?: readonly OpenPageCard[];
+  /** 0106 — die Seiten, auf denen dieses Konto arbeitet, ohne sie zu führen. */
+  readonly open: readonly OpenPageCard[];
 }
 
 /**
@@ -169,10 +154,7 @@ export const moveSlug = (
     body: JSON.stringify({ path, newPath })
   });
 
-/**
- * WER EINE SEITE ÖFFNEN DARF — die Bereiche (0051). Leer macht sie öffentlich.
- * Ersetzt dabei eine alte Rollenbindung (`slug.internal_for_role_id`).
- */
+/** WER EINE SEITE ÖFFNEN DARF — die Bereiche (0051). Leer macht sie öffentlich. */
 export const setPageAreas = (path: string, areaIds: readonly string[]): Promise<{ path: string; areaIds: string[] }> =>
   call('/workspace/slug/areas', {
     method: 'POST',

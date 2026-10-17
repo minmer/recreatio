@@ -500,7 +500,16 @@ export interface IntakeKey {
  * Menschen.
  */
 export async function readAcross(
-  submission: Submission, keys: readonly IntakeKey[], areaOf: ReadonlyMap<string, string>
+  submission: Submission, keys: readonly IntakeKey[], areaOf: ReadonlyMap<string, string>,
+
+  /**
+   * 2026-10-17 — Annahmen ANDERER Bereiche, die dieser Bund öffnet. Eine
+   * Berichtigung über den Link wurde eine Zeit lang für die Annahme des
+   * Bereichs des PLATZES verpackt, nicht für die ihrer Frage; mit dem Schlüssel
+   * ihres Bereichs geht sie nicht auf. Probiert wird nur, was sonst zu bliebe —
+   * und umgestellt unter den Amtsschlüssel des Bereichs der Frage.
+   */
+  spare: readonly IntakeKey[] = []
 ): Promise<{
   readonly values: Map<string, string>;
   readonly toRewrap: readonly { fieldId: string; officeKeySealed: string }[];
@@ -516,6 +525,28 @@ export async function readAcross(
     const reading = await openAndRewrap({ ...submission, values: mine }, key.privateKey, key.officeKey);
     for (const [fieldId, value] of reading.values) values.set(fieldId, value);
     toRewrap.push(...reading.toRewrap);
+  }
+
+  for (const value of submission.values) {
+    if (values.has(value.fieldId) || value.wrappedKey == null || spare.length === 0) continue;
+    const label = valueAad(value.fieldId);
+    const own = keys.find((k) => k.areaId === areaOf.get(value.fieldId));
+
+    for (const other of spare) {
+      const key = await quiet(() => unwrapKey(other.privateKey, label, fromBase64Url(value.wrappedKey!)));
+      if (key === null) continue;
+      const text = await quiet(() => openText(key, label, fromBase64Url(value.sealed)));
+      if (text === null) continue;
+
+      values.set(value.fieldId, text);
+      if (value.officeKeySealed == null && own?.officeKey !== undefined) {
+        toRewrap.push({
+          fieldId: value.fieldId,
+          officeKeySealed: toBase64Url(await seal(own.officeKey, officeValueAad(value.fieldId), key))
+        });
+      }
+      break;
+    }
   }
 
   return { values, toRewrap };

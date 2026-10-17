@@ -336,12 +336,7 @@ public static partial class Area
             return;
         }
 
-        /*
-         * DER EMPFAENGER DARF KEIN KONTO SEIN (0040) — auch kein fremdes. Der
-         * Aussteller darf eines sein: wer vor 0040 einen Bereich am Konto
-         * angelegt hat, gibt ihn von dort aus weiter, bis er ihn einer Person
-         * uebergeben hat.
-         */
+        /* DER EMPFAENGER DARF KEIN KONTO SEIN (0040) — auch kein fremdes. */
         if (await Workspace.IsAnyAccountAsync(connection, null, subjectId, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status409Conflict, Workspace.AccountTakesNothing);

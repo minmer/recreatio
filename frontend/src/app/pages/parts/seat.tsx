@@ -279,41 +279,6 @@ export const seatSubmissionPart = definePart<SubmissionConfig>({
   )
 });
 
-/* -- Was die Kanzlei ihm geschrieben hat ------------------------------------ */
-
-interface NoteConfig {
-  readonly title: string;
-}
-
-export const seatNotePart = definePart<NoteConfig>({
-  kind: 'seat-note',
-
-  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Od kancelarii' },
-  label: 'Wiadomość dla osoby',
-  use: 'To, co kancelaria napisze tylko do niej.',
-  box: { colSpan: 3, rowSpan: 2 },
-
-  fields: [{ key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Od kancelarii' }],
-
-  read: (raw: RawConfig): NoteConfig => ({ title: text(raw, 'title') }),
-  hasContent: () => true,
-  shows: (_config, size) => size.height === 'strip' ? 'Wiadomość w jednym wierszu, obok nagłówka.' : 'Wiadomość od kancelarii.',
-
-  View: ({ config }) => (
-    <OnSeat
-      title={config.title}
-      fallback="Od kancelarii"
-      empty="Tu pojawi się wiadomość, którą kancelaria napisze tej osobie."
-      office={() => <p className="wk-card-muted">Tu osoba widzi wiadomość od kancelarii, napisaną przy jej zgłoszeniu.</p>}
-    >
-      {(seat) => seat.note === null
-        ? <p className="wk-empty">Nic tu jeszcze nie napisano.</p>
-        : <p className="wk-card-text" style={{ whiteSpace: 'pre-wrap' }}>{seat.note}</p>}
-    </OnSeat>
-  )
-});
-
 /* -- Was die ganze Gruppe sieht --------------------------------------------- */
 
 interface SharedConfig {

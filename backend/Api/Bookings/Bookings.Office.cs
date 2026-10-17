@@ -49,7 +49,7 @@ public static partial class Bookings
 
         await using (var cmd = new SqlCommand($"""
             SELECT c.id, c.starts_at, c.ends_at, c.status, c.awaits, c.group_id,
-                   c.invite_sha256, COALESCE(a.recipient_name, c.holder_name), c.role_id, c.created_at,
+                   c.invite_sha256, c.role_id, c.created_at,
                    c.item_id, c.occurrence_at, c.invite_until, c.by_office, c.access_id,
                    c.host_confirmed_at,
 
@@ -82,10 +82,10 @@ public static partial class Bookings
                     null, null, null, null, reader.GetGuid(5), reader.GetString(3),
                     reader.IsDBNull(4) ? null : reader.GetString(4),
                     reader.IsDBNull(6) ? null : (byte[])reader[6],
-                    reader.IsDBNull(12) ? null : reader.GetDateTimeOffset(12),
-                    null, null,
-                    reader.IsDBNull(15) ? null : reader.GetDateTimeOffset(15),
-                    reader.GetDateTimeOffset(9));
+                    reader.IsDBNull(11) ? null : reader.GetDateTimeOffset(11),
+                    null,
+                    reader.IsDBNull(14) ? null : reader.GetDateTimeOffset(14),
+                    reader.GetDateTimeOffset(8));
 
                 claims.Add(new
                 {
@@ -98,30 +98,29 @@ public static partial class Bookings
                     /* Gastgeber — wer ja sagte, oder wer noch in seiner Bedenkzeit ist (0050). */
                     hosting = Hosts(office, now),
                     hostPending = HostUndecided(office, now),
-                    name = reader.IsDBNull(7) ? null : reader.GetString(7),
-                    seatNameSealed = Names.B64(reader, 17),
-                    seatNameEpoch = Names.Int(reader, 18),
-                    seatAreaId = reader.IsDBNull(19) ? null : Ids.ToText(reader.GetGuid(19)),
-                    holderNameSealed = Names.B64(reader, 20),
-                    holderNameEpoch = Names.Int(reader, 21),
-                    holderNameWrapped = Names.B64(reader, 22),
-                    registeredAt = reader.IsDBNull(16) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(16),
-                    roleId = reader.IsDBNull(8) ? null : Ids.ToText(reader.GetGuid(8)),
-                    createdAt = reader.GetDateTimeOffset(9),
+                    seatNameSealed = Names.B64(reader, 16),
+                    seatNameEpoch = Names.Int(reader, 17),
+                    seatAreaId = reader.IsDBNull(18) ? null : Ids.ToText(reader.GetGuid(18)),
+                    holderNameSealed = Names.B64(reader, 19),
+                    holderNameEpoch = Names.Int(reader, 20),
+                    holderNameWrapped = Names.B64(reader, 21),
+                    registeredAt = reader.IsDBNull(15) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(15),
+                    roleId = reader.IsDBNull(7) ? null : Ids.ToText(reader.GetGuid(7)),
+                    createdAt = reader.GetDateTimeOffset(8),
 
                     /* Welcher Termin — damit der Kalender weiss, wer auf welchem sitzt (0045). */
-                    itemId = reader.IsDBNull(10) ? null : Ids.ToText(reader.GetGuid(10)),
-                    occurrenceAt = reader.IsDBNull(11) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(11),
+                    itemId = reader.IsDBNull(9) ? null : Ids.ToText(reader.GetGuid(9)),
+                    occurrenceAt = reader.IsDBNull(10) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(10),
 
                     /* Wie lange er noch Gastgeber ist — bis dahin nur mit seinem Code. */
-                    inviteUntil = reader.IsDBNull(12) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(12),
+                    inviteUntil = reader.IsDBNull(11) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(11),
 
                     /* Von der Kanzlei eingetragen (0049) — und ob mit Link oder nur mit Namen. */
-                    byOffice = reader.GetBoolean(13),
-                    withLink = !reader.IsDBNull(14),
+                    byOffice = reader.GetBoolean(12),
+                    withLink = !reader.IsDBNull(13),
 
                     /* 0097 — welcher Platz: an seine Kennung ist die Hülle seines Namens gebunden. */
-                    seatId = reader.IsDBNull(14) ? null : Ids.ToText(reader.GetGuid(14))
+                    seatId = reader.IsDBNull(13) ? null : Ids.ToText(reader.GetGuid(13))
                 });
             }
         }

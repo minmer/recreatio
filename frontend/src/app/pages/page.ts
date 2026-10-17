@@ -63,10 +63,10 @@ export interface PageContent {
   readonly access?: PageAccess;
 
   /**
-   * 0099 — DIESES KONTO DARF DIE SEITE BEARBEITEN (es führt sie oder hat ein
-   * Zertifikat darauf). Dann steht oben „Edytuj stronę". Fehlt beim alten Dienst.
+   * 0099 — DIESES KONTO DARF DIE SEITE BEARBEITEN (es führt sie). Dann steht
+   * oben „Edytuj stronę".
    */
-  readonly editable?: boolean;
+  readonly editable: boolean;
 
   /**
    * 0054 — DAS MENÜ, das hier gilt: das eigene der Seite oder das der nächsten

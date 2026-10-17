@@ -53,11 +53,7 @@ export function SmsPanel({
     onError(null);
 
     try {
-      const done = await setPartConfig(partId, {
-        smsTemplates: list.length === 0 ? '' : JSON.stringify(list),
-        /* Die eine Vorlage von vorher ist jetzt Teil der Liste — oder bewusst fort. */
-        ...((config.sms ?? '') !== '' ? { sms: '' } : {})
-      });
+      const done = await setPartConfig(partId, { smsTemplates: list.length === 0 ? '' : JSON.stringify(list) });
       onConfig(done.config);
       setNaming(null);
     } catch (e) {
@@ -86,11 +82,11 @@ export function SmsPanel({
    * ersten Öffnen schützt nichts mehr.
    */
   const asked = fields.filter((f) => f.linkCheck);
-  const nameAsked = asked.some((f) => f.identityRole === 'given_name' || f.identityRole === 'surname' || f.identityRole === 'name');
+  const nameAsked = asked.some((f) => f.identityRole === 'given_name' || f.identityRole === 'surname');
   const leaks = [
     ...asked.filter((f) => f.label !== null && usesHole(text, f.label)).map((f) => f.label!),
     ...(nameAsked && usesHole(text, 'osoba') ? ['osoba'] : []),
-    ...(asked.some((f) => f.identityRole === 'name') && usesHole(text, 'imie') ? ['imie'] : [])
+    ...(asked.some((f) => f.identityRole === 'given_name') && usesHole(text, 'imie') ? ['imie'] : [])
   ];
 
   return (

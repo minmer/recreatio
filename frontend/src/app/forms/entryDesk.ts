@@ -429,7 +429,7 @@ export function columnsOf(desk: Pick<EntryDesk, 'form' | 'info' | 'extData'>, ch
   if (chosen.trim() === '') return [];
   if (chosen.trim() === '*') {
     const shown = new Set(desk.form.fields
-      .filter((f) => f.kind !== 'phone' && !['given_name', 'surname', 'nickname', 'name'].includes(f.identityRole))
+      .filter((f) => f.kind !== 'phone' && !['given_name', 'surname', 'nickname'].includes(f.identityRole))
       .map((f) => f.fieldId));
     return [...main.filter((c) => shown.has(c.id)), ...subs];
   }

@@ -121,9 +121,6 @@ public static partial class Roles
 
         /* 0091 — welche Rolle wozu Zugang gibt (Roles.Reach.cs): zum Wählen für Links und Formulare. */
         app.MapGet("/workspace/roles/reach", ReachAsync);
-
-        /* 2026-10-17 — eine Rolle der alten Form bekommt ihren eigenen Signierschlüssel (Roles.Layout.cs). */
-        MapLayout(app);
     }
 
     /* -- Was hereinkommt ---------------------------------------------------- */

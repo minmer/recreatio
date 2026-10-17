@@ -12,15 +12,12 @@ public static partial class Module
     public sealed record ResealIn(
         string FieldId, string LabelSealed, string? HelpSealed, string? OptionsSealed, int LabelEpoch);
 
-    /// <summary>Die Klausel: wer fuer die Daten steht. Ein leerer Name nimmt sie weg.</summary>
-    public sealed record ControllerIn(string? Name, string? Address, string? Email);
-
     public sealed record UpdateRequest(
         string? Name, string? AreaId, bool ClearArea = false, string? Config = null,
         string? ForKind = null,
 
         /* 0042 — das Formular als Ganzes. */
-        bool? Closed = null, ControllerIn? Controller = null, IReadOnlyList<ResealIn>? Reseal = null,
+        bool? Closed = null, IReadOnlyList<ResealIn>? Reseal = null,
 
         /* 0043 — der Aufbau, unter dem Schluessel des neuen Bereichs. */
         string? DesignSealed = null, int? DesignEpoch = null,
@@ -327,7 +324,7 @@ public static partial class Module
          * Schlüssel, den der neue Bereich nicht hat.
          */
         var isForm = found.Value.Kind == "form";
-        var name = found.Value.Name;
+        string? name = null;
         var (nameSealed, nameEpoch, nameError) = Names.Read(body.NameSealed, body.NameEpoch);
 
         if (nameError is not null)
@@ -357,9 +354,6 @@ public static partial class Module
                     await Fail(ctx, StatusCodes.Status409Conflict, problem);
                     return;
                 }
-
-                /* Mit dem versiegelten Namen geht auch ein alter offener. */
-                name = null;
             }
             else if (moving && found.Value.HasSealedName)
             {
@@ -384,33 +378,6 @@ public static partial class Module
             return;
         }
 
-        /*
-         * DIE KLAUSEL (0042) — Klartext, und das muss sie sein: sie steht unter
-         * dem Formular, bevor jemand etwas eingetragen hat.
-         */
-        string? controllerName = null, controllerAddress = null, controllerEmail = null;
-        var touchController = body.Controller is not null;
-
-        if (body.Controller is { } said)
-        {
-            controllerName = string.IsNullOrWhiteSpace(said.Name) ? null : said.Name.Trim();
-            controllerAddress = string.IsNullOrWhiteSpace(said.Address) ? null : said.Address.Trim();
-            controllerEmail = string.IsNullOrWhiteSpace(said.Email) ? null : said.Email.Trim();
-
-            if (controllerName is { Length: > 200 } || controllerAddress is { Length: > 400 }
-                || controllerEmail is { Length: > 200 })
-            {
-                await Fail(ctx, StatusCodes.Status400BadRequest, "Klauzula: nazwa do 200, adres do 400, e-mail do 200 znaków.");
-                return;
-            }
-
-            if (controllerName is null && (controllerAddress is not null || controllerEmail is not null))
-            {
-                await Fail(ctx, StatusCodes.Status400BadRequest, "Klauzula potrzebuje nazwy tego, kto odpowiada za dane.");
-                return;
-            }
-        }
-
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
 
         try
@@ -426,10 +393,7 @@ public static partial class Module
                        repeat_kind = COALESCE(@repeat, repeat_kind),
                        closed_at = CASE WHEN @closed IS NULL THEN closed_at
                                         WHEN @closed = 1 THEN COALESCE(closed_at, @now)
-                                        ELSE NULL END,
-                       controller_name    = CASE WHEN @touch = 1 THEN @cName ELSE controller_name END,
-                       controller_address = CASE WHEN @touch = 1 THEN @cAddress ELSE controller_address END,
-                       controller_email   = CASE WHEN @touch = 1 THEN @cEmail ELSE controller_email END
+                                        ELSE NULL END
                  WHERE id = @id;
                 """, connection, tx))
             {
@@ -442,10 +406,6 @@ public static partial class Module
                 cmd.Parameters.AddWithValue("@closed", body.Closed is null ? DBNull.Value : body.Closed.Value);
                 cmd.Parameters.AddWithValue("@repeat", (object?)repeat ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
-                cmd.Parameters.AddWithValue("@touch", touchController ? 1 : 0);
-                cmd.Parameters.AddWithValue("@cName", (object?)controllerName ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@cAddress", (object?)controllerAddress ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@cEmail", (object?)controllerEmail ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@id", id);
 
                 await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
@@ -607,8 +567,7 @@ public static partial class Module
             BEGIN TRANSACTION;
             IF @offPages = 1 DELETE FROM app.slug_part WHERE module_id = @id;
             /* 0091 — ein Rollenzugang „über dieses Formular" bleibt, nur ohne das Formular. */
-            IF OBJECT_ID(N'app.access_role', N'U') IS NOT NULL
-                UPDATE app.access_role SET module_id = NULL WHERE module_id = @id;
+            UPDATE app.access_role SET module_id = NULL WHERE module_id = @id;
             DELETE FROM app.slug_field WHERE part_id = @id;
             DELETE FROM app.form_design WHERE module_id = @id;
             DELETE FROM app.task_answer WHERE step_id IN (SELECT id FROM app.form_step WHERE module_id = @id);
@@ -616,8 +575,7 @@ public static partial class Module
             DELETE FROM app.task_presence WHERE step_id IN (SELECT id FROM app.form_step WHERE module_id = @id);
             DELETE FROM app.task_duty WHERE step_id IN (SELECT id FROM app.form_step WHERE module_id = @id);
             DELETE FROM app.form_step WHERE module_id = @id;
-            IF OBJECT_ID(N'app.audience_form', N'U') IS NOT NULL
-                DELETE FROM app.audience_form WHERE module_id = @id OR (subject_kind = N'module' AND subject_id = @id);
+            DELETE FROM app.audience_form WHERE module_id = @id OR (subject_kind = N'module' AND subject_id = @id);
             DELETE FROM app.module WHERE id = @id;
             COMMIT TRANSACTION;
             """, connection);

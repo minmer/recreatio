@@ -1,9 +1,9 @@
 /**
  * WER AUF EINER SEITE MIT ZUGANG HANDELN DARF.
  *
- * Eine Seite kann nur für Menschen mit Zugang sein (`internal_for_role_id`):
- * wer seinen Link zu GENAU dieser Seite hat, wer die gewählte Rolle hält, und
- * wer die Seite führt. Der Dienst sagt beim Laden, welche der Links in diesem
+ * Eine Seite kann nur für Menschen mit Zugang sein (gebunden an Bereiche, 0051):
+ * wer einen Link aus einem dieser Bereiche (oder zu GENAU dieser Seite) hat,
+ * wer einen dieser Bereiche liest, und wer die Seite führt. Der Dienst sagt beim Laden, welche der Links in diesem
  * Browser und welche der eigenen Personen dazugehören (`PageContent.access`).
  *
  * <b>Warum je Person und nicht nur je Browser.</b> Ein Browser hält oft mehr

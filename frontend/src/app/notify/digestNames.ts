@@ -17,10 +17,10 @@ const openWaiting = async (waiting: DigestWaiting | undefined, forms: boolean): 
 export async function openDigest(digest: Digest): Promise<Digest> {
   const [forms, chats, steps] = await Promise.all([
     Promise.all(digest.registrations.list.map(async (form) => ({ ...form, name: await openFormName(form) }))),
-    Promise.all(digest.chats.list.map(async (chat) => chat.seatId == null ? chat : {
+    Promise.all(digest.chats.list.map(async (chat) => chat.seatId == null ? { ...chat, seatName: null } : {
       ...chat,
       seatName: await openSeatName({
-        seatId: chat.seatId, areaId: chat.seatAreaId, nameSealed: chat.seatNameSealed, nameEpoch: chat.seatNameEpoch, name: chat.seatName
+        seatId: chat.seatId, areaId: chat.seatAreaId, nameSealed: chat.seatNameSealed, nameEpoch: chat.seatNameEpoch
       })
     })),
     openWaiting(digest.steps, true)

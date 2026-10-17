@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { type AreaRow, areaPath, loadAreas, loadPublicKey, myEpochKeys } from '../areas/area';
 import { fromBase64Url } from '../core/crypto';
 import type { Ring, SealedRole } from '../core/keys';
-import { sealSeatNames } from '../core/nameSeal';
+import { sealSeatNames } from '../seats/seatNames';
 import { keysFor } from '../core/ringOf';
 import { type Who, WorkspaceError } from '../core/session';
 import type { ModuleRow, ResealIn, Resealed } from '../modules/module';

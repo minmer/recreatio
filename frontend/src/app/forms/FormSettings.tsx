@@ -1,5 +1,5 @@
 /**
- * Die Einstellungen eines Formulars: nach dem Absenden, Bedarf, Erweiterungen, Klausel, Überschrift.
+ * Die Einstellungen eines Formulars: nach dem Absenden, Bedarf, Erweiterungen, Überschrift.
  */
 
 import { useEffect, useState } from 'react';
@@ -10,7 +10,6 @@ import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import { type Who, WorkspaceError } from '../core/session';
 import { type ModuleRow, createModule } from '../modules/module';
-import { PostalInput } from '../registry/PostalInput';
 import { formPath } from '../routes';
 import type { ExtensionInfo } from '../steps/steps';
 import { AUDIENCE_LABEL, type OpenField, setPartConfig } from './form';
@@ -448,85 +447,6 @@ export function IntakeMissing({ areaId, areaName, ring, officeRoleId, busy, onAc
   );
 }
 
-/* -- Die Klausel — EINE je Formular (0042) ---------------------------------- */
-
-/**
- * Wer für die Daten steht.
- *
- * <b>Einmal, für das ganze Formular.</b> Sie stand je Bereich der Antworten —
- * ein Formular mit Fragen in zwei Bereichen fragte zweimal nach derselben
- * Pfarrei. Klartext, und das muss sie sein: sie steht unter dem Formular,
- * bevor jemand etwas eingetragen hat. Ohne sie sammelt das Formular nichts.
- */
-export function ControllerForm({ value, busy, onSave }: {
-  value: ModuleRow['controller'];
-  busy: boolean;
-  onSave: (controller: { name: string; address?: string; email?: string }) => Promise<void>;
-}) {
-  const [name, setName] = useState(value?.name ?? '');
-  const [address, setAddress] = useState(value?.address ?? '');
-  const [email, setEmail] = useState(value?.email ?? '');
-
-  useEffect(() => {
-    setName(value?.name ?? '');
-    setAddress(value?.address ?? '');
-    setEmail(value?.email ?? '');
-  }, [value?.name, value?.address, value?.email]);
-
-  const changed = name.trim() !== (value?.name ?? '')
-    || address.trim() !== (value?.address ?? '')
-    || email.trim() !== (value?.email ?? '');
-
-  return (
-    <section className="wk-form">
-      <h4 className="wk-h2">Kto odpowiada za dane</h4>
-
-      <label className="wk-field">
-        <span>Nazwa</span>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="np. Parafia św. Kazimierza" />
-      </label>
-
-      {/* 0082 — auch die Adresse des Verantwortlichen in der einen Form der Datenbank. */}
-      <div className="wk-field">
-        <span>Adres</span>
-        <PostalInput value={address} onChange={setAddress} />
-      </div>
-
-      <label className="wk-field">
-        <span>E-mail (opcjonalnie)</span>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      </label>
-
-      <p className="wk-hint">
-        {value === null
-          ? 'Bez tego formularz nic nie zbiera. '
-          : ''}
-        To jest jawne i musi takie być: klauzula stoi pod formularzem, zanim ktokolwiek cokolwiek wpisze.
-      </p>
-
-      {changed && (
-        <div className="wk-actions">
-          <button
-            type="button" className="wk-btn" disabled={busy || name.trim() === ''}
-            onClick={() => void onSave({ name, address, email })}
-          >
-            Zapisz klauzulę
-          </button>
-        </div>
-      )}
-    </section>
-  );
-}
-
-/**
- * Den Platz eines Menschen aufmachen — über die Epoche oder über die Annahme.
- *
- * <b>Beide Wege, weil es beide gibt</b> (0027): ein Platz, den das Amt
- * ausgestellt hat, hängt an der Epoche; einer aus einer Selbstanmeldung an der
- * Annahme. Welcher, sagt die Zeile selbst. Für Korrekturen vieler Zeilen auf
- * einmal (`straighten`); die Liste der Menschen hat ihren eigenen Weg
- * (`useSeatLinks`).
- */
 /* -- Die Überschrift ------------------------------------------------------- */
 
 /**

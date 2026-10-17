@@ -15,7 +15,7 @@ backend/
   Api/              the service (.NET 10, minimal APIs, namespace Api), one folder per domain:
                     Identity, Roles, Areas, Pages, Forms, Calendar, Bookings, Masses, Chat,
                     Library, Cogita, Notifications, Registry, Infrastructure, Transfer
-    Sql/            migrations 0000–NNNN, embedded and run by `migrate`; diagnostics/ (read-only checks)
+    Sql/            migrations 0001–NNNN, embedded and run by `migrate`; diagnostics/ (read-only checks)
   Api.Tests/        service checks (console program)
   Kernel/           cryptography and canonical forms shared by the service (AES-GCM, RSA, AAD, records)
   Kernel.Tests/     kernel test vectors
@@ -62,11 +62,12 @@ of hand-made values fall; after an improvement, lock it in with `node scripts/ap
 ```sh
 dotnet run --project backend/Api -- migrate --dry-run            # what would run
 dotnet run --project backend/Api -- migrate                      # apply and record
+dotnet run --project backend/Api -- migrate --through 0112       # only up to a number (the rest waits for a deploy)
 dotnet run --project backend/Api -- migrate --record-through 0111 # record scripts that were applied by hand
 ```
 
-Applied scripts are never edited (the checksum is recorded); changes go into a new script. `0000_*` scripts are
-destructive and run only with `--drop-legacy`. See documentation/TRANSFER.md for the current state.
+Applied scripts are never edited (the checksum is recorded); changes go into a new script. A script that removes
+what the running service still reads waits with `--through` until the new service is deployed (documentation/TRANSFER.md).
 
 ## Deploying
 
@@ -77,7 +78,7 @@ destructive and run only with `--drop-legacy`. See documentation/TRANSFER.md for
 ## Documentation
 
 - [ARCHITECTURE.md](documentation/ARCHITECTURE.md) — how the platform is built: folders, keys, data, conventions
-- [TRANSFER.md](documentation/TRANSFER.md) — moving old data forms to the current ones, and what can go afterwards
+- [TRANSFER.md](documentation/TRANSFER.md) — how the old data forms became the current ones, and what is left
 - [COGITA.md](documentation/COGITA.md) — Cogita: knowledge bases, cards, learning, sessions
 - [LIBRARY.md](documentation/LIBRARY.md) — the library: sources, quotations, own writing
 - [CHAT.md](documentation/CHAT.md) — chats: features and deployment notes

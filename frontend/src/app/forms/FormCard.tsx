@@ -167,15 +167,9 @@ export function FormCard(props: FormCardProps) {
    */
 
   /*
-   * Woraus der Name auf dem Platz kommt.
-   *
-   * <b>Das alte `name` zuerst, dann das genormte `surname`</b> (0038). Beide
-   * kommen vor: vorhandene Bögen tragen `name`, neue benennen die Angabe.
-   * Erst das eine zu suchen und dann das andere ist kein Sonderfall, sondern
-   * die Reihenfolge, in der die Bedeutung enger wird.
+   * Woraus der Name auf dem Platz kommt: der Nachname, sonst der Vorname (0038).
    */
-  const nameField = fields.find((f) => f.identityRole === 'name')
-    ?? fields.find((f) => f.identityRole === 'surname')
+  const nameField = fields.find((f) => f.identityRole === 'surname')
     ?? fields.find((f) => f.identityRole === 'given_name');
 
   /** Wer gerade gemeint ist — oder niemand. */

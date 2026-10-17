@@ -489,9 +489,8 @@ public sealed class CogitaClock(Db db, IHubContext<CogitaHub> hub, ILogger<Cogit
         await using var connection = await db.OpenAsync(ct);
         var running = new List<Guid>();
         await using (var cmd = new SqlCommand("""
-            IF OBJECT_ID('app.cogita_game_state', 'U') IS NOT NULL
-                SELECT g.session_id FROM app.cogita_game_state g JOIN app.cogita_session s ON s.id = g.session_id
-                WHERE s.kind = N'game' AND s.state = N'running';
+            SELECT g.session_id FROM app.cogita_game_state g JOIN app.cogita_session s ON s.id = g.session_id
+            WHERE s.kind = N'game' AND s.state = N'running';
             """, connection))
         {
             await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -545,15 +544,12 @@ public sealed class CogitaClock(Db db, IHubContext<CogitaHub> hub, ILogger<Cogit
     {
         await using var connection = await db.OpenAsync(ct);
         await using var cmd = new SqlCommand("""
-            IF OBJECT_ID('app.cogita_session', 'U') IS NOT NULL
-            BEGIN
-                DECLARE @ended TABLE (id uniqueidentifier);
-                UPDATE app.cogita_session SET state = N'finished', closed_at = COALESCE(closed_at, SYSDATETIMEOFFSET()), updated_at = SYSDATETIMEOFFSET()
-                OUTPUT inserted.id INTO @ended
-                WHERE ends_at IS NOT NULL AND ends_at < SYSDATETIMEOFFSET() AND state IN (N'lobby', N'running', N'paused');
-                DELETE FROM app.cogita_game_position WHERE session_id IN (SELECT id FROM @ended);
-                DELETE FROM app.cogita_game_state WHERE session_id IN (SELECT id FROM @ended);
-            END
+            DECLARE @ended TABLE (id uniqueidentifier);
+            UPDATE app.cogita_session SET state = N'finished', closed_at = COALESCE(closed_at, SYSDATETIMEOFFSET()), updated_at = SYSDATETIMEOFFSET()
+            OUTPUT inserted.id INTO @ended
+            WHERE ends_at IS NOT NULL AND ends_at < SYSDATETIMEOFFSET() AND state IN (N'lobby', N'running', N'paused');
+            DELETE FROM app.cogita_game_position WHERE session_id IN (SELECT id FROM @ended);
+            DELETE FROM app.cogita_game_state WHERE session_id IN (SELECT id FROM @ended);
             """, connection);
         await cmd.ExecuteNonQueryAsync(ct);
     }

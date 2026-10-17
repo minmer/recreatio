@@ -1,163 +1,131 @@
 # Transfer — from old data forms to the current ones
 
-The platform grew in rounds (migrations 0001–0111). Each round kept older data readable, so the code carries
-branches that exist only for data written before some round. This document is the plan to remove them:
+The platform grew in rounds (migrations 0001–0111). Each round kept older data readable, so the code carried
+branches that existed only for data written before some round. They were removed in three steps:
 
-1. **Structure** — make the code base clean without changing what it does. *Done 2026-10-17.*
-2. **Prepare and transfer** — convert old data to the current form; after login, in the browser where keys are
-   needed. *Built 2026-10-17; the transfer itself is run by the owners of the data.*
-3. **Remove** what was only there for old data. *After the transfer — the list is below.*
+1. **Structure** — a clean code base without changing what it does. *Done 2026-10-17.*
+2. **Prepare and transfer** — old data converted to the current form; in the browser after login where keys are
+   needed. *Done 2026-10-17 (8 answer envelopes left, see below).*
+3. **Remove** what was only there for old data. *Code done 2026-10-17; the database part runs with migration 0113.*
 
 Counts are from the production database on 2026-10-17.
 
-## Step 1 — structure (no change in function)
+## Step 1 — structure
 
-- Old documents removed (`ACTUAL_PLATFORM_TECHNICAL_STATE.md`, `CogitaAim.md`, `COGITA_*`, `Forms_Import_JSON.md`,
-  `Hortus_Reservations.md`, `Login_and_Registration.md`, `RC_BEFUNDE.md`, `Roles_and_Keys.md`, `System_Prepare.md`,
-  `cogita-graph.md`, `CenterTemp2.html`, `_reference/`, root `CNAME`); the current ones moved to `documentation/`;
-  the definitions still cited from the old Cogita documents kept in COGITA.md, Appendix A. New: `README.md`,
-  `ARCHITECTURE.md`, this file.
-- Frontend: `src/app` in domain folders (see ARCHITECTURE.md); files over ~800 lines split along their concerns
-  (chat kit, mass office, form office and form card with their state hooks, `form.ts` into fields / submissions /
-  revisions / value checks, areas, slot card, slides, page JSON, Cogita cards, …); `app.css` (7 900 lines) and
-  `ui/ui.css` split into ordered parts — the built CSS is byte-identical; about 50 unused functions, constants and types and 14 pass-through
-  re-exports removed; five copies of the Polish plural replaced by `core/plural.ts`; unused public assets removed
-  (`public/event/`, `public/parish/`, three Cogita images); unused dependencies and package scripts removed; one
-  `tsconfig.json` (the separate one for the new code is no longer needed).
-- Backend: `backend/Api` in domain folders, long classes split into partial files; `Api.Tests` added to the
-  solution; the unused EF tool manifest and the stale `Sql/reset/` scripts (schema of 0001–0019) removed.
+- Old documents removed; the current ones are in `documentation/`. New: `README.md`, `ARCHITECTURE.md`, this file.
+- Frontend: `src/app` in domain folders; long files split along their concerns; `app.css` and `ui/ui.css` split into
+  ordered parts (the built CSS stayed byte-identical); unused functions, re-exports, assets, dependencies and
+  scripts removed; one `tsconfig.json`.
+- Backend: `backend/Api` in domain folders, long classes split into partial files; `Api.Tests` in the solution.
 
-## Step 2 — what is converted
+## Step 2 — what was converted
 
-| What | Old form | Current form | Where | Left |
-|---|---|---|---|---|
-| Migration records | 0078–0111 applied by hand, not in `schema_version` | recorded | server, once | 22 scripts |
-| Chat posting policy | `legacy` | `members` (area, seat chats) / `writers` (group, direct, notes) — the same behaviour | transfer page (owner of the chat's area) | 6 chats |
-| Data controller | per form (`module.controller_*`) | per area (`area_controller`), inherited by sub-areas | transfer page (area admin) | 6 forms in 5 areas |
-| SMS template | one text in `config.sms` | list in `config.smsTemplates` | transfer page | 1 form |
-| Account root holdings (before 0040) | the account root holds areas, keys, an intake, pages, calendar items | a person holds them | transfer page (that account) | 1 account |
-| Role key layout (before 0034) | one key opens name, reading **and** signing | own sign key, granted only to leaders (`holds`) | transfer page (a leader of the role) | 2 roles |
-| Answer envelopes | value key wrapped with RSA for the intake | value key sealed under the office role key | transfer page / opening the answers | 11 values in 2 forms |
+| What | Old form | Current form | Done by |
+|---|---|---|---|
+| Migration records | 0078–0111 applied by hand | recorded in `schema_version` | `migrate --record-through 0111` |
+| Chat posting policy | `legacy` | `members`, or `writers` for channels | transfer page, then 0112 for other accounts' chats |
+| Data controller | per form (`module.controller_*`) | per area (`area_controller`), inherited by sub-areas | transfer page |
+| SMS template | one text in `config.sms` | list in `config.smsTemplates` | transfer page |
+| Account-root holdings (before 0040) | the account root holds areas, keys, an intake, pages | a person holds them | transfer page |
+| Role key layout (before 0034) | one key opens name, reading and signing | own sign key, granted only to leaders | transfer page |
+| Host confirmation (before 0050) | guessed from the length of the invite window | `claim.host_confirmed_at` | 0112 |
+| Answer envelopes | value key wrapped with RSA for the intake | value key sealed under the office role key | transfer page / opening the answers |
 
-### Running it
+Step 2 had written group, direct and notes chats as `writers`. That keeps the speakers but makes the browser show
+the chat as a channel and add new members as readers; 0112 sets them back to `members` (notes always; group and
+direct chats where nobody only reads).
 
-1. Deploy the service and the website built from this state.
-2. On the server, check that the hand-applied migrations are really in place, then record them:
-   ```sh
-   # read-only (SSMS, Azure Data Studio or sqlcmd): every row must say 1
-   #   backend/Api/Sql/diagnostics/applied_0078_0111.sql
-   dotnet run --project backend/Api -- migrate --record-through 0111 --dry-run
-   dotnet run --project backend/Api -- migrate --record-through 0111
-   dotnet run --project backend/Api -- migrate --dry-run      # must say: nothing to apply
-   ```
-   Running plain `migrate` before this would re-run 0099, which resets the step constraint to its old shape and
-   fails on the existing booking step.
-3. Each owner of old data signs in and opens **Konto → Przeniesienie danych** (`#/workspace/account/przeniesienie`)
-   and presses **Przenieś wszystko**. Today that is essentially the first (main) account: it holds the account-root
-   data, the two old-layout roles and the areas of the old chats and forms.
-4. The section **W całej bazie** on that page shows what is left in the whole database. Step 3 can start when
-   everything except the RSA envelopes is 0.
+## Step 3 — what was removed
 
-What the steps do exactly:
+**Code** (backend and frontend, no longer reading or writing the old forms):
 
-- **Chats** — `POST /workspace/transfer/chats` rewrites `legacy` for chats whose area the caller administers
-  (`ChatRules.Explicit`; `Api.Tests` checks that the speakers and seat rights stay the same for every kind). New
-  chats are already written with the explicit policy; an old browser that still sends `legacy` is mapped too.
-- **Data controller** — per area: if neither the area nor an area above it has a controller, the form's entry is set
-  on the area (the same entry for all forms there; different entries in one area are left for a person to decide);
-  then the form entries are cleared. Where the area chain already has one, the form entry was ignored anyway.
-- **SMS** — `config.sms` becomes the first template of `config.smsTemplates`; `sms` is deleted.
-- **Account → person** — the existing hand-over (`account/handOver.ts`): keys are re-wrapped for the person in the
-  browser, certificates re-signed, pages and calendar items re-owned, all in one transaction.
-- **Sign key** — `roles.ts` `separateSignKey`: the browser opens the sign private key (old layout: with the role
-  key), seals it under a new sign key, wraps that key for every leader (`GET /workspace/roles/{id}/leaders`: an active
-  `holds` edge and a role grant) and checks its own envelope before sending; `POST /workspace/roles/{id}/layout`
-  accepts only the exact set of leaders, never for account roots, never twice. Holders with only `read`/`write`
-  edges lose the ability to sign — the separation 0034 intended.
-- **Envelopes** — `forms/rewrap.ts` opens every answer of a form the caller can read and re-seals the value keys
-  under the office role key; the RSA envelope is dropped in the same statement.
+- Chat policy `legacy`: `ChatRules.Explicit`, the `legacy` branches in delivery and settings, the `legacy` checks in
+  `Api.Tests`, the "Dotychczasowe zasady" option. Chats are created with an explicit policy; `area` and `self` are
+  `members`, `channel` is `writers`.
+- Per-form data controller: the form's own entry and the answer-area fallback in `Form.WholeAsync` (the controller
+  comes from the form's area chain only), the controller in module list and update, `ControllerForm`, the legacy
+  part of `FormControllerNote`, the module part of "Porządek w całej bazie".
+- Plaintext names (0097): `/workspace/names/unsealed` and `/names/seal`, `core/nameSeal.ts` (the name-from-answers
+  part moved to `seats/seatNames.ts`), the "Nazwy" card, the plaintext fallbacks in every loader (bookings, chats,
+  seats, digest, audiences, extensions) and in `core/names.ts` and `core/holderNames.ts`.
+- Account-root hand-over (0040): `Identity/HandOver.cs`, `account/handOver.ts`, `HandOverBar`.
+- Old role layout (0034): `Roles/Roles.Layout.cs`, `separateSignKey`, the layout-0 notice. Account roots keep their
+  one key (`key_layout = 0`) — nobody else holds them; `Ring.signKey` keeps that branch.
+- Pages bound to a role (0026): `/workspace/slug/internal` and every read of `internal_for_role_id`; a page with
+  access is bound to areas (0051).
+- Page certificates: `/workspace/grants` (list, issue, revoke) and the certificate branch of `Access.OfAsync`; a page
+  is edited by whoever holds the role that leads it.
+- Seat notes and the portal template (0028): `/workspace/seat/{id}/note`, `/workspace/area/{id}/portal`, the
+  `seat-note` page module, the note in the seat bar and in "Moje miejsca"; the office talks to a person in the
+  seat chat (0069).
+- `/workspace/area/{id}/publish` (areas become public through `/public`) and `/workspace/chat/message/{id}/topic`
+  (`/topic/collect` moves one or more messages).
+- Identity roles `name` and `contact` (before 0038), the single SMS template merge, the browser's own "seen" mark
+  (before 0090), the login repair for accounts without a root role (before 0006), the minimum-persons default
+  (before 0049), the guessed host confirmation (before 0050; 0112 writes it), and every "fehlt beim alten Dienst" tolerance: those fields are required now.
+- The transfer page shows only what is left (below). `migrate` lost `--drop-legacy` and `Sql/0000_drop_legacy.sql`
+  (nothing outside `app` is left to drop); it gained `--through NNNN`.
+- Runtime checks whether a table exists (`IF OBJECT_ID(…) IS NOT NULL`, for databases that missed a migration) in
+  account deletion, the module list and removal, chat removal, the digest and the Cogita clock (`Cogita/Cogita.Game.cs`)
+  — every table is there.
 
-### Not converted, on purpose
+**Database** — `Sql/0113_drop_backward_compatibility.sql`; it stops (and changes nothing) if any of these still
+holds data:
 
-- **Account roots** keep one key (`key_layout = 0`, 13 accounts): nobody holds them; their key is derived from the
-  master key. The layout-0 branch of `Ring.signKey` stays for them.
+- `chat.posting_policy`: only `members`/`writers`, no default.
+- Columns dropped: `module.controller_name/_address/_email`, `access.recipient_name`, `access.personal_note_sealed`,
+  `access.internal_note_sealed`, `claim.holder_name` (`ck_claim_who` now asks for the sealed name),
+  `slug.internal_for_role_id` (with its index and foreign key). Table dropped: `area_portal`.
+- `slug_field.identity_role` without `name`/`contact`; `certificate.scope_kind` only `area`.
+- The 18 person roles of 2026-09-18 that nobody holds and nothing references (checked against every column that
+  names a role).
+- The empty schemas of the old system (`calendar`, `chat`, `edk`, `event2`, `events`, `forms`, `hortus`, `library`,
+  `limanowa`, `pilgrimage`, `rowerowa`). The schema named like the database user is its default schema and stays.
+
+### Running it — in this order
+
+```sh
+# 1. Once: the hand-applied scripts must really be there (read-only, every row must say 1)
+#      backend/Api/Sql/diagnostics/applied_0078_0111.sql
+dotnet run --project backend/Api -- migrate --record-through 0111
+
+# 2. The data conversion — safe under the service that is running now
+dotnet run --project backend/Api -- migrate --through 0112
+
+# 3. Deploy the service, then the website (deploy-web.bat, push docs/) and the Android app (deploy-app.bat):
+#    an installed app carries its own copy of the website and would keep the old requests.
+
+# 4. What the new service no longer reads
+dotnet run --project backend/Api -- migrate --dry-run     # lists only 0113
+dotnet run --project backend/Api -- migrate
+```
+
+Running 0113 before step 3 would break the running (old) service where it still reads the dropped columns; no data
+would be lost, and deploying the new service repairs it.
+
+## What is left
+
+- **8 answers in RSA envelopes** (the confirmation form): they were wrapped for the intake of the seat's area
+  ("Kandydaci") instead of their question's area — most likely corrections made through the link in September 2026.
+  The office's usual path does not open them. The account that holds both intakes signs in, opens
+  **Konto → Przeniesienie danych** and presses **Przepakuj** (`forms/rewrap.ts` tries the other intakes it opens and
+  files the keys under the office key of the question's area). Then the transfer can go: `backend/Api/Transfer/`,
+  `account/transfer.ts`, `account/TransferPage.tsx`, `forms/rewrap.ts`, the `spare` parameter of `readAcross`, the
+  route and the menu and search entries.
+- **Old event files**: the `legacy` document kind of the page JSON import (`pages/pageJson.ts` `planLegacy`,
+  `pages/slides/SlidesImport.tsx`) and the single `track` of the map part read the exports of the old system. The old
+  tables are gone, so these files are the only way in; remove both once no old export is left to import.
+- **Fixture sources**: `frontend/src/legacy/` (6 content files) with `scripts/cogita-home.mjs` and
+  `scripts/presentation-home.mjs`, until the fixtures in `scripts/fixtures/` are final.
+
+### Kept on purpose — current data, not compatibility
+
 - **New RSA envelopes** keep arriving: a public submission can only wrap for the intake's public key. They are
-  re-sealed when the office opens them (0037). This count never stays at 0 and does not block step 3.
-- **Seats' office envelope** (177 seats, `seat_key_for_intake`): the service can already store `seat_key_for_office`,
-  but nothing reads it yet. Moving seats needs that read path first — a design task, not a transfer.
-- **`key_grant.sealed_held`** (0037) is unused: all 108 grants are RSA envelopes, which is how a grant reaches
-  someone whose secret one does not have. Either implement "re-seal on first open" for grants or drop the column.
-- **Seats from before 0046** (70) have no stored link; the office issues a new link when it sends one. That path
-  stays.
-- **Plaintext names** (0097): none left.
-
-## Step 3 — what can go afterwards
-
-Each item names its precondition. Database changes go into a new migration (destructive ones as `0000_*`, run with
-`--drop-legacy`).
-
-**The transfer itself** (when the page shows 0 except envelopes)
-- `backend/Api/Transfer/`, `Roles/Roles.Layout.cs` (and `MapLayout` in `Roles.cs`), `frontend/src/app/account/transfer.ts`,
-  `TransferPage.tsx`, `forms/rewrap.ts`, the menu and search entries „Przeniesienie danych", the routes in `Account.tsx`.
-
-**Chat `legacy` policy** (chats = 0)
-- `ChatRules.Explicit` and its uses, the `legacy` branches in `ChatRules.Speakers` and `ChatDelivery` (SQL), the
-  accepted value in `Chat.List`/`Chat.Features` (`CreateRequest` default), the `legacy` checks in `Api.Tests`,
-  `POLICIES` entry in `chat/ChatChrome.tsx`.
-- Database: `df_chat_policy` default to `members`, `ck_chat_policy` without `legacy`.
-
-**Per-form data controller** (controllers = 0)
-- Database: `module.controller_name`, `controller_address`, `controller_email`.
-- Backend: the `own` and answer-area fallbacks in `Form.WholeAsync` (`Forms/Form.cs`), controller handling in
-  `Pages/Module.Update.cs`, the controller in the module list and in `Form.Public`.
-- Frontend: `ModuleRow.controller`, `updateModule(… controller)`, the `legacy`/`fallback` branches of
-  `FormControllerNote` (`areas/AreaController.tsx`), `ControllerForm` (`forms/FormSettings.tsx`) and its use in
-  `FormOffice.tsx`.
-
-**Old SMS template** (sms = 0) — the `config.sms` merge in `forms/sms.ts` `templatesOf`.
-
-**Account-root hand-over, 0040** (accounts = 0) — `Identity/HandOver.cs`, `account/handOver.ts`, `HandOverBar` in
-`roles/RolePanels.tsx` and its use in `RoleGraph.tsx`; the internal-slug count there.
-
-**Old role layout, 0034** (layouts = 0) — the layout-0 notice in `RoleGraph.tsx`, the "old form" remarks in
-`roles.ts` `addHolder`. `Ring.signKey` keeps its layout-0 branch for account roots.
-
-**Plaintext names, 0097** (already 0)
-- Database: `access.recipient_name`, `claim.holder_name` (and the plaintext part of `ck_claim_who`).
-- Backend: `Identity/Names.cs` (`/workspace/names/unsealed`, `/workspace/names/seal`), plaintext fallbacks in the loaders.
-- Frontend: `core/nameSeal.ts`, `sealOldNames` in `notify/notify.ts`, the `SealNames` card in `Account.tsx`, the
-  "old, still open" fallbacks in `core/names.ts` and `core/holderNames.ts`.
-
-**Page bound to a role, 0026** (`slug.internal_for_role_id` — already 0)
-- Database: the column. Backend: `/workspace/slug/internal` (`Pages/Slug.Areas.cs`) and the reads in
-  `Page.Write.cs`, `Area.Settings.cs`, `Form.Portal.cs`, `Workspace.cs`, `HandOver.cs`.
-
-**Seat notes** (0 rows) — `access.personal_note_sealed`, `internal_note_sealed`; `/workspace/seat/{id}/note`
-(`Forms/Seat.Own.cs`); the readers in `seats/seat.ts`.
-
-**Endpoints without a caller** (checked against every path in `frontend/src`)
-- `/workspace/grants` (GET, POST) and `/workspace/grants/{id}/revoke` — `Pages/Access.cs`.
-- `/workspace/area/{id}/portal` (GET, POST) and `app.area_portal` (0 rows; also read in `Forms/Seat.Open.cs`).
-- `/workspace/area/{id}/publish` — areas become public through `/workspace/area/{id}/public`.
-- `/workspace/chat/message/{id}/topic` — moving a message into a topic has no interface any more.
-
-**Identity roles `name` and `contact`, before 0038** (0 fields) — their entries in `IDENTITY_ROLES`, the `name`
-fallback in `fullNameOf` (`forms/form.ts`), the backend validation.
-
-**Old service tolerance** — fields marked "fehlt beim alten Dienst" (optional in the client types: notify digest,
-modules, links, pages, library, chat) become required once the old service is gone everywhere.
-
-**Old page files** — the `legacy` document kind of the page JSON import (`pages/pageJson.ts` `planLegacy`,
-`pages/slides/SlidesImport.tsx`) while old exports may still come in; the layer reader `LEGACY_AIR` in
-`pages/slides/slideLook.ts` (0 slides use it) and the single `track` of the map part (0 maps).
-
-**Database leftovers**
-- Empty schemas of the old system, owned by `dbo`: `calendar`, `chat`, `edk`, `event2`, `events`, `forms`,
-  `hortus`, `library`, `limanowa`, `pilgrimage`, `rowerowa` (`DROP SCHEMA`). The schema named like the database user is that
-  user's default schema and stays (the transfer page leaves it out).
-- 18 person roles without any holder, edge, certificate, grant, page, message or seat (created 2026-09-18):
-  unreachable; delete after a last reference check.
-- `key_grant.sealed_held` (see above).
-
-**The old content files** — `frontend/src/legacy/` (6 files) with `scripts/cogita-home.mjs` and
-`scripts/presentation-home.mjs`, once the fixtures in `scripts/fixtures/` are final (the fixture JSON stays).
+  re-sealed when the office opens them (0037).
+- **Questions from before 0042** (6) have their label under the key of their answers' area (`label_area_id` empty);
+  the fallback to that area stays.
+- **Seats from before 0046** (70) have no stored link; the office issues a new one when it sends it.
+- **Seats' office envelope** (`seat_key_for_office`) is stored but not read yet; **`key_grant.sealed_held`** (0037)
+  is unused — both are design tasks, not transfers.
+- **Kernel labels**: `Kernel/Aad.cs` keeps its full list of AAD fields (the test vectors of the specification use
+  some of them).

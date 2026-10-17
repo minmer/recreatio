@@ -8,16 +8,10 @@ namespace Api;
 /// Der individuelle Zugang — ein PLATZ in einem Bereich.
 ///
 /// <para>
-/// Vier Faelle, ein Gebilde: der Firmkandidat ohne Konto, der Teilnehmer, der
-/// sich vom offenen Netz anmeldet, der Schueler in einer Klasse — und der
-/// Schueler, dem der Lehrer etwas auf seine eigene Seite schreibt. Die ersten
-/// drei schreiben herein, der letzte liest heraus. Dieselbe Zeile traegt beides.
+/// Drei Faelle, ein Gebilde: der Firmkandidat ohne Konto, der Teilnehmer, der
+/// sich vom offenen Netz anmeldet, der Schueler in einer Klasse. Was die
+/// Kanzlei einem von ihnen sagt, steht in seiner Rozmowa (0069).
 /// </para>
-///
-/// <code>
-///   personal_note_sealed   unter dem PLATZSCHLUESSEL   — beide lesen
-///   internal_note_sealed   unter dem EPOCHENSCHLUESSEL — nur die Kanzlei
-/// </code>
 ///
 /// <para>
 /// <b>Jeder Platz hat seinen eigenen Schluessel</b>, und er liegt dreifach
@@ -48,7 +42,6 @@ public static partial class Seat
     {
         // Die Kanzlei.
         app.MapGet("/workspace/area/{id:guid}/seats", ListAsync);
-        app.MapPost("/workspace/seat/{id:guid}/note", NoteAsync);
         app.MapPost("/workspace/seats/names", NamesAsync);
         app.MapPost("/workspace/seat/{id:guid}/revoke", RevokeAsync);
         app.MapPost("/workspace/seat/{id:guid}/relink", RelinkAsync);
@@ -149,8 +142,7 @@ public static partial class Seat
          * ist leer" darauf schliessen muss.
          */
         await using var cmd = new SqlCommand("""
-            SELECT a.id, a.recipient_name, a.seat_key_for_area, a.epoch,
-                   a.personal_note_sealed, a.internal_note_sealed,
+            SELECT a.id, a.seat_key_for_area, a.epoch,
                    a.status, a.view_count, a.created_at, a.expires_at, a.revoked_at,
                    (SELECT COUNT(*) FROM app.access_holder h
                      WHERE h.access_id = a.id AND h.until IS NULL) AS holders,
@@ -184,46 +176,37 @@ public static partial class Seat
             {
                 seatId = Ids.ToText(reader.GetGuid(0)),
 
-                /*
-                 * 0097 — der Name, versiegelt unter dem Schlüssel dieses Bereichs.
-                 * `recipientName` nur bei einem alten Platz, bis ihn ein Browser
-                 * der Kanzlei versiegelt hat.
-                 */
-                recipientName = reader.IsDBNull(1) ? null : reader.GetString(1),
-                nameSealed = Names.B64(reader, 20),
-                nameEpoch = Names.Int(reader, 21),
+                /* 0097 — der Name, versiegelt unter dem Schlüssel dieses Bereichs. */
+                nameSealed = Names.B64(reader, 17),
+                nameEpoch = Names.Int(reader, 18),
 
                 /* In einem jawny Bereich gibt es keine Kopie unter seinem Schlüssel: dann die eigene, an die die Kanzlei über den Platzschlüssel kommt. */
-                ownNameSealed = Names.B64(reader, 22),
-                seatKeyForArea = reader.IsDBNull(2) ? null : Base64Url.Encode((byte[])reader[2]),
-                seatKeyForIntake = reader.IsDBNull(12) ? null : Base64Url.Encode((byte[])reader[12]),
-                origin = reader.GetString(13),
-                under = reader.IsDBNull(14) ? null : reader.GetString(14),
-                epoch = reader.GetInt32(3),
-                personalNoteSealed = reader.IsDBNull(4) ? null : Base64Url.Encode((byte[])reader[4]),
-                internalNoteSealed = reader.IsDBNull(5) ? null : Base64Url.Encode((byte[])reader[5]),
-                status = reader.GetString(6),
-                viewCount = reader.GetInt32(7),
-                createdAt = reader.GetDateTimeOffset(8),
-                expiresAt = reader.IsDBNull(9) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(9),
-                revokedAt = reader.IsDBNull(10) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(10),
-                holders = reader.GetInt32(11),
+                ownNameSealed = Names.B64(reader, 19),
+                seatKeyForArea = reader.IsDBNull(1) ? null : Base64Url.Encode((byte[])reader[1]),
+                seatKeyForIntake = reader.IsDBNull(9) ? null : Base64Url.Encode((byte[])reader[9]),
+                origin = reader.GetString(10),
+                under = reader.IsDBNull(11) ? null : reader.GetString(11),
+                epoch = reader.GetInt32(2),
+                status = reader.GetString(3),
+                viewCount = reader.GetInt32(4),
+                createdAt = reader.GetDateTimeOffset(5),
+                expiresAt = reader.IsDBNull(6) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(6),
+                revokedAt = reader.IsDBNull(7) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(7),
+                holders = reader.GetInt32(8),
 
                 /* 0046 — der Link, versiegelt unter dem Platzschluessel, und ob er beim ersten Oeffnen fragt. */
-                linkSealed = reader.IsDBNull(15) ? null : Base64Url.Encode((byte[])reader[15]),
-                verifyFields = reader.IsDBNull(16) ? null : reader.GetString(16),
-                verifiedAt = reader.IsDBNull(17) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(17),
-                asks = reader.GetBoolean(18),
+                linkSealed = reader.IsDBNull(12) ? null : Base64Url.Encode((byte[])reader[12]),
+                verifyFields = reader.IsDBNull(13) ? null : reader.GetString(13),
+                verifiedAt = reader.IsDBNull(14) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(14),
+                asks = reader.GetBoolean(15),
 
                 /* Zu viele falsche Antworten: der Link ist zu, nur ein neuer hilft. */
-                locked = reader.GetInt32(19) >= MaxVerifyFailures
+                locked = reader.GetInt32(16) >= MaxVerifyFailures
             });
         }
 
         await ctx.Response.WriteAsJsonAsync(new { areaId = Ids.ToText(id), seats });
     }
-
-    public sealed record NoteRequest(string? PersonalNoteSealed, string? InternalNoteSealed);
 
 /* -- Gemeinsames -------------------------------------------------------- */
 
@@ -233,22 +216,6 @@ public static partial class Seat
         cmd.Parameters.AddWithValue("@id", seatId);
 
         return await cmd.ExecuteScalarAsync(ct) is Guid found ? found : null;
-    }
-
-    /// <summary>
-    /// Ein fakultatives Base64URL-Feld — <c>null</c> heisst „nicht angegeben".
-    ///
-    /// Getrennt von <see cref="Blob"/> und nicht als zweite Ueberladung: zwei
-    /// Methoden, die sich nur in der Nullbarkeit unterscheiden, laesst C# nicht
-    /// zu — und ein Unterschied, den der Uebersetzer nicht sieht, ist auch fuer
-    /// den Leser keiner.
-    /// </summary>
-    private static byte[]? Optional(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return null;
-
-        try { return Base64Url.Decode(text); }
-        catch (FormatException) { return null; }
     }
 
     private static bool Blob(string? text, out byte[] bytes)

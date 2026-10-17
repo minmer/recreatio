@@ -13,21 +13,11 @@ foreach (var kind in new[] { "area", "group", "direct", "seat" })
     Check(ChatRules.Speakers(kind, "writers").Contains("admin"), $"{kind}: administrator can publish");
     Check(!ChatRules.Speakers(kind, "writers").Contains("certify"), $"{kind}: membership management alone cannot publish");
     Check(ChatRules.Speakers(kind, "members").Contains("read"), $"{kind}: all-member policy permits readers");
-    Check(ChatRules.Speakers(kind, "legacy").Contains("read") == (kind is "area" or "seat"), $"{kind}: legacy behavior preserved");
     Check(!ChatRules.SeatCanWrite(kind, "writers"), $"{kind}: seat cannot publish in channel");
     Check(ChatRules.SeatCanWrite(kind, "members") == (kind is "area" or "seat"), $"{kind}: seats only access area and own chats");
 }
-/* 2026-10-17 — the transfer spells `legacy` out; for every kind the spelled-out policy behaves exactly like it. */
-foreach (var kind in new[] { "area", "channel", "group", "direct", "self", "seat" })
-{
-    var spelled = ChatRules.Explicit(kind, "legacy");
-    Check(spelled is "members" or "writers", $"{kind}: legacy is spelled out");
-    Check(ChatRules.Speakers(kind, spelled).SequenceEqual(ChatRules.Speakers(kind, "legacy")), $"{kind}: spelled-out policy has the same speakers");
-    Check(ChatRules.SeatCanWrite(kind, spelled) == ChatRules.SeatCanWrite(kind, "legacy"), $"{kind}: spelled-out policy keeps seat writing");
-    Check(ChatRules.Explicit(kind, "members") == "members" && ChatRules.Explicit(kind, "writers") == "writers", $"{kind}: explicit policies stay");
-}
 /* 0080 — the channel is a kind of its own: area writers publish, everyone else (seats included) listens, whatever the policy says. */
-foreach (var policy in new[] { "legacy", "members", "writers" })
+foreach (var policy in new[] { "members", "writers" })
 {
     Check(ChatRules.Speakers("channel", policy).SequenceEqual(["write", "admin"]), $"channel/{policy}: only area writers publish");
     Check(!ChatRules.SeatCanWrite("channel", policy), $"channel/{policy}: a seat listens");

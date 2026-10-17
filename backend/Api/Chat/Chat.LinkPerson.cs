@@ -427,8 +427,7 @@ public static partial class Chat
                SET own_name_sealed = @own,
                    name_sealed = COALESCE(@named, name_sealed),
                    name_epoch = CASE WHEN @named IS NULL THEN name_epoch ELSE @epoch END
-             WHERE id = @id AND own_name_sealed IS NULL AND name_sealed IS NULL
-               AND (recipient_name IS NULL OR LTRIM(RTRIM(recipient_name)) = N'');
+             WHERE id = @id AND own_name_sealed IS NULL AND name_sealed IS NULL;
             """, connection);
         cmd.Parameters.AddWithValue("@id", seat.Value.Id);
         cmd.Parameters.AddBlob("@own", ownName);

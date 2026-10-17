@@ -9,7 +9,7 @@
 
 import { I, NIL, O, S, type Canon } from '../core/canonical';
 import {
-  aad, Field, fromBase64Url, newRolePair, open, seal, signCanonical, toBase64Url, wrapKey, KEY_SIZE
+  aad, Field, fromBase64Url, newRolePair, seal, signCanonical, toBase64Url, wrapKey, KEY_SIZE
 } from '../core/crypto';
 import { newId } from '../core/ids';
 import type { Ring, SealedGrant, SealedRole } from '../core/keys';
@@ -273,8 +273,8 @@ export async function addHolder(
    * Schreiben kann er weiterhin; nur sieht es dann nicht wie eine befugte
    * Zusage aus, und genau das ist der Unterschied, den wir wollten.
    *
-   * `null` heisst: die Rolle ist noch in der alten Form, in der ein Schlüssel
-   * beides öffnete. Dann gibt es nichts gesondert weiterzugeben.
+   * `null` heisst: die Rolle hat keinen eigenen Signierschlüssel (das Konto,
+   * dessen EIN Schlüssel beides öffnet). Dann gibt es nichts gesondert weiterzugeben.
    */
   const mine = edgeKind === 'holds' && lead ? ring.signKeyOf(roleId) : null;
 
@@ -321,45 +321,3 @@ export const retypeRole = (roleId: string, kind: 'role' | 'group'): Promise<{ ok
 
 export const revokeRole = (roleId: string): Promise<{ ok: boolean }> =>
   call<{ ok: boolean }>(`/workspace/roles/${encodeURIComponent(roleId)}`, { method: 'DELETE' });
-
-/**
- * 0034 NACHGEHOLT (2026-10-17) — eine Rolle der alten Form bekommt ihren
- * EIGENEN Signierschlüssel (`keyLayout` 0 → 1, documentation/TRANSFER.md).
- *
- * Hier, wo der Schlüssel offen liegt: der private Signierschlüssel (in der
- * alten Form öffnet ihn der Rollenschlüssel) wird unter einem neuen Schlüssel
- * versiegelt, und jeder, der die Rolle FÜHRT, bekommt diesen neuen Schlüssel
- * mit seinem öffentlichen Schlüssel verpackt. Die neue Hülle wird geöffnet,
- * bevor sie hinausgeht — eine falsche hiesse: niemand kann mehr in ihrem Namen
- * unterschreiben.
- */
-export async function separateSignKey(ring: Ring, roleId: string): Promise<{ leaders: number }> {
-  const role = ring.roleOf(roleId);
-  if (role === undefined || role.keyLayout !== 0 || role.kind === 'account') {
-    throw new Error('Ta rola ma już osobny klucz podpisu.');
-  }
-
-  const signPrivate = await ring.signKey(roleId);
-  const { leaders } = await call<{ leaders: readonly { roleId: string; wrapPublicKey: string }[] }>(
-    `/workspace/roles/${encodeURIComponent(roleId)}/leaders`);
-
-  const signKey = crypto.getRandomValues(new Uint8Array(KEY_SIZE));
-  const at = aad('kernel', 'role', roleId, Field.RoleSignPrivate, 1);
-  const sealed = await seal(signKey, at, signPrivate);
-
-  const back = await open(signKey, at, sealed);
-  if (back.length !== signPrivate.length || back.some((byte, i) => byte !== signPrivate[i])) {
-    throw new Error('Klucz podpisu nie dał się zapieczętować.');
-  }
-
-  const grants = await Promise.all(leaders.map(async (leader) => ({
-    holderRoleId: leader.roleId,
-    sealedBlob: toBase64Url(await wrapKey(
-      fromBase64Url(leader.wrapPublicKey), aad('kernel', 'role_grant', roleId, Field.RoleSignPrivate, 1), signKey))
-  })));
-
-  return call<{ leaders: number }>(`/workspace/roles/${encodeURIComponent(roleId)}/layout`, {
-    method: 'POST',
-    body: JSON.stringify({ signPrivateSealed: toBase64Url(sealed), grants })
-  });
-}

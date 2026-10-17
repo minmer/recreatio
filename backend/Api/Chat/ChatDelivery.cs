@@ -30,7 +30,7 @@ public sealed class ChatDelivery(Db db, Push push, ILogger<ChatDelivery> logger)
                       AND cert.scope_kind = N'area' AND cert.scope_id = c.area_id
                       AND cert.revoked_at IS NULL AND cert.expires_at > @now
                       AND (cert.capability IN (N'write', N'admin') OR (cert.capability = N'read' AND c.kind <> N'channel'
-                           AND (c.posting_policy = N'members' OR (c.posting_policy = N'legacy' AND c.kind IN (N'area', N'seat')))))))
+                           AND c.posting_policy = N'members'))))
                 OR (m.author_access_id IS NOT NULL AND c.kind IN (N'area', N'seat') AND c.posting_policy <> N'writers' AND EXISTS (
                     SELECT 1 FROM app.access s WHERE s.id = m.author_access_id AND {ChatRules.SeatOfChat}
                       AND s.revoked_at IS NULL AND s.status = N'active' AND (s.expires_at IS NULL OR s.expires_at > @now)

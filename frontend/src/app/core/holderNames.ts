@@ -23,8 +23,6 @@ import {
 /** Was der Dienst über einen Anspruch an Namen schickt. */
 export interface HolderNameIn {
   readonly claimId: string;
-  /** Offen nur bei einem alten Anspruch, bis er versiegelt ist. */
-  readonly name: string | null;
   readonly seatId?: string | null;
   readonly seatNameSealed?: string | null;
   readonly seatNameEpoch?: number | null;
@@ -38,7 +36,9 @@ export interface HolderNameIn {
  * DIE NAMEN AN ANSPRÜCHEN ÖFFNEN — für die Kanzlei. `areaOf`: der Bereich des
  * Dings, unter dem (oder für dessen Annahme) der Name einer Person liegt.
  */
-export async function openHolderNames<T extends HolderNameIn>(claims: readonly T[], areaOf: (claim: T) => string | null | undefined): Promise<T[]> {
+export async function openHolderNames<T extends HolderNameIn>(
+  claims: readonly T[], areaOf: (claim: T) => string | null | undefined
+): Promise<(T & { readonly name: string | null })[]> {
   const intakes = new Map<string, Promise<Uint8Array | null>>();
   const intakeOf = (areaId: string): Promise<Uint8Array | null> => {
     let found = intakes.get(areaId);
@@ -67,7 +67,7 @@ export async function openHolderNames<T extends HolderNameIn>(claims: readonly T
       }
     }
 
-    return { ...claim, name: name ?? claim.name?.trim() ?? null };
+    return { ...claim, name };
   }));
 }
 
@@ -131,7 +131,7 @@ export async function hostPair(claimId: string, holderKey: Uint8Array): Promise<
 /** Die Namen derer, die um Mitnahme bitten — mit dem privaten Schlüssel des Gastgebers. */
 export async function openAskNames(
   hostClaimId: string, hostWrapPrivateSealed: string | null | undefined, holderKey: Uint8Array | null,
-  asks: readonly { readonly claimId: string; readonly name: string | null; readonly nameSealed?: string | null }[]
+  asks: readonly { readonly claimId: string; readonly nameSealed?: string | null }[]
 ): Promise<ReadonlyMap<string, string>> {
   const out = new Map<string, string>();
   let pkcs8: Uint8Array | null = null;
@@ -139,7 +139,7 @@ export async function openAskNames(
     try { pkcs8 = await open(holderKey, hostWrapAad(hostClaimId), fromBase64Url(hostWrapPrivateSealed)); } catch { pkcs8 = null; }
   }
   for (const ask of asks) {
-    const name = ask.nameSealed != null && pkcs8 !== null ? await openForPrivate(pkcs8, claimAskAad(ask.claimId), ask.nameSealed) : ask.name;
+    const name = ask.nameSealed != null && pkcs8 !== null ? await openForPrivate(pkcs8, claimAskAad(ask.claimId), ask.nameSealed) : null;
     if (name !== null && name.trim() !== '') out.set(ask.claimId, name.trim());
   }
   return out;

@@ -173,8 +173,8 @@ export interface TaskState {
   readonly byPerson?: boolean;
   readonly days: readonly string[];
 
-  /** 0099 — je Termin (fehlt beim alten Dienst). */
-  readonly presence?: readonly PresenceState[];
+  /** 0099 — je Termin. */
+  readonly presence: readonly PresenceState[];
 }
 
 /** Ein von Hand angelegter Schritt, wie der Dienst ihn hält — die Beschriftung versiegelt. */
@@ -189,8 +189,8 @@ export interface SealedStep {
   readonly visibleToPerson: boolean;
   readonly dueAt: string | null;
 
-  /** 0098 — fehlt beim alten Dienst: dann ein Znacznik. */
-  readonly kind?: StepKind;
+  /** 0098 — was für ein Schritt (ein Znacznik, eine Aufgabe, …). */
+  readonly kind: StepKind;
   readonly task?: TaskPlan | null;
 
   /** 0100 — „Wybierz termin": bei welchem Zasób (der Name hängt aus). */
@@ -222,8 +222,8 @@ export interface ExtensionInfo {
   /** 0077 — wie oft sie je Mensch ausgefüllt wird. Fehlt es: einmal. */
   readonly repeat?: Repeat;
 
-  /** 0099 — wie viele Fragen sie hat; ohne Fragen ist sie noch kein Schritt. Fehlt beim alten Dienst. */
-  readonly questions?: number;
+  /** 0099 — wie viele Fragen sie hat; ohne Fragen ist sie noch kein Schritt. */
+  readonly questions: number;
 }
 
 /**
@@ -488,7 +488,7 @@ export interface SeatFormSealed {
   readonly confirmedAt: string | null;
   readonly extensions: readonly {
     readonly moduleId: string;
-    /** 0097 — geöffnet (`seatView`); vom Dienst kommt er versiegelt unter `areaId`, offen nur ein alter. */
+    /** 0097 — geöffnet (`seatView`); vom Dienst kommt er versiegelt unter `areaId`. */
     readonly name: string;
     readonly areaId?: string | null;
     readonly nameSealed?: string | null;
@@ -499,14 +499,14 @@ export interface SeatFormSealed {
     /** 0077 — wie oft, und welchen Zeitraum die jüngste trägt. */
     readonly repeat?: Repeat;
     readonly round?: string | null;
-    /** 0099 — wie viele Fragen sie hat (fehlt beim alten Dienst). */
-    readonly questions?: number;
+    /** 0099 — wie viele Fragen sie hat. */
+    readonly questions: number;
   }[];
   readonly steps: readonly SealedStep[];
   readonly marks: readonly StepMark[];
 
-  /** 0098 — was er zu den Aufgaben gesagt hat, und an welchen Tagen er sie getan hat (fehlt beim alten Dienst). */
-  readonly tasks?: readonly TaskState[];
+  /** 0098 — was er zu den Aufgaben gesagt hat, und an welchen Tagen er sie getan hat. */
+  readonly tasks: readonly TaskState[];
 
   /** 0099 — wie voll die Funktionen in den Terminen sind (nur Zahlen). */
   readonly taken?: readonly DutyTaken[];

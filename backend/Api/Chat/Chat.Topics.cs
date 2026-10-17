@@ -29,9 +29,8 @@ public static partial class Chat
         app.MapGet("/workspace/chat/{id:guid}/topics", TopicsAsync);
         app.MapPost("/workspace/chat/{id:guid}/topics", CreateTopicAsync);
         app.MapPost("/workspace/chat/topic/{id:guid}", UpdateTopicAsync);
-        app.MapPost("/workspace/chat/message/{id:guid}/topic", MoveToTopicAsync);
 
-        /* 0101 — mehrere zugleich: zusammengetragen in ein Thema. */
+        /* 0101 — Nachrichten (eine oder mehrere) in ein Thema zusammentragen. */
         app.MapPost("/workspace/chat/{id:guid}/topic/collect", CollectToTopicAsync);
         app.MapGet("/workspace/chat/{id:guid}/linked", LinkedAsync);
 
@@ -42,8 +41,6 @@ public static partial class Chat
     public sealed record TopicRequest(string TopicId, string TitleSealed, int Epoch, string? ByRoleId);
 
     public sealed record TopicUpdateRequest(string? TitleSealed, int? Epoch, bool? Closed);
-
-    public sealed record MoveRequest(string? TopicId);
 
     /// <summary>0101 — welche Nachrichten, und in welches Thema (leer: ohne Thema).</summary>
     public sealed record CollectRequest(IReadOnlyList<string>? MessageIds, string? TopicId);
@@ -247,46 +244,6 @@ public static partial class Chat
         await update.ExecuteNonQueryAsync(ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new { topicId = Ids.ToText(id), updated = true });
-    }
-
-    /// <summary>Eine Nachricht einem Thema zuordnen (oder keinem) — ihr Verfasser oder wer moderiert.</summary>
-    private static async Task MoveToTopicAsync(HttpContext ctx, Db db, Guid id, MoveRequest body)
-    {
-        await using var connection = await db.OpenAsync(ctx.RequestAborted);
-
-        Guid chatId;
-        Guid? author;
-        Guid? person;
-        await using (var cmd = new SqlCommand("SELECT chat_id, author_role_id, author_person_id FROM app.chat_message WHERE id = @id;", connection))
-        {
-            cmd.Parameters.AddWithValue("@id", id);
-            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
-            if (!await reader.ReadAsync(ctx.RequestAborted)) { await Fail(ctx, StatusCodes.Status404NotFound, "Takiej wiadomości nie ma."); return; }
-            chatId = reader.GetGuid(0);
-            author = reader.IsDBNull(1) ? null : reader.GetGuid(1);
-            person = reader.IsDBNull(2) ? null : reader.GetGuid(2);
-        }
-
-        var actor = await ActorAsync(ctx, db, connection, chatId);
-        if (actor is null) return;
-
-        /* 0095 — der Verfasser: seine Rolle UND die Person, die durch sie sprach; 0101 — zu zweit jeder, der schreibt. */
-        if (!MayFile(actor, author, person))
-        {
-            await Fail(ctx, StatusCodes.Status403Forbidden, "Przenieść może autor albo moderator.");
-            return;
-        }
-
-        var topic = await TopicOfChatAsync(ctx, connection, actor.Chat, body.TopicId);
-        if (topic is { Ok: false }) return;
-
-        await using var update = new SqlCommand("UPDATE app.chat_message SET topic_id = @topic, changed_at = @now WHERE id = @id;", connection);
-        update.Parameters.AddWithValue("@id", id);
-        update.Parameters.AddWithValue("@topic", (object?)topic?.Id ?? DBNull.Value);
-        update.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
-        await update.ExecuteNonQueryAsync(ctx.RequestAborted);
-
-        await ctx.Response.WriteAsJsonAsync(new { messageId = Ids.ToText(id), topicId = topic?.Id is null ? null : Ids.ToText(topic.Value.Id!.Value) });
     }
 
     /// <summary>

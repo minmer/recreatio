@@ -6,8 +6,8 @@
  * <ul>
  *   <li>die Antworten aller Formulare (Fragen „Adres" und „Telefon"),
  *       `answerTidy.ts`, wie in der Kanzlei eines Formulars;</li>
- *   <li>die Adresse des Verantwortlichen (Administrator danych) an Formularen
- *       und an Bereichen — Klartext, sie steht unter jedem Formular.</li>
+ *   <li>die Adresse des Verantwortlichen (Administrator danych) an den
+ *       Bereichen — Klartext, sie steht unter jedem Formular.</li>
  * </ul>
  * Die Kartoteka selbst ist schon normalisiert (0071); Steckbriefe und neue
  * Antworten bekommen die Form beim Eintippen (`PostalInput`).
@@ -23,7 +23,7 @@ import { loadAreas } from '../areas/area';
 import { readForm, type ReadForm } from '../forms/formRead';
 import { loadPublicIntake, setController } from '../forms/intake';
 import type { Ring } from '../core/keys';
-import { loadModules, updateModule } from '../modules/module';
+import { loadModules } from '../modules/module';
 import { normalizeAddressLines } from '../registry/postal';
 import { WorkspaceError } from '../core/session';
 import { TidyList, toggled, type TidyItem } from './TidyList';
@@ -73,16 +73,8 @@ export function TidyEverything({ ring }: { ring: Ring }) {
         }
       }
 
-      /* Der Verantwortliche — an Formularen und an Bereichen, im Klartext. */
+      /* Der Verantwortliche — an den Bereichen, im Klartext. */
       const raw: { key: string; where: string; before: string; apply: (address: string) => Promise<unknown> }[] = [];
-      for (const m of modules) {
-        const c = m.controller;
-        if (c === null || c.address === null || c.address.trim() === '') continue;
-        raw.push({
-          key: `module|${m.moduleId}`, where: `Administrator danych: ${m.name}`, before: c.address,
-          apply: (address) => updateModule(m.moduleId, { controller: { name: c.name, address, email: c.email ?? undefined } })
-        });
-      }
       for (const a of (await loadAreas()).areas.filter((one) => one.myLevel === 'admin' || one.myLevel === 'write')) {
         const c = await loadPublicIntake(a.areaId).then((r) => r.controller).catch(() => null);
         if (c === null || c.address === null || c.address === undefined || c.address.trim() === '') continue;

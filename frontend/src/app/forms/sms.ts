@@ -97,29 +97,17 @@ export interface SmsTemplate {
   readonly text: string;
 }
 
-/**
- * Die Szablony dieses Formulars — aus `config.smsTemplates` (JSON).
- *
- * <b>Die eine Vorlage von vorher</b> (`config.sms`) steht als erster Szablon
- * da, bis die Liste zum ersten Mal gespeichert wird; dann geht sie in ihr auf.
- */
+/** Die Szablony dieses Formulars — aus `config.smsTemplates` (JSON). */
 export function templatesOf(config: Record<string, string>): readonly SmsTemplate[] {
-  let list: SmsTemplate[] = [];
-
   try {
     const parsed: unknown = JSON.parse(config.smsTemplates ?? '[]');
-    if (Array.isArray(parsed)) {
-      list = parsed.filter((one): one is SmsTemplate =>
+    return Array.isArray(parsed)
+      ? parsed.filter((one): one is SmsTemplate =>
         typeof one === 'object' && one !== null
         && typeof (one as SmsTemplate).label === 'string'
-        && typeof (one as SmsTemplate).text === 'string');
-    }
+        && typeof (one as SmsTemplate).text === 'string')
+      : [];
   } catch {
-    list = [];
+    return [];
   }
-
-  const legacy = (config.sms ?? '').trim();
-  return legacy !== '' && !list.some((one) => one.text === legacy)
-    ? [{ label: 'Szablon', text: legacy }, ...list]
-    : list;
 }

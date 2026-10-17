@@ -44,8 +44,6 @@ import type { ReminderNotice } from './notifyRich';
 import { formNewsPath, viewPath, formsPath } from '../routes';
 import { toBase64Url } from '../core/crypto';
 import { openDigest } from './digestNames';
-import { sealLegacyNamesQuietly } from '../core/nameSeal';
-import { keysFor } from '../core/ringOf';
 
 /*
  * 2026-10-17 — DER REICHE TEIL (Inhalte öffnen, Schlüssel übergeben) erst, wenn
@@ -67,8 +65,8 @@ export interface DigestChat {
   readonly seatNameEpoch?: number | null;
   readonly seatAreaId?: string | null;
   readonly quiet: boolean;
-  /** 0094 — zu welchem Bereich (fehlt beim alten Dienst). */
-  readonly areaId?: string;
+  /** 0094 — zu welchem Bereich. */
+  readonly areaId: string;
 }
 
 export interface DigestForm {
@@ -79,10 +77,10 @@ export interface DigestForm {
   readonly nameEpoch?: number | null;
   readonly count: number;
   readonly lastAt: string;
-  /** 0090 — seit wann hier neu gilt (die Marke des Formulars, sonst die allgemeine). Fehlt beim alten Dienst. */
-  readonly since?: string;
-  /** 0094 — zu welchem Bereich (fehlt beim alten Dienst). */
-  readonly areaId?: string | null;
+  /** 0090 — seit wann hier neu gilt (die Marke des Formulars, sonst die allgemeine). */
+  readonly since: string;
+  /** 0094 — zu welchem Bereich. */
+  readonly areaId: string | null;
 }
 
 /** 0094 — etwas, das auf die Kanzlei wartet: je Ding (Zasób, Formular) wie viel. */
@@ -98,8 +96,8 @@ export interface DigestWaiting {
 export interface Digest {
   readonly now: string;
   readonly since: string;
-  /** 0090 — seit wann Links als neu gelten. Fehlt beim alten Dienst. */
-  readonly linksSince?: string;
+  /** 0090 — seit wann Links als neu gelten. */
+  readonly linksSince: string;
   readonly total: number;
   readonly chats: {
     readonly unread: number; readonly loud: number; readonly list: readonly DigestChat[]; /** 0076 */ readonly newestAt?: string | null;
@@ -109,14 +107,14 @@ export interface Digest {
   readonly registrations: { readonly count: number; readonly list: readonly DigestForm[] };
   readonly links: number;
   readonly tasks: number;
-  /** 0091 — Formulare, deren Menschen auf den Schlüssel ihrer Rolle warten (fehlt beim alten Dienst). */
-  readonly roles?: { readonly waiting: readonly string[] };
-  /** 0094 — Reservierungen, die auf ein Ja der Kanzlei warten (fehlt beim alten Dienst). */
-  readonly bookings?: DigestWaiting;
-  /** 0094 — Schritte der Kanzlei nach ihrer Frist (fehlt beim alten Dienst). */
-  readonly steps?: DigestWaiting;
-  /** 0109 — Powtórka czeka: je Bibliothek, wie viele Karten jetzt dran sind (fehlt beim alten Dienst). */
-  readonly learn?: { readonly count: number; readonly list: readonly { readonly libraryId: string; readonly count: number; readonly dueAt: string }[] };
+  /** 0091 — Formulare, deren Menschen auf den Schlüssel ihrer Rolle warten. */
+  readonly roles: { readonly waiting: readonly string[] };
+  /** 0094 — Reservierungen, die auf ein Ja der Kanzlei warten. */
+  readonly bookings: DigestWaiting;
+  /** 0094 — Schritte der Kanzlei nach ihrer Frist. */
+  readonly steps: DigestWaiting;
+  /** 0109 — Powtórka czeka: je Bibliothek, wie viele Karten jetzt dran sind. */
+  readonly learn: { readonly count: number; readonly list: readonly { readonly libraryId: string; readonly count: number; readonly dueAt: string }[] };
   readonly nextPollSeconds: number;
 }
 
@@ -144,7 +142,6 @@ export const DEFAULT_SETTINGS: NotifySettings = {
 };
 
 const SETTINGS_SLOT = 'recreatio:notify:settings';
-const SEEN_SLOT = 'recreatio:notify:seen';
 const DEVICE_SLOT = 'recreatio:notify:device';
 
 export function loadSettings(): NotifySettings {
@@ -162,29 +159,13 @@ export function saveSettings(next: NotifySettings): void {
   emit();
 }
 
-/**
- * Die Marke DIESES Browsers — nur noch für einen Dienst vor 0090, der keine
- * eigene hält. Der neue nimmt sie höchstens als spätere Grenze; die Wahrheit
- * ist seine Marke des Kontos. `null`: keine (dann fragt der Browser ohne).
- */
-function localSeen(): string | null {
-  try {
-    const raw = localStorage.getItem(SEEN_SLOT);
-    if (raw !== null && !Number.isNaN(Date.parse(raw))) return raw;
-  } catch { /* nichts */ }
-  return null;
-}
-
-/** Seit wann „neu" gilt — wie der Dienst es zuletzt sagte (0090), sonst die Marke hier, sonst drei Tage. */
+/** Seit wann „neu" gilt — wie der Dienst es zuletzt sagte (die Marke des Kontos, 0090), sonst drei Tage. */
 function seenSince(): string {
-  return store.digest?.since ?? localSeen() ?? new Date(Date.now() - 3 * 86400_000).toISOString();
+  return store.digest?.since ?? new Date(Date.now() - 3 * 86400_000).toISOString();
 }
 
-/** Die Frage nach den Zahlen — mit der Marke dieses Browsers nur, wenn er eine hat. */
-export const digestPath = (): string => {
-  const local = localSeen();
-  return local === null ? '/workspace/notifications' : `/workspace/notifications?since=${encodeURIComponent(local)}`;
-};
+/** Die Frage nach den Zahlen: neu ist, was das KONTO nicht gesehen hat (0090). */
+export const DIGEST_PATH = '/workspace/notifications';
 
 /* -- Wie lange bis zur nächsten Frage ------------------------------------------ */
 
@@ -269,7 +250,7 @@ export async function refresh(): Promise<void> {
   if (!running) return;
   try {
     /* 0097 — die Namen kommen versiegelt; geöffnet wird hier, auf dem Gerät. */
-    const digest = await openDigest(await call<Digest>(digestPath()));
+    const digest = await openDigest(await call<Digest>(DIGEST_PATH));
     store.failures = 0;
     accept(digest, true);
   } catch {
@@ -286,7 +267,6 @@ function accept(digest: Digest, mine: boolean): void {
   if (mine) {
     channel?.postMessage({ digest });
     handOverKeys(digest);
-    sealOldNames();
     ring(digest);
     void background.seen({
       unread: digest.chats.loud, forms: digest.registrations.count, links: digest.links, since: digest.since,
@@ -320,19 +300,6 @@ function handOverKeys(digest: Digest): void {
     })
     .catch(() => undefined)
     .finally(() => { handing = false; });
-}
-
-/*
- * 0097 — WAS NOCH OFFEN DASTEHT (alte Namen von Formularen und Menschen),
- * versiegelt der Browser, der den Schlüssel hat — still, höchstens alle zehn
- * Minuten, und nur der Tab, der gefragt hat.
- */
-function sealOldNames(): void {
-  const who = richWho;
-  if (who === null) return;
-  void keysFor(who)
-    .then(({ ring }) => (ring === null ? null : sealLegacyNamesQuietly(who.accountId, ring)))
-    .catch(() => null);
 }
 
 /* -- Was klingelt ---------------------------------------------------------------- */
@@ -525,14 +492,9 @@ const withForms = (digest: Digest, list: readonly DigestForm[]): Digest => {
 /** Nach der Marke noch einmal nachsehen — aber nicht, wenn gerade niemand fragt (abgemeldet). */
 const recheck = () => { if (running) void refresh(); };
 
-/**
- * „Gesehen": was jetzt in der Glocke steht, gilt nicht mehr als neu — für das
- * KONTO, auf jedem Gerät (0090). Die Marke hier bleibt für einen Dienst, der
- * noch keine eigene hält.
- */
+/** „Gesehen": was jetzt in der Glocke steht, gilt nicht mehr als neu — für das KONTO, auf jedem Gerät (0090). */
 export function markSeen(): void {
   const now = store.digest?.now ?? new Date().toISOString();
-  try { localStorage.setItem(SEEN_SLOT, now); } catch { /* nichts */ }
   settle((digest) => ({ ...withForms(digest, []), links: 0, total: digest.chats.unread }));
   void postSeen('all', null, now).then(recheck, () => undefined);
 }

@@ -195,7 +195,7 @@ public static partial class Form
         var out_ = new List<object>();
 
         await using var cmd = new SqlCommand($"""
-            SELECT id, name, audience, closed_at, created_at, repeat_kind, area_id, name_sealed, name_epoch,
+            SELECT id, audience, closed_at, created_at, repeat_kind, area_id, name_sealed, name_epoch,
                    (SELECT COUNT(*) FROM app.slug_field f WHERE f.part_id = module.id AND f.removed_at IS NULL)
             FROM app.module
             WHERE extends_id = @m {(audience is null ? "" : "AND audience = @audience")}
@@ -211,19 +211,18 @@ public static partial class Form
             {
                 moduleId = Ids.ToText(reader.GetGuid(0)),
 
-                /* 0097 — versiegelt unter dem Schlüssel seines Bereichs; offen nur ein alter, bis er versiegelt ist. */
-                name = reader.IsDBNull(1) ? null : reader.GetString(1),
-                areaId = reader.IsDBNull(6) ? null : Ids.ToText(reader.GetGuid(6)),
-                nameSealed = Names.B64(reader, 7),
-                nameEpoch = Names.Int(reader, 8),
-                audience = reader.GetString(2),
-                closed = !reader.IsDBNull(3),
+                /* 0097 — der Name, versiegelt unter dem Schlüssel seines Bereichs. */
+                areaId = reader.IsDBNull(5) ? null : Ids.ToText(reader.GetGuid(5)),
+                nameSealed = Names.B64(reader, 6),
+                nameEpoch = Names.Int(reader, 7),
+                audience = reader.GetString(1),
+                closed = !reader.IsDBNull(2),
 
                 /* 0077 — wie oft sie je Mensch ausgefuellt wird. */
-                repeat = reader.GetString(5),
+                repeat = reader.GetString(4),
 
                 /* 0099 — ohne Fragen ist sie noch kein Schritt: es gibt nichts auszufuellen. */
-                questions = reader.GetInt32(9)
+                questions = reader.GetInt32(8)
             });
         }
 

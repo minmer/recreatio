@@ -56,7 +56,6 @@ public static partial class Area
          */
         app.MapGet("/workspace/area/{id:guid}/keys", MyKeysAsync);
         app.MapPost("/workspace/area/{id:guid}/grant", GrantAsync);
-        app.MapPost("/workspace/area/{id:guid}/publish", PublishAsync);
 
         /*
          * Die Gestalt eines Bereichs (0035): wie weit er nach aussen offen
@@ -70,15 +69,6 @@ public static partial class Area
         app.MapPost("/workspace/area/{id:guid}/name", RenameAsync);
 
         /*
-         * DIE VORLAGE DES PORTALS (0028) — eine ganz gewoehnliche Seite, deren
-         * Bausteine jeder Platz dieses Bereichs zu sehen bekommt. Eine Vorlage
-         * je Bereich: alle sehen denselben Aufbau, verschieden ist nur, was in
-         * den persoenlichen Bausteinen steht.
-         */
-        app.MapGet("/workspace/area/{id:guid}/portal", PortalAsync);
-        app.MapPost("/workspace/area/{id:guid}/portal", SetPortalAsync);
-
-        /*
          * ÖFFENTLICH, und das ist der ganze Punkt. Wer einen veröffentlichten
          * Epochenschlüssel holt, braucht kein Konto — sonst wäre „öffentlich"
          * bloss ein anderes Wort für „angemeldet".
@@ -86,7 +76,23 @@ public static partial class Area
         app.MapGet("/area/{id:guid}/key", PublicKeyAsync);
     }
 
-internal static async Task<bool> MayAsync(
+    /* -- Gemeinsames -------------------------------------------------------- */
+
+    /// <summary>
+    /// Darf diese Person hier, was sie vorhat?
+    ///
+    /// <para>
+    /// Gefragt wird über ALLE erreichbaren Rollen — Erreichbarkeit im
+    /// Rollengraphen IST der Weg zum Schlüssel (Kernel: RoleKeys), und eine
+    /// zweite Auffassung davon liefe irgendwann anders.
+    /// </para>
+    /// </summary>
+    /*
+     * `internal`, nicht `private`: der Kalender fragt dieselbe Frage, und zwar
+     * an vier Stellen. Eine zweite Fassung davon waere eine zweite Meinung
+     * darueber, wer wo darf — und die eine davon liefe irgendwann anders.
+     */
+    internal static async Task<bool> MayAsync(
         SqlConnection connection, Guid accountId, Guid areaId, Capability needed, CancellationToken ct) =>
         await MayAsync(connection, await Workspace.RolesOfAsync(connection, accountId, ct), areaId, needed, ct);
 

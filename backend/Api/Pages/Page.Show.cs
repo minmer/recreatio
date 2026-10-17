@@ -117,15 +117,6 @@ public static partial class Page
     }
 
     /// <summary>
-    /// Die Seite einer Adresse hinausschreiben — die eine Stelle, die das tut.
-    ///
-    /// <para>
-    /// Sie wird von zwei Seiten gerufen: vom Pfad her und vom Namen her. Zwei
-    /// Fassungen hiessen zwei Meinungen darüber, wann ein Alias gilt und was
-    /// „noch nichts veröffentlicht" bedeutet.
-    /// </para>
-    /// </summary>
-    /// <summary>
     /// WER HIER HINEINDARF — je Link und je Person, nicht bloss ja oder nein.
     ///
     /// <para>
@@ -140,8 +131,7 @@ public static partial class Page
     /// <b>Gebunden an BEREICHE</b> (0051, Wunsch der Kanzlei): Zugang hat ein
     /// Link, dessen Platz in einem der Bereiche der Seite liegt (oder der an
     /// genau diese Seite gehaengt ist), eine Person, die einen dieser Bereiche
-    /// lesen darf, und wer die Seite fuehrt. Die alte Rollenbindung (0026)
-    /// gilt daneben weiter, solange eine Seite sie noch traegt.
+    /// lesen darf, und wer die Seite fuehrt.
     /// </para>
     /// </summary>
     private sealed record Seen(List<string> Seats, List<string> Roles, bool Manages, bool SignedIn, List<string> Links)
@@ -151,7 +141,7 @@ public static partial class Page
 
     private static async Task<Seen> SeenByAsync(
         HttpContext ctx, Db db, SqlConnection connection,
-        Guid? internalFor, Guid slugId, Guid askedId, string path, IReadOnlyList<string> tokens, string? links)
+        Guid slugId, Guid askedId, string path, IReadOnlyList<string> tokens, string? links)
     {
         /*
          * 1. JE LINK — schon bestaetigt, und: sein Platz liegt in einem der
@@ -217,8 +207,8 @@ public static partial class Page
         /*
          * 3. JE EIGENE PERSON: darf eine ihrer Rollen (im Rollengraphen, nur
          * ueber „holds") einen der Bereiche der Seite lesen — ein Zertifikat
-         * read, write oder admin? Haelt sie die alte Rolle der Seite? Oder
-         * einen Link dafuer, den sie sich zugeordnet hat („Przypisz do siebie")?
+         * read, write oder admin? Oder haelt sie einen Link dafuer, den sie
+         * sich zugeordnet hat („Przypisz do siebie")?
          */
         var persons = (await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted))
             .Where(r => r.Kind == "person").Select(r => r.Id).ToList();
@@ -240,8 +230,6 @@ public static partial class Page
                     JOIN app.role x      ON x.id = e.to_role_id AND x.revoked_at IS NULL
                     WHERE h.depth < {RoleGraph.MaxDepth}
                 )
-                SELECT DISTINCT start FROM reach WHERE @internal IS NOT NULL AND id = @internal
-                UNION
                 SELECT DISTINCT h.start
                 FROM reach h
                 JOIN app.certificate c ON c.subject_role_id = h.id
@@ -263,8 +251,6 @@ public static partial class Page
                 """, connection);
 
             for (var i = 0; i < persons.Count; i++) cmd.Parameters.AddWithValue($"@p{i}", persons[i]);
-            cmd.Parameters.Add("@internal", System.Data.SqlDbType.UniqueIdentifier).Value =
-                (object?)internalFor ?? DBNull.Value;
             cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
             cmd.Parameters.AddWithValue("@slug", slugId);
             cmd.Parameters.AddWithValue("@asked", askedId);

@@ -87,7 +87,7 @@ export { slideInAddress, anchorInAddress, slideByAnchor, addressWithSlide } from
 export { ownAddress, atProblem } from '${app}seats/Portal';
 export { entering, deckAt, pinnedPosition, motionOf, enterStyle, frameAt, mixColor, colorsAt, colorsOf, calmer } from '${app}pages/slides/slideMotion';
 export { readSlideValue, slideJson, remapStage } from '${app}pages/slides/slides';
-export { digestPath } from '${app}notify/notify';
+export { DIGEST_PATH } from '${app}notify/notify';
 export { walkBundle, mergeAreaKeys, rememberSeatAreaKeys, seatAreaKey } from '${app}roles/roleBundle';
 export { reachWords, draftProblem } from '${app}roles/commonRole';
 export { seatRoleAad, openSeatRoles } from '${app}roles/memberRole';
@@ -1219,14 +1219,8 @@ try {
 
   /* -- 18. Przejrzane je Konto (0090), Zugang über eine Rolle (0091) ---------------------------------- */
   {
-    /* 0090 — ohne eigene Marke fragt der Browser ohne `since`: neu ist, was das KONTO nicht gesehen hat. */
-    const hadStorage = globalThis.localStorage;
-    const slots = new Map();
-    globalThis.localStorage = { getItem: (k) => slots.get(k) ?? null, setItem: (k, v) => slots.set(k, String(v)), removeItem: (k) => slots.delete(k) };
-    assert.equal(m.digestPath(), '/workspace/notifications', 'no mark in this browser: the account decides');
-    localStorage.setItem('recreatio:notify:seen', '2026-10-01T10:00:00.000Z');
-    assert.equal(m.digestPath(), '/workspace/notifications?since=2026-10-01T10%3A00%3A00.000Z', 'an old browser mark only narrows (for a service before 0090)');
-    globalThis.localStorage = hadStorage;
+    /* 0090 — der Browser fragt ohne `since`: neu ist, was das KONTO nicht gesehen hat. */
+    assert.equal(m.DIGEST_PATH, '/workspace/notifications', 'the account decides what is new');
 
     /*
      * 0091 — der Weg: Linkrolle L hält Rolle T, T hält U; T hat Rada (Epoche 1, 2), U hat Oaza.
@@ -1566,12 +1560,12 @@ try {
     const host = await m.hostPair('host1', holderKey);
     const asked = await m.askNameFor('ask1', host.hostWrapPublic, ' Ewa  Lis ');
     const names = await m.openAskNames('host1', host.hostWrapPrivateSealed, holderKey, [
-      { claimId: 'ask1', name: null, nameSealed: asked.askNameSealed },
-      { claimId: 'old', name: 'Stary Zapis', nameSealed: null }
+      { claimId: 'ask1', nameSealed: asked.askNameSealed },
+      { claimId: 'none', nameSealed: null }
     ]);
     assert.equal(names.get('ask1'), 'Ewa Lis');
-    assert.equal(names.get('old'), 'Stary Zapis', 'an old one, still open, until it is sealed');
-    const stranger = await m.openAskNames('host1', host.hostWrapPrivateSealed, new Uint8Array(32), [{ claimId: 'ask1', name: null, nameSealed: asked.askNameSealed }]);
+    assert.equal(names.has('none'), false, 'without a sealed name: no name');
+    const stranger = await m.openAskNames('host1', host.hostWrapPrivateSealed, new Uint8Array(32), [{ claimId: 'ask1', nameSealed: asked.askNameSealed }]);
     assert.equal(stranger.size, 0, 'only the host opens it');
     assert.deepEqual(await m.askNameFor('ask2', null, 'Ewa Lis'), {}, 'no host key: no name for the host');
     ok('names never lie open (0097): labels (and the same in the kernel), name and surname, sealing and opening — under an area, for the intake, for the host');

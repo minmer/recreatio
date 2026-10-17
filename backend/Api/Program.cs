@@ -1,7 +1,7 @@
 /*
  * Der Dienst.
  *
- *   dotnet run --project backend/Api -- migrate [--dry-run]
+ *   dotnet run --project backend/Api -- migrate [--dry-run] [--through 0112]
  *   dotnet run --project backend/Api -- migrate --record-through 0111 [--dry-run]
  *   dotnet run --project backend/Api
  *
@@ -32,11 +32,11 @@ if (args.Length > 0 && args[0].Equals("migrate", StringComparison.OrdinalIgnoreC
         return await Migrate.RecordAsync(Db.Resolve(builder.Configuration), args[recordAt + 1], dryRun);
     }
 
-    // Der Altbestand faellt nur auf ausdrueckliche Ansage. Siehe
-    // Sql/0000_drop_legacy.sql — es gibt keinen Weg zurueck.
-    var dropLegacy = args.Contains("--drop-legacy", StringComparer.OrdinalIgnoreCase);
+    // Nur bis zu einer Nummer — was der laufende Dienst noch liest, wartet auf den neuen.
+    var throughAt = Array.FindIndex(args, a => a.Equals("--through", StringComparison.OrdinalIgnoreCase));
+    if (throughAt >= 0 && throughAt + 1 >= args.Length) { Console.Error.WriteLine("--through braucht eine Nummer, etwa 0112."); return 2; }
 
-    return await Migrate.RunAsync(Db.Resolve(builder.Configuration), dryRun, dropLegacy);
+    return await Migrate.RunAsync(Db.Resolve(builder.Configuration), dryRun, throughAt >= 0 ? args[throughAt + 1] : null);
 }
 
 /*
@@ -115,7 +115,6 @@ Keeping.Map(app);
 Workspace.Map(app);
 Slug.Map(app);
 Roles.Map(app);
-HandOver.Map(app);
 Page.Map(app);
 /* 0062 — Bilder einer Seite, vor allem die Hintergründe der Slajdy. */
 PageImage.Map(app);
@@ -151,9 +150,6 @@ Menu.Map(app);
 /* Bausteine als eigene Dinge — die Seite zeigt sie nur (0036). */
 Module.Map(app);
 
-/* 0097 — Namen liegen nie offen: was noch offen dasteht, versiegelt der Browser. */
-Names.Map(app);
-
 /* 0064 — die Bibliothek: Werke, Zitate, Personen, Themen und die eigenen Texte. */
 Library.Map(app);
 LibraryCatalog.Map(app);
@@ -168,7 +164,7 @@ Notify.Map(app);
 /* 0071 — Adressen aus Teilen, das Verzeichnis eines Gebiets, die Haushalte (Kolęda). */
 Postal.Map(app);
 
-/* 2026-10-17 — die Übertragung älterer Formen (documentation/TRANSFER.md); geht in Schritt 3. */
+/* Was nach Schritt 3 noch übrig ist — RSA-Umschläge und die Aufräumarbeit des Servers (documentation/TRANSFER.md). */
 Transfer.Map(app);
 
 app.Run();

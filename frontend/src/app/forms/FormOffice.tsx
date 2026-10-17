@@ -42,7 +42,7 @@ import { FormLayout } from './FormLayout';
 import { LinkCheckBox } from './FormLinks';
 import { FormLogic } from './FormLogic';
 import { People } from './FormPeople';
-import { AfterSendSettings, ControllerForm, ExtensionOf, Extensions, IntakeMissing, Naming, NeedsPanel } from './FormSettings';
+import { AfterSendSettings, ExtensionOf, Extensions, IntakeMissing, Naming, NeedsPanel } from './FormSettings';
 import { FormTable } from './FormTable';
 import { ListJsonPanel } from './ListJsonPanel';
 import { hideSubmission, removeSubmission } from './submissions';
@@ -144,20 +144,8 @@ export function FormOffice(props: FormOfficeProps) {
             )}
           </div>
 
-          {/* 2026-10-17 — der Administrator danych steht beim Obszar; hier nur, welcher gilt (beim alten Dienst: der eigene Eintrag). */}
-          <FormControllerNote
-            areaId={module.areaId}
-            legacy={module.controller}
-            onClearLegacy={async () => { await moduleAct('Usuwanie starego wpisu…', () => updateModule(module.moduleId, { controller: { name: '' } })); }}
-            fallback={(
-              <ControllerForm
-                value={module.controller}
-                busy={busy !== null}
-                onSave={(controller) => moduleAct('Zapisywanie klauzuli…',
-                  () => updateModule(module.moduleId, { controller }))}
-              />
-            )}
-          />
+          {/* Der Administrator danych steht beim Obszar; hier nur, welcher gilt. */}
+          <FormControllerNote areaId={module.areaId} />
 
           {/*
             DIE ÜBERSCHRIFT DES BOGENS — wie er auf der Seite heisst. Der Name

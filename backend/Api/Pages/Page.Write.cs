@@ -6,11 +6,19 @@ namespace Api;
 /// <summary>Eine Seite schreiben: Titel, Logik, Gegenstand, Aussehen.</summary>
 public static partial class Page
 {
+    /// <summary>
+    /// Die Seite einer Adresse hinausschreiben — die eine Stelle, die das tut.
+    ///
+    /// <para>
+    /// Sie wird von zwei Seiten gerufen: vom Pfad her und vom Namen her. Zwei
+    /// Fassungen hiessen zwei Meinungen darüber, wann ein Alias gilt und was
+    /// „noch nichts veröffentlicht" bedeutet.
+    /// </para>
+    /// </summary>
     private static async Task WritePageAsync(
         HttpContext ctx, Db db, SqlConnection connection, string wanted, IReadOnlyList<string> seat, string? links = null)
     {
         Guid slugId, askedId;
-        Guid? internalFor;
         string? title = null, lead = null, aliasOf = null, logic = null, mode = null, theme = null, subject = null;
         DateTimeOffset? updatedAt = null;
 
@@ -28,7 +36,6 @@ public static partial class Page
             SELECT COALESCE(t.id, s.id),
                    COALESCE(t.claimed_by_role_id, s.claimed_by_role_id),
                    p.title, p.lead, p.updated_at, s.alias_of,
-                   COALESCE(t.internal_for_role_id, s.internal_for_role_id),
                    s.id,
                    CASE WHEN t.id IS NULL THEN s.page_logic ELSE t.page_logic END,
                    CASE WHEN t.id IS NULL THEN s.page_mode ELSE t.page_mode END,
@@ -61,12 +68,11 @@ public static partial class Page
             lead = reader.IsDBNull(3) ? null : reader.GetString(3);
             updatedAt = reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4);
             aliasOf = reader.IsDBNull(5) ? null : reader.GetString(5);
-            internalFor = reader.IsDBNull(6) ? null : reader.GetGuid(6);
-            askedId = reader.GetGuid(7);
-            logic = reader.IsDBNull(8) ? null : reader.GetString(8);
-            mode = reader.IsDBNull(9) ? null : reader.GetString(9);
-            theme = reader.IsDBNull(10) ? null : reader.GetString(10);
-            subject = reader.IsDBNull(11) ? null : reader.GetString(11);
+            askedId = reader.GetGuid(6);
+            logic = reader.IsDBNull(7) ? null : reader.GetString(7);
+            mode = reader.IsDBNull(8) ? null : reader.GetString(8);
+            theme = reader.IsDBNull(9) ? null : reader.GetString(9);
+            subject = reader.IsDBNull(10) ? null : reader.GetString(10);
         }
 
         /*
@@ -81,7 +87,7 @@ public static partial class Page
          */
         object access = new { restricted = false };
 
-        /* Die Bereiche der Seite (0051) — keiner, und keine alte Rolle: oeffentlich. */
+        /* Die Bereiche der Seite (0051) — keiner: oeffentlich. */
         var areas = new List<Guid>();
         await using (var cmd = new SqlCommand("SELECT area_id FROM app.slug_area WHERE slug_id = @slug;", connection))
         {
@@ -90,9 +96,9 @@ public static partial class Page
             while (await reader.ReadAsync(ctx.RequestAborted)) areas.Add(reader.GetGuid(0));
         }
 
-        if (internalFor is not null || areas.Count > 0)
+        if (areas.Count > 0)
         {
-            var seen = await SeenByAsync(ctx, db, connection, internalFor, slugId, askedId, wanted, seat, links);
+            var seen = await SeenByAsync(ctx, db, connection, slugId, askedId, wanted, seat, links);
 
             if (!seen.Any)
             {

@@ -77,8 +77,7 @@ public static partial class Module
         /* 0081 — welche Formulare an einem Baustein hängen (Audience, „Napisz do nas"): wer dort schreiben darf. */
         var audience = new Dictionary<Guid, List<string>>();
         await using (var forms = new SqlCommand("""
-            IF OBJECT_ID(N'app.audience_form', N'U') IS NOT NULL
-                SELECT subject_id, module_id FROM app.audience_form WHERE subject_kind = N'module';
+            SELECT subject_id, module_id FROM app.audience_form WHERE subject_kind = N'module';
             """, connection))
         await using (var read = await forms.ExecuteReaderAsync(ctx.RequestAborted))
         {
@@ -93,7 +92,7 @@ public static partial class Module
         await using var cmd = new SqlCommand($"""
             SELECT m.id, m.area_id, m.kind, m.name, m.config, m.created_at, m.for_kind,
                    a.name AS area_name,
-                   m.closed_at, m.controller_name, m.controller_address, m.controller_email,
+                   m.closed_at,
 
                    /* Auf wie vielen Seiten er steht — „nirgends" ist eine Auskunft. */
                    (SELECT COUNT(*) FROM app.slug_part p WHERE p.module_id = m.id) AS used,
@@ -176,10 +175,10 @@ public static partial class Module
                 areaId = reader.IsDBNull(1) ? null : Ids.ToText(reader.GetGuid(1)),
                 kind = reader.GetString(2),
 
-                /* 0097 — offen nur bei Bausteinen, die kein Formular sind (und bei einem alten Formular, bis es versiegelt ist). */
+                /* 0097 — offen nur bei Bausteinen, die kein Formular sind; der eines Formulars liegt versiegelt. */
                 name = reader.IsDBNull(3) ? null : reader.GetString(3),
-                nameSealed = Names.B64(reader, 22),
-                nameEpoch = Names.Int(reader, 23),
+                nameSealed = Names.B64(reader, 19),
+                nameEpoch = Names.Int(reader, 20),
                 config = reader.IsDBNull(4) ? null : reader.GetString(4),
                 createdAt = reader.GetDateTimeOffset(5),
 
@@ -187,41 +186,35 @@ public static partial class Module
                 forKind = reader.GetString(6),
                 areaName = reader.IsDBNull(7) ? null : reader.GetString(7),
 
-                /* Das Formular als Ganzes (0042): geschlossen? wer steht fuer die Daten? */
+                /* Das Formular als Ganzes (0042): geschlossen? Wer für die Daten steht, sagt sein Obszar (AreaController). */
                 closed = !reader.IsDBNull(8),
-                controller = reader.IsDBNull(9) ? null : new
-                {
-                    name = reader.GetString(9),
-                    address = reader.IsDBNull(10) ? null : reader.GetString(10),
-                    email = reader.IsDBNull(11) ? null : reader.GetString(11)
-                },
 
-                usedOnPages = reader.GetInt32(12),
+                usedOnPages = reader.GetInt32(9),
 
                 /* Leer heisst: nirgends. Kein `null` nach draussen — eine
                    leere Liste ist dieselbe Auskunft ohne Sonderfall. */
-                pages = reader.IsDBNull(13)
+                pages = reader.IsDBNull(10)
                     ? Array.Empty<string>()
-                    : reader.GetString(13).Split((char)10, StringSplitOptions.RemoveEmptyEntries),
-                fields = reader.GetInt32(14),
-                entries = reader.GetInt32(15),
+                    : reader.GetString(10).Split((char)10, StringSplitOptions.RemoveEmptyEntries),
+                fields = reader.GetInt32(11),
+                entries = reader.GetInt32(12),
 
                 /* 0047 — die Erweiterung: wessen, und wer sie ausfüllt. */
-                extendsId = reader.IsDBNull(16) ? null : Ids.ToText(reader.GetGuid(16)),
-                audience = reader.GetString(17),
+                extendsId = reader.IsDBNull(13) ? null : Ids.ToText(reader.GetGuid(13)),
+                audience = reader.GetString(14),
 
                 /* 0077 — eine Erweiterung, die sich wiederholt: once, day, week, month, year. */
-                repeat = reader.GetString(18),
+                repeat = reader.GetString(15),
 
                 /* 0081 — die Formulare, deren Menschen an diesen Baustein schreiben dürfen. */
                 formIds = audience.TryGetValue(reader.GetGuid(0), out var aud) ? aud : [],
 
                 /* 0091 — die Rolle, die jeder bekommt, der es einsendet (null: keine). */
-                memberRoleId = reader.IsDBNull(19) ? null : Ids.ToText(reader.GetGuid(19)),
+                memberRoleId = reader.IsDBNull(16) ? null : Ids.ToText(reader.GetGuid(16)),
 
                 /* 0096 — die Gruppe von Formularen (ein Ordner), und die Stelle darin. */
-                groupId = reader.IsDBNull(20) ? null : Ids.ToText(reader.GetGuid(20)),
-                groupPosition = reader.IsDBNull(21) ? (int?)null : reader.GetInt32(21)
+                groupId = reader.IsDBNull(17) ? null : Ids.ToText(reader.GetGuid(17)),
+                groupPosition = reader.IsDBNull(18) ? (int?)null : reader.GetInt32(18)
             });
         }
 

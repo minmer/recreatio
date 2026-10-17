@@ -1,7 +1,7 @@
 # Architecture
 
 How REcreatio is built today (2026-10-17). The domain documents — [COGITA.md](COGITA.md), [LIBRARY.md](LIBRARY.md),
-[CHAT.md](CHAT.md) — go deeper into their parts; [TRANSFER.md](TRANSFER.md) lists what still exists only for old data.
+[CHAT.md](CHAT.md) — go deeper into their parts; [TRANSFER.md](TRANSFER.md) records how the old data forms were removed and what is left.
 
 ## The idea in one paragraph
 
@@ -77,8 +77,8 @@ Conventions:
 | Folder | Responsibility |
 |---|---|
 | `Infrastructure/` | `Db`, `Migrate`, error middleware, file logging, `Caller` (account or link), time zones |
-| `Identity/` | register/login (`Auth`), kept keys, state, persons, sealed names, account deletion, the 0040 hand-over |
-| `Roles/` | the role graph, creating roles and holders, invitations (links), reach, the key layout change |
+| `Identity/` | register/login (`Auth`), kept keys, state, persons, sealed-name checks, account deletion |
+| `Roles/` | the role graph, creating roles and holders, invitations (links), reach |
 | `Areas/` | areas, epochs and grants, certificates, intake and data controller, audiences, the workspace summary |
 | `Pages/` | slugs (the address registry), pages and parts, modules, menus, images, access to pages |
 | `Forms/` | forms (fields, design, submissions, office, links, steps, tasks, rounds) and seats |
@@ -86,7 +86,7 @@ Conventions:
 | `Chat/` | chats, messages, features (scheduling, presence, marks), topics, seat chats, delivery worker |
 | `Library/`, `Cogita/` | library entries, catalogue, Cogita storage; sessions, games and the SignalR hub |
 | `Notifications/`, `Registry/` | digest and push; postal registry |
-| `Transfer/` | the transfer status for old data forms (removed in step 3) |
+| `Transfer/` | what is left of the transfer: answers in RSA envelopes, server clean-up counts (goes when all are 0) |
 
 Conventions: authorization in every handler (`Auth.WhoAsync`, `Area.MayAsync`, role reach); the service never
 decrypts — it verifies signatures (`Kernel` records) and stores blobs; SQL is parameterized; errors go out as
@@ -94,7 +94,7 @@ decrypts — it verifies signatures (`Kernel` records) and stores blobs; SQL is 
 
 ## Data
 
-One SQL Server database, schema `app` (the other schemas are empty leftovers of the old system, see TRANSFER.md).
+One SQL Server database, schema `app` (0113 drops the empty schemas the old system left, see TRANSFER.md).
 
 | Group | Main tables |
 |---|---|
@@ -121,8 +121,9 @@ epoch key ──opens──► everything sealed in the area (names, fields, pag
 ```
 
 - **Levels.** Edges are `holds`, `write`, `read`; the role key goes with every edge, the sign key only with
-  `holds` (0034). Certificates (`read`, `write`, `admin`, `certify`) on an area, page or body are signed in the
-  browser by the issuing role and verified by the service.
+  `holds` (0034). Certificates (`read`, `write`, `admin`, `certify`) on an area are signed in the browser by the
+  issuing role and verified by the service. A page is led by the role that claimed its address; a page with access
+  is bound to areas.
 - **Answers.** Each value has its own key. A public submission wraps it for the intake public key (RSA); the first
   time the office opens it, the browser re-seals it under the office role key and the RSA envelope goes (0037).
 - **Seats.** A person's place has a seat key; the link carries a secret that opens it. The office reaches seats

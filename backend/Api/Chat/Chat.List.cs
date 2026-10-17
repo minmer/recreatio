@@ -32,7 +32,7 @@ public static partial class Chat
 
         var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
         var rows = new List<(Guid Id, Guid Area, string AreaName, string Kind, DateTimeOffset Created, DateTimeOffset? Last,
-            int Unread, int Seats, int Pending, Guid? Seat, string? SeatName, byte[]? SeatSealed, int? SeatEpoch, Guid? SeatArea)>();
+            int Unread, int Seats, int Pending, Guid? Seat, byte[]? SeatSealed, int? SeatEpoch, Guid? SeatArea)>();
 
         /*
          * Ungelesen ist, was nicht von MIR kommt — auch was ein Platz schrieb
@@ -59,12 +59,11 @@ public static partial class Chat
                                         WHERE k.chat_id = c.id AND k.access_id = s.id
                                           AND k.epoch = a.current_epoch)) AS pending,
                    c.seat_id,
-                   seat.recipient_name AS seat_name,
                    seat.name_sealed, seat.name_epoch, seat.area_id
             FROM app.chat c
             JOIN app.area a ON a.id = c.area_id
             LEFT JOIN app.chat_read r ON r.chat_id = c.id AND r.account_id = @account
-            OUTER APPLY (SELECT x.recipient_name, x.name_sealed, x.name_epoch, x.area_id FROM app.access x WHERE x.id = c.seat_id) seat
+            OUTER APPLY (SELECT x.name_sealed, x.name_epoch, x.area_id FROM app.access x WHERE x.id = c.seat_id) seat
             WHERE c.area_id IN (
                 SELECT scope_id FROM app.certificate
                 WHERE scope_kind = N'area' AND revoked_at IS NULL AND expires_at > @now
@@ -83,8 +82,8 @@ public static partial class Chat
                 rows.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3),
                     reader.GetDateTimeOffset(4), reader.IsDBNull(5) ? null : reader.GetDateTimeOffset(5),
                     reader.GetInt32(6), reader.GetInt32(7), reader.GetInt32(8),
-                    reader.IsDBNull(9) ? null : reader.GetGuid(9), reader.IsDBNull(10) ? null : reader.GetString(10),
-                    reader.IsDBNull(11) ? null : (byte[])reader[11], Names.Int(reader, 12), reader.IsDBNull(13) ? null : reader.GetGuid(13)));
+                    reader.IsDBNull(9) ? null : reader.GetGuid(9),
+                    reader.IsDBNull(10) ? null : (byte[])reader[10], Names.Int(reader, 11), reader.IsDBNull(12) ? null : reader.GetGuid(12)));
             }
         }
 
@@ -115,8 +114,7 @@ public static partial class Chat
                 /* 0069 — die Rozmowa mit einem Platz: mit wem (der Name, den die Kanzlei am Platz fuehrt). */
                 seatId = r.Seat is null ? null : Ids.ToText(r.Seat.Value),
 
-                /* 0097 — versiegelt unter dem Schlüssel des Bereichs des Platzes; offen nur ein alter. */
-                seatName = r.SeatSealed is null ? r.SeatName : null,
+                /* 0097 — versiegelt unter dem Schlüssel des Bereichs des Platzes. */
                 seatNameSealed = r.SeatSealed is null ? null : Base64Url.Encode(r.SeatSealed),
                 seatNameEpoch = r.SeatEpoch,
                 seatAreaId = r.SeatArea is null ? null : Ids.ToText(r.SeatArea.Value),
@@ -218,7 +216,7 @@ public static partial class Chat
        ANLEGEN
        ====================================================================== */
 
-    public sealed record CreateRequest(string ChatId, string AreaId, string Kind, string AsRoleId, string? WithRoleId, string PostingPolicy = "legacy",
+    public sealed record CreateRequest(string ChatId, string AreaId, string Kind, string AsRoleId, string? WithRoleId, string PostingPolicy,
 
         /* 0069 — die Rozmowa mit diesem Platz (kind = seat). */
         string? SeatId = null);
@@ -246,20 +244,25 @@ public static partial class Chat
             return;
         }
 
-        if (body.Kind is not ("area" or "channel" or "group" or "direct" or "self" or "seat") || body.PostingPolicy is not ("legacy" or "members" or "writers"))
+        if (body.Kind is not ("area" or "channel" or "group" or "direct" or "self" or "seat"))
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Rodzaj rozmowy: area, channel, group, direct, self albo seat.");
             return;
         }
 
+        if (body.PostingPolicy is not ("members" or "writers"))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Zasada rozmowy: members albo writers.");
+            return;
+        }
+
         /*
-         * 0080 — DER KANAŁ ist eine eigene Art: im Bereich schreiben die
-         * Schreibenden, alle anderen lesen. Ein Browser von gestern legt ihn
-         * noch als Rozmowa des Bereichs mit `writers` an — das ist derselbe
-         * Wunsch. Und in der Rozmowa des Bereichs schreibt jeder darin.
+         * 0080 — wo die Art es sagt, sagt sie es (<see cref="ChatRules.FixedPolicy"/>):
+         * im Kanał schreiben die Schreibenden, in der Rozmowa des Bereichs alle
+         * darin, in den Notatki nur ich. Sonst wählt der Browser.
          */
-        var kind = body.Kind == "area" && body.PostingPolicy == "writers" ? "channel" : body.Kind;
-        var policy = kind == "channel" ? "writers" : ChatRules.Explicit(kind, body.PostingPolicy);
+        var kind = body.Kind;
+        var policy = kind switch { "channel" => "writers", "area" or "self" => "members", _ => body.PostingPolicy };
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 

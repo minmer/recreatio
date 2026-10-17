@@ -50,10 +50,6 @@ public static partial class Form
     private static readonly string[] IdentityRoles =
     [
         "none",
-
-        /* Was 0022 kannte. Bleibt gueltig, damit vorhandene Zeilen es bleiben. */
-        "name", "contact",
-
         "given_name", "surname", "phone", "born", "address", "email", "nickname"
     ];
 
@@ -306,8 +302,8 @@ public static partial class Form
         /// <summary>Was nach dem Absenden dasteht, und ob ein Ausdruck unterschrieben werden muss (siehe <see cref="AfterOf"/>).</summary>
         After? After = null,
 
-        /// <summary>0097 — sein Name: versiegelt unter dem Schluessel seines Bereichs (oder, bei einem alten, noch offen).</summary>
-        Guid? AreaId = null, byte[]? NameSealed = null, int? NameEpoch = null, string? PlainName = null);
+        /// <summary>0097 — sein Name: versiegelt unter dem Schluessel seines Bereichs.</summary>
+        Guid? AreaId = null, byte[]? NameSealed = null, int? NameEpoch = null);
 
     /// <summary>
     /// <para>
@@ -385,17 +381,10 @@ public static partial class Form
     }
 
     /// <summary>
-    /// <para>
-    /// <b>Die Klausel des Formulars</b> (0042) — und fuer eines, das (noch)
-    /// keine hat, die seines ersten Antwortbereichs. So sammelt ein Formular,
-    /// das vor 0042 gesammelt hat, weiter, bis jemand seine eigene eintraegt.
-    /// </para>
-    /// <para>
-    /// <b>2026-10-17 — EINE Stelle:</b> der Administrator danych steht beim
-    /// Obszar des Formulars, und ein Obszar ohne eigenen erbt den des naechsten
-    /// darueber (<c>parent_area_id</c>: die Gruppe den der Pfarrei). Erst wenn
-    /// die ganze Kette keinen hat, gilt, was frueher am Formular selbst stand.
-    /// </para>
+    /// <b>Die Klausel des Formulars</b> (0042) steht an EINER Stelle: der
+    /// Administrator danych beim Obszar des Formulars, und ein Obszar ohne
+    /// eigenen erbt den des naechsten darueber (<c>parent_area_id</c>: die Gruppe
+    /// den der Pfarrei). Hat die ganze Kette keinen, sammelt das Formular nicht.
     /// </summary>
     private static async Task<Whole?> WholeAsync(SqlConnection connection, Guid moduleId, CancellationToken ct)
     {
@@ -412,20 +401,9 @@ public static partial class Form
                  WHERE c.depth < 16
             )
             SELECT m.for_kind, m.closed_at,
-                   /* 0047 — eine Erweiterung ohne eigene Klausel steht unter der ihres Formulars. */
-                   COALESCE(m.controller_name, b.controller_name),
-                   CASE WHEN m.controller_name IS NULL THEN b.controller_address ELSE m.controller_address END,
-                   CASE WHEN m.controller_name IS NULL THEN b.controller_email ELSE m.controller_email END,
-                   c.name, c.address, c.email,
-                   m.config, m.name, m.area_id, m.name_sealed, m.name_epoch,
+                   m.config, m.area_id, m.name_sealed, m.name_epoch,
                    h.name, h.address, h.email
             FROM app.module m
-            LEFT JOIN app.module b ON b.id = m.extends_id
-            OUTER APPLY (
-                SELECT TOP 1 ac.name, ac.address, ac.email
-                  FROM app.area_controller ac
-                 WHERE ac.area_id IN (SELECT f.area_id FROM app.slug_field f WHERE f.part_id = m.id)
-            ) c
             OUTER APPLY (
                 SELECT TOP 1 ac.name, ac.address, ac.email
                   FROM chain ch
@@ -442,19 +420,14 @@ public static partial class Form
 
         string? Text(int i) => reader.IsDBNull(i) ? null : reader.GetString(i);
 
-        (string, string?, string?)? controller =
-            Text(13) is string home ? (home, Text(14), Text(15))
-            : Text(2) is string own ? (own, Text(3), Text(4))
-            : Text(5) is string area ? (area, Text(6), Text(7))
-            : null;
+        (string, string?, string?)? controller = Text(6) is string name ? (name, Text(7), Text(8)) : null;
 
-        var config = Text(8);
+        var config = Text(2);
         return new Whole(reader.GetString(0), !reader.IsDBNull(1), controller,
             Title: TitleOf(config), After: AfterOf(config),
-            AreaId: reader.IsDBNull(10) ? null : reader.GetGuid(10),
-            NameSealed: reader.IsDBNull(11) ? null : (byte[])reader[11],
-            NameEpoch: reader.IsDBNull(12) ? null : reader.GetInt32(12),
-            PlainName: Text(9));
+            AreaId: reader.IsDBNull(3) ? null : reader.GetGuid(3),
+            NameSealed: reader.IsDBNull(4) ? null : (byte[])reader[4],
+            NameEpoch: reader.IsDBNull(5) ? null : reader.GetInt32(5));
     }
 
 /// <summary>Die zu bestaetigenden Fragen als Text — oder <c>null</c>, wenn keine.</summary>

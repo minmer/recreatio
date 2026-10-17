@@ -130,7 +130,6 @@ public static partial class Form
             nameAreaId = whole?.AreaId is Guid nameArea ? Ids.ToText(nameArea) : null,
             nameSealed = whole?.NameSealed is null ? null : Base64Url.Encode(whole.NameSealed),
             nameEpoch = whole?.NameEpoch,
-            name = whole?.NameSealed is null ? whole?.PlainName : null,
             after = whole?.After is null ? null : new
             {
                 title = whole.After.Title,

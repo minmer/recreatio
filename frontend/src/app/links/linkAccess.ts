@@ -75,8 +75,8 @@ export interface LinkRow {
   readonly tokenSealed: string | null;
   /** 0073 — wo er aufgeht (der Weg hinter `#/`), `null`: auf der Seite „Dołącz". */
   readonly aim: string | null;
-  /** 0091 — die Rollen, die er gibt (leer: ein Link der alten Art, direkt zu Bereichen; fehlt beim alten Dienst). */
-  readonly roles?: readonly string[];
+  /** 0091 — die Rollen, die er gibt (leer: ein Link direkt zu Bereichen). */
+  readonly roles: readonly string[];
 }
 
 export interface LinkInfo {
@@ -405,8 +405,8 @@ interface HeldAnswer {
     readonly wrapPrivateSealed: string | null;
     readonly areas: readonly LinkArea[];
     readonly grants: readonly { areaId: string; epoch: number; sealedBlob: string }[];
-    /** 0091 — der Weg zu den Rollen, die der Link gibt (fehlt beim alten Dienst). */
-    readonly bundle?: RoleBundle;
+    /** 0091 — der Weg zu den Rollen, die der Link gibt. */
+    readonly bundle: RoleBundle;
   }[];
 }
 
@@ -459,7 +459,7 @@ export function heldLinkKeys(): Promise<HeldKeys> {
         const own = link.bundle?.roles.find((r) => r.roleId === link.roleId)?.rights;
         roles.push({
           token: mine.token, roleId: link.roleId, label: link.label, roleKey, wrapPrivateSealed: link.wrapPrivateSealed,
-          /* Was die Linkrolle selbst darf; ein alter Dienst sagt das nicht — dann, was der Link gibt. */
+          /* Was die Linkrolle selbst darf — bei einem Link direkt zu Bereichen: was der Link gibt. */
           areas: own === undefined ? link.areas : own.map((r) => ({ areaId: r.areaId, name: names.get(r.areaId) ?? '', capability: r.capability }))
         });
         for (const grant of link.grants) {

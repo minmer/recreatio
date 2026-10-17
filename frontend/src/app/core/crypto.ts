@@ -105,8 +105,6 @@ export const Field = {
    * für den Link und für den Bereich; dieselbe Sache, dasselbe Etikett.
    */
   SeatKey: 'seat_key',
-  SeatPersonalNote: 'seat_personal',
-  SeatInternalNote: 'seat_internal',
 
   /* Eine eingesandte Antwort, und der private Annahmeschlüssel dahinter. */
   EventAnswer: 'answer',

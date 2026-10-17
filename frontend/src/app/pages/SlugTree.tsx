@@ -30,7 +30,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { openSubpage } from '../areas/access';
 import { areaPath, inOrder, loadAreas, type AreaRow } from '../areas/area';
-import { kindName, moveSlug, setPageAreas, takers, type Desk, type PageCard } from '../workspace/desk';
+import { moveSlug, setPageAreas, takers, type Desk, type PageCard } from '../workspace/desk';
 import { myRoleNames, roleLabel } from '../roles/roleNames';
 import type { Ring } from '../core/keys';
 import { keysFor } from '../core/ringOf';
@@ -272,9 +272,7 @@ function Row({ node, depth, desk, names, areas, editing, dragging, over, allowed
           <span className="wk-badge">
             {(page.accessAreaIds ?? []).length > 0
               ? `tylko z dostępem: ${(page.accessAreaIds ?? []).map((id) => areas.some((a) => a.areaId === id) ? areaPath(areas, id).short : 'obszar').join(', ')}`
-              : page.internalForRoleId === null
-                ? 'publiczny'
-                : `tylko: ${whose(page.internalForRoleId, names, desk)}`}
+              : 'publiczny'}
           </span>
         )}
       </span>
@@ -296,7 +294,7 @@ function Row({ node, depth, desk, names, areas, editing, dragging, over, allowed
       {open && page !== null && (
         <div className="wk-form" style={{ flexBasis: '100%' }}>
           <Rename page={page} busy={busy} onAct={onAct} />
-          <Visibility page={page} areas={areas} desk={desk} names={names} busy={busy} onAct={onAct} />
+          <Visibility page={page} areas={areas} busy={busy} onAct={onAct} />
           <AddChild parent={node.path} desk={desk} names={names} busy={busy} onAct={onAct} />
         </div>
       )}
@@ -306,33 +304,6 @@ function Row({ node, depth, desk, names, areas, editing, dragging, over, allowed
 
 /* -- Namen ----------------------------------------------------------------- */
 
-/**
- * Wem die Adresse gehört, in einem Wort.
- *
- * Drei Stufen, absteigend nach Gewissheit: der versiegelte Name, den dieser Tab
- * öffnen konnte; die Art der Rolle, wenn sie im eigenen Graphen hängt; sonst
- * die halbe Kennung. Die letzte Stufe ist der Normalfall bei einer FREMDEN
- * Rolle — Annas Name liegt unter Annas Schlüssel, nicht unter unserem, und das
- * soll man der Zeile ansehen.
- */
-function whose(roleId: string, names: ReadonlyMap<string, string>, desk: Desk): string {
-  const name = names.get(roleId);
-  if (name !== undefined && name !== '') return name;
-
-  const mine = desk.roles.find((r) => r.id === roleId);
-  if (mine !== undefined) return kindName(mine);
-
-  return roleId.slice(0, 8);
-}
-
-/* -- Wem die Adresse gehört ------------------------------------------------ */
-
-/**
- * <b>Die Rolle muss nicht die eigene sein.</b> Eine Lehrerin richtet
- * `lo13/anna` für Anna ein, ohne Annas Rolle zu halten — deshalb steht neben
- * der Auswahl der eigenen Rollen ein Feld für eine fremde Kennung. Ohne das
- * liesse sich der Fall, für den das Ganze gebaut ist, gar nicht eintragen.
- */
 /* -- Wer die Seite öffnen darf ----------------------------------------------- */
 
 /**
@@ -347,21 +318,18 @@ function whose(roleId: string, names: ReadonlyMap<string, string>, desk: Desk): 
  * genau dieser Seite), eine Person mit Zugang zu einem dieser Bereiche, und
  * wer die Seite führt. Alle anderen lesen, dass es Zugang braucht.
  */
-function Visibility({ page, areas, desk, names, busy, onAct }: {
+function Visibility({ page, areas, busy, onAct }: {
   page: PageCard;
   areas: readonly AreaRow[];
-  desk: Desk;
-  names: ReadonlyMap<string, string>;
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
   const now = page.accessAreaIds ?? [];
-  const [restricted, setRestricted] = useState(now.length > 0 || page.internalForRoleId !== null);
+  const [restricted, setRestricted] = useState(now.length > 0);
   const [chosen, setChosen] = useState<readonly string[]>(now);
 
-  const same = restricted === (now.length > 0 || page.internalForRoleId !== null)
-    && chosen.length === now.length && chosen.every((id) => now.includes(id))
-    && !(restricted && page.internalForRoleId !== null && chosen.length > 0);
+  const same = restricted === (now.length > 0)
+    && chosen.length === now.length && chosen.every((id) => now.includes(id));
   const toggle = (id: string) =>
     setChosen((was) => (was.includes(id) ? was.filter((one) => one !== id) : [...was, id]));
 
@@ -410,11 +378,6 @@ function Visibility({ page, areas, desk, names, busy, onAct }: {
               <span>obszar, którego nie widzisz</span>
             </label>
           ))}
-          {page.internalForRoleId !== null && chosen.length === 0 && (
-            <span className="wk-hint">
-              Dziś stronę otwiera rola: {whose(page.internalForRoleId, names, desk)}. Wybierz obszary — zastąpią ją.
-            </span>
-          )}
         </div>
       )}
 
@@ -432,7 +395,7 @@ function Visibility({ page, areas, desk, names, busy, onAct }: {
           </button>
         </span>
       )}
-      {restricted && chosen.length === 0 && page.internalForRoleId === null && (
+      {restricted && chosen.length === 0 && (
         <span className="wk-hint">Zaznacz co najmniej jeden obszar.</span>
       )}
     </fieldset>

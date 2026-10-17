@@ -152,8 +152,7 @@ public static partial class Form
             """
             SELECT 1 FROM app.slug s
             WHERE s.path = @p
-              AND (s.internal_for_role_id IS NOT NULL
-                   OR EXISTS (SELECT 1 FROM app.slug_area w WHERE w.slug_id = s.id));
+              AND EXISTS (SELECT 1 FROM app.slug_area w WHERE w.slug_id = s.id);
             """, connection))
         {
             look.Parameters.AddWithValue("@p", wanted);

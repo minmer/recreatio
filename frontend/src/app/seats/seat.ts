@@ -25,10 +25,9 @@
  * sie ausdrücklich schickt — und den zweiten schickt er nie.
  */
 
-import { aad, Field, fromBase64Url, KEY_SIZE, open, openText, seal, sha256, toBase64Url, unwrapKey, wrapKey } from '../core/crypto';
+import { aad, Field, fromBase64Url, KEY_SIZE, open, seal, sha256, toBase64Url, unwrapKey, wrapKey } from '../core/crypto';
 import { epochAad } from '../areas/area';
 import type { Ring, SealedRole } from '../core/keys';
-import type { PagePart } from '../pages/page';
 import { checkFor, sealLink, type CheckAnswer, type SeatChallenge } from './seatCheck';
 import type { SeatFormSealed } from '../steps/steps';
 import { pageLink } from './seatKeep';
@@ -39,7 +38,6 @@ import { call } from '../core/session';
 /* -- Die Etiketten, an EINER Stelle ---------------------------------------- */
 
 export const seatAad = (seatId: string) => aad('seat', 'access', seatId, Field.SeatKey, 1);
-export const personalAad = (seatId: string) => aad('seat', 'access', seatId, Field.SeatPersonalNote, 1);
 
 /* -- Der Link --------------------------------------------------------------- */
 
@@ -151,11 +149,7 @@ export async function openGrants(
 export interface SeatRow {
   readonly seatId: string;
 
-  /**
-   * Wie der Mensch heisst — 0097: geöffnet von `loadSeats` (versiegelt unter dem
-   * Schlüssel dieses Bereichs, `nameSealed`); offen kommt er nur bei einem
-   * alten Platz, bis ihn ein Browser der Kanzlei versiegelt hat.
-   */
+  /** Wie der Mensch heisst — 0097: geöffnet von `loadSeats` (versiegelt unter dem Schlüssel dieses Bereichs, `nameSealed`). */
   readonly recipientName: string | null;
   readonly nameSealed?: string | null;
   readonly nameEpoch?: number | null;
@@ -182,8 +176,6 @@ export interface SeatRow {
   readonly under: string | null;
 
   readonly epoch: number;
-  readonly personalNoteSealed: string | null;
-  readonly internalNoteSealed: string | null;
   readonly status: string;
   readonly viewCount: number;
   readonly createdAt: string;
@@ -328,7 +320,7 @@ export async function rotateSeat(token: string, seatId: string, seatKey: Uint8Ar
   return link;
 }
 
-/* 0097 — den vollen Namen an die Plätze schreiben: `nameSeal.ts` `sealSeatNames` (versiegelt). */
+/* 0097 — den vollen Namen an die Plätze schreiben: `seatNames.ts` `sealSeatNames` (versiegelt). */
 
 export const revokeSeat = (seatId: string): Promise<{ revoked: boolean }> =>
   call(`/workspace/seat/${encodeURIComponent(seatId)}/revoke`, { method: 'POST' });
@@ -341,16 +333,12 @@ export interface Portal {
   readonly seatKeySealed: string;
   readonly epoch: number;
 
-  /** Offen nur bei einem alten Platz, bis die Kanzlei ihn versiegelt hat (0097). */
-  readonly recipientName: string | null;
-
   /** 0097 — wie er heisst: unter dem Platzschlüssel (seine Kopie) und unter dem des Bereichs. */
   readonly ownNameSealed?: string | null;
   readonly nameSealed?: string | null;
   readonly nameEpoch?: number | null;
   /** 0095 — eine Person aus einem Link: der Name des Links (in einer Rozmowa in Klammern hinter ihrem). */
   readonly via?: string | null;
-  readonly personalNoteSealed: string | null;
   readonly expiresAt: string | null;
 
   /** Was dieser Platz ausserdem aufschliesst — beim Schüler die Klasse. */
@@ -365,31 +353,10 @@ export interface Portal {
   /**
    * 0091 — die Rollen, zu denen dieser Mensch gehört (die seines Formulars):
    * ihr Schlüssel unter dem Platzschlüssel (`null`: wartet noch) und der Weg
-   * zu ihren Bereichen. Fehlt beim alten Dienst.
+   * zu ihren Bereichen.
    */
-  readonly roles?: import('../roles/memberRole').SeatRoles;
+  readonly roles: import('../roles/memberRole').SeatRoles;
 
-  /**
-   * Die VORLAGE, aus der sich dieses Portal zeichnet (0028) — oder `null`.
-   *
-   * <b>Eine ganz gewöhnliche Seite.</b> Ihre Bausteine kommen über diesen Weg
-   * und nicht über ihre Adresse: sie ist in der Regel intern (0026), und hier
-   * ist der Link der Ausweis. Gezeichnet wird sie mit `PageParts`, wie jede
-   * andere — dieselben Module, dasselbe Raster, derselbe Editor.
-   *
-   * `null` heisst: der Bereich hat keine eingerichtet. Dann zeigt das Portal
-   * seine eingebaute Gestalt, und das ist kein Übergangszustand — ein Platz
-   * ohne Vorlage soll trotzdem etwas zeigen.
-   */
-  readonly template: {
-    readonly path: string;
-    readonly title: string | null;
-    readonly lead: string | null;
-    /* Dieselben Zeilen wie eine Seite — samt `moduleId`, an dem die Fragen
-       eines Bogens hängen. Sie hier ohne ihn zu beschreiben hiesse, ihn auf
-       dem Weg durch das Portal zu verlieren. */
-    readonly parts: readonly PagePart[];
-  } | null;
 }
 
 /**
@@ -461,19 +428,9 @@ export const loadPortal = (token: string): Promise<Portal | SeatChallenge> =>
 export const isChallenge = (reply: Portal | SeatChallenge): reply is SeatChallenge =>
   (reply as SeatChallenge).verify !== undefined;
 
-/** Und aufmachen. Der Schlüssel kommt aus dem Link, nicht vom Dienst. */
-export async function openPortal(
-  portal: Portal, linkKey: Uint8Array
-): Promise<{ seatKey: Uint8Array; personal: string | null }> {
-  const seatKey = await open(linkKey, seatAad(portal.seatId), fromBase64Url(portal.seatKeySealed));
-
-  const personal = portal.personalNoteSealed === null
-    ? null
-    : await quietly(() => openText(seatKey, personalAad(portal.seatId),
-        fromBase64Url(portal.personalNoteSealed!)));
-
-  return { seatKey, personal };
-}
+/** Und aufmachen: der Platzschlüssel. Der Schlüssel dazu kommt aus dem Link, nicht vom Dienst. */
+export const openPortal = (portal: Portal, linkKey: Uint8Array): Promise<Uint8Array> =>
+  open(linkKey, seatAad(portal.seatId), fromBase64Url(portal.seatKeySealed));
 
 /* -- Binden ----------------------------------------------------------------- */
 
@@ -503,13 +460,12 @@ export interface MySeat {
   readonly seatId: string;
   readonly areaId: string;
   readonly areaName: string;
-  /** 0097 — geöffnet aus seiner eigenen Kopie (`loadMySeats` mit Bund); offen nur bei einem alten. */
+  /** 0097 — geöffnet aus seiner eigenen Kopie (`loadMySeats` mit Bund). */
   readonly recipientName: string | null;
   readonly ownNameSealed?: string | null;
   readonly roleId: string;
   readonly seatKeySealed: string;
   readonly epoch: number;
-  readonly personalNoteSealed: string | null;
   readonly status: string;
   readonly expiresAt: string | null;
   readonly grants: readonly SeatGrant[];
@@ -517,36 +473,15 @@ export interface MySeat {
 
 /** Meine Plätze — mit dem Bund auch ihre Namen (die eigene Kopie, unter dem Platzschlüssel, 0097). */
 export async function loadMySeats(ring?: Ring | null): Promise<{ seats: readonly MySeat[] }> {
-  const got = await call<{ seats: readonly MySeat[] }>('/workspace/seats');
-  if (ring == null) return got;
+  const got = await call<{ seats: readonly Omit<MySeat, 'recipientName'>[] }>('/workspace/seats');
   return {
     seats: await Promise.all(got.seats.map(async (seat) => {
-      if (seat.ownNameSealed == null) return seat;
+      if (ring == null || seat.ownNameSealed == null) return { ...seat, recipientName: null };
+      /* Die dritte Verpackung: der RSA-Schlüssel der Rolle packt den Platzschlüssel aus — ohne den Link. */
       const seatKey = await quietly(async () => unwrapKey(await ring.wrapPrivate(seat.roleId), seatAad(seat.seatId), fromBase64Url(seat.seatKeySealed)));
-      const name = seatKey === null ? null : await openWith(seatKey, seatOwnNameAad(seat.seatId), seat.ownNameSealed);
-      return { ...seat, recipientName: name ?? seat.recipientName };
+      return { ...seat, recipientName: seatKey === null ? null : await openWith(seatKey, seatOwnNameAad(seat.seatId), seat.ownNameSealed) };
     }))
   };
-}
-
-/**
- * Einen gebundenen Platz öffnen — OHNE den Link.
- *
- * Genau dafür gibt es die dritte Verpackung: der RSA-Schlüssel der Rolle packt
- * den Platzschlüssel aus. Ohne sie wäre das Binden ein Eintrag in einer Liste
- * und sonst nichts.
- */
-export async function openMine(seat: MySeat, ring: Ring): Promise<string | null> {
-  const seatKey = await unwrapKey(
-    await ring.wrapPrivate(seat.roleId),
-    seatAad(seat.seatId),
-    fromBase64Url(seat.seatKeySealed)
-  );
-
-  if (seat.personalNoteSealed === null) return null;
-
-  return quietly(() => openText(seatKey, personalAad(seat.seatId),
-    fromBase64Url(seat.personalNoteSealed!)));
 }
 
 /* -- Kleinkram -------------------------------------------------------------- */

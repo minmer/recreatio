@@ -210,11 +210,9 @@ public static partial class Seat
     /// DER VOLLE NAME AM PLATZ — Imię i nazwisko, wo er bekannt ist.
     ///
     /// <para>
-    /// <b>Warum es das braucht.</b> Der Name am Platz (`recipient_name`) stand
-    /// offen da, damit die Kanzlei ihn zuordnen kann — genommen wurde aber das
-    /// ERSTE Namensfeld des Formulars, und bei getrennten Feldern war das der
-    /// Nachname allein. Im Kalender stand dann „Węglowski", bei Termin, Bitte
-    /// und Liste. Die Kanzlei hat die vollen Antworten, sobald sie die
+    /// <b>Warum es das braucht.</b> Am Platz steht der Name, unter dem die
+    /// Kanzlei ihn zuordnet — bei getrennten Feldern anfangs nur ein Teil davon
+    /// („Węglowski"). Die Kanzlei hat die vollen Antworten, sobald sie die
     /// Einsendungen aufmacht; von dort kommt hier der volle Name.
     /// </para>
     ///
@@ -223,8 +221,7 @@ public static partial class Seat
     /// gesetzt hat („Janek, brat Oli"), bleibt; ersetzt wird nur ein leerer
     /// oder einer, der im neuen enthalten ist — „Węglowski" wird „Jan
     /// Węglowski", aber nichts anderes. 0097: das entscheidet der Browser, der
-    /// beide lesen kann; der Dienst sieht keinen Namen mehr und nimmt nur die
-    /// Hüllen (und löscht dabei einen alten Klartext).
+    /// beide lesen kann; der Dienst sieht keinen Namen und nimmt nur die Hüllen.
     /// </para>
     /// </summary>
     private static async Task NamesAsync(HttpContext ctx, Db db, NamesRequest body)
@@ -269,8 +266,7 @@ public static partial class Seat
                 UPDATE app.access
                    SET name_sealed = COALESCE(@named, name_sealed),
                        name_epoch = CASE WHEN @named IS NULL THEN name_epoch ELSE @epoch END,
-                       own_name_sealed = COALESCE(@own, own_name_sealed),
-                       recipient_name = NULL
+                       own_name_sealed = COALESCE(@own, own_name_sealed)
                  WHERE id = @id;
                 """, connection);
 
@@ -282,52 +278,5 @@ public static partial class Seat
         }
 
         await ctx.Response.WriteAsJsonAsync(new { updated });
-    }
-
-    /// <summary>
-    /// Die Notizen setzen — der Fall des Lehrers.
-    ///
-    /// <para>
-    /// Nur was genannt wurde. Ein Aufruf, der bloss die interne Notiz aendern
-    /// will, darf die persoenliche nicht nebenbei loeschen.
-    /// </para>
-    /// </summary>
-    private static async Task NoteAsync(HttpContext ctx, Db db, Guid id, NoteRequest body)
-    {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
-        await using var connection = await db.OpenAsync(ctx.RequestAborted);
-
-        var area = await AreaOfAsync(connection, id, ctx.RequestAborted);
-        if (area is null || !await Area.MayAsync(connection, who.Value.AccountId, area.Value,
-                Capability.Write, ctx.RequestAborted))
-        {
-            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego miejsca nie ma.");
-            return;
-        }
-
-        var personal = Optional(body.PersonalNoteSealed);
-        var internalNote = Optional(body.InternalNoteSealed);
-
-        if (personal is null && internalNote is null)
-        {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Nie podano żadnej notatki.");
-            return;
-        }
-
-        await using var cmd = new SqlCommand("""
-            UPDATE app.access
-               SET personal_note_sealed = ISNULL(@personal, personal_note_sealed),
-                   internal_note_sealed = ISNULL(@internal, internal_note_sealed)
-             WHERE id = @id;
-            """, connection);
-
-        cmd.Parameters.AddBlob("@personal", personal);
-        cmd.Parameters.AddBlob("@internal", internalNote);
-        cmd.Parameters.AddWithValue("@id", id);
-
-        await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
-        await ctx.Response.WriteAsJsonAsync(new { seatId = Ids.ToText(id), updated = true });
     }
 }

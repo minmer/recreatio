@@ -93,8 +93,7 @@ export interface Who {
   /**
    * ABSICHTLICH fakultativ.
    *
-   * Ein Dienst von vor 0021 schickt das Feld nicht. Fehlt es, gilt die
-   * STRENGE Fassung — der Schlüssel wird dann nicht aufbewahrt. Das ist die
+   * Fehlt es, gilt die STRENGE Fassung — der Schlüssel wird dann nicht aufbewahrt. Das ist die
    * Richtung, in die ein Zweifel fallen muss: eine fehlende Angabe darf nicht
    * dazu führen, dass etwas abgelegt wird, was niemand angeordnet hat.
    */

@@ -87,7 +87,7 @@ export interface Offer {
   readonly hosting: boolean;
 
   /** Wer um Mitnahme bittet — nur für den Gastgeber: 0097 der Name versiegelt auf seinen Schlüssel (`openAskNames`). */
-  readonly asks: readonly { claimId: string; name: string | null; nameSealed?: string | null }[];
+  readonly asks: readonly { claimId: string; nameSealed?: string | null }[];
 
   /** 0097 — der öffentliche Schlüssel des Gastgebers: wer um Mitnahme bittet, versiegelt seinen Namen darauf. */
   readonly hostWrapPublic?: string | null;
@@ -175,9 +175,7 @@ export function loadOffers(resource: string, holder?: Holder | null,
   if (from) q.set('from', from.toISOString());
   if (to) q.set('to', to.toISOString());
 
-  /* Ein Dienst von vor 0049 nennt keine Mindestzahl — 2 ist, was damals galt. */
-  return call<Offers>(`/resource/offers?${q.toString()}`)
-    .then((got) => ({ ...got, resource: { ...got.resource, minPersons: got.resource.minPersons ?? 2 } }));
+  return call<Offers>(`/resource/offers?${q.toString()}`);
 }
 
 export interface Taken {

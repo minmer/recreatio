@@ -62,7 +62,6 @@ export interface Opened {
  */
 export function useSeat(token: string, keyText: string | null): Opened {
   const [portal, setPortal] = useState<Portal | null | undefined>(undefined);
-  const [note, setNote] = useState<string | null>(null);
   const [seatKey, setSeatKey] = useState<Uint8Array | null>(null);
   const [shared, setShared] = useState<readonly Shared[]>([]);
   const [sharedNames, setSharedNames] = useState<readonly string[]>([]);
@@ -112,16 +111,13 @@ export function useSeat(token: string, keyText: string | null): Opened {
 
       let key: Uint8Array;
       try {
-        const opened = await openPortal(found, held);
-        key = opened.seatKey;
+        key = await openPortal(found, held);
         setSeatKey(key);
 
         /* Er geht auf — also ist er der richtige, und er darf bleiben. */
         remember(token, held);
-        setNote(opened.personal);
       } catch {
         setSeatKey(null);
-        setNote(null);
         setOwnName(null);
         return;
       }
@@ -180,7 +176,7 @@ export function useSeat(token: string, keyText: string | null): Opened {
       for (const form of found.forms ?? []) {
         /* 0097 — die Namen seiner Uzupełnienia liegen unter dem Schlüssel ihrer Fragen. */
         const extensions = await Promise.all(form.extensions.map(async (x) => {
-          if (x.nameSealed == null || x.nameEpoch == null || x.areaId == null) return { ...x, name: x.name ?? 'Uzupełnienie' };
+          if (x.nameSealed == null || x.nameEpoch == null || x.areaId == null) return { ...x, name: 'Uzupełnienie' };
           const nameKey = await reader.key(x.areaId, x.nameEpoch);
           return { ...x, name: (nameKey === undefined ? null : await openWith(nameKey, moduleNameAad(x.moduleId), x.nameSealed)) ?? 'Uzupełnienie' };
         }));
@@ -275,9 +271,8 @@ export function useSeat(token: string, keyText: string | null): Opened {
     token,
     seatId: portal.seatId,
     seatKey,
-    recipientName: ownName ?? portal.recipientName,
+    recipientName: ownName,
     via: portal.via ?? null,
-    note,
     submitted: portal.submitted,
     opened: mine,
     forms,

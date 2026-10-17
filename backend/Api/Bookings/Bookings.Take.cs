@@ -432,13 +432,13 @@ public static partial class Bookings
             await using (var insert = new SqlCommand("""
                 INSERT INTO app.claim
                     (id, resource_id, starts_at, ends_at, item_id, occurrence_at, access_id, role_id,
-                     group_id, status, awaits, invite_sha256, invite_until, invite_sealed, holder_name,
+                     group_id, status, awaits, invite_sha256, invite_until, invite_sealed,
                      created_at,
                      holder_name_sealed, holder_name_epoch, holder_name_wrapped, ask_name_sealed,
                      host_wrap_public, host_wrap_private_sealed)
                 VALUES
                     (@id, @r, @s, @e, @item, @at, @access, @role,
-                     @group, @status, @awaits, @hash, @until, @sealed, NULL,
+                     @group, @status, @awaits, @hash, @until, @sealed,
                      @now,
                      @holderSealed, @holderEpoch, @holderWrapped, @askSealed,
                      @hostPublic, @hostPrivate);

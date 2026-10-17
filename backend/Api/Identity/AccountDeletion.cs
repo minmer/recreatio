@@ -341,7 +341,6 @@ public static class AccountDeletion
           AND NOT EXISTS (SELECT 1 FROM app.access x WHERE x.area_id = a.id)
           AND NOT EXISTS (SELECT 1 FROM app.access_grant x WHERE x.area_id = a.id)
           AND NOT EXISTS (SELECT 1 FROM app.slug_area s WHERE s.area_id = a.id)
-          AND NOT EXISTS (SELECT 1 FROM app.area_portal p WHERE p.area_id = a.id)
           AND NOT EXISTS (SELECT 1 FROM app.module m JOIN app.slug_part sp ON sp.module_id = m.id
                            WHERE m.area_id = a.id)
           AND NOT EXISTS (SELECT 1 FROM app.slug_field f
@@ -349,11 +348,10 @@ public static class AccountDeletion
                              AND f.part_id NOT IN (SELECT id FROM app.module WHERE area_id = a.id));
 
         -- 0109: wo die Antworten anderer liegen (eine Klasse, ein Kurs), bleibt der Bereich.
-        IF OBJECT_ID('app.learn_batch', 'U') IS NOT NULL
-            DELETE FROM #dead
-             WHERE EXISTS (SELECT 1 FROM app.learn_batch b
-                            WHERE b.area_id = #dead.id
-                              AND (b.holder_role_id IS NULL OR b.holder_role_id NOT IN (SELECT id FROM #doomed)));
+        DELETE FROM #dead
+         WHERE EXISTS (SELECT 1 FROM app.learn_batch b
+                        WHERE b.area_id = #dead.id
+                          AND (b.holder_role_id IS NULL OR b.holder_role_id NOT IN (SELECT id FROM #doomed)));
 
         INSERT INTO #orphan (id)
         SELECT id FROM #touched WHERE id NOT IN (SELECT id FROM #dead);
@@ -363,12 +361,6 @@ public static class AccountDeletion
     /// Das Löschen selbst — in der Reihenfolge der Fremdschlüssel (alle ohne
     /// Kaskade). Zuerst die sterbenden Bereiche mit allem, was an ihnen hängt;
     /// dann, was die Rollen anderswo hinterlassen; zuletzt das Konto.
-    ///
-    /// <para>
-    /// Die Tabellen der Gesprächsfunktionen (0060) werden nur angefasst, wenn es
-    /// sie gibt: der Stapel wird erst beim Ausführen einer Anweisung aufgelöst,
-    /// und eine übersprungene fragt nicht nach ihrer Tabelle.
-    /// </para>
     /// </summary>
     private const string Delete = """
         SET XACT_ABORT ON;
@@ -438,33 +430,25 @@ public static class AccountDeletion
         DELETE FROM app.calendar      WHERE id IN (SELECT id FROM #cals);
 
         -- Gespräche
-        IF OBJECT_ID(N'app.chat_mark', N'U') IS NOT NULL
-            DELETE FROM app.chat_mark
-             WHERE message_id IN (SELECT id FROM app.chat_message WHERE chat_id IN (SELECT id FROM #chats));
-        IF OBJECT_ID(N'app.chat_attachment', N'U') IS NOT NULL
-        BEGIN
-            INSERT INTO #files (id) SELECT id FROM app.chat_attachment WHERE chat_id IN (SELECT id FROM #chats);
-            DELETE FROM app.chat_attachment WHERE chat_id IN (SELECT id FROM #chats);
-        END
-        IF OBJECT_ID(N'app.chat_presence', N'U') IS NOT NULL
-            DELETE FROM app.chat_presence WHERE chat_id IN (SELECT id FROM #chats);
-        IF OBJECT_ID(N'app.chat_preference', N'U') IS NOT NULL
-            DELETE FROM app.chat_preference
-             WHERE scope_id IN (SELECT id FROM #chats) OR scope_id IN (SELECT id FROM #dead);
+        DELETE FROM app.chat_mark
+         WHERE message_id IN (SELECT id FROM app.chat_message WHERE chat_id IN (SELECT id FROM #chats));
+        INSERT INTO #files (id) SELECT id FROM app.chat_attachment WHERE chat_id IN (SELECT id FROM #chats);
+        DELETE FROM app.chat_attachment WHERE chat_id IN (SELECT id FROM #chats);
+        DELETE FROM app.chat_presence WHERE chat_id IN (SELECT id FROM #chats);
+        DELETE FROM app.chat_preference
+         WHERE scope_id IN (SELECT id FROM #chats) OR scope_id IN (SELECT id FROM #dead);
         DELETE FROM app.chat_message_version
          WHERE message_id IN (SELECT id FROM app.chat_message WHERE chat_id IN (SELECT id FROM #chats));
         -- 0080/0081: Formulare an einer Rozmowa oder an „Napisz do nas" (Audience) — von beiden Seiten her.
-        IF OBJECT_ID(N'app.audience_form', N'U') IS NOT NULL
-            DELETE FROM app.audience_form
-             WHERE (subject_kind = N'chat' AND subject_id IN (SELECT id FROM #chats))
-                OR (subject_kind = N'module' AND subject_id IN (SELECT id FROM #mods))
-                OR module_id IN (SELECT id FROM #mods);
+        DELETE FROM app.audience_form
+         WHERE (subject_kind = N'chat' AND subject_id IN (SELECT id FROM #chats))
+            OR (subject_kind = N'module' AND subject_id IN (SELECT id FROM #mods))
+            OR module_id IN (SELECT id FROM #mods);
         DELETE FROM app.chat_read     WHERE chat_id IN (SELECT id FROM #chats);
         DELETE FROM app.chat_seat_key WHERE chat_id IN (SELECT id FROM #chats);
         DELETE FROM app.chat_message  WHERE chat_id IN (SELECT id FROM #chats);
         -- 0068: die Themen gehören zur Rozmowa.
-        IF COL_LENGTH('app.topic', 'chat_id') IS NOT NULL
-            DELETE FROM app.topic WHERE chat_id IN (SELECT id FROM #chats);
+        DELETE FROM app.topic WHERE chat_id IN (SELECT id FROM #chats);
         DELETE FROM app.chat          WHERE id IN (SELECT id FROM #chats);
 
         -- Aufgaben
@@ -472,46 +456,30 @@ public static class AccountDeletion
         DELETE FROM app.task      WHERE area_id IN (SELECT id FROM #dead);
 
         -- Bibliotheken (0064) — mit allem, was darin steht, auch dem Veröffentlichten
-        IF OBJECT_ID('app.library', 'U') IS NOT NULL
-            INSERT INTO #libs (id) SELECT id FROM app.library WHERE area_id IN (SELECT id FROM #dead);
+        INSERT INTO #libs (id) SELECT id FROM app.library WHERE area_id IN (SELECT id FROM #dead);
 
         -- 0109: Cogita — Sitzungen der sterbenden Bereiche, Antworten, Fassungen und Dateien ihrer Bibliotheken.
-        IF OBJECT_ID('app.cogita_session', 'U') IS NOT NULL
-        BEGIN
-            DELETE FROM app.cogita_game_position WHERE session_id IN (SELECT id FROM app.cogita_session WHERE area_id IN (SELECT id FROM #dead));
-            DELETE FROM app.cogita_game_state    WHERE session_id IN (SELECT id FROM app.cogita_session WHERE area_id IN (SELECT id FROM #dead));
-            DELETE FROM app.cogita_session_key   WHERE session_id IN (SELECT id FROM app.cogita_session WHERE area_id IN (SELECT id FROM #dead));
-            DELETE FROM app.cogita_session_event WHERE session_id IN (SELECT id FROM app.cogita_session WHERE area_id IN (SELECT id FROM #dead));
-            DELETE FROM app.cogita_session       WHERE area_id IN (SELECT id FROM #dead);
-            UPDATE app.cogita_session SET library_id = NULL WHERE library_id IN (SELECT id FROM #libs);
-        END
-        IF OBJECT_ID('app.learn_batch', 'U') IS NOT NULL
-        BEGIN
-            DELETE FROM app.learn_batch WHERE area_id IN (SELECT id FROM #dead) OR library_id IN (SELECT id FROM #libs);
-            DELETE FROM app.learn_due   WHERE library_id IN (SELECT id FROM #libs);
-        END
-        IF OBJECT_ID('app.library_entry_version', 'U') IS NOT NULL
-        BEGIN
-            DELETE FROM app.library_entry_version WHERE entry_id IN (SELECT id FROM app.library_entry WHERE library_id IN (SELECT id FROM #libs));
-            DELETE FROM app.library_file          WHERE library_id IN (SELECT id FROM #libs);
-        END
+        DELETE FROM app.cogita_game_position WHERE session_id IN (SELECT id FROM app.cogita_session WHERE area_id IN (SELECT id FROM #dead));
+        DELETE FROM app.cogita_game_state    WHERE session_id IN (SELECT id FROM app.cogita_session WHERE area_id IN (SELECT id FROM #dead));
+        DELETE FROM app.cogita_session_key   WHERE session_id IN (SELECT id FROM app.cogita_session WHERE area_id IN (SELECT id FROM #dead));
+        DELETE FROM app.cogita_session_event WHERE session_id IN (SELECT id FROM app.cogita_session WHERE area_id IN (SELECT id FROM #dead));
+        DELETE FROM app.cogita_session       WHERE area_id IN (SELECT id FROM #dead);
+        UPDATE app.cogita_session SET library_id = NULL WHERE library_id IN (SELECT id FROM #libs);
+        DELETE FROM app.learn_batch WHERE area_id IN (SELECT id FROM #dead) OR library_id IN (SELECT id FROM #libs);
+        DELETE FROM app.learn_due   WHERE library_id IN (SELECT id FROM #libs);
+        DELETE FROM app.library_entry_version WHERE entry_id IN (SELECT id FROM app.library_entry WHERE library_id IN (SELECT id FROM #libs));
+        DELETE FROM app.library_file          WHERE library_id IN (SELECT id FROM #libs);
 
-        IF OBJECT_ID('app.library', 'U') IS NOT NULL
-        BEGIN
-            DELETE FROM app.library_public_ref
-             WHERE entry_id IN (SELECT e.id FROM app.library_entry e JOIN app.library l ON l.id = e.library_id WHERE l.area_id IN (SELECT id FROM #dead))
-                OR ref_id   IN (SELECT e.id FROM app.library_entry e JOIN app.library l ON l.id = e.library_id WHERE l.area_id IN (SELECT id FROM #dead));
-            DELETE FROM app.library_entry WHERE library_id IN (SELECT id FROM app.library WHERE area_id IN (SELECT id FROM #dead));
-            DELETE FROM app.library       WHERE area_id IN (SELECT id FROM #dead);
-        END
+        DELETE FROM app.library_public_ref
+         WHERE entry_id IN (SELECT e.id FROM app.library_entry e JOIN app.library l ON l.id = e.library_id WHERE l.area_id IN (SELECT id FROM #dead))
+            OR ref_id   IN (SELECT e.id FROM app.library_entry e JOIN app.library l ON l.id = e.library_id WHERE l.area_id IN (SELECT id FROM #dead));
+        DELETE FROM app.library_entry WHERE library_id IN (SELECT id FROM app.library WHERE area_id IN (SELECT id FROM #dead));
+        DELETE FROM app.library       WHERE area_id IN (SELECT id FROM #dead);
 
         -- Adressen und Haushalte (0071): das Verzeichnis eines Gebiets geht mit ihm.
-        IF OBJECT_ID('app.household', 'U') IS NOT NULL
-        BEGIN
-            DELETE FROM app.household     WHERE area_id IN (SELECT id FROM #dead)
-                                             OR place_id IN (SELECT id FROM app.address_place WHERE area_id IN (SELECT id FROM #dead));
-            DELETE FROM app.address_place WHERE area_id IN (SELECT id FROM #dead);
-        END
+        DELETE FROM app.household     WHERE area_id IN (SELECT id FROM #dead)
+                                         OR place_id IN (SELECT id FROM app.address_place WHERE area_id IN (SELECT id FROM #dead));
+        DELETE FROM app.address_place WHERE area_id IN (SELECT id FROM #dead);
 
         -- Formulare und Bausteine (0098: mit dem, was zu ihren Aufgaben gesagt wurde)
         DELETE FROM app.task_answer
@@ -580,14 +548,10 @@ public static class AccountDeletion
         -- ===== Was die Rollen anderswo hinterlassen =========================
 
         -- 0109: die eigenen Fortschritte gehen mit; in fremden Sitzungen, was die Rollen schrieben.
-        IF OBJECT_ID('app.learn_batch', 'U') IS NOT NULL
-        BEGIN
-            DELETE FROM app.learn_batch WHERE holder_role_id IN (SELECT id FROM #doomed);
-            DELETE FROM app.learn_due   WHERE holder_role_id IN (SELECT id FROM #doomed);
-        END
-        IF OBJECT_ID('app.cogita_session_event', 'U') IS NOT NULL
-            DELETE FROM app.cogita_session_event
-             WHERE author_role_id IN (SELECT id FROM #doomed) OR author_person_id IN (SELECT id FROM #doomed);
+        DELETE FROM app.learn_batch WHERE holder_role_id IN (SELECT id FROM #doomed);
+        DELETE FROM app.learn_due   WHERE holder_role_id IN (SELECT id FROM #doomed);
+        DELETE FROM app.cogita_session_event
+         WHERE author_role_id IN (SELECT id FROM #doomed) OR author_person_id IN (SELECT id FROM #doomed);
 
         DELETE FROM app.person_release   WHERE role_id IN (SELECT id FROM #doomed);
         DELETE FROM app.person_value     WHERE role_id IN (SELECT id FROM #doomed);
@@ -617,22 +581,15 @@ public static class AccountDeletion
          WHERE from_role_id IN (SELECT id FROM #doomed) OR to_role_id IN (SELECT id FROM #doomed);
 
         -- Eigene Nachrichten: der Inhalt geht, die Stelle im Gespräch bleibt („usunięta").
-        IF OBJECT_ID(N'app.chat_attachment', N'U') IS NOT NULL
-        BEGIN
-            INSERT INTO #files (id)
-            SELECT id FROM app.chat_attachment
-             WHERE uploaded_by IN (SELECT id FROM #doomed) AND id NOT IN (SELECT id FROM #files);
-            DELETE FROM app.chat_attachment WHERE uploaded_by IN (SELECT id FROM #doomed);
-        END
-        IF OBJECT_ID(N'app.chat_mark', N'U') IS NOT NULL
-            DELETE FROM app.chat_mark WHERE principal_id IN (SELECT id FROM #doomed);
-        IF OBJECT_ID(N'app.chat_presence', N'U') IS NOT NULL
-            DELETE FROM app.chat_presence WHERE principal_id IN (SELECT id FROM #doomed);
-        IF OBJECT_ID(N'app.chat_preference', N'U') IS NOT NULL
-            DELETE FROM app.chat_preference WHERE principal_id IN (SELECT id FROM #doomed);
+        INSERT INTO #files (id)
+        SELECT id FROM app.chat_attachment
+         WHERE uploaded_by IN (SELECT id FROM #doomed) AND id NOT IN (SELECT id FROM #files);
+        DELETE FROM app.chat_attachment WHERE uploaded_by IN (SELECT id FROM #doomed);
+        DELETE FROM app.chat_mark WHERE principal_id IN (SELECT id FROM #doomed);
+        DELETE FROM app.chat_presence WHERE principal_id IN (SELECT id FROM #doomed);
+        DELETE FROM app.chat_preference WHERE principal_id IN (SELECT id FROM #doomed);
         -- 0111 — wann jemand zuletzt in der App war, geht mit ihm.
-        IF OBJECT_ID(N'app.online', N'U') IS NOT NULL
-            DELETE FROM app.online WHERE principal_id IN (SELECT id FROM #doomed);
+        DELETE FROM app.online WHERE principal_id IN (SELECT id FROM #doomed);
 
         DELETE FROM app.chat_message_version
          WHERE message_id IN (SELECT id FROM app.chat_message WHERE author_role_id IN (SELECT id FROM #doomed));
@@ -661,10 +618,8 @@ public static class AccountDeletion
         DELETE FROM app.account_key   WHERE account_id = @account;
         DELETE FROM app.account_state WHERE account_id = @account;
         DELETE FROM app.chat_read     WHERE account_id = @account;
-        IF OBJECT_ID('app.notify_device', 'U') IS NOT NULL
-            DELETE FROM app.notify_device WHERE account_id = @account;
-        IF OBJECT_ID('app.notify_seen', 'U') IS NOT NULL
-            DELETE FROM app.notify_seen WHERE account_id = @account;
+        DELETE FROM app.notify_device WHERE account_id = @account;
+        DELETE FROM app.notify_seen WHERE account_id = @account;
         UPDATE app.slug SET claimed_by_account_id = NULL WHERE claimed_by_account_id = @account;
         DELETE FROM app.account WHERE id = @account;
 

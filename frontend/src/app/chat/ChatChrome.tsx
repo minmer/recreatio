@@ -214,8 +214,6 @@ function Reschedule({ endpoint, messageId, sendAt, onDone }: { endpoint: string;
 }
 
 const POLICIES = [
-  /* Nur noch bei einer Rozmowa, die die Übertragung noch nicht umgestellt hat (documentation/TRANSFER.md). */
-  { value: 'legacy', label: 'Dotychczasowe zasady', hint: 'Piszą ci, którzy pisali do tej pory.' },
   { value: 'members', label: 'Wszyscy uczestnicy', hint: 'Każdy w rozmowie może pisać.' },
   { value: 'writers', label: 'Kanał', hint: 'Publikują tylko osoby z prawem zapisu (write/admin); pozostali czytają i reagują.' }
 ] as const;
@@ -227,7 +225,7 @@ function PolicyDialog({ endpoint, policy, onDone, onClose }: { endpoint: string;
   return (
     <Modal title="Kto może pisać" onClose={onClose}>
       <div className="ch-options" role="radiogroup" aria-label="Kto może pisać">
-        {POLICIES.filter((p) => p.value !== 'legacy' || policy === 'legacy').map((p) => (
+        {POLICIES.map((p) => (
           <label key={p.value} className="ch-option">
             <input type="radio" name="ch-policy" checked={policy === p.value} disabled={busy} onChange={() => {
               setBusy(true);

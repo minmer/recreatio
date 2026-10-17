@@ -314,10 +314,9 @@ function PagesPart({ scope, desk, who }: PartProps) {
 const pageName = (path: string, title: string | null | undefined): string =>
   title != null && title.trim() !== '' ? title.trim() : path === '' ? 'recreatio.pl' : path;
 
-const WHY: Record<'own' | 'area' | 'editor' | 'seat', string> = {
+const WHY: Record<'own' | 'area' | 'seat', string> = {
   own: 'prowadzisz tę stronę',
   area: 'strona Twojej grupy',
-  editor: 'możesz ją edytować',
   seat: 'Twoja strona (z Twojego linku)'
 };
 
@@ -330,7 +329,7 @@ const WHY: Record<'own' | 'area' | 'editor' | 'seat', string> = {
 function MyPagesPart({ mode, desk }: PartProps) {
   const own = desk.pages.filter((p) => p.aliasOf === null)
     .map((p) => ({ path: p.path, title: p.title ?? null, why: 'own' as const, edit: true }));
-  const open = (desk.open ?? []).map((p) => ({ path: p.path, title: p.title, why: p.why, edit: p.edit }));
+  const open = (desk.open ?? []).map((p) => ({ path: p.path, title: p.title, why: p.why, edit: false }));
   const all = [...open, ...own];
 
   if (all.length === 0) {

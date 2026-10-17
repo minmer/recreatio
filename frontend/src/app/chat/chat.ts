@@ -128,7 +128,7 @@ export interface ChatDetail extends Omit<ChatRow, 'unread' | 'seats' | 'pendingS
 
   readonly seats: readonly ChatSeat[];
 
-  /** 0080 — nur in der Rozmowa und im Kanał eines Bereichs; ein alter Dienst schickt sie nicht. */
+  /** 0080 — nur in der Rozmowa und im Kanał eines Bereichs. */
   readonly forms?: readonly AudienceForm[];
 }
 
@@ -177,7 +177,7 @@ export async function loadChats(): Promise<{ chats: readonly ChatRow[] }> {
   const got = await call<{ chats: readonly ChatRow[] }>('/workspace/chats');
   return { chats: await Promise.all(got.chats.map(async (chat) => chat.seatId == null ? chat : {
     ...chat,
-    seatName: await openSeatName({ seatId: chat.seatId, areaId: chat.seatAreaId, nameSealed: chat.seatNameSealed, nameEpoch: chat.seatNameEpoch, name: chat.seatName })
+    seatName: await openSeatName({ seatId: chat.seatId, areaId: chat.seatAreaId, nameSealed: chat.seatNameSealed, nameEpoch: chat.seatNameEpoch })
   })) };
 }
 
@@ -603,7 +603,7 @@ export interface Invitee {
 }
 
 const createChat = (body: {
-  chatId: string; areaId: string; kind: ChatKind; asRoleId: string; withRoleId?: string; postingPolicy?: string; seatId?: string;
+  chatId: string; areaId: string; kind: ChatKind; asRoleId: string; withRoleId?: string; postingPolicy: 'members' | 'writers'; seatId?: string;
 }) => call<{ chatId: string }>('/workspace/chats', { method: 'POST', body: JSON.stringify(body) });
 
 /**
@@ -660,7 +660,7 @@ export async function startAreaChat(areaId: string, asRoleId: string, channel = 
 export async function startSelfChat(areaId: string, personRoleId: string): Promise<string> {
   const chatId = newId();
   try {
-    await createChat({ chatId, areaId, kind: 'self', asRoleId: personRoleId, postingPolicy: 'writers' });
+    await createChat({ chatId, areaId, kind: 'self', asRoleId: personRoleId, postingPolicy: 'members' });
     return chatId;
   } catch (e) {
     const had = (await loadChats().catch(() => ({ chats: [] as readonly ChatRow[] }))).chats.find((c) => c.areaId === areaId);
@@ -704,8 +704,8 @@ export async function startOwnChat(ring: Ring, me: { role: SealedRole; name: str
   await createChat({
     chatId, areaId: area.areaId, kind: what.kind, asRoleId: me.role.id,
     withRoleId: what.kind === 'direct' ? what.invitees[0].roleId : undefined,
-    /* 2026-10-17 — ausgeschrieben: in einer eigenen Rozmowa schreiben, die schreiben dürfen (so galt das alte `legacy`). */
-    postingPolicy: 'writers'
+    /* Wer dazukommt, schreibt — im Kanał einer Gruppe nur, wem das Schreibrecht gegeben wird. */
+    postingPolicy: what.channel ? 'writers' : 'members'
   });
 
   await setMemberName(area.areaId, keys, me.role.id, me.name, me.role.id).catch(() => undefined);

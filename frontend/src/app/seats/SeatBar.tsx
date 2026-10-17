@@ -150,12 +150,6 @@ export function PersonalSections({ seat, chats = true }: {
 }) {
   return (
     <>
-      {seat.note !== null && (
-        <Zone title="Od kancelarii" who="Widzisz to tylko Ty i kancelaria.">
-          <p className="wk-card-text" style={{ whiteSpace: 'pre-wrap' }}>{seat.note}</p>
-        </Zone>
-      )}
-
       {seat.submitted.length > 0 && (
         <Zone title="Twoje zgłoszenie" who="Widzisz to Ty i kancelaria, która prowadzi zapisy.">
           {seat.opened.length === 0 ? (

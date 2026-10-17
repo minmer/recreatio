@@ -19,8 +19,6 @@
 import { useMemo } from 'react';
 
 import { pagePath } from '../routes';
-import { PageParts } from '../pages/PageParts';
-import { toDraft } from '../pages/page';
 import { BindSeat, MyLink, PersonalSections } from './SeatBar';
 import { FirstOpen } from './FirstOpen';
 import { SeatContext } from './seatContext';
@@ -55,13 +53,6 @@ export function SeatPortal({ token, keyText, under }: {
     );
   }
 
-  /*
-   * WAS DIESE SEITE ZEIGT, BESTIMMT DIE KANZLEI (0028) — über die
-   * Portalvorlage des Bereichs, wenn es eine gibt. Sonst die eingebauten
-   * Abschnitte.
-   */
-  const template = portal.template;
-
   return (
     <SeatContext.Provider value={seatList}>
       {under !== null && under !== '' && (
@@ -72,11 +63,11 @@ export function SeatPortal({ token, keyText, under }: {
 
       <h1 className="wk-h1">
         {/* 0097 — der Name aus seiner eigenen, versiegelten Kopie (`useSeat` öffnet sie mit seinem Schlüssel). */}
-        {template?.title ?? seat?.recipientName ?? 'Twoje miejsce'}
+        {seat?.recipientName ?? 'Twoje miejsce'}
       </h1>
 
       <p className="wk-lede">
-        {template?.lead ?? 'Ten link jest kluczem, nie legitymacją: kto go ma, widzi tę stronę. Nie przekazuj go dalej.'}
+        Ten link jest kluczem, nie legitymacją: kto go ma, widzi tę stronę. Nie przekazuj go dalej.
       </p>
 
       {keyText === null && seatKey === null && (
@@ -95,19 +86,9 @@ export function SeatPortal({ token, keyText, under }: {
 
       {failed !== null && <p className="wk-error">{failed}</p>}
 
-      {/* 0098 — mit einer Vorlage zeigt der Baustein „Zgłoszenie osoby" die Durchsicht, an seiner Stelle. */}
-      {seat !== null && template === null && <ReviewSubmissions seat={seat} who={null} />}
+      {seat !== null && <ReviewSubmissions seat={seat} who={null} />}
 
-      {template !== null && <PageParts parts={template.parts.map(toDraft)} />}
-
-      {template !== null && template.parts.length === 0 && (
-        <p className="wk-note">
-          Ta strona jeszcze nic nie pokazuje — kancelaria dopiero układa jej
-          moduły. Wróć tu za jakiś czas; adres się nie zmieni.
-        </p>
-      )}
-
-      {template === null && seat !== null && (
+      {seat !== null && (
         <>
           <PersonalSections seat={seat} />
 

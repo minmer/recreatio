@@ -279,7 +279,7 @@ public static partial class Form
             var extensions = new List<object>();
 
             await using (var cmd = new SqlCommand("""
-                SELECT m.id, m.name, m.closed_at, x.id, m.repeat_kind, x.round_key, m.area_id, m.name_sealed, m.name_epoch,
+                SELECT m.id, m.closed_at, x.id, m.repeat_kind, x.round_key, m.area_id, m.name_sealed, m.name_epoch,
                        (SELECT COUNT(*) FROM app.slug_field f WHERE f.part_id = m.id AND f.removed_at IS NULL)
                 FROM app.module m
                 OUTER APPLY (
@@ -303,19 +303,18 @@ public static partial class Form
                         moduleId = Ids.ToText(reader.GetGuid(0)),
 
                         /* 0097 — der Mensch öffnet den Namen mit dem Schlüssel, mit dem er die Fragen öffnet. */
-                        name = reader.IsDBNull(1) ? null : reader.GetString(1),
-                        areaId = reader.IsDBNull(6) ? null : Ids.ToText(reader.GetGuid(6)),
-                        nameSealed = Names.B64(reader, 7),
-                        nameEpoch = Names.Int(reader, 8),
-                        closed = !reader.IsDBNull(2),
-                        registrationId = reader.IsDBNull(3) ? null : Ids.ToText(reader.GetGuid(3)),
+                        areaId = reader.IsDBNull(5) ? null : Ids.ToText(reader.GetGuid(5)),
+                        nameSealed = Names.B64(reader, 6),
+                        nameEpoch = Names.Int(reader, 7),
+                        closed = !reader.IsDBNull(1),
+                        registrationId = reader.IsDBNull(2) ? null : Ids.ToText(reader.GetGuid(2)),
 
                         /* 0077 — wie oft, und welchen Zeitraum die juengste Einsendung traegt. */
-                        repeat = reader.GetString(4),
-                        round = reader.IsDBNull(5) ? null : reader.GetString(5),
+                        repeat = reader.GetString(3),
+                        round = reader.IsDBNull(4) ? null : reader.GetString(4),
 
                         /* 0099 — ohne Fragen kein Schritt „Uzupełnij". */
-                        questions = reader.GetInt32(9)
+                        questions = reader.GetInt32(8)
                     });
                 }
             }

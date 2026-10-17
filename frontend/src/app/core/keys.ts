@@ -39,7 +39,7 @@ export interface SealedRole {
   readonly signPrivateSealed: string | null;
 
   /**
-   * 0 = ein Schlüssel öffnet Name, Lesen UND Unterschreiben (vor 0034).
+   * 0 = ein Schlüssel öffnet Name, Lesen UND Unterschreiben — nur das Konto (die Wurzel).
    * 1 = das Unterschreiben hängt an einem eigenen Schlüssel.
    */
   readonly keyLayout: 0 | 1;
@@ -305,9 +305,8 @@ export class Ring {
    * prüft die Unterschrift gegen den öffentlichen Teil. Schreiben kann ein
    * Leser weiterhin — aber nicht so, dass es wie eine befugte Zusage aussieht.
    *
-   * <b>`keyLayout === 0` ist die alte Form</b>, in der ein Schlüssel beides
-   * öffnete. Dort gibt es die Trennung nicht, und wer das nicht sagt, behauptet
-   * eine Schranke, die für diese Rolle nicht gilt.
+   * <b>`keyLayout === 0` hat nur das Konto</b> (die Wurzel): EIN Schlüssel öffnet
+   * beides. Niemand sonst hält es, und sein Schlüssel kommt aus dem Hauptschlüssel.
    */
   async signKey(roleId: string): Promise<Uint8Array> {
     const role = this.roles.get(roleId);
@@ -334,9 +333,8 @@ export class Ring {
    * Der Signierschlüssel einer Rolle — zum Weiterverpacken an einen neuen
    * FÜHRENDEN Halter (0034).
    *
-   * `null` heisst zweierlei, und beides ist kein Fehler: die Rolle ist noch in
-   * der alten Form (dann gibt es keinen eigenen), oder dieser Bund führt sie
-   * nicht. Wer weitergeben will, was er selbst nicht hat, bekommt hier die
+   * `null` heisst zweierlei, und beides ist kein Fehler: die Rolle ist das
+   * Konto (dann gibt es keinen eigenen), oder dieser Bund führt sie nicht. Wer weitergeben will, was er selbst nicht hat, bekommt hier die
    * ehrliche Antwort statt einer Ausnahme.
    */
   signKeyOf(roleId: string): Uint8Array | null {

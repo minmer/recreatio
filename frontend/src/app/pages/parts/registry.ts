@@ -51,7 +51,7 @@ import { peoplePart } from './people';
 import { planPart } from './plan';
 import { programPart } from './program';
 import { shapePart } from './shape';
-import { seatAskPart, seatChatPart, seatNotePart, seatSharedPart, seatStepsPart, seatSubmissionPart, seatTasksPart } from './seat';
+import { seatAskPart, seatChatPart, seatSharedPart, seatStepsPart, seatSubmissionPart, seatTasksPart } from './seat';
 import { textPart } from './text';
 import { quotesPart } from './quotes';
 import { writingPart } from './writing';
@@ -117,7 +117,6 @@ export const PARTS: readonly PartModule[] = [
   seatStepsPart,
   /* 0098 — Aufgaben mit Zeitraum. */
   seatTasksPart,
-  seatNotePart,
   seatSharedPart,
   seatChatPart,
   seatAskPart,

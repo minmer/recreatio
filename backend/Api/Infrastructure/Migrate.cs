@@ -25,20 +25,23 @@ namespace Api;
 public static class Migrate
 {
     /// <summary>
-    /// Skripte mit der Nummer 0000 sind zerstoerend und laufen NUR auf
-    /// ausdrueckliche Ansage.
+    /// Die Skripte anwenden, die noch keinen Eintrag haben — der Reihe nach.
     ///
     /// <para>
-    /// Sie stehen der Nummer nach vor allen anderen, waeren also bei jedem
-    /// Lauf die ersten. Ein zerstoerender Schritt, der aus Gewohnheit
-    /// mitlaeuft, laeuft irgendwann zur falschen Zeit mit.
+    /// <b><paramref name="through"/></b> (`--through 0112`): nur bis zu dieser
+    /// Nummer. Ein Skript, das etwas wegnimmt, was der laufende Dienst noch
+    /// liest, wartet so, bis der neue Dienst steht (documentation/TRANSFER.md).
     /// </para>
     /// </summary>
-    private const string DestructivePrefix = "0000";
-
-    public static async Task<int> RunAsync(
-        string connectionString, bool dryRun, bool allowDestructive = false)
+    public static async Task<int> RunAsync(string connectionString, bool dryRun, string? through = null)
     {
+        var last = through is null ? null : Number(through);
+        if (through is not null && last is null)
+        {
+            Console.Error.WriteLine("  !!   --through braucht eine vierstellige Nummer, etwa 0112.");
+            return 2;
+        }
+
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
 
@@ -52,10 +55,9 @@ public static class Migrate
 
         foreach (var (name, text) in Scripts())
         {
-            if (name.StartsWith(DestructivePrefix, StringComparison.Ordinal) && !allowDestructive)
+            if (last is not null && string.CompareOrdinal(name[..4], last) > 0)
             {
-                Console.WriteLine(
-                    $"  ##   {name} uebersprungen - zerstoerend. Mit --drop-legacy anfordern.");
+                Console.WriteLine($"  ##   {name} wartet (--through {last})");
                 continue;
             }
 
@@ -135,14 +137,13 @@ public static class Migrate
     ///
     /// <para>
     /// Nur Skripte bis einschliesslich <paramref name="through"/> (Nummer oder
-    /// Name), nie ein zerstörendes (0000), und mit derselben Prüfsumme, die ein
-    /// gewöhnlicher Lauf eintrüge.
+    /// Name), und mit derselben Prüfsumme, die ein gewöhnlicher Lauf eintrüge.
     /// </para>
     /// </summary>
     public static async Task<int> RecordAsync(string connectionString, string through, bool dryRun)
     {
-        var last = through.Length >= 4 ? through[..4] : through;
-        if (last.Length != 4 || !last.All(char.IsDigit))
+        var last = Number(through);
+        if (last is null)
         {
             Console.Error.WriteLine("  !!   --record-through braucht eine vierstellige Nummer, etwa 0111.");
             return 2;
@@ -159,7 +160,6 @@ public static class Migrate
 
         foreach (var (name, text) in Scripts())
         {
-            if (name.StartsWith(DestructivePrefix, StringComparison.Ordinal)) continue;
             if (string.CompareOrdinal(name[..4], last) > 0) break;
             if (applied.ContainsKey(name)) continue;
 
@@ -197,9 +197,14 @@ public static class Migrate
             while (await reader.ReadAsync(ct)) applied.Add(reader.GetString(0));
         }
 
-        return Scripts().Select(s => s.Name)
-            .Where(n => !n.StartsWith(DestructivePrefix, StringComparison.Ordinal) && !applied.Contains(n))
-            .ToList();
+        return Scripts().Select(s => s.Name).Where(n => !applied.Contains(n)).ToList();
+    }
+
+    /// <summary>Die vierstellige Nummer vorn an einem Skriptnamen (`0112`, `0112_explicit_data`) — oder <c>null</c>.</summary>
+    private static string? Number(string text)
+    {
+        var head = text.Length >= 4 ? text[..4] : text;
+        return head.Length == 4 && head.All(char.IsDigit) ? head : null;
     }
 
     /// <summary>Das Fach für die Fassungen entsteht ausserhalb der Buchführung — es IST sie.</summary>

@@ -157,7 +157,7 @@ public static partial class Form
             {
                 var names = string.Join(", ", mine.Select((_, i) => $"@m{i}"));
                 await using var cmd = new SqlCommand($"""
-                    SELECT TOP {MaxKeysAtOnce} s.id, s.area_id, s.epoch, s.origin, s.seat_key_for_intake, s.seat_key_for_area, s.recipient_name,
+                    SELECT TOP {MaxKeysAtOnce} s.id, s.area_id, s.epoch, s.origin, s.seat_key_for_intake, s.seat_key_for_area,
                            s.name_sealed, s.name_epoch
                     FROM app.access_role ar JOIN app.access s ON s.id = ar.access_id
                     WHERE ar.role_id = @role AND ar.key_sealed IS NULL
@@ -181,10 +181,9 @@ public static partial class Form
                         origin = reader.GetString(3),
                         seatKeyForIntake = reader.IsDBNull(4) ? null : Base64Url.Encode((byte[])reader[4]),
                         seatKeyForArea = reader.IsDBNull(5) ? null : Base64Url.Encode((byte[])reader[5]),
-                        /* 0097 — versiegelt unter dem Schlüssel seines Bereichs; offen nur ein alter. */
-                        recipientName = reader.IsDBNull(6) ? null : reader.GetString(6),
-                        nameSealed = Names.B64(reader, 7),
-                        nameEpoch = Names.Int(reader, 8)
+                        /* 0097 — der Name, versiegelt unter dem Schlüssel seines Bereichs. */
+                        nameSealed = Names.B64(reader, 6),
+                        nameEpoch = Names.Int(reader, 7)
                     });
                 }
             }

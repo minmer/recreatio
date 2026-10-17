@@ -482,7 +482,7 @@ public static partial class Bookings
                     /* Wer um Mitnahme bittet — nur fuer den Gastgeber: der Name,
                        versiegelt auf seinen Schluessel (0097). */
                     asks = hosting
-                        ? await AsksAsync(connection, claims, ctx.RequestAborted)
+                        ? Asks(claims)
                         : []
                 });
             }
@@ -584,27 +584,9 @@ public static partial class Bookings
         return mine;
     }
 
-    private static async Task<List<object>> AsksAsync(
-        SqlConnection connection, List<ClaimRow> claims, CancellationToken ct)
-    {
-        var asks = new List<object>();
-
-        foreach (var c in claims.Where(c => c.Status == "pending" && c.Awaits == "host"))
-        {
-            /* 0097 — der Name für den Gastgeber, versiegelt auf seinen Schlüssel; offen nur ein alter. */
-            string? name = c.AskSealed is null ? c.HolderName : null;
-
-            if (name is null && c.AskSealed is null && c.AccessId is not null)
-            {
-                await using var cmd = new SqlCommand(
-                    "SELECT recipient_name FROM app.access WHERE id = @a;", connection);
-                cmd.Parameters.AddWithValue("@a", c.AccessId.Value);
-                name = await cmd.ExecuteScalarAsync(ct) as string;
-            }
-
-            asks.Add(new { claimId = Ids.ToText(c.Id), name, nameSealed = c.AskSealed is null ? null : Base64Url.Encode(c.AskSealed) });
-        }
-
-        return asks;
-    }
+    /// <summary>0097 — wer bittet: der Name für den Gastgeber, versiegelt auf seinen Schlüssel.</summary>
+    private static List<object> Asks(List<ClaimRow> claims) =>
+        claims.Where(c => c.Status == "pending" && c.Awaits == "host")
+            .Select(c => (object)new { claimId = Ids.ToText(c.Id), nameSealed = c.AskSealed is null ? null : Base64Url.Encode(c.AskSealed) })
+            .ToList();
 }

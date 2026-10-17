@@ -8,7 +8,7 @@ import { type AreaRow, myEpochKeys } from '../areas/area';
 import { AreaOptions } from '../areas/AreaOptions';
 import type { Ring } from '../core/keys';
 import { WorkspaceError } from '../core/session';
-import { CHOOSABLE_IDENTITY, FIELD_KINDS, type FieldKind, IDENTITY_LABEL, type IdentityRole, KIND_LABEL, type OpenField, addField } from './form';
+import { FIELD_KINDS, IDENTITY_ROLES, type FieldKind, IDENTITY_LABEL, type IdentityRole, KIND_LABEL, type OpenField, addField } from './form';
 import { createIntake, loadPublicIntake } from './intake';
 
 /* -- 0083: Zustimmungen, nach dem Absenden, Wzory ------------------------- */
@@ -199,7 +199,7 @@ export function NewFieldForm({
       <label className="wk-field">
         <span>Czego dotyczy</span>
         <select value={identity} onChange={(e) => about(e.target.value as IdentityRole)}>
-          {CHOOSABLE_IDENTITY.map((r) => (
+          {IDENTITY_ROLES.map((r) => (
             <option key={r} value={r} disabled={r !== 'none' && taken.includes(r)}>
               {IDENTITY_LABEL[r]}{r !== 'none' && taken.includes(r) ? ' — już jest w formularzu' : ''}
             </option>
@@ -350,7 +350,7 @@ export function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
       <label className="wk-field">
         <span>Czego dotyczy</span>
         <select value={identity} onChange={(e) => about(e.target.value as IdentityRole)}>
-          {CHOOSABLE_IDENTITY.map((r) => (
+          {IDENTITY_ROLES.map((r) => (
             <option key={r} value={r} disabled={r !== 'none' && taken.includes(r)}>
               {IDENTITY_LABEL[r]}{r !== 'none' && taken.includes(r) ? ' — już jest w formularzu' : ''}
             </option>

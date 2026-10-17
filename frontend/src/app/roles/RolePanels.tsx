@@ -1,14 +1,13 @@
 /**
- * Was neben dem Bild der Rollen steht: die gewählte Rolle, das Konto, die Übergabe der Zertifikate.
+ * Was neben dem Bild der Rollen steht: die gewählte Rolle und das Konto.
  */
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
-import { type Held, handOver, holdsAnything, loadHeld } from '../account/handOver';
 import type { Ring, SealedRole } from '../core/keys';
-import { type Who, WorkspaceError } from '../core/session';
+import type { Who } from '../core/session';
 import { DOTS, KIND_NAME } from './RoleNode';
-import { type EdgeKind, type NewKind, type RoleEdge, type RoleGraphData, createRole, dropHolder, personsOf, renameRole, retypeRole, revokeRole } from './roles';
+import { type EdgeKind, type NewKind, type RoleEdge, createRole, dropHolder, renameRole, retypeRole, revokeRole } from './roles';
 
 /* -- Was man mit einer Rolle tun kann ---------------------------------------
  *
@@ -232,96 +231,5 @@ export function AccountPanel({ who, ring, account, busy, onAct }: {
         </form>
       )}
     </>
-  );
-}
-
-/** 1 obszar, 2 obszary, 5 obszarów. */
-function counted(n: number, one: string, few: string, many: string): string {
-  const tens = n % 100;
-  const units = n % 10;
-  const word = n === 1 ? one
-    : units >= 2 && units <= 4 && (tens < 12 || tens > 14) ? few
-    : many;
-  return `${n} ${word}`;
-}
-
-/**
- * WAS DAS KONTO VOR 0040 BEKAM — einmal übergeben, dann nie wieder zu sehen.
- *
- * Oben über dem Graphen und nicht erst im Konto-Knoten: wer hier nicht
- * zufällig auf „Konto" klickt, sähe nie, dass seine Bereiche noch am falschen
- * Ort hängen.
- */
-export function HandOverBar({ ring, graph, names, onDone }: {
-  ring: Ring;
-  graph: RoleGraphData;
-  names: ReadonlyMap<string, string>;
-  onDone: () => void;
-}) {
-  const [held, setHeld] = useState<Held | null>(null);
-  const [to, setTo] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
-
-  const persons = personsOf(graph);
-
-  useEffect(() => {
-    let alive = true;
-    loadHeld()
-      .then((found) => { if (alive) setHeld(found); })
-      .catch(() => { if (alive) setHeld(null); });
-    return () => { alive = false; };
-  }, [graph]);
-
-  if (held === null || !holdsAnything(held)) return null;
-
-  const what = [
-    held.areas.length > 0 && counted(held.areas.length, 'obszar', 'obszary', 'obszarów'),
-    held.addresses > 0 && counted(held.addresses, 'adres', 'adresy', 'adresów'),
-    held.calendarItems > 0
-      && counted(held.calendarItems, 'wpis w kalendarzu', 'wpisy w kalendarzu', 'wpisów w kalendarzu'),
-    held.intakes.length > 0
-      && counted(held.intakes.length, 'skrzynka formularza', 'skrzynki formularzy', 'skrzynek formularzy')
-  ].filter((x): x is string => x !== false).join(', ');
-
-  const person = persons.find((p) => p.id === to) ?? persons[0] ?? null;
-  const nameOf = (p: SealedRole) => names.get(p.id) ?? 'bez nazwy';
-
-  return (
-    <div className="wk-warn">
-      <p>
-        <strong>Konto trzyma jeszcze samo: {what}.</strong>{' '}
-        Od teraz należy to do osób — przekaż to jednej z nich. Klucze zostaną
-        przepakowane w tej przeglądarce.
-      </p>
-
-      {person === null ? (
-        <p>Najpierw załóż osobę: kliknij „Konto" w grafie.</p>
-      ) : (
-        <div className="wk-actions">
-          {persons.length > 1 && (
-            <select value={person.id} disabled={busy} onChange={(e) => setTo(e.target.value)}>
-              {persons.map((p) => <option key={p.id} value={p.id}>{nameOf(p)}</option>)}
-            </select>
-          )}
-          <button
-            type="button" className="wk-btn" disabled={busy}
-            onClick={() => {
-              setBusy(true);
-              setFailed(null);
-              handOver(ring, held, person)
-                .then(() => onDone())
-                .catch((e: unknown) => setFailed(
-                  e instanceof WorkspaceError ? e.message : 'Nie udało się przekazać.'))
-                .finally(() => setBusy(false));
-            }}
-          >
-            {busy ? 'Przepakowywanie kluczy…' : `Przekaż: ${nameOf(person)}`}
-          </button>
-        </div>
-      )}
-
-      {failed !== null && <p className="wk-error">{failed}</p>}
-    </div>
   );
 }

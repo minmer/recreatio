@@ -218,18 +218,14 @@ public static class Auth
         {
             await using var connection = await db.OpenAsync(ctx.RequestAborted);
             await using var cmd = new SqlCommand("""
-                SELECT id, password_salt, login_salt, login_verifier, master_key_sealed,
-                       person_role_id, disabled_at, key_keeping
+                SELECT id, login_salt, login_verifier, master_key_sealed, disabled_at, key_keeping
                 FROM app.account WHERE login_id = @n;
                 """, connection);
             cmd.Parameters.AddWithValue("@n", name);
 
             var accountId = Guid.Empty;
-            byte[]? passwordSalt = null, loginSalt = null, verifier = null, masterSealed = null;
-            Guid? personRoleId = null;
+            byte[]? loginSalt = null, verifier = null, masterSealed = null;
             var disabled = false;
-
-            // Die Vorgabe, falls die Zeile aus der Zeit vor 0021 stammt.
             var keeping = Keeping.Kept;
 
             await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
@@ -237,13 +233,11 @@ public static class Auth
                 if (await reader.ReadAsync(ctx.RequestAborted))
                 {
                     accountId = reader.GetGuid(0);
-                    passwordSalt = (byte[])reader[1];
-                    loginSalt = (byte[])reader[2];
-                    verifier = (byte[])reader[3];
-                    masterSealed = (byte[])reader[4];
-                    personRoleId = reader.IsDBNull(5) ? null : reader.GetGuid(5);
-                    disabled = !reader.IsDBNull(6);
-                    keeping = reader.IsDBNull(7) ? Keeping.Kept : reader.GetString(7);
+                    loginSalt = (byte[])reader[1];
+                    verifier = (byte[])reader[2];
+                    masterSealed = (byte[])reader[3];
+                    disabled = !reader.IsDBNull(4);
+                    keeping = reader.GetString(5);
                 }
             }
 
@@ -264,42 +258,6 @@ public static class Auth
             {
                 await Fail(ctx, StatusCodes.Status401Unauthorized, "Nazwa konta albo hasło się nie zgadza.");
                 return;
-            }
-
-            /*
-             * EIN KONTO OHNE PERSÖNLICHE ROLLE ist ein Konto, das sich anmelden
-             * und sonst nichts kann: keine Adresse übernehmen, nichts halten.
-             * Solche gibt es aus der Zeit vor 0006.
-             *
-             * Hier ist die einzige Stelle, an der sie zu heilen sind — nur bei
-             * der Anmeldung hat der Dienst den PasswordKey und kommt damit an
-             * den Hauptschlüssel, aus dem der Rollenschlüssel abgeleitet wird.
-             * Das geschieht genau einmal je Konto und dauert so lange wie das
-             * Anlegen.
-             */
-            if (personRoleId is null
-                && passwordSalt is not null && loginSalt is not null
-                && verifier is not null && masterSealed is not null)
-            {
-                var secrets = new AccountSecrets
-                {
-                    PasswordSalt = passwordSalt,
-                    LoginSalt = loginSalt,
-                    LoginVerifier = verifier,
-                    MasterKeySealed = masterSealed
-                };
-
-                var masterKey = secrets.UnsealMasterKey(accountId, passwordKey);
-                try
-                {
-                    var (roleId, keys) = MakePersonRole(masterKey);
-                    await InsertPersonRoleAsync(
-                        connection, null, accountId, roleId, keys, DateTimeOffset.UtcNow, ctx.RequestAborted);
-                }
-                finally
-                {
-                    CryptographicOperations.ZeroMemory(masterKey);
-                }
             }
 
             await StartSessionAsync(ctx, connection, accountId);

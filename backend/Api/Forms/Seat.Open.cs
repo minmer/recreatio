@@ -42,7 +42,7 @@ public static partial class Seat
             UPDATE app.access
                SET view_count = view_count + 1
             OUTPUT inserted.id, inserted.area_id, inserted.seat_key_sealed, inserted.epoch,
-                   inserted.recipient_name, inserted.personal_note_sealed, inserted.expires_at,
+                   inserted.expires_at,
                    inserted.verify_hash, inserted.verified_at, inserted.verify_fields,
                    inserted.verify_failures, inserted.invitation_id,
                    inserted.own_name_sealed, inserted.name_sealed, inserted.name_epoch
@@ -64,10 +64,8 @@ public static partial class Seat
         Guid seatId, areaId;
         byte[] seatKeySealed;
         int epoch;
-        string? recipientName;
         byte[]? ownName, named;
         int? namedEpoch;
-        byte[]? personalNote;
         DateTimeOffset? expiresAt;
         bool asksFirst;
         string? verifyFieldsText;
@@ -86,19 +84,17 @@ public static partial class Seat
             areaId = reader.GetGuid(1);
             seatKeySealed = (byte[])reader[2];
             epoch = reader.GetInt32(3);
-            recipientName = reader.IsDBNull(4) ? null : reader.GetString(4);
-            personalNote = reader.IsDBNull(5) ? null : (byte[])reader[5];
-            expiresAt = reader.IsDBNull(6) ? null : reader.GetDateTimeOffset(6);
+            expiresAt = reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4);
 
-            asksFirst = !reader.IsDBNull(7) && reader.IsDBNull(8);
-            verifyFieldsText = reader.IsDBNull(9) ? null : reader.GetString(9);
-            failures = reader.GetInt32(10);
-            invitationId = reader.IsDBNull(11) ? null : reader.GetGuid(11);
+            asksFirst = !reader.IsDBNull(5) && reader.IsDBNull(6);
+            verifyFieldsText = reader.IsDBNull(7) ? null : reader.GetString(7);
+            failures = reader.GetInt32(8);
+            invitationId = reader.IsDBNull(9) ? null : reader.GetGuid(9);
 
             /* 0097 — wie er heisst: unter seinem Platzschlüssel (seine Kopie) und unter dem des Bereichs. */
-            ownName = reader.IsDBNull(12) ? null : (byte[])reader[12];
-            named = reader.IsDBNull(13) ? null : (byte[])reader[13];
-            namedEpoch = Names.Int(reader, 14);
+            ownName = reader.IsDBNull(10) ? null : (byte[])reader[10];
+            named = reader.IsDBNull(11) ? null : (byte[])reader[11];
+            namedEpoch = Names.Int(reader, 12);
         }
 
         /* 0095 — die Person eines Links: durch welchen Link sie da ist (sein Name steht in Klammern hinter ihrem). */
@@ -108,7 +104,7 @@ public static partial class Seat
          * ERST BESTAETIGEN, DANN OEFFNEN (0046). Solange der Link beim ersten
          * Oeffnen fragt und niemand richtig geantwortet hat, geht hier NICHTS
          * hinaus, was etwas aufschliesst: kein Platzschluessel, keine
-         * Einsendung, keine Notiz. Nur die Fragen — ihre Beschriftung liegt
+         * Einsendung. Nur die Fragen — ihre Beschriftung liegt
          * unter dem offenen Schluessel des Formulars.
          */
         if (asksFirst)
@@ -142,19 +138,6 @@ public static partial class Seat
          */
         var submitted = await SubmittedAsync(connection, seatId, ctx.RequestAborted);
 
-        /*
-         * DIE VORLAGE (0028) — die Bausteine, aus denen sich dieses Portal
-         * zeichnet. Sie gehoert dem BEREICH, nicht dem Platz: alle sehen
-         * denselben Aufbau, verschieden ist nur, was in den persoenlichen
-         * Bausteinen steht.
-         *
-         * Sie kommt ueber DIESEN Weg heraus und nicht ueber ihre Adresse: die
-         * Vorlage ist in der Regel eine interne Seite (0026), und der Link ist
-         * hier der Ausweis. Wer kein Portal eingerichtet hat, bekommt `null` —
-         * dann zeichnet die Seite ihre eingebauten Abschnitte wie bisher.
-         */
-        var template = await TemplateAsync(connection, areaId, ctx.RequestAborted);
-
         await ctx.Response.WriteAsJsonAsync(new
         {
             seatId = Ids.ToText(seatId),
@@ -164,18 +147,15 @@ public static partial class Seat
             seatKeySealed = Base64Url.Encode(seatKeySealed),
             epoch,
 
-            /* 0097 — offen nur bei einem alten Platz, bis die Kanzlei ihn versiegelt hat. */
-            recipientName,
+            /* 0097 — wie er heisst, versiegelt: seine Kopie und die der Kanzlei. */
             ownNameSealed = ownName is null ? null : Base64Url.Encode(ownName),
             nameSealed = named is null ? null : Base64Url.Encode(named),
             nameEpoch = namedEpoch,
             via,
-            personalNoteSealed = personalNote is null ? null : Base64Url.Encode(personalNote),
             expiresAt,
 
             grants = bySeat.TryGetValue(seatId, out var list) ? list : [],
             submitted,
-            template,
 
             /* 0047 — was dieser Mensch noch tun muss: Erweiterungen, die er ausfüllt, und Schritte. */
             forms = await Form.SeatFormsAsync(connection, seatId, ctx.RequestAborted),
@@ -215,51 +195,6 @@ public static partial class Seat
         }
 
         return new { held, bundle = opened.Count == 0 ? null : await RoleBundle.BuildAsync(connection, opened, ct) };
-    }
-
-    /// <summary>
-    /// Die Vorlage, aus der sich das Portal dieses Bereichs zeichnet (0028).
-    ///
-    /// <para>
-    /// <c>null</c>, wenn keine eingerichtet ist — und das ist kein Mangel,
-    /// sondern der Anfangszustand: die Seite zeigt dann ihre eingebauten
-    /// Abschnitte, wie sie es immer getan hat.
-    /// </para>
-    /// </summary>
-    private static async Task<object?> TemplateAsync(
-        SqlConnection connection, Guid areaId, CancellationToken ct)
-    {
-        Guid slugId;
-        string path;
-        string? title, lead;
-
-        await using (var cmd = new SqlCommand("""
-            SELECT s.id, s.path, g.title, g.lead
-            FROM app.area_portal p
-            JOIN app.slug s      ON s.id = p.slug_id
-            LEFT JOIN app.slug_page g ON g.slug_id = s.id
-            WHERE p.area_id = @area;
-            """, connection))
-        {
-            cmd.Parameters.AddWithValue("@area", areaId);
-
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-            if (!await reader.ReadAsync(ct)) return null;
-
-            slugId = reader.GetGuid(0);
-            path = reader.GetString(1);
-            title = reader.IsDBNull(2) ? null : reader.GetString(2);
-            lead = reader.IsDBNull(3) ? null : reader.GetString(3);
-        }
-
-        /* Der Leser ist zu — erst danach die Bausteine (MARS). */
-        return new
-        {
-            path,
-            title,
-            lead,
-            parts = await Page.PartsOfAsync(connection, slugId, ct)
-        };
     }
 
     /// <summary>
@@ -574,9 +509,9 @@ public static partial class Seat
         var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
 
         await using var cmd = new SqlCommand($"""
-            SELECT a.id, a.area_id, ar.name, a.recipient_name,
+            SELECT a.id, a.area_id, ar.name,
                    h.role_id, h.seat_key_sealed, a.epoch,
-                   a.personal_note_sealed, a.status, a.expires_at,
+                   a.status, a.expires_at,
                    a.own_name_sealed
             FROM app.access_holder h
             JOIN app.access a  ON a.id = h.access_id
@@ -590,8 +525,8 @@ public static partial class Seat
         for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i].Id);
 
         /* Erst sammeln, dann den Leser schliessen — siehe `OpenAsync`. */
-        var rows = new List<(Guid Seat, Guid Area, string AreaName, string? Name, Guid Role,
-            byte[] KeySealed, int Epoch, byte[]? Note, string Status, DateTimeOffset? Until, byte[]? OwnName)>();
+        var rows = new List<(Guid Seat, Guid Area, string AreaName, Guid Role,
+            byte[] KeySealed, int Epoch, string Status, DateTimeOffset? Until, byte[]? OwnName)>();
 
         await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
         {
@@ -599,12 +534,10 @@ public static partial class Seat
             {
                 rows.Add((
                     reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2),
-                    reader.IsDBNull(3) ? null : reader.GetString(3),
-                    reader.GetGuid(4), (byte[])reader[5], reader.GetInt32(6),
-                    reader.IsDBNull(7) ? null : (byte[])reader[7],
-                    reader.GetString(8),
-                    reader.IsDBNull(9) ? null : reader.GetDateTimeOffset(9),
-                    reader.IsDBNull(10) ? null : (byte[])reader[10]));
+                    reader.GetGuid(3), (byte[])reader[4], reader.GetInt32(5),
+                    reader.GetString(6),
+                    reader.IsDBNull(7) ? null : reader.GetDateTimeOffset(7),
+                    reader.IsDBNull(8) ? null : (byte[])reader[8]));
             }
         }
 
@@ -617,8 +550,7 @@ public static partial class Seat
                 seatId = Ids.ToText(r.Seat),
                 areaId = Ids.ToText(r.Area),
                 areaName = r.AreaName,
-                /* 0097 — seine Kopie, unter dem Platzschlüssel (den diese Rolle öffnet); offen nur ein alter. */
-                recipientName = r.Name,
+                /* 0097 — sein Name: seine Kopie, unter dem Platzschlüssel (den diese Rolle öffnet). */
                 ownNameSealed = r.OwnName is null ? null : Base64Url.Encode(r.OwnName),
                 roleId = Ids.ToText(r.Role),
 
@@ -626,7 +558,6 @@ public static partial class Seat
                 seatKeySealed = Base64Url.Encode(r.KeySealed),
                 epoch = r.Epoch,
 
-                personalNoteSealed = r.Note is null ? null : Base64Url.Encode(r.Note),
                 status = r.Status,
                 expiresAt = r.Until,
 

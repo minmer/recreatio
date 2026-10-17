@@ -16,9 +16,7 @@ type Kind = 'account' | 'person' | 'role' | 'group';
  *   Grupa   die, die dazugehören
  *
  * <b>Das Konto heisst immer „Konto".</b> Es hat keinen eigenen Namen: es ist
- * kein Mensch, und ein Name darüber würde genau das behaupten. Was vor 0040
- * darunter versiegelt wurde („Account" oder nichts), bleibt liegen und wird
- * nicht mehr gelesen.
+ * kein Mensch, und ein Name darüber würde genau das behaupten.
  */
 export const KIND_NAME: Record<Kind, string> = {
   account: 'Konto',

@@ -6,10 +6,8 @@
  * steht er beim Obszar, und ein Obszar ohne eigenen erbt den des nächsten
  * darüber (die Gruppe den der Pfarrei) — dieselbe Kette, nach der der Dienst
  * die Klausel eines Formulars findet (`Form.WholeAsync`). Ein Formular zeigt
- * nur noch, welcher für es gilt, und führt hierher.
- *
- * Der alte Eintrag am Formular gilt nur noch, wenn die ganze Kette leer ist;
- * „Przenieś do obszaru" hebt ihn hinauf.
+ * nur noch, welcher für es gilt, und führt hierher. Ist die ganze Kette leer,
+ * nimmt das Formular nichts an.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -24,7 +22,7 @@ import { areasNow, invalidate } from '../workspace/viewData';
 
 type Shown = { readonly controller: AreaController | null } | 'failed' | undefined;
 
-/** Was für einen Bereich gilt. `undefined`: lädt; `'failed'`: nicht zu lesen (auch: ein Dienst ohne diese Adresse). */
+/** Was für einen Bereich gilt. `undefined`: lädt; `'failed'`: nicht zu lesen. */
 export function useAreaController(areaId: string | null): { shown: Shown; reload: () => void } {
   const [shown, setShown] = useState<Shown>(undefined);
   const [round, setRound] = useState(0);
@@ -174,74 +172,30 @@ export function ControllerFields({ value, onSave, onCancel }: {
   );
 }
 
-/**
- * Im Formular: welcher Administrator für es gilt und wo man ihn ändert.
- * `legacy` ist der alte Eintrag am Formular selbst; `fallback` zeigt der
- * Aufrufer, wenn der Dienst die Kette (noch) nicht kennt.
- */
-export function FormControllerNote({ areaId, legacy, onClearLegacy, fallback }: {
-  areaId: string | null;
-  legacy: { name: string; address: string | null; email: string | null } | null;
-  onClearLegacy: () => Promise<void>;
-  fallback: React.ReactNode;
-}) {
-  const { shown, reload } = useAreaController(areaId);
+/** Im Formular: welcher Administrator für es gilt und wo man ihn ändert. */
+export function FormControllerNote({ areaId }: { areaId: string | null }) {
+  const { shown } = useAreaController(areaId);
   const names = useAreaNames();
-  const [busy, setBusy] = useState(false);
 
-  if (areaId === null || shown === 'failed') return <>{fallback}</>;
+  if (areaId === null) return <p className="wk-note wk-controller-missing">Formularz bez obszaru nie przyjmuje zgłoszeń.</p>;
   if (shown === undefined) return <Loading lines={1} />;
+  if (shown === 'failed') return <p className="wk-error">Nie udało się wczytać administratora danych.</p>;
 
   const c = shown.controller;
   const settings = viewPath('areas', c?.fromAreaId ?? areaId, 'ustawienia');
 
-  /* Den alten Eintrag hinauf in den Obszar heben — danach gilt er für alle Formulare dort. */
-  const lift = async () => {
-    if (legacy === null) return;
-    setBusy(true);
-    try {
-      await setController(areaId, { name: legacy.name, address: legacy.address ?? undefined, email: legacy.email ?? undefined });
-      await onClearLegacy();
-      invalidate();
-      toast('Administrator danych jest teraz ustawiony w obszarze.', { kind: 'ok' });
-      reload();
-    } catch (e) {
-      toast(e instanceof WorkspaceError ? e.message : 'Nie udało się przenieść.', { kind: 'error' });
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
-    <section className="wk-form wk-controller" data-form-controller={c !== null ? 'area' : legacy !== null ? 'legacy' : 'none'}>
+    <section className="wk-form wk-controller" data-form-controller={c !== null ? 'area' : 'none'}>
       <h4 className="wk-h2">Administrator danych</h4>
 
-      {c !== null && (
+      {c !== null ? (
         <>
           <p className="wk-controller-line">{controllerLine(c)}</p>
           <p className="wk-hint">
             Ustawiany w obszarze <a href={settings}>{names.get(c.fromAreaId) ?? 'tego formularza'}</a> — ten sam dla wszystkich jego formularzy.
           </p>
-          {legacy !== null && (
-            <p className="wk-hint">
-              Formularz ma jeszcze stary, własny wpis („{legacy.name}"), który już nie obowiązuje.{' '}
-              <button type="button" className="wk-link-btn" disabled={busy} onClick={() => { setBusy(true); void onClearLegacy().finally(() => setBusy(false)); }}>Usuń go</button>
-            </p>
-          )}
         </>
-      )}
-
-      {c === null && legacy !== null && (
-        <>
-          <p className="wk-controller-line">{controllerLine(legacy)}</p>
-          <p className="wk-hint">Wpisany tylko przy tym formularzu. Przenieś go do obszaru, a obowiązuje dla wszystkich jego formularzy.</p>
-          <div className="wk-actions">
-            <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={busy} onClick={() => void lift()}>Przenieś do obszaru</button>
-          </div>
-        </>
-      )}
-
-      {c === null && legacy === null && (
+      ) : (
         <p className="wk-note wk-controller-missing">
           Formularz nie przyjmie zgłoszeń, dopóki obszar nie ma administratora danych.{' '}
           <a href={settings}>Wpisz go w ustawieniach obszaru</a>.
