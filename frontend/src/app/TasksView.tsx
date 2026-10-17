@@ -40,10 +40,11 @@ import {
 } from './tasks';
 import { DUE } from './urgency';
 import { groupName } from './WhoSees';
+import { Loading } from './ui/Loading';
 
 export function TasksView({ who }: { who: Who }) {
   const me = useMe(who);
-  if (me === undefined) return <p className="wk-lede">Wczytywanie…</p>;
+  if (me === undefined) return <Loading label="Wczytywanie…" />;
   if (me === null) return <p className="wk-note">Bez klucza w tej karcie zadania są zamknięte — zaloguj się ponownie albo odblokuj klucz.</p>;
   return <Tasks me={me} />;
 }
@@ -143,7 +144,7 @@ function Tasks({ me }: { me: Me }) {
   };
 
   if (tasks === null) {
-    return failed !== null ? <p className="wk-error">{failed}</p> : <p className="wk-hint">Wczytywanie…</p>;
+    return failed !== null ? <p className="wk-error">{failed}</p> : <Loading label="Wczytywanie…" />;
   }
 
   /* Die Fenster, sortiert nach dem, was sie gerade sind. */

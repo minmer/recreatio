@@ -17,8 +17,8 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 
-import { plural } from '../ChatKit';
-import { EntryDeskPanel } from '../FormOffice';
+import { plural } from '../plural';
+import { EntryDeskPanel } from '../officeLazy';
 import {
   columnsOf, PANEL_SECTION_LABEL, PANEL_SECTIONS, pickRows, readSections, stepKindsOf,
   type DeskRow, type PanelSection

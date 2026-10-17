@@ -24,6 +24,8 @@ import { loadModules, updateModule, type ModuleRow } from './module';
 import type { EditorProps } from './part';
 import { InviteePicker, KIND, nameOf, useKnown, useKnownInAreas } from './RolePicker';
 import { WorkspaceError } from './session';
+import { askText } from './ui/dialogs';
+import { Loading } from './ui/Loading';
 
 interface Answerer {
   readonly roleId: string;
@@ -125,7 +127,7 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
   }
   if (who === null) return <p className="wk-hint">Zaloguj się, żeby wybrać, kto odpowiada.</p>;
   if (me === null) return <p className="wk-hint">Odblokuj klucze (hasło), żeby wybrać, kto odpowiada.</p>;
-  if (row === undefined || me === undefined) return <p className="wk-hint">Wczytywanie…</p>;
+  if (row === undefined || me === undefined) return <Loading label="Wczytywanie…" />;
   if (row === null) return <p className="wk-hint">Zapisz stronę — potem wybierzesz, kto odpowiada i z których formularzy można pisać.</p>;
 
   const blocked = busy || working !== null;
@@ -166,8 +168,8 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
                 </span>
                 {issuer !== null && !a.leads && (
                   <button type="button" className="wk-link-btn wk-danger" disabled={blocked}
-                    onClick={() => {
-                      if (!window.confirm(`Usunąć „${a.name}" z odpowiadających? Rozmów, które już czytał(a), to nie zabiera.`)) return;
+                    onClick={async () => {
+                      if (!(await askText(`Usunąć „${a.name}" z odpowiadających? Rozmów, które już czytał(a), to nie zabiera.`))) return;
                       void run('Usuwanie…', async () => { await dropFromArea(areaId, a.roleId); });
                     }}>
                     Usuń

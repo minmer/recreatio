@@ -101,7 +101,19 @@ public static partial class Library
 
     /* -- Die Bibliotheken ------------------------------------------------------------------ */
 
-    public sealed record LibraryRequest(string? LibraryId, string? AreaId, int Epoch, string? NameSealed);
+    /*
+     * 0110 — `Kind`: `books` (die Bibliothek, Vorgabe) oder `knowledge` (eine
+     * Baza wiedzy für Cogita) — zwei Strukturen nebeneinander, ein Speicher.
+     */
+    public sealed record LibraryRequest(string? LibraryId, string? AreaId, int Epoch, string? NameSealed, string? Kind = null);
+
+    /// <summary>Was eine Bibliothek ist — `null`, wenn das Wort keines ist.</summary>
+    public static string? LibraryKind(string? kind) => (kind ?? "").Trim() switch
+    {
+        "" or "books" => "books",
+        "knowledge" => "knowledge",
+        _ => null
+    };
 
     /// <summary>Die Bibliotheken der Bereiche, deren Schlüssel ich halte — mit dem, was ich dort darf.</summary>
     private static async Task ListAsync(HttpContext ctx, Db db)
@@ -111,7 +123,7 @@ public static partial class Library
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var held = await Agenda.HeldAreasAsync(connection, who.Value.AccountId, ctx.RequestAborted);
-        var rows = new List<(Guid Id, Guid AreaId, int Epoch, byte[] Name, DateTimeOffset Created, DateTimeOffset Updated, int Entries, int Published)>();
+        var rows = new List<(Guid Id, Guid AreaId, int Epoch, byte[] Name, DateTimeOffset Created, DateTimeOffset Updated, int Entries, int Published, string Kind)>();
 
         if (held.Count > 0)
         {
@@ -120,7 +132,8 @@ public static partial class Library
                 SELECT l.id, l.area_id, l.epoch, l.name_sealed, l.created_at,
                        COALESCE((SELECT MAX(e.updated_at) FROM app.library_entry e WHERE e.library_id = l.id), l.updated_at),
                        (SELECT COUNT(*) FROM app.library_entry e WHERE e.library_id = l.id AND e.deleted_at IS NULL),
-                       (SELECT COUNT(*) FROM app.library_entry e WHERE e.library_id = l.id AND e.published_at IS NOT NULL)
+                       (SELECT COUNT(*) FROM app.library_entry e WHERE e.library_id = l.id AND e.published_at IS NOT NULL),
+                       l.kind
                 FROM app.library l
                 WHERE l.area_id IN ({names})
                 ORDER BY l.created_at;
@@ -130,7 +143,7 @@ public static partial class Library
             while (await reader.ReadAsync(ctx.RequestAborted))
             {
                 rows.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetInt32(2), (byte[])reader[3],
-                    reader.GetDateTimeOffset(4), reader.GetDateTimeOffset(5), reader.GetInt32(6), reader.GetInt32(7)));
+                    reader.GetDateTimeOffset(4), reader.GetDateTimeOffset(5), reader.GetInt32(6), reader.GetInt32(7), reader.GetString(8)));
             }
         }
 
@@ -153,6 +166,7 @@ public static partial class Library
                 updatedAt = r.Updated,
                 entries = r.Entries,
                 published = r.Published,
+                kind = r.Kind,
                 writes = writes[r.AreaId]
             })
         });
@@ -191,11 +205,14 @@ public static partial class Library
         var name = ParseName(body.NameSealed, out var error);
         if (name is null) { await Fail(ctx, StatusCodes.Status400BadRequest, error); return; }
 
+        var kind = LibraryKind(body.Kind);
+        if (kind is null) { await Fail(ctx, StatusCodes.Status400BadRequest, "Biblioteka (books) albo baza wiedzy (knowledge)."); return; }
+
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
         if (!await Area.MayAsync(connection, who.Value.AccountId, areaId, Capability.Write, ctx.RequestAborted))
         {
-            await Fail(ctx, StatusCodes.Status403Forbidden, "W tym obszarze nie możesz zakładać bibliotek.");
+            await Fail(ctx, StatusCodes.Status403Forbidden, kind == "knowledge" ? "W tym obszarze nie możesz zakładać baz wiedzy." : "W tym obszarze nie możesz zakładać bibliotek.");
             return;
         }
 
@@ -207,9 +224,10 @@ public static partial class Library
         }
 
         await using var insert = new SqlCommand("""
-            INSERT INTO app.library (id, area_id, epoch, name_sealed, created_at, updated_at)
-            VALUES (@id, @area, @epoch, @name, @now, @now);
+            INSERT INTO app.library (id, area_id, epoch, name_sealed, created_at, updated_at, kind)
+            VALUES (@id, @area, @epoch, @name, @now, @now, @kind);
             """, connection);
+        insert.Parameters.AddWithValue("@kind", kind);
         insert.Parameters.AddWithValue("@id", id);
         insert.Parameters.AddWithValue("@area", areaId);
         insert.Parameters.AddWithValue("@epoch", body.Epoch);

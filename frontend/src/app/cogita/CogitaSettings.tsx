@@ -1,22 +1,25 @@
 /**
- * COGITA — USTAWIENIA KURSU: wohin die Antworten gehen (und ob dort eine
- * Annahme ist), wie motiviert wird, die Perspektiven, die Seite zum Beitreten
- * einer Sitzung, die Bibliothek für Vorschläge, die Abhängigkeiten (auch die
- * vorgeschlagenen), die Werte des Kurses, eigene Regeln für Sitzungen und
- * Aussehen.
+ * COGITA — USTAWIENIA DER BAZA WIEDZY: ihr Name (und sie löschen), 0110 ihre
+ * Quellen — Bibliotheken und andere Bazy wiedzy, auch aus anderen Bereichen —,
+ * wohin die Antworten gehen (und ob dort eine Annahme ist), wie motiviert
+ * wird, die Perspektiven, die Seite zum Beitreten einer Sitzung, die Baza
+ * wiedzy für Vorschläge, die Abhängigkeiten (auch die vorgeschlagenen), die
+ * Werte, eigene Regeln für Sitzungen und Aussehen.
  */
 
 import { useEffect, useState } from 'react';
 
 import { loadAreas, type AreaRow } from '../area';
 import { createIntake } from '../intake';
-import { loadLibraries, openLibraries, type OpenLibrary } from '../library';
+import { deleteLibrary, libraryKindOf, loadLibraries, openLibraries, renameLibrary, type OpenLibrary } from '../library';
+import { viewPath } from '../routes';
+import { BASES_CHANGED } from './sources';
 import { DEPENDENCY_KINDS, DEPENDENCY_LABEL, type DependencyKind } from './knowness';
 import { intakeOf } from './learn';
 import { LOOK_LABEL, LOOK_TYPES, type LookType } from './flow';
 import { DEFAULT_RULES, describeRules, PRESETS, readRules, type LiveRules } from './rules';
-import { MOTIVATION_LABEL, MOTIVATIONS, type DependencyEdge, type Motivation } from './store';
-import { EntityPicker, entityName, useAsync, useBusy, useCtx } from './ui';
+import { MOTIVATION_LABEL, MOTIVATIONS, type DependencyEdge, type Motivation, type SourceRef } from './store';
+import { EntityPicker, entityName, OriginTag, useAsync, useBusy, useCtx } from './ui';
 
 export function CogitaSettings() {
   const { lib, writes } = useCtx();
@@ -32,13 +35,16 @@ export function CogitaSettings() {
   const [tags, setTags] = useState(settings.tags.join('\n'));
   const [joinPage, setJoinPage] = useState(settings.joinPage ?? '');
   const save = (patch: Record<string, unknown>) => run(() => lib.saveSettings(patch));
-  if (!writes) return <p className="wk-hint">Ustawienia kursu zmieniają autorzy.</p>;
+  if (!writes) return <p className="wk-hint">Ustawienia bazy wiedzy zmieniają autorzy.</p>;
 
   return (
     <div className="cg">
+      <BaseSection areas={areas} />
+      <Sources libraries={libraries} areas={areas} />
+
       <section className="cg-card">
         <h3>Gdzie zapisują się odpowiedzi uczących się</h3>
-        <p className="wk-hint">Jak formularz trafia do kancelarii: każda odpowiedź jest zapieczętowana dla uczącego się i dla przyjęć wybranego obszaru. Kto ma klucz przyjęć (np. nauczyciel), widzi postępy. Bez wyboru — prywatny obszar uczącego się.</p>
+        <p className="wk-hint">Postępy uczących się widzi ten, kto prowadzi wybrany obszar (np. nauczyciel). Bez wyboru — tylko sam uczący się.</p>
         <select value={settings.storageAreaId ?? ''} disabled={busy} onChange={(e) => void save({ storageAreaId: e.target.value || undefined })}>
           <option value="">prywatny obszar uczącego się</option>
           {areas.map((a) => <option key={a.areaId} value={a.areaId}>{a.personal === true ? 'mój prywatny obszar' : a.name}</option>)}
@@ -48,7 +54,7 @@ export function CogitaSettings() {
 
       <section className="cg-card">
         <h3>Zgłoszenia i liczby od uczących się (anonimowo)</h3>
-        <p className="wk-hint">Zgłoszone karty i liczby błędów trafiają do przyjęć obszaru tej biblioteki — bez imion.</p>
+        <p className="wk-hint">Zgłoszone karty i liczby błędów trafiają do przyjęć obszaru tej bazy wiedzy — bez imion.</p>
         <IntakeState areaId={lib.areaId} areas={areas} />
       </section>
 
@@ -68,7 +74,7 @@ export function CogitaSettings() {
 
       <section className="cg-card">
         <h3>Strona dołączania do sesji</h3>
-        <p className="wk-hint">Strona z modułem „Sesja — uczestnik" (np. parafia/quiz). Link i kod QR sesji prowadzą tam.</p>
+        <p className="wk-hint">Strona z modułem „Dołącz do sesji" (np. parafia/quiz). Link i kod QR sesji prowadzą tam.</p>
         <div className="cg-row">
           <input value={joinPage} onChange={(e) => setJoinPage(e.target.value)} placeholder="parafia/quiz" />
           <button type="button" className="wk-btn" disabled={busy} onClick={() => void save({ joinPage: joinPage.trim() || undefined })}>Zapisz</button>
@@ -77,10 +83,10 @@ export function CogitaSettings() {
 
       <section className="cg-card">
         <h3>Propozycje od czytających</h3>
-        <p className="wk-hint">Piszący w obszarze tej biblioteki zmieniają ją wprost. Inni proponują wyjaśnienia i pytania w osobnej bibliotece (w obszarze, w którym mogą pisać); autor przyjmuje je do kursu.</p>
+        <p className="wk-hint">Autorzy zmieniają bazę wprost; inni proponują wyjaśnienia i pytania, a autor je przyjmuje.</p>
         <select value={settings.contributionLibraryId ?? ''} disabled={busy} onChange={(e) => void save({ contributionLibraryId: e.target.value || undefined })}>
           <option value="">— bez propozycji —</option>
-          {libraries.filter((l) => l.libraryId !== lib.libraryId).map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name}</option>)}
+          {libraries.filter((l) => l.libraryId !== lib.libraryId && libraryKindOf(l) === 'knowledge').map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name}</option>)}
         </select>
       </section>
 
@@ -90,6 +96,99 @@ export function CogitaSettings() {
       <Looks />
       {failed !== null && <p className="wk-error">{failed}</p>}
     </div>
+  );
+}
+
+/** Die Baza wiedzy selbst: ihr Name, ihr Bereich — und sie löschen. */
+function BaseSection({ areas }: { areas: readonly AreaRow[] }) {
+  const { lib, name, me } = useCtx();
+  const [draft, setDraft] = useState(name);
+  const [confirm, setConfirm] = useState('');
+  const { busy, failed, run } = useBusy();
+  const area = areas.find((a) => a.areaId === lib.areaId);
+  if (me === null) return null;
+  return (
+    <section className="cg-card">
+      <h3>Baza wiedzy</h3>
+      <div className="cg-row">
+        <input value={draft} aria-label="Nazwa bazy wiedzy" onChange={(e) => setDraft(e.target.value)} />
+        <button type="button" className="wk-btn" disabled={busy || draft.trim() === '' || draft.trim() === name}
+          onClick={() => void run(async () => { await renameLibrary(me.ring, lib, draft); window.dispatchEvent(new Event(BASES_CHANGED)); })}>Zapisz nazwę</button>
+      </div>
+      <p className="wk-hint">Obszar: {area?.personal === true ? 'tylko Ty' : area?.name ?? 'nieznany'} — kto ma jego klucz, uczy się z tej bazy; kto w nim pisze, ją buduje.</p>
+      <details>
+        <summary>Usuń bazę wiedzy</summary>
+        <p className="wk-hint">Usuwa wszystkie wpisy, szablony, powtórki, przebiegi i odpowiedzi uczących się; sesje zostają, ale bez bazy. Tego nie da się cofnąć — najpierw zrób eksport (JSON).</p>
+        <label className="wk-field"><span>Wpisz nazwę, żeby potwierdzić</span><input value={confirm} onChange={(e) => setConfirm(e.target.value)} /></label>
+        <button type="button" className="wk-btn lib-btn-danger" disabled={busy || confirm.trim() !== name.trim()}
+          onClick={() => void run(async () => { await deleteLibrary(lib.libraryId); window.dispatchEvent(new Event(BASES_CHANGED)); window.location.hash = viewPath('learn'); })}>Usuń na zawsze</button>
+      </details>
+      {failed !== null && <p className="wk-error">{failed}</p>}
+    </section>
+  );
+}
+
+/**
+ * 0110 — ŹRÓDŁA: worauf diese Baza wiedzy verweist, auch aus anderen
+ * Bereichen. Eine Bibliothek nur zum Verweisen (Werke, Zitate, Personen in
+ * Feldern und Zitaten); eine andere Baza wiedzy zum Wiederverwenden. Jede liest
+ * nur, wer ihren Bereich liest — der Verweis gibt nichts frei.
+ */
+function Sources({ libraries, areas }: { libraries: readonly OpenLibrary[]; areas: readonly AreaRow[] }) {
+  const { lib, writes, sources } = useCtx();
+  const { busy, failed, run } = useBusy();
+  const [pick, setPick] = useState('');
+  const list = lib.settings().sources;
+  const loaded = new Map(lib.sourceList().map((s) => [s.store.libraryId, s]));
+  const missing = new Set((sources?.missing ?? []).map((s) => s.id));
+  const areaName = (id: string | undefined) => {
+    const area = areas.find((a) => a.areaId === id);
+    return area === undefined ? null : area.personal === true ? 'tylko Ty' : area.name;
+  };
+  const choices = libraries.filter((l) => l.libraryId !== lib.libraryId && !list.some((s) => s.id === l.libraryId));
+  const save = (next: readonly SourceRef[]) => run(() => lib.saveSettings({ sources: next }));
+  return (
+    <section className="cg-card">
+      <h3>Źródła</h3>
+      <p className="wk-hint">
+        <strong>Biblioteki</strong> — tylko do odwołań: ich dzieła, cytaty i osoby można wskazać w polach i cytować, ale nie stają się kartami.{' '}
+        <strong>Inne bazy wiedzy</strong> — do wykorzystania: ich rodzaje, wpisy, szablony, powtórki i przebiegi działają tutaj, a zmienia się je u nich.
+        Każde źródło widzi tylko ten, kto ma dostęp do jego obszaru.
+      </p>
+      {list.length === 0 ? <p className="wk-hint">Jeszcze bez źródeł.</p> : (
+        <ul>
+          {list.map((s) => {
+            const open = loaded.get(s.id);
+            const where = areaName(open?.store.areaId ?? libraries.find((l) => l.libraryId === s.id)?.areaId);
+            return (
+              <li key={s.id} className="cg-row">
+                <strong>{s.name}</strong>
+                <span className="cg-tag">{s.kind === 'books' ? 'biblioteka — do odwołań' : 'baza wiedzy — do wykorzystania'}</span>
+                {where !== null && <span className="cg-muted">{where}</span>}
+                {missing.has(s.id) ? <span className="cg-tag is-warn">niedostępne w tej karcie</span>
+                  : open !== undefined ? <span className="cg-tag is-ok">{open.store.all().length} wpisów</span>
+                  : <span className="wk-hint">wczytywanie…</span>}
+                {writes && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void save(list.filter((x) => x.id !== s.id))}>usuń</button>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {writes && (
+        <div className="cg-row">
+          <select value={pick} aria-label="Dodaj źródło" onChange={(e) => setPick(e.target.value)}>
+            <option value="">— dodaj bibliotekę albo bazę wiedzy —</option>
+            {choices.map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name} ({libraryKindOf(l) === 'knowledge' ? 'baza wiedzy' : 'biblioteka'}{areaName(l.areaId) === null ? '' : ` · ${areaName(l.areaId)}`})</option>)}
+          </select>
+          <button type="button" className="wk-btn" disabled={busy || pick === ''} onClick={() => {
+            const row = libraries.find((l) => l.libraryId === pick);
+            if (row === undefined) return;
+            void save([...list, { id: row.libraryId, kind: libraryKindOf(row), name: row.name }]).then(() => setPick(''));
+          }}>Dodaj</button>
+        </div>
+      )}
+      {failed !== null && <p className="wk-error">{failed}</p>}
+    </section>
   );
 }
 
@@ -154,7 +253,8 @@ interface ValueDef { readonly id: string; readonly label: string; readonly scope
 /** Wartości kursu [H7, F37]: punkty, bliskość postaci, zasoby — z zasięgiem, widocznością, granicami. */
 function ValuesEditor() {
   const { lib } = useCtx();
-  const doc = lib.docs('values')[0];
+  /* 0110 — die eigenen Werte; die einer Quelle gelten mit, geändert werden sie dort. */
+  const doc = lib.docs('values').find((e) => lib.isOwn(e.id));
   const read = (): ValueDef[] => (Array.isArray(doc?.data.values) ? doc!.data.values : []).flatMap((v): ValueDef[] => {
     if (typeof v !== 'object' || v === null) return [];
     const o = v as Record<string, unknown>;
@@ -208,7 +308,7 @@ function RulesTemplates() {
       <div className="cg-row">
         <select value={chosen ?? ''} onChange={(e) => setChosen(e.target.value || null)}>
           <option value="">— własne zasady ({lib.docs('rules').length}) —</option>
-          {lib.docs('rules').map((e) => <option key={e.id} value={e.id}>{String(e.data.name ?? 'Zasady')}</option>)}
+          {lib.docs('rules').map((e) => <option key={e.id} value={e.id}>{String(e.data.name ?? 'Zasady')}{lib.isOwn(e.id) ? '' : ` · z: ${lib.origin(e.id)?.name ?? '?'}`}</option>)}
         </select>
         <select value={from} onChange={(e) => setFrom(e.target.value)}>{PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
         <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(async () => {
@@ -231,7 +331,9 @@ function RulesTemplates() {
           </div>
           <label className="pe-check"><input type="checkbox" checked={rules.nextQuestion.mode === 'timer'} onChange={(e) => setRules({ ...rules, nextQuestion: { ...rules.nextQuestion, mode: e.target.checked ? 'timer' : 'manual' } })} /><span>następne pytanie samo</span></label>
           <ul className="cg-muted">{describeRules(readRules(rules)).map((l, i) => <li key={i}>{l}</li>)}</ul>
-          <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(() => lib.saveDoc('rules', { ...doc.data, name: name.trim() || 'Zasady', rules: readRules(rules) }, doc.id))}>Zapisz zasady</button>
+          {lib.isOwn(doc.id)
+            ? <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(() => lib.saveDoc('rules', { ...doc.data, name: name.trim() || 'Zasady', rules: readRules(rules) }, doc.id))}>Zapisz zasady</button>
+            : <p className="wk-hint">Te zasady są z „{lib.origin(doc.id)?.name}” — działają tutaj, zmienia się je tam.</p>}
         </div>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
@@ -248,7 +350,10 @@ function Looks() {
       <h3>Wyglądy</h3>
       <p className="wk-hint">Wygląd mówi, jak przebieg pokazuje kroki i co widać z każdego rodzaju wpisu (np. karta osoby: imię, lata, portret).</p>
       <ul>
-        {lib.docs('look').map((e) => (
+        {lib.docs('look').filter((e) => !lib.isOwn(e.id)).map((e) => (
+          <li key={e.id} className="cg-row"><span>{String(e.data.name ?? 'Wygląd')}</span> <OriginTag id={e.id} /></li>
+        ))}
+        {lib.docs('look').filter((e) => lib.isOwn(e.id)).map((e) => (
           <li key={e.id} className="cg-row">
             <input defaultValue={String(e.data.name ?? 'Wygląd')} onBlur={(ev) => void run(() => lib.saveDoc('look', { ...e.data, name: ev.target.value }, e.id))} aria-label="Nazwa" />
             <select defaultValue={String(e.data.type ?? 'reading')} onChange={(ev) => void run(() => lib.saveDoc('look', { ...e.data, type: ev.target.value as LookType }, e.id))}>

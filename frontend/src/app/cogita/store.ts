@@ -1,13 +1,21 @@
 /**
- * COGITA — DIE BIBLIOTHEK ALS SCHEMA, Einträge und Karten (COGITA.md §2–6).
+ * COGITA — DIE BAZA WIEDZY ALS SCHEMA, Einträge und Karten (COGITA.md §2–6).
  *
- * <b>Eine Schicht über dem Speicher der Bibliothek</b> (`libraryStore.ts`):
- * dort liegen die Hüllen, der Abgleich, das Speichern mit `stale`. Hier wird
- * daraus, was Cogita braucht — die Arten (eingebaut, geändert, eigene), die
- * Entitäten mit ihren Etiketten und Rückverweisen, die Dokumente (Vorlagen,
- * Wiederholungen, Abläufe, Zbiory, Widoki, Ustawienia), und die Karten.
+ * <b>Eine Schicht über dem versiegelten Speicher</b> (`libraryStore.ts`, den
+ * die Bibliothek ebenso benutzt): dort liegen die Hüllen, der Abgleich, das
+ * Speichern mit `stale`. Hier wird daraus, was Cogita braucht — die Arten
+ * (eingebaut, geändert, eigene), die Entitäten mit ihren Etiketten und
+ * Rückverweisen, die Dokumente (Vorlagen, Wiederholungen, Abläufe, Zbiory,
+ * Widoki, Ustawienia), und die Karten.
  *
- * Gerechnet wird je Stand des Speichers einmal (`revision`) und nur, wenn
+ * <b>0110 — mit ihren Quellen.</b> Eine Baza wiedzy steht NEBEN der
+ * Bibliothek, nicht in ihr, und verweist auf andere, auch in anderen
+ * Bereichen: auf Bibliotheken nur zum Verweisen (ihre Werke, Zitate, Personen
+ * in Verweisfeldern und Zitaten), auf andere Bazy wiedzy zum Wiederverwenden
+ * (ihre Arten, Einträge, Vorlagen, Wiederholungen, Abläufe gelten mit).
+ * Geschrieben wird nur in die eigene.
+ *
+ * Gerechnet wird je Stand der Speicher einmal (`revision`) und nur, wenn
  * jemand fragt.
  */
 
@@ -48,8 +56,10 @@ export interface CogitaSettings {
   readonly dependencies: readonly DependencyEdge[];
   /** Welche Wiederholungen das Gerät ohne Netz bereithält [E9]. */
   readonly offline: readonly string[];
-  /** Die Seite, auf der man einer Sitzung beitritt (mit dem Baustein „Sesja — uczestnik"). */
+  /** Die Seite, auf der man einer Sitzung beitritt (mit dem Baustein „Dołącz do sesji"). */
   readonly joinPage?: string;
+  /** 0110 — worauf diese Baza wiedzy verweist: Bibliotheken und andere Bazy wiedzy, auch in anderen Bereichen. */
+  readonly sources: readonly SourceRef[];
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -75,9 +85,62 @@ export function readSettings(raw: unknown): CogitaSettings {
     tags: strings(d.tags),
     dependencies,
     offline: strings(d.offline),
-    ...(str(d.joinPage).trim() === '' ? {} : { joinPage: str(d.joinPage).trim().replace(/^#?\/+/, '') })
+    ...(str(d.joinPage).trim() === '' ? {} : { joinPage: str(d.joinPage).trim().replace(/^#?\/+/, '') }),
+    sources: readSources(d.sources)
   };
 }
+
+/* -- 0110: die Quellen einer Baza wiedzy ---------------------------------------------------- */
+
+/**
+ * WIE EINE QUELLE GEBRAUCHT WIRD. Eine BIBLIOTHEK (`books`) nur zum
+ * Verweisen: ihre Werke, Zitate, Personen und Themen stehen in Verweisfeldern
+ * und Zitaten, nie als Karten. Eine andere BAZA WIEDZY (`knowledge`) zum
+ * Wiederverwenden: ihre Arten, Einträge, Vorlagen, Wiederholungen und Abläufe
+ * gelten hier mit — geändert werden sie dort.
+ */
+export type SourceKind = 'books' | 'knowledge';
+
+export interface SourceRef {
+  readonly id: string;
+  readonly kind: SourceKind;
+  /** Wie sie hiess, als sie dazukam — damit die Liste sie nennt, auch wenn sie gerade nicht lesbar ist. */
+  readonly name: string;
+}
+
+/** Eine geöffnete Quelle: ihr Speicher (versiegelt unter ihrem eigenen Bereich), wie sie gebraucht wird, ihr Name. */
+export interface Source {
+  readonly store: LibraryStore;
+  readonly kind: SourceKind;
+  readonly name: string;
+}
+
+/** Woher ein Eintrag kommt — aus dieser Baza wiedzy oder aus einer ihrer Quellen. */
+export interface Origin {
+  readonly libraryId: string;
+  readonly areaId: string;
+  readonly name: string;
+  readonly own: boolean;
+  readonly kind: SourceKind;
+}
+
+export function readSources(raw: unknown): SourceRef[] {
+  const out: SourceRef[] = [];
+  for (const one of Array.isArray(raw) ? raw : []) {
+    if (!isObject(one) || out.length >= 20) continue;
+    const id = str(one.id).trim();
+    if (id === '' || out.some((s) => s.id === id)) continue;
+    const kind: SourceKind = one.kind === 'books' ? 'books' : 'knowledge';
+    out.push({ id, kind, name: str(one.name).trim().slice(0, 120) || (kind === 'books' ? 'Biblioteka' : 'Baza wiedzy') });
+  }
+  return out;
+}
+
+/** Was eine Bibliothek ist und keine Baza wiedzy: diese Arten legt man in der Bibliothek an — hier verweist man auf sie. */
+export const BOOK_KINDS: ReadonlySet<string> = new Set(['person', 'work', 'quote', 'text', 'project']);
+
+/** Was eine wiederverwendete Baza wiedzy mitbringt — Einstellungen, Widoki, Vorschläge und Arten (die kommen über das Schema) bleiben ihre. */
+const SHARED_DOCS: ReadonlySet<string> = new Set<DocKind>(['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'merge']);
 
 /* -- Zbiory: gespeicherte Filter und Listen [F1, F19] -------------------------------------- */
 
@@ -168,17 +231,34 @@ export function ruleMatches(entity: Entity, look: Lookup, rule: RuleGroup): bool
   return rule.op === 'and' ? results.every(Boolean) : results.some(Boolean);
 }
 
-/* -- Die Bibliothek als Kurs ---------------------------------------------------------------- */
+/* -- Die Baza wiedzy --------------------------------------------------------------------- */
 
 interface Memo {
-  readonly revision: number;
+  readonly stamp: string;
   readonly kinds: readonly KindDef[];
+  /** Ohne die Arten der Bibliotheken — was man hier anlegt und lernt. */
+  readonly contentKinds: readonly KindDef[];
   readonly entities: readonly Entity[];
+  /** Was Bibliotheken beisteuern: nur zum Verweisen, nie zum Lernen. */
+  readonly refs: readonly Entity[];
   readonly look: Lookup;
   readonly byKind: Map<string, Entity[]>;
   readonly docs: Map<DocKind, Entry[]>;
+  readonly origin: Map<string, Origin>;
   backlinks: Map<string, Backlink[]> | null;
   search: Map<string, string> | null;
+  refSearch: Map<string, string> | null;
+}
+
+/** Suchtext je Entität: Etikett, Unterscheidung, alle Textwerte — ohne Akzente. */
+function searchIndex(entities: readonly Entity[], look: Lookup): Map<string, string> {
+  const index = new Map<string, string>();
+  for (const e of entities) {
+    const parts = [labelOf(e, look), tellOf(e, look)];
+    for (const v of Object.values(e.data)) if (typeof v === 'string') parts.push(plainOf(v));
+    index.set(e.id, fold(parts.join(' ')));
+  }
+  return index;
 }
 
 export class CogitaLibrary {
@@ -186,39 +266,93 @@ export class CogitaLibrary {
 
   private memo: Memo | null = null;
   private cardMemo: { revision: number; seed: string; made: Promise<{ cards: Card[]; problems: Map<string, string[]> }> } | null = null;
+  private sources: readonly Source[] = [];
+  private round = 0;
 
   /** Ein Python-Läufer für die Vorlagen — von aussen hereingereicht, damit die Rechnung ohne Browser prüfbar bleibt. */
   python: ((code: string, args: readonly unknown[]) => Promise<unknown>) | undefined;
 
   get libraryId(): string { return this.store.libraryId; }
   get areaId(): string { return this.store.areaId; }
-  get revision(): number { return this.store.revision; }
+
+  /** Steigt mit jeder Änderung — der eigenen und der jeder Quelle (alle steigen nur). */
+  get revision(): number {
+    return this.store.revision + this.round + this.sources.reduce((sum, s) => sum + s.store.revision, 0);
+  }
+
+  /** 0110 — die geöffneten Quellen (`sources.ts` lädt sie); gerechnet wird beim nächsten Fragen. */
+  setSources(list: readonly Source[]): void {
+    this.sources = list.filter((s) => s.store.libraryId !== this.store.libraryId);
+    this.round += 1;
+  }
+
+  sourceList(): readonly Source[] { return this.sources; }
+
+  private stamp(): string {
+    return `${this.store.revision}|${this.round}|${this.sources.map((s) => s.store.revision).join(',')}`;
+  }
 
   private fresh(): Memo {
-    if (this.memo !== null && this.memo.revision === this.store.revision) return this.memo;
-    const all = this.store.all();
+    const stamp = this.stamp();
+    if (this.memo !== null && this.memo.stamp === stamp) return this.memo;
+    const own = this.store.all();
+    const theirs = this.sources.filter((s) => s.kind === 'knowledge').flatMap((s) => s.store.all());
+    const books = this.sources.filter((s) => s.kind === 'books').flatMap((s) => s.store.all());
     const merged = new Set<string>();
-    for (const e of all) if (e.kind === 'merge' && typeof e.data.from === 'string') merged.add(e.data.from);
-    const kinds = kindDefs(all);
-    const entities = all.map(entityOf).filter((e): e is Entity => e !== null && !merged.has(e.id));
+    for (const e of [...own, ...theirs]) if (e.kind === 'merge' && typeof e.data.from === 'string') merged.add(e.data.from);
+    /* Zuerst die Quellen, dann die eigenen: wer hier eine eingebaute Art ändert, gewinnt. */
+    const kinds = kindDefs([...theirs, ...own]);
+    const entities = [...own, ...theirs].map(entityOf).filter((e): e is Entity => e !== null && !merged.has(e.id));
+    const refs = books.map(entityOf).filter((e): e is Entity => e !== null);
     const byKind = new Map<string, Entity[]>();
     for (const e of entities) for (const k of e.kinds) byKind.set(k, [...(byKind.get(k) ?? []), e]);
     const docs = new Map<DocKind, Entry[]>(DOC_KINDS.map((k) => [k, []]));
-    for (const e of all) if (docs.has(e.kind as DocKind)) docs.get(e.kind as DocKind)!.push(e);
-    this.memo = { revision: this.store.revision, kinds, entities, look: lookupOf(kinds, entities), byKind, docs, backlinks: null, search: null };
+    for (const e of own) if (docs.has(e.kind as DocKind)) docs.get(e.kind as DocKind)!.push(e);
+    for (const e of theirs) if (SHARED_DOCS.has(e.kind)) docs.get(e.kind as DocKind)!.push(e);
+    const origin = new Map<string, Origin>();
+    const mark = (store: LibraryStore, name: string, kind: SourceKind, mine: boolean) => {
+      const from: Origin = { libraryId: store.libraryId, areaId: store.areaId, name, own: mine, kind };
+      for (const e of store.all()) if (!origin.has(e.id)) origin.set(e.id, from);
+    };
+    mark(this.store, 'ta baza wiedzy', 'knowledge', true);
+    for (const s of this.sources) mark(s.store, s.name, s.kind, false);
+    this.memo = {
+      stamp, kinds, contentKinds: kinds.filter((k) => !BOOK_KINDS.has(k.id)), entities, refs,
+      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, search: null, refSearch: null
+    };
     return this.memo;
   }
 
-  get kinds(): readonly KindDef[] { return this.fresh().kinds; }
+  /** Die Arten dieser Baza wiedzy — eingebaut, geändert, eigene, aus wiederverwendeten Quellen; ohne die der Bibliotheken. */
+  get kinds(): readonly KindDef[] { return this.fresh().contentKinds; }
+  /** Dazu die Arten der Bibliotheken — als Ziele eines Verweises. */
+  get refKinds(): readonly KindDef[] { return this.fresh().kinds; }
   get look(): Lookup { return this.fresh().look; }
   kind(id: string): KindDef | undefined { return this.fresh().look.kind(id); }
   entities(): readonly Entity[] { return this.fresh().entities; }
   entity(id: string): Entity | undefined { return this.fresh().look.entity(id); }
-  entry(id: string): Entry | undefined { return this.store.get(id); }
+  entry(id: string): Entry | undefined {
+    return this.store.get(id) ?? this.sources.map((s) => s.store.get(id)).find((e) => e !== undefined);
+  }
 
-  /** Ein Verweis im Zapis nennt eine Kennung oder einen Zitierschlüssel — hier wird es eine Kennung. */
+  /** Gehört der Eintrag dieser Baza wiedzy (und lässt sich hier ändern)? */
+  isOwn(id: string): boolean { return this.store.get(id) !== undefined; }
+  /** Woher er kommt — `undefined`: es gibt ihn hier nicht. */
+  origin(id: string): Origin | undefined { return this.fresh().origin.get(id); }
+  /** In welchem Bereich eine Bibliothek liegt (diese oder eine Quelle) — für ihre Schlüssel und Dateien. */
+  areaOf(libraryId: string): string | undefined {
+    if (libraryId === this.store.libraryId) return this.store.areaId;
+    return this.sources.find((s) => s.store.libraryId === libraryId)?.store.areaId;
+  }
+
+  /** Ein Verweis im Zapis nennt eine Kennung oder einen Zitierschlüssel — hier wird es eine Kennung (auch aus einer Quelle). */
   resolve(token: string): string | undefined {
-    return this.store.get(token) !== undefined ? token : this.store.byKey(token)?.id;
+    for (const store of [this.store, ...this.sources.map((s) => s.store)]) {
+      if (store.get(token) !== undefined) return token;
+      const found = store.byKey(token);
+      if (found !== undefined) return found.id;
+    }
+    return undefined;
   }
   ofKind(kindId: string): readonly Entity[] { return this.fresh().byKind.get(kindId) ?? []; }
   docs(kind: DocKind): readonly Entry[] { return this.fresh().docs.get(kind) ?? []; }
@@ -232,21 +366,18 @@ export class CogitaLibrary {
     return m.backlinks.get(id) ?? [];
   }
 
-  /** Suchen in Etiketten und Textwerten, ohne Rücksicht auf Akzente. */
-  search(query: string, kinds?: readonly string[]): Entity[] {
+  /**
+   * Suchen in Etiketten und Textwerten, ohne Rücksicht auf Akzente. `refs`:
+   * auch in dem, worauf man nur verweist (die Bücher der Bibliotheken) — für
+   * ein Verweisfeld, nicht für das, was man lernt.
+   */
+  search(query: string, kinds?: readonly string[], refs = false): Entity[] {
     const m = this.fresh();
-    if (m.search === null) {
-      const index = new Map<string, string>();
-      for (const e of m.entities) {
-        const parts = [labelOf(e, m.look), tellOf(e, m.look)];
-        for (const v of Object.values(e.data)) if (typeof v === 'string') parts.push(plainOf(v));
-        index.set(e.id, fold(parts.join(' ')));
-      }
-      m.search = index;
-    }
+    const pool = refs ? [...m.entities, ...m.refs] : m.entities;
+    const index = refs ? (m.refSearch ??= searchIndex(pool, m.look)) : (m.search ??= searchIndex(m.entities, m.look));
     const words = fold(query).split(/\s+/).filter(Boolean);
-    return m.entities.filter((e) => (kinds === undefined || kinds.some((k) => e.kinds.includes(k)))
-      && words.every((w) => (m.search!.get(e.id) ?? '').includes(w)));
+    return pool.filter((e) => (kinds === undefined || kinds.some((k) => e.kinds.includes(k)))
+      && words.every((w) => (index.get(e.id) ?? '').includes(w)));
   }
 
   templates(): Template[] { return this.docs('template').map((e) => readTemplate(e.id, e.data)); }
@@ -289,11 +420,23 @@ export class CogitaLibrary {
     return out;
   }
 
+  /** Die eigenen Einstellungen — die einer Quelle gelten dort. */
   settingsEntry(): Entry | undefined { return this.docs('settings')[0]; }
   settings(): CogitaSettings { return readSettings(this.settingsEntry()?.data); }
 
-  /** Die bestätigten Abhängigkeiten — was die Kenntnis weitergibt und sperrt. */
-  dependencies(): Dependency[] { return this.settings().dependencies.filter((d) => d.proposed !== true); }
+  /**
+   * Die bestätigten Abhängigkeiten — was die Kenntnis weitergibt und sperrt.
+   * 0110: die wiederverwendeter Bazy wiedzy gelten mit; die eigene gewinnt.
+   */
+  dependencies(): Dependency[] {
+    const out = new Map<string, Dependency>();
+    const add = (list: readonly DependencyEdge[]) => {
+      for (const d of list) if (d.proposed !== true) out.set(`${d.parent}>${d.child}`, { parent: d.parent, child: d.child, kind: d.kind, impact: d.impact });
+    };
+    for (const s of this.sources) if (s.kind === 'knowledge') add(readSettings(s.store.all().find((e) => e.kind === 'settings')?.data).dependencies);
+    add(this.settings().dependencies);
+    return [...out.values()];
+  }
 
   /** Zusammengeführt [B16]: wer in wen aufging. */
   merges(): ReadonlyMap<string, string> {
@@ -304,8 +447,16 @@ export class CogitaLibrary {
 
   /* -- Schreiben ------------------------------------------------------------------------------ */
 
+  /** 0110 — was aus einer Quelle kommt, wird dort geändert: hier geht nur die eigene Baza wiedzy. */
+  private ownOnly(id: string | undefined): void {
+    if (id === undefined || this.store.get(id) !== undefined) return;
+    const from = this.origin(id);
+    if (from !== undefined) throw new Error(`To pochodzi z „${from.name}" — zmień to tam.`);
+  }
+
   /** Eine Entität speichern — die Arten in ihrer Reihenfolge, die Daten wie sie sind. */
   async saveEntity(input: { readonly id?: string; readonly kinds: readonly string[]; readonly data: Readonly<Record<string, unknown>> }): Promise<Entry> {
+    this.ownOnly(input.id);
     const before = input.id === undefined ? undefined : this.store.get(input.id);
     const plain = before?.kind ?? plainKindOf(input.kinds);
     const data = entryData({ kinds: input.kinds, data: input.data }, plain, before?.data ?? {});
@@ -318,11 +469,13 @@ export class CogitaLibrary {
       const had = overrideEntryOf(this.store.all(), kind.id);
       return this.store.save({ ...(had === undefined ? {} : { id: had.id }), kind: 'kind', data: kindDoc(kind) });
     }
+    this.ownOnly(kind.id);
     const exists = this.store.get(kind.id) !== undefined;
     return this.store.save({ ...(exists ? { id: kind.id } : {}), kind: 'kind', data: kindDoc(kind) });
   }
 
   saveDoc(kind: DocKind, data: Readonly<Record<string, unknown>>, id?: string): Promise<Entry> {
+    this.ownOnly(id);
     return this.store.save({ ...(id === undefined ? {} : { id }), kind, data: { ...data } });
   }
 
@@ -331,21 +484,27 @@ export class CogitaLibrary {
     return this.saveDoc('settings', { ...(had?.data ?? {}), ...patch }, had?.id);
   }
 
-  remove(id: string): Promise<void> { return this.store.remove(id); }
+  async remove(id: string): Promise<void> {
+    this.ownOnly(id);
+    return this.store.remove(id);
+  }
 
   /**
    * ZUSAMMENFÜHREN [B16]: jeder Verweis auf `drop` zeigt danach auf `keep`;
    * was `drop` hatte und `keep` nicht, geht mit; `drop` wird gelöscht und ein
    * Vermerk „połączony z" bleibt (für Seiten und Fortschritte, die ihn nennen).
-   * Gibt zurück, wie viele Einträge umgeschrieben wurden.
+   * Beide müssen dieser Baza wiedzy gehören; umgeschrieben werden ihre eigenen
+   * Einträge. Gibt zurück, wie viele Einträge umgeschrieben wurden.
    */
   async merge(keepId: string, dropId: string): Promise<number> {
     const keep = this.entity(keepId);
     const drop = this.entity(dropId);
     if (keep === undefined || drop === undefined || keepId === dropId) return 0;
+    this.ownOnly(keepId);
+    this.ownOnly(dropId);
     let rewritten = 0;
     for (const other of this.entities()) {
-      if (other.id === dropId) continue;
+      if (other.id === dropId || !this.isOwn(other.id)) continue;
       const changed = replaceRef(other, this.look, dropId, keepId);
       if (changed === null) continue;
       await this.saveEntity({ id: other.id, kinds: changed.kinds, data: changed.data });
@@ -362,6 +521,7 @@ export class CogitaLibrary {
 
   /** Ein Autor hat nachgesehen [C7]: die verbundenen Einträge gelten als geprüft, so wie sie jetzt sind. */
   async markChecked(id: string): Promise<void> {
+    this.ownOnly(id);
     const entry = this.store.get(id);
     if (entry === undefined) return;
     const entity = this.entity(id);
@@ -369,7 +529,7 @@ export class CogitaLibrary {
     const checked: Record<string, string> = {};
     for (const token of linkedOf(entity, this.look)) {
       const linked = this.resolve(token);
-      const at = linked === undefined ? undefined : this.store.get(linked)?.updatedAt;
+      const at = linked === undefined ? undefined : this.entry(linked)?.updatedAt;
       if (linked !== undefined && at !== undefined) checked[linked] = at;
     }
     await this.store.save({ id, kind: entry.kind, ...(entry.key === undefined ? {} : { key: entry.key }), data: { ...entry.data, _checked: checked } });
@@ -378,12 +538,14 @@ export class CogitaLibrary {
   /* -- Karten -------------------------------------------------------------------------------- */
 
   /**
-   * ALLE KARTEN dieser Bibliothek: jede Vorlage für jede Entität ihrer Arten,
-   * jede von Hand geschriebene Frage, jedes Thema mit Antworten. Je Stand des
-   * Speichers und Samen einmal gerechnet.
+   * ALLE KARTEN dieser Baza wiedzy: jede Vorlage für jede Entität ihrer Arten,
+   * jede von Hand geschriebene Frage, jedes Thema mit Antworten — die eigenen
+   * und die wiederverwendeter Quellen (Bibliotheken geben keine Karten). Je
+   * Stand der Speicher und Samen einmal gerechnet.
    */
   cards(seed = ''): Promise<{ cards: Card[]; problems: Map<string, string[]> }> {
-    if (this.cardMemo !== null && this.cardMemo.revision === this.store.revision && this.cardMemo.seed === seed) return this.cardMemo.made;
+    const revision = this.revision;
+    if (this.cardMemo !== null && this.cardMemo.revision === revision && this.cardMemo.seed === seed) return this.cardMemo.made;
     const made = (async () => {
       const look = this.look;
       const templates = this.templates();
@@ -407,7 +569,7 @@ export class CogitaLibrary {
       }
       return { cards, problems };
     })();
-    this.cardMemo = { revision: this.store.revision, seed, made };
+    this.cardMemo = { revision, seed, made };
     return made;
   }
 

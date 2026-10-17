@@ -452,7 +452,7 @@ check('the stand of the plan before a run', R.levelsOf(plan, () => [], 0), { uns
  * gebaut mit dem, was diese Module mitziehen (der Dienst, die Schlüssel), aber
  * ohne einen Aufruf: nur gerechnet.
  */
-const more = ['logic', 'flow', 'rules', 'game', 'kinds', 'live'];
+const more = ['logic', 'flow', 'rules', 'game', 'kinds', 'live', 'store', 'sources'];
 const moreOut = join(workspace, 'more');
 await build({
   entryPoints: { ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), libraryPublish: 'src/app/libraryPublish.ts', steps: 'src/app/steps.ts' },
@@ -467,7 +467,7 @@ await build({
 /* Wie in app-json-check: ein BroadcastChannel des Schlüsselbunds hielte den Lauf sonst am Leben. */
 globalThis.BroadcastChannel = undefined;
 const loadMore = (name) => import(pathToFileURL(join(moreOut, `${name}.js`)).href);
-const [Lg, Fl, Ru, Ga, Ki, Li, Pub, St] = await Promise.all([...more, 'libraryPublish', 'steps'].map(loadMore));
+const [Lg, Fl, Ru, Ga, Ki, Li, So, Src, Pub, St] = await Promise.all([...more, 'libraryPublish', 'steps'].map(loadMore));
 
 /* -- Die eine Logik ------------------------------------------------------------------------------- */
 
@@ -639,6 +639,74 @@ check('goals and lines follow the one logic', [
   const late = St.stepsFor({ ...base, steps: [step({ dueAt: '2026-10-01T23:59:59' })], marks: [] })[0];
   check('learn: open, done when ticked, overdue after its date', [open.status, done.status, late.status], ['todo', 'done', 'overdue']);
   check('learn: it ticks by itself (the browser at the threshold), for the person', [open.source, open.doneBy, open.visibleToPerson, open.learn.threshold], ['auto', 'person', true, 0.8]);
+}
+
+/* ══ 0110 — eine Baza wiedzy neben Bibliotheken, mit Quellen aus anderen Bereichen ══════════════ */
+
+{
+  /* Ein Speicher ohne Schlüssel und ohne Dienst: was die Baza wiedzy von ihm liest und in ihn schreibt. */
+  const fake = (libraryId, areaId, entries) => {
+    const map = new Map(entries.map((e) => [e.id, e]));
+    const store = {
+      libraryId, areaId, revision: 1, loaded: true, saved: [],
+      all: () => [...map.values()],
+      get: (id) => map.get(id),
+      byKey: (key) => [...map.values()].find((e) => (e.key ?? '').toLowerCase() === key.toLowerCase()),
+      save: async (input) => { const entry = { ...input, id: input.id ?? `neu-${store.saved.length}` }; map.set(entry.id, entry); store.saved.push(entry); store.revision += 1; return entry; },
+      remove: async (id) => { map.delete(id); store.revision += 1; },
+      subscribe: () => () => undefined
+    };
+    return store;
+  };
+  const entity = (id, kinds, data) => ({ id, kind: 'entity', data: { _kinds: kinds, ...data } });
+  const own = fake('A', 'area-a', [
+    entity('k1', ['knowledge'], { text: 'Inwokacja otwiera [[Pana Tadeusza|@mick]].', source: 'w1' }),
+    { id: 'r1', kind: 'revision', data: { name: 'Codzienna', graph: { nodes: [], edges: [] } } },
+    { id: 'o1', kind: 'kind', data: { builtin: 'knowledge', name: 'Wiedza A', label: '{text}', fields: [] } },
+    { id: 's1', kind: 'settings', data: { sources: [{ id: 'B', kind: 'knowledge', name: 'Parafia' }, { id: 'L', kind: 'books', name: 'Książki' }, { id: 'B', kind: 'knowledge' }, { kind: 'books' }] } }
+  ]);
+  const reused = fake('B', 'area-b', [
+    { id: 'kB', kind: 'kind', data: { name: 'Postać', label: '{name}', fields: [{ key: 'name', label: 'Imię', type: 'line' }] } },
+    { id: 'oB', kind: 'kind', data: { builtin: 'knowledge', name: 'Wiedza B', label: '{text}', fields: [] } },
+    entity('e2', ['kB'], { name: 'Jacek Soplica' }),
+    entity('q2', ['question'], { form: 'text', prompt: 'Kto wygłosił spowiedź?', answers: ['Jacek Soplica'] }),
+    { id: 'rB', kind: 'revision', data: { name: 'Postacie', graph: { nodes: [], edges: [] } } },
+    { id: 'sB', kind: 'settings', data: { dependencies: [{ parent: 'e2', child: 'k1', kind: 'prerequisite', impact: 0.5 }], sources: [{ id: 'C', kind: 'books', name: 'Słowniki' }, { id: 'A', kind: 'knowledge', name: 'Kurs' }] } }
+  ]);
+  const books = fake('L', 'area-l', [
+    { id: 'w1', kind: 'work', key: 'mick', data: { title: 'Pan Tadeusz' } },
+    { id: 'p1', kind: 'person', data: { surname: 'Mickiewicz', givenNames: 'Adam' } }
+  ]);
+  const lib = new So.CogitaLibrary(own, true);
+  check('sources are read from the settings: doubles and nameless entries dropped', lib.settings().sources.map((s) => [s.id, s.kind, s.name]), [['B', 'knowledge', 'Parafia'], ['L', 'books', 'Książki']]);
+
+  const before = lib.revision;
+  const opened = await Src.loadSources(lib, async (ref) => ({ B: reused, L: books }[ref.id] ?? null));
+  check('loading follows a reused base into its own sources, without a circle; what cannot be read is missing', [opened.loaded.map((s) => s.store.libraryId), opened.missing.map((s) => s.id)], [['B', 'L'], ['C']]);
+  lib.setSources(opened.loaded);
+  truth('setting the sources changes the revision', lib.revision !== before);
+
+  check('a reused base adds its entries; a library adds none to learn', lib.entities().map((e) => e.id).sort(), ['e2', 'k1', 'q2']);
+  check('… but its books are there to point at', [lib.entity('w1')?.kinds, lib.label(lib.entity('w1'))], [['work'], 'Pan Tadeusz']);
+  check('books are not content of the base', [lib.ofKind('work').length, lib.ofKind('kB').map((e) => e.id)], [0, ['e2']]);
+  check('the kinds to build with leave out the libraries’ kinds; as targets of a reference they are there', [lib.kinds.some((k) => k.id === 'work'), lib.kinds.some((k) => k.id === 'kB'), lib.refKinds.some((k) => k.id === 'work')], [false, true, true]);
+  check('the base’s own change of a built-in kind wins over the source’s', lib.kind('knowledge').name, 'Wiedza A');
+  check('revisions of a reused base are here too; settings stay its own', [lib.docs('revision').map((e) => e.id).sort(), lib.docs('settings').map((e) => e.id)], [['r1', 'rB'], ['s1']]);
+  check('a citation key of a library resolves', lib.resolve('mick'), 'w1');
+  check('where things come from', [lib.origin('k1').own, lib.origin('e2').name, lib.origin('w1').kind, lib.isOwn('e2')], [true, 'Parafia', 'books', false]);
+  check('the dependencies of a reused base hold here', lib.dependencies().map((d) => `${d.parent}>${d.child}`), ['e2>k1']);
+  check('learning search finds no books; a reference search does', [lib.search('Mickiewicz').length, lib.search('Mickiewicz', ['person'], true).map((e) => e.id)], [0, ['p1']]);
+  const cards = (await lib.cards('kb')).cards;
+  truth('a reused base’s question becomes a card here', cards.some((c) => c.question === 'q2'), cards.map((c) => c.question));
+
+  let refused = '';
+  await lib.saveEntity({ id: 'e2', kinds: ['kB'], data: { name: 'Ks. Robak' } }).catch((e) => { refused = e.message; });
+  truth('what comes from a source is changed there, not here', refused.includes('Parafia') && reused.get('e2').data.name === 'Jacek Soplica', refused);
+  let removed = '';
+  await lib.remove('w1').catch((e) => { removed = e.message; });
+  truth('… and a library’s book is not removed from here', removed.includes('Książki') && books.get('w1') !== undefined, removed);
+  await lib.saveEntity({ id: 'k1', kinds: ['knowledge'], data: { text: 'Zmienione.' } });
+  check('the base’s own entries are written to its own store', own.saved.map((e) => e.id), ['k1']);
 }
 
 await rm(workspace, { recursive: true, force: true });

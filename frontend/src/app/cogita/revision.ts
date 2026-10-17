@@ -84,7 +84,7 @@ const out = (cards: readonly Card[]) => ({ cards: { cards, gate: null } satisfie
 
 const ALL: Kind = {
   type: 'source.all', label: 'Wszystkie karty', group: 'Źródła',
-  says: 'Każda karta tej biblioteki.',
+  says: 'Każda karta tej bazy wiedzy (i baz, z których korzysta).',
   ports: () => ({ inputs: [], outputs: [port('cards', 'Karty')] }),
   run: ({ ctx }) => out(ctx.cards)
 };

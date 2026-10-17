@@ -185,7 +185,7 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
         const open = unfolded.has(part.id);
         const size = partSize(open ? { colSpan: box.colSpan, rowSpan: Math.max(box.rowSpan, 3) } : box);
         const folded = def !== undefined && def.strip !== null && size.height === 'strip';
-        const canFull = def !== undefined && def.fullscreen && !hidden.has(part.id);
+        const canFull = def !== undefined && def.fullFor(part.config) && !hidden.has(part.id);
 
         return (
           <article
@@ -201,7 +201,10 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
               top: `${placed?.top ?? 0}px`,
               left: `calc(${across((placed?.col ?? frame.position.col) - 1)} + ${(placed?.col ?? frame.position.col) - 1} * var(--page-gap))`,
               width: `calc(${across(box.colSpan)} + ${box.colSpan - 1} * var(--page-gap))`,
-              minHeight: `calc(${box.rowSpan} * 5.25rem + ${box.rowSpan - 1} * var(--page-gap))`
+              /* 2026-10-17 — am Telefon höchstens zwei Zeilen hoch, sonst so hoch wie der Inhalt: unter kurzen Texten standen leere Flächen. */
+              minHeight: breakpoint === 'mobile'
+                ? `min(${box.rowSpan} * 5.25rem + ${box.rowSpan - 1} * var(--page-gap), 10.5rem + var(--page-gap))`
+                : `calc(${box.rowSpan} * 5.25rem + ${box.rowSpan - 1} * var(--page-gap))`
             }}
           >
             {hidden.has(part.id) ? (

@@ -196,7 +196,7 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
                 const text = window.prompt('Co jest nie tak z tą kartą? (autorzy zobaczą to bez Twojego imienia)');
                 if (text === null || text.trim() === '') return;
                 void sendReport(lib.libraryId, lib.areaId, 'flags', { card: card.key, question: card.question, text: text.trim().slice(0, 1000) }, ctx?.seat)
-                  .then((ok) => setNote(ok ? 'Dziękujemy — autorzy dostaną zgłoszenie.' : 'Ta biblioteka nie przyjmuje jeszcze zgłoszeń.'), () => setNote('Nie udało się wysłać zgłoszenia.'));
+                  .then((ok) => setNote(ok ? 'Dziękujemy — autorzy dostaną zgłoszenie.' : 'Ta baza wiedzy nie przyjmuje jeszcze zgłoszeń.'), () => setNote('Nie udało się wysłać zgłoszenia.'));
               }}>Zgłoś błąd</button>}
             </span>
             {note !== null && <span className="wk-hint">{note}</span>}

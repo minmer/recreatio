@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { loadAgenda, openAgenda, type OpenedItem } from './agenda';
 import { loadAreas, type AreaRow } from './area';
 import { loadChats, type ChatRow } from './chat';
+import { loadDesk, type Desk } from './desk';
 import type { Ring } from './keys';
 import { loadLinks, type LinkRow } from './linkAccess';
 import { loadModules, type ModuleRow } from './module';
@@ -36,6 +37,8 @@ export const invalidate = (): void => { cache.clear(); };
 export const DESK_EVENT = 'recreatio:desk';
 export const refreshDesk = (): void => { window.dispatchEvent(new Event(DESK_EVENT)); };
 
+/** 2026-10-16 — der Schreibtisch für den Rahmen (Seitenleiste: wer keine Seite führt, sieht weniger). */
+export const deskNow = (): Promise<Desk> => once('desk', loadDesk);
 export const areasNow = (): Promise<readonly AreaRow[]> => once('areas', async () => (await loadAreas()).areas);
 export const modulesNow = (): Promise<readonly ModuleRow[]> => once('modules', async () => (await loadModules()).modules);
 export const chatsNow = (): Promise<readonly ChatRow[]> => once('chats', async () => (await loadChats()).chats);

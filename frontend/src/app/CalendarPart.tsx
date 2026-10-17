@@ -48,6 +48,7 @@ import { useMe, useWho, type Me } from './me';
 import { Modal } from './Modal';
 import type { PartContext } from './part';
 import { usePerson } from './pagePerson';
+import { Loading } from './ui/Loading';
 
 const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 
@@ -129,7 +130,7 @@ export function CalendarPartView({ title, calendarIds, ctx }: { title: string; c
   }
 
   if (ctx.whole === true && identity != null) {
-    if (own === undefined) return <p className="wk-card-muted">Wczytywanie…</p>;
+    if (own === undefined) return <Loading label="Wczytywanie…" />;
 
     /*
      * IM VOLLBILD DER GANZE KALENDER — für den, der ihn hat. Das Konto, wenn
@@ -297,7 +298,7 @@ function ReadOnlyCalendar({ calendarIds, me, identity, signedIn, ctx, onAdd }: {
   }, [ids, me, identity, signedIn, seat, fromMs, toMs, linksStamp]);
 
   if (failed) return <p className="wk-card-muted">Nie udało się wczytać terminów.</p>;
-  if (data === null) return <p className="wk-card-muted">Wczytywanie…</p>;
+  if (data === null) return <Loading label="Wczytywanie…" />;
 
   const upcoming = data.events.filter((e) => e.end.getTime() >= now.getTime());
   const descriptions = data.calendars.filter((c) => c.description !== null && c.description.trim() !== '');

@@ -38,6 +38,7 @@ import {
 import { openAskNames } from './holderNames';
 import { useSeats } from './seatContext';
 import { WorkspaceError } from './session';
+import { Loading } from './ui/Loading';
 
 /** Wer auf dieser Seite nimmt — aus der Wahl oben, sonst der eine geöffnete Platz. */
 function useHolder(): Holder | null {
@@ -145,7 +146,7 @@ export function SlotCard({ title, resource }: {
   }
 
   if (data === null) {
-    return <>{heading}{failed !== null ? <p className="wk-error">{failed}</p> : <p className="wk-card-text">Wczytywanie…</p>}</>;
+    return <>{heading}{failed !== null ? <p className="wk-error">{failed}</p> : <Loading label="Wczytywanie…" />}</>;
   }
 
   const rules = data.resource;

@@ -1,5 +1,5 @@
 /**
- * 0109 — „WYBÓR NA STRONIE": EIN EINTRAG AUS EINER BIBLIOTHEK [P07].
+ * 0109 — „WYBÓR NA STRONIE": EIN EINTRAG AUS EINER BAZA WIEDZY [P07].
  *
  * Eine Seite für alle Postacie (Miejsca, Pojęcia …) statt einer je Eintrag:
  * oben die Auswahl eines veröffentlichten Eintrags (◀ ▶ durch die Liste), und
@@ -96,7 +96,7 @@ function EntityBar() {
   const s = useEntitySubject();
   if (s === null) return null;
   if (s.list === null) return <div className="wk-subject-bar is-waiting"><span className="wk-hint">Wczytywanie wpisów…</span></div>;
-  if (s.list.length === 0) return <div className="wk-subject-bar"><span className="wk-hint">W tej bibliotece nie ma jeszcze opublikowanych wpisów.</span></div>;
+  if (s.list.length === 0) return <div className="wk-subject-bar"><span className="wk-hint">W tej bazie wiedzy nie ma jeszcze opublikowanych wpisów.</span></div>;
   const at = s.list.findIndex((e) => e.id === s.chosen);
   const prev = at > 0 ? s.list[at - 1] : null;
   const next = at < 0 ? s.list[0] : at < s.list.length - 1 ? s.list[at + 1] : null;
@@ -125,29 +125,29 @@ function EntitySettings({ decl, busy, onChange }: { decl: SubjectDecl; busy: boo
   return (
     <>
       <div className="wk-field">
-        <span>Biblioteka</span>
-        <PickLibrary value={said(decl, 'library')} busy={busy} onPick={(library) => onChange({ ...decl, library })} />
+        <span>Baza wiedzy</span>
+        <PickLibrary kind="knowledge" value={said(decl, 'library')} busy={busy} onPick={(library) => onChange({ ...decl, library })} />
       </div>
       <label className="wk-field">
         <span>Tylko rodzaj (nieobowiązkowo)</span>
         <input value={typeof decl.of === 'string' ? decl.of : ''} disabled={busy} placeholder="np. Postać" onChange={(e) => onChange({ ...decl, of: e.target.value })} />
       </label>
-      <span className="wk-hint">Do wyboru są wpisy opublikowane w Cogicie (wpis → „Na stronie” → Opublikuj). Moduły „Karta wpisu” bez własnego wpisu pokażą wybrany.</span>
+      <span className="wk-hint">Do wyboru są wpisy opublikowane w bazie wiedzy (wpis → „Na stronie” → Opublikuj). Moduły „Karta wpisu” bez własnego wpisu pokażą wybrany.</span>
     </>
   );
 }
 
 export const entitySubjectKind: SubjectKind = {
   kind: 'entity',
-  label: 'Wpis z biblioteki',
-  use: 'U góry strony wybór jednego opublikowanego wpisu biblioteki (◀ ▶ po liście); moduły „Karta wpisu” bez własnego wpisu pokazują ten. Jedna strona dla wszystkich postaci, miejsc, pojęć.',
+  label: 'Wpis z bazy wiedzy',
+  use: 'U góry strony wybór jednego opublikowanego wpisu bazy wiedzy (◀ ▶ po liście); moduły „Karta wpisu” bez własnego wpisu pokazują ten. Jedna strona dla wszystkich postaci, miejsc, pojęć.',
   keys: {
     kind: '"entity"',
-    library: 'identyfikator biblioteki — czyje opublikowane wpisy są do wyboru',
+    library: 'identyfikator bazy wiedzy — czyje opublikowane wpisy są do wyboru',
     of: 'nieobowiązkowo: nazwa rodzaju (np. „Postać”) — tylko wpisy tego rodzaju'
   },
   example: { kind: 'entity', library: '0190a0a0-0000-7000-8000-0000000000bb', of: 'Postać' },
-  missing: (decl) => (said(decl, 'library') === '' ? 'Wybierz bibliotekę.' : null),
+  missing: (decl) => (said(decl, 'library') === '' ? 'Wybierz bazę wiedzy.' : null),
   uses: () => [],
   Provider: EntityProvider,
   Bar: EntityBar,

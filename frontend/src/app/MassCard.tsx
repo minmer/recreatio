@@ -32,6 +32,7 @@ import { MassBrowser } from './MassBrowser';
 import { Glance } from './MassGlance';
 import { placeOf, useNow, usePlan } from './MassParts';
 import type { PartSize } from './part';
+import { Loading } from './ui/Loading';
 
 export function MassCard({ title, calendar, days: wanted, size }: {
   title: string;
@@ -67,7 +68,7 @@ function Live({ shown, calendar, now }: { shown: MassView; calendar: string; now
   const { loaded, failed } = usePlan(calendar, from, addDays(from, daysToLoad(shown)), 'live');
 
   if (loaded === null) {
-    return <p className="wk-card-muted">{failed ? 'Planu nie udało się wczytać.' : 'Wczytywanie…'}</p>;
+    return failed ? <p className="wk-card-muted">Planu nie udało się wczytać.</p> : <Loading />;
   }
 
   return (

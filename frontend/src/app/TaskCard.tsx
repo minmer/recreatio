@@ -30,18 +30,13 @@ import {
   neededText, nextDay, planText, PRESENCE_THEY, PRESENCE_WORD, presenceOn, reportsUntil, taskDays, timeText
 } from './candidateTasks';
 import { WorkspaceError } from './session';
-import type { DutyTaken, PresenceAnswer, PresenceChange, StepState, TaskChange, TaskDate, TaskDuty } from './steps';
+import { takenKey, takenOf, type TakenMap } from './taskTaken';
+import type { PresenceAnswer, PresenceChange, StepState, TaskChange, TaskDate, TaskDuty } from './steps';
 
 type Task = NonNullable<StepState['task']>;
 
-/** 0099 — wie viele eine Funktion an einem Termin nehmen: Schlüssel `Tag|Funktion`. */
-export type TakenMap = ReadonlyMap<string, number>;
-
-export const takenKey = (day: string, dutyId: string): string => `${day}|${dutyId}`;
-
-/** Die Zählung des Dienstes (je Aufgabe, Tag, Funktion) für eine Aufgabe. */
-export const takenOf = (taken: readonly DutyTaken[] | undefined, stepId: string): TakenMap =>
-  new Map((taken ?? []).filter((t) => t.stepId === stepId).map((t) => [takenKey(t.day, t.dutyId), t.count] as const));
+/* 0099 — die Zählung der Funktionen steht seit 2026-10-17 in `taskTaken.ts`; hier weitergereicht. */
+export { takenKey, takenOf, type TakenMap };
 
 /** Ein Klick weiter: nichts → tak → nie → jeszcze nie wiem → nichts. */
 const NEXT: Record<PresenceAnswer | 'none', PresenceAnswer | 'none'> = { none: 'yes', yes: 'no', no: 'maybe', maybe: 'none' };

@@ -13,11 +13,12 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import type { AreaRow } from './area';
-import { Segment } from './Areas';
+import { Segment } from './ui/Segment';
 import { givableRoles, reachWords, type GivableRole, type NewRoleDraft } from './commonRole';
 import type { Ring } from './keys';
 import { LINK_LEVELS, type LinkLevel } from './linkAccess';
 import { WorkspaceError } from './session';
+import { Loading } from './ui/Loading';
 
 export const NEW_ROLE = 'new';
 
@@ -90,7 +91,7 @@ export function CommonRoleChoice({
     <fieldset className="wk-role-choice" disabled={busy}>
       <legend>{many ? 'Jakie role daje' : 'Rola'}</legend>
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {sorted === null ? <p className="wk-hint">Wczytywanie ról…</p> : (
+      {sorted === null ? <Loading label="Wczytywanie ról…" /> : (
         <ul>
           {sorted.map((r) => (
             <li key={r.roleId} className={picked.has(r.roleId) ? 'is-on' : undefined}>

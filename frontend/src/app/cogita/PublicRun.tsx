@@ -21,6 +21,7 @@ import { REVISION_BUNDLE } from './published';
 import { readPlan } from './revision';
 import { RevisionRun, type RunSource } from './RevisionRun';
 import { PublicContext, type PublicCtx } from './ui';
+import { Loading } from '../ui/Loading';
 
 /**
  * Ein veröffentlichtes Bündel — `undefined`: wird geholt; `null`: gibt es
@@ -61,7 +62,7 @@ export function useLocalLearner(libraryId: string): Learner | null {
 
 /** Was eine öffentliche Seite statt der Schlüssel hat: die offenen Dateien, die Einträge des Bündels. */
 export const publicOf = (library: string, entities: Readonly<Record<string, PublicEntity>>): PublicCtx => ({
-  fileUrl: (fileId) => publicFileUrl(library, fileId),
+  fileUrl: (fileId, from) => publicFileUrl(from ?? library, fileId),
   entity: (id) => entities[id] ?? null
 });
 
@@ -85,7 +86,7 @@ export function PublicRevisionRun({ libraryId, revisionId, learner, title, via, 
   const bundle = useBundle<PublicRevision>(libraryId, revisionId, REVISION_BUNDLE);
   const shown = useMemo(() => (bundle == null ? null : publicOf(libraryId, bundle.explain ?? {})), [bundle, libraryId]);
   const source = useMemo(() => (bundle == null ? null : { ...revisionSource(bundle), ...(title === undefined ? {} : { title }) }), [bundle, title]);
-  if (bundle === undefined) return <p className="wk-hint">Wczytywanie powtórki…</p>;
+  if (bundle === undefined) return <Loading label="Wczytywanie powtórki…" />;
   if (bundle === null || source === null) return <p className="wk-error">Ta powtórka nie jest opublikowana — autor musi ją opublikować.</p>;
   return (
     <PublicContext.Provider value={shown}>

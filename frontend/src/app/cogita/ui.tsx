@@ -12,9 +12,11 @@ import type { Who } from '../session';
 import { fileUrl } from './files';
 import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, readCondition, type Action, type CompareOp, type Condition, type ConditionType } from './logic';
 import { runPython } from './python';
+import { viewPath } from '../routes';
 import type { PublicEntity } from './publish';
+import type { SourceState } from './sources';
 import type { Entity, MediaRef } from './schema';
-import { CogitaLibrary, lineOf } from './store';
+import { CogitaLibrary, lineOf, type Origin } from './store';
 import './cogita.css';
 
 /* -- Der Zusammenhang -------------------------------------------------------------------- */
@@ -26,6 +28,10 @@ export interface CogitaCtx {
   readonly writes: boolean;
   /** Der Schlüssel einer Epoche des Bereichs — gleich, auf welchem Weg dieser Browser ihn hat. */
   readonly keyOf: (epoch: number) => Promise<Uint8Array | undefined>;
+  /** 0110 — der Schlüssel einer Epoche eines ANDEREN Bereichs: die Dateien einer Quelle liegen unter ihrem. */
+  readonly keyIn: (areaId: string, epoch: number) => Promise<Uint8Array | undefined>;
+  /** 0110 — die Quellen: was nicht lesbar ist, und ob noch geladen wird. */
+  readonly sources?: SourceState;
   /** Ein Platz, über den gelesen wird (ein Mensch ohne Konto). */
   readonly seat?: string;
   readonly me: Me | null;
@@ -43,7 +49,8 @@ export const CogitaContext = createContext<CogitaCtx | null>(null);
  * Bild fragen hier, bevor sie nach Schlüsseln fragen.
  */
 export interface PublicCtx {
-  readonly fileUrl: (fileId: string) => string;
+  /** `library`: wo die Datei liegt (0110 — eine Quelle); fehlt: die des Bündels. */
+  readonly fileUrl: (fileId: string, library?: string) => string;
   readonly entity: (id: string) => PublicEntity | null;
 }
 
@@ -96,20 +103,22 @@ export function useBusy(): { busy: boolean; failed: string | null; run: (todo: (
 
 /* -- Einträge wählen --------------------------------------------------------------------- */
 
-export function EntityPicker({ lib, kinds, value, onPick, placeholder, allowClear = true }: {
+export function EntityPicker({ lib, kinds, value, onPick, placeholder, allowClear = true, refs = false }: {
   lib: CogitaLibrary;
   kinds?: readonly string[];
   value: string | null;
   onPick: (id: string | null) => void;
   placeholder?: string;
   allowClear?: boolean;
+  /** 0110 — auch das, worauf man nur verweist (die Bücher der Bibliotheken): für ein Verweisfeld. */
+  refs?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const chosen = value === null ? undefined : lib.entity(value);
-  const found = useMemo(() => (open ? lib.search(query, kinds && kinds.length > 0 ? kinds : undefined).slice(0, 12) : []),
+  const found = useMemo(() => (open ? lib.search(query, kinds && kinds.length > 0 ? kinds : undefined, refs).slice(0, 12) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lib, lib.revision, query, open, kinds?.join(',')]);
+    [lib, lib.revision, query, open, kinds?.join(','), refs]);
   if (chosen !== undefined && !open) {
     return (
       <span className="cg-pick-chosen">
@@ -126,13 +135,44 @@ export function EntityPicker({ lib, kinds, value, onPick, placeholder, allowClea
         <span className="cg-pick-list" role="listbox">
           {found.length === 0 ? <span className="wk-hint">Nic nie pasuje.</span> : found.map((e) => (
             <button key={e.id} type="button" role="option" aria-selected={false} onClick={() => { onPick(e.id); setOpen(false); }}>
-              <span className="cg-kind-tag">{lib.kind(e.kinds[0] ?? '')?.name ?? ''}</span> {lineOf(lib, e)}
+              <span className="cg-kind-tag">{lib.kind(e.kinds[0] ?? '')?.name ?? ''}</span> {lineOf(lib, e)}{!lib.isOwn(e.id) && <span className="cg-muted"> · {lib.origin(e.id)?.name}</span>}
             </button>
           ))}
           {value !== null && <button type="button" className="wk-link-btn" onClick={() => setOpen(false)}>anuluj</button>}
         </span>
       )}
     </span>
+  );
+}
+
+/* -- 0110: was aus einer Quelle kommt -------------------------------------------------------- */
+
+/** Der Weg zu einem Eintrag dort, wo er hingehört: in seiner Baza wiedzy (ihr Reiter) oder in seiner Bibliothek. */
+export const originPath = (origin: Origin, id: string, tab: string): string =>
+  origin.kind === 'books' ? viewPath('library', origin.libraryId, id) : viewPath('learn', origin.libraryId, tab, id);
+
+/** Ein Schildchen, woher ein Eintrag kommt — nichts, wenn er hierher gehört. */
+export function OriginTag({ id }: { id: string }) {
+  const { lib } = useCtx();
+  const from = lib.origin(id);
+  if (from === undefined || from.own) return null;
+  return <span className="cg-tag" title={from.kind === 'books' ? 'z biblioteki — tylko do odwołań' : 'z innej bazy wiedzy — tu tylko do odczytu'}>{from.name}</span>;
+}
+
+/**
+ * WAS AUS EINER QUELLE KOMMT, gilt hier und wird dort geändert: darunter ist
+ * nichts beschreibbar (`writes: false`), oben steht, woher es ist — mit dem
+ * Weg dorthin.
+ */
+export function ForeignOnly({ id, tab, children }: { id: string | null; tab: string; children: ReactNode }) {
+  const ctx = useCtx();
+  const from = id === null ? undefined : ctx.lib.origin(id);
+  if (id === null || from === undefined || from.own) return <>{children}</>;
+  return (
+    <CogitaContext.Provider value={{ ...ctx, writes: false }}>
+      <p className="wk-note">Z „{from.name}” — tu tylko do odczytu. <a href={originPath(from, id, tab)}>Zmień tam</a></p>
+      {children}
+    </CogitaContext.Provider>
   );
 }
 
@@ -194,9 +234,14 @@ export function Markup({ text, onEntity, resolve }: { text: string; onEntity?: (
 export function MediaView({ media, publicUrl: given }: { media: MediaRef; publicUrl?: string }) {
   const ctx = useContext(CogitaContext);
   const shown = useContext(PublicContext);
-  const publicUrl = given ?? (ctx === null ? shown?.fileUrl(media.file) : undefined);
+  const publicUrl = given ?? (ctx === null ? shown?.fileUrl(media.file, media.library) : undefined);
+  /* 0110 — die Datei liegt dort, woher ihr Eintrag kommt, unter dem Schlüssel jenes Bereichs. */
+  const owner = media.library ?? ctx?.lib.libraryId ?? '';
   const url = useAsync(publicUrl !== undefined ? () => Promise.resolve(publicUrl)
-    : ctx === null ? null : () => fileUrl(ctx.lib.libraryId, media, ctx.keyOf, ctx.seat), [media.file, publicUrl]);
+    : ctx === null ? null : () => {
+      const area = ctx.lib.areaOf(owner) ?? ctx.lib.areaId;
+      return fileUrl(owner, media, area === ctx.lib.areaId ? ctx.keyOf : (epoch) => ctx.keyIn(area, epoch), ctx.seat);
+    }, [media.file, owner, publicUrl]);
   if (url === undefined) return <span className="wk-hint">Otwieranie pliku…</span>;
   if (url === null) return <span className="wk-hint">Pliku nie da się otworzyć.</span>;
   if (media.type === 'image') return <img className="cg-media" src={url} alt={media.name ?? ''} />;

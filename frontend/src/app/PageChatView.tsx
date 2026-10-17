@@ -52,6 +52,7 @@ import { loadLinkChat } from './linkPerson';
 import { heldLinks } from './linkKeep';
 import { parsePath } from './routes';
 import { whoIsThere, WorkspaceError } from './session';
+import { Loading } from './ui/Loading';
 
 type RolePerson = Extract<PagePerson, { kind: 'role' }>;
 
@@ -295,7 +296,7 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
   /* 0080 — in der Rozmowa des Bereichs und im Kanał sagt die Art, wer schreibt. */
   const chrome = useChatChrome({ endpoint, extras, keys: talk, canModerate: moderates && chat != null && !fixedPolicy(chat.kind), onPolicy: () => void look() });
 
-  if (chat === undefined) return <p className="wk-card-muted">Wczytywanie rozmowy…</p>;
+  if (chat === undefined) return <Loading label="Wczytywanie rozmowy…" />;
   if (chat === null) {
     /* 0095 — das Konto liest hier nicht; ein Link in diesem Browser vielleicht doch (Lesen zählt zusammen). */
     return <ReadThroughLink chatId={chatId} fallback={<p className="wk-card-muted">{failed ?? 'Ta rozmowa nie jest dla Ciebie — albo już jej nie ma.'}</p>} />;
@@ -349,7 +350,7 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
     const name = nameOf(speaker.personId);
     const via = throughRole(speaker) ? nameOf(speaker.roleId) : null;
     const done = await sendMessage(ring, chatId, talk, speaker.roleId, body, name, { ...options, personId: speaker.personId, via });
-    if (options.sendAt === undefined) {
+    if (options.sendAt === undefined && options.whenOnline !== true) {
       setShown((was) => [...(was ?? []), {
         message: { messageId: done.messageId, authorRoleId: speaker.roleId, authorPersonId: speaker.personId, authorSeatId: null, epoch: done.epoch, bodySealed: '', createdAt: done.createdAt, deletedAt: null },
         opened: { text: body, name, ...options, via }
@@ -369,7 +370,8 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
   const subtitle = chrome.status.typing ? <span className="ch-typing">ktoś pisze…</span> : [
     `${n} ${plural(n, 'uczestnik', 'uczestnicy', 'uczestników')}`,
     chat.seats.length > 0 ? `${chat.seats.length} z linkiem` : null,
-    chrome.status.channel ? 'kanał' : null
+    chrome.status.channel ? 'kanał' : null,
+    chrome.presence
   ].filter(Boolean).join(' · ');
 
   /* Die oben gewählte Person, wenn SIE hier nicht schreiben darf — damit niemand glaubt, er schreibe als sie. */
@@ -400,6 +402,7 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
       <Composer
         ref={composer}
         endpoint={endpoint}
+        onlineSend={chrome.onlineSend}
         readOnly={noPerson ? 'Do rozmowy potrzebna jest osoba (imię i nazwisko) — załóż ją w Koncie.'
           : speaker === null ? 'W tej rozmowie tylko czytasz.' : extras.features?.canWrite === false ? 'Ten kanał pozwala Ci tylko czytać.' : null}
         placeholder={speaker !== null && speakers.length > 1 ? `Wiadomość jako ${speakerText(speaker, nameOf)}` : 'Wiadomość'}
@@ -442,7 +445,7 @@ function ReadThroughLink({ chatId, fallback }: { chatId: string; fallback: React
     void loadLinkChat(chatId).then((found) => { if (alive) setReadable(found !== null); });
     return () => { alive = false; };
   }, [chatId]);
-  if (readable === undefined) return <p className="wk-card-muted">Wczytywanie rozmowy…</p>;
+  if (readable === undefined) return <Loading label="Wczytywanie rozmowy…" />;
   return readable ? <LinkChatRoom chatId={chatId} under={null} onJoined={() => undefined} signedIn /> : <>{fallback}</>;
 }
 

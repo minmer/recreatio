@@ -15,6 +15,7 @@ import { areaKeys } from './chat';
 import { aad, Field, fromBase64Url, openText } from './crypto';
 import { keysFor } from './ringOf';
 import { whoIsThere } from './session';
+import { Loading } from './ui/Loading';
 
 export function PickCalendar({ value, busy, onPick, allowAll = true }: {
   value: string;
@@ -33,7 +34,7 @@ export function PickCalendar({ value, busy, onPick, allowAll = true }: {
     return () => { alive = false; };
   }, []);
 
-  if (rows === null) return <p className="wk-hint">Wczytywanie terminarzy…</p>;
+  if (rows === null) return <Loading label="Wczytywanie terminarzy…" />;
 
   const known = value === '' || rows.some((r) => r.calendarId === value);
 
@@ -78,7 +79,7 @@ export function PickCalendars({ value, busy, onPick }: {
     return () => { alive = false; };
   }, []);
 
-  if (rows === null) return <p className="wk-hint">Wczytywanie kalendarzy…</p>;
+  if (rows === null) return <Loading label="Wczytywanie kalendarzy…" />;
 
   const chosen = value.split(',').map((one) => one.trim()).filter((one) => one !== '');
   const toggle = (id: string) => onPick((chosen.includes(id) ? chosen.filter((one) => one !== id) : [...chosen, id]).join(','));
@@ -168,7 +169,7 @@ export function PickCalendarItem({ calendarId, value, busy, onPick, withParts = 
   }, [calendarId]);
 
   if (calendarId === '') return <p className="wk-hint">Najpierw wybierz kalendarz.</p>;
-  if (rows === null) return <p className="wk-hint">Wczytywanie terminów…</p>;
+  if (rows === null) return <Loading label="Wczytywanie terminów…" />;
   if (rows.length === 0) return <p className="wk-hint">W tym kalendarzu nie ma terminów w najbliższym roku.</p>;
 
   const known = value === '' || rows.some((r) => r.itemId === value);

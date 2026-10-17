@@ -17,7 +17,7 @@
  * weiterging, und es sah aus, als hätte man den Link nie geöffnet.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
 import { loadPage, toDraft, type PageContent } from './page';
 import { InHeader } from './headerSlot';
@@ -28,7 +28,6 @@ import { PersonAccessGate, PersonPicker, PersonProvider } from './pagePerson';
 import { NoAccess, PageAccessContext } from './pageAccess';
 import { PageLogicProvider } from './PageLogicView';
 import { PageSubjectProvider, SubjectBar } from './pageSubject';
-import { SeatBar } from './SeatBar';
 import { SiteMenu } from './SiteMenu';
 import { SeatContext, SeatStateContext, useSeats, useSeatStates, type SeatState } from './seatContext';
 import { freshSeat, heldSeats, SEATS_EVENT, seatsExactly, seatsFor } from './seatKeep';
@@ -38,7 +37,22 @@ import { useSeat } from './seatView';
 import { WorkspaceError } from './session';
 import { loadSite } from './site';
 import { pageSteps, viewPath } from './routes';
+import { Icon } from './ui/icons';
+import { Loading } from './ui/Loading';
 import { readLook } from './slides';
+
+/*
+ * 2026-10-17 — DIE LEISTE EINES PLATZES (Bestätigen, Rozmowy, Kroki) nur, wenn
+ * ein Link einen Platz gebracht hat: eine Seite ohne Link lud sie samt Rozmowa
+ * und Formular mit, ohne je etwas davon zu zeigen.
+ */
+const SeatBarLater = lazy(() => import('./SeatBar').then((m) => ({ default: m.SeatBar })));
+
+function SeatBar({ path }: { path: string }) {
+  const states = useSeatStates();
+  if (states.length === 0 && freshSeat() === null) return null;
+  return <Suspense fallback={null}><SeatBarLater path={path} /></Suspense>;
+}
 
 /**
  * Entweder eine Adresse — oder eine eigene Domain, die eine zeigt.
@@ -96,7 +110,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
     return () => { alive = false; };
   }, [path, host, local, round, arrived, linksStamp]);
 
-  if (page === undefined) return <p className="wk-lede">Wczytywanie…</p>;
+  if (page === undefined) return <Loading />;
 
   /*
    * KEIN ZUGANG. Führte ein Link hierher, der erst fragt, wer da ist, steht
@@ -114,12 +128,14 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
     );
   }
 
+  /* Wer auf einem toten Link landet, braucht einen Weg hinaus — nicht nur den Satz. */
   if (page === null) {
     return (
-      <>
+      <div className="ui-empty">
         <h1 className="wk-h1">Nic tu jeszcze nie ma</h1>
-        <p className="wk-lede">{failed}</p>
-      </>
+        <p>{failed}</p>
+        <a className="wk-btn" href="#/">Strona główna</a>
+      </div>
     );
   }
 
@@ -131,10 +147,11 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
    */
   if (page.title === null && parts.length === 0) {
     return (
-      <>
-        <h1 className="wk-h1">recreatio.pl/{page.path}</h1>
-        <p className="wk-lede">Ten adres jest już zajęty, ale nic tu jeszcze nie opublikowano.</p>
-      </>
+      <div className="ui-empty">
+        <h1 className="wk-h1">Ta strona jest jeszcze pusta</h1>
+        <p>Pod adresem recreatio.pl/{page.path} nic jeszcze nie opublikowano.</p>
+        <a className="wk-btn" href="#/">Strona główna</a>
+      </div>
     );
   }
 
@@ -158,14 +175,10 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
             Prezentacja), ohne den Inhalt zu verdecken.
           */}
           {page.editable === true && (
-            <InHeader>
-              <a className="wk-top-edit" href={viewPath('pages', ...pageSteps(page.aliasOf ?? page.path))} data-edit-page="">
-                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
-                  <path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                </svg>
-                Edytuj<span className="wk-top-edit-more"> stronę</span>
-              </a>
-            </InHeader>
+            <a className="wk-edit-pill" href={viewPath('pages', ...pageSteps(page.aliasOf ?? page.path))} data-edit-page="">
+              <Icon name="edit" />
+              Edytuj stronę
+            </a>
           )}
 
           {/*

@@ -24,6 +24,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { adoptMenuOf, hrefOf, joinPath, loadMenu, saveMenu, type MenuItem } from './menu';
 import { WorkspaceError } from './session';
+import { askText, toast } from './ui/dialogs';
+import { Loading } from './ui/Loading';
 
 interface Draft {
   readonly id: number;
@@ -87,7 +89,6 @@ export function MenuEditor({ path }: { path: string }) {
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   const look = useCallback(async () => {
     try {
@@ -107,9 +108,9 @@ export function MenuEditor({ path }: { path: string }) {
 
   useEffect(() => { void look(); }, [look]);
 
-  if (items === null) return <p className="wk-hint">Wczytywanie menu…</p>;
+  if (items === null) return <Loading label="Wczytywanie menu…" />;
 
-  const change = (next: Draft[]) => { setItems(next); setDirty(true); setSaved(false); };
+  const change = (next: Draft[]) => { setItems(next); setDirty(true); };
 
   const save = async () => {
     setBusy(true);
@@ -117,7 +118,7 @@ export function MenuEditor({ path }: { path: string }) {
     try {
       await saveMenu(path, toItems(items));
       await look();
-      setSaved(true);
+      toast('Menu zapisane.', { kind: 'ok' });
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać menu.');
     } finally {
@@ -132,7 +133,7 @@ export function MenuEditor({ path }: { path: string }) {
     try {
       await adoptMenuOf(path, from);
       await look();
-      setSaved(true);
+      toast('Menu zapisane.', { kind: 'ok' });
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wziąć tego menu.');
     } finally {
@@ -296,7 +297,6 @@ export function MenuEditor({ path }: { path: string }) {
       </p>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {saved && !dirty && <p className="wk-done">Menu zapisane.</p>}
 
       <div className="wk-actions">
         <button type="button" className="wk-btn wk-btn-quiet" onClick={() => change([...items, blank()])}>+ Pozycja</button>
@@ -310,7 +310,7 @@ export function MenuEditor({ path }: { path: string }) {
         </button>
         {own && (
           <button type="button" className="wk-link-btn wk-danger" disabled={busy}
-            onClick={() => { if (window.confirm('Usunąć własne menu tej strony?')) { setItems([]); setDirty(true); void saveMenu(path, []).then(look); } }}>
+            onClick={async () => { if (await askText('Usunąć własne menu tej strony?')) { setItems([]); setDirty(true); void saveMenu(path, []).then(look); } }}>
             Usuń menu
           </button>
         )}

@@ -19,6 +19,8 @@ public static partial class Chat
         app.MapGet("/workspace/chat/{id:guid}/scheduled", ScheduledAsync);
         app.MapDelete("/workspace/chat/{id:guid}/scheduled/{messageId:guid}", CancelScheduledAsync);
         app.MapPut("/workspace/chat/{id:guid}/scheduled/{messageId:guid}", RescheduleAsync);
+        app.MapPost("/workspace/chat/{id:guid}/scheduled/{messageId:guid}/now", SendNowAsync);
+        app.MapPost("/workspace/online", OnlineAsync);
         app.MapPost("/workspace/chat/{id:guid}/attachments", UploadAsync).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(52_428_800));
         app.MapGet("/workspace/chat/{id:guid}/attachments/{attachmentId:guid}", DownloadAsync);
         app.MapGet("/seat/{token}/chat/{id:guid}/features", FeaturesAsync);
@@ -29,6 +31,8 @@ public static partial class Chat
         app.MapGet("/seat/{token}/chat/{id:guid}/scheduled", ScheduledAsync);
         app.MapDelete("/seat/{token}/chat/{id:guid}/scheduled/{messageId:guid}", CancelScheduledAsync);
         app.MapPut("/seat/{token}/chat/{id:guid}/scheduled/{messageId:guid}", RescheduleAsync);
+        app.MapPost("/seat/{token}/chat/{id:guid}/scheduled/{messageId:guid}/now", SendNowAsync);
+        app.MapPost("/seat/{token}/chat/{id:guid}/online", SeatOnlineAsync);
         app.MapPost("/seat/{token}/chat/{id:guid}/attachments", UploadAsync).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(52_428_800));
         app.MapGet("/seat/{token}/chat/{id:guid}/attachments/{attachmentId:guid}", DownloadAsync);
     }
@@ -62,6 +66,13 @@ public static partial class Chat
         await Fail(ctx, 400, "Wybierz przyszły termin w ciągu najbliższego roku.");
         return false;
     }
+    /// <summary>0111 — eine Nachricht wartet auf eine Uhrzeit ODER darauf, dass jemand online ist, nicht auf beides.</summary>
+    private static async Task<bool> OneWayAsync(HttpContext ctx, DateTimeOffset? sendAt, bool whenOnline)
+    {
+        if (sendAt is null || !whenOnline) return true;
+        await Fail(ctx, 400, "Wybierz jedno: termin albo „gdy będzie online”.");
+        return false;
+    }
     public sealed record PolicyRequest(string PostingPolicy);
     private static async Task PolicyAsync(HttpContext ctx, Db db, Guid id, PolicyRequest body)
     {
@@ -85,7 +96,9 @@ public static partial class Chat
 
     public sealed record AvailabilityWindow(int Day, int Start, int End);
     public sealed record Preferences(string TimeZone = "UTC", AvailabilityWindow[]? Windows = null,
-        bool UseAvailability = false, bool Muted = false, bool Archived = false, bool ReadReceipts = false, bool ShareAvailability = false);
+        bool UseAvailability = false, bool Muted = false, bool Archived = false, bool ReadReceipts = false, bool ShareAvailability = false,
+        /* 0111 — zeigen, wann ich in der App bin (und mir „gdy będzie online" schreiben lassen). */
+        bool ShareOnline = false);
     public sealed record PreferenceRequest(Preferences? Settings);
     private static async Task<Preferences?> PreferencesOfAsync(SqlConnection c, Guid principal, Guid scope, CancellationToken ct)
     {
@@ -144,6 +157,42 @@ public static partial class Chat
         catch (TimeZoneNotFoundException) { return prefs.Muted || prefs.Archived; }
     }
 
+    /// <summary>0111 — wie lange nach dem letzten Lebenszeichen jemand noch „online" ist (der Browser meldet sich alle 45 s).</summary>
+    internal static readonly TimeSpan OnlineFor = TimeSpan.FromSeconds(75);
+
+    /// <summary>0111 — zeigt <paramref name="principal"/> in dieser Rozmowa, wann er da ist?</summary>
+    internal static async Task<bool> SharesOnlineAsync(SqlConnection c, Guid principal, Guid chatId, CancellationToken ct)
+    {
+        var prefs = await PreferencesOfAsync(c, principal, chatId, ct) ?? await PreferencesOfAsync(c, principal, Guid.Empty, ct) ?? new();
+        return prefs.ShareOnline;
+    }
+
+    /// <summary>0111 — ein Lebenszeichen: dieses Konto (oder dieser Platz) ist jetzt in der App.</summary>
+    private static async Task SeenOnlineAsync(SqlConnection c, Guid principal, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("""
+            MERGE app.online WITH (HOLDLOCK) AS t USING (SELECT @p principal_id) s ON t.principal_id = s.principal_id
+            WHEN MATCHED THEN UPDATE SET seen_at = SYSDATETIMEOFFSET()
+            WHEN NOT MATCHED THEN INSERT(principal_id, seen_at) VALUES (@p, SYSDATETIMEOFFSET());
+            """, c);
+        cmd.Parameters.AddWithValue("@p", principal);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+    private static async Task OnlineAsync(HttpContext ctx, Db db)
+    {
+        var who = await Auth.WhoAsync(ctx, db); if (who is null) { ctx.Response.StatusCode = 401; return; }
+        await using var c = await db.OpenAsync(ctx.RequestAborted);
+        await SeenOnlineAsync(c, who.Value.AccountId, ctx.RequestAborted);
+        await ctx.Response.WriteAsJsonAsync(new { online = true });
+    }
+    private static async Task SeatOnlineAsync(HttpContext ctx, Db db, Guid id)
+    {
+        await using var c = await db.OpenAsync(ctx.RequestAborted);
+        var actor = await ActorAsync(ctx, db, c, id); if (actor is null) return;
+        await SeenOnlineAsync(c, actor.Principal, ctx.RequestAborted);
+        await ctx.Response.WriteAsJsonAsync(new { online = true });
+    }
+
     public static bool AvailableAt(Preferences prefs, DateTimeOffset at)
     {
         if (!prefs.UseAvailability) return true;
@@ -169,19 +218,26 @@ public static partial class Chat
     }
     private static async Task<List<object>> ReceiptsAsync(HttpContext ctx, SqlConnection c, Actor actor)
     {
-        var rows = new List<(Guid Principal, bool Seat, DateTimeOffset At)>();
-        await using (var cmd = new SqlCommand("SELECT TOP 200 principal_id, is_seat, read_at FROM app.chat_presence WHERE chat_id = @id AND principal_id <> @p AND read_at IS NOT NULL ORDER BY read_at DESC;", c))
+        var rows = new List<(Guid Principal, bool Seat, DateTimeOffset? At, DateTimeOffset? Online)>();
+        /* 0111 — auch wer nur getippt hat (noch nichts gelesen): sein „online" zählt. */
+        await using (var cmd = new SqlCommand("""
+            SELECT TOP 200 p.principal_id, p.is_seat, p.read_at, o.seen_at FROM app.chat_presence p
+            LEFT JOIN app.online o ON o.principal_id = p.principal_id
+            WHERE p.chat_id = @id AND p.principal_id <> @p AND (p.read_at IS NOT NULL OR o.seen_at IS NOT NULL)
+            ORDER BY p.read_at DESC;
+            """, c))
         {
             cmd.Parameters.AddWithValue("@id", actor.Chat.Id); cmd.Parameters.AddWithValue("@p", actor.Principal);
             await using var r = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
-            while (await r.ReadAsync(ctx.RequestAborted)) rows.Add((r.GetGuid(0), r.GetBoolean(1), r.GetDateTimeOffset(2)));
+            while (await r.ReadAsync(ctx.RequestAborted))
+                rows.Add((r.GetGuid(0), r.GetBoolean(1), r.IsDBNull(2) ? null : r.GetDateTimeOffset(2), r.IsDBNull(3) ? null : r.GetDateTimeOffset(3)));
         }
         var result = new List<object>();
         foreach (var row in rows)
         {
             var prefs = await PreferencesOfAsync(c, row.Principal, actor.Chat.Id, ctx.RequestAborted)
                 ?? await PreferencesOfAsync(c, row.Principal, Guid.Empty, ctx.RequestAborted) ?? new();
-            if (!prefs.ReadReceipts && !prefs.ShareAvailability) continue;
+            if (!prefs.ReadReceipts && !prefs.ShareAvailability && !prefs.ShareOnline) continue;
             List<Guid> roles = [];
             if (row.Seat)
             {
@@ -197,7 +253,10 @@ public static partial class Chat
             }
             result.Add(new { roleIds = roles.Select(Ids.ToText), seatId = row.Seat ? Ids.ToText(row.Principal) : null,
                 readAt = prefs.ReadReceipts ? row.At : (DateTimeOffset?)null,
-                available = prefs.ShareAvailability ? AvailableAt(prefs, DateTimeOffset.UtcNow) : (bool?)null });
+                available = prefs.ShareAvailability ? AvailableAt(prefs, DateTimeOffset.UtcNow) : (bool?)null,
+                /* 0111 — nur wer es teilt: jetzt in der App, und wann zuletzt. */
+                online = prefs.ShareOnline ? row.Online > DateTimeOffset.UtcNow - OnlineFor : (bool?)null,
+                onlineAt = prefs.ShareOnline ? row.Online : (DateTimeOffset?)null });
         }
         return result;
     }
@@ -276,7 +335,8 @@ public static partial class Chat
         await using var c = await db.OpenAsync(ctx.RequestAborted);
         var actor = await ActorAsync(ctx, db, c, id); if (actor is null) return;
         await using var cmd = new SqlCommand($"""
-            SELECT TOP 100 id, scheduled_at, schedule_state, epoch, body_sealed, author_role_id, author_access_id, created_at, author_person_id FROM app.chat_message
+            SELECT TOP 100 id, scheduled_at, schedule_state, epoch, body_sealed, author_role_id, author_access_id, created_at, author_person_id,
+                   CASE WHEN wait_online_from IS NULL THEN 0 ELSE 1 END, silent FROM app.chat_message
             WHERE chat_id = @id AND schedule_state IN (N'pending', N'failed') AND {OwnerPredicate(actor)} ORDER BY scheduled_at;
             """, c);
         cmd.Parameters.AddWithValue("@id", id); OwnerParameters(cmd, actor);
@@ -286,7 +346,8 @@ public static partial class Chat
             bodySealed = r.IsDBNull(4) ? null : Base64Url.Encode((byte[])r[4]),
             authorRoleId = r.IsDBNull(5) ? null : Ids.ToText(r.GetGuid(5)), authorSeatId = r.IsDBNull(6) ? null : Ids.ToText(r.GetGuid(6)),
             createdAt = r.GetDateTimeOffset(7), deletedAt = (DateTimeOffset?)null,
-            authorPersonId = r.IsDBNull(8) ? null : Ids.ToText(r.GetGuid(8)) });
+            authorPersonId = r.IsDBNull(8) ? null : Ids.ToText(r.GetGuid(8)),
+            whenOnline = r.GetInt32(9) == 1, silent = r.GetBoolean(10) });
         await ctx.Response.WriteAsJsonAsync(new { messages = rows });
     }
     public sealed record ScheduleRequest(DateTimeOffset SendAt);
@@ -296,10 +357,26 @@ public static partial class Chat
         await using var c = await db.OpenAsync(ctx.RequestAborted);
         var actor = await ActorAsync(ctx, db, c, id); if (actor is null) return;
         if (!actor.Writes) { ctx.Response.StatusCode = 403; return; }
-        await using var cmd = new SqlCommand($"UPDATE app.chat_message SET scheduled_at = @due WHERE id = @m AND chat_id = @id AND schedule_state = N'pending' AND {OwnerPredicate(actor)};", c);
+        /* 0111 — ein Termin ersetzt das Warten auf „online". */
+        await using var cmd = new SqlCommand($"UPDATE app.chat_message SET scheduled_at = @due, wait_online_from = NULL WHERE id = @m AND chat_id = @id AND schedule_state = N'pending' AND {OwnerPredicate(actor)};", c);
         cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@m", messageId); cmd.Parameters.AddWithValue("@due", body.SendAt); OwnerParameters(cmd, actor);
         if (await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 0) { ctx.Response.StatusCode = 409; return; }
         await ctx.Response.WriteAsJsonAsync(new { saved = true });
+    }
+    /// <summary>0111 — „Wyślij teraz": die wartende geht sofort hinaus (dieselbe Zustellung wie zur Zeit, mit allen Prüfungen).</summary>
+    private static async Task SendNowAsync(HttpContext ctx, Db db, ChatDelivery delivery, Guid id, Guid messageId)
+    {
+        await using var c = await db.OpenAsync(ctx.RequestAborted);
+        var actor = await ActorAsync(ctx, db, c, id); if (actor is null) return;
+        if (!actor.Writes) { ctx.Response.StatusCode = 403; return; }
+        await using (var cmd = new SqlCommand($"UPDATE app.chat_message SET scheduled_at = SYSDATETIMEOFFSET(), wait_online_from = NULL WHERE id = @m AND chat_id = @id AND schedule_state = N'pending' AND {OwnerPredicate(actor)};", c))
+        {
+            cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@m", messageId); OwnerParameters(cmd, actor);
+            if (await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 0) { ctx.Response.StatusCode = 409; return; }
+        }
+        /* Gleich zustellen, nicht erst beim nächsten Takt — wer „teraz" drückt, will sie im Verlauf sehen. */
+        await delivery.DeliverAsync(ctx.RequestAborted);
+        await ctx.Response.WriteAsJsonAsync(new { sent = true });
     }
     private static async Task CancelScheduledAsync(HttpContext ctx, Db db, Guid id, Guid messageId)
     {

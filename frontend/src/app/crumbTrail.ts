@@ -109,12 +109,14 @@ export function useCrumbs(mine: readonly Crumb[]): void {
  * er hier abgeraeumt und nicht bei jedem Aufrufer einzeln.
  */
 export function trailOf(spot: Spot, deep: readonly Crumb[]): readonly Crumb[] {
-  const out: Crumb[] = [{
-    label: 'Warsztat',
+  /*
+   * 2026-10-16 — DER WEG BEGINNT BEI DER ANSICHT. „Warsztat" davor war der
+   * Weg nach Hause; den trägt jetzt die Seitenleiste, die immer da ist. Der Weg
+   * erscheint erst ab der zweiten Stufe (`Crumbs`): „Formularze › Bierzmowanie".
+   */
+  const out: Crumb[] = [];
 
-    /* Auf den Kacheln steht man darauf — dann ist es kein Verweis. */
-    href: spot.kind === 'tiles' ? null : tilesPath()
-  }];
+  if (spot.kind === 'tiles') out.push({ label: 'Teraz', href: null });
 
   if (spot.kind === 'view') {
     out.push({ label: VIEWS[spot.view], href: viewPath(spot.view) });
@@ -122,7 +124,7 @@ export function trailOf(spot: Spot, deep: readonly Crumb[]): readonly Crumb[] {
   }
 
   if (spot.kind === 'stray') {
-    out.push({ label: spot.word, href: null });
+    out.push({ label: 'Teraz', href: tilesPath() }, { label: spot.word, href: null });
   }
 
   return out.map((crumb, at) =>
@@ -140,5 +142,10 @@ export function trailOf(spot: Spot, deep: readonly Crumb[]): readonly Crumb[] {
  * <b>`null` heisst: es gibt keine Stufe darueber</b>, und dann steht kein
  * Pfeil da. Einer, der nirgendwohin fuehrt, ist schlimmer als keiner.
  */
-export const stepUp = (trail: readonly Crumb[]): string | null =>
-  trail.length > 1 ? trail[trail.length - 2].href : null;
+export const stepUp = (trail: readonly Crumb[]): string | null => {
+  for (let at = trail.length - 2; at >= 0; at -= 1) {
+    const href = trail[at].href;
+    if (href !== null) return href;
+  }
+  return null;
+};

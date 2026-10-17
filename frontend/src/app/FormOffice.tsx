@@ -45,7 +45,7 @@ import {
   numbersOf, STEP_CHOICES, type DeskRow, type EntryDesk, type Numbered, type PanelSection, type StepInfo
 } from './entryDesk';
 import { newId } from './ids';
-import { viewPath } from './routes';
+import { viewPath, formPath } from './routes';
 import { loadSteps, progressOf, type ExtensionInfo } from './steps';
 import { PersonSteps, StepsEditor, stepsKey } from './StepList';
 import { TaskSheets } from './TaskSheet';
@@ -62,9 +62,7 @@ import { WorkspaceError, type Who } from './session';
 import { markFormSeen } from './notify';
 import { handOverRoleKeys } from './memberRole';
 import { MemberRoleSettings } from './MemberRoleSettings';
-import { DisplaySwitch } from './DisplaySwitch';
 import { FormBasics, FormFamily } from './FormFamily';
-import { useDisplay } from './display';
 import { loadChats, startSeatChat } from './chat';
 import { loadMembers } from './area';
 import { meetingAreas } from './audience';
@@ -162,8 +160,9 @@ import { Unlock } from './Unlock';
 import { joinPhones, splitPhones, withPhone } from './phone';
 import { crookedOf, seatKeyFinder, straighten as straightenAll, tidyKindOf, type Crooked } from './answerTidy';
 import { TidyList, toggled } from './TidyList';
-import { plural } from './ChatKit';
+import { plural } from './plural';
 import { PostalInput } from './PostalInput';
+import { FormControllerNote } from './AreaController';
 import { LINK, renderSms, smsHref, usesHole, VERIFY } from './sms';
 import { AreaOptions } from './AreaOptions';
 import { FormTable, type TableChange } from './FormTable';
@@ -176,13 +175,13 @@ import {
 } from './formDesign';
 import { FormLayout } from './FormLayout';
 import { FormLogic } from './FormLogic';
+import { askText } from './ui/dialogs';
+import { Loading } from './ui/Loading';
+import { Icon } from './ui/icons';
 
 /** Die Reiter eines Formulars: einrichten (vier) — lesen — handeln. */
 type FormTabName = 'settings' | 'questions' | 'layout' | 'logic' | 'entries' | 'steps' | 'people';
 
-/** 0094 — die Reiter des einfachen Weges. */
-/* 0098 — „Zadania" (Znaczniki und Aufgaben für die Menschen) gehören zum Alltag eines Formulars. */
-const SIMPLE_TABS: readonly FormTabName[] = ['people', 'questions', 'steps', 'settings'];
 
 /*
  * Welcher Reiter je Formular zuletzt offen war — solange die Seite lebt. Die
@@ -235,20 +234,21 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    * die Einstellungen lesen.
    */
   /*
-   * 0094 — EINFACH: drei Reiter (Zgłoszenia, Formularz, Ustawienia); erweitert:
-   * alle. Ein Reiter, den der einfache Weg nicht hat, fällt auf den ersten
-   * sinnvollen zurück — wer ihn will, wählt den erweiterten Weg.
+   * 2026-10-16 — EIN SATZ REITER, OHNE „SPOSÓB WYŚWIETLANIA": Zgłoszenia ·
+   * Pytania · Kroki · Ustawienia, rechts leiser die Werkzeuge Układ · Logika ·
+   * Tabela. Vorher trugen dieselben Reiter je nach Weg andere Namen — und
+   * „Zgłoszenia" war einmal die Liste der Menschen, einmal die Tabelle.
+   *
+   * Geöffnet wird, wo es Zgłoszenia gibt, die Liste — sonst die Fragen.
    */
-  const formsDisplay = useDisplay('forms');
-  const simple = !formsDisplay.extended;
-  /* Einfach: wo es Zgłoszenia gibt, dort — sonst das Formular selbst. */
-  const simpleDefault: FormTabName = module === undefined ? 'questions' : module.entries > 0 || (module.extendsId !== null && module.fields > 0) ? 'people' : 'questions';
+  const firstTab: FormTabName = module === undefined ? 'questions'
+    : module.entries > 0 || (module.extendsId !== null && module.fields > 0) ? 'people'
+    : 'questions';
   const [chosenTab, pickTab] = useState<FormTabName>(() => {
     /* Die Adresse verlangt die Liste: das gilt wie eine eigene Wahl, also bleibt es auch nach dem Neuaufbau. */
     if (onList === true) { lastTab.set(partId, 'people'); return 'people'; }
 
-    return lastTab.get(partId) ?? (simple ? simpleDefault : module === undefined ? 'questions'
-      : module.extendsId !== null && repeatOf(module.repeat) !== 'once' && module.fields > 0 ? 'people' : 'settings');
+    return lastTab.get(partId) ?? firstTab;
   });
   const setTab = (next: FormTabName) => { lastTab.set(partId, next); pickTab(next); };
   /*
@@ -256,9 +256,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    * ist (dann baut es sich nicht neu auf, und der Anfangswert oben griffe nicht).
    */
   useEffect(() => { if (onList === true) setTab('people'); }, [onList]); // eslint-disable-line react-hooks/exhaustive-deps
-  const tab: FormTabName = simple && !SIMPLE_TABS.includes(chosenTab) ? simpleDefault : chosenTab;
-  /* Ein Reiter des erweiterten Weges, aus dem einfachen geöffnet: der Weg wird ausprobiert (und lässt sich merken). */
-  const openExtended = (next: FormTabName) => { formsDisplay.pick('full'); setTab(next); };
+  const tab: FormTabName = chosenTab;
 
   /* Welche Antwortbereiche schon annehmen können (0022) — je Bereich ein Paar. */
   const [intakes, setIntakes] = useState<ReadonlyMap<string, boolean>>(new Map());
@@ -1042,55 +1040,43 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
       {/* 0096 — das Hauptformular und seine Unterformulare: öffnen, bearbeiten, eines dazu; die Karte. */}
       {module !== undefined && module.kind === 'form' && <FormFamily module={module} onChanged={() => void onModuleChanged?.()} />}
 
-      {/* 0094 — einfach oder erweitert (gemerkt mit „Zapisz"). */}
-      <DisplaySwitch tool="forms" />
-
-      {simple ? (
-        <div className="wk-tabs" role="tablist">
-          <FormTab now={tab} mine="people" onPick={setTab}>
-            Zgłoszenia{(module?.entries ?? submissions.length) > 0 ? ` (${submissions.length > 0 ? submissions.length : module?.entries ?? 0})` : ''}
-          </FormTab>
-          <FormTab now={tab} mine="questions" onPick={setTab}>Formularz</FormTab>
-          {module !== undefined && !isExtension && <FormTab now={tab} mine="steps" onPick={setTab}>Zadania</FormTab>}
-          {module !== undefined && <FormTab now={tab} mine="settings" onPick={setTab}>Ustawienia</FormTab>}
-        </div>
-      ) : (
-      <div className="wk-tabs" role="tablist">
-        {module !== undefined && <FormTab now={tab} mine="settings" onPick={setTab}>Ustawienia</FormTab>}
+      <div className="wk-tabs" role="tablist" aria-label="Formularz">
+        <FormTab now={tab} mine="people" onPick={setTab}>
+          Zgłoszenia
+          {(submissions.length > 0 ? submissions.length : module?.entries ?? 0) > 0 && (
+            <span className="wk-tab-n">{submissions.length > 0 ? submissions.length : module?.entries ?? 0}</span>
+          )}
+        </FormTab>
         <FormTab now={tab} mine="questions" onPick={setTab}>Pytania</FormTab>
-        {module !== undefined && <FormTab now={tab} mine="layout" onPick={setTab}>Układ</FormTab>}
-        {module !== undefined && <FormTab now={tab} mine="logic" onPick={setTab}>Logika</FormTab>}
-        {(!isExtension || tableToo) && (
-          <FormTab now={tab} mine="entries" onPick={setTab}>
-            Zgłoszenia{submissions.length > 0 ? ` (${submissions.length})` : ''}
-          </FormTab>
-        )}
-        {module !== undefined && !isExtension && <FormTab now={tab} mine="steps" onPick={setTab}>Znaczniki i zadania</FormTab>}
-        <FormTab now={tab} mine="people" onPick={setTab}>Osoby</FormTab>
+        {module !== undefined && !isExtension && <FormTab now={tab} mine="steps" onPick={setTab}>Kroki</FormTab>}
+        {module !== undefined && <FormTab now={tab} mine="settings" onPick={setTab}>Ustawienia</FormTab>}
+        {/* Werkzeuge: leiser, rechts — da, ohne umzuschalten. */}
+        <span className="wk-tab-tools">
+          {module !== undefined && <FormTab now={tab} mine="layout" onPick={setTab}>Układ</FormTab>}
+          {module !== undefined && <FormTab now={tab} mine="logic" onPick={setTab}>Logika</FormTab>}
+          {(!isExtension || tableToo) && <FormTab now={tab} mine="entries" onPick={setTab}>Tabela</FormTab>}
+        </span>
       </div>
-      )}
 
       {/* == 1. DAS FORMULAR ALS GANZES ======================================= */}
 
       {tab === 'settings' && module !== undefined && (
-        <>
+        <div className="wk-narrow wk-form-settings">
           {/* Wer „czy formularz jest czytelny dla wszystkich" fragt, steht HIER. */}
           {staleNotice}
           {hiddenNotice}
 
-          {/* 0096 — Name, Gruppe, und bei einem Unterformular wer es ausfüllt: auch im einfachen Weg. */}
-          <FormBasics module={module} busy={busy !== null} onAct={moduleAct} withName={simple} />
+          {/* Name, Bereich, wessen Formular — und neu versiegeln, wenn der Bereich wechselt. */}
+          <ModuleSettings
+            row={module}
+            areas={areas}
+            busy={busy !== null}
+            onAct={moduleAct}
+            reseal={resealFor}
+          />
 
-          {/* 0094 — Bereich, Art, neu versiegeln: der erweiterte Weg. */}
-          {!simple && (
-            <ModuleSettings
-              row={module}
-              areas={areas}
-              busy={busy !== null}
-              onAct={moduleAct}
-              reseal={resealFor}
-            />
-          )}
+          {/* 0096 — Gruppe, und bei einem Unterformular wer es ausfüllt (der Name steht schon oben). */}
+          <FormBasics module={module} busy={busy !== null} onAct={moduleAct} withName={false} />
 
           {/*
             OFFEN ODER GESCHLOSSEN (0042). Geschlossen nimmt das Formular
@@ -1118,11 +1104,19 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             )}
           </div>
 
-          <ControllerForm
-            value={module.controller}
-            busy={busy !== null}
-            onSave={(controller) => moduleAct('Zapisywanie klauzuli…',
-              () => updateModule(module.moduleId, { controller }))}
+          {/* 2026-10-17 — der Administrator danych steht beim Obszar; hier nur, welcher gilt (beim alten Dienst: der eigene Eintrag). */}
+          <FormControllerNote
+            areaId={module.areaId}
+            legacy={module.controller}
+            onClearLegacy={async () => { await moduleAct('Usuwanie starego wpisu…', () => updateModule(module.moduleId, { controller: { name: '' } })); }}
+            fallback={(
+              <ControllerForm
+                value={module.controller}
+                busy={busy !== null}
+                onSave={(controller) => moduleAct('Zapisywanie klauzuli…',
+                  () => updateModule(module.moduleId, { controller }))}
+              />
+            )}
           />
 
           {/*
@@ -1184,15 +1178,13 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
                 Nachricht selbst schreibt die Kanzlei dort, wo sie sie verschickt:
                 unter „Osoby", mit „Napisz SMS".
               */}
-              {!simple && (
-                <LinkCheckBox
-                  partId={partId}
-                  fields={fields}
-                  busy={busy !== null}
-                  onSaved={() => void look()}
-                  onError={setFailed}
-                />
-              )}
+              <LinkCheckBox
+                partId={partId}
+                fields={fields}
+                busy={busy !== null}
+                onSaved={() => void look()}
+                onError={setFailed}
+              />
 
               {/* WAS DIESES FORMULAR ERWEITERT (0047) — für die Kanzlei, und für den Menschen später. */}
               <Extensions
@@ -1204,7 +1196,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
               />
             </>
           )}
-        </>
+        </div>
       )}
 
       {/* == DIE SCHRITTE (0047) =============================================== */}
@@ -1216,7 +1208,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
       {tab === 'steps' && module !== undefined && !isExtension && (
         stepInfo === null ? (
-          <p className="wk-empty">Wczytywanie kroków…</p>
+          <Loading label="Wczytywanie kroków…" />
         ) : (
           <StepsEditor
             key={stepsKey(stepInfo.steps)}
@@ -1483,21 +1475,31 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
           {note !== null && <p className="wk-note">{note}</p>}
 
+          {/*
+            2026-10-17 — EINE ZEILE WERKZEUGE über der Liste: „+ Dodaj osobę" und
+            der Filter „Ukryte". Vorher ein Häkchen auf eigener Zeile und darunter
+            ein grosser Knopf — die erste Person stand weit unten. „Dodaj osobę"
+            bleibt hier, ausserhalb der Liste: die verschwindet beim Neulesen und
+            nähme das offene Formular mitten beim Eintragen mit.
+          */}
           {readAreas !== null && (
-            <label className="wk-field">
-              <span>
-                <input
-                  type="checkbox" checked={showHidden}
-                  onChange={(e) => {
-                    /* Mit dem NEUEN Wert lesen — der Zustand ist beim Aufruf noch der alte. */
-                    const hidden = e.target.checked;
-                    setShowHidden(hidden);
-                    openAll('Wczytywanie…', hidden);
-                  }}
-                />
-                {' '}Pokaż też ukryte
-              </span>
-            </label>
+            <div className="wk-list-tools">
+              {tab === 'people' && !isExtension && ring !== null && (
+                <OfficeAdd formId={partId} fields={fields} design={design} onAdded={reread} />
+              )}
+              <button
+                type="button" className="ui-filter" aria-pressed={showHidden}
+                title="Pokaż też ukryte zgłoszenia"
+                onClick={() => {
+                  /* Mit dem NEUEN Wert lesen — der Zustand ist beim Aufruf noch der alte. */
+                  const hidden = !showHidden;
+                  setShowHidden(hidden);
+                  openAll('Wczytywanie…', hidden);
+                }}
+              >
+                <Icon name="eye" />Ukryte
+              </button>
+            </div>
           )}
         </>
       )}
@@ -1520,14 +1522,9 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
       {/*
         0077 — JEMANDEN SELBST EINTRAGEN: wer am Telefon zusagt, auf einem
-        Zettel steht oder gar nicht selbst handelt, kommt so auf die Liste.
-        Ausserhalb des Kastens darunter: der verschwindet, während die Liste neu
-        gelesen wird — und nähme das offene Formular mit, mitten beim Eintragen
-        mehrerer Menschen.
+        Zettel steht oder gar nicht selbst handelt, kommt so auf die Liste —
+        seit 2026-10-17 aus der Werkzeugzeile oben (`wk-list-tools`).
       */}
-      {tab === 'people' && !isExtension && ring !== null && readAreas !== null && (
-        <OfficeAdd formId={partId} fields={fields} design={design} onAdded={reread} />
-      )}
 
       {tab === 'people' && readAreas !== null && reading === null && !isExtension && (
         <>
@@ -1604,15 +1601,8 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             onChanged={reread}
           />
 
-          {/* 0094 — die Tabelle (mit CSV) und die Znaczniki sind der erweiterte Weg; ein Klick dorthin. */}
-          {simple && (
-            <p className="wk-part-foot">
-              {(!isExtension || tableToo) && <button type="button" className="wk-link-btn" onClick={() => openExtended('entries')}>Tabela i plik CSV</button>}
-            </p>
-          )}
-
           {/* 0077 — die ganze Liste als JSON: eine vorhandene Liste in einem Zug herein, oder hinaus zum Bearbeiten. */}
-          {ring !== null && !simple && (
+          {ring !== null && (
             <ListJsonPanel
               who={who}
               formId={partId}
@@ -1851,28 +1841,27 @@ function People({
       <div className="wk-sms-bar">
         <h3 className="wk-h2">Osoby ({rows.length === everyone.length ? rows.length : `${rows.length} z ${everyone.length}`})</h3>
 
-        {freshCount > 0 && (
-          <button type="button" className={onlyNew ? 'wk-new-filter is-on' : 'wk-new-filter'} aria-pressed={onlyNew}
-            title="Zgłoszenia, które przyszły od Twojego poprzedniego przeglądania" onClick={() => setOnlyNew((was) => !was)}>
-            nowe: {freshCount}
-          </button>
-        )}
+        <div className="wk-people-filters">
+          {freshCount > 0 && (
+            <button type="button" className="ui-filter is-new" aria-pressed={onlyNew}
+              title="Zgłoszenia, które przyszły od Twojego poprzedniego przeglądania" onClick={() => setOnlyNew((was) => !was)}>
+              nowe: {freshCount}
+            </button>
+          )}
 
-        {stepKinds.length > 0 && (
-          <label className="wk-inline">
-            <span className="wk-hint">Pokaż:</span>
-            <select value={stepFilter} onChange={(e) => setStepFilter(e.target.value)} aria-label="Filtr kroków">
+          {stepKinds.length > 0 && (
+            <select className="wk-step-filter" value={stepFilter} onChange={(e) => setStepFilter(e.target.value)} aria-label="Pokaż osoby">
               {STEP_CHOICES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
               {stepKinds.map(([key, label]) => (
                 <option key={key} value={`todo:${key}`}>brakuje: {label}</option>
               ))}
             </select>
-          </label>
-        )}
+          )}
+        </div>
 
         <button
           type="button"
-          className={smsText === null ? 'wk-btn wk-btn-quiet' : 'wk-btn'}
+          className={smsText === null ? 'wk-btn wk-btn-line wk-btn-small' : 'wk-btn wk-btn-small'}
           aria-expanded={smsText !== null}
           onClick={() => {
             const on = smsText === null;
@@ -2096,7 +2085,7 @@ function EntryPanel({
                   <span className="wk-row-side">
                     {ext.audience === 'office' ? ' · tylko koordynator' : ' · uzupełnia osoba'}
                     {/* 0077 — hier steht der LAUFENDE Zeitraum; alle zeigt die Liste der Erweiterung. */}
-                    {repeat !== 'once' && <> · {roundLabel(repeat, round)} · <a className="wk-link" href={viewPath('modules', 'form', ext.moduleId)}>wszystkie okresy</a></>}
+                    {repeat !== 'once' && <> · {roundLabel(repeat, round)} · <a className="wk-link" href={formPath(ext.moduleId)}>wszystkie okresy</a></>}
                   </span>
                 </h4>
                 {data === undefined ? (
@@ -2162,8 +2151,8 @@ function EntryPanel({
             </button>
             <button
               type="button" className="wk-link-btn wk-danger" disabled={busy}
-              onClick={() => {
-                if (window.confirm(`Usunąć zgłoszenie: ${name}? Odpowiedzi zostaną skasowane bez możliwości odtworzenia — także przez prowadzącego usługę.`)) {
+              onClick={async () => {
+                if (await askText(`Usunąć zgłoszenie: ${name}? Odpowiedzi zostaną skasowane bez możliwości odtworzenia — także przez prowadzącego usługę.`)) {
                   onRemove(s);
                 }
               }}
@@ -2172,9 +2161,7 @@ function EntryPanel({
             </button>
           </div>
           <p className="wk-hint">
-            „Ukryj" nic nie kasuje — wiersz znika z listy, a zapieczętowane
-            odpowiedzi zostają. Miejsce osoby zostaje też po usunięciu:
-            zabierasz zgłoszenie, nie dostęp.
+            „Ukryj" tylko chowa wiersz. Usunięcie zabiera zgłoszenie, nie dostęp osoby.
           </p>
         </>
       )}
@@ -2330,8 +2317,7 @@ function AfterSendSettings({ partId, config, fields, busy, onSaved, onError, onN
         <textarea rows={4} value={text} disabled={busy || saving} onChange={(e) => setText(e.target.value)}
           placeholder="np. Dziękujemy! Zbiórka w sobotę o 8:00 przed kościołem. Zabierz legitymację." />
         <span className="wk-hint">
-          Widzi go osoba zaraz po wysłaniu (także po uzupełnieniu przez swój link). Pusta linia zaczyna nowy akapit.
-          Link do strony osoby i pokwitowanie pokazują się zawsze — tego nie da się wyłączyć.
+          Osoba widzi go zaraz po wysłaniu. Pusta linia zaczyna nowy akapit.
         </span>
       </label>
       <label className="wk-field">
@@ -2350,9 +2336,7 @@ function AfterSendSettings({ partId, config, fields, busy, onSaved, onError, onN
           )}
         </select>
         <span className="wk-hint">
-          Zgoda rodzica za niepełnoletnie dziecko musi być podpisana odręcznie — zaznaczenie pola na stronie nie jest
-          podpisem. Wtedy po wysłaniu (i później pod linkiem osoby, w „Twoje zgłoszenie”) pojawia się „Drukuj do podpisu”:
-          jedna strona A4 z danymi, zgodami w ich brzmieniu i miejscem na podpis.
+          Zgoda rodzica musi być podpisana odręcznie: po wysłaniu pojawi się „Drukuj do podpisu” (strona A4 z danymi i zgodami).
         </span>
         {paper === PAPER_MINOR && !knowsAge && (
           <span className="wk-warn">Formularz nie pyta o datę urodzenia ani PESEL — nie wiadomo, kto jest niepełnoletni, więc wydruk się nie pokaże.</span>
@@ -2463,9 +2447,7 @@ function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct, onConf
     <section className="wk-needs" aria-label="Wymagania formularza">
       <h3 className="wk-h3">Wymagania formularza</h3>
       <p className="wk-hint">
-        Zaznacz, czego wymaga to wydarzenie — formularz dostanie potrzebne pytania, grupy i logikę (dane, które już są,
-        nie powtórzą się). Dopóki wymaganie jest zaznaczone, jego pytań nie da się usunąć; można je przesuwać (zakładka
-        „Układ”) i zmieniać ich treść.
+        Zaznacz, czego wymaga wydarzenie — formularz dostanie potrzebne pytania. Dopóki wymaganie jest zaznaczone, tych pytań nie da się usunąć.
       </p>
       {answersTo === null && (
         <label className="wk-field">
@@ -2565,14 +2547,10 @@ function Extensions({ base, extensions, busy, onCreated, onError }: {
     <div className="wk-field">
       <span>Rozszerzenia formularza</span>
       <p className="wk-hint">
-        Formularze, które dopisują się do zgłoszeń z tego: osoba uzupełnia je później przez
-        swój link, albo wypełnia je tylko koordynator — dla siebie. Każde ma własne pytania.
-        Na mapie logiki strony możesz z nich zrobić krok („Zgłoszenie wysłane").
+        Podformularze: osoba uzupełnia je później przez swój link albo wypełnia je tylko koordynator.
       </p>
       <p className="wk-hint">
-        Rozszerzenie może się <strong>powtarzać</strong> — co dzień, tydzień, miesiąc albo rok: wtedy każda osoba
-        z listy dostaje osobny wpis na każdy okres (odwiedziny chorych co miesiąc, obecność na spotkaniach,
-        składka). Pytania „tak / nie” zaznacza się w nim jednym dotknięciem.
+        Podformularz może się <strong>powtarzać</strong> (co dzień, tydzień, miesiąc, rok) — wtedy każda osoba ma osobny wpis na każdy okres.
       </p>
 
       {extensions.length > 0 && (
@@ -2583,7 +2561,7 @@ function Extensions({ base, extensions, busy, onCreated, onError }: {
                 <strong>{e.name}</strong>
                 <span className="wk-row-side"> · {AUDIENCE_LABEL[e.audience]}{repeatOf(e.repeat) !== 'once' ? ` · ${REPEAT_LABEL[repeatOf(e.repeat)]}` : ''}{e.closed ? ' · zamknięte' : ''}</span>
               </span>
-              <a className="wk-link-btn" href={viewPath('modules', 'form', e.moduleId)}>Otwórz</a>
+              <a className="wk-link-btn" href={formPath(e.moduleId)}>Otwórz</a>
             </li>
           ))}
         </ul>
@@ -2621,7 +2599,7 @@ function Extensions({ base, extensions, busy, onCreated, onError }: {
 
       {made !== null && (
         <p className="wk-done">
-          Założone. <a className="wk-link" href={viewPath('modules', 'form', made)}>Dodaj mu pytania</a>.
+          Założone. <a className="wk-link" href={formPath(made)}>Dodaj mu pytania</a>.
         </p>
       )}
     </div>
@@ -2640,7 +2618,7 @@ function ExtensionOf({ row, busy, onRepeat }: { row: ModuleRow; busy: boolean; o
     <div className="wk-note">
       <p>
         <strong>To jest rozszerzenie formularza</strong>{' '}
-        <a className="wk-link" href={viewPath('modules', 'form', row.extendsId ?? '')}>otwórz formularz główny</a>.
+        <a className="wk-link" href={formPath(row.extendsId ?? '')}>otwórz formularz główny</a>.
         {' '}Wypełnia: <strong>{row.audience === 'public' ? AUDIENCE_LABEL.public : AUDIENCE_LABEL[row.audience]}</strong>.
       </p>
       <label className="wk-inline">
@@ -3009,7 +2987,7 @@ function NewFieldForm({
           ? 'Odpowiedzi trafią do wybranego obszaru — przeczyta je tylko ten, kto ma do niego dostęp. '
             + 'Samo pytanie leży w obszarze formularza.'
           : 'Pytanie zostanie zapieczętowane kluczem tego obszaru — publicznie czytelne tylko, gdy obszar jest jawny.'}
-        {' '}Jeśli obszar nie przyjmuje jeszcze odpowiedzi, klucz przyjmowania powstanie przy dodaniu pytania.
+        
       </p>
 
       {stage !== null && <p className="wk-working">{stage}</p>}
@@ -3251,8 +3229,7 @@ function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
         </select>
         {moving && (
           <span className="wk-hint">
-            Zebrane odpowiedzi zostaną przeniesione: każda zostanie przepakowana w tej przeglądarce
-            kluczem przyjmowania nowego obszaru. Treść odpowiedzi się nie zmienia.
+            Zebrane odpowiedzi przeniosą się do nowego obszaru.
           </span>
         )}
       </label>
@@ -3555,8 +3532,7 @@ function SendPanel({
     .map((id) => fields.find((f) => f.fieldId === id)?.label ?? 'pytanie usunięte');
 
   const renew = async () => {
-    if (url !== null && !window.confirm(
-      'Wystawić nowy link? Obecny przestanie działać — także ten, który ta osoba już ma.')) return;
+    if (url !== null && !(await askText('Wystawić nowy link? Obecny przestanie działać — także ten, który ta osoba już ma.'))) return;
 
     setBusy(true);
     onError(null);
@@ -3616,7 +3592,7 @@ function SendPanel({
    * was aufhört, ist der Zugang über diesen Platz.
    */
   const withdraw = async () => {
-    if (!window.confirm('Wycofać link? Ta osoba straci dostęp przez link; zgłoszenie zostaje.')) return;
+    if (!(await askText('Wycofać link? Ta osoba straci dostęp przez link; zgłoszenie zostaje.'))) return;
 
     setBusy(true);
     onError(null);
@@ -3652,9 +3628,7 @@ function SendPanel({
         <p className="wk-hint">Otwieranie linku…</p>
       ) : url === null ? (
         <p className="wk-hint">
-          Tego linku kancelaria nie odczyta — powstał, zanim linki zaczęły być
-          zapisywane także dla niej. Przy pierwszym SMS-ie powstanie nowy
-          (stary przestanie działać); możesz go też wystawić od razu.
+          Ten link jest starszy i kancelaria go nie odczyta. Przy pierwszym SMS-ie powstanie nowy (stary przestanie działać).
         </p>
       ) : (
         <div className="wk-link-row">
@@ -3881,8 +3855,8 @@ function SmsPanel({
               <button
                 type="button" className="wk-chip-x" disabled={saving}
                 aria-label={`Usuń szablon ${one.label}`}
-                onClick={() => {
-                  if (window.confirm(`Usunąć szablon „${one.label}"?`)) {
+                onClick={async () => {
+                  if (await askText(`Usunąć szablon „${one.label}"?`)) {
                     void saveList(templates.filter((_, j) => j !== i));
                   }
                 }}
@@ -4038,10 +4012,7 @@ function LinkCheckBox({ partId, fields, busy, onSaved, onError }: {
       <span>Pierwsze otwarcie linku — o co zapytać</span>
 
       <p className="wk-hint">
-        Link wysłany SMS-em może trafić pod zły numer. Kto otworzy go pierwszy raz,
-        musi podać zaznaczone dane tak jak w zgłoszeniu (wielkość liter i polskie znaki
-        nie mają znaczenia). Raz poprawnie — link więcej nie pyta. Nic nie zaznaczone —
-        link nie pyta.
+        Kto pierwszy raz otworzy link z SMS-a, musi podać zaznaczone dane (jak w zgłoszeniu). Nic nie zaznaczone — link nie pyta.
       </p>
 
       {askable.length === 0 ? (
@@ -4070,9 +4041,7 @@ function LinkCheckBox({ partId, fields, busy, onSaved, onError }: {
       )}
 
       <p className="wk-hint">
-        Dotyczy linków, które kancelaria wyśle od teraz. Link z samodzielnego zapisu nie
-        pyta — zapisujący właśnie te dane wpisał; przy pierwszym SMS-ie dostanie nowy,
-        pytający link.
+        Dotyczy linków wysyłanych od teraz.
       </p>
 
       {changed && (

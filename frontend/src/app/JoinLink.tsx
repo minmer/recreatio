@@ -20,6 +20,7 @@ import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
 import { LinkChatsSection } from './LinkChatJoin';
 import type { Ring } from './keys';
+import { Loading } from './ui/Loading';
 
 /** 0074 — was eine Stufe in einem Bereich heisst, ausführlich. */
 const LEVEL_SAYS: Record<string, string> = {
@@ -71,7 +72,7 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
     return () => { alive = false; };
   }, [token, who, tick]);
 
-  if (info === undefined) return <p className="wk-lede">Sprawdzanie zaproszenia…</p>;
+  if (info === undefined) return <Loading label="Sprawdzanie zaproszenia…" />;
 
   if (info === null) {
     return (
@@ -180,7 +181,7 @@ export function JoinWithoutAccount({ token, onSignIn }: { token: string | null; 
     return () => { alive = false; };
   }, [me, info]);
 
-  if (info === undefined) return <p className="wk-lede">Sprawdzanie linku…</p>;
+  if (info === undefined) return <Loading label="Sprawdzanie linku…" />;
 
   const signIn = (
     <p className="wk-hint">

@@ -20,6 +20,7 @@ import { loadPage, toDraft, type DraftPart } from './page';
 import { partSize, type PartSize } from './part';
 import { partOf } from './parts/registry';
 import { WorkspaceError } from './session';
+import { Loading } from './ui/Loading';
 
 const WIDTHS: Record<string, number> = { narrow: 2, medium: 3, wide: 4, full: 6 };
 const HEIGHTS: Record<string, number> = { strip: 1, block: 3, tall: 5 };
@@ -131,7 +132,7 @@ export function Widget({ partId, pagePath }: { partId: string | null; pagePath: 
 
   return (
     <div className="wk-widget" ref={box}>
-      {part === undefined ? <p className="wk-hint">Wczytywanie…</p>
+      {part === undefined ? <Loading label="Wczytywanie…" />
         : part === null || def === undefined ? <p className="wk-hint">{failed ?? 'Tego modułu nie da się pokazać.'}</p>
         : (
           <article className={`wk-card wk-card-${part.kind} wk-widget-card`} data-w={size.width} data-h={size.height} onClick={onClick}>

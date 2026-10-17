@@ -40,12 +40,19 @@
 
 import { API, call, keepsKey, type Who } from './session';
 import { background, native, notices } from './platform';
-import { gatherNews, handOverRoleWaiting, handOverWaiting, type ReminderNotice } from './notifyRich';
-import { formNewsPath, viewPath } from './routes';
+import type { ReminderNotice } from './notifyRich';
+import { formNewsPath, viewPath, formsPath } from './routes';
 import { toBase64Url } from './crypto';
 import { openDigest } from './digestNames';
 import { sealLegacyNamesQuietly } from './nameSeal';
 import { keysFor } from './ringOf';
+
+/*
+ * 2026-10-17 — DER REICHE TEIL (Inhalte öffnen, Schlüssel übergeben) erst, wenn
+ * er gebraucht wird: eine öffentliche Seite, die nur „3 nowe" an einer Rozmowa
+ * zeigt, lud ihn mit (90 kB).
+ */
+const rich = () => import('./notifyRich');
 
 export interface DigestChat {
   readonly chatId: string;
@@ -306,8 +313,12 @@ function handOverKeys(digest: Digest): void {
   handing = true;
   const who = richWho;
   /* 0091 — und die Schlüssel der Rollen an die Menschen der Formulare, die darauf warten. */
-  void handOverWaiting(who, waiting).catch(() => 0)
-    .then(() => handOverRoleWaiting(who, roles).catch(() => 0))
+  void rich()
+    .then(async (r) => {
+      await r.handOverWaiting(who, waiting).catch(() => 0);
+      await r.handOverRoleWaiting(who, roles).catch(() => 0);
+    })
+    .catch(() => undefined)
     .finally(() => { handing = false; });
 }
 
@@ -427,9 +438,9 @@ function ring(digest: Digest): void {
   const anything = plan.chats.length > 0 || plan.forms || plan.links;
   if (anything && native && store.settings.contents && richWho !== null && (visible() || !pushActive)) {
     const who = richWho;
-    void gatherNews(who, {
+    void rich().then((r) => r.gatherNews(who, {
       since: seenSince(), skipChat: openChat, replyable: keepsKey(who), settings: store.settings
-    }).then((news) => {
+    })).then((news) => {
       if (news.state === 'open') return background.present(news);
       ringPlain(digest, plan);
       return undefined;
@@ -457,7 +468,7 @@ function ringPlain(digest: Digest, plan: Ringing): void {
       title: digest.registrations.count === 1 ? 'Nowe zgłoszenie' : `Nowe zgłoszenia: ${digest.registrations.count}`,
       body: form === undefined ? 'Ktoś wypełnił formularz.' : form.name,
       tag: 'forms',
-      open: form === undefined ? viewPath('modules') : formNewsPath(form.moduleId)
+      open: form === undefined ? formsPath() : formNewsPath(form.moduleId)
     }, 'news');
   }
   if (plan.links) {

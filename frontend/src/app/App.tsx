@@ -16,35 +16,34 @@
  * angemeldete Zustand nachkommt — es sieht aus, als wäre man hinausgeflogen.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
-import { Crumbs } from './Crumbs';
-import { HeaderSlotContext } from './headerSlot';
+import { PlainFrame, PublicFrame } from './Frame';
 import {
-  foreignHost, localPath, needsIdentity, parsePath, path, spotOf, viewPath,
-  type Address, type Spot
+  foreignHost, localPath, needsIdentity, parsePath, spotOf, viewPath,
+  type Address
 } from './routes';
-import { forgetAreaKeys } from './chat';
 import { forget as forgetState } from './prefs';
 import { keepFromAddress } from './seatKeep';
 import { heldLinks, keepLinkFromAddress } from './linkKeep';
-import { HeldLinkBar } from './HeldLinkBar';
-import { LinkCalendar } from './LinkCalendar';
 import { keepsKey, signOut, whoIsThere, type Who } from './session';
 import { PublicPage } from './PublicPage';
-import { SeatPortal } from './SeatPortal';
 import { SignIn } from './SignIn';
-import { Verify } from './Verify';
-import { ViewGuard } from './ViewGuard';
-import { Workspace } from './Workspace';
-import { JoinLink, JoinWithoutAccount } from './JoinLink';
-import { NotifyBell } from './NotifyBell';
-import { PhoneBar } from './PhoneBar';
-import { SearchButton, SearchPalette } from './SearchPalette';
 import { Widget } from './Widget';
-import { forgetNotifications } from './notify';
-import { forgetLibraries, setLibraryCache } from './libraryStore';
-import { NowPlayingBar } from './NowPlayingBar';
+import { Loading } from './ui/Loading';
+
+/*
+ * 2026-10-17 — NACHGELADEN, WAS EINE ÖFFENTLICHE SEITE NICHT BRAUCHT: der
+ * Arbeitsplatz mit seinem Rahmen, der Kalender eines Links und das Einlösen
+ * eines Links. Eine Seite der Pfarrei lud bis hierher den ganzen Arbeitsplatz
+ * mit, bevor sie etwas zeigte.
+ */
+const WorkspaceShell = lazy(() => import('./WorkspaceShell'));
+const LinkCalendar = lazy(() => import('./LinkCalendar').then((m) => ({ default: m.LinkCalendar })));
+const JoinLink = lazy(() => import('./JoinLink').then((m) => ({ default: m.JoinLink })));
+const JoinWithoutAccount = lazy(() => import('./JoinLink').then((m) => ({ default: m.JoinWithoutAccount })));
+const SeatPortal = lazy(() => import('./SeatPortal').then((m) => ({ default: m.SeatPortal })));
+const Verify = lazy(() => import('./Verify').then((m) => ({ default: m.Verify })));
 
 export function App() {
   const [address, setAddress] = useState<Address>(() => parsePath(window.location.hash));
@@ -105,7 +104,11 @@ export function App() {
    * (`kept`): im strengen Betrieb lebt er nur im Tab, und die Hüllen sollen es
    * auch.
    */
-  useEffect(() => { setLibraryCache(who != null && keepsKey(who)); }, [who]);
+  useEffect(() => {
+    /* 2026-10-17 — nachgeladen: eine öffentliche Seite ohne Anmeldung braucht die Bibliotheken nicht. */
+    if (who === undefined) return;
+    void import('./libraryStore').then((m) => m.setLibraryCache(who !== null && keepsKey(who)));
+  }, [who]);
 
   /*
    * EINE EIGENE DOMAIN zeigt genau eine Seite, und welche, sagt das Register.
@@ -115,7 +118,7 @@ export function App() {
    */
   const domain = foreignHost();
   if (domain !== null) {
-    return <Shell wide><PublicPage host={domain} local={localPath(hash)} /></Shell>;
+    return <PublicFrame><PublicPage host={domain} local={localPath(hash)} /></PublicFrame>;
   }
 
   /*
@@ -138,7 +141,7 @@ export function App() {
    * Handgriff, keine Anmeldemaske.
    */
   if (address.route === 'verify') {
-    return <Shell><Verify token={address.slug} /></Shell>;
+    return <PlainFrame><Suspense fallback={<Loading />}><Verify token={address.slug} /></Suspense></PlainFrame>;
   }
 
   /*
@@ -151,22 +154,24 @@ export function App() {
 
   if (address.seat !== null) {
     return (
-      <Shell>
-        <SeatPortal
-          token={address.seat.token}
-          keyText={address.seat.key}
-          under={address.page}
-        />
-      </Shell>
+      <PlainFrame>
+        <Suspense fallback={<Loading />}>
+          <SeatPortal
+            token={address.seat.token}
+            keyText={address.seat.key}
+            under={address.page}
+          />
+        </Suspense>
+      </PlainFrame>
     );
   }
 
   if (address.page !== null) {
-    return <Shell wide><PublicPage path={address.page} /></Shell>;
+    return <PublicFrame><PublicPage path={address.page} /></PublicFrame>;
   }
 
   if (who === undefined) {
-    return <Shell><p className="wk-lede">Sprawdzanie…</p></Shell>;
+    return <PlainFrame><Loading label="Sprawdzanie…" /></PlainFrame>;
   }
 
   if (who === null) {
@@ -181,9 +186,11 @@ export function App() {
      */
     if (linked && view === 'calendar' && !signInWanted) {
       return (
-        <Shell wide>
-          <LinkCalendar fallback={<SignIn onDone={setWho} />} onSignIn={() => setSignInWanted(true)} />
-        </Shell>
+        <PlainFrame wide>
+          <Suspense fallback={<Loading />}>
+            <LinkCalendar fallback={<SignIn onDone={setWho} />} onSignIn={() => setSignInWanted(true)} />
+          </Suspense>
+        </PlainFrame>
       );
     }
 
@@ -194,14 +201,16 @@ export function App() {
      */
     if (address.route === 'dolacz' && !signInWanted) {
       return (
-        <Shell>
-          <JoinWithoutAccount token={address.slug} onSignIn={() => setSignInWanted(true)} />
-        </Shell>
+        <PlainFrame>
+          <Suspense fallback={<Loading />}>
+            <JoinWithoutAccount token={address.slug} onSignIn={() => setSignInWanted(true)} />
+          </Suspense>
+        </PlainFrame>
       );
     }
 
     return (
-      <Shell>
+      <PlainFrame>
         {/*
           Die übrigen Teile des Arbeitsplatzes brauchen ein Konto — und das wird
           GESAGT, statt den Menschen mit seinem Link vor einem Anmeldeformular
@@ -214,16 +223,28 @@ export function App() {
           </p>
         )}
         <SignIn onDone={setWho} />
-      </Shell>
+      </PlainFrame>
     );
   }
+
+  /* Abmelden: Meldungen des Geräts vergessen, dann die Sitzung, dann was im Speicher liegt. */
+  const signOutNow = () => {
+    void (async () => {
+      const [notify, chat, libraries] = await Promise.all([import('./notify'), import('./chat'), import('./libraryStore')]);
+      await notify.forgetNotifications().catch(() => undefined);
+      await signOut();
+      forgetState(); chat.forgetAreaKeys(); libraries.forgetLibraries(); setWho(null);
+    })();
+  };
 
   /* 0065 — ein Link mit Zugang: erst angemeldet, dann das Zaproszenie. */
   if (address.route === 'dolacz') {
     return (
-      <Shell who={who} onSignOut={() => { void forgetNotifications().finally(() => signOut().then(() => { forgetState(); forgetAreaKeys(); forgetLibraries(); setWho(null); })); }}>
-        <JoinLink token={address.slug} who={who} />
-      </Shell>
+      <PlainFrame who={who} onSignOut={signOutNow}>
+        <Suspense fallback={<Loading />}>
+          <JoinLink token={address.slug} who={who} />
+        </Suspense>
+      </PlainFrame>
     );
   }
 
@@ -237,90 +258,9 @@ export function App() {
   const spot = spotOf(address);
 
   return (
-    <Shell
-      who={who}
-      wide
-      spot={spot}
-      onSignOut={() => { void forgetNotifications().finally(() => signOut().then(() => { forgetState(); forgetAreaKeys(); forgetLibraries(); setWho(null); })); }}
-    >
-      <Workspace spot={spot} who={who} />
-    </Shell>
-  );
-}
-
-function Shell({
-  children, who, wide = false, spot, onSignOut
-}: {
-  children: React.ReactNode;
-  who?: Who;
-  /** Die Kacheln brauchen zwei Spalten; ein Text braucht eine Zeilenlänge. */
-  wide?: boolean;
-
-  /**
-   * Wo im Arbeitsplatz wir stehen — oder nichts, wenn wir gar nicht darin sind.
-   *
-   * <b>Eine öffentliche Seite bekommt KEINEN Weg.</b> Sie gehört der Welt
-   * draussen; ein „Warsztat › …“ darüber wäre ein Verweis auf ein Haus, in dem
-   * der Besucher nichts zu suchen hat und meistens auch kein Konto.
-   */
-  spot?: Spot;
-  onSignOut?: () => void;
-}) {
-  /* Der Platz in der Kopfleiste, in den eine Seite ihr Menü zeichnet (`headerSlot.tsx`). */
-  const [slot, setSlot] = useState<HTMLElement | null>(null);
-
-  return (
-    <div className="wk-root">
-      {/*
-        Der Streifen geht ueber die ganze Breite, sein INHALT nicht: er steht
-        ueber derselben Spalte wie die Seite darunter. Ohne diese innere Huelle
-        klebte die Marke ganz links, waehrend der Text in der Mitte begaenne —
-        zwei Anfaenge auf einem Bild.
-      */}
-      <header className="wk-top">
-        <div className={wide ? 'wk-top-in wk-top-in-wide' : 'wk-top-in'}>
-          {/*
-            Die Marke führt nach Hause. Sie war bisher ein toter Schriftzug —
-            und die eine Stelle, an der jeder zuerst klickt, wenn er sich
-            verlaufen hat.
-          */}
-          {/* Ohne Bau-Etikett („Neubau"): der Neubau ist die Seite, und so heisst sie auch. */}
-          <a className="wk-brand" href={path('workspace')}>REcreatio</a>
-
-          {/* Das Menü der Seite — direkt in der Kopfleiste, nicht als zweiter Streifen darunter. */}
-          <div className="wk-top-menu" ref={setSlot} />
-
-          {/* 0100 — was aus einer Rozmowa weiterspielt, auf jeder Seite. */}
-          <NowPlayingBar />
-
-          {spot !== undefined && <Crumbs spot={spot} />}
-
-          {/* 0094 — ein Feld für alles (Ctrl K). */}
-          {who !== undefined && spot !== undefined && <SearchButton />}
-
-          {/* 0067 — was neu ist: ungelesene Nachrichten, neue Anmeldungen, Aufgaben. */}
-          {who !== undefined && <NotifyBell who={who} />}
-
-          {who !== undefined && (
-            <span className="wk-who">
-              {who.loginId}
-              {onSignOut !== undefined && (
-                <button type="button" className="wk-link-btn" onClick={onSignOut}>Wyloguj</button>
-              )}
-            </span>
-          )}
-        </div>
-      </header>
-      <main className={wide ? 'wk-main wk-main-wide' : 'wk-main'}>
-        <HeaderSlotContext.Provider value={slot}>
-          <HeldLinkBar who={who} />
-          <ViewGuard>{children}</ViewGuard>
-        </HeaderSlotContext.Provider>
-      </main>
-      {/* 0094 — Szukaj (Ctrl K) und, am Telefon, der Streifen unten — nur im Arbeitsplatz. */}
-      {who !== undefined && spot !== undefined && <SearchPalette />}
-      {who !== undefined && spot !== undefined && <PhoneBar spot={spot} />}
-    </div>
+    <Suspense fallback={<div className="wk-root wk-plain"><main className="wk-main"><Loading /></main></div>}>
+      <WorkspaceShell who={who} spot={spot} onSignOut={signOutNow} />
+    </Suspense>
   );
 }
 

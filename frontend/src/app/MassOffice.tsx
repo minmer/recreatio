@@ -77,6 +77,8 @@ import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { AreaOptions } from './AreaOptions';
 import { useRecent } from './prefs';
+import { askText } from './ui/dialogs';
+import { Loading } from './ui/Loading';
 
 /**
  * Wie weit vorausgeladen wird — zwei Wochen, nicht ein Tag.
@@ -237,7 +239,7 @@ export function MassOffice({ who, trail = [], heading = false }: {
   };
 
   /** Ein Vorkommen absagen — oder zurückholen. */
-  const toggleOne = (one: OfficeMass) => {
+  const toggleOne = async (one: OfficeMass) => {
     const when = `${dayLabel(one.startsAt)} ${hour(one.startsAt)}`;
 
     if (one.skipped === true) {
@@ -248,7 +250,7 @@ export function MassOffice({ who, trail = [], heading = false }: {
       return;
     }
 
-    if (!window.confirm(`Odwołać tylko ten termin: ${SERVICE_LABEL[one.kind] ?? 'wpis'} ${when}? Seria zostaje.`)) return;
+    if (!(await askText(`Odwołać tylko ten termin: ${SERVICE_LABEL[one.kind] ?? 'wpis'} ${when}? Seria zostaje.`))) return;
     void act('Odwoływanie…', async () => {
       await setOccurrence(one.itemId, one.occurrenceAt, { cancelled: true });
       setDone(`Odwołano: ${SERVICE_LABEL[one.kind] ?? 'wpis'} ${when}. Można to cofnąć — „Przywróć".`);
@@ -291,7 +293,7 @@ export function MassOffice({ who, trail = [], heading = false }: {
     if (index >= 0) { setAt(index); setTab('intentions'); }
   };
 
-  if (calendars === null) return <p className="wk-note">Wczytywanie…</p>;
+  if (calendars === null) return <Loading label="Wczytywanie…" />;
 
   /*
    * Kein Kalender heisst hier nicht „leer", sondern „kein Zertyfikat auf żaden
@@ -810,7 +812,7 @@ function Row({ me, mass, intention, masses, candidates, first, last, onUp, onDow
   };
 
   const remove = async () => {
-    if (!window.confirm(`Usunąć intencję „${intention.text}"? Tego nie da się cofnąć.`)) return;
+    if (!(await askText(`Usunąć intencję „${intention.text}"? Tego nie da się cofnąć.`))) return;
     setBusy(true);
     try {
       await deleteIntention(intention.intentionId);
@@ -1051,7 +1053,7 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
     const ask = names.length === 0
       ? `Usunąć termin ${when}?`
       : `Usunąć termin ${when}? Zapisane osoby (${names.join(', ')}) zostaną z niego wypisane.`;
-    if (!window.confirm(ask)) return;
+    if (!(await askText(ask))) return;
 
     const key = `${one.itemId}|${one.occurrenceAt}`;
     setRemoving(key);
@@ -1101,8 +1103,8 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
   };
 
   /** Jemanden austragen. */
-  const unseat = (c: OfficeClaim) => {
-    if (!window.confirm(`Wypisać z terminu: ${nameOf(c)}?${c.hosting ? ' To gospodarz — wolne miejsca otworzą się dla wszystkich.' : ''}`)) return;
+  const unseat = async (c: OfficeClaim) => {
+    if (!(await askText(`Wypisać z terminu: ${nameOf(c)}?${c.hosting ? ' To gospodarz — wolne miejsca otworzą się dla wszystkich.' : ''}`))) return;
     void officeAct('Wypisywanie…', async () => {
       await officeRemove(c.claimId);
       return `Wypisano: ${nameOf(c)}.`;

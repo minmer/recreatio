@@ -25,6 +25,8 @@ import { knownDevice } from './kept';
 import { keysFor } from './ringOf';
 import { viewPath } from './routes';
 import { keepsKey, type Who } from './session';
+import { Icon } from './ui/icons';
+import { Loading } from './ui/Loading';
 
 const REMINDERS_EVERY = 30 * 60_000;
 
@@ -37,7 +39,6 @@ async function planFor(who: Who): Promise<void> {
 export function NotifyBell({ who }: { who: Who }) {
   const state = useSyncExternalStore(subscribe, current);
   const [open, setOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => start(who), [who]);
@@ -111,18 +112,16 @@ export function NotifyBell({ who }: { who: Who }) {
 
   return (
     <div className="wk-bell" ref={box}>
-      <button type="button" className={`wk-bell-btn${count > 0 ? ' has-news' : ''}`} aria-expanded={open}
+      <button type="button" className={`wk-bar-btn wk-bell-btn${count > 0 ? ' has-news' : ''}`} aria-expanded={open}
         aria-label={count > 0 ? `Powiadomienia: ${count} nowych` : 'Powiadomienia'}
         onClick={() => { setOpen((was) => !was); if (!open) void refresh(); }}>
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-          <path d="M12 3a6 6 0 0 0-6 6v3.6L4.4 15.2A1 1 0 0 0 5.3 17h13.4a1 1 0 0 0 .9-1.8L18 12.6V9a6 6 0 0 0-6-6Zm0 19a2.5 2.5 0 0 0 2.4-2h-4.8a2.5 2.5 0 0 0 2.4 2Z" fill="currentColor" />
-        </svg>
+        <Icon name="bell" />
         {count > 0 && <span className="wk-bell-count">{count > 99 ? '99+' : count}</span>}
       </button>
 
       {open && (
         <div className="wk-bell-panel" role="dialog" aria-label="Powiadomienia">
-          {d === null ? <p className="wk-hint">Sprawdzanie…</p> : (
+          {d === null ? <Loading label="Sprawdzanie…" /> : (
             <>
               {/* 0094 — in der Reihenfolge, die das Konto gewählt hat (Konto → Wygląd warsztatu); ✓ wo es geht (0090). */}
               {items.length === 0
@@ -133,15 +132,14 @@ export function NotifyBell({ who }: { who: Who }) {
                 {(d.registrations.count > 0 || d.links > 0) && (
                   <button type="button" className="wk-link-btn" onClick={markSeen}>Oznacz wszystko jako przejrzane</button>
                 )}
-                <button type="button" className="wk-link-btn" onClick={() => { setSettingsOpen(true); setOpen(false); }}>Ustawienia…</button>
-                <a className="wk-link-btn" href={viewPath('account', 'widok')} onClick={() => setOpen(false)}>Kolejność</a>
+                {/* Was sich meldet und in welcher Reihenfolge — und was dieses Gerät tut: eine Seite (Powiadomienia). */}
+                <a className="wk-link-btn" href={viewPath('account', 'widok')} onClick={() => setOpen(false)}>Ustawienia</a>
               </div>
             </>
           )}
         </div>
       )}
 
-      {settingsOpen && <NotifySettingsPanel who={who} settings={state.settings} onClose={() => setSettingsOpen(false)} />}
 
       <div className="wk-toasts" aria-live="polite">
         {toast !== null && (
@@ -212,7 +210,7 @@ function contentWords(kept: boolean | null, phone: BackgroundStatus | null): str
   return `Treść jest odszyfrowywana tylko na tym telefonie — Firebase przenosi wyłącznie pusty sygnał. Na odpowiedź z powiadomienia wystarczy wpisać tekst${when}.`;
 }
 
-function NotifySettingsPanel({ who, settings, onClose }: { who: Who; settings: NotifySettings; onClose: () => void }) {
+export function NotifySettingsPanel({ who, settings, onClose }: { who: Who; settings: NotifySettings; onClose?: () => void }) {
   const [kept, setKept] = useState<boolean | null>(null);
   useEffect(() => {
     if (!native) return;
@@ -317,7 +315,7 @@ function NotifySettingsPanel({ who, settings, onClose }: { who: Who; settings: N
       )}
 
       {note !== null && <p className="wk-note">{note}</p>}
-      <div className="wk-actions"><button type="button" className="wk-btn" onClick={onClose}>Gotowe</button></div>
+      {onClose !== undefined && <div className="wk-actions"><button type="button" className="wk-btn" onClick={onClose}>Gotowe</button></div>}
     </div>
   );
 }

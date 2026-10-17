@@ -311,6 +311,10 @@ export interface MessageExtras {
 }
 export interface SendOptions extends MessageExtras {
   sendAt?: string;
+  /** 0111 — wartet, bis jemand aus der Rozmowa in der App ist (und das zeigt). */
+  whenOnline?: boolean;
+  /** 0111 — „bez dźwięku": niemand wird geweckt. */
+  silent?: boolean;
   /** 0068 — in welches Thema. */
   topicId?: string | null;
   /** 0076 — eine Kennung von aussen (die Antwort aus der Meldung): ein zweiter Versuch schickt nicht doppelt. */
@@ -480,7 +484,8 @@ export async function sendMessage(
       messageId, authorRoleId, epoch,
       bodySealed: toBase64Url(sealedBody), signature: toBase64Url(signature), signedAt, sendAt: options.sendAt,
       topicId: options.topicId ?? null,
-      personId: options.personId ?? null
+      personId: options.personId ?? null,
+      whenOnline: options.whenOnline === true, silent: options.silent === true
     })
   });
   return { ...done, epoch };

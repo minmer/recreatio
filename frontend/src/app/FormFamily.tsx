@@ -21,7 +21,7 @@ import { FORM_MAP } from './FormList';
 import { newId } from './ids';
 import { createModule, loadModules, removeModule, updateModule, type FormGroup, type ModuleRow } from './module';
 import { REPEAT_LABEL, REPEATS, repeatOf, type Repeat } from './rounds';
-import { viewPath } from './routes';
+import { formPath, formsPath } from './routes';
 import { WorkspaceError } from './session';
 
 export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged?: () => void }) {
@@ -61,7 +61,7 @@ export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged
       setName('');
       setRound((n) => n + 1);
       onChanged?.();
-      window.location.hash = viewPath('modules', 'form', moduleId);
+      window.location.hash = formPath(moduleId);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się założyć podformularza.');
     } finally {
@@ -78,7 +78,7 @@ export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged
       await removeModule(module.moduleId, { fromPages: module.usedOnPages > 0 });
       setRemoving(false);
       onChanged?.();
-      window.location.hash = viewPath('modules', 'form', module.extendsId);
+      window.location.hash = formPath(module.extendsId);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć podformularza.');
     } finally {
@@ -90,7 +90,7 @@ export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged
   const tab = (listed: ModuleRow, sub: boolean, form: ModuleRow = listed.moduleId === module.moduleId ? module : listed) => (
     <a key={form.moduleId} className={form.moduleId === module.moduleId ? 'wk-family-tab is-on' : 'wk-family-tab'}
       aria-current={form.moduleId === module.moduleId ? 'page' : undefined}
-      href={viewPath('modules', 'form', form.moduleId)} data-family-tab={form.moduleId}>
+      href={formPath(form.moduleId)} data-family-tab={form.moduleId}>
       {sub && <span aria-hidden="true">↳ </span>}{form.name}
       {sub && <span className="wk-family-who"> · {form.audience === 'office' ? 'koordynator' : 'osoba'}{repeatOf(form.repeat) !== 'once' ? ` · ${REPEAT_LABEL[repeatOf(form.repeat)]}` : ''}</span>}
     </a>
@@ -106,7 +106,7 @@ export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged
         )}
       </div>
       <div className="wk-family-side">
-        <a className="wk-link-btn" href={viewPath('modules', FORM_MAP, mainId)} data-family-map="">Mapa</a>
+        <a className="wk-link-btn" href={formsPath(FORM_MAP, mainId)} data-family-map="">Mapa</a>
         {group !== null && <span className="wk-tag">grupa: {group.name}</span>}
         {module.extendsId !== null && !removing && (
           <button type="button" className="wk-link-btn wk-danger-link" data-sub-remove="" onClick={() => setRemoving(true)}>Usuń podformularz</button>

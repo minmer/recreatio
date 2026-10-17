@@ -25,7 +25,7 @@ import { useState } from 'react';
 import {
   cancelOne, deleteEvent, ensurePrivateArea, forever, handover, isLiturgy, moveOne, saveEvent, type OpenedItem, type RepeatKind
 } from './agenda';
-import { areaPath, type AreaRow } from './area';
+import type { AreaRow } from './area';
 import { AreaOptions } from './AreaOptions';
 import {
   CALENDAR_KIND_LABEL, DUTY_LABEL, ITEM_LABEL, safeLink, setPeople, setProgramParent,
@@ -42,6 +42,8 @@ import { nameOfPinned, PeoplePicker, useAreaPeople, type Pinned } from './People
 import { useRecent } from './prefs';
 import { WorkspaceError } from './session';
 import { bitOf, fromLocal, groupName, localDate, localTime, PRIVATE, Weekdays, writableGroups } from './WhoSees';
+import { askText } from './ui/dialogs';
+import { calendarLabel } from './calendarLabel';
 
 const REPEATS: readonly { value: RepeatKind; label: string }[] = [
   { value: 'none', label: 'Nie powtarza się' },
@@ -80,12 +82,8 @@ const dutyOf = (kind: string): Duty => (kind === 'mass' ? 'celebrant' : kind ===
 const KINDS_OFFERED: readonly ItemKind[] = ['appointment', 'mass', 'confession', 'devotion', 'visit'];
 
 /** Wie ein Kalender in einer Auswahl heisst: sein Name, und wessen er ist. */
-export function calendarLabel(areas: readonly AreaRow[], calendar: CalendarRow): string {
-  const area = areas.find((a) => a.areaId === calendar.areaId);
-  if (area?.personal === true) return `${calendar.title} (tylko ja)`;
-  const group = area !== undefined ? areaPath(areas, area.areaId).full : calendar.areaName;
-  return calendar.title === calendar.areaName || calendar.title === group ? group : `${calendar.title} · ${group}`;
-}
+/* Wie ein Kalender heisst — seit 2026-10-17 in `calendarLabel.ts`; hier weitergereicht. */
+export { calendarLabel };
 
 export function EventDialog({ me, areas, calendars, scope, target, events, onClose, onSaved, onAddPart }: {
   me: Me;
@@ -544,14 +542,14 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
     }, item.occurrence.itemId);
   });
 
-  const remove = () => {
+  const remove = async () => {
     if (item === undefined) return;
     if (repeating && scope === 'following' && hasEarlier) {
-      if (window.confirm('Zakończyć serię przed tym dniem? Wcześniejsze terminy zostają.')) void endBefore();
+      if (await askText('Zakończyć serię przed tym dniem? Wcześniejsze terminy zostają.')) void endBefore();
       return;
     }
     const one = repeating && scope === 'one';
-    if (!window.confirm(one ? 'Odwołać tylko ten termin?' : 'Usunąć ten termin (całą serię)?')) return;
+    if (!(await askText(one ? 'Odwołać tylko ten termin?' : 'Usunąć ten termin (całą serię)?'))) return;
     void run(() => one ? cancelOne(item.occurrence.itemId, item.occurrence.occurrenceAt) : deleteEvent(item.occurrence.itemId));
   };
 

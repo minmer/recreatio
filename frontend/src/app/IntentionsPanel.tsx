@@ -21,6 +21,7 @@ import {
 } from './mass';
 import { viewPath } from './routes';
 import { WorkspaceError } from './session';
+import { Loading } from './ui/Loading';
 
 export function IntentionsPanel({ calendarId, itemId, occurrenceAt, start, editable }: {
   calendarId: string;
@@ -75,7 +76,7 @@ export function IntentionsPanel({ calendarId, itemId, occurrenceAt, start, edita
       </h3>
 
       {mass === undefined ? (
-        <p className="wk-hint">Wczytywanie intencji…</p>
+        <Loading label="Wczytywanie intencji…" />
       ) : list.length === 0 ? (
         <p className="wk-empty">Bez intencji.</p>
       ) : (

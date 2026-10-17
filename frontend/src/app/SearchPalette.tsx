@@ -14,32 +14,19 @@ import { areaPath } from './area';
 import { loadDesk } from './desk';
 import { Modal } from './Modal';
 import { partLabel } from './parts/registry';
-import { pageSteps, VIEWS, viewPath, type View } from './routes';
+import { pageSteps, VIEWS, viewPath, type View, modulePath } from './routes';
 import { searchHits, type SearchEntry } from './search';
 import { areasNow, chatsNow, modulesNow } from './viewData';
 import { chatName } from './ViewParts';
-import { useViews } from './WorkspaceHome';
-import { allViews } from './workspaceViews';
 
 export const SEARCH_EVENT = 'recreatio:search';
 
 /** Die Teile des Arbeitsplatzes — sie stehen da, bevor etwas geladen ist. */
 const STATIC: readonly SearchEntry[] = [
   ...(Object.keys(VIEWS) as View[]).filter((v) => v !== 'widok').map((v) => ({ id: `view:${v}`, label: VIEWS[v], kind: 'Część warsztatu', href: viewPath(v) })),
-  { id: 'look', label: 'Wygląd warsztatu', kind: 'Ustawienia', href: viewPath('account', 'widok'), hint: 'widok prosty rozszerzony powiadomienia kolejność' }
+  { id: 'notify', label: 'Powiadomienia', kind: 'Ustawienia', href: viewPath('account', 'widok'), hint: 'dzwonek kolejność urządzenie telefon' },
+  { id: 'security', label: 'Bezpieczeństwo i klucze', kind: 'Ustawienia', href: viewPath('account', 'bezpieczenstwo'), hint: 'hasło klucz szyfrowanie' }
 ];
-
-export function SearchButton() {
-  return (
-    <button type="button" className="wk-search-btn" data-search-open="" aria-label="Szukaj (Ctrl K)" title="Szukaj (Ctrl K)"
-      onClick={() => window.dispatchEvent(new Event(SEARCH_EVENT))}>
-      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-        <circle cx="11" cy="11" r="6.5" />
-        <path d="m16 16 4.5 4.5" />
-      </svg>
-    </button>
-  );
-}
 
 /** Hört auf Ctrl K und das Ereignis; zeigt das Fenster. Einmal im Kopf der Seite. */
 export function SearchPalette() {
@@ -63,7 +50,6 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
   const [found, setFound] = useState<readonly SearchEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState(0);
-  const [views] = useViews();
   const input = useRef<HTMLInputElement | null>(null);
   const listId = useId();
 
@@ -79,9 +65,8 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
       ]);
       if (!live) return;
       setFound([
-        ...allViews(views, areas).map((v) => ({ id: `widok:${v.id}`, label: v.name, kind: 'Widok', href: viewPath('widok', v.id) })),
         ...areas.map((a) => ({ id: `area:${a.areaId}`, label: a.name, kind: 'Obszar', href: viewPath('areas', a.areaId), hint: areaPath(areas, a.areaId).full })),
-        ...modules.map((m) => ({ id: `module:${m.moduleId}`, label: m.name, kind: partLabel(m.kind), href: viewPath('modules', m.kind, m.moduleId), hint: m.areaName ?? undefined })),
+        ...modules.map((m) => ({ id: `module:${m.moduleId}`, label: m.name, kind: partLabel(m.kind), href: modulePath(m.kind, m.moduleId), hint: m.areaName ?? undefined })),
         ...(desk?.pages ?? []).filter((p) => p.aliasOf === null).map((p) => ({
           id: `page:${p.path}`, label: p.path === '' ? 'recreatio.pl' : p.path, kind: 'Strona', href: viewPath('pages', ...pageSteps(p.path))
         })),

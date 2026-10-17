@@ -23,7 +23,7 @@
 import type { Digest } from './notify';
 import { chatLabel } from './notify';
 import { useRemembered } from './prefs';
-import { formNewsPath, viewPath } from './routes';
+import { formNewsPath, viewPath, formsPath } from './routes';
 
 export type AlertKind = 'forms' | 'chats' | 'bookings' | 'steps' | 'tasks' | 'today' | 'links' | 'learn';
 
@@ -43,7 +43,7 @@ export const ALERT_KINDS: readonly AlertKindDef[] = [
   { kind: 'tasks', label: 'Zadania na teraz', says: 'Zadania otwarte teraz albo zaległe.', counts: false },
   { kind: 'today', label: 'Terminy dziś', says: 'Spotkania i msze, które są dzisiaj.', counts: false },
   /* 0109 — was in den eigenen Bibliotheken wieder dran ist: wie „dziś", etwas für jeden Tag. */
-  { kind: 'learn', label: 'Powtórka czeka', says: 'Karty, na które przyszła pora w Twoich kursach.', counts: false },
+  { kind: 'learn', label: 'Powtórka czeka', says: 'Karty, na które przyszła pora w Twoich bazach wiedzy.', counts: false },
   { kind: 'links', label: 'Dołączenia przez link', says: 'Ktoś dołączył przez Twój link.', counts: true }
 ];
 
@@ -160,7 +160,7 @@ export function alertItems(
     } else if (kind === 'steps') {
       for (const s of digest?.steps?.list ?? []) {
         if (!inScope(s.areaId)) continue;
-        out.push({ kind, key: `s${s.moduleId ?? s.name}`, label: s.name, count: s.count, detail: `${s.count} ${plural(s.count, 'krok', 'kroki', 'kroków')} po terminie`, href: s.moduleId === undefined ? viewPath('modules') : formNewsPath(s.moduleId) });
+        out.push({ kind, key: `s${s.moduleId ?? s.name}`, label: s.name, count: s.count, detail: `${s.count} ${plural(s.count, 'krok', 'kroki', 'kroków')} po terminie`, href: s.moduleId === undefined ? formsPath() : formNewsPath(s.moduleId) });
       }
     } else if (kind === 'tasks') {
       if (scope === null && (digest?.tasks ?? 0) > 0) {

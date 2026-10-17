@@ -28,6 +28,7 @@ import {
 import { WorkspaceError } from './session';
 import { AreaOptions } from './AreaOptions';
 import { PostalInput } from './PostalInput';
+import { toast } from './ui/dialogs';
 
 export function PersonCard({ roleId, ring }: { roleId: string; ring: Ring }) {
   const [values, setValues] = useState<Map<PersonField, string>>(new Map());
@@ -35,7 +36,6 @@ export function PersonCard({ roleId, ring }: { roleId: string; ring: Ring }) {
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
-  const [said, setSaid] = useState<string | null>(null);
 
   const look = useCallback(async () => {
     try {
@@ -54,7 +54,6 @@ export function PersonCard({ roleId, ring }: { roleId: string; ring: Ring }) {
   const act = async (what: string, todo: () => Promise<unknown>) => {
     setBusy(what);
     setFailed(null);
-    setSaid(null);
 
     try {
       await todo();
@@ -70,15 +69,9 @@ export function PersonCard({ roleId, ring }: { roleId: string; ring: Ring }) {
     <>
       <h2 className="wk-h2">Moje dane</h2>
 
-      <p className="wk-hint">
-        To jedyne na tej platformie, co należy do <strong>człowieka</strong>, a
-        nie do żadnego obszaru. Każde pole jest zapieczętowane osobno i osobno
-        udostępniane — kto ma dostać telefon, dostaje telefon, a nie przy okazji
-        datę urodzenia.
-      </p>
+      <p className="wk-hint">Każde pole udostępniasz osobno — kto dostaje telefon, nie widzi przy okazji daty urodzenia.</p>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {said !== null && <p className="wk-done">{said}</p>}
       {busy !== null && <p className="wk-hint">{busy}</p>}
 
       <ul className="wk-list">
@@ -92,7 +85,7 @@ export function PersonCard({ roleId, ring }: { roleId: string; ring: Ring }) {
             ring={ring}
             busy={busy !== null}
             onAct={act}
-            onSaid={setSaid}
+            onSaid={(text) => { if (text !== null) toast(text, { kind: 'ok' }); }}
             roleId={roleId}
           />
         ))}

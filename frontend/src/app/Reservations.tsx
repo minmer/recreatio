@@ -29,7 +29,8 @@ import {
 import { viewPath } from './routes';
 import { WorkspaceError } from './session';
 import { AreaOptions } from './AreaOptions';
-import { RecentRow, useTouched } from './Recent';
+import { useTouched } from './Recent';
+import { Loading } from './ui/Loading';
 
 const NEW = 'new';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -86,7 +87,7 @@ export function Reservations({ trail }: { trail: readonly string[] }) {
 
   useCrumbs(crumbs);
 
-  if (rows === null) return <p className="wk-empty">Wczytywanie…</p>;
+  if (rows === null) return <Loading label="Wczytywanie…" />;
 
   const head = failed !== null ? <p className="wk-error">{failed}</p> : null;
 
@@ -134,8 +135,6 @@ export function Reservations({ trail }: { trail: readonly string[] }) {
   return (
     <>
       {head}
-
-      <RecentRow scope="bookings" items={all.map((r) => ({ id: r.resourceId, label: r.name, href: viewPath('bookings', r.resourceId) }))} />
 
       <ul className="wk-tree">
         {ordered.map((r) => (
@@ -264,7 +263,7 @@ function ResourcePage({ row, all, areas, calendars, onChanged }: {
         <h2 className="wk-h2">Zajęte</h2>
 
         {claims === null ? (
-          <p className="wk-empty">Wczytywanie…</p>
+          <Loading label="Wczytywanie…" />
         ) : standing.length === 0 ? (
           <p className="wk-empty">
             {row.mode === 'offered'

@@ -15,6 +15,7 @@ import {
 } from './pageImages';
 import { WorkspaceError } from './session';
 import { imageUrl } from './slides';
+import { askText } from './ui/dialogs';
 
 /** Die Dateien einer Seite — einmal geholt, danach von Hand nachgeführt. */
 function usePageFiles(path: string) {
@@ -70,8 +71,8 @@ export function ImagePicker({ path, value, busy, onPick }: {
               <button type="button" disabled={busy} title={one.name ?? ''} onClick={() => onPick(ref)}
                 style={{ backgroundImage: `url(${JSON.stringify(imageUrl(ref))})` } as CSSProperties} aria-label={`Wybierz ${one.name ?? 'obraz'}`} />
               <button type="button" className="se-thumb-x" disabled={busy} aria-label="Usuń obraz"
-                onClick={() => {
-                  if (!window.confirm('Usunąć ten obraz ze strony? Miejsca, które go używają, stracą go.')) return;
+                onClick={async () => {
+                  if (!(await askText('Usunąć ten obraz ze strony? Miejsca, które go używają, stracą go.'))) return;
                   void deletePageImage(one.id).then(() => setFiles((was) => (was ?? []).filter((x) => x.id !== one.id)))
                     .catch((e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć.'));
                 }}>×</button>

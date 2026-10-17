@@ -56,7 +56,13 @@ export default defineConfig({
 
             // Ziehen und Ablegen braucht nur der Seitenbaukasten.
             if (id.includes('/@dnd-kit/')) return 'vendor-dnd';
-            return 'vendor';
+
+            // 2026-10-17 — EIN gemeinsames Bündel nur für React: was sonst aus
+            // node_modules kommt (KaTeX, Monaco, QR-Codes …), geht mit der
+            // Ansicht, die es braucht. Vorher lag alles in `vendor`, und jede
+            // öffentliche Seite lud es vorab.
+            if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'vendor';
+            return undefined;
           }
           return undefined;
         }

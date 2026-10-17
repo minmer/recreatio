@@ -25,6 +25,7 @@ import {
   type OpenTask, type ReminderKind, type TaskKind, type TaskOrigin
 } from './tasks';
 import { bitOf, fromLocal, localDate, localTime, PRIVATE, Weekdays, WhoSees } from './WhoSees';
+import { askText } from './ui/dialogs';
 
 /** Das Ende eines Fensters, aus Anfang und Länge — nur für das erste Anzeigen. */
 const endOf = (from: Date, minutes: number): Date => new Date(from.getTime() + Math.max(0, minutes) * 60_000);
@@ -317,7 +318,7 @@ export function TaskDialog({ me, areas, task, at, origin, initialTitle, initialA
           <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onClose}>Anuluj</button>
           {task !== null && (
             <button type="button" className="wk-link-btn wk-danger wk-ev-delete" disabled={busy}
-              onClick={() => { if (window.confirm('Usunąć to zadanie? Historia wykonania zostaje w archiwum.')) void run(() => archiveTask(task.taskId)); }}>
+              onClick={async () => { if (await askText('Usunąć to zadanie? Historia wykonania zostaje w archiwum.')) void run(() => archiveTask(task.taskId)); }}>
               Usuń
             </button>
           )}

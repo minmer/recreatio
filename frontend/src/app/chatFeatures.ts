@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+
 import { aad, Field, fromBase64Url, open, seal, toBase64Url } from './crypto';
 import { API, call, WorkspaceError } from './session';
 import type { Attachment } from './chat';
@@ -5,9 +7,9 @@ import type { Attachment } from './chat';
 export const chatEndpoint = (id: string, token?: string) => token
   ? `/seat/${encodeURIComponent(token)}/chat/${encodeURIComponent(id)}` : `/workspace/chat/${encodeURIComponent(id)}`;
 export interface AvailabilityWindow { day: number; start: number; end: number }
-export interface Preferences { timeZone: string; windows: AvailabilityWindow[] | null; useAvailability: boolean; muted: boolean; archived: boolean; readReceipts: boolean; shareAvailability?: boolean }
+export interface Preferences { timeZone: string; windows: AvailabilityWindow[] | null; useAvailability: boolean; muted: boolean; archived: boolean; readReceipts: boolean; shareAvailability?: boolean; shareOnline?: boolean }
 export interface Mark { messageId: string; mine: boolean; kind: string; value: string }
-export interface Features { common: Preferences; settings: Preferences | null; effective: Preferences; canWrite: boolean; postingPolicy: string; marks: Mark[]; typing: number; lastMessageAt: string | null; receipts: { roleIds: string[]; seatId: string | null; readAt: string | null; available: boolean | null }[] }
+export interface Features { common: Preferences; settings: Preferences | null; effective: Preferences; canWrite: boolean; postingPolicy: string; marks: Mark[]; typing: number; lastMessageAt: string | null; receipts: { roleIds: string[]; seatId: string | null; readAt: string | null; available: boolean | null; online?: boolean | null; onlineAt?: string | null }[] }
 export const defaultPreferences = (): Preferences => ({ timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, windows: [], useAvailability: false, muted: false, archived: false, readReceipts: false });
 export function availableNow(p: Preferences, now = new Date()): boolean {
   if (!p.useAvailability) return true;
@@ -18,6 +20,59 @@ export function availableNow(p: Preferences, now = new Date()): boolean {
   return (p.windows ?? []).some(w => w.day === day && minute >= w.start && minute < w.end);
 }
 const attachmentAad = () => aad('chat', 'attachment', 'file', Field.ChatMessage, 1);
+
+/**
+ * 0111 — W APLIKACJI: solange die Seite zu sehen ist, meldet sie sich alle
+ * 45 s (und sofort, wenn sie wieder nach vorn kommt). Daraus weiss der Dienst,
+ * wann eine Nachricht „gdy będzie online" hinausgehen darf — und wer es teilt
+ * (Einstellung „Pokazuj, kiedy jestem w aplikacji"), dem steht „online" im Kopf.
+ * `path`: `/workspace/online` für ein Konto, `…/chat/<id>/online` für einen Platz.
+ */
+export function startOnlineBeat(path: string): () => void {
+  let timer: number | undefined;
+  const beat = () => {
+    if (document.visibilityState !== 'visible') return;
+    void call(path, { method: 'POST' }).catch(() => undefined);
+  };
+  const onVisible = () => { if (document.visibilityState === 'visible') beat(); };
+  beat();
+  timer = window.setInterval(beat, 45_000);
+  document.addEventListener('visibilitychange', onVisible);
+  return () => { window.clearInterval(timer); timer = undefined; document.removeEventListener('visibilitychange', onVisible); };
+}
+
+/* Je Adresse EIN Takt, so viele Stellen ihn auch wollen (die Arbeitsfläche, die offene Rozmowa, ein Baustein der Seite). */
+const beats = new Map<string, { count: number; stop: () => void }>();
+
+/** 0111 — „ich bin in der App", solange diese Komponente steht (und die Seite zu sehen ist). */
+export function useOnline(path: string | null): void {
+  useEffect(() => {
+    if (path === null) return undefined;
+    const held = beats.get(path);
+    if (held !== undefined) held.count += 1;
+    else beats.set(path, { count: 1, stop: startOnlineBeat(path) });
+    return () => {
+      const one = beats.get(path);
+      if (one === undefined) return;
+      one.count -= 1;
+      if (one.count === 0) { one.stop(); beats.delete(path); }
+    };
+  }, [path]);
+}
+
+/** Wann jemand zuletzt in der App war — „przed chwilą", „dziś 12:30", „wczoraj 18:05", „3 paź". */
+export function lastOnline(iso: string, now = new Date()): string {
+  const at = new Date(iso);
+  const minutes = Math.round((now.getTime() - at.getTime()) / 60_000);
+  if (minutes < 2) return 'przed chwilą';
+  if (minutes < 60) return `${minutes} min temu`;
+  const time = at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((day(now) - day(at)) / 86_400_000);
+  if (days === 0) return `dziś ${time}`;
+  if (days === 1) return `wczoraj ${time}`;
+  return at.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
+}
 
 /**
  * Den versiegelten Anhang hinaus — mit XMLHttpRequest, weil nur er sagt, wie

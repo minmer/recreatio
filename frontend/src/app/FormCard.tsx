@@ -36,7 +36,7 @@ import { ExtensionEntry, ExtensionSheet } from './ExtensionSheet';
 import { deskChanged } from './entryDesk';
 import { useEntrySubject, useOfficeSubject, type EntrySubject } from './entrySubject';
 import { REPEAT_LABEL, repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
-import { PEOPLE_TAB, viewPath } from './routes';
+import { PEOPLE_TAB, formPath } from './routes';
 import { filledNow, loadSteps, type ExtensionInfo } from './steps';
 import { keysFor } from './ringOf';
 import { bindSeat, seatPath, type Link } from './seat';
@@ -47,6 +47,7 @@ import { detailsOf, personFieldOf, subjectsFor, type Subject } from './subject';
 import { OwnSubmissions } from './Submission';
 import { openPublicForm, paperNeeded, SignSheetButton } from './SignSheet';
 import { peselBirth, peselValid } from './pesel';
+import { Loading } from './ui/Loading';
 
 export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }: {
   partId: string;
@@ -274,7 +275,7 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
 
 
 
-  if (form === undefined) return <p className="wk-card-text">Wczytywanie…</p>;
+  if (form === undefined) return <Loading label="Wczytywanie…" />;
 
   if (form === null) {
     return <p className="wk-card-muted">{failed ?? 'Tu nie ma formularza.'}</p>;
@@ -633,11 +634,11 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
       {leads !== null && !extension && (
         <p className="wk-hint wk-form-leads">
           Prowadzisz ten formularz:{' '}
-          <a className="wk-link" href={viewPath('modules', 'form', partId, PEOPLE_TAB)}>lista osób</a>
+          <a className="wk-link" href={formPath(partId, PEOPLE_TAB)}>lista osób</a>
           {leads.map((one) => (
             <span key={one.moduleId}>
               {' · '}
-              <a className="wk-link" href={viewPath('modules', 'form', one.moduleId)}>
+              <a className="wk-link" href={formPath(one.moduleId)}>
                 {one.name}{repeatOf(one.repeat) !== 'once' && ` (${REPEAT_LABEL[repeatOf(one.repeat)]})`}
               </a>
             </span>
@@ -858,7 +859,7 @@ function OfficeOnly({ partId, baseId, title, repeat }: { partId: string; baseId:
     <>
       {title !== '' && <h2 className="wk-card-title">{title}</h2>}
       {who === undefined || leads === undefined ? (
-        <p className="wk-card-text">Wczytywanie…</p>
+        <Loading label="Wczytywanie…" />
       ) : who === null ? (
         <p className="wk-card-muted">Ten formularz wypełnia koordynator — po zalogowaniu.</p>
       ) : !leads ? (

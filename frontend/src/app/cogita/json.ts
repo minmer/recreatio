@@ -70,20 +70,24 @@ const docJson = (kind: DocKind, id: string, data: Readonly<Record<string, unknow
   return { ref: `@${id}`, ...rest, ...(kind === 'template' || kind === 'revision' ? { graph: graphJson(readGraph(data.graph)) } : {}), ...(kind === 'flow' ? { graph: graphJson(readGraph(data.graph, true)) } : {}) };
 };
 
-/** Die ganze Bibliothek als Kurs — oder, mit `only`, ein Teil davon. */
+/**
+ * Die ganze Baza wiedzy als Kurs — oder, mit `only`, ein Teil davon. 0110:
+ * nur, was ihr selbst gehört; ihre Quellen stehen als Verweise in den
+ * Einstellungen (`settings.sources`), nicht als Kopie.
+ */
 export function exportCourse(lib: CogitaLibrary, name: string, only?: { entities?: ReadonlySet<string>; docs?: ReadonlySet<DocKind> }): Record<string, unknown> {
   const docs: Record<string, unknown[]> = {};
   for (const kind of DOC_KINDS) {
     if (kind === 'kind' || kind === 'merge' || kind === 'contribution') continue;
     if (only?.docs !== undefined && !only.docs.has(kind)) continue;
-    docs[LIST_OF[kind]] = lib.docs(kind).map((e) => docJson(kind, e.id, e.data));
+    docs[LIST_OF[kind]] = lib.docs(kind).filter((e) => lib.isOwn(e.id)).map((e) => docJson(kind, e.id, e.data));
   }
   return {
     format: COURSE_FORMAT,
     version: 1,
     name,
-    kinds: lib.kinds.filter((k) => !isBaseKind(k.id) || lib.docs('kind').some((e) => e.data.builtin === k.id)).map((k) => ({ ref: `@${k.id}`, ...kindDoc(k) })),
-    entities: lib.entities().filter((e) => only?.entities === undefined || only.entities.has(e.id)).map((e) => entityJson(lib, e)),
+    kinds: lib.kinds.filter((k) => (!isBaseKind(k.id) && lib.isOwn(k.id)) || lib.docs('kind').some((e) => e.data.builtin === k.id)).map((k) => ({ ref: `@${k.id}`, ...kindDoc(k) })),
+    entities: lib.entities().filter((e) => lib.isOwn(e.id) && (only?.entities === undefined || only.entities.has(e.id))).map((e) => entityJson(lib, e)),
     ...docs
   };
 }
@@ -266,12 +270,12 @@ export async function applyImport(lib: CogitaLibrary, plan: ImportPlan, stage: (
 
 /** Was die Formate bedeuten — neben jedem Import. */
 export function courseDescription(lib?: CogitaLibrary): string {
-  const kinds = lib === undefined ? '' : `\nRodzaje tej biblioteki:\n${lib.kinds.map((k) => `  "${isBaseKind(k.id) ? k.id : k.name}" — ${k.name}: ${k.fields.map((f) => `${f.key} (${FIELD_TYPE_LABEL[f.type]}${f.multi ? ', kilka' : ''}${f.uncertain ? ', niepewne' : ''})`).join(', ')}`).join('\n')}\n`;
+  const kinds = lib === undefined ? '' : `\nRodzaje tej bazy wiedzy:\n${lib.kinds.map((k) => `  "${isBaseKind(k.id) ? k.id : k.name}" — ${k.name}: ${k.fields.map((f) => `${f.key} (${FIELD_TYPE_LABEL[f.type]}${f.multi ? ', kilka' : ''}${f.uncertain ? ', niepewne' : ''})`).join(', ')}`).join('\n')}\n`;
   return `# Cogita jako JSON
 
 Formaty:
   "${COURSE_FORMAT}" — cały kurs: rodzaje, wpisy, szablony kart, powtórki, przebiegi, zbiory, wygląd, zasady, wartości
-  "${SCHEMA_FORMAT}" — rodzaje z ich szablonami kart (niezależna kopia do innej biblioteki)
+  "${SCHEMA_FORMAT}" — rodzaje z ich szablonami kart (niezależna kopia do innej bazy wiedzy)
   "${ENTITIES_FORMAT}" — same wpisy (także wiedza i pytania)
   "${FLOW_FORMAT}" — przebieg razem z tym, co pokazuje
 

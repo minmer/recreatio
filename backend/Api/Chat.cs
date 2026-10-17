@@ -859,7 +859,10 @@ public static partial class Chat
         string Signature, long SignedAt, DateTimeOffset? SendAt = null, string? TopicId = null,
 
         /* 0095 — welche Person des Kontos durch die Rolle spricht (bei einer Person: sie selbst). */
-        string? PersonId = null);
+        string? PersonId = null,
+
+        /* 0111 — „gdy będzie online" (wartet auf jemanden, der zeigt, dass er da ist) und „bez dźwięku" (kein Push). */
+        bool WhenOnline = false, bool Silent = false);
 
     /// <summary>Was an einer Nachricht zu pruefen ist, bevor jemand gefragt wird, wer sie schreibt.</summary>
     private sealed record Incoming(Guid MessageId, int Epoch, byte[] Body, byte[] BodyHash, byte[] Signature,
@@ -937,8 +940,10 @@ public static partial class Chat
     /// <summary>Die Zeile — und der Chat bekommt seinen Zeitpunkt. 409, wenn es sie schon gibt.</summary>
     private static async Task<DateTimeOffset?> InsertAsync(
         HttpContext ctx, SqlConnection connection, ChatRow chat, Incoming message, Guid? authorRole, Guid? authorSeat, DateTimeOffset? sendAt = null,
-        string? topicText = null, Guid? authorPerson = null)
+        string? topicText = null, Guid? authorPerson = null, Guid? waitOnlineFrom = null, bool silent = false)
     {
+        /* 0111 — wer auf „online" wartet, wartet höchstens ein Jahr (dann geht sie trotzdem hinaus). */
+        if (waitOnlineFrom is not null) sendAt = DateTimeOffset.UtcNow.AddDays(364);
         /* 0068 — das Thema muss in DIESER Rozmowa liegen. */
         var topic = await TopicOfChatAsync(ctx, connection, chat, topicText);
         if (topic is { Ok: false }) return null;
@@ -951,8 +956,8 @@ public static partial class Chat
             await using (var insert = new SqlCommand("""
                 INSERT INTO app.chat_message
                     (id, chat_id, author_role_id, author_access_id, epoch, body_sealed, body_sha256,
-                     signature, signed_at, created_at, scheduled_at, schedule_state, topic_id, author_person_id)
-                VALUES (@id, @chat, @author, @seat, @epoch, @body, @hash, @sig, @signed, @now, @due, @state, @topic, @person);
+                     signature, signed_at, created_at, scheduled_at, schedule_state, topic_id, author_person_id, wait_online_from, silent)
+                VALUES (@id, @chat, @author, @seat, @epoch, @body, @hash, @sig, @signed, @now, @due, @state, @topic, @person, @wait, @silent);
                 INSERT INTO app.chat_message_version
                     (message_id, version, epoch, body_sealed, body_sha256, signature, signed_at, created_at)
                 VALUES (@id, 1, @epoch, @body, @hash, @sig, @signed, @now);
@@ -968,6 +973,8 @@ public static partial class Chat
                 insert.Parameters.AddWithValue("@author", (object?)authorRole ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@seat", (object?)authorSeat ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@person", (object?)authorPerson ?? DBNull.Value);
+                insert.Parameters.AddWithValue("@wait", (object?)waitOnlineFrom ?? DBNull.Value);
+                insert.Parameters.AddWithValue("@silent", silent);
                 insert.Parameters.AddWithValue("@epoch", message.Epoch);
                 insert.Parameters.AddWithValue("@body", message.Body);
                 insert.Parameters.AddWithValue("@hash", message.BodyHash);
@@ -1051,15 +1058,17 @@ public static partial class Chat
             return;
         }
 
-        if (!await ValidSendAtAsync(ctx, body.SendAt)) return;
-        var at = await InsertAsync(ctx, connection, chat, message, author, null, body.SendAt, body.TopicId, speaking.Person);
+        if (!await ValidSendAtAsync(ctx, body.SendAt) || !await OneWayAsync(ctx, body.SendAt, body.WhenOnline)) return;
+        var at = await InsertAsync(ctx, connection, chat, message, author, null, body.SendAt, body.TopicId, speaking.Person,
+            body.WhenOnline ? account : null, body.Silent);
         if (at is null) return;
+        var now = body.SendAt is null && !body.WhenOnline;
 
         /* Was ich selbst schreibe, habe ich gelesen — ausserhalb der Nachricht: ein Streit darum darf sie nicht kosten. */
-        if (body.SendAt is null) await MarkReadAsync(connection, null, chat.Id, account, at.Value, ctx.RequestAborted);
+        if (now) await MarkReadAsync(connection, null, chat.Id, account, at.Value, ctx.RequestAborted);
 
-        /* 0075 — die anderen wecken (eine geplante Nachricht weckt, wenn sie hinausgeht: ChatDelivery). */
-        if (body.SendAt is null) push.Chat(chat.Id, account);
+        /* 0075 — die anderen wecken (eine geplante Nachricht weckt, wenn sie hinausgeht: ChatDelivery) — 0111: „bez dźwięku" weckt niemanden. */
+        if (now && !body.Silent) push.Chat(chat.Id, account);
 
         await ctx.Response.WriteAsJsonAsync(new { messageId = Ids.ToText(message.MessageId), createdAt = at.Value });
     }
@@ -1755,7 +1764,7 @@ public static partial class Chat
     }
 
     public sealed record SeatPostRequest(string MessageId, int Epoch, string BodySealed, string Signature, long SignedAt, DateTimeOffset? SendAt = null,
-        string? TopicId = null);
+        string? TopicId = null, bool WhenOnline = false, bool Silent = false);
 
     /// <summary>
     /// EINE NACHRICHT VOM LINK — versiegelt unter dem Chatschluessel,
@@ -1789,10 +1798,11 @@ public static partial class Chat
             return;
         }
 
-        if (!await SeatMayPostAsync(ctx, chat) || !await ValidSendAtAsync(ctx, body.SendAt)) return;
-        var at = await InsertAsync(ctx, connection, chat, message, null, seat.Id, body.SendAt, body.TopicId);
+        if (!await SeatMayPostAsync(ctx, chat) || !await ValidSendAtAsync(ctx, body.SendAt) || !await OneWayAsync(ctx, body.SendAt, body.WhenOnline)) return;
+        var at = await InsertAsync(ctx, connection, chat, message, null, seat.Id, body.SendAt, body.TopicId, null,
+            body.WhenOnline ? seat.Id : null, body.Silent);
         if (at is null) return;
-        if (body.SendAt is null) push.Chat(chat.Id, null);
+        if (body.SendAt is null && !body.WhenOnline && !body.Silent) push.Chat(chat.Id, null);
 
         await ctx.Response.WriteAsJsonAsync(new { messageId = Ids.ToText(message.MessageId), createdAt = at.Value });
     }

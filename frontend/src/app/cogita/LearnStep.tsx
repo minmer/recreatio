@@ -16,6 +16,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { libraryKindOf } from '../library';
 import { useLibraries } from '../LibraryPick';
 import { useLibraryStore } from '../libraryStore';
 import { useMe, useWho } from '../me';
@@ -26,6 +27,7 @@ import { readPlan } from './revision';
 import { RevisionRun } from './RevisionRun';
 import { learnedShare, seatCtx, useSeatLearner, useSeatLibrary } from './seatLearn';
 import { Bar, CogitaContext, percent } from './ui';
+import { Loading } from '../ui/Loading';
 
 export interface LearnDraft {
   readonly libraryId: string;
@@ -37,13 +39,14 @@ export interface LearnDraft {
 
 export function LearnStep({ seat, registrationId, step }: { seat: SeatView; registrationId: string; step: StepState }) {
   const target = step.learn!;
-  const { lib, name, keyOf } = useSeatLibrary(seat, target.libraryId ?? '');
+  const opened = useSeatLibrary(seat, target.libraryId ?? '');
+  const { lib, name } = opened;
   const { learner, failed } = useSeatLearner(seat, lib);
   const [open, setOpen] = useState(false);
   const [measured, setMeasured] = useState<{ share: number; cards: readonly Card[] } | null>(null);
   const [tick, setTick] = useState(0);
   const ticking = useRef(false);
-  const ctx = useMemo(() => (lib == null ? null : seatCtx(lib, name, keyOf, seat.token)), [lib, name, keyOf, seat.token]);
+  const ctx = useMemo(() => (lib == null ? null : seatCtx(lib, opened, seat.token)), [lib, opened, seat.token]);
 
   useEffect(() => (learner === null ? undefined : learner.subscribe(() => setTick((n) => n + 1))), [learner]);
   useEffect(() => {
@@ -85,10 +88,10 @@ export function LearnStep({ seat, registrationId, step }: { seat: SeatView; regi
           <span className="wk-row-side">{' · '}{status}{step.dueAt !== null && step.status !== 'done' && ` · do ${dueText(step.dueAt)}`}</span>
           {step.help !== null && <p className="wk-hint">{step.help}</p>}
           <p className="wk-hint" data-learn-line="">
-            {lib === undefined ? 'Otwieranie biblioteki…'
-              : lib === null ? 'Biblioteka kursu nie jest dostępna z tego linku — zapytaj prowadzących.'
+            {lib === undefined ? 'Otwieranie bazy wiedzy…'
+              : lib === null ? 'Baza wiedzy kursu nie jest dostępna z tego linku — zapytaj prowadzących.'
               : measured === null ? 'Liczenie, ile już umiesz…'
-              : measured.cards.length === 0 ? 'W tej bibliotece nie ma jeszcze kart.'
+              : measured.cards.length === 0 ? 'W tej bazie wiedzy nie ma jeszcze kart.'
               : `Umiesz ${percent(measured.share)} — cel: ${percent(target.threshold)} · ${name}`}
           </p>
           {measured !== null && measured.cards.length > 0 && <Bar value={measured.share} label="Ile już umiesz" />}
@@ -113,7 +116,9 @@ export function LearnStep({ seat, registrationId, step }: { seat: SeatView; regi
 
 /** Im Reiter „Kroki": aus welcher Bibliothek, welche Powtórka (oder alle Karten), bis zu welcher Kenntnis. */
 export function PickLearn({ value, onPick }: { value: LearnDraft; onPick: (next: LearnDraft) => void }) {
-  const libraries = useLibraries();
+  const all = useLibraries();
+  /* 0110 — nauczyć się można z bazy wiedzy, nie z biblioteki. */
+  const libraries = all == null ? all : all.filter((l) => libraryKindOf(l) === 'knowledge');
   const me = useMe(useWho());
   const chosen = libraries?.find((l) => l.libraryId === value.libraryId) ?? null;
   const { store } = useLibraryStore(me?.ring ?? null, chosen);
@@ -121,8 +126,8 @@ export function PickLearn({ value, onPick }: { value: LearnDraft; onPick: (next:
   return (
     <>
       <label className="wk-inline">
-        <span className="wk-hint">Z biblioteki</span>
-        {libraries === undefined ? <span className="wk-hint">Wczytywanie…</span> : (
+        <span className="wk-hint">Z bazy wiedzy</span>
+        {libraries === undefined ? <Loading lines={1} /> : (
           <select value={value.libraryId} data-learn-library="" onChange={(e) => onPick({ ...value, libraryId: e.target.value, revisionId: '' })}>
             <option value="">— wybierz —</option>
             {(libraries ?? []).map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name}</option>)}
@@ -134,7 +139,7 @@ export function PickLearn({ value, onPick }: { value: LearnDraft; onPick: (next:
         <label className="wk-inline">
           <span className="wk-hint">Powtórka</span>
           <select value={value.revisionId} data-learn-revision="" onChange={(e) => onPick({ ...value, revisionId: e.target.value })}>
-            <option value="">— wszystkie karty biblioteki —</option>
+            <option value="">— wszystkie karty bazy wiedzy —</option>
             {(revisions ?? []).map((r) => <option key={r.id} value={r.id}>{typeof r.data.name === 'string' ? r.data.name : 'Powtórka'}</option>)}
             {value.revisionId !== '' && revisions !== null && !revisions.some((r) => r.id === value.revisionId) && <option value={value.revisionId}>(usunięta)</option>}
           </select>

@@ -142,6 +142,8 @@ export interface PartContext {
  * Feld, das an der anderen Stelle zum Textkasten wird.
  */
 export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'calendar' | 'calendars' | 'chat' | 'library' | 'libraryEntry'
+  /* 0110 — eine Baza wiedzy (Cogita), gewählt aus den eigenen; `library` wählt eine Bibliothek. */
+  | 'knowledge'
   /* 0070 — ein Termin eines Kalenders (`of` nennt das Feld mit dem Kalender). */
   | 'calendarItem'
   /* 0082 — eine Seite (ihr Pfad), gewählt aus den eigenen. */
@@ -248,6 +250,13 @@ export interface PartModule {
   readonly fullscreen: boolean;
 
   /**
+   * 2026-10-17 — UND BRAUCHT ER ES HIER? Ein Text aus zwei Zeilen gewinnt im
+   * ganzen Fenster nichts; an seiner Kachel stand trotzdem der Knopf (auf dem
+   * Telefon an jeder Karte). Sagt die Art nichts Genaueres, gilt `fullscreen`.
+   */
+  readonly fullFor: (raw: RawConfig) => boolean;
+
+  /**
    * 0081 — SEIN BEREICH GEHÖRT SEINEM EDITOR: „Napisz do nas" legt ihn selbst
    * an (die Rollen, die antworten). Die Auswahl „Obszar" der Moduleinstellungen
    * stünde dann daneben und könnte ihn wegnehmen — sie fehlt.
@@ -345,6 +354,7 @@ const FIELD_SAYS: Record<FieldKind, string> = {
   calendars: 'lista identyfikatorów kalendarzy — najprościej wybrać w edytorze',
   chat: 'identyfikator rozmowy grupy — najprościej wybrać w edytorze',
   library: 'identyfikator biblioteki — najprościej wybrać w edytorze',
+  knowledge: 'identyfikator bazy wiedzy (Cogita) — najprościej wybrać w edytorze',
   libraryEntry: 'identyfikator opublikowanego wpisu biblioteki — najprościej wybrać w edytorze',
   calendarItem: 'identyfikator terminu z wybranego kalendarza — najprościej wybrać w edytorze',
   page: 'ścieżka strony, np. "parafia/bierzmowanie/kandydat" — najprościej wybrać w edytorze'
@@ -462,7 +472,8 @@ export function definePart<C>(spec: {
   strip?: { title: string; open: string };
   /** 0102 — siehe `PartModule.Peek`. */
   peek?: ComponentType<{ config: C; moduleId: string }>;
-  fullscreen?: boolean;
+  /** Kann er das ganze Fenster brauchen — immer, oder nur bei diesem Inhalt (`PartModule.fullFor`)? */
+  fullscreen?: boolean | ((config: C) => boolean);
   ownArea?: boolean;
   Editor?: ComponentType<EditorProps>;
 
@@ -506,7 +517,11 @@ export function definePart<C>(spec: {
     shows: (raw, size) => spec.shows(spec.read(raw), size),
     strip: spec.strip ?? null,
     Peek,
-    fullscreen: spec.fullscreen ?? false,
+    fullscreen: spec.fullscreen !== undefined && spec.fullscreen !== false,
+    fullFor: (raw) => {
+      const full = spec.fullscreen;
+      return typeof full === 'function' ? full(spec.read(raw)) : full === true;
+    },
     ownArea: spec.ownArea ?? false,
     read: spec.read,
     Editor: spec.Editor ?? null,

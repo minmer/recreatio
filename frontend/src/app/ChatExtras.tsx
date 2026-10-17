@@ -87,6 +87,9 @@ export function PreferencesEditor({ value, inherited, onSave }: { value: Prefere
     {inherited !== undefined && <label><input type="checkbox" checked={p.archived} onChange={e => setP({ ...p, archived: e.target.checked })} /> Archiwizuj rozmowę</label>}
     <label><input type="checkbox" checked={p.readReceipts} onChange={e => setP({ ...p, readReceipts: e.target.checked })} /> Udostępniaj potwierdzenia odczytania</label>
     <label><input type="checkbox" checked={p.shareAvailability ?? false} onChange={e => setP({ ...p, shareAvailability: e.target.checked })} /> Pokazuj uczestnikom, czy jestem w godzinach dostępności</label>
+    {/* 0111 — wie „ostatnio widziany" in jedem Messenger, aber nur, wenn man es selbst will. */}
+    <label><input type="checkbox" checked={p.shareOnline ?? false} onChange={e => setP({ ...p, shareOnline: e.target.checked })} /> Pokazuj, kiedy jestem w aplikacji (online, ostatnio)</label>
+    {p.shareOnline === true && <p className="wk-hint">Inni zobaczą „online" albo czas ostatniej wizyty — i mogą wysłać wiadomość „gdy będzie online": przyjdzie po wejściu do aplikacji.</p>}
     {notices.available && <button type="button" onClick={() => void notices.ask().then(ok => setStatus(ok ? 'Powiadomienia włączone, gdy aplikacja jest otwarta.' : 'Powiadomienia nie są włączone.'))}>Włącz powiadomienia</button>}
     <button type="button" onClick={() => void save(p)}>Zapisz</button>
     {inherited !== undefined && <button type="button" onClick={() => void save(null)}>Przywróć wspólne ustawienia</button>}

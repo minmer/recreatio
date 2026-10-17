@@ -22,11 +22,13 @@ import { createPortal } from 'react-dom';
 
 import { authorOf as roleOrSeatOf, openMessage, type Attachment, type Opened, type SealedMessage, type SendOptions } from './chat';
 import { PreferencesEditor, type useChatExtras } from './ChatExtras';
-import { availableNow, downloadAttachment, photoForChat, uploadAttachment, type Features, type Mark } from './chatFeatures';
+import { availableNow, downloadAttachment, lastOnline, photoForChat, uploadAttachment, useOnline, type Features, type Mark } from './chatFeatures';
 import { clock as playClock, play as playSound, seek as seekSound, toggle as toggleSound, useNowPlaying } from './mediaPlayer';
 import { Modal } from './Modal';
 import { saveBlob } from './platform';
+import { ICON_PATHS, type IconName } from './ui/icons';
 import { call } from './session';
+import { plural } from './plural';
 
 /*
  * 0095 — WER SPRICHT, für die Gruppen im Verlauf, die Farbe und das Bild: die
@@ -48,47 +50,10 @@ const failure = (e: unknown, fallback: string) => (e instanceof Error && e.messa
 
 /* -- Zeichen ------------------------------------------------------------------ */
 
-/* Strichzeichnungen im Raster 24 × 24 (nach Feather/Lucide) — Emoji sähen auf jedem System anders aus. */
-const PATHS = {
-  send: <><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" /></>,
-  mic: <><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><path d="M12 19v3" /></>,
-  clip: <path d="m21.4 11-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />,
-  smile: <><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><path d="M9 9h.01M15 9h.01" /></>,
-  search: <><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></>,
-  more: <><circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" /></>,
-  back: <path d="M19 12H5m7 7-7-7 7-7" />,
-  check: <path d="M20 6 9 17l-5-5" />,
-  x: <path d="M18 6 6 18M6 6l12 12" />,
-  trash: <><path d="M3 6h18" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></>,
-  chevron: <path d="m6 9 6 6 6-6" />,
-  clock: <><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>,
-  reply: <><path d="m9 14-5-5 5-5" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></>,
-  forward: <><path d="m15 14 5-5-5-5" /><path d="M4 20v-7a4 4 0 0 1 4-4h12" /></>,
-  edit: <path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z" />,
-  copy: <><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>,
-  star: <path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.2-6.2 3.2L7 14.2 2 9.3l6.9-1z" />,
-  pin: <><path d="M12 17v5" /><path d="M5 17h14v-1.8a2 2 0 0 0-1.1-1.8l-1.8-.9A2 2 0 0 1 15 10.8V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2z" /></>,
-  history: <><path d="M1 4v6h6" /><path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10" /></>,
-  bell: <><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></>,
-  'bell-off': <><path d="M13.7 21a2 2 0 0 1-3.4 0" /><path d="M18.6 13A17.9 17.9 0 0 1 18 8" /><path d="M6.3 6.3A5.9 5.9 0 0 0 6 8c0 7-3 9-3 9h14" /><path d="M18 8a6 6 0 0 0-9.3-5" /><path d="m1 1 22 22" /></>,
-  users: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" /></>,
-  camera: <><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" /><circle cx="12" cy="13" r="3" /></>,
-  image: <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></>,
-  file: <><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M13 2v7h7" /></>,
-  music: <><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></>,
-  compose: <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z" /></>,
-  archive: <><path d="M21 8v13H3V8" /><path d="M1 3h22v5H1z" /><path d="M10 12h4" /></>,
-  lock: <><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>,
-  download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /><path d="M12 15V3" /></>,
-  play: <path d="M6 3l14 9-14 9z" />,
-  pause: <><path d="M6 4h4v16H6z" /><path d="M14 4h4v16h-4z" /></>,
-  ban: <><circle cx="12" cy="12" r="10" /><path d="m4.9 4.9 14.2 14.2" /></>,
-  bookmark: <path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />,
-  hash: <path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18" />,
-  area: <><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></>
-} as const;
+/* Strichzeichnungen im Raster 24 × 24 (nach Feather/Lucide) — die eine Sammlung der Anwendung (ui/icons.tsx). */
+const PATHS = ICON_PATHS;
 
-export type IconName = keyof typeof PATHS;
+export type { IconName };
 
 export function Icon({ name, label }: { name: IconName; label?: string }) {
   return (
@@ -160,8 +125,8 @@ export const sizeOf = (bytes: number) => bytes < 1024 * 1024
   : `${(bytes / 1024 / 1024).toLocaleString('pl-PL', { maximumFractionDigits: 1 })} MB`;
 
 /** Polnische Mehrzahl: 1 uczestnik, 2 uczestników … nein: 2 uczestnicy, 5 uczestników. */
-export const plural = (n: number, one: string, few: string, many: string) =>
-  n === 1 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? few : many;
+/* 2026-10-17 — die Mehrzahl steht in plural.ts (eine Zeile ohne die Rozmowa); hier weitergereicht. */
+export { plural };
 
 /* -- Text ---------------------------------------------------------------------------- */
 
@@ -464,6 +429,9 @@ interface Planned extends SealedMessage {
   readonly sendAt: string;
   readonly state: string;
   readonly preview: string;
+  /** 0111 — wartet, bis jemand online ist (`sendAt` ist dann nur das „najpóźniej"). */
+  readonly whenOnline?: boolean;
+  readonly silent?: boolean;
 }
 
 /** Die eigenen geplanten Nachrichten — mit dem Text, den nur der Absender öffnen kann. */
@@ -473,7 +441,7 @@ export function useScheduled(endpoint: string, keys: ReadonlyMap<number, Uint8Ar
 
   useEffect(() => {
     let live = true;
-    const load = () => call<{ messages: (SealedMessage & { sendAt: string; state: string })[] }>(`${endpoint}/scheduled`)
+    const load = () => call<{ messages: (SealedMessage & { sendAt: string; state: string; whenOnline?: boolean; silent?: boolean })[] }>(`${endpoint}/scheduled`)
       .then(async (found) => {
         const opened = await Promise.all(found.messages.map(async (m) => {
           const o = await openMessage(keys, m);
@@ -512,6 +480,8 @@ export function useChatChrome({ endpoint, extras, keys, canModerate = false, onP
   const [panel, setPanel] = useState<'prefs' | 'scheduled' | 'policy' | null>(null);
   const f = extras.features;
   const filter = extras.filter;
+  /* 0111 — solange die Rozmowa offen ist, ist man „w aplikacji" (ein Platz über seinen Link, ein Konto überhaupt). */
+  useOnline(endpoint.startsWith('/seat/') ? `${endpoint}/online` : '/workspace/online');
 
   const items: MenuItem[] = [
     { label: 'Zapisane wiadomości', icon: 'star', checked: filter === 'star', disabled: f === null, onSelect: () => extras.setFilter(filter === 'star' ? 'all' : 'star') },
@@ -552,7 +522,7 @@ export function useChatChrome({ endpoint, extras, keys, canModerate = false, onP
           }} />
         </Modal>
       )}
-      {panel === 'scheduled' && <ScheduledDialog endpoint={endpoint} scheduled={scheduled} onClose={() => setPanel(null)} />}
+      {panel === 'scheduled' && <ScheduledDialog endpoint={endpoint} scheduled={scheduled} onClose={() => setPanel(null)} onSent={() => void extras.refresh()} />}
       {panel === 'policy' && f !== null && (
         <PolicyDialog endpoint={endpoint} policy={f.postingPolicy} onClose={() => setPanel(null)}
           onDone={() => { void extras.refresh(); onPolicy?.(); }} />
@@ -565,18 +535,36 @@ export function useChatChrome({ endpoint, extras, keys, canModerate = false, onP
     quiet: f !== null && (f.effective.muted || !availableNow(f.effective)),
     channel: f?.postingPolicy === 'writers',
     available: f?.receipts.filter((r) => r.available === true).length ?? 0,
-    away: f?.receipts.filter((r) => r.available === false).length ?? 0
+    away: f?.receipts.filter((r) => r.available === false).length ?? 0,
+    /* 0111 — wer zeigt, wann er in der App ist: wie viele jetzt, und wie viele es überhaupt zeigen. */
+    online: f?.receipts.filter((r) => r.online === true).length ?? 0,
+    sharing: f?.receipts.filter((r) => r.online === true || r.online === false).length ?? 0
   };
 
-  return { items, banner, chip, dialogs, status, scheduled };
+  /*
+   * 0111 — „GDY BĘDZIE ONLINE" gibt es nur, wenn jemand aus der Rozmowa zeigt,
+   * wann er da ist (sonst verriete die Zustellung es) — und wenn er gerade
+   * nicht da ist, wäre es dasselbe wie „Wyślij": dann steht es nicht im Menü.
+   */
+  const onlineSend = status.sharing === 0 || status.online > 0 ? null
+    : status.sharing === 1 ? 'Wyślij, gdy będzie online' : 'Wyślij, gdy ktoś będzie online';
+
+  /* 0111 — was der Kopf darüber sagt: „online", „online: 3", oder wann der eine, der es teilt, zuletzt da war. */
+  const last = status.sharing === 1 ? f?.receipts.find((r) => r.online === false)?.onlineAt ?? null : null;
+  const presence = status.online > 0 ? (status.sharing === 1 ? 'online' : `online: ${status.online}`)
+    : last !== null ? `ostatnio w aplikacji: ${lastOnline(last)}` : null;
+
+  return { items, banner, chip, dialogs, status, scheduled, onlineSend, presence };
 }
 
 const localInput = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 
-function ScheduledDialog({ endpoint, scheduled, onClose }: {
+function ScheduledDialog({ endpoint, scheduled, onClose, onSent }: {
   endpoint: string;
   scheduled: ReturnType<typeof useScheduled>;
   onClose: () => void;
+  /** 0111 — eine ging gerade hinaus („Wyślij teraz"). */
+  onSent?: () => void;
 }) {
   const [said, setSaid] = useState<string | null>(null);
 
@@ -584,7 +572,8 @@ function ScheduledDialog({ endpoint, scheduled, onClose }: {
     <Modal title="Zaplanowane wiadomości" onClose={onClose}>
       {scheduled.list.length === 0 ? (
         <p className="wk-hint">
-          W tej rozmowie nic nie czeka. Wiadomość zaplanujesz, klikając prawym przyciskiem (albo przytrzymując) przycisk wysyłania.
+          W tej rozmowie nic nie czeka. Wiadomość na później — strzałka obok przycisku wysyłania (albo prawy przycisk, na telefonie przytrzymanie):
+          „Zaplanuj wysłanie…", „Wyślij bez dźwięku", a gdy ktoś pokazuje, kiedy jest w aplikacji — „Wyślij, gdy będzie online".
         </p>
       ) : (
         <ul className="ch-planned">
@@ -592,11 +581,20 @@ function ScheduledDialog({ endpoint, scheduled, onClose }: {
             <li key={m.messageId}>
               <p className="ch-planned-text">{m.preview || 'Wiadomość'}</p>
               <p className={m.state === 'failed' ? 'wk-error' : 'wk-hint'}>
-                {whenLong(m.sendAt)} — {m.state === 'failed' ? 'niewysłana: zmienił się dostęp albo klucz. Anuluj i zaplanuj ponownie.' : 'czeka na wysłanie'}
+                {m.whenOnline === true ? `Gdy będzie online (najpóźniej ${whenLong(m.sendAt)})` : whenLong(m.sendAt)}
+                {m.silent === true ? ' · bez dźwięku' : ''}
+                {' — '}{m.state === 'failed' ? 'niewysłana: zmienił się dostęp albo klucz. Anuluj i zaplanuj ponownie.' : 'czeka na wysłanie'}
               </p>
               <div className="ch-planned-tools">
                 {m.state === 'pending' && (
-                  <Reschedule endpoint={endpoint} messageId={m.messageId} sendAt={m.sendAt}
+                  <button type="button" className="wk-link-btn" onClick={() => {
+                    void call(`${endpoint}/scheduled/${m.messageId}/now`, { method: 'POST' })
+                      .then(() => { scheduled.drop(m.messageId); setSaid('Wysłano.'); onSent?.(); })
+                      .catch((e: unknown) => setSaid(failure(e, 'Nie udało się wysłać.')));
+                  }}>Wyślij teraz</button>
+                )}
+                {m.state === 'pending' && (
+                  <Reschedule endpoint={endpoint} messageId={m.messageId} sendAt={m.whenOnline === true ? new Date(Date.now() + 3_600_000).toISOString() : m.sendAt}
                     onDone={(text) => { setSaid(text); scheduled.refresh(); }} />
                 )}
                 <button type="button" className="wk-link-btn" onClick={() => {
@@ -1547,7 +1545,7 @@ interface Outgoing {
   readonly body: string;
   readonly files: readonly File[];
   readonly reply: ReplyTarget | null;
-  readonly sendAt?: string;
+  readonly how: Sending;
   readonly state: 'waiting' | 'sending' | 'failed';
   readonly note: string | null;
   readonly error: string | null;
@@ -1556,6 +1554,13 @@ interface Outgoing {
 export interface ComposerHandle {
   addFiles: (files: readonly File[]) => void;
   focus: () => void;
+}
+
+/** 0111 — wie eine Nachricht hinausgeht: jetzt, zu einer Zeit, wenn jemand online ist — und ob mit Klang. */
+interface Sending {
+  readonly sendAt?: string;
+  readonly whenOnline?: boolean;
+  readonly silent?: boolean;
 }
 
 const EMOJI = [
@@ -1670,9 +1675,11 @@ function FileChip({ file, busy, onRemove }: { file: File; busy: boolean; onRemov
 }
 
 /** Wann eine geplante Nachricht hinausgeht — schnell gewählt oder genau. Wie in Telegram: gewählt heisst gesendet. */
-function PlanDialog({ onPlan, onClose }: { onPlan: (iso: string) => void; onClose: () => void }) {
+function PlanDialog({ onPlan, onClose }: { onPlan: (iso: string, silent: boolean) => void; onClose: () => void }) {
   const [value, setValue] = useState(() => localInput(new Date(Date.now() + 3_600_000)));
   const [failed, setFailed] = useState<string | null>(null);
+  /* 0111 — auch eine geplante kann leise hinausgehen (nachts, früh am Morgen). */
+  const [silent, setSilent] = useState(false);
   const now = new Date();
   const atHour = (days: number, hour: number) => { const d = new Date(now); d.setDate(d.getDate() + days); d.setHours(hour, 0, 0, 0); return d; };
   const monday = atHour(((8 - now.getDay()) % 7) || 7, 9);
@@ -1687,7 +1694,7 @@ function PlanDialog({ onPlan, onClose }: { onPlan: (iso: string) => void; onClos
     if (Number.isNaN(d.getTime()) || d.getTime() <= Date.now() + 30_000) { setFailed('Wybierz przyszły termin.'); return; }
     if (d.getTime() > Date.now() + 365 * 86_400_000) { setFailed('Najdalej za rok.'); return; }
     onClose();
-    onPlan(d.toISOString());
+    onPlan(d.toISOString(), silent);
   };
 
   return (
@@ -1698,6 +1705,10 @@ function PlanDialog({ onPlan, onClose }: { onPlan: (iso: string) => void; onClos
       <label className="wk-field">
         <span>Dokładny termin</span>
         <input type="datetime-local" value={value} onChange={(e) => setValue(e.target.value)} />
+      </label>
+      <label className="ch-plan-silent">
+        <input type="checkbox" checked={silent} onChange={(e) => setSilent(e.target.checked)} />
+        <span>Bez dźwięku — nikogo nie obudzi powiadomieniem</span>
       </label>
       {failed !== null && <p className="wk-error">{failed}</p>}
       <div className="wk-actions">
@@ -1729,7 +1740,9 @@ export const Composer = forwardRef<ComposerHandle, {
   sendAs?: ReactNode;
   /** Gesendet werden kann gerade nicht — und das ist der Grund. */
   blocked?: string | null;
-}>(function Composer({ endpoint, readOnly = null, placeholder = 'Wiadomość', reply, onClearReply, editing, onCancelEdit, onSaveEdit, onSend, onEditLast, onScheduled, before, sendAs, blocked = null }, ref) {
+  /** 0111 — „Wyślij, gdy będzie online" im Menü des Senden-Knopfs (`useChatChrome().onlineSend`); `null`: nicht angeboten. */
+  onlineSend?: string | null;
+}>(function Composer({ endpoint, readOnly = null, placeholder = 'Wiadomość', reply, onClearReply, editing, onCancelEdit, onSaveEdit, onSend, onEditLast, onScheduled, before, sendAs, blocked = null, onlineSend = null }, ref) {
   const [text, setText] = useState('');
   const [files, setFiles] = useState<readonly File[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -1836,12 +1849,18 @@ export const Composer = forwardRef<ComposerHandle, {
       attachments.push(one);
     }
     note('Wysyłanie…');
+    const { sendAt, whenOnline, silent } = item.how;
     await onSend(item.body, {
       attachments,
       ...(item.reply !== null ? { replyTo: item.reply.id, replyText: (item.reply.text || 'Załącznik').slice(0, 500) } : {}),
-      ...(item.sendAt !== undefined ? { sendAt: item.sendAt } : {})
+      ...(sendAt !== undefined ? { sendAt } : {}),
+      ...(whenOnline === true ? { whenOnline: true } : {}),
+      ...(silent === true ? { silent: true } : {})
     });
-    if (item.sendAt !== undefined) { setNotice(`Zaplanowano na ${whenLong(item.sendAt)}.`); onScheduled?.(); }
+    const quiet = silent === true ? ' Bez dźwięku.' : '';
+    if (sendAt !== undefined) { setNotice(`Zaplanowano na ${whenLong(sendAt)}.${quiet}`); onScheduled?.(); }
+    else if (whenOnline === true) { setNotice(`Wyjdzie, gdy ktoś z rozmowy będzie online — czeka w „Zaplanowanych".${quiet}`); onScheduled?.(); }
+    else if (silent === true) setNotice('Wysłano bez dźwięku — nikogo nie obudzi.');
   };
 
   /*
@@ -1862,9 +1881,9 @@ export const Composer = forwardRef<ComposerHandle, {
   }, [outbox]);
 
   /* In den Ausgang — und das Feld ist sofort wieder frei. */
-  const enqueue = (body: string, list: readonly File[], sendAt?: string) => {
+  const enqueue = (body: string, list: readonly File[], how: Sending = {}) => {
     setFailed(null);
-    setOutbox((was) => [...was, { id: `${Date.now()}-${Math.random()}`, body, files: list, reply, sendAt, state: 'waiting', note: null, error: null }]);
+    setOutbox((was) => [...was, { id: `${Date.now()}-${Math.random()}`, body, files: list, reply, how, state: 'waiting', note: null, error: null }]);
     onClearReply();
   };
 
@@ -1874,7 +1893,7 @@ export const Composer = forwardRef<ComposerHandle, {
     if (el !== null && document.activeElement !== el) el.focus({ preventScroll: true });
   };
 
-  const send = async (sendAt?: string) => {
+  const send = async (how: Sending = {}) => {
     if (busy !== null) return;
     const body = text.trim();
     if (editing !== null) {
@@ -1888,7 +1907,7 @@ export const Composer = forwardRef<ComposerHandle, {
     if (blocked !== null) { setFailed(blocked); return; }
     if (preparing > 0) return;
     if (body === '' && files.length === 0) return;
-    enqueue(body, files, sendAt);
+    enqueue(body, files, how);
     setText('');
     setFiles([]);
     keepFocus();
@@ -2040,12 +2059,20 @@ export const Composer = forwardRef<ComposerHandle, {
               </button>
             )}
           </div>
+          {/* 0111 — wie in jedem Messenger, nur sichtbar: später, ohne Klang, wenn jemand online ist (auch per Rechtsklick / Halten des Knopfs). */}
+          {content && editing === null && (
+            <button type="button" className="ch-send-more" aria-label="Więcej opcji wysyłania" title="Wyślij później, bez dźwięku…" aria-haspopup="menu"
+              aria-expanded={pop?.kind === 'send'} disabled={busy !== null || preparing > 0}
+              onMouseDown={(e) => e.preventDefault()} onClick={(e) => toggle('send', e.currentTarget)}>
+              <Icon name="chevron" />
+            </button>
+          )}
           {content || editing !== null || !recorder.supported ? (
             <button
               type="submit"
               className="ch-send"
               aria-label={editing !== null ? 'Zapisz zmianę' : 'Wyślij'}
-              title={editing !== null ? 'Zapisz' : 'Wyślij · prawy przycisk albo przytrzymanie: zaplanuj'}
+              title={editing !== null ? 'Zapisz' : 'Wyślij · prawy przycisk albo przytrzymanie: później, bez dźwięku…'}
               disabled={busy !== null || preparing > 0 || (!content && editing === null)}
               onContextMenu={(e) => { if (editing !== null) return; e.preventDefault(); toggle('send', e.currentTarget); }}
               /* 0100 — der Knopf nimmt dem Feld den Fokus nicht: die Tastatur bleibt, die nächste Nachricht geht gleich. */
@@ -2090,6 +2117,8 @@ export const Composer = forwardRef<ComposerHandle, {
       )}
       {pop?.kind === 'send' && (
         <PopMenu anchor={{ rect: pop.rect, above: true }} from={pop.from} label="Wysyłanie" onClose={() => setPop(null)} items={[
+          { label: 'Wyślij bez dźwięku', icon: 'bell-off', onSelect: () => void send({ silent: true }) },
+          ...(onlineSend !== null ? [{ label: onlineSend, icon: 'users' as const, onSelect: () => void send({ whenOnline: true }) }] : []),
           { label: 'Zaplanuj wysłanie…', icon: 'clock', onSelect: () => setPlanning(true) }
         ]} />
       )}
@@ -2102,7 +2131,7 @@ export const Composer = forwardRef<ComposerHandle, {
           </div>
         </PopMenu>
       )}
-      {planning && <PlanDialog onClose={() => setPlanning(false)} onPlan={(iso) => void send(iso)} />}
+      {planning && <PlanDialog onClose={() => setPlanning(false)} onPlan={(iso, silent) => void send({ sendAt: iso, ...(silent ? { silent: true } : {}) })} />}
     </form>
   );
 });

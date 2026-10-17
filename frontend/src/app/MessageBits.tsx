@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import type { Opened, SealedVersion } from './chat';
 import { Modal } from './Modal';
 import { WorkspaceError } from './session';
+import { Loading } from './ui/Loading';
 
 const when = (at: string) => new Date(at).toLocaleString('pl-PL', {
   day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
@@ -46,7 +47,7 @@ export function HistoryDialog({ load, open, onClose }: {
   return (
     <Modal title="Wersje wiadomości" onClose={onClose}>
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {list === null && failed === null && <p className="wk-hint">Wczytywanie…</p>}
+      {list === null && failed === null && <Loading label="Wczytywanie…" />}
       {list !== null && (
         <ol className="wk-msg-history">
           {list.map(({ version, opened }, i) => (

@@ -14,7 +14,7 @@
  *   Zapisy na wydarzenie   Bereich · Formular (Imię, Nazwisko, Telefon, E-mail)
  *                          · Seite mit dem Formular · Rola uczestników
  *   Nowa grupa             Bereich · Rola członków · Rozmowa · Link zaproszenia
- *   Kurs (0109)            Bereich · Bibliothek · Rola uczących się · Przyjęcia
+ *   Kurs (0109)            Bereich · Baza wiedzy · Rola uczących się · Przyjęcia
  *                          für die Antworten · Powtórka codzienna · Link zum Kurs
  * </code>
  */
@@ -37,7 +37,9 @@ import { Modal } from './Modal';
 import { savePage, saveParts } from './page';
 import { forgetKeys, keysFor } from './ringOf';
 import { selfOf } from './roles';
-import { pageSteps, viewPath } from './routes';
+import { formPath, formsPath, pageSteps, viewPath } from './routes';
+import type { IconName } from './ui/icons';
+import { MenuButton } from './ui/Menu';
 import { createModule } from './module';
 import { call, WorkspaceError, type Who } from './session';
 import { areasNow, invalidate, refreshDesk } from './viewData';
@@ -51,7 +53,7 @@ const STARTERS: readonly { id: Starter; title: string; says: string; makes: stri
   { id: 'group', title: 'Nowa grupa', says: 'Schola, oaza, rada — miejsce, rozmowa i link dla członków.',
     makes: 'Powstanie: obszar grupy, rola członków, rozmowa grupy i link zaproszenia.' },
   { id: 'course', title: 'Kurs do nauki', says: 'Słówka, katechizm, przygotowanie do egzaminu — powtórki dla uczących się.',
-    makes: 'Powstanie: obszar kursu, biblioteka z codzienną powtórką, rola uczących się (czytają), przyjęcia odpowiedzi (widzisz postępy) i link dla uczących się.' }
+    makes: 'Powstanie: obszar kursu, baza wiedzy z codzienną powtórką, rola uczących się (czytają), przyjęcia odpowiedzi (widzisz postępy) i link dla uczących się.' }
 ];
 
 /** „Rekolekcje 2027" → „rekolekcje-2027" — so, wie eine Adresse heissen darf. */
@@ -113,12 +115,12 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
 
       if (starter === 'course') {
         /*
-         * 0109 — der Kurs: die Bibliothek im Bereich, die Antworten in DENSELBEN
+         * 0109 — der Kurs: die Baza wiedzy im Bereich, die Antworten in DENSELBEN
          * Bereich (Przyjęcia: nur das Amt öffnet sie), eine Powtórka aus allen
          * Karten, und ein Link, der die Rolle gibt und in den Kurs führt.
          */
-        setBusy('Zakładanie biblioteki…');
-        const libraryId = await createLibrary(ring, area.areaId, name.trim());
+        setBusy('Zakładanie bazy wiedzy…');
+        const libraryId = await createLibrary(ring, area.areaId, name.trim(), 'knowledge');
         setBusy('Klucz przyjęć odpowiedzi (kilka sekund)…');
         await createIntake(ring, area.areaId, person.id);
         setBusy('Codzienna powtórka…');
@@ -132,12 +134,12 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
         setBusy('Tworzenie linku dla uczących się…');
         const link = await createLink(role.ring, person, {
           label: name.trim(), roles: [{ roleId: role.roleId, lead: false }], once: false, expiresDays: 365,
-          aim: `workspace/library/${libraryId}/cogita`
+          aim: `workspace/learn/${libraryId}`
         });
         forgetKeys();
         invalidate();
         refreshDesk();
-        setDone({ open: viewPath('library', libraryId, 'cogita', 'wpisy'), label: 'Dodaj pierwsze wpisy', link: link.url });
+        setDone({ open: viewPath('learn', libraryId, 'wpisy'), label: 'Dodaj pierwsze wpisy', link: link.url });
         return;
       }
 
@@ -186,7 +188,7 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
       forgetKeys();
       invalidate();
       refreshDesk();
-      setDone({ open: page === null ? viewPath('modules', 'form', formId) : viewPath('pages', ...pageSteps(page)), label: page === null ? 'Otwórz formularz' : 'Otwórz stronę w edytorze', link: page === null ? undefined : `${window.location.origin}${window.location.pathname}#/${page}` });
+      setDone({ open: page === null ? formPath(formId) : viewPath('pages', ...pageSteps(page)), label: page === null ? 'Otwórz formularz' : 'Otwórz stronę w edytorze', link: page === null ? undefined : `${window.location.origin}${window.location.pathname}#/${page}` });
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się — część mogła już powstać; sprawdź w Obszarach.');
     } finally {
@@ -245,6 +247,34 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
         </form>
       )}
     </Modal>
+  );
+}
+
+/* -- 2026-10-16: „Nowe" im Kopf von Teraz ------------------------------------------------ */
+
+const STARTER_ICON: Record<Starter, IconName> = { signup: 'form', group: 'users', course: 'cap' };
+
+/**
+ * DIE ANFÄNGE ALS MENÜ — im Kopf von „Teraz", wo man etwas anlegt. Als Kacheln
+ * standen sie mitten auf der Startseite, jeden Tag, auch wenn man nichts anlegte.
+ */
+export function NewMenu({ who }: { who: Who }) {
+  const [open, setOpen] = useState<Starter | null>(null);
+  return (
+    <>
+      <MenuButton
+        label="Utwórz"
+        icon="plus"
+        text="Nowe"
+        className="wk-btn"
+        items={[
+          ...STARTERS.map((one) => ({ label: `${one.title}…`, icon: STARTER_ICON[one.id], onSelect: () => setOpen(one.id) })),
+          { label: 'Pusty formularz', icon: 'file' as IconName, onSelect: () => { window.location.hash = formsPath('new').slice(1); } },
+          { label: 'Nowy obszar', icon: 'layers' as IconName, onSelect: () => { window.location.hash = viewPath('areas', 'new').slice(1); } }
+        ]}
+      />
+      {open !== null && <StarterDialog who={who} starter={open} onClose={() => setOpen(null)} />}
+    </>
   );
 }
 

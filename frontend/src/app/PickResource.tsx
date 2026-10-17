@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react';
 
 import { KIND_LABEL, loadResources, type ResourceRow } from './resource';
+import { Loading } from './ui/Loading';
 
 export function PickResource({ value, busy, onPick }: {
   value: string;
@@ -30,7 +31,7 @@ export function PickResource({ value, busy, onPick }: {
     return () => { alive = false; };
   }, []);
 
-  if (rows === null) return <p className="wk-hint">Wczytywanie zasobów…</p>;
+  if (rows === null) return <Loading label="Wczytywanie zasobów…" />;
 
   const known = value === '' || rows.some((r) => r.resourceId === value);
 

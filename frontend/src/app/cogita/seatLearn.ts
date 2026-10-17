@@ -1,18 +1,19 @@
 /**
  * COGITA HINTER EINEM PERSÖNLICHEN LINK (0109, COGITA.md §7): ein Platz liest
- * die Bibliothek seines Kurses über seinen eigenen Weg (`/seat/…/library`)
+ * die Baza wiedzy seines Kurses über seinen eigenen Weg (`/seat/…/library`)
  * mit den Schlüsseln, die er hält (Freigabe oder die Rolle seines
  * Formulars, `areaReader`), und lernt als er selbst — seine Antworten gehen
- * versiegelt in den Bereich des Kurses.
+ * versiegelt in den Bereich des Kurses. 0110: ihre Quellen ebenso, jede mit
+ * dem Zugang des Platzes zu ihrem Bereich.
  *
  * Gebraucht vom Baustein „Nauka (osoba z linkiem)" und vom Schritt „Naucz się".
  */
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { areaReader } from '../areaRead';
-import { libraryNameWith, loadSeatEntries, loadSeatLibrary } from '../library';
-import { readOnlyStore } from '../libraryStore';
+import { areaReader, type AreaReader } from '../areaRead';
+import { libraryNameWith, loadSeatEntries, loadSeatLibrary, type LibraryRow } from '../library';
+import { readOnlyStore, type LibraryStore } from '../libraryStore';
 import type { SeatView } from '../seatContext';
 import type { Card } from './cards';
 import { holderOfSeat, useLearner } from './holders';
@@ -20,6 +21,7 @@ import { average, knownessOf, shareOf } from './knowness';
 import type { Holder, Learner } from './learn';
 import { runPython } from './python';
 import { planFor } from './RevisionRun';
+import { useSources, type OpenSource, type SourceState } from './sources';
 import { CogitaLibrary } from './store';
 import type { CogitaCtx } from './ui';
 
@@ -28,13 +30,33 @@ export interface SeatLibrary {
   readonly lib: CogitaLibrary | null | undefined;
   readonly name: string;
   readonly keyOf: (epoch: number) => Promise<Uint8Array | undefined>;
+  /** 0110 — die Schlüssel eines anderen Bereichs (die Dateien einer Quelle). */
+  readonly keyIn: (areaId: string, epoch: number) => Promise<Uint8Array | undefined>;
+  readonly sources: SourceState;
 }
 
-/** Die Bibliothek, wie dieser Platz sie liest — über seinen Weg, mit den Schlüsseln, die er hält. */
+/** Was ein Platz von einer Bibliothek liest: ihre Zeile (Bereich, Name) und ihre Hüllen — `null`: nicht lesbar. */
+export async function seatStore(token: string, libraryId: string, reader: AreaReader): Promise<{ row: LibraryRow; store: LibraryStore } | null> {
+  const row = await loadSeatLibrary(token, libraryId).catch(() => null);
+  if (row === null) return null;
+  const keys = async (area: string, epochs: readonly number[]) => {
+    const out = new Map<number, Uint8Array>();
+    for (const epoch of epochs) {
+      const key = await reader.key(area, epoch);
+      if (key !== undefined) out.set(epoch, key);
+    }
+    return out;
+  };
+  const store = readOnlyStore(row, (since) => loadSeatEntries(token, row.libraryId, since), keys);
+  await store.sync();
+  return { row, store };
+}
+
+/** Die Baza wiedzy, wie dieser Platz sie liest — über seinen Weg, mit den Schlüsseln, die er hält; dazu ihre Quellen. */
 export function useSeatLibrary(seat: SeatView, libraryId: string): SeatLibrary {
   const reader = useMemo(() => areaReader(null), []);
   const [lib, setLib] = useState<CogitaLibrary | null | undefined>(undefined);
-  const [name, setName] = useState('Biblioteka');
+  const [name, setName] = useState('Baza wiedzy');
   const [areaId, setAreaId] = useState<string | null>(null);
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -44,22 +66,14 @@ export function useSeatLibrary(seat: SeatView, libraryId: string): SeatLibrary {
     setLib(undefined);
     void (async () => {
       try {
-        const row = await loadSeatLibrary(seat.token, libraryId);
-        const keys = async (area: string, epochs: readonly number[]) => {
-          const out = new Map<number, Uint8Array>();
-          for (const epoch of epochs) {
-            const key = await reader.key(area, epoch);
-            if (key !== undefined) out.set(epoch, key);
-          }
-          return out;
-        };
-        const store = readOnlyStore(row, (since) => loadSeatEntries(seat.token, row.libraryId, since), keys);
+        const opened = await seatStore(seat.token, libraryId, reader);
+        if (opened === null) { if (alive) setLib(null); return; }
+        const { row, store } = opened;
         off = store.subscribe(() => setTick((n) => n + 1));
-        await store.sync();
         const nameKey = await reader.key(row.areaId, row.epoch);
         const made = new CogitaLibrary(store, false);
         made.python = runPython;
-        const named = nameKey === undefined ? 'Biblioteka' : await libraryNameWith(nameKey, row);
+        const named = nameKey === undefined ? 'Baza wiedzy' : await libraryNameWith(nameKey, row);
         if (!alive) return;
         setName(named);
         setAreaId(row.areaId);
@@ -70,8 +84,12 @@ export function useSeatLibrary(seat: SeatView, libraryId: string): SeatLibrary {
     })();
     return () => { alive = false; off(); };
   }, [seat.token, libraryId, reader]);
+  /* 0110 — die Quellen über denselben Weg: was dieser Platz nicht liest, fehlt. */
+  const open = useMemo<OpenSource>(() => async (ref) => (await seatStore(seat.token, ref.id, reader))?.store ?? null, [seat.token, reader]);
+  const sources = useSources(lib ?? null, open);
   const keyOf = useMemo(() => (epoch: number) => (areaId === null ? Promise.resolve(undefined) : reader.key(areaId, epoch)), [areaId, reader]);
-  return { lib, name, keyOf };
+  const keyIn = useMemo(() => (area: string, epoch: number) => reader.key(area, epoch), [reader]);
+  return { lib, name, keyOf, keyIn, sources };
 }
 
 /** Der Platz als Lernender dieser Bibliothek — seine Identität entsteht beim ersten Mal (wie für die Rozmowa). */
@@ -87,13 +105,13 @@ export function useSeatLearner(seat: SeatView, lib: CogitaLibrary | null | undef
 }
 
 /** Was die Bausteine von Cogita brauchen, für einen Platz (Dateien über seinen Weg, Hinweise über ihn). */
-export const seatCtx = (lib: CogitaLibrary, name: string, keyOf: SeatLibrary['keyOf'], token: string): CogitaCtx => ({
-  lib, name, writes: false, keyOf, seat: token, me: null, who: null, href: () => '#'
+export const seatCtx = (lib: CogitaLibrary, opened: Pick<SeatLibrary, 'name' | 'keyOf' | 'keyIn' | 'sources'>, token: string): CogitaCtx => ({
+  lib, name: opened.name, writes: false, keyOf: opened.keyOf, keyIn: opened.keyIn, sources: opened.sources, seat: token, me: null, who: null, href: () => '#'
 });
 
 /**
  * WIE GUT ER ES KANN — die mittlere Kenntnis über die Karten der
- * Wiederholung (ohne eine: über alle Karten der Bibliothek), 0..1. Gerechnet
+ * Wiederholung (ohne eine: über alle Karten der Baza wiedzy), 0..1. Gerechnet
  * im Browser; der Dienst sieht nur den Haken, wenn die Schwelle erreicht ist.
  */
 export async function learnedShare(lib: CogitaLibrary, learner: Learner, revisionId: string | null, now = Date.now()): Promise<{ share: number; cards: readonly Card[] }> {

@@ -31,7 +31,7 @@ export function CogitaJson() {
         preview={(doc) => { const p = planImport(lib, doc); return 'error' in p ? p : { lines: p.lines, warnings: p.warnings }; }}
         importLabel="Importuj i zapisz"
         onImport={async (doc, stage) => {
-          if (!writes) throw new WorkspaceError('W tej bibliotece możesz tylko czytać.');
+          if (!writes) throw new WorkspaceError('W tej bazie wiedzy możesz tylko czytać.');
           const p = planImport(lib, doc);
           if ('error' in p) throw new WorkspaceError(p.error);
           return applyImport(lib, p, stage);

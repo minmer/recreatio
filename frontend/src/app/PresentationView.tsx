@@ -30,7 +30,7 @@ import {
 } from 'react';
 
 import {
-  ASPECT, FONT_FACES, ORIGIN_AT, placeFor, resolveColor, travels,
+  ASPECT, FONT_FACES, insideX, keepInside, ORIGIN_AT, placeFor, resolveColor, travels,
   type Place, type Piece, type Scene, type Show
 } from './presentation';
 import {
@@ -69,6 +69,8 @@ interface Placed {
   readonly home: number;
   /** Je Szene (Index) sein Platz — für das Bild, das gerade gilt (hoch oder breit). */
   readonly places: ReadonlyMap<number, Place>;
+  /** Bleibt er hochkant ganz auf der Bühne (ein Text; Bild und Form dürfen über den Rand)? */
+  readonly inside: boolean;
   /** Steht er in der Tiefe seiner Szene (z ≠ 0)? */
   readonly deep: boolean;
 }
@@ -196,7 +198,7 @@ export function PresentationView({
   const [top, setTop] = useState(0);
   useEffect(() => {
     if (mode !== 'page') return undefined;
-    const header = document.querySelector<HTMLElement>('.wk-top');
+    const header = document.querySelector<HTMLElement>('[data-app-head]');
     const measure = () => setTop(header?.getBoundingClientRect().height ?? 0);
     measure();
     const watch = header !== null && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
@@ -227,20 +229,25 @@ export function PresentationView({
 
   const indexOf = useMemo(() => new Map(scenes.map((sc, i) => [sc.key, i])), [scenes]);
 
+  /* Hochkant bleibt ein Text ganz auf der Bühne (`insideX`). */
+  const narrowW = tall ? size.w : 0;
   const placed: Placed[] = useMemo(() => pieces.flatMap((one): Placed[] => {
     const places = new Map<number, Place>();
+    const inside = narrowW > 0 && one.kind !== 'image' && one.kind !== 'shape';
     for (const [key, place] of Object.entries(one.piece.places)) {
       const at = indexOf.get(key);
-      if (at !== undefined) places.set(at, placeFor(place, tall));
+      if (at === undefined) continue;
+      const seen = placeFor(place, tall);
+      places.set(at, inside ? keepInside(seen, one.piece.origin, narrowW) : seen);
     }
     if (places.size === 0) return [];
     const home = Math.min(...places.keys());
     const travel = travels(one.piece) || places.size > 1;
     return [{
       key: one.key, kind: one.kind, label: one.label, piece: one.piece, content: one.content,
-      travel, home, places, deep: !travel && (places.get(home)?.z ?? 0) !== 0
+      travel, home, places, inside, deep: !travel && (places.get(home)?.z ?? 0) !== 0
     }];
-  }), [pieces, indexOf, tall]);
+  }), [pieces, indexOf, tall, narrowW]);
 
   /* Die betonten Bausteine je Szene — für das Nachgehen, die Mitte und den Faden. */
   const stepped: Stepped[] = useMemo(() => placed.flatMap((one) => {
@@ -368,7 +375,7 @@ export function PresentationView({
           if (centre !== null && centre.count >= 2 && !reduced) {
             const away = yieldOf(place, centre);
             const push = 1 - f + 0.6 * dip;
-            dx += away.x * push;
+            dx += one.inside ? insideX(place, one.piece.origin, narrowW, place.x + away.x * push) - place.x : away.x * push;
             dy += away.y * push;
           }
         }

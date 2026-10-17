@@ -103,6 +103,14 @@ export const setController = (
     })
   });
 
+/** 2026-10-17 — der Administrator danych, der für einen Bereich GILT, und wo er eingetragen ist (er selbst oder einer darüber). */
+export interface AreaController extends Controller {
+  readonly fromAreaId: string;
+}
+
+export const loadAreaController = (areaId: string): Promise<{ areaId: string; controller: AreaController | null }> =>
+  call(`/workspace/area/${encodeURIComponent(areaId)}/controller`);
+
 /* -- Für das Formular ------------------------------------------------------- */
 
 export interface PublicIntake {

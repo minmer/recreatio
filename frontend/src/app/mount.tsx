@@ -15,6 +15,8 @@ import { App } from './App';
 import { keepFromAddress } from './seatKeep';
 import { keepLinkFromAddress } from './linkKeep';
 import './app.css';
+/* Das System NACH den Ansichten: bei gleichem Gewicht gewinnt es (ui/ui.css, Kopf). */
+import './ui/ui.css';
 
 /**
  * Den Schlüssel eines Platzes aus der Adresse nehmen — VOR dem ersten Bild.

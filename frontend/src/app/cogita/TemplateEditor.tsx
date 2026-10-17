@@ -12,7 +12,8 @@ import { cardsOf, readTemplate, TEMPLATE_PALETTE, templateProblems, type Templat
 import { evaluate, graphJson, type Graph } from './graph';
 import { GraphEditor } from './GraphEditor';
 import { TEMPLATE_PRESETS } from './presets';
-import { EntityPicker, useAsync, useBusy, useCtx } from './ui';
+import { EntityPicker, ForeignOnly, useAsync, useBusy, useCtx } from './ui';
+import { askText } from '../ui/dialogs';
 
 export function TemplateEditor({ chosenId, onChoose }: { chosenId: string | null; onChoose: (id: string | null) => void }) {
   const { lib, writes } = useCtx();
@@ -25,14 +26,14 @@ export function TemplateEditor({ chosenId, onChoose }: { chosenId: string | null
         <div className="cg-row">
           <select value={chosenId ?? ''} onChange={(e) => onChoose(e.target.value === '' ? null : e.target.value)} aria-label="Szablon">
             <option value="">— szablony kart ({templates.length}) —</option>
-            {templates.map((t) => <option key={t.id} value={t.id}>{t.name} · {t.kinds.map((k) => lib.kind(k)?.name ?? k).join(', ')}</option>)}
+            {templates.map((t) => <option key={t.id} value={t.id}>{t.name} · {t.kinds.map((k) => lib.kind(k)?.name ?? k).join(', ')}{lib.isOwn(t.id) ? '' : ` · z: ${lib.origin(t.id)?.name ?? '?'}`}</option>)}
           </select>
         </div>
         {writes && <NewTemplate onMade={onChoose} />}
       </div>
       {entry === undefined
         ? <p className="wk-hint">Szablon mówi, jak z wpisów jednego rodzaju powstają karty — np. „Kto napisał {'{tytuł}'}?" z polem autorów jako odpowiedzią. Zacznij od gotowego początku albo od pustego grafu.</p>
-        : <TemplateForm key={entry.id} template={readTemplate(entry.id, entry.data)} />}
+        : <ForeignOnly id={entry.id} tab="karty"><TemplateForm key={entry.id} template={readTemplate(entry.id, entry.data)} /></ForeignOnly>}
     </div>
   );
 }
@@ -154,7 +155,7 @@ function TemplateForm({ template }: { template: Template }) {
       {writes && (
         <div className="wk-actions">
           <button type="button" className="wk-btn" disabled={busy || !dirty} onClick={() => void save()}>{busy ? 'Zapisywanie…' : 'Zapisz szablon'}</button>
-          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => { if (window.confirm('Usunąć szablon? Karty z niego znikną z powtórek (odpowiedzi zostają).')) void run(() => lib.remove(draft.id)); }}>Usuń szablon</button>
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => { if (await askText('Usunąć szablon? Karty z niego znikną z powtórek (odpowiedzi zostają).')) void run(() => lib.remove(draft.id)); }}>Usuń szablon</button>
         </div>
       )}
     </div>

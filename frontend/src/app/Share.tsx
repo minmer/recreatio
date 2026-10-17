@@ -23,6 +23,7 @@ import { keysFor } from './ringOf';
 import { selfOf } from './roles';
 import { WorkspaceError, type Who } from './session';
 import { areasNow, invalidate } from './viewData';
+import { Icon } from './ui/icons';
 
 export interface ShareTarget {
   /** Wie es heisst — auch der Name des Links. */
@@ -53,7 +54,7 @@ export function ShareButton({ who, target, label = 'Udostępnij', className = 'w
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className={className} data-share="" onClick={() => setOpen(true)}>{label}</button>
+      <button type="button" className={className} data-share="" onClick={() => setOpen(true)}>{className.includes('wk-btn') && <Icon name="share" />}{label}</button>
       {open && <ShareDialog who={who} target={target} onClose={() => setOpen(false)} />}
     </>
   );

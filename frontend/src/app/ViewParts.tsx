@@ -23,21 +23,18 @@ import type { Desk } from './desk';
 import { accessWords, linkState } from './linkAccess';
 import { useNow } from './MassParts';
 import { useMe } from './me';
-import { useDisplay } from './display';
 import { current, subscribe } from './notify';
-import { partLabel } from './parts/registry';
-import { RecentRow } from './Recent';
 import { keysFor } from './ringOf';
 import { selfOf } from './roles';
-import { formNewsPath, pageSteps, viewPath, VIEWS, type View } from './routes';
+import { formNewsPath, formPath, pageSteps, viewPath } from './routes';
 import { loadSeats } from './seat';
 import { WorkspaceError, type Who } from './session';
-import { plural } from './ChatKit';
+import { plural } from './plural';
 import { ShareButton } from './Share';
-import { Starters } from './Starters';
 import { afterState, loadTasks, markDone, openTasks, windowState, type OpenTask, type TaskOccurrence } from './tasks';
 import { agendaNow, areasNow, chatsNow, invalidate, linksNow, modulesNow, useLoaded } from './viewData';
 import type { PartKind, ViewConfig } from './workspaceViews';
+import { Loading } from './ui/Loading';
 import { LearnPart } from './cogita/LearnPart';
 
 export interface PartProps {
@@ -54,7 +51,7 @@ const inScope = (scope: ReadonlySet<string> | null, areaId: string | null | unde
 const clock = (iso: string) => new Date(iso).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 
 function Waiting({ what }: { what: string }) {
-  return <p className="wk-hint">{what}</p>;
+  return <Loading label={what} lines={2} />;
 }
 
 /** Ohne offenen Schlüssel in dieser Karte — gesagt, nicht leer. */
@@ -84,7 +81,6 @@ function AlertsPart({ mode, scope, who }: PartProps) {
       {digest === null ? <Waiting what="Sprawdzanie…" />
         : items.length === 0 ? <p className="wk-now-calm">Nic nie czeka — wszystko przejrzane.</p>
         : <AlertRows items={items} compact={mode === 'compact'} />}
-      <p className="wk-part-foot"><a className="wk-link-btn" href={viewPath('account', 'widok')}>Co tu się pokazuje i w jakiej kolejności</a></p>
     </>
   );
 }
@@ -272,7 +268,7 @@ function FormsPart({ mode, scope }: PartProps) {
     <ul className="wk-part-list">
       {forms.flatMap((m) => [
         <li key={m.moduleId}>
-          <a href={newIn(m.moduleId) > 0 ? formNewsPath(m.moduleId) : viewPath('modules', 'form', m.moduleId)}>{m.name}</a>
+          <a href={newIn(m.moduleId) > 0 ? formNewsPath(m.moduleId) : formPath(m.moduleId)}>{m.name}</a>
           <span className="wk-hint">{m.entries} {plural(m.entries, 'zgłoszenie', 'zgłoszenia', 'zgłoszeń')}{m.closed ? ' · zamknięty' : ''}</span>
           {newIn(m.moduleId) > 0 && <span className="wk-tag wk-tag-new">nowe: {newIn(m.moduleId)}</span>}
         </li>,
@@ -401,7 +397,7 @@ function AccessPart({ mode, scope, view, who }: PartProps) {
           ))}
         </ul>
       )}
-      <p className="wk-part-foot">{share} <a className="wk-link-btn" href={viewPath('areas')}>Wszystkie linki</a></p>
+      <p className="wk-part-foot">{share} <a className="wk-link-btn" href={scope === null ? viewPath('areas') : viewPath('areas', view.areaIds[0], 'dostep')}>Wszystkie linki</a></p>
     </>
   );
 }
@@ -434,7 +430,6 @@ const OTHER_LEVEL: Record<string, string> = { read: 'czyta', write: 'pisze', adm
 
 function PeoplePart({ mode, view, who }: PartProps) {
   const areaId = view.areaIds[0];
-  const areasDisplay = useDisplay('areas');
   const people = useLoaded(areaId === undefined ? null : async () => {
     const { members } = await loadMembers(areaId);
     const named = new Map<string, string>();
@@ -471,80 +466,10 @@ function PeoplePart({ mode, view, who }: PartProps) {
       </ul>
       <p className="wk-part-foot">
         {people.seats > 0 && <span className="wk-hint">Osoby z linkiem (z formularzy): {people.seats}. </span>}
-        <button type="button" className="wk-link-btn" data-area-details="" onClick={() => areasDisplay.pick('full')}>Role i poziomy dostępu</button>
+        <a className="wk-link-btn" data-area-details="" href={viewPath('areas', areaId, 'osoby')}>Role i poziomy dostępu</a>
       </p>
     </>
   );
-}
-
-/* -- Na skróty, Ostatnio, Co chcesz zrobić, Wszystko ---------------------------------------- */
-
-function QuickPart() {
-  return (
-    <nav className="wk-now-quick" aria-label="Na skróty">
-      <a href={viewPath('calendar')}>Kalendarz</a>
-      <a href={viewPath('tasks')}>Zadania</a>
-      <a href={viewPath('chat')}>Rozmowy</a>
-      <a href={viewPath('modules')}>Formularze</a>
-      <button type="button" onClick={() => window.dispatchEvent(new Event('recreatio:search'))}>Szukaj <kbd>Ctrl K</kbd></button>
-    </nav>
-  );
-}
-
-function RecentPart({ desk }: PartProps) {
-  const modules = useLoaded(() => modulesNow(), []);
-  const areas = useLoaded(() => areasNow(), []);
-  const pages = desk.pages.filter((p) => p.aliasOf === null).map((p) => ({ id: p.path, label: p.path === '' ? 'recreatio.pl' : p.path, href: viewPath('pages', ...pageSteps(p.path)) }));
-  return (
-    <div className="wk-recent-block">
-      <RecentRow scope="pages" items={pages} max={5} />
-      <RecentRow scope="modules" items={(modules ?? []).map((m) => ({ id: m.moduleId, label: `${m.name} · ${partLabel(m.kind)}`, href: viewPath('modules', m.kind, m.moduleId) }))} max={5} />
-      <RecentRow scope="areas" items={(areas ?? []).map((a) => ({ id: a.areaId, label: a.name, href: viewPath('areas', a.areaId) }))} max={5} />
-      <p className="wk-hint wk-recent-empty">Tu pojawią się ostatnio otwierane strony, moduły i obszary.</p>
-    </div>
-  );
-}
-
-const TILE_SAYS: Partial<Record<View, string>> = {
-  areas: 'Grupy i wspólnoty: co nowego, terminy, osoby, dostęp.',
-  calendar: 'Twoje terminy i terminy Twoich grup.',
-  tasks: 'Co masz zrobić — o porze albo co pewien czas.',
-  masses: 'Msze, spowiedź, nabożeństwa, intencje i wydruk.',
-  bookings: 'Terminy u księdza, sale, dom — i kto co zajął.',
-  chat: 'Rozmowy grup i osób.',
-  library: 'Źródła, cytaty i Twoje teksty.',
-  learn: 'Powtórki, kursy, sesje i nauka bez internetu.',
-  registry: 'Adresy parafii, rodziny, plan kolędy.',
-  modules: 'Formularze i inne elementy stron.',
-  pages: 'Twoje strony — edycja i udostępnianie.',
-  addresses: 'Drugie wejście na stronę: alias albo domena.',
-  roles: 'Wszystkie role i kto kogo trzyma.',
-  account: 'Hasło, klucz, urządzenia, wygląd warsztatu.'
-};
-
-const MAIN_TILES: readonly View[] = ['areas', 'calendar', 'tasks', 'chat', 'masses', 'bookings', 'modules', 'pages', 'library', 'learn', 'registry', 'account'];
-const ALL_TILES: readonly View[] = [...MAIN_TILES, 'roles', 'addresses'];
-/* 0106 — ohne eigene Seite: nur, was man ohne sie braucht (kein Anlegen von Seiten und Formularen). */
-const BASIC_TILES: readonly View[] = ['calendar', 'tasks', 'chat', 'learn', 'areas', 'account'];
-
-function TilesPart({ mode, desk }: PartProps) {
-  return (
-    <div className="wk-tiles">
-      {(mode === 'all' ? ALL_TILES : mode === 'basic' ? BASIC_TILES : MAIN_TILES).map((view) => (
-        <a key={view} className="wk-tile" href={viewPath(view)} data-tile={view}>
-          <span className="wk-tile-head">
-            <span className="wk-tile-name">{VIEWS[view]}</span>
-            {view === 'pages' && <span className="wk-tile-count">{desk.pages.filter((p) => p.aliasOf === null).length}</span>}
-          </span>
-          <p className="wk-empty">{TILE_SAYS[view]}</p>
-        </a>
-      ))}
-    </div>
-  );
-}
-
-function StartersPart({ who }: PartProps) {
-  return <Starters who={who} />;
 }
 
 /* -- Die Zuordnung ------------------------------------------------------------------------ */
@@ -559,9 +484,5 @@ export const PART_VIEWS: Record<PartKind, (props: PartProps) => ReactNode> = {
   pages: PagesPart,
   access: AccessPart,
   people: PeoplePart,
-  quick: QuickPart,
-  recent: RecentPart,
-  starters: StartersPart,
-  tiles: TilesPart,
   learn: LearnPart
 };

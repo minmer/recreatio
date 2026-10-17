@@ -16,8 +16,9 @@
 
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
-import { pageSteps, PATH_SHAPE, ROOT_STEP, viewPath, VIEWS, type Spot, type View } from './routes';
+import { formsPath, pageSteps, PATH_SHAPE, ROOT_STEP, tilesPath, viewPath, VIEWS, type Spot, type View } from './routes';
 import { useCrumbs } from './crumbTrail';
+import { useOnline } from './chatFeatures';
 import { FormOffice } from './FormOffice';
 import { loadModules, readConfig, type ModuleRow } from './module';
 import { partLabel } from './parts/registry';
@@ -32,7 +33,7 @@ import { MassOffice } from './MassOffice';
 import { PageEditor } from './PageEditor';
 import { RoleGraph } from './RoleGraph';
 import { WorkspaceError, type Who } from './session';
-import { RecentRow, useTouched } from './Recent';
+import { useTouched } from './Recent';
 import { SlugTree } from './SlugTree';
 import { TasksView } from './TasksView';
 import { LibraryView } from './LibraryView';
@@ -41,16 +42,18 @@ import { claimSlug, loadDesk, takers, type Desk } from './desk';
 import { roleLabel, useRoleNames } from './roleNames';
 import { treeOf } from './tree';
 import { WorkspaceHome } from './WorkspaceHome';
-import { DisplaySwitch } from './DisplaySwitch';
-import { useDisplay, type Tool } from './display';
+import { Loading } from './ui/Loading';
+import { PageHeader } from './ui/PageHeader';
+import { useRemembered } from './prefs';
 import { ShareButton } from './Share';
-import { MINE } from './workspaceViews';
 import { DESK_EVENT } from './viewData';
 
 /* 0109 — die Nauka als eigenes Bündel (Karten, Läufe, Sitzungen): erst, wenn man sie öffnet. */
 const LearnView = lazy(() => import('./cogita/LearnView').then((m) => ({ default: m.LearnView })));
 
 export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
+  /* 0111 — angemeldet und die Seite zu sehen: „w aplikacji" (für „Wyślij, gdy będzie online" und wer es teilt). */
+  useOnline('/workspace/online');
   /** `undefined` = noch nicht nachgesehen, `null` = ging nicht. */
   const [desk, setDesk] = useState<Desk | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
@@ -92,7 +95,7 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
     );
   }
 
-  if (desk === undefined) return <p className="wk-lede">Wczytywanie…</p>;
+  if (desk === undefined) return <Loading />;
 
   if (desk === null) {
     return (
@@ -119,13 +122,17 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
           eigenen Namen (`AreaPage`), und der ist der richtige.
         */}
         {/* Rozmowy (0062) tragen ihren Namen selbst — oben in der Liste, wie in einer Chat-App. */}
-        {spot.trail.length === 0 && spot.view !== 'chat' && spot.view !== 'widok' && (
-          <div className="wk-view-title">
-            <h1 className="wk-h1">{VIEWS[spot.view]}</h1>
-            {/* 0094 — einfach oder erweitert, für diesen Teil (gemerkt mit „Zapisz"). */}
-            {TOOL_OF[spot.view] !== undefined && <DisplaySwitch tool={TOOL_OF[spot.view]!} />}
-          </div>
+        {/*
+          2026-10-16 — KEIN „Sposób wyświetlania" mehr: jede Ansicht hat EINEN
+          Aufbau, und was selten gebraucht wird, steht dort, wo man es braucht
+          (ein Reiter, „⋯"). Biblioteka und Nauka tragen ihren Titel selbst.
+        */}
+        {spot.trail.length === 0 && !OWN_TITLE.has(spot.view) && (
+          <PageHeader title={VIEWS[TITLE_OF[spot.view] ?? spot.view]} />
         )}
+
+        {/* Zadania sind ein Reiter des Kalenders, kein eigener Ort. */}
+        {spot.trail.length === 0 && (spot.view === 'calendar' || spot.view === 'tasks') && <CalendarTabs at={spot.view} />}
 
         <Inside
           view={spot.view}
@@ -142,26 +149,33 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   return <WorkspaceHome who={who} desk={desk} />;
 }
 
-/** Welche Ansicht welchen Teil mit eigenem Weg hat (`display.ts`). */
-const TOOL_OF: Partial<Record<View, Tool>> = {
-  areas: 'areas', modules: 'modules', pages: 'pages', roles: 'roles', addresses: 'addresses'
-};
+/** Ansichten, die ihren Titel selbst tragen. */
+const OWN_TITLE: ReadonlySet<View> = new Set<View>(['chat', 'widok', 'library', 'learn', 'forms', 'areas']);
 
-/**
- * 0094 — EIN TEIL NUR IM ERWEITERTEN WEG (Role, Adresy i domeny): im einfachen
- * steht, wo man dasselbe findet, und wie man ihn trotzdem öffnet.
- */
-function OnlyExtended({ tool, children, where }: { tool: Tool; children: React.ReactNode; where: React.ReactNode }) {
-  const display = useDisplay(tool);
-  if (display.extended) return <>{children}</>;
+/** Unter welchem Namen eine Ansicht steht — Zadania unter Kalendarz. */
+const TITLE_OF: Partial<Record<View, View>> = { tasks: 'calendar' };
+
+/** Kalendarz | Zadania — zwei Reiter, zwei Adressen. */
+function CalendarTabs({ at }: { at: 'calendar' | 'tasks' }) {
   return (
-    <div className="wk-only-extended">
-      <p className="wk-lede">{where}</p>
-      <button type="button" className="wk-btn wk-btn-quiet" data-show-extended={tool}
-        onClick={() => display.pick(display.def.modes.find((one) => one.extended)!.id)}>Pokaż mimo to</button>
-    </div>
+    <nav className="wk-tabs" aria-label="Kalendarz">
+      <a className={at === 'calendar' ? 'wk-tab wk-tab-on' : 'wk-tab'} aria-current={at === 'calendar' ? 'page' : undefined} href={viewPath('calendar')}>Terminy</a>
+      <a className={at === 'tasks' ? 'wk-tab wk-tab-on' : 'wk-tab'} aria-current={at === 'tasks' ? 'page' : undefined} href={viewPath('tasks')}>Zadania</a>
+    </nav>
   );
 }
+
+/** Eine alte Adresse führt zur neuen — ersetzt, damit Zurück nicht im Kreis geht. */
+function Redirect({ to }: { to: string }) {
+  useEffect(() => { window.location.replace(to); }, [to]);
+  return <Loading />;
+}
+
+/** Was unter `forms` steht, so wie `Modules` es liest (`form/<kennung>`, `mapa-formularzy`). */
+const formsTrail = (trail: readonly string[]): readonly string[] =>
+  trail.length === 0 || trail[0] === FORM_MAP_STEP ? trail : ['form', ...trail];
+
+const FORM_MAP_STEP = 'mapa-formularzy';
 
 /* -- Eine Kachel ganz ------------------------------------------------------ */
 
@@ -180,27 +194,21 @@ function Inside({ view, trail, desk, who, onChanged }: {
   who: Who;
   onChanged: () => void;
 }) {
+  if (view === 'forms') return <Modules who={who} trail={formsTrail(trail)} forms />;
+  /* Die alte Adresse eines Formulars (`modules/form/<kennung>`) — eine Adresse je Ding. */
+  if (view === 'modules' && trail[0] === 'form') return <Redirect to={formsPath(...trail.slice(1))} />;
   if (view === 'modules') return <Modules who={who} trail={trail} />;
   if (view === 'pages') {
     return <Pages desk={desk} who={who} trail={trail} onClaimed={onChanged} />;
   }
-  if (view === 'addresses') {
-    return (
-      <OnlyExtended tool="addresses" where={<>Alias albo własną domenę ustawia się rzadko — dlatego ta część jest w widoku rozszerzonym. Twoje strony są w <a href={viewPath('pages')}>Stronach</a>.</>}>
-        <Addresses desk={desk} who={who} onChanged={onChanged} />
-      </OnlyExtended>
-    );
-  }
-  if (view === 'roles') {
-    return (
-      <OnlyExtended tool="roles" where={<>Kto ma dostęp, widać w każdym <a href={viewPath('areas')}>obszarze</a> (część „Osoby" i „Dostęp") i przy linkach. Graf wszystkich ról jest w widoku rozszerzonym.</>}>
-        <RoleGraph who={who} />
-      </OnlyExtended>
-    );
-  }
+  if (view === 'addresses') return <Addresses desk={desk} who={who} onChanged={onChanged} />;
+  if (view === 'roles') return <RoleGraph who={who} />;
   if (view === 'areas') return <Areas who={who} trail={trail} desk={desk} />;
-  /* 0094 — ein Widok aus der Adresse (`#/workspace/widok/<kennung>`). */
-  if (view === 'widok') return <WorkspaceHome who={who} desk={desk} viewId={trail[0] ?? MINE} />;
+  /* 0094 — die Adresse eines Widoks führt dorthin, wo er jetzt steht: der eines Bereichs in den Bereich, jeder andere nach Hause. */
+  if (view === 'widok') {
+    const area = /^area:(.+)$/.exec(trail[0] ?? '')?.[1];
+    return <Redirect to={area === undefined ? tilesPath() : viewPath('areas', area)} />;
+  }
   if (view === 'calendar') return <CalendarApp who={who} trail={trail} />;
   if (view === 'tasks') return <TasksView who={who} />;
   if (view === 'masses') return <MassOffice who={who} trail={trail} />;
@@ -208,7 +216,7 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'account') return <Account who={who} trail={trail} />;
   if (view === 'chat') return <ChatView who={who} trail={trail} />;
   if (view === 'library') return <LibraryView who={who} trail={trail} />;
-  if (view === 'learn') return <Suspense fallback={<p className="wk-lede">Wczytywanie…</p>}><LearnView who={who} trail={trail} /></Suspense>;
+  if (view === 'learn') return <Suspense fallback={<Loading />}><LearnView who={who} trail={trail} /></Suspense>;
   if (view === 'registry') return <Kartoteka who={who} trail={trail} />;
 
   /* Jede Ansicht steht oben; was hier ankommt, gibt es (noch) nicht. */
@@ -373,7 +381,8 @@ function Pages({ desk, who, trail, onClaimed }: {
     }
   };
 
-  const pagesDisplay = useDisplay('pages');
+  /* Liste oder Baum — eine Ansicht derselben Seiten, kein „Sposób wyświetlania". */
+  const [shape, setShape] = useRemembered('pages.shape', 'list');
 
   return (
     <>
@@ -382,18 +391,13 @@ function Pages({ desk, who, trail, onClaimed }: {
           Nie prowadzisz jeszcze żadnego adresu. Adres się przejmuje: musi być
           na liście i trzeba mieć do niego kod.
         </p>
-      ) : !pagesDisplay.extended ? (
-        /* 0094 — EINFACH: die Seiten untereinander; offen ist eine, dann nur der Weg zurück. */
-        editing === null && moduleId === null ? (
-          <PageList desk={desk} who={who} />
-        ) : (
-          <p><a className="wk-link-btn" href={viewPath('pages')}>‹ Wszystkie strony</a></p>
-        )
-      ) : (
+      ) : editing !== null || moduleId !== null ? null : (
         <>
-        <RecentRow scope="pages" items={desk.pages.map((one) => ({
-          id: one.path, label: one.path === '' ? 'recreatio.pl' : one.path, href: viewPath('pages', ...pageSteps(one.path))
-        }))} />
+        <div className="wk-seg" role="group" aria-label="Jak pokazać strony">
+          <button type="button" className={shape !== 'tree' ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={shape !== 'tree'} onClick={() => setShape('list')}>Lista</button>
+          <button type="button" className={shape === 'tree' ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={shape === 'tree'} onClick={() => setShape('tree')}>Drzewo adresów</button>
+        </div>
+        {shape !== 'tree' ? <PageList desk={desk} who={who} /> : (
         <SlugTree
           nodes={treeOf(desk.pages)}
           desk={desk}
@@ -407,6 +411,7 @@ function Pages({ desk, who, trail, onClaimed }: {
           }}
           onChanged={onClaimed}
         />
+        )}
         </>
       )}
 
@@ -520,9 +525,6 @@ function PageList({ desk, who }: { desk: Desk; who: Who }) {
   const pages = desk.pages.filter((one) => one.aliasOf === null).sort((a, b) => a.path.localeCompare(b.path));
   return (
     <>
-      <RecentRow scope="pages" items={pages.map((one) => ({
-        id: one.path, label: one.path === '' ? 'recreatio.pl' : one.path, href: viewPath('pages', ...pageSteps(one.path))
-      }))} />
       <ul className="wk-page-list">
         {pages.map((one) => {
           const areas = one.accessAreaIds ?? [];

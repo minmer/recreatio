@@ -113,7 +113,7 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
   const card = (part: DraftPart, size = full): ReactNode => {
     const def = partOf(part.kind);
     const slide = readSlide(part.layout);
-    const canFull = def !== undefined && def.fullscreen && !hidden.has(part.id);
+    const canFull = def !== undefined && def.fullFor(part.config) && !hidden.has(part.id);
     return (
       <MotionBox motions={slide.motion} bare className="wk-deck-move">
         <article className={`wk-card wk-card-${part.kind} wk-deck-card${canFull ? ' has-full' : ''}`} data-w={size.width} data-h={size.height}>

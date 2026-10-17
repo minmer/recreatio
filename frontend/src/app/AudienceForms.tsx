@@ -12,9 +12,10 @@
 import { useEffect, useState } from 'react';
 
 import { linkAudienceForm, othersWrite, type AudienceForm, type AudienceMode } from './audience';
-import { plural } from './ChatKit';
+import { plural } from './plural';
 import { loadModules, type ModuleRow } from './module';
 import { WorkspaceError } from './session';
+import { askText } from './ui/dialogs';
 
 export function AudienceForms({ kind, subjectId, mode, forms, byRoleId, what, onChanged }: {
   /** Woran die Formulare hängen — wie der Dienst es kennt (`chat`). */
@@ -80,8 +81,8 @@ export function AudienceForms({ kind, subjectId, mode, forms, byRoleId, what, on
               </span>
               {byRoleId !== null && (
                 <button type="button" className="wk-link-btn wk-danger" disabled={busy}
-                  onClick={() => {
-                    if (!window.confirm(`Odłączyć formularz „${f.name}"? Kto go wypełnił, przestanie widzieć ${what} (chyba że ma link do obszaru).`)) return;
+                  onClick={async () => {
+                    if (!(await askText(`Odłączyć formularz „${f.name}"? Kto go wypełnił, przestanie widzieć ${what} (chyba że ma link do obszaru).`))) return;
                     void act(f.moduleId, false);
                   }}>
                   Odłącz

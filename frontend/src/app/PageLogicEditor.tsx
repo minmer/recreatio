@@ -39,6 +39,7 @@ import { partLabel } from './parts/registry';
 import { keysFor } from './ringOf';
 import { WorkspaceError, type Who } from './session';
 import { loadSteps, openSteps, type StepKind } from './steps';
+import { Loading } from './ui/Loading';
 
 /* -- Was der Editor über Formulare weiss ----------------------------------------------- */
 
@@ -528,7 +529,7 @@ function Inspector({ node, parts, partName, forms, questions, marks, onPatch, on
       )}
 
       {node.kind === 'mark' && node.formId !== undefined && (
-        marks === null ? <p className="wk-hint">Wczytywanie znaczników…</p>
+        marks === null ? <Loading label="Wczytywanie znaczników…" />
         : marks.length === 0 ? <p className="wk-hint">Ten formularz nie ma znaczników — dodasz je w jego zakładce „Znaczniki".</p>
         : (
           <label className="wk-field">
@@ -625,7 +626,7 @@ function AnswerSettings({ node, questions, onPatch }: {
 
   return (
     <>
-      {questions === null ? <p className="wk-hint">Wczytywanie pytań…</p> : (
+      {questions === null ? <Loading label="Wczytywanie pytań…" /> : (
         <label className="wk-field">
           <span>Pytanie</span>
           <select value={node.fieldId ?? ''} onChange={(e) => onPatch({ fieldId: e.target.value || undefined, valueHash: undefined })}>

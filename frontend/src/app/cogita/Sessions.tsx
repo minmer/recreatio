@@ -43,6 +43,8 @@ import { loadPublishedOne } from '../library';
 import { publicFileUrl } from './files';
 import type { PublicFlow } from './publish';
 import { CogitaContext, useBusy, useCtx } from './ui';
+import { askText } from '../ui/dialogs';
+import { Loading } from '../ui/Loading';
 
 /* -- Was in den Ereignissen steht ----------------------------------------------------------- */
 
@@ -99,7 +101,7 @@ export function SessionsTab({ trail, go }: { trail: readonly string[]; go: (...t
   return (
     <div className="cg">
       {writes && me !== null && <NewSession onMade={(id) => { setTick((n) => n + 1); go(id); }} />}
-      {rows === null ? <p className="wk-lede">Wczytywanie sesji…</p> : rows.length === 0 ? <p className="wk-empty">Nie ma jeszcze sesji tej biblioteki.</p> : (
+      {rows === null ? <Loading label="Wczytywanie sesji…" /> : rows.length === 0 ? <p className="wk-empty">Nie ma jeszcze sesji tej bazy wiedzy.</p> : (
         <ul className="lib-list">
           {rows.map((s) => (
             <li key={s.sessionId}>
@@ -140,7 +142,7 @@ function NewSession({ onMade }: { onMade: (id: string) => void }) {
         </label>
         <label className="wk-field"><span>Tytuł</span><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="np. Quiz na festynie" /></label>
         <label className="wk-field"><span>W obszarze (klasa, grupa) — tam trafiają wyniki</span>
-          <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>{[{ areaId: lib.areaId, name: 'obszar biblioteki' } as AreaRow, ...areas.filter((a) => a.areaId !== lib.areaId)].map((a) => <option key={a.areaId} value={a.areaId}>{a.name}</option>)}</select>
+          <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>{[{ areaId: lib.areaId, name: 'obszar bazy wiedzy' } as AreaRow, ...areas.filter((a) => a.areaId !== lib.areaId)].map((a) => <option key={a.areaId} value={a.areaId}>{a.name}</option>)}</select>
         </label>
         {(kind === 'live' || kind === 'async' || kind === 'sync') && (
           <label className="wk-field"><span>Powtórka (pytania)</span>
@@ -289,7 +291,7 @@ function SessionHost({ session, title, screen, onBack }: { session: SessionRow; 
       <span className="cg-row">
         {session.kind === 'live' && <a className="wk-link-btn" href={href('sesje', session.sessionId, 'ekran')} target="_blank" rel="noreferrer">Ekran dla sali ↗</a>}
         {session.state !== 'closed' && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => setSessionState(session.sessionId, 'closed'))}>Zamknij sesję</button>}
-        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => { if (window.confirm('Usunąć sesję z wynikami?')) void run(async () => { await deleteSession(session.sessionId); onBack(); }); }}>Usuń</button>
+        <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => { if (await askText('Usunąć sesję z wynikami?')) void run(async () => { await deleteSession(session.sessionId); onBack(); }); }}>Usuń</button>
       </span>
     </div>
   );
@@ -301,13 +303,13 @@ function SessionHost({ session, title, screen, onBack }: { session: SessionRow; 
         <div className="cg-row">
           {session.joinCode !== null && <div className="cg-card"><span className="cg-muted">Kod</span><span className="cg-live-code">{session.joinCode}</span></div>}
           {link !== null && <div className="cg-card"><span className="cg-muted">Link z kluczem</span><div className="cg-qr"><QRCodeSVG value={link} size={150} /></div><button type="button" className="wk-link-btn" onClick={() => void navigator.clipboard?.writeText(link)}>Kopiuj link</button></div>}
-          {link === null && secret !== null && <p className="wk-hint">Żeby dołączać linkiem, ustaw w Ustawieniach biblioteki stronę dołączania (z modułem „Dołącz do sesji").</p>}
+          {link === null && secret !== null && <p className="wk-hint">Żeby dołączać linkiem, ustaw w Ustawieniach bazy wiedzy stronę dołączania (z modułem „Dołącz do sesji").</p>}
         </div>
       )}
       {!screen && session.state !== 'closed' && session.state !== 'finished' && <PlanInCalendar session={session} title={title} link={link} />}
       {problem !== null && !screen && <p className="wk-warn">{problem}</p>}
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {config === null ? <p className="wk-hint">Wczytywanie sesji…</p>
+      {config === null ? <Loading label="Wczytywanie sesji…" />
         : session.kind === 'live' ? <LiveHost session={session} config={config} opened={opened} post={post} screen={screen} />
         : session.kind === 'game' ? <GameHostPanel session={session} config={config} raw={raw} />
         : <ResultsTable session={session} opened={opened} config={config} />}
@@ -771,9 +773,9 @@ function StoryPlay({ session, meta, learner, jump, raw, onAnswer, game }: {
       try { setBundle((JSON.parse(r.entry.json) as { data: PublicFlow }).data); } catch { setBundle(null); }
     }, () => setBundle(null));
   }, [libraryId, flowId]);
-  if (bundle === undefined) return <p className="wk-hint">Wczytywanie…</p>;
+  if (bundle === undefined) return <Loading label="Wczytywanie…" />;
   if (bundle === null || libraryId === null) return <p className="wk-error">Ten przebieg nie jest opublikowany — gospodarz musi go opublikować.</p>;
-  const content = contentOfBundle(bundle, (fileId) => publicFileUrl(libraryId, fileId));
+  const content = contentOfBundle(bundle, (fileId, from) => publicFileUrl(from ?? libraryId, fileId));
   const flow = resolveFlow(readFlow(String(bundle.flow.id ?? ''), bundle.flow), content.flow);
   return (
     <div className="cg">

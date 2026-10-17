@@ -764,6 +764,26 @@ export const placeFor = (place: Place, tall: boolean): Place =>
   };
 
 /**
+ * 2026-10-17 — HOCHKANT BLEIBT EIN TEXT AUF DER BÜHNE: auf dem Telefon ragten
+ * Blasen über den Rand (ihr Platz war für das breite Bild gesetzt, oder das
+ * Ausweichen schob sie hinaus). Die Stelle `x` rückt waagrecht nach innen,
+ * Breite und Höhe bleiben; ist er breiter als die Bühne, steht er mittig.
+ * `stageW` in px, `rem` die Grösse eines rem in px.
+ */
+export function insideX(place: Place, origin: Origin, stageW: number, x = place.x, rem = 16, margin = 4): number {
+  if (stageW <= 0) return x;
+  const w = (place.max === null ? place.w : Math.min(place.w, (place.max * rem * 100) / stageW)) * place.scale;
+  const pin = ORIGIN_AT[origin].x;
+  const left = w >= 100 - 2 * margin ? (100 - w) / 2 : Math.min(Math.max(x - pin * w, margin), 100 - margin - w);
+  return left + pin * w;
+}
+
+export function keepInside(place: Place, origin: Origin, stageW: number): Place {
+  const x = insideX(place, origin, stageW);
+  return Math.abs(x - place.x) < 0.01 ? place : { ...place, x };
+}
+
+/**
  * WANDERT ER? Plätze auf mehr als einer Szene — oder er bleibt vor dem ersten
  * und nach dem letzten stehen. Dann steht er über den Szenen statt in einer.
  */

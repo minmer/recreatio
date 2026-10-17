@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 
 import { loadDesk } from './desk';
 import { pagePath } from './routes';
+import { Loading } from './ui/Loading';
 
 export function PickPage({ value, busy, onPick }: {
   value: string;
@@ -27,7 +28,7 @@ export function PickPage({ value, busy, onPick }: {
     return () => { alive = false; };
   }, []);
 
-  if (pages === null) return <p className="wk-hint">Wczytywanie stron…</p>;
+  if (pages === null) return <Loading label="Wczytywanie stron…" />;
 
   const path = value.trim().replace(/^#?\/*/, '');
   const known = path === '' || pages.includes(path);

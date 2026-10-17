@@ -36,6 +36,7 @@ import {
   type Align3, type Blend, type DeckLook, type DeckNav, type Enter, type Layer, type LayerKind, type Look, type SlideColors, type SlideLayout, type SlideLook, type StageFrame,
   type Theme, type ThemeMode, type Transition
 } from './slides';
+import { askText } from './ui/dialogs';
 
 const FULL = partSize({ colSpan: 6, rowSpan: 5 });
 
@@ -165,8 +166,8 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
                     <button type="button" aria-label="W górę" disabled={busy || index === 0} onClick={() => move(index, -1)}>↑</button>
                     <button type="button" aria-label="W dół" disabled={busy || index === parts.length - 1} onClick={() => move(index, 1)}>↓</button>
                     <button type="button" aria-label="Usuń slajd" className="se-drop" disabled={busy}
-                      onClick={() => {
-                        if (!window.confirm(`Usunąć slajd „${slideLabelOf(part)}"?`)) return;
+                      onClick={async () => {
+                        if (!(await askText(`Usunąć slajd „${slideLabelOf(part)}"?`))) return;
                         onChange(parts.filter((p) => p.id !== part.id));
                       }}>×</button>
                   </span>

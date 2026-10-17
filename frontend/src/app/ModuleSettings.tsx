@@ -19,7 +19,7 @@ import type { AreaRow } from './area';
 import { AreaOptions } from './AreaOptions';
 import { removeModule, SUBJECT_LABEL, SUBJECTS, updateModule, type ModuleRow, type Resealed, type Subject } from './module';
 import { partOf, takesEntries } from './parts/registry';
-import { viewPath } from './routes';
+import { modulePath } from './routes';
 
 export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
   row: ModuleRow;
@@ -150,7 +150,7 @@ export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
           <button
             type="button" className="wk-link-btn" disabled={busy}
             onClick={() => void onAct('Usuwanie…', () => removeModule(row.moduleId))
-              .then(() => { window.location.hash = viewPath('modules', row.kind); })}
+              .then(() => { window.location.hash = modulePath(row.kind); })}
           >
             Usuń moduł
           </button>

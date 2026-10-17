@@ -34,7 +34,8 @@ export interface FlowContent {
   /** Karten eines Eintrags — für seine Kenntnis. */
   readonly cardsOf: (id: string) => readonly Card[];
   /** Eine offene Datei (veröffentlicht) — sonst öffnet `MediaView` sie mit dem Schlüssel. */
-  readonly fileUrl?: (fileId: string) => string;
+  /** `library`: wo die Datei liegt (0110 — eine Quelle); fehlt: die des Ablaufs. */
+  readonly fileUrl?: (fileId: string, library?: string) => string;
 }
 
 export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): FlowContent {
@@ -55,7 +56,7 @@ export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): Fl
   };
 }
 
-export function contentOfBundle(bundle: PublicFlow, fileUrl: (fileId: string) => string): FlowContent {
+export function contentOfBundle(bundle: PublicFlow, fileUrl: (fileId: string, library?: string) => string): FlowContent {
   const flows = new Map([bundle.flow, ...bundle.flows].map((raw) => {
     const f = readFlow(String(raw.id ?? ''), raw);
     return [f.id, f] as const;
@@ -174,7 +175,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         return (
           <>
             {current.type === 'opening' && <p className="cg-muted">{c.mode === 'discovery' ? 'Zanim przeczytasz — jak myślisz?' : 'Przypomnij sobie:'}</p>}
-            {media !== null && <MediaView media={media} publicUrl={content.fileUrl?.(media.file)} />}
+            {media !== null && <MediaView media={media} publicUrl={content.fileUrl?.(media.file, media.library)} />}
             {id !== '' && <EntityView entity={content.entity(current.type === 'expand' && typeof c.explain === 'string' ? c.explain : id)} fileUrl={content.fileUrl} />}
             <Next onNext={() => go('next')} />
           </>
@@ -261,14 +262,14 @@ function Goals({ flow, reached }: { flow: Flow; reached: readonly string[] }) {
 }
 
 /** Ein Eintrag im Ablauf: Wissen ganz, andere mit ihren Feldern und Bildern. */
-export function EntityView({ entity, fileUrl }: { entity: PublicEntity | null; fileUrl?: (fileId: string) => string }) {
+export function EntityView({ entity, fileUrl }: { entity: PublicEntity | null; fileUrl?: (fileId: string, library?: string) => string }) {
   if (entity === null) return <p className="wk-hint">(tego wpisu tu nie ma)</p>;
   const text = entity.fields.find((f) => f.key === 'text' && f.type === 'markup');
   if ((entity.kindIds ?? []).includes('knowledge') && text !== undefined) return <Markup text={text.text} />;
   return (
     <div className="cg">
       <h3>{entity.label}</h3>
-      {entity.media.slice(0, 3).map((m) => <MediaView key={m.file} media={m} publicUrl={fileUrl?.(m.file)} />)}
+      {entity.media.slice(0, 3).map((m) => <MediaView key={m.file} media={m} publicUrl={fileUrl?.(m.file, m.library)} />)}
       {entity.fields.filter((f) => f.text !== '').slice(0, 12).map((f) => (
         <div key={f.key}>
           <span className="cg-muted">{f.label}: </span>
@@ -279,13 +280,13 @@ export function EntityView({ entity, fileUrl }: { entity: PublicEntity | null; f
   );
 }
 
-function Bubble({ who, text, fileUrl, mood }: { who: PublicEntity | null; text: PublicEntity | null; fileUrl?: (fileId: string) => string; mood: string | null }) {
+function Bubble({ who, text, fileUrl, mood }: { who: PublicEntity | null; text: PublicEntity | null; fileUrl?: (fileId: string, library?: string) => string; mood: string | null }) {
   const portrait = who?.media.find((m) => m.type === 'image');
   const line = text?.fields.find((f) => f.key === 'text')?.text ?? text?.label ?? '';
   return (
     <div className="cg-bubble">
       <span className="cg-bubble-face" title={who?.label ?? ''}>
-        {portrait !== undefined ? <MediaView media={portrait} publicUrl={fileUrl?.(portrait.file)} /> : (who?.label ?? '?').slice(0, 1)}
+        {portrait !== undefined ? <MediaView media={portrait} publicUrl={fileUrl?.(portrait.file, portrait.library)} /> : (who?.label ?? '?').slice(0, 1)}
       </span>
       <span className="cg-bubble-text">
         <strong>{who?.label ?? 'Postać'}{mood !== null && mood !== '' ? <span className="cg-muted"> ({mood})</span> : null}</strong>

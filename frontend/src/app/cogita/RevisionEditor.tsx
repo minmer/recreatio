@@ -14,7 +14,8 @@ import { REVISION_PALETTE, MODE_LABEL } from './revision';
 import { REVISION_PRESETS } from './presets';
 import { planFor } from './RevisionRun';
 import { saveTask } from '../tasks';
-import { EntityPicker, useAsync, useBusy, useCtx } from './ui';
+import { EntityPicker, ForeignOnly, useAsync, useBusy, useCtx } from './ui';
+import { askText } from '../ui/dialogs';
 
 export function RevisionEditor({ chosenId, onChoose, onRun }: { chosenId: string | null; onChoose: (id: string | null) => void; onRun: (id: string) => void }) {
   const { lib, writes } = useCtx();
@@ -24,13 +25,13 @@ export function RevisionEditor({ chosenId, onChoose, onRun }: { chosenId: string
       <div className="cg-row-between">
         <select value={chosenId ?? ''} onChange={(e) => onChoose(e.target.value === '' ? null : e.target.value)} aria-label="Powtórka">
           <option value="">— powtórki ({lib.docs('revision').length}) —</option>
-          {lib.docs('revision').map((e) => <option key={e.id} value={e.id}>{typeof e.data.name === 'string' ? e.data.name : 'Powtórka'}</option>)}
+          {lib.docs('revision').map((e) => <option key={e.id} value={e.id}>{typeof e.data.name === 'string' ? e.data.name : 'Powtórka'}{lib.isOwn(e.id) ? '' : ` · z: ${lib.origin(e.id)?.name ?? '?'}`}</option>)}
         </select>
         {writes && <NewRevision onMade={onChoose} />}
       </div>
       {entry === undefined
         ? <p className="wk-hint">Powtórka wybiera karty (wszystkie, z rodzaju, zbioru, tematu albo listy), może je zawęzić i zablokować te, do których brakuje podstaw — i pyta wybranym sposobem.</p>
-        : <RevisionForm key={entry.id} id={entry.id} onRun={() => onRun(entry.id)} />}
+        : <ForeignOnly id={entry.id} tab="powtorki"><RevisionForm key={entry.id} id={entry.id} onRun={() => onRun(entry.id)} /></ForeignOnly>}
     </div>
   );
 }
@@ -115,15 +116,15 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
         <>
           <details>
             <summary>Gdzie zapisują się odpowiedzi (dla tej powtórki)</summary>
-            <p className="wk-hint">Domyślnie tam, gdzie mówi biblioteka (Ustawienia), a bez tego — w prywatnym obszarze uczącego się. Nauczyciel, który czyta wybrany obszar, widzi postępy.</p>
-            <input value={storage} placeholder="identyfikator obszaru (puste — jak w bibliotece)" onChange={(e) => { setStorage(e.target.value.trim()); setDirty(true); }} />
+            <p className="wk-hint">Domyślnie tam, gdzie mówi baza wiedzy (Ustawienia), a bez tego — w prywatnym obszarze uczącego się. Nauczyciel, który czyta wybrany obszar, widzi postępy.</p>
+            <input value={storage} placeholder="identyfikator obszaru (puste — jak w bazie wiedzy)" onChange={(e) => { setStorage(e.target.value.trim()); setDirty(true); }} />
           </details>
           <div className="wk-actions">
             <button type="button" className="wk-btn" disabled={busy || !dirty} onClick={() => void save()}>{busy ? 'Zapisywanie…' : 'Zapisz powtórkę'}</button>
             <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => lib.saveSettings({ offline: offline ? settings.offline.filter((x) => x !== id) : [...settings.offline, id] }))}>
               {offline ? 'Nie trzymaj bez internetu' : 'Trzymaj na urządzeniach bez internetu'}
             </button>
-            <button type="button" className="wk-link-btn" disabled={busy} onClick={() => { if (window.confirm('Usunąć powtórkę? Odpowiedzi zostają.')) void run(() => lib.remove(id)); }}>Usuń</button>
+            <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => { if (await askText('Usunąć powtórkę? Odpowiedzi zostają.')) void run(() => lib.remove(id)); }}>Usuń</button>
           </div>
           <Share id={id} name={name} onSaid={setSaid} />
         </>
@@ -135,7 +136,7 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
 
 /** Wspólna powtórka [I13, F20]: kopia kart wychodzi na zewnątrz (bez postępów), a pod nowym adresem stoi moduł „Powtórka". */
 function Share({ id, name, onSaid }: { id: string; name: string; onSaid: (s: string) => void }) {
-  const { lib, me, keyOf } = useCtx();
+  const { lib, me, keyIn } = useCtx();
   const entry = lib.entry(id);
   const { busy, failed, run } = useBusy();
   const published = entry?.publishedAs != null;
@@ -144,13 +145,13 @@ function Share({ id, name, onSaid }: { id: string; name: string; onSaid: (s: str
   return (
     <section className="cg-card">
       <h3>Udostępnij jako otwartą powtórkę</h3>
-      <p className="wk-hint">Każdy z linkiem powtarza bez konta (postępy zostają w jego przeglądarce). Wychodzi kopia kart — bez odpowiedzi uczących się i bez reszty biblioteki.</p>
+      <p className="wk-hint">Każdy z linkiem powtarza bez konta (postępy zostają w jego przeglądarce). Wychodzi kopia kart — bez odpowiedzi uczących się i bez reszty bazy wiedzy.</p>
       <div className="cg-row">
         <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => {
           const bundle = await revisionBundle(lib, id);
           if ('error' in bundle) throw new Error(bundle.error);
           /* Die Bilder und Töne der Karten gehen offen daneben — sonst sähe die Seite nur ihre Namen. */
-          const files = await publishMedia(lib, bundle.files ?? [], keyOf);
+          const files = await publishMedia(lib, bundle.files ?? [], keyIn);
           await publishBundle(lib, id, { ...bundle, format: REVISION_BUNDLE });
           onSaid(`Opublikowano ${bundle.cards.length} kart${files > 0 ? ` i ${files} plików` : ''}.`);
         })}>{published ? 'Zaktualizuj kopię kart' : 'Opublikuj kopię kart'}</button>

@@ -22,6 +22,7 @@ import { newId } from './ids';
 import { createModule, loadModules, type ModuleRow } from './module';
 import { WorkspaceError } from './session';
 import { AreaOptions } from './AreaOptions';
+import { Loading } from './ui/Loading';
 
 export function PickModule({ kind, chosen, busy, onPick, onMade }: {
   /** Die Art, die hier steht — nur Bausteine derselben passen an diese Stelle. */
@@ -84,7 +85,7 @@ export function PickModule({ kind, chosen, busy, onPick, onMade }: {
     }
   };
 
-  if (modules === null) return <p className="pb-empty">Wczytywanie modułów…</p>;
+  if (modules === null) return <Loading label="Wczytywanie modułów…" />;
 
   return (
     <section className="pb-fields">

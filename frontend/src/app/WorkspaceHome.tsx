@@ -1,318 +1,141 @@
 /**
- * DIE SEITE DES WARSZTAT (0094) — ein Widok: seine Teile, in seiner
- * Reihenfolge, jeder auf seinem Weg.
+ * TERAZ — die Seite des Arbeitsplatzes, und der Überblick eines Bereichs
+ * (2026-10-16).
  *
- * <b>Oben der Widok selbst</b>: welcher (Auswahlfeld — „Mój widok", die
- * eigenen, einer je Obszar), „Dostosuj" und „Nowy widok". <b>Jeder Teil hat
- * an seinem Kopf sein eigenes Auswahlfeld</b> (Lista / 7 dni / Kalendarz …):
- * ein anderer Weg gilt sofort, und daneben steht „Zapisz w tym widoku" —
- * wer den erweiterten nur kurz ansieht, muss nichts zurückstellen.
+ * <b>Eine Seite, kein Baukasten.</b> Seit 0094 war sie ein „Widok": Teile, die
+ * man hinzufügen, verschieben, umbenennen, je Teil anders zeigen und als JSON
+ * hinaus- und hereintragen konnte. Jede dieser Wahlmöglichkeiten stand auf der
+ * Seite selbst, vor dem, was sie zeigen sollte. Jetzt zeigt sie, was man am
+ * Morgen wissen will — was auf einen wartet, was heute ist, wer geschrieben hat —
+ * und jeder Teil führt mit einem Klick dorthin, wo man es erledigt.
  *
- * <b>Dostosuj</b>: Teile hinzufügen, verschieben, entfernen; der Name; bei
- * einem eigenen Widok die Bereiche; zurück auf die Vorgabe; der Widok als
- * JSON (hinaus und herein, `workspaceViews.ts`).
+ * <b>Wer keine Seite führt</b> (0106: ein Animator, ein Kandydat mit Konto),
+ * sieht zuerst die Seiten, auf denen er arbeitet.
+ *
+ * <b>Der Überblick eines Bereichs</b> (`AreaOverview`) ist der erste Reiter
+ * eines Bereichs: dieselben Teile, nur für ihn und die Bereiche darin.
  */
 
-import { useId, useMemo, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 import type { AreaRow } from './area';
-import { useCrumbs } from './crumbTrail';
 import { leadsNoPage, type Desk } from './desk';
-import { newId } from './ids';
-import { JsonPanel } from './JsonPanel';
-import { useRemembered } from './prefs';
-import { viewPath } from './routes';
+import { viewPath, VIEWS } from './routes';
 import type { Who } from './session';
-import { areasNow, useLoaded } from './viewData';
+import { NewMenu } from './Starters';
+import { Icon } from './ui/icons';
+import { PageHeader } from './ui/PageHeader';
 import { PART_VIEWS } from './ViewParts';
-import {
-  addable, addPart, allViews, exportView, MINE, movePart, newView, partDef, partMode, pick, planViewImport, readViewsState,
-  removePart, removeView, resetView, saveView, scopeOf, setPartMode, viewDescription, viewsJson,
-  type PartConfig, type PartKind, type ViewConfig, type ViewsState
-} from './workspaceViews';
+import { areasNow, useLoaded } from './viewData';
+import { AREA_PARTS, areaViewId, MINE, partDef, withInside, type PartKind, type ViewConfig } from './workspaceViews';
+import { loadDue } from './cogita/learn';
 
-/** Die Widoki dieses Kontos — gelesen und geschrieben über den gemerkten Stand. */
-export function useViews(): [ViewsState, (next: ViewsState) => void] {
-  const [text, setText] = useRemembered('workspace.views', '');
-  const state = useMemo(() => readViewsState(text), [text]);
-  return [state, (next) => setText(viewsJson(next))];
+/* -- Ein Kasten ------------------------------------------------------------------------- */
+
+function Box({ title, more, wide = false, children }: {
+  title: string;
+  /** Wohin „alles" führt: „Kalendarz ›". */
+  more?: { readonly label: string; readonly href: string };
+  wide?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <section className={wide ? 'wk-box is-wide' : 'wk-box'} aria-label={title}>
+      <header className="wk-box-head">
+        <h2 className="wk-box-title">{title}</h2>
+        {more !== undefined && (
+          <a className="wk-box-more" href={more.href}>{more.label}<Icon name="next" /></a>
+        )}
+      </header>
+      <div className="wk-box-body">{children}</div>
+    </section>
+  );
 }
 
-export function WorkspaceHome({ who, desk, viewId, heading }: {
+/** Ein Teil (`ViewParts.tsx`) in einem Kasten — mit dem einen Weg, sich zu zeigen, der hier passt. */
+function Part({ kind, mode, view, scope, who, desk, more, wide }: {
+  kind: PartKind;
+  mode: string;
+  view: ViewConfig;
+  scope: ReadonlySet<string> | null;
   who: Who;
   desk: Desk;
-  /** Ein bestimmter Widok (aus der Adresse) — sonst der zuletzt offene. */
-  viewId?: string;
-  /** Was über dem Widok steht, wenn ihn jemand anderes einbettet (der Widok obszaru in „Obszary"). */
-  heading?: ReactNode;
+  more?: { readonly label: string; readonly href: string };
+  wide?: boolean;
 }) {
-  const areas = useLoaded(() => areasNow(), []);
-  const [state, setState] = useViews();
-  const list = areas ?? [];
-  /* 0106 — wer keine Seite führt, sieht zuerst die Seiten, auf denen er arbeitet. */
-  const views = allViews(state, list, leadsNoPage(desk));
-  const view = views.find((one) => one.id === (viewId ?? state.current)) ?? views[0];
-  const scope = scopeOf(view, list);
-  const [editing, setEditing] = useState(false);
-  const [making, setMaking] = useState(false);
+  const Body = PART_VIEWS[kind];
+  return (
+    <Box title={partDef(kind).label} more={more} wide={wide}>
+      <Body mode={mode} scope={scope} view={view} who={who} desk={desk} />
+    </Box>
+  );
+}
 
-  /* Ausprobierte Wege je Teil — nur für diesen Widok und diese Karte, bis „Zapisz". */
-  const [tried, setTried] = useState<{ view: string; modes: Readonly<Record<number, string>> }>({ view: '', modes: {} });
-  const trying = tried.view === view.id ? tried.modes : {};
+/* -- Teraz ---------------------------------------------------------------------------- */
 
-  const store = (next: ViewConfig) => setState(saveView(state, next));
+const MINE_VIEW: ViewConfig = { id: MINE, name: 'Teraz', kind: 'mine', areaIds: [], parts: [] };
 
-  const goTo = (id: string) => {
-    setState(pick(state, id));
-    if (viewId !== undefined) window.location.hash = viewPath('widok', id);
-  };
+function greeting(now: Date): string {
+  const h = now.getHours();
+  return h < 5 || h >= 18 ? 'Dobry wieczór' : 'Dzień dobry';
+}
+
+export function WorkspaceHome({ who, desk }: { who: Who; desk: Desk }) {
+  const taker = leadsNoPage(desk);
+  const now = new Date();
+  /* Nauka nur, wo es etwas zu lernen gibt — ein leerer Kasten wäre Rauschen. */
+  const learning = useLoaded(() => loadDue().then((r) => r.due.length > 0), []);
+  const p = { view: MINE_VIEW, scope: null, who, desk } as const;
 
   return (
-    <div className="wk-view" data-view={view.id}>
-      {/* Auf der eigenen Adresse (`#/workspace/widok/…`) steht der Name im Weg oben. */}
-      {viewId !== undefined && heading === undefined && <ViewCrumb label={view.name} />}
-      {heading}
-      <div className="wk-view-head">
-        {heading === undefined && <h1 className="wk-h1">{view.kind === 'mine' ? 'Warsztat' : view.name}</h1>}
-        <ViewPicker views={views} current={view.id} onPick={goTo} onNew={() => setMaking(true)} />
-        <button type="button" className={editing ? 'wk-btn wk-btn-small' : 'wk-btn wk-btn-quiet wk-btn-small'} aria-pressed={editing} data-view-edit=""
-          onClick={() => setEditing(!editing)}>{editing ? 'Gotowe' : 'Dostosuj widok'}</button>
-      </div>
+    <div className="wk-teraz">
+      <PageHeader
+        title={greeting(now)}
+        meta={now.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' })}
+        actions={taker ? undefined : <NewMenu who={who} />}
+      />
 
-      {making && (
-        <NewViewForm views={views} current={view} onCancel={() => setMaking(false)} onMake={(name, from) => {
-          const id = `own:${newId()}`;
-          setState(newView(state, name, from, id));
-          setMaking(false);
-          setEditing(true);
-          if (viewId !== undefined) window.location.hash = viewPath('widok', id);
-        }} />
-      )}
+      {taker && <Part kind="mypages" mode="cards" {...p} wide />}
 
-      {editing && (
-        <ViewEditor key={view.id} view={view} areas={list} changed={state.changed[view.id] !== undefined}
-          onChange={store}
-          onReset={() => setState(resetView(state, view.id))}
-          onRemove={() => { setState(removeView(state, view.id)); setEditing(false); if (viewId !== undefined) window.location.hash = viewPath('widok', MINE); }} />
-      )}
-
-      {view.parts.length === 0 && <p className="wk-empty">Ten widok jest pusty — „Dostosuj widok" → „Dodaj część".</p>}
-
-      <div className="wk-view-parts">
-        {view.parts.map((part, index) => {
-          const shownMode = trying[index] ?? part.mode;
-          const Body = PART_VIEWS[part.kind];
-          return (
-            <PartFrame key={`${part.kind}-${index}`} part={part} mode={shownMode} index={index} total={view.parts.length} editing={editing}
-              onTry={(modeId) => setTried({ view: view.id, modes: { ...trying, [index]: modeId } })}
-              onSave={() => { store(setPartMode(view, index, shownMode)); const next = { ...trying }; delete next[index]; setTried({ view: view.id, modes: next }); }}
-              onBack={() => { const next = { ...trying }; delete next[index]; setTried({ view: view.id, modes: next }); }}
-              onMove={(by) => { store(movePart(view, index, by)); setTried({ view: '', modes: {} }); }}
-              onRemove={() => { store(removePart(view, index)); setTried({ view: '', modes: {} }); }}>
-              <Body mode={shownMode} scope={scope} view={view} who={who} desk={desk} />
-            </PartFrame>
-          );
-        })}
+      <div className="wk-teraz-grid">
+        <div className="wk-teraz-col">
+          <Part kind="alerts" mode="list" {...p} more={{ label: 'Ustaw', href: viewPath('account', 'widok') }} />
+          <Part kind="chats" mode="unread" {...p} more={{ label: VIEWS.chat, href: viewPath('chat') }} />
+          {learning === true && <Part kind="learn" mode="due" {...p} more={{ label: VIEWS.learn, href: viewPath('learn') }} />}
+        </div>
+        <div className="wk-teraz-col">
+          <Part kind="agenda" mode="today" {...p} more={{ label: VIEWS.calendar, href: viewPath('calendar') }} />
+          <Part kind="tasks" mode="now" {...p} more={{ label: 'Wszystkie', href: viewPath('tasks') }} />
+          {!taker && <Part kind="pages" mode="list" {...p} more={{ label: VIEWS.pages, href: viewPath('pages') }} />}
+        </div>
       </div>
     </div>
   );
 }
 
-function ViewCrumb({ label }: { label: string }) {
-  useCrumbs([{ label, href: null }]);
-  return null;
-}
+/* -- Der Überblick eines Bereichs ----------------------------------------------------- */
 
-/* -- Welcher Widok ---------------------------------------------------------------------- */
+export function AreaOverview({ who, desk, area }: { who: Who; desk: Desk; area: AreaRow }) {
+  const areas = useLoaded(() => areasNow(), []);
+  const view: ViewConfig = { id: areaViewId(area.areaId), name: area.name, kind: 'area', areaIds: [area.areaId], parts: AREA_PARTS };
+  const scope: ReadonlySet<string> = new Set(withInside(areas ?? [], [area.areaId]));
+  const p = { view, scope, who, desk } as const;
+  const tab = (t: string) => viewPath('areas', area.areaId, t);
 
-const NEW_VIEW = '__new__';
-
-function ViewPicker({ views, current, onPick, onNew }: {
-  views: readonly ViewConfig[];
-  current: string;
-  onPick: (id: string) => void;
-  onNew: () => void;
-}) {
-  const id = useId();
-  const mine = views.filter((one) => one.kind !== 'area');
-  const areas = views.filter((one) => one.kind === 'area');
   return (
-    <label className="wk-view-pick" htmlFor={id}>
-      <span>Widok</span>
-      <select id={id} value={current} data-view-pick="" onChange={(e) => { if (e.target.value === NEW_VIEW) onNew(); else onPick(e.target.value); }}>
-        <optgroup label="Twoje">
-          {mine.map((one) => <option key={one.id} value={one.id}>{one.name}</option>)}
-        </optgroup>
-        {areas.length > 0 && (
-          <optgroup label="Obszary">
-            {areas.map((one) => <option key={one.id} value={one.id}>{one.name}</option>)}
-          </optgroup>
-        )}
-        <option value={NEW_VIEW}>＋ Nowy widok…</option>
-      </select>
-    </label>
-  );
-}
-
-function NewViewForm({ views, current, onMake, onCancel }: {
-  views: readonly ViewConfig[];
-  current: ViewConfig;
-  onMake: (name: string, from: ViewConfig) => void;
-  onCancel: () => void;
-}) {
-  const [name, setName] = useState('');
-  const [from, setFrom] = useState(current.id);
-  const empty: ViewConfig = { id: '', name: '', kind: 'own', areaIds: [], parts: [] };
-  return (
-    <form className="wk-form wk-view-new" onSubmit={(e) => {
-      e.preventDefault();
-      onMake(name, from === '' ? empty : views.find((one) => one.id === from) ?? empty);
-    }}>
-      <h2 className="wk-h2">Nowy widok</h2>
-      <label className="wk-field">
-        <span>Nazwa</span>
-        <input value={name} placeholder="np. Bierzmowanie na co dzień" autoComplete="off" data-view-name="" onChange={(e) => setName(e.target.value)} />
-      </label>
-      <label className="wk-field">
-        <span>Zacznij od</span>
-        <select value={from} onChange={(e) => setFrom(e.target.value)}>
-          <option value="">pustego widoku</option>
-          {views.map((one) => <option key={one.id} value={one.id}>{one.kind === 'area' ? `widoku obszaru: ${one.name}` : one.name}</option>)}
-        </select>
-      </label>
-      <div className="wk-actions">
-        <button type="submit" className="wk-btn">Utwórz widok</button>
-        <button type="button" className="wk-link-btn" onClick={onCancel}>Anuluj</button>
+    <div className="wk-teraz-grid">
+      <div className="wk-teraz-col">
+        <Part kind="alerts" mode="list" {...p} />
+        <Part kind="chats" mode="all" {...p} more={{ label: VIEWS.chat, href: viewPath('chat') }} />
+        <Part kind="forms" mode="list" {...p} more={{ label: VIEWS.forms, href: viewPath('forms') }} />
       </div>
-    </form>
-  );
-}
-
-/* -- Ein Teil ------------------------------------------------------------------------------ */
-
-function PartFrame({ part, mode, index, total, editing, onTry, onSave, onBack, onMove, onRemove, children }: {
-  part: PartConfig;
-  mode: string;
-  index: number;
-  total: number;
-  editing: boolean;
-  onTry: (modeId: string) => void;
-  onSave: () => void;
-  onBack: () => void;
-  onMove: (by: -1 | 1) => void;
-  onRemove: () => void;
-  children: ReactNode;
-}) {
-  const def = partDef(part.kind);
-  const shown = partMode(part.kind, mode);
-  const id = useId();
-  const changed = shown.id !== partMode(part.kind, part.mode).id;
-  const wide = part.kind === 'tiles' || part.kind === 'starters' || shown.extended;
-
-  return (
-    <section className={wide ? 'wk-part is-wide' : 'wk-part'} data-part={part.kind} aria-labelledby={id}>
-      <header className="wk-part-head">
-        <h2 id={id} className="wk-part-title">{def.label}</h2>
-        {def.modes.length > 1 && (
-          <select className="wk-part-mode" aria-label={`${def.label}: sposób wyświetlania`} value={shown.id} data-part-mode={part.kind}
-            onChange={(e) => onTry(e.target.value)}>
-            {def.modes.map((one) => <option key={one.id} value={one.id}>{one.label}{one.extended ? ' (rozszerzony)' : ''}</option>)}
-          </select>
-        )}
-        {changed && (
-          <span className="wk-part-save">
-            <button type="button" className="wk-btn wk-btn-small" data-part-save={part.kind} onClick={onSave}>Zapisz w tym widoku</button>
-            <button type="button" className="wk-link-btn" onClick={onBack}>Wróć</button>
-          </span>
-        )}
-        {editing && (
-          <span className="wk-part-move">
-            <button type="button" className="wk-icon-btn" aria-label={`${def.label}: wyżej`} disabled={index === 0} onClick={() => onMove(-1)}>↑</button>
-            <button type="button" className="wk-icon-btn" aria-label={`${def.label}: niżej`} disabled={index === total - 1} onClick={() => onMove(1)}>↓</button>
-            <button type="button" className="wk-icon-btn" aria-label={`${def.label}: usuń z widoku`} onClick={onRemove}>✕</button>
-          </span>
-        )}
-      </header>
-      <div className="wk-part-body">{children}</div>
-    </section>
-  );
-}
-
-/* -- Dostosuj -------------------------------------------------------------------------------- */
-
-function ViewEditor({ view, areas, changed, onChange, onReset, onRemove }: {
-  view: ViewConfig;
-  areas: readonly AreaRow[];
-  changed: boolean;
-  onChange: (next: ViewConfig) => void;
-  onReset: () => void;
-  onRemove: () => void;
-}) {
-  const [name, setName] = useState(view.name);
-  const [adding, setAdding] = useState('');
-  const options = addable(view);
-
-  return (
-    <section className="wk-view-editor" aria-label="Dostosuj widok">
-      <div className="wk-view-editor-row">
-        <label className="wk-field">
-          <span>Nazwa widoku</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => { if (name.trim() !== '' && name !== view.name) onChange({ ...view, name: name.trim().slice(0, 80) }); }} />
-        </label>
-        <label className="wk-field">
-          <span>Dodaj część</span>
-          <select value={adding} data-view-add="" onChange={(e) => {
-            const kind = e.target.value as PartKind;
-            setAdding('');
-            if (kind !== ('' as PartKind)) onChange(addPart(view, kind));
-          }}>
-            <option value="">— wybierz —</option>
-            {options.map((def) => <option key={def.kind} value={def.kind}>{def.label} — {def.says}</option>)}
-          </select>
-        </label>
+      <div className="wk-teraz-col">
+        <Part kind="agenda" mode="week" {...p} more={{ label: VIEWS.calendar, href: viewPath('calendar') }} />
+        <Part kind="people" mode="list" {...p} more={{ label: 'Osoby', href: tab('osoby') }} />
+        <Part kind="pages" mode="list" {...p} />
+        <Part kind="access" mode="links" {...p} more={{ label: 'Dostęp', href: tab('dostep') }} />
       </div>
-
-      {view.kind === 'own' && (
-        <fieldset className="wk-field wk-view-areas">
-          <legend>Obszary w tym widoku (żaden — wszystkie)</legend>
-          {areas.filter((a) => a.personal !== true).map((a) => (
-            <label key={a.areaId} className="wk-check">
-              <input type="checkbox" checked={view.areaIds.includes(a.areaId)} onChange={(e) => onChange({
-                ...view,
-                areaIds: e.target.checked ? [...view.areaIds, a.areaId] : view.areaIds.filter((id) => id !== a.areaId),
-                parts: e.target.checked || view.areaIds.length > 1 ? view.parts : view.parts.filter((p) => partDef(p.kind).areaOnly !== true)
-              })} />
-              <span>{a.name}</span>
-            </label>
-          ))}
-        </fieldset>
-      )}
-
-      <div className="wk-actions">
-        {view.kind !== 'own' && changed && <button type="button" className="wk-link-btn" onClick={onReset}>Przywróć domyślny</button>}
-        {view.kind === 'own' && <button type="button" className="wk-link-btn wk-danger-link" onClick={onRemove}>Usuń ten widok</button>}
-      </div>
-
-      <JsonPanel
-        summary="JSON widoku — eksport i import"
-        lead={<>Ten widok jako JSON: części, ich sposoby wyświetlania{view.kind === 'own' ? ', nazwa i obszary' : ''}. Import zmienia ten widok.</>}
-        fileName={`widok-${view.name.replace(/[^\p{L}\p{N}]+/gu, '-').toLowerCase()}.json`}
-        exportDoc={() => exportView(view, areas)}
-        description={viewDescription}
-        preview={(doc) => {
-          const plan = planViewImport(doc, view, areas);
-          if ('error' in plan) return plan;
-          return { lines: [`Części: ${plan.view.parts.map((p) => partDef(p.kind).label).join(', ') || 'żadnych'}.`], warnings: plan.warnings };
-        }}
-        importLabel="Importuj do tego widoku"
-        onImport={async (doc) => {
-          const plan = planViewImport(doc, view, areas);
-          if ('error' in plan) throw new Error(plan.error);
-          onChange(plan.view);
-          return { lines: ['Widok zapisany.'], warnings: plan.warnings };
-        }}
-      />
-    </section>
+    </div>
   );
 }
 

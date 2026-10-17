@@ -117,7 +117,8 @@ public static partial class Library
             SELECT l.area_id, l.epoch, l.name_sealed, l.created_at,
                    COALESCE((SELECT MAX(e.updated_at) FROM app.library_entry e WHERE e.library_id = l.id), l.updated_at),
                    (SELECT COUNT(*) FROM app.library_entry e WHERE e.library_id = l.id AND e.deleted_at IS NULL),
-                   (SELECT COUNT(*) FROM app.library_entry e WHERE e.library_id = l.id AND e.published_at IS NOT NULL)
+                   (SELECT COUNT(*) FROM app.library_entry e WHERE e.library_id = l.id AND e.published_at IS NOT NULL),
+                   l.kind
             FROM app.library l WHERE l.id = @id;
             """, connection);
         cmd.Parameters.AddWithValue("@id", id);
@@ -133,6 +134,7 @@ public static partial class Library
             updatedAt = reader.GetDateTimeOffset(4),
             entries = reader.GetInt32(5),
             published = reader.GetInt32(6),
+            kind = reader.GetString(7),
             writes = false
         }, ctx.RequestAborted);
     }

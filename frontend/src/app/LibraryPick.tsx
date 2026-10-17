@@ -4,7 +4,8 @@
  * <code>
  *   RefPicker          im Editor: ein Werk, Autoren, Themen — suchen, wählen,
  *                      oder gleich neu anlegen („Utwórz: Ratzinger")
- *   PickLibrary        im Seiteneditor: welche Bibliothek ein Baustein zeigt
+ *   PickLibrary        im Seiteneditor: welche Bibliothek (oder 0110: welche
+ *                      Baza wiedzy) ein Baustein zeigt
  *   PickLibraryEntry   im Seiteneditor: welcher veröffentlichte Text, welches
  *                      Projekt, welches Thema — nur Veröffentlichtes, denn nur
  *                      das kann eine öffentliche Seite zeigen
@@ -13,12 +14,13 @@
 
 import { useEffect, useId, useMemo, useState } from 'react';
 
-import { loadLibraries, loadPublished, openLibraries, summaryOf, type OpenLibrary, type PublishedItem } from './library';
+import { libraryKindOf, loadLibraries, loadPublished, openLibraries, summaryOf, type LibraryKind, type OpenLibrary, type PublishedItem } from './library';
 import { kindOf, str, type LibEntry } from './libraryKinds';
 import type { LibraryStore } from './libraryStore';
 import { useMe, useWho } from './me';
 import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
+import { Loading } from './ui/Loading';
 
 /** Wie ein Eintrag als Wahl erscheint: Titel und, wo es hilft, etwas dazu. */
 export function entryLine(entry: LibEntry, store: LibraryStore): string {
@@ -162,18 +164,23 @@ export function useLibraries(given?: Who | null): readonly OpenLibrary[] | null 
   return libraries;
 }
 
-export function PickLibrary({ value, busy, onPick }: { value: string; busy: boolean; onPick: (id: string) => void }) {
-  const libraries = useLibraries();
-  if (libraries === undefined) return <p className="wk-hint">Wczytywanie bibliotek…</p>;
-  if (libraries === null) return <input value={value} disabled={busy} placeholder="kennung biblioteki" onChange={(e) => onPick(e.target.value.trim())} />;
+/** `kind`: Bibliotheken (Vorgabe) oder 0110 Bazy wiedzy — zwei Strukturen, zwei Listen. */
+export function PickLibrary({ value, busy, onPick, kind = 'books' }: { value: string; busy: boolean; onPick: (id: string) => void; kind?: LibraryKind }) {
+  const all = useLibraries();
+  const knowledge = kind === 'knowledge';
+  if (all === undefined) return <p className="wk-hint">{knowledge ? 'Wczytywanie baz wiedzy…' : 'Wczytywanie bibliotek…'}</p>;
+  if (all === null) return <input value={value} disabled={busy} placeholder={knowledge ? 'kennung bazy wiedzy' : 'kennung biblioteki'} onChange={(e) => onPick(e.target.value.trim())} />;
+  const libraries = all.filter((one) => libraryKindOf(one) === kind);
   return (
     <>
       <select value={value} disabled={busy} onChange={(e) => onPick(e.target.value)}>
-        <option value="">— wybierz bibliotekę —</option>
+        <option value="">{knowledge ? '— wybierz bazę wiedzy —' : '— wybierz bibliotekę —'}</option>
         {libraries.map((one) => <option key={one.libraryId} value={one.libraryId}>{one.name} ({one.published} publicznych)</option>)}
         {value !== '' && !libraries.some((one) => one.libraryId === value) && <option value={value}>{value}</option>}
       </select>
-      {libraries.length === 0 && <span className="wk-hint">Nie masz jeszcze biblioteki — <a href={viewPath('library')}>załóż ją</a>.</span>}
+      {libraries.length === 0 && (knowledge
+        ? <span className="wk-hint">Nie masz jeszcze bazy wiedzy — <a href={viewPath('learn')}>załóż ją w Nauce</a>.</span>
+        : <span className="wk-hint">Nie masz jeszcze biblioteki — <a href={viewPath('library')}>załóż ją</a>.</span>)}
     </>
   );
 }
@@ -203,7 +210,7 @@ export function PickLibraryEntry({ library, kinds, value, busy, optional, onPick
   }, [library, kinds.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (library === '') return <span className="wk-hint">Najpierw wybierz bibliotekę.</span>;
-  if (items === null) return <span className="wk-hint">Wczytywanie…</span>;
+  if (items === null) return <Loading lines={1} />;
   return (
     <>
       <select value={value} disabled={busy} onChange={(e) => onPick(e.target.value)}>

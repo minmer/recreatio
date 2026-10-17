@@ -92,10 +92,9 @@ export { walkBundle, mergeAreaKeys, rememberSeatAreaKeys, seatAreaKey } from '${
 export { reachWords, draftProblem } from '${app}commonRole';
 export { seatRoleAad, openSeatRoles } from '${app}memberRole';
 export { aadText, open, fromBase64Url } from '${app}crypto';
-export { readViewsState, viewsJson, allViews, scopeOf, saveView, resetView, newView, removeView, pick as pickView, setPartMode, movePart, removePart, addPart, addable, exportView, planViewImport, viewDescription, MINE_PARTS, AREA_PARTS, PART_DEFS, TAKER_PARTS } from '${app}workspaceViews';
+export { scopeOf, withInside, AREA_PARTS, PART_DEFS, partDef } from '${app}workspaceViews';
 export { leadsNoPage } from '${app}desk';
 export { readAlerts, alertsJson, moveAlert, toggleAlert, shownKinds, alertItems, alertCount, ALERT_KINDS } from '${app}alerts';
-export { modeOf, TOOLS } from '${app}display';
 export { fold, searchHits } from '${app}search';
 export { slugOf } from '${app}Starters';
 export { personsHolding, speakersOf, chooseSpeaker, isMine, messageAuthor, authorText, speakerText, speakerKey, throughRole } from '${app}chatAuthor';
@@ -1285,7 +1284,7 @@ try {
     ok('roles (0090/0091): a browser without its own mark lets the account decide; from a link or a seat the way to the role\'s areas opens — only downwards, per seat and role, broken envelopes skipped');
   }
 
-  /* -- 19. Widoki, sposób wyświetlania, powiadomienia, szukaj (0094) -------------------------------- */
+  /* -- 19. Die Teile von Teraz und des Bereichs, Powiadomienia, Szukaj (0094, 2026-10-16) ------------- */
   {
     const areas = [
       { areaId: 'p', name: 'Parafia', parentAreaId: null },
@@ -1293,94 +1292,16 @@ try {
       { areaId: 'm', name: 'Moje', parentAreaId: null, personal: true },
       { areaId: 'x', name: 'Młodsza schola', parentAreaId: 's' }
     ];
-    const empty = m.readViewsState('');
-    assert.equal(empty.current, 'mine', 'nothing remembered: my view');
-    const views = m.allViews(empty, areas);
-    assert.deepEqual(views.map((v) => v.id), ['mine', 'area:p', 'area:s', 'area:x'], 'my view, then one per area — never the personal one');
-    assert.deepEqual(views[0].parts, m.MINE_PARTS);
-    assert.deepEqual(views[1].parts, m.AREA_PARTS);
+    /* Ein Bereich zeigt sich und alles darin — nie den eigenen, privaten mit. */
+    assert.deepEqual([...m.withInside(areas, ['p'])].sort(), ['p', 's', 'x'], 'a parish shows its schola and the younger schola');
+    assert.deepEqual([...m.withInside(areas, ['s'])].sort(), ['s', 'x']);
+    assert.equal(m.scopeOf({ id: 'mine', name: 'Teraz', kind: 'mine', areaIds: [], parts: [] }, areas), null, 'Teraz: every area');
+    assert.deepEqual([...m.scopeOf({ id: 'area:s', name: 'Schola', kind: 'area', areaIds: ['s'], parts: m.AREA_PARTS }, areas)].sort(), ['s', 'x']);
 
-    /* 0106 — wer keine Seite führt (Animator, Kandydat mit Konto): zuerst „Twoje strony", kein Anlegen von Seiten und Formularen. */
-    assert.ok(m.leadsNoPage({ pages: [] }) && m.leadsNoPage({ pages: [{ aliasOf: 'parafia' }] }) && !m.leadsNoPage({ pages: [{ aliasOf: null }] }),
-      'only aliases are no page of one\'s own');
-    const taker = m.allViews(empty, areas, true)[0].parts;
-    assert.deepEqual(taker, m.TAKER_PARTS);
-    assert.equal(taker[0].kind, 'mypages', 'the pages one works on come first');
-    assert.ok(!taker.some((p) => p.kind === 'starters' || p.kind === 'quick') && taker.find((p) => p.kind === 'tiles')?.mode === 'basic',
-      'no ready-made beginnings, only the basic tiles');
-    assert.deepEqual(m.allViews(m.saveView(empty, { ...m.allViews(empty, areas, true)[0], parts: [{ kind: 'tiles', mode: 'all' }] }), areas, true)[0].parts,
-      [{ kind: 'tiles', mode: 'all' }], 'a view one changed stays as changed');
-    assert.equal(m.scopeOf(views[0], areas), null, 'my view shows everything');
-    assert.deepEqual([...m.scopeOf(views[1], areas)].sort(), ['p', 's', 'x'], 'an area view: the area and everything inside it, however deep');
-
-    /* Ein anderer Weg für einen Teil — gespeichert in DIESEM Widok. */
-    const agendaAt = views[1].parts.findIndex((p) => p.kind === 'agenda');
-    let state = m.saveView(empty, m.setPartMode(views[1], agendaAt, 'calendar'));
-    assert.equal(m.allViews(state, areas)[1].parts[agendaAt].mode, 'calendar', 'saved in that view');
-    assert.equal(m.allViews(state, areas)[2].parts[agendaAt].mode, 'week', 'the other area views keep theirs');
-    assert.equal(m.setPartMode(views[1], agendaAt, 'nonsense').parts[agendaAt].mode, 'today', 'an unknown way is the first of the part');
-    state = m.readViewsState(m.viewsJson(state));
-    assert.equal(m.allViews(state, areas)[1].parts[agendaAt].mode, 'calendar', 'and it is read back');
-    assert.deepEqual(m.allViews(m.resetView(state, 'area:p'), areas)[1].parts, m.AREA_PARTS, 'reset: the default again');
-
-    /* Ein eigener Widok. */
-    state = m.newView(state, '  Bierzmowanie  ', m.allViews(state, areas)[0], 'own:1');
-    const own = state.own[0];
-    assert.equal(own.name, 'Bierzmowanie');
-    assert.equal(state.current, 'own:1', 'a new view is opened');
-    assert.equal(m.addPart(own, 'people'), own, '„Osoby" needs an area');
-    assert.ok(!m.addable(own).some((d) => d.kind === 'people') && m.addable({ ...own, areaIds: ['s'] }).some((d) => d.kind === 'people'));
-    const withPeople = m.addPart({ ...own, areaIds: ['s'] }, 'people');
-    assert.equal(withPeople.parts.at(-1).kind, 'people');
-    const moved = m.movePart(own, 0, 1);
-    assert.deepEqual(moved.parts.slice(0, 2).map((p) => p.kind), [own.parts[1].kind, own.parts[0].kind], 'moved one place down');
-    assert.equal(m.movePart(own, 0, -1), own, 'at the edge it stays');
-    assert.equal(m.removePart(own, 0).parts.length, own.parts.length - 1);
-    assert.equal(m.removeView(state, 'own:1').current, 'mine', 'removing the open view goes back to mine');
-    assert.equal(m.pickView(state, 'own:1'), state, 'picking the open view changes nothing');
-
-    /* Duldsam gelesen. */
-    const odd = m.readViewsState(JSON.stringify({
-      current: 'own:2',
-      own: [{ id: 'evil', name: 'x', parts: [] }, { id: 'own:2', name: '', areaIds: [], parts: [{ kind: 'people' }, { kind: 'alerts', mode: '??' }, { kind: 'nope' }] }, { id: 'own:2', name: 'dup', parts: [] }],
-      changed: { mine: { parts: [{ kind: 'people', mode: 'list' }, { kind: 'tiles', mode: 'all' }] }, 'own:2': { parts: [] }, 'area:s': { name: 'S', parts: [{ kind: 'people', mode: 'full' }] } }
-    }));
-    assert.deepEqual(odd.own.map((v) => v.id), ['own:2'], 'own views only with their prefix, once');
-    assert.equal(odd.own[0].name, 'Mój widok', 'a view without a name gets one');
-    assert.deepEqual(odd.own[0].parts, [{ kind: 'alerts', mode: 'list' }], 'unknown parts dropped, an unknown way is the default, area-only parts need areas');
-    assert.deepEqual(odd.changed.mine.parts, [{ kind: 'tiles', mode: 'all' }], 'my view has no area-only parts');
-    assert.ok(!('own:2' in odd.changed), 'changes are only for mine and area views');
-    assert.deepEqual(odd.changed['area:s'], { name: 'S', parts: [{ kind: 'people', mode: 'full' }] });
-    assert.deepEqual(m.readViewsState('nonsense'), empty, 'broken JSON: the defaults');
-
-    /* Als JSON hinaus und herein. */
-    const doc = m.exportView({ ...withPeople, name: 'B' }, areas);
-    assert.equal(doc.format, 'recreatio.view');
-    const into = { id: 'own:3', name: 'Stary', kind: 'own', areaIds: [], parts: [] };
-    const plan = m.planViewImport({ ...doc, areas: [{ id: 'gone', name: 'SCHOLA' }, { name: 'Nieznany' }] }, into, areas);
-    assert.deepEqual(plan.view.areaIds, ['s'], 'an area is found by its name when the id is not here');
-    assert.equal(plan.view.name, 'B');
-    assert.ok(plan.view.parts.some((p) => p.kind === 'people'), 'with an area, „Osoby" stays');
-    assert.equal(plan.warnings.length, 1, 'the unknown area is said');
-    const toMine = m.planViewImport(doc, m.allViews(empty, areas)[0], areas);
-    assert.equal(toMine.view.name, 'Mój widok', 'into my view only the parts change');
-    assert.ok(!toMine.view.parts.some((p) => p.kind === 'people') && toMine.warnings.length === 1, 'an area-only part is skipped there — and said');
-    assert.ok('error' in m.planViewImport({ format: 'recreatio.page', parts: [] }, into, areas), 'another format is refused');
-    assert.ok('error' in m.planViewImport({ format: 'recreatio.view' }, into, areas), 'without parts: refused');
-    const described = m.viewDescription();
-    for (const def of m.PART_DEFS) {
-      assert.ok(described.includes(`"${def.kind}"`), `described: ${def.kind}`);
-      for (const mode of def.modes) assert.ok(described.includes(`"${mode.id}"`), `described: ${def.kind}.${mode.id}`);
-    }
-
-    /* Wege je Teil des Arbeitsplatzes: der erste ist einfach, und es gibt einen erweiterten. */
-    for (const def of m.TOOLS) {
-      assert.equal(def.modes[0].extended, false, `${def.tool}: simple first`);
-      assert.ok(def.modes.some((one) => one.extended), `${def.tool}: an extended way`);
-    }
-    assert.equal(m.modeOf('forms', 'full').extended, true);
-    assert.equal(m.modeOf('forms', 'renamed-long-ago').id, 'simple', 'an unknown remembered way falls back to simple');
-    assert.equal(m.modeOf('pages', null).id, 'list');
+    /* Jeder Teil hat einen Namen; der Überblick eines Bereichs nimmt nur bekannte. */
+    for (const def of m.PART_DEFS) assert.ok(def.label.trim() !== '' && def.says.trim() !== '', `named: ${def.kind}`);
+    for (const part of m.AREA_PARTS) assert.ok(m.partDef(part.kind) !== undefined, `known: ${part.kind}`);
+    assert.ok(m.AREA_PARTS.some((one) => one.kind === 'people'), 'the overview of an area shows its people');
 
     /* Powiadomienia: Reihenfolge, aus, neue Arten an ihrer Stelle. */
     const defaults = m.readAlerts('');

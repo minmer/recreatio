@@ -24,7 +24,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { plural } from './ChatKit';
+import { plural } from './plural';
 import {
   filterWords, isFiltered, loadEntryDesk, neighbours, NO_FILTER, onDeskChange, pickRows, readEntryQuery,
   STEP_CHOICES, stepKindsOf, entryQueryString, withEntryQuery,
@@ -41,6 +41,7 @@ import { keysFor } from './ringOf';
 import { pagePath, path as routePath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
+import { Loading } from './ui/Loading';
 
 /* -- Was alle brauchen, die die Menschen eines Formulars zeigen -------------------- */
 
@@ -133,7 +134,7 @@ export function OfficeGate({ who, ring, retry, desk, failed, what }: {
   failed: string | null;
   what: string;
 }) {
-  if (who === undefined || (who !== null && ring === undefined)) return <p className="wk-hint" role="status">Wczytywanie…</p>;
+  if (who === undefined || (who !== null && ring === undefined)) return <Loading label="Wczytywanie…" />;
   if (who === null) {
     return (
       <p className="wk-hint">

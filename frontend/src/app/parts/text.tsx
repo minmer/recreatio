@@ -90,8 +90,8 @@ export const textPart = definePart<Config>({
     : size.width === 'full' && size.height === 'tall' ? 'Cały tekst w dwóch szpaltach, jak w gazecie.'
     : 'Cały tekst.',
 
-  /* Ein langer Text liest sich im ganzen Fenster besser — in zwei Spalten, ohne Seite drumherum. */
-  fullscreen: true,
+  /* Ein langer Text liest sich im ganzen Fenster besser — in zwei Spalten, ohne Seite drumherum. Ein kurzer nicht (2026-10-17). */
+  fullscreen: (c) => c.body.length > 4 || c.body.join(' ').length > 480,
 
   View: ({ config, ctx }) => <TextView config={config} strip={ctx.size.height === 'strip'} />
 });

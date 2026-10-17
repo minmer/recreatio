@@ -28,8 +28,9 @@ import { loadPage } from './page';
 import { readLogic } from './pageLogic';
 import { partLabel } from './parts/registry';
 import { myRoleNames } from './roleNames';
-import { pageSteps, viewPath } from './routes';
+import { pageSteps, viewPath, formPath, formsPath } from './routes';
 import { whoIsThere, WorkspaceError } from './session';
+import { Loading } from './ui/Loading';
 
 interface World {
   readonly modules: readonly ModuleRow[];
@@ -152,7 +153,7 @@ export function FormMap({ focus = null }: { focus?: string | null }) {
   })), [model]);
 
   if (failed !== null) return <p className="wk-error">{failed}</p>;
-  if (world === null || model === null) return <p className="wk-hint">Wczytywanie mapy formularzy…</p>;
+  if (world === null || model === null) return <Loading label="Wczytywanie mapy formularzy…" />;
 
   const mains = world.modules.filter((m) => m.kind === 'form').sort((a, b) => a.name.localeCompare(b.name, 'pl'));
 
@@ -166,7 +167,7 @@ export function FormMap({ focus = null }: { focus?: string | null }) {
             {mains.map((m) => <option key={m.moduleId} value={m.moduleId}>{m.extendsId === null ? m.name : `↳ ${m.name}`}</option>)}
           </select>
         </label>
-        <a className="wk-link-btn" href={viewPath('modules')}>‹ Lista formularzy</a>
+        <a className="wk-link-btn" href={formsPath()}>‹ Lista formularzy</a>
       </div>
       <ul className="wk-fmap-legend" aria-label="Legenda">
         <li className="is-stands">strona z formularzem</li>
@@ -183,7 +184,7 @@ export function FormMap({ focus = null }: { focus?: string | null }) {
           nodesConnectable={false}
           onNodeClick={(_e, node) => {
             const open = (node.data as MapNode).open;
-            if (open?.form !== undefined) window.location.hash = viewPath('modules', 'form', open.form);
+            if (open?.form !== undefined) window.location.hash = formPath(open.form);
             else if (open?.page !== undefined) window.location.hash = viewPath('pages', ...pageSteps(open.page));
           }}
           fitView

@@ -31,6 +31,7 @@ import type { SeatView } from './seatContext';
 import { SeatChatBody } from './SeatChatView';
 import { loadSeatChats } from './seatChat';
 import { WorkspaceError } from './session';
+import { Loading } from './ui/Loading';
 
 /** Imię, nazwisko — und „Dołącz". */
 export function IntroduceToChat({ chat, under, onJoined }: {
@@ -125,7 +126,7 @@ export function VisitorChat({ chatId, seats, chosen, under, fallback }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId, stamp]);
 
-  if (found === undefined) return <p className="wk-card-muted">Wczytywanie rozmowy…</p>;
+  if (found === undefined) return <Loading label="Wczytywanie rozmowy…" />;
 
   const seat = found.token === null ? undefined : order.find((one) => one.token === found.token);
   if (seat !== undefined) {
@@ -233,7 +234,7 @@ export function LinkChatRoom({ chatId, under, onJoined, signedIn = false }: {
     setMore(messages.length >= 60);
   }, [chatId, shown, talk, open]);
 
-  if (detail === undefined) return <p className="wk-card-muted">Wczytywanie rozmowy…</p>;
+  if (detail === undefined) return <Loading label="Wczytywanie rozmowy…" />;
   if (detail === null) return <p className="wk-card-muted">Ta rozmowa nie jest otwarta dla Twojego linku.</p>;
 
   const rules: MessageRules = {

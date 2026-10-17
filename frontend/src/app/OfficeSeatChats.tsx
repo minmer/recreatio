@@ -21,6 +21,7 @@ import type { Ring } from './keys';
 import { usePerson, type PagePerson } from './pagePerson';
 import { PageChatRoom } from './PageChatView';
 import { WorkspaceError } from './session';
+import { Loading } from './ui/Loading';
 
 type RolePerson = Extract<PagePerson, { kind: 'role' }>;
 
@@ -73,7 +74,7 @@ export function OfficeSeatChats({ seatId, areaId, ring, fallback }: {
   };
 
   if (seatId === null) return <p className="wk-card-muted">Ta osoba nie ma własnego linku — nie ma z nią rozmowy jeden na jeden.</p>;
-  if (chats === null) return <p className="wk-card-muted">Wczytywanie rozmowy…</p>;
+  if (chats === null) return <Loading label="Wczytywanie rozmowy…" />;
   if (role === null) return <p className="wk-card-muted">Rozmowę z tą osobą czyta się kontem koordynatora.</p>;
 
   if (chats.length === 0) {

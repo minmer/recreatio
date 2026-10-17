@@ -21,6 +21,7 @@ import { dateWords, publicLookup, QuoteFigure, readPublic, TextArticle } from '.
 import { latexFileName, textToLatex } from './libraryLatex';
 import { saveBlob } from './platform';
 import type { PartSize } from './part';
+import { Loading } from './ui/Loading';
 
 /* -- Ein Text --------------------------------------------------------------------------------- */
 
@@ -52,7 +53,7 @@ export function WritingCard({ library, entryId, size, whole = false, prefix }: {
   const loaded = usePublishedOne(library, entryId);
   const [open, setOpen] = useState(false);
 
-  if (loaded === null) return <p className="wk-card-text lib-loading">Wczytywanie tekstu…</p>;
+  if (loaded === null) return <Loading label="Wczytywanie tekstu…" />;
   if (loaded === 'missing') return <p className="wk-card-text">Tego tekstu nie ma albo nie jest już opublikowany.</p>;
 
   const full = whole || open || size.height === 'tall';
@@ -157,7 +158,7 @@ export function WritingsCard({ library, title, project, topic, size, whole = fal
       {title !== '' && <h2 className="wk-card-title">{title}</h2>}
       {big && <input className="lib-archive-search" type="search" value={query} placeholder="Szukaj w tekstach…" aria-label="Szukaj w tekstach" onChange={(e) => setQuery(e.target.value)} />}
       {failed && <p className="wk-card-text">Nie udało się wczytać tekstów.</p>}
-      {items === null && !failed && <p className="wk-card-text lib-loading">Wczytywanie…</p>}
+      {items === null && !failed && <Loading label="Wczytywanie…" />}
       {items !== null && items.length === 0 && <p className="wk-card-text">{query === '' ? 'Nie ma jeszcze opublikowanych tekstów.' : 'Nic nie znaleziono.'}</p>}
       {items !== null && items.length > 0 && (
         <ul className="lib-archive-list">
@@ -280,7 +281,7 @@ export function QuotesCard({ library, title, topic, size, whole = false }: {
           )}
         </div>
       )}
-      {items === null && <p className="wk-card-text lib-loading">Wczytywanie…</p>}
+      {items === null && <Loading label="Wczytywanie…" />}
       {items !== null && items.length === 0 && <p className="wk-card-text">{query === '' ? 'Nie ma jeszcze opublikowanych cytatów.' : 'Nic nie znaleziono.'}</p>}
       {items !== null && items.length > 0 && (
         <ul className="lib-quote-list">{items.map((item) => <QuoteItem key={item.entryId} library={library} item={item} full={big || size.height !== 'strip'} />)}</ul>

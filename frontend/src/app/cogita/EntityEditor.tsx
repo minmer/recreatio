@@ -19,6 +19,8 @@ import {
 import { linkedOf } from './store';
 import { EntityPicker, Markup, MediaView, entityName, useAsync, useBusy, useCtx } from './ui';
 import { loadVersions, openVersion } from './versions';
+import { askText } from '../ui/dialogs';
+import { Loading } from '../ui/Loading';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isEnvelope = (raw: unknown): raw is Record<string, unknown> =>
@@ -105,8 +107,8 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
         {writes && (
           <div className="wk-actions">
             <button type="submit" className="wk-btn" disabled={busy || !dirty}>{busy ? 'Zapisywanie…' : 'Zapisz'}</button>
-            {entityId !== null && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => {
-              if (!window.confirm('Usunąć ten wpis? Zostanie w historii wersji.')) return;
+            {entityId !== null && <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => {
+              if (!(await askText('Usunąć ten wpis? Zostanie w historii wersji.'))) return;
               void run(async () => { await lib.remove(entityId); onDone(null); });
             }}>Usuń</button>}
           </div>
@@ -226,7 +228,7 @@ function SourceRow({ source, writes, onChange }: { source: Record<string, unknow
   return (
     <div className="cg-row">
       <span className="cg-muted">Źródło:</span>
-      {writes ? <EntityPicker lib={lib} kinds={['work']} value={work} placeholder="dzieło z biblioteki" onPick={(id) => onChange(id === null ? undefined : { ...source, work: id })} />
+      {writes ? <EntityPicker lib={lib} kinds={['work']} refs value={work} placeholder="dzieło z biblioteki (źródła tej bazy)" onPick={(id) => onChange(id === null ? undefined : { ...source, work: id })} />
         : <span>{work === null ? '—' : entityName(lib, work)}</span>}
       {work !== null && <input value={typeof source.locator === 'string' ? source.locator : ''} placeholder="s. 23, J 3,16" disabled={!writes} onChange={(e) => onChange({ ...source, locator: e.target.value || undefined })} />}
     </div>
@@ -275,7 +277,7 @@ function PlainValue({ field, value, writes, onChange, onOpen }: { field: FieldDe
       const id = typeof value === 'string' && value !== '' ? value : null;
       return (
         <span className="cg-row">
-          {writes ? <EntityPicker lib={lib} kinds={field.to} value={id} onPick={(next) => onChange(next ?? undefined)} />
+          {writes ? <EntityPicker lib={lib} kinds={field.to} refs value={id} onPick={(next) => onChange(next ?? undefined)} />
             : <span>{id === null ? '—' : entityName(lib, id)}</span>}
           {id !== null && lib.entity(id) !== undefined && <button type="button" className="wk-link-btn" onClick={() => onOpen(id)}>otwórz</button>}
         </span>
@@ -345,7 +347,7 @@ function MarkupInput({ value, writes, onChange, onOpen }: { value: string; write
     <span className="cg">
       <textarea rows={4} value={value} disabled={!writes} onChange={(e) => onChange(e.target.value)} />
       {writes && (linking
-        ? <EntityPicker lib={lib} value={null} placeholder="do którego wpisu?" onPick={(id) => {
+        ? <EntityPicker lib={lib} refs value={null} placeholder="do którego wpisu?" onPick={(id) => {
             setLinking(false);
             if (id === null) return;
             const entity = lib.entity(id);
@@ -404,8 +406,8 @@ function Merge({ entity, onMerged }: { entity: Entity; onMerged: () => void }) {
       <span className="wk-hint">Wszystkie odwołania do duplikatu przejdą na ten wpis; duplikat zniknie (zostanie w historii).</span>
       <EntityPicker lib={lib} kinds={entity.kinds} value={other} onPick={setOther} placeholder="który wpis to duplikat?" />
       {other !== null && other !== entity.id && (
-        <button type="button" className="wk-btn" disabled={busy} onClick={() => {
-          if (!window.confirm(`Połączyć „${entityName(lib, other)}" z „${lib.label(entity)}"?`)) return;
+        <button type="button" className="wk-btn" disabled={busy} onClick={async () => {
+          if (!(await askText(`Połączyć „${entityName(lib, other)}" z „${lib.label(entity)}"?`))) return;
           void run(async () => { await lib.merge(entity.id, other); setOther(null); onMerged(); });
         }}>{busy ? 'Łączenie…' : 'Połącz'}</button>
       )}
@@ -423,7 +425,7 @@ function History({ entityId, onRestored }: { entityId: string; onRestored: () =>
   return (
     <Section title="Historia wersji">
       {!open ? <button type="button" className="wk-link-btn" onClick={() => setOpen(true)}>Pokaż wcześniejsze wersje</button>
-        : versions === undefined ? <span className="wk-hint">Wczytywanie…</span>
+        : versions === undefined ? <Loading lines={2} />
         : versions === null ? <span className="wk-hint">Historia nie jest dostępna.</span>
         : versions.length === 0 ? <span className="wk-hint">Nie ma jeszcze wcześniejszych wersji.</span>
         : (
@@ -448,13 +450,13 @@ function History({ entityId, onRestored }: { entityId: string; onRestored: () =>
 }
 
 function PublishEntity({ entity }: { entity: Entity }) {
-  const { lib, keyOf } = useCtx();
+  const { lib, keyIn } = useCtx();
   const entry = lib.entry(entity.id);
   const { busy, failed, run } = useBusy();
   const builtin = entry !== undefined && ['person', 'work', 'quote', 'topic', 'text', 'project'].includes(entry.kind);
   const publish = async () => {
     const bundle = entityBundle(lib, entity);
-    await publishMedia(lib, publicEntity(lib, entity).media, keyOf);
+    await publishMedia(lib, publicEntity(lib, entity).media, keyIn);
     await publishBundle(lib, entity.id, bundle);
   };
   if (entry === undefined || builtin) return null;

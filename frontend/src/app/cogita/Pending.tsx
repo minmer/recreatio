@@ -13,6 +13,7 @@ import { loadReports, type Report } from './learn';
 import { fieldsOf, valuesOf } from './schema';
 import { linkedOf } from './store';
 import { EntityPicker, entityName, useAsync, useBusy, useCtx } from './ui';
+import { Loading } from '../ui/Loading';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -20,14 +21,15 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
   const { lib, me, writes } = useCtx();
   const look = lib.look;
 
-  const open = lib.ofKind('topic').filter((t) => {
+  /* 0110 — was offen ist, in DIESER Baza wiedzy; was eine Quelle offen hat, ist dort zu tun. */
+  const open = lib.ofKind('topic').filter((t) => lib.isOwn(t.id)).filter((t) => {
     const f = fieldsOf(t, look);
     const flag = f.find((x) => x.key === 'open');
     const answers = f.find((x) => x.key === 'answers');
     return (flag !== undefined && valuesOf(t, flag)[0]?.value === true) || (answers !== undefined && valuesOf(t, answers).length === 0 && t.kinds.includes('topic') && lib.backlinks(t.id).length === 0);
   });
 
-  const stale = [...lib.ofKind('knowledge'), ...lib.ofKind('topic')].filter((e) => {
+  const stale = [...lib.ofKind('knowledge'), ...lib.ofKind('topic')].filter((e) => lib.isOwn(e.id)).filter((e) => {
     const entry = lib.entry(e.id);
     const checked = isObject(entry?.data._checked) ? entry!.data._checked as Record<string, string> : {};
     return linkedOf(e, look).some((token) => {
@@ -69,8 +71,8 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
       {writes && (
         <section className="cg-card">
           <h3>Zgłoszenia uczących się ({flags.length})</h3>
-          {reports === undefined ? <span className="wk-hint">Wczytywanie…</span>
-            : reports === null ? <span className="wk-hint">Zgłoszenia czyta ten, kto ma klucz przyjęć obszaru biblioteki (Ustawienia → przyjęcia).</span>
+          {reports === undefined ? <Loading lines={2} />
+            : reports === null ? <span className="wk-hint">Zgłoszenia czyta ten, kto ma klucz przyjęć obszaru bazy wiedzy (Ustawienia → przyjęcia).</span>
             : flags.length === 0 ? <span className="wk-hint">Brak zgłoszeń.</span>
             : <ul>{flags.slice(-60).reverse().map((f, i) => {
                 const body = isObject(f.body) ? f.body : {};

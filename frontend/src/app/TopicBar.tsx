@@ -20,6 +20,7 @@ import { Modal } from './Modal';
 import { viewPath } from './routes';
 import { WorkspaceError } from './session';
 import { loadTasks, openTasks, windowState, type OpenTask } from './tasks';
+import { Loading } from './ui/Loading';
 
 export function TopicBar({ topics, current, canCreate, canManage, onPick, onCreate, onChanged }: {
   topics: readonly Topic[];
@@ -251,7 +252,7 @@ export function LinkedDialog({ ring, chatId, topics, onClose }: {
 
   return (
     <Modal title="Zadania i terminy z tej rozmowy" wide onClose={onClose}>
-      {tasks === null || items === null ? <p className="wk-hint">Wczytywanie…</p>
+      {tasks === null || items === null ? <Loading label="Wczytywanie…" />
         : tasks.length === 0 && items.length === 0 ? (
           <p className="wk-empty">Nic jeszcze nie powstało z tej rozmowy. W menu wiadomości wybierz „Utwórz zadanie" albo „Dodaj do kalendarza".</p>
         ) : (

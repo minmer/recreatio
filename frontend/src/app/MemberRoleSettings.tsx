@@ -20,6 +20,7 @@ import { CommonRoleChoice, EMPTY_DRAFT, NEW_ROLE, useGivableRoles } from './Comm
 import type { Ring, SealedRole } from './keys';
 import { enrollMembers, handOverRoleKeys, loadFormMembers, setMemberRole, type MemberState } from './memberRole';
 import { WorkspaceError } from './session';
+import { Loading } from './ui/Loading';
 
 export function MemberRoleSettings({ partId, ring, person, areas, onRingChanged }: {
   partId: string;
@@ -98,7 +99,7 @@ export function MemberRoleSettings({ partId, ring, person, areas, onRingChanged 
       </p>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {state === null ? <p className="wk-hint">Wczytywanie…</p> : (
+      {state === null ? <Loading label="Wczytywanie…" /> : (
         <>
           {state.roleId === null ? (
             <p className="wk-note">Ten formularz nie daje jeszcze żadnej roli.</p>

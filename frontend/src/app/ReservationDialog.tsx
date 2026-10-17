@@ -25,6 +25,7 @@ import { Modal } from './Modal';
 import { officeAdd, officeClose, officeDecides, officeRemove } from './resource';
 import { viewPath } from './routes';
 import { WorkspaceError } from './session';
+import { askText } from './ui/dialogs';
 
 const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 
@@ -87,8 +88,8 @@ function ClaimLine({ claim, mayDecide, busy, act }: {
             </>
           ) : (
             <button type="button" className="wk-link-btn wk-danger" disabled={busy !== null}
-              onClick={() => {
-                if (!window.confirm(`Wypisać: ${holderName(claim)}?`)) return;
+              onClick={async () => {
+                if (!(await askText(`Wypisać: ${holderName(claim)}?`))) return;
                 void act(`x:${claim.claimId}`, () => officeRemove(claim.claimId));
               }}>
               Wypisz

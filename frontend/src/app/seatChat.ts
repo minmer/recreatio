@@ -167,7 +167,8 @@ export async function sendSeatMessage(
       method: 'POST',
       body: JSON.stringify({
         messageId, epoch, bodySealed: toBase64Url(sealedBody), signature: toBase64Url(signature), signedAt, sendAt: options.sendAt,
-        topicId: options.topicId ?? null
+        topicId: options.topicId ?? null,
+        whenOnline: options.whenOnline === true, silent: options.silent === true
       })
     });
   return { ...done, epoch };

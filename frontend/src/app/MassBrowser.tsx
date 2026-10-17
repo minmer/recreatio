@@ -32,6 +32,7 @@ import { MODE_WORD, nextOf, rangeOf, stepAnchor, type MassMode, type MassView } 
 import { Glance, NextBox } from './MassGlance';
 import { DayBlock, everyDay, placeOf, Row, usePlan, type Ctx } from './MassParts';
 import { MonthPicker } from './MonthPicker';
+import { Loading } from './ui/Loading';
 
 export function MassBrowser({ shown, calendar, now }: { shown: MassView; calendar: string; now: Date }) {
   const [mode, setMode] = useState<MassMode>(shown.modes[0] ?? 'soon');
@@ -145,7 +146,7 @@ export function MassBrowser({ shown, calendar, now }: { shown: MassView; calenda
 
           <div className={`wk-mass-body${loading ? ' is-loading' : ''}`}>
             {loaded === null
-              ? <p className="wk-card-muted">{failed ? 'Planu nie udało się wczytać.' : 'Wczytywanie…'}</p>
+              ? (failed ? <p className="wk-card-muted">Planu nie udało się wczytać.</p> : <Loading />)
               : <Drawn tag={loaded.tag} from={loaded.from} services={loaded.masses} shown={shown} now={now}
                   next={next} calendar={calendar} onOpen={open} onPickDay={pick} />}
           </div>

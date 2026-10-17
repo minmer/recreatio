@@ -26,7 +26,7 @@
  * Was irgendwo auf ein Ja wartet, sammelt „Do potwierdzenia".
  */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { loadAgenda, openAgenda, type AgendaClaim, type OpenedItem } from './agenda';
 import { loadAreas, type AreaRow } from './area';
@@ -40,7 +40,8 @@ import {
 import { addDays, keyOf, longDate, monthTitle, rangeTitle, sameDay, sameMonth, startOfDay, WEEK_HEADS } from './dayMath';
 import { CALENDAR_KIND_LABEL, loadCalendars, type CalendarRow } from './calendar';
 import { CalendarSettings } from './CalendarSettings';
-import { calendarLabel, EventDialog, type EventTarget } from './EventDialog';
+import { calendarLabel } from './calendarLabel';
+import type { EventTarget } from './EventDialog';
 import { ItemLink } from './ItemLink';
 import { intentionsWord } from './mass';
 import { useNow } from './MassParts';
@@ -51,9 +52,12 @@ import { ReservationDialog, WaitingDialog } from './ReservationDialog';
 import type { Who } from './session';
 import { WorkspaceError } from './session';
 import { TaskDay, TaskPill } from './TaskDay';
-import { TaskDialog } from './TaskDialog';
+/* 2026-10-17 — die Dialoge erst, wenn einer aufgeht: ein Kalender auf einer öffentlichen Seite lud beide mit. */
+const EventDialog = lazy(() => import('./EventDialog').then((m) => ({ default: m.EventDialog })));
+const TaskDialog = lazy(() => import('./TaskDialog').then((m) => ({ default: m.TaskDialog })));
 import { loadTasks, openTasks, type OpenTask } from './tasks';
 import { groupName } from './WhoSees';
+import { Loading } from './ui/Loading';
 
 const VIEWS: readonly { value: CalView; label: string }[] = [
   { value: 'day', label: 'Dzień' }, { value: 'week', label: 'Tydzień' },
@@ -79,7 +83,7 @@ export function CalendarApp({ who, trail = [] }: { who: Who; trail?: readonly st
   const me = useMe(who);
   const day = /^\d{4}-\d{2}-\d{2}$/.test(trail[0] ?? '') ? new Date(`${trail[0]}T00:00:00`) : undefined;
 
-  if (me === undefined) return <p className="wk-lede">Wczytywanie…</p>;
+  if (me === undefined) return <Loading label="Wczytywanie…" />;
   if (me === null) {
     return <p className="wk-note">Bez klucza w tej karcie kalendarz jest zamknięty — zaloguj się ponownie albo odblokuj klucz.</p>;
   }
@@ -114,7 +118,9 @@ export function Calendar({ me, scope, startNew, at }: {
   startNew?: () => boolean;
 }) {
   const scoped = scope !== undefined;
-  const [viewText, setViewText] = useRemembered(scoped ? 'calendar.part.view' : 'calendar.view', 'week');
+  /* 2026-10-17 — auf dem Telefon passen sieben Spalten nicht: ohne eigene Wahl beginnt es dort mit der Liste. */
+  const narrow = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 40rem)').matches === true;
+  const [viewText, setViewText] = useRemembered(scoped ? 'calendar.part.view' : 'calendar.view', narrow ? 'list' : 'week');
   /*
    * 0074 — WAS AUSGEBLENDET IST, GILT NUR HIER. Ein Baustein auf einer Seite
    * merkt sich seine eigene Auswahl (je Satz Kalender): wer im Arbeitsplatz
@@ -308,7 +314,7 @@ export function Calendar({ me, scope, startNew, at }: {
       )}
 
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {data === null && failed === null && <p className="wk-hint">Wczytywanie…</p>}
+      {data === null && failed === null && <Loading label="Wczytywanie…" />}
 
       {data !== null && (view === 'day' || view === 'week') && (
         <TimeGrid days={days} events={events} marks={marks} now={now}
@@ -326,12 +332,14 @@ export function Calendar({ me, scope, startNew, at }: {
       )}
 
       {dialog !== null && (
+        <Suspense fallback={null}>
         <EventDialog me={me} areas={areas} calendars={calendars} scope={scope} target={dialog} events={all}
           onClose={() => setDialog(null)} onSaved={reload}
           onAddPart={(parent) => setDialog({
             at: 'new', start: parent.start, end: new Date(parent.start.getTime() + 3_600_000), allDay: false,
             calendarId: parent.item?.occurrence.calendarId, parentItemId: parent.item?.occurrence.itemId, parentTitle: parent.item?.title
           })} />
+        </Suspense>
       )}
 
       {calendarsOpen && (
@@ -346,8 +354,10 @@ export function Calendar({ me, scope, startNew, at }: {
       )}
 
       {taskDialog !== null && (
-        <TaskDialog me={me} areas={areas} task={taskDialog.task} at={taskDialog.at}
-          onClose={() => setTaskDialog(null)} onSaved={reload} />
+        <Suspense fallback={null}>
+          <TaskDialog me={me} areas={areas} task={taskDialog.task} at={taskDialog.at}
+            onClose={() => setTaskDialog(null)} onSaved={reload} />
+        </Suspense>
       )}
 
       {taskDay !== null && (

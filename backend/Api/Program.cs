@@ -44,7 +44,9 @@ if (args.Length > 0 && args[0].Equals("slug", StringComparison.OrdinalIgnoreCase
 builder.Services.AddSingleton<Db>();
 builder.Services.AddSingleton<Push>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Push>());
-builder.Services.AddHostedService<ChatDelivery>();
+/* 0111 — dieselbe Zustellung auch auf Zuruf („Wyślij teraz"), nicht nur im Takt. */
+builder.Services.AddSingleton<ChatDelivery>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ChatDelivery>());
 
 /* 0109 — Cogita: der Hub der Sitzungen (WebSocket, sonst fragt der Browser selbst) und der Takt der Spiele. */
 builder.Services.AddSignalR(options => { options.MaximumReceiveMessageSize = 64 * 1024; });

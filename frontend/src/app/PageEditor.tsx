@@ -27,9 +27,11 @@ import { PageJson } from './PageJsonPanel';
 import { NO_LOOK, readLook, writeLook, type Look } from './slides';
 import { readSubject, SubjectSettings, writeSubject, type SubjectDecl } from './pageSubject';
 import { WorkspaceError, type Who } from './session';
-import { DisplaySwitch } from './DisplaySwitch';
-import { useDisplay } from './display';
+import { Loading } from './ui/Loading';
+import { PageHeader } from './ui/PageHeader';
 import { ShareButton } from './Share';
+import { toast } from './ui/dialogs';
+import { Icon } from './ui/icons';
 
 export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
   path: string;
@@ -41,8 +43,6 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
   /** Den Baustein aufschlagen — als Unterseite DIESER Seite (`Workspace`). */
   onOpenModule: (moduleId: string) => void;
 }) {
-  /* 0094 — einfach: Bausteine, Aussehen, Speichern; erweitert: dazu die Karte und das JSON. */
-  const display = useDisplay('pageEditor');
 
   const [title, setTitle] = useState('');
   const [lead, setLead] = useState('');
@@ -67,7 +67,6 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   /* 0064 — nach einem Import liest das Menü neu; es hält seinen Stand selbst. */
   const [menuKey, setMenuKey] = useState(0);
@@ -107,30 +106,40 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
 
   useEffect(() => { void look(); }, [look]);
 
-  const act = async (what: string, todo: () => Promise<unknown>) => {
+  /** `true`, wenn es geklappt hat — dann darf der Aufrufer „Zapisane" sagen. */
+  const act = async (what: string, todo: () => Promise<unknown>): Promise<boolean> => {
     setBusy(what);
     setFailed(null);
-    setSaved(false);
 
     try {
       await todo();
       await look();
+      return true;
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      return false;
     } finally {
       setBusy(null);
     }
   };
 
-  if (!ready) return <p className="wk-hint">Wczytywanie strony…</p>;
+  if (!ready) return <Loading label="Wczytywanie strony…" />;
 
 
   return (
     <div className="wk-page-edit">
-      <div className="wk-view-title">
-        <h3 className="wk-h2">recreatio.pl/{path}</h3>
-        <DisplaySwitch tool="pageEditor" />
-      </div>
+      <PageHeader
+        title={title.trim() !== '' ? title : path === '' ? 'recreatio.pl' : path}
+        meta={<a href={`#/${path}`}>recreatio.pl/{path}</a>}
+        actions={(
+          <>
+            <a className="wk-btn wk-btn-quiet" href={pagePath(path)}><Icon name="eye" />Zobacz stronę</a>
+            {/* 0094 — die Adresse weitergeben; verlangt die Seite Zugang, mit einem Link, der ihn gibt. */}
+            <ShareButton who={who} label="Udostępnij" className="wk-btn wk-btn-quiet"
+              target={{ title: title.trim() === '' ? path : title.trim(), aim: path, areaIds: accessAreaIds, open: accessAreaIds.length === 0 }} />
+          </>
+        )}
+      />
 
       {/*
         0054 — DAS MENÜ, über allem anderen: es steht auch über der Seite, und
@@ -148,38 +157,28 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
           if (busy === null && title.trim() !== '') {
             void act('Zapisywanie…', () =>
               savePage(path, { title: title.trim(), lead: lead.trim() === '' ? null : lead.trim() })
-            ).then(() => setSaved(true));
+            ).then((ok) => { if (ok) toast('Zapisane.', { kind: 'ok' }); });
           }
         }}
       >
         <label className="wk-field">
           <span>Tytuł</span>
-          <input value={title} onChange={(e) => { setTitle(e.target.value); setSaved(false); }} />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} />
         </label>
 
         <label className="wk-field">
           <span>Tekst</span>
-          <textarea rows={5} value={lead} onChange={(e) => { setLead(e.target.value); setSaved(false); }} />
+          <textarea rows={5} value={lead} onChange={(e) => setLead(e.target.value)} />
         </label>
 
-        <p className="wk-hint">
-          Ta strona jest publiczna — tytuł i tekst idą do usługi otwartym tekstem,
-          bo czyta je każdy, kto wejdzie pod ten adres.
-        </p>
+        <p className="wk-hint">Tytuł i tekst są jawne — czyta je każdy, kto wejdzie pod ten adres.</p>
 
         {failed !== null && <p className="wk-error">{failed}</p>}
-        {saved && <p className="wk-done">Zapisane.</p>}
 
         <div className="wk-actions">
           <button type="submit" className="wk-btn" disabled={busy !== null || title.trim() === ''}>
             {busy ?? 'Zapisz'}
           </button>
-
-          <a className="wk-link" href={pagePath(path)}>Zobacz stronę</a>
-
-          {/* 0094 — die Adresse weitergeben; verlangt die Seite Zugang, mit einem Link, der ihn gibt. */}
-          <ShareButton who={who} label="Udostępnij" className="wk-link-btn"
-            target={{ title: title.trim() === '' ? path : title.trim(), aim: path, areaIds: accessAreaIds, open: accessAreaIds.length === 0 }} />
         </div>
       </form>
 
@@ -188,7 +187,7 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
         Zapisy": oben auf der Seite steht dann die Auswahl (◀ ▶), und die
         Bausteine „Panel osoby" zeigen den Gewählten.
       */}
-      {(display.extended || subject !== null) && (
+      {(
       <details className="wk-fold" open={subject !== null || subjectDirty}>
         <summary>Wybór na stronie{subject === null ? '' : ' — ustawiony'}</summary>
         <SubjectSettings value={subject} busy={busy !== null} onChange={(next) => { setSubject(next); setSubjectDirty(true); }} />
@@ -306,7 +305,7 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
         daneben die Beschreibung, wie das Dokument aussieht. Nimmt auch ein
         Ereignis des Altbestands an (vorher `SlidesImport`).
       */}
-      {display.extended && (
+      {(
         <PageJson
           now={{ path, title, lead, mode, look: pageLook, parts, logic, subject: writeSubject(subject) }}
           who={who}
@@ -320,14 +319,7 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
         die Schritte, aus denen „Kroki osoby" seine Liste zeichnet. Zugeklappt
         — sie ist gross, und nicht jede Seite braucht sie.
       */}
-      {!display.extended ? (
-        logic !== null && (
-          <p className="wk-hint" data-logic-note="">
-            Ta strona ma mapę logiki (co kiedy widać).{' '}
-            <button type="button" className="wk-link-btn" onClick={() => display.pick('full')}>Pokaż mapę</button>
-          </p>
-        )
-      ) : (
+      {(
       <>
       <h3 className="wk-h2">
         Mapa logiki strony{' '}

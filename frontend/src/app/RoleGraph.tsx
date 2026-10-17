@@ -33,6 +33,7 @@ import {
 import { forgetKeys, keysFor } from './ringOf';
 import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
+import { Loading } from './ui/Loading';
 
 type Kind = 'account' | 'person' | 'role' | 'group';
 
@@ -374,7 +375,7 @@ export function RoleGraph({ who }: { who: Who }) {
   const onDropped = useCallback(
     () => keepSpots(who.accountId, nodes), [who.accountId, nodes]);
 
-  if (data === undefined) return <p className="wk-lede">Wczytywanie…</p>;
+  if (data === undefined) return <Loading label="Wczytywanie…" />;
 
   if (data === null) {
     return (

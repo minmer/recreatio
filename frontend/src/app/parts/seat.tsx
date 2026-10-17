@@ -19,27 +19,38 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 
-import { AskSetup } from '../AskSetup';
 import { definePart, picked, text, type RawConfig } from '../part';
 import { usePerson } from '../pagePerson';
-import { SeatTools } from '../SeatBar';
 import { seatName, useSeats, type SeatView } from '../seatContext';
 import { PageSteps } from '../PageLogicView';
 import { usePageLogic } from '../pageLogic';
-import { SeatSteps } from '../StepList';
-import { SeatAskBody, SeatChatBody } from '../SeatChatView';
-import { SeatChatPeek } from '../ChatPeek';
+import { SeatChatPeek, useShownSeats } from '../ChatPeek';
+import { plural } from '../plural';
 import { ChatStep, chatStepStatus } from '../ChatStep';
 import { useSeatChatRows } from '../seatUnread';
 import { answerPresence, answerTask, stepsFor, type StepState } from '../steps';
-import { OwnSubmissions, ReviewSubmissions } from '../Submission';
-import { TaskCard, takenOf } from '../TaskCard';
-import { EntryDeskPanel, WriteToSeat } from '../FormOffice';
+import { takenOf } from '../taskTaken';
+import { EntryDeskPanel, WriteToSeat } from '../officeLazy';
 import { deskChanged, formAreasOf, type DeskRow } from '../entryDesk';
 import { useEntrySubject, useOfficeSubject, type EntrySubject } from '../entrySubject';
-import { OfficeSeatChats } from '../OfficeSeatChats';
-import { PersonSteps } from '../StepList';
-import { modulesNow } from '../viewData';
+import { Loading } from '../ui/Loading';
+import { later } from '../ui/later';
+
+/*
+ * 2026-10-17 — DIE ANSICHTEN DER PLÄTZE ERST, WENN SIE GEZEIGT WERDEN: Kroki,
+ * Rozmowy, Zgłoszenie, Zadania, die Kanzlei, der Editor von „Napisz do nas".
+ * Eine Seite ohne diese Bausteine (fast jede öffentliche) lud sie alle mit.
+ */
+const AskSetup = later(() => import('../AskSetup').then((m) => m.AskSetup));
+const SeatTools = later(() => import('../SeatBar').then((m) => m.SeatTools), null);
+const SeatSteps = later(() => import('../StepList').then((m) => m.SeatSteps));
+const PersonSteps = later(() => import('../StepList').then((m) => m.PersonSteps));
+const SeatAskBody = later(() => import('../SeatChatView').then((m) => m.SeatAskBody));
+const SeatChatBody = later(() => import('../SeatChatView').then((m) => m.SeatChatBody));
+const OwnSubmissions = later(() => import('../Submission').then((m) => m.OwnSubmissions));
+const ReviewSubmissions = later(() => import('../Submission').then((m) => m.ReviewSubmissions));
+const TaskCard = later(() => import('../TaskCard').then((m) => m.TaskCard), null);
+const OfficeSeatChats = later(() => import('../OfficeSeatChats').then((m) => m.OfficeSeatChats));
 
 /*
  * 0104 — DIE SEITE DES KANDYDATEN, VON DER KANZLEI GEÖFFNET.
@@ -96,11 +107,11 @@ function AskOffice({ moduleId, row, subject }: { moduleId: string; row: DeskRow;
   const [areaId, setAreaId] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     let alive = true;
-    modulesNow().then((all) => { if (alive) setAreaId(all.find((m) => m.moduleId === moduleId)?.areaId ?? null); })
+    import('../viewData').then((data) => data.modulesNow()).then((all) => { if (alive) setAreaId(all.find((m) => m.moduleId === moduleId)?.areaId ?? null); })
       .catch(() => { if (alive) setAreaId(null); });
     return () => { alive = false; };
   }, [moduleId]);
-  if (areaId === undefined) return <p className="wk-card-muted">Wczytywanie rozmowy…</p>;
+  if (areaId === undefined) return <Loading label="Wczytywanie rozmowy…" />;
   return <OfficeChats row={row} subject={subject} areaId={areaId} />;
 }
 
@@ -503,13 +514,34 @@ function SeatTasks({ seat, formId }: { seat: SeatView; formId: string | null }) 
   );
 }
 
+/**
+ * 2026-10-17 — ZUGEKLAPPT, WAS WARTET: der Streifen sagte nur „Twoje zadania ·
+ * Pokaż zadania". Jetzt steht daneben, wie viele Zadania auf eine Antwort
+ * warten (laufend oder kommend, noch nicht erfüllt) — die Zahl, für die man
+ * ihn aufklappt.
+ */
+function SeatTasksPeek({ formId }: { formId: string | null }) {
+  const seat = useShownSeats()[0];
+  if (seat === undefined) return null;
+  const waiting = seat.forms
+    .filter((form) => formId === null || form.formId === formId)
+    .flatMap((form) => stepsFor({
+      hasSeat: false, confirmedAt: null, extensions: [], filled: new Map(),
+      steps: form.steps.filter((one) => one.kind === 'task'), marks: [], tasks: form.tasks, forPerson: true
+    }))
+    .filter((one) => one.task !== undefined && !one.task.fulfilled && (one.task.phase === 'active' || one.task.phase === 'upcoming'))
+    .length;
+  if (waiting === 0) return null;
+  return <span className="wk-card-peek" data-tasks-waiting={waiting}>{waiting} {plural(waiting, 'zadanie czeka', 'zadania czekają', 'zadań czeka')}</span>;
+}
+
 export const seatTasksPart = definePart<TasksConfig>({
   kind: 'seat-tasks',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
   example: { title: 'Twoje zadania', form: '<id-formularza>' },
   label: 'Zadania osoby',
-  use: 'Zadania na pewien czas (np. różaniec w październiku) — osoba je przyjmuje, pomija albo odmawia i zaznacza dni.',
+  use: 'Zadania na pewien czas (np. różaniec w październiku) — osoba odpowiada przy każdym dniu w kalendarzu.',
   box: { colSpan: 3, rowSpan: 3 },
 
   fields: [
@@ -524,8 +556,9 @@ export const seatTasksPart = definePart<TasksConfig>({
 
   hasContent: () => true,
   strip: { title: 'Twoje zadania', open: 'Pokaż zadania' },
+  peek: ({ config }) => <SeatTasksPeek formId={config.form} />,
   shows: (_config, size) => size.height === 'strip'
-    ? 'Nagłówek i przycisk — zadania rozwijają się po kliknięciu.'
+    ? 'Nagłówek, ile zadań czeka, i przycisk — zadania rozwijają się po kliknięciu.'
     : 'Zadania osoby na teraz: decyzja i dni wykonania; zakończone zwinięte poniżej.',
 
   View: ({ config }) => (

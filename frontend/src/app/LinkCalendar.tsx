@@ -23,6 +23,7 @@ import { loadCalendars } from './calendar';
 import { Calendar } from './CalendarApp';
 import { accessWords, heldLinkKeys, type HeldInfo } from './linkAccess';
 import { useLinkMe } from './linkMe';
+import { Loading } from './ui/Loading';
 
 export function LinkCalendar({ fallback, onSignIn }: {
   /** Was dasteht, wenn dieser Browser keinen Link hält, der einen Kalender sieht — die Anmeldung. */
@@ -43,7 +44,7 @@ export function LinkCalendar({ fallback, onSignIn }: {
     return () => { alive = false; };
   }, [me]);
 
-  if (me === undefined || (me !== null && found === null)) return <p className="wk-lede">Wczytywanie…</p>;
+  if (me === undefined || (me !== null && found === null)) return <Loading label="Wczytywanie…" />;
   if (me === null || found === null || found.ids.length === 0) return <>{fallback}</>;
 
   return (

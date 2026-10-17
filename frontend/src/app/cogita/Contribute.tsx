@@ -13,6 +13,7 @@ import { loadLibraries, openLibraries, type OpenLibrary } from '../library';
 import { storeOf, useLibraryStore } from '../libraryStore';
 import { entityOf } from './kinds';
 import { EntityPicker, Markup, entityName, useBusy, useCtx } from './ui';
+import { Loading } from '../ui/Loading';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -37,8 +38,8 @@ export function Propose({ about, onDone }: { about?: string; onDone?: () => void
   const [entity, setEntity] = useState<string | null>(about ?? null);
   const { busy, failed, run } = useBusy();
   const [said, setSaid] = useState<string | null>(null);
-  if (target === undefined) return <p className="wk-hint">Wczytywanie…</p>;
-  if (target === null || me === null) return <p className="wk-hint">Autorzy tej biblioteki nie przyjmują jeszcze propozycji.</p>;
+  if (target === undefined) return <Loading label="Wczytywanie…" />;
+  if (target === null || me === null) return <p className="wk-hint">Autorzy tej bazy wiedzy nie przyjmują jeszcze propozycji.</p>;
   return (
     <form className="wk-form cg" onSubmit={(e) => { e.preventDefault(); void run(async () => {
       const store = storeOf(me.ring, target);
@@ -71,8 +72,8 @@ export function Contributions() {
   const proposals = useMemo(() => (store === null ? [] : store.all().filter((e) => e.kind === 'entity' && e.data._for === lib.libraryId && e.data._acceptedAt === undefined)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [store, store?.revision, lib.libraryId]);
-  if (target === undefined) return <p className="wk-hint">Wczytywanie…</p>;
-  if (target === null) return <p className="wk-hint">Wybierz w Ustawieniach bibliotekę na propozycje (w obszarze, w którym czytający mogą pisać).</p>;
+  if (target === undefined) return <Loading label="Wczytywanie…" />;
+  if (target === null) return <p className="wk-hint">Wybierz w Ustawieniach bazę wiedzy na propozycje (w obszarze, w którym czytający mogą pisać).</p>;
   if (store === null) return null;
   return (
     <div className="cg">
@@ -97,7 +98,7 @@ export function Contributions() {
         );
       })}
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {isObject(target) && <p className="wk-hint">Propozycje leżą w bibliotece „{target.name}".</p>}
+      {isObject(target) && <p className="wk-hint">Propozycje leżą w bazie wiedzy „{target.name}".</p>}
     </div>
   );
 }

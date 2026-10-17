@@ -47,15 +47,17 @@ import { DependencyMap } from './DependencyMap';
 import { FORM_MAP, FormList } from './FormList';
 import { FormMap } from './FormMap';
 import type { FormGroup } from './module';
-import { PEOPLE_TAB, viewPath } from './routes';
+import { PEOPLE_TAB, viewPath, formsPath, modulePath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { AreaOptions } from './AreaOptions';
 import { ModuleSettings } from './ModuleSettings';
 import { ModuleJson } from './ModuleJson';
-import { useDisplay } from './display';
+import { Loading } from './ui/Loading';
+import { PageHeader } from './ui/PageHeader';
 import { current as notifyNow, subscribe as notifySubscribe } from './notify';
 import { useRecent } from './prefs';
-import { RecentRow, useTouched } from './Recent';
+import { useTouched } from './Recent';
+import { Icon } from './ui/icons';
 
 const NEW = 'new';
 
@@ -86,7 +88,11 @@ export function viewOf(trail: readonly string[]): View {
   return { at: 'list', kind };
 }
 
-export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) {
+/**
+ * @param forms 2026-10-16 — „Formularze": nur Formulare (Liste, Gruppen, ein Formular). Ohne: „Moduły" in
+ *   den Ustawienia — jede Art, Unbenutzte, die Karte der Abhängigkeiten.
+ */
+export function Modules({ who, trail, forms = false }: { who: Who; trail: readonly string[]; forms?: boolean }) {
   const [modules, setModules] = useState<readonly ModuleRow[] | null>(null);
   /* 0096 — die Gruppen von Formularen (Ordner). */
   const [groups, setGroups] = useState<readonly FormGroup[]>([]);
@@ -96,8 +102,6 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
 
   const view = viewOf(trail);
 
-  /* 0094 — einfach: die Formulare; erweitert: jede Art, Unbenutzte, die Karte. */
-  const modulesDisplay = useDisplay('modules');
   const { digest } = useSyncExternalStore(notifySubscribe, notifyNow);
 
   /* 0054 — zuletzt benutzte Bausteine zuerst, gemerkt versiegelt. */
@@ -126,7 +130,7 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
    * Baustein auf die Liste zurück.
    */
   const onList = view.at === 'one' && trail[2] === PEOPLE_TAB;
-  const plain = view.at === 'one' ? viewPath('modules', view.kind, view.moduleId) : null;
+  const plain = view.at === 'one' ? modulePath(view.kind, view.moduleId) : null;
 
   useEffect(() => {
     if (onList && plain !== null && modules !== null) window.location.replace(plain);
@@ -144,15 +148,18 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
 
   const crumbs: Crumb[] = trail[0] === MAP ? [{ label: 'Mapa zależności', href: null }]
     : trail[0] === FORM_MAP ? [{ label: 'Mapa formularzy', href: null }]
-    : view.at === 'kinds' ? [] : [
+    : view.at === 'kinds' ? []
+    /* Unter „Formularze" ist die Art schon der Ort: nur das eine Formular. */
+    : forms ? (view.at === 'list' ? [] : [{ label: view.at === NEW ? 'Nowy formularz' : mine?.name ?? '…', href: null }])
+    : [
     {
       label: partLabel(view.kind),
-      href: viewPath('modules', view.kind),
+      href: modulePath(view.kind),
 
       /* Von einer Art zur nächsten, ohne den Umweg über die Liste darüber. */
       beside: PARTS
         .filter((one) => one.kind !== view.kind)
-        .map((one) => ({ label: one.label, href: viewPath('modules', one.kind) }))
+        .map((one) => ({ label: one.label, href: modulePath(one.kind) }))
     },
     ...(view.at === 'list' ? [] : [{
       label: view.at === NEW ? 'Nowy' : mine?.name ?? '…',
@@ -176,7 +183,7 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
     }
   };
 
-  if (modules === null) return <p className="wk-empty">Wczytywanie…</p>;
+  if (modules === null) return <Loading />;
 
   /* 0072 — die Karte: Seiten, Bausteine und ihre Quellen, zum Ansehen und Umhängen. */
   if (trail[0] === MAP) return <DependencyMap />;
@@ -193,7 +200,7 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
 
   /* -- 1. Die Arten -------------------------------------------------------- */
 
-  if (view.at === 'kinds' && !modulesDisplay.extended) {
+  if (view.at === 'kinds' && forms) {
     /*
      * 0094 — EINFACH: die Formulare, mit dem, was neu ist, zuerst. Andere
      * Bausteine (Texte, Messpläne …) setzt man auf der Seite; hier sind sie der
@@ -216,27 +223,40 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
       <>
         {head}
 
-        <RecentRow scope="modules" items={all.map((m) => ({ id: m.moduleId, label: `${m.name} · ${partLabel(m.kind)}`, href: viewPath('modules', m.kind, m.moduleId) }))} />
-
-        <p className="wk-actions">
-          <a className="wk-btn wk-btn-quiet" href={viewPath('modules', MAP)}>Mapa zależności — strony, moduły, źródła</a>
-          <a className="wk-btn wk-btn-quiet" href={viewPath('modules', FORM_MAP)}>Mapa formularzy — grupy, podformularze, link osoby</a>
-        </p>
+        {/* 2026-10-17 — die Karten als zwei Zeilen, die Arten als Zeilen eines Kastens (auf dem Telefon lief die Liste über den Rand). */}
+        <nav className="wk-box" aria-label="Mapy">
+          <a className="wk-line" href={viewPath('modules', MAP)}>
+            <span className="wk-line-ic"><Icon name="flow" /></span>
+            <span className="wk-line-text">
+              <span className="wk-line-title">Mapa zależności</span>
+              <span className="wk-line-sub">Strony, moduły i źródła — co z czego korzysta</span>
+            </span>
+            <span className="wk-line-end"><Icon name="next" /></span>
+          </a>
+          <a className="wk-line" href={formsPath(FORM_MAP)}>
+            <span className="wk-line-ic"><Icon name="branch" /></span>
+            <span className="wk-line-text">
+              <span className="wk-line-title">Mapa formularzy</span>
+              <span className="wk-line-sub">Grupy, podformularze, link osoby</span>
+            </span>
+            <span className="wk-line-end"><Icon name="next" /></span>
+          </a>
+        </nav>
 
         <Unused modules={all} busy={busy !== null} onAct={act} />
 
-        <ul className="wk-tree">
+        <ul className="wk-box wk-kind-list" aria-label="Rodzaje modułów">
           {PARTS.map((one) => {
             const count = all.filter((m) => m.kind === one.kind).length;
 
             return (
               <li key={one.kind}>
-                <a className="wk-tree-row" href={viewPath('modules', one.kind)}>
-                  <span className="wk-tree-name">{one.label}</span>
-                  <span className="wk-tags"><span className="wk-tag">{one.use}</span></span>
-                  <span className="wk-tree-mine">
-                    {count === 0 ? 'nie ma' : count === 1 ? '1' : count}
+                <a className="wk-line" href={modulePath(one.kind)}>
+                  <span className="wk-line-text">
+                    <span className="wk-line-title">{one.label}</span>
+                    <span className="wk-line-sub">{one.use}</span>
                   </span>
+                  <span className="wk-line-end">{count === 0 ? '—' : <span className="wk-count is-quiet">{count}</span>}</span>
                 </a>
               </li>
             );
@@ -262,7 +282,7 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
         <ul className="wk-tree">
           {ofKind.map((one) => (
             <li key={one.moduleId}>
-              <a className="wk-tree-row" href={viewPath('modules', view.kind, one.moduleId)}>
+              <a className="wk-tree-row" href={modulePath(view.kind, one.moduleId)}>
                 <span className="wk-tree-name">{one.name}</span>
 
                 <span className="wk-tags">
@@ -286,7 +306,7 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
           ))}
 
           <li>
-            <a className="wk-tree-add" href={viewPath('modules', view.kind, NEW)}>
+            <a className="wk-tree-add" href={modulePath(view.kind, NEW)}>
               <span aria-hidden="true">+</span> Nowy
             </a>
           </li>
@@ -311,7 +331,7 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
           busy={busy !== null}
           onAct={act}
           onDone={(moduleId) => {
-            window.location.hash = viewPath('modules', view.kind, moduleId);
+            window.location.hash = modulePath(view.kind, moduleId);
           }}
         />
       </>
@@ -357,31 +377,20 @@ function ModulePage({ module: row, areas, who, busy, onAct, onReload, onList }: 
   /* 0064 — nach einem Import mit Fragen liest das Formular neu. */
   const [round, setRound] = useState(0);
   /* 0094 — das JSON ist der erweiterte Weg (bei einem Formular der der Formulare). */
-  const modulesDisplay = useDisplay('modules');
-  const formsDisplay = useDisplay('forms');
+  /* Eine Zeile Angaben statt einer Reihe „RODZAJ / NA STRONACH / ZGŁOSZEŃ". */
+  const facts = [
+    row.kind === 'form' ? (row.areaName ?? null) : partLabel(row.kind),
+    row.usedOnPages === 0 ? 'na żadnej stronie' : row.usedOnPages === 1 ? 'na 1 stronie' : `na ${row.usedOnPages} stronach`,
+    row.entries > 0 ? `${row.entries} ${row.entries === 1 ? 'zgłoszenie' : row.entries % 10 >= 2 && row.entries % 10 <= 4 && (row.entries % 100 < 10 || row.entries % 100 >= 20) ? 'zgłoszenia' : 'zgłoszeń'}` : null
+  ].filter((one): one is string => one !== null && one !== '');
 
   return (
     <>
-      <h1 className="wk-h1">{row.name}</h1>
-
-      <dl className="wk-facts">
-        <div className="wk-fact">
-          <dt>Rodzaj</dt>
-          <dd>{partLabel(row.kind)}</dd>
-        </div>
-
-        <div className="wk-fact">
-          <dt>Na stronach</dt>
-          <dd>{row.usedOnPages}</dd>
-        </div>
-
-        {row.entries > 0 && (
-          <div className="wk-fact">
-            <dt>Zgłoszeń</dt>
-            <dd>{row.entries}</dd>
-          </div>
-        )}
-      </dl>
+      <PageHeader
+        title={row.name}
+        badge={row.kind === 'form' && row.closed ? <span className="wk-tag">Zapisy zamknięte</span> : row.kind === 'form' ? <span className="wk-tag wk-tag-open">Zapisy otwarte</span> : undefined}
+        meta={facts.join(' · ')}
+      />
 
       {/* -- Was er ist ----------------------------------------------------- */}
 
@@ -407,10 +416,8 @@ function ModulePage({ module: row, areas, who, busy, onAct, onReload, onList }: 
         </>
       )}
 
-      {/* 0064 — dieses Modul als JSON: Name, Inhalt, bei einem Formular Fragen und Aufbau. 0094: der erweiterte Weg. */}
-      {(row.kind === 'form' ? formsDisplay.extended : modulesDisplay.extended) && (
-        <ModuleJson row={row} who={who} onDone={async () => { await onReload(); setRound((n) => n + 1); }} />
-      )}
+      {/* 0064 — dieses Modul als JSON: Name, Inhalt, bei einem Formular Fragen und Aufbau. Zugeklappt, ganz unten. */}
+      <ModuleJson row={row} who={who} onDone={async () => { await onReload(); setRound((n) => n + 1); }} />
     </>
   );
 }
@@ -522,8 +529,8 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
         ) : field.kind === 'calendarItem' ? (
           <PickCalendarItem calendarId={config[field.of ?? ''] ?? ''} value={value} busy={busy}
             onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }} />
-        ) : field.kind === 'library' ? (
-          <PickLibrary value={value} busy={busy} onPick={(id) => void save(field.key, id)} />
+        ) : field.kind === 'library' || field.kind === 'knowledge' ? (
+          <PickLibrary kind={field.kind === 'knowledge' ? 'knowledge' : 'books'} value={value} busy={busy} onPick={(id) => void save(field.key, id)} />
         ) : field.kind === 'libraryEntry' ? (
           <PickLibraryEntry library={config[field.of ?? ''] ?? ''} kinds={field.entryKinds ?? ['text']} value={value} busy={busy} optional={field.optional} onPick={(id) => void save(field.key, id)} />
         ) : field.kind === 'resource' ? (

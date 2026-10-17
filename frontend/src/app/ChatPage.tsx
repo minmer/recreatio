@@ -59,6 +59,7 @@ import {
   chooseSpeaker, isMine, messageAuthor, authorText, speakerKey, speakersOf, speakerText, throughRole, type GraphLike
 } from './chatAuthor';
 import { SpeakerPick } from './SpeakerPick';
+import { askText } from './ui/dialogs';
 
 /* -- Gemeinsam ----------------------------------------------------------------- */
 
@@ -118,7 +119,7 @@ const titleOfArea = (areas: readonly AreaRow[], areaId: string, fallback: string
 function useTopOffset(): number {
   const [top, setTop] = useState(56);
   useEffect(() => {
-    const bar = document.querySelector<HTMLElement>('.wk-top');
+    const bar = document.querySelector<HTMLElement>('[data-app-head]');
     if (bar === null) return undefined;
     const measure = () => setTop(Math.round(bar.getBoundingClientRect().height));
     measure();
@@ -976,7 +977,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
     const via = throughRole(speaker) ? known(speaker.roleId) : null;
     const done = await sendMessage(me.ring, chat.chatId, talk, speaker.roleId, body, name,
       { ...options, topicId: currentTopic, personId: speaker.personId, via });
-    if (options.sendAt === undefined) {
+    if (options.sendAt === undefined && options.whenOnline !== true) {
       setShown((was) => [...(was ?? []), {
         message: { messageId: done.messageId, authorRoleId: speaker.roleId, authorPersonId: speaker.personId, authorSeatId: null, epoch: done.epoch, bodySealed: '', createdAt: done.createdAt, deletedAt: null, topicId: currentTopic },
         opened: { text: body, name, ...options, via }
@@ -997,12 +998,14 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   const theirs = other === undefined ? undefined : extras.features?.receipts.find((r) => r.roleIds.includes(other.roleId))?.available;
   const subtitle = chrome.status.typing ? <span className="ch-typing">{chat.kind === 'direct' ? 'pisze…' : 'ktoś pisze…'}</span>
     : self ? 'tylko Ty · szyfrowane w przeglądarce'
-    : chat.kind === 'direct' ? (theirs === true ? 'w godzinach dostępności' : theirs === false ? 'poza godzinami dostępności' : 'rozmowa we dwoje')
+    /* 0111 — „online" / „ostatnio w aplikacji" geht vor den Godziny dostępności (wenn der andere es teilt). */
+    : chat.kind === 'direct' ? (chrome.presence ?? (theirs === true ? 'w godzinach dostępności' : theirs === false ? 'poza godzinami dostępności' : 'rozmowa we dwoje'))
     : [
       `${n} ${plural(n, 'uczestnik', 'uczestnicy', 'uczestników')}`,
       chat.seats.length > 0 ? `${chat.seats.length} z linkiem` : null,
       chrome.status.channel ? 'kanał' : null,
-      chrome.status.available + chrome.status.away > 0 ? `dostępnych: ${chrome.status.available}` : null
+      chrome.status.available + chrome.status.away > 0 ? `dostępnych: ${chrome.status.available}` : null,
+      chrome.presence
     ].filter(Boolean).join(' · ');
 
   const menu: MenuItem[] = [
@@ -1067,6 +1070,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
       <Composer
         ref={composer}
         endpoint={endpoint}
+        onlineSend={chrome.onlineSend}
         readOnly={readOnly}
         placeholder={speaker !== null && speakers.length > 1 ? `Wiadomość jako ${speakerText(speaker, known)}` : self ? 'Notatka' : 'Wiadomość'}
         reply={reply}
@@ -1197,8 +1201,8 @@ function ChatSettings({ me, chat, names, keys, onChanged }: {
               </span>
               {issuer !== null && !mine && chat.kind !== 'direct' && (
                 <button type="button" className="wk-link-btn wk-danger" disabled={busy !== null}
-                  onClick={() => {
-                    if (!window.confirm(`Usunąć z rozmowy (i z obszaru): ${nameOf(m.roleId, m.kind, names, me.names)}?`)) return;
+                  onClick={async () => {
+                    if (!(await askText(`Usunąć z rozmowy (i z obszaru): ${nameOf(m.roleId, m.kind, names, me.names)}?`))) return;
                     void run('Usuwanie…', async () => (await dropFromArea(chat.areaId, m.roleId)).note);
                   }}>
                   Usuń

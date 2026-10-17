@@ -368,6 +368,14 @@ export const VIEWS = {
   chat: 'Rozmowy',
 
   /*
+   * 2026-10-16 — FORMULARZE: ein Ort für Formulare, ihre Zgłoszenia und
+   * Menschen. Vorher lagen sie unter „Moduły" (`modules/form/<id>`) — der
+   * Name eines Bausteins, nicht dessen, was man dort tut. Die alte Adresse
+   * führt hierher (`Workspace.tsx`); „Moduły" bleibt für alle Arten (Ustawienia).
+   */
+  forms: 'Formularze',
+
+  /*
    * 0064 — DIE BIBLIOTHEK: Werke, Zitate, Personen, Themen und die eigenen
    * Texte. Vor den Bausteinen, weil Seiten aus ihr zeigen (Predigten,
    * Zitatsammlung) — und weil Cogita auf ihr aufbaut.
@@ -375,9 +383,10 @@ export const VIEWS = {
   library: 'Biblioteka',
 
   /*
-   * 0109 — NAUKA: was jetzt dran ist (über alle Bibliotheken), die Kurse,
-   * die man liest, Sitzungen, und das Lernen ohne Netz. Die Werkzeuge der
-   * Autoren stehen in der Bibliothek (Reiter „Nauka i kursy").
+   * 0109 — NAUKA: was jetzt dran ist, Sitzungen, das Lernen ohne Netz — und
+   * 0110 die Bazy wiedzy selbst (`learn/<baza>/<reiter>`): neben der
+   * Bibliothek, nicht in ihr. Sie verweisen auf Bibliotheken und andere Bazy
+   * wiedzy, auch in anderen Bereichen.
    */
   learn: 'Nauka',
 
@@ -480,7 +489,20 @@ export const PEOPLE_TAB = 'osoby';
  * offen war). Die Glocke, der Widok obszaru, die Liste der Formulare und die
  * Meldungen des Telefons nehmen alle diese Adresse.
  */
-export const formNewsPath = (moduleId: string): string => viewPath('modules', 'form', moduleId, PEOPLE_TAB);
+export const formNewsPath = (moduleId: string): string => formPath(moduleId, PEOPLE_TAB);
 
 /** Die Adresse der Kacheln — das Ziel jedes Zurück-Pfeils. */
 export const tilesPath = (): string => path('workspace');
+
+/**
+ * EINE ADRESSE JE DING (2026-10-16) — ein Formular wohnt unter `forms`, jeder
+ * andere Baustein unter `modules/<art>`. Wer eine Adresse baut, nimmt diese
+ * drei; `viewPath('modules', 'form', …)` gibt es nicht mehr.
+ */
+export const formsPath = (...trail: readonly string[]): string => viewPath('forms', ...trail);
+export const formPath = (moduleId: string, ...trail: readonly string[]): string => viewPath('forms', moduleId, ...trail);
+export const modulePath = (kind: string, moduleId?: string, ...trail: readonly string[]): string =>
+  kind === 'form'
+    ? (moduleId === undefined ? formsPath() : formPath(moduleId, ...trail))
+    : viewPath('modules', kind, ...(moduleId === undefined ? [] : [moduleId]), ...trail);
+

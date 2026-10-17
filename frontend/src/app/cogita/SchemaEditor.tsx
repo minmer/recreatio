@@ -15,7 +15,7 @@ import {
   FIELD_KEY, FIELD_ROLES, FIELD_TYPE_LABEL, FIELD_TYPES, MEDIA_TYPES, patternKeys, problemsOf, RANGE_OF, readKind,
   type FieldDef, type FieldType, type KindDef
 } from './schema';
-import { useBusy, useCtx } from './ui';
+import { OriginTag, useBusy, useCtx } from './ui';
 
 const blankField = (n: number): FieldDef => ({ key: `pole${n}`, label: `Pole ${n}`, type: 'line', multi: false, uncertain: false });
 
@@ -39,7 +39,7 @@ export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; 
         {draft === null ? (
           <p className="wk-hint">Wybierz rodzaj z listy{writes ? ' albo dodaj nowy' : ''}. Rodzaj mówi, jakie pola ma wpis, jak się nazywa (wzór etykiety) i czym różnią się wpisy o tej samej nazwie.</p>
         ) : (
-          <KindForm key={draft.id} draft={draft} writes={writes} busy={busy}
+          <KindForm key={draft.id} draft={draft} writes={writes && (isBaseKind(draft.id) || lib.isOwn(draft.id) || lib.origin(draft.id) === undefined)} busy={busy}
             onChange={setDraft}
             onSave={() => void run(async () => { await lib.saveKind(draft); onChoose(draft.id); })}
           />
@@ -47,10 +47,10 @@ export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; 
         {failed !== null && <p className="wk-error">{failed}</p>}
         {writes && (
           <JsonPanel
-            summary="Schemat jako JSON — kopia do innej biblioteki"
-            lead={<>Rodzaje z ich szablonami kart jako jeden dokument. Import tworzy niezależną kopię: zmiany tutaj nie zmieniają biblioteki, z której przyszła [B12].</>}
+            summary="Schemat jako JSON — kopia do innej bazy wiedzy"
+            lead={<>Rodzaje z ich szablonami kart jako jeden dokument. Import tworzy niezależną kopię: zmiany tutaj nie zmieniają bazy, z której przyszła [B12]. Żeby korzystać z rodzajów innej bazy bez kopiowania, dodaj ją w Ustawieniach jako źródło.</>}
             fileName={`schemat-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`}
-            exportDoc={() => exportSchema(lib, name, lib.kinds.filter((k) => !isBaseKind(k.id) || lib.docs('kind').some((e) => e.data.builtin === k.id)))}
+            exportDoc={() => exportSchema(lib, name, lib.kinds.filter((k) => (!isBaseKind(k.id) && lib.isOwn(k.id)) || lib.docs('kind').some((e) => e.data.builtin === k.id)))}
             description={() => courseDescription(lib)}
             preview={(doc) => { const p = planImport(lib, doc); return 'error' in p ? p : { lines: p.lines, warnings: p.warnings }; }}
             importLabel="Importuj schemat"
@@ -71,7 +71,7 @@ export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; 
           {lib.kinds.map((k) => (
             <li key={k.id}>
               <button type="button" className={`lib-row cg-card${chosenId === k.id ? ' is-on' : ''}`} onClick={() => onChoose(k.id)}>
-                <span className="lib-row-title">{k.name} {k.system !== undefined && <span className="cg-tag">system</span>} {isBaseKind(k.id) && k.system === undefined && <span className="cg-tag">wbudowany</span>} {k.speaks && <span className="cg-tag">postać</span>}</span>
+                <span className="lib-row-title">{k.name} {k.system !== undefined && <span className="cg-tag">system</span>} {isBaseKind(k.id) && k.system === undefined && <span className="cg-tag">wbudowany</span>} {k.speaks && <span className="cg-tag">postać</span>} {!isBaseKind(k.id) && <OriginTag id={k.id} />}</span>
                 <span className="lib-row-meta">{lib.ofKind(k.id).length} wpisów · {k.fields.length} pól</span>
               </button>
             </li>
@@ -177,8 +177,8 @@ function FieldMore({ field, disabled, own, onSet }: { field: FieldDef; disabled:
         )}
         {field.type === 'ref' && (
           <>
-            <fieldset className="cg-row"><legend>Do jakich rodzajów (puste — dowolnych)</legend>
-              {lib.kinds.map((k) => (
+            <fieldset className="cg-row"><legend>Do jakich rodzajów (puste — dowolnych; także z bibliotek, do których ta baza się odwołuje)</legend>
+              {lib.refKinds.map((k) => (
                 <label key={k.id} className="pe-check">
                   <input type="checkbox" checked={(field.to ?? []).includes(k.id)} disabled={disabled} onChange={(e) => onSet({ to: e.target.checked ? [...(field.to ?? []), k.id] : (field.to ?? []).filter((t) => t !== k.id) })} />
                   <span>{k.name}</span>
@@ -211,7 +211,7 @@ function FieldMore({ field, disabled, own, onSet }: { field: FieldDef; disabled:
           </label>
         )}
         {own && (
-          <label className="wk-field"><span>Rola (dla narzędzi biblioteki)</span>
+          <label className="wk-field"><span>Rola (dla wbudowanych narzędzi)</span>
             <select value={field.role ?? ''} disabled={disabled} onChange={(e) => onSet({ role: e.target.value || undefined })}>
               <option value="">—</option>
               {FIELD_ROLES.map((r) => <option key={r.role} value={r.role}>{r.label}</option>)}

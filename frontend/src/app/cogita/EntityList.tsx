@@ -11,7 +11,7 @@ import 'reactflow/dist/style.css';
 
 import { fieldsOf, fieldText, valuesOf, type Entity } from './schema';
 import { COMPARE_LABEL, readRule, ruleMatches, type Compare, type Condition, type RuleGroup } from './store';
-import { useBusy, useCtx } from './ui';
+import { OriginTag, useBusy, useCtx } from './ui';
 
 export type ListMode = 'table' | 'tree' | 'canvas';
 
@@ -222,7 +222,7 @@ function Table({ list, columns, sort, onSort, onOpen, onColumns, kindFields }: {
           <tbody>
             {list.slice(page * per, page * per + per).map((e) => (
               <tr key={e.id} className="is-link" onClick={() => onOpen(e.id)} tabIndex={0} onKeyDown={(k) => { if (k.key === 'Enter') onOpen(e.id); }}>
-                <td>{lib.label(e)}{lib.tell(e) !== '' && <span className="cg-muted"> · {lib.tell(e)}</span>}</td>
+                <td>{lib.label(e)}{lib.tell(e) !== '' && <span className="cg-muted"> · {lib.tell(e)}</span>} <OriginTag id={e.id} /></td>
                 <td className="cg-muted">{e.kinds.map((k) => lib.kind(k)?.name ?? k).join(', ')}</td>
                 {columns.map((c) => {
                   const f = fieldsOf(e, look).find((x) => x.key === c);
@@ -262,7 +262,7 @@ function Tree({ list, onOpen }: { list: readonly Entity[]; onOpen: (id: string) 
       <li key={e.id}>
         {kids.length > 0 && depth < 8
           ? <details open={depth === 0}><summary><button type="button" className="cg-ref" onClick={() => onOpen(e.id)}>{lib.label(e)}</button></summary><ul className="cg-tree">{kids.map((k) => branch(k, depth + 1))}</ul></details>
-          : <button type="button" className="cg-ref" onClick={() => onOpen(e.id)}>{lib.label(e)}</button>}
+          : <><button type="button" className="cg-ref" onClick={() => onOpen(e.id)}>{lib.label(e)}</button> <OriginTag id={e.id} /></>}
       </li>
     );
   };

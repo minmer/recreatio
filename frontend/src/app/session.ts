@@ -11,8 +11,6 @@
  * Deshalb stehen sie hier als benannte Werte und nicht in einem Aufruf.
  */
 
-import { argon2id } from 'hash-wasm';
-
 import { fromBase64Url, toBase64Url } from './crypto';
 import { announceForget, borrow, serve, type Held } from './keyring';
 import { device, knownDevice, openKept, sealKept } from './kept';
@@ -117,6 +115,8 @@ export const keepsKey = (who: Who): boolean => who.keyKeeping === 'kept';
  * Sekunde nicht reagiert, sieht kaputt aus, egal wie gut der Grund ist.
  */
 async function derivePasswordKey(password: string, salt: Uint8Array): Promise<Uint8Array> {
+  /* 2026-10-17 — das WebAssembly erst beim Anmelden holen: eine öffentliche Seite braucht es nie. */
+  const { argon2id } = await import('hash-wasm');
   const hex = await argon2id({
     password,
     salt,

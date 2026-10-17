@@ -47,8 +47,10 @@ import {
   addressOrder, byPerson, cellText, chipText, isBlank, quickFields, roundsCsv, tallyOf, tallyText,
   type RoundRecord
 } from './roundSheet';
-import { viewPath } from './routes';
+import { formPath } from './routes';
 import { WorkspaceError, type Who } from './session';
+import { askText } from './ui/dialogs';
+import { Icon } from './ui/icons';
 
 /** Wie ein Mensch in einer Liste heisst — sein voller Name, sonst die erste Antwort. */
 export function nameIn(values: ReadonlyMap<string, string> | undefined, fields: readonly OpenField[]): string {
@@ -257,12 +259,12 @@ export function OfficeAdd({ formId, fields: allFields, design, onAdded, label = 
 
   if (!open) {
     return (
-      <div className="wk-actions">
-        <button type="button" className="wk-btn wk-btn-quiet" disabled={!readable} onClick={() => { setOpen(true); setFailed(null); }}>
-          {label}
+      <>
+        <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={!readable} onClick={() => { setOpen(true); setFailed(null); }}>
+          <Icon name="plus" />{label}
         </button>
         {!readable && <span className="wk-hint">Bez klucza formularza nie da się nikogo dopisać.</span>}
-      </div>
+      </>
     );
   }
 
@@ -538,7 +540,7 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
   };
 
   const drop = async (row: Row) => {
-    if (!window.confirm(`Zdjąć z listy: ${row.name}? Wcześniejsze wpisy zostają; osobę można przywrócić w formularzu głównym („Pokaż też ukryte").`)) return;
+    if (!(await askText(`Zdjąć z listy: ${row.name}? Wcześniejsze wpisy zostają; osobę można przywrócić w formularzu głównym („Pokaż też ukryte").`))) return;
     try {
       await hideSubmission(row.r.registrationId, true);
       setOpenId(null);
@@ -676,7 +678,7 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
                     )}
 
                     <div className="wk-actions">
-                      <a className="wk-link-btn" href={viewPath('modules', 'form', baseId)}>Dane osoby w formularzu głównym</a>
+                      <a className="wk-link-btn" href={formPath(baseId)}>Dane osoby w formularzu głównym</a>
                       {audience === 'office' && (
                         <button type="button" className="wk-link-btn" onClick={() => void drop(row)}>Zdejmij z listy</button>
                       )}
@@ -717,7 +719,7 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
       </div>
 
       {audience === 'office' && (
-        <OfficeAdd formId={baseId} fields={base.fields} design={base.design} onAdded={() => look()} />
+        <div className="wk-list-tools"><OfficeAdd formId={baseId} fields={base.fields} design={base.design} onAdded={() => look()} /></div>
       )}
     </section>
   );

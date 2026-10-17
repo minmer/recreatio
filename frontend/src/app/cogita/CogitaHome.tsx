@@ -1,5 +1,7 @@
 /**
- * COGITA IN DER BIBLIOTHEK (COGITA.md §13, §14): `#/workspace/library/<id>/cogita/<reiter>/…`.
+ * EINE BAZA WIEDZY (COGITA.md §13, §14): `#/workspace/learn/<id>/<reiter>/…`.
+ * 0110 — neben der Bibliothek, nicht in ihr; ihre Quellen (Bibliotheken zum
+ * Verweisen, andere Bazy wiedzy zum Wiederverwenden) lädt `useSources`.
  *
  * <code>
  *   nauka         lernen: die Wiederholungen, was fällig ist, und Abläufe zum Durchgehen
@@ -21,7 +23,7 @@
  * Sitzungen, den eigenen Fortschritt, die Karte und das Vorschlagen.
  */
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { areaKeys } from '../chat';
 import type { OpenLibrary } from '../library';
@@ -48,10 +50,13 @@ import { REVISION_PRESETS } from './presets';
 import { RevisionEditor } from './RevisionEditor';
 import { RevisionRun } from './RevisionRun';
 import { SchemaEditor } from './SchemaEditor';
+import { accountSources, useSources } from './sources';
 import { SessionsTab } from './Sessions';
 import { TemplateEditor } from './TemplateEditor';
-import { CogitaContext, useAsync, useBusy, useCogita, useCtx, type CogitaCtx } from './ui';
+import { CogitaContext, ForeignOnly, useAsync, useBusy, useCogita, useCtx, type CogitaCtx } from './ui';
 import type { Card } from './cards';
+import { MenuButton } from '../ui/Menu';
+import { Icon } from '../ui/icons';
 
 const AUTHOR_TABS = [
   ['nauka', 'Nauka'], ['wpisy', 'Wpisy'], ['schemat', 'Schemat'], ['karty', 'Szablony kart'], ['powtorki', 'Powtórki'],
@@ -61,13 +66,25 @@ const AUTHOR_TABS = [
 
 const READER_TABS = [['nauka', 'Nauka'], ['przebiegi', 'Przebiegi'], ['sesje', 'Sesje'], ['postepy', 'Postępy'], ['mapa', 'Mapa'], ['zaproponuj', 'Zaproponuj']] as const;
 
+/*
+ * 2026-10-17 — SECHS REITER FÜR JEDEN TAG, der Rest unter „Więcej": wer eine
+ * Baza wiedzy baut, sah dreizehn Reiter in einer Reihe (am Telefon zum
+ * Wischen), und die täglichen gingen zwischen Schemat und JSON unter.
+ */
+const DAILY: ReadonlySet<string> = new Set(['nauka', 'wpisy', 'powtorki', 'przebiegi', 'sesje', 'postepy']);
+
 export function CogitaHome({ me, who, library, store, trail }: { me: Me; who: Who; library: OpenLibrary; store: LibraryStore; trail: readonly string[] }) {
   const lib = useCogita(store, library.writes);
+  /* 0110 — die Quellen mit dem Zugang dieses Kontos: was es nicht liest, fehlt. */
+  const open = useMemo(() => accountSources(me), [me]);
+  const sources = useSources(lib, open);
+  const keyIn = useCallback((areaId: string, epoch: number) =>
+    areaKeys(me.ring, areaId).then((m) => m.get(epoch) ?? areaKeys(me.ring, areaId, true).then((f) => f.get(epoch))), [me]);
   const ctx = useMemo<CogitaCtx | null>(() => lib === null ? null : ({
-    lib, name: library.name, writes: library.writes, me, who,
-    keyOf: (epoch) => areaKeys(me.ring, library.areaId).then((m) => m.get(epoch) ?? areaKeys(me.ring, library.areaId, true).then((f) => f.get(epoch))),
-    href: (...tail) => viewPath('library', library.libraryId, 'cogita', ...tail)
-  }), [lib, library, me, who]);
+    lib, name: library.name, writes: library.writes, me, who, sources, keyIn,
+    keyOf: (epoch) => keyIn(library.areaId, epoch),
+    href: (...tail) => viewPath('learn', library.libraryId, ...tail)
+  }), [lib, library, me, who, sources, keyIn]);
   if (ctx === null) return null;
   return (
     <CogitaContext.Provider value={ctx}>
@@ -88,7 +105,15 @@ function Hub({ trail }: { trail: readonly string[] }) {
   return (
     <div className="cg">
       <nav className="cg-subtabs" aria-label="Cogita">
-        {tabs.map(([slug, label]) => <a key={slug} className={slug === tab ? 'is-on' : ''} href={href(slug)}>{label}</a>)}
+        {tabs.filter(([slug]) => !writes || DAILY.has(slug)).map(([slug, label]) => <a key={slug} className={slug === tab ? 'is-on' : ''} href={href(slug)}>{label}</a>)}
+        {writes && (
+          <MenuButton
+            label="Więcej: baza wiedzy"
+            className={DAILY.has(tab) ? 'cg-subtabs-more' : 'cg-subtabs-more is-on'}
+            trigger={<>{DAILY.has(tab) ? 'Więcej' : tabs.find(([slug]) => slug === tab)?.[1] ?? 'Więcej'}<Icon name="chevron" /></>}
+            items={tabs.filter(([slug]) => !DAILY.has(slug)).map(([slug, label]) => ({ label, checked: slug === tab, onSelect: () => go(slug) }))}
+          />
+        )}
       </nav>
       {tab === 'nauka' && <LearnTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
       {tab === 'wpisy' && <EntitiesTab trail={trail.slice(1)} go={go} />}
@@ -180,7 +205,10 @@ function EntitiesTab({ trail, go }: { trail: readonly string[]; go: (...tail: st
     return (
       <div className="cg">
         <a className="wk-link" href={'#'} onClick={(e) => { e.preventDefault(); window.history.back(); }}>← wróć</a>
-        <EntityEditor entityId={trail[0]} onDone={(id) => go('wpisy', ...(id === null ? [] : [id]))} onOpen={(id) => go('wpisy', id)} />
+        {/* 0110 — ein Eintrag aus einer Quelle: hier zu lesen, dort zu ändern. */}
+        <ForeignOnly id={trail[0]} tab="wpisy">
+          <EntityEditor entityId={trail[0]} onDone={(id) => go('wpisy', ...(id === null ? [] : [id]))} onOpen={(id) => go('wpisy', id)} />
+        </ForeignOnly>
       </div>
     );
   }

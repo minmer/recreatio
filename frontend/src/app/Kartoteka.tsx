@@ -32,6 +32,8 @@ import type { Ring } from './keys';
 import { Unlock } from './Unlock';
 import { AreaOptions } from './AreaOptions';
 import { TidyEverything } from './TidyEverything';
+import { askText } from './ui/dialogs';
+import { Loading } from './ui/Loading';
 
 type Tab = 'addresses' | 'kolenda' | 'import';
 
@@ -52,7 +54,7 @@ export function Kartoteka({ who, trail }: { who: Who; trail: readonly string[] }
   }, [who]);
   useEffect(() => { void look(); }, [look]);
 
-  if (areas === null || ring === undefined) return <p className="wk-lede">Wczytywanie…</p>;
+  if (areas === null || ring === undefined) return <Loading label="Wczytywanie…" />;
   if (ring === null) return <Unlock who={who} why="Rodziny w kartotece są zaszyfrowane — podaj hasło." onDone={() => void look()} />;
 
   const area = areaId === null ? null : areas.find((a) => a.areaId === areaId) ?? null;
@@ -101,7 +103,7 @@ function Registry({ area, ring }: { area: AreaRow; ring: Ring }) {
   }, [area.areaId, ring]);
   useEffect(() => { void reload(); }, [reload]);
 
-  if (places === null) return <p className="wk-hint">Wczytywanie kartoteki…</p>;
+  if (places === null) return <Loading label="Wczytywanie kartoteki…" />;
 
   const byPlace = new Map(households.filter((h) => h.placeId !== null).map((h) => [h.placeId!, h]));
 
@@ -398,13 +400,13 @@ function HouseholdDialog({ area, ring, place, household, mayWrite, onClose, onSa
           {mayWrite && <button type="submit" className="wk-btn" disabled={busy}>{busy ? 'Zapisywanie…' : 'Zapisz'}</button>}
           <button type="button" className="wk-link-btn" onClick={onClose}>Zamknij</button>
           {mayWrite && household !== null && (
-            <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={() => {
-              if (window.confirm('Usunąć rodzinę spod tego adresu? Adres zostaje.')) void deleteHousehold(household.householdId).then(onSaved);
+            <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={async () => {
+              if (await askText('Usunąć rodzinę spod tego adresu? Adres zostaje.')) void deleteHousehold(household.householdId).then(onSaved);
             }}>Usuń rodzinę</button>
           )}
           {mayWrite && place !== null && household === null && (
-            <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={() => {
-              if (window.confirm('Usunąć ten adres z kartoteki?')) void deletePlace(place.placeId).then(onSaved);
+            <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={async () => {
+              if (await askText('Usunąć ten adres z kartoteki?')) void deletePlace(place.placeId).then(onSaved);
             }}>Usuń adres</button>
           )}
         </div>

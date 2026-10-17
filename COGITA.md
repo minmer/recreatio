@@ -1,6 +1,6 @@
 # Cogita in the workspace — the decided design
 
-Status: decided on 2026-10-15 from your answers on the page “Cogita rebuild questions” (https://claude.ai/artifact/YQqNZJkSHqu4NQSNhy4bwf). Nothing is built yet.
+Status: decided on 2026-10-15 from your answers on the page “Cogita rebuild questions” (https://claude.ai/artifact/YQqNZJkSHqu4NQSNhy4bwf). Built on 2026-10-16 (§19). Changed on 2026-10-16: Cogita has its own container, the knowledge base, beside the library (§2.1, §18 row 13).
 
 - This file is the target. `CogitaAim.md`, `cogita-graph.md` and `COGITA_DESIGN_THINKING.md` remain as background.
 - A bracketed id such as [B11] points at the question on that page; F01–F47 are the old features and P01–P18 the integrations.
@@ -10,9 +10,9 @@ Status: decided on 2026-10-15 from your answers on the page “Cogita rebuild qu
 
 - **Nothing is lost.** Every ability of the old Cogita stays. It is reformed, and abilities may merge into broader pieces [A8].
 - **You declare, the code provides mechanics.** Kinds, questions, revisions, narratives, rules and looks are declared by you and reused as templates.
-- **No second structure or access model.** Areas, roles, links, seats and the library carry Cogita.
+- **No second access model.** Areas, roles, links and seats carry Cogita. Its container is the knowledge base, a structure beside the library (§2.1).
 - **The service stays blind by default** [N8]. The exceptions are in §15.
-- **Placement.** Cogita lives in the workspace: Biblioteka plus the learning tools. Public parts are pages [A1].
+- **Placement.** Cogita lives in the workspace view **Nauka**, beside **Biblioteka**. Public parts are pages [A1].
   - The interface is Polish only [A3].
   - cogita.pl comes later; public courses start on recreatio.pl [A2, P10].
 - **First uses** [A4]:
@@ -25,14 +25,23 @@ Status: decided on 2026-10-15 from your answers on the page “Cogita rebuild qu
 - **Start empty.** No old data is carried over [A7].
 - **Legacy goes last.** Cogita is the last legacy part still in use. Once it is rebuilt, the whole legacy code goes [N7]: `frontend/src/legacy`, `backend/legacy` and the switch in `main.tsx`.
 
-## 2. Content: the library with a declared schema
+## 2. Content: the knowledge base with a declared schema
 
 ### 2.1 The store
 
-- **The 0064 library stays the store** [N1]: one sealed document per entry under the area key, incremental sync, and 409 `stale` on version conflicts.
-  - Area access is library access [L1].
-  - A course is one library, and an area may hold several [L7].
-- **No references into other libraries.** Copy what you need [B15].
+- **Two structures side by side** (changed on 2026-10-16):
+  - **The library** (Biblioteka) is a collection of books: works, quotes, texts, persons and topics.
+  - **The knowledge base** (Baza wiedzy) is what Cogita teaches: kinds, knowledge, questions, templates, revisions, flows, sessions and progress.
+- **One storage engine** [N1]. Both use the 0064 store: one sealed document per entry under the area key, incremental sync, and 409 `stale` on version conflicts. They are told apart by `app.library.kind` (`books` or `knowledge`, migration 0110).
+  - Area access is knowledge-base access [L1].
+  - A course is one knowledge base, and an area may hold several [L7].
+- **References instead of copies** (replaces [B15]). A knowledge base names its sources in its settings, from any area:
+  - **libraries, for references only**: their works, quotes and persons can be pointed at in fields and cited, but never become cards;
+  - **other knowledge bases, for reuse**: their kinds, entries, templates, revisions, flows, looks, rules, values and dependencies count here, and they are changed only there.
+- **Rules for sources.**
+  - A reused base brings its own sources along, up to 12, with no circles.
+  - Each source is read with access to its own area. Whoever cannot read it simply does not see it.
+  - Nothing is copied, and the service does not learn about references.
 - **Big libraries** hold up to 50,000 entries [F6]. They get an encrypted copy in IndexedDB, sealed with the area key and cleared at sign-out [N2].
   - The browser searches and filters; there are no blind indexes [N3].
   - On a phone, entries are opened lazily against a local index rather than all at once.
@@ -343,7 +352,8 @@ Phones stay awake.
 ## 13. Access
 
 - **A course in areas** [L1, E10]:
-  - authors write in the content area;
+  - authors write in the knowledge base's area;
+  - its sources may sit in other areas; learners see a source only if they can read its area;
   - learners hold a role that reads it;
   - sessions run in the class area;
   - progress goes to the declared storage area.
@@ -366,7 +376,8 @@ Phones stay awake.
 | Forms and steps | Learning targets as steps (“Naucz się: Modlitwy, 80%”), with progress in the office list; enrolling through a form | P09, L5 |
 | Publication | Public courses | P10 |
 | Publishing modules | One common way to publish any module directly (a form, a revision, a flow…) at `recreatio.pl/#/c/<id>`, owned by whoever publishes, without building a page by hand | F20 |
-| Search | Library content in Ctrl K | P12 |
+| Search | Library and knowledge-base content in Ctrl K | P12 |
+| Nauka | The workspace view of Cogita: due now, sessions, the knowledge bases (each with its tabs at `#/workspace/learn/<id>`), and offline practice. The library itself has no Cogita tab. | A1 |
 | JSON and your AI | Schema, entities, knowledge, questions and flows from a text: a prompt to copy and an import with review | P13 |
 | Android app | Reminders, the screen kept awake, offline practice | P17 |
 
@@ -405,6 +416,7 @@ Phones stay awake.
 4. **Games:** game state the service can read, deleted when the game ends.
 5. **Forms:** the form step kind `learn` with its target.
 6. **Pages:** the register root `c` for modules published directly.
+7. **Knowledge bases (0110):** `app.library.kind` (`books` or `knowledge`).
 
 ## 17. Build order
 
@@ -449,19 +461,23 @@ Phones stay awake.
 | 10 | Text in flows [G9] | Titles and labels are flow data (§8). |
 | 11 | Generated pages [F20] | One common way to publish modules directly, under `c` (§14). |
 | 12 | Knowness [F16] | Saved with the question id and the direction (§7). |
+| 13 | Library and Cogita (2026-10-16) | Parallel structures. A library is a collection of books; a knowledge base holds what is learned. A knowledge base references libraries (for references only) and other knowledge bases (for reuse), also in other areas (§2.1). |
 
 ## 19. Built so far
 
-**State on 2026-10-16: every step of §17 is built.** Migration `0109_cogita.sql` is applied to the shared database. The legacy code is gone.
+**State on 2026-10-16: every step of §17 is built.**
+- Migrations `0109_cogita.sql` and `0110_knowledge_base.sql` are applied to the shared database.
+- The legacy code is gone.
+- Later the same day, Cogita moved out of the library into its own container, the knowledge base (§2.1).
 
 ### Where it lives
 
 | part | files |
 |---|---|
 | Engine (pure, checked without a browser) | `frontend/src/app/cogita/`: `schema`, `graph`, `check`, `knowness`, `cards`, `revision`, `logic` (the one logic, also used by forms and pages), `flow`, `rules`, `game`, `kinds` |
-| Library on the schema | `store.ts` (`CogitaLibrary`), `kinds.ts`, `versions.ts`, `files.ts`, `json.ts`, `presets.ts`; the IndexedDB copy in `libraryStore.ts` and `idb.ts` |
+| Knowledge base on the schema | `store.ts` (`CogitaLibrary`: own entries plus sources), `sources.ts` (opening the sources), `kinds.ts`, `versions.ts`, `files.ts`, `json.ts`, `presets.ts`; the IndexedDB copy in `libraryStore.ts` and `idb.ts` |
 | Learning | `learn.ts` (sealed batches, outbox, due), `holders.ts`, `offline.ts`, `python.ts` with `python.worker.ts` (Pyodide) |
-| Screens | `CogitaHome.tsx` (the library tab **Nauka i kursy**), `LearnView.tsx` (the workspace view **Nauka**), `LearnPart.tsx` (the view part), and the editors and players beside them |
+| Screens | `LearnView.tsx` (the workspace view **Nauka**: the knowledge bases, due, sessions, offline), `CogitaHome.tsx` (one knowledge base and its tabs), `LearnPart.tsx` (the view part), and the editors and players beside them |
 | Sessions | `live.ts` (keys, events, SignalR client with polling fallback), `Sessions.tsx`, `GamePanel.tsx` |
 | Public pages | `parts/cogita.tsx` (definitions) with `parts/cogitaViews.tsx` (loaded only when shown), `PublicRun.tsx`, `published.ts`, `entitySubject.tsx`, `seatLearn.ts` |
 | Forms | `LearnStep.tsx`; the step kind `learn` in `steps.ts` and `StepList.tsx` |
@@ -470,14 +486,16 @@ Phones stay awake.
 ### Where it is used
 
 - **Workspace.**
-  - The library tab **Nauka i kursy**: Nauka, Wpisy, Schemat, Szablony kart, Powtórki, Przebiegi, Sesje, Postępy, Mapa, Do zrobienia, Propozycje, Ustawienia, JSON. Readers see Nauka, Przebiegi, Sesje, Postępy, Mapa and Zaproponuj.
-  - The view **Nauka** (`#/workspace/learn`) and its part for views.
+  - The view **Nauka** (`#/workspace/learn`): the knowledge bases (create one there), due now, sessions and offline practice.
+  - A knowledge base (`#/workspace/learn/<id>`) has these tabs: Nauka, Wpisy, Schemat, Szablony kart, Powtórki, Przebiegi, Sesje, Postępy, Mapa, Do zrobienia, Propozycje, Ustawienia, JSON. Readers see Nauka, Przebiegi, Sesje, Postępy, Mapa and Zaproponuj.
+  - **Ustawienia** holds the name (and deletion) and **Źródła**: add a library or another knowledge base from any area you read.
+  - What comes from a source carries its name. It is read-only here, with a link to where it is changed.
   - The alert **Powtórka czeka** and a daily reminder.
   - A revision becomes a daily task. A session goes into the area's calendar with its join link and code.
   - Ctrl K finds entries and documents of the libraries opened in the tab.
-  - The starter **Kurs do nauki** creates an area, a library, the intake, a daily revision, a learners' role and a link.
-- **Pages.** Eight modules: `cogita-revision`, `cogita-flow`, `cogita-live`, `entity-card`, `entity-table`, `topic-explorer`, `knowledge-map`, `seat-learn`.
-  - The page subject **Wpis z biblioteki** (`entity`).
+  - The starter **Kurs do nauki** creates an area, a knowledge base, the intake, a daily revision, a learners' role and a link.
+- **Pages.** Eight modules: `cogita-revision`, `cogita-flow`, `cogita-live`, `entity-card`, `entity-table`, `topic-explorer`, `knowledge-map`, `seat-learn`. They pick a knowledge base (field kind `knowledge`).
+  - The page subject **Wpis z bazy wiedzy** (`entity`).
   - `c/<8 characters>` addresses for modules published directly.
 - **Forms.** The step **Naucz się**.
   - The browser of the person with the link measures the knowness and ticks the step at the threshold.
@@ -486,6 +504,7 @@ Phones stay awake.
 ### Decided while building
 
 - **Stored entries are not rewritten.**
+  - A knowledge base adds the kinds knowledge, question and topic, plus its own. The book kinds (person, work, quote, text, project) live in libraries and are only pointed at.
   - Built-in kinds keep their plaintext kind.
   - Own entities are `entity` entries, with their kinds in `_kinds`.
   - A built-in kind can be renamed by a `kind` entry with `builtin`. Its fields keep their shape.
@@ -504,7 +523,7 @@ Phones stay awake.
 
 | check | count |
 |---|---|
-| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 183 |
+| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 200 |
 | `backend/Api.Tests` (22 of them for the game rules) | 408 |
 | `backend/Kernel.Tests` | 122 |
 
@@ -520,3 +539,4 @@ The full `tsc -p tsconfig.json` is clean now that the legacy tree is gone.
   The fixture generators `scripts/cogita-home.mjs` and `scripts/presentation-home.mjs` read them.
 - **Dead scripts.** `package.json` still lists `api:types`, `rc:*` and `public:check`. Their files are deleted, but the shared `package.json` is only appended to.
 - **Not touched.** `_reference/` is unchanged.
+- **Where a library is used.** A library does not know which knowledge bases point at it, because the references are sealed in their settings.

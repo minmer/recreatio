@@ -45,6 +45,9 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
+  /* 2026-10-16 — was fehlt, sagt die Anmeldung erst nach dem ersten Versuch: rot vor dem ersten Buchstaben sah aus wie ein Fehler. */
+  const [tried, setTried] = useState(false);
+
   /*
    * WARUM DER KNOPF GRAU IST — ausgeschrieben.
    *
@@ -132,13 +135,13 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
   return (
     <form
       className="wk-signin"
-      onSubmit={(e) => { e.preventDefault(); if (blocker === null) void go(); }}
+      onSubmit={(e) => { e.preventDefault(); setTried(true); if (blocker === null) void go(); }}
+      noValidate
     >
       <h1 className="wk-h1">{mode === 'in' ? 'Zaloguj się' : 'Załóż konto'}</h1>
 
       <p className="wk-lede">
-        Warsztat jest tym, do czego masz klucze — bez zalogowania nie ma tu
-        czego pokazać.
+        {mode === 'in' ? 'Twój warsztat: grupy, formularze, kalendarz i rozmowy.' : 'Konto jest Twoje — tylko Ty masz do niego klucz.'}
       </p>
 
       <label className="wk-field">
@@ -177,20 +180,8 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
           </label>
 
           <p className="wk-hint">
-            Konto i człowiek to dwie różne rzeczy. Konto dostaje nazwę
-            <code> Account</code> — jest pękiem kluczy, nie osobą. Pod nim
-            powstaje pierwsza <strong>osoba</strong> o podanym imieniu; to ona
-            później coś prowadzi, należy do grup i pełni funkcje.
-          </p>
-
-          <p className="wk-hint">
-            Imię jest zapieczętowane Twoim kluczem — usługa go nie zna i nie
-            może poznać. Zmienisz je kiedy zechcesz, także wstecz.
-          </p>
-
-          <p className="wk-hint">
-            Zakładając konto, przyjmujesz <a href="/prywatnosc/">politykę prywatności</a>.
-            Konto usuniesz sam w każdej chwili (Konto → Usunięcie konta).
+            Imię widzą tylko ci, którym dasz dostęp. Zakładając konto, przyjmujesz{' '}
+            <a href="/prywatnosc/">politykę prywatności</a>; usuniesz je sam w każdej chwili.
           </p>
         </>
       )}
@@ -200,12 +191,10 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
         Es ist die eine Eigenschaft dieser Anmeldung, die sie von jeder anderen
         unterscheidet, und niemand liest sie in einer Fussnote nach.
       */}
-      <p className="wk-hint">
-        Hasło nie opuszcza tego urządzenia. Liczy się z niego klucz i tylko on
-        idzie do usługi — dlatego chwilę to trwa.
-      </p>
+      <p className="wk-hint">Hasło nie opuszcza tego urządzenia.</p>
 
-      {failed !== null && <p className="wk-error">{failed}</p>}
+      {failed !== null && <p className="wk-error" role="alert">{failed}</p>}
+      {tried && blocker !== null && busy === null && failed === null && <p className="wk-error" role="alert">{blocker}</p>}
 
       {/*
         Anmelden dauert eine Sekunde, Anlegen deutlich länger: am Dienst
@@ -215,32 +204,27 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
         mitten im Anlegen.
       */}
       {busy !== null && mode === 'new' && (
-        <p className="wk-hint">
-          Powstają klucze — najpierw konta, potem pierwszej osoby. To potrwa
-          kilkanaście sekund. Nie odświeżaj strony.
-        </p>
+        <p className="wk-hint">Powstają klucze szyfrujące — to potrwa kilkanaście sekund. Nie zamykaj strony.</p>
       )}
 
       <div className="wk-actions">
-        <button type="submit" className="wk-btn" disabled={blocker !== null || busy !== null}>
+        <button type="submit" className="wk-btn wk-signin-go" disabled={busy !== null}>
           {busy ?? (mode === 'in' ? 'Zaloguj' : 'Załóż konto')}
         </button>
-
-        {blocker !== null && busy === null && <span className="wk-blocker">{blocker}</span>}
       </div>
 
       <p className="wk-swap">
         {mode === 'in' ? (
           <>
-            Nie masz jeszcze konta na nowej platformie?{' '}
-            <button type="button" className="wk-link-btn" onClick={() => { setMode('new'); setFailed(null); }}>
+            Nie masz konta?{' '}
+            <button type="button" className="wk-link-btn" onClick={() => { setMode('new'); setFailed(null); setTried(false); }}>
               Załóż je
             </button>
           </>
         ) : (
           <>
             Masz już konto?{' '}
-            <button type="button" className="wk-link-btn" onClick={() => { setMode('in'); setFailed(null); }}>
+            <button type="button" className="wk-link-btn" onClick={() => { setMode('in'); setFailed(null); setTried(false); }}>
               Zaloguj się
             </button>
           </>

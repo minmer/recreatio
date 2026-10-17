@@ -10,6 +10,7 @@ import { changeValue, loadGame, postPosition, suspicions, TRIGGER_LABEL, watchPl
 import { GeoMap } from './GeoMap';
 import type { Credentials, SessionEvent } from './live';
 import { useBusy } from './ui';
+import { Loading } from '../ui/Loading';
 
 /* -- Die Regeln bauen ---------------------------------------------------------------------- */
 
@@ -145,7 +146,7 @@ export function GameHost({ sessionId, cred, events }: { sessionId: string; cred:
   }, [sessionId, cred]);
   const triggers = events.filter((e) => e.kind === 'trigger').slice(-20).reverse();
   const odd = useMemo(() => suspicions(track.current), [view]);
-  if (view === null) return <p className="wk-hint">Wczytywanie gry…</p>;
+  if (view === null) return <Loading label="Wczytywanie gry…" />;
   if (!view.running) return <p className="wk-hint">Gra jeszcze nie ma zasad — uruchom ją z przebiegu.</p>;
   const zones = view.rules?.zones ?? [];
   const values = view.state?.values ?? {};

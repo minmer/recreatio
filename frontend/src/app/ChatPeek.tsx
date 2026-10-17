@@ -16,7 +16,7 @@ import { newMessages, useSeatChatRows } from './seatUnread';
 import { unreadIn, type ChatTargetKind } from './steps';
 
 /** Die Plätze, für die diese Seite gerade spricht — wie die Bausteine der Plätze (`OnSeat`) sie wählen. */
-function useShownSeats(): readonly SeatView[] {
+export function useShownSeats(): readonly SeatView[] {
   const seats = useSeats();
   const person = usePerson();
   const shown = person === null

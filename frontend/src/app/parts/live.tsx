@@ -18,10 +18,13 @@
  */
 
 import { definePart, maybeNumber, text, type RawConfig } from '../part';
-import { FormCard } from '../FormCard';
-import { MassCard } from '../MassCard';
 import { massSays, massView } from '../massShape';
-import { SlotCard } from '../SlotCard';
+import { later } from '../ui/later';
+
+/* 2026-10-17 — die Ansicht erst, wenn sie gezeigt wird (`ui/later`): eine Seite ohne diesen Baustein lädt sie nicht. */
+const FormCard = later(() => import('../FormCard').then((m) => m.FormCard));
+const MassCard = later(() => import('../MassCard').then((m) => m.MassCard));
+const SlotCard = later(() => import('../SlotCard').then((m) => m.SlotCard));
 
 /* -- Messen und Intentionen ------------------------------------------------- */
 

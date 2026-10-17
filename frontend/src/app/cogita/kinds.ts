@@ -103,12 +103,12 @@ const TOPIC_MORE: readonly FieldDef[] = [
   field('landmark', 'Próg', 'bool', { says: 'Pojęcie progowe: bez niego dalej się nie da (tak/nie)' }),
   field('dimension', 'Wymiar', 'bool', { says: 'Ten podtemat jest wymiarem tematu nadrzędnego (Co? Dlaczego? Jak?)' }),
   field('open', 'Do rozwinięcia', 'bool', { says: 'Temat jeszcze otwarty — stoi na liście „Do zrobienia" (tak/nie)' }),
-  field('tags', 'Perspektywy', 'list', { says: 'Perspektywy z listy biblioteki (np. historyczna, duchowa)' })
+  field('tags', 'Perspektywy', 'list', { says: 'Perspektywy z listy bazy wiedzy (np. historyczna, duchowa)' })
 ];
 
 /** Was ein eigener Text zusätzlich trägt: die Wissenssätze, die er einbettet, stehen in seinem Zapis (`![@…]`). */
 const TEXT_MORE: readonly FieldDef[] = [
-  field('tags', 'Perspektywy', 'list', { says: 'Perspektywy z listy biblioteki' })
+  field('tags', 'Perspektywy', 'list', { says: 'Perspektywy z listy bazy wiedzy' })
 ];
 
 function builtin(id: string): KindDef {
@@ -136,7 +136,7 @@ export const KNOWLEDGE: KindDef = {
   system: 'knowledge',
   fields: [
     field('text', 'Stwierdzenie', 'markup', { role: 'text', says: 'Jedno stwierdzenie; słowa mogą wskazywać wpisy: [[Księgi Samuela|@samuel]]' }),
-    field('tags', 'Perspektywy', 'list', { says: 'Perspektywy z listy biblioteki (np. historyczna, duchowa)' }),
+    field('tags', 'Perspektywy', 'list', { says: 'Perspektywy z listy bazy wiedzy (np. historyczna, duchowa)' }),
     field('about', 'O czym', 'ref', { multi: true, inverse: 'wiedza', says: 'Wpisy, których dotyczy (poza tymi w tekście)' }),
     field('source', 'Źródło', 'ref', { to: ['work'], role: 'work', says: 'Dzieło, z którego pochodzi — odwołanie' }),
     field('locator', 'Miejsce w źródle', 'line', { role: 'locator', says: 'Gdzie w źródle: "s. 23", "J 3,16"' })

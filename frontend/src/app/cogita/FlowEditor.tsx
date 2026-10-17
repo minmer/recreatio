@@ -16,7 +16,8 @@ import { GraphEditor } from './GraphEditor';
 import { FLOW_PRESETS } from './presets';
 import { flowBundle, pageUrl, publishBundle, publishMedia, publishModule, unpublishBundle, FLOW_BUNDLE } from './publish';
 import { readCondition } from './logic';
-import { ConditionEditor, EntityPicker, entityName, useAsync, useBusy, useCtx } from './ui';
+import { ConditionEditor, EntityPicker, entityName, ForeignOnly, useAsync, useBusy, useCtx } from './ui';
+import { askText } from '../ui/dialogs';
 
 export function FlowEditor({ chosenId, onChoose }: { chosenId: string | null; onChoose: (id: string | null) => void }) {
   const { lib, writes } = useCtx();
@@ -28,7 +29,7 @@ export function FlowEditor({ chosenId, onChoose }: { chosenId: string | null; on
       <div className="cg-row-between">
         <select value={chosenId ?? ''} onChange={(e) => onChoose(e.target.value === '' ? null : e.target.value)} aria-label="Przebieg">
           <option value="">— przebiegi ({flows.length}) —</option>
-          {flows.map((e) => <option key={e.id} value={e.id}>{typeof e.data.name === 'string' ? e.data.name : 'Przebieg'}</option>)}
+          {flows.map((e) => <option key={e.id} value={e.id}>{typeof e.data.name === 'string' ? e.data.name : 'Przebieg'}{lib.isOwn(e.id) ? '' : ` · z: ${lib.origin(e.id)?.name ?? '?'}`}</option>)}
         </select>
         {writes && (
           <details className="cg-card">
@@ -46,8 +47,8 @@ export function FlowEditor({ chosenId, onChoose }: { chosenId: string | null; on
         )}
       </div>
       {entry === undefined
-        ? <p className="wk-hint">Przebieg mówi, jak coś opowiedzieć: kroki pokazują wiedzę, wpisy i pytania; nagłówki i podpisy wyborów są danymi przebiegu, a cała treść pochodzi z biblioteki.</p>
-        : <FlowForm key={entry.id} id={entry.id} />}
+        ? <p className="wk-hint">Przebieg mówi, jak coś opowiedzieć: kroki pokazują wiedzę, wpisy i pytania; nagłówki i podpisy wyborów są danymi przebiegu, a cała treść pochodzi z bazy wiedzy (i jej źródeł).</p>
+        : <ForeignOnly id={entry.id} tab="przebiegi"><FlowForm key={entry.id} id={entry.id} /></ForeignOnly>}
     </div>
   );
 }
@@ -143,7 +144,7 @@ function FlowForm({ id }: { id: string }) {
             if (fresh.length > 0) await lib.saveSettings({ dependencies: [...settings.dependencies, ...fresh] });
             setSaid(fresh.length === 0 ? 'Brak nowych zależności do zaproponowania.' : `Zaproponowano ${fresh.length} zależności — potwierdź je w Ustawieniach.`);
           })}>Zaproponuj zależności z tego przebiegu</button>
-          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => { if (window.confirm('Usunąć przebieg?')) void run(() => lib.remove(id)); }}>Usuń</button>
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => { if (await askText('Usunąć przebieg?')) void run(() => lib.remove(id)); }}>Usuń</button>
         </div>
       )}
       {writes && me !== null && <PublishFlow id={id} name={flow.name} onSaid={setSaid} />}
@@ -214,7 +215,7 @@ function LinesEditor({ lines, writes, onChange }: { lines: readonly CharacterLin
 }
 
 function PublishFlow({ id, name, onSaid }: { id: string; name: string; onSaid: (s: string) => void }) {
-  const { lib, me, keyOf } = useCtx();
+  const { lib, me, keyIn } = useCtx();
   const entry = lib.entry(id);
   const { busy, failed, run } = useBusy();
   const [role, setRole] = useState(me?.person.id ?? '');
@@ -223,13 +224,13 @@ function PublishFlow({ id, name, onSaid }: { id: string; name: string; onSaid: (
   return (
     <section className="cg-card">
       <h3>Opublikuj kurs</h3>
-      <p className="wk-hint">Wychodzi przebieg z tym, co pokazuje (wpisy, wiedza, pytania, pliki) — bez reszty biblioteki i bez postępów. Pliki stają się publiczne.</p>
+      <p className="wk-hint">Wychodzi przebieg z tym, co pokazuje (wpisy, wiedza, pytania, pliki) — bez reszty bazy wiedzy i bez postępów. Pliki stają się publiczne.</p>
       <div className="cg-row">
         <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => {
           const bundle = await flowBundle(lib, id);
           if ('error' in bundle) throw new Error(bundle.error);
           /* Die Dateien, die der Kurs zeigt, gehen offen daneben — nur Bilder, Ton, Film und PDF. */
-          await publishMedia(lib, bundle.files, keyOf);
+          await publishMedia(lib, bundle.files, keyIn);
           await publishBundle(lib, id, { ...bundle, format: FLOW_BUNDLE });
           onSaid(`Opublikowano (${Object.keys(bundle.entities).length} wpisów, ${bundle.files.length} plików).`);
         })}>{published ? 'Zaktualizuj publikację' : 'Opublikuj'}</button>

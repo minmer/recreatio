@@ -196,6 +196,8 @@ export interface MediaRef {
   readonly name?: string;
   /** Die genaue Art der Datei (image/png) — zum Öffnen im Browser. */
   readonly mime?: string;
+  /** 0110 — in welcher Bibliothek (oder Baza wiedzy) sie liegt; fehlt: in der, deren Eintrag sie zeigt. */
+  readonly library?: string;
 }
 
 export interface GeoPoint {
@@ -566,7 +568,11 @@ export function readTyped(field: FieldDef, raw: unknown): FieldValue | undefined
       if (file === '' || type === undefined || !(field.media ?? MEDIA_TYPES).includes(type)) return undefined;
       const name = str(raw.name).trim();
       const mime = str(raw.mime).trim();
-      return { file, type, ...(name === '' ? {} : { name: clip(name, 200) }), ...(/^[a-z]+\/[a-z0-9.+-]+$/i.test(mime) ? { mime: clip(mime, 100) } : {}) };
+      const library = str(raw.library).trim();
+      return {
+        file, type, ...(name === '' ? {} : { name: clip(name, 200) }), ...(/^[a-z]+\/[a-z0-9.+-]+$/i.test(mime) ? { mime: clip(mime, 100) } : {}),
+        ...(/^[0-9a-f-]{32,36}$/i.test(library) ? { library } : {})
+      };
     }
     case 'list': {
       if (!Array.isArray(raw)) return undefined;

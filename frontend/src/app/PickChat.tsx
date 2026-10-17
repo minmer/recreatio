@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 
 import { areaPath, loadAreas, type AreaRow } from './area';
 import { loadChats, type ChatRow } from './chat';
+import { Loading } from './ui/Loading';
 
 export function PickChat({ value, busy, onPick }: {
   value: string;
@@ -35,7 +36,7 @@ export function PickChat({ value, busy, onPick }: {
     return () => { alive = false; };
   }, []);
 
-  if (rows === null) return <p className="wk-hint">Wczytywanie rozmów…</p>;
+  if (rows === null) return <Loading label="Wczytywanie rozmów…" />;
 
   const known = value === '' || rows.some((r) => r.chatId === value);
   const nameOf = (chat: ChatRow) =>

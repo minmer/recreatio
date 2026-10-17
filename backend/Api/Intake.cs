@@ -51,6 +51,13 @@ public static class Intake
         app.MapPost("/workspace/area/{id:guid}/controller", ControllerAsync);
 
         /*
+         * 2026-10-17 — wer fuer die Daten dieses Bereichs geradesteht: sein
+         * eigener Eintrag, oder der des naechsten Bereichs darueber. Fuer die
+         * Einstellungen des Bereichs und die eines Formulars darin.
+         */
+        app.MapGet("/workspace/area/{id:guid}/controller", ControllerOfAsync);
+
+        /*
          * Was ein Formular braucht, um sich zu verschliessen — OHNE Konto.
          *
          * Hier steht auch die Klausel: wer personenbezogene Daten erhebt, muss
@@ -263,6 +270,63 @@ public static class Intake
 
         await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
         await ctx.Response.WriteAsJsonAsync(new { areaId = Ids.ToText(id), name });
+    }
+
+    /// <summary>
+    /// Der Administrator danych, der fuer einen Bereich GILT: sein eigener,
+    /// sonst der des naechsten Bereichs darueber (<c>parent_area_id</c>) —
+    /// dieselbe Kette, nach der ein Formular seine Klausel findet.
+    /// <c>fromAreaId</c> sagt, wo er eingetragen ist.
+    /// </summary>
+    private static async Task ControllerOfAsync(HttpContext ctx, Db db, Guid id)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        if (!await Area.MayAsync(connection, who.Value.AccountId, id, Capability.Read, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
+            return;
+        }
+
+        await using var cmd = new SqlCommand("""
+            WITH chain AS (
+                SELECT a.id, a.parent_area_id, 0 AS depth FROM app.area a WHERE a.id = @area
+                UNION ALL
+                SELECT p.id, p.parent_area_id, c.depth + 1
+                  FROM app.area p
+                  JOIN chain c ON p.id = c.parent_area_id
+                 WHERE c.depth < 16
+            )
+            SELECT TOP 1 ch.id, ac.name, ac.address, ac.email
+              FROM chain ch
+              JOIN app.area_controller ac ON ac.area_id = ch.id
+             ORDER BY ch.depth;
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@area", id);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+
+        if (!await reader.ReadAsync(ctx.RequestAborted))
+        {
+            await ctx.Response.WriteAsJsonAsync(new { areaId = Ids.ToText(id), controller = (object?)null });
+            return;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            areaId = Ids.ToText(id),
+            controller = new
+            {
+                fromAreaId = Ids.ToText(reader.GetGuid(0)),
+                name = reader.GetString(1),
+                address = reader.IsDBNull(2) ? null : reader.GetString(2),
+                email = reader.IsDBNull(3) ? null : reader.GetString(3)
+            }
+        });
     }
 
     /* -- Fuer das Formular -------------------------------------------------- */

@@ -14,8 +14,11 @@
  */
 
 import { definePart, text, type RawConfig } from '../part';
-import { PageChatCard } from '../PageChatView';
+import { later } from '../ui/later';
 import { PageChatPeek } from '../ChatPeek';
+
+/* 2026-10-17 — die Ansicht erst, wenn sie gezeigt wird (`ui/later`): eine Seite ohne diesen Baustein lädt sie nicht. */
+const PageChatCard = later(() => import('../PageChatView').then((m) => m.PageChatCard));
 
 interface ChatConfig {
   readonly title: string;

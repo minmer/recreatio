@@ -36,8 +36,10 @@ import { loadModules, readConfig, updateModule, type ModuleRow } from './module'
 import { loadPage, savePageSubject, saveParts, toDraft } from './page';
 import { readSubject, subjectKindOf } from './pageSubject';
 import { partOf } from './parts/registry';
-import { pageSteps, viewPath } from './routes';
+import { pageSteps, viewPath, modulePath } from './routes';
 import { WorkspaceError } from './session';
+import { askText } from './ui/dialogs';
+import { Loading } from './ui/Loading';
 
 type Kind = 'page' | 'module' | 'area' | 'calendar' | 'library' | 'chat';
 
@@ -132,7 +134,7 @@ export function DependencyMap() {
     modules.forEach((m, i) => {
       out.push({
         id: `module:${m.moduleId}`, type: 'box', position: { x: 340, y: i * 80 },
-        data: { kind: 'module', label: m.name, sub: partOf(m.kind)?.label ?? m.kind, href: viewPath('modules', m.kind, m.moduleId) }
+        data: { kind: 'module', label: m.name, sub: partOf(m.kind)?.label ?? m.kind, href: modulePath(m.kind, m.moduleId) }
       });
       for (const path of m.pages) {
         if (!pages.some((p) => p.path === path)) continue;
@@ -221,13 +223,13 @@ export function DependencyMap() {
   const moduleOf = (nodeId: string) => world?.modules.find((m) => `module:${m.moduleId}` === nodeId);
 
   /* Eine neue Linie: Seite → Baustein (auf die Seite), Baustein → Quelle (als Quelle). */
-  const onConnect = (c: Connection) => {
+  const onConnect = async (c: Connection) => {
     if (world === null || c.source === null || c.target === null) return;
     if (c.source.startsWith('page:') && c.target.startsWith('module:')) {
       const path = c.source.slice(5);
       const m = moduleOf(c.target);
       if (m === undefined) return;
-      if (!window.confirm(`Dodać „${m.name}" na stronę ${path}? Pojawi się na końcu strony.`)) return;
+      if (!(await askText(`Dodać „${m.name}" na stronę ${path}? Pojawi się na końcu strony.`))) return;
       void act('Dodawanie na stronę…', async () => {
         const page = await loadPage(path);
         const parts = page.parts.map(toDraft);
@@ -243,7 +245,7 @@ export function DependencyMap() {
       /* 0081 — ein Formular zu „Napisz do nas": wer es ausgefüllt hat, darf dort anfangen. */
       const target2 = target === 'module' ? world.modules.find((x) => x.moduleId === id) : undefined;
       if (m.kind === 'form' && target2?.kind === 'seat-ask') {
-        if (!window.confirm(`Dołączyć formularz „${m.name}" do „${target2.name}"? Kto go wypełnił, będzie mógł tam zacząć rozmowę.`)) return;
+        if (!(await askText(`Dołączyć formularz „${m.name}" do „${target2.name}"? Kto go wypełnił, będzie mógł tam zacząć rozmowę.`))) return;
         void act('Dołączanie formularza…', () => linkAudienceForm('module', id, m.moduleId, true));
         return;
       }
@@ -251,7 +253,7 @@ export function DependencyMap() {
       /* 0080 — ein Formular zu einer Rozmowa: wer es ausgefüllt hat, ist dabei. */
       const chat = target === 'chat' ? world.chats.find((x) => x.chatId === id) : undefined;
       if (m.kind === 'form' && takesForms(chat)) {
-        if (!window.confirm(`Dołączyć formularz „${m.name}" do: ${chatLabel(chat)}? Kto go wypełnił, ${chat?.kind === 'channel' ? 'będzie czytać ten kanał' : 'będzie czytać i pisać w tej rozmowie'}.`)) return;
+        if (!(await askText(`Dołączyć formularz „${m.name}" do: ${chatLabel(chat)}? Kto go wypełnił, ${chat?.kind === 'channel' ? 'będzie czytać ten kanał' : 'będzie czytać i pisać w tej rozmowie'}.`))) return;
         void act('Dołączanie formularza…', () => linkAudienceForm('chat', id, m.moduleId, true));
         return;
       }
@@ -268,13 +270,13 @@ export function DependencyMap() {
     }
   };
 
-  const onEdgesDelete = (gone: readonly Edge[]) => {
+  const onEdgesDelete = async (gone: readonly Edge[]) => {
     for (const edge of gone) {
       const rel = (edge.data as { rel?: string } | undefined)?.rel;
       if (rel === 'on') {
         const path = edge.source.slice(5);
         const m = moduleOf(edge.target);
-        if (m === undefined || !window.confirm(`Zdjąć „${m.name}" ze strony ${path}? Moduł zostaje — można go postawić znowu.`)) { void look(); continue; }
+        if (m === undefined || !(await askText(`Zdjąć „${m.name}" ze strony ${path}? Moduł zostaje — można go postawić znowu.`))) { void look(); continue; }
         void act('Zdejmowanie ze strony…', async () => {
           const page = await loadPage(path);
           await saveParts(path, page.parts.map(toDraft).filter((p) => p.moduleId !== m.moduleId));
@@ -282,16 +284,16 @@ export function DependencyMap() {
       } else if (rel === 'ask') {
         const info = edge.data as { subject: string; moduleId: string };
         const m = moduleOf(edge.source);
-        if (!window.confirm(`Odłączyć formularz „${m?.name ?? 'formularz'}"? Kto go wypełnił, nie zacznie już tu rozmowy (zaczęte zostają).`)) { void look(); continue; }
+        if (!(await askText(`Odłączyć formularz „${m?.name ?? 'formularz'}"? Kto go wypełnił, nie zacznie już tu rozmowy (zaczęte zostają).`))) { void look(); continue; }
         void act('Odłączanie formularza…', () => linkAudienceForm('module', info.subject, info.moduleId, false));
       } else if (rel === 'audience') {
         const info = edge.data as { chatId: string; moduleId: string };
         const m = moduleOf(edge.source);
-        if (!window.confirm(`Odłączyć formularz „${m?.name ?? 'formularz'}"? Kto go wypełnił, przestanie widzieć tę rozmowę.`)) { void look(); continue; }
+        if (!(await askText(`Odłączyć formularz „${m?.name ?? 'formularz'}"? Kto go wypełnił, przestanie widzieć tę rozmowę.`))) { void look(); continue; }
         void act('Odłączanie formularza…', () => linkAudienceForm('chat', info.chatId, info.moduleId, false));
       } else if (rel === 'subject') {
         const info = edge.data as { path: string };
-        if (!window.confirm(`Zdjąć „Wybór na stronie" ze strony ${info.path}? Moduły „Panel osoby" przestaną tam kogokolwiek pokazywać.`)) { void look(); continue; }
+        if (!(await askText(`Zdjąć „Wybór na stronie" ze strony ${info.path}? Moduły „Panel osoby" przestaną tam kogokolwiek pokazywać.`))) { void look(); continue; }
         void act('Zdejmowanie wyboru…', () => savePageSubject(info.path, null));
       } else if (rel === 'source') {
         const m = moduleOf(edge.source);
@@ -306,7 +308,7 @@ export function DependencyMap() {
     }
   };
 
-  if (world === null) return failed !== null ? <p className="wk-error">{failed}</p> : <p className="wk-hint">Wczytywanie mapy…</p>;
+  if (world === null) return failed !== null ? <p className="wk-error">{failed}</p> : <Loading label="Wczytywanie mapy…" />;
 
   return (
     <div className="wk-dep">

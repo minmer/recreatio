@@ -24,8 +24,9 @@ import { asked, loadFields, loadForm, openFields, type OpenField, type SealedFie
 import { loadModules, type ModuleRow } from './module';
 import type { PartModule } from './part';
 import { keysFor } from './ringOf';
-import { viewPath } from './routes';
+import { formPath } from './routes';
 import { whoIsThere } from './session';
+import { Loading } from './ui/Loading';
 
 /**
  * Was sich ändert, wenn ein anderes Formular gewählt wird: das Formular — und
@@ -57,7 +58,7 @@ export function PickForm({ value, busy, onPick }: {
     return () => { alive = false; };
   }, []);
 
-  if (rows === null) return <p className="wk-hint">Wczytywanie formularzy…</p>;
+  if (rows === null) return <Loading label="Wczytywanie formularzy…" />;
 
   const known = value === '' || rows.some((r) => r.moduleId === value);
 
@@ -80,7 +81,7 @@ export function PickForm({ value, busy, onPick }: {
       )}
 
       {value !== '' && known && (
-        <a className="wk-link-btn" href={viewPath('modules', 'form', value)}>
+        <a className="wk-link-btn" href={formPath(value)}>
           Otwórz ten formularz
         </a>
       )}
@@ -182,7 +183,7 @@ export function PickQuestions({ formId, value, busy, onPick, subforms = false }:
   }, [formId, subforms]);
 
   if (formId === '') return <span className="wk-hint">Najpierw wybierz formularz.</span>;
-  if (fields === null) return <p className="wk-hint">Wczytywanie pytań…</p>;
+  if (fields === null) return <Loading label="Wczytywanie pytań…" />;
   if (failed) return <span className="wk-blocker">Nie udało się wczytać pytań tego formularza.</span>;
 
   const every = [...fields, ...groups.flatMap((g) => g.fields)];

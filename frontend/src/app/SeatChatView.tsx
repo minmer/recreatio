@@ -33,6 +33,7 @@ import {
 import { WorkspaceError } from './session';
 import { createTopic, loadTopics, openTopics, type Topic } from './chatTopics';
 import { TopicBar } from './TopicBar';
+import { Loading } from './ui/Loading';
 
 /*
  * 0069 — wie eine Rozmowa für den Menschen mit dem Link heisst, und wer darin liest.
@@ -146,7 +147,7 @@ export function SeatChatBody({ seat, only }: { seat: SeatView; only?: string }) 
   const { chats: found, identity, failed } = useSeatChats(seat);
   const chats = found === undefined || only === undefined ? found : found.filter((one) => one.row.chatId === only);
 
-  if (chats === undefined) return <p className="wk-card-muted">Wczytywanie rozmowy…</p>;
+  if (chats === undefined) return <Loading label="Wczytywanie rozmowy…" />;
   if (chats.length === 0 && only !== undefined && (found?.length ?? 0) > 0) {
     return <p className="wk-card-muted">Ta rozmowa nie należy do Twojej grupy — dla Ciebie nic tu nie ma.</p>;
   }
@@ -193,7 +194,7 @@ export function SeatAskBody({ seat, moduleId }: { seat: SeatView; moduleId: stri
   }, [token, moduleId]);
   useEffect(() => { void lookTo(); }, [lookTo]);
 
-  if (to === null || chats === undefined) return <p className="wk-card-muted">Wczytywanie…</p>;
+  if (to === null || chats === undefined) return <Loading label="Wczytywanie…" />;
   if (to.length === 0) return <p className="wk-card-muted">{failed ?? 'Z Twojego linku nie można stąd do nikogo napisać.'}</p>;
 
   const start = async (target: AskTarget) => {
@@ -469,7 +470,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
     if (identity === null) throw new WorkspaceError('Rozmowa jeszcze się otwiera — spróbuj za chwilę.');
     if (signed === '') throw new WorkspaceError('Najpierw przedstaw się — imię i nazwisko.');
     const done = await sendSeatMessage(token, seatId, chatId, keys, identity, body, signed, { ...options, topicId: topic, via });
-    if (options.sendAt === undefined) {
+    if (options.sendAt === undefined && options.whenOnline !== true) {
       setShown((was) => [...(was ?? []), {
         message: { messageId: done.messageId, authorRoleId: null, authorSeatId: seatId, epoch: done.epoch, bodySealed: '', createdAt: done.createdAt, deletedAt: null, topicId: topic },
         opened: { text: body, name: signed, ...options, via }
@@ -488,6 +489,8 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
   const subtitle = chrome.status.typing ? <span className="ch-typing">ktoś pisze…</span>
     : chat.row.kind === 'seat' ? `Ty i osoby prowadzące „${chat.row.areaName}"`
     : chat.row.kind === 'channel' || chrome.status.channel ? `kanał „${chat.row.areaName}" — czytasz` : `grupa „${chat.row.areaName}"`;
+  /* 0111 — und wer von den anderen gerade in der App ist (wer es teilt). */
+  const subtitleLine = typeof subtitle === 'string' && chrome.presence !== null ? `${subtitle} · ${chrome.presence}` : subtitle;
   const listens = chat.row.kind === 'channel' || extras.features?.canWrite === false;
 
   /* 0095 — KEIN NAME AM PLATZ: dann zuerst vorstellen (Imię, Nazwisko) — er bleibt am Platz, für jede Rozmowa. */
@@ -495,7 +498,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
 
   return (
     <div className="ch-room is-embedded wk-seat-chat-room">
-      <ChatHeader compact subtitle={subtitle} menu={chrome.items} search={extras.search} onSearch={extras.setSearch} quiet={chrome.status.quiet} />
+      <ChatHeader compact subtitle={subtitleLine} menu={chrome.items} search={extras.search} onSearch={extras.setSearch} quiet={chrome.status.quiet} />
       {chrome.banner}
       {failed !== null && <p className="ch-bar is-error">{failed}</p>}
 
@@ -522,6 +525,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
       <Composer
         ref={composer}
         endpoint={endpoint}
+        onlineSend={chrome.onlineSend}
         readOnly={listens ? 'Ten kanał pozwala Ci tylko czytać.' : null}
         placeholder={signed !== '' ? `Wiadomość jako ${signedLabel}` : 'Wiadomość'}
         reply={reply}

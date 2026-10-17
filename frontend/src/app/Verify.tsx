@@ -19,6 +19,7 @@ import { useEffect, useState } from 'react';
 
 import { redeemCheck } from './form';
 import { WorkspaceError } from './session';
+import { Loading } from './ui/Loading';
 
 export function Verify({ token }: { token: string | null }) {
   /** `undefined` = läuft noch, `null` = ging nicht. */
@@ -45,7 +46,7 @@ export function Verify({ token }: { token: string | null }) {
     return () => { alive = false; };
   }, [token]);
 
-  if (done === undefined) return <p className="wk-lede">Sprawdzanie…</p>;
+  if (done === undefined) return <Loading label="Sprawdzanie…" />;
 
   if (done === null) {
     return (

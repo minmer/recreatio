@@ -116,16 +116,21 @@ export function mediaIn(value: unknown, into: Map<string, MediaRef>, depth = 0):
 
 /**
  * Die offene Fassung der Dateien eines Bündels neben die versiegelte legen —
- * nur Bilder, Ton, Film und PDF (`mime` bekannt). Gibt zurück, wie viele es
- * wurden; eine, die nicht geht, hält die übrigen nicht auf.
+ * nur Bilder, Ton, Film und PDF (`mime` bekannt). 0110: jede dort, wo sie
+ * liegt (auch in einer Quelle — dazu braucht es dort das Schreibrecht).
+ * Gibt zurück, wie viele es wurden; eine, die nicht geht, hält die übrigen
+ * nicht auf.
  */
-export async function publishMedia(lib: CogitaLibrary, files: readonly MediaRef[], keyOf: (epoch: number) => Promise<Uint8Array | undefined>): Promise<number> {
+export async function publishMedia(lib: CogitaLibrary, files: readonly MediaRef[], keyIn: (areaId: string, epoch: number) => Promise<Uint8Array | undefined>): Promise<number> {
   let done = 0;
   for (const media of files) {
     if (media.mime === undefined) continue;
-    const url = await fileUrl(lib.libraryId, media, keyOf).catch(() => null);
+    const owner = media.library ?? lib.libraryId;
+    const area = lib.areaOf(owner);
+    if (area === undefined) continue;
+    const url = await fileUrl(owner, media, (epoch) => keyIn(area, epoch)).catch(() => null);
     if (url === null) continue;
-    if (await publishFile(lib.libraryId, media, url).then(() => true, () => false)) done += 1;
+    if (await publishFile(owner, media, url).then(() => true, () => false)) done += 1;
   }
   return done;
 }

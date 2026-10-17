@@ -34,6 +34,7 @@ import {
 import { OwnSubmissions } from './Submission';
 import { TaskCard, takenOf } from './TaskCard';
 import { WorkspaceError } from './session';
+import { Loading } from './ui/Loading';
 
 /* 0109 — „Naucz się" bringt Karten und Läufe mit: erst, wenn ein solcher Schritt dasteht. */
 const LearnStep = lazy(() => import('./cogita/LearnStep').then((m) => ({ default: m.LearnStep })));
@@ -112,15 +113,19 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
           .map((s) => (s.chat === undefined ? s : { ...s, status: chatStepStatus(s, chatRows) }));
 
         const { done, total } = progressOf(states);
+        /* 2026-10-17 — DER NÄCHSTE SCHRITT steht hervorgehoben da: was jetzt zu tun ist, ohne die Liste zu lesen. */
+        const next = states.findIndex((one) => one.status !== 'done');
 
         return (
           <div key={form.registrationId} className="wk-steps">
             <p className="wk-hint">
               {done === total ? 'Wszystko zrobione. Dziękujemy!' : `Zrobione ${done} z ${total}.`}
             </p>
+            <progress className="wk-progress" value={done} max={Math.max(total, 1)} aria-label="Postęp" />
 
             <ol className="wk-step-list">
-              {states.map((s) => {
+              {states.map((s, at) => {
+                const stepClass = `wk-step is-${s.status}${at === next ? ' is-next' : ''}`;
                 const ext = s.extensionId === null ? undefined
                   : form.extensions.find((e) => e.moduleId === s.extensionId);
                 const open = openKey === `${form.registrationId}|${s.key}`;
@@ -129,7 +134,7 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
                 /* 0098 — eine Aufgabe: ihre eigene Karte, mit Entscheidung und Tagen. */
                 if (s.task !== undefined && s.stepId !== null) {
                   return (
-                    <li key={s.key} className={`wk-step is-${s.status}`}>
+                    <li key={s.key} className={stepClass}>
                       <TaskCard label={s.label} help={s.help} task={s.task} taken={takenOf(form.taken, s.stepId!)}
                         onChange={async (change) => { await answerTask(seat.token, form.registrationId, s.stepId!, change); seat.reload(); }}
                         onPresence={async (change) => { await answerPresence(seat.token, form.registrationId, s.stepId!, change); seat.reload(); }} />
@@ -139,16 +144,16 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
 
                 /* 0102 — „Przeczytaj wiadomości": eine schmale Zeile wie eine Aufgabe, mit „Czytaj". */
                 if (s.chat !== undefined) {
-                  return <li key={s.key} className={`wk-step is-${s.status}`}><ChatStep seat={seat} step={s} /></li>;
+                  return <li key={s.key} className={stepClass}><ChatStep seat={seat} step={s} /></li>;
                 }
 
                 /* 0109 — „Naucz się": wie weit, und „Ucz się" an Ort und Stelle; die Schwelle hakt ab. */
                 if (s.learn !== undefined) {
-                  return <li key={s.key} className={`wk-step is-${s.status}`}><Suspense fallback={<p className="wk-hint">Wczytywanie…</p>}><LearnStep seat={seat} registrationId={form.registrationId} step={s} /></Suspense></li>;
+                  return <li key={s.key} className={stepClass}><Suspense fallback={<Loading label="Wczytywanie…" />}><LearnStep seat={seat} registrationId={form.registrationId} step={s} /></Suspense></li>;
                 }
 
                 return (
-                  <li key={s.key} className={`wk-step is-${s.status}`}>
+                  <li key={s.key} className={stepClass}>
                     <div className="wk-step-head">
                       <Mark status={s.status} />
                       <div className="wk-step-text">
@@ -289,7 +294,7 @@ export function PersonSteps({ registrationId, states, onChanged, onError }: {
                 )}
                 {s.learn !== undefined && (
                   <p className="wk-hint" data-learn-line="">
-                    Nauka do {Math.round(s.learn.threshold * 100)}% znajomości — {s.status === 'done' ? 'osiągnięte' : 'jeszcze nie'}. Postępy: Biblioteka → Nauka i kursy → Postępy.
+                    Nauka do {Math.round(s.learn.threshold * 100)}% znajomości — {s.status === 'done' ? 'osiągnięte' : 'jeszcze nie'}. Postępy: Nauka → baza wiedzy → Postępy.
                   </p>
                 )}
               </div>
@@ -462,8 +467,7 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
       */}
       <h3 className="wk-h2">Zadania dla osób</h3>
       <p className="wk-hint">
-        Zadanie stoi u osoby przez swój okres. Osoba je przyjmuje, pomija albo odmawia — i zaznacza dni,
-        w które je wykonała. Kancelaria widzi to przy każdej osobie i może wpisać za nią.
+        Osoba odpowiada w kalendarzu przy każdym dniu zadania; kancelaria widzi to przy osobie i może wpisać za nią.
       </p>
       {!drafts.some((d) => d.kind === 'task') && <p className="wk-empty">Jeszcze żadnego zadania.</p>}
 
@@ -487,9 +491,7 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
 
       <h3 className="wk-h2">Znaczniki</h3>
       <p className="wk-hint">
-        Wszystko, czego nie widać w danych: „Zgoda rodzica dostarczona", „Quiz sprawdzony". Wybierz,
-        kto odhacza — kancelaria (gdy to dostanie) albo osoba sama, w swoim linku. Znacznik może też odhaczać
-        się sam: gdy osoba wybierze termin albo dopóki ma przeczytane wiadomości (kanał, rozmowa grupy, rozmowa z prowadzącymi).
+        To, czego nie widać w danych („Zgoda rodzica dostarczona”). Odhacza kancelaria, osoba w swoim linku — albo znacznik sam (wybrany termin, przeczytane wiadomości).
       </p>
 
       {drafts.every((d) => d.kind === 'task') && <p className="wk-empty">Jeszcze żadnego.</p>}
@@ -524,13 +526,13 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
                   <option value="person">osoba sama</option>
                   <option value="booking">sam — gdy osoba wybierze termin</option>
                   <option value="chat">sam — gdy osoba przeczyta wiadomości</option>
-                  <option value="learn">sam — gdy osoba się nauczy (Cogita)</option>
+                  <option value="learn">sam — gdy osoba się nauczy (baza wiedzy)</option>
                 </select>
               </label>
               {/* 0109 — „Naucz się": z której biblioteki, która powtórka, do ilu procent. */}
               {d.kind === 'learn' && (
                 <span className="wk-inline" data-mark-learn="">
-                  <Suspense fallback={<span className="wk-hint">Wczytywanie…</span>}>
+                  <Suspense fallback={<Loading lines={1} />}>
                     <PickLearn value={d.learn ?? { libraryId: '', revisionId: '', threshold: 0.8 }} onPick={(learn) => set(i, { learn })} />
                   </Suspense>
                 </span>
@@ -624,7 +626,7 @@ export function StepsEditor({ partId, steps, extensions, formKey, busy, onSaved,
 
       <h3 className="wk-h2">Postęp liczony sam</h3>
       <p className="wk-hint">
-        Z linku osoby i z rozszerzeń tego formularza — widać go przy każdej osobie w jej zgłoszeniu.
+        Z linku osoby i z podformularzy — widać go przy każdej osobie.
       </p>
       <ul className="wk-step-list">
         <li className="wk-step">
@@ -792,7 +794,7 @@ function TaskEdit({ draft, onChange, onMove, onRemove, first, last }: {
         <label className="wk-inline"><span className="wk-hint">Zrobione, gdy</span>
           <select value={t.needed.trim() === '' ? 'answer' : 'count'} data-task-done-when=""
             onChange={(e) => setTask({ needed: e.target.value === 'count' ? (t.needed.trim() === '' ? '1' : t.needed) : '' })}>
-            <option value="answer">{t.presence === true ? 'osoba odpowie na każdy termin (będę / nie będę)' : 'osoba się ustosunkuje (przyjmuję / pomijam / odmawiam)'}</option>
+            <option value="answer">{t.presence === true ? 'osoba odpowie na każdy termin (będę / nie będę)' : 'osoba odpowie przy każdym dniu (tak / nie)'}</option>
             <option value="count">{item ? 'obecność określoną liczbę razy' : 'wykonane określoną liczbę razy'}</option>
           </select></label>
         {t.needed.trim() !== '' && (

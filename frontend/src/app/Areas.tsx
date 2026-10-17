@@ -30,7 +30,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import {
-  areaPath, besideIt, chainTo, createArea, dropFromArea, inOrder, joinArea, loadAreas, loadMembers, myEpochKeys,
+  besideIt, chainTo, createArea, dropFromArea, inOrder, joinArea, loadAreas, loadMembers, myEpochKeys,
   setPublicLevel, setSeatLevel,
   PUBLIC_LEVELS, SEAT_LEVELS, type AreaRow, type Member, type PublicLevel
 } from './area';
@@ -46,14 +46,16 @@ import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
 import { AreaOptions } from './AreaOptions';
-import { RecentRow, useTouched } from './Recent';
+import { useTouched } from './Recent';
 import { AccessLinks } from './AccessLinks';
 import type { Desk } from './desk';
-import { DisplaySwitch } from './DisplaySwitch';
-import { useDisplay } from './display';
 import { ShareButton } from './Share';
-import { WorkspaceHome } from './WorkspaceHome';
-import { areaViewId } from './workspaceViews';
+import { AreaOverview } from './WorkspaceHome';
+import { AreaControllerSettings } from './AreaController';
+import { Loading } from './ui/Loading';
+import { Icon } from './ui/icons';
+import { PageHeader } from './ui/PageHeader';
+import { Segment } from './ui/Segment';
 
 /**
  * Die Stufen in der Sprache, die im Haus gesprochen wird.
@@ -97,9 +99,22 @@ const KIND_NAME: Record<Member['kind'], string> = {
  * <b>`new` kann keine Kennung sein.</b> Kennungen sind UUIDs; das Wort ist
  * damit frei und muss nicht gesperrt werden.
  */
+/** 2026-10-16 — die Reiter eines Bereichs, als Adresse: `areas/<kennung>/osoby`. */
+type AreaTab = 'przeglad' | 'osoby' | 'dostep' | 'ustawienia';
+
+const AREA_TABS: readonly { readonly id: AreaTab; readonly label: string }[] = [
+  { id: 'przeglad', label: 'Przegląd' },
+  { id: 'osoby', label: 'Osoby' },
+  { id: 'dostep', label: 'Dostęp' },
+  { id: 'ustawienia', label: 'Ustawienia' }
+];
+
+const tabOf = (word: string | undefined): AreaTab =>
+  AREA_TABS.find((one) => one.id === word)?.id ?? 'przeglad';
+
 type View =
   | { readonly at: 'list' }
-  | { readonly at: 'area'; readonly areaId: string }
+  | { readonly at: 'area'; readonly areaId: string; readonly tab: AreaTab }
   | { readonly at: 'new' };
 
 const NEW = 'new';
@@ -107,11 +122,10 @@ const NEW = 'new';
 const viewOf = (trail: readonly string[]): View =>
   trail[0] === undefined ? { at: 'list' }
   : trail[0] === NEW ? { at: NEW }
-  : { at: 'area', areaId: trail[0] };
+  : { at: 'area', areaId: trail[0], tab: tabOf(trail[1]) };
 
 export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]; desk: Desk }) {
   /* 0094 — einfach: der Widok obszaru; erweitert: die Einzelheiten (Schlüssel, Rollen, Stufen). */
-  const display = useDisplay('areas');
   const [areas, setAreas] = useState<readonly AreaRow[] | null | undefined>(undefined);
   const [ring, setRing] = useState<Ring | null>(null);
   const [person, setPerson] = useState<SealedRole | null>(null);
@@ -183,7 +197,7 @@ export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]
     }
   };
 
-  if (areas === undefined) return <p className="wk-empty">Wczytywanie…</p>;
+  if (areas === undefined) return <Loading />;
 
   if (areas === null) {
     return (
@@ -222,41 +236,13 @@ export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]
       return <p className="wk-empty">Tego obszaru już nie ma.</p>;
     }
 
-    /*
-     * 0094 — EINFACH: der WIDOK OBSZARU. Was neu ist, Termine, Rozmowy,
-     * Formulare, Menschen, Seiten und Zugang dieses Bereichs — derselbe Widok wie
-     * auf der Seite des Warsztat, nur für ihn. Der eigene, private Bereich hat
-     * keinen (dort gibt es nichts zu teilen); er zeigt seine Einzelheiten.
-     */
-    if (!display.extended && shown.personal !== true) {
-      const parent = shown.parentAreaId === null ? null : areas.find((a) => a.areaId === shown.parentAreaId) ?? null;
-      return (
-        <>
-          {head}
-          <WorkspaceHome who={who} desk={desk} viewId={areaViewId(shown.areaId)} heading={(
-            <div className="wk-area-head">
-              <div className="wk-view-title">
-                <h1 className="wk-h1">{shown.name}</h1>
-                <DisplaySwitch tool="areas" />
-              </div>
-              <p className="wk-hint">
-                {shown.myLevel === null ? '' : `Ty: ${LEVEL_NAME[shown.myLevel]}`}
-                {parent !== null && <> · wewnątrz: <a href={viewPath('areas', parent.areaId)}>{parent.name}</a></>}
-              </p>
-              {shown.mayCertify && (
-                <ShareButton who={who} label="Udostępnij obszar" className="wk-btn wk-btn-small"
-                  target={{ title: shown.name, aim: null, areaIds: [shown.areaId] }} />
-              )}
-            </div>
-          )} />
-        </>
-      );
-    }
-
     return (
       <>
         {head}
         <AreaPage
+          who={who}
+          desk={desk}
+          tab={shown.personal === true ? 'ustawienia' : view.tab}
           area={shown}
           areas={areas}
           ring={ring}
@@ -291,45 +277,31 @@ export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]
 
   return (
     <>
+      {/* 2026-10-17 — der eigene Kopf: „+ Nowy obszar" ist die eine Handlung dieser Seite. */}
+      <PageHeader title="Obszary" actions={<a className="wk-btn" href={viewPath('areas', NEW)}><Icon name="plus" />Nowy obszar</a>} />
       {head}
-
-      <RecentRow scope="areas" items={areas.map((a) => ({
-        id: a.areaId, label: a.personal === true ? 'Tylko ja (prywatne)' : areaPath(areas, a.areaId).full, href: viewPath('areas', a.areaId)
-      }))} />
 
       {/*
         DIE TIEFE STEHT AN DER ZEILE, nicht im Markup. Verschachtelte Listen
         wären eine zweite Struktur neben `parent_area_id`, und zwei Strukturen
         laufen auseinander.
       */}
-      <ul className="wk-tree">
-        {inOrder(areas).map(({ area, depth }) => (
-          <li key={area.areaId}>
-            <a
-              className="wk-tree-row"
-              href={viewPath('areas', area.areaId)}
-              style={{ '--depth': depth } as React.CSSProperties}
-            >
-              <span className="wk-tree-name">{area.name}</span>
-              {area.personal === true && <span className="wk-tag">tylko Ty — prywatny</span>}
-              <Tags area={area} />
-              {area.myLevel !== null && (
-                <span className="wk-tree-mine">{LEVEL_NAME[area.myLevel]}</span>
-              )}
-            </a>
-          </li>
-        ))}
-
-        {/*
-          Der Neue steht am ENDE der Liste und nicht in einer Leiste darüber:
-          dort, wo die Dinge sind, gehört auch das Anlegen eines weiteren hin.
-        */}
-        <li>
-          <a className="wk-tree-add" href={viewPath('areas', NEW)}>
-            <span aria-hidden="true">+</span> Nowy obszar
-          </a>
-        </li>
-      </ul>
+      {areas.length > 0 && (
+        <ul className="wk-box wk-area-list">
+          {inOrder(areas).map(({ area, depth }) => (
+            <li key={area.areaId}>
+              <a className="wk-line" href={viewPath('areas', area.areaId)} style={{ '--depth': depth } as React.CSSProperties}>
+                <span className="wk-line-ic"><Icon name={area.personal === true ? 'lock' : 'layers'} /></span>
+                <span className="wk-line-text">
+                  <span className="wk-line-title">{area.personal === true ? 'Tylko Ty (prywatny)' : area.name}</span>
+                  <span className="wk-line-sub">{area.myLevel !== null ? LEVEL_NAME[area.myLevel] : 'bez dostępu'}</span>
+                </span>
+                <span className="wk-line-end"><Tags area={area} /><Icon name="next" /></span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {areas.length === 0 && (
         <p className="wk-empty">Obszar to klucz. Bez niego nie ma gdzie niczego zamknąć.</p>
@@ -340,10 +312,10 @@ export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]
         Nur, wenn ich irgendwo hineinlassen darf.
       */}
       {areas.some((a) => a.mayCertify && a.personal !== true) && (
-        <details className="wk-links-all">
-          <summary className="wk-h2">Linki dostępu</summary>
+        <details className="wk-fold wk-links-all">
+          <summary>Linki dostępu</summary>
           <p className="wk-hint">
-            Link, który daje rolę — a rola daje dostęp do swoich obszarów. Kto go otworzy, ma ten dostęp od razu w tej przeglądarce; kto doda go do konta, ma go wszędzie.
+            Link daje rolę, a rola — dostęp do jej obszarów: od razu w tej przeglądarce, po dodaniu do konta wszędzie.
           </p>
           <AccessLinks ring={ring} self={person} areas={areas} busy={busy !== null} onAct={act} />
         </details>
@@ -382,7 +354,6 @@ function Tags({ area }: { area: AreaRow }) {
 /* -- Ein Bereich, ganz ------------------------------------------------------ */
 
 /** Welcher Abschnitt offen ist. Einer ist es immer. */
-type Section = 'roles' | 'forms' | 'public' | 'links';
 
 /**
  * Ein Bereich mit allem, was an ihm hängt — aber jeweils nur EIN Abschnitt.
@@ -396,7 +367,10 @@ type Section = 'roles' | 'forms' | 'public' | 'links';
  * etwas tun, um überhaupt etwas zu sehen. „Wer ist hier" ist die Frage, mit der
  * fast jeder kommt.
  */
-function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
+function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy, onAct }: {
+  who: Who;
+  desk: Desk;
+  tab: AreaTab;
   area: AreaRow;
   areas: readonly AreaRow[];
   ring: Ring | null;
@@ -405,13 +379,12 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
-  const [section, setSection] = useState<Section>('roles');
   const [members, setMembers] = useState<readonly Member[] | null>(null);
   const [names, setNames] = useState<ReadonlyMap<string, Called>>(new Map());
   const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
-    if (section !== 'roles') return;
+    if (tab !== 'osoby') return;
 
     let dropped = false;
 
@@ -450,7 +423,7 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
     })();
 
     return () => { dropped = true; };
-  }, [section, area.areaId, ring, graph]);
+  }, [tab, area.areaId, ring, graph]);
 
   const parent = area.parentAreaId === null
     ? null
@@ -485,37 +458,29 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
   return (
     <>
       {/*
-        <b>`h1` und nicht `h2`.</b> Seit der Weg oben die Ansicht nennt, steht
-        hier die einzige Überschrift der Seite.
+        2026-10-16 — EIN KOPF, VIER REITER. Vorher: ein Auswahlfeld „Sposób
+        wyświetlania" zwischen einem Widok obszaru und den Einzelheiten, darüber
+        eine Reihe Angaben (Epoka, Twoje klucze …). Jetzt: Name, eine Zeile, wer
+        man hier ist, „Udostępnij" — und Przegląd · Osoby · Dostęp · Ustawienia.
       */}
-      <div className="wk-view-title">
-        <h1 className="wk-h1">{area.name}</h1>
-        {/* 0094 — zurück zum Widok obszaru (einfach), oder hier bleiben. */}
-        {area.personal !== true && <DisplaySwitch tool="areas" />}
-      </div>
-
-      {/*
-        VIER ANGABEN ALS VIER FELDER. Als Satz mit Trennpunkten musste man ihn
-        lesen, um sie zu erfahren.
-      */}
-      <dl className="wk-facts">
-        <Fact label="Epoka">{area.currentEpoch}</Fact>
-        <Fact label="Twoje klucze">{area.heldEpochs}</Fact>
-        <Fact label="Ty">
-          {area.myLevel === null ? '—' : LEVEL_NAME[area.myLevel]}
-          {area.mayCertify && area.myLevel !== 'admin' && <span className="wk-tag">wpuszczasz</span>}
-        </Fact>
-        {parent !== null && (
-          <Fact label="Wewnątrz">
-            <a className="wk-crumb-link" href={viewPath('areas', parent.areaId)}>{parent.name}</a>
-          </Fact>
-        )}
-        <Fact label="Rozmowy"><AreaChat area={area} ring={ring} busy={busy} onAct={onAct} /></Fact>
-      </dl>
+      <PageHeader
+        title={area.name}
+        badge={area.personal === true ? <span className="wk-tag">prywatny</span>
+          : area.publicLevel !== 'none' ? <span className="wk-tag wk-tag-open">{area.publicLevel === 'read' ? 'każdy czyta' : 'każdy pisze'}</span>
+          : undefined}
+        meta={<>
+          {area.myLevel === null ? '' : `Ty: ${LEVEL_NAME[area.myLevel]}`}
+          {parent !== null && <> · wewnątrz: <a href={viewPath('areas', parent.areaId)}>{parent.name}</a></>}
+        </>}
+        actions={area.mayCertify && area.personal !== true ? (
+          <ShareButton who={who} label="Udostępnij" className="wk-btn"
+            target={{ title: area.name, aim: null, areaIds: [area.areaId] }} />
+        ) : undefined}
+      />
 
       {/*
         „TYLKO JA" (0054): der eigene Bereich nimmt niemanden auf und öffnet
-        sich nicht — also stehen hier auch keine Knöpfe, die es versprächen.
+        sich nicht — also stehen hier auch keine Reiter, die es versprächen.
       */}
       {area.personal === true ? (
         <p className="wk-note">
@@ -523,28 +488,63 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
           Nikogo tu nie dodasz i nie otworzysz jej dla innych — żeby coś pokazać innym, wybierz ich grupę.
         </p>
       ) : (
-        <div className="wk-tabs" role="tablist">
-          <Tab now={section} mine="roles" onPick={setSection}>Role</Tab>
-          <Tab now={section} mine="forms" onPick={setSection}>Z formularza</Tab>
-          <Tab now={section} mine="public" onPick={setSection}>Dla wszystkich</Tab>
-          {area.mayCertify && <Tab now={section} mine="links" onPick={setSection}>Linki dostępu</Tab>}
+        <nav className="wk-tabs" aria-label={area.name}>
+          {AREA_TABS.map((one) => (
+            <a key={one.id} className={tab === one.id ? 'wk-tab wk-tab-on' : 'wk-tab'} aria-current={tab === one.id ? 'page' : undefined}
+              href={one.id === 'przeglad' ? viewPath('areas', area.areaId) : viewPath('areas', area.areaId, one.id)} data-area-tab={one.id}>
+              {one.label}
+            </a>
+          ))}
+        </nav>
+      )}
+
+      {/* -- Przegląd: was neu ist, Termine, Rozmowy, Formulare, Menschen, Seiten, Zugang -- */}
+      {area.personal !== true && tab === 'przeglad' && <AreaOverview who={who} desk={desk} area={area} />}
+
+      {/* -- Ustawienia: Administrator danych (2026-10-17: EINE Stelle für alle Formulare), Rozmowa, Klucze -- */}
+      {tab === 'ustawienia' && (
+        <div className="wk-narrow ui-page">
+          <section aria-labelledby="area-controller-h">
+            <h2 className="wk-h2" id="area-controller-h">Administrator danych</h2>
+            <p className="wk-hint">Stoi pod każdym formularzem tego obszaru i obszarów w nim, zanim ktoś coś wpisze.</p>
+            <AreaControllerSettings areaId={area.areaId} editable={area.myLevel === 'admin'} />
+          </section>
+
+          <section aria-labelledby="area-chat-h">
+            <h2 className="wk-h2" id="area-chat-h">Rozmowa obszaru</h2>
+            <p className="wk-lede"><AreaChat area={area} ring={ring} busy={busy} onAct={onAct} /></p>
+          </section>
+
+          <details className="wk-fold">
+            <summary>Klucze tego obszaru</summary>
+            <dl className="wk-facts">
+              <Fact label="Epoka">{area.currentEpoch}</Fact>
+              <Fact label="Twoje klucze">{area.heldEpochs}</Fact>
+              <Fact label="Ty">
+                {area.myLevel === null ? '—' : LEVEL_NAME[area.myLevel]}
+                {area.mayCertify && area.myLevel !== 'admin' && <span className="wk-tag">wpuszczasz</span>}
+              </Fact>
+            </dl>
+            <p className="wk-hint">Nowa epoka zaczyna się, gdy ktoś traci dostęp — od niej nie przeczyta już nowych treści.</p>
+          </details>
         </div>
       )}
 
       {/* -- 0065: Links mit Zugang ------------------------------------- */}
 
-      {area.personal !== true && section === 'links' && (
+      {area.personal !== true && tab === 'dostep' && area.mayCertify && (
         <div className="wk-panel">
+          <h2 className="wk-h2" style={{ marginTop: 0 }}>Linki z dostępem</h2>
           <AccessLinks ring={ring} self={self} areas={areas} focusAreaId={area.areaId} busy={busy} onAct={onAct} />
         </div>
       )}
 
       {/* -- Wer hier ist ---------------------------------------------- */}
 
-      {area.personal !== true && section === 'roles' && (
+      {area.personal !== true && tab === 'osoby' && (
         <div className="wk-panel">
           {members === null ? (
-            <p className="wk-empty">Wczytywanie…</p>
+            <Loading label="Wczytywanie…" />
           ) : members.length === 0 ? (
             <p className="wk-empty">Nikogo tu jeszcze nie ma.</p>
           ) : (
@@ -616,8 +616,9 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
 
       {/* -- Wer über ein Formular hereinkommt -------------------------- */}
 
-      {area.personal !== true && section === 'forms' && (
+      {area.personal !== true && tab === 'dostep' && (
         <div className="wk-panel">
+          <h2 className="wk-h2" style={{ marginTop: 0 }}>Osoby z formularzy</h2>
           {mine ? (
             <Segment
               now={area.seatLevel}
@@ -654,8 +655,9 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
 
       {/* -- Nach aussen ------------------------------------------------ */}
 
-      {area.personal !== true && section === 'public' && (
+      {area.personal !== true && tab === 'dostep' && (
         <div className="wk-panel">
+          <h2 className="wk-h2" style={{ marginTop: 0 }}>Dla wszystkich</h2>
           {mine ? (
             <Segment
               now={area.publicLevel}
@@ -853,7 +855,7 @@ function AddRole({ area, ring, graph, self, members, names, busy, onAct }: {
           <label className="wk-field">
             <span>Jak ma się tu nazywać</span>
             <input value={codeName} placeholder="np. Anna Nowak" autoComplete="off" onChange={(e) => setCodeName(e.target.value)} />
-            <span className="wk-hint">Nazwę widzą tylko osoby z tego obszaru — jest zaszyfrowana jego kluczem.</span>
+            <span className="wk-hint">Nazwę widzą tylko osoby z tego obszaru.</span>
           </label>
         </>
       ) : candidates.length > 0 ? (
@@ -956,57 +958,8 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-/** Ein Reiter. Einer ist immer gewählt — zuklappen geht nicht mehr. */
-function Tab({ now, mine, onPick, children }: {
-  now: Section;
-  mine: Section;
-  onPick: (s: Section) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={now === mine}
-      className={now === mine ? 'wk-tab wk-tab-on' : 'wk-tab'}
-      onClick={() => onPick(mine)}
-    >
-      {children}
-    </button>
-  );
-}
-
-/**
- * Eine Stufe aus wenigen — als EIN Bedienelement.
- *
- * <b>Vorher war die gewählte Stufe ein gefüllter Knopf</b> und die übrigen
- * unterstrichene Verweise: das Gewählte sah aus, als wäre es das, was man
- * drücken soll. Hier ist es ein Feld mit Abteilungen, und die eingeschaltete
- * ist erkennbar eingeschaltet.
- */
-export function Segment<T extends string>({ now, options, busy, onPick }: {
-  now: T;
-  options: readonly { value: T; label: string }[];
-  busy: boolean;
-  onPick: (value: T) => void;
-}) {
-  return (
-    <div className="wk-seg" role="group">
-      {options.map((one) => (
-        <button
-          key={one.value}
-          type="button"
-          aria-pressed={one.value === now}
-          className={one.value === now ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
-          disabled={busy || one.value === now}
-          onClick={() => onPick(one.value)}
-        >
-          {one.label}
-        </button>
-      ))}
-    </div>
-  );
-}
+/* Eine Stufe aus wenigen — seit 2026-10-17 in `ui/Segment.tsx`; hier weitergereicht für die, die es von hier holen. */
+export { Segment };
 
 /* -- Anlegen ---------------------------------------------------------------- */
 

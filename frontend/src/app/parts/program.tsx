@@ -21,6 +21,7 @@ import { definePart, text, type PartContext, type RawConfig } from '../part';
 import { countParts, loadProgram, openProgram, type ProgramNode } from '../program';
 import { keysFor } from '../ringOf';
 import { whoIsThere } from '../session';
+import { Loading } from '../ui/Loading';
 
 interface ProgramConfig {
   readonly title: string;
@@ -84,7 +85,7 @@ function ProgramView({ config, ctx }: { config: ProgramConfig; ctx: PartContext 
   }, [config.item]);
 
   const head = <h2 className="wk-card-title">{config.title !== '' ? config.title : node?.title ?? 'Program'}</h2>;
-  if (node === undefined) return <>{head}<p className="wk-card-muted">Wczytywanie programu…</p></>;
+  if (node === undefined) return <>{head}<Loading label="Wczytywanie programu…" /></>;
   if (node === null) return <>{head}<p className="wk-card-muted">Programu nie da się pokazać — termin jest niewidoczny albo go nie ma.</p></>;
 
   const strip = ctx.size.height === 'strip' && ctx.whole !== true;

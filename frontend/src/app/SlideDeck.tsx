@@ -196,7 +196,7 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
   const [top, setTop] = useState(0);
   useEffect(() => {
     if (embedded) return undefined;
-    const header = document.querySelector<HTMLElement>('.wk-top');
+    const header = document.querySelector<HTMLElement>('[data-app-head]');
     const measure = () => setTop(header?.getBoundingClientRect().height ?? 0);
     measure();
     const observer = header !== null && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;

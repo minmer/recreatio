@@ -2995,17 +2995,35 @@ public static partial class Form
     /// keine hat, die seines ersten Antwortbereichs. So sammelt ein Formular,
     /// das vor 0042 gesammelt hat, weiter, bis jemand seine eigene eintraegt.
     /// </para>
+    /// <para>
+    /// <b>2026-10-17 — EINE Stelle:</b> der Administrator danych steht beim
+    /// Obszar des Formulars, und ein Obszar ohne eigenen erbt den des naechsten
+    /// darueber (<c>parent_area_id</c>: die Gruppe den der Pfarrei). Erst wenn
+    /// die ganze Kette keinen hat, gilt, was frueher am Formular selbst stand.
+    /// </para>
     /// </summary>
     private static async Task<Whole?> WholeAsync(SqlConnection connection, Guid moduleId, CancellationToken ct)
     {
         await using var cmd = new SqlCommand("""
+            WITH chain AS (
+                SELECT a.id, a.parent_area_id, 0 AS depth
+                  FROM app.area a
+                  JOIN app.module mm ON mm.area_id = a.id
+                 WHERE mm.id = @id
+                UNION ALL
+                SELECT p.id, p.parent_area_id, c.depth + 1
+                  FROM app.area p
+                  JOIN chain c ON p.id = c.parent_area_id
+                 WHERE c.depth < 16
+            )
             SELECT m.for_kind, m.closed_at,
                    /* 0047 — eine Erweiterung ohne eigene Klausel steht unter der ihres Formulars. */
                    COALESCE(m.controller_name, b.controller_name),
                    CASE WHEN m.controller_name IS NULL THEN b.controller_address ELSE m.controller_address END,
                    CASE WHEN m.controller_name IS NULL THEN b.controller_email ELSE m.controller_email END,
                    c.name, c.address, c.email,
-                   m.config, m.name, m.area_id, m.name_sealed, m.name_epoch
+                   m.config, m.name, m.area_id, m.name_sealed, m.name_epoch,
+                   h.name, h.address, h.email
             FROM app.module m
             LEFT JOIN app.module b ON b.id = m.extends_id
             OUTER APPLY (
@@ -3013,6 +3031,12 @@ public static partial class Form
                   FROM app.area_controller ac
                  WHERE ac.area_id IN (SELECT f.area_id FROM app.slug_field f WHERE f.part_id = m.id)
             ) c
+            OUTER APPLY (
+                SELECT TOP 1 ac.name, ac.address, ac.email
+                  FROM chain ch
+                  JOIN app.area_controller ac ON ac.area_id = ch.id
+                 ORDER BY ch.depth
+            ) h
             WHERE m.id = @id;
             """, connection);
 
@@ -3024,7 +3048,8 @@ public static partial class Form
         string? Text(int i) => reader.IsDBNull(i) ? null : reader.GetString(i);
 
         (string, string?, string?)? controller =
-            Text(2) is string own ? (own, Text(3), Text(4))
+            Text(13) is string home ? (home, Text(14), Text(15))
+            : Text(2) is string own ? (own, Text(3), Text(4))
             : Text(5) is string area ? (area, Text(6), Text(7))
             : null;
 

@@ -45,7 +45,8 @@ export async function uploadFile(libraryId: string, newest: { epoch: number; key
     method: 'PUT', body: new Blob([sealed as BlobPart])
   }, { 'Content-Type': 'application/octet-stream' });
   const mime = file.type || 'application/octet-stream';
-  return { file: fileId, type: mediaTypeOf(mime), name: file.name.slice(0, 200), mime };
+  /* 0110 — der Verweis weiss, wo die Datei liegt: eine Baza wiedzy, die diesen Eintrag wiederverwendet, holt sie von dort. */
+  return { file: fileId, type: mediaTypeOf(mime), name: file.name.slice(0, 200), mime, library: libraryId };
 }
 
 export const removeFile = (libraryId: string, fileId: string): Promise<{ deleted: boolean }> =>

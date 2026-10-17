@@ -26,6 +26,7 @@ import type { Me } from './me';
 import { Modal } from './Modal';
 import { WorkspaceError } from './session';
 import { PRIVATE, writableGroups } from './WhoSees';
+import { askText } from './ui/dialogs';
 
 const KINDS: readonly CalendarKind[] = ['appointment', 'mass', 'confession', 'devotion', 'visit'];
 const DURATIONS: readonly number[] = [15, 20, 30, 40, 45, 60, 90, 120, 180, 240];
@@ -224,8 +225,8 @@ export function CalendarSettings({ me, areas, calendar, onClose, onSaved }: {
           <button type="submit" className="wk-btn" disabled={busy}>{busy ? 'Zapisywanie…' : calendar === null ? 'Utwórz kalendarz' : 'Zapisz'}</button>
           <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onClose}>Anuluj</button>
           {calendar !== null && !calendar.isDefault && (
-            <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={() => {
-              if (window.confirm('Zarchiwizować ten kalendarz? Jego terminy znikną z widoku, ale nie zostaną usunięte.')) void save(true);
+            <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={async () => {
+              if (await askText('Zarchiwizować ten kalendarz? Jego terminy znikną z widoku, ale nie zostaną usunięte.')) void save(true);
             }}>
               Zarchiwizuj
             </button>

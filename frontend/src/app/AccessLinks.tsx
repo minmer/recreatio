@@ -40,6 +40,7 @@ import { loadDesk, type PageCard } from './desk';
 import type { Ring, SealedRole } from './keys';
 import { WorkspaceError } from './session';
 import { describeLink, useHeldLinksStamp } from './HeldLinkBar';
+import { Loading } from './ui/Loading';
 
 /**
  * Was in diesem Tab eben angelegt wurde — das Geheimnis, sofort wieder zu
@@ -174,7 +175,7 @@ export function AccessLinks({ ring, self, areas, focusAreaId, busy, onAct }: {
       />
 
       <h3 className="wk-h2">Działające linki</h3>
-      {links === null ? <p className="wk-empty">Wczytywanie…</p>
+      {links === null ? <Loading label="Wczytywanie…" />
         : open.length === 0 ? <p className="wk-empty">Nie ma działających linków.</p>
         : (
           <ul className="wk-link-list">

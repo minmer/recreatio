@@ -29,6 +29,7 @@ import { SessionPlay } from '../cogita/Sessions';
 import { Bar, CogitaContext, PublicContext, useAsync, useBusy, type CogitaCtx } from '../cogita/ui';
 import { OnSeat } from './seat';
 import type { EntityConfig, FlowConfig, LiveConfig, MapConfig, RevisionConfig, SeatLearnConfig, TableConfig, TopicsConfig } from './cogita';
+import { Loading } from '../ui/Loading';
 
 /** Hoch oder im ganzen Fenster: das Ganze. */
 const isTall = (ctx: PartContext): boolean => ctx.whole === true || ctx.size.height === 'tall';
@@ -37,7 +38,7 @@ const Head = ({ title }: { title: string }) => <h2 className="wk-card-title">{ti
 
 /** Ohne Netz, ohne Bündel: ein Satz statt einer leeren Kachel. */
 function Waiting({ title, found, gone }: { title: string; found: unknown; gone: string }) {
-  return <><Head title={title} /><p className="wk-card-muted">{found === undefined ? 'Wczytywanie…' : gone}</p></>;
+  return <><Head title={title} />{found === undefined ? <Loading /> : <p className="wk-card-muted">{gone}</p>}</>;
 }
 
 export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: PartContext }) {
@@ -76,7 +77,7 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
   const bundle = useBundle<PublicFlow>(config.library, config.flow, FLOW_BUNDLE);
   const learner = useLocalLearner(config.library);
   const [playing, setPlaying] = useState(false);
-  const content = useMemo(() => (bundle == null ? null : contentOfBundle(bundle, (fileId) => publicFileUrl(config.library, fileId))), [bundle, config.library]);
+  const content = useMemo(() => (bundle == null ? null : contentOfBundle(bundle, (fileId, from) => publicFileUrl(from ?? config.library, fileId))), [bundle, config.library]);
   const flow = useMemo(() => (bundle == null || content === null ? null : resolveFlow(readFlow(String(bundle.flow.id ?? ''), bundle.flow), content.flow)), [bundle, content]);
   const shown = useMemo(() => (bundle == null ? null : publicOf(config.library, bundle.entities ?? {})), [bundle, config.library]);
   const title = config.title || bundle?.title || 'Przebieg';
@@ -240,9 +241,9 @@ export function EntityCardView({ config, ctx }: { config: EntityConfig; ctx: Par
   return (
     <PublicContext.Provider value={shown}>
       {config.title !== '' && head}
-      {isTall(ctx) ? <EntityView entity={entity} fileUrl={(fileId) => publicFileUrl(library, fileId)} /> : (
+      {isTall(ctx) ? <EntityView entity={entity} fileUrl={(fileId, from) => publicFileUrl(from ?? library, fileId)} /> : (
         <EntityView entity={{ ...entity, media: entity.media.filter((m) => m.type === 'image').slice(0, 1), fields: entity.fields.slice(0, 4) }}
-          fileUrl={(fileId) => publicFileUrl(library, fileId)} />
+          fileUrl={(fileId, from) => publicFileUrl(from ?? library, fileId)} />
       )}
       <p className="wk-card-muted">{kinds}</p>
     </PublicContext.Provider>
@@ -327,11 +328,11 @@ export function EntityTableView({ config, ctx }: { config: TableConfig; ctx: Par
 /** Ein Eintrag, aufgeklappt unter der Tabelle oder dem Thema. */
 function OneEntity({ library, entry }: { library: string; entry: string }) {
   const found = useAsync(() => loadPublishedOne(library, entry).then((r) => shownOf(r.entry.json, r.entry.kind)), [library, entry]);
-  if (found === undefined) return <p className="wk-card-muted">Wczytywanie…</p>;
+  if (found === undefined) return <Loading label="Wczytywanie…" />;
   if (found === null) return null;
   return (
     <div className="cg-card">
-      {found.kind === 'bundle' ? <EntityView entity={found.entity} fileUrl={(fileId) => publicFileUrl(library, fileId)} /> : (
+      {found.kind === 'bundle' ? <EntityView entity={found.entity} fileUrl={(fileId, from) => publicFileUrl(from ?? library, fileId)} /> : (
         <>
           <strong>{found.label}</strong>
           {found.fields.map((f) => <p key={f.label}><span className="cg-muted">{f.label}: </span>{f.text}</p>)}
@@ -397,7 +398,7 @@ export function TopicExplorerView({ config, ctx }: { config: TopicsConfig; ctx: 
       {chosen !== null && under(chosen).length === 0 && <p className="wk-card-muted">Bez podtematów.</p>}
       {chosen !== null && isTall(ctx) && (
         <section>
-          {about === undefined ? <p className="wk-card-muted">Wczytywanie…</p> : items.length === 0 ? <p className="wk-card-muted">Nic jeszcze nie jest opublikowane w tym temacie.</p> : (
+          {about === undefined ? <Loading label="Wczytywanie…" /> : items.length === 0 ? <p className="wk-card-muted">Nic jeszcze nie jest opublikowane w tym temacie.</p> : (
             <ul className="cg-plain-list">{items.map((item) => <li key={item.entryId}><button type="button" className="cg-ref" onClick={() => setOpen(open === item.entryId ? null : item.entryId)}>{titleOf(item)}</button> <span className="cg-muted">{kindOf(item.kind)?.label ?? ''}</span></li>)}</ul>
           )}
           {open !== null && <OneEntity library={config.library} entry={open} />}
@@ -491,7 +492,7 @@ export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: Part
       </div>
       {entity !== null && chosen !== null && (
         <div className="cg-card">
-          <EntityView entity={tall ? entity : { ...entity, media: [], fields: entity.fields.slice(0, 2) }} fileUrl={(fileId) => publicFileUrl(config.library, fileId)} />
+          <EntityView entity={tall ? entity : { ...entity, media: [], fields: entity.fields.slice(0, 2) }} fileUrl={(fileId, from) => publicFileUrl(from ?? config.library, fileId)} />
           {cardsOf(chosen).length > 0 && <button type="button" className="wk-btn" onClick={() => setLearning(chosen)}>Ucz się tego ({cardsOf(chosen).length} kart)</button>}
         </div>
       )}
@@ -500,14 +501,15 @@ export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: Part
 }
 
 function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnConfig; tall: boolean }) {
-  const { lib, name, keyOf } = useSeatLibrary(seat, config.library);
+  const opened = useSeatLibrary(seat, config.library);
+  const { lib, name } = opened;
   const { learner, failed } = useSeatLearner(seat, lib);
   const [running, setRunning] = useState<string | null>(null);
   const cards = useAsync(lib == null ? null : () => lib.cards('learn').then((r) => r.cards), [lib, lib?.revision]);
-  const ctx = useMemo<CogitaCtx | null>(() => (lib == null ? null : seatCtx(lib, name, keyOf, seat.token)), [lib, name, keyOf, seat.token]);
+  const ctx = useMemo<CogitaCtx | null>(() => (lib == null ? null : seatCtx(lib, opened, seat.token)), [lib, opened, seat.token]);
 
-  if (lib === undefined) return <p className="wk-card-muted">Otwieranie biblioteki…</p>;
-  if (lib === null || ctx === null) return <p className="wk-card-muted">Ta biblioteka nie jest dostępna z tego linku.</p>;
+  if (lib === undefined) return <p className="wk-card-muted">Otwieranie bazy wiedzy…</p>;
+  if (lib === null || ctx === null) return <p className="wk-card-muted">Ta baza wiedzy nie jest dostępna z tego linku.</p>;
   const revisions = lib.docs('revision').filter((r) => config.revision === '' || r.id === config.revision);
   const nameOf = (id: string) => {
     const doc = revisions.find((r) => r.id === id);
@@ -539,7 +541,7 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
           <p className="wk-card-muted">{(['known', 'learning', 'unseen'] as const).map((l) => `${LEVEL_LABEL[l]}: ${levels[l]}`).join(' · ')}</p>
         </>
       )}
-      {revisions.length === 0 ? <p className="wk-card-muted">W tej bibliotece nie ma jeszcze powtórki.</p> : (
+      {revisions.length === 0 ? <p className="wk-card-muted">W tej bazie wiedzy nie ma jeszcze powtórki.</p> : (
         <div className="wk-actions">
           {revisions.map((r) => <button key={r.id} type="button" className="wk-btn" disabled={learner === null} onClick={() => setRunning(r.id)}>{nameOf(r.id)}</button>)}
         </div>

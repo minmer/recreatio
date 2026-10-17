@@ -630,6 +630,9 @@ public static class AccountDeletion
             DELETE FROM app.chat_presence WHERE principal_id IN (SELECT id FROM #doomed);
         IF OBJECT_ID(N'app.chat_preference', N'U') IS NOT NULL
             DELETE FROM app.chat_preference WHERE principal_id IN (SELECT id FROM #doomed);
+        -- 0111 — wann jemand zuletzt in der App war, geht mit ihm.
+        IF OBJECT_ID(N'app.online', N'U') IS NOT NULL
+            DELETE FROM app.online WHERE principal_id IN (SELECT id FROM #doomed);
 
         DELETE FROM app.chat_message_version
          WHERE message_id IN (SELECT id FROM app.chat_message WHERE author_role_id IN (SELECT id FROM #doomed));

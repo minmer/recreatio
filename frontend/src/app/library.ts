@@ -21,6 +21,15 @@ import { call, WorkspaceError } from './session';
 
 /* -- Bibliotheken --------------------------------------------------------------------- */
 
+/**
+ * 0110 — ZWEI STRUKTUREN NEBENEINANDER, EIN SPEICHER: `books` ist die
+ * Bibliothek (eine Sammlung von Büchern — Werke, Zitate, Texte, Personen,
+ * Themen), `knowledge` eine Baza wiedzy für Cogita (Arten, Wissen, Fragen,
+ * Vorlagen, Wiederholungen, Abläufe). Sie verweist auf Bibliotheken und andere
+ * Bazy wiedzy, auch in anderen Bereichen (`cogita/sources.ts`).
+ */
+export type LibraryKind = 'books' | 'knowledge';
+
 export interface LibraryRow {
   readonly libraryId: string;
   readonly areaId: string;
@@ -31,7 +40,11 @@ export interface LibraryRow {
   readonly entries: number;
   readonly published: number;
   readonly writes: boolean;
+  /** 0110 — fehlt beim alten Dienst: dann eine Bibliothek. */
+  readonly kind?: LibraryKind;
 }
+
+export const libraryKindOf = (row: { readonly kind?: string | null }): LibraryKind => (row.kind === 'knowledge' ? 'knowledge' : 'books');
 
 export interface OpenLibrary extends LibraryRow {
   readonly name: string;
@@ -44,8 +57,11 @@ export const loadLibraries = (): Promise<{ libraries: readonly LibraryRow[] }> =
 
 /** 0109 — die Namen, die dieser Tab schon geöffnet hat (für die Suche, Ctrl K); nur im Speicher. */
 const openedNames = new Map<string, string>();
+const openedKinds = new Map<string, LibraryKind>();
 export const openedLibraryNames = (): ReadonlyMap<string, string> => openedNames;
-export const forgetLibraryNames = (): void => { openedNames.clear(); };
+/** 0110 — ob eine geöffnete Bibliothek eine Bibliothek ist oder eine Baza wiedzy (für die Wege der Suche). */
+export const openedLibraryKind = (libraryId: string): LibraryKind | undefined => openedKinds.get(libraryId);
+export const forgetLibraryNames = (): void => { openedNames.clear(); openedKinds.clear(); };
 
 export async function openLibraries(ring: Ring, rows: readonly LibraryRow[]): Promise<OpenLibrary[]> {
   const out: OpenLibrary[] = [];
@@ -59,6 +75,7 @@ export async function openLibraries(ring: Ring, rows: readonly LibraryRow[]): Pr
     }
     out.push({ ...row, name });
     openedNames.set(row.libraryId, name);
+    openedKinds.set(row.libraryId, libraryKindOf(row));
   }
   return out;
 }
@@ -69,17 +86,18 @@ async function newest(ring: Ring, areaId: string): Promise<{ epoch: number; key:
   return found;
 }
 
-export async function createLibrary(ring: Ring, areaId: string, name: string): Promise<string> {
+export async function createLibrary(ring: Ring, areaId: string, name: string, kind: LibraryKind = 'books'): Promise<string> {
   const libraryId = newId();
   const { epoch, key } = await newest(ring, areaId);
+  const fallback = kind === 'knowledge' ? 'Baza wiedzy' : 'Biblioteka';
   await call('/workspace/libraries', {
     method: 'POST',
-    body: JSON.stringify({ libraryId, areaId, epoch, nameSealed: toBase64Url(await sealText(key, nameAad(libraryId), name.trim() || 'Biblioteka')) })
+    body: JSON.stringify({ libraryId, areaId, epoch, kind, nameSealed: toBase64Url(await sealText(key, nameAad(libraryId), name.trim() || fallback)) })
   });
   return libraryId;
 }
 
-export async function renameLibrary(ring: Ring, library: LibraryRow, name: string): Promise<void> {
+export async function renameLibrary(ring: Ring, library: Pick<LibraryRow, 'libraryId' | 'areaId'>, name: string): Promise<void> {
   const { epoch, key } = await newest(ring, library.areaId);
   await call(`/workspace/library/${encodeURIComponent(library.libraryId)}`, {
     method: 'POST',

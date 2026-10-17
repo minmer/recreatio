@@ -42,6 +42,9 @@ import { ColorField, LayerEditor, ThemeEditor } from './SlidesEditor';
 import { usePrefersDark } from './SlideDeck';
 import { COLOR_KEYS, DEFAULT_THEMES, resolveTheme, type Look, type SlideColors } from './slides';
 import type { DriveControl } from './usePresentationDrive';
+import { askText } from './ui/dialogs';
+import { Icon } from './ui/icons';
+import { MenuButton } from './ui/Menu';
 
 const FULL = partSize({ colSpan: 6, rowSpan: 5 });
 
@@ -133,9 +136,9 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
     setStep(0);
   };
 
-  const dropScene = () => {
+  const dropScene = async () => {
     if (scene === undefined) return;
-    if (!window.confirm(`Usunąć scenę „${scene.label || index + 1}"? Moduły zostają na stronie; znikają tylko ich miejsca na tej scenie.`)) return;
+    if (!(await askText(`Usunąć scenę „${scene.label || index + 1}"? Moduły zostają na stronie; znikają tylko ich miejsca na tej scenie.`))) return;
     onChange(parts.map((part) => {
       const piece = readPiece(part.layout);
       if (piece.places[scene.key] === undefined && piece.go[scene.key] === undefined) return part;
@@ -454,11 +457,15 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
 
         {scenes.length > 0 && (
           <div className="wk-actions pe-scene-tools">
-            <button type="button" className="wk-link-btn" disabled={busy} onClick={() => addScene(false)}>+ Nowa scena</button>
-            <button type="button" className="wk-link-btn" disabled={busy} onClick={() => addScene(true)}>+ Kopia tej sceny</button>
-            <button type="button" className="wk-link-btn" disabled={busy || index === 0} onClick={() => moveScene(-1)}>↑</button>
-            <button type="button" className="wk-link-btn" disabled={busy || index === scenes.length - 1} onClick={() => moveScene(1)}>↓</button>
-            <button type="button" className="wk-link-btn se-drop" disabled={busy} onClick={dropScene}>Usuń scenę</button>
+            <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={busy} onClick={() => addScene(false)}>
+              <Icon name="plus" />Nowa scena
+            </button>
+            <MenuButton label={`Scena „${scene?.label || index + 1}"`} disabled={busy} items={[
+              { label: 'Kopia tej sceny', icon: 'copy', onSelect: () => addScene(true) },
+              index > 0 && { label: 'Przesuń wyżej', icon: 'up', onSelect: () => moveScene(-1) },
+              index < scenes.length - 1 && { label: 'Przesuń niżej', icon: 'down', onSelect: () => moveScene(1) },
+              { label: 'Usuń scenę', icon: 'trash', danger: true, onSelect: () => void dropScene() }
+            ]} />
           </div>
         )}
 
@@ -553,8 +560,8 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
             }}
             onPart={replacePart}
             onPlace={(patch) => commitPlace(chosen, patchPlace(chosenPlace, patch))}
-            onDelete={() => {
-              if (!window.confirm(`Usunąć moduł „${pieceLabelOf(chosen)}" ze strony?`)) return;
+            onDelete={async () => {
+              if (!(await askText(`Usunąć moduł „${pieceLabelOf(chosen)}" ze strony?`))) return;
               onChange(parts.filter((p) => p.id !== chosen.id));
               setSelected(null);
             }}
@@ -569,9 +576,9 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
 
       <div className="pe-main">
         <div className="pe-bar">
-          <button type="button" className="wk-link-btn" disabled={index === 0} onClick={() => { setSceneAt(index - 1); setStep(0); }}>◀</button>
+          <button type="button" className="wk-icon-btn" aria-label="Poprzednia scena" title="Poprzednia scena" disabled={index === 0} onClick={() => { setSceneAt(index - 1); setStep(0); }}><Icon name="prev" /></button>
           <span className="pe-bar-scene">{scene === undefined ? '—' : `${index + 1}. ${scene.label || 'Scena'}`}</span>
-          <button type="button" className="wk-link-btn" disabled={index >= scenes.length - 1} onClick={() => { setSceneAt(index + 1); setStep(0); }}>▶</button>
+          <button type="button" className="wk-icon-btn" aria-label="Następna scena" title="Następna scena" disabled={index >= scenes.length - 1} onClick={() => { setSceneAt(index + 1); setStep(0); }}><Icon name="next" /></button>
           {scene !== undefined && scene.steps > 1 && !playing && (
             <span className="pe-steps" role="group" aria-label="Krok sceny">
               {Array.from({ length: scene.steps }, (_, n) => (
