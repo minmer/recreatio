@@ -15,10 +15,11 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 
 import { newId } from '../core/ids';
+import { plural } from '../core/plural';
 import { askText, toast } from '../ui/dialogs';
 import {
   COLUMN_SEPARATOR_LABEL, COLUMN_SEPARATORS, defaultTyped, describeForm, groupsOf, isLong, KEY_ACTION_SHORT, KEY_NAMES, nodeLabel, parsePaste,
-  planForm, readAddForm, rowIsEmpty, topOf, VALUE_SEPARATORS,
+  planForm, readAddForm, rowIsEmpty, topOf, VALUE_SEPARATOR_LABEL, VALUE_SEPARATORS,
   type AddForm, type FormGroup, type FormPlan, type Instance, type KeyAction, type PasteRule, type PlanCtx, type RowInput, type TopChoice, type TopItem
 } from './addForm';
 import type { FieldDef } from './schema';
@@ -287,12 +288,12 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
 
   return (
     <div className="cg cg-af">
-      <div className="cg-row-between">
-        <div className="cg-row">
-          <button type="button" className="wk-link-btn" onClick={onClose}>← Wpisy</button>
+      <div className="cg-af-title">
+        <button type="button" className="wk-link-btn" onClick={onClose}>← Wpisy</button>
+        <div className="cg-row-between">
           <h2 className="wk-h2">{form.name}</h2>
+          <button type="button" className="wk-link-btn" onClick={() => onEdit(form.id)}>Zmień formularz</button>
         </div>
-        <button type="button" className="wk-link-btn" onClick={() => onEdit(form.id)}>Zmień formularz</button>
       </div>
       {form.says !== undefined && <p className="cg-muted">{form.says}</p>}
 
@@ -317,7 +318,7 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
           <div className="cg-af-row">
             {groups.map((g) => (
               <fieldset key={g.node} className="cg-af-group">
-                <legend>{g.label}<GroupContext form={form} node={g.node} choice={choice} /></legend>
+                <legend>{g.label}<GroupContext form={form} node={g.node} label={g.label} choice={choice} /></legend>
                 {(row[g.node] ?? [{}]).map((inst, i) => (
                   <div key={i} className="cg-af-inst">
                     {g.fields.map((f) => {
@@ -346,7 +347,7 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
         </form>
       )}
 
-      {groups.length > 0 && <PastePanel form={form} groups={groups} choice={choice} blocked={topProblems} onQueue={(rows) => queue(rows, `Lista: ${rows.length} ${rows.length === 1 ? 'wiersz' : 'wierszy'}`)} />}
+      {groups.length > 0 && <PastePanel form={form} groups={groups} choice={choice} blocked={topProblems} onQueue={(rows) => queue(rows, `Lista: ${rows.length} ${plural(rows.length, 'wiersz', 'wiersze', 'wierszy')}`)} />}
 
       <details className="cg-card">
         <summary>Jak działa ten formularz</summary>
@@ -379,7 +380,7 @@ function tell(item: LogItem, plan: FormPlan, form: AddForm, lib: CogitaLibrary):
   item.changed = plan.saves.filter((s) => !s.isNew).map((s) => s.id);
   const touched = new Set([...item.created, ...item.changed]);
   item.reused = [...new Set(plan.rows.flatMap((r) => r.made.map((m) => m.id)))].filter((id) => !touched.has(id));
-  const label = (id: string) => { const n = form.graph.nodes.find((x) => x.id === id); return n === undefined ? '' : nodeLabel(n, lib.look); };
+  const label = (id: string) => { const n = form.graph.nodes.find((x) => x.id === id); return n === undefined ? '' : nodeLabel(n, lib.look, form.graph); };
   item.skipped = [...new Set(plan.rows.flatMap((r) => r.skipped.map((s) => `${label(s.node)} — ${s.why}`)))];
 }
 
@@ -452,16 +453,17 @@ function LogLine({ item, onOpen, onRetry, onUndo }: { item: LogItem; onOpen: (id
   );
 }
 
-/** Wozu eine Spalte gehört: was oben für ihren Knoten gewählt ist („angielski · Zwierzęta"). */
-function GroupContext({ form, node, choice }: { form: AddForm; node: string; choice: TopChoice }) {
+/** Wozu eine Spalte gehört: was oben für ihren Knoten gewählt ist („Zwierzęta") — ohne zu wiederholen, was ihr Name schon sagt. */
+function GroupContext({ form, node, label, choice }: { form: AddForm; node: string; label: string; choice: TopChoice }) {
   const { lib } = useCtx();
   const ids = form.graph.edges.filter((e) => e.to === node).flatMap((e) => {
     const from = form.graph.nodes.find((n) => n.id === e.from);
     if (from?.type !== 'pick') return [];
     return choice.picks[from.id] ?? (Array.isArray(from.config.value) ? from.config.value.filter((x): x is string => typeof x === 'string') : []);
   });
-  if (ids.length === 0) return null;
-  return <span className="cg-muted"> · {[...new Set(ids)].map((id) => entityName(lib, id)).join(' · ')}</span>;
+  const names = [...new Set(ids)].map((id) => entityName(lib, id)).filter((name) => name.toLowerCase() !== label.toLowerCase());
+  if (names.length === 0) return null;
+  return <span className="cg-muted"> · {names.join(' · ')}</span>;
 }
 
 function RowField({ field, value, label, placeholder, last, register, onChange, onKey }: {
@@ -501,6 +503,8 @@ function PickChoice({ item, chosen, onChange }: { item: Extract<TopItem, { type:
   const { lib } = useCtx();
   const kinds = item.config.kinds.length > 0 ? item.config.kinds : undefined;
   const shown = chosen.filter((id) => lib.entity(id) !== undefined);
+  /* Nach jeder Wahl ein leeres Suchfeld für die nächste. */
+  const [round, setRound] = useState(0);
   return (
     <div className="cg-af-top-item">
       <span className="cg-af-top-label">{item.label}{item.config.optional ? '' : ' *'}</span>
@@ -509,12 +513,12 @@ function PickChoice({ item, chosen, onChange }: { item: Extract<TopItem, { type:
           {shown.map((id) => (
             <span key={id} className="cg-tag">{entityName(lib, id)} <button type="button" className="wk-link-btn" aria-label={`Usuń: ${entityName(lib, id)}`} onClick={() => onChange(shown.filter((x) => x !== id))}>×</button></span>
           ))}
-          <EntityPicker lib={lib} kinds={kinds} refs value={null} placeholder="dodaj…" onPick={(id) => id !== null && onChange([...shown.filter((x) => x !== id), id])} />
+          <EntityPicker key={round} lib={lib} kinds={kinds} refs value={null} placeholder="dodaj…" onPick={(id) => { if (id !== null) onChange([...shown.filter((x) => x !== id), id]); setRound((n) => n + 1); }} />
         </span>
       ) : (
         <EntityPicker lib={lib} kinds={kinds} refs value={shown[0] ?? null} allowClear={item.config.optional} placeholder={`Szukaj: ${item.label}`} onPick={(id) => onChange(id === null ? [] : [id])} />
       )}
-      <NewEntry kinds={item.config.kinds} onMade={(id) => onChange(item.config.many ? [...shown, id] : [id])} />
+      {(item.config.many || shown.length === 0) && <NewEntry kinds={item.config.kinds} onMade={(id) => onChange(item.config.many ? [...shown, id] : [id])} />}
     </div>
   );
 }
@@ -594,7 +598,7 @@ function PastePanel({ form, groups, choice, blocked, onQueue }: {
           {groups.some((g) => g.many) && (
             <label className="wk-field"><span>Kilka wartości w komórce oddziela</span>
               <select value={rule.values} onChange={(e) => setRule({ ...rule, values: e.target.value as PasteRule['values'] })}>
-                {VALUE_SEPARATORS.map((s) => <option key={s} value={s}>{s}</option>)}
+                {VALUE_SEPARATORS.map((s) => <option key={s} value={s}>{VALUE_SEPARATOR_LABEL[s]}</option>)}
               </select>
             </label>
           )}
@@ -616,7 +620,7 @@ function PastePanel({ form, groups, choice, blocked, onQueue }: {
               </table>
             </div>
             <span className="cg-muted">
-              {parsed.rows.length} {parsed.rows.length === 1 ? 'wiersz' : 'wierszy'}{separator === '' ? '' : ` · kolumny rozdzielone: ${separator}`}
+              {parsed.rows.length} {plural(parsed.rows.length, 'wiersz', 'wiersze', 'wierszy')}{separator === '' ? '' : ` · kolumny rozdzielone: ${separator}`}
               {parsed.wide > 0 ? ` · w ${parsed.wide} liniach więcej kolumn — reszta trafiła do ostatniej` : ''}
             </span>
             {plan !== null && (
@@ -632,7 +636,7 @@ function PastePanel({ form, groups, choice, blocked, onQueue }: {
         {blocked.length > 0 && parsed.rows.length > 0 && <p className="wk-warn">{blocked.join(' ')}</p>}
         <div className="cg-row">
           <button type="button" className="wk-btn" disabled={plan === null || plan.saves.length === 0} onClick={() => { onQueue(parsed.rows); setText(''); }}>
-            Dodaj {parsed.rows.length > 0 ? `${parsed.rows.length - bad.length} ${parsed.rows.length - bad.length === 1 ? 'wiersz' : 'wierszy'}` : 'wszystkie'}
+            Dodaj {parsed.rows.length > 0 ? `${parsed.rows.length - bad.length} ${plural(parsed.rows.length - bad.length, 'wiersz', 'wiersze', 'wierszy')}` : 'wszystkie'}
           </button>
         </div>
       </div>

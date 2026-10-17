@@ -419,6 +419,18 @@ public class PhonePlugin extends Plugin {
         }
     }
 
+    /** Die Originale im Gerät entfernen, die schon in recreatio sind (PhoneContacts.dropLocal). */
+    @PluginMethod
+    public void dropLocal(PluginCall call) {
+        if (getPermissionState("contacts") != PermissionState.GRANTED) { call.reject("Brak dostępu do kontaktów."); return; }
+        try {
+            JSONArray keys = call.getData().optJSONArray("keys");
+            call.resolve(js(PhoneContacts.dropLocal(context(), keys == null ? new JSONArray() : keys)));
+        } catch (Exception e) {
+            fail(call, e);
+        }
+    }
+
     @PluginMethod
     public void contactsSoon(PluginCall call) {
         PhoneWork.contactsSoon(context());

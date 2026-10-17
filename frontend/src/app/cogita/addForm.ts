@@ -84,6 +84,8 @@ export const COLUMN_SEPARATOR_LABEL: Record<ColumnSeparator, string> = {
 export const VALUE_SEPARATORS = [',', ';', '/', '|'] as const;
 export type ValueSeparator = (typeof VALUE_SEPARATORS)[number];
 
+export const VALUE_SEPARATOR_LABEL: Record<ValueSeparator, string> = { ',': 'przecinek ,', ';': 'średnik ;', '/': 'ukośnik /', '|': 'kreska |' };
+
 export interface PasteRule {
   readonly columns: ColumnSeparator;
   readonly values: ValueSeparator;
@@ -265,10 +267,19 @@ const portType = (kinds: readonly string[] | undefined): string => (kinds !== un
 
 export const refFields = (kind: KindDef | undefined): FieldDef[] => (kind?.fields ?? []).filter((f) => f.type === 'ref');
 
-export function nodeLabel(node: GraphNode, look: Pick<Lookup, 'kind'>): string {
+/**
+ * Wie ein Knoten heisst: sein Name, sonst sein Rodzaj. Eine Wahl ohne Namen,
+ * die nur EINEN Eintrag speist, heisst nach ihm — „Język — angielski" folgt
+ * so von selbst, wenn man den Eintrag umbenennt.
+ */
+export function nodeLabel(node: GraphNode, look: Pick<Lookup, 'kind'>, graph?: Graph): string {
   if (node.type === 'pick') {
     const c = pickConfig(node.config);
-    return c.label ?? (c.kinds.map((k) => look.kind(k)?.name ?? k).join(' / ') || 'Wybór');
+    if (c.label !== undefined) return c.label;
+    const kinds = c.kinds.map((k) => look.kind(k)?.name ?? k).join(' / ') || 'Wybór';
+    const fed = [...new Set((graph?.edges ?? []).filter((e) => e.from === node.id).map((e) => e.to))];
+    const target = fed.length === 1 ? graph!.nodes.find((n) => n.id === fed[0]) : undefined;
+    return target === undefined || target.type !== 'entry' ? kinds : `${kinds} — ${nodeLabel(target, look)}`;
   }
   const c = entryConfig(node.config);
   return c.label ?? look.kind(c.kind)?.name ?? 'Wpis';
@@ -332,7 +343,7 @@ export function groupsOf(form: AddForm, look: Pick<Lookup, 'kind'>): FormGroup[]
     const kind = look.kind(c.kind);
     const fields = typedFields(kind, c);
     if (kind === undefined || fields.length === 0) continue;
-    out.push({ node: n.id, label: nodeLabel(n, look), kind, fields, many: c.many });
+    out.push({ node: n.id, label: nodeLabel(n, look, form.graph), kind, fields, many: c.many });
   }
   return out;
 }
@@ -345,14 +356,14 @@ export type TopItem =
 export function topOf(form: AddForm, look: Pick<Lookup, 'kind'>): TopItem[] {
   const nodes = [...form.graph.nodes].sort((a, b) => a.y - b.y || a.x - b.x);
   const picks: TopItem[] = nodes.filter((n) => n.type === 'pick')
-    .map((n) => ({ type: 'pick', key: n.id, node: n.id, label: nodeLabel(n, look), config: pickConfig(n.config) }));
+    .map((n) => ({ type: 'pick', key: n.id, node: n.id, label: nodeLabel(n, look, form.graph), config: pickConfig(n.config) }));
   const asks: TopItem[] = [];
   for (const n of nodes) {
     if (n.type !== 'entry') continue;
     const c = entryConfig(n.config);
     for (const f of look.kind(c.kind)?.fields ?? []) {
       const source = c.fields[f.key];
-      if (source?.from === 'ask' && isTypeable(f)) asks.push({ type: 'ask', key: `${n.id}.${f.key}`, node: n.id, label: `${nodeLabel(n, look)}: ${f.label}`, field: f, value: source.value ?? '' });
+      if (source?.from === 'ask' && isTypeable(f)) asks.push({ type: 'ask', key: `${n.id}.${f.key}`, node: n.id, label: `${nodeLabel(n, look, form.graph)}: ${f.label}`, field: f, value: source.value ?? '' });
     }
   }
   return [...picks, ...asks];
@@ -562,20 +573,22 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
 
   /* Oben: die Wahlen, die einmal gesetzten Felder, die festen Werte. */
   const picked = new Map<string, string[]>();
-  for (const node of form.graph.nodes) {
+  const unpicked: string[] = [];
+  for (const node of [...form.graph.nodes].sort((a, b) => a.y - b.y || a.x - b.x)) {
     if (node.type !== 'pick') continue;
     const c = pickConfig(node.config);
     let chosen = [...new Set(top.picks[node.id] ?? c.value)].filter((id) => look.entity(id) !== undefined);
     if (!c.many) chosen = chosen.slice(0, 1);
-    if (chosen.length === 0 && !c.optional) problems.push(`Wybierz na początek: ${nodeLabel(node, look)}.`);
+    if (chosen.length === 0 && !c.optional) unpicked.push(nodeLabel(node, look, form.graph));
     picked.set(node.id, chosen);
   }
+  if (unpicked.length > 0) problems.push(`Wybierz na początek: ${unpicked.join(', ')}.`);
   const constant = new Map<string, Record<string, unknown>>();
   for (const node of form.graph.nodes) {
     if (node.type !== 'entry') continue;
     const c = entryConfig(node.config);
     const kind = look.kind(c.kind);
-    if (kind === undefined) { problems.push(`„${nodeLabel(node, look)}": nie ma już takiego rodzaju.`); continue; }
+    if (kind === undefined) { problems.push(`„${nodeLabel(node, look, form.graph)}": nie ma już takiego rodzaju.`); continue; }
     const values: Record<string, unknown> = {};
     for (const f of kind.fields) {
       const source = c.fields[f.key];
@@ -583,7 +596,7 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
       const text = (source.from === 'ask' ? top.asks[`${node.id}.${f.key}`] ?? source.value : source.value) ?? '';
       if (text.trim() === '') continue;
       const v = typedValue(f, text);
-      if ('error' in v) problems.push(`${nodeLabel(node, look)}: ${f.label} — ${v.error}.`);
+      if ('error' in v) problems.push(`${nodeLabel(node, look, form.graph)}: ${f.label} — ${v.error}.`);
       else values[f.key] = v.value;
     }
     constant.set(node.id, values);
@@ -628,7 +641,7 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
       if (node.type === 'pick') { outputs.set(id, picked.get(id) ?? []); continue; }
       const c = entryConfig(node.config);
       const kind = look.kind(c.kind)!;
-      const label = nodeLabel(node, look);
+      const label = nodeLabel(node, look, form.graph);
       const typed = typedFields(kind, c);
 
       /* Was in der Zeile für diesen Knoten getippt wurde. */
@@ -665,7 +678,7 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
         if (edges.length === 0) continue;
         const values = [...new Set(edges.flatMap((e) => outputs.get(e.from) ?? []))];
         if (values.length === 0) {
-          const empty = edges.filter((e) => byId.get(e.from)?.type === 'entry').map((e) => nodeLabel(byId.get(e.from)!, look));
+          const empty = edges.filter((e) => byId.get(e.from)?.type === 'entry').map((e) => nodeLabel(byId.get(e.from)!, look, form.graph));
           if (empty.length > 0) { missing = empty.join(', '); break; }
           continue;
         }
@@ -788,28 +801,28 @@ export function formProblems(form: AddForm, look: Pick<Lookup, 'kind'>): string[
   for (const node of entries) {
     const c = entryConfig(node.config);
     const kind = look.kind(c.kind);
-    if (kind === undefined) { out.push(`„${nodeLabel(node, look)}": wybierz rodzaj.`); continue; }
+    if (kind === undefined) { out.push(`„${nodeLabel(node, look, form.graph)}": wybierz rodzaj.`); continue; }
     typed += typedFields(kind, c).length;
     const incoming = form.graph.edges.filter((e) => e.to === node.id);
     if (typedFields(kind, c).length === 0 && !incoming.some((e) => byId.get(e.from)?.type === 'entry')) {
-      out.push(`„${nodeLabel(node, look)}" nie bierze niczego z wiersza — powstałby jeden taki sam wpis dla każdego wiersza.`);
+      out.push(`„${nodeLabel(node, look, form.graph)}" nie bierze niczego z wiersza — powstałby jeden taki sam wpis dla każdego wiersza.`);
     }
     for (const e of incoming) {
       const field = kind.fields.find((f) => f.key === e.in);
       const from = byId.get(e.from);
-      if (field === undefined || field.type !== 'ref' || from === undefined) { out.push(`„${nodeLabel(node, look)}": połączenie prowadzi do pola, którego już nie ma.`); continue; }
+      if (field === undefined || field.type !== 'ref' || from === undefined) { out.push(`„${nodeLabel(node, look, form.graph)}": połączenie prowadzi do pola, którego już nie ma.`); continue; }
       const sourceKinds = from.type === 'pick' ? pickConfig(from.config).kinds : [entryConfig(from.config).kind];
       const to = field.to ?? [];
       if (to.length > 0 && sourceKinds.length > 0 && !sourceKinds.some((k) => to.includes(k))) {
-        out.push(`„${nodeLabel(from, look)}" nie pasuje do pola „${field.label}" (przyjmuje: ${to.map((k) => look.kind(k)?.name ?? k).join(', ')}).`);
+        out.push(`„${nodeLabel(from, look, form.graph)}" nie pasuje do pola „${field.label}" (przyjmuje: ${to.map((k) => look.kind(k)?.name ?? k).join(', ')}).`);
       }
       if (!field.multi && from.type === 'pick' && pickConfig(from.config).many) {
-        out.push(`„${nodeLabel(from, look)}" może mieć kilka wpisów, a pole „${field.label}" przyjmuje jeden — powstanie osobny wpis dla każdego.`);
+        out.push(`„${nodeLabel(from, look, form.graph)}" może mieć kilka wpisów, a pole „${field.label}" przyjmuje jeden — powstanie osobny wpis dla każdego.`);
       }
     }
     for (const [key, source] of Object.entries(c.fields)) {
       const field = kind.fields.find((f) => f.key === key);
-      if (field !== undefined && !isTypeable(field) && field.type !== 'ref') out.push(`„${nodeLabel(node, look)}": pola „${field.label}" nie da się ${source.from === 'type' ? 'wpisywać' : 'ustawić'} w formularzu.`);
+      if (field !== undefined && !isTypeable(field) && field.type !== 'ref') out.push(`„${nodeLabel(node, look, form.graph)}": pola „${field.label}" nie da się ${source.from === 'type' ? 'wpisywać' : 'ustawić'} w formularzu.`);
     }
   }
   if (entries.length > 0 && typed === 0) out.push('Żadne pole nie jest wpisywane w wierszu — nie byłoby czego dodawać.');
@@ -856,16 +869,16 @@ export function describeForm(form: AddForm, look: Pick<Lookup, 'kind'>): string[
       const source = c.fields[f.key];
       if (f.type === 'ref') {
         const from = form.graph.edges.filter((e) => e.to === id && e.in === f.key).map((e) => byId.get(e.from)).filter((n): n is GraphNode => n !== undefined);
-        if (from.length > 0) parts.push(`${f.label} ← ${from.map((n) => quote(nodeLabel(n, look))).join(' + ')}`);
+        if (from.length > 0) parts.push(`${f.label} ← ${from.map((n) => quote(nodeLabel(n, look, form.graph))).join(' + ')}`);
       } else if (source !== undefined && isTypeable(f)) {
         parts.push(source.from === 'type' ? `${f.label} — wpisane` : source.from === 'ask' ? `${f.label} — z początku` : `${f.label} = ${source.value ?? ''}`);
       }
     }
     const pairs = refFields(kind).filter((f) => !f.multi && form.graph.edges.some((e) => e.to === id && e.in === f.key && entryConfig(byId.get(e.from)?.config).many && byId.get(e.from)?.type === 'entry'));
-    const needs = [...new Set(form.graph.edges.filter((e) => e.to === id && byId.get(e.from)?.type === 'entry').map((e) => quote(nodeLabel(byId.get(e.from)!, look))))];
+    const needs = [...new Set(form.graph.edges.filter((e) => e.to === id && byId.get(e.from)?.type === 'entry').map((e) => quote(nodeLabel(byId.get(e.from)!, look, form.graph))))];
     const identity = c.reuse === 'never' ? [] : identityOf(form, node, kind);
     const sentence = [
-      `${quote(nodeLabel(node, look))} (${kind.name}): ${parts.join('; ') || 'bez pól'}.`,
+      `${quote(nodeLabel(node, look, form.graph))} (${kind.name}): ${parts.join('; ') || 'bez pól'}.`,
       c.many ? 'Kilka w jednym wierszu.' : '',
       pairs.length > 0 ? `Po jednym dla każdej pary (${pairs.map((f) => f.label).join(', ')} przyjmuje jeden wpis).` : '',
       needs.length > 0 ? `Powstaje tylko, gdy w wierszu jest ${needs.join(' i ')}.` : '',
@@ -924,8 +937,9 @@ export function formFromKind(root: KindDef, look: Pick<Lookup, 'kind'>, makeId: 
     const kinds = f.to ?? [];
     const share = `${f.key}|${kinds.join(',')}`;
     if (f.multi && shared.has(share)) return shared.get(share)!;
-    const label = f.multi || ownerLabel === null ? f.label : `${f.label} — ${ownerLabel}`;
-    const id = add('pick', 0, pickY, { label, kinds: [...kinds], many: f.multi, optional: f.multi || target(f) === undefined, value: [] });
+    /* Eine Wahl je Zeilen-Eintrag bleibt ohne Namen: sie heisst nach ihm („Język — angielski", `nodeLabel`). */
+    const named = f.multi || ownerLabel === null ? { label: f.label } : {};
+    const id = add('pick', 0, pickY, { ...named, kinds: [...kinds], many: f.multi, optional: f.multi || target(f) === undefined, value: [] });
     pickY += 110;
     if (f.multi) shared.set(share, id);
     return id;
@@ -952,5 +966,14 @@ export function formFromKind(root: KindDef, look: Pick<Lookup, 'kind'>, makeId: 
   /* Der verbindende Eintrag steht in der Mitte seiner Zeilen-Einträge. */
   const at = nodes.findIndex((n) => n.id === rootId);
   nodes[at] = { ...nodes[at], y: Math.max(0, (childY - 220) / 2) };
+  /*
+    Die Wahlen oben stehen, wie die Leinwand sie zeigt — darum hier geordnet:
+    erst die eines einzelnen Eintrags (die Sprache von „z", dann die von „na"),
+    dann die gemeinsamen (Themen).
+  */
+  const fed = (id: string) => edges.filter((e) => e.from === id).map((e) => nodes.find((n) => n.id === e.to)?.y ?? 0);
+  const picks = nodes.filter((n) => n.type === 'pick').sort((a, b) =>
+    (fed(a.id).length === 1 ? 0 : 1) - (fed(b.id).length === 1 ? 0 : 1) || Math.min(...fed(a.id)) - Math.min(...fed(b.id)));
+  picks.forEach((p, i) => { nodes[nodes.indexOf(p)] = { ...p, y: i * 110 }; });
   return { name: `Dodawanie: ${root.name}`, graph: { nodes, edges } };
 }

@@ -442,6 +442,24 @@ public static partial class Agenda
                 DELETE FROM app.mass_intention_field
                  WHERE intention_id IN (SELECT id FROM app.mass_intention WHERE item_id IN (SELECT id FROM #gone));
                 DELETE FROM app.mass_intention WHERE item_id IN (SELECT id FROM #gone);
+
+                /*
+                    2026-10-17 — WER NOCH DARAUF SITZT (wartet oder bestätigt), hält
+                    den Termin: er soll erfahren, dass er fort ist (absagen statt
+                    löschen). Was nur noch Geschichte ist (abgelehnt, zurückgegeben),
+                    ein geschlossenes Angebot und die alten Plätze (0029) gehen mit —
+                    vorher blockierten sie das Löschen still, und die Meldung sprach
+                    von Reservierungen, wo niemand mehr sass.
+                */
+                IF EXISTS (SELECT 1 FROM app.claim WHERE item_id IN (SELECT id FROM #gone)
+                           AND status IN (N'pending', N'confirmed'))
+                    THROW 50058, N'claims', 1;
+                DELETE FROM app.claim WHERE item_id IN (SELECT id FROM #gone);
+                DELETE FROM app.offer_state WHERE item_id IN (SELECT id FROM #gone);
+                DELETE FROM app.slot_booking WHERE item_id IN (SELECT id FROM #gone);
+                DELETE FROM app.slot_request WHERE item_id IN (SELECT id FROM #gone);
+                DELETE FROM app.item_slot WHERE item_id IN (SELECT id FROM #gone);
+
                 DELETE FROM app.calendar_field WHERE item_id IN (SELECT id FROM #gone);
                 DELETE FROM app.calendar_exception WHERE item_id IN (SELECT id FROM #gone);
                 DELETE FROM app.calendar_presence WHERE item_id IN (SELECT id FROM #gone);
@@ -464,11 +482,19 @@ public static partial class Agenda
                 "Na tej mszy są przyjęte intencje — przenieś je na inne msze albo zakończ serię (Kończy się: w dniu…) zamiast ją usuwać.");
             return;
         }
-        catch (SqlException e) when (e.Number == 547)
+        catch (SqlException e) when (e.Number == 50058)
         {
             await tx.RollbackAsync(ctx.RequestAborted);
             await Fail(ctx, StatusCodes.Status409Conflict,
-                "Do tego terminu są przypięte rezerwacje — odwołaj go zamiast usuwać.");
+                "Na tym terminie ktoś ma rezerwację (czekającą albo potwierdzoną) — odwołaj go zamiast usuwać, wtedy dostanie wiadomość.");
+            return;
+        }
+        catch (SqlException e) when (e.Number == 547)
+        {
+            /* Was hier noch hängt, ist keine Reservierung mehr (die stehen oben) — also nicht so nennen. */
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Tego terminu nie da się usunąć — coś jeszcze się do niego odwołuje. Odwołaj go zamiast usuwać.");
             return;
         }
         catch

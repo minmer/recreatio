@@ -32,6 +32,8 @@
  *      Kanał; an einem Bereich oder an jedem) nichts Ungelesenes liegt — nie überfällig, niemand hakt ab.
  *  28. Die Seite des Kandydaten aus der Liste (0104): die Liste schickt das Formular mit, die Seite wählt dann den Menschen
  *      auch ohne eigenen „Wybór na stronie"; Spalten aus Unterformularen (laufender Zeitraum, sonst der jüngste Eintrag).
+ *  29. Das Telefon (Ausgabe „sms"): Nummern in einer Form, die Länge einer SMS, vCard hin und zurück, Kontakte
+ *      einlesen ohne Doppelte (und nie zwei Menschen in einen), das Archiv: eine Form je Nachricht, Gespräche.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -112,6 +114,10 @@ export { pack } from '${app}core/masonry';
 export { chatMatches, chatTargetText, unreadIn } from '${app}steps/steps';
 export { newMessages } from '${app}seats/seatUnread';
 export { datesOf, declinedAll, attendanceOn, dutyRoom, termsText } from '${app}steps/candidateTasks';
+export { phoneKey, phoneShown, samePhone, smsParts } from '${app}phone/numbers';
+export { parseVCards, formatVCards } from '${app}phone/vcard';
+export { tidyContact, sameContact, planImport, contactMatches, nameIndex, phoneKeysOf } from '${app}phone/contactStore';
+export { canonical, fromNative, archiveThreads } from '${app}phone/smsArchive';
 `);
 await build({
   entryPoints: [entry],
@@ -1854,6 +1860,121 @@ try {
     assert.deepEqual(m.columnsOf(desk, 'note,p').map((c) => c.id), ['note', 'p'], 'chosen ones in their order, sub-form questions too');
     assert.deepEqual(m.columnsOf(desk, ''), []);
     ok('the candidate page from the list (0104): the list sends the form, the page chooses the person; sub-form answers as columns');
+  }
+
+  /* -- 29. Das Telefon (Ausgabe „sms", 2026-10-17): Nummern, vCard, Kontakte einlesen, das Archiv ------------- */
+  {
+    for (const same of ['600 100 200', '+48600100200', '0048 600-100-200', '48600100200']) {
+      assert.equal(m.phoneKey(same), '+48600100200', `one number: ${same}`);
+    }
+    assert.ok(m.samePhone('600100200', '+48 600 100 200'));
+    assert.ok(!m.samePhone('', ''), 'nothing is not the same as nothing');
+    assert.equal(m.phoneKey('mBank'), 'mbank', 'a sender name stays a name');
+    assert.equal(m.phoneKey('8080'), '8080', 'a short code stays a short code');
+    assert.equal(m.phoneShown('600100200'), '+48 600 100 200');
+    assert.equal(m.phoneShown('+49 151 23456789'), '+49 151 23456789', 'another country: untouched');
+
+    assert.deepEqual(m.smsParts(''), { parts: 0, left: 160, unicode: false });
+    assert.deepEqual(m.smsParts('a'.repeat(160)), { parts: 1, left: 0, unicode: false });
+    assert.deepEqual(m.smsParts('a'.repeat(161)), { parts: 2, left: 145, unicode: false }, 'split: 153 each');
+    assert.deepEqual(m.smsParts('€'.repeat(80)), { parts: 1, left: 0, unicode: false }, '€ takes two places in GSM-7');
+    assert.deepEqual(m.smsParts('Zażółć'), { parts: 1, left: 64, unicode: true }, 'a Polish letter: 70 per SMS');
+    assert.deepEqual(m.smsParts('ą'.repeat(71)), { parts: 2, left: 63, unicode: true }, 'split: 67 each');
+    ok('phone numbers: one form to compare (+48…), sender names and short codes kept; SMS length in GSM-7 and UCS-2');
+
+    const vcf = [
+      'BEGIN:VCARD', 'VERSION:2.1',
+      'N;CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE:Nowak;Anna;;;',
+      'FN;CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE:Anna Nowak =C5=BC=',
+      'ona',
+      'TEL;CELL;PREF:600 100 200',
+      'TEL;HOME:+48 12 345 67 89',
+      'TEL;CELL:600-100-200',
+      'END:VCARD',
+      'BEGIN:VCARD', 'VERSION:3.0',
+      'FN:Jan Kowalski',
+      'N:Kowalski;Jan;Maria;;',
+      'item1.TEL;type=WORK:+48 500 600 700',
+      'EMAIL;TYPE=INTERNET:jan@example.org',
+      'ORG:Parafia;Rada',
+      'BDAY:--0504',
+      'CATEGORIES:Rodzina,myContacts',
+      'NOTE:pierwsza\\ndruga linia\\, z przecinkiem',
+      'END:VCARD',
+      'BEGIN:VCARD', 'VERSION:4.0', 'TEL;VALUE=uri;TYPE=cell:tel:+48700800900', 'END:VCARD'
+    ].join('\r\n');
+    const cards = m.parseVCards(vcf);
+    assert.equal(cards.length, 3, 'a card with only a number is still a card');
+    assert.equal(cards[0].name, 'Anna Nowak żona', 'QUOTED-PRINTABLE with a soft line break');
+    assert.deepEqual(cards[0].phones, [{ number: '600 100 200', label: 'komórka' }, { number: '+48 12 345 67 89', label: 'dom' }],
+      'the same number twice is one number');
+    assert.deepEqual([cards[1].given, cards[1].family, cards[1].org, cards[1].birthday, cards[1].groups],
+      ['Jan Maria', 'Kowalski', 'Parafia, Rada', '--05-04', ['Rodzina']], 'Google: groups without "My Contacts", a birthday without a year');
+    assert.equal(cards[1].note, 'pierwsza\ndruga linia, z przecinkiem');
+    assert.deepEqual(cards[1].phones, [{ number: '+48 500 600 700', label: 'praca' }], 'an item group in front of the property');
+    assert.deepEqual([cards[2].name, cards[2].phones[0].number], ['+48700800900', '+48700800900'], 'vCard 4: tel: URI');
+    const again = m.parseVCards(m.formatVCards(cards));
+    assert.deepEqual(again, cards, 'written and read again: the same cards');
+    const long = { ...cards[1], note: 'ż'.repeat(120) };
+    assert.ok(m.formatVCards([long]).split('\r\n').every((line) => new TextEncoder().encode(line).length <= 75), 'lines folded at 75 bytes');
+    assert.equal(m.parseVCards(m.formatVCards([long]))[0].note, long.note, 'folded between characters, not inside one');
+    ok('vCard: 2.1 with QUOTED-PRINTABLE, 3.0 from Google, 4.0; written as 3.0 and read back unchanged');
+
+    const contact = (id, data, version = 1) => ({ ...m.tidyContact({ given: null, family: null, org: null, title: null, emails: [], note: null, birthday: null, groups: [], source: null, ...data }), id, version, updatedAt: '2026-10-17T10:00:00Z' });
+    const tidy = m.tidyContact({ name: '  ', given: 'Ewa', family: 'Lis', org: '', title: null, phones: [{ number: '600100200', label: '' }, { number: '+48 600 100 200', label: 'dom' }],
+      emails: [{ address: 'E@x.pl', label: null }, { address: 'e@X.pl', label: null }], note: ' ', birthday: null, groups: [' A ', 'A', ''], source: null });
+    assert.deepEqual([tidy.name, tidy.org, tidy.phones, tidy.emails.length, tidy.note, tidy.groups],
+      ['Ewa Lis', null, [{ number: '+48 600 100 200', label: null }], 1, null, ['A']], 'tidied: a name from its parts, one number, one address, no empty group');
+
+    const anna = contact('a', { name: 'Anna Nowak', phones: [{ number: '600100200', label: 'komórka' }], source: { kind: 'phone', key: 'K1' } });
+    const jan = contact('j', { name: 'Jan Kowalski', phones: [{ number: '12 345 67 89', label: 'dom' }], source: { kind: 'web', key: null } });
+    const fromPhone = (name, numbers, key, extra = {}) => m.tidyContact({ name, given: null, family: null, org: null, title: null, emails: [], note: null, birthday: null, groups: [],
+      phones: numbers.map((number) => ({ number, label: null })), source: { kind: 'phone', key }, ...extra });
+
+    let plan = m.planImport([fromPhone('Anna Nowak', ['600100200'], 'K1')], [anna, jan]);
+    assert.deepEqual([plan.added, plan.updated, plan.unchanged, plan.work.length], [0, 0, 1, 0], 'read again: nothing to write');
+    plan = m.planImport([fromPhone('Anna (chór)', ['600100200', '700800900'], 'K1')], [anna, jan]);
+    assert.deepEqual([plan.updated, plan.work[0].id, plan.work[0].data.name, plan.work[0].data.phones.length], [1, 'a', 'Anna Nowak', 2],
+      'the same key: completed — the name given here stays');
+    plan = m.planImport([fromPhone('Jan Kowalski', ['+48 12 345 67 89'], 'K2')], [anna, jan]);
+    assert.deepEqual([plan.updated, plan.work[0].id, plan.work[0].data.source.key], [1, 'j', 'K2'], 'the same name and number: the phone\'s key is taken over');
+    plan = m.planImport([fromPhone('Dom Kowalskich', ['12 345 67 89'], 'K3')], [anna, jan]);
+    assert.deepEqual([plan.added, plan.updated], [1, 0], 'a shared number alone is not the same person');
+    plan = m.planImport([fromPhone('Ewa', ['500600700'], 'K4'), fromPhone('Ewa', ['500 600 700'], 'K5', { emails: [{ address: 'ewa@x.pl', label: null }] })], []);
+    assert.deepEqual([plan.added, plan.work.length, plan.work[0].data.emails.length], [1, 1, 1], 'known twice by the phone: made once, completed');
+    plan = m.planImport([fromPhone('Anna Nowak', ['600100200'], 'K1', { groups: ['Chór'] }), fromPhone('Anna Nowak', ['600100200'], 'K1', { note: 'alt' })], [anna]);
+    assert.deepEqual([plan.updated, plan.work.length, plan.work[0].data.groups, plan.work[0].data.note], [1, 1, ['Chór'], 'alt'], 'two arrivals for one contact: one write with both');
+
+    const ewa = contact('e', { name: 'Ewa Lis', phones: [{ number: '500600700', label: null }], source: { kind: 'phone', key: 'raw:1' } });
+    plan = m.planImport([fromPhone('Ewa', ['500600700'], 'raw:1,raw:9')], [ewa]);
+    assert.deepEqual([plan.updated, plan.work[0].data.name, plan.work[0].data.source.key], [1, 'Ewa Lis', 'raw:1,raw:9'],
+      'the phone joined a raw contact to her: found by one of the keys, both kept — the name here stays');
+    plan = m.planImport([fromPhone('Ewa (Signal)', ['500600700'], 'raw:9')], [{ ...ewa, source: { kind: 'phone', key: 'raw:1,raw:9' } }]);
+    assert.deepEqual([plan.added, plan.updated, plan.unchanged], [0, 0, 1], 'any one key finds her');
+    assert.deepEqual(m.phoneKeysOf([anna, jan, { ...ewa, source: { kind: 'phone', key: 'raw:1,raw:9' } }]), ['K1', 'raw:1', 'raw:9'], 'the keys handed to „Przenieś"');
+
+    assert.ok(m.contactMatches(anna, '600 1') && m.contactMatches(anna, 'nowak') && m.contactMatches(jan, '123456') && !m.contactMatches(jan, 'anna'));
+    assert.ok(m.sameContact(anna, { ...anna, source: null }), 'where it came from does not count');
+    assert.equal(m.nameIndex([anna, jan]).get('+48123456789')?.id, 'j', 'a number leads to its contact');
+    ok('contacts: tidied, read in again without doubles (phone key, else name and number — never a shared number alone), found by name or digits');
+
+    const native = (over) => ({ id: '1', kind: 'sms', threadId: 't', box: 'in', date: 1700000000000, sentAt: null, address: '600100200', peers: ['600100200'],
+      body: 'Hej', subject: null, read: true, status: 'none', subId: null, parts: [], pending: false, ...over });
+    const inbound = m.fromNative(native({}));
+    assert.deepEqual([inbound.box, inbound.from, inbound.peers], ['in', '+48600100200', ['+48600100200']]);
+    assert.equal(m.fromNative(native({ box: 'outbox' })).box, 'pending');
+    assert.equal(m.fromNative(native({ box: 'out', status: 'failed' })).box, 'failed');
+    assert.equal(m.canonical(m.fromNative(native({ box: 'out' }))), m.canonical(m.fromNative(native({ box: 'out', status: 'failed' }))),
+      'the print follows the direction, not the state');
+    assert.notEqual(m.canonical(inbound), m.canonical(m.fromNative(native({ box: 'out' }))));
+    assert.equal(m.canonical(m.fromNative(native({ peers: ['+48 700 800 900', '600100200'] }))), m.canonical(m.fromNative(native({ peers: ['600 100 200', '700800900'] }))),
+      'the same people in another order and spelling');
+    const threads = m.archiveThreads([
+      { ...inbound, key: 'a' }, { ...inbound, at: 1700000000500, key: 'b' },
+      { ...m.fromNative(native({ peers: ['700800900'], address: '700800900' })), at: 1700000000100, key: 'c' }
+    ]);
+    assert.deepEqual(threads.map((t) => [t.key, t.messages.length]), [['+48600100200', 2], ['+48700800900', 1]], 'one thread per circle, the newest first');
+    ok('SMS archive: one form per message (direction, time, people, text), threads by the people in them');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

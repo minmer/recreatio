@@ -187,7 +187,20 @@ export const fromCard = (c: CardData): ContactData => tidyContact({ ...c, source
 
 const nameKey = (name: string) => name.toLocaleLowerCase('pl').replace(/\s+/g, ' ').trim();
 
-/** Zwei Stände desselben Menschen zusammen — was neu ist, kommt dazu; was schon da war, bleibt. Der Schlüssel des Telefons wird übernommen, wenn es noch keinen gab. */
+/** Die Teile eines Schlüssels — `raw:12,raw:40` (die Rohkontakte des Telefons hinter einem Menschen). */
+const keyParts = (key: string | null | undefined): string[] => (key ?? '').split(',').map((p) => p.trim()).filter((p) => p !== '');
+
+/** Alle Schlüssel des Telefons, die in recreatio stehen — für „Przenieś" (`Phone.dropLocal`). */
+export const phoneKeysOf = (list: readonly ContactData[]): string[] => list.flatMap((c) => keyParts(c.source?.key));
+
+/** Woher, nach dem Zusammenlegen: die Schlüssel beider (das Telefon legt manchmal einen Rohkontakt dazu). */
+function mergedSource(had: ContactSource | null, incoming: ContactSource | null): ContactSource | null {
+  const parts = [...new Set([...keyParts(had?.key), ...keyParts(incoming?.key)])];
+  if (parts.length === 0) return had ?? incoming;
+  return { kind: had?.key ? had.kind : incoming?.kind ?? 'phone', key: parts.join(',') };
+}
+
+/** Zwei Stände desselben Menschen zusammen — was neu ist, kommt dazu; was schon da war, bleibt (der Name auch). Die Schlüssel des Telefons kommen zusammen. */
 function merged(had: ContactData, incoming: ContactData): ContactData {
   return tidyContact({
     name: had.name,
@@ -200,7 +213,7 @@ function merged(had: ContactData, incoming: ContactData): ContactData {
     note: had.note ?? incoming.note,
     birthday: had.birthday ?? incoming.birthday,
     groups: [...had.groups, ...incoming.groups],
-    source: had.source?.key ? had.source : incoming.source?.key ? incoming.source : had.source ?? incoming.source
+    source: mergedSource(had.source, incoming.source)
   });
 }
 
@@ -240,7 +253,7 @@ export function planImport(incoming: readonly ContactData[], existing: readonly 
   const byKey = new Map<string, Slot>();
   const byPhone = new Map<string, Slot[]>();
   const remember = (slot: Slot) => {
-    if (slot.data.source?.key) byKey.set(slot.data.source.key, slot);
+    for (const part of keyParts(slot.data.source?.key)) byKey.set(part, slot);
     for (const p of slot.data.phones) {
       const k = phoneKey(p.number);
       const known = byPhone.get(k) ?? [];
@@ -251,7 +264,11 @@ export function planImport(incoming: readonly ContactData[], existing: readonly 
 
   let unchanged = 0;
   for (const data of incoming) {
-    let slot = data.source?.key ? byKey.get(data.source.key) : undefined;
+    let slot: Slot | undefined;
+    for (const part of keyParts(data.source?.key)) {
+      slot = byKey.get(part);
+      if (slot !== undefined) break;
+    }
     if (slot === undefined) {
       const name = nameKey(data.name);
       for (const p of data.phones) {

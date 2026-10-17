@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } f
 
 import { useCrumbs } from '../shell/crumbTrail';
 import { viewPath } from '../routes';
+import { saveBlob } from '../core/platform';
 import { WorkspaceError, type Who } from '../core/session';
 import { ask, toast } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
@@ -25,7 +26,7 @@ import { Loading } from '../ui/Loading';
 import { MenuButton } from '../ui/Menu';
 import { PageHeader } from '../ui/PageHeader';
 import {
-  contactMatches, emptyContact, fromCard, fromPhoneBook, importContacts, loadContacts, PHONE_LABELS, removeContact,
+  contactMatches, emptyContact, fromCard, fromPhoneBook, importContacts, loadContacts, PHONE_LABELS, phoneKeysOf, removeContact,
   saveContact, saveProblem, type Contact, type ContactData
 } from './contactStore';
 import { Phone, phoneHere, pluginSource, type PhoneStatus } from './native';
@@ -71,7 +72,7 @@ export function ContactsApp({ who, trail }: { who: Who; trail: readonly string[]
   /* Nach jeder Änderung: das Telefon gleich auffrischen (in der App selbst, sonst im Hintergrund). */
   const toPhoneSoon = useCallback((opened: PhoneCtx) => {
     if (!native) return;
-    void contactsNow(opened, pluginSource).then(refreshStatus).catch(() => undefined);
+    void contactsNow(opened, pluginSource, true).then(refreshStatus).catch(() => undefined);
   }, [native, refreshStatus]);
 
   const step = trail[0];
@@ -121,14 +122,42 @@ export function ContactsApp({ who, trail }: { who: Who; trail: readonly string[]
   const syncPhone = () => work('Zapisywanie kontaktów w telefonie…', async () => {
     const granted = (await Phone.requestContacts()).granted;
     if (!granted) return 'Bez dostępu do kontaktów telefon nie dostanie kontaktów z recreatio.';
-    const result = await contactsNow(ctx, pluginSource);
+    const result = await contactsNow(ctx, pluginSource, true);
     refreshStatus();
     return `W telefonie: ${result.total} (nowych ${result.added}, zmienionych ${result.updated}, usuniętych ${result.removed}).`;
   });
 
+  /*
+   * PRZENIEŚ: einlesen wie oben, ins Telefon schreiben — und dann die Originale entfernen, die NUR im Gerät
+   * stehen (ohne Konto). Danach gibt es jeden Menschen einmal, und beim Anruf steht der Name aus recreatio.
+   * Ging beim Einlesen etwas schief, wird nichts entfernt.
+   */
+  const movePhone = async () => {
+    const yes = await ask({
+      title: 'Przenieść kontakty telefonu do recreatio?',
+      body: 'Kontakty zapisane tylko w pamięci telefonu trafią do recreatio, a z pamięci telefonu zostaną usunięte. Telefon zachowa ich kopię z recreatio — przy połączeniu i w SMS nadal zobaczysz imię, a zmiany wprowadzasz tutaj. Kontakty z innych kont (DAVx5, Signal, karta SIM) zostają bez zmian.',
+      confirm: 'Przenieś'
+    });
+    if (!yes) return;
+    await work('Przenoszenie kontaktów z telefonu…', async () => {
+      if (!(await Phone.requestContacts()).granted) return 'Bez dostępu do kontaktów telefonu nie da się ich przenieść.';
+      const { contacts: book } = await Phone.contacts();
+      const result = await importContacts(ctx, book.map(fromPhoneBook), contacts, (done, total) => setBusy(`Zapisywanie kontaktów… ${done}/${total}`));
+      if (result.failed > 0) return `Nie udało się zapisać ${result.failed} kontaktów — z telefonu nic nie usunięto.`;
+      const fresh = await loadContacts(ctx);
+      setContacts(fresh);
+      setBusy('Zapisywanie kontaktów w telefonie…');
+      await contactsNow(ctx, pluginSource, true);
+      const { removed } = await Phone.dropLocal({ keys: phoneKeysOf(fresh) });
+      refreshStatus();
+      return `Przeniesiono: nowych ${result.added}, uzupełnionych ${result.updated}; z pamięci telefonu usunięto ${removed}.`;
+    });
+  };
+
   return (
     <ContactList contacts={contacts} native={native} status={status} busy={busy}
       onImportPhone={() => void importPhone()}
+      onMovePhone={() => void movePhone()}
       onSyncPhone={() => void syncPhone()}
       onImportCards={(text) => void work('Wczytywanie vCard…', async () => {
         const cards = parseVCards(text);
@@ -146,12 +175,13 @@ export default ContactsApp;
 
 /* -- Die Liste ------------------------------------------------------------------------------- */
 
-function ContactList({ contacts, native, status, busy, onImportPhone, onSyncPhone, onImportCards }: {
+function ContactList({ contacts, native, status, busy, onImportPhone, onMovePhone, onSyncPhone, onImportCards }: {
   contacts: readonly Contact[];
   native: boolean;
   status: PhoneStatus | null;
   busy: string | null;
   onImportPhone: () => void;
+  onMovePhone: () => void;
   onSyncPhone: () => void;
   onImportCards: (text: string) => void;
 }) {
@@ -163,16 +193,10 @@ function ContactList({ contacts, native, status, busy, onImportPhone, onSyncPhon
   const groups = useMemo(() => [...new Set(contacts.flatMap((c) => c.groups))].sort((a, b) => a.localeCompare(b, 'pl')), [contacts]);
   const shown = contacts.filter((c) => (group === null || c.groups.includes(group)) && contactMatches(c, query));
 
+  /* `saveBlob`: im Browser ein Download, in der App der Dokumentenwähler — ein <a download> täte dort nichts. */
   const exportCards = () => {
-    const text = formatVCards(shown);
-    const url = URL.createObjectURL(new Blob([text], { type: 'text/vcard' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `kontakty-${new Date().toISOString().slice(0, 10)}.vcf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    void saveBlob(new Blob([formatVCards(shown)], { type: 'text/vcard' }), `kontakty-${new Date().toISOString().slice(0, 10)}.vcf`)
+      .catch(() => toast('Nie udało się zapisać pliku.'));
   };
 
   const pick = (e: ChangeEvent<HTMLInputElement>) => {
@@ -189,6 +213,7 @@ function ContactList({ contacts, native, status, busy, onImportPhone, onSyncPhon
           <a className="wk-btn" href={viewPath('contacts', 'nowy')}><Icon name="plus" />Kontakt</a>
           <MenuButton label="Więcej: Kontakty" items={[
             native && { label: 'Wczytaj z telefonu', icon: 'download', onSelect: onImportPhone },
+            native && { label: 'Przenieś z telefonu do recreatio…', icon: 'upload', onSelect: onMovePhone },
             native && { label: 'Zapisz w telefonie teraz', icon: 'phone', onSelect: onSyncPhone },
             { label: 'Wczytaj vCard (.vcf)', icon: 'upload', onSelect: () => file.current?.click() },
             { label: shown.length === contacts.length ? 'Zapisz wszystkie jako vCard' : `Zapisz widoczne (${shown.length}) jako vCard`, icon: 'download', onSelect: exportCards }
@@ -208,6 +233,7 @@ function ContactList({ contacts, native, status, busy, onImportPhone, onSyncPhon
           </p>
           <div className="wk-actions">
             {contacts.length === 0 && <button type="button" className="wk-btn" disabled={busy !== null} onClick={onImportPhone}>Wczytaj kontakty z telefonu</button>}
+            <button type="button" className="wk-btn wk-btn-quiet" disabled={busy !== null} onClick={onMovePhone}>Przenieś z telefonu…</button>
             <button type="button" className="wk-btn wk-btn-quiet" disabled={busy !== null} onClick={onSyncPhone}>Aktualizuj w telefonie</button>
           </div>
         </section>

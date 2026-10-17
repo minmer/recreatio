@@ -250,9 +250,9 @@ function ArchivedMedia({ ctx, part }: { ctx: PhoneCtx; part: ArchivedPart }) {
   useEffect(() => {
     if (part.file === null || !visual || (!asked && !part.type.startsWith('image/'))) return undefined;
     let alive = true;
-    void archivedFileUrl(ctx, part.file, part.type).then((u) => { if (alive) setUrl(u); });
+    void archivedFileUrl(ctx, part.file, part.type, part.epoch ?? null).then((u) => { if (alive) setUrl(u); });
     return () => { alive = false; };
-  }, [ctx, part.file, part.type, visual, asked]);
+  }, [ctx, part.file, part.type, part.epoch, visual, asked]);
 
   if (part.file === null) {
     const why = part.skipped === 'big' ? 'za duży' : part.skipped === 'off' ? 'bez plików' : 'nie zapisano';

@@ -220,14 +220,16 @@ export function formatVCards(cards: readonly CardData[]): string {
   for (const c of cards) {
     lines.push('BEGIN:VCARD', 'VERSION:3.0');
     lines.push(`FN:${escape(c.name)}`);
-    lines.push(`N:${escape(c.family ?? '')};${escape(c.given ?? (c.family === null ? c.name : ''))};;;`);
+    /* N muss stehen (3.0) — leer, wenn es keine Teile gibt; den Namen trägt FN. */
+    lines.push(`N:${escape(c.family ?? '')};${escape(c.given ?? '')};;;`);
+    /* Ohne Art bleibt es ohne Art — so kommt beim Wiedereinlesen dasselbe heraus. */
     for (const p of c.phones) {
-      const type = p.label === null ? 'CELL' : TYPE_OF[p.label] ?? `X-${p.label.replace(/[^\p{L}\p{N}-]/gu, '')}`;
-      lines.push(`TEL;TYPE=${type}:${p.number}`);
+      const type = p.label === null ? null : TYPE_OF[p.label] ?? `X-${p.label.replace(/[^\p{L}\p{N}-]/gu, '')}`;
+      lines.push(type === null ? `TEL:${p.number}` : `TEL;TYPE=${type}:${p.number}`);
     }
     for (const e of c.emails) {
-      const type = e.label === null ? 'INTERNET' : TYPE_OF[e.label] ?? 'INTERNET';
-      lines.push(`EMAIL;TYPE=${type}:${e.address}`);
+      const type = e.label === null ? null : TYPE_OF[e.label] ?? null;
+      lines.push(type === null ? `EMAIL:${e.address}` : `EMAIL;TYPE=${type}:${e.address}`);
     }
     if (c.org !== null) lines.push(`ORG:${escape(c.org)}`);
     if (c.title !== null) lines.push(`TITLE:${escape(c.title)}`);

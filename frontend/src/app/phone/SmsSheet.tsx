@@ -52,9 +52,11 @@ function SmsSheet({ to, text, onDone }: { to: string; text: string; onDone: (sen
           Ta aplikacja nie jest jeszcze aplikacją SMS telefonu — ustaw ją w <a href={viewPath('sms')} onClick={() => onDone(false)}>SMS</a>.
         </p>
       )}
-      <Composer to={[to]} sims={status?.sims ?? []} defaultSub={status?.defaultSubId ?? null} media={false}
-        disabled={off} initial={text}
-        onSent={() => { toast(`Wysłano SMS do: ${name ?? phoneShown(to)}.`); onDone(true); }} />
+      <div className="ph-sheet">
+        <Composer to={[to]} sims={status?.sims ?? []} defaultSub={status?.defaultSubId ?? null} media={false}
+          disabled={off} initial={text}
+          onSent={() => { toast(`Wysłano SMS do: ${name ?? phoneShown(to)}.`); onDone(true); }} />
+      </div>
     </Modal>
   );
 }

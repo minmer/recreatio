@@ -28,10 +28,12 @@
  * Pille öffnet dann die Liste des Tages. Im Raster stehen nur die Aufgaben
  * mit ihrer Stunde; was von früher liegen blieb, zeigt die Liste.
  *
- * <b>Mehrere Termine zugleich</b> (2026-10-17): „Zaznacz" (oder Strg/Umschalt +
- * Klick) wählt Termine statt sie zu öffnen — über das Blättern hinweg; dann
- * gelten Löschen, Serien beenden und Verschieben für alle (`EventPick.tsx`).
- * Blättern geht auch mit ← → und mit einem Wisch über das Raster.
+ * <b>Mehrere Termine zugleich</b> (2026-10-17): ein Rechteck mit der Maus,
+ * ein langer Druck mit dem Finger, oder Strg + Klick wählt Termine — über das
+ * Blättern hinweg; dann: ausschneiden / kopieren und auf einen Tag oder eine
+ * Stunde einfügen, ziehen und fallen lassen, löschen, Serien beenden,
+ * verschieben (`EventPick.tsx`, `usePickGestures.ts`). Blättern geht auch
+ * mit ← → und mit einem Wisch über das Raster.
  *
  * <b>Reservierungen stehen am Termin</b> (0057): an einem angebotenen Termin,
  * wie viele Plätze besetzt sind und wer wartet; ein Klick zeigt die
@@ -50,12 +52,13 @@ import {
   buildEvents, hueOf, laneDay, linkOfEvent, marksOn, monthsRange, treeOrder, onDay as happensOn, placeDay, railDay, settled, stepView, taskMarks, viewRange,
   wholeDay, type CalEvent, type CalView, type Laned, type Placed, type TaskMark
 } from './calendarModel';
-import { addDays, addMonths, firstOfMonth, keyOf, longDate, monthOfName, monthTitle, rangeTitle, sameDay, startOfDay, WEEK_HEADS, weekdayName } from '../core/dayMath';
+import { addDays, addMonths, firstOfMonth, fromKey, keyOf, longDate, monthOfName, monthTitle, rangeTitle, sameDay, startOfDay, WEEK_HEADS, weekdayName } from '../core/dayMath';
 import { CALENDAR_KIND_LABEL, loadCalendars, type CalendarRow } from './calendar';
 import { CalendarSettings } from './CalendarSettings';
 import { calendarLabel } from './calendarLabel';
 import type { EventTarget } from './EventDialog';
-import { pickable, PickBar } from './EventPick';
+import { pasteClip, pickable, PickBar, tellPasted, terms, usePickActions, type Clip, type PasteAt } from './EventPick';
+import { usePickGestures } from './usePickGestures';
 import { ItemLink } from './ItemLink';
 import { intentionsWord } from '../masses/mass';
 import { useNow } from '../masses/MassParts';
@@ -84,6 +87,9 @@ const HOUR = 48;
 
 /** 2026-10-17 — die Stufen des Zoomens: so hoch darf eine Stunde sein (px). */
 const HOURS = [24, 32, 40, 48, 64, 80, 96, 128] as const;
+
+/** 2026-10-17 — was ausgeschnitten im Schoss liegt: blass, bis es eingefügt ist. */
+const CutKeys = createContext<ReadonlySet<string>>(new Set());
 
 /** Die Höhe einer Stunde, für alles, was im Raster steht (Schienen, Kästen). */
 const HourHeight = createContext<number>(HOUR);
@@ -200,9 +206,17 @@ export function Calendar({ me, scope, startNew, at }: {
   /* Die Aufgabe, an der gerade abgehakt wird — bis die frischen Daten da sind, sonst spränge das Häkchen kurz zurück. */
   const [taskBusy, setTaskBusy] = useState<string | null>(null);
   const [taskFailed, setTaskFailed] = useState<string | null>(null);
-  /* 2026-10-17 — mehrere Termine zugleich: die Auswahl hält über das Blättern hinweg (darum die Termine selbst, nicht nur ihre Schlüssel). */
-  const [picking, setPicking] = useState(false);
+  /*
+   * 2026-10-17 — MEHRERE TERMINE ZUGLEICH (`EventPick.tsx`): gewählt wird, solange
+   * etwas gewählt ist; die Auswahl hält über das Blättern hinweg (darum die
+   * Termine selbst, nicht nur ihre Schlüssel). `live`: was das Rechteck gerade
+   * berührt (nur zum Zeigen); `clip`: was ausgeschnitten oder kopiert ist.
+   */
   const [picked, setPicked] = useState<ReadonlyMap<string, CalEvent>>(new Map());
+  const [live, setLive] = useState<{ keys: ReadonlySet<string>; add: boolean } | null>(null);
+  const [clip, setClip] = useState<Clip | null>(null);
+  const [pasting, setPasting] = useState(false);
+  const picking = picked.size > 0;
   /* Strg/⌘/Umschalt beim Klick — vor dem Klick des Termins gemerkt (onClickCapture). */
   const multi = useRef(false);
   const swipe = useRef<{ x: number; y: number } | null>(null);
@@ -280,7 +294,8 @@ export function Calendar({ me, scope, startNew, at }: {
         });
     },
     open: (task) => setTaskDialog({ task }),
-    add: (at) => setTaskDialog({ task: null, at })
+    /* Auch mit breiten Aufgaben: liegt etwas im Schoss, kommt es hierher. */
+    add: (at) => { if (!claimClick({ day: at, at })) setTaskDialog({ task: null, at }); }
   };
 
   const shownCalendars = [...new Set(all.map((e) => e.calendarId).filter((id): id is string => id !== undefined))]
@@ -320,14 +335,74 @@ export function Calendar({ me, scope, startNew, at }: {
   }, [data]);
 
   const togglePick = (event: CalEvent) => {
-    setPicking(true);
     setPicked((was) => {
       const next = new Map(was);
       if (next.has(event.key)) next.delete(event.key); else next.set(event.key, event);
       return next;
     });
   };
-  const stopPicking = () => { setPicking(false); setPicked(new Map()); };
+  const stopPicking = () => { setPicked(new Map()); setClip(null); };
+  const byKey = new Map(all.map((e) => [e.key, e]));
+  const eventOf = (key: string) => byKey.get(key) ?? picked.get(key);
+  const pickActions = usePickActions(me, [...picked.values()], () => { setPicked(new Map()); reload(); });
+
+  /* In den Schoss: die Auswahl wird zum Ausgeschnittenen (blass) oder Kopierten — und ist dann nicht mehr gewählt. */
+  const toClip = (mode: Clip['mode']) => {
+    if (picked.size === 0) return;
+    setClip({ mode, events: [...picked.values()] });
+    setPicked(new Map());
+  };
+
+  /* Einfügen: aus dem Schoss (nach dem Verschieben ist er leer, eine Kopie bleibt für die nächste Stelle) oder gezogen. */
+  const paste = (target: PasteAt, from: Clip | null = clip, fromClip = true) => {
+    if (from === null || pasting) return;
+    setPasting(true);
+    void pasteClip(me.ring, from, target, all).then((result) => {
+      setPasting(false);
+      if (fromClip && from.mode === 'cut') setClip(null);
+      tellPasted(result, from.mode, reload);
+      reload();
+    });
+  };
+
+  /* Ein Klick ins Leere (eine Stunde, ein Tag): einfügen, was im Schoss liegt — sonst hebt er eine Auswahl auf. */
+  const claimClick = (target: PasteAt): boolean => {
+    if (clip !== null) { paste(target); return true; }
+    if (picking) { setPicked(new Map()); return true; }
+    return false;
+  };
+
+  /* Wohin es fällt, in Worten — am Zettel beim Ziehen. */
+  const dropLabel = (count: number, target: PasteAt | null, copy: boolean) => {
+    const what = `${copy ? 'Kopiuj' : 'Przenieś'} ${terms(count)}`;
+    if (target === null) return what;
+    const d = target.day;
+    return `${what} → ${WEEK_HEADS[(d.getDay() + 6) % 7]}, ${d.getDate()} ${monthOfName(d).slice(0, 3)}${target.at !== undefined ? `, ${time(target.at)}` : ''}`;
+  };
+
+  const gestures = usePickGestures(data !== null, {
+    isPicked: (key) => picked.has(key),
+    pickedKeys: () => [...picked.keys()],
+    onLive: (keys, add) => setLive(keys === null ? null : { keys, add }),
+    onLasso: (found, add) => {
+      setLive(null);
+      setPicked((was) => {
+        const next = new Map(add ? was : []);
+        for (const key of found) { const e = eventOf(key); if (e !== undefined) next.set(key, e); }
+        return next;
+      });
+    },
+    onLongPress: (key) => {
+      const e = eventOf(key);
+      if (e !== undefined) setPicked((was) => new Map(was).set(key, e));
+    },
+    onDrop: (keys, target, copy) => {
+      const list = keys.map(eventOf).filter((e): e is CalEvent => e !== undefined);
+      setPicked(new Map());
+      paste(target, { mode: copy ? 'copy' : 'cut', events: list }, false);
+    },
+    dropLabel
+  });
 
   const open = (event: CalEvent) => {
     if (picking || multi.current) {
@@ -345,20 +420,38 @@ export function Calendar({ me, scope, startNew, at }: {
   const waiting = bookings.waiting.length;
   const step = (direction: 1 | -1) => setAnchor(stepView(view, anchor, direction));
 
-  /* ← → blättern, Esc beendet die Auswahl — nicht in einem Feld, nicht hinter einem Dialog, nicht als Baustein einer Seite. */
+  /*
+   * TASTEN — nicht in einem Feld, nicht hinter einem Dialog, nicht als Baustein einer Seite:
+   * ← → blättern; Esc hebt Auswahl und Schoss auf; Strg+X / Strg+C legen die Auswahl in den
+   * Schoss, Strg+V fügt in der Tagesansicht auf diesen Tag ein; Entf löscht die Auswahl.
+   */
   const quiet = dialog === null && taskDialog === null && taskDay === null && settings === null && !calendarsOpen && reservation === null && !waitingOpen;
-  const keys = useRef({ step, stopPicking, quiet });
-  keys.current = { step, stopPicking, quiet };
+  const pasteHere = () => {
+    if (view === 'day') paste({ day: anchor });
+    else toast('Kliknij dzień albo godzinę, gdzie mają trafić.');
+  };
+  const keys = useRef({ step, stopPicking, quiet, picking, hasClip: clip !== null, toClip, pasteHere, remove: pickActions.removeThese });
+  keys.current = { step, stopPicking, quiet, picking, hasClip: clip !== null, toClip, pasteHere, remove: pickActions.removeThese };
   useEffect(() => {
     if (scoped) return undefined;
     const onKey = (e: KeyboardEvent) => {
-      if (!keys.current.quiet || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.defaultPrevented) return;
+      const now = keys.current;
+      if (!now.quiet || e.defaultPrevented) return;
       const target = e.target as HTMLElement | null;
       if (target !== null && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
       if (document.querySelector('[role="dialog"], [role="menu"]') !== null) return;
-      if (e.key === 'ArrowLeft') { e.preventDefault(); keys.current.step(-1); }
-      else if (e.key === 'ArrowRight') { e.preventDefault(); keys.current.step(1); }
-      else if (e.key === 'Escape') keys.current.stopPicking();
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+        const key = e.key.toLowerCase();
+        /* Ist Text markiert, bleibt Strg+C beim Text. */
+        if ((key === 'x' || key === 'c') && now.picking && (window.getSelection()?.toString() ?? '') === '') { e.preventDefault(); now.toClip(key === 'x' ? 'cut' : 'copy'); }
+        else if (key === 'v' && now.hasClip) { e.preventDefault(); now.pasteHere(); }
+        return;
+      }
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); now.step(-1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); now.step(1); }
+      else if (e.key === 'Escape') now.stopPicking();
+      else if ((e.key === 'Delete' || e.key === 'Backspace') && now.picking) { e.preventDefault(); void now.remove(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -368,11 +461,14 @@ export function Calendar({ me, scope, startNew, at }: {
   const swiped = (x: number, y: number) => {
     const from = swipe.current;
     swipe.current = null;
-    if (from === null) return;
+    /* Hat diese Berührung gewählt (langer Druck, Rechteck), war sie kein Wisch. */
+    if (from === null || gestures.used.current) return;
     const dx = x - from.x;
     if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(y - from.y)) step(dx < 0 ? 1 : -1);
   };
-  const pickedKeys = new Set(picked.keys());
+  /* Gezeigt wird die Auswahl — während des Rechtecks samt dem, was es berührt. */
+  const pickedKeys: ReadonlySet<string> = live === null ? new Set(picked.keys()) : live.add ? new Set([...picked.keys(), ...live.keys]) : live.keys;
+  const cutKeys: ReadonlySet<string> = clip?.mode === 'cut' ? new Set(clip.events.map((e) => e.key)) : new Set();
 
   return (
     <div className="wk-cal2" onClickCapture={(e) => { multi.current = e.ctrlKey || e.metaKey || e.shiftKey; }}>
@@ -406,18 +502,8 @@ export function Calendar({ me, scope, startNew, at }: {
           )}
           {!scoped && <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setTaskDialog({ task: null })}>+ Zadanie</button>}
           {!scoped && <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setCalendarsOpen(true)}>Kalendarze</button>}
-          {(picking || all.some(pickable)) && (
-            <button type="button" className="wk-btn wk-btn-quiet" aria-pressed={picking}
-              title="Zaznacz kilka terminów i zmień je razem (także Ctrl + klik)"
-              onClick={() => (picking ? stopPicking() : setPicking(true))}>Zaznacz</button>
-          )}
         </div>
       </div>
-
-      {picking && (
-        <PickBar me={me} picked={[...picked.values()]} onClear={stopPicking}
-          onDone={() => { setPicked(new Map()); reload(); }} />
-      )}
 
       {(shownCalendars.length > 0 || waiting > 0 || allMarks.length > 0) && (
         <div className="wk-cal2-groups" role="group" aria-label="Co pokazać">
@@ -458,20 +544,26 @@ export function Calendar({ me, scope, startNew, at }: {
       {data === null && failed === null && <Loading label="Wczytywanie…" />}
 
       {data !== null && (
-        <div className="wk-cal2-views"
+        <CutKeys.Provider value={cutKeys}>
+        <div ref={gestures.ref} className={`wk-cal2-views${clip !== null ? ' is-pasting' : ''}${pasting ? ' is-busy' : ''}`}
+
           onTouchStart={(e) => { swipe.current = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null; }}
           onTouchEnd={(e) => swiped(e.changedTouches[0].clientX, e.changedTouches[0].clientY)}>
           {(view === 'day' || view === 'week') && (
             <TimeGrid days={days} events={events} marks={marks} now={now}
               /* 2026-10-17 — im Tag führt das Datum ins Monatsblatt (umrandet), in der Woche in den Tag. */
-              onDay={(day) => { setAnchor(day); if (view === 'day') { setMarkDay(day); setViewText('month'); } else setViewText('day'); }}
-              onSlot={(at, allDay) => { if (!picking) newAt(at, allDay); }} onOpen={open} onTasks={setTaskDay} areas={areas}
+              onDay={(day) => {
+                if (clip !== null) { paste({ day }); return; }
+                setAnchor(day);
+                if (view === 'day') { setMarkDay(day); setViewText('month'); } else setViewText('day');
+              }}
+              onSlot={(at, allDay) => { if (!claimClick(allDay ? { day: at } : { day: at, at })) newAt(at, allDay); }} onOpen={open} onTasks={setTaskDay} areas={areas}
               focus={focus} onFocus={setFocusText} tasks={taskActs} picked={pickedKeys} onStep={step} hour={hour} onZoom={zoom} />
           )}
 
           {view === 'month' && (
             <MonthGrid anchor={anchor} from={range.from} to={range.to} events={events} marks={marks} now={now}
-              onDay={(day) => { setAnchor(day); setMarkDay(day); setViewText('day'); }} onOpen={open} onTasks={setTaskDay} picked={pickedKeys}
+              onDay={(day) => { if (clip !== null) { paste({ day }); return; } setAnchor(day); setMarkDay(day); setViewText('day'); }} onOpen={open} onTasks={setTaskDay} picked={pickedKeys}
               firstMonth={addMonths(anchor, -shownMore.before)} lastMonth={addMonths(anchor, shownMore.after)} marked={markDay}
               onReveal={shownMore.before + shownMore.after < MAX_MORE ? reveal : undefined} />
           )}
@@ -480,6 +572,14 @@ export function Calendar({ me, scope, startNew, at }: {
             <ListView from={range.from} events={events} marks={marks} now={now} areas={areas} onOpen={open} onTasks={setTaskDay} picked={pickedKeys} />
           )}
         </div>
+        </CutKeys.Provider>
+      )}
+
+      {/* Unter dem Kalender, beim Rollen unten am Bildschirm — oben stehen die Köpfe der Tage und des Monats. */}
+      {(picking || clip !== null) && (
+        <PickBar picked={[...picked.values()]} clip={clip} actions={pickActions}
+          onCut={() => toClip('cut')} onCopy={() => toClip('copy')}
+          onClear={() => setPicked(new Map())} onClearClip={() => setClip(null)} />
       )}
 
       {dialog !== null && (
@@ -541,7 +641,7 @@ export function Calendar({ me, scope, startNew, at }: {
 /** 0058 — die Farbe eines Termins: die seines Kalenders. */
 const hueOfEvent = (event: CalEvent) => hueOf(event.calendarId ?? event.areaId);
 
-function chipClass(event: CalEvent, picked?: ReadonlySet<string>): string {
+function chipClass(event: CalEvent, picked?: ReadonlySet<string>, cut?: ReadonlySet<string>): string {
   const offer = event.offer;
   const waits = offer !== undefined ? waitingOn(offer) > 0 : event.booking !== undefined && waitsForOffice(event.booking);
   return ['wk-ev', `is-${event.source}`,
@@ -551,7 +651,8 @@ function chipClass(event: CalEvent, picked?: ReadonlySet<string>): string {
     offer !== undefined && offer.taken === 0 && 'is-empty',
     offer?.closedBy != null && 'is-closed',
     waits && 'has-waiting',
-    picked?.has(event.key) === true && 'is-picked']
+    picked?.has(event.key) === true && 'is-picked',
+    cut?.has(event.key) === true && 'is-cut']
     .filter(Boolean).join(' ');
 }
 
@@ -631,6 +732,7 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
   onZoom?: (direction: 1 | -1) => void;
 }) {
   const scroller = useRef<HTMLDivElement | null>(null);
+  const cut = useContext(CutKeys);
   const hourNow = useRef(hour);
   const zoomNow = useRef(onZoom);
   zoomNow.current = onZoom;
@@ -703,7 +805,7 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
         ) : <span className="wk-cal2-corner" />}
         {/* 2026-10-17 — wo Platz ist, der ganze Name des Tages und der Monat (`@container` in personal.css). */}
         {days.map((day) => (
-          <button key={keyOf(day)} type="button" className={`wk-cal2-dayhead${sameDay(day, now) ? ' is-today' : ''}`}
+          <button key={keyOf(day)} type="button" className={`wk-cal2-dayhead${sameDay(day, now) ? ' is-today' : ''}`} data-day={keyOf(day)}
             aria-label={longDate(day)} title={onStep === undefined ? undefined : one ? 'Pokaż cały miesiąc' : 'Pokaż ten dzień'} onClick={() => onDay(day)}>
             <span className="wk-cal2-dow">
               <span className="wk-cal2-short">{WEEK_HEADS[(day.getDay() + 6) % 7]}</span>
@@ -718,10 +820,11 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
       <div className="wk-cal2-allday">
         <span className="wk-cal2-corner wk-cal2-alllabel">cały dzień</span>
         {days.map((day) => (
-          <div key={keyOf(day)} className="wk-cal2-allcell"
+          <div key={keyOf(day)} className="wk-cal2-allcell" data-day={keyOf(day)}
             onClick={(e) => { if (e.target === e.currentTarget) onSlot(startOfDay(day), true); }}>
             {events.filter((e) => wholeDay(e) && happensOn(e, day)).map((e) => (
-              <button key={e.key} type="button" className={chipClass(e, picked)} style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}
+              <button key={e.key} type="button" className={chipClass(e, picked, cut)} style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}
+                data-pick={pickable(e) ? e.key : undefined}
                 title={hint(e, areas)} aria-pressed={picked?.has(e.key)} onClick={() => onOpen(e)}>
                 <span className="wk-ev-title">{e.title}</span>
                 <Badges event={e} />
@@ -757,7 +860,7 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
           </div>
 
           {days.map((day) => (
-            <div key={keyOf(day)} className={`wk-cal2-col${sameDay(day, now) ? ' is-today' : ''}`}
+            <div key={keyOf(day)} className={`wk-cal2-col${sameDay(day, now) ? ' is-today' : ''}`} data-day={keyOf(day)} data-slot=""
               onClick={(e) => { if (e.target === e.currentTarget) slotFrom(day, e); }}>
               {/* Ein Klick auf die Schiene gibt den Aufgaben die Breite; ohne das Umschalten öffnet er ihre Liste. */}
               {rail > 0 && !wide && <Rail marks={marks} day={day} onOpen={() => (onFocus !== undefined && tasks !== undefined ? onFocus('tasks') : onTasks(day))} />}
@@ -771,7 +874,8 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
                 return (
                   <button key={p.event.key} type="button"
                     aria-pressed={picked?.has(p.event.key)}
-                    className={`${chipClass(p.event, picked)}${tall < TALL ? ' is-short' : ''}${p.depth > 0 ? ' is-part' : ''}${p.nested ? ' has-parts' : ''}`}
+                    data-pick={pickable(p.event) ? p.event.key : undefined}
+                    className={`${chipClass(p.event, picked, cut)}${tall < TALL ? ' is-short' : ''}${p.depth > 0 ? ' is-part' : ''}${p.nested ? ' has-parts' : ''}`}
                     style={{
                       '--ev-h': hueOfEvent(p.event),
                       top: `${(p.top / 60) * hour}px`,
@@ -929,6 +1033,10 @@ function EventRail({ events, day, areas, onOpen }: { events: readonly CalEvent[]
  * Der Monat. 2026-10-17 — ein Klick auf einen Tag ÖFFNET diesen Tag (auch ins
  * Leere der Zelle): wer im Monat blättert, sucht einen Tag; ein Termin um neun
  * Uhr, der bei jedem Klick aufging, war nie gemeint. Neu anlegen: „+ Termin".
+ *
+ * 2026-10-17 — DER KOPF BLEIBT OBEN: die Wochentage und, wie der Tag in den
+ * Rozmowy, der Monat, in dem man gerade liest (bei mehreren aufgedeckten der
+ * der obersten sichtbaren Woche — nach ihrem Donnerstag, wie die Kalenderwoche).
  */
 export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen, onTasks, readOnly = false, picked, firstMonth = anchor, lastMonth = anchor, marked = null, onReveal }: {
   anchor: Date;
@@ -951,6 +1059,7 @@ export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen,
   /** 2026-10-17 — oben und unten: den Monat davor / danach dazunehmen. */
   onReveal?: (side: 'before' | 'after') => void;
 }) {
+  const cut = useContext(CutKeys);
   const length = to === undefined ? 42 : Math.max(42, Math.round((to.getTime() - from.getTime()) / 86400_000));
   const days = Array.from({ length }, (_, i) => addDays(from, i));
   const shownFrom = firstOfMonth(firstMonth).getTime();
@@ -959,51 +1068,87 @@ export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen,
   const inside = (day: Date) => day.getTime() >= shownFrom && day.getTime() < shownTo;
   const SHOWN = 3;
 
-  const grid = (
-    <div className={`wk-cal2-month${readOnly ? ' is-readonly' : ''}`}>
-      {WEEK_HEADS.map((head) => <span key={head} className="wk-mass-month-dow" aria-hidden="true">{head}</span>)}
-      {days.map((day) => {
-        /* 0074 — Teile stehen im Monat nicht einzeln: ihr Ganzes sagt, wie viele es hat. */
-        const mine = treeOrder(events.filter((e) => happensOn(e, day))).filter((t) => t.depth === 0);
-        return (
-          <div key={keyOf(day)}
-            className={`wk-cal2-cell${inside(day) ? '' : ' is-out'}${sameDay(day, now) ? ' is-today' : ''}${marked !== null && sameDay(day, marked) ? ' is-marked' : ''}`}
-            onClick={(e) => { if ((e.target as Element).closest('button, a') === null) onDay(day); }}>
-            <span className="wk-cal2-cellhead">
-              <button type="button" className="wk-cal2-cellday" aria-label={longDate(day)} onClick={() => onDay(day)}>
-                {day.getDate()}{several && day.getDate() === 1 && inside(day) ? ` ${monthOfName(day).slice(0, 3)}` : ''}
-              </button>
-              <TaskPill marks={marksOn(marks, day)} onOpen={() => onTasks(day)} mini />
-            </span>
-            {mine.slice(0, SHOWN).map(({ event: e, parts }) => (
-              <button key={e.key} type="button" className={`${chipClass(e, picked)} is-line`} aria-pressed={picked?.has(e.key)} style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}
-                title={parts > 0 ? `${e.title} — punkty programu: ${parts}` : e.title} onClick={() => onOpen(e)}>
-                {!wholeDay(e) && <span className="wk-ev-time">{time(e.start)}</span>}
-                <span className="wk-ev-title">{e.title}</span>
-                {parts > 0 && <span className="wk-ev-parts">+{parts}</span>}
-                <Badges event={e} />
-              </button>
-            ))}
-            {mine.length > SHOWN && (
-              <button type="button" className="wk-link-btn wk-cal2-more" onClick={() => onDay(day)}>+{mine.length - SHOWN} więcej</button>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-
-  if (onReveal === undefined) return grid;
+  /* Welcher Monat oben steht: bei einem der Monat selbst, bei mehreren der der obersten sichtbaren Woche. */
+  const head = useRef<HTMLDivElement | null>(null);
+  const cells = useRef<HTMLDivElement | null>(null);
+  const [topMonth, setTopMonth] = useState<number | null>(null);
+  useEffect(() => {
+    if (!several) { setTopMonth(null); return undefined; }
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      if (head.current === null || cells.current === null) return;
+      const line = head.current.getBoundingClientRect().bottom + 2;
+      const all = cells.current.querySelectorAll<HTMLElement>('[data-day]');
+      for (let i = 0; i < all.length; i += 7) {
+        if (all[i].getBoundingClientRect().bottom <= line) continue;
+        const thursday = fromKey(all[Math.min(i + 3, all.length - 1)].dataset.day ?? '');
+        const month = Math.min(Math.max(firstOfMonth(thursday).getTime(), shownFrom), addMonths(lastMonth, 0).getTime());
+        setTopMonth(month);
+        return;
+      }
+    };
+    const onScroll = () => { if (frame === 0) frame = requestAnimationFrame(measure); };
+    measure();
+    document.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, [several, from.getTime(), length, shownFrom, shownTo]);
+  const title = monthTitle(topMonth !== null ? new Date(topMonth) : several ? firstMonth : anchor);
 
   return (
     <div className="wk-cal2-monthwrap">
-      <button type="button" className="wk-cal2-reveal" onClick={() => onReveal('before')}>
-        <span aria-hidden="true">▲</span> Pokaż też {monthTitle(addMonths(firstMonth, -1))}
-      </button>
-      {grid}
-      <button type="button" className="wk-cal2-reveal" onClick={() => onReveal('after')}>
-        <span aria-hidden="true">▼</span> Pokaż też {monthTitle(addMonths(lastMonth, 1))}
-      </button>
+      {onReveal !== undefined && (
+        <button type="button" className="wk-cal2-reveal" onClick={() => onReveal('before')}>
+          <span aria-hidden="true">▲</span> Pokaż też {monthTitle(addMonths(firstMonth, -1))}
+        </button>
+      )}
+      <div className="wk-cal2-monthhead" ref={head}>
+        <span className="wk-cal2-monthname"><span aria-live="polite">{title}</span></span>
+        <div className="wk-cal2-monthdows" aria-hidden="true">
+          {WEEK_HEADS.map((one) => <span key={one} className="wk-mass-month-dow">{one}</span>)}
+        </div>
+      </div>
+      <div className={`wk-cal2-month${readOnly ? ' is-readonly' : ''}`} ref={cells}>
+        {days.map((day) => {
+          /* 0074 — Teile stehen im Monat nicht einzeln: ihr Ganzes sagt, wie viele es hat. */
+          const mine = treeOrder(events.filter((e) => happensOn(e, day))).filter((t) => t.depth === 0);
+          return (
+            <div key={keyOf(day)} data-day={keyOf(day)}
+              className={`wk-cal2-cell${inside(day) ? '' : ' is-out'}${sameDay(day, now) ? ' is-today' : ''}${marked !== null && sameDay(day, marked) ? ' is-marked' : ''}`}
+              onClick={(e) => { if ((e.target as Element).closest('button, a') === null) onDay(day); }}>
+              <span className="wk-cal2-cellhead">
+                <button type="button" className="wk-cal2-cellday" aria-label={longDate(day)} onClick={() => onDay(day)}>
+                  {day.getDate()}{several && day.getDate() === 1 && inside(day) ? ` ${monthOfName(day).slice(0, 3)}` : ''}
+                </button>
+                <TaskPill marks={marksOn(marks, day)} onOpen={() => onTasks(day)} mini />
+              </span>
+              {mine.slice(0, SHOWN).map(({ event: e, parts }) => (
+                <button key={e.key} type="button" className={`${chipClass(e, picked, cut)} is-line`} aria-pressed={picked?.has(e.key)} style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}
+                  data-pick={pickable(e) ? e.key : undefined}
+                  title={parts > 0 ? `${e.title} — punkty programu: ${parts}` : e.title} onClick={() => onOpen(e)}>
+                  {!wholeDay(e) && <span className="wk-ev-time">{time(e.start)}</span>}
+                  <span className="wk-ev-title">{e.title}</span>
+                  {parts > 0 && <span className="wk-ev-parts">+{parts}</span>}
+                  <Badges event={e} />
+                </button>
+              ))}
+              {mine.length > SHOWN && (
+                <button type="button" className="wk-link-btn wk-cal2-more" onClick={() => onDay(day)}>+{mine.length - SHOWN} więcej</button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {onReveal !== undefined && (
+        <button type="button" className="wk-cal2-reveal" onClick={() => onReveal('after')}>
+          <span aria-hidden="true">▼</span> Pokaż też {monthTitle(addMonths(lastMonth, 1))}
+        </button>
+      )}
     </div>
   );
 }
@@ -1020,6 +1165,7 @@ export function ListView({ from, events, marks, now, areas, onOpen, onTasks, pic
   onTasks: (day: Date) => void;
   picked?: ReadonlySet<string>;
 }) {
+  const cut = useContext(CutKeys);
   const days = Array.from({ length: 30 }, (_, i) => addDays(from, i))
     .map((day) => ({ day, list: events.filter((e) => happensOn(e, day)), tasks: marksOn(marks, day) }))
     .filter((one) => one.list.length > 0 || one.tasks.length > 0);
@@ -1039,17 +1185,18 @@ export function ListView({ from, events, marks, now, areas, onOpen, onTasks, pic
   return (
     <div className="wk-cal2-list">
       {days.map(({ day, list, tasks }) => (
-        <section key={keyOf(day)} className={`wk-cal2-listday${sameDay(day, now) ? ' is-today' : ''}`}>
+        <section key={keyOf(day)} className={`wk-cal2-listday${sameDay(day, now) ? ' is-today' : ''}`} data-day={keyOf(day)}>
           <div className="wk-cal2-listhead">
             <h3 className="wk-mass-day-name">{longDate(day)}</h3>
             <TaskPill marks={tasks} onOpen={() => onTasks(day)} />
           </div>
           {treeOrder(list).map(({ event: e, depth }) => (
-            <div key={e.key} className={`wk-cal2-listrow${depth > 0 ? ' is-part' : ''}${picked?.has(e.key) === true ? ' is-picked' : ''}`} style={{ '--ev-h': hueOfEvent(e), '--depth': depth } as CSSProperties}>
+            <div key={e.key} className={`wk-cal2-listrow${depth > 0 ? ' is-part' : ''}${picked?.has(e.key) === true ? ' is-picked' : ''}${cut.has(e.key) ? ' is-cut' : ''}`} style={{ '--ev-h': hueOfEvent(e), '--depth': depth } as CSSProperties}>
               {depth > 0 && <span className="wk-cal2-partmark" aria-hidden="true">↳</span>}
               <span className="wk-cal2-dot" aria-hidden="true" />
               <span className="wk-cal2-listtime">{wholeDay(e) ? 'cały dzień' : `${time(e.start)}–${time(e.end)}`}</span>
-              <button type="button" className={`wk-link-btn wk-cal2-listtitle${e.cancelled ? ' is-cancelled' : ''}`} aria-pressed={picked?.has(e.key)} onClick={() => onOpen(e)}>
+              <button type="button" className={`wk-link-btn wk-cal2-listtitle${e.cancelled ? ' is-cancelled' : ''}`} aria-pressed={picked?.has(e.key)}
+                data-pick={pickable(e) ? e.key : undefined} onClick={() => onOpen(e)}>
                 {e.title}
               </button>
               <span className="wk-row-side">{side(e)}</span>

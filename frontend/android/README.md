@@ -24,7 +24,7 @@ The scripts find Android Studio and Visual Studio installs by themselves. Otherw
 ```sh
 cd frontend
 npm run android:keystore        # once — creates the signing key outside the repo
-npm run android:apk             # signed release  → android-out/recreatio-<version>.apk
+npm run android:apk             # signed release  → android-out/recreatio-<version>.apk (+ recreatio-sms-<version>.apk)
 npm run android:release         # APK + AAB (for Google Play) → android-out/
 npm run android:publish         # newest AAB → Google Play, internal testing, draft
 npm run android:apk -- --debug  # debug build, WebView inspectable via chrome://inspect
@@ -119,6 +119,31 @@ The crypto is not re-implemented in Java. The runner is the app's own TypeScript
 ```sh
 adb shell am broadcast -n pl.recreatio.app/.DebugWake -a pl.recreatio.app.DEBUG_WAKE
 ```
+
+## The SMS edition
+
+The same app with SMS, MMS and the phone's address book. It is meant for one phone and never goes to Google Play. `npm run android:apk` and `npm run android:release` build it in the same run as `android-out/recreatio-sms-<version>.apk` (Gradle flavour `sms`, native code in `app/src/sms/`). It has the same application id and signature as the normal app, so a phone has one or the other, and each installs over the other with the data kept.
+
+| What | Where |
+| --- | --- |
+| Being the phone's SMS app: receiving SMS and MMS, sending both, notifications with a reply field, quick replies to calls, `sms:` links. The phone's own message store stays the store. | `SmsReceiver`, `MmsReceiver` (own PDU codec `MmsPdu`), `SmsSender`, `SmsNotices`, `RespondService`, `ComposeActivity` |
+| The SMS view `#/workspace/sms`: threads, one thread, a new message. It is separate from Rozmowy. | `src/app/phone/SmsApp.tsx`, `Composer.tsx` |
+| "Napisz SMS" in Formularze → Osoby opens a sheet that sends at once, and the list stays where it was. | `SmsSheet.tsx` |
+| The archive: new messages go into the own area, sealed, shortly after they arrive or are sent, and twice a day. The browser can read it too. | `smsArchive.ts`, `PhoneWork` → runner, `backend/Api/Phone/` |
+| Contacts `#/workspace/contacts`, sealed in the own area: read from the phone, vCard in and out, and edited here. A copy goes into the phone's contacts under the account "REcreatio" after every change and twice a day, so calls and SMS show names without asking the service. | `ContactsApp.tsx`, `contactStore.ts`, `PhoneContacts.java` |
+| "Przenieś z telefonu…" reads the phone's contacts in, writes the copy, then removes the originals that live only in the phone's own storage (no account). Contacts of DAVx5, Signal or the SIM stay. | `PhoneContacts.dropLocal` |
+
+Install on GrapheneOS:
+
+1. Install `recreatio-sms-<version>.apk` over the normal app.
+2. If Google Messages is installed, turn off its RCS chats first.
+3. *App info → ⋮ → Allow restricted settings*. Android asks for this before an app from outside a store may become the SMS app.
+4. In the app, open *SMS → Ustaw jako aplikację SMS*, then allow contacts.
+5. *Konto → Klucz: Zachowany*, so the archive and the contact copy also run while the app is closed (the runner needs the key, as for notifications).
+
+The service needs migration 0114 (`phone_*` tables) and an API with `Phone/` before the archive and the contacts work.
+
+MMS has not been tried against a real carrier, because the emulator has no MMSC. The PDU codec has unit tests (`app/src/testSms`).
 
 ## Not there yet
 

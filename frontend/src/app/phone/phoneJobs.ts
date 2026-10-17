@@ -35,10 +35,16 @@ export function archiveNow(ctx: PhoneCtx, source: PhoneSource, options: { full?:
 
 export const archiveRunning = (): boolean => archiving !== null;
 
-/** Die Kontakte ins Telefon — nie zweimal zugleich. */
-export function contactsNow(ctx: PhoneCtx, source: PhoneSource): ReturnType<typeof toPhone> {
-  if (writing === null) writing = toPhone(ctx, source).finally(() => { writing = null; });
-  return writing;
+/**
+ * Die Kontakte ins Telefon — nie zweimal zugleich. Läuft schon ein Abgleich, bekommt man dessen
+ * Ergebnis; `again`: danach noch einer, denn der laufende hat die Liste VOR einer Änderung gelesen.
+ */
+export function contactsNow(ctx: PhoneCtx, source: PhoneSource, again = false): ReturnType<typeof toPhone> {
+  if (writing !== null && !again) return writing;
+  const mine = (writing ?? Promise.resolve()).catch(() => undefined).then(() => toPhone(ctx, source));
+  writing = mine;
+  mine.then(() => undefined, () => undefined).finally(() => { if (writing === mine) writing = null; });
+  return mine;
 }
 
 /** Ein Auftrag des Läufers (`runner.ts`). `locked`: ohne Schlüssel oder Sitzung — Wiederholen hilft nicht. */
@@ -67,8 +73,8 @@ let started = false;
 /**
  * KURZ NACH DEM START der App (Ausgabe „sms"): merken, dass es das Telefon
  * gibt (dann stehen SMS und Kontakte auch im Browser im Menü), das Adressbuch
- * auffrischen, wenn es länger als zwölf Stunden her ist, und archivieren, was
- * seit einer halben Stunde dazukam.
+ * auffrischen, wenn es länger als eine Stunde her ist (Änderungen aus dem
+ * Browser), und archivieren, was seit einer halben Stunde dazukam.
  */
 export function startPhone(who: Who): void {
   if (started || !phoneHere()) return;
@@ -79,7 +85,7 @@ export function startPhone(who: Who): void {
       const status = await Phone.status();
       const ctx = await openPhone(who);
       const hour = 3600_000;
-      if (status.contacts && (status.contactsSyncedAt === null || Date.now() - status.contactsSyncedAt > 12 * hour)) {
+      if (status.contacts && (status.contactsSyncedAt === null || Date.now() - status.contactsSyncedAt > hour)) {
         await contactsNow(ctx, pluginSource).catch(() => undefined);
       }
       if (status.defaultSms && (status.archivedAt === null || Date.now() - status.archivedAt > hour / 2)) {

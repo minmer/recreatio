@@ -24,7 +24,7 @@ import { MenuButton } from '../ui/Menu';
 import {
   addFormDoc, COLUMN_SEPARATOR_LABEL, COLUMN_SEPARATORS, DEFAULT_KEYS, DEFAULT_PASTE, defaultTyped, describeForm, entryConfig,
   fieldsSet, formFromKind, formPalette, formProblems, identityOf, isTypeable, KEY_ACTION_LABEL, KEY_ACTIONS, KEY_NAMES, nodeLabel,
-  pickConfig, readAddForm, refFields, SOURCE_LABEL, VALUE_SEPARATORS,
+  pickConfig, readAddForm, refFields, SOURCE_LABEL, VALUE_SEPARATOR_LABEL, VALUE_SEPARATORS,
   type AddForm, type FieldSource, type SourceMode
 } from './addForm';
 import { ValueInput } from './AddFormRun';
@@ -190,7 +190,7 @@ function FormDesigner({ entryId, version, data, writes, onRun, onGone }: {
           </label>
           <label className="wk-field"><span>Kilka wartości w komórce oddziela</span>
             <select value={draft.paste.values} disabled={!writes} onChange={(e) => set({ paste: { ...draft.paste, values: e.target.value as AddForm['paste']['values'] } })}>
-              {VALUE_SEPARATORS.map((s) => <option key={s} value={s}>{s}</option>)}
+              {VALUE_SEPARATORS.map((s) => <option key={s} value={s}>{VALUE_SEPARATOR_LABEL[s]}</option>)}
             </select>
           </label>
           <label className="pe-check"><input type="checkbox" checked={draft.paste.header} disabled={!writes} onChange={(e) => set({ paste: { ...draft.paste, header: e.target.checked } })} /><span>pierwsza linia to nagłówki</span></label>
@@ -277,7 +277,7 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
       return {
         id: n.id, type: 'af', position, selected: chosen === n.id,
         data: {
-          title: `Na początek: ${nodeLabel(n, lib.look)}`,
+          title: `Na początek: ${nodeLabel(n, lib.look, graph)}`,
           sub: [kinds, c.many ? 'kilka' : '', c.optional ? 'można pominąć' : 'trzeba wybrać'].filter(Boolean).join(' · '),
           rows: c.value.length > 0 ? c.value.map((id) => ({ key: id, text: entityName(lib, id), tone: 'value' as const })) : [{ key: '_', text: 'wybierasz przy dodawaniu', tone: 'value' as const }],
           pick: true
@@ -299,7 +299,7 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
     return {
       id: n.id, type: 'af', position, selected: chosen === n.id,
       data: {
-        title: nodeLabel(n, lib.look),
+        title: nodeLabel(n, lib.look, graph),
         sub: [kind?.name ?? 'wybierz rodzaj', c.many ? 'kilka w wierszu' : '', c.reuse === 'never' ? 'zawsze nowy' : '', empty > 0 ? `${empty} pól pustych` : ''].filter(Boolean).join(' · '),
         rows,
         pick: false
@@ -314,8 +314,13 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
         const { id, position } = ch;
         setMoving((was) => ({ ...was, [id]: { x: Math.round(position.x), y: Math.round(position.y) } }));
       }
-      if (ch.type === 'select') onChoose(ch.selected ? ch.id : chosen === ch.id ? null : chosen);
       if (ch.type === 'remove' && !readOnly) onGraph(without(graph, ch.id));
+    }
+    /* Wählen: ein neuer Knoten gewinnt, gleich in welcher Reihenfolge das Abwählen des alten kommt. */
+    const selecting = changes.filter((ch) => ch.type === 'select');
+    if (selecting.length > 0) {
+      const on = selecting.find((ch) => ch.type === 'select' && ch.selected);
+      onChoose(on !== undefined ? on.id : selecting.some((ch) => ch.id === chosen) ? null : chosen);
     }
   };
   const edgeChanges = (changes: EdgeChange[]) => {
@@ -344,6 +349,8 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
         nodesConnectable={!readOnly}
         nodesDraggable={!readOnly}
         fitView
+        /* Ein Formular ist breit (Wahlen, Zeilen, Verbindendes): auf dem Telefon passt es erst kleiner ganz hinein. */
+        minZoom={0.2}
         proOptions={{ hideAttribution: true }}
       >
         <Background />
@@ -519,7 +526,7 @@ function RefSource({ form, node, field, readOnly, onGraph, wire, onChoose }: {
         const from = graph.nodes.find((n) => n.id === e.from);
         return (
           <span key={e.id} className="cg-row">
-            <button type="button" className="cg-ref" onClick={() => from !== undefined && onChoose(from.id)}>← {from === undefined ? '?' : nodeLabel(from, lib.look)}</button>
+            <button type="button" className="cg-ref" onClick={() => from !== undefined && onChoose(from.id)}>← {from === undefined ? '?' : nodeLabel(from, lib.look, graph)}</button>
             {!readOnly && <button type="button" className="wk-link-btn" aria-label="Odłącz" onClick={() => onGraph({ nodes: graph.nodes, edges: graph.edges.filter((x) => x.id !== e.id) })}>×</button>}
           </span>
         );
@@ -528,11 +535,11 @@ function RefSource({ form, node, field, readOnly, onGraph, wire, onChoose }: {
         <select value="" aria-label={`${field.label}: skąd`} onChange={(e) => choose(e.target.value)}>
           <option value="">{incoming.length === 0 ? '— puste — (skąd?)' : '+ jeszcze skąd…'}</option>
           <optgroup label="Na początek">
-            {picks.map((n) => <option key={n.id} value={`node:${n.id}`}>{nodeLabel(n, lib.look)}</option>)}
+            {picks.map((n) => <option key={n.id} value={`node:${n.id}`}>{nodeLabel(n, lib.look, graph)}</option>)}
             <option value="new-pick">nowy wybór na początek</option>
           </optgroup>
           <optgroup label="Z tego samego wiersza">
-            {rows.map((n) => <option key={n.id} value={`node:${n.id}`}>{nodeLabel(n, lib.look)}</option>)}
+            {rows.map((n) => <option key={n.id} value={`node:${n.id}`}>{nodeLabel(n, lib.look, graph)}</option>)}
             {targets.map((k) => <option key={k.id} value={`new-entry:${k.id}`}>nowy wpis: {k.name}</option>)}
           </optgroup>
         </select>

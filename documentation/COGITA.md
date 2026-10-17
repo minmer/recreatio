@@ -114,6 +114,23 @@ Formula, code and duration are not field types.
 - Library content appears in the workspace search, Ctrl K [F5, P12].
 - “Looks per kind” replace the old approaches, such as the citation view and the vocabulary card [F47].
 
+### 2.4 Adding many at once: forms (added 2026-10-17)
+
+A **form for adding** (Formularz dodawania, doc kind `addform`) says once what one typed row becomes, so a long list is typed, not clicked: “car” Enter “samochód” Enter, next row.
+
+- **The form is a graph** on the model of §4 (nodes, ports, edges, JSON), drawn in its own React Flow canvas because a node shows the fields of its kind:
+  - `pick` — **chosen on top** (Na początek): an existing entry such as a language or a topic, chosen once and kept for every row until changed; required or optional, one or several, with a default;
+  - `entry` — **made from each row** (W każdym wierszu): an entry of a kind. Each field gets its value typed in the row, set once on top, or fixed in the form. Every reference field is an input; an edge from another node fills it.
+- **Several in one row.** A node marked “kilka w wierszu” takes several values (Ctrl+Enter or “+ kolejne”). A reference field that takes ONE entry then makes one entry per value (each pair: two English words × one Polish word = two translations); one that takes several takes them all into one entry.
+- **Nothing twice.** An entry that already exists is used instead of a new one, recognised by the single-valued fields the node sets (text and language) or by the fields chosen in the form. What it lacks (another topic) is added; entries from a source base are used, not changed. This holds inside one list too (“zamek” for castle and lock is one word with two translations), so retrying a row is harmless.
+- **A row with a value that does not fit** (“abc” in a number field) is left out whole. A node whose row entry is missing (no Polish word) is skipped with the reason.
+- **Keys** are part of the form: Enter, Ctrl+Enter and Shift+Enter each do one of: next field (in the last one: save the row), another value here, save the row, a new line in long text, nothing.
+- **Pasting a list** from a sheet or text: one line per row, the columns in the order of the typed fields (tab, ;, =, “ - ”, | or , — recognised by itself), several values in a cell split by a chosen sign. The plan is shown before anything is saved.
+- **Saving** runs in the background, row after row, so the next row can be typed at once. Each row can be undone (what it created, unless a later row already uses it).
+- **The form describes itself**: the sentence list under the designer and under “Jak działa ten formularz” is generated from the form.
+- **Starting points.** “Z rodzaju: X” builds a form from a kind: a kind that is typed (Słowo: its label fields) gets its references as choices on top; a kind that only connects (Tłumaczenie: z → Słowo, na → Słowo) gets an entry per reference, whose own references become choices on top — one per row entry where the field takes one entry (each word its language), shared where it takes several (topics).
+- **Where.** Built under Schemat (`schemat/formularz/<id>`), filled under Wpisy (`wpisy/dodaj/<id>`, the menu “Wiele naraz”, and Ctrl K). Forms belong to the schema JSON (`forms`) and travel with it; a reused base’s forms are usable here.
+
 ## 3. Knowledge layer
 
 These are fixed system kinds that the engine understands. You may add fields to them [C1].
@@ -269,7 +286,7 @@ Each step opens on a new screen or expands in place [G12].
 
 ## 9. Characters, values, quests
 
-- **A character is a kind you declare and mark “can speak”.** It has a portrait and a voice [H1].
+- **Any entry can be a character.** A character line or a “character speaks” step names it; it has a portrait and a voice [H1]. (Until 2026-10-17 a kind had to be marked “can speak”; that flag is gone, and an old `speaks` in a kind document is ignored.)
   - It is realized by a group of values that change for each learner as they use the course.
   - Its lines are knowledge nodes.
   - Lines fire through the logic engine, on values, knowness and visited steps [H2].
@@ -474,10 +491,10 @@ Phones stay awake.
 
 | part | files |
 |---|---|
-| Engine (pure, checked without a browser) | `frontend/src/app/cogita/`: `schema`, `graph`, `check`, `knowness`, `cards`, `revision`, `logic` (the one logic, also used by forms and pages), `flow`, `rules`, `game`, `kinds` |
+| Engine (pure, checked without a browser) | `frontend/src/app/cogita/`: `schema`, `graph`, `check`, `knowness`, `cards`, `revision`, `logic` (the one logic, also used by forms and pages), `flow`, `rules`, `game`, `kinds`, `addForm` (forms for adding: model, plan, pasted lists, description) |
 | Knowledge base on the schema | `store.ts` (`CogitaLibrary`: own entries plus sources), `sources.ts` (opening the sources), `kinds.ts`, `versions.ts`, `files.ts`, `json.ts`, `presets.ts`; the IndexedDB copy in `libraryStore.ts` and `idb.ts` |
 | Learning | `learn.ts` (sealed batches, outbox, due), `holders.ts`, `offline.ts`, `python.ts` with `python.worker.ts` (Pyodide) |
-| Screens | `LearnView.tsx` (the workspace view **Nauka**: the knowledge bases, due, sessions, offline), `CogitaHome.tsx` (one knowledge base and its tabs), `LearnPart.tsx` (the view part), and the editors and players beside them |
+| Screens | `LearnView.tsx` (the workspace view **Nauka**: the knowledge bases, due, sessions, offline), `CogitaHome.tsx` (one knowledge base and its tabs), `LearnPart.tsx` (the view part), `AddFormEditor.tsx` and `AddFormRun.tsx` (forms for adding, §2.4), and the editors and players beside them |
 | Sessions | `live.ts` (keys, events, SignalR client with polling fallback), `Sessions.tsx`, `GamePanel.tsx` |
 | Public pages | `parts/cogita.tsx` (definitions) with `parts/cogitaViews.tsx` (loaded only when shown), `PublicRun.tsx`, `published.ts`, `entitySubject.tsx`, `seatLearn.ts` |
 | Forms | `LearnStep.tsx`; the step kind `learn` in `steps.ts` and `StepList.tsx` |
@@ -503,6 +520,8 @@ Phones stay awake.
 
 ### Decided while building
 
+- **Schema JSON references** (2026-10-17). A reference field's `to` names kinds by `@ref`, id or name, also kinds further down the same document. Before, it stayed literal, and a schema copied into another base pointed at kind ids that did not exist there.
+- **Files across origins** (2026-10-17). The API exposes `X-Epoch` to the browser (CORS `WithExposedHeaders`); against an API without it, a file is opened by trying the held epochs, newest first.
 - **Stored entries are not rewritten.**
   - A knowledge base adds the kinds knowledge, question and topic, plus its own. The book kinds (person, work, quote, text, project) live in libraries and are only pointed at.
   - Built-in kinds keep their plaintext kind.
@@ -523,7 +542,7 @@ Phones stay awake.
 
 | check | count |
 |---|---|
-| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 200 |
+| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 242 |
 | `backend/Api.Tests` (22 of them for the game rules) | 408 |
 | `backend/Kernel.Tests` | 122 |
 

@@ -28,6 +28,12 @@ export interface ArchivedPart {
   readonly size: number;
   /** Die versiegelte Datei — `null`: nicht mit archiviert (`skipped` sagt, warum). */
   readonly file: string | null;
+  /**
+   * Unter welcher Epoche die Datei versiegelt ist. Steht HIER und nicht nur im
+   * Kopf `X-Epoch` der Antwort: den liest eine Seite von recreatio.pl beim
+   * Dienst auf api.recreatio.pl nicht (CORS gibt keine Köpfe frei).
+   */
+  readonly epoch?: number | null;
   readonly skipped: 'big' | 'off' | 'error' | null;
 }
 
@@ -161,13 +167,13 @@ async function storeBatch(ctx: PhoneCtx, messages: readonly ArchivedMessage[]): 
 }
 
 /** Ein Bild (oder Film, Ton) einer MMS, versiegelt hinauf. */
-async function storeFile(ctx: PhoneCtx, bytes: Uint8Array): Promise<string> {
+async function storeFile(ctx: PhoneCtx, bytes: Uint8Array): Promise<{ file: string; epoch: number }> {
   const fileId = newId();
   const sealed = await seal(ctx.newest.key, fileAad(fileId), bytes);
   await call(`${base(ctx)}/file/${encodeURIComponent(fileId)}?epoch=${ctx.newest.epoch}`, {
     method: 'PUT', body: new Blob([sealed as BlobPart])
   }, { 'Content-Type': 'application/octet-stream' });
-  return fileId;
+  return { file: fileId, epoch: ctx.newest.epoch };
 }
 
 const decodeBase64 = (text: string): Uint8Array => {
@@ -236,7 +242,7 @@ export async function archivePhone(
           die Marke steht noch vor dieser Seite, der nächste Lauf macht weiter,
           und was schon abgelegt ist, erkennt er an den Abdrücken.
         */
-        parts.push({ ...kept, size: bytes.length, file: await storeFile(ctx, bytes) });
+        parts.push({ ...kept, size: bytes.length, ...(await storeFile(ctx, bytes)) });
         media++;
       }
 
@@ -307,14 +313,14 @@ export function archiveThreads(messages: readonly ArchivedMessage[]): ArchiveThr
 
 const files = new Map<string, Promise<string | null>>();
 
-/** Eine Datei aus dem Archiv — als `blob:`-Adresse; einmal je Karte. */
-export function archivedFileUrl(ctx: PhoneCtx, fileId: string, type: string): Promise<string | null> {
+/** Eine Datei aus dem Archiv — als `blob:`-Adresse; einmal je Karte. `epoch`: aus dem Archiv, sonst aus dem Kopf. */
+export function archivedFileUrl(ctx: PhoneCtx, fileId: string, type: string, epoch: number | null = null): Promise<string | null> {
   let found = files.get(fileId);
   if (found === undefined) {
     found = (async () => {
       const response = await fetch(`${API}${base(ctx)}/file/${encodeURIComponent(fileId)}`, { credentials: 'include' });
       if (!response.ok) return null;
-      const key = ctx.keys.get(Number(response.headers.get('X-Epoch') ?? '0'));
+      const key = ctx.keys.get(epoch ?? Number(response.headers.get('X-Epoch') ?? '0'));
       if (key === undefined) return null;
       const plain = await open(key, fileAad(fileId), new Uint8Array(await response.arrayBuffer()));
       return URL.createObjectURL(new Blob([plain as BlobPart], { type }));

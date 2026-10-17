@@ -75,7 +75,13 @@ builder.Services.AddCors(options =>
         var origins = (builder.Configuration["Api:Origins"] ?? "https://recreatio.pl")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        policy.WithOrigins(origins).AllowCredentials().AllowAnyHeader().AllowAnyMethod();
+        /*
+         * 2026-10-17 — `X-Epoch` sagt, unter welchem Schlüssel eine versiegelte
+         * Datei liegt (Library.Cogita, Phone.Files). Über Herkünfte hinweg sieht
+         * der Browser eine Kopfzeile nur, wenn sie hier freigegeben ist — sonst
+         * liest er `null`, und die Datei bleibt zu.
+         */
+        policy.WithOrigins(origins).AllowCredentials().AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("X-Epoch");
     }));
 
 var app = builder.Build();

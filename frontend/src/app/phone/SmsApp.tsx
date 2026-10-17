@@ -292,10 +292,9 @@ function Thread({ threadId }: { threadId: string }) {
   return (
     <div className="ph-thread">
       <div className="ph-thread-head">
-        <a className="wk-icon-btn" href={viewPath('sms')} aria-label="Wszystkie rozmowy"><Icon name="back" /></a>
         <span className="ph-thread-title">
           <h1 className="wk-h1">{title}</h1>
-          {peers.length > 0 && <span className="ph-thread-sub">{peers.map(phoneShown).join(', ')}</span>}
+          {peers.some((p) => names.has(p)) && <span className="ph-thread-sub">{peers.map(phoneShown).join(', ')}</span>}
         </span>
         {single !== null && <a className="wk-btn wk-btn-quiet" href={`tel:${single.replace(/\s+/g, '')}`}><Icon name="phone" />Zadzwoń</a>}
       </div>

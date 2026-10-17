@@ -166,15 +166,16 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
     return { id, isNew: true };
   };
 
-  /* Rodzaje: eingebaute an ihrer Kennung, eigene an Kennung oder Namen. */
+  /* Rodzaje: eingebaute an ihrer Kennung, eigene an Kennung oder Namen — erst alle Kennungen, dann die Felder. */
   const kinds: ImportPlan['kinds'] = [];
   const byName = new Map(lib.kinds.map((k) => [k.name.toLowerCase(), k.id]));
+  const docNames = new Map<string, string>();
+  const placed: { raw: Record<string, unknown>; id: string; isNew: boolean }[] = [];
   for (const raw of Array.isArray(doc.kinds) ? doc.kinds : []) {
     if (!isObject(raw)) continue;
     const builtin = str(raw.builtin);
     if (builtin !== '' && isBaseKind(builtin)) {
-      const def = readKind(builtin, raw);
-      kinds.push({ id: builtin, def, isNew: false });
+      placed.push({ raw, id: builtin, isNew: false });
       refs.set(ref(raw.ref) ?? builtin, builtin);
       continue;
     }
@@ -183,15 +184,28 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
     const known = r !== null && lib.kind(r) !== undefined ? r : named;
     const id = known ?? idFor(raw.ref, () => false).id;
     if (r !== null) refs.set(r, id);
-    kinds.push({ id, def: readKind(id, raw), isNew: known === undefined });
+    if (str(raw.name) !== '') docNames.set(str(raw.name).toLowerCase(), id);
+    placed.push({ raw, id, isNew: known === undefined });
   }
   const kindId = (raw: unknown): string | null => {
     const r = ref(raw);
     if (r === null) return null;
     if (isBaseKind(r) || lib.kind(r) !== undefined) return r;
     if (refs.has(r)) return refs.get(r)!;
-    return byName.get(r.toLowerCase()) ?? kinds.find((k) => k.def.name.toLowerCase() === r.toLowerCase())?.id ?? null;
+    return byName.get(r.toLowerCase()) ?? docNames.get(r.toLowerCase()) ?? null;
   };
+  /*
+    2026-10-17 — WOHIN EIN VERWEISFELD ZEIGT („to") gilt wie jeder andere
+    Rodzaj im Dokument: als `@ref`, Kennung oder Name, auch auf einen weiter
+    unten. Vorher blieb es wörtlich stehen — in einer anderen Baza wiedzy
+    zeigte „Słowo → Język" dann auf eine Kennung, die es dort nicht gibt.
+  */
+  for (const { raw, id, isNew } of placed) {
+    const fields = Array.isArray(raw.fields)
+      ? raw.fields.map((f) => (isObject(f) && Array.isArray(f.to) ? { ...f, to: f.to.map((t) => kindId(t) ?? t) } : f))
+      : raw.fields;
+    kinds.push({ id, def: readKind(id, { ...raw, fields }), isNew });
+  }
 
   /* Einträge: zuerst die Kennungen, dann die Verweise (sie dürfen nach vorn zeigen). */
   const rawEntities = Array.isArray(doc.entities) ? doc.entities.filter(isObject) : [];
@@ -305,6 +319,7 @@ Wspólne:
   "name" — nazwa, "label" — wzór etykiety, np. "{givenNames} {surname}", "tells" — pole, które odróżnia imienników,
   "builtin" — zmiana wbudowanego rodzaju (person, work, quote, topic, text, project, knowledge, question),
   "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "options", "to", "inverse", "symmetric", "media", "rangeOf", "says"}]
+  "to" (odwołanie) — na jakie rodzaje wskazuje: ["@ref rodzaju z tego dokumentu", "Nazwa rodzaju", "topic"]; puste — na dowolne
   typy pól: ${FIELD_TYPES.map((t) => `"${t}" (${FIELD_TYPE_LABEL[t]})`).join(', ')}
   wartość niepewna: {"value": …, "state": "known|approximate|disputed|unknown|na|pending", "source": {"work": "@dzielo", "locator": "s. 23"}, "note": "…"}
   data: "1999", "1999-05", "1999-05-03", "-1000" (przed Chr.); zakres: {"segments": [{"from": 992, "to": 1000}]}

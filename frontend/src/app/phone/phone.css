@@ -120,6 +120,9 @@
 @media (max-width: 63.99rem) {
   .wk-root:has(.ph-thread) .wk-phone-bar { display: none; }
 }
+/* Im Blatt „Napisz SMS" (`SmsSheet`) steht das Schreibfeld im Dialog, nicht am unteren Rand. */
+.ph-sheet .ph-composer { position: static; padding: 0; background: none; border-top: 0; }
+.ph-sheet .ph-composer textarea { min-height: 6rem; }
 
 /* -- Neue Nachricht: Empfänger --------------------------------------------- */
 .ph-to { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1); padding: var(--wk-space-1); border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius-sm); background: var(--wk-surface); }

@@ -59,7 +59,13 @@ final class PhoneContacts {
 
     /* -- Lesen ------------------------------------------------------------------------------------ */
 
-    /** Alle Kontakte des Telefons — je Person einer (die Teile aus mehreren Konten zusammen), ohne die von recreatio. */
+    /**
+     * Alle Kontakte des Telefons — je Person einer (die Teile aus mehreren Konten zusammen), ohne die von recreatio.
+     *
+     * <p><b>Der Schlüssel sind die Kennungen der Rohkontakte</b> ({@code raw:12,raw:40}), nicht der Lookup-Key
+     * des Kontakts: der ändert sich, sobald das Telefon die Abschrift aus recreatio mit dem Original
+     * zusammenlegt — ein zweites Einlesen fände den Menschen dann nicht wieder.</p>
+     */
     static JSONArray read(Context context) throws JSONException {
         ContentResolver cr = context.getContentResolver();
         String mine = accountType(context);
@@ -70,13 +76,17 @@ final class PhoneContacts {
         }
 
         Map<String, JSONObject> people = new LinkedHashMap<>();
-        String[] columns = { Data.CONTACT_ID, Data.LOOKUP_KEY, Data.MIMETYPE, Data.DATA1, Data.DATA2, Data.DATA3, Data.DATA4, Data.DATA5, RawContacts.ACCOUNT_TYPE };
+        Map<String, java.util.TreeSet<Long>> raws = new HashMap<>();
+        String[] columns = { Data.CONTACT_ID, Data.LOOKUP_KEY, Data.MIMETYPE, Data.DATA1, Data.DATA2, Data.DATA3, Data.DATA4, Data.DATA5, RawContacts.ACCOUNT_TYPE, Data.RAW_CONTACT_ID };
         try (Cursor c = cr.query(Data.CONTENT_URI, columns, null, null, Data.CONTACT_ID)) {
             while (c != null && c.moveToNext()) {
                 String account = c.getString(8);
                 if (mine.equals(account)) continue;
                 String key = c.getString(1);
                 if (key == null) key = "id:" + c.getLong(0);
+                java.util.TreeSet<Long> ids = raws.get(key);
+                if (ids == null) { ids = new java.util.TreeSet<>(); raws.put(key, ids); }
+                ids.add(c.getLong(9));
                 JSONObject person = people.get(key);
                 if (person == null) {
                     person = new JSONObject()
@@ -127,7 +137,11 @@ final class PhoneContacts {
         }
 
         JSONArray out = new JSONArray();
-        for (JSONObject person : people.values()) {
+        for (Map.Entry<String, JSONObject> entry : people.entrySet()) {
+            JSONObject person = entry.getValue();
+            StringBuilder key = new StringBuilder();
+            for (long id : raws.get(entry.getKey())) key.append(key.length() == 0 ? "" : ",").append("raw:").append(id);
+            person.put("lookupKey", key.toString());
             if (person.optString("name").isEmpty()) {
                 JSONArray phones = person.getJSONArray("phones");
                 JSONArray emails = person.getJSONArray("emails");
@@ -215,8 +229,12 @@ final class PhoneContacts {
      * DER ABGLEICH: was in {@code contacts} steht, steht danach im Konto
      * „REcreatio" — neu, geändert (andere Fassung) oder entfernt (nicht mehr
      * dabei). Gleiche Fassungen bleiben unberührt.
+     *
+     * <p>{@code synchronized}: die App und der Läufer im Hintergrund schreiben
+     * im selben Prozess — zwei Abgleiche zugleich legten denselben Kontakt
+     * zweimal an.</p>
      */
-    static JSONObject write(Context context, JSONArray contacts) throws Exception {
+    static synchronized JSONObject write(Context context, JSONArray contacts) throws Exception {
         Account account = account(context);
         ContentResolver cr = context.getContentResolver();
         Uri raw = asAdapter(RawContacts.CONTENT_URI, account);
@@ -288,14 +306,25 @@ final class PhoneContacts {
         return new JSONObject().put("added", added).put("updated", updated).put("removed", removed).put("total", seen.size());
     }
 
-    /** Die Zeilen eines Kontakts: Name, Nummern, E-Mails, Organisation, Notiz, Geburtstag. */
+    /**
+     * Die Zeilen eines Kontakts: Name, Nummern, E-Mails, Organisation, Notiz, Geburtstag.
+     *
+     * <p><b>Der Name, wie er in recreatio steht</b> („Jan Kowalski (chór)"): stehen Vor- und Nachname daneben,
+     * baut das Adressbuch den Namen aus ihnen und der Zusatz fehlt beim Anruf. Die Teile kommen deshalb nur
+     * mit, wenn sie zusammen genau den Namen ergeben; sonst zerlegt ihn das Adressbuch selbst.</p>
+     */
     private static void rows(ArrayList<ContentProviderOperation> ops, Uri data, JSONObject one, int back, long rawId) throws JSONException {
-        ops.add(row(data, back, rawId)
+        String name = one.optString("name", "");
+        String given = text(one, "given");
+        String family = text(one, "family");
+        String joined = ((given == null ? "" : given) + " " + (family == null ? "" : family)).trim();
+        ContentProviderOperation.Builder named = row(data, back, rawId)
                 .withValue(Data.MIMETYPE, StructuredName.CONTENT_ITEM_TYPE)
-                .withValue(StructuredName.DISPLAY_NAME, one.optString("name", ""))
-                .withValue(StructuredName.GIVEN_NAME, text(one, "given"))
-                .withValue(StructuredName.FAMILY_NAME, text(one, "family"))
-                .build());
+                .withValue(StructuredName.DISPLAY_NAME, name);
+        if (!joined.isEmpty() && joined.equals(name.trim())) {
+            named.withValue(StructuredName.GIVEN_NAME, given).withValue(StructuredName.FAMILY_NAME, family);
+        }
+        ops.add(named.build());
         JSONArray phones = one.optJSONArray("phones");
         if (phones != null) for (int i = 0; i < phones.length(); i++) {
             JSONObject p = phones.getJSONObject(i);
@@ -348,6 +377,59 @@ final class PhoneContacts {
         if (o.isNull(name)) return null;
         String v = o.optString(name, "").trim();
         return v.isEmpty() ? null : v;
+    }
+
+    /* -- Die Originale im Gerät ----------------------------------------------------------------- */
+
+    /**
+     * PRZENIEŚ: Kontakte, die NUR im Gerät stehen (ohne Konto) und schon in recreatio sind, aus dem
+     * Gerät entfernen — danach gibt es von ihnen nur noch die Abschrift aus recreatio, und beim Anruf
+     * steht der Name, wie er dort heisst.
+     *
+     * <p>{@code keys} sind die Schlüssel aus recreatio ({@code raw:12}); entfernt wird nur, wessen
+     * Rohkontakt KEIN Konto hat (oder das lokale Konto des Geräts, Android 14+): ein Kontakt von DAVx5,
+     * Signal oder einer SIM bleibt, wo er ist — sein Entfernen ginge an einen fremden Dienst.</p>
+     */
+    static synchronized JSONObject dropLocal(Context context, JSONArray keys) throws Exception {
+        Set<Long> wanted = new HashSet<>();
+        for (int i = 0; i < keys.length(); i++) {
+            for (String part : keys.optString(i, "").split(",")) {
+                String p = part.trim();
+                if (!p.startsWith("raw:")) continue;
+                try { wanted.add(Long.parseLong(p.substring(4))); } catch (NumberFormatException ignored) { /* kein Schlüssel */ }
+            }
+        }
+        String localType = null;
+        String localName = null;
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
+            localType = RawContacts.getLocalAccountType(context);
+            localName = RawContacts.getLocalAccountName(context);
+        }
+
+        ContentResolver cr = context.getContentResolver();
+        ArrayList<ContentProviderOperation> ops = new ArrayList<>();
+        int removed = 0;
+        try (Cursor c = cr.query(RawContacts.CONTENT_URI, new String[] { RawContacts._ID, RawContacts.ACCOUNT_TYPE, RawContacts.ACCOUNT_NAME },
+                RawContacts.DELETED + " = 0", null, null)) {
+            while (c != null && c.moveToNext()) {
+                long id = c.getLong(0);
+                if (!wanted.contains(id)) continue;
+                String type = c.getString(1);
+                String name = c.getString(2);
+                boolean local = (type == null && name == null)
+                        || (localType != null && localType.equals(type) && (localName == null || localName.equals(name)));
+                if (!local) continue;
+                ops.add(ContentProviderOperation.newDelete(RawContacts.CONTENT_URI)
+                        .withSelection(RawContacts._ID + " = ?", new String[] { String.valueOf(id) }).build());
+                removed++;
+                if (ops.size() > 300) {
+                    cr.applyBatch(ContactsContract.AUTHORITY, ops);
+                    ops.clear();
+                }
+            }
+        }
+        if (!ops.isEmpty()) cr.applyBatch(ContactsContract.AUTHORITY, ops);
+        return new JSONObject().put("removed", removed);
     }
 
     static JSONObject state(Context context) throws JSONException {

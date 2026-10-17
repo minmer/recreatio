@@ -302,7 +302,7 @@
   margin: 0; min-width: 0; padding: var(--wk-space-2) var(--wk-space-3) var(--wk-space-3);
   border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); display: grid; gap: var(--wk-space-2);
 }
-.cg-af-group:focus-within { border-color: var(--wk-accent); box-shadow: 0 0 0 1px var(--wk-accent) inset; }
+.cg-af-group:focus-within { border-color: var(--wk-accent); }
 .cg-af-group > legend { padding: 0 var(--wk-space-1); font-weight: 700; }
 .cg-af-inst { display: flex; gap: var(--wk-space-2); align-items: center; }
 .cg-af-inst > :is(input, textarea, select) { flex: 1 1 7rem; min-width: 0; font-size: var(--wk-text-md); }
@@ -317,3 +317,6 @@
 .cg-af-log > li.is-undone > strong { text-decoration: line-through; color: var(--wk-muted); }
 .cg-af-log-error { color: var(--wk-danger); font-size: var(--wk-text-sm); }
 .cg-af-problems { flex-basis: 100%; font-size: var(--wk-text-sm); }
+.cg-af-title { display: grid; gap: var(--wk-space-1); justify-items: start; }
+.cg-af-title > .cg-row-between { width: 100%; }
+.cg-af-title h2 { margin: 0; }

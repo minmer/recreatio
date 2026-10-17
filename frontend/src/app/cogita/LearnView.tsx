@@ -25,11 +25,13 @@ import { useCrumbs } from '../shell/crumbTrail';
 import { createLibrary, isUuid, libraryKindOf, loadLibraries, openLibraries, type OpenLibrary } from '../library/library';
 import { useLibraryStore } from '../library/libraryStore';
 import { useMe, type Me } from '../core/me';
+import { plural } from '../core/plural';
 import { viewPath } from '../routes';
 import { WorkspaceError, type Who } from '../core/session';
 import { CogitaHome } from './CogitaHome';
 import { BASES_CHANGED } from './sources';
 import { holderOfMe } from './holders';
+import { isDocKind } from './kinds';
 import { Learner, loadDue, targetOf, type DueRow } from './learn';
 import { loadSessions, SESSION_KIND_LABEL, type SessionRow } from './live';
 import { offlineList, openOffline, type OfflineRevision } from './offline';
@@ -110,9 +112,11 @@ function KnowledgeBase({ me, who, base, trail }: { me: Me; who: Who; base: OpenL
   if (store === null) return null;
   if (failed !== null && !store.loaded) return <p className="wk-error">{failed}</p>;
   if (!store.loaded) return <p className="wk-lede">Otwieranie bazy wiedzy…</p>;
+  /* 2026-10-17 — gezählt im Speicher, nicht aus der Liste beim Öffnen: die Zahl wächst mit, während man hinzufügt (Formularze dodawania). */
+  const entries = store.all().filter((e) => !isDocKind(e.kind)).length;
   return (
     <>
-      <PageHeader title={base.name} meta={`${base.entries} ${base.entries === 1 ? 'wpis' : 'wpisów'}${base.writes ? '' : ' · uczysz się'}`} />
+      <PageHeader title={base.name} meta={`${entries} ${plural(entries, 'wpis', 'wpisy', 'wpisów')}${base.writes ? '' : ' · uczysz się'}`} />
       <CogitaHome me={me} who={who} library={base} store={store} trail={trail} />
     </>
   );

@@ -54,6 +54,13 @@ export const removeFile = (libraryId: string, fileId: string): Promise<{ deleted
 
 const opened = new Map<string, Promise<string | null>>();
 
+/** Die Epochen, deren Schlüssel dieser Browser hält — ab der ersten, bis eine fehlt; die jüngste zuerst. */
+async function heldEpochs(keyOf: (epoch: number) => Promise<Uint8Array | undefined>): Promise<number[]> {
+  const out: number[] = [];
+  for (let epoch = 1; epoch <= 32 && (await keyOf(epoch)) !== undefined; epoch += 1) out.push(epoch);
+  return out.reverse();
+}
+
 /**
  * Eine Datei öffnen — als `blob:`-Adresse für `<img>`, `<audio>`, `<video>`.
  * `keyOf`: der Schlüssel einer Epoche des Bereichs (Konto, Link oder Platz).
@@ -70,11 +77,21 @@ export function fileUrl(libraryId: string, ref: MediaRef, keyOf: (epoch: number)
       const links = seat === undefined ? await heldProofs().catch(() => [] as string[]) : [];
       const response = await fetch(`${API}${path}`, { credentials: 'include', headers: links.length > 0 ? { [LINKS_HEADER]: links.join(',') } : {} });
       if (!response.ok) return null;
-      const epoch = Number(response.headers.get('X-Epoch') ?? '0');
-      const key = await keyOf(epoch);
-      if (key === undefined) return null;
-      const plain = await open(key, fileAad(ref.file), new Uint8Array(await response.arrayBuffer()));
-      return URL.createObjectURL(new Blob([plain as BlobPart], { type: ref.mime ?? '' }));
+      /*
+        2026-10-17 — `X-Epoch` sieht der Browser über Herkünfte hinweg (recreatio.pl
+        → api.recreatio.pl) nur, wenn der Dienst die Kopfzeile freigibt
+        (Program.cs, `WithExposedHeaders`). Ein Dienst ohne die Freigabe liefert
+        `null`: dann die gehaltenen Schlüssel der Reihe nach, der jüngste zuerst.
+      */
+      const header = response.headers.get('X-Epoch');
+      const sealed = new Uint8Array(await response.arrayBuffer());
+      for (const epoch of header !== null ? [Number(header)] : await heldEpochs(keyOf)) {
+        const key = await keyOf(epoch);
+        if (key === undefined) continue;
+        const plain = await open(key, fileAad(ref.file), sealed).catch(() => null);
+        if (plain !== null) return URL.createObjectURL(new Blob([plain as BlobPart], { type: ref.mime ?? '' }));
+      }
+      return null;
     })().catch(() => null);
     opened.set(slot, found);
     found.then((url) => { if (url === null) opened.delete(slot); }, () => opened.delete(slot));

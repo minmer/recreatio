@@ -88,6 +88,7 @@ export interface PhoneStatus {
 
 /** Ein Kontakt aus dem Adressbuch des Telefons (ohne die von recreatio geschriebenen). */
 export interface PhoneBookContact {
+  /** Die Rohkontakte dahinter, `raw:12,raw:40` — bleibt, auch wenn das Telefon Kontakte zusammenlegt. */
   readonly lookupKey: string;
   readonly name: string;
   readonly given: string | null;
@@ -152,6 +153,8 @@ interface PhonePluginApi {
   retryMms(o: { id: string }): Promise<{ started: boolean }>;
   /** Die Kontakte gleich im Hintergrund ins Adressbuch (der Läufer). */
   contactsSoon(): Promise<void>;
+  /** Kontakte nur im Gerät (ohne Konto), die schon in recreatio sind, aus dem Gerät entfernen — `keys` wie `lookupKey`. */
+  dropLocal(o: { keys: readonly string[] }): Promise<{ removed: number }>;
   search(o: { query: string; limit?: number }): Promise<{ hits: { threadId: string; id: string; date: number; snippet: string; address: string | null }[] }>;
   lookup(o: { numbers: readonly string[] }): Promise<{ names: Record<string, string> }>;
   contacts(): Promise<{ contacts: PhoneBookContact[] }>;
