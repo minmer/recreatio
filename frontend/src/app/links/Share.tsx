@@ -13,17 +13,17 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { LinkShare } from './AccessLinks';
-import type { AreaRow } from './area';
-import { createCommonRole, type NewRoleDraft } from './commonRole';
-import { CommonRoleChoice, EMPTY_DRAFT, NEW_ROLE, useGivableRoles } from './CommonRoleField';
-import type { Ring, SealedRole } from './keys';
+import type { AreaRow } from '../areas/area';
+import { createCommonRole, type NewRoleDraft } from '../roles/commonRole';
+import { CommonRoleChoice, EMPTY_DRAFT, NEW_ROLE, useGivableRoles } from '../roles/CommonRoleField';
+import type { Ring, SealedRole } from '../core/keys';
 import { createLink } from './linkAccess';
-import { Modal } from './Modal';
-import { keysFor } from './ringOf';
-import { selfOf } from './roles';
-import { WorkspaceError, type Who } from './session';
-import { areasNow, invalidate } from './viewData';
-import { Icon } from './ui/icons';
+import { Modal } from '../ui/Modal';
+import { keysFor } from '../core/ringOf';
+import { selfOf } from '../roles/roles';
+import { WorkspaceError, type Who } from '../core/session';
+import { areasNow, invalidate } from '../workspace/viewData';
+import { Icon } from '../ui/icons';
 
 export interface ShareTarget {
   /** Wie es heisst — auch der Name des Links. */

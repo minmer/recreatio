@@ -15,7 +15,7 @@
  * <b>Jeder Teil steht für sich.</b> Fehlt einer, fehlt nur er; verglichen
  * wird über die NORMALISIERTEN Teile (`norm`) — dieselbe Funktion wie im
  * Dienst (`Postal.Norm`), geprüft mit derselben Tabelle
- * (`app-platform-check.mjs`, `PostalChecks.cs`).
+ * (`app-platform-check.mjs`, `PlatformChecks.cs`).
  *
  * <b>Ohne Ort gilt der Ort der Post</b> (`complete`): „ul. Długa 5, 31-147
  * Kraków" liegt in Kraków.
@@ -25,11 +25,11 @@
  * Bereichs; der Dienst sieht nur, DASS an einem Ort ein Haushalt ist.
  */
 
-import { areaKeys, newestKey } from './chat';
-import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from './crypto';
-import { newId } from './ids';
-import type { Ring } from './keys';
-import { call, WorkspaceError } from './session';
+import { areaKeys, newestKey } from '../chat/chat';
+import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
+import { newId } from '../core/ids';
+import type { Ring } from '../core/keys';
+import { call, WorkspaceError } from '../core/session';
 
 export type PartKind = 'postcode' | 'post' | 'locality' | 'district' | 'street';
 

@@ -19,8 +19,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadPage, toDraft, type DraftPart } from './page';
 import { partSize, type PartSize } from './part';
 import { partOf } from './parts/registry';
-import { WorkspaceError } from './session';
-import { Loading } from './ui/Loading';
+import { WorkspaceError } from '../core/session';
+import { Loading } from '../ui/Loading';
 
 const WIDTHS: Record<string, number> = { narrow: 2, medium: 3, wide: 4, full: 6 };
 const HEIGHTS: Record<string, number> = { strip: 1, block: 3, tall: 5 };

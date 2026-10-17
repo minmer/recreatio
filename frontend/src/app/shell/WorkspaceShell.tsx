@@ -5,9 +5,9 @@
  * Arbeitsplatz steht.
  */
 
-import type { Spot } from './routes';
-import type { Who } from './session';
-import { Workspace } from './Workspace';
+import type { Spot } from '../routes';
+import type { Who } from '../core/session';
+import { Workspace } from '../workspace/Workspace';
 import { WorkspaceFrame } from './WorkspaceFrame';
 
 export default function WorkspaceShell({ who, spot, onSignOut }: { who: Who; spot: Spot; onSignOut?: () => void }) {

@@ -24,9 +24,9 @@
  * versiegelt, unter dem Schlüssel des Formularbereichs, wie die Fragen.
  */
 
-import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from './crypto';
+import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
 import { ageOn, birthOf } from './pesel';
-import { call } from './session';
+import { call } from '../core/session';
 
 /* -- Der Aufbau --------------------------------------------------------------- */
 
@@ -67,9 +67,7 @@ export type LayoutItem = FieldItem | TextItem | GroupItem;
  * 0109 — Vergleich, Wahrheit und Tore stehen in der EINEN Logik (`cogita/logic.ts`):
  * Formulare, Seiten, Abläufe, Gestalten und Spiele rechnen damit [G6].
  */
-import { compare, COMPARE_OPS, gate, truthy, type CompareOp, type Value } from './cogita/logic';
-
-export { asNumber, COMPARE_LABEL, COMPARE_OPS, compare, truthy, UNARY, type CompareOp } from './cogita/logic';
+import { compare, COMPARE_OPS, gate, truthy, type CompareOp, type Value } from '../cogita/logic';
 
 export const NODE_KINDS = [
   'answer', 'const', 'age',
@@ -255,21 +253,7 @@ export function layoutWith(layout: readonly LayoutItem[], fieldIds: readonly str
   return [...kept, ...rest];
 }
 
-/** Jede Kennung im Aufbau — und die Gruppe, in der sie steht. */
-export function parentsOf(layout: readonly LayoutItem[]): ReadonlyMap<string, string | null> {
-  const out = new Map<string, string | null>();
-  const walk = (items: readonly LayoutItem[], parent: string | null) => {
-    for (const item of items) {
-      out.set(item.id, parent);
-      if (item.type === 'group') walk(item.items, item.id);
-    }
-  };
-  walk(layout, null);
-  return out;
-}
-
 /* -- Auswerten -------------------------------------------------------------------- */
-
 
 export interface Outcome {
   /** Was nicht zu sehen ist — durch eine eigene Bedingung oder weil die Gruppe darüber fehlt. */

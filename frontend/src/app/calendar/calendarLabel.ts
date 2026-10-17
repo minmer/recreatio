@@ -2,11 +2,11 @@
  * Wie ein Kalender heisst, wo man ihn auswählt: „Terminy · Parafia › Schola",
  * der eigene „(tylko ja)".
  *
- * 2026-10-17 — aus `EventDialog.tsx` hierher (dort weitergereicht): der
+ * 2026-10-17 — aus `EventDialog.tsx` hierher: der
  * Kalender brauchte nur diese Zeile und lud dafür den ganzen Dialog mit.
  */
 
-import { areaPath, type AreaRow } from './area';
+import { areaPath, type AreaRow } from '../areas/area';
 import type { CalendarRow } from './calendar';
 
 export function calendarLabel(areas: readonly AreaRow[], calendar: CalendarRow): string {

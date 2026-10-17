@@ -33,7 +33,6 @@ export const NONCE_SIZE = 12;
 export const TAG_SIZE = 16;
 export const HEADER_SIZE = 20;
 export const FORMAT_VERSION = 0x01;
-export const SALT_SIZE = 16;
 
 /** 21.6 — Zwei Paare, und beide 4096 Bit. Der Kernel legt das fest. */
 export const RSA_BITS = 4096;
@@ -261,9 +260,6 @@ export const fromBase64Url = (text: string): Uint8Array => {
   for (let i = 0; i < binary.length; i += 1) out[i] = binary.charCodeAt(i);
   return out;
 };
-
-export const toHex = (b: Uint8Array): string =>
-  Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 
 /** Ohne frühen Ausstieg: die Laufzeit soll nicht verraten, wie weit es passte. */
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {

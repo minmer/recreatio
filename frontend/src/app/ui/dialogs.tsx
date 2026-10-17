@@ -18,7 +18,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 
-import { Modal } from '../Modal';
+import { Modal } from './Modal';
 import { Icon } from './icons';
 
 /* -- Rückfrage ---------------------------------------------------------------------- */

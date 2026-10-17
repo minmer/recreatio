@@ -1,5 +1,5 @@
 /**
- * COGITA — WIE GUT ETWAS SITZT (COGITA.md §6, CogitaAim I.8).
+ * COGITA — WIE GUT ETWAS SITZT (COGITA.md §6, A.1).
  *
  * <b>Die Formel steht wörtlich da</b> [E1]. Sie rechnet mit zwei Antworten und
  * den Abständen davor:
@@ -47,7 +47,7 @@ export interface Mark {
 
 const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0);
 
-/** Die Formel aus CogitaAim I.8.1 — unverändert. */
+/** Die Formel aus COGITA.md A.1 — unverändert. */
 export function knowledge(q1: number, d1: number, q2: number, d2: number, t: number): number {
   const H = Math.max(T0, Math.pow(T0, 1 - q2) * Math.pow(12 * (d2 + q1 * d1), q2));
   return Math.pow(10, 0.5 * (1 - t / H));
@@ -187,7 +187,7 @@ export function acyclic(deps: readonly Dependency[]): Dependency[] {
 }
 
 /**
- * DIE WEITERGABE (CogitaAim II.11): die Grundlage bekommt zu ihrer eigenen
+ * DIE WEITERGABE (COGITA.md A.3): die Grundlage bekommt zu ihrer eigenen
  * Kenntnis, was die Abhängigen wissen, mal dem Gewicht — `parent += child ·
  * impact`. Gerechnet von den Blättern her, damit eine Kette weiterträgt. Wird
  * das Abhängige schlechter, sinkt der Beitrag mit; gespeichert wird nichts davon.

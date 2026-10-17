@@ -6,9 +6,9 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import type { Me } from '../me';
-import type { LibraryStore } from '../libraryStore';
-import type { Who } from '../session';
+import type { Me } from '../core/me';
+import type { LibraryStore } from '../library/libraryStore';
+import type { Who } from '../core/session';
 import { fileUrl } from './files';
 import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, readCondition, type Action, type CompareOp, type Condition, type ConditionType } from './logic';
 import { runPython } from './python';

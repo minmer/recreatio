@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { API } from './session';
+import { API } from '../core/session';
 import { embedCode } from './Widget';
 
 const SIZES: readonly { w: string; h: string; label: string }[] = [

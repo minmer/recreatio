@@ -8,7 +8,7 @@
 import { useMemo, useState } from 'react';
 
 import { EntityGlance } from './CardFace';
-import type { Card } from './cards';
+import type { Card } from './cardBasics';
 import { fogOf, ringsOf } from './game';
 import { average, knownessOf, shareOf } from './knowness';
 import type { Learner } from './learn';

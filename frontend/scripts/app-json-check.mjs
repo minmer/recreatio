@@ -25,11 +25,12 @@ const workspace = await mkdtemp(join(tmpdir(), 'app-json-'));
 const entry = join(workspace, 'entry.ts');
 const app = join(process.cwd(), 'src/app/').replace(/\\/g, '/');
 await writeFile(entry, `
-export { PARTS, partOf } from '${app}parts/registry';
-export * from '${app}pageJson';
-export { QUESTION_EXAMPLE, QUESTION_KEYS, readQuestions } from '${app}formJson';
-export { ENTRIES_FORMAT, ENTRIES_KEYS, ONCE_KEY, answerKeys, entriesDescription, exportEntries, planEntries } from '${app}entriesJson';
-export { BREAKPOINTS } from '${app}layout';
+export { PARTS, partOf } from '${app}pages/parts/registry';
+export * from '${app}pages/pageJson';
+export * from '${app}pages/pageJsonText';
+export { QUESTION_EXAMPLE, QUESTION_KEYS, readQuestions } from '${app}forms/formJson';
+export { ENTRIES_FORMAT, ENTRIES_KEYS, ONCE_KEY, answerKeys, entriesDescription, exportEntries, planEntries } from '${app}forms/entriesJson';
+export { BREAKPOINTS } from '${app}pages/layout';
 `);
 await build({
   entryPoints: [entry],

@@ -18,14 +18,14 @@ import { useState } from 'react';
 
 import {
   claimWord, holderName, waitsForOffice, type AgendaBookings, type AgendaOffer, type BookingResource, type HeldClaim
-} from './calendarBookings';
-import type { CalEvent } from './calendarModel';
-import { longDate } from './dayMath';
-import { Modal } from './Modal';
+} from '../calendar/calendarBookings';
+import type { CalEvent } from '../calendar/calendarModel';
+import { longDate } from '../core/dayMath';
+import { Modal } from '../ui/Modal';
 import { officeAdd, officeClose, officeDecides, officeRemove } from './resource';
-import { viewPath } from './routes';
-import { WorkspaceError } from './session';
-import { askText } from './ui/dialogs';
+import { viewPath } from '../routes';
+import { WorkspaceError } from '../core/session';
+import { askText } from '../ui/dialogs';
 
 const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 

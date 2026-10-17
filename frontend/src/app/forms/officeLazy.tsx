@@ -10,11 +10,12 @@
 
 import { lazy, Suspense, type ComponentProps } from 'react';
 
-import type { EntryDeskPanel as Desk, WriteToSeat as Write } from './FormOffice';
-import { Loading } from './ui/Loading';
+import type { EntryDeskPanel as Desk } from './FormPeople';
+import type { WriteToSeat as Write } from './FormLinks';
+import { Loading } from '../ui/Loading';
 
-const DeskLater = lazy(() => import('./FormOffice').then((m) => ({ default: m.EntryDeskPanel })));
-const WriteLater = lazy(() => import('./FormOffice').then((m) => ({ default: m.WriteToSeat })));
+const DeskLater = lazy(() => import('./FormPeople').then((m) => ({ default: m.EntryDeskPanel })));
+const WriteLater = lazy(() => import('./FormLinks').then((m) => ({ default: m.WriteToSeat })));
 
 export function EntryDeskPanel(props: ComponentProps<typeof Desk>) {
   return <Suspense fallback={<Loading lines={2} />}><DeskLater {...props} /></Suspense>;

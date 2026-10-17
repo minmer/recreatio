@@ -17,16 +17,16 @@
 import { useState } from 'react';
 
 import { ensurePrivateArea } from './agenda';
-import { areaPath, type AreaRow } from './area';
-import { AreaOptions } from './AreaOptions';
+import { areaPath, type AreaRow } from '../areas/area';
+import { AreaOptions } from '../areas/AreaOptions';
 import {
   addCalendar, CALENDAR_KIND_LABEL, saveCalendarRules, type CalendarKind, type CalendarRow, type CalendarRules
 } from './calendar';
-import type { Me } from './me';
-import { Modal } from './Modal';
-import { WorkspaceError } from './session';
-import { PRIVATE, writableGroups } from './WhoSees';
-import { askText } from './ui/dialogs';
+import type { Me } from '../core/me';
+import { Modal } from '../ui/Modal';
+import { WorkspaceError } from '../core/session';
+import { PRIVATE, writableGroups } from '../areas/WhoSees';
+import { askText } from '../ui/dialogs';
 
 const KINDS: readonly CalendarKind[] = ['appointment', 'mass', 'confession', 'devotion', 'visit'];
 const DURATIONS: readonly number[] = [15, 20, 30, 40, 45, 60, 90, 120, 180, 240];

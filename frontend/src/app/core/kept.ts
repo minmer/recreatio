@@ -107,15 +107,6 @@ export async function device(): Promise<Device | null> {
   return (await vault.put(SLOT, JSON.stringify({ id: made.id, key: toBase64Url(made.key) }))) ? made : null;
 }
 
-/**
- * Den Öffner wegwerfen.
- *
- * Danach ist jede Hülle, die noch beim Dienst liegt, für immer zu — auch die
- * dieses Geräts. Gedacht für „dieses Gerät vergessen", nicht fürs Abmelden:
- * beim Abmelden geht die Hülle weg, nicht der Öffner.
- */
-export const forgetDevice = (): Promise<void> => vault.drop(SLOT);
-
 /** Den PasswordKey versiegeln — fertig für den Dienst, der ihn nicht öffnet. */
 export const sealKept = async (
   accountId: string, on: Device, passwordKey: Uint8Array

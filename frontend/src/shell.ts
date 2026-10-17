@@ -2,9 +2,6 @@
  * DIE HÜLLE — was nur in der Android-App geschieht, und zwar BEVOR die Seite
  * startet. Im Browser wird diese Datei gar nicht geladen (`main.tsx`).
  *
- * Sie gehört weder zum Altbestand noch zum Neubau: die Zurück-Taste und ein
- * Link, der von aussen kommt, betreffen beide gleich.
- *
  * <code>
  *   Start ohne Adresse      → der Arbeitsplatz (#/workspace), nicht die Startseite
  *   Link auf recreatio.pl   → in der App geöffnet, beim Start wie im Lauf
@@ -19,15 +16,14 @@
 import { App } from '@capacitor/app';
 import { SystemBars, SystemBarsStyle } from '@capacitor/core';
 
-import { saveBlob } from './app/platform';
+import { saveBlob } from './app/core/platform';
 
 const HOME = '#/workspace';
 const OWN_HOSTS = new Set(['recreatio.pl', 'www.recreatio.pl']);
 
 /**
  * Welcher Startlink schon verarbeitet ist. Die App liefert ihn bei JEDEM
- * Neuladen der Seite wieder — und neu geladen wird auch beim Wechsel zwischen
- * Altbestand und Neubau. Ohne diese Marke spränge die Seite dann jedes Mal
+ * Neuladen der Seite wieder. Ohne diese Marke spränge die Seite dann jedes Mal
  * zurück an den Anfang.
  */
 const LAUNCH_SLOT = 'recreatio:shell:launch';
@@ -46,7 +42,7 @@ function ownLink(url: string): URL | null {
  * Einen eigenen Link hier öffnen.
  *
  * Eine blosse Raute wechselt ohne Neuladen (der Schlüssel im Speicher bleibt);
- * ein anderer Pfad (Altbestand: /event/…) lädt die Seite von hier neu — die
+ * ein anderer Pfad (etwa /prywatnosc/) lädt die Seite von hier neu — die
  * App liefert sie aus sich selbst, nicht aus dem Netz.
  */
 function openHere(link: URL, starting: boolean): void {

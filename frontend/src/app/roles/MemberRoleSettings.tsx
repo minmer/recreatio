@@ -14,13 +14,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import type { AreaRow } from './area';
+import type { AreaRow } from '../areas/area';
 import { createCommonRole, reachWords, type NewRoleDraft } from './commonRole';
 import { CommonRoleChoice, EMPTY_DRAFT, NEW_ROLE, useGivableRoles } from './CommonRoleField';
-import type { Ring, SealedRole } from './keys';
+import type { Ring, SealedRole } from '../core/keys';
 import { enrollMembers, handOverRoleKeys, loadFormMembers, setMemberRole, type MemberState } from './memberRole';
-import { WorkspaceError } from './session';
-import { Loading } from './ui/Loading';
+import { WorkspaceError } from '../core/session';
+import { Loading } from '../ui/Loading';
 
 export function MemberRoleSettings({ partId, ring, person, areas, onRingChanged }: {
   partId: string;

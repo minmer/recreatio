@@ -16,40 +16,40 @@
 
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
-import { formsPath, pageSteps, PATH_SHAPE, ROOT_STEP, tilesPath, viewPath, VIEWS, type Spot, type View } from './routes';
-import { useCrumbs } from './crumbTrail';
-import { useOnline } from './chatFeatures';
-import { FormOffice } from './FormOffice';
-import { loadModules, readConfig, type ModuleRow } from './module';
-import { partLabel } from './parts/registry';
-import { Account } from './Account';
-import { Addresses } from './Addresses';
-import { Areas } from './Areas';
-import { Modules } from './Modules';
-import { Reservations } from './Reservations';
-import { CalendarApp } from './CalendarApp';
-import { ChatView } from './ChatPage';
-import { MassOffice } from './MassOffice';
-import { PageEditor } from './PageEditor';
-import { RoleGraph } from './RoleGraph';
-import { WorkspaceError, type Who } from './session';
+import { formsPath, pageSteps, PATH_SHAPE, ROOT_STEP, tilesPath, viewPath, VIEWS, type Spot, type View } from '../routes';
+import { useCrumbs } from '../shell/crumbTrail';
+import { useOnline } from '../chat/chatFeatures';
+import { FormOffice } from '../forms/FormOffice';
+import { loadModules, readConfig, type ModuleRow } from '../modules/module';
+import { partLabel } from '../pages/parts/registry';
+import { Account } from '../account/Account';
+import { Addresses } from '../pages/Addresses';
+import { Areas } from '../areas/Areas';
+import { Modules } from '../modules/Modules';
+import { Reservations } from '../bookings/Reservations';
+import { CalendarApp } from '../calendar/CalendarApp';
+import { ChatView } from '../chat/ChatPage';
+import { MassOffice } from '../masses/MassOffice';
+import { PageEditor } from '../pages/PageEditor';
+import { RoleGraph } from '../roles/RoleGraph';
+import { WorkspaceError, type Who } from '../core/session';
 import { useTouched } from './Recent';
-import { SlugTree } from './SlugTree';
-import { TasksView } from './TasksView';
-import { LibraryView } from './LibraryView';
-import { Kartoteka } from './Kartoteka';
+import { SlugTree } from '../pages/SlugTree';
+import { TasksView } from '../calendar/TasksView';
+import { LibraryView } from '../library/LibraryView';
+import { Kartoteka } from '../registry/Kartoteka';
 import { claimSlug, loadDesk, takers, type Desk } from './desk';
-import { roleLabel, useRoleNames } from './roleNames';
-import { treeOf } from './tree';
+import { roleLabel, useRoleNames } from '../roles/roleNames';
+import { treeOf } from '../core/tree';
 import { WorkspaceHome } from './WorkspaceHome';
-import { Loading } from './ui/Loading';
-import { PageHeader } from './ui/PageHeader';
-import { useRemembered } from './prefs';
-import { ShareButton } from './Share';
+import { Loading } from '../ui/Loading';
+import { PageHeader } from '../ui/PageHeader';
+import { useRemembered } from '../core/prefs';
+import { ShareButton } from '../links/Share';
 import { DESK_EVENT } from './viewData';
 
 /* 0109 — die Nauka als eigenes Bündel (Karten, Läufe, Sitzungen): erst, wenn man sie öffnet. */
-const LearnView = lazy(() => import('./cogita/LearnView').then((m) => ({ default: m.LearnView })));
+const LearnView = lazy(() => import('../cogita/LearnView').then((m) => ({ default: m.LearnView })));
 
 export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   /* 0111 — angemeldet und die Seite zu sehen: „w aplikacji" (für „Wyślij, gdy będzie online" und wer es teilt). */

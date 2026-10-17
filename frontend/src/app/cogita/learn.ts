@@ -19,11 +19,11 @@
  * ins Konto mit [L6, I13].
  */
 
-import { aad, Field, fromBase64Url, openText, sealText, toBase64Url, unwrapKey, unwrapKeyP256, wrapKey, wrapKeyP256 } from '../crypto';
-import { idbDelete, idbGet, idbKeys, idbPut } from '../idb';
-import { newId } from '../ids';
-import { call, WorkspaceError } from '../session';
-import type { Card } from './cards';
+import { aad, Field, fromBase64Url, openText, sealText, toBase64Url, unwrapKey, unwrapKeyP256, wrapKey, wrapKeyP256 } from '../core/crypto';
+import { idbDelete, idbGet, idbKeys, idbPut } from '../core/idb';
+import { newId } from '../core/ids';
+import { call, WorkspaceError } from '../core/session';
+import type { Card } from './cardBasics';
 import { dueAt, snapshotOf, type Mark, type Snapshot } from './knowness';
 
 /* -- Was gespeichert wird ---------------------------------------------------------------- */

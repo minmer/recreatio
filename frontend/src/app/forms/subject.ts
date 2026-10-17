@@ -21,9 +21,9 @@
  */
 
 import type { IdentityRole } from './form';
-import type { Ring } from './keys';
-import { loadPerson, openMine, PERSON_FIELDS, type PersonField } from './person';
-import { personsOf, type RoleGraphData } from './roles';
+import type { Ring } from '../core/keys';
+import { loadPerson, openMine, PERSON_FIELDS, type PersonField } from '../account/person';
+import { personsOf, type RoleGraphData } from '../roles/roles';
 
 /** Wovon ein Baustein handeln kann. Dieselben vier wie `ck_module_for_kind`. */
 export type ForKind = 'none' | 'person' | 'group' | 'role';

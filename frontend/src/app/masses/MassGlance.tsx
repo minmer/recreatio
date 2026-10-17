@@ -10,7 +10,7 @@
 
 import type { CSSProperties } from 'react';
 
-import { keyOf } from './dayMath';
+import { keyOf } from '../core/dayMath';
 import { byDay, dayKey, DEVOTION, hour, isMass, massesOnly, shortDayLabel, type PublicMass } from './mass';
 import { isAhead, nextOf, soon, type MassView } from './massShape';
 import {

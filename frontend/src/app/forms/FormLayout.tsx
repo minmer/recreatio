@@ -16,7 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { OpenField } from './form';
 import { GROUP_LABEL, type GroupItem, type GroupKind, type LayoutItem } from './formDesign';
 import { printedByDefault } from './SignSheet';
-import { newId } from './ids';
+import { newId } from '../core/ids';
 
 /* -- Der Baum, als reine Umformungen ----------------------------------------------- */
 

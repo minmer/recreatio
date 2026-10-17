@@ -28,15 +28,17 @@
 
 import { useState } from 'react';
 
-import { fromBase64Url } from './crypto';
-import { consentGiven, consentText, reviseSubmission, type OwnAnswer } from './form';
+import { fromBase64Url } from '../core/crypto';
+import { consentGiven, consentText } from './form';
+import { reviseSubmission } from './revisions';
+import { type OwnAnswer } from './submissions';
 import { loadPublicIntake } from './intake';
 import { Phones } from './Phones';
-import { rotateSeat, seatPath, type SubmittedValue } from './seat';
-import { confirmSubmission } from './seatCheck';
-import type { SeatView } from './seatContext';
-import { forget, markReplaced, underOf } from './seatKeep';
-import { WorkspaceError } from './session';
+import { rotateSeat, seatPath, type SubmittedValue } from '../seats/seat';
+import { confirmSubmission } from '../seats/seatCheck';
+import type { SeatView } from '../seats/seatContext';
+import { forget, markReplaced, underOf } from '../seats/seatKeep';
+import { WorkspaceError } from '../core/session';
 import { SignSheetButton } from './SignSheet';
 
 /**

@@ -1,0 +1,24 @@
+/* Wysyłanie (0111): później, bez dźwięku, gdy ktoś będzie online.
+   Teil von app.css: dort steht, in welcher Reihenfolge die Dateien gelten. */
+
+/* -- 0111 Wysyłanie: później, bez dźwięku, gdy ktoś będzie online ---------------------------------- */
+/* Die schmale Lasche links am Senden-Knopf öffnet dasselbe Menü wie Rechtsklick / Halten. */
+.ch-send-more {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.75rem;
+  height: 2.75rem;
+  margin-right: calc(-1 * var(--wk-space-1, 0.25rem));
+  padding: 0;
+  border: 0;
+  border-radius: var(--wk-radius-pill, 999px);
+  background: none;
+  color: var(--wk-muted);
+  cursor: pointer;
+}
+.ch-send-more svg { transform: rotate(180deg); }
+.ch-send-more:hover:not(:disabled), .ch-send-more[aria-expanded="true"] { background: color-mix(in srgb, var(--wk-accent) 12%, transparent); color: var(--wk-ink); }
+.ch-send-more:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.ch-send-more:disabled { opacity: 0.5; cursor: default; }
+.ch-plan-silent { display: flex; align-items: center; gap: var(--wk-space-2, 0.5rem); font-size: var(--wk-text-sm); }

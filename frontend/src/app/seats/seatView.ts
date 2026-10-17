@@ -14,19 +14,19 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { areaReader } from './areaRead';
-import { loadPublic, type Occurrence } from './calendar';
-import { aad, Field, fromBase64Url, openText } from './crypto';
-import { openSubmitted, type OwnAnswer } from './form';
+import { areaReader } from '../areas/areaRead';
+import { loadPublic, type Occurrence } from '../calendar/calendar';
+import { aad, Field, fromBase64Url, openText } from '../core/crypto';
+import { openSubmitted, type OwnAnswer } from '../forms/submissions';
 import { isChallenge, loadPortal, openGrants, openPortal, type Portal } from './seat';
-import { openSeatRoles } from './memberRole';
-import { moduleNameAad, openWith, seatNameAad, seatOwnNameAad } from './names';
+import { openSeatRoles } from '../roles/memberRole';
+import { moduleNameAad, openWith, seatNameAad, seatOwnNameAad } from '../core/names';
 import type { SeatChallenge } from './seatCheck';
 import type { SeatView } from './seatContext';
-import { openSteps, type SeatForm } from './steps';
-import { rememberSeatAreaKeys } from './roleBundle';
+import { openSteps, type SeatForm } from '../steps/steps';
+import { rememberSeatAreaKeys } from '../roles/roleBundle';
 import { recall, remember } from './seatKeep';
-import { WorkspaceError } from './session';
+import { WorkspaceError } from '../core/session';
 
 interface Shared {
   readonly name: string;

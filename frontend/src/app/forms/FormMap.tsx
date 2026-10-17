@@ -20,17 +20,17 @@ import { useEffect, useMemo, useState } from 'react';
 import ReactFlow, { Background, Controls, Handle, MiniMap, Position, type Edge, type Node, type NodeProps } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { loadDesk } from './desk';
+import { loadDesk } from '../workspace/desk';
 import { loadFields, type IdentityRole } from './form';
 import { formMapModel, formSections, logicDependencies, type LogicPage, type MapEdgeKind, type MapNode } from './formGroups';
-import { loadModules, type FormGroup, type ModuleRow } from './module';
-import { loadPage } from './page';
-import { readLogic } from './pageLogic';
-import { partLabel } from './parts/registry';
-import { myRoleNames } from './roleNames';
-import { pageSteps, viewPath, formPath, formsPath } from './routes';
-import { whoIsThere, WorkspaceError } from './session';
-import { Loading } from './ui/Loading';
+import { loadModules, type FormGroup, type ModuleRow } from '../modules/module';
+import { loadPage } from '../pages/page';
+import { readLogic } from '../pages/pageLogic';
+import { partLabel } from '../pages/parts/registry';
+import { myRoleNames } from '../roles/roleNames';
+import { pageSteps, viewPath, formPath, formsPath } from '../routes';
+import { whoIsThere, WorkspaceError } from '../core/session';
+import { Loading } from '../ui/Loading';
 
 interface World {
   readonly modules: readonly ModuleRow[];

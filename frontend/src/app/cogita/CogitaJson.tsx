@@ -7,8 +7,8 @@
 
 import { useState } from 'react';
 
-import { JsonPanel } from '../JsonPanel';
-import { WorkspaceError } from '../session';
+import { JsonPanel } from '../ui/JsonPanel';
+import { WorkspaceError } from '../core/session';
 import { aiPrompt, applyImport, courseDescription, exportCourse, exportFlow, planImport } from './json';
 import { useCtx } from './ui';
 

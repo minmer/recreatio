@@ -1,0 +1,594 @@
+/* Persönlich (0054): Dialog, Vollbild, Kalender, Aufgaben, „Ostatnio", Menü.
+   Teil von app.css: dort steht, in welcher Reihenfolge die Dateien gelten. */
+
+/* ===========================================================================
+   0054 — PERSÖNLICH: Dialog, Vollbild, Kalender, Aufgaben, „Ostatnio", Menü
+   =========================================================================== */
+
+/* -- Der Knopf „Pełny ekran" an einer Kachel -------------------------------- */
+
+.wk-card-full {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  color: var(--wk-muted);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.wk-card:hover > .wk-card-full,
+.wk-card-full:focus-visible { opacity: 1; }
+.wk-card-full:hover { color: var(--wk-accent); border-color: var(--wk-accent); }
+.wk-card-full:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+@media (hover: none) { .wk-card-full { opacity: 0.9; } }
+@media (prefers-reduced-motion: reduce) { .wk-card-full { transition: none; } }
+.wk-card.has-full > .wk-card-title { padding-right: 2rem; }
+/* 2026-10-17 — auch ohne Überschrift: die erste Zeile läuft nicht unter den Knopf (die Klausel eines Formulars stand darunter). */
+.wk-card.has-full > :first-child:not(.wk-card-title):not(.wk-card-full) { padding-right: 2rem; }
+.wk-card.has-full[data-h='strip'] { padding-right: 3rem; }
+
+/* -- Über der Seite: Dialog und Vollbild ------------------------------------- */
+
+/* Dialog und Vollbild (.wk-modal*, .wk-full*): ui/ui.css. Der Wirt eines Dialogs nimmt keinen Platz ein. */
+.wk-root.wk-portal { position: relative; z-index: 60; min-height: 0; background: none; }
+.wk-card.is-whole > .wk-card-title { display: none; }
+
+/* -- Der eigene Kalender -------------------------------------------------------- */
+
+.wk-cal2 { display: grid; gap: 0.75rem; }
+.wk-cal2-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.wk-cal2-add { display: flex; gap: 0.375rem; margin-left: auto; }
+.wk-cal2-groups { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.wk-cal2-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-cal2-group.is-off { opacity: 0.5; text-decoration: line-through; }
+.wk-cal2-group:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-cal2-dot {
+  flex: none;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l));
+}
+
+/* Ein Termin: Grund, Randstrich und Schrift aus dem Farbton seiner Gruppe. */
+.wk-ev {
+  font: inherit;
+  font-size: var(--wk-text-xs);
+  line-height: 1.25;
+  text-align: left;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0.125rem 0.375rem;
+  border: 0;
+  border-left: 3px solid hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l));
+  border-radius: 4px;
+  background: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-bg-l));
+  color: hsl(var(--ev-h, 30) 35% var(--ev-ink-l));
+  cursor: pointer;
+}
+.wk-ev:hover { filter: brightness(0.97); }
+.wk-ev:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; z-index: 2; }
+.wk-ev.is-claim { border-left-style: dashed; }
+.wk-ev.is-cancelled { text-decoration: line-through; opacity: 0.6; }
+.wk-ev-time { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wk-ev-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wk-ev-line { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
+.wk-ev-sub { font-size: var(--wk-text-xs); opacity: 0.85; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/*
+   0057 — RESERVIERUNGEN AM TERMIN. Ein angebotener Termin zeigt, wie viel
+   besetzt ist („2/3") und ob jemand auf ein Ja wartet („1?", bernsteinfarben
+   wie überall, wo etwas gehalten wird). Leer: nur umrissen — ein Angebot,
+   noch kein Treffen. Voll: kräftig. Geschlossen: gestreift.
+*/
+.wk-ev-badges { display: inline-flex; gap: 4px; margin-left: auto; flex: none; }
+.wk-ev-seats, .wk-ev-wait {
+  font-size: var(--wk-text-xs);
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.125rem 0.25rem;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+.wk-ev-seats { background: var(--wk-surface); color: hsl(var(--ev-h, 30) 35% var(--ev-ink-l)); box-shadow: inset 0 0 0 1px hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)); }
+.wk-ev-wait { background: var(--wk-held-bg); color: var(--wk-held-ink); box-shadow: inset 0 0 0 1px var(--wk-held-line); }
+.wk-ev.is-offer.is-empty { background: var(--wk-surface); border-left-style: dotted; }
+.wk-ev.is-offer.is-full .wk-ev-seats { background: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)); color: var(--wk-surface); }
+.wk-ev.is-offer.is-closed {
+  background-image: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--wk-muted) 14%, transparent) 6px 8px);
+}
+.wk-ev.has-waiting { box-shadow: inset 0 0 0 1.5px var(--wk-held-line); }
+.wk-ev.is-booking { border-left-style: double; border-left-width: 4px; }
+
+/* Tag und Woche: Kopf, Ganztägiges, und das Stundenraster, das in sich rollt. */
+.wk-cal2-grid {
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  overflow: hidden;
+}
+.wk-cal2-head,
+.wk-cal2-allday,
+.wk-cal2-body {
+  display: grid;
+  grid-template-columns: 3.4rem repeat(var(--days), minmax(0, 1fr));
+}
+.wk-cal2-head { border-bottom: 1px solid var(--wk-line); }
+.wk-cal2-dayhead {
+  display: grid;
+  justify-items: center;
+  gap: 0;
+  padding: 0.375rem 0;
+  font: inherit;
+  border: 0;
+  border-left: 1px solid var(--wk-line);
+  background: none;
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-cal2-dayhead:hover { background: var(--wk-soft); }
+.wk-cal2-dayhead:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-cal2-dow { font-size: var(--wk-text-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--wk-muted); }
+.wk-cal2-date { font-size: var(--wk-text-lg); font-weight: 700; font-variant-numeric: tabular-nums; }
+.wk-cal2-dayhead.is-today .wk-cal2-date {
+  display: grid;
+  place-items: center;
+  min-width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 999px;
+  background: var(--wk-accent);
+  color: var(--wk-on-accent);
+}
+.wk-cal2-allday { border-bottom: 1px solid var(--wk-line); min-height: 1.8rem; }
+.wk-cal2-alllabel { font-size: var(--wk-text-xs); color: var(--wk-muted); padding: 0.25rem 0.25rem 0 0; text-align: right; }
+.wk-cal2-allcell { display: grid; align-content: start; gap: 2px; padding: 2px; border-left: 1px solid var(--wk-line); cursor: copy; }
+.wk-cal2-scroll { height: min(68vh, 42rem); overflow-y: auto; }
+.wk-cal2-body { position: relative; height: calc(24 * var(--hour)); }
+.wk-cal2-hours { display: grid; grid-template-rows: repeat(24, var(--hour)); }
+.wk-cal2-hour { font-size: var(--wk-text-xs); color: var(--wk-muted); text-align: right; padding-right: 0.375rem; transform: translateY(-0.45em); font-variant-numeric: tabular-nums; }
+.wk-cal2-col {
+  position: relative;
+  border-left: 1px solid var(--wk-line);
+  background-image: linear-gradient(to bottom, var(--wk-line) 1px, transparent 1px);
+  background-size: 100% var(--hour);
+  cursor: copy;
+}
+.wk-cal2-col.is-today { background-color: color-mix(in srgb, var(--wk-accent) 5%, transparent); }
+.wk-cal2-col > .wk-ev { position: absolute; flex-direction: column; align-items: stretch; gap: 0; z-index: 1; }
+
+/* Kurz (unter einer Dreiviertelstunde): Zeit und Titel in EINER Zeile — für zwei ist kein Platz. */
+.wk-cal2-col > .wk-ev.is-short { flex-direction: row; align-items: center; gap: 0.25rem; padding-block: 0; line-height: 1.1; white-space: nowrap; }
+.wk-cal2-col > .wk-ev.is-short .wk-ev-title { order: 1; }
+.wk-cal2-col > .wk-ev.is-short .wk-ev-line { display: contents; }
+.wk-cal2-col > .wk-ev.is-short .wk-ev-badges { order: 2; }
+
+/*
+   0057 — DIE SCHIENE DER AUFGABEN: links am Tag, so schmal, dass sie den
+   Terminen nichts wegnimmt. Jedes Fenster ein Strich im Stand seiner Farbe;
+   was gerade offen ist, leuchtet, was erledigt ist, tritt zurück.
+*/
+.wk-cal2-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--rail);
+  padding: 0;
+  border: 0;
+  border-right: 1px dashed color-mix(in srgb, var(--wk-line) 70%, transparent);
+  background: none;
+  cursor: pointer;
+  z-index: 2;
+}
+.wk-cal2-rail:hover { background: color-mix(in srgb, var(--wk-accent) 7%, transparent); }
+.wk-cal2-rail:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-rail-bar {
+  position: absolute;
+  width: 3px;
+  border-radius: 4px;
+  background: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l));
+  opacity: 0.45;
+}
+.wk-rail-bar::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1.5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: inherit;
+}
+.wk-rail-bar.is-open, .wk-rail-bar.is-due { opacity: 1; background: var(--wk-accent); }
+.wk-rail-bar.is-missed, .wk-rail-bar.is-late { opacity: 0.8; background: var(--wk-danger); }
+.wk-rail-bar.is-done { opacity: 0.25; }
+.wk-rail-bar.is-skipped { opacity: 0.2; background: var(--wk-muted); }
+
+/* Der Anfangspunkt nur, wo es jetzt drängt — sonst wäre die Schiene eine Perlenkette. */
+.wk-rail-bar:not(.is-open):not(.is-due)::before { display: none; }
+
+/* Vergangene Tage treten zurück — auch was dort liegen blieb. */
+.wk-cal2-rail.is-past .wk-rail-bar { opacity: 0.22; }
+.wk-taskpill.is-past .wk-taskpill-note.is-behind { color: var(--wk-muted); font-weight: 600; }
+.wk-taskpill.is-past .wk-taskpill-dot { background: var(--wk-muted); }
+
+/* Die Zeile „zadania" über dem Raster: je Tag der Stand, ein Klick öffnet die Liste. */
+.wk-cal2-taskrow {
+  display: grid;
+  grid-template-columns: 3.4rem repeat(var(--days), minmax(0, 1fr));
+  border-bottom: 1px solid var(--wk-line);
+  background: color-mix(in srgb, var(--wk-soft) 50%, transparent);
+}
+.wk-cal2-taskcell { display: flex; align-items: center; padding: 4px; border-left: 1px solid var(--wk-line); min-width: 0; }
+
+.wk-taskpill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 100%;
+  font: inherit;
+  font-size: var(--wk-text-xs);
+  line-height: 1.2;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  color: var(--wk-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.wk-taskpill:hover { border-color: var(--wk-accent); color: var(--wk-ink); }
+.wk-taskpill:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-taskpill-tick { font-weight: 700; }
+.wk-taskpill-count { font-weight: 700; font-variant-numeric: tabular-nums; }
+.wk-taskpill-note { overflow: hidden; text-overflow: ellipsis; }
+.wk-taskpill-note.is-pressing { color: var(--wk-accent); font-weight: 700; }
+.wk-taskpill-note.is-behind { color: var(--wk-danger); font-weight: 700; }
+.wk-taskpill.is-pressing { border-color: var(--wk-accent); }
+.wk-taskpill.is-clear { color: var(--wk-ok); border-color: color-mix(in srgb, var(--wk-ok) 45%, var(--wk-line)); }
+.wk-taskpill.is-mini { font-size: var(--wk-text-xs); padding: 0 0.375rem; gap: 0.25rem; }
+.wk-taskpill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--wk-accent); }
+.wk-taskpill.is-behind .wk-taskpill-dot { background: var(--wk-danger); }
+.wk-cal2-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--wk-danger); z-index: 3; pointer-events: none; }
+.wk-cal2-now::before { content: ''; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--wk-danger); }
+
+/* Der Monat. */
+.wk-cal2-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.25rem; }
+.wk-cal2-cell {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-height: 6.2rem;
+  min-width: 0;
+  padding: 0.25rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  cursor: copy;
+}
+.wk-cal2-cell.is-out { background: var(--wk-ground); }
+.wk-cal2-cell.is-out .wk-cal2-cellday { color: var(--wk-muted); }
+.wk-cal2-cell.is-today { border-color: var(--wk-accent); box-shadow: inset 0 0 0 1px var(--wk-accent); }
+.wk-cal2-cellday {
+  justify-self: start;
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  font-weight: 700;
+  padding: 0 0.25rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-cal2-cellday:hover { background: var(--wk-soft); }
+.wk-cal2-cellday:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-cal2-cell.is-today .wk-cal2-cellday { color: var(--wk-accent); }
+.wk-ev.is-line { white-space: nowrap; }
+.wk-cal2-more { justify-self: start; font-size: var(--wk-text-xs); }
+
+/* Die Liste. */
+.wk-cal2-list { display: grid; gap: 1rem; }
+.wk-cal2-listday { display: grid; gap: 0.25rem; }
+.wk-cal2-listday.is-today > .wk-mass-day-name { color: var(--wk-accent); }
+.wk-cal2-listrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; padding: 0.25rem 0; border-bottom: 1px solid var(--wk-line); }
+.wk-cal2-listtime { flex: none; min-width: 7rem; font-variant-numeric: tabular-nums; color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.wk-cal2-listtitle { font-weight: 600; text-align: left; }
+.wk-cal2-listtitle.is-cancelled { text-decoration: line-through; }
+.wk-cal2-listhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.25rem 0.75rem; }
+.wk-cal2-listhead > .wk-mass-day-name { margin: 0; }
+.wk-cal2-cellhead { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; min-width: 0; }
+
+@media (max-width: 640px) {
+  .wk-cal2-head, .wk-cal2-allday, .wk-cal2-body { grid-template-columns: 2.4rem repeat(var(--days), minmax(0, 1fr)); }
+  .wk-cal2-cell { min-height: 3.6rem; }
+  .wk-cal2-cell .wk-ev .wk-ev-time { display: none; }
+  .wk-cal2-add { margin-left: 0; }
+}
+
+/* Das Formular eines Termins oder einer Aufgabe. */
+.wk-ev-form { display: grid; gap: 0.5rem; }
+.wk-ev-when-row, .wk-ev-repeat { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: flex-end; }
+.wk-ev-when-row .wk-field, .wk-ev-repeat .wk-field { margin: 0; }
+.wk-ev-every input { width: 5rem; }
+.wk-ev-scope { justify-self: start; }
+.wk-ev-delete { margin-left: auto; }
+.wk-ev-when { margin: 0; font-weight: 600; }
+.wk-ev-notes { white-space: pre-wrap; margin: 0; }
+.wk-days { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.wk-day-chip {
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  min-width: 2.6rem;
+  padding: 0.25rem 0.375rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-day-chip.is-on { background: var(--wk-accent); border-color: var(--wk-accent); color: var(--wk-on-accent); }
+.wk-day-chip:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+
+/* -- Aufgaben --------------------------------------------------------------------- */
+
+.wk-tasks { display: grid; gap: 1rem; }
+.wk-tasks-group { display: grid; gap: 0.375rem; }
+.wk-tasks-group > .wk-h2 { margin: 0 0 0.25rem; }
+.wk-tasks-group.is-now > .wk-h2 { color: var(--wk-accent); }
+.wk-tasks-group.is-missed > .wk-h2 { color: var(--wk-danger); }
+.wk-task {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--wk-line);
+  border-left: 4px solid hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l));
+  border-radius: 4px;
+  background: var(--wk-surface);
+}
+.wk-task.is-open { box-shadow: inset 0 0 0 1px var(--wk-accent); }
+.wk-task.is-missed, .wk-task.is-late { border-color: var(--wk-danger); border-left-color: var(--wk-danger); }
+.wk-task.is-done { opacity: 0.65; }
+.wk-task-tick {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  font-size: var(--wk-text-md);
+  font-weight: 700;
+  border: 2px solid hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l));
+  border-radius: 6px;
+  background: var(--wk-surface);
+  color: var(--wk-on-accent);
+  cursor: pointer;
+}
+.wk-task-tick.is-done { background: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)); }
+.wk-task-tick:disabled { cursor: default; opacity: 0.5; }
+.wk-task-tick:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-task-main {
+  flex: 1 1 auto;
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.wk-task-main:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-task-title { font-weight: 600; }
+.wk-task.is-done .wk-task-title { text-decoration: line-through; }
+.wk-task-when { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-task-badge { flex: none; font-size: var(--wk-text-xs); font-weight: 700; color: var(--wk-muted); white-space: nowrap; }
+.wk-task-badge.is-open { color: var(--wk-accent); }
+.wk-task-badge.is-missed { color: var(--wk-danger); }
+.wk-task-badge.is-skipped { color: var(--wk-muted); }
+.wk-task.is-skipped { opacity: 0.7; }
+.wk-task.is-skipped .wk-task-title { text-decoration: line-through; text-decoration-style: dotted; }
+.wk-task-skip { flex: none; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-task-skip:hover { color: var(--wk-accent); }
+.wk-task-skip:disabled { cursor: default; opacity: 0.5; }
+.wk-task-meter { display: block; height: 0.35rem; border-radius: 999px; background: var(--wk-soft); overflow: hidden; margin-top: 0.25rem; }
+.wk-task-fill { display: block; height: 100%; border-radius: 999px; background: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)); transition: width 0.3s linear; }
+
+/*
+   Die Dringlichkeit als Farbe: je naeher das Ende, desto lauter. „late" und
+   „overdue" sehen gleich rot aus — der Balken ist dann ohnehin voll, und um
+   wie viel es zu spaet ist, steht im Abzeichen daneben.
+*/
+.wk-task-fill.is-later { background: var(--wk-muted); }
+.wk-task-fill.is-soon { background: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)); }
+.wk-task-fill.is-due { background: var(--wk-accent); }
+.wk-task-fill.is-late, .wk-task-fill.is-overdue { background: var(--wk-danger); }
+.wk-task.is-urge-overdue { border-left-color: var(--wk-danger); }
+.wk-task.is-late .wk-task-fill { background: var(--wk-danger); }
+
+@media (max-width: 640px) {
+  .wk-task { flex-wrap: wrap; }
+  .wk-task-badge { order: 3; margin-left: 2.5rem; }
+}
+
+/* -- „Ostatnio" ----------------------------------------------------------------------- */
+
+.wk-recent { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; margin: 0.25rem 0 0.75rem; }
+.wk-recent-label { font-size: var(--wk-text-xs); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--wk-muted); }
+.wk-recent-chip {
+  font-size: var(--wk-text-sm);
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  text-decoration: none;
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wk-recent-chip:hover { border-color: var(--wk-accent); color: var(--wk-accent); }
+.wk-recent-chip:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+
+/* -- Das Menü über der Seite --------------------------------------------------------- */
+
+/*
+   0058 — OBEN UND FEST. Die Leiste steht gleich unter dem Kopf und bleibt beim
+   Scrollen oben stehen: ein Menü, das man erst suchen muss, wenn man unten
+   angekommen ist, ist keines. Der Grund hinter ihr ist der der Seite, damit
+   nichts durch den Spalt darüber scheint.
+*/
+.wk-sitemenu {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: -2rem 0 0.5rem;
+  padding: 0.5rem 0;
+  background: var(--wk-ground);
+}
+.wk-sitemenu > .wk-sitemenu-list { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06); }
+.wk-sitemenu-toggle {
+  display: none;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-sitemenu-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.wk-sitemenu > .wk-sitemenu-list {
+  padding: 0.25rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 6px;
+  background: var(--wk-surface);
+}
+.wk-sitemenu-item { position: relative; }
+.wk-sitemenu-row { display: flex; align-items: center; }
+.wk-sitemenu-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--wk-ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+.wk-sitemenu-link:hover { background: var(--wk-soft); color: var(--wk-accent); }
+.wk-sitemenu-link:focus-visible, .wk-sitemenu-sub:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-sitemenu-link[aria-current='page'] { color: var(--wk-accent); box-shadow: inset 0 -2px 0 var(--wk-accent); }
+.wk-sitemenu-link.is-within { color: var(--wk-accent); }
+.wk-sitemenu-caret, .wk-sitemenu-out { font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.wk-sitemenu-sub {
+  font: inherit;
+  font-size: var(--wk-text-xs);
+  padding: 0.5rem 0.375rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--wk-muted);
+  cursor: pointer;
+}
+.wk-sitemenu-list.is-sub { display: none; }
+.wk-sitemenu-item.is-expanded > .wk-sitemenu-list.is-sub {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  display: grid;
+  min-width: 13rem;
+  padding: 0.25rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 6px;
+  background: var(--wk-surface);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
+}
+.wk-sitemenu-list.is-sub .wk-sitemenu-item.is-expanded > .wk-sitemenu-list.is-sub { top: 0; left: 100%; }
+.wk-sitemenu-list.is-sub .wk-sitemenu-link { width: 100%; font-weight: 500; }
+
+@media (max-width: 640px) {
+  .wk-sitemenu-toggle { display: inline-flex; gap: 0.375rem; }
+  .wk-sitemenu > .wk-sitemenu-list { display: none; margin-top: 0.375rem; }
+  .wk-sitemenu.is-open > .wk-sitemenu-list { display: grid; }
+  .wk-sitemenu .wk-sitemenu-list.is-sub,
+  .wk-sitemenu .wk-sitemenu-item.is-expanded > .wk-sitemenu-list.is-sub {
+    position: static;
+    display: grid;
+    min-width: 0;
+    padding: 0 0 0 1rem;
+    border: 0;
+    box-shadow: none;
+    background: none;
+  }
+  .wk-sitemenu-sub { display: none; }
+  .wk-sitemenu-link { width: 100%; }
+}
+
+/* -- Das Menü bauen --------------------------------------------------------------------- */
+
+.wk-menued-fold { margin: 0.375rem 0 1rem; }
+.wk-menued { display: grid; gap: 0.5rem; margin-top: 0.5rem; }
+/* Woher das Menue kommt — abgesetzt, weil es vor dem Inhalt kommt (0056). */
+.wk-menued-source {
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--wk-line);
+  background: var(--wk-soft);
+  border-radius: 4px;
+}
+.wk-menued-source > .wk-note, .wk-menued-source > .wk-hint { margin: 0; }
+.wk-menued-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; }
+.wk-menued-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem 0.5rem; }
+.wk-menued-label { flex: 1 1 10rem; min-width: 0; }
+.wk-menued-target { flex: 2 1 14rem; min-width: 0; }
+.wk-menued-tools { display: inline-flex; gap: 0.25rem; }
+.wk-menued-btn {
+  font: inherit;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-menued-btn:disabled { opacity: 0.35; cursor: default; }
+.wk-menued-btn:not(:disabled):hover { border-color: var(--wk-accent); color: var(--wk-accent); }
+.wk-menued-btn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-menued-preview { flex-basis: 100%; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-menued-row input, .wk-menued-row select { padding: 0.375rem 0.5rem; font: inherit; }

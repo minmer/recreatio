@@ -21,35 +21,37 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { forgetKept, loadKept, setKeyKeeping, type KeptDevice } from './keeping';
-import { knownDevice } from './kept';
-import type { Ring, SealedRole } from './keys';
-import { Modal } from './Modal';
+import { forgetKept, loadKept, setKeyKeeping, type KeptDevice } from '../core/keeping';
+import { knownDevice } from '../core/kept';
+import type { Ring, SealedRole } from '../core/keys';
+import { Modal } from '../ui/Modal';
 import { PersonCard } from './PersonCard';
-import { forget as forgetState } from './prefs';
-import { keysFor } from './ringOf';
-import { myRoleNames } from './roleNames';
-import { selfOf } from './roles';
-import { loadMySeats, openMine as openMySeat, type MySeat } from './seat';
-import { sealLegacyNames, unsealedCount } from './nameSeal';
-import { plural } from './plural';
-import { PasswordInput } from './PasswordInput';
-import { useCrumbs } from './crumbTrail';
-import { WorkspaceLook } from './WorkspaceLook';
-import { viewPath } from './routes';
-import { toast } from './ui/dialogs';
-import { Icon } from './ui/icons';
-import { PageHeader } from './ui/PageHeader';
+import { TRANSFER, TransferPage } from './TransferPage';
+import { forget as forgetState } from '../core/prefs';
+import { keysFor } from '../core/ringOf';
+import { myRoleNames } from '../roles/roleNames';
+import { selfOf } from '../roles/roles';
+import { loadMySeats, openMine as openMySeat, type MySeat } from '../seats/seat';
+import { sealLegacyNames, unsealedCount } from '../core/nameSeal';
+import { plural } from '../core/plural';
+import { PasswordInput } from '../ui/PasswordInput';
+import { useCrumbs } from '../shell/crumbTrail';
+import { WorkspaceLook } from '../notify/WorkspaceLook';
+import { viewPath } from '../routes';
+import { toast } from '../ui/dialogs';
+import { Icon } from '../ui/icons';
+import { PageHeader } from '../ui/PageHeader';
 import {
   deleteAccount, deletionPreview, keepHeldKey, WorkspaceError,
   type DeletionPreview, type KeyKeeping, type Who
-} from './session';
-import { Loading } from './ui/Loading';
+} from '../core/session';
+import { Loading } from '../ui/Loading';
 
-/** `#/workspace/account/widok` (und `…/powiadomienia`): Powiadomienia; `…/bezpieczenstwo`: Bezpieczeństwo i klucze; sonst das Konto. */
+/** `#/workspace/account/widok` (und `…/powiadomienia`): Powiadomienia; `…/bezpieczenstwo`: Bezpieczeństwo i klucze; `…/przeniesienie`: Przeniesienie danych; sonst das Konto. */
 export function Account({ who, trail = [] }: { who: Who; trail?: readonly string[] }) {
   if (trail[0] === 'widok' || trail[0] === 'powiadomienia') return <LookPage who={who} />;
   if (trail[0] === SECURITY) return <SecurityPage who={who} />;
+  if (trail[0] === TRANSFER) return <TransferPage who={who} />;
   return <AccountPage who={who} />;
 }
 
@@ -198,6 +200,14 @@ function AccountPage({ who }: { who: Who }) {
               {mode === null ? 'Konto ' + who.loginId
                 : `${mode === 'kept' ? 'Klucz zachowany' : 'Klucz tylko w pamięci'}${devices.length > 0 ? ` · ${devices.length} ${plural(devices.length, 'urządzenie', 'urządzenia', 'urządzeń')}` : ''}`}
             </span>
+          </span>
+          <span className="wk-line-end"><Icon name="next" /></span>
+        </a>
+        <a className="wk-line" href={viewPath('account', TRANSFER)}>
+          <span className="wk-line-ic"><Icon name="refresh" /></span>
+          <span className="wk-line-text">
+            <span className="wk-line-title">Przeniesienie danych</span>
+            <span className="wk-line-sub">Dane sprzed zmian platformy — do obecnej postaci</span>
           </span>
           <span className="wk-line-end"><Icon name="next" /></span>
         </a>

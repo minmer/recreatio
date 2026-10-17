@@ -18,14 +18,14 @@
 
 import { useMemo } from 'react';
 
-import { pagePath } from './routes';
-import { PageParts } from './PageParts';
-import { toDraft } from './page';
+import { pagePath } from '../routes';
+import { PageParts } from '../pages/PageParts';
+import { toDraft } from '../pages/page';
 import { BindSeat, MyLink, PersonalSections } from './SeatBar';
 import { FirstOpen } from './FirstOpen';
 import { SeatContext } from './seatContext';
 import { useSeat } from './seatView';
-import { ReviewSubmissions } from './Submission';
+import { ReviewSubmissions } from '../forms/Submission';
 
 export function SeatPortal({ token, keyText, under }: {
   token: string;

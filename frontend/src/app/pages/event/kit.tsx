@@ -25,6 +25,7 @@ import {
   definePart, text, type EditorContext, type EditorProps, type PartContext, type PartJson, type PartModule, type PartSize, type RawConfig
 } from '../part';
 import { FilePicker, ImagePicker } from '../PageFiles';
+import { plural } from '../../core/plural';
 
 /* -- Duldsame Leser (Altbestand: contracts.ts) ------------------------------------ */
 
@@ -472,4 +473,4 @@ export function defineEventPart<C>(spec: {
 
 /** Polnisch zählt dreifach: 1 punkt, 3 punkty, 12 punktów. */
 export const count = (n: number, one: string, few: string, many: string): string =>
-  `${n} ${n === 1 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? few : many}`;
+  `${n} ${plural(n, one, few, many)}`;

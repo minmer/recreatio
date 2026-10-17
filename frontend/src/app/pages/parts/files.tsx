@@ -12,7 +12,7 @@
 import { useState } from 'react';
 
 import { AreaRow, asOptionalText, asRecord, asText, count, defineEventPart, FileRow, ListEditor, mapEntries, TextRow } from '../event/kit';
-import { imageUrl } from '../slides';
+import { imageUrl } from '../slides/slideLook';
 
 type FileEntry = { label: string; url: string; note: string | null; size: string | null };
 type FilesConfig = { files: FileEntry[]; note: string | null };

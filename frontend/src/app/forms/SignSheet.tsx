@@ -24,12 +24,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { areaReader, type AccountWay } from './areaRead';
+import { areaReader, type AccountWay } from '../areas/areaRead';
 import {
   consentGiven, consentText, isYes, loadForm, openFields, type AfterSend, type OpenField, type PublicForm
 } from './form';
 import { EMPTY_DESIGN, evaluate, layoutWith, openDesign, type FieldItem, type FormDesign, type LayoutItem } from './formDesign';
-import { moduleNameAad, openWith } from './names';
+import { moduleNameAad, openWith } from '../core/names';
 import { ageOn, birthOf } from './pesel';
 
 /* -- Ein öffentliches Formular, aufgemacht ------------------------------------------ */

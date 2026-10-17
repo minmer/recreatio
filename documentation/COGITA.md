@@ -2,7 +2,7 @@
 
 Status: decided on 2026-10-15 from your answers on the page “Cogita rebuild questions” (https://claude.ai/artifact/YQqNZJkSHqu4NQSNhy4bwf). Built on 2026-10-16 (§19). Changed on 2026-10-16: Cogita has its own container, the knowledge base, beside the library (§2.1, §18 row 13).
 
-- This file is the target. `CogitaAim.md`, `cogita-graph.md` and `COGITA_DESIGN_THINKING.md` remain as background.
+- This file is the target and the only Cogita document. The older background documents (`CogitaAim.md`, `cogita-graph.md`, `COGITA_DESIGN_THINKING.md`) were removed on 2026-10-17; the definitions the code still cites from them are kept in Appendix A.
 - A bracketed id such as [B11] points at the question on that page; F01–F47 are the old features and P01–P18 the integrations.
 - §18 lists how the open points were settled on 2026-10-15.
 
@@ -207,7 +207,7 @@ There are no spoken answers.
 - Dependencies inferred from flows and character hand-offs are proposed to the author, who confirms them [E5].
 
 **Knowness:**
-- The spec formula `knowledge(q1, d1, q2, d2, t)` (CogitaAim I.8.1), over a card’s latest answers [E1].
+- The spec formula `knowledge(q1, d1, q2, d2, t)` (Appendix A.1), over a card’s latest answers [E1].
 - An entity, topic or collection averages its cards [E2].
 - It is computed in the browser [E7].
 
@@ -536,7 +536,47 @@ The full `tsc -p tsconfig.json` is clean now that the legacy tree is gone.
   - `content/pl.ts` with `content/types.ts` and `types/navigation.ts`;
   - `public/content/pl.ts` with `public/content/types.ts` and `rc/lib/rcRoute.ts`.
 
-  The fixture generators `scripts/cogita-home.mjs` and `scripts/presentation-home.mjs` read them.
-- **Dead scripts.** `package.json` still lists `api:types`, `rc:*` and `public:check`. Their files are deleted, but the shared `package.json` is only appended to.
-- **Not touched.** `_reference/` is unchanged.
+  The fixture generators `scripts/cogita-home.mjs` and `scripts/presentation-home.mjs` read them. They go in step 3 of the transfer (`documentation/TRANSFER.md`).
 - **Where a library is used.** A library does not know which knowledge bases point at it, because the references are sealed in their settings.
+
+Done on 2026-10-17: the dead `package.json` scripts (`api:types`, `rc:*`, `public:check`, `events:check`) and `_reference/` are removed.
+
+## Appendix A — definitions kept from the former specification
+
+The code cites these four sections of the removed `CogitaAim.md` (“Cogita — Final Post-Recreation Product Specification”). They are quoted here unchanged so that the citations keep a target.
+
+### A.1 Knowness (former I.8, I.8.1)
+
+Knowness is a computed signal attached to a person/entity context. Knowness snapshots MUST be refreshed when a new correctness entry is written for the related person/entity, and SHOULD remain computationally lightweight and stable.
+
+The knowness behaviour is governed by this function form:
+
+```js
+function knowledge(q1, d1, q2, d2, t) {
+  const T0 = 5 / 60; // 5 minutes in hours
+  const H = Math.max(
+    T0,
+    Math.pow(T0, 1 - q2) * Math.pow(12 * (d2 + q1 * d1), q2)
+  );
+  return Math.pow(10, 0.5 * (1 - t / H));
+}
+```
+
+- `q` = correctness quality terms, `d` = delay terms, `t` = elapsed time from the last relevant question.
+- The final update SHOULD use up to the last three correctness entries when available.
+
+### A.2 Selection gating (former I.9.1, I.9.2)
+
+If a revision has dependency mode enabled:
+- child cards MUST only be selected into the stack when the parent knowness threshold is met;
+- a child already in the active stack MUST NOT be removed during the same stack cycle only because the parent drops later.
+
+Propagation: the propagated amount is `childKnowness * impact`, and it MUST be added to the parent knowness. If the child’s correctness worsens, the child’s knowness drops, the parent loses the corresponding contribution, and child availability is re-evaluated against the dependency gates when the stack is rebuilt.
+
+### A.3 Dependency propagation contract (former II.11)
+
+Knowness propagation MUST implement `parentKnowness += childKnowness * impact`. When the child’s knowness decreases, the parent’s propagated contribution MUST decrease accordingly. Eligibility checks MUST re-evaluate child visibility for the next stack build.
+
+### A.4 Role-oriented live wall (former II.18)
+
+Host wall endpoints MUST allow a control mode, an analytics mode and a presentation-safe output mode. Participant wall endpoints MUST be answer-centric and fairness-safe.

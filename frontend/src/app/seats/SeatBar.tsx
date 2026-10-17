@@ -20,17 +20,17 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import type { SealedRole } from './keys';
-import { keysFor } from './ringOf';
-import { useRoleNames } from './roleNames';
+import type { SealedRole } from '../core/keys';
+import { keysFor } from '../core/ringOf';
+import { useRoleNames } from '../roles/roleNames';
 import { bindSeat } from './seat';
 import { FirstOpen } from './FirstOpen';
 import { useSeatStates, type SeatView } from './seatContext';
-import { SeatChatSections } from './SeatChatView';
+import { SeatChatSections } from '../chat/SeatChatView';
 import { freshSeat, linkTo, seatsExactly, wasReplaced } from './seatKeep';
-import { whoIsThere, WorkspaceError, type Who } from './session';
-import { SeatSteps } from './StepList';
-import { OwnSubmissions } from './Submission';
+import { whoIsThere, WorkspaceError, type Who } from '../core/session';
+import { SeatSteps } from '../steps/StepList';
+import { OwnSubmissions } from '../forms/Submission';
 
 /* -- Oben auf der Seite ----------------------------------------------------- */
 

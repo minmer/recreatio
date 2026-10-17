@@ -23,9 +23,9 @@
  * zählt mit (zehn Versuche).
  */
 
-import { aad, derive, Field, fromBase64Url, hmacSha256, openText, sealText, sha256Bytes, toBase64Url } from './crypto';
+import { aad, derive, Field, fromBase64Url, hmacSha256, openText, sealText, sha256Bytes, toBase64Url } from '../core/crypto';
 import type { Link } from './seat';
-import { call } from './session';
+import { call } from '../core/session';
 
 /* -- Der Link, versiegelt unter dem Platzschlüssel --------------------------- */
 

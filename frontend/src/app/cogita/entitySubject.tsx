@@ -14,10 +14,10 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { readEntryQuery, withEntryQuery } from '../entryDesk';
-import { summaryOf } from '../library';
-import { PickLibrary } from '../LibraryPick';
-import type { SubjectDecl, SubjectKind } from '../pageSubject';
+import { readEntryQuery, withEntryQuery } from '../forms/entryDesk';
+import { summaryOf } from '../library/library';
+import { PickLibrary } from '../library/LibraryPick';
+import type { SubjectDecl, SubjectKind } from '../pages/pageSubject';
 import { ENTITY_BUNDLE, publishedAll, titleOf } from './published';
 
 const said = (decl: SubjectDecl, key: string): string => {

@@ -20,10 +20,10 @@
  * nur im Widok ohne Bereich.
  */
 
-import type { Digest } from './notify';
-import { chatLabel } from './notify';
-import { useRemembered } from './prefs';
-import { formNewsPath, viewPath, formsPath } from './routes';
+import type { Digest } from '../notify/notify';
+import { chatLabel } from '../notify/notify';
+import { useRemembered } from '../core/prefs';
+import { formNewsPath, viewPath, formsPath } from '../routes';
 
 export type AlertKind = 'forms' | 'chats' | 'bookings' | 'steps' | 'tasks' | 'today' | 'links' | 'learn';
 

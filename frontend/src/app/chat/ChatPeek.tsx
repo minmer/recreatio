@@ -9,11 +9,11 @@
 
 import { useSyncExternalStore } from 'react';
 
-import { current, subscribe } from './notify';
-import { usePerson } from './pagePerson';
-import { useSeats, type SeatView } from './seatContext';
-import { newMessages, useSeatChatRows } from './seatUnread';
-import { unreadIn, type ChatTargetKind } from './steps';
+import { current, subscribe } from '../notify/notify';
+import { usePerson } from '../pages/pagePerson';
+import { useSeats, type SeatView } from '../seats/seatContext';
+import { newMessages, useSeatChatRows } from '../seats/seatUnread';
+import { unreadIn, type ChatTargetKind } from '../steps/steps';
 
 /** Die Plätze, für die diese Seite gerade spricht — wie die Bausteine der Plätze (`OnSeat`) sie wählen. */
 export function useShownSeats(): readonly SeatView[] {

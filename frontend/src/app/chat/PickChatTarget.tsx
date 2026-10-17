@@ -14,7 +14,7 @@
 import { useEffect, useState } from 'react';
 
 import { loadChats, type ChatRow } from './chat';
-import type { ChatTargetKind } from './steps';
+import type { ChatTargetKind } from '../steps/steps';
 
 export interface ChatTargetDraft {
   readonly kind: ChatTargetKind;

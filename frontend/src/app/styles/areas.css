@@ -1,0 +1,332 @@
+/* Telefonnummern als Plättchen; Obszary — Reiter, Plättchen, Felder.
+   Teil von app.css: dort steht, in welcher Reihenfolge die Dateien gelten. */
+
+/* -- Telefonnummern als Plättchen -----------------------------------------
+   Eine Nummer, die dasteht, ist eine angenommene Nummer — das Plättchen sagt
+   es, ohne dass jemand es lesen muss. Das × gehört daneben und nicht in ein
+   Menü: eine falsche Nummer nimmt man weg, wo man sie sieht. */
+
+.wk-chips {
+  margin: 0 0 0.375rem;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.wk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.25rem 0.125rem 0.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--wk-text-sm);
+}
+
+.wk-chip-x {
+  font: inherit;
+  line-height: 1;
+  border: 0;
+  background: none;
+  padding: 0 0.25rem;
+  color: var(--wk-muted);
+  cursor: pointer;
+}
+
+.wk-chip-x:hover { color: var(--wk-danger); }
+.wk-chip-x:disabled { cursor: default; opacity: 0.5; }
+.wk-chip-x:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; border-radius: 999px; }
+
+/* Ein Code, der abgetippt wird — gross, mit Abstand zwischen den Zeichen, und
+   ohne Ligaturen. Er steht genau einmal da; ihn falsch abzulesen ist teuer. */
+.wk-code {
+  margin: 0.25rem 0;
+  font-family: ui-monospace, "Cascadia Mono", "IBM Plex Mono", monospace;
+  font-size: var(--wk-text-2xl);
+  letter-spacing: 0.25em;
+  font-variant-ligatures: none;
+  color: var(--wk-accent);
+}
+
+/*
+    BESTÄTIGT — das Zeichen neben einer Nummer (0030/0031).
+
+    Klein und ruhig: es steht in derselben Zeile wie die Angabe und darf sie
+    nicht überstimmen. Die Farbe trägt die Aussage nicht allein — das Häkchen
+    steht auch dann da, wenn jemand keine Farben unterscheidet.
+*/
+.wk-chip-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.375rem;
+  padding: 0 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: var(--wk-ok);
+  background: transparent;
+  font-size: var(--wk-text-sm);
+  white-space: nowrap;
+}
+
+/* ===========================================================================
+   OBSZARY — die Bauteile, die diese Ansicht braucht
+
+   Absichtlich allgemein benannt: ein Reiter, ein Plättchen, ein Feld mit
+   Abteilungen sind nichts Bereichseigenes. Die nächste Ansicht, die das
+   braucht, soll es nehmen und nicht nachbauen.
+   =========================================================================== */
+
+/* -- Der Baum ------------------------------------------------------------- */
+
+/*
+   Die TIEFE steht an der Zeile (`--depth`), nicht im Markup: die Liste kommt
+   flach aus `inOrder`, weil verschachtelte Listen eine zweite Struktur neben
+   `parent_area_id` wären.
+*/
+.wk-tree-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  /* Auf einem Telefon bricht die Zeile, statt die Plaettchen hinauszuschieben:
+     was dann fehlte, waere genau die Auskunft, wegen der sie dastehen. */
+  flex-wrap: wrap;
+  gap: 0.375rem 0.5rem;
+  padding: 0.5rem 0.75rem;
+  padding-left: calc(0.7rem + var(--depth, 0) * 1.25rem);
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+/*
+   Der Strich, der sagt: das liegt DARIN. Er steht genau an der Kante, an der
+   die Einrückung beginnt.
+
+   `opacity: min(var(--depth), 1)` ist die ganze Bedingung — bei Tiefe 0 wird
+   er 0 und ist fort, ab 1 steht er. Eine zweite Klasse dafür wäre dieselbe
+   Zahl ein zweites Mal, und die beiden liefen auseinander.
+*/
+.wk-tree-row::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--depth, 0) * 1.25rem);
+  top: 0.15rem;
+  bottom: 0.15rem;
+  width: 1px;
+  background: var(--wk-line);
+  opacity: min(var(--depth, 0), 1);
+}
+
+.wk-tree-row:hover { background: var(--wk-soft); }
+.wk-tree-row:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+
+.wk-tree-name {
+  font-weight: 600;
+
+  /* Ein langer Name schiebt die Plättchen nicht hinaus, er bricht. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Was ICH hier darf — ganz rechts, leise. Es ist die Antwort auf eine Frage,
+   die man beim Überfliegen nicht stellt. */
+.wk-tree-mine {
+  margin-left: auto;
+  flex: none;
+  font-size: var(--wk-text-sm);
+  color: var(--wk-muted);
+}
+
+/* Das Anlegen steht am ENDE der Liste, in derselben Zeilenform — dort, wo die
+   Dinge sind, und nicht in einer Leiste darüber. */
+.wk-tree-add {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  color: var(--wk-accent);
+  text-decoration: none;
+  font-size: var(--wk-text-sm);
+}
+
+/* Auch als Knopf („Dodaj rolę"): dann ohne die Grundform des Browsers, sonst
+   stünde ein grauer Balken da, wo eine leise Zeile gemeint ist. */
+button.wk-tree-add {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
+
+.wk-tree-add:hover { background: var(--wk-soft); }
+.wk-tree-add:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+
+/* -- Plättchen ------------------------------------------------------------- */
+
+/*
+   Sie stehen nur da, wo etwas VOM NORMALFALL ABWEICHT. Eines an jeder Zeile
+   wäre keines: stünde „zamknięty" überall, liesse sich das Offene nicht mehr
+   herauslesen.
+*/
+/* .wk-tags, .wk-tag, .wk-tag-open: ui/ui.css */
+
+/* -- Die Angaben zu einem Bereich ------------------------------------------ */
+
+/*
+   Vier Felder statt eines Satzes mit Trennpunkten. „epoka 3 · masz 2 ·
+   prowadzisz" musste man LESEN, um drei Angaben zu erfahren.
+*/
+/* .wk-facts, .wk-fact: ui/ui.css */
+
+/* -- Reiter ---------------------------------------------------------------- */
+
+/*
+   Echte Reiter und keine Knöpfe. Vorher trug der gewählte Abschnitt dasselbe
+   Aussehen wie „Załóż obszar" — er sah aus wie etwas, das man TUT, und nicht
+   wie der Ort, an dem man steht.
+*/
+/* .wk-tabs, .wk-tab, .wk-panel: ui/ui.css */
+
+/* -- Ein Feld mit Abteilungen ---------------------------------------------- */
+
+/*
+   Vorher war die GEWÄHLTE Stufe ein gefüllter Knopf und die übrigen
+   unterstrichene Verweise — das Eingeschaltete sah aus wie das, was man
+   drücken soll. Hier ist eines eingeschaltet und die anderen sind die Wahl.
+*/
+/* .wk-seg, .wk-seg-opt, .wk-seg-on: ui/ui.css */
+
+/* -- Wer im Bereich steht --------------------------------------------------- */
+
+.wk-people { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.125rem; }
+
+.wk-person {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+}
+
+.wk-person:hover { background: var(--wk-soft); }
+
+.wk-person-who { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+
+/* Die Kennung, wenn der Name verschlossen bleibt. Sie steht leise da: sie ist
+   kein Name, sondern das Eingeständnis, dass wir keinen haben. */
+.wk-person-id { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+
+/* Die andere Form desselben Menschen: „Kasia" und daneben „Katarzyna Nowak". */
+.wk-person-also { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+
+/* -- Ein Formular: die Einsendungen als Tabelle und als Menschen ---------- */
+
+.wk-entries { display: grid; gap: 0.5rem; }
+
+/* Suche und Filter in einer Zeile, so viele, wie hineinpassen. */
+.wk-entries-bar { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: end; }
+.wk-entries-bar .wk-field { min-width: 12rem; flex: 1 1 12rem; }
+
+/* Breite Tabellen scrollen in sich — nie die ganze Seite. */
+.wk-table-wrap { overflow-x: auto; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); }
+
+.wk-table { border-collapse: collapse; width: 100%; font-size: var(--wk-text-sm); }
+.wk-table th, .wk-table td { padding: 0.5rem 0.5rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--wk-line); }
+.wk-table td { white-space: pre-wrap; }
+.wk-table th { position: sticky; top: 0; background: var(--wk-soft); white-space: nowrap; }
+.wk-table tbody tr:hover { background: var(--wk-soft); }
+.wk-table .wk-tag { margin-left: 0.375rem; }
+.wk-num { text-align: right; font-variant-numeric: tabular-nums; }
+.wk-row-muted td { color: var(--wk-muted); }
+
+.wk-th-sort {
+  font: inherit;
+  font-weight: 600;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-th-sort:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+
+/* Die Menschen: eine Zeile je Mensch, der Rest hinter „Więcej". */
+.wk-entry-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.wk-entry { border-bottom: 1px solid var(--wk-line); }
+.wk-entry.is-muted .wk-entry-name { color: var(--wk-muted); }
+
+.wk-entry-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 0.75rem; padding: 0.5rem 0.25rem; }
+.wk-entry-name { min-width: 10rem; }
+.wk-entry-phone { color: var(--wk-accent); font-variant-numeric: tabular-nums; text-decoration: none; }
+.wk-entry-phone:hover { text-decoration: underline; }
+.wk-entry-more { margin-left: auto; }
+.wk-entry-body { display: grid; gap: 0.5rem; padding: 0 0.25rem 1rem; }
+
+/* -- 0077: die Liste einer wiederkehrenden Erweiterung — Zeitraum, Antippen, Verlauf, Summen -- */
+.wk-entry-who { display: grid; gap: 0.125rem; min-width: 10rem; flex: 1 1 12rem; }
+.wk-entry-sub { font-size: var(--wk-text-sm); color: var(--wk-muted); overflow-wrap: anywhere; }
+.wk-entry-words { font-style: italic; }
+.wk-round-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 0.375rem 0.5rem; margin: 0.375rem 0; }
+.wk-round-bar .wk-btn { min-width: 2.6rem; padding-inline: 0.5rem; font-size: var(--wk-text-lg); line-height: 1; }
+.wk-round-now { min-width: 11rem; text-align: center; font-size: var(--wk-text-md); }
+.wk-round-chips { display: inline-flex; flex-wrap: wrap; gap: 0.375rem; }
+.wk-round-chip {
+  min-height: 2.5rem; min-width: 2.75rem; padding: 0.25rem 0.75rem; border: 1px solid var(--wk-line); border-radius: 999px;
+  background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.wk-round-chip:hover { background: var(--wk-soft); }
+.wk-round-chip:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-round-chip.is-on { background: var(--wk-accent); border-color: var(--wk-accent); color: var(--wk-on-accent); font-weight: 600; }
+.wk-round-chip.is-on::before { content: "✓ "; }
+.wk-round-chip.is-waiting { opacity: 0.6; }
+.wk-round-totals { margin-top: 0.75rem; padding: 0.5rem 0.75rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-soft); }
+.wk-round-totals p { margin: 0; }
+.wk-round-totals p + p { margin-top: 0.25rem; }
+.wk-round-past { display: grid; gap: 0.375rem; }
+.wk-round-past .wk-h3 { margin: 0; }
+.wk-round-history { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.wk-round-cell {
+  display: grid; justify-items: center; gap: 0; min-width: 2.9rem; padding: 0.25rem 0.375rem; border: 1px solid var(--wk-line);
+  border-radius: 6px; background: var(--wk-surface); color: var(--wk-muted); font: inherit; font-size: var(--wk-text-xs); cursor: pointer;
+}
+.wk-round-cell strong { font-size: var(--wk-text-sm); font-variant-numeric: tabular-nums; }
+.wk-round-cell.has { color: var(--wk-ink); }
+.wk-round-cell.has strong { color: var(--wk-accent); }
+.wk-round-cell.is-on { border-color: var(--wk-accent); box-shadow: inset 0 0 0 1px var(--wk-accent); }
+.wk-round-cell:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-office-add { margin-top: 0.75rem; padding: 0.75rem; border: 1px dashed var(--wk-line); border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) { .wk-round-chip { transition: none; } }
+
+.wk-danger { color: var(--wk-danger); }
+
+/* Mehrere geöffnete Plätze auf einer Seite: je einer ein Abschnitt, mit Namen. */
+.wk-seat-one { display: grid; gap: 0.375rem; padding-top: 0.5rem; }
+.wk-seat-one + .wk-seat-one { border-top: 1px solid var(--wk-line); margin-top: 0.375rem; }
+.wk-seat-who { margin: 0; font-size: var(--wk-text-md); font-weight: 600; }
+.wk-seat-pick { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
+/* Das Dazunehmen steht unter der Liste, abgesetzt: es ist eine Handlung, kein Eintrag. */
+.wk-add-role { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--wk-line); }
+
+.wk-person-can { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-left: auto; }
+
+/* -- Zwei Zeilen, die es noch nicht gab ------------------------------------- */
+
+/* .wk-working, .wk-warn, .wk-fold: ui/ui.css */
+
+/* Dasselbe eine Stufe tiefer: „albo załóż nowy" im Bausteinwähler. */
+.pb-new > summary { cursor: pointer; font-size: var(--wk-text-sm); color: var(--wk-accent); }

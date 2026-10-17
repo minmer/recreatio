@@ -14,11 +14,11 @@
  * Anmelden auffallen.
  */
 
-import { epochAad, signedCertificate, type Capability } from './area';
-import { fromBase64Url, open, seal, toBase64Url, unwrapKey, wrapKey } from './crypto';
-import { intakeAad } from './intake';
-import type { Ring, SealedRole } from './keys';
-import { call, WorkspaceError } from './session';
+import { epochAad, signedCertificate, type Capability } from '../areas/area';
+import { fromBase64Url, open, seal, toBase64Url, unwrapKey, wrapKey } from '../core/crypto';
+import { intakeAad } from '../forms/intake';
+import type { Ring, SealedRole } from '../core/keys';
+import { call, WorkspaceError } from '../core/session';
 
 export interface HeldArea {
   readonly areaId: string;

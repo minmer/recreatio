@@ -1,0 +1,350 @@
+/* Masse und Farben (hell, dunkel), Grundformen, Anmeldung, Kacheln, Rollenbild, Zugang an einer Adresse.
+   Teil von app.css: dort steht, in welcher Reihenfolge die Dateien gelten. */
+
+:root {
+  /*
+     DAS THEMA SAGT DER SEITE AUCH, WIE DER BROWSER SELBST ZEICHNET — Felder,
+     Auswahllisten, Kästchen, Kalender, Bildlaufleisten. Ohne diese Angabe
+     blieben sie hell auf dunklem Grund, und ein Telefon mit „Strony w trybie
+     ciemnym" dunkelte die Seite ein ZWEITES Mal ab, über das eigene dunkle
+     Thema hinweg.
+  */
+  color-scheme: light;
+
+  --wk-ground: #f7f5f1;
+  --wk-surface: #ffffff;
+  --wk-ink: #1a1815;
+  --wk-muted: #5b554c;
+  --wk-line: #dcd7cd;
+  --wk-accent: #7a5a2e;
+
+  /* Schrift AUF der Akzentfläche (Hauptknopf, gewählter Schalter). Im dunklen
+     Thema ist der Akzent hell — weisse Schrift darauf war kaum zu lesen. */
+  --wk-on-accent: #ffffff;
+
+  /* Fehler, Sperrgründe, „Usuń" — im dunklen Thema heller, sonst verschwindet es. */
+  --wk-danger: #a5361c;
+
+  /* Bestätigt — neben einer Angabe, nie als einziges Zeichen (0030/0031). */
+  --wk-ok: #2f6b3a;
+
+  /* Eine Fläche, die sich abhebt, ohne eine Kante zu ziehen — Plättchen,
+     Reiterleisten, die Zeile unter dem Zeiger. Sie muss in BEIDEN Themen
+     definiert sein: eine Farbe, die nur im hellen steht, färbt im dunklen
+     nichts und lässt die Fläche verschwinden. */
+  --wk-soft: #efebe3;
+
+  /*
+     DIE DREI ZUSTÄNDE EINES TERMINS — wie im Firmungsportal des Altbestands:
+     grün frei, gelb mit Gastgeber, rot voll oder zu. Fläche, Kante und Schrift
+     je Zustand, in BEIDEN Themen; die Farbe trägt die Aussage nie allein, der
+     Satz auf der Karte sagt sie auch.
+  */
+  --wk-free-bg: #ecfdf3;
+  --wk-free-line: #16a34a;
+  --wk-free-ink: #166534;
+  --wk-held-bg: #fff7e5;
+  --wk-held-line: #f59e0b;
+  --wk-held-ink: #92400e;
+  --wk-shut-bg: #fef2f2;
+  --wk-shut-line: #dc2626;
+  --wk-shut-ink: #991b1b;
+
+  /* 0054 — Termine: der Farbton kommt von der Gruppe (--ev-h), Helligkeit vom Thema. */
+  --ev-s: 62%;
+  --ev-bg-l: 91%;
+  --ev-line-l: 42%;
+  --ev-ink-l: 20%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --wk-ground: #16140f;
+    --wk-surface: #1f1c16;
+    --wk-ink: #f0ebe0;
+    --wk-muted: #b0a695;
+    --wk-line: #4a4337;
+    --wk-accent: #d3a25e;
+    --wk-on-accent: #1a1510;
+    --wk-danger: #f0876a;
+    --wk-ok: #7fc68d;
+    --wk-soft: #272319;
+    --wk-free-bg: #13261a;
+    --wk-free-line: #3fb468;
+    --wk-free-ink: #86efac;
+    --wk-held-bg: #2c2312;
+    --wk-held-line: #d99a2b;
+    --wk-held-ink: #fcd34d;
+    --wk-shut-bg: #2c1616;
+    --wk-shut-line: #e05252;
+    --wk-shut-ink: #fca5a5;
+
+    --ev-s: 38%;
+    --ev-bg-l: 23%;
+    --ev-line-l: 62%;
+    --ev-ink-l: 90%;
+  }
+}
+
+/*
+   DER GRUND UNTER ALLEM. Ohne ihn blieb um die Seite ein weisser Rand (der
+   Standardabstand des <body>), und wer auf dem Telefon über das Ende hinaus
+   zog, sah Weiss.
+*/
+html,
+body {
+  margin: 0;
+  background: var(--wk-ground);
+  color: var(--wk-ink);
+}
+
+/* Schrift, Grösse und Zeilenhöhe: ui/ui.css. */
+.wk-root {
+  min-height: 100vh;
+  background: var(--wk-ground);
+  color: var(--wk-ink);
+}
+
+/* Der Rahmen (Seitenleiste, Kopfleiste, Inhalt): ui/ui.css. Der Platz für das Menü einer Seite: */
+.wk-top-menu { display: flex; align-items: center; min-width: 0; }
+.wk-top-menu:empty { display: none; }
+
+/* -- Die Anmeldung ------------------------------------------------------- */
+
+/* Die Anmeldung: eine Karte in der Mitte. */
+.wk-signin {
+  display: grid; gap: var(--wk-space-4); width: min(100%, 26rem); box-sizing: border-box;
+  margin: var(--wk-space-5) auto 0; padding: var(--wk-space-6);
+  background: var(--wk-surface); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-lg); box-shadow: var(--wk-shadow-pop);
+}
+.wk-signin .wk-h1 { font-size: var(--wk-text-xl); }
+.wk-signin .wk-actions { margin-top: var(--wk-space-1); }
+.wk-signin-go { width: 100%; min-height: 2.75rem; font-size: var(--wk-text-md); }
+.wk-signin .wk-swap { text-align: center; }
+@media (max-width: 40rem) { .wk-signin { margin-top: var(--wk-space-2); padding: var(--wk-space-5) var(--wk-space-4); box-shadow: none; } }
+/* Steht ein Hinweis zum Link darüber, gehört er zur Karte. */
+.wk-plain .wk-main > .wk-note + .wk-signin { margin-top: 0; }
+
+
+/* -- Die Kacheln ----------------------------------------------------------
+   Zwei Spalten, auf schmalem Geraet eine. Der Umbruch haengt an der Breite
+   der KACHEL und nicht am Geraet: zwei Kacheln nebeneinander sind unter
+   ~46rem zwei halbe Zeilen Text, und das liest niemand.
+   ------------------------------------------------------------------------ */
+
+.wk-tiles {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 46rem) {
+  .wk-tiles { grid-template-columns: 1fr; }
+}
+
+/* Auf der breiten Spalte waeren zwei Kacheln je gut 40rem — eine Kachel, die
+   eine halbe Zeile traegt, muss das nicht sein. Ab 70rem also drei. */
+@media (min-width: 70rem) {
+  .wk-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.wk-tile {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+  min-height: 8rem;
+  padding: 1rem 1rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  color: inherit;
+  text-decoration: none;
+}
+
+.wk-tile:hover { border-color: var(--wk-accent); }
+.wk-tile:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+
+.wk-tile-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.wk-tile-name { font-weight: 600; }
+.wk-tile-count { color: var(--wk-muted); font-variant-numeric: tabular-nums; }
+
+.wk-tile-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.25rem;
+  font-size: var(--wk-text-sm);
+}
+
+/* `.wk-view-head` und `.wk-back` standen hier, bis der Weg in den Kopf zog.
+   Der Pfeil ist jetzt `.wk-crumb-up` — eine Stelle, ein Pfeil. */
+
+.wk-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.5rem; }
+
+.wk-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+}
+
+.wk-row-side { color: var(--wk-muted); font-size: var(--wk-text-sm); }
+
+/* Der Adressbaum. Die Linie links macht die Ebene sichtbar, ohne dass jede
+   Zeile ihren ganzen Pfad wiederholen muesste. Der Rueckfallwert steht dabei,
+   damit die Linie auch dann da ist, wenn es --wk-line einmal nicht gibt. */
+.wk-tree { list-style: none; margin: 0; padding: 0; }
+.wk-tree li { margin: 0; }
+.wk-tree-sub { margin-left: 0.5rem; padding-left: 1rem; border-left: 1px solid var(--wk-line, rgba(0, 0, 0, 0.14)); }
+.wk-tree-gap { color: var(--wk-muted); }
+
+/* -- Der Rollengraph ------------------------------------------------------
+   Zeichenfläche und Seitenteil nebeneinander; auf schmalem Geraet
+   untereinander, denn ein Graph auf halber Telefonbreite ist kein Graph.
+   ------------------------------------------------------------------------ */
+
+.wk-graph-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  align-items: start;
+}
+
+@media (max-width: 52rem) {
+  .wk-graph-split { grid-template-columns: 1fr; }
+}
+
+.wk-graph {
+  height: 26rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  overflow: hidden;
+}
+
+/* React Flow zeichnet auf eigenem Grund — er muss den Tokens folgen, sonst
+   steht auf dunklem Geraet ein weisses Rechteck in der Seite. */
+.wk-graph .react-flow__background { background: var(--wk-surface); }
+.wk-graph .react-flow__controls-button {
+  background: var(--wk-surface);
+  border-bottom: 1px solid var(--wk-line);
+  fill: var(--wk-ink);
+}
+
+.wk-node {
+  display: grid;
+  gap: 0.125rem;
+
+  /*
+      MITTIG, damit die drei Punkte um die Mitte herum sitzen: sie werden über
+      `top: calc(50% + …)` gesetzt, und bei oben ausgerichtetem Inhalt stünde
+      der Text neben dem obersten Punkt statt neben der Mitte.
+  */
+  align-content: center;
+  min-width: 9rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-ground);
+  color: var(--wk-ink);
+  font-size: var(--wk-text-sm);
+}
+
+/* Die eigene Rolle ist der Anker des ganzen Bildes — sie darf man suchen
+   koennen, ohne zu lesen. */
+.wk-node-me { border-color: var(--wk-accent); border-width: 2px; }
+.wk-node-on { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+
+/* Verschlossen heisst NICHT namenlos: gestrichelt, weil dahinter etwas steht,
+   das man nicht sieht. */
+.wk-node-locked { border-style: dashed; color: var(--wk-muted); }
+
+.wk-node-name { font-weight: 600; }
+.wk-node-kind { color: var(--wk-muted); font-size: var(--wk-text-xs); }
+
+.wk-handle { width: 8px; height: 8px; background: var(--wk-accent); border: 0; }
+
+/*
+    DIE DREI PUNKTE je Seite eines Knotens — führen, schreiben, lesen.
+
+    Groesser als ein blosser Anschluss, weil sie ANGEFASST werden: drei Ziele
+    18px auseinander sind mit der Maus zu treffen, drei Ziele von 8px nicht.
+    Die Farbe kommt aus dem Knoten (`style`), damit Punkt und Kante dieselbe
+    tragen und man am Bild sieht, welche Art wohin laeuft.
+*/
+.wk-dot {
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--wk-surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+
+.wk-dot:hover { width: 15px; height: 15px; }
+
+/* Die Legende — ohne sie sind drei Farben drei Raetsel. */
+.wk-dot-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-right: 1rem;
+  font-size: var(--wk-text-sm);
+  white-space: nowrap;
+}
+
+.wk-dot-key i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.wk-side {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+  padding: 1rem 1rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+}
+
+.wk-side .wk-h2:first-child { margin-top: 0; }
+.wk-side .wk-form { max-width: none; }
+
+/* -- Zugang an einer Adresse ----------------------------------------------- */
+
+.wk-page-edit { display: grid; gap: 0.5rem; margin-top: 1rem; }
+.wk-page-edit .wk-form { max-width: 34rem; }
+.wk-page-edit .wk-h2:first-child { margin-top: 0.5rem; }
+
+/* Geerbt heisst: gilt hier, gehoert aber woanders hin. Das steht am Eintrag,
+   nicht in einer Fussnote — sonst sucht jemand den Knopf zum Zuruecknehmen. */
+.wk-badge {
+  margin-left: 0.375rem;
+  padding: 0 0.375rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  font-size: var(--wk-text-xs);
+  color: var(--wk-muted);
+}
+
+.wk-field input[type="number"] {
+  font: inherit;
+  width: 7rem;
+  padding: 0.5rem 0.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+}

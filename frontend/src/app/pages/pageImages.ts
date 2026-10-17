@@ -11,7 +11,7 @@
  * Dienst sie als Download ausliefert.
  */
 
-import { API, call, WorkspaceError } from './session';
+import { API, call, WorkspaceError } from '../core/session';
 
 export interface PageImageRow {
   readonly id: string;

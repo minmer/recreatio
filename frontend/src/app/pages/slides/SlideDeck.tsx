@@ -28,12 +28,10 @@ import {
   useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactNode
 } from 'react';
 
-import { LayerArt, layerBackground } from './deckLayers';
-import { SlidePhase, type Phase } from './MotionBox';
-import {
-  addressWithSlide, anchorInAddress, anchorOf, defaultLayers, layoutFor, NO_DECK, resolveTheme, slideByAnchor, slideInAddress,
-  type DeckLook, type Enter, type Layer, type SlideColors, type SlideLayout, type StageFrame, type Theme, type Transition
-} from './slides';
+import { LayerArt, layerBackground } from '../presentation/deckLayers';
+import { SlidePhase, type Phase } from '../motion/MotionBox';
+import { addressWithSlide, anchorInAddress, anchorOf, layoutFor, slideByAnchor, slideInAddress, type Enter, type SlideColors, type SlideLayout, type StageFrame, type Transition } from './slides';
+import { defaultLayers, NO_DECK, resolveTheme, type DeckLook, type Layer, type Theme } from './slideLook';
 import {
   backdropAt, colorsAt, colorsOf, deckAt, enterStyle, entering, frameAt, motionOf, pinnedPosition
 } from './slideMotion';

@@ -11,7 +11,7 @@
  */
 
 import { definePart, lines, text, type RawConfig } from '../part';
-import { splitRow, weekdaysIn } from '../weekday';
+import { splitRow, weekdaysIn } from '../../core/weekday';
 
 interface Config {
   readonly title: string;

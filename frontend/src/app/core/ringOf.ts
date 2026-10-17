@@ -16,7 +16,7 @@
  */
 
 import { openMasterKey, Ring } from './keys';
-import { loadRoles, type RoleGraphData } from './roles';
+import { loadRoles, type RoleGraphData } from '../roles/roles';
 import { passwordKeyFor, type Who } from './session';
 
 export interface Keys {

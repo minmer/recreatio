@@ -1,19 +1,17 @@
 /**
- * Der Einstieg des Neubaus.
+ * Der Einstieg der Anwendung.
  *
- * <b>Warum das Mounten hier steht und nicht in `main.tsx`.</b> Die Weiche dort
- * kennt beide Seiten und darf deshalb von keiner etwas importieren, das nicht
- * hinter einem `import()` liegt — sonst zieht sie beim Laden der einen Seite
- * die andere mit herein. Diese Datei ist die erste, die ausschliesslich zum
- * Neubau gehoert; ab hier gibt es den Altbestand nicht mehr.
+ * <b>Warum das Mounten hier steht und nicht in `main.tsx`.</b> `main.tsx` nimmt
+ * vor allem anderen den Link aus der Adresse und startet in der App die Hülle;
+ * alles Weitere lädt es per `import()`, damit dieser erste Schritt klein bleibt.
  */
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
 import { App } from './App';
-import { keepFromAddress } from './seatKeep';
-import { keepLinkFromAddress } from './linkKeep';
+import { keepFromAddress } from './seats/seatKeep';
+import { keepLinkFromAddress } from './links/linkKeep';
 import './app.css';
 /* Das System NACH den Ansichten: bei gleichem Gewicht gewinnt es (ui/ui.css, Kopf). */
 import './ui/ui.css';
@@ -44,8 +42,8 @@ function tidyAddress(): void {
 
 /**
  * Die Leiste des Telefons in der Farbe des Grundes — hell oder dunkel, wie die
- * Seite selbst. `index.html` sagt Weiss, und das gilt für den Altbestand
- * weiter; im dunklen Thema des Neubaus stand darüber ein weisser Balken.
+ * Seite selbst. `index.html` sagt Weiss; im dunklen Thema stand darüber sonst
+ * ein weisser Balken.
  *
  * Die Farbe kommt aus dem Stilblatt (`--wk-ground`), nicht noch einmal von hier.
  */

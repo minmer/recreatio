@@ -38,14 +38,14 @@
  * verschwinden.
  */
 
-import { API, call, keepsKey, type Who } from './session';
-import { background, native, notices } from './platform';
+import { API, call, keepsKey, type Who } from '../core/session';
+import { background, native, notices } from '../core/platform';
 import type { ReminderNotice } from './notifyRich';
-import { formNewsPath, viewPath, formsPath } from './routes';
-import { toBase64Url } from './crypto';
+import { formNewsPath, viewPath, formsPath } from '../routes';
+import { toBase64Url } from '../core/crypto';
 import { openDigest } from './digestNames';
-import { sealLegacyNamesQuietly } from './nameSeal';
-import { keysFor } from './ringOf';
+import { sealLegacyNamesQuietly } from '../core/nameSeal';
+import { keysFor } from '../core/ringOf';
 
 /*
  * 2026-10-17 — DER REICHE TEIL (Inhalte öffnen, Schlüssel übergeben) erst, wenn

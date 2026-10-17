@@ -18,12 +18,12 @@
  */
 
 import { ImagePicker } from '../PageFiles';
-import { MotionBox } from '../MotionBox';
-import { MotionField } from '../MotionField';
-import { MOTION_NAMES, motionsJson, readMotions, type MotionUse } from '../motion';
+import { MotionBox } from '../motion/MotionBox';
+import { MotionField } from '../motion/MotionField';
+import { MOTION_NAMES, motionsJson, readMotions, type MotionUse } from '../motion/motion';
 import { definePart, text, type EditorProps, type RawConfig } from '../part';
-import { textLink } from '../presentation';
-import { imageUrl } from '../slides';
+import { textLink } from '../presentation/presentation';
+import { imageUrl } from '../slides/slideLook';
 
 interface Ply {
   readonly url: string;

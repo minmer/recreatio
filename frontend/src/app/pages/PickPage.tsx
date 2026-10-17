@@ -9,9 +9,9 @@
 
 import { useEffect, useState } from 'react';
 
-import { loadDesk } from './desk';
-import { pagePath } from './routes';
-import { Loading } from './ui/Loading';
+import { loadDesk } from '../workspace/desk';
+import { pagePath } from '../routes';
+import { Loading } from '../ui/Loading';
 
 export function PickPage({ value, busy, onPick }: {
   value: string;

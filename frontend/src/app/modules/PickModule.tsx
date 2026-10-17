@@ -17,12 +17,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { loadAreas, type AreaRow } from './area';
-import { newId } from './ids';
+import { loadAreas, type AreaRow } from '../areas/area';
+import { newId } from '../core/ids';
 import { createModule, loadModules, type ModuleRow } from './module';
-import { WorkspaceError } from './session';
-import { AreaOptions } from './AreaOptions';
-import { Loading } from './ui/Loading';
+import { WorkspaceError } from '../core/session';
+import { AreaOptions } from '../areas/AreaOptions';
+import { Loading } from '../ui/Loading';
 
 export function PickModule({ kind, chosen, busy, onPick, onMade }: {
   /** Die Art, die hier steht — nur Bausteine derselben passen an diese Stelle. */

@@ -5,7 +5,7 @@
  *
  * <b>Nichts darin ist ein fertiges Bild.</b> Jedes bewegte Bild ist eine
  * Zeichnung (Baustein „animation") aus Flächen, Linien, Punkten und Texten,
- * und jede Bewegung ist eines der allgemeinen Wörter (`src/app/motion.ts`):
+ * und jede Bewegung ist eines der allgemeinen Wörter (`src/app/pages/motion/motion.ts`):
  * move, size, turn, fade, draw, color, reveal, keys — oder eine Vorlage
  * (rise, assemble, float, breathe, glow, drift, sway). Was der Altbestand mit
  * eigenen Keyframes und Rechnungen tat, ist hier in diese Wörter übersetzt:
@@ -48,8 +48,8 @@ const workspace = await mkdtemp(join(tmpdir(), 'cogita-home-'));
 const entry = join(workspace, 'entry.ts');
 await writeFile(entry, `
 export { pl } from '${src}/legacy/content/pl';
-export { pieceJson, readPieceValue, readShow, showJson } from '${src}/app/presentation';
-export { partOf } from '${src}/app/parts/registry';
+export { pieceJson, readPieceValue, readShow, showJson } from '${src}/app/pages/presentation/presentation';
+export { partOf } from '${src}/app/pages/parts/registry';
 `);
 await build({
   entryPoints: [entry], bundle: true, format: 'esm', platform: 'node', outfile: join(workspace, 'entry.mjs'), logLevel: 'error', jsx: 'automatic',

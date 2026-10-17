@@ -15,10 +15,10 @@
  * wäre nicht mehr die Freigabe EINER Angabe.
  */
 
-import { loadPublicKey, myEpochKeys } from './area';
-import { aad, Field, fromBase64Url, openText, sealText, toBase64Url, type FieldName } from './crypto';
-import type { Ring } from './keys';
-import { call } from './session';
+import { loadPublicKey, myEpochKeys } from '../areas/area';
+import { aad, Field, fromBase64Url, openText, sealText, toBase64Url, type FieldName } from '../core/crypto';
+import type { Ring } from '../core/keys';
+import { call } from '../core/session';
 
 /** Dieselben sieben wie `ck_person_value_field` und `Person.Fields`. */
 export const PERSON_FIELDS =

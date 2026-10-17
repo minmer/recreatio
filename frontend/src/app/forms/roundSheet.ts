@@ -14,7 +14,7 @@
  */
 
 import { isYes, type OpenField } from './form';
-import { parseAddress, placeOrder } from './postal';
+import { parseAddress, placeOrder } from '../registry/postal';
 import { roundLabel, type Repeat } from './rounds';
 
 /** Eine Einsendung der Erweiterung, aufgemacht: für wen, für wann, was darin steht. */

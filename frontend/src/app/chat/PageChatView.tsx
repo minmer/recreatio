@@ -25,10 +25,10 @@
  */
 
 import { ForwardDialog, useChatExtras } from './ChatExtras';
-import {
-  ChatHeader, ChatLog, Composer, lastEditable, plural, useChatChrome, withDelete, withEdit,
-  type ComposerHandle, type MessageHandlers, type MessageRules, type ReplyTarget, type Shown
-} from './ChatKit';
+import { ChatHeader, type Shown } from './ChatKit';
+import { ChatLog, lastEditable, withDelete, withEdit, type MessageHandlers, type MessageRules } from './ChatLog';
+import { Composer, type ComposerHandle, type ReplyTarget } from './Composer';
+import { useChatChrome } from './ChatChrome';
 import { chatEndpoint, reportChatSeen } from './chatFeatures';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -40,19 +40,20 @@ import {
 import {
   authorText, chooseSpeaker, isMine, messageAuthor, speakerKey, speakersOf, speakerText, throughRole, type GraphLike
 } from './chatAuthor';
-import { keysFor } from './ringOf';
+import { plural } from '../core/plural';
+import { keysFor } from '../core/ringOf';
 import { SpeakerPick } from './SpeakerPick';
-import type { Ring } from './keys';
+import type { Ring } from '../core/keys';
 import { HistoryDialog } from './MessageBits';
-import { usePerson, type PagePerson } from './pagePerson';
-import { useRemembered } from './prefs';
-import { myRoleNames } from './roleNames';
+import { usePerson, type PagePerson } from '../pages/pagePerson';
+import { useRemembered } from '../core/prefs';
+import { myRoleNames } from '../roles/roleNames';
 import { LinkChatRoom, VisitorChat } from './LinkChatJoin';
-import { loadLinkChat } from './linkPerson';
-import { heldLinks } from './linkKeep';
-import { parsePath } from './routes';
-import { whoIsThere, WorkspaceError } from './session';
-import { Loading } from './ui/Loading';
+import { loadLinkChat } from '../links/linkPerson';
+import { heldLinks } from '../links/linkKeep';
+import { parsePath } from '../routes';
+import { whoIsThere, WorkspaceError } from '../core/session';
+import { Loading } from '../ui/Loading';
 
 type RolePerson = Extract<PagePerson, { kind: 'role' }>;
 

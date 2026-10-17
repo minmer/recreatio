@@ -13,7 +13,7 @@ namespace Api;
 /// <para>
 /// <b>Normalisiert wird HIER</b> (<see cref="Norm"/>), und der Browser rechnet
 /// dieselbe Funktion nach (<c>postal.ts</c>, geprüft von
-/// <c>app-postal-check.mjs</c> und <c>PostalChecks.cs</c> mit derselben
+/// <c>app-platform-check.mjs</c> und <c>PlatformChecks.cs</c> mit derselben
 /// Tabelle). Laufen beide auseinander, fände die Suche im Browser eine
 /// Straße, die der Dienst als neue anlegt.
 /// </para>

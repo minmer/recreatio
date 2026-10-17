@@ -40,10 +40,11 @@ import {
 import { branch, goOf, nextOf, routeOf, type Target } from './showPaths';
 import { ShowDark } from './showContext';
 import { LayerArt, layerBackground } from './deckLayers';
-import { MotionBox, SlidePhase, type Phase } from './MotionBox';
-import { backdropAt } from './slideMotion';
-import { usePrefersDark, usePrefersReducedMotion } from './SlideDeck';
-import { addressWithSlide, anchorOf, imageUrl, resolveTheme, slideInAddress, type Layer, type Theme } from './slides';
+import { MotionBox, SlidePhase, type Phase } from '../motion/MotionBox';
+import { backdropAt } from '../slides/slideMotion';
+import { usePrefersDark, usePrefersReducedMotion } from '../slides/SlideDeck';
+import { addressWithSlide, anchorOf, slideInAddress } from '../slides/slides';
+import { imageUrl, resolveTheme, type Layer, type Theme } from '../slides/slideLook';
 import { usePresentationDrive, type DriveControl } from './usePresentationDrive';
 
 export interface ShowPiece {

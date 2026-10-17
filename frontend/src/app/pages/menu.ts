@@ -18,13 +18,10 @@
  * hier bleibt, was den Dienst und das Adressfeld des Browsers braucht.
  */
 
-import { hereIn, joinPath, registryPath, under, type Spot } from './menuPath';
+import { registryPath } from './menuPath';
 import type { MenuItem } from './page';
-import { pagePath } from './routes';
-import { call } from './session';
-
-export type { MenuItem, Spot };
-export { hereIn, joinPath, registryPath, under };
+import { pagePath } from '../routes';
+import { call } from '../core/session';
 
 /** Die Adresse, auf die ein Eintrag verweist — `null`, wenn er nur Untereinträge trägt. */
 export function hrefOf(item: MenuItem, from: string): string | null {

@@ -10,7 +10,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { keyOf } from './dayMath';
+import { keyOf } from '../core/dayMath';
 import {
   byDay, CONFESSION, dayKey, DEVOTION, fullDayLabel, hour, isMass, loadPlan, type PublicMass
 } from './mass';

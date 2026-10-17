@@ -8,7 +8,7 @@
  * dahin der Platzhalter (`Loading`).
  *
  * <code>
- *   const PageChatCard = later(() => import('../PageChatView').then((m) => m.PageChatCard));
+ *   const PageChatCard = later(() => import('../chat/PageChatView').then((m) => m.PageChatCard));
  * </code>
  */
 

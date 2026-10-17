@@ -11,9 +11,9 @@
  * gezeichnet wurden. Was blieb, ist der Umgang mit dem Ding.
  */
 
-import { groupNameAad, moduleNameAad, nameText, openName, sealUnderArea } from './names';
-import type { Repeat } from './rounds';
-import { call, WorkspaceError } from './session';
+import { groupNameAad, moduleNameAad, nameText, openName, sealUnderArea } from '../core/names';
+import type { Repeat } from '../forms/rounds';
+import { call, WorkspaceError } from '../core/session';
 
 /**
  * Der Inhalt eines Bausteins, aus seinem gespeicherten `config` gelesen.

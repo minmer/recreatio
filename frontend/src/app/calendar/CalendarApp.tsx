@@ -29,7 +29,7 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { loadAgenda, openAgenda, type AgendaClaim, type OpenedItem } from './agenda';
-import { loadAreas, type AreaRow } from './area';
+import { loadAreas, type AreaRow } from '../areas/area';
 import {
   holderName, loadBookings, NO_BOOKINGS, waitingOn, waitsForOffice, type AgendaBookings
 } from './calendarBookings';
@@ -37,27 +37,27 @@ import {
   buildEvents, hueOf, linkOfEvent, marksOn, treeOrder, onDay as happensOn, placeDay, railDay, stepView, taskMarks, viewRange, wholeDay,
   type CalEvent, type CalView, type TaskMark
 } from './calendarModel';
-import { addDays, keyOf, longDate, monthTitle, rangeTitle, sameDay, sameMonth, startOfDay, WEEK_HEADS } from './dayMath';
+import { addDays, keyOf, longDate, monthTitle, rangeTitle, sameDay, sameMonth, startOfDay, WEEK_HEADS } from '../core/dayMath';
 import { CALENDAR_KIND_LABEL, loadCalendars, type CalendarRow } from './calendar';
 import { CalendarSettings } from './CalendarSettings';
 import { calendarLabel } from './calendarLabel';
 import type { EventTarget } from './EventDialog';
 import { ItemLink } from './ItemLink';
-import { intentionsWord } from './mass';
-import { useNow } from './MassParts';
-import { Modal } from './Modal';
-import { useMe, type Me } from './me';
-import { useRemembered } from './prefs';
-import { ReservationDialog, WaitingDialog } from './ReservationDialog';
-import type { Who } from './session';
-import { WorkspaceError } from './session';
+import { intentionsWord } from '../masses/mass';
+import { useNow } from '../masses/MassParts';
+import { Modal } from '../ui/Modal';
+import { useMe, type Me } from '../core/me';
+import { useRemembered } from '../core/prefs';
+import { ReservationDialog, WaitingDialog } from '../bookings/ReservationDialog';
+import type { Who } from '../core/session';
+import { WorkspaceError } from '../core/session';
 import { TaskDay, TaskPill } from './TaskDay';
 /* 2026-10-17 — die Dialoge erst, wenn einer aufgeht: ein Kalender auf einer öffentlichen Seite lud beide mit. */
 const EventDialog = lazy(() => import('./EventDialog').then((m) => ({ default: m.EventDialog })));
 const TaskDialog = lazy(() => import('./TaskDialog').then((m) => ({ default: m.TaskDialog })));
 import { loadTasks, openTasks, type OpenTask } from './tasks';
-import { groupName } from './WhoSees';
-import { Loading } from './ui/Loading';
+import { groupName } from '../areas/WhoSees';
+import { Loading } from '../ui/Loading';
 
 const VIEWS: readonly { value: CalView; label: string }[] = [
   { value: 'day', label: 'Dzień' }, { value: 'week', label: 'Tydzień' },

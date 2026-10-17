@@ -20,7 +20,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { hereIn, hrefOf, under, type MenuItem, type Spot } from './menu';
+import { hrefOf } from './menu';
+import { hereIn, under, type Spot } from './menuPath';
+import { type MenuItem } from './page';
 
 export function SiteMenu({ items, from, here }: {
   items: readonly MenuItem[];

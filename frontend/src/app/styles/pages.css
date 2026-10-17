@@ -1,0 +1,299 @@
+/* Seiteneditor, öffentliche Seite, Grössen der Kacheln.
+   Teil von app.css: dort steht, in welcher Reihenfolge die Dateien gelten. */
+
+/* -- Der Seiteneditor ------------------------------------------------------ */
+
+.pb { display: grid; gap: 0.75rem; margin-top: 0.375rem; }
+
+.pb-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.pb-views { display: flex; gap: 0.25rem; }
+
+.pb-view {
+  font: inherit;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+
+.pb-view.is-active { border-color: var(--wk-accent); color: var(--wk-accent); }
+.pb-view-cols { font-size: var(--wk-text-xs); color: var(--wk-muted); font-variant-numeric: tabular-nums; }
+.pb-hint, .pb-empty { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+
+.pb-palette { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+
+/*
+   Ein Baustein in der Ablage sagt, WOZU er da ist — nicht nur, wie er heisst.
+   Elf Namen nebeneinander lassen raten; elf Namen mit je einer Zeile nicht.
+
+   Deshalb zwei Zeilen statt einer, und deshalb ein Raster: der Name oben,
+   der Satz darunter, beide linksbündig — zentriert würde der Satz zu einer
+   Bildunterschrift.
+*/
+.pb-pill {
+  font: inherit;
+  display: grid;
+  gap: 0.125rem;
+  text-align: left;
+  max-width: 14rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px dashed var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: grab;
+  touch-action: none;
+}
+
+.pb-pill-name { font-weight: 600; }
+
+/* Leiser als der Name: er ist die Antwort auf eine Frage, die man nur beim
+   ersten Mal stellt. */
+.pb-pill-use { font-size: var(--wk-text-xs); line-height: 1.35; color: var(--wk-muted); }
+
+.pb-pill:hover { border-color: var(--wk-accent); }
+.pb-pill.is-dragging { opacity: 0.4; }
+
+.pb-canvas { overflow-x: auto; }
+
+.pb-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--pb-cols), minmax(0, 1fr));
+  grid-auto-rows: var(--pb-row-h);
+  gap: var(--pb-gap);
+  padding: var(--pb-gap);
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-ground);
+}
+
+.pb-cell { border-radius: 4px; }
+.pb-cell.is-live { border: 1px dashed var(--wk-line); }
+.pb-cell.is-open { border-color: var(--wk-accent); }
+.pb-cell.is-over { background: color-mix(in srgb, var(--wk-accent) 18%, transparent); }
+
+.pb-item {
+  position: relative;
+  display: grid;
+  gap: 0.125rem;
+  align-content: center;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  cursor: grab;
+  touch-action: none;
+  overflow: hidden;
+}
+
+.pb-item.is-selected { border-color: var(--wk-accent); outline: 1px solid var(--wk-accent); }
+.pb-item.is-dragging { opacity: 0.4; }
+.pb-item.is-todo { border-style: dashed; }
+
+.pb-item-name { font-weight: 600; font-size: var(--wk-text-sm); }
+.pb-item-size { font-size: var(--wk-text-xs); color: var(--wk-muted); font-variant-numeric: tabular-nums; }
+.pb-item-todo { font-size: var(--wk-text-xs); color: var(--wk-accent); }
+
+/* Was die Kachel in dieser Grösse zeigt — klein, und höchstens drei Zeilen. */
+.pb-item-shows {
+  font-size: var(--wk-text-xs);
+  line-height: 1.3;
+  color: var(--wk-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pb-shows { margin: 0; padding: 0.5rem 0.75rem; border-left: 3px solid var(--wk-accent); background: var(--wk-soft); border-radius: 0 4px 4px 0; }
+
+/* Die Griffe liegen AUF der Kante: halb drinnen, halb draussen, damit man sie
+   trifft, ohne den Baustein zu verfehlen. */
+.pb-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 1px solid var(--wk-accent);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  cursor: nwse-resize;
+}
+
+.pb-handle-top { top: -6px; left: 50%; margin-left: -6px; cursor: ns-resize; }
+.pb-handle-bottom { bottom: -6px; left: 50%; margin-left: -6px; cursor: ns-resize; }
+.pb-handle-left { left: -6px; top: 50%; margin-top: -6px; cursor: ew-resize; }
+.pb-handle-right { right: -6px; top: 50%; margin-top: -6px; cursor: ew-resize; }
+.pb-handle-top-left { top: -6px; left: -6px; }
+.pb-handle-top-right { top: -6px; right: -6px; cursor: nesw-resize; }
+.pb-handle-bottom-left { bottom: -6px; left: -6px; cursor: nesw-resize; }
+.pb-handle-bottom-right { bottom: -6px; right: -6px; }
+
+.pb-drop {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 1.3rem;
+  height: 1.3rem;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--wk-muted);
+  font-size: var(--wk-text-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pb-drop:hover { color: var(--wk-danger); }
+
+.pb-ghost {
+  display: grid;
+  align-content: center;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--wk-accent);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  opacity: 0.9;
+}
+
+.pb-fields { display: grid; gap: 0.5rem; max-width: 34rem; }
+.pb-h { margin: 0.375rem 0 0; font-size: var(--wk-text-md); font-weight: 600; }
+.wk-field.is-empty > span { color: var(--wk-accent); }
+
+/* -- Die öffentliche Seite ------------------------------------------------- */
+
+/* Gestreckt, nicht oben angeheftet: zwei Kacheln, die dieselben Zeilen
+   überspannen, sind gleich hoch — sonst endet die eine mitten neben der
+   anderen, und das Raster sieht aus wie ein Versehen. Die Höhe selbst bleibt
+   beim Inhalt; eine leere Zeile wird nicht aufgebläht. */
+.wk-page-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--page-cols), minmax(0, 1fr));
+
+  /*
+     0054 — DIE HÖHE, DIE DER EDITOR ZEIGT. Eine Zeile ist mindestens so hoch
+     wie im Raster des Editors (84 px); ein Baustein über drei Zeilen ist also
+     mindestens ein Block, auch wenn er wenig sagt — und mehr Inhalt lässt ihn
+     wachsen, statt ihn abzuschneiden. Was nicht hineinpasst, zeigt der Knopf
+     „Pełny ekran".
+  */
+  grid-auto-rows: minmax(5.25rem, auto);
+  gap: 1rem;
+  margin-top: 1.25rem;
+  align-items: stretch;
+}
+
+/* 0101 — gepackt: jede Spalte für sich; die Kacheln stehen dort, wo `masonry.pack` sie hinstellt. */
+.wk-page-grid.is-packed { display: block; position: relative; }
+.wk-page-grid.is-packed > .wk-card { box-sizing: border-box; }
+
+.wk-card {
+  position: relative;
+  display: grid;
+  gap: 0.375rem;
+  align-content: start;
+  padding: 1rem 1rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+}
+
+.wk-card-title { margin: 0; font-size: var(--wk-text-md); font-weight: 600; }
+.wk-card-text { margin: 0; }
+.wk-card-lines { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.25rem; }
+.wk-card-sub { margin: 0.5rem 0 0; font-size: var(--wk-text-md); font-weight: 600; }
+.wk-card-more { justify-self: start; }
+
+/* -- Die Grösse einer Kachel (part.ts: PartSize) ---------------------------
+   Jede Art entscheidet selbst, WAS sie je Grösse zeigt; hier steht, wie das
+   Gemeinsame liegt. Ein STREIFEN ist eine Zeile: die Überschrift wird zum
+   kleinen Etikett davor, Listen laufen hintereinander statt untereinander. */
+
+.wk-card[data-h='strip'] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  align-content: center;
+  gap: 0.25rem 1rem;
+  padding: 0.75rem 1rem;
+}
+
+.wk-card[data-h='strip'] > .wk-card-title {
+  font-size: var(--wk-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--wk-muted);
+}
+
+.wk-card[data-h='strip'] > .wk-card-text { flex: 1 1 16rem; }
+.wk-card[data-h='strip'] .wk-card-lines { display: flex; flex-wrap: wrap; gap: 0.25rem 0; }
+.wk-card[data-h='strip'] .wk-card-lines > li + li::before { content: '·'; margin: 0 0.5rem; color: var(--wk-muted); }
+.wk-card-open { margin-left: auto; }
+
+/* Fliesstext: hoch über die ganze Breite in zwei Spalten wie eine Zeitung —
+   eine Zeile über 1200 Pixel verliert man beim Sprung in die nächste. Die
+   Überschrift bleibt über beiden. */
+.wk-card[data-w='full'][data-h='tall']:has(> .wk-card-text) { display: block; columns: 2 26rem; column-gap: 2.5rem; }
+.wk-card[data-w='full'][data-h='tall'] > .wk-card-title { column-span: all; margin-bottom: 0.5rem; }
+.wk-card[data-w='full'][data-h='tall'] > .wk-card-text { margin-bottom: 0.5rem; }
+.wk-card[data-w='full'][data-h='tall'] > .wk-card-sub { break-after: avoid; }
+
+/* Godziny: schmal eine Tafel mit zwei Spalten, breit auf mehrere verteilt;
+   die Zeile von heute hervorgehoben. */
+.wk-hours > li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 0.75rem; }
+.wk-card[data-h='strip'] .wk-hours > li { display: inline; }
+.wk-card[data-h='strip'] .wk-hours-value::before { content: ' '; }
+.wk-hours-label { font-weight: 600; }
+.wk-hours-value { font-variant-numeric: tabular-nums; }
+.wk-hours > li.is-today { color: var(--wk-accent); }
+.wk-hours-today { font-size: var(--wk-text-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+/* Breit in Spalten, die man von oben nach unten liest — Montag unter Sonntag
+   wäre falsch herum. Tag und Zeit stehen dann beieinander, nicht an zwei Rändern. */
+.wk-card[data-w='wide']:not([data-h='strip']) .wk-hours,
+.wk-card[data-w='full']:not([data-h='strip']) .wk-hours { display: block; column-gap: 2.5rem; }
+.wk-card[data-w='wide']:not([data-h='strip']) .wk-hours { columns: 2; }
+.wk-card[data-w='full']:not([data-h='strip']) .wk-hours { columns: 3; }
+.wk-card[data-w='wide']:not([data-h='strip']) .wk-hours > li,
+.wk-card[data-w='full']:not([data-h='strip']) .wk-hours > li { justify-content: flex-start; gap: 0 0.75rem; padding: 0.125rem 0; break-inside: avoid; }
+
+/* Kontakt: schmal untereinander mit Beschriftung, breit nebeneinander. */
+.wk-contact > li { display: grid; gap: 0; }
+.wk-contact-label { font-size: var(--wk-text-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wk-muted); }
+.wk-contact-map { font-size: var(--wk-text-sm); }
+.wk-card[data-h='strip'] .wk-contact > li { display: inline; }
+.wk-card[data-h='strip'] .wk-contact-label { display: none; }
+.wk-card[data-w='wide']:not([data-h='strip']) .wk-contact,
+.wk-card[data-w='full']:not([data-h='strip']) .wk-contact { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem 1.5rem; }
+
+/* Odnośniki: breit als Knöpfe nebeneinander. */
+.wk-card[data-w='wide']:not([data-h='strip']) .wk-links,
+.wk-card[data-w='full']:not([data-h='strip']) .wk-links { grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.5rem; }
+.wk-card[data-w='wide']:not([data-h='strip']) .wk-links a,
+.wk-card[data-w='full']:not([data-h='strip']) .wk-links a {
+  display: block;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.wk-card[data-w='wide']:not([data-h='strip']) .wk-links a:hover,
+.wk-card[data-w='full']:not([data-h='strip']) .wk-links a:hover { border-color: var(--wk-accent); }
+.wk-card[data-h='tall'] .wk-links a { padding: 1rem 1rem; }
+
+/* Rezerwacja: breit stehen die Termine nebeneinander. */
+.wk-card[data-w='wide'] .wk-slot-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.wk-card[data-w='full'] .wk-slot-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* Rozmowa: hoch mit längerem Verlauf — beide Bausteine, derselbe Verlauf (0062: `.ch-room`). */
+.wk-card[data-h='tall'] .ch-room.is-embedded { height: min(76vh, 44rem); }
+
+/* Im ganzen Fenster darf sie so hoch sein, wie das Fenster ist. */
+.wk-full-body .ch-room.is-embedded { height: calc(100dvh - 7.5rem); min-height: 22rem; }

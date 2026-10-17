@@ -18,25 +18,26 @@
  * kommt `locked` zurück — dann meldet das Telefon wie bisher nur Zahlen.
  */
 
-import { loadAreas } from './area';
+import { loadAreas } from '../areas/area';
 import { openDigest } from './digestNames';
 import {
   areaKeys, chatKeysOf, handOver, loadAreaNames, loadChat, loadMessages, markRead, openMessage, openNames, sendMessage,
   type ChatDetail, type Opened, type SealedMessage
-} from './chat';
-import { fullNameOf, loadFields, loadRegistrations, openSubmission, type Submission } from './form';
-import { loadIntake, openIntakeKey } from './intake';
-import type { Ring, SealedRole } from './keys';
-import { loadLinks } from './linkAccess';
+} from '../chat/chat';
+import { fullNameOf, loadFields } from '../forms/form';
+import { loadRegistrations, openSubmission, type Submission } from '../forms/submissions';
+import { loadIntake, openIntakeKey } from '../forms/intake';
+import type { Ring, SealedRole } from '../core/keys';
+import { loadLinks } from '../links/linkAccess';
 import type { Digest, DigestChat, DigestForm } from './notify';
-import { handOverRoleKeys } from './memberRole';
-import { keysFor } from './ringOf';
-import { authorText, chooseSpeaker, messageAuthor, speakersOf, throughRole } from './chatAuthor';
-import type { RoleEdge } from './roles';
-import { myRoleNames } from './roleNames';
-import { formNewsPath, viewPath } from './routes';
-import { call, type Who, WorkspaceError } from './session';
-import { loadTasks, markDone, openTasks, upcomingReminders, type ReminderKind } from './tasks';
+import { handOverRoleKeys } from '../roles/memberRole';
+import { keysFor } from '../core/ringOf';
+import { authorText, chooseSpeaker, messageAuthor, speakersOf, throughRole } from '../chat/chatAuthor';
+import type { RoleEdge } from '../roles/roles';
+import { myRoleNames } from '../roles/roleNames';
+import { formNewsPath, viewPath } from '../routes';
+import { call, type Who, WorkspaceError } from '../core/session';
+import { loadTasks, markDone, openTasks, upcomingReminders, type ReminderKind } from '../calendar/tasks';
 
 /* -- Was das Telefon bekommt --------------------------------------------------- */
 

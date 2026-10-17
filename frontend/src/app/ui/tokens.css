@@ -1,0 +1,93 @@
+/* Die Masse des Systems: Schrift, Abstand, Ecken, Schatten, Ebenen, Höhe der Felder — und die Farben, die es dazubringt (beide Themen).
+   Teil von ui.css: dort steht die Reihenfolge. */
+
+:root {
+  /* -- Farben, die dazukommen ------------------------------------------- */
+  --wk-ink-2: #3f3a33;
+  --wk-line-strong: #c9c1b3;
+  --wk-sunk: #f3f0ea;
+  --wk-side: #efebe3;
+  --wk-accent-hover: #664a22;
+  --wk-accent-soft: #f1e8da;
+  --wk-ring: rgb(122 90 46 / 0.32);
+  --wk-ok-soft: #e6f2e9;
+  --wk-warn: #8a5600;
+  --wk-warn-soft: #fbefd8;
+  --wk-danger-soft: #fbe8e3;
+  --wk-info: #2b5a88;
+  --wk-info-soft: #e6eef8;
+  --wk-scrim: rgb(26 24 21 / 0.42);
+
+  /* -- Schrift: sechs Grössen ------------------------------------------- */
+  --wk-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --wk-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --wk-text-xs: 0.75rem;
+  --wk-text-sm: 0.875rem;
+  --wk-text-md: 1rem;
+  --wk-text-lg: 1.125rem;
+  --wk-text-xl: 1.375rem;
+  --wk-text-2xl: 1.75rem;
+
+  /* -- Abstand: acht Stufen (4 px) --------------------------------------- */
+  --wk-space-1: 0.25rem;
+  --wk-space-2: 0.5rem;
+  --wk-space-3: 0.75rem;
+  --wk-space-4: 1rem;
+  --wk-space-5: 1.5rem;
+  --wk-space-6: 2rem;
+  --wk-space-7: 3rem;
+  --wk-space-8: 4rem;
+
+  /* -- Ecken, Schatten, Ebenen ------------------------------------------- */
+  --wk-radius-xs: 4px;
+  --wk-radius-sm: 6px;
+  --wk-radius: 10px;
+  --wk-radius-lg: 14px;
+  --wk-radius-pill: 999px;
+  --wk-shadow-pop: 0 1px 2px rgb(30 25 18 / 0.06), 0 8px 24px rgb(30 25 18 / 0.12);
+  --wk-shadow-dialog: 0 2px 6px rgb(30 25 18 / 0.08), 0 24px 64px rgb(30 25 18 / 0.22);
+  --wk-z-header: 50;
+  --wk-z-pop: 100;
+  --wk-z-dialog: 200;
+  --wk-z-toast: 300;
+
+  /* -- Höhe der Bedienelemente: Feld, Auswahl und Knopf gleich hoch ------ */
+  --wk-control-h: 2.25rem;
+  --wk-control-h-sm: 1.875rem;
+
+  /* -- Der Rahmen -------------------------------------------------------- */
+  --wk-side-w: 15rem;
+  --wk-bar-h: 3.5rem;
+  --wk-content: 90rem;
+  /* Wo eine mitlaufende Spalte (Vorschau, Leinwand) stehen bleibt: unter der Leiste. */
+  --wk-sticky-top: calc(var(--wk-bar-h) + var(--wk-space-4));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --wk-ink-2: #d9d1c3;
+    --wk-line-strong: #5a5244;
+    --wk-sunk: #1b1813;
+    --wk-side: #1a1712;
+    --wk-accent-hover: #e2b877;
+    --wk-accent-soft: #382c1b;
+    --wk-ring: rgb(211 162 94 / 0.35);
+    --wk-ok-soft: #1a2e20;
+    --wk-warn: #e2b153;
+    --wk-warn-soft: #33280f;
+    --wk-danger-soft: #3a1d16;
+    --wk-info: #8ab6e6;
+    --wk-info-soft: #1a2635;
+    --wk-scrim: rgb(0 0 0 / 0.6);
+    --wk-shadow-pop: 0 1px 2px rgb(0 0 0 / 0.5), 0 8px 24px rgb(0 0 0 / 0.45);
+    --wk-shadow-dialog: 0 2px 6px rgb(0 0 0 / 0.5), 0 24px 64px rgb(0 0 0 / 0.6);
+  }
+}
+
+/* Mit dem Finger: Ziele, die man trifft (44 px). */
+@media (pointer: coarse) {
+  :root {
+    --wk-control-h: 2.75rem;
+    --wk-control-h-sm: 2.25rem;
+  }
+}

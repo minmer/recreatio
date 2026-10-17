@@ -18,15 +18,15 @@
  * </code>
  */
 
-import { myEpochKeys } from './area';
-import { aad, Field, fromBase64Url, open, seal, toBase64Url } from './crypto';
-import { loadIntake, openIntakeKey } from './intake';
-import type { Ring } from './keys';
-import type { LinkArea } from './linkAccess';
+import { myEpochKeys } from '../areas/area';
+import { aad, Field, fromBase64Url, open, seal, toBase64Url } from '../core/crypto';
+import { loadIntake, openIntakeKey } from '../forms/intake';
+import type { Ring } from '../core/keys';
+import type { LinkArea } from '../links/linkAccess';
 import { rememberSeatAreaKeys, walkBundle, type RoleBundle } from './roleBundle';
-import { openSeatName } from './names';
-import { officeSeatKey } from './seat';
-import { call } from './session';
+import { openSeatName } from '../core/names';
+import { officeSeatKey } from '../seats/seat';
+import { call } from '../core/session';
 
 export interface WaitingSeat {
   readonly seatId: string;

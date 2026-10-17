@@ -1,0 +1,385 @@
+/* Messplan auf der Seite, Blättern, Monatsblatt, Kanzlei; Textbreite einer Kachel.
+   Teil von app.css: dort steht, in welcher Reihenfolge die Dateien gelten. */
+
+/* -- Der Messplan auf der Seite -------------------------------------------
+   Dieselbe Ordnung wie auf dem gedruckten Bogen (`sheet.ts`): die Uhrzeit in
+   einer schmalen Spalte rechtsbuendig, die Intention daneben. Zwei Anordnungen
+   fuer dieselbe Sache waeren zwei Gewohnheiten, und wer den Aushang kennt,
+   muesste den Bildschirm neu lernen. */
+
+.wk-card-muted { margin: 0; color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.wk-card-next { margin: 0; font-size: var(--wk-text-md); }
+.wk-card-hours { margin: 0; font-variant-numeric: tabular-nums; }
+
+/* Kapitaelchen wie die Tagesueberschrift des Bogens. */
+.wk-card-next-day,
+.wk-mass-day-name {
+  color: var(--wk-muted);
+  font-variant: small-caps;
+  letter-spacing: 0.05em;
+}
+
+/* Untereinander: Tag unter Tag. Die Kachel wächst mit — sie hat auf der Seite
+   keine feste Höhe, und ein Messplan, der in sich rollt, wird überlesen. */
+.wk-mass-days { display: grid; gap: 1rem; min-width: 0; }
+
+/* Nebeneinander: HÖCHSTENS so viele Spalten, wie die Grösse sagt
+   (massShape.ts), und keine schmaler als 14rem — steht daneben ein Kalender,
+   oder ist der Bildschirm schmaler, werden es von selbst weniger, statt dass
+   eine Intention auf fünf Zeilen bricht. */
+.wk-mass-cols {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(max(14rem, calc((100% - (var(--mass-cols) - 1) * 1.4rem) / var(--mass-cols))), 1fr)
+  );
+  gap: 1rem 1.5rem;
+  min-width: 0;
+}
+.wk-mass-cols > .wk-mass-day { align-content: start; }
+.wk-mass-day.is-today > .wk-mass-day-name { color: var(--wk-accent); }
+.wk-mass-none { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-mass-day-open {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  font-variant: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.wk-mass-day-open::after { content: ' ›'; }
+.wk-mass-day-open:hover { color: var(--wk-accent); }
+.wk-mass-day-open:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+
+/* -- Die grosse Kachel: blättern (MassBrowser.tsx) --------------------------
+   Ob der Kalender daneben passt, entscheidet die Breite der KACHEL, nicht die
+   des Bildschirms: dieselbe Kachel ist am Schreibtisch breit und auf dem
+   Tablet schmal. */
+
+.wk-mass-app { container: masses / inline-size; min-width: 0; }
+.wk-mass-layout { display: grid; gap: 1rem 1.5rem; min-width: 0; }
+.wk-mass-main { display: grid; gap: 0.75rem; align-content: start; min-width: 0; }
+.wk-mass-side { display: none; }
+
+@container masses (min-width: 52rem) {
+  .wk-mass-app[data-browse='full'] .wk-mass-layout { grid-template-columns: 16.5rem minmax(0, 1fr); }
+  .wk-mass-app[data-browse='full'] .wk-mass-side { display: grid; align-content: start; gap: 1rem; }
+  .wk-mass-app[data-browse='full'] .wk-mass-pickbtn,
+  .wk-mass-app[data-browse='full'] .wk-mass-pop { display: none; }
+}
+
+/* Die Leiste: ‹ Dziś ›, wo man ist, die Ansichten, der Kalender. */
+.wk-mass-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.wk-mass-nav { display: inline-flex; border: 1px solid var(--wk-line); border-radius: 4px; overflow: hidden; }
+.wk-mass-nav button {
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  min-width: 2.2rem;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-left: 1px solid var(--wk-line);
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-mass-nav button:first-child { border-left: 0; }
+.wk-mass-nav button:hover { background: var(--wk-soft); }
+.wk-mass-nav button:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-mass-step { font-size: var(--wk-text-md); line-height: 1; }
+.wk-mass-today[aria-pressed='true'] { color: var(--wk-accent); font-weight: 700; }
+.wk-mass-range { margin: 0; flex: 1 1 12rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.wk-mass-loading { font-weight: 400; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-mass-modes .wk-seg-opt { font-size: var(--wk-text-sm); padding: 0.25rem 0.75rem; }
+.wk-mass-pickbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-mass-pickbtn[aria-expanded='true'] { border-color: var(--wk-accent); color: var(--wk-accent); }
+.wk-mass-pickbtn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-mass-icon { flex: none; }
+.wk-mass-pop { max-width: 17rem; }
+.wk-mass-body { min-width: 0; display: grid; gap: 0.5rem; }
+.wk-mass-body.is-loading { opacity: 0.55; transition: opacity 0.2s; }
+@media (prefers-reduced-motion: reduce) { .wk-mass-body.is-loading { transition: none; } }
+
+/* Der Tag: die Woche als Leiste, darunter die Messen — breit in Spalten. */
+.wk-mass-weekstrip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.25rem; }
+.wk-mass-chip {
+  display: grid;
+  justify-items: center;
+  gap: 0;
+  padding: 0.25rem 0;
+  font: inherit;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-mass-chip:hover { border-color: var(--wk-accent); }
+.wk-mass-chip:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-mass-chip.is-today { border-color: var(--wk-accent); }
+.wk-mass-chip.is-on { background: var(--wk-accent); border-color: var(--wk-accent); color: var(--wk-on-accent); }
+.wk-mass-chip-dow { font-size: var(--wk-text-xs); letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.85; }
+.wk-mass-chip-date { font-weight: 700; font-variant-numeric: tabular-nums; }
+.wk-mass-dayview { display: grid; gap: 0.375rem; }
+
+@container masses (min-width: 44rem) {
+  .wk-mass-dayview { display: block; columns: 2 20rem; column-gap: 2rem; }
+  .wk-mass-dayview > .wk-mass-row { break-inside: avoid; margin-bottom: 0.375rem; display: grid; }
+}
+
+/* Das Monatsblatt: in jedem Tag die Uhrzeiten; schmal nur ihre Zahl. */
+.wk-mass-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.25rem; }
+.wk-mass-month-dow { font-size: var(--wk-text-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wk-muted); text-align: center; }
+.wk-mass-cell {
+  display: grid;
+  align-content: start;
+  gap: 0.125rem;
+  min-height: 4.6rem;
+  padding: 0.25rem 0.375rem;
+  font: inherit;
+  text-align: left;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+  min-width: 0;
+}
+.wk-mass-cell:hover { border-color: var(--wk-accent); }
+.wk-mass-cell:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-mass-cell.is-out { background: var(--wk-ground); color: var(--wk-muted); }
+.wk-mass-cell.is-today { border-color: var(--wk-accent); box-shadow: inset 0 0 0 1px var(--wk-accent); }
+.wk-mass-cell.is-empty { color: var(--wk-muted); }
+.wk-mass-cell-date { font-weight: 700; font-size: var(--wk-text-sm); font-variant-numeric: tabular-nums; }
+.wk-mass-cell.is-today .wk-mass-cell-date { color: var(--wk-accent); }
+.wk-mass-cell-times { display: flex; flex-wrap: wrap; gap: 0 0.375rem; font-size: var(--wk-text-xs); font-variant-numeric: tabular-nums; }
+.wk-mass-cell-times .is-cancelled { text-decoration: line-through; color: var(--wk-muted); }
+.wk-mass-cell-count { display: none; justify-self: start; font-size: var(--wk-text-xs); font-weight: 700; color: var(--wk-accent); }
+
+@container masses (max-width: 36rem) {
+  .wk-mass-cell { min-height: 2.8rem; }
+  .wk-mass-cell-times { display: none; }
+  .wk-mass-cell-count { display: block; }
+}
+
+/* -- Ein Monatsblatt zum Wählen (MonthPicker.tsx) -------------------------- */
+
+.wk-cal { display: grid; gap: 0.375rem; }
+.wk-cal-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.wk-cal-title { font-weight: 700; }
+.wk-cal-step {
+  font: inherit;
+  font-size: var(--wk-text-md);
+  line-height: 1;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-cal-step:hover { border-color: var(--wk-accent); }
+.wk-cal-step:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.125rem; }
+.wk-cal-dow { font-size: var(--wk-text-xs); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--wk-muted); text-align: center; padding-bottom: 0.125rem; }
+.wk-cal-day {
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  font-variant-numeric: tabular-nums;
+  aspect-ratio: 1;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-cal-day:hover { background: var(--wk-soft); }
+.wk-cal-day:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-cal-day.is-out { color: var(--wk-muted); opacity: 0.6; }
+.wk-cal-day.is-today { border-color: var(--wk-accent); font-weight: 700; }
+.wk-cal-day.is-week { background: var(--wk-soft); border-radius: 0; }
+.wk-cal-day.is-on:not(.is-week) { background: var(--wk-accent); border-color: var(--wk-accent); color: var(--wk-on-accent); }
+.wk-mass-day { display: grid; gap: 0.125rem; }
+.wk-mass-day-name { margin: 0; font-size: var(--wk-text-sm); font-weight: 600; }
+
+.wk-mass-row { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); gap: 0 0.5rem; }
+.wk-mass-hour { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.wk-mass-what { min-width: 0; display: grid; gap: 0.125rem; }
+.wk-mass-title { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-mass-int { font-size: var(--wk-text-sm); }
+
+/* „1)", „2)" — genau wie auf dem Bogen, und aus demselben Grund. */
+.wk-mass-ints { margin: 0; padding: 0; list-style: none; counter-reset: intencja; font-size: var(--wk-text-sm); }
+.wk-mass-ints li { counter-increment: intencja; padding-left: 1.5rem; text-indent: -1.4rem; }
+.wk-mass-ints li::before { content: counter(intencja) ") "; }
+
+/* Die zusammengelegten: gezählt und aufklappbar — da, aber nicht im Weg. */
+.wk-mass-many summary,
+.wk-mass-past summary { cursor: pointer; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-mass-many summary:focus-visible,
+.wk-mass-past summary:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-mass-many[open] > summary { margin-bottom: 0.125rem; }
+.wk-mass-past { display: grid; gap: 0.125rem; }
+.wk-mass-past[open] > summary { margin-bottom: 0.25rem; }
+
+/* Jetzt: die nächste Messe, und wann. */
+.wk-mass-next { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.125rem 0.5rem; }
+.wk-mass-big { font-size: var(--wk-text-xl); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.wk-mass-soon {
+  font-size: var(--wk-text-xs);
+  font-weight: 700;
+  color: var(--wk-accent);
+  white-space: nowrap;
+}
+.wk-mass-dayname { color: var(--wk-muted); font-variant: small-caps; letter-spacing: 0.05em; font-weight: 600; }
+.wk-mass-where { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-mass-label {
+  margin: 0;
+  font-size: var(--wk-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--wk-muted);
+}
+
+/* Uhrzeiten hintereinander: vorbei blass, die nächste betont, abgesagt durchgestrichen. */
+.wk-mass-strip { display: flex; flex-wrap: wrap; gap: 0.25rem 1.5rem; }
+.wk-mass-hours { margin: 0; font-variant-numeric: tabular-nums; }
+.wk-mass-sep { color: var(--wk-muted); }
+.wk-mass-t.is-past { color: var(--wk-muted); }
+.wk-mass-t.is-next { font-weight: 700; color: var(--wk-accent); }
+.wk-mass-t.is-cancelled { color: var(--wk-muted); text-decoration: line-through; }
+
+/* Über die ganze Breite: die nächste mit Intention, dahinter was folgt. */
+.wk-mass-ticker { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 2rem; flex: 1 1 auto; }
+.wk-mass-ticker .wk-mass-int { flex: 1 1 18rem; min-width: 0; }
+.wk-mass-then-line { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 1rem; font-variant-numeric: tabular-nums; }
+
+/* Schmal: die nächste hervorgehoben, darunter die Uhrzeiten der kommenden Tage. */
+.wk-mass-feature {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--wk-accent);
+  border-radius: 0 4px 4px 0;
+  background: var(--wk-soft);
+}
+.wk-mass-then { display: grid; gap: 0.25rem; margin-top: 0.25rem; }
+.wk-mass-then-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.125rem; }
+.wk-mass-then-list > li { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr); gap: 0.5rem; font-variant-numeric: tabular-nums; }
+
+/* Der folgende Tag in einer Zeile, unter dem ganzen. */
+.wk-mass-after { margin: 0.25rem 0 0; padding-top: 0.5rem; border-top: 1px solid var(--wk-line); font-variant-numeric: tabular-nums; }
+
+/* Eine Messe im Tag: die nächste markiert, vorbei blass, abgesagt gestrichen, Beichte leise. */
+.wk-mass-row { padding: 0.125rem 0.375rem 0.125rem 0; border-radius: 4px; }
+.wk-mass-row.is-next { background: var(--wk-soft); box-shadow: inset 3px 0 0 var(--wk-accent); }
+.wk-mass-row.is-past { color: var(--wk-muted); }
+.wk-mass-row.is-cancelled .wk-mass-hour { text-decoration: line-through; color: var(--wk-muted); }
+.wk-mass-row.is-confession { color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.wk-mass-row.is-confession .wk-mass-hour { font-weight: 400; }
+.wk-mass-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.5rem; }
+.wk-mass-off { font-size: var(--wk-text-xs); font-weight: 700; color: var(--wk-danger); }
+
+/* -- Die Kanzlei ----------------------------------------------------------
+   Hier wird ABGETIPPT, nicht ausgefuellt: das Eingabefeld ist breit, die Art
+   daneben schmal, und die Reihe bricht auf einem Telefon um. */
+
+.wk-mo-top { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; }
+.wk-mo-top .wk-field { margin: 0; }
+
+.wk-mo-mass { margin: 0.75rem 0; display: grid; gap: 0.375rem; }
+.wk-mo-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+
+.wk-mo-entry { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.wk-mo-entry input { flex: 1 1 16rem; min-width: 0; }
+
+/* Zurueckgenommen, aber nicht fort: die Kanzlei sieht, dass da etwas war. */
+.wk-mo-int input { flex: 1 1 14rem; min-width: 0; border: none; background: transparent; padding: 0; }
+.wk-mo-int[data-cancelled='true'] { opacity: 0.55; }
+.wk-mo-int[data-cancelled='true'] input { text-decoration: line-through; }
+
+.wk-mo-need { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-accent); }
+
+.wk-mo-days { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.wk-mo-day { display: flex; gap: 0.25rem; align-items: center; font-size: var(--wk-text-sm); }
+
+.wk-mo-keys { margin: 0.375rem 0 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-mo-keys kbd {
+  font: inherit;
+  border: 1px solid var(--wk-line, rgba(0, 0, 0, 0.18));
+  border-radius: 4px;
+  padding: 0 0.25rem;
+}
+.wk-card-unknown { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+
+/* Ein Hinweis soll auffallen — sonst ist er keiner. */
+.wk-card-notice {
+  margin: 0;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--wk-accent);
+  font-weight: 600;
+}
+
+/* Derselbe Satz, lauter je Grösse: Block grösser, hoch wie ein Plakat,
+   über die ganze Breite als Band. */
+.wk-card[data-h='block'] > p.wk-card-notice { font-size: var(--wk-text-xl); line-height: 1.35; text-wrap: balance; }
+.wk-card[data-h='tall'] > p.wk-card-notice { font-size: clamp(1.5rem, 3vw, 2.1rem); line-height: 1.25; text-wrap: balance; }
+.wk-card[data-h='tall']:has(> p.wk-card-notice) { align-content: center; }
+.wk-card[data-w='full'][data-h='strip']:has(> p.wk-card-notice) { justify-content: center; background: var(--wk-soft); }
+.wk-card[data-w='full'][data-h='strip'] > p.wk-card-notice { border-left: 0; padding-left: 0; text-align: center; }
+
+/* Absaetze kommen aus einem Textfeld: was jemand mit der Eingabetaste getrennt
+   hat, soll auch getrennt dastehen. */
+.wk-page-lead { white-space: pre-line; }
+
+.wk-page-form { margin-top: 1rem; max-width: 34rem; }
+
+.wk-field textarea {
+  font: inherit;
+  padding: 0.5rem 0.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  resize: vertical;
+}
+
+.wk-field textarea:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+
+.wk-actions > input[type="password"] {
+  font: inherit;
+  padding: 0.5rem 0.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+}
+
+/* -- Die Breite einer Kachel gilt auch für ihren Text ----------------------
+
+   Hier stand eine Deckelung auf 70 Zeichen, mittig in der Kachel. Typografisch
+   ist das die Lehrbuchantwort — praktisch war es die falsche: eine Kachel über
+   die ganze Seite mit einer schmalen Textsäule darin sieht aus, als sei sie
+   nicht fertig geladen, und die Breite, die man ihr gegeben hat, tut nichts.
+
+   DIE BREITE ENTSCHEIDET DER AUTOR, und zwar dort, wo er sie ohnehin
+   entscheidet: an der Spannweite des Bausteins im Raster. Wer eine schmale
+   Textsäule will, zieht den Baustein auf drei Spalten; wer die ganze Seite
+   will, lässt ihn auf sechs. Zwei Stellen, die dasselbe regeln — das Raster und
+   eine Regel hier —, wären eine zu viel, und die hier ist die unsichtbare. */

@@ -5,8 +5,8 @@
  * der Seite (`entitySubject.tsx`), die jede Seite mit Wahl lädt.
  */
 
-import { loadPublished, summaryOf, type PublishedItem, type PublishedQuery } from '../library';
-import { kindOf } from '../libraryKinds';
+import { loadPublished, summaryOf, type PublishedItem, type PublishedQuery } from '../library/library';
+import { kindOf } from '../library/libraryKinds';
 
 export const REVISION_BUNDLE = 'recreatio.cogita.revision';
 export const FLOW_BUNDLE = 'recreatio.cogita.flow';

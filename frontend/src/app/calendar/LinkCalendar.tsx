@@ -21,9 +21,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 
 import { loadCalendars } from './calendar';
 import { Calendar } from './CalendarApp';
-import { accessWords, heldLinkKeys, type HeldInfo } from './linkAccess';
-import { useLinkMe } from './linkMe';
-import { Loading } from './ui/Loading';
+import { accessWords, heldLinkKeys, type HeldInfo } from '../links/linkAccess';
+import { useLinkMe } from '../links/linkMe';
+import { Loading } from '../ui/Loading';
 
 export function LinkCalendar({ fallback, onSignIn }: {
   /** Was dasteht, wenn dieser Browser keinen Link hält, der einen Kalender sieht — die Anmeldung. */

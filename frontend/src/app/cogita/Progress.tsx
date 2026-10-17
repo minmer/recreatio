@@ -7,10 +7,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { areaKeys, loadAreaNames, openNames } from '../chat';
-import { loadIntake, openIntakeKey } from '../intake';
-import { loadSeats } from '../seat';
-import type { Card } from './cards';
+import { areaKeys, loadAreaNames, openNames } from '../chat/chat';
+import { loadIntake, openIntakeKey } from '../forms/intake';
+import { loadSeats } from '../seats/seat';
+import type { Card } from './cardBasics';
 import { average, knownessOf, levelOf, LEVEL_LABEL, shareOf, type Level } from './knowness';
 import { adoptLocal, areaProgress, localProgress, marksOf, renamer, type Learner, type LearnerProgress } from './learn';
 import { offlineList, dropOffline } from './offline';

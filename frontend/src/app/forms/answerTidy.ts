@@ -11,16 +11,17 @@
  * Kanzlei (`reviseAsOffice`): für das Amt UND für den Menschen selbst.
  */
 
-import { loadAreas, myEpochKeys } from './area';
-import type { OpenField, Submission } from './form';
-import { reviseAsOffice } from './form';
+import { loadAreas, myEpochKeys } from '../areas/area';
+import type { OpenField } from './form';
+import type { Submission } from './submissions';
+import { reviseAsOffice } from './revisions';
 import { loadIntake, loadPublicIntake, openIntakeKey } from './intake';
-import type { Ring } from './keys';
+import type { Ring } from '../core/keys';
 import { tidyPhones } from './phone';
-import { normalizeAddressLines } from './postal';
-import { loadSeats, officeSeatKey, type SeatRow } from './seat';
-import { fromBase64Url } from './crypto';
-import { WorkspaceError } from './session';
+import { normalizeAddressLines } from '../registry/postal';
+import { loadSeats, officeSeatKey, type SeatRow } from '../seats/seat';
+import { fromBase64Url } from '../core/crypto';
+import { WorkspaceError } from '../core/session';
 
 export type TidyKind = 'phone' | 'address';
 

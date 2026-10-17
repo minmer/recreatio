@@ -18,7 +18,7 @@ import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-menu-'));
 await build({
-  entryPoints: ['src/app/menuPath.ts'],
+  entryPoints: ['src/app/pages/menuPath.ts'],
   bundle: true,
   format: 'esm',
   platform: 'node',

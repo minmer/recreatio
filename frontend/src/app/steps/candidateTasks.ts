@@ -26,6 +26,7 @@
  */
 
 import type { Absence, PresenceAnswer, PresenceState, TaskAnswer, TaskDate, TaskPlan, TaskState } from './steps';
+import { plural } from '../core/plural';
 
 export type TaskPhase = 'hidden' | 'upcoming' | 'active' | 'reporting' | 'over';
 
@@ -39,12 +40,6 @@ export const WEEKDAYS = [
   { bit: 32, short: 'sob', many: 'soboty' },
   { bit: 64, short: 'ndz', many: 'niedziele' }
 ] as const;
-
-export const ANSWER_WORD: Record<TaskAnswer, string> = {
-  accepted: 'przyjęte',
-  passed: 'pominięte',
-  refused: 'odmówione'
-};
 
 /** Ein Tag als `YYYY-MM-DD` — in der Zeit des Geräts. */
 export const isoDay = (d: Date): string =>
@@ -208,7 +203,7 @@ export function timeText(plan: TaskPlan): string | null {
 
 /** „1 termin", „3 terminy", „12 terminów". */
 export const termsText = (n: number): string =>
-  `${n} ${n === 1 ? 'termin' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'terminy' : 'terminów'}`;
+  `${n} ${plural(n, 'termin', 'terminy', 'terminów')}`;
 
 /** „codziennie", „w piątki", „w poniedziałki i środy", „w dowolnym dniu"; 0099 — „12 terminów". */
 export function scheduleWord(plan: TaskPlan): string {

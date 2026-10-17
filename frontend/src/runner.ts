@@ -18,8 +18,8 @@
  * Minute ohne Auftrag weg).
  */
 
-import { doneIn, gatherNews, readIn, replyIn, type GatherOptions } from './app/notifyRich';
-import { whoIsThere, WorkspaceError } from './app/session';
+import { doneIn, gatherNews, readIn, replyIn, type GatherOptions } from './app/notify/notifyRich';
+import { whoIsThere, WorkspaceError } from './app/core/session';
 
 interface RunnerBridge {
   ready(): void;

@@ -7,29 +7,29 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { loadPublishedOne, summaryOf, type PublishedItem } from '../library';
-import { kindOf } from '../libraryKinds';
+import { loadPublishedOne, summaryOf, type PublishedItem } from '../../library/library';
+import { kindOf } from '../../library/libraryKinds';
 import type { PartContext } from '../part';
-import type { SeatView } from '../seatContext';
-import type { Card } from '../cogita/cards';
-import { publicFileUrl } from '../cogita/files';
-import { LOOK_LABEL, readFlow, resolveFlow } from '../cogita/flow';
-import { contentOfBundle, EntityView, FlowPlayer } from '../cogita/FlowPlayer';
-import { fogOf, ringsOf } from '../cogita/game';
-import { average, dueAt, knownessOf, LEVEL_LABEL, shareOf } from '../cogita/knowness';
-import { joinByCode, loadSession, openTitle, participantId, ticketFromAddress, ticketOf, type Credentials, type SessionRow, type Ticket } from '../cogita/live';
-import type { PublicEntity, PublicFlow, PublicRevision } from '../cogita/publish';
-import { ENTITY_BUNDLE, FLOW_BUNDLE, publishedAll, REVISION_BUNDLE, titleOf } from '../cogita/published';
-import { useEntitySubject } from '../cogita/entitySubject';
-import { publicOf, revisionSource, useBundle, useLocalLearner } from '../cogita/PublicRun';
-import { levelsOf, readPlan } from '../cogita/revision';
-import { RevisionRun } from '../cogita/RevisionRun';
-import { seatCtx, useSeatLearner, useSeatLibrary } from '../cogita/seatLearn';
-import { SessionPlay } from '../cogita/Sessions';
-import { Bar, CogitaContext, PublicContext, useAsync, useBusy, type CogitaCtx } from '../cogita/ui';
+import type { SeatView } from '../../seats/seatContext';
+import type { Card } from '../../cogita/cardBasics';
+import { publicFileUrl } from '../../cogita/files';
+import { LOOK_LABEL, readFlow, resolveFlow } from '../../cogita/flow';
+import { contentOfBundle, EntityView, FlowPlayer } from '../../cogita/FlowPlayer';
+import { fogOf, ringsOf } from '../../cogita/game';
+import { average, dueAt, knownessOf, LEVEL_LABEL, shareOf } from '../../cogita/knowness';
+import { joinByCode, loadSession, openTitle, participantId, ticketFromAddress, ticketOf, type Credentials, type SessionRow, type Ticket } from '../../cogita/live';
+import type { PublicEntity, PublicFlow, PublicRevision } from '../../cogita/publish';
+import { ENTITY_BUNDLE, FLOW_BUNDLE, publishedAll, REVISION_BUNDLE, titleOf } from '../../cogita/published';
+import { useEntitySubject } from '../../cogita/entitySubject';
+import { publicOf, revisionSource, useBundle, useLocalLearner } from '../../cogita/PublicRun';
+import { levelsOf, readPlan } from '../../cogita/revision';
+import { RevisionRun } from '../../cogita/RevisionRun';
+import { seatCtx, useSeatLearner, useSeatLibrary } from '../../cogita/seatLearn';
+import { SessionPlay } from '../../cogita/Sessions';
+import { Bar, CogitaContext, PublicContext, useAsync, useBusy, type CogitaCtx } from '../../cogita/ui';
 import { OnSeat } from './seat';
 import type { EntityConfig, FlowConfig, LiveConfig, MapConfig, RevisionConfig, SeatLearnConfig, TableConfig, TopicsConfig } from './cogita';
-import { Loading } from '../ui/Loading';
+import { Loading } from '../../ui/Loading';
 
 /** Hoch oder im ganzen Fenster: das Ganze. */
 const isTall = (ctx: PartContext): boolean => ctx.whole === true || ctx.size.height === 'tall';

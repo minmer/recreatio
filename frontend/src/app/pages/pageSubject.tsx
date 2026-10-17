@@ -22,9 +22,9 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 
-import { readEntryQuery } from './entryDesk';
-import { entrySubjectKind } from './entrySubject';
-import { entitySubjectKind } from './cogita/entitySubject';
+import { readEntryQuery } from '../forms/entryDesk';
+import { entrySubjectKind } from '../forms/entrySubject';
+import { entitySubjectKind } from '../cogita/entitySubject';
 
 /** Was gespeichert ist: `{"kind":"entry","form":"…"}` — die Art sagt, was die übrigen Schlüssel bedeuten. */
 export type SubjectDecl = { readonly kind: string } & Readonly<Record<string, unknown>>;

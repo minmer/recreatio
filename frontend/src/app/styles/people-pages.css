@@ -1,0 +1,187 @@
+/* Napisz do tej osoby (0080/0081), tak było → tak będzie (0082), Wybór na stronie (0082), Zgody (0083), Wymagania und Tabelle (0086).
+   Teil von app.css: dort steht, in welcher Reihenfolge die Dateien gelten. */
+
+/* 0080 — „Napisz do tej osoby": an welchem Bereich die Rozmowa mit einem Menschen liegt. */
+.wk-seat-meet { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.wk-seat-meet label { display: inline-flex; align-items: center; gap: 6px; }
+.wk-seat-meet select { max-width: 100%; }
+.wk-seat-meet .wk-hint { flex-basis: 100%; margin: 0; }
+
+/* 0081 — was der Mensch mit Link schon geschrieben hat, solange der Schlüssel unterwegs ist. */
+.wk-seat-wait { display: grid; gap: 12px; }
+.wk-seat-queue { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.wk-seat-queue li { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; padding: 8px 12px; border: 1px dashed var(--wk-line); border-radius: 14px; background: var(--wk-soft); color: var(--wk-ink); }
+.wk-seat-queue li span { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* 0082 — „tak było → tak będzie": was in die eine Form gebracht wird (Telefon, Adresse), zum Abhaken. */
+.wk-tidy, .wk-tidy-all { display: grid; gap: 12px; }
+.wk-tidy-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 60vh; overflow: auto; }
+.wk-tidy-row label { display: flex; gap: 12px; align-items: baseline; padding: 6px 12px; border: 1px solid var(--wk-line); border-radius: 10px; background: var(--wk-surface); cursor: pointer; }
+.wk-tidy-row.is-doubt label { border-style: dashed; background: var(--wk-soft); }
+.wk-tidy-text { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; min-width: 0; }
+.wk-tidy-where { flex-basis: 100%; font-size: 0.85em; color: var(--wk-muted); }
+.wk-tidy-before { color: var(--wk-muted); text-decoration: line-through; overflow-wrap: anywhere; }
+.wk-tidy-arrow { color: var(--wk-muted); }
+.wk-tidy-after { color: var(--wk-ink); font-weight: 600; overflow-wrap: anywhere; }
+
+/* -- 0082: Wybór na stronie — eine Person aus einem Formular ---------------- */
+
+/* Eine Zeile über den Bausteinen: woher, wer, ◀ ▶, wievielter, Filter. Kein Kasten um die Seite — ein Streifen. */
+.wk-subject { display: grid; gap: 0.5rem; margin: 0.375rem 0 1rem; }
+.wk-subject-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem 0.5rem;
+  padding: 0.5rem 0.75rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface);
+}
+.wk-subject-bar.is-waiting { display: block; }
+.wk-subject-back { white-space: nowrap; }
+.wk-subject-of {
+  font-size: var(--wk-text-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--wk-muted);
+  max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wk-subject-pick {
+  font: inherit; font-weight: 600; color: var(--wk-ink); background: var(--wk-surface);
+  padding: 0.25rem 0.5rem; border: 1px solid var(--wk-line); border-radius: 4px; min-width: 0; max-width: min(22rem, 100%);
+}
+.wk-subject-name { font-size: var(--wk-text-md); min-width: 0; overflow-wrap: anywhere; }
+.wk-subject-nav { display: inline-flex; align-items: center; gap: 0.375rem; flex: 1 1 16rem; min-width: 0; max-width: 30rem; }
+.wk-subject-nav .wk-subject-pick { flex: 1 1 auto; max-width: none; }
+.wk-subject-step {
+  font: inherit; line-height: 1; padding: 0.375rem 0.5rem; border: 1px solid var(--wk-line); border-radius: 4px;
+  background: var(--wk-soft); color: var(--wk-ink); cursor: pointer;
+}
+.wk-subject-step:hover:not(:disabled) { border-color: var(--wk-accent); color: var(--wk-accent); }
+.wk-subject-step:disabled { opacity: 0.4; cursor: default; }
+.wk-subject-step:focus-visible, .wk-subject-pick:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-subject-at { font-size: var(--wk-text-sm); color: var(--wk-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wk-subject-settings { display: grid; gap: 0.5rem; margin-top: 0.5rem; }
+
+/* Der Filter: Suche, Schritt, auch ausgeblendete — dieselbe Zeile in der Liste und oben auf der Seite eines Menschen. */
+.wk-entry-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem 0.75rem; margin: 0.25rem 0 0.5rem; }
+.wk-entry-filter input[type="search"] {
+  font: inherit; flex: 1 1 12rem; min-width: 0; padding: 0.375rem 0.5rem;
+  border: 1px solid var(--wk-line); border-radius: 4px; background: var(--wk-surface); color: var(--wk-ink);
+}
+.wk-entry-filter select {
+  font: inherit; padding: 0.375rem 0.5rem; border: 1px solid var(--wk-line); border-radius: 4px;
+  background-color: var(--wk-surface); color: var(--wk-ink); max-width: 100%;
+}
+.wk-entry-filter .wk-inline input { min-width: 0; }
+
+/* Lista osób — schmal: Namen untereinander; breit: eine Tabelle, die für sich seitwärts rollt. */
+.wk-entry-picks { list-style: none; margin: 0; padding: 0; display: grid; }
+.wk-entry-picks li {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.25rem 0.5rem;
+  padding: 0.5rem 0.25rem; border-bottom: 1px solid var(--wk-line);
+}
+.wk-entry-open { font-weight: 600; }
+.wk-entry-table-wrap { overflow-x: auto; max-width: 100%; }
+.wk-entry-table { width: 100%; border-collapse: collapse; font-size: var(--wk-text-sm); }
+.wk-entry-table th, .wk-entry-table td { text-align: left; vertical-align: top; padding: 0.375rem 0.5rem; border-bottom: 1px solid var(--wk-line); }
+.wk-entry-table thead th { font-size: var(--wk-text-xs); letter-spacing: 0.05em; text-transform: uppercase; color: var(--wk-muted); background: var(--wk-soft); white-space: nowrap; }
+.wk-entry-table td { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-entry-table td .wk-entry-phone { display: block; }
+.wk-entry-table tbody th { white-space: nowrap; }
+.wk-entry-table tr.is-here, .wk-entry-picks li.is-here { background: var(--wk-soft); box-shadow: inset 3px 0 0 var(--wk-accent); }
+.wk-entry-table tr.is-muted, .wk-entry-picks li.is-muted { opacity: 0.6; }
+
+/* Panel osoby — der Gewählte, dann die Teile. */
+.wk-entry-desk { padding: 0; border: 0; }
+.wk-entry-who { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem 0.5rem; margin: 0 0 0.5rem; }
+.wk-entry-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; margin: 0; }
+
+/* -- 0083: Zgody, po wysłaniu, wydruk do podpisu, gotowe wzory ------------- */
+
+/* Eine Zustimmung: der Name fett, darunter der ganze Wortlaut — gelesen wird, bevor angekreuzt wird. */
+.wk-consent-row { align-items: flex-start; }
+.wk-consent-row input { margin-top: 0.25rem; flex: none; }
+.wk-consent-row > span { display: grid; gap: 0.25rem; }
+.wk-consent-text { display: block; font-size: var(--wk-text-sm); line-height: 1.45; color: var(--wk-muted); font-weight: 400; }
+.wk-tile-lines .wk-consent-text, .wk-card-lines .wk-consent-text { margin-top: 0.125rem; }
+
+/* Nach dem Absenden: der eigene Text, und der Hinweis auf das Blatt zum Unterschreiben. */
+.wk-after-text { display: grid; gap: 0.5rem; }
+.wk-after-text p { margin: 0; line-height: 1.5; }
+.wk-paper-note {
+  display: grid; gap: 0.5rem; padding: 0.75rem 1rem; border: 1px solid var(--wk-held-line); border-radius: 6px;
+  background: var(--wk-held-bg); color: var(--wk-held-ink);
+}
+.wk-paper-note p { margin: 0; line-height: 1.5; }
+.wk-paper-note .wk-btn { justify-self: start; }
+
+.wk-fieldset { display: grid; gap: 0.75rem; margin: 0; padding: 0.75rem 1rem 1rem; border: 1px solid var(--wk-line); border-radius: 6px; min-width: 0; }
+.wk-fieldset > legend { padding: 0 0.25rem; font-weight: 600; font-size: var(--wk-text-md); }
+
+/*
+   0086 — WYMAGANIA: je eines ein Kästchen mit Satz; eingeschaltet mit Rand in
+   der Farbe für „gilt", und darunter, was es hält. Ausschalten fragt in der Zeile.
+*/
+.wk-needs { display: grid; gap: 0.5rem; padding: 0.75rem 1rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); }
+.wk-needs > .wk-h3, .wk-needs > p { margin: 0; }
+.wk-need-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.wk-need { display: grid; gap: 0.5rem; padding: 0.5rem 0.75rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-bg, transparent); }
+.wk-need.is-on { border-color: var(--wk-ok); }
+.wk-need-pick { display: flex; gap: 0.5rem; align-items: flex-start; cursor: pointer; }
+.wk-need-pick input { margin-top: 0.25rem; flex: none; width: 1.05rem; height: 1.05rem; }
+.wk-need-pick > span { display: grid; gap: 0.25rem; min-width: 0; }
+.wk-need-holds { color: var(--wk-ok); }
+.wk-need-leave { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; padding: 0.5rem 0.75rem; border-radius: 6px; background: var(--wk-held-bg); color: var(--wk-held-ink); }
+.wk-need-leave .wk-hint { flex: 1 1 18rem; color: inherit; }
+.wk-tag-need { margin-left: 0.5rem; border-color: var(--wk-ok); color: var(--wk-ok); background: transparent; }
+
+/* 0086 — vom Formular genommen: leiser, mit dem Weg zurück. */
+.wk-taken-off .wk-list { margin-top: 0.375rem; }
+.wk-answer-off { color: var(--wk-muted); }
+
+/* Eine Gruppe von Feldern ohne Rahmen — nur, um sie auf einmal abzuschalten. */
+.wk-bare-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+
+/* 0086 — die Tabelle zum Schreiben: Felder in den Zellen, geänderte und neue Zeilen erkennbar. */
+.wk-table-edit { display: grid; gap: 0.25rem; padding: 0.5rem 0.75rem; border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-soft); }
+.wk-table-edit .wk-actions { margin: 0; }
+.wk-entries.is-editing .wk-table td { white-space: normal; }
+.wk-entries.is-editing .wk-table input:not([type="checkbox"]),
+.wk-entries.is-editing .wk-table select,
+.wk-entries.is-editing .wk-table textarea {
+  width: 100%; min-width: 9rem; box-sizing: border-box; padding: 0.25rem 0.375rem; font: inherit; font-size: var(--wk-text-sm);
+  border: 1px solid var(--wk-line); border-radius: 4px; background-color: var(--wk-surface); color: inherit;
+}
+.wk-entries.is-editing .wk-table textarea { min-width: 12rem; resize: vertical; }
+.wk-entries.is-editing .wk-table input[type="checkbox"] { width: 1.05rem; height: 1.05rem; }
+.wk-row-changed td { background: var(--wk-held-bg); }
+.wk-row-new td { background: var(--wk-soft); }
+
+/* 0086 — eigene Adresse nach dem Absenden. */
+.wk-own-address code { word-break: break-all; }
+
+/*
+   DAS BLATT ZUM UNTERSCHREIBEN: am Bildschirm unsichtbar, beim Drucken
+   allein. Nur während des Druckens hängt es an <body> (\`wk-printing\`); das
+   Drucken einer gewöhnlichen Seite bleibt, wie es war.
+*/
+.wk-print-sheet { display: none; }
+@media print {
+  body.wk-printing > *:not(.wk-print-sheet) { display: none !important; }
+  body.wk-printing { background: #fff !important; }
+  body.wk-printing .wk-print-sheet {
+    display: block; color: #000; background: #fff; font: 10.5pt/1.35 "Segoe UI", system-ui, sans-serif;
+  }
+  .wk-print-sheet header h1 { margin: 0 0 0.125rem; font-size: 15pt; }
+  .wk-print-sheet .wk-print-org { margin: 0 0 0.5rem; font-size: 9pt; }
+  .wk-print-sheet .wk-print-body { display: grid; gap: 0.5rem; }
+  .wk-print-sheet section h2 { margin: 0 0 0.25rem; font-size: 10.5pt; border-bottom: 1px solid #000; }
+  .wk-print-sheet dl { display: grid; grid-template-columns: 1fr 1fr; gap: 0.125rem 1rem; margin: 0; }
+  .wk-print-sheet dl > div { display: flex; gap: 0.375rem; break-inside: avoid; }
+  .wk-print-sheet dt { color: #444; }
+  .wk-print-sheet dt::after { content: ":"; }
+  .wk-print-sheet dd { margin: 0; font-weight: 600; }
+  .wk-print-sheet ul { margin: 0; padding-left: 1rem; display: grid; gap: 0.25rem; font-size: 9.5pt; }
+  .wk-print-sheet .wk-print-approval { margin-top: 0.75rem; padding: 0.5rem 0.5rem; border: 1px solid #000; font-size: 10pt; break-inside: avoid; }
+  .wk-print-sheet .wk-print-approval p { margin: 0 0 0.25rem; }
+  .wk-print-sheet .wk-print-approval p:first-child { font-weight: 700; }
+  .wk-print-sheet .wk-print-notes { margin-top: 0.5rem; font-size: 7.5pt; color: #333; }
+  .wk-print-sheet .wk-print-notes p { margin: 0 0 0.25rem; }
+  .wk-print-sheet footer { margin-top: 1rem; }
+  .wk-print-sheet .wk-print-trace { font-size: 8.5pt; margin: 0 0 2rem; }
+  .wk-print-sheet .wk-print-sign { display: grid; grid-template-columns: 1fr 1.4fr; gap: 3rem; }
+  .wk-print-sheet .wk-print-sign span { border-top: 1px solid #000; padding-top: 0.25rem; font-size: 8.5pt; text-align: center; }
+}

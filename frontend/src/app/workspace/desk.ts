@@ -6,7 +6,7 @@
  * die vierte läuft.
  */
 
-import { call } from './session';
+import { call } from '../core/session';
 
 /** Eine Rolle dieses Kontos. Der Anzeigename ist versiegelt — hier steht die Art. */
 export interface RoleCard {
@@ -170,23 +170,8 @@ export const moveSlug = (
   });
 
 /**
- * Eine Unteradresse einer Rolle zuordnen — oder wieder freigeben (`roleId = null`).
- *
- * Die genannte Rolle muss nicht die eigene sein: eine Lehrerin richtet `lo13/anna`
- * für Anna ein, ohne Annas Rolle zu halten. Es ist auch keine Preisgabe — die
- * Zuordnung NIMMT Sichtbarkeit weg, sie gibt keine.
- */
-export const setInternal = (
-  path: string, roleId: string | null
-): Promise<{ path: string; internalForRoleId: string | null }> =>
-  call('/workspace/slug/internal', {
-    method: 'POST',
-    body: JSON.stringify({ path, roleId })
-  });
-
-/**
  * WER EINE SEITE ÖFFNEN DARF — die Bereiche (0051). Leer macht sie öffentlich.
- * Ersetzt dabei eine alte Rollenbindung (`setInternal`).
+ * Ersetzt dabei eine alte Rollenbindung (`slug.internal_for_role_id`).
  */
 export const setPageAreas = (path: string, areaIds: readonly string[]): Promise<{ path: string; areaIds: string[] }> =>
   call('/workspace/slug/areas', {

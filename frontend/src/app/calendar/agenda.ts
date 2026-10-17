@@ -15,13 +15,13 @@
  * Aufgaben.
  */
 
-import { createArea, loadAreas, type AreaRow } from './area';
+import { createArea, loadAreas, type AreaRow } from '../areas/area';
 import { emptyTexts, itemFieldAad, putText, setOccurrence, type ItemField, type ItemKind, type ItemTexts, type SealedField } from './calendar';
-import { areaKeys, newestKey } from './chat';
-import { fromBase64Url, openText, sealText, toBase64Url } from './crypto';
-import { newId } from './ids';
-import type { Ring, SealedRole } from './keys';
-import { call, WorkspaceError } from './session';
+import { areaKeys, newestKey } from '../chat/chat';
+import { fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
+import { newId } from '../core/ids';
+import type { Ring, SealedRole } from '../core/keys';
+import { call, WorkspaceError } from '../core/session';
 
 export interface Series {
   readonly startsAt: string;

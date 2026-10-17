@@ -23,11 +23,11 @@
 
 import { lazy, Suspense, useState, type ReactNode } from 'react';
 
-import { HeaderSlotContext } from './headerSlot';
-import { HeldLinkBar } from './HeldLinkBar';
-import { path, tilesPath } from './routes';
-import type { Who } from './session';
-import { UiHosts } from './ui/dialogs';
+import { HeaderSlotContext } from '../ui/headerSlot';
+import { HeldLinkBar } from '../links/HeldLinkBar';
+import { path, tilesPath } from '../routes';
+import type { Who } from '../core/session';
+import { UiHosts } from '../ui/dialogs';
 import { ViewGuard } from './ViewGuard';
 
 /* Glocke und Konto kommen nur, wenn jemand angemeldet ist — eine öffentliche Seite lädt sie nicht. */

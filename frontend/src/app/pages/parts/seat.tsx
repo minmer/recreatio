@@ -21,36 +21,36 @@ import { useEffect, useState, type ReactNode } from 'react';
 
 import { definePart, picked, text, type RawConfig } from '../part';
 import { usePerson } from '../pagePerson';
-import { seatName, useSeats, type SeatView } from '../seatContext';
+import { seatName, useSeats, type SeatView } from '../../seats/seatContext';
 import { PageSteps } from '../PageLogicView';
 import { usePageLogic } from '../pageLogic';
-import { SeatChatPeek, useShownSeats } from '../ChatPeek';
-import { plural } from '../plural';
-import { ChatStep, chatStepStatus } from '../ChatStep';
-import { useSeatChatRows } from '../seatUnread';
-import { answerPresence, answerTask, stepsFor, type StepState } from '../steps';
-import { takenOf } from '../taskTaken';
-import { EntryDeskPanel, WriteToSeat } from '../officeLazy';
-import { deskChanged, formAreasOf, type DeskRow } from '../entryDesk';
-import { useEntrySubject, useOfficeSubject, type EntrySubject } from '../entrySubject';
-import { Loading } from '../ui/Loading';
-import { later } from '../ui/later';
+import { SeatChatPeek, useShownSeats } from '../../chat/ChatPeek';
+import { plural } from '../../core/plural';
+import { ChatStep, chatStepStatus } from '../../steps/ChatStep';
+import { useSeatChatRows } from '../../seats/seatUnread';
+import { answerPresence, answerTask, stepsFor, type StepState } from '../../steps/steps';
+import { takenOf } from '../../steps/taskTaken';
+import { EntryDeskPanel, WriteToSeat } from '../../forms/officeLazy';
+import { deskChanged, formAreasOf, type DeskRow } from '../../forms/entryDesk';
+import { useEntrySubject, useOfficeSubject, type EntrySubject } from '../../forms/entrySubject';
+import { Loading } from '../../ui/Loading';
+import { later } from '../../ui/later';
 
 /*
  * 2026-10-17 — DIE ANSICHTEN DER PLÄTZE ERST, WENN SIE GEZEIGT WERDEN: Kroki,
  * Rozmowy, Zgłoszenie, Zadania, die Kanzlei, der Editor von „Napisz do nas".
  * Eine Seite ohne diese Bausteine (fast jede öffentliche) lud sie alle mit.
  */
-const AskSetup = later(() => import('../AskSetup').then((m) => m.AskSetup));
-const SeatTools = later(() => import('../SeatBar').then((m) => m.SeatTools), null);
-const SeatSteps = later(() => import('../StepList').then((m) => m.SeatSteps));
-const PersonSteps = later(() => import('../StepList').then((m) => m.PersonSteps));
-const SeatAskBody = later(() => import('../SeatChatView').then((m) => m.SeatAskBody));
-const SeatChatBody = later(() => import('../SeatChatView').then((m) => m.SeatChatBody));
-const OwnSubmissions = later(() => import('../Submission').then((m) => m.OwnSubmissions));
-const ReviewSubmissions = later(() => import('../Submission').then((m) => m.ReviewSubmissions));
-const TaskCard = later(() => import('../TaskCard').then((m) => m.TaskCard), null);
-const OfficeSeatChats = later(() => import('../OfficeSeatChats').then((m) => m.OfficeSeatChats));
+const AskSetup = later(() => import('../../chat/AskSetup').then((m) => m.AskSetup));
+const SeatTools = later(() => import('../../seats/SeatBar').then((m) => m.SeatTools), null);
+const SeatSteps = later(() => import('../../steps/StepList').then((m) => m.SeatSteps));
+const PersonSteps = later(() => import('../../steps/StepList').then((m) => m.PersonSteps));
+const SeatAskBody = later(() => import('../../chat/SeatChatView').then((m) => m.SeatAskBody));
+const SeatChatBody = later(() => import('../../chat/SeatChatView').then((m) => m.SeatChatBody));
+const OwnSubmissions = later(() => import('../../forms/Submission').then((m) => m.OwnSubmissions));
+const ReviewSubmissions = later(() => import('../../forms/Submission').then((m) => m.ReviewSubmissions));
+const TaskCard = later(() => import('../../steps/TaskCard').then((m) => m.TaskCard), null);
+const OfficeSeatChats = later(() => import('../../chat/OfficeSeatChats').then((m) => m.OfficeSeatChats));
 
 /*
  * 0104 — DIE SEITE DES KANDYDATEN, VON DER KANZLEI GEÖFFNET.
@@ -107,7 +107,7 @@ function AskOffice({ moduleId, row, subject }: { moduleId: string; row: DeskRow;
   const [areaId, setAreaId] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     let alive = true;
-    import('../viewData').then((data) => data.modulesNow()).then((all) => { if (alive) setAreaId(all.find((m) => m.moduleId === moduleId)?.areaId ?? null); })
+    import('../../workspace/viewData').then((data) => data.modulesNow()).then((all) => { if (alive) setAreaId(all.find((m) => m.moduleId === moduleId)?.areaId ?? null); })
       .catch(() => { if (alive) setAreaId(null); });
     return () => { alive = false; };
   }, [moduleId]);

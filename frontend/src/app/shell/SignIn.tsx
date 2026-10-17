@@ -30,10 +30,10 @@
 
 import { useState } from 'react';
 
-import { forgetKeys, keysFor } from './ringOf';
-import { createRole } from './roles';
-import { register, signIn, WorkspaceError, type Who } from './session';
-import { PasswordInput } from './PasswordInput';
+import { forgetKeys, keysFor } from '../core/ringOf';
+import { createRole } from '../roles/roles';
+import { register, signIn, WorkspaceError, type Who } from '../core/session';
+import { PasswordInput } from '../ui/PasswordInput';
 
 type Mode = 'in' | 'new';
 

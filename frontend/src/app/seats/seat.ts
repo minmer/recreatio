@@ -25,25 +25,21 @@
  * sie ausdrücklich schickt — und den zweiten schickt er nie.
  */
 
-import {
-  aad, Field, fromBase64Url, KEY_SIZE, open, openText, seal, sealText,
-  sha256, toBase64Url, unwrapKey, wrapKey
-} from './crypto';
-import { epochAad } from './area';
-import type { Ring, SealedRole } from './keys';
-import type { PagePart } from './page';
+import { aad, Field, fromBase64Url, KEY_SIZE, open, openText, seal, sha256, toBase64Url, unwrapKey, wrapKey } from '../core/crypto';
+import { epochAad } from '../areas/area';
+import type { Ring, SealedRole } from '../core/keys';
+import type { PagePart } from '../pages/page';
 import { checkFor, sealLink, type CheckAnswer, type SeatChallenge } from './seatCheck';
-import type { SeatFormSealed } from './steps';
+import type { SeatFormSealed } from '../steps/steps';
 import { pageLink } from './seatKeep';
-import { loadIntake, openIntakeKey } from './intake';
-import { nameKey, openSeatName, openWith, ringOrNull, seatOwnNameAad } from './names';
-import { call } from './session';
+import { loadIntake, openIntakeKey } from '../forms/intake';
+import { nameKey, openSeatName, openWith, ringOrNull, seatOwnNameAad } from '../core/names';
+import { call } from '../core/session';
 
 /* -- Die Etiketten, an EINER Stelle ---------------------------------------- */
 
 export const seatAad = (seatId: string) => aad('seat', 'access', seatId, Field.SeatKey, 1);
 export const personalAad = (seatId: string) => aad('seat', 'access', seatId, Field.SeatPersonalNote, 1);
-export const internalAad = (seatId: string) => aad('seat', 'access', seatId, Field.SeatInternalNote, 1);
 
 /* -- Der Link --------------------------------------------------------------- */
 
@@ -242,29 +238,6 @@ export async function loadSeats(areaId: string): Promise<{ seats: readonly SeatR
   };
 }
 
-export interface OpenedSeat {
-  readonly personal: string | null;
-  readonly internal: string | null;
-}
-
-/** Die Notizen setzen. Nur was genannt wird — siehe `Seat.NoteAsync`. */
-export async function setNotes(
-  seatId: string, areaKey: Uint8Array, seatKey: Uint8Array,
-  what: { personal?: string; internal?: string }
-): Promise<void> {
-  await call(`/workspace/seat/${encodeURIComponent(seatId)}/note`, {
-    method: 'POST',
-    body: JSON.stringify({
-      personalNoteSealed: what.personal === undefined
-        ? null
-        : toBase64Url(await sealText(seatKey, personalAad(seatId), what.personal)),
-      internalNoteSealed: what.internal === undefined
-        ? null
-        : toBase64Url(await sealText(areaKey, internalAad(seatId), what.internal))
-    })
-  });
-}
-
 /**
  * Den Platzschlüssel aus der Kanzleihülle holen — der EINE Weg, den diese Zeile
  * hat.
@@ -394,7 +367,7 @@ export interface Portal {
    * ihr Schlüssel unter dem Platzschlüssel (`null`: wartet noch) und der Weg
    * zu ihren Bereichen. Fehlt beim alten Dienst.
    */
-  readonly roles?: import('./memberRole').SeatRoles;
+  readonly roles?: import('../roles/memberRole').SeatRoles;
 
   /**
    * Die VORLAGE, aus der sich dieses Portal zeichnet (0028) — oder `null`.

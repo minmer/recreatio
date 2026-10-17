@@ -20,19 +20,19 @@
  * zeigt, bestimmt der Aufbau (`design.layout`) — und der wird mit importiert.
  */
 
-import { loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from './area';
-import { fromBase64Url } from './crypto';
+import { loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from '../areas/area';
+import { fromBase64Url } from '../core/crypto';
 import {
   addField, asked, editField, FIELD_KINDS, IDENTITY_ROLES, loadFields, openFields, removeField, restoreField,
   type FieldKind, type IdentityRole, type OpenField
 } from './form';
 import { openDesign, readDesign, saveDesign, sealDesign, type FormDesign, type LayoutItem } from './formDesign';
 import { createIntake, loadPublicIntake } from './intake';
-import type { Ring } from './keys';
-import { updateModule } from './module';
-import { keysFor } from './ringOf';
-import { selfOf } from './roles';
-import { WorkspaceError, type Who } from './session';
+import type { Ring } from '../core/keys';
+import { updateModule } from '../modules/module';
+import { keysFor } from '../core/ringOf';
+import { selfOf } from '../roles/roles';
+import { WorkspaceError, type Who } from '../core/session';
 
 /* -- Die Gestalt ------------------------------------------------------------------ */
 

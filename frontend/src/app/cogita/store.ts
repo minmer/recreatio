@@ -19,10 +19,11 @@
  * jemand fragt.
  */
 
-import { newId } from '../ids';
-import type { Entry, LibraryStore } from '../libraryStore';
-import { cardsOf, questionCard, readTemplate, templatesFor, topicCard, type Card, type Template } from './cards';
-import { DOC_KINDS, ENTITY, entityOf, entryData, isBaseKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, type DocKind } from './kinds';
+import { newId } from '../core/ids';
+import type { Entry, LibraryStore } from '../library/libraryStore';
+import { cardsOf, questionCard, readTemplate, templatesFor, topicCard, type Template } from './cards';
+import { type Card } from './cardBasics';
+import { DOC_KINDS, entityOf, entryData, isBaseKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, type DocKind } from './kinds';
 import type { Dependency, DependencyKind } from './knowness';
 import { DEPENDENCY_KINDS } from './knowness';
 import { labelOf, lookupOf, plainOf, refIndex, replaceRef, tellOf, valuesOf, fieldsOf, type Backlink, type Entity, type KindDef, type Lookup } from './schema';
@@ -597,5 +598,3 @@ export const lineOf = (lib: CogitaLibrary, entity: Entity): string => {
   const tell = lib.tell(entity);
   return tell === '' ? lib.label(entity) : `${lib.label(entity)} · ${tell}`;
 };
-
-export { ENTITY };

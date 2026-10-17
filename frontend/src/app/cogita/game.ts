@@ -13,7 +13,7 @@
  * das Gerät des Gastgebers [J4]: hier steht die Rechnung dafür.
  */
 
-import { call } from '../session';
+import { call } from '../core/session';
 import type { Credentials } from './live';
 
 export interface Zone {

@@ -10,7 +10,7 @@
  * geladen.
  */
 
-import { keepLinkFromAddress } from './app/linkKeep';
+import { keepLinkFromAddress } from './app/links/linkKeep';
 
 /*
  * 0073 — EIN LINK MIT ZUGANG (`#/<ziel>?dostep=T`) wird behalten und aus der

@@ -14,9 +14,9 @@
 import { useContext } from 'react';
 
 import { definePart, text, type EditorProps, type RawConfig } from '../part';
-import { resolveColor } from '../presentation';
-import { ShowDark } from '../showContext';
-import { usePrefersDark } from '../SlideDeck';
+import { resolveColor } from '../presentation/presentation';
+import { ShowDark } from '../presentation/showContext';
+import { usePrefersDark } from '../slides/SlideDeck';
 
 const SHAPES = ['circle', 'rect', 'rounded', 'line'] as const;
 type ShapeKind = (typeof SHAPES)[number];

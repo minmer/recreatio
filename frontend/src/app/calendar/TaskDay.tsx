@@ -11,15 +11,15 @@
 
 import { useState } from 'react';
 
-import type { AreaRow } from './area';
+import type { AreaRow } from '../areas/area';
 import { pressing, settled, tally, type TaskMark } from './calendarModel';
-import { longDate } from './dayMath';
-import type { Me } from './me';
-import { Modal } from './Modal';
-import { viewPath } from './routes';
-import { WorkspaceError } from './session';
+import { longDate } from '../core/dayMath';
+import type { Me } from '../core/me';
+import { Modal } from '../ui/Modal';
+import { viewPath } from '../routes';
+import { WorkspaceError } from '../core/session';
 import { everyWords, howLong, markDone, markSkipped, markUndone, type OpenTask } from './tasks';
-import { groupName } from './WhoSees';
+import { groupName } from '../areas/WhoSees';
 
 const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 

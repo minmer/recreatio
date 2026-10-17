@@ -11,11 +11,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { areaReader, type AreaReader } from '../areaRead';
-import { libraryNameWith, loadSeatEntries, loadSeatLibrary, type LibraryRow } from '../library';
-import { readOnlyStore, type LibraryStore } from '../libraryStore';
-import type { SeatView } from '../seatContext';
-import type { Card } from './cards';
+import { areaReader, type AreaReader } from '../areas/areaRead';
+import { libraryNameWith, loadSeatEntries, loadSeatLibrary, type LibraryRow } from '../library/library';
+import { readOnlyStore, type LibraryStore } from '../library/libraryStore';
+import type { SeatView } from '../seats/seatContext';
+import type { Card } from './cardBasics';
 import { holderOfSeat, useLearner } from './holders';
 import { average, knownessOf, shareOf } from './knowness';
 import type { Holder, Learner } from './learn';

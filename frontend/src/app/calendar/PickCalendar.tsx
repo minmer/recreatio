@@ -10,12 +10,12 @@
 import { useEffect, useState } from 'react';
 
 import { loadCalendars, loadItems, type CalendarRow, type Occurrence } from './calendar';
-import { termsText } from './candidateTasks';
-import { areaKeys } from './chat';
-import { aad, Field, fromBase64Url, openText } from './crypto';
-import { keysFor } from './ringOf';
-import { whoIsThere } from './session';
-import { Loading } from './ui/Loading';
+import { termsText } from '../steps/candidateTasks';
+import { areaKeys } from '../chat/chat';
+import { aad, Field, fromBase64Url, openText } from '../core/crypto';
+import { keysFor } from '../core/ringOf';
+import { whoIsThere } from '../core/session';
+import { Loading } from '../ui/Loading';
 
 export function PickCalendar({ value, busy, onPick, allowAll = true }: {
   value: string;

@@ -25,7 +25,7 @@
  * herauszusuchen.
  */
 
-import { fromBase64Url, toBase64Url } from './crypto';
+import { fromBase64Url, toBase64Url } from '../core/crypto';
 
 /** Die Fassung steht im Namen: ändert sich die Form, beginnt sie von vorn. */
 const SLOT = 'recreatio:seat:v1';

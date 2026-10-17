@@ -18,7 +18,7 @@
  * prüft, dass jedes Feld beschrieben ist.
  */
 
-import { newId } from './ids';
+import { newId } from '../core/ids';
 import { isUuid } from './library';
 import { KINDS, kindOf, outline, slug, type EntryData, type LibEntry, type LibField } from './libraryKinds';
 

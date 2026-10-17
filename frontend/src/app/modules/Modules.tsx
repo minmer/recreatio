@@ -28,36 +28,37 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
-import { areaPath, loadAreas, type AreaRow } from './area';
-import { useCrumbs, type Crumb } from './crumbTrail';
-import { FormOffice } from './FormOffice';
-import { newId } from './ids';
+import { areaPath, loadAreas, type AreaRow } from '../areas/area';
+import { useCrumbs, type Crumb } from '../shell/crumbTrail';
+import { FormOffice } from '../forms/FormOffice';
+import { newId } from '../core/ids';
 import {
   createModule, loadModules, readConfig, removeModule, SUBJECT_LABEL, SUBJECTS, type Subject, type ModuleRow
 } from './module';
-import { setPartConfig } from './form';
-import { PARTS, partLabel, partOf, takesEntries } from './parts/registry';
-import { PickChat } from './PickChat';
-import { PickForm, PickQuestions, pickedForm } from './FormPick';
-import { PickPage } from './PickPage';
-import { PickResource } from './PickResource';
-import { PickLibrary, PickLibraryEntry } from './LibraryPick';
-import { PickCalendar, PickCalendarItem } from './PickCalendar';
+import { setPartConfig } from '../forms/form';
+import { PARTS, partLabel, partOf, takesEntries } from '../pages/parts/registry';
+import { PickChat } from '../chat/PickChat';
+import { PickForm, PickQuestions, pickedForm } from '../forms/FormPick';
+import { PickPage } from '../pages/PickPage';
+import { PickResource } from '../bookings/PickResource';
+import { PickLibrary, PickLibraryEntry } from '../library/LibraryPick';
+import { PickCalendar, PickCalendarItem } from '../calendar/PickCalendar';
 import { DependencyMap } from './DependencyMap';
-import { FORM_MAP, FormList } from './FormList';
-import { FormMap } from './FormMap';
+import { FORM_MAP, FormList } from '../forms/FormList';
+import { FormMap } from '../forms/FormMap';
 import type { FormGroup } from './module';
-import { PEOPLE_TAB, viewPath, formsPath, modulePath } from './routes';
-import { WorkspaceError, type Who } from './session';
-import { AreaOptions } from './AreaOptions';
+import { PEOPLE_TAB, viewPath, formsPath, modulePath } from '../routes';
+import { WorkspaceError, type Who } from '../core/session';
+import { AreaOptions } from '../areas/AreaOptions';
 import { ModuleSettings } from './ModuleSettings';
 import { ModuleJson } from './ModuleJson';
-import { Loading } from './ui/Loading';
-import { PageHeader } from './ui/PageHeader';
-import { current as notifyNow, subscribe as notifySubscribe } from './notify';
-import { useRecent } from './prefs';
-import { useTouched } from './Recent';
-import { Icon } from './ui/icons';
+import { Loading } from '../ui/Loading';
+import { PageHeader } from '../ui/PageHeader';
+import { current as notifyNow, subscribe as notifySubscribe } from '../notify/notify';
+import { useRecent } from '../core/prefs';
+import { useTouched } from '../workspace/Recent';
+import { Icon } from '../ui/icons';
+import { plural } from '../core/plural';
 
 const NEW = 'new';
 
@@ -381,7 +382,7 @@ function ModulePage({ module: row, areas, who, busy, onAct, onReload, onList }: 
   const facts = [
     row.kind === 'form' ? (row.areaName ?? null) : partLabel(row.kind),
     row.usedOnPages === 0 ? 'na żadnej stronie' : row.usedOnPages === 1 ? 'na 1 stronie' : `na ${row.usedOnPages} stronach`,
-    row.entries > 0 ? `${row.entries} ${row.entries === 1 ? 'zgłoszenie' : row.entries % 10 >= 2 && row.entries % 10 <= 4 && (row.entries % 100 < 10 || row.entries % 100 >= 20) ? 'zgłoszenia' : 'zgłoszeń'}` : null
+    row.entries > 0 ? `${row.entries} ${plural(row.entries, 'zgłoszenie', 'zgłoszenia', 'zgłoszeń')}` : null
   ].filter((one): one is string => one !== null && one !== '');
 
   return (

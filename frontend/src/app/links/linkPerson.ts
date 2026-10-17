@@ -19,18 +19,18 @@
  * und keine zweite angelegt (`personFor`).
  */
 
-import { KEY_SIZE, seal, sha256, toBase64Url } from './crypto';
-import { newId } from './ids';
+import { KEY_SIZE, seal, sha256, toBase64Url } from '../core/crypto';
+import { newId } from '../core/ids';
 import { heldLinkKeys, heldProofs, linkSecrets } from './linkAccess';
 import { heldLinks } from './linkKeep';
-import { seatRoleAad } from './memberRole';
-import { openSeatName, personName, sealName, seatNameAad, seatOwnNameAad } from './names';
-import { newLink, seatAad } from './seat';
-import { loadSeatChats } from './seatChat';
-import { sealLink } from './seatCheck';
-import { announceSeats, heldSeats, keyTextOf, remember } from './seatKeep';
-import { call, WorkspaceError } from './session';
-import type { ChatSeat, SealedMessage, SealedName } from './chat';
+import { seatRoleAad } from '../roles/memberRole';
+import { openSeatName, personName, sealName, seatNameAad, seatOwnNameAad } from '../core/names';
+import { newLink, seatAad } from '../seats/seat';
+import { loadSeatChats } from '../seats/seatChat';
+import { sealLink } from '../seats/seatCheck';
+import { announceSeats, heldSeats, keyTextOf, remember } from '../seats/seatKeep';
+import { call, WorkspaceError } from '../core/session';
+import type { ChatSeat, SealedMessage, SealedName } from '../chat/chat';
 
 /** Eine Rozmowa, die ein Link dieses Browsers öffnet — und über welchen. */
 export interface LinkChat {

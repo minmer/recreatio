@@ -30,12 +30,12 @@
  * kann mehr (Menü, Karte, Formulare mit Fragen) und läuft mit den Bausteinen mit.
  */
 
-import { asArray, asOptionalText, asRecord, asStringList, asText } from './event/kit';
-import { newId } from './ids';
-import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Layout } from './layout';
-import type { DraftPart } from './page';
-import { partOf } from './parts/registry';
-import { DEFAULT_THEMES, readLayers, type Theme } from './slides';
+import { asArray, asOptionalText, asRecord, asStringList, asText } from '../event/kit';
+import { newId } from '../../core/ids';
+import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Layout } from '../layout';
+import type { DraftPart } from '../page';
+import { partOf } from '../parts/registry';
+import { DEFAULT_THEMES, readLayers, type Theme } from './slideLook';
 
 /** Arten, die ihr `config` unverändert als `json` tragen. */
 const VERBATIM: Readonly<Record<string, string>> = {

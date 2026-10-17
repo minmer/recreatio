@@ -19,9 +19,9 @@ import { str, type LibEntry, type Lookup } from './libraryKinds';
 import { excerpt } from './libraryMarkup';
 import { dateWords, publicLookup, QuoteFigure, readPublic, TextArticle } from './LibraryText';
 import { latexFileName, textToLatex } from './libraryLatex';
-import { saveBlob } from './platform';
-import type { PartSize } from './part';
-import { Loading } from './ui/Loading';
+import { saveBlob } from '../core/platform';
+import type { PartSize } from '../pages/part';
+import { Loading } from '../ui/Loading';
 
 /* -- Ein Text --------------------------------------------------------------------------------- */
 

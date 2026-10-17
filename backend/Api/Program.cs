@@ -2,6 +2,7 @@
  * Der Dienst.
  *
  *   dotnet run --project backend/Api -- migrate [--dry-run]
+ *   dotnet run --project backend/Api -- migrate --record-through 0111 [--dry-run]
  *   dotnet run --project backend/Api
  *
  * Der Migrationslauf läuft ausdrücklich, nicht beim Start: ein Dienst, der beim
@@ -21,6 +22,15 @@ if (fileLogging.GetValue<bool>("Enabled"))
 if (args.Length > 0 && args[0].Equals("migrate", StringComparison.OrdinalIgnoreCase))
 {
     var dryRun = args.Contains("--dry-run", StringComparer.OrdinalIgnoreCase);
+
+    // Von Hand angewendete Skripte eintragen, ohne sie auszufuehren
+    // (documentation/TRANSFER.md): migrate --record-through 0111 [--dry-run]
+    var recordAt = Array.FindIndex(args, a => a.Equals("--record-through", StringComparison.OrdinalIgnoreCase));
+    if (recordAt >= 0)
+    {
+        if (recordAt + 1 >= args.Length) { Console.Error.WriteLine("--record-through braucht eine Nummer, etwa 0111."); return 2; }
+        return await Migrate.RecordAsync(Db.Resolve(builder.Configuration), args[recordAt + 1], dryRun);
+    }
 
     // Der Altbestand faellt nur auf ausdrueckliche Ansage. Siehe
     // Sql/0000_drop_legacy.sql — es gibt keinen Weg zurueck.
@@ -157,6 +167,9 @@ Notify.Map(app);
 
 /* 0071 — Adressen aus Teilen, das Verzeichnis eines Gebiets, die Haushalte (Kolęda). */
 Postal.Map(app);
+
+/* 2026-10-17 — die Übertragung älterer Formen (documentation/TRANSFER.md); geht in Schritt 3. */
+Transfer.Map(app);
 
 app.Run();
 return 0;

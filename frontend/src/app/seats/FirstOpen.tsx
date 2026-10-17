@@ -14,11 +14,11 @@
 
 import { useEffect, useState } from 'react';
 
-import { areaReader } from './areaRead';
-import { openLabel } from './form';
+import { areaReader } from '../areas/areaRead';
+import { openLabel } from '../forms/form';
 import { seatProof, verifySeat, type SeatChallenge } from './seatCheck';
 import { recall } from './seatKeep';
-import { WorkspaceError } from './session';
+import { WorkspaceError } from '../core/session';
 
 /** Was dasteht, wenn die Frage selbst nicht aufgeht — nach der Art der Antwort. */
 const FALLBACK: Record<string, string> = {

@@ -26,21 +26,21 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 
-import { loadAreas, type AreaRow } from './area';
+import { loadAreas, type AreaRow } from '../areas/area';
 import { hueOf } from './calendarModel';
-import { addDays, startOfDay } from './dayMath';
-import { useNow } from './MassParts';
-import { useMe, type Me } from './me';
-import type { Who } from './session';
-import { WorkspaceError } from './session';
+import { addDays, startOfDay } from '../core/dayMath';
+import { useNow } from '../masses/MassParts';
+import { useMe, type Me } from '../core/me';
+import type { Who } from '../core/session';
+import { WorkspaceError } from '../core/session';
 import { TaskDialog } from './TaskDialog';
 import {
   afterState, everyWords, howLong, loadTasks, markDone, markSkipped, markUndone, openTasks,
   taskLevel, taskUrgency, windowState, type OpenTask, type TaskOccurrence
 } from './tasks';
-import { DUE } from './urgency';
-import { groupName } from './WhoSees';
-import { Loading } from './ui/Loading';
+import { DUE } from '../core/urgency';
+import { groupName } from '../areas/WhoSees';
+import { Loading } from '../ui/Loading';
 
 export function TasksView({ who }: { who: Who }) {
   const me = useMe(who);

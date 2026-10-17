@@ -1,0 +1,373 @@
+/* Rozmowy (0052, 0062) — wie eine Chat-App: Rahmen, Liste, Gesichter, Kopf und Leisten.
+   Teil von app.css: dort steht, in welcher Reihenfolge die Dateien gelten. */
+
+/* ===========================================================================
+   Rozmowy (0052, 0062) — wie eine Chat-App.
+
+   Links die Liste, rechts die Rozmowa (schmal: das eine ODER das andere).
+   Die Rozmowa füllt die Höhe unter dem Kopf der App; nur ihr Verlauf rollt.
+   Blasen: meine rechts, getönt mit dem Akzent; die der anderen links, auf
+   der Fläche. Alle Farben kommen aus den --wk-* des Themas — auch im Slajd,
+   der sie für sich umdefiniert.
+   =========================================================================== */
+
+:root {
+  /* Wie viel Akzent in meinen Blasen steckt, wie hell Namen und Gesichter sind. */
+  --ch-mine-mix: 15%;
+  --ch-name-l: 34%;
+  --ch-ava-l: 87%;
+  --ch-ava-ink: 27%;
+  --ch-wall: color-mix(in srgb, var(--wk-soft) 65%, var(--wk-ground));
+  --ch-wall-dot: color-mix(in srgb, var(--wk-accent) 9%, transparent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ch-mine-mix: 30%;
+    --ch-name-l: 72%;
+    --ch-ava-l: 30%;
+    --ch-ava-ink: 86%;
+    --ch-wall: color-mix(in srgb, var(--wk-ground) 80%, #000);
+    --ch-wall-dot: color-mix(in srgb, var(--wk-accent) 7%, transparent);
+  }
+}
+
+.wk-deck.is-dark { --ch-mine-mix: 30%; --ch-name-l: 72%; --ch-ava-l: 30%; --ch-ava-ink: 86%; }
+.wk-deck.is-light { --ch-mine-mix: 15%; --ch-name-l: 34%; --ch-ava-l: 87%; --ch-ava-ink: 27%; }
+.wk-deck { --ch-wall: color-mix(in srgb, var(--wk-soft) 60%, var(--wk-ground)); --ch-wall-dot: color-mix(in srgb, var(--wk-accent) 8%, transparent); }
+
+.ch-i { display: block; flex: none; }
+
+/* Breiten mit Rand und Polster — ein Knopf mit width: 100% ragte sonst um sein Polster hinaus. */
+.ch-app, .ch-app *, .ch-room, .ch-room *, .ch-layer, .ch-layer * { box-sizing: border-box; }
+
+/* -- Der Rahmen ------------------------------------------------------------ */
+
+.wk-main:has(.ch-app) { padding-top: 1rem; padding-bottom: 1rem; }
+
+.ch-app {
+  display: grid;
+  grid-template-columns: minmax(17rem, 25rem) minmax(0, 1fr);
+  height: calc(100vh - var(--ch-top, 56px) - 1.9rem);
+  height: calc(100dvh - var(--ch-top, 56px) - 1.9rem);
+  min-height: 26rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--wk-surface);
+}
+
+.ch-main { display: grid; min-width: 0; min-height: 0; background: var(--ch-wall); }
+.ch-main > .ch-empty { place-self: center; }
+
+@media (min-width: 60.01rem) {
+  .ch-app .ch-room .ch-back { display: none; }
+}
+
+@media (max-width: 60rem) {
+  .ch-app { grid-template-columns: minmax(0, 1fr); }
+  .ch-app.has-room .ch-side { display: none; }
+  .ch-app:not(.has-room) .ch-main { display: none; }
+}
+
+@media (max-width: 40rem) {
+  .wk-main:has(.ch-app) { padding: 0.375rem; }
+  .ch-app { height: calc(100dvh - var(--ch-top, 56px) - 0.8rem); border-radius: 10px; }
+}
+
+/* Neu anlegen, oder die Rozmowa gibt es nicht: eine gewöhnliche Seite im rechten Feld. */
+.ch-page {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.2rem clamp(1rem, 3vw, 2rem) 2rem;
+  background: var(--wk-ground);
+}
+
+.ch-welcome {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.75rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2rem;
+  text-align: center;
+}
+.ch-welcome-ic {
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 50%;
+  background: var(--wk-surface);
+  color: var(--wk-accent);
+}
+.ch-welcome-ic .ch-i { width: 2rem; height: 2rem; }
+.ch-welcome-title { margin: 0; font-size: var(--wk-text-xl); font-weight: 600; text-wrap: balance; }
+.ch-welcome-text { margin: 0; max-width: 34rem; color: var(--wk-muted); }
+.ch-welcome .wk-chat-codes {
+  width: min(100%, 36rem);
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 10px;
+  background: var(--wk-surface);
+  text-align: left;
+}
+
+/* -- Die Liste --------------------------------------------------------------- */
+
+.ch-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--wk-line);
+  background: var(--wk-surface);
+}
+@media (max-width: 60rem) { .ch-side { border-right: 0; } }
+
+.ch-side-head { display: flex; align-items: center; gap: 0.25rem; padding: 0.75rem 0.5rem 0.375rem 1rem; }
+.ch-side-title { margin: 0 auto 0 0; font-size: var(--wk-text-xl); font-weight: 700; letter-spacing: -0.01em; }
+
+.ch-side-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.125rem 0.75rem 0.5rem;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  background: var(--wk-soft);
+  color: var(--wk-muted);
+}
+.ch-side-search .ch-i { width: 17px; height: 17px; }
+.ch-side-search:focus-within { box-shadow: 0 0 0 2px var(--wk-accent); }
+.ch-side-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  outline: none;
+}
+
+.ch-list { flex: 1; min-height: 0; margin: 0; padding: 0 0.375rem 0.375rem; overflow-y: auto; list-style: none; }
+.ch-list-note { padding: 1rem 0.75rem; color: var(--wk-muted); font-size: var(--wk-text-sm); }
+
+.ch-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 0.5rem;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.ch-item:hover { background: var(--wk-soft); }
+.ch-item.is-current { background: color-mix(in srgb, var(--wk-accent) 14%, var(--wk-surface)); }
+.ch-item:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.ch-item:disabled { cursor: progress; opacity: 0.7; }
+.ch-item-main { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr); gap: 0; min-width: 0; }
+.ch-item-top, .ch-item-bottom { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.ch-item-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.ch-item-time { flex: none; font-size: var(--wk-text-xs); color: var(--wk-muted); font-variant-numeric: tabular-nums; }
+.ch-item.is-unread .ch-item-time { color: var(--wk-accent); font-weight: 600; }
+.ch-item.is-unread .ch-item-title { font-weight: 700; }
+.ch-item-sub { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.ch-item-muted { display: inline-flex; color: var(--wk-muted); }
+.ch-item-muted .ch-i { width: 15px; height: 15px; }
+
+.ch-badge {
+  flex: none;
+  min-width: 1.35rem;
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  background: var(--wk-accent);
+  color: var(--wk-on-accent);
+  font-size: var(--wk-text-xs);
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.ch-side-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--wk-line);
+  font-size: var(--wk-text-xs);
+  color: var(--wk-muted);
+}
+.ch-side-foot .ch-i { width: 14px; height: 14px; }
+
+/* -- Gesichter und runde Knöpfe --------------------------------------------------- */
+
+.ch-ava {
+  --ch-h: 30;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 2.9rem;
+  height: 2.9rem;
+  border-radius: 50%;
+  background: hsl(var(--ch-h) 42% var(--ch-ava-l));
+  color: hsl(var(--ch-h) 48% var(--ch-ava-ink));
+  font-size: var(--wk-text-md);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  user-select: none;
+}
+.ch-ava.is-sm { width: 2rem; height: 2rem; font-size: var(--wk-text-xs); }
+.ch-ava.is-icon .ch-i { width: 52%; height: 52%; }
+.ch-ava.is-plain { background: var(--wk-soft); color: var(--wk-muted); }
+.ch-item.is-self .ch-ava,
+.ch-head .ch-ava.is-icon { background: var(--wk-accent); color: var(--wk-on-accent); }
+
+.ch-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--wk-muted);
+  text-decoration: none;
+  cursor: pointer;
+}
+.ch-icon-btn:hover { background: var(--wk-soft); color: var(--wk-ink); }
+.ch-icon-btn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.ch-icon-btn:disabled { opacity: 0.4; cursor: default; }
+.ch-icon-btn.is-small { width: 1.9rem; height: 1.9rem; }
+.ch-icon-btn.is-small .ch-i { width: 16px; height: 16px; }
+
+.ch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  cursor: pointer;
+}
+.ch-chip:hover { border-color: var(--wk-accent); }
+.ch-chip:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.ch-chip .ch-i { width: 15px; height: 15px; color: var(--wk-accent); }
+
+/* -- Die Rozmowa: Kopf, Leisten ---------------------------------------------------- */
+
+.ch-room {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  background: var(--ch-wall);
+}
+
+/* Auf einer Seite, hinter dem Link, im Slajd: ein Kasten mit eigener Höhe. */
+.ch-room.is-embedded {
+  height: min(62vh, 32rem);
+  border: 1px solid var(--wk-line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.ch-head {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 3.6rem;
+  padding: 0.5rem 0.5rem;
+  border-bottom: 1px solid var(--wk-line);
+  background: var(--wk-surface);
+}
+.ch-head.is-compact { min-height: 2.8rem; padding: 0.25rem 0.375rem 0.25rem 1rem; }
+.ch-head > .ch-ava { width: 2.5rem; height: 2.5rem; margin-right: 0.25rem; font-size: var(--wk-text-sm); }
+.ch-head-text { display: grid; flex: 1; min-width: 0; line-height: 1.25; }
+.ch-head-title { display: flex; align-items: center; gap: 0.375rem; min-width: 0; margin: 0; font-size: var(--wk-text-md); font-weight: 650; }
+.ch-head-title > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-head-sub {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--wk-text-sm);
+  color: var(--wk-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ch-quiet { display: inline-flex; color: var(--wk-muted); }
+.ch-quiet .ch-i { width: 15px; height: 15px; }
+.ch-typing { color: var(--wk-accent); font-weight: 600; }
+.ch-head.is-search { gap: 0.375rem; }
+.ch-head-ic { display: inline-flex; padding-left: 0.375rem; color: var(--wk-muted); }
+.ch-search {
+  flex: 1;
+  min-width: 0;
+  padding: 0.375rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: var(--wk-text-md);
+  outline: none;
+}
+
+.ch-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--wk-line);
+  background: var(--wk-surface);
+  color: var(--wk-muted);
+  font-size: var(--wk-text-sm);
+}
+.ch-bar .ch-i { width: 16px; height: 16px; color: var(--wk-accent); }
+.ch-bar.is-error { color: var(--wk-danger); }
+
+.ch-pinbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.375rem 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--wk-line);
+  background: var(--wk-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ch-pinbar > .ch-i { width: 18px; height: 18px; color: var(--wk-accent); }
+.ch-pinbar-text { display: grid; min-width: 0; padding-left: 0.5rem; border-left: 2px solid var(--wk-accent); }
+.ch-pinbar-text strong { font-size: var(--wk-text-xs); color: var(--wk-accent); }
+.ch-pinbar-text span { overflow: hidden; font-size: var(--wk-text-sm); text-overflow: ellipsis; white-space: nowrap; }
+.ch-pinbar:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }

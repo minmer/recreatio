@@ -19,16 +19,16 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { loadAreas, myEpochKeys, type AreaRow } from './area';
-import type { Ring } from './keys';
+import { loadAreas, myEpochKeys, type AreaRow } from '../areas/area';
+import type { Ring } from '../core/keys';
 import {
   FIELD_LABEL, PERSON_FIELDS, forgetValue, loadPerson, openMine, releaseValue,
   setValue, withdrawValue, type PersonField, type Release
 } from './person';
-import { WorkspaceError } from './session';
-import { AreaOptions } from './AreaOptions';
-import { PostalInput } from './PostalInput';
-import { toast } from './ui/dialogs';
+import { WorkspaceError } from '../core/session';
+import { AreaOptions } from '../areas/AreaOptions';
+import { PostalInput } from '../registry/PostalInput';
+import { toast } from '../ui/dialogs';
 
 export function PersonCard({ roleId, ring }: { roleId: string; ring: Ring }) {
   const [values, setValues] = useState<Map<PersonField, string>>(new Map());

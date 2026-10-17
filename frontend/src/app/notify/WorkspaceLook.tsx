@@ -11,11 +11,11 @@
 
 import { useSyncExternalStore } from 'react';
 
-import { AlertSettingsEditor } from './AlertList';
+import { AlertSettingsEditor } from '../workspace/AlertList';
 import { NotifySettingsPanel } from './NotifyBell';
 import { current, subscribe } from './notify';
-import type { Who } from './session';
-import { PageHeader } from './ui/PageHeader';
+import type { Who } from '../core/session';
+import { PageHeader } from '../ui/PageHeader';
 
 export function WorkspaceLook({ who }: { who: Who }) {
   const state = useSyncExternalStore(subscribe, current);

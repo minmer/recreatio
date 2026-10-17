@@ -22,13 +22,13 @@
  * rechnet der Dienst — diese Datei sagt nur, was das für den Menschen heisst.
  */
 
-import { areaKeys, newestKey } from './chat';
-import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from './crypto';
-import { newId } from './ids';
-import type { Ring } from './keys';
+import { areaKeys, newestKey } from '../chat/chat';
+import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
+import { newId } from '../core/ids';
+import type { Ring } from '../core/keys';
 import type { RepeatKind } from './agenda';
-import { call, WorkspaceError } from './session';
-import { levelOf, urgency, type UrgencyLevel } from './urgency';
+import { call, WorkspaceError } from '../core/session';
+import { levelOf, urgency, type UrgencyLevel } from '../core/urgency';
 
 export type TaskKind = 'window' | 'after' | 'period';
 

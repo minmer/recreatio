@@ -29,14 +29,11 @@ import {
   answerOpen, ATTENDANCE_WORD, attendanceOn, chipText, datesOf, dateOf, dayText, dutyRoom, hoursOf, isoDay,
   neededText, nextDay, planText, PRESENCE_THEY, PRESENCE_WORD, presenceOn, reportsUntil, taskDays, timeText
 } from './candidateTasks';
-import { WorkspaceError } from './session';
-import { takenKey, takenOf, type TakenMap } from './taskTaken';
+import { WorkspaceError } from '../core/session';
+import { takenKey, type TakenMap } from './taskTaken';
 import type { PresenceAnswer, PresenceChange, StepState, TaskChange, TaskDate, TaskDuty } from './steps';
 
 type Task = NonNullable<StepState['task']>;
-
-/* 0099 — die Zählung der Funktionen steht seit 2026-10-17 in `taskTaken.ts`; hier weitergereicht. */
-export { takenKey, takenOf, type TakenMap };
 
 /** Ein Klick weiter: nichts → tak → nie → jeszcze nie wiem → nichts. */
 const NEXT: Record<PresenceAnswer | 'none', PresenceAnswer | 'none'> = { none: 'yes', yes: 'no', no: 'maybe', maybe: 'none' };

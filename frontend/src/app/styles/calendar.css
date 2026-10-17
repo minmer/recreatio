@@ -1,0 +1,234 @@
+/* Reservierungen im Kalender, Aufgaben eines Tages (0057); Kalender mit eigenen Regeln (0058).
+   Teil von app.css: dort steht, in welcher Reihenfolge die Dateien gelten. */
+
+/* ===========================================================================
+   0057 — Reservierungen im Kalender, die Aufgaben eines Tages
+   =========================================================================== */
+
+.wk-cal2-waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  font-weight: 700;
+  padding: 0.25rem 0.375rem 0.25rem 0.75rem;
+  border: 1px solid var(--wk-held-line);
+  border-radius: 999px;
+  background: var(--wk-held-bg);
+  color: var(--wk-held-ink);
+  cursor: pointer;
+}
+.wk-cal2-waiting:hover { filter: brightness(0.97); }
+.wk-cal2-waiting:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-cal2-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--wk-held-ink);
+  color: var(--wk-held-bg);
+  font-variant-numeric: tabular-nums;
+}
+.wk-cal2-tick { font-weight: 700; }
+.wk-cal2-tasks-toggle { margin-left: auto; }
+
+/* Der Termin mit seinen Plätzen. */
+.wk-res-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem 0.75rem; }
+.wk-res-seats { display: inline-flex; gap: 4px; }
+.wk-res-seat { width: 0.8rem; height: 0.8rem; border-radius: 50%; border: 1.5px solid var(--wk-accent); }
+.wk-res-seat.is-taken { background: var(--wk-accent); }
+.wk-res-waitnote { color: var(--wk-held-ink); font-weight: 700; }
+.wk-res-block { display: grid; gap: 0.375rem; }
+.wk-res-h { margin: 0.25rem 0 0; font-size: var(--wk-text-sm); letter-spacing: 0.05em; text-transform: uppercase; color: var(--wk-muted); }
+.wk-res-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; }
+.wk-res-claim {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.75rem;
+  padding: 0.5rem 0.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+}
+.wk-res-claim.is-waiting { border-color: var(--wk-held-line); background: var(--wk-held-bg); }
+.wk-res-who { display: grid; gap: 0.125rem; flex: 1 1 12rem; min-width: 0; }
+.wk-res-state { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-res-claim.is-waiting .wk-res-state { color: var(--wk-held-ink); }
+.wk-res-tools { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; }
+.wk-res-add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; }
+.wk-res-add .wk-field { flex: 1 1 14rem; margin: 0; }
+.wk-btn-small { padding: 0.25rem 0.75rem; font-size: var(--wk-text-sm); }
+
+/* Die Aufgaben eines Tages. */
+.wk-taskday { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; }
+.wk-taskday-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+}
+.wk-taskday-row.is-open, .wk-taskday-row.is-due { border-color: var(--wk-accent); }
+.wk-taskday-row.is-missed, .wk-taskday-row.is-late { border-color: color-mix(in srgb, var(--wk-danger) 60%, var(--wk-line)); }
+.wk-taskday-row.is-done, .wk-taskday-row.is-skipped { opacity: 0.65; }
+.wk-taskday-row.is-done .wk-taskday-title { text-decoration: line-through; }
+.wk-taskday-main {
+  flex: 1 1 10rem;
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.wk-taskday-main:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-taskday-title { font-weight: 600; }
+.wk-taskday-when { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-taskday-state { font-size: var(--wk-text-xs); font-weight: 700; color: var(--wk-muted); white-space: nowrap; }
+.wk-taskday-state.is-open, .wk-taskday-state.is-due { color: var(--wk-accent); }
+.wk-taskday-state.is-missed, .wk-taskday-state.is-late { color: var(--wk-danger); }
+.wk-taskday-state.is-done { color: var(--wk-ok); }
+
+/* ===========================================================================
+   0058 — Kalender mit eigenen Regeln, wer da sein muss, der Kalender-Baustein
+   =========================================================================== */
+
+/* Termine, bei denen ich da sein muss: kräftiger Rand und ein Punkt. */
+.wk-ev.is-mine { border-left-width: 5px; font-weight: 600; }
+.wk-ev.is-mine .wk-ev-title::before { content: '● '; font-size: 0.7em; vertical-align: 0.1em; }
+.wk-cal2-mine .wk-cal2-me { font-size: var(--wk-text-xs); color: var(--wk-accent); }
+
+/* Nur zum Ansehen: ein Klick ins Leere legt nichts an. */
+.wk-cal2-grid.is-readonly .wk-cal2-col,
+.wk-cal2-grid.is-readonly .wk-cal2-allcell,
+.wk-cal2-month.is-readonly .wk-cal2-cell { cursor: default; }
+
+/* Die Kalender und ihre Regeln. */
+.wk-callist { display: grid; gap: 0.375rem; }
+.wk-callist-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.375rem; }
+.wk-callist-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--wk-line);
+  border-left: 4px solid hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l));
+  border-radius: 4px;
+  background: var(--wk-surface);
+}
+.wk-callist-row .wk-cal2-dot { margin-top: 0.5rem; }
+.wk-callist-main { flex: 1 1 auto; display: grid; gap: 0.25rem; min-width: 0; }
+.wk-callist-rules { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.wk-callist-desc { font-size: var(--wk-text-sm); color: var(--wk-muted); white-space: pre-wrap; }
+
+.wk-calset { max-width: none; }
+.wk-calset-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
+.wk-calset-row > .wk-field { flex: 1 1 12rem; margin: 0; }
+.wk-calset-fixed { padding: 0.5rem 0; }
+.wk-calset-booking, .wk-ev-booking {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.75rem 0.75rem 0.75rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+}
+.wk-calset-booking > legend, .wk-ev-booking > legend { padding: 0 0.25rem; font-weight: 700; font-size: var(--wk-text-sm); }
+
+/* Am Termin: wie der Kalender gemeint ist, und wer da sein muss. */
+.wk-ev-rules {
+  margin: 0;
+  padding: 0.5rem 0.5rem;
+  border-left: 3px solid var(--wk-accent);
+  background: var(--wk-soft);
+  font-size: var(--wk-text-sm);
+  white-space: pre-wrap;
+}
+.wk-ev-more > summary { cursor: pointer; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-ev-more[open] > summary { margin-bottom: 0.375rem; }
+.wk-ev-people { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; margin: 0; }
+.wk-ev-person { font-size: var(--wk-text-sm); }
+.wk-ev-person.is-me strong { color: var(--wk-accent); }
+.wk-ev-pin { display: grid; gap: 0.5rem; padding: 0.5rem; border: 1px solid var(--wk-line); border-radius: 4px; }
+
+.wk-people-pick { display: grid; gap: 0.375rem; }
+.wk-people-pinned { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.wk-people-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.25rem 0.25rem 0.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  font-size: var(--wk-text-sm);
+}
+.wk-people-chip select { font: inherit; font-size: var(--wk-text-sm); padding: 0 0.25rem; border: 1px solid var(--wk-line); border-radius: 4px; background-color: var(--wk-surface); color: var(--wk-ink); }
+.wk-people-pick > select { justify-self: start; font: inherit; padding: 0.375rem 0.5rem; }
+
+/* Der Baustein „Kalendarz" auf einer Seite. */
+.wk-cal-part { display: grid; gap: 0.5rem; min-width: 0; }
+.wk-cal-part .wk-cal2-scroll { height: min(55vh, 30rem); }
+.wk-cal-part.is-whole .wk-cal2-scroll { height: min(68vh, 42rem); }
+.wk-cal-part-rules { display: grid; gap: 0.25rem; }
+.wk-cal-part-rules > p {
+  margin: 0;
+  padding: 0.375rem 0.5rem;
+  border-left: 3px solid hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l));
+  font-size: var(--wk-text-sm);
+  color: var(--wk-muted);
+  white-space: pre-wrap;
+}
+.wk-cal-part-next { margin: 0; }
+.wk-card-calendar .wk-cal2-list { gap: 0.5rem; }
+.wk-pick-cals { display: grid; gap: 0.25rem; }
+
+
+/* Konto löschen — rot, weil es endgültig ist; die Liste sagt, was geht. */
+.wk-btn.wk-btn-danger { background: var(--wk-danger); border-color: var(--wk-danger); color: var(--wk-on-accent); }
+.wk-link-btn.wk-danger-link { color: var(--wk-danger); }
+.wk-delete-list { margin: 0.25rem 0 0.75rem; padding-left: 1.25rem; display: grid; gap: 0.25rem; }
+.wk-note.wk-delete-warn { border-left-color: var(--wk-danger); margin: 0.5rem 0; }
+.wk-note.wk-delete-warn ul { margin: 0.25rem 0; padding-left: 1.25rem; }
+
+
+
+/* -- Das Menü in der Kopfleiste ---------------------------------------------
+   Kein zweiter Streifen mehr: die Einträge stehen neben der Marke, die
+   Untermenüs klappen darunter auf. Auf dem Telefon ein Knopf „Menu", und der
+   Baum öffnet sich als Blatt unter der ganzen Kopfleiste.
+   ------------------------------------------------------------------------ */
+.wk-public-head .wk-sitemenu { position: static; margin: 0; padding: 0; background: none; }
+.wk-public-head .wk-sitemenu > .wk-sitemenu-list { padding: 0; border: 0; background: none; box-shadow: none; gap: 0; }
+.wk-public-head .wk-sitemenu-link { padding: 0.375rem 0.75rem; font-size: var(--wk-text-md); }
+.wk-public-head .wk-sitemenu-link[aria-current='page'] { box-shadow: inset 0 -2px 0 var(--wk-accent); border-radius: 4px 4px 0 0; }
+
+@media (max-width: 640px) {
+  .wk-public-head .wk-sitemenu-toggle { padding: 0.25rem 0.75rem; }
+  .wk-public-head .wk-sitemenu.is-open > .wk-sitemenu-list {
+    position: absolute;
+    top: calc(100% + 0.7rem);
+    left: -1.4rem;
+    right: -1.4rem;
+    z-index: 60;
+    display: grid;
+    margin: 0;
+    padding: 0.375rem 1rem 0.75rem;
+    border-bottom: 1px solid var(--wk-line);
+    background: var(--wk-ground);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+    max-height: calc(100dvh - 4rem);
+    overflow-y: auto;
+  }
+}

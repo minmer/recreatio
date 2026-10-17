@@ -11,7 +11,7 @@
  */
 
 import { definePart, lines, readLink, text, type RawConfig } from '../part';
-import { pagePath } from '../routes';
+import { pagePath } from '../../routes';
 
 interface Config {
   readonly title: string;

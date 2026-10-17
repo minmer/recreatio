@@ -7,7 +7,7 @@
  */
 
 import { AreaRow, asOptionalText, asRecord, asText, defineEventPart, ImageRow, ListEditor, mapEntries, TextRow } from '../event/kit';
-import { imageUrl } from '../slides';
+import { imageUrl } from '../slides/slideLook';
 
 type Person = { name: string; role: string | null; detail: string | null; photoUrl: string | null; contact: string | null; contactHref: string | null };
 type PeopleConfig = { people: Person[]; note: string | null };

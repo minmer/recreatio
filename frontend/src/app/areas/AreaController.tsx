@@ -14,13 +14,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { loadAreaController, setController, type AreaController } from './intake';
-import { PostalInput } from './PostalInput';
-import { viewPath } from './routes';
-import { WorkspaceError } from './session';
-import { toast } from './ui/dialogs';
-import { Loading } from './ui/Loading';
-import { areasNow, invalidate } from './viewData';
+import { loadAreaController, setController, type AreaController } from '../forms/intake';
+import { PostalInput } from '../registry/PostalInput';
+import { viewPath } from '../routes';
+import { WorkspaceError } from '../core/session';
+import { toast } from '../ui/dialogs';
+import { Loading } from '../ui/Loading';
+import { areasNow, invalidate } from '../workspace/viewData';
 
 type Shown = { readonly controller: AreaController | null } | 'failed' | undefined;
 

@@ -8,7 +8,7 @@
  */
 
 import { ALERT_KINDS, alertLabel, moveAlert, toggleAlert, useAlertSettings, type AlertItem } from './alerts';
-import { markFormSeen, markLinksSeen } from './notify';
+import { markFormSeen, markLinksSeen } from '../notify/notify';
 
 export function AlertRows({ items, compact = false, onPick }: {
   items: readonly AlertItem[];

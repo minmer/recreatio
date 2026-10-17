@@ -18,11 +18,11 @@
 import { useEffect, useState } from 'react';
 
 import { FORM_MAP } from './FormList';
-import { newId } from './ids';
-import { createModule, loadModules, removeModule, updateModule, type FormGroup, type ModuleRow } from './module';
+import { newId } from '../core/ids';
+import { createModule, loadModules, removeModule, updateModule, type FormGroup, type ModuleRow } from '../modules/module';
 import { REPEAT_LABEL, REPEATS, repeatOf, type Repeat } from './rounds';
-import { formPath, formsPath } from './routes';
-import { WorkspaceError } from './session';
+import { formPath, formsPath } from '../routes';
+import { WorkspaceError } from '../core/session';
 
 export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged?: () => void }) {
   const [all, setAll] = useState<readonly ModuleRow[] | null>(null);

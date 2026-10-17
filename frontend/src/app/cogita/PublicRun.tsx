@@ -11,8 +11,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { loadPublishedOne } from '../library';
-import type { Card } from './cards';
+import { loadPublishedOne } from '../library/library';
+import type { Card } from './cardBasics';
 import { publicFileUrl } from './files';
 import { localHolder } from './holders';
 import { Learner } from './learn';

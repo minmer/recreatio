@@ -20,33 +20,33 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
 import { loadPage, toDraft, type PageContent } from './page';
-import { InHeader } from './headerSlot';
+import { InHeader } from '../ui/headerSlot';
 import { PageParts } from './PageParts';
-import { PagePresentation } from './PagePresentation';
-import { PageSlides } from './PageSlides';
+import { PagePresentation } from './presentation/PagePresentation';
+import { PageSlides } from './slides/PageSlides';
 import { PersonAccessGate, PersonPicker, PersonProvider } from './pagePerson';
 import { NoAccess, PageAccessContext } from './pageAccess';
 import { PageLogicProvider } from './PageLogicView';
 import { PageSubjectProvider, SubjectBar } from './pageSubject';
 import { SiteMenu } from './SiteMenu';
-import { SeatContext, SeatStateContext, useSeats, useSeatStates, type SeatState } from './seatContext';
-import { freshSeat, heldSeats, SEATS_EVENT, seatsExactly, seatsFor } from './seatKeep';
-import { heldProofs } from './linkAccess';
-import { useHeldLinksStamp } from './HeldLinkBar';
-import { useSeat } from './seatView';
-import { WorkspaceError } from './session';
+import { SeatContext, SeatStateContext, useSeats, useSeatStates, type SeatState } from '../seats/seatContext';
+import { freshSeat, heldSeats, SEATS_EVENT, seatsExactly, seatsFor } from '../seats/seatKeep';
+import { heldProofs } from '../links/linkAccess';
+import { useHeldLinksStamp } from '../links/HeldLinkBar';
+import { useSeat } from '../seats/seatView';
+import { WorkspaceError } from '../core/session';
 import { loadSite } from './site';
-import { pageSteps, viewPath } from './routes';
-import { Icon } from './ui/icons';
-import { Loading } from './ui/Loading';
-import { readLook } from './slides';
+import { pageSteps, viewPath } from '../routes';
+import { Icon } from '../ui/icons';
+import { Loading } from '../ui/Loading';
+import { readLook } from './slides/slideLook';
 
 /*
  * 2026-10-17 — DIE LEISTE EINES PLATZES (Bestätigen, Rozmowy, Kroki) nur, wenn
  * ein Link einen Platz gebracht hat: eine Seite ohne Link lud sie samt Rozmowa
  * und Formular mit, ohne je etwas davon zu zeigen.
  */
-const SeatBarLater = lazy(() => import('./SeatBar').then((m) => ({ default: m.SeatBar })));
+const SeatBarLater = lazy(() => import('../seats/SeatBar').then((m) => ({ default: m.SeatBar })));
 
 function SeatBar({ path }: { path: string }) {
   const states = useSeatStates();

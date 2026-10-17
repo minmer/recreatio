@@ -721,7 +721,7 @@ t.Note($"3.15  Argon2id 64 MiB t=3: Browser-Anteil {swPw.ElapsedMilliseconds} ms
 // ---------------------------------------------------------------------------
 
 {
-    var vectorPath = Path.Combine(AppContext.BaseDirectory, "rc-wrap-vector.json");
+    var vectorPath = Path.Combine(AppContext.BaseDirectory, "wrap-vector.json");
 
     if (!File.Exists(vectorPath))
     {

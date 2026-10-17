@@ -28,17 +28,17 @@
  * (`seatChat.ts`) — unter dem Bereichsschlüssel liegt mehr als der Chat.
  */
 
-import { createArea, joinArea, myEpochKeys, type Member } from './area';
-import { I, O, S, type Canon } from './canonical';
+import { createArea, joinArea, myEpochKeys, type Member } from '../areas/area';
+import { I, O, S, type Canon } from '../core/canonical';
 import {
   aad, derive, Field, fromBase64Url, KEY_SIZE, openText, sealText, sha256Bytes, signCanonical, toBase64Url,
   wrapKeyP256
-} from './crypto';
-import type { AudienceForm, AudienceMode } from './audience';
-import { newId } from './ids';
-import type { Ring, SealedRole } from './keys';
-import { forgetNameKeys, openFormNames, openSeatName } from './names';
-import { call, WorkspaceError } from './session';
+} from '../core/crypto';
+import type { AudienceForm, AudienceMode } from '../areas/audience';
+import { newId } from '../core/ids';
+import type { Ring, SealedRole } from '../core/keys';
+import { forgetNameKeys, openFormNames, openSeatName } from '../core/names';
+import { call, WorkspaceError } from '../core/session';
 
 export type ChatKind = 'area' | 'channel' | 'group' | 'direct' | 'self' | 'seat';
 
@@ -639,7 +639,7 @@ export async function startSeatChat(areaId: string, asRoleId: string, seatId: st
 export async function startAreaChat(areaId: string, asRoleId: string, channel = false): Promise<string> {
   const chatId = newId();
   try {
-    await createChat({ chatId, areaId, kind: channel ? 'channel' : 'area', asRoleId, postingPolicy: channel ? 'writers' : 'legacy' });
+    await createChat({ chatId, areaId, kind: channel ? 'channel' : 'area', asRoleId, postingPolicy: channel ? 'writers' : 'members' });
     return chatId;
   } catch (e) {
     if (e instanceof WorkspaceError && e.verdict === 'exists') {
@@ -660,7 +660,7 @@ export async function startAreaChat(areaId: string, asRoleId: string, channel = 
 export async function startSelfChat(areaId: string, personRoleId: string): Promise<string> {
   const chatId = newId();
   try {
-    await createChat({ chatId, areaId, kind: 'self', asRoleId: personRoleId, postingPolicy: 'legacy' });
+    await createChat({ chatId, areaId, kind: 'self', asRoleId: personRoleId, postingPolicy: 'writers' });
     return chatId;
   } catch (e) {
     const had = (await loadChats().catch(() => ({ chats: [] as readonly ChatRow[] }))).chats.find((c) => c.areaId === areaId);
@@ -703,7 +703,9 @@ export async function startOwnChat(ring: Ring, me: { role: SealedRole; name: str
   const chatId = newId();
   await createChat({
     chatId, areaId: area.areaId, kind: what.kind, asRoleId: me.role.id,
-    withRoleId: what.kind === 'direct' ? what.invitees[0].roleId : undefined, postingPolicy: what.channel ? 'writers' : 'legacy'
+    withRoleId: what.kind === 'direct' ? what.invitees[0].roleId : undefined,
+    /* 2026-10-17 — ausgeschrieben: in einer eigenen Rozmowa schreiben, die schreiben dürfen (so galt das alte `legacy`). */
+    postingPolicy: 'writers'
   });
 
   await setMemberName(area.areaId, keys, me.role.id, me.name, me.role.id).catch(() => undefined);

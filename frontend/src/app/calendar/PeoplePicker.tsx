@@ -10,10 +10,10 @@
 
 import { useEffect, useState } from 'react';
 
-import { loadMembers } from './area';
+import { loadMembers } from '../areas/area';
 import { DUTY_LABEL, type Duty } from './calendar';
-import { areaKeys, loadAreaNames, openNames } from './chat';
-import type { Me } from './me';
+import { areaKeys, loadAreaNames, openNames } from '../chat/chat';
+import type { Me } from '../core/me';
 
 export interface Pinned {
   readonly roleId: string;

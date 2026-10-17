@@ -13,9 +13,9 @@
 
 import { useEffect, useState } from 'react';
 
-import { areaPath, loadAreas, type AreaRow } from './area';
+import { areaPath, loadAreas, type AreaRow } from '../areas/area';
 import { loadChats, type ChatRow } from './chat';
-import { Loading } from './ui/Loading';
+import { Loading } from '../ui/Loading';
 
 export function PickChat({ value, busy, onPick }: {
   value: string;

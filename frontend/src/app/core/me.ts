@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 
 import type { Ring, SealedRole } from './keys';
 import { keysFor } from './ringOf';
-import { myRoleNames } from './roleNames';
+import { myRoleNames } from '../roles/roleNames';
 import { whoIsThere, type Who } from './session';
 
 export interface Me {

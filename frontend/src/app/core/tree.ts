@@ -7,7 +7,7 @@
  * nicht von selbst verstehen (die Lücke und die Wurzel, siehe unten).
  */
 
-import type { PageCard } from './desk';
+import type { PageCard } from '../workspace/desk';
 
 /**
  * Ein Knoten im Adressbaum.

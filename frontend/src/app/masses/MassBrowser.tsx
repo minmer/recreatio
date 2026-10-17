@@ -26,13 +26,13 @@ import { useState, type CSSProperties } from 'react';
 import {
   addDays, firstOfMonth, fromKey, keyOf, longDate, mondayOf, monthTitle, rangeTitle, sameDay, sameMonth,
   startOfDay, WEEK_HEADS
-} from './dayMath';
+} from '../core/dayMath';
 import { dayKey, hour, massesOnly, type PublicMass } from './mass';
 import { MODE_WORD, nextOf, rangeOf, stepAnchor, type MassMode, type MassView } from './massShape';
 import { Glance, NextBox } from './MassGlance';
 import { DayBlock, everyDay, placeOf, Row, usePlan, type Ctx } from './MassParts';
-import { MonthPicker } from './MonthPicker';
-import { Loading } from './ui/Loading';
+import { MonthPicker } from '../ui/MonthPicker';
+import { Loading } from '../ui/Loading';
 
 export function MassBrowser({ shown, calendar, now }: { shown: MassView; calendar: string; now: Date }) {
   const [mode, setMode] = useState<MassMode>(shown.modes[0] ?? 'soon');

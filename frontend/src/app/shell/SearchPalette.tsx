@@ -10,14 +10,14 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
-import { areaPath } from './area';
-import { loadDesk } from './desk';
-import { Modal } from './Modal';
-import { partLabel } from './parts/registry';
-import { pageSteps, VIEWS, viewPath, type View, modulePath } from './routes';
+import { areaPath } from '../areas/area';
+import { loadDesk } from '../workspace/desk';
+import { Modal } from '../ui/Modal';
+import { partLabel } from '../pages/parts/registry';
+import { pageSteps, VIEWS, viewPath, type View, modulePath } from '../routes';
 import { searchHits, type SearchEntry } from './search';
-import { areasNow, chatsNow, modulesNow } from './viewData';
-import { chatName } from './ViewParts';
+import { areasNow, chatsNow, modulesNow } from '../workspace/viewData';
+import { chatName } from '../workspace/ViewParts';
 
 export const SEARCH_EVENT = 'recreatio:search';
 
@@ -25,7 +25,8 @@ export const SEARCH_EVENT = 'recreatio:search';
 const STATIC: readonly SearchEntry[] = [
   ...(Object.keys(VIEWS) as View[]).filter((v) => v !== 'widok').map((v) => ({ id: `view:${v}`, label: VIEWS[v], kind: 'Część warsztatu', href: viewPath(v) })),
   { id: 'notify', label: 'Powiadomienia', kind: 'Ustawienia', href: viewPath('account', 'widok'), hint: 'dzwonek kolejność urządzenie telefon' },
-  { id: 'security', label: 'Bezpieczeństwo i klucze', kind: 'Ustawienia', href: viewPath('account', 'bezpieczenstwo'), hint: 'hasło klucz szyfrowanie' }
+  { id: 'security', label: 'Bezpieczeństwo i klucze', kind: 'Ustawienia', href: viewPath('account', 'bezpieczenstwo'), hint: 'hasło klucz szyfrowanie' },
+  { id: 'transfer', label: 'Przeniesienie danych', kind: 'Ustawienia', href: viewPath('account', 'przeniesienie'), hint: 'stare dane migracja przeniesienie' }
 ];
 
 /** Hört auf Ctrl K und das Ereignis; zeigt das Fenster. Einmal im Kopf der Seite. */
@@ -61,7 +62,7 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
       const [areas, modules, chats, desk, library] = await Promise.all([
         areasNow().catch(() => []), modulesNow().catch(() => []), chatsNow().catch(() => []), loadDesk().catch(() => null),
         /* 0109 — die offenen Bibliotheken; die Rechnung dazu kommt mit Cogita, erst beim Suchen. */
-        import('./cogita/search').then((m) => m.libraryHits(), () => [])
+        import('../cogita/search').then((m) => m.libraryHits(), () => [])
       ]);
       if (!live) return;
       setFound([

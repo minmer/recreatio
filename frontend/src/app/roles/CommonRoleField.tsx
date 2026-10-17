@@ -12,13 +12,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import type { AreaRow } from './area';
-import { Segment } from './ui/Segment';
+import type { AreaRow } from '../areas/area';
+import { Segment } from '../ui/Segment';
 import { givableRoles, reachWords, type GivableRole, type NewRoleDraft } from './commonRole';
-import type { Ring } from './keys';
-import { LINK_LEVELS, type LinkLevel } from './linkAccess';
-import { WorkspaceError } from './session';
-import { Loading } from './ui/Loading';
+import type { Ring } from '../core/keys';
+import { LINK_LEVELS, type LinkLevel } from '../links/linkAccess';
+import { WorkspaceError } from '../core/session';
+import { Loading } from '../ui/Loading';
 
 export const NEW_ROLE = 'new';
 

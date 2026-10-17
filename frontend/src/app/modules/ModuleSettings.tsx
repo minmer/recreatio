@@ -15,11 +15,11 @@
 
 import { useEffect, useState } from 'react';
 
-import type { AreaRow } from './area';
-import { AreaOptions } from './AreaOptions';
+import type { AreaRow } from '../areas/area';
+import { AreaOptions } from '../areas/AreaOptions';
 import { removeModule, SUBJECT_LABEL, SUBJECTS, updateModule, type ModuleRow, type Resealed, type Subject } from './module';
-import { partOf, takesEntries } from './parts/registry';
-import { modulePath } from './routes';
+import { partOf, takesEntries } from '../pages/parts/registry';
+import { modulePath } from '../routes';
 
 export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
   row: ModuleRow;

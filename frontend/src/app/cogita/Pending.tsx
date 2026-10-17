@@ -8,7 +8,7 @@
 
 import { useMemo, useState } from 'react';
 
-import { loadIntake, openIntakeKey } from '../intake';
+import { loadIntake, openIntakeKey } from '../forms/intake';
 import { loadReports, type Report } from './learn';
 import { fieldsOf, valuesOf } from './schema';
 import { linkedOf } from './store';

@@ -23,15 +23,15 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { calledFrom } from './called';
+import { calledFrom } from '../roles/called';
 import { allows, usePageAccess } from './pageAccess';
-import type { Ring } from './keys';
-import { loadPerson, openMine } from './person';
-import { keysFor } from './ringOf';
-import { seatName, useSeats, type SeatView } from './seatContext';
-import { freshSeat, seatsExactly } from './seatKeep';
-import { whoIsThere } from './session';
-import { subjectsFor } from './subject';
+import type { Ring } from '../core/keys';
+import { loadPerson, openMine } from '../account/person';
+import { keysFor } from '../core/ringOf';
+import { seatName, useSeats, type SeatView } from '../seats/seatContext';
+import { freshSeat, seatsExactly } from '../seats/seatKeep';
+import { whoIsThere } from '../core/session';
+import { subjectsFor } from '../forms/subject';
 
 export type PagePerson =
   | { readonly kind: 'seat'; readonly id: string; readonly name: string; readonly seat: SeatView }

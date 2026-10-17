@@ -17,10 +17,10 @@
  * nicht (ein Hosting ohne), fragt der Browser alle zwei Sekunden selbst.
  */
 
-import { aad, derive, Field, fromBase64Url, KEY_SIZE, open, openText, seal, sealText, sha256, toBase64Url, unwrapKey, unwrapKeyP256, wrapKey, wrapKeyP256 } from '../crypto';
-import { newId } from '../ids';
-import { API, call } from '../session';
-import type { AnswerSpec, Card } from './cards';
+import { aad, derive, Field, fromBase64Url, KEY_SIZE, open, openText, seal, sealText, sha256, toBase64Url, unwrapKey, unwrapKeyP256, wrapKey, wrapKeyP256 } from '../core/crypto';
+import { newId } from '../core/ids';
+import { API, call } from '../core/session';
+import type { AnswerSpec, Card } from './cardBasics';
 
 export type SessionKind = 'live' | 'async' | 'sync' | 'story' | 'game' | 'shared';
 export type SessionState = 'lobby' | 'running' | 'paused' | 'finished' | 'closed';

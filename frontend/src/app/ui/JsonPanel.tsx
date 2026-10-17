@@ -16,8 +16,8 @@
 
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { parseDocument } from './pageJson';
-import { WorkspaceError } from './session';
+import { parseDocument } from '../pages/pageJson';
+import { WorkspaceError } from '../core/session';
 
 export interface JsonPreview {
   readonly lines: readonly string[];

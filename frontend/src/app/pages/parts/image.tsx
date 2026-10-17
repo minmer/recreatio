@@ -13,8 +13,8 @@
 
 import { ImagePicker } from '../PageFiles';
 import { definePart, lines, text, type EditorProps, type RawConfig } from '../part';
-import { textLink } from '../presentation';
-import { imageUrl } from '../slides';
+import { textLink } from '../presentation/presentation';
+import { imageUrl } from '../slides/slideLook';
 
 interface Config {
   readonly url: string;

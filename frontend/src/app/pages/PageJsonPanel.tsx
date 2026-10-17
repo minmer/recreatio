@@ -15,21 +15,19 @@
 
 import { useState } from 'react';
 
-import { setPartConfig } from './form';
-import { readFormContent, writeFormContent, type FormContent } from './formJson';
-import { JsonPanel, type JsonPreview } from './JsonPanel';
+import { setPartConfig } from '../forms/form';
+import { readFormContent, writeFormContent, type FormContent } from '../forms/formJson';
+import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import { adoptMenuOf, loadMenu, saveMenu } from './menu';
-import { loadModules, readConfig, updateModule } from './module';
-import { QuestionOptions } from './ModuleJson';
+import { loadModules, readConfig, updateModule } from '../modules/module';
+import { QuestionOptions } from '../modules/ModuleJson';
 import { loadPage, savePage, savePageLogic, savePageLook, savePageSubject, saveParts, type DraftPart } from './page';
-import {
-  configFromJson, DEFAULT_IMPORT, documentKind, exportPage, legacyPagesOf, pageDescription, PART_FORMAT, partDescription,
-  planImport, replacing, sameConfig, type ImportOptions, type PageNow
-} from './pageJson';
+import { configFromJson, DEFAULT_IMPORT, documentKind, exportPage, legacyPagesOf, PART_FORMAT, planImport, replacing, sameConfig, type ImportOptions, type PageNow } from './pageJson';
+import { pageDescription, partDescription } from './pageJsonText';
 import { partOf } from './parts/registry';
 import { asRecord, asText, count } from './event/kit';
-import { writeLook } from './slides';
-import { WorkspaceError, type Who } from './session';
+import { writeLook } from './slides/slideLook';
+import { WorkspaceError, type Who } from '../core/session';
 
 export function PageJson({ now, who, unsaved, onDone }: {
   /** Die Seite, wie der Editor sie gerade hält — mit dem Entwurf. */

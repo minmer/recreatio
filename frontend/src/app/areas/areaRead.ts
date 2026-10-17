@@ -25,12 +25,12 @@
  */
 
 import { loadPublicKey, myEpochKeys } from './area';
-import { fromBase64Url } from './crypto';
-import type { Ring } from './keys';
-import { heldAreaKey } from './linkAccess';
-import { keysFor } from './ringOf';
-import { seatAreaKey } from './roleBundle';
-import { whoIsThere } from './session';
+import { fromBase64Url } from '../core/crypto';
+import type { Ring } from '../core/keys';
+import { heldAreaKey } from '../links/linkAccess';
+import { keysFor } from '../core/ringOf';
+import { seatAreaKey } from '../roles/roleBundle';
+import { whoIsThere } from '../core/session';
 
 /**
  * Was der Weg über das Konto ergab:

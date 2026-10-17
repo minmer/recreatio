@@ -19,8 +19,8 @@ import 'reactflow/dist/style.css';
 import { ids, kindOf, str, type EntryData } from './libraryKinds';
 import { citedKeys } from './libraryMarkup';
 import type { Entry, LibraryStore } from './libraryStore';
-import { viewPath } from './routes';
-import { WorkspaceError } from './session';
+import { viewPath } from '../routes';
+import { WorkspaceError } from '../core/session';
 
 const COLUMN: Record<string, number> = { project: 0, text: 1, topic: 1, quote: 2, work: 3, person: 4 };
 

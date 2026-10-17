@@ -18,17 +18,17 @@
 
 import type { ReactNode } from 'react';
 
-import type { AreaRow } from './area';
+import type { AreaRow } from '../areas/area';
 import { leadsNoPage, type Desk } from './desk';
-import { viewPath, VIEWS } from './routes';
-import type { Who } from './session';
+import { viewPath, VIEWS } from '../routes';
+import type { Who } from '../core/session';
 import { NewMenu } from './Starters';
-import { Icon } from './ui/icons';
-import { PageHeader } from './ui/PageHeader';
+import { Icon } from '../ui/icons';
+import { PageHeader } from '../ui/PageHeader';
 import { PART_VIEWS } from './ViewParts';
 import { areasNow, useLoaded } from './viewData';
 import { AREA_PARTS, areaViewId, MINE, partDef, withInside, type PartKind, type ViewConfig } from './workspaceViews';
-import { loadDue } from './cogita/learn';
+import { loadDue } from '../cogita/learn';
 
 /* -- Ein Kasten ------------------------------------------------------------------------- */
 

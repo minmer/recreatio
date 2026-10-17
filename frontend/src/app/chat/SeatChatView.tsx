@@ -12,28 +12,28 @@
  */
 
 import { useChatExtras } from './ChatExtras';
-import {
-  Avatar, ChatHeader, ChatLog, Composer, lastEditable, useChatChrome, withDelete, withEdit,
-  type ComposerHandle, type MessageHandlers, type MessageRules, type ReplyTarget, type Shown
-} from './ChatKit';
+import { Avatar, ChatHeader, type Shown } from './ChatKit';
+import { ChatLog, lastEditable, withDelete, withEdit, type MessageHandlers, type MessageRules } from './ChatLog';
+import { Composer, type ComposerHandle, type ReplyTarget } from './Composer';
+import { useChatChrome } from './ChatChrome';
 import { chatEndpoint, reportChatSeen } from './chatFeatures';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { authorOf, chatKeysOf, openMessage, openVersion, type Opened, type SealedMessage, type SealedVersion, type SendOptions } from './chat';
 import { authorText, messageAuthor } from './chatAuthor';
-import { heldLinkKeys } from './linkAccess';
-import { heldLinks } from './linkKeep';
+import { heldLinkKeys } from '../links/linkAccess';
+import { heldLinks } from '../links/linkKeep';
 import { HistoryDialog } from './MessageBits';
-import type { SeatView } from './seatContext';
+import type { SeatView } from '../seats/seatContext';
 import {
   chatNameFor, deleteSeatMessage, editSeatMessage, keepQueued, loadAsk, loadSeatChats, loadSeatMessages, loadSeatVersions,
   nameSeat, queuedFor, restoreSeatMessage, seatChatKeys, seatIdentity, sendSeatMessage, startAsk,
   type AskTarget, type Queued, type SeatChatRow, type SeatIdentity
-} from './seatChat';
-import { WorkspaceError } from './session';
+} from '../seats/seatChat';
+import { WorkspaceError } from '../core/session';
 import { createTopic, loadTopics, openTopics, type Topic } from './chatTopics';
 import { TopicBar } from './TopicBar';
-import { Loading } from './ui/Loading';
+import { Loading } from '../ui/Loading';
 
 /*
  * 0069 — wie eine Rozmowa für den Menschen mit dem Link heisst, und wer darin liest.

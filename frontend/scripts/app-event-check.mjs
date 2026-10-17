@@ -21,10 +21,10 @@ const workspace = await mkdtemp(join(tmpdir(), 'app-event-'));
 const entry = join(workspace, 'entry.ts');
 const app = join(process.cwd(), 'src/app/').replace(/\\/g, '/');
 await writeFile(entry, `
-export { PARTS, partOf } from '${app}parts/registry';
-export { importLegacy, legacyPages } from '${app}SlidesImport';
-export { parseGpx, simplifyTrack, trackLengthKm } from '${app}event/gpx';
-export { partSize } from '${app}part';
+export { PARTS, partOf } from '${app}pages/parts/registry';
+export { importLegacy, legacyPages } from '${app}pages/slides/SlidesImport';
+export { parseGpx, simplifyTrack, trackLengthKm } from '${app}pages/event/gpx';
+export { partSize } from '${app}pages/part';
 `);
 await build({
   entryPoints: [entry],

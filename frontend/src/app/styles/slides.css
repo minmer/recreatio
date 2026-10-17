@@ -1,0 +1,336 @@
+/* Slajdy (0062): Schichten, Leiste, Wechsel, Bühne.
+   Teil von app.css: dort steht, in welcher Reihenfolge die Dateien gelten. */
+
+/* ==========================================================================
+   SLAJDY (0062) — eine Seite, bei der jeder Baustein einen Bildschirm hat.
+   Aus dem Altbestand (event-site.css, .ev): dieselben Schichten, dieselbe
+   Schattierung je Slajd, dieselbe Leiste. Die vier Farben des Themas kommen
+   als --deck-* an; alles andere wird daraus abgeleitet — und die Bausteine
+   darin lesen die Farben des Arbeitsplatzes (--wk-*), die hier auf das Thema
+   umgestellt werden. So sieht ein Formular auf einem dunklen Slajd dunkel aus.
+   ========================================================================== */
+
+.wk-deck {
+  --deck-line: color-mix(in srgb, var(--deck-muted) 24%, transparent);
+  --deck-line-2: color-mix(in srgb, var(--deck-muted) 44%, transparent);
+  --deck-chrome: color-mix(in srgb, var(--deck-ground) 93%, transparent);
+  --deck-panel: color-mix(in srgb, var(--deck-ground) 76%, transparent);
+  --deck-on-accent: #ffffff;
+
+  --wk-ground: var(--deck-ground);
+  --wk-ink: var(--deck-ink);
+  --wk-muted: var(--deck-muted);
+  --wk-accent: var(--deck-accent);
+  --wk-on-accent: var(--deck-on-accent);
+  --wk-line: var(--deck-line-2);
+  --wk-surface: color-mix(in srgb, var(--deck-ground) 90%, var(--deck-ink) 10%);
+  --wk-soft: color-mix(in srgb, var(--deck-ground) 84%, var(--deck-ink) 16%);
+
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  background: var(--deck-ground);
+  color: var(--deck-ink);
+}
+
+.wk-deck.is-dark {
+  color-scheme: dark;
+  --wk-danger: #f0876a;
+  --wk-ok: #7fc68d;
+  --wk-free-bg: #13261a; --wk-free-line: #3fb468; --wk-free-ink: #86efac;
+  --wk-held-bg: #2c2312; --wk-held-line: #d99a2b; --wk-held-ink: #fcd34d;
+  --wk-shut-bg: #2c1616; --wk-shut-line: #e05252; --wk-shut-ink: #fca5a5;
+  --ev-s: 38%; --ev-bg-l: 23%; --ev-line-l: 62%; --ev-ink-l: 90%;
+}
+
+.wk-deck.is-light {
+  color-scheme: light;
+  --deck-panel: color-mix(in srgb, var(--deck-ground) 84%, transparent);
+  --wk-danger: #a5361c;
+  --wk-ok: #2f6b3a;
+}
+
+/* In der Vorschau des Editors: ein Kasten, nicht das ganze Fenster. */
+.wk-deck.is-embedded {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  height: min(70vh, 40rem);
+  border: 1px solid var(--wk-line);
+  border-radius: 10px;
+}
+
+body.has-deck { overflow: hidden; }
+
+/* -- Die Leiste der Slajdy ----------------------------------------------- */
+.wk-deck-nav {
+  z-index: 3;
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.45rem clamp(0.6rem, 3vw, 1.6rem);
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--deck-chrome);
+  border-bottom: 1px solid var(--deck-line);
+  backdrop-filter: blur(10px);
+}
+.wk-deck-nav::-webkit-scrollbar { display: none; }
+.wk-deck-nav a,
+.wk-deck-nav button {
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem;
+  background: none;
+  color: var(--deck-muted);
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease;
+}
+.wk-deck-nav a:hover, .wk-deck-nav button:hover { color: var(--deck-ink); border-color: var(--deck-line); }
+.wk-deck-nav .is-active { color: var(--deck-ink); border-color: var(--deck-accent); }
+.wk-deck-nav a:focus-visible, .wk-deck-nav button:focus-visible { outline: 2px solid var(--deck-accent); outline-offset: 1px; }
+
+/* -- Bahn, Slajd, Schichten ------------------------------------------------ */
+.wk-deck-viewport {
+  position: relative;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+.wk-deck-track { position: absolute; inset: 0; width: 100%; will-change: transform; }
+.wk-deck-slide { position: relative; width: 100%; overflow: hidden; }
+
+/* Eine Schattierung je Slajd: oben heller, unten dunkler — trennt einen Slajd vom nächsten. */
+.wk-deck-slide::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 20%, rgba(0, 0, 0, 0.08) 55%, rgba(0, 0, 0, 0.32) 100%);
+}
+.wk-deck.is-light .wk-deck-slide::after {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.08) 20%, rgba(0, 0, 0, 0.03) 55%, rgba(0, 0, 0, 0.13) 100%);
+}
+
+.wk-deck-layer { position: absolute; top: 0; left: 0; width: 100%; will-change: transform; pointer-events: none; }
+.wk-deck-layer.is-bigtext { display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.wk-deck-bigtext {
+  width: min(1320px, 100%);
+  padding: 0 clamp(1rem, 6vw, 5rem);
+  display: grid;
+  gap: 0;
+  will-change: transform;
+}
+.wk-deck-bigtext span {
+  display: block;
+  font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  font-weight: 700;
+  font-size: clamp(3.2rem, 15vw, 11rem);
+  line-height: 0.86;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--deck-ink);
+  overflow-wrap: anywhere;
+}
+
+.wk-deck-content-layer {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 0 clamp(0.8rem, 5vw, 3rem);
+  box-sizing: border-box;
+}
+.wk-deck-content {
+  width: 100%;
+  max-width: 52rem;
+  margin-block: auto;
+  padding: clamp(1.6rem, 6vh, 4.5rem) 0;
+  display: grid;
+  gap: 1rem;
+  align-content: center;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.wk-deck-content.is-wide { max-width: 76rem; }
+
+/* Der Baustein auf dem Slajd: eine Tafel, durch die der Hintergrund nur schimmert. */
+.wk-deck-card {
+  position: relative;
+  display: grid;
+  gap: 0.75rem;
+  padding: clamp(1rem, 3vw, 1.8rem);
+  border: 1px solid var(--deck-line);
+  border-radius: 10px;
+  background: var(--deck-panel);
+  backdrop-filter: blur(8px);
+  color: var(--deck-ink);
+  min-width: 0;
+}
+.wk-deck-card .wk-card-title {
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  font-size: clamp(1.7rem, 4vw, 2.6rem);
+  font-weight: 600;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+.wk-deck-card .wk-card-muted, .wk-deck-card .wk-hint { color: var(--deck-muted); }
+.wk-deck-card .wk-card-full { position: absolute; top: 0.6rem; right: 0.6rem; }
+
+/* Der Titelslajd: Titel und Vorspann der Seite, gross, ohne Tafel. */
+.wk-deck-cover { display: grid; gap: 1rem; text-align: center; justify-items: center; }
+.wk-deck-cover h1 {
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  font-size: clamp(2.4rem, 8vw, 5rem);
+  font-weight: 600;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+.wk-deck-cover p { margin: 0; max-width: 40rem; color: var(--deck-muted); font-size: var(--wk-text-lg); line-height: 1.65; white-space: pre-wrap; }
+.wk-deck-extra { width: 100%; max-width: 40rem; text-align: left; display: grid; gap: 0.75rem; justify-self: center; }
+
+/* -- Unten: wessen Slajdy, wo man ist, die Pfeile ------------------------- */
+.wk-deck-foot {
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.35rem clamp(0.6rem, 3vw, 1.6rem) calc(0.35rem + env(safe-area-inset-bottom, 0px));
+  background: var(--deck-chrome);
+  border-top: 1px solid var(--deck-line);
+  font-size: var(--wk-text-sm);
+  color: var(--deck-muted);
+}
+.wk-deck-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-deck-progress { font-variant-numeric: tabular-nums; }
+.wk-deck-arrows { display: flex; gap: 0.25rem; }
+.wk-deck-arrows button {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--deck-line-2);
+  border-radius: 999px;
+  background: none;
+  color: var(--deck-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.wk-deck-arrows button:disabled { opacity: 0.35; cursor: default; }
+.wk-deck-arrows button:focus-visible { outline: 2px solid var(--deck-accent); outline-offset: 1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wk-deck-layer, .wk-deck-bigtext { transform: none !important; }
+}
+
+/* -- 0084: die Bühne — Bausteine, die den Wechsel der Slajdy überleben ------ */
+.wk-deck-stage { position: absolute; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; }
+.wk-deck-actor {
+  position: absolute;
+  width: var(--actor-w);
+  max-width: 96%;
+  pointer-events: auto;
+  will-change: transform, left, top, opacity;
+  transform-origin: 50% 50%;
+}
+@media (max-width: 640px) { .wk-deck-actor { width: var(--actor-w-narrow); } }
+.wk-deck-actor > .wk-deck-card { box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28); }
+.wk-deck-actor-bare { color: var(--deck-ink); }
+.wk-deck-actor-bare .wk-card-title { margin: 0; font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif; font-size: clamp(1.5rem, 3.4vw, 2.4rem); }
+.wk-deck-actor-bare img { display: block; max-width: 100%; height: auto; }
+
+
+/* -- Der Editor der Slajdy (0062): links die Folge, rechts die Vorschau ----- */
+.se {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+@media (min-width: 1100px) {
+  .se { grid-template-columns: minmax(22rem, 0.9fr) minmax(0, 1.1fr); }
+  .se-preview { position: sticky; top: var(--wk-sticky-top); }
+}
+.se-side { display: grid; gap: 1rem; min-width: 0; }
+.se-preview { display: grid; gap: 0.375rem; min-width: 0; }
+
+.se-theme { border: 1px solid var(--wk-line); border-radius: 6px; padding: 0.75rem 1rem; display: grid; gap: 0.5rem; margin: 0; }
+.se-theme legend { font-weight: 600; padding: 0 0.25rem; }
+.se-colors { display: grid; gap: 0.375rem; }
+
+.se-color { display: grid; grid-template-columns: 7rem 2.4rem minmax(0, 1fr); gap: 0.5rem; align-items: center; font-size: var(--wk-text-sm); }
+.se-color input[type='color'] { width: 2.4rem; height: 2rem; padding: 0; border: 1px solid var(--wk-line); border-radius: 4px; background: none; cursor: pointer; }
+.se-color-text { font: inherit; font-family: ui-monospace, 'Cascadia Mono', monospace; font-size: var(--wk-text-sm); padding: 0.25rem 0.5rem; border: 1px solid var(--wk-line); border-radius: 4px; background: var(--wk-surface); color: var(--wk-ink); min-width: 0; }
+
+.se-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.375rem; }
+.se-item { border: 1px solid var(--wk-line); border-radius: 6px; background: var(--wk-surface); }
+.se-item.is-open { border-color: var(--wk-accent); }
+.se-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.5rem; }
+.se-num {
+  flex-shrink: 0; width: 1.8rem; height: 1.8rem; border-radius: 999px; border: 1px solid var(--wk-line);
+  background: var(--wk-soft); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.se-name {
+  flex: 1; min-width: 0; display: grid; text-align: left; border: 0; background: none; color: var(--wk-ink);
+  font: inherit; cursor: pointer; padding: 0.125rem 0.25rem;
+}
+.se-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.se-kind { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.se-tools { display: inline-flex; gap: 0.25rem; margin-left: auto; }
+.se-tools button {
+  width: 1.8rem; height: 1.8rem; border: 1px solid var(--wk-line); border-radius: 4px; background: none;
+  color: var(--wk-ink); font: inherit; cursor: pointer;
+}
+.se-tools button:disabled { opacity: 0.35; cursor: default; }
+.se-tools .se-drop { color: var(--wk-danger); }
+.se-body { display: grid; gap: 0.75rem; padding: 0.25rem 0.75rem 1rem; border-top: 1px solid var(--wk-line); }
+
+.se-layers { display: grid; gap: 0.5rem; }
+
+/* 0084 — der Wechsel eines Slajds, und die Bühne. */
+.se-motion { display: grid; gap: 0.75rem; }
+.se-num.is-stage { color: var(--wk-accent); }
+.se-stage-toggle { align-items: flex-start; line-height: 1.45; }
+.se-stage-toggle input { margin-top: 0.25rem; flex: none; }
+.se-stage { display: grid; gap: 0.5rem; }
+.se-stage-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.se-stage-slide { display: grid; gap: 0.375rem; padding: 0.5rem 0.5rem; border: 1px solid var(--wk-line); border-radius: 6px; }
+.se-stage-slide.is-set { border-color: var(--wk-accent); }
+.se-stage-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.se-stage-places { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; }
+.se-layer { border: 1px solid var(--wk-line); border-radius: 6px; padding: 0.5rem 0.75rem 0.75rem; display: grid; gap: 0.5rem; margin: 0; }
+.se-layer legend { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: var(--wk-text-sm); padding: 0 0.25rem; }
+.se-inline { display: grid; grid-template-columns: 7rem minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; font-size: var(--wk-text-sm); }
+.se-inline input:not([type='range']), .se-inline select { font: inherit; padding: 0.25rem 0.5rem; border: 1px solid var(--wk-line); border-radius: 4px; background-color: var(--wk-surface); color: var(--wk-ink); min-width: 0; }
+.se-inline output { font-variant-numeric: tabular-nums; font-size: var(--wk-text-sm); color: var(--wk-muted); min-width: 2.4rem; text-align: right; }
+
+.se-images { display: grid; gap: 0.25rem; }
+.se-thumbs { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.se-thumb { position: relative; width: 5.2rem; height: 3.4rem; }
+.se-thumb > button:first-child {
+  width: 100%; height: 100%; border: 2px solid transparent; border-radius: 6px;
+  background-color: var(--wk-soft); background-size: cover; background-position: center; cursor: pointer;
+}
+.se-thumb.is-on > button:first-child { border-color: var(--wk-accent); }
+.se-thumb-x {
+  position: absolute; top: -0.4rem; right: -0.4rem; width: 1.3rem; height: 1.3rem; border-radius: 999px;
+  border: 1px solid var(--wk-line); background: var(--wk-surface); color: var(--wk-danger); font-size: var(--wk-text-sm); line-height: 1; cursor: pointer;
+}
+.se-thumb-add {
+  width: 5.2rem; height: 3.4rem; border: 1px dashed var(--wk-line); border-radius: 6px; background: none;
+  color: var(--wk-muted); font: inherit; font-size: var(--wk-text-xs); cursor: pointer;
+}
+.se-add { display: grid; gap: 0.375rem; }
+.se-add .pb-palette { display: flex; flex-wrap: wrap; gap: 0.375rem; }

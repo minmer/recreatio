@@ -24,10 +24,10 @@
 import { certificateValue } from './access';
 import {
   aad, Field, fromBase64Url, KEY_SIZE, signCanonical, toBase64Url, unwrapKey, wrapKey
-} from './crypto';
-import { newId } from './ids';
-import type { Ring, SealedRole } from './keys';
-import { call, WorkspaceError } from './session';
+} from '../core/crypto';
+import { newId } from '../core/ids';
+import type { Ring, SealedRole } from '../core/keys';
+import { call, WorkspaceError } from '../core/session';
 
 /**
  * Die AAD des Epochenschlüssels — an EINER Stelle, wie in `keys.ts`.
@@ -366,24 +366,6 @@ export async function myEpochKeys(ring: Ring, areaId: string): Promise<Map<numbe
   return out;
 }
 
-/* -- Offenlegen ------------------------------------------------------------- */
-
-/**
- * Eine Epoche offenlegen.
- *
- * <b>Das ist es, was „öffentlich" auf dieser Plattform heisst.</b> Kein
- * Schalter an einem Eintrag, sondern ein Schlüssel, der offenliegt — und damit
- * gilt es für ALLES, was je unter dieser Epoche versiegelt wurde. Es lässt sich
- * nicht zurücknehmen: wer den Schlüssel einmal geholt hat, hat ihn.
- */
-export const publishEpoch = (
-  areaId: string, epoch: number, key: Uint8Array
-): Promise<{ areaId: string; epoch: number; published: boolean }> =>
-  call(`/workspace/area/${encodeURIComponent(areaId)}/publish`, {
-    method: 'POST',
-    body: JSON.stringify({ epoch, key: toBase64Url(key) })
-  });
-
 /* -- Weitergeben ------------------------------------------------------------ */
 
 /**
@@ -504,26 +486,4 @@ export const dropFromArea = (
   call(`/workspace/area/${encodeURIComponent(areaId)}/drop`, {
     method: 'POST',
     body: JSON.stringify({ roleId })
-  });
-
-/* -- Die Portalseite eines Bereichs (0028) --------------------------------- */
-
-/**
- * Welche Seite das Portal dieses Bereichs zeichnet — und unter welcher Adresse
- * seine Links stehen.
- *
- * <b>Sie gehört zum BEREICH und nicht zum einzelnen Platz.</b> Alle sehen
- * denselben Aufbau; verschieden ist nur, was in den persönlichen Bausteinen
- * steht. Sie bei jedem Ausstellen erneut einzutippen hiesse, dieselbe Angabe
- * zweihundertmal zu wiederholen — und beim zweihundertersten Mal anders.
- */
-export const areaPortal = (areaId: string): Promise<{ path: string | null }> =>
-  call(`/workspace/area/${encodeURIComponent(areaId)}/portal`);
-
-export const setAreaPortal = (
-  areaId: string, path: string | null
-): Promise<{ path: string | null }> =>
-  call(`/workspace/area/${encodeURIComponent(areaId)}/portal`, {
-    method: 'POST',
-    body: JSON.stringify({ path })
   });

@@ -10,11 +10,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { loadAreas } from '../area';
-import { fromBase64Url } from '../crypto';
-import type { Me } from '../me';
-import { loadSeatChats, seatIdentity } from '../seatChat';
-import type { SeatView } from '../seatContext';
+import { loadAreas } from '../areas/area';
+import { fromBase64Url } from '../core/crypto';
+import type { Me } from '../core/me';
+import { loadSeatChats, seatIdentity } from '../seats/seatChat';
+import type { SeatView } from '../seats/seatContext';
 import { Learner, targetOf, type Holder, type Target } from './learn';
 import type { CogitaLibrary } from './store';
 

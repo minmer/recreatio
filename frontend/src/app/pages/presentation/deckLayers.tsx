@@ -21,9 +21,9 @@
 
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
 
-import { MotionBox } from './MotionBox';
-import { readMotionUse, type MotionUse } from './motion';
-import { imageUrl, type Layer, type MeshLayer, type WavesLayer } from './slides';
+import { MotionBox } from '../motion/MotionBox';
+import { readMotionUse, type MotionUse } from '../motion/motion';
+import { imageUrl, type Layer, type MeshLayer, type WavesLayer } from '../slides/slideLook';
 
 /** Eine Farbe einer Schicht: die vier Namen des Themas als seine Variablen — sie gehen mit den Slajdy mit. */
 export function layerPaint(color: string): string {

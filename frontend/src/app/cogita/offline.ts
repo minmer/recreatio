@@ -13,10 +13,10 @@
  * nichts — dort lebt nicht einmal der Schlüssel länger als der Tab.
  */
 
-import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../crypto';
-import { idbDelete, idbGet, idbKeys, idbPut } from '../idb';
-import { device } from '../kept';
-import type { Card } from './cards';
+import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
+import { idbDelete, idbGet, idbKeys, idbPut } from '../core/idb';
+import { device } from '../core/kept';
+import type { Card } from './cardBasics';
 import type { Dependency } from './knowness';
 
 export interface OfflineRevision {

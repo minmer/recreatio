@@ -29,9 +29,10 @@
  * passt, nimmt die Vorgabe an; geworfen wird nie.
  */
 
-import type { Layout } from './layout';
-import { motionsJson, readMotions, type MotionUse } from './motion';
-import { COLOR_KEYS, layersJson, readLayers, type Layer, type SlideColors } from './slides';
+import type { Layout } from '../layout';
+import { motionsJson, readMotions, type MotionUse } from '../motion/motion';
+import { COLOR_KEYS, type SlideColors } from '../slides/slides';
+import { layersJson, readLayers, type Layer } from '../slides/slideLook';
 
 /* -- Wörterbücher ------------------------------------------------------------------ */
 
@@ -513,9 +514,6 @@ function readGo(value: unknown): Record<string, string> {
 }
 
 export const readPiece = (layout: Layout): Piece => readPieceValue(layout.show);
-
-/** Steht der Baustein überhaupt in der Präsentation? */
-export const isPlaced = (layout: Layout): boolean => Object.keys(readPiece(layout).places).length > 0;
 
 const roundTo = (value: number, digits = 2): number => {
   const f = 10 ** digits;

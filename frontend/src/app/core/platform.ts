@@ -54,9 +54,6 @@ const runnerVault: RunnerVault | undefined = typeof window === 'undefined'
   ? undefined
   : (window as Window & { RecreatioRunner?: RunnerVault }).RecreatioRunner;
 
-/** Läuft das hier im Läufer der App (unsichtbar, im Hintergrund)? */
-export const inRunner: boolean = runnerVault !== undefined;
-
 /**
  * Kleines, das einen Neustart übersteht — und NICHT mehr.
  *

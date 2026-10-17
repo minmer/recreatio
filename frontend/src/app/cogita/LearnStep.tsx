@@ -16,13 +16,13 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { libraryKindOf } from '../library';
-import { useLibraries } from '../LibraryPick';
-import { useLibraryStore } from '../libraryStore';
-import { useMe, useWho } from '../me';
-import type { SeatView } from '../seatContext';
-import { dueText, markOwnStep, type StepState } from '../steps';
-import type { Card } from './cards';
+import { libraryKindOf } from '../library/library';
+import { useLibraries } from '../library/LibraryPick';
+import { useLibraryStore } from '../library/libraryStore';
+import { useMe, useWho } from '../core/me';
+import type { SeatView } from '../seats/seatContext';
+import { dueText, markOwnStep, type StepState } from '../steps/steps';
+import type { Card } from './cardBasics';
 import { readPlan } from './revision';
 import { RevisionRun } from './RevisionRun';
 import { learnedShare, seatCtx, useSeatLearner, useSeatLibrary } from './seatLearn';

@@ -17,10 +17,10 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { libraryKindOf, loadLibraries, loadPublished, openLibraries, summaryOf, type LibraryKind, type OpenLibrary, type PublishedItem } from './library';
 import { kindOf, str, type LibEntry } from './libraryKinds';
 import type { LibraryStore } from './libraryStore';
-import { useMe, useWho } from './me';
-import { viewPath } from './routes';
-import { WorkspaceError, type Who } from './session';
-import { Loading } from './ui/Loading';
+import { useMe, useWho } from '../core/me';
+import { viewPath } from '../routes';
+import { WorkspaceError, type Who } from '../core/session';
+import { Loading } from '../ui/Loading';
 
 /** Wie ein Eintrag als Wahl erscheint: Titel und, wo es hilft, etwas dazu. */
 export function entryLine(entry: LibEntry, store: LibraryStore): string {

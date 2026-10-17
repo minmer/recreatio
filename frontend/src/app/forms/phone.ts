@@ -252,14 +252,3 @@ export function dialable(value: string): string | null {
    */
   return '+' + one.replace(/\D/g, '');
 }
-
-/**
- * Die ERSTE Nummer eines Feldes — für einen Link, der genau ein Ziel hat.
- *
- * Ein Feld kann mehrere tragen (Mutter, Vater, Kind); ein `sms:`-Ziel nicht.
- * Welche gemeint ist, sagt die Reihenfolge: die zuerst eingetragene.
- */
-export const firstPhone = (value: string): string | null => {
-  const all = splitPhones(value);
-  return all.length === 0 ? null : dialable(all[0]);
-};

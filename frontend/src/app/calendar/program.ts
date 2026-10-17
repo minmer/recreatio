@@ -6,13 +6,13 @@
  * ist. Hier wird geöffnet und zum Baum zusammengesetzt.
  */
 
-import { loadPublicKey } from './area';
+import { loadPublicKey } from '../areas/area';
 import { emptyTexts, itemFieldAad, putText, type ItemTexts, type SealedField } from './calendar';
-import { areaKeys } from './chat';
-import { fromBase64Url, openText } from './crypto';
-import { heldAreaKey, heldProofs } from './linkAccess';
-import type { Ring } from './keys';
-import { call } from './session';
+import { areaKeys } from '../chat/chat';
+import { fromBase64Url, openText } from '../core/crypto';
+import { heldAreaKey, heldProofs } from '../links/linkAccess';
+import type { Ring } from '../core/keys';
+import { call } from '../core/session';
 
 export interface ProgramRow {
   readonly itemId: string;

@@ -13,10 +13,10 @@
 
 import { useEffect, useState } from 'react';
 
-import { areaKeys, newestKey } from './chat';
-import { idbDelete, idbForget, idbGet, idbPut } from './idb';
-import { newId } from './ids';
-import type { Ring } from './keys';
+import { areaKeys, newestKey } from '../chat/chat';
+import { idbDelete, idbForget, idbGet, idbPut } from '../core/idb';
+import { newId } from '../core/ids';
+import type { Ring } from '../core/keys';
 import {
   forgetLibraryNames, loadEntries, loadPublishedOne, openEntry, publishEntries, putEntry, removeEntry, sealEntry,
   type EntryDoc, type LibraryRow, type SealedEntry
@@ -27,8 +27,8 @@ import {
   type EntryData, type LibEntry, type Lookup
 } from './libraryKinds';
 import { citedKeys } from './libraryMarkup';
-import { plan, publicEntry, type PublishedAs, type PublishPlan, type PubEntry } from './libraryPublish';
-import { WorkspaceError } from './session';
+import { plan, publicEntry, type PublishPlan, type PubEntry } from './libraryPublish';
+import { WorkspaceError } from '../core/session';
 
 export interface Entry extends PubEntry {
   readonly key?: string;
@@ -477,5 +477,3 @@ export function useLibraryStore(ring: Ring | null, library: Pick<LibraryRow, 'li
 
   return { store, revision, failed };
 }
-
-export type { PublishedAs };

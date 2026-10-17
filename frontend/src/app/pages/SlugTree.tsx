@@ -28,15 +28,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { openSubpage } from './access';
-import { areaPath, inOrder, loadAreas, type AreaRow } from './area';
-import { kindName, moveSlug, setPageAreas, takers, type Desk, type PageCard } from './desk';
-import { myRoleNames, roleLabel } from './roleNames';
-import type { Ring } from './keys';
-import { keysFor } from './ringOf';
-import { pagePath, PATH_SHAPE } from './routes';
-import { WorkspaceError, type Who } from './session';
-import type { Node } from './tree';
+import { openSubpage } from '../areas/access';
+import { areaPath, inOrder, loadAreas, type AreaRow } from '../areas/area';
+import { kindName, moveSlug, setPageAreas, takers, type Desk, type PageCard } from '../workspace/desk';
+import { myRoleNames, roleLabel } from '../roles/roleNames';
+import type { Ring } from '../core/keys';
+import { keysFor } from '../core/ringOf';
+import { pagePath, PATH_SHAPE } from '../routes';
+import { WorkspaceError, type Who } from '../core/session';
+import type { Node } from '../core/tree';
 
 /** Nur ein Stück, keine Schrägstriche: an einer Stelle im Baum ist das der Name. */
 const SEGMENT = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

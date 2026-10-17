@@ -16,13 +16,13 @@
 import { useCallback, useState } from 'react';
 
 import { ENTRIES_FORMAT, entriesDescription, exportEntries, planEntries, type EntriesContext, type ExistingRecord } from './entriesJson';
-import { addOfficeEntry, reviseAcrossAsOffice } from './form';
+import { addOfficeEntry, reviseAcrossAsOffice } from './revisions';
 import { readForm, type ReadForm } from './formRead';
-import { JsonPanel, type JsonPreview } from './JsonPanel';
-import { keysFor } from './ringOf';
+import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
+import { keysFor } from '../core/ringOf';
 import { repeatOf } from './rounds';
-import { WorkspaceError, type Who } from './session';
-import type { ExtensionInfo } from './steps';
+import { WorkspaceError, type Who } from '../core/session';
+import type { ExtensionInfo } from '../steps/steps';
 
 interface Loaded {
   readonly ctx: EntriesContext;

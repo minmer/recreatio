@@ -25,12 +25,12 @@
  * Ansicht; was geschützt sein muss, schützt der Schlüssel.
  */
 
-import { progressOf as taskProgress } from './candidateTasks';
+import { progressOf as taskProgress } from '../steps/candidateTasks';
 import { createContext, useContext } from 'react';
 
-import { gate } from './cogita/logic';
-import { sha256, toBase64Url } from './crypto';
-import type { SeatView } from './seatContext';
+import { gate } from '../cogita/logic';
+import { sha256, toBase64Url } from '../core/crypto';
+import type { SeatView } from '../seats/seatContext';
 
 /* -- Das Modell ------------------------------------------------------------------ */
 

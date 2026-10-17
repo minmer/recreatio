@@ -10,17 +10,17 @@
 import { useEffect, useState } from 'react';
 
 import { accessWords, linkSecrets, redeemLink, showLink, type LinkInfo } from './linkAccess';
-import { loadCalendars } from './calendar';
+import { loadCalendars } from '../calendar/calendar';
 import { useLinkMe } from './linkMe';
-import type { SealedRole } from './keys';
-import { forgetKeys, keysFor } from './ringOf';
-import { personsOf } from './roles';
-import { tilesPath, viewPath } from './routes';
-import { WorkspaceError, type Who } from './session';
-import { Unlock } from './Unlock';
-import { LinkChatsSection } from './LinkChatJoin';
-import type { Ring } from './keys';
-import { Loading } from './ui/Loading';
+import type { SealedRole } from '../core/keys';
+import { forgetKeys, keysFor } from '../core/ringOf';
+import { personsOf } from '../roles/roles';
+import { tilesPath, viewPath } from '../routes';
+import { WorkspaceError, type Who } from '../core/session';
+import { Unlock } from '../shell/Unlock';
+import { LinkChatsSection } from '../chat/LinkChatJoin';
+import type { Ring } from '../core/keys';
+import { Loading } from '../ui/Loading';
 
 /** 0074 — was eine Stufe in einem Bereich heisst, ausführlich. */
 const LEVEL_SAYS: Record<string, string> = {

@@ -22,16 +22,17 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { chatKeysOf, openMessage, openNames, type SealedMessage } from './chat';
 import { authorText, messageAuthor } from './chatAuthor';
 import { chatEndpoint } from './chatFeatures';
-import { ChatHeader, ChatLog, type MessageHandlers, type MessageRules, type Shown } from './ChatKit';
-import { heldLinkKeys } from './linkAccess';
+import { ChatHeader, type Shown } from './ChatKit';
+import { ChatLog, type MessageHandlers, type MessageRules } from './ChatLog';
+import { heldLinkKeys } from '../links/linkAccess';
 import {
   createLinkPerson, linkChats, loadLinkChat, loadLinkMessages, personFor, portalOf, type HeldPerson, type LinkChat, type LinkChatDetail
-} from './linkPerson';
-import type { SeatView } from './seatContext';
+} from '../links/linkPerson';
+import type { SeatView } from '../seats/seatContext';
 import { SeatChatBody } from './SeatChatView';
-import { loadSeatChats } from './seatChat';
-import { WorkspaceError } from './session';
-import { Loading } from './ui/Loading';
+import { loadSeatChats } from '../seats/seatChat';
+import { WorkspaceError } from '../core/session';
+import { Loading } from '../ui/Loading';
 
 /** Imię, nazwisko — und „Dołącz". */
 export function IntroduceToChat({ chat, under, onJoined }: {

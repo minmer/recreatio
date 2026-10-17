@@ -10,32 +10,32 @@
 
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 
-import { AccessLinks } from './AccessLinks';
+import { AccessLinks } from '../links/AccessLinks';
 import { alertItems, useAlertSettings, type TodayItem } from './alerts';
 import { AlertRows } from './AlertList';
-import { loadMembers, type AreaRow } from './area';
-import { namesInArea } from './called';
-import { Calendar } from './CalendarApp';
-import { areaKeys, loadAreaNames, openNames, type ChatRow } from './chat';
-import { loadCalendars } from './calendar';
-import { addDays, keyOf, startOfDay } from './dayMath';
+import { loadMembers, type AreaRow } from '../areas/area';
+import { namesInArea } from '../roles/called';
+import { Calendar } from '../calendar/CalendarApp';
+import { areaKeys, loadAreaNames, openNames, type ChatRow } from '../chat/chat';
+import { loadCalendars } from '../calendar/calendar';
+import { addDays, keyOf, startOfDay } from '../core/dayMath';
 import type { Desk } from './desk';
-import { accessWords, linkState } from './linkAccess';
-import { useNow } from './MassParts';
-import { useMe } from './me';
-import { current, subscribe } from './notify';
-import { keysFor } from './ringOf';
-import { selfOf } from './roles';
-import { formNewsPath, formPath, pageSteps, viewPath } from './routes';
-import { loadSeats } from './seat';
-import { WorkspaceError, type Who } from './session';
-import { plural } from './plural';
-import { ShareButton } from './Share';
-import { afterState, loadTasks, markDone, openTasks, windowState, type OpenTask, type TaskOccurrence } from './tasks';
+import { accessWords, linkState } from '../links/linkAccess';
+import { useNow } from '../masses/MassParts';
+import { useMe } from '../core/me';
+import { current, subscribe } from '../notify/notify';
+import { keysFor } from '../core/ringOf';
+import { selfOf } from '../roles/roles';
+import { formNewsPath, formPath, pageSteps, viewPath } from '../routes';
+import { loadSeats } from '../seats/seat';
+import { WorkspaceError, type Who } from '../core/session';
+import { plural } from '../core/plural';
+import { ShareButton } from '../links/Share';
+import { afterState, loadTasks, markDone, openTasks, windowState, type OpenTask, type TaskOccurrence } from '../calendar/tasks';
 import { agendaNow, areasNow, chatsNow, invalidate, linksNow, modulesNow, useLoaded } from './viewData';
 import type { PartKind, ViewConfig } from './workspaceViews';
-import { Loading } from './ui/Loading';
-import { LearnPart } from './cogita/LearnPart';
+import { Loading } from '../ui/Loading';
+import { LearnPart } from '../cogita/LearnPart';
 
 export interface PartProps {
   readonly mode: string;

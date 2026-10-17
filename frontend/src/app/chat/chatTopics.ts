@@ -9,10 +9,10 @@
  */
 
 import { newestKey } from './chat';
-import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from './crypto';
-import { newId } from './ids';
-import type { SealedField } from './calendar';
-import { call, WorkspaceError } from './session';
+import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
+import { newId } from '../core/ids';
+import type { SealedField } from '../calendar/calendar';
+import { call, WorkspaceError } from '../core/session';
 
 export interface TopicRow {
   readonly topicId: string;
@@ -70,20 +70,8 @@ export async function createTopic(
   return topicId;
 }
 
-export async function renameTopic(topicId: string, keys: ReadonlyMap<number, Uint8Array>, title: string): Promise<void> {
-  const newest = newestKey(keys);
-  if (newest === null) throw new WorkspaceError('Nie masz klucza tej rozmowy.');
-  await call(`/workspace/chat/topic/${encodeURIComponent(topicId)}`, {
-    method: 'POST',
-    body: JSON.stringify({ epoch: newest.epoch, titleSealed: toBase64Url(await sealText(newest.key, topicAad(topicId), title.trim().slice(0, 200))) })
-  });
-}
-
 export const closeTopic = (topicId: string, closed: boolean): Promise<{ updated: boolean }> =>
   call(`/workspace/chat/topic/${encodeURIComponent(topicId)}`, { method: 'POST', body: JSON.stringify({ closed }) });
-
-export const moveToTopic = (messageId: string, topicId: string | null): Promise<{ topicId: string | null }> =>
-  call(`/workspace/chat/message/${encodeURIComponent(messageId)}/topic`, { method: 'POST', body: JSON.stringify({ topicId }) });
 
 /**
  * 0101 — ZUSAMMENTRAGEN: mehrere Nachrichten in EIN Thema (`null`: ohne Thema).

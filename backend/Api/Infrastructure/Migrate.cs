@@ -120,6 +120,88 @@ public static class Migrate
         return failures == 0 ? 0 : 1;
     }
 
+    /// <summary>
+    /// Skripte, die schon VON HAND angewendet wurden, als angewendet eintragen —
+    /// ohne sie auszuführen (<c>migrate --record-through 0111</c>).
+    ///
+    /// <para>
+    /// <b>Wofür.</b> 0078 bis 0111 liefen auf der einen Datenbank einzeln, ohne
+    /// Eintrag. Liefen sie jetzt der Reihe nach noch einmal, setzte 0099 die
+    /// Regel der Schritte auf ihren damaligen Stand zurück — und scheiterte an
+    /// einem Schritt der Art <c>booking</c> (0100), den es inzwischen gibt.
+    /// Eingetragen wird deshalb, was nachweislich schon steht
+    /// (<c>Sql/diagnostics/applied_0078_0111.sql</c> sagt es vorher).
+    /// </para>
+    ///
+    /// <para>
+    /// Nur Skripte bis einschliesslich <paramref name="through"/> (Nummer oder
+    /// Name), nie ein zerstörendes (0000), und mit derselben Prüfsumme, die ein
+    /// gewöhnlicher Lauf eintrüge.
+    /// </para>
+    /// </summary>
+    public static async Task<int> RecordAsync(string connectionString, string through, bool dryRun)
+    {
+        var last = through.Length >= 4 ? through[..4] : through;
+        if (last.Length != 4 || !last.All(char.IsDigit))
+        {
+            Console.Error.WriteLine("  !!   --record-through braucht eine vierstellige Nummer, etwa 0111.");
+            return 2;
+        }
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        Console.WriteLine($"Datenbank: {connection.Database} auf {connection.DataSource}");
+        Console.WriteLine();
+
+        await EnsureBookkeepingAsync(connection);
+        var applied = await AppliedAsync(connection);
+        var recorded = 0;
+
+        foreach (var (name, text) in Scripts())
+        {
+            if (name.StartsWith(DestructivePrefix, StringComparison.Ordinal)) continue;
+            if (string.CompareOrdinal(name[..4], last) > 0) break;
+            if (applied.ContainsKey(name)) continue;
+
+            if (dryRun)
+            {
+                Console.WriteLine($"  ??   {name} wuerde als angewendet eingetragen");
+                recorded++;
+                continue;
+            }
+
+            await using var mark = new SqlCommand(
+                "INSERT INTO app.schema_version (name, checksum, applied_at) VALUES (@n, @c, @t);", connection);
+            mark.Parameters.AddWithValue("@n", name);
+            mark.Parameters.AddWithValue("@c", Checksum(text));
+            mark.Parameters.AddWithValue("@t", DateTimeOffset.UtcNow);
+            await mark.ExecuteNonQueryAsync();
+
+            Console.WriteLine($"  OK   {name} eingetragen (nicht ausgefuehrt)");
+            recorded++;
+        }
+
+        Console.WriteLine();
+        Console.WriteLine(recorded == 0 ? "Nichts einzutragen." : $"Fertig: {recorded} Skript(e).");
+        return 0;
+    }
+
+    /// <summary>Die eingebetteten Skripte, die noch keinen Eintrag haben — für die Übersicht der Übertragung.</summary>
+    internal static async Task<List<string>> UnrecordedAsync(SqlConnection connection, CancellationToken ct)
+    {
+        var applied = new HashSet<string>(StringComparer.Ordinal);
+        await using (var cmd = new SqlCommand(
+            "IF OBJECT_ID('app.schema_version', 'U') IS NOT NULL SELECT name FROM app.schema_version;", connection))
+        {
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) applied.Add(reader.GetString(0));
+        }
+
+        return Scripts().Select(s => s.Name)
+            .Where(n => !n.StartsWith(DestructivePrefix, StringComparison.Ordinal) && !applied.Contains(n))
+            .ToList();
+    }
+
     /// <summary>Das Fach für die Fassungen entsteht ausserhalb der Buchführung — es IST sie.</summary>
     private static async Task EnsureBookkeepingAsync(SqlConnection connection)
     {

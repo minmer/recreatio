@@ -17,10 +17,10 @@
  * Bibliothek, zeigt das Werk auf ihn; sonst entsteht er neu.
  */
 
-import { newId } from './ids';
+import { newId } from '../core/ids';
 import { isbn13 } from './isbn';
 import { personName, slug, str, type EntryData, type LibEntry } from './libraryKinds';
-import { call } from './session';
+import { call } from '../core/session';
 
 export interface CatalogName {
   readonly given?: string;
@@ -492,11 +492,6 @@ export function planBook(book: CatalogBook, people: readonly LibEntry[], existin
   return { persons, data, filled };
 }
 
-/** Steht diese ISBN schon in einem Werk? */
-export function worksWithIsbn(works: readonly LibEntry[], isbn: string, isbnsOf: (text: string) => string[]): LibEntry[] {
-  return works.filter((w) => isbnsOf(str(w.data, 'isbn')).includes(isbn));
-}
-
 /** Die nächste freie Nummer in der Art der zuletzt vergebenen: „B-0123" → „B-0124". */
 export function nextLibraryNumber(works: readonly (LibEntry & { readonly updatedAt?: string })[]): string {
   const numbered = works
@@ -514,4 +509,3 @@ export function nextLibraryNumber(works: readonly (LibEntry & { readonly updated
 /** Werke mit derselben eigenen Nummer — eine Nummer gehört einem Exemplar. */
 export const sameNumber = (works: readonly LibEntry[], number: string, except: string): LibEntry[] =>
   number.trim() === '' ? [] : works.filter((w) => w.id !== except && fold(str(w.data, 'libraryNumber')) === fold(number));
-

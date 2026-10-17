@@ -15,17 +15,17 @@
 import { useState } from 'react';
 
 import { ensurePrivateArea, type RepeatKind } from './agenda';
-import type { AreaRow } from './area';
-import type { Me } from './me';
-import { Modal } from './Modal';
-import { useRecent } from './prefs';
-import { WorkspaceError } from './session';
+import type { AreaRow } from '../areas/area';
+import type { Me } from '../core/me';
+import { Modal } from '../ui/Modal';
+import { useRecent } from '../core/prefs';
+import { WorkspaceError } from '../core/session';
 import {
   archiveTask, everyWords, REMIND, REMIND_WORD, saveTask,
   type OpenTask, type ReminderKind, type TaskKind, type TaskOrigin
 } from './tasks';
-import { bitOf, fromLocal, localDate, localTime, PRIVATE, Weekdays, WhoSees } from './WhoSees';
-import { askText } from './ui/dialogs';
+import { bitOf, fromLocal, localDate, localTime, PRIVATE, Weekdays, WhoSees } from '../areas/WhoSees';
+import { askText } from '../ui/dialogs';
 
 /** Das Ende eines Fensters, aus Anfang und Länge — nur für das erste Anzeigen. */
 const endOf = (from: Date, minutes: number): Date => new Date(from.getTime() + Math.max(0, minutes) * 60_000);

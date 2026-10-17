@@ -11,7 +11,7 @@
 import { Fragment, useMemo, type ReactNode } from 'react';
 
 import { bibliography, citeSegs, newCiteState, originOf, workBehind, type CiteState, type Seg } from './libraryCite';
-import { ids, kindOf, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
+import { ids, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
 import { parseMarkup, walkBlocks, type Block, type Inline } from './libraryMarkup';
 
 /** Eine Sammlung offener Fassungen als `Lookup` — so liest die öffentliche Seite. */
@@ -291,5 +291,3 @@ export function QuoteFigure({ entry, look, full = true }: { entry: LibEntry; loo
     </figure>
   );
 }
-
-export const kindLabel = (kind: string): string => kindOf(kind)?.label ?? kind;

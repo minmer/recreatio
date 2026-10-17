@@ -22,10 +22,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { adoptMenuOf, hrefOf, joinPath, loadMenu, saveMenu, type MenuItem } from './menu';
-import { WorkspaceError } from './session';
-import { askText, toast } from './ui/dialogs';
-import { Loading } from './ui/Loading';
+import { adoptMenuOf, hrefOf, loadMenu, saveMenu } from './menu';
+import { joinPath } from './menuPath';
+import { type MenuItem } from './page';
+import { WorkspaceError } from '../core/session';
+import { askText, toast } from '../ui/dialogs';
+import { Loading } from '../ui/Loading';
 
 interface Draft {
   readonly id: number;

@@ -21,7 +21,7 @@ import { consentGiven, consentValue, isYes, YES, type OpenField } from './form';
 import { missingIn, type GroupItem, type LayoutItem, type Outcome } from './formDesign';
 import { peselDigits, peselValid } from './pesel';
 import { Phones } from './Phones';
-import { PostalInput } from './PostalInput';
+import { PostalInput } from '../registry/PostalInput';
 
 export interface FlowProps {
   readonly items: readonly LayoutItem[];

@@ -18,13 +18,14 @@
 import { QRCodeSVG } from 'qrcode.react';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
-import { saveEvent } from '../agenda';
-import { loadAreas, myEpochKeys, type AreaRow } from '../area';
-import { loadIntake, openIntakeKey } from '../intake';
-import { newId } from '../ids';
+import { saveEvent } from '../calendar/agenda';
+import { loadAreas, myEpochKeys, type AreaRow } from '../areas/area';
+import { loadIntake, openIntakeKey } from '../forms/intake';
+import { newId } from '../core/ids';
 import { AnswerInput, answerText, Verdict } from './CardFace';
-import { checkCard, type Card } from './cards';
-import { contentOfBundle, contentOfLibrary, FlowPlayer } from './FlowPlayer';
+import { checkCard } from './cards';
+import { type Card } from './cardBasics';
+import { contentOfBundle, FlowPlayer } from './FlowPlayer';
 import { readFlow, resolveFlow } from './flow';
 import { readGame } from './game';
 import { GameHost, GamePlay } from './GamePanel';
@@ -39,7 +40,7 @@ import { describeRules, DEFAULT_RULES, onAllAnswered, onFirstAnswer, PRESETS, re
 import { planFor } from './RevisionRun';
 import { RevisionRun } from './RevisionRun';
 import { PublicRevisionRun } from './PublicRun';
-import { loadPublishedOne } from '../library';
+import { loadPublishedOne } from '../library/library';
 import { publicFileUrl } from './files';
 import type { PublicFlow } from './publish';
 import { CogitaContext, useBusy, useCtx } from './ui';
@@ -57,7 +58,6 @@ interface Answer { readonly participant: string; readonly device: string; readon
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const last = <T,>(list: readonly T[]): T | undefined => list[list.length - 1];
-
 
 const DEVICE = 'recreatio:cogita:device';
 const deviceId = (): string => {
@@ -784,5 +784,3 @@ function StoryPlay({ session, meta, learner, jump, raw, onAnswer, game }: {
     </div>
   );
 }
-
-export { contentOfLibrary };

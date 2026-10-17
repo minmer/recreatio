@@ -10,9 +10,9 @@
 
 import { useState } from 'react';
 
-import { forgetKeys } from './ringOf';
-import { keepsKey, unlock, WorkspaceError, type Who } from './session';
-import { PasswordInput } from './PasswordInput';
+import { forgetKeys } from '../core/ringOf';
+import { keepsKey, unlock, WorkspaceError, type Who } from '../core/session';
+import { PasswordInput } from '../ui/PasswordInput';
 
 export function Unlock({ who, onDone, why }: {
   who: Who;

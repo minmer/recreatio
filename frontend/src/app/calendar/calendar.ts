@@ -21,9 +21,9 @@
  * ausgehängte.
  */
 
-import { aad, Field, type FieldName } from './crypto';
-import { newId } from './ids';
-import { call } from './session';
+import { aad, Field, type FieldName } from '../core/crypto';
+import { newId } from '../core/ids';
+import { call } from '../core/session';
 
 /** Die Arten, die ein Eintrag haben kann — wie `ck_item_kind`. */
 /* 0079 — dazu `devotion`: das Nabożeństwo (Różaniec, Droga Krzyżowa, Gorzkie Żale …). */

@@ -13,7 +13,7 @@ const broadcastChannel = globalThis.BroadcastChannel;
 globalThis.BroadcastChannel = undefined;
 const dir = await mkdtemp(join(tmpdir(), 'chat-check-'));
 try {
-  for (const entry of ['chat', 'chatFeatures']) await build({ entryPoints: [`src/app/${entry}.ts`], bundle: true, format: 'esm', platform: 'node',
+  for (const entry of ['chat', 'chatFeatures']) await build({ entryPoints: [`src/app/chat/${entry}.ts`], bundle: true, format: 'esm', platform: 'node',
     outfile: join(dir, `${entry}.mjs`), define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) }, logLevel: 'error' });
   const chat = await import(pathToFileURL(join(dir, 'chat.mjs')).href);
   const features = await import(pathToFileURL(join(dir, 'chatFeatures.mjs')).href);

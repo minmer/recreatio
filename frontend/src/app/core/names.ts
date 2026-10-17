@@ -25,12 +25,12 @@
  * „Formularz" oder „Osoba" — das ist die Auskunft, dass es da etwas gibt.
  */
 
-import { loadPublicKey, myEpochKeys } from './area';
+import { loadPublicKey, myEpochKeys } from '../areas/area';
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url, unwrapKey, wrapKey, wrapKeyP256, unwrapKeyP256, type Aad } from './crypto';
 import type { Ring } from './keys';
-import { heldAreaKey } from './linkAccess';
+import { heldAreaKey } from '../links/linkAccess';
 import { keysFor } from './ringOf';
-import { seatAreaKey } from './roleBundle';
+import { seatAreaKey } from '../roles/roleBundle';
 import { whoIsThere, WorkspaceError } from './session';
 
 /* -- Die Etiketten -------------------------------------------------------------------------- */

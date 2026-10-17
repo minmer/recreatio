@@ -24,16 +24,16 @@
  * sondern weiterbenutzt.
  */
 
-import { loadAreas, myEpochKeys } from './area';
+import { loadAreas, myEpochKeys } from '../areas/area';
 import { readFormContent, writeFormContent, type QuestionJson } from './formJson';
 import { removeField, restoreField, setPartConfig, type FieldKind, type IdentityRole } from './form';
 import { layoutWith, type FormDesign, type LayoutItem, type LogicEdge, type LogicNode } from './formDesign';
-import { newId } from './ids';
-import { loadModules, type ModuleRow } from './module';
-import { keysFor } from './ringOf';
-import { WorkspaceError, type Who } from './session';
+import { newId } from '../core/ids';
+import { loadModules, type ModuleRow } from '../modules/module';
+import { keysFor } from '../core/ringOf';
+import { WorkspaceError, type Who } from '../core/session';
 import { openStepInfo } from './entryDesk';
-import { saveSteps, type StepDraft } from './steps';
+import { saveSteps, type StepDraft } from '../steps/steps';
 
 /* -- Die Wortlaute ------------------------------------------------------------------- */
 

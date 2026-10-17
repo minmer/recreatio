@@ -23,7 +23,7 @@ import { useEffect, useId, useMemo, useRef, type CSSProperties, type ReactNode }
 import { radialOf, type Drawing, type Shape } from './drawing';
 import { dashArray, dashOf, keyframesOf, paint, timingOf, touchesPaint, type MotionUse } from './motion';
 import { usePhase, useReducedMotion } from './MotionBox';
-import { imageUrl } from './slides';
+import { imageUrl } from '../slides/slideLook';
 
 interface Planned {
   readonly id: number;

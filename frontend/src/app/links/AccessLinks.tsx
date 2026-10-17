@@ -32,15 +32,15 @@ import {
   type HeldInfo, type LinkRow
 } from './linkAccess';
 import { forgetLink } from './linkKeep';
-import { createCommonRole, reachWords, type NewRoleDraft } from './commonRole';
-import { CommonRoleChoice, EMPTY_DRAFT, NEW_ROLE, useGivableRoles } from './CommonRoleField';
-import { markLinksSeen } from './notify';
-import type { AreaRow } from './area';
-import { loadDesk, type PageCard } from './desk';
-import type { Ring, SealedRole } from './keys';
-import { WorkspaceError } from './session';
+import { createCommonRole, reachWords, type NewRoleDraft } from '../roles/commonRole';
+import { CommonRoleChoice, EMPTY_DRAFT, NEW_ROLE, useGivableRoles } from '../roles/CommonRoleField';
+import { markLinksSeen } from '../notify/notify';
+import type { AreaRow } from '../areas/area';
+import { loadDesk, type PageCard } from '../workspace/desk';
+import type { Ring, SealedRole } from '../core/keys';
+import { WorkspaceError } from '../core/session';
 import { describeLink, useHeldLinksStamp } from './HeldLinkBar';
-import { Loading } from './ui/Loading';
+import { Loading } from '../ui/Loading';
 
 /**
  * Was in diesem Tab eben angelegt wurde — das Geheimnis, sofort wieder zu

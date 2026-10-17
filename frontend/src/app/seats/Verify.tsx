@@ -17,9 +17,9 @@
 
 import { useEffect, useState } from 'react';
 
-import { redeemCheck } from './form';
-import { WorkspaceError } from './session';
-import { Loading } from './ui/Loading';
+import { redeemCheck } from '../forms/valueCheck';
+import { WorkspaceError } from '../core/session';
+import { Loading } from '../ui/Loading';
 
 export function Verify({ token }: { token: string | null }) {
   /** `undefined` = läuft noch, `null` = ging nicht. */

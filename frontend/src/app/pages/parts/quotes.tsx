@@ -8,10 +8,10 @@
  */
 
 import { definePart, text, type RawConfig } from '../part';
-import { later } from '../ui/later';
+import { later } from '../../ui/later';
 
 /* 2026-10-17 — die Ansicht erst, wenn sie gezeigt wird (`ui/later`): eine Seite ohne diesen Baustein lädt sie nicht. */
-const QuotesCard = later(() => import('../LibraryPublic').then((m) => m.QuotesCard));
+const QuotesCard = later(() => import('../../library/LibraryPublic').then((m) => m.QuotesCard));
 
 interface QuotesConfig {
   readonly title: string;

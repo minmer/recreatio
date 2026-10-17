@@ -26,8 +26,8 @@ const workspace = await mkdtemp(join(tmpdir(), 'pz-home-'));
 const entry = join(workspace, 'entry.ts');
 await writeFile(entry, `
 export { pl } from '${src}/legacy/public/content/pl';
-export { arrange } from '${src}/app/presentationMotion';
-export { pieceJson, readPieceValue, readShow, showJson } from '${src}/app/presentation';
+export { arrange } from '${src}/app/pages/presentation/presentationMotion';
+export { pieceJson, readPieceValue, readShow, showJson } from '${src}/app/pages/presentation/presentation';
 `);
 await build({
   entryPoints: [entry], bundle: true, format: 'esm', platform: 'node', outfile: join(workspace, 'entry.mjs'), logLevel: 'error',

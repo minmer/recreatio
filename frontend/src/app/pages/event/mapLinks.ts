@@ -1,6 +1,6 @@
 /**
- * Zwei kleine Helfer der Karte (2026-10-17 aus `OsmMap.tsx` hierher, dort
- * weitergereicht): der Baustein „Mapa" braucht sie beim Lesen und Bearbeiten,
+ * Zwei kleine Helfer der Karte (2026-10-17 aus `OsmMap.tsx` hierher): der
+ * Baustein „Mapa" braucht sie beim Lesen und Bearbeiten,
  * die Karte selbst kommt erst, wenn sie gezeigt wird.
  */
 

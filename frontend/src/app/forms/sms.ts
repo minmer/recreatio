@@ -17,8 +17,8 @@
  *
  * <b>Was nicht aufgeht, bleibt stehen.</b> Ein Platzhalter ohne Antwort wird
  * NICHT zu einer leeren Stelle: dann ginge eine Nachricht hinaus, in der ein
- * Satz fehlt, und niemand sähe es. Er bleibt sichtbar, und daneben steht, was
- * fehlt — <see cref="missingIn"/>.
+ * Satz fehlt, und niemand sähe es. Er bleibt sichtbar — schon in der Vorschau,
+ * bevor die Nachricht hinausgeht.
  *
  * <b>Warum hier und nicht in der Ansicht.</b> Es ist reine Zeichenarbeit: Text
  * und Angaben hinein, Text heraus. So lässt es sich prüfen, ohne einen Browser
@@ -55,44 +55,6 @@ export function renderSms(
   });
 }
 
-/**
- * Welche Platzhalter leer blieben.
- *
- * Damit die Kanzlei es SIEHT, bevor sie kopiert — und nicht, nachdem sie
- * verschickt hat.
- */
-export function missingIn(
-  template: string,
-  values: ReadonlyMap<string, string>,
-  link: string | null
-): readonly string[] {
-  const byLabel = new Map<string, string>();
-  for (const [label, value] of values) byLabel.set(key(label), value);
-
-  const out: string[] = [];
-
-  for (const match of template.matchAll(HOLE)) {
-    const name = match[1];
-
-    if (key(name) === LINK) {
-      if (link === null && !out.includes(name)) out.push(name);
-      continue;
-    }
-
-    const found = byLabel.get(key(name));
-    if ((found === undefined || found.trim() === '') && !out.includes(name)) out.push(name);
-  }
-
-  return out;
-}
-
-/**
- * Die Platzhalter, die es in diesem Formular überhaupt gibt — für den Hinweis
- * unter dem Feld. Ohne ihn müsste jemand raten, wie eine Frage genau heisst.
- */
-export const holesFor = (labels: readonly (string | null)[]): readonly string[] =>
-  [LINK, ...labels.filter((l): l is string => l !== null && l.trim() !== '')];
-
 /** Der Platzhalter, hinter dem der Bestätigungslink steckt (0030). */
 export const VERIFY = 'weryfikacja';
 
@@ -125,4 +87,39 @@ export function smsHref(number: string, body: string): string {
   const apple = /iPhone|iPad|iPod|Macintosh/.test(agent);
 
   return `sms:${number}${apple ? '&' : '?'}body=${encodeURIComponent(body)}`;
+}
+
+/* -- Die Nachricht: einmal geschrieben, als Szablon behalten ---------------- */
+
+/** Eine gespeicherte Nachricht — wie im Altbestand der Veranstaltungen. */
+export interface SmsTemplate {
+  readonly label: string;
+  readonly text: string;
+}
+
+/**
+ * Die Szablony dieses Formulars — aus `config.smsTemplates` (JSON).
+ *
+ * <b>Die eine Vorlage von vorher</b> (`config.sms`) steht als erster Szablon
+ * da, bis die Liste zum ersten Mal gespeichert wird; dann geht sie in ihr auf.
+ */
+export function templatesOf(config: Record<string, string>): readonly SmsTemplate[] {
+  let list: SmsTemplate[] = [];
+
+  try {
+    const parsed: unknown = JSON.parse(config.smsTemplates ?? '[]');
+    if (Array.isArray(parsed)) {
+      list = parsed.filter((one): one is SmsTemplate =>
+        typeof one === 'object' && one !== null
+        && typeof (one as SmsTemplate).label === 'string'
+        && typeof (one as SmsTemplate).text === 'string');
+    }
+  } catch {
+    list = [];
+  }
+
+  const legacy = (config.sms ?? '').trim();
+  return legacy !== '' && !list.some((one) => one.text === legacy)
+    ? [{ label: 'Szablon', text: legacy }, ...list]
+    : list;
 }

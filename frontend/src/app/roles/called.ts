@@ -21,9 +21,9 @@
  * ist er der Name.
  */
 
-import { myEpochKeys } from './area';
-import type { Ring } from './keys';
-import { loadGiven, loadPerson, openGiven, openMine, type Given, type PersonField } from './person';
+import { myEpochKeys } from '../areas/area';
+import type { Ring } from '../core/keys';
+import { loadGiven, loadPerson, openGiven, openMine, type Given, type PersonField } from '../account/person';
 import type { RoleGraphData } from './roles';
 
 export interface Called {

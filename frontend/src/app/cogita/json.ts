@@ -20,7 +20,7 @@
  * dann gespeichert.
  */
 
-import { newId } from '../ids';
+import { newId } from '../core/ids';
 import { readTemplate } from './cards';
 import { readFlow } from './flow';
 import { graphJson, readGraph } from './graph';

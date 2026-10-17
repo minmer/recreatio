@@ -13,20 +13,20 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
-import { background, native, notices, type BackgroundStatus } from './platform';
+import { background, native, notices, type BackgroundStatus } from '../core/platform';
 import {
   applyBackground, current, loadDevices, loadSettings, dropDevice, markSeen, onToast, planReminders, refresh, saveSettings,
   start, subscribe, thisDevice, type DeviceList, type NotifySettings, type Toast
 } from './notify';
 import { remindersFor } from './notifyRich';
-import { alertCount, alertItems, useAlertSettings } from './alerts';
-import { AlertRows } from './AlertList';
-import { knownDevice } from './kept';
-import { keysFor } from './ringOf';
-import { viewPath } from './routes';
-import { keepsKey, type Who } from './session';
-import { Icon } from './ui/icons';
-import { Loading } from './ui/Loading';
+import { alertCount, alertItems, useAlertSettings } from '../workspace/alerts';
+import { AlertRows } from '../workspace/AlertList';
+import { knownDevice } from '../core/kept';
+import { keysFor } from '../core/ringOf';
+import { viewPath } from '../routes';
+import { keepsKey, type Who } from '../core/session';
+import { Icon } from '../ui/icons';
+import { Loading } from '../ui/Loading';
 
 const REMINDERS_EVERY = 30 * 60_000;
 

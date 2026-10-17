@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { areaKeys, newestKey } from '../chat';
+import { areaKeys, newestKey } from '../chat/chat';
 import { answerText } from './CardFace';
 import { uploadFile } from './files';
 import { GeoMap } from './GeoMap';

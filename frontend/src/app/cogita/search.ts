@@ -9,11 +9,11 @@
  * Przebiegi, Szablony, Rodzaje, Widoki).
  */
 
-import { openedLibraryKind, openedLibraryNames } from '../library';
-import { kindOf } from '../libraryKinds';
-import { loadedStores } from '../libraryStore';
+import { openedLibraryKind, openedLibraryNames } from '../library/library';
+import { kindOf } from '../library/libraryKinds';
+import { loadedStores } from '../library/libraryStore';
 import { viewPath } from '../routes';
-import type { SearchEntry } from '../search';
+import type { SearchEntry } from '../shell/search';
 import { DOC_LABEL, type DocKind } from './kinds';
 import { CogitaLibrary } from './store';
 

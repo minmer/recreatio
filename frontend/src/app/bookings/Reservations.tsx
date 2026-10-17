@@ -18,19 +18,19 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { loadAreas, type AreaRow } from './area';
-import { loadCalendars, type CalendarRow } from './calendar';
-import { useCrumbs, type Crumb } from './crumbTrail';
-import { newId } from './ids';
+import { loadAreas, type AreaRow } from '../areas/area';
+import { loadCalendars, type CalendarRow } from '../calendar/calendar';
+import { useCrumbs, type Crumb } from '../shell/crumbTrail';
+import { newId } from '../core/ids';
 import {
   createResource, KIND_LABEL, loadClaims, loadResources, minutesToTime, officeDecides,
   updateResource, type Kind, type Mode, type OfficeClaim, type ResourceChange, type ResourceRow
 } from './resource';
-import { viewPath } from './routes';
-import { WorkspaceError } from './session';
-import { AreaOptions } from './AreaOptions';
-import { useTouched } from './Recent';
-import { Loading } from './ui/Loading';
+import { viewPath } from '../routes';
+import { WorkspaceError } from '../core/session';
+import { AreaOptions } from '../areas/AreaOptions';
+import { useTouched } from '../workspace/Recent';
+import { Loading } from '../ui/Loading';
 
 const NEW = 'new';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

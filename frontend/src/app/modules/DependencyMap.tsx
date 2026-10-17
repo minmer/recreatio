@@ -26,20 +26,20 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { loadCalendars, type CalendarRow } from './calendar';
-import { linkAudienceForm } from './audience';
-import { loadChats, type ChatRow } from './chat';
-import { loadDesk, type Desk } from './desk';
-import { newId } from './ids';
-import { loadLibraries, type LibraryRow } from './library';
+import { loadCalendars, type CalendarRow } from '../calendar/calendar';
+import { linkAudienceForm } from '../areas/audience';
+import { loadChats, type ChatRow } from '../chat/chat';
+import { loadDesk, type Desk } from '../workspace/desk';
+import { newId } from '../core/ids';
+import { loadLibraries, type LibraryRow } from '../library/library';
 import { loadModules, readConfig, updateModule, type ModuleRow } from './module';
-import { loadPage, savePageSubject, saveParts, toDraft } from './page';
-import { readSubject, subjectKindOf } from './pageSubject';
-import { partOf } from './parts/registry';
-import { pageSteps, viewPath, modulePath } from './routes';
-import { WorkspaceError } from './session';
-import { askText } from './ui/dialogs';
-import { Loading } from './ui/Loading';
+import { loadPage, savePageSubject, saveParts, toDraft } from '../pages/page';
+import { readSubject, subjectKindOf } from '../pages/pageSubject';
+import { partOf } from '../pages/parts/registry';
+import { pageSteps, viewPath, modulePath } from '../routes';
+import { WorkspaceError } from '../core/session';
+import { askText } from '../ui/dialogs';
+import { Loading } from '../ui/Loading';
 
 type Kind = 'page' | 'module' | 'area' | 'calendar' | 'library' | 'chat';
 

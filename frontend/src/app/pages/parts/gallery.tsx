@@ -22,8 +22,8 @@ import { Carousel, shuffled, Viewer, type Picture } from '../event/galleryView';
 import { photoCount } from '../event/galleryCount';
 import { downscaleImage } from '../event/imageDownscale';
 import { imageRef, uploadPageFile } from '../pageImages';
-import { WorkspaceError } from '../session';
-import { imageUrl } from '../slides';
+import { WorkspaceError } from '../../core/session';
+import { imageUrl } from '../slides/slideLook';
 
 type Shot = { url: string; caption: string | null; alt: string };
 type GalleryConfig = { shots: Shot[]; shuffle: boolean };

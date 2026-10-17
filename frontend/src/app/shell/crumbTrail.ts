@@ -24,7 +24,7 @@
 
 import { useEffect, useSyncExternalStore } from 'react';
 
-import { tilesPath, VIEWS, viewPath, type Spot } from './routes';
+import { tilesPath, VIEWS, viewPath, type Spot } from '../routes';
 
 /** Eine Stufe des Weges. */
 export interface Crumb {

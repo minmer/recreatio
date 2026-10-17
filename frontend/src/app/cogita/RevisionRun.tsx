@@ -10,7 +10,7 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { CardFace } from './CardFace';
-import type { Card } from './cards';
+import type { Card } from './cardBasics';
 import { readGraph } from './graph';
 import { LEVEL_LABEL, type Dependency } from './knowness';
 import { renamer, sendReport, type Learner } from './learn';

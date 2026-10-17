@@ -12,7 +12,7 @@
  */
 
 import type { PageContent } from './page';
-import { call } from './session';
+import { call } from '../core/session';
 
 export const loadSite = (host: string, path = '', seats: readonly string[] = [], links: readonly string[] = []): Promise<PageContent> =>
   call<PageContent>(

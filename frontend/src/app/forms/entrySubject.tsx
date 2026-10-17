@@ -24,24 +24,24 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { plural } from './plural';
+import { plural } from '../core/plural';
 import {
   filterWords, isFiltered, loadEntryDesk, neighbours, NO_FILTER, onDeskChange, pickRows, readEntryQuery,
   STEP_CHOICES, stepKindsOf, entryQueryString, withEntryQuery,
   type DeskRow, type EntryDesk, type EntryFilter, type EntryQuery
 } from './entryDesk';
 import { PickForm } from './FormPick';
-import { PickPage } from './PickPage';
-import type { Ring } from './keys';
-import { useWho } from './me';
-import { usePerson } from './pagePerson';
-import { useSeats } from './seatContext';
-import type { SubjectDecl, SubjectKind } from './pageSubject';
-import { keysFor } from './ringOf';
-import { pagePath, path as routePath } from './routes';
-import { WorkspaceError, type Who } from './session';
-import { Unlock } from './Unlock';
-import { Loading } from './ui/Loading';
+import { PickPage } from '../pages/PickPage';
+import type { Ring } from '../core/keys';
+import { useWho } from '../core/me';
+import { usePerson } from '../pages/pagePerson';
+import { useSeats } from '../seats/seatContext';
+import type { SubjectDecl, SubjectKind } from '../pages/pageSubject';
+import { keysFor } from '../core/ringOf';
+import { pagePath, path as routePath } from '../routes';
+import { WorkspaceError, type Who } from '../core/session';
+import { Unlock } from '../shell/Unlock';
+import { Loading } from '../ui/Loading';
 
 /* -- Was alle brauchen, die die Menschen eines Formulars zeigen -------------------- */
 

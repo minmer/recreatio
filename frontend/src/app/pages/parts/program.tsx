@@ -16,12 +16,12 @@
 
 import { useEffect, useState } from 'react';
 
-import { ItemLink } from '../ItemLink';
+import { ItemLink } from '../../calendar/ItemLink';
 import { definePart, text, type PartContext, type RawConfig } from '../part';
-import { countParts, loadProgram, openProgram, type ProgramNode } from '../program';
-import { keysFor } from '../ringOf';
-import { whoIsThere } from '../session';
-import { Loading } from '../ui/Loading';
+import { countParts, loadProgram, openProgram, type ProgramNode } from '../../calendar/program';
+import { keysFor } from '../../core/ringOf';
+import { whoIsThere } from '../../core/session';
+import { Loading } from '../../ui/Loading';
 
 interface ProgramConfig {
   readonly title: string;

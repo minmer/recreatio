@@ -51,8 +51,8 @@
  * lässt — eine Kachel mit zwölf Grössen sieht sich niemand zwölfmal an.
  */
 
-import { addDays, addMonths, firstOfMonth, mondayOf, startOfDay } from './dayMath';
-import type { PartSize } from './part';
+import { addDays, addMonths, firstOfMonth, mondayOf, startOfDay } from '../core/dayMath';
+import type { PartSize } from '../pages/part';
 
 /** Wie die Kachel zeichnet. */
 export type MassForm =

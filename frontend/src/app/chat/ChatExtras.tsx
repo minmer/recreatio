@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { areaKeys, chatKeysOf, loadChat, loadChats, openNames, sendMessage, type ChatDetail, type ChatRow, type Attachment, type Opened } from './chat';
 import { availableNow, defaultPreferences, downloadAttachment, uploadAttachment, type Features, type Preferences } from './chatFeatures';
-import { Modal } from './Modal';
-import { notices } from './platform';
-import { call, whoIsThere } from './session';
-import type { Ring } from './keys';
+import { Modal } from '../ui/Modal';
+import { notices } from '../core/platform';
+import { call, whoIsThere } from '../core/session';
+import type { Ring } from '../core/keys';
 import { speakerKey, speakersOf, speakerText, throughRole, type GraphLike, type Speaker } from './chatAuthor';
-import { keysFor } from './ringOf';
-import { myRoleNames } from './roleNames';
+import { keysFor } from '../core/ringOf';
+import { myRoleNames } from '../roles/roleNames';
 import { chatEndpoint } from './chatFeatures';
 
 /**

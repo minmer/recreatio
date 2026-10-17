@@ -13,7 +13,7 @@ Status: implemented 2026-10-01 (migration `0064_library.sql`). This file explain
 
 A **library** belongs to an **area**. Area access is library access: whoever holds the area's epoch key reads it; write capability on the area means editing. "Tylko ja" (the personal area) is the default.
 
-An **entry** is one typed document. The kinds live in `frontend/src/app/libraryKinds.ts`:
+An **entry** is one typed document. The kinds live in `frontend/src/app/library/libraryKinds.ts`:
 
 | kind | what | key fields |
 |---|---|---|

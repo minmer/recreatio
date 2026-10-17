@@ -4,8 +4,8 @@
  * Wiederherstellen heisst, eine alte Fassung als neue zu speichern.
  */
 
-import { openEntry, type EntryDoc } from '../library';
-import { call } from '../session';
+import { openEntry, type EntryDoc } from '../library/library';
+import { call } from '../core/session';
 
 export interface VersionRow {
   readonly version: number;

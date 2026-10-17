@@ -14,7 +14,7 @@
  */
 
 import { fromBase64Url, open, seal, toBase64Url } from './crypto';
-import { loadIntake, loadPublicIntake, openIntakeKey } from './intake';
+import { loadIntake, loadPublicIntake, openIntakeKey } from '../forms/intake';
 import {
   claimAskAad, claimHolderAad, hostWrapAad, nameText, openForPrivate, openFromIntake, openName, openSeatName,
   ringOrNull, sealForIntake, sealForPublic, sealName, writeKey

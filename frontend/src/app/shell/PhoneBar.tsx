@@ -12,10 +12,10 @@ import { useState } from 'react';
 
 import type { Nav, NavEntry } from './WorkspaceFrame';
 import { placeOf } from './WorkspaceFrame';
-import { Modal } from './Modal';
-import { viewPath, type Spot } from './routes';
-import type { Who } from './session';
-import { Icon } from './ui/icons';
+import { Modal } from '../ui/Modal';
+import { viewPath, type Spot } from '../routes';
+import type { Who } from '../core/session';
+import { Icon } from '../ui/icons';
 
 export function PhoneBar({ spot, nav, who, onSignOut }: { spot: Spot; nav: Nav; who: Who; onSignOut?: () => void }) {
   const [more, setMore] = useState(false);

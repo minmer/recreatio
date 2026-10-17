@@ -22,8 +22,8 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { stepUp, trailOf, useDeepCrumbs, type Crumb } from './crumbTrail';
-import type { Spot } from './routes';
-import { Icon } from './ui/icons';
+import type { Spot } from '../routes';
+import { Icon } from '../ui/icons';
 
 export function Crumbs({ spot }: { spot: Spot }) {
   const trail = trailOf(spot, useDeepCrumbs());

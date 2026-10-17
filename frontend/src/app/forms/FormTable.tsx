@@ -31,9 +31,10 @@
 
 import { useMemo, useState } from 'react';
 
-import { consentGiven, consentValue, isYes, shownAnswer, YES, type Answer, type OpenField, type Submission } from './form';
-import { saveBlob } from './platform';
-import { WorkspaceError } from './session';
+import { consentGiven, consentValue, isYes, shownAnswer, YES, type OpenField } from './form';
+import { type Answer, type Submission } from './submissions';
+import { saveBlob } from '../core/platform';
+import { WorkspaceError } from '../core/session';
 
 /** Wie viele verschiedene Antworten eine Frage höchstens haben darf, um einen Filter zu bekommen. */
 const FILTERABLE = 8;

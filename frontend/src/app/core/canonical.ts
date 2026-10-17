@@ -107,6 +107,3 @@ export function serialize(value: Canon): string {
   write(out, value);
   return out.join('');
 }
-
-/** UTF-8, ohne Byte Order Mark (22.2). */
-export const toUtf8 = (value: Canon): Uint8Array => new TextEncoder().encode(serialize(value));

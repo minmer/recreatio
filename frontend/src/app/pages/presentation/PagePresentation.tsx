@@ -17,14 +17,14 @@
 import { useCallback, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
-import type { DraftPart } from './page';
-import { partSize, text } from './part';
-import { usePageLogic } from './pageLogic';
-import { partLabel, partOf } from './parts/registry';
+import type { DraftPart } from '../page';
+import { partSize, text } from '../part';
+import { usePageLogic } from '../pageLogic';
+import { partLabel, partOf } from '../parts/registry';
 import { readPiece, readShow, type TextType } from './presentation';
 import { PresentationView, type ShowPiece } from './PresentationView';
-import { inline, RichLine } from './richText';
-import type { Look } from './slides';
+import { inline, RichLine } from '../../ui/richText';
+import type { Look } from '../slides/slideLook';
 import type { DriveControl } from './usePresentationDrive';
 
 /** Diese Arten zeigen sich ohne Tafel — ein Bild ist ein Bild, ein Kształt eine Fläche. */

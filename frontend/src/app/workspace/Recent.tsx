@@ -9,30 +9,7 @@
 
 import { useEffect } from 'react';
 
-import { touch, useRecent } from './prefs';
-
-export interface RecentItem {
-  readonly id: string;
-  readonly label: string;
-  readonly href: string;
-}
-
-export function RecentRow({ scope, items, max = 6 }: { scope: string; items: readonly RecentItem[]; max?: number }) {
-  const recent = useRecent(scope);
-  const shown = recent.ids
-    .map((id) => items.find((one) => one.id === id))
-    .filter((one): one is RecentItem => one !== undefined)
-    .slice(0, max);
-
-  if (shown.length === 0) return null;
-
-  return (
-    <nav className="wk-recent" aria-label="Ostatnio otwierane">
-      <span className="wk-recent-label">Ostatnio:</span>
-      {shown.map((one) => <a key={one.id} className="wk-recent-chip" href={one.href}>{one.label}</a>)}
-    </nav>
-  );
-}
+import { touch } from '../core/prefs';
 
 /** Dieses Ding ist gerade offen — nach vorn damit. */
 export function useTouched(scope: string, id: string | null): void {

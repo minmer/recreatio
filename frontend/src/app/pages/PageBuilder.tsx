@@ -26,7 +26,7 @@ import {
   type CollisionDetection, type DragEndEvent, type DragStartEvent
 } from '@dnd-kit/core';
 
-import { newId } from './ids';
+import { newId } from '../core/ids';
 import {
   BREAKPOINTS, byReadingOrder, canPlace, cellWidth, cells, COLUMNS, firstFreeCell, frameFor, hitAt,
   MIN_COL_SPAN, MIN_ROW_SPAN, pixelSize, resized, snapColSpan, snapRowSpan, validCells, withFrame,
@@ -34,15 +34,15 @@ import {
 } from './layout';
 import { partSize, SIZE_WORD, type PartSize } from './part';
 import { PARTS, partLabel, partOf } from './parts/registry';
-import { PickModule } from './PickModule';
-import { PickForm, PickQuestions, pickedForm } from './FormPick';
+import { PickModule } from '../modules/PickModule';
+import { PickForm, PickQuestions, pickedForm } from '../forms/FormPick';
 import { PickPage } from './PickPage';
-import { PickCalendar, PickCalendarItem, PickCalendars } from './PickCalendar';
-import { PickChat } from './PickChat';
-import { PickResource } from './PickResource';
+import { PickCalendar, PickCalendarItem, PickCalendars } from '../calendar/PickCalendar';
+import { PickChat } from '../chat/PickChat';
+import { PickResource } from '../bookings/PickResource';
 import type { DraftPart } from './page';
 import { PartJson } from './PageJsonPanel';
-import { PickLibrary, PickLibraryEntry } from './LibraryPick';
+import { PickLibrary, PickLibraryEntry } from '../library/LibraryPick';
 import { WidgetEmbed } from './WidgetEmbed';
 
 const ROW_H = 84;

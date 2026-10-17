@@ -1,0 +1,630 @@
+/* Die Grundbausteine: Text, Verweis, Feld, Knopf, Reiter, Abteilungen, Plättchen, Klappe, Karte, Dialog.
+   Teil von ui.css: dort steht die Reihenfolge. */
+
+/* ===========================================================================
+   2. GRUNDBAUSTEINE
+   =========================================================================== */
+
+.wk-root {
+  font-family: var(--wk-font);
+  font-size: var(--wk-text-md);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* -- Text ------------------------------------------------------------------ */
+
+.wk-h1 {
+  margin: 0;
+  font-size: var(--wk-text-2xl);
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.wk-h2 {
+  margin: var(--wk-space-5) 0 0;
+  font-size: var(--wk-text-lg);
+  line-height: 1.3;
+  font-weight: 650;
+  text-wrap: balance;
+}
+
+.wk-h3 {
+  margin: var(--wk-space-4) 0 0;
+  font-size: var(--wk-text-md);
+  line-height: 1.35;
+  font-weight: 650;
+}
+
+.wk-lede { margin: 0; color: var(--wk-muted); max-width: 70ch; }
+.wk-hint { margin: 0; font-size: var(--wk-text-sm); line-height: 1.5; color: var(--wk-muted); }
+.wk-empty { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-error { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-danger); font-weight: 600; }
+.wk-done { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-ok); font-weight: 600; }
+.wk-working { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-blocker { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-swap { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+
+.wk-note {
+  margin: 0;
+  padding: var(--wk-space-3) var(--wk-space-4);
+  border: 1px solid var(--wk-line);
+  border-left: 3px solid var(--wk-accent);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface);
+  font-size: var(--wk-text-sm);
+}
+
+.wk-warn {
+  margin: 0;
+  padding: var(--wk-space-3) var(--wk-space-4);
+  border: 1px solid var(--wk-warn-soft);
+  border-left: 3px solid var(--wk-warn);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-warn-soft);
+  font-size: var(--wk-text-sm);
+  color: var(--wk-ink);
+}
+
+code {
+  font-family: var(--wk-mono);
+  font-size: 0.88em;
+  background: var(--wk-sunk);
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius-xs);
+  padding: 0.05em 0.3em;
+}
+
+kbd {
+  font-family: var(--wk-mono);
+  font-size: var(--wk-text-xs);
+  padding: 0 0.35em;
+  border: 1px solid var(--wk-line-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--wk-radius-xs);
+  color: var(--wk-muted);
+  background: var(--wk-surface);
+}
+
+/* -- Verweise: eine Farbe, überall. Ohne Gewicht (`:where`), damit jede
+      Regel einer Ansicht, die es anders will, gewinnt. ------------------- */
+
+:where(.wk-root) :where(a) { color: var(--wk-accent); text-underline-offset: 0.18em; text-decoration-thickness: from-font; }
+:where(.wk-root) :where(a:hover) { color: var(--wk-accent-hover); }
+:where(.wk-root) :where(a:focus-visible) { outline: 2px solid var(--wk-accent); outline-offset: 2px; border-radius: 2px; }
+
+.wk-link { color: var(--wk-accent); }
+
+/* -- Felder ---------------------------------------------------------------- */
+
+:where(.wk-root) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]), select, textarea) {
+  font: inherit;
+  font-size: var(--wk-text-md);
+  color: var(--wk-ink);
+  background-color: var(--wk-surface);
+  border: 1px solid var(--wk-line-strong);
+  border-radius: var(--wk-radius-sm);
+  min-height: var(--wk-control-h);
+  padding: 0 var(--wk-space-3);
+  box-sizing: border-box;
+  max-width: 100%;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+:where(.wk-root) :where(textarea) { padding: var(--wk-space-2) var(--wk-space-3); line-height: 1.5; }
+
+:where(.wk-root) :where(input, select, textarea):where(:hover:not(:disabled)) { border-color: var(--wk-muted); }
+
+:where(.wk-root) :where(input, select, textarea):where(:focus-visible) {
+  outline: none;
+  border-color: var(--wk-accent);
+  box-shadow: 0 0 0 3px var(--wk-ring);
+}
+
+:where(.wk-root) :where(input, select, textarea):where(:disabled) { background-color: var(--wk-sunk); color: var(--wk-muted); }
+
+/* Eine Auswahl mit eigenem Pfeil — gezeichnet aus Farben des Themas. */
+:where(.wk-root) :where(select:not([multiple]):not([size])) {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2rem;
+  /* Ein Winkel in einem Grau, das in beiden Themen trägt — eine Variable kann ein Bild nicht färben. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23908675' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 0.6rem center;
+  background-size: 1rem 1rem;
+  background-repeat: no-repeat;
+  text-overflow: ellipsis;
+}
+
+:where(.wk-root) :where(input[type="date"], input[type="time"], input[type="datetime-local"], input[type="month"]) {
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+:where(.wk-root) :where(input, textarea)::placeholder { color: var(--wk-muted); opacity: 0.75; }
+
+:where(.wk-root) :where(input[type="checkbox"], input[type="radio"]) {
+  accent-color: var(--wk-accent);
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  flex: none;
+}
+
+.wk-form { display: grid; gap: var(--wk-space-4); max-width: 34rem; }
+
+.wk-field { display: grid; gap: var(--wk-space-1); font-size: var(--wk-text-md); min-width: 0; }
+.wk-field > span:first-child,
+.wk-field > legend { color: var(--wk-ink-2); font-size: var(--wk-text-sm); font-weight: 600; }
+.wk-field > .wk-hint { font-weight: 400; }
+fieldset.wk-field { border: 0; padding: 0; margin: 0; }
+.wk-field :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { width: 100%; }
+.wk-field > span:first-child:has(> input[type="checkbox"], > input[type="radio"]) { display: inline-flex; align-items: center; gap: var(--wk-space-2); font-weight: 600; color: var(--wk-ink); }
+
+.wk-check {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--wk-space-2);
+  font-size: var(--wk-text-md);
+  line-height: 1.4;
+  cursor: pointer;
+}
+.wk-check input { margin-top: 0.15em; }
+.wk-check input:disabled + span { color: var(--wk-muted); }
+
+/* Ein Passwort mit Auge (`PasswordInput`). */
+.wk-password { position: relative; display: inline-grid; min-width: 0; }
+.wk-field > .wk-password { display: grid; color: inherit; font-size: inherit; font-weight: 400; }
+.wk-password input { width: 100%; padding-right: 2.75rem; }
+.wk-password input::-ms-reveal, .wk-password input::-ms-clear { display: none; }
+.wk-password-eye {
+  position: absolute; top: 50%; right: 0.25rem; transform: translateY(-50%);
+  display: grid; place-items: center; width: 2rem; height: 2rem; padding: 0;
+  border: 0; border-radius: var(--wk-radius-sm); background: transparent; color: var(--wk-muted); cursor: pointer;
+}
+.wk-password-eye:hover:not(:disabled), .wk-password-eye[aria-pressed="true"] { color: var(--wk-ink); }
+.wk-password-eye:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-password-eye svg { width: 1.15rem; height: 1.15rem; }
+
+/* -- Knöpfe: Haupt, Neben, still, gefährlich ------------------------------- */
+
+.wk-actions { display: flex; align-items: center; gap: var(--wk-space-2) var(--wk-space-3); flex-wrap: wrap; }
+
+.wk-btn {
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  font-weight: 600;
+  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--wk-space-2);
+  min-height: var(--wk-control-h);
+  padding: 0 var(--wk-space-4);
+  border: 1px solid var(--wk-accent);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-accent);
+  color: var(--wk-on-accent);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+a.wk-btn { color: var(--wk-on-accent); }
+.wk-btn:hover:not(:disabled) { background: var(--wk-accent-hover); border-color: var(--wk-accent-hover); color: var(--wk-on-accent); }
+.wk-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--wk-ring); }
+.wk-btn:disabled { opacity: 0.45; cursor: default; }
+.wk-btn svg { width: 1.05rem; height: 1.05rem; flex: none; }
+
+/* Neben dem Hauptknopf: ruhig, mit Rand. `-quiet` und `-line` waren zwei
+   Namen für dasselbe Aussehen — jetzt ist es eines. */
+.wk-btn.wk-btn-quiet,
+.wk-btn.wk-btn-line,
+a.wk-btn.wk-btn-quiet,
+a.wk-btn.wk-btn-line {
+  background: var(--wk-surface);
+  border-color: var(--wk-line-strong);
+  color: var(--wk-ink);
+}
+.wk-btn.wk-btn-quiet:hover:not(:disabled),
+.wk-btn.wk-btn-line:hover:not(:disabled) { background: var(--wk-sunk); border-color: var(--wk-muted); color: var(--wk-ink); }
+.wk-btn.wk-btn-quiet[aria-pressed="true"] { background: var(--wk-accent-soft); border-color: var(--wk-accent); color: var(--wk-ink); }
+
+.wk-btn.wk-btn-danger,
+.wk-btn.lib-btn-danger { background: var(--wk-danger); border-color: var(--wk-danger); color: var(--wk-on-accent); }
+.wk-btn.wk-btn-danger:hover:not(:disabled),
+.wk-btn.lib-btn-danger:hover:not(:disabled) { filter: brightness(0.92); background: var(--wk-danger); border-color: var(--wk-danger); }
+
+.wk-btn.wk-btn-small { min-height: var(--wk-control-h-sm); padding: 0 var(--wk-space-3); font-size: var(--wk-text-sm); }
+
+/*
+   STILLER KNOPF — was vorher unterstrichener Text war. Ein Handgriff sieht
+   jetzt aus wie ein Handgriff (fett, ohne Unterstrich, mit Fläche unter dem
+   Zeiger) und ein Verweis im Satz wie ein Verweis. Der negative Rand hält die
+   Zeile, in der er steht, wo sie war.
+*/
+.wk-link-btn {
+  font: inherit;
+  font-weight: 600;
+  border: 0;
+  background: none;
+  padding: 0.125rem 0.375rem;
+  margin: -0.125rem -0.375rem;
+  border-radius: var(--wk-radius-sm);
+  color: var(--wk-accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+a.wk-link-btn { color: var(--wk-accent); }
+.wk-link-btn:hover:not(:disabled) { background: var(--wk-accent-soft); color: var(--wk-accent-hover); }
+.wk-link-btn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-link-btn:disabled { opacity: 0.45; cursor: default; }
+.wk-link-btn.wk-danger,
+.wk-link-btn.wk-danger-link,
+.wk-link-btn.lib-danger-link { color: var(--wk-danger); }
+.wk-link-btn.wk-danger:hover:not(:disabled),
+.wk-link-btn.wk-danger-link:hover:not(:disabled) { background: var(--wk-danger-soft); color: var(--wk-danger); }
+
+/* In einem Satz: ein Verweis, auch wenn er ein Knopf ist. */
+:is(.wk-hint, .wk-lede, .wk-note, .wk-swap, p) > .wk-link-btn:only-child:not(:first-child),
+.wk-swap .wk-link-btn,
+.wk-hint .wk-link-btn,
+.wk-lede .wk-link-btn {
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+/* Ein Zeichen statt eines Wortes: ↑ ↓ ✕ … */
+.wk-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--wk-control-h-sm);
+  height: var(--wk-control-h-sm);
+  padding: 0 var(--wk-space-1);
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface);
+  color: var(--wk-ink-2);
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  line-height: 1;
+  cursor: pointer;
+}
+.wk-icon-btn:hover:not(:disabled) { border-color: var(--wk-line-strong); background: var(--wk-sunk); color: var(--wk-ink); }
+.wk-icon-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--wk-ring); }
+.wk-icon-btn:disabled { opacity: 0.4; cursor: default; }
+.wk-icon-btn svg { width: 1.1rem; height: 1.1rem; }
+
+/* -- Reiter ---------------------------------------------------------------- */
+
+.wk-tabs {
+  display: flex;
+  gap: var(--wk-space-1);
+  border-bottom: 1px solid var(--wk-line);
+  overflow-x: auto;
+  scrollbar-width: none;
+  max-width: 100%;
+}
+.wk-tabs::-webkit-scrollbar { display: none; }
+
+.wk-tab {
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wk-space-2);
+  padding: var(--wk-space-2) var(--wk-space-3) calc(var(--wk-space-2) + 1px);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--wk-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+}
+.wk-tab:hover { color: var(--wk-ink); }
+.wk-tab:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; border-radius: var(--wk-radius-xs); }
+.wk-tab-on, .wk-tab[aria-selected="true"] { color: var(--wk-ink); border-bottom-color: var(--wk-accent); }
+
+/* Die Zahl an einem Reiter. */
+.wk-tab-n {
+  font-size: var(--wk-text-xs);
+  font-weight: 700;
+  line-height: 1.5;
+  min-width: 1.4em;
+  padding: 0 0.45em;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-sunk);
+  color: var(--wk-muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.wk-tab-on .wk-tab-n, .wk-tab[aria-selected="true"] .wk-tab-n { background: var(--wk-accent-soft); color: var(--wk-accent); }
+
+/* Ein zweiter Rang: Werkzeuge rechts in der Reiterleiste (Układ, Logika …). */
+.wk-tab-tools { margin-left: auto; display: flex; gap: var(--wk-space-1); }
+.wk-tab-tools .wk-tab { font-weight: 500; }
+
+.wk-panel { padding-top: var(--wk-space-4); display: grid; gap: var(--wk-space-4); }
+
+/* -- Abteilungen: eines von wenigen ---------------------------------------- */
+
+.wk-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--wk-line-strong);
+  border-radius: var(--wk-radius-sm);
+  overflow: hidden;
+  align-self: start;
+  justify-self: start;
+  max-width: 100%;
+  background: var(--wk-surface);
+}
+
+.wk-seg-opt {
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  font-weight: 600;
+  min-height: calc(var(--wk-control-h) - 2px);
+  padding: 0 var(--wk-space-3);
+  border: 0;
+  border-left: 1px solid var(--wk-line);
+  background: var(--wk-surface);
+  color: var(--wk-ink-2);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wk-space-1);
+}
+.wk-seg-opt:first-child { border-left: 0; }
+.wk-seg-opt:hover:not(:disabled) { background: var(--wk-sunk); color: var(--wk-ink); }
+.wk-seg-opt:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-seg-on,
+.wk-seg-on:disabled,
+.wk-seg-opt[aria-pressed="true"] {
+  background: var(--wk-accent-soft);
+  color: var(--wk-ink);
+  box-shadow: inset 0 -2px 0 var(--wk-accent);
+  opacity: 1;
+  cursor: default;
+}
+.wk-seg-opt:disabled:not(.wk-seg-on) { opacity: 0.45; cursor: default; }
+
+/* -- Plättchen --------------------------------------------------------------- */
+
+.wk-tags { display: inline-flex; flex-wrap: wrap; gap: var(--wk-space-1); min-width: 0; }
+
+.wk-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.0625rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-sunk);
+  font-size: var(--wk-text-xs);
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--wk-ink-2);
+  white-space: nowrap;
+}
+.wk-tag-open { background: var(--wk-ok-soft); color: var(--wk-ok); }
+.wk-tag-new { background: var(--wk-info-soft); color: var(--wk-info); }
+.wk-tag-warn { background: var(--wk-warn-soft); color: var(--wk-warn); }
+.wk-tag-danger { background: var(--wk-danger-soft); color: var(--wk-danger); }
+.wk-tag-ok { background: var(--wk-ok-soft); color: var(--wk-ok); }
+
+/* -- Angaben in einer Reihe ------------------------------------------------ */
+
+.wk-facts { display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-6); margin: 0; }
+.wk-fact { min-width: 0; }
+.wk-fact dt { font-size: var(--wk-text-xs); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--wk-muted); }
+.wk-fact dd { display: flex; align-items: center; gap: var(--wk-space-2); margin: 0.125rem 0 0; font-size: var(--wk-text-md); font-variant-numeric: tabular-nums; }
+
+/* -- Klappe: was man selten braucht ---------------------------------------- */
+
+.wk-fold {
+  margin-top: var(--wk-space-5);
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+}
+.wk-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-space-2);
+  min-height: var(--wk-control-h);
+  padding: var(--wk-space-2) var(--wk-space-4);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  border-radius: var(--wk-radius);
+}
+.wk-fold > summary::-webkit-details-marker { display: none; }
+.wk-fold > summary::before {
+  content: "";
+  flex: none;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid var(--wk-muted);
+  border-bottom: 2px solid var(--wk-muted);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+  margin-right: var(--wk-space-1);
+}
+.wk-fold[open] > summary::before { transform: rotate(45deg); }
+.wk-fold > summary:hover { background: var(--wk-sunk); }
+.wk-fold > summary:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-fold[open] > summary { border-bottom: 1px solid var(--wk-line); border-radius: var(--wk-radius) var(--wk-radius) 0 0; }
+.wk-fold > *:not(summary) { padding: 0 var(--wk-space-4) var(--wk-space-4); }
+.wk-fold > *:not(summary):nth-child(2) { padding-top: var(--wk-space-4); }
+
+/* -- Karte: ein Abschnitt mit Rand ----------------------------------------- */
+
+.wk-box {
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  min-width: 0;
+}
+.wk-box-head { display: flex; align-items: center; gap: var(--wk-space-2); padding: var(--wk-space-3) var(--wk-space-4) var(--wk-space-2); }
+.wk-box-title { margin: 0; font-size: var(--wk-text-md); font-weight: 700; }
+.wk-box-head .wk-box-more { margin-left: auto; font-size: var(--wk-text-sm); font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 0.125rem; }
+.wk-box-body { padding: 0 var(--wk-space-4) var(--wk-space-4); display: grid; gap: var(--wk-space-2); min-width: 0; }
+.wk-box-empty { padding: var(--wk-space-2) var(--wk-space-4) var(--wk-space-4); margin: 0; color: var(--wk-muted); font-size: var(--wk-text-sm); }
+
+/* Eine Zeile in einer Karte: Zeichen, Text, rechts ein Handgriff. */
+.wk-line {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-space-3);
+  padding: var(--wk-space-3) var(--wk-space-4);
+  border-top: 1px solid var(--wk-line);
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+a.wk-line { color: inherit; }
+a.wk-line:hover { background: var(--wk-sunk); color: inherit; }
+.wk-line-ic {
+  flex: none;
+  width: 2.125rem;
+  height: 2.125rem;
+  border-radius: var(--wk-radius-sm);
+  display: grid;
+  place-items: center;
+  background: var(--wk-accent-soft);
+  color: var(--wk-accent);
+}
+.wk-line-ic svg { width: 1.15rem; height: 1.15rem; }
+.wk-line-ic.is-info { background: var(--wk-info-soft); color: var(--wk-info); }
+.wk-line-ic.is-warn { background: var(--wk-warn-soft); color: var(--wk-warn); }
+.wk-line-ic.is-ok { background: var(--wk-ok-soft); color: var(--wk-ok); }
+.wk-line-ic.is-danger { background: var(--wk-danger-soft); color: var(--wk-danger); }
+.wk-line-text { flex: 1; min-width: 0; display: grid; }
+.wk-line-title { font-weight: 600; font-size: var(--wk-text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-line-sub { color: var(--wk-muted); font-size: var(--wk-text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Eine Zeile, deren Angaben zählen (Przeniesienie danych): umbrechen statt abschneiden. */
+.wk-line.is-wrap .wk-line-title, .wk-line.is-wrap .wk-line-sub { white-space: normal; }
+.wk-line-end { flex: none; display: inline-flex; align-items: center; gap: var(--wk-space-2); color: var(--wk-muted); font-size: var(--wk-text-sm); }
+
+/* Eine Zahl, die etwas Neues meldet. */
+.wk-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.375rem;
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-accent);
+  color: var(--wk-on-accent);
+  font-size: var(--wk-text-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.wk-count.is-quiet { background: var(--wk-sunk); color: var(--wk-ink-2); box-shadow: inset 0 0 0 1px var(--wk-line); }
+
+/* -- Dialog und Vollbild --------------------------------------------------- */
+
+.wk-modal-back {
+  position: fixed;
+  inset: 0;
+  z-index: var(--wk-z-dialog);
+  display: grid;
+  place-items: start center;
+  padding: max(4vh, 1rem) 1rem 1rem;
+  background: var(--wk-scrim);
+  overflow-y: auto;
+  animation: wk-fade-in 0.12s ease-out;
+}
+
+.wk-modal {
+  box-sizing: border-box;
+  width: min(32rem, 100%);
+  display: grid;
+  gap: var(--wk-space-4);
+  padding: var(--wk-space-5);
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius-lg);
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  box-shadow: var(--wk-shadow-dialog);
+  animation: wk-rise 0.16s ease-out;
+}
+.wk-modal.is-wide { width: min(46rem, 100%); }
+.wk-modal-head { display: flex; align-items: center; justify-content: space-between; gap: var(--wk-space-4); }
+.wk-modal-head .wk-h2 { margin: 0; font-size: var(--wk-text-xl); }
+.wk-modal-body { display: grid; gap: var(--wk-space-3); }
+.wk-modal .wk-form { max-width: none; }
+.wk-modal-x {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--wk-control-h-sm);
+  height: var(--wk-control-h-sm);
+  border: 0;
+  border-radius: var(--wk-radius-sm);
+  background: transparent;
+  color: var(--wk-muted);
+  font: inherit;
+  font-size: var(--wk-text-lg);
+  line-height: 1;
+  cursor: pointer;
+}
+.wk-modal-x:hover { background: var(--wk-sunk); color: var(--wk-ink); }
+.wk-modal-x:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--wk-ring); }
+
+@media (max-width: 40rem) {
+  .wk-modal-back { place-items: end stretch; padding: 0; }
+  .wk-modal { width: 100%; border-radius: var(--wk-radius-lg) var(--wk-radius-lg) 0 0; padding: var(--wk-space-4) var(--wk-space-4) calc(var(--wk-space-5) + env(safe-area-inset-bottom, 0px)); max-height: 92dvh; overflow-y: auto; }
+}
+
+.wk-full {
+  position: fixed;
+  inset: 0;
+  z-index: var(--wk-z-dialog);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--wk-ground);
+}
+.wk-full-head {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-space-3);
+  padding: calc(var(--wk-space-2) + env(safe-area-inset-top, 0px)) var(--wk-space-4) var(--wk-space-2);
+  border-bottom: 1px solid var(--wk-line);
+  background: var(--wk-surface);
+}
+.wk-full-back {
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  font-weight: 600;
+  min-height: var(--wk-control-h-sm);
+  padding: 0 var(--wk-space-3);
+  border: 1px solid var(--wk-line-strong);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-full-back:hover { background: var(--wk-sunk); }
+.wk-full-back:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--wk-ring); }
+.wk-full-title { margin: 0; flex: 1 1 auto; font-size: var(--wk-text-lg); min-width: 0; overflow-wrap: anywhere; }
+.wk-full-body { overflow-y: auto; padding: var(--wk-space-4) clamp(1rem, 3vw, 2.5rem) var(--wk-space-6); }
+.wk-full-body > .wk-card.is-whole { max-width: 90rem; margin: 0 auto; }
+
+@keyframes wk-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wk-rise { from { opacity: 0; transform: translateY(6px) scale(0.99); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .wk-modal-back, .wk-modal, .ui-toast { animation: none; }
+}

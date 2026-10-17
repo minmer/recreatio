@@ -28,7 +28,8 @@
  * Plan in `ListJsonPanel.tsx`.
  */
 
-import { fullNameOf, isYes, KIND_LABEL, YES, type Answer, type OpenField } from './form';
+import { fullNameOf, isYes, KIND_LABEL, YES, type OpenField } from './form';
+import { type Answer } from './submissions';
 import { REPEAT_LABEL, roundAhead, roundOf, roundValid, type Repeat } from './rounds';
 
 export const ENTRIES_FORMAT = 'recreatio/entries';

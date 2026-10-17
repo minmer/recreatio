@@ -12,10 +12,10 @@
 import { useEffect, useState } from 'react';
 
 import { linkAudienceForm, othersWrite, type AudienceForm, type AudienceMode } from './audience';
-import { plural } from './plural';
-import { loadModules, type ModuleRow } from './module';
-import { WorkspaceError } from './session';
-import { askText } from './ui/dialogs';
+import { plural } from '../core/plural';
+import { loadModules, type ModuleRow } from '../modules/module';
+import { WorkspaceError } from '../core/session';
+import { askText } from '../ui/dialogs';
 
 export function AudienceForms({ kind, subjectId, mode, forms, byRoleId, what, onChanged }: {
   /** Woran die Formulare hängen — wie der Dienst es kennt (`chat`). */

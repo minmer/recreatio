@@ -18,7 +18,7 @@
  *              beantwortet ist, verlässt ihn, was falsch war, bleibt
  * </code>
  *
- * <b>Voraussetzungen sperren beim Füllen</b> (CogitaAim I.9.1): eine Karte kommt
+ * <b>Voraussetzungen sperren beim Füllen</b> (COGITA.md A.2): eine Karte kommt
  * erst in den Stapel, wenn ihre Grundlagen sitzen. Liegt sie schon darin, bleibt
  * sie, auch wenn eine Grundlage inzwischen wieder wackelt.
  *
@@ -28,7 +28,7 @@
  * fortsetzen lässt und die Prüfung reproduzierbar ist.
  */
 
-import { cardKey, rngOf, shuffle, type Card } from './cards';
+import { rngOf, shuffle, type Card } from './cardBasics';
 import { evaluate, paletteOf, type Graph, type NodeKind, type Port } from './graph';
 import { average, blockedBy, dueAt, knownessOf, KNOWN, levelOf, propagate, snapshotOf, type Dependency, type Level, type Mark, type Snapshot } from './knowness';
 import type { TextRule } from './check';
@@ -478,5 +478,3 @@ export function levelsOf(plan: Plan, marks: (key: string) => readonly Mark[], no
   for (const card of plan.cards) out[levelOf(marks(card.key), now)] += 1;
   return out;
 }
-
-export { cardKey };

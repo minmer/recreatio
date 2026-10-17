@@ -7,10 +7,10 @@
 
 import { useEffect, useState } from 'react';
 
-import { loadAreas, loadMembers } from './area';
-import { areaKeys, loadAreaNames, looksLikeCode, openNames, roleCard, type ChatRow, type Invitee } from './chat';
-import type { Ring } from './keys';
-import { WorkspaceError } from './session';
+import { loadAreas, loadMembers } from '../areas/area';
+import { areaKeys, loadAreaNames, looksLikeCode, openNames, roleCard, type ChatRow, type Invitee } from '../chat/chat';
+import type { Ring } from '../core/keys';
+import { WorkspaceError } from '../core/session';
 
 interface Me {
   readonly ring: Ring;

@@ -22,10 +22,10 @@
 import { useEffect, useState } from 'react';
 
 import { useHeldLinksStamp } from './HeldLinkBar';
-import { Ring, type SealedRole } from './keys';
+import { Ring, type SealedRole } from '../core/keys';
 import { heldLinkKeys, heldProofs, type HeldRole } from './linkAccess';
-import type { Me } from './me';
-import { carryLinks } from './session';
+import type { Me } from '../core/me';
+import { carryLinks } from '../core/session';
 
 const writes = (held: HeldRole): boolean =>
   held.areas.some((area) => area.capability === 'write' || area.capability === 'admin');

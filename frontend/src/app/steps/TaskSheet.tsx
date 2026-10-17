@@ -20,8 +20,8 @@ import { useMemo, useState } from 'react';
 import {
   attendanceOn, chipText, datesOf, hoursOf, isoDay, planText, PRESENCE_THEY, presenceOn
 } from './candidateTasks';
-import type { DeskRow } from './entryDesk';
-import { WorkspaceError } from './session';
+import type { DeskRow } from '../forms/entryDesk';
+import { WorkspaceError } from '../core/session';
 import { answerPresenceAsOffice, type OpenStep, type PresenceAnswer, type PresenceChange } from './steps';
 
 export function TaskSheets({ steps, rows, onChanged }: {

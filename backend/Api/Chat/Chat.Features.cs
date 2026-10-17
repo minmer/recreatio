@@ -89,7 +89,7 @@ public static partial class Chat
             return;
         }
         await using var cmd = new SqlCommand("UPDATE app.chat SET posting_policy = @policy WHERE id = @id;", c);
-        cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@policy", body.PostingPolicy);
+        cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@policy", ChatRules.Explicit(actor.Chat.Kind, body.PostingPolicy));
         await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
         await ctx.Response.WriteAsJsonAsync(new { saved = true });
     }

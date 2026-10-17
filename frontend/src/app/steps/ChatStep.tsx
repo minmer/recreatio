@@ -11,8 +11,8 @@
 
 import { useEffect, useState } from 'react';
 
-import type { SeatView } from './seatContext';
-import { newMessages, useSeatChatRows } from './seatUnread';
+import type { SeatView } from '../seats/seatContext';
+import { newMessages, useSeatChatRows } from '../seats/seatUnread';
 import { chatTargetText, unreadIn, type ChatTargetKind, type StepState } from './steps';
 
 /** Wo auf dieser Seite seine Rozmowy stehen — die passende Art zuerst. */

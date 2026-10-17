@@ -38,7 +38,3 @@ export function newId(at: Date = new Date()): string {
   const s = Array.from(bytes, hex).join('');
   return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
 }
-
-/** 23.4 — Kleinbuchstaben mit Bindestrichen, 36 Zeichen. Sonst nichts. */
-export const isId = (text: string): boolean =>
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(text);

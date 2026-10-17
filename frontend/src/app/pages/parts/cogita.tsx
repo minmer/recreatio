@@ -29,7 +29,7 @@
 import { createElement, lazy, Suspense, type ComponentType } from 'react';
 
 import { definePart, text, type PartContext, type RawConfig } from '../part';
-import { Loading } from '../ui/Loading';
+import { Loading } from '../../ui/Loading';
 
 /** Eine Ansicht, die erst geladen wird, wenn sie gezeigt wird — bis dahin der Platzhalter. */
 function later<C>(load: () => Promise<{ default: ComponentType<{ config: C; ctx: PartContext }> }>): ComponentType<{ config: C; ctx: PartContext }> {

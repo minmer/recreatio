@@ -14,14 +14,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { sameInstant } from './calendarBookings';
+import { sameInstant } from '../calendar/calendarBookings';
 import {
   addIntention, dayKey, INTENTION_STATUS_LABEL, KIND_LABEL, loadOffice,
   type IntentionKind, type OfficeMass
 } from './mass';
-import { viewPath } from './routes';
-import { WorkspaceError } from './session';
-import { Loading } from './ui/Loading';
+import { viewPath } from '../routes';
+import { WorkspaceError } from '../core/session';
+import { Loading } from '../ui/Loading';
 
 export function IntentionsPanel({ calendarId, itemId, occurrenceAt, start, editable }: {
   calendarId: string;

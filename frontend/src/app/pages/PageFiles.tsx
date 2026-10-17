@@ -13,9 +13,9 @@ import {
   deletePageImage, describeFile, FILE_ACCEPT, imageRef, isImageType, loadPageImages, typeOfFile, uploadPageFile,
   uploadPageImage, type PageImageRow
 } from './pageImages';
-import { WorkspaceError } from './session';
-import { imageUrl } from './slides';
-import { askText } from './ui/dialogs';
+import { WorkspaceError } from '../core/session';
+import { imageUrl } from './slides/slideLook';
+import { askText } from '../ui/dialogs';
 
 /** Die Dateien einer Seite — einmal geholt, danach von Hand nachgeführt. */
 function usePageFiles(path: string) {

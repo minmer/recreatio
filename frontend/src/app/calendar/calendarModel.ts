@@ -19,7 +19,7 @@ import type { AgendaClaim, OpenedItem } from './agenda';
 import {
   sameInstant, type AgendaBookings, type AgendaOffer, type BookingResource, type HeldClaim
 } from './calendarBookings';
-import { addDays, addMonths, firstOfMonth, mondayOf, startOfDay } from './dayMath';
+import { addDays, addMonths, firstOfMonth, mondayOf, startOfDay } from '../core/dayMath';
 import { afterState, windowState, type OpenTask, type TaskOccurrence, type WindowState } from './tasks';
 
 export type CalView = 'day' | 'week' | 'month' | 'list';

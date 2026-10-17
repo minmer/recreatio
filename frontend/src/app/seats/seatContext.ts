@@ -18,10 +18,10 @@
 
 import { createContext, useContext } from 'react';
 
-import type { OwnAnswer } from './form';
+import type { OwnAnswer } from '../forms/submissions';
 import type { SubmittedValue } from './seat';
 import type { SeatChallenge } from './seatCheck';
-import type { SeatForm } from './steps';
+import type { SeatForm } from '../steps/steps';
 
 export interface SeatView {
   readonly token: string;

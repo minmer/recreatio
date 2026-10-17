@@ -9,10 +9,10 @@
  * ohne Konto hat keinen Schlüssel.
  */
 
-import { aad, Field, open, seal } from '../crypto';
-import { newId } from '../ids';
-import { heldProofs } from '../linkAccess';
-import { API, call, LINKS_HEADER, WorkspaceError } from '../session';
+import { aad, Field, open, seal } from '../core/crypto';
+import { newId } from '../core/ids';
+import { heldProofs } from '../links/linkAccess';
+import { API, call, LINKS_HEADER, WorkspaceError } from '../core/session';
 import type { MediaRef, MediaType } from './schema';
 
 const MAX = 50 * 1024 * 1024;

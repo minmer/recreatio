@@ -20,12 +20,12 @@
  * </code>
  */
 
-import { chatSeatAad, sealMessage, sealVersion, versionValue, type SendOptions, type MessageExtras, type SealedMessage, type SealedVersion } from './chat';
+import { chatSeatAad, sealMessage, sealVersion, versionValue, type SendOptions, type MessageExtras, type SealedMessage, type SealedVersion } from '../chat/chat';
 import {
   aad, Field, fromBase64Url, newSeatPairs, openText, sealText, signCanonicalP256, toBase64Url, unwrapKeyP256
-} from './crypto';
-import { personName, sealName, seatOwnNameAad } from './names';
-import { call, WorkspaceError } from './session';
+} from '../core/crypto';
+import { personName, sealName, seatOwnNameAad } from '../core/names';
+import { call, WorkspaceError } from '../core/session';
 
 export interface SeatIdentitySealed {
   readonly wrapPublicKey: string;
@@ -214,14 +214,6 @@ export function chatNameFor(seatId: string): string | null {
     return found === null || found.trim() === '' ? null : found;
   } catch {
     return null;
-  }
-}
-
-export function keepChatName(seatId: string, name: string): void {
-  try {
-    window.localStorage.setItem(nameKey(seatId), name.trim());
-  } catch {
-    // Dann fragt die Seite beim nächsten Mal wieder.
   }
 }
 

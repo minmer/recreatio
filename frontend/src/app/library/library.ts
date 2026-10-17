@@ -11,13 +11,13 @@
  * werden sie nur verschickt. Öffentlich lesen geht ohne Konto.
  */
 
-import { areaKeys, newestKey } from './chat';
-import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from './crypto';
-import { newId } from './ids';
-import type { Ring } from './keys';
+import { areaKeys, newestKey } from '../chat/chat';
+import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
+import { newId } from '../core/ids';
+import type { Ring } from '../core/keys';
 import type { EntryData } from './libraryKinds';
 import type { PublicEntryIn, PublishedAs } from './libraryPublish';
-import { call, WorkspaceError } from './session';
+import { call, WorkspaceError } from '../core/session';
 
 /* -- Bibliotheken --------------------------------------------------------------------- */
 

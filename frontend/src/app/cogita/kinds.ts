@@ -28,7 +28,7 @@
  * [C7]. Sie fallen weg, bevor das Schema die Daten sieht.
  */
 
-import { KINDS as LIBRARY_KINDS, type LibEntry, type LibField, type LibFieldType } from '../libraryKinds';
+import { KINDS as LIBRARY_KINDS, type LibEntry, type LibField, type LibFieldType } from '../library/libraryKinds';
 import { readKind, type Entity, type FieldDef, type FieldType, type KindDef } from './schema';
 
 /** Die Art im Klartext für jeden Eintrag, der keine eingebaute ist. */

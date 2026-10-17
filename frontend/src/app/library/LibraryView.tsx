@@ -16,12 +16,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { loadAreas, type AreaRow } from './area';
-import { ensurePrivateArea } from './agenda';
-import { AreaOptions } from './AreaOptions';
+import { loadAreas, type AreaRow } from '../areas/area';
+import { ensurePrivateArea } from '../calendar/agenda';
+import { AreaOptions } from '../areas/AreaOptions';
 import { ScanBook } from './BookLookup';
-import { useCrumbs, type Crumb } from './crumbTrail';
-import { JsonPanel, type JsonPreview } from './JsonPanel';
+import { useCrumbs } from '../shell/crumbTrail';
+import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import {
   createLibrary, deleteLibrary, isUuid, libraryKindOf, loadLibraries, openLibraries, renameLibrary, type OpenLibrary
 } from './library';
@@ -30,11 +30,11 @@ import { LibraryEditor } from './LibraryEditor';
 import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJson';
 import { ids, KINDS, kindOf, str, TEXT_STATUS, TEXT_TYPES, wordCount, type LibEntry } from './libraryKinds';
 import { useLibraryStore, type Entry, type LibraryStore } from './libraryStore';
-import { useMe, type Me } from './me';
-import { viewPath } from './routes';
+import { useMe, type Me } from '../core/me';
+import { viewPath } from '../routes';
 import { LibraryMap } from './LibraryMap';
-import { WorkspaceError, type Who } from './session';
-import { Loading } from './ui/Loading';
+import { WorkspaceError, type Who } from '../core/session';
+import { Loading } from '../ui/Loading';
 
 /** Die Reiter einer Bibliothek — Wort in der Adresse, Art, Name. */
 export const TABS = [
@@ -480,6 +480,4 @@ function LibraryJson({ store, library, only }: { store: LibraryStore; library: O
     </>
   );
 }
-
-export const libraryCrumb = (library: OpenLibrary): Crumb => ({ label: library.name, href: viewPath('library', library.libraryId) });
 export { tabOfKind };

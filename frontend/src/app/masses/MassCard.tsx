@@ -26,13 +26,13 @@
 
 import type { ReactNode } from 'react';
 
-import { addDays, startOfDay } from './dayMath';
+import { addDays, startOfDay } from '../core/dayMath';
 import { daysToLoad, massView, type MassView } from './massShape';
 import { MassBrowser } from './MassBrowser';
 import { Glance } from './MassGlance';
 import { placeOf, useNow, usePlan } from './MassParts';
-import type { PartSize } from './part';
-import { Loading } from './ui/Loading';
+import type { PartSize } from '../pages/part';
+import { Loading } from '../ui/Loading';
 
 export function MassCard({ title, calendar, days: wanted, size }: {
   title: string;

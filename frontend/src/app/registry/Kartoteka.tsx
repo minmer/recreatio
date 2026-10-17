@@ -15,9 +15,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { loadAreas, type AreaRow } from './area';
-import { JsonPanel } from './JsonPanel';
-import { Modal } from './Modal';
+import { loadAreas, type AreaRow } from '../areas/area';
+import { JsonPanel } from '../ui/JsonPanel';
+import { Modal } from '../ui/Modal';
 import {
   deleteHousehold, deletePlace, EMPTY_ADDRESS, EMPTY_HOUSEHOLD, formatAddress, keyOf, loadRegistry, openHouseholds,
   parseAddress, placeOrder, placesOf, saveHousehold, savePlaces, VISIT_LABEL,
@@ -25,15 +25,15 @@ import {
 } from './postal';
 import { exportRegistry, planRegistryImport, registryDescription } from './postalJson';
 import { PostalInput } from './PostalInput';
-import { keysFor } from './ringOf';
-import { viewPath } from './routes';
-import { WorkspaceError, type Who } from './session';
-import type { Ring } from './keys';
-import { Unlock } from './Unlock';
-import { AreaOptions } from './AreaOptions';
-import { TidyEverything } from './TidyEverything';
-import { askText } from './ui/dialogs';
-import { Loading } from './ui/Loading';
+import { keysFor } from '../core/ringOf';
+import { viewPath } from '../routes';
+import { WorkspaceError, type Who } from '../core/session';
+import type { Ring } from '../core/keys';
+import { Unlock } from '../shell/Unlock';
+import { AreaOptions } from '../areas/AreaOptions';
+import { TidyEverything } from '../workspace/TidyEverything';
+import { askText } from '../ui/dialogs';
+import { Loading } from '../ui/Loading';
 
 type Tab = 'addresses' | 'kolenda' | 'import';
 

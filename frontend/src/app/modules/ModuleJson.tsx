@@ -8,19 +8,20 @@
 
 import { useEffect, useState } from 'react';
 
-import { loadAreas, type AreaRow } from './area';
-import { AreaOptions } from './AreaOptions';
-import { setPartConfig } from './form';
-import { readFormContent, writeFormContent } from './formJson';
-import { JsonPanel, type JsonPreview } from './JsonPanel';
+import { loadAreas, type AreaRow } from '../areas/area';
+import { AreaOptions } from '../areas/AreaOptions';
+import { setPartConfig } from '../forms/form';
+import { readFormContent, writeFormContent } from '../forms/formJson';
+import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import { createFormGroup, loadModules, readConfig, updateModule, type ModuleRow } from './module';
-import { newId } from './ids';
-import { configFromJson, documentKind, exportModule, moduleDescription, replacing } from './pageJson';
-import { partLabel } from './parts/registry';
-import { asRecord, asText, count } from './event/kit';
-import { REPEAT_LABEL, REPEATS, repeatOf, type Repeat } from './rounds';
-import { setMemberRole } from './memberRole';
-import type { Who } from './session';
+import { newId } from '../core/ids';
+import { configFromJson, documentKind, exportModule, replacing } from '../pages/pageJson';
+import { moduleDescription } from '../pages/pageJsonText';
+import { partLabel } from '../pages/parts/registry';
+import { asRecord, asText, count } from '../pages/event/kit';
+import { REPEAT_LABEL, REPEATS, repeatOf, type Repeat } from '../forms/rounds';
+import { setMemberRole } from '../roles/memberRole';
+import type { Who } from '../core/session';
 
 /**
  * Wohin die Antworten neuer Fragen gehen, und ob Fragen ausserhalb des

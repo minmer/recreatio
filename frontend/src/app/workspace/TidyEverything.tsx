@@ -18,14 +18,14 @@
 
 import { useState } from 'react';
 
-import { crookedOf, seatKeyFinder, straighten, type Crooked } from './answerTidy';
-import { loadAreas } from './area';
-import { readForm, type ReadForm } from './formRead';
-import { loadPublicIntake, setController } from './intake';
-import type { Ring } from './keys';
-import { loadModules, updateModule } from './module';
-import { normalizeAddressLines } from './postal';
-import { WorkspaceError } from './session';
+import { crookedOf, seatKeyFinder, straighten, type Crooked } from '../forms/answerTidy';
+import { loadAreas } from '../areas/area';
+import { readForm, type ReadForm } from '../forms/formRead';
+import { loadPublicIntake, setController } from '../forms/intake';
+import type { Ring } from '../core/keys';
+import { loadModules, updateModule } from '../modules/module';
+import { normalizeAddressLines } from '../registry/postal';
+import { WorkspaceError } from '../core/session';
 import { TidyList, toggled, type TidyItem } from './TidyList';
 
 interface FormFound {

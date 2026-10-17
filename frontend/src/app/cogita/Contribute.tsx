@@ -9,8 +9,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { loadLibraries, openLibraries, type OpenLibrary } from '../library';
-import { storeOf, useLibraryStore } from '../libraryStore';
+import { loadLibraries, openLibraries, type OpenLibrary } from '../library/library';
+import { storeOf, useLibraryStore } from '../library/libraryStore';
 import { entityOf } from './kinds';
 import { EntityPicker, Markup, entityName, useBusy, useCtx } from './ui';
 import { Loading } from '../ui/Loading';

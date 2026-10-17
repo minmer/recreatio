@@ -23,15 +23,16 @@
  * einem Menschen ändert, sagt `deskChanged` — dann lesen alle neu.
  */
 
-import { loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from './area';
-import { fromBase64Url } from './crypto';
-import { fullNameOf, type IdentityRole, type OpenField, type Submission } from './form';
+import { loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from '../areas/area';
+import { fromBase64Url } from '../core/crypto';
+import { fullNameOf, type IdentityRole, type OpenField } from './form';
+import { type Submission } from './submissions';
 import { readForm, type ReadForm } from './formRead';
-import type { Ring } from './keys';
-import { loadModules, type ModuleRow } from './module';
+import type { Ring } from '../core/keys';
+import { loadModules, type ModuleRow } from '../modules/module';
 import { dialable, normalisePhone, splitPhones } from './phone';
 import { repeatOf, roundOf } from './rounds';
-import { filledNow, loadSteps, openSteps, stepsFor, type ExtensionInfo, type OpenStep, type StepState } from './steps';
+import { filledNow, loadSteps, openSteps, stepsFor, type ExtensionInfo, type OpenStep, type StepState } from '../steps/steps';
 
 /** Die Schritte eines Formulars (aufgemacht) und die Erweiterungen, aus denen sich die übrigen ergeben (0047). */
 export interface StepInfo {

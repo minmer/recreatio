@@ -17,17 +17,17 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 
-import { plural } from '../plural';
-import { EntryDeskPanel } from '../officeLazy';
+import { plural } from '../../core/plural';
+import { EntryDeskPanel } from '../../forms/officeLazy';
 import {
   columnsOf, PANEL_SECTION_LABEL, PANEL_SECTIONS, pickRows, readSections, stepKindsOf,
   type DeskRow, type PanelSection
-} from '../entryDesk';
+} from '../../forms/entryDesk';
 import {
   EntryFilterBar, entryHref, herePath, OfficeGate, useEntryDesk, useEntryQuery, useEntrySubject, useOfficeRing
-} from '../entrySubject';
+} from '../../forms/entrySubject';
 import { definePart, text, type EditorProps, type PartContext, type RawConfig } from '../part';
-import { progressOf } from '../steps';
+import { progressOf } from '../../steps/steps';
 
 /* -- Woran ein Mensch ist, kurz ----------------------------------------------------- */
 

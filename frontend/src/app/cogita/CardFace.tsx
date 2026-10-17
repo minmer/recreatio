@@ -6,7 +6,8 @@
 
 import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { checkCard, type Card, type PromptPart } from './cards';
+import { checkCard } from './cards';
+import { type Card, type PromptPart } from './cardBasics';
 import { spansOf, type Outcome, type TextRule } from './check';
 import { evaluateCode } from './python';
 import { GeoMap } from './GeoMap';

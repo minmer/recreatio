@@ -16,22 +16,22 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { loadPage, pageModeOf, savePage, savePageLook, savePageSubject, saveParts, toDraft, type DraftPart, type PageMode } from './page';
-import { MassOffice } from './MassOffice';
+import { MassOffice } from '../masses/MassOffice';
 import { MenuEditor } from './MenuEditor';
 import { PageBuilder } from './PageBuilder';
 import { logicKey, PageLogicEditor } from './PageLogicEditor';
-import { pagePath } from './routes';
-import { SlidesEditor } from './SlidesEditor';
-import { PresentationEditor } from './PresentationEditor';
+import { pagePath } from '../routes';
+import { SlidesEditor } from './slides/SlidesEditor';
+import { PresentationEditor } from './presentation/PresentationEditor';
 import { PageJson } from './PageJsonPanel';
-import { NO_LOOK, readLook, writeLook, type Look } from './slides';
+import { NO_LOOK, readLook, writeLook, type Look } from './slides/slideLook';
 import { readSubject, SubjectSettings, writeSubject, type SubjectDecl } from './pageSubject';
-import { WorkspaceError, type Who } from './session';
-import { Loading } from './ui/Loading';
-import { PageHeader } from './ui/PageHeader';
-import { ShareButton } from './Share';
-import { toast } from './ui/dialogs';
-import { Icon } from './ui/icons';
+import { WorkspaceError, type Who } from '../core/session';
+import { Loading } from '../ui/Loading';
+import { PageHeader } from '../ui/PageHeader';
+import { ShareButton } from '../links/Share';
+import { toast } from '../ui/dialogs';
+import { Icon } from '../ui/icons';
 
 export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
   path: string;

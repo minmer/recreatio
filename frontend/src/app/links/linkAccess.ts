@@ -33,16 +33,16 @@
  * gibt. Ältere Links, die Bereiche direkt geben, gelten weiter.
  */
 
-import { epochAad, joinArea, loadMembers } from './area';
-import { walkBundle, type RoleBundle } from './roleBundle';
+import { epochAad, joinArea, loadMembers } from '../areas/area';
+import { walkBundle, type RoleBundle } from '../roles/roleBundle';
 import {
   aad, derive, Field, fromBase64Url, open, seal, sha256Bytes, toBase64Url, unwrapKey, wrapKey, KEY_SIZE
-} from './crypto';
+} from '../core/crypto';
 import { heldLinks, linkGeneration, linkHref, nameLink } from './linkKeep';
-import { newId } from './ids';
-import type { Ring, SealedRole } from './keys';
-import { addHolder, createRoleWithKeys, signEdge } from './roles';
-import { call, WorkspaceError } from './session';
+import { newId } from '../core/ids';
+import type { Ring, SealedRole } from '../core/keys';
+import { addHolder, createRoleWithKeys, signEdge } from '../roles/roles';
+import { call, WorkspaceError } from '../core/session';
 
 export type LinkLevel = 'read' | 'write' | 'admin';
 

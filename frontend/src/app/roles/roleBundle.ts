@@ -17,8 +17,8 @@
  * Eine Hülle, die nicht aufgeht, nimmt den anderen nichts — sie wird übergangen.
  */
 
-import { epochAad } from './area';
-import { aad, Field, fromBase64Url, open, unwrapKey } from './crypto';
+import { epochAad } from '../areas/area';
+import { aad, Field, fromBase64Url, open, unwrapKey } from '../core/crypto';
 
 export interface BundleRole {
   readonly roleId: string;

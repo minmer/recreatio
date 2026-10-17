@@ -11,20 +11,20 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { Crumbs } from './Crumbs';
-import { leadsNoPage } from './desk';
-import { HeaderSlotContext } from './headerSlot';
-import { HeldLinkBar } from './HeldLinkBar';
-import { current as notifyNow, subscribe as notifySubscribe } from './notify';
-import { NotifyBell } from './NotifyBell';
-import { NowPlayingBar } from './NowPlayingBar';
+import { leadsNoPage } from '../workspace/desk';
+import { HeaderSlotContext } from '../ui/headerSlot';
+import { HeldLinkBar } from '../links/HeldLinkBar';
+import { current as notifyNow, subscribe as notifySubscribe } from '../notify/notify';
+import { NotifyBell } from '../notify/NotifyBell';
+import { NowPlayingBar } from '../chat/NowPlayingBar';
 import { PhoneBar } from './PhoneBar';
-import { tilesPath, viewPath, type Spot, type View } from './routes';
+import { tilesPath, viewPath, type Spot, type View } from '../routes';
 import { SEARCH_EVENT, SearchPalette } from './SearchPalette';
-import type { Who } from './session';
-import { UiHosts } from './ui/dialogs';
-import { Icon, type IconName } from './ui/icons';
-import { MenuButton } from './ui/Menu';
-import { DESK_EVENT, deskNow, useLoaded } from './viewData';
+import type { Who } from '../core/session';
+import { UiHosts } from '../ui/dialogs';
+import { Icon, type IconName } from '../ui/icons';
+import { MenuButton } from '../ui/Menu';
+import { DESK_EVENT, deskNow, useLoaded } from '../workspace/viewData';
 import { ViewGuard } from './ViewGuard';
 
 /* -- Die Orte ----------------------------------------------------------------------------- */
@@ -198,6 +198,7 @@ function AccountMenu({ who, onSignOut }: { who: Who; onSignOut?: () => void }) {
         { label: 'Konto i hasło', icon: 'user', onSelect: () => { window.location.hash = viewPath('account').slice(1); } },
         { label: 'Powiadomienia', icon: 'bell', onSelect: () => { window.location.hash = viewPath('account', 'widok').slice(1); } },
         { label: 'Bezpieczeństwo i klucze', icon: 'shield', onSelect: () => { window.location.hash = viewPath('account', 'bezpieczenstwo').slice(1); } },
+        { label: 'Przeniesienie danych', icon: 'refresh', onSelect: () => { window.location.hash = viewPath('account', 'przeniesienie').slice(1); } },
         onSignOut !== undefined && { label: 'Wyloguj', icon: 'logout', onSelect: onSignOut }
       ]}
     />

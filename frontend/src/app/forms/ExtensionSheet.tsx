@@ -28,18 +28,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  addOfficeEntry, fullNameOf, hideSubmission, isYes, removeSubmission, reviseAcrossAsOffice, YES,
-  type Audience, type OpenField, type Submission
-} from './form';
+import { fullNameOf, isYes, YES, type Audience, type OpenField } from './form';
+import { addOfficeEntry, reviseAcrossAsOffice } from './revisions';
+import { hideSubmission, removeSubmission, type Submission } from './submissions';
 import { evaluate, layoutWith, missingIn, type FormDesign } from './formDesign';
 import { FormFlow, isRequired } from './FormFlow';
 import { readForm, type ReadForm } from './formRead';
 import { loadPublicIntake } from './intake';
-import { fromBase64Url } from './crypto';
-import { saveBlob } from './platform';
-import { useRemembered } from './prefs';
-import { keysFor } from './ringOf';
+import { fromBase64Url } from '../core/crypto';
+import { saveBlob } from '../core/platform';
+import { useRemembered } from '../core/prefs';
+import { keysFor } from '../core/ringOf';
 import {
   repeatOf, roundAhead, roundLabel, roundOf, roundRange, roundsBetween, roundShort, shiftRound, type Repeat
 } from './rounds';
@@ -47,10 +46,10 @@ import {
   addressOrder, byPerson, cellText, chipText, isBlank, quickFields, roundsCsv, tallyOf, tallyText,
   type RoundRecord
 } from './roundSheet';
-import { formPath } from './routes';
-import { WorkspaceError, type Who } from './session';
-import { askText } from './ui/dialogs';
-import { Icon } from './ui/icons';
+import { formPath } from '../routes';
+import { WorkspaceError, type Who } from '../core/session';
+import { askText } from '../ui/dialogs';
+import { Icon } from '../ui/icons';
 
 /** Wie ein Mensch in einer Liste heisst — sein voller Name, sonst die erste Antwort. */
 export function nameIn(values: ReadonlyMap<string, string> | undefined, fields: readonly OpenField[]): string {

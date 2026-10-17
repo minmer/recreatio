@@ -20,9 +20,9 @@
 
 import { useMemo, useState, type CSSProperties } from 'react';
 
-import { motionCount, readDrawing, shapeCount, SHAPE_TYPES } from '../drawing';
-import { DrawingView } from '../DrawingView';
-import { MOTION_NAMES } from '../motion';
+import { motionCount, readDrawing, shapeCount, SHAPE_TYPES } from '../motion/drawing';
+import { DrawingView } from '../motion/DrawingView';
+import { MOTION_NAMES } from '../motion/motion';
 import { definePart, type EditorProps, type RawConfig } from '../part';
 
 interface Config {

@@ -1,7 +1,7 @@
 /**
  * 0099 — wie viele eine Funktion an einem Termin nehmen: Schlüssel `Tag|Funktion`.
  *
- * 2026-10-17 — aus `TaskCard.tsx` hierher (dort weitergereicht): wer nur die
+ * 2026-10-17 — aus `TaskCard.tsx` hierher: wer nur die
  * Zählung brauchte, lud die ganze Karte mit dem Kalender mit.
  */
 

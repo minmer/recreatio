@@ -11,15 +11,13 @@
  * hergibt, lässt nur seine eigenen Fragen und Antworten zu.
  */
 
-import { loadPublicKey, myEpochKeys } from './area';
-import { fromBase64Url } from './crypto';
-import {
-  asked, loadFields, loadRegistrations, openFields, readAcross, rewrapToOffice, takenOff,
-  type IntakeKey, type OpenField, type Submission
-} from './form';
+import { loadPublicKey, myEpochKeys } from '../areas/area';
+import { fromBase64Url } from '../core/crypto';
+import { asked, loadFields, openFields, takenOff, type OpenField } from './form';
+import { loadRegistrations, readAcross, rewrapToOffice, type IntakeKey, type Submission } from './submissions';
 import { openDesign, type FormDesign } from './formDesign';
 import { loadIntake, loadPublicIntake, openIntakeKey } from './intake';
-import type { Ring } from './keys';
+import type { Ring } from '../core/keys';
 
 export interface ReadForm {
   /** Die Fragen, die das Formular stellt. */

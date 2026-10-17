@@ -4,7 +4,7 @@
     <!-- EIN Testvektor fuer beide Seiten. Zwei Kopien waeren genau der Verzug,
          den er verhindern soll: eine Seite wird angefasst, die andere nicht,
          und beide bleiben gruen. -->
-    <None Include="../rc-wrap-vector.json" CopyToOutputDirectory="PreserveNewest" Link="rc-wrap-vector.json" />
+    <None Include="wrap-vector.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -31,15 +31,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { openSubpage } from './access';
-import { loadDesk, type PageCard } from './desk';
-import { setPartConfig } from './form';
-import { newId } from './ids';
-import { COLUMNS, type Breakpoint, type Frame, type Layout } from './layout';
-import { saveParts, type DraftPart } from './page';
-import { pageSteps, PATH_SHAPE, viewPath } from './routes';
+import { openSubpage } from '../areas/access';
+import { loadDesk, type PageCard } from '../workspace/desk';
+import { setPartConfig } from '../forms/form';
+import { newId } from '../core/ids';
+import { COLUMNS, type Breakpoint, type Frame, type Layout } from '../pages/layout';
+import { saveParts, type DraftPart } from '../pages/page';
+import { pageSteps, PATH_SHAPE, viewPath } from '../routes';
 import { pageLink } from './seatKeep';
-import { WorkspaceError } from './session';
+import { WorkspaceError } from '../core/session';
 
 /**
  * Wie ein neues Portal vorgeschlagen wird.

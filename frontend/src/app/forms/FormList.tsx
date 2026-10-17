@@ -15,17 +15,17 @@
 
 import { useState } from 'react';
 
-import { areaPath, type AreaRow } from './area';
-import { AreaOptions } from './AreaOptions';
-import { plural } from './plural';
+import { areaPath, type AreaRow } from '../areas/area';
+import { AreaOptions } from '../areas/AreaOptions';
+import { plural } from '../core/plural';
 import { formSections, moveInGroup, type FormItem } from './formGroups';
-import { newId } from './ids';
-import { createFormGroup, removeFormGroup, updateFormGroup, updateModule, type FormGroup, type ModuleRow } from './module';
-import { formNewsPath, formPath, formsPath } from './routes';
-import { askText } from './ui/dialogs';
-import { Icon } from './ui/icons';
-import { MenuButton } from './ui/Menu';
-import { PageHeader } from './ui/PageHeader';
+import { newId } from '../core/ids';
+import { createFormGroup, removeFormGroup, updateFormGroup, updateModule, type FormGroup, type ModuleRow } from '../modules/module';
+import { formNewsPath, formPath, formsPath } from '../routes';
+import { askText } from '../ui/dialogs';
+import { Icon } from '../ui/icons';
+import { MenuButton } from '../ui/Menu';
+import { PageHeader } from '../ui/PageHeader';
 
 export const FORM_MAP = 'mapa-formularzy';
 

@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { readFrame, readPhoto } from './barcode';
+import { readFrame, readPhoto } from '../library/barcode';
 import { Modal } from './Modal';
 
 type CameraState = 'starting' | 'live' | 'denied' | 'none';

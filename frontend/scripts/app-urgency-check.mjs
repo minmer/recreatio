@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-urgency-'));
 await build({
-  entryPoints: ['src/app/urgency.ts'],
+  entryPoints: ['src/app/core/urgency.ts'],
   bundle: true,
   format: 'esm',
   platform: 'node',

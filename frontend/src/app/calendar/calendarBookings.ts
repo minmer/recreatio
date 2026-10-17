@@ -17,9 +17,9 @@
  * wer darin schreibt (`mayDecide`).
  */
 
-import { openHolderNames } from './holderNames';
-import type { Status } from './resource';
-import { call } from './session';
+import { openHolderNames } from '../core/holderNames';
+import type { Status } from '../bookings/resource';
+import { call } from '../core/session';
 
 export interface BookingResource {
   readonly resourceId: string;

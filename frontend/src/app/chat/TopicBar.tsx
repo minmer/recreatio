@@ -13,14 +13,14 @@
 import { useEffect, useState } from 'react';
 
 import { areaKeys } from './chat';
-import { closeTopic, loadLinked, renameTopic, type LinkedItem, type Topic } from './chatTopics';
-import { aad, Field, fromBase64Url, openText } from './crypto';
-import type { Ring } from './keys';
-import { Modal } from './Modal';
-import { viewPath } from './routes';
-import { WorkspaceError } from './session';
-import { loadTasks, openTasks, windowState, type OpenTask } from './tasks';
-import { Loading } from './ui/Loading';
+import { closeTopic, loadLinked, type LinkedItem, type Topic } from './chatTopics';
+import { aad, Field, fromBase64Url, openText } from '../core/crypto';
+import type { Ring } from '../core/keys';
+import { Modal } from '../ui/Modal';
+import { viewPath } from '../routes';
+import { WorkspaceError } from '../core/session';
+import { loadTasks, openTasks, windowState, type OpenTask } from '../calendar/tasks';
+import { Loading } from '../ui/Loading';
 
 export function TopicBar({ topics, current, canCreate, canManage, onPick, onCreate, onChanged }: {
   topics: readonly Topic[];
@@ -111,27 +111,6 @@ function TopicTools({ topic, onChanged }: { topic: Topic; onChanged?: () => void
   );
 }
 
-/** Umbenennen — ein kleines Fenster. */
-export function RenameTopic({ topic, keys, onClose, onDone }: {
-  topic: Topic; keys: ReadonlyMap<number, Uint8Array>; onClose: () => void; onDone: () => void;
-}) {
-  const [title, setTitle] = useState(topic.title);
-  const [failed, setFailed] = useState<string | null>(null);
-  return (
-    <Modal title="Nazwa tematu" onClose={onClose}>
-      <form className="wk-form" onSubmit={(e) => {
-        e.preventDefault();
-        void renameTopic(topic.topicId, keys, title).then(() => { onDone(); onClose(); })
-          .catch((err) => setFailed(err instanceof WorkspaceError ? err.message : 'Nie udało się.'));
-      }}>
-        <input value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
-        {failed !== null && <p className="wk-error">{failed}</p>}
-        <div className="wk-actions"><button type="submit" className="wk-btn">Zapisz</button></div>
-      </form>
-    </Modal>
-  );
-}
-
 /** Wohin eine Nachricht gehört — ein Thema oder keines. */
 /**
  * 0101 — IN EIN THEMA ZUSAMMENTRAGEN: ein neues Thema (gleich mit den
@@ -187,23 +166,6 @@ export function CollectToTopic({ count, topics, canCreate, onCollect, onClose }:
         <li><button type="button" className="ch-topic" disabled={busy} data-collect-topic="" onClick={() => void go({ topicId: null })}>Bez tematu</button></li>
       </ul>
       {failed !== null && <p className="wk-error">{failed}</p>}
-    </Modal>
-  );
-}
-
-export function MoveToTopic({ topics, current, onPick, onClose }: {
-  topics: readonly Topic[]; current: string | null; onPick: (topicId: string | null) => void; onClose: () => void;
-}) {
-  return (
-    <Modal title="Przenieś do tematu" onClose={onClose}>
-      <ul className="ch-move-list">
-        <li><button type="button" className={current === null ? 'ch-topic is-on' : 'ch-topic'} onClick={() => onPick(null)}>Bez tematu</button></li>
-        {topics.filter((t) => t.closedAt === null).map((t) => (
-          <li key={t.topicId}>
-            <button type="button" className={current === t.topicId ? 'ch-topic is-on' : 'ch-topic'} onClick={() => onPick(t.topicId)}># {t.title}</button>
-          </li>
-        ))}
-      </ul>
     </Modal>
   );
 }

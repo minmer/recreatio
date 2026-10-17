@@ -17,20 +17,13 @@
  */
 
 import type { AreaRow } from './area';
-import { openFormNames, type FormNameIn } from './names';
-import { call } from './session';
+import { openFormNames, type FormNameIn } from '../core/names';
+import { call } from '../core/session';
 
 export type AudienceMode = 'channel' | 'together' | 'one';
 
 /** Was einer kann, der kein Schreibrecht im Bereich hat — ein Mensch mit Link, oder wer im Bereich nur liest. */
 export const othersWrite = (mode: AudienceMode): boolean => mode !== 'channel';
-
-/** Wie die drei heissen, wo man zwischen ihnen wählt. */
-export const AUDIENCE_LABEL: Record<AudienceMode, string> = {
-  channel: 'Kanał',
-  together: 'Wszyscy razem',
-  one: 'Jeden na jeden'
-};
 
 /** Ein Formular an einem Ding: wie es heisst, wem es gehört, wie viele Menschen mit Link dadurch dabei sind. */
 export interface AudienceForm {

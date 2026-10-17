@@ -1,0 +1,215 @@
+/* Die Bausteine aus ui/: Ikone, Rückfrage, Meldungen, Platzhalter, leerer Ort — und kleine gemeinsame Formen.
+   Teil von ui.css: dort steht die Reihenfolge. */
+
+/* ===========================================================================
+   4. BAUSTEINE AUS ui/
+   =========================================================================== */
+
+/* -- Ikone ----------------------------------------------------------------- */
+
+.ui-icon { width: 1.15rem; height: 1.15rem; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; }
+
+/* -- Rückfrage (statt `confirm()`) ----------------------------------------- */
+
+.ui-ask { display: grid; gap: var(--wk-space-3); }
+.ui-ask-body { margin: 0; color: var(--wk-ink-2); }
+.ui-ask-list { margin: 0; padding-left: 1.2rem; color: var(--wk-ink-2); font-size: var(--wk-text-sm); display: grid; gap: 0.125rem; }
+.ui-ask .wk-actions { justify-content: flex-end; margin-top: var(--wk-space-2); }
+
+/* -- Meldungen unten ------------------------------------------------------- */
+
+.ui-toasts {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: var(--wk-z-toast);
+  display: grid;
+  gap: var(--wk-space-2);
+  width: min(28rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+@media (max-width: 63.99rem) { .ui-toasts { bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px)); } }
+.ui-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--wk-space-3);
+  padding: var(--wk-space-3) var(--wk-space-4);
+  border-radius: var(--wk-radius);
+  background: var(--wk-ink);
+  color: var(--wk-ground);
+  font-size: var(--wk-text-sm);
+  font-weight: 600;
+  box-shadow: var(--wk-shadow-dialog);
+  animation: wk-rise 0.16s ease-out;
+}
+.ui-toast svg { width: 1.1rem; height: 1.1rem; flex: none; }
+.ui-toast.is-error { background: var(--wk-danger); color: var(--wk-on-accent); }
+.ui-toast-text { flex: 1; min-width: 0; }
+.ui-toast-act {
+  border: 0;
+  background: none;
+  padding: var(--wk-space-1) var(--wk-space-2);
+  border-radius: var(--wk-radius-sm);
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.ui-toast-act:hover { background: rgb(255 255 255 / 0.12); }
+
+/* -- Platzhalter, solange geladen wird -------------------------------------- */
+
+.ui-loading { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-1) 0; min-width: 0; }
+.ui-loading-line {
+  height: 0.85rem;
+  border-radius: var(--wk-radius-xs);
+  background: linear-gradient(90deg, var(--wk-sunk) 0%, var(--wk-line) 50%, var(--wk-sunk) 100%);
+  background-size: 200% 100%;
+  animation: ui-shimmer 1.4s ease-in-out infinite;
+}
+.ui-loading-line:nth-child(1) { width: 62%; }
+.ui-loading-line:nth-child(2) { width: 88%; }
+.ui-loading-line:nth-child(3) { width: 45%; }
+.ui-loading-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@keyframes ui-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .ui-loading-line { animation: none; } }
+
+/* -- Ein leerer Ort --------------------------------------------------------- */
+
+.ui-empty {
+  display: grid;
+  justify-items: start;
+  gap: var(--wk-space-2);
+  padding: var(--wk-space-5);
+  border: 1px dashed var(--wk-line-strong);
+  border-radius: var(--wk-radius);
+  color: var(--wk-muted);
+}
+.ui-empty p { margin: 0; }
+
+/* -- Nur für das Vorlesen ---------------------------------------------------- */
+
+.ui-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* -- Eine Seite aus Abschnitten: gleicher Abstand zwischen ihnen --------------- */
+
+.ui-page { display: grid; gap: var(--wk-space-6); align-content: start; }
+.ui-page > section { display: grid; gap: var(--wk-space-3); min-width: 0; }
+.ui-page > section > .wk-h2, .ui-page > section > .wk-hint, .ui-page > section > .wk-empty { margin: 0; }
+.wk-line-first, .wk-box > .wk-line:first-child { border-top: 0; }
+
+/* -- Eine Wahl zwischen wenigen, jede mit dem, was sie bedeutet ---------------- */
+
+.ui-choices { display: grid; gap: var(--wk-space-2); margin: 0; padding: 0; border: 0; min-width: 0; }
+.ui-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--wk-space-1) var(--wk-space-3);
+  align-items: start;
+  padding: var(--wk-space-3) var(--wk-space-4);
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius);
+  background: var(--wk-surface);
+  cursor: pointer;
+}
+.ui-choice:hover { border-color: var(--wk-line-strong); }
+.ui-choice:has(input:checked) { border-color: var(--wk-accent); box-shadow: inset 0 0 0 1px var(--wk-accent); }
+.ui-choice:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--wk-ring); }
+.ui-choice input { width: 1.05rem; height: 1.05rem; min-height: 0; margin: 0.15rem 0 0; accent-color: var(--wk-accent); }
+.ui-choice-title { font-weight: 600; }
+.ui-choice-text { grid-column: 2; color: var(--wk-ink-2); font-size: var(--wk-text-sm); line-height: 1.5; }
+.ui-choices:disabled .ui-choice { cursor: default; opacity: 0.7; }
+
+/* -- Konto: Löschen am Ende, abgesetzt ----------------------------------------- */
+
+.wk-danger-zone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wk-space-3) var(--wk-space-4);
+  padding: var(--wk-space-4);
+  border: 1px solid color-mix(in srgb, var(--wk-danger) 35%, var(--wk-line));
+  border-radius: var(--wk-radius);
+  background: var(--wk-danger-soft);
+}
+.wk-danger-zone .wk-h2 { margin: 0 0 var(--wk-space-1); }
+.wk-danger-zone .wk-hint { margin: 0; }
+
+/* -- Bezpieczeństwo: wie die Schlüssel arbeiten, in fünf Sätzen ---------------- */
+
+.wk-security-how { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); }
+.wk-security-how li { position: relative; padding-left: var(--wk-space-5); line-height: 1.55; color: var(--wk-ink-2); }
+.wk-security-how li::before {
+  content: ''; position: absolute; left: var(--wk-space-1); top: 0.6em;
+  width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--wk-accent);
+}
+.wk-security-how strong { color: var(--wk-ink); }
+
+/* -- Administrator danych: eine Stelle je Obszar (2026-10-17) ------------------ */
+
+.wk-controller { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.wk-controller-line { margin: 0; line-height: 1.5; }
+.wk-controller .wk-hint { margin: 0; }
+.wk-controller-now {
+  display: grid; gap: var(--wk-space-2); justify-items: start;
+  padding: var(--wk-space-3) var(--wk-space-4);
+  border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface);
+}
+.wk-controller-missing { margin: 0; border-left-color: var(--wk-warn); background: var(--wk-warn-soft); }
+
+/* Die Einstellungen eines Formulars: eine Spalte, gleiche Abstände. */
+.wk-form-settings { display: grid; gap: var(--wk-space-4); align-content: start; }
+.wk-form-settings > .wk-form, .wk-form-settings > section { margin: 0; }
+
+/* Ein Kasten als Liste: Zeilen ohne Aufzählungszeichen, die erste ohne Linie darüber. */
+ul.wk-box, ol.wk-box { list-style: none; margin: 0; padding: 0; }
+.wk-box > li:first-child > .wk-line { border-top: 0; }
+.wk-box > li > .wk-line { border-radius: 0; }
+.wk-box > li:first-child > a.wk-line { border-top-left-radius: var(--wk-radius); border-top-right-radius: var(--wk-radius); }
+.wk-box > li:last-child > a.wk-line, .wk-box > a.wk-line:last-child { border-bottom-left-radius: var(--wk-radius); border-bottom-right-radius: var(--wk-radius); }
+.wk-box > a.wk-line:first-child { border-top-left-radius: var(--wk-radius); border-top-right-radius: var(--wk-radius); }
+
+/* -- Werkzeuge über einer Liste: Hinzufügen, Filter als Chips ------------------ */
+
+.wk-list-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); margin: var(--wk-space-2) 0; }
+.wk-list-tools > .wk-office-add { flex: 1 1 100%; order: 2; }
+.ui-filter {
+  display: inline-flex; align-items: center; gap: var(--wk-space-1);
+  min-height: var(--wk-control-h-sm); padding: 0 var(--wk-space-3);
+  border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius-pill);
+  background: var(--wk-surface); color: var(--wk-ink-2);
+  font: inherit; font-size: var(--wk-text-sm); font-weight: 600; font-variant-numeric: tabular-nums;
+  cursor: pointer; white-space: nowrap;
+}
+.ui-filter:hover { border-color: var(--wk-accent); color: var(--wk-ink); }
+.ui-filter[aria-pressed="true"] { background: var(--wk-accent-soft); border-color: var(--wk-accent); color: var(--wk-accent); }
+.ui-filter.is-new { border-color: var(--wk-accent); color: var(--wk-accent); }
+.ui-filter.is-new[aria-pressed="true"] { background: var(--wk-accent); color: var(--wk-on-accent); }
+.ui-filter:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--wk-ring); }
+.ui-filter .ui-icon { width: 1rem; height: 1rem; }
+
+/* Der Kopf der Liste „Osoby": Titel, daneben Filter, rechts „Napisz SMS". */
+.wk-people-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); min-width: 0; }
+.wk-people-filters .wk-step-filter { width: auto; max-width: 100%; min-height: var(--wk-control-h-sm); font-size: var(--wk-text-sm); }
+@media (max-width: 40rem) {
+  .wk-sms-bar > .wk-h2 { flex: 1 1 100%; }
+}
+
+/* Obszary: die Tiefe an der Zeile (eine Gruppe unter ihrer Pfarrei). */
+.wk-area-list .wk-line { padding-left: calc(var(--wk-space-4) + var(--depth, 0) * 1.5rem); }
+.wk-area-list .wk-line-end .wk-tags { display: inline-flex; gap: var(--wk-space-1); }
+@media (max-width: 40rem) { .wk-area-list .wk-line-end .wk-tags { display: none; } }
+
+/* -- Die Schritte eines Menschen: ein Balken, und der nächste hervorgehoben ----- */
+
+.wk-progress { display: block; width: 100%; height: 0.5rem; margin: 0 0 var(--wk-space-2); border: 0; border-radius: var(--wk-radius-pill); background: var(--wk-sunk); accent-color: var(--wk-accent); overflow: hidden; }
+.wk-progress::-webkit-progress-bar { background: var(--wk-sunk); }
+.wk-progress::-webkit-progress-value { background: var(--wk-accent); }
+.wk-progress::-moz-progress-bar { background: var(--wk-accent); }
+.wk-step.is-next { border-color: var(--wk-accent); box-shadow: inset 3px 0 0 var(--wk-accent); }
+.wk-step.is-done .wk-step-text .wk-hint { display: none; }

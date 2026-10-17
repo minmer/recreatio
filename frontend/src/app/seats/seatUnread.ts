@@ -10,7 +10,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { CHAT_SEEN } from './chatFeatures';
+import { CHAT_SEEN } from '../chat/chatFeatures';
 import { loadSeatChats, type SeatChatRow } from './seatChat';
 
 interface Entry {

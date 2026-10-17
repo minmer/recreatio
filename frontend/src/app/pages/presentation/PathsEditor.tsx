@@ -19,8 +19,8 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { newId } from './ids';
-import type { DraftPart } from './page';
+import { newId } from '../../core/ids';
+import type { DraftPart } from '../page';
 import { pieceLabelOf } from './PagePresentation';
 import { readPiece, textLink, withPiece, type Show, type ShowLink } from './presentation';
 import {

@@ -9,9 +9,9 @@
 import { useEffect, useState } from 'react';
 
 import type { Opened, SealedVersion } from './chat';
-import { Modal } from './Modal';
-import { WorkspaceError } from './session';
-import { Loading } from './ui/Loading';
+import { Modal } from '../ui/Modal';
+import { WorkspaceError } from '../core/session';
+import { Loading } from '../ui/Loading';
 
 const when = (at: string) => new Date(at).toLocaleString('pl-PL', {
   day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'

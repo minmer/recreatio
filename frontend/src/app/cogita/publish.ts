@@ -13,11 +13,11 @@
  * eine öffentliche Seite ohne Schlüssel liest. Nichts geht von selbst hinaus.
  */
 
-import { newId } from '../ids';
-import { COLUMNS, type Breakpoint, type Frame, type Layout } from '../layout';
-import { savePage, saveParts, type DraftPart } from '../page';
-import { call } from '../session';
-import type { Card } from './cards';
+import { newId } from '../core/ids';
+import { COLUMNS, type Breakpoint, type Frame, type Layout } from '../pages/layout';
+import { savePage, saveParts, type DraftPart } from '../pages/page';
+import { call } from '../core/session';
+import type { Card } from './cardBasics';
 import { fileUrl, publishFile } from './files';
 import { contentOf, readFlow, resolveFlow, type Flow } from './flow';
 import { readGraph } from './graph';
@@ -72,10 +72,6 @@ export async function publishModule(input: { readonly roleId: string; readonly t
 
 export const pageUrl = (path: string): string =>
   `${typeof window === 'undefined' ? 'https://recreatio.pl/' : `${window.location.origin}${window.location.pathname}`}#/${path}`;
-
-/* -- Was hinausgeht --------------------------------------------------------------------------- */
-
-export { ENTITY_BUNDLE, FLOW_BUNDLE, REVISION_BUNDLE };
 
 /** Ein Eintrag, wie ihn eine öffentliche Seite zeigt — sein Etikett und seine Felder in Worten. */
 export interface PublicEntity {

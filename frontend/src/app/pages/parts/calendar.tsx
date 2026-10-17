@@ -10,10 +10,10 @@
  */
 
 import { definePart, text, type RawConfig } from '../part';
-import { later } from '../ui/later';
+import { later } from '../../ui/later';
 
 /* 2026-10-17 — die Ansicht erst, wenn sie gezeigt wird (`ui/later`): eine Seite ohne diesen Baustein lädt sie nicht. */
-const CalendarPartView = later(() => import('../CalendarPart').then((m) => m.CalendarPartView));
+const CalendarPartView = later(() => import('../../calendar/CalendarPart').then((m) => m.CalendarPartView));
 
 interface CalendarConfig {
   readonly title: string;

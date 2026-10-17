@@ -10,13 +10,13 @@
 
 import { useEffect, useState } from 'react';
 
-import { loadAgenda, openAgenda, type OpenedItem } from './agenda';
-import { loadAreas, type AreaRow } from './area';
-import { loadChats, type ChatRow } from './chat';
+import { loadAgenda, openAgenda, type OpenedItem } from '../calendar/agenda';
+import { loadAreas, type AreaRow } from '../areas/area';
+import { loadChats, type ChatRow } from '../chat/chat';
 import { loadDesk, type Desk } from './desk';
-import type { Ring } from './keys';
-import { loadLinks, type LinkRow } from './linkAccess';
-import { loadModules, type ModuleRow } from './module';
+import type { Ring } from '../core/keys';
+import { loadLinks, type LinkRow } from '../links/linkAccess';
+import { loadModules, type ModuleRow } from '../modules/module';
 
 const FRESH_MS = 30_000;
 const cache = new Map<string, { at: number; value: Promise<unknown> }>();

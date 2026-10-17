@@ -1,0 +1,150 @@
+/* Ruch i pokaz (0107), Animacja (0108).
+   Teil von app.css: dort steht, in welcher Reihenfolge die Dateien gelten. */
+
+/* =============================================================================
+   0107 — RUCH I POKAZ COGITA: die Folge als Ganzes (gemeinsames Tuch, Punkte,
+   Breite der Bühne), der Aufbau eines Slajds, wer neben wem, die Luft (Schein,
+   Ecken, Dunst, Nici, Fale), das Bild aus Ebenen und die bewegten Bilder
+   (`an-*`, die Keyframes des Altbestands von Cogita, Prozent für Prozent).
+   ============================================================================= */
+
+/* Die Namen des Themas gelten auch in einem Slajd (der Kształt, eine Animacja mit "accent"). */
+.wk-deck {
+  --pz-accent: var(--deck-accent);
+  --pz-ink: var(--deck-ink);
+  --pz-ground: var(--deck-ground);
+  --pz-muted: var(--deck-muted);
+}
+
+/* -- Die Leiste: Punkte rechts oder keine --------------------------------------- */
+.wk-deck.is-nav-dots, .wk-deck.is-nav-none { grid-template-rows: minmax(0, 1fr) auto; }
+.wk-deck-dots {
+  position: absolute; right: clamp(0.5rem, 1.6vw, 1.6rem); top: 50%; transform: translateY(-50%); z-index: 6;
+  display: grid; gap: 0.5rem;
+}
+.wk-deck-dots a, .wk-deck-dots button {
+  display: block; width: 0.7rem; height: 0.7rem; padding: 0; border-radius: 999px; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--deck-ink) 55%, transparent); background: transparent;
+  transition: background 160ms ease, transform 160ms ease, border-color 160ms ease;
+}
+.wk-deck-dots .is-active { background: color-mix(in srgb, var(--deck-ink) 90%, transparent); border-color: color-mix(in srgb, var(--deck-ink) 90%, transparent); transform: scale(1.15); }
+.wk-deck-dots a:focus-visible, .wk-deck-dots button:focus-visible { outline: 2px solid var(--deck-accent); outline-offset: 2px; }
+/* Auf dem Telefon stehen die Punkte im Bild — der Inhalt lässt ihnen den Rand. */
+@media (max-width: 640px) { .wk-deck.is-nav-dots .wk-deck-content-layer { padding-right: 2.5rem; } }
+
+/* -- Das gemeinsame Tuch -------------------------------------------------------- */
+.wk-deck-backdrop { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.wk-deck-backdrop-slide { position: absolute; inset: 0; }
+.wk-deck-backdrop .wk-deck-layer { position: absolute; inset: 0; will-change: auto; }
+/* Ein Slajd über dem Tuch ist durchsichtig — ohne die eigene Schattierung, die sonst einen vom nächsten trennt. */
+.wk-deck-slide.is-clear::after { display: none; }
+
+/* -- Die Bühne: höchstens so breit wie die Folge sagt --------------------------- */
+.wk-deck-stage {
+  left: max(0px, calc((100% - var(--deck-width, 100%)) / 2));
+  right: max(0px, calc((100% - var(--deck-width, 100%)) / 2));
+}
+.wk-deck-actor.has-max { width: min(var(--actor-w), var(--actor-max)); }
+@media (max-width: 640px) { .wk-deck-actor.has-max { width: min(var(--actor-w-narrow), var(--actor-max)); } }
+
+/* -- Wo der Inhalt steht (slide.layout) ------------------------------------------ */
+.wk-deck-content.is-placed { max-width: var(--deck-width, 100%); justify-items: center; }
+.wk-deck-content.is-placed.is-start { justify-items: start; }
+.wk-deck-content.is-placed.is-end { justify-items: end; }
+.wk-deck-content.is-placed > * { width: var(--content-w, min(100%, 52rem)); max-width: 100%; box-sizing: border-box; }
+.wk-deck-content-layer.is-v-start > .wk-deck-content { margin-block: 0 auto; }
+.wk-deck-content-layer.is-v-end > .wk-deck-content { margin-block: auto 0; }
+
+/* -- Wer neben wem (slide.with) ---------------------------------------------------- */
+.wk-deck-row { display: flex; align-items: center; gap: clamp(1.2rem, 2.6vw, 3rem); width: 100%; min-width: 0; }
+.wk-deck-row-main { flex: 1 1 0; min-width: 0; }
+.wk-deck-row-side { flex: 0 0 var(--share, 45%); min-width: 0; order: 1; }
+.wk-deck-row-side.is-side-start { order: -1; }
+.wk-deck.is-tall .wk-deck-row { flex-direction: column; align-items: stretch; gap: 1.25rem; }
+.wk-deck.is-tall .wk-deck-row-side { flex: none; width: 100%; }
+.wk-deck.is-tall .wk-deck-row-side.is-tall-start { order: -1; }
+.wk-deck.is-tall .wk-deck-row-side.is-tall-end { order: 1; }
+
+/* Ein Titel, ein Bild, eine Animacja stehen auf dem Slajd, nicht in einem Kasten — und verwischen nicht, was dahinter liegt. */
+.wk-deck-card.wk-card-hero, .wk-deck-card.wk-card-animation, .wk-deck-card.wk-card-layers {
+  background: transparent; border-color: transparent; box-shadow: none; backdrop-filter: none; padding-inline: 0;
+}
+.wk-deck-card.wk-card-animation, .wk-deck-card.wk-card-layers { padding-block: 0; }
+
+/* -- Bewegte Rahmen (MotionBox) ----------------------------------------------------- */
+.wk-motion, .wk-motion-root { min-width: 0; }
+.wk-motion.is-draw svg, .wk-motion.is-draw path { stroke-dasharray: inherit; stroke-dashoffset: inherit; }
+
+/* -- Tytuł: Nadtytuł und das kleinere Hasło (0107) ------------------------------------ */
+.ev-kicker {
+  margin: 0; text-transform: uppercase; letter-spacing: 0.2em; font-size: var(--wk-text-xs); font-weight: 600;
+  color: color-mix(in srgb, var(--ev-accent) 55%, var(--ev-ink));
+}
+.ev-title h2 {
+  margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(1.7rem, 3.2vw, 2.4rem);
+  font-weight: 600; line-height: 1.12; text-wrap: balance;
+}
+.ev-title h2 span { display: block; margin-top: 0.375rem; font-size: clamp(1rem, 1.6vw, 1.3rem); font-weight: 400; color: var(--ev-muted); }
+.wk-deck-card .ev-title.is-title p { font-size: clamp(1rem, 1.25vw, 1.2rem); line-height: 1.6; }
+.wk-deck-card .ev-title .ev-cta { box-shadow: 0 12px 28px color-mix(in srgb, var(--ev-accent) 28%, transparent); }
+
+/* -- Die Luft (Schichten) ---------------------------------------------------------------- */
+.wk-deck-layer > .wk-motion-root { position: absolute; inset: 0; }
+.wk-air-haze { position: absolute; inset: -20%; }
+.wk-air-haze > span { display: block; width: 100%; height: 100%; }
+.wk-air-mesh, .wk-air-waves { position: absolute; inset: 0; overflow: hidden; }
+.wk-air-mesh > .wk-motion-root, .wk-air-mesh > .wk-air-mesh-sheet { position: absolute; inset: 0; }
+.wk-air-mesh-sheet { position: absolute; top: 0; bottom: 0; left: -40%; width: 180%; transform-origin: 50% 80%; }
+.wk-air-mesh-canvas { display: block; width: 100%; height: 100%; }
+.wk-air-wave { position: absolute; left: -40%; right: -40%; height: 60%; pointer-events: none; }
+.wk-air-wave > .wk-motion-root, .wk-air-wave-sway { width: 100%; height: 100%; }
+.wk-air-wave-sway { transform-origin: 50% 80%; }
+.wk-air-wave-shape { width: 100%; height: 100%; transform: scaleX(1.15); }
+
+/* -- Obraz z warstw ------------------------------------------------------------------------- */
+.wk-layers { position: relative; width: 100%; isolation: isolate; }
+.wk-layers-ply { position: absolute; inset: 0; pointer-events: none; }
+.wk-layers-ply.is-base { position: relative; inset: auto; }
+.wk-layers-ply .wk-motion-root, .wk-layers-ply .wk-motion, .wk-layers-move { width: 100%; height: 100%; }
+.wk-layers-ply img { display: block; width: 100%; height: 100%; object-fit: contain; user-select: none; }
+.wk-layers-ply.is-base img { height: auto; }
+.wk-layers.is-still { max-width: 8rem; margin-inline: auto; }
+.wk-layers-link { display: block; color: inherit; }
+.wk-layers-edit { display: grid; gap: 0.5rem; }
+.wk-layers-list { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.75rem; }
+.wk-layers-row { display: flex; align-items: center; gap: 0.5rem; }
+.wk-layers-row > input { flex: 1; min-width: 0; }
+.wk-layers-thumb { width: 2.2rem; height: 2.2rem; object-fit: contain; border: 1px solid var(--wk-line); border-radius: 4px; background: color-mix(in srgb, var(--wk-ink) 70%, transparent); }
+
+/* -- Ruch einstellen ------------------------------------------------------------------------ */
+.mo-field { display: grid; gap: 0.5rem; }
+.mo-field-label { font-size: var(--wk-text-sm); font-weight: 600; }
+.mo-row { border: 1px solid var(--wk-line); border-radius: 6px; padding: 0.375rem 0.5rem 0.5rem; display: grid; gap: 0.375rem; }
+.mo-row legend { display: flex; gap: 0.375rem; align-items: center; padding: 0 0.25rem; }
+.mo-row input[type="number"] { width: 6.5rem; }
+.se-where { border: 1px solid var(--wk-line); border-radius: 6px; padding: 0.375rem 0.75rem 0.5rem; display: grid; gap: 0.375rem; }
+.se-companion, .se-layout { display: grid; gap: 0.375rem; }
+.se-layout-tall { border: 1px dashed var(--wk-line); border-radius: 6px; padding: 0.25rem 0.5rem 0.5rem; display: grid; gap: 0.375rem; }
+.se-num.is-beside { color: var(--wk-muted); }
+.an-edit { display: grid; gap: 0.5rem; }
+
+/* =============================================================================
+   ANIMACJA (0108) — eine Zeichnung mit Bewegung (DrawingView.tsx): ein SVG in
+   seinem eigenen Raum, so breit wie der Platz (höchstens --an-max). Was sich
+   bewegt, bewegt die Web Animations API — hier steht nur der Rahmen.
+   ============================================================================= */
+
+.an { position: relative; width: 100%; max-width: var(--an-max, none); margin-inline: auto; }
+.an > svg, .dr { display: block; width: 100%; height: auto; overflow: visible; }
+.an.is-strip { max-width: min(var(--an-max, 11rem), 11rem); }
+.an-edit-json { width: 100%; box-sizing: border-box; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: var(--wk-text-sm); }
+
+/* -- 0108: die Präsentation — gemeinsames Tuch, Breite der Bühne, Bewegungen der Bausteine ---------- */
+.pz-backdrop { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.pz-backdrop-scene { position: absolute; inset: 0; }
+.pz-backdrop .pz-layer { overflow: hidden; }
+/* Die Plätze rechnen in der Breite der Bühne; der Hintergrund bleibt ganz. */
+.pz-content, .pz-travel { left: max(0px, calc((100% - var(--pz-width, 100%)) / 2)); right: max(0px, calc((100% - var(--pz-width, 100%)) / 2)); }
+.pz-travel { position: absolute; top: 0; bottom: 0; pointer-events: none; }
+.pz-move, .pz-body > .wk-motion-root { min-width: 0; }
+.pz .wk-card-hero.pz-card .ev-title { gap: 1rem; }

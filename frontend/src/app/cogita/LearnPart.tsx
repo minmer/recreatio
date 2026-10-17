@@ -5,10 +5,10 @@
 
 import { useEffect, useState } from 'react';
 
-import { libraryKindOf, loadLibraries, openLibraries, type OpenLibrary } from '../library';
-import { useMe } from '../me';
+import { libraryKindOf, loadLibraries, openLibraries, type OpenLibrary } from '../library/library';
+import { useMe } from '../core/me';
 import { viewPath } from '../routes';
-import type { Who } from '../session';
+import type { Who } from '../core/session';
 import { loadDue, type DueRow } from './learn';
 import { loadSessions, SESSION_KIND_LABEL, type SessionRow } from './live';
 import { Loading } from '../ui/Loading';

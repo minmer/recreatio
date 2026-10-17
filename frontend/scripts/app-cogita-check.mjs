@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics'];
 await build({
   entryPoints: names.map((n) => `src/app/cogita/${n}.ts`),
   bundle: true,
@@ -24,7 +24,7 @@ await build({
   logLevel: 'error'
 });
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics] = await Promise.all(names.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -311,7 +311,7 @@ check('an extra accepted answer is right too', Cards.checkCard(dom, 'home').corr
 check('and the reverse direction is its own card', (await Cards.cardsOf(EN_PL, ctx(byId('v1')))).cards[0].key, 'vocab-back:v1|en→pl');
 check('an empty field makes no question', (await Cards.cardsOf(PL_EN, ctx(byId('v6')))).cards.length, 0);
 
-const tree = Cards.fragmentTree('Litwo! Ojczyzno moja! ty jesteś jak zdrowie.');
+const tree = Basics.fragmentTree('Litwo! Ojczyzno moja! ty jesteś jak zdrowie.');
 truth('a quote is split into pieces of at most 13 letters at the leaves', tree.filter((f) => f.parts.length === 0).every((f) => f.text.length <= 13), tree.map((f) => f.text));
 check('the pieces are asked before the whole', tree[tree.length - 1].id, 'f');
 const QUOTES = tpl('quote', ['k-quote'], '', [
@@ -455,7 +455,7 @@ check('the stand of the plan before a run', R.levelsOf(plan, () => [], 0), { uns
 const more = ['logic', 'flow', 'rules', 'game', 'kinds', 'live', 'store', 'sources'];
 const moreOut = join(workspace, 'more');
 await build({
-  entryPoints: { ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), libraryPublish: 'src/app/libraryPublish.ts', steps: 'src/app/steps.ts' },
+  entryPoints: { ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), libraryPublish: 'src/app/library/libraryPublish.ts', steps: 'src/app/steps/steps.ts' },
   bundle: true,
   format: 'esm',
   platform: 'node',

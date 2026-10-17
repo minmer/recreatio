@@ -17,7 +17,7 @@
 
 import type { ReactNode } from 'react';
 
-import { textLink } from './presentation';
+import { textLink } from '../pages/presentation/presentation';
 
 const LINK = /\[([^\]\n]{1,200})\]\(([^)\s]{1,600})\)/g;
 const ONLY_LINKS = /^(\s*\[[^\]\n]{1,200}\]\([^)\s]{1,600}\)\s*[·|,•]?\s*)+$/;

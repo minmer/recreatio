@@ -12,10 +12,8 @@
 
 import { useRef, type ReactNode } from 'react';
 
-import { PopMenu, useButtonMenu, type MenuItem } from '../ChatKit';
+import { PopMenu, useButtonMenu, type MenuItem } from '../chat/ChatKit';
 import { Icon, type IconName } from './icons';
-
-export type { MenuItem };
 
 export function MenuButton({ label, items, icon = 'dots', text, trigger, className, children, disabled = false }: {
   /** Vorgelesen, und als Titel am Zeiger: „Więcej: Bierzmowanie". */

@@ -11,8 +11,8 @@
  */
 
 import { IDENTITY_LABEL, type IdentityRole } from './form';
-import type { FormGroup } from './module';
-import type { PageLogic } from './pageLogic';
+import type { FormGroup } from '../modules/module';
+import type { PageLogic } from '../pages/pageLogic';
 
 /** Was die Karte und die Liste von einem Formular brauchen (ein Ausschnitt von `ModuleRow`). */
 export interface FormLike {

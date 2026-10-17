@@ -12,7 +12,7 @@ Implemented:
 
 ## Where the controls are (0062)
 
-All three chats use the same messenger-style UI (`frontend/src/app/ChatKit.tsx`):
+All three chats use the same messenger-style UI (`frontend/src/app/chat/`: `ChatKit.tsx` with `ChatLog.tsx`, `Composer.tsx`, `ChatChrome.tsx` and `Attachments.tsx`):
 
 - **Workspace layout.** On wide screens the chat list is on the left and the open chat on the right. On narrow screens only one of them is shown. "Notatki" is pinned at the top of the list: a chat with yourself, kind `self`, kept in your own private area and created on first open. Archived chats are behind "Zarchiwizowane".
 - **Message menu.** Opened by right-click, by long-press on touch screens, or by the ⌄ button that appears on hover. It holds:

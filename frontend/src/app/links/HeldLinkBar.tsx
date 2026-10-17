@@ -24,8 +24,8 @@ import { useEffect, useState } from 'react';
 
 import { accessWords, heldLinkKeys, type HeldInfo } from './linkAccess';
 import { dismissFresh, forgetLink, freshLink, heldLinks } from './linkKeep';
-import { keysFor } from './ringOf';
-import { whoIsThere, type Who } from './session';
+import { keysFor } from '../core/ringOf';
+import { whoIsThere, type Who } from '../core/session';
 
 /** Ein Stempel der Links in diesem Browser — ändert sich, sobald einer dazukommt oder geht (auch in einem anderen Tab). */
 export function useHeldLinksStamp(): string {

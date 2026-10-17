@@ -15,13 +15,13 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
-import { loadMembers } from './area';
+import { loadMembers } from '../areas/area';
 import { loadChats, startSeatChat, type ChatRow } from './chat';
-import type { Ring } from './keys';
-import { usePerson, type PagePerson } from './pagePerson';
+import type { Ring } from '../core/keys';
+import { usePerson, type PagePerson } from '../pages/pagePerson';
 import { PageChatRoom } from './PageChatView';
-import { WorkspaceError } from './session';
-import { Loading } from './ui/Loading';
+import { WorkspaceError } from '../core/session';
+import { Loading } from '../ui/Loading';
 
 type RolePerson = Extract<PagePerson, { kind: 'role' }>;
 

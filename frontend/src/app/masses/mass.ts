@@ -29,8 +29,9 @@
  * ausgehängte.
  */
 
-import { call } from './session';
-import type { SealedField } from './calendar';
+import { call } from '../core/session';
+import type { SealedField } from '../calendar/calendar';
+import { plural } from '../core/plural';
 
 export const MASS = 'mass';
 export const CONFESSION = 'confession';
@@ -69,7 +70,7 @@ export type IntentionKind = (typeof INTENTION_KINDS)[number];
 
 /** „1 intencja", „3 intencje", „5 intencji". */
 export const intentionsWord = (n: number): string =>
-  `${n} ${n === 1 ? 'intencja' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'intencje' : 'intencji'}`;
+  `${n} ${plural(n, 'intencja', 'intencje', 'intencji')}`;
 
 export const KIND_LABEL: Record<IntentionKind, string> = {
   single: 'pojedyncza',
@@ -100,12 +101,6 @@ export const WEEKDAY_BITS: readonly { readonly bit: number; readonly label: stri
   { bit: 32, label: 'sb' },
   { bit: 64, label: 'nd' }
 ];
-
-/** Montag bis Samstag. */
-export const WEEKDAYS_MASK = 1 + 2 + 4 + 8 + 16 + 32;
-
-/** Nur der Sonntag. */
-export const SUNDAY_MASK = 64;
 
 export interface PublicIntention {
   readonly ordinal: number;
@@ -269,9 +264,6 @@ export const isMass = (m: { readonly kind: string }): boolean => m.kind === MASS
 export const massesOnly = <T extends PublicMass>(masses: readonly T[]): readonly T[] =>
   masses.filter(isMass);
 
-export const confessionsOnly = <T extends PublicMass>(masses: readonly T[]): readonly T[] =>
-  masses.filter((m) => m.kind === CONFESSION);
-
 /** Beichte und Nabożeństwa — was neben den Messen im Plan steht. */
 export const othersOnly = <T extends PublicMass>(masses: readonly T[]): readonly T[] =>
   masses.filter((m) => !isMass(m));
@@ -353,9 +345,6 @@ export function fullDayLabel(iso: string, today: Date = new Date()): string {
   const at = new Date(iso);
   return `${near}, ${WEEKDAYS[at.getDay()]} ${at.getDate()} ${MONTHS[at.getMonth()]}`;
 }
-
-export const monthName = (index: number): string => MONTHS[index] ?? '';
-export const weekdayName = (index: number): string => WEEKDAYS[index] ?? '';
 
 /** Die Messen nach Tagen gruppiert, in der Reihenfolge, in der sie kommen. */
 export function byDay(

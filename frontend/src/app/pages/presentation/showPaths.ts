@@ -21,8 +21,7 @@
  * Rein und ohne React — geprüft in `app-presentation-check`.
  */
 
-import { readPiece, type Piece, type Scene, type Show, type ShowLink } from './presentation';
-import type { Layout } from './layout';
+import { type Piece, type Scene, type Show, type ShowLink } from './presentation';
 
 /** Das Ende — dort hört der Weg auf. */
 export const END = 'end';
@@ -60,9 +59,6 @@ export function nextOf(show: Show, key: string): Target {
   const after = show.scenes[at + 1];
   return after === undefined ? { kind: 'end' } : { kind: 'scene', key: after.key };
 }
-
-/** Ist dieser Baustein auf dieser Szene ein Knopf? */
-export const isButtonOn = (piece: Piece, sceneKey: string): boolean => piece.go[sceneKey] !== undefined;
 
 /** Wohin ein Knopf auf dieser Szene führt. */
 export const goOf = (show: Show, piece: Piece, sceneKey: string): Target => resolveTarget(show, piece.go[sceneKey]);
@@ -226,12 +222,4 @@ export function withGo(piece: Piece, sceneKey: string, target: string | undefine
   const { [sceneKey]: _was, ...rest } = piece.go;
   void _was;
   return { ...piece, go: target === undefined ? rest : { ...rest, [sceneKey]: target } };
-}
-
-/** Die Knöpfe einer Szene — Bausteine, die dort stehen und dort ein Ausgang sind. */
-export function buttonsOn<P extends { readonly layout: Layout }>(parts: readonly P[], sceneKey: string): P[] {
-  return parts.filter((part) => {
-    const piece = readPiece(part.layout);
-    return piece.places[sceneKey] !== undefined && isButtonOn(piece, sceneKey);
-  });
 }

@@ -1,0 +1,472 @@
+/* Der Rahmen: Seitenleiste, Kopfleiste, Inhalt, Weg, Seitenkopf, Leiste unten am Telefon; ohne Seitenleiste; die öffentliche Seite.
+   Teil von ui.css: dort steht die Reihenfolge. */
+
+/* ===========================================================================
+   3. DER RAHMEN
+   =========================================================================== */
+
+/* -- Der Arbeitsplatz: Seitenleiste | (Kopfleiste über dem Inhalt) --------- */
+
+.wk-app {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 64rem) {
+  .wk-app { grid-template-columns: var(--wk-side-w) minmax(0, 1fr); }
+}
+
+.wk-side {
+  display: none;
+}
+
+@media (min-width: 64rem) {
+  .wk-side {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    gap: var(--wk-space-1);
+    padding: var(--wk-space-3) var(--wk-space-3) var(--wk-space-2);
+    border-right: 1px solid var(--wk-line);
+    background: var(--wk-side);
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+}
+
+.wk-brandmark {
+  display: inline-flex;
+  align-items: baseline;
+  padding: var(--wk-space-1) var(--wk-space-2) var(--wk-space-4);
+  font-size: var(--wk-text-lg);
+  letter-spacing: 0.01em;
+  color: var(--wk-ink);
+  text-decoration: none;
+}
+a.wk-brandmark { color: var(--wk-ink); }
+.wk-brandmark b { font-weight: 800; }
+.wk-brandmark:hover { color: var(--wk-ink); opacity: 0.85; }
+
+.wk-nav { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.125rem; }
+
+.wk-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-space-3);
+  min-height: 2.25rem;
+  padding: 0 var(--wk-space-2) 0 var(--wk-space-3);
+  border-radius: var(--wk-radius-sm);
+  color: var(--wk-ink-2);
+  font-size: var(--wk-text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+a.wk-nav-item { color: var(--wk-ink-2); }
+.wk-nav-item:hover { background: color-mix(in srgb, var(--wk-surface) 70%, transparent); color: var(--wk-ink); }
+.wk-nav-item[aria-current="page"] {
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  box-shadow: 0 0 0 1px var(--wk-line), 0 1px 2px rgb(30 25 18 / 0.05);
+}
+.wk-nav-item svg { width: 1.15rem; height: 1.15rem; flex: none; color: var(--wk-muted); }
+.wk-nav-item[aria-current="page"] svg { color: var(--wk-accent); }
+.wk-nav-item .wk-count { margin-left: auto; }
+.wk-nav-item:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+
+.wk-nav-label {
+  margin: var(--wk-space-4) 0 var(--wk-space-1);
+  padding: 0 var(--wk-space-3);
+  font-size: var(--wk-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--wk-muted);
+}
+
+.wk-side-foot { margin-top: auto; display: grid; gap: 0.125rem; padding-top: var(--wk-space-3); }
+
+.wk-nav-more > summary { list-style: none; cursor: pointer; }
+.wk-nav-more > summary::-webkit-details-marker { display: none; }
+.wk-nav-more > summary .wk-nav-chev { margin-left: auto; width: 0.9rem; height: 0.9rem; transition: transform 0.15s ease; }
+.wk-nav-more[open] > summary .wk-nav-chev { transform: rotate(90deg); }
+.wk-nav-more > .wk-nav { padding-left: var(--wk-space-5); margin-top: 0.125rem; }
+.wk-nav-more > .wk-nav .wk-nav-item { font-weight: 500; min-height: 2rem; }
+
+.wk-me {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-space-2);
+  width: 100%;
+  margin-top: var(--wk-space-2);
+  padding: var(--wk-space-2);
+  border: 0;
+  border-top: 1px solid var(--wk-line);
+  background: none;
+  color: var(--wk-ink);
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0 0 var(--wk-radius-sm) var(--wk-radius-sm);
+}
+.wk-me:hover { background: color-mix(in srgb, var(--wk-surface) 70%, transparent); }
+.wk-me:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--wk-accent-soft);
+  color: var(--wk-accent);
+  font-size: var(--wk-text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.wk-me-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+
+.wk-frame { min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+
+/* -- Die Kopfleiste -------------------------------------------------------- */
+
+.wk-bar {
+  position: sticky;
+  top: 0;
+  z-index: var(--wk-z-header);
+  display: flex;
+  align-items: center;
+  gap: var(--wk-space-2);
+  min-height: var(--wk-bar-h);
+  padding: env(safe-area-inset-top, 0px) var(--wk-space-4) 0;
+  border-bottom: 1px solid var(--wk-line);
+  background: color-mix(in srgb, var(--wk-ground) 92%, transparent);
+  backdrop-filter: saturate(1.4) blur(8px);
+  -webkit-backdrop-filter: saturate(1.4) blur(8px);
+  box-sizing: border-box;
+}
+@media (min-width: 64rem) { .wk-bar { padding-inline: var(--wk-space-6); } }
+
+.wk-bar .wk-brandmark { padding: 0 var(--wk-space-2) 0 0; font-size: var(--wk-text-md); }
+@media (min-width: 64rem) { .wk-bar .wk-brandmark { display: none; } }
+
+.wk-bar-fill { flex: 1 1 auto; min-width: 0; }
+
+/* Das Suchfeld: ein Knopf, der aussieht wie ein Feld. */
+.wk-find {
+  flex: 0 1 28rem;
+  min-width: 0;
+  display: none;
+  align-items: center;
+  gap: var(--wk-space-2);
+  height: 2.25rem;
+  padding: 0 var(--wk-space-3);
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface);
+  color: var(--wk-muted);
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  text-align: left;
+  cursor: text;
+}
+.wk-find:hover { border-color: var(--wk-line-strong); }
+.wk-find:focus-visible { outline: none; border-color: var(--wk-accent); box-shadow: 0 0 0 3px var(--wk-ring); }
+.wk-find svg { width: 1rem; height: 1rem; flex: none; }
+.wk-find span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (min-width: 64rem) { .wk-find { display: inline-flex; } }
+
+.wk-bar-btn {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+  border: 0;
+  border-radius: var(--wk-radius-sm);
+  background: transparent;
+  color: var(--wk-ink-2);
+  cursor: pointer;
+}
+.wk-bar-btn:hover, .wk-bar-btn[aria-expanded="true"] { background: var(--wk-sunk); color: var(--wk-ink); }
+.wk-bar-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--wk-ring); }
+.wk-bar-btn svg { width: 1.25rem; height: 1.25rem; }
+@media (min-width: 64rem) { .wk-bar-btn.is-phone { display: none; } }
+
+/* -- Der Inhalt ------------------------------------------------------------ */
+
+.wk-app .wk-main {
+  box-sizing: border-box;
+  width: min(100%, calc(var(--wk-content) + 4rem));
+  margin: 0;
+  padding: var(--wk-space-5) var(--wk-space-4) calc(var(--wk-space-8) + 3rem);
+  display: grid;
+  gap: var(--wk-space-4);
+  align-content: start;
+  min-width: 0;
+}
+@media (min-width: 64rem) {
+  .wk-app .wk-main { padding: var(--wk-space-6) var(--wk-space-6) var(--wk-space-8); }
+}
+
+/* Rozmowy füllen das Fenster unter der Kopfleiste (`.ch-app` rechnet mit diesem Rand). */
+.wk-app .wk-main:has(.ch-app) { padding-top: var(--wk-space-4); padding-bottom: var(--wk-space-4); }
+@media (max-width: 40rem) { .wk-app .wk-main:has(.ch-app) { padding: 0.375rem; } }
+
+/* -- Der Weg über dem Titel ------------------------------------------------- */
+
+.wk-crumbs { min-width: 0; font-size: var(--wk-text-sm); margin-bottom: calc(-1 * var(--wk-space-2)); }
+.wk-crumbs ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-2); }
+.wk-crumbs li { display: inline-flex; align-items: center; gap: var(--wk-space-2); min-width: 0; }
+.wk-crumb-sep { display: inline-grid; place-items: center; color: var(--wk-line-strong); }
+.wk-crumb-sep svg { width: 0.85rem; height: 0.85rem; }
+a.wk-crumb-link, .wk-crumb-link { color: var(--wk-muted); text-decoration: none; font-weight: 600; }
+a.wk-crumb-link:hover { color: var(--wk-ink); text-decoration: underline; }
+.wk-crumb-here { color: var(--wk-ink-2); max-width: 32ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-crumb-with { display: inline-flex; align-items: center; gap: 0.125rem; }
+.wk-crumb-beside { position: relative; display: inline-flex; }
+.wk-crumb-more {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 0;
+  border-radius: var(--wk-radius-xs);
+  background: none;
+  padding: 0;
+  color: var(--wk-muted);
+  cursor: pointer;
+}
+.wk-crumb-more svg { width: 0.9rem; height: 0.9rem; }
+.wk-crumb-more:hover { background: var(--wk-sunk); color: var(--wk-ink); }
+.wk-crumb-more:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-crumb-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: var(--wk-z-pop);
+  margin: 0;
+  padding: var(--wk-space-1);
+  list-style: none;
+  background: var(--wk-surface);
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius);
+  box-shadow: var(--wk-shadow-pop);
+  min-width: 12rem;
+  max-width: min(22rem, 80vw);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.wk-crumb-menu a { display: block; padding: var(--wk-space-2) var(--wk-space-3); border-radius: var(--wk-radius-sm); color: var(--wk-ink); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wk-crumb-menu a:hover { background: var(--wk-sunk); color: var(--wk-ink); }
+
+/* Am Telefon: nur „‹ eine Stufe hinauf". */
+.wk-crumb-back { display: none; }
+@media (max-width: 40rem) {
+  .wk-crumbs ol { display: none; }
+  .wk-crumb-back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--wk-space-1);
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--wk-accent);
+    min-height: 2rem;
+  }
+  .wk-crumb-back svg { width: 1rem; height: 1rem; }
+}
+
+/* -- Der Seitenkopf: Titel, eine Zeile Angaben, Handgriffe ------------------ */
+
+.ui-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--wk-space-3) var(--wk-space-4); min-width: 0; }
+.ui-head-text { flex: 1 1 20rem; min-width: 0; display: grid; gap: var(--wk-space-1); }
+.ui-head-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2) var(--wk-space-3); min-width: 0; }
+.ui-head-meta { margin: 0; color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.ui-head-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); flex: 0 1 auto; max-width: 100%; min-width: 0; }
+
+/* Die eine Spalte für Text und Formulare. */
+.wk-narrow { max-width: 46rem; min-width: 0; }
+
+/* -- Teraz und der Überblick eines Bereichs: zwei Spalten Kästen -------------- */
+
+.wk-teraz { display: grid; gap: var(--wk-space-5); min-width: 0; }
+.wk-teraz-grid { display: grid; gap: var(--wk-space-4); grid-template-columns: minmax(0, 1fr); align-items: start; min-width: 0; }
+@media (min-width: 52rem) { .wk-teraz-grid { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); } }
+.wk-teraz-col { display: grid; gap: var(--wk-space-4); align-content: start; min-width: 0; }
+.wk-teraz .wk-box.is-wide { grid-column: 1 / -1; }
+
+/* Listen in einem Kasten: ruhige Zeilen, der Name zuerst, Angaben rechts. */
+.wk-box .wk-part-list { gap: 0; margin: 0 calc(-1 * var(--wk-space-2)); }
+.wk-box .wk-part-list li { padding: var(--wk-space-2); border-radius: var(--wk-radius-sm); align-items: center; }
+.wk-box .wk-part-list li:hover { background: var(--wk-sunk); }
+.wk-box .wk-part-list li > a:first-child { font-weight: 600; }
+.wk-box .wk-part-path { font-family: inherit; font-size: var(--wk-text-md); }
+.wk-box .wk-now-calm { color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.wk-box .wk-part-foot { font-size: var(--wk-text-sm); margin-top: var(--wk-space-1); }
+.wk-box .wk-alert-list { margin: 0 calc(-1 * var(--wk-space-2)); }
+.wk-box .wk-agenda-list li { padding: var(--wk-space-1) var(--wk-space-2); }
+
+/* -- Die Leiste unten am Telefon ------------------------------------------- */
+
+.wk-phone-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--wk-z-header);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: var(--wk-space-1) var(--wk-space-1) calc(var(--wk-space-1) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--wk-line);
+  background: color-mix(in srgb, var(--wk-surface) 94%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px);
+  -webkit-backdrop-filter: saturate(1.4) blur(10px);
+}
+@media (min-width: 64rem) { .wk-phone-bar { display: none; } }
+
+.wk-phone-bar > a,
+.wk-phone-bar > button {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.125rem;
+  min-height: 3rem;
+  padding: var(--wk-space-1) 0;
+  border: 0;
+  border-radius: var(--wk-radius-sm);
+  background: none;
+  color: var(--wk-muted);
+  font: inherit;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.wk-phone-bar > a[aria-current="page"] { color: var(--wk-accent); }
+.wk-phone-bar svg { width: 1.4rem; height: 1.4rem; }
+.wk-phone-bar .wk-count { position: absolute; top: 0.125rem; left: calc(50% + 0.375rem); min-width: 1.15rem; height: 1.15rem; font-size: 0.6875rem; }
+.wk-phone-bar > a:focus-visible, .wk-phone-bar > button:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+
+/* Die Liste hinter „Więcej". */
+.wk-phone-more { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.125rem; }
+.wk-phone-more .wk-nav-label { margin-top: var(--wk-space-3); }
+.wk-phone-more a, .wk-phone-more button {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-space-3);
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0 var(--wk-space-3);
+  border: 0;
+  border-radius: var(--wk-radius-sm);
+  background: none;
+  color: var(--wk-ink);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
+}
+.wk-phone-more a:hover, .wk-phone-more button:hover { background: var(--wk-sunk); }
+.wk-phone-more svg { width: 1.2rem; height: 1.2rem; color: var(--wk-muted); }
+.wk-phone-more .wk-count { margin-left: auto; }
+
+/* -- Ohne Seitenleiste: Anmeldung, Link, Platz ------------------------------ */
+
+.wk-plain { min-height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.wk-plain-top {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-space-3);
+  min-height: var(--wk-bar-h);
+  padding: env(safe-area-inset-top, 0px) var(--wk-space-4) 0;
+  box-sizing: border-box;
+}
+@media (min-width: 64rem) { .wk-plain-top { padding-inline: var(--wk-space-6); } }
+.wk-plain .wk-main {
+  box-sizing: border-box;
+  width: min(100%, 44rem);
+  margin-inline: auto;
+  padding: var(--wk-space-4) var(--wk-space-4) var(--wk-space-8);
+  display: grid;
+  gap: var(--wk-space-4);
+  align-content: start;
+}
+.wk-plain.is-wide .wk-main { width: min(100%, var(--wk-content)); }
+.wk-plain-top .wk-bell { margin-left: auto; }
+
+/* -- Die öffentliche Seite: ihr eigener Kopf, kein Arbeitsplatz darüber ------ */
+
+.wk-public { min-height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.wk-public-head {
+  position: sticky;
+  top: 0;
+  z-index: var(--wk-z-header);
+  display: flex;
+  align-items: center;
+  gap: var(--wk-space-3);
+  padding: env(safe-area-inset-top, 0px) var(--wk-space-4) 0;
+  background: color-mix(in srgb, var(--wk-ground) 92%, transparent);
+  backdrop-filter: saturate(1.4) blur(8px);
+  -webkit-backdrop-filter: saturate(1.4) blur(8px);
+  border-bottom: 1px solid var(--wk-line);
+  min-height: 3.25rem;
+  box-sizing: border-box;
+}
+.wk-public-head:empty { display: none; }
+.wk-public-head:not(:has(*)) { display: none; }
+/* Feste Zeilen: ist der Kopf leer (und unsichtbar), rückte sonst der Fuss in die gestreckte Mitte. */
+.wk-public > .wk-public-head { grid-row: 1; }
+.wk-public > .wk-main { grid-row: 2; }
+.wk-public > .wk-public-foot { grid-row: 3; }
+.wk-public .wk-main {
+  box-sizing: border-box;
+  width: min(100%, calc(110rem + 2.8rem));
+  margin-inline: auto;
+  padding: var(--wk-space-5) var(--wk-space-4) var(--wk-space-7);
+  display: grid;
+  gap: var(--wk-space-4);
+  align-content: start;
+}
+.wk-public-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--wk-space-2) var(--wk-space-4);
+  padding: var(--wk-space-5) var(--wk-space-4) calc(var(--wk-space-5) + env(safe-area-inset-bottom, 0px));
+  font-size: var(--wk-text-sm);
+  color: var(--wk-muted);
+}
+.wk-public-foot a { color: var(--wk-muted); font-weight: 600; text-decoration: none; }
+.wk-public-foot a:hover { color: var(--wk-ink); text-decoration: underline; }
+
+/* Bearbeiten — schwebt unten, nur für den, der darf. */
+.wk-edit-pill {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right, 0px));
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  z-index: var(--wk-z-header);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wk-space-2);
+  min-height: 2.5rem;
+  padding: 0 var(--wk-space-4);
+  border: 1px solid var(--wk-line-strong);
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  font-size: var(--wk-text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: var(--wk-shadow-pop);
+}
+a.wk-edit-pill { color: var(--wk-ink); }
+.wk-edit-pill:hover { border-color: var(--wk-accent); color: var(--wk-accent); }
+.wk-edit-pill svg { width: 1rem; height: 1rem; }

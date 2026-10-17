@@ -23,8 +23,8 @@ import {
 } from '../event/kit';
 import { parseGpx, simplifyTrack, trackLengthKm, type MapTrack, type TrackPoint } from '../event/gpx';
 import { googleMapsHref, trackColor } from '../event/mapLinks';
-import type { MapPoint } from '../event/OsmMap';
-import { later } from '../ui/later';
+import type { MapPoint } from '../event/mapGeometry';
+import { later } from '../../ui/later';
 
 /* 2026-10-17 — die Karte erst, wenn sie gezeigt wird (`ui/later`). */
 const OsmMap = later(() => import('../event/OsmMap').then((m) => m.OsmMap));

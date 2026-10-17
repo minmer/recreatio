@@ -12,7 +12,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { CardFace } from './CardFace';
-import { questionCard, type Card } from './cards';
+import { questionCard } from './cards';
+import { type Card } from './cardBasics';
 import {
   advance, chaptersLeft, goalsReached, linesNow, markSaid, optionsOf, readFlow, resolveFlow, startFlow, STEP_LABEL,
   type Flow, type FlowState, type LookType, type PlayContext

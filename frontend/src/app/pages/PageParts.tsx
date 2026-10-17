@@ -21,14 +21,14 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import {
   byReadingOrder, COLUMNS, frameFor, snapColSpan, snapRowSpan, useBreakpoint
 } from './layout';
-import { pack } from './masonry';
-import { Fullscreen } from './Modal';
+import { pack } from '../core/masonry';
+import { Fullscreen } from '../ui/Modal';
 import type { DraftPart } from './page';
 import { partSize, text, type PartModule, type PartSize, type RawConfig } from './part';
 import { usePageLogic } from './pageLogic';
-import { slideLabelOf } from './PageSlides';
+import { slideLabelOf } from './slides/PageSlides';
 import { partOf } from './parts/registry';
-import { anchorInAddress, anchorOf } from './slides';
+import { anchorInAddress, anchorOf } from './slides/slides';
 
 /**
  * 0063 — „#zapisy" IM RASTER. Ein Knopf im Tytuł oder ein Verweis im Text, der

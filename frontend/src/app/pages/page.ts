@@ -7,8 +7,8 @@
  */
 
 import type { Layout } from './layout';
-import { readConfig } from './module';
-import { call } from './session';
+import { readConfig } from '../modules/module';
+import { call } from '../core/session';
 
 /**
  * Ein Baustein, so wie er gespeichert liegt.

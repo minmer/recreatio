@@ -7,8 +7,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { JsonPanel } from '../JsonPanel';
-import { WorkspaceError } from '../session';
+import { JsonPanel } from '../ui/JsonPanel';
+import { WorkspaceError } from '../core/session';
 import { applyImport, courseDescription, exportSchema, planImport } from './json';
 import { isBaseKind } from './kinds';
 import {

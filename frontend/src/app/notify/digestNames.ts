@@ -6,7 +6,7 @@
  * davon nichts; ohne Schlüssel steht „Formularz" oder „osoba z formularza".
  */
 
-import { openFormName, openSeatName } from './names';
+import { openFormName, openSeatName } from '../core/names';
 import type { Digest, DigestWaiting } from './notify';
 
 const openWaiting = async (waiting: DigestWaiting | undefined, forms: boolean): Promise<DigestWaiting | undefined> => waiting === undefined || !forms ? waiting : {

@@ -22,14 +22,15 @@
 
 import { useState, type CSSProperties, type ReactNode } from 'react';
 
-import { Fullscreen } from './Modal';
-import { MotionBox } from './MotionBox';
-import type { DraftPart } from './page';
-import { partSize, text } from './part';
-import { usePageLogic } from './pageLogic';
-import { partLabel, partOf } from './parts/registry';
+import { Fullscreen } from '../../ui/Modal';
+import { MotionBox } from '../motion/MotionBox';
+import type { DraftPart } from '../page';
+import { partSize, text } from '../part';
+import { usePageLogic } from '../pageLogic';
+import { partLabel, partOf } from '../parts/registry';
 import { SlideDeck, type DeckActor, type DeckSlide } from './SlideDeck';
-import { COVER_KEY, deckOf, readSlide, type Look, type SlideCompanion, type StageFrame } from './slides';
+import { COVER_KEY, readSlide, type SlideCompanion, type StageFrame } from './slides';
+import { deckOf, type Look } from './slideLook';
 
 /** Diese Arten brauchen Breite — ein Kalender in 52 rem ist ein gequetschter Kalender. */
 const WIDE = new Set(['calendar', 'masses', 'slots', 'chat', 'form', 'hero', 'shortinfos', 'plan', 'map', 'costs', 'people', 'gallery', 'writing', 'writings', 'quotes']);

@@ -21,9 +21,9 @@ import {
 } from './libraryCatalog';
 import { slug, str, type EntryData } from './libraryKinds';
 import type { Entry, LibraryStore } from './libraryStore';
-import { viewPath } from './routes';
-import { Scanner } from './Scanner';
-import { WorkspaceError } from './session';
+import { viewPath } from '../routes';
+import { Scanner } from '../ui/Scanner';
+import { WorkspaceError } from '../core/session';
 
 const fold = (text: string): string => slug(text).replace(/-/g, ' ').trim();
 

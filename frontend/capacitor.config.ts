@@ -31,7 +31,7 @@ const config: CapacitorConfig = {
     allowMixedContent: false
   },
   plugins: {
-    /* Die Ränder (Statusleiste, Gestenleiste) kommen als CSS-Variablen an — `native.ts` legt sie um die Seite. */
+    /* Die Ränder (Statusleiste, Gestenleiste) kommen als CSS-Variablen an — `env(safe-area-inset-*)` in `ui/frames.css`. */
     SystemBars: {
       insetsHandling: 'css',
       style: 'DEFAULT'

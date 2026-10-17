@@ -24,7 +24,7 @@
  */
 
 import { colorValue, glowValue, readMotions, type MotionUse } from './motion';
-import type { RawConfig } from './part';
+import type { RawConfig } from '../part';
 
 export const SHAPE_TYPES = ['rect', 'circle', 'ellipse', 'line', 'path', 'text', 'image', 'group', 'use'] as const;
 export type ShapeType = (typeof SHAPE_TYPES)[number];

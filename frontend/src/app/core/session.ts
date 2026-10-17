@@ -292,9 +292,6 @@ serve(() => held, () => { held = null; });
 
 const remember = (loginId: string, key: Uint8Array): void => { held = { loginId, key }; };
 
-/** Der PasswordKey dieses Tabs, oder `null`. Fragt die anderen NICHT. */
-export const heldPasswordKey = (): Uint8Array | null => held?.key ?? null;
-
 /* -- Aufbewahren, ohne dass der Dienst mitliest (0021) ----------------------
  *
  * Der PasswordKey wird unter dem GERÄTESCHLÜSSEL versiegelt (`kept.ts`) und

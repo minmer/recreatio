@@ -17,12 +17,12 @@
  * versiegelt.
  */
 
-import { loadIntake, openIntakeKey } from './intake';
+import { loadIntake, openIntakeKey } from '../forms/intake';
 import type { Ring } from './keys';
 import {
   claimHolderAad, moduleNameAad, nameKey, nameText, openSeatName, openWith, sealName, seatNameAad, seatOwnNameAad, writeKey
 } from './names';
-import { loadSeats, officeSeatKey, type SeatRow } from './seat';
+import { loadSeats, officeSeatKey, type SeatRow } from '../seats/seat';
 import { call } from './session';
 
 interface Unsealed {

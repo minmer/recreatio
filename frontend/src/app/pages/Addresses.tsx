@@ -17,10 +17,10 @@
 
 import { useState } from 'react';
 
-import { bindDomain, declareAlias, takers, type Desk } from './desk';
-import { roleLabel, useRoleNames } from './roleNames';
-import { PATH_SHAPE, pagePath } from './routes';
-import { WorkspaceError, type Who } from './session';
+import { bindDomain, declareAlias, takers, type Desk } from '../workspace/desk';
+import { roleLabel, useRoleNames } from '../roles/roleNames';
+import { PATH_SHAPE, pagePath } from '../routes';
+import { WorkspaceError, type Who } from '../core/session';
 
 /**
  * Wohin eine eigene Domain zeigen muss.

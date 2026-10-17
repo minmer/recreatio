@@ -12,11 +12,11 @@
  * wäre die, der man nicht trauen darf.
  */
 
-import { aad, Field, fromBase64Url, openText, sealText, sha256, toBase64Url } from './crypto';
-import { askNameFor, holderNameFor, hostPair, openHolderNames } from './holderNames';
-import { newId } from './ids';
-import { nameText, writeKey, claimHolderAad, sealName } from './names';
-import { call, WorkspaceError } from './session';
+import { aad, Field, fromBase64Url, openText, sealText, sha256, toBase64Url } from '../core/crypto';
+import { askNameFor, holderNameFor, hostPair, openHolderNames } from '../core/holderNames';
+import { newId } from '../core/ids';
+import { nameText, writeKey, claimHolderAad, sealName } from '../core/names';
+import { call, WorkspaceError } from '../core/session';
 
 /** Wer die Zeit wählt: die Kanzlei (`offered`) oder wer fragt (`open`). */
 export type Mode = 'offered' | 'open';

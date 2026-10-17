@@ -15,14 +15,14 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { newId } from '../ids';
+import { newId } from '../core/ids';
 import { readRule, TEXT_RULE, type TextRule } from './check';
 import { uploadFile } from './files';
 import { connect, problemsOf, type Graph, type GraphNode, type Palette } from './graph';
 import { readAction, readCondition, type Action } from './logic';
 import { configFields, configSummary, FORM_OPTIONS, LEVEL_OPTIONS, type ConfigField } from './nodeFields';
 import { ActionsEditor, ConditionEditor, EntityPicker, KindSelect, MediaView, entityName, useCtx } from './ui';
-import { areaKeys, newestKey } from '../chat';
+import { areaKeys, newestKey } from '../chat/chat';
 import type { MediaRef } from './schema';
 
 interface NodeData {

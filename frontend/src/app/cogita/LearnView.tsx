@@ -18,15 +18,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { ensurePrivateArea } from '../agenda';
-import { loadAreas, type AreaRow } from '../area';
-import { AreaOptions } from '../AreaOptions';
-import { useCrumbs } from '../crumbTrail';
-import { createLibrary, isUuid, libraryKindOf, loadLibraries, openLibraries, type OpenLibrary } from '../library';
-import { useLibraryStore } from '../libraryStore';
-import { useMe, type Me } from '../me';
+import { ensurePrivateArea } from '../calendar/agenda';
+import { loadAreas, type AreaRow } from '../areas/area';
+import { AreaOptions } from '../areas/AreaOptions';
+import { useCrumbs } from '../shell/crumbTrail';
+import { createLibrary, isUuid, libraryKindOf, loadLibraries, openLibraries, type OpenLibrary } from '../library/library';
+import { useLibraryStore } from '../library/libraryStore';
+import { useMe, type Me } from '../core/me';
 import { viewPath } from '../routes';
-import { WorkspaceError, type Who } from '../session';
+import { WorkspaceError, type Who } from '../core/session';
 import { CogitaHome } from './CogitaHome';
 import { BASES_CHANGED } from './sources';
 import { holderOfMe } from './holders';
@@ -40,7 +40,7 @@ import { Loading } from '../ui/Loading';
 import { Icon } from '../ui/icons';
 import { MenuButton } from '../ui/Menu';
 import { PageHeader } from '../ui/PageHeader';
-import { Modal } from '../Modal';
+import { Modal } from '../ui/Modal';
 
 export function LearnView({ who, trail }: { who: Who; trail: readonly string[] }) {
   const me = useMe(who);

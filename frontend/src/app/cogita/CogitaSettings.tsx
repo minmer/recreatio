@@ -9,9 +9,9 @@
 
 import { useEffect, useState } from 'react';
 
-import { loadAreas, type AreaRow } from '../area';
-import { createIntake } from '../intake';
-import { deleteLibrary, libraryKindOf, loadLibraries, openLibraries, renameLibrary, type OpenLibrary } from '../library';
+import { loadAreas, type AreaRow } from '../areas/area';
+import { createIntake } from '../forms/intake';
+import { deleteLibrary, libraryKindOf, loadLibraries, openLibraries, renameLibrary, type OpenLibrary } from '../library/library';
 import { viewPath } from '../routes';
 import { BASES_CHANGED } from './sources';
 import { DEPENDENCY_KINDS, DEPENDENCY_LABEL, type DependencyKind } from './knowness';

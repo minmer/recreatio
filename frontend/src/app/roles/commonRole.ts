@@ -12,12 +12,12 @@
  * mit ihren Bereichen.
  */
 
-import { joinArea } from './area';
-import type { Ring, SealedRole } from './keys';
-import { issuerIn, type LinkArea, type LinkLevel } from './linkAccess';
-import { forgetKeys } from './ringOf';
+import { joinArea } from '../areas/area';
+import type { Ring, SealedRole } from '../core/keys';
+import { issuerIn, type LinkArea, type LinkLevel } from '../links/linkAccess';
+import { forgetKeys } from '../core/ringOf';
 import { createRoleWithKeys } from './roles';
-import { call, WorkspaceError } from './session';
+import { call, WorkspaceError } from '../core/session';
 
 export interface RoleReach {
   readonly roleId: string;

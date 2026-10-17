@@ -23,12 +23,12 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { loadPublicKey, myEpochKeys } from './area';
-import { fromBase64Url } from './crypto';
-import type { OpenField } from './form';
-import { questionsOf } from './FormPick';
-import { newId } from './ids';
-import { loadModules, type ModuleRow } from './module';
+import { loadPublicKey, myEpochKeys } from '../areas/area';
+import { fromBase64Url } from '../core/crypto';
+import type { OpenField } from '../forms/form';
+import { questionsOf } from '../forms/FormPick';
+import { newId } from '../core/ids';
+import { loadModules, type ModuleRow } from '../modules/module';
 import { savePageLogic, type DraftPart } from './page';
 import {
   ANSWER_OP_LABEL, answerHash, EMPTY_LOGIC, evaluatePage, GATE_KINDS, INPUT_KINDS, PAGE_NODE_LABEL, PORT_LABEL,
@@ -36,10 +36,10 @@ import {
   type AnswerOp, type PageEdge, type PageLogic, type PageNode, type PageNodeKind, type PagePort, type Role
 } from './pageLogic';
 import { partLabel } from './parts/registry';
-import { keysFor } from './ringOf';
-import { WorkspaceError, type Who } from './session';
-import { loadSteps, openSteps, type StepKind } from './steps';
-import { Loading } from './ui/Loading';
+import { keysFor } from '../core/ringOf';
+import { WorkspaceError, type Who } from '../core/session';
+import { loadSteps, openSteps, type StepKind } from '../steps/steps';
+import { Loading } from '../ui/Loading';
 
 /* -- Was der Editor über Formulare weiss ----------------------------------------------- */
 

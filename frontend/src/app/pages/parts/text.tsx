@@ -21,7 +21,7 @@
 import { useState } from 'react';
 
 import { definePart, lines, text, type RawConfig } from '../part';
-import { RichLine } from '../richText';
+import { RichLine } from '../../ui/richText';
 
 interface Config {
   readonly title: string;

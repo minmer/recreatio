@@ -20,7 +20,7 @@ import { useState } from 'react';
 
 import {
   addMonths, firstOfMonth, keyOf, longDate, mondayOf, monthGrid, monthTitle, sameDay, sameMonth, WEEK_HEADS
-} from './dayMath';
+} from '../core/dayMath';
 
 export function MonthPicker({ value, week, today, onPick }: {
   /** Der gewählte Tag — oder `null`: keiner. */

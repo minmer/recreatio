@@ -34,11 +34,9 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 
 import type { OpenField } from './form';
-import {
-  COMPARE_LABEL, COMPARE_OPS, evaluate, GROUP_LABEL, NODE_LABEL, portsOf, roleOf, UNARY, wouldCycle,
-  type CompareOp, type FormDesign, type LayoutItem, type LogicEdge, type LogicNode, type NodeKind, type Port
-} from './formDesign';
-import { newId } from './ids';
+import { evaluate, GROUP_LABEL, NODE_LABEL, portsOf, roleOf, wouldCycle, type FormDesign, type LayoutItem, type LogicEdge, type LogicNode, type NodeKind, type Port } from './formDesign';
+import { COMPARE_LABEL, COMPARE_OPS, UNARY, type CompareOp } from '../cogita/logic';
+import { newId } from '../core/ids';
 
 /* -- Wie ein Knoten aussieht ------------------------------------------------------ */
 

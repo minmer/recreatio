@@ -14,7 +14,7 @@
 import { useEffect, useState } from 'react';
 
 import { KIND_LABEL, loadResources, type ResourceRow } from './resource';
-import { Loading } from './ui/Loading';
+import { Loading } from '../ui/Loading';
 
 export function PickResource({ value, busy, onPick }: {
   value: string;

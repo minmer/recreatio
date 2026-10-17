@@ -1,9 +1,6 @@
 /**
- * Der Arbeitsplatz — die Anwendung des Neubaus.
- *
- * <b>Wo sie steht.</b> `recreatio.pl/#/workspace`. Nicht mehr unter `#/new`:
- * der Neubau ist kein Parallelbau neben dem Altbestand mehr, sondern die
- * Plattform.
+ * Die Anwendung — der Arbeitsplatz unter `recreatio.pl/#/workspace`, dazu die
+ * öffentlichen Seiten, Links und Plätze.
  *
  * <b>Die Anmeldung steht ZUERST</b>, und zwar als Formular und nicht als
  * Hinweis darauf, dass man sich anmelden könnte. An ihr hängt, was vor dem
@@ -18,18 +15,18 @@
 
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
-import { PlainFrame, PublicFrame } from './Frame';
+import { PlainFrame, PublicFrame } from './shell/Frame';
 import {
   foreignHost, localPath, needsIdentity, parsePath, spotOf, viewPath,
   type Address
 } from './routes';
-import { forget as forgetState } from './prefs';
-import { keepFromAddress } from './seatKeep';
-import { heldLinks, keepLinkFromAddress } from './linkKeep';
-import { keepsKey, signOut, whoIsThere, type Who } from './session';
-import { PublicPage } from './PublicPage';
-import { SignIn } from './SignIn';
-import { Widget } from './Widget';
+import { forget as forgetState } from './core/prefs';
+import { keepFromAddress } from './seats/seatKeep';
+import { heldLinks, keepLinkFromAddress } from './links/linkKeep';
+import { keepsKey, signOut, whoIsThere, type Who } from './core/session';
+import { PublicPage } from './pages/PublicPage';
+import { SignIn } from './shell/SignIn';
+import { Widget } from './pages/Widget';
 import { Loading } from './ui/Loading';
 
 /*
@@ -38,12 +35,12 @@ import { Loading } from './ui/Loading';
  * eines Links. Eine Seite der Pfarrei lud bis hierher den ganzen Arbeitsplatz
  * mit, bevor sie etwas zeigte.
  */
-const WorkspaceShell = lazy(() => import('./WorkspaceShell'));
-const LinkCalendar = lazy(() => import('./LinkCalendar').then((m) => ({ default: m.LinkCalendar })));
-const JoinLink = lazy(() => import('./JoinLink').then((m) => ({ default: m.JoinLink })));
-const JoinWithoutAccount = lazy(() => import('./JoinLink').then((m) => ({ default: m.JoinWithoutAccount })));
-const SeatPortal = lazy(() => import('./SeatPortal').then((m) => ({ default: m.SeatPortal })));
-const Verify = lazy(() => import('./Verify').then((m) => ({ default: m.Verify })));
+const WorkspaceShell = lazy(() => import('./shell/WorkspaceShell'));
+const LinkCalendar = lazy(() => import('./calendar/LinkCalendar').then((m) => ({ default: m.LinkCalendar })));
+const JoinLink = lazy(() => import('./links/JoinLink').then((m) => ({ default: m.JoinLink })));
+const JoinWithoutAccount = lazy(() => import('./links/JoinLink').then((m) => ({ default: m.JoinWithoutAccount })));
+const SeatPortal = lazy(() => import('./seats/SeatPortal').then((m) => ({ default: m.SeatPortal })));
+const Verify = lazy(() => import('./seats/Verify').then((m) => ({ default: m.Verify })));
 
 export function App() {
   const [address, setAddress] = useState<Address>(() => parsePath(window.location.hash));
@@ -107,7 +104,7 @@ export function App() {
   useEffect(() => {
     /* 2026-10-17 — nachgeladen: eine öffentliche Seite ohne Anmeldung braucht die Bibliotheken nicht. */
     if (who === undefined) return;
-    void import('./libraryStore').then((m) => m.setLibraryCache(who !== null && keepsKey(who)));
+    void import('./library/libraryStore').then((m) => m.setLibraryCache(who !== null && keepsKey(who)));
   }, [who]);
 
   /*
@@ -230,7 +227,7 @@ export function App() {
   /* Abmelden: Meldungen des Geräts vergessen, dann die Sitzung, dann was im Speicher liegt. */
   const signOutNow = () => {
     void (async () => {
-      const [notify, chat, libraries] = await Promise.all([import('./notify'), import('./chat'), import('./libraryStore')]);
+      const [notify, chat, libraries] = await Promise.all([import('./notify/notify'), import('./chat/chat'), import('./library/libraryStore')]);
       await notify.forgetNotifications().catch(() => undefined);
       await signOut();
       forgetState(); chat.forgetAreaKeys(); libraries.forgetLibraries(); setWho(null);

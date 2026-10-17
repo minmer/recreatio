@@ -19,10 +19,10 @@
 import { useEffect, useState } from 'react';
 
 import { calledFrom } from './called';
-import { kindName, type RoleCard } from './desk';
-import { loadPerson, openMine } from './person';
-import { keysFor } from './ringOf';
-import type { Who } from './session';
+import { kindName, type RoleCard } from '../workspace/desk';
+import { loadPerson, openMine } from '../account/person';
+import { keysFor } from '../core/ringOf';
+import type { Who } from '../core/session';
 
 /* Ein Tab fragt einmal — und nach einer Minute wieder, falls jemand umbenannt hat. */
 const cache = new Map<string, { at: number; names: Promise<ReadonlyMap<string, string>> }>();
@@ -62,9 +62,6 @@ export function myRoleNames(who: Who): Promise<ReadonlyMap<string, string>> {
   names.catch(() => cache.delete(who.accountId));
   return names;
 }
-
-/** Nach einem Umbenennen: beim nächsten Mal neu lesen. */
-export const forgetRoleNames = (): void => cache.clear();
 
 /** Die Namen, sobald sie offen sind — bis dahin eine leere Liste. */
 export function useRoleNames(who: Who | null | undefined): ReadonlyMap<string, string> {

@@ -17,9 +17,9 @@
  * der Mitgliedschaft, und Mitgliedschaft ist keine Befugnis.
  */
 
-import { aad, Field, fromBase64Url, newWrapPair, open, seal, toBase64Url } from './crypto';
-import type { Ring } from './keys';
-import { call } from './session';
+import { aad, Field, fromBase64Url, newWrapPair, open, seal, toBase64Url } from '../core/crypto';
+import type { Ring } from '../core/keys';
+import { call } from '../core/session';
 
 export const intakeAad = (areaId: string) => aad('intake', 'area', areaId, Field.EventIntakeKey, 1);
 

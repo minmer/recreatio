@@ -15,17 +15,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { createArea, dropFromArea, joinArea, loadMembers, renameArea } from './area';
-import { loadAudienceForms, type AudienceForm } from './audience';
-import { AudienceForms } from './AudienceForms';
+import { createArea, dropFromArea, joinArea, loadMembers, renameArea } from '../areas/area';
+import { loadAudienceForms, type AudienceForm } from '../areas/audience';
+import { AudienceForms } from '../areas/AudienceForms';
 import { areaKeys, loadAreaNames, loadChats, openNames, setMemberName, type ChatRow, type Invitee } from './chat';
-import { useMe, useWho } from './me';
-import { loadModules, updateModule, type ModuleRow } from './module';
-import type { EditorProps } from './part';
-import { InviteePicker, KIND, nameOf, useKnown, useKnownInAreas } from './RolePicker';
-import { WorkspaceError } from './session';
-import { askText } from './ui/dialogs';
-import { Loading } from './ui/Loading';
+import { useMe, useWho } from '../core/me';
+import { loadModules, updateModule, type ModuleRow } from '../modules/module';
+import type { EditorProps } from '../pages/part';
+import { InviteePicker, KIND, nameOf, useKnown, useKnownInAreas } from '../roles/RolePicker';
+import { WorkspaceError } from '../core/session';
+import { askText } from '../ui/dialogs';
+import { Loading } from '../ui/Loading';
 
 interface Answerer {
   readonly roleId: string;

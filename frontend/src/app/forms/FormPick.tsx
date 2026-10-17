@@ -18,15 +18,15 @@
 
 import { useEffect, useState } from 'react';
 
-import { loadPublicKey, myEpochKeys } from './area';
-import { fromBase64Url } from './crypto';
+import { loadPublicKey, myEpochKeys } from '../areas/area';
+import { fromBase64Url } from '../core/crypto';
 import { asked, loadFields, loadForm, openFields, type OpenField, type SealedField } from './form';
-import { loadModules, type ModuleRow } from './module';
-import type { PartModule } from './part';
-import { keysFor } from './ringOf';
-import { formPath } from './routes';
-import { whoIsThere } from './session';
-import { Loading } from './ui/Loading';
+import { loadModules, type ModuleRow } from '../modules/module';
+import type { PartModule } from '../pages/part';
+import { keysFor } from '../core/ringOf';
+import { formPath } from '../routes';
+import { whoIsThere } from '../core/session';
+import { Loading } from '../ui/Loading';
 
 /**
  * Was sich ändert, wenn ein anderes Formular gewählt wird: das Formular — und

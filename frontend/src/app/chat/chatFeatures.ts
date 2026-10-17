@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
-import { aad, Field, fromBase64Url, open, seal, toBase64Url } from './crypto';
-import { API, call, WorkspaceError } from './session';
+import { aad, Field, fromBase64Url, open, seal, toBase64Url } from '../core/crypto';
+import { API, call, WorkspaceError } from '../core/session';
 import type { Attachment } from './chat';
 
 export const chatEndpoint = (id: string, token?: string) => token
@@ -132,7 +132,7 @@ export async function photoForChat(file: File): Promise<File> {
   const heic = /^image\/hei[cf]/.test(file.type) || /\.hei[cf]$/i.test(file.name);
   if (!(file.type.startsWith('image/') || heic) || file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
   if (file.size < SHRINK_FROM && !heic) return file;
-  const { downscaleImage } = await import('./event/imageDownscale');
+  const { downscaleImage } = await import('../pages/event/imageDownscale');
   const done = await downscaleImage(file);
   if (done.blob === file) return file;
   return new File([done.blob], done.fileName, { type: done.blob.type, lastModified: file.lastModified });

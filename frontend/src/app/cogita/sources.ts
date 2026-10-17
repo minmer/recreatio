@@ -15,9 +15,9 @@
 
 import { useEffect, useState } from 'react';
 
-import { loadLibraries, openLibraries, type OpenLibrary } from '../library';
-import { storeOf, type LibraryStore } from '../libraryStore';
-import type { Me } from '../me';
+import { loadLibraries, openLibraries, type OpenLibrary } from '../library/library';
+import { storeOf, type LibraryStore } from '../library/libraryStore';
+import type { Me } from '../core/me';
 import { readSettings, type CogitaLibrary, type Source, type SourceRef } from './store';
 
 /** Eine Quelle öffnen — ihr Speicher, abgeglichen; \`null\`: nicht lesbar (oder nicht mehr da). */

@@ -28,27 +28,27 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 
-import { loadAreas, type AreaRow } from './area';
-import { areaReader } from './areaRead';
+import { loadAreas, type AreaRow } from '../areas/area';
+import { areaReader } from '../areas/areaRead';
 import {
   emptyTexts, ITEM_LABEL, itemFieldAad, loadCalendars, loadItems, loadPublic, putText,
   type CalendarRow, type Days, type ItemKind, type ItemTexts
 } from './calendar';
 import { Calendar, ListView, MonthGrid, TimeGrid } from './CalendarApp';
 import { hueOf, stepView, viewRange, type CalEvent, type CalView } from './calendarModel';
-import { areaKeys } from './chat';
-import { fromBase64Url, openText } from './crypto';
-import { useHeldLinksStamp } from './HeldLinkBar';
+import { areaKeys } from '../chat/chat';
+import { fromBase64Url, openText } from '../core/crypto';
+import { useHeldLinksStamp } from '../links/HeldLinkBar';
 import { ItemLink } from './ItemLink';
-import { accessWords, heldLinkKeys, heldProofs, type HeldInfo } from './linkAccess';
-import { useLinkMe } from './linkMe';
-import { addDays, longDate, monthTitle, rangeTitle, sameDay, startOfDay } from './dayMath';
-import { useNow } from './MassParts';
-import { useMe, useWho, type Me } from './me';
-import { Modal } from './Modal';
-import type { PartContext } from './part';
-import { usePerson } from './pagePerson';
-import { Loading } from './ui/Loading';
+import { accessWords, heldLinkKeys, heldProofs, type HeldInfo } from '../links/linkAccess';
+import { useLinkMe } from '../links/linkMe';
+import { addDays, longDate, monthTitle, rangeTitle, sameDay, startOfDay } from '../core/dayMath';
+import { useNow } from '../masses/MassParts';
+import { useMe, useWho, type Me } from '../core/me';
+import { Modal } from '../ui/Modal';
+import type { PartContext } from '../pages/part';
+import { usePerson } from '../pages/pagePerson';
+import { Loading } from '../ui/Loading';
 
 const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 

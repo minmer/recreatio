@@ -22,11 +22,11 @@ import {
   type MarkMode, type QuoteItem
 } from './libraryQuotes';
 import type { Entry, LibraryStore } from './libraryStore';
-import { parseDocument } from './pageJson';
-import { saveBlob } from './platform';
-import { useRemembered } from './prefs';
-import { viewPath } from './routes';
-import { WorkspaceError } from './session';
+import { parseDocument } from '../pages/pageJson';
+import { saveBlob } from '../core/platform';
+import { useRemembered } from '../core/prefs';
+import { viewPath } from '../routes';
+import { WorkspaceError } from '../core/session';
 
 const SHOWN = 6;
 

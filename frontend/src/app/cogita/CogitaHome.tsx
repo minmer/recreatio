@@ -25,12 +25,12 @@
 
 import { useCallback, useMemo } from 'react';
 
-import { areaKeys } from '../chat';
-import type { OpenLibrary } from '../library';
-import type { LibraryStore } from '../libraryStore';
-import type { Me } from '../me';
+import { areaKeys } from '../chat/chat';
+import type { OpenLibrary } from '../library/library';
+import type { LibraryStore } from '../library/libraryStore';
+import type { Me } from '../core/me';
 import { viewPath } from '../routes';
-import type { Who } from '../session';
+import type { Who } from '../core/session';
 import { CogitaJson } from './CogitaJson';
 import { CogitaSettings } from './CogitaSettings';
 import { Contributions, Propose } from './Contribute';
@@ -54,7 +54,7 @@ import { accountSources, useSources } from './sources';
 import { SessionsTab } from './Sessions';
 import { TemplateEditor } from './TemplateEditor';
 import { CogitaContext, ForeignOnly, useAsync, useBusy, useCogita, useCtx, type CogitaCtx } from './ui';
-import type { Card } from './cards';
+import type { Card } from './cardBasics';
 import { MenuButton } from '../ui/Menu';
 import { Icon } from '../ui/icons';
 

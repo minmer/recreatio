@@ -8,7 +8,8 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { answerText } from './CardFace';
-import { cardsOf, readTemplate, TEMPLATE_PALETTE, templateProblems, type Template } from './cards';
+import { cardsOf, readTemplate, templateProblems, type Template } from './cards';
+import { TEMPLATE_PALETTE } from './cardPalette';
 import { evaluate, graphJson, type Graph } from './graph';
 import { GraphEditor } from './GraphEditor';
 import { TEMPLATE_PRESETS } from './presets';

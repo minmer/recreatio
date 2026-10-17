@@ -22,11 +22,11 @@
  */
 
 import { declinedAll, phaseOf, progressOf as taskProgressOf, type TaskPhase } from './candidateTasks';
-import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from './crypto';
-import type { StepMark } from './form';
-import { openFormNames, type FormNameIn } from './names';
-import { repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
-import { call } from './session';
+import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
+import type { StepMark } from '../forms/submissions';
+import { openFormNames, type FormNameIn } from '../core/names';
+import { repeatOf, roundLabel, roundOf, type Repeat } from '../forms/rounds';
+import { call } from '../core/session';
 
 export type DoneBy = 'office' | 'person';
 

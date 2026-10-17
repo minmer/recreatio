@@ -16,9 +16,9 @@ import {
   evaluatePage, factsOfSeat, inputValue, NO_ONE, PageLogicContext, readLogic, usePageLogic,
   type Facts, type PageStep
 } from './pageLogic';
-import type { SeatView } from './seatContext';
-import { markOwnStep } from './steps';
-import { WorkspaceError } from './session';
+import type { SeatView } from '../seats/seatContext';
+import { markOwnStep } from '../steps/steps';
+import { WorkspaceError } from '../core/session';
 
 export function PageLogicProvider({ logic: text, children }: { logic: string | null | undefined; children: ReactNode }) {
   const logic = useMemo(() => readLogic(text), [text]);
