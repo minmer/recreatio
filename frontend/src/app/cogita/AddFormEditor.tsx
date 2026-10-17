@@ -10,7 +10,7 @@
  * Darunter die Tasten, das Einfügen und was das Formular tut, in Worten.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import ReactFlow, {
   Background, Controls, Handle, Position,
   type Connection, type Edge, type EdgeChange, type Node, type NodeChange, type NodeProps
@@ -20,9 +20,10 @@ import 'reactflow/dist/style.css';
 import { newId } from '../core/ids';
 import { viewPath } from '../routes';
 import { askText, toast } from '../ui/dialogs';
+import { Icon } from '../ui/icons';
 import { MenuButton } from '../ui/Menu';
 import {
-  addFormDoc, COLUMN_SEPARATOR_LABEL, COLUMN_SEPARATORS, DEFAULT_KEYS, DEFAULT_PASTE, defaultTyped, describeForm, entryConfig,
+  addFormDoc, COLUMN_SEPARATOR_LABEL, COLUMN_SEPARATORS, DEFAULT_KEYS, DEFAULT_PASTE, defaultTyped, describeForm, designOrder, duplicateEntry, entryConfig,
   fieldsSet, formFromKind, formPalette, formProblems, identityOf, isTypeable, KEY_ACTION_LABEL, KEY_ACTIONS, KEY_NAMES, nodeLabel,
   pickConfig, readAddForm, refFields, SOURCE_LABEL, VALUE_SEPARATOR_LABEL, VALUE_SEPARATORS,
   type AddForm, type FieldSource, type SourceMode
@@ -151,24 +152,29 @@ function FormDesigner({ entryId, version, data, writes, onRun, onGone }: {
 
   const problems = [...new Set([...formProblems(draft, lib.look), ...graphProblems(draft.graph, palette).map((p) => p.text)])];
   const node = draft.graph.nodes.find((n) => n.id === chosen);
+  /* „Kolejny taki": die nächste Sprache — mit eigener Wahl der Sprache, denselben gemeinsamen Wahlen und dorthin verbunden, wohin der erste zeigt. */
+  const duplicate = (id: string) => {
+    const done = duplicateEntry(draft.graph, id, lib.look, () => newId().slice(-8));
+    if (done !== null) { setGraph(done.graph); setChosen(done.id); }
+  };
+  const remove = (id: string) => { setGraph(without(draft.graph, id)); if (chosen === id) setChosen(null); };
 
+  /*
+    2026-10-17 — DIE LEINWAND ÜBER DIE GANZE BREITE, darüber die Werkzeuge,
+    darunter je Knoten ein Modul mit seinen Einstellungen. Vorher stand der
+    gewählte Knoten in einer schmalen Spalte daneben, und wer einen gewählt
+    hatte, sah nicht mehr, wie man einen weiteren hinzufügt.
+  */
   return (
     <div className="cg">
       <div className="cg-row">
         <label className="wk-field"><span>Nazwa formularza</span><input value={draft.name} disabled={!writes} onChange={(e) => set({ name: e.target.value })} /></label>
       </div>
-      <div className="cg-graph">
-        <FormCanvas form={draft} readOnly={!writes} chosen={chosen} onChoose={setChosen} onGraph={setGraph}
-          onWire={(from, to, field) => { const g = wire(draft.graph, from, to, field); if (g !== null) setGraph(g); }} />
-        <aside className="cg-graph-side">
-          {said !== null && <p className="wk-error">{said}</p>}
-          {node === undefined
-            ? (writes && <FormPalette form={draft} onAdd={(n) => { setGraph({ nodes: [...draft.graph.nodes, n], edges: draft.graph.edges }); setChosen(n.id); }} />)
-            : node.type === 'pick'
-              ? <PickPanel key={node.id} node={node} readOnly={!writes} onConfig={(patch) => setGraph(withConfig(draft.graph, node.id, patch))} onRemove={() => { setGraph(without(draft.graph, node.id)); setChosen(null); }} />
-              : <EntryPanel key={node.id} form={draft} node={node} readOnly={!writes} onGraph={setGraph} wire={wire} onChoose={setChosen} onRemove={() => { setGraph(without(draft.graph, node.id)); setChosen(null); }} />}
-        </aside>
-      </div>
+      {writes && <FormTools form={draft} chosen={node} onAdd={(n) => { setGraph({ nodes: [...draft.graph.nodes, n], edges: draft.graph.edges }); setChosen(n.id); }} onDuplicate={duplicate} />}
+      {said !== null && <p className="wk-error">{said}</p>}
+      <FormCanvas form={draft} readOnly={!writes} chosen={chosen} onChoose={setChosen} onGraph={setGraph}
+        onWire={(from, to, field) => { const g = wire(draft.graph, from, to, field); if (g !== null) setGraph(g); }} />
+      <FormModules form={draft} chosen={chosen} readOnly={!writes} onChoose={setChosen} onGraph={setGraph} wire={wire} onDuplicate={duplicate} onRemove={remove} />
 
       <section className="cg-card">
         <h3>Klawisze przy wpisywaniu</h3>
@@ -360,33 +366,114 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
   );
 }
 
-/* -- Die Palette ---------------------------------------------------------------------------------- */
+/* -- Die Werkzeuge über der Leinwand ------------------------------------------------------------------ */
 
-function FormPalette({ form, onAdd }: { form: AddForm; onAdd: (node: GraphNode) => void }) {
+function FormTools({ form, chosen, onAdd, onDuplicate }: { form: AddForm; chosen: GraphNode | undefined; onAdd: (node: GraphNode) => void; onDuplicate: (id: string) => void }) {
   const { lib } = useCtx();
-  const right = form.graph.nodes.length === 0 ? 0 : Math.max(...form.graph.nodes.map((n) => n.x)) + 300;
-  const low = (x: number) => Math.max(0, ...form.graph.nodes.filter((n) => Math.abs(n.x - x) < 150).map((n) => n.y + 140));
+  const low = (x: number) => Math.max(0, ...form.graph.nodes.filter((n) => Math.abs(n.x - x) < 150).map((n) => n.y + 160));
+  /* Ein neuer Eintrag kommt in die Spalte der getippten (dort, wo die Wörter stehen) — sonst in die Mitte. */
+  const column = Math.min(...form.graph.nodes.filter((n) => n.type === 'entry').map((n) => n.x), 340);
   return (
-    <div className="cg-palette">
-      <span className="cg-muted">Kliknij, żeby dodać. Potem połącz wpis (kropka z prawej) z polem-odwołaniem innego (kropka z lewej) — albo wybierz to w panelu po kliknięciu węzła.</span>
-      <h4>Na początek</h4>
-      <button type="button" onClick={() => onAdd(pickNode(0, low(0), undefined, [], false))}>Wybór istniejącego wpisu (np. język, temat)</button>
-      <h4>W każdym wierszu</h4>
-      {lib.kinds.map((k) => <button key={k.id} type="button" onClick={() => onAdd(entryNode(k, right, low(right)))}>{k.name}</button>)}
+    <div className="cg-af-tools">
+      <button type="button" className="wk-btn wk-btn-quiet" onClick={() => onAdd(pickNode(0, low(0), undefined, [], false))}><Icon name="plus" />Na początek</button>
+      <MenuButton label="Dodaj wpis, który powstaje z każdego wiersza" text="W każdym wierszu" icon="plus"
+        items={lib.kinds.map((k) => ({ label: k.name, onSelect: () => onAdd(entryNode(k, column, low(column))) }))} />
+      {chosen?.type === 'entry' && (
+        <button type="button" className="wk-btn wk-btn-quiet" onClick={() => onDuplicate(chosen.id)}><Icon name="copy" />Kolejny taki jak „{nodeLabel(chosen, lib.look, form.graph)}”</button>
+      )}
+      <span className="cg-muted">Połącz kropkę wpisu (z prawej) z kropką pola (z lewej) — albo ustaw to niżej.</span>
     </div>
+  );
+}
+
+/* -- Unter der Leinwand: ein Modul je Knoten ------------------------------------------------------------- */
+
+function FormModules({ form, chosen, readOnly, onChoose, onGraph, wire, onDuplicate, onRemove }: {
+  form: AddForm;
+  chosen: string | null;
+  readOnly: boolean;
+  onChoose: (id: string) => void;
+  onGraph: (graph: Graph) => void;
+  wire: (graph: Graph, from: string, to: string, field: string) => Graph | null;
+  onDuplicate: (id: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const { picks, entries } = designOrder(form);
+  /* Wer auf der Leinwand einen Knoten wählt, sieht sein Modul — ohne dass die Seite springt, wenn es schon zu sehen ist. */
+  useEffect(() => {
+    if (chosen === null) return;
+    document.querySelector(`[data-af-node="${chosen}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [chosen]);
+  return (
+    <div className="cg">
+      {entries.length > 0 && (
+        <section className="cg" aria-label="W każdym wierszu">
+          <h3>W każdym wierszu</h3>
+          <div className="cg-af-modules">
+            {entries.map((n) => (
+              <ModuleCard key={n.id} form={form} node={n} on={chosen === n.id} readOnly={readOnly} onChoose={onChoose} onRemove={onRemove} onDuplicate={() => onDuplicate(n.id)}>
+                <EntryPanel form={form} node={n} readOnly={readOnly} onGraph={onGraph} wire={wire} onChoose={onChoose} />
+              </ModuleCard>
+            ))}
+          </div>
+        </section>
+      )}
+      {picks.length > 0 && (
+        <section className="cg" aria-label="Na początek">
+          <h3>Na początek</h3>
+          <div className="cg-af-modules">
+            {picks.map((n) => (
+              <ModuleCard key={n.id} form={form} node={n} on={chosen === n.id} readOnly={readOnly} onChoose={onChoose} onRemove={onRemove}>
+                <PickPanel form={form} node={n} readOnly={readOnly} onConfig={(patch) => onGraph(withConfig(form.graph, n.id, patch))} />
+              </ModuleCard>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function ModuleCard({ form, node, on, readOnly, onChoose, onRemove, onDuplicate, children }: {
+  form: AddForm;
+  node: GraphNode;
+  on: boolean;
+  readOnly: boolean;
+  onChoose: (id: string) => void;
+  onRemove: (id: string) => void;
+  onDuplicate?: () => void;
+  children: ReactNode;
+}) {
+  const { lib } = useCtx();
+  const sub = node.type === 'pick' ? 'wybór na początek' : lib.kind(entryConfig(node.config).kind)?.name ?? 'wybierz rodzaj';
+  return (
+    <section className={`cg-card cg-af-module${on ? ' is-on' : ''}${node.type === 'pick' ? ' is-pick' : ''}`} data-af-node={node.id} onFocusCapture={() => { if (!on) onChoose(node.id); }}>
+      <div className="cg-row-between">
+        <button type="button" className="cg-af-module-title" onClick={() => onChoose(node.id)}>
+          <strong>{nodeLabel(node, lib.look, form.graph)}</strong>
+          <span className="cg-muted">{sub}</span>
+        </button>
+        {!readOnly && (
+          <span className="cg-row">
+            {onDuplicate !== undefined && <button type="button" className="wk-link-btn" onClick={onDuplicate}>+ kolejny taki</button>}
+            <button type="button" className="wk-link-btn" onClick={() => onRemove(node.id)}>usuń</button>
+          </span>
+        )}
+      </div>
+      {children}
+    </section>
   );
 }
 
 /* -- Ein Eintrag je Zeile ------------------------------------------------------------------------- */
 
-function EntryPanel({ form, node, readOnly, onGraph, wire, onChoose, onRemove }: {
+function EntryPanel({ form, node, readOnly, onGraph, wire, onChoose }: {
   form: AddForm;
   node: GraphNode;
   readOnly: boolean;
   onGraph: (graph: Graph) => void;
   wire: (graph: Graph, from: string, to: string, field: string) => Graph | null;
   onChoose: (id: string) => void;
-  onRemove: () => void;
 }) {
   const { lib } = useCtx();
   const c = entryConfig(node.config);
@@ -411,10 +498,6 @@ function EntryPanel({ form, node, readOnly, onGraph, wire, onChoose, onRemove }:
 
   return (
     <div className="wk-form cg cg-af-panel">
-      <div className="cg-row-between">
-        <strong>W każdym wierszu</strong>
-        {!readOnly && <button type="button" className="wk-link-btn" onClick={onRemove}>usuń</button>}
-      </div>
       <label className="wk-field"><span>Rodzaj</span>
         <select value={c.kind} disabled={readOnly} onChange={(e) => changeKind(e.target.value)}>
           {kind === undefined && <option value={c.kind}>— wybierz —</option>}
@@ -550,31 +633,34 @@ function RefSource({ form, node, field, readOnly, onGraph, wire, onChoose }: {
 
 /* -- Eine Wahl oben ------------------------------------------------------------------------------- */
 
-function PickPanel({ node, readOnly, onConfig, onRemove }: {
+function PickPanel({ form, node, readOnly, onConfig }: {
+  form: AddForm;
   node: GraphNode;
   readOnly: boolean;
   onConfig: (patch: Record<string, unknown>) => void;
-  onRemove: () => void;
 }) {
   const { lib } = useCtx();
   const c = pickConfig(node.config);
   return (
     <div className="wk-form cg cg-af-panel">
-      <div className="cg-row-between">
-        <strong>Na początek</strong>
-        {!readOnly && <button type="button" className="wk-link-btn" onClick={onRemove}>usuń</button>}
-      </div>
       <label className="wk-field"><span>Nazwa</span>
-        <input value={c.label ?? ''} disabled={readOnly} placeholder="np. Język 1" onChange={(e) => onConfig({ label: e.target.value.trim() === '' ? undefined : e.target.value })} />
+        <input value={c.label ?? ''} disabled={readOnly} placeholder={nodeLabel(node, lib.look, form.graph)} onChange={(e) => onConfig({ label: e.target.value.trim() === '' ? undefined : e.target.value })} />
       </label>
-      <fieldset className="cg-af-fields"><legend>Jakie wpisy można wybrać</legend>
-        {lib.refKinds.map((k) => (
-          <label key={k.id} className="pe-check">
-            <input type="checkbox" checked={c.kinds.includes(k.id)} disabled={readOnly} onChange={(e) => onConfig({ kinds: e.target.checked ? [...c.kinds, k.id] : c.kinds.filter((x) => x !== k.id) })} />
-            <span>{k.name}</span>
-          </label>
-        ))}
-      </fieldset>
+      <div className="wk-field">
+        <span>Jakie wpisy można wybrać</span>
+        <span className="cg-row">
+          {c.kinds.length === 0 && <span className="cg-muted">dowolne</span>}
+          {c.kinds.map((k) => (
+            <span key={k} className="cg-tag">{lib.kind(k)?.name ?? k}{!readOnly && <button type="button" className="wk-link-btn" aria-label={`Usuń: ${lib.kind(k)?.name ?? k}`} onClick={() => onConfig({ kinds: c.kinds.filter((x) => x !== k) })}>×</button>}</span>
+          ))}
+          {!readOnly && (
+            <select value="" aria-label="Dodaj rodzaj do wyboru" onChange={(e) => { if (e.target.value !== '') onConfig({ kinds: [...c.kinds, e.target.value] }); }}>
+              <option value="">+ rodzaj</option>
+              {lib.refKinds.filter((k) => !c.kinds.includes(k.id)).map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
+            </select>
+          )}
+        </span>
+      </div>
       <label className="pe-check"><input type="checkbox" checked={c.many} disabled={readOnly} onChange={(e) => onConfig({ many: e.target.checked })} /><span>Kilka wpisów (np. kilka tematów)</span></label>
       <label className="pe-check"><input type="checkbox" checked={c.optional} disabled={readOnly} onChange={(e) => onConfig({ optional: e.target.checked })} /><span>Można zostawić puste</span></label>
       <div className="wk-field">

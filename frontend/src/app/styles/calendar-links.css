@@ -52,6 +52,9 @@
 .wk-cal2-col .wk-ev.has-parts { flex-direction: column; }
 .wk-cal2-col .wk-ev.has-parts .wk-ev-line { width: 100%; }
 .wk-ev-title.is-head { flex: 1 1 auto; white-space: nowrap; font-weight: 600; }
+/* 2026-10-17 — mit Platz: das Ganze im Streifen links (Zeit, Titel umbrochen), die Teile rechts daneben zu ihrer Zeit. */
+.wk-cal2-col > .wk-ev.has-side-parts > * { max-width: calc(var(--band) - 0.5rem); }
+.wk-cal2-col > .wk-ev.has-side-parts .wk-ev-title { font-weight: 600; }
 
 /* In der Liste: eingerückt unter dem Ganzen, mit einem Haken. */
 .wk-cal2-listrow.is-part { padding-left: calc(var(--depth, 1) * 1.1rem); }

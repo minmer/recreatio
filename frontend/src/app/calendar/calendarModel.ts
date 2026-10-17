@@ -497,7 +497,14 @@ const PART_INSET = 0.12;
  * der gerade nichts ist. So bleibt jeder lesbar, und keiner liegt über dem
  * anderen — wie in jedem Kalender, den man kennt.
  */
-export function placeDay(events: readonly CalEvent[], day: Date, headerMinutes = 0): Placed[] {
+/**
+ * 2026-10-17 — `inset`: wie weit Teile eingerückt sind (Anteil der Breite des
+ * Ganzen). Mit `headerMinutes = 0` und einem breiten `inset` steht das Ganze
+ * mit Zeit und Titel in einem Streifen LINKS, und seine Teile stehen rechts
+ * daneben genau zu ihrer Zeit — ohne Kopfzeile, die den ersten Teil
+ * zusammendrückt (Tagesansicht mit Platz, `CalendarApp.tsx`).
+ */
+export function placeDay(events: readonly CalEvent[], day: Date, headerMinutes = 0, inset = PART_INSET): Placed[] {
   const from = startOfDay(day).getTime();
   const to = addDays(startOfDay(day), 1).getTime();
 
@@ -554,8 +561,8 @@ export function placeDay(events: readonly CalEvent[], day: Date, headerMinutes =
         placed.push({ event: g.one.event, top, height: g.bottom - top, column: g.column, columns, x, w, depth, nested: inner.length > 0 });
         if (inner.length > 0 && !seen.has(g.one)) {
           seen.add(g.one);
-          const inset = w * PART_INSET;
-          layout(inner, x + inset, w - inset, depth + 1, top + headerMinutes, seen);
+          const indent = w * inset;
+          layout(inner, x + indent, w - indent, depth + 1, top + headerMinutes, seen);
         }
       }
       group = [];

@@ -97,6 +97,15 @@ const HourHeight = createContext<number>(HOUR);
 /** 0074 — die Kopfzeile eines Termins mit Teilen (20 px), in Minuten des Rasters: so weit rücken seine Teile, die mit ihm beginnen, nach unten. */
 const partHead = (hour: number) => (20 / hour) * 60;
 
+/**
+ * 2026-10-17 — TEILE NEBEN IHREM GANZEN: ab so breiten Tagesspalten (px) steht
+ * ein Termin mit Teilen als Streifen links (SIDE_INSET seiner Breite, mit Zeit
+ * und Titel), seine Teile rechts daneben, jeder genau zu seiner Zeit. Schmaler
+ * (die Woche, das Telefon): eine Kopfzeile oben, die Teile darunter.
+ */
+const SIDE_MIN = 420;
+const SIDE_INSET = 0.3;
+
 /** Höher als so viele Pixel: ein Termin hat Platz für eine zweite Zeile. */
 const TALL = 36;
 
@@ -733,6 +742,18 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
 }) {
   const scroller = useRef<HTMLDivElement | null>(null);
   const cut = useContext(CutKeys);
+  /* Wie breit eine Tagesspalte ist — davon hängt ab, ob Teile neben ihrem Ganzen Platz haben. */
+  const [colWidth, setColWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (el === null) return undefined;
+    const measure = () => setColWidth(el.querySelector('.wk-cal2-col')?.getBoundingClientRect().width ?? 0);
+    measure();
+    const watch = new ResizeObserver(measure);
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [days.length]);
+  const sideParts = colWidth >= SIDE_MIN;
   const hourNow = useRef(hour);
   const zoomNow = useRef(onZoom);
   zoomNow.current = onZoom;
@@ -868,30 +889,33 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
               {wide && laneDay(marks, day).map((p) => <TaskBlock key={p.mark.key} mark={p.mark} now={now} acts={tasks} placed={p} />)}
               {wide && <EventRail events={events} day={day} areas={areas} onOpen={() => onFocus('events')} />}
 
-              {!wide && placeDay(events, day, partHead(hour)).map((p) => {
+              {!wide && (sideParts ? placeDay(events, day, 0, SIDE_INSET) : placeDay(events, day, partHead(hour))).map((p) => {
                 const who = whoIsOn(p.event);
                 const tall = (p.height / 60) * hour;
+                /* Neben den Teilen (breit) liest sich das Ganze wie jeder Termin, nur im Streifen links; schmal trägt es eine Kopfzeile. */
+                const head = p.nested && !sideParts;
                 return (
                   <button key={p.event.key} type="button"
                     aria-pressed={picked?.has(p.event.key)}
                     data-pick={pickable(p.event) ? p.event.key : undefined}
-                    className={`${chipClass(p.event, picked, cut)}${tall < TALL ? ' is-short' : ''}${p.depth > 0 ? ' is-part' : ''}${p.nested ? ' has-parts' : ''}`}
+                    className={`${chipClass(p.event, picked, cut)}${tall < TALL ? ' is-short' : ''}${p.depth > 0 ? ' is-part' : ''}${head ? ' has-parts' : ''}${p.nested && sideParts ? ' has-side-parts' : ''}`}
                     style={{
                       '--ev-h': hueOfEvent(p.event),
                       top: `${(p.top / 60) * hour}px`,
                       height: `${Math.max(tall - 2, 18)}px`,
                       left: `calc(var(--rail) + (100% - var(--rail)) * ${p.x} + 2px)`,
                       width: `calc((100% - var(--rail)) * ${p.w} - 4px)`,
-                      zIndex: 1 + p.depth
+                      zIndex: 1 + p.depth,
+                      '--band': `${SIDE_INSET * 100}%`
                     } as CSSProperties}
                     title={hint(p.event, areas)}
                     onClick={() => onOpen(p.event)}>
                     <span className="wk-ev-line">
                       <span className="wk-ev-time">{time(p.event.start)}</span>
-                      {p.nested && <span className="wk-ev-title is-head">{p.event.title}</span>}
+                      {head && <span className="wk-ev-title is-head">{p.event.title}</span>}
                       <Badges event={p.event} />
                     </span>
-                    {!p.nested && <span className="wk-ev-title">{p.event.title}</span>}
+                    {!head && <span className="wk-ev-title">{p.event.title}</span>}
                     {who !== null && tall >= hour && tall >= 48 && <span className="wk-ev-sub">{who}</span>}
                   </button>
                 );
@@ -1123,7 +1147,8 @@ export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen,
               onClick={(e) => { if ((e.target as Element).closest('button, a') === null) onDay(day); }}>
               <span className="wk-cal2-cellhead">
                 <button type="button" className="wk-cal2-cellday" aria-label={longDate(day)} onClick={() => onDay(day)}>
-                  {day.getDate()}{several && day.getDate() === 1 && inside(day) ? ` ${monthOfName(day).slice(0, 3)}` : ''}
+                  {/* 2026-10-17 — an jedem Tag der Monat, kurz („31 paź", „1 lis"): an den Rändern und über mehrere Monate weiss man so immer, wo man ist. */}
+                  {day.getDate()} <span className="wk-cal2-cellmon">{monthOfName(day).slice(0, 3)}</span>
                 </button>
                 <TaskPill marks={marksOn(marks, day)} onOpen={() => onTasks(day)} mini />
               </span>

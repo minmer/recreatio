@@ -320,3 +320,9 @@
 .cg-af-title { display: grid; gap: var(--wk-space-1); justify-items: start; }
 .cg-af-title > .cg-row-between { width: 100%; }
 .cg-af-title h2 { margin: 0; }
+/* Der Editor: Werkzeuge über der Leinwand, darunter ein Modul je Knoten. */
+.cg-af-tools { display: flex; flex-wrap: wrap; gap: var(--wk-space-2) var(--wk-space-3); align-items: center; }
+.cg-af-modules { display: grid; gap: var(--wk-space-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); align-items: start; }
+.cg-af-module.is-pick { border-style: dashed; }
+.cg-af-module-title { display: inline-flex; flex-wrap: wrap; gap: var(--wk-space-2); align-items: baseline; padding: 0; border: 0; background: none; font: inherit; color: var(--wk-ink); text-align: left; cursor: pointer; }
+.cg-af-module-title:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }

@@ -555,6 +555,7 @@
 .wk-cal2-cellday:hover { background: var(--wk-soft); }
 .wk-cal2-cellday:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
 .wk-cal2-cell.is-today .wk-cal2-cellday { color: var(--wk-accent); }
+.wk-cal2-cellmon { font-weight: 400; font-size: var(--wk-text-xs); color: var(--wk-muted); }
 .wk-ev.is-line { white-space: nowrap; }
 .wk-cal2-more { justify-self: start; font-size: var(--wk-text-xs); }
 

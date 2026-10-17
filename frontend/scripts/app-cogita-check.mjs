@@ -463,16 +463,14 @@ check('the stand of the plan before a run', R.levelsOf(plan, () => [], 0), { uns
     name: 'Tłumaczenie', label: '{from}',
     fields: [{ key: 'from', label: 'Z', type: 'ref', to: ['k-vword'] }, { key: 'to', label: 'Na', type: 'ref', to: ['k-vword'] }, { key: 'note', label: 'Uwaga', type: 'line' }]
   });
-  const PAIR = kind('k-pair', {
-    name: 'Para', label: '{from}',
-    fields: [{ key: 'from', label: 'Z', type: 'ref', multi: true, to: ['k-vword'] }, { key: 'to', label: 'Na', type: 'ref', multi: true, to: ['k-vword'] }]
-  });
+  /* Wie der Nutzer es baute: EIN Feld für mehrere Wörter, jedes in seiner Sprache. */
+  const GROUP = kind('k-group', { name: 'Tłumaczenie grupowe', label: '{words}', fields: [{ key: 'words', label: 'Słowa', type: 'ref', multi: true, to: ['k-vword'] }] });
   const people = [
-    e('l-en', ['k-lang'], { name: 'angielski' }), e('l-pl', ['k-lang'], { name: 'polski' }),
+    e('l-en', ['k-lang'], { name: 'angielski' }), e('l-pl', ['k-lang'], { name: 'polski' }), e('l-de', ['k-lang'], { name: 'niemiecki' }),
     e('t-zw', ['k-topic'], { name: 'Zwierzęta' }), e('t-dom', ['k-topic'], { name: 'Dom' }),
     e('w-pies', ['k-vword'], { text: 'pies', lang: 'l-pl', topics: ['t-zw'] })
   ];
-  const kinds = [LANG, TOPIC, VWORD, TRANS, PAIR];
+  const kinds = [LANG, TOPIC, VWORD, TRANS, GROUP];
   const look = S.lookupOf(kinds, people);
   let n = 0;
   const ctx = (own = () => true) => ({ look, pool: (k) => people.filter((x) => x.kinds.includes(k)), isOwn: own, newId: () => `n${++n}` });
@@ -533,15 +531,29 @@ check('the stand of the plan before a run', R.levelsOf(plan, () => [], 0), { uns
   check('nothing happens without a required choice on top — one sentence names them all', [p7.saves.length, p7.problems], [0, ['Wybierz na początek: Język — Z, Język — Na.']]);
   check('an empty row is empty', AF.planForm(form, ctx(), [row([''], [])], top).rows[0].empty, true);
 
-  /* Ein Feld, das mehrere Einträge nimmt, nimmt sie alle in EINEN. */
-  const pairs = AF.formFromKind(PAIR, look, ids);
-  const pf = AF.readAddForm('f2', { graph: pairs.graph });
-  const pz = pf.graph.nodes.find((x) => AF.nodeLabel(x, look) === 'Z');
-  const pn = pf.graph.nodes.find((x) => AF.nodeLabel(x, look) === 'Na');
-  const many = { ...pf, graph: { nodes: pf.graph.nodes.map((x) => (x.id === pz.id || x.id === pn.id ? { ...x, config: { ...x.config, many: true } } : x)), edges: pf.graph.edges } };
-  const ptop = { picks: Object.fromEntries(pf.graph.nodes.filter((x) => x.type === 'pick').map((x) => [x.id, AF.nodeLabel(x, look, pf.graph).includes('Język') ? (AF.nodeLabel(x, look, pf.graph).endsWith('Z') ? ['l-en'] : ['l-pl']) : []])), asks: {} };
-  const pp = AF.planForm(many, ctx(), [{ [pz.id]: [{ text: 'car' }, { text: 'automobile' }], [pn.id]: [{ text: 'auto' }, { text: 'samochód' }] }], ptop);
-  check('a field taking several: one entry with all of them', pp.saves.filter((s) => s.kinds[0] === 'k-pair').map((s) => [s.data.from.length, s.data.to.length]), [[2, 2]]);
+  /* EIN Feld für mehrere Wörter: zwei Zeilen-Einträge zum Anfang, „kolejny taki" für die nächste Sprache, alles in EINE Übersetzung. */
+  const gf = AF.readAddForm('f2', { graph: AF.formFromKind(GROUP, look, ids).graph });
+  const gl = (graph) => (x) => AF.nodeLabel(x, look, graph);
+  check('a linking kind with ONE field for several words: two word rows, a language each, shared topics',
+    gf.graph.nodes.map((x) => `${x.type}:${gl(gf.graph)(x)}`).sort(),
+    ['entry:Słowa 1', 'entry:Słowa 2', 'entry:Tłumaczenie grupowe', 'pick:Język — Słowa 1', 'pick:Język — Słowa 2', 'pick:Tematy'].sort());
+  const g1 = gf.graph.nodes.find((x) => gl(gf.graph)(x) === 'Słowa 1');
+  const g2 = gf.graph.nodes.find((x) => gl(gf.graph)(x) === 'Słowa 2');
+  const third = AF.duplicateEntry(gf.graph, g2.id, look, ids);
+  const g3graph = third.graph;
+  const by3 = (label) => g3graph.nodes.find((x) => gl(g3graph)(x) === label);
+  check('„kolejny taki": the next word row with its own language, the shared topics, into the same field',
+    [gl(g3graph)(by3('Słowa 3')), g3graph.edges.filter((e) => e.to === third.id).map((e) => gl(g3graph)(g3graph.nodes.find((x) => x.id === e.from))).sort(), g3graph.edges.filter((e) => e.from === third.id).map((e) => e.in)],
+    ['Słowa 3', ['Język — Słowa 3', 'Tematy'], ['words']]);
+  check('… its language starts empty and must be chosen', (({ value, optional }) => [value, optional])(AF.pickConfig(by3('Język — Słowa 3').config)), [[], false]);
+  check('the next free name', [AF.nextLabel('Word', ['Word']), AF.nextLabel('Word 2', ['Word', 'Word 2']), AF.nextLabel('angielski', ['angielski', 'polski'])], ['Word 2', 'Word 3', 'angielski 2']);
+  check('the modules under the canvas: the row entries in row order, the linking one last', AF.designOrder({ graph: g3graph }).entries.map(gl(g3graph)), ['Słowa 1', 'Słowa 2', 'Słowa 3', 'Tłumaczenie grupowe']);
+  const gmany = { ...gf, graph: { nodes: g3graph.nodes.map((x) => (x.id === g1.id ? { ...x, config: { ...x.config, many: true } } : x)), edges: g3graph.edges } };
+  const gtop = { picks: { [by3('Język — Słowa 1').id]: ['l-en'], [by3('Język — Słowa 2').id]: ['l-pl'], [by3('Język — Słowa 3').id]: ['l-de'] }, asks: {} };
+  const gp = AF.planForm(gmany, ctx(), [{ [g1.id]: [{ text: 'car' }, { text: 'automobile' }], [g2.id]: [{ text: 'samochód' }], [third.id]: [{ text: 'Auto' }] }], gtop);
+  check('one translation holding all four words in three languages', gp.saves.filter((s) => s.kinds[0] === 'k-group').map((s) => s.data.words.length), [4]);
+  const gmiss = AF.planForm(gmany, ctx(), [{ [g1.id]: [{ text: 'cat' }], [g2.id]: [{ text: 'kot' }], [third.id]: [] }], gtop);
+  check('… and none while one of its words is missing', [gmiss.saves.filter((s) => s.kinds[0] === 'k-group').length, gmiss.rows[0].skipped.map((s) => s.why)], [0, ['brak: Słowa 3']]);
 
   /* Getippt → Wert. */
   const field = (type, more = {}) => ({ key: 'x', label: 'X', type, multi: false, uncertain: false, ...more });

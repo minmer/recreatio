@@ -676,12 +676,15 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
           return pa.y - pb.y || pa.x - pb.x || pa.i - pb.i;
         });
         if (edges.length === 0) continue;
+        /*
+          Ein Eintrag der Zeile, der fehlt, verhindert diesen — auch in einem Feld,
+          das mehrere nimmt: eine Übersetzung aus „Word 1" und „Word 2" braucht
+          beide, sonst wäre sie die Übersetzung eines einzigen Wortes.
+        */
+        const absent = edges.filter((e) => byId.get(e.from)?.type === 'entry' && (outputs.get(e.from) ?? []).length === 0);
+        if (absent.length > 0) { missing = absent.map((e) => nodeLabel(byId.get(e.from)!, look, form.graph)).join(', '); break; }
         const values = [...new Set(edges.flatMap((e) => outputs.get(e.from) ?? []))];
-        if (values.length === 0) {
-          const empty = edges.filter((e) => byId.get(e.from)?.type === 'entry').map((e) => nodeLabel(byId.get(e.from)!, look, form.graph));
-          if (empty.length > 0) { missing = empty.join(', '); break; }
-          continue;
-        }
+        if (values.length === 0) continue;
         combos = field.multi
           ? combos.map((data) => ({ ...data, [field.key]: values }))
           : combos.flatMap((data) => values.map((v) => ({ ...data, [field.key]: v })));
@@ -958,10 +961,15 @@ export function formFromKind(root: KindDef, look: Pick<Lookup, 'kind'>, makeId: 
       link(pickFor(f, null), rootId, f.key);
       continue;
     }
-    const child = add('entry', 340, childY, { kind: kind.id, label: f.label, many: false, reuse: 'same', fields: fieldsOfConfig(defaultTyped(kind)) });
-    childY += 220;
-    link(child, rootId, f.key);
-    for (const g of refFields(kind)) if (target(g)?.id !== kind.id) link(pickFor(g, f.label), child, g.key);
+    /* Ein Feld, das mehrere nimmt, verbindet mindestens zwei: eine Übersetzung zwei Wörter („Word 1", „Word 2"); weitere fügt man im Editor hinzu. */
+    const copies = f.multi ? 2 : 1;
+    for (let n = 1; n <= copies; n += 1) {
+      const label = copies === 1 ? f.label : `${f.label} ${n}`;
+      const child = add('entry', 340, childY, { kind: kind.id, label, many: false, reuse: 'same', fields: fieldsOfConfig(defaultTyped(kind)) });
+      childY += 220;
+      link(child, rootId, f.key);
+      for (const g of refFields(kind)) if (target(g)?.id !== kind.id) link(pickFor(g, label), child, g.key);
+    }
   }
   /* Der verbindende Eintrag steht in der Mitte seiner Zeilen-Einträge. */
   const at = nodes.findIndex((n) => n.id === rootId);
@@ -976,4 +984,64 @@ export function formFromKind(root: KindDef, look: Pick<Lookup, 'kind'>, makeId: 
     (fed(a.id).length === 1 ? 0 : 1) - (fed(b.id).length === 1 ? 0 : 1) || Math.min(...fed(a.id)) - Math.min(...fed(b.id)));
   picks.forEach((p, i) => { nodes[nodes.indexOf(p)] = { ...p, y: i * 110 }; });
   return { name: `Dodawanie: ${root.name}`, graph: { nodes, edges } };
+}
+
+/* -- Noch einer wie dieser, und die Reihenfolge darunter -------------------------------------- */
+
+/** „Word" → „Word 2", „Word 2" → „Word 3": die nächste freie Nummer unter den Namen, die es gibt. */
+export function nextLabel(label: string, taken: readonly string[]): string {
+  const base = label.replace(/\s+\d+$/, '');
+  let top = 1;
+  for (const one of taken) {
+    const rest = one.startsWith(`${base} `) ? one.slice(base.length + 1) : null;
+    if (rest !== null && /^\d+$/.test(rest)) top = Math.max(top, Number(rest));
+  }
+  return `${base} ${top + 1}`;
+}
+
+/**
+ * NOCH EINER WIE DIESER — die nächste Sprache: derselbe Rodzaj mit denselben
+ * Feldern und einem freien Namen. Eine Wahl oben, die nur ihn speiste (seine
+ * Sprache), bekommt der neue als eigene, leer; eine gemeinsame (Themen) speist
+ * beide. Wohin er zeigte, zeigt der neue auch — dort, wo das Feld mehrere nimmt
+ * (eine Übersetzung aus mehreren Wörtern); ein Feld für EINEN ist schon besetzt.
+ */
+export function duplicateEntry(graph: Graph, nodeId: string, look: Pick<Lookup, 'kind'>, makeId: () => string): { graph: Graph; id: string } | null {
+  const node = graph.nodes.find((n) => n.id === nodeId);
+  if (node === undefined || node.type !== 'entry') return null;
+  const id = makeId();
+  const label = nextLabel(nodeLabel(node, look), graph.nodes.filter((n) => n.type === 'entry').map((n) => nodeLabel(n, look)));
+  const below = Math.max(...graph.nodes.filter((n) => Math.abs(n.x - node.x) < 120).map((n) => n.y)) + 220;
+  const nodes: GraphNode[] = [...graph.nodes, { ...node, id, y: below, config: { ...node.config, label } }];
+  const edges: GraphEdge[] = [...graph.edges];
+  for (const e of graph.edges.filter((x) => x.to === nodeId)) {
+    const from = graph.nodes.find((n) => n.id === e.from);
+    if (from === undefined) continue;
+    const own = from.type === 'pick' && graph.edges.every((x) => x.from !== from.id || x.to === nodeId);
+    if (!own) { edges.push({ id: makeId(), from: e.from, out: e.out, to: id, in: e.in }); continue; }
+    const pickId = makeId();
+    const named = pickConfig(from.config).label;
+    const taken = nodes.filter((n) => n.type === 'pick').map((n) => nodeLabel(n, look, { nodes, edges }));
+    nodes.push({
+      ...from, id: pickId, y: Math.max(0, ...nodes.filter((n) => n.type === 'pick').map((n) => n.y)) + 110,
+      config: { ...from.config, value: [], ...(named === undefined ? {} : { label: nextLabel(named, taken) }) }
+    });
+    edges.push({ id: makeId(), from: pickId, out: 'out', to: id, in: e.in });
+  }
+  for (const e of graph.edges.filter((x) => x.from === nodeId)) {
+    const target = graph.nodes.find((n) => n.id === e.to);
+    const field = target === undefined ? undefined : refFields(look.kind(entryConfig(target.config).kind)).find((f) => f.key === e.in);
+    if (field?.multi === true) edges.push({ id: makeId(), from: id, out: 'out', to: e.to, in: e.in });
+  }
+  return { graph: { nodes, edges }, id };
+}
+
+/** Wie die Knoten unter der Leinwand stehen: die Wahlen wie oben beim Ausfüllen, die Einträge wie in der Zeile (die verbindenden danach). */
+export function designOrder(form: AddForm): { readonly picks: readonly GraphNode[]; readonly entries: readonly GraphNode[] } {
+  const placed = form.graph.nodes.map((n, i) => ({ n, i }));
+  return {
+    picks: placed.filter(({ n }) => n.type === 'pick').sort((a, b) => a.n.y - b.n.y || a.n.x - b.n.x || a.i - b.i).map(({ n }) => n),
+    entries: placed.filter(({ n }) => n.type === 'entry')
+      .sort((a, b) => Math.round(a.n.x / 120) - Math.round(b.n.x / 120) || a.n.y - b.n.y || a.i - b.i).map(({ n }) => n)
+  };
 }
