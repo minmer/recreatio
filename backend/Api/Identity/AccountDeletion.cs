@@ -501,6 +501,13 @@ public static class AccountDeletion
         END
         IF OBJECT_ID('app.phone_outbox', 'U') IS NOT NULL
             DELETE FROM app.phone_outbox WHERE area_id IN (SELECT id FROM #dead);
+        -- 0117: Pliki przez link — die Dateien liegen im Ordner des Bereichs und gehen mit ihm.
+        IF OBJECT_ID('app.phone_share', 'U') IS NOT NULL
+        BEGIN
+            INSERT INTO #phone (id) SELECT DISTINCT area_id FROM app.phone_share
+             WHERE area_id IN (SELECT id FROM #dead) AND area_id NOT IN (SELECT id FROM #phone);
+            DELETE FROM app.phone_share WHERE area_id IN (SELECT id FROM #dead);
+        END
 
         -- Formulare und Bausteine (0098: mit dem, was zu ihren Aufgaben gesagt wurde)
         DELETE FROM app.task_answer

@@ -32,5 +32,11 @@ internal static class PhoneChecks
         check(!Phone.OutboxSealed(Kernel.Base64Url.Encode(new byte[64 * 1024 + 1]), out _) && !Phone.OutboxSealed(null, out _), "at most 64 KB, never empty");
         check(Phone.DeviceName("  Pixel 8\n") == "Pixel 8" && Phone.DeviceName(" ") is null && Phone.DeviceName(new string('x', 120))!.Length == 80,
             "a phone's name: trimmed, without control characters, at most 80");
+
+        check(Phone.ShareDays(null) == 30 && Phone.ShareDays(7) == 7 && Phone.ShareDays(400) == 400
+            && Phone.ShareDays(0) is null && Phone.ShareDays(401) is null, "0117: a link holds 1 to 400 days, 30 without a word");
+        check(Phone.ShareLabel(Kernel.Base64Url.Encode(new byte[120]), out var label) && label.Length == 120
+            && !Phone.ShareLabel(Kernel.Base64Url.Encode(new byte[4001]), out _) && !Phone.ShareLabel("", out _),
+            "a sealed label for the sender: 48 bytes to 4000, never empty");
     }
 }

@@ -9,6 +9,8 @@
  * stellt sie in Szenen. Geladen nur im Editor.
  */
 
+import { BALANCE, GEARS } from './liveWorlds';
+
 export interface LiveExample {
   readonly key: string;
   readonly title: string;
@@ -527,4 +529,4 @@ const BALL: LiveExample = {
   }
 };
 
-export const LIVE_EXAMPLES: readonly LiveExample[] = [PROJECTILE, PENDULUM, SPRING, INCLINE, COLLISION, REFRACTION, WAVES, ORBIT, BALL];
+export const LIVE_EXAMPLES: readonly LiveExample[] = [PROJECTILE, PENDULUM, SPRING, INCLINE, COLLISION, REFRACTION, WAVES, ORBIT, BALL, BALANCE, GEARS];

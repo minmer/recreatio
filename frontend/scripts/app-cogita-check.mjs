@@ -414,6 +414,109 @@ check('a question without its answer is no card', Cards.questionCard(e('hx', ['q
   truth('a filter with nothing to compare says so', (await Cards.cardsOf(LOST, ctx3('tr-1'))).problems.some((x) => x.includes('nie ma z czym porównać')));
 }
 
+/* 2026-10-18 — Słówka vom Wort aus und paarweise: welche Sprache, Paare, Übersetzungen ankreuzen, je Sprache übersetzen. */
+{
+  const LANG = kind('k-lang4', { name: 'Język', label: '{name}', fields: [{ key: 'name', label: 'Nazwa', type: 'line' }] });
+  const WORD = kind('k-word4', { name: 'Słowo', label: '{text}', fields: [
+    { key: 'text', label: 'Tekst', type: 'line' }, { key: 'lang', label: 'Język', type: 'ref', to: ['k-lang4'] },
+    { key: 'topics', label: 'Tematy', type: 'ref', multi: true, to: ['topic'] }] });
+  const TRANS = kind('k-trans4', { name: 'Tłumaczenie', label: '{words}', fields: [{ key: 'words', label: 'Słowa', type: 'ref', multi: true, to: ['k-word4'] }] });
+  const w = (id, text, lang) => e(id, ['k-word4'], { text, lang });
+  const t = (id, ...words) => e(id, ['k-trans4'], { words });
+  const items = [
+    e('l4-en', ['k-lang4'], { name: 'angielski' }), e('l4-pl', ['k-lang4'], { name: 'polski' }), e('l4-de', ['k-lang4'], { name: 'niemiecki' }), e('l4-fr', ['k-lang4'], { name: 'francuski' }),
+    w('w4-hotel-en', 'hotel', 'l4-en'), w('w4-hotel-pl', 'hotel', 'l4-pl'), w('w4-hotel-de', 'Hotel', 'l4-de'),
+    w('w4-house', 'house', 'l4-en'), w('w4-dom', 'dom', 'l4-pl'), w('w4-apart', 'apartament', 'l4-pl'), w('w4-haus', 'Haus', 'l4-de'),
+    w('w4-car', 'car', 'l4-en'), w('w4-samochod', 'samochód', 'l4-pl'), w('w4-cat', 'cat', 'l4-en'), w('w4-kot', 'kot', 'l4-pl'),
+    w('w4-dog', 'dog', 'l4-en'), w('w4-pies', 'pies', 'l4-pl'),
+    t('t4-1', 'w4-house', 'w4-dom', 'w4-apart'), t('t4-2', 'w4-dom', 'w4-apart'), t('t4-3', 'w4-car', 'w4-samochod'),
+    t('t4-4', 'w4-cat', 'w4-kot'), t('t4-5', 'w4-dog', 'w4-pies'), t('t4-6', 'w4-haus', 'w4-dom'), t('t4-7', 'w4-hotel-en', 'w4-hotel-pl', 'w4-hotel-de')
+  ];
+  const kinds4 = [LANG, WORD, TRANS];
+  const look4 = S.lookupOf(kinds4, items);
+  /* Ein Vorrat je Art als EIN Feld, wie in der Bibliothek — daran hängt das Verzeichnis. */
+  const byKind = new Map(['k-lang4', 'k-word4', 'k-trans4'].map((k) => [k, items.filter((x) => x.kinds.includes(k))]));
+  const ctx4 = (id, seed = 's4') => ({ look: look4, entity: items.find((x) => x.id === id), pool: (k) => byKind.get(k) ?? [], seed });
+  const made = async (template, id, seed) => (await Cards.cardsOf(template, ctx4(id, seed))).cards;
+  const preset = (id) => P.TEMPLATE_PRESETS.find((x) => x.id === id);
+  const build = (presetId, kindId, picked = {}) => {
+    const pr = preset(presetId);
+    const c = P.presetChoice(kinds4, kindId, pr, picked);
+    return { c, template: Cards.readTemplate(presetId, pr.make(kindId, P.presetField(c.field), c.second === undefined ? undefined : P.presetField(c.second), c.back === undefined ? undefined : { back: { kind: c.back.kind, key: c.back.key } })) };
+  };
+  const chosenOf = (card) => card.answer.correct.map((i) => card.answer.options[i]).sort();
+
+  /* Der Dialog wählt vor, was die Anfänge brauchen. */
+  const wordChoice = P.presetChoice(kinds4, 'k-word4', preset('choose-translations'), {});
+  check('the dialog preselects: the language (one reference), the text from the label, the translations pointing back',
+    [wordChoice.field?.key, wordChoice.second?.key, wordChoice.back && `${wordChoice.back.kind}|${wordChoice.back.key}`, wordChoice.missing], ['lang', 'text', 'k-trans4|words', null]);
+  const pairsChoice = P.presetChoice(kinds4, 'k-trans4', preset('pairs'), {});
+  check('… for a translation: the words (several), then the language of a word', [pairsChoice.field?.key, pairsChoice.target?.id, pairsChoice.second?.key], ['words', 'k-word4', 'lang']);
+  truth('… and says what is missing: nothing points back at a language', P.presetChoice(kinds4, 'k-lang4', preset('translate-word'), {}).missing !== null);
+
+  /* Welche Sprache? */
+  const which = build('which-language', 'k-word4').template;
+  const hotelCards = [...await made(which, 'w4-hotel-en'), ...await made(which, 'w4-hotel-pl'), ...await made(which, 'w4-hotel-de')];
+  check('which language: one card for the three „hotel"s, every language where the spelling exists is right',
+    [hotelCards.length, hotelCards[0].prompt[0].text, chosenOf(hotelCards[0]), hotelCards[0].answer.options.length],
+    [1, 'Jaki to język: „hotel”? Zaznacz wszystkie, w których istnieje.', ['angielski', 'niemiecki', 'polski'], 4]);
+  check('… a word in one language: that one, among all languages', chosenOf((await made(which, 'w4-house'))[0]), ['angielski']);
+  truth('… answered with exactly those, right; with one missing, partly', (() => {
+    const card = hotelCards[0];
+    const full = Cards.checkCard(card, card.answer.correct);
+    const part = Cards.checkCard(card, card.answer.correct.slice(1));
+    return full.correct && !part.correct && part.correctness > 0;
+  })());
+
+  /* Paare verbinden. */
+  const pairs = build('pairs', 'k-trans4').template;
+  const pcard = (await made(pairs, 't4-1'))[0];
+  const pairedWith = (card, left) => { const at = card.answer.left.indexOf(left); const pr = card.answer.pairs.find(([l]) => l === at); return pr === undefined ? null : card.answer.right[pr[1]]; };
+  check('pairs: this translation and others in its two languages, left English, right Polish',
+    [pcard.prompt[0].text, pairedWith(pcard, 'house'), pairedWith(pcard, 'car'), pcard.answer.left.includes('Haus'), pcard.varies],
+    ['Połącz w pary: angielski — polski', 'dom, apartament', 'samochód', false, true]);
+  check('… the right pairs are right', Cards.checkCard(pcard, pcard.answer.pairs).correct, true);
+  check('… a word facing itself (hotel — hotel) is no pair', pcard.answer.left.includes('hotel'), false);
+  check('… a translation within one language makes none', (await made(pairs, 't4-2')).length, 0);
+  check('… another seed draws again — the same card', (await made(pairs, 't4-1', 'other'))[0].key, pcard.key);
+
+  /* Übersetzungen ankreuzen. */
+  const choose = build('choose-translations', 'k-word4').template;
+  const ccard = (await made(choose, 'w4-dom'))[0];
+  const wrongOnes = ccard.answer.options.filter((_o, i) => !ccard.answer.correct.includes(i));
+  check('choose translations: every translation of „dom" in other languages is right, its synonym is not',
+    [ccard.prompt[0].text, chosenOf(ccard), wrongOnes.includes('apartament')], ['Zaznacz tłumaczenia: „dom” (polski)', ['Haus', 'house'], false]);
+  truth('… the others are words of the same target languages', wrongOnes.length > 0 && wrongOnes.every((o) => ['hotel', 'Hotel', 'car', 'cat', 'dog'].includes(o)), wrongOnes);
+  check('… every translation holding the word explains the answer', ccard.explain.slice().sort(), ['t4-1', 't4-2', 't4-6']);
+
+  /* Je Sprache übersetzen. */
+  const translate = build('translate-word', 'k-word4').template;
+  check('translate a word: a card per language it has translations in',
+    (await made(translate, 'w4-dom')).map((c) => [c.prompt[0].text, c.answer.accepted]),
+    [['dom (polski) → angielski', ['house']], ['dom (polski) → niemiecki', ['Haus']]]);
+  check('… a word translated into one language: one card', (await made(translate, 'w4-cat')).map((c) => c.answer.accepted), [['kot']]);
+
+  /* „Wpisy rodzaju": nach Feld, getippt, ohne diesen Eintrag, zufällig. */
+  const ENT = (config) => tpl('ent', ['k-word4'], '', [n('found', 'entries', config), n('text', 'answer.text'), n('card', 'card')],
+    [l('1', 'found', 'entities', 'text', 'expected'), l('2', 'text', 'answer', 'card', 'answer')]);
+  check('entries of a kind whose field has a typed value (a language by its name, any case)',
+    (await made(ENT({ kind: 'k-word4', key: 'lang', value: ['NIEMIECKI'] }), 'w4-dom'))[0].answer.accepted, ['Hotel', 'Haus']);
+  check('… without this entry, and at most N at random', (await made(ENT({ kind: 'k-word4', key: 'lang', value: ['polski'], self: true, count: 2 }), 'w4-dom'))[0].answer.accepted.length, 2);
+  truth('… never this entry', (await made(ENT({ kind: 'k-word4', key: 'lang', value: ['polski'], self: true }), 'w4-dom'))[0].answer.accepted.every((x) => x !== 'dom'));
+
+  /* Viele Wörter: das Verzeichnis trägt — nicht jede Karte liest alle. */
+  const many = [];
+  for (let i = 0; i < 4000; i += 1) many.push(e(`wm-${i}`, ['k-word4'], { text: `w${i % 1500}`, lang: i % 2 === 0 ? 'l4-en' : 'l4-pl' }));
+  const bigItems = [...items.filter((x) => x.kinds.includes('k-lang4')), ...many];
+  const bigLook = S.lookupOf(kinds4, bigItems);
+  const bigPools = new Map([['k-lang4', bigItems.filter((x) => x.kinds.includes('k-lang4'))], ['k-word4', many]]);
+  const started = Date.now();
+  let bigCards = 0;
+  for (const word of many) bigCards += (await Cards.cardsOf(which, { look: bigLook, entity: word, pool: (k) => bigPools.get(k) ?? [], seed: 's' })).cards.length;
+  const took = Date.now() - started;
+  truth(`4000 words, which language: one card per spelling (1500), in ${took} ms`, bigCards === 1500 && took < 4000, { bigCards, took });
+}
+
 /* ── Wiederholung ─────────────────────────────────────────────────────── */
 
 const words = ENTITIES.filter((x) => x.kinds.includes('k-word'));

@@ -126,6 +126,85 @@ const UNIQUE: Kind = {
   }
 };
 
+/*
+  2026-10-18 — EIN VERZEICHNIS JE VORRAT UND FELD: welche Einträge diesen
+  Wert haben. Die Karten aller Einträge entstehen auf einmal; ohne Verzeichnis
+  läse jede Karte den ganzen Vorrat (5000 Wörter × 5000 Karten). Der Vorrat
+  einer Art ist je Stand der Bibliothek dasselbe Feld — daran hängt es.
+  Schlüssel wie `sameItem`: ein Eintrag als `@id` und mit seinem Etikett
+  (`~`), ein Text als `#`.
+*/
+const INDEX = new WeakMap<readonly Entity[], Map<string, Map<string, Entity[]>>>();
+const PLACE = new WeakMap<readonly Entity[], Map<string, number>>();
+const norm = (text: string) => text.trim().toLowerCase();
+
+function valueIndex(ctx: TemplateContext, pool: readonly Entity[], key: string): Map<string, Entity[]> {
+  let byKey = INDEX.get(pool);
+  if (byKey === undefined) { byKey = new Map(); INDEX.set(pool, byKey); }
+  let index = byKey.get(key);
+  if (index === undefined) {
+    const built = new Map<string, Entity[]>();
+    const put = (k: string, e: Entity) => { const list = built.get(k); if (list === undefined) built.set(k, [e]); else if (list[list.length - 1] !== e) list.push(e); };
+    for (const e of pool) {
+      for (const v of readField(ctx, [e], key)) {
+        if (v.entity !== undefined) { put(`@${v.entity}`, e); put(`~${norm(v.text)}`, e); } else put(`#${norm(v.text)}`, e);
+      }
+    }
+    index = built;
+    byKey.set(key, index);
+  }
+  return index;
+}
+
+/** Wo ein Vergleichswert im Verzeichnis steht — dieselbe Regel wie `sameItem`. */
+const lookupKeys = (t: Item): string[] => (t.entity !== undefined ? [`@${t.entity}`, `#${norm(t.text)}`] : [`#${norm(t.text)}`, `~${norm(t.text)}`]);
+
+function placeIn(pool: readonly Entity[]): Map<string, number> {
+  let place = PLACE.get(pool);
+  if (place === undefined) { place = new Map(pool.map((e, i) => [e.id, i])); PLACE.set(pool, place); }
+  return place;
+}
+
+/** Höchstens `count` zufällig — ohne den ganzen Vorrat zu mischen, wenn er gross ist. */
+function sample<T>(list: readonly T[], count: number, rng: () => number): T[] {
+  if (list.length <= count * 3) return shuffle(list, rng).slice(0, count);
+  const picked = new Set<number>();
+  while (picked.size < count) picked.add(Math.floor(rng() * list.length));
+  return [...picked].map((i) => list[i]);
+}
+
+/**
+ * 2026-10-18 — WPISY EINES RODZAJ: alle, oder die, deren Feld einen der
+ * Vergleichswerte hat — die Wörter derselben Schreibung, die Übersetzungen,
+ * in denen dieses Wort steht (der Weg zurück), die Wörter einer Sprache.
+ * Ohne diesen Eintrag, nur aus der aktuellen Sammlung, höchstens N zufällig.
+ */
+const ENTRIES: Kind = {
+  type: 'entries', label: 'Wpisy rodzaju', group: 'Dane',
+  says: 'Wpisy wybranego rodzaju — wszystkie albo te, których pole ma wartość z „Gdzie pole ma" (albo wpisaną): słowa o tej samej pisowni, tłumaczenia z tym słowem, słowa w danym języku. Może pominąć ten wpis i wziąć kilka losowo.',
+  ports: () => ({ inputs: [port('like', 'Gdzie pole ma', 'items', true)], outputs: [port('entities', 'Wpisy')] }),
+  run: ({ node, config, inputs, ctx }) => {
+    const pool = ctx.pool(str(config.kind) || ctx.entity.kinds[0] || '');
+    const key = str(config.key);
+    let found: readonly Entity[] = pool;
+    if (key !== '') {
+      const targets: Item[] = [...itemsAt(inputs, 'like'), ...lines(config.value).map((text) => ({ text }))];
+      if (targets.length === 0) throw new Error('„Wpisy rodzaju" z polem nie mają z czym porównać: podłącz „Gdzie pole ma" albo wpisz wartość.');
+      const index = valueIndex(ctx, pool, key);
+      const hit = new Set<Entity>();
+      for (const t of targets) for (const k of lookupKeys(t)) for (const e of index.get(k) ?? []) hit.add(e);
+      const place = placeIn(pool);
+      found = [...hit].sort((a, b) => (place.get(a.id) ?? 0) - (place.get(b.id) ?? 0));
+    }
+    if (config.self === true) found = found.filter((e) => e.id !== ctx.entity.id);
+    if (config.scope === true && ctx.scope !== undefined) found = found.filter((e) => ctx.scope!.has(e.id));
+    const count = Math.round(num(config.count, 0));
+    /* Der Zufall hängt am Eintrag: jede Karte zieht andere — nicht alle dieselben zwölf. */
+    if (count > 0) found = sample(found, count, rngOf(`${ctx.seed}:${node.id}:${ctx.entity.id}:${ctx.variant ?? ''}`));
+    return { entities: found.map((e) => ({ text: labelOf(e, ctx.look), entity: e.id })) };
+  }
+};
+
 const PATTERN: Kind = {
   type: 'pattern', label: 'Wzór tekstu', group: 'Tekst',
   says: 'Składa tekst z wejść: „Kto napisał {0}?". Kilka wartości na jednym wejściu łączy przecinkiem.',
@@ -249,6 +328,54 @@ const EACH: Kind = {
   says: 'Robi osobną kartę dla każdej wartości z lewej — każde tłumaczenie, każdy fragment cytatu.',
   ports: () => ({ inputs: [port('items', 'Wartości', 'items', true)], outputs: [port('item', 'Wartość')] }),
   run: ({ inputs }) => ({ item: itemsAt(inputs, 'items').slice(0, 1) })
+};
+
+/**
+ * 2026-10-18 — PAARE AUS EINTRÄGEN, für „Odpowiedź: dopasowanie par": aus
+ * jedem Eintrag die Werte eines Feldes, die links hingehören (die englischen
+ * Wörter einer Übersetzung), und die, die rechts hingehören (die polnischen —
+ * ohne Angabe: alle übrigen). Nebeneinander, gleiche Stelle = ein Paar; wem
+ * eine Seite fehlt, fällt weg, und kein Text steht zweimal auf einer Seite
+ * (zweimal „dom" liesse sich nicht richtig zuordnen).
+ */
+const PAIRS: Kind = {
+  type: 'pairs', label: 'Pary', group: 'Wybór',
+  says: 'Z każdego wpisu para: wartości pola pasujące do lewej strony i te pasujące do prawej (bez prawej: wszystkie pozostałe) — np. z każdego tłumaczenia słowo angielskie i polskie. Wpis bez którejś strony odpada.',
+  ports: () => ({
+    inputs: [port('items', 'Wpisy', 'items', true), port('left', 'Lewa: porównaj z', 'items', true), port('right', 'Prawa: porównaj z', 'items', true)],
+    outputs: [port('left', 'Lewa strona'), port('right', 'Prawa strona')]
+  }),
+  run: ({ config, inputs, ctx }) => {
+    const key = str(config.key);
+    const by = str(config.by);
+    if (key === '' || by === '') throw new Error('Pary potrzebują pola z wartościami (np. słowa) i pola, według którego się dzielą (np. język).');
+    const lefts: Item[] = [...itemsAt(inputs, 'left'), ...lines(config.leftValue).map((text) => ({ text }))];
+    const rights: Item[] = [...itemsAt(inputs, 'right'), ...lines(config.rightValue).map((text) => ({ text }))];
+    if (lefts.length === 0) throw new Error('Pary nie wiedzą, co jest po lewej: podłącz „Lewa: porównaj z" albo wpisz wartość.');
+    const most = Math.max(2, Math.min(20, Math.round(num(config.count, 5))));
+    const fits = (v: Item, targets: readonly Item[]) => readField(ctx, sourcesOf(ctx, [v]), by).some((x) => targets.some((t) => sameItem(x, t)));
+    const side = (values: readonly Item[]): Item => ({ text: texts(values).join(', '), ...(values[0].entity === undefined ? {} : { entity: values[0].entity }) });
+    const left: Item[] = [];
+    const right: Item[] = [];
+    const seen = new Set<string>();
+    for (const entry of itemsAt(inputs, 'items')) {
+      if (left.length >= most) break;
+      const id = entry.entity ?? `#${entry.text}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const values = readField(ctx, sourcesOf(ctx, [entry]), key);
+      const l = values.filter((v) => fits(v, lefts));
+      const r = values.filter((v) => !l.includes(v) && (rights.length === 0 || fits(v, rights)));
+      if (l.length === 0 || r.length === 0) continue;
+      const a = side(l);
+      const b = side(r);
+      /* Ein Wort, das sich selbst gegenübersteht („hotel — hotel"), ist keine Aufgabe. */
+      if (norm(a.text) === norm(b.text) || left.some((x) => norm(x.text) === norm(a.text)) || right.some((x) => norm(x.text) === norm(b.text))) continue;
+      left.push(a);
+      right.push(b);
+    }
+    return { left, right };
+  }
 };
 
 const RANDOM: Kind = {
@@ -589,9 +716,9 @@ const CARD: Kind = {
 
 /** Die Bausteine einer Kartenvorlage — die Palette, die der Editor zeigt [D2, D3]. */
 export const TEMPLATE_PALETTE = paletteOf<TemplateContext>('card-template', [
-  FIELD, MEDIA, FOLLOW, LIST, SELF, FILTER, UNIQUE,
+  FIELD, MEDIA, FOLLOW, LIST, SELF, ENTRIES, FILTER, UNIQUE,
   PATTERN, MASK, FRAGMENTS,
-  PICK, DISTRACTORS, EACH,
+  PICK, DISTRACTORS, EACH, PAIRS,
   RANDOM, MATH, COMPARE, WHEN, PYTHON,
   PROMPT, ANSWER_TEXT, ANSWER_GAP, ANSWER_NUMBER, ANSWER_DATE, ANSWER_ONE, ANSWER_MANY, ANSWER_TRUEFALSE, ANSWER_ORDER, ANSWER_MATCH, ANSWER_FLASH, ANSWER_CODE, ANSWER_POINT,
   CARD

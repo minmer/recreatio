@@ -154,7 +154,9 @@ export async function cardsOf(template: Template, ctx: TemplateContext): Promise
   const loop = graph.nodes.find((n) => n.type === 'each');
   const varies = [...ancestors(graph, cardNode.id)].some((id) => {
     const node = graph.nodes.find((n) => n.id === id);
-    return node !== undefined && (CHANCE.has(node.type) || (node.type === 'pick' && node.config.position !== 'first' && node.config.position !== 'last') || (node.type === 'mask' && node.config.mode === 'random'));
+    return node !== undefined && (CHANCE.has(node.type) || (node.type === 'pick' && node.config.position !== 'first' && node.config.position !== 'last') || (node.type === 'mask' && node.config.mode === 'random')
+      /* „Wpisy rodzaju" mit „losowo najwyżej": jedes Mal andere Paare, andere Dystraktoren. */
+      || (node.type === 'entries' && num(node.config.count, 0) > 0));
   });
 
   type Run = { readonly variant?: string; readonly item?: Item; readonly requires?: readonly string[] };

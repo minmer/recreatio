@@ -104,6 +104,12 @@ export function FitWhenMeasured({ padding = 0.08 }: { padding?: number }) {
   return null;
 }
 
+export interface FieldKey {
+  readonly key: string;
+  readonly label: string;
+  readonly group?: string;
+}
+
 export interface GraphEditorProps<C> {
   readonly graph: Graph;
   readonly palette: Palette<C>;
@@ -111,7 +117,8 @@ export interface GraphEditorProps<C> {
   /** Ein Ablauf darf zurückführen. */
   readonly cycles?: boolean;
   /** Die Felder, die ein Knoten „Pole" anbieten kann (aus den Arten der Vorlage). */
-  readonly fieldKeys?: readonly { readonly key: string; readonly label: string }[];
+  /** Die Felder zur Wahl — ohne `group` die des eigenen Rodzaj, sonst unter dem Namen ihres Rodzaj. */
+  readonly fieldKeys?: readonly FieldKey[];
   /** Fehler je Knoten aus der letzten Auswertung. */
   readonly errors?: ReadonlyMap<string, string>;
   readonly start?: string | null;
@@ -266,7 +273,7 @@ export function GraphEditor<C>({ graph, palette, onChange, cycles = false, field
 function NodePanel<C>({ node, palette, fieldKeys, readOnly, graph, cycles, onConfig, onLink, onRemove, onStart, isStart }: {
   node: GraphNode;
   palette: Palette<C>;
-  fieldKeys: readonly { key: string; label: string }[];
+  fieldKeys: readonly FieldKey[];
   readOnly: boolean;
   graph: Graph;
   cycles: boolean;
@@ -340,7 +347,7 @@ const toLines = (text: string): string[] => text.split('\n').map((t) => t.trim()
 function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
   field: ConfigField;
   value: unknown;
-  fieldKeys: readonly { key: string; label: string }[];
+  fieldKeys: readonly FieldKey[];
   readOnly: boolean;
   onSet: (v: unknown) => void;
 }) {
@@ -373,7 +380,12 @@ function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
         <label className="wk-field">{label}
           <select value={typeof value === 'string' ? value : ''} disabled={readOnly} onChange={(e) => onSet(e.target.value)}>
             <option value="">—</option>
-            {fieldKeys.map((f) => <option key={f.key} value={f.key}>{f.label} ({f.key})</option>)}
+            {fieldKeys.filter((f) => f.group === undefined).map((f) => <option key={f.key} value={f.key}>{f.label} ({f.key})</option>)}
+            {[...new Set(fieldKeys.flatMap((f) => (f.group === undefined ? [] : [f.group])))].map((group) => (
+              <optgroup key={group} label={group}>
+                {fieldKeys.filter((f) => f.group === group).map((f) => <option key={f.key} value={f.key}>{f.label} ({f.key})</option>)}
+              </optgroup>
+            ))}
             {typeof value === 'string' && value !== '' && !fieldKeys.some((f) => f.key === value) && <option value={value}>{value}</option>}
           </select>
         </label>

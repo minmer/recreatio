@@ -37,6 +37,13 @@ export interface Expr {
   readonly reads: readonly string[];
   /** Ohne Namen: sein Wert ändert sich nie. */
   readonly constant: boolean;
+  /**
+   * 2026-10-18 — WOHER ER IN EINER WELT LIEST: je Name der Weg dorthin —
+   * `total` (das eigene), `children>total` (in jedem Kind), `parent>x`,
+   * `@wyjscie>omega` (ein Ding beim Namen). Daraus folgt, in welcher
+   * Reihenfolge die Rechnungen aller Dinge laufen (`liveWorld.ts`).
+   */
+  readonly links: readonly string[];
 }
 
 export interface ExprError {
@@ -289,6 +296,9 @@ class Reader {
   private at = 0;
   private depth = 0;
   readonly reads = new Set<string>();
+  readonly links = new Set<string>();
+  /** In welchen Zusammenfassungen der Leser gerade steht (in `sum(children, …)`: `children`). */
+  private readonly path: string[] = [];
 
   private readonly known: ((name: string) => boolean) | undefined;
   private readonly kinds: ReadonlySet<string>;
@@ -313,12 +323,15 @@ class Reader {
     const set = (this.peek() as { v: string }).v;
     this.at += 1;
     let inner: Node | null = null;
-    if (this.isOp(',')) { this.take(','); inner = this.ternary(); }
+    if (this.isOp(',')) {
+      this.take(',');
+      this.path.push(set);
+      try { inner = this.ternary(); } finally { this.path.pop(); }
+    }
     this.take(')');
     if (inner === null && fn !== 'count') throw new Fail(`${fn}(${set}, …) potrzebuje wyrażenia po przecinku`, at);
-    /* Was die Welt daraus lernt: `#up` — liest aus den Kindern (Blätter zuerst rechnen), `#all` — über viele Dinge. */
+    /* `#world` — liest aus der Welt: ändert sich an ihr etwas, wird neu gerechnet. */
     this.reads.add('#world');
-    this.reads.add(set === 'children' || set === 'descendants' ? '#up' : '#all');
     const each = inner;
     const over = (env: Env, visit: (value: Val) => boolean): void => {
       const members = setOf(env, set);
@@ -511,6 +524,7 @@ class Reader {
       if (!declared && Object.prototype.hasOwnProperty.call(FUNCTIONS, t.v)) throw new Fail(`„${t.v}" to funkcja — potrzebuje nawiasów: ${t.v}(…)`, t.at);
       if (this.known !== undefined && !declared) throw new Fail(`nieznana nazwa „${t.v}"`, t.at);
       this.reads.add(t.v);
+      this.links.add([...this.path, t.v].join('>'));
       const name = t.v;
       return { run: (env) => env[name] ?? 0, constant: false };
     }
@@ -531,9 +545,11 @@ class Reader {
       if (i > 0 && !(RELATIONS as readonly string[]).includes(p)) throw new Fail(`„${path}" — po kropce: parent, root, outer albo self`, at);
     });
     if (this.known !== undefined && !this.known(name)) throw new Fail(`nieznana nazwa „${name}" (w „${path}")`, at);
-    /* `#down` — liest vom Elternteil, der Wurzel (Wurzel zuerst rechnen); `#ref` — von dem, der fragt, oder einem Ding beim Namen. */
+    /* Der Name selbst auch: hängt `y` des Elternteils von der Zeit ab, dann auch, was es liest. */
     this.reads.add('#world');
-    this.reads.add(parts.every((p) => p === 'parent' || p === 'root' || p === 'self') ? '#down' : '#ref');
+    this.reads.add(name);
+    const steps = parts.map((p, i) => (i === 0 && !(RELATIONS as readonly string[]).includes(p) ? `@${p}` : p));
+    this.links.add([...this.path, ...steps, name].join('>'));
     return {
       run: (env) => {
         let e: Env | undefined = env;
@@ -599,7 +615,7 @@ function compileFresh(source: string, options: CompileOptions): Expr | ExprError
   try {
     const reader = new Reader(tokens(trimmed), options);
     const node = reader.whole();
-    return { source: trimmed, run: node.run, reads: [...reader.reads], constant: node.constant };
+    return { source: trimmed, run: node.run, reads: [...reader.reads], constant: node.constant, links: [...reader.links] };
   } catch (e) {
     if (e instanceof Fail) return { error: e.message, at: e.at, source: trimmed };
     throw e;
@@ -622,6 +638,7 @@ export const newEnv = (): Env => Object.create(null) as Env;
 export function compileText(source: string, known?: ((name: string) => boolean) | CompileOptions): Expr | ExprError {
   const parts: (string | Expr)[] = [];
   const reads = new Set<string>();
+  const links = new Set<string>();
   let i = 0;
   while (i < source.length) {
     const open = source.indexOf('{', i);
@@ -632,12 +649,13 @@ export function compileText(source: string, known?: ((name: string) => boolean) 
     const inner = compile(source.slice(open + 1, close), known);
     if (isExprError(inner)) return { error: inner.error, at: open + 1 + inner.at, source };
     for (const r of inner.reads) reads.add(r);
+    for (const l of inner.links) links.add(l);
     parts.push(inner);
     i = close + 1;
   }
   const constant = parts.every((p) => typeof p === 'string' || p.constant);
   const run: Run = (env) => parts.map((p) => (typeof p === 'string' ? p : text(p.run(env)))).join('');
-  return { source, run: constant ? (() => { const v = run({}); return () => v; })() : run, reads: [...reads], constant };
+  return { source, run: constant ? (() => { const v = run({}); return () => v; })() : run, reads: [...reads], constant, links: [...links] };
 }
 
 /* -- Die Beschreibung -------------------------------------------------------------- */

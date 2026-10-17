@@ -209,7 +209,13 @@ export const Field = {
   SmsArchive: 'sms_archive',
   PhoneFile: 'phone_file',
   /** 0116 — eine SMS, die im Browser auf das Telefon wartet. */
-  PhoneOutbox: 'phone_outbox'
+  PhoneOutbox: 'phone_outbox',
+  /*
+   * 0117 — eine Datei hinter einem Link (unter dem Schlüssel aus dem Geheimnis
+   * des Links) und ihr Etikett für den Absender (unter dem Schlüssel des Bereichs).
+   */
+  ShareFile: 'share_file',
+  ShareLabel: 'share_label'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

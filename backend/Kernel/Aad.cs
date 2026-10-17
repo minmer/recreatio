@@ -402,7 +402,14 @@ public enum Field
     PhoneFile,
 
     /// <summary>0116 — eine SMS, die im Browser auf das Telefon wartet (an wen, was, wann, von welcher Nummer).</summary>
-    PhoneOutbox
+    PhoneOutbox,
+
+    /// <summary>
+    /// 0117 — eine Datei hinter einem Link (unter dem Schlüssel aus dem Geheimnis
+    /// des Links) und ihr Etikett für den Absender (unter dem Schlüssel des Bereichs).
+    /// </summary>
+    ShareFile,
+    ShareLabel
 }
 
 /// <summary>
@@ -587,6 +594,8 @@ public readonly record struct Aad
         Field.SmsArchive              => "sms_archive",
         Field.PhoneFile               => "phone_file",
         Field.PhoneOutbox             => "phone_outbox",
+        Field.ShareFile               => "share_file",
+        Field.ShareLabel              => "share_label",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

@@ -234,10 +234,10 @@ const clamp = (value: number, min: number, max: number): number => (value < min 
 
 const line = (value: unknown, max: number): string => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 
-/** Ein eigener Name: das Muster, nicht zu lang, keiner der eingebauten. */
 /** Namen, die schon vergeben sind: eingebaute, die eines Dings, Mengen und Beziehungen. */
 const RESERVED: ReadonlySet<string> = new Set<string>([...BUILTINS, ...THING_BUILTINS, ...SETS, ...RELATIONS]);
 
+/** Ein eigener Name: das Muster, nicht zu lang, keiner der vergebenen. */
 export function nameOf(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const name = value.trim();
@@ -457,7 +457,8 @@ export function readAxes(value: unknown): Axes | null {
  * Rechnungen sein — „höchstens bis zum Ende der Belke, an der es hängt":
  * `parent.length`), Schritt, Einheit, Name; `apart` — zwischen Geschwistern
  * mindestens so viel Abstand in dieser Grösse (zwei Gewichte hängen nicht an
- * derselben Stelle); `new` — wo ein neu angehängtes Ding steht.
+ * derselben Stelle); `new` — wo ein neu angehängtes Ding steht; `when` — ob
+ * die Eigenschaft an diesem Ding überhaupt gilt (`!isroot`: nur, wo es hängt).
  */
 export interface PropSpec {
   readonly name: string;
@@ -469,6 +470,7 @@ export interface PropSpec {
   readonly label: string;
   readonly apart: number | null;
   readonly new: string | null;
+  readonly when: string | null;
 }
 
 /** Eine Anzeige am gewählten Ding: „Moment: 12,0 kg·m". */
@@ -562,7 +564,8 @@ function readProp(value: unknown): PropSpec | null {
     unit: line(one.unit, 16),
     label: line(one.label, LIVE_LIMITS.label),
     apart: apart !== null && apart > 0 ? apart : null,
-    new: exprOf(one.new)
+    new: exprOf(one.new),
+    when: exprOf(one.when)
   };
 }
 

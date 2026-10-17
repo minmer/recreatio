@@ -106,7 +106,7 @@ function AnimationEditor({ raw, onSet, busy }: EditorProps) {
   useEffect(() => {
     if (drawing === null || !live) { setProblems([]); return undefined; }
     let alive = true;
-    void import('../motion/liveRun').then((m) => { if (alive) setProblems(m.problemsOf(drawing)); });
+    void import('../motion/liveLint').then((m) => { if (alive) setProblems(m.problemsOf(drawing)); });
     return () => { alive = false; };
   }, [drawing, live]);
 

@@ -8,6 +8,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -17,6 +19,7 @@ import android.util.Log;
 
 import androidx.core.content.FileProvider;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -116,17 +119,25 @@ final class SmsSender {
 
     /* -- MMS ------------------------------------------------------------------------------------ */
 
+    /** Wie gross eine MMS über diese Karte sein darf — was der Netzbetreiber dem Telefon sagt, sonst 300 KB. */
+    static int mmsMax(Context context, int subId) {
+        try {
+            Bundle config = manager(context, subId >= 0 ? subId : defaultSubId()).getCarrierConfigValues();
+            if (config != null) {
+                int max = config.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE, MMS_DEFAULT_MAX);
+                if (max > 0) return max;
+            }
+        } catch (RuntimeException ignored) {
+            // die Vorgabe
+        }
+        return MMS_DEFAULT_MAX;
+    }
+
     /** Eine MMS an alle {@code to} (eine Gruppe): Text und höchstens ein Bild. Gibt das Gespräch zurück. */
     static long sendMms(Context context, List<String> to, String body, byte[] media, String mediaType, String mediaName, int subId) throws IOException {
         int sub = subId >= 0 ? subId : defaultSubId();
         SmsManager mms = manager(context, sub);
-        int max = MMS_DEFAULT_MAX;
-        try {
-            Bundle config = mms.getCarrierConfigValues();
-            if (config != null) max = config.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE, MMS_DEFAULT_MAX);
-        } catch (RuntimeException ignored) {
-            // die Vorgabe
-        }
+        int max = mmsMax(context, sub);
 
         List<MmsPdu.OutPart> out = new ArrayList<>();
         String imageLocation = null;
@@ -209,14 +220,21 @@ final class SmsSender {
         }
     }
 
-    /** Ein Bild so verkleinern, dass es in eine MMS passt (JPEG). */
+    /**
+     * Ein Bild so verkleinern, dass es in eine MMS passt (JPEG) — so gross und so gut,
+     * wie der Netzbetreiber es zulässt. Immer neu geschrieben: so fallen die EXIF-Angaben
+     * fort (auch der Ort der Aufnahme). Gedreht wird nach EXIF: die Kamera speichert
+     * hochkant oft quer und vermerkt nur, wie herum es gehört — ohne das läge das Bild
+     * beim anderen auf der Seite.
+     */
     static byte[] fit(byte[] image, int max) throws IOException {
         BitmapFactory.Options bounds = new BitmapFactory.Options();
         bounds.inJustDecodeBounds = true;
         BitmapFactory.decodeByteArray(image, 0, image.length, bounds);
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw new IOException("To nie jest obraz.");
+        int orientation = orientationOf(image);
         int longest = Math.max(bounds.outWidth, bounds.outHeight);
-        for (int edge : new int[] { 1600, 1280, 1024, 800, 640, 480, 320 }) {
+        for (int edge : new int[] { 2048, 1600, 1280, 1024, 800, 640, 480, 320 }) {
             BitmapFactory.Options load = new BitmapFactory.Options();
             load.inSampleSize = 1;
             while (longest / (load.inSampleSize * 2) >= edge) load.inSampleSize *= 2;
@@ -225,14 +243,39 @@ final class SmsSender {
             int w = bitmap.getWidth();
             int h = bitmap.getHeight();
             float scale = Math.min(1f, (float) edge / Math.max(w, h));
-            Bitmap sized = scale < 1f ? Bitmap.createScaledBitmap(bitmap, Math.round(w * scale), Math.round(h * scale), true) : bitmap;
-            for (int quality : new int[] { 85, 70, 55 }) {
+            Bitmap sized = upright(scale < 1f ? Bitmap.createScaledBitmap(bitmap, Math.round(w * scale), Math.round(h * scale), true) : bitmap, orientation);
+            for (int quality : new int[] { 88, 78, 68, 55 }) {
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
                 sized.compress(Bitmap.CompressFormat.JPEG, quality, out);
                 if (out.size() <= max) return out.toByteArray();
             }
         }
         throw new IOException("Obraz nie mieści się w MMS.");
+    }
+
+    /** Wie herum das Bild gehört (EXIF) — ohne Angabe: wie es ist. */
+    private static int orientationOf(byte[] image) {
+        try {
+            return new ExifInterface(new ByteArrayInputStream(image)).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+        } catch (IOException | RuntimeException e) {
+            return ExifInterface.ORIENTATION_NORMAL;
+        }
+    }
+
+    /** Das Bild so gedreht (und gespiegelt), wie EXIF es verlangt. */
+    private static Bitmap upright(Bitmap bitmap, int orientation) {
+        Matrix m = new Matrix();
+        switch (orientation) {
+            case ExifInterface.ORIENTATION_ROTATE_90: m.postRotate(90); break;
+            case ExifInterface.ORIENTATION_ROTATE_180: m.postRotate(180); break;
+            case ExifInterface.ORIENTATION_ROTATE_270: m.postRotate(270); break;
+            case ExifInterface.ORIENTATION_FLIP_HORIZONTAL: m.postScale(-1, 1); break;
+            case ExifInterface.ORIENTATION_FLIP_VERTICAL: m.postScale(1, -1); break;
+            case ExifInterface.ORIENTATION_TRANSPOSE: m.postRotate(90); m.postScale(-1, 1); break;
+            case ExifInterface.ORIENTATION_TRANSVERSE: m.postRotate(270); m.postScale(-1, 1); break;
+            default: return bitmap;
+        }
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), m, true);
     }
 
     /* -- Was das Telefon zurückmeldet ------------------------------------------------------------- */

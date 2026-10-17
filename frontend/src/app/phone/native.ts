@@ -71,6 +71,8 @@ export interface Sim {
   readonly slot: number;
   readonly name: string;
   readonly number: string | null;
+  /** Wie gross eine MMS über diese Karte sein darf (Bytes) — was der Netzbetreiber dem Telefon sagt. */
+  readonly mmsMax?: number;
 }
 
 export interface PhoneStatus {

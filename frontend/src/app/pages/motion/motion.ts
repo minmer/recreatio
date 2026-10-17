@@ -347,6 +347,8 @@ export function paint(value: string): string {
   const named = ['accent', 'ink', 'ground', 'muted'].includes(base) ? `var(--wk-${base})`
     : base === 'ok' ? 'var(--wk-ok, #3fb468)'
     : base === 'danger' ? 'var(--wk-danger, #e05252)'
+    : base === 'warn' ? 'var(--wk-warn, #d99a1e)'
+    : base === 'info' ? 'var(--wk-info, #3b82c4)'
     : base;
   return m === null ? named : `color-mix(in srgb, ${named} ${Math.min(100, Number(m[2]))}%, transparent)`;
 }

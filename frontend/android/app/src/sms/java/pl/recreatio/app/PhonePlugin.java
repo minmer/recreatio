@@ -161,7 +161,8 @@ public class PhonePlugin extends Plugin {
                         .put("subId", info.getSubscriptionId())
                         .put("slot", info.getSimSlotIndex())
                         .put("name", info.getDisplayName() == null ? "SIM " + (info.getSimSlotIndex() + 1) : info.getDisplayName().toString())
-                        .put("number", number == null || number.isEmpty() ? JSONObject.NULL : number));
+                        .put("number", number == null || number.isEmpty() ? JSONObject.NULL : number)
+                        .put("mmsMax", SmsSender.mmsMax(context(), info.getSubscriptionId())));
             }
         } catch (Exception ignored) {
             // keine Karten

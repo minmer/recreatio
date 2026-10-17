@@ -71,12 +71,39 @@ export function givenText(card: Card, given: unknown): string {
 
 /* -- Die Antwort ------------------------------------------------------------------------ */
 
+/** Die Paare, und was gerade auf sein Gegenstück wartet — EIN Zustand, damit schnelles Tippen nichts verliert. */
+interface Pairing {
+  readonly pairs: Readonly<Record<number, number>>;
+  readonly pick: { readonly side: 'l' | 'r'; readonly at: number } | null;
+}
+
+const NO_PAIRS: Pairing = { pairs: {}, pick: null };
+
+/*
+  2026-10-18 — PAARE DURCH ANTIPPEN: ein Wort auf einer Seite, dann sein
+  Gegenstück auf der anderen (gleich, auf welcher man beginnt). Ein schon
+  verbundenes antippen löst sein Paar und wählt es neu — so korrigiert man;
+  das gewählte noch einmal antippen wählt es ab.
+*/
+function tapPair(was: Pairing, side: 'l' | 'r', at: number): Pairing {
+  const without = (drop: (l: number, r: number) => boolean): Record<number, number> =>
+    Object.fromEntries(Object.entries(was.pairs).filter(([l, r]) => !drop(Number(l), r)));
+  const { pick } = was;
+  if (pick !== null && pick.side !== side) {
+    const l = side === 'l' ? at : pick.at;
+    const r = side === 'r' ? at : pick.at;
+    return { pairs: { ...without((x, y) => x === l || y === r), [l]: r }, pick: null };
+  }
+  if (pick !== null && pick.at === at) return { pairs: was.pairs, pick: null };
+  return { pairs: without((x, y) => (side === 'l' ? x === at : y === at)), pick: { side, at } };
+}
+
 export function AnswerInput({ card, disabled, onSubmit, autoFocus = true }: { card: Card; disabled?: boolean; onSubmit: (given: unknown) => void; autoFocus?: boolean }) {
   const a = card.answer;
   const [text, setText] = useState('');
   const [many, setMany] = useState<ReadonlySet<number>>(new Set());
   const [order, setOrder] = useState<readonly string[]>(a.form === 'order' ? a.shown : []);
-  const [pairs, setPairs] = useState<Readonly<Record<number, number>>>({});
+  const [pairing, setPairing] = useState<Pairing>(NO_PAIRS);
   const [flipped, setFlipped] = useState(false);
   const [code, setCode] = useState(a.form === 'code' ? a.starter : '');
   const [running, setRunning] = useState(false);
@@ -84,13 +111,14 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true }: { ca
   const field = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    setText(''); setMany(new Set()); setOrder(a.form === 'order' ? a.shown : []); setPairs({}); setFlipped(false);
+    setText(''); setMany(new Set()); setOrder(a.form === 'order' ? a.shown : []); setPairing(NO_PAIRS); setFlipped(false);
     setCode(a.form === 'code' ? a.starter : ''); setPoint(null);
     if (autoFocus) window.setTimeout(() => field.current?.focus(), 30);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card.key, card.fingerprint]);
 
   const submit = (given: unknown) => { if (disabled !== true) onSubmit(given); };
+  const tap = (side: 'l' | 'r', at: number) => setPairing((was) => tapPair(was, side, at));
 
   switch (a.form) {
     case 'text':
@@ -151,23 +179,34 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true }: { ca
           <button type="button" className="wk-btn" disabled={disabled} onClick={() => submit(order)}>Sprawdź</button>
         </div>
       );
-    case 'match':
+    case 'match': {
+      const { pairs, pick } = pairing;
+      const lefts = Object.keys(pairs).map(Number).sort((x, y) => x - y);
+      const leftOf = (r: number) => lefts.find((l) => pairs[l] === r);
+      /* Ein Paar trägt auf beiden Seiten dieselbe Nummer. */
+      const item = (side: 'l' | 'r', at: number, text: string, paired: number | undefined) => {
+        const on = pick?.side === side && pick.at === at;
+        const n = paired === undefined ? 0 : lefts.indexOf(paired) + 1;
+        return (
+          <button key={at} type="button" className={`cg-option${on ? ' is-on' : ''}${n > 0 ? ' is-paired' : ''}`} aria-pressed={on} disabled={disabled}
+            aria-label={n > 0 ? `${text} — para ${n}` : text} onClick={() => tap(side, at)}>
+            {n > 0 && <span className="cg-match-n" aria-hidden>{n}</span>}{text}
+          </button>
+        );
+      };
       return (
         <div className="cg-answer">
+          <p className="cg-muted">Wybierz pozycję z jednej strony, potem jej parę z drugiej. Ponowne wybranie rozłącza parę.</p>
           <div className="cg-match">
-            {a.left.map((l, i) => (
-              <label key={i} className="wk-field">
-                <span>{l}</span>
-                <select value={pairs[i] ?? ''} disabled={disabled} onChange={(e) => setPairs((was) => ({ ...was, [i]: Number(e.target.value) }))}>
-                  <option value="">—</option>
-                  {a.right.map((r, j) => <option key={j} value={j}>{r}</option>)}
-                </select>
-              </label>
-            ))}
+            <div className="cg-match-side">{a.left.map((l, i) => item('l', i, l, pairs[i] === undefined ? undefined : i))}</div>
+            <div className="cg-match-side">{a.right.map((r, j) => item('r', j, r, leftOf(j)))}</div>
           </div>
-          <button type="button" className="wk-btn" disabled={disabled} onClick={() => submit(Object.entries(pairs).map(([l, r]) => [Number(l), r]))}>Sprawdź</button>
+          <button type="button" className="wk-btn" disabled={disabled || lefts.length === 0} onClick={() => submit(lefts.map((l) => [l, pairs[l]]))}>
+            Sprawdź{lefts.length > 0 && lefts.length < a.left.length ? ` (${lefts.length} z ${a.left.length})` : ''}
+          </button>
         </div>
       );
+    }
     case 'flash':
       return flipped ? (
         <div className="cg-answer">

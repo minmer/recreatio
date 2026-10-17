@@ -209,6 +209,36 @@
 .lv-say[data-mood="ok"] { border-left-color: var(--wk-ok); background: color-mix(in srgb, var(--wk-ok) 14%, transparent); }
 .lv-say[data-mood="miss"] { border-left-color: var(--wk-danger); background: color-mix(in srgb, var(--wk-danger) 12%, transparent); }
 
+/* 2026-10-18 — die Dinge einer Welt: antippen wählt (ein weicher Ring um den Griff), ziehen verschiebt — und dabei rollt nichts. */
+.lv-thing { cursor: grab; touch-action: none; outline: none; }
+.lv-thing.is-held { cursor: grabbing; }
+.lv-thing:hover > .lv-hit { stroke: color-mix(in srgb, var(--wk-accent) 14%, transparent); stroke-width: 18px; }
+.lv-thing.is-selected > .lv-hit { stroke: color-mix(in srgb, var(--wk-accent) 32%, transparent); stroke-width: 12px; }
+.lv-thing:focus-visible > .lv-hit { stroke: var(--wk-accent); stroke-width: 3px; }
+/* Der Grund eines Rahmens mit Kamera: die Seite rollt darüber — hineingezoomt verschiebt ein Finger den Ausschnitt. */
+.lv-cam { fill: transparent; pointer-events: all; touch-action: manipulation; }
+.lv.is-zoomed .lv-cam { touch-action: none; cursor: move; }
+
+/* Die Werkstatt: Werkzeuge in einer Reihe, darunter das gewählte Ding. */
+.lv-world-panel { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.lv-tools, .lv-add, .lv-thing-actions, .lv-cam-tools { display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-2); align-items: center; }
+.lv-tools .wk-btn, .lv-add .wk-btn, .lv-thing-actions .wk-btn { min-height: var(--wk-control-h); }
+.lv-hint { margin: 0; color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.lv-json { display: grid; gap: var(--wk-space-2); justify-items: start; }
+.lv-json textarea { width: 100%; box-sizing: border-box; font-family: var(--wk-mono); font-size: var(--wk-text-sm); }
+.lv-inspector { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); min-width: 0; }
+.lv-inspector-head { display: flex; gap: var(--wk-space-2); align-items: baseline; }
+.lv-id { color: var(--wk-muted); font-size: var(--wk-text-sm); font-family: var(--wk-mono); }
+.lv-close { margin-left: auto; min-width: var(--wk-control-h); min-height: var(--wk-control-h); border: 0; background: transparent; color: var(--wk-muted); font: inherit; font-size: var(--wk-text-lg); cursor: pointer; }
+.lv-close:hover { color: var(--wk-ink); }
+.lv-prop { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 var(--wk-space-2); align-items: baseline; }
+.lv-prop-row { grid-column: 1 / -1; display: flex; gap: var(--wk-space-1); align-items: center; min-width: 0; }
+.lv-prop-row input[type="range"] { flex: 1 1 6rem; min-width: 0; margin: 0; min-height: var(--wk-control-h); accent-color: var(--wk-accent); }
+.lv-step { flex: none; min-width: var(--wk-control-h); min-height: var(--wk-control-h); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: transparent; color: var(--wk-ink); font: inherit; cursor: pointer; }
+.lv-step:hover { border-color: var(--wk-accent); }
+.lv-prop-num { flex: none; width: 4.75rem; min-height: var(--wk-control-h); }
+.lv-readouts { display: flex; flex-wrap: wrap; gap: var(--wk-space-2) var(--wk-space-4); }
+
 /* Schmal (ein Telefon, ein schmaler Platz): jeder Schieber und jede Wahl eine ganze Zeile, die Knöpfe darunter. */
 @container (max-width: 30rem) {
   .lv-slider, .lv-choice { flex-basis: 100%; }

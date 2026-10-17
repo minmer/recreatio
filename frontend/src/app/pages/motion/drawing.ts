@@ -116,6 +116,8 @@ export interface Shape {
   readonly view: readonly [Num, Num, Num, Num] | null;
   readonly axes: Axes | null;
   readonly clip: boolean;
+  /** 2026-10-18 — frame: man darf hineinzoomen und den Ausschnitt verschieben (`view` ist dann, was „Dopasuj" zeigt). */
+  readonly camera: boolean;
 }
 
 export interface Drawing {
@@ -253,7 +255,8 @@ function readShape(value: unknown, depth: number, budget: { left: number }): Sha
     every: num(one.every, 0.03, 0.002, 10),
     view: type === 'frame' ? viewOf(one.view) ?? [0, 0, 10, 10] : null,
     axes: type === 'frame' ? readAxes(one.axes) : null,
-    clip: one.clip === true
+    clip: one.clip === true,
+    camera: type === 'frame' && one.camera === true
   };
 }
 

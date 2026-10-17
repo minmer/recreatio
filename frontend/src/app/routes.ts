@@ -91,7 +91,14 @@ export const ROUTES = {
    * (WordPress), in einem iframe: `#/widget/<baustein>/<pfad der seite>`.
    * Ohne Konto, ohne Kopfleiste; ein Klick führt auf recreatio.pl.
    */
-  widget: { slugged: true, needsIdentity: false }
+  widget: { slugged: true, needsIdentity: false },
+
+  /**
+   * Ein Plik przez link (0117) — `#/plik/<geheimnis>`: eine Datei aus einer SMS,
+   * ohne Konto. Das Geheimnis steht hinter der Raute; der Dienst bekommt nur die
+   * Kennung, die aus ihm folgt, und nie den Schlüssel.
+   */
+  plik: { slugged: true, needsIdentity: false }
 } as const satisfies Readonly<Record<string, RouteDef>>;
 
 export type Route = keyof typeof ROUTES;

@@ -2,8 +2,9 @@
  * Was die Ansichten der SMS teilen: das Bild eines Menschen, wie Zeiten dastehen, die Suche.
  */
 
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
+import { PRIMARY_HOST } from '../routes';
 import { fold } from '../shell/search';
 import { initialsOf } from './numbers';
 
@@ -51,6 +52,30 @@ export function aheadWhen(at: number): string {
   if (d.toDateString() === tomorrow.toDateString()) return `jutro ${time}`;
   if (at > now.getTime() && at - now.getTime() < 6 * DAY) return `${d.toLocaleDateString('pl-PL', { weekday: 'short' })} ${time}`;
   return `${d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' })} ${time}`;
+}
+
+const URL_RE = /\bhttps?:\/\/[^\s<>"']*[^\s<>"'.,;:!?)\]]/g;
+const HOME = `https://${PRIMARY_HOST}/#/`;
+
+/**
+ * Verweise in einer SMS werden klickbar; einer auf recreatio.pl (ein Plik przez link)
+ * öffnet hier, ohne den Browser zu wechseln. `live` aus (beim Wählen): nur Text.
+ */
+export function Linked({ text, live = true }: { text: string; live?: boolean }) {
+  if (!live) return <>{text}</>;
+  const out: ReactNode[] = [];
+  let at = 0;
+  for (const found of text.matchAll(URL_RE)) {
+    const i = found.index ?? 0;
+    const url = found[0];
+    if (i > at) out.push(text.slice(at, i));
+    out.push(url.startsWith(HOME)
+      ? <a key={i} href={url.slice(url.indexOf('#'))} onClick={(e) => e.stopPropagation()}>{url}</a>
+      : <a key={i} href={url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>{url}</a>);
+    at = i + url.length;
+  }
+  if (at < text.length) out.push(text.slice(at));
+  return <>{out}</>;
 }
 
 /** Die Höhe der Kopfleiste als Variable: die Suche klebt darunter, ein Gespräch füllt, was darunter bleibt. */

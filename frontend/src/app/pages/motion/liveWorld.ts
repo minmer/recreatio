@@ -9,25 +9,26 @@
  * mit `$`, die kein Ausdruck nennen kann: sein Elternteil, seine Kinder, seine
  * Wurzel, seine Art (`expr.ts` geht darüber für `parent.x` und `sum(children, …)`).
  *
- * <b>Die Rechnungen einer Art laufen in drei Durchgängen</b>: zuerst von den
- * Blättern zur Wurzel (was aus den Kindern folgt: die ganze Masse, das Moment),
- * dann von der Wurzel zu den Blättern (was vom Elternteil abhängt: wo ein Ding
- * hängt), zuletzt, was über alle Dinge oder eines beim Namen geht. Welche
- * Rechnung wohin gehört, folgt aus dem, was sie liest — niemand muss es sagen.
- * Was nur von Eigenschaften abhängt, wird nicht in jedem Zwischenschritt der
- * Simulation neu gerechnet, sondern nur, wenn sich etwas geändert hat.
+ * <b>In welcher Reihenfolge gerechnet wird, folgt aus dem, was jede Rechnung
+ * liest</b> (`Expr.links`): die ganze Masse einer Belke braucht die ganze Masse
+ * jedes Kindes, die Lage eines Gewichts die Lage der Belke, an der es hängt.
+ * Nach jeder Änderung des Baus werden die Rechnungen aller Dinge einmal
+ * sortiert — danach läuft jede genau einmal, nach allem, was sie braucht.
+ * Niemand muss eine Reihenfolge angeben. Was nur von Eigenschaften abhängt,
+ * wird nicht in jedem Schritt der Simulation neu gerechnet, sondern nur, wenn
+ * sich etwas geändert hat; in den Zwischenschritten nur, was die Raten brauchen.
  *
  * <b>Jede Änderung geht durch die Regeln der Welt</b>: darf man das hier
- * (Art, Welt, Sperre), liegt der Wert in seinen Grenzen (die Rechnungen sein
- * dürfen), bleibt Abstand zu den Geschwistern (`apart`), gibt es zu viele
- * Dinge oder zu tiefe Bäume. So prüft dieselbe Welt eine Antwort in Cogita:
- * die Änderungen des Lernenden werden noch einmal durch genau diese Regeln
- * geschickt — eine gesperrte Masse bleibt gesperrt, auch wenn jemand sie in
- * die Antwort schreibt.
+ * (Art, Welt, Sperre, `when`), liegt der Wert in seinen Grenzen (die
+ * Rechnungen sein dürfen), bleibt Abstand zu den Geschwistern (`apart`), gibt
+ * es zu viele Dinge oder zu tiefe Bäume. So prüft dieselbe Welt eine Antwort
+ * in Cogita: die Änderungen des Lernenden werden noch einmal durch genau diese
+ * Regeln geschickt — eine gesperrte Masse bleibt gesperrt, auch wenn jemand
+ * sie in die Antwort schreibt.
  */
 
 import { compile, compileText, isExprError, toNum, truth, type CompileOptions, type Env, type Expr, type Val, type WorldLinks } from './expr';
-import { THING_BUILTINS, type KindSpec, type Mood, type PropSpec, type WorldSpec } from './liveModel';
+import { RELATIONS, SETS, THING_BUILTINS, type KindSpec, type Mood, type PropSpec, type WorldSpec } from './liveModel';
 
 /** Ein Ding, wie es gespeichert, rückgängig gemacht und als Antwort abgegeben wird. */
 export interface ThingShot {
@@ -39,6 +40,27 @@ export interface ThingShot {
 
 export interface WorldShot {
   readonly things: readonly ThingShot[];
+}
+
+/**
+ * Ein Bau aus fremden Daten (eine Antwort, ein eingefügter Text) — nur, was
+ * wie Dinge aussieht; der Rest fällt weg. Ob die Dinge erlaubt sind, sagt
+ * erst die Welt, wenn sie ihn nachspielt.
+ */
+export function readShot(value: unknown): WorldShot | null {
+  const list = Array.isArray(value) ? value : typeof value === 'object' && value !== null ? (value as { things?: unknown }).things : null;
+  if (!Array.isArray(list)) return null;
+  const things = list.slice(0, 200).flatMap((raw): ThingShot[] => {
+    if (typeof raw !== 'object' || raw === null) return [];
+    const r = raw as Record<string, unknown>;
+    if (typeof r.id !== 'string' || typeof r.kind !== 'string') return [];
+    const props: Record<string, number> = {};
+    for (const [k, v] of Object.entries(typeof r.props === 'object' && r.props !== null ? r.props as Record<string, unknown> : {}).slice(0, 40)) {
+      if (typeof v === 'number' && Number.isFinite(v)) props[k] = v;
+    }
+    return [{ id: r.id.slice(0, 32), kind: r.kind.slice(0, 32), parent: typeof r.parent === 'string' ? r.parent.slice(0, 32) : null, props }];
+  });
+  return things.length === 0 ? null : { things };
 }
 
 /** Was eine Welt melden kann — wie die Fehler des Programms. */
@@ -59,20 +81,21 @@ interface PropRun {
   readonly min: Expr | null;
   readonly max: Expr | null;
   readonly made: Expr | null;
+  readonly when: Expr | null;
 }
 
-/** Eine Rechnung einer Art: in welchem Durchgang sie läuft, und ob sie von der Zeit abhängt. */
+/** Eine Rechnung einer Art: ob sie von der Zeit abhängt, und ob die Raten sie brauchen (dann läuft sie in jedem Zwischenschritt). */
 interface LetRun {
   readonly name: string;
   readonly expr: Expr;
-  pass: 1 | 2 | 3;
   dynamic: boolean;
+  stage: boolean;
 }
 
 interface KindRun {
   readonly spec: KindSpec;
   readonly props: ReadonlyMap<string, PropRun>;
-  readonly lets: LetRun[];
+  readonly lets: readonly LetRun[];
   readonly state: readonly { readonly name: string; readonly init: Expr; readonly rate: Expr }[];
   readonly events: readonly { readonly when: Expr; readonly set: readonly Assign[]; readonly say: Expr | null; readonly mood: Mood }[];
   readonly drag: readonly Assign[];
@@ -91,28 +114,46 @@ export interface Thing {
   armed: boolean[];
 }
 
+/** Eine Rechnung eines Dings, an ihrer Stelle in der Reihenfolge. */
+interface Step {
+  readonly t: Thing;
+  readonly l: LetRun;
+}
+
 const UNDO_DEPTH = 60;
+
+const SET_STEPS: ReadonlySet<string> = new Set<string>(SETS);
+const RELATION_STEPS: ReadonlySet<string> = new Set<string>(RELATIONS);
 
 const links = (env: Env): { -readonly [K in keyof WorldLinks]: WorldLinks[K] } => env as unknown as { -readonly [K in keyof WorldLinks]: WorldLinks[K] };
 
 const clamp = (value: number, min: number, max: number): number => (value < min ? min : value > max ? max : value);
 
+const ZERO: Expr = { source: '0', run: () => 0, reads: [], constant: true, links: [] };
+
 export class World {
   readonly kinds = new Map<string, KindRun>();
   things: Thing[] = [];
-  /** Eltern vor Kindern — so wird gezeichnet und von oben nach unten gerechnet. */
+  /** Eltern vor Kindern — so wird gezeichnet. */
   private preorder: Thing[] = [];
-  private postorder: Thing[] = [];
+  private roots: Thing[] = [];
   private readonly byId = new Map<string, Thing>();
   private readonly index: { all: Env[]; roots: Env[]; byKind: Map<string, Env[]>; byId: Map<string, Env>; outer: Env[] } =
     { all: [], roots: [], byKind: new Map(), byId: new Map(), outer: [] };
-  /** Zählt, wann sich der Bau geändert hat (dann wird neu gezeichnet). */
+  /** Die Rechnungen aller Dinge in ihrer Reihenfolge — alle, die von der Zeit abhängen, die die Raten brauchen. */
+  private order: Step[] = [];
+  private dynOrder: Step[] = [];
+  private stageOrder: Step[] = [];
+  /** Zählt, wann sich der Bau geändert hat (andere Dinge, andere Eltern) — dann wird neu gezeichnet. */
   version = 0;
+  private shape = '';
   selected: string | null = null;
   /** Hat sich seit dem letzten Bild ein Wert geändert? */
   dirty = true;
   private readonly undoStack: WorldShot[] = [];
   private readonly redoStack: WorldShot[] = [];
+  /** „Ponów", solange eine Änderung noch zurückgenommen werden kann (eine verletzte Regel). */
+  private parked: WorldShot[] = [];
   private readonly initial: WorldShot;
   private readonly locks = new Map<string, true | ReadonlySet<string>>();
   /** Die Grössen der Simulation aller Dinge, der Reihe nach — für Runge-Kutta. */
@@ -130,7 +171,7 @@ export class World {
     private readonly global: Env,
     globalNames: ReadonlySet<string>,
     private readonly report: (problem: WorldProblem) => void,
-    options: { readonly fixed?: Readonly<Record<string, number>>; readonly random?: () => number; readonly state?: ReadonlySet<string> } = {}
+    options: { readonly fixed?: Readonly<Record<string, number>>; readonly random?: () => number; readonly dynamic?: ReadonlySet<string> } = {}
   ) {
     this.kindNames = new Set(spec.kinds.map((k) => k.name));
     const own = new Set<string>([...THING_BUILTINS, 'px', 'py']);
@@ -144,7 +185,7 @@ export class World {
     links(global).$world = this.index;
 
     for (const k of spec.kinds) this.kinds.set(k.name, this.compileKind(k));
-    this.classify(options.state ?? new Set());
+    this.classify(options.dynamic ?? new Set());
 
     /* Die Dinge der Welt — mit dem Zufall dieses Versuchs (oder, in Cogita, dem festgehaltenen). */
     const random = options.random ?? Math.random;
@@ -163,10 +204,21 @@ export class World {
       this.locks.set(t.id, t.lock === true ? true : new Set(t.lock));
       return { id: t.id, kind: t.kind, parent: t.parent, props };
     });
-    this.initial = { things: shots };
-    this.restore(this.initial);
+    this.restore({ things: shots });
     for (const th of this.preorder) for (const name of th.kind.props.keys()) this.fit(th, name, toNum(th.env[name]), false);
     this.evalLets('all');
+    /* Der Anfang, wie er nach den Grenzen dasteht — dorthin führt „Od nowa". */
+    this.initial = this.snapshot();
+  }
+
+  /** Was der Zufall gezogen hat (`ding.eigenschaft`) — damit derselbe Versuch wiederkommt (Cogita). */
+  drawn(): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const t of this.spec.things) {
+      const shot = this.initial.things.find((s) => s.id === t.id);
+      for (const name of Object.keys(t.random)) if (shot !== undefined && typeof shot.props[name] === 'number') out[`${t.id}.${name}`] = shot.props[name];
+    }
+    return out;
   }
 
   /* -- Übersetzen ----------------------------------------------------------------- */
@@ -209,7 +261,8 @@ export class World {
       spec: p,
       min: p.min === null ? null : this.compile(p.min, `${where}.props „${p.name}".min`),
       max: p.max === null ? null : this.compile(p.max, `${where}.props „${p.name}".max`),
-      made: p.new === null ? null : this.compile(p.new, `${where}.props „${p.name}".new`)
+      made: p.new === null ? null : this.compile(p.new, `${where}.props „${p.name}".new`),
+      when: p.when === null ? null : this.compile(p.when, `${where}.props „${p.name}".when`)
     }]));
     for (const name of [...k.edit, ...Object.keys(k.drag ?? {})]) {
       if (!props.has(name) && !k.state.some((s) => s.name === name)) this.report({ where, error: `„${name}" nie jest własnością tego rodzaju`, source: name, at: 0 });
@@ -218,7 +271,7 @@ export class World {
     return {
       spec: k,
       props,
-      lets: k.lets.map((l) => ({ name: l.name, expr: this.compile(l.value, `${where}.let „${l.name}"`) ?? ZERO, pass: 1, dynamic: false })),
+      lets: k.lets.map((l) => ({ name: l.name, expr: this.compile(l.value, `${where}.let „${l.name}"`) ?? ZERO, dynamic: false, stage: false })),
       state: k.state.map((s) => ({ name: s.name, init: this.compile(s.value, `${where}.state „${s.name}".value`) ?? ZERO, rate: this.compile(s.rate, `${where}.state „${s.name}".rate`) ?? ZERO })),
       events: k.events.map((e, i) => ({
         when: this.compile(e.when, `${where}.events[${i}].when`) ?? ZERO,
@@ -233,15 +286,12 @@ export class World {
   }
 
   /**
-   * WOHIN EINE RECHNUNG GEHÖRT: liest sie, was aus den Kindern folgt, in den
-   * ersten Durchgang (Blätter zuerst); liest sie vom Elternteil, in den zweiten
-   * (Wurzel zuerst); geht sie über alle Dinge oder eines beim Namen, in den
-   * dritten. Was eine eigene Rechnung liest, erbt deren Durchgang. Und ob sie
-   * von der Zeit abhängt (einer Grösse der Simulation, auch einer anderen
-   * Dinge) — nur solche laufen in den Zwischenschritten.
+   * WAS VON DER ZEIT ABHÄNGT (einer Grösse der Simulation — eines Dings oder
+   * des Bildes —, durch die Rechnungen hindurch) und was davon die Raten
+   * brauchen: nur das läuft in den Zwischenschritten von Runge-Kutta.
    */
-  private classify(globalState: ReadonlySet<string>): void {
-    const dynamic = new Set<string>([...globalState, 't']);
+  private classify(globalDynamic: ReadonlySet<string>): void {
+    const dynamic = new Set<string>([...globalDynamic, 't']);
     for (const k of this.kinds.values()) for (const s of k.state) dynamic.add(s.name);
     let grew = true;
     while (grew) {
@@ -253,19 +303,17 @@ export class World {
         }
       }
     }
-    for (const k of this.kinds.values()) {
-      const passOf = new Map<string, 1 | 2 | 3>();
-      for (const l of k.lets) {
-        const r = l.expr.reads;
-        let pass: 1 | 2 | 3 = r.includes('#all') || r.includes('#ref') ? 3 : r.includes('#down') ? 2 : 1;
-        for (const name of r) {
-          const own = passOf.get(name);
-          if (own !== undefined && own > pass) pass = own;
-        }
-        l.pass = pass;
-        passOf.set(l.name, pass);
-      }
+    const byName = new Map<string, LetRun[]>();
+    for (const k of this.kinds.values()) for (const l of k.lets) byName.set(l.name, [...(byName.get(l.name) ?? []), l]);
+    const needed = new Set<string>();
+    const queue = [...this.kinds.values()].flatMap((k) => k.state.flatMap((s) => s.rate.reads));
+    while (queue.length > 0) {
+      const name = queue.pop()!;
+      if (needed.has(name)) continue;
+      needed.add(name);
+      for (const l of byName.get(name) ?? []) queue.push(...l.expr.reads);
     }
+    for (const k of this.kinds.values()) for (const l of k.lets) l.stage = l.dynamic && needed.has(l.name);
   }
 
   /* -- Der Bau ---------------------------------------------------------------------- */
@@ -274,8 +322,6 @@ export class World {
     const env = Object.create(this.global) as Env;
     for (const name of this.ownNames) env[name] = 0;
     for (const p of kind.spec.props) env[p.name] = p.value;
-    for (const l of kind.spec.lets) env[l.name] = 0;
-    for (const s of kind.spec.state) env[s.name] = 0;
     env.px = 0;
     env.py = 0;
     const l = links(env);
@@ -286,7 +332,7 @@ export class World {
 
   /** Eltern, Kinder, Reihenfolgen, das Verzeichnis und was jedes Ding von sich weiss — nach jeder Änderung des Baus. */
   private relink(): void {
-    const roots = this.things.filter((t) => t.parent === null);
+    this.roots = this.things.filter((t) => t.parent === null);
     this.preorder = [];
     const walk = (t: Thing, depth: number, root: Thing) => {
       this.preorder.push(t);
@@ -300,10 +346,9 @@ export class World {
       t.env.selected = t.id === this.selected ? 1 : 0;
       t.children.forEach((c, i) => { c.env.index = i; walk(c, depth + 1, root); });
     };
-    roots.forEach((r, i) => { r.env.index = i; walk(r, 0, r); });
-    this.postorder = [...this.preorder].reverse();
+    this.roots.forEach((r, i) => { r.env.index = i; walk(r, 0, r); });
     this.index.all = this.preorder.map((t) => t.env);
-    this.index.roots = roots.map((t) => t.env);
+    this.index.roots = this.roots.map((t) => t.env);
     this.index.byKind = new Map();
     for (const t of this.preorder) {
       const list = this.index.byKind.get(t.kind.spec.name) ?? [];
@@ -313,8 +358,84 @@ export class World {
     this.index.byId = new Map(this.preorder.map((t) => [t.id, t.env]));
     this.slots = this.preorder.flatMap((t) => t.kind.state.map((s) => ({ thing: t, name: s.name, rate: s.rate })));
     this.global.nthings = this.preorder.length;
-    this.version += 1;
+    this.sortLets();
+    const shape = this.preorder.map((t) => `${t.id}:${t.kind.spec.name}:${t.parent?.id ?? ''}`).join('|');
+    if (shape !== this.shape) { this.shape = shape; this.version += 1; }
     this.dirty = true;
+  }
+
+  /**
+   * DIE REIHENFOLGE DER RECHNUNGEN: jede Rechnung jedes Dings nach allem, was
+   * sie liest (über `Expr.links`: die eigenen, die der Kinder, des Elternteils,
+   * eines Dings beim Namen). Ein Kreis (zwei Rechnungen, die einander
+   * brauchen) wird gemeldet und in der Reihenfolge der Liste gerechnet.
+   */
+  private sortLets(): void {
+    const steps: Step[] = [];
+    const at = new Map<Thing, Map<string, number>>();
+    for (const t of this.preorder) {
+      const own = new Map<string, number>();
+      for (const l of t.kind.lets) { own.set(l.name, steps.length); steps.push({ t, l }); }
+      at.set(t, own);
+    }
+    const next: number[][] = steps.map(() => []);
+    const need = steps.map(() => 0);
+    steps.forEach(({ t, l }, i) => {
+      for (const link of l.expr.links) {
+        const path = link.split('>');
+        const name = path.pop()!;
+        for (const u of this.walk(t, path)) {
+          const j = at.get(u)?.get(name);
+          if (j === undefined || j === i) continue;
+          next[j].push(i);
+          need[i] += 1;
+        }
+      }
+    });
+    const order: number[] = [];
+    need.forEach((n, i) => { if (n === 0) order.push(i); });
+    for (let q = 0; q < order.length; q += 1) {
+      for (const k of next[order[q]]) { need[k] -= 1; if (need[k] === 0) order.push(k); }
+    }
+    if (order.length < steps.length) {
+      const done = new Set(order);
+      const stuck = steps.find((_, i) => !done.has(i))!;
+      this.report({ where: `world.kinds „${stuck.t.kind.spec.name}".let „${stuck.l.name}"`, error: 'wartości liczone zależą od siebie w kółko — liczę je w kolejności z listy', source: stuck.l.name, at: 0 });
+      steps.forEach((_, i) => { if (!done.has(i)) order.push(i); });
+    }
+    this.order = order.map((i) => steps[i]);
+    this.dynOrder = this.order.filter((s) => s.l.dynamic);
+    this.stageOrder = this.order.filter((s) => s.l.stage);
+  }
+
+  /** Die Dinge, die ein Weg (`children>parent`) von einem Ding aus erreicht — `outer` ist, wer die innerste Menge gefragt hat. */
+  private walk(t: Thing, path: readonly string[]): readonly Thing[] {
+    let set: readonly Thing[] = [t];
+    const askers: (readonly Thing[])[] = [];
+    for (const step of path) {
+      const before = set;
+      if (step === 'self') continue;
+      if (step === 'parent') set = set.flatMap((x) => (x.parent === null ? [] : [x.parent]));
+      else if (step === 'root') set = set.map((x) => { let r = x; while (r.parent !== null) r = r.parent; return r; });
+      else if (step === 'outer') set = askers.length === 0 ? [] : askers[askers.length - 1];
+      else if (step === 'children') set = set.flatMap((x) => x.children);
+      else if (step === 'descendants') set = set.flatMap((x) => this.below(x));
+      else if (step === 'siblings') set = set.flatMap((x) => (x.parent?.children ?? this.roots).filter((y) => y !== x));
+      else if (step === 'others') set = set.flatMap((x) => this.preorder.filter((y) => y !== x && y.kind === x.kind));
+      else if (step === 'things') set = this.preorder;
+      else if (step.startsWith('@')) { const u = this.byId.get(step.slice(1)); set = u === undefined ? [] : [u]; }
+      else set = this.preorder.filter((x) => x.kind.spec.name === step);
+      if (SET_STEPS.has(step) || (!RELATION_STEPS.has(step) && !step.startsWith('@'))) askers.push(before);
+      if (set.length > 1) set = [...new Set(set)];
+    }
+    return set;
+  }
+
+  private below(t: Thing): Thing[] {
+    const out: Thing[] = [];
+    const walk = (x: Thing) => { for (const c of x.children) { out.push(c); walk(c); } };
+    walk(t);
+    return out;
   }
 
   /**
@@ -328,7 +449,7 @@ export class World {
     const ids = new Set<string>();
     for (const s of shot.things) {
       const kind = this.kinds.get(s.kind);
-      if (kind === undefined || ids.has(s.id)) continue;
+      if (kind === undefined || ids.has(s.id) || next.length >= this.spec.limits.things) continue;
       ids.add(s.id);
       const had = keep.get(s.id);
       const thing: Thing = had !== undefined && had.kind === kind ? had : {
@@ -352,6 +473,7 @@ export class World {
     for (const t of next) this.byId.set(t.id, t);
     if (this.selected !== null && !this.byId.has(this.selected)) this.selected = null;
     this.relink();
+    this.evalLets('all');
     for (const t of next) if (keep.get(t.id) !== t) this.initState(t);
     this.evalLets('all');
   }
@@ -386,7 +508,7 @@ export class World {
     };
   }
 
-  /** Den Anfang wiederherstellen („Od nowa" der Werkstatt). */
+  /** Den Anfang wiederherstellen („Od nowa" der Werkstatt) — selbst eine Änderung, die man zurücknehmen kann. */
   reset(): void {
     this.remember();
     this.restore(this.initial);
@@ -400,21 +522,17 @@ export class World {
   /* -- Rechnen ---------------------------------------------------------------------- */
 
   /**
-   * DIE RECHNUNGEN ALLER DINGE — `all` nach einer Änderung und vor jedem Bild,
-   * `dynamic` in den Zwischenschritten der Simulation (nur, was von der Zeit
-   * abhängt).
+   * DIE RECHNUNGEN ALLER DINGE, in ihrer Reihenfolge — `all` nach einer
+   * Änderung und vor jedem Bild, `dynamic` nach jedem Schritt der Simulation
+   * (was von der Zeit abhängt), `stage` in den Zwischenschritten (was davon die
+   * Raten brauchen).
    */
-  evalLets(which: 'all' | 'dynamic'): void {
-    const run = (t: Thing, pass: 1 | 2 | 3) => {
-      for (const l of t.kind.lets) {
-        if (l.pass !== pass || (which === 'dynamic' && !l.dynamic)) continue;
-        const v = l.expr.run(t.env);
-        if (t.env[l.name] !== v) { t.env[l.name] = v; this.dirty = true; }
-      }
-    };
-    for (const t of this.postorder) run(t, 1);
-    for (const t of this.preorder) run(t, 2);
-    for (const t of this.preorder) run(t, 3);
+  evalLets(which: 'all' | 'dynamic' | 'stage'): void {
+    const list = which === 'all' ? this.order : which === 'dynamic' ? this.dynOrder : this.stageOrder;
+    for (const { t, l } of list) {
+      const v = l.expr.run(t.env);
+      if (t.env[l.name] !== v) { t.env[l.name] = v; this.dirty = true; }
+    }
   }
 
   readState(into: Float64Array, offset: number): void {
@@ -429,17 +547,20 @@ export class World {
     this.slots.forEach((s, i) => { out[offset + i] = toNum(s.rate.run(s.thing.env)); });
   }
 
-  /** Nach einem Schritt: die Ereignisse jedes Dings (wenn ihre Bedingung wahr WIRD). */
+  /**
+   * Nach einem Schritt: die Ereignisse jedes Dings (wenn ihre Bedingung wahr
+   * WIRD). Hebt ein Ereignis seine Bedingung selbst auf (ein Anschlag setzt den
+   * Winkel zurück auf die Grenze), ist es gleich wieder scharf.
+   */
   events(): void {
     for (const t of this.preorder) {
       t.kind.events.forEach((e, i) => {
-        const now = truth(e.when.run(t.env));
-        if (!now) { t.armed[i] = true; return; }
+        if (!truth(e.when.run(t.env))) { t.armed[i] = true; return; }
         if (!t.armed[i]) return;
-        t.armed[i] = false;
         const values = e.set.map((a) => toNum(a.expr.run(t.env)));
         e.set.forEach((a, k) => { if (Number.isFinite(values[k])) t.env[a.name] = values[k]; });
         if (e.say !== null) this.said = { text: String(e.say.run(t.env)), mood: e.mood };
+        t.armed[i] = !truth(e.when.run(t.env));
         this.dirty = true;
       });
     }
@@ -459,9 +580,15 @@ export class World {
     return t.lock === true || t.lock.has(prop);
   }
 
+  /** Gilt die Eigenschaft an diesem Ding (`when`)? */
+  applies(t: Thing, prop: string): boolean {
+    const when = t.kind.props.get(prop)?.when ?? null;
+    return when === null || truth(when.run(t.env));
+  }
+
   /** Darf man diese Eigenschaft am gewählten Ding einstellen? */
   canEdit(t: Thing, prop: string): boolean {
-    return this.spec.allow.edit && t.kind.spec.edit.includes(prop) && t.kind.props.has(prop) && !this.locked(t, prop);
+    return this.spec.allow.edit && t.kind.spec.edit.includes(prop) && t.kind.props.has(prop) && !this.locked(t, prop) && this.applies(t, prop);
   }
 
   /** Was man an diesem Ding einstellen darf — in der Reihenfolge der Art. */
@@ -469,8 +596,13 @@ export class World {
     return t.kind.spec.props.filter((p) => this.canEdit(t, p.name));
   }
 
+  /** Lässt sich etwas an diesem Ding ziehen? */
   canDrag(t: Thing): boolean {
-    return this.spec.allow.drag && t.lock !== true && t.kind.drag.some((a) => !this.locked(t, a.name));
+    return this.spec.allow.drag && t.lock !== true && t.kind.drag.some((a) => this.drags(t, a.name));
+  }
+
+  private drags(t: Thing, name: string): boolean {
+    return !this.locked(t, name) && (!t.kind.props.has(name) || this.applies(t, name));
   }
 
   canRemove(t: Thing): boolean {
@@ -480,7 +612,8 @@ export class World {
   }
 
   canCopy(t: Thing): boolean {
-    return this.spec.allow.copy && t.kind.spec.copy && this.size(t) + this.things.length <= this.spec.limits.things;
+    return this.spec.allow.copy && t.kind.spec.copy && t.lock !== true && this.size(t) + this.things.length <= this.spec.limits.things
+      && (t.parent === null ? this.spec.allow.roots.includes(t.kind.spec.name) : t.parent.children.length < t.parent.kind.spec.children);
   }
 
   /** Welche Arten man an dieses Ding (oder, `null`, ganz oben) hängen darf. */
@@ -501,13 +634,19 @@ export class World {
   remember(): void {
     this.undoStack.push(this.snapshot());
     if (this.undoStack.length > UNDO_DEPTH) this.undoStack.shift();
-    this.redoStack.length = 0;
+    this.parked = this.redoStack.splice(0);
   }
 
-  /** Die letzte gemerkte Änderung zurücknehmen, ohne sie wiederholbar zu machen (eine verletzte Regel). */
-  forget(): void {
+  /**
+   * Die letzte gemerkte Änderung zurücknehmen (eine verletzte Regel) — oder,
+   * `restore = false`, nur vergessen (es hat sich nichts geändert). „Ponów"
+   * bleibt, wie es vorher war.
+   */
+  forget(restore = true): void {
     const shot = this.undoStack.pop();
-    if (shot !== undefined) this.restore(shot);
+    if (restore && shot !== undefined) this.restore(shot);
+    this.redoStack.push(...this.parked);
+    this.parked = [];
   }
 
   canUndo(): boolean { return this.undoStack.length > 0; }
@@ -540,9 +679,10 @@ export class World {
   /** Die Grenzen einer Eigenschaft in diesem Ding — gerechnet (sie dürfen vom Elternteil abhängen). */
   bounds(t: Thing, prop: string): { min: number; max: number; step: number | null } {
     const p = t.kind.props.get(prop);
-    const min = p?.min === null || p?.min === undefined ? -1e9 : toNum(p.min.run(t.env));
-    const max = p?.max === null || p?.max === undefined ? 1e9 : toNum(p.max.run(t.env));
-    return { min: Number.isFinite(min) ? min : -1e9, max: Number.isFinite(max) ? Math.max(max, Number.isFinite(min) ? min : -1e9) : 1e9, step: p?.spec.step ?? null };
+    const lo = p?.min === null || p?.min === undefined ? -1e9 : toNum(p.min.run(t.env));
+    const hi = p?.max === null || p?.max === undefined ? 1e9 : toNum(p.max.run(t.env));
+    const min = Number.isFinite(lo) ? lo : -1e9;
+    return { min, max: Number.isFinite(hi) ? Math.max(hi, min) : 1e9, step: p?.spec.step ?? null };
   }
 
   /** Ein Wert in seinen Grenzen, auf seinen Schritt gerastet — und mit Abstand zu den Geschwistern (`apart`). */
@@ -553,9 +693,10 @@ export class World {
     const snap = (v: number) => (step === null ? v : Math.round(v / step) * step);
     let v = clamp(snap(value), min, max);
     v = Math.round(v * 1e9) / 1e9;
-    if (keepApart && p.spec.apart !== null) {
+    if (keepApart && p.spec.apart !== null && this.applies(t, prop)) {
       const gap = p.spec.apart;
-      const siblings = (t.parent?.children ?? this.things.filter((x) => x.parent === null)).filter((x) => x !== t && x.kind.props.has(prop)).map((x) => toNum(x.env[prop]));
+      const siblings = (t.parent?.children ?? this.roots)
+        .filter((x) => x !== t && x.kind.props.has(prop) && this.applies(x, prop)).map((x) => toNum(x.env[prop]));
       const free = (x: number) => siblings.every((s) => Math.abs(s - x) >= gap - 1e-9);
       if (!free(v)) {
         const unit = step ?? gap / 4;
@@ -576,12 +717,12 @@ export class World {
 
   /**
    * EINE EIGENSCHAFT ÄNDERN — `edit` (am gewählten Ding eingestellt) oder
-   * `drag` (gezogen), `rule` (eine Regel, ein Knopf — ohne Rechte). Gibt
+   * `drag` (gezogen), `rule` (eine Regel, ein Antippen — ohne Rechte). Gibt
    * zurück, ob sich etwas geändert hat.
    */
   setProp(t: Thing, prop: string, value: number, via: 'edit' | 'drag' | 'rule'): boolean {
     if (via === 'edit' && !this.canEdit(t, prop)) return false;
-    if (via === 'drag' && (!this.canDrag(t) || this.locked(t, prop))) return false;
+    if (via === 'drag' && (!this.canDrag(t) || !this.drags(t, prop))) return false;
     const was = toNum(t.env[prop]);
     const fitted = this.fit(t, prop, value, true);
     if (fitted === null) { t.env[prop] = was; return false; }
@@ -597,7 +738,7 @@ export class World {
     const values = t.kind.drag.map((a) => toNum(a.expr.run(t.env)));
     let changed = false;
     t.kind.drag.forEach((a, i) => {
-      if (this.locked(t, a.name)) return;
+      if (!this.drags(t, a.name)) return;
       if (t.kind.props.has(a.name)) { if (this.setProp(t, a.name, values[i], 'drag')) changed = true; }
       else if (Number.isFinite(values[i]) && t.env[a.name] !== values[i]) { t.env[a.name] = values[i]; changed = true; this.dirty = true; }
     });
@@ -710,14 +851,14 @@ export class World {
   replay(shot: WorldShot): void {
     const wanted = new Map(shot.things.map((s) => [s.id, s]));
     /* Wegnehmen, was fehlt (von unten nach oben). */
-    for (const t of [...this.postorder]) if (!wanted.has(t.id) && this.byId.has(t.id)) this.remove(t);
+    for (const t of [...this.preorder].reverse()) if (!wanted.has(t.id) && this.byId.has(t.id)) this.remove(t);
     /* Anhängen, was neu ist (Eltern zuerst), unter der Kennung, die die Welt vergibt — und merken, welche das ist. */
     const alias = new Map<string, string>();
     let progress = true;
     while (progress) {
       progress = false;
       for (const s of shot.things) {
-        if (this.byId.has(alias.get(s.id) ?? s.id)) continue;
+        if (alias.has(s.id) || (this.byId.has(s.id) && this.byId.get(s.id)!.kind.spec.name === s.kind)) continue;
         const parentId = s.parent === null ? null : alias.get(s.parent) ?? s.parent;
         const parent = parentId === null ? null : this.byId.get(parentId);
         if (parentId !== null && parent === undefined) continue;
@@ -738,5 +879,3 @@ export class World {
     this.initAllState();
   }
 }
-
-const ZERO: Expr = { source: '0', run: () => 0, reads: [], constant: true };

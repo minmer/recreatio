@@ -9,20 +9,120 @@
  */
 
 import { graphJson, type Graph, type GraphEdge, type GraphNode } from './graph';
+import { patternKeys, type FieldDef, type KindDef } from './schema';
 
 let seq = 0;
 const node = (type: string, x: number, y: number, config: Record<string, unknown> = {}): GraphNode => ({ id: `n${(seq += 1)}`, type, x, y, config });
 const edge = (from: GraphNode, out: string, to: GraphNode, into: string): GraphEdge => ({ id: `e${(seq += 1)}`, from: from.id, out, to: to.id, in: into });
 const graphOf = (nodes: GraphNode[], edges: GraphEdge[]): Record<string, unknown> => graphJson({ nodes, edges } satisfies Graph);
 
+/** Ein Feld, wie der Dialog es einem Anfang gibt — mit dem, worauf es verweist. */
+export interface PresetField {
+  readonly key: string;
+  readonly label: string;
+  readonly to?: readonly string[];
+}
+
+/** Ein Rodzaj mit einem Verweisfeld, das auf diesen zeigt: die Übersetzungen, in denen ein Wort steht. */
+export interface BackRef {
+  readonly kind: string;
+  readonly key: string;
+  readonly label: string;
+  readonly multi: boolean;
+}
+
+/** Was ein Anfang im Dialog erfragt und wie es dort heisst. */
+export interface PresetAsks {
+  /** `refs`: nur Verweise — die mit vielen (`multi`) oder mit einem Eintrag (`single`) zuerst. */
+  readonly field?: { readonly label: string; readonly refs?: 'multi' | 'single' };
+  /** `text`: nur Textfelder, das aus dem Etikett zuerst. */
+  readonly second?: { readonly label: string; readonly text?: boolean };
+  /** Ein Feld des Rodzaj, auf den das erste Feld verweist (die Sprache der Wörter); dahinter steht sein Name. */
+  readonly through?: { readonly label: string };
+  readonly back?: { readonly label: string };
+}
+
 export interface TemplatePreset {
   readonly id: string;
   readonly label: string;
   readonly says: string;
-  /** Wie viele Felder er braucht und welche (für die Auswahl im Editor); `through` ist ein Feld des Eintrags, auf den das erste verweist. */
-  readonly needs: readonly ('field' | 'second' | 'date' | 'through')[];
-  readonly make: (kindId: string, field: { key: string; label: string }, second?: { key: string; label: string }) => Record<string, unknown>;
+  /**
+   * Was er braucht: `field` und `second` sind Felder des Rodzaj, `through` ist
+   * ein Feld des Rodzaj, auf den `field` verweist, `back` ein Rodzaj, der auf
+   * diesen verweist (mit seinem Feld).
+   */
+  readonly needs: readonly ('field' | 'second' | 'date' | 'through' | 'back')[];
+  readonly asks?: PresetAsks;
+  readonly make: (kindId: string, field: PresetField, second?: PresetField, more?: { readonly back?: { readonly kind: string; readonly key: string } }) => Record<string, unknown>;
 }
+
+export interface PresetChoice {
+  readonly fields: readonly FieldDef[];
+  readonly field?: FieldDef;
+  readonly seconds: readonly FieldDef[];
+  readonly second?: FieldDef;
+  /** Der Rodzaj, auf den `field` verweist (bei `through`). */
+  readonly target?: KindDef;
+  readonly backs: readonly BackRef[];
+  readonly back?: BackRef;
+  /** Warum sich der Anfang nicht bauen lässt — `null`: er lässt sich. */
+  readonly missing: string | null;
+}
+
+/**
+ * WAS DER DIALOG ZUR WAHL STELLT und was er vorwählt: für die Wörter einer
+ * Übersetzung das Verweisfeld auf viele, für die Sprache eines Wortes das auf
+ * einen, als Text das Feld aus dem Etikett, als Weg zurück der Rodzaj, der auf
+ * dieses verweist (die Übersetzung).
+ */
+export function presetChoice(kinds: readonly KindDef[], kindId: string, preset: TemplatePreset, picked: { readonly field?: string; readonly second?: string; readonly back?: string }): PresetChoice {
+  const kind = kinds.find((k) => k.id === kindId);
+  const all = kind?.fields ?? [];
+  const asks = preset.asks ?? {};
+  const prefer = asks.field?.refs;
+  const refs = all.filter((f) => f.type === 'ref');
+  const fields = prefer === undefined ? all : [...refs.filter((f) => f.multi === (prefer === 'multi')), ...refs.filter((f) => f.multi !== (prefer === 'multi'))];
+  const field = fields.find((f) => f.key === picked.field) ?? fields[0];
+  let target: KindDef | undefined;
+  let seconds: readonly FieldDef[] = [];
+  let second: FieldDef | undefined;
+  if (preset.needs.includes('through')) {
+    target = field?.to !== undefined && field.to.length === 1 ? kinds.find((k) => k.id === field.to![0]) : undefined;
+    seconds = target?.fields ?? [];
+    second = seconds.find((f) => f.key === picked.second) ?? seconds.find((f) => f.type === 'ref' && !f.multi) ?? seconds[0];
+  } else if (preset.needs.includes('second')) {
+    const inLabel = new Set(kind === undefined ? [] : patternKeys(kind.label));
+    seconds = asks.second?.text === true ? all.filter((f) => f.type === 'line' || f.type === 'text') : all;
+    second = seconds.find((f) => f.key === picked.second)
+      ?? (asks.second?.text === true ? seconds.find((f) => inLabel.has(f.key)) ?? seconds[0] : seconds[1] ?? seconds[0]);
+  }
+  const backs: BackRef[] = preset.needs.includes('back')
+    ? kinds.flatMap((k) => k.fields.filter((f) => f.type === 'ref' && f.to?.includes(kindId) === true).map((f) => ({ kind: k.id, key: f.key, label: `${k.name}: ${f.label}`, multi: f.multi })))
+      .sort((a, b) => Number(a.kind === kindId) - Number(b.kind === kindId) || Number(b.multi) - Number(a.multi))
+    : [];
+  const back = backs.find((b) => `${b.kind}|${b.key}` === picked.back) ?? backs[0];
+  const missing = field === undefined
+    ? (prefer === undefined ? 'Ten rodzaj nie ma pól.' : 'Ten rodzaj nie ma pola, które odwołuje się do innych wpisów.')
+    : preset.needs.includes('through') && second === undefined
+      ? `Pole „${field.label}” nie wskazuje jednego rodzaju z polami — wybierz w schemacie, do czego się odwołuje.`
+      : preset.needs.includes('second') && second === undefined
+        ? 'Ten rodzaj nie ma pola tekstowego.'
+        : preset.needs.includes('back') && back === undefined
+          ? 'Żaden rodzaj nie odwołuje się do tego (np. tłumaczenie do słowa) — dodaj takie pole w schemacie.'
+          : null;
+  return { fields, ...(field === undefined ? {} : { field }), seconds, ...(second === undefined ? {} : { second }), ...(target === undefined ? {} : { target }), backs, ...(back === undefined ? {} : { back }), missing };
+}
+
+/** Das Feld, wie ein Anfang es bekommt. */
+export const presetField = (f: FieldDef): PresetField => ({ key: f.key, label: f.label, ...(f.to === undefined ? {} : { to: f.to }) });
+
+/* Die Słówka-Anfänge fragen dasselbe: die Wörter einer Übersetzung und ihre Sprache — oder, vom Wort aus, seine Sprache, seinen Text und wo seine Übersetzungen stehen. */
+const WORDS_ASKS: PresetAsks = { field: { label: 'Pole ze słowami (odwołanie)', refs: 'multi' }, through: { label: 'Pole języka w' } };
+const WORD_ASKS: PresetAsks = {
+  field: { label: 'Pole języka (odwołanie)', refs: 'single' },
+  second: { label: 'Pole z tekstem słowa', text: true },
+  back: { label: 'Gdzie są tłumaczenia (rodzaj: pole ze słowami)' }
+};
 
 export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
   {
@@ -144,9 +244,9 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
       („angielski → polski: house"), als Antwort die Wörter der anderen.
       Zwei Sprachen geben so beide Richtungen.
     */
-    id: 'languages', label: 'Słowa między językami (oba kierunki)',
+    id: 'languages', label: 'Słówka: z języka na język (oba kierunki)',
     says: 'Wpis łączy słowa w kilku językach (np. tłumaczenie z polem „Słowa"): dla każdego języka osobna karta — słowa w tym języku z kierunkiem („angielski → polski: house"), odpowiedzią są słowa w pozostałych językach.',
-    needs: ['field', 'through'],
+    needs: ['field', 'through'], asks: WORDS_ASKS,
     make: (kind, field, lang) => {
       const key = lang?.key ?? 'language';
       const words = node('field', 0, 0, { key: field.key });
@@ -169,6 +269,167 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
           edge(each, 'item', pattern, 'p0'), edge(othersOnce, 'items', pattern, 'p1'), edge(split, 'kept', pattern, 'p2'),
           edge(pattern, 'text', prompt, 'parts'), edge(split, 'rest', answer, 'expected'),
           edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer')
+        ])
+      };
+    }
+  },
+  {
+    /*
+      2026-10-18 — WELCHE SPRACHE? Ein Wort, und man kreuzt jede Sprache an, in
+      der es ein Wort dieser Schreibung gibt („hotel": angielski, polski,
+      niemiecki). Wörter gleicher Schreibung geben EINE Karte — die am ersten
+      von ihnen; die anderen hält ein Warunek zurück.
+    */
+    id: 'which-language', label: 'Słówka: jaki to język?',
+    says: 'Pokazuje słowo i pyta, w jakim jest języku — zaznacza się wszystkie języki, w których istnieje słowo o tej pisowni (np. „hotel"). Słowa o tej samej pisowni dają jedną kartę.',
+    needs: ['field', 'second'], asks: WORD_ASKS,
+    make: (kind, lang, text) => {
+      const t = text?.key ?? 'text';
+      const self = node('entity', 0, 0);
+      const word = node('field', 0, 150, { key: t });
+      const same = node('entries', 230, 150, { kind, key: t });
+      const first = node('pick', 460, 300, { position: 'first' });
+      const only = node('filter', 690, 300);
+      const gate = node('when', 920, 300, { test: 'filled' });
+      const langs = node('field', 460, 150, { key: lang.key });
+      const once = node('unique', 690, 150);
+      const pattern = node('pattern', 230, 0, { text: 'Jaki to język: „{0}”? Zaznacz wszystkie, w których istnieje.', inputs: 1 });
+      const prompt = node('prompt', 920, 0);
+      const answer = node('answer.many', 920, 150);
+      const card = node('card', 1150, 75);
+      /* Zur Wahl alle Sprachen — die Einträge des Rodzaj, auf den das Sprachfeld zeigt; sonst die Sprachen aller Wörter. */
+      const target = lang.to !== undefined && lang.to.length === 1 ? lang.to[0] : null;
+      const options = target === null
+        ? [node('entries', 230, 450, { kind }), node('field', 460, 450, { key: lang.key }), node('unique', 690, 450)]
+        : [node('entries', 690, 0, { kind: target })];
+      const choices = options[options.length - 1];
+      return {
+        name: 'Jaki to język?', kinds: [kind], direction: `${lang.key}:jaki-jezyk`,
+        graph: graphOf([self, word, same, first, only, gate, langs, once, ...options, pattern, prompt, answer, card], [
+          edge(self, 'entities', only, 'items'), edge(word, 'values', same, 'like'), edge(same, 'entities', first, 'items'),
+          edge(first, 'chosen', only, 'like'), edge(only, 'kept', gate, 'items'),
+          edge(same, 'entities', langs, 'of'), edge(langs, 'values', once, 'items'), edge(once, 'items', answer, 'expected'),
+          ...(options.length === 3 ? [edge(options[0], 'entities', options[1], 'of'), edge(options[1], 'values', options[2], 'items')] : []),
+          edge(choices, options.length === 3 ? 'items' : 'entities', answer, 'distractors'),
+          edge(word, 'values', pattern, 'p0'), edge(pattern, 'text', prompt, 'parts'),
+          edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer'), edge(same, 'entities', card, 'explain')
+        ])
+      };
+    }
+  },
+  {
+    /*
+      2026-10-18 — PAARE VERBINDEN: diese Übersetzung und bis zu zwölf andere
+      zufällig, daraus fünf Paare in den zwei Sprachen dieser Übersetzung (die
+      der ersten Sprache links, die übrigen rechts). Eine Übersetzung in nur
+      einer Sprache macht keine Karte.
+    */
+    id: 'pairs', label: 'Słówka: połącz w pary',
+    says: 'Kilka tłumaczeń naraz: z lewej słowa w jednym języku, z prawej w drugim — łączy się je w pary. Bierze to tłumaczenie i losowo inne; języki są te z tego tłumaczenia.',
+    needs: ['field', 'through'], asks: WORDS_ASKS,
+    make: (kind, field, lang) => {
+      const key = lang?.key ?? 'language';
+      const self = node('entity', 0, 0);
+      const words = node('field', 230, 0, { key: field.key });
+      const langs = node('field', 460, 0, { key });
+      const once = node('unique', 690, 0);
+      const first = node('pick', 920, 0, { position: 'first' });
+      const gate = node('when', 1150, 150, { test: 'filled' });
+      const others = node('entries', 0, 300, { kind, self: true, count: 12 });
+      const pairs = node('pairs', 1150, 300, { key: field.key, by: key, count: 5 });
+      const pattern = node('pattern', 1150, 0, { text: 'Połącz w pary: {0} — {1}', inputs: 2 });
+      const prompt = node('prompt', 1380, 0);
+      const answer = node('answer.match', 1380, 300);
+      const card = node('card', 1610, 150);
+      return {
+        name: 'Połącz w pary', kinds: [kind], direction: `${field.key}:pary`,
+        graph: graphOf([self, words, langs, once, first, gate, others, pairs, pattern, prompt, answer, card], [
+          edge(self, 'entities', words, 'of'), edge(words, 'values', langs, 'of'), edge(langs, 'values', once, 'items'), edge(once, 'items', first, 'items'),
+          edge(first, 'rest', gate, 'items'),
+          edge(self, 'entities', pairs, 'items'), edge(others, 'entities', pairs, 'items'), edge(first, 'chosen', pairs, 'left'), edge(first, 'rest', pairs, 'right'),
+          edge(pairs, 'left', answer, 'left'), edge(pairs, 'right', answer, 'right'),
+          edge(first, 'chosen', pattern, 'p0'), edge(first, 'rest', pattern, 'p1'), edge(pattern, 'text', prompt, 'parts'),
+          edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer')
+        ])
+      };
+    }
+  },
+  {
+    /*
+      2026-10-18 — DIE ÜBERSETZUNGEN FINDEN: vom Wort aus zurück zu den
+      Übersetzungen, in denen es steht; deren Wörter in anderen Sprachen sind
+      richtig (Synonyme derselben Sprache nicht), dazu vier Wörter derselben
+      Zielsprachen als Ablenkung. Man kreuzt alle richtigen an — in einer
+      oder mehreren Sprachen.
+    */
+    id: 'choose-translations', label: 'Słówka: zaznacz tłumaczenia',
+    says: 'Pokazuje słowo; trzeba zaznaczyć wszystkie jego tłumaczenia — w jednym albo kilku językach — spośród nich i kilku innych słów tych języków.',
+    needs: ['field', 'second', 'back'], asks: WORD_ASKS,
+    make: (kind, lang, text, more) => {
+      const t = text?.key ?? 'text';
+      const back = more?.back ?? { kind: '', key: '' };
+      const self = node('entity', 0, 0);
+      const word = node('field', 0, 150, { key: t });
+      const source = node('field', 0, 300, { key: lang.key });
+      const trans = node('entries', 230, 0, { kind: back.kind, key: back.key });
+      const words = node('field', 460, 0, { key: back.key });
+      const other = node('filter', 690, 0, { key: lang.key });
+      const right = node('unique', 920, 0);
+      const targets = node('field', 920, 150, { key: lang.key });
+      const targetsOnce = node('unique', 1150, 150);
+      const pool = node('entries', 1150, 300, { kind, key: lang.key, count: 12 });
+      const wrong = node('distractors', 1380, 300, { from: ['list'], count: 4 });
+      const pattern = node('pattern', 230, 300, { text: 'Zaznacz tłumaczenia: „{0}” ({1})', inputs: 2 });
+      const prompt = node('prompt', 1610, 0);
+      const answer = node('answer.many', 1610, 150);
+      const card = node('card', 1840, 75);
+      return {
+        name: 'Zaznacz tłumaczenia', kinds: [kind], direction: `${back.key}:wybor`,
+        graph: graphOf([self, word, source, trans, words, other, right, targets, targetsOnce, pool, wrong, pattern, prompt, answer, card], [
+          edge(self, 'entities', trans, 'like'), edge(trans, 'entities', words, 'of'), edge(words, 'values', other, 'items'), edge(source, 'values', other, 'like'),
+          edge(other, 'rest', right, 'items'), edge(other, 'rest', targets, 'of'), edge(targets, 'values', targetsOnce, 'items'), edge(targetsOnce, 'items', pool, 'like'),
+          edge(right, 'items', wrong, 'expected'), edge(pool, 'entities', wrong, 'list'),
+          edge(right, 'items', answer, 'expected'), edge(wrong, 'distractors', answer, 'distractors'),
+          edge(word, 'values', pattern, 'p0'), edge(source, 'values', pattern, 'p1'), edge(pattern, 'text', prompt, 'parts'),
+          edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer'), edge(trans, 'entities', card, 'explain')
+        ])
+      };
+    }
+  },
+  {
+    /*
+      2026-10-18 — DAS WORT ÜBERSETZEN: je Zielsprache eine Karte („house
+      (angielski) → polski"), richtig ist jede Übersetzung in diese Sprache —
+      aus allen Übersetzungen, in denen das Wort steht.
+    */
+    id: 'translate-word', label: 'Słówka: przetłumacz słowo (każdy język osobno)',
+    says: 'Pokazuje słowo i pyta o jego tłumaczenie — osobna karta dla każdego języka, w którym ma tłumaczenia; poprawne są wszystkie tłumaczenia w tym języku.',
+    needs: ['field', 'second', 'back'], asks: WORD_ASKS,
+    make: (kind, lang, text, more) => {
+      const t = text?.key ?? 'text';
+      const back = more?.back ?? { kind: '', key: '' };
+      const self = node('entity', 0, 0);
+      const word = node('field', 0, 150, { key: t });
+      const source = node('field', 0, 300, { key: lang.key });
+      const trans = node('entries', 230, 0, { kind: back.kind, key: back.key });
+      const words = node('field', 460, 0, { key: back.key });
+      const other = node('filter', 690, 0, { key: lang.key });
+      const targets = node('field', 920, 150, { key: lang.key });
+      const targetsOnce = node('unique', 1150, 150);
+      const each = node('each', 1380, 150);
+      const inTarget = node('filter', 1610, 150, { key: lang.key });
+      const pattern = node('pattern', 1610, 0, { text: '{0} ({1}) → {2}', inputs: 3 });
+      const prompt = node('prompt', 1840, 0);
+      const answer = node('answer.text', 1840, 150);
+      const card = node('card', 2070, 75);
+      return {
+        name: 'Przetłumacz słowo', kinds: [kind], direction: `${back.key}:wpisz`,
+        graph: graphOf([self, word, source, trans, words, other, targets, targetsOnce, each, inTarget, pattern, prompt, answer, card], [
+          edge(self, 'entities', trans, 'like'), edge(trans, 'entities', words, 'of'), edge(words, 'values', other, 'items'), edge(source, 'values', other, 'like'),
+          edge(other, 'rest', targets, 'of'), edge(targets, 'values', targetsOnce, 'items'), edge(targetsOnce, 'items', each, 'items'),
+          edge(other, 'rest', inTarget, 'items'), edge(each, 'item', inTarget, 'like'), edge(inTarget, 'kept', answer, 'expected'),
+          edge(word, 'values', pattern, 'p0'), edge(source, 'values', pattern, 'p1'), edge(each, 'item', pattern, 'p2'), edge(pattern, 'text', prompt, 'parts'),
+          edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer'), edge(trans, 'entities', card, 'explain')
         ])
       };
     }

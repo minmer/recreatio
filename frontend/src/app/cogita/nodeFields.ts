@@ -39,6 +39,21 @@ const TEMPLATE_FIELDS: Record<string, readonly ConfigField[]> = {
     f('value', 'Wartość, gdy nic nie przychodzi do „Porównaj z"', 'lines', { hint: 'np. angielski — jedna w wierszu' })
   ],
   unique: [],
+  entries: [
+    f('kind', 'Rodzaj', 'kind', { hint: 'puste: rodzaj tego wpisu' }),
+    f('key', 'Tylko te, których pole', 'field', { hint: 'puste: wszystkie wpisy rodzaju' }),
+    f('value', '… ma wartość (gdy nic nie przychodzi do „Gdzie pole ma")', 'lines'),
+    f('self', 'Bez tego wpisu', 'bool'),
+    f('scope', 'Tylko z bieżącego zbioru', 'bool'),
+    f('count', 'Losowo najwyżej', 'number', { hint: 'puste: wszystkie' })
+  ],
+  pairs: [
+    f('key', 'Pole z wartościami', 'field', { hint: 'np. słowa tłumaczenia' }),
+    f('by', 'Według pola', 'field', { hint: 'np. język słowa' }),
+    f('leftValue', 'Lewa strona, gdy nic nie przychodzi', 'lines'),
+    f('rightValue', 'Prawa strona, gdy nic nie przychodzi', 'lines', { hint: 'puste: wszystkie pozostałe' }),
+    f('count', 'Najwyżej par', 'number', { hint: '5' })
+  ],
   pattern: [f('text', 'Wzór', 'text', { hint: 'Kto napisał {0}?' }), f('inputs', 'Ile wejść', 'number'), f('joiner', 'Łącznik wielu wartości', 'text', { hint: ', ' })],
   mask: [f('mode', 'Co zakryć', 'select', { options: opts([['prefix', 'koniec (zostaje początek)'], ['suffix', 'początek (zostaje koniec)'], ['random', 'losowe słowa']]) }), f('keep', 'Ile zostaje widoczne (0–1)', 'number'), f('gap', 'Znak luki', 'text', { hint: '…' })],
   fragments: [f('min', 'Najkrótszy kawałek (znaki)', 'number'), f('max', 'Najdłuższy kawałek (znaki)', 'number')],

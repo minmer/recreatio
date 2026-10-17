@@ -172,6 +172,8 @@ These are fixed system kinds that the engine understands. You may add fields to 
 **Where cards come from:** templates per kind, plus hand-written `question` entries [D1]. A template is a graph built from these blocks [D2]:
 - a field of the entity, or a reference followed several steps deep;
 - a split by a field (“Filtr”, added 2026-10-18): the entries whose field has one of the values arriving at “Porównaj z” — or typed in — and the rest (the words in the language of this card, and the others); without a field it compares the entries themselves (“all but this one”). “Bez powtórzeń” passes each entry or text once;
+- the entries of a kind (“Wpisy rodzaju”, 2026-10-18): all of them, or those whose field has one of the arriving or typed values — the words spelled the same, the translations that hold this word (the way back), the words of a language — optionally without this entry, only from the current collection, at most N at random (random per entry, so the card counts as varying). It reads an index per pool and field, built once for all cards, not the whole pool per card;
+- pairs from entries (“Pary”, 2026-10-18): from each entry the values of a field that belong on the left (the English words of a translation) and those on the right (the Polish ones; without a right side: all the others), side by side for “dopasowanie par”; an entry missing a side drops out, and no text stands twice on a side or faces itself;
 - a text pattern;
 - a mask: prefix, suffix or random, keeping a share;
 - pick one of a list (the chosen one and the rest);
@@ -187,7 +189,7 @@ These are fixed system kinds that the engine understands. You may add fields to 
 - typed text with a similarity threshold;
 - number with tolerance and unit, and date with precision;
 - one choice, several choices, and true or false;
-- ordering and matching;
+- ordering and matching — matching by tapping (2026-10-18): an item on one side, then its partner on the other; a pair carries one number on both sides, and tapping a paired item undoes its pair;
 - a gap in a quote (the old fragment tree) [F10];
 - a self-graded flashcard [D4];
 - code (Python), and a point on an image or a map.
@@ -203,7 +205,17 @@ There are no spoken answers.
 
 **One card per value.** A template can make one card for each value, such as each translation or each isotope [D11]. Vocabulary cards in both directions and “which language is this word” cards are templates [F09].
 
-**Words between languages** (2026-10-18). An entry that holds words of several languages in one field (a translation with a field “Słowa”, each word with its language) gets its cards from the start “Słowa między językami (oba kierunki)”: one card per language present — the words of that language with the direction (“angielski → polski: house”), the words of the other languages as the accepted answers. Two languages give both directions; a fixed direction is a Filtr with the language typed in, behind a “Warunek” so that a translation without that language makes no card. The field lists of a template offer the fields of the kinds its references lead to as well (“Słowo: Język”).
+**Vocabulary starts — “Słówka”** (2026-10-18), for the model of a translation that holds words of several languages in one field (“Słowa”), each word with its language. The new-template dialog asks each start for what it needs, by its own names (the field with the words, the language field of a word, the text field, where the translations are), and preselects them.
+
+| start | for | the card |
+|---|---|---|
+| “z języka na język (oba kierunki)” | the translation | one per language present: its words with the direction (“angielski → polski: house”), the words of the other languages accepted; two languages give both directions |
+| “jaki to język?” | the word | tick every language in which a word of this spelling exists (“hotel”: English, Polish); words spelled the same give one card (the first of them; a Warunek holds back the others) |
+| “połącz w pary” | the translation | this translation and up to twelve others at random, five pairs in its two languages, matched by tapping; a one-language translation makes none |
+| “zaznacz tłumaczenia” | the word | tick all its translations, in one or more languages — the words of the other languages in the translations that hold it (same-language synonyms are not translations) — among four words of the same target languages |
+| “przetłumacz słowo (każdy język osobno)” | the word | one card per language it has translations in (“dom (polski) → niemiecki”), every translation into that language accepted |
+
+A fixed direction is a Filtr with the language typed in, behind a “Warunek” so that a translation without that language makes no card. Field lists in a template show the own kind's fields first, then those of related kinds under their names (one reference away before two), then the rest.
 
 **Checking** is one module [F13, D6]:
 - bidirectional, prefix and anchor comparison, similar letters, punctuation and a threshold;
@@ -550,7 +562,7 @@ Phones stay awake.
 
 | check | count |
 |---|---|
-| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 265 |
+| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 285 |
 | `backend/Api.Tests` (22 of them for the game rules) | 408 |
 | `backend/Kernel.Tests` | 122 |
 

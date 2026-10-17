@@ -29,7 +29,7 @@ export * from '${app}pages/motion/liveModel';
 export { colorValue } from '${app}pages/motion/motion';
 export { Program } from '${app}pages/motion/liveRun';
 export { readDrawing, drawingOf, needsLive, shapeCount, isLiveShape } from '${app}pages/motion/drawing';
-export { problemsOf } from '${app}pages/motion/liveRun';
+export { problemsOf } from '${app}pages/motion/liveLint';
 export { LIVE_EXAMPLES } from '${app}pages/motion/liveExamples';
 export { liveDescription, livePrompt } from '${app}pages/motion/liveText';
 export { LiveDrawing } from '${app}pages/motion/LiveDrawing';

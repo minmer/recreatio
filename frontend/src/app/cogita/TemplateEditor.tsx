@@ -11,8 +11,8 @@ import { answerText } from './CardFace';
 import { cardsOf, readTemplate, templateProblems, type Template } from './cards';
 import { TEMPLATE_PALETTE } from './cardPalette';
 import { evaluate, graphJson, type Graph } from './graph';
-import { GraphEditor } from './GraphEditor';
-import { TEMPLATE_PRESETS } from './presets';
+import { GraphEditor, type FieldKey } from './GraphEditor';
+import { presetChoice, presetField, TEMPLATE_PRESETS } from './presets';
 import { EntityPicker, ForeignOnly, useAsync, useBusy, useCtx } from './ui';
 import { askText } from '../ui/dialogs';
 
@@ -43,57 +43,55 @@ function NewTemplate({ onMade }: { onMade: (id: string) => void }) {
   const { lib } = useCtx();
   const [kind, setKind] = useState(lib.kinds.find((k) => !['person', 'work', 'quote', 'topic', 'text', 'project'].includes(k.id))?.id ?? 'person');
   const [preset, setPreset] = useState('ask');
-  const fields = lib.kind(kind)?.fields ?? [];
   const [field, setField] = useState('');
   const [second, setSecond] = useState('');
+  const [back, setBack] = useState('');
   const { busy, failed, run } = useBusy();
   const box = useRef<HTMLDetailsElement>(null);
   const p = TEMPLATE_PRESETS.find((x) => x.id === preset);
-  /* „Przez odwołanie": erst ein Feld, das auf Einträge verweist (die Wörter), dann eines von deren Feldern (ihre Sprache). */
-  const through = p?.needs.includes('through') === true;
-  const choices = through ? fields.filter((x) => x.type === 'ref') : fields;
-  const f = choices.find((x) => x.key === field) ?? choices[0];
-  const target = through && f?.to !== undefined && f.to.length > 0 ? lib.kind(f.to[0]) : undefined;
-  const inner = target?.fields ?? [];
-  const s = through
-    ? inner.find((x) => x.key === second) ?? inner.find((x) => x.type === 'ref') ?? inner[0]
-    : fields.find((x) => x.key === second) ?? fields[1] ?? fields[0];
+  /* Was dieser Anfang braucht, mit seinen eigenen Namen — die Wörter einer Übersetzung, die Sprache eines Wortes, wo seine Übersetzungen stehen. */
+  const c = p === undefined ? null : presetChoice(lib.kinds, kind, p, { field, second, back });
+  const asks = p?.asks;
+  const needs = (n: 'second' | 'through' | 'back') => p?.needs.includes(n) === true;
   return (
     <details className="cg-card" ref={box}>
       <summary>+ Nowy szablon</summary>
       <div className="cg">
         <label className="wk-field"><span>Dla rodzaju</span>
-          <select value={kind} onChange={(e) => { setKind(e.target.value); setField(''); setSecond(''); }}>{lib.kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
+          <select value={kind} onChange={(e) => { setKind(e.target.value); setField(''); setSecond(''); setBack(''); }}>{lib.kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
         </label>
         <label className="wk-field"><span>Początek</span>
-          <select value={preset} onChange={(e) => setPreset(e.target.value)}>
+          <select value={preset} onChange={(e) => { setPreset(e.target.value); setField(''); setSecond(''); setBack(''); }}>
             {TEMPLATE_PRESETS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
             <option value="empty">Pusty graf</option>
           </select>
         </label>
         {p !== undefined && <p className="wk-hint">{p.says}</p>}
-        {p !== undefined && choices.length > 0 && (
-          <label className="wk-field"><span>{through ? 'Pole ze słowami (odwołanie)' : 'Pole'}</span>
-            <select value={f?.key ?? ''} onChange={(e) => { setField(e.target.value); if (through) setSecond(''); }}>{choices.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select>
+        {c !== null && c.fields.length > 0 && (
+          <label className="wk-field"><span>{asks?.field?.label ?? 'Pole'}</span>
+            <select value={c.field?.key ?? ''} onChange={(e) => { setField(e.target.value); if (needs('through')) setSecond(''); }}>{c.fields.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select>
           </label>
         )}
-        {through && choices.length === 0 && <p className="wk-warn">Ten rodzaj nie ma pola, które odwołuje się do innych wpisów (np. do słów).</p>}
-        {through && f !== undefined && (inner.length > 0
-          ? (
-            <label className="wk-field"><span>Pole języka w „{target?.name}”</span>
-              <select value={s?.key ?? ''} onChange={(e) => setSecond(e.target.value)}>{inner.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select>
-            </label>
-          )
-          : <p className="wk-warn">Pole „{f.label}” nie wskazuje jednego rodzaju z polami — wybierz w schemacie, do czego się odwołuje.</p>)}
-        {p?.needs.includes('second') === true && (
-          <label className="wk-field"><span>Drugie pole</span>
-            <select value={s?.key ?? ''} onChange={(e) => setSecond(e.target.value)}>{fields.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select>
+        {c !== null && needs('through') && c.seconds.length > 0 && (
+          <label className="wk-field"><span>{asks?.through?.label ?? 'Pole w'} „{c.target?.name}”</span>
+            <select value={c.second?.key ?? ''} onChange={(e) => setSecond(e.target.value)}>{c.seconds.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select>
           </label>
         )}
-        <button type="button" className="wk-btn" disabled={busy || (p !== undefined && (f === undefined || (through && s === undefined)))} onClick={() => void run(async () => {
-          const doc = p === undefined || f === undefined
+        {c !== null && needs('second') && c.seconds.length > 0 && (
+          <label className="wk-field"><span>{asks?.second?.label ?? 'Drugie pole'}</span>
+            <select value={c.second?.key ?? ''} onChange={(e) => setSecond(e.target.value)}>{c.seconds.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select>
+          </label>
+        )}
+        {c !== null && needs('back') && c.backs.length > 0 && (
+          <label className="wk-field"><span>{asks?.back?.label ?? 'Co się do niego odwołuje'}</span>
+            <select value={c.back === undefined ? '' : `${c.back.kind}|${c.back.key}`} onChange={(e) => setBack(e.target.value)}>{c.backs.map((x) => <option key={`${x.kind}|${x.key}`} value={`${x.kind}|${x.key}`}>{x.label}</option>)}</select>
+          </label>
+        )}
+        {c !== null && c.missing !== null && <p className="wk-warn">{c.missing}</p>}
+        <button type="button" className="wk-btn" disabled={busy || (c !== null && c.missing !== null)} onClick={() => void run(async () => {
+          const doc = p === undefined || c === null || c.field === undefined
             ? { name: 'Nowy szablon', kinds: [kind], direction: '', graph: { nodes: [], edges: [] } }
-            : p.make(kind, { key: f.key, label: f.label }, s === undefined ? undefined : { key: s.key, label: s.label });
+            : p.make(kind, presetField(c.field), c.second === undefined ? undefined : presetField(c.second), c.back === undefined ? undefined : { back: { kind: c.back.kind, key: c.back.key } });
           const made = await lib.saveDoc('template', doc);
           /* Der neue Szablon steht gleich darunter offen — der Dialog hat seine Arbeit getan. */
           if (box.current !== null) box.current.open = false;
@@ -113,25 +111,37 @@ function TemplateForm({ template }: { template: Template }) {
   const [sample, setSample] = useState<string | null>(null);
   useEffect(() => { if (!dirty) setDraft(template); }, [template, dirty]);
 
-  /* Die Felder der eigenen Arten — und der Arten, auf die sie verweisen: die Sprache der Wörter einer Übersetzung. */
-  const fieldKeys = useMemo(() => {
-    const seen = new Map<string, string>();
-    const visited = new Set<string>();
-    let layer: string[] = [...draft.kinds];
-    for (let depth = 0; depth < 3 && layer.length > 0; depth += 1) {
-      const next: string[] = [];
-      for (const id of layer) {
-        const kind = lib.kind(id);
-        if (kind === undefined || visited.has(id)) continue;
-        visited.add(id);
-        for (const field of kind.fields) {
-          if (!seen.has(field.key)) seen.set(field.key, depth === 0 ? field.label : `${kind.name}: ${field.label}`);
-          if (field.type === 'ref') next.push(...(field.to ?? []));
+  /*
+    Die Felder der eigenen Arten zuerst — dann, unter ihrem Namen, die der
+    verwandten: worauf sie verweisen (die Sprache der Wörter einer
+    Übersetzung) und was auf sie verweist (die Übersetzungen eines Wortes, für
+    „Wpisy rodzaju"), zwei Schritte weit; am Ende alle übrigen.
+  */
+  const fieldKeys = useMemo((): FieldKey[] => {
+    const own = lib.kinds.filter((k) => draft.kinds.includes(k.id));
+    /* Wie weit ein Rodzaj entfernt ist — ein Verweis hin oder her ist ein Schritt. */
+    const steps = new Map(own.map((k) => [k.id, 0]));
+    for (let step = 1; step <= 2; step += 1) {
+      for (const k of lib.kinds) {
+        for (const f of k.fields) {
+          if (f.type !== 'ref') continue;
+          const targets = f.to ?? [];
+          if (steps.get(k.id) === step - 1) for (const t of targets) if (!steps.has(t)) steps.set(t, step);
+          if (!steps.has(k.id) && targets.some((t) => steps.get(t) === step - 1)) steps.set(k.id, step);
         }
       }
-      layer = next;
     }
-    return [...seen.entries()].map(([key, label]) => ({ key, label }));
+    const ordered = [...lib.kinds].sort((a, b) => (steps.get(a.id) ?? 9) - (steps.get(b.id) ?? 9));
+    const seen = new Set<string>();
+    const out: FieldKey[] = [];
+    for (const kind of ordered) {
+      for (const field of kind.fields) {
+        if (seen.has(field.key)) continue;
+        seen.add(field.key);
+        out.push(own.includes(kind) ? { key: field.key, label: field.label } : { key: field.key, label: field.label, group: kind.name });
+      }
+    }
+    return out;
   }, [draft.kinds, lib]);
 
   const entity = sample === null ? lib.ofKind(draft.kinds[0] ?? '')[0] : lib.entity(sample);

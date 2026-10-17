@@ -41,6 +41,7 @@ const JoinLink = lazy(() => import('./links/JoinLink').then((m) => ({ default: m
 const JoinWithoutAccount = lazy(() => import('./links/JoinLink').then((m) => ({ default: m.JoinWithoutAccount })));
 const SeatPortal = lazy(() => import('./seats/SeatPortal').then((m) => ({ default: m.SeatPortal })));
 const Verify = lazy(() => import('./seats/Verify').then((m) => ({ default: m.Verify })));
+const SharedFile = lazy(() => import('./phone/SharedFile').then((m) => ({ default: m.SharedFile })));
 
 export function App() {
   const [address, setAddress] = useState<Address>(() => parsePath(window.location.hash));
@@ -139,6 +140,14 @@ export function App() {
    */
   if (address.route === 'verify') {
     return <PlainFrame><Suspense fallback={<Loading />}><Verify token={address.slug} /></Suspense></PlainFrame>;
+  }
+
+  /*
+   * Ein Plik przez link (0117) — aus einer SMS, ohne Konto und ohne Anmeldung: der
+   * Link ist der Schlüssel.
+   */
+  if (address.route === 'plik') {
+    return <PlainFrame><Suspense fallback={<Loading />}><SharedFile secret={address.slug ?? ''} /></Suspense></PlainFrame>;
   }
 
   /*
