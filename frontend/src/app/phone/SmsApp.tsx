@@ -30,17 +30,20 @@ import { Phone, phoneHere, type NativeMessage, type NativePart, type NativeThrea
 import { phoneKey, phoneShown } from './numbers';
 import { openPhone } from './phoneContext';
 import { copyReadable, MessageReader, SelectionBar, usePress, type Readable } from './reading';
+import { SharesView } from './Shares';
 import { SmsArchiveView } from './SmsArchiveView';
-import { aheadWhen, around, Avatar, barStyle, conversationMatches, dayLabel, isMode, SEARCH, shortWhen, timeOf, type SearchMode } from './smsShared';
+import { aheadWhen, around, Avatar, barStyle, conversationMatches, dayLabel, isMode, Linked, SEARCH, shortWhen, timeOf, type SearchMode } from './smsShared';
 import './phone.css';
 
 export function SmsApp({ who, trail }: { who: Who; trail: readonly string[] }) {
-  if (!phoneHere()) return <SmsArchiveView who={who} trail={trail} />;
   const step = trail[0];
+  /* Pliki przez link (0117) — auf dem Telefon und im Browser. */
+  if (step === 'pliki') return <SharesView who={who} />;
+  if (!phoneHere()) return <SmsArchiveView who={who} trail={trail} />;
   if (step === undefined) return <Threads />;
   if (step === 'nowa') return <Compose who={who} />;
   if (step === 'archiwum') return <SmsArchiveView who={who} trail={trail.slice(1)} />;
-  return <Thread threadId={step} />;
+  return <Thread threadId={step} who={who} />;
 }
 
 export default SmsApp;
@@ -247,7 +250,8 @@ function Threads() {
         <a className="wk-btn ph-bar-new" href={viewPath('sms', 'nowa')} title="Nowa wiadomość"><Icon name="compose" /><span>Nowa</span></a>
         <MenuButton label="Więcej: SMS" items={[
           { label: 'Sprawdź nowe wiadomości', icon: 'refresh', disabled: checking, onSelect: () => void recheck() },
-          { label: 'Archiwum', icon: 'archive', onSelect: () => { window.location.hash = viewPath('sms', 'archiwum'); } }
+          { label: 'Archiwum', icon: 'archive', onSelect: () => { window.location.hash = viewPath('sms', 'archiwum'); } },
+          { label: 'Pliki przez link', icon: 'link', onSelect: () => { window.location.hash = viewPath('sms', 'pliki'); } }
         ]} />
       </div>
       {failed !== null && <p className="wk-error">{failed}</p>}
@@ -315,7 +319,7 @@ const PAGE = 60;
  * dazwischen die Nachrichten — nur sie rollen —, unten das Schreibfeld. So bleibt der Kopf
  * stehen, und unter dem Schreibfeld ist kein Rand für die Leiste des Telefons mehr.
  */
-function Thread({ threadId }: { threadId: string }) {
+function Thread({ threadId, who }: { threadId: string; who: Who }) {
   const [page, setPage] = useState<ThreadPage | null>(pagesSeen.get(threadId) ?? null);
   const [failed, setFailed] = useState<string | null>(null);
   const [status] = useStatus();
@@ -504,7 +508,7 @@ function Thread({ threadId }: { threadId: string }) {
       </div>
 
       {peers.length > 0 && (
-        <Composer to={peers} sims={status?.sims ?? []} defaultSub={status?.defaultSubId ?? null}
+        <Composer to={peers} sims={status?.sims ?? []} defaultSub={status?.defaultSubId ?? null} who={who}
           disabled={status !== null && !status.defaultSms}
           onSent={() => { stick.current = true; void load(); }}
           onScheduled={() => { stick.current = true; void loadPlanned(); }} />
@@ -542,7 +546,7 @@ function MessageView({ m, newDay, group, names, selected, selecting, onSelect, o
         ) : (
           <>
             {m.parts.length > 0 && <div className="ph-media">{m.parts.map((p) => <MediaPart key={p.partId} part={p} />)}</div>}
-            {m.body !== '' && <span>{m.body}</span>}
+            {m.body !== '' && <span><Linked text={m.body} live={!selecting} /></span>}
           </>
         )}
         <span className={`ph-msg-meta${failed ? ' is-failed' : ''}`}>
@@ -679,7 +683,7 @@ function Compose({ who }: { who: Who }) {
           <label className="wk-check"><input type="radio" checked={!separate} onChange={() => setSeparate(false)} /><span>Jako grupa (MMS — odpowiedzi widzą wszyscy)</span></label>
         </div>
       )}
-      <Composer to={to} sims={status?.sims ?? []} defaultSub={status?.defaultSubId ?? null} separate={separate}
+      <Composer to={to} sims={status?.sims ?? []} defaultSub={status?.defaultSubId ?? null} separate={separate} who={who}
         disabled={to.length === 0 || (status !== null && !status.defaultSms)} initial={query.get('tekst') ?? ''}
         onSent={(threadId) => {
           if (to.length > 1 && separate) {

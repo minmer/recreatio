@@ -35,7 +35,7 @@ import { useMotionPlan } from './DrawingView';
 import { Program, type Said } from './liveRun';
 import type { WorldShot } from './liveWorld';
 import { buildDrawing, type Camera, type Inst } from './liveBuild';
-import { ControlView, digitsOf, propRange, rangeOf, withUnit, WorldPanel, type WorldAct } from './LivePanel';
+import { ControlView, digitsOf, propRange, rangeOf, shotOfText, withUnit, WorldPanel, type WorldAct } from './LivePanel';
 import { ShowClock } from '../presentation/showContext';
 
 /** Ein Zufall aus einem Samen (mulberry32) — dasselbe Bild für denselben Samen. */
@@ -471,8 +471,8 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
         case 'load': {
           let text: string | null = null;
           try { text = localStorage.getItem(storeKey); } catch { text = null; }
-          const shot = text === null ? null : (JSON.parse(text) as WorldShot | null);
-          if (shot === null || !Array.isArray(shot.things)) program.say('Nie ma zapisanego układu.', 'miss');
+          const shot = text === null ? null : shotOfText(text);
+          if (shot === null) program.say('Nie ma zapisanego układu.', 'miss');
           else { shop?.load(shot); program.say('Wczytano zapisany układ.'); }
           break;
         }
