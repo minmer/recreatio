@@ -38,6 +38,7 @@ public static partial class Phone
 
         MapSms(app);
         MapFiles(app);
+        MapOutbox(app);
     }
 
     /* -- Wer hier darf ------------------------------------------------------------------------ */

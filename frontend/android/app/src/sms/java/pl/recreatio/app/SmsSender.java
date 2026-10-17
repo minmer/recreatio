@@ -76,6 +76,12 @@ final class SmsSender {
 
     /** Eine SMS an eine Nummer. Gibt das Gespräch zurück. */
     static long sendSms(Context context, String address, String body, int subId) {
+        sendSmsRow(context, address, body, subId);
+        return SmsStore.threadFor(context, Collections.singleton(address));
+    }
+
+    /** Senden — und die Zeile im Speicher, an der später steht, ob es hinausging (geplante SMS melden das weiter). */
+    static Uri sendSmsRow(Context context, String address, String body, int subId) {
         int sub = subId >= 0 ? subId : defaultSubId();
         SmsManager sms = manager(context, sub);
         ArrayList<String> pieces = sms.divideMessage(body);
@@ -100,7 +106,7 @@ final class SmsSender {
             forget(context, row);
             throw e;
         }
-        return thread;
+        return row;
     }
 
     private static void forget(Context context, Uri row) {

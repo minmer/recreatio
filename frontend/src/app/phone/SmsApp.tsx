@@ -18,7 +18,7 @@ import { useCrumbs } from '../shell/crumbTrail';
 import { viewPath } from '../routes';
 import { useRemembered } from '../core/prefs';
 import type { Who } from '../core/session';
-import { toast } from '../ui/dialogs';
+import { ask, toast } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
 import { Loading } from '../ui/Loading';
 import { MenuButton } from '../ui/Menu';
@@ -26,11 +26,12 @@ import { PageHeader } from '../ui/PageHeader';
 import { useBarHeight } from '../ui/useBarHeight';
 import { Composer } from './Composer';
 import { contactMatches, loadContacts, type Contact } from './contactStore';
-import { Phone, phoneHere, type NativeMessage, type NativePart, type NativeThread, type PhoneStatus, type ThreadPage } from './native';
+import { Phone, phoneHere, type NativeMessage, type NativePart, type NativeThread, type PhoneStatus, type ScheduledEntry, type ThreadPage } from './native';
 import { phoneKey, phoneShown } from './numbers';
 import { openPhone } from './phoneContext';
+import { copyReadable, MessageReader, SelectionBar, usePress, type Readable } from './reading';
 import { SmsArchiveView } from './SmsArchiveView';
-import { around, Avatar, barStyle, conversationMatches, dayLabel, isMode, SEARCH, shortWhen, timeOf, type SearchMode } from './smsShared';
+import { aheadWhen, around, Avatar, barStyle, conversationMatches, dayLabel, isMode, SEARCH, shortWhen, timeOf, type SearchMode } from './smsShared';
 import './phone.css';
 
 export function SmsApp({ who, trail }: { who: Who; trail: readonly string[] }) {
@@ -318,8 +319,11 @@ function Thread({ threadId }: { threadId: string }) {
   const [page, setPage] = useState<ThreadPage | null>(pagesSeen.get(threadId) ?? null);
   const [failed, setFailed] = useState<string | null>(null);
   const [status] = useStatus();
-  const [open, setOpen] = useState<string | null>(null);
   const [olderBusy, setOlderBusy] = useState(false);
+  const [planned, setPlanned] = useState<readonly ScheduledEntry[]>([]);
+  /** Gewählte Nachrichten (lange drücken) — solange welche gewählt sind, wählt jeder Tipp. */
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [reading, setReading] = useState(false);
   const scroller = useRef<HTMLDivElement | null>(null);
   const inner = useRef<HTMLDivElement | null>(null);
   /** Unten bleiben: wer am Ende war, sieht auch das Neue (und nach dem Senden immer). */
@@ -337,6 +341,12 @@ function Thread({ threadId }: { threadId: string }) {
 
   useEffect(() => { if (page !== null) pagesSeen.set(threadId, page); }, [threadId, page]);
 
+  /* Was für dieses Gespräch geplant ist (hier oder aus dem Browser) und noch nicht gesendet. */
+  const loadPlanned = useCallback(async () => {
+    const { entries } = await Phone.scheduled();
+    setPlanned(entries.filter((e) => e.threadId === threadId && e.state !== 'sent').sort((a, b) => a.sendAt - b.sendAt));
+  }, [threadId]);
+
   const load = useCallback(async () => {
     try {
       const fresh = await Phone.messages({ threadId, limit: PAGE });
@@ -349,14 +359,16 @@ function Thread({ threadId }: { threadId: string }) {
         return { ...fresh, messages: [...kept, ...fresh.messages], more: kept.length > 0 ? had.more : fresh.more };
       });
       setFailed(null);
+      await loadPlanned().catch(() => undefined);
       await Phone.markRead({ threadId }).catch(() => undefined);
     } catch (e) {
       setFailed(e instanceof Error ? e.message : 'Nie udało się wczytać rozmowy.');
     }
-  }, [threadId]);
+  }, [threadId, loadPlanned]);
 
   useEffect(() => {
     stick.current = true;
+    setSelected(new Set());
     void load();
     void Phone.viewing({ threadId });
     return () => { void Phone.viewing({ threadId: null }); };
@@ -393,7 +405,7 @@ function Thread({ threadId }: { threadId: string }) {
     } else if (stick.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, planned]);
 
   /* Die Tastatur geht auf, ein Bild ist geladen: wer unten war, bleibt unten. */
   useEffect(() => {
@@ -413,19 +425,42 @@ function Thread({ threadId }: { threadId: string }) {
     if (el.scrollTop < 160 && page?.more === true && !olderBusy) void loadOlder();
   };
 
+  const toggle = (id: string) => setSelected((had) => {
+    const next = new Set(had);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const chosen: Readable[] = (messages ?? []).filter((m) => selected.has(m.id)).map((m) => ({
+    key: m.id,
+    who: m.box === 'in' ? (m.address !== null ? nameOf(names, m.address) : title) : 'Ty',
+    at: m.date,
+    body: m.body !== '' ? m.body : m.parts.length > 0 ? '[MMS]' : ''
+  }));
+
+  const cancelPlanned = async (id: string) => {
+    if (!await ask({ title: 'Odwołać zaplanowaną wiadomość?', confirm: 'Odwołaj', danger: true })) return;
+    const { removed } = await Phone.unschedule({ id });
+    if (!removed) toast('Ta wiadomość jest już w drodze.');
+    await loadPlanned();
+  };
+
   return (
     <div className="ph-thread" style={barStyle(top)}>
-      <header className="ph-thread-head">
-        <a className="wk-icon-btn" href={viewPath('sms')} aria-label="Wszystkie wiadomości" title="Wszystkie wiadomości"><Icon name="back" /></a>
-        {peers.length > 0 && <Avatar name={peers.length > 1 ? '#' : title} seed={peers.map(phoneKey).join(',')} />}
-        <span className="ph-thread-title">
-          <h1 className="ph-thread-name">{title}</h1>
-          {peers.some((p) => names.has(p)) && <span className="ph-thread-sub">{peers.map(phoneShown).join(', ')}</span>}
-        </span>
-        {single !== null && (
-          <a className="wk-icon-btn" href={`tel:${single.replace(/\s+/g, '')}`} aria-label="Zadzwoń" title="Zadzwoń"><Icon name="phone" /></a>
-        )}
-      </header>
+      {selected.size > 0 ? (
+        <SelectionBar count={selected.size} onShow={() => setReading(true)} onCopy={() => copyReadable(chosen)} onClear={() => setSelected(new Set())} />
+      ) : (
+        <header className="ph-thread-head">
+          <a className="wk-icon-btn" href={viewPath('sms')} aria-label="Wszystkie wiadomości" title="Wszystkie wiadomości"><Icon name="back" /></a>
+          {peers.length > 0 && <Avatar name={peers.length > 1 ? '#' : title} seed={peers.map(phoneKey).join(',')} />}
+          <span className="ph-thread-title">
+            <h1 className="ph-thread-name">{title}</h1>
+            {peers.some((p) => names.has(p)) && <span className="ph-thread-sub">{peers.map(phoneShown).join(', ')}</span>}
+          </span>
+          {single !== null && (
+            <a className="wk-icon-btn" href={`tel:${single.replace(/\s+/g, '')}`} aria-label="Zadzwoń" title="Zadzwoń"><Icon name="phone" /></a>
+          )}
+        </header>
+      )}
 
       <div className="ph-scroll" ref={scroller} onScroll={onScroll}>
         <div className="ph-scroll-inner" ref={inner}>
@@ -439,8 +474,30 @@ function Thread({ threadId }: { threadId: string }) {
             const newDay = before === undefined || new Date(before.date).toDateString() !== new Date(m.date).toDateString();
             return (
               <MessageView key={m.id} m={m} newDay={newDay} group={peers.length > 1} names={names}
-                open={open === m.id} onToggle={() => setOpen(open === m.id ? null : m.id)}
+                selected={selected.has(m.id)} selecting={selected.size > 0} onSelect={() => toggle(m.id)}
                 onChanged={() => void load()} />
+            );
+          })}
+          {planned.map((p) => {
+            const notSent = p.state === 'failed';
+            return (
+              <div key={p.id} className={`ph-msg is-out is-planned${notSent ? ' is-failed' : ''}`}>
+                <span>{p.body}</span>
+                <span className={`ph-msg-meta${notSent ? ' is-failed' : ''}`}>
+                  {notSent ? `Nie wysłano${p.error !== undefined ? ` · ${p.error}` : ''}` : p.state === 'sending' ? 'Wysyłanie…' : `Zaplanowana · ${aheadWhen(p.sendAt)}`}
+                  {p.outboxId !== undefined ? ' · z przeglądarki' : ''}
+                </span>
+                {p.state === 'scheduled' && (
+                  <span className="ph-msg-tools">
+                    <button type="button" className="wk-link-btn wk-danger-link" onClick={() => void cancelPlanned(p.id)}>Odwołaj</button>
+                  </span>
+                )}
+                {notSent && p.outboxId === undefined && (
+                  <span className="ph-msg-tools">
+                    <button type="button" className="wk-link-btn" onClick={() => void Phone.forgetScheduled({ id: p.id }).then(loadPlanned)}>Ukryj</button>
+                  </span>
+                )}
+              </div>
             );
           })}
         </div>
@@ -449,26 +506,32 @@ function Thread({ threadId }: { threadId: string }) {
       {peers.length > 0 && (
         <Composer to={peers} sims={status?.sims ?? []} defaultSub={status?.defaultSubId ?? null}
           disabled={status !== null && !status.defaultSms}
-          onSent={() => { stick.current = true; void load(); }} />
+          onSent={() => { stick.current = true; void load(); }}
+          onScheduled={() => { stick.current = true; void loadPlanned(); }} />
       )}
+
+      {reading && <MessageReader title={title} items={chosen} onClose={() => setReading(false)} />}
     </div>
   );
 }
 
-function MessageView({ m, newDay, group, names, open, onToggle, onChanged }: {
+function MessageView({ m, newDay, group, names, selected, selecting, onSelect, onChanged }: {
   m: NativeMessage; newDay: boolean; group: boolean; names: ReadonlyMap<string, string>;
-  open: boolean; onToggle: () => void; onChanged: () => void;
+  selected: boolean; selecting: boolean; onSelect: () => void; onChanged: () => void;
 }) {
   const incoming = m.box === 'in';
   const failed = m.box === 'failed' || m.status === 'failed';
   const sending = m.box === 'outbox' || m.box === 'queued' || m.status === 'pending';
-  const copy = () => { void navigator.clipboard?.writeText(m.body).then(() => toast('Skopiowano.')).catch(() => undefined); };
-  const remove = () => { void Phone.remove({ id: m.id }).then(onChanged); };
+  /* Lange drücken wählt; solange gewählt wird, wählt auch ein kurzer Tipp. */
+  const press = usePress(onSelect, () => { if (selecting) onSelect(); });
+  /* Noch einmal senden ersetzt die nicht gesendete. */
+  const resend = () => { void Phone.send({ to: m.peers, body: m.body }).then(() => Phone.remove({ id: m.id })).then(onChanged); };
   return (
     <>
       {newDay && <span className="ph-day">{dayLabel(m.date)}</span>}
-      <div className={`ph-msg ${incoming ? 'is-in' : 'is-out'}${failed ? ' is-failed' : ''}`} role="article" tabIndex={0}
-        onClick={onToggle} onKeyDown={(e) => { if (e.key === 'Enter') onToggle(); }}>
+      <div className={`ph-msg ${incoming ? 'is-in' : 'is-out'}${failed ? ' is-failed' : ''}${selected ? ' is-selected' : ''}`} role="article"
+        aria-selected={selecting ? selected : undefined} tabIndex={0} {...press}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); } }}>
         {group && incoming && m.address !== null && <span className="ph-msg-from">{nameOf(names, m.address)}</span>}
         {m.subject !== null && <span className="ph-msg-subject">{m.subject}</span>}
         {m.pending ? (
@@ -485,13 +548,9 @@ function MessageView({ m, newDay, group, names, open, onToggle, onChanged }: {
         <span className={`ph-msg-meta${failed ? ' is-failed' : ''}`}>
           {failed ? 'Nie wysłano · ' : sending ? 'Wysyłanie… · ' : ''}{timeOf(m.date)}
         </span>
-        {open && (
-          <span className="ph-msg-tools" onClick={(e) => e.stopPropagation()}>
-            {m.body !== '' && <button type="button" className="wk-link-btn" onClick={copy}>Kopiuj</button>}
-            {failed && m.kind === 'sms' && (
-              <button type="button" className="wk-link-btn" onClick={() => void Phone.send({ to: m.peers, body: m.body }).then(() => { remove(); })}>Wyślij ponownie</button>
-            )}
-            <button type="button" className="wk-link-btn wk-danger-link" onClick={remove}>Usuń z telefonu</button>
+        {failed && m.kind === 'sms' && !selecting && (
+          <span className="ph-msg-tools">
+            <button type="button" className="wk-link-btn" onClick={(e) => { e.stopPropagation(); resend(); }}>Wyślij ponownie</button>
           </span>
         )}
       </div>
@@ -629,7 +688,8 @@ function Compose({ who }: { who: Who }) {
           } else {
             window.location.hash = viewPath('sms', threadId);
           }
-        }} />
+        }}
+        onScheduled={(threads) => { window.location.hash = threads.length === 1 ? viewPath('sms', threads[0]) : viewPath('sms'); }} />
     </>
   );
 }

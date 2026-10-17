@@ -1,7 +1,7 @@
 # Architecture
 
 How REcreatio is built today (2026-10-17). The domain documents — [COGITA.md](COGITA.md), [LIBRARY.md](LIBRARY.md),
-[CHAT.md](CHAT.md) — go deeper into their parts; [TRANSFER.md](TRANSFER.md) records how the old data forms were removed and what is left.
+[CHAT.md](CHAT.md), [INTERACTIVE.md](INTERACTIVE.md) — go deeper into their parts; [TRANSFER.md](TRANSFER.md) records how the old data forms were removed and what is left.
 
 ## The idea in one paragraph
 
@@ -48,12 +48,12 @@ Entry: `src/main.tsx` keeps an access link out of the address, starts the Androi
 | `masses/` | masses, confessions, devotions; the office (intentions, plan, terms, printing) |
 | `bookings/` | resources that can be taken; offers, claims, the slot card |
 | `chat/` | chats: the kit (`ChatKit.tsx`, `ChatLog.tsx`, `Composer.tsx`, `ChatChrome.tsx`), the three rooms (`ChatPage`, `PageChatView`, `SeatChatView`), topics, features |
-| `pages/` | the page registry and editor, parts (`parts/` — one file per kind), slides, presentation, motion, event parts, JSON import/export |
+| `pages/` | the page registry and editor, parts (`parts/` — one file per kind), slides, presentation, motion, interactive drawings (`motion/live*`, `expr.ts`: values, simulation, controls, rules — INTERACTIVE.md), event parts, JSON import/export |
 | `modules/` | modules as own things (forms are modules), their settings and JSON |
 | `library/` | library entries, citations, catalogue lookup, publishing |
 | `cogita/` | knowledge bases, cards (`cards.ts`, `cardPalette.ts`, `cardBasics.ts`), revisions, flows, sessions, games, forms for adding many entries at once and editing them in that shape (`addForm*.ts`, `AddFormEditor.tsx`, `AddFormRun.tsx`, `AddFormRows.tsx`) |
 | `notify/` | the bell and its digest; push for the app |
-| `phone/` | the SMS edition of the app (Gradle flavour `sms`): SMS and MMS from the phone's own store (`SmsApp`, `Composer`, `SmsSheet` for "Napisz SMS"), the sealed SMS archive (`smsArchive.ts`: batches per conversation with outlines; owned by a chosen role, `archiveSettings.ts`), the own address book (`ContactsApp`, `contactStore.ts`, vCard) and its copy in the phone's contacts; the shell loads only `here.ts` |
+| `phone/` | the SMS edition of the app (Gradle flavour `sms`): SMS and MMS from the phone's own store (`SmsApp`, `Composer`, `SmsSheet` for "Napisz SMS"), the sealed SMS archive (`smsArchive.ts`: batches per conversation with outlines and the own number per message; owned by a chosen role, `archiveSettings.ts`), replies written in the browser and sent by the phone that has the conversation's number (`outbox.ts`), sending later (natively, `ScheduledSms`), choosing messages and reading them large (`reading.tsx`), the own address book (`ContactsApp`, `contactStore.ts`, vCard) and its copy in the phone's contacts; the shell loads only `here.ts` |
 | `registry/` | addresses (postal parts), Kartoteka |
 
 Conventions:
@@ -87,7 +87,7 @@ Conventions:
 | `Chat/` | chats, messages, features (scheduling, presence, marks), topics, seat chats, delivery worker |
 | `Library/`, `Cogita/` | library entries, catalogue, Cogita storage; sessions, games and the SignalR hub |
 | `Notifications/`, `Registry/` | digest and push; postal registry |
-| `Phone/` | the SMS edition's storage: sealed contacts (with tombstones) in the own area; SMS archive batches (one conversation each, with message prints and a sealed outline, 0115) in the area of the role that owns the archive; sealed MMS files on disk; which archives a caller can read |
+| `Phone/` | the SMS edition's storage: sealed contacts (with tombstones) in the own area; SMS archive batches (one conversation each, with message prints and a sealed outline, 0115) in the area of the role that owns the archive; sealed MMS files on disk; which archives a caller can read; the outbox of replies written in the browser (0116: sealed, waiting → taken → sent or failed, cancelled; `Push.Phone` wakes the phones) |
 | `Transfer/` | what is left of the transfer: answers in RSA envelopes, server clean-up counts (goes when all are 0) |
 
 Conventions: authorization in every handler (`Auth.WhoAsync`, `Area.MayAsync`, role reach); the service never
@@ -108,7 +108,7 @@ One SQL Server database, schema `app` (0113 drops the empty schemas the old syst
 | calendar | `calendar`, `calendar_item`, `calendar_field`, `calendar_exception`, `claim`, `item_slot`, `mass_intention` |
 | chat | `chat`, `chat_message`, `chat_message_version`, `chat_seat_key`, `chat_read`, `chat_presence`, `chat_mark`, `chat_preference`, `chat_attachment`, `online` |
 | library and Cogita | `library`, `library_entry`, `library_entry_version`, `library_file`, `learn_batch`, `learn_due`, `cogita_*` |
-| phone (SMS edition) | `phone_contact`, `phone_sms_batch`, `phone_file` |
+| phone (SMS edition) | `phone_contact`, `phone_sms_batch`, `phone_file`, `phone_outbox` |
 
 Migrations: `NNNN_name.sql`, idempotent (guarded), recorded in `app.schema_version` with a checksum. Applied
 scripts are never edited.

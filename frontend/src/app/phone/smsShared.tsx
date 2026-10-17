@@ -38,6 +38,21 @@ export const dayLabel = (at: number): string =>
 
 export const timeOf = (at: number): string => new Date(at).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 
+/** Der Wert eines datetime-local-Feldes für eine Zeit („2026-10-18T18:00", Ortszeit). */
+export const localInput = (at: number): string => new Date(at - new Date(at).getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+
+/** Wann eine geplante hinausgeht: „dziś 18:00", „jutro 7:30", „pt. 18:00", „24 paź 18:00". */
+export function aheadWhen(at: number): string {
+  const d = new Date(at);
+  const now = new Date();
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const time = timeOf(at);
+  if (d.toDateString() === now.toDateString()) return `dziś ${time}`;
+  if (d.toDateString() === tomorrow.toDateString()) return `jutro ${time}`;
+  if (at > now.getTime() && at - now.getTime() < 6 * DAY) return `${d.toLocaleDateString('pl-PL', { weekday: 'short' })} ${time}`;
+  return `${d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' })} ${time}`;
+}
+
 /** Die Höhe der Kopfleiste als Variable: die Suche klebt darunter, ein Gespräch füllt, was darunter bleibt. */
 export const barStyle = (top: number): CSSProperties => ({ '--ph-top': `${top}px` } as CSSProperties);
 

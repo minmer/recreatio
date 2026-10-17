@@ -13,7 +13,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import ReactFlow, {
   Background, Controls, Handle, Position,
-  useReactFlow, useStore,
   type Connection, type Edge, type EdgeChange, type Node, type NodeChange, type NodeProps
 } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -33,7 +32,7 @@ import { COLUMN, defaultTyped, designOrder, duplicateEntry, formFromKind } from 
 import { describeForm, formProblems } from './addFormText';
 import { ValueInput } from './AddFormRun';
 import { connect, problemsOf as graphProblems, wouldCycle, type Graph, type GraphNode } from './graph';
-import { Remeasure } from './GraphEditor';
+import { FitWhenMeasured, Remeasure } from './GraphEditor';
 import { FIELD_TYPE_LABEL, type FieldDef, type KindDef, type Lookup } from './schema';
 import { creatorFor, EntityPicker, entityName, useBusy, useCtx } from './ui';
 
@@ -312,25 +311,6 @@ function FormNodeView({ data, selected }: NodeProps<FormNodeData>) {
 }
 
 const NODE_TYPES = { af: FormNodeView };
-
-/*
-  Das ganze Formular im Blick: sobald alle Knoten ihre Grösse haben — am Anfang
-  und nachdem einer dazukam („kolejny taki“). `fitView` allein passt nur beim
-  ersten Zeichnen an, und da hatten noch nicht alle Knoten ihre Grösse.
-*/
-function FitWhenMeasured() {
-  const { fitView } = useReactFlow();
-  const measured = useStore((s) => {
-    const all = [...s.nodeInternals.values()];
-    return all.length > 0 && all.every((n) => !!n.width && !!n.height) ? all.length : 0;
-  });
-  useEffect(() => {
-    if (measured === 0) return undefined;
-    const later = window.setTimeout(() => fitView({ padding: 0.08, duration: 200 }), 30);
-    return () => window.clearTimeout(later);
-  }, [measured, fitView]);
-  return null;
-}
 
 function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
   form: AddForm;

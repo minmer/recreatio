@@ -207,3 +207,53 @@
 .ph-numbers { display: grid; gap: var(--wk-space-1); }
 .ph-number { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2) var(--wk-space-3); }
 .ph-number-label { color: var(--wk-muted); font-size: var(--wk-text-sm); }
+
+/* -- Mehrere wählen, gross lesen, später senden (2026-10-18) ----------------------------- */
+/* Auf dem Touchscreen wählt langes Drücken die Nachricht, nicht den Text („Kopiuj" nimmt ihn mit). */
+@media (pointer: coarse) {
+  .ph-msg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+}
+.ph-msg.is-selected { box-shadow: 0 0 0 2px var(--wk-accent); }
+/* Eine Nachricht nimmt den Fokus (Enter wählt sie) — der Ring nur für die Tastatur, nicht nach einem Tipp. */
+.ph-msg:focus:not(:focus-visible) { outline: none; }
+.ph-msg:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.ph-msg.is-planned { border-style: dashed; background: var(--wk-surface); }
+.ph-select-bar { background: var(--wk-accent-soft); border-radius: var(--wk-radius-sm); padding: var(--wk-space-1) var(--wk-space-2); }
+.ph-reader-tools {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wk-space-2);
+  margin-bottom: var(--wk-space-3);
+  padding: var(--wk-space-2) 0;
+  background: var(--wk-ground);
+}
+.ph-reader-size { min-width: 3.5rem; text-align: center; color: var(--wk-muted); font-variant-numeric: tabular-nums; }
+.ph-reader { display: grid; gap: var(--wk-space-5); max-width: 60rem; font-size: calc(var(--wk-text-md) * var(--ph-reader-scale, 1.6)); line-height: 1.4; }
+.ph-reader-msg { display: grid; gap: var(--wk-space-1); }
+.ph-reader-msg header { color: var(--wk-muted); font-size: var(--wk-text-sm); font-weight: 600; }
+.ph-reader-msg p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ph-composer .wk-icon-btn.is-on { color: var(--wk-accent); background: var(--wk-accent-soft); }
+.ph-later { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); font-size: var(--wk-text-sm); }
+.ph-later input { min-height: 2.25rem; }
+
+/* Antworten im Browser: was nicht geht, steht still unten, wo sonst das Schreibfeld ist. */
+.ph-reply-note {
+  margin: 0;
+  padding: var(--wk-space-2) 0 calc(var(--wk-space-2) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--wk-line);
+  color: var(--wk-muted);
+  font-size: var(--wk-text-sm);
+}
+.ph-reply .ph-composer-info input { min-height: 2rem; width: 12rem; max-width: 100%; }
+
+/* Die eigenen Nummern (Archiwum auf dem Telefon). */
+.ph-own-lines { display: grid; gap: var(--wk-space-2); margin: 0; padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); }
+.ph-own-lines legend { padding: 0 var(--wk-space-1); font-weight: 700; }
+.ph-own-lines ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); }
+.ph-own-lines li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2) var(--wk-space-3); }
+.ph-own-line { display: flex; flex: 1; min-width: min(100%, 16rem); gap: var(--wk-space-2); }
+.ph-own-line input { flex: 1; min-width: 0; }

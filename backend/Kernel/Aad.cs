@@ -399,7 +399,10 @@ public enum Field
     /// </summary>
     PhoneContact,
     SmsArchive,
-    PhoneFile
+    PhoneFile,
+
+    /// <summary>0116 — eine SMS, die im Browser auf das Telefon wartet (an wen, was, wann, von welcher Nummer).</summary>
+    PhoneOutbox
 }
 
 /// <summary>
@@ -583,6 +586,7 @@ public readonly record struct Aad
         Field.PhoneContact            => "phone_contact",
         Field.SmsArchive              => "sms_archive",
         Field.PhoneFile               => "phone_file",
+        Field.PhoneOutbox             => "phone_outbox",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

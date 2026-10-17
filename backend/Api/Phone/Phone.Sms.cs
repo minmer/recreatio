@@ -73,20 +73,23 @@ public static partial class Phone
     /// <summary>
     /// WAS DA IST: die Stapel (ohne Inhalt), wie viele Nachrichten, wie viel
     /// Platz — und alle Abdrücke, damit ein Telefon nichts doppelt schickt.
+    /// Wer nur liest (der Browser, alle halbe Minute), fragt ohne sie
+    /// (<c>?keys=false</c>): bei Zehntausenden Nachrichten ist das ein Megabyte.
     /// </summary>
-    private static async Task ArchiveAsync(HttpContext ctx, Db db, Guid areaId)
+    private static async Task ArchiveAsync(HttpContext ctx, Db db, Guid areaId, bool? keys)
     {
+        var withKeys = keys != false;
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         if (await AllowedAsync(ctx, db, connection, areaId, Capability.Read) is null) return;
 
-        await using var cmd = new SqlCommand("""
-            SELECT id, message_count, DATALENGTH(sealed), created_at, message_keys, summary, epoch
+        await using var cmd = new SqlCommand($"""
+            SELECT id, message_count, DATALENGTH(sealed), created_at, {(withKeys ? "message_keys" : "CAST(NULL AS varbinary(16))")}, summary, epoch
             FROM app.phone_sms_batch WHERE area_id = @area ORDER BY created_at, id;
             """, connection);
         cmd.Parameters.AddWithValue("@area", areaId);
 
         var batches = new List<object>();
-        using var keys = new MemoryStream();
+        using var prints = new MemoryStream();
         long messages = 0, bytes = 0;
         await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
         {
@@ -105,8 +108,11 @@ public static partial class Phone
                     summary = reader.IsDBNull(5) ? null : Base64Url.Encode((byte[])reader[5]),
                     epoch = reader.GetInt32(6)
                 });
-                var printed = (byte[])reader[4];
-                keys.Write(printed, 0, printed.Length);
+                if (withKeys)
+                {
+                    var printed = (byte[])reader[4];
+                    prints.Write(printed, 0, printed.Length);
+                }
             }
         }
 
@@ -116,7 +122,7 @@ public static partial class Phone
             messages,
             bytes,
             limit = MaxArchiveBytes,
-            keys = Base64Url.Encode(keys.ToArray())
+            keys = withKeys ? Base64Url.Encode(prints.ToArray()) : ""
         });
     }
 

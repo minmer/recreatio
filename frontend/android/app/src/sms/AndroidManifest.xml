@@ -18,6 +18,11 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <!--
+      Geplante SMS (später senden, auch aus dem Browser) zur Minute: diese Ausgabe geht nie
+      nach Google Play, darf also einen genauen Wecker haben (Android 13+; davor ungenau).
+    -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
@@ -27,6 +32,13 @@
     </queries>
 
     <application>
+
+        <receiver android:name=".ScheduledReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <receiver android:name=".SmsReceiver" android:exported="true" android:permission="android.permission.BROADCAST_SMS">
             <intent-filter>

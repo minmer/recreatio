@@ -207,7 +207,9 @@ export const Field = {
    */
   PhoneContact: 'phone_contact',
   SmsArchive: 'sms_archive',
-  PhoneFile: 'phone_file'
+  PhoneFile: 'phone_file',
+  /** 0116 — eine SMS, die im Browser auf das Telefon wartet. */
+  PhoneOutbox: 'phone_outbox'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

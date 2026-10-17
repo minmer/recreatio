@@ -36,4 +36,9 @@ final class Edition {
     static void runnerGone(WebView web) {
         web.removeJavascriptInterface(RUNNER_BRIDGE);
     }
+
+    /** Der Dienst meldet: im Browser wartet eine SMS auf dieses Telefon (0116). */
+    static void wake(Context context) {
+        PhoneWork.outboxSoon(context.getApplicationContext());
+    }
 }

@@ -86,6 +86,46 @@ const SELF: Kind = {
   run: ({ ctx }) => ({ entities: [{ text: labelOf(ctx.entity, ctx.look), entity: ctx.entity.id }] })
 };
 
+/** Zwei Stücke sind dasselbe: derselbe Eintrag — oder, wo einem der Eintrag fehlt, derselbe Text. */
+const sameItem = (a: Item, b: Item): boolean =>
+  a.entity !== undefined && b.entity !== undefined ? a.entity === b.entity : a.text.trim().toLowerCase() === b.text.trim().toLowerCase();
+
+/**
+ * 2026-10-18 — TEILT EINTRÄGE NACH EINEM FELD: die, deren Feld einen der
+ * Vergleichswerte hat, und die übrigen — die Wörter in der Sprache dieser
+ * Karte und die in den anderen. Verglichen wird mit dem, was an „Porównaj z"
+ * ankommt (die Sprache aus „Dla każdej wartości"), sonst mit dem getippten
+ * Wert; ohne Feld mit dem Eintrag selbst („alle außer diesem").
+ */
+const FILTER: Kind = {
+  type: 'filter', label: 'Filtr', group: 'Dane',
+  says: 'Dzieli wpisy według pola: te, których pole ma wartość z „Porównaj z" (albo wpisaną), i pozostałe — np. słowa w języku tej karty i słowa w innych językach. Bez pola porównuje same wpisy.',
+  ports: () => ({ inputs: [port('items', 'Wpisy', 'items', true), port('like', 'Porównaj z', 'items', true)], outputs: [port('kept', 'Pasujące'), port('rest', 'Pozostałe')] }),
+  run: ({ config, inputs, ctx }) => {
+    const targets: Item[] = [...itemsAt(inputs, 'like'), ...lines(config.value).map((text) => ({ text }))];
+    if (targets.length === 0) throw new Error('Filtr nie ma z czym porównać: podłącz „Porównaj z" albo wpisz wartość.');
+    const key = str(config.key);
+    const kept: Item[] = [];
+    const rest: Item[] = [];
+    for (const item of itemsAt(inputs, 'items')) {
+      const values = key === '' ? [item] : readField(ctx, sourcesOf(ctx, [item]), key);
+      (values.some((v) => targets.some((t) => sameItem(v, t))) ? kept : rest).push(item);
+    }
+    return { kept, rest };
+  }
+};
+
+const UNIQUE: Kind = {
+  type: 'unique', label: 'Bez powtórzeń', group: 'Dane',
+  says: 'Każdy wpis (albo tekst) tylko raz — np. języki wszystkich słów tłumaczenia, każdy jeden raz.',
+  ports: () => ({ inputs: [port('items', 'Wartości', 'items', true)], outputs: [port('items', 'Każda raz')] }),
+  run: ({ inputs }) => {
+    const out: Item[] = [];
+    for (const item of itemsAt(inputs, 'items')) if (!out.some((o) => sameItem(o, item))) out.push(item);
+    return { items: out };
+  }
+};
+
 const PATTERN: Kind = {
   type: 'pattern', label: 'Wzór tekstu', group: 'Tekst',
   says: 'Składa tekst z wejść: „Kto napisał {0}?". Kilka wartości na jednym wejściu łączy przecinkiem.',
@@ -549,7 +589,7 @@ const CARD: Kind = {
 
 /** Die Bausteine einer Kartenvorlage — die Palette, die der Editor zeigt [D2, D3]. */
 export const TEMPLATE_PALETTE = paletteOf<TemplateContext>('card-template', [
-  FIELD, MEDIA, FOLLOW, LIST, SELF,
+  FIELD, MEDIA, FOLLOW, LIST, SELF, FILTER, UNIQUE,
   PATTERN, MASK, FRAGMENTS,
   PICK, DISTRACTORS, EACH,
   RANDOM, MATH, COMPARE, WHEN, PYTHON,

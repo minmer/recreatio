@@ -439,6 +439,34 @@ public static class Notify
         }
 
         /*
+         * -- 0116: WAS DAS TELEFON SENDEN SOLL — im Browser geschrieben, in einem Bereich, in dem ich
+         *    schreibe (also auch mein Telefon), oder abgesagt, nachdem ein Telefon es übernommen hatte.
+         *    Nur eine Zahl: daran sieht ein Telefon beim Fragen im Takt, dass es nachsehen soll.
+         *    Ohne Migration 0116 gibt es die Tabelle nicht — dann ist es 0.
+         */
+        var phoneOutbox = 0;
+        bool outboxThere;
+        await using (var there = new SqlCommand("SELECT CASE WHEN OBJECT_ID('app.phone_outbox', 'U') IS NULL THEN 0 ELSE 1 END;", connection))
+        {
+            outboxThere = (int)(await there.ExecuteScalarAsync(ct))! == 1;
+        }
+        if (outboxThere && mine.Count > 0)
+        {
+            var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
+            await using var cmd = new SqlCommand($"""
+                SELECT COUNT(*) FROM app.phone_outbox o
+                WHERE (o.state = N'waiting' OR (o.state = N'cancelled' AND o.taken_at IS NOT NULL AND o.closed_at IS NULL))
+                  AND EXISTS (SELECT 1 FROM app.certificate c
+                              WHERE c.scope_kind = N'area' AND c.scope_id = o.area_id AND c.revoked_at IS NULL
+                                AND c.expires_at > @now AND c.capability IN (N'write', N'admin')
+                                AND c.subject_role_id IN ({names}));
+                """, connection);
+            cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i]);
+            phoneOutbox = (int)(await cmd.ExecuteScalarAsync(ct))!;
+        }
+
+        /*
          * -- 0094: WAS AUF EINE ENTSCHEIDUNG DER KANZLEI WARTET. Nur, wo ich schreibe —
          *    entscheiden kann nur, wer dort schreibt.
          *      bookings  Reservierungen, die auf ein Ja warten (noch nicht vorbei)
@@ -588,6 +616,9 @@ public static class Notify
                 count = learn.Sum(l => l.Count),
                 list = countsOnly ? [] : learn.Select(l => (object)new { libraryId = Ids.ToText(l.Library), count = l.Count, dueAt = l.Due }).ToList()
             },
+
+            /* 0116 — SMS, die im Browser auf das Telefon warten (oder dort abgesagt wurden). */
+            phoneOutbox,
 
             /* 0091 — Formulare, deren Menschen auf den Schlüssel ihrer Rolle warten: die App gibt ihn weiter. */
             roles = new { waiting = rolesWaiting.Select(Ids.ToText).ToList() },

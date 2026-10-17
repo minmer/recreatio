@@ -42,6 +42,7 @@ import java.util.concurrent.Executors;
  *   send, threadOf
  *   contacts, writeContacts, dropLocal, contactsSoon
  *   exportMessages, archiveState, setArchiveState, requestSmsRead
+ *   lines, setLine, schedule, unschedule, scheduled, forgetScheduled
  * </code>
  *
  * <p><b>Ein altes Telefon</b> muss nicht die SMS-App sein, um sein Archiv beizutragen:
@@ -186,7 +187,8 @@ public class PhonePlugin extends Plugin {
                     .put("written", contacts.optInt("written", 0))
                     .put("contactsSyncedAt", contacts.opt("syncedAt"))
                     .put("archivedAt", archived > 0 ? archived : JSONObject.NULL)
-                    .put("otherSms", installed(GOOGLE_MESSAGES))));
+                    .put("otherSms", installed(GOOGLE_MESSAGES))
+                    .put("device", deviceName())));
         } catch (Exception e) {
             fail(call, e);
         }
@@ -202,6 +204,14 @@ public class PhonePlugin extends Plugin {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /** Wie sich dieses Telefon im Browser nennt („Google Pixel 8") — wer eine Antwort übernommen hat. */
+    static String deviceName() {
+        String maker = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER;
+        String model = Build.MODEL == null ? "" : Build.MODEL;
+        String name = model.toLowerCase(java.util.Locale.ROOT).startsWith(maker.toLowerCase(java.util.Locale.ROOT)) ? model : (maker + " " + model).trim();
+        return name.isEmpty() ? "Telefon" : name;
     }
 
     private boolean roleAvailable() {
@@ -476,6 +486,47 @@ public class PhonePlugin extends Plugin {
         if (getPermissionState("contacts") != PermissionState.GRANTED) { call.reject("Brak dostępu do kontaktów."); return; }
         JSONArray keys = call.getData().optJSONArray("keys");
         on(WORK, call, () -> js(PhoneContacts.dropLocal(context(), keys == null ? new JSONArray() : keys)));
+    }
+
+    /* -- Eigene Nummern, später senden (2026-10-18) ---------------------------------------------- */
+
+    @PluginMethod
+    public void lines(PluginCall call) {
+        on(SCREEN, call, () -> js(new JSONObject().put("lines", Lines.all(context()))));
+    }
+
+    @PluginMethod
+    public void setLine(PluginCall call) {
+        JSObject data = call.getData();
+        Lines.set(context(), data.optInt("subId", -1), data.isNull("number") ? null : data.optString("number", null));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void schedule(PluginCall call) {
+        JSObject data = call.getData();
+        on(SCREEN, call, () -> js(new JSONObject().put("entry", ScheduledSms.add(context(), data))));
+    }
+
+    @PluginMethod
+    public void unschedule(PluginCall call) {
+        String id = call.getData().optString("id", "");
+        on(SCREEN, call, () -> {
+            JSObject out = new JSObject();
+            out.put("removed", ScheduledSms.cancel(context(), id));
+            return out;
+        });
+    }
+
+    @PluginMethod
+    public void scheduled(PluginCall call) {
+        on(SCREEN, call, () -> js(new JSONObject().put("entries", ScheduledSms.all(context()))));
+    }
+
+    @PluginMethod
+    public void forgetScheduled(PluginCall call) {
+        String id = call.getData().optString("id", "");
+        on(SCREEN, call, () -> { ScheduledSms.forget(context(), id); return null; });
     }
 
     @PluginMethod

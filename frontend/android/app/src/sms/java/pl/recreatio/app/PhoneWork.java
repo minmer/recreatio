@@ -28,6 +28,9 @@ import java.util.concurrent.TimeUnit;
  *              jeder Nachricht ({@link #archiveSoon}) und zweimal am Tag
  *   contacts   die Kontakte aus recreatio ins Adressbuch des Telefons —
  *              zweimal am Tag (geänderte im Netz kommen so von selbst)
+ *   outbox     was im Browser auf dieses Telefon wartet (0116): übernehmen,
+ *              planen oder gleich senden, Ausgänge melden — geweckt vom
+ *              Dienst ({@link Edition#wake}) oder nach einer gesendeten
  * </code>
  *
  * <p>Getan wird es vom Läufer ({@link RunnerHost}: er hält die Schlüssel);
@@ -68,6 +71,26 @@ public class PhoneWork extends Worker {
         WorkManager.getInstance(context).enqueueUniqueWork("recreatio-phone-archive", ExistingWorkPolicy.KEEP, soon);
     }
 
+    /** Im Browser wartet etwas auf dieses Telefon (oder wurde abgesagt): gleich nachsehen. */
+    static void outboxSoon(Context context) {
+        outbox(context, 0);
+    }
+
+    /** Eine geplante aus dem Browser ist hinaus: in einer Minute (wenn das Netz geantwortet hat) dem Dienst melden. */
+    static void outboxLater(Context context) {
+        outbox(context, 60);
+    }
+
+    private static void outbox(Context context, int delaySeconds) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("outboxAgain", true).apply();
+        OneTimeWorkRequest soon = new OneTimeWorkRequest.Builder(PhoneWork.class)
+                .setConstraints(online())
+                .setInitialDelay(delaySeconds, TimeUnit.SECONDS)
+                .setInputData(new Data.Builder().putString("kind", "outbox").build())
+                .build();
+        WorkManager.getInstance(context).enqueueUniqueWork("recreatio-phone-outbox", ExistingWorkPolicy.KEEP, soon);
+    }
+
     /** Die Kontakte gleich ins Adressbuch (nach einer Änderung im Netz, aus der App heraus). */
     static void contactsSoon(Context context) {
         OneTimeWorkRequest soon = new OneTimeWorkRequest.Builder(PhoneWork.class)
@@ -86,6 +109,7 @@ public class PhoneWork extends Worker {
         boolean ok = true;
         if (kind.equals("archive") || kind.equals("both")) ok = archive(context);
         if (kind.equals("contacts") || kind.equals("both")) ok &= run(context, "contacts");
+        if (kind.equals("outbox")) ok = outboxRounds(context);
         if (ok || getRunAttemptCount() >= 2) return Result.success();
         return Result.retry();
     }
@@ -98,6 +122,18 @@ public class PhoneWork extends Worker {
             prefs.edit().putBoolean("again", false).apply();
             ok = run(context, "archive");
             if (!ok || !prefs.getBoolean("again", false)) break;
+        }
+        return ok;
+    }
+
+    /** Nachsehen, bis während des Laufs nichts Neues mehr gemeldet wurde (höchstens dreimal). */
+    private static boolean outboxRounds(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        boolean ok = true;
+        for (int round = 0; round < 3; round++) {
+            prefs.edit().putBoolean("outboxAgain", false).apply();
+            ok = run(context, "outbox");
+            if (!ok || !prefs.getBoolean("outboxAgain", false)) break;
         }
         return ok;
     }

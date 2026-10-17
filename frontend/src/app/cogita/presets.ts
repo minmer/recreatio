@@ -19,8 +19,8 @@ export interface TemplatePreset {
   readonly id: string;
   readonly label: string;
   readonly says: string;
-  /** Wie viele Felder er braucht und welche (für die Auswahl im Editor). */
-  readonly needs: readonly ('field' | 'second' | 'date')[];
+  /** Wie viele Felder er braucht und welche (für die Auswahl im Editor); `through` ist ein Feld des Eintrags, auf den das erste verweist. */
+  readonly needs: readonly ('field' | 'second' | 'date' | 'through')[];
   readonly make: (kindId: string, field: { key: string; label: string }, second?: { key: string; label: string }) => Record<string, unknown>;
 }
 
@@ -131,6 +131,43 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
         graph: graphOf([word, translations, each, pattern, prompt, answer, card], [
           edge(word, 'values', pattern, 'p0'), edge(pattern, 'text', prompt, 'parts'),
           edge(translations, 'values', each, 'items'), edge(each, 'item', answer, 'expected'),
+          edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer')
+        ])
+      };
+    }
+  },
+  {
+    /*
+      2026-10-18 — EIN EINTRAG, DER WÖRTER MEHRERER SPRACHEN VERBINDET (eine
+      Übersetzung mit einem Feld „Słowa", jedes Wort mit seiner Sprache): je
+      Sprache eine Karte — vorn die Wörter dieser Sprache mit der Richtung
+      („angielski → polski: house"), als Antwort die Wörter der anderen.
+      Zwei Sprachen geben so beide Richtungen.
+    */
+    id: 'languages', label: 'Słowa między językami (oba kierunki)',
+    says: 'Wpis łączy słowa w kilku językach (np. tłumaczenie z polem „Słowa"): dla każdego języka osobna karta — słowa w tym języku z kierunkiem („angielski → polski: house"), odpowiedzią są słowa w pozostałych językach.',
+    needs: ['field', 'through'],
+    make: (kind, field, lang) => {
+      const key = lang?.key ?? 'language';
+      const words = node('field', 0, 0, { key: field.key });
+      const langs = node('field', 230, 200, { key });
+      const once = node('unique', 460, 200);
+      const each = node('each', 690, 200);
+      const split = node('filter', 690, 0, { key });
+      const others = node('field', 920, 260, { key });
+      const othersOnce = node('unique', 1150, 260);
+      const pattern = node('pattern', 1150, 0, { text: '{0} → {1}: {2}', inputs: 3 });
+      const prompt = node('prompt', 1380, 0);
+      const answer = node('answer.text', 1380, 160);
+      const card = node('card', 1610, 60);
+      return {
+        name: `${field.label}: z języka na język`, kinds: [kind], direction: `${field.key}:jezyki`,
+        graph: graphOf([words, langs, once, each, split, others, othersOnce, pattern, prompt, answer, card], [
+          edge(words, 'values', langs, 'of'), edge(langs, 'values', once, 'items'), edge(once, 'items', each, 'items'),
+          edge(words, 'values', split, 'items'), edge(each, 'item', split, 'like'),
+          edge(split, 'rest', others, 'of'), edge(others, 'values', othersOnce, 'items'),
+          edge(each, 'item', pattern, 'p0'), edge(othersOnce, 'items', pattern, 'p1'), edge(split, 'kept', pattern, 'p2'),
+          edge(pattern, 'text', prompt, 'parts'), edge(split, 'rest', answer, 'expected'),
           edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer')
         ])
       };

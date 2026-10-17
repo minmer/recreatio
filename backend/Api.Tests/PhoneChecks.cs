@@ -27,5 +27,10 @@ internal static class PhoneChecks
         check(Phone.SummaryOf(Kernel.Base64Url.Encode(new byte[300]), out var summary) && summary!.Length == 300, "a sealed summary is kept");
         check(!Phone.SummaryOf(Kernel.Base64Url.Encode(new byte[8001]), out _) && !Phone.SummaryOf(Kernel.Base64Url.Encode(new byte[47]), out _)
             && !Phone.SummaryOf("not base64!", out _), "a summary between 48 bytes and 8000, readable");
+
+        check(Phone.OutboxSealed(Kernel.Base64Url.Encode(new byte[200]), out var queued) && queued.Length == 200, "0116: a sealed message for the phone");
+        check(!Phone.OutboxSealed(Kernel.Base64Url.Encode(new byte[64 * 1024 + 1]), out _) && !Phone.OutboxSealed(null, out _), "at most 64 KB, never empty");
+        check(Phone.DeviceName("  Pixel 8\n") == "Pixel 8" && Phone.DeviceName(" ") is null && Phone.DeviceName(new string('x', 120))!.Length == 80,
+            "a phone's name: trimmed, without control characters, at most 80");
     }
 }

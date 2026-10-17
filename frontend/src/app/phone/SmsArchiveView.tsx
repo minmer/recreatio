@@ -11,6 +11,10 @@
  * Die Liste kommt aus den Übersichten der Stapel (schnell, auch bei Zehntausenden
  * Nachrichten); ein Gespräch lädt nur seine Stapel; die Suche im Text lädt alles
  * einmal. Wer mehrere Archive lesen darf (das eigene, das der Kancelaria), wählt.
+ *
+ * 2026-10-18 — im Browser ANTWORTEN (0116): das Telefon mit der Nummer der Rozmowa
+ * sendet, gleich oder zur gewählten Zeit; Liste und Gespräch sehen alle halbe Minute
+ * nach, was dazukam. Lange drücken wählt Nachrichten — „Wyświetl" zeigt sie gross.
  */
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -30,15 +34,17 @@ import { PageHeader } from '../ui/PageHeader';
 import { useBarHeight } from '../ui/useBarHeight';
 import { ARCHIVE_PREF, archiveArea, readSettings, saveSettings, type ArchiveSettings } from './archiveSettings';
 import { loadContacts, nameIndex } from './contactStore';
-import { Phone, phoneHere, pluginSource, type NativeThread, type PhoneStatus } from './native';
-import { phoneKey, phoneShown } from './numbers';
+import { Phone, phoneHere, pluginSource, type Line, type NativeThread, type PhoneStatus } from './native';
+import { phoneKey, phoneShown, smsParts } from './numbers';
+import { cancelReply, loadOutbox, pendingOf, queueReply, type OutboxEntry } from './outbox';
 import { archiveNow, archiveRunning, MEDIA_PREF } from './phoneJobs';
 import { openArea, openPhone, type PhoneCtx } from './phoneContext';
+import { copyReadable, MessageReader, SelectionBar, usePress, type Readable } from './reading';
 import {
   archivedFileUrl, archiveIndex, conversationKey, loadAll, loadConversation, readableArchives,
   type ArchivedConversation, type ArchivedMessage, type ArchivedPart, type ArchiveProgress, type ArchiveSummary
 } from './smsArchive';
-import { around, Avatar, barStyle, conversationMatches, dayLabel, isMode, SEARCH, shortWhen, timeOf, type SearchMode } from './smsShared';
+import { aheadWhen, around, Avatar, barStyle, conversationMatches, dayLabel, isMode, localInput, SEARCH, shortWhen, timeOf, type SearchMode } from './smsShared';
 import './phone.css';
 
 const mb = (bytes: number) => `${(bytes / 1024 / 1024).toLocaleString('pl-PL', { maximumFractionDigits: 1 })} MB`;
@@ -50,6 +56,9 @@ interface ArchiveOption { readonly areaId: string; readonly name: string; readon
 /* Was zuletzt geöffnet war — zurück zur Liste steht sie sofort da. */
 const indexSeen = new Map<string, { summary: ArchiveSummary; conversations: ArchivedConversation[] }>();
 const conversationSeen = new Map<string, ArchivedMessage[]>();
+
+/** Wie oft Liste und Gespräch nachsehen, ob das Telefon Neues archiviert hat. */
+const INDEX_EVERY = 30_000;
 
 export function SmsArchiveView({ who, trail }: { who: Who; trail: readonly string[] }) {
   const native = phoneHere();
@@ -104,6 +113,20 @@ export function SmsArchiveView({ who, trail }: { who: Who; trail: readonly strin
     void reload(ctx).catch((e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać archiwum.'));
   }, [ctx, reload]);
 
+  /* Neues vom Telefon (eine Antwort, die kam): alle halbe Minute, solange das Fenster vorn ist. */
+  useEffect(() => {
+    if (ctx === null) return undefined;
+    const look = () => { if (document.visibilityState === 'visible') void reload(ctx).catch(() => undefined); };
+    const every = window.setInterval(look, INDEX_EVERY);
+    document.addEventListener('visibilitychange', look);
+    return () => { window.clearInterval(every); document.removeEventListener('visibilitychange', look); };
+  }, [ctx, reload]);
+
+  /* Die eigenen Nummern, die das Archiv kennt — von ihnen kann eine Antwort ausgehen. */
+  const lines = useMemo(() => [...new Set((index?.conversations ?? []).map((c) => c.lastLine).filter((l): l is string => l !== null && l !== ''))], [index]);
+  const level = areas.find((a) => a.areaId === ctx?.areaId)?.myLevel ?? null;
+  const mayWrite = level === 'write' || level === 'admin';
+
   const names = useNames(who, native, index?.conversations ?? []);
   const titleOf = useCallback((c: { readonly peers: readonly string[] }) =>
     (c.peers.length === 0 ? 'Bez numeru' : c.peers.map((p) => names.get(p) ?? phoneShown(p)).join(', ')), [names]);
@@ -115,7 +138,10 @@ export function SmsArchiveView({ who, trail }: { who: Who; trail: readonly strin
   if (step !== undefined) {
     if (ctx === null || index === null) return failed !== null ? <p className="wk-error">{failed}</p> : <Loading label="Otwieranie archiwum…" />;
     if (conversation === null) return <p className="wk-empty">Takiej rozmowy nie ma w archiwum.</p>;
-    return <ArchiveConversation ctx={ctx} conversation={conversation} title={titleOf(conversation)} names={names} back={listHref} native={native} />;
+    return (
+      <ArchiveConversation ctx={ctx} conversation={conversation} title={titleOf(conversation)} names={names} back={listHref} native={native}
+        lines={lines} mayWrite={mayWrite} />
+    );
   }
 
   return (
@@ -462,6 +488,8 @@ function ArchiveSetup({ who, settings, conversations, ownName, onArchived }: {
         <input type="checkbox" checked={mediaText !== 'off'} onChange={(e) => setMediaText(e.target.checked ? 'on' : 'off')} />
         <span>Ze zdjęciami i filmami z MMS (do 10 MB każde)</span>
       </label>
+
+      <OwnLines />
       <p>
         Każda wybrana rozmowa trafia do archiwum cała — wszystkie wiadomości, które są na telefonie.
         {settings.areaId === null
@@ -484,44 +512,138 @@ function ArchiveSetup({ who, settings, conversations, ownName, onArchived }: {
   );
 }
 
+/**
+ * DIE EIGENEN NUMMERN — das Archiv vermerkt bei jeder Nachricht, von welcher sie ging, und
+ * eine Antwort aus dem Browser sendet nur ein Telefon mit dieser Nummer. Nennt eine Karte
+ * ihre Nummer nicht, trägt man sie hier ein (nur auf diesem Telefon).
+ */
+function OwnLines() {
+  const [lines, setLines] = useState<readonly Line[] | null>(null);
+  const [typed, setTyped] = useState<Readonly<Record<string, string>>>({});
+  const load = useCallback(() => { void Phone.lines().then((r) => setLines(r.lines)).catch(() => setLines([])); }, []);
+  useEffect(() => { load(); }, [load]);
+  if (lines === null || lines.length === 0) return null;
+
+  const save = async (line: Line) => {
+    const value = (typed[line.subId] ?? line.number ?? '').trim();
+    try {
+      await Phone.setLine({ subId: line.subId, number: value === '' ? null : value });
+      toast(value === '' ? 'Usunięto numer.' : 'Zapisano numer.');
+      load();
+    } catch {
+      toast('Nie udało się zapisać numeru.');
+    }
+  };
+
+  return (
+    <fieldset className="ph-own-lines">
+      <legend>Twoje numery</legend>
+      <p>Odpowiedź napisaną w przeglądarce wysyła telefon, który ma numer tej rozmowy — archiwum zapisuje przy wiadomościach, z którego numeru poszły.</p>
+      <ul>
+        {lines.map((l) => (
+          <li key={l.subId}>
+            <span>{l.name}</span>
+            {l.known ? <strong>{phoneShown(l.number)}</strong> : (
+              <span className="ph-own-line">
+                <input type="tel" value={typed[l.subId] ?? l.number ?? ''} placeholder="Numer tej karty, np. +48 600 100 200" aria-label={`Numer: ${l.name}`}
+                  onChange={(e) => setTyped({ ...typed, [l.subId]: e.target.value })} />
+                <button type="button" className="wk-btn wk-btn-quiet" onClick={() => void save(l)}>Zapisz</button>
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </fieldset>
+  );
+}
+
 /* -- Ein Gespräch ---------------------------------------------------------------------------- */
 
 const STEP = 200;
+const OUTBOX_EVERY = 15_000;
 
-function ArchiveConversation({ ctx, conversation, title, names, back, native }: {
+/** Was dem Telefon gegeben wurde — alle 15 Sekunden nachgesehen, solange das Fenster vorn ist. */
+function useOutbox(ctx: PhoneCtx, on: boolean): [readonly OutboxEntry[], () => void] {
+  const [entries, setEntries] = useState<readonly OutboxEntry[]>([]);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!on) return undefined;
+    let alive = true;
+    const look = () => {
+      if (document.visibilityState !== 'visible') return;
+      void loadOutbox(ctx).then((found) => { if (alive) setEntries(found); }).catch(() => undefined);
+    };
+    look();
+    const every = window.setInterval(look, OUTBOX_EVERY);
+    document.addEventListener('visibilitychange', look);
+    return () => { alive = false; window.clearInterval(every); document.removeEventListener('visibilitychange', look); };
+  }, [ctx, on, tick]);
+  return [entries, useCallback(() => setTick((n) => n + 1), [])];
+}
+
+/*
+ * IM BROWSER ANTWORTEN: unten schreiben (gleich oder zu einer Zeit), das Telefon mit der
+ * Nummer dieser Rozmowa sendet. Darüber steht, was unterwegs ist, bis es im Archiv steht.
+ * Auf dem Telefon (Archiwum) bleibt das Gespräch zum Lesen — geschrieben wird in SMS.
+ */
+function ArchiveConversation({ ctx, conversation, title, names, back, native, lines, mayWrite }: {
   ctx: PhoneCtx; conversation: ArchivedConversation; title: string; names: ReadonlyMap<string, string>; back: string; native: boolean;
+  lines: readonly string[]; mayWrite: boolean;
 }) {
-  const seenKey = `${ctx.areaId}:${conversation.key}:${conversation.batches.length}`;
+  const seenKey = `${ctx.areaId}:${conversation.key}`;
+  const batchKey = conversation.batches.join(',');
   const [messages, setMessages] = useState<readonly ArchivedMessage[] | null>(conversationSeen.get(seenKey) ?? null);
   const [count, setCount] = useState(STEP);
   const [failed, setFailed] = useState<string | null>(null);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [reading, setReading] = useState(false);
+  const [outbox, reloadOutbox] = useOutbox(ctx, !native);
   const scroller = useRef<HTMLDivElement | null>(null);
+  const inner = useRef<HTMLDivElement | null>(null);
   const anchor = useRef<number | null>(null);
+  /** Unten bleiben, wer unten war — was alle halbe Minute dazukommt, reisst nicht nach unten. */
+  const stick = useRef(true);
   const top = useBarHeight();
   useCrumbs(native ? [{ label: 'Archiwum', href: back }] : []);
 
   useEffect(() => {
     let alive = true;
     void loadConversation(ctx, conversation)
-      .then((found) => { conversationSeen.set(seenKey, found); if (alive) setMessages(found); })
+      .then((found) => { conversationSeen.set(seenKey, found); if (alive) { setMessages(found); setFailed(null); } })
       .catch(() => { if (alive) setFailed('Nie udało się wczytać rozmowy.'); });
     return () => { alive = false; };
-  }, [ctx, conversation, seenKey]);
+    // Neu nur, wenn andere Stapel dazukommen — nicht bei jedem Nachsehen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx, seenKey, batchKey]);
+
+  useEffect(() => { setSelected(new Set()); stick.current = true; }, [seenKey]);
 
   const shown = messages === null ? [] : messages.slice(Math.max(0, messages.length - count));
   const more = messages !== null && count < messages.length;
+  const pending = useMemo(() => pendingOf(outbox, conversation.key, messages ?? []), [outbox, conversation.key, messages]);
 
-  /* Beim Öffnen unten; nach „Wcześniejsze" an derselben Nachricht. */
+  /* Beim Öffnen unten; nach „Wcześniejsze" an derselben Nachricht; sonst bleibt, wer oben liest. */
   useLayoutEffect(() => {
     const el = scroller.current;
     if (el === null) return;
     if (anchor.current !== null) {
       el.scrollTop += el.scrollHeight - anchor.current;
       anchor.current = null;
-    } else {
+    } else if (stick.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [messages, count]);
+  }, [messages, count, pending.length]);
+
+  /* Das Antwortfeld wächst, die Zeit kommt dazu, ein Bild ist geladen: wer unten war, bleibt unten. */
+  useEffect(() => {
+    const el = scroller.current;
+    const content = inner.current;
+    if (el === null || content === null || typeof ResizeObserver === 'undefined') return undefined;
+    const keep = new ResizeObserver(() => { if (stick.current) el.scrollTop = el.scrollHeight; });
+    keep.observe(el);
+    keep.observe(content);
+    return () => keep.disconnect();
+  }, []);
 
   const earlier = () => {
     const el = scroller.current;
@@ -529,42 +651,215 @@ function ArchiveConversation({ ctx, conversation, title, names, back, native }: 
     setCount(count + STEP);
   };
 
+  const onScroll = () => {
+    const el = scroller.current;
+    if (el === null) return;
+    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64;
+    if (el.scrollTop < 120 && more) earlier();
+  };
+
+  const toggle = (key: string) => setSelected((had) => {
+    const next = new Set(had);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+  const chosen: Readable[] = (messages ?? []).filter((m) => selected.has(m.key)).map((m) => ({
+    key: m.key,
+    who: m.box === 'in' ? (m.from !== null ? names.get(m.from) ?? phoneShown(m.from) : title) : 'Ty',
+    at: m.at,
+    body: m.body !== '' ? m.body : m.parts.length > 0 ? '[MMS]' : ''
+  }));
+
+  const cancel = async (entry: OutboxEntry) => {
+    if (!await ask({ title: 'Odwołać tę wiadomość?', body: 'Telefon jej nie wyśle — chyba że już to zrobił.', confirm: 'Odwołaj', danger: true })) return;
+    try {
+      await cancelReply(ctx, entry.id);
+    } catch (e) {
+      toast(e instanceof WorkspaceError ? e.message : 'Nie udało się odwołać.');
+    }
+    reloadOutbox();
+  };
+  const retry = async (entry: OutboxEntry) => {
+    if (entry.message === null) return;
+    try {
+      await queueReply(ctx, { to: entry.message.to, body: entry.message.body, line: entry.message.line, sendAt: null, conversation: entry.message.conversation });
+      toast('Przekazano telefonowi jeszcze raz.');
+    } catch (e) {
+      toast(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+    }
+    reloadOutbox();
+  };
+
   const from = messages !== null && messages.length > 0 ? messages[0].at : conversation.first;
   return (
     <div className="ph-thread" style={barStyle(top)}>
-      <header className="ph-thread-head">
-        <a className="wk-icon-btn" href={back} aria-label="Wszystkie rozmowy w archiwum" title="Wszystkie rozmowy w archiwum"><Icon name="back" /></a>
-        <Avatar name={conversation.peers.length > 1 ? '#' : title} seed={conversation.key || '?'} />
-        <span className="ph-thread-title">
-          <h1 className="ph-thread-name">{title}</h1>
-          <span className="ph-thread-sub">
-            {messages === null ? conversation.count : messages.length} wiadomości w archiwum{from > 0 ? ` · od ${new Date(from).toLocaleDateString('pl-PL')}` : ''}
+      {selected.size > 0 ? (
+        <SelectionBar count={selected.size} onShow={() => setReading(true)} onCopy={() => copyReadable(chosen)} onClear={() => setSelected(new Set())} />
+      ) : (
+        <header className="ph-thread-head">
+          <a className="wk-icon-btn" href={back} aria-label="Wszystkie rozmowy w archiwum" title="Wszystkie rozmowy w archiwum"><Icon name="back" /></a>
+          <Avatar name={conversation.peers.length > 1 ? '#' : title} seed={conversation.key || '?'} />
+          <span className="ph-thread-title">
+            <h1 className="ph-thread-name">{title}</h1>
+            <span className="ph-thread-sub">
+              {messages === null ? conversation.count : messages.length} wiadomości w archiwum{from > 0 ? ` · od ${new Date(from).toLocaleDateString('pl-PL')}` : ''}
+            </span>
           </span>
-        </span>
-      </header>
-      <div className="ph-scroll" ref={scroller} onScroll={() => { const el = scroller.current; if (el !== null && el.scrollTop < 120 && more) earlier(); }}>
-        <div className="ph-scroll-inner">
+        </header>
+      )}
+      <div className="ph-scroll" ref={scroller} onScroll={onScroll}>
+        <div className="ph-scroll-inner" ref={inner}>
           {failed !== null && <p className="wk-error">{failed}</p>}
           {messages === null && failed === null && <Loading label="Wczytywanie rozmowy…" />}
           {more && <button type="button" className="wk-btn wk-btn-quiet ph-more" onClick={earlier}>Wcześniejsze wiadomości</button>}
           {shown.map((m, i) => {
             const before = shown[i - 1];
             const newDay = before === undefined || new Date(before.at).toDateString() !== new Date(m.at).toDateString();
-            const incoming = m.box === 'in';
             return (
               <Fragment key={m.key}>
                 {newDay && <span className="ph-day">{dayLabel(m.at)}</span>}
-                <div className={`ph-msg ${incoming ? 'is-in' : 'is-out'}${m.box === 'failed' ? ' is-failed' : ''}`}>
-                  {conversation.peers.length > 1 && incoming && m.from !== null && <span className="ph-msg-from">{names.get(m.from) ?? phoneShown(m.from)}</span>}
-                  {m.subject !== null && <span className="ph-msg-subject">{m.subject}</span>}
-                  {m.parts.length > 0 && <div className="ph-media">{m.parts.map((p, j) => <ArchivedMedia key={j} ctx={ctx} part={p} />)}</div>}
-                  {m.body !== '' && <span>{m.body}</span>}
-                  <span className={`ph-msg-meta${m.box === 'failed' ? ' is-failed' : ''}`}>{m.box === 'failed' ? 'Nie wysłano · ' : ''}{timeOf(m.at)}</span>
-                </div>
+                <ArchivedBubble ctx={ctx} m={m} group={conversation.peers.length > 1} names={names}
+                  selected={selected.has(m.key)} selecting={selected.size > 0} onSelect={() => toggle(m.key)} />
               </Fragment>
             );
           })}
+          {pending.map((e) => <OutboxBubble key={e.id} entry={e} onCancel={() => void cancel(e)} onRetry={() => void retry(e)} />)}
         </div>
+      </div>
+      {!native && (
+        <ReplyBox ctx={ctx} conversation={conversation} lines={lines} mayWrite={mayWrite}
+          onQueued={() => { stick.current = true; reloadOutbox(); }} />
+      )}
+      {reading && <MessageReader title={title} items={chosen} onClose={() => setReading(false)} />}
+    </div>
+  );
+}
+
+function ArchivedBubble({ ctx, m, group, names, selected, selecting, onSelect }: {
+  ctx: PhoneCtx; m: ArchivedMessage; group: boolean; names: ReadonlyMap<string, string>;
+  selected: boolean; selecting: boolean; onSelect: () => void;
+}) {
+  const incoming = m.box === 'in';
+  /* Lange drücken wählt; solange gewählt wird, wählt auch ein kurzer Tipp. */
+  const press = usePress(onSelect, () => { if (selecting) onSelect(); });
+  return (
+    <div className={`ph-msg ${incoming ? 'is-in' : 'is-out'}${m.box === 'failed' ? ' is-failed' : ''}${selected ? ' is-selected' : ''}`} role="article"
+      aria-selected={selecting ? selected : undefined} tabIndex={0} {...press}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); } }}>
+      {group && incoming && m.from !== null && <span className="ph-msg-from">{names.get(m.from) ?? phoneShown(m.from)}</span>}
+      {m.subject !== null && <span className="ph-msg-subject">{m.subject}</span>}
+      {m.parts.length > 0 && <div className="ph-media">{m.parts.map((p, j) => <ArchivedMedia key={j} ctx={ctx} part={p} />)}</div>}
+      {m.body !== '' && <span>{m.body}</span>}
+      <span className={`ph-msg-meta${m.box === 'failed' ? ' is-failed' : ''}`}>{m.box === 'failed' ? 'Nie wysłano · ' : ''}{timeOf(m.at)}</span>
+    </div>
+  );
+}
+
+/** Eine aus dem Browser — wo sie gerade ist. */
+function OutboxBubble({ entry, onCancel, onRetry }: { entry: OutboxEntry; onCancel: () => void; onRetry: () => void }) {
+  const m = entry.message;
+  if (m === null) return null;
+  const at = m.sendAt ?? 0;
+  const future = m.sendAt !== null && at > Date.now();
+  const device = entry.device !== null ? ` (${entry.device})` : '';
+  const failed = entry.state === 'failed';
+  const said = entry.state === 'waiting' ? (future ? `Zaplanowana · ${aheadWhen(at)} · czeka na telefon` : 'Czeka na telefon…')
+    : entry.state === 'taken' ? (future ? `Zaplanowana · ${aheadWhen(at)} · telefon ją ma${device}` : `Telefon wysyła${device}…`)
+    : entry.state === 'sent' ? `Wysłano z telefonu${device}${entry.doneAt !== null ? ` · ${timeOf(Date.parse(entry.doneAt))}` : ''}`
+    : failed ? `Nie wysłano${entry.error !== null ? ` · ${entry.error}` : ''}`
+    : 'Odwołana — telefon jeszcze tego nie potwierdził';
+  return (
+    <div className={`ph-msg is-out is-planned${failed ? ' is-failed' : ''}`} role="article">
+      <span>{m.body}</span>
+      <span className={`ph-msg-meta${failed ? ' is-failed' : ''}`}>{said}</span>
+      {(entry.state === 'waiting' || (entry.state === 'taken' && future)) && (
+        <span className="ph-msg-tools"><button type="button" className="wk-link-btn wk-danger-link" onClick={onCancel}>Odwołaj</button></span>
+      )}
+      {failed && (
+        <span className="ph-msg-tools"><button type="button" className="wk-link-btn" onClick={onRetry}>Wyślij ponownie</button></span>
+      )}
+    </div>
+  );
+}
+
+const OTHER_LINE = '+';
+
+/**
+ * DIE ANTWORT AUS DEM BROWSER — an die eine Person der Rozmowa, von der eigenen Nummer,
+ * die das Archiv bei ihr vermerkt hat (oder einer gewählten). Nur das Telefon mit dieser
+ * Nummer nimmt sie; es erfährt davon über den Wecker (FCM), sonst spätestens in einer
+ * Viertelstunde.
+ */
+function ReplyBox({ ctx, conversation, lines, mayWrite, onQueued }: {
+  ctx: PhoneCtx; conversation: ArchivedConversation; lines: readonly string[]; mayWrite: boolean; onQueued: () => void;
+}) {
+  const [ownText, setOwnText] = useRemembered('sms.line', '');
+  const own = phoneKey(ownText);
+  const options = useMemo(() => [...new Set([conversation.lastLine, ...lines, own === '' ? null : own]
+    .filter((l): l is string => l !== null && l !== ''))], [conversation.lastLine, lines, own]);
+  const [picked, setPicked] = useState<string>(conversation.lastLine ?? options[0] ?? OTHER_LINE);
+  const [text, setText] = useState('');
+  const [later, setLater] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const line = picked === OTHER_LINE ? own : picked;
+
+  if (!mayWrite) return <p className="ph-reply-note">To archiwum możesz czytać; odpowiadać mogą ci, którzy mogą w nim pisać.</p>;
+  if (conversation.peers.length !== 1) return <p className="ph-reply-note">Z przeglądarki można odpowiadać w rozmowach z jedną osobą.</p>;
+
+  const count = smsParts(text);
+  const send = async () => {
+    const at = later === null ? null : new Date(later).getTime();
+    if (at !== null && (!Number.isFinite(at) || at <= Date.now())) { toast('Wybierz czas w przyszłości.'); return; }
+    if (line === '') { toast('Podaj numer, z którego telefon ma wysłać.'); return; }
+    if (busy || text.trim() === '') return;
+    setBusy(true);
+    try {
+      await queueReply(ctx, { to: conversation.peers, body: text, line, sendAt: at, conversation: conversation.key });
+      setText('');
+      setLater(null);
+      toast(at === null ? 'Przekazano telefonowi — wyśle, gdy tylko się zgłosi.' : `Telefon wyśle ją: ${aheadWhen(at)}.`);
+      onQueued();
+    } catch (e) {
+      toast(e instanceof WorkspaceError ? e.message : 'Nie udało się przekazać wiadomości telefonowi.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="ph-composer ph-reply">
+      <div className="ph-composer-row">
+        <textarea rows={2} value={text} placeholder="Odpowiedź (SMS wyśle telefon)" aria-label="Treść odpowiedzi" onChange={(e) => setText(e.target.value)} />
+        <button type="button" className={`wk-icon-btn${later !== null ? ' is-on' : ''}`} aria-label="Wyślij później" title="Wyślij później"
+          aria-pressed={later !== null} disabled={busy} onClick={() => setLater(later === null ? localInput(Date.now() + 3600_000) : null)}>
+          <Icon name="clock" />
+        </button>
+        <button type="button" className="wk-btn" disabled={busy || text.trim() === '' || line === ''} onClick={() => void send()}>
+          {later !== null ? <><Icon name="clock" />Zaplanuj</> : <><Icon name="send" />{busy ? 'Przekazywanie…' : 'Wyślij'}</>}
+        </button>
+      </div>
+      {later !== null && (
+        <div className="ph-later">
+          <label>
+            Wyślij{' '}
+            <input type="datetime-local" value={later} min={localInput(Date.now())} onChange={(e) => setLater(e.target.value)} />
+          </label>
+        </div>
+      )}
+      <div className="ph-composer-info">
+        {text !== '' && <span>{count.parts > 1 ? `${count.parts} SMS · ` : ''}zostało {count.left}{count.unicode ? ' (polskie znaki: 70 na SMS)' : ''}</span>}
+        <label>
+          Z numeru{' '}
+          <select value={picked} onChange={(e) => setPicked(e.target.value)}>
+            {options.map((l) => <option key={l} value={l}>{phoneShown(l)}{l === conversation.lastLine ? ' (ta rozmowa)' : ''}</option>)}
+            <option value={OTHER_LINE}>Inny numer…</option>
+          </select>
+        </label>
+        {picked === OTHER_LINE && (
+          <input type="tel" value={ownText} placeholder="+48 600 100 200" aria-label="Twój numer, z którego telefon ma wysłać"
+            onChange={(e) => setOwnText(e.target.value)} />
+        )}
+        <span>wyśle telefon z tym numerem</span>
       </div>
     </div>
   );

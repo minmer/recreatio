@@ -33,7 +33,8 @@
  *  28. Die Seite des Kandydaten aus der Liste (0104): die Liste schickt das Formular mit, die Seite wählt dann den Menschen
  *      auch ohne eigenen „Wybór na stronie"; Spalten aus Unterformularen (laufender Zeitraum, sonst der jüngste Eintrag).
  *  29. Das Telefon (Ausgabe „sms"): Nummern in einer Form, die Länge einer SMS, vCard hin und zurück, Kontakte
- *      einlesen ohne Doppelte (und nie zwei Menschen in einen), das Archiv: eine Form je Nachricht, Gespräche.
+ *      einlesen ohne Doppelte (und nie zwei Menschen in einen), das Archiv: eine Form je Nachricht, Gespräche;
+ *      die eigene Nummer je Nachricht, Antworten aus dem Browser (0116), was unter einem Gespräch stehen bleibt.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -117,7 +118,9 @@ export { datesOf, declinedAll, attendanceOn, dutyRoom, termsText } from '${app}s
 export { phoneKey, phoneShown, samePhone, smsParts } from '${app}phone/numbers';
 export { parseVCards, formatVCards } from '${app}phone/vcard';
 export { tidyContact, sameContact, planImport, contactMatches, nameIndex, phoneKeysOf } from '${app}phone/contactStore';
-export { canonical, fromNative, archiveThreads, conversationKey, outlineOf, conversationsOf, choiceIncludes } from '${app}phone/smsArchive';
+export { canonical, fromNative, archiveThreads, conversationKey, outlineOf, conversationsOf, choiceIncludes, lineFinder } from '${app}phone/smsArchive';
+export { readMessage, pendingOf } from '${app}phone/outbox';
+export { aheadWhen, localInput } from '${app}phone/smsShared';
 export { readSettings, settingsText } from '${app}phone/archiveSettings';
 `);
 await build({
@@ -1998,6 +2001,62 @@ try {
     assert.deepEqual([settings.roleId, settings.areaId, settings.areas.R, settings.mode, settings.chosen], ['R', 'A', 'A', 'chosen', ['k', 'l']]);
     assert.deepEqual(m.readSettings('not json'), { roleId: null, areaId: null, areas: {}, mode: 'all', chosen: [] }, 'unreadable: everything, the own person');
     ok('SMS archive by conversation (0115): one key on every phone, outlines merged across phones, all or chosen conversations, settings read tolerantly');
+
+    /* 2026-10-18 / 0116: the own number per message, replies written in the browser, sending later. */
+    const finder = m.lineFinder([{ subId: 3, number: '600 100 200' }, { subId: 4, number: null }]);
+    assert.deepEqual([finder(3), finder(4), finder(null)], ['+48600100200', '+48600100200', '+48600100200'], 'one known number: that one, whatever the card');
+    const twoLines = m.lineFinder([{ subId: 3, number: '600100200' }, { subId: 4, number: '700800900' }]);
+    assert.deepEqual([twoLines(4), twoLines(9), twoLines(null)], ['+48700800900', null, null], 'two numbers: only the card decides');
+    assert.equal(m.fromNative(native({ subId: 3 }), finder).line, '+48600100200');
+    assert.equal(m.fromNative(native({})).line, null, 'without the phone\'s numbers: none');
+    const lined = m.outlineOf('+48600100200', [{ ...msg(100, 'a'), line: '+48700800900' }, { ...msg(200, 'b'), line: null }]);
+    assert.equal(lined.lastLine, '+48700800900', 'the newest message that knows its number');
+    const lineMerged = m.conversationsOf([
+      { batchId: 'old', outline: { ...lined, last: 100, lastLine: '+48700800900' } },
+      { batchId: 'new', outline: { ...lined, last: 500, lastLine: null } },
+      { batchId: 'newest', outline: { ...lined, last: 900, lastLine: '+48500400300' } }
+    ]);
+    assert.equal(lineMerged[0].lastLine, '+48500400300', 'the newest known number wins');
+    assert.equal(m.conversationsOf([
+      { batchId: 'old', outline: { ...lined, last: 100, lastLine: '+48700800900' } },
+      { batchId: 'new', outline: { ...lined, last: 500, lastLine: null } }
+    ])[0].lastLine, '+48700800900', 'a newer batch without a number keeps the known one');
+
+    assert.deepEqual(m.readMessage(JSON.stringify({ v: 1, to: ['+48600100200', ''], body: 'Hej', line: '+48700800900', sendAt: 5, conversation: 'k', createdAt: 1 })),
+      { to: ['+48600100200'], body: 'Hej', line: '+48700800900', sendAt: 5, conversation: 'k', createdAt: 1 });
+    assert.equal(m.readMessage('{"to":[],"body":"x","line":"1"}'), null, 'nobody to send to');
+    assert.equal(m.readMessage('{"to":["1"],"body":"  ","line":"1"}'), null, 'nothing to send');
+    assert.equal(m.readMessage('{"to":["1"],"body":"x"}'), null, 'no number to send from');
+    assert.equal(m.readMessage('not json'), null);
+    assert.equal(m.readMessage('{"to":["1"],"body":"x","line":"1","sendAt":"soon"}').sendAt, null, 'an unreadable time: now');
+
+    const entry = (id, state, over = {}, message = {}) => ({
+      id, state, device: null, error: null, createdAt: '', takenAt: null, doneAt: null, cancelledAt: null, closedAt: null, ...over,
+      message: { to: ['+48600100200'], body: 'Odpowiedź', line: '+48700800900', sendAt: null, conversation: '+48600100200', createdAt: 1000, ...message }
+    });
+    const outboxed = [
+      entry('w', 'waiting'),
+      entry('t', 'taken', { takenAt: 'x' }, { body: 'jutro', sendAt: 9e15 }),
+      entry('s', 'sent', {}, { body: 'wysłana' }),
+      entry('s2', 'sent', {}, { body: 'już w archiwum' }),
+      entry('f', 'failed', {}, { body: 'nie poszła' }),
+      entry('f2', 'failed', {}, { body: 'ponowiona' }),
+      entry('f3', 'waiting', {}, { body: 'ponowiona', createdAt: 2000 }),
+      entry('c', 'cancelled', {}, { body: 'odwołana, zanim telefon ją wziął' }),
+      entry('c2', 'cancelled', { takenAt: 'x' }, { body: 'odwołana u telefonu' }),
+      entry('c3', 'cancelled', { takenAt: 'x', closedAt: 'y' }, { body: 'potwierdzona' }),
+      entry('o', 'waiting', {}, { conversation: '+48500400300' }),
+      { ...entry('n', 'waiting'), message: null }
+    ];
+    const archivedHere = [{ box: 'out', body: 'już w archiwum', at: 1500 }, { box: 'in', body: 'wysłana', at: 1500 }];
+    assert.deepEqual(m.pendingOf(outboxed, '+48600100200', archivedHere).map((e) => e.id), ['w', 't', 's', 'f', 'f3', 'c2'],
+      'waiting, taken, sent until archived (not an incoming one with the same text), failed until sent again, cancelled until the phone confirms');
+
+    const nowDay = new Date();
+    assert.equal(m.aheadWhen(new Date(nowDay.getFullYear(), nowDay.getMonth(), nowDay.getDate(), 12, 0).getTime()), 'dziś 12:00');
+    assert.equal(m.aheadWhen(new Date(nowDay.getFullYear(), nowDay.getMonth(), nowDay.getDate() + 1, 7, 30).getTime()), 'jutro 07:30');
+    assert.equal(m.localInput(new Date(2026, 9, 18, 18, 5).getTime()), '2026-10-18T18:05', 'a datetime-local value in local time');
+    ok('SMS outbox (0116): the own number per message and conversation, a reply read tolerantly, what stays under a conversation, when it goes');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

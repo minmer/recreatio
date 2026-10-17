@@ -7,6 +7,8 @@
  *              (`archiveSettings.ts`; Bilder, wenn „phone.media" an ist) — von
  *              selbst erst, wenn jemand das Archiv eingerichtet hat
  *   contacts   die Kontakte aus recreatio ins Adressbuch des Telefons
+ *   outbox     was im Browser auf dieses Telefon wartet (0116): übernehmen und
+ *              planen, Ausgänge melden, Absagen umsetzen (`outbox.ts`)
  * </code>
  *
  * In der offenen App läuft beides kurz nach dem Start (`startPhone`), wenn es
@@ -19,6 +21,7 @@ import { archiveArea, archiveSettings } from './archiveSettings';
 import { toPhone } from './contactStore';
 import { PHONE_PREF } from './here';
 import { bridgeSource, Phone, phoneHere, pluginSource, type PhoneSource } from './native';
+import { runOutbox } from './outbox';
 import { LOCKED, openArea, openPhone, type PhoneCtx } from './phoneContext';
 import { archivePhone, type ArchiveProgress } from './smsArchive';
 
@@ -71,11 +74,20 @@ export async function runPhoneJob(job: string): Promise<Record<string, unknown>>
       return { ok: true, ...(await archiveNow(who, source)) };
     }
     if (job === 'contacts') return { ok: true, ...(await toPhone(await openPhone(who), source)) };
+    if (job === 'outbox') return { ok: true, ...(await outboxNow(who, source)) };
   } catch (e) {
     if (e instanceof WorkspaceError && e.verdict === LOCKED) return { ok: false, locked: true, error: e.message };
     throw e;
   }
   return { ok: false, error: 'Nieznane zlecenie.' };
+}
+
+let sending: ReturnType<typeof runOutbox> | null = null;
+
+/** Was im Browser wartet — nie zweimal zugleich (ein zweiter Ruf bekommt den laufenden). */
+export function outboxNow(who: Who, source: PhoneSource): ReturnType<typeof runOutbox> {
+  if (sending === null) sending = runOutbox(who, source).finally(() => { sending = null; });
+  return sending;
 }
 
 let started = false;
@@ -109,4 +121,16 @@ export function startPhone(who: Who): void {
       }
     })().catch(() => undefined);
   }, 8000);
+
+  /*
+   * 0116 — solange die App offen ist: jede Minute nachsehen, ob im Browser etwas auf dieses
+   * Telefon wartet (ohne Firebase gibt es sonst nur das Fragen im Takt, alle 15 Minuten).
+   */
+  const look = () => {
+    if (document.visibilityState !== 'visible') return;
+    void archiveSettings().then((s) => (s.areaId === null ? undefined : outboxNow(who, pluginSource))).catch(() => undefined);
+  };
+  window.setTimeout(look, 12_000);
+  window.setInterval(look, 60_000);
+  document.addEventListener('visibilitychange', look);
 }

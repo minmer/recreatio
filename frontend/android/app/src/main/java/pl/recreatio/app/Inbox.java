@@ -99,6 +99,9 @@ final class Inbox {
             if (connection != null) connection.disconnect();
         }
 
+        /* 0116 — im Browser wartet eine SMS auf ein Telefon: die Ausgabe „sms" sieht nach (die gewöhnliche nicht). */
+        if (digest.optInt("phoneOutbox", 0) > 0) Edition.wake(context);
+
         JSONObject chats = digest.optJSONObject("chats");
         int loud = chats == null ? 0 : chats.optInt("loud", 0);
         String newest = chats == null || chats.isNull("newestAt") ? "" : chats.optString("newestAt", "");

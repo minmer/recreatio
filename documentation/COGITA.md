@@ -171,6 +171,7 @@ These are fixed system kinds that the engine understands. You may add fields to 
 
 **Where cards come from:** templates per kind, plus hand-written `question` entries [D1]. A template is a graph built from these blocks [D2]:
 - a field of the entity, or a reference followed several steps deep;
+- a split by a field (“Filtr”, added 2026-10-18): the entries whose field has one of the values arriving at “Porównaj z” — or typed in — and the rest (the words in the language of this card, and the others); without a field it compares the entries themselves (“all but this one”). “Bez powtórzeń” passes each entry or text once;
 - a text pattern;
 - a mask: prefix, suffix or random, keeping a share;
 - pick one of a list (the chosen one and the rest);
@@ -190,6 +191,7 @@ These are fixed system kinds that the engine understands. You may add fields to 
 - a gap in a quote (the old fragment tree) [F10];
 - a self-graded flashcard [D4];
 - code (Python), and a point on an image or a map.
+- **a drawing to manipulate** (`interactive`, added 2026-10-17): the question carries the same JSON as the page module „Animacja” — values, a simulation, controls and rules (see [INTERACTIVE.md](INTERACTIVE.md)). The learner sets values (sliders, dragging) and presses „Sprawdź”; the stored answer is those values, and the check simulates them to the end: correct when a goal rule (or the question's `goal` expression) is reached. `random` values are drawn per attempt and fixed in the card; the `solution` is a computation with them (`v0 = sqrt(cel*g)`). Participants of a live session get the drawing without its goal rules.
 
 There are no spoken answers.
 
@@ -200,6 +202,8 @@ There are no spoken answers.
 - similar values.
 
 **One card per value.** A template can make one card for each value, such as each translation or each isotope [D11]. Vocabulary cards in both directions and “which language is this word” cards are templates [F09].
+
+**Words between languages** (2026-10-18). An entry that holds words of several languages in one field (a translation with a field “Słowa”, each word with its language) gets its cards from the start “Słowa między językami (oba kierunki)”: one card per language present — the words of that language with the direction (“angielski → polski: house”), the words of the other languages as the accepted answers. Two languages give both directions; a fixed direction is a Filtr with the language typed in, behind a “Warunek” so that a translation without that language makes no card. The field lists of a template offer the fields of the kinds its references lead to as well (“Słowo: Język”).
 
 **Checking** is one module [F13, D6]:
 - bidirectional, prefix and anchor comparison, similar letters, punctuation and a threshold;
@@ -546,7 +550,7 @@ Phones stay awake.
 
 | check | count |
 |---|---|
-| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 258 |
+| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 265 |
 | `backend/Api.Tests` (22 of them for the game rules) | 408 |
 | `backend/Kernel.Tests` | 122 |
 

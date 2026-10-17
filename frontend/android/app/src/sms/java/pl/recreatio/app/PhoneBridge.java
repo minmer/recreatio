@@ -93,6 +93,63 @@ final class PhoneBridge {
         }
     }
 
+    /* -- Was im Browser auf dieses Telefon wartet (0116) ------------------------------------------ */
+
+    @JavascriptInterface
+    public String lines() {
+        try {
+            return new JSONObject().put("lines", Lines.all(context)).toString();
+        } catch (Exception e) {
+            return error(e);
+        }
+    }
+
+    @JavascriptInterface
+    public String device() {
+        try {
+            return new JSONObject().put("device", PhonePlugin.deviceName()).toString();
+        } catch (Exception e) {
+            return error(e);
+        }
+    }
+
+    @JavascriptInterface
+    public String schedule(String json) {
+        try {
+            return new JSONObject().put("entry", ScheduledSms.add(context, new JSONObject(json))).toString();
+        } catch (Exception e) {
+            return error(e);
+        }
+    }
+
+    @JavascriptInterface
+    public String unschedule(String json) {
+        try {
+            return new JSONObject().put("removed", ScheduledSms.cancel(context, new JSONObject(json).optString("id", ""))).toString();
+        } catch (Exception e) {
+            return error(e);
+        }
+    }
+
+    @JavascriptInterface
+    public String scheduled() {
+        try {
+            return new JSONObject().put("entries", ScheduledSms.all(context)).toString();
+        } catch (Exception e) {
+            return error(e);
+        }
+    }
+
+    @JavascriptInterface
+    public String forgetScheduled(String json) {
+        try {
+            ScheduledSms.forget(context, new JSONObject(json).optString("id", ""));
+            return "{}";
+        } catch (Exception e) {
+            return error(e);
+        }
+    }
+
     /** {@code threadId} eines Auftrags — fehlt er, gilt das ganze Telefon (-1). */
     static long threadOf(JSONObject o) {
         String text = o.isNull("threadId") ? "" : o.optString("threadId", "");

@@ -60,6 +60,12 @@ export interface ArchivedMessage {
   readonly subject: string | null;
   readonly parts: readonly ArchivedPart[];
   readonly sim: number | null;
+  /**
+   * 2026-10-18 — die EIGENE Nummer, über die die Nachricht lief (nach `phoneKey`):
+   * eine Antwort aus dem Browser sendet nur ein Telefon, das diese Nummer hat.
+   * `null`: unbekannt (die Karte nennt sie nicht, und niemand hat sie eingetragen).
+   */
+  readonly line?: string | null;
 }
 
 /** Ein Stapel, wie der Dienst ihn kennt — die Übersicht noch versiegelt. */
@@ -89,6 +95,8 @@ export interface BatchOutline {
   readonly lastBody: string;
   readonly lastBox: ArchivedMessage['box'];
   readonly lastMedia: boolean;
+  /** Die eigene Nummer, über die zuletzt geschrieben wurde. */
+  readonly lastLine?: string | null;
 }
 
 /** Ein Gespräch im Archiv — aus den Übersichten seiner Stapel, über alle Telefone. */
@@ -104,6 +112,8 @@ export interface ArchivedConversation {
   readonly lastBody: string;
   readonly lastBox: ArchivedMessage['box'];
   readonly lastMedia: boolean;
+  /** Von welcher eigenen Nummer eine Antwort hinausgeht — die zuletzt benutzte; `null`: unbekannt. */
+  readonly lastLine: string | null;
 }
 
 export interface ArchiveProgress {
@@ -183,8 +193,8 @@ async function printOf(printer: CryptoKey, m: Omit<ArchivedMessage, 'key'>): Pro
   return toBase64Url(mac.slice(0, 16));
 }
 
-/** Eine Nachricht des Telefons in der Form des Archivs. */
-export function fromNative(n: NativeMessage): Omit<ArchivedMessage, 'key'> {
+/** Eine Nachricht des Telefons in der Form des Archivs. `lineOf`: die eigene Nummer zu einer Karte. */
+export function fromNative(n: NativeMessage, lineOf: (subId: number | null) => string | null = () => null): Omit<ArchivedMessage, 'key'> {
   const peers = (n.peers.length > 0 ? n.peers : n.address !== null ? [n.address] : []).map(phoneKey).filter((p) => p !== '');
   return {
     kind: n.kind,
@@ -196,7 +206,21 @@ export function fromNative(n: NativeMessage): Omit<ArchivedMessage, 'key'> {
     body: n.body,
     subject: n.subject,
     parts: n.parts.map((p) => ({ type: p.type, name: p.name, size: p.size, file: null, skipped: null })),
-    sim: n.subId
+    sim: n.subId,
+    line: lineOf(n.subId)
+  };
+}
+
+/**
+ * Die eigene Nummer zu einer Karte — aus den Karten des Telefons. Hat eine Nachricht keine
+ * Karte (alt, oder vom Telefon nicht vermerkt) und gibt es nur eine Nummer, ist es diese.
+ */
+export function lineFinder(lines: readonly { readonly subId: number; readonly number: string | null }[]): (subId: number | null) => string | null {
+  const known = lines.filter((l) => l.number !== null && phoneKey(l.number) !== '');
+  return (subId) => {
+    const hit = known.find((l) => l.subId === subId);
+    if (hit !== undefined) return phoneKey(hit.number);
+    return known.length === 1 ? phoneKey(known[0].number) : null;
   };
 }
 
@@ -211,7 +235,8 @@ export function outlineOf(conversation: string, messages: readonly ArchivedMessa
     last: last?.at ?? 0,
     lastBody: (last?.body ?? '').slice(0, 160),
     lastBox: last?.box ?? 'in',
-    lastMedia: (last?.parts.length ?? 0) > 0
+    lastMedia: (last?.parts.length ?? 0) > 0,
+    lastLine: [...sorted].reverse().find((m) => m.line != null)?.line ?? null
   };
 }
 
@@ -223,11 +248,13 @@ export function conversationsOf(outlines: readonly { readonly batchId: string; r
     if (had === undefined) {
       by.set(o.conversation, {
         key: o.conversation, peers: o.conversation === '' ? [] : o.conversation.split(','), batches: [batchId],
-        count: o.count, first: o.first, last: o.last, lastBody: o.lastBody, lastBox: o.lastBox, lastMedia: o.lastMedia
+        count: o.count, first: o.first, last: o.last, lastBody: o.lastBody, lastBox: o.lastBox, lastMedia: o.lastMedia,
+        lastLine: o.lastLine ?? null
       });
       continue;
     }
     const newer = o.last >= had.last;
+    const line = o.lastLine ?? null;
     by.set(o.conversation, {
       ...had,
       batches: [...had.batches, batchId],
@@ -236,7 +263,8 @@ export function conversationsOf(outlines: readonly { readonly batchId: string; r
       last: Math.max(had.last, o.last),
       lastBody: newer ? o.lastBody : had.lastBody,
       lastBox: newer ? o.lastBox : had.lastBox,
-      lastMedia: newer ? o.lastMedia : had.lastMedia
+      lastMedia: newer ? o.lastMedia : had.lastMedia,
+      lastLine: (newer && line !== null) || had.lastLine === null ? line ?? had.lastLine : had.lastLine
     });
   }
   return [...by.values()].sort((a, b) => b.last - a.last);
@@ -244,35 +272,60 @@ export function conversationsOf(outlines: readonly { readonly batchId: string; r
 
 /* -- Was der Dienst hat ------------------------------------------------------------------------ */
 
-export async function archiveSummary(ctx: PhoneCtx): Promise<ArchiveSummary> {
-  const found = await call<{ batches: readonly ArchiveBatch[]; messages: number; bytes: number; limit: number; keys: string }>(`${base(ctx)}/sms`);
+/** `withKeys`: auch die Abdrücke (das Telefon, um nichts doppelt zu schicken) — wer nur liest, braucht sie nicht. */
+export async function archiveSummary(ctx: PhoneCtx, withKeys = true): Promise<ArchiveSummary> {
+  const found = await call<{ batches: readonly ArchiveBatch[]; messages: number; bytes: number; limit: number; keys: string }>(
+    `${base(ctx)}/sms${withKeys ? '' : '?keys=false'}`);
   const raw = found.keys === '' ? new Uint8Array(0) : fromBase64Url(found.keys);
   const keys = new Set<string>();
   for (let at = 0; at + 16 <= raw.length; at += 16) keys.add(toBase64Url(raw.slice(at, at + 16)));
   return { batches: found.batches, messages: found.messages, bytes: found.bytes, limit: found.limit, keys };
 }
 
+/*
+ * Geöffnetes bleibt im Speicher: ein Stapel ändert sich nie (zusammengelegt heisst: neue
+ * Kennung, die alten fort). So kostet das Nachsehen alle halbe Minute fast nichts.
+ */
+const outlineSeen = new Map<string, BatchOutline>();
+const batchSeen = new Map<string, readonly ArchivedMessage[]>();
+let batchSeenCount = 0;
+const BATCH_SEEN_MAX = 20_000;
+
+function rememberBatch(batchId: string, messages: readonly ArchivedMessage[]): void {
+  if (batchSeen.has(batchId)) return;
+  batchSeen.set(batchId, messages);
+  batchSeenCount += messages.length;
+  for (const [old, list] of batchSeen) {
+    if (batchSeenCount <= BATCH_SEEN_MAX) break;
+    batchSeen.delete(old);
+    batchSeenCount -= list.length;
+  }
+}
+
 /** Die Übersichten geöffnet — was keine hat oder nicht aufgeht, steht ohne Gespräch da (`''`). */
 async function outlinesOf(ctx: PhoneCtx, batches: readonly ArchiveBatch[]): Promise<{ batchId: string; outline: BatchOutline }[]> {
   const out: { batchId: string; outline: BatchOutline }[] = [];
   for (const b of batches) {
+    const seen = outlineSeen.get(b.batchId);
+    if (seen !== undefined) { out.push({ batchId: b.batchId, outline: seen }); continue; }
     const key = ctx.keys.get(b.epoch);
     let outline: BatchOutline | null = null;
     if (b.summary !== null && key !== undefined) {
       try {
         outline = JSON.parse(await openText(key, outlineAad(b.batchId), fromBase64Url(b.summary))) as BatchOutline;
+        outlineSeen.set(b.batchId, outline);
       } catch {
         outline = null;
       }
     }
-    out.push({ batchId: b.batchId, outline: outline ?? { conversation: '', count: b.count, first: 0, last: 0, lastBody: '', lastBox: 'in', lastMedia: false } });
+    out.push({ batchId: b.batchId, outline: outline ?? { conversation: '', count: b.count, first: 0, last: 0, lastBody: '', lastBox: 'in', lastMedia: false, lastLine: null } });
   }
   return out;
 }
 
 /** DIE GESPRÄCHE DES ARCHIVS — aus den Übersichten, ohne eine Nachricht zu laden. */
 export async function archiveIndex(ctx: PhoneCtx): Promise<{ summary: ArchiveSummary; conversations: ArchivedConversation[] }> {
-  const summary = await archiveSummary(ctx);
+  const summary = await archiveSummary(ctx, false);
   return { summary, conversations: conversationsOf(await outlinesOf(ctx, summary.batches)) };
 }
 
@@ -315,8 +368,17 @@ const decodeBase64 = (text: string): Uint8Array => {
 /** Stapel nach ihren Kennungen, geöffnet; dieselbe Nachricht (derselbe Abdruck) nur einmal, älteste zuerst. */
 async function readBatches(ctx: PhoneCtx, ids: readonly string[], onProgress?: (done: number, total: number) => void): Promise<ArchivedMessage[]> {
   const byKey = new Map<string, ArchivedMessage>();
-  for (let at = 0; at < ids.length; at += 20) {
-    const chunk = ids.slice(at, at + 20);
+  const take = (list: readonly ArchivedMessage[]) => { for (const m of list) if (!byKey.has(m.key)) byKey.set(m.key, m); };
+  const missing = ids.filter((id) => {
+    const had = batchSeen.get(id);
+    if (had === undefined) return true;
+    take(had);
+    return false;
+  });
+  const ready = ids.length - missing.length;
+  if (missing.length === 0) onProgress?.(ids.length, ids.length);
+  for (let at = 0; at < missing.length; at += 20) {
+    const chunk = missing.slice(at, at + 20);
     const { batches } = await call<{ batches: readonly { batchId: string; epoch: number; sealed: string }[] }>(
       `${base(ctx)}/sms/batches?ids=${chunk.map(encodeURIComponent).join(',')}`);
     for (const b of batches) {
@@ -325,12 +387,13 @@ async function readBatches(ctx: PhoneCtx, ids: readonly string[], onProgress?: (
       try {
         const packed = await open(key, batchAad(b.batchId), fromBase64Url(b.sealed));
         const parsed = JSON.parse(new TextDecoder().decode(await gunzip(packed))) as { messages?: ArchivedMessage[] };
-        for (const m of parsed.messages ?? []) if (!byKey.has(m.key)) byKey.set(m.key, m);
+        rememberBatch(b.batchId, parsed.messages ?? []);
+        take(parsed.messages ?? []);
       } catch {
         // Ein Stapel, der nicht aufgeht, hält die anderen nicht auf.
       }
     }
-    onProgress?.(Math.min(ids.length, at + chunk.length), ids.length);
+    onProgress?.(ready + Math.min(missing.length, at + chunk.length), ids.length);
   }
   return [...byKey.values()].sort((a, b) => a.at - b.at);
 }
@@ -341,7 +404,7 @@ export const loadConversation = (ctx: PhoneCtx, conversation: ArchivedConversati
 
 /** ALLES — für die Suche im Text. */
 export async function loadAll(ctx: PhoneCtx, onProgress?: (done: number, total: number) => void): Promise<ArchivedMessage[]> {
-  const summary = await archiveSummary(ctx);
+  const summary = await archiveSummary(ctx, false);
   return readBatches(ctx, summary.batches.map((b) => b.batchId), onProgress);
 }
 
@@ -385,6 +448,7 @@ export async function archivePhone(
   let state = options.full === true ? readState('', ctx.areaId) : readState((await source.archiveState()).state, ctx.areaId);
   const { threads } = await source.threads({ limit: 5000 });
   const chosen = threads.filter((t) => choiceIncludes(options.choice, conversationKey(t.addresses)));
+  const lineOf = lineFinder((await source.lines()).lines);
 
   let seen = 0;
   let added = 0;
@@ -417,7 +481,7 @@ export async function archivePhone(
       const page = await source.exportMessages({ threadId: thread.threadId, afterSms: at.sms, afterMms: at.mms, limit: 200 });
       for (const n of page.messages) {
         seen++;
-        const plain = fromNative(n);
+        const plain = fromNative(n, lineOf);
         const print = await printOf(printer, plain);
         if (summary.keys.has(print)) { known++; continue; }
 
@@ -475,7 +539,7 @@ export async function archivePhone(
  * einmal (derselbe Abdruck).
  */
 async function compactSome(ctx: PhoneCtx, conversations: ReadonlySet<string>): Promise<void> {
-  const summary = await archiveSummary(ctx);
+  const summary = await archiveSummary(ctx, false);
   const outlines = await outlinesOf(ctx, summary.batches);
   for (const conv of conversationsOf(outlines)) {
     if (!conversations.has(conv.key) || conv.batches.length <= COMPACT_OVER) continue;

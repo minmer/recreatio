@@ -26,4 +26,8 @@ final class Edition {
 
     static void runnerGone(WebView web) {
     }
+
+    /** Im Browser wartet eine SMS auf ein Telefon (0116) — diese Ausgabe sendet keine. */
+    static void wake(Context context) {
+    }
 }

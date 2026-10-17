@@ -24,6 +24,8 @@
  * Rein und ohne Oberfläche — geprüft in `app-sim-check`.
  */
 
+import { AGGREGATES, RELATIONS, SETS } from './liveModel';
+
 export type Val = number | string;
 export type Env = Record<string, Val>;
 type Run = (env: Env) => Val;
@@ -45,6 +47,78 @@ export interface ExprError {
 }
 
 export const isExprError = (value: Expr | ExprError): value is ExprError => 'error' in value;
+
+/* -- 2026-10-18: die Welt (`liveWorld.ts`) ------------------------------------------- */
+
+/**
+ * WAS EINE WELT IN EINE UMGEBUNG LEGT: Schlüssel mit `$`, die kein Name eines
+ * Ausdrucks sein können. Ein Ding hat seine eigene Umgebung (sein Prototyp ist
+ * die des ganzen Bildes — was es nicht selbst hat, kommt von dort), mit seinem
+ * Elternteil, seinen Kindern, seiner Wurzel und seiner Art; die Umgebung des
+ * Bildes trägt das Verzeichnis der Welt.
+ */
+export interface WorldLinks {
+  readonly $parent?: Env;
+  readonly $children?: readonly Env[];
+  readonly $root?: Env;
+  readonly $kind?: string;
+  readonly $world?: WorldIndex;
+}
+
+/** Das Verzeichnis einer Welt: alle Dinge (Eltern vor Kindern), die Wurzeln, je Art, je Kennung — und wer gerade zusammenfasst (`outer`). */
+export interface WorldIndex {
+  readonly all: readonly Env[];
+  readonly roots: readonly Env[];
+  readonly byKind: ReadonlyMap<string, readonly Env[]>;
+  readonly byId: ReadonlyMap<string, Env>;
+  readonly outer: Env[];
+}
+
+/*
+ * Worüber sich zusammenfassen lässt (`SETS`: die Kinder eines Dings, alle
+ * darunter, seine Geschwister, die anderen seiner Art, alle Dinge — oder alle
+ * einer Art beim Namen), wer ein anderes Ding ist (`RELATIONS`, oder ein Ding
+ * beim Namen: `wyjscie.omega`) und wie zusammengefasst wird (`AGGREGATES`)
+ * steht in `liveModel.ts` — dort, wo auch die eigenen Namen geprüft werden.
+ */
+
+/** Wie übersetzt wird: welche Namen es gibt, welche Arten eine Welt hat. */
+export interface CompileOptions {
+  readonly known?: (name: string) => boolean;
+  readonly kinds?: ReadonlySet<string>;
+}
+
+const links = (env: Env): WorldLinks => env as unknown as WorldLinks;
+
+function setOf(env: Env, set: string): readonly Env[] {
+  const l = links(env);
+  const world = l.$world;
+  switch (set) {
+    case 'children': return l.$children ?? [];
+    case 'descendants': {
+      const out: Env[] = [];
+      const walk = (e: Env) => { for (const c of links(e).$children ?? []) { out.push(c); walk(c); } };
+      walk(env);
+      return out;
+    }
+    case 'siblings': return (l.$parent === undefined ? world?.roots ?? [] : links(l.$parent).$children ?? []).filter((e) => e !== env);
+    case 'others': return (world?.byKind.get(l.$kind ?? '') ?? []).filter((e) => e !== env);
+    case 'things': return world?.all ?? [];
+    default: return world?.byKind.get(set) ?? [];
+  }
+}
+
+/** Ein Schritt von einem Ding zum nächsten — `undefined`: dort ist keines. */
+function hop(env: Env, step: string): Env | undefined {
+  const l = links(env);
+  switch (step) {
+    case 'parent': return l.$parent;
+    case 'root': return l.$root ?? env;
+    case 'self': return env;
+    case 'outer': { const o = l.$world?.outer; return o === undefined || o.length === 0 ? undefined : o[o.length - 1]; }
+    default: return l.$world?.byId.get(step);
+  }
+}
 
 /** Wie lang ein Ausdruck höchstens ist, und wie tief geschachtelt. */
 export const EXPR_LIMITS = { length: 1200, depth: 60, args: 16 } as const;
@@ -178,7 +252,8 @@ function tokens(source: string): Tok[] {
       i = j + 1;
       continue;
     }
-    const name = /^[\p{L}_][\p{L}\p{N}_]*/u.exec(source.slice(i));
+    /* 2026-10-18 — ein Name darf über Punkte gehen: `parent.x`, `root.angle`, `wyjscie.omega`. */
+    const name = /^[\p{L}_][\p{L}\p{N}_]*(?:\.[\p{L}_][\p{L}\p{N}_]*)*/u.exec(source.slice(i));
     if (name !== null) {
       out.push({ k: 'id', v: name[0], at: i });
       i += name[0].length;
@@ -215,7 +290,55 @@ class Reader {
   private depth = 0;
   readonly reads = new Set<string>();
 
-  constructor(private readonly list: readonly Tok[], private readonly known: ((name: string) => boolean) | undefined) {}
+  private readonly known: ((name: string) => boolean) | undefined;
+  private readonly kinds: ReadonlySet<string>;
+
+  constructor(private readonly list: readonly Tok[], options: CompileOptions) {
+    this.known = options.known;
+    this.kinds = options.kinds ?? new Set();
+  }
+
+  /** Steht nach `(` eine Menge (`children`, `things`, eine Art) und dann `,` oder `)`? Dann ist es eine Zusammenfassung. */
+  private setAhead(): string | null {
+    const open = this.list[this.at];
+    const name = this.list[this.at + 1];
+    const after = this.list[this.at + 2];
+    if (open?.k !== 'op' || open.v !== '(' || name?.k !== 'id' || after?.k !== 'op' || (after.v !== ',' && after.v !== ')')) return null;
+    return (SETS as readonly string[]).includes(name.v) || this.kinds.has(name.v) ? name.v : null;
+  }
+
+  /** `sum(children, total*arm)` — der innere Ausdruck wird in jedem Ding der Menge gerechnet, `outer` ist der, der fragt. */
+  private aggregate(fn: string, at: number): Node {
+    this.take('(');
+    const set = (this.peek() as { v: string }).v;
+    this.at += 1;
+    let inner: Node | null = null;
+    if (this.isOp(',')) { this.take(','); inner = this.ternary(); }
+    this.take(')');
+    if (inner === null && fn !== 'count') throw new Fail(`${fn}(${set}, …) potrzebuje wyrażenia po przecinku`, at);
+    /* Was die Welt daraus lernt: `#up` — liest aus den Kindern (Blätter zuerst rechnen), `#all` — über viele Dinge. */
+    this.reads.add('#world');
+    this.reads.add(set === 'children' || set === 'descendants' ? '#up' : '#all');
+    const each = inner;
+    const over = (env: Env, visit: (value: Val) => boolean): void => {
+      const members = setOf(env, set);
+      const outer = links(env).$world?.outer;
+      outer?.push(env);
+      try {
+        for (const m of members) if (!visit(each === null ? 1 : each.run(m))) return;
+      } finally {
+        outer?.pop();
+      }
+    };
+    const run: Run = fn === 'sum' ? (env) => { let s = 0; over(env, (v) => { s += toNum(v); return true; }); return s; }
+      : fn === 'avg' ? (env) => { let s = 0; let n = 0; over(env, (v) => { s += toNum(v); n += 1; return true; }); return n === 0 ? 0 : s / n; }
+      : fn === 'min' ? (env) => { let m = Infinity; over(env, (v) => { m = Math.min(m, toNum(v)); return true; }); return m === Infinity ? 0 : m; }
+      : fn === 'max' ? (env) => { let m = -Infinity; over(env, (v) => { m = Math.max(m, toNum(v)); return true; }); return m === -Infinity ? 0 : m; }
+      : fn === 'count' ? (env) => { let n = 0; over(env, (v) => { if (truth(v)) n += 1; return true; }); return n; }
+      : fn === 'all' ? (env) => { let ok = 1; over(env, (v) => { if (!truth(v)) { ok = 0; return false; } return true; }); return ok; }
+      : (env) => { let ok = 0; over(env, (v) => { if (truth(v)) { ok = 1; return false; } return true; }); return ok; };
+    return { run, constant: false };
+  }
 
   private peek(): Tok { return this.list[this.at]; }
 
@@ -374,8 +497,13 @@ class Reader {
       this.take(')');
       return inner;
     }
+    if (t.k === 'id' && t.v.includes('.')) {
+      this.at += 1;
+      return this.relation(t.v, t.at);
+    }
     if (t.k === 'id') {
       this.at += 1;
+      if ((AGGREGATES as readonly string[]).includes(t.v) && this.setAhead() !== null) return this.aggregate(t.v, t.at);
       if (this.isOp('(')) return this.call(t.v, t.at);
       /* Ein eigener Name geht vor: `e` ist in der Physik oft die Sprungzahl, nicht die Eulersche Zahl. */
       const declared = this.known !== undefined && this.known(t.v);
@@ -388,6 +516,32 @@ class Reader {
     }
     if (t.k === 'end') throw new Fail('wyrażenie urywa się — czegoś brakuje', t.at);
     throw new Fail(`nieoczekiwane „${t.v}"`, t.at);
+  }
+
+  /**
+   * EIN WERT EINES ANDEREN DINGS: `parent.x`, `root.angle`, `outer.arm`,
+   * `parent.parent.y` — oder eines Dings beim Namen (`wyjscie.omega`). Fehlt es
+   * (keine Eltern, kein solches Ding), ist es 0.
+   */
+  private relation(path: string, at: number): Node {
+    const parts = path.split('.');
+    const name = parts.pop()!;
+    if (this.kinds.size === 0) throw new Fail(`„${path}" — kropka w nazwie działa tylko w świecie („world")`, at);
+    parts.forEach((p, i) => {
+      if (i > 0 && !(RELATIONS as readonly string[]).includes(p)) throw new Fail(`„${path}" — po kropce: parent, root, outer albo self`, at);
+    });
+    if (this.known !== undefined && !this.known(name)) throw new Fail(`nieznana nazwa „${name}" (w „${path}")`, at);
+    /* `#down` — liest vom Elternteil, der Wurzel (Wurzel zuerst rechnen); `#ref` — von dem, der fragt, oder einem Ding beim Namen. */
+    this.reads.add('#world');
+    this.reads.add(parts.every((p) => p === 'parent' || p === 'root' || p === 'self') ? '#down' : '#ref');
+    return {
+      run: (env) => {
+        let e: Env | undefined = env;
+        for (const step of parts) e = e === undefined ? undefined : hop(e, step);
+        return e === undefined ? 0 : e[name] ?? 0;
+      },
+      constant: false
+    };
   }
 
   private call(name: string, at: number): Node {
@@ -423,13 +577,14 @@ const CACHE = new Map<string, Expr | ExprError>();
  * ein anderer ist ein Fehler. Ohne `known` geht jeder Name (und wird, wenn er
  * fehlt, als 0 gerechnet).
  */
-export function compile(source: string, known?: (name: string) => boolean): Expr | ExprError {
-  const key = known === undefined ? source : null;
+export function compile(source: string, known?: ((name: string) => boolean) | CompileOptions): Expr | ExprError {
+  const options: CompileOptions = typeof known === 'function' ? { known } : known ?? {};
+  const key = options.known === undefined && options.kinds === undefined ? source : null;
   if (key !== null) {
     const hit = CACHE.get(key);
     if (hit !== undefined) return hit;
   }
-  const result = compileFresh(source, known);
+  const result = compileFresh(source, options);
   if (key !== null) {
     if (CACHE.size > 4000) CACHE.clear();
     CACHE.set(key, result);
@@ -437,12 +592,12 @@ export function compile(source: string, known?: (name: string) => boolean): Expr
   return result;
 }
 
-function compileFresh(source: string, known?: (name: string) => boolean): Expr | ExprError {
+function compileFresh(source: string, options: CompileOptions): Expr | ExprError {
   const trimmed = source.trim();
   if (trimmed === '') return { error: 'puste wyrażenie', at: 0, source };
   if (trimmed.length > EXPR_LIMITS.length) return { error: `wyrażenie dłuższe niż ${EXPR_LIMITS.length} znaków`, at: EXPR_LIMITS.length, source };
   try {
-    const reader = new Reader(tokens(trimmed), known);
+    const reader = new Reader(tokens(trimmed), options);
     const node = reader.whole();
     return { source: trimmed, run: node.run, reads: [...reader.reads], constant: node.constant };
   } catch (e) {
@@ -464,7 +619,7 @@ export const newEnv = (): Env => Object.create(null) as Env;
  * EIN TEXT MIT RECHNUNGEN DARIN: `Zasięg: {fmt(zasieg, 1)} m`. Was in
  * geschweiften Klammern steht, ist ein Ausdruck; der Rest bleibt, wie er ist.
  */
-export function compileText(source: string, known?: (name: string) => boolean): Expr | ExprError {
+export function compileText(source: string, known?: ((name: string) => boolean) | CompileOptions): Expr | ExprError {
   const parts: (string | Expr)[] = [];
   const reads = new Set<string>();
   let i = 0;
@@ -499,6 +654,9 @@ export function exprDescription(): string {
     '  funkcje:',
     ...Object.entries(FUNCTIONS).map(([name, f]) => `    ${name} — ${f.says}`),
     '  Kąty: sin/cos/tan liczą w radianach — kąt w stopniach zamienia rad(kąt), wynik asin/acos/atan2 zamienia deg(...).',
+    '  W świecie ("world"): parent.x, root.x — wartość rodzica, korzenia (parent.parent.x — dziadka); outer.x — rzeczy, która właśnie podsumowuje; nazwa.x — rzeczy o tym "id"',
+    `  podsumowania: ${AGGREGATES.map((a) => `${a}(…)`).join(', ')} — np. sum(children, total*arm), count(children), count(odwaznik, mass > 5), all(belka, abs(mom) < 0.05)`,
+    `    zbiory: children (dzieci), descendants (wszystkie niżej), siblings (rodzeństwo), others (inne tego rodzaju), things (wszystkie) albo nazwa rodzaju; wyrażenie po przecinku liczy się w KAŻDEJ rzeczy zbioru (jej nazwy, jej parent), a outer.x sięga do tej, która pyta`,
     '  Nieznana nazwa to błąd (edytor pokazuje, gdzie); dzielenie przez 0 daje nieskończoność — taki kształt chwilowo się nie rysuje.'
   ].join('\n');
 }

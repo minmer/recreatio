@@ -131,7 +131,11 @@ The same app with SMS, MMS and the phone's address book. It is meant for one pho
 | "Napisz SMS" in Formularze → Osoby opens a sheet that sends at once, and the list stays where it was. | `SmsSheet.tsx` |
 | The archive (*SMS → ⋯ → Archiwum*) belongs to a role you choose: your own person (its private area) or another role you hold, which gets its own area "Archiwum SMS". Whoever holds that role reads it, also in the browser. You can archive all conversations or only the ones you tick. Each archived conversation goes in whole, and after that new messages follow on their own, shortly after they arrive or are sent and twice a day. Nothing is archived on its own until you choose a role or press *Archiwizuj teraz* once. | `archiveSettings.ts`, `smsArchive.ts`, `SmsArchiveView.tsx`, `PhoneWork` → runner, `backend/Api/Phone/` |
 | An old phone adds its history: install the same APK there and sign in. The old phone doesn't have to become the SMS app; *Pozwól czytać SMS* is enough. Then press *Archiwizuj teraz*. It archives into the same archive, and a message both phones hold is stored once (same print). | `requestSmsRead`, `core/polyfills.ts` (older WebViews) |
-| The browser (`#/workspace/sms`) reads every archive you have access to. It shows conversations from small per-batch outlines, loads one conversation's batches when you open it, and searches by person, number or text. | `SmsArchiveView.tsx`, `POST /workspace/phone/archives` |
+| The browser (`#/workspace/sms`) reads every archive you have access to. It shows conversations from small per-batch outlines, loads one conversation's batches when you open it, and searches by person, number or text. It looks for new messages every 30 seconds while the tab is in front. | `SmsArchiveView.tsx`, `POST /workspace/phone/archives` |
+| Replying from the browser: a conversation with one person has a reply box (send now, or at a chosen time). The reply is sealed into the archive's area and waits there. Only a phone that has the own number this conversation used takes it, plans it and sends it; the archive records that number with every message (since 2026-10-18). The browser shows *Czeka na telefon*, *Telefon wysyła*, *Wysłano z telefonu (device)* or *Nie wysłano*, and *Odwołaj* works until the SMS is out. The phone hears of it through the FCM wake-up (`phoneOutbox` in `/notify/digest`); without FCM it hears within 15 minutes, and every minute while the app is open. | `outbox.ts`, `ReplyBox` in `SmsArchiveView.tsx`, `backend/Api/Phone/Phone.Outbox.cs` (0116), `Push.Phone`, `PhoneWork` job `outbox` |
+| *Wyślij później*: the clock next to *Wyślij* in a conversation picks a time, and the phone sends the SMS itself at that time, also without a network (an exact alarm). Text only, not MMS. Planned messages stand in the conversation with *Odwołaj*. Replies from the browser for later are planned the same way. | `Composer.tsx`, `ScheduledSms.java`, `ScheduledReceiver.java` |
+| *Twoje numery* (in *Archiwum*): the phone's own number per SIM. A SIM that doesn't report its number gets it typed in, on this phone only. | `Lines.java`, `OwnLines` in `SmsArchiveView.tsx` |
+| Long press selects a message, and each tap then adds or removes one. *Wyświetl* shows the chosen messages large, with A− / A+ (the size is remembered); *Kopiuj* copies them. This works on the phone and in the archive, also in the browser. Messages can't be deleted from the phone here. | `reading.tsx` |
 | Contacts `#/workspace/contacts`, sealed in the own area: read from the phone, vCard in and out, and edited here. A copy goes into the phone's contacts under the account "REcreatio" after every change and twice a day, so calls and SMS show names without asking the service. | `ContactsApp.tsx`, `contactStore.ts`, `PhoneContacts.java` |
 | "Przenieś z telefonu…" reads the phone's contacts in, writes the copy, then removes the originals that live only in the phone's own storage (no account). Contacts of DAVx5, Signal or the SIM stay. | `PhoneContacts.dropLocal` |
 
@@ -143,13 +147,13 @@ Install on GrapheneOS:
 4. In the app, open *SMS → Ustaw jako aplikację SMS*, then allow contacts.
 5. *Konto → Klucz: Zachowany*, so the archive and the contact copy also run while the app is closed (the runner needs the key, as for notifications).
 
-The service needs migrations 0114 (`phone_*` tables) and 0115 (an outline per archive batch), and an API with `Phone/`, before the archive and the contacts work.
+The service needs migrations 0114 (`phone_*` tables), 0115 (an outline per archive batch) and 0116 (`phone_outbox`, replies from the browser), and an API with `Phone/`, before the archive, the contacts and replies from the browser work.
 
 MMS has not been tried against a real carrier, because the emulator has no MMSC. The PDU codec has unit tests (`app/src/testSms`).
 
 ## Not there yet
 
-- **Push on GrapheneOS without sandboxed Play.** There is no FCM there, so the app falls back to the 15-minute check. The route there would be UnifiedPush (e.g. ntfy) behind the same wake-up signal.
+- **Push on GrapheneOS without sandboxed Play.** There is no FCM there, so the app falls back to the 15-minute check. That also delays replies written in the browser (up to 15 minutes, or a minute while the app is open). The route there would be UnifiedPush (e.g. ntfy) behind the same wake-up signal.
 
 ## Google Play
 

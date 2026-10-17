@@ -90,6 +90,45 @@ export interface PhoneStatus {
   readonly archivedAt: number | null;
   /** Google Messages ist installiert — mit Czat (RCS) kommen manche Nachrichten dort an, nicht hier. */
   readonly otherSms: boolean;
+  /** Wie sich dieses Telefon im Browser nennt („Google Pixel 8"). */
+  readonly device: string;
+}
+
+/** Eine eigene Nummer (eine Karte) — `known`: die Karte nennt sie selbst, sonst eingetragen (oder `null`). */
+export interface Line {
+  readonly subId: number;
+  readonly slot: number;
+  readonly name: string;
+  readonly number: string | null;
+  readonly known: boolean;
+}
+
+/** Eine geplante SMS dieses Telefons — selbst geplant oder aus dem Browser übernommen (`outboxId`). */
+export interface ScheduledEntry {
+  readonly id: string;
+  readonly to: readonly string[];
+  readonly body: string;
+  /** Millisekunden. */
+  readonly sendAt: number;
+  readonly subId: number;
+  readonly threadId: string;
+  readonly state: 'scheduled' | 'sending' | 'sent' | 'failed';
+  readonly createdAt: number;
+  readonly doneAt?: number;
+  readonly error?: string;
+  readonly outboxArea?: string;
+  readonly outboxId?: string;
+}
+
+export interface ScheduleRequest {
+  readonly id?: string;
+  readonly to: readonly string[];
+  readonly body: string;
+  /** Fehlt oder vorbei: gleich. */
+  readonly sendAt?: number;
+  readonly subId?: number;
+  readonly outboxArea?: string;
+  readonly outboxId?: string;
 }
 
 /** Eine Seite eines Gesprächs: die Nachrichten, wer darin ist, und wie sie im Adressbuch heissen. */
@@ -179,6 +218,12 @@ interface PhonePluginApi {
   retryMms(o: { id: string }): Promise<{ started: boolean }>;
   /** „Sprawdź nowe wiadomości": angekündigte MMS noch einmal laden; ist die App (noch) die SMS-App? */
   recheck(): Promise<{ defaultSms: boolean; otherSms: boolean; mmsRetried: number }>;
+  lines(): Promise<{ lines: Line[] }>;
+  setLine(o: { subId: number; number: string | null }): Promise<void>;
+  schedule(o: ScheduleRequest): Promise<{ entry: ScheduledEntry }>;
+  unschedule(o: { id: string }): Promise<{ removed: boolean }>;
+  scheduled(): Promise<{ entries: ScheduledEntry[] }>;
+  forgetScheduled(o: { id: string }): Promise<void>;
   /** Die Kontakte gleich im Hintergrund ins Adressbuch (der Läufer). */
   contactsSoon(): Promise<void>;
   /** Kontakte nur im Gerät (ohne Konto), die schon in recreatio sind, aus dem Gerät entfernen — `keys` wie `lookupKey`. */
@@ -201,6 +246,13 @@ export { phoneHere } from './here';
 /* -- Für Archiv und Adressbuch: ein Weg, ob App oder Läufer ------------------------------------ */
 
 export interface PhoneSource {
+  /** 0116 — die eigenen Nummern, die geplanten SMS, wie das Telefon heisst. */
+  lines(): Promise<{ lines: Line[] }>;
+  device(): Promise<{ device: string }>;
+  schedule(o: ScheduleRequest): Promise<{ entry: ScheduledEntry }>;
+  unschedule(o: { id: string }): Promise<{ removed: boolean }>;
+  scheduled(): Promise<{ entries: ScheduledEntry[] }>;
+  forgetScheduled(o: { id: string }): Promise<void>;
   threads(o: { limit?: number }): Promise<{ threads: NativeThread[] }>;
   exportMessages(o: ExportRequest): Promise<ExportPage>;
   /** Bis wohin dieses Telefon archiviert hat (als Text, `smsArchive.ts` deutet ihn). */
@@ -212,6 +264,12 @@ export interface PhoneSource {
 
 /** Die Brücke des Läufers (RunnerHost.java, Ausgabe „sms") — synchron, Text hinein, Text heraus. */
 interface RunnerPhoneBridge {
+  lines(): string;
+  device(): string;
+  schedule(json: string): string;
+  unschedule(json: string): string;
+  scheduled(): string;
+  forgetScheduled(json: string): string;
   threads(json: string): string;
   exportMessages(json: string): string;
   archiveState(): string;
@@ -233,7 +291,13 @@ export const pluginSource: PhoneSource = {
   archiveState: () => Phone.archiveState(),
   setArchiveState: (o) => Phone.setArchiveState(o),
   part: (o) => Phone.part(o),
-  writeContacts: (o) => Phone.writeContacts(o)
+  writeContacts: (o) => Phone.writeContacts(o),
+  lines: () => Phone.lines(),
+  device: async () => ({ device: (await Phone.status()).device }),
+  schedule: (o) => Phone.schedule(o),
+  unschedule: (o) => Phone.unschedule(o),
+  scheduled: () => Phone.scheduled(),
+  forgetScheduled: (o) => Phone.forgetScheduled(o)
 };
 
 /** Im Läufer: die Brücke — oder `null`, wenn es sie nicht gibt (gewöhnliche App). */
@@ -251,6 +315,12 @@ export function bridgeSource(): PhoneSource | null {
     archiveState: async () => ask<{ state: string }>(bridge.archiveState()),
     setArchiveState: async (o) => { ask<unknown>(bridge.setArchiveState(JSON.stringify(o))); },
     part: async (o) => ask<{ type: string; data: string }>(bridge.part(JSON.stringify(o))),
-    writeContacts: async (o) => ask<{ added: number; updated: number; removed: number; total: number }>(bridge.writeContacts(JSON.stringify(o)))
+    writeContacts: async (o) => ask<{ added: number; updated: number; removed: number; total: number }>(bridge.writeContacts(JSON.stringify(o))),
+    lines: async () => ask<{ lines: Line[] }>(bridge.lines()),
+    device: async () => ask<{ device: string }>(bridge.device()),
+    schedule: async (o) => ask<{ entry: ScheduledEntry }>(bridge.schedule(JSON.stringify(o))),
+    unschedule: async (o) => ask<{ removed: boolean }>(bridge.unschedule(JSON.stringify(o))),
+    scheduled: async () => ask<{ entries: ScheduledEntry[] }>(bridge.scheduled()),
+    forgetScheduled: async (o) => { ask<unknown>(bridge.forgetScheduled(JSON.stringify(o))); }
   };
 }

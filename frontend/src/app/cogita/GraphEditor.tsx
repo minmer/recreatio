@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import ReactFlow, {
-  Background, Controls, Handle, Position, useStore, useUpdateNodeInternals,
+  Background, Controls, Handle, Position, useReactFlow, useStore, useUpdateNodeInternals,
   type Connection, type Edge, type EdgeChange, type Node, type NodeChange, type NodeProps
 } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -81,6 +81,26 @@ export function Remeasure() {
     const later = window.setTimeout(() => update(pending.split(',')), 60);
     return () => window.clearTimeout(later);
   }, [pending, update]);
+  return null;
+}
+
+/*
+  Das ganze Bild im Blick: sobald alle Knoten ihre Grösse haben — am Anfang
+  und nachdem einer dazukam. `fitView` allein passt nur beim ersten Zeichnen
+  an, und da hatten noch nicht alle Knoten ihre Grösse: eine breite Vorlage
+  („Słowa między językami", elf Schritte) stand an beiden Rändern abgeschnitten.
+*/
+export function FitWhenMeasured({ padding = 0.08 }: { padding?: number }) {
+  const { fitView } = useReactFlow();
+  const measured = useStore((s) => {
+    const all = [...s.nodeInternals.values()];
+    return all.length > 0 && all.every((n) => !!n.width && !!n.height) ? all.length : 0;
+  });
+  useEffect(() => {
+    if (measured === 0) return undefined;
+    const later = window.setTimeout(() => fitView({ padding, duration: 200 }), 30);
+    return () => window.clearTimeout(later);
+  }, [measured, fitView, padding]);
   return null;
 }
 
@@ -199,11 +219,14 @@ export function GraphEditor<C>({ graph, palette, onChange, cycles = false, field
           nodesConnectable={!readOnly}
           nodesDraggable={!readOnly}
           fitView
+          /* Eine breite Vorlage (elf Schritte) passt erst unter der Hälfte ganz hinein — sonst steht sie an den Rändern abgeschnitten. */
+          minZoom={0.2}
           proOptions={{ hideAttribution: true }}
         >
           <Background />
           <Controls showInteractive={false} />
           <Remeasure />
+          <FitWhenMeasured />
         </ReactFlow>
       </div>
       <aside className="cg-graph-side">

@@ -489,11 +489,18 @@ public static class AccountDeletion
                                          OR place_id IN (SELECT id FROM app.address_place WHERE area_id IN (SELECT id FROM #dead));
         DELETE FROM app.address_place WHERE area_id IN (SELECT id FROM #dead);
 
-        -- 0114: das Telefon — Kontakte, das Archiv der SMS und seine Dateien (die Ordner gehen nach dem Commit).
-        INSERT INTO #phone (id) SELECT DISTINCT area_id FROM app.phone_file WHERE area_id IN (SELECT id FROM #dead);
-        DELETE FROM app.phone_file      WHERE area_id IN (SELECT id FROM #dead);
-        DELETE FROM app.phone_sms_batch WHERE area_id IN (SELECT id FROM #dead);
-        DELETE FROM app.phone_contact   WHERE area_id IN (SELECT id FROM #dead);
+        -- 0114: das Telefon — Kontakte, das Archiv der SMS und seine Dateien (die Ordner gehen nach dem Commit);
+        -- 0116: was im Browser für das Telefon zum Senden wartet. Bewacht: ohne die Migration fehlen die Tabellen,
+        -- und ein Konto muss sich trotzdem löschen lassen.
+        IF OBJECT_ID('app.phone_file', 'U') IS NOT NULL
+        BEGIN
+            INSERT INTO #phone (id) SELECT DISTINCT area_id FROM app.phone_file WHERE area_id IN (SELECT id FROM #dead);
+            DELETE FROM app.phone_file      WHERE area_id IN (SELECT id FROM #dead);
+            DELETE FROM app.phone_sms_batch WHERE area_id IN (SELECT id FROM #dead);
+            DELETE FROM app.phone_contact   WHERE area_id IN (SELECT id FROM #dead);
+        END
+        IF OBJECT_ID('app.phone_outbox', 'U') IS NOT NULL
+            DELETE FROM app.phone_outbox WHERE area_id IN (SELECT id FROM #dead);
 
         -- Formulare und Bausteine (0098: mit dem, was zu ihren Aufgaben gesagt wurde)
         DELETE FROM app.task_answer

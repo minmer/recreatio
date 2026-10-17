@@ -32,16 +32,16 @@
 
 import { colorValue, glowValue, readMotions, type MotionUse } from './motion';
 import {
-  bindOf, exprOf, LIVE_LIMITS, NAME, numOf, readAxes, readDrag, readLive, readTap,
+  bindOf, exprOf, LIVE_LIMITS, NAME, numOf, readAxes, readDrag, readLive, readTap, readWorld,
   type Axes, type DragSpec, type Live, type Num, type TapSpec
 } from './liveModel';
 import type { RawConfig } from '../part';
 
-export const SHAPE_TYPES = ['rect', 'circle', 'ellipse', 'line', 'path', 'text', 'image', 'group', 'use', 'arrow', 'poly', 'plot', 'trace', 'frame'] as const;
+export const SHAPE_TYPES = ['rect', 'circle', 'ellipse', 'line', 'path', 'text', 'image', 'group', 'use', 'arrow', 'poly', 'plot', 'trace', 'frame', 'world'] as const;
 export type ShapeType = (typeof SHAPE_TYPES)[number];
 
 /** 2026-10-17 — die Teile, die nur das Bild zum Anfassen kennt. */
-export const LIVE_TYPES: ReadonlySet<ShapeType> = new Set(['arrow', 'poly', 'plot', 'trace', 'frame']);
+export const LIVE_TYPES: ReadonlySet<ShapeType> = new Set(['arrow', 'poly', 'plot', 'trace', 'frame', 'world']);
 
 /** Was an einem Teil ein Ausdruck sein darf (`"=…"`). */
 export const BINDABLE = ['x', 'y', 'w', 'h', 'r', 'x2', 'y2', 'rotate', 'scale', 'opacity', 'width', 'size', 'fill', 'stroke'] as const;
@@ -269,7 +269,7 @@ const parse = (text: string | undefined): unknown => {
 };
 
 /** Die Schlüssel der Tafel, die das Bild zum Anfassen macht (2026-10-17) — jeder ein JSON. */
-export const LIVE_KEYS = ['vars', 'let', 'sim', 'controls', 'rules', 'panel'] as const;
+export const LIVE_KEYS = ['vars', 'let', 'sim', 'controls', 'rules', 'panel', 'world'] as const;
 
 /** Eine Zeichnung aus der gespeicherten Tafel des Bausteins (`size`, `symbols`, `elements` als JSON). */
 export function readDrawing(raw: RawConfig): Drawing {
@@ -278,7 +278,7 @@ export function readDrawing(raw: RawConfig): Drawing {
   return drawingOf({
     size: parse(raw.size), symbols: list(parse(raw.symbols)), elements: list(parse(raw.elements)), alt: raw.alt, max: parse(raw.max),
     vars: list(parse(raw.vars)), let: list(parse(raw.let)), sim: parse(raw.sim), controls: list(parse(raw.controls)), rules: list(parse(raw.rules)),
-    panel: raw.panel
+    panel: raw.panel, world: parse(raw.world)
   });
 }
 
@@ -304,7 +304,9 @@ export function drawingOf(value: unknown): Drawing {
     w: num(size[0], 100, 1, 100000), h: num(size[1], 100, 1, 100000),
     alt: typeof one.alt === 'string' ? one.alt.trim().slice(0, 200) : '',
     symbols, elements, max,
-    live: readLive({ vars: one.vars, let: one.let, sim: one.sim, controls: one.controls, rules: one.rules, panel: one.panel })
+    /* 2026-10-18 — die Teile einer Art zählen zum selben Budget wie die übrigen. */
+    live: readLive({ vars: one.vars, let: one.let, sim: one.sim, controls: one.controls, rules: one.rules, panel: one.panel },
+      readWorld(one.world, (list) => (Array.isArray(list) ? list : []).map((c) => readShape(c, 1, budget)).filter((c): c is Shape => c !== null)))
   };
 }
 

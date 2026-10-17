@@ -34,6 +34,11 @@ const TEMPLATE_FIELDS: Record<string, readonly ConfigField[]> = {
   follow: [f('path', 'Droga po odwołaniach', 'lines', { hint: 'klucze pól, jeden w wierszu: authors, then birthplace' })],
   list: [f('items', 'Pozycje', 'lines')],
   entity: [],
+  filter: [
+    f('key', 'Pole', 'field', { hint: 'puste: porównuje same wpisy' }),
+    f('value', 'Wartość, gdy nic nie przychodzi do „Porównaj z"', 'lines', { hint: 'np. angielski — jedna w wierszu' })
+  ],
+  unique: [],
   pattern: [f('text', 'Wzór', 'text', { hint: 'Kto napisał {0}?' }), f('inputs', 'Ile wejść', 'number'), f('joiner', 'Łącznik wielu wartości', 'text', { hint: ', ' })],
   mask: [f('mode', 'Co zakryć', 'select', { options: opts([['prefix', 'koniec (zostaje początek)'], ['suffix', 'początek (zostaje koniec)'], ['random', 'losowe słowa']]) }), f('keep', 'Ile zostaje widoczne (0–1)', 'number'), f('gap', 'Znak luki', 'text', { hint: '…' })],
   fragments: [f('min', 'Najkrótszy kawałek (znaki)', 'number'), f('max', 'Najdłuższy kawałek (znaki)', 'number')],

@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets'];
 await build({
   entryPoints: names.map((n) => `src/app/cogita/${n}.ts`),
   bundle: true,
@@ -24,7 +24,7 @@ await build({
   logLevel: 'error'
 });
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P] = await Promise.all(names.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -371,6 +371,48 @@ check('answered in the right order', Cards.checkCard(hand, ['Mieszko I', 'Boles�
 const pick = Cards.questionCard(e('hc', ['q'], { form: 'one', prompt: 'Stolica?', options: ['Kraków', 'Gniezno', 'Płock'], correct: 1 }), 's');
 check('a hand-written choice keeps its right answer when shuffled', pick.answer.options[pick.answer.correct], 'Gniezno');
 check('a question without its answer is no card', Cards.questionCard(e('hx', ['q'], { form: 'text', prompt: 'Co?' })), null);
+
+/* 2026-10-18 — Wörter mehrerer Sprachen in EINEM Eintrag: je Sprache eine Karte, die Richtung vorn. */
+{
+  const LANG = kind('k-lang2', { name: 'Język', label: '{name}', fields: [{ key: 'name', label: 'Nazwa', type: 'line' }] });
+  const WORD = kind('k-word2', { name: 'Słowo', label: '{text}', fields: [{ key: 'text', label: 'Tekst', type: 'line' }, { key: 'lang', label: 'Język', type: 'ref', to: ['k-lang2'] }] });
+  const TRANS = kind('k-trans2', { name: 'Tłumaczenie', label: '{words}', fields: [{ key: 'words', label: 'Słowa', type: 'ref', multi: true, to: ['k-word2'] }] });
+  const items = [
+    e('ln-en', ['k-lang2'], { name: 'angielski' }), e('ln-pl', ['k-lang2'], { name: 'polski' }),
+    e('wd-house', ['k-word2'], { text: 'house', lang: 'ln-en' }), e('wd-dom', ['k-word2'], { text: 'dom', lang: 'ln-pl' }), e('wd-apart', ['k-word2'], { text: 'apartament', lang: 'ln-pl' }),
+    e('tr-1', ['k-trans2'], { words: ['wd-house', 'wd-dom', 'wd-apart'] }),
+    e('tr-2', ['k-trans2'], { words: ['wd-dom', 'wd-apart'] })
+  ];
+  const look3 = S.lookupOf([LANG, WORD, TRANS], items);
+  const ctx3 = (id) => ({ look: look3, entity: items.find((x) => x.id === id), pool: (k) => items.filter((x) => x.kinds.includes(k)), seed: 's3' });
+  const shown = (cards) => cards.map((c) => [c.prompt.map((x) => x.text).join(' '), c.answer.accepted]);
+  const preset = P.TEMPLATE_PRESETS.find((x) => x.id === 'languages');
+  const both = Cards.readTemplate('langs', preset.make('k-trans2', { key: 'words', label: 'Słowa' }, { key: 'lang', label: 'Język' }));
+  const made = (await Cards.cardsOf(both, ctx3('tr-1'))).cards;
+  check('between languages: a card per language — its words with the direction, the other language as the answer',
+    shown(made), [['angielski → polski: house', ['dom', 'apartament']], ['polski → angielski: dom, apartament', ['house']]]);
+  check('… two languages, two cards (two Polish words are one language)', new Set(made.map((c) => c.key)).size, 2);
+  check('… a translation within one language makes none', (await Cards.cardsOf(both, ctx3('tr-2'))).cards.length, 0);
+  const FIXED = tpl('en-pl', ['k-trans2'], 'en→pl', [
+    n('words', 'field', { key: 'words' }), n('en', 'filter', { key: 'lang', value: ['Angielski'] }), n('pl', 'filter', { key: 'lang', value: ['polski'] }),
+    n('has', 'when', { test: 'filled' }), n('ask', 'pattern', { text: 'angielski → polski: {0}', inputs: 1 }), n('prompt', 'prompt'), n('text', 'answer.text'), n('card', 'card')
+  ], [
+    l('1', 'words', 'values', 'en', 'items'), l('2', 'words', 'values', 'pl', 'items'), l('3', 'en', 'kept', 'has', 'items'), l('4', 'has', 'items', 'ask', 'p0'),
+    l('5', 'ask', 'text', 'prompt', 'parts'), l('6', 'pl', 'kept', 'text', 'expected'), l('7', 'prompt', 'prompt', 'card', 'prompt'), l('8', 'text', 'answer', 'card', 'answer')
+  ]);
+  check('a fixed direction: the language typed in the filter (any case)', shown((await Cards.cardsOf(FIXED, ctx3('tr-1'))).cards), [['angielski → polski: house', ['dom', 'apartament']]]);
+  check('… and with a condition, no card where that language is missing', (await Cards.cardsOf(FIXED, ctx3('tr-2'))).cards.length, 0);
+  const OTHERS = tpl('others', ['k-trans2'], '', [
+    n('words', 'field', { key: 'words' }), n('one', 'pick', { position: 'first' }), n('not', 'filter'), n('text', 'answer.text'), n('card', 'card')
+  ], [
+    l('1', 'words', 'values', 'one', 'items'), l('2', 'words', 'values', 'not', 'items'), l('3', 'one', 'chosen', 'not', 'like'),
+    l('4', 'not', 'rest', 'text', 'expected'), l('5', 'text', 'answer', 'card', 'answer')
+  ]);
+  check('a filter without a field compares the entries themselves: all but this one', (await Cards.cardsOf(OTHERS, ctx3('tr-1'))).cards[0].answer.accepted, ['dom', 'apartament']);
+  const LOST = tpl('lost', ['k-trans2'], '', [n('words', 'field', { key: 'words' }), n('f', 'filter', { key: 'lang' }), n('text', 'answer.text'), n('card', 'card')],
+    [l('1', 'words', 'values', 'f', 'items'), l('2', 'f', 'kept', 'text', 'expected'), l('3', 'text', 'answer', 'card', 'answer')]);
+  truth('a filter with nothing to compare says so', (await Cards.cardsOf(LOST, ctx3('tr-1'))).problems.some((x) => x.includes('nie ma z czym porównać')));
+}
 
 /* ── Wiederholung ─────────────────────────────────────────────────────── */
 

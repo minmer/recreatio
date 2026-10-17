@@ -20,18 +20,24 @@
  * <code>
  *   ready    t = 0, die Grössen folgen den Werten (der Schieber zeigt sofort, wo es losgeht)
  *   running  die Zeit läuft
- *   paused   angehalten
+ *   paused   angehalten (oder, mit `sleep`, eingeschlafen: es geschieht nichts mehr)
  *   ended    `until` ist wahr geworden (oder `max` erreicht, oder ein Ereignis mit `stop`)
  * </code>
  *
  * Ändert man einen Wert, von dem der Anfang abhängt, beginnt es von vorn;
  * einer, der nur die Raten ändert (die Schwerkraft, die Dämpfung), wirkt
  * sofort, ohne Neubeginn.
+ *
+ * <b>2026-10-18 — mit einer Welt</b> (`liveWorld.ts`): die Grössen ihrer Dinge
+ * laufen im selben Runge-Kutta mit; jede Änderung am Bau (anhängen,
+ * einstellen, ziehen, wegnehmen) geht durch `mutate` — gemerkt für „Cofnij",
+ * gezählt (`edits`), und zurückgenommen, wenn danach eine Regel der Welt
+ * (`keep`) nicht mehr gilt.
  */
 
-import type { Drawing, Shape } from './drawing';
 import { compile, compileText, isExprError, newEnv, toNum, truth, type Env, type Expr } from './expr';
-import { BUILTINS, type Action, type ControlSpec, type Live, type Mood, type Num, type RuleSpec, type SimSpec, type VarSpec } from './liveModel';
+import { BUILTINS, type Action, type ControlSpec, type Live, type Mood, type RuleSpec, type SimSpec, type VarSpec } from './liveModel';
+import { World, type Thing, type WorldShot } from './liveWorld';
 
 export type Status = 'ready' | 'running' | 'paused' | 'ended';
 
@@ -51,15 +57,24 @@ export interface Problem {
 }
 
 export interface ProgramOptions {
-  /** Werte, die feststehen (in Cogita: der gezogene Zufall, die Antwort des Lernenden). */
+  /** Werte, die feststehen (in Cogita: der gezogene Zufall, die Antwort des Lernenden) — auch `ding.eigenschaft`. */
   readonly fixed?: Readonly<Record<string, number>>;
   /** Der Zufall für `random` — sonst `Math.random`. */
   readonly random?: () => number;
+  /** 2026-10-18 — mit diesem Bau der Welt beginnen (gezeigt, wie er ist: eine Antwort, die nachgespielt wird). */
+  readonly world?: WorldShot | null;
+  /** …oder ihn durch die Regeln der Welt nachspielen (die Prüfung in Cogita). */
+  readonly replay?: WorldShot | null;
 }
 
 /** Höchstens so viele Schritte je Bild (danach läuft es langsamer, statt das Telefon anzuhalten) — und je Prüfung. */
 const MAX_STEPS_PER_CALL = 6000;
 const MAX_STEPS_HEADLESS = 600_000;
+/** Eine Prüfung rechnet höchstens so viele Sekunden der Simulation. */
+const HEADLESS_SECONDS = 120;
+/** Unter dieser Änderung je Sekunde gilt eine Grösse als ruhig — so lange (s) ruhig, und die Simulation schläft. */
+const QUIET_RATE = 2e-3;
+const QUIET_FOR = 0.8;
 
 /** Eine Zuweisung: welcher Wert, aus welcher Rechnung. */
 export interface Assign {
@@ -74,6 +89,8 @@ interface Rule {
   readonly say: Expr | null;
   armed: boolean;
   fired: boolean;
+  /** Seit wann die Bedingung ununterbrochen gilt (für `for`) — `null`: gerade nicht. */
+  since: number | null;
 }
 
 interface SimEvent {
@@ -102,12 +119,17 @@ export class Program {
   readonly controls: readonly ControlSpec[];
   readonly panel: 'below' | 'side';
   readonly sim: SimSpec | null;
+  /** 2026-10-18 — die Welt der Dinge (`null`: keine). */
+  readonly world: World | null = null;
   status: Status = 'ready';
   /** Ob etwas die Uhr `time` liest — dann läuft das Bild, solange es zu sehen ist. */
   usesTime = false;
+  /** Schläft die Simulation (es geschah nichts mehr)? Eine Änderung weckt sie. */
+  sleeping = false;
 
   private readonly varBy: Map<string, VarSpec>;
   private readonly known = new Set<string>(BUILTINS);
+  private readonly kindNames: ReadonlySet<string>;
   private readonly lets: { readonly name: string; readonly expr: Expr }[] = [];
   /** Die Rechnungen, die die Raten brauchen (in ihrer Reihenfolge) — nur sie laufen in den Zwischenschritten. */
   private simLets: { readonly name: string; readonly expr: Expr }[] = [];
@@ -115,6 +137,7 @@ export class Program {
   private readonly events: SimEvent[] = [];
   private readonly until: Expr | null = null;
   private readonly rules: Rule[] = [];
+  private readonly keeps: { readonly when: Expr; readonly say: string }[] = [];
   /** Die Werte, von denen der Anfang der Simulation abhängt. */
   private readonly initDeps = new Set<string>();
   private readonly changed = new Set<string>();
@@ -125,6 +148,10 @@ export class Program {
   private reached = false;
   private carry = 0;
   private exploded = false;
+  /** Die Uhr der Regeln (`for`): Sekunden der Wirklichkeit — in einer Prüfung die der Simulation. */
+  private ruleClock = 0;
+  private quietFor = 0;
+  private headless = false;
   private y0 = new Float64Array(0);
   private yt = new Float64Array(0);
   private k1 = new Float64Array(0);
@@ -138,6 +165,8 @@ export class Program {
     this.controls = live?.controls ?? [];
     this.panel = live?.panel ?? 'below';
     this.varBy = new Map(this.vars.map((v) => [v.name, v]));
+    const worldSpec = live?.world ?? null;
+    this.kindNames = new Set(worldSpec?.kinds.map((k) => k.name) ?? []);
 
     for (const name of BUILTINS) this.env[name] = name === 'n' ? 1 : 0;
 
@@ -151,6 +180,13 @@ export class Program {
       this.known.add(s.name);
       stateNames.push(s.name);
     }
+    const globalNames = new Set(this.known);
+    /* Was über Dinge zusammenfasst (`all(belka, abs(mom) < tol)`), nennt ihre Namen — das ganze Bild kennt sie darum auch. */
+    for (const k of worldSpec?.kinds ?? []) {
+      for (const p of k.props) this.known.add(p.name);
+      for (const l of k.lets) this.known.add(l.name);
+      for (const s of k.state) this.known.add(s.name);
+    }
 
     for (const v of this.vars) {
       const given = options.fixed?.[v.name];
@@ -162,7 +198,13 @@ export class Program {
       this.env[l.name] = 0;
     }
 
-    this.sim = sim !== null && stateNames.length > 0 ? sim : null;
+    if (worldSpec !== null) {
+      this.world = new World(worldSpec, this.env, globalNames, (p) => this.report(p), { fixed: options.fixed, random, state: new Set(stateNames) });
+      if (options.world !== undefined && options.world !== null) this.world.restore(options.world);
+    }
+
+    const worldMoves = this.world !== null && this.world.spec.kinds.some((k) => k.state.length > 0);
+    this.sim = sim !== null && (stateNames.length > 0 || worldMoves) ? sim : null;
     if (this.sim !== null) {
       for (const s of this.sim.state) {
         if (!stateNames.includes(s.name)) continue;
@@ -177,14 +219,11 @@ export class Program {
         when: this.compile(e.when, `sim.events[${i}].when`) ?? ZERO,
         set: this.assigns(e.set, `sim.events[${i}].set`),
         stop: e.stop,
-        say: e.say === '' ? null : this.compileSay(e.say, `sim.events[${i}].say`),
+        say: e.say === '' ? null : this.compileText(e.say, `sim.events[${i}].say`),
         mood: e.mood,
         armed: true
       }));
       this.until = this.sim.until === null ? null : this.compile(this.sim.until, 'sim.until');
-      const n = this.grows.length;
-      this.y0 = new Float64Array(n); this.yt = new Float64Array(n);
-      this.k1 = new Float64Array(n); this.k2 = new Float64Array(n); this.k3 = new Float64Array(n); this.k4 = new Float64Array(n);
       this.simLets = this.letsFor(this.grows.flatMap((g) => g.rate.reads));
       for (const name of this.depsOf(this.grows.flatMap((g) => g.init.reads))) if (this.varBy.has(name)) this.initDeps.add(name);
     }
@@ -193,10 +232,12 @@ export class Program {
       spec,
       when: this.compile(spec.when, `rules[${i}].when`) ?? ZERO,
       set: this.assigns(spec.set, `rules[${i}].set`),
-      say: spec.say === '' ? null : this.compileSay(spec.say, `rules[${i}].say`),
+      say: spec.say === '' ? null : this.compileText(spec.say, `rules[${i}].say`),
       armed: true,
-      fired: false
+      fired: false,
+      since: null
     }));
+    this.keeps = (worldSpec?.keep ?? []).map((k, i) => ({ when: this.compile(k.when, `world.keep[${i}]`) ?? ZERO, say: k.say }));
 
     /*
      * WAS DEN VERSUCH AUSMACHT: nicht nur der Anfang, auch was Regeln und
@@ -215,13 +256,19 @@ export class Program {
     }
     this.controlValues = this.controls.map((c) => (c.type === 'readout' ? this.compile(c.value, `controls (readout „${c.label}")`) : null));
     this.controlSets = this.controls.map((c) => (c.type === 'button' ? this.assigns(c.set, `controls (button „${c.label}")`) : []));
+    this.controlShows = this.controls.map((c, i) => (c.show === null ? null : this.compile(c.show, `controls[${i}].show`)));
 
     this.restart();
+    if (options.replay !== undefined && options.replay !== null && this.world !== null) {
+      this.world.replay(options.replay);
+      this.restart();
+    }
   }
 
-  /** Je Anzeige der Bedienung ihr Ausdruck, je Knopf seine Zuweisungen (Stelle wie in `controls`). */
+  /** Je Anzeige der Bedienung ihr Ausdruck, je Knopf seine Zuweisungen, je Element wann es zu sehen ist (Stelle wie in `controls`). */
   readonly controlValues: readonly (Expr | null)[];
   readonly controlSets: readonly (readonly Assign[])[];
+  readonly controlShows: readonly (Expr | null)[];
 
   /** Einen Fehler merken — denselben nur einmal. */
   private report(problem: Problem): void {
@@ -238,20 +285,20 @@ export class Program {
    */
   compile(source: string, where: string, extra: readonly string[] = []): Expr | null {
     const own = extra.length === 0 ? this.known : new Set([...this.known, ...extra]);
-    const made = compile(source, (name) => own.has(name));
+    const made = compile(source, { known: (name) => own.has(name), kinds: this.kindNames });
     if (!isExprError(made)) {
       if (made.reads.includes('time')) this.usesTime = true;
       return made;
     }
     this.report({ where, error: made.error, source: made.source, at: made.at });
-    const loose = compile(source);
+    const loose = compile(source, { kinds: this.kindNames });
     return isExprError(loose) ? null : loose;
   }
 
   /** Ein Text mit `{…}` darin. */
   compileText(source: string, where: string, extra: readonly string[] = []): Expr | null {
     const own = extra.length === 0 ? this.known : new Set([...this.known, ...extra]);
-    const made = compileText(source, (name) => own.has(name));
+    const made = compileText(source, { known: (name) => own.has(name), kinds: this.kindNames });
     if (!isExprError(made)) {
       if (made.reads.includes('time')) this.usesTime = true;
       return made;
@@ -260,14 +307,18 @@ export class Program {
     return null;
   }
 
-  private compileSay(source: string, where: string): Expr | null {
-    return this.compileText(source, where);
+  /** 2026-10-18 — ein Ausdruck in einem Ding der Welt (die Teile einer Art): mit den Namen der Dinge. */
+  compileThing(source: string, where: string, text = false): Expr | null {
+    if (this.world === null) return text ? this.compileText(source, where) : this.compile(source, where);
+    const made = text ? this.world.compileText(source, where) : this.world.compile(source, where);
+    if (made !== null && made.reads.includes('time')) this.usesTime = true;
+    return made;
   }
 
   private assigns(set: Readonly<Record<string, string>>, where: string, extra: readonly string[] = []): Assign[] {
     const out: Assign[] = [];
     for (const [name, source] of Object.entries(set)) {
-      if (!this.varBy.has(name) && !this.grows.some((g) => g.name === name)) {
+      if (!this.varBy.has(name) && !this.grows.some((g) => g.name === name) && !(this.sim?.state.some((s) => s.name === name) ?? false)) {
         this.report({ where, error: `„${name}" nie jest zmienną ani stanem symulacji — nie da się go ustawić`, source: name, at: 0 });
         continue;
       }
@@ -336,6 +387,7 @@ export class Program {
         if (this.sim?.auto === true && wasRunning) this.status = 'running';
       }
       this.evalLets(this.lets);
+      this.wake();
       return true;
     }
     if (this.grows.some((g) => g.name === name) || name === 'px' || name === 'py' || name === 'step') {
@@ -347,16 +399,22 @@ export class Program {
     return false;
   }
 
-  /** Was sich seit dem letzten Mal geändert hat — und vergessen. */
+  /** Was sich seit dem letzten Mal geändert hat — und vergessen. Eine Welt, an der sich etwas tat, meldet sich als `#world`. */
   takeChanged(): Set<string> {
     const out = new Set(this.changed);
     this.changed.clear();
+    if (this.world !== null && this.world.dirty) { out.add('#world'); this.world.dirty = false; }
     return out;
   }
 
   /** Die Werte, die man eingestellt hat — so wird eine Antwort gespeichert. */
   snapshot(): Record<string, number> {
     return Object.fromEntries(this.vars.map((v) => [v.name, this.value(v.name)]));
+  }
+
+  /** 2026-10-18 — der Bau der Welt, wie er gerade steht (für eine Antwort, zum Speichern). */
+  worldSnapshot(): WorldShot | null {
+    return this.world?.snapshot() ?? null;
   }
 
   /* -- Laufen ----------------------------------------------------------------------- */
@@ -367,12 +425,14 @@ export class Program {
         if (this.sim === null) return;
         if (this.status === 'ended') this.restart();
         this.status = 'running';
+        this.sleeping = false;
         return;
       case 'pause':
         if (this.status === 'running') this.status = 'paused';
+        this.sleeping = false;
         return;
       case 'toggle':
-        this.act(this.status === 'running' ? 'pause' : 'run');
+        this.act(this.status === 'running' || this.sleeping ? 'pause' : 'run');
         return;
       case 'reset':
         this.restart();
@@ -380,9 +440,15 @@ export class Program {
     }
   }
 
-  /** Läuft etwas, das jedes Bild neu gezeichnet werden muss? */
+  /** Eine eingeschlafene Simulation wieder wecken (nach jeder Änderung). */
+  wake(): void {
+    if (this.sleeping) { this.sleeping = false; this.status = 'running'; }
+    this.quietFor = 0;
+  }
+
+  /** Läuft etwas, das jedes Bild neu gezeichnet werden muss — auch eine Regel, die auf ihr `for` wartet? */
   busy(clock: boolean): boolean {
-    return this.status === 'running' || (clock && this.usesTime);
+    return this.status === 'running' || (clock && this.usesTime) || this.rules.some((r) => r.since !== null && r.armed && r.spec.for > 0);
   }
 
   /** Die Spur, die ein Teil zieht: wird nach jedem Schritt gerufen (und vergisst bei `reset`). */
@@ -392,18 +458,21 @@ export class Program {
     return () => { this.samplers.delete(sample); this.resetters.delete(reset); };
   }
 
-  /** Von vorn: t = 0, der Anfang aus den Werten, die Regeln wieder scharf, die Spuren leer. */
+  /** Von vorn: t = 0, der Anfang aus den Werten, die Regeln wieder scharf, die Spuren leer (der Bau einer Welt bleibt). */
   restart(): void {
     this.status = 'ready';
+    this.sleeping = false;
+    this.quietFor = 0;
     this.carry = 0;
     this.exploded = false;
     this.env.t = 0;
     this.changed.add('t');
     this.initState();
     for (const e of this.events) e.armed = true;
-    for (const r of this.rules) { r.armed = true; r.fired = false; }
+    for (const r of this.rules) { r.armed = true; r.fired = false; r.since = null; }
     this.reached = false;
     this.saidNow = null;
+    if (this.world !== null) this.world.said = null;
     for (const reset of this.resetters) reset();
   }
 
@@ -413,6 +482,7 @@ export class Program {
     /* Zuerst alle Anfänge rechnen, dann setzen: ein Anfang darf einen anderen lesen, wie er vor dem Neubeginn war. */
     const starts = this.grows.map((g) => toNum(g.init.run(this.env)));
     this.grows.forEach((g, i) => { this.env[g.name] = Number.isFinite(starts[i]) ? starts[i] : 0; this.changed.add(g.name); });
+    this.world?.initAllState();
     this.evalLets(this.lets);
   }
 
@@ -425,6 +495,7 @@ export class Program {
 
   /** Die Uhr des Bildes weiter (nur wenn es zu sehen ist) und die Simulation um `seconds` (Wirklichkeit). */
   advance(seconds: number, clock: boolean): void {
+    if (seconds > 0) this.ruleClock += seconds;
     if (clock && this.usesTime && seconds > 0) {
       this.env.time = toNum(this.env.time) + seconds;
       this.changed.add('time');
@@ -442,25 +513,57 @@ export class Program {
     if (steps > 0) {
       this.changed.add('t');
       for (const g of this.grows) this.changed.add(g.name);
+      /* Geschieht nichts mehr (jede Rate fast 0), schläft sie — das Telefon ruht, bis jemand etwas ändert. */
+      if (this.sim.sleep && !this.headless && this.status === 'running') {
+        let most = 0;
+        for (let j = 0; j < this.k1.length; j += 1) most = Math.max(most, Math.abs(this.k1[j]));
+        this.quietFor = most < QUIET_RATE ? this.quietFor + steps * dt : 0;
+        if (this.quietFor >= QUIET_FOR) { this.status = 'paused'; this.sleeping = true; }
+      }
     }
+  }
+
+  /** Wie viele Grössen der Runge-Kutta trägt — die eigenen und die der Dinge (deren Zahl sich mit dem Bau ändert). */
+  private sized(): number {
+    const n = this.grows.length + (this.world?.slots.length ?? 0);
+    if (this.y0.length !== n) {
+      this.y0 = new Float64Array(n); this.yt = new Float64Array(n);
+      this.k1 = new Float64Array(n); this.k2 = new Float64Array(n); this.k3 = new Float64Array(n); this.k4 = new Float64Array(n);
+    }
+    return n;
   }
 
   /** Die Raten an der Stelle `y` zur Zeit `t` — in `out`. */
   private rates(t: number, y: Float64Array, out: Float64Array): void {
     const env = this.env;
+    const g = this.grows.length;
     env.t = t;
-    for (let j = 0; j < this.grows.length; j += 1) env[this.grows[j].name] = y[j];
+    for (let j = 0; j < g; j += 1) env[this.grows[j].name] = y[j];
+    if (this.world !== null) { this.world.writeState(y, g); this.world.evalLets('dynamic'); }
     for (const l of this.simLets) env[l.name] = l.expr.run(env);
-    for (let j = 0; j < this.grows.length; j += 1) out[j] = toNum(this.grows[j].rate.run(env));
+    for (let j = 0; j < g; j += 1) out[j] = toNum(this.grows[j].rate.run(env));
+    this.world?.rates(out, g);
+  }
+
+  private readY(into: Float64Array): void {
+    const g = this.grows.length;
+    for (let j = 0; j < g; j += 1) into[j] = toNum(this.env[this.grows[j].name]);
+    this.world?.readState(into, g);
+  }
+
+  private writeY(from: Float64Array): void {
+    const g = this.grows.length;
+    for (let j = 0; j < g; j += 1) this.env[this.grows[j].name] = from[j];
+    this.world?.writeState(from, g);
   }
 
   /** Ein Schritt Runge-Kutta (vierter Ordnung), dann Ereignisse, Ende, Regeln, Spuren. */
   private stepOnce(dt: number): void {
-    const n = this.grows.length;
+    const n = this.sized();
     const env = this.env;
     const t = toNum(env.t);
     const { y0, yt, k1, k2, k3, k4 } = this;
-    for (let j = 0; j < n; j += 1) y0[j] = toNum(env[this.grows[j].name]);
+    this.readY(y0);
     this.rates(t, y0, k1);
     for (let j = 0; j < n; j += 1) yt[j] = y0[j] + (dt / 2) * k1[j];
     this.rates(t + dt / 2, yt, k2);
@@ -470,13 +573,11 @@ export class Program {
     this.rates(t + dt, yt, k4);
     let broken = false;
     for (let j = 0; j < n; j += 1) {
-      const v = y0[j] + (dt / 6) * (k1[j] + 2 * k2[j] + 2 * k3[j] + k4[j]);
-      if (!Number.isFinite(v)) broken = true;
-      env[this.grows[j].name] = v;
+      yt[j] = y0[j] + (dt / 6) * (k1[j] + 2 * k2[j] + 2 * k3[j] + k4[j]);
+      if (!Number.isFinite(yt[j])) broken = true;
     }
-    env.t = t + dt;
     if (broken) {
-      for (let j = 0; j < n; j += 1) env[this.grows[j].name] = y0[j];
+      this.writeY(y0);
       env.t = t;
       this.status = 'ended';
       if (!this.exploded) {
@@ -484,6 +585,15 @@ export class Program {
         this.report({ where: 'sim', error: 'symulacja dała nieskończoność albo NaN — sprawdź „rate" (dzielenie przez 0?)', source: '', at: 0 });
       }
       return;
+    }
+    this.writeY(yt);
+    env.t = t + dt;
+    if (this.headless) this.ruleClock += dt;
+    if (this.world !== null) {
+      this.world.dirty = true;
+      this.world.evalLets('dynamic');
+      this.world.events();
+      if (this.world.said !== null) { this.saidNow = { ...this.world.said, goal: false }; this.world.said = null; }
     }
     this.evalLets(this.lets);
 
@@ -521,12 +631,16 @@ export class Program {
     this.evalLets(this.lets);
   }
 
-  /** Die Regeln: eine, deren Bedingung wahr WIRD, tut, was sie sagt. */
+  /** Die Regeln: eine, deren Bedingung wahr WIRD (und, mit `for`, so lange wahr BLEIBT), tut, was sie sagt. */
   private applyRules(): void {
     for (const r of this.rules) {
       const now = truth(r.when.run(this.env));
-      if (!now) { if (!r.spec.once || !r.fired) r.armed = true; continue; }
+      if (!now) { r.since = null; if (!r.spec.once || !r.fired) r.armed = true; continue; }
       if (!r.armed) continue;
+      if (r.spec.for > 0) {
+        if (r.since === null) r.since = this.ruleClock;
+        if (this.ruleClock - r.since < r.spec.for - 1e-9) continue;
+      }
       r.armed = false;
       r.fired = true;
       this.apply(r.set);
@@ -537,8 +651,9 @@ export class Program {
     }
   }
 
-  /** Nach einer Eingabe oder einem Bild: Rechnungen und Regeln auf den neuesten Stand. */
+  /** Nach einer Eingabe oder einem Bild: Rechnungen (der Dinge, dann des Bildes) und Regeln auf den neuesten Stand. */
   settle(): void {
+    this.world?.evalLets('all');
     this.evalLets(this.lets);
     this.applyRules();
   }
@@ -548,6 +663,7 @@ export class Program {
     this.apply(set);
     if (action !== null) this.act(action);
     if (go !== null) this.gos.push(go);
+    this.wake();
     this.settle();
   }
 
@@ -555,6 +671,118 @@ export class Program {
   prepare(set: Readonly<Record<string, string>>, where: string, extra: readonly string[] = []): Assign[] {
     return this.assigns(set, where, extra);
   }
+
+  /* -- 2026-10-18: den Bau ändern ---------------------------------------------------------- */
+
+  /** Gilt noch alles, was immer gelten muss? Sonst: was dazu gesagt wird. */
+  private broken(): string | null {
+    for (const k of this.keeps) if (!truth(k.when.run(this.env))) return k.say || 'Tego nie wolno w tym zadaniu.';
+    return null;
+  }
+
+  /**
+   * EINE ÄNDERUNG AM BAU — gemerkt (für „Cofnij"), gezählt (`edits`), und
+   * zurückgenommen, wenn danach eine Regel der Welt (`keep`) nicht mehr gilt.
+   * Gibt zurück, ob sie geblieben ist.
+   */
+  mutate(change: (world: World) => boolean): boolean {
+    const w = this.world;
+    if (w === null) return false;
+    w.remember();
+    this.env.edits = toNum(this.env.edits) + 1;
+    if (!change(w)) { w.forget(); this.env.edits = toNum(this.env.edits) - 1; return false; }
+    this.settle();
+    const bad = this.broken();
+    if (bad !== null) {
+      w.forget();
+      this.env.edits = toNum(this.env.edits) - 1;
+      this.settle();
+      this.saidNow = { text: bad, mood: 'miss', goal: false };
+      return false;
+    }
+    this.changed.add('edits');
+    this.wake();
+    return true;
+  }
+
+  /** Ein Ziehen beginnt: EINE Änderung (gemerkt und gezählt) — oder keine, wenn das Budget (`keep`) erschöpft ist. */
+  gestureStart(): boolean {
+    const w = this.world;
+    if (w === null) return false;
+    w.remember();
+    this.env.edits = toNum(this.env.edits) + 1;
+    const bad = this.broken();
+    if (bad !== null) {
+      w.forget();
+      this.env.edits = toNum(this.env.edits) - 1;
+      this.saidNow = { text: bad, mood: 'miss', goal: false };
+      return false;
+    }
+    this.changed.add('edits');
+    return true;
+  }
+
+  /** Ein Schritt des Ziehens: gilt danach eine Regel nicht mehr, bleibt das Ding, wo es war. */
+  dragThing(t: Thing, px: number, py: number): boolean {
+    const w = this.world;
+    if (w === null) return false;
+    const before = Object.fromEntries(t.kind.spec.props.map((p) => [p.name, t.env[p.name]]));
+    if (!w.drag(t, px, py)) return false;
+    this.settle();
+    const bad = this.broken();
+    if (bad !== null) {
+      for (const [name, v] of Object.entries(before)) t.env[name] = v;
+      w.evalLets('all');
+      this.settle();
+      this.saidNow = { text: bad, mood: 'miss', goal: false };
+      return false;
+    }
+    this.wake();
+    return true;
+  }
+
+  /** Zurück und wieder vor — ohne Prüfung (der Stand war schon einmal erlaubt), `edits` mitgezählt. */
+  undo(): boolean {
+    if (this.world === null || !this.world.undo()) return false;
+    this.env.edits = Math.max(0, toNum(this.env.edits) - 1);
+    this.changed.add('edits');
+    this.wake();
+    this.settle();
+    return true;
+  }
+
+  redo(): boolean {
+    if (this.world === null || !this.world.redo()) return false;
+    this.env.edits = toNum(this.env.edits) + 1;
+    this.changed.add('edits');
+    this.wake();
+    this.settle();
+    return true;
+  }
+
+  /** Die Welt wie am Anfang („Od nowa") — und die Simulation von vorn. */
+  resetWorld(): void {
+    if (this.world === null) return;
+    this.world.reset();
+    this.env.edits = 0;
+    this.changed.add('edits');
+    this.restart();
+    if (this.sim?.auto === true) this.status = 'running';
+    this.settle();
+  }
+
+  /** Den Bau aus einem Gespeicherten — ohne Prüfung (die Werkstatt), als eine Änderung. */
+  loadWorld(shot: WorldShot): void {
+    if (this.world === null) return;
+    this.world.remember();
+    this.world.restore(shot);
+    this.world.initAllState();
+    this.wake();
+    if (this.sim?.auto === true && this.status === 'ready') this.status = 'running';
+    this.settle();
+  }
+
+  /* -- Melden ------------------------------------------------------------------------- */
 
   /** Die letzte Meldung (`null`: keine). */
   said(): Said | null {
@@ -579,21 +807,25 @@ export class Program {
   /**
    * OHNE BILD BIS ZUM ENDE — für eine Prüfung (Cogita): von vorn, mit den
    * Werten, die jetzt stehen, laufen lassen, bis `until`, ein Ereignis mit
-   * `stop` oder `max` es beendet. Ohne Simulation: die Regeln einmal. Gibt
-   * zurück, ob ein Ziel erreicht wurde — irgendwann unterwegs.
+   * `stop`, `max` (höchstens zwei Minuten der Simulation) es beendet — oder ein
+   * Ziel erreicht ist. Ohne Simulation: die Regeln einmal. Gibt zurück, ob ein
+   * Ziel erreicht wurde — irgendwann unterwegs.
    */
   runToEnd(): boolean {
+    this.headless = true;
     this.restart();
     this.settle();
-    if (this.sim === null) return this.reached;
+    if (this.sim === null || this.reached) return this.reached;
     this.status = 'running';
     const loop = this.sim.loop;
+    const limit = Math.min(this.sim.max, HEADLESS_SECONDS);
     let steps = 0;
-    while (this.status === 'running' && steps < MAX_STEPS_HEADLESS) {
+    while (this.status === 'running' && steps < MAX_STEPS_HEADLESS && !this.reached) {
       this.stepOnce(this.sim.dt);
       steps += 1;
       /* Eine Schleife hört nie auf: eine Prüfung nimmt einen Durchgang. */
       if (loop && toNum(this.env.t) === 0) break;
+      if (toNum(this.env.t) >= limit) break;
     }
     if (this.status === 'running') this.status = 'ended';
     return this.reached;
@@ -609,39 +841,3 @@ export class Program {
 
 /** Ein Programm aus einer Zeichnung (genauer: ihrem Teil zum Anfassen). */
 export const programOf = (live: Live | null, options: ProgramOptions = {}): Program => new Program(live, options);
-
-/**
- * WAS IN EINER ZEICHNUNG NICHT STIMMT — ohne sie zu zeichnen: das Programm und
- * jeder Ausdruck an jedem Teil (Werte, `show`, Kurven, Spuren, Punkte, Rahmen,
- * Ziehen, Antippen), übersetzt mit denselben Namen wie beim Zeichnen.
- */
-export function problemsOf(drawing: Drawing): Problem[] {
-  const program = new Program(drawing.live);
-  const num = (n: Num, where: string, extra: readonly string[] = []) => { if (typeof n !== 'number') program.compile(n.expr, where, extra); };
-  const walk = (list: readonly Shape[], depth: number, path: string) => {
-    if (depth > 8) return;
-    list.forEach((s, i) => {
-      const where = `${path}[${i}] ${s.type}`;
-      for (const [key, source] of Object.entries(s.bind ?? {})) {
-        if (key === 'text') program.compileText(source, `${where}.text`);
-        else program.compile(source, `${where}.${key}`);
-      }
-      if (s.show !== null) program.compile(s.show, `${where}.show`);
-      if (s.type === 'plot') {
-        for (const [key, source] of [['fn', s.fn], ['fx', s.fx], ['fy', s.fy]] as const) if (source !== null) program.compile(source, `${where}.${key}`, [s.var]);
-        num(s.from, `${where}.from`);
-        num(s.to, `${where}.to`);
-      }
-      if (s.type === 'trace') for (const [key, source] of [['fx', s.fx], ['fy', s.fy]] as const) if (source !== null) program.compile(source, `${where}.${key}`);
-      s.points.forEach(([a, b], k) => { num(a, `${where}.points[${k}]`); num(b, `${where}.points[${k}]`); });
-      s.view?.forEach((n, k) => num(n, `${where}.view[${k}]`));
-      if (s.drag !== null) {
-        program.prepare({ ...(s.drag.x === null ? {} : { [s.drag.x]: 'px' }), ...(s.drag.y === null ? {} : { [s.drag.y]: 'py' }), ...s.drag.set }, `${where}.drag`);
-      }
-      if (s.tap !== null) program.prepare(s.tap.set, `${where}.tap`);
-      walk(s.type === 'use' ? drawing.symbols.get(s.use ?? '') ?? [] : s.children, depth + 1, `${where}.children`);
-    });
-  };
-  walk(drawing.elements, 0, 'elements');
-  return [...program.problems];
-}

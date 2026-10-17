@@ -60,6 +60,9 @@ public sealed class Push(Db db, IConfiguration configuration, IHostEnvironment e
     /// <summary>Jemand kam über diesen Link herein — wer ihn angelegt hat.</summary>
     public void Link(Guid invitationId, Guid? joiner) => queue.Writer.TryWrite(new Wake("link", invitationId, joiner));
 
+    /// <summary>0116 — im Browser wartet eine SMS auf das Telefon (oder wurde abgesagt) — wer im Bereich des Archivs schreibt.</summary>
+    public void Phone(Guid areaId) => queue.Writer.TryWrite(new Wake("phone", areaId, null));
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await foreach (var wake in queue.Reader.ReadAllAsync(stoppingToken))
@@ -101,6 +104,15 @@ public sealed class Push(Db db, IConfiguration configuration, IHostEnvironment e
                     WHERE c.scope_kind = N'area' AND c.revoked_at IS NULL AND c.expires_at > @now
                       AND c.capability IN (N'read', N'write', N'admin')
                       AND c.scope_id = (SELECT area_id FROM app.module WHERE id = @id)
+                    """;
+                break;
+            case "phone":
+                /* Das Telefon gehört einem Konto, das im Bereich des Archivs schreiben darf (es sendet und meldet zurück). */
+                seed = """
+                    SELECT DISTINCT c.subject_role_id FROM app.certificate c
+                    WHERE c.scope_kind = N'area' AND c.revoked_at IS NULL AND c.expires_at > @now
+                      AND c.capability IN (N'write', N'admin')
+                      AND c.scope_id = @id
                     """;
                 break;
             case "link":
