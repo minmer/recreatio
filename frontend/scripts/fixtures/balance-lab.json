@@ -1,0 +1,8574 @@
+{
+ "format": "recreatio/page",
+ "version": 1,
+ "path": "rownowaga",
+ "title": "Laboratorium równowagi",
+ "lead": null,
+ "mode": "presentation",
+ "theme": {
+  "mode": "light",
+  "accent": "#2f6f5e",
+  "ink": "#14231f",
+  "ground": "#f5f7f4",
+  "muted": "#5d6b66",
+  "night": {
+   "accent": "#7fd1b5",
+   "ink": "#e7efec",
+   "ground": "#0e1916",
+   "muted": "#8ea39b"
+  }
+ },
+ "cover": [],
+ "show": {
+  "format": "screen",
+  "fonts": "plex",
+  "nav": "dots",
+  "scenes": [
+   {
+    "key": "start",
+    "label": "Start",
+    "change": "fade",
+    "hint": "Przewiń",
+    "follow": {
+     "wide": 0,
+     "tall": 0
+    }
+   },
+   {
+    "key": "p1",
+    "label": "Poziom 1",
+    "change": "rise",
+    "follow": {
+     "wide": 0,
+     "tall": 0
+    }
+   },
+   {
+    "key": "p2",
+    "label": "Poziom 2",
+    "change": "rise",
+    "follow": {
+     "wide": 0,
+     "tall": 0
+    }
+   },
+   {
+    "key": "p3",
+    "label": "Poziom 3",
+    "change": "rise",
+    "follow": {
+     "wide": 0,
+     "tall": 0
+    }
+   },
+   {
+    "key": "p4",
+    "label": "Poziom 4",
+    "change": "rise",
+    "follow": {
+     "wide": 0,
+     "tall": 0
+    }
+   },
+   {
+    "key": "p5",
+    "label": "Poziom 5",
+    "change": "rise",
+    "follow": {
+     "wide": 0,
+     "tall": 0
+    }
+   },
+   {
+    "key": "p6",
+    "label": "Poziom 6",
+    "change": "rise",
+    "follow": {
+     "wide": 0,
+     "tall": 0
+    }
+   },
+   {
+    "key": "p7",
+    "label": "Ekspert 1",
+    "change": "rise",
+    "follow": {
+     "wide": 0,
+     "tall": 0
+    }
+   },
+   {
+    "key": "p8",
+    "label": "Ekspert 2",
+    "change": "rise",
+    "follow": {
+     "wide": 0,
+     "tall": 0
+    }
+   },
+   {
+    "key": "warsztat",
+    "label": "Warsztat",
+    "change": "rise",
+    "follow": {
+     "wide": 0,
+     "tall": 0
+    }
+   },
+   {
+    "key": "zebatki",
+    "label": "Zębatki",
+    "change": "rise",
+    "follow": {
+     "wide": 0,
+     "tall": 0
+    }
+   },
+   {
+    "key": "nauka",
+    "label": "Nauka",
+    "change": "fade",
+    "next": "link:nauka"
+   }
+  ],
+  "links": [
+   {
+    "id": "nauka",
+    "label": "Nauka (Cogita)",
+    "href": "#/workspace/learn"
+   }
+  ]
+ },
+ "modules": [
+  {
+   "id": "start-tytul",
+   "kind": "text",
+   "size": {
+    "colSpan": 3,
+    "rowSpan": 3
+   },
+   "show": {
+    "places": {
+     "start": {
+      "x": 22,
+      "y": 26,
+      "w": 34,
+      "max": 30,
+      "tall": {
+       "x": 47,
+       "y": 4,
+       "w": 88
+      }
+     }
+    },
+    "skin": "plain",
+    "type": "display",
+    "origin": "top",
+    "arrive": "rise",
+    "delay": 0.1,
+    "span": 0.6
+   },
+   "config": {
+    "title": "Laboratorium równowagi",
+    "body": [
+     "Belka obraca się wokół osi. Ciężarek ciągnie ją w dół tym mocniej, im dalej od osi wisi: liczy się **masa × ramię** — moment siły.",
+     "Gdy po obu stronach osi momenty są równe, belka stoi poziomo. Przeciągnij ciężarki i sprawdź."
+    ]
+   }
+  },
+  {
+   "id": "start-waga",
+   "kind": "animation",
+   "size": {
+    "colSpan": 4,
+    "rowSpan": 5
+   },
+   "show": {
+    "places": {
+     "start": {
+      "x": 68,
+      "y": 8,
+      "w": 56,
+      "max": 46,
+      "tall": {
+       "x": 47,
+       "y": 24,
+       "w": 88
+      }
+     }
+    },
+    "skin": "card",
+    "origin": "top",
+    "arrive": "fade",
+    "delay": 0.15,
+    "span": 0.5
+   },
+   "config": {
+    "alt": "Huśtawka z dwoma ciężarkami — przeciągnij je i zmieniaj masy",
+    "size": [
+     480,
+     320
+    ],
+    "vars": [
+     {
+      "name": "g",
+      "value": 9.81,
+      "unit": "m/s²",
+      "label": "Grawitacja"
+     },
+     {
+      "name": "tol",
+      "value": 0.05,
+      "unit": "kg·m",
+      "label": "Tolerancja momentu"
+     },
+     {
+      "name": "h",
+      "value": 0.2,
+      "unit": "m",
+      "label": "Drążek pod osią"
+     },
+     {
+      "name": "zeta",
+      "value": 0.5,
+      "label": "Tłumienie"
+     },
+     {
+      "name": "tilt",
+      "value": 0.35,
+      "unit": "rad",
+      "label": "Największe pochylenie"
+     },
+     {
+      "name": "edu",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Momenty"
+     },
+     {
+      "name": "ruler",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Linijka"
+     },
+     {
+      "name": "solved",
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "step": 1
+     }
+    ],
+    "let": [
+     {
+      "name": "vx0",
+      "value": "min(things, bx0)"
+     },
+     {
+      "name": "vx1",
+      "value": "max(things, bx1)"
+     },
+     {
+      "name": "vy1",
+      "value": "max(things, by1)"
+     },
+     {
+      "name": "vw",
+      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+     },
+     {
+      "name": "vh",
+      "value": "vw/1.5"
+     },
+     {
+      "name": "vcx",
+      "value": "round((vx0 + vx1)/2*4)/4"
+     },
+     {
+      "name": "vcy",
+      "value": "vh/2 - 0.4"
+     },
+     {
+      "name": "bad",
+      "value": "count(belka, !ok)"
+     }
+    ],
+    "sim": {
+     "dt": 0.01,
+     "speed": 4,
+     "auto": true,
+     "sleep": true,
+     "max": 3600
+    },
+    "controls": [
+     {
+      "type": "toggle",
+      "var": "edu",
+      "label": "Momenty"
+     },
+     {
+      "type": "toggle",
+      "var": "ruler",
+      "label": "Linijka"
+     },
+     {
+      "type": "readout",
+      "label": "Przeważa belek",
+      "value": "bad",
+      "digits": 0
+     }
+    ],
+    "rules": [
+     {
+      "when": "nthings > 0 && all(belka, ok && still)",
+      "for": 1,
+      "goal": true,
+      "set": {
+       "solved": 1
+      },
+      "say": "Równowaga: masa × ramię po obu stronach jest taka sama."
+     },
+     {
+      "when": "edits > 0 && bad > 0",
+      "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
+      "mood": "miss"
+     }
+    ],
+    "world": {
+     "kinds": [
+      {
+       "name": "belka",
+       "label": "Belka",
+       "props": [
+        {
+         "name": "length",
+         "label": "Długość",
+         "value": 4,
+         "min": 1,
+         "max": 10,
+         "step": 0.5,
+         "unit": "m"
+        },
+        {
+         "name": "pivot",
+         "label": "Oś obrotu (od lewego końca)",
+         "value": 2,
+         "min": 0,
+         "max": "=length",
+         "step": 0.25,
+         "unit": "m"
+        },
+        {
+         "name": "bm",
+         "label": "Masa belki",
+         "value": 0,
+         "min": 0,
+         "max": 50,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce wyżej",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "when": "!isroot",
+         "new": "parent.pivot + 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 1.2,
+         "min": 0.3,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m",
+         "when": "!isroot"
+        },
+        {
+         "name": "sx",
+         "label": "Położenie stojaka",
+         "value": 0,
+         "min": -40,
+         "max": 40,
+         "step": 0.5,
+         "unit": "m",
+         "when": "isroot",
+         "new": "max(things, bx1) + pivot + 0.5"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "bm + sum(children, total)"
+        },
+        {
+         "name": "arm",
+         "value": "isroot ? 0 : pos - parent.pivot"
+        },
+        {
+         "name": "mom",
+         "value": "sum(children, total*arm) + bm*(length/2 - pivot)"
+        },
+        {
+         "name": "inertia",
+         "value": "bm*(length^2/12 + (length/2 - pivot)^2) + sum(children, total*arm^2) + 0.3"
+        },
+        {
+         "name": "kr",
+         "value": "g*h*(total + 1)"
+        },
+        {
+         "name": "damp",
+         "value": "2*zeta*sqrt(kr*inertia)"
+        },
+        {
+         "name": "ok",
+         "value": "abs(mom) < tol"
+        },
+        {
+         "name": "still",
+         "value": "abs(omega) < 0.05 && abs(angle) < 0.05"
+        },
+        {
+         "name": "ca",
+         "value": "cos(angle)"
+        },
+        {
+         "name": "sa",
+         "value": "sin(angle)"
+        },
+        {
+         "name": "ax",
+         "value": "isroot ? sx : parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "isroot ? stand : ay - drop"
+        },
+        {
+         "name": "x1",
+         "value": "x - pivot*ca + h*sa"
+        },
+        {
+         "name": "y1",
+         "value": "y - pivot*sa - h*ca"
+        },
+        {
+         "name": "x2",
+         "value": "x + (length - pivot)*ca + h*sa"
+        },
+        {
+         "name": "y2",
+         "value": "y + (length - pivot)*sa - h*ca"
+        },
+        {
+         "name": "dy",
+         "value": "isroot ? 0 : parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+        },
+        {
+         "name": "stand",
+         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
+        },
+        {
+         "name": "rx",
+         "value": "isroot ? sx : parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - pivot - 0.4"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + length - pivot + 0.4"
+        },
+        {
+         "name": "by0",
+         "value": "ry - h - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry + 0.7"
+        },
+        {
+         "name": "hit",
+         "value": "6"
+        }
+       ],
+       "state": [
+        {
+         "name": "angle",
+         "value": 0,
+         "rate": "omega"
+        },
+        {
+         "name": "omega",
+         "value": 0,
+         "rate": "(-g*mom*cos(angle) - kr*sin(angle) - damp*omega)/inertia"
+        }
+       ],
+       "events": [
+        {
+         "when": "angle > tilt",
+         "set": {
+          "angle": "tilt",
+          "omega": 0
+         }
+        },
+        {
+         "when": "angle < -tilt",
+         "set": {
+          "angle": "-tilt",
+          "omega": 0
+         }
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py",
+        "sx": "px"
+       },
+       "can": {
+        "edit": [
+         "length",
+         "pivot",
+         "bm",
+         "pos",
+         "drop",
+         "sx"
+        ],
+        "add": [
+         "ciezarek",
+         "belka"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Suma momentów",
+         "value": "mom",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Masa z tym, co wisi",
+         "value": "total",
+         "unit": "kg",
+         "digits": 1
+        },
+        {
+         "label": "Pochylenie",
+         "value": "deg(angle)",
+         "unit": "°",
+         "digits": 1
+        }
+       ],
+       "children": 8,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x - 0.6",
+         "y": 0,
+         "x2": "=x + 0.6",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "!isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x + h*sa",
+         "y2": "=y - h*ca",
+         "stroke": "ink",
+         "width": 3
+        },
+        {
+         "type": "line",
+         "x": "=x1",
+         "y": "=y1",
+         "x2": "=x2",
+         "y2": "=y2",
+         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "width": 7
+        },
+        {
+         "type": "line",
+         "repeat": 21,
+         "x": "=x1 + i*0.5*ca",
+         "y": "=y1 + i*0.5*sa",
+         "x2": "=x1 + i*0.5*ca + 0.13*sa",
+         "y2": "=y1 + i*0.5*sa - 0.13*ca",
+         "stroke": "ink/45",
+         "width": 1,
+         "show": "ruler && i*0.5 <= length + 0.001"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 4.5,
+         "fill": "ink"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 2,
+         "fill": "ground"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y + 0.42",
+         "text": "ΣM = {fmt(mom, 2)} kg·m",
+         "size": 11,
+         "weight": 600,
+         "fill": "=ok ? 'ok' : 'danger'",
+         "show": "edu"
+        }
+       ]
+      },
+      {
+       "name": "ciezarek",
+       "label": "Ciężarek",
+       "props": [
+        {
+         "name": "m",
+         "label": "Masa",
+         "value": 5,
+         "min": 1,
+         "max": 100,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "new": "parent.pivot - 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 0.6,
+         "min": 0.2,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "m"
+        },
+        {
+         "name": "arm",
+         "value": "pos - parent.pivot"
+        },
+        {
+         "name": "r",
+         "value": "0.13 + 0.035*sqrt(m)"
+        },
+        {
+         "name": "ax",
+         "value": "parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "ay - drop - r"
+        },
+        {
+         "name": "dy",
+         "value": "parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+        },
+        {
+         "name": "rx",
+         "value": "parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - r - 0.3"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + r + 0.3"
+        },
+        {
+         "name": "by0",
+         "value": "ry - 2*r - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry"
+        },
+        {
+         "name": "hit",
+         "value": "4"
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py - r"
+       },
+       "can": {
+        "edit": [
+         "m",
+         "pos",
+         "drop"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Moment względem osi",
+         "value": "total*arm",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Ramię",
+         "value": "abs(arm)",
+         "unit": "m",
+         "digits": 2
+        }
+       ],
+       "children": 0,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y + r",
+         "stroke": "muted",
+         "width": 1.5
+        },
+        {
+         "type": "rect",
+         "x": "=x - r",
+         "y": "=y - r",
+         "w": "=2*r",
+         "h": "=2*r",
+         "r": 3,
+         "fill": "accent",
+         "stroke": "ink/30",
+         "width": 1
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.2",
+         "text": "{fmt(m, 0)} kg",
+         "size": 11,
+         "weight": 600,
+         "fill": "ink"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.45",
+         "text": "M = {fmt(total*arm, 1)}",
+         "size": 9.5,
+         "fill": "muted",
+         "show": "edu"
+        }
+       ]
+      }
+     ],
+     "things": [
+      {
+       "id": "b1",
+       "kind": "belka",
+       "length": 6,
+       "pivot": 3,
+       "lock": true
+      },
+      {
+       "id": "w1",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 3,
+       "pos": 1,
+       "lock": [
+        "drop"
+       ]
+      },
+      {
+       "id": "w2",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 3,
+       "pos": 4,
+       "lock": [
+        "drop"
+       ]
+      }
+     ],
+     "allow": {
+      "add": false,
+      "remove": false,
+      "copy": false
+     },
+     "limits": {
+      "things": 40,
+      "depth": 6
+     },
+     "keep": [],
+     "save": false,
+     "hint": "Przeciągnij ciężarek albo dotknij go i zmień masę."
+    },
+    "elements": [
+     {
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "w": 480,
+      "h": 320,
+      "camera": true,
+      "clip": true,
+      "view": [
+       "=vcx - vw/2",
+       "=vcy - vh/2",
+       "=vcx + vw/2",
+       "=vcy + vh/2"
+      ],
+      "children": [
+       {
+        "type": "rect",
+        "x": "=vcx - vw",
+        "y": -3,
+        "w": "=2*vw",
+        "h": 3,
+        "fill": "muted/12"
+       },
+       {
+        "type": "line",
+        "x": "=vcx - vw",
+        "y": 0,
+        "x2": "=vcx + vw",
+        "y2": 0,
+        "stroke": "muted/60",
+        "width": 1.5
+       },
+       {
+        "type": "world"
+       }
+      ]
+     }
+    ],
+    "max": 46
+   }
+  },
+  {
+   "id": "p1-tekst",
+   "kind": "text",
+   "size": {
+    "colSpan": 3,
+    "rowSpan": 3
+   },
+   "show": {
+    "places": {
+     "p1": {
+      "x": 22,
+      "y": 30,
+      "w": 34,
+      "max": 30,
+      "tall": {
+       "x": 47,
+       "y": 4,
+       "w": 88
+      }
+     }
+    },
+    "skin": "plain",
+    "type": "heading",
+    "origin": "top",
+    "arrive": "rise",
+    "delay": 0.1,
+    "span": 0.6
+   },
+   "config": {
+    "title": "Poziom 1 · Prosta równowaga",
+    "body": [
+     "Po lewej wisi 4 kg, metr od osi. Gdzie powiesić 2 kg, żeby belka stanęła poziomo?",
+     "Przeciągnij mały ciężarek wzdłuż belki. Zielona belka — równowaga."
+    ]
+   }
+  },
+  {
+   "id": "p1-waga",
+   "kind": "animation",
+   "size": {
+    "colSpan": 4,
+    "rowSpan": 5
+   },
+   "show": {
+    "places": {
+     "p1": {
+      "x": 68,
+      "y": 8,
+      "w": 56,
+      "max": 46,
+      "tall": {
+       "x": 47,
+       "y": 24,
+       "w": 88
+      }
+     }
+    },
+    "skin": "card",
+    "origin": "top",
+    "arrive": "fade",
+    "delay": 0.15,
+    "span": 0.5
+   },
+   "config": {
+    "alt": "Poziom 1 · Prosta równowaga — waga do zrównoważenia",
+    "size": [
+     480,
+     320
+    ],
+    "vars": [
+     {
+      "name": "g",
+      "value": 9.81,
+      "unit": "m/s²",
+      "label": "Grawitacja"
+     },
+     {
+      "name": "tol",
+      "value": 0.05,
+      "unit": "kg·m",
+      "label": "Tolerancja momentu"
+     },
+     {
+      "name": "h",
+      "value": 0.2,
+      "unit": "m",
+      "label": "Drążek pod osią"
+     },
+     {
+      "name": "zeta",
+      "value": 0.5,
+      "label": "Tłumienie"
+     },
+     {
+      "name": "tilt",
+      "value": 0.35,
+      "unit": "rad",
+      "label": "Największe pochylenie"
+     },
+     {
+      "name": "edu",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Momenty"
+     },
+     {
+      "name": "ruler",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Linijka"
+     },
+     {
+      "name": "solved",
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "step": 1
+     }
+    ],
+    "let": [
+     {
+      "name": "vx0",
+      "value": "min(things, bx0)"
+     },
+     {
+      "name": "vx1",
+      "value": "max(things, bx1)"
+     },
+     {
+      "name": "vy1",
+      "value": "max(things, by1)"
+     },
+     {
+      "name": "vw",
+      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+     },
+     {
+      "name": "vh",
+      "value": "vw/1.5"
+     },
+     {
+      "name": "vcx",
+      "value": "round((vx0 + vx1)/2*4)/4"
+     },
+     {
+      "name": "vcy",
+      "value": "vh/2 - 0.4"
+     },
+     {
+      "name": "bad",
+      "value": "count(belka, !ok)"
+     }
+    ],
+    "sim": {
+     "dt": 0.01,
+     "speed": 4,
+     "auto": true,
+     "sleep": true,
+     "max": 3600
+    },
+    "controls": [
+     {
+      "type": "toggle",
+      "var": "edu",
+      "label": "Momenty"
+     },
+     {
+      "type": "toggle",
+      "var": "ruler",
+      "label": "Linijka"
+     },
+     {
+      "type": "readout",
+      "label": "Przeważa belek",
+      "value": "bad",
+      "digits": 0
+     },
+     {
+      "type": "button",
+      "label": "Dalej →",
+      "go": "next",
+      "show": "solved"
+     }
+    ],
+    "rules": [
+     {
+      "when": "nthings > 0 && all(belka, ok && still)",
+      "for": 1,
+      "goal": true,
+      "set": {
+       "solved": 1
+      },
+      "say": "Brawo! 4 kg × 1 m = 2 kg × 2 m — dwa razy lżejszy, dwa razy dalej."
+     },
+     {
+      "when": "edits > 0 && bad > 0",
+      "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
+      "mood": "miss"
+     }
+    ],
+    "world": {
+     "kinds": [
+      {
+       "name": "belka",
+       "label": "Belka",
+       "props": [
+        {
+         "name": "length",
+         "label": "Długość",
+         "value": 4,
+         "min": 1,
+         "max": 10,
+         "step": 0.5,
+         "unit": "m"
+        },
+        {
+         "name": "pivot",
+         "label": "Oś obrotu (od lewego końca)",
+         "value": 2,
+         "min": 0,
+         "max": "=length",
+         "step": 0.25,
+         "unit": "m"
+        },
+        {
+         "name": "bm",
+         "label": "Masa belki",
+         "value": 0,
+         "min": 0,
+         "max": 50,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce wyżej",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "when": "!isroot",
+         "new": "parent.pivot + 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 1.2,
+         "min": 0.3,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m",
+         "when": "!isroot"
+        },
+        {
+         "name": "sx",
+         "label": "Położenie stojaka",
+         "value": 0,
+         "min": -40,
+         "max": 40,
+         "step": 0.5,
+         "unit": "m",
+         "when": "isroot",
+         "new": "max(things, bx1) + pivot + 0.5"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "bm + sum(children, total)"
+        },
+        {
+         "name": "arm",
+         "value": "isroot ? 0 : pos - parent.pivot"
+        },
+        {
+         "name": "mom",
+         "value": "sum(children, total*arm) + bm*(length/2 - pivot)"
+        },
+        {
+         "name": "inertia",
+         "value": "bm*(length^2/12 + (length/2 - pivot)^2) + sum(children, total*arm^2) + 0.3"
+        },
+        {
+         "name": "kr",
+         "value": "g*h*(total + 1)"
+        },
+        {
+         "name": "damp",
+         "value": "2*zeta*sqrt(kr*inertia)"
+        },
+        {
+         "name": "ok",
+         "value": "abs(mom) < tol"
+        },
+        {
+         "name": "still",
+         "value": "abs(omega) < 0.05 && abs(angle) < 0.05"
+        },
+        {
+         "name": "ca",
+         "value": "cos(angle)"
+        },
+        {
+         "name": "sa",
+         "value": "sin(angle)"
+        },
+        {
+         "name": "ax",
+         "value": "isroot ? sx : parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "isroot ? stand : ay - drop"
+        },
+        {
+         "name": "x1",
+         "value": "x - pivot*ca + h*sa"
+        },
+        {
+         "name": "y1",
+         "value": "y - pivot*sa - h*ca"
+        },
+        {
+         "name": "x2",
+         "value": "x + (length - pivot)*ca + h*sa"
+        },
+        {
+         "name": "y2",
+         "value": "y + (length - pivot)*sa - h*ca"
+        },
+        {
+         "name": "dy",
+         "value": "isroot ? 0 : parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+        },
+        {
+         "name": "stand",
+         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
+        },
+        {
+         "name": "rx",
+         "value": "isroot ? sx : parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - pivot - 0.4"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + length - pivot + 0.4"
+        },
+        {
+         "name": "by0",
+         "value": "ry - h - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry + 0.7"
+        },
+        {
+         "name": "hit",
+         "value": "6"
+        }
+       ],
+       "state": [
+        {
+         "name": "angle",
+         "value": 0,
+         "rate": "omega"
+        },
+        {
+         "name": "omega",
+         "value": 0,
+         "rate": "(-g*mom*cos(angle) - kr*sin(angle) - damp*omega)/inertia"
+        }
+       ],
+       "events": [
+        {
+         "when": "angle > tilt",
+         "set": {
+          "angle": "tilt",
+          "omega": 0
+         }
+        },
+        {
+         "when": "angle < -tilt",
+         "set": {
+          "angle": "-tilt",
+          "omega": 0
+         }
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py",
+        "sx": "px"
+       },
+       "can": {
+        "edit": [
+         "length",
+         "pivot",
+         "bm",
+         "pos",
+         "drop",
+         "sx"
+        ],
+        "add": [
+         "ciezarek",
+         "belka"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Suma momentów",
+         "value": "mom",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Masa z tym, co wisi",
+         "value": "total",
+         "unit": "kg",
+         "digits": 1
+        },
+        {
+         "label": "Pochylenie",
+         "value": "deg(angle)",
+         "unit": "°",
+         "digits": 1
+        }
+       ],
+       "children": 8,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x - 0.6",
+         "y": 0,
+         "x2": "=x + 0.6",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "!isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x + h*sa",
+         "y2": "=y - h*ca",
+         "stroke": "ink",
+         "width": 3
+        },
+        {
+         "type": "line",
+         "x": "=x1",
+         "y": "=y1",
+         "x2": "=x2",
+         "y2": "=y2",
+         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "width": 7
+        },
+        {
+         "type": "line",
+         "repeat": 21,
+         "x": "=x1 + i*0.5*ca",
+         "y": "=y1 + i*0.5*sa",
+         "x2": "=x1 + i*0.5*ca + 0.13*sa",
+         "y2": "=y1 + i*0.5*sa - 0.13*ca",
+         "stroke": "ink/45",
+         "width": 1,
+         "show": "ruler && i*0.5 <= length + 0.001"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 4.5,
+         "fill": "ink"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 2,
+         "fill": "ground"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y + 0.42",
+         "text": "ΣM = {fmt(mom, 2)} kg·m",
+         "size": 11,
+         "weight": 600,
+         "fill": "=ok ? 'ok' : 'danger'",
+         "show": "edu"
+        }
+       ]
+      },
+      {
+       "name": "ciezarek",
+       "label": "Ciężarek",
+       "props": [
+        {
+         "name": "m",
+         "label": "Masa",
+         "value": 5,
+         "min": 1,
+         "max": 100,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "new": "parent.pivot - 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 0.6,
+         "min": 0.2,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "m"
+        },
+        {
+         "name": "arm",
+         "value": "pos - parent.pivot"
+        },
+        {
+         "name": "r",
+         "value": "0.13 + 0.035*sqrt(m)"
+        },
+        {
+         "name": "ax",
+         "value": "parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "ay - drop - r"
+        },
+        {
+         "name": "dy",
+         "value": "parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+        },
+        {
+         "name": "rx",
+         "value": "parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - r - 0.3"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + r + 0.3"
+        },
+        {
+         "name": "by0",
+         "value": "ry - 2*r - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry"
+        },
+        {
+         "name": "hit",
+         "value": "4"
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py - r"
+       },
+       "can": {
+        "edit": [
+         "m",
+         "pos",
+         "drop"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Moment względem osi",
+         "value": "total*arm",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Ramię",
+         "value": "abs(arm)",
+         "unit": "m",
+         "digits": 2
+        }
+       ],
+       "children": 0,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y + r",
+         "stroke": "muted",
+         "width": 1.5
+        },
+        {
+         "type": "rect",
+         "x": "=x - r",
+         "y": "=y - r",
+         "w": "=2*r",
+         "h": "=2*r",
+         "r": 3,
+         "fill": "accent",
+         "stroke": "ink/30",
+         "width": 1
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.2",
+         "text": "{fmt(m, 0)} kg",
+         "size": 11,
+         "weight": 600,
+         "fill": "ink"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.45",
+         "text": "M = {fmt(total*arm, 1)}",
+         "size": 9.5,
+         "fill": "muted",
+         "show": "edu"
+        }
+       ]
+      }
+     ],
+     "things": [
+      {
+       "id": "b1",
+       "kind": "belka",
+       "length": 6,
+       "pivot": 3,
+       "lock": true
+      },
+      {
+       "id": "w1",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 4,
+       "pos": 2,
+       "lock": true
+      },
+      {
+       "id": "w2",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 2,
+       "pos": 3.5,
+       "lock": [
+        "m",
+        "drop"
+       ]
+      }
+     ],
+     "allow": {
+      "add": false,
+      "remove": false,
+      "copy": false
+     },
+     "limits": {
+      "things": 40,
+      "depth": 6
+     },
+     "keep": [],
+     "save": false,
+     "hint": "Przeciągnij ciężarek 2 kg wzdłuż belki."
+    },
+    "elements": [
+     {
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "w": 480,
+      "h": 320,
+      "camera": true,
+      "clip": true,
+      "view": [
+       "=vcx - vw/2",
+       "=vcy - vh/2",
+       "=vcx + vw/2",
+       "=vcy + vh/2"
+      ],
+      "children": [
+       {
+        "type": "rect",
+        "x": "=vcx - vw",
+        "y": -3,
+        "w": "=2*vw",
+        "h": 3,
+        "fill": "muted/12"
+       },
+       {
+        "type": "line",
+        "x": "=vcx - vw",
+        "y": 0,
+        "x2": "=vcx + vw",
+        "y2": 0,
+        "stroke": "muted/60",
+        "width": 1.5
+       },
+       {
+        "type": "world"
+       }
+      ]
+     }
+    ],
+    "max": 46
+   }
+  },
+  {
+   "id": "p2-tekst",
+   "kind": "text",
+   "size": {
+    "colSpan": 3,
+    "rowSpan": 3
+   },
+   "show": {
+    "places": {
+     "p2": {
+      "x": 22,
+      "y": 30,
+      "w": 34,
+      "max": 30,
+      "tall": {
+       "x": 47,
+       "y": 4,
+       "w": 88
+      }
+     }
+    },
+    "skin": "plain",
+    "type": "heading",
+    "origin": "top",
+    "arrive": "rise",
+    "delay": 0.1,
+    "span": 0.6
+   },
+   "config": {
+    "title": "Poziom 2 · Inna masa",
+    "body": [
+     "Ciężarki są przykręcone — zmienić można tylko masę prawego. Dotknij go i ustaw masę.",
+     "Lewa strona: 6 kg × 2 m = 12 kg·m."
+    ]
+   }
+  },
+  {
+   "id": "p2-waga",
+   "kind": "animation",
+   "size": {
+    "colSpan": 4,
+    "rowSpan": 5
+   },
+   "show": {
+    "places": {
+     "p2": {
+      "x": 68,
+      "y": 8,
+      "w": 56,
+      "max": 46,
+      "tall": {
+       "x": 47,
+       "y": 24,
+       "w": 88
+      }
+     }
+    },
+    "skin": "card",
+    "origin": "top",
+    "arrive": "fade",
+    "delay": 0.15,
+    "span": 0.5
+   },
+   "config": {
+    "alt": "Poziom 2 · Inna masa — waga do zrównoważenia",
+    "size": [
+     480,
+     320
+    ],
+    "vars": [
+     {
+      "name": "g",
+      "value": 9.81,
+      "unit": "m/s²",
+      "label": "Grawitacja"
+     },
+     {
+      "name": "tol",
+      "value": 0.05,
+      "unit": "kg·m",
+      "label": "Tolerancja momentu"
+     },
+     {
+      "name": "h",
+      "value": 0.2,
+      "unit": "m",
+      "label": "Drążek pod osią"
+     },
+     {
+      "name": "zeta",
+      "value": 0.5,
+      "label": "Tłumienie"
+     },
+     {
+      "name": "tilt",
+      "value": 0.35,
+      "unit": "rad",
+      "label": "Największe pochylenie"
+     },
+     {
+      "name": "edu",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Momenty"
+     },
+     {
+      "name": "ruler",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Linijka"
+     },
+     {
+      "name": "solved",
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "step": 1
+     }
+    ],
+    "let": [
+     {
+      "name": "vx0",
+      "value": "min(things, bx0)"
+     },
+     {
+      "name": "vx1",
+      "value": "max(things, bx1)"
+     },
+     {
+      "name": "vy1",
+      "value": "max(things, by1)"
+     },
+     {
+      "name": "vw",
+      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+     },
+     {
+      "name": "vh",
+      "value": "vw/1.5"
+     },
+     {
+      "name": "vcx",
+      "value": "round((vx0 + vx1)/2*4)/4"
+     },
+     {
+      "name": "vcy",
+      "value": "vh/2 - 0.4"
+     },
+     {
+      "name": "bad",
+      "value": "count(belka, !ok)"
+     }
+    ],
+    "sim": {
+     "dt": 0.01,
+     "speed": 4,
+     "auto": true,
+     "sleep": true,
+     "max": 3600
+    },
+    "controls": [
+     {
+      "type": "toggle",
+      "var": "edu",
+      "label": "Momenty"
+     },
+     {
+      "type": "toggle",
+      "var": "ruler",
+      "label": "Linijka"
+     },
+     {
+      "type": "readout",
+      "label": "Przeważa belek",
+      "value": "bad",
+      "digits": 0
+     },
+     {
+      "type": "button",
+      "label": "Dalej →",
+      "go": "next",
+      "show": "solved"
+     }
+    ],
+    "rules": [
+     {
+      "when": "nthings > 0 && all(belka, ok && still)",
+      "for": 1,
+      "goal": true,
+      "set": {
+       "solved": 1
+      },
+      "say": "Tak: 4 kg × 3 m = 6 kg × 2 m."
+     },
+     {
+      "when": "edits > 0 && bad > 0",
+      "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
+      "mood": "miss"
+     }
+    ],
+    "world": {
+     "kinds": [
+      {
+       "name": "belka",
+       "label": "Belka",
+       "props": [
+        {
+         "name": "length",
+         "label": "Długość",
+         "value": 4,
+         "min": 1,
+         "max": 10,
+         "step": 0.5,
+         "unit": "m"
+        },
+        {
+         "name": "pivot",
+         "label": "Oś obrotu (od lewego końca)",
+         "value": 2,
+         "min": 0,
+         "max": "=length",
+         "step": 0.25,
+         "unit": "m"
+        },
+        {
+         "name": "bm",
+         "label": "Masa belki",
+         "value": 0,
+         "min": 0,
+         "max": 50,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce wyżej",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "when": "!isroot",
+         "new": "parent.pivot + 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 1.2,
+         "min": 0.3,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m",
+         "when": "!isroot"
+        },
+        {
+         "name": "sx",
+         "label": "Położenie stojaka",
+         "value": 0,
+         "min": -40,
+         "max": 40,
+         "step": 0.5,
+         "unit": "m",
+         "when": "isroot",
+         "new": "max(things, bx1) + pivot + 0.5"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "bm + sum(children, total)"
+        },
+        {
+         "name": "arm",
+         "value": "isroot ? 0 : pos - parent.pivot"
+        },
+        {
+         "name": "mom",
+         "value": "sum(children, total*arm) + bm*(length/2 - pivot)"
+        },
+        {
+         "name": "inertia",
+         "value": "bm*(length^2/12 + (length/2 - pivot)^2) + sum(children, total*arm^2) + 0.3"
+        },
+        {
+         "name": "kr",
+         "value": "g*h*(total + 1)"
+        },
+        {
+         "name": "damp",
+         "value": "2*zeta*sqrt(kr*inertia)"
+        },
+        {
+         "name": "ok",
+         "value": "abs(mom) < tol"
+        },
+        {
+         "name": "still",
+         "value": "abs(omega) < 0.05 && abs(angle) < 0.05"
+        },
+        {
+         "name": "ca",
+         "value": "cos(angle)"
+        },
+        {
+         "name": "sa",
+         "value": "sin(angle)"
+        },
+        {
+         "name": "ax",
+         "value": "isroot ? sx : parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "isroot ? stand : ay - drop"
+        },
+        {
+         "name": "x1",
+         "value": "x - pivot*ca + h*sa"
+        },
+        {
+         "name": "y1",
+         "value": "y - pivot*sa - h*ca"
+        },
+        {
+         "name": "x2",
+         "value": "x + (length - pivot)*ca + h*sa"
+        },
+        {
+         "name": "y2",
+         "value": "y + (length - pivot)*sa - h*ca"
+        },
+        {
+         "name": "dy",
+         "value": "isroot ? 0 : parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+        },
+        {
+         "name": "stand",
+         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
+        },
+        {
+         "name": "rx",
+         "value": "isroot ? sx : parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - pivot - 0.4"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + length - pivot + 0.4"
+        },
+        {
+         "name": "by0",
+         "value": "ry - h - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry + 0.7"
+        },
+        {
+         "name": "hit",
+         "value": "6"
+        }
+       ],
+       "state": [
+        {
+         "name": "angle",
+         "value": 0,
+         "rate": "omega"
+        },
+        {
+         "name": "omega",
+         "value": 0,
+         "rate": "(-g*mom*cos(angle) - kr*sin(angle) - damp*omega)/inertia"
+        }
+       ],
+       "events": [
+        {
+         "when": "angle > tilt",
+         "set": {
+          "angle": "tilt",
+          "omega": 0
+         }
+        },
+        {
+         "when": "angle < -tilt",
+         "set": {
+          "angle": "-tilt",
+          "omega": 0
+         }
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py",
+        "sx": "px"
+       },
+       "can": {
+        "edit": [
+         "length",
+         "pivot",
+         "bm",
+         "pos",
+         "drop",
+         "sx"
+        ],
+        "add": [
+         "ciezarek",
+         "belka"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Suma momentów",
+         "value": "mom",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Masa z tym, co wisi",
+         "value": "total",
+         "unit": "kg",
+         "digits": 1
+        },
+        {
+         "label": "Pochylenie",
+         "value": "deg(angle)",
+         "unit": "°",
+         "digits": 1
+        }
+       ],
+       "children": 8,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x - 0.6",
+         "y": 0,
+         "x2": "=x + 0.6",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "!isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x + h*sa",
+         "y2": "=y - h*ca",
+         "stroke": "ink",
+         "width": 3
+        },
+        {
+         "type": "line",
+         "x": "=x1",
+         "y": "=y1",
+         "x2": "=x2",
+         "y2": "=y2",
+         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "width": 7
+        },
+        {
+         "type": "line",
+         "repeat": 21,
+         "x": "=x1 + i*0.5*ca",
+         "y": "=y1 + i*0.5*sa",
+         "x2": "=x1 + i*0.5*ca + 0.13*sa",
+         "y2": "=y1 + i*0.5*sa - 0.13*ca",
+         "stroke": "ink/45",
+         "width": 1,
+         "show": "ruler && i*0.5 <= length + 0.001"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 4.5,
+         "fill": "ink"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 2,
+         "fill": "ground"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y + 0.42",
+         "text": "ΣM = {fmt(mom, 2)} kg·m",
+         "size": 11,
+         "weight": 600,
+         "fill": "=ok ? 'ok' : 'danger'",
+         "show": "edu"
+        }
+       ]
+      },
+      {
+       "name": "ciezarek",
+       "label": "Ciężarek",
+       "props": [
+        {
+         "name": "m",
+         "label": "Masa",
+         "value": 5,
+         "min": 1,
+         "max": 100,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "new": "parent.pivot - 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 0.6,
+         "min": 0.2,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "m"
+        },
+        {
+         "name": "arm",
+         "value": "pos - parent.pivot"
+        },
+        {
+         "name": "r",
+         "value": "0.13 + 0.035*sqrt(m)"
+        },
+        {
+         "name": "ax",
+         "value": "parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "ay - drop - r"
+        },
+        {
+         "name": "dy",
+         "value": "parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+        },
+        {
+         "name": "rx",
+         "value": "parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - r - 0.3"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + r + 0.3"
+        },
+        {
+         "name": "by0",
+         "value": "ry - 2*r - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry"
+        },
+        {
+         "name": "hit",
+         "value": "4"
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py - r"
+       },
+       "can": {
+        "edit": [
+         "m",
+         "pos",
+         "drop"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Moment względem osi",
+         "value": "total*arm",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Ramię",
+         "value": "abs(arm)",
+         "unit": "m",
+         "digits": 2
+        }
+       ],
+       "children": 0,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y + r",
+         "stroke": "muted",
+         "width": 1.5
+        },
+        {
+         "type": "rect",
+         "x": "=x - r",
+         "y": "=y - r",
+         "w": "=2*r",
+         "h": "=2*r",
+         "r": 3,
+         "fill": "accent",
+         "stroke": "ink/30",
+         "width": 1
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.2",
+         "text": "{fmt(m, 0)} kg",
+         "size": 11,
+         "weight": 600,
+         "fill": "ink"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.45",
+         "text": "M = {fmt(total*arm, 1)}",
+         "size": 9.5,
+         "fill": "muted",
+         "show": "edu"
+        }
+       ]
+      }
+     ],
+     "things": [
+      {
+       "id": "b1",
+       "kind": "belka",
+       "length": 6,
+       "pivot": 3,
+       "lock": true
+      },
+      {
+       "id": "w1",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 6,
+       "pos": 1,
+       "lock": true
+      },
+      {
+       "id": "w2",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 2,
+       "pos": 6,
+       "lock": [
+        "pos",
+        "drop"
+       ]
+      }
+     ],
+     "allow": {
+      "add": false,
+      "remove": false,
+      "copy": false
+     },
+     "limits": {
+      "things": 40,
+      "depth": 6
+     },
+     "keep": [],
+     "save": false,
+     "hint": "Dotknij prawego ciężarka i zmień jego masę (−, +, suwak albo liczba)."
+    },
+    "elements": [
+     {
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "w": 480,
+      "h": 320,
+      "camera": true,
+      "clip": true,
+      "view": [
+       "=vcx - vw/2",
+       "=vcy - vh/2",
+       "=vcx + vw/2",
+       "=vcy + vh/2"
+      ],
+      "children": [
+       {
+        "type": "rect",
+        "x": "=vcx - vw",
+        "y": -3,
+        "w": "=2*vw",
+        "h": 3,
+        "fill": "muted/12"
+       },
+       {
+        "type": "line",
+        "x": "=vcx - vw",
+        "y": 0,
+        "x2": "=vcx + vw",
+        "y2": 0,
+        "stroke": "muted/60",
+        "width": 1.5
+       },
+       {
+        "type": "world"
+       }
+      ]
+     }
+    ],
+    "max": 46
+   }
+  },
+  {
+   "id": "p3-tekst",
+   "kind": "text",
+   "size": {
+    "colSpan": 3,
+    "rowSpan": 3
+   },
+   "show": {
+    "places": {
+     "p3": {
+      "x": 22,
+      "y": 30,
+      "w": 34,
+      "max": 30,
+      "tall": {
+       "x": 47,
+       "y": 4,
+       "w": 88
+      }
+     }
+    },
+    "skin": "plain",
+    "type": "heading",
+    "origin": "top",
+    "arrive": "rise",
+    "delay": 0.1,
+    "span": 0.6
+   },
+   "config": {
+    "title": "Poziom 3 · Kilka ciężarków",
+    "body": [
+     "Po lewej dwa ciężarki, po prawej dwa do przesunięcia. Wystarczy, że sumy momentów są równe — sposobów jest kilka.",
+     "> Moment strony = suma momentów jej ciężarków."
+    ]
+   }
+  },
+  {
+   "id": "p3-waga",
+   "kind": "animation",
+   "size": {
+    "colSpan": 4,
+    "rowSpan": 5
+   },
+   "show": {
+    "places": {
+     "p3": {
+      "x": 68,
+      "y": 8,
+      "w": 56,
+      "max": 46,
+      "tall": {
+       "x": 47,
+       "y": 24,
+       "w": 88
+      }
+     }
+    },
+    "skin": "card",
+    "origin": "top",
+    "arrive": "fade",
+    "delay": 0.15,
+    "span": 0.5
+   },
+   "config": {
+    "alt": "Poziom 3 · Kilka ciężarków — waga do zrównoważenia",
+    "size": [
+     480,
+     320
+    ],
+    "vars": [
+     {
+      "name": "g",
+      "value": 9.81,
+      "unit": "m/s²",
+      "label": "Grawitacja"
+     },
+     {
+      "name": "tol",
+      "value": 0.05,
+      "unit": "kg·m",
+      "label": "Tolerancja momentu"
+     },
+     {
+      "name": "h",
+      "value": 0.2,
+      "unit": "m",
+      "label": "Drążek pod osią"
+     },
+     {
+      "name": "zeta",
+      "value": 0.5,
+      "label": "Tłumienie"
+     },
+     {
+      "name": "tilt",
+      "value": 0.35,
+      "unit": "rad",
+      "label": "Największe pochylenie"
+     },
+     {
+      "name": "edu",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Momenty"
+     },
+     {
+      "name": "ruler",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Linijka"
+     },
+     {
+      "name": "solved",
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "step": 1
+     }
+    ],
+    "let": [
+     {
+      "name": "vx0",
+      "value": "min(things, bx0)"
+     },
+     {
+      "name": "vx1",
+      "value": "max(things, bx1)"
+     },
+     {
+      "name": "vy1",
+      "value": "max(things, by1)"
+     },
+     {
+      "name": "vw",
+      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+     },
+     {
+      "name": "vh",
+      "value": "vw/1.5"
+     },
+     {
+      "name": "vcx",
+      "value": "round((vx0 + vx1)/2*4)/4"
+     },
+     {
+      "name": "vcy",
+      "value": "vh/2 - 0.4"
+     },
+     {
+      "name": "bad",
+      "value": "count(belka, !ok)"
+     }
+    ],
+    "sim": {
+     "dt": 0.01,
+     "speed": 4,
+     "auto": true,
+     "sleep": true,
+     "max": 3600
+    },
+    "controls": [
+     {
+      "type": "toggle",
+      "var": "edu",
+      "label": "Momenty"
+     },
+     {
+      "type": "toggle",
+      "var": "ruler",
+      "label": "Linijka"
+     },
+     {
+      "type": "readout",
+      "label": "Przeważa belek",
+      "value": "bad",
+      "digits": 0
+     },
+     {
+      "type": "button",
+      "label": "Dalej →",
+      "go": "next",
+      "show": "solved"
+     }
+    ],
+    "rules": [
+     {
+      "when": "nthings > 0 && all(belka, ok && still)",
+      "for": 1,
+      "goal": true,
+      "set": {
+       "solved": 1
+      },
+      "say": "Równowaga: 9 + 3 = 12 kg·m po każdej stronie."
+     },
+     {
+      "when": "edits > 0 && bad > 0",
+      "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
+      "mood": "miss"
+     }
+    ],
+    "world": {
+     "kinds": [
+      {
+       "name": "belka",
+       "label": "Belka",
+       "props": [
+        {
+         "name": "length",
+         "label": "Długość",
+         "value": 4,
+         "min": 1,
+         "max": 10,
+         "step": 0.5,
+         "unit": "m"
+        },
+        {
+         "name": "pivot",
+         "label": "Oś obrotu (od lewego końca)",
+         "value": 2,
+         "min": 0,
+         "max": "=length",
+         "step": 0.25,
+         "unit": "m"
+        },
+        {
+         "name": "bm",
+         "label": "Masa belki",
+         "value": 0,
+         "min": 0,
+         "max": 50,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce wyżej",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "when": "!isroot",
+         "new": "parent.pivot + 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 1.2,
+         "min": 0.3,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m",
+         "when": "!isroot"
+        },
+        {
+         "name": "sx",
+         "label": "Położenie stojaka",
+         "value": 0,
+         "min": -40,
+         "max": 40,
+         "step": 0.5,
+         "unit": "m",
+         "when": "isroot",
+         "new": "max(things, bx1) + pivot + 0.5"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "bm + sum(children, total)"
+        },
+        {
+         "name": "arm",
+         "value": "isroot ? 0 : pos - parent.pivot"
+        },
+        {
+         "name": "mom",
+         "value": "sum(children, total*arm) + bm*(length/2 - pivot)"
+        },
+        {
+         "name": "inertia",
+         "value": "bm*(length^2/12 + (length/2 - pivot)^2) + sum(children, total*arm^2) + 0.3"
+        },
+        {
+         "name": "kr",
+         "value": "g*h*(total + 1)"
+        },
+        {
+         "name": "damp",
+         "value": "2*zeta*sqrt(kr*inertia)"
+        },
+        {
+         "name": "ok",
+         "value": "abs(mom) < tol"
+        },
+        {
+         "name": "still",
+         "value": "abs(omega) < 0.05 && abs(angle) < 0.05"
+        },
+        {
+         "name": "ca",
+         "value": "cos(angle)"
+        },
+        {
+         "name": "sa",
+         "value": "sin(angle)"
+        },
+        {
+         "name": "ax",
+         "value": "isroot ? sx : parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "isroot ? stand : ay - drop"
+        },
+        {
+         "name": "x1",
+         "value": "x - pivot*ca + h*sa"
+        },
+        {
+         "name": "y1",
+         "value": "y - pivot*sa - h*ca"
+        },
+        {
+         "name": "x2",
+         "value": "x + (length - pivot)*ca + h*sa"
+        },
+        {
+         "name": "y2",
+         "value": "y + (length - pivot)*sa - h*ca"
+        },
+        {
+         "name": "dy",
+         "value": "isroot ? 0 : parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+        },
+        {
+         "name": "stand",
+         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
+        },
+        {
+         "name": "rx",
+         "value": "isroot ? sx : parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - pivot - 0.4"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + length - pivot + 0.4"
+        },
+        {
+         "name": "by0",
+         "value": "ry - h - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry + 0.7"
+        },
+        {
+         "name": "hit",
+         "value": "6"
+        }
+       ],
+       "state": [
+        {
+         "name": "angle",
+         "value": 0,
+         "rate": "omega"
+        },
+        {
+         "name": "omega",
+         "value": 0,
+         "rate": "(-g*mom*cos(angle) - kr*sin(angle) - damp*omega)/inertia"
+        }
+       ],
+       "events": [
+        {
+         "when": "angle > tilt",
+         "set": {
+          "angle": "tilt",
+          "omega": 0
+         }
+        },
+        {
+         "when": "angle < -tilt",
+         "set": {
+          "angle": "-tilt",
+          "omega": 0
+         }
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py",
+        "sx": "px"
+       },
+       "can": {
+        "edit": [
+         "length",
+         "pivot",
+         "bm",
+         "pos",
+         "drop",
+         "sx"
+        ],
+        "add": [
+         "ciezarek",
+         "belka"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Suma momentów",
+         "value": "mom",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Masa z tym, co wisi",
+         "value": "total",
+         "unit": "kg",
+         "digits": 1
+        },
+        {
+         "label": "Pochylenie",
+         "value": "deg(angle)",
+         "unit": "°",
+         "digits": 1
+        }
+       ],
+       "children": 8,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x - 0.6",
+         "y": 0,
+         "x2": "=x + 0.6",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "!isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x + h*sa",
+         "y2": "=y - h*ca",
+         "stroke": "ink",
+         "width": 3
+        },
+        {
+         "type": "line",
+         "x": "=x1",
+         "y": "=y1",
+         "x2": "=x2",
+         "y2": "=y2",
+         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "width": 7
+        },
+        {
+         "type": "line",
+         "repeat": 21,
+         "x": "=x1 + i*0.5*ca",
+         "y": "=y1 + i*0.5*sa",
+         "x2": "=x1 + i*0.5*ca + 0.13*sa",
+         "y2": "=y1 + i*0.5*sa - 0.13*ca",
+         "stroke": "ink/45",
+         "width": 1,
+         "show": "ruler && i*0.5 <= length + 0.001"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 4.5,
+         "fill": "ink"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 2,
+         "fill": "ground"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y + 0.42",
+         "text": "ΣM = {fmt(mom, 2)} kg·m",
+         "size": 11,
+         "weight": 600,
+         "fill": "=ok ? 'ok' : 'danger'",
+         "show": "edu"
+        }
+       ]
+      },
+      {
+       "name": "ciezarek",
+       "label": "Ciężarek",
+       "props": [
+        {
+         "name": "m",
+         "label": "Masa",
+         "value": 5,
+         "min": 1,
+         "max": 100,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "new": "parent.pivot - 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 0.6,
+         "min": 0.2,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "m"
+        },
+        {
+         "name": "arm",
+         "value": "pos - parent.pivot"
+        },
+        {
+         "name": "r",
+         "value": "0.13 + 0.035*sqrt(m)"
+        },
+        {
+         "name": "ax",
+         "value": "parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "ay - drop - r"
+        },
+        {
+         "name": "dy",
+         "value": "parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+        },
+        {
+         "name": "rx",
+         "value": "parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - r - 0.3"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + r + 0.3"
+        },
+        {
+         "name": "by0",
+         "value": "ry - 2*r - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry"
+        },
+        {
+         "name": "hit",
+         "value": "4"
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py - r"
+       },
+       "can": {
+        "edit": [
+         "m",
+         "pos",
+         "drop"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Moment względem osi",
+         "value": "total*arm",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Ramię",
+         "value": "abs(arm)",
+         "unit": "m",
+         "digits": 2
+        }
+       ],
+       "children": 0,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y + r",
+         "stroke": "muted",
+         "width": 1.5
+        },
+        {
+         "type": "rect",
+         "x": "=x - r",
+         "y": "=y - r",
+         "w": "=2*r",
+         "h": "=2*r",
+         "r": 3,
+         "fill": "accent",
+         "stroke": "ink/30",
+         "width": 1
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.2",
+         "text": "{fmt(m, 0)} kg",
+         "size": 11,
+         "weight": 600,
+         "fill": "ink"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.45",
+         "text": "M = {fmt(total*arm, 1)}",
+         "size": 9.5,
+         "fill": "muted",
+         "show": "edu"
+        }
+       ]
+      }
+     ],
+     "things": [
+      {
+       "id": "b1",
+       "kind": "belka",
+       "length": 8,
+       "pivot": 4,
+       "lock": true
+      },
+      {
+       "id": "w1",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 3,
+       "pos": 1,
+       "lock": true
+      },
+      {
+       "id": "w2",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 2,
+       "pos": 2.5,
+       "lock": true
+      },
+      {
+       "id": "w3",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 4,
+       "pos": 5,
+       "lock": [
+        "m",
+        "drop"
+       ]
+      },
+      {
+       "id": "w4",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 2,
+       "pos": 6,
+       "lock": [
+        "m",
+        "drop"
+       ]
+      }
+     ],
+     "allow": {
+      "add": false,
+      "remove": false,
+      "copy": false
+     },
+     "limits": {
+      "things": 40,
+      "depth": 6
+     },
+     "keep": [],
+     "save": false,
+     "hint": "Przeciągnij ciężarki 4 kg i 2 kg po prawej stronie."
+    },
+    "elements": [
+     {
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "w": 480,
+      "h": 320,
+      "camera": true,
+      "clip": true,
+      "view": [
+       "=vcx - vw/2",
+       "=vcy - vh/2",
+       "=vcx + vw/2",
+       "=vcy + vh/2"
+      ],
+      "children": [
+       {
+        "type": "rect",
+        "x": "=vcx - vw",
+        "y": -3,
+        "w": "=2*vw",
+        "h": 3,
+        "fill": "muted/12"
+       },
+       {
+        "type": "line",
+        "x": "=vcx - vw",
+        "y": 0,
+        "x2": "=vcx + vw",
+        "y2": 0,
+        "stroke": "muted/60",
+        "width": 1.5
+       },
+       {
+        "type": "world"
+       }
+      ]
+     }
+    ],
+    "max": 46
+   }
+  },
+  {
+   "id": "p4-tekst",
+   "kind": "text",
+   "size": {
+    "colSpan": 3,
+    "rowSpan": 3
+   },
+   "show": {
+    "places": {
+     "p4": {
+      "x": 22,
+      "y": 30,
+      "w": 34,
+      "max": 30,
+      "tall": {
+       "x": 47,
+       "y": 4,
+       "w": 88
+      }
+     }
+    },
+    "skin": "plain",
+    "type": "heading",
+    "origin": "top",
+    "arrive": "rise",
+    "delay": 0.1,
+    "span": 0.6
+   },
+   "config": {
+    "title": "Poziom 4 · Belka na belce",
+    "body": [
+     "Dolna belka wisi na górnej. Na górną działa cała jej masa — razem z tym, co na niej wisi.",
+     "Najpierw zrównoważ dolną (masa ciężarka), potem przesuń ją po górnej."
+    ]
+   }
+  },
+  {
+   "id": "p4-waga",
+   "kind": "animation",
+   "size": {
+    "colSpan": 4,
+    "rowSpan": 5
+   },
+   "show": {
+    "places": {
+     "p4": {
+      "x": 68,
+      "y": 8,
+      "w": 56,
+      "max": 46,
+      "tall": {
+       "x": 47,
+       "y": 24,
+       "w": 88
+      }
+     }
+    },
+    "skin": "card",
+    "origin": "top",
+    "arrive": "fade",
+    "delay": 0.15,
+    "span": 0.5
+   },
+   "config": {
+    "alt": "Poziom 4 · Belka na belce — waga do zrównoważenia",
+    "size": [
+     480,
+     320
+    ],
+    "vars": [
+     {
+      "name": "g",
+      "value": 9.81,
+      "unit": "m/s²",
+      "label": "Grawitacja"
+     },
+     {
+      "name": "tol",
+      "value": 0.05,
+      "unit": "kg·m",
+      "label": "Tolerancja momentu"
+     },
+     {
+      "name": "h",
+      "value": 0.2,
+      "unit": "m",
+      "label": "Drążek pod osią"
+     },
+     {
+      "name": "zeta",
+      "value": 0.5,
+      "label": "Tłumienie"
+     },
+     {
+      "name": "tilt",
+      "value": 0.35,
+      "unit": "rad",
+      "label": "Największe pochylenie"
+     },
+     {
+      "name": "edu",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Momenty"
+     },
+     {
+      "name": "ruler",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Linijka"
+     },
+     {
+      "name": "solved",
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "step": 1
+     }
+    ],
+    "let": [
+     {
+      "name": "vx0",
+      "value": "min(things, bx0)"
+     },
+     {
+      "name": "vx1",
+      "value": "max(things, bx1)"
+     },
+     {
+      "name": "vy1",
+      "value": "max(things, by1)"
+     },
+     {
+      "name": "vw",
+      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+     },
+     {
+      "name": "vh",
+      "value": "vw/1.5"
+     },
+     {
+      "name": "vcx",
+      "value": "round((vx0 + vx1)/2*4)/4"
+     },
+     {
+      "name": "vcy",
+      "value": "vh/2 - 0.4"
+     },
+     {
+      "name": "bad",
+      "value": "count(belka, !ok)"
+     }
+    ],
+    "sim": {
+     "dt": 0.01,
+     "speed": 4,
+     "auto": true,
+     "sleep": true,
+     "max": 3600
+    },
+    "controls": [
+     {
+      "type": "toggle",
+      "var": "edu",
+      "label": "Momenty"
+     },
+     {
+      "type": "toggle",
+      "var": "ruler",
+      "label": "Linijka"
+     },
+     {
+      "type": "readout",
+      "label": "Przeważa belek",
+      "value": "bad",
+      "digits": 0
+     },
+     {
+      "type": "button",
+      "label": "Dalej →",
+      "go": "next",
+      "show": "solved"
+     }
+    ],
+    "rules": [
+     {
+      "when": "nthings > 0 && all(belka, ok && still)",
+      "for": 1,
+      "goal": true,
+      "set": {
+       "solved": 1
+      },
+      "say": "Dolna: 2 kg × 1,5 m = 2 kg × 1,5 m. Górna: 4 kg × 3 m = 6 kg × 2 m."
+     },
+     {
+      "when": "edits > 0 && bad > 0",
+      "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
+      "mood": "miss"
+     }
+    ],
+    "world": {
+     "kinds": [
+      {
+       "name": "belka",
+       "label": "Belka",
+       "props": [
+        {
+         "name": "length",
+         "label": "Długość",
+         "value": 4,
+         "min": 1,
+         "max": 10,
+         "step": 0.5,
+         "unit": "m"
+        },
+        {
+         "name": "pivot",
+         "label": "Oś obrotu (od lewego końca)",
+         "value": 2,
+         "min": 0,
+         "max": "=length",
+         "step": 0.25,
+         "unit": "m"
+        },
+        {
+         "name": "bm",
+         "label": "Masa belki",
+         "value": 0,
+         "min": 0,
+         "max": 50,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce wyżej",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "when": "!isroot",
+         "new": "parent.pivot + 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 1.2,
+         "min": 0.3,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m",
+         "when": "!isroot"
+        },
+        {
+         "name": "sx",
+         "label": "Położenie stojaka",
+         "value": 0,
+         "min": -40,
+         "max": 40,
+         "step": 0.5,
+         "unit": "m",
+         "when": "isroot",
+         "new": "max(things, bx1) + pivot + 0.5"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "bm + sum(children, total)"
+        },
+        {
+         "name": "arm",
+         "value": "isroot ? 0 : pos - parent.pivot"
+        },
+        {
+         "name": "mom",
+         "value": "sum(children, total*arm) + bm*(length/2 - pivot)"
+        },
+        {
+         "name": "inertia",
+         "value": "bm*(length^2/12 + (length/2 - pivot)^2) + sum(children, total*arm^2) + 0.3"
+        },
+        {
+         "name": "kr",
+         "value": "g*h*(total + 1)"
+        },
+        {
+         "name": "damp",
+         "value": "2*zeta*sqrt(kr*inertia)"
+        },
+        {
+         "name": "ok",
+         "value": "abs(mom) < tol"
+        },
+        {
+         "name": "still",
+         "value": "abs(omega) < 0.05 && abs(angle) < 0.05"
+        },
+        {
+         "name": "ca",
+         "value": "cos(angle)"
+        },
+        {
+         "name": "sa",
+         "value": "sin(angle)"
+        },
+        {
+         "name": "ax",
+         "value": "isroot ? sx : parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "isroot ? stand : ay - drop"
+        },
+        {
+         "name": "x1",
+         "value": "x - pivot*ca + h*sa"
+        },
+        {
+         "name": "y1",
+         "value": "y - pivot*sa - h*ca"
+        },
+        {
+         "name": "x2",
+         "value": "x + (length - pivot)*ca + h*sa"
+        },
+        {
+         "name": "y2",
+         "value": "y + (length - pivot)*sa - h*ca"
+        },
+        {
+         "name": "dy",
+         "value": "isroot ? 0 : parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+        },
+        {
+         "name": "stand",
+         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
+        },
+        {
+         "name": "rx",
+         "value": "isroot ? sx : parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - pivot - 0.4"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + length - pivot + 0.4"
+        },
+        {
+         "name": "by0",
+         "value": "ry - h - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry + 0.7"
+        },
+        {
+         "name": "hit",
+         "value": "6"
+        }
+       ],
+       "state": [
+        {
+         "name": "angle",
+         "value": 0,
+         "rate": "omega"
+        },
+        {
+         "name": "omega",
+         "value": 0,
+         "rate": "(-g*mom*cos(angle) - kr*sin(angle) - damp*omega)/inertia"
+        }
+       ],
+       "events": [
+        {
+         "when": "angle > tilt",
+         "set": {
+          "angle": "tilt",
+          "omega": 0
+         }
+        },
+        {
+         "when": "angle < -tilt",
+         "set": {
+          "angle": "-tilt",
+          "omega": 0
+         }
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py",
+        "sx": "px"
+       },
+       "can": {
+        "edit": [
+         "length",
+         "pivot",
+         "bm",
+         "pos",
+         "drop",
+         "sx"
+        ],
+        "add": [
+         "ciezarek",
+         "belka"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Suma momentów",
+         "value": "mom",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Masa z tym, co wisi",
+         "value": "total",
+         "unit": "kg",
+         "digits": 1
+        },
+        {
+         "label": "Pochylenie",
+         "value": "deg(angle)",
+         "unit": "°",
+         "digits": 1
+        }
+       ],
+       "children": 8,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x - 0.6",
+         "y": 0,
+         "x2": "=x + 0.6",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "!isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x + h*sa",
+         "y2": "=y - h*ca",
+         "stroke": "ink",
+         "width": 3
+        },
+        {
+         "type": "line",
+         "x": "=x1",
+         "y": "=y1",
+         "x2": "=x2",
+         "y2": "=y2",
+         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "width": 7
+        },
+        {
+         "type": "line",
+         "repeat": 21,
+         "x": "=x1 + i*0.5*ca",
+         "y": "=y1 + i*0.5*sa",
+         "x2": "=x1 + i*0.5*ca + 0.13*sa",
+         "y2": "=y1 + i*0.5*sa - 0.13*ca",
+         "stroke": "ink/45",
+         "width": 1,
+         "show": "ruler && i*0.5 <= length + 0.001"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 4.5,
+         "fill": "ink"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 2,
+         "fill": "ground"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y + 0.42",
+         "text": "ΣM = {fmt(mom, 2)} kg·m",
+         "size": 11,
+         "weight": 600,
+         "fill": "=ok ? 'ok' : 'danger'",
+         "show": "edu"
+        }
+       ]
+      },
+      {
+       "name": "ciezarek",
+       "label": "Ciężarek",
+       "props": [
+        {
+         "name": "m",
+         "label": "Masa",
+         "value": 5,
+         "min": 1,
+         "max": 100,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "new": "parent.pivot - 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 0.6,
+         "min": 0.2,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "m"
+        },
+        {
+         "name": "arm",
+         "value": "pos - parent.pivot"
+        },
+        {
+         "name": "r",
+         "value": "0.13 + 0.035*sqrt(m)"
+        },
+        {
+         "name": "ax",
+         "value": "parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "ay - drop - r"
+        },
+        {
+         "name": "dy",
+         "value": "parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+        },
+        {
+         "name": "rx",
+         "value": "parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - r - 0.3"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + r + 0.3"
+        },
+        {
+         "name": "by0",
+         "value": "ry - 2*r - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry"
+        },
+        {
+         "name": "hit",
+         "value": "4"
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py - r"
+       },
+       "can": {
+        "edit": [
+         "m",
+         "pos",
+         "drop"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Moment względem osi",
+         "value": "total*arm",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Ramię",
+         "value": "abs(arm)",
+         "unit": "m",
+         "digits": 2
+        }
+       ],
+       "children": 0,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y + r",
+         "stroke": "muted",
+         "width": 1.5
+        },
+        {
+         "type": "rect",
+         "x": "=x - r",
+         "y": "=y - r",
+         "w": "=2*r",
+         "h": "=2*r",
+         "r": 3,
+         "fill": "accent",
+         "stroke": "ink/30",
+         "width": 1
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.2",
+         "text": "{fmt(m, 0)} kg",
+         "size": 11,
+         "weight": 600,
+         "fill": "ink"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.45",
+         "text": "M = {fmt(total*arm, 1)}",
+         "size": 9.5,
+         "fill": "muted",
+         "show": "edu"
+        }
+       ]
+      }
+     ],
+     "things": [
+      {
+       "id": "b1",
+       "kind": "belka",
+       "length": 6,
+       "pivot": 3,
+       "lock": true
+      },
+      {
+       "id": "w1",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 6,
+       "pos": 1,
+       "lock": true
+      },
+      {
+       "id": "b2",
+       "kind": "belka",
+       "parent": "b1",
+       "length": 3,
+       "pivot": 1.5,
+       "pos": 4.5,
+       "drop": 1,
+       "lock": [
+        "length",
+        "pivot",
+        "bm",
+        "drop"
+       ]
+      },
+      {
+       "id": "w2",
+       "kind": "ciezarek",
+       "parent": "b2",
+       "m": 2,
+       "pos": 0,
+       "lock": true
+      },
+      {
+       "id": "w3",
+       "kind": "ciezarek",
+       "parent": "b2",
+       "m": 5,
+       "pos": 3,
+       "lock": [
+        "pos",
+        "drop"
+       ]
+      }
+     ],
+     "allow": {
+      "add": false,
+      "remove": false,
+      "copy": false
+     },
+     "limits": {
+      "things": 40,
+      "depth": 6
+     },
+     "keep": [],
+     "save": false,
+     "hint": "Dotknij prawego ciężarka na dolnej belce, potem przeciągnij dolną belkę po górnej."
+    },
+    "elements": [
+     {
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "w": 480,
+      "h": 320,
+      "camera": true,
+      "clip": true,
+      "view": [
+       "=vcx - vw/2",
+       "=vcy - vh/2",
+       "=vcx + vw/2",
+       "=vcy + vh/2"
+      ],
+      "children": [
+       {
+        "type": "rect",
+        "x": "=vcx - vw",
+        "y": -3,
+        "w": "=2*vw",
+        "h": 3,
+        "fill": "muted/12"
+       },
+       {
+        "type": "line",
+        "x": "=vcx - vw",
+        "y": 0,
+        "x2": "=vcx + vw",
+        "y2": 0,
+        "stroke": "muted/60",
+        "width": 1.5
+       },
+       {
+        "type": "world"
+       }
+      ]
+     }
+    ],
+    "max": 46
+   }
+  },
+  {
+   "id": "p5-tekst",
+   "kind": "text",
+   "size": {
+    "colSpan": 3,
+    "rowSpan": 3
+   },
+   "show": {
+    "places": {
+     "p5": {
+      "x": 22,
+      "y": 30,
+      "w": 34,
+      "max": 30,
+      "tall": {
+       "x": 47,
+       "y": 4,
+       "w": 88
+      }
+     }
+    },
+    "skin": "plain",
+    "type": "heading",
+    "origin": "top",
+    "arrive": "rise",
+    "delay": 0.1,
+    "span": 0.6
+   },
+   "config": {
+    "title": "Poziom 5 · Mobil",
+    "body": [
+     "Trzy piętra jak w mobilu nad łóżeczkiem. Zacznij od najniższej belki i idź w górę.",
+     "Każda belka niesie wszystko, co pod nią wisi."
+    ]
+   }
+  },
+  {
+   "id": "p5-waga",
+   "kind": "animation",
+   "size": {
+    "colSpan": 4,
+    "rowSpan": 5
+   },
+   "show": {
+    "places": {
+     "p5": {
+      "x": 68,
+      "y": 8,
+      "w": 56,
+      "max": 46,
+      "tall": {
+       "x": 47,
+       "y": 24,
+       "w": 88
+      }
+     }
+    },
+    "skin": "card",
+    "origin": "top",
+    "arrive": "fade",
+    "delay": 0.15,
+    "span": 0.5
+   },
+   "config": {
+    "alt": "Poziom 5 · Mobil — waga do zrównoważenia",
+    "size": [
+     480,
+     320
+    ],
+    "vars": [
+     {
+      "name": "g",
+      "value": 9.81,
+      "unit": "m/s²",
+      "label": "Grawitacja"
+     },
+     {
+      "name": "tol",
+      "value": 0.05,
+      "unit": "kg·m",
+      "label": "Tolerancja momentu"
+     },
+     {
+      "name": "h",
+      "value": 0.2,
+      "unit": "m",
+      "label": "Drążek pod osią"
+     },
+     {
+      "name": "zeta",
+      "value": 0.5,
+      "label": "Tłumienie"
+     },
+     {
+      "name": "tilt",
+      "value": 0.35,
+      "unit": "rad",
+      "label": "Największe pochylenie"
+     },
+     {
+      "name": "edu",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Momenty"
+     },
+     {
+      "name": "ruler",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Linijka"
+     },
+     {
+      "name": "solved",
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "step": 1
+     }
+    ],
+    "let": [
+     {
+      "name": "vx0",
+      "value": "min(things, bx0)"
+     },
+     {
+      "name": "vx1",
+      "value": "max(things, bx1)"
+     },
+     {
+      "name": "vy1",
+      "value": "max(things, by1)"
+     },
+     {
+      "name": "vw",
+      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+     },
+     {
+      "name": "vh",
+      "value": "vw/1.5"
+     },
+     {
+      "name": "vcx",
+      "value": "round((vx0 + vx1)/2*4)/4"
+     },
+     {
+      "name": "vcy",
+      "value": "vh/2 - 0.4"
+     },
+     {
+      "name": "bad",
+      "value": "count(belka, !ok)"
+     }
+    ],
+    "sim": {
+     "dt": 0.01,
+     "speed": 4,
+     "auto": true,
+     "sleep": true,
+     "max": 3600
+    },
+    "controls": [
+     {
+      "type": "toggle",
+      "var": "edu",
+      "label": "Momenty"
+     },
+     {
+      "type": "toggle",
+      "var": "ruler",
+      "label": "Linijka"
+     },
+     {
+      "type": "readout",
+      "label": "Przeważa belek",
+      "value": "bad",
+      "digits": 0
+     },
+     {
+      "type": "button",
+      "label": "Dalej →",
+      "go": "next",
+      "show": "solved"
+     }
+    ],
+    "rules": [
+     {
+      "when": "nthings > 0 && all(belka, ok && still)",
+      "for": 1,
+      "goal": true,
+      "set": {
+       "solved": 1
+      },
+      "say": "Mobil wisi! Najniższa belka: 2 kg; środkowa: 4 kg × 1 m = 2 kg × 2 m; górna: 6 kg × 2,25 m = 13,5 kg·m."
+     },
+     {
+      "when": "edits > 0 && bad > 0",
+      "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
+      "mood": "miss"
+     }
+    ],
+    "world": {
+     "kinds": [
+      {
+       "name": "belka",
+       "label": "Belka",
+       "props": [
+        {
+         "name": "length",
+         "label": "Długość",
+         "value": 4,
+         "min": 1,
+         "max": 10,
+         "step": 0.5,
+         "unit": "m"
+        },
+        {
+         "name": "pivot",
+         "label": "Oś obrotu (od lewego końca)",
+         "value": 2,
+         "min": 0,
+         "max": "=length",
+         "step": 0.25,
+         "unit": "m"
+        },
+        {
+         "name": "bm",
+         "label": "Masa belki",
+         "value": 0,
+         "min": 0,
+         "max": 50,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce wyżej",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "when": "!isroot",
+         "new": "parent.pivot + 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 1.2,
+         "min": 0.3,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m",
+         "when": "!isroot"
+        },
+        {
+         "name": "sx",
+         "label": "Położenie stojaka",
+         "value": 0,
+         "min": -40,
+         "max": 40,
+         "step": 0.5,
+         "unit": "m",
+         "when": "isroot",
+         "new": "max(things, bx1) + pivot + 0.5"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "bm + sum(children, total)"
+        },
+        {
+         "name": "arm",
+         "value": "isroot ? 0 : pos - parent.pivot"
+        },
+        {
+         "name": "mom",
+         "value": "sum(children, total*arm) + bm*(length/2 - pivot)"
+        },
+        {
+         "name": "inertia",
+         "value": "bm*(length^2/12 + (length/2 - pivot)^2) + sum(children, total*arm^2) + 0.3"
+        },
+        {
+         "name": "kr",
+         "value": "g*h*(total + 1)"
+        },
+        {
+         "name": "damp",
+         "value": "2*zeta*sqrt(kr*inertia)"
+        },
+        {
+         "name": "ok",
+         "value": "abs(mom) < tol"
+        },
+        {
+         "name": "still",
+         "value": "abs(omega) < 0.05 && abs(angle) < 0.05"
+        },
+        {
+         "name": "ca",
+         "value": "cos(angle)"
+        },
+        {
+         "name": "sa",
+         "value": "sin(angle)"
+        },
+        {
+         "name": "ax",
+         "value": "isroot ? sx : parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "isroot ? stand : ay - drop"
+        },
+        {
+         "name": "x1",
+         "value": "x - pivot*ca + h*sa"
+        },
+        {
+         "name": "y1",
+         "value": "y - pivot*sa - h*ca"
+        },
+        {
+         "name": "x2",
+         "value": "x + (length - pivot)*ca + h*sa"
+        },
+        {
+         "name": "y2",
+         "value": "y + (length - pivot)*sa - h*ca"
+        },
+        {
+         "name": "dy",
+         "value": "isroot ? 0 : parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+        },
+        {
+         "name": "stand",
+         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
+        },
+        {
+         "name": "rx",
+         "value": "isroot ? sx : parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - pivot - 0.4"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + length - pivot + 0.4"
+        },
+        {
+         "name": "by0",
+         "value": "ry - h - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry + 0.7"
+        },
+        {
+         "name": "hit",
+         "value": "6"
+        }
+       ],
+       "state": [
+        {
+         "name": "angle",
+         "value": 0,
+         "rate": "omega"
+        },
+        {
+         "name": "omega",
+         "value": 0,
+         "rate": "(-g*mom*cos(angle) - kr*sin(angle) - damp*omega)/inertia"
+        }
+       ],
+       "events": [
+        {
+         "when": "angle > tilt",
+         "set": {
+          "angle": "tilt",
+          "omega": 0
+         }
+        },
+        {
+         "when": "angle < -tilt",
+         "set": {
+          "angle": "-tilt",
+          "omega": 0
+         }
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py",
+        "sx": "px"
+       },
+       "can": {
+        "edit": [
+         "length",
+         "pivot",
+         "bm",
+         "pos",
+         "drop",
+         "sx"
+        ],
+        "add": [
+         "ciezarek",
+         "belka"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Suma momentów",
+         "value": "mom",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Masa z tym, co wisi",
+         "value": "total",
+         "unit": "kg",
+         "digits": 1
+        },
+        {
+         "label": "Pochylenie",
+         "value": "deg(angle)",
+         "unit": "°",
+         "digits": 1
+        }
+       ],
+       "children": 8,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x - 0.6",
+         "y": 0,
+         "x2": "=x + 0.6",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "!isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x + h*sa",
+         "y2": "=y - h*ca",
+         "stroke": "ink",
+         "width": 3
+        },
+        {
+         "type": "line",
+         "x": "=x1",
+         "y": "=y1",
+         "x2": "=x2",
+         "y2": "=y2",
+         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "width": 7
+        },
+        {
+         "type": "line",
+         "repeat": 21,
+         "x": "=x1 + i*0.5*ca",
+         "y": "=y1 + i*0.5*sa",
+         "x2": "=x1 + i*0.5*ca + 0.13*sa",
+         "y2": "=y1 + i*0.5*sa - 0.13*ca",
+         "stroke": "ink/45",
+         "width": 1,
+         "show": "ruler && i*0.5 <= length + 0.001"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 4.5,
+         "fill": "ink"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 2,
+         "fill": "ground"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y + 0.42",
+         "text": "ΣM = {fmt(mom, 2)} kg·m",
+         "size": 11,
+         "weight": 600,
+         "fill": "=ok ? 'ok' : 'danger'",
+         "show": "edu"
+        }
+       ]
+      },
+      {
+       "name": "ciezarek",
+       "label": "Ciężarek",
+       "props": [
+        {
+         "name": "m",
+         "label": "Masa",
+         "value": 5,
+         "min": 1,
+         "max": 100,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "new": "parent.pivot - 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 0.6,
+         "min": 0.2,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "m"
+        },
+        {
+         "name": "arm",
+         "value": "pos - parent.pivot"
+        },
+        {
+         "name": "r",
+         "value": "0.13 + 0.035*sqrt(m)"
+        },
+        {
+         "name": "ax",
+         "value": "parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "ay - drop - r"
+        },
+        {
+         "name": "dy",
+         "value": "parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+        },
+        {
+         "name": "rx",
+         "value": "parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - r - 0.3"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + r + 0.3"
+        },
+        {
+         "name": "by0",
+         "value": "ry - 2*r - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry"
+        },
+        {
+         "name": "hit",
+         "value": "4"
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py - r"
+       },
+       "can": {
+        "edit": [
+         "m",
+         "pos",
+         "drop"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Moment względem osi",
+         "value": "total*arm",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Ramię",
+         "value": "abs(arm)",
+         "unit": "m",
+         "digits": 2
+        }
+       ],
+       "children": 0,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y + r",
+         "stroke": "muted",
+         "width": 1.5
+        },
+        {
+         "type": "rect",
+         "x": "=x - r",
+         "y": "=y - r",
+         "w": "=2*r",
+         "h": "=2*r",
+         "r": 3,
+         "fill": "accent",
+         "stroke": "ink/30",
+         "width": 1
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.2",
+         "text": "{fmt(m, 0)} kg",
+         "size": 11,
+         "weight": 600,
+         "fill": "ink"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.45",
+         "text": "M = {fmt(total*arm, 1)}",
+         "size": 9.5,
+         "fill": "muted",
+         "show": "edu"
+        }
+       ]
+      }
+     ],
+     "things": [
+      {
+       "id": "b1",
+       "kind": "belka",
+       "length": 6,
+       "pivot": 3,
+       "lock": true
+      },
+      {
+       "id": "w1",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 3,
+       "pos": 0,
+       "lock": true
+      },
+      {
+       "id": "w2",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 3,
+       "pos": 1.5,
+       "lock": true
+      },
+      {
+       "id": "b2",
+       "kind": "belka",
+       "parent": "b1",
+       "length": 4,
+       "pivot": 2,
+       "pos": 4,
+       "drop": 1,
+       "lock": [
+        "length",
+        "pivot",
+        "bm",
+        "drop"
+       ]
+      },
+      {
+       "id": "w3",
+       "kind": "ciezarek",
+       "parent": "b2",
+       "m": 4,
+       "pos": 1,
+       "lock": true
+      },
+      {
+       "id": "b3",
+       "kind": "belka",
+       "parent": "b2",
+       "length": 2,
+       "pivot": 1,
+       "pos": 3,
+       "drop": 0.8,
+       "lock": [
+        "length",
+        "pivot",
+        "bm",
+        "drop"
+       ]
+      },
+      {
+       "id": "w4",
+       "kind": "ciezarek",
+       "parent": "b3",
+       "m": 1,
+       "pos": 0,
+       "lock": true
+      },
+      {
+       "id": "w5",
+       "kind": "ciezarek",
+       "parent": "b3",
+       "m": 1,
+       "pos": 2,
+       "lock": true
+      }
+     ],
+     "allow": {
+      "add": false,
+      "remove": false,
+      "copy": false
+     },
+     "limits": {
+      "things": 40,
+      "depth": 6
+     },
+     "keep": [],
+     "save": false,
+     "hint": "Przeciągaj belki (ich oś) wzdłuż belki, na której wiszą."
+    },
+    "elements": [
+     {
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "w": 480,
+      "h": 320,
+      "camera": true,
+      "clip": true,
+      "view": [
+       "=vcx - vw/2",
+       "=vcy - vh/2",
+       "=vcx + vw/2",
+       "=vcy + vh/2"
+      ],
+      "children": [
+       {
+        "type": "rect",
+        "x": "=vcx - vw",
+        "y": -3,
+        "w": "=2*vw",
+        "h": 3,
+        "fill": "muted/12"
+       },
+       {
+        "type": "line",
+        "x": "=vcx - vw",
+        "y": 0,
+        "x2": "=vcx + vw",
+        "y2": 0,
+        "stroke": "muted/60",
+        "width": 1.5
+       },
+       {
+        "type": "world"
+       }
+      ]
+     }
+    ],
+    "max": 46
+   }
+  },
+  {
+   "id": "p6-tekst",
+   "kind": "text",
+   "size": {
+    "colSpan": 3,
+    "rowSpan": 3
+   },
+   "show": {
+    "places": {
+     "p6": {
+      "x": 22,
+      "y": 30,
+      "w": 34,
+      "max": 30,
+      "tall": {
+       "x": 47,
+       "y": 4,
+       "w": 88
+      }
+     }
+    },
+    "skin": "plain",
+    "type": "heading",
+    "origin": "top",
+    "arrive": "rise",
+    "delay": 0.1,
+    "span": 0.6
+   },
+   "config": {
+    "title": "Poziom 6 · Tylko dwa ruchy",
+    "body": [
+     "Najpierw policz, potem przesuwaj: masz najwyżej dwa ruchy. Cofnięcie (↶) oddaje ruch.",
+     "Lewa strona: 5 kg × 3 m + 1 kg × 1 m. Prawa: 2 kg × 2 m + 3 kg × 3 m."
+    ]
+   }
+  },
+  {
+   "id": "p6-waga",
+   "kind": "animation",
+   "size": {
+    "colSpan": 4,
+    "rowSpan": 5
+   },
+   "show": {
+    "places": {
+     "p6": {
+      "x": 68,
+      "y": 8,
+      "w": 56,
+      "max": 46,
+      "tall": {
+       "x": 47,
+       "y": 24,
+       "w": 88
+      }
+     }
+    },
+    "skin": "card",
+    "origin": "top",
+    "arrive": "fade",
+    "delay": 0.15,
+    "span": 0.5
+   },
+   "config": {
+    "alt": "Poziom 6 · Tylko dwa ruchy — waga do zrównoważenia",
+    "size": [
+     480,
+     320
+    ],
+    "vars": [
+     {
+      "name": "g",
+      "value": 9.81,
+      "unit": "m/s²",
+      "label": "Grawitacja"
+     },
+     {
+      "name": "tol",
+      "value": 0.05,
+      "unit": "kg·m",
+      "label": "Tolerancja momentu"
+     },
+     {
+      "name": "h",
+      "value": 0.2,
+      "unit": "m",
+      "label": "Drążek pod osią"
+     },
+     {
+      "name": "zeta",
+      "value": 0.5,
+      "label": "Tłumienie"
+     },
+     {
+      "name": "tilt",
+      "value": 0.35,
+      "unit": "rad",
+      "label": "Największe pochylenie"
+     },
+     {
+      "name": "edu",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Momenty"
+     },
+     {
+      "name": "ruler",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Linijka"
+     },
+     {
+      "name": "solved",
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "step": 1
+     }
+    ],
+    "let": [
+     {
+      "name": "vx0",
+      "value": "min(things, bx0)"
+     },
+     {
+      "name": "vx1",
+      "value": "max(things, bx1)"
+     },
+     {
+      "name": "vy1",
+      "value": "max(things, by1)"
+     },
+     {
+      "name": "vw",
+      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+     },
+     {
+      "name": "vh",
+      "value": "vw/1.5"
+     },
+     {
+      "name": "vcx",
+      "value": "round((vx0 + vx1)/2*4)/4"
+     },
+     {
+      "name": "vcy",
+      "value": "vh/2 - 0.4"
+     },
+     {
+      "name": "bad",
+      "value": "count(belka, !ok)"
+     }
+    ],
+    "sim": {
+     "dt": 0.01,
+     "speed": 4,
+     "auto": true,
+     "sleep": true,
+     "max": 3600
+    },
+    "controls": [
+     {
+      "type": "toggle",
+      "var": "edu",
+      "label": "Momenty"
+     },
+     {
+      "type": "toggle",
+      "var": "ruler",
+      "label": "Linijka"
+     },
+     {
+      "type": "readout",
+      "label": "Przeważa belek",
+      "value": "bad",
+      "digits": 0
+     },
+     {
+      "type": "readout",
+      "label": "Ruchy",
+      "value": "edits + ' z 2'"
+     },
+     {
+      "type": "button",
+      "label": "Dalej →",
+      "go": "next",
+      "show": "solved"
+     }
+    ],
+    "rules": [
+     {
+      "when": "nthings > 0 && all(belka, ok && still)",
+      "for": 1,
+      "goal": true,
+      "set": {
+       "solved": 1
+      },
+      "say": "Wystarczył jeden ruch? Brakowało 3 kg·m po prawej."
+     },
+     {
+      "when": "edits > 0 && bad > 0",
+      "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
+      "mood": "miss"
+     }
+    ],
+    "world": {
+     "kinds": [
+      {
+       "name": "belka",
+       "label": "Belka",
+       "props": [
+        {
+         "name": "length",
+         "label": "Długość",
+         "value": 4,
+         "min": 1,
+         "max": 10,
+         "step": 0.5,
+         "unit": "m"
+        },
+        {
+         "name": "pivot",
+         "label": "Oś obrotu (od lewego końca)",
+         "value": 2,
+         "min": 0,
+         "max": "=length",
+         "step": 0.25,
+         "unit": "m"
+        },
+        {
+         "name": "bm",
+         "label": "Masa belki",
+         "value": 0,
+         "min": 0,
+         "max": 50,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce wyżej",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "when": "!isroot",
+         "new": "parent.pivot + 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 1.2,
+         "min": 0.3,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m",
+         "when": "!isroot"
+        },
+        {
+         "name": "sx",
+         "label": "Położenie stojaka",
+         "value": 0,
+         "min": -40,
+         "max": 40,
+         "step": 0.5,
+         "unit": "m",
+         "when": "isroot",
+         "new": "max(things, bx1) + pivot + 0.5"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "bm + sum(children, total)"
+        },
+        {
+         "name": "arm",
+         "value": "isroot ? 0 : pos - parent.pivot"
+        },
+        {
+         "name": "mom",
+         "value": "sum(children, total*arm) + bm*(length/2 - pivot)"
+        },
+        {
+         "name": "inertia",
+         "value": "bm*(length^2/12 + (length/2 - pivot)^2) + sum(children, total*arm^2) + 0.3"
+        },
+        {
+         "name": "kr",
+         "value": "g*h*(total + 1)"
+        },
+        {
+         "name": "damp",
+         "value": "2*zeta*sqrt(kr*inertia)"
+        },
+        {
+         "name": "ok",
+         "value": "abs(mom) < tol"
+        },
+        {
+         "name": "still",
+         "value": "abs(omega) < 0.05 && abs(angle) < 0.05"
+        },
+        {
+         "name": "ca",
+         "value": "cos(angle)"
+        },
+        {
+         "name": "sa",
+         "value": "sin(angle)"
+        },
+        {
+         "name": "ax",
+         "value": "isroot ? sx : parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "isroot ? stand : ay - drop"
+        },
+        {
+         "name": "x1",
+         "value": "x - pivot*ca + h*sa"
+        },
+        {
+         "name": "y1",
+         "value": "y - pivot*sa - h*ca"
+        },
+        {
+         "name": "x2",
+         "value": "x + (length - pivot)*ca + h*sa"
+        },
+        {
+         "name": "y2",
+         "value": "y + (length - pivot)*sa - h*ca"
+        },
+        {
+         "name": "dy",
+         "value": "isroot ? 0 : parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+        },
+        {
+         "name": "stand",
+         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
+        },
+        {
+         "name": "rx",
+         "value": "isroot ? sx : parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - pivot - 0.4"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + length - pivot + 0.4"
+        },
+        {
+         "name": "by0",
+         "value": "ry - h - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry + 0.7"
+        },
+        {
+         "name": "hit",
+         "value": "6"
+        }
+       ],
+       "state": [
+        {
+         "name": "angle",
+         "value": 0,
+         "rate": "omega"
+        },
+        {
+         "name": "omega",
+         "value": 0,
+         "rate": "(-g*mom*cos(angle) - kr*sin(angle) - damp*omega)/inertia"
+        }
+       ],
+       "events": [
+        {
+         "when": "angle > tilt",
+         "set": {
+          "angle": "tilt",
+          "omega": 0
+         }
+        },
+        {
+         "when": "angle < -tilt",
+         "set": {
+          "angle": "-tilt",
+          "omega": 0
+         }
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py",
+        "sx": "px"
+       },
+       "can": {
+        "edit": [
+         "length",
+         "pivot",
+         "bm",
+         "pos",
+         "drop",
+         "sx"
+        ],
+        "add": [
+         "ciezarek",
+         "belka"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Suma momentów",
+         "value": "mom",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Masa z tym, co wisi",
+         "value": "total",
+         "unit": "kg",
+         "digits": 1
+        },
+        {
+         "label": "Pochylenie",
+         "value": "deg(angle)",
+         "unit": "°",
+         "digits": 1
+        }
+       ],
+       "children": 8,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x - 0.6",
+         "y": 0,
+         "x2": "=x + 0.6",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "!isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x + h*sa",
+         "y2": "=y - h*ca",
+         "stroke": "ink",
+         "width": 3
+        },
+        {
+         "type": "line",
+         "x": "=x1",
+         "y": "=y1",
+         "x2": "=x2",
+         "y2": "=y2",
+         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "width": 7
+        },
+        {
+         "type": "line",
+         "repeat": 21,
+         "x": "=x1 + i*0.5*ca",
+         "y": "=y1 + i*0.5*sa",
+         "x2": "=x1 + i*0.5*ca + 0.13*sa",
+         "y2": "=y1 + i*0.5*sa - 0.13*ca",
+         "stroke": "ink/45",
+         "width": 1,
+         "show": "ruler && i*0.5 <= length + 0.001"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 4.5,
+         "fill": "ink"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 2,
+         "fill": "ground"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y + 0.42",
+         "text": "ΣM = {fmt(mom, 2)} kg·m",
+         "size": 11,
+         "weight": 600,
+         "fill": "=ok ? 'ok' : 'danger'",
+         "show": "edu"
+        }
+       ]
+      },
+      {
+       "name": "ciezarek",
+       "label": "Ciężarek",
+       "props": [
+        {
+         "name": "m",
+         "label": "Masa",
+         "value": 5,
+         "min": 1,
+         "max": 100,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "new": "parent.pivot - 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 0.6,
+         "min": 0.2,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "m"
+        },
+        {
+         "name": "arm",
+         "value": "pos - parent.pivot"
+        },
+        {
+         "name": "r",
+         "value": "0.13 + 0.035*sqrt(m)"
+        },
+        {
+         "name": "ax",
+         "value": "parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "ay - drop - r"
+        },
+        {
+         "name": "dy",
+         "value": "parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+        },
+        {
+         "name": "rx",
+         "value": "parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - r - 0.3"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + r + 0.3"
+        },
+        {
+         "name": "by0",
+         "value": "ry - 2*r - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry"
+        },
+        {
+         "name": "hit",
+         "value": "4"
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py - r"
+       },
+       "can": {
+        "edit": [
+         "m",
+         "pos",
+         "drop"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Moment względem osi",
+         "value": "total*arm",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Ramię",
+         "value": "abs(arm)",
+         "unit": "m",
+         "digits": 2
+        }
+       ],
+       "children": 0,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y + r",
+         "stroke": "muted",
+         "width": 1.5
+        },
+        {
+         "type": "rect",
+         "x": "=x - r",
+         "y": "=y - r",
+         "w": "=2*r",
+         "h": "=2*r",
+         "r": 3,
+         "fill": "accent",
+         "stroke": "ink/30",
+         "width": 1
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.2",
+         "text": "{fmt(m, 0)} kg",
+         "size": 11,
+         "weight": 600,
+         "fill": "ink"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.45",
+         "text": "M = {fmt(total*arm, 1)}",
+         "size": 9.5,
+         "fill": "muted",
+         "show": "edu"
+        }
+       ]
+      }
+     ],
+     "things": [
+      {
+       "id": "b1",
+       "kind": "belka",
+       "length": 8,
+       "pivot": 4,
+       "lock": true
+      },
+      {
+       "id": "w1",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 5,
+       "pos": 1,
+       "lock": true
+      },
+      {
+       "id": "w2",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 2,
+       "pos": 6,
+       "lock": [
+        "m",
+        "drop"
+       ]
+      },
+      {
+       "id": "w3",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 3,
+       "pos": 7,
+       "lock": [
+        "m",
+        "drop"
+       ]
+      },
+      {
+       "id": "w4",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 1,
+       "pos": 3,
+       "lock": [
+        "m",
+        "drop"
+       ]
+      }
+     ],
+     "allow": {
+      "add": false,
+      "remove": false,
+      "copy": false
+     },
+     "limits": {
+      "things": 40,
+      "depth": 6
+     },
+     "keep": [
+      {
+       "when": "edits <= 2",
+       "say": "Tylko dwa ruchy! Cofnij (↶), żeby spróbować inaczej."
+      }
+     ],
+     "save": false,
+     "hint": "Masz dwa ruchy — każde przesunięcie ciężarka to jeden."
+    },
+    "elements": [
+     {
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "w": 480,
+      "h": 320,
+      "camera": true,
+      "clip": true,
+      "view": [
+       "=vcx - vw/2",
+       "=vcy - vh/2",
+       "=vcx + vw/2",
+       "=vcy + vh/2"
+      ],
+      "children": [
+       {
+        "type": "rect",
+        "x": "=vcx - vw",
+        "y": -3,
+        "w": "=2*vw",
+        "h": 3,
+        "fill": "muted/12"
+       },
+       {
+        "type": "line",
+        "x": "=vcx - vw",
+        "y": 0,
+        "x2": "=vcx + vw",
+        "y2": 0,
+        "stroke": "muted/60",
+        "width": 1.5
+       },
+       {
+        "type": "world"
+       }
+      ]
+     }
+    ],
+    "max": 46
+   }
+  },
+  {
+   "id": "p7-tekst",
+   "kind": "text",
+   "size": {
+    "colSpan": 3,
+    "rowSpan": 3
+   },
+   "show": {
+    "places": {
+     "p7": {
+      "x": 22,
+      "y": 30,
+      "w": 34,
+      "max": 30,
+      "tall": {
+       "x": 47,
+       "y": 4,
+       "w": 88
+      }
+     }
+    },
+    "skin": "plain",
+    "type": "heading",
+    "origin": "top",
+    "arrive": "rise",
+    "delay": 0.1,
+    "span": 0.6
+   },
+   "config": {
+    "title": "Dla zaawansowanych · Belka też waży",
+    "body": [
+     "Ta belka waży 4 kg, a jej oś nie jest w środku. Ciężar belki działa w jej środku — 1 m na prawo od osi.",
+     "Gdzie powiesić 2 kg?"
+    ]
+   }
+  },
+  {
+   "id": "p7-waga",
+   "kind": "animation",
+   "size": {
+    "colSpan": 4,
+    "rowSpan": 5
+   },
+   "show": {
+    "places": {
+     "p7": {
+      "x": 68,
+      "y": 8,
+      "w": 56,
+      "max": 46,
+      "tall": {
+       "x": 47,
+       "y": 24,
+       "w": 88
+      }
+     }
+    },
+    "skin": "card",
+    "origin": "top",
+    "arrive": "fade",
+    "delay": 0.15,
+    "span": 0.5
+   },
+   "config": {
+    "alt": "Dla zaawansowanych · Belka też waży — waga do zrównoważenia",
+    "size": [
+     480,
+     320
+    ],
+    "vars": [
+     {
+      "name": "g",
+      "value": 9.81,
+      "unit": "m/s²",
+      "label": "Grawitacja"
+     },
+     {
+      "name": "tol",
+      "value": 0.05,
+      "unit": "kg·m",
+      "label": "Tolerancja momentu"
+     },
+     {
+      "name": "h",
+      "value": 0.2,
+      "unit": "m",
+      "label": "Drążek pod osią"
+     },
+     {
+      "name": "zeta",
+      "value": 0.5,
+      "label": "Tłumienie"
+     },
+     {
+      "name": "tilt",
+      "value": 0.35,
+      "unit": "rad",
+      "label": "Największe pochylenie"
+     },
+     {
+      "name": "edu",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Momenty"
+     },
+     {
+      "name": "ruler",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Linijka"
+     },
+     {
+      "name": "solved",
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "step": 1
+     }
+    ],
+    "let": [
+     {
+      "name": "vx0",
+      "value": "min(things, bx0)"
+     },
+     {
+      "name": "vx1",
+      "value": "max(things, bx1)"
+     },
+     {
+      "name": "vy1",
+      "value": "max(things, by1)"
+     },
+     {
+      "name": "vw",
+      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+     },
+     {
+      "name": "vh",
+      "value": "vw/1.5"
+     },
+     {
+      "name": "vcx",
+      "value": "round((vx0 + vx1)/2*4)/4"
+     },
+     {
+      "name": "vcy",
+      "value": "vh/2 - 0.4"
+     },
+     {
+      "name": "bad",
+      "value": "count(belka, !ok)"
+     }
+    ],
+    "sim": {
+     "dt": 0.01,
+     "speed": 4,
+     "auto": true,
+     "sleep": true,
+     "max": 3600
+    },
+    "controls": [
+     {
+      "type": "toggle",
+      "var": "edu",
+      "label": "Momenty"
+     },
+     {
+      "type": "toggle",
+      "var": "ruler",
+      "label": "Linijka"
+     },
+     {
+      "type": "readout",
+      "label": "Przeważa belek",
+      "value": "bad",
+      "digits": 0
+     },
+     {
+      "type": "button",
+      "label": "Dalej →",
+      "go": "next",
+      "show": "solved"
+     }
+    ],
+    "rules": [
+     {
+      "when": "nthings > 0 && all(belka, ok && still)",
+      "for": 1,
+      "goal": true,
+      "set": {
+       "solved": 1
+      },
+      "say": "Belka: 4 kg × 1 m po prawej; ciężarek: 2 kg × 2 m po lewej."
+     },
+     {
+      "when": "edits > 0 && bad > 0",
+      "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
+      "mood": "miss"
+     }
+    ],
+    "world": {
+     "kinds": [
+      {
+       "name": "belka",
+       "label": "Belka",
+       "props": [
+        {
+         "name": "length",
+         "label": "Długość",
+         "value": 4,
+         "min": 1,
+         "max": 10,
+         "step": 0.5,
+         "unit": "m"
+        },
+        {
+         "name": "pivot",
+         "label": "Oś obrotu (od lewego końca)",
+         "value": 2,
+         "min": 0,
+         "max": "=length",
+         "step": 0.25,
+         "unit": "m"
+        },
+        {
+         "name": "bm",
+         "label": "Masa belki",
+         "value": 0,
+         "min": 0,
+         "max": 50,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce wyżej",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "when": "!isroot",
+         "new": "parent.pivot + 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 1.2,
+         "min": 0.3,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m",
+         "when": "!isroot"
+        },
+        {
+         "name": "sx",
+         "label": "Położenie stojaka",
+         "value": 0,
+         "min": -40,
+         "max": 40,
+         "step": 0.5,
+         "unit": "m",
+         "when": "isroot",
+         "new": "max(things, bx1) + pivot + 0.5"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "bm + sum(children, total)"
+        },
+        {
+         "name": "arm",
+         "value": "isroot ? 0 : pos - parent.pivot"
+        },
+        {
+         "name": "mom",
+         "value": "sum(children, total*arm) + bm*(length/2 - pivot)"
+        },
+        {
+         "name": "inertia",
+         "value": "bm*(length^2/12 + (length/2 - pivot)^2) + sum(children, total*arm^2) + 0.3"
+        },
+        {
+         "name": "kr",
+         "value": "g*h*(total + 1)"
+        },
+        {
+         "name": "damp",
+         "value": "2*zeta*sqrt(kr*inertia)"
+        },
+        {
+         "name": "ok",
+         "value": "abs(mom) < tol"
+        },
+        {
+         "name": "still",
+         "value": "abs(omega) < 0.05 && abs(angle) < 0.05"
+        },
+        {
+         "name": "ca",
+         "value": "cos(angle)"
+        },
+        {
+         "name": "sa",
+         "value": "sin(angle)"
+        },
+        {
+         "name": "ax",
+         "value": "isroot ? sx : parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "isroot ? stand : ay - drop"
+        },
+        {
+         "name": "x1",
+         "value": "x - pivot*ca + h*sa"
+        },
+        {
+         "name": "y1",
+         "value": "y - pivot*sa - h*ca"
+        },
+        {
+         "name": "x2",
+         "value": "x + (length - pivot)*ca + h*sa"
+        },
+        {
+         "name": "y2",
+         "value": "y + (length - pivot)*sa - h*ca"
+        },
+        {
+         "name": "dy",
+         "value": "isroot ? 0 : parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+        },
+        {
+         "name": "stand",
+         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
+        },
+        {
+         "name": "rx",
+         "value": "isroot ? sx : parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - pivot - 0.4"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + length - pivot + 0.4"
+        },
+        {
+         "name": "by0",
+         "value": "ry - h - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry + 0.7"
+        },
+        {
+         "name": "hit",
+         "value": "6"
+        }
+       ],
+       "state": [
+        {
+         "name": "angle",
+         "value": 0,
+         "rate": "omega"
+        },
+        {
+         "name": "omega",
+         "value": 0,
+         "rate": "(-g*mom*cos(angle) - kr*sin(angle) - damp*omega)/inertia"
+        }
+       ],
+       "events": [
+        {
+         "when": "angle > tilt",
+         "set": {
+          "angle": "tilt",
+          "omega": 0
+         }
+        },
+        {
+         "when": "angle < -tilt",
+         "set": {
+          "angle": "-tilt",
+          "omega": 0
+         }
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py",
+        "sx": "px"
+       },
+       "can": {
+        "edit": [
+         "length",
+         "pivot",
+         "bm",
+         "pos",
+         "drop",
+         "sx"
+        ],
+        "add": [
+         "ciezarek",
+         "belka"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Suma momentów",
+         "value": "mom",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Masa z tym, co wisi",
+         "value": "total",
+         "unit": "kg",
+         "digits": 1
+        },
+        {
+         "label": "Pochylenie",
+         "value": "deg(angle)",
+         "unit": "°",
+         "digits": 1
+        }
+       ],
+       "children": 8,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x - 0.6",
+         "y": 0,
+         "x2": "=x + 0.6",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "!isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x + h*sa",
+         "y2": "=y - h*ca",
+         "stroke": "ink",
+         "width": 3
+        },
+        {
+         "type": "line",
+         "x": "=x1",
+         "y": "=y1",
+         "x2": "=x2",
+         "y2": "=y2",
+         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "width": 7
+        },
+        {
+         "type": "line",
+         "repeat": 21,
+         "x": "=x1 + i*0.5*ca",
+         "y": "=y1 + i*0.5*sa",
+         "x2": "=x1 + i*0.5*ca + 0.13*sa",
+         "y2": "=y1 + i*0.5*sa - 0.13*ca",
+         "stroke": "ink/45",
+         "width": 1,
+         "show": "ruler && i*0.5 <= length + 0.001"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 4.5,
+         "fill": "ink"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 2,
+         "fill": "ground"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y + 0.42",
+         "text": "ΣM = {fmt(mom, 2)} kg·m",
+         "size": 11,
+         "weight": 600,
+         "fill": "=ok ? 'ok' : 'danger'",
+         "show": "edu"
+        }
+       ]
+      },
+      {
+       "name": "ciezarek",
+       "label": "Ciężarek",
+       "props": [
+        {
+         "name": "m",
+         "label": "Masa",
+         "value": 5,
+         "min": 1,
+         "max": 100,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "new": "parent.pivot - 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 0.6,
+         "min": 0.2,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "m"
+        },
+        {
+         "name": "arm",
+         "value": "pos - parent.pivot"
+        },
+        {
+         "name": "r",
+         "value": "0.13 + 0.035*sqrt(m)"
+        },
+        {
+         "name": "ax",
+         "value": "parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "ay - drop - r"
+        },
+        {
+         "name": "dy",
+         "value": "parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+        },
+        {
+         "name": "rx",
+         "value": "parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - r - 0.3"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + r + 0.3"
+        },
+        {
+         "name": "by0",
+         "value": "ry - 2*r - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry"
+        },
+        {
+         "name": "hit",
+         "value": "4"
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py - r"
+       },
+       "can": {
+        "edit": [
+         "m",
+         "pos",
+         "drop"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Moment względem osi",
+         "value": "total*arm",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Ramię",
+         "value": "abs(arm)",
+         "unit": "m",
+         "digits": 2
+        }
+       ],
+       "children": 0,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y + r",
+         "stroke": "muted",
+         "width": 1.5
+        },
+        {
+         "type": "rect",
+         "x": "=x - r",
+         "y": "=y - r",
+         "w": "=2*r",
+         "h": "=2*r",
+         "r": 3,
+         "fill": "accent",
+         "stroke": "ink/30",
+         "width": 1
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.2",
+         "text": "{fmt(m, 0)} kg",
+         "size": 11,
+         "weight": 600,
+         "fill": "ink"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.45",
+         "text": "M = {fmt(total*arm, 1)}",
+         "size": 9.5,
+         "fill": "muted",
+         "show": "edu"
+        }
+       ]
+      }
+     ],
+     "things": [
+      {
+       "id": "b1",
+       "kind": "belka",
+       "length": 6,
+       "pivot": 2,
+       "bm": 4,
+       "lock": true
+      },
+      {
+       "id": "w1",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 2,
+       "pos": 4,
+       "lock": [
+        "m",
+        "drop"
+       ]
+      }
+     ],
+     "allow": {
+      "add": false,
+      "remove": false,
+      "copy": false
+     },
+     "limits": {
+      "things": 40,
+      "depth": 6
+     },
+     "keep": [],
+     "save": false,
+     "hint": "Przeciągnij ciężarek. Pamiętaj o ciężarze samej belki."
+    },
+    "elements": [
+     {
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "w": 480,
+      "h": 320,
+      "camera": true,
+      "clip": true,
+      "view": [
+       "=vcx - vw/2",
+       "=vcy - vh/2",
+       "=vcx + vw/2",
+       "=vcy + vh/2"
+      ],
+      "children": [
+       {
+        "type": "rect",
+        "x": "=vcx - vw",
+        "y": -3,
+        "w": "=2*vw",
+        "h": 3,
+        "fill": "muted/12"
+       },
+       {
+        "type": "line",
+        "x": "=vcx - vw",
+        "y": 0,
+        "x2": "=vcx + vw",
+        "y2": 0,
+        "stroke": "muted/60",
+        "width": 1.5
+       },
+       {
+        "type": "world"
+       }
+      ]
+     }
+    ],
+    "max": 46
+   }
+  },
+  {
+   "id": "p8-tekst",
+   "kind": "text",
+   "size": {
+    "colSpan": 3,
+    "rowSpan": 3
+   },
+   "show": {
+    "places": {
+     "p8": {
+      "x": 22,
+      "y": 30,
+      "w": 34,
+      "max": 30,
+      "tall": {
+       "x": 47,
+       "y": 4,
+       "w": 88
+      }
+     }
+    },
+    "skin": "plain",
+    "type": "heading",
+    "origin": "top",
+    "arrive": "rise",
+    "delay": 0.1,
+    "span": 0.6
+   },
+   "config": {
+    "title": "Dla zaawansowanych · Przesuń oś",
+    "body": [
+     "Ciężarków nie ruszysz. Dotknij belki i przesuń jej oś obrotu.",
+     "6 kg na lewym końcu, 3 kg na prawym — oś musi być bliżej cięższego."
+    ]
+   }
+  },
+  {
+   "id": "p8-waga",
+   "kind": "animation",
+   "size": {
+    "colSpan": 4,
+    "rowSpan": 5
+   },
+   "show": {
+    "places": {
+     "p8": {
+      "x": 68,
+      "y": 8,
+      "w": 56,
+      "max": 46,
+      "tall": {
+       "x": 47,
+       "y": 24,
+       "w": 88
+      }
+     }
+    },
+    "skin": "card",
+    "origin": "top",
+    "arrive": "fade",
+    "delay": 0.15,
+    "span": 0.5
+   },
+   "config": {
+    "alt": "Dla zaawansowanych · Przesuń oś — waga do zrównoważenia",
+    "size": [
+     480,
+     320
+    ],
+    "vars": [
+     {
+      "name": "g",
+      "value": 9.81,
+      "unit": "m/s²",
+      "label": "Grawitacja"
+     },
+     {
+      "name": "tol",
+      "value": 0.05,
+      "unit": "kg·m",
+      "label": "Tolerancja momentu"
+     },
+     {
+      "name": "h",
+      "value": 0.2,
+      "unit": "m",
+      "label": "Drążek pod osią"
+     },
+     {
+      "name": "zeta",
+      "value": 0.5,
+      "label": "Tłumienie"
+     },
+     {
+      "name": "tilt",
+      "value": 0.35,
+      "unit": "rad",
+      "label": "Największe pochylenie"
+     },
+     {
+      "name": "edu",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Momenty"
+     },
+     {
+      "name": "ruler",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Linijka"
+     },
+     {
+      "name": "solved",
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "step": 1
+     }
+    ],
+    "let": [
+     {
+      "name": "vx0",
+      "value": "min(things, bx0)"
+     },
+     {
+      "name": "vx1",
+      "value": "max(things, bx1)"
+     },
+     {
+      "name": "vy1",
+      "value": "max(things, by1)"
+     },
+     {
+      "name": "vw",
+      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+     },
+     {
+      "name": "vh",
+      "value": "vw/1.5"
+     },
+     {
+      "name": "vcx",
+      "value": "round((vx0 + vx1)/2*4)/4"
+     },
+     {
+      "name": "vcy",
+      "value": "vh/2 - 0.4"
+     },
+     {
+      "name": "bad",
+      "value": "count(belka, !ok)"
+     }
+    ],
+    "sim": {
+     "dt": 0.01,
+     "speed": 4,
+     "auto": true,
+     "sleep": true,
+     "max": 3600
+    },
+    "controls": [
+     {
+      "type": "toggle",
+      "var": "edu",
+      "label": "Momenty"
+     },
+     {
+      "type": "toggle",
+      "var": "ruler",
+      "label": "Linijka"
+     },
+     {
+      "type": "readout",
+      "label": "Przeważa belek",
+      "value": "bad",
+      "digits": 0
+     },
+     {
+      "type": "button",
+      "label": "Dalej →",
+      "go": "next",
+      "show": "solved"
+     }
+    ],
+    "rules": [
+     {
+      "when": "nthings > 0 && all(belka, ok && still)",
+      "for": 1,
+      "goal": true,
+      "set": {
+       "solved": 1
+      },
+      "say": "Oś 2 m od lewego końca: 6 kg × 2 m = 3 kg × 4 m."
+     },
+     {
+      "when": "edits > 0 && bad > 0",
+      "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
+      "mood": "miss"
+     }
+    ],
+    "world": {
+     "kinds": [
+      {
+       "name": "belka",
+       "label": "Belka",
+       "props": [
+        {
+         "name": "length",
+         "label": "Długość",
+         "value": 4,
+         "min": 1,
+         "max": 10,
+         "step": 0.5,
+         "unit": "m"
+        },
+        {
+         "name": "pivot",
+         "label": "Oś obrotu (od lewego końca)",
+         "value": 2,
+         "min": 0,
+         "max": "=length",
+         "step": 0.25,
+         "unit": "m"
+        },
+        {
+         "name": "bm",
+         "label": "Masa belki",
+         "value": 0,
+         "min": 0,
+         "max": 50,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce wyżej",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "when": "!isroot",
+         "new": "parent.pivot + 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 1.2,
+         "min": 0.3,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m",
+         "when": "!isroot"
+        },
+        {
+         "name": "sx",
+         "label": "Położenie stojaka",
+         "value": 0,
+         "min": -40,
+         "max": 40,
+         "step": 0.5,
+         "unit": "m",
+         "when": "isroot",
+         "new": "max(things, bx1) + pivot + 0.5"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "bm + sum(children, total)"
+        },
+        {
+         "name": "arm",
+         "value": "isroot ? 0 : pos - parent.pivot"
+        },
+        {
+         "name": "mom",
+         "value": "sum(children, total*arm) + bm*(length/2 - pivot)"
+        },
+        {
+         "name": "inertia",
+         "value": "bm*(length^2/12 + (length/2 - pivot)^2) + sum(children, total*arm^2) + 0.3"
+        },
+        {
+         "name": "kr",
+         "value": "g*h*(total + 1)"
+        },
+        {
+         "name": "damp",
+         "value": "2*zeta*sqrt(kr*inertia)"
+        },
+        {
+         "name": "ok",
+         "value": "abs(mom) < tol"
+        },
+        {
+         "name": "still",
+         "value": "abs(omega) < 0.05 && abs(angle) < 0.05"
+        },
+        {
+         "name": "ca",
+         "value": "cos(angle)"
+        },
+        {
+         "name": "sa",
+         "value": "sin(angle)"
+        },
+        {
+         "name": "ax",
+         "value": "isroot ? sx : parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "isroot ? stand : ay - drop"
+        },
+        {
+         "name": "x1",
+         "value": "x - pivot*ca + h*sa"
+        },
+        {
+         "name": "y1",
+         "value": "y - pivot*sa - h*ca"
+        },
+        {
+         "name": "x2",
+         "value": "x + (length - pivot)*ca + h*sa"
+        },
+        {
+         "name": "y2",
+         "value": "y + (length - pivot)*sa - h*ca"
+        },
+        {
+         "name": "dy",
+         "value": "isroot ? 0 : parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+        },
+        {
+         "name": "stand",
+         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
+        },
+        {
+         "name": "rx",
+         "value": "isroot ? sx : parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - pivot - 0.4"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + length - pivot + 0.4"
+        },
+        {
+         "name": "by0",
+         "value": "ry - h - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry + 0.7"
+        },
+        {
+         "name": "hit",
+         "value": "6"
+        }
+       ],
+       "state": [
+        {
+         "name": "angle",
+         "value": 0,
+         "rate": "omega"
+        },
+        {
+         "name": "omega",
+         "value": 0,
+         "rate": "(-g*mom*cos(angle) - kr*sin(angle) - damp*omega)/inertia"
+        }
+       ],
+       "events": [
+        {
+         "when": "angle > tilt",
+         "set": {
+          "angle": "tilt",
+          "omega": 0
+         }
+        },
+        {
+         "when": "angle < -tilt",
+         "set": {
+          "angle": "-tilt",
+          "omega": 0
+         }
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py",
+        "sx": "px"
+       },
+       "can": {
+        "edit": [
+         "length",
+         "pivot",
+         "bm",
+         "pos",
+         "drop",
+         "sx"
+        ],
+        "add": [
+         "ciezarek",
+         "belka"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Suma momentów",
+         "value": "mom",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Masa z tym, co wisi",
+         "value": "total",
+         "unit": "kg",
+         "digits": 1
+        },
+        {
+         "label": "Pochylenie",
+         "value": "deg(angle)",
+         "unit": "°",
+         "digits": 1
+        }
+       ],
+       "children": 8,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x - 0.6",
+         "y": 0,
+         "x2": "=x + 0.6",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "!isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x + h*sa",
+         "y2": "=y - h*ca",
+         "stroke": "ink",
+         "width": 3
+        },
+        {
+         "type": "line",
+         "x": "=x1",
+         "y": "=y1",
+         "x2": "=x2",
+         "y2": "=y2",
+         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "width": 7
+        },
+        {
+         "type": "line",
+         "repeat": 21,
+         "x": "=x1 + i*0.5*ca",
+         "y": "=y1 + i*0.5*sa",
+         "x2": "=x1 + i*0.5*ca + 0.13*sa",
+         "y2": "=y1 + i*0.5*sa - 0.13*ca",
+         "stroke": "ink/45",
+         "width": 1,
+         "show": "ruler && i*0.5 <= length + 0.001"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 4.5,
+         "fill": "ink"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 2,
+         "fill": "ground"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y + 0.42",
+         "text": "ΣM = {fmt(mom, 2)} kg·m",
+         "size": 11,
+         "weight": 600,
+         "fill": "=ok ? 'ok' : 'danger'",
+         "show": "edu"
+        }
+       ]
+      },
+      {
+       "name": "ciezarek",
+       "label": "Ciężarek",
+       "props": [
+        {
+         "name": "m",
+         "label": "Masa",
+         "value": 5,
+         "min": 1,
+         "max": 100,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "new": "parent.pivot - 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 0.6,
+         "min": 0.2,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "m"
+        },
+        {
+         "name": "arm",
+         "value": "pos - parent.pivot"
+        },
+        {
+         "name": "r",
+         "value": "0.13 + 0.035*sqrt(m)"
+        },
+        {
+         "name": "ax",
+         "value": "parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "ay - drop - r"
+        },
+        {
+         "name": "dy",
+         "value": "parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+        },
+        {
+         "name": "rx",
+         "value": "parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - r - 0.3"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + r + 0.3"
+        },
+        {
+         "name": "by0",
+         "value": "ry - 2*r - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry"
+        },
+        {
+         "name": "hit",
+         "value": "4"
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py - r"
+       },
+       "can": {
+        "edit": [
+         "m",
+         "pos",
+         "drop"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Moment względem osi",
+         "value": "total*arm",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Ramię",
+         "value": "abs(arm)",
+         "unit": "m",
+         "digits": 2
+        }
+       ],
+       "children": 0,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y + r",
+         "stroke": "muted",
+         "width": 1.5
+        },
+        {
+         "type": "rect",
+         "x": "=x - r",
+         "y": "=y - r",
+         "w": "=2*r",
+         "h": "=2*r",
+         "r": 3,
+         "fill": "accent",
+         "stroke": "ink/30",
+         "width": 1
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.2",
+         "text": "{fmt(m, 0)} kg",
+         "size": 11,
+         "weight": 600,
+         "fill": "ink"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.45",
+         "text": "M = {fmt(total*arm, 1)}",
+         "size": 9.5,
+         "fill": "muted",
+         "show": "edu"
+        }
+       ]
+      }
+     ],
+     "things": [
+      {
+       "id": "b1",
+       "kind": "belka",
+       "length": 6,
+       "pivot": 3,
+       "lock": [
+        "length",
+        "bm",
+        "sx"
+       ]
+      },
+      {
+       "id": "w1",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 6,
+       "pos": 0,
+       "lock": true
+      },
+      {
+       "id": "w2",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 3,
+       "pos": 6,
+       "lock": true
+      }
+     ],
+     "allow": {
+      "add": false,
+      "remove": false,
+      "copy": false
+     },
+     "limits": {
+      "things": 40,
+      "depth": 6
+     },
+     "keep": [],
+     "save": false,
+     "hint": "Dotknij belki i zmień „Oś obrotu”."
+    },
+    "elements": [
+     {
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "w": 480,
+      "h": 320,
+      "camera": true,
+      "clip": true,
+      "view": [
+       "=vcx - vw/2",
+       "=vcy - vh/2",
+       "=vcx + vw/2",
+       "=vcy + vh/2"
+      ],
+      "children": [
+       {
+        "type": "rect",
+        "x": "=vcx - vw",
+        "y": -3,
+        "w": "=2*vw",
+        "h": 3,
+        "fill": "muted/12"
+       },
+       {
+        "type": "line",
+        "x": "=vcx - vw",
+        "y": 0,
+        "x2": "=vcx + vw",
+        "y2": 0,
+        "stroke": "muted/60",
+        "width": 1.5
+       },
+       {
+        "type": "world"
+       }
+      ]
+     }
+    ],
+    "max": 46
+   }
+  },
+  {
+   "id": "warsztat-tekst",
+   "kind": "text",
+   "size": {
+    "colSpan": 3,
+    "rowSpan": 3
+   },
+   "show": {
+    "places": {
+     "warsztat": {
+      "x": 22,
+      "y": 30,
+      "w": 34,
+      "max": 30,
+      "tall": {
+       "x": 47,
+       "y": 4,
+       "w": 88
+      }
+     }
+    },
+    "skin": "plain",
+    "type": "heading",
+    "origin": "top",
+    "arrive": "rise",
+    "delay": 0.1,
+    "span": 0.6
+   },
+   "config": {
+    "title": "Warsztat",
+    "body": [
+     "Wszystko wolno: dowieszaj belki i ciężarki, zmieniaj długości, osie, masy i linki. Zbuduj mobil i zrównoważ go.",
+     "Zapisz układ, żeby wrócić do niego później. Cofnij: Ctrl+Z albo ↶."
+    ]
+   }
+  },
+  {
+   "id": "warsztat-waga",
+   "kind": "animation",
+   "size": {
+    "colSpan": 4,
+    "rowSpan": 5
+   },
+   "show": {
+    "places": {
+     "warsztat": {
+      "x": 68,
+      "y": 8,
+      "w": 56,
+      "max": 46,
+      "tall": {
+       "x": 47,
+       "y": 24,
+       "w": 88
+      }
+     }
+    },
+    "skin": "card",
+    "origin": "top",
+    "arrive": "fade",
+    "delay": 0.15,
+    "span": 0.5
+   },
+   "config": {
+    "alt": "Waga z belek i ciężarków — warsztat",
+    "size": [
+     480,
+     320
+    ],
+    "vars": [
+     {
+      "name": "g",
+      "value": 9.81,
+      "unit": "m/s²",
+      "label": "Grawitacja"
+     },
+     {
+      "name": "tol",
+      "value": 0.05,
+      "unit": "kg·m",
+      "label": "Tolerancja momentu"
+     },
+     {
+      "name": "h",
+      "value": 0.2,
+      "unit": "m",
+      "label": "Drążek pod osią"
+     },
+     {
+      "name": "zeta",
+      "value": 0.5,
+      "label": "Tłumienie"
+     },
+     {
+      "name": "tilt",
+      "value": 0.35,
+      "unit": "rad",
+      "label": "Największe pochylenie"
+     },
+     {
+      "name": "edu",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Momenty"
+     },
+     {
+      "name": "ruler",
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "label": "Linijka"
+     },
+     {
+      "name": "solved",
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "step": 1
+     }
+    ],
+    "let": [
+     {
+      "name": "vx0",
+      "value": "min(things, bx0)"
+     },
+     {
+      "name": "vx1",
+      "value": "max(things, bx1)"
+     },
+     {
+      "name": "vy1",
+      "value": "max(things, by1)"
+     },
+     {
+      "name": "vw",
+      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+     },
+     {
+      "name": "vh",
+      "value": "vw/1.5"
+     },
+     {
+      "name": "vcx",
+      "value": "round((vx0 + vx1)/2*4)/4"
+     },
+     {
+      "name": "vcy",
+      "value": "vh/2 - 0.4"
+     },
+     {
+      "name": "bad",
+      "value": "count(belka, !ok)"
+     }
+    ],
+    "sim": {
+     "dt": 0.01,
+     "speed": 4,
+     "auto": true,
+     "sleep": true,
+     "max": 3600
+    },
+    "controls": [
+     {
+      "type": "toggle",
+      "var": "edu",
+      "label": "Momenty"
+     },
+     {
+      "type": "toggle",
+      "var": "ruler",
+      "label": "Linijka"
+     },
+     {
+      "type": "readout",
+      "label": "Przeważa belek",
+      "value": "bad",
+      "digits": 0
+     }
+    ],
+    "rules": [
+     {
+      "when": "nthings > 0 && all(belka, ok && still)",
+      "for": 1,
+      "goal": true,
+      "set": {
+       "solved": 1
+      },
+      "say": "Równowaga! Na każdej belce masa × ramię po lewej równa się masie × ramię po prawej."
+     },
+     {
+      "when": "edits > 0 && bad > 0",
+      "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
+      "mood": "miss"
+     }
+    ],
+    "world": {
+     "kinds": [
+      {
+       "name": "belka",
+       "label": "Belka",
+       "props": [
+        {
+         "name": "length",
+         "label": "Długość",
+         "value": 4,
+         "min": 1,
+         "max": 10,
+         "step": 0.5,
+         "unit": "m"
+        },
+        {
+         "name": "pivot",
+         "label": "Oś obrotu (od lewego końca)",
+         "value": 2,
+         "min": 0,
+         "max": "=length",
+         "step": 0.25,
+         "unit": "m"
+        },
+        {
+         "name": "bm",
+         "label": "Masa belki",
+         "value": 0,
+         "min": 0,
+         "max": 50,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce wyżej",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "when": "!isroot",
+         "new": "parent.pivot + 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 1.2,
+         "min": 0.3,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m",
+         "when": "!isroot"
+        },
+        {
+         "name": "sx",
+         "label": "Położenie stojaka",
+         "value": 0,
+         "min": -40,
+         "max": 40,
+         "step": 0.5,
+         "unit": "m",
+         "when": "isroot",
+         "new": "max(things, bx1) + pivot + 0.5"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "bm + sum(children, total)"
+        },
+        {
+         "name": "arm",
+         "value": "isroot ? 0 : pos - parent.pivot"
+        },
+        {
+         "name": "mom",
+         "value": "sum(children, total*arm) + bm*(length/2 - pivot)"
+        },
+        {
+         "name": "inertia",
+         "value": "bm*(length^2/12 + (length/2 - pivot)^2) + sum(children, total*arm^2) + 0.3"
+        },
+        {
+         "name": "kr",
+         "value": "g*h*(total + 1)"
+        },
+        {
+         "name": "damp",
+         "value": "2*zeta*sqrt(kr*inertia)"
+        },
+        {
+         "name": "ok",
+         "value": "abs(mom) < tol"
+        },
+        {
+         "name": "still",
+         "value": "abs(omega) < 0.05 && abs(angle) < 0.05"
+        },
+        {
+         "name": "ca",
+         "value": "cos(angle)"
+        },
+        {
+         "name": "sa",
+         "value": "sin(angle)"
+        },
+        {
+         "name": "ax",
+         "value": "isroot ? sx : parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "isroot ? stand : ay - drop"
+        },
+        {
+         "name": "x1",
+         "value": "x - pivot*ca + h*sa"
+        },
+        {
+         "name": "y1",
+         "value": "y - pivot*sa - h*ca"
+        },
+        {
+         "name": "x2",
+         "value": "x + (length - pivot)*ca + h*sa"
+        },
+        {
+         "name": "y2",
+         "value": "y + (length - pivot)*sa - h*ca"
+        },
+        {
+         "name": "dy",
+         "value": "isroot ? 0 : parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+        },
+        {
+         "name": "stand",
+         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
+        },
+        {
+         "name": "rx",
+         "value": "isroot ? sx : parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - pivot - 0.4"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + length - pivot + 0.4"
+        },
+        {
+         "name": "by0",
+         "value": "ry - h - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry + 0.7"
+        },
+        {
+         "name": "hit",
+         "value": "6"
+        }
+       ],
+       "state": [
+        {
+         "name": "angle",
+         "value": 0,
+         "rate": "omega"
+        },
+        {
+         "name": "omega",
+         "value": 0,
+         "rate": "(-g*mom*cos(angle) - kr*sin(angle) - damp*omega)/inertia"
+        }
+       ],
+       "events": [
+        {
+         "when": "angle > tilt",
+         "set": {
+          "angle": "tilt",
+          "omega": 0
+         }
+        },
+        {
+         "when": "angle < -tilt",
+         "set": {
+          "angle": "-tilt",
+          "omega": 0
+         }
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py",
+        "sx": "px"
+       },
+       "can": {
+        "edit": [
+         "length",
+         "pivot",
+         "bm",
+         "pos",
+         "drop",
+         "sx"
+        ],
+        "add": [
+         "ciezarek",
+         "belka"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Suma momentów",
+         "value": "mom",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Masa z tym, co wisi",
+         "value": "total",
+         "unit": "kg",
+         "digits": 1
+        },
+        {
+         "label": "Pochylenie",
+         "value": "deg(angle)",
+         "unit": "°",
+         "digits": 1
+        }
+       ],
+       "children": 8,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x - 0.6",
+         "y": 0,
+         "x2": "=x + 0.6",
+         "y2": 0,
+         "stroke": "muted",
+         "width": 5,
+         "show": "isroot"
+        },
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "!isroot"
+        },
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x + h*sa",
+         "y2": "=y - h*ca",
+         "stroke": "ink",
+         "width": 3
+        },
+        {
+         "type": "line",
+         "x": "=x1",
+         "y": "=y1",
+         "x2": "=x2",
+         "y2": "=y2",
+         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "width": 7
+        },
+        {
+         "type": "line",
+         "repeat": 21,
+         "x": "=x1 + i*0.5*ca",
+         "y": "=y1 + i*0.5*sa",
+         "x2": "=x1 + i*0.5*ca + 0.13*sa",
+         "y2": "=y1 + i*0.5*sa - 0.13*ca",
+         "stroke": "ink/45",
+         "width": 1,
+         "show": "ruler && i*0.5 <= length + 0.001"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 4.5,
+         "fill": "ink"
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 2,
+         "fill": "ground"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y + 0.42",
+         "text": "ΣM = {fmt(mom, 2)} kg·m",
+         "size": 11,
+         "weight": 600,
+         "fill": "=ok ? 'ok' : 'danger'",
+         "show": "edu"
+        }
+       ]
+      },
+      {
+       "name": "ciezarek",
+       "label": "Ciężarek",
+       "props": [
+        {
+         "name": "m",
+         "label": "Masa",
+         "value": 5,
+         "min": 1,
+         "max": 100,
+         "step": 1,
+         "unit": "kg"
+        },
+        {
+         "name": "pos",
+         "label": "Miejsce na belce",
+         "value": 1,
+         "min": 0,
+         "max": "=parent.length",
+         "step": 0.25,
+         "unit": "m",
+         "apart": 0.25,
+         "new": "parent.pivot - 1"
+        },
+        {
+         "name": "drop",
+         "label": "Długość linki",
+         "value": 0.6,
+         "min": 0.2,
+         "max": 3,
+         "step": 0.1,
+         "unit": "m"
+        }
+       ],
+       "let": [
+        {
+         "name": "total",
+         "value": "m"
+        },
+        {
+         "name": "arm",
+         "value": "pos - parent.pivot"
+        },
+        {
+         "name": "r",
+         "value": "0.13 + 0.035*sqrt(m)"
+        },
+        {
+         "name": "ax",
+         "value": "parent.x + arm*parent.ca + h*parent.sa"
+        },
+        {
+         "name": "ay",
+         "value": "parent.y + arm*parent.sa - h*parent.ca"
+        },
+        {
+         "name": "x",
+         "value": "ax"
+        },
+        {
+         "name": "y",
+         "value": "ay - drop - r"
+        },
+        {
+         "name": "dy",
+         "value": "parent.dy - h - drop"
+        },
+        {
+         "name": "low",
+         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+        },
+        {
+         "name": "rx",
+         "value": "parent.rx + arm"
+        },
+        {
+         "name": "ry",
+         "value": "root.stand + dy"
+        },
+        {
+         "name": "bx0",
+         "value": "rx - r - 0.3"
+        },
+        {
+         "name": "bx1",
+         "value": "rx + r + 0.3"
+        },
+        {
+         "name": "by0",
+         "value": "ry - 2*r - 0.5"
+        },
+        {
+         "name": "by1",
+         "value": "ry"
+        },
+        {
+         "name": "hit",
+         "value": "4"
+        }
+       ],
+       "drag": {
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
+        "drop": "ay - py - r"
+       },
+       "can": {
+        "edit": [
+         "m",
+         "pos",
+         "drop"
+        ],
+        "remove": true,
+        "copy": true
+       },
+       "readouts": [
+        {
+         "label": "Moment względem osi",
+         "value": "total*arm",
+         "unit": "kg·m",
+         "digits": 2
+        },
+        {
+         "label": "Ramię",
+         "value": "abs(arm)",
+         "unit": "m",
+         "digits": 2
+        }
+       ],
+       "children": 0,
+       "shapes": [
+        {
+         "type": "line",
+         "x": "=ax",
+         "y": "=ay",
+         "x2": "=x",
+         "y2": "=y + r",
+         "stroke": "muted",
+         "width": 1.5
+        },
+        {
+         "type": "rect",
+         "x": "=x - r",
+         "y": "=y - r",
+         "w": "=2*r",
+         "h": "=2*r",
+         "r": 3,
+         "fill": "accent",
+         "stroke": "ink/30",
+         "width": 1
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.2",
+         "text": "{fmt(m, 0)} kg",
+         "size": 11,
+         "weight": 600,
+         "fill": "ink"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y - r - 0.45",
+         "text": "M = {fmt(total*arm, 1)}",
+         "size": 9.5,
+         "fill": "muted",
+         "show": "edu"
+        }
+       ]
+      }
+     ],
+     "things": [
+      {
+       "id": "b1",
+       "kind": "belka",
+       "length": 6,
+       "pivot": 3,
+       "sx": 0
+      },
+      {
+       "id": "w1",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 4,
+       "pos": 1.5
+      },
+      {
+       "id": "w2",
+       "kind": "ciezarek",
+       "parent": "b1",
+       "m": 2,
+       "pos": 5
+      }
+     ],
+     "allow": {
+      "roots": [
+       "belka"
+      ]
+     },
+     "limits": {
+      "things": 40,
+      "depth": 6
+     },
+     "keep": [],
+     "save": true,
+     "hint": "Dotknij belki, żeby dowiesić ciężarek albo kolejną belkę; ciężarek przeciągnij wzdłuż belki. Cofnij: Ctrl+Z."
+    },
+    "elements": [
+     {
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "w": 480,
+      "h": 320,
+      "camera": true,
+      "clip": true,
+      "view": [
+       "=vcx - vw/2",
+       "=vcy - vh/2",
+       "=vcx + vw/2",
+       "=vcy + vh/2"
+      ],
+      "children": [
+       {
+        "type": "rect",
+        "x": "=vcx - vw",
+        "y": -3,
+        "w": "=2*vw",
+        "h": 3,
+        "fill": "muted/12"
+       },
+       {
+        "type": "line",
+        "x": "=vcx - vw",
+        "y": 0,
+        "x2": "=vcx + vw",
+        "y2": 0,
+        "stroke": "muted/60",
+        "width": 1.5
+       },
+       {
+        "type": "world"
+       }
+      ]
+     }
+    ],
+    "max": 46
+   }
+  },
+  {
+   "id": "zebatki-tekst",
+   "kind": "text",
+   "size": {
+    "colSpan": 3,
+    "rowSpan": 3
+   },
+   "show": {
+    "places": {
+     "zebatki": {
+      "x": 22,
+      "y": 30,
+      "w": 34,
+      "max": 30,
+      "tall": {
+       "x": 47,
+       "y": 4,
+       "w": 88
+      }
+     }
+    },
+    "skin": "plain",
+    "type": "heading",
+    "origin": "top",
+    "arrive": "rise",
+    "delay": 0.1,
+    "span": 0.6
+   },
+   "config": {
+    "title": "Ten sam silnik, inny świat",
+    "body": [
+     "Koła zębate to te same „rzeczy” co belki — tylko inaczej opisane. Każde koło zazębia się z poprzednim: mniejsze kręci się szybciej i w drugą stronę.",
+     "Dotknij koła: zmień liczbę zębów albo dowieś następne."
+    ]
+   }
+  },
+  {
+   "id": "zebatki-kola",
+   "kind": "animation",
+   "size": {
+    "colSpan": 4,
+    "rowSpan": 5
+   },
+   "show": {
+    "places": {
+     "zebatki": {
+      "x": 68,
+      "y": 8,
+      "w": 56,
+      "max": 46,
+      "tall": {
+       "x": 47,
+       "y": 24,
+       "w": 88
+      }
+     }
+    },
+    "skin": "card",
+    "origin": "top",
+    "arrive": "fade",
+    "delay": 0.15,
+    "span": 0.5
+   },
+   "config": {
+    "alt": "Przekładnia zębata: koło napędowe i koła, które się z nim zazębiają",
+    "size": [
+     480,
+     320
+    ],
+    "vars": [
+     {
+      "name": "motor",
+      "value": 20,
+      "min": -60,
+      "max": 60,
+      "step": 5,
+      "unit": "obr/min",
+      "label": "Silnik"
+     },
+     {
+      "name": "mod",
+      "value": 0.1,
+      "unit": "m",
+      "label": "Moduł (m na ząb)"
+     }
+    ],
+    "let": [
+     {
+      "name": "vx0",
+      "value": "min(things, x - r) - 0.4"
+     },
+     {
+      "name": "vx1",
+      "value": "max(things, x + r) + 0.4"
+     },
+     {
+      "name": "vy0",
+      "value": "min(things, y - r) - 0.4"
+     },
+     {
+      "name": "vy1",
+      "value": "max(things, y + r) + 0.6"
+     },
+     {
+      "name": "vw",
+      "value": "max(vx1 - vx0, (vy1 - vy0)*1.5, 4)"
+     },
+     {
+      "name": "vcx",
+      "value": "(vx0 + vx1)/2"
+     },
+     {
+      "name": "vcy",
+      "value": "(vy0 + vy1)/2"
+     }
+    ],
+    "sim": {
+     "dt": 0.01,
+     "auto": true,
+     "max": 3600
+    },
+    "controls": [
+     {
+      "type": "slider",
+      "var": "motor"
+     },
+     {
+      "type": "readout",
+      "label": "Najszybsze koło",
+      "value": "max(kolo, abs(rpm))",
+      "unit": "obr/min",
+      "digits": 1
+     }
+    ],
+    "world": {
+     "kinds": [
+      {
+       "name": "kolo",
+       "label": "Koło",
+       "props": [
+        {
+         "name": "teeth",
+         "label": "Zęby",
+         "value": 20,
+         "min": 8,
+         "max": 48,
+         "step": 1
+        },
+        {
+         "name": "dir",
+         "label": "Kierunek od sąsiada",
+         "value": 0,
+         "min": -180,
+         "max": 180,
+         "step": 5,
+         "unit": "°",
+         "when": "!isroot"
+        },
+        {
+         "name": "cx",
+         "label": "x",
+         "value": 0,
+         "min": -10,
+         "max": 10,
+         "step": 0.1,
+         "unit": "m",
+         "when": "isroot"
+        },
+        {
+         "name": "cy",
+         "label": "y",
+         "value": 0,
+         "min": -10,
+         "max": 10,
+         "step": 0.1,
+         "unit": "m",
+         "when": "isroot"
+        }
+       ],
+       "let": [
+        {
+         "name": "r",
+         "value": "teeth*mod/2"
+        },
+        {
+         "name": "x",
+         "value": "isroot ? cx : parent.x + (r + parent.r)*cos(rad(dir))"
+        },
+        {
+         "name": "y",
+         "value": "isroot ? cy : parent.y + (r + parent.r)*sin(rad(dir))"
+        },
+        {
+         "name": "omega",
+         "value": "isroot ? motor*tau/60 : -parent.omega*parent.r/r"
+        },
+        {
+         "name": "rpm",
+         "value": "omega*60/tau"
+        },
+        {
+         "name": "phi",
+         "value": "isroot ? theta : rad(dir) + pi - (parent.phi - rad(dir))*parent.teeth/teeth + pi/teeth"
+        },
+        {
+         "name": "hit",
+         "value": "8"
+        }
+       ],
+       "state": [
+        {
+         "name": "theta",
+         "value": 0,
+         "rate": "isroot ? omega : 0"
+        }
+       ],
+       "drag": {
+        "dir": "deg(atan2(py - parent.y, px - parent.x))",
+        "cx": "px",
+        "cy": "py"
+       },
+       "can": {
+        "edit": [
+         "teeth",
+         "dir"
+        ],
+        "add": [
+         "kolo"
+        ],
+        "remove": true
+       },
+       "readouts": [
+        {
+         "label": "Obroty",
+         "value": "rpm",
+         "unit": "obr/min",
+         "digits": 1
+        },
+        {
+         "label": "Przełożenie względem silnika",
+         "value": "omega/root.omega",
+         "digits": 3
+        }
+       ],
+       "children": 4,
+       "shapes": [
+        {
+         "type": "ellipse",
+         "x": "=x",
+         "y": "=y",
+         "w": "=2*r",
+         "h": "=2*r",
+         "fill": "accent/15",
+         "stroke": "accent",
+         "width": 2
+        },
+        {
+         "type": "line",
+         "repeat": 48,
+         "x": "=x + (r - 0.05)*cos(phi + i*tau/teeth)",
+         "y": "=y + (r - 0.05)*sin(phi + i*tau/teeth)",
+         "x2": "=x + (r + 0.07)*cos(phi + i*tau/teeth)",
+         "y2": "=y + (r + 0.07)*sin(phi + i*tau/teeth)",
+         "stroke": "accent",
+         "width": 4,
+         "cap": "butt",
+         "show": "i < teeth"
+        },
+        {
+         "type": "line",
+         "x": "=x",
+         "y": "=y",
+         "x2": "=x + 0.8*r*cos(phi)",
+         "y2": "=y + 0.8*r*sin(phi)",
+         "stroke": "ink",
+         "width": 2
+        },
+        {
+         "type": "circle",
+         "x": "=x",
+         "y": "=y",
+         "r": 4,
+         "fill": "ink"
+        },
+        {
+         "type": "text",
+         "x": "=x",
+         "y": "=y + r + 0.25",
+         "text": "{teeth} z · {fmt(rpm, 1)} obr/min",
+         "size": 10,
+         "fill": "muted"
+        }
+       ]
+      }
+     ],
+     "things": [
+      {
+       "id": "k1",
+       "kind": "kolo",
+       "teeth": 24,
+       "lock": [
+        "cx",
+        "cy"
+       ]
+      },
+      {
+       "id": "k2",
+       "kind": "kolo",
+       "parent": "k1",
+       "teeth": 12,
+       "dir": 0
+      },
+      {
+       "id": "k3",
+       "kind": "kolo",
+       "parent": "k2",
+       "teeth": 36,
+       "dir": -50
+      }
+     ],
+     "allow": {
+      "copy": false
+     },
+     "hint": "Dotknij koła: zmień liczbę zębów albo dowieś następne. Koło przeciągnij wokół sąsiada."
+    },
+    "elements": [
+     {
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "w": 480,
+      "h": 320,
+      "camera": true,
+      "clip": true,
+      "view": [
+       "=vcx - vw/2",
+       "=vcy - vw/3",
+       "=vcx + vw/2",
+       "=vcy + vw/3"
+      ],
+      "children": [
+       {
+        "type": "world"
+       }
+      ]
+     }
+    ],
+    "max": 46
+   }
+  },
+  {
+   "id": "nauka-tekst",
+   "kind": "text",
+   "size": {
+    "colSpan": 3,
+    "rowSpan": 3
+   },
+   "show": {
+    "places": {
+     "nauka": {
+      "x": 50,
+      "y": 30,
+      "w": 50,
+      "max": 30,
+      "tall": {
+       "x": 47,
+       "y": 20,
+       "w": 88
+      }
+     }
+    },
+    "skin": "plain",
+    "type": "heading",
+    "origin": "top",
+    "arrive": "rise",
+    "delay": 0.1,
+    "span": 0.6
+   },
+   "config": {
+    "title": "Sprawdź się w Nauce",
+    "body": [
+     "Te same poziomy są pytaniami w bazie wiedzy Cogita: w Nauce → JSON zaimportuj plik balance-lab-cogita.json.",
+     "Odpowiedzią jest ułożona waga — sprawdzana symulacją i liczona do powtórek, kursów i postępów.",
+     "[Przejdź do Nauki](#/workspace/learn)"
+    ]
+   }
+  }
+ ]
+}

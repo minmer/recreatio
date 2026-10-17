@@ -272,7 +272,8 @@ export class Program {
 
     this.restart();
     if (options.replay !== undefined && options.replay !== null && this.world !== null) {
-      this.world.replay(options.replay);
+      /* Jedes geänderte Ding ein Zug — eine Antwort mit zu vielen Zügen bricht eine Regel wie `edits <= 2`. */
+      this.env.edits = this.world.replay(options.replay);
       this.restart();
     }
     if (this.world !== null) this.workshop = new Workshop(this, this.world);

@@ -381,7 +381,8 @@ try {
       assert.ok(m.needsLive(d), `${ex.key}: needs the live drawing`);
       assert.deepEqual(m.problemsOf(d), [], `${ex.key}: every expression compiles with the names of the drawing`);
       assert.ok(m.shapeCount(d) <= 300, `${ex.key}: light (${m.shapeCount(d)} parts)`);
-      assert.ok(JSON.stringify(ex.drawing).length < 8000, `${ex.key}: small as data`);
+      /* Eine Welt (Arten mit Rechnungen und Aussehen) ist ein kleines Spiel — etwas mehr als ein Bild. */
+      assert.ok(JSON.stringify(ex.drawing).length < (d.live?.world ? 12000 : 8000), `${ex.key}: small as data`);
       if (d.live?.sim !== null && d.live?.sim !== undefined && !d.live.sim.loop) {
         const p = new m.Program(d.live, { random: () => 0.5 });
         p.runToEnd();

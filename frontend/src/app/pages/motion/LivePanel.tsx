@@ -215,6 +215,7 @@ export function WorldPanel({ program, selected, version, locked, cameras, onAct 
             {props.map((p) => {
               const name = p.label || p.name;
               const edit = (value: number) => onAct({ type: 'edit', id: t.id, prop: p.name, value });
+              const end = () => onAct({ type: 'endEdit' });
               const nudge = (dir: number) => {
                 const r = propRange(p, world.bounds(t, p.name), toNum(t.env[p.name]));
                 edit(toNum(t.env[p.name]) + dir * r.step);
@@ -226,11 +227,13 @@ export function WorldPanel({ program, selected, version, locked, cameras, onAct 
                   <output className="lv-value" />
                   <span className="lv-prop-row">
                     <button type="button" className="lv-step" aria-label={`${name}: mniej`} disabled={locked} onClick={() => nudge(-1)}>−</button>
+                    {/* Ein Zug am Schieber (bis zum Loslassen) ist EINE Änderung — React meldet `onChange` schon bei jedem Schritt. */}
                     <input type="range" aria-label={name} disabled={locked}
-                      onInput={(e) => edit(e.currentTarget.valueAsNumber)} onChange={() => onAct({ type: 'endEdit' })} />
+                      onInput={(e) => edit(e.currentTarget.valueAsNumber)} onPointerUp={end} onKeyUp={end} onBlur={end} />
                     <button type="button" className="lv-step" aria-label={`${name}: więcej`} disabled={locked} onClick={() => nudge(1)}>+</button>
                     <input type="number" inputMode="decimal" className="lv-prop-num" aria-label={`${name} (liczba)`} disabled={locked}
-                      onChange={(e) => { const n = toNum(e.currentTarget.value); if (Number.isFinite(n)) { edit(n); onAct({ type: 'endEdit' }); } }} />
+                      onChange={(e) => { const n = toNum(e.currentTarget.value); if (Number.isFinite(n)) edit(n); }}
+                      onBlur={end} onKeyDown={(e) => { if (e.key === 'Enter') end(); }} />
                   </span>
                 </div>
               );

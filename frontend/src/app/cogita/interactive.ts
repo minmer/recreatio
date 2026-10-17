@@ -12,18 +12,26 @@
  * irgendwann unterwegs. So zählt eine Antwort auch bei der Leitung einer
  * Sitzung, die nur die Werte bekommt.
  *
+ * <b>2026-10-18 — mit einer Welt</b> (die Waage, Zahnräder): dazu kommt der
+ * Bau, wie ihn der Lernende hinterlassen hat (`given.world`). Die Prüfung
+ * spielt ihn durch die Regeln der Welt nach (`World.replay`): was gesperrt
+ * ist, bleibt gesperrt, was nicht angehängt werden darf, wird nicht angehängt
+ * — eine Antwort kann nichts, was die Hand nicht konnte.
+ *
  * <b>Zufall je Versuch</b>: Werte mit `random` werden beim Bauen der Karte
- * gezogen (aus ihrem Samen) und stehen in der Karte (`fixed`) — die Anzeige
- * und die Prüfung sehen dieselben; der Lernende kann sie nicht überschreiben.
- * Der Fingerabdruck der Karte hängt nicht an ihnen: die Geschichte der Karte
- * bleibt, auch wenn jedes Mal ein anderes Ziel kommt. Darum ist eine Lösung
- * eine RECHNUNG mit diesen Werten (`v0 = sqrt(cel*g)`), keine feste Zahl.
+ * gezogen (aus ihrem Samen) und stehen in der Karte (`fixed`, für Dinge als
+ * `ding.eigenschaft`) — die Anzeige und die Prüfung sehen dieselben; der
+ * Lernende kann sie nicht überschreiben. Der Fingerabdruck der Karte hängt
+ * nicht an ihnen: die Geschichte der Karte bleibt, auch wenn jedes Mal ein
+ * anderes Ziel kommt. Darum ist eine Lösung eine RECHNUNG mit diesen Werten
+ * (`v0 = sqrt(cel*g)`, `w2.pos = 5`), keine feste Zahl.
  */
 
 import { drawingOf, type Drawing, type Shape } from '../pages/motion/drawing';
 import { fmt, toNum } from '../pages/motion/expr';
-import { NAME, readLive, type Live } from '../pages/motion/liveModel';
+import { readLive, type Live } from '../pages/motion/liveModel';
 import { Program } from '../pages/motion/liveRun';
+import { readShot, type WorldShot } from '../pages/motion/liveWorld';
 import type { Outcome } from './check';
 
 export interface InteractiveSpec {
@@ -32,13 +40,16 @@ export interface InteractiveSpec {
   readonly drawing: string;
   /** Ein eigenes Ziel (Ausdruck) — `null`: die Regeln des Bildes mit `"goal": true`. */
   readonly goal: string | null;
-  /** Was für diesen Versuch feststeht (der gezogene Zufall). */
+  /** Was für diesen Versuch feststeht (der gezogene Zufall; für Dinge `ding.eigenschaft`). */
   readonly fixed: Readonly<Record<string, number>>;
-  /** Was das Rätsel löst: Wert → Rechnung (mit den Namen des Bildes, auch dem Zufall) — gezeigt nach einer falschen Antwort. */
+  /** Was das Rätsel löst: Wert (oder `ding.eigenschaft`) → Rechnung — gezeigt nach einer falschen Antwort. */
   readonly solution: Readonly<Record<string, string>> | null;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Ein Schlüssel einer Lösung: ein Wert des Bildes, oder eine Eigenschaft eines Dings (`w2.pos`). */
+const KEY = /^[\p{L}_][\p{L}\p{N}_-]*(?:\.[\p{L}_][\p{L}\p{N}_]*)?$/u;
 
 /** Das Bild aus dem Text der Frage — `null`: keines (oder keines mit Teilen). */
 export function drawingOfText(text: string): Drawing | null {
@@ -52,13 +63,13 @@ export function drawingOfText(text: string): Drawing | null {
   }
 }
 
-/** Eine Lösung: „kat = 45; v0 = sqrt(cel*g)" (oder ein Objekt) — je Wert eine Rechnung. */
+/** Eine Lösung: „kat = 45; v0 = sqrt(cel*g); w2.pos = 5" (oder ein Objekt) — je Wert eine Rechnung. */
 export function readSolution(value: unknown): Record<string, string> | null {
   const out: Record<string, string> = {};
   const put = (name: string, expr: string) => {
     const n = name.trim();
     const e = expr.trim();
-    if (NAME.test(n) && e !== '' && e.length <= 400) out[n] = e;
+    if (KEY.test(n) && n.length <= 70 && e !== '' && e.length <= 400) out[n] = e;
   };
   if (isObject(value)) {
     for (const [k, v] of Object.entries(value)) if (typeof v === 'number' && Number.isFinite(v)) put(k, String(v)); else if (typeof v === 'string') put(k, v);
@@ -87,6 +98,16 @@ export function interactiveSpec(data: Readonly<Record<string, unknown>>, rng: ()
     let x = v.random[0] + rng() * (v.random[1] - v.random[0]);
     if (v.step !== null) x = (v.min ?? 0) + Math.round((x - (v.min ?? 0)) / v.step) * v.step;
     fixed[v.name] = Math.round(x * 1e9) / 1e9;
+  }
+  /* Der Zufall der Dinge — gezogen wie in der Welt (auf den Schritt der Eigenschaft gerastet). */
+  const world = drawing.live?.world ?? null;
+  for (const t of world?.things ?? []) {
+    for (const [name, [a, b]] of Object.entries(t.random)) {
+      const step = world?.kinds.find((k) => k.name === t.kind)?.props.find((p) => p.name === name)?.step ?? null;
+      let x = a + rng() * (b - a);
+      if (step !== null) x = Math.round(x / step) * step;
+      fixed[`${t.id}.${name}`] = Math.round(x * 1e9) / 1e9;
+    }
   }
   const goal = typeof data.goal === 'string' && data.goal.trim() !== '' ? data.goal.trim().replace(/^=\s*/, '') : null;
   return { form: 'interactive', drawing: text, goal, fixed, solution: readSolution(data.solution) };
@@ -139,26 +160,55 @@ export function answerValues(spec: InteractiveSpec, given: unknown): Record<stri
   return { ...out, ...spec.fixed };
 }
 
-/** Die Lösung als Zahlen — gerechnet mit dem Zufall dieses Versuchs. `null`: keine Lösung angegeben. */
-export function solutionValues(spec: InteractiveSpec): Record<string, number> | null {
+/** 2026-10-18 — der Bau des Lernenden (`null`: keiner — dann gilt der Anfang). */
+export function answerWorld(given: unknown): WorldShot | null {
+  return isObject(given) ? readShot(given.world) : null;
+}
+
+/** Die Rechnungen der Lösung, mit dem Zufall dieses Versuchs gerechnet — Werte des Bildes und Eigenschaften der Dinge. */
+function solved(spec: InteractiveSpec): { readonly drawing: Drawing; readonly program: Program; readonly values: Record<string, number> } | null {
   if (spec.solution === null) return null;
   const drawing = drawingOfText(spec.drawing);
   if (drawing === null) return null;
   const program = new Program(drawing.live, { fixed: spec.fixed });
-  const out: Record<string, number> = {};
+  const values: Record<string, number> = {};
   for (const [name, source] of Object.entries(spec.solution)) {
     const e = program.compile(source, `solution „${name}"`);
     const v = e === null ? NaN : toNum(e.run(program.env));
-    if (Number.isFinite(v)) out[name] = v;
+    if (Number.isFinite(v)) values[name] = v;
   }
+  return { drawing, program, values };
+}
+
+/** Die Lösung als Zahlen (die Werte des Bildes). `null`: keine Lösung angegeben. */
+export function solutionValues(spec: InteractiveSpec): Record<string, number> | null {
+  const s = solved(spec);
+  if (s === null) return null;
+  const out = Object.fromEntries(Object.entries(s.values).filter(([k]) => !k.includes('.')));
   return Object.keys(out).length === 0 ? null : out;
 }
 
+/** 2026-10-18 — die Lösung als Bau der Welt: der Anfang, mit den Eigenschaften, die die Lösung nennt. `null`: keine. */
+export function solutionWorld(spec: InteractiveSpec): WorldShot | null {
+  const s = solved(spec);
+  const start = s?.program.worldSnapshot() ?? null;
+  if (s === null || start === null) return null;
+  const keys = Object.keys(s.values).filter((k) => k.includes('.'));
+  if (keys.length === 0) return null;
+  return {
+    things: start.things.map((t) => {
+      const props = { ...t.props };
+      for (const key of keys) if (key.startsWith(`${t.id}.`)) props[key.slice(t.id.length + 1)] = s.values[key];
+      return { ...t, props };
+    })
+  };
+}
+
 /**
- * DIE PRÜFUNG: mit den Werten des Lernenden neu rechnen, bis zum Ende. Richtig,
- * wenn ein Ziel erreicht wurde. Ohne Ziel im Bild und in der Frage gibt es
- * nichts zu prüfen — dann zählt jede abgegebene Antwort als richtig (ein
- * Ausprobieren, keine Aufgabe).
+ * DIE PRÜFUNG: mit den Werten (und dem Bau) des Lernenden neu rechnen, bis
+ * zum Ende. Richtig, wenn ein Ziel erreicht wurde. Ohne Ziel im Bild und in
+ * der Frage gibt es nichts zu prüfen — dann zählt jede abgegebene Antwort als
+ * richtig (ein Ausprobieren, keine Aufgabe).
  */
 export function checkInteractive(spec: InteractiveSpec, given: unknown): Outcome {
   const values = answerValues(spec, given);
@@ -166,36 +216,76 @@ export function checkInteractive(spec: InteractiveSpec, given: unknown): Outcome
   if (values === null) return { correct: false, correctness: 0, answered: false, expected };
   const drawing = drawingOfText(spec.drawing);
   if (drawing === null) return { correct: false, correctness: 0, answered: true, expected };
-  const program = new Program(liveWithGoal(drawing.live, spec.goal), { fixed: values });
+  const program = new Program(liveWithGoal(drawing.live, spec.goal), { fixed: values, replay: answerWorld(given) });
   if (!program.hasGoal()) return { correct: true, correctness: 1, answered: true, expected };
+  /* Eine Regel der Welt gebrochen (zu viele Züge): falsch, gleich, wohin es führt. */
+  if (program.broken() !== null) return { correct: false, correctness: 0, answered: true, expected };
   const reached = program.runToEnd();
   return { correct: reached, correctness: reached ? 1 : 0, answered: true, expected };
 }
 
-/** Werte in Worten, mit den Namen und Einheiten des Bildes: „Kąt = 45°; Prędkość = 12 m/s" — `only`: nur diese. */
+/** Wie eine Zahl einer Eigenschaft geschrieben wird: so viele Stellen, wie ihr Schritt braucht, mit Einheit. */
+const valueText = (value: number, step: number | null, unit: string): string => {
+  const digits = step === null ? 2 : Math.max(0, Math.min(4, Math.ceil(-Math.log10(step) - 1e-9)));
+  /* Zwischen Zahl und Einheit ein fester Abstand (U+00A0): „9,9 m/s" bricht nicht um. */
+  return `${fmt(value, digits)}${unit === '' ? '' : /^[°%′″]/.test(unit) ? unit : ` ${unit}`}`;
+};
+
+/** Werte in Worten, mit den Namen und Einheiten des Bildes: „Kąt = 45°; Ciężarek w2 · Miejsce = 5 m" — `only`: nur diese. */
 export function describeValues(drawingText: string, values: Readonly<Record<string, number>>, only?: ReadonlySet<string>): string {
-  const vars = drawingOfText(drawingText)?.live?.vars ?? [];
-  const by = new Map(vars.map((v) => [v.name, v]));
-  return Object.entries(values).filter(([name]) => by.has(name) && (only === undefined || only.has(name))).map(([name, value]) => {
-    const v = by.get(name)!;
-    const digits = v.step === null ? 2 : Math.max(0, Math.min(4, Math.ceil(-Math.log10(v.step) - 1e-9)));
-    const unit = v.unit === '' ? '' : /^[°%′″]/.test(v.unit) ? v.unit : ` ${v.unit}`;
-    return `${v.label || name} = ${fmt(value, digits)}${unit}`;
+  const live = drawingOfText(drawingText)?.live ?? null;
+  const by = new Map((live?.vars ?? []).map((v) => [v.name, v]));
+  const world = live?.world ?? null;
+  return Object.entries(values).flatMap(([name, value]) => {
+    if (only !== undefined && !only.has(name)) return [];
+    const v = by.get(name);
+    if (v !== undefined) return [`${v.label || name} = ${valueText(value, v.step, v.unit)}`];
+    const dot = name.indexOf('.');
+    if (dot < 0 || world === null) return [];
+    const id = name.slice(0, dot);
+    const kind = world.kinds.find((k) => k.name === world.things.find((t) => t.id === id)?.kind);
+    const prop = kind?.props.find((p) => p.name === name.slice(dot + 1));
+    return kind === undefined || prop === undefined ? [] : [`${kind.label} ${id} · ${prop.label || prop.name} = ${valueText(value, prop.step, prop.unit)}`];
   }).join('; ');
 }
 
 /** Die Lösung in Worten — mit dem Zufall dieses Versuchs gerechnet. */
 export function solutionText(spec: InteractiveSpec): string | null {
-  const values = solutionValues(spec);
-  return values === null ? null : describeValues(spec.drawing, values);
+  const s = solved(spec);
+  return s === null || Object.keys(s.values).length === 0 ? null : describeValues(spec.drawing, s.values);
 }
 
-/** Die Antwort in Worten: nur, was der Lernende einstellen konnte. */
+/** Was der Lernende am Bau geändert hat, in Worten — verglichen mit dem Anfang dieses Versuchs. */
+function worldChangesText(spec: InteractiveSpec, drawing: Drawing, world: WorldShot): string {
+  const start = new Program(drawing.live, { fixed: spec.fixed }).worldSnapshot();
+  const spec0 = drawing.live?.world ?? null;
+  if (start === null || spec0 === null) return '';
+  const label = (kind: string) => spec0.kinds.find((k) => k.name === kind)?.label ?? kind;
+  const before = new Map(start.things.map((t) => [t.id, t]));
+  const after = new Map(world.things.map((t) => [t.id, t]));
+  const out: string[] = [];
+  for (const t of world.things) {
+    const was = before.get(t.id);
+    if (was === undefined) { out.push(`+ ${label(t.kind)}`); continue; }
+    const kind = spec0.kinds.find((k) => k.name === t.kind);
+    for (const p of kind?.props ?? []) {
+      const a = was.props[p.name];
+      const b = t.props[p.name];
+      if (typeof b === 'number' && (typeof a !== 'number' || Math.abs(a - b) > 1e-9)) out.push(`${label(t.kind)} ${t.id} · ${p.label || p.name} = ${valueText(b, p.step, p.unit)}`);
+    }
+  }
+  for (const t of start.things) if (!after.has(t.id)) out.push(`− ${label(t.kind)} ${t.id}`);
+  return out.length > 8 ? [...out.slice(0, 8), `… (${out.length - 8} więcej)`].join('; ') : out.join('; ');
+}
+
+/** Die Antwort in Worten: nur, was der Lernende einstellen konnte — und was er am Bau geändert hat. */
 export function givenValuesText(spec: InteractiveSpec, given: unknown): string {
   const vars = isObject(given) && isObject(given.vars) ? given.vars as Record<string, number> : null;
   const drawing = drawingOfText(spec.drawing);
   if (vars === null || drawing === null) return '';
-  return describeValues(spec.drawing, vars, adjustable(drawing, spec.fixed));
+  const world = answerWorld(given);
+  return [describeValues(spec.drawing, vars, adjustable(drawing, spec.fixed)), world === null ? '' : worldChangesText(spec, drawing, world)]
+    .filter((x) => x !== '').join('; ');
 }
 
 /**

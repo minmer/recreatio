@@ -846,12 +846,15 @@ export class World {
    * EINE ANTWORT NACHSPIELEN (Cogita): was der Lernende gebaut hat, Schritt für
    * Schritt durch die Regeln dieser Welt — Wegnehmen, Anhängen, Einstellen,
    * Verschieben, jedes nur, wo es erlaubt ist, und in seinen Grenzen. Was nicht
-   * erlaubt ist, bleibt, wie es am Anfang war.
+   * erlaubt ist, bleibt, wie es am Anfang war. Gibt zurück, wie viele Dinge
+   * sich geändert haben (weg, neu, anders eingestellt) — so viele Züge zählt
+   * die Antwort (`edits`, für Regeln wie „höchstens zwei Züge").
    */
-  replay(shot: WorldShot): void {
+  replay(shot: WorldShot): number {
+    let moves = 0;
     const wanted = new Map(shot.things.map((s) => [s.id, s]));
     /* Wegnehmen, was fehlt (von unten nach oben). */
-    for (const t of [...this.preorder].reverse()) if (!wanted.has(t.id) && this.byId.has(t.id)) this.remove(t);
+    for (const t of [...this.preorder].reverse()) if (!wanted.has(t.id) && this.byId.has(t.id) && this.remove(t)) moves += 1;
     /* Anhängen, was neu ist (Eltern zuerst), unter der Kennung, die die Welt vergibt — und merken, welche das ist. */
     const alias = new Map<string, string>();
     let progress = true;
@@ -863,19 +866,22 @@ export class World {
         const parent = parentId === null ? null : this.byId.get(parentId);
         if (parentId !== null && parent === undefined) continue;
         const made = this.add(s.kind, parent ?? null);
-        if (made !== null) { alias.set(s.id, made.id); progress = true; }
+        if (made !== null) { alias.set(s.id, made.id); progress = true; moves += 1; }
       }
     }
     /* Eigenschaften: wer sie einstellen oder ziehen darf, bekommt sie — Eltern zuerst, damit Grenzen stimmen. */
     for (const s of shot.things) {
       const t = this.byId.get(alias.get(s.id) ?? s.id);
       if (t === undefined) continue;
+      let changed = false;
       for (const [name, value] of Object.entries(s.props)) {
         if (!t.kind.props.has(name) || toNum(t.env[name]) === value) continue;
         const viaDrag = t.kind.drag.some((a) => a.name === name);
-        if (!this.setProp(t, name, value, 'edit') && viaDrag) this.setProp(t, name, value, 'drag');
+        if (this.setProp(t, name, value, 'edit') || (viaDrag && this.setProp(t, name, value, 'drag'))) changed = true;
       }
+      if (changed && !alias.has(s.id)) moves += 1;
     }
     this.initAllState();
+    return moves;
   }
 }

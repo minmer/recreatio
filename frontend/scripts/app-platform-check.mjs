@@ -34,7 +34,8 @@
  *      auch ohne eigenen „Wybór na stronie"; Spalten aus Unterformularen (laufender Zeitraum, sonst der jüngste Eintrag).
  *  29. Das Telefon (Ausgabe „sms"): Nummern in einer Form, die Länge einer SMS, vCard hin und zurück, Kontakte
  *      einlesen ohne Doppelte (und nie zwei Menschen in einen), das Archiv: eine Form je Nachricht, Gespräche;
- *      die eigene Nummer je Nachricht, Antworten aus dem Browser (0116), was unter einem Gespräch stehen bleibt.
+ *      die eigene Nummer je Nachricht, Antworten aus dem Browser (0116), was unter einem Gespräch stehen bleibt;
+ *      Pliki przez link (0117): Kennung und Schlüssel aus dem Geheimnis, die Hülle, Fotos ohne den Ort.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -121,6 +122,8 @@ export { tidyContact, sameContact, planImport, contactMatches, nameIndex, phoneK
 export { canonical, fromNative, archiveThreads, conversationKey, outlineOf, conversationsOf, choiceIncludes, lineFinder } from '${app}phone/smsArchive';
 export { readMessage, pendingOf } from '${app}phone/outbox';
 export { aheadWhen, localInput } from '${app}phone/smsShared';
+export { shareKeys, guidText, shareLink, secretOf, packShare, unpackShare, sealShare, openShare, withoutPlace, shownAs, sizeText, cleanName } from '${app}phone/share';
+export { ROUTES } from '${app}routes';
 export { readSettings, settingsText } from '${app}phone/archiveSettings';
 `);
 await build({
@@ -2057,6 +2060,73 @@ try {
     assert.equal(m.aheadWhen(new Date(nowDay.getFullYear(), nowDay.getMonth(), nowDay.getDate() + 1, 7, 30).getTime()), 'jutro 07:30');
     assert.equal(m.localInput(new Date(2026, 9, 18, 18, 5).getTime()), '2026-10-18T18:05', 'a datetime-local value in local time');
     ok('SMS outbox (0116): the own number per message and conversation, a reply read tolerantly, what stays under a conversation, when it goes');
+
+    /* 0117 — Pliki przez link. */
+    const { hkdfSync } = await import('node:crypto');
+    const secret = Uint8Array.from({ length: 16 }, (_, i) => i * 7 + 3);
+    const keys = await m.shareKeys(secret);
+    const hkdf = (info, n) => new Uint8Array(hkdfSync('sha256', secret, new Uint8Array(32), info, n));
+    assert.equal(keys.id, m.guidText(hkdf('recreatio share id v1', 16)), 'the id is plain HKDF-SHA-256 of the secret');
+    assert.deepEqual([...keys.key], [...hkdf('recreatio share key v1', 32)], 'the key too — under another label');
+    assert.match(keys.id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, 'the id in the form the service reads');
+    assert.notEqual(keys.id.replace(/-/g, ''), Buffer.from(keys.key.slice(0, 16)).toString('hex'), 'the id does not give the key away');
+    const link = m.shareLink(secret);
+    assert.match(link, /^https:\/\/recreatio\.pl\/#\/plik\/[A-Za-z0-9_-]{22}$/);
+    assert.ok(link.length <= 50, `a short link (${link.length} characters) — it goes into an SMS`);
+    assert.deepEqual([...m.secretOf(link.slice(link.lastIndexOf('/') + 1))], [...secret], 'the secret back from the address');
+    assert.ok(m.secretOf('short') === null && m.secretOf('x'.repeat(23)) === null && m.secretOf('a+b/'.repeat(5) + 'xy') === null, 'only 22 base64url characters');
+
+    assert.equal(m.cleanName('C:\\fotki/../zdjęcie\u0007 z wakacji.jpg'), 'zdjęcie z wakacji.jpg', 'no path, no control characters');
+    const head = { name: 'Łódź – zdjęcie.jpg', type: 'image/jpeg', size: 5 };
+    const packed = m.packShare(head, new Uint8Array([1, 2, 3, 4, 5]));
+    const unpacked = m.unpackShare(packed);
+    assert.deepEqual([unpacked.head, [...unpacked.bytes]], [head, [1, 2, 3, 4, 5]], 'head and file in one, unicode name kept');
+    const sealedShare = await m.sealShare(secret, head, new Uint8Array([9, 8, 7]));
+    assert.equal(sealedShare.id, keys.id);
+    const opened = await m.openShare(secret, sealedShare.sealed);
+    assert.deepEqual([opened.head.name, [...opened.bytes]], [head.name, [9, 8, 7]], 'sealed and opened with the link alone');
+    const other = Uint8Array.from(secret, (b, i) => (i === 0 ? b ^ 1 : b));
+    await assert.rejects(m.openShare(other, sealedShare.sealed), 'another secret does not open it');
+
+    /* A photo without its place: EXIF (with GPS), XMP and IPTC go, the turn stays, the picture data is untouched. */
+    const seg = (marker, body) => [0xff, marker, (body.length + 2) >> 8, (body.length + 2) & 0xff, ...body];
+    const ascii = (text) => [...text].map((c) => c.charCodeAt(0));
+    const exif = seg(0xe1, [...ascii('Exif\0\0'),
+      0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00,                       // TIFF little-endian, IFD0 at 8
+      0x02, 0x00,                                                           // two entries
+      0x12, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, // Orientation = 6
+      0x25, 0x88, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x26, 0x00, 0x00, 0x00, // GPSInfo pointer
+      0x00, 0x00, 0x00, 0x00, ...ascii('GPS 52.2297N 21.0122E')]);
+    const app0 = seg(0xe0, [...ascii('JFIF\0'), 1, 1, 0, 0, 1, 0, 1, 0, 0]);
+    const xmp = seg(0xe1, [...ascii('http://ns.adobe.com/xap/1.0/\0'), ...ascii('<gps>here</gps>')]);
+    const iptc = seg(0xed, ascii('Photoshop 3.0\0city'));
+    const dqt = seg(0xdb, [0, ...Array.from({ length: 64 }, (_, i) => i + 1)]);
+    const scan = [0xff, 0xda, 0x00, 0x08, 1, 1, 0, 0, 0x3f, 0, 0x12, 0x34, 0xff, 0x00, 0x56, 0xff, 0xd9];
+    const photo = new Uint8Array([0xff, 0xd8, ...app0, ...exif, ...xmp, ...iptc, ...dqt, ...scan]);
+    const bare = m.withoutPlace(photo);
+    const text = Buffer.from(bare).toString('latin1');
+    assert.ok(!text.includes('GPS') && !text.includes('<gps>') && !text.includes('city'), 'no place left in the file');
+    assert.deepEqual([...bare.slice(0, 2 + app0.length)], [0xff, 0xd8, ...app0], 'SOI and JFIF first');
+    const turn = bare.slice(2 + app0.length, 2 + app0.length + 36);
+    assert.deepEqual([turn[0], turn[1], ...turn.slice(4, 10)], [0xff, 0xe1, ...ascii('Exif\0\0')], 'a new EXIF block…');
+    assert.equal(turn[29], 6, '…that says only how it is turned');
+    assert.deepEqual([...bare.slice(bare.length - dqt.length - scan.length)], [...dqt, ...scan], 'tables and picture data byte for byte');
+    const plain = new Uint8Array([0xff, 0xd8, ...app0, ...dqt, ...scan]);
+    assert.equal(m.withoutPlace(plain), plain, 'a JPEG without such blocks stays as it is');
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
+    assert.equal(m.withoutPlace(png), png, 'not a JPEG: untouched');
+    const broken = new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x40, 0x00]);
+    assert.equal(m.withoutPlace(broken), broken, 'a block longer than the file: left as it is, no error');
+
+    assert.deepEqual(['image/jpeg', 'video/mp4', 'audio/mpeg', 'application/pdf', 'image/svg+xml', 'text/html', 'application/zip'].map(m.shownAs),
+      ['image', 'video', 'audio', 'pdf', null, null, null], 'shown in the browser only what cannot run as a page (no SVG, no HTML)');
+    assert.deepEqual([m.sizeText(300 * 1024), m.sizeText(3.25 * 1024 * 1024)], ['300 KB', '3,3 MB']);
+
+    /* The route words are the reserved slugs (a page called "plik" would never be seen). */
+    const claim = await readFile(join(process.cwd(), '../backend/Api/Pages/Slug.Claim.cs'), 'utf8');
+    const parts = /Parts = new\(StringComparer\.Ordinal\) \{([^}]*)\}/.exec(claim)?.[1].split(',').map((p) => p.trim().replace(/"/g, '')).filter(Boolean).sort();
+    assert.deepEqual(parts, Object.keys(m.ROUTES).sort(), 'Slug.IsReserved knows every route word of the browser');
+    ok('Pliki przez link (0117): id and key from the link secret (HKDF), sealed and opened with the link alone, photos without their place, only safe types shown, route word reserved');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

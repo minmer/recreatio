@@ -123,7 +123,7 @@ function AnimationEditor({ raw, onSet, busy }: EditorProps) {
     };
     const next: RawConfig = {
       size: json('size', [200, 120]), symbols: json('symbols', []), elements: json('elements', []),
-      vars: json('vars'), let: json('let'), sim: json('sim'), controls: json('controls'), rules: json('rules'),
+      vars: json('vars'), let: json('let'), sim: json('sim'), controls: json('controls'), rules: json('rules'), world: json('world'),
       panel: typeof value.panel === 'string' ? value.panel : '',
       ...(typeof value.alt === 'string' ? { alt: value.alt } : {}),
       ...(typeof value.max === 'number' ? { max: String(value.max) } : {})
@@ -153,7 +153,8 @@ function AnimationEditor({ raw, onSet, busy }: EditorProps) {
       </label>
       <p className="wk-hint">
         Rysunek: „size”, „elements” (rect, circle, ellipse, line, arrow, poly, plot, trace, frame, path, text, image, group, use), „symbols”;
-        do poruszania: „vars”, „let”, „sim”, „controls”, „rules” — wartości mogą być wyrażeniami „=…”. Pełny opis — przy imporcie JSON strony
+        do poruszania: „vars”, „let”, „sim”, „controls”, „rules”, a rzeczy do budowania (waga, koła zębate) — „world” z elementem „world” w ramie;
+        wartości mogą być wyrażeniami „=…”. Pełny opis — przy imporcie JSON strony
         i w poleceniu dla AI. Teraz: {sum(raw)}.
       </p>
       <div className="wk-actions">
@@ -192,7 +193,7 @@ function AnimationEditor({ raw, onSet, busy }: EditorProps) {
 /* -- Die Beschreibung der Teile — für jede Stelle, an der ein Teil stehen kann ---------------- */
 
 const SHAPE_KEYS: Readonly<Record<string, string>> = {
-  type: `Rodzaj: ${SHAPE_TYPES.map((t) => `"${t}"`).join(', ')} — "group" zbiera "children", "use" wstawia część z "symbols", "frame" to rama ze światem (y w górę)`,
+  type: `Rodzaj: ${SHAPE_TYPES.map((t) => `"${t}"`).join(', ')} — "group" zbiera "children", "use" wstawia część z "symbols", "frame" to rama ze światem (y w górę), "world" — w tym miejscu stoją rzeczy z "world" (w ramie)`,
   x: 'Położenie w jednostkach rysunku (w ramie — świata): rect, image — lewy górny róg (w ramie: lewy dolny); circle, ellipse — środek; text — punkt zaczepienia; line, arrow — początek; group, use — przesunięcie; frame — lewy górny róg ramy. Liczba albo wyrażenie "=…"',
   y: 'Jak "x", w pionie',
   w: 'Szerokość (rect, image, ellipse, frame)',
@@ -250,7 +251,8 @@ const SHAPE_KEYS: Readonly<Record<string, string>> = {
   'axes.x': 'Podpis osi poziomej',
   'axes.y': 'Podpis osi pionowej',
   'axes.grid': 'Siatka pod spodem',
-  clip: 'frame — true: co wychodzi poza ramę, znika'
+  clip: 'frame — true: co wychodzi poza ramę, znika',
+  camera: 'frame — true: można przybliżać (Ctrl+kółko, dwa palce, dwuklik) i przesuwać widok; "view" to wtedy widok „Dopasuj”'
 };
 
 const MOTION_KEYS: Readonly<Record<string, string>> = {
@@ -331,6 +333,26 @@ const EXAMPLE = {
     { type: 'readout', label: 'Zasięg', value: 'zasieg', unit: 'm', digits: 1 }
   ],
   rules: [{ when: 'abs(x - cel) < 0.6 && y <= 0 && t > 0', say: 'Trafione z {fmt(kat, 0)}°!', mood: 'ok', goal: true, once: true, do: 'pause' }],
+  /* 2026-10-18 — eine kleine Welt: Kisten am Boden, die man zieht, kopiert, wegnimmt (höchstens drei). */
+  world: {
+    kinds: [{
+      name: 'skrzynka',
+      label: 'Skrzynka',
+      props: [{ name: 'pos', value: 16, min: 1, max: 19, step: 0.5, unit: 'm', label: 'Położenie', apart: 1.5, new: 'max(things, pos) - 2', when: 'isroot' }],
+      let: [{ name: 'x', value: 'pos' }, { name: 'y', value: 0.4 }, { name: 'hit', value: 6 }],
+      shapes: [{ type: 'rect', x: '=x - 0.6', y: 0, w: 1.2, h: 0.8, fill: "=selected ? 'accent/60' : 'muted/50'" }],
+      drag: { pos: 'px' },
+      can: { edit: ['pos'], add: [], remove: true, copy: true },
+      readouts: [{ label: 'Do celu', value: 'pos - cel', unit: 'm', digits: 1 }],
+      children: 0
+    }],
+    things: [{ id: 's1', kind: 'skrzynka', parent: null, pos: 16, lock: [] }],
+    allow: { add: true, remove: true, copy: true, edit: true, drag: true, roots: ['skrzynka'] },
+    limits: { things: 4, depth: 1 },
+    keep: [{ when: 'nthings <= 3', say: 'Najwyżej trzy skrzynki.' }],
+    save: false,
+    hint: 'Skrzynkę przeciągnij; dotknij jej, żeby powielić albo usunąć.'
+  },
   symbols: [{ name: 'kropka', shapes: [{ type: 'circle', x: 0, y: 0, r: 4, fill: 'accent', glow: '0 0 6px accent/60', motion: { name: 'breathe', duration: 1600 } }] }],
   elements: [
     {
@@ -343,7 +365,8 @@ const EXAMPLE = {
         { type: 'poly', points: [['=cel', 1.6], ['=cel + 0.8', 1.35], ['=cel', 1.1]], closed: true, fill: 'ok' },
         { type: 'arrow', x: 0, y: 0, x2: '=2*cos(rad(kat))', y2: '=2*sin(rad(kat))', head: 7, stroke: 'ink', width: 2, show: 't == 0' },
         { type: 'use', use: 'kropka', x: '=x', y: '=y' },
-        { type: 'circle', x: '=i*2 + 1', y: -0.2, r: 1.5, fill: 'muted/40', repeat: 10 }
+        { type: 'circle', x: '=i*2 + 1', y: -0.2, r: 1.5, fill: 'muted/40', repeat: 10 },
+        { type: 'world' }
       ]
     },
     { type: 'text', x: 170, y: 194, text: 'kąt {fmt(kat, 0)}°', size: 9, fill: 'muted', motion: { name: 'rise', delay: 400 } },
@@ -382,7 +405,8 @@ const LIVE_DOCS = {
     '.speed': 'Tempo względem zegara (1 — jak w rzeczywistości)',
     '.auto': 'true — rusza sama, gdy rysunek widać',
     '.loop': 'true — po końcu zaczyna od nowa',
-    '.max': 'Najdłużej (sekundy symulacji)'
+    '.max': 'Najdłużej (sekundy symulacji)',
+    '.sleep': 'true — gdy nic się już nie rusza, liczenie zasypia (oszczędza baterię) i budzi się przy każdej zmianie'
   },
   controls: {
     '[].type': `Rodzaj: ${CONTROL_TYPES.map((t) => `"${t}"`).join(', ')}`,
@@ -396,7 +420,8 @@ const LIVE_DOCS = {
     '[].do': `button — co robi z symulacją: ${ACTIONS.map((a) => `"${a}"`).join(', ')}`,
     '[].set': 'button — zmienne do ustawienia: { "nazwa": "wyrażenie" }',
     '[].go': 'button — w prezentacji: "next", "back", klucz sceny, "link:<id>"',
-    '[].value': 'readout — wyrażenie do pokazania'
+    '[].value': 'readout — wyrażenie do pokazania',
+    '[].show': 'Kiedy element widać — wyrażenie (np. "solved": przycisk „Dalej” dopiero po rozwiązaniu)'
   },
   rules: {
     '[].when': 'Warunek — reguła działa, gdy STAJE SIĘ prawdziwy',
@@ -406,9 +431,80 @@ const LIVE_DOCS = {
     '[].say': 'Napis pod rysunkiem ({…} — liczone)',
     '[].mood': `Wygląd napisu: ${MOODS.map((m) => `"${m}"`).join(', ')}`,
     '[].goal': 'true — to jest cel zadania (w Cogita: dobra odpowiedź)',
-    '[].once': 'true — tylko raz, aż do „od nowa”'
+    '[].once': 'true — tylko raz, aż do „od nowa”',
+    '[].for': 'Ile sekund warunek musi trwać bez przerwy, zanim reguła zadziała (np. 1 — „stabilnie”)'
   }
 } as const;
+
+/**
+ * 2026-10-18 — DER WELT (`motion/liveModel.ts`): Arten von Dingen, die Dinge
+ * am Anfang, und was in dieser Welt erlaubt ist — die Waage, Zahnräder, ein
+ * Mobile sind Dokumente in diesem Format (`motion/liveWorlds.ts`).
+ */
+const WORLD_DOCS: Readonly<Record<string, string>> = {
+  '.kinds': 'Rodzaje rzeczy (do 12): co każda ma, co z tego wynika, jak się rusza, jak wygląda i co z nią wolno',
+  '.kinds[].name': 'Nazwa rodzaju (jak nazwa zmiennej) — także zbiór w podsumowaniach: count(belka, !ok)',
+  '.kinds[].label': 'Nazwa dla ludzi („Belka”) — w panelu i na przyciskach',
+  '.kinds[].props': 'Własności (do 24): liczby z granicami — ustawiane w panelu, przeciągane, zapisywane w odpowiedzi',
+  '.kinds[].props[].name': 'Nazwa własności — w wyrażeniach rzeczy „pos”, u rodzica „parent.pos”, u rzeczy o danym id „w2.pos”',
+  '.kinds[].props[].value': 'Wartość domyślna',
+  '.kinds[].props[].min': 'Najmniej — liczba albo wyrażenie liczone w rzeczy',
+  '.kinds[].props[].max': 'Najwięcej — liczba albo wyrażenie, np. "=parent.length" (najwyżej do końca belki, na której wisi)',
+  '.kinds[].props[].step': 'Krok (suwak, przeciąganie, ±)',
+  '.kinds[].props[].unit': 'Jednostka',
+  '.kinds[].props[].label': 'Podpis w panelu',
+  '.kinds[].props[].apart': 'Najmniejszy odstęp od rodzeństwa w tej własności (dwa ciężarki nie wiszą w jednym miejscu)',
+  '.kinds[].props[].new': 'Gdzie stoi nowo dodana rzecz — wyrażenie, np. "parent.pivot + 1" (wolne miejsce znajduje się samo)',
+  '.kinds[].props[].when': 'Kiedy własność dotyczy tej rzeczy — wyrażenie, np. "!isroot" (tylko gdy wisi) albo "isroot"',
+  '.kinds[].let': 'Wartości liczone w każdej rzeczy — kolejność wynika sama z tego, co czytają (najpierw dzieci, potem rodzic, albo odwrotnie)',
+  '.kinds[].let[].name': 'Nazwa wartości liczonej',
+  '.kinds[].let[].value': 'Wyrażenie: własne nazwy, parent.x, root.x, sum(children, total*arm), count(…), nazwy rysunku (g, tol) i wbudowane (isroot, depth, index, selected, nchildren)',
+  '.kinds[].state': 'Wielkości symulacji każdej rzeczy — liczone tym samym Runge-Kuttą co "sim" (do "sim" wystarczy wtedy "dt", "speed", "auto", "sleep")',
+  '.kinds[].state[].name': 'Nazwa wielkości (np. "angle")',
+  '.kinds[].state[].value': 'Wartość na start (wyrażenie w rzeczy)',
+  '.kinds[].state[].rate': 'Tempo zmiany — pochodna po czasie (wyrażenie w rzeczy)',
+  '.kinds[].events': 'Zdarzenia rzeczy: gdy warunek STAJE SIĘ prawdziwy (np. ogranicznik wychylenia)',
+  '.kinds[].events[].when': 'Warunek w rzeczy, np. "angle > tilt"',
+  '.kinds[].events[].set': 'Nowe wartości własności albo wielkości: { "angle": "tilt", "omega": 0 }',
+  '.kinds[].events[].say': 'Napis pod rysunkiem ({…} — liczone w rzeczy)',
+  '.kinds[].events[].mood': `Wygląd napisu: ${MOODS.map((m) => `"${m}"`).join(', ')}`,
+  '.kinds[].shapes': 'Jak rzecz wygląda: elementy jak w "elements", liczone w rzeczy ("=x" to JEJ x); w ramie — współrzędne świata',
+  '.kinds[].drag': 'Co ustawia przeciąganie rzeczy: { "własność": "wyrażenie z px, py" } — px, py to palec w świecie; pierścień chwytu stoi w jej "x", "y"',
+  '.kinds[].drag.pos': 'Np. miejsce: "px" (wzdłuż ziemi) albo rzut palca na belkę rodzica',
+  '.kinds[].tap': 'Kliknięcie rzeczy: { "set": {…}, "do": "toggle", "go": "next" }',
+  '.kinds[].can': 'Co wolno z rzeczą tego rodzaju',
+  '.kinds[].can.edit': 'Własności do ustawiania w panelu wybranej rzeczy (suwak, liczba, ±)',
+  '.kinds[].can.add': 'Jakie rodzaje wolno do niej dowiesić',
+  '.kinds[].can.remove': 'true — można ją usunąć (razem z tym, co na niej wisi)',
+  '.kinds[].can.copy': 'true — można ją powielić (razem z tym, co na niej wisi)',
+  '.kinds[].readouts': 'Odczyty w panelu wybranej rzeczy',
+  '.kinds[].readouts[].label': 'Podpis odczytu',
+  '.kinds[].readouts[].value': 'Wyrażenie w rzeczy, np. "total*arm"',
+  '.kinds[].readouts[].unit': 'Jednostka',
+  '.kinds[].readouts[].digits': 'Ile miejsc po przecinku',
+  '.kinds[].children': 'Ile rzeczy najwyżej może na niej wisieć',
+  '.things': 'Rzeczy na start (do 120): { "id", "kind", "parent", "lock", …własności }',
+  '.things[].id': 'Nazwa rzeczy (litery, cyfry, _ -) — w wyrażeniach „s1.pos”, w odpowiedziach i rozwiązaniu Cogita („s1.pos = 4”)',
+  '.things[].kind': 'Rodzaj rzeczy',
+  '.things[].parent': 'Na czym wisi (id); null albo pominięte — stoi na samej górze',
+  '.things[].lock': 'true — nic nie wolno zmienić ani usunąć; lista — tych własności nie wolno (zagadka)',
+  '.things[].pos': 'Własność rzeczy (każda własność jej rodzaju, tu "pos"): liczba albo { "random": [od, do] } — w Cogita losowana przy każdej próbie',
+  '.allow': 'Co w tym świecie wolno w ogóle — węziej niż rodzaje (zagadka), nigdy szerzej',
+  '.allow.add': 'true — wolno dodawać rzeczy',
+  '.allow.remove': 'true — wolno usuwać rzeczy',
+  '.allow.copy': 'true — wolno powielać rzeczy',
+  '.allow.edit': 'true — wolno ustawiać własności w panelu',
+  '.allow.drag': 'true — wolno przeciągać rzeczy',
+  '.allow.roots': 'Jakie rodzaje wolno postawić na samej górze (np. nowy stojak)',
+  '.limits': 'Granice świata',
+  '.limits.things': 'Najwięcej rzeczy',
+  '.limits.depth': 'Najgłębsze zawieszenie',
+  '.keep': 'Co musi zawsze obowiązywać — zmiana, po której przestaje, jest cofana',
+  '.keep[].when': 'Wyrażenie, np. "edits <= 2" (najwyżej dwa ruchy; edits — ile zmian od „Od nowa”) albo "nthings <= 6"',
+  '.keep[].say': 'Co wtedy powiedzieć',
+  '.save': 'true — warsztat: „Zapisz”, „Wczytaj” (w tej przeglądarce) i układ jako JSON',
+  '.hint': 'Podpowiedź pod rysunkiem, gdy nic nie jest wybrane'
+};
 
 export const animationPart = definePart<Config>({
   kind: 'animation',
@@ -428,6 +524,11 @@ export const animationPart = definePart<Config>({
     { key: 'sim', shape: 'json', says: 'Symulacja (równania ruchu, Runge-Kutta): { "state": [{ "name", "value", "rate" }], "events", "until", "dt", "speed", "auto", "loop", "max" }', inside: LIVE_DOCS.sim },
     { key: 'controls', shape: 'json', says: 'Sterowanie pod rysunkiem: suwaki, przełączniki, wybór, przyciski, odczyty', inside: LIVE_DOCS.controls },
     { key: 'rules', shape: 'json', says: 'Reguły: gdy warunek staje się prawdziwy — napis, cel zadania, ustawienie, start/pauza, dalej w prezentacji', inside: LIVE_DOCS.rules },
+    {
+      key: 'world', shape: 'json',
+      says: 'Świat rzeczy do budowania (waga z belek i ciężarków, koła zębate): rodzaje, rzeczy na start i co wolno — każda zmiana idzie przez reguły świata, z „Cofnij”; element { "type": "world" } w ramie pokazuje, gdzie stoją',
+      inside: { ...WORLD_DOCS, ...relative(shapeDocs('world.kinds[].shapes[]'), 'world') }
+    },
     {
       key: 'symbols', shape: 'json', says: 'Części do wielokrotnego użycia: [{ "name": "fiszka", "shapes": [elementy] }] — wstawia je element { "type": "use", "use": "fiszka" }',
       inside: { '[].name': 'Nazwa części', '[].shapes': 'Elementy części (jak w "elements")', ...relative(shapeDocs('symbols[].shapes[]'), 'symbols') }

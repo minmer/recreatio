@@ -62,7 +62,7 @@ const BEAM = {
     { name: 'bx0', value: 'rx - pivot - 0.4' },
     { name: 'bx1', value: 'rx + length - pivot + 0.4' },
     { name: 'by0', value: 'ry - h - 0.5' },
-    { name: 'by1', value: 'ry + 0.7' },
+    { name: 'by1', value: 'ry + 0.7 + max(pivot, length - pivot)*0.36' },
     { name: 'hit', value: '6' }
   ],
   state: [

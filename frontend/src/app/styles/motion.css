@@ -201,6 +201,8 @@
 .lv-choice-row button + button { border-left: 1px solid var(--wk-line); }
 .lv-choice-row button[aria-pressed="true"] { background: var(--wk-accent); color: var(--wk-ground); }
 .lv-button { min-height: var(--wk-control-h); }
+/* Ein Element mit `show`, das gerade nicht gilt — auch ein Knopf mit eigener Anzeige-Art bleibt weg. */
+.lv-controls > [hidden] { display: none; }
 .lv-readout { display: grid; min-width: 6rem; }
 .lv-readout .lv-value { font-size: var(--wk-text-lg); }
 

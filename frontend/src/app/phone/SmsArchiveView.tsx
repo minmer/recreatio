@@ -17,7 +17,7 @@
  * nach, was dazukam. Lange drücken wählt Nachrichten — „Wyświetl" zeigt sie gross.
  */
 
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 
 import { useCrumbs } from '../shell/crumbTrail';
 import { viewPath } from '../routes';
@@ -44,7 +44,8 @@ import {
   archivedFileUrl, archiveIndex, conversationKey, loadAll, loadConversation, readableArchives,
   type ArchivedConversation, type ArchivedMessage, type ArchivedPart, type ArchiveProgress, type ArchiveSummary
 } from './smsArchive';
-import { aheadWhen, around, Avatar, barStyle, conversationMatches, dayLabel, isMode, localInput, SEARCH, shortWhen, timeOf, type SearchMode } from './smsShared';
+import { daysLabel, SHARE_DAYS, SHARE_MAX, shareFile, shareLink, sizeText } from './share';
+import { aheadWhen, around, Avatar, barStyle, conversationMatches, dayLabel, isMode, Linked, localInput, SEARCH, shortWhen, timeOf, type SearchMode } from './smsShared';
 import './phone.css';
 
 const mb = (bytes: number) => `${(bytes / 1024 / 1024).toLocaleString('pl-PL', { maximumFractionDigits: 1 })} MB`;
@@ -139,7 +140,7 @@ export function SmsArchiveView({ who, trail }: { who: Who; trail: readonly strin
     if (ctx === null || index === null) return failed !== null ? <p className="wk-error">{failed}</p> : <Loading label="Otwieranie archiwum…" />;
     if (conversation === null) return <p className="wk-empty">Takiej rozmowy nie ma w archiwum.</p>;
     return (
-      <ArchiveConversation ctx={ctx} conversation={conversation} title={titleOf(conversation)} names={names} back={listHref} native={native}
+      <ArchiveConversation who={who} ctx={ctx} conversation={conversation} title={titleOf(conversation)} names={names} back={listHref} native={native}
         lines={lines} mayWrite={mayWrite} />
     );
   }
@@ -236,7 +237,8 @@ function ArchiveList({ who, native, settings, archives, areaId, ctx, index, fail
   return (
     <div className="ph-threads" style={barStyle(top)}>
       <PageHeader title={native ? 'Archiwum SMS' : 'SMS'} meta={index === null ? undefined
-        : `W archiwum: ${index.summary.messages.toLocaleString('pl-PL')} wiadomości · ${mb(index.summary.bytes)} z ${mb(index.summary.limit)}`} />
+        : `W archiwum: ${index.summary.messages.toLocaleString('pl-PL')} wiadomości · ${mb(index.summary.bytes)} z ${mb(index.summary.limit)}`}
+        actions={native ? undefined : <a className="wk-btn wk-btn-quiet" href={viewPath('sms', 'pliki')}><Icon name="link" />Pliki przez link</a>} />
       {index !== null && <span className="ph-meter" aria-hidden="true"><span style={meterStyle(index.summary)} /></span>}
 
       {native && <ArchiveSetup who={who} settings={settings} conversations={conversations} ownName={ownName} onArchived={onArchived} />}
@@ -586,8 +588,8 @@ function useOutbox(ctx: PhoneCtx, on: boolean): [readonly OutboxEntry[], () => v
  * Nummer dieser Rozmowa sendet. Darüber steht, was unterwegs ist, bis es im Archiv steht.
  * Auf dem Telefon (Archiwum) bleibt das Gespräch zum Lesen — geschrieben wird in SMS.
  */
-function ArchiveConversation({ ctx, conversation, title, names, back, native, lines, mayWrite }: {
-  ctx: PhoneCtx; conversation: ArchivedConversation; title: string; names: ReadonlyMap<string, string>; back: string; native: boolean;
+function ArchiveConversation({ who, ctx, conversation, title, names, back, native, lines, mayWrite }: {
+  who: Who; ctx: PhoneCtx; conversation: ArchivedConversation; title: string; names: ReadonlyMap<string, string>; back: string; native: boolean;
   lines: readonly string[]; mayWrite: boolean;
 }) {
   const seenKey = `${ctx.areaId}:${conversation.key}`;
@@ -727,7 +729,7 @@ function ArchiveConversation({ ctx, conversation, title, names, back, native, li
         </div>
       </div>
       {!native && (
-        <ReplyBox ctx={ctx} conversation={conversation} lines={lines} mayWrite={mayWrite}
+        <ReplyBox who={who} ctx={ctx} conversation={conversation} lines={lines} mayWrite={mayWrite}
           onQueued={() => { stick.current = true; reloadOutbox(); }} />
       )}
       {reading && <MessageReader title={title} items={chosen} onClose={() => setReading(false)} />}
@@ -749,7 +751,7 @@ function ArchivedBubble({ ctx, m, group, names, selected, selecting, onSelect }:
       {group && incoming && m.from !== null && <span className="ph-msg-from">{names.get(m.from) ?? phoneShown(m.from)}</span>}
       {m.subject !== null && <span className="ph-msg-subject">{m.subject}</span>}
       {m.parts.length > 0 && <div className="ph-media">{m.parts.map((p, j) => <ArchivedMedia key={j} ctx={ctx} part={p} />)}</div>}
-      {m.body !== '' && <span>{m.body}</span>}
+      {m.body !== '' && <span><Linked text={m.body} live={!selecting} /></span>}
       <span className={`ph-msg-meta${m.box === 'failed' ? ' is-failed' : ''}`}>{m.box === 'failed' ? 'Nie wysłano · ' : ''}{timeOf(m.at)}</span>
     </div>
   );
@@ -790,8 +792,8 @@ const OTHER_LINE = '+';
  * Nummer nimmt sie; es erfährt davon über den Wecker (FCM), sonst spätestens in einer
  * Viertelstunde.
  */
-function ReplyBox({ ctx, conversation, lines, mayWrite, onQueued }: {
-  ctx: PhoneCtx; conversation: ArchivedConversation; lines: readonly string[]; mayWrite: boolean; onQueued: () => void;
+function ReplyBox({ who, ctx, conversation, lines, mayWrite, onQueued }: {
+  who: Who; ctx: PhoneCtx; conversation: ArchivedConversation; lines: readonly string[]; mayWrite: boolean; onQueued: () => void;
 }) {
   const [ownText, setOwnText] = useRemembered('sms.line', '');
   const own = phoneKey(ownText);
@@ -801,21 +803,54 @@ function ReplyBox({ ctx, conversation, lines, mayWrite, onQueued }: {
   const [text, setText] = useState('');
   const [later, setLater] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /* 0117 — eine Datei geht als Link mit (in voller Grösse, versiegelt im eigenen Bereich). */
+  const [file, setFile] = useState<File | null>(null);
+  const [daysText, setDaysText] = useRemembered('sms.linkDays', '30');
+  const [progress, setProgress] = useState<number | null>(null);
+  const uploaded = useRef<{ readonly file: File; readonly link: string } | null>(null);
   const line = picked === OTHER_LINE ? own : picked;
+  const days = (SHARE_DAYS as readonly number[]).includes(Number(daysText)) ? Number(daysText) : 30;
 
   if (!mayWrite) return <p className="ph-reply-note">To archiwum możesz czytać; odpowiadać mogą ci, którzy mogą w nim pisać.</p>;
   if (conversation.peers.length !== 1) return <p className="ph-reply-note">Z przeglądarki można odpowiadać w rozmowach z jedną osobą.</p>;
 
-  const count = smsParts(text);
+  const withLink = (link: string) => (text.trim() === '' ? link : `${text.trimEnd()}\n${link}`);
+  const count = smsParts(file === null ? text : withLink(shareLink('x'.repeat(22))));
+  const pick = (e: ChangeEvent<HTMLInputElement>) => {
+    const chosen = e.target.files?.[0];
+    e.target.value = '';
+    if (chosen === undefined) return;
+    if (chosen.size > SHARE_MAX) { toast('Plik może mieć najwyżej 25 MB.'); return; }
+    uploaded.current = null;
+    setFile(chosen);
+  };
   const send = async () => {
     const at = later === null ? null : new Date(later).getTime();
     if (at !== null && (!Number.isFinite(at) || at <= Date.now())) { toast('Wybierz czas w przyszłości.'); return; }
     if (line === '') { toast('Podaj numer, z którego telefon ma wysłać.'); return; }
-    if (busy || text.trim() === '') return;
+    if (busy || (text.trim() === '' && file === null)) return;
     setBusy(true);
     try {
-      await queueReply(ctx, { to: conversation.peers, body: text, line, sendAt: at, conversation: conversation.key });
+      let body = text;
+      if (file !== null) {
+        let link = uploaded.current !== null && uploaded.current.file === file ? uploaded.current.link : null;
+        if (link === null) {
+          setProgress(0);
+          try {
+            link = (await shareFile(await openPhone(who), file, {
+              days, to: conversation.peers, onProgress: (done, total) => setProgress(total > 0 ? done / total : 0)
+            })).link;
+            uploaded.current = { file, link };
+          } finally {
+            setProgress(null);
+          }
+        }
+        body = withLink(link);
+      }
+      await queueReply(ctx, { to: conversation.peers, body, line, sendAt: at, conversation: conversation.key });
       setText('');
+      setFile(null);
+      uploaded.current = null;
       setLater(null);
       toast(at === null ? 'Przekazano telefonowi — wyśle, gdy tylko się zgłosi.' : `Telefon wyśle ją: ${aheadWhen(at)}.`);
       onQueued();
@@ -828,16 +863,31 @@ function ReplyBox({ ctx, conversation, lines, mayWrite, onQueued }: {
 
   return (
     <div className="ph-composer ph-reply">
+      {file !== null && (
+        <div className="ph-attached">
+          <span className="ph-attached-file"><Icon name="file" />{file.name}</span>
+          <span className="ph-attached-size">{sizeText(file.size)} · link, pełna jakość</span>
+          <select aria-label="Jak długo działa link" value={days} disabled={busy} onChange={(e) => setDaysText(e.target.value)}>
+            {SHARE_DAYS.map((d) => <option key={d} value={d}>ważny {daysLabel(d)}</option>)}
+          </select>
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => { setFile(null); uploaded.current = null; }}>Usuń załącznik</button>
+        </div>
+      )}
       <div className="ph-composer-row">
+        <label className="wk-icon-btn" aria-label="Dodaj plik (pójdzie jako link)" title="Dodaj plik (pójdzie jako link)">
+          <Icon name="clip" />
+          <input className="ph-attach-input" type="file" onChange={pick} disabled={busy} />
+        </label>
         <textarea rows={2} value={text} placeholder="Odpowiedź (SMS wyśle telefon)" aria-label="Treść odpowiedzi" onChange={(e) => setText(e.target.value)} />
         <button type="button" className={`wk-icon-btn${later !== null ? ' is-on' : ''}`} aria-label="Wyślij później" title="Wyślij później"
           aria-pressed={later !== null} disabled={busy} onClick={() => setLater(later === null ? localInput(Date.now() + 3600_000) : null)}>
           <Icon name="clock" />
         </button>
-        <button type="button" className="wk-btn" disabled={busy || text.trim() === '' || line === ''} onClick={() => void send()}>
-          {later !== null ? <><Icon name="clock" />Zaplanuj</> : <><Icon name="send" />{busy ? 'Przekazywanie…' : 'Wyślij'}</>}
+        <button type="button" className="wk-btn" disabled={busy || (text.trim() === '' && file === null) || line === ''} onClick={() => void send()}>
+          {later !== null ? <><Icon name="clock" />Zaplanuj</> : <><Icon name="send" />{!busy ? 'Wyślij' : progress !== null ? `${Math.round(progress * 100)}%` : 'Przekazywanie…'}</>}
         </button>
       </div>
+      {progress !== null && <progress className="ph-progress" value={progress} max={1} aria-label="Przesyłanie pliku" />}
       {later !== null && (
         <div className="ph-later">
           <label>
@@ -847,7 +897,9 @@ function ReplyBox({ ctx, conversation, lines, mayWrite, onQueued }: {
         </div>
       )}
       <div className="ph-composer-info">
-        {text !== '' && <span>{count.parts > 1 ? `${count.parts} SMS · ` : ''}zostało {count.left}{count.unicode ? ' (polskie znaki: 70 na SMS)' : ''}</span>}
+        {(text !== '' || file !== null) && (
+          <span>{count.parts > 1 ? `${count.parts} SMS · ` : ''}zostało {count.left}{count.unicode ? ' (polskie znaki: 70 na SMS)' : ''}{file !== null ? ' · z linkiem' : ''}</span>
+        )}
         <label>
           Z numeru{' '}
           <select value={picked} onChange={(e) => setPicked(e.target.value)}>
