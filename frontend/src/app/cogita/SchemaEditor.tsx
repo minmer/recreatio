@@ -17,6 +17,15 @@ import {
 } from './schema';
 import { OriginTag, useBusy, useCtx } from './ui';
 
+/*
+  2026-10-17 — EIN VERWEIS AUF EINEN RODZAJ IST EIN TYP FÜR SICH. „Język ←
+  Słowo ← Tłumaczenie" ist das Häufigste, was man baut; hinter „Odwołanie" und
+  dann „Więcej" war das Ziel versteckt. Jetzt steht jeder Rodzaj als eigener
+  Eintrag in der Liste der Typen (`ref:<id>`); mehrere Ziele bleiben in „Więcej".
+*/
+const REF_TO = 'ref:';
+const typeValue = (f: FieldDef): string => (f.type === 'ref' && f.to?.length === 1 ? `${REF_TO}${f.to[0]}` : f.type);
+
 const blankField = (n: number): FieldDef => ({ key: `pole${n}`, label: `Pole ${n}`, type: 'line', multi: false, uncertain: false });
 
 /*
@@ -106,6 +115,8 @@ function KindForm({ draft, writes, busy, onChange, onSave }: { draft: KindDef; w
   const dupes = draft.fields.filter((f) => { const d = keys.has(f.key); keys.add(f.key); return d; }).map((f) => f.key);
   const bad = draft.fields.filter((f) => !FIELD_KEY.test(f.key)).map((f) => f.key);
   const set = (patch: Partial<KindDef>) => onChange({ ...draft, ...patch });
+  /* Wohin ein Verweis zeigen kann: dieser Rodzaj selbst (auch ungespeichert — Synonym, Übersetzung), dann alle anderen. */
+  const targets = [{ id: draft.id, name: `${draft.name} (ten rodzaj)` }, ...lib.refKinds.filter((k) => k.id !== draft.id)];
   /* Ein neuer Typ räumt auf, was nur zum alten passte (Optionen, Ziele, Einheit) — sonst bleibt das Feld, wie es ist. */
   const setField = (i: number, patch: Partial<FieldDef>) => set({
     fields: draft.fields.map((f, j) => {
@@ -168,8 +179,12 @@ function KindForm({ draft, writes, busy, onChange, onSave }: { draft: KindDef; w
                     <td className="cg-field-key" data-label="Klucz"><input value={f.key} disabled={!writes || fixed} onChange={(e) => setField(i, { key: e.target.value })} aria-label="Klucz pola" /></td>
                     <td className="cg-field-label" data-label="Nazwa"><input value={f.label} disabled={!writes} onChange={(e) => setField(i, { label: e.target.value })} aria-label="Nazwa pola" />{f.private === true && <span className="cg-tag">prywatne</span>}</td>
                     <td className="cg-field-type" data-label="Typ">
-                      <select value={f.type} disabled={!writes || fixed} onChange={(e) => setField(i, { type: e.target.value as FieldType })} aria-label="Typ pola">
-                        {[...FIELD_TYPES, ...(f.type === 'outline' ? ['outline' as const] : [])].map((t) => <option key={t} value={t}>{FIELD_TYPE_LABEL[t]}</option>)}
+                      <select value={typeValue(f)} disabled={!writes || fixed} aria-label="Typ pola"
+                        onChange={(e) => setField(i, e.target.value.startsWith(REF_TO) ? { type: 'ref', to: [e.target.value.slice(REF_TO.length)] } : { type: e.target.value as FieldType, ...(e.target.value === 'ref' ? { to: [] } : {}) })}>
+                        {[...FIELD_TYPES, ...(f.type === 'outline' ? ['outline' as const] : [])].map((t) => <option key={t} value={t}>{t === 'ref' ? ((f.to ?? []).length > 1 ? 'Odwołanie do kilku rodzajów' : 'Odwołanie do dowolnego rodzaju') : FIELD_TYPE_LABEL[t]}</option>)}
+                        <optgroup label="Odwołanie do rodzaju">
+                          {targets.map((k) => <option key={k.id} value={`${REF_TO}${k.id}`}>→ {k.name}</option>)}
+                        </optgroup>
                       </select>
                     </td>
                     <td className="cg-field-flag cg-field-multi" data-label="Kilka"><input type="checkbox" checked={f.multi} disabled={!writes || fixed} onChange={(e) => setField(i, { multi: e.target.checked })} aria-label="Kilka wartości" /></td>
@@ -187,7 +202,7 @@ function KindForm({ draft, writes, busy, onChange, onSave }: { draft: KindDef; w
                   </tr>
                   {open && (
                     <tr className="cg-field-more">
-                      <td colSpan={7}><FieldMore field={f} disabled={!writes || fixed} own={!base} onSet={(patch) => setField(i, patch)} /></td>
+                      <td colSpan={7}><FieldMore field={f} targets={targets} disabled={!writes || fixed} own={!base} onSet={(patch) => setField(i, patch)} /></td>
                     </tr>
                   )}
                 </Fragment>
@@ -205,8 +220,7 @@ function KindForm({ draft, writes, busy, onChange, onSave }: { draft: KindDef; w
 }
 
 /** Die Einstellungen eines Feldes — unter seiner Zeile, über die ganze Breite. */
-function FieldMore({ field, disabled, own, onSet }: { field: FieldDef; disabled: boolean; own: boolean; onSet: (patch: Partial<FieldDef>) => void }) {
-  const { lib } = useCtx();
+function FieldMore({ field, targets, disabled, own, onSet }: { field: FieldDef; targets: readonly { id: string; name: string }[]; disabled: boolean; own: boolean; onSet: (patch: Partial<FieldDef>) => void }) {
   return (
     <div className="cg-field-settings">
       <label className="wk-field"><span>Co znaczy (dla JSON i AI)</span><input value={field.says ?? ''} disabled={disabled && !own} onChange={(e) => onSet({ says: e.target.value || undefined })} /></label>
@@ -220,7 +234,7 @@ function FieldMore({ field, disabled, own, onSet }: { field: FieldDef; disabled:
       {field.type === 'ref' && (
         <>
           <fieldset className="cg-row"><legend>Do jakich rodzajów (puste — dowolnych; także z bibliotek, do których ta baza się odwołuje)</legend>
-            {lib.refKinds.map((k) => (
+            {targets.map((k) => (
               <label key={k.id} className="pe-check">
                 <input type="checkbox" checked={(field.to ?? []).includes(k.id)} disabled={disabled} onChange={(e) => onSet({ to: e.target.checked ? [...(field.to ?? []), k.id] : (field.to ?? []).filter((t) => t !== k.id) })} />
                 <span>{k.name}</span>

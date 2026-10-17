@@ -390,7 +390,16 @@ public enum Field
     CogitaSession,
     CogitaEvent,
     CogitaSeatKey,
-    CogitaOffline
+    CogitaOffline,
+
+    /// <summary>
+    /// 0114 — das Telefon: ein Kontakt als EIN Dokument, ein Stapel archivierter
+    /// SMS und MMS, ein Bild aus einer MMS — jedes unter dem Schlüssel seines
+    /// Bereichs, jedes mit eigenem Etikett.
+    /// </summary>
+    PhoneContact,
+    SmsArchive,
+    PhoneFile
 }
 
 /// <summary>
@@ -571,6 +580,9 @@ public readonly record struct Aad
         Field.CogitaEvent             => "cogita_event",
         Field.CogitaSeatKey           => "cogita_seat_key",
         Field.CogitaOffline           => "cogita_offline",
+        Field.PhoneContact            => "phone_contact",
+        Field.SmsArchive              => "sms_archive",
+        Field.PhoneFile               => "phone_file",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

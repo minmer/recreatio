@@ -471,8 +471,8 @@ export class CogitaLibrary {
       return this.store.save({ ...(had === undefined ? {} : { id: had.id }), kind: 'kind', data: kindDoc(kind) });
     }
     this.ownOnly(kind.id);
-    const exists = this.store.get(kind.id) !== undefined;
-    return this.store.save({ ...(exists ? { id: kind.id } : {}), kind: 'kind', data: kindDoc(kind) });
+    /* Die Kennung des Entwurfs bleibt — sonst zeigen ein Verweis auf sich selbst, die Auswahl danach und importierte Einträge ins Leere. */
+    return this.store.save({ id: kind.id, kind: 'kind', data: kindDoc(kind) });
   }
 
   saveDoc(kind: DocKind, data: Readonly<Record<string, unknown>>, id?: string): Promise<Entry> {

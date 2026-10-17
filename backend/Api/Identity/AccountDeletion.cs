@@ -158,6 +158,7 @@ public static class AccountDeletion
 
         var attachments = new List<Guid>();
         var libraries = new List<Guid>();
+        var phones = new List<Guid>();
         var removed = new Dictionary<string, int>();
 
         await using (var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted))
@@ -183,6 +184,11 @@ public static class AccountDeletion
                 {
                     while (await reader.ReadAsync(ctx.RequestAborted)) libraries.Add(reader.GetGuid(0));
                 }
+                /* 0114 — die Bereiche, deren Ordner mit Bildern aus MMS nach dem Commit gehen. */
+                if (await reader.NextResultAsync(ctx.RequestAborted))
+                {
+                    while (await reader.ReadAsync(ctx.RequestAborted)) phones.Add(reader.GetGuid(0));
+                }
             }
 
             await tx.CommitAsync(ctx.RequestAborted);
@@ -199,6 +205,7 @@ public static class AccountDeletion
             try { File.Delete(Chat.AttachmentFile(config, id)); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
         foreach (var id in libraries) Library.DropFiles(config, id);
+        foreach (var id in phones) Phone.DropFiles(config, id);
 
         ctx.Response.Cookies.Delete(Auth.Cookie, new CookieOptions
         {
@@ -371,6 +378,7 @@ public static class AccountDeletion
         CREATE TABLE #chats (id uniqueidentifier PRIMARY KEY);
         CREATE TABLE #files (id uniqueidentifier PRIMARY KEY);
         CREATE TABLE #libs (id uniqueidentifier PRIMARY KEY);
+        CREATE TABLE #phone (id uniqueidentifier PRIMARY KEY);
 
         INSERT INTO #cals (id) SELECT id FROM app.calendar WHERE area_id IN (SELECT id FROM #dead);
         INSERT INTO #items (id)
@@ -480,6 +488,12 @@ public static class AccountDeletion
         DELETE FROM app.household     WHERE area_id IN (SELECT id FROM #dead)
                                          OR place_id IN (SELECT id FROM app.address_place WHERE area_id IN (SELECT id FROM #dead));
         DELETE FROM app.address_place WHERE area_id IN (SELECT id FROM #dead);
+
+        -- 0114: das Telefon — Kontakte, das Archiv der SMS und seine Dateien (die Ordner gehen nach dem Commit).
+        INSERT INTO #phone (id) SELECT DISTINCT area_id FROM app.phone_file WHERE area_id IN (SELECT id FROM #dead);
+        DELETE FROM app.phone_file      WHERE area_id IN (SELECT id FROM #dead);
+        DELETE FROM app.phone_sms_batch WHERE area_id IN (SELECT id FROM #dead);
+        DELETE FROM app.phone_contact   WHERE area_id IN (SELECT id FROM #dead);
 
         -- Formulare und Bausteine (0098: mit dem, was zu ihren Aufgaben gesagt wurde)
         DELETE FROM app.task_answer
@@ -626,6 +640,7 @@ public static class AccountDeletion
         SELECT id FROM #files;
         SELECT @roles AS roles, @areas AS areas, @messages AS messages, @devices AS devices;
         SELECT id FROM #libs;
+        SELECT id FROM #phone;
         """;
 
     private static Task Fail(HttpContext ctx, int status, string message)

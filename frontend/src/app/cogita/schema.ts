@@ -329,7 +329,7 @@ export function problemsOf(kind: KindDef, look: Pick<Lookup, 'kind'>): string[] 
   }
   for (const field of kind.fields) {
     for (const target of field.to ?? []) {
-      if (look.kind(target) === undefined) out.push(`Pole „${field.label}" odwołuje się do rodzaju, którego nie ma.`);
+      if (target !== kind.id && look.kind(target) === undefined) out.push(`Pole „${field.label}" odwołuje się do rodzaju, którego nie ma.`);
     }
     if (field.type === 'choice' && (field.options ?? []).length === 0) out.push(`Pole „${field.label}" nie ma nic do wyboru.`);
   }

@@ -161,6 +161,9 @@ app.MapHub<CogitaHub>("/cogita/hub");
 /* 0067 — Powiadomienia: was neu ist, als Zahlen; Geräte für die App im Hintergrund. */
 Notify.Map(app);
 
+/* 0114 — das Telefon: Kontakte und das Archiv der SMS (die Ausgabe „sms" der App), versiegelt. */
+Phone.Map(app);
+
 /* 0071 — Adressen aus Teilen, das Verzeichnis eines Gebiets, die Haushalte (Kolęda). */
 Postal.Map(app);
 
