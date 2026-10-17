@@ -18,7 +18,8 @@ import { loadFields } from './form';
 import { loadIntake, openIntakeKey } from './intake';
 import { type IntakeKey, loadRegistrations, readAcross, rewrapToOffice } from './submissions';
 
-const intakeKeyOf = async (areaId: string, ring: Ring): Promise<IntakeKey | null> => {
+/** Der Annahmeschlüssel eines Bereichs, wenn dieser Bund ihn öffnet — sonst `null`. */
+export const intakeKeyOf = async (areaId: string, ring: Ring): Promise<IntakeKey | null> => {
   try {
     const intake = await loadIntake(areaId);
     if (!ring.has(intake.sealedForRoleId)) return null;

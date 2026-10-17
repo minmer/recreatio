@@ -26,7 +26,8 @@ import { lockedOf, readNeeds } from './formTemplates';
 import { createIntake, loadIntake, loadPublicIntake, openIntakeKey } from './intake';
 import { addOfficeEntry, reviseAcrossAsOffice } from './revisions';
 import { repeatOf } from './rounds';
-import { type Answer, type Submission, loadRegistrations, readAcross, rewrapToOffice } from './submissions';
+import { intakeKeyOf } from './rewrap';
+import { type Answer, type IntakeKey, type Submission, loadRegistrations, readAcross, rewrapToOffice } from './submissions';
 
 /** Die Reiter eines Formulars: einrichten (vier) — lesen — handeln. */
 export type FormTabName = 'settings' | 'questions' | 'layout' | 'logic' | 'entries' | 'steps' | 'people';
@@ -445,12 +446,35 @@ export function useFormOffice(props: FormOfficeProps) {
     const CHUNK = 8;
     setReading({ done: 0, total: registrations.length });
 
+    /*
+     * Was mit den Schlüsseln seiner Bereiche nicht aufgeht, wird mit den
+     * Annahmen der übrigen Bereiche versucht, die dieser Bund öffnet — frühe
+     * Berichtigungen über den Link lagen unter der Annahme des Platzes. Erst
+     * geholt, wenn eine Einsendung zu bleibt; was dann aufgeht, wird gleich
+     * unter dem Schlüssel der Kanzlei abgelegt (unten, `pending`).
+     */
+    let spare: Promise<IntakeKey[]> | null = null;
+    const spareKeys = () => (spare ??= (async () => {
+      const found: IntakeKey[] = [];
+      for (const area of (await loadAreas().catch(() => ({ areas: [] as readonly AreaRow[] }))).areas) {
+        if (areasHere.includes(area.areaId)) continue;
+        const key = await intakeKeyOf(area.areaId, ring);
+        if (key !== null) found.push(key);
+      }
+      return found;
+    })());
+
     try {
       for (let at = 0; at < registrations.length; at += CHUNK) {
         const pending: { fieldId: string; registrationId: string; officeKeySealed: string }[] = [];
 
         for (const one of registrations.slice(at, at + CHUNK)) {
-          const { values: merged, toRewrap } = await readAcross(one, keys, areaOf);
+          let read = await readAcross(one, keys, areaOf);
+          if (read.values.size < one.values.length) {
+            const others = await spareKeys();
+            if (others.length > 0) read = await readAcross(one, keys, areaOf, others);
+          }
+          const { values: merged, toRewrap } = read;
           sent += one.values.length;
 
           for (const one2 of toRewrap) pending.push({ ...one2, registrationId: one.registrationId });

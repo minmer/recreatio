@@ -107,8 +107,8 @@ would be lost, and deploying the new service repairs it.
 
 - **8 answers in RSA envelopes** (the confirmation form): they were wrapped for the intake of the seat's area
   ("Kandydaci") instead of their question's area — most likely corrections made through the link in September 2026.
-  The office's usual path does not open them. The account that holds both intakes signs in, opens
-  **Konto → Przeniesienie danych** and presses **Przepakuj** (`forms/rewrap.ts` tries the other intakes it opens and
+  The account that holds both intakes opens the form's Zgłoszenia (the office view now also tries the other intakes it
+  holds and repacks what opens) or presses **Przepakuj** on **Konto → Przeniesienie danych** (`forms/rewrap.ts` tries the other intakes it opens and
   files the keys under the office key of the question's area). Then the transfer can go: `backend/Api/Transfer/`,
   `account/transfer.ts`, `account/TransferPage.tsx`, `forms/rewrap.ts`, the `spare` parameter of `readAcross`, the
   route and the menu and search entries.
