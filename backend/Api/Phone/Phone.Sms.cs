@@ -40,7 +40,7 @@ public static partial class Phone
     public sealed record BatchRequest(string? BatchId, int Epoch, string? Sealed, string? Keys, int Count);
 
     /// <summary>Passt ein Stapel? Die Abdrücke müssen genau 16 Bytes je Nachricht haben.</summary>
-    internal static string? BatchProblem(int count, int sealedLength, int keysLength) =>
+    public static string? BatchProblem(int count, int sealedLength, int keysLength) =>
         count is < 1 or > MaxBatchMessages ? $"Od 1 do {MaxBatchMessages} wiadomości w jednej paczce."
         : sealedLength is < 48 or > MaxBatchSealed ? "Zapieczętowana paczka musi mieć najwyżej 4 MB."
         : keysLength != 16 * count ? "Odciski nie pasują do liczby wiadomości."

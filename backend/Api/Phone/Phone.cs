@@ -82,7 +82,7 @@ public static partial class Phone
     public sealed record ContactsRequest(IReadOnlyList<ContactRequest>? Contacts);
 
     /// <summary>Eine Kennung aus dem Text (23.4: klein, mit Bindestrichen) — oder nicht.</summary>
-    internal static bool IdOf(string? text, out Guid id)
+    public static bool IdOf(string? text, out Guid id)
     {
         id = Guid.Empty;
         if (text is null) return false;
@@ -90,11 +90,11 @@ public static partial class Phone
     }
 
     /// <summary>Eine Hülle eines Kontakts gelesen — oder warum nicht.</summary>
-    internal static bool SealedContact(string? text, out byte[] bytes) =>
+    public static bool SealedContact(string? text, out byte[] bytes) =>
         Base64Url.TryDecode(text, out bytes) && bytes.Length is >= 48 and <= MaxContactSealed;
 
     /// <summary>`since` gelesen — zwei Sekunden früher, damit Gleichzeitiges nicht durchfällt; leer: alles.</summary>
-    internal static bool SinceOf(string? since, out DateTimeOffset? from)
+    public static bool SinceOf(string? since, out DateTimeOffset? from)
     {
         from = null;
         if (string.IsNullOrWhiteSpace(since)) return true;
