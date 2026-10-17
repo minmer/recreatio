@@ -66,7 +66,8 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
       ]);
       if (!live) return;
       setFound([
-        ...areas.map((a) => ({ id: `area:${a.areaId}`, label: a.name, kind: 'Obszar', href: viewPath('areas', a.areaId), hint: areaPath(areas, a.areaId).full })),
+        /* 2026-10-17 — der Bereich einer Rozmowa zu zweit heisst nur „Rozmowa"; gefunden wird sie selbst, mit dem Namen der anderen Seite. */
+        ...areas.filter((a) => a.ownChat !== 'direct').map((a) => ({ id: `area:${a.areaId}`, label: a.name, kind: 'Obszar', href: viewPath('areas', a.areaId), hint: areaPath(areas, a.areaId).full })),
         ...modules.map((m) => ({ id: `module:${m.moduleId}`, label: m.name, kind: partLabel(m.kind), href: modulePath(m.kind, m.moduleId), hint: m.areaName ?? undefined })),
         ...(desk?.pages ?? []).filter((p) => p.aliasOf === null).map((p) => ({
           id: `page:${p.path}`, label: p.path === '' ? 'recreatio.pl' : p.path, kind: 'Strona', href: viewPath('pages', ...pageSteps(p.path))

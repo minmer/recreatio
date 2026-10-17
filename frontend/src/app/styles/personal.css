@@ -232,6 +232,108 @@
 
 /* Vergangene Tage treten zurück — auch was dort liegen blieb. */
 .wk-cal2-rail.is-past .wk-rail-bar { opacity: 0.22; }
+
+/*
+   2026-10-17 — DIE AUFGABEN BREIT. Ein Klick auf ihre Schiene gibt ihnen den
+   Tag: Kästen mit Häkchen, Zeit, Name, Stand und „pomiń"; die Termine werden
+   zur Schiene am rechten Rand, ein Klick darauf tauscht zurück.
+*/
+.wk-cal2-focus {
+  font: inherit;
+  font-size: var(--wk-text-xs);
+  border: 0;
+  background: none;
+  color: var(--wk-muted);
+  cursor: pointer;
+}
+.wk-cal2-focus:hover { color: var(--wk-accent); }
+.wk-cal2-focus[aria-pressed="true"] { color: var(--wk-accent); font-weight: 700; }
+.wk-cal2-focus:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-cal2-grid.is-tasks .wk-cal2-taskcell { flex-wrap: wrap; align-items: flex-start; gap: 4px; }
+
+.wk-tb {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.25rem;
+  box-sizing: border-box;
+  padding: 0.125rem 0.25rem;
+  border: 1px solid color-mix(in srgb, hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)) 45%, transparent);
+  border-left: 3px solid hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l));
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  font-size: var(--wk-text-xs);
+  line-height: 1.25;
+  overflow: hidden;
+  container-type: inline-size;
+}
+.wk-tb.is-short { align-items: center; padding-block: 0; }
+.wk-tb.is-chip { position: static; width: 100%; }
+.wk-tb.is-open, .wk-tb.is-due { border-color: var(--wk-accent); box-shadow: inset 0 0 0 1px var(--wk-accent); }
+.wk-tb.is-missed, .wk-tb.is-late { border-color: color-mix(in srgb, var(--wk-danger) 55%, var(--wk-line)); border-left-color: var(--wk-danger); }
+.wk-tb.is-done, .wk-tb.is-skipped { opacity: 0.6; }
+.wk-tb.is-done .wk-tb-title { text-decoration: line-through; }
+.wk-tb.is-skipped .wk-tb-title { text-decoration: line-through; text-decoration-style: dotted; }
+.wk-tb.is-busy { opacity: 0.45; }
+.wk-tb .wk-tb-tick { width: 1.15rem; height: 1.15rem; font-size: var(--wk-text-xs); border-radius: var(--wk-radius-sm); }
+.wk-tb-main {
+  display: grid;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.wk-tb-main:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-tb-line { display: flex; align-items: baseline; gap: 0.25rem; min-width: 0; }
+.wk-tb-time { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wk-tb-title, .wk-tb-state { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-tb-title { font-weight: 600; }
+.wk-tb-state { color: var(--wk-muted); font-weight: 600; }
+.wk-tb-state.is-open, .wk-tb-state.is-due { color: var(--wk-accent); }
+.wk-tb-state.is-missed, .wk-tb-state.is-late { color: var(--wk-danger); }
+.wk-tb-state.is-done { color: var(--wk-ok); }
+.wk-tb-skip {
+  padding: 0 0.25rem;
+  border: 0;
+  border-radius: var(--wk-radius-sm);
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--wk-muted);
+  cursor: pointer;
+}
+.wk-tb-skip:hover:not(:disabled) { color: var(--wk-accent); background: var(--wk-sunk); }
+.wk-tb-skip:disabled { cursor: default; opacity: 0.5; }
+.wk-tb-skip:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-tb-skip-mark { display: none; }
+/* Schmal (sieben Tage nebeneinander): „pomiń" wird ein Zeichen, ganz schmal weicht auch der Stand dem Namen. */
+@container (max-width: 12rem) { .wk-tb-skip-word { display: none; } .wk-tb-skip-mark { display: inline; } }
+@container (max-width: 7rem) { .wk-tb-state { display: none; } }
+
+.wk-cal2-evrail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: var(--evrail);
+  padding: 0;
+  border: 0;
+  border-left: 1px dashed color-mix(in srgb, var(--wk-line) 70%, transparent);
+  background: color-mix(in srgb, var(--wk-soft) 45%, transparent);
+  cursor: pointer;
+  z-index: 2;
+}
+.wk-cal2-evrail:hover { background: color-mix(in srgb, var(--wk-accent) 9%, transparent); }
+.wk-cal2-evrail:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-evrail-bar { position: absolute; border-radius: var(--wk-radius-pill); background: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)); opacity: 0.85; }
+.wk-evrail-bar.is-cancelled { opacity: 0.3; }
 .wk-taskpill.is-past .wk-taskpill-note.is-behind { color: var(--wk-muted); font-weight: 600; }
 .wk-taskpill.is-past .wk-taskpill-dot { background: var(--wk-muted); }
 
@@ -288,8 +390,9 @@
   border: 1px solid var(--wk-line);
   border-radius: 4px;
   background: var(--wk-surface);
-  cursor: copy;
+  cursor: pointer;
 }
+.wk-cal2-cell:hover { border-color: var(--wk-line-strong); }
 .wk-cal2-cell.is-out { background: var(--wk-ground); }
 .wk-cal2-cell.is-out .wk-cal2-cellday { color: var(--wk-muted); }
 .wk-cal2-cell.is-today { border-color: var(--wk-accent); box-shadow: inset 0 0 0 1px var(--wk-accent); }

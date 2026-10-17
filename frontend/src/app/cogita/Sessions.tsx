@@ -20,6 +20,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'r
 
 import { saveEvent } from '../calendar/agenda';
 import { loadAreas, myEpochKeys, type AreaRow } from '../areas/area';
+import { AreaPick } from '../areas/AreaPick';
 import { loadIntake, openIntakeKey } from '../forms/intake';
 import { newId } from '../core/ids';
 import { AnswerInput, answerText, Verdict } from './CardFace';
@@ -130,7 +131,7 @@ function NewSession({ onMade }: { onMade: (id: string) => void }) {
   const [code, setCode] = useState(true);
   const [ends, setEnds] = useState('');
   const { busy, failed, run } = useBusy();
-  useEffect(() => { void loadAreas().then((r) => setAreas(r.areas.filter((a) => a.myLevel === 'write' || a.myLevel === 'admin'))).catch(() => undefined); }, []);
+  useEffect(() => { void loadAreas().then((r) => setAreas(r.areas)).catch(() => undefined); }, []);
   if (me === null) return null;
   const host = me.roles.find((r) => r.kind === 'person') ?? me.person;
   return (
@@ -142,7 +143,9 @@ function NewSession({ onMade }: { onMade: (id: string) => void }) {
         </label>
         <label className="wk-field"><span>Tytuł</span><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="np. Quiz na festynie" /></label>
         <label className="wk-field"><span>W obszarze (klasa, grupa) — tam trafiają wyniki</span>
-          <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>{[{ areaId: lib.areaId, name: 'obszar bazy wiedzy' } as AreaRow, ...areas.filter((a) => a.areaId !== lib.areaId)].map((a) => <option key={a.areaId} value={a.areaId}>{a.name}</option>)}</select>
+          <AreaPick label="W obszarze" areas={areas} value={areaId} onChange={setAreaId}
+            only={areas.filter((a) => a.areaId !== lib.areaId && (a.myLevel === 'write' || a.myLevel === 'admin'))}
+            extras={[{ value: lib.areaId, label: 'obszar bazy wiedzy' }]} />
         </label>
         {(kind === 'live' || kind === 'async' || kind === 'sync') && (
           <label className="wk-field"><span>Powtórka (pytania)</span>

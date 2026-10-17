@@ -202,6 +202,15 @@ ul.wk-box, ol.wk-box { list-style: none; margin: 0; padding: 0; }
 
 /* Obszary: die Tiefe an der Zeile (eine Gruppe unter ihrer Pfarrei). */
 .wk-area-list .wk-line { padding-left: calc(var(--wk-space-4) + var(--depth, 0) * 1.5rem); }
+/* Der Ordner „Rozmowy" unter „Ty": eine Zeile wie die anderen, die auf- und zuklappt. */
+.wk-area-fold {
+  width: 100%; font: inherit; text-align: left; cursor: pointer;
+  background: none; border: 0; border-top: 1px solid var(--wk-line);
+}
+.wk-area-fold:hover { background: var(--wk-sunk); }
+.wk-area-fold:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--wk-ring); }
+.wk-area-fold-twist { transition: transform 0.15s ease; }
+.wk-area-fold[aria-expanded="true"] .wk-area-fold-twist { transform: rotate(90deg); }
 .wk-area-list .wk-line-end .wk-tags { display: inline-flex; gap: var(--wk-space-1); }
 @media (max-width: 40rem) { .wk-area-list .wk-line-end .wk-tags { display: none; } }
 

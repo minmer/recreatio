@@ -39,8 +39,10 @@ export interface TreeNode {
   readonly selectable?: boolean;
   /** Ein kurzer Zusatz hinter dem Namen („kanał już jest"). */
   readonly note?: string | null;
-  /** Ein Abschnitt für Wurzeln („Rozmowy") — sonst stehen sie oben ohne Überschrift. */
-  readonly section?: string;
+  /** Wo er unter seinen Geschwistern steht: kleiner zuerst, gleich nach dem Alphabet (fehlt: 0). */
+  readonly order?: number;
+  /** Anfangs zu, auch in einem kleinen Baum — ein Ordner, der viel Gleichartiges sammelt („Rozmowy"). Liegt die Wahl darin, ist er offen. */
+  readonly closed?: boolean;
 }
 
 /** Eine feste Zeile über dem Baum: „Tylko ja", „— bez obszaru —". */
@@ -63,6 +65,8 @@ interface Shaped {
   readonly children: ReadonlyMap<string | null, readonly TreeNode[]>;
   /** Wie viele wählbare Knoten unter (und mit) einem Knoten stehen. */
   readonly offered: ReadonlyMap<string, number>;
+  /** Wie viele Zeilen dastehen, solange die Ordner (`closed`) zu sind — daran misst sich „kleiner Baum". */
+  readonly plain: number;
 }
 
 function shape(nodes: readonly TreeNode[]): Shaped {
@@ -74,23 +78,25 @@ function shape(nodes: readonly TreeNode[]): Shaped {
     const p = parentOf(n);
     children.set(p, [...(children.get(p) ?? []), n]);
   }
-  /* Abschnitte (ohne zuerst), darin nach dem Alphabet — wie man sucht, nicht wie es angelegt wurde. */
-  for (const list of children.values()) list.sort((a, b) => collator.compare(a.section ?? '', b.section ?? '') || collator.compare(a.label, b.label));
+  /* Nach dem Alphabet — wie man sucht, nicht wie es angelegt wurde; was eine Ordnung trägt, davor oder danach. */
+  for (const list of children.values()) list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || collator.compare(a.label, b.label));
 
   /* Was nichts Wählbares trägt, fällt weg — ein Ast ohne Ziel ist nur Lärm. Gegen Kreise: jeder Knoten einmal. */
   const offered = new Map<string, number>();
-  const count = (n: TreeNode, seen: Set<string>): number => {
+  let plain = 0;
+  const count = (n: TreeNode, seen: Set<string>, folded: boolean): number => {
     if (seen.has(n.id)) return 0;
     seen.add(n.id);
-    const below = (children.get(n.id) ?? []).reduce((sum, c) => sum + count(c, seen), 0);
+    const below = (children.get(n.id) ?? []).reduce((sum, c) => sum + count(c, seen, folded || n.closed === true), 0);
     const total = below + (n.selectable === false ? 0 : 1);
     offered.set(n.id, total);
+    if (total > 0 && !folded) plain++;
     return total;
   };
   const seen = new Set<string>();
-  for (const root of children.get(null) ?? []) count(root, seen);
+  for (const root of children.get(null) ?? []) count(root, seen, false);
 
-  return { byId, children, offered };
+  return { byId, children, offered, plain };
 }
 
 /** Der Weg von oben bis zu diesem Knoten. */
@@ -144,15 +150,16 @@ export function TreeList({ nodes, selected, onPick, multiple = false, extras = [
   const tree = useMemo(() => shape(nodes), [nodes]);
   const visibleCount = useMemo(() => [...tree.offered.values()].filter((n) => n > 0).length, [tree]);
 
-  /* Offen: ein kleiner Baum ganz, ein grosser bis zur Wahl (und die Wurzeln, wenn es wenige sind). */
+  /* Offen: ein kleiner Baum ganz (ohne seine Ordner), ein grosser bis zur Wahl (und die Wurzeln, wenn es wenige sind). */
   const [open, setOpen] = useState<ReadonlySet<string>>(() => {
-    const out = new Set<string>();
-    if (visibleCount <= 24) {
-      for (const n of nodes) out.add(n.id);
+    const toChoice = new Set<string>();
+    for (const value of selected) for (const step of pathOf(tree.byId, value).slice(0, -1)) toChoice.add(step.id);
+    const out = new Set(toChoice);
+    if (tree.plain <= 24) {
+      for (const n of nodes) if (n.closed !== true) out.add(n.id);
       return out;
     }
-    for (const value of selected) for (const step of pathOf(tree.byId, value).slice(0, -1)) out.add(step.id);
-    const roots = (tree.children.get(null) ?? []).filter((r) => (tree.offered.get(r.id) ?? 0) > 0);
+    const roots = (tree.children.get(null) ?? []).filter((r) => (tree.offered.get(r.id) ?? 0) > 0 && r.closed !== true);
     if (roots.length <= 3) for (const r of roots) out.add(r.id);
     return out;
   });
@@ -297,7 +304,6 @@ export function TreeList({ nodes, selected, onPick, multiple = false, extras = [
 
   const isOn = (value: string) => selected.includes(value);
   const optionId = (key: string) => `${id}-${key.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-  const sectionOf = (row: Row) => (row.depth === 0 ? row.node.section ?? '' : null);
 
   return (
     <div className={`ui-tree${inline ? ' is-inline' : ''}`} onKeyDown={onKey}>
@@ -363,18 +369,14 @@ export function TreeList({ nodes, selected, onPick, multiple = false, extras = [
           );
         })}
 
-        {(shownExtras.length > 0 || shownRecent.length > 0) && rows.length > 0 && rows[0].node.section === undefined && <div className="ui-tree-gap" role="presentation" />}
+        {(shownExtras.length > 0 || shownRecent.length > 0) && rows.length > 0 && <div className="ui-tree-gap" role="presentation" />}
 
-        {rows.map((row, at) => {
+        {rows.map((row) => {
           const key = `t:${row.node.id}`;
           const pickable = row.node.selectable !== false;
-          const section = sectionOf(row);
-          const before = at === 0 ? undefined : rows.slice(0, at).reverse().find((r) => r.depth === 0);
-          const newSection = section !== null && section !== '' && (before === undefined || (before.node.section ?? '') !== section);
           const hidden = (tree.offered.get(row.node.id) ?? 0) - (pickable ? 1 : 0);
           return (
             <div key={key} role="none">
-              {newSection && <div className="ui-tree-section" role="presentation">{section}</div>}
               <div
                 id={optionId(key)} data-key={key} role="treeitem"
                 aria-level={row.depth + 1}
@@ -503,10 +505,13 @@ export function TreePick({ nodes, value, onChange, extras = [], recent, placehol
 function TreePop({ anchor, from, onClose, label, children }: { anchor: DOMRect; from: Element | null; onClose: (refocus?: boolean) => void; label: string; children: ReactNode }) {
   const host = usePortal();
   const box = useRef<HTMLDivElement | null>(null);
-  const [spot, setSpot] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null);
+  const [spot, setSpot] = useState<{ left: number; top?: number; bottom?: number; width: number; maxHeight: number } | null>(null);
   const sheet = typeof window !== 'undefined' && window.innerWidth < 600;
 
-  /* Nach dem Einhängen gemessen (usePortal hängt im Effekt davor ein) — bis dahin unsichtbar. */
+  /*
+     Nach dem Einhängen gemessen (usePortal hängt im Effekt davor ein) — bis dahin unsichtbar.
+     Darüber steht es mit seiner UNTERKANTE an der Auswahl: klappt darin ein Ordner auf, wächst es nach oben, nicht über das Feld.
+  */
   useEffect(() => {
     if (sheet) return;
     const vw = document.documentElement.clientWidth;
@@ -516,13 +521,11 @@ function TreePop({ anchor, from, onClose, label, children }: { anchor: DOMRect; 
     const below = vh - anchor.bottom - m - 4;
     const above = anchor.top - m - 4;
     const up = below < 280 && above > below;
-    const maxHeight = Math.min(440, up ? above : below);
-    const height = Math.min(box.current?.offsetHeight ?? maxHeight, maxHeight);
     setSpot({
       left: Math.max(m, Math.min(anchor.left, vw - width - m)),
-      top: up ? anchor.top - 4 - height : anchor.bottom + 4,
+      ...(up ? { bottom: vh - anchor.top + 4 } : { top: anchor.bottom + 4 }),
       width,
-      maxHeight
+      maxHeight: Math.min(440, up ? above : below)
     });
   }, [anchor, sheet]);
 
@@ -565,7 +568,7 @@ function TreePop({ anchor, from, onClose, label, children }: { anchor: DOMRect; 
       className="ui-pick-pop"
       role="dialog"
       aria-label={label}
-      style={{ left: spot?.left ?? 0, top: spot?.top ?? 0, width: spot?.width, maxHeight: spot?.maxHeight, visibility: spot === null ? 'hidden' : 'visible' }}
+      style={{ left: spot?.left ?? 0, top: spot === null ? 0 : spot.top, bottom: spot?.bottom, width: spot?.width, maxHeight: spot?.maxHeight, visibility: spot === null ? 'hidden' : 'visible' }}
     >
       {children}
     </div>,

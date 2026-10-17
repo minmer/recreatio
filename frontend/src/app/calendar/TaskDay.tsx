@@ -7,12 +7,16 @@
  * aus Gebetszeiten. Im Kalender stehen Aufgaben darum als Schiene am Rand und
  * als eine Zeile mit dem Stand des Tages — und wer sie aufmacht, findet sie
  * hier: mit Häkchen, mit „pomiń", und mit dem Weg zur Aufgabe selbst.
+ *
+ * 2026-10-17 — wer die Schiene anklickt, gibt den Aufgaben den Tag: dann
+ * stehen sie breit im Raster, mit denselben Handgriffen (`TaskBlock` in
+ * `CalendarApp.tsx`), und die Termine werden zur Schiene.
  */
 
 import { useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
-import { pressing, settled, tally, type TaskMark } from './calendarModel';
+import { behind, pressing, settled, tally, type TaskMark } from './calendarModel';
 import { longDate } from '../core/dayMath';
 import type { Me } from '../core/me';
 import { Modal } from '../ui/Modal';
@@ -26,14 +30,14 @@ const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', min
 const shortDate = (at: Date) => at.toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'numeric' });
 
 /** Wann — das Fenster, oder bei „co pewien czas" der Abstand. 0088: was von früher heute steht, mit seinem Tag. */
-function whenOf(mark: TaskMark): string {
+export function whenOf(mark: TaskMark): string {
   if (mark.occurrence === null) return `${everyWords(mark.task.everyMinutes ?? 0)} · na ${time(mark.start)}`;
   const hours = mark.end.getTime() - mark.start.getTime() >= 60_000 ? `${time(mark.start)}–${time(mark.end)}` : time(mark.start);
   return mark.carried ? `${shortDate(mark.start)}, ${hours}` : hours;
 }
 
 /** Der Stand in Worten — was man als Erstes wissen will. */
-function stateOf(mark: TaskMark, now: Date): string {
+export function stateOf(mark: TaskMark, now: Date): string {
   switch (mark.state) {
     case 'done': return mark.occurrence?.doneAt ? `zrobione ${time(new Date(mark.occurrence.doneAt))}` : 'zrobione';
     case 'skipped': return 'pominięte';
@@ -44,6 +48,16 @@ function stateOf(mark: TaskMark, now: Date): string {
     case 'upcoming': return howLong(mark.start, now);
   }
 }
+
+/**
+ * Ob sich das Häkchen setzen oder zurücknehmen lässt: nicht für weit
+ * Künftiges (mehr als einen Tag voraus), und „co pewien czas" nicht zurück.
+ */
+export const mayTick = (mark: TaskMark, now: Date): boolean =>
+  !(mark.state === 'upcoming' && mark.start.getTime() - now.getTime() > 86400_000) && !(mark.occurrence === null && settled(mark));
+
+/** „pomiń" — für das, was jetzt dran oder versäumt ist. */
+export const maySkip = (mark: TaskMark): boolean => pressing(mark) || behind(mark);
 
 /**
  * Häkchen setzen oder zurücknehmen — für den Kalender, die Schiene und diese
@@ -139,13 +153,12 @@ export function TaskDay({ me, day, marks, areas, now, onClose, onChanged, onOpen
       <ul className="wk-taskday">
         {marks.map((mark) => {
           const done = settled(mark);
-          const future = mark.state === 'upcoming' && mark.start.getTime() - now.getTime() > 86400_000;
           return (
             <li key={mark.key} className={`wk-taskday-row is-${mark.state}`}>
               <button
                 type="button" role="checkbox" aria-checked={done}
                 className={`wk-task-tick${done ? ' is-done' : ''}`}
-                disabled={busy !== null || future || (mark.occurrence === null && done)}
+                disabled={busy !== null || !mayTick(mark, now)}
                 aria-label={done ? `Cofnij: ${mark.task.title}` : `Zrobione: ${mark.task.title}`}
                 onClick={() => void run(mark, () => toggleMark(mark, me.person.id))}
               >
@@ -156,7 +169,7 @@ export function TaskDay({ me, day, marks, areas, now, onClose, onChanged, onOpen
                 <span className="wk-taskday-when">{whenOf(mark)} · {groupName(areas, mark.areaId)}</span>
               </button>
               <span className={`wk-taskday-state is-${mark.state}`}>{stateOf(mark, now)}</span>
-              {(pressing(mark) || mark.state === 'missed' || mark.state === 'late') && (
+              {maySkip(mark) && (
                 <button type="button" className="wk-link-btn" disabled={busy !== null}
                   onClick={() => void run(mark, () => markSkipped(mark.task.taskId, me.person.id, mark.occurrence?.at))}>
                   pomiń

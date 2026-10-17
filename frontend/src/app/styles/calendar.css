@@ -109,10 +109,9 @@
 .wk-ev.is-mine .wk-ev-title::before { content: '● '; font-size: 0.7em; vertical-align: 0.1em; }
 .wk-cal2-mine .wk-cal2-me { font-size: var(--wk-text-xs); color: var(--wk-accent); }
 
-/* Nur zum Ansehen: ein Klick ins Leere legt nichts an. */
+/* Nur zum Ansehen: ein Klick ins Leere legt nichts an (ein Tag im Monat öffnet sich trotzdem). */
 .wk-cal2-grid.is-readonly .wk-cal2-col,
-.wk-cal2-grid.is-readonly .wk-cal2-allcell,
-.wk-cal2-month.is-readonly .wk-cal2-cell { cursor: default; }
+.wk-cal2-grid.is-readonly .wk-cal2-allcell { cursor: default; }
 
 /* Die Kalender und ihre Regeln. */
 .wk-callist { display: grid; gap: 0.375rem; }

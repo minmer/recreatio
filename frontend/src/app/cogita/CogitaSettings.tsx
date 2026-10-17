@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 
 import { loadAreas, type AreaRow } from '../areas/area';
+import { AreaPick } from '../areas/AreaPick';
 import { createIntake } from '../forms/intake';
 import { deleteLibrary, libraryKindOf, loadLibraries, openLibraries, renameLibrary, type OpenLibrary } from '../library/library';
 import { viewPath } from '../routes';
@@ -45,10 +46,9 @@ export function CogitaSettings() {
       <section className="cg-card">
         <h3>Gdzie zapisują się odpowiedzi uczących się</h3>
         <p className="wk-hint">Postępy uczących się widzi ten, kto prowadzi wybrany obszar (np. nauczyciel). Bez wyboru — tylko sam uczący się.</p>
-        <select value={settings.storageAreaId ?? ''} disabled={busy} onChange={(e) => void save({ storageAreaId: e.target.value || undefined })}>
-          <option value="">prywatny obszar uczącego się</option>
-          {areas.map((a) => <option key={a.areaId} value={a.areaId}>{a.personal === true ? 'mój prywatny obszar' : a.name}</option>)}
-        </select>
+        <AreaPick label="Gdzie zapisują się odpowiedzi uczących się" areas={areas} value={settings.storageAreaId ?? ''} disabled={busy}
+          extras={[{ value: '', label: 'prywatny obszar uczącego się' }]} personalLabel="mój prywatny obszar"
+          onChange={(areaId) => void save({ storageAreaId: areaId || undefined })} />
         <IntakeState areaId={settings.storageAreaId ?? null} areas={areas} />
       </section>
 

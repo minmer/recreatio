@@ -4,7 +4,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { type AreaRow, areaPath, loadMembers, myEpochKeys } from '../areas/area';
+import { type AreaRow, loadMembers, myEpochKeys } from '../areas/area';
+import { AreaPick } from '../areas/AreaPick';
 import { meetingAreas } from '../areas/audience';
 import { loadChats, startSeatChat } from '../chat/chat';
 import { fromBase64Url } from '../core/crypto';
@@ -87,13 +88,8 @@ export function WriteToSeat({ seatId, near, areas, ring, busy, onError }: {
       <span className="wk-seat-meet">
         <label>
           <span>Rozmowa z obszaru</span>{' '}
-          <select value={pick} disabled={working} onChange={(e) => setPick(e.target.value)}>
-            {choices.map((a) => (
-              <option key={a.areaId} value={a.areaId} title={areaPath(areas, a.areaId).full}>
-                {areaPath(areas, a.areaId).short}{had.has(a.areaId) ? ' — rozmowa już jest' : ''}
-              </option>
-            ))}
-          </select>
+          <AreaPick label="Rozmowa z obszaru" areas={areas} only={choices} value={pick} disabled={working} onChange={setPick}
+            note={(areaId) => (had.has(areaId) ? 'rozmowa już jest' : null)} />
         </label>
         <button type="button" className="wk-link-btn" disabled={busy || working || pick === ''} onClick={() => void open(pick)}>
           {working ? 'Otwieranie…' : had.has(pick) ? 'Otwórz' : 'Zacznij'}

@@ -372,7 +372,7 @@ function ReadOnlyCalendar({ calendarIds, me, identity, signedIn, ctx, onAdd }: {
           onDay={(day) => { setAnchor(day); setView('week'); }} onSlot={() => undefined} onOpen={setOpen} onTasks={() => undefined} />
       ) : shownView === 'month' ? (
         <MonthGrid anchor={anchor} from={range.from} events={data.events} marks={[]} now={now} readOnly
-          onDay={(day) => { setAnchor(day); setView('week'); }} onSlot={() => undefined} onOpen={setOpen} onTasks={() => undefined} />
+          onDay={(day) => { setAnchor(day); setView('week'); }} onOpen={setOpen} onTasks={() => undefined} />
       ) : (
         <ListView from={range.from} events={big ? data.events : upcoming.slice(0, ctx.size.height === 'tall' ? 12 : 5)}
           marks={[]} now={now} areas={areas} onOpen={setOpen} onTasks={() => undefined} />

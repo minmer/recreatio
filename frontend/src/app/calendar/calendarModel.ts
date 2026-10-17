@@ -12,7 +12,9 @@
  * Raster nahm es den Terminen den Platz, und an einem Tag mit fünf Horen
  * bestand die Woche aus Gebetszeiten. Aufgaben sind darum Marken
  * (`TaskMark`): eine schmale Schiene am Rand des Tages, eine Zeile mit dem
- * Stand je Tag — und die Liste zum Abhaken, wenn man sie aufmacht.
+ * Stand je Tag — und die Liste zum Abhaken, wenn man sie aufmacht. Wer die
+ * Schiene anklickt, tauscht (2026-10-17): die Aufgaben bekommen die Breite
+ * (`laneDay`), die Termine werden zur Schiene.
  */
 
 import type { AgendaClaim, OpenedItem } from './agenda';
@@ -391,6 +393,60 @@ export function railDay(marks: readonly TaskMark[], day: Date): Railed[] {
     out.push({ mark, top, height: Math.max(bottom - top, 10), lane });
   }
 
+  return out;
+}
+
+export interface Laned {
+  readonly mark: TaskMark;
+  /** Minuten ab Mitternacht dieses Tages. */
+  readonly top: number;
+  readonly height: number;
+  /** Lage als Anteil der Breite (0…1). */
+  readonly x: number;
+  readonly w: number;
+}
+
+/** Wie hoch ein Kasten einer Aufgabe mindestens ist — Häkchen und Name brauchen eine Zeile. */
+const TASK_MIN = 30;
+
+/**
+ * 2026-10-17 — DIE AUFGABEN BREIT. Wer auf ihre Schiene klickt, gibt ihnen den
+ * Tag: dann stehen sie als Kästen im Raster (und die Termine als Schiene).
+ * Was sich überschneidet, steht nebeneinander, wie bei Terminen. Was von
+ * früher heute steht (`carried`), hat heute keine Uhrzeit — es bleibt in der
+ * Zeile des Tages.
+ */
+export function laneDay(marks: readonly TaskMark[], day: Date): Laned[] {
+  const from = startOfDay(day).getTime();
+  const to = addDays(startOfDay(day), 1).getTime();
+  const timed = marks
+    .filter((mark) => !mark.carried)
+    .map((mark) => {
+      const start = mark.start.getTime();
+      const end = Math.max(mark.end.getTime(), start + TASK_MIN * 60_000);
+      return { mark, top: (Math.max(start, from) - from) / 60_000, bottom: (Math.min(end, to) - from) / 60_000, inside: end > from && start < to };
+    })
+    .filter((one) => one.inside)
+    .sort((a, b) => a.top - b.top || b.bottom - a.bottom);
+
+  const out: Laned[] = [];
+  let group: { mark: TaskMark; top: number; bottom: number; column: number }[] = [];
+  let groupEnd = -1;
+  const flush = () => {
+    const columns = Math.max(1, ...group.map((g) => g.column + 1));
+    for (const g of group) out.push({ mark: g.mark, top: g.top, height: Math.max(g.bottom - g.top, 15), x: g.column / columns, w: 1 / columns });
+    group = [];
+  };
+  for (const one of timed) {
+    if (one.top >= groupEnd && group.length > 0) flush();
+    if (group.length === 0) groupEnd = one.bottom;
+    const taken = new Set(group.filter((g) => g.bottom > one.top).map((g) => g.column));
+    let column = 0;
+    while (taken.has(column)) column++;
+    group.push({ mark: one.mark, top: one.top, bottom: one.bottom, column });
+    groupEnd = Math.max(groupEnd, one.bottom);
+  }
+  if (group.length > 0) flush();
   return out;
 }
 

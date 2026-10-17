@@ -79,6 +79,60 @@
 .cg-table th button { font: inherit; font-weight: 600; border: 0; background: none; color: var(--wk-ink); cursor: pointer; padding: 0; }
 .cg-table tr.is-link { cursor: pointer; }
 .cg-table tr.is-link:hover td { background: var(--wk-soft); }
+
+/*
+   2026-10-17 — DAS SCHEMA EINES RODZAJ: so breit wie der Platz (nicht die 34rem
+   eines Formulars), die Einstellungen eines Feldes unter seiner Zeile über die
+   ganze Breite; schmal wird jedes Feld ein kleiner Block mit Beschriftungen.
+*/
+.cg-kind-form { max-width: none; }
+.cg-fields-wrap { container-type: inline-size; }
+.cg-fields td { vertical-align: middle; }
+.cg-fields td :is(input:not([type="checkbox"]), select) { width: 100%; }
+.cg-fields .cg-field-key :is(input) { min-width: 6rem; }
+.cg-fields .cg-field-label :is(input) { min-width: 8rem; }
+.cg-fields .cg-field-type :is(select) { min-width: 8rem; }
+.cg-fields .cg-field-flag { text-align: center; }
+.cg-fields .cg-field-tools { white-space: nowrap; text-align: right; }
+.cg-fields .cg-field-tools > .wk-link-btn { margin: 0; }
+.cg-fields .cg-field-tools > button + button { margin-left: 0.125rem; }
+.cg-field-toggle {
+  display: inline-flex; align-items: center; gap: 0.25rem; max-width: 12rem; padding: 0;
+  border: 0; background: none; font: inherit; text-align: left; color: var(--wk-muted); cursor: pointer;
+}
+.cg-field-toggle > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cg-field-toggle::after { content: '▸'; flex: none; }
+.cg-field-toggle[aria-expanded="true"] { color: var(--wk-accent); }
+.cg-field-toggle[aria-expanded="true"]::after { content: '▾'; }
+.cg-field-toggle:hover { color: var(--wk-accent); }
+.cg-field-toggle:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.cg-field-row.is-open > td { border-bottom-color: transparent; }
+.cg-field-more > td { padding: 0.25rem 0.5rem 0.875rem; background: color-mix(in srgb, var(--wk-soft) 55%, transparent); }
+.cg-field-settings { display: grid; gap: 0.75rem 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); align-items: end; }
+.cg-field-settings > fieldset { grid-column: 1 / -1; margin: 0; padding: 0.5rem 0.75rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); }
+.cg-field-settings > fieldset > legend { padding: 0 0.25rem; font-size: var(--wk-text-sm); font-weight: 600; color: var(--wk-ink-2); }
+@container (max-width: 44rem) {
+  .cg-fields, .cg-fields tbody { display: block; }
+  .cg-fields thead { display: none; }
+  .cg-fields tr.cg-field-row {
+    display: grid; gap: 0.375rem 0.75rem; padding: 0.625rem 0; border-bottom: 1px solid var(--wk-line);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+    grid-template-areas: "key label label label" "type type multi uncertain" "more more more tools";
+  }
+  .cg-fields tr.cg-field-row.is-open { border-bottom-color: transparent; }
+  .cg-fields tr.cg-field-row > td { display: grid; align-content: start; gap: 0.125rem; padding: 0; border: 0; }
+  .cg-fields tr.cg-field-row > td[data-label]::before { content: attr(data-label); font-size: var(--wk-text-xs); font-weight: 600; color: var(--wk-muted); }
+  .cg-fields .cg-field-key { grid-area: key; }
+  .cg-fields .cg-field-label { grid-area: label; }
+  .cg-fields .cg-field-type { grid-area: type; }
+  .cg-fields .cg-field-multi { grid-area: multi; justify-items: center; }
+  .cg-fields .cg-field-uncertain { grid-area: uncertain; justify-items: center; }
+  .cg-fields .cg-field-more-cell { grid-area: more; }
+  .cg-fields tr.cg-field-row > td.cg-field-tools { grid-area: tools; display: flex; align-items: center; justify-content: flex-end; }
+  .cg-fields tr.cg-field-more { display: block; }
+  .cg-fields tr.cg-field-more > td { display: block; padding: 0.5rem 0.5rem 0.875rem; border-bottom: 1px solid var(--wk-line); }
+  .cg-fields .cg-field-key :is(input), .cg-fields .cg-field-label :is(input), .cg-fields .cg-field-type :is(select) { min-width: 0; }
+}
 .cg-tree { list-style: none; margin: 0; padding-left: 1rem; }
 .cg-tree li { margin: 0.125rem 0; }
 .cg-tree details > summary { cursor: pointer; }

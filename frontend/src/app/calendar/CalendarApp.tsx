@@ -5,7 +5,7 @@
  * <code>
  *   Dzień · Tydzień   ein Stundenraster; ein Klick in eine leere Stunde legt
  *                     dort einen Termin an, ein Klick auf einen Termin öffnet ihn
- *   Miesiąc           das Monatsblatt; ein Tag darin öffnet diesen Tag
+ *   Miesiąc           das Monatsblatt; ein Klick auf einen Tag öffnet diesen Tag
  *   Lista             die nächsten dreissig Tage, der Reihe nach
  * </code>
  *
@@ -19,6 +19,13 @@
  * und als eine Zeile „zadania" mit dem Stand des Tages — ein Klick darauf,
  * und die Liste des Tages zum Abhaken geht auf (`TaskDay.tsx`). Ganz
  * ausblenden lassen sie sich auch.
+ *
+ * <b>Wer die Breite hat, entscheidet ein Klick</b> (2026-10-17). Ein Klick auf
+ * die Schiene der Aufgaben (oder ihre Pille, oder „zadania") gibt ihnen den
+ * Tag: sie stehen als Kästen im Raster, mit Häkchen und „pomiń", und die
+ * Termine werden zur Schiene am rechten Rand — ein Klick darauf tauscht
+ * zurück. Ein Klick ins Leere legt dann eine Aufgabe an, keinen Termin; die
+ * Pille öffnet dann die Liste des Tages.
  *
  * <b>Reservierungen stehen am Termin</b> (0057): an einem angebotenen Termin,
  * wie viele Plätze besetzt sind und wer wartet; ein Klick zeigt die
@@ -34,8 +41,8 @@ import {
   holderName, loadBookings, NO_BOOKINGS, waitingOn, waitsForOffice, type AgendaBookings
 } from './calendarBookings';
 import {
-  buildEvents, hueOf, linkOfEvent, marksOn, treeOrder, onDay as happensOn, placeDay, railDay, stepView, taskMarks, viewRange, wholeDay,
-  type CalEvent, type CalView, type TaskMark
+  buildEvents, hueOf, laneDay, linkOfEvent, marksOn, treeOrder, onDay as happensOn, placeDay, railDay, settled, stepView, taskMarks, viewRange,
+  wholeDay, type CalEvent, type CalView, type Laned, type Placed, type TaskMark
 } from './calendarModel';
 import { addDays, keyOf, longDate, monthTitle, rangeTitle, sameDay, sameMonth, startOfDay, WEEK_HEADS } from '../core/dayMath';
 import { CALENDAR_KIND_LABEL, loadCalendars, type CalendarRow } from './calendar';
@@ -51,11 +58,11 @@ import { useRemembered } from '../core/prefs';
 import { ReservationDialog, WaitingDialog } from '../bookings/ReservationDialog';
 import type { Who } from '../core/session';
 import { WorkspaceError } from '../core/session';
-import { TaskDay, TaskPill } from './TaskDay';
+import { mayTick, maySkip, stateOf, TaskDay, TaskPill, toggleMark, whenOf } from './TaskDay';
 /* 2026-10-17 — die Dialoge erst, wenn einer aufgeht: ein Kalender auf einer öffentlichen Seite lud beide mit. */
 const EventDialog = lazy(() => import('./EventDialog').then((m) => ({ default: m.EventDialog })));
 const TaskDialog = lazy(() => import('./TaskDialog').then((m) => ({ default: m.TaskDialog })));
-import { loadTasks, openTasks, type OpenTask } from './tasks';
+import { loadTasks, markSkipped, openTasks, type OpenTask } from './tasks';
 import { groupName } from '../areas/WhoSees';
 import { Loading } from '../ui/Loading';
 
@@ -72,6 +79,9 @@ const PART_HEAD = (20 / HOUR) * 60;
 
 /** Wie breit die Schiene der Aufgaben am Rand eines Tages ist. */
 const RAIL = 13;
+
+/** 2026-10-17 — wie breit die Termine als Schiene sind, wenn die Aufgaben den Tag haben. */
+const EVENT_RAIL = 16;
 
 const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 
@@ -129,6 +139,8 @@ export function Calendar({ me, scope, startNew, at }: {
   const scopeKey = scoped ? [...scope].map((id) => id.slice(0, 8)).sort().join('.') : '';
   const [hiddenText, setHiddenText] = useRemembered(scoped ? `calendar.part.hidden.${scopeKey}` : 'calendar.hiddenCals', '');
   const [tasksText, setTasksText] = useRemembered('calendar.tasks', 'on');
+  /* 2026-10-17 — wer im Raster die Breite hat: `events` (Aufgaben als Schiene) oder `tasks` (Termine als Schiene). */
+  const [focusText, setFocusText] = useRemembered('calendar.focus', 'events');
   const [mineText, setMineText] = useRemembered(scoped ? `calendar.part.mine.${scopeKey}` : 'calendar.mine', 'off');
   const view: CalView = (['day', 'week', 'month', 'list'] as const).includes(viewText as CalView) ? viewText as CalView : 'week';
   const hidden = new Set(hiddenText.split(',').filter((one) => one !== ''));
@@ -148,6 +160,9 @@ export function Calendar({ me, scope, startNew, at }: {
   const [reservation, setReservation] = useState<string | null>(null);
   const [waitingOpen, setWaitingOpen] = useState(false);
   const [tick, setTick] = useState(0);
+  /* Die Aufgabe, an der gerade abgehakt wird — bis die frischen Daten da sind, sonst spränge das Häkchen kurz zurück. */
+  const [taskBusy, setTaskBusy] = useState<string | null>(null);
+  const [taskFailed, setTaskFailed] = useState<string | null>(null);
 
   const range = viewRange(view, anchor);
   const fromMs = range.from.getTime();
@@ -171,8 +186,11 @@ export function Calendar({ me, scope, startNew, at }: {
         setAreas(found.areas);
         setData({ from: fromMs, to: toMs, items, claims: scoped ? [] : agenda.claims, tasks: opened, bookings, calendars });
         setFailed(null);
+        setTaskBusy(null);
       } catch (e) {
-        if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać kalendarza.');
+        if (!alive) return;
+        setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać kalendarza.');
+        setTaskBusy(null);
       }
     })();
     return () => { alive = false; };
@@ -198,6 +216,23 @@ export function Calendar({ me, scope, startNew, at }: {
   const events = all.filter((e) => (e.calendarId === undefined || !hidden.has(e.calendarId)) && (!mineOnly || e.mine === true));
   const allMarks = data === null ? [] : taskMarks(data.tasks, now, { from: new Date(data.from), to: new Date(data.to) });
   const marks = tasksShown && !mineOnly ? allMarks : [];
+  const focus = marks.length > 0 && focusText === 'tasks' ? 'tasks' : 'events';
+
+  /* Was eine Aufgabe im Raster tut — dieselben Handgriffe wie in der Liste des Tages (`TaskDay`). */
+  const taskActs: TaskActs = {
+    busy: taskBusy,
+    run: (mark, act) => {
+      setTaskBusy(mark.key);
+      setTaskFailed(null);
+      void (act === 'tick' ? toggleMark(mark, me.person.id) : markSkipped(mark.task.taskId, me.person.id, mark.occurrence?.at))
+        .then(reload, (e: unknown) => {
+          setTaskBusy(null);
+          setTaskFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+        });
+    },
+    open: (task) => setTaskDialog({ task }),
+    add: (at) => setTaskDialog({ task: null, at })
+  };
 
   const shownCalendars = [...new Set(all.map((e) => e.calendarId).filter((id): id is string => id !== undefined))]
     .map((calendarId) => {
@@ -314,17 +349,19 @@ export function Calendar({ me, scope, startNew, at }: {
       )}
 
       {failed !== null && <p className="wk-error">{failed}</p>}
+      {taskFailed !== null && <p className="wk-error">{taskFailed}</p>}
       {data === null && failed === null && <Loading label="Wczytywanie…" />}
 
       {data !== null && (view === 'day' || view === 'week') && (
         <TimeGrid days={days} events={events} marks={marks} now={now}
           onDay={(day) => { setAnchor(day); setViewText('day'); }}
-          onSlot={(at, allDay) => newAt(at, allDay)} onOpen={open} onTasks={setTaskDay} areas={areas} />
+          onSlot={(at, allDay) => newAt(at, allDay)} onOpen={open} onTasks={setTaskDay} areas={areas}
+          focus={focus} onFocus={setFocusText} tasks={taskActs} />
       )}
 
       {data !== null && view === 'month' && (
         <MonthGrid anchor={anchor} from={range.from} events={events} marks={marks} now={now}
-          onDay={(day) => { setAnchor(day); setViewText('day'); }} onSlot={(at) => newAt(at)} onOpen={open} onTasks={setTaskDay} />
+          onDay={(day) => { setAnchor(day); setViewText('day'); }} onOpen={open} onTasks={setTaskDay} />
       )}
 
       {data !== null && view === 'list' && (
@@ -440,8 +477,19 @@ function hint(event: CalEvent, areas: readonly AreaRow[]): string {
 
 /* -- Tag und Woche: das Stundenraster ----------------------------------------------------- */
 
+/** Was eine Aufgabe im Raster tut, wenn die Aufgaben die Breite haben. */
+export interface TaskActs {
+  /** Die Marke, an der gerade etwas geschieht — dann ruhen alle Handgriffe. */
+  readonly busy: string | null;
+  /** `tick`: abhaken oder zurücknehmen; `skip`: „pomiń". */
+  readonly run: (mark: TaskMark, act: 'tick' | 'skip') => void;
+  readonly open: (task: OpenTask) => void;
+  /** Ein Klick ins Leere: eine neue Aufgabe um diese Zeit. */
+  readonly add: (at: Date) => void;
+}
+
 /** Tag und Woche — auch für den Kalender-Baustein einer Seite (0058: `readOnly`, dann legt ein Klick nichts an). */
-export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTasks, areas, readOnly = false }: {
+export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTasks, areas, readOnly = false, focus = 'events', onFocus, tasks }: {
   days: readonly Date[];
   events: readonly CalEvent[];
   marks: readonly TaskMark[];
@@ -452,11 +500,16 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
   onTasks: (day: Date) => void;
   areas: readonly AreaRow[];
   readOnly?: boolean;
+  /** 2026-10-17 — wer die Breite hat; `tasks` nur mit `tasks` und `onFocus`. */
+  focus?: 'events' | 'tasks';
+  onFocus?: (focus: 'events' | 'tasks') => void;
+  tasks?: TaskActs;
 }) {
   const scroller = useRef<HTMLDivElement | null>(null);
   const first = keyOf(days[0]);
   const count = days.length;
   const rail = marks.length > 0 ? RAIL : 0;
+  const wide = focus === 'tasks' && marks.length > 0 && tasks !== undefined && onFocus !== undefined;
 
   /* Beim Öffnen und beim Blättern: dorthin, wo der Tag beginnt — nicht um Mitternacht. */
   useLayoutEffect(() => {
@@ -474,11 +527,14 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
     const minutes = Math.floor(((e.clientY - box.top) / HOUR) * 2) * 30;
     const at = new Date(day);
     at.setHours(0, Math.max(0, Math.min(minutes, 23 * 60 + 30)), 0, 0);
-    onSlot(at, false);
+    /* Haben die Aufgaben die Breite, entsteht im Leeren eine Aufgabe. */
+    if (wide) tasks.add(at);
+    else onSlot(at, false);
   };
 
   return (
-    <div className={`wk-cal2-grid${readOnly ? ' is-readonly' : ''}`} style={{ '--days': days.length, '--hour': `${HOUR}px`, '--rail': `${rail}px` } as CSSProperties}>
+    <div className={`wk-cal2-grid${readOnly ? ' is-readonly' : ''}${wide ? ' is-tasks' : ''}`}
+      style={{ '--days': days.length, '--hour': `${HOUR}px`, '--rail': `${rail}px`, '--evrail': `${EVENT_RAIL}px` } as CSSProperties}>
       <div className="wk-cal2-head">
         <span className="wk-cal2-corner" />
         {days.map((day) => (
@@ -508,10 +564,19 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
 
       {marks.length > 0 && (
         <div className="wk-cal2-taskrow">
-          <span className="wk-cal2-corner wk-cal2-alllabel">zadania</span>
+          {onFocus !== undefined && tasks !== undefined ? (
+            <button type="button" className="wk-cal2-corner wk-cal2-alllabel wk-cal2-focus" aria-pressed={wide}
+              title={wide ? 'Terminy szeroko, zadania z boku' : 'Zadania szeroko, terminy z boku'}
+              onClick={() => onFocus(wide ? 'events' : 'tasks')}>
+              zadania
+            </button>
+          ) : <span className="wk-cal2-corner wk-cal2-alllabel">zadania</span>}
           {days.map((day) => (
             <div key={keyOf(day)} className="wk-cal2-taskcell">
-              <TaskPill marks={marksOn(marks, day)} onOpen={() => onTasks(day)} />
+              {/* Erst gibt die Pille den Aufgaben die Breite; stehen sie schon breit, öffnet sie die Liste des Tages. */}
+              <TaskPill marks={marksOn(marks, day)} onOpen={() => (wide || onFocus === undefined || tasks === undefined ? onTasks(day) : onFocus('tasks'))} />
+              {/* Was von früher heute steht, hat keine Uhrzeit — breit steht es hier, zum Abhaken. */}
+              {wide && marksOn(marks, day).filter((m) => m.carried).map((m) => <TaskBlock key={m.key} mark={m} now={now} acts={tasks} />)}
             </div>
           ))}
         </div>
@@ -526,9 +591,13 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
           {days.map((day) => (
             <div key={keyOf(day)} className={`wk-cal2-col${sameDay(day, now) ? ' is-today' : ''}`}
               onClick={(e) => { if (e.target === e.currentTarget) slotFrom(day, e); }}>
-              {rail > 0 && <Rail marks={marks} day={day} onOpen={() => onTasks(day)} />}
+              {/* Ein Klick auf die Schiene gibt den Aufgaben die Breite; ohne das Umschalten öffnet er ihre Liste. */}
+              {rail > 0 && !wide && <Rail marks={marks} day={day} onOpen={() => (onFocus !== undefined && tasks !== undefined ? onFocus('tasks') : onTasks(day))} />}
 
-              {placeDay(events, day, PART_HEAD).map((p) => {
+              {wide && laneDay(marks, day).map((p) => <TaskBlock key={p.mark.key} mark={p.mark} now={now} acts={tasks} placed={p} />)}
+              {wide && <EventRail events={events} day={day} areas={areas} onOpen={() => onFocus('events')} />}
+
+              {!wide && placeDay(events, day, PART_HEAD).map((p) => {
                 const who = whoIsOn(p.event);
                 return (
                   <button key={p.event.key} type="button"
@@ -568,14 +637,16 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
 /**
  * DIE SCHIENE — jedes Fenster ein Strich am linken Rand des Tages, im Stand
  * seiner Farbe: offen, erledigt, versäumt, kommend. Sie nimmt den Terminen
- * keinen Platz; ein Klick öffnet die Aufgaben des Tages.
+ * keinen Platz; ein Klick gibt den Aufgaben die Breite (2026-10-17 — vorher:
+ * die Liste des Tages, die jetzt an der Pille in der Zeile „zadania" hängt).
  */
 function Rail({ marks, day, onOpen }: { marks: readonly TaskMark[]; day: Date; onOpen: () => void }) {
   const railed = railDay(marks, day);
   if (railed.length === 0) return null;
 
   return (
-    <button type="button" className={`wk-cal2-rail${day < startOfDay(new Date()) ? ' is-past' : ''}`} aria-label={`Zadania: ${longDate(day)}`} onClick={onOpen}>
+    <button type="button" className={`wk-cal2-rail${day < startOfDay(new Date()) ? ' is-past' : ''}`} aria-label={`Zadania: ${longDate(day)} — pokaż szeroko`}
+      title="Zadania szeroko" onClick={onOpen}>
       {railed.map((r) => (
         <span key={r.mark.key} className={`wk-rail-bar is-${r.mark.state}`}
           title={`${r.mark.task.title} · ${time(r.mark.start)}${r.mark.end > r.mark.start ? `–${time(r.mark.end)}` : ''}`}
@@ -590,16 +661,96 @@ function Rail({ marks, day, onOpen }: { marks: readonly TaskMark[]; day: Date; o
   );
 }
 
+/** Wo ein Kasten einer Aufgabe steht: links, in der Breite des Tages ohne die Schiene der Termine. */
+const taskPlace = (p: Laned, areaId: string): CSSProperties => ({
+  '--ev-h': hueOf(areaId),
+  top: `${(p.top / 60) * HOUR}px`,
+  height: `${Math.max((p.height / 60) * HOUR - 2, 22)}px`,
+  left: `calc((100% - var(--evrail)) * ${p.x} + 2px)`,
+  width: `calc((100% - var(--evrail)) * ${p.w} - 4px)`
+} as CSSProperties);
+
+/**
+ * 2026-10-17 — EINE AUFGABE, BREIT: Häkchen (zurücknehmen geht auch), Zeit,
+ * Name, der Stand in Worten und „pomiń" — dieselben Handgriffe wie in der
+ * Liste des Tages. Ein Klick auf den Namen öffnet die Aufgabe. Ohne `placed`
+ * steht sie in der Zeile „zadania" (was von früher heute steht).
+ */
+function TaskBlock({ mark, now, acts, placed }: { mark: TaskMark; now: Date; acts: TaskActs; placed?: Laned }) {
+  const done = settled(mark);
+  const short = placed !== undefined && placed.height < 45;
+  const busy = acts.busy === mark.key;
+  return (
+    <div
+      className={`wk-tb is-${mark.state}${placed === undefined ? ' is-chip' : ''}${short ? ' is-short' : ''}${busy ? ' is-busy' : ''}`}
+      style={placed === undefined ? { '--ev-h': hueOf(mark.areaId) } as CSSProperties : taskPlace(placed, mark.areaId)}
+      aria-busy={busy || undefined}
+    >
+      <button type="button" role="checkbox" aria-checked={done} className={`wk-task-tick wk-tb-tick${done ? ' is-done' : ''}`}
+        disabled={acts.busy !== null || !mayTick(mark, now)}
+        aria-label={done ? `Cofnij: ${mark.task.title}` : `Zrobione: ${mark.task.title}`}
+        title={done ? 'Cofnij' : 'Zrobione'}
+        onClick={() => acts.run(mark, 'tick')}>
+        {mark.state === 'done' ? '✓' : mark.state === 'skipped' ? '–' : ''}
+      </button>
+      <button type="button" className="wk-tb-main" title={`${mark.task.title} · ${whenOf(mark)} · ${stateOf(mark, now)}`} onClick={() => acts.open(mark.task)}>
+        <span className="wk-tb-line">
+          {placed !== undefined && <span className="wk-tb-time">{time(mark.start)}</span>}
+          <span className="wk-tb-title">{mark.task.title}</span>
+        </span>
+        {/* In der Zeile des Tages steht, was von früher liegen blieb: dort zählt, seit wann. */}
+        {!short && <span className={`wk-tb-state is-${mark.state}`}>{stateOf(mark, now)}{placed === undefined ? ` · ${whenOf(mark)}` : ''}</span>}
+      </button>
+      {maySkip(mark) && (
+        <button type="button" className="wk-tb-skip" disabled={acts.busy !== null}
+          aria-label={`Pomiń: ${mark.task.title}`} title="Pomiń" onClick={() => acts.run(mark, 'skip')}>
+          <span className="wk-tb-skip-word">pomiń</span><span className="wk-tb-skip-mark" aria-hidden="true">»</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Wo ein Termin auf seiner Schiene steht: ein Strich, nebeneinander, wo sie sich überschneiden. */
+const railPlace = (p: Placed, hue: number): CSSProperties => ({
+  '--ev-h': hue,
+  top: `${(p.top / 60) * HOUR}px`,
+  height: `${Math.max((p.height / 60) * HOUR - 2, 6)}px`,
+  left: `${2 + p.x * (EVENT_RAIL - 4)}px`,
+  width: `${Math.max(p.w * (EVENT_RAIL - 4) - 1, 3)}px`
+} as CSSProperties);
+
+/**
+ * 2026-10-17 — DIE TERMINE ALS SCHIENE, am rechten Rand, solange die Aufgaben
+ * den Tag haben: jeder Termin ein Strich in seiner Farbe. Ein Klick darauf
+ * gibt den Terminen die Breite zurück.
+ */
+function EventRail({ events, day, areas, onOpen }: { events: readonly CalEvent[]; day: Date; areas: readonly AreaRow[]; onOpen: () => void }) {
+  const placed = placeDay(events, day, PART_HEAD).filter((p) => p.depth === 0);
+  return (
+    <button type="button" className="wk-cal2-evrail" aria-label={`Terminy: ${longDate(day)} — pokaż szeroko`} title="Terminy szeroko" onClick={onOpen}>
+      {placed.map((p) => (
+        <span key={p.event.key} className={`wk-evrail-bar${p.event.cancelled ? ' is-cancelled' : ''}`} title={hint(p.event, areas)}
+          style={railPlace(p, hueOfEvent(p.event))} />
+      ))}
+    </button>
+  );
+}
+
 /* -- Der Monat --------------------------------------------------------------------------- */
 
-export function MonthGrid({ anchor, from, events, marks, now, onDay, onSlot, onOpen, onTasks, readOnly = false }: {
+/**
+ * Der Monat. 2026-10-17 — ein Klick auf einen Tag ÖFFNET diesen Tag (auch ins
+ * Leere der Zelle): wer im Monat blättert, sucht einen Tag; ein Termin um neun
+ * Uhr, der bei jedem Klick aufging, war nie gemeint. Neu anlegen: „+ Termin".
+ */
+export function MonthGrid({ anchor, from, events, marks, now, onDay, onOpen, onTasks, readOnly = false }: {
   anchor: Date;
   from: Date;
   events: readonly CalEvent[];
   marks: readonly TaskMark[];
   now: Date;
   onDay: (day: Date) => void;
-  onSlot: (at: Date) => void;
   onOpen: (event: CalEvent) => void;
   onTasks: (day: Date) => void;
   readOnly?: boolean;
@@ -616,7 +767,7 @@ export function MonthGrid({ anchor, from, events, marks, now, onDay, onSlot, onO
         return (
           <div key={keyOf(day)}
             className={`wk-cal2-cell${sameMonth(day, anchor) ? '' : ' is-out'}${sameDay(day, now) ? ' is-today' : ''}`}
-            onClick={(e) => { if (e.target === e.currentTarget) { const at = new Date(day); at.setHours(9, 0, 0, 0); onSlot(at); } }}>
+            onClick={(e) => { if ((e.target as Element).closest('button, a') === null) onDay(day); }}>
             <span className="wk-cal2-cellhead">
               <button type="button" className="wk-cal2-cellday" aria-label={longDate(day)} onClick={() => onDay(day)}>{day.getDate()}</button>
               <TaskPill marks={marksOn(marks, day)} onOpen={() => onTasks(day)} mini />

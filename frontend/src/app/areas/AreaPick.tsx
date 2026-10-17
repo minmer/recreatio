@@ -4,8 +4,9 @@
  * <b>Der Baum, wie er ist.</b> Ein Bereich, der selbst nicht zur Wahl steht
  * (ich schreibe dort nicht), steht trotzdem da, als Weg zu denen darunter —
  * sonst stünde „Kandydaci" zweimal ohne Herkunft. Was nichts Wählbares trägt,
- * fällt weg. „Tylko ja" steht oben, die eigenen Bereiche der Rozmowy in einem
- * eigenen Abschnitt unten.
+ * fällt weg. „Tylko ja" steht oben, die eigenen Bereiche der Rozmowy unten in
+ * EINEM Ordner „Rozmowy", der zu ist — zehnmal „Rozmowa" untereinander sagte
+ * nichts und schob die Gruppen aus dem Bild.
  *
  * <b>Mehrere auf einmal</b>: `AreaPickMany` — dieselbe Liste mit Kästchen,
  * eingebettet.
@@ -16,6 +17,9 @@ import { useMemo } from 'react';
 import { TreeList, TreePick, type TreeExtra, type TreeNode } from '../ui/TreePick';
 import { parentInSight, type AreaRow } from './area';
 
+/** Der Ordner der Rozmowy — keine Kennung eines Bereichs (die sind UUIDs). */
+const CHATS = '~rozmowy';
+
 /** Die Bereiche als Knoten: alle für den Weg, wählbar nur `only`; „Tylko ja" kommt als feste Zeile. */
 function useAreaNodes(areas: readonly AreaRow[], only: readonly AreaRow[] | undefined, note?: (areaId: string) => string | null) {
   return useMemo(() => {
@@ -25,14 +29,19 @@ function useAreaNodes(areas: readonly AreaRow[], only: readonly AreaRow[] | unde
 
     const nodes: TreeNode[] = areas
       .filter((a) => a.personal !== true)
-      .map((a) => ({
-        id: a.areaId,
-        parentId: parentInSight(areas, a),
-        label: a.name,
-        selectable: offered.has(a.areaId),
-        note: note?.(a.areaId) ?? (a.ownChat === 'direct' ? 'rozmowa we dwoje' : a.ownChat === 'group' ? 'grupa' : null),
-        section: a.ownChat != null && parentInSight(areas, a) === null ? 'Rozmowy' : undefined
-      }));
+      .map((a) => {
+        const parent = parentInSight(areas, a);
+        return {
+          id: a.areaId,
+          parentId: parent === null && a.ownChat != null ? CHATS : parent,
+          label: a.name,
+          selectable: offered.has(a.areaId),
+          note: note?.(a.areaId) ?? (a.ownChat === 'direct' ? 'rozmowa we dwoje' : a.ownChat === 'group' ? 'grupa' : null)
+        };
+      });
+    if (nodes.some((n) => n.parentId === CHATS)) {
+      nodes.push({ id: CHATS, parentId: null, label: 'Rozmowy', selectable: false, closed: true, order: 1, note: 'grupy i rozmowy we dwoje' });
+    }
 
     /* Was zur Wahl steht, aber in `areas` fehlt, steht oben ohne Weg — statt still zu verschwinden. */
     for (const a of only ?? []) {

@@ -9,45 +9,25 @@ import { ensurePrivateArea } from '../calendar/agenda';
 import { plural } from '../core/plural';
 import { useRemembered } from '../core/prefs';
 import { WorkspaceError } from '../core/session';
-import { KIND, nameOf, shortId } from '../roles/RolePicker';
+import { KIND, shortId } from '../roles/RolePicker';
 import { viewPath } from '../routes';
 import { Modal } from '../ui/Modal';
-import { CHATS_CHANGED, type ChatRow, areaKeys, deliverPending, loadChats, openNames, startSelfChat } from './chat';
+import { CHATS_CHANGED, type ChatRow, deliverPending, loadChats, startSelfChat } from './chat';
 import { CommonPreferencesDialog } from './ChatExtras';
 import { Avatar, Icon, type MenuItem, PopMenu, listTime, useButtonMenu } from './ChatKit';
-import { type Me, titleOfArea, useAreas } from './chatShared';
+import { type Me, chatTitles, useAreas } from './chatShared';
 
 /* -- Die Liste --------------------------------------------------------------------- */
 
-/** Wie ein Chat in der Liste heisst: zu zweit der Name der anderen Seite, sonst der Bereich; mit sich selbst „Notatki". */
+/** Wie ein Chat in der Liste heisst (`chatTitles`) — neu, wenn sich die Liste ändert, nicht bei jedem Zeichnen. */
 function useTitles(me: Me, chats: readonly ChatRow[], areas: readonly AreaRow[]): ReadonlyMap<string, string> {
   const [titles, setTitles] = useState<ReadonlyMap<string, string>>(new Map());
   const key = chats.map((c) => c.chatId).join(',') + '|' + areas.length;
 
   useEffect(() => {
     let alive = true;
-    void (async () => {
-      const out = new Map<string, string>();
-      for (const chat of chats) {
-        if (chat.kind === 'self') { out.set(chat.chatId, 'Notatki'); continue; }
-        /* 0069 — mit einem Menschen vom Formular: sein Name, wie die Kanzlei ihn am Platz führt. */
-        if (chat.kind === 'seat') { out.set(chat.chatId, `Rozmowa z: ${chat.seatName ?? 'osobą z formularza'}`); continue; }
-        /* 0080 — der Kanał steht neben der Rozmowa desselben Bereichs: am Namen unterscheidbar. */
-        if (chat.kind === 'channel') { out.set(chat.chatId, `Kanał: ${titleOfArea(areas, chat.areaId, chat.areaName)}`); continue; }
-        if (chat.kind !== 'direct') { out.set(chat.chatId, titleOfArea(areas, chat.areaId, chat.areaName)); continue; }
-        const other = chat.members.find((m) => !me.ring.has(m.roleId)) ?? chat.members.find((m) => !me.roles.some((r) => r.id === m.roleId));
-        if (other === undefined) { out.set(chat.chatId, 'Rozmowa'); continue; }
-        try {
-          const names = await openNames(await areaKeys(me.ring, chat.areaId), chat.areaId, chat.names);
-          out.set(chat.chatId, nameOf(other.roleId, other.kind, names, me.names));
-        } catch {
-          out.set(chat.chatId, nameOf(other.roleId, other.kind, new Map(), me.names));
-        }
-      }
-      if (alive) setTitles(out);
-    })();
+    void chatTitles(me, chats, areas).then((out) => { if (alive) setTitles(out); });
     return () => { alive = false; };
-    // Neu, wenn sich die Liste ändert — nicht bei jedem Zeichnen.
   }, [key]);
 
   return titles;
