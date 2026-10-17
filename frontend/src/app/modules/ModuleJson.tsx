@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 
 import { loadAreas, type AreaRow } from '../areas/area';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import { setPartConfig } from '../forms/form';
 import { readFormContent, writeFormContent } from '../forms/formJson';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
@@ -45,10 +45,11 @@ export function QuestionOptions({ answersTo, onAnswersTo, replace, onReplace }: 
     <div className="wk-json-options">
       <label className="wk-field">
         <span>Odpowiedzi nowych pytań trafiają do obszaru</span>
-        <select value={answersTo} onChange={(e) => onAnswersTo(e.target.value)} disabled={areas === null}>
-          <option value="">{areas === null ? 'Wczytywanie…' : '— jak podano w pytaniu / obszar formularza —'}</option>
-          <AreaOptions areas={areas ?? []} only={usable} />
-        </select>
+        <AreaPick
+          label="Odpowiedzi nowych pytań trafiają do obszaru" value={answersTo} onChange={onAnswersTo} disabled={areas === null}
+          areas={areas ?? []} only={usable}
+          extras={[{ value: '', label: areas === null ? 'Wczytywanie…' : '— jak podano w pytaniu / obszar formularza —' }]}
+        />
       </label>
       <p className="wk-hint">Kto ma klucz tego obszaru, czyta odpowiedzi. Formularz bez własnego obszaru dostaje ten obszar.</p>
       <label className="pe-check">

@@ -28,7 +28,7 @@ import {
 } from './resource';
 import { viewPath } from '../routes';
 import { WorkspaceError } from '../core/session';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import { useTouched } from '../workspace/Recent';
 import { Loading } from '../ui/Loading';
 
@@ -421,10 +421,7 @@ function Editor({ was, all, areas, calendars, onSaved }: {
       {was === null && (
         <label className="wk-field">
           <span>Obszar</span>
-          <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-            <option value="">— wybierz —</option>
-            <AreaOptions areas={areas} only={writable} />
-          </select>
+          <AreaPick label="Obszar" value={areaId} onChange={setAreaId} areas={areas} only={writable} />
         </label>
       )}
 

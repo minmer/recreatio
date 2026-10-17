@@ -18,7 +18,7 @@ import { useState } from 'react';
 
 import { ensurePrivateArea } from './agenda';
 import { areaPath, type AreaRow } from '../areas/area';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import {
   addCalendar, CALENDAR_KIND_LABEL, saveCalendarRules, type CalendarKind, type CalendarRow, type CalendarRules
 } from './calendar';
@@ -120,14 +120,10 @@ export function CalendarSettings({ me, areas, calendar, onClose, onSaved }: {
           <label className="wk-field">
             <span>Kto prowadzi (dodaje i zmienia terminy)</span>
             {calendar === null ? (
-              <select value={owner} onChange={(e) => setOwner(e.target.value)}>
-                <option value={personal?.areaId ?? PRIVATE}>Tylko ja (prywatny)</option>
-                {writable.length > 0 && (
-                  <optgroup label="Grupy, w których piszesz">
-                    <AreaOptions areas={areas} only={writable} />
-                  </optgroup>
-                )}
-              </select>
+              <AreaPick
+                label="Kto prowadzi" value={owner} onChange={setOwner} areas={areas} only={writable}
+                extras={[{ value: personal?.areaId ?? PRIVATE, label: 'Tylko ja (prywatny)' }]}
+              />
             ) : (
               <strong className="wk-calset-fixed">{ownerName}</strong>
             )}
@@ -136,12 +132,11 @@ export function CalendarSettings({ me, areas, calendar, onClose, onSaved }: {
           {!ownerIsPrivate && (
             <label className="wk-field">
               <span>Kto widzi</span>
-              <select value={visibility} onChange={(e) => setVisibility(e.target.value)}>
-                <option value="">ta sama grupa</option>
-                <optgroup label="Albo szerzej / inaczej">
-                  <AreaOptions areas={areas} only={writable.filter((a) => a.areaId !== owner)} />
-                </optgroup>
-              </select>
+              <AreaPick
+                label="Kto widzi" value={visibility} onChange={setVisibility}
+                areas={areas} only={writable.filter((a) => a.areaId !== owner)}
+                extras={[{ value: '', label: 'ta sama grupa' }]}
+              />
             </label>
           )}
         </div>
@@ -204,12 +199,11 @@ export function CalendarSettings({ me, areas, calendar, onClose, onSaved }: {
 
                 <label className="wk-field">
                   <span>Kto może rezerwować</span>
-                  <select value={reserveArea} onChange={(e) => setReserveArea(e.target.value)}>
-                    <option value="">każdy, kto znajdzie termin (np. na stronie)</option>
-                    <optgroup label="Tylko osoby z grupy (i grup pod nią)">
-                      <AreaOptions areas={areas} only={areas.filter((a) => a.personal !== true)} />
-                    </optgroup>
-                  </select>
+                  <AreaPick
+                    label="Kto może rezerwować" value={reserveArea} onChange={setReserveArea}
+                    areas={areas} only={areas.filter((a) => a.personal !== true)}
+                    extras={[{ value: '', label: 'każdy, kto znajdzie termin (np. na stronie)', hint: 'albo tylko osoby z wybranej grupy (i grup pod nią)' }]}
+                  />
                   <span className="wk-hint">
                     Np. kandydaci do bierzmowania: tylko osoby z tej grupy — także te z osobistym linkiem.
                   </span>

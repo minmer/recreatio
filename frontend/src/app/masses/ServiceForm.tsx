@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import { kindWord } from '../calendar/agenda';
 import { type CalendarRow, type ItemKind, REPEAT_LABEL, type RepeatKind, addItem, createCalendar } from '../calendar/calendar';
 import { WorkspaceError } from '../core/session';
@@ -85,9 +85,7 @@ export function NewCalendar({ areas, busy, onAct }: {
 
       <label className="wk-field">
         <span>Grupa (obszar)</span>
-        <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-          <AreaOptions areas={areas} only={mine} />
-        </select>
+        <AreaPick label="Grupa (obszar)" value={areaId} onChange={setAreaId} areas={areas} only={mine} />
       </label>
 
       <p className="wk-hint">

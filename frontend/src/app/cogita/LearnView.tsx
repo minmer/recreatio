@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { ensurePrivateArea } from '../calendar/agenda';
 import { loadAreas, type AreaRow } from '../areas/area';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import { useCrumbs } from '../shell/crumbTrail';
 import { createLibrary, isUuid, libraryKindOf, loadLibraries, openLibraries, type OpenLibrary } from '../library/library';
 import { useLibraryStore } from '../library/libraryStore';
@@ -238,10 +238,10 @@ function NewBase({ me, areas, onCreated }: { me: Me; areas: readonly AreaRow[]; 
       </label>
       <label className="wk-field">
         <span>Kto ją widzi</span>
-        <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-          <option value="">{personal === undefined ? 'Tylko ja (utworzy się prywatny obszar)' : 'Tylko ja'}</option>
-          <AreaOptions areas={areas} only={writable.filter((a) => a.personal !== true)} />
-        </select>
+        <AreaPick
+          label="Kto ją widzi" value={areaId} onChange={setAreaId} areas={areas} only={writable.filter((a) => a.personal !== true)}
+          extras={[{ value: '', label: personal === undefined ? 'Tylko ja (utworzy się prywatny obszar)' : 'Tylko ja' }]}
+        />
       </label>
       <p className="wk-hint">Kto czyta obszar, uczy się z tej bazy; kto w nim pisze, ją buduje.</p>
       {failed !== null && <p className="wk-error">{failed}</p>}

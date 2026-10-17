@@ -49,7 +49,7 @@ import { FormMap } from '../forms/FormMap';
 import type { FormGroup } from './module';
 import { PEOPLE_TAB, viewPath, formsPath, modulePath } from '../routes';
 import { WorkspaceError, type Who } from '../core/session';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import { ModuleSettings } from './ModuleSettings';
 import { ModuleJson } from './ModuleJson';
 import { Loading } from '../ui/Loading';
@@ -706,10 +706,8 @@ function NewModule({ kind, areas, busy, onAct, onDone }: {
 
       <label className="wk-field">
         <span>Obszar</span>
-        <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-          <option value="">— bez obszaru —</option>
-          <AreaOptions areas={areas} only={usable} />
-        </select>
+        <AreaPick label="Obszar" value={areaId} onChange={setAreaId} areas={areas} only={usable}
+          extras={[{ value: '', label: '— bez obszaru —' }]} />
       </label>
 
       <p className="wk-hint">Obszar to klucz — pod nim będą leżały dane tego modułu.</p>

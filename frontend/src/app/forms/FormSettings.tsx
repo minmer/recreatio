@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import { type Who, WorkspaceError } from '../core/session';
@@ -221,10 +221,7 @@ export function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct,
       {answersTo === null && (
         <label className="wk-field">
           <span>Odpowiedzi trafiają do obszaru</span>
-          <select value={target} disabled={busy} onChange={(e) => setTarget(e.target.value)}>
-            <option value="">—</option>
-            <AreaOptions areas={areas} only={usable} />
-          </select>
+          <AreaPick label="Odpowiedzi trafiają do obszaru" value={target} disabled={busy} onChange={setTarget} areas={areas} only={usable} />
         </label>
       )}
       <ul className="wk-need-list">

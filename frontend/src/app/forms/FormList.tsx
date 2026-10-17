@@ -16,7 +16,7 @@
 import { useState } from 'react';
 
 import { areaPath, type AreaRow } from '../areas/area';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import { plural } from '../core/plural';
 import { formSections, moveInGroup, type FormItem } from './formGroups';
 import { newId } from '../core/ids';
@@ -139,9 +139,7 @@ export function FormList({ modules, groups, areas, fresh, busy, onAct }: {
           void onAct('Zakładanie grupy…', () => createFormGroup(newId(), newName.trim(), groupArea)).then(() => { setMaking(false); setNewName(''); });
         }}>
           <input value={newName} autoFocus placeholder="np. Bierzmowanie 2027" aria-label="Nazwa grupy" data-new-group-name="" onChange={(e) => setNewName(e.target.value)} />
-          <select aria-label="Obszar grupy" value={groupArea} disabled={busy} data-new-group-area="" onChange={(e) => setNewArea(e.target.value)}>
-            <AreaOptions areas={areas} only={writable} />
-          </select>
+          <span className="wk-new-group-area" data-new-group-area=""><AreaPick label="Obszar grupy" value={groupArea} disabled={busy} onChange={setNewArea} areas={areas} only={writable} /></span>
           <button type="submit" className="wk-btn wk-btn-small" disabled={busy || newName.trim() === '' || groupArea === ''}>Utwórz grupę</button>
           <button type="button" className="wk-link-btn" onClick={() => { setMaking(false); setNewName(''); }}>Anuluj</button>
           <span className="wk-hint">Grupa to folder — dla wypełniających nic się nie zmienia.</span>

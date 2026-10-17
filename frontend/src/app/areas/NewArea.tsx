@@ -6,7 +6,7 @@ import { useState } from 'react';
 
 import type { Ring, SealedRole } from '../core/keys';
 import { type AreaRow, createArea } from './area';
-import { AreaOptions } from './AreaOptions';
+import { AreaPick } from './AreaPick';
 
 /* -- Anlegen ---------------------------------------------------------------- */
 
@@ -61,10 +61,8 @@ export function NewArea({ ring, person, areas, busy, onAct, onDone }: {
       {canNest.length > 0 && (
         <label className="wk-field">
           <span>Wewnątrz</span>
-          <select value={inside} onChange={(e) => setInside(e.target.value)}>
-            <option value="">Nigdzie — osobny obszar</option>
-            <AreaOptions areas={areas} only={canNest} />
-          </select>
+          <AreaPick label="Wewnątrz" value={inside} onChange={setInside} areas={areas} only={canNest}
+            extras={[{ value: '', label: 'Nigdzie — osobny obszar' }]} />
         </label>
       )}
 

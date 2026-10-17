@@ -21,7 +21,7 @@ import { loadAreas, type AreaRow } from '../areas/area';
 import { newId } from '../core/ids';
 import { createModule, loadModules, type ModuleRow } from './module';
 import { WorkspaceError } from '../core/session';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import { Loading } from '../ui/Loading';
 
 export function PickModule({ kind, chosen, busy, onPick, onMade }: {
@@ -133,14 +133,10 @@ export function PickModule({ kind, chosen, busy, onPick, onMade }: {
 
         <label className="wk-field">
           <span>Obszar</span>
-          <select
-            value={areaId}
-            disabled={busy || making}
-            onChange={(e) => setAreaId(e.target.value)}
-          >
-            <option value="">— bez obszaru —</option>
-            <AreaOptions areas={areas} only={usable} />
-          </select>
+          <AreaPick
+            label="Obszar" value={areaId} disabled={busy || making} onChange={setAreaId} areas={areas} only={usable}
+            extras={[{ value: '', label: '— bez obszaru —' }]}
+          />
         </label>
 
         <p className="wk-hint">Obszar to klucz — pod nim będą leżały odpowiedzi.</p>

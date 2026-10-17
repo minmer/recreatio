@@ -29,7 +29,8 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { openSubpage } from '../areas/access';
-import { areaPath, inOrder, loadAreas, type AreaRow } from '../areas/area';
+import { areaPath, loadAreas, type AreaRow } from '../areas/area';
+import { AreaPickMany } from '../areas/AreaPick';
 import { moveSlug, setPageAreas, takers, type Desk, type PageCard } from '../workspace/desk';
 import { myRoleNames, roleLabel } from '../roles/roleNames';
 import type { Ring } from '../core/keys';
@@ -353,20 +354,9 @@ function Visibility({ page, areas, busy, onAct }: {
 
       {restricted && (
         <div className="wk-access-areas">
-          {/*
-            DER GANZE BAUM, nicht eine flache Liste: „Kandydaci" gibt es in der
-            Firmung und in der Erstkommunion, und nebeneinander sähen sie gleich
-            aus. Eingerückt, wie sie ineinander liegen — der ganze Weg steht
-            darunter bei dem, was gewählt ist, und im Tooltip.
-          */}
-          {inOrder(areas).map(({ area, depth }) => (
-            <label key={area.areaId} className="wk-check wk-access-area" style={{ paddingLeft: `${depth * 1.25}rem` }}
-              title={areaPath(areas, area.areaId).full}>
-              <input type="checkbox" checked={chosen.includes(area.areaId)} disabled={busy}
-                onChange={() => toggle(area.areaId)} />
-              <span>{depth > 0 && <span className="wk-access-branch" aria-hidden="true">└ </span>}{area.name}</span>
-            </label>
-          ))}
+          {/* DER GANZE BAUM (AreaPickMany): „Kandydaci" gibt es in der Firmung und in der Erstkommunion — eingerückt, wie sie ineinander liegen. */}
+          <AreaPickMany label="Obszary z dostępem do strony" areas={areas} only={areas.filter((a) => a.personal !== true)} value={chosen.filter((id) => areas.some((a) => a.areaId === id))}
+            onChange={(next) => { if (!busy) setChosen([...next, ...chosen.filter((id) => !areas.some((a) => a.areaId === id))]); }} />
           {chosen.filter((id) => areas.some((a) => a.areaId === id)).length > 0 && (
             <span className="wk-hint">
               Wybrane: {chosen.filter((id) => areas.some((a) => a.areaId === id)).map((id) => areaPath(areas, id).full).join(' · ')}

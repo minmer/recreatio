@@ -10,7 +10,7 @@
  */
 
 import { areaPath, type AreaRow } from './area';
-import { AreaOptions } from './AreaOptions';
+import { AreaPick } from './AreaPick';
 
 /** Der Wert für „Tylko ja", solange es den eigenen Bereich noch nicht gibt. */
 export const PRIVATE = 'private';
@@ -42,19 +42,11 @@ export function WhoSees({ areas, recent, value, onChange, disabled = false }: {
   return (
     <label className="wk-field">
       <span>Kto widzi</span>
-      <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
-        <option value={personal?.areaId ?? PRIVATE}>Tylko ja (prywatne)</option>
-        {lately.length > 0 && (
-          <optgroup label="Ostatnio">
-            {lately.map((g) => <option key={`r-${g.areaId}`} value={g.areaId}>{areaPath(areas, g.areaId).full}</option>)}
-          </optgroup>
-        )}
-        {groups.length > 0 && (
-          <optgroup label="Grupy, w których piszesz">
-            <AreaOptions areas={areas} only={groups.filter((g) => !lately.includes(g))} />
-          </optgroup>
-        )}
-      </select>
+      <AreaPick
+        label="Kto widzi" value={value} onChange={onChange} disabled={disabled}
+        areas={areas} only={groups} recent={lately.map((g) => g.areaId)}
+        extras={[{ value: personal?.areaId ?? PRIVATE, label: 'Tylko ja (prywatne)' }]}
+      />
       <span className="wk-hint">
         {value === PRIVATE || value === personal?.areaId
           ? 'Nikt poza Tobą — zaszyfrowane Twoim kluczem.'

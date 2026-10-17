@@ -16,7 +16,7 @@
 import { useEffect, useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import { removeModule, SUBJECT_LABEL, SUBJECTS, updateModule, type ModuleRow, type Resealed, type Subject } from './module';
 import { partOf, takesEntries } from '../pages/parts/registry';
 import { modulePath } from '../routes';
@@ -87,15 +87,11 @@ export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
       ) : (
       <label className="wk-field">
         <span>{reseal !== undefined ? 'Obszar formularza' : 'Obszar'}</span>
-        <select
-          value={areaId}
-          disabled={busy || !movable}
-          onChange={(e) => setAreaId(e.target.value)}
-        >
-          {/* Ohne Bereich hätte eine Frage keinen Schlüssel, unter dem sie liegt. */}
-          <option value="" disabled={reseal !== undefined && row.fields > 0}>— bez obszaru —</option>
-          <AreaOptions areas={areas} />
-        </select>
+        {/* Ohne Bereich hätte eine Frage keinen Schlüssel, unter dem sie liegt. */}
+        <AreaPick
+          label={reseal !== undefined ? 'Obszar formularza' : 'Obszar'} value={areaId} disabled={busy || !movable} onChange={setAreaId} areas={areas}
+          extras={[{ value: '', label: '— bez obszaru —', disabled: reseal !== undefined && row.fields > 0 }]}
+        />
         {reseal !== undefined && (
           <span className="wk-hint">
             Pytania są zapieczętowane kluczem tego obszaru — przeczyta je każdy, kto

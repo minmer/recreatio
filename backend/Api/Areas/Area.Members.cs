@@ -70,7 +70,10 @@ public static partial class Area
                            AND c.subject_role_id IN ({names})) THEN 1 ELSE 0 END AS bit) AS mayCertify,
 
                    /* 0054 — der eigene Bereich einer MEINER Personen. */
-                   CAST(CASE WHEN a.personal_role_id IN ({names}) THEN 1 ELSE 0 END AS bit) AS personal
+                   CAST(CASE WHEN a.personal_role_id IN ({names}) THEN 1 ELSE 0 END AS bit) AS personal,
+
+                   /* Der eigene Bereich einer Rozmowa (Gruppe, zu zweit) — in Auswahllisten ein eigener Abschnitt. */
+                   (SELECT TOP 1 c.kind FROM app.chat c WHERE c.area_id = a.id AND c.kind IN (N'group', N'direct'))
             FROM app.area a
             WHERE EXISTS (
                 SELECT 1 FROM app.certificate c
@@ -110,7 +113,8 @@ public static partial class Area
                 mayCertify = reader.GetBoolean(9),
 
                 /* 0054 — „Tylko ja": nirgends anbieten, wo etwas geteilt wird. */
-                personal = reader.GetBoolean(10)
+                personal = reader.GetBoolean(10),
+                ownChat = reader.IsDBNull(11) ? null : reader.GetString(11)
             });
         }
 

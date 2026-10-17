@@ -89,6 +89,9 @@ export interface AreaRow {
    * solcher markiert; er wird nirgends angeboten, wo etwas geteilt wird.
    */
   readonly personal?: boolean;
+
+  /** Der eigene Bereich einer Rozmowa (Gruppe, zu zweit) — `null`: keiner. */
+  readonly ownChat?: 'group' | 'direct' | null;
 }
 
 export interface Member {

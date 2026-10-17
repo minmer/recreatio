@@ -16,7 +16,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
-function usePortal(): HTMLElement | null {
+export function usePortal(): HTMLElement | null {
   const [host] = useState<HTMLElement | null>(() => {
     if (typeof document === 'undefined') return null;
     const made = document.createElement('div');

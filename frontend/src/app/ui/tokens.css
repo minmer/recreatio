@@ -49,6 +49,7 @@
   --wk-z-header: 50;
   --wk-z-pop: 100;
   --wk-z-dialog: 200;
+  --wk-z-pick: 250;
   --wk-z-toast: 300;
 
   /* -- Höhe der Bedienelemente: Feld, Auswahl und Knopf gleich hoch ------ */

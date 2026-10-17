@@ -30,7 +30,7 @@ import { viewPath } from '../routes';
 import { WorkspaceError, type Who } from '../core/session';
 import type { Ring } from '../core/keys';
 import { Unlock } from '../shell/Unlock';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import { TidyEverything } from '../workspace/TidyEverything';
 import { askText } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
@@ -63,10 +63,10 @@ export function Kartoteka({ who, trail }: { who: Who; trail: readonly string[] }
     <div className="wk-registry">
       <label className="wk-field wk-registry-area">
         <span>Kartoteka obszaru</span>
-        <select value={areaId ?? ''} onChange={(e) => { window.location.hash = e.target.value === '' ? viewPath('registry') : viewPath('registry', e.target.value); }}>
-          <option value="">— wybierz obszar (np. parafię) —</option>
-          <AreaOptions areas={areas} only={areas} />
-        </select>
+        <AreaPick
+          label="Kartoteka obszaru" value={areaId ?? ''} areas={areas} placeholder="— wybierz obszar (np. parafię) —"
+          onChange={(v) => { window.location.hash = v === '' ? viewPath('registry') : viewPath('registry', v); }}
+        />
       </label>
       {area === null ? (
         <p className="wk-lede">

@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 
 import { type AreaRow, loadAreas, loadMembers } from '../areas/area';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import { WorkspaceError } from '../core/session';
 import { InviteePicker, KIND, shortId, useKnown } from '../roles/RolePicker';
 import { viewPath } from '../routes';
@@ -121,10 +121,7 @@ export function NewChat({ me }: { me: Me }) {
             </p>
             <label className="wk-field">
               <span>Obszar</span>
-              <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-                <option value="">— wybierz —</option>
-                <AreaOptions areas={areas} only={writable} note={takenNote} />
-              </select>
+              <AreaPick label="Obszar" value={areaId} onChange={setAreaId} areas={areas} only={writable} note={takenNote} />
             </label>
             {writable.length === 0 && <p className="wk-empty">Nie piszesz w żadnym obszarze — {mode === 'channel' ? 'kanał' : 'rozmowę obszaru'} zakłada ktoś z prawem zapisu.</p>}
           </>

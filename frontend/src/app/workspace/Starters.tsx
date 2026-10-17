@@ -43,7 +43,7 @@ import { MenuButton } from '../ui/Menu';
 import { createModule } from '../modules/module';
 import { call, WorkspaceError, type Who } from '../core/session';
 import { areasNow, invalidate, refreshDesk } from './viewData';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 
 type Starter = 'signup' | 'group' | 'course';
 
@@ -216,10 +216,11 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
           </label>
           <label className="wk-field">
             <span>Wewnątrz obszaru (opcjonalnie)</span>
-            <select value={parent} onChange={(e) => setParent(e.target.value)}>
-              <option value="">— samodzielny —</option>
-              <AreaOptions areas={areas} only={areas.filter((a) => a.myLevel === 'admin' && a.personal !== true)} />
-            </select>
+            <AreaPick
+              label="Wewnątrz obszaru" value={parent} onChange={setParent}
+              areas={areas} only={areas.filter((a) => a.myLevel === 'admin' && a.personal !== true)}
+              extras={[{ value: '', label: '— samodzielny —' }]}
+            />
           </label>
           {starter === 'signup' && (
             <>

@@ -5,7 +5,7 @@
 import { useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import { PRIVATE, Weekdays, bitOf, fromLocal, groupName, localDate, localTime, writableGroups } from '../areas/WhoSees';
 import type { Me } from '../core/me';
 import { useRecent } from '../core/prefs';
@@ -427,12 +427,11 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
                 <summary>Widoczność tego terminu</summary>
                 <label className="wk-field">
                   <span>Kto widzi ten termin</span>
-                  <select value={visibility ?? ''} onChange={(e) => setVisibility(e.target.value === '' ? null : e.target.value)}>
-                    <option value="">jak w kalendarzu ({groupName(areas, defaultVisibility)})</option>
-                    <optgroup label="Inna grupa">
-                      <AreaOptions areas={areas} only={writableGroups(areas)} />
-                    </optgroup>
-                  </select>
+                  <AreaPick
+                    label="Kto widzi ten termin" value={visibility ?? ''} onChange={(v) => setVisibility(v === '' ? null : v)}
+                    areas={areas} only={writableGroups(areas)}
+                    extras={[{ value: '', label: `jak w kalendarzu (${groupName(areas, defaultVisibility)})` }]}
+                  />
                 </label>
               </details>
             )}
@@ -454,12 +453,11 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
                     </label>
                     <label className="wk-field">
                       <span>Kto może rezerwować</span>
-                      <select value={reserveArea} onChange={(e) => setReserveArea(e.target.value)}>
-                        <option value="">jak w kalendarzu ({booking.reserveAreaId === null ? 'każdy, kto znajdzie termin' : groupName(areas, booking.reserveAreaId)})</option>
-                        <optgroup label="Tylko osoby z grupy (i grup pod nią)">
-                          <AreaOptions areas={areas} only={areas.filter((a) => a.personal !== true)} />
-                        </optgroup>
-                      </select>
+                      <AreaPick
+                        label="Kto może rezerwować" value={reserveArea} onChange={setReserveArea}
+                        areas={areas} only={areas.filter((a) => a.personal !== true)}
+                        extras={[{ value: '', label: `jak w kalendarzu (${booking.reserveAreaId === null ? 'każdy, kto znajdzie termin' : groupName(areas, booking.reserveAreaId)})` }]}
+                      />
                     </label>
                   </div>
                 )}

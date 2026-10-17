@@ -26,7 +26,7 @@ import {
   setValue, withdrawValue, type PersonField, type Release
 } from './person';
 import { WorkspaceError } from '../core/session';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import { PostalInput } from '../registry/PostalInput';
 import { toast } from '../ui/dialogs';
 
@@ -236,13 +236,10 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
               <>
                 <label className="wk-field">
                   <span>Udostępnij obszarowi</span>
-                  <select value={target} onChange={(e) => setTarget(e.target.value)}>
-                    <option value="">—</option>
-                    <AreaOptions
-                      areas={areas}
-                      only={reachable.filter((a) => !releases.some((r) => r.areaId === a.areaId))}
-                    />
-                  </select>
+                  <AreaPick
+                    label="Udostępnij obszarowi" value={target} onChange={setTarget}
+                    areas={areas} only={reachable.filter((a) => !releases.some((r) => r.areaId === a.areaId))}
+                  />
                 </label>
 
                 <div className="wk-actions">

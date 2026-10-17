@@ -5,7 +5,7 @@
 import { useId, useState } from 'react';
 
 import { type AreaRow, myEpochKeys } from '../areas/area';
-import { AreaOptions } from '../areas/AreaOptions';
+import { AreaPick } from '../areas/AreaPick';
 import type { Ring } from '../core/keys';
 import { WorkspaceError } from '../core/session';
 import { FIELD_KINDS, IDENTITY_ROLES, type FieldKind, IDENTITY_LABEL, type IdentityRole, KIND_LABEL, type OpenField, addField } from './form';
@@ -239,10 +239,7 @@ export function NewFieldForm({
       */}
       <label className="wk-field">
         <span>Odpowiedzi trafiają do obszaru</span>
-        <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-          <option value="">—</option>
-          <AreaOptions areas={areas} only={usable} />
-        </select>
+        <AreaPick label="Odpowiedzi trafiają do obszaru" value={areaId} onChange={setAreaId} areas={areas} only={usable} />
       </label>
 
       <label className="wk-field">
@@ -391,9 +388,7 @@ export function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
 
       <label className="wk-field">
         <span>Odpowiedzi trafiają do obszaru</span>
-        <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-          <AreaOptions areas={areas} only={usable} />
-        </select>
+        <AreaPick label="Odpowiedzi trafiają do obszaru" value={areaId} onChange={setAreaId} areas={areas} only={usable} />
         {moving && (
           <span className="wk-hint">
             Zebrane odpowiedzi przeniosą się do nowego obszaru.
