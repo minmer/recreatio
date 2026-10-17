@@ -297,11 +297,17 @@ export const GEARS: LiveExample = {
         children: 4,
         shapes: [
           { type: 'ellipse', x: '=x', y: '=y', w: '=2*r', h: '=2*r', fill: 'accent/15', stroke: 'accent', width: 2 },
+          /* Die Zähne drehen sich als EINE Gruppe — je Bild ändert sich nur ihre Drehung, nicht jeder Zahn. */
           {
-            type: 'line', repeat: 48, x: '=x + (r - 0.05)*cos(phi + i*tau/teeth)', y: '=y + (r - 0.05)*sin(phi + i*tau/teeth)',
-            x2: '=x + (r + 0.07)*cos(phi + i*tau/teeth)', y2: '=y + (r + 0.07)*sin(phi + i*tau/teeth)', stroke: 'accent', width: 4, cap: 'butt', show: 'i < teeth'
+            type: 'group', x: '=x', y: '=y', rotate: '=deg(phi)',
+            children: [
+              {
+                type: 'line', repeat: 48, x: '=(r - 0.05)*cos(i*tau/teeth)', y: '=(r - 0.05)*sin(i*tau/teeth)',
+                x2: '=(r + 0.07)*cos(i*tau/teeth)', y2: '=(r + 0.07)*sin(i*tau/teeth)', stroke: 'accent', width: 4, cap: 'butt', show: 'i < teeth'
+              },
+              { type: 'line', x: 0, y: 0, x2: '=0.8*r', y2: 0, stroke: 'ink', width: 2 }
+            ]
           },
-          { type: 'line', x: '=x', y: '=y', x2: '=x + 0.8*r*cos(phi)', y2: '=y + 0.8*r*sin(phi)', stroke: 'ink', width: 2 },
           { type: 'circle', x: '=x', y: '=y', r: 4, fill: 'ink' },
           { type: 'text', x: '=x', y: '=y + r + 0.25', text: '{teeth} z · {fmt(rpm, 1)} obr/min', size: 10, fill: 'muted' }
         ]

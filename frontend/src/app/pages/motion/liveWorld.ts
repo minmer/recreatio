@@ -148,8 +148,15 @@ export class World {
   version = 0;
   private shape = '';
   selected: string | null = null;
-  /** Hat sich seit dem letzten Bild ein Wert geändert? */
-  dirty = true;
+  /**
+   * WAS SICH SEIT DEM LETZTEN BILD GEÄNDERT HAT: die Namen — nur die Teile, die
+   * sie lesen, werden neu geschrieben (ein Zahnrad dreht seine Gruppe, die
+   * Zähne darin bleiben, wie sie sind) —, oder, nach einem neuen Stand, alles.
+   */
+  private readonly touched = new Set<string>();
+  private everything = true;
+  /** Die Namen der Grössen der Simulation aller Arten — nach jedem Schritt geändert. */
+  private readonly stateNames: ReadonlySet<string>;
   private readonly undoStack: WorldShot[] = [];
   private readonly redoStack: WorldShot[] = [];
   /** „Ponów", solange eine Änderung noch zurückgenommen werden kann (eine verletzte Regel). */
@@ -182,6 +189,7 @@ export class World {
     }
     this.ownNames = own;
     this.thingNames = new Set([...globalNames, ...own]);
+    this.stateNames = new Set(spec.kinds.flatMap((k) => k.state.map((x) => x.name)));
     links(global).$world = this.index;
 
     for (const k of spec.kinds) this.kinds.set(k.name, this.compileKind(k));
@@ -361,7 +369,7 @@ export class World {
     this.sortLets();
     const shape = this.preorder.map((t) => `${t.id}:${t.kind.spec.name}:${t.parent?.id ?? ''}`).join('|');
     if (shape !== this.shape) { this.shape = shape; this.version += 1; }
-    this.dirty = true;
+    this.everything = true;
   }
 
   /**
@@ -496,7 +504,7 @@ export class World {
     this.evalLets('all');
     for (const t of this.preorder) this.initState(t);
     this.evalLets('all');
-    this.dirty = true;
+    this.everything = true;
   }
 
   snapshot(): WorldShot {
@@ -531,8 +539,21 @@ export class World {
     const list = which === 'all' ? this.order : which === 'dynamic' ? this.dynOrder : this.stageOrder;
     for (const { t, l } of list) {
       const v = l.expr.run(t.env);
-      if (t.env[l.name] !== v) { t.env[l.name] = v; this.dirty = true; }
+      if (t.env[l.name] !== v) { t.env[l.name] = v; this.touched.add(l.name); }
     }
+  }
+
+  /** Was sich geändert hat, in `into` (`#world`: alles) — und vergessen. */
+  takeChanged(into: Set<string>): void {
+    if (this.everything) into.add('#world');
+    for (const name of this.touched) into.add(name);
+    this.touched.clear();
+    this.everything = false;
+  }
+
+  /** Nach einem Schritt der Simulation: ihre Grössen haben sich geändert. */
+  touchState(): void {
+    for (const name of this.stateNames) this.touched.add(name);
   }
 
   readState(into: Float64Array, offset: number): void {
@@ -561,7 +582,7 @@ export class World {
         e.set.forEach((a, k) => { if (Number.isFinite(values[k])) t.env[a.name] = values[k]; });
         if (e.say !== null) this.said = { text: String(e.say.run(t.env)), mood: e.mood };
         t.armed[i] = !truth(e.when.run(t.env));
-        this.dirty = true;
+        for (const a of e.set) this.touched.add(a.name);
       });
     }
   }
@@ -673,7 +694,7 @@ export class World {
     if (next === this.selected) return;
     this.selected = next;
     for (const t of this.things) t.env.selected = t.id === next ? 1 : 0;
-    this.dirty = true;
+    this.touched.add('selected');
   }
 
   /** Die Grenzen einer Eigenschaft in diesem Ding — gerechnet (sie dürfen vom Elternteil abhängen). */
@@ -712,6 +733,7 @@ export class World {
       }
     }
     t.env[prop] = v;
+    this.touched.add(prop);
     return v;
   }
 
@@ -740,7 +762,7 @@ export class World {
     t.kind.drag.forEach((a, i) => {
       if (!this.drags(t, a.name)) return;
       if (t.kind.props.has(a.name)) { if (this.setProp(t, a.name, values[i], 'drag')) changed = true; }
-      else if (Number.isFinite(values[i]) && t.env[a.name] !== values[i]) { t.env[a.name] = values[i]; changed = true; this.dirty = true; }
+      else if (Number.isFinite(values[i]) && t.env[a.name] !== values[i]) { t.env[a.name] = values[i]; changed = true; this.touched.add(a.name); }
     });
     return changed;
   }
@@ -752,7 +774,7 @@ export class World {
     let changed = false;
     t.kind.tap.forEach((a, i) => {
       if (t.kind.props.has(a.name)) { if (this.setProp(t, a.name, values[i], 'rule')) changed = true; }
-      else if (Number.isFinite(values[i])) { t.env[a.name] = values[i]; changed = true; this.dirty = true; }
+      else if (Number.isFinite(values[i])) { t.env[a.name] = values[i]; changed = true; this.touched.add(a.name); }
     });
     return changed;
   }
@@ -769,7 +791,6 @@ export class World {
       }
     }
     this.evalLets('all');
-    this.dirty = true;
   }
 
   private freshId(kind: string): string {

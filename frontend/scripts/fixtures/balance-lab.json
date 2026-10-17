@@ -171,7 +171,7 @@
    "config": {
     "title": "Laboratorium równowagi",
     "body": [
-     "Belka obraca się wokół osi. Ciężarek ciągnie ją w dół tym mocniej, im dalej od osi wisi: liczy się **masa × ramię** — moment siły.",
+     "Belka obraca się wokół osi. Ciężarek ciągnie ją w dół tym mocniej, im dalej od osi wisi: liczy się masa × ramię — moment siły.",
      "Gdy po obu stronach osi momenty są równe, belka stoi poziomo. Przeciągnij ciężarki i sprawdź."
     ]
    }
@@ -512,7 +512,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7"
+         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
         },
         {
          "name": "hit",
@@ -1307,7 +1307,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7"
+         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
         },
         {
          "name": "hit",
@@ -2101,7 +2101,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7"
+         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
         },
         {
          "name": "hit",
@@ -2895,7 +2895,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7"
+         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
         },
         {
          "name": "hit",
@@ -3708,7 +3708,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7"
+         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
         },
         {
          "name": "hit",
@@ -4525,7 +4525,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7"
+         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
         },
         {
          "name": "hit",
@@ -5375,7 +5375,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7"
+         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
         },
         {
          "name": "hit",
@@ -6196,7 +6196,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7"
+         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
         },
         {
          "name": "hit",
@@ -6983,7 +6983,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7"
+         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
         },
         {
          "name": "hit",
@@ -7772,7 +7772,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7"
+         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
         },
         {
          "name": "hit",
@@ -8440,25 +8440,33 @@
          "width": 2
         },
         {
-         "type": "line",
-         "repeat": 48,
-         "x": "=x + (r - 0.05)*cos(phi + i*tau/teeth)",
-         "y": "=y + (r - 0.05)*sin(phi + i*tau/teeth)",
-         "x2": "=x + (r + 0.07)*cos(phi + i*tau/teeth)",
-         "y2": "=y + (r + 0.07)*sin(phi + i*tau/teeth)",
-         "stroke": "accent",
-         "width": 4,
-         "cap": "butt",
-         "show": "i < teeth"
-        },
-        {
-         "type": "line",
+         "type": "group",
          "x": "=x",
          "y": "=y",
-         "x2": "=x + 0.8*r*cos(phi)",
-         "y2": "=y + 0.8*r*sin(phi)",
-         "stroke": "ink",
-         "width": 2
+         "rotate": "=deg(phi)",
+         "children": [
+          {
+           "type": "line",
+           "repeat": 48,
+           "x": "=(r - 0.05)*cos(i*tau/teeth)",
+           "y": "=(r - 0.05)*sin(i*tau/teeth)",
+           "x2": "=(r + 0.07)*cos(i*tau/teeth)",
+           "y2": "=(r + 0.07)*sin(i*tau/teeth)",
+           "stroke": "accent",
+           "width": 4,
+           "cap": "butt",
+           "show": "i < teeth"
+          },
+          {
+           "type": "line",
+           "x": 0,
+           "y": 0,
+           "x2": "=0.8*r",
+           "y2": 0,
+           "stroke": "ink",
+           "width": 2
+          }
+         ]
         },
         {
          "type": "circle",

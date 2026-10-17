@@ -412,11 +412,11 @@ export class Program {
     return false;
   }
 
-  /** Was sich seit dem letzten Mal geändert hat — und vergessen. Eine Welt, an der sich etwas tat, meldet sich als `#world`. */
+  /** Was sich seit dem letzten Mal geändert hat — und vergessen. Eine Welt meldet ihre Namen (`#world`: alles an ihr). */
   takeChanged(): Set<string> {
     const out = new Set(this.changed);
     this.changed.clear();
-    if (this.world !== null && this.world.dirty) { out.add('#world'); this.world.dirty = false; }
+    this.world?.takeChanged(out);
     return out;
   }
 
@@ -603,7 +603,7 @@ export class Program {
     env.t = t + dt;
     if (this.headless) this.ruleClock += dt;
     if (this.world !== null) {
-      this.world.dirty = true;
+      this.world.touchState();
       this.world.evalLets('dynamic');
       this.world.events();
       if (this.world.said !== null) { this.saidNow = { ...this.world.said, goal: false }; this.world.said = null; }

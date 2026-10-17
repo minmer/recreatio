@@ -224,11 +224,20 @@ export function checkInteractive(spec: InteractiveSpec, given: unknown): Outcome
   return { correct: reached, correctness: reached ? 1 : 0, answered: true, expected };
 }
 
-/** Wie eine Zahl einer Eigenschaft geschrieben wird: so viele Stellen, wie ihr Schritt braucht, mit Einheit. */
-const valueText = (value: number, step: number | null, unit: string): string => {
-  const digits = step === null ? 2 : Math.max(0, Math.min(4, Math.ceil(-Math.log10(step) - 1e-9)));
+/** Wie viele Stellen ein Schritt hat (0,25 → zwei, 0,5 → eine, 1 → keine). */
+const stepDigits = (step: number | null): number => {
+  if (step === null) return 2;
+  for (let d = 0; d < 4; d += 1) if (Math.abs(step * 10 ** d - Math.round(step * 10 ** d)) < 1e-9) return d;
+  return 4;
+};
+
+/** Wie eine Zahl geschrieben wird: so viele Stellen, wie ihr Schritt hat, mit Einheit — `trim`: ohne Nullen am Ende (6 m, 5,25 m). */
+const valueText = (value: number, step: number | null, unit: string, trim = false): string => {
+  const digits = stepDigits(step);
+  const n = fmt(value, digits);
+  const number = trim && n.includes(',') ? n.replace(/0+$/, '').replace(/,$/, '') : n;
   /* Zwischen Zahl und Einheit ein fester Abstand (U+00A0): „9,9 m/s" bricht nicht um. */
-  return `${fmt(value, digits)}${unit === '' ? '' : /^[°%′″]/.test(unit) ? unit : ` ${unit}`}`;
+  return `${number}${unit === '' ? '' : /^[°%′″]/.test(unit) ? unit : ` ${unit}`}`;
 };
 
 /** Werte in Worten, mit den Namen und Einheiten des Bildes: „Kąt = 45°; Ciężarek w2 · Miejsce = 5 m" — `only`: nur diese. */
@@ -245,7 +254,7 @@ export function describeValues(drawingText: string, values: Readonly<Record<stri
     const id = name.slice(0, dot);
     const kind = world.kinds.find((k) => k.name === world.things.find((t) => t.id === id)?.kind);
     const prop = kind?.props.find((p) => p.name === name.slice(dot + 1));
-    return kind === undefined || prop === undefined ? [] : [`${kind.label} ${id} · ${prop.label || prop.name} = ${valueText(value, prop.step, prop.unit)}`];
+    return kind === undefined || prop === undefined ? [] : [`${kind.label} ${id} · ${prop.label || prop.name} = ${valueText(value, prop.step, prop.unit, true)}`];
   }).join('; ');
 }
 
@@ -271,7 +280,7 @@ function worldChangesText(spec: InteractiveSpec, drawing: Drawing, world: WorldS
     for (const p of kind?.props ?? []) {
       const a = was.props[p.name];
       const b = t.props[p.name];
-      if (typeof b === 'number' && (typeof a !== 'number' || Math.abs(a - b) > 1e-9)) out.push(`${label(t.kind)} ${t.id} · ${p.label || p.name} = ${valueText(b, p.step, p.unit)}`);
+      if (typeof b === 'number' && (typeof a !== 'number' || Math.abs(a - b) > 1e-9)) out.push(`${label(t.kind)} ${t.id} · ${p.label || p.name} = ${valueText(b, p.step, p.unit, true)}`);
     }
   }
   for (const t of start.things) if (!after.has(t.id)) out.push(`− ${label(t.kind)} ${t.id}`);

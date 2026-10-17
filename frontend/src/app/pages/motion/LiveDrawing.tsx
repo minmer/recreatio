@@ -238,7 +238,8 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
         if (b.textContent !== text) b.textContent = text;
       });
       const t = world.selected === null ? undefined : world.get(world.selected);
-      if (t === undefined || (changed !== null && !changed.has('#world'))) return;
+      /* Die Werte des gewählten Dings — nach jeder Änderung (eines Werts der Welt oder des Bildes, von dem eine Grenze abhängen kann). */
+      if (t === undefined || (changed !== null && changed.size === 0)) return;
       p.querySelectorAll<HTMLElement>('[data-prop]').forEach((el) => {
         const name = el.dataset.prop ?? '';
         const spec = t.kind.props.get(name)?.spec;
@@ -731,6 +732,18 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
       wake();
     };
 
+    /*
+     * Ein Finger auf einem Ding, einem Griff (oder, hineingezoomt, auf dem Grund
+     * der Kamera): die Seite darf nicht rollen. `touch-action` gilt in Chrome
+     * nicht für die Teile eines SVG — darum hier, beim ersten Berühren.
+     */
+    const onTouchStart = (event: TouchEvent) => {
+      if (locked || !event.cancelable) return;
+      const hold = closest(event.target, '[data-thing], [data-drag]') !== null
+        || (closest(event.target, '[data-cam]') !== null && (event.touches.length > 1 || built.cameras.some((c) => c.at.z > 1.001)));
+      if (hold) event.preventDefault();
+    };
+
     /** Mit der Tastatur zu einem Ding: es ist gewählt. */
     const onFocus = (event: FocusEvent) => {
       const thing = closest(event.target, '[data-thing]');
@@ -749,6 +762,7 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
       root.addEventListener('dblclick', onDouble);
       root.addEventListener('wheel', onWheel, { passive: false });
       root.addEventListener('focusin', onFocus);
+      root.addEventListener('touchstart', onTouchStart, { passive: false });
       host?.addEventListener('keydown', onKey);
     }
 
@@ -787,6 +801,7 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
       root.removeEventListener('dblclick', onDouble);
       root.removeEventListener('wheel', onWheel);
       root.removeEventListener('focusin', onFocus);
+      root.removeEventListener('touchstart', onTouchStart);
       host?.removeEventListener('keydown', onKey);
       offClock();
       for (const off of offs) off();

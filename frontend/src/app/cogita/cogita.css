@@ -187,6 +187,17 @@
   display: grid; gap: 1rem; max-width: 46rem; margin: 0 auto; width: 100%; box-sizing: border-box;
 }
 .cg-prompt { font-size: var(--wk-text-lg); line-height: 1.45; }
+/* 2026-10-18 — die Karte mittig: Frage, Antwort, Urteil und „Dalej" in der Mitte; die Wahlmöglichkeiten in einer mittigen Spalte. */
+.cg-face { justify-self: center; text-align: center; }
+.cg-face .cg-answer, .cg-face .cg-options { width: 100%; max-width: 34rem; margin-inline: auto; }
+.cg-face .cg-answer .cg-row, .cg-face .wk-actions { justify-content: center; }
+.cg-face .cg-option { justify-content: center; text-align: center; }
+.cg-face .cg-verdict { justify-items: center; }
+.cg-face .cg-explain { text-align: left; }
+.cg-expected { color: var(--wk-ok); font-weight: 600; }
+.cg-answer input.is-right { border-color: var(--wk-ok); background: var(--wk-free-bg); }
+.cg-answer input.is-near { border-color: var(--wk-held-line); background: var(--wk-held-bg); }
+.cg-answer input.is-wrong { border-color: var(--wk-danger); background: var(--wk-shut-bg); }
 .cg-prompt-media { display: grid; gap: 0.5rem; }
 .cg-answer { display: grid; gap: 0.5rem; }
 .cg-answer input[type="text"], .cg-answer textarea { font-size: var(--wk-text-md); padding: 0.5rem 0.5rem; }

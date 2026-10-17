@@ -183,6 +183,8 @@ interface Values {
   readonly text: (env: Env) => string;
   readonly show: (env: Env) => boolean;
   readonly reads: ReadonlySet<string>;
+  /** Was ein einzelner Wert liest (die Verschiebung einer Gruppe — nicht ihre Drehung). */
+  readonly keyReads: (key: Bindable) => readonly string[];
 }
 
 export class Builder {
@@ -250,7 +252,8 @@ export class Builder {
       },
       text: (env) => (exprs.text === undefined ? s.text : String(exprs.text.run(env))),
       show: (env) => (showExpr === null ? true : truth(showExpr.run(env))),
-      reads
+      reads,
+      keyReads: (key) => exprs[key]?.reads ?? []
     };
     this.values.set(s, made);
     return made;
@@ -336,7 +339,7 @@ export class Builder {
       const kids = this.list(t.kind.spec.shapes, place, scope, key);
       if (this.still) return <g key={key} className="lv-thing">{kids}</g>;
       /* Ein Ring um `x`, `y` des Dings (Welt) — mit dem Finger zu treffen, auch wenn die Belke dünn ist. */
-      const ring = this.add([], scope, (el, env) => {
+      const ring = this.add(['x', 'y', 'hit'], scope, (el, env) => {
         const pen = penOf(el);
         const [X, Y] = place.at(env, toNum(env.x ?? 0), toNum(env.y ?? 0));
         pen.attr(el, 'cx', round(X)); pen.attr(el, 'cy', round(Y));
@@ -639,7 +642,8 @@ export class Builder {
           anchor = () => [rect.x + rect.w / 2, rect.y + rect.h / 2];
         } else if (place.world) {
           /* In der Welt: eine Gruppe verschiebt ihre Teile um x, y (Welt) und dreht sie um diesen Punkt (gegen den Uhrzeiger, wie in der Mathematik). */
-          const inside = offsetPlace(place, (env) => v.num('x', env), (env) => v.num('y', env), [...v.reads]);
+          /* Die Teile darin hängen nur an der Verschiebung — dreht sich die Gruppe (ein Zahnrad), wird nur sie neu geschrieben. */
+          const inside = offsetPlace(place, (env) => v.num('x', env), (env) => v.num('y', env), [...v.keyReads('x'), ...v.keyReads('y')]);
           kids = this.inside(s, v, () => this.list(inner, inside, scope, `${key}.`));
           const k = this.add(reads, scope, (el, env) => {
             const pen = penOf(el);

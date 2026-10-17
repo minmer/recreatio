@@ -18,18 +18,20 @@ import type { Program } from './liveRun';
 import type { ControlSpec, PropSpec, VarSpec } from './liveModel';
 import { readShot, type WorldShot } from './liveWorld';
 
-/** Wie viele Stellen eine Zahl braucht — aus dem Schritt ihres Werts. */
+/** Wie viele Stellen eine Zahl braucht — so viele, wie ihr Schritt hat (0,25 → zwei, 0,5 → eine). */
 export function digitsOf(step: number | null, given: number | null): number {
   if (given !== null) return given;
   if (step === null) return 2;
-  return Math.max(0, Math.min(4, Math.ceil(-Math.log10(step) - 1e-9)));
+  for (let d = 0; d < 4; d += 1) if (Math.abs(step * 10 ** d - Math.round(step * 10 ** d)) < 1e-9) return d;
+  return 4;
 }
 
 /** Eine Zahl mit ihrer Einheit — Grad und Prozent ohne Abstand, wie im Polnischen. */
 export function withUnit(value: number, digits: number, unit: string): string {
   const n = fmt(value, digits);
   if (unit === '') return n;
-  return /^[°%′″]/.test(unit) ? `${n}${unit}` : `${n} ${unit}`;
+  /* Dazwischen ein fester Abstand (U+00A0): „9,81 m/s²" bricht nicht um. */
+  return /^[°%′″]/.test(unit) ? `${n}${unit}` : `${n} ${unit}`;
 }
 
 export function rangeOf(spec: VarSpec | undefined): { min: number; max: number; step: number } {

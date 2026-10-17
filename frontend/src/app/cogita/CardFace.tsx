@@ -98,8 +98,18 @@ function tapPair(was: Pairing, side: 'l' | 'r', at: number): Pairing {
   return { pairs: without((x, y) => (side === 'l' ? x === at : y === at)), pick: { side, at } };
 }
 
-export function AnswerInput({ card, disabled, onSubmit, autoFocus = true }: { card: Card; disabled?: boolean; onSubmit: (given: unknown) => void; autoFocus?: boolean }) {
+export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal }: {
+  card: Card;
+  disabled?: boolean;
+  onSubmit: (given: unknown) => void;
+  autoFocus?: boolean;
+  /** 2026-10-18 — nach der Antwort bleibt alles, wo es war: gesperrt, die richtigen grün, die falsch gewählten rot. */
+  reveal?: { readonly outcome: Outcome; readonly given: unknown };
+}) {
   const a = card.answer;
+  const shut = disabled === true || reveal !== undefined;
+  /* Grün, was richtig ist; rot, was gewählt und falsch ist. */
+  const mark = (right: boolean, chosen: boolean): string => (reveal === undefined ? '' : right ? ' is-right' : chosen ? ' is-wrong' : '');
   const [text, setText] = useState('');
   const [many, setMany] = useState<ReadonlySet<number>>(new Set());
   const [order, setOrder] = useState<readonly string[]>(a.form === 'order' ? a.shown : []);
@@ -117,7 +127,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true }: { ca
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card.key, card.fingerprint]);
 
-  const submit = (given: unknown) => { if (disabled !== true) onSubmit(given); };
+  const submit = (given: unknown) => { if (!shut) onSubmit(given); };
   const tap = (side: 'l' | 'r', at: number) => setPairing((was) => tapPair(was, side, at));
 
   switch (a.form) {
@@ -129,18 +139,18 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true }: { ca
         <form className="cg-answer" onSubmit={(e) => { e.preventDefault(); submit(text); }}>
           {a.form === 'gap' && <div className="cg-prompt">{a.shown}</div>}
           <div className="cg-row">
-            <input ref={field} type="text" inputMode={a.form === 'number' ? 'decimal' : undefined} value={text} disabled={disabled}
+            <input ref={field} type="text" className={reveal === undefined ? undefined : reveal.outcome.correct ? 'is-right' : reveal.outcome.correctness > 0.5 ? 'is-near' : 'is-wrong'} inputMode={a.form === 'number' ? 'decimal' : undefined} value={text} disabled={shut}
               placeholder={a.form === 'date' ? 'np. 1410, 15 lipca 1410, 1410-07-15' : a.form === 'number' ? 'liczba' : 'odpowiedź'}
               aria-label="Odpowiedź" onChange={(e) => setText(e.target.value)} autoComplete="off" autoCapitalize="off" spellCheck={false} />
             {a.form === 'number' && a.unit !== '' && <span>{a.unit}</span>}
-            <button type="submit" className="wk-btn" disabled={disabled}>Sprawdź</button>
+            <button type="submit" className="wk-btn" disabled={shut}>Sprawdź</button>
           </div>
         </form>
       );
     case 'one':
       return (
         <div className="cg-options" role="radiogroup">
-          {a.options.map((o, i) => <button key={i} type="button" className="cg-option" disabled={disabled} onClick={() => submit(i)}>{o}</button>)}
+          {a.options.map((o, i) => <button key={i} type="button" className={`cg-option${mark(i === a.correct, reveal?.given === i)}`} disabled={shut} onClick={() => submit(i)}>{o}</button>)}
         </div>
       );
     case 'many':
@@ -148,20 +158,20 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true }: { ca
         <div className="cg-answer">
           <div className="cg-options">
             {a.options.map((o, i) => (
-              <button key={i} type="button" className={`cg-option${many.has(i) ? ' is-on' : ''}`} aria-pressed={many.has(i)} disabled={disabled}
+              <button key={i} type="button" className={`cg-option${reveal === undefined ? (many.has(i) ? ' is-on' : '') : mark(a.correct.includes(i), many.has(i))}`} aria-pressed={many.has(i)} disabled={shut}
                 onClick={() => setMany((was) => { const next = new Set(was); if (next.has(i)) next.delete(i); else next.add(i); return next; })}>
                 <span aria-hidden>{many.has(i) ? '☑' : '☐'}</span> {o}
               </button>
             ))}
           </div>
-          <button type="button" className="wk-btn" disabled={disabled} onClick={() => submit([...many].sort((x, y) => x - y))}>Sprawdź</button>
+          <button type="button" className="wk-btn" disabled={shut} onClick={() => submit([...many].sort((x, y) => x - y))}>Sprawdź</button>
         </div>
       );
     case 'truefalse':
       return (
         <div className="cg-row">
-          <button type="button" className="cg-option" disabled={disabled} onClick={() => submit(true)}>Prawda</button>
-          <button type="button" className="cg-option" disabled={disabled} onClick={() => submit(false)}>Fałsz</button>
+          <button type="button" className={`cg-option${mark(a.value, reveal?.given === true)}`} disabled={shut} onClick={() => submit(true)}>Prawda</button>
+          <button type="button" className={`cg-option${mark(!a.value, reveal?.given === false)}`} disabled={shut} onClick={() => submit(false)}>Fałsz</button>
         </div>
       );
     case 'order':
@@ -171,12 +181,12 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true }: { ca
             {order.map((item, i) => (
               <li key={`${item}-${i}`}>
                 <span>{item}</span>
-                <button type="button" className="wk-link-btn" aria-label="Wyżej" disabled={disabled || i === 0} onClick={() => setOrder((was) => { const n = [...was]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n; })}>↑</button>
-                <button type="button" className="wk-link-btn" aria-label="Niżej" disabled={disabled || i === order.length - 1} onClick={() => setOrder((was) => { const n = [...was]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; return n; })}>↓</button>
+                <button type="button" className="wk-link-btn" aria-label="Wyżej" disabled={shut || i === 0} onClick={() => setOrder((was) => { const n = [...was]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n; })}>↑</button>
+                <button type="button" className="wk-link-btn" aria-label="Niżej" disabled={shut || i === order.length - 1} onClick={() => setOrder((was) => { const n = [...was]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; return n; })}>↓</button>
               </li>
             ))}
           </ol>
-          <button type="button" className="wk-btn" disabled={disabled} onClick={() => submit(order)}>Sprawdź</button>
+          <button type="button" className="wk-btn" disabled={shut} onClick={() => submit(order)}>Sprawdź</button>
         </div>
       );
     case 'match': {
@@ -188,7 +198,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true }: { ca
         const on = pick?.side === side && pick.at === at;
         const n = paired === undefined ? 0 : lefts.indexOf(paired) + 1;
         return (
-          <button key={at} type="button" className={`cg-option${on ? ' is-on' : ''}${n > 0 ? ' is-paired' : ''}`} aria-pressed={on} disabled={disabled}
+          <button key={at} type="button" className={`cg-option${reveal !== undefined ? mark(paired !== undefined && a.pairs.some(([x, y]) => x === paired && y === pairs[paired]), paired !== undefined) : `${on ? ' is-on' : ''}${n > 0 ? ' is-paired' : ''}`}`} aria-pressed={on} disabled={shut}
             aria-label={n > 0 ? `${text} — para ${n}` : text} onClick={() => tap(side, at)}>
             {n > 0 && <span className="cg-match-n" aria-hidden>{n}</span>}{text}
           </button>
@@ -201,7 +211,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true }: { ca
             <div className="cg-match-side">{a.left.map((l, i) => item('l', i, l, pairs[i] === undefined ? undefined : i))}</div>
             <div className="cg-match-side">{a.right.map((r, j) => item('r', j, r, leftOf(j)))}</div>
           </div>
-          <button type="button" className="wk-btn" disabled={disabled || lefts.length === 0} onClick={() => submit(lefts.map((l) => [l, pairs[l]]))}>
+          <button type="button" className="wk-btn" disabled={shut || lefts.length === 0} onClick={() => submit(lefts.map((l) => [l, pairs[l]]))}>
             Sprawdź{lefts.length > 0 && lefts.length < a.left.length ? ` (${lefts.length} z ${a.left.length})` : ''}
           </button>
         </div>
@@ -212,20 +222,20 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true }: { ca
         <div className="cg-answer">
           <div className="cg-flash-back">{a.back.map((b, i) => <p key={i}><Markup text={b} /></p>)}</div>
           <div className="cg-row">
-            <button type="button" className="cg-option is-right" disabled={disabled} onClick={() => submit('knew')}>Umiałem</button>
-            <button type="button" className="cg-option" disabled={disabled} onClick={() => submit('partly')}>Częściowo</button>
-            <button type="button" className="cg-option is-wrong" disabled={disabled} onClick={() => submit('not')}>Nie umiałem</button>
+            <button type="button" className="cg-option is-right" disabled={shut} onClick={() => submit('knew')}>Umiałem</button>
+            <button type="button" className="cg-option" disabled={shut} onClick={() => submit('partly')}>Częściowo</button>
+            <button type="button" className="cg-option is-wrong" disabled={shut} onClick={() => submit('not')}>Nie umiałem</button>
           </div>
         </div>
       ) : (
-        <button type="button" className="wk-btn" disabled={disabled} onClick={() => setFlipped(true)}>Pokaż odpowiedź</button>
+        <button type="button" className="wk-btn" disabled={shut} onClick={() => setFlipped(true)}>Pokaż odpowiedź</button>
       );
     case 'code':
       return (
         <div className="cg-answer">
           {a.task !== '' && <Markup text={a.task} />}
-          <textarea className="cg-code" spellCheck={false} value={code} disabled={disabled || running} onChange={(e) => setCode(e.target.value)} aria-label="Kod" />
-          <button type="button" className="wk-btn" disabled={disabled || running} onClick={() => {
+          <textarea className="cg-code" spellCheck={false} value={code} disabled={shut || running} onChange={(e) => setCode(e.target.value)} aria-label="Kod" />
+          <button type="button" className="wk-btn" disabled={shut || running} onClick={() => {
             setRunning(true);
             void evaluateCode({ createInput: a.createInput, reference: a.reference, learner: code, cases: a.cases, seed: Date.now() % 100000 })
               .then((v) => submit({ passed: v.passed, total: v.total, status: v.status, error: v.error ?? null }))
@@ -239,26 +249,30 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true }: { ca
           {a.on === 'map' ? (
             <GeoMap zoom={6} center={{ lat: 51.9, lon: 19.1 }} marks={point === null ? [] : [{ ...point, kind: 'pin' }]} onPick={disabled ? undefined : setPoint} />
           ) : <p className="wk-hint">Wskaż punkt na obrazie pytania.</p>}
-          <button type="button" className="wk-btn" disabled={disabled || point === null} onClick={() => submit(point)}>Sprawdź</button>
+          <button type="button" className="wk-btn" disabled={shut || point === null} onClick={() => submit(point)}>Sprawdź</button>
         </div>
       );
     case 'interactive':
-      return <InteractiveAnswer card={card} disabled={disabled} onSubmit={submit} />;
+      return <InteractiveAnswer card={card} disabled={shut} onSubmit={submit} />;
   }
 }
 
 /* -- Was richtig war ------------------------------------------------------------------------- */
 
-export function Verdict({ card, outcome, given, lib, onEntity, extra }: {
+export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven = true }: {
   card: Card;
   outcome: Outcome;
   given: unknown;
+  /** Die eigene Antwort noch einmal nennen — nicht, wo sie ohnehin sichtbar stehen bleibt. */
+  showGiven?: boolean;
   lib?: CogitaLibrary;
   onEntity?: (id: string) => void;
   extra?: ReactNode;
 }) {
   const level = outcome.correct ? 'is-right' : outcome.correctness > 0.5 ? 'is-near' : 'is-wrong';
   const expected = outcome.expected ?? answerText(card);
+  const a = card.answer;
+  const others = a.form === 'text' || a.form === 'gap' ? a.accepted.filter((x) => x.trim().toLowerCase() !== expected.trim().toLowerCase()) : [];
   const explain = (lib === undefined ? [] : card.explain.map((id) => lib.entity(id)).filter((e): e is Entity => e !== undefined));
   /* 0109 — ohne Bibliothek (eine öffentliche Seite): die Erklärungen, die das Bündel mitbringt. */
   const shown = useContext(PublicContext);
@@ -266,7 +280,11 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra }: {
   return (
     <div className={`cg-verdict ${level}`} role="status">
       <strong>{outcome.correct ? 'Dobrze!' : outcome.correctness > 0.5 ? `Prawie (${percent(outcome.correctness)})` : outcome.answered ? 'Niestety nie.' : 'Bez odpowiedzi.'}</strong>
-      {!outcome.correct && <span>Poprawnie: <strong>{expected}</strong>{givenText(card, given) !== '' ? <> · Twoja odpowiedź: {givenText(card, given)}</> : null}</span>}
+      {/* Die richtige Antwort steht immer da, grün — auch nach einem Treffer, samt der anderen, die auch gelten. */}
+      <span>Poprawnie: <strong className="cg-expected">{expected}</strong>
+        {others.length > 0 && <> · także: <span className="cg-expected">{others.join(', ')}</span></>}
+        {showGiven && !outcome.correct && givenText(card, given) !== '' ? <> · Twoja odpowiedź: {givenText(card, given)}</> : null}
+      </span>
       {outcome.mask !== undefined && !outcome.correct && (
         <span className="cg-diff" aria-label="Porównanie znak po znaku">
           {spansOf(expected, outcome.mask).map((s, i) => <span key={i} className={`is-${s.level}`}>{s.text}</span>)}
@@ -347,15 +365,15 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel = 'Dal
     <section className="cg-face" aria-live="polite">
       {head}
       <CardPrompt parts={card.prompt} />
-      {done === null ? (
-        <AnswerInput card={card} onSubmit={(given) => {
-          const outcome = checkCard(card, given, rule);
-          setDone({ outcome, given });
-          onAnswered(outcome, given, Date.now() - started);
-        }} />
-      ) : (
+      {/* Die Antwort bleibt, wo sie war — darunter erscheint nur das Urteil. */}
+      <AnswerInput card={card} {...(done === null ? {} : { reveal: done })} onSubmit={(given) => {
+        const outcome = checkCard(card, given, rule);
+        setDone({ outcome, given });
+        onAnswered(outcome, given, Date.now() - started);
+      }} />
+      {done !== null && (
         <>
-          <Verdict card={card} outcome={done.outcome} given={done.given} lib={lib} onEntity={onEntity} />
+          <Verdict card={card} outcome={done.outcome} given={done.given} lib={lib} onEntity={onEntity} showGiven={false} />
           {onNext !== undefined && <div className="wk-actions"><button type="button" className="wk-btn" autoFocus onClick={onNext}>{nextLabel}</button></div>}
         </>
       )}
