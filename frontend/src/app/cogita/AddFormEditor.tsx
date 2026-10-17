@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import ReactFlow, {
   Background, Controls, Handle, Position,
+  useReactFlow, useStore,
   type Connection, type Edge, type EdgeChange, type Node, type NodeChange, type NodeProps
 } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -25,12 +26,13 @@ import { MenuButton } from '../ui/Menu';
 import {
   addFormDoc, COLUMN_SEPARATOR_LABEL, COLUMN_SEPARATORS, DEFAULT_KEYS, DEFAULT_PASTE, defaultTyped, describeForm, designOrder, duplicateEntry, entryConfig,
   fieldsSet, formFromKind, formPalette, formProblems, identityOf, isTypeable, KEY_ACTION_LABEL, KEY_ACTIONS, KEY_NAMES, nodeLabel,
-  pickConfig, readAddForm, refFields, SOURCE_LABEL, VALUE_SEPARATOR_LABEL, VALUE_SEPARATORS,
+  pickConfig, readAddForm, refFields, SOURCE_LABEL, typedFields, VALUE_SEPARATOR_LABEL, VALUE_SEPARATORS,
   type AddForm, type FieldSource, type SourceMode
 } from './addForm';
 import { ValueInput } from './AddFormRun';
 import { connect, problemsOf as graphProblems, wouldCycle, type Graph, type GraphNode } from './graph';
-import { FIELD_TYPE_LABEL, type FieldDef, type KindDef } from './schema';
+import { Remeasure } from './GraphEditor';
+import { FIELD_TYPE_LABEL, type FieldDef, type KindDef, type Lookup } from './schema';
 import { EntityPicker, entityName, useBusy, useCtx } from './ui';
 
 /* -- Die Liste und ein neues Formular ------------------------------------------------------------- */
@@ -263,6 +265,25 @@ function FormNodeView({ data, selected }: NodeProps<FormNodeData>) {
 
 const NODE_TYPES = { af: FormNodeView };
 
+/*
+  Das ganze Formular im Blick: sobald alle Knoten ihre Grösse haben — am Anfang
+  und nachdem einer dazukam („kolejny taki“). `fitView` allein passt nur beim
+  ersten Zeichnen an, und da hatten noch nicht alle Knoten ihre Grösse.
+*/
+function FitWhenMeasured() {
+  const { fitView } = useReactFlow();
+  const measured = useStore((s) => {
+    const all = [...s.nodeInternals.values()];
+    return all.length > 0 && all.every((n) => !!n.width && !!n.height) ? all.length : 0;
+  });
+  useEffect(() => {
+    if (measured === 0) return undefined;
+    const later = window.setTimeout(() => fitView({ padding: 0.12, duration: 200 }), 30);
+    return () => window.clearTimeout(later);
+  }, [measured, fitView]);
+  return null;
+}
+
 function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
   form: AddForm;
   readOnly: boolean;
@@ -273,6 +294,8 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
 }) {
   const { lib } = useCtx();
   const [moving, setMoving] = useState<Readonly<Record<string, { x: number; y: number }>>>({});
+  /* Die gemessene Grösse bleibt am Knoten: sonst vergisst React Flow sie bei jedem Zeichnen (jedem Buchstaben in einem Modul darunter) und blendet ihn kurz aus. */
+  const [sizes, setSizes] = useState<Readonly<Record<string, { width: number; height: number }>>>({});
   const graph = form.graph;
 
   const nodes: Node<FormNodeData>[] = graph.nodes.map((n) => {
@@ -281,7 +304,7 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
       const c = pickConfig(n.config);
       const kinds = c.kinds.map((k) => lib.kind(k)?.name ?? k).join(' / ') || 'dowolny rodzaj';
       return {
-        id: n.id, type: 'af', position, selected: chosen === n.id,
+        id: n.id, type: 'af', position, selected: chosen === n.id, ...sizes[n.id],
         data: {
           title: `Na początek: ${nodeLabel(n, lib.look, graph)}`,
           sub: [kinds, c.many ? 'kilka' : '', c.optional ? 'można pominąć' : 'trzeba wybrać'].filter(Boolean).join(' · '),
@@ -303,7 +326,7 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
         : { key: f.key, text: `= ${f.label}: ${source.value ?? ''}`, tone: 'fixed' });
     }
     return {
-      id: n.id, type: 'af', position, selected: chosen === n.id,
+      id: n.id, type: 'af', position, selected: chosen === n.id, ...sizes[n.id],
       data: {
         title: nodeLabel(n, lib.look, graph),
         sub: [kind?.name ?? 'wybierz rodzaj', c.many ? 'kilka w wierszu' : '', c.reuse === 'never' ? 'zawsze nowy' : '', empty > 0 ? `${empty} pól pustych` : ''].filter(Boolean).join(' · '),
@@ -321,6 +344,10 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
         setMoving((was) => ({ ...was, [id]: { x: Math.round(position.x), y: Math.round(position.y) } }));
       }
       if (ch.type === 'remove' && !readOnly) onGraph(without(graph, ch.id));
+      if (ch.type === 'dimensions' && ch.dimensions !== undefined) {
+        const { id, dimensions } = ch;
+        setSizes((was) => (was[id]?.width === dimensions.width && was[id]?.height === dimensions.height ? was : { ...was, [id]: { width: dimensions.width, height: dimensions.height } }));
+      }
     }
     /* Wählen: ein neuer Knoten gewinnt, gleich in welcher Reihenfolge das Abwählen des alten kommt. */
     const selecting = changes.filter((ch) => ch.type === 'select');
@@ -355,12 +382,15 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
         nodesConnectable={!readOnly}
         nodesDraggable={!readOnly}
         fitView
+        fitViewOptions={{ padding: 0.12 }}
         /* Ein Formular ist breit (Wahlen, Zeilen, Verbindendes): auf dem Telefon passt es erst kleiner ganz hinein. */
         minZoom={0.2}
         proOptions={{ hideAttribution: true }}
       >
         <Background />
         <Controls showInteractive={false} />
+        <Remeasure />
+        <FitWhenMeasured />
       </ReactFlow>
     </div>
   );
@@ -368,8 +398,16 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
 
 /* -- Die Werkzeuge über der Leinwand ------------------------------------------------------------------ */
 
+/** Ein Eintrag, den man tippt (ein Wort) — nur von ihm gibt es „noch einen", und nur er nimmt mehrere in einer Zeile. */
+const typedIn = (node: GraphNode, look: Pick<Lookup, 'kind'>): boolean => {
+  if (node.type !== 'entry') return false;
+  const c = entryConfig(node.config);
+  return typedFields(look.kind(c.kind), c).length > 0;
+};
+
 function FormTools({ form, chosen, onAdd, onDuplicate }: { form: AddForm; chosen: GraphNode | undefined; onAdd: (node: GraphNode) => void; onDuplicate: (id: string) => void }) {
   const { lib } = useCtx();
+  const typedHere = (n: GraphNode) => typedIn(n, lib.look);
   const low = (x: number) => Math.max(0, ...form.graph.nodes.filter((n) => Math.abs(n.x - x) < 150).map((n) => n.y + 160));
   /* Ein neuer Eintrag kommt in die Spalte der getippten (dort, wo die Wörter stehen) — sonst in die Mitte. */
   const column = Math.min(...form.graph.nodes.filter((n) => n.type === 'entry').map((n) => n.x), 340);
@@ -378,7 +416,7 @@ function FormTools({ form, chosen, onAdd, onDuplicate }: { form: AddForm; chosen
       <button type="button" className="wk-btn wk-btn-quiet" onClick={() => onAdd(pickNode(0, low(0), undefined, [], false))}><Icon name="plus" />Na początek</button>
       <MenuButton label="Dodaj wpis, który powstaje z każdego wiersza" text="W każdym wierszu" icon="plus"
         items={lib.kinds.map((k) => ({ label: k.name, onSelect: () => onAdd(entryNode(k, column, low(column))) }))} />
-      {chosen?.type === 'entry' && (
+      {chosen !== undefined && typedHere(chosen) && (
         <button type="button" className="wk-btn wk-btn-quiet" onClick={() => onDuplicate(chosen.id)}><Icon name="copy" />Kolejny taki jak „{nodeLabel(chosen, lib.look, form.graph)}”</button>
       )}
       <span className="cg-muted">Połącz kropkę wpisu (z prawej) z kropką pola (z lewej) — albo ustaw to niżej.</span>
@@ -398,6 +436,8 @@ function FormModules({ form, chosen, readOnly, onChoose, onGraph, wire, onDuplic
   onDuplicate: (id: string) => void;
   onRemove: (id: string) => void;
 }) {
+  const { lib } = useCtx();
+  const typedHere = (n: GraphNode) => typedIn(n, lib.look);
   const { picks, entries } = designOrder(form);
   /* Wer auf der Leinwand einen Knoten wählt, sieht sein Modul — ohne dass die Seite springt, wenn es schon zu sehen ist. */
   useEffect(() => {
@@ -411,7 +451,7 @@ function FormModules({ form, chosen, readOnly, onChoose, onGraph, wire, onDuplic
           <h3>W każdym wierszu</h3>
           <div className="cg-af-modules">
             {entries.map((n) => (
-              <ModuleCard key={n.id} form={form} node={n} on={chosen === n.id} readOnly={readOnly} onChoose={onChoose} onRemove={onRemove} onDuplicate={() => onDuplicate(n.id)}>
+              <ModuleCard key={n.id} form={form} node={n} on={chosen === n.id} readOnly={readOnly} onChoose={onChoose} onRemove={onRemove} onDuplicate={typedHere(n) ? () => onDuplicate(n.id) : undefined}>
                 <EntryPanel form={form} node={n} readOnly={readOnly} onGraph={onGraph} wire={wire} onChoose={onChoose} />
               </ModuleCard>
             ))}
@@ -507,7 +547,7 @@ function EntryPanel({ form, node, readOnly, onGraph, wire, onChoose }: {
       <label className="wk-field"><span>Nazwa w formularzu</span>
         <input value={c.label ?? ''} disabled={readOnly} placeholder={kind?.name ?? ''} onChange={(e) => setConfig({ label: e.target.value.trim() === '' ? undefined : e.target.value })} />
       </label>
-      <label className="pe-check"><input type="checkbox" checked={c.many} disabled={readOnly} onChange={(e) => setConfig({ many: e.target.checked })} /><span>Kilka w jednym wierszu (np. dwa słowa o tym samym znaczeniu)</span></label>
+      {typedFields(kind, c).length > 0 && <label className="pe-check"><input type="checkbox" checked={c.many} disabled={readOnly} onChange={(e) => setConfig({ many: e.target.checked })} /><span>Kilka w jednym wierszu (np. dwa słowa o tym samym znaczeniu)</span></label>}
 
       {kind !== undefined && (
         <fieldset className="cg-af-fields"><legend>Pola</legend>

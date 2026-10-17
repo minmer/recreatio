@@ -1022,8 +1022,10 @@ export function duplicateEntry(graph: Graph, nodeId: string, look: Pick<Lookup, 
     const pickId = makeId();
     const named = pickConfig(from.config).label;
     const taken = nodes.filter((n) => n.type === 'pick').map((n) => nodeLabel(n, look, { nodes, edges }));
+    /* Gleich unter die Wahl, die er abschreibt — die Wahlen darunter rücken nach: oben beim Ausfüllen steht die neue Sprache bei den anderen. */
+    for (let i = 0; i < nodes.length; i += 1) if (nodes[i].type === 'pick' && nodes[i].y > from.y) nodes[i] = { ...nodes[i], y: nodes[i].y + 110 };
     nodes.push({
-      ...from, id: pickId, y: Math.max(0, ...nodes.filter((n) => n.type === 'pick').map((n) => n.y)) + 110,
+      ...from, id: pickId, y: from.y + 110,
       config: { ...from.config, value: [], ...(named === undefined ? {} : { label: nextLabel(named, taken) }) }
     });
     edges.push({ id: makeId(), from: pickId, out: 'out', to: id, in: e.in });

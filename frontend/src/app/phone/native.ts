@@ -21,6 +21,8 @@ export interface NativeThread {
   readonly threadId: string;
   /** Die anderen in diesem Gespräch — so, wie das Telefon sie kennt. */
   readonly addresses: readonly string[];
+  /** Ihre Namen aus dem Adressbuch des Telefons, Stelle für Stelle — `null`, wo es keinen gibt. */
+  readonly names: readonly (string | null)[];
   readonly snippet: string;
   /** Millisekunden. */
   readonly date: number;
@@ -84,6 +86,16 @@ export interface PhoneStatus {
   readonly written: number;
   readonly contactsSyncedAt: number | null;
   readonly archivedAt: number | null;
+  /** Google Messages ist installiert — mit Czat (RCS) kommen manche Nachrichten dort an, nicht hier. */
+  readonly otherSms: boolean;
+}
+
+/** Eine Seite eines Gesprächs: die Nachrichten, wer darin ist, und wie sie im Adressbuch heissen. */
+export interface ThreadPage {
+  readonly messages: NativeMessage[];
+  readonly more: boolean;
+  readonly peers: string[];
+  readonly names: Record<string, string>;
 }
 
 /** Ein Kontakt aus dem Adressbuch des Telefons (ohne die von recreatio geschriebenen). */
@@ -142,7 +154,7 @@ interface PhonePluginApi {
   requestPhoneState(): Promise<{ granted: boolean }>;
   openSettings(): Promise<void>;
   threads(o: { limit?: number }): Promise<{ threads: NativeThread[] }>;
-  messages(o: { threadId: string; before?: number; limit?: number }): Promise<{ messages: NativeMessage[]; more: boolean }>;
+  messages(o: { threadId: string; before?: number; limit?: number }): Promise<ThreadPage>;
   part(o: { partId: string; maxBytes?: number }): Promise<{ type: string; data: string }>;
   send(o: SendRequest): Promise<{ threadId: string }>;
   threadOf(o: { addresses: readonly string[] }): Promise<{ threadId: string }>;
@@ -151,6 +163,8 @@ interface PhonePluginApi {
   remove(o: { id: string }): Promise<{ removed: boolean }>;
   /** Eine angekündigte MMS noch einmal laden. */
   retryMms(o: { id: string }): Promise<{ started: boolean }>;
+  /** „Sprawdź nowe wiadomości": angekündigte MMS noch einmal laden; ist die App (noch) die SMS-App? */
+  recheck(): Promise<{ defaultSms: boolean; otherSms: boolean; mmsRetried: number }>;
   /** Die Kontakte gleich im Hintergrund ins Adressbuch (der Läufer). */
   contactsSoon(): Promise<void>;
   /** Kontakte nur im Gerät (ohne Konto), die schon in recreatio sind, aus dem Gerät entfernen — `keys` wie `lookupKey`. */

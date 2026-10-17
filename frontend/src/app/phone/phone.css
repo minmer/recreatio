@@ -20,6 +20,26 @@
 .ph-search { display: flex; gap: var(--wk-space-2); margin-bottom: var(--wk-space-3); }
 .ph-search input { flex: 1; min-width: 0; }
 
+/* Die Liste der SMS: Art der Suche, Feld, „Nowa", „⋯" — klebt unter der Kopfleiste (`--ph-top`, gemessen). */
+.ph-bar {
+  position: sticky;
+  top: var(--ph-top, var(--wk-bar-h));
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--wk-space-2);
+  margin: 0 calc(-1 * var(--wk-space-2)) var(--wk-space-2);
+  padding: var(--wk-space-2);
+  background: var(--wk-ground);
+  border-bottom: 1px solid var(--wk-line);
+}
+.ph-bar select { flex: none; width: auto; max-width: 8.5rem; }
+.ph-bar input { flex: 1 1 auto; min-width: 0; }
+.ph-bar .wk-btn, .ph-bar .wk-icon-btn { flex: none; }
+@media (max-width: 26rem) {
+  .ph-bar-new span { display: none; }
+}
+
 /* -- Die Liste der Gespräche ---------------------------------------------- */
 .ph-list { list-style: none; margin: 0; padding: 0; display: grid; }
 .ph-row {
@@ -67,11 +87,27 @@
 :root[data-theme="dark"] .ph-avatar { background: hsl(var(--ph-h, 30) 30% 26%); color: hsl(var(--ph-h, 30) 45% 86%); }
 
 /* -- Ein Gespräch --------------------------------------------------------------- */
-.ph-thread { display: grid; gap: var(--wk-space-2); padding-bottom: var(--wk-space-2); }
-.ph-thread-head { display: flex; align-items: center; gap: var(--wk-space-3); flex-wrap: wrap; }
-.ph-thread-head .ph-thread-title { display: grid; min-width: 0; flex: 1; }
-.ph-thread-head .wk-h1 { margin: 0; overflow-wrap: anywhere; }
-.ph-thread-sub { color: var(--wk-muted); font-size: var(--wk-text-sm); }
+
+/*
+ * Es füllt das Fenster unter der Kopfleiste: der Kopf steht, nur die Nachrichten rollen,
+ * das Schreibfeld liegt unten. Kein Rand unter dem Schreibfeld (den hält der Arbeitsplatz
+ * sonst für die Leiste des Telefons frei, die hier verschwindet).
+ */
+.wk-app .wk-main:has(.ph-thread) { padding-top: var(--wk-space-2); padding-bottom: 0; }
+.ph-thread {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: calc(100vh - var(--ph-top, var(--wk-bar-h)) - var(--wk-space-2));
+  height: calc(100dvh - var(--ph-top, var(--wk-bar-h)) - var(--wk-space-2));
+  min-height: 18rem;
+}
+.ph-thread-head { display: flex; align-items: center; gap: var(--wk-space-2); min-width: 0; padding-bottom: var(--wk-space-2); border-bottom: 1px solid var(--wk-line); }
+.ph-thread-title { display: grid; min-width: 0; flex: 1; }
+.ph-thread-name { margin: 0; font-size: var(--wk-text-md); font-weight: 700; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ph-thread-sub { color: var(--wk-muted); font-size: var(--wk-text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ph-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+/* Wenige Nachrichten stehen unten, am Schreibfeld — viele rollen ganz normal. */
+.ph-scroll-inner { min-height: 100%; display: grid; align-content: end; gap: var(--wk-space-2); padding: var(--wk-space-2) 0; box-sizing: border-box; }
 .ph-day { justify-self: center; margin: var(--wk-space-2) 0; padding: 0 var(--wk-space-2); color: var(--wk-muted); font-size: var(--wk-text-xs); font-weight: 600; }
 .ph-msg {
   max-width: min(82%, 36rem);
@@ -117,6 +153,7 @@
 .ph-attached { display: flex; align-items: center; gap: var(--wk-space-2); }
 .ph-attached img { width: 3.5rem; height: 3.5rem; object-fit: cover; border-radius: var(--wk-radius-sm); }
 .ph-attach-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.ph-thread .ph-composer { position: static; }
 @media (max-width: 63.99rem) {
   .wk-root:has(.ph-thread) .wk-phone-bar { display: none; }
 }

@@ -8,9 +8,9 @@
  * Leiste über Listen.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ReactFlow, {
-  Background, Controls, Handle, Position,
+  Background, Controls, Handle, Position, useStore, useUpdateNodeInternals,
   type Connection, type Edge, type EdgeChange, type Node, type NodeChange, type NodeProps
 } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -63,6 +63,26 @@ function GraphNodeView({ data, selected }: NodeProps<NodeData>) {
 }
 
 const NODE_TYPES = { cg: GraphNodeView };
+
+/*
+  2026-10-17 — KNOTEN, DIE NIE VERMESSEN WURDEN. React Flow zeigt einen Knoten
+  erst, wenn es seine Grösse kennt; gemessen wird, wenn der ResizeObserver
+  meldet. Kommt die erste Meldung, bevor die Leinwand bereit ist, verfällt sie
+  — und weil sich die Grösse danach nicht mehr ändert, kommt keine zweite: die
+  Knoten bleiben unsichtbar und mit ihnen die Kanten (gesehen beim Formularz
+  dodawania, gleich nach „Z rodzaju"). Dieses Kind der Leinwand misst nach,
+  was ohne Grösse dasteht.
+*/
+export function Remeasure() {
+  const update = useUpdateNodeInternals();
+  const pending = useStore((s) => [...s.nodeInternals.values()].filter((n) => !n.width || !n.height).map((n) => n.id).join(','));
+  useEffect(() => {
+    if (pending === '') return undefined;
+    const later = window.setTimeout(() => update(pending.split(',')), 60);
+    return () => window.clearTimeout(later);
+  }, [pending, update]);
+  return null;
+}
 
 export interface GraphEditorProps<C> {
   readonly graph: Graph;
@@ -183,6 +203,7 @@ export function GraphEditor<C>({ graph, palette, onChange, cycles = false, field
         >
           <Background />
           <Controls showInteractive={false} />
+          <Remeasure />
         </ReactFlow>
       </div>
       <aside className="cg-graph-side">

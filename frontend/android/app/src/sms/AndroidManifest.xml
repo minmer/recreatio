@@ -21,6 +21,11 @@
 
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
+    <!-- Ob Google Messages da ist: mit Czat (RCS) kommen manche Nachrichten dort an und nicht hier (PhonePlugin.recheck). -->
+    <queries>
+        <package android:name="com.google.android.apps.messaging" />
+    </queries>
+
     <application>
 
         <receiver android:name=".SmsReceiver" android:exported="true" android:permission="android.permission.BROADCAST_SMS">

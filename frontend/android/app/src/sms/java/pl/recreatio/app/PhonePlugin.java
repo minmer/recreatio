@@ -30,20 +30,27 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * DAS TELEFON FÜR DIE SEITE (Ausgabe „sms", 2026-10-17) — `phone/native.ts`.
  *
  * <code>
  *   status, requestDefault, requestContacts, requestPhoneState, openSettings
- *   threads, messages, part, search, lookup, markRead, viewing, remove, retryMms
+ *   threads, messages, part, search, lookup, markRead, viewing, remove, retryMms, recheck
  *   send, threadOf
- *   contacts, writeContacts, contactsSoon
+ *   contacts, writeContacts, dropLocal, contactsSoon
  *   exportMessages, archiveMarkers, setArchiveMarkers
  * </code>
  *
  * <p>Was ankommt, meldet {@link #changed} der offenen Seite ({@code smsChanged}) —
  * das Gespräch auf dem Bildschirm steht dann gleich da.</p>
+ *
+ * <p><b>Drei eigene Fäden.</b> Capacitor ruft alle Bausteine nacheinander auf EINEM
+ * Faden auf; ein langer Auftrag (das Archiv liest Tausende Nachrichten, das Adressbuch
+ * schreibt Hunderte Kontakte) hielte sonst jedes Gespräch auf, das man öffnet. Lesen
+ * für den Bildschirm, Dateien und Suche, Archiv und Adressbuch laufen deshalb getrennt.</p>
  */
 @CapacitorPlugin(
     name = "Phone",
@@ -56,6 +63,29 @@ public class PhonePlugin extends Plugin {
 
     private static volatile PhonePlugin instance;
     private static volatile long viewing = -1;
+
+    /** Was der Bildschirm gerade braucht: Gespräche, Nachrichten, Namen, Senden. */
+    private static final ExecutorService SCREEN = Executors.newSingleThreadExecutor();
+    /** Bilder aus MMS und die Suche im Text — dürfen dauern, ohne den Bildschirm aufzuhalten. */
+    private static final ExecutorService FILES = Executors.newSingleThreadExecutor();
+    /** Archiv und Adressbuch — lange Läufe. */
+    private static final ExecutorService WORK = Executors.newSingleThreadExecutor();
+
+    private interface Job {
+        JSObject run() throws Exception;
+    }
+
+    /** Auf einem eigenen Faden ausführen und dort beantworten ({@code null}: ohne Inhalt). */
+    private void on(ExecutorService pool, PluginCall call, Job job) {
+        pool.execute(() -> {
+            try {
+                JSObject out = job.run();
+                if (out == null) call.resolve(); else call.resolve(out);
+            } catch (Exception e) {
+                fail(call, e);
+            }
+        });
+    }
 
     @Override
     public void load() {
@@ -150,9 +180,22 @@ public class PhonePlugin extends Plugin {
                     .put("defaultSubId", sub >= 0 ? sub : JSONObject.NULL)
                     .put("written", contacts.optInt("written", 0))
                     .put("contactsSyncedAt", contacts.opt("syncedAt"))
-                    .put("archivedAt", archived > 0 ? archived : JSONObject.NULL)));
+                    .put("archivedAt", archived > 0 ? archived : JSONObject.NULL)
+                    .put("otherSms", installed(GOOGLE_MESSAGES))));
         } catch (Exception e) {
             fail(call, e);
+        }
+    }
+
+    /** Google Messages: mit Czat (RCS) kommen Nachrichten von RCS-Nutzern dort an — nicht als SMS, also nicht hier. */
+    private static final String GOOGLE_MESSAGES = "com.google.android.apps.messaging";
+
+    private boolean installed(String pkg) {
+        try {
+            context().getPackageManager().getPackageInfo(pkg, 0);
+            return true;
+        } catch (Exception e) {
+            return false;
         }
     }
 
@@ -239,68 +282,66 @@ public class PhonePlugin extends Plugin {
 
     @PluginMethod
     public void threads(PluginCall call) {
-        try {
-            int limit = Math.max(1, Math.min(2000, call.getData().optInt("limit", 500)));
-            call.resolve(js(new JSONObject().put("threads", SmsStore.threads(context(), limit))));
-        } catch (Exception e) {
-            fail(call, e);
-        }
+        int limit = Math.max(1, Math.min(2000, call.getData().optInt("limit", 500)));
+        on(SCREEN, call, () -> js(new JSONObject().put("threads", SmsStore.threads(context(), limit))));
     }
 
     @PluginMethod
     public void messages(PluginCall call) {
-        try {
-            JSObject data = call.getData();
+        JSObject data = call.getData();
+        on(SCREEN, call, () -> {
             long thread = Long.parseLong(data.getString("threadId"));
             long before = data.has("before") && !data.isNull("before") ? data.getLong("before") : Long.MAX_VALUE;
             int limit = Math.max(1, Math.min(500, data.optInt("limit", 60)));
-            call.resolve(js(SmsStore.messages(context(), thread, before, limit)));
-        } catch (Exception e) {
-            fail(call, e);
-        }
+            return js(SmsStore.messages(context(), thread, before, limit));
+        });
     }
 
     @PluginMethod
     public void part(PluginCall call) {
-        try {
-            JSObject data = call.getData();
-            call.resolve(js(SmsStore.part(context(), Long.parseLong(data.getString("partId")), Math.max(1, data.optInt("maxBytes", 26 * 1024 * 1024)))));
-        } catch (Exception e) {
-            fail(call, e);
-        }
+        JSObject data = call.getData();
+        on(FILES, call, () -> js(SmsStore.part(context(), Long.parseLong(data.getString("partId")), Math.max(1, data.optInt("maxBytes", 26 * 1024 * 1024)))));
     }
 
     @PluginMethod
     public void search(PluginCall call) {
-        try {
-            String query = call.getData().optString("query", "").trim();
-            int limit = Math.max(1, Math.min(500, call.getData().optInt("limit", 100)));
-            call.resolve(js(new JSONObject().put("hits", query.isEmpty() ? new JSONArray() : SmsStore.search(context(), query, limit))));
-        } catch (Exception e) {
-            fail(call, e);
-        }
+        String query = call.getData().optString("query", "").trim();
+        int limit = Math.max(1, Math.min(500, call.getData().optInt("limit", 100)));
+        on(FILES, call, () -> js(new JSONObject().put("hits", query.isEmpty() ? new JSONArray() : SmsStore.search(context(), query, limit))));
     }
 
     @PluginMethod
     public void lookup(PluginCall call) {
-        try {
-            JSONArray numbers = call.getData().optJSONArray("numbers");
-            call.resolve(js(new JSONObject().put("names", numbers == null ? new JSONObject() : SmsStore.names(context(), numbers))));
-        } catch (Exception e) {
-            fail(call, e);
-        }
+        JSONArray numbers = call.getData().optJSONArray("numbers");
+        on(SCREEN, call, () -> js(new JSONObject().put("names", numbers == null ? new JSONObject() : SmsStore.names(context(), numbers))));
     }
 
     @PluginMethod
     public void markRead(PluginCall call) {
-        try {
-            long thread = Long.parseLong(call.getData().getString("threadId"));
+        String id = call.getData().getString("threadId");
+        on(SCREEN, call, () -> {
+            long thread = Long.parseLong(id);
             SmsStore.markRead(context(), thread);
             SmsNotices.cancel(context(), thread);
-            call.resolve();
-        } catch (Exception e) {
-            fail(call, e);
-        }
+            return null;
+        });
+    }
+
+    /**
+     * „Sprawdź nowe wiadomości": SMS holt man nicht ab — das Netz bringt sie, und diese App schreibt
+     * sie auf. Was sich anstossen lässt: angekündigte MMS noch einmal laden, und sagen, ob die App
+     * (noch) die SMS-App ist und ob eine andere Nachrichten wegnehmen kann.
+     */
+    @PluginMethod
+    public void recheck(PluginCall call) {
+        on(SCREEN, call, () -> {
+            int retried = isDefault() ? MmsReceiver.retryAll(context()) : 0;
+            JSObject out = new JSObject();
+            out.put("defaultSms", isDefault());
+            out.put("otherSms", installed(GOOGLE_MESSAGES));
+            out.put("mmsRetried", retried);
+            return out;
+        });
     }
 
     @PluginMethod
@@ -318,66 +359,64 @@ public class PhonePlugin extends Plugin {
 
     @PluginMethod
     public void remove(PluginCall call) {
-        try {
+        String id = call.getData().getString("id");
+        on(SCREEN, call, () -> {
             JSObject out = new JSObject();
-            out.put("removed", SmsStore.remove(context(), call.getData().getString("id")));
-            call.resolve(out);
-        } catch (Exception e) {
-            fail(call, e);
-        }
+            out.put("removed", SmsStore.remove(context(), id));
+            return out;
+        });
     }
 
     @PluginMethod
     public void retryMms(PluginCall call) {
-        try {
+        String id = call.getData().getString("id");
+        on(SCREEN, call, () -> {
             JSObject out = new JSObject();
-            out.put("started", MmsReceiver.retry(context(), call.getData().getString("id")));
-            call.resolve(out);
-        } catch (Exception e) {
-            fail(call, e);
-        }
+            out.put("started", MmsReceiver.retry(context(), id));
+            return out;
+        });
     }
 
     /* -- Senden ----------------------------------------------------------------------------------- */
 
     @PluginMethod
     public void send(PluginCall call) {
-        try {
-            JSObject data = call.getData();
-            JSONArray toArray = data.optJSONArray("to");
-            List<String> to = new ArrayList<>();
-            if (toArray != null) for (int i = 0; i < toArray.length(); i++) {
-                String one = toArray.optString(i, "").trim();
-                if (!one.isEmpty()) to.add(one);
-            }
-            String body = data.optString("body", "");
-            if (to.isEmpty()) { call.reject("Brak odbiorcy."); return; }
-            int subId = data.isNull("subId") ? -1 : data.optInt("subId", -1);
-            boolean group = data.optBoolean("group", false);
-            JSONObject attachment = data.optJSONObject("attachment");
-            long thread;
-            if (attachment != null || (group && to.size() > 1)) {
-                byte[] media = attachment == null ? null : Base64.decode(attachment.optString("data", ""), Base64.DEFAULT);
-                String type = attachment == null ? null : attachment.optString("type", "application/octet-stream");
-                String name = attachment == null ? null : attachment.optString("name", null);
-                if (group || to.size() == 1) {
-                    thread = SmsSender.sendMms(context(), to, body, media, type, name, subId);
-                } else {
-                    thread = -1;
-                    for (String one : to) thread = SmsSender.sendMms(context(), java.util.Collections.singletonList(one), body, media, type, name, subId);
-                }
-            } else {
-                if (body.trim().isEmpty()) { call.reject("Pusta wiadomość."); return; }
-                thread = -1;
-                for (String one : to) thread = SmsSender.sendSms(context(), one, body, subId);
-            }
-            PhonePlugin.changed(thread);
-            JSObject out = new JSObject();
-            out.put("threadId", String.valueOf(thread));
-            call.resolve(out);
-        } catch (Exception e) {
-            fail(call, e);
+        on(SCREEN, call, () -> sendNow(call));
+    }
+
+    private JSObject sendNow(PluginCall call) throws Exception {
+        JSObject data = call.getData();
+        JSONArray toArray = data.optJSONArray("to");
+        List<String> to = new ArrayList<>();
+        if (toArray != null) for (int i = 0; i < toArray.length(); i++) {
+            String one = toArray.optString(i, "").trim();
+            if (!one.isEmpty()) to.add(one);
         }
+        String body = data.optString("body", "");
+        if (to.isEmpty()) throw new IllegalArgumentException("Brak odbiorcy.");
+        int subId = data.isNull("subId") ? -1 : data.optInt("subId", -1);
+        boolean group = data.optBoolean("group", false);
+        JSONObject attachment = data.optJSONObject("attachment");
+        long thread;
+        if (attachment != null || (group && to.size() > 1)) {
+            byte[] media = attachment == null ? null : Base64.decode(attachment.optString("data", ""), Base64.DEFAULT);
+            String type = attachment == null ? null : attachment.optString("type", "application/octet-stream");
+            String name = attachment == null ? null : attachment.optString("name", null);
+            if (group || to.size() == 1) {
+                thread = SmsSender.sendMms(context(), to, body, media, type, name, subId);
+            } else {
+                thread = -1;
+                for (String one : to) thread = SmsSender.sendMms(context(), java.util.Collections.singletonList(one), body, media, type, name, subId);
+            }
+        } else {
+            if (body.trim().isEmpty()) throw new IllegalArgumentException("Pusta wiadomość.");
+            thread = -1;
+            for (String one : to) thread = SmsSender.sendSms(context(), one, body, subId);
+        }
+        PhonePlugin.changed(thread);
+        JSObject out = new JSObject();
+        out.put("threadId", String.valueOf(thread));
+        return out;
     }
 
     @PluginMethod
@@ -401,34 +440,22 @@ public class PhonePlugin extends Plugin {
     @PluginMethod
     public void contacts(PluginCall call) {
         if (getPermissionState("contacts") != PermissionState.GRANTED) { call.reject("Brak dostępu do kontaktów."); return; }
-        try {
-            call.resolve(js(new JSONObject().put("contacts", PhoneContacts.read(context()))));
-        } catch (Exception e) {
-            fail(call, e);
-        }
+        on(WORK, call, () -> js(new JSONObject().put("contacts", PhoneContacts.read(context()))));
     }
 
     @PluginMethod
     public void writeContacts(PluginCall call) {
         if (getPermissionState("contacts") != PermissionState.GRANTED) { call.reject("Brak dostępu do kontaktów."); return; }
-        try {
-            JSONArray contacts = call.getData().optJSONArray("contacts");
-            call.resolve(js(PhoneContacts.write(context(), contacts == null ? new JSONArray() : contacts)));
-        } catch (Exception e) {
-            fail(call, e);
-        }
+        JSONArray contacts = call.getData().optJSONArray("contacts");
+        on(WORK, call, () -> js(PhoneContacts.write(context(), contacts == null ? new JSONArray() : contacts)));
     }
 
     /** Die Originale im Gerät entfernen, die schon in recreatio sind (PhoneContacts.dropLocal). */
     @PluginMethod
     public void dropLocal(PluginCall call) {
         if (getPermissionState("contacts") != PermissionState.GRANTED) { call.reject("Brak dostępu do kontaktów."); return; }
-        try {
-            JSONArray keys = call.getData().optJSONArray("keys");
-            call.resolve(js(PhoneContacts.dropLocal(context(), keys == null ? new JSONArray() : keys)));
-        } catch (Exception e) {
-            fail(call, e);
-        }
+        JSONArray keys = call.getData().optJSONArray("keys");
+        on(WORK, call, () -> js(PhoneContacts.dropLocal(context(), keys == null ? new JSONArray() : keys)));
     }
 
     @PluginMethod
@@ -441,13 +468,9 @@ public class PhonePlugin extends Plugin {
 
     @PluginMethod
     public void exportMessages(PluginCall call) {
-        try {
-            JSObject data = call.getData();
-            call.resolve(js(SmsStore.exportPage(context(), data.optLong("afterSms", 0), data.optLong("afterMms", 0),
-                    Math.max(1, Math.min(1000, data.optInt("limit", 300))))));
-        } catch (Exception e) {
-            fail(call, e);
-        }
+        JSObject data = call.getData();
+        on(WORK, call, () -> js(SmsStore.exportPage(context(), data.optLong("afterSms", 0), data.optLong("afterMms", 0),
+                Math.max(1, Math.min(1000, data.optInt("limit", 300))))));
     }
 
     @PluginMethod

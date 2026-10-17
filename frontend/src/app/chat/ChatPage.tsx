@@ -20,36 +20,22 @@
  * die Rozmowa mit sich selbst, im eigenen Bereich (`startSelfChat`).
  */
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 
 import type { Who } from '../core/session';
 import { ChatList, ChatWelcome } from './ChatList';
 import { ChatRoom } from './ChatRoom';
 import { useMe } from './chatShared';
 import { NewChat } from './NewChat';
+import { useBarHeight } from '../ui/useBarHeight';
 
 /* -- Die Ansicht ------------------------------------------------------------------ */
-
-/** Wie hoch der Kopf der App ist — die Rozmowa füllt, was darunter bleibt. */
-function useTopOffset(): number {
-  const [top, setTop] = useState(56);
-  useEffect(() => {
-    const bar = document.querySelector<HTMLElement>('[data-app-head]');
-    if (bar === null) return undefined;
-    const measure = () => setTop(Math.round(bar.getBoundingClientRect().height));
-    measure();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const watch = new ResizeObserver(measure);
-    watch.observe(bar);
-    return () => watch.disconnect();
-  }, []);
-  return top;
-}
 
 export function ChatView({ who, trail }: { who: Who; trail: readonly string[] }) {
   const me = useMe(who);
   const at = trail[0];
-  const top = useTopOffset();
+  /* Die Rozmowa füllt, was unter dem Kopf der App bleibt. */
+  const top = useBarHeight();
 
   if (me === undefined) return <p className="wk-lede">Wczytywanie…</p>;
   if (me === null) {

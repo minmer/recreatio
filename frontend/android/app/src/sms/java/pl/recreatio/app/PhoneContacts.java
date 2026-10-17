@@ -303,6 +303,7 @@ final class PhoneContacts {
 
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         prefs.edit().putLong("syncedAt", System.currentTimeMillis()).putInt("written", seen.size()).apply();
+        ContactIndex.invalidate();
         return new JSONObject().put("added", added).put("updated", updated).put("removed", removed).put("total", seen.size());
     }
 
@@ -429,6 +430,7 @@ final class PhoneContacts {
             }
         }
         if (!ops.isEmpty()) cr.applyBatch(ContactsContract.AUTHORITY, ops);
+        ContactIndex.invalidate();
         return new JSONObject().put("removed", removed);
     }
 

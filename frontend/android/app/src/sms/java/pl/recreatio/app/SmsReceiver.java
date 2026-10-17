@@ -47,16 +47,32 @@ public class SmsReceiver extends BroadcastReceiver {
         int subId = intent.getIntExtra("android.telephony.extra.SUBSCRIPTION_INDEX", intent.getIntExtra("subscription", -1));
 
         Context app = context.getApplicationContext();
-        Uri row;
+        Uri row = null;
         try {
             row = SmsStore.insertInbox(app, address, body.toString(), sentAt, subId);
         } catch (RuntimeException e) {
             Log.w(TAG, "sms store failed", e);
-            return;
+        }
+        if (row == null) {
+            /*
+             * Niemand sonst schreibt sie auf: SMS_DELIVER bekommt nur diese App. Ein zweiter Versuch
+             * ohne das, was ein Speicher ablehnen kann (Karte, Sendezeit) — lieber ohne als verloren.
+             */
+            try {
+                row = SmsStore.insertInbox(app, address, body.toString(), 0, -1);
+            } catch (RuntimeException e) {
+                Log.e(TAG, "sms lost", e);
+            }
+            if (row == null) return;
         }
         long thread = SmsStore.threadOf(app, row);
-        SmsNotices.incoming(app, thread);
+        /* Die Seite zuerst: eine Meldung, die nicht geht, hält das Gespräch auf dem Bildschirm nicht auf. */
         PhonePlugin.changed(thread);
+        try {
+            SmsNotices.incoming(app, thread);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "sms notice failed", e);
+        }
         PhoneWork.archiveSoon(app);
     }
 }

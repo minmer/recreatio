@@ -546,6 +546,7 @@ check('the stand of the plan before a run', R.levelsOf(plan, () => [], 0), { uns
     [gl(g3graph)(by3('Słowa 3')), g3graph.edges.filter((e) => e.to === third.id).map((e) => gl(g3graph)(g3graph.nodes.find((x) => x.id === e.from))).sort(), g3graph.edges.filter((e) => e.from === third.id).map((e) => e.in)],
     ['Słowa 3', ['Język — Słowa 3', 'Tematy'], ['words']]);
   check('… its language starts empty and must be chosen', (({ value, optional }) => [value, optional])(AF.pickConfig(by3('Język — Słowa 3').config)), [[], false]);
+  check('… and stands with the other languages on top, the shared topics after', AF.topOf({ ...gf, graph: g3graph }, look).map((t) => t.label), ['Język — Słowa 1', 'Język — Słowa 2', 'Język — Słowa 3', 'Tematy']);
   check('the next free name', [AF.nextLabel('Word', ['Word']), AF.nextLabel('Word 2', ['Word', 'Word 2']), AF.nextLabel('angielski', ['angielski', 'polski'])], ['Word 2', 'Word 3', 'angielski 2']);
   check('the modules under the canvas: the row entries in row order, the linking one last', AF.designOrder({ graph: g3graph }).entries.map(gl(g3graph)), ['Słowa 1', 'Słowa 2', 'Słowa 3', 'Tłumaczenie grupowe']);
   const gmany = { ...gf, graph: { nodes: g3graph.nodes.map((x) => (x.id === g1.id ? { ...x, config: { ...x.config, many: true } } : x)), edges: g3graph.edges } };

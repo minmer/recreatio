@@ -123,12 +123,13 @@ A **form for adding** (Formularz dodawania, doc kind `addform`) says once what o
   - `entry` — **made from each row** (W każdym wierszu): an entry of a kind. Each field gets its value typed in the row, set once on top, or fixed in the form. Every reference field is an input; an edge from another node fills it.
 - **Several in one row.** A node marked “kilka w wierszu” takes several values (Ctrl+Enter or “+ kolejne”). A reference field that takes ONE entry then makes one entry per value (each pair: two English words × one Polish word = two translations); one that takes several takes them all into one entry.
 - **Nothing twice.** An entry that already exists is used instead of a new one, recognised by the single-valued fields the node sets (text and language) or by the fields chosen in the form. What it lacks (another topic) is added; entries from a source base are used, not changed. This holds inside one list too (“zamek” for castle and lock is one word with two translations), so retrying a row is harmless.
-- **A row with a value that does not fit** (“abc” in a number field) is left out whole. A node whose row entry is missing (no Polish word) is skipped with the reason.
+- **A row with a value that does not fit** (“abc” in a number field) is left out whole. A node is made only when every row entry it is connected to is in the row (a translation needs all its words); otherwise it is skipped with the reason.
 - **Keys** are part of the form: Enter, Ctrl+Enter and Shift+Enter each do one of: next field (in the last one: save the row), another value here, save the row, a new line in long text, nothing.
 - **Pasting a list** from a sheet or text: one line per row, the columns in the order of the typed fields (tab, ;, =, “ - ”, | or , — recognised by itself), several values in a cell split by a chosen sign. The plan is shown before anything is saved.
 - **Saving** runs in the background, row after row, so the next row can be typed at once. Each row can be undone (what it created, unless a later row already uses it).
 - **The form describes itself**: the sentence list under the designer and under “Jak działa ten formularz” is generated from the form.
-- **Starting points.** “Z rodzaju: X” builds a form from a kind: a kind that is typed (Słowo: its label fields) gets its references as choices on top; a kind that only connects (Tłumaczenie: z → Słowo, na → Słowo) gets an entry per reference, whose own references become choices on top — one per row entry where the field takes one entry (each word its language), shared where it takes several (topics).
+- **Starting points.** “Z rodzaju: X” builds a form from a kind: a kind that is typed (Słowo: its label fields) gets its references as choices on top; a kind that only connects (Tłumaczenie: z → Słowo, na → Słowo) gets an entry per reference — two where the field takes several (a translation with one field “Word” gets “Word 1” and “Word 2”) — whose own references become choices on top: one per row entry where the field takes one entry (each word its language), shared where it takes several (topics).
+- **The designer** (changed 2026-10-17 on request): tools above the canvas (“Na początek”, “W każdym wierszu” with the kinds, “Kolejny taki jak …”), the canvas over the full width, and under it a module per node with all its settings — the row entries first, the choices on top after. **“+ kolejny taki”** adds the next row entry like this one (the next language): the same kind and fields, its own empty choice where the original had one of its own (its language), the shared choices (topics), and the same target where that field takes several.
 - **Where.** Built under Schemat (`schemat/formularz/<id>`), filled under Wpisy (`wpisy/dodaj/<id>`, the menu “Wiele naraz”, and Ctrl K). Forms belong to the schema JSON (`forms`) and travel with it; a reused base’s forms are usable here.
 
 ## 3. Knowledge layer
@@ -542,7 +543,7 @@ Phones stay awake.
 
 | check | count |
 |---|---|
-| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 242 |
+| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 249 |
 | `backend/Api.Tests` (22 of them for the game rules) | 408 |
 | `backend/Kernel.Tests` | 122 |
 

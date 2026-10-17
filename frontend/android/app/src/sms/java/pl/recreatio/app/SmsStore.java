@@ -6,7 +6,6 @@ import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
-import android.provider.ContactsContract;
 import android.provider.Telephony;
 import android.util.Base64;
 
@@ -117,6 +116,7 @@ final class SmsStore {
     static JSONArray threads(Context context, int limit) throws JSONException {
         Map<Long, String> canonical = canonical(context);
         Map<Long, Integer> unread = unread(context);
+        Map<String, String> names = ContactIndex.names(context, canonical.values());
         JSONArray out = new JSONArray();
         try (Cursor c = context.getContentResolver().query(CONVERSATIONS,
                 new String[] { "_id", "date", "message_count", "recipient_ids", "snippet", "error", "has_attachment" },
@@ -124,9 +124,13 @@ final class SmsStore {
             while (c != null && c.moveToNext() && out.length() < limit) {
                 long id = c.getLong(0);
                 if (c.getInt(2) == 0) continue;
+                List<String> addresses = addressesOf(c.getString(3), canonical);
+                JSONArray named = new JSONArray();
+                for (String a : addresses) named.put(names.containsKey(a) ? names.get(a) : JSONObject.NULL);
                 out.put(new JSONObject()
                         .put("threadId", String.valueOf(id))
-                        .put("addresses", new JSONArray(addressesOf(c.getString(3), canonical)))
+                        .put("addresses", new JSONArray(addresses))
+                        .put("names", named)
                         .put("snippet", c.getString(4) == null ? "" : c.getString(4))
                         .put("date", c.getLong(1))
                         .put("unread", unread.getOrDefault(id, 0))
@@ -293,8 +297,15 @@ final class SmsStore {
         boolean more = all.size() > limit || smsCount > limit;
         List<JSONObject> page = all.subList(0, Math.min(limit, all.size()));
         JSONArray out = new JSONArray();
-        for (int i = page.size() - 1; i >= 0; i--) out.put(page.get(i));
-        return new JSONObject().put("messages", out).put("more", more);
+        Set<String> people = new LinkedHashSet<>(peers);
+        for (int i = page.size() - 1; i >= 0; i--) {
+            out.put(page.get(i));
+            String from = page.get(i).optString("address", "");
+            if (!from.isEmpty() && !page.get(i).isNull("address")) people.add(from);
+        }
+        JSONObject names = new JSONObject();
+        for (Map.Entry<String, String> one : ContactIndex.names(context, people).entrySet()) names.put(one.getKey(), one.getValue());
+        return new JSONObject().put("messages", out).put("more", more).put("peers", new JSONArray(peers)).put("names", names);
     }
 
     static JSONObject one(Context context, String id) throws JSONException {
@@ -386,20 +397,12 @@ final class SmsStore {
 
     /* -- Namen ------------------------------------------------------------------------------------ */
 
-    /** Wie die Nummern im Adressbuch des Telefons heissen (auch die von recreatio geschriebenen). */
+    /** Wie die Nummern im Adressbuch des Telefons heissen (auch die von recreatio geschriebenen) — {@link ContactIndex}. */
     static JSONObject names(Context context, JSONArray numbers) throws JSONException {
+        List<String> list = new ArrayList<>();
+        for (int i = 0; i < numbers.length(); i++) list.add(numbers.optString(i, ""));
         JSONObject out = new JSONObject();
-        ContentResolver cr = context.getContentResolver();
-        for (int i = 0; i < numbers.length(); i++) {
-            String number = numbers.optString(i, "");
-            if (number.isEmpty() || out.has(number)) continue;
-            try (Cursor c = cr.query(Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number)),
-                    new String[] { ContactsContract.PhoneLookup.DISPLAY_NAME }, null, null, null)) {
-                if (c != null && c.moveToFirst() && c.getString(0) != null) out.put(number, c.getString(0));
-            } catch (RuntimeException ignored) {
-                // Ohne Erlaubnis (Kontakte): keine Namen.
-            }
-        }
+        for (Map.Entry<String, String> one : ContactIndex.names(context, list).entrySet()) out.put(one.getKey(), one.getValue());
         return out;
     }
 
@@ -420,7 +423,7 @@ final class SmsStore {
         v.put("address", address);
         v.put("body", body);
         v.put("date", System.currentTimeMillis());
-        v.put("date_sent", sentAt);
+        if (sentAt > 0) v.put("date_sent", sentAt);
         v.put("read", 0);
         v.put("seen", 0);
         v.put("type", 1);

@@ -131,6 +131,33 @@ public class MmsReceiver extends BroadcastReceiver {
         return false;
     }
 
+    /**
+     * „Sprawdź nowe wiadomości": jede MMS, die angekündigt, aber nicht geladen ist, noch einmal laden.
+     * Ankündigungen, deren Zeile im Gespräch fort ist (gelöscht), werden vergessen.
+     */
+    static int retryAll(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        int started = 0;
+        for (String name : new HashSet<>(prefs.getAll().keySet())) {
+            if (!name.startsWith("row:")) continue;
+            String key = name.substring(4);
+            Uri row = Uri.parse(prefs.getString(name, ""));
+            boolean there = false;
+            try (android.database.Cursor c = context.getContentResolver().query(row, new String[] { "_id" }, null, null, null)) {
+                there = c != null && c.moveToFirst();
+            } catch (RuntimeException ignored) {
+                // nicht lesbar: wie fort
+            }
+            if (!there) {
+                prefs.edit().remove(name).remove("loc:" + key).remove("sub:" + key).remove("tid:" + key).apply();
+                continue;
+            }
+            download(context, key);
+            started++;
+        }
+        return started;
+    }
+
     /** Das Telefon hat geladen (oder nicht). */
     static void downloaded(Context context, Intent intent, boolean ok) {
         String key = intent.getStringExtra("key");
