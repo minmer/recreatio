@@ -249,7 +249,6 @@
 .wk-cal2-focus:hover { color: var(--wk-accent); }
 .wk-cal2-focus[aria-pressed="true"] { color: var(--wk-accent); font-weight: 700; }
 .wk-cal2-focus:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
-.wk-cal2-grid.is-tasks .wk-cal2-taskcell { flex-wrap: wrap; align-items: flex-start; gap: 4px; }
 
 .wk-tb {
   position: absolute;
@@ -271,7 +270,6 @@
   container-type: inline-size;
 }
 .wk-tb.is-short { align-items: center; padding-block: 0; }
-.wk-tb.is-chip { position: static; width: 100%; }
 .wk-tb.is-open, .wk-tb.is-due { border-color: var(--wk-accent); box-shadow: inset 0 0 0 1px var(--wk-accent); }
 .wk-tb.is-missed, .wk-tb.is-late { border-color: color-mix(in srgb, var(--wk-danger) 55%, var(--wk-line)); border-left-color: var(--wk-danger); }
 .wk-tb.is-done, .wk-tb.is-skipped { opacity: 0.6; }
