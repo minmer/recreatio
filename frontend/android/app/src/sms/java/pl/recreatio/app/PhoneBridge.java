@@ -34,29 +34,40 @@ final class PhoneBridge {
     }
 
     @JavascriptInterface
+    public String threads(String json) {
+        try {
+            int limit = Math.max(1, Math.min(5000, new JSONObject(json).optInt("limit", 2000)));
+            return new JSONObject().put("threads", SmsStore.threads(context, limit)).toString();
+        } catch (Exception e) {
+            return error(e);
+        }
+    }
+
+    @JavascriptInterface
     public String exportMessages(String json) {
         try {
             JSONObject o = new JSONObject(json);
-            return SmsStore.exportPage(context, o.optLong("afterSms", 0), o.optLong("afterMms", 0), Math.max(1, Math.min(1000, o.optInt("limit", 300)))).toString();
+            return SmsStore.exportPage(context, threadOf(o), o.optLong("afterSms", 0), o.optLong("afterMms", 0),
+                    Math.max(1, Math.min(1000, o.optInt("limit", 300)))).toString();
         } catch (Exception e) {
             return error(e);
         }
     }
 
     @JavascriptInterface
-    public String archiveMarkers() {
+    public String archiveState() {
         try {
-            return markers(context).toString();
+            return new JSONObject().put("state", state(context)).toString();
         } catch (Exception e) {
             return error(e);
         }
     }
 
     @JavascriptInterface
-    public String setArchiveMarkers(String json) {
+    public String setArchiveState(String json) {
         try {
             JSONObject o = new JSONObject(json);
-            setMarkers(context, o.optLong("sms", 0), o.optLong("mms", 0), o.optLong("at", System.currentTimeMillis()));
+            setState(context, o.optString("state", ""), o.optLong("at", 0));
             return "{}";
         } catch (Exception e) {
             return error(e);
@@ -82,16 +93,32 @@ final class PhoneBridge {
         }
     }
 
-    /* -- Die Marken des Archivs: bis wohin es reicht ------------------------------------------- */
-
-    static JSONObject markers(Context context) throws org.json.JSONException {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        return new JSONObject().put("sms", prefs.getLong("sms", 0)).put("mms", prefs.getLong("mms", 0));
+    /** {@code threadId} eines Auftrags — fehlt er, gilt das ganze Telefon (-1). */
+    static long threadOf(JSONObject o) {
+        String text = o.isNull("threadId") ? "" : o.optString("threadId", "");
+        try {
+            return text.isEmpty() ? -1 : Long.parseLong(text);
+        } catch (NumberFormatException e) {
+            return -1;
+        }
     }
 
-    static void setMarkers(Context context, long sms, long mms, long at) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-                .putLong("sms", Math.max(0, sms)).putLong("mms", Math.max(0, mms)).putLong("at", at).apply();
+    /* -- Der Stand des Archivs auf diesem Telefon ---------------------------------------------- */
+
+    /**
+     * Bis wohin jedes Gespräch dieses Telefons archiviert ist — als Text, den die Seite
+     * selbst deutet (`smsArchive.ts`). Er gehört zu DIESEM Telefon: ein zweites (das alte)
+     * hat seinen eigenen, das Archiv ist dasselbe.
+     */
+    static String state(Context context) {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("state", "");
+    }
+
+    /** {@code at}: wann zuletzt archiviert wurde (0: unverändert). */
+    static void setState(Context context, String state, long at) {
+        SharedPreferences.Editor edit = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("state", state);
+        if (at > 0) edit.putLong("at", at);
+        edit.apply();
     }
 
     static long archivedAt(Context context) {

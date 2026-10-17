@@ -326,17 +326,21 @@ Wspólne:
 
 "entities" — wpisy: {"ref", "kinds": ["person", "Postać"], "data": {pole: wartość}}
   wiedza: "kinds": ["knowledge"], "data": {"text": "Dawid był [[królem|@izrael]]…", "tags": ["historyczna"], "about": ["@dawid"]}
-  pytanie: "kinds": ["question"], "data": {"form": "text|number|date|one|many|truefalse|order|match|gap|flash|code|point", "prompt", "answers", "options", "correct", …}
+  pytanie: "kinds": ["question"], "data": {"form": "text|number|date|one|many|truefalse|order|match|gap|flash|code|point|interactive", "prompt", "answers", "options", "correct", …}
+    "interactive" — rysunek do poruszania: "drawing" (ten sam JSON co moduł strony „Animacja”: vars, let, sim, controls, rules z "goal": true, elements),
+    "goal" (wyrażenie celu, np. "abs(x - cel) < 0.5 && y <= 0"; puste — reguły rysunku z "goal"), "solution" ("kat = 45; v0 = sqrt(cel*g)" — rachunek z wartościami rysunku);
+    sprawdzane przez symulację ustawionych wartości do końca; wartości z "random" losowane przy każdej próbie
 
 "templates" — szablony kart: {"name", "kinds": ["@rodzaj"], "direction": "a→b", "graph": {"nodes": [{"id", "type", "x", "y", "config"}], "edges": [{"id", "from", "out", "to", "in"}]}}
 "revisions" — powtórki: {"name", "graph"} (źródła → filtr → … → jeden „Sposób pytania")
 "flows" — przebiegi: {"name", "look": "reading|slides|scenes|dialogue|flashcards|map", "start", "graph", "slots", "goals", "lines"}
 "collections" — zbiory: {"name", "rule": {"op": "and|or", "items": [{"field", "cmp", "value"}]}, "list": ["@wpis"]}
-"forms" — formularze dodawania (należą do schematu): {"name", "says", "graph", "keys", "paste"}
+"forms" — formularze dodawania (należą do schematu): {"name", "says", "graph", "keys", "paste", "order"}
   węzeł "pick" — wybór na początek, zostaje dla wszystkich wierszy: "config": {"label", "kinds": ["@rodzaj"], "many", "optional", "value": ["@wpis"]}
   węzeł "entry" — wpis z każdego wiersza: "config": {"kind": "@rodzaj", "label", "many" (kilka w wierszu), "reuse": "same|never", "identity": ["pole"],
     "fields": {"pole": {"from": "type|ask|fixed", "value": "tekst"}}} — type: wpisywane w wierszu, ask: ustawiane na początek, fixed: stała wartość
   krawędź {"id", "from": węzeł, "out": "out", "to": węzeł "entry", "in": klucz pola-odwołania} — wypełnia to pole wpisem z węzła "from"
+  "order": ["id węzła entry"] — kolejność pól w wierszu (Enter, kolumny wklejanej listy); bez niej jak na płótnie
   "keys": {"enter", "ctrlEnter", "shiftEnter"}: ${KEY_ACTIONS.map((k) => `"${k}"`).join(', ')}
   "paste": {"columns": ${COLUMN_SEPARATORS.map((k) => `"${k}"`).join(', ')}, "values": ${VALUE_SEPARATORS.map((k) => `"${k}"`).join(', ')}, "header": true|false}
 ${kinds}`;

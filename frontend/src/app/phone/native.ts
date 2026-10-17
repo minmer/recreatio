@@ -78,6 +78,8 @@ export interface PhoneStatus {
   readonly defaultSms: boolean;
   readonly roleAvailable: boolean;
   readonly contacts: boolean;
+  /** Darf die App SMS lesen — als SMS-App, oder auf einem alten Telefon nur dafür erlaubt (`requestSmsRead`). */
+  readonly smsRead: boolean;
   readonly phoneState: boolean;
   readonly notifications: boolean;
   readonly sims: readonly Sim[];
@@ -134,6 +136,16 @@ export interface ExportPage {
   readonly nextSms: number;
   readonly nextMms: number;
   readonly done: boolean;
+  /** Etwas, das noch hinausgeht (oder geladen wird), hielt die Seite an — das Gespräch später noch einmal. */
+  readonly blocked?: boolean;
+}
+
+/** Was `exportMessages` bekommt: ein Gespräch (`threadId`) oder das ganze Telefon, ab den Marken. */
+export interface ExportRequest {
+  readonly threadId?: string;
+  readonly afterSms: number;
+  readonly afterMms: number;
+  readonly limit: number;
 }
 
 export interface SendRequest {
@@ -151,6 +163,8 @@ interface PhonePluginApi {
   status(): Promise<PhoneStatus>;
   requestDefault(): Promise<{ defaultSms: boolean }>;
   requestContacts(): Promise<{ granted: boolean }>;
+  /** Nur SMS lesen dürfen — ein altes Telefon, das archivieren soll, ohne SMS-App zu werden. */
+  requestSmsRead(): Promise<{ granted: boolean }>;
   requestPhoneState(): Promise<{ granted: boolean }>;
   openSettings(): Promise<void>;
   threads(o: { limit?: number }): Promise<{ threads: NativeThread[] }>;
@@ -173,9 +187,9 @@ interface PhonePluginApi {
   lookup(o: { numbers: readonly string[] }): Promise<{ names: Record<string, string> }>;
   contacts(): Promise<{ contacts: PhoneBookContact[] }>;
   writeContacts(o: { contacts: readonly WrittenContact[] }): Promise<{ added: number; updated: number; removed: number; total: number }>;
-  exportMessages(o: { afterSms: number; afterMms: number; limit: number }): Promise<ExportPage>;
-  archiveMarkers(): Promise<{ sms: number; mms: number }>;
-  setArchiveMarkers(o: { sms: number; mms: number; at?: number }): Promise<void>;
+  exportMessages(o: ExportRequest): Promise<ExportPage>;
+  archiveState(): Promise<{ state: string }>;
+  setArchiveState(o: { state: string; at?: number }): Promise<void>;
   addListener(event: 'smsChanged', listener: (e: { threadId: string | null }) => void): Promise<PluginListenerHandle>;
 }
 
@@ -187,18 +201,21 @@ export { phoneHere } from './here';
 /* -- Für Archiv und Adressbuch: ein Weg, ob App oder Läufer ------------------------------------ */
 
 export interface PhoneSource {
-  exportMessages(o: { afterSms: number; afterMms: number; limit: number }): Promise<ExportPage>;
-  archiveMarkers(): Promise<{ sms: number; mms: number }>;
-  setArchiveMarkers(o: { sms: number; mms: number; at?: number }): Promise<void>;
+  threads(o: { limit?: number }): Promise<{ threads: NativeThread[] }>;
+  exportMessages(o: ExportRequest): Promise<ExportPage>;
+  /** Bis wohin dieses Telefon archiviert hat (als Text, `smsArchive.ts` deutet ihn). */
+  archiveState(): Promise<{ state: string }>;
+  setArchiveState(o: { state: string; at?: number }): Promise<void>;
   part(o: { partId: string; maxBytes?: number }): Promise<{ type: string; data: string }>;
   writeContacts(o: { contacts: readonly WrittenContact[] }): Promise<{ added: number; updated: number; removed: number; total: number }>;
 }
 
 /** Die Brücke des Läufers (RunnerHost.java, Ausgabe „sms") — synchron, Text hinein, Text heraus. */
 interface RunnerPhoneBridge {
+  threads(json: string): string;
   exportMessages(json: string): string;
-  archiveMarkers(): string;
-  setArchiveMarkers(json: string): string;
+  archiveState(): string;
+  setArchiveState(json: string): string;
   part(json: string): string;
   writeContacts(json: string): string;
 }
@@ -211,9 +228,10 @@ declare global {
 
 /** In der App: der Baustein. */
 export const pluginSource: PhoneSource = {
+  threads: (o) => Phone.threads(o),
   exportMessages: (o) => Phone.exportMessages(o),
-  archiveMarkers: () => Phone.archiveMarkers(),
-  setArchiveMarkers: (o) => Phone.setArchiveMarkers(o),
+  archiveState: () => Phone.archiveState(),
+  setArchiveState: (o) => Phone.setArchiveState(o),
   part: (o) => Phone.part(o),
   writeContacts: (o) => Phone.writeContacts(o)
 };
@@ -228,9 +246,10 @@ export function bridgeSource(): PhoneSource | null {
     return parsed;
   };
   return {
+    threads: async (o) => ask<{ threads: NativeThread[] }>(bridge.threads(JSON.stringify(o))),
     exportMessages: async (o) => ask<ExportPage>(bridge.exportMessages(JSON.stringify(o))),
-    archiveMarkers: async () => ask<{ sms: number; mms: number }>(bridge.archiveMarkers()),
-    setArchiveMarkers: async (o) => { ask<unknown>(bridge.setArchiveMarkers(JSON.stringify(o))); },
+    archiveState: async () => ask<{ state: string }>(bridge.archiveState()),
+    setArchiveState: async (o) => { ask<unknown>(bridge.setArchiveState(JSON.stringify(o))); },
     part: async (o) => ask<{ type: string; data: string }>(bridge.part(JSON.stringify(o))),
     writeContacts: async (o) => ask<{ added: number; updated: number; removed: number; total: number }>(bridge.writeContacts(JSON.stringify(o)))
   };

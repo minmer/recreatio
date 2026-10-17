@@ -148,3 +148,79 @@
 .pz-travel { position: absolute; top: 0; bottom: 0; pointer-events: none; }
 .pz-move, .pz-body > .wk-motion-root { min-width: 0; }
 .pz .wk-card-hero.pz-card .ev-title { gap: 1rem; }
+
+/* =============================================================================
+   2026-10-17 — DAS BILD ZUM ANFASSEN (LiveDrawing.tsx): ein SVG, dessen Teile
+   die Schleife schreibt; darunter (oder daneben, wo das Bild breit ist) die
+   Bedienung und die Meldung der Regeln. Farben nur aus dem Thema — auf einer
+   dunklen Bühne einer Präsentation dieselben Regeln.
+   ============================================================================= */
+
+.lv { width: 100%; max-width: var(--an-max, none); margin-inline: auto; min-width: 0; container-type: inline-size; }
+.lv-in { display: grid; gap: var(--wk-space-3); min-width: 0; }
+.lv-stage { display: block; width: 100%; height: auto; overflow: visible; }
+
+/* In einer Szene: auch „darüber", der Ring und die Schrift auf dem Akzent folgen den Farben der Präsentation. */
+.pz-scene .lv, .pz-travel .lv {
+  --wk-accent-hover: color-mix(in srgb, var(--wk-accent) 82%, var(--wk-ink));
+  --wk-on-accent: var(--pz-ground);
+  --wk-ring: color-mix(in srgb, var(--wk-accent) 35%, transparent);
+}
+
+/* Ein Griff: mit dem Finger zu treffen (ein unsichtbarer Ring von 44 px), und beim Ziehen rollt nichts. */
+.lv-grab, .lv-tap { cursor: grab; touch-action: none; outline: none; }
+.lv-tap { cursor: pointer; }
+.lv-grab.is-held { cursor: grabbing; }
+.lv-hit { fill: transparent; stroke: transparent; stroke-width: 44px; vector-effect: non-scaling-stroke; pointer-events: all; }
+.lv-grab:hover .lv-hit, .lv-tap:hover .lv-hit { stroke: color-mix(in srgb, var(--wk-accent) 16%, transparent); stroke-width: 18px; }
+.lv-grab.is-held .lv-hit { stroke: color-mix(in srgb, var(--wk-accent) 24%, transparent); stroke-width: 26px; }
+.lv-grab:focus-visible .lv-hit, .lv-tap:focus-visible .lv-hit { stroke: var(--wk-accent); stroke-width: 3px; }
+
+.lv-axes .lv-axis, .lv-axes .lv-tick { stroke: var(--wk-muted); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.lv-axes .lv-grid { stroke: color-mix(in srgb, var(--wk-muted) 22%, transparent); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.lv-axes .lv-label { fill: var(--wk-muted); font-variant-numeric: tabular-nums; }
+.lv-axes .lv-label.is-title { fill: var(--wk-ink); font-weight: 600; }
+
+/* Die Bedienung: Schieber in einer Reihe, die umbricht — auf dem Telefon einer je Zeile. */
+.lv-panel { display: grid; gap: var(--wk-space-2); min-width: 0; align-content: start; }
+.lv-controls { display: flex; flex-wrap: wrap; gap: var(--wk-space-2) var(--wk-space-4); align-items: end; }
+.lv-control { min-width: 0; }
+.lv-slider { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 0 var(--wk-space-2); flex: 1 1 11rem; }
+.lv-slider input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 0; min-height: var(--wk-control-h); accent-color: var(--wk-accent); }
+.lv-name { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.lv-value { font-size: var(--wk-text-sm); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--wk-ink); white-space: nowrap; }
+.lv-number { display: grid; gap: var(--wk-space-1); }
+.lv-number-row { display: flex; gap: var(--wk-space-1); align-items: center; }
+.lv-number input { width: 6.5rem; min-height: var(--wk-control-h); }
+.lv-unit { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.lv-toggle { display: inline-flex; gap: var(--wk-space-2); align-items: center; min-height: var(--wk-control-h); font-size: var(--wk-text-sm); cursor: pointer; }
+.lv-toggle input { width: 1.125rem; height: 1.125rem; margin: 0; accent-color: var(--wk-accent); }
+.lv-choice { display: grid; gap: var(--wk-space-1); }
+.lv-choice-row { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); overflow: hidden; }
+.lv-choice-row button { min-height: var(--wk-control-h); padding: 0 var(--wk-space-3); border: 0; background: transparent; color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; }
+.lv-choice-row button + button { border-left: 1px solid var(--wk-line); }
+.lv-choice-row button[aria-pressed="true"] { background: var(--wk-accent); color: var(--wk-ground); }
+.lv-button { min-height: var(--wk-control-h); }
+.lv-readout { display: grid; min-width: 6rem; }
+.lv-readout .lv-value { font-size: var(--wk-text-lg); }
+
+/* Die Meldung einer Regel: gut, daneben, zur Info. */
+.lv-say { margin: 0; padding: var(--wk-space-2) var(--wk-space-3); border-left: 3px solid var(--wk-accent); border-radius: var(--wk-radius-sm); background: color-mix(in srgb, var(--wk-accent) 10%, transparent); color: var(--wk-ink); font-size: var(--wk-text-sm); }
+.lv-say[data-mood="ok"] { border-left-color: var(--wk-ok); background: color-mix(in srgb, var(--wk-ok) 14%, transparent); }
+.lv-say[data-mood="miss"] { border-left-color: var(--wk-danger); background: color-mix(in srgb, var(--wk-danger) 12%, transparent); }
+
+/* Schmal (ein Telefon, ein schmaler Platz): jeder Schieber und jede Wahl eine ganze Zeile, die Knöpfe darunter. */
+@container (max-width: 30rem) {
+  .lv-slider, .lv-choice { flex-basis: 100%; }
+}
+
+/* Daneben, wo das Bild selbst breit ist (nicht das Fenster). */
+@container (min-width: 44rem) {
+  .lv.is-side > .lv-in { grid-template-columns: minmax(0, 2fr) minmax(13rem, 1fr); align-items: center; }
+  .lv.is-side .lv-controls { flex-direction: column; align-items: stretch; }
+}
+
+/* Der Editor: was in den Ausdrücken nicht stimmt. */
+.an-problems { margin: 0; padding-left: 1.25rem; color: var(--wk-danger); font-size: var(--wk-text-sm); }
+.an-problems code { font-family: var(--wk-mono); }
+.an-preview { border: 1px dashed var(--wk-line); border-radius: var(--wk-radius-sm); padding: var(--wk-space-3); }

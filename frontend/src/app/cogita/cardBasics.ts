@@ -3,6 +3,7 @@
  */
 
 import type { PointExpected, TextRule } from './check';
+import type { InteractiveSpec } from './interactive';
 import type { DatePrecision, Entity, Lookup, MediaRef, ValueState } from './schema';
 
 /* -- Was auf den Leitungen fliesst ------------------------------------------------- */
@@ -95,7 +96,9 @@ export type AnswerSpec =
   | { readonly form: 'match'; readonly left: readonly string[]; readonly right: readonly string[]; readonly pairs: readonly (readonly [number, number])[] }
   | { readonly form: 'flash'; readonly back: readonly string[] }
   | { readonly form: 'code'; readonly task: string; readonly starter: string; readonly createInput: string; readonly reference: string; readonly cases: number }
-  | { readonly form: 'point'; readonly on: 'map' | 'image'; readonly target: PointExpected };
+  | { readonly form: 'point'; readonly on: 'map' | 'image'; readonly target: PointExpected }
+  /* 2026-10-17 — ein Bild zum Anfassen (interactive.ts): die Antwort sind die eingestellten Werte. */
+  | InteractiveSpec;
 
 export interface Card {
   /** Die Frage: eine von Hand geschriebene, oder `vorlage:eintrag[:wert]`. */

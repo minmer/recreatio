@@ -10,6 +10,7 @@
  * geladen.
  */
 
+import './app/core/polyfills';
 import { keepLinkFromAddress } from './app/links/linkKeep';
 
 /*

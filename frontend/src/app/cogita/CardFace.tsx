@@ -11,6 +11,8 @@ import { type Card, type PromptPart } from './cardBasics';
 import { spansOf, type Outcome, type TextRule } from './check';
 import { evaluateCode } from './python';
 import { GeoMap } from './GeoMap';
+import { InteractiveAnswer, InteractiveReplay } from './InteractiveAnswer';
+import { givenValuesText, solutionText } from './interactive';
 import { fieldText, fieldsOf, labelOf, type Entity } from './schema';
 import type { PublicEntity } from './publish';
 import type { CogitaLibrary } from './store';
@@ -48,6 +50,7 @@ export function answerText(card: Card): string {
     case 'flash': return a.back.join(' · ');
     case 'code': return 'kod, który przechodzi wszystkie przypadki';
     case 'point': return 'lat' in a.target ? `${a.target.lat.toFixed(4)}, ${a.target.lon.toFixed(4)}` : 'zaznaczony punkt';
+    case 'interactive': return solutionText(a) ?? 'cel rysunku osiągnięty';
   }
 }
 
@@ -62,6 +65,7 @@ export function givenText(card: Card, given: unknown): string {
   if (a.form === 'match' && Array.isArray(given)) return given.map((p) => (Array.isArray(p) ? `${a.left[p[0]]}—${a.right[p[1]]}` : '')).join('; ');
   if (a.form === 'code' && typeof given === 'object' && given !== null) return `${(given as { passed?: number }).passed ?? 0}/${(given as { total?: number }).total ?? 0}`;
   if (a.form === 'point' && typeof given === 'object' && given !== null) return JSON.stringify(given);
+  if (a.form === 'interactive') return givenValuesText(a, given);
   return given === undefined || given === null ? '' : String(given);
 }
 
@@ -199,6 +203,8 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true }: { ca
           <button type="button" className="wk-btn" disabled={disabled || point === null} onClick={() => submit(point)}>Sprawdź</button>
         </div>
       );
+    case 'interactive':
+      return <InteractiveAnswer card={card} disabled={disabled} onSubmit={submit} />;
   }
 }
 
@@ -228,6 +234,7 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra }: {
         </span>
       )}
       {card.answer.form === 'code' && typeof given === 'object' && given !== null && typeof (given as { error?: unknown }).error === 'string' && <code>{(given as { error: string }).error}</code>}
+      {card.answer.form === 'interactive' && <InteractiveReplay card={card} given={given} />}
       {explain.length > 0 && lib !== undefined && (
         <div className="cg-explain">
           {explain.map((e) => <EntityGlance key={e.id} lib={lib} entity={e} onEntity={onEntity} />)}

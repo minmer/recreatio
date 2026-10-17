@@ -51,9 +51,9 @@ Entry: `src/main.tsx` keeps an access link out of the address, starts the Androi
 | `pages/` | the page registry and editor, parts (`parts/` — one file per kind), slides, presentation, motion, event parts, JSON import/export |
 | `modules/` | modules as own things (forms are modules), their settings and JSON |
 | `library/` | library entries, citations, catalogue lookup, publishing |
-| `cogita/` | knowledge bases, cards (`cards.ts`, `cardPalette.ts`, `cardBasics.ts`), revisions, flows, sessions, games, forms for adding many entries at once (`addForm.ts`, `AddFormEditor.tsx`, `AddFormRun.tsx`) |
+| `cogita/` | knowledge bases, cards (`cards.ts`, `cardPalette.ts`, `cardBasics.ts`), revisions, flows, sessions, games, forms for adding many entries at once and editing them in that shape (`addForm*.ts`, `AddFormEditor.tsx`, `AddFormRun.tsx`, `AddFormRows.tsx`) |
 | `notify/` | the bell and its digest; push for the app |
-| `phone/` | the SMS edition of the app (Gradle flavour `sms`): SMS and MMS from the phone's own store (`SmsApp`, `Composer`, `SmsSheet` for "Napisz SMS"), the sealed SMS archive (`smsArchive.ts`), the own address book (`ContactsApp`, `contactStore.ts`, vCard) and its copy in the phone's contacts; the shell loads only `here.ts` |
+| `phone/` | the SMS edition of the app (Gradle flavour `sms`): SMS and MMS from the phone's own store (`SmsApp`, `Composer`, `SmsSheet` for "Napisz SMS"), the sealed SMS archive (`smsArchive.ts`: batches per conversation with outlines; owned by a chosen role, `archiveSettings.ts`), the own address book (`ContactsApp`, `contactStore.ts`, vCard) and its copy in the phone's contacts; the shell loads only `here.ts` |
 | `registry/` | addresses (postal parts), Kartoteka |
 
 Conventions:
@@ -87,7 +87,7 @@ Conventions:
 | `Chat/` | chats, messages, features (scheduling, presence, marks), topics, seat chats, delivery worker |
 | `Library/`, `Cogita/` | library entries, catalogue, Cogita storage; sessions, games and the SignalR hub |
 | `Notifications/`, `Registry/` | digest and push; postal registry |
-| `Phone/` | the SMS edition's storage in the own area: sealed contacts (with tombstones), SMS archive batches with message prints, sealed MMS files on disk |
+| `Phone/` | the SMS edition's storage: sealed contacts (with tombstones) in the own area; SMS archive batches (one conversation each, with message prints and a sealed outline, 0115) in the area of the role that owns the archive; sealed MMS files on disk; which archives a caller can read |
 | `Transfer/` | what is left of the transfer: answers in RSA envelopes, server clean-up counts (goes when all are 0) |
 
 Conventions: authorization in every handler (`Auth.WhoAsync`, `Area.MayAsync`, role reach); the service never

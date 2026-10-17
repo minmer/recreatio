@@ -18,11 +18,11 @@
  * so, wie sie ohne Bewegung beschrieben ist.
  */
 
-import { useEffect, useId, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react';
 
-import { radialOf, type Drawing, type Shape } from './drawing';
+import { needsLive, radialOf, type Drawing, type Shape } from './drawing';
 import { dashArray, dashOf, keyframesOf, paint, timingOf, touchesPaint, type MotionUse } from './motion';
-import { usePhase, useReducedMotion } from './MotionBox';
+import { usePhase, useReducedMotion, type Phase } from './MotionBox';
 import { imageUrl } from '../slides/slideLook';
 
 interface Planned {
@@ -44,7 +44,7 @@ interface Ctx {
 const FILLED_BY_DEFAULT = new Set(['line', 'group', 'use', 'text', 'image']);
 
 /** Um welchen Punkt sich ein Teil dreht und wächst. */
-function originStyle(origin: string | null): CSSProperties {
+export function originStyle(origin: string | null): CSSProperties {
   if (origin === null || origin === 'center') return { transformBox: 'fill-box', transformOrigin: '50% 50%' };
   const [a, b] = origin.split(/\s+/);
   if (a.endsWith('%') || b.endsWith('%')) return { transformBox: 'fill-box', transformOrigin: `${a} ${b}` };
@@ -64,7 +64,7 @@ function fillOf(value: string | null, ctx: Ctx): string | undefined {
   return paint(value);
 }
 
-function filterOf(s: Shape): string | undefined {
+export function filterOf(s: Shape): string | undefined {
   const parts = [s.blur > 0 ? `blur(${s.blur}px)` : '', s.glow === null ? '' : `drop-shadow(${glowPaint(s.glow)})`].filter((p) => p !== '');
   return parts.length === 0 ? undefined : parts.join(' ');
 }
@@ -157,32 +157,19 @@ function renderShape(s: Shape, ctx: Ctx, key: string): ReactNode {
 }
 
 /**
- * DIE ZEICHNUNG. `still` — ohne Bewegung (im Streifen, zur Vorschau);
- * `identity` — was sich ändern muss, damit die Bewegungen neu aufgebaut werden.
+ * DIE BEWEGUNGEN EINER ZEICHNUNG ABSPIELEN — geteilt mit dem Bild zum Anfassen
+ * (`LiveDrawing`): alle angehalten im ersten Bild, bis die Zeichnung erreicht
+ * ist; dann alle zugleich von vorn; fort — alle halten.
  */
-export function DrawingView({ drawing, identity, still = false, className }: { drawing: Drawing; identity: string; still?: boolean; className?: string }) {
-  const svg = useRef<SVGSVGElement | null>(null);
-  const phase = usePhase(svg);
-  const reduced = useReducedMotion();
-  const quiet = still || reduced;
-  const prefix = `dr${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
-
-  const built = useMemo(() => {
-    const ctx: Ctx = { plan: [], gradients: [], symbols: drawing.symbols, prefix, still: quiet, shift: 0, depth: 0 };
-    const nodes = drawing.elements.map((s, i) => renderShape(s, ctx, String(i)));
-    return { nodes, plan: ctx.plan, gradients: ctx.gradients };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [identity, quiet, prefix]);
-
+export function useMotionPlan(svg: RefObject<SVGSVGElement | null>, plan: readonly { readonly id: number; readonly use: MotionUse; readonly shift: number }[], quiet: boolean, phase: Phase): void {
   const anims = useRef<Animation[]>([]);
   const armed = useRef(true);
 
-  /* Die Bewegungen aufbauen: alle angehalten im ersten Bild, bis die Zeichnung erreicht ist. */
   useEffect(() => {
     const root = svg.current;
     if (root === null || quiet || typeof root.animate !== 'function') return undefined;
     const made: Animation[] = [];
-    for (const item of built.plan) {
+    for (const item of plan) {
       const el = root.querySelector(`[data-mo~="${item.id}"]`);
       if (el === null) continue;
       const timing = timingOf(item.use);
@@ -194,7 +181,7 @@ export function DrawingView({ drawing, identity, still = false, className }: { d
     anims.current = made;
     armed.current = true;
     return () => { for (const a of made) a.cancel(); anims.current = []; };
-  }, [built, quiet]);
+  }, [svg, plan, quiet]);
 
   /* Erreicht: alle zugleich von vorn · fort: alle halten · zu sehen, schon gelaufen: weiter. */
   useEffect(() => {
@@ -214,6 +201,42 @@ export function DrawingView({ drawing, identity, still = false, className }: { d
     }
     for (const a of list) if (a.playState === 'paused') a.play();
   });
+}
+
+/** 2026-10-17 — das Bild zum Anfassen kommt erst, wenn eine Seite eines zeigt. */
+const LiveLazy = lazy(() => import('./LiveDrawing'));
+
+/**
+ * DIE ZEICHNUNG. `still` — ohne Bewegung (im Streifen, zur Vorschau);
+ * `identity` — was sich ändern muss, damit die Bewegungen neu aufgebaut werden.
+ * Eine Zeichnung zum Anfassen (Werte, Rechnungen, Simulation — `needsLive`)
+ * zeichnet `LiveDrawing`; bis es geladen ist, hält ein leerer Rahmen ihre Grösse.
+ */
+export function DrawingView(props: { drawing: Drawing; identity: string; still?: boolean; className?: string }) {
+  if (!needsLive(props.drawing)) return <StillDrawing {...props} />;
+  const { drawing } = props;
+  return (
+    <Suspense fallback={<svg className={props.className ?? 'dr'} viewBox={`0 0 ${drawing.w} ${drawing.h}`} aria-hidden="true" />}>
+      <LiveLazy {...props} />
+    </Suspense>
+  );
+}
+
+function StillDrawing({ drawing, identity, still = false, className }: { drawing: Drawing; identity: string; still?: boolean; className?: string }) {
+  const svg = useRef<SVGSVGElement | null>(null);
+  const phase = usePhase(svg);
+  const reduced = useReducedMotion();
+  const quiet = still || reduced;
+  const prefix = `dr${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
+
+  const built = useMemo(() => {
+    const ctx: Ctx = { plan: [], gradients: [], symbols: drawing.symbols, prefix, still: quiet, shift: 0, depth: 0 };
+    const nodes = drawing.elements.map((s, i) => renderShape(s, ctx, String(i)));
+    return { nodes, plan: ctx.plan, gradients: ctx.gradients };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identity, quiet, prefix]);
+
+  useMotionPlan(svg, built.plan, quiet, phase);
 
   return (
     <svg ref={svg} className={className ?? 'dr'} viewBox={`0 0 ${drawing.w} ${drawing.h}`} role={drawing.alt === '' ? undefined : 'img'}

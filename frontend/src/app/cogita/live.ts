@@ -21,6 +21,7 @@ import { aad, derive, Field, fromBase64Url, KEY_SIZE, open, openText, seal, seal
 import { newId } from '../core/ids';
 import { API, call } from '../core/session';
 import type { AnswerSpec, Card } from './cardBasics';
+import { stripInteractive } from './interactive';
 
 export type SessionKind = 'live' | 'async' | 'sync' | 'story' | 'game' | 'shared';
 export type SessionState = 'lobby' | 'running' | 'paused' | 'finished' | 'closed';
@@ -103,6 +104,7 @@ export function stripCard(card: Card): Card {
       case 'flash': return { ...a, back: [] };
       case 'code': return { ...a, reference: '', createInput: '' };
       case 'point': return a.on === 'map' ? { ...a, target: { lat: 0, lon: 0, r: 0 } } : { ...a, target: { x: 0, y: 0, r: 0 } };
+      case 'interactive': return stripInteractive(a);
     }
   })();
   return { ...card, answer, explain: [], fingerprint: '' };

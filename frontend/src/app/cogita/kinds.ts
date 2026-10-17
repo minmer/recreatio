@@ -156,9 +156,10 @@ export const QUESTION: KindDef = {
         { value: 'text', label: 'Tekst' }, { value: 'number', label: 'Liczba' }, { value: 'date', label: 'Data' },
         { value: 'one', label: 'Jedna z kilku' }, { value: 'many', label: 'Kilka z kilku' }, { value: 'truefalse', label: 'Prawda / fałsz' },
         { value: 'order', label: 'Kolejność' }, { value: 'match', label: 'Dopasowanie' }, { value: 'gap', label: 'Luka w cytacie' },
-        { value: 'flash', label: 'Fiszka (ocena własna)' }, { value: 'code', label: 'Kod (Python)' }, { value: 'point', label: 'Miejsce na mapie' }
+        { value: 'flash', label: 'Fiszka (ocena własna)' }, { value: 'code', label: 'Kod (Python)' }, { value: 'point', label: 'Miejsce na mapie' },
+        { value: 'interactive', label: 'Rysunek do poruszania' }
       ],
-      says: 'Jak się odpowiada: text, number, date, one, many, truefalse, order, match, gap, flash, code, point'
+      says: 'Jak się odpowiada: text, number, date, one, many, truefalse, order, match, gap, flash, code, point, interactive (ustawia się rysunek — suwaki, przeciąganie — i sprawdza)'
     }),
     field('prompt', 'Pytanie', 'markup', { role: 'text', says: 'Treść pytania (dla luki: tekst z lukami [[słowo]])' }),
     field('answers', 'Poprawne odpowiedzi', 'list', { says: 'Przyjmowane odpowiedzi (tekst, liczba, data, luka) — pierwsza jest wzorcowa' }),
@@ -180,6 +181,9 @@ export const QUESTION: KindDef = {
     field('cases', 'Ile przypadków', 'number', { says: 'Na ilu danych sprawdzić (code)' }),
     field('place', 'Miejsce', 'geo', { says: 'Szukany punkt: {"lat": …, "lon": …} (point)' }),
     field('radius', 'Promień (m)', 'number', { says: 'Jak blisko trzeba trafić, w metrach (point)' }),
+    field('drawing', 'Rysunek (JSON)', 'text', { says: 'Rysunek do poruszania — ten sam JSON co w module „Animacja” strony: vars, sim, controls, rules (z "goal": true — cel), elements (interactive)' }),
+    field('goal', 'Cel (wyrażenie)', 'line', { says: 'Kiedy odpowiedź jest dobra, np. "abs(x - cel) < 0.5 && y <= 0" — liczone w symulacji do końca; puste: reguły rysunku z "goal": true (interactive)' }),
+    field('solution', 'Rozwiązanie', 'line', { says: 'Wartości, które rozwiązują zadanie, np. "kat = 45; v0 = 12" — pokazywane po złej odpowiedzi (interactive)' }),
     field('explain', 'Wyjaśnienie', 'ref', { multi: true, says: 'Wiedza i wpisy pokazywane po odpowiedzi' }),
     field('about', 'O czym', 'ref', { multi: true, inverse: 'pytania', says: 'Wpisy, których dotyczy pytanie' })
   ]

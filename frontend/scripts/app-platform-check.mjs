@@ -117,7 +117,8 @@ export { datesOf, declinedAll, attendanceOn, dutyRoom, termsText } from '${app}s
 export { phoneKey, phoneShown, samePhone, smsParts } from '${app}phone/numbers';
 export { parseVCards, formatVCards } from '${app}phone/vcard';
 export { tidyContact, sameContact, planImport, contactMatches, nameIndex, phoneKeysOf } from '${app}phone/contactStore';
-export { canonical, fromNative, archiveThreads } from '${app}phone/smsArchive';
+export { canonical, fromNative, archiveThreads, conversationKey, outlineOf, conversationsOf, choiceIncludes } from '${app}phone/smsArchive';
+export { readSettings, settingsText } from '${app}phone/archiveSettings';
 `);
 await build({
   entryPoints: [entry],
@@ -1975,6 +1976,28 @@ try {
     ]);
     assert.deepEqual(threads.map((t) => [t.key, t.messages.length]), [['+48600100200', 2], ['+48700800900', 1]], 'one thread per circle, the newest first');
     ok('SMS archive: one form per message (direction, time, people, text), threads by the people in them');
+
+    /* 0115: by conversation — the same key on every phone, outlines merged across phones and batches. */
+    assert.equal(m.conversationKey(['700800900', '600 100 200', '+48600100200']), '+48600100200,+48700800900', 'one key for the same people, however written');
+    assert.equal(m.conversationKey(['mBank']), 'mbank');
+    const msg = (at, body, box = 'in', parts = []) => ({ ...inbound, key: String(at), at, body, box, parts });
+    const outline = m.outlineOf('+48600100200', [msg(300, 'trzecia', 'out'), msg(100, 'pierwsza'), msg(200, 'druga')]);
+    assert.deepEqual([outline.count, outline.first, outline.last, outline.lastBody, outline.lastBox], [3, 100, 300, 'trzecia', 'out'], 'an outline: how many, from when to when, the last');
+    const merged = m.conversationsOf([
+      { batchId: 'old-phone', outline: { ...outline, first: 10, last: 50, lastBody: 'stara', count: 40 } },
+      { batchId: 'new-phone', outline },
+      { batchId: 'other', outline: m.outlineOf('+48700800900', [msg(400, 'inna')]) }
+    ]);
+    assert.deepEqual(merged.map((c) => [c.key, c.batches.join('+'), c.count, c.first, c.last, c.lastBody]), [
+      ['+48700800900', 'other', 1, 400, 400, 'inna'],
+      ['+48600100200', 'old-phone+new-phone', 43, 10, 300, 'trzecia']
+    ], 'two phones, one conversation: from the oldest to the newest, the newest last message; newest conversation first');
+    assert.ok(m.choiceIncludes({ mode: 'all', chosen: [] }, 'x') && m.choiceIncludes({ mode: 'chosen', chosen: ['x'] }, 'x')
+      && !m.choiceIncludes({ mode: 'chosen', chosen: ['x'] }, 'y'), 'all, or the chosen ones');
+    const settings = m.readSettings(m.settingsText({ roleId: 'R', areaId: 'A', areas: { R: 'A' }, mode: 'chosen', chosen: ['k', 'k', 'l'] }));
+    assert.deepEqual([settings.roleId, settings.areaId, settings.areas.R, settings.mode, settings.chosen], ['R', 'A', 'A', 'chosen', ['k', 'l']]);
+    assert.deepEqual(m.readSettings('not json'), { roleId: null, areaId: null, areas: {}, mode: 'all', chosen: [] }, 'unreadable: everything, the own person');
+    ok('SMS archive by conversation (0115): one key on every phone, outlines merged across phones, all or chosen conversations, settings read tolerantly');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

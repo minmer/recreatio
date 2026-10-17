@@ -10,7 +10,7 @@
  * Darunter die Tasten, das Einfügen und was das Formular tut, in Worten.
  */
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import ReactFlow, {
   Background, Controls, Handle, Position,
   useReactFlow, useStore,
@@ -24,16 +24,18 @@ import { askText, toast } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
 import { MenuButton } from '../ui/Menu';
 import {
-  addFormDoc, COLUMN_SEPARATOR_LABEL, COLUMN_SEPARATORS, DEFAULT_KEYS, DEFAULT_PASTE, defaultTyped, describeForm, designOrder, duplicateEntry, entryConfig,
-  fieldsSet, formFromKind, formPalette, formProblems, identityOf, isTypeable, KEY_ACTION_LABEL, KEY_ACTIONS, KEY_NAMES, nodeLabel,
+  addFormDoc, COLUMN_SEPARATOR_LABEL, COLUMN_SEPARATORS, DEFAULT_KEYS, DEFAULT_PASTE, entryConfig,
+  fieldsSet, formPalette, groupsOf, identityOf, isTypeable, KEY_ACTION_LABEL, KEY_ACTIONS, KEY_NAMES, nodeLabel,
   pickConfig, readAddForm, refFields, SOURCE_LABEL, typedFields, VALUE_SEPARATOR_LABEL, VALUE_SEPARATORS,
   type AddForm, type FieldSource, type SourceMode
 } from './addForm';
+import { COLUMN, defaultTyped, designOrder, duplicateEntry, formFromKind } from './addFormBuild';
+import { describeForm, formProblems } from './addFormText';
 import { ValueInput } from './AddFormRun';
 import { connect, problemsOf as graphProblems, wouldCycle, type Graph, type GraphNode } from './graph';
 import { Remeasure } from './GraphEditor';
 import { FIELD_TYPE_LABEL, type FieldDef, type KindDef, type Lookup } from './schema';
-import { EntityPicker, entityName, useBusy, useCtx } from './ui';
+import { creatorFor, EntityPicker, entityName, useBusy, useCtx } from './ui';
 
 /* -- Die Liste und ein neues Formular ------------------------------------------------------------- */
 
@@ -128,7 +130,11 @@ function FormDesigner({ entryId, version, data, writes, onRun, onGone }: {
   const { lib } = useCtx();
   const [draft, setDraft] = useState<AddForm>(() => readAddForm(entryId, data));
   const [dirty, setDirty] = useState(false);
-  const [chosen, setChosen] = useState<string | null>(null);
+  /* Gleich etwas zu sehen: der erste Eintrag der Zeile ist gewählt, sein Modul offen. */
+  const [chosen, setChosen] = useState<string | null>(() => {
+    const first = readAddForm(entryId, data);
+    return (designOrder(first).entries[0] ?? first.graph.nodes[0])?.id ?? null;
+  });
   const [said, setSaid] = useState<string | null>(null);
   const { busy, failed, run } = useBusy();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -157,28 +163,52 @@ function FormDesigner({ entryId, version, data, writes, onRun, onGone }: {
   /* „Kolejny taki": die nächste Sprache — mit eigener Wahl der Sprache, denselben gemeinsamen Wahlen und dorthin verbunden, wohin der erste zeigt. */
   const duplicate = (id: string) => {
     const done = duplicateEntry(draft.graph, id, lib.look, () => newId().slice(-8));
-    if (done !== null) { setGraph(done.graph); setChosen(done.id); }
+    if (done === null) return;
+    /* Steht eine Reihenfolge fest, kommt der neue gleich hinter den, den er abschreibt. */
+    const order = draft.order === undefined ? undefined : draft.order.flatMap((x) => (x === id ? [x, done.id] : [x]));
+    set({ graph: done.graph, ...(order === undefined ? {} : { order }) });
+    setChosen(done.id);
   };
-  const remove = (id: string) => { setGraph(without(draft.graph, id)); if (chosen === id) setChosen(null); };
-
+  const remove = (id: string) => {
+    set({ graph: without(draft.graph, id), ...(draft.order === undefined ? {} : { order: draft.order.filter((x) => x !== id) }) });
+    if (chosen === id) setChosen(null);
+  };
   /*
-    2026-10-17 — DIE LEINWAND ÜBER DIE GANZE BREITE, darüber die Werkzeuge,
-    darunter je Knoten ein Modul mit seinen Einstellungen. Vorher stand der
-    gewählte Knoten in einer schmalen Spalte daneben, und wer einen gewählt
-    hatte, sah nicht mehr, wie man einen weiteren hinzufügt.
+    2026-10-17 — LINKS DIE LEINWAND, RECHTS DIE KNOTEN (auf Wunsch): je Knoten
+    ein Modul, der gewählte offen — man sieht den Knoten und seine Einstellungen
+    nebeneinander. Oben, was man tut (speichern, ausfüllen) und was man
+    hinzufügt; unten die Reihenfolge der Zeile, die Tasten, das Einfügen.
   */
   return (
     <div className="cg">
-      <div className="cg-row">
+      <div className="cg-af-top-row">
         <label className="wk-field"><span>Nazwa formularza</span><input value={draft.name} disabled={!writes} onChange={(e) => set({ name: e.target.value })} /></label>
+        <div className="cg-row">
+          {writes && <button type="button" className="wk-btn" disabled={busy || !dirty} onClick={() => void save()}>{busy ? 'Zapisywanie…' : dirty ? 'Zapisz formularz' : 'Zapisano'}</button>}
+          <button type="button" className={writes ? 'wk-btn wk-btn-quiet' : 'wk-btn'} disabled={dirty} title={dirty ? 'Najpierw zapisz zmiany' : undefined} onClick={onRun}>Wypełniaj →</button>
+          {writes && (
+            <MenuButton label={`Więcej: ${draft.name}`} items={[{
+              label: 'Usuń formularz', danger: true,
+              onSelect: () => void (async () => { if (await askText(`Usunąć formularz „${draft.name}"? Wpisy, które nim dodano, zostają.`)) void run(async () => { await lib.remove(draft.id); onGone(); }); })()
+            }]} />
+          )}
+        </div>
       </div>
       {writes && <FormTools form={draft} chosen={node} onAdd={(n) => { setGraph({ nodes: [...draft.graph.nodes, n], edges: draft.graph.edges }); setChosen(n.id); }} onDuplicate={duplicate} />}
       {said !== null && <p className="wk-error">{said}</p>}
-      <FormCanvas form={draft} readOnly={!writes} chosen={chosen} onChoose={setChosen} onGraph={setGraph}
-        onWire={(from, to, field) => { const g = wire(draft.graph, from, to, field); if (g !== null) setGraph(g); }} />
-      <FormModules form={draft} chosen={chosen} readOnly={!writes} onChoose={setChosen} onGraph={setGraph} wire={wire} onDuplicate={duplicate} onRemove={remove} />
+      {failed !== null && <p className="wk-error">{failed}</p>}
+      {problems.map((p, i) => <p key={i} className="wk-warn">{p}</p>)}
+      <div className="cg-af-design">
+        <FormCanvas form={draft} readOnly={!writes} chosen={chosen} onChoose={setChosen} onGraph={setGraph}
+          onWire={(from, to, field) => { const g = wire(draft.graph, from, to, field); if (g !== null) setGraph(g); }} />
+        <aside className="cg-af-side" aria-label="Węzły formularza">
+          <FormModules form={draft} chosen={chosen} readOnly={!writes} onChoose={setChosen} onGraph={setGraph} wire={wire} onDuplicate={duplicate} onRemove={remove} />
+        </aside>
+      </div>
 
       <section className="cg-card">
+        <h3>Kolejność pól w wierszu</h3>
+        <RowOrder form={draft} readOnly={!writes} onOrder={(order) => set({ order })} />
         <h3>Klawisze przy wpisywaniu</h3>
         <div className="cg-row">
           {KEY_NAMES.map(([key, name]) => (
@@ -212,16 +242,34 @@ function FormDesigner({ entryId, version, data, writes, onRun, onGone }: {
         <h3>Jak działa ten formularz</h3>
         <ul className="cg-af-desc">{describeForm(draft, lib.look).map((line, i) => <li key={i}>{line}</li>)}</ul>
       </section>
-      {problems.map((p, i) => <p key={i} className="wk-warn">{p}</p>)}
-      {failed !== null && <p className="wk-error">{failed}</p>}
-      <div className="wk-actions">
-        {writes && <button type="button" className="wk-btn" disabled={busy || !dirty} onClick={() => void save()}>{busy ? 'Zapisywanie…' : 'Zapisz formularz'}</button>}
-        <button type="button" className={writes ? 'wk-btn wk-btn-quiet' : 'wk-btn'} disabled={dirty} title={dirty ? 'Najpierw zapisz zmiany' : undefined} onClick={onRun}>Wypełniaj →</button>
-        {writes && <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => {
-          if (await askText(`Usunąć formularz „${draft.name}"? Wpisy, które nim dodano, zostają.`)) void run(async () => { await lib.remove(draft.id); onGone(); });
-        }}>Usuń formularz</button>}
-      </div>
     </div>
+  );
+}
+
+/** Die Reihenfolge der Zeile — was Enter nacheinander ansteuert und wie die Spalten einer eingefügten Liste stehen. */
+function RowOrder({ form, readOnly, onOrder }: { form: AddForm; readOnly: boolean; onOrder: (order: string[]) => void }) {
+  const { lib } = useCtx();
+  const groups = groupsOf(form, lib.look);
+  if (groups.length === 0) return <p className="cg-muted">Nic jeszcze nie jest wpisywane w wierszu.</p>;
+  const move = (i: number, by: -1 | 1) => {
+    const ids = groups.map((g) => g.node);
+    [ids[i], ids[i + by]] = [ids[i + by], ids[i]];
+    onOrder(ids);
+  };
+  return (
+    <ol className="cg-af-order">
+      {groups.map((g, i) => (
+        <li key={g.node}>
+          <span><strong>{g.label}</strong> <span className="cg-muted">{g.fields.map((f) => f.label).join(', ')}{g.many ? ' · kilka' : ''}</span></span>
+          {!readOnly && (
+            <span className="cg-row">
+              <button type="button" className="wk-link-btn" aria-label={`${g.label}: wcześniej`} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+              <button type="button" className="wk-link-btn" aria-label={`${g.label}: później`} disabled={i === groups.length - 1} onClick={() => move(i, 1)}>↓</button>
+            </span>
+          )}
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -278,7 +326,7 @@ function FitWhenMeasured() {
   });
   useEffect(() => {
     if (measured === 0) return undefined;
-    const later = window.setTimeout(() => fitView({ padding: 0.12, duration: 200 }), 30);
+    const later = window.setTimeout(() => fitView({ padding: 0.08, duration: 200 }), 30);
     return () => window.clearTimeout(later);
   }, [measured, fitView]);
   return null;
@@ -382,7 +430,7 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
         nodesConnectable={!readOnly}
         nodesDraggable={!readOnly}
         fitView
-        fitViewOptions={{ padding: 0.12 }}
+        fitViewOptions={{ padding: 0.08 }}
         /* Ein Formular ist breit (Wahlen, Zeilen, Verbindendes): auf dem Telefon passt es erst kleiner ganz hinein. */
         minZoom={0.2}
         proOptions={{ hideAttribution: true }}
@@ -410,7 +458,8 @@ function FormTools({ form, chosen, onAdd, onDuplicate }: { form: AddForm; chosen
   const typedHere = (n: GraphNode) => typedIn(n, lib.look);
   const low = (x: number) => Math.max(0, ...form.graph.nodes.filter((n) => Math.abs(n.x - x) < 150).map((n) => n.y + 160));
   /* Ein neuer Eintrag kommt in die Spalte der getippten (dort, wo die Wörter stehen) — sonst in die Mitte. */
-  const column = Math.min(...form.graph.nodes.filter((n) => n.type === 'entry').map((n) => n.x), 340);
+  const typedXs = form.graph.nodes.filter(typedHere).map((n) => n.x);
+  const column = typedXs.length > 0 ? Math.min(...typedXs) : COLUMN;
   return (
     <div className="cg-af-tools">
       <button type="button" className="wk-btn wk-btn-quiet" onClick={() => onAdd(pickNode(0, low(0), undefined, [], false))}><Icon name="plus" />Na początek</button>
@@ -419,7 +468,7 @@ function FormTools({ form, chosen, onAdd, onDuplicate }: { form: AddForm; chosen
       {chosen !== undefined && typedHere(chosen) && (
         <button type="button" className="wk-btn wk-btn-quiet" onClick={() => onDuplicate(chosen.id)}><Icon name="copy" />Kolejny taki jak „{nodeLabel(chosen, lib.look, form.graph)}”</button>
       )}
-      <span className="cg-muted">Połącz kropkę wpisu (z prawej) z kropką pola (z lewej) — albo ustaw to niżej.</span>
+      <span className="cg-muted">Połącz kropkę wpisu (z prawej) z kropką pola (z lewej) — albo wybierz „skąd” przy polu w ustawieniach węzła.</span>
     </div>
   );
 }
@@ -439,9 +488,11 @@ function FormModules({ form, chosen, readOnly, onChoose, onGraph, wire, onDuplic
   const { lib } = useCtx();
   const typedHere = (n: GraphNode) => typedIn(n, lib.look);
   const { picks, entries } = designOrder(form);
-  /* Wer auf der Leinwand einen Knoten wählt, sieht sein Modul — ohne dass die Seite springt, wenn es schon zu sehen ist. */
+  /* Wer auf der Leinwand einen Knoten wählt, sieht sein Modul — ohne dass die Seite springt, wenn es schon zu sehen ist; beim Öffnen springt sie nie. */
+  const shownFor = useRef(chosen);
   useEffect(() => {
-    if (chosen === null) return;
+    if (chosen === null || chosen === shownFor.current) return;
+    shownFor.current = chosen;
     document.querySelector(`[data-af-node="${chosen}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [chosen]);
   return (
@@ -489,7 +540,8 @@ function ModuleCard({ form, node, on, readOnly, onChoose, onRemove, onDuplicate,
   return (
     <section className={`cg-card cg-af-module${on ? ' is-on' : ''}${node.type === 'pick' ? ' is-pick' : ''}`} data-af-node={node.id} onFocusCapture={() => { if (!on) onChoose(node.id); }}>
       <div className="cg-row-between">
-        <button type="button" className="cg-af-module-title" onClick={() => onChoose(node.id)}>
+        <button type="button" className="cg-af-module-title" aria-expanded={on} onClick={() => onChoose(node.id)}>
+          <Icon name={on ? 'chevron' : 'next'} />
           <strong>{nodeLabel(node, lib.look, form.graph)}</strong>
           <span className="cg-muted">{sub}</span>
         </button>
@@ -500,7 +552,7 @@ function ModuleCard({ form, node, on, readOnly, onChoose, onRemove, onDuplicate,
           </span>
         )}
       </div>
-      {children}
+      {on && children}
     </section>
   );
 }
@@ -712,7 +764,7 @@ function PickPanel({ form, node, readOnly, onConfig }: {
           </span>
         ))}
         {!readOnly && (c.many || c.value.length === 0) && (
-          <EntityPicker lib={lib} kinds={c.kinds.length > 0 ? c.kinds : undefined} refs value={null} placeholder="szukaj…" onPick={(id) => id !== null && onConfig({ value: [...c.value.filter((x) => x !== id), id] })} />
+          <EntityPicker lib={lib} kinds={c.kinds.length > 0 ? c.kinds : undefined} refs {...creatorFor(lib, c.kinds, !readOnly)} value={null} placeholder="szukaj…" onPick={(id) => id !== null && onConfig({ value: [...c.value.filter((x) => x !== id), id] })} />
         )}
       </div>
     </div>

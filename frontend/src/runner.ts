@@ -19,6 +19,7 @@
  * Minute ohne Auftrag weg).
  */
 
+import './app/core/polyfills';
 import { doneIn, gatherNews, readIn, replyIn, type GatherOptions } from './app/notify/notifyRich';
 import { whoIsThere, WorkspaceError } from './app/core/session';
 

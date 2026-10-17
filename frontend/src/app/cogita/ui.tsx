@@ -4,9 +4,10 @@
  * Wissens, Dateien, Bedingungen und Aktionen der einen Logik.
  */
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import type { Me } from '../core/me';
+import { Icon } from '../ui/icons';
 import type { LibraryStore } from '../library/libraryStore';
 import type { Who } from '../core/session';
 import { fileUrl } from './files';
@@ -15,7 +16,7 @@ import { runPython } from './python';
 import { viewPath } from '../routes';
 import type { PublicEntity } from './publish';
 import type { SourceState } from './sources';
-import type { Entity, MediaRef } from './schema';
+import { patternKeys, type Entity, type MediaRef } from './schema';
 import { CogitaLibrary, lineOf, type Origin } from './store';
 import './cogita.css';
 
@@ -103,7 +104,14 @@ export function useBusy(): { busy: boolean; failed: string | null; run: (todo: (
 
 /* -- Einträge wählen --------------------------------------------------------------------- */
 
-export function EntityPicker({ lib, kinds, value, onPick, placeholder, allowClear = true, refs = false }: {
+/*
+  2026-10-17 — EINE AUSWAHL MIT PFEIL UND „UTWÓRZ". Vorher war das Wählen nur
+  ein Suchfeld, und einen fehlenden Eintrag (ein neues Thema) legte ein Verweis
+  darunter an — den die offene Liste verdeckte. Jetzt öffnet der Pfeil die
+  Liste ohne Tippen, Pfeiltasten und Enter wählen, und wo ein Eintrag fehlt,
+  steht am Ende der Liste „+ Utwórz „…"" (wer `onCreate` gibt).
+*/
+export function EntityPicker({ lib, kinds, value, onPick, placeholder, allowClear = true, refs = false, onCreate, createLabel }: {
   lib: CogitaLibrary;
   kinds?: readonly string[];
   value: string | null;
@@ -112,37 +120,103 @@ export function EntityPicker({ lib, kinds, value, onPick, placeholder, allowClea
   allowClear?: boolean;
   /** 0110 — auch das, worauf man nur verweist (die Bücher der Bibliotheken): für ein Verweisfeld. */
   refs?: boolean;
+  /** Einen fehlenden Eintrag mit diesem Namen anlegen — gibt seine Kennung (`creatorFor`). */
+  onCreate?: (text: string) => Promise<string | null>;
+  /** Wie der Rodzaj heisst, der angelegt würde. */
+  createLabel?: string;
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
+  const [at, setAt] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const box = useRef<HTMLSpanElement | null>(null);
+  const field = useRef<HTMLInputElement | null>(null);
   const chosen = value === null ? undefined : lib.entity(value);
-  const found = useMemo(() => (open ? lib.search(query, kinds && kinds.length > 0 ? kinds : undefined, refs).slice(0, 12) : []),
+  const found = useMemo(() => (open ? lib.search(query, kinds && kinds.length > 0 ? kinds : undefined, refs).slice(0, 50) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [lib, lib.revision, query, open, kinds?.join(','), refs]);
+  const wanted = query.trim();
+  const creatable = onCreate !== undefined && wanted !== '' && !found.some((e) => lib.label(e).trim().toLowerCase() === wanted.toLowerCase());
+  const count = found.length + (creatable ? 1 : 0);
+  const close = () => { setOpen(false); setQuery(''); setAt(0); };
+  const pick = (id: string) => { onPick(id); close(); };
+  const create = async () => {
+    if (onCreate === undefined || busy) return;
+    setBusy(true);
+    try {
+      const id = await onCreate(wanted);
+      if (id !== null) pick(id);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const choose = (i: number) => { if (i < found.length) pick(found[i].id); else if (creatable) void create(); };
+  const reopen = () => { setOpen(true); setQuery(''); setAt(0); window.requestAnimationFrame(() => field.current?.focus()); };
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (!open) setOpen(true); else setAt((i) => Math.min(count - 1, i + 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setAt((i) => Math.max(0, i - 1)); }
+    else if (e.key === 'Enter' && open && count > 0) { e.preventDefault(); e.stopPropagation(); choose(Math.min(at, count - 1)); }
+    else if (e.key === 'Escape' && open) { e.preventDefault(); close(); }
+  };
+
   if (chosen !== undefined && !open) {
     return (
       <span className="cg-pick-chosen">
-        <span>{lineOf(lib, chosen)}</span>
-        <button type="button" className="wk-link-btn" onClick={() => { setOpen(true); setQuery(''); }}>zmień</button>
+        <button type="button" className="cg-pick-value" aria-haspopup="listbox" title="Zmień" onClick={reopen}>
+          <span>{lineOf(lib, chosen)}</span>
+          <Icon name="chevron" />
+        </button>
         {allowClear && <button type="button" className="wk-link-btn" aria-label="Usuń wybór" onClick={() => onPick(null)}>×</button>}
       </span>
     );
   }
   return (
-    <span className="cg-pick">
-      <input value={query} placeholder={placeholder ?? 'Szukaj wpisu…'} onFocus={() => setOpen(true)} onChange={(e) => { setQuery(e.target.value); setOpen(true); }} />
+    <span className="cg-pick" ref={box} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) close(); }}>
+      <span className="cg-pick-field">
+        <input ref={field} value={query} placeholder={placeholder ?? 'Szukaj wpisu…'} role="combobox" aria-expanded={open} aria-autocomplete="list"
+          onFocus={() => setOpen(true)} onKeyDown={onKey} onChange={(e) => { setQuery(e.target.value); setOpen(true); setAt(0); }} />
+        <button type="button" className="cg-pick-arrow" tabIndex={-1} aria-label={open ? 'Zamknij listę' : 'Pokaż listę'}
+          onMouseDown={(e) => e.preventDefault()} onClick={() => { if (open) close(); else reopen(); }}>
+          <Icon name="chevron" />
+        </button>
+      </span>
       {open && (
         <span className="cg-pick-list" role="listbox">
-          {found.length === 0 ? <span className="wk-hint">Nic nie pasuje.</span> : found.map((e) => (
-            <button key={e.id} type="button" role="option" aria-selected={false} onClick={() => { onPick(e.id); setOpen(false); }}>
+          {found.map((e, i) => (
+            <button key={e.id} type="button" role="option" aria-selected={i === at} className={i === at ? 'is-on' : undefined}
+              onMouseDown={(ev) => ev.preventDefault()} onMouseEnter={() => setAt(i)} onClick={() => pick(e.id)}>
               <span className="cg-kind-tag">{lib.kind(e.kinds[0] ?? '')?.name ?? ''}</span> {lineOf(lib, e)}{!lib.isOwn(e.id) && <span className="cg-muted"> · {lib.origin(e.id)?.name}</span>}
             </button>
           ))}
-          {value !== null && <button type="button" className="wk-link-btn" onClick={() => setOpen(false)}>anuluj</button>}
+          {found.length === 0 && !creatable && <span className="cg-muted cg-pick-none">{onCreate === undefined || wanted !== '' ? 'Nic nie pasuje.' : 'Nic tu jeszcze nie ma — wpisz nazwę, żeby utworzyć.'}</span>}
+          {creatable && (
+            <button type="button" role="option" aria-selected={at === found.length} className={`cg-pick-new${at === found.length ? ' is-on' : ''}`} disabled={busy}
+              onMouseDown={(ev) => ev.preventDefault()} onMouseEnter={() => setAt(found.length)} onClick={() => void create()}>
+              {busy ? 'Tworzenie…' : <>+ Utwórz „{wanted}”{createLabel === undefined ? '' : ` — ${createLabel}`}</>}
+            </button>
+          )}
         </span>
       )}
     </span>
   );
+}
+
+/**
+ * „+ Utwórz" für eine Auswahl: ein neuer Eintrag des EINEN Rodzaj, den sie
+ * zulässt, mit dem Namen im Feld seines Etiketts. Nichts, wo das nicht geht
+ * (mehrere Rodzaje, ein Buch der Bibliothek, wer nur liest).
+ */
+export function creatorFor(lib: CogitaLibrary, kinds: readonly string[] | undefined, writes: boolean): { onCreate?: (text: string) => Promise<string | null>; createLabel?: string } {
+  if (!writes || kinds === undefined || kinds.length !== 1) return {};
+  const kind = lib.kinds.find((k) => k.id === kinds[0]);
+  if (kind === undefined) return {};
+  const keys = patternKeys(kind.label);
+  const field = kind.fields.find((f) => keys.includes(f.key) && (f.type === 'line' || f.type === 'text')) ?? kind.fields.find((f) => f.type === 'line');
+  if (field === undefined) return {};
+  return {
+    createLabel: kind.name,
+    onCreate: async (text) => (await lib.saveEntity({ kinds: [kind.id], data: { [field.key]: text } })).id
+  };
 }
 
 /* -- 0110: was aus einer Quelle kommt -------------------------------------------------------- */

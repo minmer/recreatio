@@ -17,7 +17,7 @@ import {
   type Entity, type FieldDef, type GeoPoint, type MediaRef, type RangeValue, type ValueState
 } from './schema';
 import { linkedOf } from './store';
-import { EntityPicker, Markup, MediaView, entityName, useAsync, useBusy, useCtx } from './ui';
+import { creatorFor, EntityPicker, Markup, MediaView, entityName, useAsync, useBusy, useCtx } from './ui';
 import { loadVersions, openVersion } from './versions';
 import { askText } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
@@ -277,7 +277,7 @@ function PlainValue({ field, value, writes, onChange, onOpen }: { field: FieldDe
       const id = typeof value === 'string' && value !== '' ? value : null;
       return (
         <span className="cg-row">
-          {writes ? <EntityPicker lib={lib} kinds={field.to} refs value={id} onPick={(next) => onChange(next ?? undefined)} />
+          {writes ? <EntityPicker lib={lib} kinds={field.to} refs {...creatorFor(lib, field.to, writes)} value={id} onPick={(next) => onChange(next ?? undefined)} />
             : <span>{id === null ? '—' : entityName(lib, id)}</span>}
           {id !== null && lib.entity(id) !== undefined && <button type="button" className="wk-link-btn" onClick={() => onOpen(id)}>otwórz</button>}
         </span>

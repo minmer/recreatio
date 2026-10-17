@@ -593,20 +593,22 @@ final class SmsStore {
      * nach {@code afterMms}, der Reihe nach. Was gerade hinausgeht (jünger als
      * ein Tag), hält die Marke auf — es kommt, sobald es entschieden ist.
      */
-    static JSONObject exportPage(Context context, long afterSms, long afterMms, int limit) throws JSONException {
+    static JSONObject exportPage(Context context, long threadId, long afterSms, long afterMms, int limit) throws JSONException {
         ContentResolver cr = context.getContentResolver();
         JSONArray messages = new JSONArray();
         Map<Long, List<String>> peers = new HashMap<>();
         long since = System.currentTimeMillis() - PENDING_MS;
+        /* Ein Gespräch (`threadId` ≥ 0) oder das ganze Telefon. */
+        String inThread = threadId >= 0 ? " AND thread_id = " + threadId : "";
 
         long smsBlock = Long.MAX_VALUE;
-        try (Cursor c = cr.query(SMS, new String[] { "_id" }, "_id > ? AND type IN (4, 6) AND date > ?",
+        try (Cursor c = cr.query(SMS, new String[] { "_id" }, "_id > ? AND type IN (4, 6) AND date > ?" + inThread,
                 new String[] { String.valueOf(afterSms), String.valueOf(since) }, "_id ASC")) {
             if (c != null && c.moveToFirst()) smsBlock = c.getLong(0);
         }
         long nextSms = afterSms;
         boolean smsDone = true;
-        try (Cursor c = cr.query(SMS, SMS_COLUMNS, "_id > ? AND _id < ? AND type <> 3",
+        try (Cursor c = cr.query(SMS, SMS_COLUMNS, "_id > ? AND _id < ? AND type <> 3" + inThread,
                 new String[] { String.valueOf(afterSms), String.valueOf(smsBlock) }, "_id ASC")) {
             while (c != null && c.moveToNext()) {
                 if (messages.length() >= limit) { smsDone = false; break; }
@@ -618,13 +620,13 @@ final class SmsStore {
 
         long nextMms = afterMms;
         boolean mmsDone = true;
+        long mmsBlock = Long.MAX_VALUE;
         if (smsDone && messages.length() < limit) {
-            long mmsBlock = Long.MAX_VALUE;
-            try (Cursor c = cr.query(MMS, new String[] { "_id" }, "_id > ? AND (msg_box = 4 OR m_type = 130) AND date > ?",
+            try (Cursor c = cr.query(MMS, new String[] { "_id" }, "_id > ? AND (msg_box = 4 OR m_type = 130) AND date > ?" + inThread,
                     new String[] { String.valueOf(afterMms), String.valueOf(since / 1000L) }, "_id ASC")) {
                 if (c != null && c.moveToFirst()) mmsBlock = c.getLong(0);
             }
-            try (Cursor c = cr.query(MMS, MMS_COLUMNS, "_id > ? AND _id < ? AND msg_box <> 3",
+            try (Cursor c = cr.query(MMS, MMS_COLUMNS, "_id > ? AND _id < ? AND msg_box <> 3" + inThread,
                     new String[] { String.valueOf(afterMms), String.valueOf(mmsBlock) }, "_id ASC")) {
                 while (c != null && c.moveToNext()) {
                     if (messages.length() >= limit) { mmsDone = false; break; }
@@ -638,11 +640,13 @@ final class SmsStore {
             mmsDone = false;
         }
 
+        /* `blocked`: es hielt etwas an, das noch hinausgeht (oder noch geladen wird) — später noch einmal. */
         return new JSONObject()
                 .put("messages", messages)
                 .put("nextSms", nextSms)
                 .put("nextMms", nextMms)
-                .put("done", smsDone && mmsDone);
+                .put("done", smsDone && mmsDone)
+                .put("blocked", smsBlock != Long.MAX_VALUE || mmsBlock != Long.MAX_VALUE);
     }
 
     /** Die Nummern, die zu einer Menge gehören — ohne Doppelte, in der Reihenfolge. */

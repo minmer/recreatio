@@ -325,14 +325,15 @@ const clamp = (value: number, min: number, max: number): number => (value < min 
  * Eine Farbe, wie sie in einer Bewegung (und einer Zeichnung) stehen darf:
  * `#rgb`/`#rrggbb(aa)`, `rgb(a)(…)`, `hsl(a)(…)`, ein Name, `transparent`,
  * `none`, die Namen des Themas (`accent`, `ink`, `ground`, `muted`, `ok`,
- * `danger`) — mit `/35` dahinter: zu 35 % deckend. Sonst nichts.
+ * `danger`) — mit `/35` dahinter: zu 35 % deckend. Sonst nichts. (Ein Name hat
+ * ab zwei Buchstaben: `ok` fiel bis 2026-10-17 heraus.)
  */
 export function colorValue(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const text = value.trim();
   if (text === '' || text.length > 60 || /[;{}<>"'\\]/.test(text)) return null;
   const base = text.replace(/\/\d{1,3}$/, '');
-  return /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%deg]+\)|[a-z]{3,20})$/i.test(base) ? text : null;
+  return /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%deg]+\)|[a-z]{2,20})$/i.test(base) ? text : null;
 }
 
 /**

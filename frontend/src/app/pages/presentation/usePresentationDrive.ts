@@ -285,6 +285,15 @@ export function usePresentationDrive(box: MutableRefObject<HTMLElement | null>, 
 
     const inside = (event: Event): boolean => scope === 'window' || (event.target instanceof Node && node.contains(event.target));
 
+    /*
+     * 2026-10-17 — WAS EIN BILD ZUM ANFASSEN SELBST BRAUCHT: ein Griff, der
+     * gezogen wird, ein Schieber, ein Knopf (`[data-pz-hold]`). Ein Finger, der
+     * dort ansetzt, gehört bis zum Loslassen dem Bild — sonst glitte die Szene
+     * weg, während man einen Winkel einstellt.
+     */
+    let held = false;
+    const holds = (event: Event): boolean => event.target instanceof Element && event.target.closest('[data-pz-hold]') !== null;
+
     /** Rollt unter dem Zeiger etwas selbst (ein langer Baustein, ein Menü)? Dann darf es. */
     const rolls = (event: Event): boolean => {
       let el = event.target instanceof Element ? event.target : null;
@@ -310,6 +319,7 @@ export function usePresentationDrive(box: MutableRefObject<HTMLElement | null>, 
 
     const onTouchStart = (event: TouchEvent) => {
       if (!inside(event)) return;
+      held = holds(event);
       touchAt = event.touches[0]?.clientY ?? 0;
       touchTime = performance.now();
       lastEvent = 0;
@@ -317,8 +327,10 @@ export function usePresentationDrive(box: MutableRefObject<HTMLElement | null>, 
       push = 0;
     };
 
+    const onTouchEnd = (event: TouchEvent) => { if (event.touches.length === 0) held = false; };
+
     const onTouchMove = (event: TouchEvent) => {
-      if (!inside(event) || rolls(event) || event.touches.length > 1) return;
+      if (held || !inside(event) || rolls(event) || event.touches.length > 1) return;
       event.preventDefault();
       const y = event.touches[0]?.clientY ?? 0;
       const dy = touchAt - y;
@@ -378,6 +390,8 @@ export function usePresentationDrive(box: MutableRefObject<HTMLElement | null>, 
     listen.addEventListener('wheel', onWheel as EventListener, { passive: false });
     listen.addEventListener('touchstart', onTouchStart as EventListener, { passive: true });
     listen.addEventListener('touchmove', onTouchMove as EventListener, { passive: false });
+    listen.addEventListener('touchend', onTouchEnd as EventListener, { passive: true });
+    listen.addEventListener('touchcancel', onTouchEnd as EventListener, { passive: true });
     if (keys !== 'none') window.addEventListener('keydown', onKey);
     window.addEventListener('resize', relayout, { passive: true });
     window.addEventListener('orientationchange', relayout, { passive: true });
@@ -389,6 +403,8 @@ export function usePresentationDrive(box: MutableRefObject<HTMLElement | null>, 
       listen.removeEventListener('wheel', onWheel as EventListener);
       listen.removeEventListener('touchstart', onTouchStart as EventListener);
       listen.removeEventListener('touchmove', onTouchMove as EventListener);
+      listen.removeEventListener('touchend', onTouchEnd as EventListener);
+      listen.removeEventListener('touchcancel', onTouchEnd as EventListener);
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', relayout);
       window.removeEventListener('orientationchange', relayout);

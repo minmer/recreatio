@@ -129,7 +129,9 @@ The same app with SMS, MMS and the phone's address book. It is meant for one pho
 | Being the phone's SMS app: receiving SMS and MMS, sending both, notifications with a reply field, quick replies to calls, `sms:` links. The phone's own message store stays the store. | `SmsReceiver`, `MmsReceiver` (own PDU codec `MmsPdu`), `SmsSender`, `SmsNotices`, `RespondService`, `ComposeActivity` |
 | The SMS view `#/workspace/sms`: threads, one thread, a new message. It is separate from Rozmowy. | `src/app/phone/SmsApp.tsx`, `Composer.tsx` |
 | "Napisz SMS" in Formularze → Osoby opens a sheet that sends at once, and the list stays where it was. | `SmsSheet.tsx` |
-| The archive: new messages go into the own area, sealed, shortly after they arrive or are sent, and twice a day. The browser can read it too. | `smsArchive.ts`, `PhoneWork` → runner, `backend/Api/Phone/` |
+| The archive (*SMS → ⋯ → Archiwum*) belongs to a role you choose: your own person (its private area) or another role you hold, which gets its own area "Archiwum SMS". Whoever holds that role reads it, also in the browser. You can archive all conversations or only the ones you tick. Each archived conversation goes in whole, and after that new messages follow on their own, shortly after they arrive or are sent and twice a day. Nothing is archived on its own until you choose a role or press *Archiwizuj teraz* once. | `archiveSettings.ts`, `smsArchive.ts`, `SmsArchiveView.tsx`, `PhoneWork` → runner, `backend/Api/Phone/` |
+| An old phone adds its history: install the same APK there and sign in. The old phone doesn't have to become the SMS app; *Pozwól czytać SMS* is enough. Then press *Archiwizuj teraz*. It archives into the same archive, and a message both phones hold is stored once (same print). | `requestSmsRead`, `core/polyfills.ts` (older WebViews) |
+| The browser (`#/workspace/sms`) reads every archive you have access to. It shows conversations from small per-batch outlines, loads one conversation's batches when you open it, and searches by person, number or text. | `SmsArchiveView.tsx`, `POST /workspace/phone/archives` |
 | Contacts `#/workspace/contacts`, sealed in the own area: read from the phone, vCard in and out, and edited here. A copy goes into the phone's contacts under the account "REcreatio" after every change and twice a day, so calls and SMS show names without asking the service. | `ContactsApp.tsx`, `contactStore.ts`, `PhoneContacts.java` |
 | "Przenieś z telefonu…" reads the phone's contacts in, writes the copy, then removes the originals that live only in the phone's own storage (no account). Contacts of DAVx5, Signal or the SIM stay. | `PhoneContacts.dropLocal` |
 
@@ -141,7 +143,7 @@ Install on GrapheneOS:
 4. In the app, open *SMS → Ustaw jako aplikację SMS*, then allow contacts.
 5. *Konto → Klucz: Zachowany*, so the archive and the contact copy also run while the app is closed (the runner needs the key, as for notifications).
 
-The service needs migration 0114 (`phone_*` tables) and an API with `Phone/` before the archive and the contacts work.
+The service needs migrations 0114 (`phone_*` tables) and 0115 (an outline per archive batch), and an API with `Phone/`, before the archive and the contacts work.
 
 MMS has not been tried against a real carrier, because the emulator has no MMSC. The PDU codec has unit tests (`app/src/testSms`).
 

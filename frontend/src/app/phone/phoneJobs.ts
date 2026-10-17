@@ -3,7 +3,9 @@
  * Telefon, im Läufer (App zu, `PhoneWork.java`) und in der offenen App.
  *
  * <code>
- *   archive    neue SMS und MMS ins Archiv (Bilder, wenn „phone.media" an ist)
+ *   archive    die gewählten Gespräche ins Archiv der gewählten Rolle
+ *              (`archiveSettings.ts`; Bilder, wenn „phone.media" an ist) — von
+ *              selbst erst, wenn jemand das Archiv eingerichtet hat
  *   contacts   die Kontakte aus recreatio ins Adressbuch des Telefons
  * </code>
  *
@@ -13,10 +15,11 @@
 
 import { remembered, setValue } from '../core/prefs';
 import { whoIsThere, WorkspaceError, type Who } from '../core/session';
+import { archiveArea, archiveSettings } from './archiveSettings';
 import { toPhone } from './contactStore';
 import { PHONE_PREF } from './here';
 import { bridgeSource, Phone, phoneHere, pluginSource, type PhoneSource } from './native';
-import { LOCKED, openPhone, type PhoneCtx } from './phoneContext';
+import { LOCKED, openArea, openPhone, type PhoneCtx } from './phoneContext';
 import { archivePhone, type ArchiveProgress } from './smsArchive';
 
 /** Gehen Bilder aus MMS mit ins Archiv? `on` (Vorgabe) oder `off`. */
@@ -25,10 +28,18 @@ export const MEDIA_PREF = 'phone.media';
 let archiving: Promise<ArchiveProgress> | null = null;
 let writing: ReturnType<typeof toPhone> | null = null;
 
-/** Archivieren — läuft schon ein Lauf, bekommt man dessen Ergebnis. */
-export function archiveNow(ctx: PhoneCtx, source: PhoneSource, options: { full?: boolean; media: boolean; onProgress?: (p: ArchiveProgress) => void }): Promise<ArchiveProgress> {
+/**
+ * ARCHIVIEREN — in den Bereich der gewählten Rolle, die gewählten Gespräche. Läuft schon ein
+ * Lauf, bekommt man dessen Ergebnis.
+ */
+export function archiveNow(who: Who, source: PhoneSource, options: { full?: boolean; onProgress?: (p: ArchiveProgress) => void } = {}): Promise<ArchiveProgress> {
   if (archiving === null) {
-    archiving = archivePhone(ctx, source, options).finally(() => { archiving = null; });
+    archiving = (async () => {
+      const { areaId, settings } = await archiveArea(who);
+      const ctx = await openArea(who, areaId);
+      const media = (await remembered(MEDIA_PREF, 'on')) !== 'off';
+      return archivePhone(ctx, source, { media, choice: settings, full: options.full, onProgress: options.onProgress });
+    })().finally(() => { archiving = null; });
   }
   return archiving;
 }
@@ -53,18 +64,17 @@ export async function runPhoneJob(job: string): Promise<Record<string, unknown>>
   if (who === null) return { ok: false, locked: true, error: 'Brak sesji.' };
   const source = bridgeSource();
   if (source === null) return { ok: false, error: 'To nie jest wydanie SMS aplikacji.' };
-  let ctx: PhoneCtx;
   try {
-    ctx = await openPhone(who);
+    if (job === 'archive') {
+      /* Von selbst erst, wenn das Archiv eingerichtet ist (Rolle gewählt oder einmal von Hand archiviert). */
+      if ((await archiveSettings()).areaId === null) return { ok: true, skipped: 'not set up' };
+      return { ok: true, ...(await archiveNow(who, source)) };
+    }
+    if (job === 'contacts') return { ok: true, ...(await toPhone(await openPhone(who), source)) };
   } catch (e) {
     if (e instanceof WorkspaceError && e.verdict === LOCKED) return { ok: false, locked: true, error: e.message };
     throw e;
   }
-  if (job === 'archive') {
-    const media = (await remembered(MEDIA_PREF, 'on')) !== 'off';
-    return { ok: true, ...(await archivePhone(ctx, source, { media })) };
-  }
-  if (job === 'contacts') return { ok: true, ...(await toPhone(ctx, source)) };
   return { ok: false, error: 'Nieznane zlecenie.' };
 }
 
@@ -83,14 +93,19 @@ export function startPhone(who: Who): void {
   window.setTimeout(() => {
     void (async () => {
       const status = await Phone.status();
-      const ctx = await openPhone(who);
       const hour = 3600_000;
       if (status.contacts && (status.contactsSyncedAt === null || Date.now() - status.contactsSyncedAt > hour)) {
-        await contactsNow(ctx, pluginSource).catch(() => undefined);
+        await contactsNow(await openPhone(who), pluginSource).catch(() => undefined);
       }
-      if (status.defaultSms && (status.archivedAt === null || Date.now() - status.archivedAt > hour / 2)) {
-        const media = (await remembered(MEDIA_PREF, 'on')) !== 'off';
-        await archiveNow(ctx, pluginSource, { media }).catch(() => undefined);
+      /*
+       * Archiviert wird von selbst erst, wenn jemand das Archiv eingerichtet hat — die Rolle gewählt
+       * oder einmal „Archiwizuj teraz" gedrückt. Vorher käme alles in den eigenen Bereich, bevor man
+       * sich für eine Rolle und die Gespräche entschieden hat.
+       */
+      const settings = await archiveSettings();
+      if (status.smsRead && settings.areaId !== null
+        && (status.archivedAt === null || Date.now() - status.archivedAt > hour / 2)) {
+        await archiveNow(who, pluginSource).catch(() => undefined);
       }
     })().catch(() => undefined);
   }, 8000);

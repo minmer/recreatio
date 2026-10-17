@@ -4,6 +4,7 @@
 
 import { QUESTION_EXAMPLE, QUESTION_KEYS } from '../forms/formJson';
 import { motionDescription } from './motion/motion';
+import { liveDescription } from './motion/liveText';
 import { MODULE_FORMAT, PAGE_FORMAT } from './pageJson';
 import { GATE_KINDS, INPUT_KINDS, PAGE_NODE_LABEL } from './pageLogic';
 import { subjectDescription } from './pageSubject';
@@ -222,6 +223,9 @@ ${LAYERS}
 
 ## Ruch
 ${motionDescription()}
+
+## Rysunek do poruszania
+${liveDescription()}
 
 ${PRESENTATION}
 

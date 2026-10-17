@@ -19,12 +19,22 @@ namespace Api;
 /// neu archiviert (neu installiert, ein zweites Gerät), holt sie und schickt
 /// nur, was fehlt. Lesen kann der Dienst daran nichts.
 /// </para>
+///
+/// <para>
+/// <b>Nach Gesprächen (0115).</b> Ein Stapel hält die Nachrichten EINES
+/// Gesprächs; daneben eine kleine versiegelte Übersicht (`summary`). Die Liste
+/// der Gespräche entsteht aus den Übersichten, ein Gespräch lädt nur seine
+/// Stapel. Viele kleine Stapel eines Gesprächs legt ein Telefon zusammen
+/// (neuer Stapel, die alten fort — `DELETE`).
+/// </para>
 /// </summary>
 public static partial class Phone
 {
     private const int MaxBatchSealed = 4 * 1024 * 1024;
     private const int MaxBatchMessages = 5000;
     private const int MaxBatchRead = 40;
+    private const int MaxSummarySealed = 8000;
+    private const int MaxArchiveQuery = 400;
 
     /// <summary>So viel Archiv bekommt ein Bereich höchstens — die Datenbank ist klein bemessen.</summary>
     private const long MaxArchiveBytes = 100L * 1024 * 1024;
@@ -35,9 +45,23 @@ public static partial class Phone
         app.MapGet("/workspace/phone/{areaId:guid}/sms/batches", BatchesAsync);
         app.MapPost("/workspace/phone/{areaId:guid}/sms/batch", StoreBatchAsync);
         app.MapDelete("/workspace/phone/{areaId:guid}/sms/batch/{id:guid}", DropBatchAsync);
+        app.MapPost("/workspace/phone/archives", ArchivesAsync);
     }
 
-    public sealed record BatchRequest(string? BatchId, int Epoch, string? Sealed, string? Keys, int Count);
+    /// <summary><c>Summary</c>: die versiegelte Übersicht des Stapels (0115) — fakultativ.</summary>
+    public sealed record BatchRequest(string? BatchId, int Epoch, string? Sealed, string? Keys, int Count, string? Summary = null);
+
+    public sealed record ArchivesRequest(IReadOnlyList<string>? Areas);
+
+    /// <summary>Die Übersicht eines Stapels gelesen: keine (null, leer) oder eine Hülle von 48 Bytes bis 8000.</summary>
+    public static bool SummaryOf(string? text, out byte[]? bytes)
+    {
+        bytes = null;
+        if (string.IsNullOrEmpty(text)) return true;
+        if (!Base64Url.TryDecode(text, out var read) || read.Length is < 48 or > MaxSummarySealed) return false;
+        bytes = read;
+        return true;
+    }
 
     /// <summary>Passt ein Stapel? Die Abdrücke müssen genau 16 Bytes je Nachricht haben.</summary>
     public static string? BatchProblem(int count, int sealedLength, int keysLength) =>
@@ -56,7 +80,7 @@ public static partial class Phone
         if (await AllowedAsync(ctx, db, connection, areaId, Capability.Read) is null) return;
 
         await using var cmd = new SqlCommand("""
-            SELECT id, message_count, DATALENGTH(sealed), created_at, message_keys
+            SELECT id, message_count, DATALENGTH(sealed), created_at, message_keys, summary, epoch
             FROM app.phone_sms_batch WHERE area_id = @area ORDER BY created_at, id;
             """, connection);
         cmd.Parameters.AddWithValue("@area", areaId);
@@ -72,7 +96,15 @@ public static partial class Phone
                 var size = Convert.ToInt64(reader.GetValue(2));
                 messages += count;
                 bytes += size;
-                batches.Add(new { batchId = Ids.ToText(reader.GetGuid(0)), count, size, createdAt = reader.GetDateTimeOffset(3) });
+                batches.Add(new
+                {
+                    batchId = Ids.ToText(reader.GetGuid(0)),
+                    count,
+                    size,
+                    createdAt = reader.GetDateTimeOffset(3),
+                    summary = reader.IsDBNull(5) ? null : Base64Url.Encode((byte[])reader[5]),
+                    epoch = reader.GetInt32(6)
+                });
                 var printed = (byte[])reader[4];
                 keys.Write(printed, 0, printed.Length);
             }
@@ -144,6 +176,7 @@ public static partial class Phone
         }
         var problem = BatchProblem(body.Count, sealedBytes.Length, keyBytes.Length);
         if (problem is not null) { await Fail(ctx, StatusCodes.Status400BadRequest, problem); return; }
+        if (!SummaryOf(body.Summary, out var summaryBytes)) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny opis paczki."); return; }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var allowed = await AllowedAsync(ctx, db, connection, areaId, Capability.Write);
@@ -183,8 +216,8 @@ public static partial class Phone
         }
 
         await using (var insert = new SqlCommand("""
-            INSERT INTO app.phone_sms_batch (id, area_id, epoch, sealed, message_keys, message_count, created_at)
-            VALUES (@id, @area, @epoch, @sealed, @keys, @count, SYSDATETIMEOFFSET());
+            INSERT INTO app.phone_sms_batch (id, area_id, epoch, sealed, message_keys, message_count, created_at, summary)
+            VALUES (@id, @area, @epoch, @sealed, @keys, @count, SYSDATETIMEOFFSET(), @summary);
             """, connection, tx))
         {
             insert.Parameters.AddWithValue("@id", id);
@@ -193,6 +226,7 @@ public static partial class Phone
             insert.Parameters.AddBlob("@sealed", sealedBytes);
             insert.Parameters.AddBlob("@keys", keyBytes);
             insert.Parameters.AddWithValue("@count", body.Count);
+            insert.Parameters.AddBlob("@summary", summaryBytes);
             await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
         }
 
@@ -211,5 +245,51 @@ public static partial class Phone
         cmd.Parameters.AddWithValue("@area", areaId);
         var changed = await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
         await ctx.Response.WriteAsJsonAsync(new { batchId = Ids.ToText(id), deleted = changed > 0 });
+    }
+
+    /// <summary>
+    /// WELCHE ARCHIVE ICH LESE — unter den genannten Bereichen die, die ein Archiv
+    /// haben und die ich lesen darf, mit Zahlen. Der Browser nennt die Bereiche,
+    /// die er kennt (höchstens 400); so muss er nicht jeden einzeln fragen.
+    /// </summary>
+    private static async Task ArchivesAsync(HttpContext ctx, Db db, ArchivesRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var wanted = new List<Guid>();
+        foreach (var text in body.Areas ?? [])
+        {
+            if (!IdOf(text, out var id)) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny identyfikator."); return; }
+            if (!wanted.Contains(id)) wanted.Add(id);
+        }
+        if (wanted.Count > MaxArchiveQuery) { await Fail(ctx, StatusCodes.Status400BadRequest, $"Najwyżej {MaxArchiveQuery} obszarów naraz."); return; }
+
+        var archives = new List<object>();
+        if (wanted.Count > 0)
+        {
+            await using var connection = await db.OpenAsync(ctx.RequestAborted);
+            var counts = new List<(Guid Area, int Batches, long Messages, long Bytes, DateTimeOffset Last)>();
+            var names = string.Join(", ", wanted.Select((_, i) => $"@a{i}"));
+            await using (var cmd = new SqlCommand($"""
+                SELECT area_id, COUNT(*), SUM(CAST(message_count AS bigint)), SUM(CAST(DATALENGTH(sealed) AS bigint)), MAX(created_at)
+                FROM app.phone_sms_batch WHERE area_id IN ({names}) GROUP BY area_id;
+                """, connection))
+            {
+                for (var i = 0; i < wanted.Count; i++) cmd.Parameters.AddWithValue($"@a{i}", wanted[i]);
+                await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+                while (await reader.ReadAsync(ctx.RequestAborted))
+                {
+                    counts.Add((reader.GetGuid(0), reader.GetInt32(1), Convert.ToInt64(reader.GetValue(2)), Convert.ToInt64(reader.GetValue(3)), reader.GetDateTimeOffset(4)));
+                }
+            }
+            foreach (var one in counts)
+            {
+                if (!await Area.MayAsync(connection, who.Value.AccountId, one.Area, Capability.Read, ctx.RequestAborted)) continue;
+                archives.Add(new { areaId = Ids.ToText(one.Area), batches = one.Batches, messages = one.Messages, bytes = one.Bytes, lastAt = one.Last });
+            }
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { archives, limit = MaxArchiveBytes });
     }
 }

@@ -31,7 +31,7 @@ import { coarsen, dateKey, readDate, readNumber, type DatePrecision, type DateVa
 
 /* -- Formen ------------------------------------------------------------------------ */
 
-export const ANSWER_FORMS = ['text', 'number', 'date', 'one', 'many', 'truefalse', 'order', 'match', 'gap', 'flash', 'code', 'point'] as const;
+export const ANSWER_FORMS = ['text', 'number', 'date', 'one', 'many', 'truefalse', 'order', 'match', 'gap', 'flash', 'code', 'point', 'interactive'] as const;
 export type AnswerForm = (typeof ANSWER_FORMS)[number];
 
 export const ANSWER_FORM_LABEL: Record<AnswerForm, string> = {
@@ -46,7 +46,8 @@ export const ANSWER_FORM_LABEL: Record<AnswerForm, string> = {
   gap: 'Luka w cytacie',
   flash: 'Fiszka z samooceną',
   code: 'Kod (Python)',
-  point: 'Punkt na obrazie albo mapie'
+  point: 'Punkt na obrazie albo mapie',
+  interactive: 'Rysunek do poruszania (np. fizyka)'
 };
 
 export type CompareAlgorithm = 'anchors' | 'bidirectional' | 'prefix';

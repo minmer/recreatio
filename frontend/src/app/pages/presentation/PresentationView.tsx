@@ -37,8 +37,8 @@ import {
   activeScene, arriveProgress, arriveStyle, betweenOf, clamp01, depthFade, emphasisOf, EMPHASIS, enteredOf, flightCurve,
   growAt, journeyAt, panAt, sceneState, scatterWords, walkOf, yieldOf, zonesOf, type Stepped, type Zone
 } from './presentationMotion';
-import { branch, goOf, nextOf, routeOf, type Target } from './showPaths';
-import { ShowDark } from './showContext';
+import { branch, goOf, nextOf, resolveTarget, routeOf, type Target } from './showPaths';
+import { ShowClock, ShowDark, type ShowClockValue } from './showContext';
 import { LayerArt, layerBackground } from './deckLayers';
 import { MotionBox, SlidePhase, type Phase } from '../motion/MotionBox';
 import { backdropAt } from '../slides/slideMotion';
@@ -293,8 +293,34 @@ export function PresentationView({
   const [seen, setSeen] = useState('0');
   const seenRef = useRef('0');
 
+  /*
+   * 2026-10-17 — DIE UHR DER SZENEN für die Bilder zum Anfassen: wo die Bahn
+   * in ihrer Szene steht (`step`), Bescheid bei jedem Bild, in dem sie sich
+   * bewegt — und ein Weg weiter, wenn ein Bild gelöst ist.
+   */
+  const sNow = useRef(0);
+  const zonesRef = useRef(zones);
+  zonesRef.current = zones;
+  const clockListeners = useRef(new Set<() => void>());
+  const goRef = useRef<(target: string, from: number) => void>(() => undefined);
+  const subscribe = useRef((listener: () => void) => {
+    clockListeners.current.add(listener);
+    return () => { clockListeners.current.delete(listener); };
+  }).current;
+  const clocks: readonly ShowClockValue[] = useMemo(() => scenes.map((_, i) => ({
+    step: () => sNow.current - (zonesRef.current[i]?.at ?? 0),
+    subscribe,
+    go: (target: string) => goRef.current(target, i)
+  })), [scenes, subscribe]);
+  const travelClock: ShowClockValue = useMemo(() => ({
+    step: () => sNow.current - (zonesRef.current[activeScene(zonesRef.current, sNow.current)]?.at ?? 0),
+    subscribe,
+    go: (target: string) => goRef.current(target, activeRef.current)
+  }), [subscribe]);
+
   const paintRef = useRef<(s: number) => void>(() => undefined);
   paintRef.current = (s: number) => {
+    sNow.current = s;
     const walk = walkOf(s);
     const between = betweenOf(zones, s);
     const pan = reduced ? { x: 0, y: 0 } : panAt(zones, stepped, walk);
@@ -436,6 +462,9 @@ export function PresentationView({
       node.style.setProperty('--pz-chrome-ink', resolveColor(colors?.ink ?? null, dark) ?? 'var(--pz-ink)');
       node.style.setProperty('--pz-chrome-ground', resolveColor(colors?.ground ?? null, dark) ?? 'var(--pz-ground)');
     }
+
+    /* 2026-10-17 — die Bilder zum Anfassen erfahren, wo die Bahn in ihrer Szene steht. */
+    for (const listener of clockListeners.current) listener();
   };
 
   /* -- Der Antrieb ------------------------------------------------------------------- */
@@ -505,6 +534,20 @@ export function PresentationView({
     drive.current?.toScene(index);
   }, [route, drive]);
 
+  /*
+   * 2026-10-17 — EIN BILD IST GELÖST (seine Regel sagt „go"): weiter („next" —
+   * wohin „dalej" von seiner Szene führt), zurück („back"), zu einer Szene
+   * oder hinaus (`link:<id>`). Im Editor geht es nirgends hin.
+   */
+  goRef.current = (target: string, from: number) => {
+    if (!branching) return;
+    const sc = scenes[from];
+    if (sc === undefined) return;
+    if (target === 'back') { drive.current?.toScene(Math.max(0, from - 1)); return; }
+    const t = target === 'next' ? nextOf(show, sc.key) : resolveTarget(show, target);
+    if (t.kind === 'scene' || t.kind === 'link') follow(t, from);
+  };
+
   /** Ein Knopf wurde gedrückt: auf seiner Szene (ein wandernder — auf der, die gerade dran ist). */
   const press = (key: string): boolean => {
     const one = placed.find((p) => p.key === key);
@@ -567,7 +610,7 @@ export function PresentationView({
     /* 0089 — ein Knopf: dorthin, wohin er auf seiner Szene führt. */
     const button = target.closest<HTMLElement>('[data-pz-go]');
     if (button !== null && branching && press(button.dataset.pzGo ?? '')) { event.preventDefault(); return; }
-    if (mode === 'present' && target.closest('button, input, select, textarea, label, summary, [role="button"]') === null) {
+    if (mode === 'present' && target.closest('button, input, select, textarea, label, summary, [role="button"], [data-pz-hold]') === null) {
       drive.current?.stepBy(1);
     }
   };
@@ -764,6 +807,7 @@ export function PresentationView({
                   {!shared && sc.layers.map((layer, n) => layerView(layer, n))}
 
                   <SlidePhase.Provider value={phaseOf(i)}>
+                  <ShowClock.Provider value={clocks[i] ?? null}>
                   {space && (
                     <div className="pz-space" style={{ perspective: `${sc.depth.perspective}px`, perspectiveOrigin: `${focus[i].x}% ${focus[i].y}%` }}>
                       <div className="pz-cam" ref={(el) => { camEls.current[i] = el; }}>
@@ -790,6 +834,7 @@ export function PresentationView({
                     {threadOf(i)}
                     {flat.map(pieceView)}
                   </div>
+                  </ShowClock.Provider>
                   </SlidePhase.Provider>
 
                   {sc.hint !== '' && (
@@ -804,7 +849,9 @@ export function PresentationView({
             {/* 0108 — die wandernden Bausteine in der Breite der Bühne (`show.width`), jeder in seinem Stand. */}
             <div className="pz-travel">
               {placed.filter((one) => one.travel).map((one) => (
-                <SlidePhase.Provider key={one.key} value={travelPhase(one)}>{pieceView(one)}</SlidePhase.Provider>
+                <SlidePhase.Provider key={one.key} value={travelPhase(one)}>
+                  <ShowClock.Provider value={travelClock}>{pieceView(one)}</ShowClock.Provider>
+                </SlidePhase.Provider>
               ))}
             </div>
           </div>

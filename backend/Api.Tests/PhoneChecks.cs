@@ -22,5 +22,10 @@ internal static class PhoneChecks
         check(Phone.BatchProblem(3, 100, 47) is not null, "prints must match the count");
         check(Phone.BatchProblem(0, 100, 0) is not null && Phone.BatchProblem(5001, 100, 16 * 5001) is not null, "1 to 5000 messages in a batch");
         check(Phone.BatchProblem(1, 4 * 1024 * 1024 + 1, 16) is not null && Phone.BatchProblem(1, 10, 16) is not null, "a sealed batch between 48 bytes and 4 MB");
+
+        check(Phone.SummaryOf(null, out var none) && none is null && Phone.SummaryOf("", out _), "0115: a batch without a summary is fine");
+        check(Phone.SummaryOf(Kernel.Base64Url.Encode(new byte[300]), out var summary) && summary!.Length == 300, "a sealed summary is kept");
+        check(!Phone.SummaryOf(Kernel.Base64Url.Encode(new byte[8001]), out _) && !Phone.SummaryOf(Kernel.Base64Url.Encode(new byte[47]), out _)
+            && !Phone.SummaryOf("not base64!", out _), "a summary between 48 bytes and 8000, readable");
     }
 }

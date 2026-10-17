@@ -14,17 +14,19 @@
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 
-import { newId } from '../core/ids';
 import { plural } from '../core/plural';
 import { askText, toast } from '../ui/dialogs';
+import { Segment } from '../ui/Segment';
 import {
-  COLUMN_SEPARATOR_LABEL, COLUMN_SEPARATORS, defaultTyped, describeForm, groupsOf, isLong, KEY_ACTION_SHORT, KEY_NAMES, nodeLabel, parsePaste,
+  COLUMN_SEPARATOR_LABEL, COLUMN_SEPARATORS, groupsOf, isLong, KEY_ACTION_SHORT, KEY_NAMES, nodeLabel,
   planForm, readAddForm, rowIsEmpty, topOf, VALUE_SEPARATOR_LABEL, VALUE_SEPARATORS,
-  type AddForm, type FormGroup, type FormPlan, type Instance, type KeyAction, type PasteRule, type PlanCtx, type RowInput, type TopChoice, type TopItem
+  type AddForm, type FormGroup, type FormPlan, type Instance, type KeyAction, type PasteRule, type RowInput, type TopChoice, type TopItem
 } from './addForm';
+import { EditRows, planCtx } from './AddFormRows';
+import { describeForm, parsePaste } from './addFormText';
 import type { FieldDef } from './schema';
 import type { CogitaLibrary } from './store';
-import { EntityPicker, entityName, useCtx } from './ui';
+import { creatorFor, EntityPicker, entityName, useCtx } from './ui';
 
 /* -- Gemeinsam mit dem Editor ---------------------------------------------------------------- */
 
@@ -54,13 +56,6 @@ export function ValueInput({ field, value, onChange, disabled = false, placehold
   }
   return <input value={value} disabled={disabled} placeholder={placeholder} aria-label={label} onChange={(e) => onChange(e.target.value)} />;
 }
-
-export const planCtx = (lib: CogitaLibrary): PlanCtx => ({
-  look: lib.look,
-  pool: (kind) => lib.ofKind(kind),
-  isOwn: (id) => lib.isOwn(id),
-  newId
-});
 
 /* -- Ausfüllen ---------------------------------------------------------------------------------- */
 
@@ -147,6 +142,15 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
   useEffect(() => { try { localStorage.setItem(storeKey, JSON.stringify(choice)); } catch { /* nur jetzt */ } }, [storeKey, choice]);
   const [row, setRow] = useState<Record<string, Instance[]>>(() => blankRow(groups));
   const [said, setSaid] = useState<string | null>(null);
+  /* 2026-10-17 — zwei Arten, dasselbe Formular zu benutzen: hinzufügen, oder das Vorhandene in seiner Gestalt bearbeiten. */
+  const [mode, setMode] = useState<'add' | 'edit'>('add');
+  const [editDirty, setEditDirty] = useState(false);
+  const switchTo = async (next: 'add' | 'edit') => {
+    if (next === mode) return;
+    if (editDirty && !(await askText('Odrzucić niezapisane zmiany? Zmiany w wierszach przepadną.'))) return;
+    setEditDirty(false);
+    setMode(next);
+  };
 
   /* Die Liste dessen, was hinzugefügt wurde — veränderlich, damit das Speichern weiterläuft, auch wenn man die Ansicht verlässt. */
   const log = useRef<LogItem[]>([]);
@@ -296,6 +300,7 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
         </div>
       </div>
       {form.says !== undefined && <p className="cg-muted">{form.says}</p>}
+      <Segment now={mode} busy={false} options={[{ value: 'add', label: 'Dodawanie' }, { value: 'edit', label: 'Edycja tego, co już jest' }]} onPick={(m) => void switchTo(m)} />
 
       {top.length > 0 && (
         <section className="cg-card cg-af-top" aria-label="Na początek">
@@ -311,7 +316,9 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
       )}
       {topProblems.length > 0 && <p className="wk-warn">{topProblems.join(' ')}</p>}
 
-      {groups.length === 0 ? (
+      {mode === 'edit' && groups.length > 0 && <EditRows form={form} choice={choice} onDirty={setEditDirty} />}
+
+      {mode === 'add' && (groups.length === 0 ? (
         <p className="wk-empty">Ten formularz nie ma pól wpisywanych w wierszu — <button type="button" className="wk-link-btn" onClick={() => onEdit(form.id)}>uzupełnij go</button>.</p>
       ) : (
         <form className="cg" onSubmit={(e) => { e.preventDefault(); submit(); }}>
@@ -345,16 +352,16 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
           </div>
           {said !== null && <p className="wk-error">{said}</p>}
         </form>
-      )}
+      ))}
 
-      {groups.length > 0 && <PastePanel form={form} groups={groups} choice={choice} blocked={topProblems} onQueue={(rows) => queue(rows, `Lista: ${rows.length} ${plural(rows.length, 'wiersz', 'wiersze', 'wierszy')}`)} />}
+      {mode === 'add' && groups.length > 0 && <PastePanel form={form} groups={groups} choice={choice} blocked={topProblems} onQueue={(rows) => queue(rows, `Lista: ${rows.length} ${plural(rows.length, 'wiersz', 'wiersze', 'wierszy')}`)} />}
 
       <details className="cg-card">
         <summary>Jak działa ten formularz</summary>
         <ul className="cg-af-desc">{describeForm(form, look).map((line, i) => <li key={i}>{line}</li>)}</ul>
       </details>
 
-      {items.length > 0 && (
+      {mode === 'add' && items.length > 0 && (
         <section className="cg-card">
           <h3>Dodane teraz ({items.filter((x) => x.status === 'done').length}){busy > 0 ? ` · zapisywanie: ${busy}` : ''}</h3>
           <ul className="cg-af-log">
@@ -500,7 +507,9 @@ function RowField({ field, value, label, placeholder, last, register, onChange, 
 /* -- Oben gewählt ------------------------------------------------------------------------------ */
 
 function PickChoice({ item, chosen, onChange }: { item: Extract<TopItem, { type: 'pick' }>; chosen: readonly string[]; onChange: (ids: string[]) => void }) {
-  const { lib } = useCtx();
+  const { lib, writes } = useCtx();
+  /* „+ Utwórz" steht in der Liste selbst — vorher ein Verweis darunter, den die offene Liste verdeckte. */
+  const make = creatorFor(lib, item.config.kinds, writes);
   const kinds = item.config.kinds.length > 0 ? item.config.kinds : undefined;
   const shown = chosen.filter((id) => lib.entity(id) !== undefined);
   /* Nach jeder Wahl ein leeres Suchfeld für die nächste. */
@@ -513,46 +522,12 @@ function PickChoice({ item, chosen, onChange }: { item: Extract<TopItem, { type:
           {shown.map((id) => (
             <span key={id} className="cg-tag">{entityName(lib, id)} <button type="button" className="wk-link-btn" aria-label={`Usuń: ${entityName(lib, id)}`} onClick={() => onChange(shown.filter((x) => x !== id))}>×</button></span>
           ))}
-          <EntityPicker key={round} lib={lib} kinds={kinds} refs value={null} placeholder="dodaj…" onPick={(id) => { if (id !== null) onChange([...shown.filter((x) => x !== id), id]); setRound((n) => n + 1); }} />
+          <EntityPicker key={round} lib={lib} kinds={kinds} refs {...make} value={null} placeholder="dodaj…" onPick={(id) => { if (id !== null) onChange([...shown.filter((x) => x !== id), id]); setRound((n) => n + 1); }} />
         </span>
       ) : (
-        <EntityPicker lib={lib} kinds={kinds} refs value={shown[0] ?? null} allowClear={item.config.optional} placeholder={`Szukaj: ${item.label}`} onPick={(id) => onChange(id === null ? [] : [id])} />
+        <EntityPicker lib={lib} kinds={kinds} refs {...make} value={shown[0] ?? null} allowClear={item.config.optional} placeholder={`Szukaj: ${item.label}`} onPick={(id) => onChange(id === null ? [] : [id])} />
       )}
-      {(item.config.many || shown.length === 0) && <NewEntry kinds={item.config.kinds} onMade={(id) => onChange(item.config.many ? [...shown, id] : [id])} />}
     </div>
-  );
-}
-
-/** Einen fehlenden Eintrag gleich hier anlegen („Kuchnia" als neues Thema) — mit dem Feld seines Etiketts. */
-function NewEntry({ kinds, onMade }: { kinds: readonly string[]; onMade: (id: string) => void }) {
-  const { lib } = useCtx();
-  const kind = kinds.length === 1 ? lib.kinds.find((k) => k.id === kinds[0]) : undefined;
-  const field = kind === undefined ? undefined : defaultTyped(kind).find((f) => f.type === 'line' || f.type === 'text');
-  const [text, setText] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  if (kind === undefined || field === undefined) return null;
-  if (text === null) return <button type="button" className="wk-link-btn cg-af-new" onClick={() => setText('')}>+ nowy: {kind.name}</button>;
-  const make = async () => {
-    if (text.trim() === '') return;
-    setBusy(true);
-    try {
-      const saved = await lib.saveEntity({ kinds: [kind.id], data: { [field.key]: text.trim() } });
-      onMade(saved.id);
-      setText(null);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Nie udało się dodać.', { kind: 'error' });
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <span className="cg-row">
-      <input value={text} autoFocus aria-label={`Nowy: ${kind.name} — ${field.label}`} placeholder={field.label} disabled={busy}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void make(); } if (e.key === 'Escape') setText(null); }} />
-      <button type="button" className="wk-btn" disabled={busy || text.trim() === ''} onClick={() => void make()}>Dodaj</button>
-      <button type="button" className="wk-link-btn" onClick={() => setText(null)}>anuluj</button>
-    </span>
   );
 }
 

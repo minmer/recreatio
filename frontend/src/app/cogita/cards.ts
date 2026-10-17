@@ -36,6 +36,7 @@ import { ancestors, evaluate, readGraph, type Graph, type RunOutput } from './gr
 import { dateKey, fieldsOf, labelOf, plainOf, readNumber, valuesOf, type DatePrecision, type Entity, type Lookup } from './schema';
 import { type AnswerSpec, type Card, type Fragment, type Item, type PromptPart, type TemplateContext, cardKey, hashOf, isObject, lines, num, rngOf, shuffle, stable, str } from './cardBasics';
 import { type Draft, TEMPLATE_PALETTE } from './cardPalette';
+import { checkInteractive, interactiveExpected, interactiveSpec } from './interactive';
 
 /** Was als richtig gilt, ohne die Reihenfolge, in der es gezeigt wird — gemischte Wahlmöglichkeiten ändern nichts. */
 function expectedOf(answer: AnswerSpec): unknown {
@@ -52,6 +53,7 @@ function expectedOf(answer: AnswerSpec): unknown {
     case 'flash': return { f: 'flash', b: answer.back };
     case 'code': return { f: 'code', r: answer.reference, c: answer.createInput, n: answer.cases };
     case 'point': return { f: 'point', t: answer.target };
+    case 'interactive': return interactiveExpected(answer);
   }
 }
 
@@ -86,6 +88,7 @@ export function checkCard(card: Card, given: unknown, rule?: Partial<TextRule>):
     case 'flash': return checkFlash(given === 'knew' || given === 'partly' || given === 'not' ? (given as FlashGrade) : null);
     case 'code': return checkCode(isObject(given) && typeof given.passed === 'number' && typeof given.total === 'number' ? { passed: given.passed, total: given.total } : null);
     case 'point': return checkPoint(a.target, isObject(given) ? (given as unknown as PointGiven) : null);
+    case 'interactive': return checkInteractive(a, given);
   }
 }
 
@@ -217,7 +220,7 @@ export const templatesFor = (entity: Entity, templates: readonly Template[]): Te
 
 /* -- Von Hand geschriebene Fragen und das Thema als Frage ---------------------------- */
 
-const FORMS: readonly AnswerForm[] = ['text', 'number', 'date', 'one', 'many', 'truefalse', 'order', 'match', 'gap', 'flash', 'code', 'point'];
+const FORMS: readonly AnswerForm[] = ['text', 'number', 'date', 'one', 'many', 'truefalse', 'order', 'match', 'gap', 'flash', 'code', 'point', 'interactive'];
 
 /**
  * EINE VON HAND GESCHRIEBENE FRAGE (Systemart `question`, [C4, D1]). Ihre
@@ -293,6 +296,7 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
       answer = lat === null || lon === null ? null : { form, on: 'map', target: { lat, lon, r: Math.max(1, num(d.radius, 1000)) } };
       break;
     }
+    case 'interactive': answer = interactiveSpec(d, rng); break;
   }
   if (answer === null) return null;
   const prompt = plainOf(str(d.prompt));
@@ -305,7 +309,8 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
     answer,
     explain: lines(d.explain),
     fingerprint: hashOf(stable(expectedOf(answer))),
-    varies: false,
+    /* Ein Bild mit Zufall (ein Ziel jedes Mal woanders) fragt jedes Mal anderes. */
+    varies: answer.form === 'interactive' && Object.keys(answer.fixed).length > 0,
     requires: []
   };
 }

@@ -12,10 +12,9 @@
  * </code>
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useCrumbs } from '../shell/crumbTrail';
-import { fold } from '../shell/search';
 import { viewPath } from '../routes';
 import { useRemembered } from '../core/prefs';
 import type { Who } from '../core/session';
@@ -31,7 +30,7 @@ import { Phone, phoneHere, type NativeMessage, type NativePart, type NativeThrea
 import { phoneKey, phoneShown } from './numbers';
 import { openPhone } from './phoneContext';
 import { SmsArchiveView } from './SmsArchiveView';
-import { Avatar, dayLabel, shortWhen, timeOf } from './smsShared';
+import { around, Avatar, barStyle, conversationMatches, dayLabel, isMode, SEARCH, shortWhen, timeOf, type SearchMode } from './smsShared';
 import './phone.css';
 
 export function SmsApp({ who, trail }: { who: Who; trail: readonly string[] }) {
@@ -158,33 +157,13 @@ function Setup({ status, onChanged }: { status: PhoneStatus; onChanged: () => vo
 let threadsSeen: readonly NativeThread[] | null = null;
 const pagesSeen = new Map<string, ThreadPage>();
 
-/** Die Höhe der Kopfleiste als Variable: die Suche klebt darunter, das Gespräch füllt, was darunter bleibt. */
-const barStyle = (top: number): CSSProperties => ({ '--ph-top': `${top}px` } as CSSProperties);
-
 /** Wie ein Gespräch heisst: die Namen aus dem Adressbuch, sonst die Nummern. */
 const titleOf = (t: NativeThread): string =>
   t.addresses.length === 0 ? 'Bez numeru' : t.addresses.map((a, i) => t.names?.[i] ?? phoneShown(a)).join(', ');
 
 /* -- Die Gespräche --------------------------------------------------------------------------- */
 
-type SearchMode = 'osoby' | 'numery' | 'tresc';
 type SearchHit = Awaited<ReturnType<typeof Phone.search>>['hits'][number];
-
-const SEARCH: Record<SearchMode, { readonly label: string; readonly placeholder: string }> = {
-  osoby: { label: 'Osoby', placeholder: 'Szukaj osoby…' },
-  numery: { label: 'Numery', placeholder: 'Szukaj numeru…' },
-  tresc: { label: 'Wiadomości', placeholder: 'Szukaj w treści…' }
-};
-
-const isMode = (value: string): value is SearchMode => value === 'osoby' || value === 'numery' || value === 'tresc';
-
-/** Ein Stück um den Treffer — die Stelle, nicht der Anfang einer langen Nachricht. */
-function around(text: string, query: string): string {
-  const at = fold(text).indexOf(fold(query));
-  if (at < 0 || text.length <= 120) return text;
-  const from = Math.max(0, at - 40);
-  return `${from > 0 ? '…' : ''}${text.slice(from, from + 120)}${from + 120 < text.length ? '…' : ''}`;
-}
 
 function Threads() {
   const [threads, setThreads] = useState<readonly NativeThread[] | null>(threadsSeen);
@@ -212,19 +191,10 @@ function Threads() {
   useChanged(() => void load());
 
   const q = query.trim();
-  const shown = useMemo(() => {
-    const all = threads ?? [];
-    if (q === '' || mode === 'tresc') return all;
-    if (mode === 'numery') {
-      const digits = q.replace(/\D/g, '');
-      /* „mBank", „8080": Absender ohne Rufnummer — dann nach dem Text. */
-      return digits === ''
-        ? all.filter((t) => t.addresses.some((a) => fold(a).includes(fold(q))))
-        : all.filter((t) => t.addresses.some((a) => a.replace(/\D/g, '').includes(digits)));
-    }
-    const f = fold(q);
-    return all.filter((t) => fold(titleOf(t)).includes(f));
-  }, [threads, q, mode]);
+  const shown = useMemo(
+    () => (threads ?? []).filter((t) => conversationMatches(mode, q, titleOf(t), t.addresses)),
+    [threads, q, mode]
+  );
 
   /* In der Treffer-Suche: während des Tippens, kurz nach dem letzten Zeichen. */
   useEffect(() => {

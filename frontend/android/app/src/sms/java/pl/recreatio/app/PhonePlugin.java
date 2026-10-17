@@ -41,8 +41,11 @@ import java.util.concurrent.Executors;
  *   threads, messages, part, search, lookup, markRead, viewing, remove, retryMms, recheck
  *   send, threadOf
  *   contacts, writeContacts, dropLocal, contactsSoon
- *   exportMessages, archiveMarkers, setArchiveMarkers
+ *   exportMessages, archiveState, setArchiveState, requestSmsRead
  * </code>
+ *
+ * <p><b>Ein altes Telefon</b> muss nicht die SMS-App sein, um sein Archiv beizutragen:
+ * {@code requestSmsRead} fragt nur nach dem Lesen der SMS.</p>
  *
  * <p>Was ankommt, meldet {@link #changed} der offenen Seite ({@code smsChanged}) —
  * das Gespräch auf dem Bildschirm steht dann gleich da.</p>
@@ -56,7 +59,8 @@ import java.util.concurrent.Executors;
     name = "Phone",
     permissions = {
         @Permission(alias = "contacts", strings = { Manifest.permission.READ_CONTACTS, Manifest.permission.WRITE_CONTACTS }),
-        @Permission(alias = "phone", strings = { Manifest.permission.READ_PHONE_STATE })
+        @Permission(alias = "phone", strings = { Manifest.permission.READ_PHONE_STATE }),
+        @Permission(alias = "sms", strings = { Manifest.permission.READ_SMS })
     }
 )
 public class PhonePlugin extends Plugin {
@@ -174,6 +178,7 @@ public class PhonePlugin extends Plugin {
                     .put("defaultSms", isDefault())
                     .put("roleAvailable", Build.VERSION.SDK_INT < 29 || roleAvailable())
                     .put("contacts", getPermissionState("contacts") == PermissionState.GRANTED)
+                    .put("smsRead", isDefault() || getPermissionState("sms") == PermissionState.GRANTED)
                     .put("phoneState", getPermissionState("phone") == PermissionState.GRANTED)
                     .put("notifications", Notices.allowed(context()))
                     .put("sims", sims())
@@ -249,6 +254,21 @@ public class PhonePlugin extends Plugin {
         granted(call, getPermissionState("contacts") == PermissionState.GRANTED);
     }
 
+    /** Nur lesen (ein altes Telefon, das archivieren soll, ohne SMS-App zu werden). */
+    @PluginMethod
+    public void requestSmsRead(PluginCall call) {
+        if (isDefault() || getPermissionState("sms") == PermissionState.GRANTED) {
+            granted(call, true);
+            return;
+        }
+        requestPermissionForAlias("sms", call, "smsResult");
+    }
+
+    @PermissionCallback
+    private void smsResult(PluginCall call) {
+        granted(call, getPermissionState("sms") == PermissionState.GRANTED);
+    }
+
     @PluginMethod
     public void requestPhoneState(PluginCall call) {
         if (getPermissionState("phone") == PermissionState.GRANTED) {
@@ -282,7 +302,7 @@ public class PhonePlugin extends Plugin {
 
     @PluginMethod
     public void threads(PluginCall call) {
-        int limit = Math.max(1, Math.min(2000, call.getData().optInt("limit", 500)));
+        int limit = Math.max(1, Math.min(5000, call.getData().optInt("limit", 500)));
         on(SCREEN, call, () -> js(new JSONObject().put("threads", SmsStore.threads(context(), limit))));
     }
 
@@ -469,23 +489,21 @@ public class PhonePlugin extends Plugin {
     @PluginMethod
     public void exportMessages(PluginCall call) {
         JSObject data = call.getData();
-        on(WORK, call, () -> js(SmsStore.exportPage(context(), data.optLong("afterSms", 0), data.optLong("afterMms", 0),
+        on(WORK, call, () -> js(SmsStore.exportPage(context(), PhoneBridge.threadOf(data), data.optLong("afterSms", 0), data.optLong("afterMms", 0),
                 Math.max(1, Math.min(1000, data.optInt("limit", 300))))));
     }
 
     @PluginMethod
-    public void archiveMarkers(PluginCall call) {
-        try {
-            call.resolve(js(PhoneBridge.markers(context())));
-        } catch (Exception e) {
-            fail(call, e);
-        }
+    public void archiveState(PluginCall call) {
+        JSObject out = new JSObject();
+        out.put("state", PhoneBridge.state(context()));
+        call.resolve(out);
     }
 
     @PluginMethod
-    public void setArchiveMarkers(PluginCall call) {
+    public void setArchiveState(PluginCall call) {
         JSObject data = call.getData();
-        PhoneBridge.setMarkers(context(), data.optLong("sms", 0), data.optLong("mms", 0), data.optLong("at", System.currentTimeMillis()));
+        PhoneBridge.setState(context(), data.optString("state", ""), data.optLong("at", 0));
         call.resolve();
     }
 }
