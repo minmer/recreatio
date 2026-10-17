@@ -16,7 +16,7 @@ import { useState } from 'react';
 import { fmt, toNum, truth } from './expr';
 import type { Program } from './liveRun';
 import type { ControlSpec, PropSpec, VarSpec } from './liveModel';
-import type { WorldShot } from './liveWorld';
+import { readShot, type WorldShot } from './liveWorld';
 
 /** Wie viele Stellen eine Zahl braucht — aus dem Schritt ihres Werts. */
 export function digitsOf(step: number | null, given: number | null): number {
@@ -134,26 +134,9 @@ export type WorldAct =
   | { readonly type: 'cam'; readonly cmd: 'in' | 'out' | 'fit' }
   | { readonly type: 'import'; readonly shot: WorldShot };
 
-/** Ein Bau aus Text (JSON) — nur, was wie Dinge aussieht; der Rest fällt weg. */
+/** Ein Bau aus Text (JSON) — `null`: kein JSON, oder keine Dinge darin. */
 export function shotOfText(text: string): WorldShot | null {
-  try {
-    const value = JSON.parse(text) as unknown;
-    const list = Array.isArray(value) ? value : typeof value === 'object' && value !== null ? (value as { things?: unknown }).things : null;
-    if (!Array.isArray(list)) return null;
-    const things = list.slice(0, 200).flatMap((raw) => {
-      if (typeof raw !== 'object' || raw === null) return [];
-      const r = raw as Record<string, unknown>;
-      if (typeof r.id !== 'string' || typeof r.kind !== 'string') return [];
-      const props: Record<string, number> = {};
-      for (const [k, v] of Object.entries(typeof r.props === 'object' && r.props !== null ? r.props as Record<string, unknown> : {})) {
-        if (typeof v === 'number' && Number.isFinite(v)) props[k] = v;
-      }
-      return [{ id: r.id.slice(0, 32), kind: r.kind.slice(0, 32), parent: typeof r.parent === 'string' ? r.parent.slice(0, 32) : null, props }];
-    });
-    return things.length === 0 ? null : { things };
-  } catch {
-    return null;
-  }
+  try { return readShot(JSON.parse(text) as unknown); } catch { return null; }
 }
 
 export function WorldPanel({ program, selected, version, locked, cameras, onAct }: {
