@@ -19,8 +19,9 @@
  * <code>
  *   person · work · quote · topic · text · project   die eingebauten — wie bisher
  *   entity                                            jeder andere Eintrag; seine Arten in `_kinds`
- *   kind · template · revision · flow · look · rules · values · collection · view · settings · merge · contribution
+ *   kind · template · revision · flow · look · rules · values · collection · view · settings · merge · contribution · addform
  *                                                     was das Schema, die Karten und die Abläufe beschreibt
+ *                                                     (`addform`: ein Formularz dodawania, `addForm.ts`)
  * </code>
  *
  * Schlüssel mit `_` sind keine Felder (ein Feld beginnt mit einem Buchstaben,
@@ -35,10 +36,11 @@ import { readKind, type Entity, type FieldDef, type FieldType, type KindDef } fr
 export const ENTITY = 'entity';
 
 /** Was das Schema, die Karten, die Abläufe und die Einstellungen beschreibt — kein Eintrag, den man lernt. */
-export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution'] as const;
+export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform'] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
 export const DOC_LABEL: Record<DocKind, string> = {
+  addform: 'Formularz dodawania',
   kind: 'Rodzaj',
   template: 'Szablon kart',
   revision: 'Powtórka',
@@ -121,7 +123,6 @@ function builtin(id: string): KindDef {
     label: PATTERNS[id]?.label ?? `{${fields[0]?.key ?? 'title'}}`,
     tells: PATTERNS[id]?.tells,
     fields: [...fields, ...more.filter((m) => !fields.some((f) => f.key === m.key))],
-    speaks: false,
     ...(id === 'topic' ? { system: 'topic' as const } : id === 'text' ? { system: 'text' as const } : {})
   };
 }
@@ -132,7 +133,6 @@ export const KNOWLEDGE: KindDef = {
   name: 'Wiedza',
   label: '{text}',
   tells: 'tags',
-  speaks: false,
   system: 'knowledge',
   fields: [
     field('text', 'Stwierdzenie', 'markup', { role: 'text', says: 'Jedno stwierdzenie; słowa mogą wskazywać wpisy: [[Księgi Samuela|@samuel]]' }),
@@ -149,7 +149,6 @@ export const QUESTION: KindDef = {
   name: 'Pytanie',
   label: '{prompt}',
   tells: 'form',
-  speaks: false,
   system: 'question',
   fields: [
     field('form', 'Forma odpowiedzi', 'choice', {
@@ -216,7 +215,7 @@ function overridden(base: KindDef, doc: KindDef): KindDef {
     fields.push(was === undefined ? f : { ...was, label: f.label, says: f.says ?? was.says });
   }
   for (const f of base.fields) if (!fields.some((one) => one.key === f.key)) fields.push(f);
-  return { ...base, name: doc.name || base.name, label: doc.label || base.label, tells: doc.tells ?? base.tells, fields, speaks: doc.speaks };
+  return { ...base, name: doc.name || base.name, label: doc.label || base.label, tells: doc.tells ?? base.tells, fields };
 }
 
 /** Alle Arten einer Bibliothek: die eingebauten (wie geändert), dann die eigenen. */
@@ -246,7 +245,6 @@ export function kindDoc(kind: KindDef): Record<string, unknown> {
     name: kind.name,
     label: kind.label,
     ...(kind.tells === undefined ? {} : { tells: kind.tells }),
-    speaks: kind.speaks,
     ...(kind.system === undefined ? {} : { system: kind.system }),
     fields: kind.fields.map((f) => {
       const out: Record<string, unknown> = { key: f.key, label: f.label, type: f.type };

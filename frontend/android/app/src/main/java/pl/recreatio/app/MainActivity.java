@@ -31,6 +31,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(FileSaverPlugin.class);
         /* 0067 — im Hintergrund nachsehen, wenn die App zu ist ({@link NotifyWorker}). */
         registerPlugin(NotifyPlugin.class);
+        /* 2026-10-17 — was die Ausgabe dazubringt (die Ausgabe sms: das Telefon); in der gewöhnlichen nichts. */
+        Edition.register(this);
         super.onCreate(savedInstanceState);
     }
 

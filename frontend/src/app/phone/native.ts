@@ -148,6 +148,10 @@ interface PhonePluginApi {
   markRead(o: { threadId: string }): Promise<void>;
   viewing(o: { threadId: string | null }): Promise<void>;
   remove(o: { id: string }): Promise<{ removed: boolean }>;
+  /** Eine angekündigte MMS noch einmal laden. */
+  retryMms(o: { id: string }): Promise<{ started: boolean }>;
+  /** Die Kontakte gleich im Hintergrund ins Adressbuch (der Läufer). */
+  contactsSoon(): Promise<void>;
   search(o: { query: string; limit?: number }): Promise<{ hits: { threadId: string; id: string; date: number; snippet: string; address: string | null }[] }>;
   lookup(o: { numbers: readonly string[] }): Promise<{ names: Record<string, string> }>;
   contacts(): Promise<{ contacts: PhoneBookContact[] }>;

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Das Konto „REcreatio" im Adressbuch (PhoneContacts): nur ein Name für die
+  Kontakte, die recreatio dort hineinschreibt. Die Art ist die Kennung der App.
+-->
+<account-authenticator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accountType="pl.recreatio.app"
+    android:icon="@mipmap/ic_launcher"
+    android:smallIcon="@mipmap/ic_launcher"
+    android:label="@string/app_name" />

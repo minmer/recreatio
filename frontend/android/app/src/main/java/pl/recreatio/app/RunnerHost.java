@@ -134,6 +134,8 @@ final class RunnerHost {
         settings.setMediaPlaybackRequiresUserGesture(true);
 
         web.addJavascriptInterface(new Bridge(context, generation), "RecreatioRunner");
+        /* 2026-10-17 — die Ausgabe sms: das Telefon für das Archiv und das Adressbuch. */
+        Edition.runner(web, context);
         web.setWebViewClient(new Client(context));
         web.loadUrl(PAGE);
         view = web;
@@ -145,6 +147,7 @@ final class RunnerHost {
             WebView gone = view;
             view = null;
             gone.removeJavascriptInterface("RecreatioRunner");
+            Edition.runnerGone(gone);
             gone.stopLoading();
             gone.destroy();
         }

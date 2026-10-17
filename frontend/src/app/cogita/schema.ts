@@ -171,8 +171,11 @@ export interface KindDef {
   /** Das Feld, das Gleichnamige in der Suche unterscheidet [F4]. */
   readonly tells?: string;
   readonly fields: readonly FieldDef[];
-  /** Eine Gestalt, die sprechen kann [H1]. */
-  readonly speaks: boolean;
+  /*
+    2026-10-17 — „Postać — może mówić" ist fort: sprechen darf in einem Ablauf
+    jeder Eintrag (eine Zeile, ein Schritt „Postać mówi" nennt ihn). Ein altes
+    `speaks` im Dokument wird überlesen.
+  */
   /** Eine der festen Arten des Motors. */
   readonly system?: SystemKind;
 }
@@ -315,7 +318,6 @@ export function readKind(id: string, raw: unknown): KindDef {
     label: clip(str(doc.label).trim(), 200) || (fields[0] ? `{${fields[0].key}}` : ''),
     tells: seen.has(tells) ? tells : undefined,
     fields,
-    speaks: doc.speaks === true,
     system: pick(SYSTEM_KINDS, doc.system)
   };
 }

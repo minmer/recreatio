@@ -11,6 +11,7 @@
  *   reply   eine Antwort aus der Meldung — versiegelt, unterschrieben, gesendet
  *   read    die Rozmowa als gelesen markieren
  *   done    eine Aufgabe aus der Erinnerung als erledigt markieren
+ *   phone   (Ausgabe „sms") das Archiv der SMS, das Adressbuch (phone/phoneJobs)
  * </code>
  *
  * Aufträge laufen nacheinander: der Schlüsselbund wird einmal gebaut und gilt
@@ -28,7 +29,8 @@ interface RunnerBridge {
 
 interface Task {
   readonly id: string;
-  readonly kind: 'check' | 'reply' | 'read' | 'done';
+  readonly kind: 'check' | 'reply' | 'read' | 'done' | 'phone';
+  readonly job?: string;
   readonly chatId?: string;
   readonly text?: string;
   readonly messageId?: string;
@@ -58,6 +60,9 @@ async function perform(task: Task): Promise<unknown> {
     case 'done':
       await doneIn(who, task.taskId ?? '', task.occurrenceAt ?? null);
       return { ok: true };
+    case 'phone':
+      /* Nur in der Ausgabe „sms" — als eigenes Bündel, die gewöhnliche App lädt es nie. */
+      return (await import('./app/phone/phoneJobs')).runPhoneJob(task.job ?? '');
     default:
       throw new WorkspaceError('Nieznane zlecenie.');
   }

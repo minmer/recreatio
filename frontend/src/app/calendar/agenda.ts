@@ -16,6 +16,7 @@
  */
 
 import { createArea, loadAreas, type AreaRow } from '../areas/area';
+import { localDate, localTime } from '../areas/WhoSees';
 import { emptyTexts, itemFieldAad, putText, setOccurrence, type ItemField, type ItemKind, type ItemTexts, type SealedField } from './calendar';
 import { areaKeys, newestKey } from '../chat/chat';
 import { fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
@@ -345,6 +346,54 @@ export const moveOne = (itemId: string, occurrenceAt: string, startsAt: Date) =>
 /** 0079 — ein abgesagtes oder verlegtes Vorkommen steht wieder, wie die Reihe es sagt. */
 export const restoreOne = (itemId: string, occurrenceAt: string) =>
   setOccurrence(itemId, occurrenceAt, { restore: true });
+
+/** Ob ein Termin eine Reihe ist (und nicht ein einzelner). */
+export const repeats = (item: OpenedItem): boolean => item.occurrence.series.repeatKind !== 'none';
+
+/**
+ * 0079 — DIE REIHE VOR DIESEM VORKOMMEN BEENDEN: „od tego dnia już nie". Die
+ * vergangenen Vorkommen bleiben, mit allem, was an ihnen hing; hängen an
+ * späteren noch Intentionen, sagt der Dienst welche, und ändert nichts. Ist
+ * es das erste Vorkommen, bleibt nichts übrig — dann fällt die Reihe ganz.
+ * (Für den Editor und für mehrere zugleich, `EventPick.tsx`.)
+ */
+export async function endSeriesBefore(ring: Ring, item: OpenedItem): Promise<void> {
+  const occurrence = item.occurrence;
+  if (new Date(occurrence.occurrenceAt).getTime() <= new Date(occurrence.series.startsAt).getTime()) {
+    await deleteEvent(occurrence.itemId);
+    return;
+  }
+
+  const last = new Date(occurrence.occurrenceAt);
+  last.setDate(last.getDate() - 1);
+  await saveEvent(ring, { ...draftOf(item), until: localDate(last) }, occurrence.itemId);
+}
+
+/**
+ * Ein bestehender Termin (die ganze Reihe) als Entwurf — so, wie er
+ * gespeichert ist; zum Ändern einzelner Felder, ohne den Editor zu öffnen
+ * (Reihe beenden, Punkte des Programms nachziehen).
+ */
+export function draftOf(item: OpenedItem): EventDraft {
+  const occurrence = item.occurrence;
+  const series = occurrence.series;
+  const seriesStart = new Date(series.startsAt);
+  const seriesEnd = new Date(series.endsAt);
+  return {
+    kind: (occurrence.kind as ItemKind) ?? 'appointment',
+    title: item.named ? item.title : '', location: item.location ?? '', notes: item.notes ?? '',
+    link: item.link ?? '', linkLabel: item.linkLabel ?? '',
+    areaId: occurrence.visibilityAreaId, ownerRoleId: occurrence.ownerRoleId,
+    date: localDate(seriesStart), time: localTime(seriesStart),
+    minutes: Math.round((seriesEnd.getTime() - seriesStart.getTime()) / 60_000), allDay: occurrence.allDay,
+    repeat: series.repeatKind, every: series.repeatEvery, weekdays: series.repeatWeekdays ?? 0,
+    until: series.repeatKind === 'none' ? null : series.repeatUntil != null ? localDate(new Date(series.repeatUntil)) : null,
+    count: series.repeatCount ?? null,
+    calendarId: occurrence.calendarId,
+    bookable: occurrence.bookable ?? null, capacity: occurrence.capacity ?? null,
+    reserveAreaId: occurrence.reserveAreaId ?? null
+  };
+}
 
 /**
  * 0079 — „TA I NASTĘPNE": die Reihe `itemId` endet vor dem Tag von `from`, und

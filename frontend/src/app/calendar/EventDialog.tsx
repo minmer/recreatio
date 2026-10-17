@@ -41,7 +41,7 @@ export type EventTarget = {
   }
   | { readonly at: 'event'; readonly event: CalEvent };
 
-export function EventDialog({ me, areas, calendars, scope, target, events, onClose, onSaved, onAddPart }: {
+export function EventDialog({ me, areas, calendars, scope, target, events, onClose, onSaved, onOpenPart }: {
   me: Me;
   areas: readonly AreaRow[];
   calendars: readonly CalendarRow[];
@@ -52,15 +52,15 @@ export function EventDialog({ me, areas, calendars, scope, target, events, onClo
   events?: readonly CalEvent[];
   onClose: () => void;
   onSaved: () => void;
-  /** 0070 — einen Punkt ins Programm dieses Termins (öffnet einen neuen Termin unter ihm). */
-  onAddPart?: (parent: CalEvent) => void;
+  /** 2026-10-17 — einen Punkt des Programms öffnen. */
+  onOpenPart?: (part: CalEvent) => void;
 }) {
   if (target.at === 'event' && (target.event.source !== 'item' || !target.event.item?.editable)) {
     return <Details me={me} areas={areas} calendars={calendars} event={target.event} onClose={onClose} onSaved={onSaved} />;
   }
 
   return <Editor me={me} areas={areas} calendars={calendars} scope={scope} target={target} events={events}
-    onClose={onClose} onSaved={onSaved} onAddPart={onAddPart} />;
+    onClose={onClose} onSaved={onSaved} onOpenPart={onOpenPart} />;
 }
 
 export default EventDialog;

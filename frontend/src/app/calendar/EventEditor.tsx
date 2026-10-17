@@ -1,5 +1,11 @@
 /**
  * Einen Termin anlegen und ändern: Art, Zeit, Wiederholung, wer sieht ihn, wer ist dabei („ten i następne").
+ *
+ * 2026-10-17 — PUNKTE DES PROGRAMMS TEILEN ALLES MIT IHREM GANZEN: ein neuer
+ * Punkt übernimmt Kalender, Sichtbarkeit, Ort, Link und wer dabei ist; wird
+ * das Ganze geändert (oder verschoben), ziehen die Punkte nach — jeder Punkt,
+ * der das betreffende Feld noch so hat wie das Ganze vorher. Wer bei einem
+ * Punkt etwas anders einträgt, behält es (`followParent`).
  */
 
 import { useState } from 'react';
@@ -7,6 +13,7 @@ import { useState } from 'react';
 import type { AreaRow } from '../areas/area';
 import { AreaPick } from '../areas/AreaPick';
 import { PRIVATE, Weekdays, bitOf, fromLocal, groupName, localDate, localTime, writableGroups } from '../areas/WhoSees';
+import type { Ring } from '../core/keys';
 import type { Me } from '../core/me';
 import { useRecent } from '../core/prefs';
 import { WorkspaceError } from '../core/session';
@@ -14,7 +21,7 @@ import { IntentionsPanel } from '../masses/IntentionsPanel';
 import { DEVOTION_NAMES } from '../masses/mass';
 import { askText } from '../ui/dialogs';
 import { Modal } from '../ui/Modal';
-import { type OpenedItem, type RepeatKind, cancelOne, deleteEvent, ensurePrivateArea, forever, handover, isLiturgy, moveOne, saveEvent } from './agenda';
+import { type OpenedItem, type RepeatKind, cancelOne, deleteEvent, draftOf, endSeriesBefore, ensurePrivateArea, forever, handover, isLiturgy, moveOne, saveEvent } from './agenda';
 import { CALENDAR_KIND_LABEL, type CalendarRow, ITEM_LABEL, type ItemKind, safeLink, setPeople, setProgramParent } from './calendar';
 import { calendarLabel } from './calendarLabel';
 import type { CalEvent } from './calendarModel';
@@ -37,7 +44,7 @@ const KINDS_OFFERED: readonly ItemKind[] = ['appointment', 'mass', 'confession',
 
 /* -- Anlegen und ändern -------------------------------------------------------------- */
 
-export function Editor({ me, areas, calendars, scope: allowed, target, events, onClose, onSaved, onAddPart }: {
+export function Editor({ me, areas, calendars, scope: allowed, target, events, onClose, onSaved, onOpenPart }: {
   me: Me;
   areas: readonly AreaRow[];
   calendars: readonly CalendarRow[];
@@ -46,13 +53,24 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
   events?: readonly CalEvent[];
   onClose: () => void;
   onSaved: () => void;
-  onAddPart?: (parent: CalEvent) => void;
+  onOpenPart?: (part: CalEvent) => void;
 }) {
   const recent = useRecent('calendar.cal');
   const item: OpenedItem | undefined = target.at === 'event' ? target.event.item : undefined;
   const occurrence = item?.occurrence;
   const series = occurrence?.series;
   const personal = areas.find((a) => a.personal === true);
+
+  /* 2026-10-17 — das Ganze, unter dem ein NEUER Punkt entsteht: von ihm übernimmt er, was er nicht anders sagt. */
+  const parentItem = target.at === 'new' && target.parentItemId !== undefined
+    ? events?.find((e) => e.item?.occurrence.itemId === target.parentItemId)?.item : undefined;
+  /* Wovon ein bestehender Punkt abhängt — für den Hinweis. */
+  const ownParent = occurrence?.parentItemId == null ? undefined
+    : events?.find((e) => e.item?.occurrence.itemId === occurrence.parentItemId)?.item;
+  /* Die Punkte dieses Termins, je Punkt einmal (eine Reihe steht sonst mit jedem Vorkommen da). */
+  const parts = item === undefined || events === undefined ? [] : [...new Map(events
+    .filter((e) => e.item !== undefined && e.item.occurrence.parentItemId === item.occurrence.itemId)
+    .map((e) => [e.item!.occurrence.itemId, e.item!] as const)).values()];
 
   /*
    * IN WELCHE KALENDER: die, in denen ich schreibe (auf einer Seite nur die
@@ -102,15 +120,16 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
   /* 0070 — Teil welches Termins: `undefined` heisst „bleibt", `null` „keiner mehr". */
   const [parentItemId, setParentItemId] = useState<string | null | undefined>(
     target.at === 'new' ? target.parentItemId : undefined);
-  const [location, setLocation] = useState(item?.location ?? '');
+  const [location, setLocation] = useState(item?.location ?? parentItem?.location ?? '');
   const [notes, setNotes] = useState(item?.notes ?? '');
   /* 0073 — „Więcej informacji": wohin, und was auf dem Knopf steht. */
-  const [link, setLink] = useState(item?.link ?? '');
-  const [linkLabel, setLinkLabel] = useState(item?.linkLabel ?? '');
+  const [link, setLink] = useState(item?.link ?? parentItem?.link ?? '');
+  const [linkLabel, setLinkLabel] = useState(item?.linkLabel ?? parentItem?.linkLabel ?? '');
 
-  /* Wer ihn sieht: was der Kalender sagt — ausser, dieser Termin sagt es anders. */
+  /* Wer ihn sieht: was der Kalender sagt — ausser, dieser Termin (oder beim neuen Punkt: sein Ganzes) sagt es anders. */
+  const seenFrom = occurrence ?? (parentItem?.occurrence.calendarId === calendarId ? parentItem.occurrence : undefined);
   const [visibility, setVisibility] = useState<string | null>(
-    occurrence !== undefined && occurrence.visibilityAreaId !== defaultVisibility ? occurrence.visibilityAreaId : null);
+    seenFrom !== undefined && seenFrom.visibilityAreaId !== defaultVisibility ? seenFrom.visibilityAreaId : null);
   const [allDay, setAllDay] = useState(target.at === 'new' ? target.allDay : target.event.allDay);
 
   /* Die Felder zeigen die Reihe, wenn „cała seria" gemeint ist, sonst dieses Vorkommen. Ein neuer dauert, wie sein Kalender sagt. */
@@ -140,7 +159,7 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
 
   /* 0058 — wer da sein muss. */
   const candidates = useAreaPeople(me, isPrivate ? null : calendarArea);
-  const [pinned, setPinned] = useState<readonly Pinned[]>(occurrence?.people ?? []);
+  const [pinned, setPinned] = useState<readonly Pinned[]>(occurrence?.people ?? parentItem?.occurrence.people ?? []);
   const pinnedChanged = JSON.stringify(pinned) !== JSON.stringify(occurrence?.people ?? []);
 
   const [busy, setBusy] = useState(false);
@@ -236,30 +255,22 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
     }
 
     if (pinnedChanged && !isPrivate) await setPeople(id, pinned);
+
+    /* Das Ganze ist geändert — seine Punkte ziehen nach („ten i następne" ist eine neue Reihe: deren Punkte bleiben am alten Teil). */
+    if (item !== undefined && !following && parts.length > 0) {
+      const failed = await followParent(me.ring, item, parts, {
+        calendarId: calendarId === PRIVATE ? item.occurrence.calendarId : calendarId,
+        areaId: seenBy, location, link, linkLabel,
+        people: isPrivate ? null : pinned,
+        shift: repeating || repeat !== 'none' ? 0 : startAt.getTime() - seriesStart.getTime()
+      });
+      if (failed > 0) throw new WorkspaceError(`Termin zapisany, ale ${failed} z ${parts.length} punktów programu nie udało się zmienić razem z nim.`);
+    }
   });
 
-  /*
-   * 0079 — DIE REIHE VOR DIESEM TAG BEENDEN: „od tego dnia już nie". Die
-   * vergangenen Vorkommen bleiben, mit allem, was an ihnen hing. Hängen an
-   * späteren noch Intentionen, sagt der Dienst welche, und ändert nichts.
-   */
+  /* 0079 — die Reihe vor diesem Tag beenden: „od tego dnia już nie" (`endSeriesBefore`). */
   const endBefore = () => run(async () => {
-    if (item === undefined || series === undefined) return;
-    const last = new Date(item.occurrence.occurrenceAt);
-    last.setDate(last.getDate() - 1);
-    await saveEvent(me.ring, {
-      kind: (item.occurrence.kind as ItemKind) ?? 'appointment',
-      title: item.named ? item.title : '', location: item.location ?? '', notes: item.notes ?? '',
-      link: item.link ?? '', linkLabel: item.linkLabel ?? '',
-      areaId: item.occurrence.visibilityAreaId, ownerRoleId: item.occurrence.ownerRoleId,
-      date: localDate(seriesStart), time: localTime(seriesStart),
-      minutes: Math.round((seriesEnd.getTime() - seriesStart.getTime()) / 60_000), allDay: item.occurrence.allDay,
-      repeat: series.repeatKind as RepeatKind, every: series.repeatEvery, weekdays: series.repeatWeekdays ?? 0,
-      until: localDate(last), count: series.repeatCount ?? null,
-      calendarId: item.occurrence.calendarId,
-      bookable: item.occurrence.bookable ?? null, capacity: item.occurrence.capacity ?? null,
-      reserveAreaId: item.occurrence.reserveAreaId ?? null
-    }, item.occurrence.itemId);
+    if (item !== undefined) await endSeriesBefore(me.ring, item);
   });
 
   const remove = async () => {
@@ -496,9 +507,17 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
               {link.trim() !== '' && safeLink(link) !== null && <p className="wk-hint">Na terminie: <ItemLink url={link} label={linkLabel} compact /></p>}
             </div>
 
-            {/* 0070 — Teil eines Programms, oder ein Ganzes mit Teilen. */}
+            {/* 0070 — Teil eines Programms, oder ein Ganzes mit Teilen. 2026-10-17: was geteilt wird, steht dabei. */}
             {target.at === 'new' && target.parentItemId !== undefined && parentItemId === target.parentItemId && (
-              <p className="wk-note">Punkt programu: <strong>{target.parentTitle ?? 'termin nadrzędny'}</strong></p>
+              <p className="wk-note">
+                Punkt programu: <strong>{target.parentTitle ?? 'termin nadrzędny'}</strong> — kalendarz, widoczność, miejsce, link i osoby
+                są wspólne z nim. Zmień tutaj tylko to, co w tym punkcie ma być inaczej.
+              </p>
+            )}
+            {item !== undefined && ownParent !== undefined && parentItemId === undefined && (
+              <p className="wk-note">
+                Punkt programu: <strong>{ownParent.title}</strong> — to, co ma tak samo jak on, zmienia się razem z nim; to, co tu wpiszesz inaczej, zostaje.
+              </p>
             )}
             {target.at === 'new' && target.origin !== undefined && (
               <p className="wk-note">Z rozmowy — termin zapamięta, z której wiadomości powstał.</p>
@@ -507,10 +526,23 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
               <ProgramOf
                 itemId={item?.occurrence.itemId ?? null}
                 start={fromLocal(date, allDay ? '00:00' : from)}
+                end={allDay ? undefined : fromLocal(endDate, to)}
                 events={events}
                 parentId={parentItemId === undefined ? item?.occurrence.parentItemId ?? null : parentItemId}
                 onParent={setParentItemId}
-                onAdd={onAddPart === undefined || target.at !== 'event' ? undefined : () => onAddPart(target.event)}
+                onQuickAdd={item === undefined || !item.editable ? undefined : async (partTitle, at, minutes) => {
+                  /* Der Punkt teilt alles mit dem Ganzen, wie es gespeichert ist — nur Name und Zeit sind seine. */
+                  const id = await saveEvent(me.ring, {
+                    ...draftOf(item), kind: 'appointment', title: partTitle, notes: '',
+                    date: localDate(at), time: localTime(at), minutes, allDay: false,
+                    repeat: 'none', every: 1, weekdays: 0, until: null, count: null,
+                    parentItemId: item.occurrence.itemId
+                  });
+                  const people = item.occurrence.people ?? [];
+                  if (people.length > 0) await setPeople(id, people);
+                  onSaved();
+                }}
+                onOpen={onOpenPart}
                 onLink={item === undefined ? undefined : async (child) => {
                   try { await setProgramParent(child, item.occurrence.itemId); onSaved(); }
                   catch (e) { setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się podłączyć terminu.'); }
@@ -553,4 +585,57 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
       </form>
     </Modal>
   );
+}
+
+/** Was das Ganze nach dem Speichern sagt — `people: null`: dort niemanden (privat). */
+interface ParentNow {
+  readonly calendarId: string;
+  readonly areaId: string;
+  readonly location: string;
+  readonly link: string;
+  readonly linkLabel: string;
+  readonly people: readonly Pinned[] | null;
+  /** Um wie viel das Ganze (ein einzelner Termin) verschoben wurde — einzelne Punkte rücken mit. */
+  readonly shift: number;
+}
+
+/**
+ * 2026-10-17 — DIE PUNKTE ZIEHEN DEM GANZEN NACH. Ein Feld eines Punktes
+ * folgt, wenn es vorher dasselbe war wie beim Ganzen; was ein Punkt anders
+ * hat, bleibt. Punkte, die ich nicht ändern darf, bleiben, wie sie sind.
+ * Gibt zurück, wie viele nicht gingen.
+ */
+async function followParent(ring: Ring, before: OpenedItem, parts: readonly OpenedItem[], now: ParentNow): Promise<number> {
+  const was = before.occurrence;
+  const samePeople = (a: readonly Pinned[] | undefined, b: readonly Pinned[] | undefined) =>
+    JSON.stringify(a ?? []) === JSON.stringify(b ?? []);
+  let failed = 0;
+
+  for (const part of parts) {
+    if (!part.editable) continue;
+    const draft = draftOf(part);
+    const next = {
+      ...draft,
+      calendarId: part.occurrence.calendarId === was.calendarId ? now.calendarId : draft.calendarId,
+      areaId: part.occurrence.visibilityAreaId === was.visibilityAreaId ? now.areaId : draft.areaId,
+      location: (part.location ?? '') === (before.location ?? '') ? now.location : draft.location,
+      link: (part.link ?? '') === (before.link ?? '') ? now.link : draft.link,
+      linkLabel: (part.linkLabel ?? '') === (before.linkLabel ?? '') ? now.linkLabel : draft.linkLabel
+    };
+    if (now.shift !== 0 && part.occurrence.series.repeatKind === 'none') {
+      const at = new Date(new Date(part.occurrence.series.startsAt).getTime() + now.shift);
+      next.date = localDate(at);
+      next.time = localTime(at);
+    }
+
+    try {
+      if (JSON.stringify(next) !== JSON.stringify(draft)) await saveEvent(ring, next, part.occurrence.itemId);
+      if (now.people !== null && samePeople(part.occurrence.people, was.people) && !samePeople(now.people, was.people)) {
+        await setPeople(part.occurrence.itemId, now.people);
+      }
+    } catch {
+      failed += 1;
+    }
+  }
+  return failed;
 }

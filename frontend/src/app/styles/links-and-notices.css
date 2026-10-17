@@ -119,8 +119,24 @@ a.wk-toast-body:focus-visible { outline: 2px solid var(--wk-accent); outline-off
 .wk-program-notes { color: var(--wk-muted); font-size: var(--wk-text-sm); white-space: pre-line; margin: 0; }
 .wk-program-strip { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wk-ev-program { display: grid; gap: 0.375rem; padding-top: 0.5rem; border-top: 1px solid var(--wk-line); }
-.wk-ev-parts { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.25rem; font-size: var(--wk-text-sm); }
-.wk-ev-part-time { font-variant-numeric: tabular-nums; color: var(--wk-muted); }
+/* Das Programm im Termin: je Punkt Zeit · Name (öffnet ihn) und Ort · „odłącz". Nicht `.wk-ev-parts` — das ist die Zahl „+N" im Monat. */
+.wk-ev-program-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.125rem; font-size: var(--wk-text-sm); }
+.wk-ev-program-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  padding: 0.375rem 0;
+  border-bottom: 1px solid var(--wk-line);
+}
+.wk-ev-part-time { font-variant-numeric: tabular-nums; color: var(--wk-muted); white-space: nowrap; }
+.wk-ev-program-main { display: grid; min-width: 0; }
+.wk-ev-program-title { font-weight: 600; text-align: left; color: var(--wk-ink); }
+.wk-ev-program-place { color: var(--wk-muted); font-size: var(--wk-text-xs); }
+.wk-ev-program-unlink { font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.wk-ev-program-new { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; margin-top: 0.5rem; }
+.wk-ev-program-new input:not([type]) { flex: 1 1 12rem; min-width: 0; }
+.wk-ev-program-new .wk-error { flex-basis: 100%; margin: 0; }
 
 /* -- Widżet (0067) -- */
 

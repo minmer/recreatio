@@ -211,6 +211,12 @@ export function useRecent(scope: string): {
   };
 }
 
+/** Ein gemerkter Wert ausserhalb der Ansicht (der Läufer im Hintergrund) — nachdem der Stand geladen ist. */
+export async function remembered(scope: string, fallback: string): Promise<string> {
+  await load();
+  return state.values[scope] ?? fallback;
+}
+
 /** Ein gemerkter Wert eines Teils — eine Ansicht, ein Filter. */
 export function useRemembered(scope: string, fallback: string): [string, (value: string) => void, boolean] {
   const snapshot = useSyncExternalStore(subscribe, () => state);

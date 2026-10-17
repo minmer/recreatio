@@ -104,6 +104,26 @@ android {
     }
 
     /*
+     * ZWEI AUSGABEN DERSELBEN APP (2026-10-17):
+     *
+     *   play   die App für alle (Google Play und die APK) — ohne SMS, ohne Adressbuch
+     *   sms    dieselbe App und dazu: die SMS-App des Telefons (SMS, MMS, Senden),
+     *          das Adressbuch (aus recreatio für Anrufe, ins Netz zum Archivieren)
+     *          und das Archiv der Nachrichten — nur für EIN Telefon, nie bei Google
+     *          Play (die Rechte für SMS und Kontakte hätten dort nichts verloren).
+     *
+     * Dieselbe Kennung und dieselbe Unterschrift: auf dem eigenen Telefon ersetzt
+     * die Ausgabe „sms" die gewöhnliche wie ein Update. Was nur sie hat, liegt
+     * unter src/sms/ (Manifest, Java, Ressourcen); die Klasse Edition sagt der
+     * Hülle, was dazukommt — in src/play/ steht dieselbe Klasse leer.
+     */
+    flavorDimensions = ['edition']
+    productFlavors {
+        play { dimension 'edition' }
+        sms { dimension 'edition' }
+    }
+
+    /*
      * Kein Abhängigkeitsverzeichnis in der APK. Es ist mit einem Schlüssel von
      * Google verschlüsselt und nur für Google lesbar — auf einem Telefon ohne
      * Google-Dienste hat es nichts verloren.
@@ -137,6 +157,8 @@ dependencies {
     /* 0075 — der Wecker (Firebase Cloud Messaging); ohne google-services.json bleibt er stumm. */
     implementation platform('com.google.firebase:firebase-bom:33.7.0')
     implementation 'com.google.firebase:firebase-messaging'
+    /* Die Prüfungen der MMS-Kodierung (src/testSms) laufen ohne Telefon. */
+    testImplementation "junit:junit:$junitVersion"
 }
 
 apply from: 'capacitor.build.gradle'

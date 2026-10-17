@@ -5,8 +5,8 @@
 import { useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
-import { groupName } from '../areas/WhoSees';
-import { longDate } from '../core/dayMath';
+import { fromLocal, groupName, localDate, localTime } from '../areas/WhoSees';
+import { longDate, sameDay } from '../core/dayMath';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
 import { IntentionsPanel } from '../masses/IntentionsPanel';
@@ -21,27 +21,40 @@ import { PeoplePicker, type Pinned, nameOfPinned, useAreaPeople } from './People
 /**
  * 0070 — DAS PROGRAMM EINES TERMINS: seine Teile (aus den geladenen
  * Terminen), in Reihenfolge — und, wenn er selbst ein Teil ist, sein Ganzes.
+ *
+ * 2026-10-17 — EIN NEUER PUNKT BRAUCHT NUR SEINEN NAMEN (und wann er
+ * beginnt: nach dem letzten Punkt des Tages). Alles andere teilt er mit dem
+ * Ganzen (`onQuickAdd`); wer mehr will, öffnet ihn danach aus der Liste.
  */
-export function ProgramOf({ itemId, start, events, parentId, onParent, onAdd, onLink, onUnlink }: {
+export function ProgramOf({ itemId, start, end, events, parentId, onParent, onQuickAdd, onOpen, onLink, onUnlink }: {
   /** `null`: ein neuer Termin — er kann ein Teil werden, aber noch keine haben. */
   itemId: string | null;
   start: Date;
+  /** Das Ende des Ganzen — ein neuer Punkt beginnt nicht danach. */
+  end?: Date;
   events: readonly CalEvent[];
   /** Das Ganze, wie es im Formular steht (gespeichert wird mit dem Termin). */
   parentId: string | null;
   onParent: (parentId: string | null) => void;
-  onAdd?: () => void;
+  /** 2026-10-17 — einen Punkt anlegen: Name, Beginn, Dauer in Minuten; den Rest teilt er mit dem Ganzen. */
+  onQuickAdd?: (title: string, at: Date, minutes: number) => Promise<void>;
+  /** 2026-10-17 — einen Punkt öffnen (aus der Liste des Programms). */
+  onOpen?: (part: CalEvent) => void;
   /** 0074 — einen BESTEHENDEN Termin als Punkt einhängen (sofort, ohne ihn zu öffnen). */
   onLink?: (childItemId: string) => Promise<void>;
   onUnlink?: (childItemId: string) => Promise<void>;
 }) {
   const [linking, setLinking] = useState(false);
+  /* Der neue Punkt, solange er eingetippt wird — `null`: zu. */
+  const [draft, setDraft] = useState<{ title: string; time: string } | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [addFailed, setAddFailed] = useState<string | null>(null);
 
   /* Je Termin einmal — eine Reihe steht sonst mit jedem Vorkommen da. */
   const items = new Map<string, CalEvent>();
   for (const e of events) {
     const place = programOf(e);
-    if (place !== null && e.source === 'item' && !items.has(place.itemId)) items.set(place.itemId, e);
+    if (place !== null && (e.source === 'item' || e.source === 'offer') && !items.has(place.itemId)) items.set(place.itemId, e);
   }
   const parentOf = (id: string) => (items.get(id) === undefined ? null : programOf(items.get(id)!)?.parentItemId ?? null);
   const ancestors = new Set<string>();
@@ -61,6 +74,24 @@ export function ProgramOf({ itemId, start, events, parentId, onParent, onAdd, on
   const childChoices = itemId === null ? [] : [...items.entries()]
     .filter(([id, e]) => id !== itemId && !ancestors.has(id) && programOf(e)?.parentItemId !== itemId)
     .map(([, e]) => e).sort(near).slice(0, 60);
+  /* Wo der nächste Punkt beginnt: wo der letzte dieses Tages endet — solange das im Ganzen liegt. */
+  const nextAt = (): Date => {
+    const last = parts.filter((p) => sameDay(p.start, start)).reduce((at, p) => Math.max(at, p.end.getTime()), start.getTime());
+    return end !== undefined && last >= end.getTime() ? start : new Date(last);
+  };
+  const addPart = () => {
+    if (draft === null || onQuickAdd === undefined || draft.title.trim() === '') return;
+    const at = fromLocal(localDate(start), draft.time);
+    /* Eine Stunde — höchstens bis zum Ende des Ganzen. */
+    const room = end === undefined ? 60 : Math.round((end.getTime() - at.getTime()) / 60_000);
+    const minutes = room >= 15 ? Math.min(60, room) : 60;
+    setAdding(true);
+    setAddFailed(null);
+    void onQuickAdd(draft.title.trim(), at, minutes)
+      .then(() => setDraft(null), (e: unknown) => setAddFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się dodać punktu.'))
+      .finally(() => setAdding(false));
+  };
+
   const label = (e: CalEvent) => `${e.title} · ${e.allDay ? longDate(e.start) : `${longDate(e.start)} ${time(e.start)}`}`;
 
   return (
@@ -79,22 +110,51 @@ export function ProgramOf({ itemId, start, events, parentId, onParent, onAdd, on
         <>
           <h3 className="wk-h3">Program</h3>
           {parts.length > 0 ? (
-            <ol className="wk-ev-parts">
+            <ol className="wk-ev-program-list">
               {parts.map((p) => (
-                <li key={programOf(p)!.itemId}>
-                  <span className="wk-ev-part-time">{p.allDay ? longDate(p.start) : `${longDate(p.start)} ${time(p.start)}`}</span>
-                  {' '}<span>{p.title}</span>
-                  {p.item?.location != null && <span className="wk-hint"> · {p.item.location}</span>}
+                <li key={programOf(p)!.itemId} className="wk-ev-program-row">
+                  {/* Am Tag des Ganzen genügt die Uhrzeit. */}
+                  <span className="wk-ev-part-time">
+                    {p.allDay ? longDate(p.start) : sameDay(p.start, start) ? `${time(p.start)}–${time(p.end)}` : `${longDate(p.start)} ${time(p.start)}`}
+                  </span>
+                  <span className="wk-ev-program-main">
+                    {onOpen !== undefined
+                      ? <button type="button" className="wk-link-btn wk-ev-program-title" onClick={() => onOpen(p)}>{p.title}</button>
+                      : <span className="wk-ev-program-title">{p.title}</span>}
+                    {p.item?.location != null && p.item.location !== '' && <span className="wk-ev-program-place">{p.item.location}</span>}
+                  </span>
                   {onUnlink !== undefined && (
-                    <> · <button type="button" className="wk-link-btn" disabled={linking}
-                      onClick={() => { setLinking(true); void onUnlink(programOf(p)!.itemId).finally(() => setLinking(false)); }}>odłącz</button></>
+                    <button type="button" className="wk-link-btn wk-ev-program-unlink" disabled={linking}
+                      onClick={() => { setLinking(true); void onUnlink(programOf(p)!.itemId).finally(() => setLinking(false)); }}>odłącz</button>
                   )}
                 </li>
               ))}
             </ol>
           ) : <p className="wk-hint">Ten termin nie ma jeszcze punktów programu.</p>}
+
+          {draft !== null && (
+            <div className="wk-ev-program-new">
+              <input aria-label="Nazwa punktu" placeholder="Nazwa punktu, np. Obiad" value={draft.title} maxLength={200} autoFocus disabled={adding}
+                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                onKeyDown={(e) => {
+                  /* Enter dodaje punkt — nie zapisuje całego terminu (to pole stoi w jego formularzu). */
+                  if (e.key === 'Enter') { e.preventDefault(); addPart(); }
+                  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setDraft(null); }
+                }} />
+              <input type="time" aria-label="Początek punktu" step={300} value={draft.time} disabled={adding}
+                onChange={(e) => setDraft({ ...draft, time: e.target.value })} />
+              <button type="button" className="wk-btn wk-btn-small" disabled={adding || draft.title.trim() === ''} onClick={addPart}>
+                {adding ? 'Dodawanie…' : 'Dodaj'}
+              </button>
+              <button type="button" className="wk-link-btn" disabled={adding} onClick={() => setDraft(null)}>Anuluj</button>
+              {addFailed !== null && <p className="wk-error">{addFailed}</p>}
+            </div>
+          )}
+
           <div className="wk-actions wk-ev-program-add">
-            {onAdd !== undefined && <button type="button" className="wk-link-btn" onClick={onAdd}>+ Nowy punkt programu</button>}
+            {onQuickAdd !== undefined && draft === null && (
+              <button type="button" className="wk-link-btn" onClick={() => setDraft({ title: '', time: localTime(nextAt()) })}>+ Nowy punkt programu</button>
+            )}
             {onLink !== undefined && childChoices.length > 0 && (
               <select value="" disabled={linking} aria-label="Podłącz istniejący termin"
                 onChange={(e) => {

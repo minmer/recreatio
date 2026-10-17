@@ -198,7 +198,16 @@ export const Field = {
   CogitaSession: 'cogita_session',
   CogitaEvent: 'cogita_event',
   CogitaSeatKey: 'cogita_seat_key',
-  CogitaOffline: 'cogita_offline'
+  CogitaOffline: 'cogita_offline',
+
+  /*
+   * 0114 — DAS TELEFON: ein Kontakt als EIN Dokument, ein Stapel archivierter
+   * SMS und MMS, ein Bild aus einer MMS — jedes unter dem Schlüssel seines
+   * Bereichs, jedes mit eigenem Etikett.
+   */
+  PhoneContact: 'phone_contact',
+  SmsArchive: 'sms_archive',
+  PhoneFile: 'phone_file'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

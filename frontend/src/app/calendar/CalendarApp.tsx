@@ -28,6 +28,11 @@
  * Pille öffnet dann die Liste des Tages. Im Raster stehen nur die Aufgaben
  * mit ihrer Stunde; was von früher liegen blieb, zeigt die Liste.
  *
+ * <b>Mehrere Termine zugleich</b> (2026-10-17): „Zaznacz" (oder Strg/Umschalt +
+ * Klick) wählt Termine statt sie zu öffnen — über das Blättern hinweg; dann
+ * gelten Löschen, Serien beenden und Verschieben für alle (`EventPick.tsx`).
+ * Blättern geht auch mit ← → und mit einem Wisch über das Raster.
+ *
  * <b>Reservierungen stehen am Termin</b> (0057): an einem angebotenen Termin,
  * wie viele Plätze besetzt sind und wer wartet; ein Klick zeigt die
  * Kandidaten und lässt die Kanzlei entscheiden (`ReservationDialog.tsx`).
@@ -50,10 +55,12 @@ import { CALENDAR_KIND_LABEL, loadCalendars, type CalendarRow } from './calendar
 import { CalendarSettings } from './CalendarSettings';
 import { calendarLabel } from './calendarLabel';
 import type { EventTarget } from './EventDialog';
+import { pickable, PickBar } from './EventPick';
 import { ItemLink } from './ItemLink';
 import { intentionsWord } from '../masses/mass';
 import { useNow } from '../masses/MassParts';
 import { Modal } from '../ui/Modal';
+import { toast } from '../ui/dialogs';
 import { useMe, type Me } from '../core/me';
 import { useRemembered } from '../core/prefs';
 import { ReservationDialog, WaitingDialog } from '../bookings/ReservationDialog';
@@ -82,7 +89,13 @@ const PART_HEAD = (20 / HOUR) * 60;
 const RAIL = 13;
 
 /** 2026-10-17 — wie breit die Termine als Schiene sind, wenn die Aufgaben den Tag haben. */
-const EVENT_RAIL = 16;
+const EVENT_RAIL = 30;
+
+/** Rechts in der Schiene bleibt so viel frei: dort liegt der Rollbalken des Rasters (über dem Inhalt, wo er schwebt). */
+const SCROLL_GAP = 12;
+
+/** Wie breit die Striche der Termine nebeneinander stehen dürfen. */
+const RAIL_SPAN = EVENT_RAIL - SCROLL_GAP - 4;
 
 const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 
@@ -164,6 +177,12 @@ export function Calendar({ me, scope, startNew, at }: {
   /* Die Aufgabe, an der gerade abgehakt wird — bis die frischen Daten da sind, sonst spränge das Häkchen kurz zurück. */
   const [taskBusy, setTaskBusy] = useState<string | null>(null);
   const [taskFailed, setTaskFailed] = useState<string | null>(null);
+  /* 2026-10-17 — mehrere Termine zugleich: die Auswahl hält über das Blättern hinweg (darum die Termine selbst, nicht nur ihre Schlüssel). */
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<ReadonlyMap<string, CalEvent>>(new Map());
+  /* Strg/⌘/Umschalt beim Klick — vor dem Klick des Termins gemerkt (onClickCapture). */
+  const multi = useRef(false);
+  const swipe = useRef<{ x: number; y: number } | null>(null);
 
   const range = viewRange(view, anchor);
   const fromMs = range.from.getTime();
@@ -270,7 +289,21 @@ export function Calendar({ me, scope, startNew, at }: {
     newAt(at);
   }, [data]);
 
+  const togglePick = (event: CalEvent) => {
+    setPicking(true);
+    setPicked((was) => {
+      const next = new Map(was);
+      if (next.has(event.key)) next.delete(event.key); else next.set(event.key, event);
+      return next;
+    });
+  };
+  const stopPicking = () => { setPicking(false); setPicked(new Map()); };
+
   const open = (event: CalEvent) => {
+    if (picking || multi.current) {
+      if (pickable(event)) { togglePick(event); return; }
+      if (picking) { toast('Tego terminu nie zmienisz razem z innymi.'); return; }
+    }
     if (event.source === 'offer' || event.source === 'booking') setReservation(event.key);
     else setDialog({ at: 'event', event });
   };
@@ -280,14 +313,44 @@ export function Calendar({ me, scope, startNew, at }: {
 
   const days = view === 'day' ? [anchor] : Array.from({ length: 7 }, (_, i) => addDays(range.from, i));
   const waiting = bookings.waiting.length;
+  const step = (direction: 1 | -1) => setAnchor(stepView(view, anchor, direction));
+
+  /* ← → blättern, Esc beendet die Auswahl — nicht in einem Feld, nicht hinter einem Dialog, nicht als Baustein einer Seite. */
+  const quiet = dialog === null && taskDialog === null && taskDay === null && settings === null && !calendarsOpen && reservation === null && !waitingOpen;
+  const keys = useRef({ step, stopPicking, quiet });
+  keys.current = { step, stopPicking, quiet };
+  useEffect(() => {
+    if (scoped) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (!keys.current.quiet || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.defaultPrevented) return;
+      const target = e.target as HTMLElement | null;
+      if (target !== null && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      if (document.querySelector('[role="dialog"], [role="menu"]') !== null) return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); keys.current.step(-1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); keys.current.step(1); }
+      else if (e.key === 'Escape') keys.current.stopPicking();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [scoped]);
+
+  /* Ein Wisch quer über das Raster blättert — nur, wenn er deutlich waagrecht war. */
+  const swiped = (x: number, y: number) => {
+    const from = swipe.current;
+    swipe.current = null;
+    if (from === null) return;
+    const dx = x - from.x;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(y - from.y)) step(dx < 0 ? 1 : -1);
+  };
+  const pickedKeys = new Set(picked.keys());
 
   return (
-    <div className="wk-cal2">
+    <div className="wk-cal2" onClickCapture={(e) => { multi.current = e.ctrlKey || e.metaKey || e.shiftKey; }}>
       <div className="wk-cal2-bar">
         <div className="wk-mass-nav">
-          <button type="button" className="wk-mass-step" aria-label="Wcześniej" onClick={() => setAnchor(stepView(view, anchor, -1))}>‹</button>
+          <button type="button" className="wk-mass-step" aria-label="Wcześniej" onClick={() => step(-1)}>‹</button>
           <button type="button" className="wk-mass-today" aria-pressed={sameDay(anchor, now)} onClick={() => setAnchor(startOfDay(new Date()))}>Dziś</button>
-          <button type="button" className="wk-mass-step" aria-label="Później" onClick={() => setAnchor(stepView(view, anchor, 1))}>›</button>
+          <button type="button" className="wk-mass-step" aria-label="Później" onClick={() => step(1)}>›</button>
         </div>
         <p className="wk-mass-range" aria-live="polite">
           {label}
@@ -312,8 +375,18 @@ export function Calendar({ me, scope, startNew, at }: {
           )}
           {!scoped && <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setTaskDialog({ task: null })}>+ Zadanie</button>}
           {!scoped && <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setCalendarsOpen(true)}>Kalendarze</button>}
+          {(picking || all.some(pickable)) && (
+            <button type="button" className="wk-btn wk-btn-quiet" aria-pressed={picking}
+              title="Zaznacz kilka terminów i zmień je razem (także Ctrl + klik)"
+              onClick={() => (picking ? stopPicking() : setPicking(true))}>Zaznacz</button>
+          )}
         </div>
       </div>
+
+      {picking && (
+        <PickBar me={me} picked={[...picked.values()]} onClear={stopPicking}
+          onDone={() => { setPicked(new Map()); reload(); }} />
+      )}
 
       {(shownCalendars.length > 0 || waiting > 0 || allMarks.length > 0) && (
         <div className="wk-cal2-groups" role="group" aria-label="Co pokazać">
@@ -353,30 +426,39 @@ export function Calendar({ me, scope, startNew, at }: {
       {taskFailed !== null && <p className="wk-error">{taskFailed}</p>}
       {data === null && failed === null && <Loading label="Wczytywanie…" />}
 
-      {data !== null && (view === 'day' || view === 'week') && (
-        <TimeGrid days={days} events={events} marks={marks} now={now}
-          onDay={(day) => { setAnchor(day); setViewText('day'); }}
-          onSlot={(at, allDay) => newAt(at, allDay)} onOpen={open} onTasks={setTaskDay} areas={areas}
-          focus={focus} onFocus={setFocusText} tasks={taskActs} />
-      )}
+      {data !== null && (
+        <div className="wk-cal2-views"
+          onTouchStart={(e) => { swipe.current = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null; }}
+          onTouchEnd={(e) => swiped(e.changedTouches[0].clientX, e.changedTouches[0].clientY)}>
+          {(view === 'day' || view === 'week') && (
+            <TimeGrid days={days} events={events} marks={marks} now={now}
+              onDay={(day) => { setAnchor(day); setViewText('day'); }}
+              onSlot={(at, allDay) => { if (!picking) newAt(at, allDay); }} onOpen={open} onTasks={setTaskDay} areas={areas}
+              focus={focus} onFocus={setFocusText} tasks={taskActs} picked={pickedKeys} onStep={step} />
+          )}
 
-      {data !== null && view === 'month' && (
-        <MonthGrid anchor={anchor} from={range.from} events={events} marks={marks} now={now}
-          onDay={(day) => { setAnchor(day); setViewText('day'); }} onOpen={open} onTasks={setTaskDay} />
-      )}
+          {view === 'month' && (
+            <MonthGrid anchor={anchor} from={range.from} events={events} marks={marks} now={now}
+              onDay={(day) => { setAnchor(day); setViewText('day'); }} onOpen={open} onTasks={setTaskDay} picked={pickedKeys} />
+          )}
 
-      {data !== null && view === 'list' && (
-        <ListView from={range.from} events={events} marks={marks} now={now} areas={areas} onOpen={open} onTasks={setTaskDay} />
+          {view === 'list' && (
+            <ListView from={range.from} events={events} marks={marks} now={now} areas={areas} onOpen={open} onTasks={setTaskDay} picked={pickedKeys} />
+          )}
+        </div>
       )}
 
       {dialog !== null && (
         <Suspense fallback={null}>
-        <EventDialog me={me} areas={areas} calendars={calendars} scope={scope} target={dialog} events={all}
+        {/*
+          2026-10-17 — EIN DIALOG JE ZIEL (`key`). Ohne ihn blieb beim Wechsel vom
+          Ganzen zu „+ Nowy punkt programu" derselbe Editor stehen, mit dem Zustand
+          des Ganzen — und der neue Punkt wurde ohne sein Ganzes gespeichert.
+        */}
+        <EventDialog key={dialog.at === 'event' ? dialog.event.key : `new:${dialog.parentItemId ?? ''}:${dialog.start.getTime()}`}
+          me={me} areas={areas} calendars={calendars} scope={scope} target={dialog} events={all}
           onClose={() => setDialog(null)} onSaved={reload}
-          onAddPart={(parent) => setDialog({
-            at: 'new', start: parent.start, end: new Date(parent.start.getTime() + 3_600_000), allDay: false,
-            calendarId: parent.item?.occurrence.calendarId, parentItemId: parent.item?.occurrence.itemId, parentTitle: parent.item?.title
-          })} />
+          onOpenPart={(part) => open(part)} />
         </Suspense>
       )}
 
@@ -425,7 +507,7 @@ export function Calendar({ me, scope, startNew, at }: {
 /** 0058 — die Farbe eines Termins: die seines Kalenders. */
 const hueOfEvent = (event: CalEvent) => hueOf(event.calendarId ?? event.areaId);
 
-function chipClass(event: CalEvent): string {
+function chipClass(event: CalEvent, picked?: ReadonlySet<string>): string {
   const offer = event.offer;
   const waits = offer !== undefined ? waitingOn(offer) > 0 : event.booking !== undefined && waitsForOffice(event.booking);
   return ['wk-ev', `is-${event.source}`,
@@ -434,7 +516,8 @@ function chipClass(event: CalEvent): string {
     offer !== undefined && offer.taken >= offer.capacity && 'is-full',
     offer !== undefined && offer.taken === 0 && 'is-empty',
     offer?.closedBy != null && 'is-closed',
-    waits && 'has-waiting']
+    waits && 'has-waiting',
+    picked?.has(event.key) === true && 'is-picked']
     .filter(Boolean).join(' ');
 }
 
@@ -490,7 +573,7 @@ export interface TaskActs {
 }
 
 /** Tag und Woche — auch für den Kalender-Baustein einer Seite (0058: `readOnly`, dann legt ein Klick nichts an). */
-export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTasks, areas, readOnly = false, focus = 'events', onFocus, tasks }: {
+export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTasks, areas, readOnly = false, focus = 'events', onFocus, tasks, picked, onStep }: {
   days: readonly Date[];
   events: readonly CalEvent[];
   marks: readonly TaskMark[];
@@ -505,6 +588,10 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
   focus?: 'events' | 'tasks';
   onFocus?: (focus: 'events' | 'tasks') => void;
   tasks?: TaskActs;
+  /** 2026-10-17 — die zum gemeinsamen Ändern gewählten Termine (`EventPick.tsx`). */
+  picked?: ReadonlySet<string>;
+  /** 2026-10-17 — ‹ › in der Ecke des Kopfes: zum vorigen / nächsten Tag (der Woche). */
+  onStep?: (direction: 1 | -1) => void;
 }) {
   const scroller = useRef<HTMLDivElement | null>(null);
   const first = keyOf(days[0]);
@@ -537,7 +624,12 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
     <div className={`wk-cal2-grid${readOnly ? ' is-readonly' : ''}${wide ? ' is-tasks' : ''}`}
       style={{ '--days': days.length, '--hour': `${HOUR}px`, '--rail': `${rail}px`, '--evrail': `${EVENT_RAIL}px` } as CSSProperties}>
       <div className="wk-cal2-head">
-        <span className="wk-cal2-corner" />
+        {onStep !== undefined ? (
+          <span className="wk-cal2-corner wk-cal2-step">
+            <button type="button" className="wk-cal2-stepbtn" aria-label={days.length === 1 ? 'Poprzedni dzień' : 'Poprzedni tydzień'} onClick={() => onStep(-1)}>‹</button>
+            <button type="button" className="wk-cal2-stepbtn" aria-label={days.length === 1 ? 'Następny dzień' : 'Następny tydzień'} onClick={() => onStep(1)}>›</button>
+          </span>
+        ) : <span className="wk-cal2-corner" />}
         {days.map((day) => (
           <button key={keyOf(day)} type="button" className={`wk-cal2-dayhead${sameDay(day, now) ? ' is-today' : ''}`}
             aria-label={longDate(day)} onClick={() => onDay(day)}>
@@ -553,8 +645,8 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
           <div key={keyOf(day)} className="wk-cal2-allcell"
             onClick={(e) => { if (e.target === e.currentTarget) onSlot(startOfDay(day), true); }}>
             {events.filter((e) => wholeDay(e) && happensOn(e, day)).map((e) => (
-              <button key={e.key} type="button" className={chipClass(e)} style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}
-                title={hint(e, areas)} onClick={() => onOpen(e)}>
+              <button key={e.key} type="button" className={chipClass(e, picked)} style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}
+                title={hint(e, areas)} aria-pressed={picked?.has(e.key)} onClick={() => onOpen(e)}>
                 <span className="wk-ev-title">{e.title}</span>
                 <Badges event={e} />
               </button>
@@ -601,7 +693,8 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
                 const who = whoIsOn(p.event);
                 return (
                   <button key={p.event.key} type="button"
-                    className={`${chipClass(p.event)}${p.height < 45 ? ' is-short' : ''}${p.depth > 0 ? ' is-part' : ''}${p.nested ? ' has-parts' : ''}`}
+                    aria-pressed={picked?.has(p.event.key)}
+                    className={`${chipClass(p.event, picked)}${p.height < 45 ? ' is-short' : ''}${p.depth > 0 ? ' is-part' : ''}${p.nested ? ' has-parts' : ''}`}
                     style={{
                       '--ev-h': hueOfEvent(p.event),
                       top: `${(p.top / 60) * HOUR}px`,
@@ -715,8 +808,8 @@ const railPlace = (p: Placed, hue: number): CSSProperties => ({
   '--ev-h': hue,
   top: `${(p.top / 60) * HOUR}px`,
   height: `${Math.max((p.height / 60) * HOUR - 2, 6)}px`,
-  left: `${2 + p.x * (EVENT_RAIL - 4)}px`,
-  width: `${Math.max(p.w * (EVENT_RAIL - 4) - 1, 3)}px`
+  left: `${2 + p.x * RAIL_SPAN}px`,
+  width: `${Math.max(p.w * RAIL_SPAN - 1, 3)}px`
 } as CSSProperties);
 
 /**
@@ -743,7 +836,7 @@ function EventRail({ events, day, areas, onOpen }: { events: readonly CalEvent[]
  * Leere der Zelle): wer im Monat blättert, sucht einen Tag; ein Termin um neun
  * Uhr, der bei jedem Klick aufging, war nie gemeint. Neu anlegen: „+ Termin".
  */
-export function MonthGrid({ anchor, from, events, marks, now, onDay, onOpen, onTasks, readOnly = false }: {
+export function MonthGrid({ anchor, from, events, marks, now, onDay, onOpen, onTasks, readOnly = false, picked }: {
   anchor: Date;
   from: Date;
   events: readonly CalEvent[];
@@ -753,6 +846,7 @@ export function MonthGrid({ anchor, from, events, marks, now, onDay, onOpen, onT
   onOpen: (event: CalEvent) => void;
   onTasks: (day: Date) => void;
   readOnly?: boolean;
+  picked?: ReadonlySet<string>;
 }) {
   const days = Array.from({ length: 42 }, (_, i) => addDays(from, i));
   const SHOWN = 3;
@@ -772,7 +866,7 @@ export function MonthGrid({ anchor, from, events, marks, now, onDay, onOpen, onT
               <TaskPill marks={marksOn(marks, day)} onOpen={() => onTasks(day)} mini />
             </span>
             {mine.slice(0, SHOWN).map(({ event: e, parts }) => (
-              <button key={e.key} type="button" className={`${chipClass(e)} is-line`} style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}
+              <button key={e.key} type="button" className={`${chipClass(e, picked)} is-line`} aria-pressed={picked?.has(e.key)} style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}
                 title={parts > 0 ? `${e.title} — punkty programu: ${parts}` : e.title} onClick={() => onOpen(e)}>
                 {!wholeDay(e) && <span className="wk-ev-time">{time(e.start)}</span>}
                 <span className="wk-ev-title">{e.title}</span>
@@ -792,7 +886,7 @@ export function MonthGrid({ anchor, from, events, marks, now, onDay, onOpen, onT
 
 /* -- Die Liste ------------------------------------------------------------------------------- */
 
-export function ListView({ from, events, marks, now, areas, onOpen, onTasks }: {
+export function ListView({ from, events, marks, now, areas, onOpen, onTasks, picked }: {
   from: Date;
   events: readonly CalEvent[];
   marks: readonly TaskMark[];
@@ -800,6 +894,7 @@ export function ListView({ from, events, marks, now, areas, onOpen, onTasks }: {
   areas: readonly AreaRow[];
   onOpen: (event: CalEvent) => void;
   onTasks: (day: Date) => void;
+  picked?: ReadonlySet<string>;
 }) {
   const days = Array.from({ length: 30 }, (_, i) => addDays(from, i))
     .map((day) => ({ day, list: events.filter((e) => happensOn(e, day)), tasks: marksOn(marks, day) }))
@@ -826,11 +921,11 @@ export function ListView({ from, events, marks, now, areas, onOpen, onTasks }: {
             <TaskPill marks={tasks} onOpen={() => onTasks(day)} />
           </div>
           {treeOrder(list).map(({ event: e, depth }) => (
-            <div key={e.key} className={`wk-cal2-listrow${depth > 0 ? ' is-part' : ''}`} style={{ '--ev-h': hueOfEvent(e), '--depth': depth } as CSSProperties}>
+            <div key={e.key} className={`wk-cal2-listrow${depth > 0 ? ' is-part' : ''}${picked?.has(e.key) === true ? ' is-picked' : ''}`} style={{ '--ev-h': hueOfEvent(e), '--depth': depth } as CSSProperties}>
               {depth > 0 && <span className="wk-cal2-partmark" aria-hidden="true">↳</span>}
               <span className="wk-cal2-dot" aria-hidden="true" />
               <span className="wk-cal2-listtime">{wholeDay(e) ? 'cały dzień' : `${time(e.start)}–${time(e.end)}`}</span>
-              <button type="button" className={`wk-link-btn wk-cal2-listtitle${e.cancelled ? ' is-cancelled' : ''}`} onClick={() => onOpen(e)}>
+              <button type="button" className={`wk-link-btn wk-cal2-listtitle${e.cancelled ? ' is-cancelled' : ''}`} aria-pressed={picked?.has(e.key)} onClick={() => onOpen(e)}>
                 {e.title}
               </button>
               <span className="wk-row-side">{side(e)}</span>
