@@ -447,8 +447,8 @@ export function useFormOffice(props: FormOfficeProps) {
     setReading({ done: 0, total: registrations.length });
 
     /*
-     * Was mit den Schlüsseln seiner Bereiche nicht aufgeht, wird mit den
-     * Annahmen der übrigen Bereiche versucht, die dieser Bund öffnet — frühe
+     * Was mit dem Schlüssel des Bereichs seiner Frage nicht aufgeht, wird mit den
+     * übrigen Annahmen versucht — denen des Formulars und anderer Bereiche, die dieser Bund öffnet — frühe
      * Berichtigungen über den Link lagen unter der Annahme des Platzes. Erst
      * geholt, wenn eine Einsendung zu bleibt; was dann aufgeht, wird gleich
      * unter dem Schlüssel der Kanzlei abgelegt (unten, `pending`).
@@ -471,8 +471,8 @@ export function useFormOffice(props: FormOfficeProps) {
         for (const one of registrations.slice(at, at + CHUNK)) {
           let read = await readAcross(one, keys, areaOf);
           if (read.values.size < one.values.length) {
-            const others = await spareKeys();
-            if (others.length > 0) read = await readAcross(one, keys, areaOf, others);
+            /* Die übrigen Annahmen dieses Formulars zuerst (die des Platzes ist oft eine davon), dann die anderer Bereiche. */
+            read = await readAcross(one, keys, areaOf, [...keys, ...await spareKeys()]);
           }
           const { values: merged, toRewrap } = read;
           sent += one.values.length;

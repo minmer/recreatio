@@ -54,7 +54,7 @@ export async function rewrapForm(partId: string, ring: Ring): Promise<{ rewrappe
 
   let rewrapped = 0;
   for (const one of pending) {
-    const { toRewrap } = await readAcross(one, keys, areaOf, spare);
+    const { toRewrap } = await readAcross(one, keys, areaOf, [...keys, ...spare]);
     if (toRewrap.length === 0) continue;
     const done = await rewrapToOffice(partId, toRewrap.map((value) => ({ ...value, registrationId: one.registrationId })));
     rewrapped += done.rewrapped;
