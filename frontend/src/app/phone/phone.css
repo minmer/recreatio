@@ -98,8 +98,12 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: calc(100vh - var(--ph-top, var(--wk-bar-h)) - var(--wk-space-2));
-  height: calc(100dvh - var(--ph-top, var(--wk-bar-h)) - var(--wk-space-2));
   min-height: 18rem;
+}
+/* dvh (die Höhe ohne die Leisten des Browsers) nur, wo es sie gibt: mit var() darin fiele eine
+   unbekannte Einheit nicht auf die Zeile davor zurück, sondern auf „auto" — und das Gespräch wüchse. */
+@supports (height: 100dvh) {
+  .ph-thread { height: calc(100dvh - var(--ph-top, var(--wk-bar-h)) - var(--wk-space-2)); }
 }
 .ph-thread-head { display: flex; align-items: center; gap: var(--wk-space-2); min-width: 0; padding-bottom: var(--wk-space-2); border-bottom: 1px solid var(--wk-line); }
 .ph-thread-title { display: grid; min-width: 0; flex: 1; }
