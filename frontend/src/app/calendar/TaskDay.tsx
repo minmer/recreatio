@@ -164,12 +164,6 @@ export function TaskDay({ me, day, marks, areas, now, onClose, onChanged, onOpen
       </p>
 
       {shown.length === 0 && <p className="wk-empty">Tego dnia nie ma zadań.</p>}
-      {!every && carried > 0 && (
-        <p className="wk-hint">
-          Z wcześniejszych dni czeka jeszcze {carried} zaległych —{' '}
-          <button type="button" className="wk-link-btn" onClick={() => setEvery(true)}>pokaż wszystkie dni</button>
-        </p>
-      )}
 
       <ul className="wk-taskday">
         {shown.map((mark) => {
