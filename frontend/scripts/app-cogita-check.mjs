@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm'];
 await build({
   entryPoints: names.map((n) => `src/app/cogita/${n}.ts`),
   bundle: true,
@@ -24,7 +24,7 @@ await build({
   logLevel: 'error'
 });
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF] = await Promise.all(names.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -53,7 +53,7 @@ const PERSON = kind('k-person', {
     { key: '9bad', label: 'Zły klucz', type: 'line' }
   ]
 });
-const CHARACTER = kind('k-character', { name: 'Postać', speaks: true, fields: [{ key: 'name', label: 'Imię', type: 'line' }, { key: 'mood', label: 'Nastrój', type: 'choice', options: ['radosny', 'smutny'] }] });
+const CHARACTER = kind('k-character', { name: 'Postać', fields: [{ key: 'name', label: 'Imię', type: 'line' }, { key: 'mood', label: 'Nastrój', type: 'choice', options: ['radosny', 'smutny'] }] });
 const WORK = kind('k-work', {
   name: 'Dzieło', label: '{title} ({year})',
   fields: [
@@ -445,6 +445,135 @@ check('once the foundation is known, it joins the stack', opened.session.active.
 check('the answer gives the snapshot to keep', [opened.snapshot.question, opened.snapshot.direction, opened.snapshot.answers], ['vocab:v2', 'pl→en', 1]);
 check('the stand of the plan before a run', R.levelsOf(plan, () => [], 0), { unseen: 5, learning: 0, known: 0 });
 
+/* ══ 2026-10-17 — Formularze dodawania: viele Einträge aus einer Zeile ═══════════════════════════ */
+
+{
+  const LANG = kind('k-lang', { name: 'Język', label: '{name}', fields: [{ key: 'name', label: 'Nazwa', type: 'line' }] });
+  const TOPIC = kind('k-topic', { name: 'Temat', label: '{name}', fields: [{ key: 'name', label: 'Nazwa', type: 'line' }] });
+  const VWORD = kind('k-vword', {
+    name: 'Słowo', label: '{text}', tells: 'lang',
+    fields: [
+      { key: 'text', label: 'Tekst', type: 'line' },
+      { key: 'lang', label: 'Język', type: 'ref', to: ['k-lang'] },
+      { key: 'topics', label: 'Tematy', type: 'ref', multi: true, to: ['k-topic'] },
+      { key: 'level', label: 'Poziom', type: 'number' }
+    ]
+  });
+  const TRANS = kind('k-trans', {
+    name: 'Tłumaczenie', label: '{from}',
+    fields: [{ key: 'from', label: 'Z', type: 'ref', to: ['k-vword'] }, { key: 'to', label: 'Na', type: 'ref', to: ['k-vword'] }, { key: 'note', label: 'Uwaga', type: 'line' }]
+  });
+  const PAIR = kind('k-pair', {
+    name: 'Para', label: '{from}',
+    fields: [{ key: 'from', label: 'Z', type: 'ref', multi: true, to: ['k-vword'] }, { key: 'to', label: 'Na', type: 'ref', multi: true, to: ['k-vword'] }]
+  });
+  const people = [
+    e('l-en', ['k-lang'], { name: 'angielski' }), e('l-pl', ['k-lang'], { name: 'polski' }),
+    e('t-zw', ['k-topic'], { name: 'Zwierzęta' }), e('t-dom', ['k-topic'], { name: 'Dom' }),
+    e('w-pies', ['k-vword'], { text: 'pies', lang: 'l-pl', topics: ['t-zw'] })
+  ];
+  const kinds = [LANG, TOPIC, VWORD, TRANS, PAIR];
+  const look = S.lookupOf(kinds, people);
+  let n = 0;
+  const ctx = (own = () => true) => ({ look, pool: (k) => people.filter((x) => x.kinds.includes(k)), isOwn: own, newId: () => `n${++n}` });
+  const ids = (() => { let i = 0; return () => `g${++i}`; })();
+
+  /* Der Anfang aus einem Rodzaj, der VERBINDET: zwei Wörter je Zeile, ihre Sprachen getrennt, die Themen gemeinsam. */
+  const made = AF.formFromKind(TRANS, look, ids);
+  const form0 = AF.readAddForm('f1', { name: made.name, graph: made.graph });
+  const byLabel = (label) => form0.graph.nodes.find((x) => AF.nodeLabel(x, look) === label);
+  check('a form from a linking kind: the root, two word rows, a language each, shared topics',
+    form0.graph.nodes.map((x) => `${x.type}:${AF.nodeLabel(x, look)}`).sort(),
+    ['entry:Tłumaczenie', 'entry:Z', 'entry:Na', 'pick:Język — Na', 'pick:Język — Z', 'pick:Tematy'].sort());
+  check('… wired: words into the translation, languages and topics into the words', form0.graph.edges.length, 6);
+  check('… a language must be chosen, topics may stay empty', [AF.pickConfig(byLabel('Język — Z').config).optional, AF.pickConfig(byLabel('Tematy').config).optional, AF.pickConfig(byLabel('Tematy').config).many], [false, true, true]);
+  check('… the words are typed by the fields of their label', Object.keys(AF.entryConfig(byLabel('Z').config).fields), ['text']);
+  check('the generated form has no problems', AF.formProblems(form0, look), []);
+  const leaf = AF.formFromKind(VWORD, look, ids);
+  check('a form from a typed kind: the kind itself, its references chosen on top', leaf.graph.nodes.map((x) => x.type).sort(), ['entry', 'pick', 'pick']);
+
+  /* Mehrere Wörter in einer Zeile — „car", „automobile" ↔ „samochód". */
+  const en = byLabel('Z');
+  const pl = byLabel('Na');
+  const root = byLabel('Tłumaczenie');
+  const form = { ...form0, graph: { nodes: form0.graph.nodes.map((x) => (x.id === en.id ? { ...x, config: { ...x.config, many: true } } : x)), edges: form0.graph.edges } };
+  const top = { picks: { [byLabel('Język — Z').id]: ['l-en'], [byLabel('Język — Na').id]: ['l-pl'], [byLabel('Tematy').id]: ['t-dom'] }, asks: {} };
+  const row = (a, b) => ({ [en.id]: a.map((text) => ({ text })), [pl.id]: b.map((text) => ({ text })) });
+  const p1 = AF.planForm(form, ctx(), [row(['car', 'automobile'], ['samochód'])], top);
+  const fresh = p1.saves.filter((s) => s.isNew);
+  const word = (text) => fresh.find((s) => s.data.text === text);
+  check('two words on one side, one on the other: three words and a translation for each pair', [fresh.filter((s) => s.kinds[0] === 'k-vword').length, fresh.filter((s) => s.kinds[0] === 'k-trans').length], [3, 2]);
+  check('… each word carries its language and the topic chosen on top', [word('car').data.lang, word('samochód').data.lang, word('car').data.topics], ['l-en', 'l-pl', ['t-dom']]);
+  check('… the translations point at the pairs', fresh.filter((s) => s.kinds[0] === 'k-trans').map((s) => [s.data.from, s.data.to]),
+    [[word('car').id, word('samochód').id], [word('automobile').id, word('samochód').id]]);
+  check('… words are saved before the translations', p1.saves.map((s) => s.kinds[0]), ['k-vword', 'k-vword', 'k-vword', 'k-trans', 'k-trans']);
+
+  /* Was schon da ist, wird benutzt — und ergänzt. */
+  const p2 = AF.planForm(form, ctx(), [row(['dog'], ['pies'])], top);
+  const pies = p2.saves.find((s) => s.id === 'w-pies');
+  check('an existing word (same text, same language) is used, the new topic added', [pies?.isNew, pies?.data.topics], [false, ['t-zw', 't-dom']]);
+  check('… and the translation points at it', p2.saves.find((s) => s.kinds[0] === 'k-trans').data.to, 'w-pies');
+  const p3 = AF.planForm(form, ctx((id) => id !== 'w-pies'), [row(['dog'], ['pies'])], top);
+  check('a word from another base is used but not changed', [p3.saves.some((s) => s.id === 'w-pies'), p3.rows[0].made.some((m) => m.id === 'w-pies')], [false, true]);
+
+  /* Dieselbe Liste: „zamek" zweimal ist ein Wort mit zwei Übersetzungen; eine Zeile zweimal macht nichts doppelt. */
+  const p4 = AF.planForm(form, ctx(), [row(['castle'], ['zamek']), row(['lock'], ['zamek'])], top);
+  check('the same word twice in one list is one word', [p4.saves.filter((s) => s.data.text === 'zamek').length, p4.saves.filter((s) => s.kinds[0] === 'k-trans').length], [1, 2]);
+  const p5 = AF.planForm(form, ctx(), [row(['dog'], ['pies']), row(['dog'], ['pies'])], top);
+  check('the same row twice: nothing twice (that is why a retry is harmless)', [p5.saves.filter((s) => s.data.text === 'dog').length, p5.saves.filter((s) => s.kinds[0] === 'k-trans').length], [1, 1]);
+  const never = { ...form, graph: { nodes: form.graph.nodes.map((x) => (x.id === root.id ? { ...x, config: { ...x.config, reuse: 'never' } } : x)), edges: form.graph.edges } };
+  check('… unless the node says „always new"', AF.planForm(never, ctx(), [row(['dog'], ['pies']), row(['dog'], ['pies'])], top).saves.filter((s) => s.kinds[0] === 'k-trans').length, 2);
+
+  /* Was fehlt: kein Polnisch — kein Übersetzen; keine Sprache oben — nichts. */
+  const p6 = AF.planForm(form, ctx(), [row(['cat'], [])], top);
+  check('a row without the other side makes the word, not the translation', [p6.saves.map((s) => s.data.text ?? s.kinds[0]), p6.rows[0].skipped.map((s) => s.why)], [['cat'], ['brak: Na']]);
+  const p7 = AF.planForm(form, ctx(), [row(['cat'], ['kot'])], { picks: {}, asks: {} });
+  check('nothing happens without a required choice on top', [p7.saves.length, p7.problems.length], [0, 2]);
+  check('an empty row is empty', AF.planForm(form, ctx(), [row([''], [])], top).rows[0].empty, true);
+
+  /* Ein Feld, das mehrere Einträge nimmt, nimmt sie alle in EINEN. */
+  const pairs = AF.formFromKind(PAIR, look, ids);
+  const pf = AF.readAddForm('f2', { graph: pairs.graph });
+  const pz = pf.graph.nodes.find((x) => AF.nodeLabel(x, look) === 'Z');
+  const pn = pf.graph.nodes.find((x) => AF.nodeLabel(x, look) === 'Na');
+  const many = { ...pf, graph: { nodes: pf.graph.nodes.map((x) => (x.id === pz.id || x.id === pn.id ? { ...x, config: { ...x.config, many: true } } : x)), edges: pf.graph.edges } };
+  const ptop = { picks: Object.fromEntries(pf.graph.nodes.filter((x) => x.type === 'pick').map((x) => [x.id, AF.nodeLabel(x, look).includes('Język') ? (AF.nodeLabel(x, look).endsWith('Z') ? ['l-en'] : ['l-pl']) : []])), asks: {} };
+  const pp = AF.planForm(many, ctx(), [{ [pz.id]: [{ text: 'car' }, { text: 'automobile' }], [pn.id]: [{ text: 'auto' }, { text: 'samochód' }] }], ptop);
+  check('a field taking several: one entry with all of them', pp.saves.filter((s) => s.kinds[0] === 'k-pair').map((s) => [s.data.from.length, s.data.to.length]), [[2, 2]]);
+
+  /* Getippt → Wert. */
+  const field = (type, more = {}) => ({ key: 'x', label: 'X', type, multi: false, uncertain: false, ...more });
+  check('typed values: a number with its unit, a date, yes', [AF.typedValue(field('number'), '20,5 cm'), AF.typedValue(field('date'), '1999-05'), AF.typedValue(field('bool'), 'tak')], [{ value: 20.5 }, { value: '1999-05' }, { value: true }]);
+  check('typed values: a choice by its label, several values split at ;', [AF.typedValue(field('choice', { options: [{ value: 'n', label: 'rzeczownik' }] }), 'Rzeczownik'), AF.typedValue(field('line', { multi: true }), 'a; b')], [{ value: 'n' }, { value: ['a', 'b'] }]);
+  truth('typed values: what does not fit says why', 'error' in AF.typedValue(field('number'), 'abc') && 'error' in AF.typedValue(field('date'), '31.02'));
+  const levels = AF.readAddForm('f3', { graph: { nodes: [{ id: 'w', type: 'entry', x: 0, y: 0, config: { kind: 'k-vword', fields: { text: { from: 'type' }, level: { from: 'type' } } } }], edges: [] } });
+  const pl3 = AF.planForm(levels, ctx(), [{ w: [{ text: 'kot', level: 'abc' }] }, { w: [{ text: 'mysz', level: '2' }] }], { picks: {}, asks: {} });
+  check('a row with a value that does not fit is left out whole; the next one goes', [pl3.rows[0].problems.length, pl3.saves.map((s) => s.data.text), pl3.saves[0].data.level], [1, ['mysz'], 2]);
+  const fixed = AF.readAddForm('f4', { graph: { nodes: [{ id: 'w', type: 'entry', x: 0, y: 0, config: { kind: 'k-vword', fields: { text: { from: 'type' }, level: { from: 'ask', value: '1' } } } }], edges: [] } });
+  check('a field set on top: its default, or what was chosen', [AF.planForm(fixed, ctx(), [{ w: [{ text: 'a' }] }], { picks: {}, asks: {} }).saves[0].data.level, AF.planForm(fixed, ctx(), [{ w: [{ text: 'a' }] }], { picks: {}, asks: { 'w.level': '3' } }).saves[0].data.level], [1, 3]);
+
+  /* Eine Liste aus einem Arbeitsblatt. */
+  const groups = AF.groupsOf(form, look);
+  check('the row in canvas order: the words, not the translation', groups.map((g) => g.label), ['Z', 'Na']);
+  const pasted = AF.parsePaste('car, automobile\tsamochód\ndog\tpies\n\n', groups, AF.DEFAULT_PASTE);
+  check('a pasted list: one row a line, tab columns, several values in a cell where the node takes several',
+    [pasted.rows.length, pasted.rows[0][en.id].map((x) => x.text), pasted.rows[0][pl.id].map((x) => x.text), pasted.separator], [2, ['car', 'automobile'], ['samochód'], '\t']);
+  check('… the separator is recognised', AF.parsePaste('dog - pies\ncat - kot', groups, AF.DEFAULT_PASTE).separator, ' - ');
+  check('… a header line skipped, a wider line kept in the last column', (({ rows, wide }) => [rows.length, rows[0][pl.id][0].text, wide])(AF.parsePaste('EN\tPL\na\tb\tc', groups, { ...AF.DEFAULT_PASTE, header: true })), [1, 'b\tc', 1]);
+  check('… and planned like typed rows', AF.planForm(form, ctx(), pasted.rows, top).saves.filter((s) => s.kinds[0] === 'k-trans').length, 3);
+
+  /* Was ein Formular falsch beschreibt, und was es tut — in Worten. */
+  const palette = AF.formPalette(look);
+  const wrong = G.connect(form.graph, palette, { id: 'x1', from: byLabel('Tematy').id, out: 'out', to: en.id, in: 'lang' });
+  truth('a topic does not go into the language field', 'error' in wrong, wrong);
+  const said = AF.describeForm(form, look).join('\n');
+  truth('the description says what is chosen, typed, paired and which keys do what',
+    said.includes('Na początek wybierasz') && said.includes('Po jednym dla każdej pary') && said.includes('Enter — następne pole') && said.includes('Wklejanie listy'), said);
+  check('a form reads back as itself', AF.addFormDoc(AF.readAddForm('f1', AF.addFormDoc(form))), AF.addFormDoc(form));
+  check('in JSON its kinds and chosen entries are references', AF.mapFormRefs(form.graph, (k) => `@${k}`, (x) => `@${x}`).nodes.find((x) => x.id === en.id).config.kind, '@k-vword');
+  check('a form without rows is a problem', AF.formProblems(AF.readAddForm('f5', {}), look), ['Dodaj co najmniej jeden wpis „w każdym wierszu".']);
+}
+
 /* ══ 0109 — die Logik, die Abläufe, die Regeln, das Spiel, die Arten, das Weitergeben ══════════ */
 
 /*
@@ -452,7 +581,7 @@ check('the stand of the plan before a run', R.levelsOf(plan, () => [], 0), { uns
  * gebaut mit dem, was diese Module mitziehen (der Dienst, die Schlüssel), aber
  * ohne einen Aufruf: nur gerechnet.
  */
-const more = ['logic', 'flow', 'rules', 'game', 'kinds', 'live', 'store', 'sources'];
+const more = ['logic', 'flow', 'rules', 'game', 'kinds', 'live', 'store', 'sources', 'json'];
 const moreOut = join(workspace, 'more');
 await build({
   entryPoints: { ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), libraryPublish: 'src/app/library/libraryPublish.ts', steps: 'src/app/steps/steps.ts' },
@@ -467,7 +596,7 @@ await build({
 /* Wie in app-json-check: ein BroadcastChannel des Schlüsselbunds hielte den Lauf sonst am Leben. */
 globalThis.BroadcastChannel = undefined;
 const loadMore = (name) => import(pathToFileURL(join(moreOut, `${name}.js`)).href);
-const [Lg, Fl, Ru, Ga, Ki, Li, So, Src, Pub, St] = await Promise.all([...more, 'libraryPublish', 'steps'].map(loadMore));
+const [Lg, Fl, Ru, Ga, Ki, Li, So, Src, Js, Pub, St] = await Promise.all([...more, 'libraryPublish', 'steps'].map(loadMore));
 
 /* -- Die eine Logik ------------------------------------------------------------------------------- */
 
@@ -707,6 +836,25 @@ check('goals and lines follow the one logic', [
   truth('… and a library’s book is not removed from here', removed.includes('Książki') && books.get('w1') !== undefined, removed);
   await lib.saveEntity({ id: 'k1', kinds: ['knowledge'], data: { text: 'Zmienione.' } });
   check('the base’s own entries are written to its own store', own.saved.map((e) => e.id), ['k1']);
+
+  /* 2026-10-17 — viele auf einmal (Formularze dodawania), und ein Formularz im JSON des Schemas. */
+  for (const store of [own, reused]) store.saveMany = async (inputs) => { const saved = []; for (const one of inputs) saved.push(await store.save(one)); return { saved, failed: [] }; };
+  const many = await lib.saveMany([{ id: 'm1', kinds: ['kB'], data: { name: 'Telimena' } }, { id: 'k1', kinds: ['knowledge'], data: { text: 'Znowu zmienione.' } }]);
+  check('saving many: a new one under its given id, an own one changed in place', [many.saved, own.get('m1')?.kind, own.get('m1')?.data._kinds, own.get('k1')?.data.text], [2, 'entity', ['kB'], 'Znowu zmienione.']);
+  let refusedMany = '';
+  await lib.saveMany([{ id: 'e2', kinds: ['kB'], data: { name: 'x' } }]).catch((e) => { refusedMany = e.message; });
+  truth('… but nothing that comes from a source', refusedMany.includes('Parafia') && reused.get('e2').data.name === 'Jacek Soplica', refusedMany);
+  const formGraph = { nodes: [{ id: 'p', type: 'entry', x: 0, y: 0, config: { kind: 'kB', fields: { name: { from: 'type' } } } }], edges: [] };
+  await own.save({ id: 'af1', kind: 'addform', data: { name: 'Postacie', graph: formGraph } });
+  await reused.save({ id: 'afB', kind: 'addform', data: { name: 'Z parafii', graph: formGraph } });
+  check('forms of a reused base are here too', lib.docs('addform').map((x) => x.id).sort(), ['af1', 'afB']);
+  const exported = Js.exportSchema(lib, 'Kurs', [lib.kind('kB')]);
+  check('the schema JSON carries the own forms, their kinds as references', exported.forms.map((f) => [f.ref, f.graph.nodes[0].config.kind]), [['@af1', '@kB']]);
+  const fresh = fake('F', 'area-f', []);
+  const lib2 = new So.CogitaLibrary(fresh, true);
+  const planned = Js.planImport(lib2, exported);
+  const newKind = planned.kinds.find((k) => k.def.name === 'Postać')?.id;
+  check('imported elsewhere, the form points at the new copy of its kind', planned.docs.filter((d) => d.kind === 'addform').map((d) => d.data.graph.nodes[0].config.kind), [newKind]);
 }
 
 await rm(workspace, { recursive: true, force: true });

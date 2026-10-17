@@ -192,17 +192,30 @@ function GoalsEditor({ goals, writes, onChange }: { goals: readonly Goal[]; writ
   );
 }
 
+/*
+  2026-10-17 — SPRECHEN DARF JEDER EINTRAG. Früher nur einer, dessen Rodzaj
+  „Postać — może mówić" trug; das Häkchen ist fort. Eine neue Zeile entsteht,
+  sobald beide gewählt sind: wer spricht und was (ein Satz Wissen).
+*/
 function LinesEditor({ lines, writes, onChange }: { lines: readonly CharacterLine[]; writes: boolean; onChange: (l: CharacterLine[]) => void }) {
   const { lib } = useCtx();
-  const speakers = lib.kinds.filter((k) => k.speaks).map((k) => k.id);
+  const [who, setWho] = useState<string | null>(null);
+  const [what, setWhat] = useState<string | null>(null);
+  const add = (character: string | null, of: string | null) => {
+    setWho(character);
+    setWhat(of);
+    if (character === null || of === null) return;
+    onChange([...lines, { character, of, condition: null, once: true }]);
+    setWho(null);
+    setWhat(null);
+  };
   return (
     <div className="cg">
-      <span className="cg-muted">Zdania postaci, które padają same, gdy warunek jest spełniony (wartości, znajomość, odwiedzone kroki):</span>
-      {speakers.length === 0 && <span className="wk-hint">Najpierw zaznacz w Schemacie rodzaj „Postać — może mówić".</span>}
+      <span className="cg-muted">Zdania postaci, które padają same, gdy warunek jest spełniony (wartości, znajomość, odwiedzone kroki). Mówić może każdy wpis.</span>
       {lines.map((l, i) => (
         <div key={i} className="cg-card">
           <div className="cg-row">
-            <EntityPicker lib={lib} kinds={speakers} value={l.character} onPick={(v) => v !== null && onChange(lines.map((x, j) => (j === i ? { ...x, character: v } : x)))} allowClear={false} />
+            <EntityPicker lib={lib} value={l.character} onPick={(v) => v !== null && onChange(lines.map((x, j) => (j === i ? { ...x, character: v } : x)))} allowClear={false} placeholder="kto mówi" />
             <EntityPicker lib={lib} kinds={['knowledge']} value={l.of} onPick={(v) => v !== null && onChange(lines.map((x, j) => (j === i ? { ...x, of: v } : x)))} allowClear={false} placeholder="co mówi (wiedza)" />
             <label className="pe-check"><input type="checkbox" checked={l.once} disabled={!writes} onChange={(e) => onChange(lines.map((x, j) => (j === i ? { ...x, once: e.target.checked } : x)))} /><span>raz</span></label>
             {writes && <button type="button" className="wk-link-btn" onClick={() => onChange(lines.filter((_, j) => j !== i))}>×</button>}
@@ -210,7 +223,13 @@ function LinesEditor({ lines, writes, onChange }: { lines: readonly CharacterLin
           <ConditionEditor value={l.condition} onChange={(c) => onChange(lines.map((x, j) => (j === i ? { ...x, condition: c } : x)))} name={(x) => entityName(lib, x)} />
         </div>
       ))}
-      {writes && speakers.length > 0 && <button type="button" className="wk-link-btn" onClick={() => { const who = lib.ofKind(speakers[0])[0]; const what = lib.ofKind('knowledge')[0]; if (who !== undefined && what !== undefined) onChange([...lines, { character: who.id, of: what.id, condition: null, once: true }]); }}>+ zdanie postaci</button>}
+      {writes && (
+        <div className="cg-row">
+          <span className="cg-muted">Nowe zdanie:</span>
+          <EntityPicker lib={lib} value={who} onPick={(v) => add(v, what)} placeholder="kto mówi" />
+          <EntityPicker lib={lib} kinds={['knowledge']} value={what} onPick={(v) => add(who, v)} placeholder="co mówi (wiedza)" />
+        </div>
+      )}
     </div>
   );
 }

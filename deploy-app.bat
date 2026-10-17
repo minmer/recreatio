@@ -2,6 +2,8 @@
 setlocal
 
 rem Builds the Android app (APK and AAB) and uploads the AAB to Google Play if configured.
+rem The same run builds the SMS edition (android-out\recreatio-sms-<version>.apk): SMS, MMS and
+rem the phone address book, for installing by hand on one phone - it never goes to Google Play.
 rem The website is deployed separately with deploy-web.bat.
 rem
 rem   deploy-app.bat               builds the frontend itself, then the app (+ upload)
@@ -37,7 +39,7 @@ if not exist node_modules (
   call npm install
 )
 
-echo Building the Android app - APK and AAB...
+echo Building the Android app - APK, SMS edition APK and AAB...
 call npm run android:release -- %SKIPWEB%
 if errorlevel 1 (
   echo Android build failed.

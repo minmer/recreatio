@@ -68,6 +68,12 @@ const MONTHS_OF = [
 
 const WEEKDAYS = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
 
+/** „czwartek" — der Name des Tages. */
+export const weekdayName = (at: Date): string => WEEKDAYS[at.getDay()];
+
+/** „listopada" — der Monat im Genitiv, wie hinter einer Zahl. */
+export const monthOfName = (at: Date): string => MONTHS_OF[at.getMonth()];
+
 /** Die Köpfe eines Monatsblatts, Montag zuerst. */
 export const WEEK_HEADS = ['pn', 'wt', 'śr', 'czw', 'pt', 'sob', 'nd'] as const;
 

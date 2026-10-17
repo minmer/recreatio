@@ -39,6 +39,14 @@ export interface Entry extends PubEntry {
   readonly publishedAt: string | null;
 }
 
+/** Was gespeichert wird: ohne Kennung ein neuer Eintrag. */
+export interface SaveInput {
+  readonly id?: string;
+  readonly kind: string;
+  readonly key?: string;
+  readonly data: EntryData;
+}
+
 /** Leere Werte fallen weg — ein Eintrag trägt nur, was gesagt ist. */
 export function cleanData(data: EntryData): EntryData {
   const out: EntryData = {};
@@ -305,33 +313,76 @@ export class LibraryStore implements Lookup {
    * inzwischen jemand anderes geändert, lehnt der Dienst ab (`stale`); dann
    * wird abgeglichen, und der Editor zeigt den neueren Stand.
    */
-  async save(input: { readonly id?: string; readonly kind: string; readonly key?: string; readonly data: EntryData }): Promise<Entry> {
-    const id = input.id ?? newId();
-    const before = this.entries.get(id);
-    const data = cleanData(input.data);
-    const key = this.keyFor({ id, kind: input.kind, data }, input.key ?? before?.key);
-    const doc: EntryDoc = { v: 1, id, kind: input.kind, ...(key === undefined ? {} : { key }), data };
-
-    if (this.ring === null) throw new WorkspaceError('Tę bibliotekę można tu tylko czytać.');
-    const newest = newestKey(await areaKeys(this.ring, this.areaId, true));
-    if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się tu zapisać.');
-
+  async save(input: SaveInput): Promise<Entry> {
+    const newest = await this.writeKey();
     try {
-      const done = await putEntry(this.libraryId, id, {
-        kind: input.kind, epoch: newest.epoch, sealed: await sealEntry(newest.key, doc), version: before?.version ?? 0
-      });
-      const entry: Entry = {
-        id, kind: input.kind, ...(key === undefined ? {} : { key }), data,
-        version: done.version, epoch: newest.epoch, createdAt: before?.createdAt ?? done.updatedAt, updatedAt: done.updatedAt,
-        publishedAt: before?.publishedAt ?? null, publishedAs: before?.publishedAs ?? null
-      };
-      this.put(entry);
+      const entry = await this.write(input, newest);
       this.changed();
       return entry;
     } catch (e) {
       if (e instanceof WorkspaceError && e.verdict === 'stale') await this.sync().catch(() => undefined);
       throw e;
     }
+  }
+
+  /**
+   * 2026-10-17 — VIELE AUF EINMAL (ein Formularz dodawania, eine eingefügte
+   * Liste): der Schlüssel einmal, einige Anfragen zugleich unterwegs, die
+   * Ansichten nur ab und zu neu. Was scheitert, steht in `failed`; der Rest
+   * ist gespeichert. Ein `stale` gleicht danach einmal ab.
+   */
+  async saveMany(inputs: readonly SaveInput[], progress?: (done: number, total: number) => void, parallel = 4): Promise<{ saved: Entry[]; failed: { id: string; error: string }[] }> {
+    if (inputs.length === 0) return { saved: [], failed: [] };
+    const newest = await this.writeKey();
+    const saved: Entry[] = [];
+    const failed: { id: string; error: string }[] = [];
+    let next = 0;
+    let done = 0;
+    let stale = false;
+    const worker = async () => {
+      while (next < inputs.length) {
+        const input = inputs[next++];
+        try {
+          saved.push(await this.write(input, newest));
+        } catch (e) {
+          if (e instanceof WorkspaceError && e.verdict === 'stale') stale = true;
+          failed.push({ id: input.id ?? '', error: e instanceof Error && e.message !== '' ? e.message : 'Nie udało się zapisać.' });
+        }
+        done += 1;
+        progress?.(done, inputs.length);
+        if (done % 25 === 0) this.changed();
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(parallel, inputs.length) }, worker));
+    this.changed();
+    if (stale) await this.sync().catch(() => undefined);
+    return { saved, failed };
+  }
+
+  private async writeKey(): Promise<{ epoch: number; key: Uint8Array }> {
+    if (this.ring === null) throw new WorkspaceError('Tę bibliotekę można tu tylko czytać.');
+    const newest = newestKey(await areaKeys(this.ring, this.areaId, true));
+    if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się tu zapisać.');
+    return newest;
+  }
+
+  /** Versiegeln und schreiben — der Speicher kennt den Eintrag danach; wer zeichnet, erfährt es über `changed()`. */
+  private async write(input: SaveInput, newest: { epoch: number; key: Uint8Array }): Promise<Entry> {
+    const id = input.id ?? newId();
+    const before = this.entries.get(id);
+    const data = cleanData(input.data);
+    const key = this.keyFor({ id, kind: input.kind, data }, input.key ?? before?.key);
+    const doc: EntryDoc = { v: 1, id, kind: input.kind, ...(key === undefined ? {} : { key }), data };
+    const done = await putEntry(this.libraryId, id, {
+      kind: input.kind, epoch: newest.epoch, sealed: await sealEntry(newest.key, doc), version: before?.version ?? 0
+    });
+    const entry: Entry = {
+      id, kind: input.kind, ...(key === undefined ? {} : { key }), data,
+      version: done.version, epoch: newest.epoch, createdAt: before?.createdAt ?? done.updatedAt, updatedAt: done.updatedAt,
+      publishedAt: before?.publishedAt ?? null, publishedAs: before?.publishedAs ?? null
+    };
+    this.put(entry);
+    return entry;
   }
 
   async remove(id: string): Promise<void> {

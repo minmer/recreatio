@@ -13,7 +13,7 @@
  * `phoneHere()` ist dann `false`, und was das Telefon braucht, erscheint nicht.
  */
 
-import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
+import { registerPlugin, type PluginListenerHandle } from '@capacitor/core';
 
 /* -- Was das Telefon liefert ---------------------------------------------------------------- */
 
@@ -164,14 +164,8 @@ interface PhonePluginApi {
 
 export const Phone = registerPlugin<PhonePluginApi>('Phone');
 
-/** Läuft hier die Ausgabe „sms" der App? Nur dann gibt es das Telefon. */
-export const phoneHere = (): boolean => {
-  try {
-    return Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('Phone');
-  } catch {
-    return false;
-  }
-};
+/** Läuft hier die Ausgabe „sms" der App? (in `here.ts`, damit der Arbeitsplatz es fragen kann, ohne dieses Bündel zu laden) */
+export { phoneHere } from './here';
 
 /* -- Für Archiv und Adressbuch: ein Weg, ob App oder Läufer ------------------------------------ */
 

@@ -141,7 +141,7 @@ export function readSources(raw: unknown): SourceRef[] {
 export const BOOK_KINDS: ReadonlySet<string> = new Set(['person', 'work', 'quote', 'text', 'project']);
 
 /** Was eine wiederverwendete Baza wiedzy mitbringt — Einstellungen, Widoki, Vorschläge und Arten (die kommen über das Schema) bleiben ihre. */
-const SHARED_DOCS: ReadonlySet<string> = new Set<DocKind>(['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'merge']);
+const SHARED_DOCS: ReadonlySet<string> = new Set<DocKind>(['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'merge', 'addform']);
 
 /* -- Zbiory: gespeicherte Filter und Listen [F1, F19] -------------------------------------- */
 
@@ -462,6 +462,25 @@ export class CogitaLibrary {
     const plain = before?.kind ?? plainKindOf(input.kinds);
     const data = entryData({ kinds: input.kinds, data: input.data }, plain, before?.data ?? {});
     return this.store.save({ ...(input.id === undefined ? {} : { id: input.id }), kind: plain, ...(before?.key === undefined ? {} : { key: before.key }), data });
+  }
+
+  /**
+   * 2026-10-17 — VIELE ENTITÄTEN AUF EINMAL (Formularze dodawania): neue mit
+   * ihrer schon vergebenen Kennung, vorhandene ergänzt. Was aus einer Quelle
+   * kommt, wird vorher abgelehnt — dann geht nichts.
+   */
+  async saveMany(
+    list: readonly { readonly id: string; readonly kinds: readonly string[]; readonly data: Readonly<Record<string, unknown>> }[],
+    progress?: (done: number, total: number) => void
+  ): Promise<{ saved: number; failed: { id: string; error: string }[] }> {
+    for (const one of list) this.ownOnly(one.id);
+    const inputs = list.map((one) => {
+      const before = this.store.get(one.id);
+      const plain = before?.kind ?? plainKindOf(one.kinds);
+      return { id: one.id, kind: plain, ...(before?.key === undefined ? {} : { key: before.key }), data: entryData({ kinds: one.kinds, data: one.data }, plain, before?.data ?? {}) };
+    });
+    const done = await this.store.saveMany(inputs, progress);
+    return { saved: done.saved.length, failed: done.failed };
   }
 
   /** Eine Art speichern — eine eingebaute als Änderung (`builtin`), eine eigene als ihr Eintrag. */

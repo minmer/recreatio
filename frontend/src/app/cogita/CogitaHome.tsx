@@ -5,8 +5,9 @@
  *
  * <code>
  *   nauka         lernen: die Wiederholungen, was fällig ist, und Abläufe zum Durchgehen
- *   wpisy         die Einträge — Tabelle, Baum, Leinwand; ein Eintrag bearbeiten
- *   schemat       die Arten
+ *   wpisy         die Einträge — Tabelle, Baum, Leinwand; ein Eintrag bearbeiten;
+ *                 `wpisy/dodaj/<formularz>` viele auf einmal mit einem Formularz dodawania
+ *   schemat       die Arten; `schemat/formularz/<id>` die Formularze dodawania bauen
  *   karty         die Kartenvorlagen
  *   powtorki      die Wiederholungen bauen
  *   przebiegi     die Abläufe bauen (und spielen)
@@ -31,6 +32,8 @@ import type { LibraryStore } from '../library/libraryStore';
 import type { Me } from '../core/me';
 import { viewPath } from '../routes';
 import type { Who } from '../core/session';
+import { AddFormEditor } from './AddFormEditor';
+import { AddFormRun } from './AddFormRun';
 import { CogitaJson } from './CogitaJson';
 import { CogitaSettings } from './CogitaSettings';
 import { Contributions, Propose } from './Contribute';
@@ -117,7 +120,9 @@ function Hub({ trail }: { trail: readonly string[] }) {
       </nav>
       {tab === 'nauka' && <LearnTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
       {tab === 'wpisy' && <EntitiesTab trail={trail.slice(1)} go={go} />}
-      {tab === 'schemat' && <SchemaEditor chosenId={trail[1] ?? null} onChoose={(id) => go('schemat', ...(id === null ? [] : [id]))} />}
+      {tab === 'schemat' && (trail[1] === 'formularz'
+        ? <AddFormEditor formId={trail[2] ?? null} onChoose={(id) => go('schemat', 'formularz', ...(id === null ? [] : [id]))} onBack={() => go('schemat')} onRun={(id) => go('wpisy', 'dodaj', id)} />
+        : <SchemaEditor chosenId={trail[1] ?? null} onChoose={(id) => go('schemat', ...(id === null ? [] : [id]))} onForm={(id) => go('schemat', 'formularz', id)} />)}
       {tab === 'karty' && <TemplateEditor chosenId={trail[1] ?? null} onChoose={(id) => go('karty', ...(id === null ? [] : [id]))} />}
       {tab === 'powtorki' && <RevisionEditor chosenId={trail[1] ?? null} onChoose={(id) => go('powtorki', ...(id === null ? [] : [id]))} onRun={(id) => go('nauka', id)} />}
       {tab === 'przebiegi' && <FlowsTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
@@ -198,6 +203,10 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
 
 function EntitiesTab({ trail, go }: { trail: readonly string[]; go: (...tail: string[]) => void }) {
   const { lib } = useCtx();
+  /* 2026-10-17 — ein Formularz dodawania ausfüllen: viele Einträge, Zeile für Zeile (AddFormRun). */
+  if (trail[0] === 'dodaj') {
+    return <AddFormRun formId={trail[1] ?? null} onClose={() => go('wpisy')} onOpen={(id) => go('wpisy', id)} onEdit={(id) => go('schemat', 'formularz', id)} />;
+  }
   if (trail[0] === 'nowy') {
     return <EntityEditor entityId={null} newKinds={trail[1] === undefined ? ['knowledge'] : [trail[1]]} onDone={(id) => go('wpisy', ...(id === null ? [] : [id]))} onOpen={(id) => go('wpisy', id)} />;
   }
@@ -212,7 +221,8 @@ function EntitiesTab({ trail, go }: { trail: readonly string[]; go: (...tail: st
       </div>
     );
   }
-  return <EntityList viewId={trail[0] === 'widok' ? trail[1] ?? null : null} onOpen={(id) => go('wpisy', id)} onNew={(kind) => go('wpisy', 'nowy', kind)} onView={(id) => go('wpisy', ...(id === null ? [] : ['widok', id]))} />;
+  return <EntityList viewId={trail[0] === 'widok' ? trail[1] ?? null : null} onOpen={(id) => go('wpisy', id)} onNew={(kind) => go('wpisy', 'nowy', kind)} onView={(id) => go('wpisy', ...(id === null ? [] : ['widok', id]))}
+    onForm={(id) => go('wpisy', 'dodaj', id)} onForms={() => go('schemat', 'formularz')} />;
 }
 
 /* -- Przebiegi ---------------------------------------------------------------------------------- */

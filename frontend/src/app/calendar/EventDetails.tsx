@@ -23,7 +23,8 @@ import { PeoplePicker, type Pinned, nameOfPinned, useAreaPeople } from './People
  * Terminen), in Reihenfolge — und, wenn er selbst ein Teil ist, sein Ganzes.
  *
  * 2026-10-17 — EIN NEUER PUNKT BRAUCHT NUR SEINEN NAMEN (und wann er
- * beginnt: nach dem letzten Punkt des Tages). Alles andere teilt er mit dem
+ * beginnt und endet — vorgeschlagen: nach dem letzten Punkt des Tages, eine
+ * Stunde, höchstens bis zum Ende des Ganzen). Alles andere teilt er mit dem
  * Ganzen (`onQuickAdd`); wer mehr will, öffnet ihn danach aus der Liste.
  */
 export function ProgramOf({ itemId, start, end, events, parentId, onParent, onQuickAdd, onOpen, onLink, onUnlink }: {
@@ -46,7 +47,7 @@ export function ProgramOf({ itemId, start, end, events, parentId, onParent, onQu
 }) {
   const [linking, setLinking] = useState(false);
   /* Der neue Punkt, solange er eingetippt wird — `null`: zu. */
-  const [draft, setDraft] = useState<{ title: string; time: string } | null>(null);
+  const [draft, setDraft] = useState<{ title: string; time: string; until: string } | null>(null);
   const [adding, setAdding] = useState(false);
   const [addFailed, setAddFailed] = useState<string | null>(null);
 
@@ -79,12 +80,30 @@ export function ProgramOf({ itemId, start, end, events, parentId, onParent, onQu
     const last = parts.filter((p) => sameDay(p.start, start)).reduce((at, p) => Math.max(at, p.end.getTime()), start.getTime());
     return end !== undefined && last >= end.getTime() ? start : new Date(last);
   };
+  /* Vorschlag fürs Ende: eine Stunde — höchstens bis zum Ende des Ganzen. */
+  const endFor = (from: Date): Date => {
+    const room = end === undefined ? 60 : Math.round((end.getTime() - from.getTime()) / 60_000);
+    return new Date(from.getTime() + (room >= 15 ? Math.min(60, room) : 60) * 60_000);
+  };
+  const openDraft = () => {
+    const from = nextAt();
+    setDraft({ title: '', time: localTime(from), until: localTime(endFor(from)) });
+  };
+  /* Ein anderer Beginn nimmt das Ende mit — die Dauer bleibt. */
+  const moveStart = (time: string) => {
+    if (draft === null) return;
+    const was = fromLocal(localDate(start), draft.time).getTime();
+    const length = fromLocal(localDate(start), draft.until).getTime() - was;
+    const now = fromLocal(localDate(start), time);
+    setDraft({ ...draft, time, until: time === '' || length <= 0 ? draft.until : localTime(new Date(now.getTime() + length)) });
+  };
+  const draftMinutes = draft === null || draft.time === '' || draft.until === '' ? 0
+    : Math.round((fromLocal(localDate(start), draft.until).getTime() - fromLocal(localDate(start), draft.time).getTime()) / 60_000);
+
   const addPart = () => {
-    if (draft === null || onQuickAdd === undefined || draft.title.trim() === '') return;
+    if (draft === null || onQuickAdd === undefined || draft.title.trim() === '' || draftMinutes <= 0) return;
     const at = fromLocal(localDate(start), draft.time);
-    /* Eine Stunde — höchstens bis zum Ende des Ganzen. */
-    const room = end === undefined ? 60 : Math.round((end.getTime() - at.getTime()) / 60_000);
-    const minutes = room >= 15 ? Math.min(60, room) : 60;
+    const minutes = draftMinutes;
     setAdding(true);
     setAddFailed(null);
     void onQuickAdd(draft.title.trim(), at, minutes)
@@ -141,19 +160,25 @@ export function ProgramOf({ itemId, start, end, events, parentId, onParent, onQu
                   if (e.key === 'Enter') { e.preventDefault(); addPart(); }
                   if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setDraft(null); }
                 }} />
-              <input type="time" aria-label="Początek punktu" step={300} value={draft.time} disabled={adding}
-                onChange={(e) => setDraft({ ...draft, time: e.target.value })} />
-              <button type="button" className="wk-btn wk-btn-small" disabled={adding || draft.title.trim() === ''} onClick={addPart}>
+              <span className="wk-ev-program-span">
+                <input type="time" aria-label="Początek punktu" title="Początek" step={300} value={draft.time} disabled={adding}
+                  onChange={(e) => moveStart(e.target.value)} />
+                <span aria-hidden="true">–</span>
+                <input type="time" aria-label="Koniec punktu" title="Koniec" step={300} value={draft.until} disabled={adding}
+                  onChange={(e) => setDraft({ ...draft, until: e.target.value })} />
+              </span>
+              <button type="button" className="wk-btn wk-btn-small" disabled={adding || draft.title.trim() === '' || draftMinutes <= 0} onClick={addPart}>
                 {adding ? 'Dodawanie…' : 'Dodaj'}
               </button>
               <button type="button" className="wk-link-btn" disabled={adding} onClick={() => setDraft(null)}>Anuluj</button>
+              {draftMinutes <= 0 && draft.time !== '' && draft.until !== '' && <p className="wk-error">Koniec musi być po początku.</p>}
               {addFailed !== null && <p className="wk-error">{addFailed}</p>}
             </div>
           )}
 
           <div className="wk-actions wk-ev-program-add">
             {onQuickAdd !== undefined && draft === null && (
-              <button type="button" className="wk-link-btn" onClick={() => setDraft({ title: '', time: localTime(nextAt()) })}>+ Nowy punkt programu</button>
+              <button type="button" className="wk-link-btn" onClick={openDraft}>+ Nowy punkt programu</button>
             )}
             {onLink !== undefined && childChoices.length > 0 && (
               <select value="" disabled={linking} aria-label="Podłącz istniejący termin"

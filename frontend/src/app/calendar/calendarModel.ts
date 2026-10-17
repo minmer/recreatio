@@ -131,6 +131,17 @@ export function viewRange(view: CalView, anchor: Date): { from: Date; to: Date }
   }
 }
 
+/**
+ * 2026-10-17 — DER MONAT, AUFGEDECKT: `before` Monate davor und `after`
+ * danach dazu — ganze Wochen, mindestens die sechs des Monatsblatts.
+ */
+export function monthsRange(anchor: Date, before: number, after: number): { from: Date; to: Date } {
+  const from = mondayOf(addMonths(anchor, -before));
+  const lastDay = addDays(addMonths(anchor, after + 1), -1);
+  const to = addDays(mondayOf(lastDay), 7);
+  return { from, to: to.getTime() < addDays(from, 42).getTime() ? addDays(from, 42) : to };
+}
+
 /** Ein Schritt vor oder zurück: ein Tag, eine Woche, ein Monat, dreissig Tage. */
 export function stepView(view: CalView, anchor: Date, direction: 1 | -1): Date {
   switch (view) {

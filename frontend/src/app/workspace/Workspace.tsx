@@ -51,6 +51,10 @@ import { DESK_EVENT } from './viewData';
 /* 0109 — die Nauka als eigenes Bündel (Karten, Läufe, Sitzungen): erst, wenn man sie öffnet. */
 const LearnView = lazy(() => import('../cogita/LearnView').then((m) => ({ default: m.LearnView })));
 
+/* 2026-10-17 — SMS und Kontakte (Ausgabe „sms") als eigenes Bündel: wer kein Telefon damit hat, lädt es nie. */
+const SmsApp = lazy(() => import('../phone/SmsApp'));
+const ContactsApp = lazy(() => import('../phone/ContactsApp'));
+
 export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   /* 0111 — angemeldet und die Seite zu sehen: „w aplikacji" (für „Wyślij, gdy będzie online" und wer es teilt). */
   useOnline('/workspace/online');
@@ -150,7 +154,7 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
 }
 
 /** Ansichten, die ihren Titel selbst tragen. */
-const OWN_TITLE: ReadonlySet<View> = new Set<View>(['chat', 'widok', 'library', 'learn', 'forms', 'areas']);
+const OWN_TITLE: ReadonlySet<View> = new Set<View>(['chat', 'widok', 'library', 'learn', 'forms', 'areas', 'sms', 'contacts']);
 
 /** Unter welchem Namen eine Ansicht steht — Zadania unter Kalendarz. */
 const TITLE_OF: Partial<Record<View, View>> = { tasks: 'calendar' };
@@ -217,6 +221,8 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'chat') return <ChatView who={who} trail={trail} />;
   if (view === 'library') return <LibraryView who={who} trail={trail} />;
   if (view === 'learn') return <Suspense fallback={<Loading />}><LearnView who={who} trail={trail} /></Suspense>;
+  if (view === 'sms') return <Suspense fallback={<Loading />}><SmsApp who={who} trail={trail} /></Suspense>;
+  if (view === 'contacts') return <Suspense fallback={<Loading />}><ContactsApp who={who} trail={trail} /></Suspense>;
   if (view === 'registry') return <Kartoteka who={who} trail={trail} />;
 
   /* Jede Ansicht steht oben; was hier ankommt, gibt es (noch) nicht. */

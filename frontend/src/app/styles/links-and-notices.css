@@ -137,6 +137,7 @@ a.wk-toast-body:focus-visible { outline: 2px solid var(--wk-accent); outline-off
 .wk-ev-program-new { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; margin-top: 0.5rem; }
 .wk-ev-program-new input:not([type]) { flex: 1 1 12rem; min-width: 0; }
 .wk-ev-program-new .wk-error { flex-basis: 100%; margin: 0; }
+.wk-ev-program-span { display: inline-flex; align-items: center; gap: 0.25rem; }
 
 /* -- Widżet (0067) -- */
 

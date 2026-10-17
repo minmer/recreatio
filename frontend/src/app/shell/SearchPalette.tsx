@@ -18,12 +18,18 @@ import { pageSteps, VIEWS, viewPath, type View, modulePath } from '../routes';
 import { searchHits, type SearchEntry } from './search';
 import { areasNow, chatsNow, modulesNow } from '../workspace/viewData';
 import { chatName } from '../workspace/ViewParts';
+import { usePhoneShown } from '../phone/here';
 
 export const SEARCH_EVENT = 'recreatio:search';
 
+/** SMS und Kontakte nur, wo es das Telefon gibt (`usePhoneShown`). */
+const PHONE_VIEWS: ReadonlySet<View> = new Set<View>(['sms', 'contacts']);
+
+const viewEntry = (v: View): SearchEntry => ({ id: `view:${v}`, label: VIEWS[v], kind: 'Część warsztatu', href: viewPath(v) });
+
 /** Die Teile des Arbeitsplatzes — sie stehen da, bevor etwas geladen ist. */
 const STATIC: readonly SearchEntry[] = [
-  ...(Object.keys(VIEWS) as View[]).filter((v) => v !== 'widok').map((v) => ({ id: `view:${v}`, label: VIEWS[v], kind: 'Część warsztatu', href: viewPath(v) })),
+  ...(Object.keys(VIEWS) as View[]).filter((v) => v !== 'widok' && !PHONE_VIEWS.has(v)).map(viewEntry),
   { id: 'notify', label: 'Powiadomienia', kind: 'Ustawienia', href: viewPath('account', 'widok'), hint: 'dzwonek kolejność urządzenie telefon' },
   { id: 'security', label: 'Bezpieczeństwo i klucze', kind: 'Ustawienia', href: viewPath('account', 'bezpieczenstwo'), hint: 'hasło klucz szyfrowanie' },
   { id: 'transfer', label: 'Przeniesienie danych', kind: 'Ustawienia', href: viewPath('account', 'przeniesienie'), hint: 'stare dane migracja przeniesienie' }
@@ -83,10 +89,11 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const hits = useMemo(
-    () => (query.trim() === '' ? STATIC.slice(0, 8) : searchHits(query, [...STATIC, ...found])),
-    [query, found]
-  );
+  const phone = usePhoneShown();
+  const hits = useMemo(() => {
+    const fixed = phone ? [...STATIC, ...[...PHONE_VIEWS].map(viewEntry)] : STATIC;
+    return query.trim() === '' ? fixed.slice(0, 8) : searchHits(query, [...fixed, ...found]);
+  }, [query, found, phone]);
   const at = Math.min(active, Math.max(hits.length - 1, 0));
 
   const go = (entry: SearchEntry | undefined) => {

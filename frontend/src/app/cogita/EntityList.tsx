@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react';
 import ReactFlow, { Background, Controls, type Edge, type Node, type NodeChange } from 'reactflow';
 import 'reactflow/dist/style.css';
 
+import { MenuButton } from '../ui/Menu';
 import { fieldsOf, fieldText, valuesOf, type Entity } from './schema';
 import { COMPARE_LABEL, readRule, ruleMatches, type Compare, type Condition, type RuleGroup } from './store';
 import { OriginTag, useBusy, useCtx } from './ui';
@@ -45,11 +46,14 @@ function readView(raw: unknown): ViewDoc {
   };
 }
 
-export function EntityList({ viewId, onOpen, onNew, onView }: {
+export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
   viewId: string | null;
   onOpen: (id: string) => void;
   onNew: (kind: string) => void;
   onView: (id: string | null) => void;
+  /** 2026-10-17 — viele auf einmal: ein Formularz dodawania ausfüllen — oder einen bauen. */
+  onForm: (id: string) => void;
+  onForms: () => void;
 }) {
   const { lib, writes } = useCtx();
   const saved = viewId === null ? undefined : lib.docs('view').find((e) => e.id === viewId);
@@ -108,6 +112,13 @@ export function EntityList({ viewId, onOpen, onNew, onView }: {
           {(['table', 'tree', 'canvas'] as const).map((m) => <button key={m} type="button" className={view.mode === m ? 'is-on' : ''} onClick={() => setV({ mode: m })}>{{ table: 'Tabela', tree: 'Drzewo', canvas: 'Płótno' }[m]}</button>)}
         </span>
         {writes && <button type="button" className="wk-btn" onClick={() => onNew(view.kind === '' ? 'knowledge' : view.kind)}>+ Wpis{kind === undefined ? '' : `: ${kind.name}`}</button>}
+        {writes && (
+          <MenuButton label="Dodaj wiele naraz — formularzem" text="Wiele naraz" icon="list"
+            items={[
+              ...lib.docs('addform').map((e) => ({ label: typeof e.data.name === 'string' ? e.data.name : 'Formularz', onSelect: () => onForm(e.id) })),
+              { label: lib.docs('addform').length === 0 ? 'Zbuduj formularz dodawania…' : 'Formularze dodawania…', icon: 'settings' as const, onSelect: onForms }
+            ]} />
+        )}
       </div>
       <details>
         <summary>Filtr {view.rule !== null && view.rule.items.length > 0 ? `(${view.rule.items.length})` : ''}</summary>

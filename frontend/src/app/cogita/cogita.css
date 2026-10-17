@@ -271,3 +271,49 @@
 /* 2026-10-17 — „Więcej" unter den Reitern einer Baza wiedzy: sieht aus wie ein Reiter, mit einem Pfeil. */
 .cg-subtabs .cg-subtabs-more { display: inline-flex; align-items: center; gap: var(--wk-space-1); }
 .cg-subtabs .cg-subtabs-more .ui-icon { width: 0.9rem; height: 0.9rem; }
+
+/*
+   2026-10-17 — FORMULARZE DODAWANIA (addForm.ts). Auf der Leinwand zeigt ein
+   Knoten die Felder seines Rodzaj: getippt (fett), oben gewählt, fest, und an
+   jedem Verweisfeld einen Eingang. Beim Ausfüllen: oben die Wahlen, darunter
+   die Zeile — breit eine Spalte je Knoten, schmal untereinander.
+*/
+.cg-af-node { min-width: 11rem; max-width: 17rem; }
+.cg-af-node.is-pick { border-style: dashed; }
+.cg-af-node .cg-af-head { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--wk-space-2); }
+.cg-af-node.is-pick .cg-af-head { background: var(--wk-info-soft); }
+.cg-af-rows { list-style: none; margin: 0; padding: var(--wk-space-1) 0; display: grid; gap: 0.125rem; }
+.cg-af-rows li { position: relative; padding: 0 var(--wk-space-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cg-af-rows .is-type { color: var(--wk-ink); font-weight: 700; }
+.cg-af-rows .is-port { color: var(--wk-info); }
+.cg-af-rows .is-ask, .cg-af-rows .is-fixed, .cg-af-rows .is-value { color: var(--wk-muted); }
+.cg-af-panel { max-width: none; }
+.cg-af-fields { margin: 0; padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); display: grid; gap: var(--wk-space-3); }
+.cg-af-fields > legend { padding: 0 var(--wk-space-1); font-size: var(--wk-text-sm); font-weight: 600; color: var(--wk-ink-2); }
+.cg-af-field { display: grid; gap: var(--wk-space-1); }
+.cg-af-field-name { font-size: var(--wk-text-sm); font-weight: 600; }
+.cg-af-desc { margin: 0; padding-left: var(--wk-space-5); display: grid; gap: var(--wk-space-1); font-size: var(--wk-text-sm); line-height: 1.5; }
+
+.cg-af-top { display: flex; flex-wrap: wrap; gap: var(--wk-space-3) var(--wk-space-5); align-items: flex-start; }
+.cg-af-top-item { display: grid; gap: var(--wk-space-1); min-width: min(100%, 13rem); }
+.cg-af-top-label { font-size: var(--wk-text-sm); font-weight: 600; color: var(--wk-ink-2); }
+.cg-af-row { display: grid; gap: var(--wk-space-3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); }
+.cg-af-group {
+  margin: 0; min-width: 0; padding: var(--wk-space-2) var(--wk-space-3) var(--wk-space-3);
+  border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); display: grid; gap: var(--wk-space-2);
+}
+.cg-af-group:focus-within { border-color: var(--wk-accent); box-shadow: 0 0 0 1px var(--wk-accent) inset; }
+.cg-af-group > legend { padding: 0 var(--wk-space-1); font-weight: 700; }
+.cg-af-inst { display: flex; gap: var(--wk-space-2); align-items: center; }
+.cg-af-inst > :is(input, textarea, select) { flex: 1 1 7rem; min-width: 0; font-size: var(--wk-text-md); }
+.cg-af-more { justify-self: start; }
+.cg-af-new { justify-self: start; font-size: var(--wk-text-sm); }
+.cg-af-keys { display: inline-flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-3); color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.cg-af-paste { width: 100%; box-sizing: border-box; font-family: var(--wk-mono); font-size: var(--wk-text-sm); }
+.cg-table tr.is-bad td { background: var(--wk-warn-soft); }
+.cg-af-log { list-style: none; margin: 0; padding: 0; display: grid; }
+.cg-af-log > li { display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-3); align-items: baseline; padding: var(--wk-space-2) 0; border-bottom: 1px solid var(--wk-line); }
+.cg-af-log > li:last-child { border-bottom: 0; }
+.cg-af-log > li.is-undone > strong { text-decoration: line-through; color: var(--wk-muted); }
+.cg-af-log-error { color: var(--wk-danger); font-size: var(--wk-text-sm); }
+.cg-af-problems { flex-basis: 100%; font-size: var(--wk-text-sm); }

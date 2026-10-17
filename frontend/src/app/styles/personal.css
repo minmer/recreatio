@@ -147,9 +147,9 @@
 .wk-cal2-pickcount { flex: 1 1 12rem; font-weight: 600; font-size: var(--wk-text-sm); }
 .wk-cal2-pickbar[aria-busy="true"] { opacity: 0.7; }
 
-/* ‹ › in der Ecke über den Stunden: zum vorigen / nächsten Tag, ohne nach oben zur Leiste zu müssen. */
-.wk-cal2-step { display: flex; align-items: stretch; justify-content: center; }
-.wk-cal2-stepbtn {
+/* − + in der Ecke über den Stunden: die Stunden niedriger / höher (Zoom). */
+.wk-cal2-zoom { display: flex; align-items: stretch; justify-content: center; }
+.wk-cal2-zoombtn {
   flex: 1 1 0;
   font: inherit;
   font-size: var(--wk-text-lg);
@@ -160,8 +160,51 @@
   color: var(--wk-muted);
   cursor: pointer;
 }
-.wk-cal2-stepbtn:hover { color: var(--wk-accent); background: var(--wk-soft); }
-.wk-cal2-stepbtn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-cal2-zoombtn:hover:not(:disabled) { color: var(--wk-accent); background: var(--wk-soft); }
+.wk-cal2-zoombtn:disabled { opacity: 0.35; cursor: default; }
+.wk-cal2-zoombtn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+
+/* ‹ › als Streifen an beiden Seiten des ganzen Rasters: zum vorigen / nächsten Tag (der Woche). */
+.wk-cal2-stage { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: stretch; gap: var(--wk-space-1); }
+.wk-cal2-side {
+  width: 1.75rem;
+  padding: 0;
+  font: inherit;
+  font-size: var(--wk-text-lg);
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface);
+  color: var(--wk-muted);
+  cursor: pointer;
+}
+.wk-cal2-side:hover { color: var(--wk-accent); border-color: var(--wk-accent); background: var(--wk-accent-soft); }
+.wk-cal2-side:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+@media (max-width: 40rem) { .wk-cal2-side { width: 1.125rem; } }
+
+/* Der Kopf eines Tages: wo Platz ist, „czwartek / 5 / listopada" statt „czw / 5". */
+.wk-cal2-dayhead { container-type: inline-size; }
+.wk-cal2-long { display: none; }
+@container (min-width: 9rem) {
+  .wk-cal2-dayhead .wk-cal2-short { display: none; }
+  .wk-cal2-dayhead .wk-cal2-long { display: block; }
+}
+.wk-cal2-mon { font-size: var(--wk-text-xs); color: var(--wk-muted); }
+
+/* Das Monatsblatt: der Tag, von dem man kam, umrandet; oben und unten ein weiterer Monat. */
+.wk-cal2-cell.is-marked { outline: 3px solid var(--wk-accent); outline-offset: 1px; }
+.wk-cal2-monthwrap { display: grid; gap: var(--wk-space-2); }
+.wk-cal2-reveal {
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  padding: var(--wk-space-2);
+  border: 1px dashed var(--wk-line);
+  border-radius: var(--wk-radius-sm);
+  background: none;
+  color: var(--wk-muted);
+  cursor: pointer;
+}
+.wk-cal2-reveal:hover { color: var(--wk-accent); border-color: var(--wk-accent); }
+.wk-cal2-reveal:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
 
 /* Tag und Woche: Kopf, Ganztägiges, und das Stundenraster, das in sich rollt. */
 .wk-cal2-grid {

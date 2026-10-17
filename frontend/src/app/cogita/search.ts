@@ -26,7 +26,9 @@ const DOC_TAB: Partial<Record<DocKind, readonly string[]>> = {
   flow: ['przebiegi'],
   template: ['karty'],
   kind: ['schemat'],
-  view: ['wpisy', 'widok']
+  view: ['wpisy', 'widok'],
+  /* 2026-10-17 — ein Formularz dodawania führt zum Ausfüllen, nicht zum Bauen. */
+  addform: ['wpisy', 'dodaj']
 };
 
 export function libraryHits(): SearchEntry[] {

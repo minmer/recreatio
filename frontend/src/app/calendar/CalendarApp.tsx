@@ -39,7 +39,7 @@
  * Was irgendwo auf ein Ja wartet, sammelt „Do potwierdzenia".
  */
 
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { loadAgenda, openAgenda, type AgendaClaim, type OpenedItem } from './agenda';
 import { loadAreas, type AreaRow } from '../areas/area';
@@ -47,10 +47,10 @@ import {
   holderName, loadBookings, NO_BOOKINGS, waitingOn, waitsForOffice, type AgendaBookings
 } from './calendarBookings';
 import {
-  buildEvents, hueOf, laneDay, linkOfEvent, marksOn, treeOrder, onDay as happensOn, placeDay, railDay, settled, stepView, taskMarks, viewRange,
+  buildEvents, hueOf, laneDay, linkOfEvent, marksOn, monthsRange, treeOrder, onDay as happensOn, placeDay, railDay, settled, stepView, taskMarks, viewRange,
   wholeDay, type CalEvent, type CalView, type Laned, type Placed, type TaskMark
 } from './calendarModel';
-import { addDays, keyOf, longDate, monthTitle, rangeTitle, sameDay, sameMonth, startOfDay, WEEK_HEADS } from '../core/dayMath';
+import { addDays, addMonths, firstOfMonth, keyOf, longDate, monthOfName, monthTitle, rangeTitle, sameDay, startOfDay, WEEK_HEADS, weekdayName } from '../core/dayMath';
 import { CALENDAR_KIND_LABEL, loadCalendars, type CalendarRow } from './calendar';
 import { CalendarSettings } from './CalendarSettings';
 import { calendarLabel } from './calendarLabel';
@@ -79,11 +79,23 @@ const VIEWS: readonly { value: CalView; label: string }[] = [
   { value: 'month', label: 'Miesiąc' }, { value: 'list', label: 'Lista' }
 ];
 
-/** Wie hoch eine Stunde im Raster ist. */
+/** Wie hoch eine Stunde im Raster ist — von Haus aus. */
 const HOUR = 48;
 
-/** 0074 — die Kopfzeile eines Termins mit Teilen, in Minuten des Rasters: so weit rücken seine Teile, die mit ihm beginnen, nach unten. */
-const PART_HEAD = (20 / HOUR) * 60;
+/** 2026-10-17 — die Stufen des Zoomens: so hoch darf eine Stunde sein (px). */
+const HOURS = [24, 32, 40, 48, 64, 80, 96, 128] as const;
+
+/** Die Höhe einer Stunde, für alles, was im Raster steht (Schienen, Kästen). */
+const HourHeight = createContext<number>(HOUR);
+
+/** 0074 — die Kopfzeile eines Termins mit Teilen (20 px), in Minuten des Rasters: so weit rücken seine Teile, die mit ihm beginnen, nach unten. */
+const partHead = (hour: number) => (20 / hour) * 60;
+
+/** Höher als so viele Pixel: ein Termin hat Platz für eine zweite Zeile. */
+const TALL = 36;
+
+/** Wie viele Monate sich im Monatsblatt höchstens aufdecken lassen (der Dienst liefert höchstens 400 Tage). */
+const MAX_MORE = 10;
 
 /** Wie breit die Schiene der Aufgaben am Rand eines Tages ist. */
 const RAIL = 13;
@@ -164,6 +176,17 @@ export function Calendar({ me, scope, startNew, at }: {
   const [calendarsOpen, setCalendarsOpen] = useState(false);
 
   const [anchor, setAnchor] = useState(() => startOfDay(at ?? new Date()));
+  /* 2026-10-17 — der Tag, von dem aus ins Monatsblatt gewechselt wurde: dort umrandet. */
+  const [markDay, setMarkDay] = useState<Date | null>(null);
+  /* 2026-10-17 — wie hoch eine Stunde ist (Zoom), gemerkt. */
+  const [hourText, setHourText] = useRemembered('calendar.hour', String(HOUR));
+  const hour = (HOURS as readonly number[]).includes(Number(hourText)) ? Number(hourText) : HOUR;
+  const zoom = (direction: 1 | -1) => {
+    const at = (HOURS as readonly number[]).indexOf(hour);
+    setHourText(String(HOURS[Math.max(0, Math.min(HOURS.length - 1, at + direction))]));
+  };
+  /* 2026-10-17 — im Monatsblatt aufgedeckte Monate davor/danach; gelten nur für den Monat, in dem sie aufgedeckt wurden. */
+  const [more, setMore] = useState<{ key: string; before: number; after: number }>({ key: '', before: 0, after: 0 });
   const now = useNow();
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [data, setData] = useState<Loaded | null>(null);
@@ -184,7 +207,13 @@ export function Calendar({ me, scope, startNew, at }: {
   const multi = useRef(false);
   const swipe = useRef<{ x: number; y: number } | null>(null);
 
-  const range = viewRange(view, anchor);
+  const moreKey = view === 'month' ? keyOf(firstOfMonth(anchor)) : '';
+  const shownMore = more.key === moreKey && view === 'month' ? more : { before: 0, after: 0 };
+  const range = shownMore.before + shownMore.after > 0 ? monthsRange(anchor, shownMore.before, shownMore.after) : viewRange(view, anchor);
+  const reveal = (side: 'before' | 'after') => {
+    if (shownMore.before + shownMore.after >= MAX_MORE) return;
+    setMore({ key: moreKey, before: shownMore.before + (side === 'before' ? 1 : 0), after: shownMore.after + (side === 'after' ? 1 : 0) });
+  };
   const fromMs = range.from.getTime();
   const toMs = range.to.getTime();
 
@@ -269,7 +298,8 @@ export function Calendar({ me, scope, startNew, at }: {
   };
 
   const label = view === 'day' ? longDate(anchor)
-    : view === 'month' ? monthTitle(anchor)
+    : view === 'month' ? (shownMore.before + shownMore.after > 0
+      ? `${monthTitle(addMonths(anchor, -shownMore.before))} – ${monthTitle(addMonths(anchor, shownMore.after))}` : monthTitle(anchor))
     : rangeTitle(range.from, range.to);
 
   const newAt = (start: Date, allDay = false) =>
@@ -359,7 +389,8 @@ export function Calendar({ me, scope, startNew, at }: {
         <div className="wk-seg" role="group" aria-label="Widok">
           {VIEWS.map((one) => (
             <button key={one.value} type="button" aria-pressed={one.value === view}
-              className={one.value === view ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} onClick={() => setViewText(one.value)}>
+              className={one.value === view ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
+              onClick={() => { if (one.value === 'month') setMarkDay(view === 'day' ? anchor : null); setViewText(one.value); }}>
               {one.label}
             </button>
           ))}
@@ -432,14 +463,17 @@ export function Calendar({ me, scope, startNew, at }: {
           onTouchEnd={(e) => swiped(e.changedTouches[0].clientX, e.changedTouches[0].clientY)}>
           {(view === 'day' || view === 'week') && (
             <TimeGrid days={days} events={events} marks={marks} now={now}
-              onDay={(day) => { setAnchor(day); setViewText('day'); }}
+              /* 2026-10-17 — im Tag führt das Datum ins Monatsblatt (umrandet), in der Woche in den Tag. */
+              onDay={(day) => { setAnchor(day); if (view === 'day') { setMarkDay(day); setViewText('month'); } else setViewText('day'); }}
               onSlot={(at, allDay) => { if (!picking) newAt(at, allDay); }} onOpen={open} onTasks={setTaskDay} areas={areas}
-              focus={focus} onFocus={setFocusText} tasks={taskActs} picked={pickedKeys} onStep={step} />
+              focus={focus} onFocus={setFocusText} tasks={taskActs} picked={pickedKeys} onStep={step} hour={hour} onZoom={zoom} />
           )}
 
           {view === 'month' && (
-            <MonthGrid anchor={anchor} from={range.from} events={events} marks={marks} now={now}
-              onDay={(day) => { setAnchor(day); setViewText('day'); }} onOpen={open} onTasks={setTaskDay} picked={pickedKeys} />
+            <MonthGrid anchor={anchor} from={range.from} to={range.to} events={events} marks={marks} now={now}
+              onDay={(day) => { setAnchor(day); setMarkDay(day); setViewText('day'); }} onOpen={open} onTasks={setTaskDay} picked={pickedKeys}
+              firstMonth={addMonths(anchor, -shownMore.before)} lastMonth={addMonths(anchor, shownMore.after)} marked={markDay}
+              onReveal={shownMore.before + shownMore.after < MAX_MORE ? reveal : undefined} />
           )}
 
           {view === 'list' && (
@@ -573,7 +607,7 @@ export interface TaskActs {
 }
 
 /** Tag und Woche — auch für den Kalender-Baustein einer Seite (0058: `readOnly`, dann legt ein Klick nichts an). */
-export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTasks, areas, readOnly = false, focus = 'events', onFocus, tasks, picked, onStep }: {
+export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTasks, areas, readOnly = false, focus = 'events', onFocus, tasks, picked, onStep, hour = HOUR, onZoom }: {
   days: readonly Date[];
   events: readonly CalEvent[];
   marks: readonly TaskMark[];
@@ -590,10 +624,16 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
   tasks?: TaskActs;
   /** 2026-10-17 — die zum gemeinsamen Ändern gewählten Termine (`EventPick.tsx`). */
   picked?: ReadonlySet<string>;
-  /** 2026-10-17 — ‹ › in der Ecke des Kopfes: zum vorigen / nächsten Tag (der Woche). */
+  /** 2026-10-17 — ‹ › als Streifen links und rechts des ganzen Rasters: zum vorigen / nächsten Tag (der Woche). */
   onStep?: (direction: 1 | -1) => void;
+  /** 2026-10-17 — wie hoch eine Stunde ist, und − / + (oder Strg + Mausrad) zum Ändern. */
+  hour?: number;
+  onZoom?: (direction: 1 | -1) => void;
 }) {
   const scroller = useRef<HTMLDivElement | null>(null);
+  const hourNow = useRef(hour);
+  const zoomNow = useRef(onZoom);
+  zoomNow.current = onZoom;
   const first = keyOf(days[0]);
   const count = days.length;
   const rail = marks.length > 0 ? RAIL : 0;
@@ -607,12 +647,38 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
     const start = new Date(`${first}T00:00:00`);
     const inside = today >= start && today.getTime() < start.getTime() + count * 86400_000;
     const hour = inside ? Math.max(0, today.getHours() - 1) : 7;
-    el.scrollTop = Math.min(hour, 16) * HOUR;
+    el.scrollTop = Math.min(hour, 16) * hourNow.current;
   }, [first, count]);
+
+  /* Beim Zoomen bleibt die Mitte, wo sie war. */
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    const was = hourNow.current;
+    hourNow.current = hour;
+    if (el === null || was === hour) return;
+    const middle = (el.scrollTop + el.clientHeight / 2) / was;
+    el.scrollTop = Math.max(0, middle * hour - el.clientHeight / 2);
+  }, [hour]);
+
+  /* Strg + Mausrad (auch das Spreizen auf dem Touchpad) zoomt das Raster, nicht die Seite. */
+  useEffect(() => {
+    const el = scroller.current;
+    if (el === null) return undefined;
+    let last = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey || zoomNow.current === undefined) return;
+      e.preventDefault();
+      if (e.timeStamp - last < 150 || e.deltaY === 0) return;
+      last = e.timeStamp;
+      zoomNow.current(e.deltaY < 0 ? 1 : -1);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
 
   const slotFrom = (day: Date, e: React.MouseEvent<HTMLDivElement>) => {
     const box = e.currentTarget.getBoundingClientRect();
-    const minutes = Math.floor(((e.clientY - box.top) / HOUR) * 2) * 30;
+    const minutes = Math.floor(((e.clientY - box.top) / hour) * 2) * 30;
     const at = new Date(day);
     at.setHours(0, Math.max(0, Math.min(minutes, 23 * 60 + 30)), 0, 0);
     /* Haben die Aufgaben die Breite, entsteht im Leeren eine Aufgabe. */
@@ -620,21 +686,31 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
     else onSlot(at, false);
   };
 
-  return (
+  const one = days.length === 1;
+  const grid = (
+    <HourHeight.Provider value={hour}>
     <div className={`wk-cal2-grid${readOnly ? ' is-readonly' : ''}${wide ? ' is-tasks' : ''}`}
-      style={{ '--days': days.length, '--hour': `${HOUR}px`, '--rail': `${rail}px`, '--evrail': `${EVENT_RAIL}px` } as CSSProperties}>
+      style={{ '--days': days.length, '--hour': `${hour}px`, '--rail': `${rail}px`, '--evrail': `${EVENT_RAIL}px` } as CSSProperties}>
       <div className="wk-cal2-head">
-        {onStep !== undefined ? (
-          <span className="wk-cal2-corner wk-cal2-step">
-            <button type="button" className="wk-cal2-stepbtn" aria-label={days.length === 1 ? 'Poprzedni dzień' : 'Poprzedni tydzień'} onClick={() => onStep(-1)}>‹</button>
-            <button type="button" className="wk-cal2-stepbtn" aria-label={days.length === 1 ? 'Następny dzień' : 'Następny tydzień'} onClick={() => onStep(1)}>›</button>
+        {/* 2026-10-17 — in der Ecke über den Stunden: die Stunden niedriger / höher. */}
+        {onZoom !== undefined ? (
+          <span className="wk-cal2-corner wk-cal2-zoom" role="group" aria-label="Wysokość godziny">
+            <button type="button" className="wk-cal2-zoombtn" aria-label="Pomniejsz" title="Pomniejsz (Ctrl + kółko myszy)"
+              disabled={hour <= HOURS[0]} onClick={() => onZoom(-1)}>−</button>
+            <button type="button" className="wk-cal2-zoombtn" aria-label="Powiększ" title="Powiększ (Ctrl + kółko myszy)"
+              disabled={hour >= HOURS[HOURS.length - 1]} onClick={() => onZoom(1)}>+</button>
           </span>
         ) : <span className="wk-cal2-corner" />}
+        {/* 2026-10-17 — wo Platz ist, der ganze Name des Tages und der Monat (`@container` in personal.css). */}
         {days.map((day) => (
           <button key={keyOf(day)} type="button" className={`wk-cal2-dayhead${sameDay(day, now) ? ' is-today' : ''}`}
-            aria-label={longDate(day)} onClick={() => onDay(day)}>
-            <span className="wk-cal2-dow">{WEEK_HEADS[(day.getDay() + 6) % 7]}</span>
+            aria-label={longDate(day)} title={onStep === undefined ? undefined : one ? 'Pokaż cały miesiąc' : 'Pokaż ten dzień'} onClick={() => onDay(day)}>
+            <span className="wk-cal2-dow">
+              <span className="wk-cal2-short">{WEEK_HEADS[(day.getDay() + 6) % 7]}</span>
+              <span className="wk-cal2-long">{weekdayName(day)}</span>
+            </span>
             <span className="wk-cal2-date">{day.getDate()}</span>
+            <span className="wk-cal2-mon wk-cal2-long">{monthOfName(day)}</span>
           </button>
         ))}
       </div>
@@ -689,16 +765,17 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
               {wide && laneDay(marks, day).map((p) => <TaskBlock key={p.mark.key} mark={p.mark} now={now} acts={tasks} placed={p} />)}
               {wide && <EventRail events={events} day={day} areas={areas} onOpen={() => onFocus('events')} />}
 
-              {!wide && placeDay(events, day, PART_HEAD).map((p) => {
+              {!wide && placeDay(events, day, partHead(hour)).map((p) => {
                 const who = whoIsOn(p.event);
+                const tall = (p.height / 60) * hour;
                 return (
                   <button key={p.event.key} type="button"
                     aria-pressed={picked?.has(p.event.key)}
-                    className={`${chipClass(p.event, picked)}${p.height < 45 ? ' is-short' : ''}${p.depth > 0 ? ' is-part' : ''}${p.nested ? ' has-parts' : ''}`}
+                    className={`${chipClass(p.event, picked)}${tall < TALL ? ' is-short' : ''}${p.depth > 0 ? ' is-part' : ''}${p.nested ? ' has-parts' : ''}`}
                     style={{
                       '--ev-h': hueOfEvent(p.event),
-                      top: `${(p.top / 60) * HOUR}px`,
-                      height: `${Math.max((p.height / 60) * HOUR - 2, 18)}px`,
+                      top: `${(p.top / 60) * hour}px`,
+                      height: `${Math.max(tall - 2, 18)}px`,
                       left: `calc(var(--rail) + (100% - var(--rail)) * ${p.x} + 2px)`,
                       width: `calc((100% - var(--rail)) * ${p.w} - 4px)`,
                       zIndex: 1 + p.depth
@@ -711,18 +788,32 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
                       <Badges event={p.event} />
                     </span>
                     {!p.nested && <span className="wk-ev-title">{p.event.title}</span>}
-                    {who !== null && p.height >= 60 && <span className="wk-ev-sub">{who}</span>}
+                    {who !== null && tall >= hour && tall >= 48 && <span className="wk-ev-sub">{who}</span>}
                   </button>
                 );
               })}
 
               {sameDay(day, now) && (
-                <span className="wk-cal2-now" style={{ top: `${((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR}px` }} aria-hidden="true" />
+                <span className="wk-cal2-now" style={{ top: `${((now.getHours() * 60 + now.getMinutes()) / 60) * hour}px` }} aria-hidden="true" />
               )}
             </div>
           ))}
         </div>
       </div>
+    </div>
+    </HourHeight.Provider>
+  );
+
+  if (onStep === undefined) return grid;
+
+  /* 2026-10-17 — blättern an den Seiten des ganzen Rasters: links zurück, rechts weiter. */
+  return (
+    <div className="wk-cal2-stage">
+      <button type="button" className="wk-cal2-side" aria-label={one ? 'Poprzedni dzień' : 'Poprzedni tydzień'} title={one ? 'Poprzedni dzień' : 'Poprzedni tydzień'}
+        onClick={() => onStep(-1)}><span aria-hidden="true">‹</span></button>
+      {grid}
+      <button type="button" className="wk-cal2-side" aria-label={one ? 'Następny dzień' : 'Następny tydzień'} title={one ? 'Następny dzień' : 'Następny tydzień'}
+        onClick={() => onStep(1)}><span aria-hidden="true">›</span></button>
     </div>
   );
 }
@@ -734,6 +825,7 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
  * die Liste des Tages, die jetzt an der Pille in der Zeile „zadania" hängt).
  */
 function Rail({ marks, day, onOpen }: { marks: readonly TaskMark[]; day: Date; onOpen: () => void }) {
+  const hour = useContext(HourHeight);
   const railed = railDay(marks, day);
   if (railed.length === 0) return null;
 
@@ -745,8 +837,8 @@ function Rail({ marks, day, onOpen }: { marks: readonly TaskMark[]; day: Date; o
           title={`${r.mark.task.title} · ${time(r.mark.start)}${r.mark.end > r.mark.start ? `–${time(r.mark.end)}` : ''}`}
           style={{
             '--ev-h': hueOf(r.mark.areaId),
-            top: `${(r.top / 60) * HOUR}px`,
-            height: `${(r.height / 60) * HOUR}px`,
+            top: `${(r.top / 60) * hour}px`,
+            height: `${(r.height / 60) * hour}px`,
             left: `${2 + r.lane * 4}px`
           } as CSSProperties} />
       ))}
@@ -755,10 +847,10 @@ function Rail({ marks, day, onOpen }: { marks: readonly TaskMark[]; day: Date; o
 }
 
 /** Wo ein Kasten einer Aufgabe steht: links, in der Breite des Tages ohne die Schiene der Termine. */
-const taskPlace = (p: Laned, areaId: string): CSSProperties => ({
+const taskPlace = (p: Laned, areaId: string, hour: number): CSSProperties => ({
   '--ev-h': hueOf(areaId),
-  top: `${(p.top / 60) * HOUR}px`,
-  height: `${Math.max((p.height / 60) * HOUR - 2, 22)}px`,
+  top: `${(p.top / 60) * hour}px`,
+  height: `${Math.max((p.height / 60) * hour - 2, 22)}px`,
   left: `calc((100% - var(--evrail)) * ${p.x} + 2px)`,
   width: `calc((100% - var(--evrail)) * ${p.w} - 4px)`
 } as CSSProperties);
@@ -770,13 +862,14 @@ const taskPlace = (p: Laned, areaId: string): CSSProperties => ({
  * heute steht, steht hier nicht — nur in der Liste (`TaskDay`, „Wszystkie dni").
  */
 function TaskBlock({ mark, now, acts, placed }: { mark: TaskMark; now: Date; acts: TaskActs; placed: Laned }) {
+  const hour = useContext(HourHeight);
   const done = settled(mark);
-  const short = placed.height < 45;
+  const short = (placed.height / 60) * hour < TALL;
   const busy = acts.busy === mark.key;
   return (
     <div
       className={`wk-tb is-${mark.state}${short ? ' is-short' : ''}${busy ? ' is-busy' : ''}`}
-      style={taskPlace(placed, mark.areaId)}
+      style={taskPlace(placed, mark.areaId, hour)}
       aria-busy={busy || undefined}
     >
       <button type="button" role="checkbox" aria-checked={done} className={`wk-task-tick wk-tb-tick${done ? ' is-done' : ''}`}
@@ -804,10 +897,10 @@ function TaskBlock({ mark, now, acts, placed }: { mark: TaskMark; now: Date; act
 }
 
 /** Wo ein Termin auf seiner Schiene steht: ein Strich, nebeneinander, wo sie sich überschneiden. */
-const railPlace = (p: Placed, hue: number): CSSProperties => ({
+const railPlace = (p: Placed, hue: number, hour: number): CSSProperties => ({
   '--ev-h': hue,
-  top: `${(p.top / 60) * HOUR}px`,
-  height: `${Math.max((p.height / 60) * HOUR - 2, 6)}px`,
+  top: `${(p.top / 60) * hour}px`,
+  height: `${Math.max((p.height / 60) * hour - 2, 6)}px`,
   left: `${2 + p.x * RAIL_SPAN}px`,
   width: `${Math.max(p.w * RAIL_SPAN - 1, 3)}px`
 } as CSSProperties);
@@ -818,12 +911,13 @@ const railPlace = (p: Placed, hue: number): CSSProperties => ({
  * gibt den Terminen die Breite zurück.
  */
 function EventRail({ events, day, areas, onOpen }: { events: readonly CalEvent[]; day: Date; areas: readonly AreaRow[]; onOpen: () => void }) {
-  const placed = placeDay(events, day, PART_HEAD).filter((p) => p.depth === 0);
+  const hour = useContext(HourHeight);
+  const placed = placeDay(events, day, partHead(hour)).filter((p) => p.depth === 0);
   return (
     <button type="button" className="wk-cal2-evrail" aria-label={`Terminy: ${longDate(day)} — pokaż szeroko`} title="Terminy szeroko" onClick={onOpen}>
       {placed.map((p) => (
         <span key={p.event.key} className={`wk-evrail-bar${p.event.cancelled ? ' is-cancelled' : ''}`} title={hint(p.event, areas)}
-          style={railPlace(p, hueOfEvent(p.event))} />
+          style={railPlace(p, hueOfEvent(p.event), hour)} />
       ))}
     </button>
   );
@@ -836,9 +930,11 @@ function EventRail({ events, day, areas, onOpen }: { events: readonly CalEvent[]
  * Leere der Zelle): wer im Monat blättert, sucht einen Tag; ein Termin um neun
  * Uhr, der bei jedem Klick aufging, war nie gemeint. Neu anlegen: „+ Termin".
  */
-export function MonthGrid({ anchor, from, events, marks, now, onDay, onOpen, onTasks, readOnly = false, picked }: {
+export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen, onTasks, readOnly = false, picked, firstMonth = anchor, lastMonth = anchor, marked = null, onReveal }: {
   anchor: Date;
   from: Date;
+  /** Bis wohin (ausschliesslich) — fehlt: sechs Wochen. */
+  to?: Date;
   events: readonly CalEvent[];
   marks: readonly TaskMark[];
   now: Date;
@@ -847,11 +943,23 @@ export function MonthGrid({ anchor, from, events, marks, now, onDay, onOpen, onT
   onTasks: (day: Date) => void;
   readOnly?: boolean;
   picked?: ReadonlySet<string>;
+  /** 2026-10-17 — welche Monate aufgedeckt sind (der erste und der letzte); die Tage daneben treten zurück. */
+  firstMonth?: Date;
+  lastMonth?: Date;
+  /** 2026-10-17 — der Tag, von dem man kam: umrandet. */
+  marked?: Date | null;
+  /** 2026-10-17 — oben und unten: den Monat davor / danach dazunehmen. */
+  onReveal?: (side: 'before' | 'after') => void;
 }) {
-  const days = Array.from({ length: 42 }, (_, i) => addDays(from, i));
+  const length = to === undefined ? 42 : Math.max(42, Math.round((to.getTime() - from.getTime()) / 86400_000));
+  const days = Array.from({ length }, (_, i) => addDays(from, i));
+  const shownFrom = firstOfMonth(firstMonth).getTime();
+  const shownTo = addMonths(lastMonth, 1).getTime();
+  const several = shownTo - shownFrom > 32 * 86400_000;
+  const inside = (day: Date) => day.getTime() >= shownFrom && day.getTime() < shownTo;
   const SHOWN = 3;
 
-  return (
+  const grid = (
     <div className={`wk-cal2-month${readOnly ? ' is-readonly' : ''}`}>
       {WEEK_HEADS.map((head) => <span key={head} className="wk-mass-month-dow" aria-hidden="true">{head}</span>)}
       {days.map((day) => {
@@ -859,10 +967,12 @@ export function MonthGrid({ anchor, from, events, marks, now, onDay, onOpen, onT
         const mine = treeOrder(events.filter((e) => happensOn(e, day))).filter((t) => t.depth === 0);
         return (
           <div key={keyOf(day)}
-            className={`wk-cal2-cell${sameMonth(day, anchor) ? '' : ' is-out'}${sameDay(day, now) ? ' is-today' : ''}`}
+            className={`wk-cal2-cell${inside(day) ? '' : ' is-out'}${sameDay(day, now) ? ' is-today' : ''}${marked !== null && sameDay(day, marked) ? ' is-marked' : ''}`}
             onClick={(e) => { if ((e.target as Element).closest('button, a') === null) onDay(day); }}>
             <span className="wk-cal2-cellhead">
-              <button type="button" className="wk-cal2-cellday" aria-label={longDate(day)} onClick={() => onDay(day)}>{day.getDate()}</button>
+              <button type="button" className="wk-cal2-cellday" aria-label={longDate(day)} onClick={() => onDay(day)}>
+                {day.getDate()}{several && day.getDate() === 1 && inside(day) ? ` ${monthOfName(day).slice(0, 3)}` : ''}
+              </button>
               <TaskPill marks={marksOn(marks, day)} onOpen={() => onTasks(day)} mini />
             </span>
             {mine.slice(0, SHOWN).map(({ event: e, parts }) => (
@@ -880,6 +990,20 @@ export function MonthGrid({ anchor, from, events, marks, now, onDay, onOpen, onT
           </div>
         );
       })}
+    </div>
+  );
+
+  if (onReveal === undefined) return grid;
+
+  return (
+    <div className="wk-cal2-monthwrap">
+      <button type="button" className="wk-cal2-reveal" onClick={() => onReveal('before')}>
+        <span aria-hidden="true">▲</span> Pokaż też {monthTitle(addMonths(firstMonth, -1))}
+      </button>
+      {grid}
+      <button type="button" className="wk-cal2-reveal" onClick={() => onReveal('after')}>
+        <span aria-hidden="true">▼</span> Pokaż też {monthTitle(addMonths(lastMonth, 1))}
+      </button>
     </div>
   );
 }

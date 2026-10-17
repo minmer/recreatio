@@ -4,7 +4,7 @@
  *
  * <code>
  *   recreatio.cogita.course     alles: Schema, Vorlagen, Einträge, Wiederholungen, Abläufe, Zbiory, Wygląd, Zasady, Wartości
- *   recreatio.cogita.schema     Rodzaje und ihre Kartenvorlagen — als unabhängige Kopie für eine andere Bibliothek [B12]
+ *   recreatio.cogita.schema     Rodzaje, ihre Kartenvorlagen und Formularze dodawania — als unabhängige Kopie für eine andere Bibliothek [B12]
  *   recreatio.cogita.entities   Einträge (auch Wiedza und Pytania)
  *   recreatio.cogita.flow       ein Ablauf MIT dem, was er zeigt [F34]
  * </code>
@@ -21,6 +21,7 @@
  */
 
 import { newId } from '../core/ids';
+import { addFormDoc, COLUMN_SEPARATORS, KEY_ACTIONS, mapFormRefs, readAddForm, VALUE_SEPARATORS } from './addForm';
 import { readTemplate } from './cards';
 import { readFlow } from './flow';
 import { graphJson, readGraph } from './graph';
@@ -36,7 +37,8 @@ export const FLOW_FORMAT = 'recreatio.cogita.flow';
 /** Unter welchem Namen eine Art Dokumente im JSON steht. */
 const LIST_OF: Record<DocKind, string> = {
   kind: 'kinds', template: 'templates', revision: 'revisions', flow: 'flows', look: 'looks', rules: 'rules',
-  values: 'values', collection: 'collections', view: 'views', settings: 'settings', merge: 'merges', contribution: 'contributions'
+  values: 'values', collection: 'collections', view: 'views', settings: 'settings', merge: 'merges', contribution: 'contributions',
+  addform: 'forms'
 };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -67,8 +69,15 @@ function refsOut(lib: CogitaLibrary, entity: Entity): Record<string, unknown> {
 
 const docJson = (kind: DocKind, id: string, data: Readonly<Record<string, unknown>>): Record<string, unknown> => {
   const { public: _public, ...rest } = data as Record<string, unknown>;
+  if (kind === 'addform') return formJson(id, data);
   return { ref: `@${id}`, ...rest, ...(kind === 'template' || kind === 'revision' ? { graph: graphJson(readGraph(data.graph)) } : {}), ...(kind === 'flow' ? { graph: graphJson(readGraph(data.graph, true)) } : {}) };
 };
+
+/** 2026-10-17 — ein Formularz dodawania: seine Rodzaje und voreingestellten Einträge als `@kennung`, damit er auch in einer anderen Baza wiedzy gilt. */
+function formJson(id: string, data: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  const form = readAddForm(id, data);
+  return { ref: `@${id}`, ...addFormDoc(form), graph: mapFormRefs(form.graph, (k) => `@${k}`, (e) => `@${e}`) };
+}
 
 /**
  * Die ganze Baza wiedzy als Kurs — oder, mit `only`, ein Teil davon. 0110:
@@ -100,7 +109,9 @@ export function exportSchema(lib: CogitaLibrary, name: string, kinds: readonly K
     version: 1,
     name,
     kinds: kinds.map((k) => ({ ref: `@${k.id}`, ...kindDoc(k) })),
-    templates: lib.templates().filter((t) => t.kinds.some((k) => ids.has(k))).map((t) => ({ ref: `@${t.id}`, name: t.name, kinds: t.kinds.map((k) => `@${k}`), direction: t.direction, graph: graphJson(t.graph) }))
+    templates: lib.templates().filter((t) => t.kinds.some((k) => ids.has(k))).map((t) => ({ ref: `@${t.id}`, name: t.name, kinds: t.kinds.map((k) => `@${k}`), direction: t.direction, graph: graphJson(t.graph) })),
+    /* 2026-10-17 — die Formularze dodawania gehören zum Schema: sie sagen, wie man seine Einträge anlegt. */
+    forms: lib.docs('addform').filter((e) => lib.isOwn(e.id)).map((e) => formJson(e.id, e.data))
   };
 }
 
@@ -197,7 +208,8 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
   const docs: ImportPlan['docs'] = [];
   const docLists: [DocKind, unknown][] = [
     ['template', doc.templates], ['revision', doc.revisions], ['flow', format === FLOW_FORMAT ? [doc.flow] : doc.flows],
-    ['look', doc.looks], ['rules', doc.rules], ['values', doc.values], ['collection', doc.collections], ['view', doc.views], ['settings', doc.settings]
+    ['look', doc.looks], ['rules', doc.rules], ['values', doc.values], ['collection', doc.collections], ['view', doc.views], ['settings', doc.settings],
+    ['addform', doc.forms]
   ];
   for (const [kind, list] of docLists) {
     for (const raw of Array.isArray(list) ? list : isObject(list) ? [list] : []) {
@@ -208,6 +220,11 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
       if (kind === 'template') {
         const t = readTemplate(id, data);
         data = { ...data, kinds: t.kinds.map((k) => kindId(k) ?? k), graph: graphJson(t.graph) };
+      }
+      if (kind === 'addform') {
+        /* Ein Rodzaj darf auch beim Namen stehen; einer aus demselben Dokument hat schon seine neue Kennung. */
+        const kindOf = (k: string) => (kinds.some((x) => x.id === k) ? k : kindId(k));
+        data = addFormDoc(readAddForm(id, { ...data, graph: mapFormRefs(data.graph, kindOf, (e) => e) }));
       }
       if (kind === 'settings') {
         const had = lib.settingsEntry();
@@ -275,7 +292,7 @@ export function courseDescription(lib?: CogitaLibrary): string {
 
 Formaty:
   "${COURSE_FORMAT}" — cały kurs: rodzaje, wpisy, szablony kart, powtórki, przebiegi, zbiory, wygląd, zasady, wartości
-  "${SCHEMA_FORMAT}" — rodzaje z ich szablonami kart (niezależna kopia do innej bazy wiedzy)
+  "${SCHEMA_FORMAT}" — rodzaje z ich szablonami kart i formularzami dodawania (niezależna kopia do innej bazy wiedzy)
   "${ENTITIES_FORMAT}" — same wpisy (także wiedza i pytania)
   "${FLOW_FORMAT}" — przebieg razem z tym, co pokazuje
 
@@ -286,7 +303,7 @@ Wspólne:
 
 "kinds" — rodzaje:
   "name" — nazwa, "label" — wzór etykiety, np. "{givenNames} {surname}", "tells" — pole, które odróżnia imienników,
-  "speaks": true — postać, która może mówić, "builtin" — zmiana wbudowanego rodzaju (person, work, quote, topic, text, project, knowledge, question),
+  "builtin" — zmiana wbudowanego rodzaju (person, work, quote, topic, text, project, knowledge, question),
   "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "options", "to", "inverse", "symmetric", "media", "rangeOf", "says"}]
   typy pól: ${FIELD_TYPES.map((t) => `"${t}" (${FIELD_TYPE_LABEL[t]})`).join(', ')}
   wartość niepewna: {"value": …, "state": "known|approximate|disputed|unknown|na|pending", "source": {"work": "@dzielo", "locator": "s. 23"}, "note": "…"}
@@ -300,6 +317,13 @@ Wspólne:
 "revisions" — powtórki: {"name", "graph"} (źródła → filtr → … → jeden „Sposób pytania")
 "flows" — przebiegi: {"name", "look": "reading|slides|scenes|dialogue|flashcards|map", "start", "graph", "slots", "goals", "lines"}
 "collections" — zbiory: {"name", "rule": {"op": "and|or", "items": [{"field", "cmp", "value"}]}, "list": ["@wpis"]}
+"forms" — formularze dodawania (należą do schematu): {"name", "says", "graph", "keys", "paste"}
+  węzeł "pick" — wybór na początek, zostaje dla wszystkich wierszy: "config": {"label", "kinds": ["@rodzaj"], "many", "optional", "value": ["@wpis"]}
+  węzeł "entry" — wpis z każdego wiersza: "config": {"kind": "@rodzaj", "label", "many" (kilka w wierszu), "reuse": "same|never", "identity": ["pole"],
+    "fields": {"pole": {"from": "type|ask|fixed", "value": "tekst"}}} — type: wpisywane w wierszu, ask: ustawiane na początek, fixed: stała wartość
+  krawędź {"id", "from": węzeł, "out": "out", "to": węzeł "entry", "in": klucz pola-odwołania} — wypełnia to pole wpisem z węzła "from"
+  "keys": {"enter", "ctrlEnter", "shiftEnter"}: ${KEY_ACTIONS.map((k) => `"${k}"`).join(', ')}
+  "paste": {"columns": ${COLUMN_SEPARATORS.map((k) => `"${k}"`).join(', ')}, "values": ${VALUE_SEPARATORS.map((k) => `"${k}"`).join(', ')}, "header": true|false}
 ${kinds}`;
 }
 

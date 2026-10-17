@@ -3,7 +3,7 @@
  * `/workspace/phone/<bereich>/contacts`). Der Dienst sieht nur, dass es sie gibt.
  *
  * <code>
- *   aus dem Telefon      einlesen (`importFromPhone`): neue dazu, bekannte ergänzt
+ *   aus dem Telefon      einlesen (`importContacts`): neue dazu, bekannte ergänzt
  *   aus einer vCard      dasselbe (Google, ein anderes Telefon)
  *   ins Telefon          `toPhone`: die Kontakte ins Adressbuch des Telefons
  *                        (Konto „REcreatio") — dort findet sie der Anruf
@@ -187,8 +187,8 @@ export const fromCard = (c: CardData): ContactData => tidyContact({ ...c, source
 
 const nameKey = (name: string) => name.toLocaleLowerCase('pl').replace(/\s+/g, ' ').trim();
 
-/** Zwei Stände desselben Menschen zusammen — was neu ist, kommt dazu; was schon da war, bleibt. */
-function merged(had: Contact, incoming: ContactData): ContactData {
+/** Zwei Stände desselben Menschen zusammen — was neu ist, kommt dazu; was schon da war, bleibt. Der Schlüssel des Telefons wird übernommen, wenn es noch keinen gab. */
+function merged(had: ContactData, incoming: ContactData): ContactData {
   return tidyContact({
     name: had.name,
     given: had.given ?? incoming.given,
@@ -200,8 +200,15 @@ function merged(had: Contact, incoming: ContactData): ContactData {
     note: had.note ?? incoming.note,
     birthday: had.birthday ?? incoming.birthday,
     groups: [...had.groups, ...incoming.groups],
-    source: had.source ?? incoming.source
+    source: had.source?.key ? had.source : incoming.source?.key ? incoming.source : had.source ?? incoming.source
   });
+}
+
+export interface ImportPlan {
+  readonly work: readonly { readonly id: string | null; readonly data: ContactData; readonly version: number }[];
+  readonly added: number;
+  readonly updated: number;
+  readonly unchanged: number;
 }
 
 /**
@@ -212,44 +219,66 @@ function merged(had: Contact, incoming: ContactData): ContactData {
 export async function importContacts(
   ctx: PhoneCtx, incoming: readonly ContactData[], existing: readonly Contact[], onProgress?: (done: number, total: number) => void
 ): Promise<{ added: number; updated: number; unchanged: number; failed: number }> {
-  const byKey = new Map<string, Contact>();
-  const byPhone = new Map<string, Contact[]>();
-  for (const c of existing) {
-    if (c.source?.key) byKey.set(c.source.key, c);
-    for (const p of c.phones) {
+  const { work, added, updated, unchanged } = planImport(incoming, existing);
+  const { failed } = await saveContactsMany(ctx, work, (done) => onProgress?.(done, work.length));
+  return { added, updated, unchanged, failed };
+}
+
+/**
+ * Was ein Einlesen schreiben würde — ohne zu schreiben.
+ *
+ * <b>Eine gemeinsame Nummer allein genügt nicht:</b> das Festnetz einer Familie
+ * gehört mehreren. Zwei verschiedene Menschen in einen zu legen wäre schlimmer
+ * als einer doppelt — den löscht man mit einem Griff.
+ *
+ * Wer in DIESEM Lauf neu ist, wird wie ein bekannter behandelt: kennt das
+ * Telefon jemanden zweimal, entsteht er nur einmal.
+ */
+export function planImport(incoming: readonly ContactData[], existing: readonly Contact[]): ImportPlan {
+  interface Slot { data: ContactData; readonly id: string | null; readonly version: number; readonly before: ContactData | null }
+  const slots: Slot[] = existing.map((c) => ({ data: c, id: c.id, version: c.version, before: c }));
+  const byKey = new Map<string, Slot>();
+  const byPhone = new Map<string, Slot[]>();
+  const remember = (slot: Slot) => {
+    if (slot.data.source?.key) byKey.set(slot.data.source.key, slot);
+    for (const p of slot.data.phones) {
       const k = phoneKey(p.number);
-      if (k !== '') byPhone.set(k, [...(byPhone.get(k) ?? []), c]);
+      const known = byPhone.get(k) ?? [];
+      if (k !== '' && !known.includes(slot)) byPhone.set(k, [...known, slot]);
     }
+  };
+  slots.forEach(remember);
+
+  let unchanged = 0;
+  for (const data of incoming) {
+    let slot = data.source?.key ? byKey.get(data.source.key) : undefined;
+    if (slot === undefined) {
+      const name = nameKey(data.name);
+      for (const p of data.phones) {
+        slot = (byPhone.get(phoneKey(p.number)) ?? []).find((s) => nameKey(s.data.name) === name);
+        if (slot !== undefined) break;
+      }
+    }
+    if (slot === undefined) {
+      const fresh: Slot = { data, id: null, version: 0, before: null };
+      slots.push(fresh);
+      remember(fresh);
+      continue;
+    }
+    const next = merged(slot.data, data);
+    if (sameContact(next, slot.data) && (next.source?.key ?? null) === (slot.data.source?.key ?? null)) { unchanged++; continue; }
+    slot.data = next;
+    remember(slot);
   }
 
   const work: { id: string | null; data: ContactData; version: number }[] = [];
-  let unchanged = 0;
   let added = 0;
   let updated = 0;
-  const touched = new Set<string>();
-  for (const data of incoming) {
-    let had: Contact | undefined = data.source?.key ? byKey.get(data.source.key) : undefined;
-    if (had === undefined) {
-      for (const p of data.phones) {
-        const candidates = byPhone.get(phoneKey(p.number)) ?? [];
-        had = candidates.find((c) => nameKey(c.name) === nameKey(data.name)) ?? (candidates.length === 1 ? candidates[0] : undefined);
-        if (had !== undefined) break;
-      }
-    }
-    if (had !== undefined) {
-      if (touched.has(had.id)) { unchanged++; continue; }
-      const next = merged(had, data);
-      if (sameContact(next, had) && (had.source?.key ?? null) === (next.source?.key ?? null)) { unchanged++; continue; }
-      touched.add(had.id);
-      work.push({ id: had.id, data: next, version: had.version });
-      updated++;
-    } else {
-      work.push({ id: null, data, version: 0 });
-      added++;
-    }
+  for (const s of slots) {
+    if (s.before === null) { work.push({ id: null, data: s.data, version: 0 }); added++; }
+    else if (s.data !== s.before) { work.push({ id: s.id, data: s.data, version: s.version }); updated++; }
   }
-  const { failed } = await saveContactsMany(ctx, work, (done) => onProgress?.(done, work.length));
-  return { added, updated, unchanged, failed };
+  return { work, added, updated, unchanged };
 }
 
 /* -- Ins Telefon ----------------------------------------------------------------------------- */

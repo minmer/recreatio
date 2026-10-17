@@ -9,6 +9,8 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import { JsonPanel } from '../ui/JsonPanel';
 import { WorkspaceError } from '../core/session';
+import { nodeLabel, readAddForm } from './addForm';
+import { NewFormMenu } from './AddFormEditor';
 import { applyImport, courseDescription, exportSchema, planImport } from './json';
 import { isBaseKind } from './kinds';
 import {
@@ -43,7 +45,7 @@ const rowKey = (field: FieldDef): number => {
   return key;
 };
 
-export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; onChoose: (id: string | null) => void }) {
+export function SchemaEditor({ chosenId, onChoose, onForm }: { chosenId: string | null; onChoose: (id: string | null) => void; onForm: (id: string) => void }) {
   const { lib, writes, name } = useCtx();
   const chosen = chosenId === null ? undefined : lib.kind(chosenId);
   const [draft, setDraft] = useState<KindDef | null>(null);
@@ -53,7 +55,7 @@ export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; 
 
   const create = () => {
     const id = lib.newId();
-    setDraft({ id, name: 'Nowy rodzaj', label: '{name}', fields: [{ key: 'name', label: 'Nazwa', type: 'line', multi: false, uncertain: false }], speaks: false });
+    setDraft({ id, name: 'Nowy rodzaj', label: '{name}', fields: [{ key: 'name', label: 'Nazwa', type: 'line', multi: false, uncertain: false }] });
     onChoose(null);
   };
 
@@ -72,7 +74,7 @@ export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; 
         {writes && (
           <JsonPanel
             summary="Schemat jako JSON — kopia do innej bazy wiedzy"
-            lead={<>Rodzaje z ich szablonami kart jako jeden dokument. Import tworzy niezależną kopię: zmiany tutaj nie zmieniają bazy, z której przyszła [B12]. Żeby korzystać z rodzajów innej bazy bez kopiowania, dodaj ją w Ustawieniach jako źródło.</>}
+            lead={<>Rodzaje z ich szablonami kart i formularzami dodawania jako jeden dokument. Import tworzy niezależną kopię: zmiany tutaj nie zmieniają bazy, z której przyszła [B12]. Żeby korzystać z rodzajów innej bazy bez kopiowania, dodaj ją w Ustawieniach jako źródło.</>}
             fileName={`schemat-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`}
             exportDoc={() => exportSchema(lib, name, lib.kinds.filter((k) => (!isBaseKind(k.id) && lib.isOwn(k.id)) || lib.docs('kind').some((e) => e.data.builtin === k.id)))}
             description={() => courseDescription(lib)}
@@ -95,12 +97,35 @@ export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; 
           {lib.kinds.map((k) => (
             <li key={k.id}>
               <button type="button" className={`lib-row cg-card${chosenId === k.id ? ' is-on' : ''}`} onClick={() => onChoose(k.id)}>
-                <span className="lib-row-title">{k.name} {k.system !== undefined && <span className="cg-tag">system</span>} {isBaseKind(k.id) && k.system === undefined && <span className="cg-tag">wbudowany</span>} {k.speaks && <span className="cg-tag">postać</span>} {!isBaseKind(k.id) && <OriginTag id={k.id} />}</span>
+                <span className="lib-row-title">{k.name} {k.system !== undefined && <span className="cg-tag">system</span>} {isBaseKind(k.id) && k.system === undefined && <span className="cg-tag">wbudowany</span>} {!isBaseKind(k.id) && <OriginTag id={k.id} />}</span>
                 <span className="lib-row-meta">{lib.ofKind(k.id).length} wpisów · {k.fields.length} pól</span>
               </button>
             </li>
           ))}
         </ul>
+        {/* 2026-10-17 — wie man die Einträge dieser Rodzaje anlegt, viele auf einmal: Formularze dodawania (`addForm.ts`). */}
+        <div className="cg-row-between">
+          <h3>Formularze dodawania</h3>
+          {writes && <NewFormMenu onMade={onForm} />}
+        </div>
+        {lib.docs('addform').length === 0 ? (
+          <p className="cg-muted">Formularz dodaje wiele wpisów naraz, wiersz po wierszu — np. słowo, jego tłumaczenie i temat. Zacznij od rodzaju, który chcesz dodawać.</p>
+        ) : (
+          <ul className="lib-list">
+            {lib.docs('addform').map((e) => {
+              const form = readAddForm(e.id, e.data);
+              const made = form.graph.nodes.filter((n) => n.type === 'entry').map((n) => nodeLabel(n, lib.look));
+              return (
+                <li key={e.id}>
+                  <button type="button" className="lib-row cg-card" onClick={() => onForm(e.id)}>
+                    <span className="lib-row-title">{form.name} {!lib.isOwn(e.id) && <OriginTag id={e.id} />}</span>
+                    <span className="lib-row-meta">{made.join(' · ') || 'pusty'}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </aside>
     </div>
   );
@@ -153,7 +178,6 @@ function KindForm({ draft, writes, busy, onChange, onSave }: { draft: KindDef; w
             {draft.fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
           </select>
         </label>
-        <label className="pe-check"><input type="checkbox" checked={draft.speaks} disabled={!writes} onChange={(e) => set({ speaks: e.target.checked })} /><span>Postać — może mówić w przebiegach</span></label>
       </div>
       <p className="wk-hint">W etykiecie: {draft.fields.map((f) => `{${f.key}}`).join(' ')} {patternKeys(draft.label).length === 0 && '— wzór nie używa jeszcze żadnego pola.'}</p>
       {base && <p className="wk-hint">Pola wbudowanego rodzaju zostają (korzystają z nich przypisy, publikacja i ISBN) — można zmienić ich nazwy i dodać własne.</p>}

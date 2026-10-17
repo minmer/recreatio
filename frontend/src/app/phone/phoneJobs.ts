@@ -14,6 +14,7 @@
 import { remembered, setValue } from '../core/prefs';
 import { whoIsThere, WorkspaceError, type Who } from '../core/session';
 import { toPhone } from './contactStore';
+import { PHONE_PREF } from './here';
 import { bridgeSource, Phone, phoneHere, pluginSource, type PhoneSource } from './native';
 import { LOCKED, openPhone, type PhoneCtx } from './phoneContext';
 import { archivePhone, type ArchiveProgress } from './smsArchive';
@@ -21,11 +22,8 @@ import { archivePhone, type ArchiveProgress } from './smsArchive';
 /** Gehen Bilder aus MMS mit ins Archiv? `on` (Vorgabe) oder `off`. */
 export const MEDIA_PREF = 'phone.media';
 
-/** Gibt es das Telefon für dieses Konto (SMS und Kontakte im Menü) — gesetzt, sobald die Ausgabe „sms" läuft. */
-export const PHONE_PREF = 'phone.on';
-
 let archiving: Promise<ArchiveProgress> | null = null;
-let writing: Promise<unknown> | null = null;
+let writing: ReturnType<typeof toPhone> | null = null;
 
 /** Archivieren — läuft schon ein Lauf, bekommt man dessen Ergebnis. */
 export function archiveNow(ctx: PhoneCtx, source: PhoneSource, options: { full?: boolean; media: boolean; onProgress?: (p: ArchiveProgress) => void }): Promise<ArchiveProgress> {
@@ -38,7 +36,7 @@ export function archiveNow(ctx: PhoneCtx, source: PhoneSource, options: { full?:
 export const archiveRunning = (): boolean => archiving !== null;
 
 /** Die Kontakte ins Telefon — nie zweimal zugleich. */
-export function contactsNow(ctx: PhoneCtx, source: PhoneSource): Promise<unknown> {
+export function contactsNow(ctx: PhoneCtx, source: PhoneSource): ReturnType<typeof toPhone> {
   if (writing === null) writing = toPhone(ctx, source).finally(() => { writing = null; });
   return writing;
 }

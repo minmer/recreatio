@@ -26,6 +26,7 @@ import { Icon, type IconName } from '../ui/icons';
 import { MenuButton } from '../ui/Menu';
 import { DESK_EVENT, deskNow, useLoaded } from '../workspace/viewData';
 import { ViewGuard } from './ViewGuard';
+import { phoneHere, usePhoneShown } from '../phone/here';
 
 /* -- Die Orte ----------------------------------------------------------------------------- */
 
@@ -77,9 +78,12 @@ export function useNav(): Nav {
   const fresh = digest?.registrations.count ?? 0;
   const bookings = digest?.bookings?.count ?? 0;
 
+  /* 2026-10-17 — SMS und Kontakte (Ausgabe „sms"): neben den Rozmowy, nicht in ihnen. Auf dem Telefon steht SMS unten in der Leiste. */
+  const phone = usePhoneShown() ? [entry('sms', 'SMS', 'phone'), entry('contacts', 'Kontakty', 'users')] : [];
+
   if (basic) {
     return {
-      main: [entry('home', 'Teraz', 'home'), entry('calendar', 'Kalendarz', 'calendar'), entry('chat', 'Rozmowy', 'chat', chats), entry('areas', 'Obszary', 'layers')],
+      main: [entry('home', 'Teraz', 'home'), entry('calendar', 'Kalendarz', 'calendar'), entry('chat', 'Rozmowy', 'chat', chats), ...phone, entry('areas', 'Obszary', 'layers')],
       parish: [],
       knowledge: [entry('learn', 'Nauka', 'cap')],
       settings: []
@@ -91,6 +95,7 @@ export function useNav(): Nav {
       entry('home', 'Teraz', 'home'),
       entry('calendar', 'Kalendarz', 'calendar'),
       entry('chat', 'Rozmowy', 'chat', chats),
+      ...phone,
       entry('forms', 'Formularze', 'form', fresh),
       entry('areas', 'Obszary', 'layers'),
       entry('pages', 'Strony', 'globe')
@@ -215,6 +220,11 @@ export function WorkspaceFrame({ who, spot, onSignOut, children }: {
 }) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const nav = useNav();
+
+  /* Ausgabe „sms": kurz nach dem Start das Adressbuch des Telefons auffrischen und archivieren (eigenes Bündel). */
+  useEffect(() => {
+    if (phoneHere()) void import('../phone/phoneJobs').then((m) => m.startPhone(who));
+  }, [who]);
 
   return (
     <div className="wk-root wk-app">

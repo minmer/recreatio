@@ -23,6 +23,7 @@ import { SmsPanel } from './FormSms';
 import { repeatOf, roundLabel, roundOf } from './rounds';
 import { SignSheetButton } from './SignSheet';
 import { LINK, VERIFY, renderSms, smsHref, templatesOf, usesHole } from './sms';
+import { smsInApp } from '../phone/here';
 
 /**
  * Wer sich eingetragen hat — EINE Zeile je Mensch, alles Weitere auf Abruf.
@@ -163,7 +164,9 @@ export function People({
       }
 
       setSent((was) => new Set(was).add(key));
-      window.location.href = smsHref(one.dial, renderSms(smsText, filled, link));
+      /* In der Ausgabe „sms" ein Blatt, das gleich sendet — die Liste bleibt stehen. */
+      const body = renderSms(smsText, filled, link);
+      if (!smsInApp(one.dial, body)) window.location.href = smsHref(one.dial, body);
     } catch (e) {
       onError(e instanceof WorkspaceError ? e.message : 'Nie udało się przygotować wiadomości.');
     } finally {

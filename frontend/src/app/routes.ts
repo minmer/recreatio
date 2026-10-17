@@ -368,6 +368,14 @@ export const VIEWS = {
   chat: 'Rozmowy',
 
   /*
+   * 2026-10-17 — DAS TELEFON (Ausgabe „sms" der App, `phone/`): die SMS neben
+   * den Rozmowy und nicht in ihnen, und das eigene Adressbuch. Im Menü nur,
+   * wo es das Telefon gibt (oder gab: dann im Browser das Archiv).
+   */
+  sms: 'SMS',
+  contacts: 'Kontakty',
+
+  /*
    * 2026-10-16 — FORMULARZE: ein Ort für Formulare, ihre Zgłoszenia und
    * Menschen. Vorher lagen sie unter „Moduły" (`modules/form/<id>`) — der
    * Name eines Bausteins, nicht dessen, was man dort tut. Die alte Adresse
