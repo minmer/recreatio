@@ -25,7 +25,8 @@
  * Tag: sie stehen als Kästen im Raster, mit Häkchen und „pomiń", und die
  * Termine werden zur Schiene am rechten Rand — ein Klick darauf tauscht
  * zurück. Ein Klick ins Leere legt dann eine Aufgabe an, keinen Termin; die
- * Pille öffnet dann die Liste des Tages.
+ * Pille öffnet dann die Liste des Tages. Im Raster stehen nur die Aufgaben
+ * mit ihrer Stunde; was von früher liegen blieb, zeigt die Liste.
  *
  * <b>Reservierungen stehen am Termin</b> (0057): an einem angebotenen Termin,
  * wie viele Plätze besetzt sind und wer wartet; ein Klick zeigt die
@@ -574,9 +575,8 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
           {days.map((day) => (
             <div key={keyOf(day)} className="wk-cal2-taskcell">
               {/* Erst gibt die Pille den Aufgaben die Breite; stehen sie schon breit, öffnet sie die Liste des Tages. */}
+              {/* Was von früher heute steht, hat keine Uhrzeit: es steht nicht im Raster, nur in der Liste („Wszystkie dni"). */}
               <TaskPill marks={marksOn(marks, day)} onOpen={() => (wide || onFocus === undefined || tasks === undefined ? onTasks(day) : onFocus('tasks'))} />
-              {/* Was von früher heute steht, hat keine Uhrzeit — breit steht es hier, zum Abhaken. */}
-              {wide && marksOn(marks, day).filter((m) => m.carried).map((m) => <TaskBlock key={m.key} mark={m} now={now} acts={tasks} />)}
             </div>
           ))}
         </div>
@@ -673,17 +673,17 @@ const taskPlace = (p: Laned, areaId: string): CSSProperties => ({
 /**
  * 2026-10-17 — EINE AUFGABE, BREIT: Häkchen (zurücknehmen geht auch), Zeit,
  * Name, der Stand in Worten und „pomiń" — dieselben Handgriffe wie in der
- * Liste des Tages. Ein Klick auf den Namen öffnet die Aufgabe. Ohne `placed`
- * steht sie in der Zeile „zadania" (was von früher heute steht).
+ * Liste des Tages. Ein Klick auf den Namen öffnet die Aufgabe. Was von früher
+ * heute steht, steht hier nicht — nur in der Liste (`TaskDay`, „Wszystkie dni").
  */
-function TaskBlock({ mark, now, acts, placed }: { mark: TaskMark; now: Date; acts: TaskActs; placed?: Laned }) {
+function TaskBlock({ mark, now, acts, placed }: { mark: TaskMark; now: Date; acts: TaskActs; placed: Laned }) {
   const done = settled(mark);
-  const short = placed !== undefined && placed.height < 45;
+  const short = placed.height < 45;
   const busy = acts.busy === mark.key;
   return (
     <div
-      className={`wk-tb is-${mark.state}${placed === undefined ? ' is-chip' : ''}${short ? ' is-short' : ''}${busy ? ' is-busy' : ''}`}
-      style={placed === undefined ? { '--ev-h': hueOf(mark.areaId) } as CSSProperties : taskPlace(placed, mark.areaId)}
+      className={`wk-tb is-${mark.state}${short ? ' is-short' : ''}${busy ? ' is-busy' : ''}`}
+      style={taskPlace(placed, mark.areaId)}
       aria-busy={busy || undefined}
     >
       <button type="button" role="checkbox" aria-checked={done} className={`wk-task-tick wk-tb-tick${done ? ' is-done' : ''}`}
@@ -695,11 +695,10 @@ function TaskBlock({ mark, now, acts, placed }: { mark: TaskMark; now: Date; act
       </button>
       <button type="button" className="wk-tb-main" title={`${mark.task.title} · ${whenOf(mark)} · ${stateOf(mark, now)}`} onClick={() => acts.open(mark.task)}>
         <span className="wk-tb-line">
-          {placed !== undefined && <span className="wk-tb-time">{time(mark.start)}</span>}
+          <span className="wk-tb-time">{time(mark.start)}</span>
           <span className="wk-tb-title">{mark.task.title}</span>
         </span>
-        {/* In der Zeile des Tages steht, was von früher liegen blieb: dort zählt, seit wann. */}
-        {!short && <span className={`wk-tb-state is-${mark.state}`}>{stateOf(mark, now)}{placed === undefined ? ` · ${whenOf(mark)}` : ''}</span>}
+        {!short && <span className={`wk-tb-state is-${mark.state}`}>{stateOf(mark, now)}</span>}
       </button>
       {maySkip(mark) && (
         <button type="button" className="wk-tb-skip" disabled={acts.busy !== null}
