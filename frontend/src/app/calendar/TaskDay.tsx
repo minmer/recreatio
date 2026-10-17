@@ -11,6 +11,10 @@
  * 2026-10-17 — wer die Schiene anklickt, gibt den Aufgaben den Tag: dann
  * stehen sie breit im Raster, mit denselben Handgriffen (`TaskBlock` in
  * `CalendarApp.tsx`), und die Termine werden zur Schiene.
+ *
+ * 2026-10-17 — die Liste zeigt zuerst nur, was an DIESEM Tag dran ist; was
+ * von früher heute steht (`carried`), kommt mit „Wszystkie dni" dazu. Sonst
+ * fand man die Aufgaben des Tages unter fünfzig zaległych nicht.
  */
 
 import { useState } from 'react';
@@ -20,6 +24,7 @@ import { behind, pressing, settled, tally, type TaskMark } from './calendarModel
 import { longDate } from '../core/dayMath';
 import type { Me } from '../core/me';
 import { Modal } from '../ui/Modal';
+import { Segment } from '../ui/Segment';
 import { viewPath } from '../routes';
 import { WorkspaceError } from '../core/session';
 import { everyWords, howLong, markDone, markSkipped, markUndone, type OpenTask } from './tasks';
@@ -122,6 +127,8 @@ export function TaskDay({ me, day, marks, areas, now, onClose, onChanged, onOpen
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  /* Auch, was von früheren Tagen heute steht? */
+  const [every, setEvery] = useState(false);
 
   const run = async (mark: TaskMark, todo: () => Promise<unknown>) => {
     setBusy(mark.key);
@@ -136,22 +143,36 @@ export function TaskDay({ me, day, marks, areas, now, onClose, onChanged, onOpen
     }
   };
 
-  const t = tally(marks);
+  const own = marks.filter((m) => !m.carried);
+  const carried = marks.length - own.length;
+  const shown = every ? marks : own;
+  const t = tally(shown);
 
   /* 0088 — noch ältere Liegengebliebene, die nicht mitgekommen sind (je Aufgabe höchstens die jüngsten). */
-  const more = [...new Map(marks.filter((m) => m.carried).map((m) => [m.task.taskId, m.task.overdueMore ?? 0])).values()]
+  const more = !every ? 0 : [...new Map(marks.filter((m) => m.carried).map((m) => [m.task.taskId, m.task.overdueMore ?? 0])).values()]
     .reduce((n, one) => n + one, 0);
 
   return (
     <Modal title={`Zadania · ${longDate(day)}`} onClose={onClose}>
+      {carried > 0 && (
+        <Segment now={every ? 'all' : 'day'} busy={false} onPick={(value) => setEvery(value === 'all')}
+          options={[{ value: 'day', label: `Ten dzień (${own.length})` }, { value: 'all', label: `Wszystkie dni (${marks.length})` }]} />
+      )}
+
       <p className="wk-hint">
         Zrobione {t.settled} z {t.total}{t.pressing > 0 ? ` · ${t.pressing} teraz` : ''}{t.behind > 0 ? ` · ${t.behind} zaległe` : ''}
       </p>
 
-      {marks.length === 0 && <p className="wk-empty">Tego dnia nie ma zadań.</p>}
+      {shown.length === 0 && <p className="wk-empty">Tego dnia nie ma zadań.</p>}
+      {!every && carried > 0 && (
+        <p className="wk-hint">
+          Z wcześniejszych dni czeka jeszcze {carried} zaległych —{' '}
+          <button type="button" className="wk-link-btn" onClick={() => setEvery(true)}>pokaż wszystkie dni</button>
+        </p>
+      )}
 
       <ul className="wk-taskday">
-        {marks.map((mark) => {
+        {shown.map((mark) => {
           const done = settled(mark);
           return (
             <li key={mark.key} className={`wk-taskday-row is-${mark.state}`}>
