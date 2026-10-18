@@ -490,8 +490,12 @@
          "value": "isroot ? 0 : parent.dy - h - drop"
         },
         {
+         "name": "reach",
+         "value": "max(pivot, length - pivot)"
+        },
+        {
          "name": "low",
-         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+         "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
          "name": "stand",
@@ -519,7 +523,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
+         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -556,7 +560,6 @@
        ],
        "drag": {
         "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py",
         "sx": "px"
        },
        "can": {
@@ -768,7 +771,7 @@
         },
         {
          "name": "low",
-         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+         "value": "dy - 1.35 - parent.reach*0.36"
         },
         {
          "name": "rx",
@@ -800,8 +803,7 @@
         }
        ],
        "drag": {
-        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py - r"
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa"
        },
        "can": {
         "edit": [
@@ -1325,8 +1327,12 @@
          "value": "isroot ? 0 : parent.dy - h - drop"
         },
         {
+         "name": "reach",
+         "value": "max(pivot, length - pivot)"
+        },
+        {
          "name": "low",
-         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+         "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
          "name": "stand",
@@ -1354,7 +1360,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
+         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -1391,7 +1397,6 @@
        ],
        "drag": {
         "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py",
         "sx": "px"
        },
        "can": {
@@ -1603,7 +1608,7 @@
         },
         {
          "name": "low",
-         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+         "value": "dy - 1.35 - parent.reach*0.36"
         },
         {
          "name": "rx",
@@ -1635,8 +1640,7 @@
         }
        ],
        "drag": {
-        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py - r"
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa"
        },
        "can": {
         "edit": [
@@ -2159,8 +2163,12 @@
          "value": "isroot ? 0 : parent.dy - h - drop"
         },
         {
+         "name": "reach",
+         "value": "max(pivot, length - pivot)"
+        },
+        {
          "name": "low",
-         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+         "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
          "name": "stand",
@@ -2188,7 +2196,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
+         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -2225,7 +2233,6 @@
        ],
        "drag": {
         "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py",
         "sx": "px"
        },
        "can": {
@@ -2437,7 +2444,7 @@
         },
         {
          "name": "low",
-         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+         "value": "dy - 1.35 - parent.reach*0.36"
         },
         {
          "name": "rx",
@@ -2469,8 +2476,7 @@
         }
        ],
        "drag": {
-        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py - r"
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa"
        },
        "can": {
         "edit": [
@@ -2993,8 +2999,12 @@
          "value": "isroot ? 0 : parent.dy - h - drop"
         },
         {
+         "name": "reach",
+         "value": "max(pivot, length - pivot)"
+        },
+        {
          "name": "low",
-         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+         "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
          "name": "stand",
@@ -3022,7 +3032,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
+         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -3059,7 +3069,6 @@
        ],
        "drag": {
         "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py",
         "sx": "px"
        },
        "can": {
@@ -3271,7 +3280,7 @@
         },
         {
          "name": "low",
-         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+         "value": "dy - 1.35 - parent.reach*0.36"
         },
         {
          "name": "rx",
@@ -3303,8 +3312,7 @@
         }
        ],
        "drag": {
-        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py - r"
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa"
        },
        "can": {
         "edit": [
@@ -3846,8 +3854,12 @@
          "value": "isroot ? 0 : parent.dy - h - drop"
         },
         {
+         "name": "reach",
+         "value": "max(pivot, length - pivot)"
+        },
+        {
          "name": "low",
-         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+         "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
          "name": "stand",
@@ -3875,7 +3887,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
+         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -3912,7 +3924,6 @@
        ],
        "drag": {
         "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py",
         "sx": "px"
        },
        "can": {
@@ -4124,7 +4135,7 @@
         },
         {
          "name": "low",
-         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+         "value": "dy - 1.35 - parent.reach*0.36"
         },
         {
          "name": "rx",
@@ -4156,8 +4167,7 @@
         }
        ],
        "drag": {
-        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py - r"
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa"
        },
        "can": {
         "edit": [
@@ -4703,8 +4713,12 @@
          "value": "isroot ? 0 : parent.dy - h - drop"
         },
         {
+         "name": "reach",
+         "value": "max(pivot, length - pivot)"
+        },
+        {
          "name": "low",
-         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+         "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
          "name": "stand",
@@ -4732,7 +4746,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
+         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -4769,7 +4783,6 @@
        ],
        "drag": {
         "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py",
         "sx": "px"
        },
        "can": {
@@ -4981,7 +4994,7 @@
         },
         {
          "name": "low",
-         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+         "value": "dy - 1.35 - parent.reach*0.36"
         },
         {
          "name": "rx",
@@ -5013,8 +5026,7 @@
         }
        ],
        "drag": {
-        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py - r"
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa"
        },
        "can": {
         "edit": [
@@ -5593,8 +5605,12 @@
          "value": "isroot ? 0 : parent.dy - h - drop"
         },
         {
+         "name": "reach",
+         "value": "max(pivot, length - pivot)"
+        },
+        {
          "name": "low",
-         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+         "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
          "name": "stand",
@@ -5622,7 +5638,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
+         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -5659,7 +5675,6 @@
        ],
        "drag": {
         "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py",
         "sx": "px"
        },
        "can": {
@@ -5871,7 +5886,7 @@
         },
         {
          "name": "low",
-         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+         "value": "dy - 1.35 - parent.reach*0.36"
         },
         {
          "name": "rx",
@@ -5903,8 +5918,7 @@
         }
        ],
        "drag": {
-        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py - r"
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa"
        },
        "can": {
         "edit": [
@@ -6454,8 +6468,12 @@
          "value": "isroot ? 0 : parent.dy - h - drop"
         },
         {
+         "name": "reach",
+         "value": "max(pivot, length - pivot)"
+        },
+        {
          "name": "low",
-         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+         "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
          "name": "stand",
@@ -6483,7 +6501,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
+         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -6520,7 +6538,6 @@
        ],
        "drag": {
         "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py",
         "sx": "px"
        },
        "can": {
@@ -6732,7 +6749,7 @@
         },
         {
          "name": "low",
-         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+         "value": "dy - 1.35 - parent.reach*0.36"
         },
         {
          "name": "rx",
@@ -6764,8 +6781,7 @@
         }
        ],
        "drag": {
-        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py - r"
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa"
        },
        "can": {
         "edit": [
@@ -7281,8 +7297,12 @@
          "value": "isroot ? 0 : parent.dy - h - drop"
         },
         {
+         "name": "reach",
+         "value": "max(pivot, length - pivot)"
+        },
+        {
          "name": "low",
-         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+         "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
          "name": "stand",
@@ -7310,7 +7330,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
+         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -7347,7 +7367,6 @@
        ],
        "drag": {
         "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py",
         "sx": "px"
        },
        "can": {
@@ -7559,7 +7578,7 @@
         },
         {
          "name": "low",
-         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+         "value": "dy - 1.35 - parent.reach*0.36"
         },
         {
          "name": "rx",
@@ -7591,8 +7610,7 @@
         }
        ],
        "drag": {
-        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py - r"
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa"
        },
        "can": {
         "edit": [
@@ -8111,8 +8129,12 @@
          "value": "isroot ? 0 : parent.dy - h - drop"
         },
         {
+         "name": "reach",
+         "value": "max(pivot, length - pivot)"
+        },
+        {
          "name": "low",
-         "value": "dy - h - 0.15 - max(pivot, length - pivot)*0.36"
+         "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
          "name": "stand",
@@ -8140,7 +8162,7 @@
         },
         {
          "name": "by1",
-         "value": "ry + 0.7 + max(pivot, length - pivot)*0.36"
+         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -8177,7 +8199,6 @@
        ],
        "drag": {
         "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py",
         "sx": "px"
        },
        "can": {
@@ -8389,7 +8410,7 @@
         },
         {
          "name": "low",
-         "value": "dy - 2*r - 0.35 - abs(arm)*0.36"
+         "value": "dy - 1.35 - parent.reach*0.36"
         },
         {
          "name": "rx",
@@ -8421,8 +8442,7 @@
         }
        ],
        "drag": {
-        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa",
-        "drop": "ay - py - r"
+        "pos": "parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa"
        },
        "can": {
         "edit": [

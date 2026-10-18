@@ -606,6 +606,26 @@ export function PresentationView({
 
   useEffect(() => { onActive?.(active); }, [active, onActive]);
 
+  /*
+   * 2026-10-18 — DIE BÜHNE ROLLT NIE: ihre Rahmen sind `overflow: hidden`, doch
+   * ein Element, das den Fokus bekommt oder sich zeigen will, schöbe sie trotzdem
+   * — und mit ihr die ganze Szene. Zurück an ihren Platz (ein Baustein, der in
+   * sich rollt, darf es).
+   */
+  useEffect(() => {
+    const node = root.current;
+    if (node === null) return undefined;
+    const fixedParts = ['pz-viewport', 'pz-stage', 'pz-frame', 'pz-scene', 'pz-content', 'pz-space'];
+    const keep = (event: Event) => {
+      const el = event.target;
+      if (!(el instanceof HTMLElement) || !(el === node || fixedParts.some((name) => el.classList.contains(name)))) return;
+      if (el.scrollTop !== 0) el.scrollTop = 0;
+      if (el.scrollLeft !== 0) el.scrollLeft = 0;
+    };
+    node.addEventListener('scroll', keep, true);
+    return () => node.removeEventListener('scroll', keep, true);
+  }, []);
+
   /* Die Adresse folgt der Szene — ohne Eintrag im Verlauf (wie bei den Slajdy). */
   useEffect(() => {
     if (mode !== 'page' || scenes.length === 0) return;

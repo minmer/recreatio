@@ -252,7 +252,7 @@ const SHAPE_KEYS: Readonly<Record<string, string>> = {
   'axes.y': 'Podpis osi pionowej',
   'axes.grid': 'Siatka pod spodem',
   clip: 'frame — true: co wychodzi poza ramę, znika',
-  camera: 'frame — true: można przybliżać (Ctrl+kółko, dwa palce, dwuklik) i przesuwać widok; "view" to wtedy widok „Dopasuj”'
+  camera: 'frame — true: można przybliżać (+, −, Ctrl+kółko, dwa palce) i przesuwać widok; "view" to wtedy widok „Dopasuj”'
 };
 
 const MOTION_KEYS: Readonly<Record<string, string>> = {

@@ -123,6 +123,12 @@ export interface Camera {
   readonly fit: (env: Env) => View;
   /** Vergrösserung (1: wie `view`) und Verschiebung der Mitte (Welt). */
   readonly at: { z: number; x: number; y: number };
+  /**
+   * Der Ausschnitt, den `view` beim Bauen (oder „Dopasuj") ergab — er folgt
+   * nicht jeder Änderung: wer ein Gewicht zieht, soll das Bild nicht wandern
+   * und wachsen sehen. Ein neuer Bau (ein Ding mehr) rechnet ihn neu.
+   */
+  shown: View | null;
 }
 
 export interface Built {
@@ -601,8 +607,11 @@ export class Builder {
           const fit = (env: Env): View => [parts[0].fn(env), parts[1].fn(env), parts[2].fn(env), parts[3].fn(env)];
           /* Mit Kamera: um die Mitte vergrössert, um `x`, `y` verschoben — `#cam` meldet, dass sich daran etwas geändert hat. */
           const at = { z: 1, x: 0, y: 0 };
-          const view = !s.camera ? fit : (env: Env): View => {
-            const v0 = fit(env);
+          const live = s.camera && !this.still;
+          let shown: View | null = null;
+          const view = !live ? fit : (env: Env): View => {
+            if (shown === null) shown = fit(env);
+            const v0 = shown;
             const cx = (v0[0] + v0[2]) / 2 + at.x;
             const cy = (v0[1] + v0[3]) / 2 + at.y;
             const hw = (v0[2] - v0[0]) / 2 / at.z;
@@ -612,9 +621,9 @@ export class Builder {
           const viewReads = [...parts.flatMap((p) => p.reads), ...(s.camera ? ['#cam'] : [])];
           const inside = framePlace(rect, view, viewReads);
           let cam: number | null = null;
-          if (s.camera && !this.still) {
+          if (live) {
             cam = this.cameras.length;
-            this.cameras.push({ rect, place: inside, fit, at });
+            this.cameras.push({ rect, place: inside, fit, at, get shown() { return shown; }, set shown(v) { shown = v; } });
           }
           kids = this.inside(s, v, () => this.list(inner, inside, scope, `${key}.`));
           let clip: string | null = null;

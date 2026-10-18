@@ -109,6 +109,8 @@ body.has-pz { overflow: hidden; }
 .pz-el { position: absolute; left: 50%; top: 50%; margin: 0; transform-origin: 50% 50%; will-change: transform, opacity; }
 /* 2026-10-18 — höher als sein Platz bis zum Rand (ein Telefon quer, ein Bild mit Werkstatt): er rollt in sich; an seinem Ende gibt er die Geste der Präsentation zurück. */
 .pz-el.is-scroll { overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y pinch-zoom; scrollbar-width: thin; }
+/* Ein Bild mit Bedienung wächst und schrumpft, wenn man ein Ding wählt — sein Rollbalken hat darum immer seinen Platz: nichts wird breiter oder schmaler. */
+.pz-el:has(.lv-panel) { overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y pinch-zoom; scrollbar-width: thin; scrollbar-gutter: stable; }
 .pz-box {
   position: relative; display: grid; gap: 0.5rem; min-width: 0; height: 100%; box-sizing: border-box;
   color: var(--pz-box-ink, inherit); overflow-wrap: break-word;

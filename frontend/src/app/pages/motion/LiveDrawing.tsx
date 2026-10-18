@@ -20,7 +20,9 @@
  * zeigt, was man an ihm einstellen darf), ziehen verschiebt es — EINE
  * Änderung je Ziehen, zurückzunehmen mit Strg+Z. Ein Rahmen mit Kamera:
  * Strg+Rad oder zwei Finger zoomen, ein Finger verschiebt (nur hineingezoomt
- * — sonst rollt die Seite), doppelt tippen zoomt hinein oder passt ein.
+ * — sonst rollt die Seite), „+”, „−” und „Dopasuj” in der Werkstatt. Kein
+ * Zoomen durch doppeltes Tippen: wer ein Ding wählt, tippt oft zweimal, und das
+ * Bild darf dabei nicht springen.
  *
  * <b>Weniger Bewegung</b> (System): nichts läuft von selbst; was man selbst
  * startet, läuft.
@@ -34,7 +36,7 @@ import { usePhase, useReducedMotion } from './MotionBox';
 import { useMotionPlan } from './DrawingView';
 import { Program, type Said } from './liveRun';
 import type { WorldShot } from './liveThings';
-import { buildDrawing, type Camera, type Inst } from './liveBuild';
+import { buildDrawing, type Camera, type Inst, type View } from './liveBuild';
 import { ControlView, digitsOf, predictLabel, propRange, rangeOf, shotOfText, withUnit, WorldPanel, type WorldAct } from './LivePanel';
 import { ShowClock } from '../presentation/showContext';
 
@@ -114,6 +116,9 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
   useMotionPlan(svg, built.plan, still || reduced, phase);
 
   /** Die Schleife und ihre Hebel — gebaut nach dem Gerüst, gehalten über die Bilder. */
+  /* Wie die Kameras standen (Ausschnitt, Zoom) — ein neuer Bau (ein Ding mehr) übernimmt es, solange alles hineinpasst. */
+  const camMemory = useRef<{ program: Program; cams: { shown: View | null; at: { z: number; x: number; y: number } }[] } | null>(null);
+
   const engine = useRef<{
     wake: () => void; visible: (on: boolean) => void; input: (name: string, value: number) => void; press: (i: number) => void;
     act: (a: WorldAct) => void; refresh: () => void; predict: () => void;
@@ -321,6 +326,18 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
     ));
 
     let camDirty = false;
+    /* Ein neuer Bau derselben Welt: der Ausschnitt bleibt, wenn das Neue hineinpasst — sonst passt er sich an. */
+    if (camMemory.current?.program === program) {
+      built.cameras.forEach((c, i) => {
+        const was = camMemory.current?.cams[i];
+        if (was === undefined || was.shown === null) return;
+        const next = c.fit(env);
+        const fits = next[0] >= was.shown[0] - 1e-6 && next[1] >= was.shown[1] - 1e-6 && next[2] <= was.shown[2] + 1e-6 && next[3] <= was.shown[3] + 1e-6;
+        c.shown = fits ? was.shown : next;
+        if (fits) Object.assign(c.at, was.at);
+      });
+      box.current?.classList.toggle('is-zoomed', built.cameras.some((c) => c.at.z > 1.001));
+    }
 
     const paint = () => {
       const changed = program.takeChanged();
@@ -431,7 +448,7 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
 
     /** Die Kamera innerhalb dessen halten, was `view` zeigt (hineingezoomt darf man sich darin bewegen). */
     const clampCam = (c: Camera) => {
-      const v = c.fit(env);
+      const v = c.shown ?? c.fit(env);
       const hw = Math.abs(v[2] - v[0]) / 2 * (1 - 1 / c.at.z);
       const hh = Math.abs(v[3] - v[1]) / 2 * (1 - 1 / c.at.z);
       c.at.x = Math.max(-hw, Math.min(hw, c.at.x));
@@ -462,7 +479,8 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
 
     const camera = (cmd: 'in' | 'out' | 'fit') => {
       built.cameras.forEach((c, i) => {
-        if (cmd === 'fit') { c.at.z = 1; c.at.x = 0; c.at.y = 0; camMoved(); return; }
+        /* „Dopasuj": den Ausschnitt neu rechnen (alles, was jetzt da ist) und ganz zeigen. */
+        if (cmd === 'fit') { c.shown = c.fit(env); c.at.z = 1; c.at.x = 0; c.at.y = 0; camMoved(); return; }
         zoomAt(i, c.at.z * (cmd === 'in' ? 1.6 : 1 / 1.6), null);
       });
     };
@@ -668,17 +686,6 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
       zoomAt(i, c.at.z * Math.exp(-event.deltaY * 0.0025), toLocal(el, event.clientX, event.clientY));
     };
 
-    const onDouble = (event: MouseEvent) => {
-      const cam = closest(event.target, '[data-cam]');
-      if (cam === null) return;
-      const i = Number(cam.dataset.cam);
-      const c = built.cameras[i];
-      if (c === undefined) return;
-      event.preventDefault();
-      if (c.at.z > 1.001) { c.at.z = 1; c.at.x = 0; c.at.y = 0; camMoved(); return; }
-      zoomAt(i, 2.5, toLocal(cam, event.clientX, event.clientY));
-    };
-
     const runTap = (el: Element) => {
       const tap = built.taps[Number((el as SVGElement).dataset.tap)];
       if (tap === undefined || tap.shape.tap === null) return;
@@ -787,7 +794,6 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
       root.addEventListener('pointerup', onUp);
       root.addEventListener('pointercancel', onUp);
       root.addEventListener('click', onClick);
-      root.addEventListener('dblclick', onDouble);
       root.addEventListener('wheel', onWheel, { passive: false });
       root.addEventListener('focusin', onFocus);
       root.addEventListener('touchstart', onTouchStart, { passive: false });
@@ -823,12 +829,12 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
 
     return () => {
       if (raf !== 0) cancelAnimationFrame(raf);
+      camMemory.current = { program, cams: built.cameras.map((c) => ({ shown: c.shown, at: { ...c.at } })) };
       root.removeEventListener('pointerdown', onDown);
       root.removeEventListener('pointermove', onMove);
       root.removeEventListener('pointerup', onUp);
       root.removeEventListener('pointercancel', onUp);
       root.removeEventListener('click', onClick);
-      root.removeEventListener('dblclick', onDouble);
       root.removeEventListener('wheel', onWheel);
       root.removeEventListener('focusin', onFocus);
       root.removeEventListener('touchstart', onTouchStart);

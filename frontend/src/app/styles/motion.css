@@ -260,7 +260,8 @@
 
 /* Daneben, wo das Bild selbst breit ist (nicht das Fenster). */
 @container (min-width: 40rem) {
-  .lv.is-side > .lv-in { grid-template-columns: minmax(0, 2fr) minmax(13rem, 1fr); align-items: center; }
+  /* Oben ausgerichtet: wächst die Werkstatt (ein Ding gewählt), bleibt das Bild, wo es ist. */
+  .lv.is-side > .lv-in { grid-template-columns: minmax(0, 2fr) minmax(13rem, 1fr); align-items: start; }
   .lv.is-side .lv-controls { flex-direction: column; align-items: stretch; }
 }
 

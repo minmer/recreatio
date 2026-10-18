@@ -55,14 +55,20 @@ const BEAM = {
     { name: 'x2', value: 'x + (length - pivot)*ca + h*sa' },
     { name: 'y2', value: 'y + (length - pivot)*sa - h*ca' },
     { name: 'dy', value: 'isroot ? 0 : parent.dy - h - drop' },
-    { name: 'low', value: 'dy - h - 0.15 - max(pivot, length - pivot)*0.36' },
+    /*
+     * Wie tief es (gekippt) höchstens reicht — nur aus dem Bau (Längen, Achsen,
+     * Leinen), nicht daraus, wo die Gewichte gerade hängen: zieht man eines, hebt
+     * und senkt sich das Ganze nicht mit.
+     */
+    { name: 'reach', value: 'max(pivot, length - pivot)' },
+    { name: 'low', value: 'dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)' },
     { name: 'stand', value: 'isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0' },
     { name: 'rx', value: 'isroot ? sx : parent.rx + arm' },
     { name: 'ry', value: 'root.stand + dy' },
     { name: 'bx0', value: 'rx - pivot - 0.4' },
     { name: 'bx1', value: 'rx + length - pivot + 0.4' },
     { name: 'by0', value: 'ry - h - 0.5' },
-    { name: 'by1', value: 'ry + 0.7 + max(pivot, length - pivot)*0.36' },
+    { name: 'by1', value: 'ry + 0.7 + reach*0.36' },
     { name: 'hit', value: '6' }
   ],
   state: [
@@ -73,9 +79,9 @@ const BEAM = {
     { when: 'angle > tilt', set: { angle: 'tilt', omega: 0 } },
     { when: 'angle < -tilt', set: { angle: '-tilt', omega: 0 } }
   ],
+  /* Ziehen schiebt entlang der Belke darüber (ganz oben: den Ständer zur Seite) — die Leine stellt man im Panel ein, damit nichts mitwandert. */
   drag: {
     pos: 'parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa',
-    drop: 'ay - py',
     sx: 'px'
   },
   can: { edit: ['length', 'pivot', 'bm', 'pos', 'drop', 'sx'], add: ['ciezarek', 'belka'], remove: true, copy: true },
@@ -123,7 +129,7 @@ const WEIGHT = {
     { name: 'x', value: 'ax' },
     { name: 'y', value: 'ay - drop - r' },
     { name: 'dy', value: 'parent.dy - h - drop' },
-    { name: 'low', value: 'dy - 2*r - 0.35 - abs(arm)*0.36' },
+    { name: 'low', value: 'dy - 1.35 - parent.reach*0.36' },
     { name: 'rx', value: 'parent.rx + arm' },
     { name: 'ry', value: 'root.stand + dy' },
     { name: 'bx0', value: 'rx - r - 0.3' },
@@ -132,10 +138,7 @@ const WEIGHT = {
     { name: 'by1', value: 'ry' },
     { name: 'hit', value: '4' }
   ],
-  drag: {
-    pos: 'parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa',
-    drop: 'ay - py - r'
-  },
+  drag: { pos: 'parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa' },
   can: { edit: ['m', 'pos', 'drop'], remove: true, copy: true },
   readouts: [
     { label: 'Moment względem osi', value: 'total*arm', unit: 'kg·m', digits: 2, show: '!held' },

@@ -158,8 +158,9 @@ something changed.
 - `liveRun.ts`: the world's state in the same RK4 vector; `sleep` — when nothing changed across steps for 0.8 s the
   loop stops until the next change; rules with `for` (true for N seconds without a break); controls with `show`.
 - `liveBuild.tsx` draws `{ "type": "world" }` (inside a frame) as one `<g data-thing>` per thing, parents first, with
-  a 44 px ring at the thing's `x`, `y`; a frame with `camera: true` zooms (buttons, Ctrl+wheel, two fingers, double
-  tap) and pans when zoomed. `LivePanel.tsx` adds the workshop: undo/redo, reset, start/pause, zoom, add buttons, and
+  a 44 px ring at the thing's `x`, `y`; a frame with `camera: true` zooms (buttons, Ctrl+wheel, two fingers — not by
+  double tap, which fires by accident while selecting) and pans when zoomed. Its fitted view is computed once and kept:
+  dragging, editing or adding something that still fits does not move or rescale the picture; „Dopasuj” refits. `LivePanel.tsx` adds the workshop: undo/redo, reset, start/pause, zoom, add buttons, and
   an inspector of the selected thing (slider, −/+, number, readouts, hang a child, duplicate, remove).
 - Select by tap or click, move by dragging or arrow keys, Delete removes, Ctrl+Z/Ctrl+Y. A finger on a thing blocks
   page scrolling (`touchstart` is cancelled there — Chrome ignores `touch-action` on the parts of an SVG).
@@ -222,6 +223,11 @@ predict first; the demo scene stays free for discovery. The goal message adds "P
 The drive hands a swipe to an inner scroll while it can still move in that direction and takes it back at its end;
 when the page is pinch-zoomed, one finger pans the zoomed view instead of changing scenes. On a stage, an
 interactive drawing is at most ~62 % of the stage height, leaving room for its controls.
+
+**Stable while touching.** Selecting a thing never moves the picture: the side panel is aligned to the top (a growing
+inspector no longer re-centres the drawing), a presentation piece with a live drawing always reserves its scrollbar
+(the drawing does not shrink when the inspector makes it scroll), the stage's hidden-overflow frames snap back if
+focus or `scrollIntoView` tries to scroll them, and the camera keeps its view (see above).
 
 ## 12. Not done
 
