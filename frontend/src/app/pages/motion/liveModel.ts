@@ -52,9 +52,11 @@ export const NAME = /^[\p{L}_][\p{L}\p{N}_]*$/u;
  * Zeit, seit das Bild zu sehen ist, `step` die Stelle in der Szene einer
  * Präsentation (0 am Anfang, 1 nach dem ersten Schritt — dazwischen
  * fliessend), `i` und `n` in einem wiederholten Teil, `u` der Lauf einer Kurve,
- * `px`, `py` der Finger beim Ziehen.
+ * `px`, `py` der Finger beim Ziehen; 2026-10-18 `held` — 1, solange das Bild
+ * angehalten ist, damit man erst vermutet (`predict`), `tries` — wie oft schon
+ * geprüft wurde.
  */
-export const BUILTINS = ['t', 'time', 'step', 'i', 'n', 'u', 'px', 'py', 'edits', 'nthings'] as const;
+export const BUILTINS = ['t', 'time', 'step', 'i', 'n', 'u', 'px', 'py', 'edits', 'nthings', 'held', 'tries'] as const;
 
 /**
  * 2026-10-18 — WAS JEDES DING EINER WELT VON SICH WEISS: ob es oben hängt
@@ -193,6 +195,41 @@ export interface Live {
   readonly panel: 'below' | 'side';
   /** 2026-10-18 — die Dinge und ihre Arten (`null`: keine Welt). */
   readonly world: WorldSpec | null;
+  /** 2026-10-18 — erst vermuten, dann sehen (`null`: das Bild antwortet sofort). */
+  readonly predict: PredictSpec | null;
+}
+
+/**
+ * 2026-10-18 — ERST VERMUTEN, DANN SEHEN: das Bild steht still — die
+ * Simulation hält an (eine Waage wird festgehalten), Regeln schweigen, kein
+ * Ziel, und was die Antwort verrät, zeigt sich nicht (`held` in den
+ * Ausdrücken: eine Farbe, eine Summe). Man stellt ein, was man vermutet, und
+ * drückt „Sprawdź": dann läuft es, und man sieht, was geschieht.
+ */
+export interface PredictSpec {
+  /** Beginnt angehalten (eine Aufgabe; eine Änderung nach der Prüfung hält wieder an) — sonst läuft es, und man hält selbst an („Przewiduj"). */
+  readonly start: boolean;
+  /** Was unter dem Bild steht, solange es angehalten ist. */
+  readonly say: string;
+  /** Die Knöpfe: prüfen, nach einer Prüfung wieder anhalten, ohne `start` anhalten. */
+  readonly check: string;
+  readonly again: string;
+  readonly hold: string;
+}
+
+const PREDICT_SAY = 'Najpierw przewiduj: ustaw wszystko tak, jak myślisz — potem kliknij „Sprawdź” i zobacz, co się stanie.';
+
+/** `true` oder `{ "start", "say", "check", "again", "hold" }` — `null`: kein Vermuten. */
+function readPredict(value: unknown): PredictSpec | null {
+  if (value !== true && (typeof value !== 'object' || value === null || Array.isArray(value))) return null;
+  const one = record(value);
+  return {
+    start: one.start !== false,
+    say: line(one.say, LIVE_LIMITS.say) || PREDICT_SAY,
+    check: line(one.check, LIVE_LIMITS.label) || 'Sprawdź',
+    again: line(one.again, LIVE_LIMITS.label) || 'Popraw',
+    hold: line(one.hold, LIVE_LIMITS.label) || 'Przewiduj'
+  };
 }
 
 /* -- An einem Teil der Zeichnung ---------------------------------------------------- */
@@ -398,7 +435,7 @@ function readRule(value: unknown): RuleSpec | null {
 }
 
 /** Was eine Zeichnung zum Anfassen macht — `null`: nichts davon (eine Zeichnung wie bisher). */
-export function readLive(value: { vars?: unknown; let?: unknown; sim?: unknown; controls?: unknown; rules?: unknown; panel?: unknown }, world: WorldSpec | null = null): Live | null {
+export function readLive(value: { vars?: unknown; let?: unknown; sim?: unknown; controls?: unknown; rules?: unknown; panel?: unknown; predict?: unknown }, world: WorldSpec | null = null): Live | null {
   const names = new Set<string>();
   const vars: VarSpec[] = [];
   for (const raw of (Array.isArray(value.vars) ? value.vars : []).slice(0, LIVE_LIMITS.vars)) {
@@ -417,8 +454,9 @@ export function readLive(value: { vars?: unknown; let?: unknown; sim?: unknown; 
     .map(readControl).filter((c): c is ControlSpec => c !== null);
   const rules = (Array.isArray(value.rules) ? value.rules : []).slice(0, LIVE_LIMITS.rules)
     .map(readRule).filter((r): r is RuleSpec => r !== null);
-  if (vars.length === 0 && lets.length === 0 && sim === null && controls.length === 0 && rules.length === 0 && world === null) return null;
-  return { vars, lets, sim, controls, rules, panel: value.panel === 'side' ? 'side' : 'below', world };
+  const predict = readPredict(value.predict);
+  if (vars.length === 0 && lets.length === 0 && sim === null && controls.length === 0 && rules.length === 0 && world === null && predict === null) return null;
+  return { vars, lets, sim, controls, rules, panel: value.panel === 'side' ? 'side' : 'below', world, predict };
 }
 
 export function readDrag(value: unknown): DragSpec | null {
@@ -479,6 +517,8 @@ export interface ReadoutSpec {
   readonly value: string;
   readonly unit: string;
   readonly digits: number | null;
+  /** Wann die Anzeige zu sehen ist (`!held`: nicht, solange man vermutet) — `null`: immer. */
+  readonly show: string | null;
 }
 
 /** Eine ART von Dingen: was jedes hat, was daraus folgt, wie es sich bewegt, wie es aussieht, was man mit ihm tun darf. */
@@ -607,7 +647,7 @@ function readKind(value: unknown, shapesOf: (list: unknown) => Shape[]): KindSpe
     const r = record(raw);
     const v = exprOf(r.value);
     const digits = finite(r.digits);
-    return v === null ? [] : [{ label: line(r.label, LIVE_LIMITS.label), value: v, unit: line(r.unit, 16), digits: digits === null ? null : Math.round(clamp(digits, 0, 6)) }];
+    return v === null ? [] : [{ label: line(r.label, LIVE_LIMITS.label), value: v, unit: line(r.unit, 16), digits: digits === null ? null : Math.round(clamp(digits, 0, 6)), show: exprOf(r.show) }];
   });
   const drag = isRecord(one.drag) ? assignsOf(one.drag) : null;
   return {

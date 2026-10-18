@@ -54,6 +54,8 @@ Status: decided on 2026-10-15 from your answers on the page “Cogita rebuild qu
 - the **field that tells entries apart** in search results [F4];
 - its fields and its card templates [D8].
 
+**No kind comes by itself** (2026-10-18). A new knowledge base has no kinds. „+ Rodzaj” adds an empty one or a ready-made one (Temat, Wiedza, Pytanie); a built-in kind is listed only where it was added (or changed) or where entries of it exist — the engine still knows all of them. **Every kind can be removed**, a built-in one too. The removal is counted first and listed in the question: entries only of this kind are deleted (with the progress of their cards), entries with another kind lose only this one, entries from source bases stay there, references of other entries to the deleted ones are taken out, reference fields of own kinds pointing only at it are removed (pointing at several: no longer at it), card templates only for it are deleted (for several: without it), add-form steps of this kind are removed (a form without entry steps is deleted), collections lose the deleted entries. A kind that comes from a source base is removed there (`kindRemoval.ts`).
+
 **Field types** [B2]:
 - line, long text, and markup (with citations and footnotes);
 - number with a unit, and date with precision (year, month or day);
@@ -563,7 +565,7 @@ Phones stay awake.
 
 | check | count |
 |---|---|
-| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 285 |
+| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 291 |
 | `backend/Api.Tests` (22 of them for the game rules) | 408 |
 | `backend/Kernel.Tests` | 122 |
 
