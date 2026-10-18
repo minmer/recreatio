@@ -1,423 +1,506 @@
 /**
- * 2026-10-18 — DOŚWIADCZENIA SZKOLNE (Chemia): fertige Szenen für den
- * Baustein — Dokumente wie jedes andere (dieselben, die eine Lehrerin als
- * JSON einfügt), mit Text für die Schüler, Schritten, „Pokaż”, manchmal einer
- * Frage vorab (Vorhersage) und einem Zufall (die unbekannte Salzlösung).
+ * 2026-10-18 — DOŚWIADCZENIA SZKOLNE (Chemia): fertige Szenen der einen
+ * Piaskownica — jede sagt nur, was wo steht, was darin ist, was erlaubt ist
+ * und welche Schritte „Pokaż” vormacht. Was geschieht (Wärme, die wandert,
+ * Zinn, das bei 232 °C schmilzt, die Wolke aus AgCl, der Knall des
+ * Wasserstoffs), rechnet der Motor — für jeden Versuch derselbe.
  */
 
 import type { LabPreset } from '../LabEditor';
 
 const W = (amount: number) => ({ reagent: 'water', amount });
+const step = (say: string, act: unknown, wait = 4, ask?: unknown) => ({ say, ...(act === null ? {} : { do: act }), wait, ...(ask === undefined ? {} : { ask }) });
+
+/** Die Piaskownica: ein Brenner mit Dreifuss, Glas, ein Tiegel mit Zinn, Probówki — und alles im Regal. */
+export const SANDBOX_CHEM: Readonly<Record<string, unknown>> = {
+  things: [
+    { id: 'palnik', kind: 'burner', x: 16 },
+    { id: 'trojnog', kind: 'tripod', x: 16 },
+    { id: 'zlewka', kind: 'beaker', size: 250, x: -12, label: 'woda', fill: [W(150)] },
+    { id: 'termometr', kind: 'thermometer', into: 'zlewka' },
+    { id: 'p1', kind: 'tube', size: 25, x: -2 },
+    { id: 'p2', kind: 'tube', size: 25, x: 1.6 },
+    { id: 'tygiel', kind: 'crucible', size: 30, x: 6, fill: [{ reagent: 'Sn', amount: 20 }] }
+  ],
+  allow: { things: true }
+};
 
 export const CHEM_PRESETS: readonly LabPreset[] = [
   {
-    key: 'litowce', title: 'Litowce w wodzie', summary: 'Li, Na i K z wodą i fenoloftaleiną',
-    text: ['Do trzech zlewek z wodą i fenoloftaleiną wrzucamy po kawałku litu, sodu i potasu.', 'Porównaj, jak szybko reagują, co dzieje się z metalem, jaki kolor przyjmuje roztwór i jak zmienia się temperatura.'],
+    key: 'topienie-cyny', title: 'Topnienie i krzepnięcie cyny', summary: 'tygiel z cyną nad palnikiem — temperatura stoi w miejscu, gdy metal się topi',
+    text: ['W tyglu na trójnogu leży 20 g cyny, w środku jest termometr. Zapal palnik i obserwuj wykres temperatury.', 'Co dzieje się z temperaturą, gdy cyna się topi? A gdy po zgaszeniu palnika krzepnie?'],
     scene: {
-      vessels: [
-        { id: 'li', type: 'beaker', size: 250, x: -14, label: 'lit', fill: [W(150), { reagent: 'phenolphthalein', amount: 3 }] },
-        { id: 'na', type: 'beaker', size: 250, x: 0, label: 'sód', fill: [W(150), { reagent: 'phenolphthalein', amount: 3 }] },
-        { id: 'k', type: 'beaker', size: 250, x: 14, label: 'potas', fill: [W(150), { reagent: 'phenolphthalein', amount: 3 }] }
+      things: [
+        { id: 'palnik', kind: 'burner', x: 0, air: 1, gas: 0.8 },
+        { id: 'trojnog', kind: 'tripod', x: 0 },
+        { id: 'tygiel', kind: 'crucible', size: 30, on: 'trojnog', label: 'cyna', fill: [{ reagent: 'Sn', amount: 20 }] },
+        { id: 'termometr', kind: 'thermometer', into: 'tygiel' }
       ],
-      shelf: ['Li', 'Na', 'K', 'water', 'phenolphthalein', 'universal'],
-      tools: ['splint', 'paper', 'stir', 'empty'],
+      shelf: ['Sn', 'Pb', 'Field'],
+      tools: ['match', 'probe', 'thermometer'],
+      graph: { things: ['termometr'], of: ['T'] },
+      speed: 5,
       steps: [
-        { say: 'Wrzuć kawałek litu do pierwszej zlewki.', do: { add: 'Li', to: 'li', amount: 0.1 }, wait: 10 },
-        { say: 'Teraz sód — obserwuj, co dzieje się z metalem.', ask: { q: 'Jaki kolor przyjmie roztwór z fenoloftaleiną?', options: ['pozostanie bezbarwny', 'malinowy', 'niebieski'], answer: 'malinowy', why: 'Powstaje wodorotlenek sodu — w odczynie zasadowym fenoloftaleina barwi się na malinowo.' }, do: { add: 'Na', to: 'na', amount: 0.2 }, wait: 12 },
-        { say: 'Na koniec potas — najaktywniejszy z trzech.', do: { add: 'K', to: 'k', amount: 0.1 }, wait: 10 },
-        { say: 'Zbadaj papierkiem wskaźnikowym odczyn roztworu w środkowej zlewce.', do: { use: 'paper', at: 'na' }, wait: 3 }
-      ],
+        step('Zapal palnik pod tyglem.', [{ burner: 'palnik', on: true }], 45, { q: 'Co stanie się z temperaturą, kiedy cyna zacznie się topić?', options: ['będzie dalej rosła tak samo', 'zatrzyma się, aż cała cyna się stopi', 'spadnie'], answer: 'zatrzyma się, aż cała cyna się stopi', why: 'Ciepło idzie na topnienie (ciepło topnienia), a nie na ogrzewanie — temperatura stoi na 232 °C.' }),
+        step('Cała cyna jest ciekła — zgaś palnik i obserwuj krzepnięcie.', [{ burner: 'palnik', on: false }], 60)
+      ]
     }
   },
   {
-    key: 'metale-kwas', title: 'Metale w kwasie solnym', summary: 'Mg, Zn, Fe i Cu w HCl — aktywność metali, próba z łuczywem',
-    text: ['Do czterech probówek z kwasem solnym wkładamy magnez, cynk, żelazo i miedź.', 'W której probówce gaz wydziela się najszybciej, a w której wcale? Sprawdź płonącym łuczywem, jaki to gaz.'],
+    key: 'stop-fielda', title: 'Metal, który topi się w gorącej wodzie', summary: 'stop Fielda (62 °C) w wodzie o temperaturze 90 °C',
+    text: ['W zlewce jest gorąca woda (90 °C). Wrzuć do niej kawałek stopu Fielda — stopu bizmutu, indu i cyny.', 'Obserwuj, co dzieje się z metalem, a potem ochłódź wodę zimną wodą z lodem.'],
     scene: {
-      vessels: [
-        { id: 'mg', type: 'tube', size: 25, x: -9, label: 'Mg', fill: [{ reagent: 'HCl', amount: 10 }] },
-        { id: 'zn', type: 'tube', size: 25, x: -3, label: 'Zn', fill: [{ reagent: 'HCl', amount: 10 }] },
-        { id: 'fe', type: 'tube', size: 25, x: 3, label: 'Fe', fill: [{ reagent: 'HCl', amount: 10 }] },
-        { id: 'cu', type: 'tube', size: 25, x: 9, label: 'Cu', fill: [{ reagent: 'HCl', amount: 10 }] }
+      things: [
+        { id: 'zlewka', kind: 'beaker', size: 250, x: 0, label: 'woda 90 °C', fill: [{ reagent: 'water-hot', amount: 150 }], T: 90 },
+        { id: 'termometr', kind: 'thermometer', into: 'zlewka' },
+        { id: 'zimna', kind: 'beaker', size: 250, x: 12, label: 'woda z lodem', fill: [{ reagent: 'water-cold', amount: 120 }] }
       ],
-      shelf: ['Mg', 'Zn', 'Fe', 'Cu', 'Al', 'HCl', 'H2SO4'],
-      tools: ['splint', 'glow', 'paper', 'stopper', 'empty'],
+      shelf: ['Field', 'Sn', 'water-hot', 'water-cold', 'ice'],
+      tools: ['stir', 'thermometer', 'probe'],
+      graph: { things: ['termometr'], of: ['T'] },
       steps: [
-        { say: 'Włóż do probówek kolejno: magnez, cynk, żelazo i miedź.', do: [{ add: 'Mg', to: 'mg', amount: 0.1 }, { add: 'Zn', to: 'zn', amount: 1 }, { add: 'Fe', to: 'fe', amount: 2 }, { add: 'Cu', to: 'cu', amount: 1 }], wait: 6 },
-        { say: 'Zbliż płonące łuczywo do wylotu probówki z magnezem.', ask: { q: 'Co się stanie?', options: ['łuczywo zgaśnie', 'usłyszymy charakterystyczny trzask', 'płomień stanie się zielony'], answer: 'usłyszymy charakterystyczny trzask', why: 'Wodór miesza się z powietrzem i spala z trzaskiem („pyk”).' }, do: { use: 'splint', at: 'mg' }, wait: 3 },
-        { say: 'Porównaj probówki: miedź nie wypiera wodoru z kwasu — stoi w szeregu aktywności za wodorem.', wait: 4 }
-      ],
+        step('Wrzuć do gorącej wody kawałek stopu Fielda.', { add: 'Field', to: 'zlewka', amount: 10 }, 15, { q: 'Co stanie się z metalem w wodzie o temperaturze 90 °C?', options: ['nic', 'stopi się', 'rozpuści się w wodzie'], answer: 'stopi się', why: 'Stop Fielda topi się już w 62 °C — w gorącej wodzie staje się ciekłym metalem, który zbiera się na dnie.' }),
+        step('Dolej zimnej wody z lodem.', { pour: 'zimna', to: 'zlewka', ml: 100 }, 20)
+      ]
     }
   },
   {
-    key: 'wypieranie', title: 'Szereg aktywności — wypieranie metali', summary: 'Fe w CuSO₄, Cu w AgNO₃, Cu w ZnSO₄',
-    text: ['Metal bardziej aktywny wypiera metal mniej aktywny z roztworu jego soli.', 'Obserwuj powierzchnię metali i barwę roztworów (czas biegnie dziesięć razy szybciej).'],
+    key: 'przewodnictwo', title: 'Przewodnictwo cieplne', summary: 'pręty miedziany, stalowy i szklany w gorącej wodzie — widok ciepła',
+    text: ['W gorącej wodzie stoją trzy pręty: miedziany, stalowy i szklany. Widok ciepła pokazuje temperaturę kolorami.', 'Który pręt najszybciej nagrzewa się na górze? Sprawdź sondą temperaturę na końcach prętów.'],
     scene: {
-      vessels: [
-        { id: 'cu', type: 'beaker', size: 100, x: -12, label: 'CuSO₄ + Fe', fill: [{ reagent: 'CuSO4-aq', amount: 50 }] },
-        { id: 'ag', type: 'beaker', size: 100, x: 0, label: 'AgNO₃ + Cu', fill: [{ reagent: 'AgNO3', amount: 10 }, W(40)] },
-        { id: 'zn', type: 'beaker', size: 100, x: 12, label: 'ZnSO₄ + Cu', fill: [{ reagent: 'ZnSO4', amount: 25 }, W(25)] }
+      things: [
+        { id: 'zlewka', kind: 'beaker', size: 600, x: 0, label: 'woda 80 °C', fill: [{ reagent: 'water-hot', amount: 450 }] },
+        { id: 'cu', kind: 'rod', of: 'Cu', size: 22, x: -2.8, into: 'zlewka', label: 'miedź' },
+        { id: 'stal', kind: 'rod', of: 'steel', size: 22, x: 0, into: 'zlewka', label: 'stal' },
+        { id: 'szklo', kind: 'rod', of: 'glass', size: 22, x: 2.8, into: 'zlewka', label: 'szkło' }
       ],
-      shelf: ['Fe', 'Cu', 'Zn', 'Mg', 'CuSO4-aq', 'AgNO3', 'ZnSO4'],
-      tools: ['stir', 'paper', 'empty'],
-      speed: 10,
-      steps: [
-        { say: 'Włóż żelazny gwóźdź do roztworu siarczanu miedzi(II).', do: { add: 'Fe', to: 'cu', amount: 5 }, wait: 4 },
-        { say: 'Włóż drut miedziany do roztworu azotanu srebra.', do: { add: 'Cu', to: 'ag', amount: 1 }, wait: 4 },
-        { say: 'Włóż drut miedziany do roztworu siarczanu cynku.', ask: { q: 'Czy miedź wyprze cynk?', options: ['tak', 'nie'], answer: 'nie', why: 'Cynk jest aktywniejszy od miedzi (E° = −0,76 V wobec +0,34 V).' }, do: { add: 'Cu', to: 'zn', amount: 1 }, wait: 8 }
-      ],
+      shelf: [],
+      tools: ['probe', 'thermometer'],
+      show: { heat: true },
+      speed: 2,
+      steps: [step('Obserwuj w widoku ciepła, jak ciepło wędruje w górę prętów.', null, 30, { q: 'Który pręt najszybciej zrobi się ciepły na górze?', options: ['miedziany', 'stalowy', 'szklany'], answer: 'miedziany', why: 'Miedź przewodzi ciepło ok. 10 razy lepiej niż stal i kilkaset razy lepiej niż szkło.' })]
     }
   },
   {
-    key: 'miareczkowanie', title: 'Miareczkowanie — zobojętnianie', summary: 'HCl z biurety do NaOH z fenoloftaleiną, krzywa pH',
-    text: ['W kolbie jest 25 cm³ zasady sodowej (0,1 mol/dm³) z fenoloftaleiną, w biurecie kwas solny o tym samym stężeniu.', 'Otwórz kranik (dotknij biurety) i obserwuj wykres pH. Zamknij go, gdy roztwór się odbarwi — ile cm³ kwasu zużyto?'],
+    key: 'konwekcja', title: 'Konwekcja w wodzie', summary: 'kryształ KMnO₄ na dnie zlewki ogrzewanej z jednej strony',
+    text: ['Na dnie zlewki z wodą leży kryształek manganianu(VII) potasu. Zlewka stoi na płycie grzejnej.', 'Włącz płytę i obserwuj fioletowe smugi — jak porusza się ogrzewana woda?'],
     scene: {
-      vessels: [
-        { id: 'kolba', type: 'flask', size: 100, x: 0, label: 'NaOH + fenoloftaleina', fill: [{ reagent: 'NaOH-dil', amount: 25 }, { reagent: 'phenolphthalein', amount: 2 }] },
-        { id: 'biureta', type: 'burette', size: 50, x: 0, label: 'HCl 0,1 mol/dm³', over: 'kolba', fill: [{ reagent: 'HCl-dil', amount: 50 }] }
+      things: [
+        { id: 'plyta', kind: 'hotplate', x: 0, power: 400 },
+        { id: 'zlewka', kind: 'beaker', size: 600, on: 'plyta', label: 'woda', fill: [W(450), { reagent: 'KMnO4', amount: 0.5 }] }
       ],
-      shelf: ['phenolphthalein', 'methylorange', 'bromothymol', 'universal', 'NaOH-dil', 'HCl-dil'],
-      tools: ['paper', 'stir', 'empty'],
-      graph: { vessel: 'kolba', of: ['pH', 'T'] },
-      steps: [
-        { say: 'Otwórz kranik biurety — kwas kapie do kolby.', do: { drip: 'biureta', rate: 0.6 }, wait: 38 },
-        { say: 'Roztwór odbarwił się — zamknij kranik i odczytaj objętość.', do: { drip: 'biureta', rate: 0 }, wait: 3 }
-      ],
+      shelf: ['KMnO4', 'water'],
+      tools: ['stir', 'probe', 'thermometer'],
+      speed: 2,
+      steps: [step('Włącz płytę grzejną.', { heat: 'plyta', on: true, power: 400 }, 40, { q: 'Dokąd popłynie fioletowy roztwór znad kryształu?', options: ['zostanie na dnie', 'popłynie w górę z ogrzaną wodą', 'opadnie pod kryształ'], answer: 'popłynie w górę z ogrzaną wodą', why: 'Ciepła woda ma mniejszą gęstość — unosi się, a zimna opada: to konwekcja.' })]
     }
   },
   {
     key: 'osady', title: 'Reakcje strąceniowe', summary: 'AgCl, PbI₂, Cu(OH)₂, Fe(OH)₃, BaSO₄',
     text: ['W każdej probówce zachodzi reakcja wymiany, w której powstaje trudno rozpuszczalny osad.', 'Zapisz barwę każdego osadu i równanie jonowe skrócone (pojawia się w obserwacjach).'],
     scene: {
-      vessels: [
-        { id: 't1', type: 'tube', size: 25, x: -12, label: 'AgNO₃', fill: [{ reagent: 'AgNO3', amount: 5 }] },
-        { id: 't2', type: 'tube', size: 25, x: -6, label: 'Pb(NO₃)₂', fill: [{ reagent: 'Pb(NO3)2', amount: 5 }] },
-        { id: 't3', type: 'tube', size: 25, x: 0, label: 'CuSO₄', fill: [{ reagent: 'CuSO4-aq', amount: 5 }] },
-        { id: 't4', type: 'tube', size: 25, x: 6, label: 'FeCl₃', fill: [{ reagent: 'FeCl3', amount: 5 }] },
-        { id: 't5', type: 'tube', size: 25, x: 12, label: 'BaCl₂', fill: [{ reagent: 'BaCl2', amount: 5 }] }
+      things: [
+        { id: 't1', kind: 'tube', size: 25, x: -12, label: 'AgNO₃', fill: [{ reagent: 'AgNO3', amount: 8 }] },
+        { id: 't2', kind: 'tube', size: 25, x: -6, label: 'Pb(NO₃)₂', fill: [{ reagent: 'Pb(NO3)2', amount: 8 }] },
+        { id: 't3', kind: 'tube', size: 25, x: 0, label: 'CuSO₄', fill: [{ reagent: 'CuSO4-aq', amount: 8 }] },
+        { id: 't4', kind: 'tube', size: 25, x: 6, label: 'FeCl₃', fill: [{ reagent: 'FeCl3', amount: 8 }] },
+        { id: 't5', kind: 'tube', size: 25, x: 12, label: 'BaCl₂', fill: [{ reagent: 'BaCl2', amount: 8 }] }
       ],
       shelf: ['NaCl-aq', 'KI', 'NaOH-aq', 'Na2SO4', 'Na2CO3-aq', 'K2CrO4', 'AgNO3', 'Pb(NO3)2', 'CuSO4-aq', 'FeCl3', 'BaCl2'],
-      tools: ['stir', 'empty'],
+      tools: ['stir', 'paper'],
       steps: [
-        { say: 'Do azotanu srebra dodaj chlorek sodu.', do: { add: 'NaCl-aq', to: 't1', amount: 2 }, wait: 3 },
-        { say: 'Do azotanu ołowiu(II) dodaj jodek potasu.', do: { add: 'KI', to: 't2', amount: 5 }, wait: 3 },
-        { say: 'Do siarczanu miedzi(II) dodaj zasadę sodową.', do: { add: 'NaOH-aq', to: 't3', amount: 3 }, wait: 3 },
-        { say: 'Do chlorku żelaza(III) dodaj zasadę sodową.', do: { add: 'NaOH-aq', to: 't4', amount: 3 }, wait: 3 },
-        { say: 'Do chlorku baru dodaj siarczan(VI) sodu.', do: { add: 'Na2SO4', to: 't5', amount: 2 }, wait: 3 }
-      ],
+        step('Do azotanu srebra dodaj chlorek sodu.', { add: 'NaCl-aq', to: 't1', amount: 5 }, 4, { q: 'Jaki osad powstanie?', options: ['biały', 'niebieski', 'żółty'], answer: 'biały', why: 'Ag⁺ + Cl⁻ → AgCl↓ — biały, serowaty osad.' }),
+        step('Do azotanu ołowiu(II) dodaj jodek potasu.', { add: 'KI', to: 't2', amount: 5 }, 4),
+        step('Do siarczanu miedzi(II) dodaj zasadę sodową.', { add: 'NaOH-aq', to: 't3', amount: 5 }, 4),
+        step('Do chlorku żelaza(III) dodaj zasadę sodową.', { add: 'NaOH-aq', to: 't4', amount: 5 }, 4),
+        step('Do chlorku baru dodaj siarczan(VI) sodu.', { add: 'Na2SO4', to: 't5', amount: 5 }, 4)
+      ]
     }
   },
   {
-    key: 'zloty-deszcz', title: 'Złoty deszcz', summary: 'PbI₂ rozpuszcza się na gorąco i krystalizuje na zimno',
-    text: ['Jodek ołowiu(II) słabo rozpuszcza się w zimnej wodzie, a dużo lepiej w gorącej.', 'Wytrąć żółty osad, ogrzej zlewkę, aż osad zniknie, potem zdejmij ją z palnika i obserwuj, co dzieje się podczas stygnięcia.'],
+    key: 'mieszanie', title: 'Mieszanie roztworów: chmura osadu', summary: 'roztwór AgNO₃ wlewany do NaCl — osad tam, gdzie roztwory się spotykają',
+    text: ['Przelej roztwór azotanu srebra do zlewki z chlorkiem sodu (przytrzymaj zlewkę nad drugą).', 'Gdzie najpierw pojawia się osad? Co dzieje się z nim po chwili?'],
     scene: {
-      burners: [{ id: 'p', x: 0, on: false }],
-      vessels: [{ id: 'z', type: 'beaker', size: 100, x: 0, on: 'p', label: 'Pb(NO₃)₂ w wodzie', fill: [W(50), { reagent: 'Pb(NO3)2', amount: 2 }] }],
-      shelf: ['KI', 'Pb(NO3)2', 'water'],
-      tools: ['stir', 'empty'],
-      graph: { vessel: 'z', of: ['T'] },
-      steps: [
-        { say: 'Dodaj roztwór jodku potasu.', do: { add: 'KI', to: 'z', amount: 2 }, wait: 4 },
-        { say: 'Zapal palnik i ogrzewaj, aż osad się rozpuści.', do: [{ burner: 'p', on: true }, { speed: 10 }], wait: 18 },
-        { say: 'Zgaś palnik i zdejmij zlewkę — podczas stygnięcia wypadają złociste kryształki.', do: [{ burner: 'p', on: false }, { seat: 'z' }, { speed: 20 }], wait: 25 }
+      things: [
+        { id: 'nacl', kind: 'beaker', size: 250, x: -6, label: 'NaCl', fill: [{ reagent: 'NaCl-aq', amount: 80 }] },
+        { id: 'agno3', kind: 'beaker', size: 100, x: 9, label: 'AgNO₃', fill: [{ reagent: 'AgNO3', amount: 40 }] }
       ],
+      shelf: ['NaCl-aq', 'AgNO3', 'KI', 'water'],
+      tools: ['stir', 'probe'],
+      steps: [
+        step('Przelej azotan srebra do chlorku sodu.', { pour: 'agno3', to: 'nacl', ml: 40 }, 10, { q: 'Gdzie pojawi się osad?', options: ['w całej zlewce naraz', 'tam, gdzie strumień miesza się z roztworem', 'tylko na dnie'], answer: 'tam, gdzie strumień miesza się z roztworem', why: 'AgCl wytrąca się tam, gdzie jony Ag⁺ spotykają Cl⁻ — w strumieniu; potem osad powoli opada.' }),
+        step('Obserwuj, jak osad opada na dno.', null, 20)
+      ]
     }
   },
   {
-    key: 'woda-wapienna', title: 'Wykrywanie CO₂ wodą wapienną', summary: 'marmur + kwas solny, gaz przez rurkę do wody wapiennej',
-    text: ['Kolba z marmurem jest zamknięta korkiem z rurką, której koniec zanurzono w wodzie wapiennej.', 'Dodaj kwas solny: gaz z kolby przepływa przez wodę wapienną. Co się z nią dzieje?'],
+    key: 'miareczkowanie', title: 'Miareczkowanie — zobojętnianie', summary: 'HCl z biurety do NaOH z fenoloftaleiną, krzywa pH',
+    text: ['W kolbie na mieszadle magnetycznym jest 25 cm³ zasady sodowej (0,1 mol/dm³) z fenoloftaleiną, w biurecie kwas solny o tym samym stężeniu.', 'Otwórz kranik (dotknij biurety) i obserwuj wykres pH. Zamknij go, gdy roztwór się odbarwi — ile cm³ kwasu zużyto?'],
     scene: {
-      vessels: [
-        { id: 'kolba', type: 'flask', size: 250, x: -10, label: 'marmur', fill: [{ reagent: 'CaCO3', amount: 3 }] },
-        { id: 'woda', type: 'beaker', size: 100, x: 12, label: 'woda wapienna', fill: [{ reagent: 'limewater', amount: 50 }] }
+      things: [
+        { id: 'mieszadlo', kind: 'hotplate', x: 0, stir: true },
+        { id: 'kolba', kind: 'flask', size: 100, on: 'mieszadlo', label: 'NaOH + fenoloftaleina', fill: [{ reagent: 'NaOH-dil', amount: 25 }, { reagent: 'phenolphthalein', amount: 2 }] },
+        { id: 'biureta', kind: 'burette', size: 50, x: 0, y: 12.8, label: 'HCl 0,1 mol/dm³', fill: [{ reagent: 'HCl-dil', amount: 50 }] }
       ],
-      links: [{ from: 'kolba', to: 'woda' }],
-      shelf: ['HCl', 'vinegar', 'CaCO3', 'CaCO3-powder', 'limewater'],
-      tools: ['glow', 'splint', 'stir', 'empty'],
+      shelf: ['phenolphthalein', 'methylorange', 'bromothymol', 'universal', 'NaOH-dil', 'HCl-dil'],
+      tools: ['stir', 'paper'],
+      graph: { things: ['kolba'], of: ['pH'] },
       steps: [
-        { say: 'Wlej do kolby kwas solny.', ask: { q: 'Co stanie się z wodą wapienną?', options: ['zmętnieje', 'zabarwi się na niebiesko', 'nic się nie stanie'], answer: 'zmętnieje', why: 'CO₂ reaguje z Ca(OH)₂ — wytrąca się biały węglan wapnia.' }, do: { add: 'HCl', to: 'kolba', amount: 25 }, wait: 20 }
-      ],
+        step('Otwórz kranik biurety — kwas kapie do kolby.', { tap: 'biureta', rate: 0.6 }, 42),
+        step('Roztwór odbarwił się — zamknij kranik i odczytaj objętość.', { tap: 'biureta', rate: 0 }, 3)
+      ]
     }
   },
   {
-    key: 'katalizator', title: 'Katalizator: rozkład wody utlenionej', summary: 'H₂O₂ z MnO₂ i bez, próba żarzącego się łuczywa',
-    text: ['W obu zlewkach jest woda utleniona. Do jednej dodajemy szczyptę tlenku manganu(IV).', 'Porównaj obie zlewki i sprawdź gaz żarzącym się łuczywem.'],
+    key: 'litowce', title: 'Litowce w wodzie', summary: 'Li, Na i K z wodą i fenoloftaleiną',
+    text: ['Do trzech zlewek z wodą i fenoloftaleiną wrzucamy po kawałku litu, sodu i potasu.', 'Porównaj, jak szybko reagują, co dzieje się z metalem, jaki kolor przyjmuje roztwór i jak zmienia się temperatura.'],
     scene: {
-      vessels: [
-        { id: 'a', type: 'beaker', size: 100, x: -9, label: 'bez katalizatora', fill: [{ reagent: 'H2O2', amount: 50 }] },
-        { id: 'b', type: 'beaker', size: 100, x: 9, label: 'z MnO₂', fill: [{ reagent: 'H2O2', amount: 50 }] }
+      things: [
+        { id: 'li', kind: 'beaker', size: 250, x: -10, label: 'lit', fill: [W(150), { reagent: 'phenolphthalein', amount: 3 }] },
+        { id: 'na', kind: 'beaker', size: 250, x: 0, label: 'sód', fill: [W(150), { reagent: 'phenolphthalein', amount: 3 }] },
+        { id: 'k', kind: 'beaker', size: 250, x: 10, label: 'potas', fill: [W(150), { reagent: 'phenolphthalein', amount: 3 }] }
       ],
-      shelf: ['MnO2', 'potato', 'KI', 'H2O2', 'soap'],
-      tools: ['glow', 'splint', 'stir', 'empty'],
+      shelf: ['Li', 'Na', 'K', 'water', 'phenolphthalein', 'universal'],
+      tools: ['splint', 'paper', 'stir'],
       steps: [
-        { say: 'Dodaj tlenek manganu(IV) do drugiej zlewki.', do: { add: 'MnO2', to: 'b', amount: 0.5 }, wait: 8 },
-        { say: 'Włóż żarzące się łuczywo do zlewki z katalizatorem.', do: { use: 'glow', at: 'b' }, wait: 3 },
-        { say: 'Teraz do zlewki bez katalizatora.', do: { use: 'glow', at: 'a' }, wait: 3 }
-      ],
+        step('Wrzuć kawałek litu do pierwszej zlewki.', { add: 'Li', to: 'li', amount: 0.1 }, 10),
+        step('Teraz sód — obserwuj, co dzieje się z metalem.', { add: 'Na', to: 'na', amount: 0.2 }, 12, { q: 'Jaki kolor przyjmie roztwór z fenoloftaleiną?', options: ['pozostanie bezbarwny', 'malinowy', 'niebieski'], answer: 'malinowy', why: 'Powstaje wodorotlenek sodu — w odczynie zasadowym fenoloftaleina barwi się na malinowo.' }),
+        step('Na koniec potas — najaktywniejszy z trzech.', { add: 'K', to: 'k', amount: 0.1 }, 10)
+      ]
     }
   },
   {
-    key: 'pasta-slonia', title: 'Pasta do zębów dla słonia', summary: 'perhydrol, detergent i jodek potasu — piana',
-    text: ['Perhydrol (30% H₂O₂) z płynem do mycia naczyń rozkłada się gwałtownie po dodaniu jodku potasu.', 'Tlen spienia detergent, a ciepło reakcji podgrzewa pianę.'],
+    key: 'metale-kwas', title: 'Metale w kwasie solnym', summary: 'Mg, Zn, Fe i Cu w HCl — aktywność metali',
+    text: ['Do czterech probówek z kwasem solnym wkładamy magnez, cynk, żelazo i miedź.', 'W której probówce gaz wydziela się najszybciej, a w której wcale?'],
     scene: {
-      vessels: [{ id: 'c', type: 'cylinder', size: 250, x: 0, label: 'perhydrol + detergent', fill: [{ reagent: 'H2O2-30', amount: 25 }, { reagent: 'soap', amount: 5 }] }],
-      shelf: ['KI-s', 'KI', 'MnO2', 'soap', 'H2O2-30'],
-      tools: ['glow', 'empty'],
-      graph: { vessel: 'c', of: ['T'] },
-      steps: [{ say: 'Wsyp jodek potasu.', do: { add: 'KI-s', to: 'c', amount: 1 }, wait: 12 }],
+      things: [
+        { id: 'mg', kind: 'tube', size: 25, x: -9, label: 'Mg', fill: [{ reagent: 'HCl', amount: 10 }] },
+        { id: 'zn', kind: 'tube', size: 25, x: -3, label: 'Zn', fill: [{ reagent: 'HCl', amount: 10 }] },
+        { id: 'fe', kind: 'tube', size: 25, x: 3, label: 'Fe', fill: [{ reagent: 'HCl', amount: 10 }] },
+        { id: 'cu', kind: 'tube', size: 25, x: 9, label: 'Cu', fill: [{ reagent: 'HCl', amount: 10 }] }
+      ],
+      shelf: ['Mg', 'Zn', 'Fe', 'Cu', 'Al', 'HCl', 'H2SO4'],
+      tools: ['splint', 'paper', 'stopper'],
+      steps: [
+        step('Włóż do probówek kolejno: magnez, cynk, żelazo i miedź.', [{ add: 'Mg', to: 'mg', amount: 0.1 }, { add: 'Zn', to: 'zn', amount: 1 }, { add: 'Fe', to: 'fe', amount: 2 }, { add: 'Cu', to: 'cu', amount: 1 }], 15, { q: 'Gdzie gaz nie będzie się wydzielał?', options: ['magnez', 'cynk', 'miedź'], answer: 'miedź', why: 'Miedź stoi w szeregu aktywności za wodorem — nie wypiera go z kwasu.' })
+      ]
+    }
+  },
+  {
+    key: 'wodor', title: 'Otrzymywanie i wykrywanie wodoru', summary: 'Zn + HCl, próba z płonącym łuczywem',
+    text: ['Cynk reaguje z kwasem solnym — wydziela się gaz, który miesza się z powietrzem u wylotu probówki.', 'Zbliż płonące łuczywo do wylotu probówki.'],
+    scene: {
+      things: [{ id: 'reakcja', kind: 'tube', size: 25, x: 0, label: 'Zn + HCl', fill: [{ reagent: 'HCl', amount: 12 }] }],
+      shelf: ['Zn', 'Mg', 'HCl'],
+      tools: ['splint', 'glow', 'match'],
+      steps: [
+        step('Wrzuć do kwasu granulki cynku.', { add: 'Zn', to: 'reakcja', amount: 2 }, 15),
+        step('Zbliż płonące łuczywo do wylotu probówki.', { use: 'splint', at: 'reakcja' }, 4, { q: 'Co usłyszymy?', options: ['nic', 'charakterystyczny trzask („pyk”)', 'syk'], answer: 'charakterystyczny trzask („pyk”)', why: 'Mieszanina wodoru z powietrzem spala się gwałtownie: 2H₂ + O₂ → 2H₂O.' })
+      ]
+    }
+  },
+  {
+    key: 'tlen', title: 'Katalizator: rozkład wody utlenionej', summary: 'H₂O₂ z MnO₂ — tlen, próba żarzącego się łuczywa',
+    text: ['W kolbie jest woda utleniona (3%). Dodaj szczyptę tlenku manganu(IV) — katalizatora.', 'Wsuń do kolby żarzące się łuczywo.'],
+    scene: {
+      things: [{ id: 'kolba', kind: 'flask', size: 250, x: 0, label: 'H₂O₂ 3%', fill: [{ reagent: 'H2O2', amount: 50 }] }],
+      shelf: ['H2O2', 'H2O2-30', 'MnO2', 'potato', 'KI-s'],
+      tools: ['glow', 'splint', 'stir'],
+      steps: [
+        step('Dodaj tlenek manganu(IV).', { add: 'MnO2', to: 'kolba', amount: 0.5 }, 15),
+        step('Wsuń do kolby żarzące się łuczywo.', { use: 'glow', at: 'kolba' }, 6, { q: 'Co stanie się z łuczywem?', options: ['zgaśnie', 'rozżarzy się i zapali', 'nic'], answer: 'rozżarzy się i zapali', why: 'W kolbie jest dużo tlenu — podtrzymuje spalanie znacznie lepiej niż powietrze.' })
+      ]
+    }
+  },
+  {
+    key: 'szybkosc-reakcji', title: 'Szybkość reakcji: znikający krzyżyk', summary: 'tiosiarczan sodu z kwasem — stężenie i temperatura',
+    text: ['W trzech kolbach jest roztwór tiosiarczanu sodu: stężony, rozcieńczony wodą o połowę i stężony ogrzany do 50 °C. Wlej do każdej po 5 cm³ kwasu solnego.', 'S₂O₃²⁻ + 2H⁺ → S↓ + SO₂ + H₂O — gdzie roztwór najszybciej zmętnieje od siarki?'],
+    scene: {
+      things: [
+        { id: 'stezony', kind: 'flask', size: 100, x: -10, label: 'stężony', fill: [{ reagent: 'Na2S2O3', amount: 50 }] },
+        { id: 'rozcienczony', kind: 'flask', size: 100, x: 0, label: 'rozcieńczony', fill: [{ reagent: 'Na2S2O3', amount: 25 }, W(25)] },
+        { id: 'cieply', kind: 'flask', size: 100, x: 10, label: '50 °C', fill: [{ reagent: 'Na2S2O3', amount: 50 }], T: 50 }
+      ],
+      shelf: ['HCl', 'Na2S2O3', 'water'],
+      tools: ['stir', 'thermometer'],
+      steps: [step('Wlej kwas solny do wszystkich kolb i zamieszaj.', [{ add: 'HCl', to: 'stezony', amount: 5 }, { add: 'HCl', to: 'rozcienczony', amount: 5 }, { add: 'HCl', to: 'cieply', amount: 5 }, { use: 'stir', at: 'stezony' }, { use: 'stir', at: 'rozcienczony' }, { use: 'stir', at: 'cieply' }], 60, { q: 'Gdzie siarka wydzieli się najszybciej?', options: ['w stężonym, zimnym', 'w rozcieńczonym', 'w stężonym, ciepłym'], answer: 'w stężonym, ciepłym', why: 'Szybkość rośnie ze stężeniem (więcej zderzeń) i z temperaturą (więcej zderzeń ma dość energii) — tu mniej więcej 2 razy na każde 10 °C.' })]
+    }
+  },
+  {
+    key: 'swieca', title: 'Świeca pod słojem', summary: 'płomień gaśnie, gdy zabraknie tlenu',
+    text: ['Zapalona świeca stoi na stole. Przykryj ją odwróconym słojem.', 'Obserwuj płomień i skład gazu w słoju.'],
+    scene: {
+      things: [
+        { id: 'swieca', kind: 'candle', x: 0, lit: true },
+        { id: 'sloj', kind: 'jar', size: 500, x: 14, y: 11.6, angle: 180, label: 'słój' }
+      ],
+      view: [-8, -2, 20, 16],
+      shelf: [],
+      tools: ['match', 'probe'],
+      steps: [
+        step('Przykryj świecę słojem.', { move: 'sloj', to: [0, 11.6] }, 25, { q: 'Co stanie się z płomieniem?', options: ['będzie się palił dalej', 'po chwili zgaśnie', 'zgaśnie od razu'], answer: 'po chwili zgaśnie', why: 'Świeca zużywa tlen; gdy w słoju jest go ok. 15%, płomień gaśnie.' })
+      ]
+    }
+  },
+  {
+    key: 'co2-swiece', title: 'Tlenek węgla(IV) gasi płomień', summary: 'ciężki CO₂ przelewany na świece',
+    text: ['W zlewce jest tlenek węgla(IV) — gaz cięższy od powietrza. W słoju palą się dwie świece.', 'Przelej gaz do słoja, jakby był cieczą. Która świeca zgaśnie pierwsza?'],
+    scene: {
+      things: [
+        { id: 'sloj', kind: 'jar', size: 1000, x: -6, label: 'słój ze świecami' },
+        { id: 'niska', kind: 'candle', size: 4, x: -8.4, y: 0.4, lit: true },
+        { id: 'wysoka', kind: 'candle', size: 9, x: -3.6, y: 0.4, lit: true },
+        { id: 'co2', kind: 'beaker', size: 600, x: 12, label: 'CO₂', gas: { CO2: 1 } }
+      ],
+      shelf: ['CO2-gas'],
+      tools: ['match', 'probe'],
+      steps: [step('Przelej gaz ze zlewki do słoja.', { pour: 'co2', to: 'sloj', ml: 8 }, 20, { q: 'Co stanie się z płomieniem świecy?', options: ['nic', 'zgaśnie', 'zapłonie jaśniej'], answer: 'zgaśnie', why: 'CO₂ jest cięższy od powietrza, spływa na dno i wypiera tlen — płomień gaśnie.' })]
+    }
+  },
+  {
+    key: 'plomien', title: 'Barwienie płomienia', summary: 'Na, K, Li, Cu, Sr, Ca — próba płomieniowa',
+    text: ['Zanurz drucik w roztworze soli i wprowadź go do płomienia palnika.', 'Jaki kolor nadaje płomieniowi każdy kation?'],
+    scene: {
+      things: [
+        { id: 'palnik', kind: 'burner', x: 12, lit: true, air: 1 },
+        { id: 'na', kind: 'beaker', size: 50, x: -12, label: 'NaCl', fill: [{ reagent: 'NaCl-aq', amount: 30 }] },
+        { id: 'li', kind: 'beaker', size: 50, x: -6, label: 'LiCl', fill: [{ reagent: 'LiCl-aq', amount: 30 }] },
+        { id: 'sr', kind: 'beaker', size: 50, x: 0, label: 'SrCl₂', fill: [{ reagent: 'SrCl2', amount: 30 }] },
+        { id: 'cu', kind: 'beaker', size: 50, x: 6, label: 'CuSO₄', fill: [{ reagent: 'CuSO4-aq', amount: 30 }] }
+      ],
+      shelf: ['NaCl-aq', 'KCl-aq', 'LiCl-aq', 'SrCl2', 'CaCl2-aq', 'CuSO4-aq'],
+      tools: ['loop', 'match'],
+      steps: [
+        step('Zanurz drucik w chlorku sodu…', { use: 'loop', at: 'na' }, 2),
+        step('…i wprowadź go do płomienia.', { flame: 'palnik' }, 4, { q: 'Na jaki kolor zabarwi się płomień?', options: ['żółty', 'zielony', 'fioletowy'], answer: 'żółty', why: 'Jony sodu barwią płomień na intensywnie żółto.' }),
+        step('Teraz chlorek litu.', [{ use: 'loop', at: 'li' }], 2),
+        step('Do płomienia.', { flame: 'palnik' }, 4),
+        step('Teraz siarczan(VI) miedzi(II).', [{ use: 'loop', at: 'cu' }], 2),
+        step('Do płomienia.', { flame: 'palnik' }, 4)
+      ]
+    }
+  },
+  {
+    key: 'cisnienie', title: 'Korek wyskakuje', summary: 'marmur i kwas w zamkniętej kolbie — rośnie ciśnienie',
+    text: ['W kolbie jest marmur. Wlej kwas solny i zamknij kolbę korkiem.', 'Obserwuj ciśnienie gazu pod kolbą.'],
+    scene: {
+      things: [{ id: 'kolba', kind: 'flask', size: 250, x: 0, label: 'marmur', fill: [{ reagent: 'CaCO3', amount: 5 }] }],
+      shelf: ['HCl', 'CaCO3', 'CaCO3-powder', 'vinegar'],
+      tools: ['stopper'],
+      steps: [step('Wlej kwas solny i zamknij kolbę.', [{ add: 'HCl', to: 'kolba', amount: 50 }, { use: 'stopper', at: 'kolba' }], 12, { q: 'Co się stanie?', options: ['nic', 'korek wyskoczy', 'kolba się ochłodzi'], answer: 'korek wyskoczy', why: 'Powstaje CO₂ — w zamkniętej kolbie rośnie ciśnienie, aż wypchnie korek.' })]
+    }
+  },
+  {
+    key: 'woda-wapienna', title: 'Wykrywanie CO₂ wodą wapienną', summary: 'CO₂ przepuszczany przez wodę wapienną',
+    text: ['Przez wodę wapienną przepuszczamy tlenek węgla(IV) z butli.', 'Co dzieje się z wodą wapienną?'],
+    scene: {
+      things: [{ id: 'woda', kind: 'tube', size: 25, x: 0, label: 'woda wapienna', fill: [{ reagent: 'limewater', amount: 12 }] }],
+      shelf: ['CO2-gas', 'limewater', 'O2-gas', 'N2-gas'],
+      tools: ['stir'],
+      steps: [step('Przepuść tlenek węgla(IV) przez wodę wapienną.', { add: 'CO2-gas', to: 'woda', amount: 50 }, 14, { q: 'Co stanie się z wodą wapienną?', options: ['zmętnieje', 'zabarwi się na niebiesko', 'nic się nie stanie'], answer: 'zmętnieje', why: 'CO₂ + Ca(OH)₂ → CaCO₃↓ + H₂O — wytrąca się biały węglan wapnia.' })]
     }
   },
   {
     key: 'cieplo', title: 'Rozpuszczanie: ciepło i zimno', summary: 'NaOH ogrzewa, NH₄NO₃ oziębia wodę',
-    text: ['Niektóre substancje rozpuszczając się wydzielają ciepło, inne je pochłaniają.', 'Wsyp do wody wodorotlenek sodu i azotan(V) amonu, obserwuj wykres temperatury.'],
+    text: ['W dwóch zlewkach jest woda z termometrami. Do jednej dodaj wodorotlenek sodu, do drugiej azotan(V) amonu.', 'Porównaj wskazania termometrów (zamieszaj bagietką).'],
     scene: {
-      vessels: [
-        { id: 'a', type: 'beaker', size: 100, x: -9, label: 'NaOH', fill: [W(50)] },
-        { id: 'b', type: 'beaker', size: 100, x: 9, label: 'NH₄NO₃', fill: [W(50)] }
+      things: [
+        { id: 'a', kind: 'beaker', size: 100, x: -6, label: 'NaOH', fill: [W(50)] },
+        { id: 'ta', kind: 'thermometer', into: 'a' },
+        { id: 'b', kind: 'beaker', size: 100, x: 6, label: 'NH₄NO₃', fill: [W(50)] },
+        { id: 'tb', kind: 'thermometer', into: 'b' }
       ],
-      shelf: ['NaOH', 'NH4NO3', 'NaCl', 'CaCl2', 'NH4Cl', 'KNO3', 'water'],
-      tools: ['stir', 'empty'],
-      graph: { vessels: ['a', 'b'], of: ['T'] },
+      shelf: ['NaOH', 'NH4NO3', 'NaCl', 'CaCl2', 'water'],
+      tools: ['stir', 'thermometer'],
+      graph: { things: ['ta', 'tb'], of: ['T'] },
       steps: [
-        { say: 'Wsyp 5 g wodorotlenku sodu do pierwszej zlewki i zamieszaj.', do: [{ add: 'NaOH', to: 'a', amount: 5 }, { use: 'stir', at: 'a' }], wait: 10 },
-        { say: 'Wsyp 10 g azotanu(V) amonu do drugiej zlewki i zamieszaj.', do: [{ add: 'NH4NO3', to: 'b', amount: 10 }, { use: 'stir', at: 'b' }], wait: 10 }
-      ],
-    }
-  },
-  {
-    key: 'rozpuszczalnosc', title: 'Rozpuszczalność KNO₃ a temperatura', summary: 'na gorąco się rozpuszcza, na zimno krystalizuje',
-    text: ['W 50 g wody w 20 °C rozpuści się tylko około 16 g azotanu(V) potasu.', 'Wsyp więcej, ogrzej roztwór, a potem pozwól mu ostygnąć.'],
-    scene: {
-      burners: [{ id: 'p', x: 0 }],
-      vessels: [{ id: 'r', type: 'beaker', size: 100, x: 0, on: 'p', label: 'woda', fill: [W(50)] }],
-      shelf: ['KNO3', 'NaCl', 'water'],
-      tools: ['stir', 'empty'],
-      graph: { vessel: 'r', of: ['T'] },
-      steps: [
-        { say: 'Wsyp 40 g azotanu(V) potasu i zamieszaj.', do: [{ add: 'KNO3', to: 'r', amount: 40 }, { use: 'stir', at: 'r' }, { speed: 5 }], wait: 10 },
-        { say: 'Zapal palnik — w gorącej wodzie rozpuści się wszystko.', do: [{ burner: 'p', on: true }, { use: 'stir', at: 'r' }], wait: 16 },
-        { say: 'Zgaś palnik i zdejmij zlewkę: roztwór stygnie i wydzielają się kryształy.', do: [{ burner: 'p', on: false }, { seat: 'r' }, { speed: 25 }], wait: 25 }
-      ],
-    }
-  },
-  {
-    key: 'wskazniki', title: 'Wskaźniki w kwasie, wodzie i zasadzie', summary: 'wywar z czerwonej kapusty i wskaźnik uniwersalny',
-    text: ['Wywar z czerwonej kapusty to naturalny wskaźnik — zmienia barwę zależnie od odczynu.', 'Dodaj go do kwasu, wody i zasady. Potem sprawdź też inne wskaźniki.'],
-    scene: {
-      vessels: [
-        { id: 'kwas', type: 'beaker', size: 100, x: -12, label: 'kwas solny', fill: [{ reagent: 'HCl-dil', amount: 50 }] },
-        { id: 'woda', type: 'beaker', size: 100, x: 0, label: 'woda', fill: [W(50)] },
-        { id: 'zasada', type: 'beaker', size: 100, x: 12, label: 'zasada sodowa', fill: [{ reagent: 'NaOH-dil', amount: 50 }] }
-      ],
-      shelf: ['wskazniki', 'HCl-dil', 'NaOH-dil', 'vinegar', 'NH3-aq', 'water'],
-      tools: ['paper', 'stir', 'empty'],
-      steps: [
-        { say: 'Dodaj wywar z kapusty do wszystkich zlewek.', do: [{ add: 'cabbage', to: 'kwas', amount: 5 }, { add: 'cabbage', to: 'woda', amount: 5 }, { add: 'cabbage', to: 'zasada', amount: 5 }], wait: 4 },
-        { say: 'Zbadaj odczyn papierkiem wskaźnikowym.', do: [{ use: 'paper', at: 'kwas' }, { use: 'paper', at: 'zasada' }], wait: 4 }
-      ],
-    }
-  },
-  {
-    key: 'spalanie', title: 'Spalanie magnezu i siarki', summary: 'tlenki metali i niemetali: odczyn ich roztworów',
-    text: ['Magnez spala się oślepiającym płomieniem, siarka — niebieskim. W słoju jest tlen i woda z oranżem metylowym.', 'Tlenek magnezu z wodą daje zasadę, tlenek siarki(IV) — kwas.'],
-    scene: {
-      burners: [{ id: 'p', x: -20, on: true }],
-      vessels: [
-        { id: 'tygiel', type: 'crucible', size: 30, x: -20, on: 'p', label: 'magnez', fill: [{ reagent: 'Mg', amount: 0.1 }] },
-        { id: 'siarka', type: 'dish', size: 50, x: -4, label: 'siarka', fill: [{ reagent: 'S', amount: 0.5 }] },
-        { id: 'sloj', type: 'jar', size: 1000, x: 14, label: 'tlen + woda + oranż', gas: { O2: 1 }, fill: [W(60), { reagent: 'methylorange', amount: 3 }] }
-      ],
-      shelf: ['Mg', 'S', 'C', 'Fe-wool', 'O2-gas', 'water', 'phenolphthalein', 'methylorange'],
-      tools: ['spoon', 'match', 'glow', 'splint', 'paper', 'stopper', 'empty'],
-      speed: 2,
-      steps: [
-        { say: 'Tygiel z magnezem ogrzewa się w płomieniu palnika — za chwilę magnez się zapali.', wait: 14 },
-        { say: 'Nabierz siarkę łyżeczką do spalań i zapal ją w płomieniu palnika.', do: [{ use: 'spoon', at: 'siarka' }, { flame: 'p', with: 'spoon' }], wait: 3 },
-        { say: 'Wprowadź płonącą siarkę do słoja z tlenem i zamknij go.', do: [{ use: 'spoon', at: 'sloj' }, { use: 'stopper', at: 'sloj' }], wait: 20 },
-        { say: 'Tlenek siarki(IV) rozpuszcza się w wodzie — oranż metylowy pokazuje odczyn kwasowy.', do: { use: 'stir', at: 'sloj' }, wait: 10 }
-      ],
-    }
-  },
-  {
-    key: 'swieca', title: 'Świeca i tlenek węgla(IV)', summary: 'CO₂ jest cięższy od powietrza i gasi płomień',
-    text: ['W lewej zlewce pali się świeczka, prawą napełniono tlenkiem węgla(IV) — jest niewidoczny.', 'Przelej gaz z prawej zlewki do lewej, jakby to była ciecz (przeciągnij ją nad świeczkę).'],
-    scene: {
-      vessels: [
-        { id: 'swieca', type: 'beaker', size: 600, x: -10, label: 'świeczka', fill: [{ reagent: 'candle', amount: 3 }] },
-        { id: 'co2', type: 'beaker', size: 600, x: 10, label: 'tlenek węgla(IV)', gas: { CO2: 1 } }
-      ],
-      shelf: ['candle', 'CO2-gas', 'O2-gas', 'N2-gas'],
-      tools: ['match', 'splint', 'glow', 'stopper', 'empty'],
-      steps: [
-        { say: 'Zapal świeczkę zapałką.', do: { use: 'match', at: 'swieca' }, wait: 3 },
-        { say: 'Przelej gaz z prawej zlewki nad świeczkę.', ask: { q: 'Co stanie się z płomieniem?', options: ['zgaśnie', 'zapłonie jaśniej', 'nic się nie zmieni'], answer: 'zgaśnie', why: 'CO₂ jest cięższy od powietrza, wypiera je ze zlewki i nie podtrzymuje palenia.' }, do: { pour: 'co2', to: 'swieca', ml: 400 }, wait: 6 }
-      ],
-    }
-  },
-  {
-    key: 'amoniak', title: 'Otrzymywanie amoniaku', summary: 'NH₄Cl + NaOH na gorąco, wilgotny papierek',
-    text: ['Sól amonowa ogrzewana z zasadą wydziela amoniak — gaz o odczynie zasadowym.', 'Zbadaj gaz u wylotu probówki wilgotnym papierkiem wskaźnikowym.'],
-    scene: {
-      burners: [{ id: 'p', x: 0 }],
-      vessels: [{ id: 't', type: 'tube', size: 25, x: 0, on: 'p', label: 'NH₄Cl + NaOH', fill: [{ reagent: 'NH4Cl', amount: 1 }, { reagent: 'NaOH-aq', amount: 10 }] }],
-      shelf: ['NH4Cl', 'NaOH-aq', 'NH3-aq'],
-      tools: ['wetpaper', 'paper', 'stopper', 'empty'],
-      steps: [
-        { say: 'Zapal palnik.', do: { burner: 'p', on: true }, wait: 14 },
-        { say: 'Zbliż wilgotny papierek do wylotu probówki.', do: { use: 'wetpaper', at: 't' }, wait: 3 }
-      ],
-    }
-  },
-  {
-    key: 'fontanna', title: 'Fontanna amoniakalna', summary: 'amoniak rozpuszcza się tak dobrze, że woda wpada do kolby',
-    text: ['Kolba jest wypełniona amoniakiem i zamknięta korkiem z rurką sięgającą do wody z fenoloftaleiną.', 'Wstrzyknij do kolby kilka kropli wody — amoniak się rozpuszcza, ciśnienie spada i woda tryska do kolby.'],
-    scene: {
-      vessels: [
-        { id: 'kolba', type: 'roundflask', size: 250, x: -8, label: 'amoniak', gas: { NH3: 1 }, closed: true },
-        { id: 'woda', type: 'beaker', size: 600, x: 12, label: 'woda + fenoloftaleina', fill: [W(400), { reagent: 'phenolphthalein', amount: 4 }] }
-      ],
-      links: [{ from: 'kolba', to: 'woda' }],
-      shelf: ['water', 'phenolphthalein', 'NH3-gas'],
-      tools: ['wetpaper', 'empty'],
-      steps: [{ say: 'Wstrzyknij do kolby odrobinę wody.', do: { add: 'water', to: 'kolba', amount: 5 }, wait: 14 }],
-    }
-  },
-  {
-    key: 'plomien', title: 'Barwienie płomienia', summary: 'Na, K, Li, Ca, Sr, Cu — próba płomieniowa',
-    text: ['Zanurz drucik w roztworze soli i wprowadź go do płomienia palnika.', 'Każdy kation barwi płomień na inny kolor — tak można je rozpoznać.'],
-    scene: {
-      burners: [{ id: 'p', x: 0, on: true }],
-      vessels: [
-        { id: 'na', type: 'tube', size: 15, x: -22, label: 'NaCl', fill: [{ reagent: 'NaCl-aq', amount: 5 }] },
-        { id: 'k', type: 'tube', size: 15, x: -17, label: 'KCl', fill: [{ reagent: 'KCl-aq', amount: 5 }] },
-        { id: 'li', type: 'tube', size: 15, x: -12, label: 'LiCl', fill: [{ reagent: 'LiCl-aq', amount: 5 }] },
-        { id: 'ca', type: 'tube', size: 15, x: 12, label: 'CaCl₂', fill: [{ reagent: 'CaCl2-aq', amount: 5 }] },
-        { id: 'sr', type: 'tube', size: 15, x: 17, label: 'SrCl₂', fill: [{ reagent: 'SrCl2', amount: 5 }] },
-        { id: 'cu', type: 'tube', size: 15, x: 22, label: 'CuSO₄', fill: [{ reagent: 'CuSO4-aq', amount: 5 }] }
-      ],
-      shelf: ['NaCl-aq', 'KCl-aq', 'LiCl-aq', 'CaCl2-aq', 'SrCl2', 'BaCl2', 'CuSO4-aq'],
-      tools: ['loop'],
-      steps: [
-        { say: 'Sód', do: [{ use: 'loop', at: 'na' }, { flame: 'p' }], wait: 3 },
-        { say: 'Potas', do: [{ use: 'loop', at: 'k' }, { flame: 'p' }], wait: 3 },
-        { say: 'Lit', do: [{ use: 'loop', at: 'li' }, { flame: 'p' }], wait: 3 },
-        { say: 'Wapń', do: [{ use: 'loop', at: 'ca' }, { flame: 'p' }], wait: 3 },
-        { say: 'Stront', do: [{ use: 'loop', at: 'sr' }, { flame: 'p' }], wait: 3 },
-        { say: 'Miedź', do: [{ use: 'loop', at: 'cu' }, { flame: 'p' }], wait: 3 }
-      ],
-    }
-  },
-  {
-    key: 'cisnienie', title: 'Ciśnienie gazu i cieczy', summary: 'manometr, korek wyskakuje, ciśnienie w głębi cieczy',
-    text: ['Kolba z kwasem solnym jest zamknięta korkiem z manometrem. Po dodaniu cynku wydziela się wodór i ciśnienie rośnie.', 'W cylindrze z wodą zmierz sondą ciśnienie na różnych głębokościach: p = p₀ + ρ·g·h.'],
-    scene: {
-      vessels: [
-        { id: 'kolba', type: 'flask', size: 250, x: -12, label: 'HCl', gauge: true, fill: [{ reagent: 'HCl', amount: 50 }] },
-        { id: 'cyl', type: 'cylinder', size: 250, x: 14, label: 'woda', fill: [W(240)] }
-      ],
-      shelf: ['Zn', 'Mg', 'HCl', 'water', 'NaCl'],
-      tools: ['probe', 'gauge', 'stopper', 'splint', 'empty'],
-      speed: 10,
-      steps: [
-        { say: 'Wrzuć cynk do kolby (korek z manometrem zostaje).', do: { add: 'Zn', to: 'kolba', amount: 2 }, wait: 40 },
-        { say: 'Dotknij sondą wody w cylindrze na różnych głębokościach.', wait: 3 }
-      ],
+        step('Dodaj wodorotlenek sodu i zamieszaj.', [{ add: 'NaOH', to: 'a', amount: 5 }, { use: 'stir', at: 'a' }], 10),
+        step('Dodaj azotan(V) amonu i zamieszaj.', [{ add: 'NH4NO3', to: 'b', amount: 10 }, { use: 'stir', at: 'b' }], 12, { q: 'Co pokaże termometr?', options: ['temperatura wzrośnie', 'temperatura spadnie', 'nic się nie zmieni'], answer: 'temperatura spadnie', why: 'Rozpuszczanie NH₄NO₃ jest endotermiczne — pobiera ciepło z wody.' })
+      ]
     }
   },
   {
     key: 'wrzenie', title: 'Wrzenie wody i solanki', summary: 'temperatura wrzenia rośnie, gdy w wodzie jest sól',
-    text: ['Obie zlewki stoją na palnikach: w lewej woda, w prawej woda z solą kuchenną.', 'Porównaj na wykresie, w jakiej temperaturze wrze każda z nich.'],
+    text: ['Na dwóch płytach grzejnych stoją zlewki: z wodą i z solanką. Obserwuj termometry, gdy ciecze zaczną wrzeć.'],
     scene: {
-      burners: [{ id: 'p1', x: -12 }, { id: 'p2', x: 12 }],
-      vessels: [
-        { id: 'w', type: 'beaker', size: 250, x: -12, on: 'p1', label: 'woda', fill: [W(100)] },
-        { id: 's', type: 'beaker', size: 250, x: 12, on: 'p2', label: 'solanka', fill: [W(100), { reagent: 'NaCl', amount: 25 }] }
+      things: [
+        { id: 'p1', kind: 'hotplate', x: -8, power: 900 },
+        { id: 'woda', kind: 'beaker', size: 100, on: 'p1', label: 'woda', fill: [W(50)] },
+        { id: 't1', kind: 'thermometer', into: 'woda' },
+        { id: 'p2', kind: 'hotplate', x: 8, power: 900 },
+        { id: 'sol', kind: 'beaker', size: 100, on: 'p2', label: 'solanka', fill: [W(50), { reagent: 'NaCl', amount: 15 }] },
+        { id: 't2', kind: 'thermometer', into: 'sol' }
       ],
       shelf: ['NaCl', 'sugar', 'water'],
-      tools: ['stir', 'empty'],
-      graph: { vessels: ['w', 's'], of: ['T'] },
+      tools: ['stir', 'thermometer', 'probe'],
+      graph: { things: ['t1', 't2'], of: ['T'] },
       speed: 5,
-      steps: [{ say: 'Zapal oba palniki.', do: [{ burner: 'p1', on: true }, { burner: 'p2', on: true }, { use: 'stir', at: 's' }], wait: 40 }],
+      steps: [step('Włącz obie płyty.', [{ use: 'stir', at: 'sol' }, { heat: 'p1', on: true }, { heat: 'p2', on: true }], 60, { q: 'Która ciecz będzie wrzała w wyższej temperaturze?', options: ['woda', 'solanka', 'obie tak samo'], answer: 'solanka', why: 'Substancja rozpuszczona obniża prężność pary wody — trzeba wyższej temperatury, by ciecz zawrzała.' })]
     }
   },
   {
-    key: 'amfoteryczny', title: 'Wodorotlenek cynku — amfoteryczny', summary: 'osad roztwarza się w zasadzie i w kwasie',
-    text: ['Wodorotlenek cynku reaguje i z kwasami, i z zasadami.', 'Wytrąć osad w obu probówkach, potem do jednej dodaj nadmiar zasady, do drugiej kwas.'],
+    key: 'lod-sol', title: 'Mieszanina oziębiająca', summary: 'lód z solą — temperatura poniżej 0 °C',
+    text: ['W zlewce jest pokruszony lód z odrobiną wody i termometr. Dosyp soli kuchennej i mieszaj co kilka sekund.'],
     scene: {
-      vessels: [
-        { id: 'z1', type: 'tube', size: 25, x: -5, label: '+ NaOH', fill: [{ reagent: 'ZnSO4', amount: 2 }] },
-        { id: 'z2', type: 'tube', size: 25, x: 5, label: '+ HCl', fill: [{ reagent: 'ZnSO4', amount: 2 }] }
+      things: [
+        { id: 'zlewka', kind: 'beaker', size: 250, x: 0, label: 'lód', fill: [{ reagent: 'ice-crushed', amount: 60 }, W(20)] },
+        { id: 'termometr', kind: 'thermometer', into: 'zlewka' }
       ],
-      shelf: ['ZnSO4', 'NaOH-aq', 'HCl', 'CuSO4-aq'],
-      tools: ['stir', 'empty'],
+      shelf: ['NaCl', 'CaCl2', 'ice-crushed', 'ice', 'water'],
+      tools: ['stir', 'thermometer'],
+      graph: { things: ['termometr'], of: ['T'] },
+      speed: 2,
       steps: [
-        { say: 'Dodaj do obu probówek trochę zasady sodowej.', do: [{ add: 'NaOH-aq', to: 'z1', amount: 1.6 }, { add: 'NaOH-aq', to: 'z2', amount: 1.6 }], wait: 4 },
-        { say: 'Do pierwszej dodaj nadmiar zasady.', do: { add: 'NaOH-aq', to: 'z1', amount: 10 }, wait: 6 },
-        { say: 'Do drugiej dodaj kwas solny.', do: { add: 'HCl', to: 'z2', amount: 5 }, wait: 6 }
+        step('Dosyp soli i zamieszaj.', [{ add: 'NaCl', to: 'zlewka', amount: 20 }, { use: 'stir', at: 'zlewka' }], 7, { q: 'Jak zmieni się temperatura?', options: ['wzrośnie', 'spadnie poniżej 0 °C', 'zostanie 0 °C'], answer: 'spadnie poniżej 0 °C', why: 'Sól obniża temperaturę topnienia lodu; topniejący lód pobiera ciepło i mieszanina się oziębia.' }),
+        ...[1, 2, 3, 4, 5, 6].map(() => step('Zamieszaj jeszcze raz.', { use: 'stir', at: 'zlewka' }, 7)),
+        step('Zamieszaj i odczytaj temperaturę.', { use: 'stir', at: 'zlewka' }, 12)
+      ]
+    }
+  },
+  {
+    key: 'rozpuszczanie', title: 'Szybkość rozpuszczania', summary: 'siarczan miedzi(II) w zimnej, gorącej i mieszanej wodzie',
+    text: ['W trzech zlewkach jest po 50 cm³ wody: zimnej (2 °C), gorącej (80 °C) i o temperaturze pokojowej na mieszadle magnetycznym. Wsyp do każdej po 2 g niebieskich kryształów siarczanu(VI) miedzi(II).', 'Gdzie kryształy znikną najszybciej? Na półce jest też siarczan miedzi(II) utarty na proszek, cukier i cukier puder.'],
+    scene: {
+      things: [
+        { id: 'zimna', kind: 'beaker', size: 100, x: -13, label: 'woda 2 °C', fill: [{ reagent: 'water-cold', amount: 50 }] },
+        { id: 'goraca', kind: 'beaker', size: 100, x: -4, label: 'woda 80 °C', fill: [{ reagent: 'water-hot', amount: 50 }] },
+        { id: 'mieszadlo', kind: 'hotplate', x: 9, stir: true },
+        { id: 'mieszana', kind: 'beaker', size: 100, on: 'mieszadlo', label: 'mieszana', fill: [W(50)] }
       ],
+      shelf: ['CuSO4·5H2O', 'CuSO4·5H2O-powder', 'sugar', 'sugar-powder', 'NaCl', 'KMnO4', 'water', 'water-hot', 'water-cold'],
+      tools: ['stir', 'thermometer', 'probe'],
+      speed: 10,
+      steps: [step('Wsyp siarczan(VI) miedzi(II) do wszystkich zlewek.', [{ add: 'CuSO4·5H2O', to: 'zimna', amount: 2 }, { add: 'CuSO4·5H2O', to: 'goraca', amount: 2 }, { add: 'CuSO4·5H2O', to: 'mieszana', amount: 2 }], 60, { q: 'Gdzie kryształy rozpuszczą się najwolniej?', options: ['w zimnej wodzie', 'w gorącej wodzie', 'w mieszanej'], answer: 'w zimnej wodzie', why: 'Kryształ rozpuszcza się na powierzchni, a jony odchodzą przez warstewkę roztworu nasyconego. W zimnej wodzie dyfuzja jest najwolniejsza, a warstewki nic nie odprowadza — ani mieszanie, ani prądy ciepłej wody.' })]
+    }
+  },
+  {
+    key: 'dyfuzja', title: 'Dyfuzja w zimnej i gorącej wodzie', summary: 'kryształek KMnO₄ w nieruchomej wodzie — zimnej i gorącej',
+    text: ['W dwóch zlewkach jest nieruchoma woda: zimna i gorąca. Wrzuć do każdej kryształek manganianu(VII) potasu i obserwuj, jak rozchodzi się fiolet — czas płynie dwadzieścia razy szybciej.', 'W zimnej wodzie ciężki roztwór zbiera się na dnie i rozchodzi powoli — to dyfuzja, o milimetr w kilka minut. W gorącej dyfuzja jest szybsza, a pomagają jej prądy stygnącej wody.'],
+    scene: {
+      things: [
+        { id: 'zimna', kind: 'beaker', size: 250, x: -6, label: 'woda 2 °C', fill: [{ reagent: 'water-cold', amount: 200 }] },
+        { id: 'goraca', kind: 'beaker', size: 250, x: 6, label: 'woda 80 °C', fill: [{ reagent: 'water-hot', amount: 200 }] }
+      ],
+      shelf: ['KMnO4', 'CuSO4·5H2O', 'water', 'water-hot', 'water-cold'],
+      tools: ['probe', 'thermometer'],
+      speed: 20,
+      steps: [step('Wrzuć kryształki manganianu(VII) potasu do obu zlewek.', [{ add: 'KMnO4', to: 'zimna', amount: 0.05 }, { add: 'KMnO4', to: 'goraca', amount: 0.05 }], 180, { q: 'Gdzie fiolet szybciej dotrze pod powierzchnię?', options: ['w zimnej wodzie', 'w gorącej wodzie', 'tak samo'], answer: 'w gorącej wodzie', why: 'W gorącej wodzie cząsteczki poruszają się szybciej (dyfuzja w 80 °C jest ok. 3 razy szybsza niż w 20 °C), a stygnąca woda krąży.' })]
+    }
+  },
+  {
+    key: 'wypieranie', title: 'Szereg aktywności — wypieranie metali', summary: 'Fe w CuSO₄, Cu w AgNO₃, Cu w ZnSO₄',
+    text: ['Metal bardziej aktywny wypiera metal mniej aktywny z roztworu jego soli.', 'Obserwuj powierzchnię metali i barwę roztworów (czas biegnie dziesięć razy szybciej).'],
+    scene: {
+      things: [
+        { id: 'cu', kind: 'beaker', size: 100, x: -10, label: 'CuSO₄ + Fe', fill: [{ reagent: 'CuSO4-aq', amount: 50 }] },
+        { id: 'ag', kind: 'beaker', size: 100, x: 0, label: 'AgNO₃ + Cu', fill: [{ reagent: 'AgNO3', amount: 10 }, W(40)] },
+        { id: 'zn', kind: 'beaker', size: 100, x: 10, label: 'ZnSO₄ + Cu', fill: [{ reagent: 'ZnSO4', amount: 25 }, W(25)] }
+      ],
+      shelf: ['Fe', 'Cu', 'Zn', 'Mg', 'CuSO4-aq', 'AgNO3', 'ZnSO4'],
+      tools: ['stir', 'paper'],
+      speed: 10,
+      steps: [
+        step('Włóż żelazny gwóźdź do roztworu siarczanu miedzi(II).', { add: 'Fe', to: 'cu', amount: 5 }, 6),
+        step('Włóż drut miedziany do roztworu azotanu srebra.', { add: 'Cu', to: 'ag', amount: 1 }, 6),
+        step('Włóż drut miedziany do roztworu siarczanu cynku.', { add: 'Cu', to: 'zn', amount: 1 }, 8, { q: 'Czy miedź wyprze cynk?', options: ['tak', 'nie'], answer: 'nie', why: 'Cynk jest aktywniejszy od miedzi (E° = −0,76 V wobec +0,34 V).' })
+      ]
+    }
+  },
+  {
+    key: 'zloty-deszcz', title: 'Złoty deszcz', summary: 'PbI₂ rozpuszcza się na gorąco i krystalizuje na zimno',
+    text: ['Jodek ołowiu(II) słabo rozpuszcza się w zimnej wodzie, a dużo lepiej w gorącej.', 'Wytrąć żółty osad, ogrzej zlewkę, aż osad zniknie, potem zgaś palnik i obserwuj stygnięcie.'],
+    scene: {
+      things: [
+        { id: 'palnik', kind: 'burner', x: 0, air: 1 },
+        { id: 'trojnog', kind: 'tripod', x: 0 },
+        { id: 'z', kind: 'beaker', size: 100, on: 'trojnog', label: 'Pb(NO₃)₂', fill: [W(50), { reagent: 'Pb(NO3)2', amount: 2 }] },
+        { id: 'termometr', kind: 'thermometer', into: 'z' }
+      ],
+      shelf: ['KI', 'Pb(NO3)2', 'water'],
+      tools: ['stir', 'match'],
+      graph: { things: ['termometr'], of: ['T'] },
+      speed: 10,
+      steps: [
+        step('Dodaj roztwór jodku potasu.', { add: 'KI', to: 'z', amount: 4 }, 5),
+        step('Zapal palnik i ogrzewaj, aż osad się rozpuści.', { burner: 'palnik', on: true }, 30),
+        step('Zgaś palnik — podczas stygnięcia wypadają złociste kryształki.', { burner: 'palnik', on: false }, 40)
+      ]
     }
   },
   {
     key: 'miedz-amoniak', title: 'Miedź i amoniak', summary: 'jasnoniebieski osad, potem ciemnoniebieski roztwór',
-    text: ['Amoniak dodawany kroplami do siarczanu miedzi(II) najpierw wytrąca osad, a w nadmiarze go rozpuszcza.', 'Powstaje jon kompleksowy o intensywnej, ciemnoniebieskiej barwie.'],
+    text: ['Do siarczanu miedzi(II) dodajemy kroplami wodę amoniakalną.', 'Najpierw powstaje osad, potem — przy nadmiarze — znika.'],
     scene: {
-      vessels: [{ id: 'm', type: 'beaker', size: 100, x: 0, label: 'CuSO₄', fill: [{ reagent: 'CuSO4-aq', amount: 1 }, W(20)] }],
-      shelf: ['NH3-aq', 'CuSO4-aq', 'NaOH-aq', 'water'],
-      tools: ['stir', 'empty'],
+      things: [{ id: 'p', kind: 'tube', size: 25, x: 0, label: 'CuSO₄', fill: [{ reagent: 'CuSO4-aq', amount: 6 }] }],
+      shelf: ['NH3-aq', 'CuSO4-aq', 'NaOH-aq'],
+      tools: ['stir'],
       steps: [
-        { say: 'Dodaj odrobinę wody amoniakalnej.', do: { add: 'NH3-aq', to: 'm', amount: 1 }, wait: 4 },
-        { say: 'Dodaj nadmiar wody amoniakalnej i zamieszaj.', do: [{ add: 'NH3-aq', to: 'm', amount: 25 }, { use: 'stir', at: 'm' }], wait: 10 }
+        step('Dodaj trochę wody amoniakalnej.', [{ add: 'NH3-aq', to: 'p', amount: 1 }, { use: 'stir', at: 'p' }], 6),
+        step('Dodaj więcej wody amoniakalnej.', [{ add: 'NH3-aq', to: 'p', amount: 5 }, { use: 'stir', at: 'p' }], 8, { q: 'Co stanie się z osadem?', options: ['zostanie', 'rozpuści się, roztwór będzie ciemnoniebieski', 'zmieni barwę na czerwoną'], answer: 'rozpuści się, roztwór będzie ciemnoniebieski', why: 'Powstaje jon kompleksowy [Cu(NH₃)₄]²⁺ — ciemnoniebieski.' })
+      ]
+    }
+  },
+  {
+    key: 'wskazniki', title: 'Wskaźniki w kwasie, wodzie i zasadzie', summary: 'wywar z czerwonej kapusty',
+    text: ['W trzech probówkach jest kwas, woda i zasada. Dodaj do każdej wywar z czerwonej kapusty.'],
+    scene: {
+      things: [
+        { id: 'k', kind: 'tube', size: 25, x: -5, label: 'kwas', fill: [{ reagent: 'HCl-dil', amount: 8 }] },
+        { id: 'w', kind: 'tube', size: 25, x: 0, label: 'woda', fill: [W(8)] },
+        { id: 'z', kind: 'tube', size: 25, x: 5, label: 'zasada', fill: [{ reagent: 'NaOH-dil', amount: 8 }] }
       ],
+      shelf: ['cabbage', 'universal', 'phenolphthalein', 'methylorange', 'litmus'],
+      tools: ['stir', 'paper'],
+      steps: [step('Dodaj wywar z kapusty do wszystkich probówek.', [{ add: 'cabbage', to: 'k', amount: 3 }, { add: 'cabbage', to: 'w', amount: 3 }, { add: 'cabbage', to: 'z', amount: 3 }, { use: 'stir', at: 'k' }, { use: 'stir', at: 'w' }, { use: 'stir', at: 'z' }], 6)]
+    }
+  },
+  {
+    key: 'chromiany', title: 'Chromian i dichromian — reakcja odwracalna', summary: 'żółty w zasadzie, pomarańczowy w kwasie — i z powrotem',
+    text: ['W probówce jest żółty roztwór chromianu(VI) potasu. Dodaj kwasu — roztwór zmieni barwę. Potem dodaj zasady.', '2CrO₄²⁻ + 2H⁺ ⇄ Cr₂O₇²⁻ + H₂O — reakcja biegnie w obie strony, zależnie od tego, ile jest jonów H⁺.'],
+    scene: {
+      things: [{ id: 'p', kind: 'tube', size: 25, x: 0, label: 'K₂CrO₄', fill: [{ reagent: 'K2CrO4', amount: 8 }] }],
+      shelf: ['H2SO4', 'HCl', 'NaOH-aq', 'K2CrO4', 'K2Cr2O7'],
+      tools: ['stir', 'paper'],
+      steps: [
+        step('Dodaj kwas siarkowy(VI) i zamieszaj.', [{ add: 'H2SO4', to: 'p', amount: 2 }, { use: 'stir', at: 'p' }], 6, { q: 'Jaki kolor przybierze roztwór?', options: ['pomarańczowy', 'niebieski', 'zostanie żółty'], answer: 'pomarańczowy', why: 'W kwasie jony chromianowe łączą się w dichromianowe.' }),
+        step('Dodaj zasadę sodową i zamieszaj.', [{ add: 'NaOH-aq', to: 'p', amount: 4 }, { use: 'stir', at: 'p' }], 6, { q: 'Co się stanie teraz?', options: ['roztwór znów zżółknie', 'zostanie pomarańczowy', 'wytrąci się osad'], answer: 'roztwór znów zżółknie', why: 'Zasada zabiera jony H⁺ — równowaga wraca w stronę chromianu.' })
+      ]
+    }
+  },
+  {
+    key: 'rownowaga-no2', title: 'Równowaga: NO₂ i N₂O₄ w zimnie i w cieple', summary: 'zamknięte probówki z brunatnym gazem w lodzie, w wodzie i w gorącej wodzie',
+    text: ['W trzech zamkniętych probówkach jest ta sama mieszanina NO₂ i N₂O₄ z powietrzem: w wodzie z lodem, w wodzie o temperaturze pokojowej i w gorącej. Obserwuj barwę gazu.', 'N₂O₄ ⇄ 2NO₂ pochłania ciepło: ogrzanie przesuwa równowagę w stronę brunatnego NO₂. Przestaw probówkę do innej zlewki — barwa się zmieni.'],
+    scene: {
+      things: [
+        { id: 'lod', kind: 'beaker', size: 600, x: -11, label: 'woda z lodem', fill: [{ reagent: 'water-cold', amount: 380 }, { reagent: 'ice-crushed', amount: 100 }] },
+        { id: 'p1', kind: 'tube', size: 10, into: 'lod', gas: { NO2: 0.4, N2: 0.48, O2: 0.12 }, closed: true },
+        { id: 'woda', kind: 'beaker', size: 600, x: 0, label: 'woda 20 °C', fill: [W(480)] },
+        { id: 'p2', kind: 'tube', size: 10, into: 'woda', gas: { NO2: 0.4, N2: 0.48, O2: 0.12 }, closed: true },
+        { id: 'goraca', kind: 'beaker', size: 600, x: 11, label: 'woda 80 °C', fill: [{ reagent: 'water-hot', amount: 480 }] },
+        { id: 'p3', kind: 'tube', size: 10, into: 'goraca', gas: { NO2: 0.4, N2: 0.48, O2: 0.12 }, closed: true }
+      ],
+      shelf: ['ice-crushed', 'water-hot'],
+      tools: ['probe', 'thermometer'],
+      speed: 5,
+      steps: [step('Obserwuj barwę gazu w probówkach.', { speed: 5 }, 60, { q: 'W której probówce gaz będzie najciemniejszy?', options: ['w wodzie z lodem', 'w temperaturze pokojowej', 'w gorącej wodzie'], answer: 'w gorącej wodzie', why: 'Rozpad N₂O₄ na brunatny NO₂ pochłania ciepło (ΔH = +57 kJ/mol) — ogrzanie przesuwa równowagę w jego stronę, oziębienie w stronę bezbarwnego N₂O₄.' })]
     }
   },
   {
     key: 'zagadka', title: 'Zagadka: jaka to sól?', summary: 'losowa sól X — rozpoznaj ją odczynnikami',
-    text: ['W trzech probówkach jest ten sam roztwór soli X (za każdym razem może być inna).', 'Zbadaj go azotanem srebra, chlorkiem baru i kwasem solnym — i zdecyduj, co to za sól.'],
+    text: ['W zlewce jest roztwór nieznanej soli. Użyj odczynników z półki, żeby ją rozpoznać (osady, barwa płomienia).'],
     scene: {
-      vars: [{ name: 'sol', pick: ['NaCl-aq', 'KI', 'Na2SO4', 'Na2CO3-aq'] }],
-      vessels: [
-        { id: 't1', type: 'tube', size: 25, x: -6, label: 'X', hidden: true, fill: [{ reagent: '{sol}', amount: 5 }] },
-        { id: 't2', type: 'tube', size: 25, x: 0, label: 'X', hidden: true, fill: [{ reagent: '{sol}', amount: 5 }] },
-        { id: 't3', type: 'tube', size: 25, x: 6, label: 'X', hidden: true, fill: [{ reagent: '{sol}', amount: 5 }] }
+      vars: [{ name: 'sol', pick: ['NaCl-aq', 'KI', 'CuSO4-aq', 'FeCl3', 'BaCl2'] }],
+      things: [
+        { id: 'x', kind: 'beaker', size: 100, x: -8, label: 'roztwór X', hidden: true, fill: [{ reagent: '{sol}', amount: 60 }] },
+        { id: 'palnik', kind: 'burner', x: 10, lit: true },
+        { id: 'p1', kind: 'tube', size: 25, x: 0 },
+        { id: 'p2', kind: 'tube', size: 25, x: 3.6 }
       ],
-      shelf: ['AgNO3', 'BaCl2', 'HCl', 'phenolphthalein'],
-      tools: ['paper', 'stir', 'empty'],
-      show: { composition: false, micro: false, values: false },
-      steps: [
-        { say: 'Dodaj azotan srebra do pierwszej probówki.', do: { add: 'AgNO3', to: 't1', amount: 1 }, wait: 3 },
-        { say: 'Dodaj chlorek baru do drugiej probówki.', do: { add: 'BaCl2', to: 't2', amount: 1 }, wait: 3 },
-        { say: 'Dodaj kwas solny do trzeciej probówki.', do: { add: 'HCl', to: 't3', amount: 2 }, wait: 4 },
-        { say: 'Co to za sól?', ask: { q: 'Jaka sól jest w probówkach X?', options: ['chlorek sodu', 'jodek potasu', 'siarczan(VI) sodu', 'węglan sodu'], answer: '=sol', why: 'Cl⁻ daje biały AgCl, I⁻ żółty AgI, SO₄²⁻ biały BaSO₄ (nie znika w kwasie), CO₃²⁻ musuje z kwasem.' }, wait: 1 }
-      ],
-    }
-  },
-  {
-    key: 'szybkosc', title: 'Szybkość reakcji: marmur i kreda', summary: 'rozdrobnienie przyspiesza reakcję — strzykawki gazowe',
-    text: ['W obu kolbach jest kwas solny. Do jednej wrzucamy kawałki marmuru, do drugiej tyle samo kredy w proszku.', 'Gaz zbiera się w strzykawkach — porównaj na wykresie, jak szybko rośnie jego objętość.'],
-    scene: {
-      vessels: [
-        { id: 'k1', type: 'flask', size: 100, x: -26, label: 'marmur', fill: [{ reagent: 'HCl', amount: 25 }] },
-        { id: 's1', type: 'syringe', size: 100, x: -8, label: 'marmur' },
-        { id: 'k2', type: 'flask', size: 100, x: 18, label: 'kreda', fill: [{ reagent: 'HCl', amount: 25 }] },
-        { id: 's2', type: 'syringe', size: 100, x: 36, label: 'kreda' }
-      ],
-      links: [{ from: 'k1', to: 's1' }, { from: 'k2', to: 's2' }],
-      shelf: ['CaCO3', 'CaCO3-powder', 'HCl', 'HCl-dil'],
-      tools: ['stopper', 'empty'],
-      graph: { vessels: ['s1', 's2'], of: ['gas'] },
-      steps: [{ say: 'Wrzuć 0,2 g marmuru do pierwszej kolby i 0,2 g kredy do drugiej.', do: [{ add: 'CaCO3', to: 'k1', amount: 0.2 }, { add: 'CaCO3-powder', to: 'k2', amount: 0.2 }], wait: 30 }],
+      shelf: ['AgNO3', 'NaOH-aq', 'Na2SO4', 'Pb(NO3)2'],
+      tools: ['loop', 'paper', 'stir'],
+      show: { composition: false, micro: false },
+      allow: { move: true },
+      steps: []
     }
   }
 ];
-
-/** Ein leerer Tisch: zwei Zlewki, eine Kolba, Probówki, ein Brenner — alles im Regal. */
-export const SANDBOX_CHEM: Readonly<Record<string, unknown>> = {
-  burners: [{ id: 'p', x: 22 }],
-  vessels: [
-    { id: 'b1', type: 'beaker', size: 250, x: -20, label: 'zlewka 1' },
-    { id: 'b2', type: 'beaker', size: 250, x: -8, label: 'zlewka 2' },
-    { id: 'f1', type: 'flask', size: 250, x: 5, label: 'kolba' },
-    { id: 't1', type: 'tube', size: 25, x: 34, label: 'probówka 1' },
-    { id: 't2', type: 'tube', size: 25, x: 39, label: 'probówka 2' }
-  ],
-  allow: { vessels: true }
-};

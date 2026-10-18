@@ -1,0 +1,537 @@
+{
+ "format": "recreatio/page",
+ "version": 1,
+ "path": "pokaz-rozpuszczanie",
+ "title": "Rozpuszczanie i dyfuzja",
+ "lead": "Od czego zależy, jak szybko kryształ znika w wodzie — i jak cząsteczki same rozchodzą się w cieczy?",
+ "mode": "slides",
+ "theme": {
+  "mode": "light",
+  "accent": "#2a7fa8",
+  "ink": "#13212b",
+  "ground": "#f6f8f7",
+  "muted": "#5b6b74"
+ },
+ "cover": [],
+ "deck": {
+  "backdrop": [],
+  "nav": "dots",
+  "titleSlide": false,
+  "width": 100
+ },
+ "modules": [
+  {
+   "id": "start",
+   "kind": "hero",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 3
+   },
+   "slide": {
+    "label": "Start",
+    "layers": []
+   },
+   "config": {
+    "badge": "Pokaz · chemia",
+    "badgeLook": "kicker",
+    "size": "title",
+    "headline": "Rozpuszczanie i dyfuzja",
+    "lede": "Od czego zależy, jak szybko kryształ znika w wodzie — i jak cząsteczki same rozchodzą się w cieczy?",
+    "paragraphs": [
+     "Kryształ rozpuszcza się tylko na swojej powierzchni. Tuż przy niej woda jest nasycona, a jony muszą odejść w głąb roztworu — przez cienką warstwę cieczy przechodzą dyfuzją.",
+     "Na kolejnych slajdach zmienisz po jednym czynniku: temperaturę, mieszanie, rozdrobnienie. Silnik liczy rozpuszczanie w każdej kropli osobno — z prawdziwą rozpuszczalnością i szybkością dyfuzji, która rośnie z temperaturą."
+    ],
+    "actions": [],
+    "footnote": null
+   }
+  },
+  {
+   "id": "dyfuzja",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "1. Dyfuzja",
+    "layers": []
+   },
+   "config": {
+    "title": "Dyfuzja",
+    "text": [
+     "W dwóch zlewkach jest woda: w lewej zimna (2 °C), w prawej gorąca (80 °C). Nikt jej nie miesza.",
+     "Wrzuć do obu po kryształku manganianu(VII) potasu (albo „Pokaż”) i obserwuj fioletowe smugi. Czas płynie pięć razy szybciej."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "zimna",
+       "kind": "beaker",
+       "size": 250,
+       "x": -6,
+       "label": "woda 2 °C",
+       "fill": [
+        {
+         "reagent": "water-cold",
+         "amount": 200
+        }
+       ]
+      },
+      {
+       "id": "goraca",
+       "kind": "beaker",
+       "size": 250,
+       "x": 6,
+       "label": "woda 80 °C",
+       "fill": [
+        {
+         "reagent": "water-hot",
+         "amount": 200
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "KMnO4"
+     ],
+     "tools": [
+      "probe",
+      "thermometer"
+     ],
+     "speed": 5,
+     "steps": [
+      {
+       "say": "Wrzuć kryształki manganianu(VII) potasu do obu zlewek.",
+       "do": [
+        {
+         "add": "KMnO4",
+         "to": "zimna",
+         "amount": 0.05
+        },
+        {
+         "add": "KMnO4",
+         "to": "goraca",
+         "amount": 0.05
+        }
+       ],
+       "wait": 60,
+       "ask": {
+        "q": "W której zlewce fiolet szybciej rozejdzie się po wodzie?",
+        "options": [
+         "w zimnej",
+         "w gorącej",
+         "w obu tak samo"
+        ],
+        "answer": "w gorącej",
+        "why": "W gorącej wodzie cząsteczki poruszają się szybciej, więc dyfuzja jest szybsza — a stygnąca woda dodatkowo krąży (konwekcja)."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "temperatura",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "2. Temperatura",
+    "layers": []
+   },
+   "config": {
+    "title": "Temperatura",
+    "text": [
+     "W lewej zlewce jest 50 cm³ zimnej wody (2 °C), w prawej tyle samo gorącej (80 °C).",
+     "Wsyp do obu po 2 g niebieskiego siarczanu(VI) miedzi(II) (albo „Pokaż”). Nie mieszaj. Czas płynie dziesięć razy szybciej."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "zimna",
+       "kind": "beaker",
+       "size": 100,
+       "x": -5,
+       "label": "woda 2 °C",
+       "fill": [
+        {
+         "reagent": "water-cold",
+         "amount": 50
+        }
+       ]
+      },
+      {
+       "id": "goraca",
+       "kind": "beaker",
+       "size": 100,
+       "x": 5,
+       "label": "woda 80 °C",
+       "fill": [
+        {
+         "reagent": "water-hot",
+         "amount": 50
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "CuSO4·5H2O"
+     ],
+     "tools": [
+      "stir",
+      "probe",
+      "thermometer"
+     ],
+     "speed": 10,
+     "steps": [
+      {
+       "say": "Wsyp siarczan(VI) miedzi(II) do obu zlewek.",
+       "do": [
+        {
+         "add": "CuSO4·5H2O",
+         "to": "zimna",
+         "amount": 2
+        },
+        {
+         "add": "CuSO4·5H2O",
+         "to": "goraca",
+         "amount": 2
+        }
+       ],
+       "wait": 60,
+       "ask": {
+        "q": "Gdzie kryształy znikną szybciej?",
+        "options": [
+         "w zimnej wodzie",
+         "w gorącej wodzie",
+         "tak samo"
+        ],
+        "answer": "w gorącej wodzie",
+        "why": "W gorącej wodzie jony szybciej odchodzą od kryształu (dyfuzja jest kilka razy szybsza), a do tego rozpuszcza się więcej soli."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "mieszanie",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "3. Mieszanie",
+    "layers": []
+   },
+   "config": {
+    "title": "Mieszanie",
+    "text": [
+     "W obu zlewkach jest woda o temperaturze pokojowej. Prawa stoi na mieszadle magnetycznym — mieszadełko kręci się cały czas.",
+     "Wsyp do obu po 2 g siarczanu(VI) miedzi(II) (albo „Pokaż”). Czas płynie dziesięć razy szybciej."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "spokojna",
+       "kind": "beaker",
+       "size": 100,
+       "x": -8,
+       "label": "bez mieszania",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 50
+        }
+       ]
+      },
+      {
+       "id": "mieszadlo",
+       "kind": "hotplate",
+       "x": 6,
+       "stir": true
+      },
+      {
+       "id": "mieszana",
+       "kind": "beaker",
+       "size": 100,
+       "on": "mieszadlo",
+       "label": "mieszana",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 50
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "CuSO4·5H2O"
+     ],
+     "tools": [
+      "stir",
+      "probe"
+     ],
+     "speed": 10,
+     "steps": [
+      {
+       "say": "Wsyp siarczan(VI) miedzi(II) do obu zlewek.",
+       "do": [
+        {
+         "add": "CuSO4·5H2O",
+         "to": "spokojna",
+         "amount": 2
+        },
+        {
+         "add": "CuSO4·5H2O",
+         "to": "mieszana",
+         "amount": 2
+        }
+       ],
+       "wait": 40,
+       "ask": {
+        "q": "W której zlewce kryształy rozpuszczą się szybciej?",
+        "options": [
+         "w spokojnej",
+         "w mieszanej",
+         "tak samo"
+        ],
+        "answer": "w mieszanej",
+        "why": "Mieszanie odprowadza roztwór nasycony sprzed kryształu — warstwa, przez którą jony muszą przejść, robi się cieńsza. Wstrząsanie probówką działa tak samo."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "rozdrobnienie",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "4. Rozdrobnienie",
+    "layers": []
+   },
+   "config": {
+    "title": "Rozdrobnienie",
+    "text": [
+     "W obu zlewkach jest woda o temperaturze pokojowej.",
+     "Do lewej wsyp 2 g kryształów siarczanu(VI) miedzi(II), do prawej tyle samo utartego na proszek (albo „Pokaż”). Czas płynie dziesięć razy szybciej."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "krysztaly",
+       "kind": "beaker",
+       "size": 100,
+       "x": -5,
+       "label": "kryształy",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 50
+        }
+       ]
+      },
+      {
+       "id": "proszek",
+       "kind": "beaker",
+       "size": 100,
+       "x": 5,
+       "label": "proszek",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 50
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "CuSO4·5H2O",
+      "CuSO4·5H2O-powder"
+     ],
+     "tools": [
+      "stir",
+      "probe"
+     ],
+     "speed": 10,
+     "steps": [
+      {
+       "say": "Wsyp kryształy do lewej, a proszek do prawej zlewki.",
+       "do": [
+        {
+         "add": "CuSO4·5H2O",
+         "to": "krysztaly",
+         "amount": 2
+        },
+        {
+         "add": "CuSO4·5H2O-powder",
+         "to": "proszek",
+         "amount": 2
+        }
+       ],
+       "wait": 40,
+       "ask": {
+        "q": "Co rozpuści się szybciej?",
+        "options": [
+         "kryształy",
+         "proszek",
+         "tak samo"
+        ],
+        "answer": "proszek",
+        "why": "Proszek ma wielokrotnie większą powierzchnię — woda styka się z większą liczbą jonów naraz."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "nasycony",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "5. Roztwór nasycony",
+    "layers": []
+   },
+   "config": {
+    "title": "Roztwór nasycony",
+    "text": [
+     "Na dwóch mieszadłach stoją zlewki z 10 cm³ wody o temperaturze pokojowej. Prawa płyta grzeje.",
+     "Wsyp do obu po 6 g azotanu(V) potasu (albo „Pokaż”). Czy cała sól się rozpuści? Patrz na termometry — czas płynie pięć razy szybciej."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "m1",
+       "kind": "hotplate",
+       "x": -7,
+       "stir": true
+      },
+      {
+       "id": "zimna",
+       "kind": "beaker",
+       "size": 50,
+       "on": "m1",
+       "label": "bez grzania",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 10
+        }
+       ]
+      },
+      {
+       "id": "t1",
+       "kind": "thermometer",
+       "into": "zimna"
+      },
+      {
+       "id": "m2",
+       "kind": "hotplate",
+       "x": 7,
+       "stir": true,
+       "power": 300,
+       "lit": true
+      },
+      {
+       "id": "goraca",
+       "kind": "beaker",
+       "size": 50,
+       "on": "m2",
+       "label": "grzana",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 10
+        }
+       ]
+      },
+      {
+       "id": "t2",
+       "kind": "thermometer",
+       "into": "goraca"
+      }
+     ],
+     "shelf": [
+      "KNO3",
+      "NaCl"
+     ],
+     "tools": [
+      "stir",
+      "thermometer"
+     ],
+     "graph": {
+      "things": [
+       "t1",
+       "t2"
+      ],
+      "of": [
+       "T"
+      ]
+     },
+     "speed": 5,
+     "steps": [
+      {
+       "say": "Wsyp azotan(V) potasu do obu zlewek.",
+       "do": [
+        {
+         "add": "KNO3",
+         "to": "zimna",
+         "amount": 6
+        },
+        {
+         "add": "KNO3",
+         "to": "goraca",
+         "amount": 6
+        }
+       ],
+       "wait": 120,
+       "ask": {
+        "q": "W której zlewce zostanie nierozpuszczona sól?",
+        "options": [
+         "w zimnej",
+         "w ogrzewanej",
+         "w żadnej"
+        ],
+        "answer": "w zimnej",
+        "why": "W 20 °C w 10 g wody rozpuszcza się tylko ok. 3 g KNO₃ — roztwór jest nasycony, reszta zostaje na dnie. W ogrzewanej zlewce rozpuszczalność rośnie (w 60 °C ponad 11 g w 10 g wody) i rozpuszcza się wszystko."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "wyjasnienie",
+   "kind": "text",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 4
+   },
+   "config": {
+    "title": "Co się wydarzyło?",
+    "body": "Rozpuszczanie zachodzi na powierzchni kryształu. Tuż przy niej powstaje warstewka roztworu nasyconego, a jony odchodzą z niej w głąb dyfuzją. Szybkość rozpuszczania opisuje prawo Noyesa–Whitneya: rośnie z powierzchnią kryształu i współczynnikiem dyfuzji, maleje z grubością warstewki i zanika, gdy roztwór zbliża się do nasycenia.\nTemperatura: w gorącej wodzie cząsteczki poruszają się szybciej — dyfuzja w 80 °C jest ok. 3 razy szybsza niż w 20 °C — a większość soli rozpuszcza się lepiej. Mieszanie i wstrząsanie zdzierają warstewkę nasyconą. Rozdrobnienie zwiększa powierzchnię.\nSama dyfuzja jest powolna: w nieruchomej wodzie fiolet przesuwa się w ciągu 10 minut o milimetr, dwa. Roztwór KMnO₄ jest cięższy od wody, więc w zimnej zlewce zbiera się na dnie. W gorącej wodzie rozprowadzają go prądy stygnącej wody.\nRoztwór nasycony: w danej temperaturze rozpuści się tylko określona ilość soli, reszta zostaje na dnie. Rozpuszczalność KNO₃ rośnie z temperaturą — 32 g w 100 g wody w 20 °C, 110 g w 60 °C. Jego rozpuszczanie pobiera ciepło: w zlewce bez grzania temperatura spadła, a w zimniejszym roztworze rozpuszcza się jeszcze mniej.\n## Zapamiętaj\nRozpuszczanie przyspieszają: ogrzewanie, mieszanie (wstrząsanie) i rozdrobnienie. Ile substancji może się rozpuścić, mówi jej rozpuszczalność — a ta zależy od temperatury.\n## Spróbuj sam\nW piaskownicy porównaj cukier i cukier puder w zimnej i gorącej wodzie. Ile soli kuchennej rozpuści się w 10 cm³ wody — i czy w gorącej wodzie dużo więcej?"
+   },
+   "slide": {
+    "label": "Wyjaśnienie",
+    "layers": []
+   }
+  }
+ ]
+}

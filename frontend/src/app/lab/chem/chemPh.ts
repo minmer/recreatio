@@ -117,67 +117,103 @@ function fractions(Ka: readonly number[], h: number): number[] {
   return w.map((x) => x / s);
 }
 
-/** Wie viel eines Liganden die Metalle binden, wenn L frei ist — und ihre Anteile. */
-function bound(metals: readonly CxMetal[], ligand: Complex['ligand'], L: number): number {
-  let b = 0;
-  for (const m of metals) {
-    let sum = 1;
-    let nsum = 0;
-    for (const c of m.list) {
-      if (c.ligand !== ligand) continue;
-      const t = 10 ** c.logB * L ** c.n;
-      sum += t;
-      nsum += c.n * t;
-    }
-    b += (m.c * nsum) / sum;
-  }
-  return b;
-}
+/** Bildungskonstanten β = 10^logB (einmal gerechnet — sie werden in jedem Gleichgewicht tausendfach gebraucht). */
+const BETA: ReadonlyMap<Complex, number> = new Map(COMPLEXES.map((c) => [c, 10 ** c.logB]));
+const beta = (c: Complex): number => BETA.get(c) ?? 10 ** c.logB;
+const powi = (x: number, n: number): number => { let r = 1; for (let i = 0; i < n; i += 1) r *= x; return r; };
 
-/** Freier Ligand aus seiner Bilanz: total = frei·(1 + h/Ka) + gebunden(frei) — halbiert im Logarithmus. */
-function freeLigand(total: number, metals: readonly CxMetal[], ligand: Complex['ligand'], extra: number): number {
+/** Was die übrigen Liganden eines Metalls binden, während einer gesucht wird: β·[L]ⁿ eines Komplexes (fest, 0 für den gesuchten). */
+type Others = (c: Complex) => number;
+
+/**
+ * Freier Ligand aus seiner Bilanz: total = frei·(1 + h/Ka) + gebunden(frei) —
+ * Newton im Logarithmus (die Ableitung der gebundenen Menge ist bekannt),
+ * eingeschlossen in ein Intervall, das sich bei jedem Schritt verengt. Was
+ * andere Liganden desselben Metalls binden (Cu²⁺ mit OH⁻ und NH₃), steht fest
+ * im Nenner (`others`).
+ */
+function freeLigand(total: number, metals: readonly CxMetal[], ligand: Complex['ligand'], extra: number, others: Others): number {
   if (total <= 0) return 0;
   let lo = -30;
   let hi = Math.log10(total / extra);
-  for (let i = 0; i < 44; i += 1) {
-    const mid = (lo + hi) / 2;
-    const L = 10 ** mid;
-    if (L * extra + bound(metals, ligand, L) > total) hi = mid; else lo = mid;
+  let l = hi - 0.5;
+  for (let i = 0; i < 60; i += 1) {
+    const L = 10 ** l;
+    let b = 0;
+    let db = 0;
+    for (const m of metals) {
+      if (m.c <= 0) continue;
+      let sum = 1;
+      let n1 = 0;
+      let n2 = 0;
+      for (const c of m.list) {
+        if (c.ligand !== ligand) { sum += others(c); continue; }
+        const t = beta(c) * powi(L, c.n);
+        sum += t;
+        n1 += c.n * t;
+        n2 += c.n * c.n * t;
+      }
+      b += (m.c * n1) / sum;
+      db += (m.c * (n2 * sum - n1 * n1)) / (sum * sum);
+    }
+    const G = L * extra + b - total;
+    if (Math.abs(G) <= total * 1e-12) return L;
+    if (G > 0) hi = l; else lo = l;
+    const dG = Math.LN10 * (L * extra + db);
+    let next = dG > 0 ? l - G / dG : (lo + hi) / 2;
+    if (!(next > lo && next < hi)) next = (lo + hi) / 2;
+    if (Math.abs(next - l) < 1e-11) return 10 ** next;
+    l = next;
   }
   return 10 ** ((lo + hi) / 2);
 }
 
 const hasLigand = (metals: readonly CxMetal[], ligand: Complex['ligand']) => metals.some((m) => m.c > 0 && m.list.some((c) => c.ligand === ligand));
 
-/** Die Ladungsbilanz bei [H⁺] = h (fällt mit dem pH). */
-function charge(sol: Sol, h: number, K: Consts, scnFree: number): number {
+interface Ligands { readonly oh: number; readonly scn: number; readonly nh3: number }
+
+/**
+ * Die freien Liganden bei [H⁺] = h: OH⁻ aus dem pH, SCN⁻ (OH⁻ nimmt ihm Fe³⁺
+ * weg), NH₃ (gegen OH⁻ und SCN⁻ — und gegen H⁺: NH₄⁺).
+ */
+function ligands(sol: Sol, h: number, K: Consts): Ligands {
   const oh = K.Kw / h;
-  let q = h - oh + sol.sid;
+  const scn = sol.scn > 0 ? freeLigand(sol.scn, sol.metals, 'SCN-', 1, (c) => (c.ligand === 'OH-' ? beta(c) * powi(oh, c.n) : 0)) : 0;
+  const cN = sol.pool.N;
+  const ka = K.Ka.N[0];
+  let nh3 = 0;
+  if (cN > 0) {
+    nh3 = hasLigand(sol.metals, 'NH3')
+      ? freeLigand(cN, sol.metals, 'NH3', 1 + h / ka, (c) => beta(c) * powi(c.ligand === 'OH-' ? oh : scn, c.n))
+      : (cN * ka) / (h + ka);
+  }
+  return { oh, scn, nh3 };
+}
+
+/** β·[L]ⁿ eines Komplexes bei diesen freien Liganden. */
+const term = (c: Complex, L: Ligands): number => beta(c) * powi(c.ligand === 'OH-' ? L.oh : c.ligand === 'NH3' ? L.nh3 : L.scn, c.n);
+
+/** Die Ladungsbilanz bei [H⁺] = h (fällt mit dem pH). */
+function charge(sol: Sol, h: number, K: Consts): number {
+  const L = ligands(sol, h, K);
+  let q = h - L.oh + sol.sid;
   for (const p of POOLS) {
     const c = sol.pool[p.id];
     if (c <= 0) continue;
-    if (p.id === 'N') {
-      const ka = K.Ka.N[0];
-      if (hasLigand(sol.metals, 'NH3')) {
-        const L = freeLigand(c, sol.metals, 'NH3', 1 + h / ka);
-        q += (L * h) / ka;
-      } else q += (c * h) / (h + ka);
-      continue;
-    }
+    /* NH₄⁺ = freies NH₃ · h/Ka. */
+    if (p.id === 'N') { q += (L.nh3 * h) / K.Ka.N[0]; continue; }
     const a = fractions(K.Ka[p.id], h);
     for (let i = 1; i < a.length; i += 1) q += c * a[i] * p.charges[i];
   }
+  /* Hydroxo-Komplexe (CuOH⁺, Fe(OH)²⁺, [Zn(OH)₄]²⁻) nehmen dem Metall Ladung: so werden Lösungen dieser Salze sauer. */
   for (const m of sol.metals) {
     if (m.c <= 0) continue;
     let sum = 1;
     let zq = 0;
     for (const c of m.list) {
-      if (c.ligand === 'OH-') {
-        const t = 10 ** c.logB * oh ** c.n;
-        sum += t;
-        zq += t * -c.n;
-      } else if (c.ligand === 'SCN-') sum += 10 ** c.logB * scnFree ** c.n;
-      else sum += 0;
+      const t = term(c, L);
+      sum += t;
+      if (c.ligand === 'OH-') zq -= c.n * t;
     }
     if (zq !== 0) q += (m.c * zq) / sum;
   }
@@ -187,36 +223,43 @@ function charge(sol: Sol, h: number, K: Consts, scnFree: number): number {
 /** Das Gleichgewicht einer Lösung — `guess`: der pH von vorhin (schneller). */
 export function speciate(sol: Sol, T: number, guess: number | null = null): Spec {
   const K = consts(T);
-  const scnFree = sol.scn > 0 ? freeLigand(sol.scn, sol.metals, 'SCN-', 1) : 0;
-  const q = (pH: number) => charge(sol, 10 ** -pH, K, scnFree);
+  const q = (pH: number) => charge(sol, 10 ** -pH, K);
+  /* Die Ladung fällt mit dem pH: falsche Position (Illinois) im Intervall um den pH von vorhin, sonst über alles. */
   let lo = -2;
   let hi = 16;
+  let qlo = Number.NaN;
+  let qhi = Number.NaN;
   if (guess !== null && Number.isFinite(guess)) {
     const a = Math.max(-2, guess - 1.2);
     const b = Math.min(16, guess + 1.2);
-    if (q(a) > 0 && q(b) < 0) { lo = a; hi = b; }
+    const qa = q(a);
+    const qb = qa > 0 ? q(b) : Number.NaN;
+    if (qa > 0 && qb < 0) { lo = a; hi = b; qlo = qa; qhi = qb; }
   }
-  for (let i = 0; i < 40 && hi - lo > 2e-6; i += 1) {
-    const mid = (lo + hi) / 2;
-    if (q(mid) > 0) lo = mid; else hi = mid;
+  if (Number.isNaN(qlo)) { qlo = q(lo); qhi = q(hi); }
+  let pH = (lo + hi) / 2;
+  let side = 0;
+  for (let i = 0; i < 80 && hi - lo > 2e-6; i += 1) {
+    let mid = (lo + hi) / 2;
+    if (qlo > 0 && qhi < 0) { const m = (lo * qhi - hi * qlo) / (qhi - qlo); if (m > lo && m < hi) mid = m; }
+    const qm = q(mid);
+    pH = mid;
+    if (qm === 0) break;
+    if (qm > 0) { lo = mid; qlo = qm; if (side === -1) qhi *= 0.5; side = -1; }
+    else { hi = mid; qhi = qm; if (side === 1) qlo *= 0.5; side = 1; }
   }
-  const pH = (lo + hi) / 2;
+  if (hi - lo <= 2e-6) pH = (lo + hi) / 2;
   const h = 10 ** -pH;
-  const oh = K.Kw / h;
+  const L = ligands(sol, h, K);
   const alpha = {} as Record<PoolId, number[]>;
-  let nh3 = 0;
   for (const p of POOLS) {
     if (p.id === 'N') {
       const c = sol.pool.N;
       const ka = K.Ka.N[0];
       if (c > 0 && hasLigand(sol.metals, 'NH3')) {
-        nh3 = freeLigand(c, sol.metals, 'NH3', 1 + h / ka);
-        const nh4 = (nh3 * h) / ka;
+        const nh4 = (L.nh3 * h) / ka;
         alpha.N = [nh4 / c, 1 - nh4 / c];
-      } else {
-        alpha.N = [h / (h + ka), ka / (h + ka)];
-        nh3 = c * alpha.N[1];
-      }
+      } else alpha.N = [h / (h + ka), ka / (h + ka)];
       continue;
     }
     alpha[p.id] = fractions(K.Ka[p.id], h);
@@ -224,12 +267,12 @@ export function speciate(sol: Sol, T: number, guess: number | null = null): Spec
   const free: Record<string, number> = {};
   const cx: Record<string, number> = {};
   for (const m of sol.metals) {
-    const terms = m.list.map((c) => 10 ** c.logB * (c.ligand === 'OH-' ? oh : c.ligand === 'NH3' ? nh3 : scnFree) ** c.n);
+    const terms = m.list.map((c) => term(c, L));
     const sum = 1 + terms.reduce((a, b) => a + b, 0);
     free[m.ion] = 1 / sum;
     m.list.forEach((c, i) => { cx[c.id] = terms[i] / sum; });
   }
-  return { pH, h, oh, alpha, nh3, scnFree, free, cx };
+  return { pH, h, oh: L.oh, alpha, nh3: L.nh3, scnFree: L.scn, free, cx };
 }
 
 /* -- Die Wärme der Formen ------------------------------------------------------------------------ */

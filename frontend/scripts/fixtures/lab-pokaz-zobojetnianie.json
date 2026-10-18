@@ -1,0 +1,356 @@
+{
+ "format": "recreatio/page",
+ "version": 1,
+ "path": "pokaz-zobojetnianie",
+ "title": "Kwas, zasada i zobojętnianie",
+ "lead": "Jak wskaźnik pokazuje odczyn — i co się dzieje, gdy kwas spotyka zasadę?",
+ "mode": "slides",
+ "theme": {
+  "mode": "light",
+  "accent": "#8e44ad",
+  "ink": "#13212b",
+  "ground": "#f6f8f7",
+  "muted": "#5b6b74"
+ },
+ "cover": [],
+ "deck": {
+  "backdrop": [],
+  "nav": "dots",
+  "titleSlide": false,
+  "width": 100
+ },
+ "modules": [
+  {
+   "id": "start",
+   "kind": "hero",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 3
+   },
+   "slide": {
+    "label": "Start",
+    "layers": []
+   },
+   "config": {
+    "badge": "Pokaz · chemia",
+    "badgeLook": "kicker",
+    "size": "title",
+    "headline": "Kwas, zasada i zobojętnianie",
+    "lede": "Jak wskaźnik pokazuje odczyn — i co się dzieje, gdy kwas spotyka zasadę?",
+    "paragraphs": [
+     "Wskaźniki zmieniają barwę zależnie od pH. Fenoloftaleina jest bezbarwna w kwasie i w wodzie, a malinowa w zasadzie.",
+     "Zobaczysz, że zobojętnianie wydziela ciepło, a na koniec zmiareczkujesz zasadę kwasem — dokładnie do punktu, w którym wskaźnik się odbarwi."
+    ],
+    "actions": [],
+    "footnote": null
+   }
+  },
+  {
+   "id": "wskaznik",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "1. Fenoloftaleina",
+    "layers": []
+   },
+   "config": {
+    "title": "Fenoloftaleina",
+    "text": [
+     "W jednej probówce jest kwas solny, w drugiej zasada sodowa (oba o stężeniu 0,1 mol/dm³).",
+     "Dodaj do obu kilka kropli fenoloftaleiny (z półki albo „Pokaż”)."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "kwas",
+       "kind": "tube",
+       "size": 25,
+       "x": -3,
+       "label": "HCl",
+       "fill": [
+        {
+         "reagent": "HCl-dil",
+         "amount": 8
+        }
+       ]
+      },
+      {
+       "id": "zasada",
+       "kind": "tube",
+       "size": 25,
+       "x": 3,
+       "label": "NaOH",
+       "fill": [
+        {
+         "reagent": "NaOH-dil",
+         "amount": 8
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "phenolphthalein",
+      "methylorange",
+      "universal"
+     ],
+     "tools": [
+      "stir",
+      "paper"
+     ],
+     "steps": [
+      {
+       "say": "Dodaj fenoloftaleinę do obu probówek.",
+       "do": [
+        {
+         "add": "phenolphthalein",
+         "to": "kwas",
+         "amount": 3
+        },
+        {
+         "add": "phenolphthalein",
+         "to": "zasada",
+         "amount": 3
+        },
+        {
+         "use": "stir",
+         "at": "kwas"
+        },
+        {
+         "use": "stir",
+         "at": "zasada"
+        }
+       ],
+       "wait": 6,
+       "ask": {
+        "q": "W której probówce fenoloftaleina zmieni barwę?",
+        "options": [
+         "w kwasie",
+         "w zasadzie",
+         "w obu"
+        ],
+        "answer": "w zasadzie",
+        "why": "Fenoloftaleina barwi się na malinowo w odczynie zasadowym (pH powyżej ok. 8,2)."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "cieplo",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "2. Ciepło zobojętniania",
+    "layers": []
+   },
+   "config": {
+    "title": "Ciepło zobojętniania",
+    "text": [
+     "W zlewce jest 50 cm³ kwasu solnego (1 mol/dm³) i termometr, obok zasada sodowa o tym samym stężeniu.",
+     "Wlej zasadę do kwasu i zamieszaj (albo „Pokaż”). Patrz na wykres."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "zlewka",
+       "kind": "beaker",
+       "size": 250,
+       "x": -5,
+       "label": "HCl 1 mol/dm³",
+       "fill": [
+        {
+         "reagent": "HCl",
+         "amount": 50
+        }
+       ]
+      },
+      {
+       "id": "termometr",
+       "kind": "thermometer",
+       "into": "zlewka"
+      },
+      {
+       "id": "naoh",
+       "kind": "beaker",
+       "size": 100,
+       "x": 8,
+       "label": "NaOH 1 mol/dm³",
+       "fill": [
+        {
+         "reagent": "NaOH-aq",
+         "amount": 50
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "NaOH-aq",
+      "HCl"
+     ],
+     "tools": [
+      "stir",
+      "thermometer"
+     ],
+     "graph": {
+      "things": [
+       "termometr"
+      ],
+      "of": [
+       "T"
+      ]
+     },
+     "steps": [
+      {
+       "say": "Wlej zasadę do kwasu i zamieszaj.",
+       "do": [
+        {
+         "pour": "naoh",
+         "to": "zlewka",
+         "ml": 50
+        },
+        {
+         "use": "stir",
+         "at": "zlewka"
+        }
+       ],
+       "wait": 15,
+       "ask": {
+        "q": "Co pokaże termometr?",
+        "options": [
+         "temperatura wzrośnie",
+         "temperatura spadnie",
+         "nic się nie zmieni"
+        ],
+        "answer": "temperatura wzrośnie",
+        "why": "H⁺ + OH⁻ → H₂O — zobojętnianie jest egzotermiczne: ok. 57 kJ na każdy mol powstałej wody."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "miareczkowanie",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "3. Miareczkowanie",
+    "layers": []
+   },
+   "config": {
+    "title": "Miareczkowanie",
+    "text": [
+     "W kolbie na mieszadle magnetycznym jest 25 cm³ zasady sodowej (0,1 mol/dm³) z fenoloftaleiną, w biurecie kwas solny o tym samym stężeniu.",
+     "Otwórz kranik (dotknij biurety albo „Pokaż”) i obserwuj wykres pH. Przy ilu cm³ kwasu roztwór się odbarwi?"
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "mieszadlo",
+       "kind": "hotplate",
+       "x": 0,
+       "stir": true
+      },
+      {
+       "id": "kolba",
+       "kind": "flask",
+       "size": 100,
+       "on": "mieszadlo",
+       "label": "NaOH + fenoloftaleina",
+       "fill": [
+        {
+         "reagent": "NaOH-dil",
+         "amount": 25
+        },
+        {
+         "reagent": "phenolphthalein",
+         "amount": 2
+        }
+       ]
+      },
+      {
+       "id": "biureta",
+       "kind": "burette",
+       "size": 50,
+       "x": 0,
+       "y": 12.8,
+       "label": "HCl 0,1 mol/dm³",
+       "fill": [
+        {
+         "reagent": "HCl-dil",
+         "amount": 50
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "phenolphthalein",
+      "methylorange",
+      "bromothymol"
+     ],
+     "tools": [
+      "stir",
+      "paper"
+     ],
+     "graph": {
+      "things": [
+       "kolba"
+      ],
+      "of": [
+       "pH"
+      ]
+     },
+     "steps": [
+      {
+       "say": "Otwórz kranik biurety — kwas kapie do kolby.",
+       "do": {
+        "tap": "biureta",
+        "rate": 0.6
+       },
+       "wait": 50,
+       "ask": {
+        "q": "Przy ilu cm³ kwasu roztwór się odbarwi?",
+        "options": [
+         "ok. 10 cm³",
+         "ok. 25 cm³",
+         "ok. 50 cm³"
+        ],
+        "answer": "ok. 25 cm³",
+        "why": "W kolbie jest 2,5 mmol NaOH — tyle samo HCl jest w 25 cm³ kwasu. Wtedy pH gwałtownie spada przez 7 i fenoloftaleina się odbarwia."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "wyjasnienie",
+   "kind": "text",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 4
+   },
+   "config": {
+    "title": "Co się wydarzyło?",
+    "body": "Fenoloftaleina zabarwiła na malinowo tylko zasadę — w kwasie pozostała bezbarwna.\nKwas z zasadą reaguje: H⁺ + OH⁻ → H₂O (a jony Na⁺ i Cl⁻ zostają w roztworze). Reakcja wydziela ciepło — 0,05 mola wody ogrzało roztwór o ok. 6 °C.\nPrzy miareczkowaniu pH długo zmienia się niewiele, a w pobliżu 25 cm³ spada o kilka jednostek naraz — to punkt równoważności. Wskaźnik odbarwia się właśnie wtedy.\n## Zapamiętaj\nkwas + zasada → sól + woda (zobojętnianie, reakcja egzotermiczna). Z objętości kwasu w punkcie równoważności oblicza się stężenie zasady."
+   },
+   "slide": {
+    "label": "Wyjaśnienie",
+    "layers": []
+   }
+  }
+ ]
+}

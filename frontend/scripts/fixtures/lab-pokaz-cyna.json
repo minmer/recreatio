@@ -1,0 +1,342 @@
+{
+ "format": "recreatio/page",
+ "version": 1,
+ "path": "pokaz-cyna",
+ "title": "Topnienie i krzepnięcie cyny",
+ "lead": "Co dzieje się z temperaturą metalu, który się topi?",
+ "mode": "slides",
+ "theme": {
+  "mode": "light",
+  "accent": "#b0602a",
+  "ink": "#13212b",
+  "ground": "#f6f8f7",
+  "muted": "#5b6b74"
+ },
+ "cover": [],
+ "deck": {
+  "backdrop": [],
+  "nav": "dots",
+  "titleSlide": false,
+  "width": 100
+ },
+ "modules": [
+  {
+   "id": "start",
+   "kind": "hero",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 3
+   },
+   "slide": {
+    "label": "Start",
+    "layers": []
+   },
+   "config": {
+    "badge": "Pokaz · fizyka i chemia",
+    "badgeLook": "kicker",
+    "size": "title",
+    "headline": "Topnienie i krzepnięcie cyny",
+    "lede": "Co dzieje się z temperaturą metalu, który się topi?",
+    "paragraphs": [
+     "Cyna topi się w 232 °C — w zasięgu zwykłego palnika. Na kolejnych slajdach ogrzejesz ją w tyglu, zobaczysz, jak się topi, a potem jak krzepnie.",
+     "Na każdym slajdzie jest jeden krok. Najpierw odpowiedz na pytanie — przewiduj! — potem wykonaj krok sam albo naciśnij „Pokaż”. Wykres pokazuje temperaturę z termometru w tyglu."
+    ],
+    "actions": [],
+    "footnote": null
+   }
+  },
+  {
+   "id": "ogrzewanie",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "1. Ogrzewanie",
+    "layers": []
+   },
+   "config": {
+    "title": "Ogrzewanie",
+    "text": [
+     "Na trójnogu stoi tygiel z 20 g cyny, w środku termometr. Palnik jest zgaszony.",
+     "Zapal palnik (zapałka z narzędzi albo „Pokaż”) i patrz na wykres. Czas płynie pięć razy szybciej."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "palnik",
+       "kind": "burner",
+       "x": 0,
+       "air": 1,
+       "gas": 0.8
+      },
+      {
+       "id": "trojnog",
+       "kind": "tripod",
+       "x": 0
+      },
+      {
+       "id": "tygiel",
+       "kind": "crucible",
+       "size": 30,
+       "on": "trojnog",
+       "label": "cyna 20 g",
+       "fill": [
+        {
+         "reagent": "Sn",
+         "amount": 20
+        }
+       ]
+      },
+      {
+       "id": "termometr",
+       "kind": "thermometer",
+       "into": "tygiel"
+      }
+     ],
+     "shelf": [
+      "Sn",
+      "Pb",
+      "Field"
+     ],
+     "tools": [
+      "match",
+      "probe"
+     ],
+     "graph": {
+      "things": [
+       "termometr"
+      ],
+      "of": [
+       "T"
+      ]
+     },
+     "speed": 5,
+     "steps": [
+      {
+       "say": "Zapal palnik pod tyglem.",
+       "do": {
+        "burner": "palnik",
+        "on": true
+       },
+       "wait": 90,
+       "ask": {
+        "q": "Co zacznie się dziać, gdy termometr dojdzie do 232 °C?",
+        "options": [
+         "cyna zacznie się topić",
+         "cyna zacznie wrzeć",
+         "nic się nie zmieni"
+        ],
+        "answer": "cyna zacznie się topić",
+        "why": "232 °C to temperatura topnienia cyny — od niej ciało stałe przechodzi w ciecz."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "topnienie",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "2. Topnienie",
+    "layers": []
+   },
+   "config": {
+    "title": "Topnienie",
+    "text": [
+     "Cyna ma już 225 °C, palnik grzeje dalej.",
+     "Patrz na wykres, aż cała cyna się stopi."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "palnik",
+       "kind": "burner",
+       "x": 0,
+       "air": 1,
+       "gas": 0.8,
+       "lit": true
+      },
+      {
+       "id": "trojnog",
+       "kind": "tripod",
+       "x": 0
+      },
+      {
+       "id": "tygiel",
+       "kind": "crucible",
+       "size": 30,
+       "on": "trojnog",
+       "label": "cyna 20 g",
+       "fill": [
+        {
+         "reagent": "Sn",
+         "amount": 20
+        }
+       ],
+       "T": 225
+      },
+      {
+       "id": "termometr",
+       "kind": "thermometer",
+       "into": "tygiel"
+      }
+     ],
+     "shelf": [
+      "Sn",
+      "Pb",
+      "Field"
+     ],
+     "tools": [
+      "match",
+      "probe"
+     ],
+     "graph": {
+      "things": [
+       "termometr"
+      ],
+      "of": [
+       "T"
+      ]
+     },
+     "speed": 5,
+     "steps": [
+      {
+       "say": "Obserwuj termometr, aż cała cyna się stopi.",
+       "do": {
+        "speed": 5
+       },
+       "wait": 90,
+       "ask": {
+        "q": "Co pokazuje termometr, dopóki w tyglu jest i stała, i ciekła cyna?",
+        "options": [
+         "temperatura rośnie dalej",
+         "temperatura stoi na 232 °C",
+         "temperatura spada"
+        ],
+        "answer": "temperatura stoi na 232 °C",
+        "why": "Całe ciepło z palnika idzie na topnienie (ciepło topnienia) — dopiero gdy cała cyna jest ciekła, temperatura znów rośnie."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "krzepniecie",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "3. Krzepnięcie",
+    "layers": []
+   },
+   "config": {
+    "title": "Krzepnięcie",
+    "text": [
+     "Cała cyna jest ciekła i ma 260 °C. Palnik zgaszono.",
+     "Obserwuj, jak metal stygnie i krzepnie — czas płynie dziesięć razy szybciej."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "palnik",
+       "kind": "burner",
+       "x": 0,
+       "air": 1,
+       "gas": 0.8
+      },
+      {
+       "id": "trojnog",
+       "kind": "tripod",
+       "x": 0
+      },
+      {
+       "id": "tygiel",
+       "kind": "crucible",
+       "size": 30,
+       "on": "trojnog",
+       "label": "cyna 20 g",
+       "fill": [
+        {
+         "reagent": "Sn",
+         "amount": 20
+        }
+       ],
+       "T": 260
+      },
+      {
+       "id": "termometr",
+       "kind": "thermometer",
+       "into": "tygiel"
+      }
+     ],
+     "shelf": [
+      "Sn",
+      "Pb",
+      "Field"
+     ],
+     "tools": [
+      "match",
+      "probe"
+     ],
+     "graph": {
+      "things": [
+       "termometr"
+      ],
+      "of": [
+       "T"
+      ]
+     },
+     "speed": 10,
+     "steps": [
+      {
+       "say": "Obserwuj, jak ciekła cyna stygnie.",
+       "do": {
+        "speed": 10
+       },
+       "wait": 280,
+       "ask": {
+        "q": "Co stanie się z temperaturą, gdy cyna zacznie krzepnąć?",
+        "options": [
+         "będzie spadać tak samo jak przedtem",
+         "zatrzyma się na 232 °C, aż cała cyna zakrzepnie",
+         "wzrośnie"
+        ],
+        "answer": "zatrzyma się na 232 °C, aż cała cyna zakrzepnie",
+        "why": "Krzepnąc, cyna oddaje ciepło topnienia — tyle, ile pobrała przy topnieniu — więc temperatura stoi, dopóki cała nie zakrzepnie."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "wyjasnienie",
+   "kind": "text",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 4
+   },
+   "config": {
+    "title": "Co się wydarzyło?",
+    "body": "Do 232 °C ciepło z palnika podnosi temperaturę cyny.\nW 232 °C ciepło idzie na rozrywanie sieci krystalicznej — temperatura stoi, aż cała cyna się stopi. To ciepło topnienia: dla cyny ok. 59 J na każdy gram.\nPrzy stygnięciu jest odwrotnie: krzepnąc, cyna oddaje to samo ciepło, więc na wykresie znów widać poziomą „półkę” na 232 °C.\n## Zapamiętaj\nTemperatura topnienia i temperatura krzepnięcia czystej substancji są takie same. Przemiana fazowa to na wykresie temperatury pozioma półka.\n## Spróbuj sam\nW piaskownicy ołów topi się w 327 °C, a stop Fielda (bizmut, ind, cyna) już w 62 °C — stopi się nawet w gorącej wodzie."
+   },
+   "slide": {
+    "label": "Wyjaśnienie",
+    "layers": []
+   }
+  }
+ ]
+}

@@ -1,0 +1,422 @@
+{
+ "format": "recreatio/page",
+ "version": 1,
+ "path": "pokaz-osady",
+ "title": "Reakcje strąceniowe",
+ "lead": "Dwa przezroczyste roztwory — a po zmieszaniu osad. Skąd się bierze?",
+ "mode": "slides",
+ "theme": {
+  "mode": "light",
+  "accent": "#2f6fa8",
+  "ink": "#13212b",
+  "ground": "#f6f8f7",
+  "muted": "#5b6b74"
+ },
+ "cover": [],
+ "deck": {
+  "backdrop": [],
+  "nav": "dots",
+  "titleSlide": false,
+  "width": 100
+ },
+ "modules": [
+  {
+   "id": "start",
+   "kind": "hero",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 3
+   },
+   "slide": {
+    "label": "Start",
+    "layers": []
+   },
+   "config": {
+    "badge": "Pokaz · chemia",
+    "badgeLook": "kicker",
+    "size": "title",
+    "headline": "Reakcje strąceniowe",
+    "lede": "Dwa przezroczyste roztwory — a po zmieszaniu osad. Skąd się bierze?",
+    "paragraphs": [
+     "Gdy zmieszasz roztwory dwóch soli, jony mogą połączyć się w substancję, która w wodzie prawie się nie rozpuszcza. Wtedy ciecz mętnieje i powstaje osad.",
+     "Silnik liczy rozpuszczalność w każdej kropli cieczy osobno — osad pojawia się dokładnie tam, gdzie roztwory się spotykają, a potem powoli opada."
+    ],
+    "actions": [],
+    "footnote": null
+   }
+  },
+  {
+   "id": "chlorek-srebra",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "1. Chlorek srebra",
+    "layers": []
+   },
+   "config": {
+    "title": "Chlorek srebra",
+    "text": [
+     "W dużej zlewce jest roztwór chlorku sodu, w małej — azotanu(V) srebra.",
+     "Przelej azotan srebra do chlorku sodu: przytrzymaj małą zlewkę nad dużą (albo „Pokaż”). Gdzie najpierw pojawia się osad?"
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "nacl",
+       "kind": "beaker",
+       "size": 100,
+       "x": -5,
+       "label": "NaCl",
+       "fill": [
+        {
+         "reagent": "NaCl-aq",
+         "amount": 40
+        }
+       ]
+      },
+      {
+       "id": "agno3",
+       "kind": "beaker",
+       "size": 50,
+       "x": 8,
+       "label": "AgNO₃",
+       "fill": [
+        {
+         "reagent": "AgNO3",
+         "amount": 20
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "NaCl-aq",
+      "AgNO3"
+     ],
+     "tools": [
+      "stir"
+     ],
+     "steps": [
+      {
+       "say": "Przelej azotan srebra do chlorku sodu.",
+       "do": {
+        "pour": "agno3",
+        "to": "nacl",
+        "ml": 20
+       },
+       "wait": 12,
+       "ask": {
+        "q": "Co zobaczysz po zmieszaniu?",
+        "options": [
+         "biały osad",
+         "niebieski roztwór",
+         "nic — oba roztwory są bezbarwne"
+        ],
+        "answer": "biały osad",
+        "why": "Ag⁺ + Cl⁻ → AgCl↓ — chlorek srebra prawie nie rozpuszcza się w wodzie."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "wodorotlenek-miedzi",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "2. Wodorotlenek miedzi(II)",
+    "layers": []
+   },
+   "config": {
+    "title": "Wodorotlenek miedzi(II)",
+    "text": [
+     "W probówce jest roztwór: siarczan(VI) miedzi(II).",
+     "Dodaj zasadę sodową (z półki albo „Pokaż”) i obserwuj probówkę. Równanie pojawi się w obserwacjach."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "p",
+       "kind": "tube",
+       "size": 25,
+       "x": 0,
+       "label": "CuSO₄",
+       "fill": [
+        {
+         "reagent": "CuSO4-aq",
+         "amount": 8
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "NaOH-aq"
+     ],
+     "tools": [
+      "stir"
+     ],
+     "steps": [
+      {
+       "say": "Dodaj zasadę sodową.",
+       "do": [
+        {
+         "add": "NaOH-aq",
+         "to": "p",
+         "amount": 4
+        },
+        {
+         "use": "stir",
+         "at": "p"
+        }
+       ],
+       "wait": 6,
+       "ask": {
+        "q": "Jaki kolor będzie miał osad?",
+        "options": [
+         "niebieski",
+         "biały",
+         "czerwony"
+        ],
+        "answer": "niebieski",
+        "why": "Cu²⁺ + 2OH⁻ → Cu(OH)₂↓ — galaretowaty, niebieski osad."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "jodek-olowiu",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "3. Jodek ołowiu(II)",
+    "layers": []
+   },
+   "config": {
+    "title": "Jodek ołowiu(II)",
+    "text": [
+     "W probówce jest roztwór: azotan(V) ołowiu(II).",
+     "Dodaj roztwór jodku potasu (z półki albo „Pokaż”) i obserwuj probówkę. Równanie pojawi się w obserwacjach."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "p",
+       "kind": "tube",
+       "size": 25,
+       "x": 0,
+       "label": "Pb(NO₃)₂",
+       "fill": [
+        {
+         "reagent": "Pb(NO3)2",
+         "amount": 8
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "KI"
+     ],
+     "tools": [
+      "stir"
+     ],
+     "steps": [
+      {
+       "say": "Dodaj roztwór jodku potasu.",
+       "do": [
+        {
+         "add": "KI",
+         "to": "p",
+         "amount": 4
+        },
+        {
+         "use": "stir",
+         "at": "p"
+        }
+       ],
+       "wait": 6,
+       "ask": {
+        "q": "Jaki kolor będzie miał osad?",
+        "options": [
+         "żółty",
+         "biały",
+         "czarny"
+        ],
+        "answer": "żółty",
+        "why": "Pb²⁺ + 2I⁻ → PbI₂↓ — jaskrawożółty osad."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "wodorotlenek-zelaza",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "4. Wodorotlenek żelaza(III)",
+    "layers": []
+   },
+   "config": {
+    "title": "Wodorotlenek żelaza(III)",
+    "text": [
+     "W probówce jest roztwór: chlorek żelaza(III).",
+     "Dodaj zasadę sodową (z półki albo „Pokaż”) i obserwuj probówkę. Równanie pojawi się w obserwacjach."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "p",
+       "kind": "tube",
+       "size": 25,
+       "x": 0,
+       "label": "FeCl₃",
+       "fill": [
+        {
+         "reagent": "FeCl3",
+         "amount": 8
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "NaOH-aq"
+     ],
+     "tools": [
+      "stir"
+     ],
+     "steps": [
+      {
+       "say": "Dodaj zasadę sodową.",
+       "do": [
+        {
+         "add": "NaOH-aq",
+         "to": "p",
+         "amount": 4
+        },
+        {
+         "use": "stir",
+         "at": "p"
+        }
+       ],
+       "wait": 6,
+       "ask": {
+        "q": "Jaki kolor będzie miał osad?",
+        "options": [
+         "rdzawobrunatny",
+         "zielony",
+         "biały"
+        ],
+        "answer": "rdzawobrunatny",
+        "why": "Fe³⁺ + 3OH⁻ → Fe(OH)₃↓ — rdzawobrunatny, kłaczkowaty osad."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "siarczan-baru",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "5. Siarczan(VI) baru",
+    "layers": []
+   },
+   "config": {
+    "title": "Siarczan(VI) baru",
+    "text": [
+     "W probówce jest roztwór: chlorek baru.",
+     "Dodaj roztwór siarczanu(VI) sodu (z półki albo „Pokaż”) i obserwuj probówkę. Równanie pojawi się w obserwacjach."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "p",
+       "kind": "tube",
+       "size": 25,
+       "x": 0,
+       "label": "BaCl₂",
+       "fill": [
+        {
+         "reagent": "BaCl2",
+         "amount": 8
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "Na2SO4"
+     ],
+     "tools": [
+      "stir"
+     ],
+     "steps": [
+      {
+       "say": "Dodaj roztwór siarczanu(VI) sodu.",
+       "do": [
+        {
+         "add": "Na2SO4",
+         "to": "p",
+         "amount": 4
+        },
+        {
+         "use": "stir",
+         "at": "p"
+        }
+       ],
+       "wait": 6,
+       "ask": {
+        "q": "Czy powstanie osad?",
+        "options": [
+         "tak, biały",
+         "nie — obie sole dobrze się rozpuszczają"
+        ],
+        "answer": "tak, biały",
+        "why": "Ba²⁺ + SO₄²⁻ → BaSO₄↓ — jeden z najtrudniej rozpuszczalnych siarczanów."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "wyjasnienie",
+   "kind": "text",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 4
+   },
+   "config": {
+    "title": "Co się wydarzyło?",
+    "body": "W każdej probówce dwa jony spotkały się i utworzyły trudno rozpuszczalną sól albo wodorotlenek:\nAg⁺ + Cl⁻ → AgCl↓ (biały)  ·  Cu²⁺ + 2OH⁻ → Cu(OH)₂↓ (niebieski)  ·  Pb²⁺ + 2I⁻ → PbI₂↓ (żółty)  ·  Fe³⁺ + 3OH⁻ → Fe(OH)₃↓ (rdzawy)  ·  Ba²⁺ + SO₄²⁻ → BaSO₄↓ (biały)\nPozostałe jony (Na⁺, K⁺, NO₃⁻, Cl⁻, SO₄²⁻) zostały w roztworze — nie biorą udziału w reakcji, dlatego w równaniu jonowym skróconym ich nie ma.\n## Zapamiętaj\nOsad powstaje, gdy iloczyn stężeń jonów przekroczy iloczyn rozpuszczalności soli. Które połączenia są trudno rozpuszczalne, mówi tabela rozpuszczalności.\n## Spróbuj sam\nW piaskownicy wlej jodek potasu do azotanu ołowiu, ogrzej zlewkę, aż osad zniknie, i pozwól jej wystygnąć — to „złoty deszcz”."
+   },
+   "slide": {
+    "label": "Wyjaśnienie",
+    "layers": []
+   }
+  }
+ ]
+}

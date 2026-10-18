@@ -1,63 +1,80 @@
 /**
- * 2026-10-18 — POD LUPĄ (Chemia): was in einem Gefäss wirklich ist, als
+ * 2026-10-18 — POD LUPĄ (Chemia): was in einem Glas wirklich ist, als
  * Teilchen — oben das Gas (Moleküle fliegen, je wärmer, desto schneller;
  * N₂ blau, O₂ rot, CO₂ schwarz mit Rot, H₂ weiss …), unten die Lösung
  * (Wasser blass, Ionen mit ihrer Ladung, gelöste Moleküle, Komplexe).
  *
  * Ändert sich die Zusammensetzung, werden einige Teilchen in jedem Bild
- * umgefärbt — neue Gase kommen von der Oberfläche, neues Gelöstes von oben:
- * man sieht das Mischen, nicht nur das Ergebnis.
+ * umgefärbt — man sieht das Mischen, nicht nur das Ergebnis. Die Lupe liest
+ * eine Probe (`sampleOf`): das zusammengezählte Innere eines Glases.
  */
 
 import { COMPLEXES, GASES, GAS_COLORS, POOLS, SPECIES, type GasId } from './chemData';
-import type { Vessel } from './chemVessel';
+import { AQ, NC, concOf, complexOf } from './chemAq';
+import type { Summary } from './chemWorld';
 
 interface Dot { sp: string; liquid: boolean; x: number; y: number; vx: number; vy: number; a: number }
 
 export interface Share { readonly sp: string; readonly label: string; readonly color: string; readonly value: string }
 
+/** Was die Lupe von einem Glas braucht. */
+export interface Sample {
+  readonly gas: ReadonlyMap<GasId, number>;
+  readonly gasTotal: number;
+  readonly solutes: readonly { readonly sp: string; readonly c: number }[];
+  readonly wet: boolean;
+  readonly look: readonly [number, number, number, number];
+  readonly T: number;
+}
+
 const ION_PLUS = '#8a5ad0';
 const ION_MINUS = '#3c9b55';
 
-/** Was in der Lösung schwimmt, wie viel (mol/L) — freie Formen, Komplexe. */
-export function solutes(v: Vessel): { sp: string; c: number }[] {
-  const out: { sp: string; c: number }[] = [];
-  const V = v.liters();
-  if (V <= 1e-6) return out;
-  for (const [id, n] of v.aq) {
-    if (id.startsWith('ind:') || id === 'soap') continue;
-    const pool = POOLS.find((p) => p.id === id);
-    if (pool !== undefined) {
-      pool.forms.forEach((f, i) => { const c = (n / V) * (v.spec.alpha[pool.id][i] ?? 0); if (c > 1e-6) out.push({ sp: f, c }); });
-      continue;
+/** Die Probe eines Glases aus seiner Zusammenfassung (mit Gleichgewicht der gemischten Lösung). */
+export function sampleOf(s: Summary): Sample {
+  const gas = new Map<GasId, number>();
+  let total = 0;
+  GASES.forEach((g, k) => { const n = s.gas[k] ?? 0; if (n > 0) { gas.set(g, n); total += n; } });
+  const solutes: { sp: string; c: number }[] = [];
+  const spec = s.spec;
+  const V = s.ml / 1000;
+  if (spec !== null && V > 1e-6) {
+    for (let k = 1; k < NC; k += 1) {
+      const id = AQ[k];
+      const n = s.comp[k];
+      if (n <= 0 || id.startsWith('ind:') || id === 'soap') continue;
+      const pool = POOLS.find((p) => p.id === id);
+      if (pool !== undefined) {
+        pool.forms.forEach((f, i) => { const c = (n / V) * (spec.alpha[pool.id][i] ?? 0); if (c > 1e-6) solutes.push({ sp: f, c }); });
+        continue;
+      }
+      const c = concOf(s.comp, 0, spec, id);
+      if (c > 1e-6) solutes.push({ sp: id, c });
+      for (const cx of COMPLEXES) {
+        if (cx.metal !== id) continue;
+        const cc = complexOf(s.comp, 0, spec, cx.id, id);
+        if (cc > 1e-6) solutes.push({ sp: cx.id, c: cc });
+      }
     }
-    const free = v.spec.free[id];
-    const c = (n / V) * (free ?? 1);
-    if (c > 1e-6) out.push({ sp: id, c });
-    for (const cx of COMPLEXES) {
-      if (cx.metal !== id) continue;
-      const cc = (n / V) * (v.spec.cx[cx.id] ?? 0);
-      if (cc > 1e-6) out.push({ sp: cx.id, c: cc });
-    }
+    if (spec.h > 1e-4) solutes.push({ sp: 'H+', c: spec.h });
+    if (spec.oh > 1e-4) solutes.push({ sp: 'OH-', c: spec.oh });
   }
-  if (v.spec.h > 1e-4) out.push({ sp: 'H+', c: v.spec.h });
-  if (v.spec.oh > 1e-4) out.push({ sp: 'OH-', c: v.spec.oh });
-  return out.sort((a, b) => b.c - a.c);
+  solutes.sort((a, b) => b.c - a.c);
+  return { gas, gasTotal: total, solutes, wet: s.ml > 0.05, look: [s.look[0], s.look[1], s.look[2], s.look[3]], T: s.T };
 }
 
 const num = (x: number, d = 2): string => (x >= 0.01 || x === 0 ? x.toFixed(d) : x.toExponential(1)).replace('.', ',');
 
 /** Die Anteile zum Zeigen (Gas in %, Lösung in mol/dm³). */
-export function shares(v: Vessel): { gas: Share[]; liquid: Share[] } {
-  const total = v.gasTotal();
+export function shares(s: Sample): { gas: Share[]; liquid: Share[] } {
   const gas: Share[] = [];
   for (const g of GASES) {
-    const n = v.gas.get(g) ?? 0;
-    if (total <= 0 || n / total < 0.0005) continue;
-    gas.push({ sp: g, label: SPECIES[g]?.formula ?? g, color: GAS_COLORS[g], value: `${num((100 * n) / total, n / total < 0.01 ? 2 : 1)} %` });
+    const n = s.gas.get(g) ?? 0;
+    if (s.gasTotal <= 0 || n / s.gasTotal < 0.0005) continue;
+    gas.push({ sp: g, label: SPECIES[g]?.formula ?? g, color: GAS_COLORS[g], value: `${num((100 * n) / s.gasTotal, n / s.gasTotal < 0.01 ? 2 : 1)} %` });
   }
   gas.sort((a, b) => parseFloat(b.value.replace(',', '.')) - parseFloat(a.value.replace(',', '.')));
-  const liquid = solutes(v).slice(0, 8).map((s): Share => ({ sp: s.sp, label: SPECIES[s.sp]?.formula ?? s.sp, color: colorOf(s.sp), value: `${num(s.c, 3)} mol/dm³` }));
+  const liquid = s.solutes.slice(0, 8).map((x): Share => ({ sp: x.sp, label: SPECIES[x.sp]?.formula ?? x.sp, color: colorOf(x.sp), value: `${num(x.c, 3)} mol/dm³` }));
   return { gas, liquid };
 }
 
@@ -95,22 +112,22 @@ function counts(items: readonly { sp: string; w: number }[], total: number): Map
 
 export class Micro {
   private dots: Dot[] = [];
-  private vessel: string | null = null;
+  private key: string | null = null;
 
-  /** Die Teilchen dem Gefäss angleichen (ein paar je Bild — man sieht das Mischen). */
-  sync(v: Vessel, dt: number): void {
-    const hasGas = v.gasTotal() > 0 && v.gasMl() > 0.5;
-    const wet = v.wet();
-    if (this.vessel !== v.id) { this.dots = []; this.vessel = v.id; }
-    const gasItems = hasGas ? GASES.map((g) => ({ sp: g as string, w: (v.gas.get(g) ?? 0) })).filter((i) => i.w / Math.max(1e-12, v.gasTotal()) >= 0.006) : [];
-    const sol = wet ? solutes(v).filter((s) => s.c >= 5e-4).slice(0, 7) : [];
-    const solTotal = sol.reduce((a, s) => a + s.c, 0);
+  /** Die Teilchen der Probe angleichen (ein paar je Bild — man sieht das Mischen). */
+  sync(key: string, s: Sample, dt: number): void {
+    const hasGas = s.gasTotal > 0;
+    const wet = s.wet;
+    if (this.key !== key) { this.dots = []; this.key = key; }
+    const gasItems = hasGas ? GASES.map((g) => ({ sp: g as string, w: s.gas.get(g) ?? 0 })).filter((i) => i.w / Math.max(1e-12, s.gasTotal) >= 0.006) : [];
+    const sol = wet ? s.solutes.filter((x) => x.c >= 5e-4).slice(0, 7) : [];
+    const solTotal = sol.reduce((a, x) => a + x.c, 0);
     const want = new Map<string, number>();
     for (const [sp, n] of counts(gasItems, hasGas ? (wet ? 26 : 44) : 0)) want.set(`g:${sp}`, n);
     if (wet) {
       want.set('l:H2O', 22);
       const room = Math.min(18, Math.round(4 + Math.log10(1 + solTotal * 40) * 9));
-      for (const [sp, n] of counts(sol.map((s) => ({ sp: s.sp, w: Math.sqrt(s.c) })), room)) want.set(`l:${sp}`, n);
+      for (const [sp, n] of counts(sol.map((x) => ({ sp: x.sp, w: Math.sqrt(x.c) })), room)) want.set(`l:${sp}`, n);
     }
     const have = new Map<string, Dot[]>();
     for (const d of this.dots) { const k = `${d.liquid ? 'l' : 'g'}:${d.sp}`; have.set(k, [...(have.get(k) ?? []), d]); }
@@ -124,19 +141,17 @@ export class Micro {
       const missing = n - (have.get(k)?.length ?? 0);
       for (let i = 0; i < missing && changes > 0; i += 1) {
         const liquid = k.startsWith('l:');
-        const sp = k.slice(2);
         const fresh = this.dots.length > 4;
         this.dots.push({
-          sp, liquid,
+          sp: k.slice(2), liquid,
           x: Math.random(),
           y: liquid ? (fresh ? split + 0.02 : split + Math.random() * (1 - split)) : (fresh && wet ? split - 0.03 : Math.random() * split),
-          vx: (Math.random() - 0.5), vy: (Math.random() - 0.5), a: Math.random() * Math.PI * 2
+          vx: Math.random() - 0.5, vy: Math.random() - 0.5, a: Math.random() * Math.PI * 2
         });
         changes -= 1;
       }
     }
-    /* Bewegen: Gas schnell und geradeaus, Flüssigkeit zitternd. */
-    const speed = Math.sqrt(v.T / 293);
+    const speed = Math.sqrt(s.T / 293);
     for (const d of this.dots) {
       if (d.liquid) {
         d.vx += (Math.random() - 0.5) * 2.4 * dt;
@@ -159,16 +174,13 @@ export class Micro {
     }
   }
 
-  draw(ctx: CanvasRenderingContext2D, w: number, h: number, v: Vessel, dark: boolean): void {
+  draw(ctx: CanvasRenderingContext2D, w: number, h: number, s: Sample, dark: boolean): void {
     ctx.clearRect(0, 0, w, h);
-    const hasGas = v.gasTotal() > 0 && v.gasMl() > 0.5;
-    const wet = v.wet();
-    const split = hasGas && wet ? 0.45 : hasGas ? 1 : 0;
+    const split = s.gasTotal > 0 && s.wet ? 0.45 : s.gasTotal > 0 ? 1 : 0;
     ctx.fillStyle = dark ? '#1b2228' : '#f4f8fb';
     ctx.fillRect(0, 0, w, h);
-    if (wet) {
-      const look = v.look();
-      ctx.fillStyle = `rgba(${look.r | 0},${look.g | 0},${look.b | 0},${Math.min(0.5, look.a + 0.12).toFixed(2)})`;
+    if (s.wet) {
+      ctx.fillStyle = `rgba(${s.look[0] | 0},${s.look[1] | 0},${s.look[2] | 0},${Math.min(0.5, s.look[3] + 0.12).toFixed(2)})`;
       ctx.fillRect(0, split * h, w, h - split * h);
       ctx.strokeStyle = 'rgba(80,140,200,0.6)';
       ctx.lineWidth = 1.5;
@@ -201,6 +213,7 @@ function drawDot(ctx: CanvasRenderingContext2D, d: Dot, x: number, y: number, u:
     case 'H2': atom(-u * 0.4, 0, u * 0.5, Hh); atom(u * 0.4, 0, u * 0.5, Hh); return;
     case 'Ar': atom(0, 0, u * 0.85, GAS_COLORS.Ar); return;
     case 'CO2': case 'CO2(aq)': atom(-u * 1.05, 0, u * 0.7, O); atom(u * 1.05, 0, u * 0.7, O); atom(0, 0, u * 0.8, '#333333'); return;
+    case 'CH4': atom(0, 0, u * 0.8, '#333333'); atom(-u * 0.8, -u * 0.4, u * 0.42, Hh); atom(u * 0.8, -u * 0.4, u * 0.42, Hh); atom(0, u * 0.85, u * 0.42, Hh); return;
     case 'NH3': case 'NH3(aq)': atom(-u * 0.75, u * 0.45, u * 0.45, Hh); atom(u * 0.75, u * 0.45, u * 0.45, Hh); atom(0, -u * 0.75, u * 0.45, Hh); atom(0, 0, u * 0.8, '#4a6cd6'); return;
     case 'HCl(g)': atom(-u * 0.6, 0, u * 0.9, '#4fae5f'); atom(u * 0.6, 0, u * 0.5, Hh); return;
     case 'SO2': case 'SO2(aq)': atom(-u * 0.95, u * 0.4, u * 0.65, O); atom(u * 0.95, u * 0.4, u * 0.65, O); atom(0, 0, u * 0.85, '#e0c020'); return;

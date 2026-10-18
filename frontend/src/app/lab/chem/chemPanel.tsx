@@ -1,9 +1,10 @@
 /**
  * 2026-10-18 — DIE BEDIENUNG DER CHEMIA (neben oder unter dem Tisch): das
- * Regal (was man in die Hand nimmt, wie viel), die Werkzeuge, neues Glas
- * (Piaskownica), das gewählte Gefäss (Werte, Zusammensetzung von Gas und
- * Lösung, Feststoffe, Korek, Wymieszaj …, die Lupe), das Protokoll der
- * Beobachtungen mit Gleichungen und die Schritte eines Versuchs.
+ * Regal (was man in die Hand nimmt, wie viel), die Werkzeuge (Streichholz,
+ * Span, Draht, Glasstab, Stopfen, Papier, Thermometer, Sonde …), neue Dinge
+ * für den Tisch (Piaskownica), das gewählte Ding (Inhalt, Lupe, Brenner,
+ * Heizplatte, Bürette, Kerze), das Protokoll der Beobachtungen und die
+ * Schritte eines Versuchs.
  *
  * Werte, die sich in jedem Bild ändern (Temperatur, pH, Druck), schreibt die
  * Schleife (`data-q`); die Zusammensetzung baut React ein paarmal je Sekunde.
@@ -12,16 +13,18 @@
 import type { MutableRefObject, ReactNode } from 'react';
 
 import { LabSection } from '../LabFrame';
-import { GAS_COLORS, INDICATORS, REAGENTS, REAGENT_GROUPS, SPECIES, VESSELS, reagentOf, type Reagent, type VesselKind } from './chemData';
-import type { Lab, ToolKey } from './chemBench';
+import { GAS_COLORS, INDICATORS, REAGENTS, REAGENT_GROUPS, SPECIES, reagentOf, type Reagent } from './chemData';
+import { indicatorColor } from './chemAq';
+import type { Sample } from './chemMicro';
 import { shares } from './chemMicro';
-import type { Step } from './chemScene';
-import { indicatorColor, type ChemEvent, type Vessel } from './chemVessel';
+import type { Step, ToolKey } from './chemSetup';
+import { THING_NAME, type Thing, type ThingKind } from './chemThings';
+import type { ChemEvent, Summary } from './chemWorld';
 
 export type Hand =
   | { readonly kind: 'reagent'; readonly id: string; readonly amount: number }
   | { readonly kind: 'tool'; readonly tool: ToolKey }
-  | { readonly kind: 'vessel'; readonly type: VesselKind | 'burner'; readonly size: number }
+  | { readonly kind: 'thing'; readonly thing: ThingKind; readonly size: number; readonly of?: string }
   | null;
 
 /* -- Das Regal ---------------------------------------------------------------------------------- */
@@ -36,7 +39,6 @@ export function swatchOf(r: Reagent): string {
   }
   if (r.form === 'gas') return GAS_COLORS[r.solid as keyof typeof GAS_COLORS] ?? '#ccc';
   if (r.solid !== undefined) return SPECIES[r.solid]?.color ?? '#ccc';
-  /* Eine Lösung hat die Farbe ihres farbigen Ions (sonst: Wasser). */
   return SOLUTION_COLOR[r.solute ?? ''] ?? 'rgba(140,190,230,0.55)';
 }
 
@@ -79,25 +81,23 @@ export function Shelf({ ids, hand, onPick }: { ids: readonly string[]; hand: Han
 }
 
 /** Was in der Hand ist: Menge wählen, weglegen. */
-export function HandBar({ hand, lab, onAmount, onDrop }: { hand: Hand; lab: Lab; onAmount: (a: number) => void; onDrop: () => void }) {
-  if (hand === null && lab.spoon === null && lab.loop === null) return null;
-  const r = hand?.kind === 'reagent' ? reagentOf(hand.id) : undefined;
+export function HandBar({ hand, onAmount, onDrop }: { hand: Hand; onAmount: (a: number) => void; onDrop: () => void }) {
+  if (hand === null) return null;
+  const r = hand.kind === 'reagent' ? reagentOf(hand.id) : undefined;
   return (
     <div className="lab-hand" role="status">
-      {r !== undefined && hand?.kind === 'reagent' && (
+      {r !== undefined && hand.kind === 'reagent' && (
         <>
           <span className="lab-hand-what"><Swatch form={r.form} color={swatchOf(r)} /> {r.name}</span>
           <span className="lab-amounts" role="group" aria-label="Ile">
             {r.amounts.map((a) => <button key={a} type="button" className={`lab-chip-btn${a === hand.amount ? ' is-on' : ''}`} aria-pressed={a === hand.amount} onClick={() => onAmount(a)}>{amountText(r, a)}</button>)}
           </span>
-          <span className="lab-muted-inline">Dotknij naczynia, żeby dodać.</span>
+          <span className="lab-muted-inline">Dotknij naczynia (albo miejsca na stole), żeby dodać.</span>
         </>
       )}
-      {hand?.kind === 'tool' && <span className="lab-hand-what">{TOOL_LABEL[hand.tool]} — {TOOL_SAYS[hand.tool]}</span>}
-      {hand?.kind === 'vessel' && <span className="lab-hand-what">Dotknij stołu, żeby postawić: {hand.type === 'burner' ? 'palnik' : `${VESSELS[hand.type].name} ${hand.size} cm³`}.</span>}
-      {lab.spoon !== null && <span className="lab-hand-what">Na łyżeczce: {SPECIES[lab.spoon.sp]?.name}{lab.spoon.burning ? ' (płonie)' : ''}.</span>}
-      {lab.loop !== null && <span className="lab-hand-what">Na druciku: {SPECIES[lab.loop.ion]?.name} — dotknij palnika.</span>}
-      {hand !== null && <button type="button" className="wk-link-btn" onClick={onDrop}>Odłóż</button>}
+      {hand.kind === 'tool' && <span className="lab-hand-what">{TOOL_LABEL[hand.tool]} — {TOOL_SAYS[hand.tool]}</span>}
+      {hand.kind === 'thing' && <span className="lab-hand-what">Dotknij stołu, żeby postawić: {THING_NAME[hand.thing]}{hand.of !== undefined ? ` (${SPECIES[hand.of]?.name ?? hand.of})` : ''}.</span>}
+      <button type="button" className="wk-link-btn" onClick={onDrop}>Odłóż</button>
     </div>
   );
 }
@@ -106,42 +106,36 @@ export function HandBar({ hand, lab, onAmount, onDrop }: { hand: Hand; lab: Lab;
 
 const stick = (tip: ReactNode) => <><path d="M27 5L9 23" stroke="#c8955a" strokeWidth="3" />{tip}</>;
 const TOOL_ICONS: Record<ToolKey, ReactNode> = {
-  glow: stick(<circle cx="8" cy="24" r="3" fill="#ff6a1a" />),
-  splint: stick(<path d="M8 25c-4-3-2-8 1-11 0 4 4 4 3 8-1 2-2 3-4 3z" fill="#ffb347" />),
   match: <><path d="M24 26L12 12" stroke="#d9b38c" strokeWidth="2.5" /><circle cx="11" cy="11" r="2.6" fill="#b5332a" /><path d="M10 9c-3-3-1-6 1-8 0 3 3 3 2 6z" fill="#ffb347" /></>,
-  paper: <><rect x="13" y="3" width="6" height="26" fill="#f7f3e6" stroke="#999" /><rect x="13" y="20" width="6" height="9" fill="#40a040" /></>,
-  wetpaper: <><rect x="13" y="3" width="6" height="26" fill="#f7f3e6" stroke="#999" /><rect x="13" y="3" width="6" height="8" fill="#2878c8" /><path d="M24 18c-2 3 2 3 0 0z" fill="#5aa0e0" /></>,
+  splint: stick(<path d="M8 25c-4-3-2-8 1-11 0 4 4 4 3 8-1 2-2 3-4 3z" fill="#ffb347" />),
+  glow: stick(<circle cx="8" cy="24" r="3" fill="#ff6a1a" />),
   loop: <><path d="M26 28L14 14" stroke="#9aa0a8" strokeWidth="2" /><circle cx="11" cy="11" r="4" fill="none" stroke="#9aa0a8" strokeWidth="2" /></>,
   stir: <><path d="M7 10v16h18V10" fill="rgba(140,190,230,0.35)" stroke="#5a7a90" /><path d="M24 3L13 25" stroke="#8fb0c8" strokeWidth="2" /></>,
   stopper: <path d="M9 10h14l-2 14h-10z" fill="#8a4b2a" />,
-  gauge: <><path d="M9 4v18a4 4 0 0 0 8 0V4" stroke="#5a7a90" strokeWidth="2" fill="none" /><path d="M9 14v8a4 4 0 0 0 8 0V9" stroke="#3c78dc" strokeWidth="2" fill="none" /></>,
-  tube: <path d="M6 26V8h20v18" stroke="#5a7a90" strokeWidth="2.4" fill="none" />,
-  spoon: <><path d="M24 3v20" stroke="#7d8289" strokeWidth="2" /><path d="M18 23h12a6 4 0 0 1-12 0z" fill="#7d8289" /></>,
+  paper: <><rect x="13" y="3" width="6" height="26" fill="#f7f3e6" stroke="#999" /><rect x="13" y="20" width="6" height="9" fill="#40a040" /></>,
+  thermometer: <><path d="M16 4v18" stroke="#9cb6c6" strokeWidth="4" strokeLinecap="round" /><path d="M16 12v12" stroke="#c0392b" strokeWidth="2" /><circle cx="16" cy="25" r="3.5" fill="#c0392b" /></>,
   probe: <><circle cx="16" cy="18" r="6" fill="none" stroke="#c0392b" strokeWidth="2" /><path d="M16 4v8" stroke="#c0392b" strokeWidth="2" /></>,
   empty: <><path d="M8 8l14 4-3 13-11-3z" fill="rgba(140,190,230,0.35)" stroke="#5a7a90" /><path d="M23 13c3 4 3 8 1 12" stroke="#5aa0e0" strokeWidth="2" fill="none" /></>,
   delete: <path d="M8 9h16M12 9V6h8v3M10 9l1 17h10l1-17" stroke="#c0392b" strokeWidth="1.8" fill="none" />
 };
 
 export const TOOL_LABEL: Record<ToolKey, string> = {
-  glow: 'Żarzące się łuczywo', splint: 'Płonące łuczywo', match: 'Zapałka', paper: 'Papierek wskaźnikowy', wetpaper: 'Wilgotny papierek',
-  loop: 'Drucik', stir: 'Bagietka', stopper: 'Korek', gauge: 'Manometr', tube: 'Rurka', spoon: 'Łyżeczka do spalań', probe: 'Sonda ciśnienia', empty: 'Wylej', delete: 'Usuń'
+  match: 'Zapałka', splint: 'Płonące łuczywo', glow: 'Żarzące się łuczywo', loop: 'Drucik', stir: 'Bagietka', stopper: 'Korek',
+  paper: 'Papierek wskaźnikowy', thermometer: 'Termometr', probe: 'Sonda', empty: 'Wylej', delete: 'Usuń'
 };
 
 const TOOL_SAYS: Record<ToolKey, string> = {
-  glow: 'dotknij naczynia: w tlenie łuczywo się zapala.',
-  splint: 'dotknij naczynia: wodór spala się z trzaskiem, w CO₂ płomień gaśnie.',
-  match: 'zapal świeczkę, palnik, etanol albo siarkę.',
-  paper: 'dotknij naczynia z cieczą — pokaże pH.',
-  wetpaper: 'dotknij naczynia — zbada gaz u wylotu.',
-  loop: 'zanurz w roztworze, potem dotknij palnika (próba płomieniowa).',
+  match: 'dotknij palnika, knota, łuczywa albo miejsca z gazem palnym, żeby zapalić.',
+  splint: 'dotknij stołu — łuczywo pojawi się w dłoni; przeciągnij je do wylotu naczynia.',
+  glow: 'dotknij stołu — żarzące się łuczywo pojawi się w dłoni; wsuń je do naczynia z gazem.',
+  loop: 'dotknij stołu — drucik pojawi się w dłoni; zanurz go w roztworze, potem w płomieniu.',
   stir: 'dotknij naczynia, żeby wymieszać.',
   stopper: 'dotknij naczynia, żeby je zamknąć albo otworzyć.',
-  gauge: 'dotknij naczynia: korek z manometrem.',
-  tube: 'dotknij naczynia z gazem, potem drugiego — gaz popłynie rurką.',
-  spoon: 'nabierz suchą substancję, zapal ją w palniku i wprowadź do innego naczynia.',
-  probe: 'dotknij cieczy — ciśnienie na tej głębokości.',
+  paper: 'dotknij cieczy — pokaże pH.',
+  thermometer: 'dotknij naczynia albo miejsca, żeby wstawić termometr.',
+  probe: 'dotknij dowolnego miejsca — temperatura (i ciśnienie, pH) w tym punkcie.',
   empty: 'dotknij naczynia, żeby je opróżnić.',
-  delete: 'dotknij naczynia albo palnika, żeby je usunąć.'
+  delete: 'dotknij rzeczy, żeby ją usunąć.'
 };
 
 export function Tools({ tools, hand, onPick }: { tools: readonly ToolKey[]; hand: Hand; onPick: (t: ToolKey) => void }) {
@@ -160,23 +154,29 @@ export function Tools({ tools, hand, onPick }: { tools: readonly ToolKey[]; hand
   );
 }
 
-/** Neues Glas und Geräte (Piaskownica). */
-export function Equipment({ hand, onPick }: { hand: Hand; onPick: (type: VesselKind | 'burner', size: number) => void }) {
-  const items: [VesselKind | 'burner', number, string][] = [
-    ['beaker', 100, 'zlewka 100'], ['beaker', 250, 'zlewka 250'], ['beaker', 600, 'zlewka 600'], ['flask', 250, 'kolba stożkowa'], ['roundflask', 250, 'kolba okrągła'],
-    ['tube', 25, 'probówka'], ['cylinder', 100, 'cylinder'], ['dish', 50, 'parownica'], ['crucible', 30, 'tygiel'], ['jar', 1000, 'słój'], ['burette', 50, 'biureta'], ['syringe', 100, 'strzykawka'], ['burner', 0, 'palnik']
-  ];
+/** Neue Dinge für den Tisch (Piaskownica). */
+export const EQUIPMENT: readonly (readonly [ThingKind, number, string, string?])[] = [
+  ['beaker', 100, 'zlewka 100'], ['beaker', 250, 'zlewka 250'], ['beaker', 600, 'zlewka 600'], ['flask', 250, 'kolba stożkowa'],
+  ['roundflask', 250, 'kolba okrągła'], ['tube', 25, 'probówka'], ['cylinder', 100, 'cylinder'], ['dish', 100, 'parownica'],
+  ['crucible', 30, 'tygiel'], ['jar', 500, 'słój'], ['burette', 50, 'biureta'], ['trough', 3000, 'wanna'],
+  ['burner', 0, 'palnik'], ['hotplate', 0, 'płyta grzejna'], ['tripod', 0, 'trójnóg z siatką'], ['stand', 0, 'statyw z pierścieniem'],
+  ['candle', 0, 'świeca'], ['thermometer', 24, 'termometr'],
+  ['rod', 20, 'pręt szklany', 'glass'], ['rod', 20, 'pręt miedziany', 'Cu'], ['rod', 20, 'pręt stalowy', 'steel'], ['rod', 20, 'pręt aluminiowy', 'Al'], ['rod', 20, 'pręt drewniany', 'wood'],
+  ['plate', 10, 'płytka szklana']
+];
+
+export function Equipment({ hand, onPick }: { hand: Hand; onPick: (kind: ThingKind, size: number, of?: string) => void }) {
   return (
     <div className="lab-chips">
-      {items.map(([type, size, label]) => {
-        const on = hand?.kind === 'vessel' && hand.type === type && hand.size === size;
-        return <button key={label} type="button" className={`lab-chip-btn${on ? ' is-on' : ''}`} aria-pressed={on} onClick={() => onPick(type, size)}>{label}</button>;
+      {EQUIPMENT.map(([kind, size, label, of]) => {
+        const on = hand?.kind === 'thing' && hand.thing === kind && hand.size === size && hand.of === of;
+        return <button key={label} type="button" className={`lab-chip-btn${on ? ' is-on' : ''}`} aria-pressed={on} onClick={() => onPick(kind, size, of)}>{label}</button>;
       })}
     </div>
   );
 }
 
-/* -- Das gewählte Gefäss ------------------------------------------------------------------------------ */
+/* -- Das gewählte Ding ------------------------------------------------------------------------------ */
 
 /** Ein Wert, den die Schleife schreibt (`data-q`). */
 function Live({ label, q }: { label: string; q: string }) {
@@ -189,64 +189,79 @@ function Live({ label, q }: { label: string; q: string }) {
 }
 
 export interface InspectorActions {
-  readonly toggle: (what: 'stopper' | 'gauge' | 'stir' | 'empty' | 'delete' | 'burner' | 'air' | 'drip') => void;
-  readonly rate: (mlPerSecond: number) => void;
+  readonly act: (what: 'stopper' | 'stir' | 'empty' | 'delete' | 'thermometer' | 'toggle' | 'light' | 'stirrer') => void;
+  readonly set: (what: 'air' | 'gas' | 'power' | 'rate', value: number) => void;
 }
 
-export function Inspector({ v, lab, show, edit, micro, onAct }: {
-  v: Vessel; lab: Lab; show: { composition: boolean; micro: boolean }; edit: boolean;
-  micro: MutableRefObject<HTMLCanvasElement | null>; onAct: InspectorActions;
+export function Inspector({ t, sum, sample, show, edit, micro, closed, onAct }: {
+  t: Thing; sum: Summary | null; sample: Sample | null; show: { composition: boolean; micro: boolean }; edit: boolean;
+  micro: MutableRefObject<HTMLCanvasElement | null>; closed: boolean; onAct: InspectorActions;
 }) {
-  const s = show.composition && !v.hidden ? shares(v) : { gas: [], liquid: [] };
-  const burner = lab.burnerOf(v);
-  const solids = v.lumps.filter((l) => l.mass() > 1e-4 && l.form !== 'candle');
+  const container = t.prof !== null;
+  const s = show.composition && !t.hidden && sample !== null ? shares(sample) : { gas: [], liquid: [] };
+  const solids = sum === null ? [] : [...sum.solids].map(([sp, n]) => [sp, n * (SPECIES[sp]?.M ?? 100)] as const).filter(([, m]) => m > 1e-4);
+  const melts = sum === null ? [] : [...sum.melts].map(([sp, n]) => [sp, n * (SPECIES[sp]?.M ?? 100)] as const).filter(([, m]) => m > 1e-4);
+  const title = `${t.label || THING_NAME[t.kind]}${container && !t.hidden ? ` · ${THING_NAME[t.kind]} ${t.size} cm³` : ''}`;
   return (
-    <LabSection title={`${v.label || v.type.name}${v.hidden ? '' : ` · ${v.type.name} ${v.size} cm³`}`}>
-      <div className="lab-values">
-        <Live label="Temperatura" q="T" />
-        {v.kind === 'syringe' ? <Live label="Gaz w strzykawce" q="gas" /> : <Live label="Ciecz" q="V" />}
-        {v.kind !== 'syringe' && <Live label="pH" q="pH" />}
-        <Live label="Ciśnienie gazu" q="p" />
-      </div>
-      {show.composition && !v.hidden && s.gas.length > 0 && (
+    <LabSection title={title}>
+      {container && (
+        <div className="lab-values">
+          <Live label="Temperatura" q="T" />
+          <Live label="Ciecz" q="V" />
+          <Live label="pH" q="pH" />
+          <Live label="Ciśnienie gazu" q="p" />
+        </div>
+      )}
+      {t.kind === 'thermometer' && <div className="lab-values"><Live label="Termometr" q="T" /></div>}
+      {show.composition && !t.hidden && s.gas.length > 0 && (
         <div className="lab-mix">
           <p className="lab-muted">Gaz w naczyniu</p>
           <GasBar parts={s.gas} />
           <ul className="lab-legend">{s.gas.slice(0, 6).map((g) => <li key={g.sp}><Swatch form="dot" color={g.color} />{g.label} <b>{g.value}</b></li>)}</ul>
         </div>
       )}
-      {show.composition && !v.hidden && s.liquid.length > 0 && (
+      {show.composition && !t.hidden && s.liquid.length > 0 && (
         <div className="lab-mix">
           <p className="lab-muted">W roztworze</p>
           <ul className="lab-legend">{s.liquid.map((g) => <li key={g.sp}><Swatch form="dot" color={g.color} />{g.label} <b>{g.value}</b></li>)}</ul>
         </div>
       )}
-      {!v.hidden && solids.length > 0 && (
+      {!t.hidden && (solids.length > 0 || melts.length > 0) && (
         <div className="lab-mix">
-          <p className="lab-muted">Ciała stałe</p>
-          <ul className="lab-legend">{solids.slice(0, 6).map((l) => <li key={l.id}><Swatch form="dot" color={SPECIES[l.sp]?.color ?? '#ccc'} />{SPECIES[l.sp]?.name ?? l.sp} <b>{(l.mass() < 0.01 ? l.mass().toFixed(4) : l.mass().toFixed(2)).replace('.', ',')} g</b>{l.burning ? ' 🔥' : ''}</li>)}</ul>
+          <p className="lab-muted">Ciała stałe i stopione</p>
+          <ul className="lab-legend">
+            {solids.slice(0, 6).map(([sp, m]) => <li key={sp}><Swatch form="dot" color={SPECIES[sp]?.color ?? '#ccc'} />{SPECIES[sp]?.name ?? sp} <b>{(m < 0.01 ? m.toFixed(4) : m.toFixed(2)).replace('.', ',')} g</b></li>)}
+            {melts.slice(0, 4).map(([sp, m]) => <li key={`m:${sp}`}><Swatch form="dot" color={SPECIES[sp]?.color ?? '#ccc'} />{SPECIES[sp]?.name ?? sp} (ciekły) <b>{m.toFixed(2).replace('.', ',')} g</b></li>)}
+          </ul>
         </div>
       )}
-      {show.micro && show.composition && !v.hidden && (
+      {container && show.micro && show.composition && !t.hidden && (
         <figure className="lab-micro">
           <canvas ref={micro} aria-label="Pod lupą: cząsteczki gazu i roztworu" />
           <figcaption className="lab-muted">Pod lupą: na górze gaz, na dole roztwór (cząsteczki i jony).</figcaption>
         </figure>
       )}
-      <div className="lab-row">
-        {v.kind !== 'syringe' && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.toggle('stopper')}>{v.closed ? 'Zdejmij korek' : 'Zamknij korkiem'}</button>}
-        {v.kind !== 'syringe' && v.kind !== 'burette' && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.toggle('stir')}>Wymieszaj</button>}
-        {burner !== null && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.toggle('burner')}>{burner.on ? 'Zgaś palnik' : 'Zapal palnik'}</button>}
-        {v.kind === 'burette' && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.toggle('drip')}>{v.drip > 0 ? 'Zamknij kranik' : 'Otwórz kranik'}</button>}
-        {edit && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.toggle('empty')}>Wylej</button>}
-        {edit && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.toggle('delete')}>Usuń</button>}
-      </div>
-      {v.kind === 'burette' && (
-        <label className="lab-field">
-          Szybkość kapania: {(v.drip > 0 ? v.drip : 0.5).toFixed(1).replace('.', ',')} cm³/s
-          <input type="range" min={0.1} max={3} step={0.1} value={v.drip > 0 ? v.drip : 0.5} onChange={(e) => onAct.rate(Number(e.currentTarget.value))} />
-        </label>
+      {t.kind === 'burner' && (
+        <>
+          <label className="lab-field">Dopływ powietrza: {Math.round(t.air * 100)}%<input type="range" min={0} max={1} step={0.05} value={t.air} onChange={(e) => onAct.set('air', Number(e.currentTarget.value))} /></label>
+          <label className="lab-field">Gaz: {Math.round(t.flow * 100)}%<input type="range" min={0.1} max={1} step={0.05} value={t.flow} onChange={(e) => onAct.set('gas', Number(e.currentTarget.value))} /></label>
+          <p className="lab-muted">Zamknięte powietrze — płomień świecący (żółty, kopci); otwarte — nieświecący (niebieski, gorętszy).</p>
+        </>
       )}
+      {t.kind === 'hotplate' && <label className="lab-field">Moc: {Math.round(t.air)} W<input type="range" min={50} max={1200} step={50} value={t.air} onChange={(e) => onAct.set('power', Number(e.currentTarget.value))} /></label>}
+      {t.kind === 'burette' && <label className="lab-field">Szybkość kapania: {t.flow.toFixed(1).replace('.', ',')} cm³/s<input type="range" min={0.1} max={3} step={0.1} value={t.flow} onChange={(e) => onAct.set('rate', Number(e.currentTarget.value))} /></label>}
+      <div className="lab-row">
+        {t.kind === 'burner' && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.act('toggle')}>{t.on ? 'Zgaś palnik' : 'Zapal palnik'}</button>}
+        {t.kind === 'hotplate' && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.act('toggle')}>{t.on ? 'Wyłącz grzanie' : 'Włącz grzanie'}</button>}
+        {t.kind === 'hotplate' && <button type="button" className="wk-btn wk-btn-line" aria-pressed={t.stir} onClick={() => onAct.act('stirrer')}>{t.stir ? 'Wyłącz mieszadło' : 'Włącz mieszadło'}</button>}
+        {t.kind === 'burette' && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.act('toggle')}>{t.on ? 'Zamknij kranik' : 'Otwórz kranik'}</button>}
+        {t.kind === 'candle' && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.act('light')}>{t.on ? 'Zgaś świecę' : 'Zapal świecę'}</button>}
+        {container && t.kind !== 'burette' && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.act('stopper')}>{closed ? 'Zdejmij korek' : 'Zamknij korkiem'}</button>}
+        {container && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.act('stir')}>Wymieszaj</button>}
+        {container && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.act('thermometer')}>Wstaw termometr</button>}
+        {edit && container && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.act('empty')}>Wylej</button>}
+        {edit && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct.act('delete')}>Usuń</button>}
+      </div>
     </LabSection>
   );
 }
@@ -263,29 +278,16 @@ function GasBar({ parts }: { parts: readonly { sp: string; label: string; color:
   );
 }
 
-/** Der gewählte Brenner. */
-export function BurnerPanel({ on, air, onToggle, onAir }: { on: boolean; air: boolean; onToggle: () => void; onAir: () => void }) {
-  return (
-    <LabSection title="Palnik">
-      <div className="lab-row">
-        <button type="button" className="wk-btn wk-btn-line" onClick={onToggle}>{on ? 'Zgaś' : 'Zapal'}</button>
-        <button type="button" className="wk-btn wk-btn-line" title={air ? 'Płomień stanie się świecący (żółty) i chłodniejszy' : 'Płomień stanie się nieświecący (niebieski) i gorętszy'} onClick={onAir}>{air ? 'Zamknij powietrze' : 'Otwórz powietrze'}</button>
-      </div>
-      <p className="lab-muted">Postaw naczynie na trójnogu nad palnikiem (przeciągnij je), żeby je ogrzać.</p>
-    </LabSection>
-  );
-}
-
 /* -- Protokoll ------------------------------------------------------------------------------------- */
 
-export function Log({ events, equations }: { events: readonly ChemEvent[]; equations: boolean }) {
+export function Log({ events, equations, names }: { events: readonly ChemEvent[]; equations: boolean; names: (id: string) => string }) {
   const list = events.slice(-40).reverse();
-  if (list.length === 0) return <p className="lab-muted">Tu pojawią się obserwacje: gaz, osad, zmiana barwy, temperatura.</p>;
+  if (list.length === 0) return <p className="lab-muted">Tu pojawią się obserwacje: gaz, osad, zmiana barwy, topnienie, wrzenie, płomień.</p>;
   return (
     <ol className="lab-log" aria-live="polite">
       {list.map((e, i) => (
-        <li key={`${e.key}:${e.t}:${i}`} className={e.key.startsWith('act:') ? 'is-act' : ''}>
-          <span>{e.text}</span>
+        <li key={`${e.key}:${e.t}:${i}`} className={e.text.startsWith('→') ? 'is-act' : ''}>
+          <span>{e.thing !== '—' && !e.text.startsWith('→') ? <b>{names(e.thing)}: </b> : null}{e.text}</span>
           {equations && e.eq !== undefined && <span className="lab-eq">{e.eq}</span>}
         </li>
       ))}

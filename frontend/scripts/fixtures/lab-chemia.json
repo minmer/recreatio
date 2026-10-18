@@ -3,7 +3,7 @@
  "version": 1,
  "path": "pracownia-chemiczna",
  "title": "Pracownia chemiczna",
- "lead": "Doświadczenia szkolne w laboratorium 2D: weź odczynnik z półki i dotknij naczynia, przeciągnij naczynie nad inne, żeby przelać, postaw je na trójnogu nad palnikiem. „Pokaż” przeprowadza doświadczenie krok po kroku.",
+ "lead": "Doświadczenia szkolne w prawdziwej piaskownicy 2D: rzeczy stoją tam, gdzie je postawisz, a silnik liczy resztę — ciepło płynie, metale się topią, roztwory mieszają się i reagują. Weź odczynnik z półki i dotknij naczynia, przytrzymaj naczynie nad innym, żeby przelać, postaw je na trójnogu nad palnikiem. „Pokaż” przeprowadza doświadczenie krok po kroku.",
  "mode": "page",
  "theme": {
   "mode": "light",
@@ -22,7 +22,704 @@
    },
    "config": {
     "title": "Jak pracować w laboratorium",
-    "body": "Każde doświadczenie ma opis, kroki i przycisk „Pokaż”. Czasem przed krokiem pada pytanie — najpierw przewiduj, potem patrz.\n## Co widać\nPod naczyniami: temperatura, pH i ciśnienie. Dotknij naczynia, żeby zobaczyć skład gazu i roztworu, a pod lupą — cząsteczki i jony.\n## Obserwacje\nWszystko, co się dzieje (gaz, osad, zmiana barwy, ciepło), trafia do obserwacji razem z równaniem reakcji."
+    "body": "Każde doświadczenie ma opis, kroki i przycisk „Pokaż”. Czasem przed krokiem pada pytanie — najpierw przewiduj, potem patrz.\n## Co widać\nPod naczyniami: temperatura, pH i ciśnienie. Dotknij naczynia, żeby zobaczyć skład gazu i roztworu, a pod lupą — cząsteczki i jony. Widok ciepła pokazuje temperaturę kolorami — widać, jak ciepło wędruje.\n## Obserwacje\nWszystko, co się dzieje (gaz, osad, zmiana barwy, topnienie, ciepło), trafia do obserwacji razem z równaniem reakcji."
+   }
+  },
+  {
+   "id": "chemistry-topienie-cyny",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Topnienie i krzepnięcie cyny",
+    "text": [
+     "W tyglu na trójnogu leży 20 g cyny, w środku jest termometr. Zapal palnik i obserwuj wykres temperatury.",
+     "Co dzieje się z temperaturą, gdy cyna się topi? A gdy po zgaszeniu palnika krzepnie?"
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "palnik",
+       "kind": "burner",
+       "x": 0,
+       "air": 1,
+       "gas": 0.8
+      },
+      {
+       "id": "trojnog",
+       "kind": "tripod",
+       "x": 0
+      },
+      {
+       "id": "tygiel",
+       "kind": "crucible",
+       "size": 30,
+       "on": "trojnog",
+       "label": "cyna",
+       "fill": [
+        {
+         "reagent": "Sn",
+         "amount": 20
+        }
+       ]
+      },
+      {
+       "id": "termometr",
+       "kind": "thermometer",
+       "into": "tygiel"
+      }
+     ],
+     "shelf": [
+      "Sn",
+      "Pb",
+      "Field"
+     ],
+     "tools": [
+      "match",
+      "probe",
+      "thermometer"
+     ],
+     "graph": {
+      "things": [
+       "termometr"
+      ],
+      "of": [
+       "T"
+      ]
+     },
+     "speed": 5,
+     "steps": [
+      {
+       "say": "Zapal palnik pod tyglem.",
+       "do": [
+        {
+         "burner": "palnik",
+         "on": true
+        }
+       ],
+       "wait": 45,
+       "ask": {
+        "q": "Co stanie się z temperaturą, kiedy cyna zacznie się topić?",
+        "options": [
+         "będzie dalej rosła tak samo",
+         "zatrzyma się, aż cała cyna się stopi",
+         "spadnie"
+        ],
+        "answer": "zatrzyma się, aż cała cyna się stopi",
+        "why": "Ciepło idzie na topnienie (ciepło topnienia), a nie na ogrzewanie — temperatura stoi na 232 °C."
+       }
+      },
+      {
+       "say": "Cała cyna jest ciekła — zgaś palnik i obserwuj krzepnięcie.",
+       "do": [
+        {
+         "burner": "palnik",
+         "on": false
+        }
+       ],
+       "wait": 60
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-stop-fielda",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Metal, który topi się w gorącej wodzie",
+    "text": [
+     "W zlewce jest gorąca woda (90 °C). Wrzuć do niej kawałek stopu Fielda — stopu bizmutu, indu i cyny.",
+     "Obserwuj, co dzieje się z metalem, a potem ochłódź wodę zimną wodą z lodem."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "zlewka",
+       "kind": "beaker",
+       "size": 250,
+       "x": 0,
+       "label": "woda 90 °C",
+       "fill": [
+        {
+         "reagent": "water-hot",
+         "amount": 150
+        }
+       ],
+       "T": 90
+      },
+      {
+       "id": "termometr",
+       "kind": "thermometer",
+       "into": "zlewka"
+      },
+      {
+       "id": "zimna",
+       "kind": "beaker",
+       "size": 250,
+       "x": 12,
+       "label": "woda z lodem",
+       "fill": [
+        {
+         "reagent": "water-cold",
+         "amount": 120
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "Field",
+      "Sn",
+      "water-hot",
+      "water-cold",
+      "ice"
+     ],
+     "tools": [
+      "stir",
+      "thermometer",
+      "probe"
+     ],
+     "graph": {
+      "things": [
+       "termometr"
+      ],
+      "of": [
+       "T"
+      ]
+     },
+     "steps": [
+      {
+       "say": "Wrzuć do gorącej wody kawałek stopu Fielda.",
+       "do": {
+        "add": "Field",
+        "to": "zlewka",
+        "amount": 10
+       },
+       "wait": 15,
+       "ask": {
+        "q": "Co stanie się z metalem w wodzie o temperaturze 90 °C?",
+        "options": [
+         "nic",
+         "stopi się",
+         "rozpuści się w wodzie"
+        ],
+        "answer": "stopi się",
+        "why": "Stop Fielda topi się już w 62 °C — w gorącej wodzie staje się ciekłym metalem, który zbiera się na dnie."
+       }
+      },
+      {
+       "say": "Dolej zimnej wody z lodem.",
+       "do": {
+        "pour": "zimna",
+        "to": "zlewka",
+        "ml": 100
+       },
+       "wait": 20
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-przewodnictwo",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Przewodnictwo cieplne",
+    "text": [
+     "W gorącej wodzie stoją trzy pręty: miedziany, stalowy i szklany. Widok ciepła pokazuje temperaturę kolorami.",
+     "Który pręt najszybciej nagrzewa się na górze? Sprawdź sondą temperaturę na końcach prętów."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "zlewka",
+       "kind": "beaker",
+       "size": 600,
+       "x": 0,
+       "label": "woda 80 °C",
+       "fill": [
+        {
+         "reagent": "water-hot",
+         "amount": 450
+        }
+       ]
+      },
+      {
+       "id": "cu",
+       "kind": "rod",
+       "of": "Cu",
+       "size": 22,
+       "x": -2.8,
+       "into": "zlewka",
+       "label": "miedź"
+      },
+      {
+       "id": "stal",
+       "kind": "rod",
+       "of": "steel",
+       "size": 22,
+       "x": 0,
+       "into": "zlewka",
+       "label": "stal"
+      },
+      {
+       "id": "szklo",
+       "kind": "rod",
+       "of": "glass",
+       "size": 22,
+       "x": 2.8,
+       "into": "zlewka",
+       "label": "szkło"
+      }
+     ],
+     "shelf": [],
+     "tools": [
+      "probe",
+      "thermometer"
+     ],
+     "show": {
+      "heat": true
+     },
+     "speed": 2,
+     "steps": [
+      {
+       "say": "Obserwuj w widoku ciepła, jak ciepło wędruje w górę prętów.",
+       "wait": 30,
+       "ask": {
+        "q": "Który pręt najszybciej zrobi się ciepły na górze?",
+        "options": [
+         "miedziany",
+         "stalowy",
+         "szklany"
+        ],
+        "answer": "miedziany",
+        "why": "Miedź przewodzi ciepło ok. 10 razy lepiej niż stal i kilkaset razy lepiej niż szkło."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-konwekcja",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Konwekcja w wodzie",
+    "text": [
+     "Na dnie zlewki z wodą leży kryształek manganianu(VII) potasu. Zlewka stoi na płycie grzejnej.",
+     "Włącz płytę i obserwuj fioletowe smugi — jak porusza się ogrzewana woda?"
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "plyta",
+       "kind": "hotplate",
+       "x": 0,
+       "power": 400
+      },
+      {
+       "id": "zlewka",
+       "kind": "beaker",
+       "size": 600,
+       "on": "plyta",
+       "label": "woda",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 450
+        },
+        {
+         "reagent": "KMnO4",
+         "amount": 0.5
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "KMnO4",
+      "water"
+     ],
+     "tools": [
+      "stir",
+      "probe",
+      "thermometer"
+     ],
+     "speed": 2,
+     "steps": [
+      {
+       "say": "Włącz płytę grzejną.",
+       "do": {
+        "heat": "plyta",
+        "on": true,
+        "power": 400
+       },
+       "wait": 40,
+       "ask": {
+        "q": "Dokąd popłynie fioletowy roztwór znad kryształu?",
+        "options": [
+         "zostanie na dnie",
+         "popłynie w górę z ogrzaną wodą",
+         "opadnie pod kryształ"
+        ],
+        "answer": "popłynie w górę z ogrzaną wodą",
+        "why": "Ciepła woda ma mniejszą gęstość — unosi się, a zimna opada: to konwekcja."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-osady",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Reakcje strąceniowe",
+    "text": [
+     "W każdej probówce zachodzi reakcja wymiany, w której powstaje trudno rozpuszczalny osad.",
+     "Zapisz barwę każdego osadu i równanie jonowe skrócone (pojawia się w obserwacjach)."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "t1",
+       "kind": "tube",
+       "size": 25,
+       "x": -12,
+       "label": "AgNO₃",
+       "fill": [
+        {
+         "reagent": "AgNO3",
+         "amount": 8
+        }
+       ]
+      },
+      {
+       "id": "t2",
+       "kind": "tube",
+       "size": 25,
+       "x": -6,
+       "label": "Pb(NO₃)₂",
+       "fill": [
+        {
+         "reagent": "Pb(NO3)2",
+         "amount": 8
+        }
+       ]
+      },
+      {
+       "id": "t3",
+       "kind": "tube",
+       "size": 25,
+       "x": 0,
+       "label": "CuSO₄",
+       "fill": [
+        {
+         "reagent": "CuSO4-aq",
+         "amount": 8
+        }
+       ]
+      },
+      {
+       "id": "t4",
+       "kind": "tube",
+       "size": 25,
+       "x": 6,
+       "label": "FeCl₃",
+       "fill": [
+        {
+         "reagent": "FeCl3",
+         "amount": 8
+        }
+       ]
+      },
+      {
+       "id": "t5",
+       "kind": "tube",
+       "size": 25,
+       "x": 12,
+       "label": "BaCl₂",
+       "fill": [
+        {
+         "reagent": "BaCl2",
+         "amount": 8
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "NaCl-aq",
+      "KI",
+      "NaOH-aq",
+      "Na2SO4",
+      "Na2CO3-aq",
+      "K2CrO4",
+      "AgNO3",
+      "Pb(NO3)2",
+      "CuSO4-aq",
+      "FeCl3",
+      "BaCl2"
+     ],
+     "tools": [
+      "stir",
+      "paper"
+     ],
+     "steps": [
+      {
+       "say": "Do azotanu srebra dodaj chlorek sodu.",
+       "do": {
+        "add": "NaCl-aq",
+        "to": "t1",
+        "amount": 5
+       },
+       "wait": 4,
+       "ask": {
+        "q": "Jaki osad powstanie?",
+        "options": [
+         "biały",
+         "niebieski",
+         "żółty"
+        ],
+        "answer": "biały",
+        "why": "Ag⁺ + Cl⁻ → AgCl↓ — biały, serowaty osad."
+       }
+      },
+      {
+       "say": "Do azotanu ołowiu(II) dodaj jodek potasu.",
+       "do": {
+        "add": "KI",
+        "to": "t2",
+        "amount": 5
+       },
+       "wait": 4
+      },
+      {
+       "say": "Do siarczanu miedzi(II) dodaj zasadę sodową.",
+       "do": {
+        "add": "NaOH-aq",
+        "to": "t3",
+        "amount": 5
+       },
+       "wait": 4
+      },
+      {
+       "say": "Do chlorku żelaza(III) dodaj zasadę sodową.",
+       "do": {
+        "add": "NaOH-aq",
+        "to": "t4",
+        "amount": 5
+       },
+       "wait": 4
+      },
+      {
+       "say": "Do chlorku baru dodaj siarczan(VI) sodu.",
+       "do": {
+        "add": "Na2SO4",
+        "to": "t5",
+        "amount": 5
+       },
+       "wait": 4
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-mieszanie",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Mieszanie roztworów: chmura osadu",
+    "text": [
+     "Przelej roztwór azotanu srebra do zlewki z chlorkiem sodu (przytrzymaj zlewkę nad drugą).",
+     "Gdzie najpierw pojawia się osad? Co dzieje się z nim po chwili?"
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "nacl",
+       "kind": "beaker",
+       "size": 250,
+       "x": -6,
+       "label": "NaCl",
+       "fill": [
+        {
+         "reagent": "NaCl-aq",
+         "amount": 80
+        }
+       ]
+      },
+      {
+       "id": "agno3",
+       "kind": "beaker",
+       "size": 100,
+       "x": 9,
+       "label": "AgNO₃",
+       "fill": [
+        {
+         "reagent": "AgNO3",
+         "amount": 40
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "NaCl-aq",
+      "AgNO3",
+      "KI",
+      "water"
+     ],
+     "tools": [
+      "stir",
+      "probe"
+     ],
+     "steps": [
+      {
+       "say": "Przelej azotan srebra do chlorku sodu.",
+       "do": {
+        "pour": "agno3",
+        "to": "nacl",
+        "ml": 40
+       },
+       "wait": 10,
+       "ask": {
+        "q": "Gdzie pojawi się osad?",
+        "options": [
+         "w całej zlewce naraz",
+         "tam, gdzie strumień miesza się z roztworem",
+         "tylko na dnie"
+        ],
+        "answer": "tam, gdzie strumień miesza się z roztworem",
+        "why": "AgCl wytrąca się tam, gdzie jony Ag⁺ spotykają Cl⁻ — w strumieniu; potem osad powoli opada."
+       }
+      },
+      {
+       "say": "Obserwuj, jak osad opada na dno.",
+       "wait": 20
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-miareczkowanie",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Miareczkowanie — zobojętnianie",
+    "text": [
+     "W kolbie na mieszadle magnetycznym jest 25 cm³ zasady sodowej (0,1 mol/dm³) z fenoloftaleiną, w biurecie kwas solny o tym samym stężeniu.",
+     "Otwórz kranik (dotknij biurety) i obserwuj wykres pH. Zamknij go, gdy roztwór się odbarwi — ile cm³ kwasu zużyto?"
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "mieszadlo",
+       "kind": "hotplate",
+       "x": 0,
+       "stir": true
+      },
+      {
+       "id": "kolba",
+       "kind": "flask",
+       "size": 100,
+       "on": "mieszadlo",
+       "label": "NaOH + fenoloftaleina",
+       "fill": [
+        {
+         "reagent": "NaOH-dil",
+         "amount": 25
+        },
+        {
+         "reagent": "phenolphthalein",
+         "amount": 2
+        }
+       ]
+      },
+      {
+       "id": "biureta",
+       "kind": "burette",
+       "size": 50,
+       "x": 0,
+       "y": 12.8,
+       "label": "HCl 0,1 mol/dm³",
+       "fill": [
+        {
+         "reagent": "HCl-dil",
+         "amount": 50
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "phenolphthalein",
+      "methylorange",
+      "bromothymol",
+      "universal",
+      "NaOH-dil",
+      "HCl-dil"
+     ],
+     "tools": [
+      "stir",
+      "paper"
+     ],
+     "graph": {
+      "things": [
+       "kolba"
+      ],
+      "of": [
+       "pH"
+      ]
+     },
+     "steps": [
+      {
+       "say": "Otwórz kranik biurety — kwas kapie do kolby.",
+       "do": {
+        "tap": "biureta",
+        "rate": 0.6
+       },
+       "wait": 42
+      },
+      {
+       "say": "Roztwór odbarwił się — zamknij kranik i odczytaj objętość.",
+       "do": {
+        "tap": "biureta",
+        "rate": 0
+       },
+       "wait": 3
+      }
+     ]
+    }
    }
   },
   {
@@ -40,12 +737,12 @@
     ],
     "mode": "experiment",
     "scene": {
-     "vessels": [
+     "things": [
       {
        "id": "li",
-       "type": "beaker",
+       "kind": "beaker",
        "size": 250,
-       "x": -14,
+       "x": -10,
        "label": "lit",
        "fill": [
         {
@@ -60,7 +757,7 @@
       },
       {
        "id": "na",
-       "type": "beaker",
+       "kind": "beaker",
        "size": 250,
        "x": 0,
        "label": "sód",
@@ -77,9 +774,9 @@
       },
       {
        "id": "k",
-       "type": "beaker",
+       "kind": "beaker",
        "size": 250,
-       "x": 14,
+       "x": 10,
        "label": "potas",
        "fill": [
         {
@@ -104,8 +801,7 @@
      "tools": [
       "splint",
       "paper",
-      "stir",
-      "empty"
+      "stir"
      ],
      "steps": [
       {
@@ -119,6 +815,12 @@
       },
       {
        "say": "Teraz sód — obserwuj, co dzieje się z metalem.",
+       "do": {
+        "add": "Na",
+        "to": "na",
+        "amount": 0.2
+       },
+       "wait": 12,
        "ask": {
         "q": "Jaki kolor przyjmie roztwór z fenoloftaleiną?",
         "options": [
@@ -128,13 +830,7 @@
         ],
         "answer": "malinowy",
         "why": "Powstaje wodorotlenek sodu — w odczynie zasadowym fenoloftaleina barwi się na malinowo."
-       },
-       "do": {
-        "add": "Na",
-        "to": "na",
-        "amount": 0.2
-       },
-       "wait": 12
+       }
       },
       {
        "say": "Na koniec potas — najaktywniejszy z trzech.",
@@ -144,14 +840,6 @@
         "amount": 0.1
        },
        "wait": 10
-      },
-      {
-       "say": "Zbadaj papierkiem wskaźnikowym odczyn roztworu w środkowej zlewce.",
-       "do": {
-        "use": "paper",
-        "at": "na"
-       },
-       "wait": 3
       }
      ]
     }
@@ -168,14 +856,14 @@
     "title": "Metale w kwasie solnym",
     "text": [
      "Do czterech probówek z kwasem solnym wkładamy magnez, cynk, żelazo i miedź.",
-     "W której probówce gaz wydziela się najszybciej, a w której wcale? Sprawdź płonącym łuczywem, jaki to gaz."
+     "W której probówce gaz wydziela się najszybciej, a w której wcale?"
     ],
     "mode": "experiment",
     "scene": {
-     "vessels": [
+     "things": [
       {
        "id": "mg",
-       "type": "tube",
+       "kind": "tube",
        "size": 25,
        "x": -9,
        "label": "Mg",
@@ -188,7 +876,7 @@
       },
       {
        "id": "zn",
-       "type": "tube",
+       "kind": "tube",
        "size": 25,
        "x": -3,
        "label": "Zn",
@@ -201,7 +889,7 @@
       },
       {
        "id": "fe",
-       "type": "tube",
+       "kind": "tube",
        "size": 25,
        "x": 3,
        "label": "Fe",
@@ -214,7 +902,7 @@
       },
       {
        "id": "cu",
-       "type": "tube",
+       "kind": "tube",
        "size": 25,
        "x": 9,
        "label": "Cu",
@@ -237,10 +925,8 @@
      ],
      "tools": [
       "splint",
-      "glow",
       "paper",
-      "stopper",
-      "empty"
+      "stopper"
      ],
      "steps": [
       {
@@ -267,29 +953,1299 @@
          "amount": 1
         }
        ],
-       "wait": 6
+       "wait": 15,
+       "ask": {
+        "q": "Gdzie gaz nie będzie się wydzielał?",
+        "options": [
+         "magnez",
+         "cynk",
+         "miedź"
+        ],
+        "answer": "miedź",
+        "why": "Miedź stoi w szeregu aktywności za wodorem — nie wypiera go z kwasu."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-wodor",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Otrzymywanie i wykrywanie wodoru",
+    "text": [
+     "Cynk reaguje z kwasem solnym — wydziela się gaz, który miesza się z powietrzem u wylotu probówki.",
+     "Zbliż płonące łuczywo do wylotu probówki."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "reakcja",
+       "kind": "tube",
+       "size": 25,
+       "x": 0,
+       "label": "Zn + HCl",
+       "fill": [
+        {
+         "reagent": "HCl",
+         "amount": 12
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "Zn",
+      "Mg",
+      "HCl"
+     ],
+     "tools": [
+      "splint",
+      "glow",
+      "match"
+     ],
+     "steps": [
+      {
+       "say": "Wrzuć do kwasu granulki cynku.",
+       "do": {
+        "add": "Zn",
+        "to": "reakcja",
+        "amount": 2
+       },
+       "wait": 15
       },
       {
-       "say": "Zbliż płonące łuczywo do wylotu probówki z magnezem.",
+       "say": "Zbliż płonące łuczywo do wylotu probówki.",
+       "do": {
+        "use": "splint",
+        "at": "reakcja"
+       },
+       "wait": 4,
+       "ask": {
+        "q": "Co usłyszymy?",
+        "options": [
+         "nic",
+         "charakterystyczny trzask („pyk”)",
+         "syk"
+        ],
+        "answer": "charakterystyczny trzask („pyk”)",
+        "why": "Mieszanina wodoru z powietrzem spala się gwałtownie: 2H₂ + O₂ → 2H₂O."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-tlen",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Katalizator: rozkład wody utlenionej",
+    "text": [
+     "W kolbie jest woda utleniona (3%). Dodaj szczyptę tlenku manganu(IV) — katalizatora.",
+     "Wsuń do kolby żarzące się łuczywo."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "kolba",
+       "kind": "flask",
+       "size": 250,
+       "x": 0,
+       "label": "H₂O₂ 3%",
+       "fill": [
+        {
+         "reagent": "H2O2",
+         "amount": 50
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "H2O2",
+      "H2O2-30",
+      "MnO2",
+      "potato",
+      "KI-s"
+     ],
+     "tools": [
+      "glow",
+      "splint",
+      "stir"
+     ],
+     "steps": [
+      {
+       "say": "Dodaj tlenek manganu(IV).",
+       "do": {
+        "add": "MnO2",
+        "to": "kolba",
+        "amount": 0.5
+       },
+       "wait": 15
+      },
+      {
+       "say": "Wsuń do kolby żarzące się łuczywo.",
+       "do": {
+        "use": "glow",
+        "at": "kolba"
+       },
+       "wait": 6,
+       "ask": {
+        "q": "Co stanie się z łuczywem?",
+        "options": [
+         "zgaśnie",
+         "rozżarzy się i zapali",
+         "nic"
+        ],
+        "answer": "rozżarzy się i zapali",
+        "why": "W kolbie jest dużo tlenu — podtrzymuje spalanie znacznie lepiej niż powietrze."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-szybkosc-reakcji",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Szybkość reakcji: znikający krzyżyk",
+    "text": [
+     "W trzech kolbach jest roztwór tiosiarczanu sodu: stężony, rozcieńczony wodą o połowę i stężony ogrzany do 50 °C. Wlej do każdej po 5 cm³ kwasu solnego.",
+     "S₂O₃²⁻ + 2H⁺ → S↓ + SO₂ + H₂O — gdzie roztwór najszybciej zmętnieje od siarki?"
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "stezony",
+       "kind": "flask",
+       "size": 100,
+       "x": -10,
+       "label": "stężony",
+       "fill": [
+        {
+         "reagent": "Na2S2O3",
+         "amount": 50
+        }
+       ]
+      },
+      {
+       "id": "rozcienczony",
+       "kind": "flask",
+       "size": 100,
+       "x": 0,
+       "label": "rozcieńczony",
+       "fill": [
+        {
+         "reagent": "Na2S2O3",
+         "amount": 25
+        },
+        {
+         "reagent": "water",
+         "amount": 25
+        }
+       ]
+      },
+      {
+       "id": "cieply",
+       "kind": "flask",
+       "size": 100,
+       "x": 10,
+       "label": "50 °C",
+       "fill": [
+        {
+         "reagent": "Na2S2O3",
+         "amount": 50
+        }
+       ],
+       "T": 50
+      }
+     ],
+     "shelf": [
+      "HCl",
+      "Na2S2O3",
+      "water"
+     ],
+     "tools": [
+      "stir",
+      "thermometer"
+     ],
+     "steps": [
+      {
+       "say": "Wlej kwas solny do wszystkich kolb i zamieszaj.",
+       "do": [
+        {
+         "add": "HCl",
+         "to": "stezony",
+         "amount": 5
+        },
+        {
+         "add": "HCl",
+         "to": "rozcienczony",
+         "amount": 5
+        },
+        {
+         "add": "HCl",
+         "to": "cieply",
+         "amount": 5
+        },
+        {
+         "use": "stir",
+         "at": "stezony"
+        },
+        {
+         "use": "stir",
+         "at": "rozcienczony"
+        },
+        {
+         "use": "stir",
+         "at": "cieply"
+        }
+       ],
+       "wait": 60,
+       "ask": {
+        "q": "Gdzie siarka wydzieli się najszybciej?",
+        "options": [
+         "w stężonym, zimnym",
+         "w rozcieńczonym",
+         "w stężonym, ciepłym"
+        ],
+        "answer": "w stężonym, ciepłym",
+        "why": "Szybkość rośnie ze stężeniem (więcej zderzeń) i z temperaturą (więcej zderzeń ma dość energii) — tu mniej więcej 2 razy na każde 10 °C."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-swieca",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Świeca pod słojem",
+    "text": [
+     "Zapalona świeca stoi na stole. Przykryj ją odwróconym słojem.",
+     "Obserwuj płomień i skład gazu w słoju."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "swieca",
+       "kind": "candle",
+       "x": 0,
+       "lit": true
+      },
+      {
+       "id": "sloj",
+       "kind": "jar",
+       "size": 500,
+       "x": 14,
+       "y": 11.6,
+       "angle": 180,
+       "label": "słój"
+      }
+     ],
+     "view": [
+      -8,
+      -2,
+      20,
+      16
+     ],
+     "shelf": [],
+     "tools": [
+      "match",
+      "probe"
+     ],
+     "steps": [
+      {
+       "say": "Przykryj świecę słojem.",
+       "do": {
+        "move": "sloj",
+        "to": [
+         0,
+         11.6
+        ]
+       },
+       "wait": 25,
+       "ask": {
+        "q": "Co stanie się z płomieniem?",
+        "options": [
+         "będzie się palił dalej",
+         "po chwili zgaśnie",
+         "zgaśnie od razu"
+        ],
+        "answer": "po chwili zgaśnie",
+        "why": "Świeca zużywa tlen; gdy w słoju jest go ok. 15%, płomień gaśnie."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-co2-swiece",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Tlenek węgla(IV) gasi płomień",
+    "text": [
+     "W zlewce jest tlenek węgla(IV) — gaz cięższy od powietrza. W słoju palą się dwie świece.",
+     "Przelej gaz do słoja, jakby był cieczą. Która świeca zgaśnie pierwsza?"
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "sloj",
+       "kind": "jar",
+       "size": 1000,
+       "x": -6,
+       "label": "słój ze świecami"
+      },
+      {
+       "id": "niska",
+       "kind": "candle",
+       "size": 4,
+       "x": -8.4,
+       "y": 0.4,
+       "lit": true
+      },
+      {
+       "id": "wysoka",
+       "kind": "candle",
+       "size": 9,
+       "x": -3.6,
+       "y": 0.4,
+       "lit": true
+      },
+      {
+       "id": "co2",
+       "kind": "beaker",
+       "size": 600,
+       "x": 12,
+       "label": "CO₂",
+       "gas": {
+        "CO2": 1
+       }
+      }
+     ],
+     "shelf": [
+      "CO2-gas"
+     ],
+     "tools": [
+      "match",
+      "probe"
+     ],
+     "steps": [
+      {
+       "say": "Przelej gaz ze zlewki do słoja.",
+       "do": {
+        "pour": "co2",
+        "to": "sloj",
+        "ml": 8
+       },
+       "wait": 20,
+       "ask": {
+        "q": "Co stanie się z płomieniem świecy?",
+        "options": [
+         "nic",
+         "zgaśnie",
+         "zapłonie jaśniej"
+        ],
+        "answer": "zgaśnie",
+        "why": "CO₂ jest cięższy od powietrza, spływa na dno i wypiera tlen — płomień gaśnie."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-plomien",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Barwienie płomienia",
+    "text": [
+     "Zanurz drucik w roztworze soli i wprowadź go do płomienia palnika.",
+     "Jaki kolor nadaje płomieniowi każdy kation?"
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "palnik",
+       "kind": "burner",
+       "x": 12,
+       "lit": true,
+       "air": 1
+      },
+      {
+       "id": "na",
+       "kind": "beaker",
+       "size": 50,
+       "x": -12,
+       "label": "NaCl",
+       "fill": [
+        {
+         "reagent": "NaCl-aq",
+         "amount": 30
+        }
+       ]
+      },
+      {
+       "id": "li",
+       "kind": "beaker",
+       "size": 50,
+       "x": -6,
+       "label": "LiCl",
+       "fill": [
+        {
+         "reagent": "LiCl-aq",
+         "amount": 30
+        }
+       ]
+      },
+      {
+       "id": "sr",
+       "kind": "beaker",
+       "size": 50,
+       "x": 0,
+       "label": "SrCl₂",
+       "fill": [
+        {
+         "reagent": "SrCl2",
+         "amount": 30
+        }
+       ]
+      },
+      {
+       "id": "cu",
+       "kind": "beaker",
+       "size": 50,
+       "x": 6,
+       "label": "CuSO₄",
+       "fill": [
+        {
+         "reagent": "CuSO4-aq",
+         "amount": 30
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "NaCl-aq",
+      "KCl-aq",
+      "LiCl-aq",
+      "SrCl2",
+      "CaCl2-aq",
+      "CuSO4-aq"
+     ],
+     "tools": [
+      "loop",
+      "match"
+     ],
+     "steps": [
+      {
+       "say": "Zanurz drucik w chlorku sodu…",
+       "do": {
+        "use": "loop",
+        "at": "na"
+       },
+       "wait": 2
+      },
+      {
+       "say": "…i wprowadź go do płomienia.",
+       "do": {
+        "flame": "palnik"
+       },
+       "wait": 4,
+       "ask": {
+        "q": "Na jaki kolor zabarwi się płomień?",
+        "options": [
+         "żółty",
+         "zielony",
+         "fioletowy"
+        ],
+        "answer": "żółty",
+        "why": "Jony sodu barwią płomień na intensywnie żółto."
+       }
+      },
+      {
+       "say": "Teraz chlorek litu.",
+       "do": [
+        {
+         "use": "loop",
+         "at": "li"
+        }
+       ],
+       "wait": 2
+      },
+      {
+       "say": "Do płomienia.",
+       "do": {
+        "flame": "palnik"
+       },
+       "wait": 4
+      },
+      {
+       "say": "Teraz siarczan(VI) miedzi(II).",
+       "do": [
+        {
+         "use": "loop",
+         "at": "cu"
+        }
+       ],
+       "wait": 2
+      },
+      {
+       "say": "Do płomienia.",
+       "do": {
+        "flame": "palnik"
+       },
+       "wait": 4
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-cisnienie",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Korek wyskakuje",
+    "text": [
+     "W kolbie jest marmur. Wlej kwas solny i zamknij kolbę korkiem.",
+     "Obserwuj ciśnienie gazu pod kolbą."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "kolba",
+       "kind": "flask",
+       "size": 250,
+       "x": 0,
+       "label": "marmur",
+       "fill": [
+        {
+         "reagent": "CaCO3",
+         "amount": 5
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "HCl",
+      "CaCO3",
+      "CaCO3-powder",
+      "vinegar"
+     ],
+     "tools": [
+      "stopper"
+     ],
+     "steps": [
+      {
+       "say": "Wlej kwas solny i zamknij kolbę.",
+       "do": [
+        {
+         "add": "HCl",
+         "to": "kolba",
+         "amount": 50
+        },
+        {
+         "use": "stopper",
+         "at": "kolba"
+        }
+       ],
+       "wait": 12,
        "ask": {
         "q": "Co się stanie?",
         "options": [
-         "łuczywo zgaśnie",
-         "usłyszymy charakterystyczny trzask",
-         "płomień stanie się zielony"
+         "nic",
+         "korek wyskoczy",
+         "kolba się ochłodzi"
         ],
-        "answer": "usłyszymy charakterystyczny trzask",
-        "why": "Wodór miesza się z powietrzem i spala z trzaskiem („pyk”)."
-       },
+        "answer": "korek wyskoczy",
+        "why": "Powstaje CO₂ — w zamkniętej kolbie rośnie ciśnienie, aż wypchnie korek."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-woda-wapienna",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Wykrywanie CO₂ wodą wapienną",
+    "text": [
+     "Przez wodę wapienną przepuszczamy tlenek węgla(IV) z butli.",
+     "Co dzieje się z wodą wapienną?"
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "woda",
+       "kind": "tube",
+       "size": 25,
+       "x": 0,
+       "label": "woda wapienna",
+       "fill": [
+        {
+         "reagent": "limewater",
+         "amount": 12
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "CO2-gas",
+      "limewater",
+      "O2-gas",
+      "N2-gas"
+     ],
+     "tools": [
+      "stir"
+     ],
+     "steps": [
+      {
+       "say": "Przepuść tlenek węgla(IV) przez wodę wapienną.",
        "do": {
-        "use": "splint",
-        "at": "mg"
+        "add": "CO2-gas",
+        "to": "woda",
+        "amount": 50
        },
-       "wait": 3
+       "wait": 14,
+       "ask": {
+        "q": "Co stanie się z wodą wapienną?",
+        "options": [
+         "zmętnieje",
+         "zabarwi się na niebiesko",
+         "nic się nie stanie"
+        ],
+        "answer": "zmętnieje",
+        "why": "CO₂ + Ca(OH)₂ → CaCO₃↓ + H₂O — wytrąca się biały węglan wapnia."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-cieplo",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Rozpuszczanie: ciepło i zimno",
+    "text": [
+     "W dwóch zlewkach jest woda z termometrami. Do jednej dodaj wodorotlenek sodu, do drugiej azotan(V) amonu.",
+     "Porównaj wskazania termometrów (zamieszaj bagietką)."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "a",
+       "kind": "beaker",
+       "size": 100,
+       "x": -6,
+       "label": "NaOH",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 50
+        }
+       ]
       },
       {
-       "say": "Porównaj probówki: miedź nie wypiera wodoru z kwasu — stoi w szeregu aktywności za wodorem.",
-       "wait": 4
+       "id": "ta",
+       "kind": "thermometer",
+       "into": "a"
+      },
+      {
+       "id": "b",
+       "kind": "beaker",
+       "size": 100,
+       "x": 6,
+       "label": "NH₄NO₃",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 50
+        }
+       ]
+      },
+      {
+       "id": "tb",
+       "kind": "thermometer",
+       "into": "b"
+      }
+     ],
+     "shelf": [
+      "NaOH",
+      "NH4NO3",
+      "NaCl",
+      "CaCl2",
+      "water"
+     ],
+     "tools": [
+      "stir",
+      "thermometer"
+     ],
+     "graph": {
+      "things": [
+       "ta",
+       "tb"
+      ],
+      "of": [
+       "T"
+      ]
+     },
+     "steps": [
+      {
+       "say": "Dodaj wodorotlenek sodu i zamieszaj.",
+       "do": [
+        {
+         "add": "NaOH",
+         "to": "a",
+         "amount": 5
+        },
+        {
+         "use": "stir",
+         "at": "a"
+        }
+       ],
+       "wait": 10
+      },
+      {
+       "say": "Dodaj azotan(V) amonu i zamieszaj.",
+       "do": [
+        {
+         "add": "NH4NO3",
+         "to": "b",
+         "amount": 10
+        },
+        {
+         "use": "stir",
+         "at": "b"
+        }
+       ],
+       "wait": 12,
+       "ask": {
+        "q": "Co pokaże termometr?",
+        "options": [
+         "temperatura wzrośnie",
+         "temperatura spadnie",
+         "nic się nie zmieni"
+        ],
+        "answer": "temperatura spadnie",
+        "why": "Rozpuszczanie NH₄NO₃ jest endotermiczne — pobiera ciepło z wody."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-wrzenie",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Wrzenie wody i solanki",
+    "text": [
+     "Na dwóch płytach grzejnych stoją zlewki: z wodą i z solanką. Obserwuj termometry, gdy ciecze zaczną wrzeć."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "p1",
+       "kind": "hotplate",
+       "x": -8,
+       "power": 900
+      },
+      {
+       "id": "woda",
+       "kind": "beaker",
+       "size": 100,
+       "on": "p1",
+       "label": "woda",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 50
+        }
+       ]
+      },
+      {
+       "id": "t1",
+       "kind": "thermometer",
+       "into": "woda"
+      },
+      {
+       "id": "p2",
+       "kind": "hotplate",
+       "x": 8,
+       "power": 900
+      },
+      {
+       "id": "sol",
+       "kind": "beaker",
+       "size": 100,
+       "on": "p2",
+       "label": "solanka",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 50
+        },
+        {
+         "reagent": "NaCl",
+         "amount": 15
+        }
+       ]
+      },
+      {
+       "id": "t2",
+       "kind": "thermometer",
+       "into": "sol"
+      }
+     ],
+     "shelf": [
+      "NaCl",
+      "sugar",
+      "water"
+     ],
+     "tools": [
+      "stir",
+      "thermometer",
+      "probe"
+     ],
+     "graph": {
+      "things": [
+       "t1",
+       "t2"
+      ],
+      "of": [
+       "T"
+      ]
+     },
+     "speed": 5,
+     "steps": [
+      {
+       "say": "Włącz obie płyty.",
+       "do": [
+        {
+         "use": "stir",
+         "at": "sol"
+        },
+        {
+         "heat": "p1",
+         "on": true
+        },
+        {
+         "heat": "p2",
+         "on": true
+        }
+       ],
+       "wait": 60,
+       "ask": {
+        "q": "Która ciecz będzie wrzała w wyższej temperaturze?",
+        "options": [
+         "woda",
+         "solanka",
+         "obie tak samo"
+        ],
+        "answer": "solanka",
+        "why": "Substancja rozpuszczona obniża prężność pary wody — trzeba wyższej temperatury, by ciecz zawrzała."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-lod-sol",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Mieszanina oziębiająca",
+    "text": [
+     "W zlewce jest pokruszony lód z odrobiną wody i termometr. Dosyp soli kuchennej i mieszaj co kilka sekund."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "zlewka",
+       "kind": "beaker",
+       "size": 250,
+       "x": 0,
+       "label": "lód",
+       "fill": [
+        {
+         "reagent": "ice-crushed",
+         "amount": 60
+        },
+        {
+         "reagent": "water",
+         "amount": 20
+        }
+       ]
+      },
+      {
+       "id": "termometr",
+       "kind": "thermometer",
+       "into": "zlewka"
+      }
+     ],
+     "shelf": [
+      "NaCl",
+      "CaCl2",
+      "ice-crushed",
+      "ice",
+      "water"
+     ],
+     "tools": [
+      "stir",
+      "thermometer"
+     ],
+     "graph": {
+      "things": [
+       "termometr"
+      ],
+      "of": [
+       "T"
+      ]
+     },
+     "speed": 2,
+     "steps": [
+      {
+       "say": "Dosyp soli i zamieszaj.",
+       "do": [
+        {
+         "add": "NaCl",
+         "to": "zlewka",
+         "amount": 20
+        },
+        {
+         "use": "stir",
+         "at": "zlewka"
+        }
+       ],
+       "wait": 7,
+       "ask": {
+        "q": "Jak zmieni się temperatura?",
+        "options": [
+         "wzrośnie",
+         "spadnie poniżej 0 °C",
+         "zostanie 0 °C"
+        ],
+        "answer": "spadnie poniżej 0 °C",
+        "why": "Sól obniża temperaturę topnienia lodu; topniejący lód pobiera ciepło i mieszanina się oziębia."
+       }
+      },
+      {
+       "say": "Zamieszaj jeszcze raz.",
+       "do": {
+        "use": "stir",
+        "at": "zlewka"
+       },
+       "wait": 7
+      },
+      {
+       "say": "Zamieszaj jeszcze raz.",
+       "do": {
+        "use": "stir",
+        "at": "zlewka"
+       },
+       "wait": 7
+      },
+      {
+       "say": "Zamieszaj jeszcze raz.",
+       "do": {
+        "use": "stir",
+        "at": "zlewka"
+       },
+       "wait": 7
+      },
+      {
+       "say": "Zamieszaj jeszcze raz.",
+       "do": {
+        "use": "stir",
+        "at": "zlewka"
+       },
+       "wait": 7
+      },
+      {
+       "say": "Zamieszaj jeszcze raz.",
+       "do": {
+        "use": "stir",
+        "at": "zlewka"
+       },
+       "wait": 7
+      },
+      {
+       "say": "Zamieszaj jeszcze raz.",
+       "do": {
+        "use": "stir",
+        "at": "zlewka"
+       },
+       "wait": 7
+      },
+      {
+       "say": "Zamieszaj i odczytaj temperaturę.",
+       "do": {
+        "use": "stir",
+        "at": "zlewka"
+       },
+       "wait": 12
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-rozpuszczanie",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Szybkość rozpuszczania",
+    "text": [
+     "W trzech zlewkach jest po 50 cm³ wody: zimnej (2 °C), gorącej (80 °C) i o temperaturze pokojowej na mieszadle magnetycznym. Wsyp do każdej po 2 g niebieskich kryształów siarczanu(VI) miedzi(II).",
+     "Gdzie kryształy znikną najszybciej? Na półce jest też siarczan miedzi(II) utarty na proszek, cukier i cukier puder."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "zimna",
+       "kind": "beaker",
+       "size": 100,
+       "x": -13,
+       "label": "woda 2 °C",
+       "fill": [
+        {
+         "reagent": "water-cold",
+         "amount": 50
+        }
+       ]
+      },
+      {
+       "id": "goraca",
+       "kind": "beaker",
+       "size": 100,
+       "x": -4,
+       "label": "woda 80 °C",
+       "fill": [
+        {
+         "reagent": "water-hot",
+         "amount": 50
+        }
+       ]
+      },
+      {
+       "id": "mieszadlo",
+       "kind": "hotplate",
+       "x": 9,
+       "stir": true
+      },
+      {
+       "id": "mieszana",
+       "kind": "beaker",
+       "size": 100,
+       "on": "mieszadlo",
+       "label": "mieszana",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 50
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "CuSO4·5H2O",
+      "CuSO4·5H2O-powder",
+      "sugar",
+      "sugar-powder",
+      "NaCl",
+      "KMnO4",
+      "water",
+      "water-hot",
+      "water-cold"
+     ],
+     "tools": [
+      "stir",
+      "thermometer",
+      "probe"
+     ],
+     "speed": 10,
+     "steps": [
+      {
+       "say": "Wsyp siarczan(VI) miedzi(II) do wszystkich zlewek.",
+       "do": [
+        {
+         "add": "CuSO4·5H2O",
+         "to": "zimna",
+         "amount": 2
+        },
+        {
+         "add": "CuSO4·5H2O",
+         "to": "goraca",
+         "amount": 2
+        },
+        {
+         "add": "CuSO4·5H2O",
+         "to": "mieszana",
+         "amount": 2
+        }
+       ],
+       "wait": 60,
+       "ask": {
+        "q": "Gdzie kryształy rozpuszczą się najwolniej?",
+        "options": [
+         "w zimnej wodzie",
+         "w gorącej wodzie",
+         "w mieszanej"
+        ],
+        "answer": "w zimnej wodzie",
+        "why": "Kryształ rozpuszcza się na powierzchni, a jony odchodzą przez warstewkę roztworu nasyconego. W zimnej wodzie dyfuzja jest najwolniejsza, a warstewki nic nie odprowadza — ani mieszanie, ani prądy ciepłej wody."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-dyfuzja",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Dyfuzja w zimnej i gorącej wodzie",
+    "text": [
+     "W dwóch zlewkach jest nieruchoma woda: zimna i gorąca. Wrzuć do każdej kryształek manganianu(VII) potasu i obserwuj, jak rozchodzi się fiolet — czas płynie dwadzieścia razy szybciej.",
+     "W zimnej wodzie ciężki roztwór zbiera się na dnie i rozchodzi powoli — to dyfuzja, o milimetr w kilka minut. W gorącej dyfuzja jest szybsza, a pomagają jej prądy stygnącej wody."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "zimna",
+       "kind": "beaker",
+       "size": 250,
+       "x": -6,
+       "label": "woda 2 °C",
+       "fill": [
+        {
+         "reagent": "water-cold",
+         "amount": 200
+        }
+       ]
+      },
+      {
+       "id": "goraca",
+       "kind": "beaker",
+       "size": 250,
+       "x": 6,
+       "label": "woda 80 °C",
+       "fill": [
+        {
+         "reagent": "water-hot",
+         "amount": 200
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "KMnO4",
+      "CuSO4·5H2O",
+      "water",
+      "water-hot",
+      "water-cold"
+     ],
+     "tools": [
+      "probe",
+      "thermometer"
+     ],
+     "speed": 20,
+     "steps": [
+      {
+       "say": "Wrzuć kryształki manganianu(VII) potasu do obu zlewek.",
+       "do": [
+        {
+         "add": "KMnO4",
+         "to": "zimna",
+         "amount": 0.05
+        },
+        {
+         "add": "KMnO4",
+         "to": "goraca",
+         "amount": 0.05
+        }
+       ],
+       "wait": 180,
+       "ask": {
+        "q": "Gdzie fiolet szybciej dotrze pod powierzchnię?",
+        "options": [
+         "w zimnej wodzie",
+         "w gorącej wodzie",
+         "tak samo"
+        ],
+        "answer": "w gorącej wodzie",
+        "why": "W gorącej wodzie cząsteczki poruszają się szybciej (dyfuzja w 80 °C jest ok. 3 razy szybsza niż w 20 °C), a stygnąca woda krąży."
+       }
       }
      ]
     }
@@ -310,12 +2266,12 @@
     ],
     "mode": "experiment",
     "scene": {
-     "vessels": [
+     "things": [
       {
        "id": "cu",
-       "type": "beaker",
+       "kind": "beaker",
        "size": 100,
-       "x": -12,
+       "x": -10,
        "label": "CuSO₄ + Fe",
        "fill": [
         {
@@ -326,7 +2282,7 @@
       },
       {
        "id": "ag",
-       "type": "beaker",
+       "kind": "beaker",
        "size": 100,
        "x": 0,
        "label": "AgNO₃ + Cu",
@@ -343,9 +2299,9 @@
       },
       {
        "id": "zn",
-       "type": "beaker",
+       "kind": "beaker",
        "size": 100,
-       "x": 12,
+       "x": 10,
        "label": "ZnSO₄ + Cu",
        "fill": [
         {
@@ -370,8 +2326,7 @@
      ],
      "tools": [
       "stir",
-      "paper",
-      "empty"
+      "paper"
      ],
      "speed": 10,
      "steps": [
@@ -382,7 +2337,7 @@
         "to": "cu",
         "amount": 5
        },
-       "wait": 4
+       "wait": 6
       },
       {
        "say": "Włóż drut miedziany do roztworu azotanu srebra.",
@@ -391,10 +2346,16 @@
         "to": "ag",
         "amount": 1
        },
-       "wait": 4
+       "wait": 6
       },
       {
        "say": "Włóż drut miedziany do roztworu siarczanu cynku.",
+       "do": {
+        "add": "Cu",
+        "to": "zn",
+        "amount": 1
+       },
+       "wait": 8,
        "ask": {
         "q": "Czy miedź wyprze cynk?",
         "options": [
@@ -403,251 +2364,7 @@
         ],
         "answer": "nie",
         "why": "Cynk jest aktywniejszy od miedzi (E° = −0,76 V wobec +0,34 V)."
-       },
-       "do": {
-        "add": "Cu",
-        "to": "zn",
-        "amount": 1
-       },
-       "wait": 8
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-miareczkowanie",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Miareczkowanie — zobojętnianie",
-    "text": [
-     "W kolbie jest 25 cm³ zasady sodowej (0,1 mol/dm³) z fenoloftaleiną, w biurecie kwas solny o tym samym stężeniu.",
-     "Otwórz kranik (dotknij biurety) i obserwuj wykres pH. Zamknij go, gdy roztwór się odbarwi — ile cm³ kwasu zużyto?"
-    ],
-    "mode": "experiment",
-    "scene": {
-     "vessels": [
-      {
-       "id": "kolba",
-       "type": "flask",
-       "size": 100,
-       "x": 0,
-       "label": "NaOH + fenoloftaleina",
-       "fill": [
-        {
-         "reagent": "NaOH-dil",
-         "amount": 25
-        },
-        {
-         "reagent": "phenolphthalein",
-         "amount": 2
-        }
-       ]
-      },
-      {
-       "id": "biureta",
-       "type": "burette",
-       "size": 50,
-       "x": 0,
-       "label": "HCl 0,1 mol/dm³",
-       "over": "kolba",
-       "fill": [
-        {
-         "reagent": "HCl-dil",
-         "amount": 50
-        }
-       ]
-      }
-     ],
-     "shelf": [
-      "phenolphthalein",
-      "methylorange",
-      "bromothymol",
-      "universal",
-      "NaOH-dil",
-      "HCl-dil"
-     ],
-     "tools": [
-      "paper",
-      "stir",
-      "empty"
-     ],
-     "graph": {
-      "vessel": "kolba",
-      "of": [
-       "pH",
-       "T"
-      ]
-     },
-     "steps": [
-      {
-       "say": "Otwórz kranik biurety — kwas kapie do kolby.",
-       "do": {
-        "drip": "biureta",
-        "rate": 0.6
-       },
-       "wait": 38
-      },
-      {
-       "say": "Roztwór odbarwił się — zamknij kranik i odczytaj objętość.",
-       "do": {
-        "drip": "biureta",
-        "rate": 0
-       },
-       "wait": 3
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-osady",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Reakcje strąceniowe",
-    "text": [
-     "W każdej probówce zachodzi reakcja wymiany, w której powstaje trudno rozpuszczalny osad.",
-     "Zapisz barwę każdego osadu i równanie jonowe skrócone (pojawia się w obserwacjach)."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "vessels": [
-      {
-       "id": "t1",
-       "type": "tube",
-       "size": 25,
-       "x": -12,
-       "label": "AgNO₃",
-       "fill": [
-        {
-         "reagent": "AgNO3",
-         "amount": 5
-        }
-       ]
-      },
-      {
-       "id": "t2",
-       "type": "tube",
-       "size": 25,
-       "x": -6,
-       "label": "Pb(NO₃)₂",
-       "fill": [
-        {
-         "reagent": "Pb(NO3)2",
-         "amount": 5
-        }
-       ]
-      },
-      {
-       "id": "t3",
-       "type": "tube",
-       "size": 25,
-       "x": 0,
-       "label": "CuSO₄",
-       "fill": [
-        {
-         "reagent": "CuSO4-aq",
-         "amount": 5
-        }
-       ]
-      },
-      {
-       "id": "t4",
-       "type": "tube",
-       "size": 25,
-       "x": 6,
-       "label": "FeCl₃",
-       "fill": [
-        {
-         "reagent": "FeCl3",
-         "amount": 5
-        }
-       ]
-      },
-      {
-       "id": "t5",
-       "type": "tube",
-       "size": 25,
-       "x": 12,
-       "label": "BaCl₂",
-       "fill": [
-        {
-         "reagent": "BaCl2",
-         "amount": 5
-        }
-       ]
-      }
-     ],
-     "shelf": [
-      "NaCl-aq",
-      "KI",
-      "NaOH-aq",
-      "Na2SO4",
-      "Na2CO3-aq",
-      "K2CrO4",
-      "AgNO3",
-      "Pb(NO3)2",
-      "CuSO4-aq",
-      "FeCl3",
-      "BaCl2"
-     ],
-     "tools": [
-      "stir",
-      "empty"
-     ],
-     "steps": [
-      {
-       "say": "Do azotanu srebra dodaj chlorek sodu.",
-       "do": {
-        "add": "NaCl-aq",
-        "to": "t1",
-        "amount": 2
-       },
-       "wait": 3
-      },
-      {
-       "say": "Do azotanu ołowiu(II) dodaj jodek potasu.",
-       "do": {
-        "add": "KI",
-        "to": "t2",
-        "amount": 5
-       },
-       "wait": 3
-      },
-      {
-       "say": "Do siarczanu miedzi(II) dodaj zasadę sodową.",
-       "do": {
-        "add": "NaOH-aq",
-        "to": "t3",
-        "amount": 3
-       },
-       "wait": 3
-      },
-      {
-       "say": "Do chlorku żelaza(III) dodaj zasadę sodową.",
-       "do": {
-        "add": "NaOH-aq",
-        "to": "t4",
-        "amount": 3
-       },
-       "wait": 3
-      },
-      {
-       "say": "Do chlorku baru dodaj siarczan(VI) sodu.",
-       "do": {
-        "add": "Na2SO4",
-        "to": "t5",
-        "amount": 2
-       },
-       "wait": 3
+       }
       }
      ]
     }
@@ -664,25 +2381,28 @@
     "title": "Złoty deszcz",
     "text": [
      "Jodek ołowiu(II) słabo rozpuszcza się w zimnej wodzie, a dużo lepiej w gorącej.",
-     "Wytrąć żółty osad, ogrzej zlewkę, aż osad zniknie, potem zdejmij ją z palnika i obserwuj, co dzieje się podczas stygnięcia."
+     "Wytrąć żółty osad, ogrzej zlewkę, aż osad zniknie, potem zgaś palnik i obserwuj stygnięcie."
     ],
     "mode": "experiment",
     "scene": {
-     "burners": [
+     "things": [
       {
-       "id": "p",
+       "id": "palnik",
+       "kind": "burner",
        "x": 0,
-       "on": false
-      }
-     ],
-     "vessels": [
+       "air": 1
+      },
+      {
+       "id": "trojnog",
+       "kind": "tripod",
+       "x": 0
+      },
       {
        "id": "z",
-       "type": "beaker",
+       "kind": "beaker",
        "size": 100,
-       "x": 0,
-       "on": "p",
-       "label": "Pb(NO₃)₂ w wodzie",
+       "on": "trojnog",
+       "label": "Pb(NO₃)₂",
        "fill": [
         {
          "reagent": "water",
@@ -693,6 +2413,11 @@
          "amount": 2
         }
        ]
+      },
+      {
+       "id": "termometr",
+       "kind": "thermometer",
+       "into": "z"
       }
      ],
      "shelf": [
@@ -702,1438 +2427,42 @@
      ],
      "tools": [
       "stir",
-      "empty"
+      "match"
      ],
      "graph": {
-      "vessel": "z",
+      "things": [
+       "termometr"
+      ],
       "of": [
        "T"
       ]
      },
+     "speed": 10,
      "steps": [
       {
        "say": "Dodaj roztwór jodku potasu.",
        "do": {
         "add": "KI",
         "to": "z",
-        "amount": 2
+        "amount": 4
        },
-       "wait": 4
+       "wait": 5
       },
       {
        "say": "Zapal palnik i ogrzewaj, aż osad się rozpuści.",
-       "do": [
-        {
-         "burner": "p",
-         "on": true
-        },
-        {
-         "speed": 10
-        }
-       ],
-       "wait": 18
-      },
-      {
-       "say": "Zgaś palnik i zdejmij zlewkę — podczas stygnięcia wypadają złociste kryształki.",
-       "do": [
-        {
-         "burner": "p",
-         "on": false
-        },
-        {
-         "seat": "z"
-        },
-        {
-         "speed": 20
-        }
-       ],
-       "wait": 25
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-woda-wapienna",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Wykrywanie CO₂ wodą wapienną",
-    "text": [
-     "Kolba z marmurem jest zamknięta korkiem z rurką, której koniec zanurzono w wodzie wapiennej.",
-     "Dodaj kwas solny: gaz z kolby przepływa przez wodę wapienną. Co się z nią dzieje?"
-    ],
-    "mode": "experiment",
-    "scene": {
-     "vessels": [
-      {
-       "id": "kolba",
-       "type": "flask",
-       "size": 250,
-       "x": -10,
-       "label": "marmur",
-       "fill": [
-        {
-         "reagent": "CaCO3",
-         "amount": 3
-        }
-       ]
-      },
-      {
-       "id": "woda",
-       "type": "beaker",
-       "size": 100,
-       "x": 12,
-       "label": "woda wapienna",
-       "fill": [
-        {
-         "reagent": "limewater",
-         "amount": 50
-        }
-       ]
-      }
-     ],
-     "links": [
-      {
-       "from": "kolba",
-       "to": "woda"
-      }
-     ],
-     "shelf": [
-      "HCl",
-      "vinegar",
-      "CaCO3",
-      "CaCO3-powder",
-      "limewater"
-     ],
-     "tools": [
-      "glow",
-      "splint",
-      "stir",
-      "empty"
-     ],
-     "steps": [
-      {
-       "say": "Wlej do kolby kwas solny.",
-       "ask": {
-        "q": "Co stanie się z wodą wapienną?",
-        "options": [
-         "zmętnieje",
-         "zabarwi się na niebiesko",
-         "nic się nie stanie"
-        ],
-        "answer": "zmętnieje",
-        "why": "CO₂ reaguje z Ca(OH)₂ — wytrąca się biały węglan wapnia."
-       },
        "do": {
-        "add": "HCl",
-        "to": "kolba",
-        "amount": 25
-       },
-       "wait": 20
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-katalizator",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Katalizator: rozkład wody utlenionej",
-    "text": [
-     "W obu zlewkach jest woda utleniona. Do jednej dodajemy szczyptę tlenku manganu(IV).",
-     "Porównaj obie zlewki i sprawdź gaz żarzącym się łuczywem."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "vessels": [
-      {
-       "id": "a",
-       "type": "beaker",
-       "size": 100,
-       "x": -9,
-       "label": "bez katalizatora",
-       "fill": [
-        {
-         "reagent": "H2O2",
-         "amount": 50
-        }
-       ]
-      },
-      {
-       "id": "b",
-       "type": "beaker",
-       "size": 100,
-       "x": 9,
-       "label": "z MnO₂",
-       "fill": [
-        {
-         "reagent": "H2O2",
-         "amount": 50
-        }
-       ]
-      }
-     ],
-     "shelf": [
-      "MnO2",
-      "potato",
-      "KI",
-      "H2O2",
-      "soap"
-     ],
-     "tools": [
-      "glow",
-      "splint",
-      "stir",
-      "empty"
-     ],
-     "steps": [
-      {
-       "say": "Dodaj tlenek manganu(IV) do drugiej zlewki.",
-       "do": {
-        "add": "MnO2",
-        "to": "b",
-        "amount": 0.5
-       },
-       "wait": 8
-      },
-      {
-       "say": "Włóż żarzące się łuczywo do zlewki z katalizatorem.",
-       "do": {
-        "use": "glow",
-        "at": "b"
-       },
-       "wait": 3
-      },
-      {
-       "say": "Teraz do zlewki bez katalizatora.",
-       "do": {
-        "use": "glow",
-        "at": "a"
-       },
-       "wait": 3
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-pasta-slonia",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Pasta do zębów dla słonia",
-    "text": [
-     "Perhydrol (30% H₂O₂) z płynem do mycia naczyń rozkłada się gwałtownie po dodaniu jodku potasu.",
-     "Tlen spienia detergent, a ciepło reakcji podgrzewa pianę."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "vessels": [
-      {
-       "id": "c",
-       "type": "cylinder",
-       "size": 250,
-       "x": 0,
-       "label": "perhydrol + detergent",
-       "fill": [
-        {
-         "reagent": "H2O2-30",
-         "amount": 25
-        },
-        {
-         "reagent": "soap",
-         "amount": 5
-        }
-       ]
-      }
-     ],
-     "shelf": [
-      "KI-s",
-      "KI",
-      "MnO2",
-      "soap",
-      "H2O2-30"
-     ],
-     "tools": [
-      "glow",
-      "empty"
-     ],
-     "graph": {
-      "vessel": "c",
-      "of": [
-       "T"
-      ]
-     },
-     "steps": [
-      {
-       "say": "Wsyp jodek potasu.",
-       "do": {
-        "add": "KI-s",
-        "to": "c",
-        "amount": 1
-       },
-       "wait": 12
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-cieplo",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Rozpuszczanie: ciepło i zimno",
-    "text": [
-     "Niektóre substancje rozpuszczając się wydzielają ciepło, inne je pochłaniają.",
-     "Wsyp do wody wodorotlenek sodu i azotan(V) amonu, obserwuj wykres temperatury."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "vessels": [
-      {
-       "id": "a",
-       "type": "beaker",
-       "size": 100,
-       "x": -9,
-       "label": "NaOH",
-       "fill": [
-        {
-         "reagent": "water",
-         "amount": 50
-        }
-       ]
-      },
-      {
-       "id": "b",
-       "type": "beaker",
-       "size": 100,
-       "x": 9,
-       "label": "NH₄NO₃",
-       "fill": [
-        {
-         "reagent": "water",
-         "amount": 50
-        }
-       ]
-      }
-     ],
-     "shelf": [
-      "NaOH",
-      "NH4NO3",
-      "NaCl",
-      "CaCl2",
-      "NH4Cl",
-      "KNO3",
-      "water"
-     ],
-     "tools": [
-      "stir",
-      "empty"
-     ],
-     "graph": {
-      "vessels": [
-       "a",
-       "b"
-      ],
-      "of": [
-       "T"
-      ]
-     },
-     "steps": [
-      {
-       "say": "Wsyp 5 g wodorotlenku sodu do pierwszej zlewki i zamieszaj.",
-       "do": [
-        {
-         "add": "NaOH",
-         "to": "a",
-         "amount": 5
-        },
-        {
-         "use": "stir",
-         "at": "a"
-        }
-       ],
-       "wait": 10
-      },
-      {
-       "say": "Wsyp 10 g azotanu(V) amonu do drugiej zlewki i zamieszaj.",
-       "do": [
-        {
-         "add": "NH4NO3",
-         "to": "b",
-         "amount": 10
-        },
-        {
-         "use": "stir",
-         "at": "b"
-        }
-       ],
-       "wait": 10
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-rozpuszczalnosc",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Rozpuszczalność KNO₃ a temperatura",
-    "text": [
-     "W 50 g wody w 20 °C rozpuści się tylko około 16 g azotanu(V) potasu.",
-     "Wsyp więcej, ogrzej roztwór, a potem pozwól mu ostygnąć."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "burners": [
-      {
-       "id": "p",
-       "x": 0
-      }
-     ],
-     "vessels": [
-      {
-       "id": "r",
-       "type": "beaker",
-       "size": 100,
-       "x": 0,
-       "on": "p",
-       "label": "woda",
-       "fill": [
-        {
-         "reagent": "water",
-         "amount": 50
-        }
-       ]
-      }
-     ],
-     "shelf": [
-      "KNO3",
-      "NaCl",
-      "water"
-     ],
-     "tools": [
-      "stir",
-      "empty"
-     ],
-     "graph": {
-      "vessel": "r",
-      "of": [
-       "T"
-      ]
-     },
-     "steps": [
-      {
-       "say": "Wsyp 40 g azotanu(V) potasu i zamieszaj.",
-       "do": [
-        {
-         "add": "KNO3",
-         "to": "r",
-         "amount": 40
-        },
-        {
-         "use": "stir",
-         "at": "r"
-        },
-        {
-         "speed": 5
-        }
-       ],
-       "wait": 10
-      },
-      {
-       "say": "Zapal palnik — w gorącej wodzie rozpuści się wszystko.",
-       "do": [
-        {
-         "burner": "p",
-         "on": true
-        },
-        {
-         "use": "stir",
-         "at": "r"
-        }
-       ],
-       "wait": 16
-      },
-      {
-       "say": "Zgaś palnik i zdejmij zlewkę: roztwór stygnie i wydzielają się kryształy.",
-       "do": [
-        {
-         "burner": "p",
-         "on": false
-        },
-        {
-         "seat": "r"
-        },
-        {
-         "speed": 25
-        }
-       ],
-       "wait": 25
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-wskazniki",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Wskaźniki w kwasie, wodzie i zasadzie",
-    "text": [
-     "Wywar z czerwonej kapusty to naturalny wskaźnik — zmienia barwę zależnie od odczynu.",
-     "Dodaj go do kwasu, wody i zasady. Potem sprawdź też inne wskaźniki."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "vessels": [
-      {
-       "id": "kwas",
-       "type": "beaker",
-       "size": 100,
-       "x": -12,
-       "label": "kwas solny",
-       "fill": [
-        {
-         "reagent": "HCl-dil",
-         "amount": 50
-        }
-       ]
-      },
-      {
-       "id": "woda",
-       "type": "beaker",
-       "size": 100,
-       "x": 0,
-       "label": "woda",
-       "fill": [
-        {
-         "reagent": "water",
-         "amount": 50
-        }
-       ]
-      },
-      {
-       "id": "zasada",
-       "type": "beaker",
-       "size": 100,
-       "x": 12,
-       "label": "zasada sodowa",
-       "fill": [
-        {
-         "reagent": "NaOH-dil",
-         "amount": 50
-        }
-       ]
-      }
-     ],
-     "shelf": [
-      "wskazniki",
-      "HCl-dil",
-      "NaOH-dil",
-      "vinegar",
-      "NH3-aq",
-      "water"
-     ],
-     "tools": [
-      "paper",
-      "stir",
-      "empty"
-     ],
-     "steps": [
-      {
-       "say": "Dodaj wywar z kapusty do wszystkich zlewek.",
-       "do": [
-        {
-         "add": "cabbage",
-         "to": "kwas",
-         "amount": 5
-        },
-        {
-         "add": "cabbage",
-         "to": "woda",
-         "amount": 5
-        },
-        {
-         "add": "cabbage",
-         "to": "zasada",
-         "amount": 5
-        }
-       ],
-       "wait": 4
-      },
-      {
-       "say": "Zbadaj odczyn papierkiem wskaźnikowym.",
-       "do": [
-        {
-         "use": "paper",
-         "at": "kwas"
-        },
-        {
-         "use": "paper",
-         "at": "zasada"
-        }
-       ],
-       "wait": 4
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-spalanie",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Spalanie magnezu i siarki",
-    "text": [
-     "Magnez spala się oślepiającym płomieniem, siarka — niebieskim. W słoju jest tlen i woda z oranżem metylowym.",
-     "Tlenek magnezu z wodą daje zasadę, tlenek siarki(IV) — kwas."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "burners": [
-      {
-       "id": "p",
-       "x": -20,
-       "on": true
-      }
-     ],
-     "vessels": [
-      {
-       "id": "tygiel",
-       "type": "crucible",
-       "size": 30,
-       "x": -20,
-       "on": "p",
-       "label": "magnez",
-       "fill": [
-        {
-         "reagent": "Mg",
-         "amount": 0.1
-        }
-       ]
-      },
-      {
-       "id": "siarka",
-       "type": "dish",
-       "size": 50,
-       "x": -4,
-       "label": "siarka",
-       "fill": [
-        {
-         "reagent": "S",
-         "amount": 0.5
-        }
-       ]
-      },
-      {
-       "id": "sloj",
-       "type": "jar",
-       "size": 1000,
-       "x": 14,
-       "label": "tlen + woda + oranż",
-       "gas": {
-        "O2": 1
-       },
-       "fill": [
-        {
-         "reagent": "water",
-         "amount": 60
-        },
-        {
-         "reagent": "methylorange",
-         "amount": 3
-        }
-       ]
-      }
-     ],
-     "shelf": [
-      "Mg",
-      "S",
-      "C",
-      "Fe-wool",
-      "O2-gas",
-      "water",
-      "phenolphthalein",
-      "methylorange"
-     ],
-     "tools": [
-      "spoon",
-      "match",
-      "glow",
-      "splint",
-      "paper",
-      "stopper",
-      "empty"
-     ],
-     "speed": 2,
-     "steps": [
-      {
-       "say": "Tygiel z magnezem ogrzewa się w płomieniu palnika — za chwilę magnez się zapali.",
-       "wait": 14
-      },
-      {
-       "say": "Nabierz siarkę łyżeczką do spalań i zapal ją w płomieniu palnika.",
-       "do": [
-        {
-         "use": "spoon",
-         "at": "siarka"
-        },
-        {
-         "flame": "p",
-         "with": "spoon"
-        }
-       ],
-       "wait": 3
-      },
-      {
-       "say": "Wprowadź płonącą siarkę do słoja z tlenem i zamknij go.",
-       "do": [
-        {
-         "use": "spoon",
-         "at": "sloj"
-        },
-        {
-         "use": "stopper",
-         "at": "sloj"
-        }
-       ],
-       "wait": 20
-      },
-      {
-       "say": "Tlenek siarki(IV) rozpuszcza się w wodzie — oranż metylowy pokazuje odczyn kwasowy.",
-       "do": {
-        "use": "stir",
-        "at": "sloj"
-       },
-       "wait": 10
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-swieca",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Świeca i tlenek węgla(IV)",
-    "text": [
-     "W lewej zlewce pali się świeczka, prawą napełniono tlenkiem węgla(IV) — jest niewidoczny.",
-     "Przelej gaz z prawej zlewki do lewej, jakby to była ciecz (przeciągnij ją nad świeczkę)."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "vessels": [
-      {
-       "id": "swieca",
-       "type": "beaker",
-       "size": 600,
-       "x": -10,
-       "label": "świeczka",
-       "fill": [
-        {
-         "reagent": "candle",
-         "amount": 3
-        }
-       ]
-      },
-      {
-       "id": "co2",
-       "type": "beaker",
-       "size": 600,
-       "x": 10,
-       "label": "tlenek węgla(IV)",
-       "gas": {
-        "CO2": 1
-       }
-      }
-     ],
-     "shelf": [
-      "candle",
-      "CO2-gas",
-      "O2-gas",
-      "N2-gas"
-     ],
-     "tools": [
-      "match",
-      "splint",
-      "glow",
-      "stopper",
-      "empty"
-     ],
-     "steps": [
-      {
-       "say": "Zapal świeczkę zapałką.",
-       "do": {
-        "use": "match",
-        "at": "swieca"
-       },
-       "wait": 3
-      },
-      {
-       "say": "Przelej gaz z prawej zlewki nad świeczkę.",
-       "ask": {
-        "q": "Co stanie się z płomieniem?",
-        "options": [
-         "zgaśnie",
-         "zapłonie jaśniej",
-         "nic się nie zmieni"
-        ],
-        "answer": "zgaśnie",
-        "why": "CO₂ jest cięższy od powietrza, wypiera je ze zlewki i nie podtrzymuje palenia."
-       },
-       "do": {
-        "pour": "co2",
-        "to": "swieca",
-        "ml": 400
-       },
-       "wait": 6
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-amoniak",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Otrzymywanie amoniaku",
-    "text": [
-     "Sól amonowa ogrzewana z zasadą wydziela amoniak — gaz o odczynie zasadowym.",
-     "Zbadaj gaz u wylotu probówki wilgotnym papierkiem wskaźnikowym."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "burners": [
-      {
-       "id": "p",
-       "x": 0
-      }
-     ],
-     "vessels": [
-      {
-       "id": "t",
-       "type": "tube",
-       "size": 25,
-       "x": 0,
-       "on": "p",
-       "label": "NH₄Cl + NaOH",
-       "fill": [
-        {
-         "reagent": "NH4Cl",
-         "amount": 1
-        },
-        {
-         "reagent": "NaOH-aq",
-         "amount": 10
-        }
-       ]
-      }
-     ],
-     "shelf": [
-      "NH4Cl",
-      "NaOH-aq",
-      "NH3-aq"
-     ],
-     "tools": [
-      "wetpaper",
-      "paper",
-      "stopper",
-      "empty"
-     ],
-     "steps": [
-      {
-       "say": "Zapal palnik.",
-       "do": {
-        "burner": "p",
+        "burner": "palnik",
         "on": true
        },
-       "wait": 14
+       "wait": 30
       },
       {
-       "say": "Zbliż wilgotny papierek do wylotu probówki.",
+       "say": "Zgaś palnik — podczas stygnięcia wypadają złociste kryształki.",
        "do": {
-        "use": "wetpaper",
-        "at": "t"
-       },
-       "wait": 3
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-fontanna",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Fontanna amoniakalna",
-    "text": [
-     "Kolba jest wypełniona amoniakiem i zamknięta korkiem z rurką sięgającą do wody z fenoloftaleiną.",
-     "Wstrzyknij do kolby kilka kropli wody — amoniak się rozpuszcza, ciśnienie spada i woda tryska do kolby."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "vessels": [
-      {
-       "id": "kolba",
-       "type": "roundflask",
-       "size": 250,
-       "x": -8,
-       "label": "amoniak",
-       "gas": {
-        "NH3": 1
-       },
-       "closed": true
-      },
-      {
-       "id": "woda",
-       "type": "beaker",
-       "size": 600,
-       "x": 12,
-       "label": "woda + fenoloftaleina",
-       "fill": [
-        {
-         "reagent": "water",
-         "amount": 400
-        },
-        {
-         "reagent": "phenolphthalein",
-         "amount": 4
-        }
-       ]
-      }
-     ],
-     "links": [
-      {
-       "from": "kolba",
-       "to": "woda"
-      }
-     ],
-     "shelf": [
-      "water",
-      "phenolphthalein",
-      "NH3-gas"
-     ],
-     "tools": [
-      "wetpaper",
-      "empty"
-     ],
-     "steps": [
-      {
-       "say": "Wstrzyknij do kolby odrobinę wody.",
-       "do": {
-        "add": "water",
-        "to": "kolba",
-        "amount": 5
-       },
-       "wait": 14
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-plomien",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Barwienie płomienia",
-    "text": [
-     "Zanurz drucik w roztworze soli i wprowadź go do płomienia palnika.",
-     "Każdy kation barwi płomień na inny kolor — tak można je rozpoznać."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "burners": [
-      {
-       "id": "p",
-       "x": 0,
-       "on": true
-      }
-     ],
-     "vessels": [
-      {
-       "id": "na",
-       "type": "tube",
-       "size": 15,
-       "x": -22,
-       "label": "NaCl",
-       "fill": [
-        {
-         "reagent": "NaCl-aq",
-         "amount": 5
-        }
-       ]
-      },
-      {
-       "id": "k",
-       "type": "tube",
-       "size": 15,
-       "x": -17,
-       "label": "KCl",
-       "fill": [
-        {
-         "reagent": "KCl-aq",
-         "amount": 5
-        }
-       ]
-      },
-      {
-       "id": "li",
-       "type": "tube",
-       "size": 15,
-       "x": -12,
-       "label": "LiCl",
-       "fill": [
-        {
-         "reagent": "LiCl-aq",
-         "amount": 5
-        }
-       ]
-      },
-      {
-       "id": "ca",
-       "type": "tube",
-       "size": 15,
-       "x": 12,
-       "label": "CaCl₂",
-       "fill": [
-        {
-         "reagent": "CaCl2-aq",
-         "amount": 5
-        }
-       ]
-      },
-      {
-       "id": "sr",
-       "type": "tube",
-       "size": 15,
-       "x": 17,
-       "label": "SrCl₂",
-       "fill": [
-        {
-         "reagent": "SrCl2",
-         "amount": 5
-        }
-       ]
-      },
-      {
-       "id": "cu",
-       "type": "tube",
-       "size": 15,
-       "x": 22,
-       "label": "CuSO₄",
-       "fill": [
-        {
-         "reagent": "CuSO4-aq",
-         "amount": 5
-        }
-       ]
-      }
-     ],
-     "shelf": [
-      "NaCl-aq",
-      "KCl-aq",
-      "LiCl-aq",
-      "CaCl2-aq",
-      "SrCl2",
-      "BaCl2",
-      "CuSO4-aq"
-     ],
-     "tools": [
-      "loop"
-     ],
-     "steps": [
-      {
-       "say": "Sód",
-       "do": [
-        {
-         "use": "loop",
-         "at": "na"
-        },
-        {
-         "flame": "p"
-        }
-       ],
-       "wait": 3
-      },
-      {
-       "say": "Potas",
-       "do": [
-        {
-         "use": "loop",
-         "at": "k"
-        },
-        {
-         "flame": "p"
-        }
-       ],
-       "wait": 3
-      },
-      {
-       "say": "Lit",
-       "do": [
-        {
-         "use": "loop",
-         "at": "li"
-        },
-        {
-         "flame": "p"
-        }
-       ],
-       "wait": 3
-      },
-      {
-       "say": "Wapń",
-       "do": [
-        {
-         "use": "loop",
-         "at": "ca"
-        },
-        {
-         "flame": "p"
-        }
-       ],
-       "wait": 3
-      },
-      {
-       "say": "Stront",
-       "do": [
-        {
-         "use": "loop",
-         "at": "sr"
-        },
-        {
-         "flame": "p"
-        }
-       ],
-       "wait": 3
-      },
-      {
-       "say": "Miedź",
-       "do": [
-        {
-         "use": "loop",
-         "at": "cu"
-        },
-        {
-         "flame": "p"
-        }
-       ],
-       "wait": 3
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-cisnienie",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Ciśnienie gazu i cieczy",
-    "text": [
-     "Kolba z kwasem solnym jest zamknięta korkiem z manometrem. Po dodaniu cynku wydziela się wodór i ciśnienie rośnie.",
-     "W cylindrze z wodą zmierz sondą ciśnienie na różnych głębokościach: p = p₀ + ρ·g·h."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "vessels": [
-      {
-       "id": "kolba",
-       "type": "flask",
-       "size": 250,
-       "x": -12,
-       "label": "HCl",
-       "gauge": true,
-       "fill": [
-        {
-         "reagent": "HCl",
-         "amount": 50
-        }
-       ]
-      },
-      {
-       "id": "cyl",
-       "type": "cylinder",
-       "size": 250,
-       "x": 14,
-       "label": "woda",
-       "fill": [
-        {
-         "reagent": "water",
-         "amount": 240
-        }
-       ]
-      }
-     ],
-     "shelf": [
-      "Zn",
-      "Mg",
-      "HCl",
-      "water",
-      "NaCl"
-     ],
-     "tools": [
-      "probe",
-      "gauge",
-      "stopper",
-      "splint",
-      "empty"
-     ],
-     "speed": 10,
-     "steps": [
-      {
-       "say": "Wrzuć cynk do kolby (korek z manometrem zostaje).",
-       "do": {
-        "add": "Zn",
-        "to": "kolba",
-        "amount": 2
+        "burner": "palnik",
+        "on": false
        },
        "wait": 40
-      },
-      {
-       "say": "Dotknij sondą wody w cylindrze na różnych głębokościach.",
-       "wait": 3
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-wrzenie",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Wrzenie wody i solanki",
-    "text": [
-     "Obie zlewki stoją na palnikach: w lewej woda, w prawej woda z solą kuchenną.",
-     "Porównaj na wykresie, w jakiej temperaturze wrze każda z nich."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "burners": [
-      {
-       "id": "p1",
-       "x": -12
-      },
-      {
-       "id": "p2",
-       "x": 12
-      }
-     ],
-     "vessels": [
-      {
-       "id": "w",
-       "type": "beaker",
-       "size": 250,
-       "x": -12,
-       "on": "p1",
-       "label": "woda",
-       "fill": [
-        {
-         "reagent": "water",
-         "amount": 100
-        }
-       ]
-      },
-      {
-       "id": "s",
-       "type": "beaker",
-       "size": 250,
-       "x": 12,
-       "on": "p2",
-       "label": "solanka",
-       "fill": [
-        {
-         "reagent": "water",
-         "amount": 100
-        },
-        {
-         "reagent": "NaCl",
-         "amount": 25
-        }
-       ]
-      }
-     ],
-     "shelf": [
-      "NaCl",
-      "sugar",
-      "water"
-     ],
-     "tools": [
-      "stir",
-      "empty"
-     ],
-     "graph": {
-      "vessels": [
-       "w",
-       "s"
-      ],
-      "of": [
-       "T"
-      ]
-     },
-     "speed": 5,
-     "steps": [
-      {
-       "say": "Zapal oba palniki.",
-       "do": [
-        {
-         "burner": "p1",
-         "on": true
-        },
-        {
-         "burner": "p2",
-         "on": true
-        },
-        {
-         "use": "stir",
-         "at": "s"
-        }
-       ],
-       "wait": 40
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-amfoteryczny",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Wodorotlenek cynku — amfoteryczny",
-    "text": [
-     "Wodorotlenek cynku reaguje i z kwasami, i z zasadami.",
-     "Wytrąć osad w obu probówkach, potem do jednej dodaj nadmiar zasady, do drugiej kwas."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "vessels": [
-      {
-       "id": "z1",
-       "type": "tube",
-       "size": 25,
-       "x": -5,
-       "label": "+ NaOH",
-       "fill": [
-        {
-         "reagent": "ZnSO4",
-         "amount": 2
-        }
-       ]
-      },
-      {
-       "id": "z2",
-       "type": "tube",
-       "size": 25,
-       "x": 5,
-       "label": "+ HCl",
-       "fill": [
-        {
-         "reagent": "ZnSO4",
-         "amount": 2
-        }
-       ]
-      }
-     ],
-     "shelf": [
-      "ZnSO4",
-      "NaOH-aq",
-      "HCl",
-      "CuSO4-aq"
-     ],
-     "tools": [
-      "stir",
-      "empty"
-     ],
-     "steps": [
-      {
-       "say": "Dodaj do obu probówek trochę zasady sodowej.",
-       "do": [
-        {
-         "add": "NaOH-aq",
-         "to": "z1",
-         "amount": 1.6
-        },
-        {
-         "add": "NaOH-aq",
-         "to": "z2",
-         "amount": 1.6
-        }
-       ],
-       "wait": 4
-      },
-      {
-       "say": "Do pierwszej dodaj nadmiar zasady.",
-       "do": {
-        "add": "NaOH-aq",
-        "to": "z1",
-        "amount": 10
-       },
-       "wait": 6
-      },
-      {
-       "say": "Do drugiej dodaj kwas solny.",
-       "do": {
-        "add": "HCl",
-        "to": "z2",
-        "amount": 5
-       },
-       "wait": 6
       }
      ]
     }
@@ -2149,26 +2478,22 @@
    "config": {
     "title": "Miedź i amoniak",
     "text": [
-     "Amoniak dodawany kroplami do siarczanu miedzi(II) najpierw wytrąca osad, a w nadmiarze go rozpuszcza.",
-     "Powstaje jon kompleksowy o intensywnej, ciemnoniebieskiej barwie."
+     "Do siarczanu miedzi(II) dodajemy kroplami wodę amoniakalną.",
+     "Najpierw powstaje osad, potem — przy nadmiarze — znika."
     ],
     "mode": "experiment",
     "scene": {
-     "vessels": [
+     "things": [
       {
-       "id": "m",
-       "type": "beaker",
-       "size": 100,
+       "id": "p",
+       "kind": "tube",
+       "size": 25,
        "x": 0,
        "label": "CuSO₄",
        "fill": [
         {
          "reagent": "CuSO4-aq",
-         "amount": 1
-        },
-        {
-         "reagent": "water",
-         "amount": 20
+         "amount": 6
         }
        ]
       }
@@ -2176,37 +2501,378 @@
      "shelf": [
       "NH3-aq",
       "CuSO4-aq",
-      "NaOH-aq",
-      "water"
+      "NaOH-aq"
      ],
      "tools": [
-      "stir",
-      "empty"
+      "stir"
      ],
      "steps": [
       {
-       "say": "Dodaj odrobinę wody amoniakalnej.",
-       "do": {
-        "add": "NH3-aq",
-        "to": "m",
-        "amount": 1
-       },
-       "wait": 4
-      },
-      {
-       "say": "Dodaj nadmiar wody amoniakalnej i zamieszaj.",
+       "say": "Dodaj trochę wody amoniakalnej.",
        "do": [
         {
          "add": "NH3-aq",
-         "to": "m",
-         "amount": 25
+         "to": "p",
+         "amount": 1
         },
         {
          "use": "stir",
-         "at": "m"
+         "at": "p"
         }
        ],
-       "wait": 10
+       "wait": 6
+      },
+      {
+       "say": "Dodaj więcej wody amoniakalnej.",
+       "do": [
+        {
+         "add": "NH3-aq",
+         "to": "p",
+         "amount": 5
+        },
+        {
+         "use": "stir",
+         "at": "p"
+        }
+       ],
+       "wait": 8,
+       "ask": {
+        "q": "Co stanie się z osadem?",
+        "options": [
+         "zostanie",
+         "rozpuści się, roztwór będzie ciemnoniebieski",
+         "zmieni barwę na czerwoną"
+        ],
+        "answer": "rozpuści się, roztwór będzie ciemnoniebieski",
+        "why": "Powstaje jon kompleksowy [Cu(NH₃)₄]²⁺ — ciemnoniebieski."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-wskazniki",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Wskaźniki w kwasie, wodzie i zasadzie",
+    "text": [
+     "W trzech probówkach jest kwas, woda i zasada. Dodaj do każdej wywar z czerwonej kapusty."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "k",
+       "kind": "tube",
+       "size": 25,
+       "x": -5,
+       "label": "kwas",
+       "fill": [
+        {
+         "reagent": "HCl-dil",
+         "amount": 8
+        }
+       ]
+      },
+      {
+       "id": "w",
+       "kind": "tube",
+       "size": 25,
+       "x": 0,
+       "label": "woda",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 8
+        }
+       ]
+      },
+      {
+       "id": "z",
+       "kind": "tube",
+       "size": 25,
+       "x": 5,
+       "label": "zasada",
+       "fill": [
+        {
+         "reagent": "NaOH-dil",
+         "amount": 8
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "cabbage",
+      "universal",
+      "phenolphthalein",
+      "methylorange",
+      "litmus"
+     ],
+     "tools": [
+      "stir",
+      "paper"
+     ],
+     "steps": [
+      {
+       "say": "Dodaj wywar z kapusty do wszystkich probówek.",
+       "do": [
+        {
+         "add": "cabbage",
+         "to": "k",
+         "amount": 3
+        },
+        {
+         "add": "cabbage",
+         "to": "w",
+         "amount": 3
+        },
+        {
+         "add": "cabbage",
+         "to": "z",
+         "amount": 3
+        },
+        {
+         "use": "stir",
+         "at": "k"
+        },
+        {
+         "use": "stir",
+         "at": "w"
+        },
+        {
+         "use": "stir",
+         "at": "z"
+        }
+       ],
+       "wait": 6
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-chromiany",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Chromian i dichromian — reakcja odwracalna",
+    "text": [
+     "W probówce jest żółty roztwór chromianu(VI) potasu. Dodaj kwasu — roztwór zmieni barwę. Potem dodaj zasady.",
+     "2CrO₄²⁻ + 2H⁺ ⇄ Cr₂O₇²⁻ + H₂O — reakcja biegnie w obie strony, zależnie od tego, ile jest jonów H⁺."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "p",
+       "kind": "tube",
+       "size": 25,
+       "x": 0,
+       "label": "K₂CrO₄",
+       "fill": [
+        {
+         "reagent": "K2CrO4",
+         "amount": 8
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "H2SO4",
+      "HCl",
+      "NaOH-aq",
+      "K2CrO4",
+      "K2Cr2O7"
+     ],
+     "tools": [
+      "stir",
+      "paper"
+     ],
+     "steps": [
+      {
+       "say": "Dodaj kwas siarkowy(VI) i zamieszaj.",
+       "do": [
+        {
+         "add": "H2SO4",
+         "to": "p",
+         "amount": 2
+        },
+        {
+         "use": "stir",
+         "at": "p"
+        }
+       ],
+       "wait": 6,
+       "ask": {
+        "q": "Jaki kolor przybierze roztwór?",
+        "options": [
+         "pomarańczowy",
+         "niebieski",
+         "zostanie żółty"
+        ],
+        "answer": "pomarańczowy",
+        "why": "W kwasie jony chromianowe łączą się w dichromianowe."
+       }
+      },
+      {
+       "say": "Dodaj zasadę sodową i zamieszaj.",
+       "do": [
+        {
+         "add": "NaOH-aq",
+         "to": "p",
+         "amount": 4
+        },
+        {
+         "use": "stir",
+         "at": "p"
+        }
+       ],
+       "wait": 6,
+       "ask": {
+        "q": "Co się stanie teraz?",
+        "options": [
+         "roztwór znów zżółknie",
+         "zostanie pomarańczowy",
+         "wytrąci się osad"
+        ],
+        "answer": "roztwór znów zżółknie",
+        "why": "Zasada zabiera jony H⁺ — równowaga wraca w stronę chromianu."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "chemistry-rownowaga-no2",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "config": {
+    "title": "Równowaga: NO₂ i N₂O₄ w zimnie i w cieple",
+    "text": [
+     "W trzech zamkniętych probówkach jest ta sama mieszanina NO₂ i N₂O₄ z powietrzem: w wodzie z lodem, w wodzie o temperaturze pokojowej i w gorącej. Obserwuj barwę gazu.",
+     "N₂O₄ ⇄ 2NO₂ pochłania ciepło: ogrzanie przesuwa równowagę w stronę brunatnego NO₂. Przestaw probówkę do innej zlewki — barwa się zmieni."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "lod",
+       "kind": "beaker",
+       "size": 600,
+       "x": -11,
+       "label": "woda z lodem",
+       "fill": [
+        {
+         "reagent": "water-cold",
+         "amount": 380
+        },
+        {
+         "reagent": "ice-crushed",
+         "amount": 100
+        }
+       ]
+      },
+      {
+       "id": "p1",
+       "kind": "tube",
+       "size": 10,
+       "into": "lod",
+       "gas": {
+        "NO2": 0.4,
+        "N2": 0.48,
+        "O2": 0.12
+       },
+       "closed": true
+      },
+      {
+       "id": "woda",
+       "kind": "beaker",
+       "size": 600,
+       "x": 0,
+       "label": "woda 20 °C",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 480
+        }
+       ]
+      },
+      {
+       "id": "p2",
+       "kind": "tube",
+       "size": 10,
+       "into": "woda",
+       "gas": {
+        "NO2": 0.4,
+        "N2": 0.48,
+        "O2": 0.12
+       },
+       "closed": true
+      },
+      {
+       "id": "goraca",
+       "kind": "beaker",
+       "size": 600,
+       "x": 11,
+       "label": "woda 80 °C",
+       "fill": [
+        {
+         "reagent": "water-hot",
+         "amount": 480
+        }
+       ]
+      },
+      {
+       "id": "p3",
+       "kind": "tube",
+       "size": 10,
+       "into": "goraca",
+       "gas": {
+        "NO2": 0.4,
+        "N2": 0.48,
+        "O2": 0.12
+       },
+       "closed": true
+      }
+     ],
+     "shelf": [
+      "ice-crushed",
+      "water-hot"
+     ],
+     "tools": [
+      "probe",
+      "thermometer"
+     ],
+     "speed": 5,
+     "steps": [
+      {
+       "say": "Obserwuj barwę gazu w probówkach.",
+       "do": {
+        "speed": 5
+       },
+       "wait": 60,
+       "ask": {
+        "q": "W której probówce gaz będzie najciemniejszy?",
+        "options": [
+         "w wodzie z lodem",
+         "w temperaturze pokojowej",
+         "w gorącej wodzie"
+        ],
+        "answer": "w gorącej wodzie",
+        "why": "Rozpad N₂O₄ na brunatny NO₂ pochłania ciepło (ΔH = +57 kJ/mol) — ogrzanie przesuwa równowagę w jego stronę, oziębienie w stronę bezbarwnego N₂O₄."
+       }
       }
      ]
     }
@@ -2222,8 +2888,7 @@
    "config": {
     "title": "Zagadka: jaka to sól?",
     "text": [
-     "W trzech probówkach jest ten sam roztwór soli X (za każdym razem może być inna).",
-     "Zbadaj go azotanem srebra, chlorkiem baru i kwasem solnym — i zdecyduj, co to za sól."
+     "W zlewce jest roztwór nieznanej soli. Użyj odczynników z półki, żeby ją rozpoznać (osady, barwa płomienia)."
     ],
     "mode": "experiment",
     "scene": {
@@ -2233,222 +2898,65 @@
        "pick": [
         "NaCl-aq",
         "KI",
-        "Na2SO4",
-        "Na2CO3-aq"
+        "CuSO4-aq",
+        "FeCl3",
+        "BaCl2"
        ]
       }
      ],
-     "vessels": [
+     "things": [
       {
-       "id": "t1",
-       "type": "tube",
-       "size": 25,
-       "x": -6,
-       "label": "X",
+       "id": "x",
+       "kind": "beaker",
+       "size": 100,
+       "x": -8,
+       "label": "roztwór X",
        "hidden": true,
        "fill": [
         {
          "reagent": "{sol}",
-         "amount": 5
+         "amount": 60
         }
        ]
       },
       {
-       "id": "t2",
-       "type": "tube",
-       "size": 25,
-       "x": 0,
-       "label": "X",
-       "hidden": true,
-       "fill": [
-        {
-         "reagent": "{sol}",
-         "amount": 5
-        }
-       ]
+       "id": "palnik",
+       "kind": "burner",
+       "x": 10,
+       "lit": true
       },
       {
-       "id": "t3",
-       "type": "tube",
+       "id": "p1",
+       "kind": "tube",
        "size": 25,
-       "x": 6,
-       "label": "X",
-       "hidden": true,
-       "fill": [
-        {
-         "reagent": "{sol}",
-         "amount": 5
-        }
-       ]
+       "x": 0
+      },
+      {
+       "id": "p2",
+       "kind": "tube",
+       "size": 25,
+       "x": 3.6
       }
      ],
      "shelf": [
       "AgNO3",
-      "BaCl2",
-      "HCl",
-      "phenolphthalein"
+      "NaOH-aq",
+      "Na2SO4",
+      "Pb(NO3)2"
      ],
      "tools": [
+      "loop",
       "paper",
-      "stir",
-      "empty"
+      "stir"
      ],
      "show": {
       "composition": false,
-      "micro": false,
-      "values": false
+      "micro": false
      },
-     "steps": [
-      {
-       "say": "Dodaj azotan srebra do pierwszej probówki.",
-       "do": {
-        "add": "AgNO3",
-        "to": "t1",
-        "amount": 1
-       },
-       "wait": 3
-      },
-      {
-       "say": "Dodaj chlorek baru do drugiej probówki.",
-       "do": {
-        "add": "BaCl2",
-        "to": "t2",
-        "amount": 1
-       },
-       "wait": 3
-      },
-      {
-       "say": "Dodaj kwas solny do trzeciej probówki.",
-       "do": {
-        "add": "HCl",
-        "to": "t3",
-        "amount": 2
-       },
-       "wait": 4
-      },
-      {
-       "say": "Co to za sól?",
-       "ask": {
-        "q": "Jaka sól jest w probówkach X?",
-        "options": [
-         "chlorek sodu",
-         "jodek potasu",
-         "siarczan(VI) sodu",
-         "węglan sodu"
-        ],
-        "answer": "=sol",
-        "why": "Cl⁻ daje biały AgCl, I⁻ żółty AgI, SO₄²⁻ biały BaSO₄ (nie znika w kwasie), CO₃²⁻ musuje z kwasem."
-       },
-       "wait": 1
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "chemistry-szybkosc",
-   "kind": "chemistry",
-   "size": {
-    "colSpan": 6,
-    "rowSpan": 5
-   },
-   "config": {
-    "title": "Szybkość reakcji: marmur i kreda",
-    "text": [
-     "W obu kolbach jest kwas solny. Do jednej wrzucamy kawałki marmuru, do drugiej tyle samo kredy w proszku.",
-     "Gaz zbiera się w strzykawkach — porównaj na wykresie, jak szybko rośnie jego objętość."
-    ],
-    "mode": "experiment",
-    "scene": {
-     "vessels": [
-      {
-       "id": "k1",
-       "type": "flask",
-       "size": 100,
-       "x": -26,
-       "label": "marmur",
-       "fill": [
-        {
-         "reagent": "HCl",
-         "amount": 25
-        }
-       ]
-      },
-      {
-       "id": "s1",
-       "type": "syringe",
-       "size": 100,
-       "x": -8,
-       "label": "marmur"
-      },
-      {
-       "id": "k2",
-       "type": "flask",
-       "size": 100,
-       "x": 18,
-       "label": "kreda",
-       "fill": [
-        {
-         "reagent": "HCl",
-         "amount": 25
-        }
-       ]
-      },
-      {
-       "id": "s2",
-       "type": "syringe",
-       "size": 100,
-       "x": 36,
-       "label": "kreda"
-      }
-     ],
-     "links": [
-      {
-       "from": "k1",
-       "to": "s1"
-      },
-      {
-       "from": "k2",
-       "to": "s2"
-      }
-     ],
-     "shelf": [
-      "CaCO3",
-      "CaCO3-powder",
-      "HCl",
-      "HCl-dil"
-     ],
-     "tools": [
-      "stopper",
-      "empty"
-     ],
-     "graph": {
-      "vessels": [
-       "s1",
-       "s2"
-      ],
-      "of": [
-       "gas"
-      ]
+     "allow": {
+      "move": true
      },
-     "steps": [
-      {
-       "say": "Wrzuć 0,2 g marmuru do pierwszej kolby i 0,2 g kredy do drugiej.",
-       "do": [
-        {
-         "add": "CaCO3",
-         "to": "k1",
-         "amount": 0.2
-        },
-        {
-         "add": "CaCO3-powder",
-         "to": "k2",
-         "amount": 0.2
-        }
-       ],
-       "wait": 30
-      }
-     ]
+     "steps": []
     }
    }
   },
@@ -2462,56 +2970,67 @@
    "config": {
     "title": "Piaskownica chemiczna",
     "text": [
-     "Wszystkie odczynniki, naczynia i narzędzia — sprawdzaj własne pomysły.",
+     "Wszystkie odczynniki, naczynia i narzędzia — mieszaj roztwory, topnij metale, sprawdzaj własne pomysły.",
      "Gotowe doświadczenia wczytasz w sekcji „Doświadczenia i zapis”."
     ],
     "mode": "sandbox",
     "scene": {
-     "burners": [
+     "things": [
       {
-       "id": "p",
-       "x": 22
-      }
-     ],
-     "vessels": [
-      {
-       "id": "b1",
-       "type": "beaker",
-       "size": 250,
-       "x": -20,
-       "label": "zlewka 1"
+       "id": "palnik",
+       "kind": "burner",
+       "x": 16
       },
       {
-       "id": "b2",
-       "type": "beaker",
-       "size": 250,
-       "x": -8,
-       "label": "zlewka 2"
+       "id": "trojnog",
+       "kind": "tripod",
+       "x": 16
       },
       {
-       "id": "f1",
-       "type": "flask",
+       "id": "zlewka",
+       "kind": "beaker",
        "size": 250,
-       "x": 5,
-       "label": "kolba"
+       "x": -12,
+       "label": "woda",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 150
+        }
+       ]
       },
       {
-       "id": "t1",
-       "type": "tube",
+       "id": "termometr",
+       "kind": "thermometer",
+       "into": "zlewka"
+      },
+      {
+       "id": "p1",
+       "kind": "tube",
        "size": 25,
-       "x": 34,
-       "label": "probówka 1"
+       "x": -2
       },
       {
-       "id": "t2",
-       "type": "tube",
+       "id": "p2",
+       "kind": "tube",
        "size": 25,
-       "x": 39,
-       "label": "probówka 2"
+       "x": 1.6
+      },
+      {
+       "id": "tygiel",
+       "kind": "crucible",
+       "size": 30,
+       "x": 6,
+       "fill": [
+        {
+         "reagent": "Sn",
+         "amount": 20
+        }
+       ]
       }
      ],
      "allow": {
-      "vessels": true
+      "things": true
      }
     }
    }

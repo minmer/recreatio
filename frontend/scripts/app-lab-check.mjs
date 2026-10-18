@@ -7,6 +7,17 @@
  *            Schwimmen (Eintauchtiefe = Dichteverhältnis), Verdrängung, Druck in der
  *            Tiefe, Torricelli, verbundene Gefässe (auch mit Öl), Ruhe.
  *
+ *   Chemia   die Piaskownica selbst (Gitter, Wärme, Gase, Stoffe in jeder Zelle):
+ *            pH und Löslichkeit, Neutralisationswärme, AgCl genau nach der Gleichung,
+ *            Lösungswärme, Metalle, das Schmelzplateau der Cyna, Wärmeleitung (Kupfer
+ *            gegen Glas), Kochen (auch mit Salz), sinkendes CO₂, Kerze unter dem Glas,
+ *            Brenner, Wasserstoff, Flammenfärbung, Titration, Eis mit Salz; Lösen nach
+ *            Noyes–Whitney (heiss, gerührt, Pulver), langsame Diffusion, Geschwindig-
+ *            keitsgesetze (Tiosiarczan, H₂O₂ mit I⁻, Arrhenius), Umkehrbares (Chromian,
+ *            NO₂ ⇄ N₂O₄ bei K(T)), Hydrolyse der Metallionen, eine geschlossene Probówka
+ *            im Wasserbad — und jede fertige Szene baut sich, läuft und speichert sich
+ *            verlustfrei.
+ *
  *   node scripts/app-lab-check.mjs
  */
 
@@ -24,10 +35,15 @@ await writeFile(entry, `
 export { readPhysScene, buildWorld, drawScene } from '${app}lab/physics/physScene';
 export { STEP } from '${app}lab/physics/physWorld';
 export { LIQUIDS, P_ATM } from '${app}lab/fluid';
-export { Lab, SEAT, STEP as CSTEP } from '${app}lab/chem/chemBench';
-export { Vessel } from '${app}lab/chem/chemVessel';
-export { SALTS, SPECIES, saltOf } from '${app}lab/chem/chemData';
-export { solubility } from '${app}lab/chem/chemSalts';
+export { World } from '${app}lab/chem/chemWorld';
+export { buildWorld as buildChemWorld, readChemScene, drawChem, perform, sceneOfWorld, useTool } from '${app}lab/chem/chemSetup';
+export { CHEM_PRESETS, SANDBOX_CHEM } from '${app}lab/chem/chemPresets';
+export { bottleOf, specOf, solubility, diffusivity, AQI, NC } from '${app}lab/chem/chemAq';
+export { saltOf, reagentOf } from '${app}lab/chem/chemData';
+export { SOLI, NG, GASI, G_CO2, G_O2 } from '${app}lab/chem/chemGrid';
+export { rateConstant } from '${app}lab/chem/chemKinetics';
+export { wickOf, nozzleOf, toWorld } from '${app}lab/chem/chemThings';
+export { seeded } from '${app}lab/labRandom';
 `);
 await build({ entryPoints: [entry], bundle: true, format: 'esm', platform: 'node', outfile: join(workspace, 'entry.mjs'), logLevel: 'error' });
 
@@ -198,265 +214,414 @@ try {
     ok('communicating vessels: equal levels; with oil on one side the water rises by the density ratio');
   }
 
-  /* -- Chemia: pH ------------------------------------------------------------------------------ */
-  const chem = (T = 298.15) => new m.Lab({ T });
-  const glass = (L, id, size = 250, kind = 'beaker', x = 0) => { const v = new m.Vessel(id, kind, size, x, L.room.T); L.vessels.push(v); L.settle(v); return v; };
-  const runC = (L, seconds) => { const n = Math.round(seconds / m.CSTEP); for (let i = 0; i < n; i += 1) L.step(m.CSTEP); };
-  const said = (L, text) => L.log.some((e) => e.text.includes(text));
-  const burner = (L, x = 0) => { const b = { id: `p${L.burners.length}`, x, on: true, air: true, tint: null, tintLeft: 0 }; L.burners.push(b); return b; };
-  const lump = (v, sp) => v.lumps.filter((l) => l.sp === sp).reduce((a, l) => a + l.n, 0);
+  /* -- Chemia: Gleichgewichte und Tabellen (ohne Welt) ----------------------------------------------------- */
   {
-    const ph = (list) => { const L = chem(); const v = glass(L, 'b'); for (const [id, a] of list) L.add(v, id, a); runC(L, 0.1); return v.spec.pH; };
-    /* Ein wenig CO₂ aus der Luft löst sich sofort (an der Luft wird Wasser mit der Zeit pH 5,6). */
-    near(ph([['water', 100]]), 7.0, 0.06, 'pure water at 25 °C: pH 7');
-    near(ph([['HCl-dil', 10], ['water', 90]]), 2.0, 0.03, 'HCl 0.01 mol/L: pH 2');
-    near(ph([['NaOH-dil', 10], ['water', 90]]), 12.0, 0.03, 'NaOH 0.01 mol/L: pH 12');
-    near(ph([['vinegar', 10], ['water', 90]]), 2.88, 0.04, 'acetic acid 0.1 mol/L: pH 2.88');
-    near(ph([['NH3-aq', 5], ['water', 95]]), 11.13, 0.05, 'ammonia 0.1 mol/L: pH 11.1');
-    near(ph([['Na2CO3-aq', 10], ['water', 90]]), 11.66, 0.06, 'sodium carbonate 0.1 mol/L: pH 11.7');
-    near(ph([['vinegar', 10], ['NaOH-aq', 5], ['water', 85]]), 4.76, 0.04, 'acetate buffer 1:1: pH = pKa');
-    const hot = chem(353.15);
-    const w = glass(hot, 'b');
-    hot.add(w, 'water', 100);
-    runC(hot, 0.2);
-    assert.ok(w.spec.pH < 6.7, `hot water (80 °C) is neutral below pH 7 (${w.spec.pH.toFixed(2)})`);
-    ok('chemistry pH: strong and weak acids and bases, a buffer, and neutral water at 25 and 80 °C');
-  }
-
-  /* -- Chemia: Wärme ------------------------------------------------------------------------------ */
-  {
-    const L = chem();
-    const v = glass(L, 'b', 100);
-    L.add(v, 'HCl', 25);
-    runC(L, 0.5);
-    const T0 = v.T;
-    L.add(v, 'NaOH-aq', 25);
-    runC(L, 1);
-    const dT = v.T - T0;
-    assert.ok(dT > 4.5 && dT < 6.5, `HCl + NaOH (25 + 25 mL, 1 mol/L) warms by about 5.5 K (with the glass): ${dT.toFixed(2)} K`);
-    near(v.spec.pH, 7, 0.6, 'equal amounts of HCl and NaOH are neutral');
-
-    const dissolve = (reagent, g) => {
-      const D = chem();
-      const b = glass(D, 'b', 100);
-      D.add(b, 'water', 50);
-      runC(D, 0.5);
-      const t0 = b.T;
-      b.stir = 1e9;
-      D.add(b, reagent, g);
-      runC(D, 75);
-      return { dT: b.T - t0, left: b.lumps.length };
-    };
-    const naoh = dissolve('NaOH', 5);
-    assert.ok(naoh.left === 0 && naoh.dT > 14 && naoh.dT < 26, `5 g NaOH in 50 mL water dissolves and heats by ~20 K: ${naoh.dT.toFixed(1)} K, ${naoh.left} lumps left`);
-    const nitrate = dissolve('NH4NO3', 10);
-    assert.ok(nitrate.left === 0 && nitrate.dT < -9 && nitrate.dT > -18, `10 g NH₄NO₃ in 50 mL cools by ~13 K: ${nitrate.dT.toFixed(1)} K`);
-    ok(`heat: neutralisation +${dT.toFixed(1)} K, NaOH dissolving +${naoh.dT.toFixed(1)} K, NH₄NO₃ ${nitrate.dT.toFixed(1)} K — all from formation enthalpies`);
-  }
-
-  /* -- Chemia: Fällung, Löslichkeit, Komplexe ------------------------------------------------------------ */
-  {
-    const L = chem();
-    const v = glass(L, 'b', 50);
-    L.add(v, 'AgNO3', 10);
-    L.add(v, 'NaCl-aq', 2);
-    runC(L, 3);
-    near(lump(v, 'AgCl'), 1e-3, 2e-5, 'AgNO₃ + excess NaCl: all silver precipitates as AgCl');
-    assert.ok(v.conc('Ag+') < 1e-6, `almost no Ag⁺ left (${v.conc('Ag+').toExponential(2)} mol/L)`);
-    assert.ok(said(L, 'biały osad'), 'the log tells of a white precipitate');
-    const kno3 = m.saltOf('KNO3');
-    near(m.solubility(kno3, 293.15), 31.6, 0.3, 'KNO₃ dissolves 31.6 g in 100 g water at 20 °C');
-    assert.ok(m.solubility(kno3, 333.15) > 70, `… and much more at 60 °C (${m.solubility(kno3, 333.15).toFixed(0)} g)`);
+    const ph = (id) => m.bottleOf(m.reagentOf(id)).spec.pH;
+    near(ph('HCl-dil'), 1, 0.05, 'HCl 0.1 mol/L: pH 1');
+    near(ph('NaOH-dil'), 13, 0.05, 'NaOH 0.1 mol/L: pH 13');
+    near(ph('vinegar'), 2.38, 0.06, 'acetic acid 1 mol/L: pH 2.4');
+    near(ph('NH3-aq'), 11.78, 0.08, 'ammonia 2 mol/L: pH 11.8');
+    near(ph('water'), 7, 0.02, 'distilled water: pH 7 at 25 °C');
+    const water = new Float64Array(m.NC);
+    water[0] = 55.4;
+    near(m.specOf(water, 0, 353.15, null).pH, 6.3, 0.1, 'hot water (80 °C): pH ≈ 6.3, still neutral');
+    near(m.solubility(m.saltOf('KNO3'), 293.15), 31.6, 0.5, 'KNO₃ dissolves 31.6 g / 100 g water at 20 °C');
+    assert.ok(m.solubility(m.saltOf('KNO3'), 333.15) > 2 * m.solubility(m.saltOf('KNO3'), 293.15), 'KNO₃ dissolves far better at 60 °C');
     assert.ok(m.solubility(m.saltOf('Ca(OH)2'), 353.15) < m.solubility(m.saltOf('Ca(OH)2'), 293.15), 'Ca(OH)₂ dissolves worse when hot');
-
-    const cu = chem();
-    const c = glass(cu, 'b', 100);
-    cu.add(c, 'CuSO4-aq', 5);
-    cu.add(c, 'water', 20);
-    cu.add(c, 'NaOH-aq', 4);
-    runC(cu, 3);
-    assert.ok(lump(c, 'Cu(OH)2') > 1.9e-3, `CuSO₄ + NaOH: blue Cu(OH)₂ precipitates (${lump(c, 'Cu(OH)2').toExponential(2)} mol)`);
-    /* Mit Ammoniak allein (wie im Versuch, wenig Kupfer): erst der hellblaue Niederschlag, dann die tiefblaue Lösung. */
-    const c2 = glass(cu, 'b2', 100, 'beaker', 12);
-    cu.add(c2, 'CuSO4-aq', 1);
-    cu.add(c2, 'water', 20);
-    cu.add(c2, 'NH3-aq', 1);
-    runC(cu, 3);
-    const light = lump(c2, 'Cu(OH)2');
-    cu.add(c2, 'NH3-aq', 25);
-    runC(cu, 16);
-    assert.ok(light > 3e-4 && lump(c2, 'Cu(OH)2') < 2e-5 && (c2.spec.cx['Cu(NH3)4+2'] ?? 0) > 0.5, `a little ammonia precipitates Cu(OH)₂ (${light.toExponential(1)} mol), excess dissolves it as deep blue [Cu(NH₃)₄]²⁺ (left ${lump(c2, 'Cu(OH)2').toExponential(1)}, complex ${(c2.spec.cx['Cu(NH3)4+2'] ?? 0).toFixed(2)})`);
-
-    const zn = chem();
-    const z = glass(zn, 'b', 100);
-    zn.add(z, 'ZnSO4', 2);
-    zn.add(z, 'NaOH-aq', 1.6);
-    runC(zn, 3);
-    const zp = lump(z, 'Zn(OH)2');
-    zn.add(z, 'NaOH-aq', 15);
-    runC(zn, 10);
-    assert.ok(zp > 6e-4 && lump(z, 'Zn(OH)2') < 1e-5, `Zn(OH)₂ precipitates and dissolves in excess NaOH (amphoteric): ${zp.toExponential(2)} → ${lump(z, 'Zn(OH)2').toExponential(1)}`);
-
-    const ag = chem();
-    const a1 = glass(ag, 'a', 50);
-    const a2 = glass(ag, 'b', 50, 'beaker', 10);
-    for (const [vv, salt] of [[a1, 'NaCl-aq'], [a2, 'KI']]) { ag.add(vv, 'AgNO3', 2); ag.add(vv, salt, 3); }
-    runC(ag, 2);
-    ag.add(a1, 'NH3-aq', 10);
-    ag.add(a2, 'NH3-aq', 10);
-    runC(ag, 6);
-    assert.ok(lump(a1, 'AgCl') < 1e-5 && lump(a2, 'AgI') > 1.5e-4, `ammonia dissolves AgCl but not AgI (${lump(a1, 'AgCl').toExponential(1)} / ${lump(a2, 'AgI').toExponential(1)})`);
-    ok('precipitation and solubility: AgCl, KNO₃(T), Ca(OH)₂(T), Cu(OH)₂ → [Cu(NH₃)₄]²⁺, amphoteric Zn(OH)₂, AgCl vs AgI in ammonia');
+    ok('chemistry tables: pH of acids, bases, buffers and water (also hot), solubility against temperature');
   }
 
-  /* -- Chemia: Metalle --------------------------------------------------------------------------------- */
+  /* -- Chemia: die Piaskownica selbst ------------------------------------------------------------------- */
+  const room = { T: 293.15, p: 101.325 };
+  const world = (x0, x1, top) => new m.World(x0, x1, top, 3, room, m.seeded('check'));
+  const runW = (w, seconds, dt = 1 / 30) => { const n = Math.round(seconds / dt); for (let i = 0; i < n; i += 1) w.step(dt); };
+  const said = (w, text) => w.log.some((e) => e.text.includes(text));
+  const solid = (w, sp) => { let s = 0; for (let i = 0; i < w.g.n; i += 1) if (w.g.sp[i] === m.SOLI[sp]) s += w.g.sn[i]; return s; };
+  const gasIn = (w, t, gi) => { let x = 0; let n = 0; for (const i of t.cells) if (w.g.own[i] === t.num && w.g.mat[i] === 0) { x += w.g.gas[i * m.NG + gi]; n += w.g.gasTotal(i); } return n > 0 ? x / n : 0; };
   {
-    const L = chem();
-    const v = glass(L, 'b', 250);
-    L.add(v, 'water', 100);
-    L.add(v, 'phenolphthalein', 3);
-    runC(L, 0.5);
-    const T0 = v.T;
-    L.add(v, 'Na', 0.2);
-    runC(L, 60);
-    assert.ok(lump(v, 'Na') === 0, 'sodium is used up within a minute');
-    assert.ok(v.spec.pH > 12.5, `the water became basic (pH ${v.spec.pH.toFixed(2)})`);
-    assert.ok(said(L, 'barwi się na różowo'), 'phenolphthalein turns pink');
-    assert.ok(v.T - T0 > 1 && v.T - T0 < 6, `and warmer (${(v.T - T0).toFixed(2)} K)`);
-    near(v.aq.get('Na+'), 0.2 / 22.99, 1e-9, 'every sodium atom is now a Na⁺ ion');
+    /* Säure und Lauge: die Wärme kommt aus den Bildungsenthalpien (57 kJ/mol). */
+    const w = world(-8, 8, 20);
+    const b = w.place('beaker', 'b', { x: 0, size: 250 });
+    w.add('HCl', 50, b, null, true);
+    runW(w, 0.5);
+    w.add('NaOH-aq', 50, b, null, true);
+    w.stir(b);
+    runW(w, 6);
+    const s = w.summary(b);
+    near(s.T - 293.15, 5.7, 1.2, 'neutralisation: 0.05 mol HCl + NaOH warm 100 mL (and the beaker) by about 6 K');
+    near(s.spec.pH, 7, 1.2, 'neutralisation: about neutral');
+    ok('neutralisation heat from formation enthalpies, pH after mixing');
+  }
+  {
+    /* Silbernitrat in Kochsalzlösung: AgCl fällt genau so viel, wie Ag⁺ da war. */
+    const w = world(-8, 8, 20);
+    const b = w.place('beaker', 'b', { x: 0, size: 250 });
+    w.add('NaCl-aq', 50, b, null, true);
+    w.add('AgNO3', 40, b);
+    runW(w, 8);
+    near(solid(w, 'AgCl'), 0.004, 0.0002, 'AgCl: 4.0 mmol from 40 cm³ AgNO₃ 0.1 mol/L');
+    assert.ok(said(w, 'chlorek srebra'), 'the white precipitate is reported');
+    ok('precipitation where the solutions meet: AgCl stoichiometric, reported with its equation');
+  }
+  {
+    /* Lösungswärme: NaOH heiss, NH₄NO₃ kalt. */
+    const w = world(-12, 12, 20);
+    const a = w.place('beaker', 'a', { x: -6, size: 100 });
+    const c = w.place('beaker', 'c', { x: 6, size: 100 });
+    w.add('water', 50, a, null, true);
+    w.add('water', 50, c, null, true);
+    w.add('NaOH', 5, a);
+    w.add('NH4NO3', 10, c);
+    /* Die Körner lösen sich mit Umrühren in etwa einer Minute (wie im Labor). */
+    for (let k = 0; k < 25; k += 1) { w.stir(a); w.stir(c); runW(w, 2); }
+    near(w.summary(a).T - 293.15, 22, 4, '5 g NaOH in 50 cm³ water: +22 K (44.5 kJ/mol)');
+    near(w.summary(c).T - 293.15, -13, 3, '10 g NH₄NO₃ in 50 cm³ water: −13 K (25.7 kJ/mol)');
+    ok('heat of dissolution: NaOH warms by about 22 K, NH₄NO₃ cools by about 13 K');
+  }
+  {
+    /* Metalle: Natrium mit Wasser, Zink in Säure, Kupfer nicht, Eisen scheidet Kupfer ab. */
+    const w = world(-16, 16, 20);
+    const na = w.place('beaker', 'na', { x: -10, size: 250 });
+    w.add('water', 150, na, null, true);
+    w.add('Na', 0.2, na);
+    const zn = w.place('tube', 'zn', { x: -2, size: 25 });
+    const cu = w.place('tube', 'cu', { x: 2, size: 25 });
+    w.add('HCl', 10, zn, null, true);
+    w.add('HCl', 10, cu, null, true);
+    w.add('Zn', 1, zn);
+    w.add('Cu', 1, cu);
+    const fe = w.place('beaker', 'fe', { x: 10, size: 100 });
+    w.add('CuSO4-aq', 50, fe, null, true);
+    w.add('Fe', 5, fe);
+    runW(w, 20);
+    assert.ok(solid(w, 'Na') < 1e-4 && w.summary(na).spec.pH > 12, `sodium reacts away and leaves NaOH (pH ${w.summary(na).spec.pH.toFixed(1)})`);
+    const ion = (t, id) => w.summary(t, false).comp[m.AQI[id]];
+    assert.ok(ion(zn, 'Zn+2') > 1e-4, 'zinc dissolves in hydrochloric acid');
+    assert.ok(ion(cu, 'Cu+2') < 1e-7, 'copper does not');
+    assert.ok(solid(w, 'Cu') > 1e-4, 'iron in copper sulfate is covered with copper');
+    assert.ok(said(w, 'wodór') && said(w, 'osadza się miedź'), 'hydrogen and the copper coating are reported');
+    ok('metals: sodium with water, zinc but not copper in acid, iron displaces copper');
+  }
+  {
+    /* Zinn im Tiegel über dem Brenner: die Temperatur bleibt beim Schmelzen stehen. */
+    const w = world(-12, 12, 48);
+    const p = w.place('burner', 'p', { x: 0 });
+    const tr = w.place('tripod', 't', { x: 0 });
+    const c = w.place('crucible', 'c', { x: 0, on: tr, size: 30 });
+    w.add('Sn', 20, c, null, true);
+    const th = w.place('thermometer', 'th', { x: 0, into: c });
+    p.flow = 0.8;
+    w.burner(p, true);
+    let plateau = 0;
+    for (let k = 0; k < 150; k += 1) { runW(w, 1, 1 / 15); if (th.readout > 230 && th.readout < 234) plateau += 1; }
+    const melt = w.summary(c, false).melts.get('Sn') ?? 0;
+    assert.ok(plateau >= 8, `the thermometer stays near 232 °C while the tin melts (${plateau} s)`);
+    assert.ok(melt * 118.71 > 15 && th.readout > 245, `then all tin is liquid and gets hotter (${(melt * 118.71).toFixed(1)} g, ${th.readout.toFixed(0)} °C)`);
+    assert.ok(said(w, 'Cyna topi się'), 'melting is reported');
+    ok('melting tin over the burner: plateau at 232 °C, then liquid metal warms');
+  }
+  {
+    /* Wärmeleitung in Eiswasser: über heissem Wasser wärmt die feuchte, warme Luft auch das Glas (Tau!) — kaltes Wasser
+       hat keine Fahne, so misst man die Leitung allein: der Kupferstab wird bis weit über dem Wasser kalt, Glas nicht. */
+    const w = world(-10, 10, 30);
+    const b = w.place('beaker', 'b', { x: 0, size: 600 });
+    w.add('water-cold', 450, b, null, true);
+    const cu = w.place('rod', 'cu', { x: -2, into: b, size: 20, of: 'Cu' });
+    const gl = w.place('rod', 'gl', { x: 2, into: b, size: 20, of: 'glass' });
+    runW(w, 40, 1 / 15);
+    const at = (t) => w.g.T[w.g.at(...m.toWorld(t, 0, 15))] - 273.15;
+    assert.ok(at(cu) < at(gl) - 5, `above the rim the copper rod is much colder than glass (${at(cu).toFixed(1)} vs ${at(gl).toFixed(1)} °C)`);
+    ok('heat conduction along rods: copper cools far above ice water, glass hardly');
+  }
+  {
+    /* Kochen: Wasser hält bei 100 °C, Salzwasser kocht höher. */
+    const w = world(-14, 14, 25);
+    const h1 = w.place('hotplate', 'h1', { x: -7 });
+    const h2 = w.place('hotplate', 'h2', { x: 7 });
+    const a = w.place('beaker', 'a', { x: -7, on: h1, size: 100 });
+    const s = w.place('beaker', 's', { x: 7, on: h2, size: 100 });
+    w.add('water', 50, a, null, true);
+    w.add('water', 50, s, null, true);
+    w.add('NaCl', 15, s, null, true);
+    h1.air = 900; h2.air = 900; h1.on = true; h2.on = true;
+    for (let k = 0; k < 20; k += 1) { w.stir(s); runW(w, 10, 1 / 10); }
+    const ta = w.summary(a).Tmax - 273.15;
+    const ts = w.summary(s).Tmax - 273.15;
+    near(ta, 100, 1.5, 'water boils at 100 °C');
+    assert.ok(ts > ta + 0.8, `salt water boils higher (${ts.toFixed(1)} vs ${ta.toFixed(1)} °C)`);
+    assert.ok(said(w, 'wrze'), 'boiling is reported');
+    ok('boiling: water holds at 100 °C, brine boils higher');
+  }
+  {
+    /* Gase: CO₂ sinkt, die Kerze unter dem Słój geht aus, der Brenner heizt, Wasserstoff knallt, Natrium färbt die Flamme. */
+    const w = world(-10, 10, 30);
+    const g = w.g;
+    for (let i = 0; i < g.n; i += 1) { const x = g.cx(i); const y = g.cy(i); if (Math.abs(x) < 1 && y > 20 && y < 22) { const n = g.gasTotal(i); g.gas.fill(0, i * m.NG, i * m.NG + m.NG); g.gas[i * m.NG + m.G_CO2] = n; } }
+    /* Eine Wolke von 2 × 2 cm fällt mit gut 10 cm/s (√(g·L·Δρ/ρ)) und mischt sich dabei: in 2 s ist ihr Schwerpunkt mehr als halb unten. */
+    runW(w, 2);
+    let sy = 0; let sn = 0;
+    for (let i = 0; i < g.n; i += 1) { const c = g.gas[i * m.NG + m.G_CO2] - 4e-4 * g.gasTotal(i); if (c > 0) { sy += c * g.cy(i); sn += c; } }
+    assert.ok(sy / sn < 11, `a blob of CO₂ sinks toward the bench (${(sy / sn).toFixed(1)} cm, from 21 cm)`);
 
-    const M = chem();
-    const f = glass(M, 'f', 500, 'flask');
-    M.add(f, 'HCl', 25);
-    runC(M, 0.2);
-    f.closed = true;
-    const h0 = f.gas.get('H2') ?? 0;
-    M.add(f, 'Mg', 0.1);
-    runC(M, 60);
-    assert.ok(lump(f, 'Mg') === 0, 'magnesium dissolves in hydrochloric acid');
-    near((f.gas.get('H2') ?? 0) - h0, 0.1 / 24.305, (0.1 / 24.305) * 0.02, 'Mg + 2HCl: one H₂ for every Mg');
-    M.add(f, 'phenolphthalein', 1);
-    f.closed = false;
-    M.use('splint', f);
-    assert.ok(said(M, 'Pyk'), 'a burning splint pops in hydrogen');
+    const j = world(-12, 12, 30);
+    const candle = j.place('candle', 'c', { x: 0 });
+    j.ignite(...m.wickOf(candle));
+    runW(j, 3);
+    assert.ok(candle.on, 'the candle burns in open air');
+    const jar = j.place('jar', 'j', { x: 0, size: 500, angle: Math.PI, y: 15 });
+    j.drop(jar);
+    let out = null;
+    for (let k = 0; k < 60 && out === null; k += 1) { runW(j, 1); if (!candle.on) out = gasIn(j, jar, m.G_O2); }
+    assert.ok(out !== null && out < 0.18, `under a jar it goes out when oxygen runs low (${out === null ? 'still burning' : (out * 100).toFixed(1) + ' %'})`);
 
-    const rate = (metal, g) => { const R2 = chem(); const t = glass(R2, 't', 25, 'tube'); R2.add(t, 'HCl', 10); runC(R2, 0.2); R2.add(t, metal, g); runC(R2, 5); return (t.aq.get(`${metal}+2`) ?? 0) / 5; };
-    const mg = rate('Mg', 0.1);
-    const znr = rate('Zn', 1);
-    const fe = rate('Fe', 5);
-    const cuR = rate('Cu', 1);
-    assert.ok(mg > znr && znr > fe && fe > 0 && cuR === 0, `activity series in HCl: Mg ${mg.toExponential(1)} > Zn ${znr.toExponential(1)} > Fe ${fe.toExponential(1)} mol/s, Cu none`);
+    const f = world(-12, 12, 40);
+    const p = f.place('burner', 'p', { x: 0 });
+    const tr = f.place('tripod', 't', { x: 0 });
+    const b = f.place('beaker', 'b', { x: 0, on: tr, size: 250 });
+    f.add('water', 100, b, null, true);
+    f.burner(p, true);
+    runW(f, 20);
+    assert.ok(f.summary(b).T - 293.15 > 3, `the burner flame heats the beaker on the tripod (${(f.summary(b).T - 293.15).toFixed(1)} K in 20 s)`);
+    let flame = 0;
+    for (let i = 0; i < f.g.n; i += 1) flame = Math.max(flame, f.g.T[i]);
+    assert.ok(flame > 1500, `the flame is hot (${flame.toFixed(0)} K)`);
 
-    const D = chem();
-    const d = glass(D, 'b', 100);
-    D.add(d, 'CuSO4-aq', 50);
-    runC(D, 0.2);
-    const cu0 = d.aq.get('Cu+2');
-    D.add(d, 'Fe', 5);
-    runC(D, 120);
-    const nail = d.lumps.find((l) => l.sp === 'Fe');
-    assert.ok((nail?.coat.Cu ?? 0) > 1e-4 && (d.aq.get('Fe+2') ?? 0) > 1e-4, `an iron nail in CuSO₄ gets a copper coat (${(nail?.coat.Cu ?? 0).toExponential(2)} mol)`);
-    near((d.aq.get('Cu+2') ?? 0) + (nail?.coat.Cu ?? 0) + lump(d, 'Cu(OH)2') + lump(d, 'CuO'), cu0, 1e-9, 'copper is conserved (ions + coat)');
-    ok(`metals: Na in water (pH ${v.spec.pH.toFixed(1)}, pink, warm), Mg + HCl → H₂ (pop), activity series, Fe + Cu²⁺ → Cu`);
+    const h = world(-8, 8, 40);
+    const tube = h.place('tube', 't', { x: 0, size: 25 });
+    h.add('HCl', 12, tube, null, true);
+    h.add('Zn', 2, tube);
+    runW(h, 15);
+    m.useTool(h, 'splint', tube);
+    runW(h, 2);
+    assert.ok(said(h, 'Pyk!'), 'hydrogen with air pops at a burning splint');
+
+    const t = world(-12, 12, 40);
+    const nacl = t.place('beaker', 'n', { x: -6, size: 50 });
+    t.add('NaCl-aq', 30, nacl, null, true);
+    const pb = t.place('burner', 'p', { x: 6 });
+    t.burner(pb, true);
+    runW(t, 1);
+    m.useTool(t, 'loop', nacl);
+    runW(t, 0.3);
+    const loop = t.things.find((u) => u.kind === 'loop');
+    t.move(loop, ...m.nozzleOf(pb).map((v, k) => v + (k === 1 ? 2.5 : 0)));
+    runW(t, 2);
+    assert.ok(said(t, 'żółto'), 'sodium colours the flame yellow');
+    ok('gases and fire: CO₂ sinks, the candle under a jar goes out, the burner heats, hydrogen pops, the flame test');
+  }
+  {
+    /* Miareczkowanie: der Umschlag bei 25 cm³. */
+    const w = world(-8, 8, 55);
+    const f = w.place('flask', 'f', { x: 0, size: 100 });
+    w.add('NaOH-dil', 25, f, null, true);
+    const bu = w.place('burette', 'b', { x: 0, y: f.y + f.prof.top + 1.5, size: 50 });
+    w.add('HCl-dil', 50, bu, null, true);
+    w.tap(bu, 1);
+    let at20 = null;
+    let at30 = null;
+    for (let k = 0; k < 40; k += 1) {
+      w.stir(f);
+      runW(w, 1);
+      if (at20 === null && bu.readout >= 20) at20 = w.summary(f).spec.pH;
+      if (at30 === null && bu.readout >= 30) at30 = w.summary(f).spec.pH;
+    }
+    assert.ok(at20 !== null && at20 > 10, `20 cm³ of acid: still basic (pH ${at20?.toFixed(1)})`);
+    assert.ok(at30 !== null && at30 < 3.5, `30 cm³: past the equivalence point (pH ${at30?.toFixed(1)})`);
+    ok('titration: the pH jumps between 20 and 30 cm³ (equivalence at 25 cm³)');
+  }
+  {
+    /* Lód z solą. */
+    const w = world(-8, 8, 20);
+    const b = w.place('beaker', 'b', { x: 0, size: 250 });
+    w.add('ice-crushed', 60, b, null, true);
+    w.add('water', 20, b, null, true);
+    w.add('NaCl', 20, b);
+    for (let k = 0; k < 50; k += 1) { w.stir(b); runW(w, 2); }
+    /* Im Labor: in ein, zwei Minuten −10 °C, mit der Zeit bis −20 °C (die Grenze ist der eutektische Punkt, −21 °C) — das Salz
+       löst sich nur so schnell, wie es das Schmelzwasser berührt (Noyes–Whitney, in der Kälte langsamer). */
+    assert.ok(w.summary(b).T < 263.5 && w.summary(b).T > 251, `crushed ice with salt cools below −10 °C in 100 s (${(w.summary(b).T - 273.15).toFixed(1)} °C)`);
+    /* Ohne Rühren auch: wo Salz das Eis berührt, ist das Eis nass — die Sole taut es weiter. */
+    const u = world(-8, 8, 20);
+    const c = u.place('beaker', 'b', { x: 0, size: 250 });
+    u.add('ice-crushed', 60, c, null, true);
+    u.add('water', 20, c, null, true);
+    runW(u, 1, 1 / 15);
+    u.add('NaCl', 20, c);
+    runW(u, 20, 1 / 15);
+    assert.ok(u.summary(c).T < 271.5 && said(u, 'Lód topi się w roztworze soli'), `unstirred, salt on ice still makes brine and cools (${(u.summary(c).T - 273.15).toFixed(1)} °C)`);
+    ok('ice and salt: a freezing mixture far below 0 °C');
   }
 
-  /* -- Chemia: Gase, Feuer, Kochen, Druck ---------------------------------------------------------------- */
+  /* -- Chemia: wie schnell — Lösen, Diffusion, Reaktionsgeschwindigkeit, Gleichgewicht ------------------- */
+  const aqIn = (w, t, ion) => { let s = 0; for (const i of t.cells) if (w.g.own[i] === t.num && w.g.lq[i] === 1) s += w.g.comp[i * m.NC + m.AQI[ion]]; return s; };
+  const solidIn = (w, t, sp) => { let s = 0; for (const i of t.cells) if (w.g.own[i] === t.num && w.g.sp[i] === m.SOLI[sp]) s += w.g.sn[i]; return s; };
+  const mix = (x) => Array.from({ length: m.NG }, (_, k) => x[Object.keys(m.GASI).find((g) => m.GASI[g] === k)] ?? 0);
   {
-    const L = chem();
-    const v = glass(L, 'b', 100);
-    L.add(v, 'H2O2', 50);
-    runC(L, 0.2);
-    const n0 = v.aq.get('H2O2');
-    L.add(v, 'MnO2', 0.5);
-    runC(L, 30);
-    assert.ok((v.aq.get('H2O2') ?? 0) < 0.2 * n0, 'MnO₂ decomposes hydrogen peroxide within half a minute');
-    L.use('glow', v);
-    assert.ok(said(L, 'zapala się jasnym płomieniem'), `a glowing splint relights in the oxygen (x(O₂) = ${v.frac('O2').toFixed(2)})`);
-
-    const G = chem();
-    const gen = glass(G, 'gen', 250, 'flask');
-    const lime = glass(G, 'lime', 100, 'beaker', 20);
-    G.add(gen, 'HCl', 50);
-    G.add(lime, 'limewater', 50);
-    runC(G, 0.3);
-    G.connect(gen, lime);
-    G.add(gen, 'CaCO3', 2);
-    let milky = 0;
-    for (let i = 0; i < 40; i += 1) { runC(G, 0.5); milky = Math.max(milky, lump(lime, 'CaCO3')); }
-    assert.ok(milky > 3e-4, `CO₂ from marble and acid turns limewater milky (CaCO₃ ${milky.toExponential(2)} mol)`);
-
-    const J = chem();
-    const jar = glass(J, 'j', 1000, 'jar');
-    J.add(jar, 'candle', 3);
-    J.use('match', jar);
-    jar.closed = true;
-    runC(J, 90);
-    const candle = jar.lumps.find((l) => l.sp === 'wax');
-    assert.ok(candle !== undefined && !candle.burning && jar.frac('O2') < 0.18 && jar.frac('O2') > 0.1, `a candle under a closed jar goes out with O₂ at ${(jar.frac('O2') * 100).toFixed(1)} %`);
-
-    const C = chem();
-    const co2 = glass(C, 'b', 250);
-    C.add(co2, 'CO2-gas', 400);
-    runC(C, 60);
-    const h2 = glass(C, 'h', 250, 'beaker', 15);
-    C.add(h2, 'H2-gas', 50);
-    runC(C, 20);
-    assert.ok(co2.frac('CO2') > 0.35 && h2.frac('H2') < 0.05, `heavy CO₂ stays in an open beaker (${co2.frac('CO2').toFixed(2)} after 80 s), light H₂ escapes (${h2.frac('H2').toFixed(3)} after 20 s)`);
-
-    const B = chem();
-    burner(B);
-    const w = glass(B, 'w', 250);
-    w.y = m.SEAT;
-    B.add(w, 'water', 100);
-    runC(B, 400);
-    near(w.T, 373.15, 0.6, 'water on a burner boils at 100 °C');
-    assert.ok(w.water < 100 / 18.015 - 0.2, 'and boils away');
-    const S = chem();
-    burner(S);
-    const sw = glass(S, 's', 250);
-    sw.y = m.SEAT;
-    S.add(sw, 'water', 100);
-    S.add(sw, 'NaCl', 20);
-    sw.stir = 1e9;
-    runC(S, 400);
-    assert.ok(sw.T > 374.6, `salt water boils higher (${(sw.T - 273.15).toFixed(1)} °C)`);
-
-    const P = chem();
-    burner(P);
-    const fl = glass(P, 'f', 250, 'flask');
-    fl.y = m.SEAT;
-    fl.closed = true;
-    let peak = 0;
-    for (let i = 0; i < 300 && fl.closed; i += 1) { runC(P, 1); peak = Math.max(peak, fl.pressure(P.room.p)); }
-    assert.ok(!fl.closed && said(P, 'korek wyskakuje') && peak > 140, `a closed flask on the burner builds pressure until the stopper flies (${peak.toFixed(0)} kPa)`);
-
-    const N = chem();
-    burner(N);
-    const tube = glass(N, 't', 25, 'tube');
-    tube.y = m.SEAT;
-    N.add(tube, 'NH4Cl', 1);
-    N.add(tube, 'NaOH-aq', 10);
-    runC(N, 30);
-    N.use('wetpaper', tube);
-    assert.ok(said(N, 'na niebiesko'), 'NH₄Cl + NaOH heated gives ammonia (damp paper turns blue)');
-
-    const F = chem();
-    const fb = burner(F, 30);
-    const ft = glass(F, 't', 25, 'tube');
-    F.add(ft, 'NaCl-aq', 5);
-    F.use('loop', ft);
-    F.useBurner(fb, 'loop');
-    assert.ok(fb.tint === m.SPECIES['Na+'].flame, 'flame test: sodium colours the flame yellow');
-
-    const I = chem();
-    const ice = glass(I, 'i', 250);
-    I.add(ice, 'ice', 60);
-    I.add(ice, 'water', 10);
-    I.add(ice, 'NaCl', 20);
-    ice.stir = 1e9;
-    runC(I, 120);
-    assert.ok(ice.T < 271, `ice with salt cools below 0 °C (${(ice.T - 273.15).toFixed(1)} °C)`);
-    ok('gases and heat: O₂ from H₂O₂ (splint), CO₂ into limewater, candle in a jar, heavy CO₂ / light H₂, boiling (+salt), stopper, ammonia, flame test, ice and salt');
+    /* Lösen nach Noyes–Whitney: 2 g CuSO₄·5H₂O in 50 cm³, 30 s — heiss (D·cₛ grösser), gerührt (dünnere Schicht), Pulver (mehr Fläche). */
+    const make = (T, stir, reagent) => {
+      const w = world(-10, 10, 14);
+      const h = w.place('hotplate', 'h', { x: 0 });
+      h.stir = stir;
+      const b = w.place('beaker', 'b', { x: 0, on: h, size: 100 });
+      w.add('water', 50, b, null, true);
+      w.warmTo(b, T);
+      w.add(reagent, 2, b);
+      runW(w, 30, 1 / 15);
+      return aqIn(w, b, 'Cu+2') * 1000;
+    };
+    const cold = make(278.15, false, 'CuSO4·5H2O');
+    const hot = make(353.15, false, 'CuSO4·5H2O');
+    const still = make(293.15, false, 'CuSO4·5H2O');
+    const stirred = make(293.15, true, 'CuSO4·5H2O');
+    const powder = make(293.15, false, 'CuSO4·5H2O-powder');
+    near(m.diffusivity(298.15), 1.5e-5, 1e-10, 'D at 25 °C');
+    assert.ok(m.diffusivity(353.15) / m.diffusivity(293.15) > 3, 'D(80 °C) is over 3× D(20 °C): T/η(T), Stokes–Einstein');
+    assert.ok(hot > 2.5 * cold, `hot water dissolves faster (${hot.toFixed(2)} vs ${cold.toFixed(2)} mmol in 30 s)`);
+    assert.ok(stirred > 2 * still, `stirring dissolves faster (${stirred.toFixed(2)} vs ${still.toFixed(2)} mmol)`);
+    assert.ok(powder > 2 * still, `powder dissolves faster than crystals (${powder.toFixed(2)} vs ${still.toFixed(2)} mmol)`);
+    ok(`dissolving (Noyes–Whitney): hot ×${(hot / cold).toFixed(1)}, stirred ×${(stirred / still).toFixed(1)}, powder ×${(powder / still).toFixed(1)}`);
+  }
+  {
+    /* Diffusion ist langsam: KMnO₄-Lösung unter Wasser, alles ruhig und gleich warm — nach 10 min ist ein wenig nach oben gewandert. */
+    const w = world(-8, 8, 14);
+    const b = w.place('beaker', 'b', { x: 0, size: 250 });
+    w.add('KMnO4-aq', 80, b, null, true);
+    w.add('water', 80, b, null, true);
+    const ys = b.cells.filter((i) => w.g.own[i] === b.num && w.g.lq[i] === 1 && w.g.liqVol(i) > 0.5 * w.g.room(i)).map((i) => w.g.cy(i));
+    const mid = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const upper = () => { let up = 0; let all = 0; for (const i of b.cells) if (w.g.own[i] === b.num && w.g.lq[i] === 1) { const x = w.g.comp[i * m.NC + m.AQI['MnO4-']]; all += x; if (w.g.cy(i) > mid) up += x; } return up / all; };
+    assert.ok(upper() < 1e-6, 'the layers start apart');
+    runW(w, 600, 0.5);
+    const share = upper();
+    assert.ok(share > 0.002 && share < 0.03, `in 10 minutes a little permanganate creeps up (${(share * 100).toFixed(2)} % in the upper half)`);
+    ok(`diffusion: still layers mix slowly (${(share * 100).toFixed(2)} % across in 10 min)`);
+  }
+  {
+    /* Geschwindigkeitsgesetze: Tiosiarczan erster Ordnung (halbe Konzentration — halb so viel Schwefel), Arrhenius mit Eₐ = 45 kJ/mol
+       (+10 K: etwa doppelt so schnell); H₂O₂ mit I⁻: doppelt so viel Jodid — doppelt so schnell. */
+    const thio = (T, ml, water) => {
+      const w = world(-10, 10, 16);
+      const h = w.place('hotplate', 'h', { x: 0 });
+      h.stir = true;
+      const f = w.place('flask', 'f', { x: 0, on: h, size: 100 });
+      w.add('Na2S2O3', ml, f, null, true);
+      if (water > 0) w.add('water', water, f, null, true);
+      w.blend(f);
+      w.warmTo(f, T);
+      w.add('HCl', 5, f);
+      runW(w, 30, 1 / 15);
+      return solidIn(w, f, 'S');
+    };
+    const s20 = thio(293.15, 50, 0);
+    const s30 = thio(303.15, 50, 0);
+    const half = thio(293.15, 25, 25);
+    near(m.rateConstant('tiosiarczan', 303.15) / m.rateConstant('tiosiarczan', 293.15), 1.84, 0.02, 'k(30 °C)/k(20 °C) from Ea = 45 kJ/mol');
+    near(s20 / half, 2, 0.15, 'half the thiosulfate, half the sulfur (first order)');
+    assert.ok(s30 / s20 > 1.5 && s30 / s20 < 2, `10 K warmer: about twice as fast (${(s30 / s20).toFixed(2)}×, the flask cools meanwhile)`);
+    const iodide = (g) => {
+      const w = world(-10, 10, 18);
+      const h = w.place('hotplate', 'h', { x: 0 });
+      h.stir = true;
+      const f = w.place('flask', 'f', { x: 0, on: h, size: 250 });
+      w.add('H2O2', 50, f, null, true);
+      w.add('KI-s', g, f);
+      runW(w, 4, 1 / 15);
+      const a = aqIn(w, f, 'H2O2');
+      runW(w, 20, 1 / 15);
+      return a - aqIn(w, f, 'H2O2');
+    };
+    const one = iodide(0.5);
+    const two = iodide(1);
+    assert.ok(two / one > 1.7 && two / one < 2.1, `H₂O₂ with twice the iodide decomposes twice as fast (${(two / one).toFixed(2)}×)`);
+    ok('reaction rates: thiosulfate first order with Arrhenius (Ea 45 kJ/mol), H₂O₂ first order in iodide');
+  }
+  {
+    /* Umkehrbar: Chromian ⇄ Dichromian mit Säure und Lauge; 2NO₂ ⇄ N₂O₄ im geschlossenen Kolben bei K(T) (van 't Hoff, ΔH = +57 kJ/mol). */
+    const w = world(-6, 6, 16);
+    const t = w.place('tube', 't', { x: 0, size: 25 });
+    w.add('K2CrO4', 8, t, null, true);
+    runW(w, 0.5);
+    w.add('H2SO4', 2, t);
+    w.stir(t);
+    runW(w, 4);
+    assert.ok(aqIn(w, t, 'Cr2O7-2') > 3.5e-4 && said(w, 'staje się pomarańczowy'), 'acid turns chromate into orange dichromate');
+    w.add('NaOH-aq', 4, t);
+    w.stir(t);
+    runW(w, 4);
+    assert.ok(aqIn(w, t, 'CrO4-2') > 7e-4 && aqIn(w, t, 'Cr2O7-2') < 1e-5 && said(w, 'żółty chromian'), 'base turns it back');
+    const K = (T) => 4.6e-3 * Math.exp(-(57200 / 8.314) * (1 / T - 1 / 298.15));
+    const share = {};
+    for (const T of [273.15, 333.15]) {
+      const u = world(-8, 8, 16);
+      const f = u.place('roundflask', 'f', { x: 0, size: 100 });
+      u.fillGasMix(f, mix({ NO2: 0.4, N2: 0.6 }));
+      u.stopper(f);
+      u.warmTo(f, T);
+      runW(u, 0.5);
+      let dev = 0;
+      let n = 0;
+      let no2 = 0;
+      let all = 0;
+      for (const i of f.cells) {
+        if (u.g.own[i] !== f.num || u.g.mat[i] !== 0) continue;
+        const V = u.g.gasVol(i) / 1000;
+        const a = u.g.gas[i * m.NG + m.GASI.NO2];
+        const d = u.g.gas[i * m.NG + m.GASI.N2O4];
+        if (d <= 0) continue;
+        dev += Math.abs(Math.log(((a / V) * (a / V)) / (d / V) / K(u.g.T[i])));
+        n += 1;
+        no2 += a;
+        all += a + 2 * d;
+      }
+      assert.ok(n > 0 && dev / n < 0.1, `NO₂/N₂O₄ in every cell at K(T) (mean |ln Q/K| ${(dev / n).toFixed(3)})`);
+      share[T] = no2 / all;
+    }
+    assert.ok(share[333.15] > share[273.15] * 1.3, `warmer — more brown NO₂ (${(share[333.15] * 100).toFixed(0)} % vs ${(share[273.15] * 100).toFixed(0)} % of the nitrogen)`);
+    ok('reversible: chromate ⇄ dichromate with acid and base; 2NO₂ ⇄ N₂O₄ at K(T), browner when warm');
+  }
+  {
+    /* Hydrolyse der Metallionen (Hydroxo-Komplexe): CuSO₄-Lösung ist sauer — und fällt darum auch heiss kein Cu(OH)₂ aus; FeCl₃ noch saurer. */
+    const ph = (r, T = null) => {
+      const w = world(-6, 6, 12);
+      const b = w.place('beaker', 'b', { x: 0, size: 100 });
+      w.add(r, 50, b, null, true);
+      if (T !== null) w.warmTo(b, T);
+      runW(w, 2, 1 / 15);
+      return [w.summary(b, true).spec.pH, solidIn(w, b, 'Cu(OH)2')];
+    };
+    const [cu, cuSolid] = ph('CuSO4-aq');
+    const [, hotSolid] = ph('CuSO4-aq', 353.15);
+    const [fe] = ph('FeCl3');
+    assert.ok(cu > 3.5 && cu < 4.7 && cuSolid === 0 && hotSolid === 0, `CuSO₄ 0.5 mol/dm³ is acidic (pH ${cu.toFixed(2)}) and stays clear, also hot`);
+    assert.ok(fe < 1.8, `FeCl₃ is more acidic (pH ${fe.toFixed(2)})`);
+    /* Eine geschlossene Probówka im Wasserbad behält ihr Gas (das Wasser, dem sie Platz nahm, steigt um sie herum). */
+    const w = world(-8, 8, 18);
+    const b = w.place('beaker', 'b', { x: 0, size: 600 });
+    w.add('water', 480, b, null, true);
+    const p = w.place('tube', 'p', { x: 0, into: b, size: 10 });
+    w.fillGasMix(p, mix({ N2: 1 }));
+    w.stopper(p);
+    const nOf = () => { let n = 0; for (const i of p.cells) if (w.g.own[i] === p.num && w.g.mat[i] === 0) n += w.g.gasTotal(i); return n; };
+    const n0 = nOf();
+    runW(w, 5);
+    near(nOf() / n0, 1, 1e-4, 'a closed tube in a water bath keeps its gas');
+    near(w.summary(p).P, room.p, 0.5, 'and its pressure');
+    ok(`metal ions hydrolyse (CuSO₄ pH ${cu.toFixed(1)}, FeCl₃ pH ${fe.toFixed(1)}); a closed tube in a bath keeps its gas`);
+  }
+  {
+    /* Jede fertige Szene baut sich, läuft ein paar Sekunden ohne NaN, und speichert sich verlustfrei. */
+    for (const p of [...m.CHEM_PRESETS, { key: 'sandbox', scene: m.SANDBOX_CHEM }]) {
+      const scene = m.readChemScene(p.scene);
+      const w = m.buildChemWorld(scene, m.drawChem(scene, 'check'), m.seeded('check'));
+      for (const s of scene.steps) for (const a of s.do) m.perform(w, a, m.drawChem(scene, 'check'), true);
+      runW(w, 2, 1 / 15);
+      for (let i = 0; i < w.g.n; i += 1) assert.ok(Number.isFinite(w.g.T[i]), `${p.key}: temperatures stay finite`);
+      assert.equal(w.things.filter((t) => t.cells.length === 0).length, 0, `${p.key}: every thing has its place`);
+      const saved = m.sceneOfWorld(w, scene);
+      const again = m.buildChemWorld(m.readChemScene(JSON.parse(JSON.stringify(saved))), m.drawChem(scene, 'check'), m.seeded('check'));
+      assert.equal(again.things.filter((t) => t.kind !== 'stopper').length, w.things.filter((t) => t.kind !== 'stopper').length, `${p.key}: saving keeps every thing`);
+    }
+    ok(`${m.CHEM_PRESETS.length} chemistry experiments and the sandbox build, run and save without loss`);
   }
 
   console.log('\napp-lab-check: all passed');

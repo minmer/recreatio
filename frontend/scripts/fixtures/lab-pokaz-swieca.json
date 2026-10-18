@@ -1,0 +1,288 @@
+{
+ "format": "recreatio/page",
+ "version": 1,
+ "path": "pokaz-swieca",
+ "title": "Spalanie potrzebuje tlenu",
+ "lead": "Dlaczego świeca pod słojem gaśnie — i czym gasić płomień?",
+ "mode": "slides",
+ "theme": {
+  "mode": "light",
+  "accent": "#c0392b",
+  "ink": "#13212b",
+  "ground": "#f6f8f7",
+  "muted": "#5b6b74"
+ },
+ "cover": [],
+ "deck": {
+  "backdrop": [],
+  "nav": "dots",
+  "titleSlide": false,
+  "width": 100
+ },
+ "modules": [
+  {
+   "id": "start",
+   "kind": "hero",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 3
+   },
+   "slide": {
+    "label": "Start",
+    "layers": []
+   },
+   "config": {
+    "badge": "Pokaz · chemia",
+    "badgeLook": "kicker",
+    "size": "title",
+    "headline": "Spalanie potrzebuje tlenu",
+    "lede": "Dlaczego świeca pod słojem gaśnie — i czym gasić płomień?",
+    "paragraphs": [
+     "Płomień świecy to spalanie par parafiny w tlenie z powietrza. Powstają tlenek węgla(IV) i para wodna.",
+     "Zobaczysz, co się stanie, gdy tlenu zabraknie, i sprawdzisz, czym jest gaz, który powstaje."
+    ],
+    "actions": [],
+    "footnote": null
+   }
+  },
+  {
+   "id": "sloj",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "1. Świeca pod słojem",
+    "layers": []
+   },
+   "config": {
+    "title": "Świeca pod słojem",
+    "text": [
+     "Zapalona świeca stoi na stole, obok wisi odwrócony słój.",
+     "Przykryj świecę słojem (przeciągnij go albo „Pokaż”). Sonda pokaże skład gazu w słoju."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "swieca",
+       "kind": "candle",
+       "x": 0,
+       "lit": true
+      },
+      {
+       "id": "sloj",
+       "kind": "jar",
+       "size": 500,
+       "x": 14,
+       "y": 11.6,
+       "angle": 180,
+       "label": "słój"
+      }
+     ],
+     "view": [
+      -8,
+      -2,
+      20,
+      16
+     ],
+     "shelf": [],
+     "tools": [
+      "match",
+      "probe"
+     ],
+     "steps": [
+      {
+       "say": "Przykryj świecę słojem.",
+       "do": {
+        "move": "sloj",
+        "to": [
+         0,
+         11.6
+        ]
+       },
+       "wait": 40,
+       "ask": {
+        "q": "Co stanie się z płomieniem?",
+        "options": [
+         "będzie się palił dalej",
+         "po chwili zgaśnie",
+         "zgaśnie od razu"
+        ],
+        "answer": "po chwili zgaśnie",
+        "why": "Świeca zużywa tlen; gdy w słoju zostaje go ok. 15%, płomień gaśnie."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "co2",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "2. CO₂ gasi płomień",
+    "layers": []
+   },
+   "config": {
+    "title": "CO₂ gasi płomień",
+    "text": [
+     "W zlewce jest tlenek węgla(IV) — bezbarwny gaz, cięższy od powietrza. W dużym słoju palą się dwie świece: niska i wysoka.",
+     "Przelej gaz do słoja, jakby był cieczą (przytrzymaj zlewkę nad słojem albo „Pokaż”)."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "sloj",
+       "kind": "jar",
+       "size": 1000,
+       "x": -6,
+       "label": "słój ze świecami"
+      },
+      {
+       "id": "niska",
+       "kind": "candle",
+       "size": 4,
+       "x": -8.4,
+       "y": 0.4,
+       "lit": true
+      },
+      {
+       "id": "wysoka",
+       "kind": "candle",
+       "size": 9,
+       "x": -3.6,
+       "y": 0.4,
+       "lit": true
+      },
+      {
+       "id": "co2",
+       "kind": "beaker",
+       "size": 600,
+       "x": 12,
+       "label": "CO₂",
+       "gas": {
+        "CO2": 1
+       }
+      }
+     ],
+     "shelf": [
+      "CO2-gas"
+     ],
+     "tools": [
+      "match",
+      "probe"
+     ],
+     "steps": [
+      {
+       "say": "Przelej gaz ze zlewki do słoja.",
+       "do": {
+        "pour": "co2",
+        "to": "sloj",
+        "ml": 8
+       },
+       "wait": 20,
+       "ask": {
+        "q": "Która świeca zgaśnie pierwsza?",
+        "options": [
+         "niska",
+         "wysoka",
+         "obie naraz"
+        ],
+        "answer": "niska",
+        "why": "CO₂ jest cięższy od powietrza — wypełnia słój od dna, więc najpierw gasi niższy płomień."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "woda-wapienna",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "3. Wykrywanie CO₂",
+    "layers": []
+   },
+   "config": {
+    "title": "Wykrywanie CO₂",
+    "text": [
+     "W probówce jest woda wapienna — klarowny roztwór wodorotlenku wapnia.",
+     "Przepuść przez nią tlenek węgla(IV) z butli (z półki albo „Pokaż”)."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "woda",
+       "kind": "tube",
+       "size": 25,
+       "x": 0,
+       "label": "woda wapienna",
+       "fill": [
+        {
+         "reagent": "limewater",
+         "amount": 12
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "CO2-gas",
+      "O2-gas"
+     ],
+     "tools": [
+      "stir"
+     ],
+     "steps": [
+      {
+       "say": "Przepuść tlenek węgla(IV) przez wodę wapienną.",
+       "do": {
+        "add": "CO2-gas",
+        "to": "woda",
+        "amount": 50
+       },
+       "wait": 14,
+       "ask": {
+        "q": "Co stanie się z wodą wapienną?",
+        "options": [
+         "zmętnieje",
+         "zabarwi się na niebiesko",
+         "nic się nie stanie"
+        ],
+        "answer": "zmętnieje",
+        "why": "CO₂ + Ca(OH)₂ → CaCO₃↓ + H₂O — wytrąca się biały węglan wapnia."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "wyjasnienie",
+   "kind": "text",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 4
+   },
+   "config": {
+    "title": "Co się wydarzyło?",
+    "body": "Pod słojem świeca zużywała tlen. Gdy jego udział spadł z 21% do ok. 15%, płomień zgasł — choć w słoju wciąż było sporo tlenu.\nTlenek węgla(IV) jest półtora raza cięższy od powietrza: wlany do słoja spływa na dno i wypiera powietrze od dołu, dlatego niższa świeca gaśnie pierwsza. Tak działają gaśnice śniegowe.\nWoda wapienna mętnieje od CO₂: Ca(OH)₂ + CO₂ → CaCO₃↓ + H₂O. To próba na tlenek węgla(IV) — także w wydychanym powietrzu.\n## Zapamiętaj\nDo spalania potrzebne są: substancja palna, tlen i odpowiednio wysoka temperatura. Usunięcie jednego z nich gasi płomień."
+   },
+   "slide": {
+    "label": "Wyjaśnienie",
+    "layers": []
+   }
+  }
+ ]
+}

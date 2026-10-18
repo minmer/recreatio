@@ -57,6 +57,9 @@ export const SPECIES: Readonly<Record<string, Species>> = Object.fromEntries([
   S('SO2', 'tlenek siarki(IV)', 'SO₂', 64.07, 'g', -296.8),
   S('NO', 'tlenek azotu(II)', 'NO', 30.01, 'g', 90.3),
   S('NO2', 'tlenek azotu(IV)', 'NO₂', 46.01, 'g', 33.2, { color: '#a5491f' }),
+  S('N2O4', 'tetratlenek diazotu', 'N₂O₄', 92.01, 'g', 9.16),
+  S('CH4', 'metan (gaz z palnika)', 'CH₄', 16.04, 'g', -74.6),
+  S('EtOH(g)', 'etanol (para)', 'C₂H₅OH', 46.07, 'g', -234.8),
 
   /* Metalle */
   S('Li', 'lit', 'Li', 6.94, 's', 0, { rho: 0.534, color: '#c9c9c9', mp: 453.7 }),
@@ -70,6 +73,9 @@ export const SPECIES: Readonly<Record<string, Species>> = Object.fromEntries([
   S('Pb', 'ołów', 'Pb', 207.2, 's', 0, { rho: 11.34, color: '#6f7479' }),
   S('Cu', 'miedź', 'Cu', 63.546, 's', 0, { rho: 8.96, color: '#c26a3d' }),
   S('Ag', 'srebro', 'Ag', 107.87, 's', 0, { rho: 10.49, color: '#e3e4e6' }),
+  S('Sn', 'cyna', 'Sn', 118.71, 's', 0, { rho: 7.31, color: '#c9ccd0', mp: 505.1 }),
+  S('Field', 'stop Fielda (Bi, In, Sn)', 'Bi–In–Sn', 150, 's', 0, { rho: 7.88, color: '#c3c6cc', mp: 335 }),
+  S('wood', 'drewno', '(C₆H₁₀O₅)ₙ', 162.1, 's', -960, { rho: 0.6, color: '#c8955a' }),
 
   /* Kationen */
   S('H+', 'kation wodoru', 'H⁺', 1.008, 'aq', 0, { charge: 1 }),
@@ -89,6 +95,7 @@ export const SPECIES: Readonly<Record<string, Species>> = Object.fromEntries([
   S('Pb+2', 'kation ołowiu(II)', 'Pb²⁺', 207.2, 'aq', -1.7, { charge: 2 }),
   S('Al+3', 'kation glinu', 'Al³⁺', 26.982, 'aq', -531, { charge: 3 }),
   S('Mn+2', 'kation manganu(II)', 'Mn²⁺', 54.938, 'aq', -220.8, { charge: 2, aqColor: '#f2c6d6', tint: 0.4 }),
+  S('Sn+2', 'kation cyny(II)', 'Sn²⁺', 118.71, 'aq', -8.8, { charge: 2 }),
 
   /* Anionen */
   S('OH-', 'anion wodorotlenkowy', 'OH⁻', 17.007, 'aq', -230, { charge: -1 }),
@@ -100,6 +107,8 @@ export const SPECIES: Readonly<Record<string, Species>> = Object.fromEntries([
   S('SCN-', 'anion tiocyjanianowy', 'SCN⁻', 58.08, 'aq', 76.4, { charge: -1 }),
   S('MnO4-', 'anion manganianowy(VII)', 'MnO₄⁻', 118.94, 'aq', -541.4, { charge: -1, aqColor: '#7a1fa2', tint: 600 }),
   S('CrO4-2', 'anion chromianowy(VI)', 'CrO₄²⁻', 115.99, 'aq', -881.2, { charge: -2, aqColor: '#e6c619', tint: 40 }),
+  S('Cr2O7-2', 'anion dichromianowy(VI)', 'Cr₂O₇²⁻', 215.99, 'aq', -1490.3, { charge: -2, aqColor: '#ee7414', tint: 45 }),
+  S('S2O3-2', 'anion tiosiarczanowy', 'S₂O₃²⁻', 112.13, 'aq', -652.3, { charge: -2 }),
 
   /* Die Formen der schwachen Säuren und Basen (siehe POOLS) */
   S('CO2(aq)', 'CO₂ rozpuszczony', 'CO₂', 44.01, 'aq', -413.8),
@@ -118,10 +127,15 @@ export const SPECIES: Readonly<Record<string, Species>> = Object.fromEntries([
   S('Zn(OH)4-2', 'anion tetrahydroksocynkanowy', '[Zn(OH)₄]²⁻', 133.4, 'aq', null, { charge: -2 }),
   S('Al(OH)4-', 'anion tetrahydroksoglinianowy', '[Al(OH)₄]⁻', 95.0, 'aq', null, { charge: -1 }),
   S('FeSCN+2', 'kation tiocyjanianożelaza(III)', '[FeSCN]²⁺', 113.9, 'aq', null, { charge: 2, aqColor: '#a8141c', tint: 2500 }),
+  S('CuOH+', 'kation hydroksomiedzi(II)', 'CuOH⁺', 80.55, 'aq', null, { charge: 1 }),
+  S('FeOH+2', 'kation hydroksożelaza(III)', 'FeOH²⁺', 72.85, 'aq', null, { charge: 2 }),
+  S('AlOH+2', 'kation hydroksoglinu', 'AlOH²⁺', 43.99, 'aq', null, { charge: 2 }),
+  S('ZnOH+', 'kation hydroksocynku', 'ZnOH⁺', 82.39, 'aq', null, { charge: 1 }),
+  S('PbOH+', 'kation hydroksoołowiu(II)', 'PbOH⁺', 224.2, 'aq', null, { charge: 1 }),
 
   /* Gelöste Moleküle */
   S('H2O2', 'nadtlenek wodoru', 'H₂O₂', 34.015, 'aq', -191.2),
-  S('sugar', 'sacharoza', 'C₁₂H₂₂O₁₁', 342.3, 'aq', -1487),
+  S('sugar', 'sacharoza', 'C₁₂H₂₂O₁₁', 342.3, 'aq', -2220.7),
   S('soap', 'detergent', 'detergent', 300, 'aq', null),
   S('ethanol', 'etanol', 'C₂H₅OH', 46.07, 'aq', -288.3),
 
@@ -154,6 +168,8 @@ export const SPECIES: Readonly<Record<string, Species>> = Object.fromEntries([
   S('CH3COONa', 'octan sodu', 'CH₃COONa', 82.03, 's', -708.8, { rho: 1.53, color: '#f7f7f4' }),
   S('K2CrO4', 'chromian(VI) potasu', 'K₂CrO₄', 194.19, 's', -1403.7, { rho: 2.73, color: '#e6c619' }),
   S('KMnO4', 'manganian(VII) potasu', 'KMnO₄', 158.03, 's', -837.2, { rho: 2.7, color: '#4a1452' }),
+  S('K2Cr2O7', 'dichromian(VI) potasu', 'K₂Cr₂O₇', 294.18, 's', -2061.5, { rho: 2.68, color: '#e8641b' }),
+  S('Na2S2O3', 'tiosiarczan sodu', 'Na₂S₂O₃', 158.11, 's', -1123, { rho: 1.67, color: '#f4f4ef' }),
   S('FeCl3', 'chlorek żelaza(III)', 'FeCl₃', 162.2, 's', -399.5, { rho: 2.9, color: '#6b3b14' }),
   S('CaCO3', 'węglan wapnia', 'CaCO₃', 100.09, 's', -1207.6, { rho: 2.71, color: '#f2f0ea' }),
   S('BaCO3', 'węglan baru', 'BaCO₃', 197.34, 's', -1216.3, { rho: 4.29, color: '#f4f4f0' }),
@@ -194,13 +210,13 @@ export const SPECIES: Readonly<Record<string, Species>> = Object.fromEntries([
 export const species = (id: string): Species | undefined => SPECIES[id];
 
 /** Die Gase, die ein Gefäss enthalten kann (in dieser Reihenfolge gezeigt). */
-export const GASES = ['N2', 'O2', 'Ar', 'CO2', 'H2O(g)', 'H2', 'NH3', 'HCl(g)', 'SO2', 'NO', 'NO2'] as const;
+export const GASES = ['N2', 'O2', 'Ar', 'CO2', 'H2O(g)', 'H2', 'NH3', 'HCl(g)', 'SO2', 'NO', 'NO2', 'N2O4', 'CH4', 'EtOH(g)'] as const;
 export type GasId = (typeof GASES)[number];
 
 /** Farben der Gase für die Lupe und die Anteile. */
 export const GAS_COLORS: Readonly<Record<GasId, string>> = {
   N2: '#5b7bd5', O2: '#d64a4a', Ar: '#9a9a9a', CO2: '#3b3b3b', 'H2O(g)': '#7fc8f0', H2: '#e8e8e8',
-  NH3: '#8a5ad0', 'HCl(g)': '#4fae5f', SO2: '#d8b020', NO: '#c08060', NO2: '#a5491f'
+  NH3: '#8a5ad0', 'HCl(g)': '#4fae5f', SO2: '#d8b020', NO: '#c08060', NO2: '#a5491f', N2O4: '#d9c9b0', CH4: '#7fa7a0', 'EtOH(g)': '#c79bd8'
 };
 
 /** Die Luft im Labor (Molanteile, mit etwas Feuchte). */
@@ -260,13 +276,22 @@ export interface Complex {
   readonly logB: number;
 }
 
-/** Jedes Metall hat hier höchstens eine Art von Liganden (das hält die Gleichgewichte einfach). */
+/**
+ * Komplexe: Bildung aus dem freien Metallion und dem Liganden (β = [MLₙ]/([M][L]ⁿ), 25 °C). Die Hydroxo-Komplexe mit n = 1
+ * sind die Hydrolyse der Metallionen (Cu²⁺ + H₂O ⇄ CuOH⁺ + H⁺, pKa = 14 − logβ): darum ist eine Lösung von CuSO₄ sauer
+ * (pH ≈ 4), FeCl₃ noch saurer (pH ≈ 2) — und darum fällt aus ihr nicht schon Cu(OH)₂ aus.
+ */
 export const COMPLEXES: readonly Complex[] = [
   { id: 'Cu(NH3)4+2', metal: 'Cu+2', ligand: 'NH3', n: 4, logB: 13.0 },
+  { id: 'CuOH+', metal: 'Cu+2', ligand: 'OH-', n: 1, logB: 6.3 },
   { id: 'Ag(NH3)2+', metal: 'Ag+', ligand: 'NH3', n: 2, logB: 7.2 },
+  { id: 'ZnOH+', metal: 'Zn+2', ligand: 'OH-', n: 1, logB: 5.0 },
   { id: 'Zn(OH)4-2', metal: 'Zn+2', ligand: 'OH-', n: 4, logB: 16.4 },
+  { id: 'AlOH+2', metal: 'Al+3', ligand: 'OH-', n: 1, logB: 9.0 },
   { id: 'Al(OH)4-', metal: 'Al+3', ligand: 'OH-', n: 4, logB: 33 },
-  { id: 'FeSCN+2', metal: 'Fe+3', ligand: 'SCN-', n: 1, logB: 2.1 }
+  { id: 'FeSCN+2', metal: 'Fe+3', ligand: 'SCN-', n: 1, logB: 2.1 },
+  { id: 'FeOH+2', metal: 'Fe+3', ligand: 'OH-', n: 1, logB: 11.8 },
+  { id: 'PbOH+', metal: 'Pb+2', ligand: 'OH-', n: 1, logB: 6.3 }
 ];
 
 /* -- Salze: wie sie sich lösen (und ausfallen) ------------------------------------------------ */
@@ -327,6 +352,8 @@ export const SALTS: readonly Salt[] = [
   salt('CH3COONa', 'Na+', 1, 'CH3COO-', 1, { sol: 46.4 }),
   salt('K2CrO4', 'K+', 2, 'CrO4-2', 1, { sol: 63.7 }),
   salt('KMnO4', 'K+', 1, 'MnO4-', 1, { sol: 6.4 }),
+  salt('K2Cr2O7', 'K+', 2, 'Cr2O7-2', 1, { sol: 12.3 }),
+  salt('Na2S2O3', 'Na+', 2, 'S2O3-2', 1, { sol: 70 }),
   salt('FeCl3', 'Fe+3', 1, 'Cl-', 3, { sol: 91.8 }),
   salt('Ca(OH)2', 'Ca+2', 1, 'OH-', 2, { sol: 0.173 }),
   salt('CaSO4', 'Ca+2', 1, 'SO4-2', 1, { sol: 0.24 }),
@@ -389,8 +416,9 @@ export const METALS: readonly Metal[] = [
   { id: 'Na', E: -2.71, n: 1, ion: 'Na+', kw: 4.5e-4, ka: 3e-3 },
   { id: 'Mg', E: -2.37, n: 2, ion: 'Mg+2', kw: 4e-10, Ew: 80, ka: 3.5e-5 },
   { id: 'Al', E: -1.66, n: 3, ion: 'Al+3', kw: 0, ka: 5e-6, kb: 6e-6, oxide: 25 },
-  { id: 'Zn', E: -0.76, n: 2, ion: 'Zn+2', kw: 0, ka: 5e-7, kb: 6e-8 },
-  { id: 'Fe', E: -0.44, n: 2, ion: 'Fe+2', kw: 0, ka: 1.2e-7 },
+  { id: 'Zn', E: -0.76, n: 2, ion: 'Zn+2', kw: 0, ka: 1.1e-5, kb: 1e-6 },
+  { id: 'Fe', E: -0.44, n: 2, ion: 'Fe+2', kw: 0, ka: 6e-7 },
+  { id: 'Sn', E: -0.14, n: 2, ion: 'Sn+2', kw: 0, ka: 1.5e-7 },
   { id: 'Pb', E: -0.13, n: 2, ion: 'Pb+2', kw: 0, ka: 2e-8 },
   { id: 'Cu', E: 0.34, n: 2, ion: 'Cu+2', kw: 0, ka: 0 },
   { id: 'Ag', E: 0.8, n: 1, ion: 'Ag+', kw: 0, ka: 0 }
@@ -450,12 +478,35 @@ export interface Fuel {
 export const FUELS: readonly Fuel[] = [
   { id: 'Mg', ignite: 900, xmin: 0.03, k: 1.2e-4, o2: 0.5, make: [['s:MgO', 1]], flame: '#ffffff', light: 1, smoke: '#f4f4f4', eq: '2Mg + O₂ → 2MgO' },
   { id: 'S', ignite: 520, xmin: 0.08, k: 6e-5, o2: 1, make: [['g:SO2', 1]], flame: '#4a6cff', light: 0.25, smoke: null, eq: 'S + O₂ → SO₂' },
-  { id: 'C', ignite: 900, xmin: 0.1, k: 8e-6, o2: 1, make: [['g:CO2', 1]], flame: null, light: 0.35, smoke: null, eq: 'C + O₂ → CO₂' },
+  { id: 'C', ignite: 650, xmin: 0.1, k: 1.2e-5, o2: 1, make: [['g:CO2', 1]], flame: null, light: 0.35, smoke: null, eq: 'C + O₂ → CO₂' },
   { id: 'Fe', ignite: 950, xmin: 0.15, k: 2e-6, o2: 2 / 3, make: [['s:Fe3O4', 1 / 3]], flame: '#ffb040', light: 0.6, smoke: null, fine: true, eq: '3Fe + 2O₂ → Fe₃O₄' },
   { id: 'wax', ignite: 600, xmin: 0.16, k: 4.7e-6, o2: 38, make: [['g:CO2', 25], ['g:H2O(g)', 26]], flame: '#ffb347', light: 0.4, smoke: null, eq: 'C₂₅H₅₂ + 38O₂ → 25CO₂ + 26H₂O' },
-  { id: 'ethanol', ignite: 640, xmin: 0.15, k: 4e-5, o2: 3, make: [['g:CO2', 2], ['g:H2O(g)', 3]], flame: '#6f9cff', light: 0.15, smoke: null, eq: 'C₂H₅OH + 3O₂ → 2CO₂ + 3H₂O' }
+  { id: 'ethanol', ignite: 640, xmin: 0.15, k: 4e-5, o2: 3, make: [['g:CO2', 2], ['g:H2O(g)', 3]], flame: '#6f9cff', light: 0.15, smoke: null, eq: 'C₂H₅OH + 3O₂ → 2CO₂ + 3H₂O' },
+  { id: 'wood', ignite: 700, xmin: 0.12, k: 2.5e-5, o2: 6, make: [['g:CO2', 6], ['g:H2O(g)', 5]], flame: '#ffb347', light: 0.5, smoke: '#5a5a5a', eq: '(C₆H₁₀O₅)ₙ + 6nO₂ → 6nCO₂ + 5nH₂O' }
 ];
 export const fuelOf = (id: string): Fuel | undefined => FUELS.find((f) => f.id === id);
+
+/**
+ * WAS ALS GAS BRENNT (Brenner, Wasserstoff, Etanoldampf): ab der
+ * Zündtemperatur in jeder Zelle, in der Brennstoff und Sauerstoff zusammen
+ * sind — fehlt Sauerstoff, wird der Kohlenstoff zu Russ (die gelbe,
+ * leuchtende Flamme des Brenners mit geschlossener Luft).
+ */
+export interface GasFuel {
+  readonly id: GasId;
+  readonly ignite: number;
+  readonly o2: number;
+  readonly make: readonly (readonly [GasId, number])[];
+  /** Kohlenstoff je mol, der bei Sauerstoffmangel Russ wird. */
+  readonly soot: number;
+  readonly eq: string;
+}
+
+export const GAS_FUELS: readonly GasFuel[] = [
+  { id: 'CH4', ignite: 870, o2: 2, make: [['CO2', 1], ['H2O(g)', 2]], soot: 1, eq: 'CH₄ + 2O₂ → CO₂ + 2H₂O' },
+  { id: 'H2', ignite: 840, o2: 0.5, make: [['H2O(g)', 1]], soot: 0, eq: '2H₂ + O₂ → 2H₂O' },
+  { id: 'EtOH(g)', ignite: 700, o2: 3, make: [['CO2', 2], ['H2O(g)', 3]], soot: 0, eq: 'C₂H₅OH + 3O₂ → 2CO₂ + 3H₂O' }
+];
 
 /* -- Indikatoren ------------------------------------------------------------------------------- */
 
@@ -495,6 +546,8 @@ export interface Reagent {
   readonly group: 'metale' | 'sole' | 'kwasy' | 'zasady' | 'tlenki' | 'inne' | 'wskazniki' | 'gazy';
   /** Warum es gefährlich ist — gezeigt auf dem Etikett. */
   readonly warn?: string;
+  /** Temperatur beim Eingiessen (°C) — sonst Zimmertemperatur. */
+  readonly T?: number;
 }
 
 export const REAGENT_GROUPS: readonly (readonly [Reagent['group'], string])[] = [
@@ -515,6 +568,11 @@ export const REAGENTS: readonly Reagent[] = [
   { id: 'Fe', name: 'żelazo (gwóźdź)', form: 'piece', solid: 'Fe', amounts: [2, 5], group: 'metale' },
   { id: 'Fe-wool', name: 'wata stalowa', form: 'powder', solid: 'Fe', amounts: [0.5, 1], group: 'metale' },
   { id: 'Cu', name: 'miedź (drut)', form: 'ribbon', solid: 'Cu', amounts: [0.5, 1, 2], group: 'metale' },
+  { id: 'Sn', name: 'cyna (granulki)', form: 'granules', solid: 'Sn', amounts: [5, 20, 50], group: 'metale' },
+  { id: 'Pb', name: 'ołów (kawałek)', form: 'piece', solid: 'Pb', amounts: [10, 30, 60], group: 'metale', warn: 'trujący' },
+  { id: 'Field', name: 'stop Fielda (topi się w 62 °C)', form: 'piece', solid: 'Field', amounts: [10, 30], group: 'metale' },
+  { id: 'Al-block', name: 'glin (kawałek)', form: 'piece', solid: 'Al', amounts: [5, 15], group: 'metale' },
+  { id: 'Cu-block', name: 'miedź (kawałek)', form: 'piece', solid: 'Cu', amounts: [10, 30], group: 'metale' },
   /* Säuren */
   { id: 'HCl', name: 'kwas solny 1 mol/dm³', form: 'solution', solute: 'HCl', conc: 1, amounts: [1, 5, 10, 25, 50], group: 'kwasy', warn: 'żrący' },
   { id: 'HCl-dil', name: 'kwas solny 0,1 mol/dm³', form: 'solution', solute: 'HCl', conc: 0.1, amounts: [1, 5, 10, 25, 50], group: 'kwasy' },
@@ -535,6 +593,7 @@ export const REAGENTS: readonly Reagent[] = [
   { id: 'NH4Cl', name: 'chlorek amonu', form: 'crystals', solid: 'NH4Cl', amounts: [1, 2, 5], group: 'sole' },
   { id: 'CaCl2', name: 'chlorek wapnia (bezwodny)', form: 'granules', solid: 'CaCl2', amounts: [2, 5, 10], group: 'sole' },
   { id: 'CuSO4·5H2O', name: 'siarczan(VI) miedzi(II) — niebieski', form: 'crystals', solid: 'CuSO4·5H2O', amounts: [1, 5, 10], group: 'sole' },
+  { id: 'CuSO4·5H2O-powder', name: 'siarczan(VI) miedzi(II) — niebieski, utarty na proszek', form: 'powder', solid: 'CuSO4·5H2O', amounts: [1, 5, 10], group: 'sole' },
   { id: 'CuSO4', name: 'siarczan(VI) miedzi(II) bezwodny — biały', form: 'powder', solid: 'CuSO4', amounts: [0.5, 1, 2], group: 'sole' },
   { id: 'CaCO3', name: 'marmur (kawałki CaCO₃)', form: 'granules', solid: 'CaCO3', amounts: [1, 2, 5], group: 'sole' },
   { id: 'CaCO3-powder', name: 'kreda (proszek CaCO₃)', form: 'powder', solid: 'CaCO3', amounts: [1, 2, 5], group: 'sole' },
@@ -561,6 +620,8 @@ export const REAGENTS: readonly Reagent[] = [
   { id: 'FeSO4', name: 'siarczan(VI) żelaza(II) 0,1 mol/dm³', form: 'solution', solute: 'FeSO4', conc: 0.1, also: [['H2SO4', 0.05]], amounts: [1, 5, 10], group: 'sole' },
   { id: 'FeCl3', name: 'chlorek żelaza(III) 0,1 mol/dm³', form: 'solution', solute: 'FeCl3', conc: 0.1, also: [['HCl', 0.05]], amounts: [1, 5, 10], group: 'sole' },
   { id: 'K2CrO4', name: 'chromian(VI) potasu 0,1 mol/dm³', form: 'solution', solute: 'K2CrO4', conc: 0.1, amounts: [1, 5, 10], group: 'sole', warn: 'trujący' },
+  { id: 'K2Cr2O7', name: 'dichromian(VI) potasu 0,05 mol/dm³', form: 'solution', solute: 'K2Cr2O7', conc: 0.05, amounts: [1, 5, 10], group: 'sole', warn: 'trujący' },
+  { id: 'Na2S2O3', name: 'tiosiarczan sodu 0,15 mol/dm³', form: 'solution', solute: 'Na2S2O3', conc: 0.15, amounts: [5, 10, 25, 50], group: 'sole' },
   { id: 'KMnO4-aq', name: 'manganian(VII) potasu 0,02 mol/dm³', form: 'solution', solute: 'KMnO4', conc: 0.02, amounts: [1, 5, 10], group: 'sole' },
   /* Oxide */
   { id: 'CaO', name: 'tlenek wapnia (wapno palone)', form: 'powder', solid: 'CaO', amounts: [1, 2, 5], group: 'tlenki' },
@@ -585,8 +646,13 @@ export const REAGENTS: readonly Reagent[] = [
   { id: 'C', name: 'węgiel drzewny', form: 'piece', solid: 'C', amounts: [0.5, 1], group: 'inne' },
   { id: 'candle', name: 'świeczka', form: 'candle', solid: 'wax', amounts: [3], group: 'inne' },
   { id: 'ice', name: 'kostki lodu', form: 'piece', solid: 'ice', amounts: [10, 30, 60], group: 'inne' },
+  { id: 'ice-crushed', name: 'lód kruszony', form: 'granules', solid: 'ice', amounts: [20, 60, 100], group: 'inne', T: -5 },
   { id: 'sugar', name: 'cukier', form: 'crystals', solid: 'sugar(s)', amounts: [2, 5, 20], group: 'inne' },
-  { id: 'potato', name: 'plasterek ziemniaka', form: 'piece', solid: 'potato', amounts: [5], group: 'inne' }
+  { id: 'sugar-powder', name: 'cukier puder', form: 'powder', solid: 'sugar(s)', amounts: [2, 5, 20], group: 'inne' },
+  { id: 'potato', name: 'plasterek ziemniaka', form: 'piece', solid: 'potato', amounts: [5], group: 'inne' },
+  { id: 'water-hot', name: 'woda gorąca (80 °C)', form: 'liquid', solute: 'H2O', amounts: [25, 50, 100], group: 'inne', T: 80 },
+  { id: 'water-cold', name: 'woda z lodem (2 °C)', form: 'liquid', solute: 'H2O', amounts: [25, 50, 100], group: 'inne', T: 2 },
+  { id: 'wood', name: 'drewno (łuczywo)', form: 'piece', solid: 'wood', amounts: [1, 3], group: 'inne' }
 ];
 
 export const reagentOf = (id: string): Reagent | undefined => REAGENTS.find((r) => r.id === id);
@@ -621,6 +687,8 @@ export const DISSOLVES: Readonly<Record<string, readonly (readonly [string, numb
   FeSO4: [['Fe+2', 1], ['SO4-2', 1]],
   FeCl3: [['Fe+3', 1], ['Cl-', 3]],
   K2CrO4: [['K+', 2], ['CrO4-2', 1]],
+  K2Cr2O7: [['K+', 2], ['Cr2O7-2', 1]],
+  Na2S2O3: [['Na+', 2], ['S2O3-2', 1]],
   KMnO4: [['K+', 1], ['MnO4-', 1]],
   H2O2: [['H2O2', 1]],
   soap: [['soap', 1]],
@@ -665,6 +733,58 @@ export const VESSELS: Readonly<Record<VesselKind, VesselType>> = {
   burette: { kind: 'burette', name: 'biureta', sizes: [25, 50], profile: [[0, 0.25], [0.05, 1], [1, 1]], aspect: 22, mouth: 0.5 },
   syringe: { kind: 'syringe', name: 'strzykawka gazowa', sizes: [100], profile: [[0, 1], [1, 1]], aspect: 4, mouth: 0 }
 };
+
+/* -- Wärme: wie ein Feststoff Wärme speichert und leitet, wann er schmilzt ---------------------------- */
+
+export interface Thermal {
+  /** J/(g·K) und W/(m·K) des Feststoffs. */
+  readonly c: number;
+  readonly k: number;
+  /** Schmelzpunkt (K), Schmelzwärme (J/g), Dichte und Leitfähigkeit der Schmelze. */
+  readonly Tm?: number;
+  readonly Lf?: number;
+  readonly rhoL?: number;
+  readonly kL?: number;
+  readonly colorL?: string;
+  /** Eis schmilzt zu Wasser (in die Lösung), alles andere zu einer eigenen Schmelze. */
+  readonly toWater?: boolean;
+}
+
+/**
+ * DIE WÄRME DER FESTSTOFFE (Handbuchwerte): Metalle leiten gut und schmelzen
+ * beim Erhitzen (Zinn bei 232 °C, Blei bei 327 °C, Stop Fielda schon in
+ * heissem Wasser), Eis wird Wasser, Paraffin und Schwefel werden flüssig.
+ */
+export const THERMAL: Readonly<Record<string, Thermal>> = {
+  Li: { c: 3.58, k: 85, Tm: 453.7, Lf: 432, rhoL: 0.51, kL: 45 },
+  Na: { c: 1.23, k: 142, Tm: 371, Lf: 113, rhoL: 0.927, kL: 85 },
+  K: { c: 0.757, k: 102, Tm: 336.5, Lf: 59.6, rhoL: 0.828, kL: 55 },
+  Ca: { c: 0.647, k: 201, Tm: 1115, Lf: 213, rhoL: 1.38, kL: 60 },
+  Mg: { c: 1.02, k: 156, Tm: 923, Lf: 368, rhoL: 1.58, kL: 80 },
+  Al: { c: 0.897, k: 237, Tm: 933.5, Lf: 397, rhoL: 2.38, kL: 90 },
+  Zn: { c: 0.388, k: 116, Tm: 692.7, Lf: 112, rhoL: 6.57, kL: 60 },
+  Fe: { c: 0.449, k: 80, Tm: 1811, Lf: 247, rhoL: 6.98, kL: 35 },
+  Sn: { c: 0.227, k: 67, Tm: 505.1, Lf: 59.2, rhoL: 6.99, kL: 30 },
+  Pb: { c: 0.129, k: 35, Tm: 600.6, Lf: 23, rhoL: 10.66, kL: 16 },
+  Cu: { c: 0.385, k: 401, Tm: 1358, Lf: 205, rhoL: 8.02, kL: 160 },
+  Ag: { c: 0.235, k: 429, Tm: 1235, Lf: 105, rhoL: 9.32, kL: 170 },
+  Field: { c: 0.2, k: 19, Tm: 335, Lf: 25, rhoL: 7.6, kL: 15 },
+  ice: { c: 2.1, k: 2.2, Tm: 273.15, Lf: 334, toWater: true },
+  wax: { c: 2.5, k: 0.25, Tm: 330, Lf: 200, rhoL: 0.77, kL: 0.15, colorL: '#f3e9cc' },
+  S: { c: 0.71, k: 0.27, Tm: 388.4, Lf: 54, rhoL: 1.82, kL: 0.15, colorL: '#e0a018' },
+  C: { c: 1.0, k: 0.1 },
+  wood: { c: 1.7, k: 0.15 },
+  potato: { c: 3.4, k: 0.5 },
+  'sugar(s)': { c: 1.24, k: 0.15 },
+  MgO: { c: 0.92, k: 30 },
+  CaCO3: { c: 0.84, k: 2.5 },
+  CaO: { c: 0.75, k: 3 },
+  CuO: { c: 0.53, k: 3 },
+  MnO2: { c: 0.63, k: 1 },
+  Fe3O4: { c: 0.65, k: 3 }
+};
+
+export const thermalOf = (id: string): Thermal => THERMAL[id] ?? { c: 0.85, k: 1.2 };
 
 export const R = 8.314;
 export const P_ATM_KPA = 101.325;

@@ -1,0 +1,320 @@
+{
+ "format": "recreatio/page",
+ "version": 1,
+ "path": "pokaz-wodor",
+ "title": "Metale, kwasy i wodór",
+ "lead": "Które metale wypierają wodór z kwasu — i jak go wykryć?",
+ "mode": "slides",
+ "theme": {
+  "mode": "light",
+  "accent": "#3d7a3a",
+  "ink": "#13212b",
+  "ground": "#f6f8f7",
+  "muted": "#5b6b74"
+ },
+ "cover": [],
+ "deck": {
+  "backdrop": [],
+  "nav": "dots",
+  "titleSlide": false,
+  "width": 100
+ },
+ "modules": [
+  {
+   "id": "start",
+   "kind": "hero",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 3
+   },
+   "slide": {
+    "label": "Start",
+    "layers": []
+   },
+   "config": {
+    "badge": "Pokaz · chemia",
+    "badgeLook": "kicker",
+    "size": "title",
+    "headline": "Metale, kwasy i wodór",
+    "lede": "Które metale wypierają wodór z kwasu — i jak go wykryć?",
+    "paragraphs": [
+     "Niektóre metale roztwarzają się w kwasie solnym i wydziela się gaz. Inne leżą w kwasie i nic się nie dzieje.",
+     "Na kolejnych slajdach porównasz metale, a na końcu wykryjesz wodór płonącym łuczywem."
+    ],
+    "actions": [],
+    "footnote": null
+   }
+  },
+  {
+   "id": "cynk",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "1. Cynk w kwasie",
+    "layers": []
+   },
+   "config": {
+    "title": "Cynk w kwasie",
+    "text": [
+     "W probówce jest 12 cm³ kwasu solnego.",
+     "Wrzuć do niej granulki cynku (z półki albo „Pokaż”)."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "reakcja",
+       "kind": "tube",
+       "size": 25,
+       "x": 0,
+       "label": "HCl",
+       "fill": [
+        {
+         "reagent": "HCl",
+         "amount": 12
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "Zn"
+     ],
+     "tools": [],
+     "steps": [
+      {
+       "say": "Wrzuć do kwasu granulki cynku.",
+       "do": {
+        "add": "Zn",
+        "to": "reakcja",
+        "amount": 2
+       },
+       "wait": 10,
+       "ask": {
+        "q": "Co zobaczysz?",
+        "options": [
+         "pęcherzyki gazu",
+         "biały osad",
+         "niebieski roztwór"
+        ],
+        "answer": "pęcherzyki gazu",
+        "why": "Zn + 2HCl → ZnCl₂ + H₂↑ — cynk wypiera wodór z kwasu."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "szereg",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "2. Szereg aktywności",
+    "layers": []
+   },
+   "config": {
+    "title": "Szereg aktywności",
+    "text": [
+     "W czterech probówkach jest kwas solny.",
+     "Włóż do nich magnez, cynk, żelazo i miedź — gdzie gaz wydziela się najszybciej, a gdzie wcale?"
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "mg",
+       "kind": "tube",
+       "size": 25,
+       "x": -9,
+       "label": "Mg",
+       "fill": [
+        {
+         "reagent": "HCl",
+         "amount": 10
+        }
+       ]
+      },
+      {
+       "id": "zn",
+       "kind": "tube",
+       "size": 25,
+       "x": -3,
+       "label": "Zn",
+       "fill": [
+        {
+         "reagent": "HCl",
+         "amount": 10
+        }
+       ]
+      },
+      {
+       "id": "fe",
+       "kind": "tube",
+       "size": 25,
+       "x": 3,
+       "label": "Fe",
+       "fill": [
+        {
+         "reagent": "HCl",
+         "amount": 10
+        }
+       ]
+      },
+      {
+       "id": "cu",
+       "kind": "tube",
+       "size": 25,
+       "x": 9,
+       "label": "Cu",
+       "fill": [
+        {
+         "reagent": "HCl",
+         "amount": 10
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "Mg",
+      "Zn",
+      "Fe",
+      "Cu"
+     ],
+     "tools": [],
+     "steps": [
+      {
+       "say": "Włóż do probówek magnez, cynk, żelazo i miedź.",
+       "do": [
+        {
+         "add": "Mg",
+         "to": "mg",
+         "amount": 0.1
+        },
+        {
+         "add": "Zn",
+         "to": "zn",
+         "amount": 1
+        },
+        {
+         "add": "Fe",
+         "to": "fe",
+         "amount": 2
+        },
+        {
+         "add": "Cu",
+         "to": "cu",
+         "amount": 1
+        }
+       ],
+       "wait": 15,
+       "ask": {
+        "q": "W której probówce gaz nie będzie się wydzielał?",
+        "options": [
+         "z magnezem",
+         "z cynkiem",
+         "z miedzią"
+        ],
+        "answer": "z miedzią",
+        "why": "Miedź stoi w szeregu aktywności za wodorem — nie wypiera go z kwasu."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "pyk",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "3. Próba łuczywa",
+    "layers": []
+   },
+   "config": {
+    "title": "Próba łuczywa",
+    "text": [
+     "Cynk reaguje z kwasem już od kilkunastu sekund — u wylotu probówki wodór miesza się z powietrzem.",
+     "Zbliż płonące łuczywo do wylotu probówki (narzędzie „łuczywo” albo „Pokaż”)."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "reakcja",
+       "kind": "tube",
+       "size": 25,
+       "x": 0,
+       "label": "Zn + HCl",
+       "fill": [
+        {
+         "reagent": "HCl",
+         "amount": 12
+        }
+       ]
+      }
+     ],
+     "before": [
+      {
+       "add": "Zn",
+       "to": "reakcja",
+       "amount": 2
+      }
+     ],
+     "warm": 12,
+     "shelf": [
+      "Zn",
+      "HCl"
+     ],
+     "tools": [
+      "splint"
+     ],
+     "steps": [
+      {
+       "say": "Zbliż płonące łuczywo do wylotu probówki.",
+       "do": {
+        "use": "splint",
+        "at": "reakcja"
+       },
+       "wait": 4,
+       "ask": {
+        "q": "Co usłyszymy?",
+        "options": [
+         "nic",
+         "charakterystyczny trzask („pyk”)",
+         "syk gaszonego płomienia"
+        ],
+        "answer": "charakterystyczny trzask („pyk”)",
+        "why": "Wodór zmieszany z powietrzem spala się gwałtownie: 2H₂ + O₂ → 2H₂O."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "wyjasnienie",
+   "kind": "text",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 4
+   },
+   "config": {
+    "title": "Co się wydarzyło?",
+    "body": "Magnez, cynk i żelazo wypierają wodór z kwasu solnego: Mg + 2HCl → MgCl₂ + H₂↑. Magnez robi to najgwałtowniej, żelazo najwolniej. Miedź nie reaguje.\nO tym decyduje szereg aktywności metali: K, Na, Ca, Mg, Al, Zn, Fe, Pb, (H), Cu, Ag, Au. Metale przed wodorem wypierają go z kwasów, metale za nim — nie.\nWodór zmieszany z powietrzem spala się z trzaskiem: 2H₂ + O₂ → 2H₂O. To próba na wodór.\n## Zapamiętaj\nmetal aktywny + kwas → sól + wodór↑\n## Spróbuj sam\nW piaskownicy wrzuć cynk do zasady sodowej — też wydziela się wodór (cynk jest amfoteryczny). A miedź? Włóż ją do roztworu azotanu srebra."
+   },
+   "slide": {
+    "label": "Wyjaśnienie",
+    "layers": []
+   }
+  }
+ ]
+}

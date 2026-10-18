@@ -1,0 +1,339 @@
+{
+ "format": "recreatio/page",
+ "version": 1,
+ "path": "pokaz-rownowaga",
+ "title": "Reakcje odwracalne i równowaga",
+ "lead": "Czy reakcja zawsze idzie do końca? Czasem substraty i produkty zostają razem — w równowadze.",
+ "mode": "slides",
+ "theme": {
+  "mode": "light",
+  "accent": "#c27c0e",
+  "ink": "#13212b",
+  "ground": "#f6f8f7",
+  "muted": "#5b6b74"
+ },
+ "cover": [],
+ "deck": {
+  "backdrop": [],
+  "nav": "dots",
+  "titleSlide": false,
+  "width": 100
+ },
+ "modules": [
+  {
+   "id": "start",
+   "kind": "hero",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 3
+   },
+   "slide": {
+    "label": "Start",
+    "layers": []
+   },
+   "config": {
+    "badge": "Pokaz · chemia",
+    "badgeLook": "kicker",
+    "size": "title",
+    "headline": "Reakcje odwracalne i równowaga",
+    "lede": "Czy reakcja zawsze idzie do końca? Czasem substraty i produkty zostają razem — w równowadze.",
+    "paragraphs": [
+     "Wiele reakcji biegnie w obie strony. Gdy szybkość reakcji w prawo zrówna się z szybkością reakcji w lewo, skład mieszaniny przestaje się zmieniać — to równowaga chemiczna. Zmiana warunków (stężenia, temperatury) przesuwa ją w jedną stronę: to reguła przekory Le Chateliera.",
+     "Zobaczysz to na dwóch przykładach: żółty chromian i pomarańczowy dichromian w roztworze oraz brunatny NO₂ i bezbarwny N₂O₄ w zamkniętych probówkach."
+    ],
+    "actions": [],
+    "footnote": null
+   }
+  },
+  {
+   "id": "kwas",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "1. Chromian w kwasie",
+    "layers": []
+   },
+   "config": {
+    "title": "Chromian w kwasie",
+    "text": [
+     "W probówce jest żółty roztwór chromianu(VI) potasu.",
+     "Dodaj kwasu siarkowego(VI) i zamieszaj (albo „Pokaż”)."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "probowka",
+       "kind": "tube",
+       "size": 25,
+       "x": 0,
+       "label": "K₂CrO₄",
+       "fill": [
+        {
+         "reagent": "K2CrO4",
+         "amount": 8
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "H2SO4",
+      "NaOH-aq",
+      "K2CrO4"
+     ],
+     "tools": [
+      "stir",
+      "paper"
+     ],
+     "steps": [
+      {
+       "say": "Dodaj kwas siarkowy(VI) i zamieszaj.",
+       "do": [
+        {
+         "add": "H2SO4",
+         "to": "probowka",
+         "amount": 2
+        },
+        {
+         "use": "stir",
+         "at": "probowka"
+        }
+       ],
+       "wait": 6,
+       "ask": {
+        "q": "Jaki kolor przybierze roztwór?",
+        "options": [
+         "pomarańczowy",
+         "niebieski",
+         "zostanie żółty"
+        ],
+        "answer": "pomarańczowy",
+        "why": "W kwasie jony chromianowe łączą się w dichromianowe: 2CrO₄²⁻ + 2H⁺ ⇄ Cr₂O₇²⁻ + H₂O."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "zasada",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "2. I z powrotem",
+    "layers": []
+   },
+   "config": {
+    "title": "I z powrotem",
+    "text": [
+     "Teraz w probówce jest pomarańczowy roztwór dichromianu(VI) potasu.",
+     "Dodaj zasady sodowej i zamieszaj (albo „Pokaż”). Czy wróci żółty chromian?"
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "probowka",
+       "kind": "tube",
+       "size": 25,
+       "x": 0,
+       "label": "K₂Cr₂O₇",
+       "fill": [
+        {
+         "reagent": "K2Cr2O7",
+         "amount": 8
+        }
+       ]
+      }
+     ],
+     "shelf": [
+      "NaOH-aq",
+      "H2SO4",
+      "K2Cr2O7"
+     ],
+     "tools": [
+      "stir",
+      "paper"
+     ],
+     "steps": [
+      {
+       "say": "Dodaj zasadę sodową i zamieszaj.",
+       "do": [
+        {
+         "add": "NaOH-aq",
+         "to": "probowka",
+         "amount": 4
+        },
+        {
+         "use": "stir",
+         "at": "probowka"
+        }
+       ],
+       "wait": 6,
+       "ask": {
+        "q": "Co się stanie?",
+        "options": [
+         "roztwór znów zżółknie",
+         "wytrąci się osad",
+         "nic"
+        ],
+        "answer": "roztwór znów zżółknie",
+        "why": "Zasada zabiera jony H⁺ — równowaga przesuwa się w lewo: Cr₂O₇²⁻ + 2OH⁻ → 2CrO₄²⁻ + H₂O."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "no2",
+   "kind": "chemistry",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 5
+   },
+   "slide": {
+    "label": "3. NO₂ i N₂O₄",
+    "layers": []
+   },
+   "config": {
+    "title": "NO₂ i N₂O₄",
+    "text": [
+     "W trzech zamkniętych probówkach jest ta sama mieszanina: brunatny tlenek azotu(IV) NO₂ i bezbarwny N₂O₄ z powietrzem. Probówki stoją w wodzie z lodem, w wodzie o temperaturze pokojowej i w gorącej wodzie.",
+     "Obserwuj barwę gazu (albo „Pokaż”). Czas płynie pięć razy szybciej."
+    ],
+    "mode": "experiment",
+    "scene": {
+     "things": [
+      {
+       "id": "lod",
+       "kind": "beaker",
+       "size": 600,
+       "x": -11,
+       "label": "woda z lodem",
+       "fill": [
+        {
+         "reagent": "water-cold",
+         "amount": 380
+        },
+        {
+         "reagent": "ice-crushed",
+         "amount": 100
+        }
+       ]
+      },
+      {
+       "id": "p1",
+       "kind": "tube",
+       "size": 10,
+       "into": "lod",
+       "gas": {
+        "NO2": 0.4,
+        "N2": 0.48,
+        "O2": 0.12
+       },
+       "closed": true
+      },
+      {
+       "id": "woda",
+       "kind": "beaker",
+       "size": 600,
+       "x": 0,
+       "label": "woda 20 °C",
+       "fill": [
+        {
+         "reagent": "water",
+         "amount": 480
+        }
+       ]
+      },
+      {
+       "id": "p2",
+       "kind": "tube",
+       "size": 10,
+       "into": "woda",
+       "gas": {
+        "NO2": 0.4,
+        "N2": 0.48,
+        "O2": 0.12
+       },
+       "closed": true
+      },
+      {
+       "id": "goraca",
+       "kind": "beaker",
+       "size": 600,
+       "x": 11,
+       "label": "woda 80 °C",
+       "fill": [
+        {
+         "reagent": "water-hot",
+         "amount": 480
+        }
+       ]
+      },
+      {
+       "id": "p3",
+       "kind": "tube",
+       "size": 10,
+       "into": "goraca",
+       "gas": {
+        "NO2": 0.4,
+        "N2": 0.48,
+        "O2": 0.12
+       },
+       "closed": true
+      }
+     ],
+     "shelf": [],
+     "tools": [
+      "probe",
+      "thermometer"
+     ],
+     "speed": 5,
+     "steps": [
+      {
+       "say": "Obserwuj barwę gazu w probówkach.",
+       "do": {
+        "speed": 5
+       },
+       "wait": 60,
+       "ask": {
+        "q": "W której probówce gaz będzie najciemniejszy?",
+        "options": [
+         "w wodzie z lodem",
+         "w temperaturze pokojowej",
+         "w gorącej wodzie"
+        ],
+        "answer": "w gorącej wodzie",
+        "why": "N₂O₄ ⇄ 2NO₂ pochłania ciepło (ΔH = +57 kJ/mol). Ogrzanie przesuwa równowagę w stronę brunatnego NO₂, oziębienie — w stronę bezbarwnego N₂O₄."
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "wyjasnienie",
+   "kind": "text",
+   "size": {
+    "colSpan": 6,
+    "rowSpan": 4
+   },
+   "config": {
+    "title": "Co się wydarzyło?",
+    "body": "Chromiany: w roztworze ustala się równowaga 2CrO₄²⁻ + 2H⁺ ⇄ Cr₂O₇²⁻ + H₂O. Kwas (więcej H⁺) przesuwa ją w prawo — roztwór robi się pomarańczowy. Zasada zabiera H⁺ i przesuwa ją z powrotem — roztwór znów jest żółty. Reakcja jest odwracalna.\nNO₂ i N₂O₄: w każdej probówce są obie substancje naraz, w stosunku zależnym od temperatury. Rozpad N₂O₄ na 2NO₂ pochłania ciepło, więc ogrzanie przesuwa równowagę w stronę NO₂ (ciemniej), a oziębienie — w stronę N₂O₄ (jaśniej). W gorącej probówce rośnie też ciśnienie: z jednej cząsteczki N₂O₄ powstają dwie cząsteczki NO₂.\nW równowadze reakcja się nie zatrzymuje: w każdej chwili tyle samo N₂O₄ się rozpada, ile powstaje. Silnik liczy obie reakcje z ich szybkościami — i stałą równowagi K, która zmienia się z temperaturą (równanie van ’t Hoffa).\n## Zapamiętaj\nReguła przekory: układ w równowadze reaguje na zmianę warunków tak, by ją osłabić — zużywa dodany substrat, a ogrzany przesuwa się w stronę reakcji, która pochłania ciepło.\n## Spróbuj sam\nPrzestaw probówkę z gorącej wody do wody z lodem — barwa zblednie. Reakcja biegnie z powrotem."
+   },
+   "slide": {
+    "label": "Wyjaśnienie",
+    "layers": []
+   }
+  }
+ ]
+}

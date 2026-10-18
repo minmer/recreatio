@@ -1,32 +1,35 @@
 /**
- * 2026-10-18 — DAS LABORATORIUM CHEMICZNE, gezeichnet und bedient: der Tisch
- * (Leinwand, Kamera, Gesten), die Zeit (Pauza, Od nowa, Tempo), das Regal
- * (nehmen, Menge wählen, auf ein Gefäss tippen), die Werkzeuge, Glas
- * verschieben und — über ein anderes gezogen — ausgiessen, auf den Dreifuss
- * stellen, die Schritte eines Versuchs mit „Pokaż” (auch eine Frage vorab),
- * Protokoll, Schreiber, Lupe, Piaskownica mit Speichern und JSON.
+ * 2026-10-18 — DAS LABORATORIUM CHEMICZNE, gezeichnet und bedient: die
+ * Piaskownica (`chemWorld.ts`) auf einer Leinwand — Dinge ziehen (ein Glas
+ * nimmt seinen Inhalt mit), über die Öffnung eines anderen halten (es neigt
+ * sich, der Inhalt fliesst wirklich hinüber), Reagenzien aus dem Regal,
+ * Werkzeuge in der Hand (Streichholz, Span, Draht, Glasstab, Stopfen,
+ * Papier, Thermometer, Sonde), neue Dinge auf den Tisch (Piaskownica), die
+ * Wärmeansicht, die Schritte eines Versuchs mit „Pokaż”, Protokoll,
+ * Schreiber, Lupe, Speichern und JSON.
  *
- * <b>Der Motor ist Code, der Versuch ist ein Dokument</b> (`chemScene.ts`).
- * Die Zeit läuft von selbst (Chemie wartet nicht); Pauza hält sie an.
+ * <b>Der Motor ist Code, der Versuch ist ein Dokument</b> (`chemSetup.ts`):
+ * was wo steht. Die Zeit läuft von selbst (Chemie wartet nicht); Pauza hält sie an.
  */
 
 import { useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import { LabFrame, LabFull, LabSection, LabTool, labNum } from '../LabFrame';
 import { Recorder, drawRecorder, type Series } from '../labGraph';
-import { num } from '../labRandom';
+import { seeded } from '../labRandom';
 import { Camera, Loop, attachGestures, fitCanvas } from '../labView';
-import { reagentOf, type VesselKind } from './chemData';
-import { drawLab } from './chemDraw';
-import { burnerAt, vesselAt } from './chemGeom';
-import { readChemPalette, type ChemPalette } from './chemKit';
-import { Effects } from './chemFx';
-import { SEAT, type Lab, type ToolKey } from './chemBench';
-import { Micro } from './chemMicro';
-import { BurnerPanel, Equipment, HandBar, Inspector, Log, Shelf, StepsPanel, Tools, type Hand } from './chemPanel';
+import { reagentOf } from './chemData';
+import { CELL } from './chemGrid';
+import { Micro, sampleOf, type Sample } from './chemMicro';
+import { Equipment, HandBar, Inspector, Log, Shelf, StepsPanel, Tools, type Hand } from './chemPanel';
 import { CHEM_PRESETS, SANDBOX_CHEM } from './chemPresets';
-import { TOOLS, answerIndex, boundsOf, buildLab, drawChem, readChemScene, reagentIn, sceneOfLab, shelfOf, type Action, type GraphOf } from './chemScene';
-import { Vessel } from './chemVessel';
+import {
+  TOOLS, answerIndex, buildWorld, drawChem, perform, quantity, readChemScene, sceneOfWorld, shelfOf, useTool,
+  type Action, type GraphOf, type ToolKey
+} from './chemSetup';
+import { THING_NAME, inside, mouthOf, wickOf, type Thing } from './chemThings';
+import { Field, drawWorld, readChemPalette, type ChemPalette } from './chemView';
+import type { Summary, World } from './chemWorld';
 
 export interface ChemConfig {
   readonly title: string;
@@ -35,22 +38,27 @@ export interface ChemConfig {
   readonly scene: unknown;
 }
 
-const SPEEDS = [1, 2, 5, 10, 25] as const;
+/** Tempo: bis 300× — der Zeitraffer für Lösen, Diffusion und Abkühlen (fünf Minuten in einer Sekunde). */
+const SPEEDS = [1, 2, 5, 10, 20, 60, 300] as const;
 const COLORS = ['#c0392b', '#2f6fae', '#2f8a4c', '#8a5ad0', '#e67e22', '#7a5a2e'];
-const UNITS: Record<GraphOf, string> = { T: '°C', pH: '', p: 'kPa', gas: 'cm³' };
-const storeKey = (title: string) => `lab-chem:${title.slice(0, 60)}`;
+const UNITS: Record<GraphOf, string> = { T: '°C', pH: '', p: 'kPa' };
+const QLABEL: Record<GraphOf, string> = { T: 'T', pH: 'pH', p: 'p' };
+const storeKey = (title: string) => `lab-chem2:${title.slice(0, 60)}`;
+const TILT = 1.9;
 
-/** Ein Wert eines Gefässes für den Schreiber. */
-function quantity(v: Vessel, q: GraphOf, lab: Lab): number {
-  switch (q) {
-    case 'T': return v.T - 273.15;
-    case 'pH': return v.wet() ? v.spec.pH : Number.NaN;
-    case 'p': return v.pressure(lab.room.p);
-    case 'gas': return v.kind === 'syringe' ? (v.syringeMl < 0.6 ? 0 : v.syringeMl) : v.gasMl();
-  }
+/** Giessen aus einem Schritt: hinfahren, neigen, warten, bis genug hinüber ist, zurück. */
+interface PourAnim { from: Thing; to: Thing; ml: number; start: number; t: number; phase: 0 | 1 | 2 | 3 | 4; hx: number; hy: number; side: number }
+
+/** Ein Glas, das gerade über einem anderen gehalten wird (es neigt sich weich). */
+interface Hold { t: Thing; target: Thing | null; side: number; hx: number; hy: number; poured: boolean }
+
+/** Wo ein Glas stehen muss, um in ein anderes zu giessen (aufrecht, Rand neben der Öffnung des Ziels). */
+function pourPose(from: Thing, to: Thing, side: number): [number, number] {
+  const fw = from.prof?.width ?? 2;
+  const tw = to.prof?.width ?? 2;
+  const top = to.y + (to.prof?.top ?? 0);
+  return [to.x - side * (tw / 2 + fw / 2 - 0.6), top + 1.2];
 }
-
-interface PourAnim { from: Vessel; to: Vessel; ml: number; t: number; phase: 0 | 1 | 2 | 3; hx: number; hy: number; left: number }
 
 export function ChemLab({ config, whole = false, seed = null }: { config: ChemConfig; whole?: boolean; seed?: string | null }) {
   const sandbox = config.mode === 'sandbox';
@@ -61,11 +69,12 @@ export function ChemLab({ config, whole = false, seed = null }: { config: ChemCo
   const [drawKey, setDrawKey] = useState(0);
   const drawn = useMemo(() => drawChem(scene, seed === null ? null : `${seed}:${drawKey}`), [scene, drawKey, seed]);
   const [resetKey, setResetKey] = useState(0);
-  const lab = useMemo(() => buildLab(scene, drawn), [scene, drawn, resetKey]);
+  const world = useMemo(() => buildWorld(scene, drawn, seed === null ? Math.random : seeded(`${seed}:${resetKey}`)), [scene, drawn, resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [, bump] = useReducer((n: number) => n + 1, 0);
   const [running, setRunning] = useState(true);
   const [speed, setSpeed] = useState(scene.speed);
+  const [heat, setHeat] = useState(scene.show.heat);
   const [hand, setHand] = useState<Hand>(null);
   const [pick, setPick] = useState<string | null>(null);
   const [stepAt, setStepAt] = useState(0);
@@ -73,10 +82,11 @@ export function ChemLab({ config, whole = false, seed = null }: { config: ChemCo
   const [picked, setPicked] = useState<Record<number, number>>({});
   const [json, setJson] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
+  const [view, setView] = useState<{ sum: Summary | null; sample: Sample | null }>({ sum: null, sample: null });
   const full = useContext(LabFull);
 
-  useEffect(() => { setHand(null); setPick(null); setJson(null); }, [scene]);
-  useEffect(() => { setStepAt(0); setShowing(false); setPicked({}); setSpeed(scene.speed); setRunning(true); }, [lab]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setHand(null); setPick(null); setJson(null); setHeat(scene.show.heat); }, [scene]);
+  useEffect(() => { setStepAt(0); setShowing(false); setPicked({}); setSpeed(scene.speed); setRunning(true); }, [world]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stage = useRef<HTMLDivElement | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
@@ -85,26 +95,25 @@ export function ChemLab({ config, whole = false, seed = null }: { config: ChemCo
   const microCanvas = useRef<HTMLCanvasElement | null>(null);
   const camRef = useRef<{ doc: unknown; cam: Camera } | null>(null);
   const loopRef = useRef<Loop | null>(null);
-  const fx = useMemo(() => new Effects(typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches ? 320 : 700), []);
   const micro = useMemo(() => new Micro(), []);
+  const field = useMemo(() => (typeof document === 'undefined' ? null : new Field(world.g)), [world]);
   const anim = useRef<PourAnim | null>(null);
   const readouts = useRef<HTMLElement[]>([]);
-  const live = useRef({ running, speed, hand, pick, full, pointer: null as null | { x: number; y: number }, probe: null as null | { x: number; y: number }, linkFrom: null as string | null, target: null as string | null });
-  live.current = { ...live.current, running, speed, hand, pick, full };
+  const live = useRef({ running, speed, hand, pick, full, heat, probe: null as null | { x: number; y: number }, target: null as string | null, sample: null as Sample | null });
+  live.current = { ...live.current, running, speed, hand, pick, full, heat, sample: view.sample };
 
-  const selected = pick === null ? null : lab.vessel(pick) ?? null;
-  const selBurner = pick === null ? null : lab.burners.find((b) => b.id === pick) ?? null;
-  const graph = scene.graph ?? (selected === null ? null : { vessels: [selected.id], of: (selected.kind === 'syringe' ? ['gas'] : selected.wet() ? ['T', 'pH'] : ['T']) as GraphOf[] });
-  const graphKey = graph === null ? '' : `${graph.vessels.join()}|${graph.of.join()}`;
+  const selected = pick === null ? null : world.thing(pick) ?? null;
+  const graph = scene.graph ?? (selected === null ? null : selected.kind === 'thermometer' ? { things: [selected.id], of: ['T'] as GraphOf[] } : selected.prof !== null ? { things: [selected.id], of: ['T', 'pH'] as GraphOf[] } : null);
+  const graphKey = graph === null ? '' : `${graph.things.join()}|${graph.of.join()}`;
   const recorder = useMemo(() => {
     if (graph === null) return null;
     const series: Series[] = [];
-    graph.vessels.forEach((id) => graph.of.forEach((q) => {
-      const v = lab.vessel(id);
-      series.push({ label: `${q}${graph.vessels.length > 1 ? ` ${v?.label ?? id}` : ''}`, unit: UNITS[q], color: COLORS[series.length % COLORS.length] });
+    graph.things.forEach((id) => graph.of.forEach((q) => {
+      const t = world.thing(id);
+      series.push({ label: `${QLABEL[q]}${graph.things.length > 1 ? ` ${t?.label || id}` : ''}`, unit: UNITS[q], color: COLORS[series.length % COLORS.length] });
     }));
     return new Recorder(series, 1800);
-  }, [graphKey, lab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [graphKey, world]); // eslint-disable-line react-hooks/exhaustive-deps
   /* Der Schreiber wechselt mit der Wahl — die Bühne liest ihn aus einem Ref (sie neu zu bauen, risse eine Geste mitten durch). */
   const graphRef = useRef<{ graph: typeof graph; recorder: Recorder | null }>({ graph, recorder });
   graphRef.current = { graph, recorder };
@@ -115,10 +124,10 @@ export function ChemLab({ config, whole = false, seed = null }: { config: ChemCo
   useEffect(() => {
     const el = canvas.current;
     const box = stage.current;
-    if (el === null || box === null) return undefined;
+    if (el === null || box === null || field === null) return undefined;
     const ctx = el.getContext('2d');
     if (ctx === null) return undefined;
-    const fit = (cam: Camera) => { const v = scene.view ?? boundsOf(lab); cam.fit(v[0], v[1], v[2], v[3], 12); };
+    const fit = (cam: Camera) => { const v = scene.view ?? world.bounds(); cam.fit(v[0], v[1], v[2], v[3], 12); };
     if (camRef.current === null || camRef.current.doc !== doc) {
       const cam = new Camera();
       cam.min = 2;
@@ -133,100 +142,104 @@ export function ChemLab({ config, whole = false, seed = null }: { config: ChemCo
     let dpr = fitCanvas(el, cam.w, cam.h);
     let clock = 0;
     let uiClock = 0;
-    let dragging = false;
+    let drag: { t: Thing; off: [number, number]; x0: number; y0: number; moved: boolean } | null = null;
+    let hold: Hold | null = null;
+    let probing = false;
 
     const draw = () => {
       const s = live.current;
-      drawLab(ctx, {
-        lab, cam, dpr, pal, fx, time: clock, pick: s.pick, target: s.target, values: scene.show.values, linkFrom: s.linkFrom,
-        pointer: s.pointer, holding: s.hand?.kind === 'tool' && (s.hand.tool === 'spoon' || s.hand.tool === 'loop') ? s.hand.tool : null, probe: s.probe
-      });
-      writeReadouts(lab, s.pick, readouts.current);
+      drawWorld(ctx, { world, cam, dpr, pal, time: clock, pick: s.pick, target: s.target, heat: s.heat, values: scene.show.values, probe: s.probe }, field);
+      writeReadouts(world, s.pick, readouts.current);
       const gc = graphCanvas.current;
-      const recorder = graphRef.current.recorder;
-      if (gc !== null && recorder !== null) {
+      const rec = graphRef.current.recorder;
+      if (gc !== null && rec !== null) {
         const r = gc.getBoundingClientRect();
         const gd = fitCanvas(gc, r.width, r.height);
         const g2 = gc.getContext('2d');
-        if (g2 !== null) { g2.setTransform(gd, 0, 0, gd, 0, 0); drawRecorder(g2, recorder, r.width, r.height, pal.ink, pal.muted, `600 11px ${pal.font}`); }
+        if (g2 !== null) { g2.setTransform(gd, 0, 0, gd, 0, 0); drawRecorder(g2, rec, r.width, r.height, pal.ink, pal.muted, `600 11px ${pal.font}`); }
       }
       const mc = microCanvas.current;
-      const sel = s.pick === null ? undefined : lab.vessel(s.pick);
-      if (mc !== null && sel !== undefined) {
+      if (mc !== null && s.sample !== null) {
         const r = mc.getBoundingClientRect();
         const md = fitCanvas(mc, r.width, r.height);
         const m2 = mc.getContext('2d');
-        if (m2 !== null) { m2.setTransform(md, 0, 0, md, 0, 0); micro.draw(m2, r.width, r.height, sel, pal.dark); }
+        if (m2 !== null) { m2.setTransform(md, 0, 0, md, 0, 0); micro.draw(m2, r.width, r.height, s.sample, pal.dark); }
       }
     };
 
     const tick = (dt: number): boolean | number => {
       const s = live.current;
       clock += dt;
-      const moving = stepAnim(dt) || easeTilt(dt);
+      const moving = stepAnim(dt) || stepHold();
       let act = 0;
       if (s.running) {
-        act = lab.frame(dt, s.speed);
-        fx.emit(lab, dt, s.speed);
-        const { recorder, graph } = graphRef.current;
-        if (recorder !== null && graph !== null) {
+        act = world.frame(dt, s.speed);
+        const { recorder: rec, graph: gr } = graphRef.current;
+        if (rec !== null && gr !== null) {
           const values: number[] = [];
-          for (const id of graph.vessels) for (const q of graph.of) { const v = lab.vessel(id); values.push(v === undefined ? Number.NaN : quantity(v, q, lab)); }
-          recorder.add(lab.time, values);
+          for (const id of gr.things) for (const q of gr.of) values.push(quantity(world, id, q));
+          rec.add(world.time, values);
         }
       }
-      fx.update(lab, dt);
-      const sel = s.pick === null ? undefined : lab.vessel(s.pick);
-      if (sel !== undefined && microCanvas.current !== null) micro.sync(sel, dt);
+      if (microCanvas.current !== null && s.sample !== null && s.pick !== null) micro.sync(s.pick, s.sample, dt);
       uiClock += dt;
-      if (uiClock > 0.35) { uiClock = 0; bump(); }
-      if (act === 2 || fx.busy || dragging || moving || anim.current !== null || (microCanvas.current !== null && sel !== undefined)) return true;
-      if (act === 1 && s.running) return 160;
+      if (uiClock > 0.35) {
+        uiClock = 0;
+        const t = s.pick === null ? undefined : world.thing(s.pick);
+        if (t !== undefined && t.prof !== null) { const sum = world.summary(t, true); setView({ sum, sample: sampleOf(sum) }); } else setView((v) => (v.sum === null ? v : { sum: null, sample: null }));
+        bump();
+      }
+      if (act === 2 || drag !== null || moving || anim.current !== null || probing) return true;
+      if (act === 1 && s.running) return 120;
       return false;
     };
 
-    /* Die Neigung beim Ausgiessen folgt dem Ziel weich; gegossen wird, sobald das Glas schräg genug ist (auch wenn der Finger still hält). */
-    const tilt = new Map<Vessel, number>();
-    let pourTo: Vessel | null = null;
-    const easeTilt = (dt: number): boolean => {
-      let busy = false;
-      if (held !== null && anim.current === null) {
-        lab.pouring = pourTo !== null && Math.abs(held.angle) > 1.1 ? { from: held.id, to: pourTo.id, rate: held.kind === 'tube' ? 4 : 12 } : null;
-      }
-      for (const v of lab.vessels) {
-        const want = tilt.get(v) ?? 0;
-        if (Math.abs(v.angle - want) < 1e-3) { v.angle = want; continue; }
-        v.angle += (want - v.angle) * Math.min(1, dt * 9);
-        busy = true;
-      }
-      return busy;
+    /* Ein gehaltenes Glas über einer Öffnung neigt sich (und giesst); weg davon richtet es sich auf. */
+    const stepHold = (): boolean => {
+      const h = hold;
+      if (h === null) return false;
+      const want = h.target === null ? 0 : -h.side * TILT;
+      const now = h.t.angle;
+      if (Math.abs(want - now) < 1e-3) return h.target !== null;
+      const next = now + Math.sign(want - now) * Math.min(Math.abs(want - now), 0.12);
+      if (world.tilt(h.t, next)) h.poured = h.poured || h.target !== null;
+      return true;
     };
 
-    /* „Pokaż” giesst: hinfahren, neigen, giessen, zurück. */
+    /* „Pokaż” giesst: hinfahren, neigen, giessen, aufrichten, zurück. */
     const stepAnim = (dt: number): boolean => {
       const a = anim.current;
       if (a === null) return false;
       a.t += dt;
-      const side = a.to.x >= a.hx ? 1 : -1;
-      const tx = a.to.x - side * (a.from.shape.R + 0.6);
-      const ty = a.to.y + a.to.shape.H + 1.2;
-      const ease = (k: number) => k * k * (3 - 2 * k);
+      const [tx, ty] = pourPose(a.from, a.to, a.side);
+      /* Erst hoch (über alle Ränder), dann hinüber — und zurück erst hinüber, dann hinunter. */
+      const go = (x: number, y: number, upFirst: boolean) => {
+        const dy = y - a.from.y;
+        const dx = x - a.from.x;
+        if (upFirst ? Math.abs(dy) > CELL * 0.5 : Math.abs(dx) < CELL * 0.5) world.move(a.from, a.from.x, a.from.y + Math.sign(dy) * Math.min(Math.abs(dy), 0.8));
+        else world.move(a.from, a.from.x + Math.sign(dx) * Math.min(Math.abs(dx), 0.8), a.from.y);
+      };
       if (a.phase === 0) {
-        const k = ease(Math.min(1, a.t / 0.7));
-        a.from.x = a.hx + (tx - a.hx) * k;
-        a.from.y = a.hy + (ty - a.hy) * k;
-        if (a.t >= 0.7) { a.phase = 1; a.t = 0; }
+        go(tx, ty, true);
+        if (Math.abs(a.from.x - tx) < CELL && Math.abs(a.from.y - ty) < CELL) { a.phase = 1; a.t = 0; }
+        if (a.t > 8) { a.phase = 4; a.t = 0; }
       } else if (a.phase === 1) {
-        tilt.set(a.from, -side * 1.95);
-        if (a.t >= 0.5) { a.phase = 2; a.t = 0; lab.pouring = { from: a.from.id, to: a.to.id, rate: a.from.kind === 'tube' ? 4 : 15 }; }
+        const want = -a.side * TILT;
+        const next = a.from.angle + Math.sign(want - a.from.angle) * Math.min(Math.abs(want - a.from.angle), 0.1);
+        world.tilt(a.from, next);
+        if (Math.abs(a.from.angle - want) < 1e-3 || a.t > 3) { a.phase = 2; a.t = 0; }
       } else if (a.phase === 2) {
-        a.left -= dt * live.current.speed * (lab.pouring?.rate ?? 15);
-        if (a.left <= 0 || (a.from.liquidMl() < 0.02 && a.from.gasTotal() <= 0)) { a.phase = 3; a.t = 0; lab.pouring = null; tilt.set(a.from, 0); }
+        /* Flüssigkeit: bis genug hinüber ist. Ein schweres Gas (kein Wasser im Glas): eine Weile halten, bis es ausgeflossen ist. */
+        const left = world.summary(a.from, false).ml;
+        const gas = a.start < 0.2;
+        if (gas ? a.t > Math.min(12, Math.max(4, a.ml)) : a.start - left >= a.ml - 0.3 || left < 0.2 || a.t > 25) { a.phase = 3; a.t = 0; }
+      } else if (a.phase === 3) {
+        const next = a.from.angle - Math.sign(a.from.angle) * Math.min(Math.abs(a.from.angle), 0.15);
+        world.tilt(a.from, Math.abs(next) < 0.02 ? 0 : next);
+        if (Math.abs(a.from.angle) < 1e-3) { a.phase = 4; a.t = 0; }
       } else {
-        const k = ease(Math.min(1, a.t / 0.7));
-        a.from.x = tx + (a.hx - tx) * k;
-        a.from.y = ty + (a.hy - ty) * k;
-        if (a.t >= 0.7) { a.from.x = a.hx; a.from.y = a.hy; anim.current = null; }
+        go(a.hx, a.hy, false);
+        if ((Math.abs(a.from.x - a.hx) < CELL && Math.abs(a.from.y - a.hy) < CELL) || a.t > 8) { world.drop(a.from); anim.current = null; }
       }
       return true;
     };
@@ -235,190 +248,147 @@ export function ChemLab({ config, whole = false, seed = null }: { config: ChemCo
     loopRef.current = loop;
 
     /* -- Gesten --------------------------------------------------------------------------------- */
-    let mode: null | 'vessel' | 'burner' | 'probe' = null;
-    let held: Vessel | null = null;
-    let heldBurner: (typeof lab.burners)[number] | null = null;
-    let off = [0, 0];
-    let tapBurette = false;
-
     const say = (text: string) => { setSaid(text); window.setTimeout(() => setSaid((x) => (x === text ? null : x)), 2600); };
+    const containerAt = (x: number, y: number): Thing | null => {
+      let best: Thing | null = null;
+      for (const t of world.things) if (t.prof !== null && (inside(t, x, y) || (Math.abs(x - mouthOf(t)[0]) < t.prof.width / 2 && y > t.y && y < t.y + t.prof.top + 3))) if (best === null || (best.prof !== null && t.prof.full < best.prof.full)) best = t;
+      return best;
+    };
 
     const down = (sx: number, sy: number): boolean => {
       const s = live.current;
       const x = cam.toWorldX(sx);
       const y = cam.toWorldY(sy);
-      const v = vesselAt(lab, x, y);
-      const b = v === null ? burnerAt(lab, x, y) : null;
+      const t = world.at(x, y);
       loop.wake();
       const h = s.hand;
       if (h?.kind === 'reagent') {
-        if (v === null) return false;
-        if (v.kind === 'syringe') { say('Do strzykawki gazowej nie dodaje się odczynników.'); return true; }
-        lab.add(v, h.id, h.amount);
-        setPick(v.id);
+        const target = containerAt(x, y);
+        world.add(h.id, h.amount, target, target === null ? [x, Math.max(0.2, y)] : null);
+        if (target !== null) setPick(target.id);
         bump();
         return true;
       }
-      if (h?.kind === 'vessel') {
-        placeNew(h.type, h.size, x);
+      if (h?.kind === 'thing') {
+        const made = world.place(h.thing, `${h.thing}-${world.things.length + 1}-${Math.round(clock * 10)}`, { x, y: Math.max(0, y), size: h.size || undefined, ...(h.of === undefined ? {} : { of: h.of }) });
+        if (!made.held) world.drop(made);
+        setPick(made.id);
         setHand(null);
-        return true;
-      }
-      if (h?.kind === 'tool') {
-        const tool = h.tool;
-        if (tool === 'probe') { live.current.probe = { x, y }; mode = 'probe'; dragging = true; return true; }
-        if (tool === 'tube') {
-          if (v === null) return false;
-          if (live.current.linkFrom === null) { live.current.linkFrom = v.id; say('Teraz dotknij drugiego naczynia (tam popłynie gaz).'); }
-          else {
-            const from = lab.vessel(live.current.linkFrom);
-            if (from !== undefined && from !== v) { lab.connect(from, v); say('Rurka połączona — pierwsze naczynie zamknięto korkiem.'); }
-            live.current.linkFrom = null;
-          }
-          bump();
-          return true;
-        }
-        if (tool === 'delete') {
-          if (v !== null) { removeVessel(v); return true; }
-          if (b !== null) { lab.burners.splice(lab.burners.indexOf(b), 1); for (const w of lab.vessels) if (w.y > 0.5 && Math.abs(w.x - b.x) < 3) w.y = 0; bump(); return true; }
-          return false;
-        }
-        if (b !== null) {
-          const text = tool === 'match' ? (b.on = true, null) : lab.useBurner(b, tool === 'loop' || tool === 'spoon' ? tool : null);
-          if (text !== null) say(text);
-          setPick(b.id);
-          bump();
-          return true;
-        }
-        if (v === null) return false;
-        lab.use(tool, v);
-        setPick(v.id);
         bump();
         return true;
       }
-      if (v !== null) {
-        setPick(v.id);
-        tapBurette = v.kind === 'burette';
-        if (!scene.allow.move && !sandbox) return true;
-        held = v; off = [x - v.x, y - v.y]; mode = 'vessel'; dragging = true;
+      if (h?.kind === 'tool') return useHand(h.tool, t, x, y);
+      if (t !== null) {
+        setPick(t.id);
+        if (!sandbox && !scene.allow.move) return true;
+        drag = { t, off: [x - t.x, y - t.y], x0: t.x, y0: t.y, moved: false };
         el.classList.add('is-grabbing');
-        return true;
-      }
-      if (b !== null) {
-        setPick(b.id);
-        if (scene.allow.burner || sandbox) { heldBurner = b; off = [x - b.x, 0]; mode = 'burner'; dragging = true; }
         return true;
       }
       return false;
     };
 
+    const useHand = (tool: ToolKey, t: Thing | null, x: number, y: number): boolean => {
+      switch (tool) {
+        case 'match':
+          if (t?.kind === 'burner') world.burner(t, true);
+          else if (t?.kind === 'candle') world.ignite(...wickOf(t));
+          else world.ignite(x, y);
+          bump();
+          return true;
+        case 'splint': case 'glow': {
+          const sp = world.splint(x, Math.max(1, y), tool === 'glow');
+          drag = { t: sp, off: [0, 0], x0: sp.x, y0: sp.y, moved: true };
+          setPick(sp.id);
+          setHand(null);
+          return true;
+        }
+        case 'loop': {
+          const lp = world.things.find((u) => u.kind === 'loop') ?? world.place('loop', `drucik-${world.things.length + 1}`, { x, y: Math.max(1, y), held: true });
+          world.move(lp, x, Math.max(1, y));
+          drag = { t: lp, off: [0, 0], x0: lp.x, y0: lp.y, moved: true };
+          setPick(lp.id);
+          setHand(null);
+          return true;
+        }
+        case 'probe': live.current.probe = { x, y }; probing = true; return true;
+        case 'thermometer': {
+          const c = containerAt(x, y);
+          if (c !== null) useTool(world, 'thermometer', c); else world.place('thermometer', `termometr-${world.things.length + 1}`, { x, y: Math.max(0, y), held: true });
+          bump();
+          return true;
+        }
+        default: {
+          const target = t ?? containerAt(x, y);
+          if (target === null) return false;
+          if (tool === 'paper') {
+            const ph = world.phAt(x, y);
+            say(ph === null ? 'Papierek pozostaje suchy — dotknij cieczy.' : `Papierek: pH ≈ ${Math.round(ph)} (${ph < 6.5 ? 'kwasowy' : ph > 7.5 ? 'zasadowy' : 'obojętny'}).`);
+          }
+          useTool(world, tool, target);
+          if (tool === 'delete') setPick(null);
+          bump();
+          return true;
+        }
+      }
+    };
+
     const move = (sx: number, sy: number) => {
       const x = cam.toWorldX(sx);
       const y = cam.toWorldY(sy);
-      if (mode === 'probe') { live.current.probe = { x, y }; loop.wake(); return; }
-      if (mode === 'burner' && heldBurner !== null) {
-        const nx = x - off[0];
-        for (const w of lab.vessels) if (w.y > 0.5 && Math.abs(w.x - heldBurner.x) < 3) w.x = nx;
-        heldBurner.x = nx;
-        loop.wake();
-        return;
+      if (probing) { live.current.probe = { x, y }; loop.wake(); return; }
+      if (drag === null) return;
+      const d = drag;
+      d.moved = true;
+      const t = d.t;
+      /* Über der Öffnung eines anderen Glases: dort halten und giessen. */
+      if (t.prof !== null && t.kind !== 'burette') {
+        let target: Thing | null = null;
+        for (const u of world.things) {
+          if (u === t || u.prof === null || world.carried(t).includes(u)) continue;
+          const [mx, my] = mouthOf(u);
+          if (Math.abs(x - mx) < u.prof.width / 2 + t.prof.width / 2 + 1.5 && y > my - 1 && y < my + t.prof.top + 6) { target = u; break; }
+        }
+        if (target !== null) {
+          const s2 = target.x >= x ? 1 : -1;
+          if (hold === null || hold.target !== target) {
+            if (Math.abs(t.angle) < 1e-3) { const [px, py] = pourPose(t, target, s2); world.move(t, px, py); }
+            hold = { t, target, side: s2, hx: d.x0, hy: d.y0, poured: hold?.poured ?? false };
+          }
+          live.current.target = target.id;
+          loop.wake();
+          return;
+        }
+        if (hold !== null) { hold.target = null; live.current.target = null; if (Math.abs(t.angle) > 1e-3) { loop.wake(); return; } }
       }
-      if (mode !== 'vessel' || held === null) return;
-      tapBurette = false;
-      held.x = x - off[0];
-      held.y = Math.max(0, y - off[1]);
-      /* Über einem anderen Gefäss: ausrichten, neigen, giessen. */
-      let target: Vessel | null = null;
-      for (const w of lab.vessels) {
-        if (w === held || w.kind === 'syringe' || w.kind === 'burette') continue;
-        const rim = w.y + w.shape.H;
-        if (held.y > rim - 1.5 && held.y < rim + 14 && Math.abs(held.x - w.x) < w.shape.halfWidth(w.shape.H) + held.shape.R + 3) { target = w; break; }
-      }
-      live.current.target = target?.id ?? null;
-      if (target !== null && held.kind !== 'burette' && held.kind !== 'syringe') {
-        const side = target.x >= held.x ? 1 : -1;
-        held.x = target.x - side * (held.shape.R + 0.6);
-        held.y = Math.max(held.y, target.y + target.shape.H + 1.2);
-        tilt.set(held, -side * 1.95);
-        pourTo = target;
-      } else {
-        tilt.set(held, 0);
-        pourTo = null;
-        lab.pouring = null;
-      }
+      world.moveNear(t, x - d.off[0], Math.max(0, y - d.off[1]));
       loop.wake();
     };
 
     const up = (sx: number, sy: number, _e: PointerEvent, tap: boolean) => {
-      if (mode === 'vessel' && held !== null) {
-        const v = held;
-        tilt.set(v, 0);
-        pourTo = null;
-        lab.pouring = null;
-        live.current.target = null;
-        if (tap && tapBurette) { lab.drip(v, v.drip > 0 ? 0 : 0.5); bump(); }
-        else settleOnBench(v);
+      const x = cam.toWorldX(sx);
+      const y = cam.toWorldY(sy);
+      if (drag !== null) {
+        const t = drag.t;
+        if (hold !== null) {
+          if (Math.abs(t.angle) > 1e-3) world.tilt(t, 0);
+          if (hold.poured) world.move(t, hold.hx, hold.hy);
+          hold = null;
+          live.current.target = null;
+        }
+        if (tap && !drag.moved) {
+          if (t.kind === 'burner') world.burner(t, !t.on);
+          else if (t.kind === 'burette') world.tap(t, t.on ? 0 : t.flow);
+          else if (t.kind === 'hotplate') t.on = !t.on;
+        }
+        if (!t.held) world.drop(t);
+        bump();
       }
-      if (mode === 'burner' && heldBurner !== null && tap) { lab.useBurner(heldBurner, null); bump(); }
-      if (mode === 'probe') { /* die Sonde bleibt stehen, bis das Werkzeug wechselt */ }
-      if (tap && mode === null) {
-        const x = cam.toWorldX(sx);
-        const y = cam.toWorldY(sy);
-        if (vesselAt(lab, x, y) === null && burnerAt(lab, x, y) === null && live.current.hand === null) setPick(null);
-      }
-      mode = null;
-      held = null;
-      heldBurner = null;
-      dragging = false;
+      if (probing) probing = false;
+      if (tap && drag === null && live.current.hand === null && world.at(x, y) === null) setPick(null);
+      drag = null;
       el.classList.remove('is-grabbing');
       loop.wake();
-    };
-
-    /** Nach dem Loslassen: auf den Dreifuss, unter die Bürette oder auf den Tisch (ohne Überlappen). */
-    const settleOnBench = (v: Vessel) => {
-      if (v.kind === 'burette') {
-        const under = lab.vessels.find((w) => w !== v && w.kind !== 'syringe' && w.kind !== 'burette' && Math.abs(w.x - v.x) < w.shape.R + 2);
-        v.over = under?.id ?? null;
-        if (under !== undefined) { v.x = under.x; v.y = under.y + under.shape.H + 3; } else v.y = Math.max(10, v.y);
-        return;
-      }
-      const burner = lab.burners.find((b) => Math.abs(b.x - v.x) < 5 && v.y > 5 && !lab.vessels.some((w) => w !== v && Math.abs(w.y - SEAT) < 0.5 && Math.abs(w.x - b.x) < 3));
-      if (burner !== undefined && v.kind !== 'syringe') { v.x = burner.x; v.y = SEAT; }
-      else { v.y = 0; free(v); }
-      for (const b of lab.vessels) if (b.kind === 'burette' && b.over === v.id) { b.x = v.x; b.y = v.y + v.shape.H + 3; }
-    };
-
-    const free = (v: Vessel) => {
-      const span = (w: Vessel) => (w.kind === 'syringe' ? w.shape.H / 2 + 2 : w.shape.R + 0.8);
-      for (let k = 0; k < 40; k += 1) {
-        const hit = lab.vessels.find((w) => w !== v && w.y < 0.5 && w.kind !== 'syringe' && v.kind !== 'syringe' && Math.abs(w.x - v.x) < span(w) + span(v));
-        if (hit === undefined) return;
-        v.x = hit.x + Math.sign(v.x - hit.x || 1) * (span(hit) + span(v) + 0.1);
-      }
-    };
-
-    const placeNew = (type: VesselKind | 'burner', size: number, x: number) => {
-      if (type === 'burner') {
-        lab.burners.push({ id: `p${lab.burners.length + 1}${Math.round(Math.random() * 99)}`, x, on: false, air: true, tint: null, tintLeft: 0 });
-        bump();
-        return;
-      }
-      let n = lab.vessels.length + 1;
-      while (lab.vessels.some((w) => w.id === `n${n}`)) n += 1;
-      const v = new Vessel(`n${n}`, type, size, x, lab.room.T, '');
-      lab.vessels.push(v);
-      lab.settle(v);
-      settleOnBench(v);
-      setPick(v.id);
-      bump();
-    };
-
-    const removeVessel = (v: Vessel) => {
-      lab.vessels.splice(lab.vessels.indexOf(v), 1);
-      for (let i = lab.links.length - 1; i >= 0; i -= 1) if (lab.links[i].from === v.id || lab.links[i].to === v.id) lab.links.splice(i, 1);
-      for (const b of lab.vessels) if (b.over === v.id) b.over = null;
-      setPick(null);
-      bump();
     };
 
     const detach = attachGestures(el, {
@@ -428,20 +398,17 @@ export function ChemLab({ config, whole = false, seed = null }: { config: ChemCo
       pan: (dx, dy) => { cam.pan(dx, dy); loop.wake(); },
       zoom: (sx, sy, f) => { cam.zoomAt(sx, sy, f); loop.wake(); },
       scrolls: () => !live.current.full,
-      grabs: (sx, sy) => live.current.hand !== null || vesselAt(lab, cam.toWorldX(sx), cam.toWorldY(sy)) !== null || burnerAt(lab, cam.toWorldX(sx), cam.toWorldY(sy)) !== null
+      grabs: (sx, sy) => live.current.hand !== null || world.at(cam.toWorldX(sx), cam.toWorldY(sy)) !== null
     });
     const hover = (e: PointerEvent) => {
-      if (e.pointerType !== 'mouse') return;
-      const r = el.getBoundingClientRect();
-      live.current.pointer = { x: cam.toWorldX(e.clientX - r.left), y: cam.toWorldY(e.clientY - r.top) };
+      if (e.pointerType !== 'mouse' || drag !== null) return;
       const h = live.current.hand;
-      if (h?.kind === 'reagent' || h?.kind === 'tool') {
-        const v = vesselAt(lab, live.current.pointer.x, live.current.pointer.y);
-        live.current.target = v?.id ?? null;
-        loop.wake();
-      }
+      if (h?.kind !== 'reagent' && h?.kind !== 'tool') return;
+      const r = el.getBoundingClientRect();
+      const c = containerAt(cam.toWorldX(e.clientX - r.left), cam.toWorldY(e.clientY - r.top));
+      if ((c?.id ?? null) !== live.current.target) { live.current.target = c?.id ?? null; loop.wake(); }
     };
-    const leave = () => { live.current.pointer = null; if (mode === null) live.current.target = null; loop.wake(); };
+    const leave = () => { if (drag === null) { live.current.target = null; loop.wake(); } };
     el.addEventListener('pointermove', hover);
     el.addEventListener('pointerleave', leave);
 
@@ -450,7 +417,6 @@ export function ChemLab({ config, whole = false, seed = null }: { config: ChemCo
       if (r.width < 10 || r.height < 10) return;
       const was = [cam.w, cam.h];
       cam.w = r.width; cam.h = r.height;
-      /* Viel grösser oder kleiner (Vollbild, Drehen des Telefons): alles neu einpassen; sonst bleibt die Mitte. */
       if (was[0] > 10 && was[1] > 10 && (Math.abs(r.width - was[0]) > was[0] * 0.25 || Math.abs(r.height - was[1]) > was[1] * 0.25)) fit(cam);
       else if (was[0] > 10 && was[1] > 10) cam.scale *= Math.min(r.width / was[0], r.height / was[1]) ** 0.5;
       dpr = fitCanvas(el, cam.w, cam.h);
@@ -474,50 +440,27 @@ export function ChemLab({ config, whole = false, seed = null }: { config: ChemCo
       theme?.removeEventListener?.('change', onTheme);
       loop.dispose();
       loopRef.current = null;
-      lab.pouring = null;
     };
-  }, [lab, doc, scene]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [world, doc, scene, field]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Was die Bedienung ändert, will gezeichnet werden. */
   useEffect(() => {
     if (hand?.kind !== 'tool' || hand.tool !== 'probe') live.current.probe = null;
-    if (hand?.kind !== 'tool' || hand.tool !== 'tube') live.current.linkFrom = null;
     loopRef.current?.wake();
-  }, [running, speed, hand, pick, lab]);
+  }, [running, speed, hand, pick, heat, world]);
 
   /* -- „Pokaż": die Schritte nacheinander ------------------------------------------------------------ */
   const doAction = (a: Action) => {
-    switch (a.kind) {
-      case 'add': {
-        const v = lab.vessel(a.to);
-        const id = reagentIn(a.reagent, drawn);
-        if (v !== undefined && id !== null) lab.add(v, id, num(a.amount, drawn, reagentOf(id)?.amounts[0] ?? 1));
-        break;
+    if (a.kind === 'speed') { setSpeed(a.value); return; }
+    if (a.kind === 'pour') {
+      const from = world.thing(a.from);
+      const to = world.thing(a.to);
+      if (from !== undefined && to !== undefined && anim.current === null) {
+        anim.current = { from, to, ml: a.ml, start: world.summary(from, false).ml, t: 0, phase: 0, hx: from.x, hy: from.y, side: to.x >= from.x ? 1 : -1 };
       }
-      case 'pour': {
-        const from = lab.vessel(a.from);
-        const to = lab.vessel(a.to);
-        if (from !== undefined && to !== undefined && anim.current === null) anim.current = { from, to, ml: a.ml, t: 0, phase: 0, hx: from.x, hy: from.y, left: a.ml };
-        break;
-      }
-      case 'burner': { const b = lab.burners.find((x) => x.id === a.id); if (b !== undefined) b.on = a.on; break; }
-      case 'use': { const v = lab.vessel(a.at); if (v !== undefined) lab.use(a.tool, v); break; }
-      case 'flame': { const b = lab.burners.find((x) => x.id === a.burner); if (b !== undefined) lab.useBurner(b, a.with); break; }
-      case 'link': { const f = lab.vessel(a.from); const t = lab.vessel(a.to); if (f !== undefined && t !== undefined) lab.connect(f, t); break; }
-      case 'seat': {
-        const v = lab.vessel(a.at);
-        if (v === undefined) break;
-        const b = a.burner === null ? undefined : lab.burners.find((x) => x.id === a.burner);
-        if (b !== undefined) { v.x = b.x; v.y = SEAT; } else if (v.y > 0.5) {
-          v.y = 0;
-          v.x += 13;
-          for (let k = 0; k < 30 && lab.vessels.some((w) => w !== v && w.y < 0.5 && Math.abs(w.x - v.x) < w.shape.R + v.shape.R + 1); k += 1) v.x += 3;
-        }
-        break;
-      }
-      case 'drip': { const v = lab.vessel(a.at); if (v !== undefined) lab.drip(v, a.rate); break; }
-      case 'speed': setSpeed(a.value); break;
+      return;
     }
+    perform(world, a, drawn, false);
   };
   const act = (i: number) => {
     const step = scene.steps[i];
@@ -539,21 +482,24 @@ export function ChemLab({ config, whole = false, seed = null }: { config: ChemCo
 
   /* -- Was die Bedienung braucht ----------------------------------------------------------------- */
   const shelf = useMemo(() => shelfOf(scene), [scene]);
-  const tools: readonly ToolKey[] = sandbox ? TOOLS : scene.tools ?? TOOLS.filter((t) => t !== 'delete');
-  const edit = sandbox || scene.allow.vessels;
-  const reset = () => { setResetKey((k) => k + 1); setSaid(null); anim.current = null; fx.list.length = 0; };
+  const tools: readonly ToolKey[] = sandbox ? TOOLS : scene.tools ?? TOOLS.filter((t) => t !== 'delete' && t !== 'empty');
+  const edit = sandbox || scene.allow.things;
+  const reset = () => { setResetKey((k) => k + 1); setSaid(null); anim.current = null; };
   const pickReagent = (id: string) => {
     const r = reagentOf(id);
     if (r === undefined) return;
     setHand(hand?.kind === 'reagent' && hand.id === id ? null : { kind: 'reagent', id, amount: r.amounts[Math.min(1, r.amounts.length - 1)] });
   };
-  const fitView = () => { const cam = camRef.current?.cam; if (cam !== undefined) { const v = scene.view ?? boundsOf(lab); cam.fit(v[0], v[1], v[2], v[3], 12); loopRef.current?.wake(); } };
+  const fitView = () => { const cam = camRef.current?.cam; if (cam !== undefined) { const v = scene.view ?? world.bounds(); cam.fit(v[0], v[1], v[2], v[3], 12); loopRef.current?.wake(); } };
+  const names = (id: string) => { const t = world.thing(id); return t === undefined ? id : t.label || THING_NAME[t.kind]; };
+  const closed = selected !== null && world.things.some((u) => u.kind === 'stopper' && u.onto === selected.id);
 
   const bar = (
     <>
       <LabTool icon={running ? 'pause' : 'play'} label={running ? 'Pauza' : 'Wznów'} text={running ? 'Pauza' : 'Wznów'} on={!running} onClick={() => setRunning((r) => !r)} />
       <LabTool icon="history" label="Od nowa" onClick={reset} />
       <button type="button" className="lab-tool" title="Tempo czasu" aria-label={`Tempo ${speed}×`} onClick={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed as (typeof SPEEDS)[number]) + 1) % SPEEDS.length])}>{String(speed).replace('.', ',')}×</button>
+      <button type="button" className={`lab-tool has-text${heat ? ' is-on' : ''}`} aria-pressed={heat} title="Widok ciepła: kolory pokazują temperaturę" onClick={() => setHeat((h) => !h)}><span>Ciepło</span></button>
       {scene.vars.length > 0 && <LabTool icon="shuffle" label="Nowe losowanie" onClick={() => setDrawKey((k) => k + 1)} />}
       <LabTool icon="search" label="Dopasuj widok" onClick={fitView} />
     </>
@@ -566,7 +512,7 @@ export function ChemLab({ config, whole = false, seed = null }: { config: ChemCo
       chips={<span className="lab-chip">{sandbox ? 'piaskownica' : 'doświadczenie'}</span>}
       bar={bar}
       note={said !== null ? <p className="lab-note" role="status">{said}</p> : null}
-      stage={<div ref={stage} className="lab-canvas-box"><canvas ref={canvas} aria-label={`${config.title || 'Laboratorium chemiczne'} — stół laboratoryjny; weź odczynnik i dotknij naczynia, przeciągnij naczynie nad inne, żeby przelać`} /></div>}
+      stage={<div ref={stage} className="lab-canvas-box"><canvas ref={canvas} aria-label={`${config.title || 'Laboratorium chemiczne'} — stół laboratoryjny; przeciągaj naczynia, przytrzymaj naczynie nad innym, żeby przelać, weź odczynnik i dotknij naczynia`} /></div>}
       side={(
         <section ref={side} className="lab-side-in">
           {config.text.length > 0 && <LabSection title="Opis">{config.text.map((t, i) => <p key={i} className="lab-text">{t}</p>)}</LabSection>}
@@ -575,51 +521,55 @@ export function ChemLab({ config, whole = false, seed = null }: { config: ChemCo
             onShow={() => setShowing(true)}
             onNext={() => { act(stepAt); setStepAt((n) => n + 1); }}
             onAnswer={(i, k) => setPicked((p) => ({ ...p, [i]: k }))} />
-          <HandBar hand={hand} lab={lab} onAmount={(a) => hand?.kind === 'reagent' && setHand({ ...hand, amount: a })} onDrop={() => setHand(null)} />
+          <HandBar hand={hand} onAmount={(a) => hand?.kind === 'reagent' && setHand({ ...hand, amount: a })} onDrop={() => setHand(null)} />
           {selected !== null && (
-            <Inspector v={selected} lab={lab} show={scene.show} edit={edit} micro={microCanvas}
+            <Inspector t={selected} sum={view.sum} sample={view.sample} show={scene.show} edit={edit} micro={microCanvas} closed={closed}
               onAct={{
-                toggle: (what) => {
-                  if (what === 'stopper') lab.use('stopper', selected);
-                  else if (what === 'gauge') lab.use('gauge', selected);
-                  else if (what === 'stir') lab.use('stir', selected);
-                  else if (what === 'empty') lab.use('empty', selected);
-                  else if (what === 'drip') lab.drip(selected, selected.drip > 0 ? 0 : 0.5);
-                  else if (what === 'burner') { const b = lab.burnerOf(selected); if (b !== null) b.on = !b.on; }
-                  else if (what === 'delete') {
-                    lab.vessels.splice(lab.vessels.indexOf(selected), 1);
-                    for (let i = lab.links.length - 1; i >= 0; i -= 1) if (lab.links[i].from === selected.id || lab.links[i].to === selected.id) lab.links.splice(i, 1);
-                    setPick(null);
-                  }
+                act: (what) => {
+                  if (what === 'toggle') {
+                    if (selected.kind === 'burner') world.burner(selected, !selected.on);
+                    else if (selected.kind === 'burette') world.tap(selected, selected.on ? 0 : selected.flow);
+                    else if (selected.kind === 'hotplate') { selected.on = !selected.on; world.poke(); }
+                  } else if (what === 'stirrer') {
+                    selected.stir = !selected.stir;
+                    world.poke();
+                  } else if (what === 'light') {
+                    if (selected.on) selected.on = false; else world.ignite(...wickOf(selected));
+                  } else if (what === 'delete') { world.remove(selected); setPick(null); } else useTool(world, what, selected);
                   bump();
                   loopRef.current?.wake();
                 },
-                rate: (r) => { selected.drip = r; bump(); }
+                set: (what, value) => {
+                  if (what === 'air') selected.air = value;
+                  else if (what === 'gas') selected.flow = value;
+                  else if (what === 'power') selected.air = value;
+                  else if (what === 'rate') selected.flow = value;
+                  world.poke();
+                  bump();
+                  loopRef.current?.wake();
+                }
               }} />
           )}
-          {selBurner !== null && (
-            <BurnerPanel on={selBurner.on} air={selBurner.air} onToggle={() => { selBurner.on = !selBurner.on; bump(); loopRef.current?.wake(); }} onAir={() => { selBurner.air = !selBurner.air; bump(); loopRef.current?.wake(); }} />
-          )}
-          <LabSection title="Naczynia">
+          <LabSection title="Na stole">
             <div className="lab-chips">
-              {lab.vessels.map((v) => (
-                <button key={v.id} type="button" className={`lab-chip-btn${v.id === pick ? ' is-on' : ''}`} aria-pressed={v.id === pick}
+              {world.things.filter((t) => t.kind !== 'stopper').map((t) => (
+                <button key={t.id} type="button" className={`lab-chip-btn${t.id === pick ? ' is-on' : ''}`} aria-pressed={t.id === pick}
                   onClick={() => {
-                    if (hand?.kind === 'reagent' && v.kind !== 'syringe') lab.add(v, hand.id, hand.amount);
-                    else if (hand?.kind === 'tool' && hand.tool !== 'tube' && hand.tool !== 'probe' && hand.tool !== 'delete') lab.use(hand.tool, v);
-                    setPick(v.id);
+                    if (hand?.kind === 'reagent' && t.prof !== null) world.add(hand.id, hand.amount, t);
+                    else if (hand?.kind === 'tool' && ['stir', 'stopper', 'paper', 'empty', 'delete', 'thermometer', 'match'].includes(hand.tool)) useTool(world, hand.tool, t);
+                    setPick(hand?.kind === 'tool' && hand.tool === 'delete' ? null : t.id);
                     bump();
                     loopRef.current?.wake();
                   }}>
-                  {v.label || v.type.name}
+                  {t.label || THING_NAME[t.kind]}
                 </button>
               ))}
             </div>
           </LabSection>
           {(scene.allow.shelf || sandbox) && shelf.length > 0 && <LabSection title="Odczynniki"><Shelf ids={shelf} hand={hand} onPick={pickReagent} /></LabSection>}
           {tools.length > 0 && <LabSection title="Narzędzia"><Tools tools={tools} hand={hand} onPick={(t) => setHand(hand?.kind === 'tool' && hand.tool === t ? null : { kind: 'tool', tool: t })} /></LabSection>}
-          {edit && <LabSection title="Sprzęt" open={sandbox}><Equipment hand={hand} onPick={(type, size) => setHand({ kind: 'vessel', type, size })} /></LabSection>}
-          <LabSection title="Obserwacje"><Log events={lab.log} equations={scene.show.equations} /></LabSection>
+          {edit && <LabSection title="Sprzęt" open={sandbox}><Equipment hand={hand} onPick={(kind, size, of) => setHand({ kind: 'thing', thing: kind, size, ...(of === undefined ? {} : { of }) })} /></LabSection>}
+          <LabSection title="Obserwacje"><Log events={world.log} equations={scene.show.equations} names={names} /></LabSection>
           {recorder !== null && (
             <LabSection title="Wykres">
               <canvas ref={graphCanvas} className="lab-graph" aria-label="Wykres wartości w czasie" />
@@ -636,15 +586,15 @@ export function ChemLab({ config, whole = false, seed = null }: { config: ChemCo
               </label>
               <div className="lab-row">
                 <button type="button" className="wk-btn wk-btn-line" onClick={() => {
-                  try { localStorage.setItem(storeKey(config.title), JSON.stringify(sceneOfLab(lab, scene))); setSaid('Zapisano stół w tej przeglądarce.'); } catch { setSaid('Przeglądarka nie pozwala zapisać.'); }
+                  try { localStorage.setItem(storeKey(config.title), JSON.stringify(sceneOfWorld(world, scene))); setSaid('Zapisano stół w tej przeglądarce.'); } catch { setSaid('Przeglądarka nie pozwala zapisać.'); }
                 }}>Zapisz</button>
                 <button type="button" className="wk-btn wk-btn-line" onClick={() => {
-                  let text: string | null = null;
-                  try { text = localStorage.getItem(storeKey(config.title)); } catch { text = null; }
-                  if (text === null) { setSaid('Nie ma zapisanego stołu.'); return; }
-                  try { setDoc(JSON.parse(text) as unknown); setSaid('Wczytano zapisany stół.'); } catch { setSaid('Zapis jest uszkodzony.'); }
+                  let saved: string | null = null;
+                  try { saved = localStorage.getItem(storeKey(config.title)); } catch { saved = null; }
+                  if (saved === null) { setSaid('Nie ma zapisanego stołu.'); return; }
+                  try { setDoc(JSON.parse(saved) as unknown); setSaid('Wczytano zapisany stół.'); } catch { setSaid('Zapis jest uszkodzony.'); }
                 }}>Wczytaj</button>
-                <button type="button" className="wk-btn wk-btn-line" aria-expanded={json !== null} onClick={() => setJson(json === null ? JSON.stringify(sceneOfLab(lab, scene), null, 1) : null)}>JSON</button>
+                <button type="button" className="wk-btn wk-btn-line" aria-expanded={json !== null} onClick={() => setJson(json === null ? JSON.stringify(sceneOfWorld(world, scene), null, 1) : null)}>JSON</button>
               </div>
               {json !== null && (
                 <>
@@ -661,18 +611,18 @@ export function ChemLab({ config, whole = false, seed = null }: { config: ChemCo
 }
 
 /** Die Werte des Gewählten in die Bedienung (in jedem Bild). */
-function writeReadouts(lab: Lab, pick: string | null, els: readonly HTMLElement[]): void {
+function writeReadouts(world: World, pick: string | null, els: readonly HTMLElement[]): void {
   if (els.length === 0 || pick === null) return;
-  const v = lab.vessel(pick);
-  if (v === undefined) return;
+  const t = world.thing(pick);
+  if (t === undefined) return;
+  const s = t.prof !== null ? world.summary(t, false) : null;
   for (const el of els) {
     const q = el.dataset.q;
     let text = '';
-    if (q === 'T') text = labNum(v.T - 273.15, 1, '°C');
-    else if (q === 'pH') text = v.wet() && !v.hidden ? labNum(v.spec.pH, 2) : '—';
-    else if (q === 'p') text = labNum(v.pressure(lab.room.p), 1, 'kPa');
-    else if (q === 'V') text = labNum(v.liquidMl(), 1, 'cm³');
-    else if (q === 'gas') text = labNum(v.syringeMl < 0.6 ? 0 : v.syringeMl, 1, 'cm³');
+    if (q === 'T') text = t.kind === 'thermometer' ? labNum(t.readout, 1, '°C') : s !== null ? labNum(s.T - 273.15, 1, '°C') : '—';
+    else if (q === 'pH') { const v = s !== null && s.ml > 0.3 && !t.hidden ? quantity(world, t.id, 'pH') : Number.NaN; text = Number.isFinite(v) ? labNum(v, 2) : '—'; }
+    else if (q === 'p') text = s !== null ? labNum(s.P, 1, 'kPa') : '—';
+    else if (q === 'V') text = s !== null ? labNum(s.ml, 1, 'cm³') : '—';
     if (el.textContent !== text) el.textContent = text;
   }
 }
