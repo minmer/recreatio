@@ -14,6 +14,12 @@ namespace Api;
 /// wieder da ist. <c>version</c> verhindert, dass ein alter Stand einen neueren
 /// überschreibt.
 /// </para>
+///
+/// <para>
+/// Seit 2026-10-18 stehen hier auch die <b>Timer</b> der Lampen (Uhrzeit, Tage,
+/// welche Sygnały) — als Zeilen derselben Art; was eine Zeile ist, steht in der
+/// Hülle (<c>kind</c>), und die öffnet nur der Browser.
+/// </para>
 /// </summary>
 public static partial class Phone
 {
