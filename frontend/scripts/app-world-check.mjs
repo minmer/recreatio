@@ -325,6 +325,55 @@ try {
     ok('fixtures: the lesson (12 scenes, 11 worlds) imports without warning, compiles and renders; the course: 8 questions, wrong untouched, right with their solution, a revision and a flow that point at real entries');
   }
 
+  /* -- 6b. Erst vermuten, dann sehen ------------------------------------------------------------------------------ */
+  {
+    const things = [
+      { id: 'b1', kind: 'belka', length: 6, pivot: 3, lock: true },
+      { id: 'w1', kind: 'ciezarek', parent: 'b1', m: 4, pos: 2, lock: true },
+      { id: 'w2', kind: 'ciezarek', parent: 'b1', m: 2, pos: 3.5, lock: ['m', 'drop'] }
+    ];
+    const d = level(things, { predict: true });
+    const p = new m.Program(d.live);
+    const w2 = p.world.get('w2');
+    assert.deepEqual([p.held, p.value('tries')], [true, 0], 'a task to predict starts held');
+    assert.ok(p.said().text.startsWith('Najpierw przewiduj'), 'it says what to do');
+    const run = (seconds) => { for (let i = 0; i < seconds * 60; i += 1) { p.advance(1 / 60, true); p.settle(); } };
+    p.act('run');
+    run(2);
+    assert.deepEqual([env(p, 'b1').angle, p.status], [0, 'ready'], 'held: the heavier side does not tip, nothing runs by itself');
+    p.workshop.editProp(w2, 'pos', 5);
+    p.workshop.endEdit();
+    run(2);
+    assert.deepEqual([p.goalReached(), p.said().text.startsWith('Najpierw')], [false, true], 'held: balanced, yet no goal and no message — nothing gives the answer away');
+    p.release();
+    assert.deepEqual([p.held, p.value('tries'), p.status], [false, 1, 'running'], '„Sprawdź" lets go');
+    run(4);
+    assert.ok(p.goalReached() && p.said().text.includes('Przewidziane za pierwszym razem'), 'solved — on the first try');
+    p.workshop.gestureStart();
+    p.workshop.dragThing(w2, 1.5, 2);
+    assert.deepEqual([p.held, env(p, 'b1').angle, p.goalReached()], [true, 0, false], 'a change after the check holds the balance again');
+    p.release();
+    run(4);
+    assert.ok(Math.abs(env(p, 'b1').angle) > 0.34 && p.said().text.startsWith('Przeważa'), 'a wrong guess: it tips, and says why');
+    assert.equal(p.value('tries'), 2);
+    p.workshop.reset();
+    assert.equal(p.held, true, '„Od nowa" holds it again');
+    const solved = new m.Program(d.live, { replay: { things: p.world.initialShot().things.map((t) => (t.id === 'w2' ? { ...t, props: { ...t.props, pos: 5 } } : t)) } });
+    assert.equal(solved.runToEnd(), true, 'a check (Cogita) lets go by itself');
+    /* Ohne `start`: es läuft, und man hält selbst an (die Werkstatt). */
+    const shop = new m.Program(m.drawingOf(m.BALANCE.drawing).live);
+    assert.equal(shop.held, false, 'the workshop runs freely');
+    shop.hold();
+    assert.equal(shop.held, true, '„Przewiduj" holds it');
+    shop.workshop.editProp(shop.world.get('w2'), 'pos', 6);
+    assert.equal(shop.held, true, 'changing while predicting keeps it held');
+    shop.release();
+    shop.workshop.editProp(shop.world.get('w2'), 'pos', 5);
+    shop.workshop.endEdit();
+    assert.equal(shop.held, false, 'after the check the workshop runs freely again');
+    ok('predict first: held (no motion, no rules, nothing given away), „Sprawdź" lets go, a change holds again, tries, reset, checks let go by themselves');
+  }
+
   /* -- 7. Zahnräder und die Beschreibung --------------------------------------------------------------------------- */
   {
     const gd = m.drawingOf(m.GEARS.drawing);

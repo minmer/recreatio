@@ -202,7 +202,28 @@ answers in words); both fixtures; gears. The browser harness has 75 more checks 
 and keyboard, a phone with touch and two fingers, levels and "Dalej" in the presentation, the Cogita card (right,
 wrong, the solution replayed), gears, performance.
 
-## 11. Not done
+## 11. Predict first, then see — and small screens (2026-10-18)
+
+**Prediction.** Brilliant's "predict → observe → explain" as a general word: a drawing may carry `predict` (`true`
+or `{ start, say, check, again, hold }`). While it is held (`held` = 1): the simulation does not run (a balance is held
+level by hand — clamps at the beam ends), rules are silent (no message, no goal), and whatever would give the answer
+away waits — authors use `held` in expressions (`"stroke": "=held ? 'ink' : …"`, `"show": "!held"`, readouts with
+`show`). The learner sets up a guess, presses „Sprawdź" (`release`: `tries` + 1, the experiment starts from its
+beginning), and sees what happens. With `start: true` (a task) any change after the check holds it again — the guess
+is being changed — and „Popraw" does the same; with `start: false` (the workshop) it runs freely and „Przewiduj"
+holds it on demand, replacing the separate "Pauza". In Cogita the drawing is held while answering and the card's own
+„Sprawdź" releases it; checks (`runToEnd`) release by themselves. All Balance Lab levels and the eight questions
+predict first; the demo scene stays free for discovery. The goal message adds "Przewidziane za pierwszym razem!" when
+`tries` = 1.
+
+**Small screens.** A presentation piece whose content is taller than the room from its anchor to the stage edge
+(a phone held sideways, a drawing with its workshop) gets that room as `max-height` and scrolls inside
+(`.pz-el.is-scroll`, measured with a ResizeObserver; pieces that fit keep their look, shadows are not clipped).
+The drive hands a swipe to an inner scroll while it can still move in that direction and takes it back at its end;
+when the page is pinch-zoomed, one finger pans the zoomed view instead of changing scenes. On a stage, an
+interactive drawing is at most ~62 % of the stage height, leaving room for its controls.
+
+## 12. Not done
 
 - Cogita flows with look `scenes` still render as reading, not through the presentation engine.
 - No visual drawing editor (JSON, preview, examples, AI prompt). The Cogita question editor shows `drawing` as a

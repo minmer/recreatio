@@ -63,7 +63,7 @@ export { drawingOf } from '${app}pages/motion/drawing';
   const LEVELS = [
     {
       key: 'p1', title: 'Poziom 1 · Prosta równowaga',
-      body: ['Po lewej wisi 4 kg, metr od osi. Gdzie powiesić 2 kg, żeby belka stanęła poziomo?', 'Przeciągnij mały ciężarek wzdłuż belki. Zielona belka — równowaga.'],
+      body: ['Po lewej wisi 4 kg, metr od osi. Gdzie powiesić 2 kg, żeby belka stanęła poziomo?', 'Belka jest przytrzymana: przesuń mały ciężarek tam, gdzie według ciebie będzie równowaga, i kliknij „Sprawdź”.'],
       prompt: 'Po lewej wisi 4 kg, metr od osi. Przesuń ciężarek 2 kg tak, żeby belka stanęła poziomo.',
       hint: 'Przeciągnij ciężarek 2 kg wzdłuż belki.',
       solved: 'Brawo! 4 kg × 1 m = 2 kg × 2 m — dwa razy lżejszy, dwa razy dalej.',
@@ -166,6 +166,8 @@ export { drawingOf } from '${app}pages/motion/drawing';
     keep: level.keep,
     hint: level.hint,
     solved: level.solved,
+    /* Erst vermuten: die Belken sind festgehalten, bis man „Sprawdź" drückt — dann sieht man, was geschieht. */
+    predict: { say: 'Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”.' },
     controls: [...(level.controls ?? []), ...(inShow ? [next] : [])]
   });
 
@@ -203,7 +205,7 @@ export { drawingOf } from '${app}pages/motion/drawing';
   });
 
   /** Ein Bild zum Anfassen: rechts (breit) oder darunter (hochkant). */
-  const drawing = (id, scene, config, { y = 8, tallY = 24, w = 56, max = 46 } = {}) => ({
+  const drawing = (id, scene, config, { y = 8, tallY = 34, w = 56, max = 46 } = {}) => ({
     id,
     kind: 'animation',
     size: { colSpan: 4, rowSpan: 5 },
@@ -236,7 +238,8 @@ export { drawingOf } from '${app}pages/motion/drawing';
   const modules = [
     text('start-tytul', 'start', 'Laboratorium równowagi', [
       'Belka obraca się wokół osi. Ciężarek ciągnie ją w dół tym mocniej, im dalej od osi wisi: liczy się masa × ramię — moment siły.',
-      'Gdy po obu stronach osi momenty są równe, belka stoi poziomo. Przeciągnij ciężarki i sprawdź.'
+      'Gdy po obu stronach osi momenty są równe, belka stoi poziomo. Przeciągnij ciężarki i zobacz.',
+      'Na kolejnych poziomach najpierw przewidujesz: belki są przytrzymane, dopóki nie klikniesz „Sprawdź”.'
     ], { type: 'display', y: 26, tallY: 4 }),
     drawing('start-waga', 'start', demo),
     ...LEVELS.flatMap((l) => [text(`${l.key}-tekst`, l.key, l.title, l.body), drawing(`${l.key}-waga`, l.key, levelDrawing(l, true))]),

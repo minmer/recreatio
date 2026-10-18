@@ -35,7 +35,7 @@ import { useMotionPlan } from './DrawingView';
 import { Program, type Said } from './liveRun';
 import type { WorldShot } from './liveThings';
 import { buildDrawing, type Camera, type Inst } from './liveBuild';
-import { ControlView, digitsOf, propRange, rangeOf, shotOfText, withUnit, WorldPanel, type WorldAct } from './LivePanel';
+import { ControlView, digitsOf, predictLabel, propRange, rangeOf, shotOfText, withUnit, WorldPanel, type WorldAct } from './LivePanel';
 import { ShowClock } from '../presentation/showContext';
 
 /** Ein Zufall aus einem Samen (mulberry32) — dasselbe Bild für denselben Samen. */
@@ -80,9 +80,11 @@ export interface LiveDrawingProps {
   readonly locked?: boolean;
   /** 2026-10-18 — der Bau einer Welt, durch ihre Regeln nachgespielt (Cogita zeigt eine Antwort, wie sie geprüft wurde). */
   readonly replay?: WorldShot | null;
+  /** 2026-10-18 — geprüft wird draussen (Cogita: „Sprawdź" der Karte) — das Bild zeigt keinen eigenen Knopf zum Vermuten. */
+  readonly checkOutside?: boolean;
 }
 
-export function LiveDrawing({ drawing, identity, still = false, className, fixed = null, seed = null, onProgram, onProblems, start = false, locked = false, replay = null }: LiveDrawingProps) {
+export function LiveDrawing({ drawing, identity, still = false, className, fixed = null, seed = null, onProgram, onProblems, start = false, locked = false, replay = null, checkOutside = false }: LiveDrawingProps) {
   const svg = useRef<SVGSVGElement | null>(null);
   const panel = useRef<HTMLDivElement | null>(null);
   const say = useRef<HTMLParagraphElement | null>(null);
@@ -114,7 +116,7 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
   /** Die Schleife und ihre Hebel — gebaut nach dem Gerüst, gehalten über die Bilder. */
   const engine = useRef<{
     wake: () => void; visible: (on: boolean) => void; input: (name: string, value: number) => void; press: (i: number) => void;
-    act: (a: WorldAct) => void; refresh: () => void;
+    act: (a: WorldAct) => void; refresh: () => void; predict: () => void;
   } | null>(null);
 
   useLayoutEffect(() => {
@@ -225,6 +227,17 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
       });
     };
 
+    /* Erst vermuten, dann sehen: der Knopf heisst, was er jetzt tut — „Sprawdź", „Popraw", „Przewiduj". */
+    const syncPredict = () => {
+      const label = predictLabel(program);
+      panel.current?.querySelectorAll<HTMLButtonElement>('[data-w="predict"]').forEach((b) => {
+        if (b.textContent !== label) b.textContent = label;
+        b.classList.toggle('wk-btn-line', !program.held);
+        b.setAttribute('aria-pressed', String(program.held));
+      });
+      box.current?.classList.toggle('is-held', program.held);
+    };
+
     /* Die Werkstatt: Cofnij/Ponów, Start/Pauza, und die Werte des gewählten Dings. */
     let shownVersion = world?.version ?? 0;
     let shownSelected = world?.selected ?? null;
@@ -261,6 +274,7 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
         const i = Number(el.dataset.ro);
         const spec = t.kind.spec.readouts[i];
         if (spec === undefined) return;
+        el.hidden = !world.readoutShown(t, i);
         const raw = world.readout(t, i);
         const text = typeof raw === 'string' ? raw : withUnit(raw, spec.digits ?? 2, spec.unit);
         const out = el.querySelector('output');
@@ -322,6 +336,7 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
       syncControls(changed);
       syncHandles(changed);
       syncWorld(changed);
+      if (changed.has('held')) syncPredict();
       syncSaid();
     };
 
@@ -332,6 +347,7 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
     syncControls(null);
     syncHandles(null);
     syncWorld(null);
+    syncPredict();
     syncSelection();
     syncSaid();
     onProgram?.(program);
@@ -381,7 +397,16 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
     };
 
     const input = (name: string, value: number) => {
-      if (program.set(name, value)) { program.settle(); paint(); wake(); }
+      if (program.set(name, value)) { program.touchedByUser(); program.settle(); paint(); wake(); }
+    };
+
+    /** „Sprawdź" — loslassen; „Popraw"/„Przewiduj" — wieder anhalten und neu vermuten. */
+    const predictAct = () => {
+      if (program.predict === null || locked) return;
+      if (program.held) program.release(); else program.hold();
+      program.settle();
+      paint();
+      wake();
     };
 
     const press = (i: number) => {
@@ -453,6 +478,7 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
         case 'redo': shop?.redo(); break;
         case 'reset': shop?.reset(); break;
         case 'toggle': program.act('toggle'); break;
+        case 'predict': predictAct(); return;
         case 'endEdit': shop?.endEdit(); return;
         case 'add': shop?.addThing(a.kind, a.parent === null ? null : world.get(a.parent) ?? null); break;
         case 'remove': { const t = world.get(a.id); if (t !== undefined) shop?.removeThing(t); break; }
@@ -493,7 +519,9 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
       program.set('py', wy);
       const values = handle.set.map((a) => toNum(a.expr.run(env)));
       if (was !== null) { env.i = was[0]; env.n = was[1]; }
-      handle.set.forEach((a, i) => program.set(a.name, values[i]));
+      let moved = false;
+      handle.set.forEach((a, i) => { if (program.set(a.name, values[i])) moved = true; });
+      if (moved) program.touchedByUser();
       program.settle();
       paint();
     };
@@ -778,7 +806,8 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
         visible = on;
         if (on) {
           if (ticking && program.sim?.auto === true && program.status === 'ready') program.act('run');
-          if (start && program.status === 'ready') program.act('run');
+          /* Cogita zeigt nach der Antwort, was geschah: loslassen (auch ein Bild zum Vermuten). */
+          if (start && (program.held || program.status === 'ready')) program.release();
           last = 0;
           wake();
         }
@@ -786,9 +815,10 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
       input,
       press,
       act,
-      refresh: () => { syncWorld(null); syncSelection(); }
+      refresh: () => { syncWorld(null); syncSelection(); },
+      predict: predictAct
     };
-    if (start && program.status === 'ready' && program.sim !== null) { program.act('run'); }
+    if (start && (program.held || (program.status === 'ready' && program.sim !== null))) program.release();
     wake();
 
     return () => {
@@ -817,7 +847,9 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
   useEffect(() => { onProblems?.(program.problems); }, [program, built, onProblems]);
 
   const sized = (drawing.max === null ? undefined : { '--an-max': `${drawing.max}rem` }) as CSSProperties | undefined;
-  const showPanel = !still && (program.controls.length > 0 || program.world !== null || program.hasGoal()
+  /* Der Knopf zum Vermuten: in der Werkstatt einer Welt bei den Werkzeugen, sonst vor der Bedienung — nicht, wenn draussen geprüft wird. */
+  const predictHere = program.predict !== null && !checkOutside && !locked;
+  const showPanel = !still && (program.controls.length > 0 || program.world !== null || program.predict !== null || program.hasGoal()
     || drawing.live?.rules.some((r) => r.say !== '') === true || drawing.live?.sim?.events.some((e) => e.say !== '') === true);
 
   return (
@@ -830,8 +862,13 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
         </svg>
         {showPanel && (
           <div ref={panel} className="lv-panel" data-pz-hold="">
-            {program.controls.length > 0 && (
+            {(program.controls.length > 0 || (predictHere && program.world === null)) && (
               <div className="lv-controls">
+                {predictHere && program.world === null && (
+                  <button type="button" className={`wk-btn lv-control lv-predict${program.held ? '' : ' wk-btn-line'}`} data-w="predict" onClick={() => engine.current?.predict()}>
+                    {predictLabel(program)}
+                  </button>
+                )}
                 {program.controls.map((c, i) => (
                   <ControlView key={i} c={c} i={i} program={program} locked={locked}
                     onSet={(name, value) => engine.current?.input(name, value)} onPress={(n) => engine.current?.press(n)} />
@@ -841,7 +878,7 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
             <p ref={say} className="lv-say" role="status" aria-live="polite" hidden />
             {program.world !== null && (
               <WorldPanel program={program} selected={selected} version={worldVersion} locked={locked} cameras={built.cameras.length > 0}
-                onAct={(a) => engine.current?.act(a)} />
+                predict={predictHere} onAct={(a) => engine.current?.act(a)} />
             )}
           </div>
         )}

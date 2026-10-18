@@ -272,7 +272,7 @@ const parse = (text: string | undefined): unknown => {
 };
 
 /** Die Schlüssel der Tafel, die das Bild zum Anfassen macht (2026-10-17) — jeder ein JSON. */
-export const LIVE_KEYS = ['vars', 'let', 'sim', 'controls', 'rules', 'panel', 'world'] as const;
+export const LIVE_KEYS = ['vars', 'let', 'sim', 'controls', 'rules', 'panel', 'world', 'predict'] as const;
 
 /** Eine Zeichnung aus der gespeicherten Tafel des Bausteins (`size`, `symbols`, `elements` als JSON). */
 export function readDrawing(raw: RawConfig): Drawing {
@@ -281,7 +281,7 @@ export function readDrawing(raw: RawConfig): Drawing {
   return drawingOf({
     size: parse(raw.size), symbols: list(parse(raw.symbols)), elements: list(parse(raw.elements)), alt: raw.alt, max: parse(raw.max),
     vars: list(parse(raw.vars)), let: list(parse(raw.let)), sim: parse(raw.sim), controls: list(parse(raw.controls)), rules: list(parse(raw.rules)),
-    panel: raw.panel, world: parse(raw.world)
+    panel: raw.panel, world: parse(raw.world), predict: parse(raw.predict)
   });
 }
 
@@ -308,7 +308,7 @@ export function drawingOf(value: unknown): Drawing {
     alt: typeof one.alt === 'string' ? one.alt.trim().slice(0, 200) : '',
     symbols, elements, max,
     /* 2026-10-18 — die Teile einer Art zählen zum selben Budget wie die übrigen. */
-    live: readLive({ vars: one.vars, let: one.let, sim: one.sim, controls: one.controls, rules: one.rules, panel: one.panel },
+    live: readLive({ vars: one.vars, let: one.let, sim: one.sim, controls: one.controls, rules: one.rules, panel: one.panel, predict: one.predict },
       readWorld(one.world, (list) => (Array.isArray(list) ? list : []).map((c) => readShape(c, 1, budget)).filter((c): c is Shape => c !== null)))
   };
 }

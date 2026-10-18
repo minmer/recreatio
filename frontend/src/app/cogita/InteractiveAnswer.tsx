@@ -7,6 +7,9 @@
  * man sieht, was geschah —, und wer daneben lag, kann die Lösung ablaufen
  * lassen.
  *
+ * Ein Bild zum Vermuten (`predict`) steht beim Antworten still — nichts verrät
+ * das Ergebnis, bis die Karte geprüft ist; danach wird es losgelassen.
+ *
  * Das Bild selbst (`LiveDrawing`) kommt erst, wenn eine solche Karte gezeigt
  * wird.
  */
@@ -43,7 +46,8 @@ export function InteractiveAnswer({ card, disabled, onSubmit }: { card: Card; di
   };
   return (
     <div className="cg-answer cg-live">
-      <Live drawing={drawing} identity={`${card.key}|${card.fingerprint}|${JSON.stringify(spec.fixed)}`} fixed={spec.fixed} onProgram={onProgram} locked={disabled === true} />
+      {/* Ein Bild zum Vermuten steht still, bis die Karte geprüft wird — „Sprawdź" ist hier der Knopf der Karte. */}
+      <Live drawing={drawing} identity={`${card.key}|${card.fingerprint}|${JSON.stringify(spec.fixed)}`} fixed={spec.fixed} onProgram={onProgram} locked={disabled === true} checkOutside />
       <div className="wk-actions">
         <button type="button" className="wk-btn" disabled={disabled} onClick={submit}>Sprawdź</button>
       </div>

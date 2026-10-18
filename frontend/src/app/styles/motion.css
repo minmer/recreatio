@@ -163,6 +163,9 @@
 .lv-stage text { paint-order: stroke fill; stroke-linejoin: round; }
 
 /* In einer Szene: auch „darüber", der Ring und die Schrift auf dem Akzent folgen den Farben der Präsentation. */
+/* Auf einer Bühne: das Bild höchstens gut halb so hoch wie sie — auf einem Telefon quer bleibt Platz für die Bedienung (der Rest rollt im Baustein). */
+.pz-scene .lv-stage, .pz-travel .lv-stage { max-height: 62cqh; }
+
 .pz-scene .lv, .pz-travel .lv {
   --wk-accent-hover: color-mix(in srgb, var(--wk-accent) 82%, var(--wk-ink));
   --wk-on-accent: var(--pz-ground);
@@ -244,6 +247,9 @@
 .lv-step:hover { border-color: var(--wk-accent); }
 .lv-prop-num { flex: none; width: 4.75rem; min-height: var(--wk-control-h); }
 .lv-readouts { display: flex; flex-wrap: wrap; gap: var(--wk-space-2) var(--wk-space-4); }
+.lv-readouts > [hidden] { display: none; }
+/* Erst vermuten: der Knopf, der prüft (oder wieder anhält) — über der Werkstatt, gut zu treffen. */
+.lv-predict { justify-self: start; min-height: var(--wk-control-h); min-width: 8rem; }
 /* Cogita: nach der Antwort spielt das Bild in voller Breite noch einmal ab (das Urteil stellt seinen Inhalt sonst schmal in die Mitte). */
 .cg-verdict .cg-live-replay { justify-self: stretch; min-width: 0; }
 

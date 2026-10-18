@@ -128,7 +128,7 @@ export function ControlView({ c, i, program, onSet, onPress, locked }: {
 
 /** Was man in der Werkstatt tun kann — die Schleife führt es aus. */
 export type WorldAct =
-  | { readonly type: 'undo' | 'redo' | 'reset' | 'toggle' | 'endEdit' | 'save' | 'load' }
+  | { readonly type: 'undo' | 'redo' | 'reset' | 'toggle' | 'predict' | 'endEdit' | 'save' | 'load' }
   | { readonly type: 'add'; readonly kind: string; readonly parent: string | null }
   | { readonly type: 'remove' | 'copy'; readonly id: string }
   | { readonly type: 'select'; readonly id: string | null }
@@ -136,18 +136,31 @@ export type WorldAct =
   | { readonly type: 'cam'; readonly cmd: 'in' | 'out' | 'fit' }
   | { readonly type: 'import'; readonly shot: WorldShot };
 
+/**
+ * Was der Knopf zum Vermuten gerade tut: angehalten — prüfen („Sprawdź");
+ * nach einer Prüfung in einer Aufgabe — neu vermuten („Popraw"); sonst — anhalten
+ * und vermuten („Przewiduj").
+ */
+export function predictLabel(program: Program): string {
+  const p = program.predict;
+  if (p === null) return '';
+  return program.held ? p.check : p.start ? p.again : p.hold;
+}
+
 /** Ein Bau aus Text (JSON) — `null`: kein JSON, oder keine Dinge darin. */
 export function shotOfText(text: string): WorldShot | null {
   try { return readShot(JSON.parse(text) as unknown); } catch { return null; }
 }
 
-export function WorldPanel({ program, selected, version, locked, cameras, onAct }: {
+export function WorldPanel({ program, selected, version, locked, cameras, predict, onAct }: {
   program: Program;
   selected: string | null;
   /** Ändert sich mit dem Bau — dann wird neu gebaut (was man anhängen darf, ändert sich mit). */
   version: number;
   locked: boolean;
   cameras: boolean;
+  /** Der Knopf zum Vermuten steht hier (nicht, wenn draussen geprüft wird). */
+  predict: boolean;
   onAct: (act: WorldAct) => void;
 }) {
   const [text, setText] = useState<string | null>(null);
@@ -172,11 +185,18 @@ export function WorldPanel({ program, selected, version, locked, cameras, onAct 
   if (locked) return cameras ? <div className="lv-world-panel"><div className="lv-tools">{camTools}</div></div> : null;
   return (
     <div className="lv-world-panel">
+      {predict && program.predict !== null && (
+        <button type="button" className={`wk-btn lv-predict${program.held ? '' : ' wk-btn-line'}`} data-w="predict" aria-pressed={program.held}
+          onClick={() => onAct({ type: 'predict' })}>
+          {predictLabel(program)}
+        </button>
+      )}
       <div className="lv-tools" role="toolbar" aria-label="Warsztat">
         <button type="button" className="wk-btn wk-btn-line" data-w="undo" title="Cofnij (Ctrl+Z)" onClick={() => onAct({ type: 'undo' })}>↶ Cofnij</button>
         <button type="button" className="wk-btn wk-btn-line" data-w="redo" title="Ponów (Ctrl+Y)" onClick={() => onAct({ type: 'redo' })}>↷ Ponów</button>
         <button type="button" className="wk-btn wk-btn-line" data-w="reset" onClick={() => onAct({ type: 'reset' })}>Od nowa</button>
-        {program.sim !== null && (
+        {/* Wer vermuten soll, hält die Welt mit diesem Knopf an und lässt sie los — ein eigenes „Pauza" bräuchte es dann nicht. */}
+        {program.sim !== null && program.predict === null && (
           <button type="button" className="wk-btn wk-btn-line" data-w="toggle" onClick={() => onAct({ type: 'toggle' })}>Pauza</button>
         )}
         {camTools}

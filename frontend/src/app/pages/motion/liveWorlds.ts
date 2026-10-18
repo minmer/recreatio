@@ -80,7 +80,7 @@ const BEAM = {
   },
   can: { edit: ['length', 'pivot', 'bm', 'pos', 'drop', 'sx'], add: ['ciezarek', 'belka'], remove: true, copy: true },
   readouts: [
-    { label: 'Suma momentów', value: 'mom', unit: 'kg·m', digits: 2 },
+    { label: 'Suma momentów', value: 'mom', unit: 'kg·m', digits: 2, show: '!held' },
     { label: 'Masa z tym, co wisi', value: 'total', unit: 'kg', digits: 1 },
     { label: 'Pochylenie', value: 'deg(angle)', unit: '°', digits: 1 }
   ],
@@ -90,14 +90,18 @@ const BEAM = {
     { type: 'line', x: '=x', y: '=y', x2: '=x', y2: '=vtop', stroke: 'muted', width: 2, show: 'isroot' },
     { type: 'line', x: '=ax', y: '=ay', x2: '=x', y2: '=y', stroke: 'muted', width: 1.5, show: '!isroot' },
     { type: 'line', x: '=x', y: '=y', x2: '=x + h*sa', y2: '=y - h*ca', stroke: 'ink', width: 3 },
-    { type: 'line', x: '=x1', y: '=y1', x2: '=x2', y2: '=y2', stroke: "=ok ? (still ? 'ok' : 'warn') : 'danger'", width: 7 },
+    /* Solange man vermutet (`held`), verrät die Farbe nichts — erst nach „Sprawdź" grün, gelb oder rot. */
+    { type: 'line', x: '=x1', y: '=y1', x2: '=x2', y2: '=y2', stroke: "=held ? 'ink' : (ok ? (still ? 'ok' : 'warn') : 'danger')", width: 7 },
+    /* Festgehalten: an beiden Enden eine Klammer — bis man loslässt. */
+    { type: 'rect', x: '=x1 - 0.1', y: '=y1 - 0.17', w: 0.2, h: 0.34, r: 2, fill: 'none', stroke: 'muted', width: 1.5, show: 'held' },
+    { type: 'rect', x: '=x2 - 0.1', y: '=y2 - 0.17', w: 0.2, h: 0.34, r: 2, fill: 'none', stroke: 'muted', width: 1.5, show: 'held' },
     {
       type: 'line', repeat: 21, x: '=x1 + i*0.5*ca', y: '=y1 + i*0.5*sa', x2: '=x1 + i*0.5*ca + 0.13*sa', y2: '=y1 + i*0.5*sa - 0.13*ca',
       stroke: 'ink/45', width: 1, show: 'ruler && i*0.5 <= length + 0.001'
     },
     { type: 'circle', x: '=x', y: '=y', r: 4.5, fill: 'ink' },
     { type: 'circle', x: '=x', y: '=y', r: 2, fill: 'ground' },
-    { type: 'text', x: '=x', y: '=y + 0.34', text: 'ΣM = {fmt(mom, 2)} kg·m', size: 11, weight: 600, fill: "=ok ? 'ok' : 'danger'", stroke: 'ground', width: 3.5, show: 'edu' }
+    { type: 'text', x: '=x', y: '=y + 0.34', text: 'ΣM = {fmt(mom, 2)} kg·m', size: 11, weight: 600, fill: "=ok ? 'ok' : 'danger'", stroke: 'ground', width: 3.5, show: 'edu && !held' }
   ]
 };
 
@@ -134,7 +138,7 @@ const WEIGHT = {
   },
   can: { edit: ['m', 'pos', 'drop'], remove: true, copy: true },
   readouts: [
-    { label: 'Moment względem osi', value: 'total*arm', unit: 'kg·m', digits: 2 },
+    { label: 'Moment względem osi', value: 'total*arm', unit: 'kg·m', digits: 2, show: '!held' },
     { label: 'Ramię', value: 'abs(arm)', unit: 'm', digits: 2 }
   ],
   children: 0,
@@ -142,7 +146,7 @@ const WEIGHT = {
     { type: 'line', x: '=ax', y: '=ay', x2: '=x', y2: '=y + r', stroke: 'muted', width: 1.5 },
     { type: 'rect', x: '=x - r', y: '=y - r', w: '=2*r', h: '=2*r', r: 3, fill: 'accent', stroke: 'ink/30', width: 1 },
     { type: 'text', x: '=x', y: '=y - r - 0.18', text: '{fmt(m, 0)} kg', size: 11, weight: 600, fill: 'ink', stroke: 'ground', width: 3 },
-    { type: 'text', x: '=x', y: '=y - r - 0.4', text: 'M = {fmt(total*arm, 1)}', size: 9.5, fill: 'muted', stroke: 'ground', width: 3, show: 'edu' }
+    { type: 'text', x: '=x', y: '=y - r - 0.4', text: 'M = {fmt(total*arm, 1)}', size: 9.5, fill: 'muted', stroke: 'ground', width: 3, show: 'edu && !held' }
   ]
 };
 
@@ -159,6 +163,8 @@ export interface BalanceLevel {
   /** Weitere Bedienung (in einer Präsentation: „Dalej", wenn gelöst). */
   readonly controls?: readonly Readonly<Record<string, unknown>>[];
   readonly rules?: readonly Readonly<Record<string, unknown>>[];
+  /** Erst vermuten, dann sehen: `true` (eine Aufgabe — sie beginnt angehalten) oder `{ "start": false, … }` (anhalten auf Wunsch). */
+  readonly predict?: boolean | Readonly<Record<string, unknown>>;
 }
 
 /** Eine Waage: dieselben Arten, Werte, Rechnungen und Regeln — mit den Dingen, Sperren und Grenzen einer Stufe. */
@@ -188,18 +194,20 @@ export function balanceDrawing(level: BalanceLevel): Record<string, unknown> {
       { name: 'bad', value: 'count(belka, !ok)' }
     ],
     sim: { dt: 0.01, speed: 4, auto: true, sleep: true, max: 3600 },
+    ...(level.predict === undefined ? {} : { predict: level.predict }),
     controls: [
       { type: 'toggle', var: 'edu', label: 'Momenty' },
       { type: 'toggle', var: 'ruler', label: 'Linijka' },
-      { type: 'readout', label: 'Przeważa belek', value: 'bad', digits: 0 },
+      { type: 'readout', label: 'Przeważa belek', value: 'bad', digits: 0, show: '!held' },
       ...(level.controls ?? [])
     ],
     rules: [
       {
         when: 'nthings > 0 && all(belka, ok && still)', for: 1, goal: true, set: { solved: 1 },
-        say: level.solved ?? 'Równowaga! Na każdej belce masa × ramię po lewej równa się masie × ramię po prawej.'
+        say: `${level.solved ?? 'Równowaga! Na każdej belce masa × ramię po lewej równa się masie × ramię po prawej.'}{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}`
       },
-      { when: 'edits > 0 && bad > 0', say: 'Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.', mood: 'miss' },
+      /* Nach einer Prüfung (oder einer Änderung) — erst, wenn man eine Weile zugesehen hat. */
+      { when: '(edits > 0 || tries > 0) && bad > 0', for: 1.5, say: 'Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.', mood: 'miss' },
       ...(level.rules ?? [])
     ],
     world: {
@@ -234,6 +242,8 @@ export const BALANCE: LiveExample = {
   drawing: balanceDrawing({
     alt: 'Waga z belek i ciężarków — warsztat',
     save: true,
+    /* Swobodnie — a kto chce najpierw przewidzieć, zatrzymuje świat przyciskiem „Przewiduj”. */
+    predict: { start: false, say: 'Świat stoi: zbuduj albo zmień, co chcesz, i przewiduj, co się stanie — potem „Sprawdź”.' },
     allow: { roots: ['belka'] },
     hint: 'Dotknij belki, żeby dowiesić ciężarek albo kolejną belkę; ciężarek przeciągnij wzdłuż belki. Cofnij: Ctrl+Z.',
     things: [

@@ -604,6 +604,12 @@ export class World {
     return twin;
   }
 
+  /** Ist eine Anzeige des Dings gerade zu sehen (`show`, etwa nicht, solange man vermutet)? */
+  readoutShown(t: Thing, i: number): boolean {
+    const e = t.kind.readoutShows[i];
+    return e === null || e === undefined || truth(e.run(t.env));
+  }
+
   /** Ein Wert einer Anzeige des Dings (gerechnet in ihm). */
   readout(t: Thing, i: number): Val {
     const e = t.kind.readouts[i];

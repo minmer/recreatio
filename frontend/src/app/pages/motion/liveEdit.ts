@@ -8,7 +8,9 @@
  * (`liveRun.ts`) rechnet danach weiter.
  *
  * Ein Ziehen ist EINE Änderung (gemerkt beim ersten Schritt), ein Schieber,
- * der gezogen wird, auch (dieselbe Eigenschaft kurz hintereinander).
+ * der gezogen wird, auch (dieselbe Eigenschaft kurz hintereinander). In einer
+ * Aufgabe zum Vermuten (`predict`) hält jede Änderung nach einer Prüfung das
+ * Bild wieder an: man ändert seine Vermutung und prüft sie von neuem.
  */
 
 import { toNum } from './expr';
@@ -38,6 +40,7 @@ export class Workshop {
   mutate(change: (world: World) => boolean): boolean {
     const w = this.world;
     this.editing = null;
+    this.program.touchedByUser();
     w.remember();
     this.count(1);
     if (!change(w)) { w.forget(false); this.count(-1); return false; }
@@ -75,6 +78,7 @@ export class Workshop {
   gestureStart(): boolean {
     const w = this.world;
     this.editing = null;
+    this.program.touchedByUser();
     w.remember();
     this.count(1);
     const bad = this.program.broken();
@@ -146,6 +150,7 @@ export class Workshop {
   /** Zurück und wieder vor — ohne Prüfung (der Stand war schon einmal erlaubt), `edits` mitgezählt. */
   undo(): boolean {
     this.editing = null;
+    this.program.touchedByUser();
     if (!this.world.undo()) return false;
     this.count(-1);
     this.program.wake();
@@ -155,6 +160,7 @@ export class Workshop {
 
   redo(): boolean {
     this.editing = null;
+    this.program.touchedByUser();
     if (!this.world.redo()) return false;
     this.count(1);
     this.program.wake();
@@ -169,13 +175,16 @@ export class Workshop {
     this.program.env.edits = 0;
     this.program.touch('edits');
     this.program.restart();
-    if (this.program.sim?.auto === true) this.program.act('run');
+    /* Eine Aufgabe zum Vermuten beginnt wieder angehalten. */
+    if (this.program.predict?.start === true) this.program.hold();
+    else if (this.program.sim?.auto === true) this.program.act('run');
     this.program.settle();
   }
 
   /** Den Bau aus einem Gespeicherten — ohne Prüfung (die Werkstatt), als eine Änderung. */
   load(shot: WorldShot): void {
     this.editing = null;
+    this.program.touchedByUser();
     this.world.remember();
     this.world.restore(shot);
     this.world.initAllState();

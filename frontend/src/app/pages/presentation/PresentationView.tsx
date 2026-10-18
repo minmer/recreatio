@@ -99,6 +99,18 @@ function layerStyle(layer: Layer): CSSProperties {
 const plainClick = (event: React.MouseEvent) =>
   event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 
+/**
+ * 2026-10-18 — wie hoch ein Baustein höchstens sein darf (in % der Bühne):
+ * vom Anker bis zum Rand — unten mit etwas Luft für Zähler und Hinweis. Ein
+ * Anker in der Mitte wächst nach beiden Seiten.
+ */
+function roomOf(y: number, pinY: number): number {
+  const below = 100 - y - 7;
+  const above = y - 3;
+  const room = pinY <= 0 ? below : pinY >= 1 ? above : 2 * Math.min(below, above);
+  return Math.max(20, Math.round(room * 10) / 10);
+}
+
 export function PresentationView({
   show, pieces, theme, title = null, mode, frozen = null, startAt = null, startRoute = null, boxAspect = null, virtual = null, extra, control, selected = null,
   onPick, onStage, onActive, onPresent, onExit
@@ -563,6 +575,34 @@ export function PresentationView({
 
   /* Nach jedem Bauen: an derselben Stelle neu malen (neue Elemente kennen ihre Lage noch nicht). */
   useLayoutEffect(() => { paintRef.current(drive.current?.at() ?? frozen ?? start); });
+
+  /*
+   * 2026-10-18 — EIN BAUSTEIN, DER NICHT AUF DIE BÜHNE PASST (ein Telefon quer,
+   * ein Bild mit seiner Werkstatt): höchstens so hoch wie der Platz von seinem
+   * Anker bis zum Rand — was darüber hinaus geht, rollt in ihm, statt
+   * abgeschnitten zu werden. Wer nicht überläuft, bleibt, wie er war (ein
+   * Schatten wird nicht beschnitten).
+   */
+  useLayoutEffect(() => {
+    const watch = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const el = (entry.target as HTMLElement).closest<HTMLElement>('.pz-el');
+        if (el !== null) el.classList.toggle('is-scroll', el.scrollHeight > el.clientHeight + 2);
+      }
+    });
+    for (const one of placed) {
+      const el = pieceEls.current.get(one.key);
+      if (el === null || el === undefined) continue;
+      const place = one.places.get(one.home);
+      /* Ein wandernder Baustein und einer mit eigener Höhe bleiben, wie sie sind. */
+      if (place === undefined || one.travel || place.h !== null) { el.style.maxHeight = ''; el.classList.remove('is-scroll'); continue; }
+      el.style.maxHeight = `${roomOf(place.y, ORIGIN_AT[one.piece.origin].y)}%`;
+      el.classList.toggle('is-scroll', el.scrollHeight > el.clientHeight + 2);
+      watch?.observe(el);
+      if (el.firstElementChild !== null) watch?.observe(el.firstElementChild);
+    }
+    return () => watch?.disconnect();
+  }, [placed, size.w, size.h]);
 
   useEffect(() => { onActive?.(active); }, [active, onActive]);
 

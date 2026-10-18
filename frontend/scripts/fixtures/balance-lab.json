@@ -172,7 +172,8 @@
     "title": "Laboratorium równowagi",
     "body": [
      "Belka obraca się wokół osi. Ciężarek ciągnie ją w dół tym mocniej, im dalej od osi wisi: liczy się masa × ramię — moment siły.",
-     "Gdy po obu stronach osi momenty są równe, belka stoi poziomo. Przeciągnij ciężarki i sprawdź."
+     "Gdy po obu stronach osi momenty są równe, belka stoi poziomo. Przeciągnij ciężarki i zobacz.",
+     "Na kolejnych poziomach najpierw przewidujesz: belki są przytrzymane, dopóki nie klikniesz „Sprawdź”."
     ]
    }
   },
@@ -192,7 +193,7 @@
       "max": 46,
       "tall": {
        "x": 47,
-       "y": 24,
+       "y": 34,
        "w": 88
       }
      }
@@ -323,7 +324,8 @@
       "type": "readout",
       "label": "Przeważa belek",
       "value": "bad",
-      "digits": 0
+      "digits": 0,
+      "show": "!held"
      }
     ],
     "rules": [
@@ -334,10 +336,11 @@
       "set": {
        "solved": 1
       },
-      "say": "Równowaga: masa × ramię po obu stronach jest taka sama."
+      "say": "Równowaga: masa × ramię po obu stronach jest taka sama.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
-      "when": "edits > 0 && bad > 0",
+      "when": "(edits > 0 || tries > 0) && bad > 0",
+      "for": 1.5,
       "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
       "mood": "miss"
      }
@@ -577,7 +580,8 @@
          "label": "Suma momentów",
          "value": "mom",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Masa z tym, co wisi",
@@ -629,8 +633,32 @@
          "y": "=y1",
          "x2": "=x2",
          "y2": "=y2",
-         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "stroke": "=held ? 'ink' : (ok ? (still ? 'ok' : 'warn') : 'danger')",
          "width": 7
+        },
+        {
+         "type": "rect",
+         "x": "=x1 - 0.1",
+         "y": "=y1 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
+        },
+        {
+         "type": "rect",
+         "x": "=x2 - 0.1",
+         "y": "=y2 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
         },
         {
          "type": "line",
@@ -667,7 +695,7 @@
          "fill": "=ok ? 'ok' : 'danger'",
          "stroke": "ground",
          "width": 3.5,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       },
@@ -789,7 +817,8 @@
          "label": "Moment względem osi",
          "value": "total*arm",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Ramię",
@@ -840,7 +869,7 @@
          "fill": "muted",
          "stroke": "ground",
          "width": 3,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       }
@@ -970,7 +999,7 @@
     "title": "Poziom 1 · Prosta równowaga",
     "body": [
      "Po lewej wisi 4 kg, metr od osi. Gdzie powiesić 2 kg, żeby belka stanęła poziomo?",
-     "Przeciągnij mały ciężarek wzdłuż belki. Zielona belka — równowaga."
+     "Belka jest przytrzymana: przesuń mały ciężarek tam, gdzie według ciebie będzie równowaga, i kliknij „Sprawdź”."
     ]
    }
   },
@@ -990,7 +1019,7 @@
       "max": 46,
       "tall": {
        "x": 47,
-       "y": 24,
+       "y": 34,
        "w": 88
       }
      }
@@ -1106,6 +1135,9 @@
      "sleep": true,
      "max": 3600
     },
+    "predict": {
+     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+    },
     "controls": [
      {
       "type": "toggle",
@@ -1121,7 +1153,8 @@
       "type": "readout",
       "label": "Przeważa belek",
       "value": "bad",
-      "digits": 0
+      "digits": 0,
+      "show": "!held"
      },
      {
       "type": "button",
@@ -1138,10 +1171,11 @@
       "set": {
        "solved": 1
       },
-      "say": "Brawo! 4 kg × 1 m = 2 kg × 2 m — dwa razy lżejszy, dwa razy dalej."
+      "say": "Brawo! 4 kg × 1 m = 2 kg × 2 m — dwa razy lżejszy, dwa razy dalej.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
-      "when": "edits > 0 && bad > 0",
+      "when": "(edits > 0 || tries > 0) && bad > 0",
+      "for": 1.5,
       "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
       "mood": "miss"
      }
@@ -1381,7 +1415,8 @@
          "label": "Suma momentów",
          "value": "mom",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Masa z tym, co wisi",
@@ -1433,8 +1468,32 @@
          "y": "=y1",
          "x2": "=x2",
          "y2": "=y2",
-         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "stroke": "=held ? 'ink' : (ok ? (still ? 'ok' : 'warn') : 'danger')",
          "width": 7
+        },
+        {
+         "type": "rect",
+         "x": "=x1 - 0.1",
+         "y": "=y1 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
+        },
+        {
+         "type": "rect",
+         "x": "=x2 - 0.1",
+         "y": "=y2 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
         },
         {
          "type": "line",
@@ -1471,7 +1530,7 @@
          "fill": "=ok ? 'ok' : 'danger'",
          "stroke": "ground",
          "width": 3.5,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       },
@@ -1593,7 +1652,8 @@
          "label": "Moment względem osi",
          "value": "total*arm",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Ramię",
@@ -1644,7 +1704,7 @@
          "fill": "muted",
          "stroke": "ground",
          "width": 3,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       }
@@ -1793,7 +1853,7 @@
       "max": 46,
       "tall": {
        "x": 47,
-       "y": 24,
+       "y": 34,
        "w": 88
       }
      }
@@ -1909,6 +1969,9 @@
      "sleep": true,
      "max": 3600
     },
+    "predict": {
+     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+    },
     "controls": [
      {
       "type": "toggle",
@@ -1924,7 +1987,8 @@
       "type": "readout",
       "label": "Przeważa belek",
       "value": "bad",
-      "digits": 0
+      "digits": 0,
+      "show": "!held"
      },
      {
       "type": "button",
@@ -1941,10 +2005,11 @@
       "set": {
        "solved": 1
       },
-      "say": "Tak: 4 kg × 3 m = 6 kg × 2 m."
+      "say": "Tak: 4 kg × 3 m = 6 kg × 2 m.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
-      "when": "edits > 0 && bad > 0",
+      "when": "(edits > 0 || tries > 0) && bad > 0",
+      "for": 1.5,
       "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
       "mood": "miss"
      }
@@ -2184,7 +2249,8 @@
          "label": "Suma momentów",
          "value": "mom",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Masa z tym, co wisi",
@@ -2236,8 +2302,32 @@
          "y": "=y1",
          "x2": "=x2",
          "y2": "=y2",
-         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "stroke": "=held ? 'ink' : (ok ? (still ? 'ok' : 'warn') : 'danger')",
          "width": 7
+        },
+        {
+         "type": "rect",
+         "x": "=x1 - 0.1",
+         "y": "=y1 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
+        },
+        {
+         "type": "rect",
+         "x": "=x2 - 0.1",
+         "y": "=y2 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
         },
         {
          "type": "line",
@@ -2274,7 +2364,7 @@
          "fill": "=ok ? 'ok' : 'danger'",
          "stroke": "ground",
          "width": 3.5,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       },
@@ -2396,7 +2486,8 @@
          "label": "Moment względem osi",
          "value": "total*arm",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Ramię",
@@ -2447,7 +2538,7 @@
          "fill": "muted",
          "stroke": "ground",
          "width": 3,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       }
@@ -2596,7 +2687,7 @@
       "max": 46,
       "tall": {
        "x": 47,
-       "y": 24,
+       "y": 34,
        "w": 88
       }
      }
@@ -2712,6 +2803,9 @@
      "sleep": true,
      "max": 3600
     },
+    "predict": {
+     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+    },
     "controls": [
      {
       "type": "toggle",
@@ -2727,7 +2821,8 @@
       "type": "readout",
       "label": "Przeważa belek",
       "value": "bad",
-      "digits": 0
+      "digits": 0,
+      "show": "!held"
      },
      {
       "type": "button",
@@ -2744,10 +2839,11 @@
       "set": {
        "solved": 1
       },
-      "say": "Równowaga: 9 + 3 = 12 kg·m po każdej stronie."
+      "say": "Równowaga: 9 + 3 = 12 kg·m po każdej stronie.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
-      "when": "edits > 0 && bad > 0",
+      "when": "(edits > 0 || tries > 0) && bad > 0",
+      "for": 1.5,
       "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
       "mood": "miss"
      }
@@ -2987,7 +3083,8 @@
          "label": "Suma momentów",
          "value": "mom",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Masa z tym, co wisi",
@@ -3039,8 +3136,32 @@
          "y": "=y1",
          "x2": "=x2",
          "y2": "=y2",
-         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "stroke": "=held ? 'ink' : (ok ? (still ? 'ok' : 'warn') : 'danger')",
          "width": 7
+        },
+        {
+         "type": "rect",
+         "x": "=x1 - 0.1",
+         "y": "=y1 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
+        },
+        {
+         "type": "rect",
+         "x": "=x2 - 0.1",
+         "y": "=y2 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
         },
         {
          "type": "line",
@@ -3077,7 +3198,7 @@
          "fill": "=ok ? 'ok' : 'danger'",
          "stroke": "ground",
          "width": 3.5,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       },
@@ -3199,7 +3320,8 @@
          "label": "Moment względem osi",
          "value": "total*arm",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Ramię",
@@ -3250,7 +3372,7 @@
          "fill": "muted",
          "stroke": "ground",
          "width": 3,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       }
@@ -3418,7 +3540,7 @@
       "max": 46,
       "tall": {
        "x": 47,
-       "y": 24,
+       "y": 34,
        "w": 88
       }
      }
@@ -3534,6 +3656,9 @@
      "sleep": true,
      "max": 3600
     },
+    "predict": {
+     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+    },
     "controls": [
      {
       "type": "toggle",
@@ -3549,7 +3674,8 @@
       "type": "readout",
       "label": "Przeważa belek",
       "value": "bad",
-      "digits": 0
+      "digits": 0,
+      "show": "!held"
      },
      {
       "type": "button",
@@ -3566,10 +3692,11 @@
       "set": {
        "solved": 1
       },
-      "say": "Dolna: 2 kg × 1,5 m = 2 kg × 1,5 m. Górna: 4 kg × 3 m = 6 kg × 2 m."
+      "say": "Dolna: 2 kg × 1,5 m = 2 kg × 1,5 m. Górna: 4 kg × 3 m = 6 kg × 2 m.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
-      "when": "edits > 0 && bad > 0",
+      "when": "(edits > 0 || tries > 0) && bad > 0",
+      "for": 1.5,
       "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
       "mood": "miss"
      }
@@ -3809,7 +3936,8 @@
          "label": "Suma momentów",
          "value": "mom",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Masa z tym, co wisi",
@@ -3861,8 +3989,32 @@
          "y": "=y1",
          "x2": "=x2",
          "y2": "=y2",
-         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "stroke": "=held ? 'ink' : (ok ? (still ? 'ok' : 'warn') : 'danger')",
          "width": 7
+        },
+        {
+         "type": "rect",
+         "x": "=x1 - 0.1",
+         "y": "=y1 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
+        },
+        {
+         "type": "rect",
+         "x": "=x2 - 0.1",
+         "y": "=y2 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
         },
         {
          "type": "line",
@@ -3899,7 +4051,7 @@
          "fill": "=ok ? 'ok' : 'danger'",
          "stroke": "ground",
          "width": 3.5,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       },
@@ -4021,7 +4173,8 @@
          "label": "Moment względem osi",
          "value": "total*arm",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Ramię",
@@ -4072,7 +4225,7 @@
          "fill": "muted",
          "stroke": "ground",
          "width": 3,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       }
@@ -4244,7 +4397,7 @@
       "max": 46,
       "tall": {
        "x": 47,
-       "y": 24,
+       "y": 34,
        "w": 88
       }
      }
@@ -4360,6 +4513,9 @@
      "sleep": true,
      "max": 3600
     },
+    "predict": {
+     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+    },
     "controls": [
      {
       "type": "toggle",
@@ -4375,7 +4531,8 @@
       "type": "readout",
       "label": "Przeważa belek",
       "value": "bad",
-      "digits": 0
+      "digits": 0,
+      "show": "!held"
      },
      {
       "type": "button",
@@ -4392,10 +4549,11 @@
       "set": {
        "solved": 1
       },
-      "say": "Mobil wisi! Najniższa belka: 2 kg; środkowa: 4 kg × 1 m = 2 kg × 2 m; górna: 6 kg × 2,25 m = 13,5 kg·m."
+      "say": "Mobil wisi! Najniższa belka: 2 kg; środkowa: 4 kg × 1 m = 2 kg × 2 m; górna: 6 kg × 2,25 m = 13,5 kg·m.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
-      "when": "edits > 0 && bad > 0",
+      "when": "(edits > 0 || tries > 0) && bad > 0",
+      "for": 1.5,
       "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
       "mood": "miss"
      }
@@ -4635,7 +4793,8 @@
          "label": "Suma momentów",
          "value": "mom",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Masa z tym, co wisi",
@@ -4687,8 +4846,32 @@
          "y": "=y1",
          "x2": "=x2",
          "y2": "=y2",
-         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "stroke": "=held ? 'ink' : (ok ? (still ? 'ok' : 'warn') : 'danger')",
          "width": 7
+        },
+        {
+         "type": "rect",
+         "x": "=x1 - 0.1",
+         "y": "=y1 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
+        },
+        {
+         "type": "rect",
+         "x": "=x2 - 0.1",
+         "y": "=y2 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
         },
         {
          "type": "line",
@@ -4725,7 +4908,7 @@
          "fill": "=ok ? 'ok' : 'danger'",
          "stroke": "ground",
          "width": 3.5,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       },
@@ -4847,7 +5030,8 @@
          "label": "Moment względem osi",
          "value": "total*arm",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Ramię",
@@ -4898,7 +5082,7 @@
          "fill": "muted",
          "stroke": "ground",
          "width": 3,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       }
@@ -5098,7 +5282,7 @@
       "max": 46,
       "tall": {
        "x": 47,
-       "y": 24,
+       "y": 34,
        "w": 88
       }
      }
@@ -5214,6 +5398,9 @@
      "sleep": true,
      "max": 3600
     },
+    "predict": {
+     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+    },
     "controls": [
      {
       "type": "toggle",
@@ -5229,7 +5416,8 @@
       "type": "readout",
       "label": "Przeważa belek",
       "value": "bad",
-      "digits": 0
+      "digits": 0,
+      "show": "!held"
      },
      {
       "type": "readout",
@@ -5251,10 +5439,11 @@
       "set": {
        "solved": 1
       },
-      "say": "Wystarczył jeden ruch? Brakowało 3 kg·m po prawej."
+      "say": "Wystarczył jeden ruch? Brakowało 3 kg·m po prawej.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
-      "when": "edits > 0 && bad > 0",
+      "when": "(edits > 0 || tries > 0) && bad > 0",
+      "for": 1.5,
       "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
       "mood": "miss"
      }
@@ -5494,7 +5683,8 @@
          "label": "Suma momentów",
          "value": "mom",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Masa z tym, co wisi",
@@ -5546,8 +5736,32 @@
          "y": "=y1",
          "x2": "=x2",
          "y2": "=y2",
-         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "stroke": "=held ? 'ink' : (ok ? (still ? 'ok' : 'warn') : 'danger')",
          "width": 7
+        },
+        {
+         "type": "rect",
+         "x": "=x1 - 0.1",
+         "y": "=y1 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
+        },
+        {
+         "type": "rect",
+         "x": "=x2 - 0.1",
+         "y": "=y2 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
         },
         {
          "type": "line",
@@ -5584,7 +5798,7 @@
          "fill": "=ok ? 'ok' : 'danger'",
          "stroke": "ground",
          "width": 3.5,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       },
@@ -5706,7 +5920,8 @@
          "label": "Moment względem osi",
          "value": "total*arm",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Ramię",
@@ -5757,7 +5972,7 @@
          "fill": "muted",
          "stroke": "ground",
          "width": 3,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       }
@@ -5933,7 +6148,7 @@
       "max": 46,
       "tall": {
        "x": 47,
-       "y": 24,
+       "y": 34,
        "w": 88
       }
      }
@@ -6049,6 +6264,9 @@
      "sleep": true,
      "max": 3600
     },
+    "predict": {
+     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+    },
     "controls": [
      {
       "type": "toggle",
@@ -6064,7 +6282,8 @@
       "type": "readout",
       "label": "Przeważa belek",
       "value": "bad",
-      "digits": 0
+      "digits": 0,
+      "show": "!held"
      },
      {
       "type": "button",
@@ -6081,10 +6300,11 @@
       "set": {
        "solved": 1
       },
-      "say": "Belka: 4 kg × 1 m po prawej; ciężarek: 2 kg × 2 m po lewej."
+      "say": "Belka: 4 kg × 1 m po prawej; ciężarek: 2 kg × 2 m po lewej.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
-      "when": "edits > 0 && bad > 0",
+      "when": "(edits > 0 || tries > 0) && bad > 0",
+      "for": 1.5,
       "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
       "mood": "miss"
      }
@@ -6324,7 +6544,8 @@
          "label": "Suma momentów",
          "value": "mom",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Masa z tym, co wisi",
@@ -6376,8 +6597,32 @@
          "y": "=y1",
          "x2": "=x2",
          "y2": "=y2",
-         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "stroke": "=held ? 'ink' : (ok ? (still ? 'ok' : 'warn') : 'danger')",
          "width": 7
+        },
+        {
+         "type": "rect",
+         "x": "=x1 - 0.1",
+         "y": "=y1 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
+        },
+        {
+         "type": "rect",
+         "x": "=x2 - 0.1",
+         "y": "=y2 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
         },
         {
          "type": "line",
@@ -6414,7 +6659,7 @@
          "fill": "=ok ? 'ok' : 'danger'",
          "stroke": "ground",
          "width": 3.5,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       },
@@ -6536,7 +6781,8 @@
          "label": "Moment względem osi",
          "value": "total*arm",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Ramię",
@@ -6587,7 +6833,7 @@
          "fill": "muted",
          "stroke": "ground",
          "width": 3,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       }
@@ -6729,7 +6975,7 @@
       "max": 46,
       "tall": {
        "x": 47,
-       "y": 24,
+       "y": 34,
        "w": 88
       }
      }
@@ -6845,6 +7091,9 @@
      "sleep": true,
      "max": 3600
     },
+    "predict": {
+     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+    },
     "controls": [
      {
       "type": "toggle",
@@ -6860,7 +7109,8 @@
       "type": "readout",
       "label": "Przeważa belek",
       "value": "bad",
-      "digits": 0
+      "digits": 0,
+      "show": "!held"
      },
      {
       "type": "button",
@@ -6877,10 +7127,11 @@
       "set": {
        "solved": 1
       },
-      "say": "Oś 2 m od lewego końca: 6 kg × 2 m = 3 kg × 4 m."
+      "say": "Oś 2 m od lewego końca: 6 kg × 2 m = 3 kg × 4 m.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
-      "when": "edits > 0 && bad > 0",
+      "when": "(edits > 0 || tries > 0) && bad > 0",
+      "for": 1.5,
       "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
       "mood": "miss"
      }
@@ -7120,7 +7371,8 @@
          "label": "Suma momentów",
          "value": "mom",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Masa z tym, co wisi",
@@ -7172,8 +7424,32 @@
          "y": "=y1",
          "x2": "=x2",
          "y2": "=y2",
-         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "stroke": "=held ? 'ink' : (ok ? (still ? 'ok' : 'warn') : 'danger')",
          "width": 7
+        },
+        {
+         "type": "rect",
+         "x": "=x1 - 0.1",
+         "y": "=y1 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
+        },
+        {
+         "type": "rect",
+         "x": "=x2 - 0.1",
+         "y": "=y2 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
         },
         {
          "type": "line",
@@ -7210,7 +7486,7 @@
          "fill": "=ok ? 'ok' : 'danger'",
          "stroke": "ground",
          "width": 3.5,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       },
@@ -7332,7 +7608,8 @@
          "label": "Moment względem osi",
          "value": "total*arm",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Ramię",
@@ -7383,7 +7660,7 @@
          "fill": "muted",
          "stroke": "ground",
          "width": 3,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       }
@@ -7533,7 +7810,7 @@
       "max": 46,
       "tall": {
        "x": 47,
-       "y": 24,
+       "y": 34,
        "w": 88
       }
      }
@@ -7649,6 +7926,10 @@
      "sleep": true,
      "max": 3600
     },
+    "predict": {
+     "start": false,
+     "say": "Świat stoi: zbuduj albo zmień, co chcesz, i przewiduj, co się stanie — potem „Sprawdź”."
+    },
     "controls": [
      {
       "type": "toggle",
@@ -7664,7 +7945,8 @@
       "type": "readout",
       "label": "Przeważa belek",
       "value": "bad",
-      "digits": 0
+      "digits": 0,
+      "show": "!held"
      }
     ],
     "rules": [
@@ -7675,10 +7957,11 @@
       "set": {
        "solved": 1
       },
-      "say": "Równowaga! Na każdej belce masa × ramię po lewej równa się masie × ramię po prawej."
+      "say": "Równowaga! Na każdej belce masa × ramię po lewej równa się masie × ramię po prawej.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
-      "when": "edits > 0 && bad > 0",
+      "when": "(edits > 0 || tries > 0) && bad > 0",
+      "for": 1.5,
       "say": "Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.",
       "mood": "miss"
      }
@@ -7918,7 +8201,8 @@
          "label": "Suma momentów",
          "value": "mom",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Masa z tym, co wisi",
@@ -7970,8 +8254,32 @@
          "y": "=y1",
          "x2": "=x2",
          "y2": "=y2",
-         "stroke": "=ok ? (still ? 'ok' : 'warn') : 'danger'",
+         "stroke": "=held ? 'ink' : (ok ? (still ? 'ok' : 'warn') : 'danger')",
          "width": 7
+        },
+        {
+         "type": "rect",
+         "x": "=x1 - 0.1",
+         "y": "=y1 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
+        },
+        {
+         "type": "rect",
+         "x": "=x2 - 0.1",
+         "y": "=y2 - 0.17",
+         "w": 0.2,
+         "h": 0.34,
+         "r": 2,
+         "fill": "none",
+         "stroke": "muted",
+         "width": 1.5,
+         "show": "held"
         },
         {
          "type": "line",
@@ -8008,7 +8316,7 @@
          "fill": "=ok ? 'ok' : 'danger'",
          "stroke": "ground",
          "width": 3.5,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       },
@@ -8130,7 +8438,8 @@
          "label": "Moment względem osi",
          "value": "total*arm",
          "unit": "kg·m",
-         "digits": 2
+         "digits": 2,
+         "show": "!held"
         },
         {
          "label": "Ramię",
@@ -8181,7 +8490,7 @@
          "fill": "muted",
          "stroke": "ground",
          "width": 3,
-         "show": "edu"
+         "show": "edu && !held"
         }
        ]
       }
@@ -8325,7 +8634,7 @@
       "max": 46,
       "tall": {
        "x": 47,
-       "y": 24,
+       "y": 34,
        "w": 88
       }
      }

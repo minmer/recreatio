@@ -123,7 +123,7 @@ function AnimationEditor({ raw, onSet, busy }: EditorProps) {
     };
     const next: RawConfig = {
       size: json('size', [200, 120]), symbols: json('symbols', []), elements: json('elements', []),
-      vars: json('vars'), let: json('let'), sim: json('sim'), controls: json('controls'), rules: json('rules'), world: json('world'),
+      vars: json('vars'), let: json('let'), sim: json('sim'), controls: json('controls'), rules: json('rules'), world: json('world'), predict: json('predict'),
       panel: typeof value.panel === 'string' ? value.panel : '',
       ...(typeof value.alt === 'string' ? { alt: value.alt } : {}),
       ...(typeof value.max === 'number' ? { max: String(value.max) } : {})
@@ -333,6 +333,8 @@ const EXAMPLE = {
     { type: 'readout', label: 'Zasięg', value: 'zasieg', unit: 'm', digits: 1 }
   ],
   rules: [{ when: 'abs(x - cel) < 0.6 && y <= 0 && t > 0', say: 'Trafione z {fmt(kat, 0)}°!', mood: 'ok', goal: true, once: true, do: 'pause' }],
+  /* 2026-10-18 — erst vermuten: „Przewiduj" hält den Wurf an, „Sprawdź" lässt ihn los. */
+  predict: { start: false, say: 'Ustaw kąt i prędkość tak, jak przewidujesz — potem „Sprawdź”.', check: 'Sprawdź', again: 'Popraw', hold: 'Przewiduj' },
   /* 2026-10-18 — eine kleine Welt: Kisten am Boden, die man zieht, kopiert, wegnimmt (höchstens drei). */
   world: {
     kinds: [{
@@ -436,6 +438,15 @@ const LIVE_DOCS = {
   }
 } as const;
 
+/** 2026-10-18 — erst vermuten, dann sehen (`motion/liveModel.ts`: `predict`). */
+const PREDICT_DOCS: Readonly<Record<string, string>> = {
+  '.start': 'true (zwykle) — zadanie: rysunek zaczyna zatrzymany, a każda zmiana po sprawdzeniu zatrzymuje go znowu; false — działa od razu, a przycisk „Przewiduj” zatrzymuje go na życzenie',
+  '.say': 'Co widać pod rysunkiem, dopóki jest zatrzymany (np. „Ustaw tak, jak myślisz — potem sprawdź”)',
+  '.check': 'Napis przycisku, który puszcza (zwykle „Sprawdź”)',
+  '.again': 'Napis przycisku po sprawdzeniu, który zatrzymuje znowu (zwykle „Popraw”)',
+  '.hold': 'Napis przycisku, który zatrzymuje na życzenie (przy "start": false; zwykle „Przewiduj”)'
+};
+
 /**
  * 2026-10-18 — DER WELT (`motion/liveModel.ts`): Arten von Dingen, die Dinge
  * am Anfang, und was in dieser Welt erlaubt ist — die Waage, Zahnräder, ein
@@ -482,6 +493,7 @@ const WORLD_DOCS: Readonly<Record<string, string>> = {
   '.kinds[].readouts[].value': 'Wyrażenie w rzeczy, np. "total*arm"',
   '.kinds[].readouts[].unit': 'Jednostka',
   '.kinds[].readouts[].digits': 'Ile miejsc po przecinku',
+  '.kinds[].readouts[].show': 'Kiedy odczyt widać — wyrażenie, np. "!held" (nie, dopóki osoba przewiduje)',
   '.kinds[].children': 'Ile rzeczy najwyżej może na niej wisieć',
   '.things': 'Rzeczy na start (do 120): { "id", "kind", "parent", "lock", …własności }',
   '.things[].id': 'Nazwa rzeczy (litery, cyfry, _ -) — w wyrażeniach „s1.pos”, w odpowiedziach i rozwiązaniu Cogita („s1.pos = 4”)',
@@ -524,6 +536,11 @@ export const animationPart = definePart<Config>({
     { key: 'sim', shape: 'json', says: 'Symulacja (równania ruchu, Runge-Kutta): { "state": [{ "name", "value", "rate" }], "events", "until", "dt", "speed", "auto", "loop", "max" }', inside: LIVE_DOCS.sim },
     { key: 'controls', shape: 'json', says: 'Sterowanie pod rysunkiem: suwaki, przełączniki, wybór, przyciski, odczyty', inside: LIVE_DOCS.controls },
     { key: 'rules', shape: 'json', says: 'Reguły: gdy warunek staje się prawdziwy — napis, cel zadania, ustawienie, start/pauza, dalej w prezentacji', inside: LIVE_DOCS.rules },
+    {
+      key: 'predict', shape: 'json',
+      says: 'Najpierw przewiduj, potem zobacz: rysunek stoi (symulacja zatrzymana, reguły milczą, w wyrażeniach "held" = 1 — np. kolor, który zdradza wynik, czeka), aż osoba kliknie „Sprawdź”; "tries" — ile razy już sprawdzała. true albo { "start", "say", "check", "again", "hold" }',
+      inside: PREDICT_DOCS
+    },
     {
       key: 'world', shape: 'json',
       says: 'Świat rzeczy do budowania (waga z belek i ciężarków, koła zębate): rodzaje, rzeczy na start i co wolno — każda zmiana idzie przez reguły świata, z „Cofnij”; element { "type": "world" } w ramie pokazuje, gdzie stoją',

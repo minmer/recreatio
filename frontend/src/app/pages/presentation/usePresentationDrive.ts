@@ -294,13 +294,19 @@ export function usePresentationDrive(box: MutableRefObject<HTMLElement | null>, 
     let held = false;
     const holds = (event: Event): boolean => event.target instanceof Element && event.target.closest('[data-pz-hold]') !== null;
 
-    /** Rollt unter dem Zeiger etwas selbst (ein langer Baustein, ein Menü)? Dann darf es. */
-    const rolls = (event: Event): boolean => {
+    /**
+     * Rollt unter dem Zeiger etwas selbst (ein langer Baustein, ein Menü) — und
+     * 2026-10-18: noch in diese Richtung (`dy` > 0: weiter)? Dann darf es; an
+     * seinem Ende gehört die Geste wieder der Präsentation.
+     */
+    const rolls = (event: Event, dy: number): boolean => {
       let el = event.target instanceof Element ? event.target : null;
       while (el !== null && el !== node && el !== document.body) {
         if (el.scrollHeight > el.clientHeight + 1) {
           const style = getComputedStyle(el);
-          if (style.overflowY === 'auto' || style.overflowY === 'scroll') return true;
+          if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+            if (dy === 0 || (dy > 0 ? el.scrollTop + el.clientHeight < el.scrollHeight - 1 : el.scrollTop > 0)) return true;
+          }
         }
         el = el.parentElement;
       }
@@ -308,7 +314,7 @@ export function usePresentationDrive(box: MutableRefObject<HTMLElement | null>, 
     };
 
     const onWheel = (event: WheelEvent) => {
-      if (!inside(event) || rolls(event)) return;
+      if (!inside(event) || rolls(event, event.deltaY)) return;
       event.preventDefault();
       if (event.deltaY === 0) return;
       /* deltaMode: 0 Pixel, 1 Zeilen, 2 Seiten. */
@@ -330,10 +336,13 @@ export function usePresentationDrive(box: MutableRefObject<HTMLElement | null>, 
     const onTouchEnd = (event: TouchEvent) => { if (event.touches.length === 0) held = false; };
 
     const onTouchMove = (event: TouchEvent) => {
-      if (held || !inside(event) || rolls(event) || event.touches.length > 1) return;
-      event.preventDefault();
+      if (held || !inside(event) || event.touches.length > 1) return;
+      /* 2026-10-18 — mit zwei Fingern hineingezoomt: ein Finger verschiebt den Ausschnitt, die Präsentation tritt zur Seite. */
+      if ((window.visualViewport?.scale ?? 1) > 1.01) return;
       const y = event.touches[0]?.clientY ?? 0;
       const dy = touchAt - y;
+      if (rolls(event, dy)) { touchAt = y; touchTime = performance.now(); return; }
+      event.preventDefault();
       if (Math.abs(dy) < TOUCH_MIN) return;
       const now = performance.now();
       gesture(dy * TOUCH_GAIN, now - touchTime, FREE_TOUCH_MS);

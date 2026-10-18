@@ -36,7 +36,7 @@
  */
 
 import { compile, compileText, isExprError, newEnv, toNum, truth, type Env, type Expr } from './expr';
-import { BUILTINS, type Action, type ControlSpec, type Live, type Mood, type RuleSpec, type SimSpec, type VarSpec } from './liveModel';
+import { BUILTINS, type Action, type ControlSpec, type Live, type Mood, type PredictSpec, type RuleSpec, type SimSpec, type VarSpec } from './liveModel';
 import { World } from './liveWorld';
 import type { WorldShot } from './liveThings';
 import { Workshop } from './liveEdit';
@@ -124,6 +124,8 @@ export class Program {
   /** 2026-10-18 — die Welt der Dinge (`null`: keine) — und ihre Werkstatt: jede Änderung, die jemand macht, geht dort durch. */
   readonly world: World | null = null;
   readonly workshop: Workshop | null = null;
+  /** 2026-10-18 — erst vermuten, dann sehen (`null`: das Bild antwortet sofort). */
+  readonly predict: PredictSpec | null;
   status: Status = 'ready';
   /** Ob etwas die Uhr `time` liest — dann läuft das Bild, solange es zu sehen ist. */
   usesTime = false;
@@ -169,6 +171,7 @@ export class Program {
   constructor(live: Live | null, options: ProgramOptions = {}) {
     const random = options.random ?? Math.random;
     this.vars = live?.vars ?? [];
+    this.predict = live?.predict ?? null;
     this.controls = live?.controls ?? [];
     this.panel = live?.panel ?? 'below';
     this.varBy = new Map(this.vars.map((v) => [v.name, v]));
@@ -176,6 +179,8 @@ export class Program {
     this.kindNames = new Set(worldSpec?.kinds.map((k) => k.name) ?? []);
 
     for (const name of BUILTINS) this.env[name] = name === 'n' ? 1 : 0;
+    /* Eine Aufgabe zum Vermuten beginnt angehalten. */
+    if (this.predict?.start === true) this.env.held = 1;
 
     /* Die Namen zuerst — dann darf jede Rechnung jede andere sehen (eine spätere mit dem Wert des letzten Bildes). */
     for (const v of this.vars) this.known.add(v.name);
@@ -275,6 +280,7 @@ export class Program {
       this.restart();
     }
     if (this.world !== null) this.workshop = new Workshop(this, this.world);
+    if (this.held && this.predict !== null) this.say(this.predict.say);
   }
 
   /** Je Anzeige der Bedienung ihr Ausdruck, je Knopf seine Zuweisungen, je Element wann es zu sehen ist (Stelle wie in `controls`). */
@@ -431,6 +437,8 @@ export class Program {
   /* -- Laufen ----------------------------------------------------------------------- */
 
   act(action: Action): void {
+    /* Angehalten zum Vermuten: nichts läuft von selbst — erst „Sprawdź" (`release`). */
+    if (this.held && action !== 'reset') return;
     switch (action) {
       case 'run':
         if (this.sim === null) return;
@@ -450,6 +458,38 @@ export class Program {
         this.restart();
         return;
     }
+  }
+
+  /* -- 2026-10-18: erst vermuten, dann sehen ---------------------------------------- */
+
+  /** Steht das Bild still, damit man erst vermutet? */
+  get held(): boolean {
+    return truth(this.env.held);
+  }
+
+  /** „Sprawdź": loslassen — von vorn (die Waage, wie man sie eingestellt hat), die Zeit läuft, die Regeln gelten. */
+  release(): void {
+    this.env.held = 0;
+    this.env.tries = toNum(this.env.tries) + 1;
+    this.changed.add('held');
+    this.changed.add('tries');
+    this.restart();
+    if (this.sim !== null) this.status = 'running';
+    this.settle();
+  }
+
+  /** Wieder anhalten — zurück an den Anfang (festgehalten), und man vermutet von neuem. */
+  hold(): void {
+    if (this.predict === null) return;
+    this.env.held = 1;
+    this.changed.add('held');
+    this.restart();
+    this.say(this.predict.say);
+  }
+
+  /** Jemand ändert etwas: in einer Aufgabe zum Vermuten heisst das nach einer Prüfung — wieder anhalten, neu vermuten. */
+  touchedByUser(): void {
+    if (this.predict?.start === true && !this.held) this.hold();
   }
 
   /** Eine eingeschlafene Simulation wieder wecken (nach jeder Änderung). */
@@ -512,7 +552,7 @@ export class Program {
       this.env.time = toNum(this.env.time) + seconds;
       this.changed.add('time');
     }
-    if (this.status !== 'running' || this.sim === null || seconds <= 0) return;
+    if (this.status !== 'running' || this.sim === null || seconds <= 0 || this.held) return;
     const dt = this.sim.dt;
     this.carry += seconds * this.sim.speed;
     let steps = 0;
@@ -650,6 +690,8 @@ export class Program {
 
   /** Die Regeln: eine, deren Bedingung wahr WIRD (und, mit `for`, so lange wahr BLEIBT), tut, was sie sagt. */
   private applyRules(): void {
+    /* Solange man vermutet, schweigen die Regeln — kein Ziel, keine Meldung. */
+    if (this.held) return;
     for (const r of this.rules) {
       const now = truth(r.when.run(this.env));
       if (!now) { r.since = null; if (!r.spec.once || !r.fired) r.armed = true; continue; }
@@ -744,6 +786,7 @@ export class Program {
    */
   runToEnd(): boolean {
     this.headless = true;
+    this.env.held = 0;
     this.instant = this.sim === null;
     this.restart();
     this.settle();
