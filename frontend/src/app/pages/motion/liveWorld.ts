@@ -755,18 +755,24 @@ export class World {
         if (made !== null) { alias.set(s.id, made.id); progress = true; moves += 1; }
       }
     }
-    /* Eigenschaften: wer sie einstellen oder ziehen darf, bekommt sie — Eltern zuerst, damit Grenzen stimmen. */
-    for (const s of shot.things) {
-      const t = this.byId.get(alias.get(s.id) ?? s.id);
-      if (t === undefined) continue;
-      let changed = false;
-      for (const [name, value] of Object.entries(s.props)) {
-        if (!t.kind.props.has(name) || toNum(t.env[name]) === value) continue;
-        const viaDrag = t.kind.drag.some((a) => a.name === name);
-        if (this.setProp(t, name, value, 'edit') || (viaDrag && this.setProp(t, name, value, 'drag'))) changed = true;
+    /*
+     * Eigenschaften: wer sie einstellen oder ziehen darf, bekommt sie — Eltern
+     * zuerst, damit Grenzen stimmen; und zweimal: ein Ding darf an eine Stelle,
+     * die ein anderes erst räumt (Abstand, `apart` — zwei Gewichte tauschen).
+     */
+    const changed = new Set<string>();
+    for (let pass = 0; pass < 2; pass += 1) {
+      for (const s of shot.things) {
+        const t = this.byId.get(alias.get(s.id) ?? s.id);
+        if (t === undefined) continue;
+        for (const [name, value] of Object.entries(s.props)) {
+          if (!t.kind.props.has(name) || toNum(t.env[name]) === value) continue;
+          const viaDrag = t.kind.drag.some((a) => a.name === name);
+          if (this.setProp(t, name, value, 'edit') || (viaDrag && this.setProp(t, name, value, 'drag'))) changed.add(s.id);
+        }
       }
-      if (changed && !alias.has(s.id)) moves += 1;
     }
+    for (const id of changed) if (!alias.has(id)) moves += 1;
     this.initAllState();
     return moves;
   }

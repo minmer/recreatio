@@ -108,8 +108,9 @@ android {
      *
      *   play   die App für alle (Google Play und die APK) — ohne SMS, ohne Adressbuch
      *   sms    dieselbe App und dazu: die SMS-App des Telefons (SMS, MMS, Senden),
-     *          das Adressbuch (aus recreatio für Anrufe, ins Netz zum Archivieren)
-     *          und das Archiv der Nachrichten — nur für EIN Telefon, nie bei Google
+     *          das Adressbuch (aus recreatio für Anrufe, ins Netz zum Archivieren),
+     *          das Archiv der Nachrichten und (2026-10-18) den Sender für die Lampen
+     *          (Bluetooth LE: senden und vom Pilot lernen) — nur für EIN Telefon, nie bei Google
      *          Play (die Rechte für SMS und Kontakte hätten dort nichts verloren).
      *
      * Dieselbe Kennung und dieselbe Unterschrift: auf dem eigenen Telefon ersetzt

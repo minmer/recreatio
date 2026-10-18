@@ -14,9 +14,14 @@
  *                            die Stufen als Fragen (Antwort: die gebaute Waage, geprüft durch
  *                            Nachrechnen), eine Wiederholung, ein Ablauf
  *
- * Bevor geschrieben wird, prüft das Skript jede Stufe: sie übersetzt ohne
- * Fehler, steht am Anfang NICHT im Gleichgewicht, und ihre Lösung — durch die
- * Regeln der Welt nachgespielt, wie in Cogita — erreicht das Ziel.
+ * 2026-10-18 — jede Stufe ist eine FAMILIE gleich schwerer Aufgaben: bei jedem
+ * Besuch (und mit „Nowe zadanie", und in Cogita je Versuch) andere Zahlen —
+ * gezogen, bis die Bedingungen der Stufe gelten (`task` im Bild,
+ * `src/app/pages/motion/liveTask.ts`). Bevor geschrieben wird, prüft das
+ * Skript jede Familie an vielen Zügen: sie übersetzt ohne Fehler, steht am
+ * Anfang NICHT im Gleichgewicht, und ihre Lösung — durch die Regeln der Welt
+ * nachgespielt, wie in Cogita — erreicht das Ziel; die Fassung des Dokuments
+ * ebenso; und die Familie ist bunt genug.
  *
  *   node scripts/balance-lab.mjs
  */
@@ -38,6 +43,7 @@ export { balanceDrawing, BALANCE, GEARS } from '${app}pages/motion/liveWorlds';
 export { Program } from '${app}pages/motion/liveRun';
 export { problemsOf } from '${app}pages/motion/liveLint';
 export { drawingOf } from '${app}pages/motion/drawing';
+export { seeded } from '${app}pages/motion/liveTask';
 `,
       resolveDir: process.cwd(),
       loader: 'ts'
@@ -55,107 +61,158 @@ export { drawingOf } from '${app}pages/motion/drawing';
   const weight = (id, parent, props, lock = true) => ({ id, kind: 'ciezarek', parent, ...props, lock });
   const puzzle = { add: false, remove: false, copy: false };
   const next = { type: 'button', label: 'Dalej →', go: 'next', show: 'solved' };
+  /** Eine gezogene Zahl: Wert im Dokument (die Aufgabe, wenn kein Zug passt), Raster, Bereich des Zufalls. */
+  const draw = (name, value, from, to, step = 1, label = '') => ({ name, value, min: from, max: to, step, random: [from, to], ...(label === '' ? {} : { label }) });
 
   /**
-   * DIE STUFEN — Dinge, Sperren, Hinweis, und die Lösung als Zuweisungen
-   * (`ding.eigenschaft = Wert`), so wie sie auch in Cogita steht.
+   * DIE STUFEN — jede eine FAMILIE gleich schwerer Aufgaben: dieselbe Welt,
+   * gezogene Zahlen (`vars` mit `random`), was daraus folgt (`lets`), wann die
+   * Aufgabe gilt (`require`: die Lösung auf dem Raster, weit genug vom Anfang,
+   * Zahlen aus demselben Bereich) und die Lösung als Rechnung (`solve` — in
+   * Cogita die Lösung). Die Werte im Dokument sind die erste Fassung der Stufe.
    */
   const LEVELS = [
     {
       key: 'p1', title: 'Poziom 1 · Prosta równowaga',
-      body: ['Po lewej wisi 4 kg, metr od osi. Gdzie powiesić 2 kg, żeby belka stanęła poziomo?', 'Belka jest przytrzymana: przesuń mały ciężarek tam, gdzie według ciebie będzie równowaga, i kliknij „Sprawdź”.'],
-      prompt: 'Po lewej wisi 4 kg, metr od osi. Przesuń ciężarek 2 kg tak, żeby belka stanęła poziomo.',
-      hint: 'Przeciągnij ciężarek 2 kg wzdłuż belki.',
-      solved: 'Brawo! 4 kg × 1 m = 2 kg × 2 m — dwa razy lżejszy, dwa razy dalej.',
-      things: [beam('b1', { length: 6, pivot: 3 }), weight('w1', 'b1', { m: 4, pos: 2 }), weight('w2', 'b1', { m: 2, pos: 3.5 }, ['m', 'drop'])],
-      solution: 'w2.pos = 5', explain: 'moment'
+      body: ['Szary ciężarek jest przykręcony. Gdzie powiesić zielony, żeby belka stanęła poziomo?', 'Ustaw zielony tam, gdzie według ciebie będzie równowaga, i kliknij „Sprawdź”. „Nowe zadanie” losuje inne liczby.'],
+      prompt: 'Szary ciężarek jest przykręcony. Przesuń zielony tak, żeby belka stanęła poziomo.',
+      say: 'Przewiduj: po lewej {w1.m} kg, {abs(w1.arm)} m od osi. Gdzie powiesić {w2.m} kg? Ustaw i kliknij „Sprawdź”.',
+      hint: 'Przeciągnij zielony ciężarek wzdłuż belki albo ustaw go suwakiem.',
+      solved: 'Brawo! {w1.m} kg × {abs(w1.arm)} m = {w2.m} kg × {w2.arm} m.',
+      vars: [draw('a', 4, 2, 9), draw('d', 1, 0.5, 3, 0.5), draw('b', 2, 1, 9), draw('r0', 0.5, 0.5, 3, 0.5)],
+      lets: [{ name: 's', value: 'a*d/b' }],
+      require: ['a != b', 'onstep(s, 0.5)', 's >= 0.5 && s <= 3', 'abs(s - r0) >= 1'],
+      solve: 'w2.pos = 3 + s',
+      things: [beam('b1', { length: 6, pivot: 3 }), weight('w1', 'b1', { m: '=a', pos: '=3 - d' }), weight('w2', 'b1', { m: '=b', pos: '=3 + r0' }, ['m', 'drop'])],
+      explain: 'moment'
     },
     {
       key: 'p2', title: 'Poziom 2 · Inna masa',
-      body: ['Ciężarki są przykręcone — zmienić można tylko masę prawego. Dotknij go i ustaw masę.', 'Lewa strona: 6 kg × 2 m = 12 kg·m.'],
-      prompt: 'Ciężarków nie da się przesunąć. Ustaw masę prawego ciężarka tak, żeby belka była w równowadze.',
-      hint: 'Dotknij prawego ciężarka i zmień jego masę (−, +, suwak albo liczba).',
-      solved: 'Tak: 4 kg × 3 m = 6 kg × 2 m.',
-      things: [beam('b1', { length: 6, pivot: 3 }), weight('w1', 'b1', { m: 6, pos: 1 }), weight('w2', 'b1', { m: 2, pos: 6 }, ['pos', 'drop'])],
-      solution: 'w2.m = 4', explain: 'rownowaga'
+      body: ['Ciężarki są przykręcone — zmienić można tylko masę zielonego.', 'Moment to masa × ramię: policz lewą stronę, a potem dobierz masę.'],
+      prompt: 'Ciężarków nie da się przesunąć. Ustaw masę zielonego ciężarka tak, żeby belka była w równowadze.',
+      say: 'Przewiduj: po lewej {w1.m} kg, {abs(w1.arm)} m od osi; zielony wisi {w2.arm} m od osi. Jaka musi być jego masa?',
+      hint: 'Zmień masę zielonego ciężarka (−, +, suwak albo liczba).',
+      solved: 'Tak: {w2.m} kg × {w2.arm} m = {w1.m} kg × {abs(w1.arm)} m.',
+      vars: [draw('a', 6, 2, 9), draw('d', 2, 0.5, 3, 0.5), draw('e', 3, 0.5, 3, 0.5), draw('b0', 2, 1, 9)],
+      lets: [{ name: 'need', value: 'a*d/e' }],
+      require: ['d != e', 'onstep(need, 1)', 'need >= 1 && need <= 12', 'abs(need - b0) >= 2'],
+      solve: 'w2.m = need',
+      things: [beam('b1', { length: 6, pivot: 3 }), weight('w1', 'b1', { m: '=a', pos: '=3 - d' }), weight('w2', 'b1', { m: '=b0', pos: '=3 + e' }, ['pos', 'drop'])],
+      explain: 'rownowaga'
     },
     {
       key: 'p3', title: 'Poziom 3 · Kilka ciężarków',
-      body: ['Po lewej dwa ciężarki, po prawej dwa do przesunięcia. Wystarczy, że sumy momentów są równe — sposobów jest kilka.', '> Moment strony = suma momentów jej ciężarków.'],
-      prompt: 'Po lewej: 3 kg na 3 m i 2 kg na 1,5 m od osi. Ułóż dwa ciężarki po prawej tak, żeby belka była w równowadze.',
-      hint: 'Przeciągnij ciężarki 4 kg i 2 kg po prawej stronie.',
-      solved: 'Równowaga: 9 + 3 = 12 kg·m po każdej stronie.',
+      body: ['Po lewej dwa szare ciężarki, po prawej dwa zielone do przesunięcia. Wystarczy, że sumy momentów są równe — sposobów jest kilka.', '> Moment strony = suma momentów jej ciężarków.'],
+      prompt: 'Po lewej wiszą dwa przykręcone ciężarki. Ułóż dwa zielone po prawej tak, żeby belka była w równowadze.',
+      say: 'Przewiduj: po lewej {w1.m} kg ({abs(w1.arm)} m od osi) i {w2.m} kg ({abs(w2.arm)} m). Ułóż oba zielone po prawej.',
+      hint: 'Przeciągnij zielone ciężarki po prawej stronie.',
+      solved: 'Równowaga: po każdej stronie {mL} kg·m.',
+      vars: [
+        draw('a1', 3, 1, 6), draw('d1', 3, 2, 4, 0.5), draw('a2', 2, 1, 6), draw('d2', 1.5, 0.5, 2, 0.5),
+        draw('c3', 4, 2, 6), draw('c4', 2, 1, 4), draw('s4', 1, 0.5, 3.5, 0.5)
+      ],
+      lets: [{ name: 'mL', value: 'a1*d1 + a2*d2' }, { name: 's3', value: '(mL - c4*s4)/c3' }],
+      require: ['d1 - d2 >= 0.5', 'c3 != c4', 'mL >= 6 && mL <= 24', 'onstep(s3, 0.25)', 's3 >= 0.5 && s3 <= 4', 'abs(s3 - s4) >= 0.5', 'abs(c3 + 2*c4 - mL) >= 2'],
+      solve: 'w3.pos = 4 + s3; w4.pos = 4 + s4',
       things: [
         beam('b1', { length: 8, pivot: 4 }),
-        weight('w1', 'b1', { m: 3, pos: 1 }), weight('w2', 'b1', { m: 2, pos: 2.5 }),
-        weight('w3', 'b1', { m: 4, pos: 5 }, ['m', 'drop']), weight('w4', 'b1', { m: 2, pos: 6 }, ['m', 'drop'])
+        weight('w1', 'b1', { m: '=a1', pos: '=4 - d1' }), weight('w2', 'b1', { m: '=a2', pos: '=4 - d2' }),
+        weight('w3', 'b1', { m: '=c3', pos: 5 }, ['m', 'drop']), weight('w4', 'b1', { m: '=c4', pos: 6 }, ['m', 'drop'])
       ],
-      solution: 'w3.pos = 6.5; w4.pos = 5', explain: 'wiele'
+      explain: 'wiele'
     },
     {
       key: 'p4', title: 'Poziom 4 · Belka na belce',
-      body: ['Dolna belka wisi na górnej. Na górną działa cała jej masa — razem z tym, co na niej wisi.', 'Najpierw zrównoważ dolną (masa ciężarka), potem przesuń ją po górnej.'],
-      prompt: 'Zrównoważ obie belki: najpierw dolną (masa ciężarka), potem jej miejsce na górnej.',
-      hint: 'Dotknij prawego ciężarka na dolnej belce, potem przeciągnij dolną belkę po górnej.',
-      solved: 'Dolna: 2 kg × 1,5 m = 2 kg × 1,5 m. Górna: 4 kg × 3 m = 6 kg × 2 m.',
+      body: ['Dolna belka wisi na górnej. Na górną działa cała jej masa — razem z tym, co na niej wisi.', 'Najpierw zrównoważ dolną (masa zielonego ciężarka), potem przesuń ją po górnej.'],
+      prompt: 'Zrównoważ obie belki: najpierw dolną (masa zielonego ciężarka), potem jej miejsce na górnej.',
+      say: 'Przewiduj: najpierw dolna belka (masa zielonego ciężarka), potem jej miejsce na górnej — działa tam cała jej masa.',
+      hint: 'Zmień masę zielonego ciężarka, potem przeciągnij dolną belkę po górnej.',
+      solved: 'Dolna: {w2.m} kg = {w3.m} kg. Górna: {w1.m} kg × {abs(w1.arm)} m = {w2.m + w3.m} kg × {b2.arm} m.',
+      vars: [draw('a', 6, 2, 8), draw('d', 2, 1, 3, 0.5), draw('c', 2, 1, 6), draw('c0', 5, 1, 9), draw('s0', 1.5, 0.5, 2.5, 0.5)],
+      lets: [{ name: 's', value: 'a*d/(2*c)' }],
+      require: ['onstep(s, 0.25)', 's >= 0.75 && s <= 3', 'abs(s - s0) >= 0.75', 'abs(c0 - c) >= 2'],
+      solve: 'w3.m = c; b2.pos = 3 + s',
       things: [
         beam('b1', { length: 6, pivot: 3 }),
-        weight('w1', 'b1', { m: 6, pos: 1 }),
-        beam('b2', { parent: 'b1', length: 3, pivot: 1.5, pos: 4.5, drop: 1.4 }, ['length', 'pivot', 'bm', 'drop']),
-        weight('w2', 'b2', { m: 2, pos: 0 }),
-        weight('w3', 'b2', { m: 5, pos: 3 }, ['pos', 'drop'])
+        weight('w1', 'b1', { m: '=a', pos: '=3 - d' }),
+        beam('b2', { parent: 'b1', length: 3, pivot: 1.5, pos: '=3 + s0', drop: 1.4 }, ['length', 'pivot', 'bm', 'drop']),
+        weight('w2', 'b2', { m: '=c', pos: 0 }),
+        weight('w3', 'b2', { m: '=c0', pos: 3 }, ['pos', 'drop'])
       ],
-      solution: 'w3.m = 2; b2.pos = 6', explain: 'belka'
+      explain: 'belka'
     },
     {
       key: 'p5', title: 'Poziom 5 · Mobil',
       body: ['Trzy piętra jak w mobilu nad łóżeczkiem. Zacznij od najniższej belki i idź w górę.', 'Każda belka niesie wszystko, co pod nią wisi.'],
       prompt: 'Mobil na trzy piętra: przesuń zawieszenia dolnych belek tak, żeby wszystkie wisiały poziomo.',
-      hint: 'Przeciągaj belki (ich oś) wzdłuż belki, na której wiszą.',
-      solved: 'Mobil wisi! Najniższa belka: 2 kg; środkowa: 4 kg × 1 m = 2 kg × 2 m; górna: 6 kg × 2,25 m = 13,5 kg·m.',
+      say: 'Przewiduj: zacznij od najniższej belki i idź w górę — każda belka niesie wszystko, co pod nią wisi.',
+      hint: 'Przeciągaj dolne belki wzdłuż belki, na której wiszą.',
+      solved: 'Mobil wisi! Środkowa: {w3.m} kg × 1 m = {w4.m + w5.m} kg × {b3.arm} m; górna: {mb} kg × {b2.arm} m.',
+      vars: [draw('a1', 3, 1, 5), draw('a2', 3, 1, 5), draw('c', 4, 2, 8), draw('e', 1, 1, 3)],
+      lets: [{ name: 'tb', value: 'c/(2*e)' }, { name: 'mb', value: 'c + 2*e' }, { name: 's', value: '(3*a1 + 1.5*a2)/mb' }],
+      require: ['onstep(tb, 0.25)', 'tb >= 0.5 && tb <= 2', 'abs(tb - 1) >= 0.5', 'onstep(s, 0.25)', 's >= 0.75 && s <= 3', 'abs(s - 1) >= 0.75'],
+      solve: 'b3.pos = 2 + tb; b2.pos = 3 + s',
       things: [
         beam('b1', { length: 6, pivot: 3 }),
-        weight('w1', 'b1', { m: 3, pos: 0 }), weight('w2', 'b1', { m: 3, pos: 1.5 }),
+        weight('w1', 'b1', { m: '=a1', pos: 0 }), weight('w2', 'b1', { m: '=a2', pos: 1.5 }),
         beam('b2', { parent: 'b1', length: 4, pivot: 2, pos: 4, drop: 1.6 }, ['length', 'pivot', 'bm', 'drop']),
-        weight('w3', 'b2', { m: 4, pos: 1 }),
+        weight('w3', 'b2', { m: '=c', pos: 1 }),
         beam('b3', { parent: 'b2', length: 2, pivot: 1, pos: 3, drop: 1.2 }, ['length', 'pivot', 'bm', 'drop']),
-        weight('w4', 'b3', { m: 1, pos: 0 }), weight('w5', 'b3', { m: 1, pos: 2 })
+        weight('w4', 'b3', { m: '=e', pos: 0 }), weight('w5', 'b3', { m: '=e', pos: 2 })
       ],
-      solution: 'b3.pos = 4; b2.pos = 5.25', explain: 'belka'
+      explain: 'belka'
     },
     {
       key: 'p6', title: 'Poziom 6 · Tylko dwa ruchy',
-      body: ['Najpierw policz, potem przesuwaj: masz najwyżej dwa ruchy. Cofnięcie (↶) oddaje ruch.', 'Lewa strona: 5 kg × 3 m + 1 kg × 1 m. Prawa: 2 kg × 2 m + 3 kg × 3 m.'],
+      body: ['Najpierw policz, potem przesuwaj: masz najwyżej dwa ruchy. Cofnięcie (↶) oddaje ruch.', 'Zielone ciężarki można przesuwać — wystarczy dobrze wybrać jeden.'],
       prompt: 'Zrównoważ belkę najwyżej dwoma ruchami.',
+      say: 'Przewiduj: masz najwyżej dwa ruchy — najpierw policz momenty po obu stronach.',
       hint: 'Masz dwa ruchy — każde przesunięcie ciężarka to jeden.',
-      solved: 'Wystarczył jeden ruch? Brakowało 3 kg·m po prawej.',
+      solved: 'Wystarczył jeden ruch? Brakowało {gap} kg·m po prawej.',
+      vars: [
+        draw('a', 5, 3, 6), draw('d', 3, 2, 3.5, 0.5), draw('fa', 1, 1, 2), draw('fd', 1, 0.5, 1.5, 0.5),
+        draw('b2', 2, 1, 3), draw('b3', 3, 2, 4), draw('r2', 2, 1, 2.5, 0.5), draw('r3', 3, 2.5, 3.5, 0.5)
+      ],
+      lets: [{ name: 'gap', value: 'a*d + fa*fd - b2*r2 - b3*r3' }, { name: 's2', value: 'r2 + gap/b2' }],
+      require: ['d - fd >= 0.5', 'r3 - r2 >= 0.5', 'b2 != b3', 'gap >= 1', 'onstep(s2, 0.25)', 's2 <= 4', 'abs(s2 - r3) >= 0.5'],
+      solve: 'w2.pos = 4 + s2',
       things: [
         beam('b1', { length: 8, pivot: 4 }),
-        weight('w1', 'b1', { m: 5, pos: 1 }),
-        weight('w2', 'b1', { m: 2, pos: 6 }, ['m', 'drop']), weight('w3', 'b1', { m: 3, pos: 7 }, ['m', 'drop']),
-        weight('w4', 'b1', { m: 1, pos: 3 }, ['m', 'drop'])
+        weight('w1', 'b1', { m: '=a', pos: '=4 - d' }),
+        weight('w2', 'b1', { m: '=b2', pos: '=4 + r2' }, ['m', 'drop']), weight('w3', 'b1', { m: '=b3', pos: '=4 + r3' }, ['m', 'drop']),
+        weight('w4', 'b1', { m: '=fa', pos: '=4 - fd' }, ['m', 'drop'])
       ],
       keep: [{ when: 'edits <= 2', say: 'Tylko dwa ruchy! Cofnij (↶), żeby spróbować inaczej.' }],
       controls: [{ type: 'readout', label: 'Ruchy', value: "edits + ' z 2'" }],
-      solution: 'w2.pos = 7.5', explain: 'wiele'
+      explain: 'wiele'
     },
     {
       key: 'p7', title: 'Dla zaawansowanych · Belka też waży',
-      body: ['Ta belka waży 4 kg, a jej oś nie jest w środku. Ciężar belki działa w jej środku — 1 m na prawo od osi.', 'Gdzie powiesić 2 kg?'],
-      prompt: 'Belka waży 4 kg, a oś jest 2 m od lewego końca (belka ma 6 m). Gdzie powiesić ciężarek 2 kg?',
-      hint: 'Przeciągnij ciężarek. Pamiętaj o ciężarze samej belki.',
-      solved: 'Belka: 4 kg × 1 m po prawej; ciężarek: 2 kg × 2 m po lewej.',
-      things: [beam('b1', { length: 6, pivot: 2, bm: 4 }), weight('w1', 'b1', { m: 2, pos: 4 }, ['m', 'drop'])],
-      solution: 'w1.pos = 0', explain: 'masa'
+      body: ['Ta belka coś waży, a jej oś nie jest w środku. Ciężar belki działa w jej środku.', 'Gdzie powiesić zielony ciężarek?'],
+      prompt: 'Belka waży kilka kilogramów, a oś nie jest w środku. Gdzie powiesić zielony ciężarek?',
+      say: 'Przewiduj: belka waży {b1.bm} kg, a jej środek jest {3 - b1.pivot} m na prawo od osi. Gdzie powiesić {w1.m} kg?',
+      hint: 'Przeciągnij zielony ciężarek. Pamiętaj o ciężarze samej belki.',
+      solved: 'Belka: {b1.bm} kg × {3 - b1.pivot} m po prawej; ciężarek: {w1.m} kg × {abs(w1.arm)} m po lewej.',
+      vars: [draw('P', 2, 1, 2.5, 0.5), draw('B', 4, 2, 8), draw('mw', 2, 1, 6)],
+      lets: [{ name: 'arm7', value: 'B*(3 - P)/mw' }],
+      require: ['B != mw', 'onstep(arm7, 0.25)', 'arm7 >= 0.5 && arm7 <= P'],
+      solve: 'w1.pos = P - arm7',
+      things: [beam('b1', { length: 6, pivot: '=P', bm: '=B' }), weight('w1', 'b1', { m: '=mw', pos: '=P + 1.5' }, ['m', 'drop'])],
+      explain: 'masa'
     },
     {
       key: 'p8', title: 'Dla zaawansowanych · Przesuń oś',
-      body: ['Ciężarków nie ruszysz. Dotknij belki i przesuń jej oś obrotu.', '6 kg na lewym końcu, 3 kg na prawym — oś musi być bliżej cięższego.'],
-      prompt: '6 kg wisi na lewym końcu belki, 3 kg na prawym (belka ma 6 m). Gdzie musi być oś?',
-      hint: 'Dotknij belki i zmień „Oś obrotu”.',
-      solved: 'Oś 2 m od lewego końca: 6 kg × 2 m = 3 kg × 4 m.',
-      things: [beam('b1', { length: 6, pivot: 3 }, ['length', 'bm', 'sx']), weight('w1', 'b1', { m: 6, pos: 0 }), weight('w2', 'b1', { m: 3, pos: 6 })],
-      solution: 'b1.pivot = 2', explain: 'os'
+      body: ['Ciężarków nie ruszysz. Przesuń oś obrotu belki — zieloną.', 'Oś musi być bliżej cięższego ciężarka.'],
+      prompt: 'Ciężarki wiszą na obu końcach belki (6 m). Gdzie musi być oś?',
+      say: 'Przewiduj: {w1.m} kg wisi na lewym końcu, {w2.m} kg na prawym (belka ma 6 m). Gdzie musi być oś?',
+      hint: 'Przeciągnij belkę albo zmień „Oś obrotu”.',
+      solved: 'Oś {b1.pivot} m od lewego końca: {w1.m} kg × {b1.pivot} m = {w2.m} kg × {6 - b1.pivot} m.',
+      vars: [draw('a', 6, 2, 12), draw('b', 3, 1, 12)],
+      lets: [{ name: 'P8', value: '6*b/(a + b)' }],
+      require: ['a != b', 'onstep(P8, 0.25)', 'abs(P8 - 3) >= 0.75'],
+      solve: 'b1.pivot = P8',
+      things: [beam('b1', { length: 6, pivot: 3 }, ['length', 'bm', 'sx']), weight('w1', 'b1', { m: '=a', pos: 0 }), weight('w2', 'b1', { m: '=b', pos: 6 })],
+      explain: 'os'
     }
   ];
 
@@ -166,27 +223,51 @@ export { drawingOf } from '${app}pages/motion/drawing';
     keep: level.keep,
     hint: level.hint,
     solved: level.solved,
+    vars: level.vars,
+    lets: level.lets,
+    /* Jedes Mal andere Zahlen, gleich schwer: die Bedingungen der Stufe, ihre Lösung als Rechnung. */
+    task: { require: level.require, solve: level.solve, new: 'Nowe zadanie' },
     /* Erst vermuten: die Belken sind festgehalten, bis man „Sprawdź" drückt — dann sieht man, was geschieht. */
-    predict: { say: 'Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”.' },
+    predict: { say: level.say },
     controls: [...(level.controls ?? []), ...(inShow ? [next] : [])]
   });
 
-  /* -- Jede Stufe prüfen: übersetzt, am Anfang nicht gelöst, mit der Lösung gelöst ------------------------- */
-  const assignments = (text) => Object.fromEntries(text.split(';').map((part) => part.split('=').map((x) => x.trim())).map(([k, v]) => [k, Number(v)]));
+  /*
+   * -- Jede Stufe prüfen — viele Züge je Familie: übersetzt, gezogen (nicht die
+   * Fassung des Dokuments, wenn kein Zug passt), am Anfang nicht gelöst, und
+   * ihre Lösung — durch die Regeln der Welt nachgespielt, wie in Cogita —
+   * erreicht das Ziel. Dazu: die Fassung des Dokuments ist selbst eine gültige
+   * Aufgabe, und die Familie ist bunt genug.
+   */
+  const DRAWS = 40;
+  const solveWith = (live, fixed, sol) => {
+    const start = new m.Program(live, { fixed }).worldSnapshot();
+    const shot = { things: start.things.map((t) => ({ ...t, props: { ...t.props, ...Object.fromEntries(Object.entries(sol).filter(([k]) => k.startsWith(`${t.id}.`)).map(([k, v]) => [k.slice(t.id.length + 1), v])) } })) };
+    return new m.Program(live, { fixed, replay: shot });
+  };
   for (const level of LEVELS) {
     const d = m.drawingOf(levelDrawing(level, true));
     assert.deepEqual(m.problemsOf(d), [], `${level.key}: compiles`);
-    assert.equal(new m.Program(d.live).runToEnd(), false, `${level.key}: not solved at the start`);
-    const start = new m.Program(d.live).worldSnapshot();
-    const want = assignments(level.solution);
-    const shot = { things: start.things.map((t) => ({ ...t, props: { ...t.props, ...Object.fromEntries(Object.entries(want).filter(([k]) => k.startsWith(`${t.id}.`)).map(([k, v]) => [k.slice(t.id.length + 1), v])) } })) };
-    const p = new m.Program(d.live, { replay: shot });
-    for (const [key, value] of Object.entries(want)) {
-      const [id, prop] = key.split('.');
-      assert.equal(p.world.get(id).env[prop], value, `${level.key}: the solution ${key} = ${value} is allowed`);
+    const plain = Object.fromEntries(level.vars.map((v) => [v.name, v.value]));
+    const seen = new Set();
+    for (const [n, fixed] of [[-1, plain], ...Array.from({ length: DRAWS }, (_, i) => [i, null])]) {
+      const p = new m.Program(d.live, fixed === null ? { random: m.seeded(`${level.key}:${n}`) } : { fixed });
+      const held = p.drawn();
+      const label = `${level.key}${n < 0 ? ' (the document)' : ` draw ${n}`} ${JSON.stringify(held)}`;
+      if (n >= 0) seen.add(JSON.stringify(held));
+      assert.equal(new m.Program(d.live, { fixed: held }).runToEnd(), false, `${label}: not solved at the start`);
+      const sol = p.solution();
+      assert.equal(Object.keys(sol).length, level.solve.split(';').length, `${label}: the solution computes`);
+      const q = solveWith(d.live, held, sol);
+      for (const [key, value] of Object.entries(sol)) {
+        const [id, prop] = key.split('.');
+        assert.ok(Math.abs(q.world.get(id).env[prop] - value) < 1e-9, `${label}: the solution ${key} = ${value} is reachable (got ${q.world.get(id).env[prop]})`);
+      }
+      assert.equal(q.broken(), null, `${label}: the solution keeps the rules of the world`);
+      assert.equal(q.runToEnd(), true, `${label}: the solution balances everything`);
     }
-    assert.equal(p.broken(), null, `${level.key}: the solution keeps the rules of the world`);
-    assert.equal(p.runToEnd(), true, `${level.key}: the solution balances everything`);
+    assert.ok(seen.size >= Math.min(12, DRAWS / 3), `${level.key}: the family is varied (${seen.size} different tasks in ${DRAWS} draws)`);
+    level.variety = seen.size;
   }
   for (const key of ['waga', 'przekladnia']) assert.deepEqual(m.problemsOf(m.drawingOf((key === 'waga' ? m.BALANCE : m.GEARS).drawing)), [], `${key}: compiles`);
 
@@ -308,9 +389,8 @@ export { drawingOf } from '${app}pages/motion/drawing';
         data: {
           form: 'interactive',
           prompt: l.prompt,
-          /* Das Bild als JSON-Text: so steht es in der Frage (und ein „@…" darin bleibt, was es ist). */
+          /* Das Bild als JSON-Text: so steht es in der Frage (und ein „@…" darin bleibt, was es ist). Die Lösung ist die des Bildes (`task.solve`), mit den Zahlen jedes Versuchs. */
           drawing: JSON.stringify(levelDrawing(l, false)),
-          solution: l.solution,
           explain: [explainOf[l.explain]],
           about: ['@rownowaga']
         }
@@ -371,7 +451,7 @@ export { drawingOf } from '${app}pages/motion/drawing';
   await writeFile(pageOut, `${JSON.stringify(page, null, 1)}\n`, 'utf8');
   await writeFile(courseOut, `${JSON.stringify(course, null, 1)}\n`, 'utf8');
   const sizes = modules.filter((x) => x.kind === 'animation').map((x) => JSON.stringify(x.config).length);
-  console.log(`checked ${LEVELS.length} levels: compile, unsolved at the start, solved by their solution`);
+  console.log(`checked ${LEVELS.length} level families × ${DRAWS + 1} tasks: compile, unsolved at the start, solved by their solution (${LEVELS.map((l) => `${l.key}: ${l.variety} different`).join(', ')})`);
   console.log(`written ${pageOut}: ${scenes.length} scenes, ${modules.length} modules; drawings up to ${Math.max(...sizes)} chars`);
   console.log(`written ${courseOut}: ${course.entities.length} entries (${LEVELS.length} questions), 1 revision, 1 flow`);
 } finally {

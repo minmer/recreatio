@@ -45,20 +45,8 @@ import { buildDrawing, type Camera, type Inst, type View } from './liveBuild';
 import { ControlView, digitsOf, predictLabel, rangeOf, shotOfText, withUnit, type WorldAct } from './LivePanel';
 import { WorldMain, WorldMore } from './LiveWorldPanel';
 import { PanelSync } from './liveSync';
+import { seeded } from './liveTask';
 import { ShowClock } from '../presentation/showContext';
-
-/** Ein Zufall aus einem Samen (mulberry32) — dasselbe Bild für denselben Samen. */
-export function seeded(seed: string): () => number {
-  let a = 2166136261;
-  for (let i = 0; i < seed.length; i += 1) a = Math.imul(a ^ seed.charCodeAt(i), 16777619) >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 /** Ein kurzer Schlüssel aus einem langen Text (FNV-1a) — für den gespeicherten Bau. */
 const keyOf = (text: string): string => {

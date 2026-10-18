@@ -153,6 +153,40 @@ The service needs migrations 0114 (`phone_*` tables), 0115 (an outline per archi
 
 MMS has not been tried against a real carrier, because the emulator has no MMSC. The PDU codec has unit tests (`app/src/testSms`).
 
+### Lamps (Bluetooth LE, 2026-10-18)
+
+The SMS edition also replaces BLE lamp remotes: *Lampy* (`#/workspace/lamps`) lists your devices, each with buttons for its signals. A button sends the signal as a real BLE advertisement from the phone. The Play edition has none of this and asks for no Bluetooth permission.
+
+| What | Where |
+| --- | --- |
+| Devices (name, device number, room, notes) with their signals, sealed in your own area (`app.phone_lamp`, migration 0118). Add, edit, duplicate, delete. A signal is one or more frames: the raw advertising payload in hex (paste it as nRF Connect shows it, `0x`, spaces and line breaks are fine), how long to send it (default 1000 ms) and a pause before the next frame. Under every payload: byte count, the AD structures, manufacturer id and data, the exact `addManufacturerData` call and the bytes that end up in the air. | `lamps/LampsApp.tsx`, `LampEdit.tsx`, `FrameView.tsx`, `adv.ts`, `lampStore.ts`, `backend/Api/Phone/Phone.Lamps.cs` |
+| Sending: legacy, non-connectable advertising (so Android adds no flags and all 31 bytes are the payload), `ADVERTISE_MODE_LOW_LATENCY`, high TX power, no name or TX power in the packet. Per frame: start, wait for `AdvertiseCallback` (3 s at most), hold, stop, pause. One radio thread: a second press waits for the first. *Stop*, leaving the app or closing it stops at once. Every outcome comes back with a code (`data-too-large`, `too-many-advertisers`, `no-permission`, `bluetooth-off`, `no-callback`, …) and the console shows it, with the start latency and how long Android really advertised. | `LampPlugin.java`, `LampFrame.java`, `lamps/transmit.ts`, `LampConsole.tsx` |
+| *Odczyt z pilota* (learn from the remote): the phone scans (`SCAN_MODE_LOW_LATENCY`, every packet), you press the remote's button next to the phone. The strongest sender (best three packets averaged) is taken as the remote; its latest packet is shown decoded live, identical consecutive packets are grouped into runs, and the repeating pattern is preselected: one packet repeated, a cycle of several, or else the most frequent. The ticked runs are saved as a signal of an existing or a new device. A TXT log from nRF Connect (`2026-10-18 03:27:06.277, -29 dBm, 0x1EFF…`) goes through the same analysis, also in the browser. | `lamps/LampLearn.tsx`, `learn.ts` |
+
+Permissions: Android 12+ asks for *Nearby devices* (`BLUETOOTH_ADVERTISE` to send, `BLUETOOTH_SCAN` with `neverForLocation` to listen). Up to Android 11, `BLUETOOTH`/`BLUETOOTH_ADMIN` are granted at install and listening needs location permission and location turned on.
+
+What the phone cannot do, and the app says so in *Co znaczy „nadano"*:
+
+- "Sent" means Android started and stopped the advertisement. Whether a lamp reacted is not known; mark it by hand (*Lampa zareagowała? Tak/Nie*).
+- A device in the app is a label. An advertisement reaches every lamp in range; which one reacts depends on bytes in the payload.
+- The phone sends from its own random address. The remote's address cannot be copied with public APIs.
+- A remote with a rolling code or counter may not accept a replayed packet.
+- Timing is approximate: Android picks the interval (about 100 ms at low latency), and starting a frame takes tens of milliseconds. Sequences with gaps of a few milliseconds cannot be reproduced; the console reports the real times.
+- Only manufacturer-specific data (`0xFF`) is sent byte for byte. Payloads with other structures (flags, names, UUIDs) are refused with a reason, never changed silently.
+
+The service needs migration 0118 and an API with `Phone/Phone.Lamps.cs` before devices can be saved.
+
+**Testing on a phone, with a second phone running nRF Connect:**
+
+1. Install `android-out/recreatio-sms-<version>.apk`, sign in, open *Lampy*.
+2. *+ Urządzenie*: name "Test A", number 1, a signal "Włącz" with `0x1EFF00000048464B4AE15A2285B8F21CB0424734F03133C519101112131415`. The preview must say 31 bytes, producer 0x0000, *da się nadać*. Add a second device "Test B" with a different payload (e.g. the second capture `…FFC185675ED4FE…`). Save both, close the app, reopen it: both are there.
+3. On the second phone, nRF Connect → *Scanner*, filter *Raw data* by `48464B4A` (HFKJ) or sort by RSSI.
+4. Tap *Włącz* on Test A. The console should show *Reklama nadana*, start after some tens of ms and about 1000 ms sent. In nRF Connect a new device appears (a random address, not connectable) for about a second; open it → *Raw*: the advertising data must be exactly the 31 bytes you pasted. Tap Test B's button and check its bytes too.
+5. Errors: turn Bluetooth off and tap a button (*Bluetooth jest wyłączony*); deny *Nearby devices* (*no-permission*); set the duration to 30 000 ms and press *Stop* (*Przerwano*, held less than requested); press a button and switch apps (*paused*).
+6. Learning: *Odczyt z pilota → Słuchaj*, hold the real remote next to the phone and press a button. The strongest sender should be the remote, with its packet decoded and a pattern preselected. Save it as a signal, then test it against the lamp and mark *Tak/Nie*.
+
+Not tested in this repository: anything over the air (no BLE hardware on the build machine and no emulator advertising). The parsing, the storage, the queue, stop, the error mapping and the frame bytes are covered by `scripts/app-lamp-check.mjs` and `app/src/testSms/.../LampFrameTest.java`.
+
 ## Not there yet
 
 - **Push on GrapheneOS without sandboxed Play.** There is no FCM there, so the app falls back to the 15-minute check. That also delays replies written in the browser (up to 15 minutes, or a minute while the app is open). The route there would be UnifiedPush (e.g. ntfy) behind the same wake-up signal.

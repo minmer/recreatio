@@ -74,6 +74,10 @@ export function LampLearn({ ctx, lamps, native, support, refresh, onSaved }: {
   const [chosen, setChosen] = useState<string | null>(null);
   /** `null`: das Muster vorgewählt. */
   const [picked, setPicked] = useState<ReadonlySet<number> | null>(null);
+  const [target, setTarget] = useState<string>(() => {
+    const wanted = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('lampa');
+    return wanted !== null && lamps.some((l) => l.id === wanted) ? wanted : lamps[0]?.id ?? NEW_TARGET;
+  });
   const sending = useAttempts().some((a) => a.state === 'sending');
 
   /* Was das Telefon hört, kommt gebündelt (alle 250 ms) — dann einmal neu zeichnen. */
@@ -239,6 +243,7 @@ export function LampLearn({ ctx, lamps, native, support, refresh, onSaved }: {
           </section>
 
           <SaveLearned ctx={ctx} lamps={lamps} native={native} sending={sending} runs={chosenRuns} source={source.address}
+            target={target} setTarget={setTarget}
             onSaved={(lamp) => { onSaved(lamp); fresh(); setStatus('Zapisano. Możesz odczytać następny przycisk.'); }} />
         </>
       )}
@@ -290,19 +295,18 @@ function LogImport({ onPackets }: { onPackets: (packets: Packet[], skipped: numb
 
 /* -- Als Sygnał speichern ------------------------------------------------------------------------ */
 
-function SaveLearned({ ctx, lamps, native, sending, runs, source, onSaved }: {
+function SaveLearned({ ctx, lamps, native, sending, runs, source, target, setTarget, onSaved }: {
   ctx: PhoneCtx;
   lamps: readonly Lamp[];
   native: boolean;
   sending: boolean;
   runs: readonly Run[];
   source: string;
+  /** Das Gerät — es bleibt für den nächsten Knopf gewählt. */
+  target: string;
+  setTarget: (id: string) => void;
   onSaved: (lamp: Lamp) => void;
 }) {
-  const [target, setTarget] = useState<string>(() => {
-    const wanted = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('lampa');
-    return wanted !== null && lamps.some((l) => l.id === wanted) ? wanted : lamps[0]?.id ?? NEW_TARGET;
-  });
   const [label, setLabel] = useState('');
   const [name, setName] = useState('');
   const [number, setNumber] = useState('');

@@ -262,6 +262,12 @@
       "min": 0,
       "max": 1,
       "step": 1
+     },
+     {
+      "name": "hang",
+      "value": 1,
+      "unit": "m",
+      "label": "Linka do sufitu"
      }
     ],
     "let": [
@@ -274,12 +280,12 @@
       "value": "max(things, bx1)"
      },
      {
-      "name": "vy1",
-      "value": "max(things, by1)"
+      "name": "vdeep",
+      "value": "hang - min(things, low) + 0.25"
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -290,16 +296,20 @@
       "value": "round((vx0 + vx1)/2*4)/4"
      },
      {
-      "name": "vcy",
-      "value": "vh/2 - 0.4"
+      "name": "vtop",
+      "value": "0.4"
      },
      {
-      "name": "vtop",
-      "value": "vcy + vh/2 - 0.1"
+      "name": "vfloor",
+      "value": "vtop - vh + 0.35"
      },
      {
       "name": "bad",
       "value": "count(belka, !ok)"
+     },
+     {
+      "name": "mixed",
+      "value": "count(things, !can) > 0 && count(things, can) > 0"
      }
     ],
     "sim": {
@@ -459,7 +469,7 @@
         },
         {
          "name": "ay",
-         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+         "value": "isroot ? 0 : parent.y + arm*parent.sa - h*parent.ca"
         },
         {
          "name": "x",
@@ -467,7 +477,7 @@
         },
         {
          "name": "y",
-         "value": "isroot ? stand : ay - drop"
+         "value": "isroot ? -hang : ay - drop"
         },
         {
          "name": "x1",
@@ -498,16 +508,8 @@
          "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
-         "name": "stand",
-         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
-        },
-        {
          "name": "rx",
          "value": "isroot ? sx : parent.rx + arm"
-        },
-        {
-         "name": "ry",
-         "value": "root.stand + dy"
         },
         {
          "name": "bx0",
@@ -516,14 +518,6 @@
         {
          "name": "bx1",
          "value": "rx + length - pivot + 0.4"
-        },
-        {
-         "name": "by0",
-         "value": "ry - h - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -578,6 +572,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{length} m{bm > 0 ? ', ' + bm + ' kg' : ''}",
        "readouts": [
         {
          "label": "Suma momentów",
@@ -606,7 +601,7 @@
          "x": "=x",
          "y": "=y",
          "x2": "=x",
-         "y2": "=vtop",
+         "y2": 0,
          "stroke": "muted",
          "width": 2,
          "show": "isroot"
@@ -617,9 +612,47 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5,
          "show": "!isroot"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax - 0.1*parent.ca",
+         "y": "=ay - 0.1*parent.sa",
+         "x2": "=ax - 0.45*parent.ca",
+         "y2": "=ay - 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax + 0.1*parent.ca",
+         "y": "=ay + 0.1*parent.sa",
+         "x2": "=ax + 0.45*parent.ca",
+         "y2": "=ay + 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
         },
         {
          "type": "line",
@@ -679,7 +712,7 @@
          "x": "=x",
          "y": "=y",
          "r": 4.5,
-         "fill": "ink"
+         "fill": "=mixed && can.pivot ? 'accent' : 'ink'"
         },
         {
          "type": "circle",
@@ -687,6 +720,28 @@
          "y": "=y",
          "r": 2,
          "fill": "ground"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa - 0.08*ca",
+         "y": "=y - 0.34*ca - 0.08*sa",
+         "x2": "=x + 0.34*sa - 0.42*ca",
+         "y2": "=y - 0.34*ca - 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa + 0.08*ca",
+         "y": "=y - 0.34*ca + 0.08*sa",
+         "x2": "=x + 0.34*sa + 0.42*ca",
+         "y2": "=y - 0.34*ca + 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
         },
         {
          "type": "text",
@@ -778,24 +833,12 @@
          "value": "parent.rx + arm"
         },
         {
-         "name": "ry",
-         "value": "root.stand + dy"
-        },
-        {
          "name": "bx0",
          "value": "rx - r - 0.3"
         },
         {
          "name": "bx1",
          "value": "rx + r + 0.3"
-        },
-        {
-         "name": "by0",
-         "value": "ry - 2*r - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry"
         },
         {
          "name": "hit",
@@ -814,6 +857,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{m} kg",
        "readouts": [
         {
          "label": "Moment względem osi",
@@ -837,8 +881,24 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y + r",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "mixed && !can.pos"
         },
         {
          "type": "rect",
@@ -847,18 +907,40 @@
          "w": "=2*r",
          "h": "=2*r",
          "r": 3,
-         "fill": "accent",
+         "fill": "=!mixed || can ? 'accent' : 'muted/70'",
          "stroke": "ink/30",
          "width": 1
+        },
+        {
+         "type": "arrow",
+         "x": "=x - (r + 0.06)*parent.ca",
+         "y": "=y - (r + 0.06)*parent.sa",
+         "x2": "=x - (r + 0.36)*parent.ca",
+         "y2": "=y - (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + (r + 0.06)*parent.ca",
+         "y": "=y + (r + 0.06)*parent.sa",
+         "x2": "=x + (r + 0.36)*parent.ca",
+         "y2": "=y + (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
         },
         {
          "type": "text",
          "x": "=x",
          "y": "=y - r - 0.18",
-         "text": "{fmt(m, 0)} kg",
+         "text": "{mixed && can.m ? '± ' : ''}{fmt(m, 0)} kg",
          "size": 11,
          "weight": 600,
-         "fill": "ink",
+         "fill": "=mixed && can.m ? 'accent' : 'ink'",
          "stroke": "ground",
          "width": 3
         },
@@ -929,15 +1011,15 @@
       "clip": true,
       "view": [
        "=vcx - vw/2",
-       "=vcy - vh/2",
+       "=vtop - vh",
        "=vcx + vw/2",
-       "=vcy + vh/2"
+       "=vtop"
       ],
       "children": [
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": -3,
+        "y": "=vfloor - 3",
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/12"
@@ -945,16 +1027,16 @@
        {
         "type": "line",
         "x": "=vcx - vw",
-        "y": 0,
+        "y": "=vfloor",
         "x2": "=vcx + vw",
-        "y2": 0,
+        "y2": "=vfloor",
         "stroke": "muted/60",
         "width": 1.5
        },
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": "=vtop",
+        "y": 0,
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/25"
@@ -1000,8 +1082,8 @@
    "config": {
     "title": "Poziom 1 · Prosta równowaga",
     "body": [
-     "Po lewej wisi 4 kg, metr od osi. Gdzie powiesić 2 kg, żeby belka stanęła poziomo?",
-     "Belka jest przytrzymana: przesuń mały ciężarek tam, gdzie według ciebie będzie równowaga, i kliknij „Sprawdź”."
+     "Szary ciężarek jest przykręcony. Gdzie powiesić zielony, żeby belka stanęła poziomo?",
+     "Ustaw zielony tam, gdzie według ciebie będzie równowaga, i kliknij „Sprawdź”. „Nowe zadanie” losuje inne liczby."
     ]
    }
   },
@@ -1090,9 +1172,63 @@
       "min": 0,
       "max": 1,
       "step": 1
+     },
+     {
+      "name": "hang",
+      "value": 1,
+      "unit": "m",
+      "label": "Linka do sufitu"
+     },
+     {
+      "name": "a",
+      "value": 4,
+      "min": 2,
+      "max": 9,
+      "step": 1,
+      "random": [
+       2,
+       9
+      ]
+     },
+     {
+      "name": "d",
+      "value": 1,
+      "min": 0.5,
+      "max": 3,
+      "step": 0.5,
+      "random": [
+       0.5,
+       3
+      ]
+     },
+     {
+      "name": "b",
+      "value": 2,
+      "min": 1,
+      "max": 9,
+      "step": 1,
+      "random": [
+       1,
+       9
+      ]
+     },
+     {
+      "name": "r0",
+      "value": 0.5,
+      "min": 0.5,
+      "max": 3,
+      "step": 0.5,
+      "random": [
+       0.5,
+       3
+      ]
      }
     ],
     "let": [
+     {
+      "name": "s",
+      "value": "a*d/b"
+     },
      {
       "name": "vx0",
       "value": "min(things, bx0)"
@@ -1102,12 +1238,12 @@
       "value": "max(things, bx1)"
      },
      {
-      "name": "vy1",
-      "value": "max(things, by1)"
+      "name": "vdeep",
+      "value": "hang - min(things, low) + 0.25"
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -1118,16 +1254,20 @@
       "value": "round((vx0 + vx1)/2*4)/4"
      },
      {
-      "name": "vcy",
-      "value": "vh/2 - 0.4"
+      "name": "vtop",
+      "value": "0.4"
      },
      {
-      "name": "vtop",
-      "value": "vcy + vh/2 - 0.1"
+      "name": "vfloor",
+      "value": "vtop - vh + 0.35"
      },
      {
       "name": "bad",
       "value": "count(belka, !ok)"
+     },
+     {
+      "name": "mixed",
+      "value": "count(things, !can) > 0 && count(things, can) > 0"
      }
     ],
     "sim": {
@@ -1138,7 +1278,17 @@
      "max": 3600
     },
     "predict": {
-     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+     "say": "Przewiduj: po lewej {w1.m} kg, {abs(w1.arm)} m od osi. Gdzie powiesić {w2.m} kg? Ustaw i kliknij „Sprawdź”."
+    },
+    "task": {
+     "require": [
+      "a != b",
+      "onstep(s, 0.5)",
+      "s >= 0.5 && s <= 3",
+      "abs(s - r0) >= 1"
+     ],
+     "solve": "w2.pos = 3 + s",
+     "new": "Nowe zadanie"
     },
     "controls": [
      {
@@ -1173,7 +1323,7 @@
       "set": {
        "solved": 1
       },
-      "say": "Brawo! 4 kg × 1 m = 2 kg × 2 m — dwa razy lżejszy, dwa razy dalej.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
+      "say": "Brawo! {w1.m} kg × {abs(w1.arm)} m = {w2.m} kg × {w2.arm} m.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
       "when": "(edits > 0 || tries > 0) && bad > 0",
@@ -1296,7 +1446,7 @@
         },
         {
          "name": "ay",
-         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+         "value": "isroot ? 0 : parent.y + arm*parent.sa - h*parent.ca"
         },
         {
          "name": "x",
@@ -1304,7 +1454,7 @@
         },
         {
          "name": "y",
-         "value": "isroot ? stand : ay - drop"
+         "value": "isroot ? -hang : ay - drop"
         },
         {
          "name": "x1",
@@ -1335,16 +1485,8 @@
          "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
-         "name": "stand",
-         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
-        },
-        {
          "name": "rx",
          "value": "isroot ? sx : parent.rx + arm"
-        },
-        {
-         "name": "ry",
-         "value": "root.stand + dy"
         },
         {
          "name": "bx0",
@@ -1353,14 +1495,6 @@
         {
          "name": "bx1",
          "value": "rx + length - pivot + 0.4"
-        },
-        {
-         "name": "by0",
-         "value": "ry - h - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -1415,6 +1549,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{length} m{bm > 0 ? ', ' + bm + ' kg' : ''}",
        "readouts": [
         {
          "label": "Suma momentów",
@@ -1443,7 +1578,7 @@
          "x": "=x",
          "y": "=y",
          "x2": "=x",
-         "y2": "=vtop",
+         "y2": 0,
          "stroke": "muted",
          "width": 2,
          "show": "isroot"
@@ -1454,9 +1589,47 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5,
          "show": "!isroot"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax - 0.1*parent.ca",
+         "y": "=ay - 0.1*parent.sa",
+         "x2": "=ax - 0.45*parent.ca",
+         "y2": "=ay - 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax + 0.1*parent.ca",
+         "y": "=ay + 0.1*parent.sa",
+         "x2": "=ax + 0.45*parent.ca",
+         "y2": "=ay + 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
         },
         {
          "type": "line",
@@ -1516,7 +1689,7 @@
          "x": "=x",
          "y": "=y",
          "r": 4.5,
-         "fill": "ink"
+         "fill": "=mixed && can.pivot ? 'accent' : 'ink'"
         },
         {
          "type": "circle",
@@ -1524,6 +1697,28 @@
          "y": "=y",
          "r": 2,
          "fill": "ground"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa - 0.08*ca",
+         "y": "=y - 0.34*ca - 0.08*sa",
+         "x2": "=x + 0.34*sa - 0.42*ca",
+         "y2": "=y - 0.34*ca - 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa + 0.08*ca",
+         "y": "=y - 0.34*ca + 0.08*sa",
+         "x2": "=x + 0.34*sa + 0.42*ca",
+         "y2": "=y - 0.34*ca + 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
         },
         {
          "type": "text",
@@ -1615,24 +1810,12 @@
          "value": "parent.rx + arm"
         },
         {
-         "name": "ry",
-         "value": "root.stand + dy"
-        },
-        {
          "name": "bx0",
          "value": "rx - r - 0.3"
         },
         {
          "name": "bx1",
          "value": "rx + r + 0.3"
-        },
-        {
-         "name": "by0",
-         "value": "ry - 2*r - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry"
         },
         {
          "name": "hit",
@@ -1651,6 +1834,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{m} kg",
        "readouts": [
         {
          "label": "Moment względem osi",
@@ -1674,8 +1858,24 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y + r",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "mixed && !can.pos"
         },
         {
          "type": "rect",
@@ -1684,18 +1884,40 @@
          "w": "=2*r",
          "h": "=2*r",
          "r": 3,
-         "fill": "accent",
+         "fill": "=!mixed || can ? 'accent' : 'muted/70'",
          "stroke": "ink/30",
          "width": 1
+        },
+        {
+         "type": "arrow",
+         "x": "=x - (r + 0.06)*parent.ca",
+         "y": "=y - (r + 0.06)*parent.sa",
+         "x2": "=x - (r + 0.36)*parent.ca",
+         "y2": "=y - (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + (r + 0.06)*parent.ca",
+         "y": "=y + (r + 0.06)*parent.sa",
+         "x2": "=x + (r + 0.36)*parent.ca",
+         "y2": "=y + (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
         },
         {
          "type": "text",
          "x": "=x",
          "y": "=y - r - 0.18",
-         "text": "{fmt(m, 0)} kg",
+         "text": "{mixed && can.m ? '± ' : ''}{fmt(m, 0)} kg",
          "size": 11,
          "weight": 600,
-         "fill": "ink",
+         "fill": "=mixed && can.m ? 'accent' : 'ink'",
          "stroke": "ground",
          "width": 3
         },
@@ -1725,16 +1947,16 @@
        "id": "w1",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 4,
-       "pos": 2,
+       "m": "=a",
+       "pos": "=3 - d",
        "lock": true
       },
       {
        "id": "w2",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 2,
-       "pos": 3.5,
+       "m": "=b",
+       "pos": "=3 + r0",
        "lock": [
         "m",
         "drop"
@@ -1752,7 +1974,7 @@
      },
      "keep": [],
      "save": false,
-     "hint": "Przeciągnij ciężarek 2 kg wzdłuż belki."
+     "hint": "Przeciągnij zielony ciężarek wzdłuż belki albo ustaw go suwakiem."
     },
     "elements": [
      {
@@ -1765,15 +1987,15 @@
       "clip": true,
       "view": [
        "=vcx - vw/2",
-       "=vcy - vh/2",
+       "=vtop - vh",
        "=vcx + vw/2",
-       "=vcy + vh/2"
+       "=vtop"
       ],
       "children": [
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": -3,
+        "y": "=vfloor - 3",
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/12"
@@ -1781,16 +2003,16 @@
        {
         "type": "line",
         "x": "=vcx - vw",
-        "y": 0,
+        "y": "=vfloor",
         "x2": "=vcx + vw",
-        "y2": 0,
+        "y2": "=vfloor",
         "stroke": "muted/60",
         "width": 1.5
        },
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": "=vtop",
+        "y": 0,
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/25"
@@ -1836,8 +2058,8 @@
    "config": {
     "title": "Poziom 2 · Inna masa",
     "body": [
-     "Ciężarki są przykręcone — zmienić można tylko masę prawego. Dotknij go i ustaw masę.",
-     "Lewa strona: 6 kg × 2 m = 12 kg·m."
+     "Ciężarki są przykręcone — zmienić można tylko masę zielonego.",
+     "Moment to masa × ramię: policz lewą stronę, a potem dobierz masę."
     ]
    }
   },
@@ -1926,9 +2148,63 @@
       "min": 0,
       "max": 1,
       "step": 1
+     },
+     {
+      "name": "hang",
+      "value": 1,
+      "unit": "m",
+      "label": "Linka do sufitu"
+     },
+     {
+      "name": "a",
+      "value": 6,
+      "min": 2,
+      "max": 9,
+      "step": 1,
+      "random": [
+       2,
+       9
+      ]
+     },
+     {
+      "name": "d",
+      "value": 2,
+      "min": 0.5,
+      "max": 3,
+      "step": 0.5,
+      "random": [
+       0.5,
+       3
+      ]
+     },
+     {
+      "name": "e",
+      "value": 3,
+      "min": 0.5,
+      "max": 3,
+      "step": 0.5,
+      "random": [
+       0.5,
+       3
+      ]
+     },
+     {
+      "name": "b0",
+      "value": 2,
+      "min": 1,
+      "max": 9,
+      "step": 1,
+      "random": [
+       1,
+       9
+      ]
      }
     ],
     "let": [
+     {
+      "name": "need",
+      "value": "a*d/e"
+     },
      {
       "name": "vx0",
       "value": "min(things, bx0)"
@@ -1938,12 +2214,12 @@
       "value": "max(things, bx1)"
      },
      {
-      "name": "vy1",
-      "value": "max(things, by1)"
+      "name": "vdeep",
+      "value": "hang - min(things, low) + 0.25"
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -1954,16 +2230,20 @@
       "value": "round((vx0 + vx1)/2*4)/4"
      },
      {
-      "name": "vcy",
-      "value": "vh/2 - 0.4"
+      "name": "vtop",
+      "value": "0.4"
      },
      {
-      "name": "vtop",
-      "value": "vcy + vh/2 - 0.1"
+      "name": "vfloor",
+      "value": "vtop - vh + 0.35"
      },
      {
       "name": "bad",
       "value": "count(belka, !ok)"
+     },
+     {
+      "name": "mixed",
+      "value": "count(things, !can) > 0 && count(things, can) > 0"
      }
     ],
     "sim": {
@@ -1974,7 +2254,17 @@
      "max": 3600
     },
     "predict": {
-     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+     "say": "Przewiduj: po lewej {w1.m} kg, {abs(w1.arm)} m od osi; zielony wisi {w2.arm} m od osi. Jaka musi być jego masa?"
+    },
+    "task": {
+     "require": [
+      "d != e",
+      "onstep(need, 1)",
+      "need >= 1 && need <= 12",
+      "abs(need - b0) >= 2"
+     ],
+     "solve": "w2.m = need",
+     "new": "Nowe zadanie"
     },
     "controls": [
      {
@@ -2009,7 +2299,7 @@
       "set": {
        "solved": 1
       },
-      "say": "Tak: 4 kg × 3 m = 6 kg × 2 m.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
+      "say": "Tak: {w2.m} kg × {w2.arm} m = {w1.m} kg × {abs(w1.arm)} m.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
       "when": "(edits > 0 || tries > 0) && bad > 0",
@@ -2132,7 +2422,7 @@
         },
         {
          "name": "ay",
-         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+         "value": "isroot ? 0 : parent.y + arm*parent.sa - h*parent.ca"
         },
         {
          "name": "x",
@@ -2140,7 +2430,7 @@
         },
         {
          "name": "y",
-         "value": "isroot ? stand : ay - drop"
+         "value": "isroot ? -hang : ay - drop"
         },
         {
          "name": "x1",
@@ -2171,16 +2461,8 @@
          "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
-         "name": "stand",
-         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
-        },
-        {
          "name": "rx",
          "value": "isroot ? sx : parent.rx + arm"
-        },
-        {
-         "name": "ry",
-         "value": "root.stand + dy"
         },
         {
          "name": "bx0",
@@ -2189,14 +2471,6 @@
         {
          "name": "bx1",
          "value": "rx + length - pivot + 0.4"
-        },
-        {
-         "name": "by0",
-         "value": "ry - h - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -2251,6 +2525,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{length} m{bm > 0 ? ', ' + bm + ' kg' : ''}",
        "readouts": [
         {
          "label": "Suma momentów",
@@ -2279,7 +2554,7 @@
          "x": "=x",
          "y": "=y",
          "x2": "=x",
-         "y2": "=vtop",
+         "y2": 0,
          "stroke": "muted",
          "width": 2,
          "show": "isroot"
@@ -2290,9 +2565,47 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5,
          "show": "!isroot"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax - 0.1*parent.ca",
+         "y": "=ay - 0.1*parent.sa",
+         "x2": "=ax - 0.45*parent.ca",
+         "y2": "=ay - 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax + 0.1*parent.ca",
+         "y": "=ay + 0.1*parent.sa",
+         "x2": "=ax + 0.45*parent.ca",
+         "y2": "=ay + 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
         },
         {
          "type": "line",
@@ -2352,7 +2665,7 @@
          "x": "=x",
          "y": "=y",
          "r": 4.5,
-         "fill": "ink"
+         "fill": "=mixed && can.pivot ? 'accent' : 'ink'"
         },
         {
          "type": "circle",
@@ -2360,6 +2673,28 @@
          "y": "=y",
          "r": 2,
          "fill": "ground"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa - 0.08*ca",
+         "y": "=y - 0.34*ca - 0.08*sa",
+         "x2": "=x + 0.34*sa - 0.42*ca",
+         "y2": "=y - 0.34*ca - 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa + 0.08*ca",
+         "y": "=y - 0.34*ca + 0.08*sa",
+         "x2": "=x + 0.34*sa + 0.42*ca",
+         "y2": "=y - 0.34*ca + 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
         },
         {
          "type": "text",
@@ -2451,24 +2786,12 @@
          "value": "parent.rx + arm"
         },
         {
-         "name": "ry",
-         "value": "root.stand + dy"
-        },
-        {
          "name": "bx0",
          "value": "rx - r - 0.3"
         },
         {
          "name": "bx1",
          "value": "rx + r + 0.3"
-        },
-        {
-         "name": "by0",
-         "value": "ry - 2*r - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry"
         },
         {
          "name": "hit",
@@ -2487,6 +2810,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{m} kg",
        "readouts": [
         {
          "label": "Moment względem osi",
@@ -2510,8 +2834,24 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y + r",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "mixed && !can.pos"
         },
         {
          "type": "rect",
@@ -2520,18 +2860,40 @@
          "w": "=2*r",
          "h": "=2*r",
          "r": 3,
-         "fill": "accent",
+         "fill": "=!mixed || can ? 'accent' : 'muted/70'",
          "stroke": "ink/30",
          "width": 1
+        },
+        {
+         "type": "arrow",
+         "x": "=x - (r + 0.06)*parent.ca",
+         "y": "=y - (r + 0.06)*parent.sa",
+         "x2": "=x - (r + 0.36)*parent.ca",
+         "y2": "=y - (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + (r + 0.06)*parent.ca",
+         "y": "=y + (r + 0.06)*parent.sa",
+         "x2": "=x + (r + 0.36)*parent.ca",
+         "y2": "=y + (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
         },
         {
          "type": "text",
          "x": "=x",
          "y": "=y - r - 0.18",
-         "text": "{fmt(m, 0)} kg",
+         "text": "{mixed && can.m ? '± ' : ''}{fmt(m, 0)} kg",
          "size": 11,
          "weight": 600,
-         "fill": "ink",
+         "fill": "=mixed && can.m ? 'accent' : 'ink'",
          "stroke": "ground",
          "width": 3
         },
@@ -2561,16 +2923,16 @@
        "id": "w1",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 6,
-       "pos": 1,
+       "m": "=a",
+       "pos": "=3 - d",
        "lock": true
       },
       {
        "id": "w2",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 2,
-       "pos": 6,
+       "m": "=b0",
+       "pos": "=3 + e",
        "lock": [
         "pos",
         "drop"
@@ -2588,7 +2950,7 @@
      },
      "keep": [],
      "save": false,
-     "hint": "Dotknij prawego ciężarka i zmień jego masę (−, +, suwak albo liczba)."
+     "hint": "Zmień masę zielonego ciężarka (−, +, suwak albo liczba)."
     },
     "elements": [
      {
@@ -2601,15 +2963,15 @@
       "clip": true,
       "view": [
        "=vcx - vw/2",
-       "=vcy - vh/2",
+       "=vtop - vh",
        "=vcx + vw/2",
-       "=vcy + vh/2"
+       "=vtop"
       ],
       "children": [
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": -3,
+        "y": "=vfloor - 3",
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/12"
@@ -2617,16 +2979,16 @@
        {
         "type": "line",
         "x": "=vcx - vw",
-        "y": 0,
+        "y": "=vfloor",
         "x2": "=vcx + vw",
-        "y2": 0,
+        "y2": "=vfloor",
         "stroke": "muted/60",
         "width": 1.5
        },
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": "=vtop",
+        "y": 0,
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/25"
@@ -2672,7 +3034,7 @@
    "config": {
     "title": "Poziom 3 · Kilka ciężarków",
     "body": [
-     "Po lewej dwa ciężarki, po prawej dwa do przesunięcia. Wystarczy, że sumy momentów są równe — sposobów jest kilka.",
+     "Po lewej dwa szare ciężarki, po prawej dwa zielone do przesunięcia. Wystarczy, że sumy momentów są równe — sposobów jest kilka.",
      "> Moment strony = suma momentów jej ciężarków."
     ]
    }
@@ -2762,9 +3124,100 @@
       "min": 0,
       "max": 1,
       "step": 1
+     },
+     {
+      "name": "hang",
+      "value": 1,
+      "unit": "m",
+      "label": "Linka do sufitu"
+     },
+     {
+      "name": "a1",
+      "value": 3,
+      "min": 1,
+      "max": 6,
+      "step": 1,
+      "random": [
+       1,
+       6
+      ]
+     },
+     {
+      "name": "d1",
+      "value": 3,
+      "min": 2,
+      "max": 4,
+      "step": 0.5,
+      "random": [
+       2,
+       4
+      ]
+     },
+     {
+      "name": "a2",
+      "value": 2,
+      "min": 1,
+      "max": 6,
+      "step": 1,
+      "random": [
+       1,
+       6
+      ]
+     },
+     {
+      "name": "d2",
+      "value": 1.5,
+      "min": 0.5,
+      "max": 2,
+      "step": 0.5,
+      "random": [
+       0.5,
+       2
+      ]
+     },
+     {
+      "name": "c3",
+      "value": 4,
+      "min": 2,
+      "max": 6,
+      "step": 1,
+      "random": [
+       2,
+       6
+      ]
+     },
+     {
+      "name": "c4",
+      "value": 2,
+      "min": 1,
+      "max": 4,
+      "step": 1,
+      "random": [
+       1,
+       4
+      ]
+     },
+     {
+      "name": "s4",
+      "value": 1,
+      "min": 0.5,
+      "max": 3.5,
+      "step": 0.5,
+      "random": [
+       0.5,
+       3.5
+      ]
      }
     ],
     "let": [
+     {
+      "name": "mL",
+      "value": "a1*d1 + a2*d2"
+     },
+     {
+      "name": "s3",
+      "value": "(mL - c4*s4)/c3"
+     },
      {
       "name": "vx0",
       "value": "min(things, bx0)"
@@ -2774,12 +3227,12 @@
       "value": "max(things, bx1)"
      },
      {
-      "name": "vy1",
-      "value": "max(things, by1)"
+      "name": "vdeep",
+      "value": "hang - min(things, low) + 0.25"
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -2790,16 +3243,20 @@
       "value": "round((vx0 + vx1)/2*4)/4"
      },
      {
-      "name": "vcy",
-      "value": "vh/2 - 0.4"
+      "name": "vtop",
+      "value": "0.4"
      },
      {
-      "name": "vtop",
-      "value": "vcy + vh/2 - 0.1"
+      "name": "vfloor",
+      "value": "vtop - vh + 0.35"
      },
      {
       "name": "bad",
       "value": "count(belka, !ok)"
+     },
+     {
+      "name": "mixed",
+      "value": "count(things, !can) > 0 && count(things, can) > 0"
      }
     ],
     "sim": {
@@ -2810,7 +3267,20 @@
      "max": 3600
     },
     "predict": {
-     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+     "say": "Przewiduj: po lewej {w1.m} kg ({abs(w1.arm)} m od osi) i {w2.m} kg ({abs(w2.arm)} m). Ułóż oba zielone po prawej."
+    },
+    "task": {
+     "require": [
+      "d1 - d2 >= 0.5",
+      "c3 != c4",
+      "mL >= 6 && mL <= 24",
+      "onstep(s3, 0.25)",
+      "s3 >= 0.5 && s3 <= 4",
+      "abs(s3 - s4) >= 0.5",
+      "abs(c3 + 2*c4 - mL) >= 2"
+     ],
+     "solve": "w3.pos = 4 + s3; w4.pos = 4 + s4",
+     "new": "Nowe zadanie"
     },
     "controls": [
      {
@@ -2845,7 +3315,7 @@
       "set": {
        "solved": 1
       },
-      "say": "Równowaga: 9 + 3 = 12 kg·m po każdej stronie.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
+      "say": "Równowaga: po każdej stronie {mL} kg·m.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
       "when": "(edits > 0 || tries > 0) && bad > 0",
@@ -2968,7 +3438,7 @@
         },
         {
          "name": "ay",
-         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+         "value": "isroot ? 0 : parent.y + arm*parent.sa - h*parent.ca"
         },
         {
          "name": "x",
@@ -2976,7 +3446,7 @@
         },
         {
          "name": "y",
-         "value": "isroot ? stand : ay - drop"
+         "value": "isroot ? -hang : ay - drop"
         },
         {
          "name": "x1",
@@ -3007,16 +3477,8 @@
          "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
-         "name": "stand",
-         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
-        },
-        {
          "name": "rx",
          "value": "isroot ? sx : parent.rx + arm"
-        },
-        {
-         "name": "ry",
-         "value": "root.stand + dy"
         },
         {
          "name": "bx0",
@@ -3025,14 +3487,6 @@
         {
          "name": "bx1",
          "value": "rx + length - pivot + 0.4"
-        },
-        {
-         "name": "by0",
-         "value": "ry - h - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -3087,6 +3541,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{length} m{bm > 0 ? ', ' + bm + ' kg' : ''}",
        "readouts": [
         {
          "label": "Suma momentów",
@@ -3115,7 +3570,7 @@
          "x": "=x",
          "y": "=y",
          "x2": "=x",
-         "y2": "=vtop",
+         "y2": 0,
          "stroke": "muted",
          "width": 2,
          "show": "isroot"
@@ -3126,9 +3581,47 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5,
          "show": "!isroot"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax - 0.1*parent.ca",
+         "y": "=ay - 0.1*parent.sa",
+         "x2": "=ax - 0.45*parent.ca",
+         "y2": "=ay - 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax + 0.1*parent.ca",
+         "y": "=ay + 0.1*parent.sa",
+         "x2": "=ax + 0.45*parent.ca",
+         "y2": "=ay + 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
         },
         {
          "type": "line",
@@ -3188,7 +3681,7 @@
          "x": "=x",
          "y": "=y",
          "r": 4.5,
-         "fill": "ink"
+         "fill": "=mixed && can.pivot ? 'accent' : 'ink'"
         },
         {
          "type": "circle",
@@ -3196,6 +3689,28 @@
          "y": "=y",
          "r": 2,
          "fill": "ground"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa - 0.08*ca",
+         "y": "=y - 0.34*ca - 0.08*sa",
+         "x2": "=x + 0.34*sa - 0.42*ca",
+         "y2": "=y - 0.34*ca - 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa + 0.08*ca",
+         "y": "=y - 0.34*ca + 0.08*sa",
+         "x2": "=x + 0.34*sa + 0.42*ca",
+         "y2": "=y - 0.34*ca + 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
         },
         {
          "type": "text",
@@ -3287,24 +3802,12 @@
          "value": "parent.rx + arm"
         },
         {
-         "name": "ry",
-         "value": "root.stand + dy"
-        },
-        {
          "name": "bx0",
          "value": "rx - r - 0.3"
         },
         {
          "name": "bx1",
          "value": "rx + r + 0.3"
-        },
-        {
-         "name": "by0",
-         "value": "ry - 2*r - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry"
         },
         {
          "name": "hit",
@@ -3323,6 +3826,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{m} kg",
        "readouts": [
         {
          "label": "Moment względem osi",
@@ -3346,8 +3850,24 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y + r",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "mixed && !can.pos"
         },
         {
          "type": "rect",
@@ -3356,18 +3876,40 @@
          "w": "=2*r",
          "h": "=2*r",
          "r": 3,
-         "fill": "accent",
+         "fill": "=!mixed || can ? 'accent' : 'muted/70'",
          "stroke": "ink/30",
          "width": 1
+        },
+        {
+         "type": "arrow",
+         "x": "=x - (r + 0.06)*parent.ca",
+         "y": "=y - (r + 0.06)*parent.sa",
+         "x2": "=x - (r + 0.36)*parent.ca",
+         "y2": "=y - (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + (r + 0.06)*parent.ca",
+         "y": "=y + (r + 0.06)*parent.sa",
+         "x2": "=x + (r + 0.36)*parent.ca",
+         "y2": "=y + (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
         },
         {
          "type": "text",
          "x": "=x",
          "y": "=y - r - 0.18",
-         "text": "{fmt(m, 0)} kg",
+         "text": "{mixed && can.m ? '± ' : ''}{fmt(m, 0)} kg",
          "size": 11,
          "weight": 600,
-         "fill": "ink",
+         "fill": "=mixed && can.m ? 'accent' : 'ink'",
          "stroke": "ground",
          "width": 3
         },
@@ -3397,23 +3939,23 @@
        "id": "w1",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 3,
-       "pos": 1,
+       "m": "=a1",
+       "pos": "=4 - d1",
        "lock": true
       },
       {
        "id": "w2",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 2,
-       "pos": 2.5,
+       "m": "=a2",
+       "pos": "=4 - d2",
        "lock": true
       },
       {
        "id": "w3",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 4,
+       "m": "=c3",
        "pos": 5,
        "lock": [
         "m",
@@ -3424,7 +3966,7 @@
        "id": "w4",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 2,
+       "m": "=c4",
        "pos": 6,
        "lock": [
         "m",
@@ -3443,7 +3985,7 @@
      },
      "keep": [],
      "save": false,
-     "hint": "Przeciągnij ciężarki 4 kg i 2 kg po prawej stronie."
+     "hint": "Przeciągnij zielone ciężarki po prawej stronie."
     },
     "elements": [
      {
@@ -3456,15 +3998,15 @@
       "clip": true,
       "view": [
        "=vcx - vw/2",
-       "=vcy - vh/2",
+       "=vtop - vh",
        "=vcx + vw/2",
-       "=vcy + vh/2"
+       "=vtop"
       ],
       "children": [
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": -3,
+        "y": "=vfloor - 3",
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/12"
@@ -3472,16 +4014,16 @@
        {
         "type": "line",
         "x": "=vcx - vw",
-        "y": 0,
+        "y": "=vfloor",
         "x2": "=vcx + vw",
-        "y2": 0,
+        "y2": "=vfloor",
         "stroke": "muted/60",
         "width": 1.5
        },
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": "=vtop",
+        "y": 0,
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/25"
@@ -3528,7 +4070,7 @@
     "title": "Poziom 4 · Belka na belce",
     "body": [
      "Dolna belka wisi na górnej. Na górną działa cała jej masa — razem z tym, co na niej wisi.",
-     "Najpierw zrównoważ dolną (masa ciężarka), potem przesuń ją po górnej."
+     "Najpierw zrównoważ dolną (masa zielonego ciężarka), potem przesuń ją po górnej."
     ]
    }
   },
@@ -3617,9 +4159,74 @@
       "min": 0,
       "max": 1,
       "step": 1
+     },
+     {
+      "name": "hang",
+      "value": 1,
+      "unit": "m",
+      "label": "Linka do sufitu"
+     },
+     {
+      "name": "a",
+      "value": 6,
+      "min": 2,
+      "max": 8,
+      "step": 1,
+      "random": [
+       2,
+       8
+      ]
+     },
+     {
+      "name": "d",
+      "value": 2,
+      "min": 1,
+      "max": 3,
+      "step": 0.5,
+      "random": [
+       1,
+       3
+      ]
+     },
+     {
+      "name": "c",
+      "value": 2,
+      "min": 1,
+      "max": 6,
+      "step": 1,
+      "random": [
+       1,
+       6
+      ]
+     },
+     {
+      "name": "c0",
+      "value": 5,
+      "min": 1,
+      "max": 9,
+      "step": 1,
+      "random": [
+       1,
+       9
+      ]
+     },
+     {
+      "name": "s0",
+      "value": 1.5,
+      "min": 0.5,
+      "max": 2.5,
+      "step": 0.5,
+      "random": [
+       0.5,
+       2.5
+      ]
      }
     ],
     "let": [
+     {
+      "name": "s",
+      "value": "a*d/(2*c)"
+     },
      {
       "name": "vx0",
       "value": "min(things, bx0)"
@@ -3629,12 +4236,12 @@
       "value": "max(things, bx1)"
      },
      {
-      "name": "vy1",
-      "value": "max(things, by1)"
+      "name": "vdeep",
+      "value": "hang - min(things, low) + 0.25"
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -3645,16 +4252,20 @@
       "value": "round((vx0 + vx1)/2*4)/4"
      },
      {
-      "name": "vcy",
-      "value": "vh/2 - 0.4"
+      "name": "vtop",
+      "value": "0.4"
      },
      {
-      "name": "vtop",
-      "value": "vcy + vh/2 - 0.1"
+      "name": "vfloor",
+      "value": "vtop - vh + 0.35"
      },
      {
       "name": "bad",
       "value": "count(belka, !ok)"
+     },
+     {
+      "name": "mixed",
+      "value": "count(things, !can) > 0 && count(things, can) > 0"
      }
     ],
     "sim": {
@@ -3665,7 +4276,17 @@
      "max": 3600
     },
     "predict": {
-     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+     "say": "Przewiduj: najpierw dolna belka (masa zielonego ciężarka), potem jej miejsce na górnej — działa tam cała jej masa."
+    },
+    "task": {
+     "require": [
+      "onstep(s, 0.25)",
+      "s >= 0.75 && s <= 3",
+      "abs(s - s0) >= 0.75",
+      "abs(c0 - c) >= 2"
+     ],
+     "solve": "w3.m = c; b2.pos = 3 + s",
+     "new": "Nowe zadanie"
     },
     "controls": [
      {
@@ -3700,7 +4321,7 @@
       "set": {
        "solved": 1
       },
-      "say": "Dolna: 2 kg × 1,5 m = 2 kg × 1,5 m. Górna: 4 kg × 3 m = 6 kg × 2 m.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
+      "say": "Dolna: {w2.m} kg = {w3.m} kg. Górna: {w1.m} kg × {abs(w1.arm)} m = {w2.m + w3.m} kg × {b2.arm} m.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
       "when": "(edits > 0 || tries > 0) && bad > 0",
@@ -3823,7 +4444,7 @@
         },
         {
          "name": "ay",
-         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+         "value": "isroot ? 0 : parent.y + arm*parent.sa - h*parent.ca"
         },
         {
          "name": "x",
@@ -3831,7 +4452,7 @@
         },
         {
          "name": "y",
-         "value": "isroot ? stand : ay - drop"
+         "value": "isroot ? -hang : ay - drop"
         },
         {
          "name": "x1",
@@ -3862,16 +4483,8 @@
          "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
-         "name": "stand",
-         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
-        },
-        {
          "name": "rx",
          "value": "isroot ? sx : parent.rx + arm"
-        },
-        {
-         "name": "ry",
-         "value": "root.stand + dy"
         },
         {
          "name": "bx0",
@@ -3880,14 +4493,6 @@
         {
          "name": "bx1",
          "value": "rx + length - pivot + 0.4"
-        },
-        {
-         "name": "by0",
-         "value": "ry - h - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -3942,6 +4547,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{length} m{bm > 0 ? ', ' + bm + ' kg' : ''}",
        "readouts": [
         {
          "label": "Suma momentów",
@@ -3970,7 +4576,7 @@
          "x": "=x",
          "y": "=y",
          "x2": "=x",
-         "y2": "=vtop",
+         "y2": 0,
          "stroke": "muted",
          "width": 2,
          "show": "isroot"
@@ -3981,9 +4587,47 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5,
          "show": "!isroot"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax - 0.1*parent.ca",
+         "y": "=ay - 0.1*parent.sa",
+         "x2": "=ax - 0.45*parent.ca",
+         "y2": "=ay - 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax + 0.1*parent.ca",
+         "y": "=ay + 0.1*parent.sa",
+         "x2": "=ax + 0.45*parent.ca",
+         "y2": "=ay + 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
         },
         {
          "type": "line",
@@ -4043,7 +4687,7 @@
          "x": "=x",
          "y": "=y",
          "r": 4.5,
-         "fill": "ink"
+         "fill": "=mixed && can.pivot ? 'accent' : 'ink'"
         },
         {
          "type": "circle",
@@ -4051,6 +4695,28 @@
          "y": "=y",
          "r": 2,
          "fill": "ground"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa - 0.08*ca",
+         "y": "=y - 0.34*ca - 0.08*sa",
+         "x2": "=x + 0.34*sa - 0.42*ca",
+         "y2": "=y - 0.34*ca - 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa + 0.08*ca",
+         "y": "=y - 0.34*ca + 0.08*sa",
+         "x2": "=x + 0.34*sa + 0.42*ca",
+         "y2": "=y - 0.34*ca + 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
         },
         {
          "type": "text",
@@ -4142,24 +4808,12 @@
          "value": "parent.rx + arm"
         },
         {
-         "name": "ry",
-         "value": "root.stand + dy"
-        },
-        {
          "name": "bx0",
          "value": "rx - r - 0.3"
         },
         {
          "name": "bx1",
          "value": "rx + r + 0.3"
-        },
-        {
-         "name": "by0",
-         "value": "ry - 2*r - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry"
         },
         {
          "name": "hit",
@@ -4178,6 +4832,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{m} kg",
        "readouts": [
         {
          "label": "Moment względem osi",
@@ -4201,8 +4856,24 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y + r",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "mixed && !can.pos"
         },
         {
          "type": "rect",
@@ -4211,18 +4882,40 @@
          "w": "=2*r",
          "h": "=2*r",
          "r": 3,
-         "fill": "accent",
+         "fill": "=!mixed || can ? 'accent' : 'muted/70'",
          "stroke": "ink/30",
          "width": 1
+        },
+        {
+         "type": "arrow",
+         "x": "=x - (r + 0.06)*parent.ca",
+         "y": "=y - (r + 0.06)*parent.sa",
+         "x2": "=x - (r + 0.36)*parent.ca",
+         "y2": "=y - (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + (r + 0.06)*parent.ca",
+         "y": "=y + (r + 0.06)*parent.sa",
+         "x2": "=x + (r + 0.36)*parent.ca",
+         "y2": "=y + (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
         },
         {
          "type": "text",
          "x": "=x",
          "y": "=y - r - 0.18",
-         "text": "{fmt(m, 0)} kg",
+         "text": "{mixed && can.m ? '± ' : ''}{fmt(m, 0)} kg",
          "size": 11,
          "weight": 600,
-         "fill": "ink",
+         "fill": "=mixed && can.m ? 'accent' : 'ink'",
          "stroke": "ground",
          "width": 3
         },
@@ -4252,8 +4945,8 @@
        "id": "w1",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 6,
-       "pos": 1,
+       "m": "=a",
+       "pos": "=3 - d",
        "lock": true
       },
       {
@@ -4262,7 +4955,7 @@
        "parent": "b1",
        "length": 3,
        "pivot": 1.5,
-       "pos": 4.5,
+       "pos": "=3 + s0",
        "drop": 1.4,
        "lock": [
         "length",
@@ -4275,7 +4968,7 @@
        "id": "w2",
        "kind": "ciezarek",
        "parent": "b2",
-       "m": 2,
+       "m": "=c",
        "pos": 0,
        "lock": true
       },
@@ -4283,7 +4976,7 @@
        "id": "w3",
        "kind": "ciezarek",
        "parent": "b2",
-       "m": 5,
+       "m": "=c0",
        "pos": 3,
        "lock": [
         "pos",
@@ -4302,7 +4995,7 @@
      },
      "keep": [],
      "save": false,
-     "hint": "Dotknij prawego ciężarka na dolnej belce, potem przeciągnij dolną belkę po górnej."
+     "hint": "Zmień masę zielonego ciężarka, potem przeciągnij dolną belkę po górnej."
     },
     "elements": [
      {
@@ -4315,15 +5008,15 @@
       "clip": true,
       "view": [
        "=vcx - vw/2",
-       "=vcy - vh/2",
+       "=vtop - vh",
        "=vcx + vw/2",
-       "=vcy + vh/2"
+       "=vtop"
       ],
       "children": [
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": -3,
+        "y": "=vfloor - 3",
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/12"
@@ -4331,16 +5024,16 @@
        {
         "type": "line",
         "x": "=vcx - vw",
-        "y": 0,
+        "y": "=vfloor",
         "x2": "=vcx + vw",
-        "y2": 0,
+        "y2": "=vfloor",
         "stroke": "muted/60",
         "width": 1.5
        },
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": "=vtop",
+        "y": 0,
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/25"
@@ -4476,9 +5169,71 @@
       "min": 0,
       "max": 1,
       "step": 1
+     },
+     {
+      "name": "hang",
+      "value": 1,
+      "unit": "m",
+      "label": "Linka do sufitu"
+     },
+     {
+      "name": "a1",
+      "value": 3,
+      "min": 1,
+      "max": 5,
+      "step": 1,
+      "random": [
+       1,
+       5
+      ]
+     },
+     {
+      "name": "a2",
+      "value": 3,
+      "min": 1,
+      "max": 5,
+      "step": 1,
+      "random": [
+       1,
+       5
+      ]
+     },
+     {
+      "name": "c",
+      "value": 4,
+      "min": 2,
+      "max": 8,
+      "step": 1,
+      "random": [
+       2,
+       8
+      ]
+     },
+     {
+      "name": "e",
+      "value": 1,
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "random": [
+       1,
+       3
+      ]
      }
     ],
     "let": [
+     {
+      "name": "tb",
+      "value": "c/(2*e)"
+     },
+     {
+      "name": "mb",
+      "value": "c + 2*e"
+     },
+     {
+      "name": "s",
+      "value": "(3*a1 + 1.5*a2)/mb"
+     },
      {
       "name": "vx0",
       "value": "min(things, bx0)"
@@ -4488,12 +5243,12 @@
       "value": "max(things, bx1)"
      },
      {
-      "name": "vy1",
-      "value": "max(things, by1)"
+      "name": "vdeep",
+      "value": "hang - min(things, low) + 0.25"
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -4504,16 +5259,20 @@
       "value": "round((vx0 + vx1)/2*4)/4"
      },
      {
-      "name": "vcy",
-      "value": "vh/2 - 0.4"
+      "name": "vtop",
+      "value": "0.4"
      },
      {
-      "name": "vtop",
-      "value": "vcy + vh/2 - 0.1"
+      "name": "vfloor",
+      "value": "vtop - vh + 0.35"
      },
      {
       "name": "bad",
       "value": "count(belka, !ok)"
+     },
+     {
+      "name": "mixed",
+      "value": "count(things, !can) > 0 && count(things, can) > 0"
      }
     ],
     "sim": {
@@ -4524,7 +5283,19 @@
      "max": 3600
     },
     "predict": {
-     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+     "say": "Przewiduj: zacznij od najniższej belki i idź w górę — każda belka niesie wszystko, co pod nią wisi."
+    },
+    "task": {
+     "require": [
+      "onstep(tb, 0.25)",
+      "tb >= 0.5 && tb <= 2",
+      "abs(tb - 1) >= 0.5",
+      "onstep(s, 0.25)",
+      "s >= 0.75 && s <= 3",
+      "abs(s - 1) >= 0.75"
+     ],
+     "solve": "b3.pos = 2 + tb; b2.pos = 3 + s",
+     "new": "Nowe zadanie"
     },
     "controls": [
      {
@@ -4559,7 +5330,7 @@
       "set": {
        "solved": 1
       },
-      "say": "Mobil wisi! Najniższa belka: 2 kg; środkowa: 4 kg × 1 m = 2 kg × 2 m; górna: 6 kg × 2,25 m = 13,5 kg·m.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
+      "say": "Mobil wisi! Środkowa: {w3.m} kg × 1 m = {w4.m + w5.m} kg × {b3.arm} m; górna: {mb} kg × {b2.arm} m.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
       "when": "(edits > 0 || tries > 0) && bad > 0",
@@ -4682,7 +5453,7 @@
         },
         {
          "name": "ay",
-         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+         "value": "isroot ? 0 : parent.y + arm*parent.sa - h*parent.ca"
         },
         {
          "name": "x",
@@ -4690,7 +5461,7 @@
         },
         {
          "name": "y",
-         "value": "isroot ? stand : ay - drop"
+         "value": "isroot ? -hang : ay - drop"
         },
         {
          "name": "x1",
@@ -4721,16 +5492,8 @@
          "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
-         "name": "stand",
-         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
-        },
-        {
          "name": "rx",
          "value": "isroot ? sx : parent.rx + arm"
-        },
-        {
-         "name": "ry",
-         "value": "root.stand + dy"
         },
         {
          "name": "bx0",
@@ -4739,14 +5502,6 @@
         {
          "name": "bx1",
          "value": "rx + length - pivot + 0.4"
-        },
-        {
-         "name": "by0",
-         "value": "ry - h - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -4801,6 +5556,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{length} m{bm > 0 ? ', ' + bm + ' kg' : ''}",
        "readouts": [
         {
          "label": "Suma momentów",
@@ -4829,7 +5585,7 @@
          "x": "=x",
          "y": "=y",
          "x2": "=x",
-         "y2": "=vtop",
+         "y2": 0,
          "stroke": "muted",
          "width": 2,
          "show": "isroot"
@@ -4840,9 +5596,47 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5,
          "show": "!isroot"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax - 0.1*parent.ca",
+         "y": "=ay - 0.1*parent.sa",
+         "x2": "=ax - 0.45*parent.ca",
+         "y2": "=ay - 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax + 0.1*parent.ca",
+         "y": "=ay + 0.1*parent.sa",
+         "x2": "=ax + 0.45*parent.ca",
+         "y2": "=ay + 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
         },
         {
          "type": "line",
@@ -4902,7 +5696,7 @@
          "x": "=x",
          "y": "=y",
          "r": 4.5,
-         "fill": "ink"
+         "fill": "=mixed && can.pivot ? 'accent' : 'ink'"
         },
         {
          "type": "circle",
@@ -4910,6 +5704,28 @@
          "y": "=y",
          "r": 2,
          "fill": "ground"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa - 0.08*ca",
+         "y": "=y - 0.34*ca - 0.08*sa",
+         "x2": "=x + 0.34*sa - 0.42*ca",
+         "y2": "=y - 0.34*ca - 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa + 0.08*ca",
+         "y": "=y - 0.34*ca + 0.08*sa",
+         "x2": "=x + 0.34*sa + 0.42*ca",
+         "y2": "=y - 0.34*ca + 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
         },
         {
          "type": "text",
@@ -5001,24 +5817,12 @@
          "value": "parent.rx + arm"
         },
         {
-         "name": "ry",
-         "value": "root.stand + dy"
-        },
-        {
          "name": "bx0",
          "value": "rx - r - 0.3"
         },
         {
          "name": "bx1",
          "value": "rx + r + 0.3"
-        },
-        {
-         "name": "by0",
-         "value": "ry - 2*r - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry"
         },
         {
          "name": "hit",
@@ -5037,6 +5841,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{m} kg",
        "readouts": [
         {
          "label": "Moment względem osi",
@@ -5060,8 +5865,24 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y + r",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "mixed && !can.pos"
         },
         {
          "type": "rect",
@@ -5070,18 +5891,40 @@
          "w": "=2*r",
          "h": "=2*r",
          "r": 3,
-         "fill": "accent",
+         "fill": "=!mixed || can ? 'accent' : 'muted/70'",
          "stroke": "ink/30",
          "width": 1
+        },
+        {
+         "type": "arrow",
+         "x": "=x - (r + 0.06)*parent.ca",
+         "y": "=y - (r + 0.06)*parent.sa",
+         "x2": "=x - (r + 0.36)*parent.ca",
+         "y2": "=y - (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + (r + 0.06)*parent.ca",
+         "y": "=y + (r + 0.06)*parent.sa",
+         "x2": "=x + (r + 0.36)*parent.ca",
+         "y2": "=y + (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
         },
         {
          "type": "text",
          "x": "=x",
          "y": "=y - r - 0.18",
-         "text": "{fmt(m, 0)} kg",
+         "text": "{mixed && can.m ? '± ' : ''}{fmt(m, 0)} kg",
          "size": 11,
          "weight": 600,
-         "fill": "ink",
+         "fill": "=mixed && can.m ? 'accent' : 'ink'",
          "stroke": "ground",
          "width": 3
         },
@@ -5111,7 +5954,7 @@
        "id": "w1",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 3,
+       "m": "=a1",
        "pos": 0,
        "lock": true
       },
@@ -5119,7 +5962,7 @@
        "id": "w2",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 3,
+       "m": "=a2",
        "pos": 1.5,
        "lock": true
       },
@@ -5142,7 +5985,7 @@
        "id": "w3",
        "kind": "ciezarek",
        "parent": "b2",
-       "m": 4,
+       "m": "=c",
        "pos": 1,
        "lock": true
       },
@@ -5165,7 +6008,7 @@
        "id": "w4",
        "kind": "ciezarek",
        "parent": "b3",
-       "m": 1,
+       "m": "=e",
        "pos": 0,
        "lock": true
       },
@@ -5173,7 +6016,7 @@
        "id": "w5",
        "kind": "ciezarek",
        "parent": "b3",
-       "m": 1,
+       "m": "=e",
        "pos": 2,
        "lock": true
       }
@@ -5189,7 +6032,7 @@
      },
      "keep": [],
      "save": false,
-     "hint": "Przeciągaj belki (ich oś) wzdłuż belki, na której wiszą."
+     "hint": "Przeciągaj dolne belki wzdłuż belki, na której wiszą."
     },
     "elements": [
      {
@@ -5202,15 +6045,15 @@
       "clip": true,
       "view": [
        "=vcx - vw/2",
-       "=vcy - vh/2",
+       "=vtop - vh",
        "=vcx + vw/2",
-       "=vcy + vh/2"
+       "=vtop"
       ],
       "children": [
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": -3,
+        "y": "=vfloor - 3",
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/12"
@@ -5218,16 +6061,16 @@
        {
         "type": "line",
         "x": "=vcx - vw",
-        "y": 0,
+        "y": "=vfloor",
         "x2": "=vcx + vw",
-        "y2": 0,
+        "y2": "=vfloor",
         "stroke": "muted/60",
         "width": 1.5
        },
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": "=vtop",
+        "y": 0,
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/25"
@@ -5274,7 +6117,7 @@
     "title": "Poziom 6 · Tylko dwa ruchy",
     "body": [
      "Najpierw policz, potem przesuwaj: masz najwyżej dwa ruchy. Cofnięcie (↶) oddaje ruch.",
-     "Lewa strona: 5 kg × 3 m + 1 kg × 1 m. Prawa: 2 kg × 2 m + 3 kg × 3 m."
+     "Zielone ciężarki można przesuwać — wystarczy dobrze wybrać jeden."
     ]
    }
   },
@@ -5363,9 +6206,111 @@
       "min": 0,
       "max": 1,
       "step": 1
+     },
+     {
+      "name": "hang",
+      "value": 1,
+      "unit": "m",
+      "label": "Linka do sufitu"
+     },
+     {
+      "name": "a",
+      "value": 5,
+      "min": 3,
+      "max": 6,
+      "step": 1,
+      "random": [
+       3,
+       6
+      ]
+     },
+     {
+      "name": "d",
+      "value": 3,
+      "min": 2,
+      "max": 3.5,
+      "step": 0.5,
+      "random": [
+       2,
+       3.5
+      ]
+     },
+     {
+      "name": "fa",
+      "value": 1,
+      "min": 1,
+      "max": 2,
+      "step": 1,
+      "random": [
+       1,
+       2
+      ]
+     },
+     {
+      "name": "fd",
+      "value": 1,
+      "min": 0.5,
+      "max": 1.5,
+      "step": 0.5,
+      "random": [
+       0.5,
+       1.5
+      ]
+     },
+     {
+      "name": "b2",
+      "value": 2,
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "random": [
+       1,
+       3
+      ]
+     },
+     {
+      "name": "b3",
+      "value": 3,
+      "min": 2,
+      "max": 4,
+      "step": 1,
+      "random": [
+       2,
+       4
+      ]
+     },
+     {
+      "name": "r2",
+      "value": 2,
+      "min": 1,
+      "max": 2.5,
+      "step": 0.5,
+      "random": [
+       1,
+       2.5
+      ]
+     },
+     {
+      "name": "r3",
+      "value": 3,
+      "min": 2.5,
+      "max": 3.5,
+      "step": 0.5,
+      "random": [
+       2.5,
+       3.5
+      ]
      }
     ],
     "let": [
+     {
+      "name": "gap",
+      "value": "a*d + fa*fd - b2*r2 - b3*r3"
+     },
+     {
+      "name": "s2",
+      "value": "r2 + gap/b2"
+     },
      {
       "name": "vx0",
       "value": "min(things, bx0)"
@@ -5375,12 +6320,12 @@
       "value": "max(things, bx1)"
      },
      {
-      "name": "vy1",
-      "value": "max(things, by1)"
+      "name": "vdeep",
+      "value": "hang - min(things, low) + 0.25"
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -5391,16 +6336,20 @@
       "value": "round((vx0 + vx1)/2*4)/4"
      },
      {
-      "name": "vcy",
-      "value": "vh/2 - 0.4"
+      "name": "vtop",
+      "value": "0.4"
      },
      {
-      "name": "vtop",
-      "value": "vcy + vh/2 - 0.1"
+      "name": "vfloor",
+      "value": "vtop - vh + 0.35"
      },
      {
       "name": "bad",
       "value": "count(belka, !ok)"
+     },
+     {
+      "name": "mixed",
+      "value": "count(things, !can) > 0 && count(things, can) > 0"
      }
     ],
     "sim": {
@@ -5411,7 +6360,20 @@
      "max": 3600
     },
     "predict": {
-     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+     "say": "Przewiduj: masz najwyżej dwa ruchy — najpierw policz momenty po obu stronach."
+    },
+    "task": {
+     "require": [
+      "d - fd >= 0.5",
+      "r3 - r2 >= 0.5",
+      "b2 != b3",
+      "gap >= 1",
+      "onstep(s2, 0.25)",
+      "s2 <= 4",
+      "abs(s2 - r3) >= 0.5"
+     ],
+     "solve": "w2.pos = 4 + s2",
+     "new": "Nowe zadanie"
     },
     "controls": [
      {
@@ -5451,7 +6413,7 @@
       "set": {
        "solved": 1
       },
-      "say": "Wystarczył jeden ruch? Brakowało 3 kg·m po prawej.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
+      "say": "Wystarczył jeden ruch? Brakowało {gap} kg·m po prawej.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
       "when": "(edits > 0 || tries > 0) && bad > 0",
@@ -5574,7 +6536,7 @@
         },
         {
          "name": "ay",
-         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+         "value": "isroot ? 0 : parent.y + arm*parent.sa - h*parent.ca"
         },
         {
          "name": "x",
@@ -5582,7 +6544,7 @@
         },
         {
          "name": "y",
-         "value": "isroot ? stand : ay - drop"
+         "value": "isroot ? -hang : ay - drop"
         },
         {
          "name": "x1",
@@ -5613,16 +6575,8 @@
          "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
-         "name": "stand",
-         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
-        },
-        {
          "name": "rx",
          "value": "isroot ? sx : parent.rx + arm"
-        },
-        {
-         "name": "ry",
-         "value": "root.stand + dy"
         },
         {
          "name": "bx0",
@@ -5631,14 +6585,6 @@
         {
          "name": "bx1",
          "value": "rx + length - pivot + 0.4"
-        },
-        {
-         "name": "by0",
-         "value": "ry - h - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -5693,6 +6639,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{length} m{bm > 0 ? ', ' + bm + ' kg' : ''}",
        "readouts": [
         {
          "label": "Suma momentów",
@@ -5721,7 +6668,7 @@
          "x": "=x",
          "y": "=y",
          "x2": "=x",
-         "y2": "=vtop",
+         "y2": 0,
          "stroke": "muted",
          "width": 2,
          "show": "isroot"
@@ -5732,9 +6679,47 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5,
          "show": "!isroot"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax - 0.1*parent.ca",
+         "y": "=ay - 0.1*parent.sa",
+         "x2": "=ax - 0.45*parent.ca",
+         "y2": "=ay - 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax + 0.1*parent.ca",
+         "y": "=ay + 0.1*parent.sa",
+         "x2": "=ax + 0.45*parent.ca",
+         "y2": "=ay + 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
         },
         {
          "type": "line",
@@ -5794,7 +6779,7 @@
          "x": "=x",
          "y": "=y",
          "r": 4.5,
-         "fill": "ink"
+         "fill": "=mixed && can.pivot ? 'accent' : 'ink'"
         },
         {
          "type": "circle",
@@ -5802,6 +6787,28 @@
          "y": "=y",
          "r": 2,
          "fill": "ground"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa - 0.08*ca",
+         "y": "=y - 0.34*ca - 0.08*sa",
+         "x2": "=x + 0.34*sa - 0.42*ca",
+         "y2": "=y - 0.34*ca - 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa + 0.08*ca",
+         "y": "=y - 0.34*ca + 0.08*sa",
+         "x2": "=x + 0.34*sa + 0.42*ca",
+         "y2": "=y - 0.34*ca + 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
         },
         {
          "type": "text",
@@ -5893,24 +6900,12 @@
          "value": "parent.rx + arm"
         },
         {
-         "name": "ry",
-         "value": "root.stand + dy"
-        },
-        {
          "name": "bx0",
          "value": "rx - r - 0.3"
         },
         {
          "name": "bx1",
          "value": "rx + r + 0.3"
-        },
-        {
-         "name": "by0",
-         "value": "ry - 2*r - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry"
         },
         {
          "name": "hit",
@@ -5929,6 +6924,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{m} kg",
        "readouts": [
         {
          "label": "Moment względem osi",
@@ -5952,8 +6948,24 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y + r",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "mixed && !can.pos"
         },
         {
          "type": "rect",
@@ -5962,18 +6974,40 @@
          "w": "=2*r",
          "h": "=2*r",
          "r": 3,
-         "fill": "accent",
+         "fill": "=!mixed || can ? 'accent' : 'muted/70'",
          "stroke": "ink/30",
          "width": 1
+        },
+        {
+         "type": "arrow",
+         "x": "=x - (r + 0.06)*parent.ca",
+         "y": "=y - (r + 0.06)*parent.sa",
+         "x2": "=x - (r + 0.36)*parent.ca",
+         "y2": "=y - (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + (r + 0.06)*parent.ca",
+         "y": "=y + (r + 0.06)*parent.sa",
+         "x2": "=x + (r + 0.36)*parent.ca",
+         "y2": "=y + (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
         },
         {
          "type": "text",
          "x": "=x",
          "y": "=y - r - 0.18",
-         "text": "{fmt(m, 0)} kg",
+         "text": "{mixed && can.m ? '± ' : ''}{fmt(m, 0)} kg",
          "size": 11,
          "weight": 600,
-         "fill": "ink",
+         "fill": "=mixed && can.m ? 'accent' : 'ink'",
          "stroke": "ground",
          "width": 3
         },
@@ -6003,16 +7037,16 @@
        "id": "w1",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 5,
-       "pos": 1,
+       "m": "=a",
+       "pos": "=4 - d",
        "lock": true
       },
       {
        "id": "w2",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 2,
-       "pos": 6,
+       "m": "=b2",
+       "pos": "=4 + r2",
        "lock": [
         "m",
         "drop"
@@ -6022,8 +7056,8 @@
        "id": "w3",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 3,
-       "pos": 7,
+       "m": "=b3",
+       "pos": "=4 + r3",
        "lock": [
         "m",
         "drop"
@@ -6033,8 +7067,8 @@
        "id": "w4",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 1,
-       "pos": 3,
+       "m": "=fa",
+       "pos": "=4 - fd",
        "lock": [
         "m",
         "drop"
@@ -6070,15 +7104,15 @@
       "clip": true,
       "view": [
        "=vcx - vw/2",
-       "=vcy - vh/2",
+       "=vtop - vh",
        "=vcx + vw/2",
-       "=vcy + vh/2"
+       "=vtop"
       ],
       "children": [
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": -3,
+        "y": "=vfloor - 3",
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/12"
@@ -6086,16 +7120,16 @@
        {
         "type": "line",
         "x": "=vcx - vw",
-        "y": 0,
+        "y": "=vfloor",
         "x2": "=vcx + vw",
-        "y2": 0,
+        "y2": "=vfloor",
         "stroke": "muted/60",
         "width": 1.5
        },
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": "=vtop",
+        "y": 0,
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/25"
@@ -6141,8 +7175,8 @@
    "config": {
     "title": "Dla zaawansowanych · Belka też waży",
     "body": [
-     "Ta belka waży 4 kg, a jej oś nie jest w środku. Ciężar belki działa w jej środku — 1 m na prawo od osi.",
-     "Gdzie powiesić 2 kg?"
+     "Ta belka coś waży, a jej oś nie jest w środku. Ciężar belki działa w jej środku.",
+     "Gdzie powiesić zielony ciężarek?"
     ]
    }
   },
@@ -6231,9 +7265,52 @@
       "min": 0,
       "max": 1,
       "step": 1
+     },
+     {
+      "name": "hang",
+      "value": 1,
+      "unit": "m",
+      "label": "Linka do sufitu"
+     },
+     {
+      "name": "P",
+      "value": 2,
+      "min": 1,
+      "max": 2.5,
+      "step": 0.5,
+      "random": [
+       1,
+       2.5
+      ]
+     },
+     {
+      "name": "B",
+      "value": 4,
+      "min": 2,
+      "max": 8,
+      "step": 1,
+      "random": [
+       2,
+       8
+      ]
+     },
+     {
+      "name": "mw",
+      "value": 2,
+      "min": 1,
+      "max": 6,
+      "step": 1,
+      "random": [
+       1,
+       6
+      ]
      }
     ],
     "let": [
+     {
+      "name": "arm7",
+      "value": "B*(3 - P)/mw"
+     },
      {
       "name": "vx0",
       "value": "min(things, bx0)"
@@ -6243,12 +7320,12 @@
       "value": "max(things, bx1)"
      },
      {
-      "name": "vy1",
-      "value": "max(things, by1)"
+      "name": "vdeep",
+      "value": "hang - min(things, low) + 0.25"
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -6259,16 +7336,20 @@
       "value": "round((vx0 + vx1)/2*4)/4"
      },
      {
-      "name": "vcy",
-      "value": "vh/2 - 0.4"
+      "name": "vtop",
+      "value": "0.4"
      },
      {
-      "name": "vtop",
-      "value": "vcy + vh/2 - 0.1"
+      "name": "vfloor",
+      "value": "vtop - vh + 0.35"
      },
      {
       "name": "bad",
       "value": "count(belka, !ok)"
+     },
+     {
+      "name": "mixed",
+      "value": "count(things, !can) > 0 && count(things, can) > 0"
      }
     ],
     "sim": {
@@ -6279,7 +7360,16 @@
      "max": 3600
     },
     "predict": {
-     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+     "say": "Przewiduj: belka waży {b1.bm} kg, a jej środek jest {3 - b1.pivot} m na prawo od osi. Gdzie powiesić {w1.m} kg?"
+    },
+    "task": {
+     "require": [
+      "B != mw",
+      "onstep(arm7, 0.25)",
+      "arm7 >= 0.5 && arm7 <= P"
+     ],
+     "solve": "w1.pos = P - arm7",
+     "new": "Nowe zadanie"
     },
     "controls": [
      {
@@ -6314,7 +7404,7 @@
       "set": {
        "solved": 1
       },
-      "say": "Belka: 4 kg × 1 m po prawej; ciężarek: 2 kg × 2 m po lewej.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
+      "say": "Belka: {b1.bm} kg × {3 - b1.pivot} m po prawej; ciężarek: {w1.m} kg × {abs(w1.arm)} m po lewej.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
       "when": "(edits > 0 || tries > 0) && bad > 0",
@@ -6437,7 +7527,7 @@
         },
         {
          "name": "ay",
-         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+         "value": "isroot ? 0 : parent.y + arm*parent.sa - h*parent.ca"
         },
         {
          "name": "x",
@@ -6445,7 +7535,7 @@
         },
         {
          "name": "y",
-         "value": "isroot ? stand : ay - drop"
+         "value": "isroot ? -hang : ay - drop"
         },
         {
          "name": "x1",
@@ -6476,16 +7566,8 @@
          "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
-         "name": "stand",
-         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
-        },
-        {
          "name": "rx",
          "value": "isroot ? sx : parent.rx + arm"
-        },
-        {
-         "name": "ry",
-         "value": "root.stand + dy"
         },
         {
          "name": "bx0",
@@ -6494,14 +7576,6 @@
         {
          "name": "bx1",
          "value": "rx + length - pivot + 0.4"
-        },
-        {
-         "name": "by0",
-         "value": "ry - h - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -6556,6 +7630,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{length} m{bm > 0 ? ', ' + bm + ' kg' : ''}",
        "readouts": [
         {
          "label": "Suma momentów",
@@ -6584,7 +7659,7 @@
          "x": "=x",
          "y": "=y",
          "x2": "=x",
-         "y2": "=vtop",
+         "y2": 0,
          "stroke": "muted",
          "width": 2,
          "show": "isroot"
@@ -6595,9 +7670,47 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5,
          "show": "!isroot"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax - 0.1*parent.ca",
+         "y": "=ay - 0.1*parent.sa",
+         "x2": "=ax - 0.45*parent.ca",
+         "y2": "=ay - 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax + 0.1*parent.ca",
+         "y": "=ay + 0.1*parent.sa",
+         "x2": "=ax + 0.45*parent.ca",
+         "y2": "=ay + 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
         },
         {
          "type": "line",
@@ -6657,7 +7770,7 @@
          "x": "=x",
          "y": "=y",
          "r": 4.5,
-         "fill": "ink"
+         "fill": "=mixed && can.pivot ? 'accent' : 'ink'"
         },
         {
          "type": "circle",
@@ -6665,6 +7778,28 @@
          "y": "=y",
          "r": 2,
          "fill": "ground"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa - 0.08*ca",
+         "y": "=y - 0.34*ca - 0.08*sa",
+         "x2": "=x + 0.34*sa - 0.42*ca",
+         "y2": "=y - 0.34*ca - 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa + 0.08*ca",
+         "y": "=y - 0.34*ca + 0.08*sa",
+         "x2": "=x + 0.34*sa + 0.42*ca",
+         "y2": "=y - 0.34*ca + 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
         },
         {
          "type": "text",
@@ -6756,24 +7891,12 @@
          "value": "parent.rx + arm"
         },
         {
-         "name": "ry",
-         "value": "root.stand + dy"
-        },
-        {
          "name": "bx0",
          "value": "rx - r - 0.3"
         },
         {
          "name": "bx1",
          "value": "rx + r + 0.3"
-        },
-        {
-         "name": "by0",
-         "value": "ry - 2*r - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry"
         },
         {
          "name": "hit",
@@ -6792,6 +7915,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{m} kg",
        "readouts": [
         {
          "label": "Moment względem osi",
@@ -6815,8 +7939,24 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y + r",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "mixed && !can.pos"
         },
         {
          "type": "rect",
@@ -6825,18 +7965,40 @@
          "w": "=2*r",
          "h": "=2*r",
          "r": 3,
-         "fill": "accent",
+         "fill": "=!mixed || can ? 'accent' : 'muted/70'",
          "stroke": "ink/30",
          "width": 1
+        },
+        {
+         "type": "arrow",
+         "x": "=x - (r + 0.06)*parent.ca",
+         "y": "=y - (r + 0.06)*parent.sa",
+         "x2": "=x - (r + 0.36)*parent.ca",
+         "y2": "=y - (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + (r + 0.06)*parent.ca",
+         "y": "=y + (r + 0.06)*parent.sa",
+         "x2": "=x + (r + 0.36)*parent.ca",
+         "y2": "=y + (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
         },
         {
          "type": "text",
          "x": "=x",
          "y": "=y - r - 0.18",
-         "text": "{fmt(m, 0)} kg",
+         "text": "{mixed && can.m ? '± ' : ''}{fmt(m, 0)} kg",
          "size": 11,
          "weight": 600,
-         "fill": "ink",
+         "fill": "=mixed && can.m ? 'accent' : 'ink'",
          "stroke": "ground",
          "width": 3
         },
@@ -6859,16 +8021,16 @@
        "id": "b1",
        "kind": "belka",
        "length": 6,
-       "pivot": 2,
-       "bm": 4,
+       "pivot": "=P",
+       "bm": "=B",
        "lock": true
       },
       {
        "id": "w1",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 2,
-       "pos": 4,
+       "m": "=mw",
+       "pos": "=P + 1.5",
        "lock": [
         "m",
         "drop"
@@ -6886,7 +8048,7 @@
      },
      "keep": [],
      "save": false,
-     "hint": "Przeciągnij ciężarek. Pamiętaj o ciężarze samej belki."
+     "hint": "Przeciągnij zielony ciężarek. Pamiętaj o ciężarze samej belki."
     },
     "elements": [
      {
@@ -6899,15 +8061,15 @@
       "clip": true,
       "view": [
        "=vcx - vw/2",
-       "=vcy - vh/2",
+       "=vtop - vh",
        "=vcx + vw/2",
-       "=vcy + vh/2"
+       "=vtop"
       ],
       "children": [
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": -3,
+        "y": "=vfloor - 3",
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/12"
@@ -6915,16 +8077,16 @@
        {
         "type": "line",
         "x": "=vcx - vw",
-        "y": 0,
+        "y": "=vfloor",
         "x2": "=vcx + vw",
-        "y2": 0,
+        "y2": "=vfloor",
         "stroke": "muted/60",
         "width": 1.5
        },
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": "=vtop",
+        "y": 0,
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/25"
@@ -6970,8 +8132,8 @@
    "config": {
     "title": "Dla zaawansowanych · Przesuń oś",
     "body": [
-     "Ciężarków nie ruszysz. Dotknij belki i przesuń jej oś obrotu.",
-     "6 kg na lewym końcu, 3 kg na prawym — oś musi być bliżej cięższego."
+     "Ciężarków nie ruszysz. Przesuń oś obrotu belki — zieloną.",
+     "Oś musi być bliżej cięższego ciężarka."
     ]
    }
   },
@@ -7060,9 +8222,41 @@
       "min": 0,
       "max": 1,
       "step": 1
+     },
+     {
+      "name": "hang",
+      "value": 1,
+      "unit": "m",
+      "label": "Linka do sufitu"
+     },
+     {
+      "name": "a",
+      "value": 6,
+      "min": 2,
+      "max": 9,
+      "step": 1,
+      "random": [
+       2,
+       9
+      ]
+     },
+     {
+      "name": "b",
+      "value": 3,
+      "min": 1,
+      "max": 9,
+      "step": 1,
+      "random": [
+       1,
+       9
+      ]
      }
     ],
     "let": [
+     {
+      "name": "P8",
+      "value": "6*b/(a + b)"
+     },
      {
       "name": "vx0",
       "value": "min(things, bx0)"
@@ -7072,12 +8266,12 @@
       "value": "max(things, bx1)"
      },
      {
-      "name": "vy1",
-      "value": "max(things, by1)"
+      "name": "vdeep",
+      "value": "hang - min(things, low) + 0.25"
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -7088,16 +8282,20 @@
       "value": "round((vx0 + vx1)/2*4)/4"
      },
      {
-      "name": "vcy",
-      "value": "vh/2 - 0.4"
+      "name": "vtop",
+      "value": "0.4"
      },
      {
-      "name": "vtop",
-      "value": "vcy + vh/2 - 0.1"
+      "name": "vfloor",
+      "value": "vtop - vh + 0.35"
      },
      {
       "name": "bad",
       "value": "count(belka, !ok)"
+     },
+     {
+      "name": "mixed",
+      "value": "count(things, !can) > 0 && count(things, can) > 0"
      }
     ],
     "sim": {
@@ -7108,7 +8306,16 @@
      "max": 3600
     },
     "predict": {
-     "say": "Przewiduj: ustaw wszystko tak, jak myślisz, że będzie równowaga. Belki są przytrzymane — puścimy je, gdy klikniesz „Sprawdź”."
+     "say": "Przewiduj: {w1.m} kg wisi na lewym końcu, {w2.m} kg na prawym (belka ma 6 m). Gdzie musi być oś?"
+    },
+    "task": {
+     "require": [
+      "a != b",
+      "onstep(P8, 0.25)",
+      "abs(P8 - 3) >= 0.75"
+     ],
+     "solve": "b1.pivot = P8",
+     "new": "Nowe zadanie"
     },
     "controls": [
      {
@@ -7143,7 +8350,7 @@
       "set": {
        "solved": 1
       },
-      "say": "Oś 2 m od lewego końca: 6 kg × 2 m = 3 kg × 4 m.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
+      "say": "Oś {b1.pivot} m od lewego końca: {w1.m} kg × {b1.pivot} m = {w2.m} kg × {6 - b1.pivot} m.{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}"
      },
      {
       "when": "(edits > 0 || tries > 0) && bad > 0",
@@ -7266,7 +8473,7 @@
         },
         {
          "name": "ay",
-         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+         "value": "isroot ? 0 : parent.y + arm*parent.sa - h*parent.ca"
         },
         {
          "name": "x",
@@ -7274,7 +8481,7 @@
         },
         {
          "name": "y",
-         "value": "isroot ? stand : ay - drop"
+         "value": "isroot ? -hang : ay - drop"
         },
         {
          "name": "x1",
@@ -7305,16 +8512,8 @@
          "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
-         "name": "stand",
-         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
-        },
-        {
          "name": "rx",
          "value": "isroot ? sx : parent.rx + arm"
-        },
-        {
-         "name": "ry",
-         "value": "root.stand + dy"
         },
         {
          "name": "bx0",
@@ -7323,14 +8522,6 @@
         {
          "name": "bx1",
          "value": "rx + length - pivot + 0.4"
-        },
-        {
-         "name": "by0",
-         "value": "ry - h - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -7385,6 +8576,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{length} m{bm > 0 ? ', ' + bm + ' kg' : ''}",
        "readouts": [
         {
          "label": "Suma momentów",
@@ -7413,7 +8605,7 @@
          "x": "=x",
          "y": "=y",
          "x2": "=x",
-         "y2": "=vtop",
+         "y2": 0,
          "stroke": "muted",
          "width": 2,
          "show": "isroot"
@@ -7424,9 +8616,47 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5,
          "show": "!isroot"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax - 0.1*parent.ca",
+         "y": "=ay - 0.1*parent.sa",
+         "x2": "=ax - 0.45*parent.ca",
+         "y2": "=ay - 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax + 0.1*parent.ca",
+         "y": "=ay + 0.1*parent.sa",
+         "x2": "=ax + 0.45*parent.ca",
+         "y2": "=ay + 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
         },
         {
          "type": "line",
@@ -7486,7 +8716,7 @@
          "x": "=x",
          "y": "=y",
          "r": 4.5,
-         "fill": "ink"
+         "fill": "=mixed && can.pivot ? 'accent' : 'ink'"
         },
         {
          "type": "circle",
@@ -7494,6 +8724,28 @@
          "y": "=y",
          "r": 2,
          "fill": "ground"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa - 0.08*ca",
+         "y": "=y - 0.34*ca - 0.08*sa",
+         "x2": "=x + 0.34*sa - 0.42*ca",
+         "y2": "=y - 0.34*ca - 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa + 0.08*ca",
+         "y": "=y - 0.34*ca + 0.08*sa",
+         "x2": "=x + 0.34*sa + 0.42*ca",
+         "y2": "=y - 0.34*ca + 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
         },
         {
          "type": "text",
@@ -7585,24 +8837,12 @@
          "value": "parent.rx + arm"
         },
         {
-         "name": "ry",
-         "value": "root.stand + dy"
-        },
-        {
          "name": "bx0",
          "value": "rx - r - 0.3"
         },
         {
          "name": "bx1",
          "value": "rx + r + 0.3"
-        },
-        {
-         "name": "by0",
-         "value": "ry - 2*r - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry"
         },
         {
          "name": "hit",
@@ -7621,6 +8861,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{m} kg",
        "readouts": [
         {
          "label": "Moment względem osi",
@@ -7644,8 +8885,24 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y + r",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "mixed && !can.pos"
         },
         {
          "type": "rect",
@@ -7654,18 +8911,40 @@
          "w": "=2*r",
          "h": "=2*r",
          "r": 3,
-         "fill": "accent",
+         "fill": "=!mixed || can ? 'accent' : 'muted/70'",
          "stroke": "ink/30",
          "width": 1
+        },
+        {
+         "type": "arrow",
+         "x": "=x - (r + 0.06)*parent.ca",
+         "y": "=y - (r + 0.06)*parent.sa",
+         "x2": "=x - (r + 0.36)*parent.ca",
+         "y2": "=y - (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + (r + 0.06)*parent.ca",
+         "y": "=y + (r + 0.06)*parent.sa",
+         "x2": "=x + (r + 0.36)*parent.ca",
+         "y2": "=y + (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
         },
         {
          "type": "text",
          "x": "=x",
          "y": "=y - r - 0.18",
-         "text": "{fmt(m, 0)} kg",
+         "text": "{mixed && can.m ? '± ' : ''}{fmt(m, 0)} kg",
          "size": 11,
          "weight": 600,
-         "fill": "ink",
+         "fill": "=mixed && can.m ? 'accent' : 'ink'",
          "stroke": "ground",
          "width": 3
         },
@@ -7699,7 +8978,7 @@
        "id": "w1",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 6,
+       "m": "=a",
        "pos": 0,
        "lock": true
       },
@@ -7707,7 +8986,7 @@
        "id": "w2",
        "kind": "ciezarek",
        "parent": "b1",
-       "m": 3,
+       "m": "=b",
        "pos": 6,
        "lock": true
       }
@@ -7723,7 +9002,7 @@
      },
      "keep": [],
      "save": false,
-     "hint": "Dotknij belki i zmień „Oś obrotu”."
+     "hint": "Przeciągnij belkę albo zmień „Oś obrotu”."
     },
     "elements": [
      {
@@ -7736,15 +9015,15 @@
       "clip": true,
       "view": [
        "=vcx - vw/2",
-       "=vcy - vh/2",
+       "=vtop - vh",
        "=vcx + vw/2",
-       "=vcy + vh/2"
+       "=vtop"
       ],
       "children": [
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": -3,
+        "y": "=vfloor - 3",
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/12"
@@ -7752,16 +9031,16 @@
        {
         "type": "line",
         "x": "=vcx - vw",
-        "y": 0,
+        "y": "=vfloor",
         "x2": "=vcx + vw",
-        "y2": 0,
+        "y2": "=vfloor",
         "stroke": "muted/60",
         "width": 1.5
        },
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": "=vtop",
+        "y": 0,
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/25"
@@ -7897,6 +9176,12 @@
       "min": 0,
       "max": 1,
       "step": 1
+     },
+     {
+      "name": "hang",
+      "value": 1,
+      "unit": "m",
+      "label": "Linka do sufitu"
      }
     ],
     "let": [
@@ -7909,12 +9194,12 @@
       "value": "max(things, bx1)"
      },
      {
-      "name": "vy1",
-      "value": "max(things, by1)"
+      "name": "vdeep",
+      "value": "hang - min(things, low) + 0.25"
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -7925,16 +9210,20 @@
       "value": "round((vx0 + vx1)/2*4)/4"
      },
      {
-      "name": "vcy",
-      "value": "vh/2 - 0.4"
+      "name": "vtop",
+      "value": "0.4"
      },
      {
-      "name": "vtop",
-      "value": "vcy + vh/2 - 0.1"
+      "name": "vfloor",
+      "value": "vtop - vh + 0.35"
      },
      {
       "name": "bad",
       "value": "count(belka, !ok)"
+     },
+     {
+      "name": "mixed",
+      "value": "count(things, !can) > 0 && count(things, can) > 0"
      }
     ],
     "sim": {
@@ -8098,7 +9387,7 @@
         },
         {
          "name": "ay",
-         "value": "isroot ? stand : parent.y + arm*parent.sa - h*parent.ca"
+         "value": "isroot ? 0 : parent.y + arm*parent.sa - h*parent.ca"
         },
         {
          "name": "x",
@@ -8106,7 +9395,7 @@
         },
         {
          "name": "y",
-         "value": "isroot ? stand : ay - drop"
+         "value": "isroot ? -hang : ay - drop"
         },
         {
          "name": "x1",
@@ -8137,16 +9426,8 @@
          "value": "dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)"
         },
         {
-         "name": "stand",
-         "value": "isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0"
-        },
-        {
          "name": "rx",
          "value": "isroot ? sx : parent.rx + arm"
-        },
-        {
-         "name": "ry",
-         "value": "root.stand + dy"
         },
         {
          "name": "bx0",
@@ -8155,14 +9436,6 @@
         {
          "name": "bx1",
          "value": "rx + length - pivot + 0.4"
-        },
-        {
-         "name": "by0",
-         "value": "ry - h - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry + 0.7 + reach*0.36"
         },
         {
          "name": "hit",
@@ -8217,6 +9490,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{length} m{bm > 0 ? ', ' + bm + ' kg' : ''}",
        "readouts": [
         {
          "label": "Suma momentów",
@@ -8245,7 +9519,7 @@
          "x": "=x",
          "y": "=y",
          "x2": "=x",
-         "y2": "=vtop",
+         "y2": 0,
          "stroke": "muted",
          "width": 2,
          "show": "isroot"
@@ -8256,9 +9530,47 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5,
          "show": "!isroot"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "!isroot && mixed && !can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax - 0.1*parent.ca",
+         "y": "=ay - 0.1*parent.sa",
+         "x2": "=ax - 0.45*parent.ca",
+         "y2": "=ay - 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=ax + 0.1*parent.ca",
+         "y": "=ay + 0.1*parent.sa",
+         "x2": "=ax + 0.45*parent.ca",
+         "y2": "=ay + 0.45*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "!isroot && mixed && can.pos"
         },
         {
          "type": "line",
@@ -8318,7 +9630,7 @@
          "x": "=x",
          "y": "=y",
          "r": 4.5,
-         "fill": "ink"
+         "fill": "=mixed && can.pivot ? 'accent' : 'ink'"
         },
         {
          "type": "circle",
@@ -8326,6 +9638,28 @@
          "y": "=y",
          "r": 2,
          "fill": "ground"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa - 0.08*ca",
+         "y": "=y - 0.34*ca - 0.08*sa",
+         "x2": "=x + 0.34*sa - 0.42*ca",
+         "y2": "=y - 0.34*ca - 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + 0.34*sa + 0.08*ca",
+         "y": "=y - 0.34*ca + 0.08*sa",
+         "x2": "=x + 0.34*sa + 0.42*ca",
+         "y2": "=y - 0.34*ca + 0.42*sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pivot"
         },
         {
          "type": "text",
@@ -8417,24 +9751,12 @@
          "value": "parent.rx + arm"
         },
         {
-         "name": "ry",
-         "value": "root.stand + dy"
-        },
-        {
          "name": "bx0",
          "value": "rx - r - 0.3"
         },
         {
          "name": "bx1",
          "value": "rx + r + 0.3"
-        },
-        {
-         "name": "by0",
-         "value": "ry - 2*r - 0.5"
-        },
-        {
-         "name": "by1",
-         "value": "ry"
         },
         {
          "name": "hit",
@@ -8453,6 +9775,7 @@
         "remove": true,
         "copy": true
        },
+       "brief": "{m} kg",
        "readouts": [
         {
          "label": "Moment względem osi",
@@ -8476,8 +9799,24 @@
          "y": "=ay",
          "x2": "=x",
          "y2": "=y + r",
-         "stroke": "muted",
+         "stroke": "=mixed && can.pos ? 'accent' : 'muted'",
          "width": 1.5
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 2.6,
+         "fill": "ink",
+         "show": "mixed && !can.pos"
+        },
+        {
+         "type": "circle",
+         "x": "=ax",
+         "y": "=ay",
+         "r": 1.1,
+         "fill": "ground",
+         "show": "mixed && !can.pos"
         },
         {
          "type": "rect",
@@ -8486,18 +9825,40 @@
          "w": "=2*r",
          "h": "=2*r",
          "r": 3,
-         "fill": "accent",
+         "fill": "=!mixed || can ? 'accent' : 'muted/70'",
          "stroke": "ink/30",
          "width": 1
+        },
+        {
+         "type": "arrow",
+         "x": "=x - (r + 0.06)*parent.ca",
+         "y": "=y - (r + 0.06)*parent.sa",
+         "x2": "=x - (r + 0.36)*parent.ca",
+         "y2": "=y - (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
+        },
+        {
+         "type": "arrow",
+         "x": "=x + (r + 0.06)*parent.ca",
+         "y": "=y + (r + 0.06)*parent.sa",
+         "x2": "=x + (r + 0.36)*parent.ca",
+         "y2": "=y + (r + 0.36)*parent.sa",
+         "head": 5,
+         "stroke": "accent",
+         "width": 1.6,
+         "show": "mixed && can.pos"
         },
         {
          "type": "text",
          "x": "=x",
          "y": "=y - r - 0.18",
-         "text": "{fmt(m, 0)} kg",
+         "text": "{mixed && can.m ? '± ' : ''}{fmt(m, 0)} kg",
          "size": 11,
          "weight": 600,
-         "fill": "ink",
+         "fill": "=mixed && can.m ? 'accent' : 'ink'",
          "stroke": "ground",
          "width": 3
         },
@@ -8562,15 +9923,15 @@
       "clip": true,
       "view": [
        "=vcx - vw/2",
-       "=vcy - vh/2",
+       "=vtop - vh",
        "=vcx + vw/2",
-       "=vcy + vh/2"
+       "=vtop"
       ],
       "children": [
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": -3,
+        "y": "=vfloor - 3",
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/12"
@@ -8578,16 +9939,16 @@
        {
         "type": "line",
         "x": "=vcx - vw",
-        "y": 0,
+        "y": "=vfloor",
         "x2": "=vcx + vw",
-        "y2": 0,
+        "y2": "=vfloor",
         "stroke": "muted/60",
         "width": 1.5
        },
        {
         "type": "rect",
         "x": "=vcx - vw",
-        "y": "=vtop",
+        "y": 0,
         "w": "=2*vw",
         "h": 3,
         "fill": "muted/25"
