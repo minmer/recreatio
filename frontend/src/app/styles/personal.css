@@ -399,10 +399,6 @@
 .wk-tb {
   position: absolute;
   z-index: 1;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 0.25rem;
   box-sizing: border-box;
   padding: 0.125rem 0.25rem;
   border: 1px solid color-mix(in srgb, hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)) 45%, transparent);
@@ -415,7 +411,27 @@
   overflow: hidden;
   container-type: inline-size;
 }
-.wk-tb.is-short { align-items: center; padding-block: 0; }
+.wk-tb.is-short { padding-block: 0; }
+/*
+   2026-10-18 — DER INHALT IN DREI BREITEN (der Kasten ist der Container, `.wk-tb-in` sein Raster):
+   breit   Häkchen · Name (umbrochen) und Stand · „pomiń"
+   mittel  Häkchen und » oben, darunter der Name über die ganze Breite
+   schmal  Häkchen oben, der Name senkrecht, » unten
+   Kurz (eine Zeile hoch) bleibt es immer eine Zeile: Häkchen · Name … · ».
+*/
+.wk-tb-in {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "tick main skip";
+  align-items: start;
+  gap: 0.25rem;
+  height: 100%;
+  min-height: 0;
+}
+.wk-tb-in > .wk-tb-tick { grid-area: tick; }
+.wk-tb-in > .wk-tb-main { grid-area: main; }
+.wk-tb-in > .wk-tb-skip { grid-area: skip; }
+.wk-tb.is-short .wk-tb-in { align-items: center; }
 .wk-tb.is-open, .wk-tb.is-due { border-color: var(--wk-accent); box-shadow: inset 0 0 0 1px var(--wk-accent); }
 .wk-tb.is-missed, .wk-tb.is-late { border-color: color-mix(in srgb, var(--wk-danger) 55%, var(--wk-line)); border-left-color: var(--wk-danger); }
 .wk-tb.is-done, .wk-tb.is-skipped { opacity: 0.6; }
@@ -425,7 +441,11 @@
 .wk-tb .wk-tb-tick { width: 1.15rem; height: 1.15rem; font-size: var(--wk-text-xs); border-radius: var(--wk-radius-sm); }
 .wk-tb-main {
   display: grid;
+  align-content: start;
   min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
   padding: 0;
   border: 0;
   background: none;
@@ -435,10 +455,10 @@
   cursor: pointer;
 }
 .wk-tb-main:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
-.wk-tb-line { display: flex; align-items: baseline; gap: 0.25rem; min-width: 0; }
-.wk-tb-time { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
 .wk-tb-title, .wk-tb-state { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wk-tb-title { font-weight: 600; }
+/* Der Name umbricht, so weit der Kasten reicht — nur eine Zeile hoch bleibt er in einer. */
+.wk-tb-title { font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
+.wk-tb.is-short .wk-tb-title { white-space: nowrap; }
 .wk-tb-state { color: var(--wk-muted); font-weight: 600; }
 .wk-tb-state.is-open, .wk-tb-state.is-due { color: var(--wk-accent); }
 .wk-tb-state.is-missed, .wk-tb-state.is-late { color: var(--wk-danger); }
@@ -459,7 +479,29 @@
 .wk-tb-skip-mark { display: none; }
 /* Schmal (sieben Tage nebeneinander): „pomiń" wird ein Zeichen, ganz schmal weicht auch der Stand dem Namen. */
 @container (max-width: 12rem) { .wk-tb-skip-word { display: none; } .wk-tb-skip-mark { display: inline; } }
-@container (max-width: 7rem) { .wk-tb-state { display: none; } }
+@container (max-width: 7rem) {
+  .wk-tb-state { display: none; }
+  .wk-tb:not(.is-short) .wk-tb-in {
+    grid-template-columns: auto auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "tick skip" "main main";
+    justify-content: space-between;
+  }
+}
+@container (max-width: 4.5rem) {
+  .wk-tb:not(.is-short) .wk-tb-in {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "tick" "main" "skip";
+    justify-content: stretch;
+    justify-items: center;
+    align-items: stretch;
+  }
+  .wk-tb:not(.is-short) .wk-tb-main { writing-mode: vertical-rl; align-content: center; justify-self: center; }
+  .wk-tb:not(.is-short) .wk-tb-title { white-space: nowrap; }
+  .wk-tb:not(.is-short) .wk-tb-tick, .wk-tb:not(.is-short) .wk-tb-skip { align-self: start; }
+  .wk-tb:not(.is-short) .wk-tb-skip { align-self: end; }
+}
 
 .wk-cal2-evrail {
   position: absolute;

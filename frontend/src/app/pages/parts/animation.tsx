@@ -123,7 +123,7 @@ function AnimationEditor({ raw, onSet, busy }: EditorProps) {
     };
     const next: RawConfig = {
       size: json('size', [200, 120]), symbols: json('symbols', []), elements: json('elements', []),
-      vars: json('vars'), let: json('let'), sim: json('sim'), controls: json('controls'), rules: json('rules'), world: json('world'), predict: json('predict'),
+      vars: json('vars'), let: json('let'), sim: json('sim'), controls: json('controls'), rules: json('rules'), world: json('world'), predict: json('predict'), task: json('task'),
       panel: typeof value.panel === 'string' ? value.panel : '',
       ...(typeof value.alt === 'string' ? { alt: value.alt } : {}),
       ...(typeof value.max === 'number' ? { max: String(value.max) } : {})
@@ -335,6 +335,8 @@ const EXAMPLE = {
   rules: [{ when: 'abs(x - cel) < 0.6 && y <= 0 && t > 0', say: 'Trafione z {fmt(kat, 0)}°!', mood: 'ok', goal: true, once: true, do: 'pause' }],
   /* 2026-10-18 — erst vermuten: „Przewiduj" hält den Wurf an, „Sprawdź" lässt ihn los. */
   predict: { start: false, say: 'Ustaw kąt i prędkość tak, jak przewidujesz — potem „Sprawdź”.', check: 'Sprawdź', again: 'Popraw', hold: 'Przewiduj' },
+  /* 2026-10-18 — jedes Mal ein anderes Ziel, gleich schwer: nicht dort, wo 45° ohnehin hinwerfen, und mit „średnio" erreichbar. */
+  task: { require: ['abs(zasieg - cel) > 1.5', 'cel*9.81 <= v0^2'], solve: 'kat = deg(asin(cel*9.81/v0^2))/2', new: 'Nowy cel', tries: 100 },
   /* 2026-10-18 — eine kleine Welt: Kisten am Boden, die man zieht, kopiert, wegnimmt (höchstens drei). */
   world: {
     kinds: [{
@@ -342,18 +344,21 @@ const EXAMPLE = {
       label: 'Skrzynka',
       props: [{ name: 'pos', value: 16, min: 1, max: 19, step: 0.5, unit: 'm', label: 'Położenie', apart: 1.5, new: 'max(things, pos) - 2', when: 'isroot' }],
       let: [{ name: 'x', value: 'pos' }, { name: 'y', value: 0.4 }, { name: 'hit', value: 6 }],
-      shapes: [{ type: 'rect', x: '=x - 0.6', y: 0, w: 1.2, h: 0.8, fill: "=selected ? 'accent/60' : 'muted/50'" }],
+      shapes: [{ type: 'rect', x: '=x - 0.6', y: 0, w: 1.2, h: 0.8, fill: "=selected ? 'accent/60' : (can ? 'muted/50' : 'muted/25')" }],
       drag: { pos: 'px' },
       can: { edit: ['pos'], add: [], remove: true, copy: true },
       readouts: [{ label: 'Do celu', value: 'pos - cel', unit: 'm', digits: 1 }],
-      children: 0
+      children: 0,
+      brief: '{pos} m',
+      mark: true
     }],
-    things: [{ id: 's1', kind: 'skrzynka', parent: null, pos: 16, lock: [] }],
+    things: [{ id: 's1', kind: 'skrzynka', parent: null, pos: '=min(19, cel + 4)', lock: [] }],
     allow: { add: true, remove: true, copy: true, edit: true, drag: true, roots: ['skrzynka'] },
     limits: { things: 4, depth: 1 },
     keep: [{ when: 'nthings <= 3', say: 'Najwyżej trzy skrzynki.' }],
     save: false,
-    hint: 'Skrzynkę przeciągnij; dotknij jej, żeby powielić albo usunąć.'
+    hint: 'Skrzynkę przeciągnij; dotknij jej, żeby powielić albo usunąć.',
+    list: false
   },
   symbols: [{ name: 'kropka', shapes: [{ type: 'circle', x: 0, y: 0, r: 4, fill: 'accent', glow: '0 0 6px accent/60', motion: { name: 'breathe', duration: 1600 } }] }],
   elements: [
@@ -447,6 +452,14 @@ const PREDICT_DOCS: Readonly<Record<string, string>> = {
   '.hold': 'Napis przycisku, który zatrzymuje na życzenie (przy "start": false; zwykle „Przewiduj”)'
 };
 
+/** 2026-10-18 — jedes Mal eine andere Aufgabe, gleich schwer (`motion/liveModel.ts`: `task`, `motion/liveTask.ts`). */
+const TASK_DOCS: Readonly<Record<string, string>> = {
+  '.require': 'Warunki każdego wylosowanego zadania (wyrażenia) — np. "onstep(s, 0.5)" (wynik na siatce suwaka), "abs(s - r0) >= 1" (dość daleko od startu), "a != b"; o porównywalnej trudności decydują same warunki',
+  '.solve': 'Rozwiązanie jako wyrażenia z wylosowanych wartości: "w2.pos = 3 + s; kat = 45" — musi dać się ustawić ręką; w Cogita rozwiązanie pytania, jeśli pytanie nie podaje własnego',
+  '.new': 'Napis przycisku „Nowe zadanie” (false — bez przycisku); w Cogita każda próba i tak losuje od nowa',
+  '.tries': 'Ile razy najwyżej losować (zwykle 200); gdy nic nie pasuje — zadanie z wartości "value"'
+};
+
 /**
  * 2026-10-18 — DER WELT (`motion/liveModel.ts`): Arten von Dingen, die Dinge
  * am Anfang, und was in dieser Welt erlaubt ist — die Waage, Zahnräder, ein
@@ -495,12 +508,14 @@ const WORLD_DOCS: Readonly<Record<string, string>> = {
   '.kinds[].readouts[].digits': 'Ile miejsc po przecinku',
   '.kinds[].readouts[].show': 'Kiedy odczyt widać — wyrażenie, np. "!held" (nie, dopóki osoba przewiduje)',
   '.kinds[].children': 'Ile rzeczy najwyżej może na niej wisieć',
+  '.kinds[].brief': 'Jak rzecz nazywa się w panelu — tekst z {…}, np. "{m} kg" („Ciężarek 2 kg”); pominięte — rodzaj i id',
+  '.kinds[].mark': 'true (zwykle) — rzecz, którą wolno zmienić, ma przerywany pierścień (gdy są też rzeczy dane); false — rodzaj pokazuje to sam (kolor, strzałki: "can", "can.pos")',
   '.things': 'Rzeczy na start (do 120): { "id", "kind", "parent", "lock", …własności }',
   '.things[].id': 'Nazwa rzeczy (litery, cyfry, _ -) — w wyrażeniach „s1.pos”, w odpowiedziach i rozwiązaniu Cogita („s1.pos = 4”)',
   '.things[].kind': 'Rodzaj rzeczy',
   '.things[].parent': 'Na czym wisi (id); null albo pominięte — stoi na samej górze',
   '.things[].lock': 'true — nic nie wolno zmienić ani usunąć; lista — tych własności nie wolno (zagadka)',
-  '.things[].pos': 'Własność rzeczy (każda własność jej rodzaju, tu "pos"): liczba albo { "random": [od, do] } — w Cogita losowana przy każdej próbie',
+  '.things[].pos': 'Własność rzeczy (każda własność jej rodzaju, tu "pos"): liczba, { "random": [od, do] } (w Cogita losowana przy każdej próbie) albo wyrażenie "=…" z wartości rysunku (zadania losowe: "=3 + s")',
   '.allow': 'Co w tym świecie wolno w ogóle — węziej niż rodzaje (zagadka), nigdy szerzej',
   '.allow.add': 'true — wolno dodawać rzeczy',
   '.allow.remove': 'true — wolno usuwać rzeczy',
@@ -515,7 +530,8 @@ const WORLD_DOCS: Readonly<Record<string, string>> = {
   '.keep[].when': 'Wyrażenie, np. "edits <= 2" (najwyżej dwa ruchy; edits — ile zmian od „Od nowa”) albo "nthings <= 6"',
   '.keep[].say': 'Co wtedy powiedzieć',
   '.save': 'true — warsztat: „Zapisz”, „Wczytaj” (w tej przeglądarce) i układ jako JSON',
-  '.hint': 'Podpowiedź pod rysunkiem, gdy nic nie jest wybrane'
+  '.hint': 'Podpowiedź pod rysunkiem, gdy nic nie jest wybrane ({…} — liczone)',
+  '.list': 'true — każda własność, którą wolno zmienić, jako osobny suwak w panelu („Ustawiasz”, bez wybierania rzeczy); false — najpierw wybrać rzecz; pominięte — wiersze, gdy nic nie wolno dodać ani usunąć i jest ich najwyżej 6'
 };
 
 export const animationPart = definePart<Config>({
@@ -540,6 +556,11 @@ export const animationPart = definePart<Config>({
       key: 'predict', shape: 'json',
       says: 'Najpierw przewiduj, potem zobacz: rysunek stoi (symulacja zatrzymana, reguły milczą, w wyrażeniach "held" = 1 — np. kolor, który zdradza wynik, czeka), aż osoba kliknie „Sprawdź”; "tries" — ile razy już sprawdzała. true albo { "start", "say", "check", "again", "hold" }',
       inside: PREDICT_DOCS
+    },
+    {
+      key: 'task', shape: 'json',
+      says: 'Za każdym razem inne zadanie, tak samo trudne: losuje wartości z "random" (zmienne, własności rzeczy, także jako wyrażenia z nich), aż obowiązują warunki, zadanie nie jest rozwiązane na starcie, a rozwiązanie da się ustawić. { "require", "solve", "new", "tries" }',
+      inside: TASK_DOCS
     },
     {
       key: 'world', shape: 'json',

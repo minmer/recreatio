@@ -984,9 +984,15 @@ const taskPlace = (p: Laned, areaId: string, hour: number): CSSProperties => ({
 } as CSSProperties);
 
 /**
- * 2026-10-17 — EINE AUFGABE, BREIT: Häkchen (zurücknehmen geht auch), Zeit,
- * Name, der Stand in Worten und „pomiń" — dieselben Handgriffe wie in der
- * Liste des Tages. Ein Klick auf den Namen öffnet die Aufgabe. Was von früher
+ * 2026-10-17 — EINE AUFGABE, BREIT: Häkchen (zurücknehmen geht auch), Name,
+ * der Stand in Worten und „pomiń" — dieselben Handgriffe wie in der Liste des
+ * Tages.
+ *
+ * 2026-10-18 — DER NAME ZUERST, die Zeit nicht: wo der Kasten steht, sagt sie
+ * schon (und im Hinweis am Zeiger steht sie). Wie der Name steht, hängt an der
+ * Breite des Kastens (`@container` in personal.css): breit in einer Zeile mit
+ * Häkchen und „pomiń", mittel unter Häkchen und », schmal (viele Fenster
+ * nebeneinander, das Telefon) SENKRECHT, von oben nach unten. Ein Klick auf den Namen öffnet die Aufgabe. Was von früher
  * heute steht, steht hier nicht — nur in der Liste (`TaskDay`, „Wszystkie dni").
  */
 function TaskBlock({ mark, now, acts, placed }: { mark: TaskMark; now: Date; acts: TaskActs; placed: Laned }) {
@@ -1000,6 +1006,7 @@ function TaskBlock({ mark, now, acts, placed }: { mark: TaskMark; now: Date; act
       style={taskPlace(placed, mark.areaId, hour)}
       aria-busy={busy || undefined}
     >
+      <div className="wk-tb-in">
       <button type="button" role="checkbox" aria-checked={done} className={`wk-task-tick wk-tb-tick${done ? ' is-done' : ''}`}
         disabled={acts.busy !== null || !mayTick(mark, now)}
         aria-label={done ? `Cofnij: ${mark.task.title}` : `Zrobione: ${mark.task.title}`}
@@ -1008,10 +1015,7 @@ function TaskBlock({ mark, now, acts, placed }: { mark: TaskMark; now: Date; act
         {mark.state === 'done' ? '✓' : mark.state === 'skipped' ? '–' : ''}
       </button>
       <button type="button" className="wk-tb-main" title={`${mark.task.title} · ${whenOf(mark)} · ${stateOf(mark, now)}`} onClick={() => acts.open(mark.task)}>
-        <span className="wk-tb-line">
-          <span className="wk-tb-time">{time(mark.start)}</span>
-          <span className="wk-tb-title">{mark.task.title}</span>
-        </span>
+        <span className="wk-tb-title">{mark.task.title}</span>
         {!short && <span className={`wk-tb-state is-${mark.state}`}>{stateOf(mark, now)}</span>}
       </button>
       {maySkip(mark) && (
@@ -1020,6 +1024,7 @@ function TaskBlock({ mark, now, acts, placed }: { mark: TaskMark; now: Date; act
           <span className="wk-tb-skip-word">pomiń</span><span className="wk-tb-skip-mark" aria-hidden="true">»</span>
         </button>
       )}
+      </div>
     </div>
   );
 }

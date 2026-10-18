@@ -8233,22 +8233,22 @@
       "name": "a",
       "value": 6,
       "min": 2,
-      "max": 9,
+      "max": 12,
       "step": 1,
       "random": [
        2,
-       9
+       12
       ]
      },
      {
       "name": "b",
       "value": 3,
       "min": 1,
-      "max": 9,
+      "max": 12,
       "step": 1,
       "random": [
        1,
-       9
+       12
       ]
      }
     ],
