@@ -86,8 +86,8 @@ const BEAM = {
   ],
   children: 8,
   shapes: [
-    { type: 'line', x: '=x', y: '=y', x2: '=x', y2: 0, stroke: 'muted', width: 5, show: 'isroot' },
-    { type: 'line', x: '=x - 0.6', y: 0, x2: '=x + 0.6', y2: 0, stroke: 'muted', width: 5, show: 'isroot' },
+    /* Ganz oben hängt die Belke an der Decke — darunter bleibt Platz für alles, was an ihr hängt. */
+    { type: 'line', x: '=x', y: '=y', x2: '=x', y2: '=vtop', stroke: 'muted', width: 2, show: 'isroot' },
     { type: 'line', x: '=ax', y: '=ay', x2: '=x', y2: '=y', stroke: 'muted', width: 1.5, show: '!isroot' },
     { type: 'line', x: '=x', y: '=y', x2: '=x + h*sa', y2: '=y - h*ca', stroke: 'ink', width: 3 },
     { type: 'line', x: '=x1', y: '=y1', x2: '=x2', y2: '=y2', stroke: "=ok ? (still ? 'ok' : 'warn') : 'danger'", width: 7 },
@@ -97,7 +97,7 @@ const BEAM = {
     },
     { type: 'circle', x: '=x', y: '=y', r: 4.5, fill: 'ink' },
     { type: 'circle', x: '=x', y: '=y', r: 2, fill: 'ground' },
-    { type: 'text', x: '=x', y: '=y + 0.42', text: 'ΣM = {fmt(mom, 2)} kg·m', size: 11, weight: 600, fill: "=ok ? 'ok' : 'danger'", show: 'edu' }
+    { type: 'text', x: '=x', y: '=y + 0.34', text: 'ΣM = {fmt(mom, 2)} kg·m', size: 11, weight: 600, fill: "=ok ? 'ok' : 'danger'", stroke: 'ground', width: 3.5, show: 'edu' }
   ]
 };
 
@@ -141,8 +141,8 @@ const WEIGHT = {
   shapes: [
     { type: 'line', x: '=ax', y: '=ay', x2: '=x', y2: '=y + r', stroke: 'muted', width: 1.5 },
     { type: 'rect', x: '=x - r', y: '=y - r', w: '=2*r', h: '=2*r', r: 3, fill: 'accent', stroke: 'ink/30', width: 1 },
-    { type: 'text', x: '=x', y: '=y - r - 0.2', text: '{fmt(m, 0)} kg', size: 11, weight: 600, fill: 'ink' },
-    { type: 'text', x: '=x', y: '=y - r - 0.45', text: 'M = {fmt(total*arm, 1)}', size: 9.5, fill: 'muted', show: 'edu' }
+    { type: 'text', x: '=x', y: '=y - r - 0.18', text: '{fmt(m, 0)} kg', size: 11, weight: 600, fill: 'ink', stroke: 'ground', width: 3 },
+    { type: 'text', x: '=x', y: '=y - r - 0.4', text: 'M = {fmt(total*arm, 1)}', size: 9.5, fill: 'muted', stroke: 'ground', width: 3, show: 'edu' }
   ]
 };
 
@@ -165,7 +165,7 @@ export interface BalanceLevel {
 export function balanceDrawing(level: BalanceLevel): Record<string, unknown> {
   return {
     alt: level.alt,
-    size: [480, 320],
+    size: [420, 280],
     vars: [
       { name: 'g', value: 9.81, unit: 'm/s²', label: 'Grawitacja' },
       { name: 'tol', value: 0.05, unit: 'kg·m', label: 'Tolerancja momentu' },
@@ -184,6 +184,7 @@ export function balanceDrawing(level: BalanceLevel): Record<string, unknown> {
       { name: 'vh', value: 'vw/1.5' },
       { name: 'vcx', value: 'round((vx0 + vx1)/2*4)/4' },
       { name: 'vcy', value: 'vh/2 - 0.4' },
+      { name: 'vtop', value: 'vcy + vh/2 - 0.1' },
       { name: 'bad', value: 'count(belka, !ok)' }
     ],
     sim: { dt: 0.01, speed: 4, auto: true, sleep: true, max: 3600 },
@@ -212,11 +213,12 @@ export function balanceDrawing(level: BalanceLevel): Record<string, unknown> {
     },
     elements: [
       {
-        type: 'frame', x: 0, y: 0, w: 480, h: 320, camera: true, clip: true,
+        type: 'frame', x: 0, y: 0, w: 420, h: 280, camera: true, clip: true,
         view: ['=vcx - vw/2', '=vcy - vh/2', '=vcx + vw/2', '=vcy + vh/2'],
         children: [
           { type: 'rect', x: '=vcx - vw', y: -3, w: '=2*vw', h: 3, fill: 'muted/12' },
           { type: 'line', x: '=vcx - vw', y: 0, x2: '=vcx + vw', y2: 0, stroke: 'muted/60', width: 1.5 },
+          { type: 'rect', x: '=vcx - vw', y: '=vtop', w: '=2*vw', h: 3, fill: 'muted/25' },
           { type: 'world' }
         ]
       }

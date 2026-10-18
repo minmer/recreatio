@@ -111,6 +111,7 @@ Formula, code and duration are not field types.
 
 - A table with column filters and sorting, a tree by kind, and a graph canvas whose positions all authors share [F2, F3].
 - Saved views (filter, columns, sorting) can be shared by a link [F7].
+- **Choosing many** (2026-10-18): in the table, the box in front of a row, Ctrl+click, Shift+click (everything between), dragging over the boxes, or holding a row on a phone; once something is chosen, a click chooses instead of opening, Esc clears. A bar floating at the bottom (so the list does not move) acts on them: set a field for all (add, replace or remove a value, clear — e.g. the language or a topic), put them into a collection (an existing or a new one), delete them (the question says how many other entries point at them; entries from source bases are left alone).
 - Library content appears in the workspace search, Ctrl K [F5, P12].
 - “Looks per kind” replace the old approaches, such as the citation view and the vocabulary card [F47].
 
@@ -193,7 +194,7 @@ These are fixed system kinds that the engine understands. You may add fields to 
 - a gap in a quote (the old fragment tree) [F10];
 - a self-graded flashcard [D4];
 - code (Python), and a point on an image or a map.
-- **a drawing to manipulate** (`interactive`, added 2026-10-17): the question carries the same JSON as the page module „Animacja” — values, a simulation, controls and rules (see [INTERACTIVE.md](INTERACTIVE.md)). The learner sets values (sliders, dragging) and presses „Sprawdź”; the stored answer is those values, and the check simulates them to the end: correct when a goal rule (or the question's `goal` expression) is reached. `random` values are drawn per attempt and fixed in the card; the `solution` is a computation with them (`v0 = sqrt(cel*g)`). Participants of a live session get the drawing without its goal rules.
+- **a drawing to manipulate** (`interactive`, added 2026-10-17): the question carries the same JSON as the page module „Animacja” — values, a simulation, controls and rules (see [INTERACTIVE.md](INTERACTIVE.md)). The learner sets values (sliders, dragging) and presses „Sprawdź”; the stored answer is those values, and the check simulates them to the end: correct when a goal rule (or the question's `goal` expression) is reached. `random` values are drawn per attempt and fixed in the card; the `solution` is a computation with them (`v0 = sqrt(cel*g)`). Participants of a live session get the drawing without its goal rules. Since 2026-10-18 the drawing may carry a world of things (a balance of beams and weights, a mobile, gears): the answer is also the world as the learner left it, replayed through the world's own rules (locked stays locked, every changed thing is a move) before it is simulated; a solution may name properties of things (`w3.m = 2; b2.pos = 6`). The eight levels of the Balance Lab are such questions (`frontend/scripts/fixtures/balance-lab-cogita.json`).
 
 There are no spoken answers.
 

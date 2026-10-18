@@ -13,7 +13,8 @@
 
 import { toNum } from './expr';
 import type { Program } from './liveRun';
-import type { Thing, World, WorldShot } from './liveWorld';
+import type { World } from './liveWorld';
+import type { Thing, WorldShot } from './liveThings';
 
 /** Dieselbe Eigenschaft innerhalb dieser Zeit (ms) wieder eingestellt: dieselbe Änderung. */
 const COALESCE_MS = 1500;

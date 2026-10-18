@@ -16,7 +16,7 @@ import { useState } from 'react';
 import { fmt, toNum, truth } from './expr';
 import type { Program } from './liveRun';
 import type { ControlSpec, PropSpec, VarSpec } from './liveModel';
-import { readShot, type WorldShot } from './liveWorld';
+import { readShot, type WorldShot } from './liveThings';
 
 /** Wie viele Stellen eine Zahl braucht — so viele, wie ihr Schritt hat (0,25 → zwei, 0,5 → eine). */
 export function digitsOf(step: number | null, given: number | null): number {
@@ -161,26 +161,29 @@ export function WorldPanel({ program, selected, version, locked, cameras, onAct 
   const props = t === undefined ? [] : world.editable(t);
   const readouts = t?.kind.spec.readouts ?? [];
   const children = t === undefined ? [] : world.addable(t);
+  const camTools = cameras && (
+    <span className="lv-cam-tools" role="group" aria-label="Widok">
+      <button type="button" className="wk-btn wk-btn-line" aria-label="Przybliż" onClick={() => onAct({ type: 'cam', cmd: 'in' })}>+</button>
+      <button type="button" className="wk-btn wk-btn-line" aria-label="Oddal" onClick={() => onAct({ type: 'cam', cmd: 'out' })}>−</button>
+      <button type="button" className="wk-btn wk-btn-line" data-w="fit" onClick={() => onAct({ type: 'cam', cmd: 'fit' })}>Dopasuj</button>
+    </span>
+  );
+  /* Nur ansehen (eine Antwort, die nachgespielt wird): nichts zu bauen — nur der Blick. */
+  if (locked) return cameras ? <div className="lv-world-panel"><div className="lv-tools">{camTools}</div></div> : null;
   return (
     <div className="lv-world-panel">
       <div className="lv-tools" role="toolbar" aria-label="Warsztat">
-        <button type="button" className="wk-btn wk-btn-line" data-w="undo" disabled={locked} title="Cofnij (Ctrl+Z)" onClick={() => onAct({ type: 'undo' })}>↶ Cofnij</button>
-        <button type="button" className="wk-btn wk-btn-line" data-w="redo" disabled={locked} title="Ponów (Ctrl+Y)" onClick={() => onAct({ type: 'redo' })}>↷ Ponów</button>
-        <button type="button" className="wk-btn wk-btn-line" data-w="reset" disabled={locked} onClick={() => onAct({ type: 'reset' })}>Od nowa</button>
+        <button type="button" className="wk-btn wk-btn-line" data-w="undo" title="Cofnij (Ctrl+Z)" onClick={() => onAct({ type: 'undo' })}>↶ Cofnij</button>
+        <button type="button" className="wk-btn wk-btn-line" data-w="redo" title="Ponów (Ctrl+Y)" onClick={() => onAct({ type: 'redo' })}>↷ Ponów</button>
+        <button type="button" className="wk-btn wk-btn-line" data-w="reset" onClick={() => onAct({ type: 'reset' })}>Od nowa</button>
         {program.sim !== null && (
-          <button type="button" className="wk-btn wk-btn-line" data-w="toggle" disabled={locked} onClick={() => onAct({ type: 'toggle' })}>Pauza</button>
+          <button type="button" className="wk-btn wk-btn-line" data-w="toggle" onClick={() => onAct({ type: 'toggle' })}>Pauza</button>
         )}
-        {cameras && (
-          <span className="lv-cam-tools" role="group" aria-label="Widok">
-            <button type="button" className="wk-btn wk-btn-line" aria-label="Przybliż" onClick={() => onAct({ type: 'cam', cmd: 'in' })}>+</button>
-            <button type="button" className="wk-btn wk-btn-line" aria-label="Oddal" onClick={() => onAct({ type: 'cam', cmd: 'out' })}>−</button>
-            <button type="button" className="wk-btn wk-btn-line" data-w="fit" onClick={() => onAct({ type: 'cam', cmd: 'fit' })}>Dopasuj</button>
-          </span>
-        )}
+        {camTools}
         {world.spec.save && (
           <>
-            <button type="button" className="wk-btn wk-btn-line" disabled={locked} onClick={() => onAct({ type: 'save' })}>Zapisz</button>
-            <button type="button" className="wk-btn wk-btn-line" data-w="load" disabled={locked} onClick={() => onAct({ type: 'load' })}>Wczytaj</button>
+            <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'save' })}>Zapisz</button>
+            <button type="button" className="wk-btn wk-btn-line" data-w="load" onClick={() => onAct({ type: 'load' })}>Wczytaj</button>
             <button type="button" className="wk-btn wk-btn-line" aria-expanded={text !== null}
               onClick={() => { setTextBad(false); setText(text === null ? JSON.stringify(program.worldSnapshot(), null, 1) : null); }}>JSON</button>
           </>
@@ -189,7 +192,7 @@ export function WorldPanel({ program, selected, version, locked, cameras, onAct 
       {text !== null && (
         <div className="lv-json">
           <textarea value={text} rows={6} spellCheck={false} aria-label="Układ jako JSON" onChange={(e) => { setText(e.currentTarget.value); setTextBad(false); }} />
-          <button type="button" className="wk-btn" disabled={locked} onClick={() => {
+          <button type="button" className="wk-btn" onClick={() => {
             const shot = shotOfText(text);
             if (shot === null) { setTextBad(true); return; }
             onAct({ type: 'import', shot });
@@ -201,7 +204,7 @@ export function WorldPanel({ program, selected, version, locked, cameras, onAct 
       {roots.length > 0 && (
         <div className="lv-add" role="group" aria-label="Dodaj">
           {roots.map((k) => (
-            <button key={k} type="button" className="wk-btn wk-btn-line" disabled={locked} onClick={() => onAct({ type: 'add', kind: k, parent: null })}>+ {label(k)}</button>
+            <button key={k} type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'add', kind: k, parent: null })}>+ {label(k)}</button>
           ))}
         </div>
       )}
@@ -225,17 +228,22 @@ export function WorldPanel({ program, selected, version, locked, cameras, onAct 
               };
               return (
                 <div key={p.name} className="lv-control lv-prop" data-prop={p.name}>
-                  <span className="lv-name">{name}</span>
-                  <output className="lv-value" />
+                  {/* Oben der Name und die Zahl zum Eintippen, darunter − Schieber + — so passt es auch neben ein Bild. */}
+                  <label className="lv-prop-head">
+                    <span className="lv-name">{name}</span>
+                    <span className="lv-prop-num-row">
+                      <input type="number" inputMode="decimal" className="lv-prop-num"
+                        onChange={(e) => { const n = toNum(e.currentTarget.value); if (Number.isFinite(n)) edit(n); }}
+                        onBlur={end} onKeyDown={(e) => { if (e.key === 'Enter') end(); }} />
+                      {p.unit !== '' && <span className="lv-unit">{p.unit}</span>}
+                    </span>
+                  </label>
                   <span className="lv-prop-row">
-                    <button type="button" className="lv-step" aria-label={`${name}: mniej`} disabled={locked} onClick={() => nudge(-1)}>−</button>
+                    <button type="button" className="lv-step" aria-label={`${name}: mniej`} onClick={() => nudge(-1)}>−</button>
                     {/* Ein Zug am Schieber (bis zum Loslassen) ist EINE Änderung — React meldet `onChange` schon bei jedem Schritt. */}
-                    <input type="range" aria-label={name} disabled={locked}
+                    <input type="range" aria-label={name}
                       onInput={(e) => edit(e.currentTarget.valueAsNumber)} onPointerUp={end} onKeyUp={end} onBlur={end} />
-                    <button type="button" className="lv-step" aria-label={`${name}: więcej`} disabled={locked} onClick={() => nudge(1)}>+</button>
-                    <input type="number" inputMode="decimal" className="lv-prop-num" aria-label={`${name} (liczba)`} disabled={locked}
-                      onChange={(e) => { const n = toNum(e.currentTarget.value); if (Number.isFinite(n)) edit(n); }}
-                      onBlur={end} onKeyDown={(e) => { if (e.key === 'Enter') end(); }} />
+                    <button type="button" className="lv-step" aria-label={`${name}: więcej`} onClick={() => nudge(1)}>+</button>
                   </span>
                 </div>
               );
@@ -253,10 +261,10 @@ export function WorldPanel({ program, selected, version, locked, cameras, onAct 
             {(children.length > 0 || world.canCopy(t) || world.canRemove(t)) && (
               <div className="lv-thing-actions">
                 {children.map((k) => (
-                  <button key={k} type="button" className="wk-btn wk-btn-line" disabled={locked} onClick={() => onAct({ type: 'add', kind: k, parent: t.id })}>+ {label(k)}</button>
+                  <button key={k} type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'add', kind: k, parent: t.id })}>+ {label(k)}</button>
                 ))}
-                {world.canCopy(t) && <button type="button" className="wk-btn wk-btn-line" disabled={locked} onClick={() => onAct({ type: 'copy', id: t.id })}>Powiel</button>}
-                {world.canRemove(t) && <button type="button" className="wk-btn wk-btn-line" disabled={locked} onClick={() => onAct({ type: 'remove', id: t.id })}>Usuń</button>}
+                {world.canCopy(t) && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'copy', id: t.id })}>Powiel</button>}
+                {world.canRemove(t) && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'remove', id: t.id })}>Usuń</button>}
               </div>
             )}
           </section>

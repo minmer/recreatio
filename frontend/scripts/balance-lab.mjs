@@ -101,7 +101,7 @@ export { drawingOf } from '${app}pages/motion/drawing';
       things: [
         beam('b1', { length: 6, pivot: 3 }),
         weight('w1', 'b1', { m: 6, pos: 1 }),
-        beam('b2', { parent: 'b1', length: 3, pivot: 1.5, pos: 4.5, drop: 1 }, ['length', 'pivot', 'bm', 'drop']),
+        beam('b2', { parent: 'b1', length: 3, pivot: 1.5, pos: 4.5, drop: 1.4 }, ['length', 'pivot', 'bm', 'drop']),
         weight('w2', 'b2', { m: 2, pos: 0 }),
         weight('w3', 'b2', { m: 5, pos: 3 }, ['pos', 'drop'])
       ],
@@ -116,9 +116,9 @@ export { drawingOf } from '${app}pages/motion/drawing';
       things: [
         beam('b1', { length: 6, pivot: 3 }),
         weight('w1', 'b1', { m: 3, pos: 0 }), weight('w2', 'b1', { m: 3, pos: 1.5 }),
-        beam('b2', { parent: 'b1', length: 4, pivot: 2, pos: 4, drop: 1 }, ['length', 'pivot', 'bm', 'drop']),
+        beam('b2', { parent: 'b1', length: 4, pivot: 2, pos: 4, drop: 1.6 }, ['length', 'pivot', 'bm', 'drop']),
         weight('w3', 'b2', { m: 4, pos: 1 }),
-        beam('b3', { parent: 'b2', length: 2, pivot: 1, pos: 3, drop: 0.8 }, ['length', 'pivot', 'bm', 'drop']),
+        beam('b3', { parent: 'b2', length: 2, pivot: 1, pos: 3, drop: 1.2 }, ['length', 'pivot', 'bm', 'drop']),
         weight('w4', 'b3', { m: 1, pos: 0 }), weight('w5', 'b3', { m: 1, pos: 2 })
       ],
       solution: 'b3.pos = 4; b2.pos = 5.25', explain: 'belka'
@@ -211,7 +211,8 @@ export { drawingOf } from '${app}pages/motion/drawing';
       places: { [scene]: { x: 68, y, w, max, tall: { x: 47, y: tallY, w: 88 } } },
       skin: 'card', origin: 'top', arrive: 'fade', delay: 0.15, span: 0.5
     },
-    config: { ...config, max }
+    /* Die Werkstatt neben das Bild (auf dem Telefon darunter): so bleibt das gewählte Ding auf einem Schirm. */
+    config: { ...config, max, panel: 'side' }
   });
 
   const demo = m.balanceDrawing({

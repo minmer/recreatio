@@ -7,7 +7,9 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
 
+import { ask, toast } from '../ui/dialogs';
 import { JsonPanel } from '../ui/JsonPanel';
+import { MenuButton } from '../ui/Menu';
 import { WorkspaceError } from '../core/session';
 import { nodeLabel, readAddForm } from './addForm';
 import { NewFormMenu } from './AddFormEditor';
@@ -58,6 +60,24 @@ export function SchemaEditor({ chosenId, onChoose, onForm }: { chosenId: string 
     setDraft({ id, name: 'Nowy rodzaj', label: '{name}', fields: [{ key: 'name', label: 'Nazwa', type: 'line', multi: false, uncertain: false }] });
     onChoose(null);
   };
+  const [removing, setRemoving] = useState<string | null>(null);
+  /*
+    2026-10-18 — JEDEN RODZAJ USUNĄĆ, auch einen eingebauten: erst ausrechnen,
+    was alles mitgeht (Einträge, Verweise, Felder, Szablony, Formularze, Zbiory
+    — `kindRemoval.ts`), das sagen, dann tun.
+  */
+  const removeKind = (id: string) => void run(async () => {
+    const plan = lib.planKindRemoval(id);
+    if (plan === null) return;
+    if (plan.blocked !== null) throw new Error(plan.blocked);
+    const yes = await ask({ title: `Usunąć rodzaj „${plan.kind.name}”?`, body: 'Tego nie da się cofnąć. Razem z nim:', list: plan.lines, confirm: 'Usuń rodzaj', danger: true });
+    if (!yes) return;
+    await lib.removeKind(plan, setRemoving);
+    setRemoving(null);
+    toast(`Usunięto rodzaj „${plan.kind.name}”.`);
+    setDraft(null);
+    onChoose(null);
+  }).finally(() => setRemoving(null));
 
   return (
     <div className="cg-split">
@@ -68,8 +88,10 @@ export function SchemaEditor({ chosenId, onChoose, onForm }: { chosenId: string 
           <KindForm key={draft.id} draft={draft} writes={writes && (isBaseKind(draft.id) || lib.isOwn(draft.id) || lib.origin(draft.id) === undefined)} busy={busy}
             onChange={setDraft}
             onSave={() => void run(async () => { await lib.saveKind(draft); onChoose(draft.id); })}
+            onRemove={writes && lib.kind(draft.id) !== undefined && (isBaseKind(draft.id) || lib.isOwn(draft.id)) ? () => removeKind(draft.id) : undefined}
           />
         )}
+        {removing !== null && <p className="cg-muted">{removing}</p>}
         {failed !== null && <p className="wk-error">{failed}</p>}
         {writes && (
           <JsonPanel
@@ -91,8 +113,14 @@ export function SchemaEditor({ chosenId, onChoose, onForm }: { chosenId: string 
       <aside className="cg">
         <div className="cg-row-between">
           <h3>Rodzaje</h3>
-          {writes && <button type="button" className="wk-btn" onClick={create}>+ Rodzaj</button>}
+          {writes && (
+            <MenuButton label="Dodaj rodzaj" text="Rodzaj" icon="plus" items={[
+              { label: 'Pusty — własne pola', onSelect: create },
+              ...lib.missingBuiltins().map((k) => ({ label: `Gotowy: ${k.name}`, onSelect: () => void run(async () => { await lib.addBuiltin(k.id); onChoose(k.id); }) }))
+            ]} />
+          )}
         </div>
+        {lib.kinds.length === 0 && <p className="cg-muted">Ta baza wiedzy nie ma jeszcze rodzajów. Dodaj pusty albo gotowy (Temat, Wiedza, Pytanie) — albo zaimportuj schemat jako JSON.</p>}
         <ul className="lib-list">
           {lib.kinds.map((k) => (
             <li key={k.id}>
@@ -131,7 +159,7 @@ export function SchemaEditor({ chosenId, onChoose, onForm }: { chosenId: string 
   );
 }
 
-function KindForm({ draft, writes, busy, onChange, onSave }: { draft: KindDef; writes: boolean; busy: boolean; onChange: (k: KindDef) => void; onSave: () => void }) {
+function KindForm({ draft, writes, busy, onChange, onSave, onRemove }: { draft: KindDef; writes: boolean; busy: boolean; onChange: (k: KindDef) => void; onSave: () => void; onRemove?: () => void }) {
   const { lib } = useCtx();
   const base = isBaseKind(draft.id);
   const builtinKeys = useMemo(() => new Set(base ? (lib.kind(draft.id)?.fields ?? []).filter((f) => f.role === f.key || f.private === true).map((f) => f.key) : []), [base, draft.id, lib]);
@@ -238,7 +266,12 @@ function KindForm({ draft, writes, busy, onChange, onSave }: { draft: KindDef; w
       {writes && <button type="button" className="wk-link-btn" onClick={() => set({ fields: [...draft.fields, blankField(draft.fields.length + 1)] })}>+ pole</button>}
       {[...problems, ...dupes.map((k) => `Dwa pola o kluczu „${k}".`), ...bad.map((k) => `Klucz „${k}": litery, cyfry i _, zaczyna się literą.`)].map((p, i) => <p key={i} className="wk-warn">{p}</p>)}
       <p className="wk-hint">Gdy usuniesz pole albo zmienisz jego typ, wartości wpisów zostają jako „poza schematem", dopóki ktoś o nich nie zdecyduje.</p>
-      {writes && <div className="wk-actions"><button type="submit" className="wk-btn" disabled={busy || dupes.length > 0 || bad.length > 0}>{busy ? 'Zapisywanie…' : 'Zapisz rodzaj'}</button></div>}
+      {writes && (
+        <div className="wk-actions">
+          <button type="submit" className="wk-btn" disabled={busy || dupes.length > 0 || bad.length > 0}>{busy ? 'Zapisywanie…' : 'Zapisz rodzaj'}</button>
+          {onRemove !== undefined && <button type="button" className="wk-link-btn" disabled={busy} onClick={onRemove}>Usuń rodzaj…</button>}
+        </div>
+      )}
     </form>
   );
 }

@@ -26,7 +26,7 @@ import { colorValue, dashArray, dashOf, paint, touchesPaint, type MotionUse } fr
 import { filterOf, originStyle } from './DrawingView';
 import type { Program } from './liveRun';
 import type { Num } from './liveModel';
-import type { Thing } from './liveWorld';
+import type { Thing } from './liveThings';
 import { imageUrl } from '../slides/slideLook';
 
 /* -- Wo ein Teil steht: frei (Einheiten der Zeichnung) oder in einem Rahmen (Welt) ------------- */

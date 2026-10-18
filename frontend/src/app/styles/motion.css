@@ -159,6 +159,8 @@
 .lv { width: 100%; max-width: var(--an-max, none); margin-inline: auto; min-width: 0; container-type: inline-size; }
 .lv-in { display: grid; gap: var(--wk-space-3); min-width: 0; }
 .lv-stage { display: block; width: 100%; height: auto; overflow: visible; }
+/* Ein Text mit Linie (`stroke`) bekommt sie als Hof hinter der Schrift — so bleibt eine Beschriftung über einer Stange lesbar. */
+.lv-stage text { paint-order: stroke fill; stroke-linejoin: round; }
 
 /* In einer Szene: auch „darüber", der Ring und die Schrift auf dem Akzent folgen den Farben der Präsentation. */
 .pz-scene .lv, .pz-travel .lv {
@@ -233,13 +235,17 @@
 .lv-id { color: var(--wk-muted); font-size: var(--wk-text-sm); font-family: var(--wk-mono); }
 .lv-close { margin-left: auto; min-width: var(--wk-control-h); min-height: var(--wk-control-h); border: 0; background: transparent; color: var(--wk-muted); font: inherit; font-size: var(--wk-text-lg); cursor: pointer; }
 .lv-close:hover { color: var(--wk-ink); }
-.lv-prop { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 var(--wk-space-2); align-items: baseline; }
-.lv-prop-row { grid-column: 1 / -1; display: flex; gap: var(--wk-space-1); align-items: center; min-width: 0; }
-.lv-prop-row input[type="range"] { flex: 1 1 6rem; min-width: 0; margin: 0; min-height: var(--wk-control-h); accent-color: var(--wk-accent); }
+.lv-prop { display: grid; gap: var(--wk-space-1); min-width: 0; }
+.lv-prop-head { display: flex; justify-content: space-between; align-items: center; gap: var(--wk-space-2); min-width: 0; }
+.lv-prop-num-row { display: inline-flex; align-items: center; gap: var(--wk-space-1); }
+.lv-prop-row { display: flex; gap: var(--wk-space-1); align-items: center; min-width: 0; }
+.lv-prop-row input[type="range"] { flex: 1 1 auto; min-width: 0; margin: 0; min-height: var(--wk-control-h); accent-color: var(--wk-accent); }
 .lv-step { flex: none; min-width: var(--wk-control-h); min-height: var(--wk-control-h); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: transparent; color: var(--wk-ink); font: inherit; cursor: pointer; }
 .lv-step:hover { border-color: var(--wk-accent); }
 .lv-prop-num { flex: none; width: 4.75rem; min-height: var(--wk-control-h); }
 .lv-readouts { display: flex; flex-wrap: wrap; gap: var(--wk-space-2) var(--wk-space-4); }
+/* Cogita: nach der Antwort spielt das Bild in voller Breite noch einmal ab (das Urteil stellt seinen Inhalt sonst schmal in die Mitte). */
+.cg-verdict .cg-live-replay { justify-self: stretch; min-width: 0; }
 
 /* Schmal (ein Telefon, ein schmaler Platz): jeder Schieber und jede Wahl eine ganze Zeile, die Knöpfe darunter. */
 @container (max-width: 30rem) {
@@ -247,7 +253,7 @@
 }
 
 /* Daneben, wo das Bild selbst breit ist (nicht das Fenster). */
-@container (min-width: 44rem) {
+@container (min-width: 40rem) {
   .lv.is-side > .lv-in { grid-template-columns: minmax(0, 2fr) minmax(13rem, 1fr); align-items: center; }
   .lv.is-side .lv-controls { flex-direction: column; align-items: stretch; }
 }

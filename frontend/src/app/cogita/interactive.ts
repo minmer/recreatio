@@ -31,7 +31,7 @@ import { drawingOf, type Drawing, type Shape } from '../pages/motion/drawing';
 import { fmt, toNum } from '../pages/motion/expr';
 import { readLive, type Live } from '../pages/motion/liveModel';
 import { Program } from '../pages/motion/liveRun';
-import { readShot, type WorldShot } from '../pages/motion/liveWorld';
+import { readShot, type WorldShot } from '../pages/motion/liveThings';
 import type { Outcome } from './check';
 
 export interface InteractiveSpec {

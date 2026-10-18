@@ -23,7 +23,8 @@ import { newId } from '../core/ids';
 import type { Entry, LibraryStore } from '../library/libraryStore';
 import { cardsOf, questionCard, readTemplate, templatesFor, topicCard, type Template } from './cards';
 import { type Card } from './cardBasics';
-import { DOC_KINDS, entityOf, entryData, isBaseKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, type DocKind } from './kinds';
+import { baseKind, DOC_KINDS, entityOf, entryData, isBaseKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, type DocKind } from './kinds';
+import { planKindRemoval, type KindRemoval } from './kindRemoval';
 import type { Dependency, DependencyKind } from './knowness';
 import { DEPENDENCY_KINDS } from './knowness';
 import { labelOf, lookupOf, plainOf, refIndex, replaceRef, tellOf, valuesOf, fieldsOf, type Backlink, type Entity, type KindDef, type Lookup } from './schema';
@@ -305,6 +306,7 @@ export class CogitaLibrary {
     const kinds = kindDefs([...theirs, ...own]);
     const entities = [...own, ...theirs].map(entityOf).filter((e): e is Entity => e !== null && !merged.has(e.id));
     const refs = books.map(entityOf).filter((e): e is Entity => e !== null);
+    const added = new Set([...theirs, ...own].flatMap((e) => (e.kind === 'kind' && typeof e.data.builtin === 'string' ? [e.data.builtin] : [])));
     const byKind = new Map<string, Entity[]>();
     for (const e of entities) for (const k of e.kinds) byKind.set(k, [...(byKind.get(k) ?? []), e]);
     const docs = new Map<DocKind, Entry[]>(DOC_KINDS.map((k) => [k, []]));
@@ -318,7 +320,12 @@ export class CogitaLibrary {
     mark(this.store, 'ta baza wiedzy', 'knowledge', true);
     for (const s of this.sources) mark(s.store, s.name, s.kind, false);
     this.memo = {
-      stamp, kinds, contentKinds: kinds.filter((k) => !BOOK_KINDS.has(k.id)), entities, refs,
+      /*
+        2026-10-18 — KEIN RODZAJ VON SICH AUS: die eingebauten (Temat, Wiedza,
+        Pytanie) stehen nur da, wo man sie hinzugefügt (oder geändert) hat oder
+        wo es Einträge von ihnen gibt. Die Maschine kennt sie trotzdem (`look`).
+      */
+      stamp, kinds, contentKinds: kinds.filter((k) => !BOOK_KINDS.has(k.id) && (!isBaseKind(k.id) || byKind.has(k.id) || added.has(k.id))), entities, refs,
       look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, search: null, refSearch: null
     };
     return this.memo;
@@ -507,6 +514,56 @@ export class CogitaLibrary {
   async remove(id: string): Promise<void> {
     this.ownOnly(id);
     return this.store.remove(id);
+  }
+
+  /** Die eingebauten Rodzaje, die hier (noch) nicht stehen — zum Hinzufügen. */
+  missingBuiltins(): KindDef[] {
+    return ['topic', 'knowledge', 'question'].filter((id) => !this.kinds.some((k) => k.id === id)).map((id) => baseKind(id)).filter((k): k is KindDef => k !== undefined);
+  }
+
+  /** Einen eingebauten Rodzaj hinzufügen — er steht dann da, auch ohne Einträge. */
+  async addBuiltin(id: string): Promise<void> {
+    const kind = baseKind(id);
+    if (kind !== undefined) await this.saveKind(kind);
+  }
+
+  /** 2026-10-18 — was es heisst, diesen Rodzaj zu entfernen (`kindRemoval.ts`). */
+  planKindRemoval(kindId: string): KindRemoval | null {
+    const kind = this.kind(kindId);
+    if (kind === undefined) return null;
+    const docs = (k: DocKind) => this.docs(k).map((e) => ({ id: e.id, data: e.data }));
+    return planKindRemoval({
+      kind, isBase: isBaseKind(kindId), kinds: this.kinds, entities: this.entities(), look: this.look, isOwn: (id) => this.isOwn(id),
+      templates: docs('template'), forms: docs('addform'), collections: docs('collection')
+    });
+  }
+
+  /** Den Plan ausführen: erst was bleibt umschreiben, dann löschen, zuletzt den Rodzaj selbst. */
+  async removeKind(plan: KindRemoval, progress?: (text: string) => void): Promise<void> {
+    if (plan.blocked !== null) throw new Error(plan.blocked);
+    const rewrite = [...plan.unlink, ...plan.narrow];
+    if (rewrite.length > 0) {
+      progress?.(`Poprawianie odwołań… (${rewrite.length})`);
+      const done = await this.saveMany(rewrite.map((c) => ({ id: c.id, kinds: c.kinds, data: c.data })));
+      if (done.failed.length > 0) throw new Error(`Nie zapisano ${done.failed.length} wpisów: ${done.failed[0].error}`);
+    }
+    for (const k of plan.kinds) await this.saveKind(k);
+    for (const d of [...plan.templates.map((x) => ['template', x] as const), ...plan.forms.map((x) => ['addform', x] as const), ...plan.collections.map((x) => ['collection', x] as const)]) {
+      const [kind, change] = d;
+      if (change.data === null) await this.store.remove(change.id); else await this.saveDoc(kind, change.data, change.id);
+    }
+    let n = 0;
+    for (const id of plan.remove) {
+      await this.store.remove(id);
+      n += 1;
+      if (n % 10 === 0 || n === plan.remove.length) progress?.(`Usuwanie wpisów… ${n} z ${plan.remove.length}`);
+    }
+    if (isBaseKind(plan.kind.id)) {
+      const override = overrideEntryOf(this.store.all(), plan.kind.id);
+      if (override !== undefined) await this.store.remove(override.id);
+    } else {
+      await this.store.remove(plan.kind.id);
+    }
   }
 
   /**

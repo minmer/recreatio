@@ -37,7 +37,8 @@
 
 import { compile, compileText, isExprError, newEnv, toNum, truth, type Env, type Expr } from './expr';
 import { BUILTINS, type Action, type ControlSpec, type Live, type Mood, type RuleSpec, type SimSpec, type VarSpec } from './liveModel';
-import { World, type WorldShot } from './liveWorld';
+import { World } from './liveWorld';
+import type { WorldShot } from './liveThings';
 import { Workshop } from './liveEdit';
 
 export type Status = 'ready' | 'running' | 'paused' | 'ended';
@@ -62,9 +63,7 @@ export interface ProgramOptions {
   readonly fixed?: Readonly<Record<string, number>>;
   /** Der Zufall für `random` — sonst `Math.random`. */
   readonly random?: () => number;
-  /** 2026-10-18 — mit diesem Bau der Welt beginnen (gezeigt, wie er ist: eine Antwort, die man ansieht). */
-  readonly world?: WorldShot | null;
-  /** …oder ihn durch die Regeln der Welt nachspielen (die Prüfung in Cogita). */
+  /** 2026-10-18 — mit diesem Bau der Welt beginnen, durch ihre Regeln nachgespielt (eine Antwort in Cogita: geprüft und gezeigt). */
   readonly replay?: WorldShot | null;
 }
 
@@ -212,7 +211,6 @@ export class Program {
       for (const l of this.lets) if (l.expr.reads.some((r) => dynamic.has(r))) dynamic.add(l.name);
       this.preLets = this.lets.filter((l) => dynamic.has(l.name) && !l.expr.reads.includes('#world'));
       this.world = new World(worldSpec, this.env, globalNames, (p) => this.report(p), { fixed: options.fixed, random, dynamic });
-      if (options.world !== undefined && options.world !== null) this.world.restore(options.world);
     }
 
     const worldMoves = this.world !== null && worldSpec!.kinds.some((k) => k.state.length > 0);

@@ -9,14 +9,10 @@
  * mit `$`, die kein Ausdruck nennen kann: sein Elternteil, seine Kinder, seine
  * Wurzel, seine Art (`expr.ts` geht darüber für `parent.x` und `sum(children, …)`).
  *
- * <b>In welcher Reihenfolge gerechnet wird, folgt aus dem, was jede Rechnung
- * liest</b> (`Expr.links`): die ganze Masse einer Belke braucht die ganze Masse
- * jedes Kindes, die Lage eines Gewichts die Lage der Belke, an der es hängt.
- * Nach jeder Änderung des Baus werden die Rechnungen aller Dinge einmal
- * sortiert — danach läuft jede genau einmal, nach allem, was sie braucht.
- * Niemand muss eine Reihenfolge angeben. Was nur von Eigenschaften abhängt,
- * wird nicht in jedem Schritt der Simulation neu gerechnet, sondern nur, wenn
- * sich etwas geändert hat; in den Zwischenschritten nur, was die Raten brauchen.
+ * <b>In welcher Reihenfolge gerechnet wird</b>, folgt aus dem, was jede
+ * Rechnung liest (`liveThings.ts`). Was nur von Eigenschaften abhängt, wird
+ * nicht in jedem Schritt der Simulation neu gerechnet, sondern nur, wenn sich
+ * etwas geändert hat; in den Zwischenschritten nur, was die Raten brauchen.
  *
  * <b>Jede Änderung geht durch die Regeln der Welt</b>: darf man das hier
  * (Art, Welt, Sperre, `when`), liegt der Wert in seinen Grenzen (die
@@ -28,108 +24,14 @@
  */
 
 import { compile, compileText, isExprError, toNum, truth, type CompileOptions, type Env, type Expr, type Val, type WorldLinks } from './expr';
-import { RELATIONS, SETS, THING_BUILTINS, type KindSpec, type Mood, type PropSpec, type WorldSpec } from './liveModel';
-
-/** Ein Ding, wie es gespeichert, rückgängig gemacht und als Antwort abgegeben wird. */
-export interface ThingShot {
-  readonly id: string;
-  readonly kind: string;
-  readonly parent: string | null;
-  readonly props: Readonly<Record<string, number>>;
-}
-
-export interface WorldShot {
-  readonly things: readonly ThingShot[];
-}
-
-/**
- * Ein Bau aus fremden Daten (eine Antwort, ein eingefügter Text) — nur, was
- * wie Dinge aussieht; der Rest fällt weg. Ob die Dinge erlaubt sind, sagt
- * erst die Welt, wenn sie ihn nachspielt.
- */
-export function readShot(value: unknown): WorldShot | null {
-  const list = Array.isArray(value) ? value : typeof value === 'object' && value !== null ? (value as { things?: unknown }).things : null;
-  if (!Array.isArray(list)) return null;
-  const things = list.slice(0, 200).flatMap((raw): ThingShot[] => {
-    if (typeof raw !== 'object' || raw === null) return [];
-    const r = raw as Record<string, unknown>;
-    if (typeof r.id !== 'string' || typeof r.kind !== 'string') return [];
-    const props: Record<string, number> = {};
-    for (const [k, v] of Object.entries(typeof r.props === 'object' && r.props !== null ? r.props as Record<string, unknown> : {}).slice(0, 40)) {
-      if (typeof v === 'number' && Number.isFinite(v)) props[k] = v;
-    }
-    return [{ id: r.id.slice(0, 32), kind: r.kind.slice(0, 32), parent: typeof r.parent === 'string' ? r.parent.slice(0, 32) : null, props }];
-  });
-  return things.length === 0 ? null : { things };
-}
-
-/** Was eine Welt melden kann — wie die Fehler des Programms. */
-export interface WorldProblem {
-  readonly where: string;
-  readonly error: string;
-  readonly source: string;
-  readonly at: number;
-}
-
-interface Assign {
-  readonly name: string;
-  readonly expr: Expr;
-}
-
-interface PropRun {
-  readonly spec: PropSpec;
-  readonly min: Expr | null;
-  readonly max: Expr | null;
-  readonly made: Expr | null;
-  readonly when: Expr | null;
-}
-
-/** Eine Rechnung einer Art: ob sie von der Zeit abhängt, und ob die Raten sie brauchen (dann läuft sie in jedem Zwischenschritt). */
-interface LetRun {
-  readonly name: string;
-  readonly expr: Expr;
-  dynamic: boolean;
-  stage: boolean;
-}
-
-interface KindRun {
-  readonly spec: KindSpec;
-  readonly props: ReadonlyMap<string, PropRun>;
-  readonly lets: readonly LetRun[];
-  readonly state: readonly { readonly name: string; readonly init: Expr; readonly rate: Expr }[];
-  readonly events: readonly { readonly when: Expr; readonly set: readonly Assign[]; readonly say: Expr | null; readonly mood: Mood }[];
-  readonly drag: readonly Assign[];
-  readonly tap: readonly Assign[];
-  readonly readouts: readonly (Expr | null)[];
-}
-
-export interface Thing {
-  readonly id: string;
-  readonly kind: KindRun;
-  parent: Thing | null;
-  children: Thing[];
-  readonly env: Env;
-  lock: true | ReadonlySet<string>;
-  /** Je Ereignis der Art: scharf (wartet darauf, wahr zu werden)? */
-  armed: boolean[];
-}
-
-/** Eine Rechnung eines Dings, an ihrer Stelle in der Reihenfolge. */
-interface Step {
-  readonly t: Thing;
-  readonly l: LetRun;
-}
+import { THING_BUILTINS, type Mood, type PropSpec, type WorldSpec } from './liveModel';
+import { classify, compileKind, sortLets, type KindRun, type Step, type Thing, type ThingShot, type WorldProblem, type WorldShot } from './liveThings';
 
 const UNDO_DEPTH = 60;
-
-const SET_STEPS: ReadonlySet<string> = new Set<string>(SETS);
-const RELATION_STEPS: ReadonlySet<string> = new Set<string>(RELATIONS);
 
 const links = (env: Env): { -readonly [K in keyof WorldLinks]: WorldLinks[K] } => env as unknown as { -readonly [K in keyof WorldLinks]: WorldLinks[K] };
 
 const clamp = (value: number, min: number, max: number): number => (value < min ? min : value > max ? max : value);
-
-const ZERO: Expr = { source: '0', run: () => 0, reads: [], constant: true, links: [] };
 
 export class World {
   readonly kinds = new Map<string, KindRun>();
@@ -192,8 +94,9 @@ export class World {
     this.stateNames = new Set(spec.kinds.flatMap((k) => k.state.map((x) => x.name)));
     links(global).$world = this.index;
 
-    for (const k of spec.kinds) this.kinds.set(k.name, this.compileKind(k));
-    this.classify(options.dynamic ?? new Set());
+    const compiler = { compile: (source: string, where: string) => this.compile(source, where), compileText: (source: string, where: string) => this.compileText(source, where), report, kindNames: this.kindNames };
+    for (const k of spec.kinds) this.kinds.set(k.name, compileKind(k, compiler));
+    classify([...this.kinds.values()], options.dynamic ?? new Set());
 
     /* Die Dinge der Welt — mit dem Zufall dieses Versuchs (oder, in Cogita, dem festgehaltenen). */
     const random = options.random ?? Math.random;
@@ -219,16 +122,6 @@ export class World {
     this.initial = this.snapshot();
   }
 
-  /** Was der Zufall gezogen hat (`ding.eigenschaft`) — damit derselbe Versuch wiederkommt (Cogita). */
-  drawn(): Record<string, number> {
-    const out: Record<string, number> = {};
-    for (const t of this.spec.things) {
-      const shot = this.initial.things.find((s) => s.id === t.id);
-      for (const name of Object.keys(t.random)) if (shot !== undefined && typeof shot.props[name] === 'number') out[`${t.id}.${name}`] = shot.props[name];
-    }
-    return out;
-  }
-
   /* -- Übersetzen ----------------------------------------------------------------- */
 
   private options(extra: readonly string[] = []): CompileOptions {
@@ -250,78 +143,6 @@ export class World {
     if (!isExprError(made)) return made;
     this.report({ where, error: made.error, source: made.source, at: made.at });
     return null;
-  }
-
-  private assigns(set: Readonly<Record<string, string>>, kind: KindSpec, where: string): Assign[] {
-    const own = new Set([...kind.props.map((p) => p.name), ...kind.state.map((s) => s.name)]);
-    const out: Assign[] = [];
-    for (const [name, source] of Object.entries(set)) {
-      if (!own.has(name)) { this.report({ where, error: `„${name}" nie jest własnością ani stanem rodzaju „${kind.name}"`, source: name, at: 0 }); continue; }
-      const expr = this.compile(source, `${where} „${name}"`);
-      if (expr !== null) out.push({ name, expr });
-    }
-    return out;
-  }
-
-  private compileKind(k: KindSpec): KindRun {
-    const where = `world.kinds „${k.name}"`;
-    const props = new Map<string, PropRun>(k.props.map((p) => [p.name, {
-      spec: p,
-      min: p.min === null ? null : this.compile(p.min, `${where}.props „${p.name}".min`),
-      max: p.max === null ? null : this.compile(p.max, `${where}.props „${p.name}".max`),
-      made: p.new === null ? null : this.compile(p.new, `${where}.props „${p.name}".new`),
-      when: p.when === null ? null : this.compile(p.when, `${where}.props „${p.name}".when`)
-    }]));
-    for (const name of [...k.edit, ...Object.keys(k.drag ?? {})]) {
-      if (!props.has(name) && !k.state.some((s) => s.name === name)) this.report({ where, error: `„${name}" nie jest własnością tego rodzaju`, source: name, at: 0 });
-    }
-    for (const name of k.add) if (!this.kindNames.has(name)) this.report({ where: `${where}.can.add`, error: `nie ma rodzaju „${name}"`, source: name, at: 0 });
-    return {
-      spec: k,
-      props,
-      lets: k.lets.map((l) => ({ name: l.name, expr: this.compile(l.value, `${where}.let „${l.name}"`) ?? ZERO, dynamic: false, stage: false })),
-      state: k.state.map((s) => ({ name: s.name, init: this.compile(s.value, `${where}.state „${s.name}".value`) ?? ZERO, rate: this.compile(s.rate, `${where}.state „${s.name}".rate`) ?? ZERO })),
-      events: k.events.map((e, i) => ({
-        when: this.compile(e.when, `${where}.events[${i}].when`) ?? ZERO,
-        set: this.assigns(e.set, k, `${where}.events[${i}].set`),
-        say: e.say === '' ? null : this.compileText(e.say, `${where}.events[${i}].say`),
-        mood: e.mood
-      })),
-      drag: k.drag === null ? [] : this.assigns(k.drag, k, `${where}.drag`),
-      tap: k.tap === null ? [] : this.assigns(k.tap.set, k, `${where}.tap`),
-      readouts: k.readouts.map((r, i) => this.compile(r.value, `${where}.readouts[${i}]`))
-    };
-  }
-
-  /**
-   * WAS VON DER ZEIT ABHÄNGT (einer Grösse der Simulation — eines Dings oder
-   * des Bildes —, durch die Rechnungen hindurch) und was davon die Raten
-   * brauchen: nur das läuft in den Zwischenschritten von Runge-Kutta.
-   */
-  private classify(globalDynamic: ReadonlySet<string>): void {
-    const dynamic = new Set<string>([...globalDynamic, 't']);
-    for (const k of this.kinds.values()) for (const s of k.state) dynamic.add(s.name);
-    let grew = true;
-    while (grew) {
-      grew = false;
-      for (const k of this.kinds.values()) {
-        for (const l of k.lets) {
-          if (!l.dynamic && l.expr.reads.some((r) => dynamic.has(r))) { l.dynamic = true; grew = true; }
-          if (l.dynamic && !dynamic.has(l.name)) { dynamic.add(l.name); grew = true; }
-        }
-      }
-    }
-    const byName = new Map<string, LetRun[]>();
-    for (const k of this.kinds.values()) for (const l of k.lets) byName.set(l.name, [...(byName.get(l.name) ?? []), l]);
-    const needed = new Set<string>();
-    const queue = [...this.kinds.values()].flatMap((k) => k.state.flatMap((s) => s.rate.reads));
-    while (queue.length > 0) {
-      const name = queue.pop()!;
-      if (needed.has(name)) continue;
-      needed.add(name);
-      for (const l of byName.get(name) ?? []) queue.push(...l.expr.reads);
-    }
-    for (const k of this.kinds.values()) for (const l of k.lets) l.stage = l.dynamic && needed.has(l.name);
   }
 
   /* -- Der Bau ---------------------------------------------------------------------- */
@@ -366,84 +187,10 @@ export class World {
     this.index.byId = new Map(this.preorder.map((t) => [t.id, t.env]));
     this.slots = this.preorder.flatMap((t) => t.kind.state.map((s) => ({ thing: t, name: s.name, rate: s.rate })));
     this.global.nthings = this.preorder.length;
-    this.sortLets();
+    ({ order: this.order, dynOrder: this.dynOrder, stageOrder: this.stageOrder } = sortLets({ preorder: this.preorder, roots: this.roots, byId: this.byId }, this.report));
     const shape = this.preorder.map((t) => `${t.id}:${t.kind.spec.name}:${t.parent?.id ?? ''}`).join('|');
     if (shape !== this.shape) { this.shape = shape; this.version += 1; }
     this.everything = true;
-  }
-
-  /**
-   * DIE REIHENFOLGE DER RECHNUNGEN: jede Rechnung jedes Dings nach allem, was
-   * sie liest (über `Expr.links`: die eigenen, die der Kinder, des Elternteils,
-   * eines Dings beim Namen). Ein Kreis (zwei Rechnungen, die einander
-   * brauchen) wird gemeldet und in der Reihenfolge der Liste gerechnet.
-   */
-  private sortLets(): void {
-    const steps: Step[] = [];
-    const at = new Map<Thing, Map<string, number>>();
-    for (const t of this.preorder) {
-      const own = new Map<string, number>();
-      for (const l of t.kind.lets) { own.set(l.name, steps.length); steps.push({ t, l }); }
-      at.set(t, own);
-    }
-    const next: number[][] = steps.map(() => []);
-    const need = steps.map(() => 0);
-    steps.forEach(({ t, l }, i) => {
-      for (const link of l.expr.links) {
-        const path = link.split('>');
-        const name = path.pop()!;
-        for (const u of this.walk(t, path)) {
-          const j = at.get(u)?.get(name);
-          if (j === undefined || j === i) continue;
-          next[j].push(i);
-          need[i] += 1;
-        }
-      }
-    });
-    const order: number[] = [];
-    need.forEach((n, i) => { if (n === 0) order.push(i); });
-    for (let q = 0; q < order.length; q += 1) {
-      for (const k of next[order[q]]) { need[k] -= 1; if (need[k] === 0) order.push(k); }
-    }
-    if (order.length < steps.length) {
-      const done = new Set(order);
-      const stuck = steps.find((_, i) => !done.has(i))!;
-      this.report({ where: `world.kinds „${stuck.t.kind.spec.name}".let „${stuck.l.name}"`, error: 'wartości liczone zależą od siebie w kółko — liczę je w kolejności z listy', source: stuck.l.name, at: 0 });
-      steps.forEach((_, i) => { if (!done.has(i)) order.push(i); });
-    }
-    this.order = order.map((i) => steps[i]);
-    this.dynOrder = this.order.filter((s) => s.l.dynamic);
-    this.stageOrder = this.order.filter((s) => s.l.stage);
-  }
-
-  /** Die Dinge, die ein Weg (`children>parent`) von einem Ding aus erreicht — `outer` ist, wer die innerste Menge gefragt hat. */
-  private walk(t: Thing, path: readonly string[]): readonly Thing[] {
-    let set: readonly Thing[] = [t];
-    const askers: (readonly Thing[])[] = [];
-    for (const step of path) {
-      const before = set;
-      if (step === 'self') continue;
-      if (step === 'parent') set = set.flatMap((x) => (x.parent === null ? [] : [x.parent]));
-      else if (step === 'root') set = set.map((x) => { let r = x; while (r.parent !== null) r = r.parent; return r; });
-      else if (step === 'outer') set = askers.length === 0 ? [] : askers[askers.length - 1];
-      else if (step === 'children') set = set.flatMap((x) => x.children);
-      else if (step === 'descendants') set = set.flatMap((x) => this.below(x));
-      else if (step === 'siblings') set = set.flatMap((x) => (x.parent?.children ?? this.roots).filter((y) => y !== x));
-      else if (step === 'others') set = set.flatMap((x) => this.preorder.filter((y) => y !== x && y.kind === x.kind));
-      else if (step === 'things') set = this.preorder;
-      else if (step.startsWith('@')) { const u = this.byId.get(step.slice(1)); set = u === undefined ? [] : [u]; }
-      else set = this.preorder.filter((x) => x.kind.spec.name === step);
-      if (SET_STEPS.has(step) || (!RELATION_STEPS.has(step) && !step.startsWith('@'))) askers.push(before);
-      if (set.length > 1) set = [...new Set(set)];
-    }
-    return set;
-  }
-
-  private below(t: Thing): Thing[] {
-    const out: Thing[] = [];
-    const walk = (x: Thing) => { for (const c of x.children) { out.push(c); walk(c); } };
-    walk(t);
-    return out;
   }
 
   /**

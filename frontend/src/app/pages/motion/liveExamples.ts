@@ -1,6 +1,8 @@
 /**
  * 2026-10-17 — FERTIGE BILDER ZUM ANFASSEN aus der Physik: Wurf, Pendel,
- * Feder, schiefe Ebene, Stoss, Brechung, Wellen, Umlaufbahn, springender Ball.
+ * Feder, schiefe Ebene, Stoss, Brechung, Wellen, Umlaufbahn, springender Ball
+ * — und, 2026-10-18, zwei Welten von Dingen (`liveWorlds.ts`): die Werkstatt
+ * der Waage und eine Übersetzung aus Zahnrädern.
  *
  * <b>Nichts davon ist Code.</b> Jedes ist ein Dokument im allgemeinen Format
  * (`liveModel.ts`) — dasselbe, das eine KI nach dem Polecenie schreibt und das

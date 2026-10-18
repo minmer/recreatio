@@ -168,7 +168,8 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
 
   /* Rodzaje: eingebaute an ihrer Kennung, eigene an Kennung oder Namen — erst alle Kennungen, dann die Felder. */
   const kinds: ImportPlan['kinds'] = [];
-  const byName = new Map(lib.kinds.map((k) => [k.name.toLowerCase(), k.id]));
+  /* Auch die eingebauten, die hier (noch) nicht stehen: „Temat" im JSON fügt ihn hinzu. */
+  const byName = new Map(lib.refKinds.map((k) => [k.name.toLowerCase(), k.id]));
   const docNames = new Map<string, string>();
   const placed: { raw: Record<string, unknown>; id: string; isNew: boolean }[] = [];
   for (const raw of Array.isArray(doc.kinds) ? doc.kinds : []) {

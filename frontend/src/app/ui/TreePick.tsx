@@ -8,9 +8,9 @@
  *
  * <b>Hier steht der Baum, wie er ist</b>: eingerückt, mit Linien, zu- und
  * aufklappbar; ein Knoten, der selbst nicht zur Wahl steht, steht trotzdem da
- * — als Weg zu denen darunter. Ein kleiner Baum ist ganz offen, ein grosser
- * nur bis zur Wahl; die Suche (ohne Akzente: „grzegorzki") zeigt Treffer mit
- * ihrem Weg. Oben stehen feste Zeilen („Tylko ja", „— bez obszaru —") und, wenn
+ * — als Weg zu denen darunter. Er beginnt ZUGEKLAPPT (2026-10-18): oben die
+ * äussersten, offen nur der Weg zur Wahl — wer weiter hinein will, klappt
+ * auf; die Suche (ohne Akzente: „grzegorzki") zeigt Treffer mit ihrem Weg. Oben stehen feste Zeilen („Tylko ja", „— bez obszaru —") und, wenn
  * es sie gibt, die zuletzt gewählten.
  *
  * <code>
@@ -41,7 +41,7 @@ export interface TreeNode {
   readonly note?: string | null;
   /** Wo er unter seinen Geschwistern steht: kleiner zuerst, gleich nach dem Alphabet (fehlt: 0). */
   readonly order?: number;
-  /** Anfangs zu, auch in einem kleinen Baum — ein Ordner, der viel Gleichartiges sammelt („Rozmowy"). Liegt die Wahl darin, ist er offen. */
+  /** Ein Ordner, der viel Gleichartiges sammelt („Rozmowy"). Seit 2026-10-18 beginnt ohnehin alles zu (ausser dem Weg zur Wahl); das Zeichen bleibt für den Sinn. */
   readonly closed?: boolean;
 }
 
@@ -65,8 +65,6 @@ interface Shaped {
   readonly children: ReadonlyMap<string | null, readonly TreeNode[]>;
   /** Wie viele wählbare Knoten unter (und mit) einem Knoten stehen. */
   readonly offered: ReadonlyMap<string, number>;
-  /** Wie viele Zeilen dastehen, solange die Ordner (`closed`) zu sind — daran misst sich „kleiner Baum". */
-  readonly plain: number;
 }
 
 function shape(nodes: readonly TreeNode[]): Shaped {
@@ -83,20 +81,18 @@ function shape(nodes: readonly TreeNode[]): Shaped {
 
   /* Was nichts Wählbares trägt, fällt weg — ein Ast ohne Ziel ist nur Lärm. Gegen Kreise: jeder Knoten einmal. */
   const offered = new Map<string, number>();
-  let plain = 0;
-  const count = (n: TreeNode, seen: Set<string>, folded: boolean): number => {
+  const count = (n: TreeNode, seen: Set<string>): number => {
     if (seen.has(n.id)) return 0;
     seen.add(n.id);
-    const below = (children.get(n.id) ?? []).reduce((sum, c) => sum + count(c, seen, folded || n.closed === true), 0);
+    const below = (children.get(n.id) ?? []).reduce((sum, c) => sum + count(c, seen), 0);
     const total = below + (n.selectable === false ? 0 : 1);
     offered.set(n.id, total);
-    if (total > 0 && !folded) plain++;
     return total;
   };
   const seen = new Set<string>();
-  for (const root of children.get(null) ?? []) count(root, seen, false);
+  for (const root of children.get(null) ?? []) count(root, seen);
 
-  return { byId, children, offered, plain };
+  return { byId, children, offered };
 }
 
 /** Der Weg von oben bis zu diesem Knoten. */
@@ -150,17 +146,16 @@ export function TreeList({ nodes, selected, onPick, multiple = false, extras = [
   const tree = useMemo(() => shape(nodes), [nodes]);
   const visibleCount = useMemo(() => [...tree.offered.values()].filter((n) => n > 0).length, [tree]);
 
-  /* Offen: ein kleiner Baum ganz (ohne seine Ordner), ein grosser bis zur Wahl (und die Wurzeln, wenn es wenige sind). */
+  /*
+     2026-10-18 — ZUGEKLAPPT: offen ist nur der Weg zur Wahl (bei mehreren: zu jeder). Vorher stand ein
+     kleiner Baum ganz offen da — mit zwanzig Bereichen war das eine lange Liste, in der man die
+     äussersten suchen musste. Steht oben nur EIN Knoten, ist er offen: zu sehen gäbe es sonst nichts.
+  */
   const [open, setOpen] = useState<ReadonlySet<string>>(() => {
-    const toChoice = new Set<string>();
-    for (const value of selected) for (const step of pathOf(tree.byId, value).slice(0, -1)) toChoice.add(step.id);
-    const out = new Set(toChoice);
-    if (tree.plain <= 24) {
-      for (const n of nodes) if (n.closed !== true) out.add(n.id);
-      return out;
-    }
-    const roots = (tree.children.get(null) ?? []).filter((r) => (tree.offered.get(r.id) ?? 0) > 0 && r.closed !== true);
-    if (roots.length <= 3) for (const r of roots) out.add(r.id);
+    const out = new Set<string>();
+    for (const value of selected) for (const step of pathOf(tree.byId, value).slice(0, -1)) out.add(step.id);
+    const roots = (tree.children.get(null) ?? []).filter((r) => (tree.offered.get(r.id) ?? 0) > 0);
+    if (roots.length === 1) out.add(roots[0].id);
     return out;
   });
   const [query, setQuery] = useState('');

@@ -33,7 +33,7 @@ import type { Drawing } from './drawing';
 import { usePhase, useReducedMotion } from './MotionBox';
 import { useMotionPlan } from './DrawingView';
 import { Program, type Said } from './liveRun';
-import type { WorldShot } from './liveWorld';
+import type { WorldShot } from './liveThings';
 import { buildDrawing, type Camera, type Inst } from './liveBuild';
 import { ControlView, digitsOf, propRange, rangeOf, shotOfText, withUnit, WorldPanel, type WorldAct } from './LivePanel';
 import { ShowClock } from '../presentation/showContext';

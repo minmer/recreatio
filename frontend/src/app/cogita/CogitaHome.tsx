@@ -208,7 +208,7 @@ function EntitiesTab({ trail, go }: { trail: readonly string[]; go: (...tail: st
     return <AddFormRun formId={trail[1] ?? null} onClose={() => go('wpisy')} onOpen={(id) => go('wpisy', id)} onEdit={(id) => go('schemat', 'formularz', id)} />;
   }
   if (trail[0] === 'nowy') {
-    return <EntityEditor entityId={null} newKinds={trail[1] === undefined ? ['knowledge'] : [trail[1]]} onDone={(id) => go('wpisy', ...(id === null ? [] : [id]))} onOpen={(id) => go('wpisy', id)} />;
+    return <EntityEditor entityId={null} newKinds={trail[1] === undefined ? [lib.kinds[0]?.id ?? 'knowledge'] : [trail[1]]} onDone={(id) => go('wpisy', ...(id === null ? [] : [id]))} onOpen={(id) => go('wpisy', id)} />;
   }
   if (trail[0] !== undefined && trail[0] !== 'widok' && lib.entity(trail[0]) !== undefined) {
     return (

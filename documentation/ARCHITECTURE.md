@@ -48,7 +48,7 @@ Entry: `src/main.tsx` keeps an access link out of the address, starts the Androi
 | `masses/` | masses, confessions, devotions; the office (intentions, plan, terms, printing) |
 | `bookings/` | resources that can be taken; offers, claims, the slot card |
 | `chat/` | chats: the kit (`ChatKit.tsx`, `ChatLog.tsx`, `Composer.tsx`, `ChatChrome.tsx`), the three rooms (`ChatPage`, `PageChatView`, `SeatChatView`), topics, features |
-| `pages/` | the page registry and editor, parts (`parts/` — one file per kind), slides, presentation, motion, interactive drawings (`motion/live*`, `expr.ts`: values, simulation, controls, rules — INTERACTIVE.md), event parts, JSON import/export |
+| `pages/` | the page registry and editor, parts (`parts/` — one file per kind), slides, presentation, motion, interactive drawings (`motion/live*`, `expr.ts`: values, simulation, controls, rules; worlds of things — `liveWorld.ts`, `liveEdit.ts`, `liveWorlds.ts` (balance, gears) — INTERACTIVE.md), event parts, JSON import/export |
 | `modules/` | modules as own things (forms are modules), their settings and JSON |
 | `library/` | library entries, citations, catalogue lookup, publishing |
 | `cogita/` | knowledge bases, cards (`cards.ts`, `cardPalette.ts`, `cardBasics.ts`), revisions, flows, sessions, games, forms for adding many entries at once and editing them in that shape (`addForm*.ts`, `AddFormEditor.tsx`, `AddFormRun.tsx`, `AddFormRows.tsx`) |

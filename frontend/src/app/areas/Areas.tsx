@@ -27,9 +27,9 @@
  * angemeldet bleibt man dabei.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { besideIt, chainTo, inOrder, loadAreas, type AreaRow } from './area';
+import { besideIt, chainTo, createArea, inOrder, loadAreas, type AreaRow } from './area';
 import { useCrumbs, type Crumb } from '../shell/crumbTrail';
 import { loadChats } from '../chat/chat';
 import { chatTitles } from '../chat/chatShared';
@@ -232,15 +232,28 @@ export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]
 
   return (
     <>
-      {/* 2026-10-17 — der eigene Kopf: „+ Nowy obszar" ist die eine Handlung dieser Seite. */}
-      <PageHeader title="Obszary" actions={<a className="wk-btn" href={viewPath('areas', NEW)}><Icon name="plus" />Nowy obszar</a>} />
+      {/*
+        2026-10-18 — ANLEGEN STEHT IN DER LISTE, nicht als Knopf im Kopf: unter allen Bereichen
+        ein neuer äusserster, an jedem, den ich prowadzę, „+" für einen darin.
+      */}
+      <PageHeader title="Obszary" />
       {head}
-
-      {areas.length > 0 && <AreaList who={who} areas={areas} />}
 
       {areas.length === 0 && (
         <p className="wk-empty">Obszar to klucz. Bez niego nie ma gdzie niczego zamknąć.</p>
       )}
+
+      <AreaList who={who} areas={areas} create={{
+        busy: busy !== null,
+        blocked: ring === null ? 'Najpierw podaj hasło.'
+          : person === null ? 'Konto nie prowadzi jeszcze żadnej osoby — załóż ją w Rolach.' : null,
+        onCreate: async (name, parentId) => {
+          if (ring === null || person === null) return false;
+          let made = false;
+          await act('Zakładanie…', async () => { await createArea(ring, person, name, parentId); made = true; });
+          return made;
+        }
+      }} />
 
       {/*
         0065 — LINKI DOSTĘPU über alle Bereiche: ein Link kann mehrere öffnen.
@@ -274,7 +287,31 @@ export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]
  * Pfarrei aus dem Bild. Offen tragen sie den Namen der Rozmowa (zu zweit: die
  * andere Seite).
  */
-export function AreaList({ who, areas }: { who: Who; areas: readonly AreaRow[] }) {
+/** Was das Anlegen in der Liste braucht — fehlt es, steht nichts zum Anlegen da. */
+export interface AreaCreate {
+  readonly busy: boolean;
+  /** Warum gerade nichts angelegt werden kann (kein Passwort, keine Person) — sonst `null`. */
+  readonly blocked: string | null;
+  /** Anlegen — `parentId` fehlt: ein äusserster Bereich. Wahr, wenn es geklappt hat. */
+  readonly onCreate: (name: string, parentId?: string) => Promise<boolean>;
+}
+
+/**
+ * 2026-10-18 — ZUGEKLAPPT UND MIT ANLEGEN: jeder Bereich mit Unterbereichen
+ * hat ein Dreieck und beginnt zu (gemerkt je Konto, `areas.open`); an jedem,
+ * den ich prowadzę, legt „+" einen Bereich DARIN an (eine Zeile mit dem
+ * Namen, direkt darunter); unter allen steht „Nowy obszar" — ein äusserster.
+ */
+export function AreaList({ who, areas, create }: { who: Who; areas: readonly AreaRow[]; create?: AreaCreate }) {
+  const [openText, setOpenText] = useRemembered('areas.open', '');
+  const open = new Set(openText.split(',').filter((id) => id !== ''));
+  const setOpen = (areaId: string, to: boolean) => {
+    const next = new Set(open);
+    if (to) next.add(areaId); else next.delete(areaId);
+    setOpenText([...next].filter((id) => areas.some((a) => a.areaId === id)).join(','));
+  };
+  /* Wo gerade ein neuer Bereich eingetippt wird: unter diesem (`''`: ganz unten, ein äusserster). */
+  const [adding, setAdding] = useState<string | null>(null);
   const [chatsText, setChatsText] = useRemembered('areas.chats', 'closed');
   const chatsOpen = chatsText === 'open';
   const chatNames = useChatNames(who, chatsOpen, areas);
@@ -287,11 +324,36 @@ export function AreaList({ who, areas }: { who: Who; areas: readonly AreaRow[] }
   const groups = chats.length - direct;
   const level = (area: AreaRow) => (area.myLevel !== null ? LEVEL_NAME[area.myLevel] : 'bez dostępu');
 
+  /* Die Zeilen eines Blocks, wie sie dastehen: was unter einem zugeklappten liegt, fällt weg; nach einem Bereich, in dem gerade angelegt wird, die Zeile dafür. */
+  const lines = (rows: readonly { area: AreaRow; depth: number }[], shift: number, title: (area: AreaRow, depth: number) => string, sub: (area: AreaRow, depth: number) => string) => {
+    const out: React.ReactNode[] = [];
+    let hiddenBelow = Infinity;
+    rows.forEach(({ area, depth }, i) => {
+      if (depth > hiddenBelow) return;
+      hiddenBelow = Infinity;
+      const parent = (rows[i + 1]?.depth ?? -1) > depth;
+      const isOpen = parent && open.has(area.areaId);
+      const mayNest = create !== undefined && area.myLevel === 'admin' && area.personal !== true && area.ownChat == null;
+      out.push(
+        <AreaLine key={area.areaId} area={area} depth={shift + depth} title={title(area, depth)} sub={sub(area, depth)}
+          open={parent ? isOpen : undefined} onToggle={parent ? () => setOpen(area.areaId, !isOpen) : undefined}
+          onAdd={mayNest ? () => { setAdding(area.areaId); if (parent) setOpen(area.areaId, true); } : undefined} />
+      );
+      if (adding === area.areaId && create !== undefined) {
+        out.push(
+          <NewAreaLine key={`new:${area.areaId}`} depth={shift + depth + 1} inside={area.name} create={create}
+            onCancel={() => setAdding(null)}
+            onMade={() => { setAdding(null); setOpen(area.areaId, true); }} parentId={area.areaId} />
+        );
+      }
+      if (parent && !isOpen) hiddenBelow = depth;
+    });
+    return out;
+  };
+
   return (
     <ul className="wk-box wk-area-list">
-      {mine.flat().map(({ area, depth }) => (
-        <AreaLine key={area.areaId} area={area} depth={depth} title="Tylko Ty (prywatny)" sub={level(area)} />
-      ))}
+      {lines(mine.flat(), 0, () => 'Tylko Ty (prywatny)', (area) => level(area))}
 
       {chats.length > 0 && (
         <li>
@@ -310,16 +372,63 @@ export function AreaList({ who, areas }: { who: Who; areas: readonly AreaRow[] }
         </li>
       )}
 
-      {chatsOpen && chats.flat().map(({ area, depth }) => (
-        <AreaLine key={area.areaId} area={area} depth={foldDepth + 1 + depth}
-          title={depth === 0 ? chatNames.get(area.areaId) ?? area.name : area.name}
-          sub={depth === 0 ? `${area.ownChat === 'direct' ? 'rozmowa we dwoje' : 'grupa'} · ${level(area)}` : level(area)} />
-      ))}
+      {chatsOpen && lines(chats.flat(), foldDepth + 1,
+        (area, depth) => (depth === 0 ? chatNames.get(area.areaId) ?? area.name : area.name),
+        (area, depth) => (depth === 0 ? `${area.ownChat === 'direct' ? 'rozmowa we dwoje' : 'grupa'} · ${level(area)}` : level(area)))}
 
-      {rest.flat().map(({ area, depth }) => (
-        <AreaLine key={area.areaId} area={area} depth={depth} title={area.name} sub={level(area)} />
+      {lines(rest.flat(), 0, (area) => area.name, (area) => level(area))}
+
+      {/* Unter allen: ein neuer äusserster Bereich — keine eigene Schaltfläche anderswo. */}
+      {create !== undefined && (adding === '' ? (
+        <NewAreaLine depth={0} create={create} onCancel={() => setAdding(null)} onMade={() => setAdding(null)} />
+      ) : (
+        <li>
+          <button type="button" className="wk-line wk-area-add" onClick={() => setAdding('')}>
+            <span className="wk-line-ic"><Icon name="plus" /></span>
+            <span className="wk-line-text"><span className="wk-line-title">Nowy obszar</span></span>
+          </button>
+        </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * EIN NEUER BEREICH, IN DER LISTE: nur der Name — Enter legt an, Esc lässt es.
+ * Wo er hinkommt, sagt die Stelle (unter einem Bereich: darin).
+ */
+function NewAreaLine({ depth, inside, parentId, create, onCancel, onMade }: {
+  depth: number;
+  inside?: string;
+  parentId?: string;
+  create: AreaCreate;
+  onCancel: () => void;
+  onMade: () => void;
+}) {
+  const [name, setName] = useState('');
+  const field = useRef<HTMLInputElement | null>(null);
+  useEffect(() => { field.current?.focus(); }, []);
+  const ready = create.blocked === null && !create.busy && name.trim() !== '';
+  const submit = () => {
+    if (!ready) return;
+    void create.onCreate(name.trim(), parentId).then((made) => { if (made) onMade(); });
+  };
+
+  return (
+    <li className="wk-area-new" style={depthOf(depth)}>
+      <span className="wk-line-ic"><Icon name="layers" /></span>
+      <input ref={field} value={name} maxLength={120} disabled={create.busy}
+        aria-label={inside === undefined ? 'Nazwa nowego obszaru' : `Nazwa obszaru w: ${inside}`}
+        placeholder={inside === undefined ? 'Nazwa nowego obszaru, np. Kancelaria' : `Nowy obszar w: ${inside}`}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); submit(); }
+          if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+        }} />
+      <button type="button" className="wk-btn wk-btn-small" disabled={!ready} onClick={submit}>{create.busy ? 'Zakładanie…' : 'Załóż'}</button>
+      <button type="button" className="wk-link-btn" disabled={create.busy} onClick={onCancel}>Anuluj</button>
+      {create.blocked !== null && <span className="wk-blocker">{create.blocked}</span>}
+    </li>
   );
 }
 
@@ -338,10 +447,26 @@ function treesOf(areas: readonly AreaRow[]): { area: AreaRow; depth: number }[][
 /** Die Tiefe einer Zeile — als Mass für den Einzug (`.wk-area-list`). */
 const depthOf = (depth: number) => ({ '--depth': depth } as React.CSSProperties);
 
-function AreaLine({ area, depth, title, sub }: { area: AreaRow; depth: number; title: string; sub: string }) {
+function AreaLine({ area, depth, title, sub, open, onToggle, onAdd }: {
+  area: AreaRow;
+  depth: number;
+  title: string;
+  sub: string;
+  /** Hat er Unterbereiche: offen oder zu (fehlt: keine). */
+  open?: boolean;
+  onToggle?: () => void;
+  /** „+": einen Bereich darin anlegen (fehlt: hier nicht erlaubt). */
+  onAdd?: () => void;
+}) {
   return (
-    <li>
-      <a className="wk-line" href={viewPath('areas', area.areaId)} style={depthOf(depth)}>
+    <li className="wk-area-row" style={depthOf(depth)}>
+      {onToggle !== undefined ? (
+        <button type="button" className="wk-area-twist" aria-expanded={open === true}
+          aria-label={open === true ? `Zwiń: ${title}` : `Rozwiń: ${title}`} onClick={onToggle}>
+          <Icon name="next" />
+        </button>
+      ) : <span className="wk-area-twist is-leaf" aria-hidden="true" />}
+      <a className="wk-line" href={viewPath('areas', area.areaId)}>
         <span className="wk-line-ic"><Icon name={area.personal === true ? 'lock' : area.ownChat != null ? 'chat' : 'layers'} /></span>
         <span className="wk-line-text">
           <span className="wk-line-title">{title}</span>
@@ -349,6 +474,11 @@ function AreaLine({ area, depth, title, sub }: { area: AreaRow; depth: number; t
         </span>
         <span className="wk-line-end"><Tags area={area} /><Icon name="next" /></span>
       </a>
+      {onAdd !== undefined && (
+        <button type="button" className="wk-icon-btn wk-area-plus" title={`Nowy obszar w: ${title}`} aria-label={`Nowy obszar w: ${title}`} onClick={onAdd}>
+          <Icon name="plus" />
+        </button>
+      )}
     </li>
   );
 }

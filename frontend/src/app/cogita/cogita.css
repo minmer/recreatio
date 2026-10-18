@@ -348,6 +348,24 @@
 .cg-af-keys { display: inline-flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-3); color: var(--wk-muted); font-size: var(--wk-text-sm); }
 .cg-af-paste { width: 100%; box-sizing: border-box; font-family: var(--wk-mono); font-size: var(--wk-text-sm); }
 .cg-table tr.is-bad td { background: var(--wk-warn-soft); }
+/* 2026-10-18 — zaznaczone wpisy: das Kästchen vorn, die gewählten Zeilen getönt, oben die Leiste mit dem, was man mit ihnen tut. */
+.cg-table .cg-pick-cell { width: 2rem; cursor: pointer; user-select: none; }
+.cg-table tr.is-picked td { background: var(--wk-accent-soft); }
+.cg-select-hint { margin: 0; font-size: var(--wk-text-sm); }
+/* Die Leiste schwebt unten — wer das erste Kästchen drückt, dem rutscht die Liste nicht weg (beim Ziehen wichtig). */
+.cg-select-bar {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); z-index: var(--wk-z-header);
+  width: min(56rem, calc(100vw - 2rem)); max-height: 60vh; overflow: auto; box-sizing: border-box;
+  display: grid; gap: var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3);
+  border: 1px solid var(--wk-accent); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-dialog);
+}
+@media (max-width: 63.99rem) { .cg-select-bar { bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px)); } }
+/* Unter der Liste Platz für die Leiste, damit die letzten Zeilen erreichbar bleiben. */
+.cg-select-room { height: 9rem; }
+.cg-select-head { display: flex; flex-wrap: wrap; gap: var(--wk-space-2) var(--wk-space-3); align-items: center; }
+.cg-select-head > .cg-row { margin-left: auto; }
+.cg-select-action { display: grid; gap: var(--wk-space-2); grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); align-items: end; }
+.cg-select-action > .cg-row, .cg-select-action > .wk-error { grid-column: 1 / -1; }
 .cg-af-log { list-style: none; margin: 0; padding: 0; display: grid; }
 .cg-af-log > li { display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-3); align-items: baseline; padding: var(--wk-space-2) 0; border-bottom: 1px solid var(--wk-line); }
 .cg-af-log > li:last-child { border-bottom: 0; }

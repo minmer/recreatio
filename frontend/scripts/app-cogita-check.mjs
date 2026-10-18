@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval'];
 await build({
   entryPoints: names.map((n) => `src/app/cogita/${n}.ts`),
   bundle: true,
@@ -24,7 +24,7 @@ await build({
   logLevel: 'error'
 });
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR] = await Promise.all(names.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -515,6 +515,37 @@ check('a question without its answer is no card', Cards.questionCard(e('hx', ['q
   for (const word of many) bigCards += (await Cards.cardsOf(which, { look: bigLook, entity: word, pool: (k) => bigPools.get(k) ?? [], seed: 's' })).cards.length;
   const took = Date.now() - started;
   truth(`4000 words, which language: one card per spelling (1500), in ${took} ms`, bigCards === 1500 && took < 4000, { bigCards, took });
+}
+
+/* 2026-10-18 — einen Rodzaj entfernen: was mitgeht, ausgerechnet. */
+{
+  const LANG = kind('k-lang5', { name: 'Język', label: '{name}', fields: [{ key: 'name', label: 'Nazwa', type: 'line' }] });
+  const WORD = kind('k-word5', { name: 'Słowo', label: '{text}', fields: [{ key: 'text', label: 'Tekst', type: 'line' }, { key: 'lang', label: 'Język', type: 'ref', to: ['k-lang5'] }] });
+  const TRANS = kind('k-trans5', { name: 'Tłumaczenie', label: '{words}', fields: [{ key: 'words', label: 'Słowa', type: 'ref', multi: true, to: ['k-word5'] }, { key: 'note', label: 'Uwaga', type: 'line' }] });
+  const MIX = kind('k-mix5', { name: 'Mieszany', label: '{name}', fields: [{ key: 'name', label: 'Nazwa', type: 'line' }, { key: 'any', label: 'Cokolwiek', type: 'ref', to: ['k-word5', 'k-lang5'] }] });
+  const items = [
+    e('l5', ['k-lang5'], { name: 'polski' }), e('w5a', ['k-word5'], { text: 'dom', lang: 'l5' }), e('w5b', ['k-word5'], { text: 'kot', lang: 'l5' }),
+    e('w5c', ['k-word5', 'k-mix5'], { text: 'pies', name: 'pies' }), e('t5', ['k-trans5'], { words: ['w5a', 'w5b'], note: 'x' }), e('m5', ['k-mix5'], { name: 'm', any: 'w5a' }),
+    e('f5', ['k-word5'], { text: 'obcy' })
+  ];
+  const kinds5 = [LANG, WORD, TRANS, MIX];
+  const look5 = S.lookupOf(kinds5, items);
+  const plan = KR.planKindRemoval({
+    kind: WORD, isBase: false, kinds: kinds5, entities: items, look: look5, isOwn: (id) => id !== 'f5',
+    templates: [{ id: 'tp1', data: { name: 'Słówko', kinds: ['k-word5'] } }, { id: 'tp2', data: { name: 'Oba', kinds: ['k-word5', 'k-trans5'] } }],
+    forms: [{ id: 'fm1', data: { name: 'Dodawanie', graph: { nodes: [{ id: 'a', type: 'entry', x: 0, y: 0, config: { kind: 'k-word5', fields: {} } }, { id: 'b', type: 'entry', x: 0, y: 0, config: { kind: 'k-trans5', fields: {} } }], edges: [{ id: 'e', from: 'a', out: 'out', to: 'b', in: 'words' }] } } }],
+    collections: [{ id: 'c1', data: { name: 'Z', list: ['w5a', 'l5'] } }]
+  });
+  check('removing a kind: its own entries go, one with another kind stays without it, a foreign one stays',
+    [plan.remove, plan.narrow.map((x) => [x.id, x.kinds]), plan.foreign], [['w5a', 'w5b'], [['w5c', ['k-mix5']]], 1]);
+  check('… entries pointing at them lose those references', plan.unlink.map((x) => [x.id, x.data.words, x.data.any]).sort(), [['m5', undefined, undefined], ['t5', undefined, undefined]]);
+  check('… a field pointing only here goes, one pointing at several stops pointing here',
+    plan.kinds.map((k) => [k.id, k.fields.map((f) => (f.type === 'ref' ? `${f.key}>${(f.to ?? []).join('+')}` : f.key))]), [['k-trans5', ['note']], ['k-mix5', ['name', 'any>k-lang5']]]);
+  check('… templates only for it go, the others lose it; a form loses its node; a collection its entries',
+    [plan.templates.map((t) => [t.id, t.data === null ? null : t.data.kinds]), plan.forms.map((f) => [f.id, f.data.graph.nodes.map((n) => n.id), f.data.graph.edges.length]), plan.collections.map((c) => c.data.list)],
+    [[['tp1', null], ['tp2', ['k-trans5']]], [['fm1', ['b'], 0]], [['l5']]]);
+  truth('… and the question says all of it', plan.lines.length >= 7 && plan.lines.some((l) => l.includes('2 wpisy tego rodzaju zostaną usunięte')) && plan.lines.some((l) => l.includes('pochodzi z innych baz')), plan.lines);
+  truth('a kind from a source cannot be removed here', KR.planKindRemoval({ kind: WORD, isBase: false, kinds: kinds5, entities: items, look: look5, isOwn: () => false, templates: [], forms: [], collections: [] }).blocked !== null);
 }
 
 /* ── Wiederholung ─────────────────────────────────────────────────────── */
