@@ -215,7 +215,9 @@ export const Field = {
    * des Links) und ihr Etikett für den Absender (unter dem Schlüssel des Bereichs).
    */
   ShareFile: 'share_file',
-  ShareLabel: 'share_label'
+  ShareLabel: 'share_label',
+  /** 0118 — eine Lampe mit ihren Sygnały (Werbepakete für Bluetooth LE). */
+  PhoneLamp: 'phone_lamp'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

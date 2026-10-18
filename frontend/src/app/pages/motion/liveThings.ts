@@ -88,6 +88,8 @@ export interface KindRun {
   readonly readouts: readonly (Expr | null)[];
   /** Wann jede Anzeige zu sehen ist (`null`: immer). */
   readonly readoutShows: readonly (Expr | null)[];
+  /** 2026-10-18 — wie ein Ding in der Bedienung heisst (`null`: nur die Art). */
+  readonly brief: Expr | null;
 }
 
 export interface Thing {
@@ -157,7 +159,8 @@ export function compileKind(k: KindSpec, c: Compiler): KindRun {
     drag: k.drag === null ? [] : assigns(c, k.drag, k, `${where}.drag`),
     tap: k.tap === null ? [] : assigns(c, k.tap.set, k, `${where}.tap`),
     readouts: k.readouts.map((r, i) => c.compile(r.value, `${where}.readouts[${i}]`)),
-    readoutShows: k.readouts.map((r, i) => (r.show === null ? null : c.compile(r.show, `${where}.readouts[${i}].show`)))
+    readoutShows: k.readouts.map((r, i) => (r.show === null ? null : c.compile(r.show, `${where}.readouts[${i}].show`))),
+    brief: k.brief === '' ? null : c.compileText(k.brief, `${where}.brief`)
   };
 }
 

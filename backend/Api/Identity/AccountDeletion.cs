@@ -508,6 +508,9 @@ public static class AccountDeletion
              WHERE area_id IN (SELECT id FROM #dead) AND area_id NOT IN (SELECT id FROM #phone);
             DELETE FROM app.phone_share WHERE area_id IN (SELECT id FROM #dead);
         END
+        -- 0118: Lampy — die Geräte und ihre Sygnały gehen mit dem Bereich.
+        IF OBJECT_ID('app.phone_lamp', 'U') IS NOT NULL
+            DELETE FROM app.phone_lamp WHERE area_id IN (SELECT id FROM #dead);
 
         -- Formulare und Bausteine (0098: mit dem, was zu ihren Aufgaben gesagt wurde)
         DELETE FROM app.task_answer

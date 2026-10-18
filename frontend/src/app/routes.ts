@@ -381,6 +381,8 @@ export const VIEWS = {
    */
   sms: 'SMS',
   contacts: 'Kontakty',
+  /* 2026-10-18 — LAMPY (`lamps/`): Sygnały per Bluetooth LE vom Telefon, und vom Pilot lernen. */
+  lamps: 'Lampy',
 
   /*
    * 2026-10-16 — FORMULARZE: ein Ort für Formulare, ihre Zgłoszenia und

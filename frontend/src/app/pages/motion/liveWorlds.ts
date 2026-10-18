@@ -19,6 +19,14 @@
  * Gelöst ist, wenn jede Belke (fast) kein Moment hat und still steht — eine
  * Sekunde lang. Die Stufen des Spiels (`scripts/balance-lab.mjs`) sind
  * dieselben Arten mit anderen Dingen, Sperren und Regeln (`balanceDrawing`).
+ *
+ * <b>2026-10-18 — oben steht es fest</b>: alles hängt an der Decke (y = 0), die
+ * oberste Belke `hang` darunter; der Boden liegt unter dem Tiefsten, das
+ * hängen kann. Wächst etwas nach unten, rückt nur der Boden — die Decke und
+ * die Belken bleiben, wo das Auge sie hat. Was gegeben ist, ist grau und
+ * angenietet; was man ändert, grün, mit Pfeilen entlang der Belke (`can`,
+ * `can.pos`) — aber nur, wo es beides gibt (`mixed`; in der Werkstatt ist
+ * alles zu ändern).
  */
 
 import type { LiveExample } from './liveExamples';
@@ -47,9 +55,9 @@ const BEAM = {
     { name: 'ca', value: 'cos(angle)' },
     { name: 'sa', value: 'sin(angle)' },
     { name: 'ax', value: 'isroot ? sx : parent.x + arm*parent.ca + h*parent.sa' },
-    { name: 'ay', value: 'isroot ? stand : parent.y + arm*parent.sa - h*parent.ca' },
+    { name: 'ay', value: 'isroot ? 0 : parent.y + arm*parent.sa - h*parent.ca' },
     { name: 'x', value: 'ax' },
-    { name: 'y', value: 'isroot ? stand : ay - drop' },
+    { name: 'y', value: 'isroot ? -hang : ay - drop' },
     { name: 'x1', value: 'x - pivot*ca + h*sa' },
     { name: 'y1', value: 'y - pivot*sa - h*ca' },
     { name: 'x2', value: 'x + (length - pivot)*ca + h*sa' },
@@ -62,13 +70,9 @@ const BEAM = {
      */
     { name: 'reach', value: 'max(pivot, length - pivot)' },
     { name: 'low', value: 'dy - h - 0.15 - reach*0.36 - (isroot ? 0 : parent.reach*0.36)' },
-    { name: 'stand', value: 'isroot ? max(2.5, 0.8 - min(low, min(descendants, low))) : 0' },
     { name: 'rx', value: 'isroot ? sx : parent.rx + arm' },
-    { name: 'ry', value: 'root.stand + dy' },
     { name: 'bx0', value: 'rx - pivot - 0.4' },
     { name: 'bx1', value: 'rx + length - pivot + 0.4' },
-    { name: 'by0', value: 'ry - h - 0.5' },
-    { name: 'by1', value: 'ry + 0.7 + reach*0.36' },
     { name: 'hit', value: '6' }
   ],
   state: [
@@ -85,6 +89,7 @@ const BEAM = {
     sx: 'px'
   },
   can: { edit: ['length', 'pivot', 'bm', 'pos', 'drop', 'sx'], add: ['ciezarek', 'belka'], remove: true, copy: true },
+  brief: "{length} m{bm > 0 ? ', ' + bm + ' kg' : ''}",
   readouts: [
     { label: 'Suma momentów', value: 'mom', unit: 'kg·m', digits: 2, show: '!held' },
     { label: 'Masa z tym, co wisi', value: 'total', unit: 'kg', digits: 1 },
@@ -93,8 +98,13 @@ const BEAM = {
   children: 8,
   shapes: [
     /* Ganz oben hängt die Belke an der Decke — darunter bleibt Platz für alles, was an ihr hängt. */
-    { type: 'line', x: '=x', y: '=y', x2: '=x', y2: '=vtop', stroke: 'muted', width: 2, show: 'isroot' },
-    { type: 'line', x: '=ax', y: '=ay', x2: '=x', y2: '=y', stroke: 'muted', width: 1.5, show: '!isroot' },
+    { type: 'line', x: '=x', y: '=y', x2: '=x', y2: 0, stroke: 'muted', width: 2, show: 'isroot' },
+    { type: 'line', x: '=ax', y: '=ay', x2: '=x', y2: '=y', stroke: "=mixed && can.pos ? 'accent' : 'muted'", width: 1.5, show: '!isroot' },
+    /* Wo sie an der Belke darüber hängt: angenietet (gegeben) — oder verschiebbar, mit Pfeilen entlang der Belke. */
+    { type: 'circle', x: '=ax', y: '=ay', r: 2.6, fill: 'ink', show: '!isroot && mixed && !can.pos' },
+    { type: 'circle', x: '=ax', y: '=ay', r: 1.1, fill: 'ground', show: '!isroot && mixed && !can.pos' },
+    { type: 'arrow', x: '=ax - 0.1*parent.ca', y: '=ay - 0.1*parent.sa', x2: '=ax - 0.45*parent.ca', y2: '=ay - 0.45*parent.sa', head: 5, stroke: 'accent', width: 1.6, show: '!isroot && mixed && can.pos' },
+    { type: 'arrow', x: '=ax + 0.1*parent.ca', y: '=ay + 0.1*parent.sa', x2: '=ax + 0.45*parent.ca', y2: '=ay + 0.45*parent.sa', head: 5, stroke: 'accent', width: 1.6, show: '!isroot && mixed && can.pos' },
     { type: 'line', x: '=x', y: '=y', x2: '=x + h*sa', y2: '=y - h*ca', stroke: 'ink', width: 3 },
     /* Solange man vermutet (`held`), verrät die Farbe nichts — erst nach „Sprawdź" grün, gelb oder rot. */
     { type: 'line', x: '=x1', y: '=y1', x2: '=x2', y2: '=y2', stroke: "=held ? 'ink' : (ok ? (still ? 'ok' : 'warn') : 'danger')", width: 7 },
@@ -105,8 +115,11 @@ const BEAM = {
       type: 'line', repeat: 21, x: '=x1 + i*0.5*ca', y: '=y1 + i*0.5*sa', x2: '=x1 + i*0.5*ca + 0.13*sa', y2: '=y1 + i*0.5*sa - 0.13*ca',
       stroke: 'ink/45', width: 1, show: 'ruler && i*0.5 <= length + 0.001'
     },
-    { type: 'circle', x: '=x', y: '=y', r: 4.5, fill: 'ink' },
+    { type: 'circle', x: '=x', y: '=y', r: 4.5, fill: "=mixed && can.pivot ? 'accent' : 'ink'" },
     { type: 'circle', x: '=x', y: '=y', r: 2, fill: 'ground' },
+    /* Die Achse lässt sich verschieben: Pfeile unter ihr, entlang der Belke. */
+    { type: 'arrow', x: '=x + 0.34*sa - 0.08*ca', y: '=y - 0.34*ca - 0.08*sa', x2: '=x + 0.34*sa - 0.42*ca', y2: '=y - 0.34*ca - 0.42*sa', head: 5, stroke: 'accent', width: 1.6, show: 'mixed && can.pivot' },
+    { type: 'arrow', x: '=x + 0.34*sa + 0.08*ca', y: '=y - 0.34*ca + 0.08*sa', x2: '=x + 0.34*sa + 0.42*ca', y2: '=y - 0.34*ca + 0.42*sa', head: 5, stroke: 'accent', width: 1.6, show: 'mixed && can.pivot' },
     { type: 'text', x: '=x', y: '=y + 0.34', text: 'ΣM = {fmt(mom, 2)} kg·m', size: 11, weight: 600, fill: "=ok ? 'ok' : 'danger'", stroke: 'ground', width: 3.5, show: 'edu && !held' }
   ]
 };
@@ -131,24 +144,27 @@ const WEIGHT = {
     { name: 'dy', value: 'parent.dy - h - drop' },
     { name: 'low', value: 'dy - 1.35 - parent.reach*0.36' },
     { name: 'rx', value: 'parent.rx + arm' },
-    { name: 'ry', value: 'root.stand + dy' },
     { name: 'bx0', value: 'rx - r - 0.3' },
     { name: 'bx1', value: 'rx + r + 0.3' },
-    { name: 'by0', value: 'ry - 2*r - 0.5' },
-    { name: 'by1', value: 'ry' },
     { name: 'hit', value: '4' }
   ],
   drag: { pos: 'parent.pivot + (px - parent.x)*parent.ca + (py - parent.y)*parent.sa' },
   can: { edit: ['m', 'pos', 'drop'], remove: true, copy: true },
+  brief: '{m} kg',
   readouts: [
     { label: 'Moment względem osi', value: 'total*arm', unit: 'kg·m', digits: 2, show: '!held' },
     { label: 'Ramię', value: 'abs(arm)', unit: 'm', digits: 2 }
   ],
   children: 0,
   shapes: [
-    { type: 'line', x: '=ax', y: '=ay', x2: '=x', y2: '=y + r', stroke: 'muted', width: 1.5 },
-    { type: 'rect', x: '=x - r', y: '=y - r', w: '=2*r', h: '=2*r', r: 3, fill: 'accent', stroke: 'ink/30', width: 1 },
-    { type: 'text', x: '=x', y: '=y - r - 0.18', text: '{fmt(m, 0)} kg', size: 11, weight: 600, fill: 'ink', stroke: 'ground', width: 3 },
+    { type: 'line', x: '=ax', y: '=ay', x2: '=x', y2: '=y + r', stroke: "=mixed && can.pos ? 'accent' : 'muted'", width: 1.5 },
+    /* Gegeben: grau und an der Belke angenietet; zu ändern: grün — verschiebbar mit Pfeilen entlang der Belke, die Masse mit „±". */
+    { type: 'circle', x: '=ax', y: '=ay', r: 2.6, fill: 'ink', show: 'mixed && !can.pos' },
+    { type: 'circle', x: '=ax', y: '=ay', r: 1.1, fill: 'ground', show: 'mixed && !can.pos' },
+    { type: 'rect', x: '=x - r', y: '=y - r', w: '=2*r', h: '=2*r', r: 3, fill: "=!mixed || can ? 'accent' : 'muted/70'", stroke: 'ink/30', width: 1 },
+    { type: 'arrow', x: '=x - (r + 0.06)*parent.ca', y: '=y - (r + 0.06)*parent.sa', x2: '=x - (r + 0.36)*parent.ca', y2: '=y - (r + 0.36)*parent.sa', head: 5, stroke: 'accent', width: 1.6, show: 'mixed && can.pos' },
+    { type: 'arrow', x: '=x + (r + 0.06)*parent.ca', y: '=y + (r + 0.06)*parent.sa', x2: '=x + (r + 0.36)*parent.ca', y2: '=y + (r + 0.36)*parent.sa', head: 5, stroke: 'accent', width: 1.6, show: 'mixed && can.pos' },
+    { type: 'text', x: '=x', y: '=y - r - 0.18', text: "{mixed && can.m ? '± ' : ''}{fmt(m, 0)} kg", size: 11, weight: 600, fill: "=mixed && can.m ? 'accent' : 'ink'", stroke: 'ground', width: 3 },
     { type: 'text', x: '=x', y: '=y - r - 0.4', text: 'M = {fmt(total*arm, 1)}', size: 9.5, fill: 'muted', stroke: 'ground', width: 3, show: 'edu && !held' }
   ]
 };
@@ -168,6 +184,10 @@ export interface BalanceLevel {
   readonly rules?: readonly Readonly<Record<string, unknown>>[];
   /** Erst vermuten, dann sehen: `true` (eine Aufgabe — sie beginnt angehalten) oder `{ "start": false, … }` (anhalten auf Wunsch). */
   readonly predict?: boolean | Readonly<Record<string, unknown>>;
+  /** 2026-10-18 — die gezogenen Zahlen einer Stufe (`random`), was daraus folgt, und wann die Aufgabe gilt (`task`). */
+  readonly vars?: readonly Readonly<Record<string, unknown>>[];
+  readonly lets?: readonly Readonly<Record<string, unknown>>[];
+  readonly task?: Readonly<Record<string, unknown>>;
 }
 
 /** Eine Waage: dieselben Arten, Werte, Rechnungen und Regeln — mit den Dingen, Sperren und Grenzen einer Stufe. */
@@ -183,21 +203,28 @@ export function balanceDrawing(level: BalanceLevel): Record<string, unknown> {
       { name: 'tilt', value: 0.35, unit: 'rad', label: 'Największe pochylenie' },
       { name: 'edu', value: 1, min: 0, max: 1, step: 1, label: 'Momenty' },
       { name: 'ruler', value: 1, min: 0, max: 1, step: 1, label: 'Linijka' },
-      { name: 'solved', value: 0, min: 0, max: 1, step: 1 }
+      { name: 'solved', value: 0, min: 0, max: 1, step: 1 },
+      { name: 'hang', value: 1, unit: 'm', label: 'Linka do sufitu' },
+      ...(level.vars ?? [])
     ],
     let: [
+      ...(level.lets ?? []),
       { name: 'vx0', value: 'min(things, bx0)' },
       { name: 'vx1', value: 'max(things, bx1)' },
-      { name: 'vy1', value: 'max(things, by1)' },
-      { name: 'vw', value: 'ceil(max(vx1 - vx0, (vy1 + 0.4)*1.5, 6)/0.5)*0.5' },
+      /* Oben steht das Bild fest (die Decke, 0,4 m Luft darüber); unten reicht es bis unter das Tiefste, was hängen kann — dort der Boden. */
+      { name: 'vdeep', value: 'hang - min(things, low) + 0.25' },
+      { name: 'vw', value: 'ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5' },
       { name: 'vh', value: 'vw/1.5' },
       { name: 'vcx', value: 'round((vx0 + vx1)/2*4)/4' },
-      { name: 'vcy', value: 'vh/2 - 0.4' },
-      { name: 'vtop', value: 'vcy + vh/2 - 0.1' },
-      { name: 'bad', value: 'count(belka, !ok)' }
+      { name: 'vtop', value: '0.4' },
+      { name: 'vfloor', value: 'vtop - vh + 0.35' },
+      { name: 'bad', value: 'count(belka, !ok)' },
+      /* Gibt es Gegebenes UND zu Änderndes? Nur dann zeigen die Dinge, was was ist (in der Werkstatt ist alles zu ändern). */
+      { name: 'mixed', value: 'count(things, !can) > 0 && count(things, can) > 0' }
     ],
     sim: { dt: 0.01, speed: 4, auto: true, sleep: true, max: 3600 },
     ...(level.predict === undefined ? {} : { predict: level.predict }),
+    ...(level.task === undefined ? {} : { task: level.task }),
     controls: [
       { type: 'toggle', var: 'edu', label: 'Momenty' },
       { type: 'toggle', var: 'ruler', label: 'Linijka' },
@@ -225,11 +252,11 @@ export function balanceDrawing(level: BalanceLevel): Record<string, unknown> {
     elements: [
       {
         type: 'frame', x: 0, y: 0, w: 420, h: 280, camera: true, clip: true,
-        view: ['=vcx - vw/2', '=vcy - vh/2', '=vcx + vw/2', '=vcy + vh/2'],
+        view: ['=vcx - vw/2', '=vtop - vh', '=vcx + vw/2', '=vtop'],
         children: [
-          { type: 'rect', x: '=vcx - vw', y: -3, w: '=2*vw', h: 3, fill: 'muted/12' },
-          { type: 'line', x: '=vcx - vw', y: 0, x2: '=vcx + vw', y2: 0, stroke: 'muted/60', width: 1.5 },
-          { type: 'rect', x: '=vcx - vw', y: '=vtop', w: '=2*vw', h: 3, fill: 'muted/25' },
+          { type: 'rect', x: '=vcx - vw', y: '=vfloor - 3', w: '=2*vw', h: 3, fill: 'muted/12' },
+          { type: 'line', x: '=vcx - vw', y: '=vfloor', x2: '=vcx + vw', y2: '=vfloor', stroke: 'muted/60', width: 1.5 },
+          { type: 'rect', x: '=vcx - vw', y: 0, w: '=2*vw', h: 3, fill: 'muted/25' },
           { type: 'world' }
         ]
       }

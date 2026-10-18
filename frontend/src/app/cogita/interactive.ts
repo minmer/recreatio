@@ -25,11 +25,16 @@
  * nicht an ihnen: die Geschichte der Karte bleibt, auch wenn jedes Mal ein
  * anderes Ziel kommt. Darum ist eine Lösung eine RECHNUNG mit diesen Werten
  * (`v0 = sqrt(cel*g)`, `w2.pos = 5`), keine feste Zahl.
+ *
+ * <b>2026-10-18 — gleich schwer</b>: gezogen wird mit derselben Rechnung wie
+ * auf einer Seite (`pages/motion/liveTask.ts`) — bis die Bedingungen der
+ * Aufgabe (`task.require`) gelten, sie nicht schon gelöst ist und ihre
+ * Lösung erreichbar ist. Ohne eigene Lösung gilt die des Bildes (`task.solve`).
  */
 
 import { drawingOf, type Drawing, type Shape } from '../pages/motion/drawing';
 import { fmt, toNum } from '../pages/motion/expr';
-import { readLive, type Live } from '../pages/motion/liveModel';
+import { readAssignText, readLive, type Live } from '../pages/motion/liveModel';
 import { Program } from '../pages/motion/liveRun';
 import { readShot, type WorldShot } from '../pages/motion/liveThings';
 import type { Outcome } from './check';
@@ -48,9 +53,6 @@ export interface InteractiveSpec {
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-/** Ein Schlüssel einer Lösung: ein Wert des Bildes, oder eine Eigenschaft eines Dings (`w2.pos`). */
-const KEY = /^[\p{L}_][\p{L}\p{N}_-]*(?:\.[\p{L}_][\p{L}\p{N}_]*)?$/u;
-
 /** Das Bild aus dem Text der Frage — `null`: keines (oder keines mit Teilen). */
 export function drawingOfText(text: string): Drawing | null {
   try {
@@ -65,52 +67,25 @@ export function drawingOfText(text: string): Drawing | null {
 
 /** Eine Lösung: „kat = 45; v0 = sqrt(cel*g); w2.pos = 5" (oder ein Objekt) — je Wert eine Rechnung. */
 export function readSolution(value: unknown): Record<string, string> | null {
-  const out: Record<string, string> = {};
-  const put = (name: string, expr: string) => {
-    const n = name.trim();
-    const e = expr.trim();
-    if (KEY.test(n) && n.length <= 70 && e !== '' && e.length <= 400) out[n] = e;
-  };
-  if (isObject(value)) {
-    for (const [k, v] of Object.entries(value)) if (typeof v === 'number' && Number.isFinite(v)) put(k, String(v)); else if (typeof v === 'string') put(k, v);
-  } else if (typeof value === 'string') {
-    for (const part of value.split(/[;\n]/)) {
-      const at = part.search(/[=:]/);
-      /* „11,5" ist eine Zahl mit Komma; in „max(a, b)" trennt das Komma Argumente. */
-      const expr = part.slice(at + 1).trim();
-      if (at > 0) put(part.slice(0, at), /^-?\d+,\d+$/.test(expr) ? expr.replace(',', '.') : expr);
-    }
-  }
+  const out = readAssignText(value);
   return Object.keys(out).length === 0 ? null : out;
 }
 
 /**
  * DIE KARTE AUS DER FRAGE: das Bild (als Text), das Ziel, der gezogene Zufall
  * (`rng` — der Same der Karte), die Lösung. `null`: kein brauchbares Bild.
+ * Gezogen wird wie auf einer Seite (die Bedingungen der Aufgabe gelten) —
+ * und festgehalten: Werte beim Namen, Dinge als `ding.eigenschaft`.
  */
 export function interactiveSpec(data: Readonly<Record<string, unknown>>, rng: () => number): InteractiveSpec | null {
   const text = typeof data.drawing === 'string' ? data.drawing.trim() : isObject(data.drawing) ? JSON.stringify(data.drawing) : '';
   const drawing = drawingOfText(text);
   if (drawing === null) return null;
-  const fixed: Record<string, number> = {};
-  for (const v of drawing.live?.vars ?? []) {
-    if (v.random === null) continue;
-    let x = v.random[0] + rng() * (v.random[1] - v.random[0]);
-    if (v.step !== null) x = (v.min ?? 0) + Math.round((x - (v.min ?? 0)) / v.step) * v.step;
-    fixed[v.name] = Math.round(x * 1e9) / 1e9;
-  }
-  /* Der Zufall der Dinge — gezogen wie in der Welt (auf den Schritt der Eigenschaft gerastet). */
-  const world = drawing.live?.world ?? null;
-  for (const t of world?.things ?? []) {
-    for (const [name, [a, b]] of Object.entries(t.random)) {
-      const step = world?.kinds.find((k) => k.name === t.kind)?.props.find((p) => p.name === name)?.step ?? null;
-      let x = a + rng() * (b - a);
-      if (step !== null) x = Math.round(x / step) * step;
-      fixed[`${t.id}.${name}`] = Math.round(x * 1e9) / 1e9;
-    }
-  }
+  const fixed = new Program(drawing.live, { random: rng }).drawn();
   const goal = typeof data.goal === 'string' && data.goal.trim() !== '' ? data.goal.trim().replace(/^=\s*/, '') : null;
-  return { form: 'interactive', drawing: text, goal, fixed, solution: readSolution(data.solution) };
+  const own = readSolution(data.solution);
+  const solve = drawing.live?.task?.solve ?? {};
+  return { form: 'interactive', drawing: text, goal, fixed, solution: own ?? (Object.keys(solve).length === 0 ? null : solve) };
 }
 
 /** Das Bild mit dem Ziel der Frage als weitere Regel — so erreicht es die Prüfung wie jedes andere Ziel. */

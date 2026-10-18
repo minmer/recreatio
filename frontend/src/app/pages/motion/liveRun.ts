@@ -33,13 +33,18 @@
  * einstellen, ziehen, wegnehmen) geht durch `mutate` — gemerkt für „Cofnij",
  * gezählt (`edits`), und zurückgenommen, wenn danach eine Regel der Welt
  * (`keep`) nicht mehr gilt.
+ *
+ * <b>2026-10-18 — jedes Mal eine andere Aufgabe</b> (`liveTask.ts`): was
+ * `random` hat, wird gezogen, bis die Aufgabe gilt — beim Bauen und mit
+ * „Nowe zadanie" (`newTask`).
  */
 
 import { compile, compileText, isExprError, newEnv, toNum, truth, type Env, type Expr } from './expr';
-import { BUILTINS, type Action, type ControlSpec, type Live, type Mood, type PredictSpec, type RuleSpec, type SimSpec, type VarSpec } from './liveModel';
+import { BUILTINS, THING_BUILTINS, type Action, type ControlSpec, type Live, type Mood, type PredictSpec, type RuleSpec, type SimSpec, type TaskSpec, type VarSpec } from './liveModel';
 import { World } from './liveWorld';
 import type { WorldShot } from './liveThings';
 import { Workshop } from './liveEdit';
+import { TaskPlan } from './liveTask';
 
 export type Status = 'ready' | 'running' | 'paused' | 'ended';
 
@@ -131,6 +136,14 @@ export class Program {
   usesTime = false;
   /** Schläft die Simulation (es geschah nichts mehr)? Eine Änderung weckt sie. */
   sleeping = false;
+  /** 2026-10-18 — wie die Aufgabe gezogen wird (`liveTask.ts`). */
+  private readonly plan: TaskPlan;
+  /** Der Zufall dieses Bildes und was feststeht (Cogita) — „Nowe zadanie" zieht damit weiter. */
+  private readonly random: () => number;
+  private readonly given: Readonly<Record<string, number>>;
+  /** Was unter dem Bild steht, solange man vermutet, und solange nichts gewählt ist — Texte mit `{…}` (die Zahlen dieser Aufgabe). */
+  private readonly predictSay: Expr | null = null;
+  private readonly hintSay: Expr | null = null;
 
   private readonly varBy: Map<string, VarSpec>;
   private readonly known = new Set<string>(BUILTINS);
@@ -170,6 +183,8 @@ export class Program {
 
   constructor(live: Live | null, options: ProgramOptions = {}) {
     const random = options.random ?? Math.random;
+    this.random = random;
+    this.given = options.fixed ?? {};
     this.vars = live?.vars ?? [];
     this.predict = live?.predict ?? null;
     this.controls = live?.controls ?? [];
@@ -199,6 +214,8 @@ export class Program {
       for (const l of k.lets) this.known.add(l.name);
       for (const s of k.state) this.known.add(s.name);
     }
+    /* … und was jedes Ding von sich weiss (`count(things, !can)`, `all(belka, isroot)`). */
+    if (worldSpec !== null) for (const name of THING_BUILTINS) this.known.add(name);
 
     for (const v of this.vars) {
       const given = options.fixed?.[v.name];
@@ -272,7 +289,12 @@ export class Program {
     this.controlValues = this.controls.map((c) => (c.type === 'readout' ? this.compile(c.value, `controls (readout „${c.label}")`) : null));
     this.controlSets = this.controls.map((c) => (c.type === 'button' ? this.assigns(c.set, `controls (button „${c.label}")`) : []));
     this.controlShows = this.controls.map((c, i) => (c.show === null ? null : this.compile(c.show, `controls[${i}].show`)));
+    if (this.predict !== null) this.predictSay = this.compileText(this.predict.say, 'predict.say');
+    if (worldSpec !== null && worldSpec.hint !== '') this.hintSay = this.compileText(worldSpec.hint, 'world.hint');
 
+    /* Die Aufgabe ziehen — erst jetzt, da alles übersetzt ist (ihre Bedingungen lesen die Welt, das Ziel die Regeln). */
+    this.plan = new TaskPlan(live?.task ?? null, this);
+    this.plan.draw(random, this.given, new Set(), null);
     this.restart();
     if (options.replay !== undefined && options.replay !== null && this.world !== null) {
       /* Jedes geänderte Ding ein Zug — eine Antwort mit zu vielen Zügen bricht eine Regel wie `edits <= 2`. */
@@ -280,7 +302,7 @@ export class Program {
       this.restart();
     }
     if (this.world !== null) this.workshop = new Workshop(this, this.world);
-    if (this.held && this.predict !== null) this.say(this.predict.say);
+    if (this.held && this.predict !== null) this.say(this.predictText());
   }
 
   /** Je Anzeige der Bedienung ihr Ausdruck, je Knopf seine Zuweisungen, je Element wann es zu sehen ist (Stelle wie in `controls`). */
@@ -289,7 +311,7 @@ export class Program {
   readonly controlShows: readonly (Expr | null)[];
 
   /** Einen Fehler merken — denselben nur einmal. */
-  private report(problem: Problem): void {
+  report(problem: Problem): void {
     if (!this.problems.some((p) => p.where === problem.where && p.error === problem.error && p.source === problem.source)) this.problems.push(problem);
   }
 
@@ -368,7 +390,7 @@ export class Program {
   /* -- Werte -------------------------------------------------------------------------- */
 
   /** Ein Wert in seinen Grenzen, auf seinen Schritt gerastet. */
-  private fit(v: VarSpec, value: number): number {
+  fit(v: VarSpec, value: number): number {
     let out = Number.isFinite(value) ? value : v.value;
     if (v.step !== null) out = (v.min ?? 0) + Math.round((out - (v.min ?? 0)) / v.step) * v.step;
     out = clamp(out, v.min ?? -1e12, v.max ?? 1e12);
@@ -484,7 +506,74 @@ export class Program {
     this.env.held = 1;
     this.changed.add('held');
     this.restart();
-    this.say(this.predict.say);
+    this.say(this.predictText());
+  }
+
+  /** Was unter dem Bild steht, solange man vermutet — mit den Zahlen dieser Aufgabe. */
+  predictText(): string {
+    return this.predictSay === null ? this.predict?.say ?? '' : String(this.predictSay.run(this.env));
+  }
+
+  /** Der Hinweis der Welt, solange nichts gewählt ist — mit den Zahlen dieser Aufgabe. */
+  hintText(): string {
+    return this.hintSay === null ? this.world?.spec.hint ?? '' : String(this.hintSay.run(this.env));
+  }
+
+  /* -- 2026-10-18: jedes Mal eine andere Aufgabe (`liveTask.ts`) ------------------------------ */
+
+  get task(): TaskSpec | null {
+    return this.plan.spec;
+  }
+
+  /** Gibt es „Nowe zadanie" — eine Aufgabe mit Zufall, der nicht feststeht (in Cogita steht er je Versuch fest)? */
+  redraws(): boolean {
+    return this.plan.spec !== null && this.plan.spec.again !== '' && this.plan.free(this.given);
+  }
+
+  /** Was in dieser Aufgabe gezogen wurde (Werte und `ding.eigenschaft`) — so hält Cogita einen Versuch fest. */
+  drawn(): Record<string, number> {
+    return this.plan.drawn();
+  }
+
+  /** Die Lösung der Aufgabe (`task.solve`) mit ihren Zahlen. */
+  solution(): Record<string, number> {
+    return this.plan.solution();
+  }
+
+  /** Für `liveTask.ts`: eine gezogene Aufgabe aufbauen — die Rechnungen, die Dinge der Welt, der Anfang der Simulation. */
+  begin(random: () => number, fixed: Readonly<Record<string, number>>): void {
+    this.evalLets(this.lets);
+    this.world?.startWith(random, fixed);
+    this.initState();
+    this.world?.evalLets('all');
+    this.evalLets(this.lets);
+  }
+
+  /** Für `liveTask.ts`: gilt gerade eine Regel mit `goal` (dann wäre die Aufgabe schon gelöst)? */
+  goalNow(): boolean {
+    return this.rules.some((r) => r.spec.goal && truth(r.when.run(this.env)));
+  }
+
+  /**
+   * „NOWE ZADANIE": eine andere Aufgabe derselben Art — von vorn, ohne Züge
+   * und Prüfungen; wer vermutet, vermutet neu. Was die Person selbst
+   * eingestellt hat (Schalter, Schieber der Bedienung), bleibt.
+   */
+  newTask(): boolean {
+    if (!this.redraws()) return false;
+    const keep = new Set(this.controls.flatMap((c) => ('var' in c ? [c.var] : [])));
+    this.plan.draw(this.random, this.given, keep, this.plan.key());
+    this.env.edits = 0;
+    this.env.tries = 0;
+    for (const name of ['edits', 'tries', ...this.vars.map((v) => v.name)]) this.changed.add(name);
+    this.world?.select(null);
+    if (this.predict?.start === true || this.held) this.hold();
+    else {
+      this.restart();
+      if (this.sim?.auto === true) this.act('run');
+    }
+    this.settle();
+    return true;
   }
 
   /** Jemand ändert etwas: in einer Aufgabe zum Vermuten heisst das nach einer Prüfung — wieder anhalten, neu vermuten. */

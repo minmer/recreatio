@@ -79,7 +79,7 @@ export function useNav(): Nav {
   const bookings = digest?.bookings?.count ?? 0;
 
   /* 2026-10-17 — SMS und Kontakte (Ausgabe „sms"): neben den Rozmowy, nicht in ihnen. Auf dem Telefon steht SMS unten in der Leiste. */
-  const phone = usePhoneShown() ? [entry('sms', 'SMS', 'phone'), entry('contacts', 'Kontakty', 'users')] : [];
+  const phone = usePhoneShown() ? [entry('sms', 'SMS', 'phone'), entry('contacts', 'Kontakty', 'users'), entry('lamps', 'Lampy', 'bulb')] : [];
 
   if (basic) {
     return {

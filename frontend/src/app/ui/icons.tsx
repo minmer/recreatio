@@ -97,7 +97,16 @@ export const ICON_PATHS = {
   refresh: <><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 21v-5h5" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M21 3v5h-5" /></>,
   upload: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m17 8-5-5-5 5M12 3v12" /></>,
   phone: <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />,
-  info: <><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></>
+  /* 2026-10-18 — Lampy (Bluetooth LE) und das Hören auf den Pilot. */
+  bulb: <><path d="M9 18h6M10 22h4" /><path d="M15.1 14c.2-1 .7-1.7 1.4-2.5A5.5 5.5 0 0 0 18 7.5a6 6 0 0 0-12 0c0 1.5.6 2.9 1.5 4 .7.8 1.2 1.5 1.4 2.5" /></>,
+  radio: <><circle cx="12" cy="12" r="2" /><path d="M16.2 7.8a6 6 0 0 1 0 8.5M7.8 16.2a6 6 0 0 1 0-8.5M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2" /></>,
+  info: <><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></>,
+  /* 2026-10-18 — die Werkzeuge eines Bildes zum Anfassen (pages/motion): zurück, vor, kleiner, alles zeigen, neue Aufgabe. */
+  undo: <><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></>,
+  redo: <><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></>,
+  minus: <path d="M5 12h14" />,
+  fit: <><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></>,
+  shuffle: <><path d="m18 14 4 4-4 4" /><path d="m18 2 4 4-4 4" /><path d="M2 18h2a4 4 0 0 0 3.3-1.7l5.4-8.6A4 4 0 0 1 16 6h6" /><path d="M2 6h2a4 4 0 0 1 3.6 2.2" /><path d="M22 18h-6a4 4 0 0 1-3.3-1.8l-.4-.5" /></>
 } as const satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof ICON_PATHS;

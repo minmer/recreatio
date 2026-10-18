@@ -22,8 +22,8 @@ import { usePhoneShown } from '../phone/here';
 
 export const SEARCH_EVENT = 'recreatio:search';
 
-/** SMS und Kontakte nur, wo es das Telefon gibt (`usePhoneShown`). */
-const PHONE_VIEWS: ReadonlySet<View> = new Set<View>(['sms', 'contacts']);
+/** SMS, Kontakte und Lampy nur, wo es das Telefon gibt (`usePhoneShown`). */
+const PHONE_VIEWS: ReadonlySet<View> = new Set<View>(['sms', 'contacts', 'lamps']);
 
 const viewEntry = (v: View): SearchEntry => ({ id: `view:${v}`, label: VIEWS[v], kind: 'Część warsztatu', href: viewPath(v) });
 

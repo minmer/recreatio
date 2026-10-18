@@ -70,6 +70,8 @@ export interface WorldLinks {
   readonly $root?: Env;
   readonly $kind?: string;
   readonly $world?: WorldIndex;
+  /** 2026-10-18 — was man an diesem Ding ändern darf, je Eigenschaft 1 oder 0 (`can.pos`). */
+  readonly $can?: Readonly<Record<string, number>>;
 }
 
 /** Das Verzeichnis einer Welt: alle Dinge (Eltern vor Kindern), die Wurzeln, je Art, je Kennung — und wer gerade zusammenfasst (`outer`). */
@@ -214,6 +216,7 @@ export const FUNCTIONS: Readonly<Record<string, Fun>> = {
   smooth: fun(3, 3, (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a || 1))); return t * t * (3 - 2 * t); }, 'smooth(od, do, x) — łagodnie od 0 do 1, gdy x idzie od „od" do „do"'),
   tri: fun(1, 1, (x) => 1 - Math.abs(2 * (x - Math.floor(x)) - 1), 'tri(x) — fala trójkątna 0 → 1 → 0, okres 1 (odbijanie, zygzak)'),
   rand: fun(1, 1, hash01, 'rand(x) — „losowa" liczba 0–1, zawsze ta sama dla tego samego x (np. rand(i) dla każdej kopii)'),
+  onstep: fun(2, 2, (x, s) => (s > 0 && Math.abs(x / s - Math.round(x / s)) < 1e-7 ? 1 : 0), 'onstep(x, krok) — 1, gdy x leży na siatce kroku (onstep(2.25, 0.25) → 1): warunek zadań losowych, żeby rozwiązanie dało się ustawić'),
   fmt: fun(1, 2, (x, d = 1) => fmt(x, d), 'fmt(x, cyfry) — liczba jako tekst z przecinkiem: fmt(9.81, 1) → "9,8"')
 };
 
@@ -541,6 +544,13 @@ class Reader {
     const parts = path.split('.');
     const name = parts.pop()!;
     if (this.kinds.size === 0) throw new Fail(`„${path}" — kropka w nazwie działa tylko w świecie („world")`, at);
+    /* 2026-10-18 — `can.pos`: darf man diese Eigenschaft dieses Dings ändern? (Die Welt setzt es — keine Rechnung hängt daran.) */
+    if (parts.length === 1 && parts[0] === 'can') {
+      if (this.known !== undefined && !this.known(name)) throw new Fail(`nieznana nazwa „${name}" (w „${path}")`, at);
+      this.reads.add('#world');
+      this.reads.add('can');
+      return { run: (env) => links(env).$can?.[name] ?? 0, constant: false };
+    }
     parts.forEach((p, i) => {
       if (i > 0 && !(RELATIONS as readonly string[]).includes(p)) throw new Fail(`„${path}" — po kropce: parent, root, outer albo self`, at);
     });
@@ -673,6 +683,7 @@ export function exprDescription(): string {
     ...Object.entries(FUNCTIONS).map(([name, f]) => `    ${name} — ${f.says}`),
     '  Kąty: sin/cos/tan liczą w radianach — kąt w stopniach zamienia rad(kąt), wynik asin/acos/atan2 zamienia deg(...).',
     '  W świecie ("world"): parent.x, root.x — wartość rodzica, korzenia (parent.parent.x — dziadka); outer.x — rzeczy, która właśnie podsumowuje; nazwa.x — rzeczy o tym "id"',
+    '    can — 1, gdy osoba może coś w tej rzeczy zmienić (przeciągnąć, ustawić), 0, gdy jest dana; can.pos — gdy może zmienić właśnie "pos" (np. kolor danego i zmienianego, strzałki ↔)',
     `  podsumowania: ${AGGREGATES.map((a) => `${a}(…)`).join(', ')} — np. sum(children, total*arm), count(children), count(odwaznik, mass > 5), all(belka, abs(mom) < 0.05)`,
     `    zbiory: children (dzieci), descendants (wszystkie niżej), siblings (rodzeństwo), others (inne tego rodzaju), things (wszystkie) albo nazwa rodzaju; wyrażenie po przecinku liczy się w KAŻDEJ rzeczy zbioru (jej nazwy, jej parent), a outer.x sięga do tej, która pyta`,
     '  Nieznana nazwa to błąd (edytor pokazuje, gdzie); dzielenie przez 0 daje nieskończoność — taki kształt chwilowo się nie rysuje.'

@@ -184,7 +184,7 @@
 .ph-archive-state p { margin: 0; }
 .ph-meter { display: block; width: 100%; height: 0.5rem; border-radius: var(--wk-radius-pill); background: var(--wk-sunk); overflow: hidden; }
 .ph-meter > span { display: block; height: 100%; background: var(--wk-accent); }
-.ph-threads > .ph-meter { margin: calc(-1 * var(--wk-space-2)) 0 var(--wk-space-3); }
+.ph-threads > .ph-meter { margin: 0 0 var(--wk-space-3); }
 .ph-archive-pick { margin-bottom: var(--wk-space-3); }
 /* Welche Gespräche ins Archiv: eine Liste zum Abhaken, nicht zu lang auf einmal. */
 .ph-choose { display: grid; gap: var(--wk-space-2); }

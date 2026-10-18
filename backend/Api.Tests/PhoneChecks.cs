@@ -38,5 +38,12 @@ internal static class PhoneChecks
         check(Phone.ShareLabel(Kernel.Base64Url.Encode(new byte[120]), out var label) && label.Length == 120
             && !Phone.ShareLabel(Kernel.Base64Url.Encode(new byte[4001]), out _) && !Phone.ShareLabel("", out _),
             "a sealed label for the sender: 48 bytes to 4000, never empty");
+
+        check(Phone.SealedLamp(Kernel.Base64Url.Encode(new byte[48]), out var lamp) && lamp.Length == 48
+            && !Phone.SealedLamp(Kernel.Base64Url.Encode(new byte[47]), out _)
+            && !Phone.SealedLamp(Kernel.Base64Url.Encode(new byte[256 * 1024 + 1]), out _)
+            && !Phone.SealedLamp(null, out _) && !Phone.SealedLamp("not base64!", out _),
+            "0118: a sealed lamp between 48 bytes and 256 KB, readable");
+        check(Kernel.Aad.FieldName(Kernel.Field.PhoneLamp) == "phone_lamp", "0118: the lamp label is the browser's");
     }
 }

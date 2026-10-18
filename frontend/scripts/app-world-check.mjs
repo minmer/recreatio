@@ -16,6 +16,11 @@
  *   5. Nachspielen und Cogita: gesperrt bleibt gesperrt, Züge zählen, die Stufen
  *      als Fragen (richtig, falsch, Lösung in Worten, Zufall je Versuch).
  *   6. Die Lektion (fixtures/balance-lab.json) und der Kurs (balance-lab-cogita.json).
+ *   8. Zufall mit gleicher Schwierigkeit (`task`): jede gezogene Aufgabe hält ihre
+ *      Bedingungen, ist am Anfang nicht gelöst, ihre Lösung erreichbar; Eigenschaften
+ *      als Rechnung; ohne passende Aufgabe die Werte des Dokuments; „Nowe zadanie";
+ *      Cogita zieht dieselbe Rechnung je Versuch und hält sie fest. Was gegeben ist
+ *      und was man ändert: `can`, `can.pos`, die Zeilen der Bedienung, `brief`.
  */
 
 import { build } from 'esbuild';
@@ -37,10 +42,10 @@ export { readShot } from '${app}pages/motion/liveThings';
 export { drawingOf, readDrawing, needsLive } from '${app}pages/motion/drawing';
 export { balanceDrawing, BALANCE, GEARS } from '${app}pages/motion/liveWorlds';
 export { liveDescription } from '${app}pages/motion/liveText';
-export { LiveDrawing } from '${app}pages/motion/LiveDrawing';
+export { LiveDrawing, seeded } from '${app}pages/motion/LiveDrawing';
 export { questionCard, checkCard } from '${app}cogita/cards';
 export { stripCard } from '${app}cogita/live';
-export { solutionText, solutionWorld, givenValuesText, readSolution } from '${app}cogita/interactive';
+export { solutionText, solutionWorld, givenValuesText, readSolution, interactiveSpec, checkInteractive } from '${app}cogita/interactive';
 export { planImport, DEFAULT_IMPORT } from '${app}pages/pageJson';
 export { readShow } from '${app}pages/presentation/presentation';
 export { PagePresentation } from '${app}pages/presentation/PagePresentation';
@@ -386,6 +391,115 @@ try {
     const words = m.liveDescription();
     for (const key of ['"world"', '"kinds"', '"things"', '"apart"', '"keep"', '"camera"', 'sum(children', 'parent.x', 'edits']) assert.ok(words.includes(key), `the description explains ${key}`);
     ok('gears: the same words, another world — ratios and directions; the description explains the world');
+  }
+
+  /* -- 8. Zufall mit gleicher Schwierigkeit, und was gegeben ist ------------------------------------------------ */
+  {
+    /* Ohne Welt: zwei Zahlen, deren Verhältnis auf dem halben Raster liegen soll — und nie gleich. */
+    const plain = (task, more = {}) => m.drawingOf({
+      size: [100, 60], elements: [{ type: 'rect', x: 0, y: 0, w: 10, h: 10 }],
+      vars: [
+        { name: 'a', value: 6, min: 1, max: 9, step: 1, random: [1, 9] },
+        { name: 'b', value: 3, min: 1, max: 9, step: 1, random: [1, 9] },
+        { name: 'k', value: 1, min: 0, max: 1, step: 1 },
+        { name: 'solved', value: 0, min: 0, max: 1, step: 1 }
+      ],
+      let: [{ name: 's', value: 'a/b' }],
+      controls: [{ type: 'toggle', var: 'k' }],
+      rules: [{ when: 'abs(s - 2) < 1e-9', goal: true, set: { solved: 1 } }],
+      task, ...more
+    });
+    const d = plain({ require: ['onstep(s, 0.5)', 'a != b', 's <= 4'], new: 'Inne liczby' });
+    assert.deepEqual(m.problemsOf(d), [], 'a task compiles');
+    const seen = new Set();
+    for (let i = 0; i < 40; i += 1) {
+      const p = new m.Program(d.live, { random: m.seeded(`t${i}`) });
+      const a = p.value('a'); const b = p.value('b'); const s0 = a / b;
+      assert.ok(Math.abs(s0 * 2 - Math.round(s0 * 2)) < 1e-9 && a !== b && s0 <= 4, `draw ${i}: every require holds (a=${a}, b=${b})`);
+      assert.notEqual(s0, 2, `draw ${i}: never solved at the start (the goal rule s = 2 does not hold)`);
+      seen.add(`${a}/${b}`);
+    }
+    assert.ok(seen.size >= 8, `different tasks on different visits (${seen.size} of 40)`);
+    const none = new m.Program(plain({ require: ['a > 100'] }).live, { random: m.seeded('x') });
+    assert.deepEqual([none.value('a'), none.value('b')], [6, 3], 'no draw fits: the task as the document has it (the values)');
+    /* „Nowe zadanie": eine andere — was man selbst schaltet, bleibt; Züge und Prüfungen von vorn. */
+    const p = new m.Program(d.live, { random: m.seeded('n') });
+    p.set('k', 0);
+    p.env.tries = 3;
+    const was = JSON.stringify(p.drawn());
+    assert.equal(p.redraws(), true, 'a task with chance offers „Nowe zadanie"');
+    p.newTask();
+    assert.notEqual(JSON.stringify(p.drawn()), was, 'a new task is not the same one again');
+    assert.equal(p.value('k'), 0, 'the switch the person set stays');
+    assert.equal(p.value('tries'), 0, 'checks count from zero');
+    assert.equal(new m.Program(d.live, { fixed: { a: 4, b: 8 } }).redraws(), false, 'fixed (a Cogita attempt): no new task');
+
+    /* Mit einer Welt: das Gewicht rechts aus den gezogenen Zahlen, die Lösung muss auf die Belke passen. */
+    const lab = m.balanceDrawing({
+      alt: 'test',
+      vars: [
+        { name: 'a', value: 4, min: 1, max: 9, step: 1, random: [2, 9] },
+        { name: 'd', value: 1, min: 0.5, max: 3, step: 0.5, random: [0.5, 3] },
+        { name: 'b', value: 2, min: 1, max: 9, step: 1, random: [1, 9] }
+      ],
+      lets: [{ name: 'sol', value: 'a*d/b' }],
+      task: { require: ['onstep(sol, 0.5)', 'a != b', 'abs(sol - 0.5) >= 1'], solve: 'w2.pos = 3 + sol' },
+      allow: { add: false, remove: false, copy: false },
+      things: [
+        { id: 'b1', kind: 'belka', length: 6, pivot: 3, lock: true },
+        { id: 'w1', kind: 'ciezarek', parent: 'b1', m: '=a', pos: '=3 - d', lock: true },
+        { id: 'w2', kind: 'ciezarek', parent: 'b1', m: '=b', pos: 3.5, lock: ['m', 'drop'] }
+      ]
+    });
+    const ld = m.drawingOf(lab);
+    assert.deepEqual(m.problemsOf(ld), [], 'a world task compiles');
+    for (let i = 0; i < 25; i += 1) {
+      const q = new m.Program(ld.live, { random: m.seeded(`w${i}`) });
+      const w1 = env(q, 'w1'); const w2 = env(q, 'w2');
+      assert.equal(w1.m, q.value('a'), 'a property as a calculation: w1.m = a');
+      assert.equal(w1.pos, 3 - q.value('d'), 'w1.pos = 3 - d');
+      const sol = q.solution()['w2.pos'];
+      assert.ok(sol <= 6 && sol > 3, `draw ${i}: the solution lies on the beam (${sol})`);
+      assert.ok(Math.abs(w1.m * (3 - w1.pos) - w2.m * (sol - 3)) < 1e-9, `draw ${i}: the solution balances (a·d = b·s)`);
+      const drawn = q.drawn();
+      assert.ok('w1.m' in drawn && 'w2.m' in drawn && 'a' in drawn, 'drawn: the values and the things computed from them');
+      const again = new m.Program(ld.live, { fixed: drawn, replay: { things: q.world.initialShot().things.map((t) => (t.id === 'w2' ? { ...t, props: { ...t.props, pos: sol } } : t)) } });
+      assert.equal(again.runToEnd(), true, `draw ${i}: with the drawn values held, the solution solves it`);
+    }
+    /* Cogita: dieselbe Rechnung je Versuch, festgehalten; die Lösung des Bildes, wenn die Frage keine nennt. */
+    const spec = m.interactiveSpec({ drawing: JSON.stringify(lab) }, m.seeded('card'));
+    assert.ok(spec !== null && typeof spec.fixed.a === 'number' && typeof spec.fixed['w2.m'] === 'number', 'Cogita holds the drawn values of the attempt');
+    assert.deepEqual(spec.solution, { 'w2.pos': '3 + sol' }, 'without its own solution the question takes task.solve');
+    const target = 3 + spec.fixed.a * spec.fixed.d / spec.fixed.b;
+    const start = new m.Program(ld.live, { fixed: spec.fixed }).worldSnapshot();
+    const answer = { vars: {}, world: { things: start.things.map((t) => (t.id === 'w2' ? { ...t, props: { ...t.props, pos: target } } : t)) } };
+    assert.equal(m.checkInteractive(spec, answer).correct, true, 'the attempt is checked with its own numbers');
+    assert.ok(m.solutionText(spec).includes('Ciężarek'), 'the solution in words, with this attempt\'s numbers');
+
+    /* Was gegeben ist und was man ändert. */
+    const pq = new m.Program(ld.live, { random: m.seeded('can') });
+    assert.deepEqual([env(pq, 'b1').can, env(pq, 'w1').can, env(pq, 'w2').can], [0, 0, 1], 'can: the beam and the left weight are given, the right one can change');
+    const marks = m.drawingOf({
+      size: [100, 100], elements: [{ type: 'frame', x: 0, y: 0, w: 100, h: 100, view: [0, 0, 10, 10], children: [{ type: 'world' }] }],
+      world: {
+        kinds: [{
+          name: 'box', label: 'Pudło', brief: '{m} kg',
+          props: [{ name: 'm', value: 1, min: 1, max: 9, step: 1 }, { name: 'pos', value: 1, min: 0, max: 9, step: 1 }],
+          let: [{ name: 'x', value: 'pos' }, { name: 'y', value: 1 }, { name: 'mp', value: 'can.pos' }, { name: 'mm', value: 'can.m' }],
+          drag: { pos: 'px' }, can: { edit: ['m'] }
+        }],
+        things: [{ id: 'p1', kind: 'box', m: 3, lock: true }, { id: 'p2', kind: 'box', m: 2, lock: ['m'] }, { id: 'p3', kind: 'box', m: 5, pos: 4, lock: ['pos'] }],
+        allow: { add: false, remove: false, copy: false }
+      }
+    });
+    assert.deepEqual(m.problemsOf(marks), [], 'can.pos compiles in a kind');
+    const pm = new m.Program(marks.live);
+    assert.deepEqual(['p1', 'p2', 'p3'].map((id) => [env(pm, id).can, env(pm, id).mp, env(pm, id).mm]), [[0, 0, 0], [1, 1, 0], [1, 0, 1]], 'can.pos / can.m per property: dragged, edited, locked');
+    assert.deepEqual(pm.world.rows().map((r) => [r.t.id, r.props.map((x) => x.name)]), [['p3', ['m']]], 'a puzzle lists every property that can be edited as a row');
+    assert.equal(pm.world.title(pm.world.get('p2')), 'Pudło 2 kg', 'a thing is named by its kind and its brief');
+    assert.equal(pm.world.fixed(pm.world.get('p1')), true, 'a thing that is locked is given');
+    assert.equal(new m.Program(m.drawingOf(m.BALANCE.drawing).live).world.rows(), null, 'the workshop: select a thing first (no rows)');
+    ok('random tasks of comparable difficulty: requires, never solved at the start, reachable solution, calculated properties, fallback, „Nowe zadanie", Cogita per attempt; can / can.pos / rows / brief');
   }
 
   console.log('\napp-world-check: all passed');

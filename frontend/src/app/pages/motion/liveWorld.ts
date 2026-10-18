@@ -21,6 +21,11 @@
  * in Cogita: die Änderungen des Lernenden werden noch einmal durch genau diese
  * Regeln geschickt — eine gesperrte Masse bleibt gesperrt, auch wenn jemand
  * sie in die Antwort schreibt.
+ *
+ * <b>2026-10-18 — was gegeben ist und was man ändert</b>: jedes Ding weiss es
+ * (`can`, je Eigenschaft `can.pos`), damit seine Art es zeigen kann (ein
+ * gesperrtes Gewicht grau, ein verschiebbares mit Pfeilen); die Bedienung
+ * nennt die Dinge so, wie ihre Art sagt (`brief`: „Ciężarek 2 kg").
  */
 
 import { compile, compileText, isExprError, toNum, truth, type CompileOptions, type Env, type Expr, type Val, type WorldLinks } from './expr';
@@ -63,8 +68,11 @@ export class World {
   private readonly redoStack: WorldShot[] = [];
   /** „Ponów", solange eine Änderung noch zurückgenommen werden kann (eine verletzte Regel). */
   private parked: WorldShot[] = [];
-  private readonly initial: WorldShot;
+  /** Der Anfang dieser Aufgabe — dorthin führt „Od nowa" (eine neue Aufgabe zieht einen neuen). */
+  private initial: WorldShot = { things: [] };
   private readonly locks = new Map<string, true | ReadonlySet<string>>();
+  /** 2026-10-18 — Eigenschaften der Dinge als Rechnung aus den Werten des Bildes (je Kennung). */
+  private readonly exprs = new Map<string, Map<string, Expr>>();
   /** Die Grössen der Simulation aller Dinge, der Reihe nach — für Runge-Kutta. */
   slots: { readonly thing: Thing; readonly name: string; readonly rate: Expr }[] = [];
   /** Was ein Ereignis eines Dings gesagt hat (das Programm zeigt es). */
@@ -98,9 +106,30 @@ export class World {
     for (const k of spec.kinds) this.kinds.set(k.name, compileKind(k, compiler));
     classify([...this.kinds.values()], options.dynamic ?? new Set());
 
-    /* Die Dinge der Welt — mit dem Zufall dieses Versuchs (oder, in Cogita, dem festgehaltenen). */
-    const random = options.random ?? Math.random;
-    const shots: ThingShot[] = spec.things.map((t) => {
+    /* Eigenschaften als Rechnung (`"m": "=a"`): aus den Werten des Bildes — nicht aus anderen Dingen, die es dann noch nicht gibt. */
+    const drawingOnly: CompileOptions = { known: (name) => globalNames.has(name), kinds: this.kindNames };
+    for (const t of spec.things) {
+      this.locks.set(t.id, t.lock === true ? true : new Set(t.lock));
+      for (const [name, source] of Object.entries(t.exprs)) {
+        const made = compile(source, drawingOnly);
+        if (isExprError(made)) { report({ where: `world.things „${t.id}".${name}`, error: made.error, source: made.source, at: made.at }); continue; }
+        const own = this.exprs.get(t.id) ?? new Map<string, Expr>();
+        own.set(name, made);
+        this.exprs.set(t.id, own);
+      }
+    }
+    this.startWith(options.random ?? Math.random, options.fixed ?? {});
+  }
+
+  /**
+   * DIE DINGE EINER AUFGABE, wie das Dokument sie sagt: Zahlen, Zufall (auf
+   * den Schritt der Eigenschaft gerastet), Rechnungen aus den Werten des
+   * Bildes — was feststeht (in Cogita: der Zufall dieses Versuchs), gewinnt.
+   * Danach in ihren Grenzen; das ist der Anfang, zu dem „Od nowa" führt, und
+   * was vorher geändert wurde, lässt sich nicht mehr zurücknehmen.
+   */
+  startWith(random: () => number, fixed: Readonly<Record<string, number>> = {}): void {
+    const shots: ThingShot[] = this.spec.things.map((t) => {
       const props: Record<string, number> = { ...t.props };
       for (const [name, [a, b]] of Object.entries(t.random)) {
         const step = this.kinds.get(t.kind)?.props.get(name)?.spec.step ?? null;
@@ -108,18 +137,42 @@ export class World {
         if (step !== null) v = Math.round(v / step) * step;
         props[name] = Math.round(v * 1e9) / 1e9;
       }
-      for (const [key, v] of Object.entries(options.fixed ?? {})) {
+      for (const [name, e] of this.exprs.get(t.id) ?? []) {
+        const v = toNum(e.run(this.global));
+        if (Number.isFinite(v)) props[name] = Math.round(v * 1e9) / 1e9;
+      }
+      for (const [key, v] of Object.entries(fixed)) {
         const dot = key.indexOf('.');
         if (dot > 0 && key.slice(0, dot) === t.id && Number.isFinite(v)) props[key.slice(dot + 1)] = v;
       }
-      this.locks.set(t.id, t.lock === true ? true : new Set(t.lock));
       return { id: t.id, kind: t.kind, parent: t.parent, props };
     });
+    this.undoStack.length = 0;
+    this.redoStack.length = 0;
+    this.parked = [];
     this.restore({ things: shots });
     for (const th of this.preorder) for (const name of th.kind.props.keys()) this.fit(th, name, toNum(th.env[name]), false);
     this.evalLets('all');
-    /* Der Anfang, wie er nach den Grenzen dasteht — dorthin führt „Od nowa". */
+    this.markCan();
     this.initial = this.snapshot();
+  }
+
+  /** Was in dieser Aufgabe gezogen oder gerechnet wurde (`ding.eigenschaft`) — so hält Cogita einen Versuch fest. */
+  drawn(): Record<string, number> {
+    const out: Record<string, number> = {};
+    const at = new Map(this.initial.things.map((t) => [t.id, t]));
+    for (const t of this.spec.things) {
+      for (const name of [...Object.keys(t.random), ...(this.exprs.get(t.id)?.keys() ?? [])]) {
+        const v = at.get(t.id)?.props[name];
+        if (typeof v === 'number') out[`${t.id}.${name}`] = v;
+      }
+    }
+    return out;
+  }
+
+  /** Zieht die Welt selbst etwas, das noch nicht feststeht? */
+  drawsRandom(fixed: Readonly<Record<string, number>>): boolean {
+    return this.spec.things.some((t) => Object.keys(t.random).some((name) => !(`${t.id}.${name}` in fixed)));
   }
 
   /* -- Übersetzen ----------------------------------------------------------------- */
@@ -191,6 +244,32 @@ export class World {
     const shape = this.preorder.map((t) => `${t.id}:${t.kind.spec.name}:${t.parent?.id ?? ''}`).join('|');
     if (shape !== this.shape) { this.shape = shape; this.version += 1; }
     this.everything = true;
+    this.markCan();
+  }
+
+  /**
+   * WAS MAN AN JEDEM DING ÄNDERN DARF: `can` (irgendetwas — ziehen,
+   * einstellen) und je Eigenschaft `can.pos`. Es ändert sich nur mit dem Bau
+   * (oder einem `when`) — dann wird alles neu geschrieben.
+   */
+  private markCan(): void {
+    for (const t of this.preorder) {
+      const drag = this.canDrag(t);
+      const own: Record<string, number> = {};
+      let any = drag ? 1 : 0;
+      for (const name of t.kind.props.keys()) {
+        const v = this.canEdit(t, name) || (drag && t.kind.drag.some((a) => a.name === name) && this.drags(t, name)) ? 1 : 0;
+        own[name] = v;
+        if (v === 1) any = 1;
+      }
+      const l = links(t.env);
+      const was = l.$can;
+      if (t.env.can !== any || was === undefined || Object.keys(own).some((k) => was[k] !== own[k])) {
+        t.env.can = any;
+        l.$can = own;
+        this.everything = true;
+      }
+    }
   }
 
   /**
@@ -231,6 +310,7 @@ export class World {
     this.evalLets('all');
     for (const t of next) if (keep.get(t.id) !== t) this.initState(t);
     this.evalLets('all');
+    this.markCan();
   }
 
   /** Ist `a` ein Vorfahr von `b` (oder dasselbe Ding)? */
@@ -538,6 +618,7 @@ export class World {
       }
     }
     this.evalLets('all');
+    this.markCan();
   }
 
   private freshId(kind: string): string {
@@ -602,6 +683,37 @@ export class World {
     init(twin);
     this.afterChange();
     return twin;
+  }
+
+  /** 2026-10-18 — wie ein Ding heisst: die Art und, was ihr `brief` sagt („Ciężarek 2 kg") — sonst seine Kennung. */
+  title(t: Thing): string {
+    const brief = t.kind.brief === null ? '' : String(t.kind.brief.run(t.env)).trim();
+    return `${t.kind.spec.label} ${brief === '' ? t.id : brief}`;
+  }
+
+  /** Steht dieses Ding ganz fest (nichts daran zu ändern)? */
+  fixed(t: Thing): boolean {
+    return !truth(t.env.can);
+  }
+
+  /** Liesse sich diese Eigenschaft mit der Hand auf diesen Wert bringen — einstellen oder ziehen, in ihren Grenzen? (Eine Lösung muss es.) */
+  reachable(t: Thing, prop: string, value: number): boolean {
+    const byHand = this.canEdit(t, prop) || (this.canDrag(t) && t.kind.drag.some((a) => a.name === prop) && this.drags(t, prop));
+    if (!byHand) return false;
+    const { min, max } = this.bounds(t, prop);
+    return value >= min - 1e-9 && value <= max + 1e-9;
+  }
+
+  /**
+   * 2026-10-18 — JEDE EIGENSCHAFT, DIE MAN ÄNDERN DARF, ALS ZEILE — oder `null`:
+   * erst ein Ding wählen (eine Werkstatt). Von selbst Zeilen, wenn nichts
+   * hinzukommt oder wegfällt und es höchstens sechs sind (ein Rätsel).
+   */
+  rows(): { readonly t: Thing; readonly props: readonly PropSpec[] }[] | null {
+    const rows = this.preorder.map((t) => ({ t, props: this.editable(t) })).filter((r) => r.props.length > 0);
+    const allow = this.spec.allow;
+    const auto = !allow.add && !allow.remove && !allow.copy && rows.reduce((n, r) => n + r.props.length, 0) <= 6;
+    return (this.spec.list ?? auto) ? rows : null;
   }
 
   /** Ist eine Anzeige des Dings gerade zu sehen (`show`, etwa nicht, solange man vermutet)? */

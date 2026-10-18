@@ -63,9 +63,12 @@ export const BUILTINS = ['t', 'time', 'step', 'i', 'n', 'u', 'px', 'py', 'edits'
  * (`isroot`), wie tief (`depth`), an welcher Stelle unter seinen Geschwistern
  * (`index`), ob es gewählt ist (`selected`), wie viele Kinder es hat
  * (`nchildren`). Dazu im ganzen Bild: `edits` — wie viele Änderungen seit „Od
- * nowa", `nthings` — wie viele Dinge.
+ * nowa", `nthings` — wie viele Dinge. 2026-10-18 `can` — 1, wenn man an
+ * diesem Ding etwas ändern darf (ziehen, einstellen), 0, wenn es feststeht;
+ * je Eigenschaft `can.pos` (siehe `expr.ts`): so zeigt eine Art, was gegeben
+ * ist und was man ändert.
  */
-export const THING_BUILTINS = ['isroot', 'depth', 'index', 'selected', 'nchildren'] as const;
+export const THING_BUILTINS = ['isroot', 'depth', 'index', 'selected', 'nchildren', 'can'] as const;
 
 /** Worüber sich zusammenfassen lässt (siehe `expr.ts`) — kein eigener Name darf so heissen. */
 export const SETS = ['children', 'descendants', 'siblings', 'others', 'things'] as const;
@@ -79,7 +82,8 @@ export const AGGREGATES = ['sum', 'avg', 'min', 'max', 'count', 'all', 'any'] as
 export const LIVE_LIMITS = {
   vars: 40, lets: 80, state: 24, events: 20, controls: 16, rules: 30, options: 12,
   repeat: 400, samples: 600, trace: 3000, name: 32, label: 80, say: 300,
-  kinds: 12, things: 120, props: 24, kindLets: 40, kindState: 12, kindEvents: 12, readouts: 8, keep: 12
+  kinds: 12, things: 120, props: 24, kindLets: 40, kindState: 12, kindEvents: 12, readouts: 8, keep: 12,
+  require: 16, tries: 400
 } as const;
 
 export const ACTIONS = ['run', 'pause', 'toggle', 'reset'] as const;
@@ -197,6 +201,69 @@ export interface Live {
   readonly world: WorldSpec | null;
   /** 2026-10-18 — erst vermuten, dann sehen (`null`: das Bild antwortet sofort). */
   readonly predict: PredictSpec | null;
+  /** 2026-10-18 — jedes Mal eine andere Aufgabe, gleich schwer (`null`: der Zufall der Werte, wie er fällt). */
+  readonly task: TaskSpec | null;
+}
+
+/**
+ * 2026-10-18 — ZUFALL MIT GLEICHER SCHWIERIGKEIT: Werte mit `random` (des
+ * Bildes und der Dinge — auch Eigenschaften als Rechnung daraus, `"pos":
+ * "=3 + s"`) werden gezogen, bis jede Bedingung (`require`) gilt, die
+ * Aufgabe nicht schon am Anfang gelöst ist und die Lösung (`solve`) mit der
+ * Hand zu erreichen ist. Was die Schwierigkeit gleich hält, sagt die Aufgabe
+ * selbst (dieselben Schritte, Zahlen aus demselben Bereich, die Lösung auf
+ * dem Raster) — kein Spiel ist dafür Code. Findet sich in `tries` Zügen
+ * keine, gilt die Aufgabe mit den Werten, wie sie dastehen.
+ */
+export interface TaskSpec {
+  /** Was für jede gezogene Aufgabe gelten muss — Ausdrücke wie `onstep(s, 0.25)`, `abs(s - 1) >= 1`. */
+  readonly require: readonly string[];
+  /** Was die Aufgabe löst: Wert (oder `ding.eigenschaft`) → Rechnung — muss erreichbar sein; in Cogita die Lösung. */
+  readonly solve: Readonly<Record<string, string>>;
+  /** Der Knopf für eine neue Aufgabe (`''`: keiner). */
+  readonly again: string;
+  /** Höchstens so oft wird gezogen. */
+  readonly tries: number;
+}
+
+/** Ein Schlüssel einer Zuweisung: ein Wert des Bildes oder eine Eigenschaft eines Dings (`w2.pos`). */
+const ASSIGN_KEY = /^[\p{L}_][\p{L}\p{N}_-]*(?:\.[\p{L}_][\p{L}\p{N}_]*)?$/u;
+
+/**
+ * ZUWEISUNGEN ALS TEXT — „kat = 45; v0 = sqrt(cel*g); w2.pos = 3 + s" — oder
+ * als Objekt: je Wert eine Rechnung (die Lösung einer Aufgabe, in Cogita).
+ */
+export function readAssignText(value: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  const put = (name: string, expr: string) => {
+    const n = name.trim();
+    const e = expr.trim();
+    if (ASSIGN_KEY.test(n) && n.length <= 70 && e !== '' && e.length <= 400) out[n] = e;
+  };
+  if (isRecord(value)) {
+    for (const [k, v] of Object.entries(value)) if (typeof v === 'number' && Number.isFinite(v)) put(k, String(v)); else if (typeof v === 'string') put(k, v);
+  } else if (typeof value === 'string') {
+    for (const part of value.split(/[;\n]/)) {
+      const at = part.search(/[=:]/);
+      /* „11,5" ist eine Zahl mit Komma; in „max(a, b)" trennt das Komma Argumente. */
+      const expr = part.slice(at + 1).trim();
+      if (at > 0) put(part.slice(0, at), /^-?\d+,\d+$/.test(expr) ? expr.replace(',', '.') : expr);
+    }
+  }
+  return out;
+}
+
+/** `{ "require", "solve", "new", "tries" }` — `null`: keine Aufgabe. */
+function readTask(value: unknown): TaskSpec | null {
+  if (!isRecord(value)) return null;
+  const require = (Array.isArray(value.require) ? value.require : typeof value.require === 'string' ? [value.require] : [])
+    .slice(0, LIVE_LIMITS.require).map(exprOf).filter((x): x is string => x !== null);
+  return {
+    require,
+    solve: readAssignText(value.solve),
+    again: value.new === false ? '' : line(value.new, LIVE_LIMITS.label) || 'Nowe zadanie',
+    tries: Math.round(clamp(finite(value.tries) ?? 200, 1, LIVE_LIMITS.tries))
+  };
 }
 
 /**
@@ -435,7 +502,7 @@ function readRule(value: unknown): RuleSpec | null {
 }
 
 /** Was eine Zeichnung zum Anfassen macht — `null`: nichts davon (eine Zeichnung wie bisher). */
-export function readLive(value: { vars?: unknown; let?: unknown; sim?: unknown; controls?: unknown; rules?: unknown; panel?: unknown; predict?: unknown }, world: WorldSpec | null = null): Live | null {
+export function readLive(value: { vars?: unknown; let?: unknown; sim?: unknown; controls?: unknown; rules?: unknown; panel?: unknown; predict?: unknown; task?: unknown }, world: WorldSpec | null = null): Live | null {
   const names = new Set<string>();
   const vars: VarSpec[] = [];
   for (const raw of (Array.isArray(value.vars) ? value.vars : []).slice(0, LIVE_LIMITS.vars)) {
@@ -455,8 +522,9 @@ export function readLive(value: { vars?: unknown; let?: unknown; sim?: unknown; 
   const rules = (Array.isArray(value.rules) ? value.rules : []).slice(0, LIVE_LIMITS.rules)
     .map(readRule).filter((r): r is RuleSpec => r !== null);
   const predict = readPredict(value.predict);
+  const task = readTask(value.task);
   if (vars.length === 0 && lets.length === 0 && sim === null && controls.length === 0 && rules.length === 0 && world === null && predict === null) return null;
-  return { vars, lets, sim, controls, rules, panel: value.panel === 'side' ? 'side' : 'below', world, predict };
+  return { vars, lets, sim, controls, rules, panel: value.panel === 'side' ? 'side' : 'below', world, predict, task };
 }
 
 export function readDrag(value: unknown): DragSpec | null {
@@ -542,15 +610,21 @@ export interface KindSpec {
   readonly readouts: readonly ReadoutSpec[];
   /** Wie viele Kinder höchstens. */
   readonly children: number;
+  /** 2026-10-18 — wie ein Ding dieser Art in der Bedienung heisst (ein Text mit `{…}`: „{m} kg") — `''`: nur die Art. */
+  readonly brief: string;
+  /** 2026-10-18 — ein Ding, an dem man etwas ändern darf, trägt einen gestrichelten Ring (`false`: die Art zeigt es selbst, mit `can`). */
+  readonly mark: boolean;
 }
 
-/** Ein Ding der Welt, wie es dasteht: Art, Elternteil, Eigenschaften (auch per Zufall), was gesperrt ist. */
+/** Ein Ding der Welt, wie es dasteht: Art, Elternteil, Eigenschaften (auch per Zufall oder als Rechnung), was gesperrt ist. */
 export interface ThingSpec {
   readonly id: string;
   readonly kind: string;
   readonly parent: string | null;
   readonly props: Readonly<Record<string, number>>;
   readonly random: Readonly<Record<string, readonly [number, number]>>;
+  /** 2026-10-18 — Eigenschaften als Rechnung aus den Werten des Bildes (`"m": "=a"`) — gerechnet, wenn eine Aufgabe gezogen wird. */
+  readonly exprs: Readonly<Record<string, string>>;
   /** `true`: nichts lässt sich ändern (nicht ziehen, nicht entfernen); eine Liste: diese Eigenschaften nicht. */
   readonly lock: true | readonly string[];
 }
@@ -580,8 +654,14 @@ export interface WorldSpec {
   readonly keep: readonly KeepSpec[];
   /** Speichern, Laden und Ausgeben des Gebauten (die Werkstatt). */
   readonly save: boolean;
-  /** Was unter dem Bild steht, solange nichts gewählt ist. */
+  /** Was unter dem Bild steht, solange nichts gewählt ist (ein Text mit `{…}`). */
   readonly hint: string;
+  /**
+   * 2026-10-18 — jede Eigenschaft, die man ändern darf, als eigene Zeile der
+   * Bedienung (ohne erst ein Ding zu wählen) — `null`: von selbst, wenn
+   * nichts hinzukommt oder wegfällt und es höchstens sechs sind (ein Rätsel).
+   */
+  readonly list: boolean | null;
 }
 
 const ALLOW_ALL: WorldAllow = { add: true, remove: true, copy: true, edit: true, drag: true, roots: [] };
@@ -662,7 +742,9 @@ function readKind(value: unknown, shapesOf: (list: unknown) => Shape[]): KindSpe
     remove: can.remove === true,
     copy: can.copy === true,
     readouts,
-    children: Math.round(clamp(finite(one.children) ?? 24, 0, LIVE_LIMITS.things))
+    children: Math.round(clamp(finite(one.children) ?? 24, 0, LIVE_LIMITS.things)),
+    brief: line(one.brief, LIVE_LIMITS.label),
+    mark: one.mark !== false
   };
 }
 
@@ -672,7 +754,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 const idOf = (value: unknown): string | null => {
   if (typeof value !== 'string') return null;
   const id = value.trim();
-  return /^[\p{L}_][\p{L}\p{N}_-]{0,31}$/u.test(id) && !(RELATIONS as readonly string[]).includes(id) ? id : null;
+  return /^[\p{L}_][\p{L}\p{N}_-]{0,31}$/u.test(id) && !(RELATIONS as readonly string[]).includes(id) && id !== 'can' ? id : null;
 };
 
 function readThing(value: unknown, kinds: ReadonlyMap<string, KindSpec>): ThingSpec | null {
@@ -682,18 +764,21 @@ function readThing(value: unknown, kinds: ReadonlyMap<string, KindSpec>): ThingS
   if (id === null || kind === undefined) return null;
   const props: Record<string, number> = {};
   const random: Record<string, [number, number]> = {};
+  const exprs: Record<string, string> = {};
   const known = new Set(kind.props.map((p) => p.name));
   for (const [key, raw] of Object.entries(one)) {
     if (THING_KEYS.has(key) || !known.has(key)) continue;
     const n = finite(raw);
     if (n !== null) { props[key] = n; continue; }
+    const bound = bindOf(raw);
+    if (bound !== null) { exprs[key] = bound; continue; }
     const r = record(raw).random;
     if (Array.isArray(r) && r.length === 2 && finite(r[0]) !== null && finite(r[1]) !== null) {
       random[key] = [Math.min(r[0] as number, r[1] as number), Math.max(r[0] as number, r[1] as number)];
     }
   }
   const lock = one.lock === true ? true as const : Array.isArray(one.lock) ? one.lock.filter((x): x is string => typeof x === 'string' && known.has(x)) : [];
-  return { id, kind: kind.name, parent: idOf(one.parent), props, random, lock };
+  return { id, kind: kind.name, parent: idOf(one.parent), props, random, exprs, lock };
 }
 
 /**
@@ -748,6 +833,7 @@ export function readWorld(value: unknown, shapesOf: (list: unknown) => Shape[]):
       return when === null ? [] : [{ when, say: line(k.say, LIVE_LIMITS.say) }];
     }),
     save: value.save === true,
-    hint: line(value.hint, LIVE_LIMITS.say)
+    hint: line(value.hint, LIVE_LIMITS.say),
+    list: typeof value.list === 'boolean' ? value.list : null
   };
 }

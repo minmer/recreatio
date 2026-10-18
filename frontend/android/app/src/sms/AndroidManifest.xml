@@ -8,7 +8,8 @@
   Apps (SENDTO). Dazu das Adressbuch (das Konto „REcreatio") für Namen bei
   Anrufen. Die gewöhnliche Ausgabe (src/play) nennt keines dieser Rechte.
 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
@@ -23,6 +24,20 @@
       nach Google Play, darf also einen genauen Wecker haben (Android 13+; davor ungenau).
     -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
+    <!--
+      Lampy (2026-10-18, LampPlugin): Sygnały als BLE-Werbung senden und dem Pilot zuhören.
+      Ab Android 12 „Urządzenia w pobliżu" (BLUETOOTH_ADVERTISE, BLUETOOTH_SCAN) — beim Scan
+      mit neverForLocation: aus dem Gehörten wird kein Ort abgeleitet, also keine Lage nötig
+      (Android filtert dann nur iBeacon/Eddystone heraus, nicht die Pakete eines Pilots).
+      Bis Android 11 BLUETOOTH/BLUETOOTH_ADMIN (bei der Installation) und für den Scan die Lage.
+    -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" tools:targetApi="s" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 

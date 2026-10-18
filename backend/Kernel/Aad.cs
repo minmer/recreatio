@@ -409,7 +409,10 @@ public enum Field
     /// des Links) und ihr Etikett für den Absender (unter dem Schlüssel des Bereichs).
     /// </summary>
     ShareFile,
-    ShareLabel
+    ShareLabel,
+
+    /// <summary>0118 — eine Lampe mit ihren Sygnały (Werbepakete für Bluetooth LE), als EIN Dokument.</summary>
+    PhoneLamp
 }
 
 /// <summary>
@@ -596,6 +599,7 @@ public readonly record struct Aad
         Field.PhoneOutbox             => "phone_outbox",
         Field.ShareFile               => "share_file",
         Field.ShareLabel              => "share_label",
+        Field.PhoneLamp               => "phone_lamp",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

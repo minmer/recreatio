@@ -54,6 +54,7 @@ const LearnView = lazy(() => import('../cogita/LearnView').then((m) => ({ defaul
 /* 2026-10-17 — SMS und Kontakte (Ausgabe „sms") als eigenes Bündel: wer kein Telefon damit hat, lädt es nie. */
 const SmsApp = lazy(() => import('../phone/SmsApp'));
 const ContactsApp = lazy(() => import('../phone/ContactsApp'));
+const LampsApp = lazy(() => import('../lamps/LampsApp'));
 
 export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   /* 0111 — angemeldet und die Seite zu sehen: „w aplikacji" (für „Wyślij, gdy będzie online" und wer es teilt). */
@@ -154,7 +155,7 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
 }
 
 /** Ansichten, die ihren Titel selbst tragen. */
-const OWN_TITLE: ReadonlySet<View> = new Set<View>(['chat', 'widok', 'library', 'learn', 'forms', 'areas', 'sms', 'contacts']);
+const OWN_TITLE: ReadonlySet<View> = new Set<View>(['chat', 'widok', 'library', 'learn', 'forms', 'areas', 'sms', 'contacts', 'lamps']);
 
 /** Unter welchem Namen eine Ansicht steht — Zadania unter Kalendarz. */
 const TITLE_OF: Partial<Record<View, View>> = { tasks: 'calendar' };
@@ -223,6 +224,7 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'learn') return <Suspense fallback={<Loading />}><LearnView who={who} trail={trail} /></Suspense>;
   if (view === 'sms') return <Suspense fallback={<Loading />}><SmsApp who={who} trail={trail} /></Suspense>;
   if (view === 'contacts') return <Suspense fallback={<Loading />}><ContactsApp who={who} trail={trail} /></Suspense>;
+  if (view === 'lamps') return <Suspense fallback={<Loading />}><LampsApp who={who} trail={trail} /></Suspense>;
   if (view === 'registry') return <Kartoteka who={who} trail={trail} />;
 
   /* Jede Ansicht steht oben; was hier ankommt, gibt es (noch) nicht. */
