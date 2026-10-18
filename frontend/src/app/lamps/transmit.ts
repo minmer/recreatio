@@ -229,7 +229,11 @@ async function sendOne(radio: LampNative | null, queued: Attempt, prepared: Prep
       timing: result === null ? [] : timingNotes(prepared.shown, result)
     });
 
-  if (mine !== epoch) return finish('stopped');
+  if (mine !== epoch) {
+    /* Gestrichen (Stop, App verlassen) — mit dem Grund, den es beim Streichen bekam. */
+    const dropped = attempts.find((a) => a.id === queued.id);
+    return dropped !== undefined && dropped.state !== 'queued' ? dropped : finish('stopped');
+  }
   put({ ...(attempts.find((a) => a.id === queued.id) ?? queued), state: 'sending' });
   if (prepared.problem !== null) return finish('bad-frame', null, null, prepared.problem);
   if (radio === null) return finish('unavailable');

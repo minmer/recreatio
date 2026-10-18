@@ -8,7 +8,9 @@
  *   4. Senden: Erlaubnis verweigert, Bluetooth aus, Fehler im Rückruf, nacheinander statt zugleich,
  *      Stopp, ein kaputtes Paket erreicht das Telefon nie, Zeiten, die Android nicht hielt.
  *   5. Vom Pilot lernen: der Stärkste, Läufe, Muster (ein Paket, ein Kreis, das häufigste), nRF-Mitschnitt.
- *   6. Die Wörter des Telefons (LampPlugin.java) kennt die Seite alle.
+ *   6. Die Wörter des Telefons (LampPlugin/LampRadio/LampTimers.java) kennt die Seite alle.
+ *   7. Timer: gespeichert neben den Geräten, Uhrzeit und Tage, der nächste Lauf (wie im Telefon), der Plan
+ *      für das Telefon (nur Sendbares), welches Telefon sie ausführt.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -25,6 +27,7 @@ export * from '${app}lamps/adv';
 export * from '${app}lamps/lampStore';
 export * from '${app}lamps/transmit';
 export * from '${app}lamps/learn';
+export * from '${app}lamps/timers';
 `);
 await build({
   entryPoints: [entry],
@@ -158,16 +161,18 @@ try {
   assert.equal(saved.version, 1);
   assert.ok(!rows.get(saved.id).sealed.includes('sypialni') && !Buffer.from(rows.get(saved.id).sealed, 'base64url').toString('latin1').includes('Lampa'), 'the service holds only a sealed document');
   const living = await m.saveLamp(ctx, null, { ...bedroom, name: 'Salon', number: '1', signals: [on] }, 0);
-  const loaded = await m.loadLamps(ctx);
+  const { lamps: loaded, timers: none } = await m.loadLamps(ctx);
+  assert.deepEqual(none, []);
   assert.deepEqual(loaded.map((l) => l.name), ['Salon', 'Lampa w sypialni'], 'read back, by number then name');
   assert.deepEqual(loaded.map((l) => l.signals.some((s) => s.id === on.id)), [true, true], 'the same signal on two devices');
   const again = await m.saveLamp(ctx, saved.id, { ...loaded[1], room: 'Sypialnia' }, loaded[1].version);
   assert.equal(again.version, 2);
   await assert.rejects(m.saveLamp(ctx, saved.id, { ...loaded[1], room: 'stary stan' }, 1), (e) => m.lampSaveProblem(e).includes('w międzyczasie'), 'an old version does not overwrite');
-  assert.equal((await m.removeLamp(ctx, living.id)).deleted, true);
-  assert.deepEqual((await m.loadLamps(ctx)).map((l) => [l.name, l.room]), [['Lampa w sypialni', 'Sypialnia']]);
+  assert.equal((await m.removeItem(ctx, living.id)).deleted, true);
+  assert.deepEqual((await m.loadLamps(ctx)).lamps.map((l) => [l.name, l.room]), [['Lampa w sypialni', 'Sypialnia']]);
   rows.set('broken', { lampId: 'broken', epoch: 1, sealed: 'AAAA', version: 1, updatedAt: '' });
-  assert.equal((await m.loadLamps(ctx)).length, 1, 'an envelope that does not open does not stop the rest');
+  assert.equal((await m.loadLamps(ctx)).lamps.length, 1, 'an envelope that does not open does not stop the rest');
+  rows.delete('broken');
   ok('storage: sealed document round trip, devices saved, read back, changed (stale versions refused), deleted; one signal on two devices');
 
   /* -- 4. Senden ------------------------------------------------------------------------------------- */
@@ -246,6 +251,34 @@ try {
   assert.equal(r.most, 1, 'never two at once');
   assert.deepEqual(order, ['A', 'B', 'C'], 'in the order pressed');
 
+  /* Weiterdrücken, während gesendet wird: die Drücke stehen gleich als „queued" da und gehen danach hinaus. */
+  m.forgetAttempts();
+  r = radio();
+  const first = m.transmit(r, lamp, signal('Pierwszy', FIRST));
+  const second = m.transmit(r, lamp, signal('Drugi', SECOND));
+  assert.deepEqual(m.attemptsNow().map((x) => [x.signal, x.state]), [['Drugi', 'queued'], ['Pierwszy', 'queued']], 'every press is in the list at once');
+  await new Promise((ok) => setTimeout(ok, 5));
+  assert.deepEqual(m.attemptsNow().map((x) => x.state), ['queued', 'sending'], 'the first goes out, the second waits');
+  await Promise.all([first, second]);
+  assert.deepEqual(m.attemptsNow().map((x) => [x.signal, x.state]), [['Drugi', 'sent'], ['Pierwszy', 'sent']], 'both sent, the list keeps the order of the presses');
+  assert.deepEqual(r.sends.map((x) => x[0].data), [FIRST.slice(8), SECOND.slice(8)]);
+
+  /* Stop während einer läuft und zwei warten: alle drei enden, die wartenden erreichen das Telefon nie. */
+  r = radio({ send: (frames, self) => new Promise((resolve) => { self.onStop = () => resolve({ code: 'stopped', detail: null, startedAt: 1, endedAt: 2, frames: [] }); }) });
+  const queued = ['X', 'Y', 'Z'].map((label) => m.transmit(r, lamp, signal(label, FIRST)));
+  await new Promise((ok) => setTimeout(ok, 5));
+  await m.stopTransmission(r);
+  const ended = await Promise.all(queued);
+  assert.deepEqual(ended.map((x) => x.state), ['stopped', 'stopped', 'stopped']);
+  assert.equal(r.sends.length, 1, 'only the running one had reached the phone');
+  r.onStop = undefined;
+
+  /* Die App verlässt den Bildschirm: das Telefon meldet „paused" — was danach wartete, geht nicht mehr hinaus. */
+  r = radio({ send: async (frames) => ({ code: r.sends.length === 1 ? 'paused' : 'ok', detail: null, startedAt: 1, endedAt: 2, frames: [] }) });
+  const paused = await Promise.all(['P', 'Q'].map((label) => m.transmit(r, lamp, signal(label, FIRST))));
+  assert.deepEqual([paused.map((x) => x.code), r.sends.length], [['paused', 'paused'], 1]);
+  assert.equal((await m.transmit(radio(), lamp, on)).state, 'sent', 'a new press after that goes out again');
+
   /* Stopp: das Telefon hält, bis gestoppt wird, und meldet „stopped"; der nächste Druck geht danach normal. */
   r = radio({
     send: (frames, self) => new Promise((resolve) => {
@@ -277,7 +310,7 @@ try {
   assert.deepEqual(a.timing, ['Ramka 1: Android potrzebował 340 ms na start.', 'Ramka 1: nadawana 620 ms zamiast 500 ms.', 'Między ramką 1 a 2: 240 ms zamiast 100 ms.'],
     'timing the phone could not keep is reported, not hidden');
   assert.ok(m.attemptsNow().length <= m.HISTORY_MAX);
-  ok('sending: permission denied/granted, Bluetooth off, no advertiser, every AdvertiseCallback error with Android\'s words, exceptions, bad frames never sent, three presses one after another, stop, timing deviations');
+  ok('sending: permission denied/granted, Bluetooth off, no advertiser, every AdvertiseCallback error with Android\'s words, exceptions, bad frames never sent, presses queued while sending (in order, never two at once), stop and leaving the app drop the queue, timing deviations');
 
   /* -- 5. Vom Pilot lernen ---------------------------------------------------------------------------- */
 
@@ -340,7 +373,8 @@ try {
 
   /* -- 6. Die Wörter des Telefons --------------------------------------------------------------------- */
 
-  const plugin = await readFile(join(process.cwd(), 'android/app/src/sms/java/pl/recreatio/app/LampPlugin.java'), 'utf8');
+  const java = (name) => readFile(join(process.cwd(), `android/app/src/sms/java/pl/recreatio/app/${name}.java`), 'utf8');
+  const plugin = (await Promise.all(['LampPlugin', 'LampRadio', 'LampTimers'].map(java))).join('\n');
   const words = new Set([...plugin.matchAll(/(?:outcome|scanAnswer|endScan|cancel)\("([a-z-]+)"|put\("code", "([a-z-]+)"\)|return "([a-z-]+)";/g)]
     .map((x) => x[1] ?? x[2] ?? x[3]));
   const known = (w) => w === 'error' || m.codeText(w) !== m.codeText('error') || m.scanText(w) !== m.scanText('error');
@@ -353,7 +387,81 @@ try {
   assert.match(manifest, /BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation"/);
   const main = await readFile(join(process.cwd(), 'android/app/src/main/AndroidManifest.xml'), 'utf8');
   assert.doesNotMatch(main, /BLUETOOTH/, 'the Play edition asks for no Bluetooth');
-  ok('the phone\'s words (LampPlugin.java) are all explained on the page; Bluetooth permissions only in the sms edition');
+  assert.match(manifest, /LampTimerReceiver[\s\S]*BOOT_COMPLETED[\s\S]*TIMEZONE_CHANGED/, 'timers are set again after a reboot or a time zone change');
+  for (const method of ['setTimers', 'timerStatus', 'setTimersOn', 'send', 'stop', 'startScan']) assert.match(plugin, new RegExp(`public void ${method}\\(PluginCall`), `the plugin has ${method}`);
+  ok('the phone\'s words (LampPlugin/LampRadio/LampTimers.java) are all explained on the page; Bluetooth permissions only in the sms edition; timer receiver registered');
+
+  /* -- 7. Timer ------------------------------------------------------------------------------------------ */
+
+  assert.deepEqual([m.timeText(420), m.timeText(0), m.timeText(1439), m.timeText(1440)], ['07:00', '00:00', '23:59', '']);
+  assert.deepEqual([m.minuteOf('7:05'), m.minuteOf('07:05'), m.minuteOf('23:59'), m.minuteOf('24:00'), m.minuteOf('7.05')], [425, 425, 1439, null, null]);
+  assert.deepEqual([m.daysText([]), m.daysText([1, 2, 3, 4, 5]), m.daysText([7, 6]), m.daysText([1, 3, 5]), m.daysText([1, 2, 3, 4, 5, 6, 7])],
+    ['codziennie', 'pn–pt', 'weekend', 'pn, śr, pt', 'codziennie']);
+  assert.deepEqual([m.daysMask([]), m.daysMask([1]), m.daysMask([7]), m.daysMask([1, 2, 3, 4, 5])], [0, 1, 64, 31], 'bits as in LampTimers.dayFits');
+
+  /* Der nächste Lauf — dieselben Fälle wie LampTimersTest (in der Ortszeit dieser Maschine). */
+  const local = (y, mo, d, h, mi) => new Date(y, mo - 1, d, h, mi).getTime();
+  const sunday = local(2026, 10, 18, 4, 30);
+  const tm = (minute, days = [], enabled = true) => ({ minute, days, enabled });
+  assert.equal(m.nextRun(tm(420), sunday), local(2026, 10, 18, 7, 0), 'later today');
+  assert.equal(m.nextRun(tm(270), sunday), local(2026, 10, 19, 4, 30), 'exactly now is already past');
+  const late = local(2026, 10, 18, 22, 0);
+  assert.equal(m.nextRun(tm(420, [1]), late), local(2026, 10, 19, 7, 0), 'Monday');
+  assert.equal(m.nextRun(tm(540, [6]), late), local(2026, 10, 24, 9, 0), 'next Saturday');
+  assert.equal(m.nextRun(tm(1260, [7]), late), local(2026, 10, 25, 21, 0), 'Sunday, a week later');
+  assert.equal(m.nextRun(tm(1380, [7]), late), local(2026, 10, 18, 23, 0), 'Sunday, still today');
+  assert.equal(m.nextRun(tm(420, [], false), late), null, 'switched off: never');
+  assert.equal(m.nextRun(tm(-1), late), null);
+  assert.deepEqual([m.whenText(local(2026, 10, 18, 7, 0), sunday), m.whenText(local(2026, 10, 19, 7, 0), sunday), m.whenText(local(2026, 10, 21, 7, 5), sunday)],
+    ['dziś 07:00', 'jutro 07:00', 'śr 07:05']);
+
+  /* Gespeichert neben den Geräten, in derselben Tabelle — und auseinandergehalten. */
+  const lampNow = (await m.loadLamps(ctx)).lamps[0];
+  const morning = { name: ' Rano ', minute: 420, days: [5, 1, 1, 9], enabled: true, actions: [{ lampId: lampNow.id, signalId: on.id }, { lampId: lampNow.id, signalId: lampNow.signals[1].id }] };
+  assert.deepEqual(m.tidyTimer(morning).days, [1, 5], 'days sorted, once, only 1–7');
+  assert.deepEqual(m.readTimer(m.sealedTimerJson(morning)), m.tidyTimer(morning), 'the sealed timer reads back');
+  assert.equal(JSON.parse(m.sealedTimerJson(morning)).kind, 'timer');
+  assert.equal(JSON.parse(m.sealedJson(bedroom)).kind, 'device');
+  assert.deepEqual(m.timerProblems(morning, [lampNow]), []);
+  assert.match(m.timerProblems({ ...morning, minute: -1 }, [lampNow])[0], /godzinę/);
+  assert.match(m.timerProblems({ ...morning, actions: [] }, [lampNow])[0], /co najmniej jedną akcję/);
+  assert.match(m.timerProblems({ ...morning, actions: [{ lampId: 'gone', signalId: on.id }] }, [lampNow])[0], /Akcja 1: tego urządzenia/);
+  const savedTimer = await m.saveTimer(ctx, null, morning, 0);
+  const night = await m.saveTimer(ctx, null, { name: '', minute: 23 * 60, days: [], enabled: true, actions: [{ lampId: lampNow.id, signalId: lampNow.signals[1].id }] }, 0);
+  const both = await m.loadLamps(ctx);
+  assert.deepEqual([both.lamps.length, both.timers.map((t) => t.name || m.timerTitle(t))], [1, ['Rano', 'Timer 23:00']], 'devices and timers apart, timers by time');
+  assert.equal(m.actionsText(both.timers[0], both.lamps), 'Lampa w sypialni · nr 3: Włącz, Lampa w sypialni · nr 3: Wyłącz');
+  await assert.rejects(m.saveTimer(ctx, savedTimer.id, { ...morning, enabled: false }, 0), (e) => m.lampSaveProblem(e).includes('w międzyczasie'));
+
+  /* Der Plan für das Telefon: je Aktion die Ramki des Sygnał; Ausgeschaltetes und Gelöschtes bleibt draussen. */
+  const offTimer = { ...night, id: 'off', enabled: false };
+  const brokenLamp = { ...lampNow, id: 'broken-lamp', signals: [signal('Zły', '1EFF00')] };
+  const orphan = { ...night, id: 'orphan', name: 'Sierota', actions: [{ lampId: 'gone', signalId: 'x' }, { lampId: 'broken-lamp', signalId: 's-Zły' }] };
+  const plan = m.timerPlan([lampNow, brokenLamp], [savedTimer, night, offTimer, orphan]);
+  assert.deepEqual(plan.timers.map((t) => [t.name, t.minute, t.days, t.actions.length]), [['Rano', 420, 1 | 16, 2], ['Timer 23:00', 1380, 0, 1]]);
+  assert.deepEqual(plan.timers[0].actions[0], { label: 'Lampa w sypialni · nr 3: Włącz', frames: [{ manufacturerId: 0, data: FIRST.slice(8), durationMs: 1000, gapMs: 0 }] },
+    'the phone gets what a press sends');
+  assert.equal(plan.problems.length, 2);
+  assert.match(plan.problems[0], /Sierota, akcja 1/);
+  assert.match(plan.problems[1], /Sierota, Zły: .*zapowiada/);
+
+  /* Welches Telefon: der erste Timer schaltet ein Telefon ein, das sich nie entschieden hat — sonst bleibt es, wie es ist. */
+  const fakePhone = (decided, on = false) => {
+    const p = { calls: [], decided, on,
+      async timerStatus() { return { on: p.on, decided: p.decided, exact: true, count: 0, next: null, log: [] }; },
+      async setTimers(o) { p.calls.push(o); if (o.enable !== undefined) { p.on = o.enable; p.decided = true; } return { on: p.on, decided: p.decided, exact: true, count: o.timers.length, next: null, log: [] }; } };
+    return p;
+  };
+  let p = fakePhone(false);
+  let done = await m.syncTimers(p, [lampNow], [savedTimer], { firstTimer: true });
+  assert.deepEqual([p.calls[0].enable, done.status.on, done.status.count], [true, true, 1], 'first timer on an undecided phone: switched on');
+  p = fakePhone(true, false);
+  done = await m.syncTimers(p, [lampNow], [savedTimer], { firstTimer: true });
+  assert.deepEqual([p.calls[0].enable, done.status.on], [undefined, false], 'switched off on purpose: stays off');
+  p = fakePhone(true, true);
+  await m.syncTimers(p, [lampNow], [savedTimer], { enable: false });
+  assert.equal(p.on, false, 'the switch on the page switches it off');
+  ok('timers: time and days, the next run as on the phone, stored beside the devices, the phone\'s plan (only what can be sent), which phone runs them');
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;
   globalThis.fetch = realFetch;
