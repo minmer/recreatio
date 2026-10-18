@@ -222,14 +222,39 @@
 .lv-thing:hover > .lv-hit { stroke: color-mix(in srgb, var(--wk-accent) 14%, transparent); stroke-width: 18px; }
 .lv-thing.is-selected > .lv-hit { stroke: color-mix(in srgb, var(--wk-accent) 32%, transparent); stroke-width: 12px; }
 .lv-thing:focus-visible > .lv-hit { stroke: var(--wk-accent); stroke-width: 3px; }
+/* 2026-10-18 — was man ändern darf: ein gestrichelter Ring — nur, wo es auch Gegebenes gibt (`is-mixed`); was feststeht, nimmt die Hand nicht. */
+.lv-mark { fill: none; stroke: none; pointer-events: none; }
+.lv.is-mixed .lv-thing.is-free > .lv-mark { stroke: var(--wk-accent); stroke-width: 1.5px; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; opacity: 0.85; }
+.lv.is-mixed .lv-thing:not(.is-free) { cursor: default; }
 /* Der Grund eines Rahmens mit Kamera: die Seite rollt darüber — hineingezoomt verschiebt ein Finger den Ausschnitt. */
 .lv-cam { fill: transparent; pointer-events: all; touch-action: manipulation; }
 .lv.is-zoomed .lv-cam { touch-action: none; cursor: move; }
 
-/* Die Werkstatt: Werkzeuge in einer Reihe, darunter das gewählte Ding. */
-.lv-world-panel { display: grid; gap: var(--wk-space-2); min-width: 0; }
-.lv-tools, .lv-add, .lv-thing-actions, .lv-cam-tools { display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-2); align-items: center; }
-.lv-tools .wk-btn, .lv-add .wk-btn, .lv-thing-actions .wk-btn { min-height: var(--wk-control-h); }
+/* Die Werkstatt: gleich unter dem Bild, was gegeben ist und was man ändert, dann die Werkzeuge in einer Reihe. */
+.lv-world-panel, .lv-world-more { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.lv-add, .lv-thing-actions { display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-2); align-items: center; }
+.lv-add .wk-btn, .lv-thing-actions .wk-btn { min-height: var(--wk-control-h); }
+/* 2026-10-18 — „Dane" (gegeben, gestrichelt, grau) und „Ustawiasz" (zu ändern, im Akzent): man sieht sofort, was was ist. */
+.lv-group-label { display: inline-flex; align-items: center; gap: var(--wk-space-1); color: var(--wk-muted); font-size: var(--wk-text-sm); font-weight: 600; }
+.lv-group-label .ui-icon, .lv-badge .ui-icon, .lv-readout.is-given .ui-icon { width: 0.9rem; height: 0.9rem; }
+.lv-given { display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-2); align-items: center; }
+.lv-chip { display: inline-flex; align-items: center; min-height: 2rem; padding: 0 var(--wk-space-2); border: 1px dashed var(--wk-line); border-radius: var(--wk-radius-pill); background: color-mix(in srgb, var(--wk-muted) 10%, transparent); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; }
+.lv-chip:hover { border-color: var(--wk-muted); }
+.lv-chip[aria-pressed="true"] { border-style: solid; border-color: var(--wk-ink); }
+.lv-rows { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid color-mix(in srgb, var(--wk-accent) 45%, var(--wk-line)); border-radius: var(--wk-radius-sm); background: color-mix(in srgb, var(--wk-accent) 7%, transparent); }
+.lv-rows .lv-group-label { color: var(--wk-accent); }
+.lv-row-thing { color: var(--wk-ink); font-weight: 600; }
+.lv-rows .lv-prop.is-selected .lv-row-thing { color: var(--wk-accent); }
+.lv-badge { display: inline-flex; align-items: center; gap: var(--wk-space-1); color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.lv-inspector.is-given { border-style: dashed; }
+.lv-readout.is-given .lv-name { display: inline-flex; align-items: center; gap: var(--wk-space-1); }
+/* Die Werkzeuge: prüfen und eine neue Aufgabe als Wort, zurück, vor, von vorn und die Kamera als Zeichen — eine Reihe, die umbricht. */
+.lv-actions { display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-2); align-items: center; }
+.lv-tool-group { display: inline-flex; gap: var(--wk-space-1); }
+.lv-tool { display: inline-grid; place-items: center; width: var(--wk-control-h); height: var(--wk-control-h); padding: 0; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: transparent; color: var(--wk-ink); cursor: pointer; }
+.lv-tool:hover:not(:disabled) { border-color: var(--wk-accent); }
+.lv-tool:disabled { opacity: 0.4; cursor: default; }
+.lv-new { display: inline-flex; align-items: center; gap: var(--wk-space-1); }
 .lv-hint { margin: 0; color: var(--wk-muted); font-size: var(--wk-text-sm); }
 .lv-json { display: grid; gap: var(--wk-space-2); justify-items: start; }
 .lv-json textarea { width: 100%; box-sizing: border-box; font-family: var(--wk-mono); font-size: var(--wk-text-sm); }
@@ -256,6 +281,20 @@
 /* Schmal (ein Telefon, ein schmaler Platz): jeder Schieber und jede Wahl eine ganze Zeile, die Knöpfe darunter. */
 @container (max-width: 30rem) {
   .lv-slider, .lv-choice { flex-basis: 100%; }
+}
+
+/*
+ * 2026-10-18 — AUF DER BÜHNE ROLLT DER BAUSTEIN, DAS BILD BLEIBT OBEN: Schieber
+ * und Bild sind zugleich zu sehen, auch wenn die Bedienung länger ist als der
+ * Platz (ein Telefon hochkant).
+ */
+.pz-el .lv-in:has(> .lv-panel) > .lv-stage { position: sticky; top: 0; z-index: 1; background: var(--pz-paper); }
+
+/* Quer auf dem Telefon (wenig Höhe): Bild und Bedienung nebeneinander — untereinander sähe man nie beide. */
+@media (orientation: landscape) and (max-height: 33rem) {
+  @container (min-width: 22rem) {
+    .lv-in:has(> .lv-panel) { grid-template-columns: minmax(0, 1.2fr) minmax(10rem, 1fr); align-items: start; }
+  }
 }
 
 /* Daneben, wo das Bild selbst breit ist (nicht das Fenster). */

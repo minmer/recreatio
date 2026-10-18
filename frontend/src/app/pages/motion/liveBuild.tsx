@@ -351,9 +351,17 @@ export class Builder {
         pen.attr(el, 'cx', round(X)); pen.attr(el, 'cy', round(Y));
         pen.attr(el, 'r', round(Math.max(0.5, toNum(env.hit ?? 0) || 0.5)));
       });
+      /* 2026-10-18 — und, wenn die Art es nicht selbst zeigt, ein gestrichelter Ring: daran darf man etwas ändern (nur wo es auch Gegebenes gibt — CSS). */
+      const mark = t.kind.spec.mark ? this.add(['x', 'y', 'hit'], scope, (el, env) => {
+        const pen = penOf(el);
+        const [X, Y] = place.at(env, toNum(env.x ?? 0), toNum(env.y ?? 0));
+        pen.attr(el, 'cx', round(X)); pen.attr(el, 'cy', round(Y));
+        pen.attr(el, 'r', round(Math.max(4, toNum(env.hit ?? 0)) + 9));
+      }) : null;
       return (
-        <g key={key} className="lv-thing" data-thing={t.id} data-pz-hold="" tabIndex={0} role="button" aria-label={`${t.kind.spec.label} ${t.id}`}>
+        <g key={key} className="lv-thing" data-thing={t.id} data-pz-hold="" tabIndex={0} role="button" aria-label={this.program.world?.title(t) ?? `${t.kind.spec.label} ${t.id}`}>
           {kids}
+          {mark !== null && <circle className="lv-mark" data-k={mark} />}
           <circle className="lv-hit" data-k={ring} />
         </g>
       );

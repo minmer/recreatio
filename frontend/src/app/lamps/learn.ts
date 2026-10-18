@@ -145,7 +145,8 @@ export class Capture {
       address: a.address,
       name: a.name,
       count: a.count,
-      strength: Math.round(a.top.reduce((s, r) => s + r, 0) / Math.max(1, a.top.length)),
+      /* Fehlt einem Absender das dritte Paket, zählt es als −100 dBm: ein einzelnes lautes Paket ist kein Pilot. */
+      strength: Math.round([...a.top, -100, -100, -100].slice(0, 3).reduce((s, r) => s + r, 0) / 3),
       peakRssi: a.peakRssi,
       lastRssi: a.lastRssi,
       firstAt: a.firstAt,

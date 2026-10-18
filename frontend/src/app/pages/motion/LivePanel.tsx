@@ -1,17 +1,14 @@
 /**
  * 2026-10-17 — DIE BEDIENUNG UNTER (ODER NEBEN) DEM BILD ZUM ANFASSEN:
  * Schieber, Zahlen, Schalter, Wahl, Knöpfe, Anzeigen — und, 2026-10-18, die
- * Werkstatt einer Welt: Cofnij/Ponów, Od nowa, Hinzufügen, und für das
- * gewählte Ding, was man an ihm einstellen darf, seine Anzeigen, Anhängen,
- * Kopieren, Entfernen.
+ * Werkstatt einer Welt (seit 2026-10-18 in `LiveWorldPanel.tsx`; hier, was
+ * sie mit der übrigen Bedienung teilt).
  *
  * React baut die Elemente (neu, wenn ein anderes Ding gewählt wird oder sich
  * der Bau ändert); die Werte darin schreibt die Schleife (`LiveDrawing.tsx`),
  * über `data-c`, `data-prop`, `data-ro` und `data-w` — ein laufendes Bild
  * rendert React nicht sechzigmal in der Sekunde neu.
  */
-
-import { useState } from 'react';
 
 import { fmt, toNum, truth } from './expr';
 import type { Program } from './liveRun';
@@ -128,7 +125,7 @@ export function ControlView({ c, i, program, onSet, onPress, locked }: {
 
 /** Was man in der Werkstatt tun kann — die Schleife führt es aus. */
 export type WorldAct =
-  | { readonly type: 'undo' | 'redo' | 'reset' | 'toggle' | 'predict' | 'endEdit' | 'save' | 'load' }
+  | { readonly type: 'undo' | 'redo' | 'reset' | 'toggle' | 'predict' | 'task' | 'endEdit' | 'save' | 'load' }
   | { readonly type: 'add'; readonly kind: string; readonly parent: string | null }
   | { readonly type: 'remove' | 'copy'; readonly id: string }
   | { readonly type: 'select'; readonly id: string | null }
@@ -150,145 +147,4 @@ export function predictLabel(program: Program): string {
 /** Ein Bau aus Text (JSON) — `null`: kein JSON, oder keine Dinge darin. */
 export function shotOfText(text: string): WorldShot | null {
   try { return readShot(JSON.parse(text) as unknown); } catch { return null; }
-}
-
-export function WorldPanel({ program, selected, version, locked, cameras, predict, onAct }: {
-  program: Program;
-  selected: string | null;
-  /** Ändert sich mit dem Bau — dann wird neu gebaut (was man anhängen darf, ändert sich mit). */
-  version: number;
-  locked: boolean;
-  cameras: boolean;
-  /** Der Knopf zum Vermuten steht hier (nicht, wenn draussen geprüft wird). */
-  predict: boolean;
-  onAct: (act: WorldAct) => void;
-}) {
-  const [text, setText] = useState<string | null>(null);
-  const [textBad, setTextBad] = useState(false);
-  const world = program.world;
-  if (world === null) return null;
-  void version;
-  const t = selected === null ? undefined : world.get(selected);
-  const roots = world.addable(null);
-  const label = (kind: string) => world.kinds.get(kind)?.spec.label ?? kind;
-  const props = t === undefined ? [] : world.editable(t);
-  const readouts = t?.kind.spec.readouts ?? [];
-  const children = t === undefined ? [] : world.addable(t);
-  const camTools = cameras && (
-    <span className="lv-cam-tools" role="group" aria-label="Widok">
-      <button type="button" className="wk-btn wk-btn-line" aria-label="Przybliż" onClick={() => onAct({ type: 'cam', cmd: 'in' })}>+</button>
-      <button type="button" className="wk-btn wk-btn-line" aria-label="Oddal" onClick={() => onAct({ type: 'cam', cmd: 'out' })}>−</button>
-      <button type="button" className="wk-btn wk-btn-line" data-w="fit" onClick={() => onAct({ type: 'cam', cmd: 'fit' })}>Dopasuj</button>
-    </span>
-  );
-  /* Nur ansehen (eine Antwort, die nachgespielt wird): nichts zu bauen — nur der Blick. */
-  if (locked) return cameras ? <div className="lv-world-panel"><div className="lv-tools">{camTools}</div></div> : null;
-  return (
-    <div className="lv-world-panel">
-      {predict && program.predict !== null && (
-        <button type="button" className={`wk-btn lv-predict${program.held ? '' : ' wk-btn-line'}`} data-w="predict" aria-pressed={program.held}
-          onClick={() => onAct({ type: 'predict' })}>
-          {predictLabel(program)}
-        </button>
-      )}
-      <div className="lv-tools" role="toolbar" aria-label="Warsztat">
-        <button type="button" className="wk-btn wk-btn-line" data-w="undo" title="Cofnij (Ctrl+Z)" onClick={() => onAct({ type: 'undo' })}>↶ Cofnij</button>
-        <button type="button" className="wk-btn wk-btn-line" data-w="redo" title="Ponów (Ctrl+Y)" onClick={() => onAct({ type: 'redo' })}>↷ Ponów</button>
-        <button type="button" className="wk-btn wk-btn-line" data-w="reset" onClick={() => onAct({ type: 'reset' })}>Od nowa</button>
-        {/* Wer vermuten soll, hält die Welt mit diesem Knopf an und lässt sie los — ein eigenes „Pauza" bräuchte es dann nicht. */}
-        {program.sim !== null && program.predict === null && (
-          <button type="button" className="wk-btn wk-btn-line" data-w="toggle" onClick={() => onAct({ type: 'toggle' })}>Pauza</button>
-        )}
-        {camTools}
-        {world.spec.save && (
-          <>
-            <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'save' })}>Zapisz</button>
-            <button type="button" className="wk-btn wk-btn-line" data-w="load" onClick={() => onAct({ type: 'load' })}>Wczytaj</button>
-            <button type="button" className="wk-btn wk-btn-line" aria-expanded={text !== null}
-              onClick={() => { setTextBad(false); setText(text === null ? JSON.stringify(program.worldSnapshot(), null, 1) : null); }}>JSON</button>
-          </>
-        )}
-      </div>
-      {text !== null && (
-        <div className="lv-json">
-          <textarea value={text} rows={6} spellCheck={false} aria-label="Układ jako JSON" onChange={(e) => { setText(e.currentTarget.value); setTextBad(false); }} />
-          <button type="button" className="wk-btn" onClick={() => {
-            const shot = shotOfText(text);
-            if (shot === null) { setTextBad(true); return; }
-            onAct({ type: 'import', shot });
-            setText(null);
-          }}>Wczytaj ten układ</button>
-          {textBad && <p className="wk-error">To nie jest układ (JSON z listą „things").</p>}
-        </div>
-      )}
-      {roots.length > 0 && (
-        <div className="lv-add" role="group" aria-label="Dodaj">
-          {roots.map((k) => (
-            <button key={k} type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'add', kind: k, parent: null })}>+ {label(k)}</button>
-          ))}
-        </div>
-      )}
-      {t === undefined
-        ? world.spec.hint !== '' && <p className="lv-hint">{world.spec.hint}</p>
-        : (
-          <section className="lv-inspector" aria-label={`${t.kind.spec.label} ${t.id}`}>
-            <header className="lv-inspector-head">
-              <strong>{t.kind.spec.label}</strong>
-              <span className="lv-id">{t.id}</span>
-              <button type="button" className="lv-close" aria-label="Zamknij" onClick={() => onAct({ type: 'select', id: null })}>×</button>
-            </header>
-            {props.map((p) => {
-              const name = p.label || p.name;
-              const edit = (value: number) => onAct({ type: 'edit', id: t.id, prop: p.name, value });
-              const end = () => onAct({ type: 'endEdit' });
-              const nudge = (dir: number) => {
-                const r = propRange(p, world.bounds(t, p.name), toNum(t.env[p.name]));
-                edit(toNum(t.env[p.name]) + dir * r.step);
-                onAct({ type: 'endEdit' });
-              };
-              return (
-                <div key={p.name} className="lv-control lv-prop" data-prop={p.name}>
-                  {/* Oben der Name und die Zahl zum Eintippen, darunter − Schieber + — so passt es auch neben ein Bild. */}
-                  <label className="lv-prop-head">
-                    <span className="lv-name">{name}</span>
-                    <span className="lv-prop-num-row">
-                      <input type="number" inputMode="decimal" className="lv-prop-num"
-                        onChange={(e) => { const n = toNum(e.currentTarget.value); if (Number.isFinite(n)) edit(n); }}
-                        onBlur={end} onKeyDown={(e) => { if (e.key === 'Enter') end(); }} />
-                      {p.unit !== '' && <span className="lv-unit">{p.unit}</span>}
-                    </span>
-                  </label>
-                  <span className="lv-prop-row">
-                    <button type="button" className="lv-step" aria-label={`${name}: mniej`} onClick={() => nudge(-1)}>−</button>
-                    {/* Ein Zug am Schieber (bis zum Loslassen) ist EINE Änderung — React meldet `onChange` schon bei jedem Schritt. */}
-                    <input type="range" aria-label={name}
-                      onInput={(e) => edit(e.currentTarget.valueAsNumber)} onPointerUp={end} onKeyUp={end} onBlur={end} />
-                    <button type="button" className="lv-step" aria-label={`${name}: więcej`} onClick={() => nudge(1)}>+</button>
-                  </span>
-                </div>
-              );
-            })}
-            {readouts.length > 0 && (
-              <div className="lv-readouts">
-                {readouts.map((r, i) => (
-                  <div key={i} className="lv-control lv-readout" data-ro={i}>
-                    <span className="lv-name">{r.label}</span>
-                    <output className="lv-value" />
-                  </div>
-                ))}
-              </div>
-            )}
-            {(children.length > 0 || world.canCopy(t) || world.canRemove(t)) && (
-              <div className="lv-thing-actions">
-                {children.map((k) => (
-                  <button key={k} type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'add', kind: k, parent: t.id })}>+ {label(k)}</button>
-                ))}
-                {world.canCopy(t) && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'copy', id: t.id })}>Powiel</button>}
-                {world.canRemove(t) && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'remove', id: t.id })}>Usuń</button>}
-              </div>
-            )}
-          </section>
-        )}
-    </div>
-  );
 }

@@ -26,6 +26,11 @@
  *
  * <b>Weniger Bewegung</b> (System): nichts läuft von selbst; was man selbst
  * startet, läuft.
+ *
+ * <b>2026-10-18 — auf dem Telefon</b>: was man anfasst, steht gleich unter dem
+ * Bild (`LiveWorldPanel.tsx`), und auf einer Bühne bleibt das Bild oben
+ * stehen, während die Bedienung darunter rollt (quer: daneben). Die Werte der
+ * Bedienung schreibt `liveSync.ts`.
  */
 
 import { useContext, useEffect, useId, useLayoutEffect, useMemo, useReducer, useRef, type CSSProperties } from 'react';
@@ -37,7 +42,9 @@ import { useMotionPlan } from './DrawingView';
 import { Program, type Said } from './liveRun';
 import type { WorldShot } from './liveThings';
 import { buildDrawing, type Camera, type Inst, type View } from './liveBuild';
-import { ControlView, digitsOf, predictLabel, propRange, rangeOf, shotOfText, withUnit, WorldPanel, type WorldAct } from './LivePanel';
+import { ControlView, digitsOf, predictLabel, rangeOf, shotOfText, withUnit, type WorldAct } from './LivePanel';
+import { WorldMain, WorldMore } from './LiveWorldPanel';
+import { PanelSync } from './liveSync';
 import { ShowClock } from '../presentation/showContext';
 
 /** Ein Zufall aus einem Samen (mulberry32) — dasselbe Bild für denselben Samen. */
@@ -121,7 +128,7 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
 
   const engine = useRef<{
     wake: () => void; visible: (on: boolean) => void; input: (name: string, value: number) => void; press: (i: number) => void;
-    act: (a: WorldAct) => void; refresh: () => void; predict: () => void;
+    act: (a: WorldAct) => void; refresh: () => void; predict: () => void; newTask: () => void;
   } | null>(null);
 
   useLayoutEffect(() => {
@@ -132,11 +139,8 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
     const env = program.env;
     const world = program.world;
     const shop = program.workshop;
-    const readouts = program.controlValues;
     const buttons = program.controlSets;
-    const shows = program.controlShows;
-    const ctrlEls = new Map<number, HTMLElement>();
-    panel.current?.querySelectorAll<HTMLElement>('[data-c]').forEach((el) => ctrlEls.set(Number(el.dataset.c), el));
+    const sync = new PanelSync(program, panel.current, box.current, root, locked);
 
     const writeInst = (inst: Inst) => {
       const el = els.get(inst.k);
@@ -152,71 +156,8 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
       if (had || e === env) { e.i = was[0]; e.n = was[1]; } else { delete e.i; delete e.n; }
     };
 
-    let lastStatus: string | null = null;
     let lastSaid: Said | null = null;
     let lastGoal = false;
-
-    const syncControls = (changed: ReadonlySet<string> | null) => {
-      const statusChanged = program.status !== lastStatus;
-      lastStatus = program.status;
-      program.controls.forEach((c, i) => {
-        const el = ctrlEls.get(i);
-        if (el === undefined) return;
-        const show = shows[i];
-        if (show !== null && (changed === null || show.reads.some((r) => changed.has(r)))) el.hidden = !truth(show.run(env));
-        if ('var' in c && changed !== null && !changed.has(c.var) && c.type !== 'choice') return;
-        switch (c.type) {
-          case 'slider': {
-            const spec = program.varOf(c.var);
-            const value = program.value(c.var);
-            const input = el.querySelector('input');
-            if (input !== null && input.valueAsNumber !== value && document.activeElement !== input) input.value = String(value);
-            const out = el.querySelector('output');
-            const text = withUnit(value, digitsOf(spec?.step ?? null, c.digits), c.unit || spec?.unit || '');
-            if (out !== null && out.textContent !== text) out.textContent = text;
-            if (input !== null) input.setAttribute('aria-valuetext', text);
-            return;
-          }
-          case 'number': {
-            const input = el.querySelector('input');
-            const value = program.value(c.var);
-            if (input !== null && document.activeElement !== input && toNum(input.value) !== value) input.value = String(value);
-            return;
-          }
-          case 'toggle': {
-            const input = el.querySelector('input');
-            if (input !== null) input.checked = truth(program.value(c.var));
-            return;
-          }
-          case 'choice': {
-            if (changed !== null && !changed.has(c.var)) return;
-            const value = program.value(c.var);
-            el.querySelectorAll('button').forEach((b, n) => b.setAttribute('aria-pressed', String(c.options[n]?.value === value)));
-            return;
-          }
-          case 'button': {
-            if (!statusChanged && changed !== null) return;
-            const running = program.status === 'running' || program.sleeping;
-            if (c.do === 'toggle') {
-              el.textContent = running ? 'Pauza' : (program.status === 'paused' ? 'Dalej' : c.label);
-              el.setAttribute('aria-pressed', String(running));
-            }
-            if (c.do === 'run') el.toggleAttribute('data-on', running);
-            return;
-          }
-          case 'readout': {
-            const e = readouts[i];
-            if (e === null) return;
-            if (changed !== null && !e.reads.some((r) => changed.has(r))) return;
-            const raw = e.run(env);
-            const text = typeof raw === 'string' ? raw : withUnit(raw, c.digits ?? 2, c.unit);
-            const out = el.querySelector('output');
-            if (out !== null && out.textContent !== text) out.textContent = text;
-            return;
-          }
-        }
-      });
-    };
 
     const singles = [...root.querySelectorAll<SVGGElement>('[data-var]')];
     const syncHandles = (changed: ReadonlySet<string> | null) => {
@@ -232,70 +173,13 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
       });
     };
 
-    /* Erst vermuten, dann sehen: der Knopf heisst, was er jetzt tut — „Sprawdź", „Popraw", „Przewiduj". */
-    const syncPredict = () => {
-      const label = predictLabel(program);
-      panel.current?.querySelectorAll<HTMLButtonElement>('[data-w="predict"]').forEach((b) => {
-        if (b.textContent !== label) b.textContent = label;
-        b.classList.toggle('wk-btn-line', !program.held);
-        b.setAttribute('aria-pressed', String(program.held));
-      });
-      box.current?.classList.toggle('is-held', program.held);
-    };
-
-    /* Die Werkstatt: Cofnij/Ponów, Start/Pauza, und die Werte des gewählten Dings. */
     let shownVersion = world?.version ?? 0;
     let shownSelected = world?.selected ?? null;
-    const syncWorld = (changed: ReadonlySet<string> | null) => {
-      const p = panel.current;
-      if (world === null || p === null) return;
-      p.querySelectorAll<HTMLButtonElement>('[data-w="undo"]').forEach((b) => { b.disabled = locked || !world.canUndo(); });
-      p.querySelectorAll<HTMLButtonElement>('[data-w="redo"]').forEach((b) => { b.disabled = locked || !world.canRedo(); });
-      p.querySelectorAll<HTMLButtonElement>('[data-w="toggle"]').forEach((b) => {
-        const text = program.status === 'running' || program.sleeping ? 'Pauza' : 'Start';
-        if (b.textContent !== text) b.textContent = text;
-      });
-      const t = world.selected === null ? undefined : world.get(world.selected);
-      /* Die Werte des gewählten Dings — nach jeder Änderung (eines Werts der Welt oder des Bildes, von dem eine Grenze abhängen kann). */
-      if (t === undefined || (changed !== null && changed.size === 0)) return;
-      p.querySelectorAll<HTMLElement>('[data-prop]').forEach((el) => {
-        const name = el.dataset.prop ?? '';
-        const spec = t.kind.props.get(name)?.spec;
-        if (spec === undefined) return;
-        const value = toNum(t.env[name]);
-        const r = propRange(spec, world.bounds(t, name), value);
-        const text = withUnit(value, digitsOf(spec.step, null), spec.unit);
-        const out = el.querySelector('output');
-        if (out !== null && out.textContent !== text) out.textContent = text;
-        el.querySelectorAll<HTMLInputElement>('input').forEach((input) => {
-          if (input.min !== String(r.min)) input.min = String(r.min);
-          if (input.max !== String(r.max)) input.max = String(r.max);
-          if (input.step !== String(r.step)) input.step = String(r.step);
-          if (document.activeElement !== input && input.valueAsNumber !== value) input.value = String(value);
-          if (input.type === 'range') input.setAttribute('aria-valuetext', text);
-        });
-      });
-      p.querySelectorAll<HTMLElement>('[data-ro]').forEach((el) => {
-        const i = Number(el.dataset.ro);
-        const spec = t.kind.spec.readouts[i];
-        if (spec === undefined) return;
-        el.hidden = !world.readoutShown(t, i);
-        const raw = world.readout(t, i);
-        const text = typeof raw === 'string' ? raw : withUnit(raw, spec.digits ?? 2, spec.unit);
-        const out = el.querySelector('output');
-        if (out !== null && out.textContent !== text) out.textContent = text;
-      });
-    };
-
-    const syncSelection = () => {
-      const now = world?.selected ?? null;
-      root.querySelectorAll<SVGGElement>('[data-thing]').forEach((g) => g.classList.toggle('is-selected', g.dataset.thing === now));
-    };
 
     /** Hat sich der Bau oder die Wahl geändert? Dann baut React neu (das Gerüst, die Werkstatt). */
     const syncShape = () => {
       if (world === null) return;
-      if (world.selected !== shownSelected) { shownSelected = world.selected; syncSelection(); force(); }
+      if (world.selected !== shownSelected) { shownSelected = world.selected; sync.marks(); force(); }
       if (world.version !== shownVersion) { shownVersion = world.version; force(); }
     };
 
@@ -350,10 +234,11 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
           }
         }
       }
-      syncControls(changed);
+      sync.controls(changed);
       syncHandles(changed);
-      syncWorld(changed);
-      if (changed.has('held')) syncPredict();
+      sync.world(changed);
+      if (changed.has('held')) sync.predict();
+      if (changed.has('#world')) sync.marks();
       syncSaid();
     };
 
@@ -361,11 +246,11 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
     program.settle();
     for (const inst of built.insts) writeInst(inst);
     program.takeChanged();
-    syncControls(null);
+    sync.controls(null);
     syncHandles(null);
-    syncWorld(null);
-    syncPredict();
-    syncSelection();
+    sync.world(null);
+    sync.predict();
+    sync.marks();
     syncSaid();
     onProgram?.(program);
 
@@ -497,6 +382,8 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
         case 'reset': shop?.reset(); break;
         case 'toggle': program.act('toggle'); break;
         case 'predict': predictAct(); return;
+        /* Eine neue Aufgabe: andere Zahlen, vielleicht andere Längen — der Ausschnitt passt sich an. */
+        case 'task': if (shop?.newTask() === true) camera('fit'); break;
         case 'endEdit': shop?.endEdit(); return;
         case 'add': shop?.addThing(a.kind, a.parent === null ? null : world.get(a.parent) ?? null); break;
         case 'remove': { const t = world.get(a.id); if (t !== undefined) shop?.removeThing(t); break; }
@@ -821,8 +708,14 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
       input,
       press,
       act,
-      refresh: () => { syncWorld(null); syncSelection(); },
-      predict: predictAct
+      refresh: () => { sync.world(null); sync.marks(); },
+      predict: predictAct,
+      newTask: () => {
+        if (!program.newTask()) return;
+        camera('fit');
+        paint();
+        wake();
+      }
     };
     if (start && (program.held || (program.status === 'ready' && program.sim !== null))) program.release();
     wake();
@@ -855,6 +748,8 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
   const sized = (drawing.max === null ? undefined : { '--an-max': `${drawing.max}rem` }) as CSSProperties | undefined;
   /* Der Knopf zum Vermuten: in der Werkstatt einer Welt bei den Werkzeugen, sonst vor der Bedienung — nicht, wenn draussen geprüft wird. */
   const predictHere = program.predict !== null && !checkOutside && !locked;
+  /* „Nowe zadanie" — nicht, wenn draussen geprüft wird (Cogita hält den Zufall eines Versuchs fest) oder nur angesehen. */
+  const newTask = program.redraws() && !checkOutside && !locked;
   const showPanel = !still && (program.controls.length > 0 || program.world !== null || program.predict !== null || program.hasGoal()
     || drawing.live?.rules.some((r) => r.say !== '') === true || drawing.live?.sim?.events.some((e) => e.say !== '') === true);
 
@@ -868,12 +763,21 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
         </svg>
         {showPanel && (
           <div ref={panel} className="lv-panel" data-pz-hold="">
-            {(program.controls.length > 0 || (predictHere && program.world === null)) && (
+            {/* Eine Welt: was gegeben ist, was man ändert, die Werkzeuge — gleich unter dem Bild; die Meldung und die Schalter danach. */}
+            {program.world !== null && (
+              <WorldMain program={program} selected={selected} version={worldVersion} locked={locked} cameras={built.cameras.length > 0}
+                predict={predictHere} onAct={(a) => engine.current?.act(a)} />
+            )}
+            {program.world === null && <p ref={say} className="lv-say" role="status" aria-live="polite" hidden />}
+            {(program.controls.length > 0 || (program.world === null && (predictHere || newTask))) && (
               <div className="lv-controls">
                 {predictHere && program.world === null && (
                   <button type="button" className={`wk-btn lv-control lv-predict${program.held ? '' : ' wk-btn-line'}`} data-w="predict" onClick={() => engine.current?.predict()}>
                     {predictLabel(program)}
                   </button>
+                )}
+                {newTask && program.world === null && (
+                  <button type="button" className="wk-btn wk-btn-line lv-control lv-new" data-w="task" onClick={() => engine.current?.newTask()}>{program.task?.again}</button>
                 )}
                 {program.controls.map((c, i) => (
                   <ControlView key={i} c={c} i={i} program={program} locked={locked}
@@ -881,11 +785,8 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
                 ))}
               </div>
             )}
-            <p ref={say} className="lv-say" role="status" aria-live="polite" hidden />
-            {program.world !== null && (
-              <WorldPanel program={program} selected={selected} version={worldVersion} locked={locked} cameras={built.cameras.length > 0}
-                predict={predictHere} onAct={(a) => engine.current?.act(a)} />
-            )}
+            {program.world !== null && <p ref={say} className="lv-say" role="status" aria-live="polite" hidden />}
+            {program.world !== null && <WorldMore program={program} version={worldVersion} locked={locked} onAct={(a) => engine.current?.act(a)} />}
           </div>
         )}
       </div>

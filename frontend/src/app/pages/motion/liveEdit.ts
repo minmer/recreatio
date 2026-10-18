@@ -181,6 +181,12 @@ export class Workshop {
     this.program.settle();
   }
 
+  /** 2026-10-18 — „Nowe zadanie": eine andere Aufgabe derselben Art (das Programm zieht sie) — wie „Od nowa", doch ohne Rückweg. */
+  newTask(): boolean {
+    this.editing = null;
+    return this.program.newTask();
+  }
+
   /** Den Bau aus einem Gespeicherten — ohne Prüfung (die Werkstatt), als eine Änderung. */
   load(shot: WorldShot): void {
     this.editing = null;
