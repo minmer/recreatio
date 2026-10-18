@@ -156,7 +156,7 @@
    dunklen Bühne einer Präsentation dieselben Regeln.
    ============================================================================= */
 
-.lv { width: 100%; max-width: var(--an-max, none); margin-inline: auto; min-width: 0; container-type: inline-size; }
+.lv { width: 100%; max-width: var(--an-max, none); margin-inline: auto; min-width: 0; container: lv / inline-size; }
 .lv-in { display: grid; gap: var(--wk-space-3); min-width: 0; }
 .lv-stage { display: block; width: 100%; height: auto; overflow: visible; }
 /* Ein Text mit Linie (`stroke`) bekommt sie als Hof hinter der Schrift — so bleibt eine Beschriftung über einer Stange lesbar. */
@@ -187,7 +187,7 @@
 .lv-axes .lv-label.is-title { fill: var(--wk-ink); font-weight: 600; }
 
 /* Die Bedienung: Schieber in einer Reihe, die umbricht — auf dem Telefon einer je Zeile. */
-.lv-panel { display: grid; gap: var(--wk-space-2); min-width: 0; align-content: start; }
+.lv-panel { display: grid; gap: var(--wk-space-2); min-width: 0; align-content: start; container: lvpanel / inline-size; }
 .lv-controls { display: flex; flex-wrap: wrap; gap: var(--wk-space-2) var(--wk-space-4); align-items: end; }
 .lv-control { min-width: 0; }
 .lv-slider { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 0 var(--wk-space-2); flex: 1 1 11rem; }
@@ -264,8 +264,19 @@
 .lv-close { margin-left: auto; min-width: var(--wk-control-h); min-height: var(--wk-control-h); border: 0; background: transparent; color: var(--wk-muted); font: inherit; font-size: var(--wk-text-lg); cursor: pointer; }
 .lv-close:hover { color: var(--wk-ink); }
 .lv-prop { display: grid; gap: var(--wk-space-1); min-width: 0; }
-.lv-prop-head { display: flex; justify-content: space-between; align-items: center; gap: var(--wk-space-2); min-width: 0; }
-.lv-prop-num-row { display: inline-flex; align-items: center; gap: var(--wk-space-1); }
+.lv-prop-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--wk-space-2); min-width: 0; }
+.lv-prop-num-row { display: inline-flex; align-items: center; gap: var(--wk-space-1); flex: none; }
+/* Schmal (ein Telefon quer, neben dem Bild): Wert oben, − Schieber + darunter — die Zahl zum Eintippen erst, wo Platz ist. */
+@container lvpanel (max-width: 22rem) {
+  .lv-prop-row .lv-prop-num-row { display: none; }
+}
+/* Ganz schmal: kleinere − und +, damit der Schieber selbst Platz hat. */
+@container lvpanel (max-width: 14rem) {
+  .lv-prop-row .lv-step { min-width: var(--wk-control-h-sm); min-height: var(--wk-control-h-sm); }
+}
+@container lvpanel (min-width: 22.01rem) {
+  .lv-prop-head > .lv-value { display: none; }
+}
 .lv-prop-row { display: flex; gap: var(--wk-space-1); align-items: center; min-width: 0; }
 .lv-prop-row input[type="range"] { flex: 1 1 auto; min-width: 0; margin: 0; min-height: var(--wk-control-h); accent-color: var(--wk-accent); }
 .lv-step { flex: none; min-width: var(--wk-control-h); min-height: var(--wk-control-h); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: transparent; color: var(--wk-ink); font: inherit; cursor: pointer; }
@@ -279,7 +290,7 @@
 .cg-verdict .cg-live-replay { justify-self: stretch; min-width: 0; }
 
 /* Schmal (ein Telefon, ein schmaler Platz): jeder Schieber und jede Wahl eine ganze Zeile, die Knöpfe darunter. */
-@container (max-width: 30rem) {
+@container lv (max-width: 30rem) {
   .lv-slider, .lv-choice { flex-basis: 100%; }
 }
 
@@ -292,13 +303,13 @@
 
 /* Quer auf dem Telefon (wenig Höhe): Bild und Bedienung nebeneinander — untereinander sähe man nie beide. */
 @media (orientation: landscape) and (max-height: 33rem) {
-  @container (min-width: 22rem) {
-    .lv-in:has(> .lv-panel) { grid-template-columns: minmax(0, 1.2fr) minmax(10rem, 1fr); align-items: start; }
+  @container lv (min-width: 22rem) {
+    .lv-in:has(> .lv-panel) { grid-template-columns: minmax(0, 1.15fr) minmax(10.5rem, 1fr); align-items: start; }
   }
 }
 
 /* Daneben, wo das Bild selbst breit ist (nicht das Fenster). */
-@container (min-width: 40rem) {
+@container lv (min-width: 40rem) {
   /* Oben ausgerichtet: wächst die Werkstatt (ein Ding gewählt), bleibt das Bild, wo es ist. */
   .lv.is-side > .lv-in { grid-template-columns: minmax(0, 2fr) minmax(13rem, 1fr); align-items: start; }
   .lv.is-side .lv-controls { flex-direction: column; align-items: stretch; }

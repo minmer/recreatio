@@ -577,6 +577,8 @@ export interface PropSpec {
   readonly apart: number | null;
   readonly new: string | null;
   readonly when: string | null;
+  /** 2026-10-18 — nicht unter den Daten eines gewählten Dings (`quiet`: eine Leine, ein Ständer — sie ändern nur das Bild). */
+  readonly quiet: boolean;
 }
 
 /** Eine Anzeige am gewählten Ding: „Moment: 12,0 kg·m". */
@@ -685,7 +687,8 @@ function readProp(value: unknown): PropSpec | null {
     label: line(one.label, LIVE_LIMITS.label),
     apart: apart !== null && apart > 0 ? apart : null,
     new: exprOf(one.new),
-    when: exprOf(one.when)
+    when: exprOf(one.when),
+    quiet: one.quiet === true
   };
 }
 

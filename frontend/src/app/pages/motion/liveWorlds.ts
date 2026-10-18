@@ -40,8 +40,8 @@ const BEAM = {
     { name: 'pivot', label: 'Oś obrotu (od lewego końca)', value: 2, min: 0, max: '=length', step: 0.25, unit: 'm' },
     { name: 'bm', label: 'Masa belki', value: 0, min: 0, max: 50, step: 1, unit: 'kg' },
     { name: 'pos', label: 'Miejsce na belce wyżej', value: 1, min: 0, max: '=parent.length', step: 0.25, unit: 'm', apart: 0.25, when: '!isroot', new: 'parent.pivot + 1' },
-    { name: 'drop', label: 'Długość linki', value: 1.2, min: 0.3, max: 3, step: 0.1, unit: 'm', when: '!isroot' },
-    { name: 'sx', label: 'Położenie stojaka', value: 0, min: -40, max: 40, step: 0.5, unit: 'm', when: 'isroot', new: 'max(things, bx1) + pivot + 0.5' }
+    { name: 'drop', label: 'Długość linki', value: 1.2, min: 0.3, max: 3, step: 0.1, unit: 'm', when: '!isroot', quiet: true },
+    { name: 'sx', label: 'Położenie zawieszenia', value: 0, min: -40, max: 40, step: 0.5, unit: 'm', when: 'isroot', new: 'max(things, bx1) + pivot + 0.5', quiet: true }
   ],
   let: [
     { name: 'total', value: 'bm + sum(children, total)' },
@@ -131,7 +131,7 @@ const WEIGHT = {
   props: [
     { name: 'm', label: 'Masa', value: 5, min: 1, max: 100, step: 1, unit: 'kg' },
     { name: 'pos', label: 'Miejsce na belce', value: 1, min: 0, max: '=parent.length', step: 0.25, unit: 'm', apart: 0.25, new: 'parent.pivot - 1' },
-    { name: 'drop', label: 'Długość linki', value: 0.6, min: 0.2, max: 3, step: 0.1, unit: 'm' }
+    { name: 'drop', label: 'Długość linki', value: 0.6, min: 0.2, max: 3, step: 0.1, unit: 'm', quiet: true }
   ],
   let: [
     { name: 'total', value: 'm' },
@@ -211,12 +211,12 @@ export function balanceDrawing(level: BalanceLevel): Record<string, unknown> {
       ...(level.lets ?? []),
       { name: 'vx0', value: 'min(things, bx0)' },
       { name: 'vx1', value: 'max(things, bx1)' },
-      /* Oben steht das Bild fest (die Decke, 0,4 m Luft darüber); unten reicht es bis unter das Tiefste, was hängen kann — dort der Boden. */
+      /* Oben steht das Bild fest (die Decke, ein Streifen darüber); unten reicht es bis unter das Tiefste, was hängen kann — dort der Boden. */
       { name: 'vdeep', value: 'hang - min(things, low) + 0.25' },
-      { name: 'vw', value: 'ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5' },
+      { name: 'vw', value: 'ceil(max(vx1 - vx0, (vdeep + 0.6)*1.5, 6)/0.5)*0.5' },
       { name: 'vh', value: 'vw/1.5' },
       { name: 'vcx', value: 'round((vx0 + vx1)/2*4)/4' },
-      { name: 'vtop', value: '0.4' },
+      { name: 'vtop', value: '0.25' },
       { name: 'vfloor', value: 'vtop - vh + 0.35' },
       { name: 'bad', value: 'count(belka, !ok)' },
       /* Gibt es Gegebenes UND zu Änderndes? Nur dann zeigen die Dinge, was was ist (in der Werkstatt ist alles zu ändern). */

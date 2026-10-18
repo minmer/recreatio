@@ -18,7 +18,7 @@
  * Masse), `data-ro` und `data-w`.
  */
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { Icon } from '../../ui/icons';
 import { toNum } from './expr';
@@ -27,7 +27,7 @@ import type { PropSpec } from './liveModel';
 import type { Thing } from './liveThings';
 import { predictLabel, propRange, shotOfText, type WorldAct } from './LivePanel';
 
-/** Eine Eigenschaft zum Einstellen: oben Name und Zahl, darunter − Schieber + — so passt es auch neben ein Bild. */
+/** Eine Eigenschaft zum Einstellen: oben Name und Wert, darunter − Schieber + und, wo Platz ist, die Zahl zum Eintippen — so passt es auch schmal neben ein Bild. */
 function PropRow({ program, t, p, row, onAct }: { program: Program; t: Thing; p: PropSpec; row: boolean; onAct: (act: WorldAct) => void }) {
   const world = program.world!;
   const name = p.label || p.name;
@@ -42,24 +42,25 @@ function PropRow({ program, t, p, row, onAct }: { program: Program; t: Thing; p:
   const pick = () => { if (row && world.selected !== t.id) onAct({ type: 'select', id: t.id }); };
   return (
     <div className="lv-control lv-prop" data-prop={p.name} data-row={row ? t.id : undefined} onPointerDown={pick} onFocus={pick}>
-      <label className="lv-prop-head">
+      <span className="lv-prop-head">
         <span className="lv-name">
           {row && <><span className="lv-row-thing" data-title={t.id} />{' · '}</>}
           {name}
         </span>
-        <span className="lv-prop-num-row">
-          <input type="number" inputMode="decimal" className="lv-prop-num"
-            onChange={(e) => { const n = toNum(e.currentTarget.value); if (Number.isFinite(n)) edit(n); }}
-            onBlur={end} onKeyDown={(e) => { if (e.key === 'Enter') end(); }} />
-          {p.unit !== '' && <span className="lv-unit">{p.unit}</span>}
-        </span>
-      </label>
+        <output className="lv-value" />
+      </span>
       <span className="lv-prop-row">
         <button type="button" className="lv-step" aria-label={`${name}: mniej`} onClick={() => nudge(-1)}>−</button>
         {/* Ein Zug am Schieber (bis zum Loslassen) ist EINE Änderung — React meldet `onChange` schon bei jedem Schritt. */}
         <input type="range" aria-label={name}
           onInput={(e) => edit(e.currentTarget.valueAsNumber)} onPointerUp={end} onKeyUp={end} onBlur={end} />
         <button type="button" className="lv-step" aria-label={`${name}: więcej`} onClick={() => nudge(1)}>+</button>
+        <label className="lv-prop-num-row">
+          <input type="number" inputMode="decimal" className="lv-prop-num" aria-label={`${name} (liczba)`}
+            onChange={(e) => { const n = toNum(e.currentTarget.value); if (Number.isFinite(n)) edit(n); }}
+            onBlur={end} onKeyDown={(e) => { if (e.key === 'Enter') end(); }} />
+          {p.unit !== '' && <span className="lv-unit">{p.unit}</span>}
+        </label>
       </span>
     </div>
   );
@@ -74,7 +75,7 @@ function Tool({ icon, label, w, onClick }: { icon: Parameters<typeof Icon>[0]['n
   );
 }
 
-export function WorldMain({ program, selected, version, locked, cameras, predict, onAct }: {
+export function WorldMain({ program, selected, version, locked, cameras, predict, onAct, children }: {
   program: Program;
   selected: string | null;
   /** Ändert sich mit dem Bau — dann wird neu gebaut. */
@@ -84,6 +85,8 @@ export function WorldMain({ program, selected, version, locked, cameras, predict
   /** Der Knopf zum Vermuten steht hier (nicht, wenn draussen geprüft wird). */
   predict: boolean;
   onAct: (act: WorldAct) => void;
+  /** Die Meldung (`LiveDrawing` schreibt sie) — sie steht gleich nach den Werkzeugen, dort, wo „Sprawdź" ist. */
+  children?: ReactNode;
 }) {
   const world = program.world;
   if (world === null) return null;
@@ -96,7 +99,7 @@ export function WorldMain({ program, selected, version, locked, cameras, predict
     </span>
   );
   /* Nur ansehen (eine Antwort, die nachgespielt wird): nichts zu bauen — nur der Blick. */
-  if (locked) return cameras ? <div className="lv-world-panel"><div className="lv-actions">{camTools}</div></div> : null;
+  if (locked) return <div className="lv-world-panel">{cameras && <div className="lv-actions">{camTools}</div>}{children}</div>;
 
   const rows = world.rows();
   const t = selected === null ? undefined : world.get(selected);
@@ -105,9 +108,9 @@ export function WorldMain({ program, selected, version, locked, cameras, predict
   /* Am gewählten Ding: was man einstellt (stehen sie schon als Zeilen da, nicht noch einmal), was feststeht, was es anzeigt. */
   const editable = t === undefined ? [] : world.editable(t);
   const props = t === undefined || listed.has(t) ? [] : editable;
-  const still = t === undefined ? [] : t.kind.spec.props.filter((p) => p.label !== '' && world.applies(t, p.name) && !editable.includes(p));
+  const still = t === undefined ? [] : t.kind.spec.props.filter((p) => p.label !== '' && !p.quiet && world.applies(t, p.name) && !editable.includes(p));
   const readouts = t?.kind.spec.readouts ?? [];
-  const children = t === undefined ? [] : world.addable(t);
+  const addKinds = t === undefined ? [] : world.addable(t);
   const label = (kind: string) => world.kinds.get(kind)?.spec.label ?? kind;
   const hint = program.hintText();
   return (
@@ -126,41 +129,6 @@ export function WorldMain({ program, selected, version, locked, cameras, predict
           <span className="lv-group-label"><Icon name="settings" />Ustawiasz</span>
           {rows.flatMap((r) => r.props.map((p) => <PropRow key={`${r.t.id}.${p.name}`} program={program} t={r.t} p={p} row onAct={onAct} />))}
         </div>
-      )}
-      {t !== undefined && (
-        <section className={`lv-inspector${world.fixed(t) ? ' is-given' : ''}`} aria-label={world.title(t)}>
-          <header className="lv-inspector-head">
-            <strong data-title={t.id} />
-            <span className="lv-badge">{world.fixed(t) ? <><Icon name="lock" />dane</> : <><Icon name="settings" />zmieniasz</>}</span>
-            <button type="button" className="lv-close" aria-label="Zamknij" onClick={() => onAct({ type: 'select', id: null })}>×</button>
-          </header>
-          {props.map((p) => <PropRow key={p.name} program={program} t={t} p={p} row={false} onAct={onAct} />)}
-          {(still.length > 0 || readouts.length > 0) && (
-            <div className="lv-readouts">
-              {still.map((p) => (
-                <div key={p.name} className="lv-control lv-readout is-given" data-prop={p.name}>
-                  <span className="lv-name"><Icon name="lock" />{p.label}</span>
-                  <output className="lv-value" />
-                </div>
-              ))}
-              {readouts.map((r, i) => (
-                <div key={i} className="lv-control lv-readout" data-ro={i}>
-                  <span className="lv-name">{r.label}</span>
-                  <output className="lv-value" />
-                </div>
-              ))}
-            </div>
-          )}
-          {(children.length > 0 || world.canCopy(t) || world.canRemove(t)) && (
-            <div className="lv-thing-actions">
-              {children.map((k) => (
-                <button key={k} type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'add', kind: k, parent: t.id })}>+ {label(k)}</button>
-              ))}
-              {world.canCopy(t) && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'copy', id: t.id })}>Powiel</button>}
-              {world.canRemove(t) && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'remove', id: t.id })}>Usuń</button>}
-            </div>
-          )}
-        </section>
       )}
       <div className="lv-actions" role="toolbar" aria-label="Narzędzia">
         {predict && program.predict !== null && (
@@ -185,6 +153,43 @@ export function WorldMain({ program, selected, version, locked, cameras, predict
         )}
         {camTools}
       </div>
+      {children}
+      {/* Das gewählte Ding nach den Werkzeugen und der Meldung: wer etwas antippt, schiebt „Sprawdź" nicht weg. */}
+      {t !== undefined && (
+        <section className={`lv-inspector${world.fixed(t) ? ' is-given' : ''}`} aria-label={world.title(t)}>
+          <header className="lv-inspector-head">
+            <strong data-title={t.id} />
+            <span className="lv-badge">{world.fixed(t) ? <><Icon name="lock" />dane</> : <><Icon name="settings" />zmieniasz</>}</span>
+            <button type="button" className="lv-close" aria-label="Zamknij" onClick={() => onAct({ type: 'select', id: null })}>×</button>
+          </header>
+          {props.map((p) => <PropRow key={p.name} program={program} t={t} p={p} row={false} onAct={onAct} />)}
+          {(still.length > 0 || readouts.length > 0) && (
+            <div className="lv-readouts">
+              {still.map((p) => (
+                <div key={p.name} className="lv-control lv-readout is-given" data-prop={p.name}>
+                  <span className="lv-name"><Icon name="lock" />{p.label}</span>
+                  <output className="lv-value" />
+                </div>
+              ))}
+              {readouts.map((r, i) => (
+                <div key={i} className="lv-control lv-readout" data-ro={i}>
+                  <span className="lv-name">{r.label}</span>
+                  <output className="lv-value" />
+                </div>
+              ))}
+            </div>
+          )}
+          {(addKinds.length > 0 || world.canCopy(t) || world.canRemove(t)) && (
+            <div className="lv-thing-actions">
+              {addKinds.map((k) => (
+                <button key={k} type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'add', kind: k, parent: t.id })}>+ {label(k)}</button>
+              ))}
+              {world.canCopy(t) && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'copy', id: t.id })}>Powiel</button>}
+              {world.canRemove(t) && <button type="button" className="wk-btn wk-btn-line" onClick={() => onAct({ type: 'remove', id: t.id })}>Usuń</button>}
+            </div>
+          )}
+        </section>
+      )}
       {t === undefined && hint !== '' && <p className="lv-hint">{hint}</p>}
     </div>
   );

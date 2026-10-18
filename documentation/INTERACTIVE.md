@@ -132,16 +132,17 @@ and the *rules* of this world. Nothing in the engine knows beams: the balance is
 
 | key | what |
 |---|---|
-| `kinds[]` | `name`, `label`; `props` — numbers with `min`/`max` that may be expressions (`"=parent.length"`), `step`, `unit`, `apart` (spacing among siblings), `new` (where a new one goes), `when` (does it apply to this thing); `let` (computed per thing); `state`, `events` (per-thing ODEs, the same RK4); `shapes` (the look, evaluated in the thing); `drag` (`{ prop: expression of px, py }`), `tap`; `can` (`edit`, `add`, `remove`, `copy`); `readouts`; `children` (at most) |
-| `things[]` | `{ id, kind, parent, lock (true or a list of props), …props }`; a prop may be `{ "random": [a, b] }` |
+| `kinds[]` | `name`, `label`; `props` — numbers with `min`/`max` that may be expressions (`"=parent.length"`), `step`, `unit`, `apart` (spacing among siblings), `new` (where a new one goes), `when` (does it apply to this thing), `quiet` (not listed among a selected thing's given values); `let` (computed per thing); `state`, `events` (per-thing ODEs, the same RK4); `shapes` (the look, evaluated in the thing); `drag` (`{ prop: expression of px, py }`), `tap`; `can` (`edit`, `add`, `remove`, `copy`); `readouts`; `children` (at most); `brief` (how a thing is named in the panel, `"{m} kg"`); `mark` (the dashed ring on changeable things, default on) |
+| `things[]` | `{ id, kind, parent, lock (true or a list of props), …props }`; a prop may be `{ "random": [a, b] }` or an expression of the drawing's values (`"=3 + s"`, see §12) |
 | `allow` | `add`, `remove`, `copy`, `edit`, `drag`, `roots` — narrower than the kinds allow (a puzzle), never wider |
 | `limits` | `things`, `depth` |
 | `keep[]` | invariants `{ when, say }`: a change after which one fails is taken back (`edits <= 2` — "only two moves") |
-| `save`, `hint` | the workshop's save/load/JSON; the line under the drawing when nothing is selected |
+| `save`, `hint` | the workshop's save/load/JSON; the line under the drawing when nothing is selected (`{…}` computed) |
+| `list` | every changeable property as its own row in the panel (default: when nothing can be added or removed and there are at most six — a puzzle) |
 
 Expressions gain relations and aggregates (`expr.ts`): `parent.x`, `root.x`, `outer.x`, `w2.m` (a thing by its id),
 `sum|avg|min|max|count|all|any(set, expr)` over `children`, `descendants`, `siblings`, `others`, `things` or a kind;
-per-thing built-ins `isroot`, `depth`, `index`, `selected`, `nchildren`; drawing-wide `edits` and `nthings`. Every
+per-thing built-ins `isroot`, `depth`, `index`, `selected`, `nchildren`, `can` (and `can.pos` per property — §13); drawing-wide `edits` and `nthings`. Every
 compiled expression records where it reads (`links`: `children>total`, `parent>x`, `@w2>m`), and after each change
 of structure the world sorts all lets of all things topologically — nobody declares an order, a cycle is reported.
 Lets that depend on time run after every step, only those the rates need run in every RK stage, the rest only when
@@ -171,23 +172,27 @@ pivot, so an empty beam is level and a heavier side tips it until it rests on a 
 `I·ω' = −g·mom·cos φ − g·h·(total + 1)·sin φ − c·ω` with near-critical damping (`speed` 4 for the feel of a game).
 Green: balanced and still; yellow: balanced, still swinging; red: one side heavier. Solved: every beam has
 |ΣM| < `tol` and stands still for one second. ΣM per beam and M per weight (toggle "Momenty"), a ruler every 0.5 m
-(toggle "Linijka"); the view fits the rest positions of all things, so it does not wobble with the swing; top beams
-hang from the ceiling, leaving the space below free.
+(toggle "Linijka"); the view fits the rest positions of all things, so it does not wobble with the swing. The scene is
+anchored at the ceiling (y = 0): top beams hang `hang` below it, and the floor lies under the deepest point anything
+can reach when tilted — only the floor moves when something deeper is hung (the top stays where the eye has it).
 
 **Balance Lab** (`frontend/scripts/balance-lab.mjs` → `scripts/fixtures/balance-lab.json` and
 `balance-lab-cogita.json`): a 12-scene presentation — a demo, levels 1–6 (simple balance, another mass, several
 weights, a beam on a beam, a three-level mobile, only two moves), two expert levels (the beam has a mass, move the
-pivot), the workshop, gears, Nauka. Each level is the same kinds with other things, locks and rules; "Dalej →"
-appears when it is solved (`show: "solved"`, `go: "next"`). The script checks every level before writing it:
-compiles, unsolved at the start, solved by its solution replayed through the rules. The course: a topic, six
-knowledge statements, the eight levels as interactive questions (`solution: "w3.m = 2; b2.pos = 6"`), a revision
+pivot), the workshop, gears, Nauka. Each level is the same kinds with other things, locks and rules — and, since
+§12, a family of tasks of comparable difficulty drawn anew on every visit; "Dalej →" appears when it is solved
+(`show: "solved"`, `go: "next"`). The script checks every family before writing it: 40 draws and the document's own
+version each compile, are unsolved at the start and are solved by their solution replayed through the rules, and
+the family is varied. The course: a topic, six knowledge statements, the eight levels as interactive questions (the
+solution is the drawing's `task.solve`, computed with each attempt's numbers), a revision
 (all levels in order) and a slides flow with a hint after a wrong answer. Import the presentation through the page
 JSON panel of a presentation page, the course through Nauka → JSON; any page can take the workshop or the gears from
 "Wstaw przykład" of an `animation` module.
 
 **In Cogita.** The answer is `{ vars, world }`; the check replays the learner's world through the world's rules
-(locked stays locked, nothing is added where adding is not allowed, each changed thing is a move, so `keep` holds)
-and simulates to the end. Random thing properties are drawn per attempt (`fixed["w1.m"]`). A solution may name
+(locked stays locked, nothing is added where adding is not allowed, each changed thing is a move, so `keep` holds;
+properties are set twice, so a weight may take a place another one only frees) and simulates to the end. Each attempt
+draws its task with the same generator as a page (§12) and keeps the numbers (`fixed`, things as `fixed["w1.m"]`). A solution may name
 `id.prop`; solution and answer are told in words ("Ciężarek w3 · Masa = 2 kg"); after answering, the drawing replays
 the learner's world, or the solution.
 
@@ -199,9 +204,10 @@ gear demo, which keeps turning, about a quarter.
 physics (to the stop, level and solved, the angle of a small overhang tan φ = −M/(h·(m + 1)), a beam on a beam,
 sleeping); the rules (bounds as computations, steps, apart, locks, `when`, allow, depth); the workshop (one change
 per drag and per slider, undo/redo with add/copy/remove, `keep`); replay and Cogita (locks, moves, random per try,
-answers in words); both fixtures; gears. The browser harness has 75 more checks for worlds: the workshop with mouse
-and keyboard, a phone with touch and two fingers, levels and "Dalej" in the presentation, the Cogita card (right,
-wrong, the solution replayed), gears, performance.
+answers in words); both fixtures; gears; random tasks and marks (§12, §13). The browser harness has 120 more checks for
+worlds: the workshop with mouse and keyboard, a phone with touch and two fingers, levels and "Dalej" in the
+presentation, random tasks and „Nowe zadanie”, the marks and rows, portrait and landscape phones, the Cogita card
+(right, wrong, the solution replayed), gears, performance.
 
 ## 11. Predict first, then see — and small screens (2026-10-18)
 
@@ -229,7 +235,64 @@ inspector no longer re-centres the drawing), a presentation piece with a live dr
 (the drawing does not shrink when the inspector makes it scroll), the stage's hidden-overflow frames snap back if
 focus or `scrollIntoView` tries to scroll them, and the camera keeps its view (see above).
 
-## 12. Not done
+## 12. Random tasks of comparable difficulty (2026-10-18)
+
+The request: "not every time the same task, but every time a random example of comparable difficulty — an example for
+many scenarios, not hardcoded". A drawing may carry `task` (`liveModel.ts`, generated by `liveTask.ts`):
+
+| key | what |
+|---|---|
+| `require[]` | conditions every drawn task must meet — expressions such as `onstep(s, 0.5)` (the answer lies on the slider's grid), `abs(s - r0) >= 1` (far enough from the start), `a != b` |
+| `solve` | the solution as expressions of the drawn values: `"w2.pos = 3 + s"` or `{ "kat": "…" }` |
+| `new` | the label of the „Nowe zadanie” button (`false`: none) |
+| `tries` | how often to draw at most (200) |
+
+What is drawn: vars with `random` (snapped to their `step`) and thing properties with `random`; thing properties may
+be expressions of the drawing's values (`"m": "=a"`, `"pos": "=3 - d"`), so an author draws a few numbers and derives
+the scene from them (solution-first: draw the answer's ingredients, derive the rest, reject what does not fit). A
+draw counts when every `require` holds, no rule with `goal` already holds at the start, and every `solve` target can
+be reached by hand (a var within its bounds; a thing property that may be edited or dragged, within its bounds, on a
+thing that exists); with „Nowe zadanie” it must also differ from the task just shown. If nothing fits in `tries`
+draws, the task is the one the document's values describe. **Comparable difficulty is said by the task itself**:
+the same steps, numbers from the same ranges, the answer on the grid, a start far enough from it — no game is code.
+
+Where: a page draws on every visit (the drawing's own chance), „Nowe zadanie” draws again — keeping what the person
+switched on (controls), resetting moves, checks and `solved`, holding again for a prediction, refitting the camera;
+Cogita draws per attempt from the card's seed with the same generator and keeps the numbers in the card, so the check
+and the replay see the same task; without its own `solution` a question takes `task.solve`. The predict text and the
+world's hint are templates (`"Przewiduj: po lewej {w1.m} kg, {abs(w1.arm)} m od osi."`) — static page text cannot
+know the numbers, the drawing can.
+
+Balance Lab's eight levels are families: p1 draws masses and arms so that one division gives a place on the 0.5 m
+grid; p2 the same with the mass to find (whole kilograms); p3 two free weights with one solution on the 0.25 m grid;
+p4/p5 nested beams whose hanging points come out on the grid; p6 a gap one move can close (two moves allowed);
+p7 the beam's own mass with the pivot off centre; p8 the pivot between two end weights. `balance-lab.mjs` verifies 41
+tasks per family before writing the fixtures.
+
+## 13. What is given, what you change — and the phone (2026-10-18)
+
+**In the drawing.** Every thing knows whether a person may change it: `can` (anything — drag or edit) and `can.pos`
+per property (a relation-like read in `expr.ts`; the world sets them, nothing computes them). Kinds use them to
+show it: the balance draws given weights grey and riveted to their beam, a weight you move green with arrows along
+the beam, a mass you set with „±”, a movable hanging point or axis green with arrows. The engine adds a dashed ring
+around changeable things (`mark`, CSS), but only when the drawing has both kinds of things (`is-mixed` — in a
+workshop everything can change, so nothing is marked).
+
+**In the panel** (`LiveWorldPanel.tsx`, values written by `liveSync.ts`): „Dane” — chips of the things that are
+given (tap: their values, marked given); „Ustawiasz” — in a puzzle every changeable property as its own row (name,
+value, − slider +, a number field where there is room), no need to select first; then the tools in one row
+(„Sprawdź”, „Nowe zadanie”, undo/redo/reset and the camera as icons), the message and the drawing's controls
+(„Dalej →” right after „Brawo!”), then the selected thing (values that can change, values that are given with a lock,
+readouts — below the buttons, so selecting never pushes „Sprawdź” away), the hint, and the workshop's add/save/JSON.
+Things are named by their kind's `brief` („Ciężarek 2 kg”), in the panel and for screen readers alike.
+
+**On a phone** both the drawing and what you set must be visible at once: on a stage the drawing sticks to the top of
+its scrolling piece while the panel scrolls beneath it; held sideways (landscape, little height) the drawing and the
+panel stand side by side; in narrow panels the number field gives way to the value next to the name. The lesson's
+wide placement gives the drawing more width. Checked in the harness at 390×760 and 760×360: drawing and slider fully
+in view, and the drawing still in view with the piece scrolled to its end.
+
+## 14. Not done
 
 - Cogita flows with look `scenes` still render as reading, not through the presentation engine.
 - No visual drawing editor (JSON, preview, examples, AI prompt). The Cogita question editor shows `drawing` as a

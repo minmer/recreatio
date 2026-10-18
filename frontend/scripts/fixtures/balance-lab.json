@@ -150,9 +150,9 @@
    "show": {
     "places": {
      "start": {
-      "x": 22,
+      "x": 19,
       "y": 26,
-      "w": 34,
+      "w": 31,
       "max": 30,
       "tall": {
        "x": 47,
@@ -188,9 +188,9 @@
     "places": {
      "start": {
       "x": 68,
-      "y": 8,
-      "w": 56,
-      "max": 46,
+      "y": 6,
+      "w": 61,
+      "max": 48,
       "tall": {
        "x": 47,
        "y": 34,
@@ -285,7 +285,7 @@
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.6)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -297,7 +297,7 @@
      },
      {
       "name": "vtop",
-      "value": "0.4"
+      "value": "0.25"
      },
      {
       "name": "vfloor",
@@ -408,18 +408,20 @@
          "max": 3,
          "step": 0.1,
          "unit": "m",
-         "when": "!isroot"
+         "when": "!isroot",
+         "quiet": true
         },
         {
          "name": "sx",
-         "label": "Położenie stojaka",
+         "label": "Położenie zawieszenia",
          "value": 0,
          "min": -40,
          "max": 40,
          "step": 0.5,
          "unit": "m",
          "when": "isroot",
-         "new": "max(things, bx1) + pivot + 0.5"
+         "new": "max(things, bx1) + pivot + 0.5",
+         "quiet": true
         }
        ],
        "let": [
@@ -788,7 +790,8 @@
          "min": 0.2,
          "max": 3,
          "step": 0.1,
-         "unit": "m"
+         "unit": "m",
+         "quiet": true
         }
        ],
        "let": [
@@ -1047,7 +1050,7 @@
       ]
      }
     ],
-    "max": 46,
+    "max": 48,
     "panel": "side"
    }
   },
@@ -1061,9 +1064,9 @@
    "show": {
     "places": {
      "p1": {
-      "x": 22,
+      "x": 19,
       "y": 30,
-      "w": 34,
+      "w": 31,
       "max": 30,
       "tall": {
        "x": 47,
@@ -1098,9 +1101,9 @@
     "places": {
      "p1": {
       "x": 68,
-      "y": 8,
-      "w": 56,
-      "max": 46,
+      "y": 6,
+      "w": 61,
+      "max": 48,
       "tall": {
        "x": 47,
        "y": 34,
@@ -1243,7 +1246,7 @@
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.6)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -1255,7 +1258,7 @@
      },
      {
       "name": "vtop",
-      "value": "0.4"
+      "value": "0.25"
      },
      {
       "name": "vfloor",
@@ -1278,7 +1281,7 @@
      "max": 3600
     },
     "predict": {
-     "say": "Przewiduj: po lewej {w1.m} kg, {abs(w1.arm)} m od osi. Gdzie powiesić {w2.m} kg? Ustaw i kliknij „Sprawdź”."
+     "say": "Przewiduj: po lewej {w1.m} kg, {abs(w1.arm)} m od osi. Gdzie powiesić {w2.m} kg?"
     },
     "task": {
      "require": [
@@ -1385,18 +1388,20 @@
          "max": 3,
          "step": 0.1,
          "unit": "m",
-         "when": "!isroot"
+         "when": "!isroot",
+         "quiet": true
         },
         {
          "name": "sx",
-         "label": "Położenie stojaka",
+         "label": "Położenie zawieszenia",
          "value": 0,
          "min": -40,
          "max": 40,
          "step": 0.5,
          "unit": "m",
          "when": "isroot",
-         "new": "max(things, bx1) + pivot + 0.5"
+         "new": "max(things, bx1) + pivot + 0.5",
+         "quiet": true
         }
        ],
        "let": [
@@ -1765,7 +1770,8 @@
          "min": 0.2,
          "max": 3,
          "step": 0.1,
-         "unit": "m"
+         "unit": "m",
+         "quiet": true
         }
        ],
        "let": [
@@ -2023,7 +2029,7 @@
       ]
      }
     ],
-    "max": 46,
+    "max": 48,
     "panel": "side"
    }
   },
@@ -2037,9 +2043,9 @@
    "show": {
     "places": {
      "p2": {
-      "x": 22,
+      "x": 19,
       "y": 30,
-      "w": 34,
+      "w": 31,
       "max": 30,
       "tall": {
        "x": 47,
@@ -2074,9 +2080,9 @@
     "places": {
      "p2": {
       "x": 68,
-      "y": 8,
-      "w": 56,
-      "max": 46,
+      "y": 6,
+      "w": 61,
+      "max": 48,
       "tall": {
        "x": 47,
        "y": 34,
@@ -2219,7 +2225,7 @@
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.6)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -2231,7 +2237,7 @@
      },
      {
       "name": "vtop",
-      "value": "0.4"
+      "value": "0.25"
      },
      {
       "name": "vfloor",
@@ -2361,18 +2367,20 @@
          "max": 3,
          "step": 0.1,
          "unit": "m",
-         "when": "!isroot"
+         "when": "!isroot",
+         "quiet": true
         },
         {
          "name": "sx",
-         "label": "Położenie stojaka",
+         "label": "Położenie zawieszenia",
          "value": 0,
          "min": -40,
          "max": 40,
          "step": 0.5,
          "unit": "m",
          "when": "isroot",
-         "new": "max(things, bx1) + pivot + 0.5"
+         "new": "max(things, bx1) + pivot + 0.5",
+         "quiet": true
         }
        ],
        "let": [
@@ -2741,7 +2749,8 @@
          "min": 0.2,
          "max": 3,
          "step": 0.1,
-         "unit": "m"
+         "unit": "m",
+         "quiet": true
         }
        ],
        "let": [
@@ -2999,7 +3008,7 @@
       ]
      }
     ],
-    "max": 46,
+    "max": 48,
     "panel": "side"
    }
   },
@@ -3013,9 +3022,9 @@
    "show": {
     "places": {
      "p3": {
-      "x": 22,
+      "x": 19,
       "y": 30,
-      "w": 34,
+      "w": 31,
       "max": 30,
       "tall": {
        "x": 47,
@@ -3050,9 +3059,9 @@
     "places": {
      "p3": {
       "x": 68,
-      "y": 8,
-      "w": 56,
-      "max": 46,
+      "y": 6,
+      "w": 61,
+      "max": 48,
       "tall": {
        "x": 47,
        "y": 34,
@@ -3232,7 +3241,7 @@
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.6)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -3244,7 +3253,7 @@
      },
      {
       "name": "vtop",
-      "value": "0.4"
+      "value": "0.25"
      },
      {
       "name": "vfloor",
@@ -3377,18 +3386,20 @@
          "max": 3,
          "step": 0.1,
          "unit": "m",
-         "when": "!isroot"
+         "when": "!isroot",
+         "quiet": true
         },
         {
          "name": "sx",
-         "label": "Położenie stojaka",
+         "label": "Położenie zawieszenia",
          "value": 0,
          "min": -40,
          "max": 40,
          "step": 0.5,
          "unit": "m",
          "when": "isroot",
-         "new": "max(things, bx1) + pivot + 0.5"
+         "new": "max(things, bx1) + pivot + 0.5",
+         "quiet": true
         }
        ],
        "let": [
@@ -3757,7 +3768,8 @@
          "min": 0.2,
          "max": 3,
          "step": 0.1,
-         "unit": "m"
+         "unit": "m",
+         "quiet": true
         }
        ],
        "let": [
@@ -4034,7 +4046,7 @@
       ]
      }
     ],
-    "max": 46,
+    "max": 48,
     "panel": "side"
    }
   },
@@ -4048,9 +4060,9 @@
    "show": {
     "places": {
      "p4": {
-      "x": 22,
+      "x": 19,
       "y": 30,
-      "w": 34,
+      "w": 31,
       "max": 30,
       "tall": {
        "x": 47,
@@ -4085,9 +4097,9 @@
     "places": {
      "p4": {
       "x": 68,
-      "y": 8,
-      "w": 56,
-      "max": 46,
+      "y": 6,
+      "w": 61,
+      "max": 48,
       "tall": {
        "x": 47,
        "y": 34,
@@ -4241,7 +4253,7 @@
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.6)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -4253,7 +4265,7 @@
      },
      {
       "name": "vtop",
-      "value": "0.4"
+      "value": "0.25"
      },
      {
       "name": "vfloor",
@@ -4383,18 +4395,20 @@
          "max": 3,
          "step": 0.1,
          "unit": "m",
-         "when": "!isroot"
+         "when": "!isroot",
+         "quiet": true
         },
         {
          "name": "sx",
-         "label": "Położenie stojaka",
+         "label": "Położenie zawieszenia",
          "value": 0,
          "min": -40,
          "max": 40,
          "step": 0.5,
          "unit": "m",
          "when": "isroot",
-         "new": "max(things, bx1) + pivot + 0.5"
+         "new": "max(things, bx1) + pivot + 0.5",
+         "quiet": true
         }
        ],
        "let": [
@@ -4763,7 +4777,8 @@
          "min": 0.2,
          "max": 3,
          "step": 0.1,
-         "unit": "m"
+         "unit": "m",
+         "quiet": true
         }
        ],
        "let": [
@@ -5044,7 +5059,7 @@
       ]
      }
     ],
-    "max": 46,
+    "max": 48,
     "panel": "side"
    }
   },
@@ -5058,9 +5073,9 @@
    "show": {
     "places": {
      "p5": {
-      "x": 22,
+      "x": 19,
       "y": 30,
-      "w": 34,
+      "w": 31,
       "max": 30,
       "tall": {
        "x": 47,
@@ -5095,9 +5110,9 @@
     "places": {
      "p5": {
       "x": 68,
-      "y": 8,
-      "w": 56,
-      "max": 46,
+      "y": 6,
+      "w": 61,
+      "max": 48,
       "tall": {
        "x": 47,
        "y": 34,
@@ -5248,7 +5263,7 @@
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.6)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -5260,7 +5275,7 @@
      },
      {
       "name": "vtop",
-      "value": "0.4"
+      "value": "0.25"
      },
      {
       "name": "vfloor",
@@ -5392,18 +5407,20 @@
          "max": 3,
          "step": 0.1,
          "unit": "m",
-         "when": "!isroot"
+         "when": "!isroot",
+         "quiet": true
         },
         {
          "name": "sx",
-         "label": "Położenie stojaka",
+         "label": "Położenie zawieszenia",
          "value": 0,
          "min": -40,
          "max": 40,
          "step": 0.5,
          "unit": "m",
          "when": "isroot",
-         "new": "max(things, bx1) + pivot + 0.5"
+         "new": "max(things, bx1) + pivot + 0.5",
+         "quiet": true
         }
        ],
        "let": [
@@ -5772,7 +5789,8 @@
          "min": 0.2,
          "max": 3,
          "step": 0.1,
-         "unit": "m"
+         "unit": "m",
+         "quiet": true
         }
        ],
        "let": [
@@ -6081,7 +6099,7 @@
       ]
      }
     ],
-    "max": 46,
+    "max": 48,
     "panel": "side"
    }
   },
@@ -6095,9 +6113,9 @@
    "show": {
     "places": {
      "p6": {
-      "x": 22,
+      "x": 19,
       "y": 30,
-      "w": 34,
+      "w": 31,
       "max": 30,
       "tall": {
        "x": 47,
@@ -6132,9 +6150,9 @@
     "places": {
      "p6": {
       "x": 68,
-      "y": 8,
-      "w": 56,
-      "max": 46,
+      "y": 6,
+      "w": 61,
+      "max": 48,
       "tall": {
        "x": 47,
        "y": 34,
@@ -6325,7 +6343,7 @@
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.6)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -6337,7 +6355,7 @@
      },
      {
       "name": "vtop",
-      "value": "0.4"
+      "value": "0.25"
      },
      {
       "name": "vfloor",
@@ -6475,18 +6493,20 @@
          "max": 3,
          "step": 0.1,
          "unit": "m",
-         "when": "!isroot"
+         "when": "!isroot",
+         "quiet": true
         },
         {
          "name": "sx",
-         "label": "Położenie stojaka",
+         "label": "Położenie zawieszenia",
          "value": 0,
          "min": -40,
          "max": 40,
          "step": 0.5,
          "unit": "m",
          "when": "isroot",
-         "new": "max(things, bx1) + pivot + 0.5"
+         "new": "max(things, bx1) + pivot + 0.5",
+         "quiet": true
         }
        ],
        "let": [
@@ -6855,7 +6875,8 @@
          "min": 0.2,
          "max": 3,
          "step": 0.1,
-         "unit": "m"
+         "unit": "m",
+         "quiet": true
         }
        ],
        "let": [
@@ -7140,7 +7161,7 @@
       ]
      }
     ],
-    "max": 46,
+    "max": 48,
     "panel": "side"
    }
   },
@@ -7154,9 +7175,9 @@
    "show": {
     "places": {
      "p7": {
-      "x": 22,
+      "x": 19,
       "y": 30,
-      "w": 34,
+      "w": 31,
       "max": 30,
       "tall": {
        "x": 47,
@@ -7191,9 +7212,9 @@
     "places": {
      "p7": {
       "x": 68,
-      "y": 8,
-      "w": 56,
-      "max": 46,
+      "y": 6,
+      "w": 61,
+      "max": 48,
       "tall": {
        "x": 47,
        "y": 34,
@@ -7325,7 +7346,7 @@
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.6)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -7337,7 +7358,7 @@
      },
      {
       "name": "vtop",
-      "value": "0.4"
+      "value": "0.25"
      },
      {
       "name": "vfloor",
@@ -7466,18 +7487,20 @@
          "max": 3,
          "step": 0.1,
          "unit": "m",
-         "when": "!isroot"
+         "when": "!isroot",
+         "quiet": true
         },
         {
          "name": "sx",
-         "label": "Położenie stojaka",
+         "label": "Położenie zawieszenia",
          "value": 0,
          "min": -40,
          "max": 40,
          "step": 0.5,
          "unit": "m",
          "when": "isroot",
-         "new": "max(things, bx1) + pivot + 0.5"
+         "new": "max(things, bx1) + pivot + 0.5",
+         "quiet": true
         }
        ],
        "let": [
@@ -7846,7 +7869,8 @@
          "min": 0.2,
          "max": 3,
          "step": 0.1,
-         "unit": "m"
+         "unit": "m",
+         "quiet": true
         }
        ],
        "let": [
@@ -8097,7 +8121,7 @@
       ]
      }
     ],
-    "max": 46,
+    "max": 48,
     "panel": "side"
    }
   },
@@ -8111,9 +8135,9 @@
    "show": {
     "places": {
      "p8": {
-      "x": 22,
+      "x": 19,
       "y": 30,
-      "w": 34,
+      "w": 31,
       "max": 30,
       "tall": {
        "x": 47,
@@ -8148,9 +8172,9 @@
     "places": {
      "p8": {
       "x": 68,
-      "y": 8,
-      "w": 56,
-      "max": 46,
+      "y": 6,
+      "w": 61,
+      "max": 48,
       "tall": {
        "x": 47,
        "y": 34,
@@ -8271,7 +8295,7 @@
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.6)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -8283,7 +8307,7 @@
      },
      {
       "name": "vtop",
-      "value": "0.4"
+      "value": "0.25"
      },
      {
       "name": "vfloor",
@@ -8412,18 +8436,20 @@
          "max": 3,
          "step": 0.1,
          "unit": "m",
-         "when": "!isroot"
+         "when": "!isroot",
+         "quiet": true
         },
         {
          "name": "sx",
-         "label": "Położenie stojaka",
+         "label": "Położenie zawieszenia",
          "value": 0,
          "min": -40,
          "max": 40,
          "step": 0.5,
          "unit": "m",
          "when": "isroot",
-         "new": "max(things, bx1) + pivot + 0.5"
+         "new": "max(things, bx1) + pivot + 0.5",
+         "quiet": true
         }
        ],
        "let": [
@@ -8792,7 +8818,8 @@
          "min": 0.2,
          "max": 3,
          "step": 0.1,
-         "unit": "m"
+         "unit": "m",
+         "quiet": true
         }
        ],
        "let": [
@@ -9051,7 +9078,7 @@
       ]
      }
     ],
-    "max": 46,
+    "max": 48,
     "panel": "side"
    }
   },
@@ -9065,9 +9092,9 @@
    "show": {
     "places": {
      "warsztat": {
-      "x": 22,
+      "x": 19,
       "y": 30,
-      "w": 34,
+      "w": 31,
       "max": 30,
       "tall": {
        "x": 47,
@@ -9102,9 +9129,9 @@
     "places": {
      "warsztat": {
       "x": 68,
-      "y": 8,
-      "w": 56,
-      "max": 46,
+      "y": 6,
+      "w": 61,
+      "max": 48,
       "tall": {
        "x": 47,
        "y": 34,
@@ -9199,7 +9226,7 @@
      },
      {
       "name": "vw",
-      "value": "ceil(max(vx1 - vx0, (vdeep + 0.75)*1.5, 6)/0.5)*0.5"
+      "value": "ceil(max(vx1 - vx0, (vdeep + 0.6)*1.5, 6)/0.5)*0.5"
      },
      {
       "name": "vh",
@@ -9211,7 +9238,7 @@
      },
      {
       "name": "vtop",
-      "value": "0.4"
+      "value": "0.25"
      },
      {
       "name": "vfloor",
@@ -9326,18 +9353,20 @@
          "max": 3,
          "step": 0.1,
          "unit": "m",
-         "when": "!isroot"
+         "when": "!isroot",
+         "quiet": true
         },
         {
          "name": "sx",
-         "label": "Położenie stojaka",
+         "label": "Położenie zawieszenia",
          "value": 0,
          "min": -40,
          "max": 40,
          "step": 0.5,
          "unit": "m",
          "when": "isroot",
-         "new": "max(things, bx1) + pivot + 0.5"
+         "new": "max(things, bx1) + pivot + 0.5",
+         "quiet": true
         }
        ],
        "let": [
@@ -9706,7 +9735,8 @@
          "min": 0.2,
          "max": 3,
          "step": 0.1,
-         "unit": "m"
+         "unit": "m",
+         "quiet": true
         }
        ],
        "let": [
@@ -9959,7 +9989,7 @@
       ]
      }
     ],
-    "max": 46,
+    "max": 48,
     "panel": "side"
    }
   },
@@ -9973,9 +10003,9 @@
    "show": {
     "places": {
      "zebatki": {
-      "x": 22,
+      "x": 19,
       "y": 30,
-      "w": 34,
+      "w": 31,
       "max": 30,
       "tall": {
        "x": 47,
@@ -10010,9 +10040,9 @@
     "places": {
      "zebatki": {
       "x": 68,
-      "y": 8,
-      "w": 56,
-      "max": 46,
+      "y": 6,
+      "w": 61,
+      "max": 48,
       "tall": {
        "x": 47,
        "y": 34,
@@ -10318,7 +10348,7 @@
       ]
      }
     ],
-    "max": 46,
+    "max": 48,
     "panel": "side"
    }
   },

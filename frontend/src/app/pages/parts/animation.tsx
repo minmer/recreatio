@@ -342,7 +342,7 @@ const EXAMPLE = {
     kinds: [{
       name: 'skrzynka',
       label: 'Skrzynka',
-      props: [{ name: 'pos', value: 16, min: 1, max: 19, step: 0.5, unit: 'm', label: 'Położenie', apart: 1.5, new: 'max(things, pos) - 2', when: 'isroot' }],
+      props: [{ name: 'pos', value: 16, min: 1, max: 19, step: 0.5, unit: 'm', label: 'Położenie', apart: 1.5, new: 'max(things, pos) - 2', when: 'isroot', quiet: false }],
       let: [{ name: 'x', value: 'pos' }, { name: 'y', value: 0.4 }, { name: 'hit', value: 6 }],
       shapes: [{ type: 'rect', x: '=x - 0.6', y: 0, w: 1.2, h: 0.8, fill: "=selected ? 'accent/60' : (can ? 'muted/50' : 'muted/25')" }],
       drag: { pos: 'px' },
@@ -480,6 +480,7 @@ const WORLD_DOCS: Readonly<Record<string, string>> = {
   '.kinds[].props[].apart': 'Najmniejszy odstęp od rodzeństwa w tej własności (dwa ciężarki nie wiszą w jednym miejscu)',
   '.kinds[].props[].new': 'Gdzie stoi nowo dodana rzecz — wyrażenie, np. "parent.pivot + 1" (wolne miejsce znajduje się samo)',
   '.kinds[].props[].when': 'Kiedy własność dotyczy tej rzeczy — wyrażenie, np. "!isroot" (tylko gdy wisi) albo "isroot"',
+  '.kinds[].props[].quiet': 'true — nie pokazuj jej wśród danych wybranej rzeczy (np. długość linki: zmienia tylko obraz)',
   '.kinds[].let': 'Wartości liczone w każdej rzeczy — kolejność wynika sama z tego, co czytają (najpierw dzieci, potem rodzic, albo odwrotnie)',
   '.kinds[].let[].name': 'Nazwa wartości liczonej',
   '.kinds[].let[].value': 'Wyrażenie: własne nazwy, parent.x, root.x, sum(children, total*arm), count(…), nazwy rysunku (g, tol) i wbudowane (isroot, depth, index, selected, nchildren)',

@@ -738,6 +738,23 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
   const predictHere = program.predict !== null && !checkOutside && !locked;
   /* „Nowe zadanie" — nicht, wenn draussen geprüft wird (Cogita hält den Zufall eines Versuchs fest) oder nur angesehen. */
   const newTask = program.redraws() && !checkOutside && !locked;
+  const sayView = <p ref={say} className="lv-say" role="status" aria-live="polite" hidden />;
+  const controlsView = (program.controls.length > 0 || (program.world === null && (predictHere || newTask))) && (
+    <div className="lv-controls">
+      {predictHere && program.world === null && (
+        <button type="button" className={`wk-btn lv-control lv-predict${program.held ? '' : ' wk-btn-line'}`} data-w="predict" onClick={() => engine.current?.predict()}>
+          {predictLabel(program)}
+        </button>
+      )}
+      {newTask && program.world === null && (
+        <button type="button" className="wk-btn wk-btn-line lv-control lv-new" data-w="task" onClick={() => engine.current?.newTask()}>{program.task?.again}</button>
+      )}
+      {program.controls.map((c, i) => (
+        <ControlView key={i} c={c} i={i} program={program} locked={locked}
+          onSet={(name, value) => engine.current?.input(name, value)} onPress={(n) => engine.current?.press(n)} />
+      ))}
+    </div>
+  );
   const showPanel = !still && (program.controls.length > 0 || program.world !== null || program.predict !== null || program.hasGoal()
     || drawing.live?.rules.some((r) => r.say !== '') === true || drawing.live?.sim?.events.some((e) => e.say !== '') === true);
 
@@ -751,29 +768,19 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
         </svg>
         {showPanel && (
           <div ref={panel} className="lv-panel" data-pz-hold="">
-            {/* Eine Welt: was gegeben ist, was man ändert, die Werkzeuge — gleich unter dem Bild; die Meldung und die Schalter danach. */}
-            {program.world !== null && (
+            {/* Eine Welt: was gegeben ist, was man ändert, die Werkzeuge — gleich unter dem Bild; dann die Meldung und die Bedienung („Dalej” gleich nach „Brawo!”). */}
+            {program.world !== null ? (
               <WorldMain program={program} selected={selected} version={worldVersion} locked={locked} cameras={built.cameras.length > 0}
-                predict={predictHere} onAct={(a) => engine.current?.act(a)} />
+                predict={predictHere} onAct={(a) => engine.current?.act(a)}>
+                {sayView}
+                {controlsView}
+              </WorldMain>
+            ) : (
+              <>
+                {controlsView}
+                {sayView}
+              </>
             )}
-            {program.world === null && <p ref={say} className="lv-say" role="status" aria-live="polite" hidden />}
-            {(program.controls.length > 0 || (program.world === null && (predictHere || newTask))) && (
-              <div className="lv-controls">
-                {predictHere && program.world === null && (
-                  <button type="button" className={`wk-btn lv-control lv-predict${program.held ? '' : ' wk-btn-line'}`} data-w="predict" onClick={() => engine.current?.predict()}>
-                    {predictLabel(program)}
-                  </button>
-                )}
-                {newTask && program.world === null && (
-                  <button type="button" className="wk-btn wk-btn-line lv-control lv-new" data-w="task" onClick={() => engine.current?.newTask()}>{program.task?.again}</button>
-                )}
-                {program.controls.map((c, i) => (
-                  <ControlView key={i} c={c} i={i} program={program} locked={locked}
-                    onSet={(name, value) => engine.current?.input(name, value)} onPress={(n) => engine.current?.press(n)} />
-                ))}
-              </div>
-            )}
-            {program.world !== null && <p ref={say} className="lv-say" role="status" aria-live="polite" hidden />}
             {program.world !== null && <WorldMore program={program} version={worldVersion} locked={locked} onAct={(a) => engine.current?.act(a)} />}
           </div>
         )}

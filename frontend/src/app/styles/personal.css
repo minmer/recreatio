@@ -415,7 +415,7 @@
 /*
    2026-10-18 — DER INHALT IN DREI BREITEN (der Kasten ist der Container, `.wk-tb-in` sein Raster):
    breit   Häkchen · Name (umbrochen) und Stand · „pomiń"
-   mittel  Häkchen und » oben, darunter der Name über die ganze Breite
+   mittel  Häkchen und » oben, darunter der Name über die ganze Breite (unter 9rem; der Stand bis 7rem)
    schmal  Häkchen oben, der Name senkrecht, » unten
    Kurz (eine Zeile hoch) bleibt es immer eine Zeile: Häkchen · Name … · ».
 */
@@ -457,7 +457,7 @@
 .wk-tb-main:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
 .wk-tb-title, .wk-tb-state { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Der Name umbricht, so weit der Kasten reicht — nur eine Zeile hoch bleibt er in einer. */
-.wk-tb-title { font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
+.wk-tb-title { font-weight: 600; white-space: normal; overflow-wrap: break-word; hyphens: auto; }
 .wk-tb.is-short .wk-tb-title { white-space: nowrap; }
 .wk-tb-state { color: var(--wk-muted); font-weight: 600; }
 .wk-tb-state.is-open, .wk-tb-state.is-due { color: var(--wk-accent); }
@@ -479,8 +479,8 @@
 .wk-tb-skip-mark { display: none; }
 /* Schmal (sieben Tage nebeneinander): „pomiń" wird ein Zeichen, ganz schmal weicht auch der Stand dem Namen. */
 @container (max-width: 12rem) { .wk-tb-skip-word { display: none; } .wk-tb-skip-mark { display: inline; } }
-@container (max-width: 7rem) {
-  .wk-tb-state { display: none; }
+@container (max-width: 7rem) { .wk-tb-state { display: none; } }
+@container (max-width: 9rem) {
   .wk-tb:not(.is-short) .wk-tb-in {
     grid-template-columns: auto auto;
     grid-template-rows: auto minmax(0, 1fr);

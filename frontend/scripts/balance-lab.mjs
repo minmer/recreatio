@@ -76,7 +76,7 @@ export { seeded } from '${app}pages/motion/liveTask';
       key: 'p1', title: 'Poziom 1 · Prosta równowaga',
       body: ['Szary ciężarek jest przykręcony. Gdzie powiesić zielony, żeby belka stanęła poziomo?', 'Ustaw zielony tam, gdzie według ciebie będzie równowaga, i kliknij „Sprawdź”. „Nowe zadanie” losuje inne liczby.'],
       prompt: 'Szary ciężarek jest przykręcony. Przesuń zielony tak, żeby belka stanęła poziomo.',
-      say: 'Przewiduj: po lewej {w1.m} kg, {abs(w1.arm)} m od osi. Gdzie powiesić {w2.m} kg? Ustaw i kliknij „Sprawdź”.',
+      say: 'Przewiduj: po lewej {w1.m} kg, {abs(w1.arm)} m od osi. Gdzie powiesić {w2.m} kg?',
       hint: 'Przeciągnij zielony ciężarek wzdłuż belki albo ustaw go suwakiem.',
       solved: 'Brawo! {w1.m} kg × {abs(w1.arm)} m = {w2.m} kg × {w2.arm} m.',
       vars: [draw('a', 4, 2, 9), draw('d', 1, 0.5, 3, 0.5), draw('b', 2, 1, 9), draw('r0', 0.5, 0.5, 3, 0.5)],
@@ -274,19 +274,19 @@ export { seeded } from '${app}pages/motion/liveTask';
   /* -- Die Präsentation ---------------------------------------------------------------------------------- */
 
   /** Ein Text auf der Bühne: links (breit) oder oben (hochkant). */
-  const text = (id, scene, title, body, { y = 30, tallY = 4, type = 'heading', w = 34 } = {}) => ({
+  const text = (id, scene, title, body, { y = 30, tallY = 4, type = 'heading', w = 31 } = {}) => ({
     id,
     kind: 'text',
     size: { colSpan: 3, rowSpan: 3 },
     show: {
-      places: { [scene]: { x: 22, y, w, max: 30, tall: { x: 47, y: tallY, w: 88 } } },
+      places: { [scene]: { x: 19, y, w, max: 30, tall: { x: 47, y: tallY, w: 88 } } },
       skin: 'plain', type, origin: 'top', arrive: 'rise', delay: 0.1, span: 0.6
     },
     config: { title, body }
   });
 
   /** Ein Bild zum Anfassen: rechts (breit) oder darunter (hochkant). */
-  const drawing = (id, scene, config, { y = 8, tallY = 34, w = 56, max = 46 } = {}) => ({
+  const drawing = (id, scene, config, { y = 6, tallY = 34, w = 61, max = 48 } = {}) => ({
     id,
     kind: 'animation',
     size: { colSpan: 4, rowSpan: 5 },
