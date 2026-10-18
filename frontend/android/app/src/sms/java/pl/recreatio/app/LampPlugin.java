@@ -3,11 +3,6 @@ package pl.recreatio.app;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothManager;
-import android.bluetooth.le.AdvertiseCallback;
-import android.bluetooth.le.AdvertiseData;
-import android.bluetooth.le.AdvertiseSettings;
-import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanRecord;
@@ -36,14 +31,8 @@ import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
 import org.json.JSONArray;
-import org.json.JSONObject;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -52,19 +41,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <code>
  *   support, requestPermission, send, stop, openSettings
  *   requestScanPermission, startScan, stopScan   (Ereignisse lampScan, lampScanEnd)
+ *   setTimers, timerStatus, setTimersOn          (die Timer: {@link LampTimers})
  * </code>
  *
- * <p><b>Senden</b> ist eine echte BLE-Werbung über {@link BluetoothLeAdvertiser}:
- * Legacy, nicht verbindbar (dann setzt Android keine Flags davor, und die 31 Bytes
- * bleiben ganz für das Paket), {@code ADVERTISE_MODE_LOW_LATENCY}, ohne Namen und
- * ohne Sendeleistung im Paket. Je Ramka: starten, auf den Rückruf warten (höchstens
- * {@link #CALLBACK_MS}), halten, stoppen, die Pause abwarten. Wie oft Android das
- * Paket in dieser Zeit wiederholt, bestimmt Android (bei LOW_LATENCY etwa alle 100 ms).</p>
- *
- * <p><b>Nacheinander.</b> Alle Aufträge laufen auf EINEM eigenen Faden ({@link #RADIO}):
- * ein zweiter Druck wartet, bis der erste gestoppt ist. „Stopp" und das Verlassen der
- * App erhöhen {@link #generation} — der laufende Auftrag stoppt sofort, wartende
- * enden, ohne zu senden.</p>
+ * <p><b>Senden</b> macht {@link LampRadio} — eine echte BLE-Werbung, ein Auftrag nach dem
+ * anderen auf einem Faden, zusammen mit den Timern. Für die Seite gilt: „Stopp" und das
+ * Verlassen der App erhöhen {@link #generation} — der laufende Auftrag stoppt sofort,
+ * schon wartende enden, ohne zu senden. Einen Timer hält das nicht auf.</p>
  *
  * <p><b>Was nicht geht.</b> Die Adresse, mit der gesendet wird, wählt Android (eine
  * zufällige des Telefons) — die des Pilots lässt sich nicht nachmachen. Und ein
@@ -86,18 +69,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 )
 public class LampPlugin extends Plugin {
 
-    /** Ein Faden für alles Senden — so überlagern sich nie zwei Werbungen. */
-    private static final ExecutorService RADIO = Executors.newSingleThreadExecutor();
-    /** So lange darf Android mit „gestartet" oder „ging nicht" brauchen. */
-    private static final long CALLBACK_MS = 3000;
     private static final long FLUSH_MS = 250;
-
-    private static final AdvertiseSettings SETTINGS = new AdvertiseSettings.Builder()
-        .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-        .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-        .setConnectable(false)
-        .setTimeout(0)
-        .build();
 
     /** Jede Absage (Stopp, App verlassen) zählt hoch; ein Auftrag aus einer älteren Zählung endet. */
     private final AtomicInteger generation = new AtomicInteger();
@@ -115,7 +87,7 @@ public class LampPlugin extends Plugin {
     @Override
     protected void handleOnPause() {
         super.handleOnPause();
-        /* Wer die App verlässt, sendet nicht weiter und hört nicht weiter zu. */
+        /* Wer die App verlässt, sendet nicht weiter und hört nicht weiter zu (die Timer gehen weiter). */
         cancel("paused");
         main.post(() -> endScan("paused", null));
     }
@@ -128,8 +100,7 @@ public class LampPlugin extends Plugin {
     }
 
     private BluetoothAdapter adapter() {
-        BluetoothManager manager = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
-        return manager == null ? null : manager.getAdapter();
+        return LampRadio.adapter(getContext());
     }
 
     private static String scanAlias() {
@@ -147,7 +118,7 @@ public class LampPlugin extends Plugin {
     }
 
     private static Object orNull(String text) {
-        return text == null ? JSONObject.NULL : text;
+        return LampRadio.orNull(text);
     }
 
     /* -- Was das Telefon kann ----------------------------------------------------------------- */
@@ -226,14 +197,15 @@ public class LampPlugin extends Plugin {
     public void send(PluginCall call) {
         List<LampFrame> frames;
         try {
-            frames = framesOf(call.getArray("frames"));
+            frames = LampRadio.framesOf(call.getArray("frames"));
         } catch (Exception e) {
-            call.resolve(outcome("bad-frame", e.getMessage(), System.currentTimeMillis(), new JSArray()));
+            call.resolve(LampRadio.outcome("bad-frame", e.getMessage(), System.currentTimeMillis(), new JSArray()));
             return;
         }
         /* Die Zählung JETZT: ein Stopp, der vor dem Start kommt, gilt auch für diesen Auftrag. */
         int gen = generation.get();
-        RADIO.execute(() -> call.resolve(transmit(frames, gen)));
+        Context context = getContext().getApplicationContext();
+        LampRadio.RADIO.execute(() -> call.resolve(LampRadio.transmit(context, frames, cancelOf(gen))));
     }
 
     @PluginMethod
@@ -252,154 +224,62 @@ public class LampPlugin extends Plugin {
         }
     }
 
-    private static List<LampFrame> framesOf(JSONArray list) throws Exception {
-        if (list == null || list.length() == 0) throw new IllegalArgumentException("Brak ramek do nadania.");
-        if (list.length() > LampFrame.MAX_FRAMES) throw new IllegalArgumentException("Najwyżej " + LampFrame.MAX_FRAMES + " ramek.");
-        List<LampFrame> out = new ArrayList<>();
-        for (int i = 0; i < list.length(); i++) {
-            JSONObject one = list.getJSONObject(i);
-            out.add(LampFrame.of(one.getInt("manufacturerId"), one.getString("data"), one.optLong("durationMs", 1000), one.optLong("gapMs", 0)));
-        }
-        return out;
-    }
-
-    /** Warten, bis die Zeit um ist — {@code false}, wenn vorher abgesagt wurde. */
-    private boolean hold(long ms, int gen) {
-        long until = SystemClock.elapsedRealtime() + ms;
-        synchronized (wake) {
-            while (generation.get() == gen) {
-                long left = until - SystemClock.elapsedRealtime();
-                if (left <= 0) return true;
-                try {
-                    wake.wait(left);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return false;
+    /** Ein Auftrag der Seite: abgesagt, sobald {@link #generation} weiterzählt. */
+    private LampRadio.Cancel cancelOf(int gen) {
+        return new LampRadio.Cancel() {
+            @Override
+            public boolean hold(long ms) {
+                long until = SystemClock.elapsedRealtime() + ms;
+                synchronized (wake) {
+                    while (generation.get() == gen) {
+                        long left = until - SystemClock.elapsedRealtime();
+                        if (left <= 0) return true;
+                        try {
+                            wake.wait(left);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            return false;
+                        }
+                    }
                 }
+                return false;
             }
-        }
-        return false;
+
+            @Override
+            public boolean cancelled() {
+                return generation.get() != gen;
+            }
+
+            @Override
+            public String reason() {
+                return cancelled;
+            }
+        };
     }
 
-    private static String advertiseCode(int error) {
-        switch (error) {
-            case AdvertiseCallback.ADVERTISE_FAILED_DATA_TOO_LARGE: return "data-too-large";
-            case AdvertiseCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS: return "too-many-advertisers";
-            case AdvertiseCallback.ADVERTISE_FAILED_ALREADY_STARTED: return "already-started";
-            case AdvertiseCallback.ADVERTISE_FAILED_FEATURE_UNSUPPORTED: return "feature-unsupported";
-            default: return "internal-error";
-        }
+    /* -- Timer ---------------------------------------------------------------------------------- */
+
+    /** Den Plan ablegen (die Seite rechnet ihn aus den Timern); {@code enable}: auf diesem Telefon ein/aus. */
+    @PluginMethod
+    public void setTimers(PluginCall call) {
+        JSONArray timers = call.getArray("timers", new JSArray());
+        Boolean enable = call.getBoolean("enable");
+        Context context = getContext().getApplicationContext();
+        if (enable != null) LampTimers.setOn(context, enable);
+        LampTimers.store(context, timers);
+        call.resolve(LampTimers.status(context));
     }
 
-    private static JSObject outcome(String code, String detail, long startedAt, JSArray frames) {
-        JSObject out = new JSObject();
-        out.put("code", code);
-        out.put("detail", orNull(detail));
-        out.put("startedAt", startedAt);
-        out.put("endedAt", System.currentTimeMillis());
-        out.put("frames", frames);
-        return out;
+    @PluginMethod
+    public void timerStatus(PluginCall call) {
+        call.resolve(LampTimers.status(getContext().getApplicationContext()));
     }
 
-    private static void stopQuietly(BluetoothLeAdvertiser advertiser, AdvertiseCallback callback) {
-        try {
-            advertiser.stopAdvertising(callback);
-        } catch (RuntimeException ignored) {
-            // Bluetooth inzwischen aus: dann wirbt auch nichts mehr.
-        }
-    }
-
-    /** Auf {@link #RADIO}: die Ramki nacheinander. */
-    @SuppressLint("MissingPermission")
-    private JSObject transmit(List<LampFrame> frames, int gen) {
-        long began = System.currentTimeMillis();
-        JSArray done = new JSArray();
-        if (generation.get() != gen) return outcome(cancelled, null, began, done);
-
-        BluetoothAdapter adapter = adapter();
-        if (adapter == null) return outcome("no-bluetooth", null, began, done);
-        if (!adapter.isEnabled()) return outcome("bluetooth-off", null, began, done);
-        if (advertiseState() != PermissionState.GRANTED) return outcome("no-permission", null, began, done);
-        BluetoothLeAdvertiser advertiser = adapter.getBluetoothLeAdvertiser();
-        if (advertiser == null) return outcome("no-advertiser", null, began, done);
-
-        for (int i = 0; i < frames.size(); i++) {
-            LampFrame frame = frames.get(i);
-            JSObject one = new JSObject();
-            one.put("index", i);
-            one.put("requestedMs", frame.durationMs);
-            done.put(one);
-
-            AdvertiseData data = new AdvertiseData.Builder()
-                .setIncludeDeviceName(false)
-                .setIncludeTxPowerLevel(false)
-                .addManufacturerData(frame.manufacturerId, frame.data)
-                .build();
-
-            CountDownLatch answered = new CountDownLatch(1);
-            AtomicInteger failure = new AtomicInteger(Integer.MIN_VALUE);
-            AdvertiseCallback callback = new AdvertiseCallback() {
-                @Override
-                public void onStartSuccess(AdvertiseSettings settingsInEffect) {
-                    failure.set(0);
-                    answered.countDown();
-                }
-
-                @Override
-                public void onStartFailure(int errorCode) {
-                    failure.set(errorCode);
-                    answered.countDown();
-                }
-            };
-
-            long asked = SystemClock.elapsedRealtime();
-            try {
-                advertiser.startAdvertising(SETTINGS, data, callback);
-            } catch (SecurityException e) {
-                one.put("code", "no-permission");
-                return outcome("no-permission", e.getMessage(), began, done);
-            } catch (IllegalStateException e) {
-                /* „BT Adapter is not turned ON" — zwischen der Prüfung und dem Start ausgeschaltet. */
-                one.put("code", "bluetooth-off");
-                return outcome("bluetooth-off", e.getMessage(), began, done);
-            } catch (RuntimeException e) {
-                one.put("code", "error");
-                return outcome("error", e.getClass().getSimpleName() + ": " + e.getMessage(), began, done);
-            }
-
-            boolean heardBack;
-            try {
-                heardBack = answered.await(CALLBACK_MS, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                heardBack = false;
-            }
-            long startedAt = SystemClock.elapsedRealtime();
-            one.put("startMs", startedAt - asked);
-            if (!heardBack) {
-                stopQuietly(advertiser, callback);
-                one.put("code", "no-callback");
-                return outcome("no-callback", "Brak AdvertiseCallback po " + CALLBACK_MS + " ms.", began, done);
-            }
-            if (failure.get() != 0) {
-                String code = advertiseCode(failure.get());
-                one.put("code", code);
-                return outcome(code, "AdvertiseCallback.onStartFailure(" + failure.get() + ")", began, done);
-            }
-
-            one.put("startedAt", System.currentTimeMillis());
-            boolean full = hold(frame.durationMs, gen);
-            stopQuietly(advertiser, callback);
-            one.put("stoppedAt", System.currentTimeMillis());
-            one.put("heldMs", SystemClock.elapsedRealtime() - startedAt);
-            one.put("code", full ? "ok" : cancelled);
-            if (!full) return outcome(cancelled, null, began, done);
-
-            if (i < frames.size() - 1 && frame.gapMs > 0 && !hold(frame.gapMs, gen)) {
-                return outcome(cancelled, null, began, done);
-            }
-        }
-        return outcome("ok", null, began, done);
+    @PluginMethod
+    public void setTimersOn(PluginCall call) {
+        Context context = getContext().getApplicationContext();
+        LampTimers.setOn(context, Boolean.TRUE.equals(call.getBoolean("on", false)));
+        call.resolve(LampTimers.status(context));
     }
 
     /* -- Hören (vom Pilot lernen) ------------------------------------------------------------- */

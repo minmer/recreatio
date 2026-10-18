@@ -120,6 +120,8 @@ export function startPhone(who: Who): void {
         await archiveNow(who, pluginSource).catch(() => undefined);
       }
     })().catch(() => undefined);
+    /* 2026-10-18 — die Timer der Lampen: was anderswo geändert wurde, gilt ab jetzt auch auf diesem Telefon. */
+    void import('../lamps/timerStart').then((m) => m.startLamps(who)).catch(() => undefined);
   }, 8000);
 
   /*

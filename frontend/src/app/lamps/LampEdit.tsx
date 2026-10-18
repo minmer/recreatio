@@ -19,7 +19,7 @@ import { FrameView } from './FrameView';
 import { LampConsole, useAttempts } from './LampConsole';
 import {
   copyOf, DURATION_MAX, DURATION_MIN, emptyFrame, emptyLamp, emptySignal, FRAMES_MAX, GAP_MAX, lampProblems, lampSaveProblem,
-  lampTitle, pilotPath, removeLamp, saveLamp, SIGNALS_MAX, signalProblem, type Lamp, type LampData, type LampFrame, type LampSignal
+  lampTitle, pilotPath, removeItem, saveLamp, SIGNALS_MAX, signalProblem, type Lamp, type LampData, type LampFrame, type LampSignal
 } from './lampStore';
 import { LampRadio } from './native';
 import { transmit } from './transmit';
@@ -93,7 +93,7 @@ export function LampEdit({ ctx, lamp, native, onSaved, onRemoved }: {
     if (!await ask({ title: `Usunąć „${lampTitle(lamp)}"?`, body: 'Znikną też wszystkie jego sygnały.', confirm: 'Usuń', danger: true })) return;
     setBusy(true);
     try {
-      await removeLamp(ctx, lamp.id);
+      await removeItem(ctx, lamp.id);
       onRemoved(lamp.id);
     } catch (e) {
       setFailed(lampSaveProblem(e));

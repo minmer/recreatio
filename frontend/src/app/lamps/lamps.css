@@ -31,7 +31,7 @@
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 8rem), 1fr));
   gap: var(--wk-space-2);
 }
-.lp-key { min-height: 3rem; justify-content: center; text-align: center; white-space: normal; }
+.lp-key { min-height: 3.5rem; justify-content: center; text-align: center; white-space: normal; font-weight: 600; }
 
 /* -- Pakete ------------------------------------------------------------------ */
 .lp-hex { font-family: var(--wk-mono); font-size: var(--wk-text-sm); overflow-wrap: anywhere; word-break: break-all; }
@@ -96,3 +96,42 @@
 .lp-run { display: flex; align-items: flex-start; gap: var(--wk-space-2); padding: var(--wk-space-1) 0; border-bottom: 1px solid var(--wk-line); }
 .lp-run input { margin-top: 0.25rem; }
 .lp-run-text { display: grid; min-width: 0; }
+
+/* -- Was gerade hinausgeht (klebt oben, solange gesendet wird) ----------------------- */
+.lp-queue {
+  position: sticky;
+  top: var(--wk-bar-h);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--wk-space-3);
+  padding: var(--wk-space-2) var(--wk-space-3);
+  margin-bottom: var(--wk-space-2);
+  border: 1px solid var(--wk-line-strong);
+  border-radius: var(--wk-radius);
+  background: var(--wk-info-soft);
+  font-size: var(--wk-text-sm);
+}
+.lp-queue-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+/* -- Neues: unten, nicht oben ------------------------------------------------------------ */
+.lp-bottom { margin: var(--wk-space-4) 0; }
+
+/* -- Timer ------------------------------------------------------------------------------ */
+.lp-timers { margin: var(--wk-space-3) 0; }
+.lp-head-end { margin-left: auto; }
+.lp-phone-timers { display: grid; gap: var(--wk-space-1); padding-bottom: var(--wk-space-2); border-bottom: 1px solid var(--wk-line); }
+.lp-timer-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.lp-timer { display: flex; align-items: center; gap: var(--wk-space-3); border-bottom: 1px solid var(--wk-line); }
+.lp-timer:last-child { border-bottom: 0; }
+.lp-timer-link { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--wk-space-3); padding: var(--wk-space-2) 0; color: inherit; text-decoration: none; }
+.lp-timer-link:hover { background: var(--wk-sunk); }
+.lp-timer-time { font-size: var(--wk-text-xl); font-weight: 700; font-variant-numeric: tabular-nums; }
+.lp-timer-text { flex: 1; min-width: 0; display: grid; }
+.lp-timer-name { font-weight: 600; overflow-wrap: anywhere; }
+.lp-run-log { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); font-size: var(--wk-text-sm); }
+.lp-days { margin: 0; display: grid; gap: var(--wk-space-2); border: 0; padding: 0; }
+.lp-day-row { display: flex; flex-wrap: wrap; gap: var(--wk-space-1); }
+.lp-action-list { margin: 0; padding-left: var(--wk-space-5); display: grid; gap: var(--wk-space-2); }
+.lp-action { display: flex; align-items: center; gap: var(--wk-space-2); }
+.lp-action select { flex: 1; min-width: 0; }

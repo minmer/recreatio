@@ -12,6 +12,8 @@
  *
  *   requestScanPermission, startScan, stopScan — vom Pilot lernen (learn.ts):
  *   was das Telefon hört, kommt gebündelt als `lampScan`, das Ende als `lampScanEnd`
+ *   setTimers, timerStatus, setTimersOn — die Timer (timers.ts): der Plan liegt im
+ *   Telefon, ein Wecker sendet zur Zeit, auch bei geschlossener App
  * </code>
  *
  * Im Browser und in der gewöhnlichen App gibt es ihn nicht (`lampHere()`):
@@ -105,6 +107,40 @@ export interface NativeSendResult {
   readonly frames: readonly NativeFrameResult[];
 }
 
+/** Ein Timer, wie das Telefon ihn ablegt: Minute des Tages, Tage als Bits (0 = jeden Tag), die Ramki je Aktion. */
+export interface NativeTimer {
+  readonly id: string;
+  readonly name: string;
+  readonly minute: number;
+  /** Bit 0 = Montag … Bit 6 = Sonntag; 0 = jeden Tag. */
+  readonly days: number;
+  readonly actions: readonly { readonly label: string; readonly frames: readonly NativeFrame[] }[];
+}
+
+/** Ein Lauf eines Timers im Telefon. */
+export interface TimerRun {
+  /** Die geplante Zeit (ms) und wann er wirklich lief. */
+  readonly at: number;
+  readonly ranAt: number;
+  readonly timerId: string;
+  readonly name: string;
+  readonly ok: number;
+  readonly total: number;
+  readonly failed: readonly { readonly label: string; readonly code: LampCode; readonly detail: string | null }[];
+}
+
+export interface TimerStatus {
+  /** Führt dieses Telefon die Timer aus? */
+  readonly on: boolean;
+  /** Wurde das auf diesem Telefon schon einmal entschieden? (Sonst schaltet der erste Timer es ein.) */
+  readonly decided: boolean;
+  /** Genaue Wecker erlaubt? Sonst können sie sich um Minuten verspäten (Android 12). */
+  readonly exact: boolean;
+  readonly count: number;
+  readonly next: { readonly at: number; readonly names: readonly string[] } | null;
+  readonly log: readonly TimerRun[];
+}
+
 export interface LampNative {
   support(): Promise<LampSupport>;
   requestPermission(): Promise<{ granted: boolean }>;
@@ -118,6 +154,11 @@ export interface LampNative {
   stopScan(): Promise<{ stopped: boolean }>;
   addListener(event: 'lampScan', listener: (e: { packets: NativePacket[] }) => void): Promise<PluginListenerHandle>;
   addListener(event: 'lampScanEnd', listener: (e: { code: ScanCode; detail: string | null }) => void): Promise<PluginListenerHandle>;
+
+  /** Den Plan der Timer ablegen und den Wecker stellen; `enable`: auf diesem Telefon ein- oder ausschalten. */
+  setTimers(options: { timers: readonly NativeTimer[]; enable?: boolean }): Promise<TimerStatus>;
+  timerStatus(): Promise<TimerStatus>;
+  setTimersOn(options: { on: boolean }): Promise<TimerStatus>;
 }
 
 export const LampRadio = registerPlugin<LampNative>('Lamp');

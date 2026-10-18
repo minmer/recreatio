@@ -8,9 +8,15 @@
  * reagiert, entscheiden die Bytes im Paket (eine Kennung, ein Zähler — je nach
  * Hersteller), nicht die Wahl hier.
  *
- * <b>Später</b> (Zeitpläne, Abläufe, Vorlagen je Protokoll) kommen als weitere
- * Schlüssel in dieselbe Hülle (`v`) oder als eigene Zeilen; `protocol` sagt,
- * wie die Ramki zu lesen sind (heute nur `ble-adv`: rohe Legacy-Werbung).
+ * <b>Timer</b> (2026-10-18) stehen in derselben Tabelle, je Timer eine Hülle mit
+ * `kind: 'timer'` — der Dienst unterscheidet nicht, er sieht ohnehin nur Hüllen.
+ * Ein Timer nennt Uhrzeit, Wochentage und Aktionen (Gerät + Sygnał), nicht die
+ * Bytes: ändert man einen Sygnał, gilt er auch im Timer (`timers.ts` rechnet daraus
+ * den Plan für das Telefon).
+ *
+ * <b>Später</b> (Abläufe, Vorlagen je Protokoll) kommen als weitere Schlüssel in
+ * dieselbe Hülle (`v`) oder als weitere `kind`; `protocol` sagt, wie die Ramki zu
+ * lesen sind (heute nur `ble-adv`: rohe Legacy-Werbung).
  */
 
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
@@ -20,9 +26,13 @@ import type { PhoneCtx } from '../phone/phoneContext';
 import { viewPath } from '../routes';
 import { normalizeHex, readFrame } from './adv';
 
-/** Die Wörter im Weg (`#/workspace/lamps/…`): ein neues Gerät, der Pilot. */
+/** Die Wörter im Weg (`#/workspace/lamps/…`): ein neues Gerät, der Pilot, ein Timer (`timer/<kennung>`, `timer/nowy`). */
 export const NEW_LAMP = 'nowe';
 export const PILOT = 'pilot';
+export const TIMER = 'timer';
+export const NEW_TIMER = 'nowy';
+
+export const timerPath = (timerId: string = NEW_TIMER): string => viewPath('lamps', TIMER, timerId);
 
 /** Vom Pilot lernen — mit `lampId` gleich für dieses Gerät. */
 export const pilotPath = (lampId?: string): string =>
@@ -60,6 +70,29 @@ export interface Lamp extends LampData {
   readonly updatedAt: string;
 }
 
+/** Was ein Timer tut: einen Sygnał eines Geräts senden. */
+export interface LampTimerAction {
+  readonly lampId: string;
+  readonly signalId: string;
+}
+
+export interface LampTimerData {
+  readonly name: string;
+  /** Minute des Tages, 0…1439 (Ortszeit des Telefons). */
+  readonly minute: number;
+  /** 1 = Montag … 7 = Sonntag; leer = jeden Tag. */
+  readonly days: readonly number[];
+  readonly enabled: boolean;
+  /** Nacheinander, in dieser Reihenfolge. */
+  readonly actions: readonly LampTimerAction[];
+}
+
+export interface LampTimer extends LampTimerData {
+  readonly id: string;
+  readonly version: number;
+  readonly updatedAt: string;
+}
+
 interface LampRow {
   readonly lampId: string;
   readonly epoch: number;
@@ -75,6 +108,7 @@ export const DURATION_MAX = 30_000;
 export const GAP_MAX = 10_000;
 export const FRAMES_MAX = 20;
 export const SIGNALS_MAX = 100;
+export const ACTIONS_MAX = 20;
 
 const lampAad = (id: string) => aad('phone', 'lamp', id, Field.PhoneLamp, 1);
 const base = (ctx: PhoneCtx) => `/workspace/phone/${encodeURIComponent(ctx.areaId)}`;
@@ -158,7 +192,72 @@ export const lampTitle = (d: Pick<LampData, 'name' | 'number'>): string =>
   [d.name.trim() || null, d.number !== null && d.number.trim() !== '' ? `nr ${d.number.trim()}` : null].filter(Boolean).join(' · ') || 'Bez nazwy';
 
 /** Was in die Hülle kommt — ohne Kennung und Fassung (die stehen neben ihr). */
-export const sealedJson = (d: LampData): string => JSON.stringify({ v: 1, ...tidyLamp(d) });
+export const sealedJson = (d: LampData): string => JSON.stringify({ v: 1, kind: 'device', ...tidyLamp(d) });
+
+/* -- Timer ------------------------------------------------------------------------------------ */
+
+export const emptyTimer = (): LampTimerData => ({ name: '', minute: 7 * 60, days: [], enabled: true, actions: [] });
+
+export function tidyTimer(d: LampTimerData): LampTimerData {
+  return {
+    name: d.name.trim(),
+    minute: whole(d.minute, -1),
+    days: [...new Set(d.days.map((n) => whole(n, 0)).filter((n) => n >= 1 && n <= 7))].sort((a, b) => a - b),
+    enabled: d.enabled !== false,
+    actions: d.actions.filter((a) => typeof a.lampId === 'string' && typeof a.signalId === 'string').map((a) => ({ lampId: a.lampId, signalId: a.signalId }))
+  };
+}
+
+export const sealedTimerJson = (d: LampTimerData): string => JSON.stringify({ v: 1, kind: 'timer', ...tidyTimer(d) });
+
+export function readTimer(json: string): LampTimerData {
+  const o = JSON.parse(json) as Record<string, unknown>;
+  const actions = Array.isArray(o.actions) ? o.actions.filter((x): x is Record<string, unknown> => x !== null && typeof x === 'object') : [];
+  return tidyTimer({
+    name: String(o.name ?? ''),
+    minute: whole(o.minute, -1),
+    days: Array.isArray(o.days) ? o.days.map((n) => whole(n, 0)) : [],
+    enabled: o.enabled !== false,
+    actions: actions.map((a) => ({ lampId: String(a.lampId ?? ''), signalId: String(a.signalId ?? '') }))
+  });
+}
+
+/** Die Aktion beim Namen: Gerät und Sygnał — `null`, wenn es eins davon nicht mehr gibt. */
+export function actionOf(lamps: readonly Lamp[], a: LampTimerAction): { readonly lamp: Lamp; readonly signal: LampSignal } | null {
+  const lamp = lamps.find((l) => l.id === a.lampId);
+  const signal = lamp?.signals.find((s) => s.id === a.signalId);
+  return lamp === undefined || signal === undefined ? null : { lamp, signal };
+}
+
+/** Alles, was das Speichern eines Timers verhindert — leer: es geht. */
+export function timerProblems(d: LampTimerData, lamps: readonly Lamp[]): string[] {
+  const out: string[] = [];
+  if (!Number.isInteger(d.minute) || d.minute < 0 || d.minute >= 24 * 60) out.push('Podaj godzinę.');
+  if (d.actions.length === 0) out.push('Dodaj co najmniej jedną akcję (urządzenie i sygnał).');
+  if (d.actions.length > ACTIONS_MAX) out.push(`Najwyżej ${ACTIONS_MAX} akcji w timerze.`);
+  d.actions.forEach((a, i) => {
+    if (actionOf(lamps, a) === null) out.push(`Akcja ${i + 1}: tego urządzenia albo sygnału już nie ma.`);
+  });
+  return out;
+}
+
+const two = (n: number) => String(n).padStart(2, '0');
+
+/** 420 → „07:00". */
+export const timeText = (minute: number): string =>
+  (Number.isInteger(minute) && minute >= 0 && minute < 1440 ? `${two(Math.floor(minute / 60))}:${two(minute % 60)}` : '');
+
+/** „7:05", „07:05" → 425; sonst `null`. */
+export function minuteOf(text: string): number | null {
+  const m = /^\s*(\d{1,2}):(\d{2})\s*$/.exec(text);
+  if (m === null) return null;
+  const h = Number(m[1]);
+  const mi = Number(m[2]);
+  return h < 24 && mi < 60 ? h * 60 + mi : null;
+}
+
+/** Wie der Timer heisst: sein Name oder seine Uhrzeit. */
+export const timerTitle = (d: LampTimerData): string => d.name.trim() || `Timer ${timeText(d.minute)}`;
 
 export function readLamp(json: string): LampData {
   const o = JSON.parse(json) as Record<string, unknown>;
@@ -198,21 +297,28 @@ export const lampOrder = (a: LampData, b: LampData): number =>
 
 /* -- Der Dienst ------------------------------------------------------------------------------- */
 
-export async function loadLamps(ctx: PhoneCtx): Promise<Lamp[]> {
-  const { lamps } = await call<{ lamps: readonly LampRow[] }>(`${base(ctx)}/lamps`);
-  const out: Lamp[] = [];
-  for (const row of lamps) {
+/** Alle Geräte (nach Nummer, dann Name) und alle Timer (nach Uhrzeit) — aus einer Liste von Hüllen. */
+export async function loadLamps(ctx: PhoneCtx): Promise<{ lamps: Lamp[]; timers: LampTimer[] }> {
+  const { lamps: rows } = await call<{ lamps: readonly LampRow[] }>(`${base(ctx)}/lamps`);
+  const lamps: Lamp[] = [];
+  const timers: LampTimer[] = [];
+  for (const row of rows) {
     const key = ctx.keys.get(row.epoch);
     if (key === undefined) continue;
     try {
-      const data = readLamp(await openText(key, lampAad(row.lampId), fromBase64Url(row.sealed)));
-      out.push({ ...data, id: row.lampId, version: row.version, updatedAt: row.updatedAt });
+      const json = await openText(key, lampAad(row.lampId), fromBase64Url(row.sealed));
+      const meta = { id: row.lampId, version: row.version, updatedAt: row.updatedAt };
+      if ((JSON.parse(json) as { kind?: unknown }).kind === 'timer') timers.push({ ...readTimer(json), ...meta });
+      else lamps.push({ ...readLamp(json), ...meta });
     } catch {
       // Eine Hülle, die nicht aufgeht, hält die anderen nicht auf.
     }
   }
-  return out.sort(lampOrder);
+  return { lamps: lamps.sort(lampOrder), timers: timers.sort(timerOrder) };
 }
+
+/** Nach Uhrzeit, dann Name. */
+export const timerOrder = (a: LampTimerData, b: LampTimerData): number => a.minute - b.minute || collator.compare(a.name, b.name);
 
 /** Speichern — neu (`id` null) oder geändert (auf dem Stand `version`). */
 export async function saveLamp(ctx: PhoneCtx, id: string | null, data: LampData, version: number): Promise<Lamp> {
@@ -225,12 +331,24 @@ export async function saveLamp(ctx: PhoneCtx, id: string | null, data: LampData,
   return { ...tidy, id: lampId, version: saved.version, updatedAt: saved.updatedAt };
 }
 
-export const removeLamp = (ctx: PhoneCtx, id: string): Promise<{ deleted: boolean }> =>
+/** Einen Timer speichern — neu (`id` null) oder geändert (auf dem Stand `version`). */
+export async function saveTimer(ctx: PhoneCtx, id: string | null, data: LampTimerData, version: number): Promise<LampTimer> {
+  const timerId = id ?? newId();
+  const tidy = tidyTimer(data);
+  const sealed = toBase64Url(await sealText(ctx.newest.key, lampAad(timerId), sealedTimerJson(tidy)));
+  const saved = await call<{ version: number; updatedAt: string }>(`${base(ctx)}/lamp/${encodeURIComponent(timerId)}`, {
+    method: 'PUT', body: JSON.stringify({ epoch: ctx.newest.epoch, sealed, version })
+  });
+  return { ...tidy, id: timerId, version: saved.version, updatedAt: saved.updatedAt };
+}
+
+/** Ein Gerät oder einen Timer löschen (dieselbe Tabelle). */
+export const removeItem = (ctx: PhoneCtx, id: string): Promise<{ deleted: boolean }> =>
   call(`${base(ctx)}/lamp/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
 export function lampSaveProblem(e: unknown): string {
   if (e instanceof WorkspaceError) {
-    if (e.verdict === 'stale') return 'Ktoś zmienił to urządzenie w międzyczasie — wczytaj je ponownie.';
+    if (e.verdict === 'stale') return 'Ktoś zmienił to w międzyczasie — wczytaj stronę ponownie.';
     return e.message;
   }
   return 'Nie udało się zapisać urządzenia.';

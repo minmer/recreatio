@@ -29,12 +29,14 @@ export function useLampSupport(native: boolean): { readonly support: LampSupport
 export const useAttempts = (): readonly Attempt[] => useSyncExternalStore(subscribeAttempts, attemptsNow);
 
 /** Was fehlt, damit gesendet werden kann — mit dem einen Handgriff, der hilft. */
-export function SupportPanel({ native, support, refresh, scan = false }: {
+export function SupportPanel({ native, support, refresh, scan = false, quiet = false }: {
   native: boolean;
   support: LampSupport | null;
   refresh: () => void;
   /** Für „Odczyt z pilota": dann zählt die Erlaubnis zum Hören. */
   scan?: boolean;
+  /** Nur, was fehlt — kein „gotowy", wenn alles da ist. */
+  quiet?: boolean;
 }) {
   if (!native) {
     return <p className="wk-note">Sygnały nadaje i odczytuje telefon z aplikacją REcreatio (wydanie sms). Tutaj możesz ustawiać urządzenia i sygnały.</p>;
@@ -71,6 +73,7 @@ export function SupportPanel({ native, support, refresh, scan = false }: {
       </section>
     );
   }
+  if (quiet) return null;
   return (
     <p className="wk-working">
       {scan ? 'Skaner BLE gotowy' : 'Nadajnik BLE gotowy'} · Android API {support.sdk}
@@ -82,6 +85,7 @@ export function SupportPanel({ native, support, refresh, scan = false }: {
 /* -- Die Konsole -------------------------------------------------------------------------------- */
 
 const STATE_TAG: Readonly<Record<AttemptState, { readonly text: string; readonly tone: string }>> = {
+  queued: { text: 'Czeka', tone: '' },
   sending: { text: 'Nadawanie…', tone: 'wk-tag-new' },
   sent: { text: 'Reklama nadana', tone: 'wk-tag-open' },
   failed: { text: 'Nie nadano', tone: 'lp-tag-bad' },
@@ -94,11 +98,34 @@ const clock = (at: number): string => {
   return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}`;
 };
 
+/**
+ * DIE LEISTE OBEN, solange gesendet wird oder etwas wartet: was gerade hinausgeht,
+ * wie viele Drücke noch warten, „Stop". Klebt oben — die Knöpfe bleiben darunter.
+ */
+export function LampQueueBar({ native }: { native: boolean }) {
+  const attempts = useAttempts();
+  const now = attempts.find((a) => a.state === 'sending') ?? null;
+  const waiting = attempts.filter((a) => a.state === 'queued').length;
+  if (!native || (now === null && waiting === 0)) return null;
+  return (
+    <div className="lp-queue" role="status" aria-live="polite">
+      <span className="lp-queue-text">
+        {now !== null ? <>Nadawanie: {now.lamp} → <strong>{now.signal}</strong></> : 'Za chwilę…'}
+        {waiting > 0 && <> · w kolejce {waiting}</>}
+      </span>
+      <button type="button" className="wk-btn wk-btn-small wk-btn-danger" onClick={() => void stopTransmission(LampRadio)}>Stop</button>
+    </div>
+  );
+}
+
 export function LampConsole({ native }: { native: boolean }) {
   const attempts = useAttempts();
   if (attempts.length === 0) return null;
-  const [latest, ...older] = attempts;
-  const sending = attempts.some((a) => a.state === 'sending');
+  /* Vorn steht, was gerade hinausgeht — sonst der letzte fertige Versuch; was wartet, darunter. */
+  const latest = attempts.find((a) => a.state === 'sending') ?? attempts.find((a) => a.state !== 'queued') ?? attempts[0];
+  const waiting = attempts.filter((a) => a.state === 'queued' && a.id !== latest.id).reverse();
+  const older = attempts.filter((a) => a.id !== latest.id && a.state !== 'queued');
+  const sending = attempts.some((a) => a.state === 'sending' || a.state === 'queued');
 
   return (
     <section className="wk-box lp-console" aria-label="Konsola nadawania">
@@ -113,6 +140,9 @@ export function LampConsole({ native }: { native: boolean }) {
       </div>
       <div className="wk-box-body">
         <AttemptView attempt={latest} open />
+        {waiting.length > 0 && (
+          <p className="lp-said">W kolejce: {waiting.map((a) => `${a.lamp} → ${a.signal}`).join(', ')}</p>
+        )}
         {older.length > 0 && (
           <details className="lp-older">
             <summary>Wcześniejsze próby ({older.length})</summary>

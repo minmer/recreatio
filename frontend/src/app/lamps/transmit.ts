@@ -10,7 +10,10 @@
  * </code>
  *
  * <b>Nacheinander.</b> Ein zweiter Druck wartet, bis der erste fertig ist —
- * zwei Werbungen zugleich wären zwei Pakete, die sich gegenseitig stören.
+ * zwei Werbungen zugleich wären zwei Pakete, die sich gegenseitig stören. Man
+ * darf also weiterdrücken, auch während gesendet wird: jeder Druck steht gleich
+ * als „Czeka" im Protokoll und geht hinaus, wenn er dran ist. „Stop" (und das
+ * Verlassen der App) bricht das Laufende ab und streicht, was noch wartet.
  *
  * <b>„Nadano" heisst: Android hat gestartet und gestoppt.</b> Ob eine Lampe es
  * gehört und getan hat, weiss das Telefon nicht; im Protokoll lässt sich von
@@ -25,7 +28,7 @@ import type { LampData, LampSignal } from './lampStore';
 import { lampTitle, signalProblem } from './lampStore';
 import type { LampCode, LampNative, LampSupport, NativeFrame, NativeSendResult } from './native';
 
-export type AttemptState = 'sending' | 'sent' | 'failed' | 'stopped';
+export type AttemptState = 'queued' | 'sending' | 'sent' | 'failed' | 'stopped';
 
 export interface AttemptFrame {
   /** Das Paket, wie es in der Luft stehen soll (ohne Füllsel). */
@@ -150,8 +153,11 @@ export function subscribeAttempts(listener: () => void): () => void {
   return () => { listeners.delete(listener); };
 }
 
+/** Neu: vorn; schon da: an seiner Stelle (die Reihenfolge ist die der Drücke). */
 function put(next: Attempt): Attempt {
-  attempts = [next, ...attempts.filter((a) => a.id !== next.id)].slice(0, HISTORY_MAX);
+  attempts = attempts.some((a) => a.id === next.id)
+    ? attempts.map((a) => (a.id === next.id ? next : a))
+    : [next, ...attempts].slice(0, HISTORY_MAX);
   for (const one of listeners) one();
   return next;
 }
@@ -172,6 +178,8 @@ export function forgetAttempts(): void {
 
 let queue: Promise<unknown> = Promise.resolve();
 let counter = 0;
+/** Zählt bei „Stop" (und beim Verlassen der App) hoch — was davor gedrückt wurde und noch wartet, entfällt. */
+let epoch = 0;
 
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : typeof e === 'string' ? e : 'Nieznany błąd.');
 
@@ -180,20 +188,14 @@ const messageOf = (e: unknown): string => (e instanceof Error ? e.message : type
  * (`LampRadio`) oder `null` im Browser. Wirft nie: wie es ausging, steht im Versuch.
  */
 export function transmit(radio: LampNative | null, lamp: Pick<LampData, 'name' | 'number'>, signal: LampSignal): Promise<Attempt> {
-  const run = queue.then(() => sendOne(radio, lamp, signal));
-  queue = run.catch(() => undefined);
-  return run;
-}
-
-async function sendOne(radio: LampNative | null, lamp: Pick<LampData, 'name' | 'number'>, signal: LampSignal): Promise<Attempt> {
   const prepared = prepareSignal(signal);
-  const attempt = put({
+  const queued = put({
     id: `t${++counter}-${Date.now()}`,
     at: Date.now(),
     lamp: lampTitle(lamp),
     signal: signal.label.trim() || 'Sygnał',
     frames: prepared.shown,
-    state: 'sending',
+    state: 'queued',
     code: null,
     message: null,
     detail: null,
@@ -201,10 +203,24 @@ async function sendOne(radio: LampNative | null, lamp: Pick<LampData, 'name' | '
     timing: [],
     responded: null
   });
+  const mine = epoch;
+  const run = queue.then(() => sendOne(radio, queued, prepared, mine));
+  queue = run.catch(() => undefined);
+  return run;
+}
 
+/** Was noch wartet, entfällt — mit diesem Grund (`stopped`, `paused`). */
+function dropQueue(code: LampCode): void {
+  epoch++;
+  for (const a of attempts) {
+    if (a.state === 'queued') put({ ...a, state: stateOf(code), code, message: codeText(code) });
+  }
+}
+
+async function sendOne(radio: LampNative | null, queued: Attempt, prepared: Prepared, mine: number): Promise<Attempt> {
   const finish = (code: LampCode, detail: string | null = null, result: NativeSendResult | null = null, message: string | null = null): Attempt =>
     put({
-      ...attempt,
+      ...(attempts.find((a) => a.id === queued.id) ?? queued),
       state: stateOf(code),
       code,
       message: message ?? codeText(code),
@@ -213,6 +229,8 @@ async function sendOne(radio: LampNative | null, lamp: Pick<LampData, 'name' | '
       timing: result === null ? [] : timingNotes(prepared.shown, result)
     });
 
+  if (mine !== epoch) return finish('stopped');
+  put({ ...(attempts.find((a) => a.id === queued.id) ?? queued), state: 'sending' });
   if (prepared.problem !== null) return finish('bad-frame', null, null, prepared.problem);
   if (radio === null) return finish('unavailable');
 
@@ -225,14 +243,17 @@ async function sendOne(radio: LampNative | null, lamp: Pick<LampData, 'name' | '
       if (!granted) return finish('no-permission');
     }
     const result = await radio.send({ frames: prepared.frames });
+    /* Die App ist vom Bildschirm gegangen: was danach noch wartete, geht auch nicht mehr hinaus. */
+    if (result.code === 'paused') dropQueue('paused');
     return finish(result.code, result.detail, result, result.code === 'bad-frame' && result.detail !== null ? result.detail : null);
   } catch (e) {
     return finish('error', messageOf(e));
   }
 }
 
-/** Das Laufende abbrechen — und was noch wartet (im Telefon). */
+/** Das Laufende abbrechen — und alles, was noch wartet. */
 export async function stopTransmission(radio: LampNative | null): Promise<void> {
+  dropQueue('stopped');
   if (radio === null) return;
   try {
     await radio.stop();

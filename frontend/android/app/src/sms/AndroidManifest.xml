@@ -55,6 +55,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- Lampy: Timer zur Uhrzeit (LampTimers) — und neu stellen nach Neustart, Update, Uhr- oder Zeitzonenwechsel. -->
+        <receiver android:name=".LampTimerReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <receiver android:name=".SmsReceiver" android:exported="true" android:permission="android.permission.BROADCAST_SMS">
             <intent-filter>
                 <action android:name="android.provider.Telephony.SMS_DELIVER" />
