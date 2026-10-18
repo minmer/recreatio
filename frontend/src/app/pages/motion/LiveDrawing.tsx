@@ -35,7 +35,7 @@
 
 import { useContext, useEffect, useId, useLayoutEffect, useMemo, useReducer, useRef, type CSSProperties } from 'react';
 
-import { toNum, truth } from './expr';
+import { toNum } from './expr';
 import type { Drawing } from './drawing';
 import { usePhase, useReducedMotion } from './MotionBox';
 import { useMotionPlan } from './DrawingView';
