@@ -1,6 +1,6 @@
 /**
- * 2026-10-18 — CIŚNIENIE W CIECZY: was die Fizyka und die Chemia über
- * Flüssigkeiten gemeinsam wissen. Die Dichte macht den Druck in der Tiefe
+ * 2026-10-18 — CIŚNIENIE W CIECZY: was die Fizyka über Flüssigkeiten
+ * weiss. Die Dichte macht den Druck in der Tiefe
  * (p = p₀ + ρ·g·h, Stevin), den Auftrieb (Archimedes: so viel, wie die
  * verdrängte Flüssigkeit wiegt) und den Strahl aus einem Loch (Torricelli:
  * v = √(2·g·h)); ein U-Rohr misst so einen Gasdruck (Manometer).

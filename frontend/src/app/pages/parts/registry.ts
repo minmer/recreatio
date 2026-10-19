@@ -48,6 +48,8 @@ import { mapPart } from './map';
 import { formPart, massesPart, slotsPart } from './live';
 import { noticePart } from './notice';
 import { peoplePart } from './people';
+import { particlesPart } from './particles';
+import { physicsPart } from './physics';
 import { planPart } from './plan';
 import { programPart } from './program';
 import { shapePart } from './shape';
@@ -72,6 +74,12 @@ export const PARTS: readonly PartModule[] = [
   /* 0107 — aus dem Pokaz von Cogita: ein Bild aus Ebenen mit eigener Bewegung, und die bewegten Bilder selbst. */
   layersPart,
   animationPart,
+
+  /* 2026-10-18 — Laboratorium fizyki: ein fest eingebauter Motor, der Versuch als Dokument (Fizyka 2D). */
+  physicsPart,
+
+  /* 2026-10-19 — Laboratorium cząstek: eine Partikel-Engine (documentation/particles/), der Aufbau als Dokument. */
+  particlesPart,
 
   /* Was eine Ereignisseite trägt (0063, aus dem Altbestand). */
   heroPart,

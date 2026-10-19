@@ -7,13 +7,14 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "app:check": "tsc -p tsconfig.json --noEmit && node scripts/app-urgency-check.mjs && node scripts/app-menu-check.mjs && node scripts/app-chat-check.mjs && node scripts/app-event-check.mjs && node scripts/app-json-check.mjs && node scripts/app-library-check.mjs && node scripts/app-platform-check.mjs && node scripts/app-lamp-check.mjs && node scripts/app-presentation-check.mjs && node scripts/app-slides-check.mjs && node scripts/app-motion-check.mjs && node scripts/app-sim-check.mjs && node scripts/app-world-check.mjs && node scripts/app-cogita-check.mjs && node scripts/app-style-check.mjs",
+    "app:check": "tsc -p tsconfig.json --noEmit && node scripts/app-urgency-check.mjs && node scripts/app-menu-check.mjs && node scripts/app-chat-check.mjs && node scripts/app-event-check.mjs && node scripts/app-json-check.mjs && node scripts/app-library-check.mjs && node scripts/app-platform-check.mjs && node scripts/app-lamp-check.mjs && node scripts/app-presentation-check.mjs && node scripts/app-slides-check.mjs && node scripts/app-motion-check.mjs && node scripts/app-sim-check.mjs && node scripts/app-world-check.mjs && node scripts/app-cogita-check.mjs && node scripts/app-style-check.mjs && node scripts/app-lab-check.mjs && vitest run src/app/lab/particles",
     "app:style": "node scripts/app-style-check.mjs",
     "android:apk": "node scripts/android-apk.mjs",
     "android:keystore": "node scripts/android-keystore.mjs",
     "android:icons": "node scripts/android-icons.mjs",
     "android:release": "node scripts/android-apk.mjs --bundle",
-    "android:publish": "node scripts/android-publish.mjs"
+    "android:publish": "node scripts/android-publish.mjs",
+    "test:particles": "vitest run src/app/lab/particles"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
@@ -36,6 +37,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "typescript": "^5.5.4",
-    "vite": "^5.4.2"
+    "vite": "^5.4.2",
+    "vitest": "^2.1.9"
   }
 }

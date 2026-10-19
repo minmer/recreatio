@@ -1,15 +1,15 @@
 /**
- * 2026-10-18 — DER ZUFALL UND DIE ZAHLEN EINES LABORS (Fizyka, Chemia).
+ * 2026-10-18 — DER ZUFALL UND DIE ZAHLEN DES LABORS (Fizyka).
  *
- * Die Motoren sind Code; was ein Baustein mit ihnen zeigt, ist ein Dokument
+ * Der Motor ist Code; was ein Baustein mit ihm zeigt, ist ein Dokument
  * (die Tafel in `slug_part.config`). Damit dasselbe Dokument jedes Mal ein
  * etwas anderes Experiment sein kann, darf es Werte ziehen:
  *
  * <code>
  *   "vars": [{ "name": "kat", "from": 20, "to": 40, "step": 5 },
- *            { "name": "sol", "pick": ["NaCl", "KCl", "CaCl2"] }]
+ *            { "name": "mat", "pick": ["wood", "steel", "ice"] }]
  *   "x": "=2 + cos(rad(kat))"        eine Zahl als Rechnung (dieselbe Sprache wie die Animacja)
- *   "species": "{sol}"               ein Text mit einem gezogenen Text darin
+ *   "material": "{mat}"              ein Text mit einem gezogenen Text darin
  * </code>
  *
  * Gezogen wird einmal, wenn das Labor gebaut wird (und mit „Nowe losowanie”);

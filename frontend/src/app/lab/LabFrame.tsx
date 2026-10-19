@@ -1,5 +1,5 @@
 /**
- * 2026-10-18 — DER RAHMEN EINES LABORS (Fizyka, Chemia): oben der Titel
+ * 2026-10-18 — DER RAHMEN DES LABORS (Fizyka): oben der Titel
  * und die Werkzeuge der Zeit, darunter die Bühne (eine Leinwand) und daneben
  * — oder auf dem Telefon darunter — die Bedienung.
  *

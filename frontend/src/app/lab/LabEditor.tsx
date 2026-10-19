@@ -1,5 +1,5 @@
 /**
- * 2026-10-18 — DER EDITOR EINES LABORS (Fizyka, Chemia): Titel, Text für die
+ * 2026-10-18 — DER EDITOR DES LABORS (Fizyka): Titel, Text für die
  * Schüler, Art (Piaskownica oder Doświadczenie) und die Szene als JSON —
  * dazu fertige Versuche zum Einsetzen, ein Polecenie dla AI zum Kopieren
  * (die KI arbeitet im eigenen Chat, nicht in der App) und die Vorschau des
@@ -27,7 +27,7 @@ export function LabEditor({ raw, onSet, busy, presets, sandbox, prompt, Preview,
   prompt: () => Promise<string>;
   /** Die Vorschau (das Labor selbst, später geladen). */
   Preview: ComponentType<{ title: string; text: readonly string[]; mode: 'sandbox' | 'experiment'; scene: unknown }>;
-  /** „laboratorium fizyki”, „laboratorium chemiczne”. */
+  /** „laboratorium fizyki”. */
   what: string;
 }) {
   const [title, setTitle] = useState(raw.title ?? '');

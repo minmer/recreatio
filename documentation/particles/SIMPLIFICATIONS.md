@@ -1,0 +1,28 @@
+# Particle lab engine — simplifications
+
+Every approximation of the model, with why it is there and what it changes. The "About this model" panel shows the
+same list to pupils (Polish first, two levels of wording) — that models simplify reality is itself a lesson. When a
+milestone adds or removes an approximation, this file changes with the code. Architecture:
+[ARCHITECTURE.md](ARCHITECTURE.md).
+
+| # | Simplification | Why | What it changes |
+|---|---|---|---|
+| 1 | **A 2D slab.** The box is a slab of depth D (1 cm); nothing moves in the third direction and the front and back faces are not modelled. | 3D at this resolution is far beyond a school laptop in real time. | Flows are planar; a "bubble" is a disc of depth D, a beaker a cross-section. Masses and energies are real for the slab. |
+| 2 | **Matter in particles of 2.5–4 mm.** Each particle carries a volume s²·D of one material or mixture. | The particle count decides the speed (≈ 8 000 at 60 fps). | Anything smaller than a few particles (thin films, tiny bubbles, a single droplet of dew) is not resolved; surfaces look grainy. |
+| 3 | **Gas densities are compressed for motion.** Real water is about 1 600 times denser than steam; the solver moves gases with densities mapped (log scale, order kept) into 20–80 kg/m³. | No real-time particle solver is stable with a 1 600:1 ratio. | Buoyancy of gas in liquid is right in direction and order, but hot air rises more slowly than in reality (density differences between gases shrink). Heat, phase change and all displayed numbers use real densities. |
+| 4 | **Low-Mach gas.** Gas density follows temperature and composition at ambient pressure; local pressure differences only drive flow. | The standard model for slow, hot gas flows; it keeps the step large. | No sound, no pressure waves, no compression of gas by a piston; explosions are out of reach (a later milestone needs a compressible model). |
+| 5 | **Vapour expands at most K_max ≈ 16 times.** A boiling particle splits into at most 16 vapour particles instead of growing 1 600 times in volume. | Splitting keeps the resolution; 1 600 particles per evaporated particle would flood the box. | A vapour particle holds about 100 times more water than real steam of its volume: bubbles are smaller than real for the same evaporated mass. Mass and energy budgets stay exact. |
+| 6 | **Incompressibility is iterative.** The density constraint is solved with a few iterations per step. | Real-time budget. | The density error is a few per cent; the pressure shown is derived from the solver and smoothed, accurate to about 10 % (hydrostatic test). |
+| 7 | **Viscosity is mostly numerical.** A smoothing of neighbour velocities (XSPH) keeps the fluid stable; the real viscosity of water would be negligible at this resolution. | Stability. | Small eddies are damped more than in water. |
+| 8 | **Surface tension and wetting are a cohesion model** (Akinci et al. 2013) with coefficients calibrated to the particle size. | Real surface tension acts on scales far below a particle. | Droplet shapes and contact angles are approximate. |
+| 9 | **Nucleation is a superheat threshold.** Liquid starts to boil only above the saturation temperature plus ΔT_nuc — small at rough surface spots (boiling chips, metal), large in the bulk. | Bubble nuclei (micro-crevices, dissolved gas) are far below particle size. | Superheating and bumping appear, but the onset of boiling depends on the chosen ΔT values, not on the true microscopic surface. |
+| 10 | **No dissolved gas in water.** Air does not dissolve in water. | Not needed for boiling. | The small bubbles of dissolved air that appear early when heating real water are missing. |
+| 11 | **Condensate collects before it becomes a droplet.** Water condensing from a gas particle goes to an accumulator on a nearby liquid or solid particle; a droplet appears when a particle's worth has collected. | A droplet cannot be smaller than a particle. | Dew appears in steps; very thin fog or mist is not shown. |
+| 12 | **Constant heat capacities per phase**, a simple conductivity of water against temperature, latent heat of vaporisation varying only by Kirchhoff's law, ideal gas mixtures, dry air = N₂ + O₂. | Enough for the effects shown; data are sourced in `species.json`. | Small errors (≈ 1 %) in heating rates and boiling temperatures away from 1 atm; no argon or CO₂ in air. |
+| 13 | **Heat loss through a transfer coefficient.** Walls and open sides exchange heat with the room through one coefficient; no radiation. | Radiation and natural convection outside the box are not part of the scene. | Cooling rates are approximate; a hot plate does not glow. |
+| 14 | **Apparatus is rigid.** Beakers, plates and walls are static particles: they conduct heat but do not move, deform, crack or melt. | Solids that move and melt come in a later milestone. | A beaker cannot be knocked over; glass never breaks. |
+| 15 | **The room outside an open side is a thin band.** Particles that leave are removed and counted as escaped; fresh ambient air is spawned where the band thins out. | The room is not simulated. | Steam leaving the box is counted, not followed; the air coming in is always at ambient conditions. |
+| 16 | **Time steps are fixed (1/240 s).** Fast-forward runs more steps per frame, as far as the device allows. | Stability and determinism. | On a slow device time may run slower than real time; the developer HUD shows it. |
+
+M0 note: until the mechanics milestone, a simple "keep apart" constraint stands in for the density solver; it is not a
+fluid (no pressure, no buoyancy) and is listed here until it is removed.

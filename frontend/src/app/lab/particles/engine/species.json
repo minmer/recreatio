@@ -1,0 +1,163 @@
+{
+  "format": "recreatio/species",
+  "version": 1,
+  "sources": {
+    "nist": "NIST Chemistry WebBook, NIST Standard Reference Database 69 (P. J. Linstrom, W. G. Mallard, eds.), https://webbook.nist.gov — thermophysical properties of fluid systems",
+    "crc": "CRC Handbook of Chemistry and Physics, 97th ed. (W. M. Haynes, ed.), CRC Press 2016",
+    "etb-ice": "Engineering ToolBox, 'Ice — Thermal Properties' (c_p 2.108 kJ/(kg·K), k 2.22 W/(m·K) at 0 °C), citing the CRC Handbook",
+    "kell": "G. S. Kell, Density, thermal expansivity, and compressibility of liquid water from 0 °C to 150 °C, J. Chem. Eng. Data 20 (1975) 97–105, eq. 16",
+    "iapws-k": "IAPWS R15-11 (2011), thermal conductivity of ordinary water substance — values at 20, 60 and 100 °C (0.5984, 0.6544, 0.6791 W/(m·K)), fitted here by a quadratic in °C",
+    "iapws-sat": "IAPWS R7-97 / Wagner & Pruß (2002), saturation properties of water at 101.325 kPa",
+    "iapws-st": "IAPWS R1-76 (2014), surface tension of ordinary water substance",
+    "antoine": "Antoine coefficients for water, 1–100 °C and 99–374 °C (p in mmHg, T in °C), as tabulated in the Dortmund Data Bank and quoted in the build prompt",
+    "codata": "CODATA Key Values for Thermodynamics (J. D. Cox, D. D. Wagman, V. A. Medvedev, 1989), via the NIST WebBook",
+    "schott": "SCHOTT DURAN® borosilicate glass 3.3 — technical data sheet (density, mean specific heat 20–100 °C, thermal conductivity at 90 °C)",
+    "aisi304": "AISI 304 stainless steel product data (AK Steel / ASM Handbook): density, specific heat 0–100 °C, thermal conductivity at 100 °C",
+    "ceramic": "Typical values for porous fired clay and unglazed porcelain (Engineering ToolBox solids tables, CRC ceramics tables); porous ceramics vary by ±30 %",
+    "contact": "Typical sessile-drop contact angles of water: clean borosilicate glass ≈ 20°, stainless steel ≈ 70°, porous hydrophilic ceramic ≈ 10° (surface preparation changes them by ±20°)",
+    "etb-diff": "Engineering ToolBox, 'Air — Diffusion Coefficients of Gases in Excess of Air' (water vapour 0.25–0.28 cm²/s at 20–25 °C, 1 atm)",
+    "lienhard": "J. H. Lienhard IV & V, A Heat Transfer Textbook, 5th ed. (2019), ch. 9 — onset of nucleate boiling at a few kelvin of wall superheat",
+    "model": "Model parameter, not a measured property — chosen and documented in documentation/particles/SIMPLIFICATIONS.md"
+  },
+  "gasMap": {
+    "lo": { "v": 0.05, "src": "model" },
+    "hi": { "v": 5, "src": "model" },
+    "min": { "v": 20, "src": "model" },
+    "max": { "v": 80, "src": "model" }
+  },
+  "air": {
+    "N2": { "v": 0.7676, "src": "crc" },
+    "O2": { "v": 0.2324, "src": "crc" }
+  },
+  "species": [
+    {
+      "id": "H2O",
+      "formula": "H₂O",
+      "kind": "substance",
+      "name": { "pl": "woda", "de": "Wasser", "en": "water" },
+      "molarMass": { "v": 0.01801528, "src": "nist" },
+      "phases": {
+        "solid": {
+          "name": { "pl": "lód", "de": "Eis", "en": "ice" },
+          "density": { "v": 916.7, "src": "crc" },
+          "cp": { "v": 2108, "src": "etb-ice" },
+          "k": { "v": 2.22, "src": "etb-ice" },
+          "color": "#dceef8"
+        },
+        "liquid": {
+          "name": { "pl": "woda", "de": "Wasser", "en": "water" },
+          "density": { "kell": [999.83952, 16.945176, -7.9870401e-3, -46.170461e-6, 105.56302e-9, -280.54253e-12, 16.879850e-3], "src": "kell" },
+          "cp": { "v": 4186, "src": "crc" },
+          "k": { "poly": [0.5587, 2.1825e-3, -9.78e-6], "src": "iapws-k" },
+          "viscosity": { "v": 1.0016e-3, "src": "crc" },
+          "color": "#3d8fd8"
+        },
+        "gas": {
+          "name": { "pl": "para wodna", "de": "Wasserdampf", "en": "steam" },
+          "cp": { "v": 2080, "src": "nist" },
+          "k": { "v": 0.0248, "src": "nist" },
+          "viscosity": { "v": 1.23e-5, "src": "nist" },
+          "diffusion": { "v": 2.5e-5, "src": "etb-diff" },
+          "color": "#eef3f8"
+        }
+      },
+      "melt": { "T": { "v": 273.15, "src": "crc" }, "L": { "v": 333550, "src": "crc" } },
+      "boil": {
+        "T": { "v": 373.124, "src": "iapws-sat" },
+        "L": { "v": 2256400, "src": "iapws-sat" },
+        "antoine": [
+          { "A": 8.07131, "B": 1730.63, "C": 233.426, "from": 1, "to": 100, "src": "antoine" },
+          { "A": 8.14019, "B": 1810.94, "C": 244.485, "from": 99, "to": 374, "src": "antoine" }
+        ]
+      },
+      "nucleation": { "site": { "v": 5, "src": "lienhard" }, "bulk": { "v": 30, "src": "model" } },
+      "surfaceTension": { "v": 0.07275, "src": "iapws-st" },
+      "thermo": {
+        "liquid": { "dHf": { "v": -285830, "src": "codata" }, "S": { "v": 69.95, "src": "codata" } },
+        "gas": { "dHf": { "v": -241826, "src": "codata" }, "S": { "v": 188.835, "src": "codata" } }
+      }
+    },
+    {
+      "id": "N2",
+      "formula": "N₂",
+      "kind": "substance",
+      "name": { "pl": "azot", "de": "Stickstoff", "en": "nitrogen" },
+      "molarMass": { "v": 0.0280134, "src": "nist" },
+      "phases": {
+        "gas": {
+          "name": { "pl": "azot", "de": "Stickstoff", "en": "nitrogen" },
+          "cp": { "v": 1039.7, "src": "nist" },
+          "k": { "v": 0.02598, "src": "nist" },
+          "viscosity": { "v": 1.789e-5, "src": "nist" },
+          "color": "#c9d6e6"
+        }
+      },
+      "thermo": { "gas": { "dHf": { "v": 0, "src": "codata" }, "S": { "v": 191.61, "src": "codata" } } }
+    },
+    {
+      "id": "O2",
+      "formula": "O₂",
+      "kind": "substance",
+      "name": { "pl": "tlen", "de": "Sauerstoff", "en": "oxygen" },
+      "molarMass": { "v": 0.0319988, "src": "nist" },
+      "phases": {
+        "gas": {
+          "name": { "pl": "tlen", "de": "Sauerstoff", "en": "oxygen" },
+          "cp": { "v": 918.5, "src": "nist" },
+          "k": { "v": 0.02658, "src": "nist" },
+          "viscosity": { "v": 2.065e-5, "src": "nist" },
+          "color": "#c9d6e6"
+        }
+      },
+      "thermo": { "gas": { "dHf": { "v": 0, "src": "codata" }, "S": { "v": 205.15, "src": "codata" } } }
+    },
+    {
+      "id": "glass",
+      "formula": "SiO₂·B₂O₃",
+      "kind": "material",
+      "name": { "pl": "szkło borokrzemowe", "de": "Borosilikatglas", "en": "borosilicate glass" },
+      "phases": {
+        "solid": {
+          "name": { "pl": "szkło", "de": "Glas", "en": "glass" },
+          "density": { "v": 2230, "src": "schott" },
+          "cp": { "v": 830, "src": "schott" },
+          "k": { "v": 1.2, "src": "schott" },
+          "color": "#9cc3d3"
+        }
+      },
+      "surface": { "sites": { "v": 0.02, "src": "model" }, "contactAngle": { "v": 20, "src": "contact" } }
+    },
+    {
+      "id": "steel",
+      "formula": "Fe–Cr–Ni",
+      "kind": "material",
+      "name": { "pl": "stal nierdzewna", "de": "Edelstahl", "en": "stainless steel" },
+      "phases": {
+        "solid": {
+          "name": { "pl": "stal", "de": "Stahl", "en": "steel" },
+          "density": { "v": 8000, "src": "aisi304" },
+          "cp": { "v": 500, "src": "aisi304" },
+          "k": { "v": 16.2, "src": "aisi304" },
+          "color": "#7d858e"
+        }
+      },
+      "surface": { "sites": { "v": 0.15, "src": "model" }, "contactAngle": { "v": 70, "src": "contact" } }
+    },
+    {
+      "id": "ceramic",
+      "formula": "Al₂O₃·SiO₂",
+      "kind": "material",
+      "name": { "pl": "ceramika porowata (kamyczki wrzenne)", "de": "poröse Keramik (Siedesteine)", "en": "porous ceramic (boiling chips)" },
+      "phases": {
+        "solid": {
+          "name": { "pl": "ceramika", "de": "Keramik", "en": "ceramic" },
+          "density": { "v": 2000, "src": "ceramic" },
+          "cp": { "v": 850, "src": "ceramic" },
+          "k": { "v": 1.0, "src": "ceramic" },
+          "color": "#dacfbd"
+        }
+      },
+      "surface": { "sites": { "v": 1, "src": "model" }, "contactAngle": { "v": 10, "src": "contact" } }
+    }
+  ]
+}
