@@ -14,7 +14,8 @@
     "android:icons": "node scripts/android-icons.mjs",
     "android:release": "node scripts/android-apk.mjs --bundle",
     "android:publish": "node scripts/android-publish.mjs",
-    "test:particles": "vitest run src/app/lab/particles"
+    "test:particles": "vitest run src/app/lab/particles",
+    "test:particles:slow": "vitest run --config vitest.slow.config.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

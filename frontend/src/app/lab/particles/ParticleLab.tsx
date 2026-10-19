@@ -15,13 +15,14 @@ import { Icon, type IconName } from '../../ui/icons';
 import { LabFrame } from '../LabFrame';
 import type { ParticleInfo } from './engine/engine';
 import type { HostStats } from './engine/protocol';
-import { readScene, writeScene, type Op, type Quality } from './engine/scene';
+import { QUALITIES, SPACING, isQuality, readScene, writeScene, type Op, type Quality } from './engine/scene';
 import { phaseColor, spIndex } from './engine/species';
 import { STAGES } from './engine/stages';
 import { GAS, LIQUID, SOLID, T0 } from './engine/units';
 import { ParticleHost } from './host';
 import { num, t, type TextKey } from './i18n';
-import { createEngineWorker } from './workerFactory';
+import { fullLabUseful } from './fullLab';
+import { createEngineWorker, createHelperWorker } from './workerFactory';
 
 import './particles.css';
 
@@ -61,11 +62,20 @@ const TOOLS: readonly { readonly key: Tool; readonly label: TextKey; readonly ic
 ];
 
 const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 4, 8];
-const QUALITIES: readonly { readonly key: Quality; readonly label: TextKey }[] = [
-  { key: 'low', label: 'qualityLow' },
-  { key: 'medium', label: 'qualityMedium' },
-  { key: 'high', label: 'qualityHigh' }
-];
+const QUALITY_LABEL: Readonly<Record<Quality, TextKey>> = { 'very-high': 'qualityVeryHigh', high: 'qualityHigh', medium: 'qualityMedium' };
+
+/** Die Stufe dieses Geräts: wer einmal eine niedrigere gewählt hat, bekommt sie wieder (ohne Speicher gilt die der Szene). */
+const QUALITY_KEY = 'recreatio.particles.quality';
+function savedQuality(): Quality | null {
+  try { const v = window.localStorage.getItem(QUALITY_KEY); return isQuality(v) ? v : null; } catch { return null; }
+}
+function saveQuality(q: Quality): void {
+  try { window.localStorage.setItem(QUALITY_KEY, q); } catch { /* ohne Speicher gilt die Wahl nur jetzt */ }
+}
+/** Die Szene in der Stufe dieses Geräts (sonst unverändert — geprüft wird im Arbeiter). */
+function withQuality(raw: unknown, q: Quality): unknown {
+  return raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>), quality: q } : { quality: q };
+}
 
 /** Ein Gerät an der Stelle (x, y): Mitte und Unterkante; dicht über dem Boden steht es auf ihm. */
 function apparatusOp(kind: ApparatusKey, x: number, y: number): Op {
@@ -86,12 +96,13 @@ function ApparatusIcon({ kind }: { kind: ApparatusKey }) {
 }
 
 function Inspector({ info }: { info: ParticleInfo }) {
-  const phase = info.phase === SOLID ? t('phaseSolid') : info.phase === LIQUID ? t('phaseLiquid') : t('phaseGas');
+  const phase = info.implicit ? t('ambientAir') : info.phase === SOLID ? t('phaseSolid') : info.phase === LIQUID ? t('phaseLiquid') : t('phaseGas');
   return (
     <div className="lab-values">
       <div className="lab-value"><span>{t('phase')}</span><output>{phase}{info.fixed ? ` · ${t('fixed')}` : ''}{info.role === 1 ? ` · ${t('heater')}` : ''}</output></div>
       <div className="lab-value"><span>{t('temp')}</span><output>{num(info.T - T0, 1)} °C</output></div>
-      <div className="lab-value"><span>{t('mass')}</span><output>{num(info.mass * 1e6, 2)} mg</output></div>
+      <div className="lab-value"><span>{t('pressure')}</span><output>{num(info.p / 1000, 3)} kPa</output></div>
+      {!info.implicit && <div className="lab-value"><span>{t('mass')}</span><output>{num(info.mass * 1e6, 2)} mg</output></div>}
       <div className="lab-value"><span>{t('velocity')}</span><output>{num(Math.hypot(info.vx, info.vy) * 100, 1)} cm/s</output></div>
       <div className="lab-value"><span>{t('density')}</span><output>{num(info.rho, info.rho < 10 ? 3 : 1)} kg/m³</output></div>
       <div className="lab-value"><span>{t('enthalpy')}</span><output>{num(info.H / 1000, 1)} kJ/kg</output></div>
@@ -104,21 +115,24 @@ function Inspector({ info }: { info: ParticleInfo }) {
 function Hud({ stats }: { stats: HostStats }) {
   const e = stats.engine;
   const lines = [
-    `${e.particles} ${t('particles')} (${t('liquid')} ${e.liquid}, ${t('gas')} ${e.gas}, ${t('solidFixed')} ${e.fixed}) / ${e.capacity}`,
+    `${e.particles} ${t('particles')} (${t('liquid')} ${e.liquid}, ${t('gas')} ${e.gas} — ${t('airParticles')} ${e.air}, ${t('solidFixed')} ${e.fixed}) / ${e.capacity}`,
     `${Math.round(stats.stepsPerSecond)} ${t('stepsPerSecond')} · ${t('simRate')} ${num(stats.simRate, 2)}× · ${Math.round(stats.fps)} ${t('fps')}`,
-    `${stats.mode === 'worker' ? t('renderWorker') : t('renderMain')} · render ${num(stats.renderMs, 2)} ms · s = ${num(e.spacing * 1000, 1)} mm`,
+    `${stats.mode === 'worker' ? t('renderWorker') : t('renderMain')} · render ${num(stats.renderMs, 2)} ms · s = ${num(e.spacing * 1000, 1)} mm · ${e.threads} ${t('threads')} · ${e.substeps}× dt/${e.substeps}`,
     ...STAGES.map((name, k) => `${name.padEnd(12)} ${(e.stages[k] ?? 0).toFixed(3)} ms`),
     `${'step'.padEnd(12)} ${e.stages.reduce((a, b) => a + b, 0).toFixed(3)} ms${e.overflow > 0 ? ` · overflow ${e.overflow}` : ''}`
   ];
   return <div className="pl-hud" aria-hidden="true">{lines.join('\n')}</div>;
 }
 
-export function ParticleLab({ config, whole = false, createWorker = createEngineWorker }: {
+export function ParticleLab({ config, whole = false, createWorker = createEngineWorker, createHelper = createHelperWorker, fullPower }: {
   config: ParticleConfig;
   /** Steht schon im ganzen Fenster der Seite. */
   whole?: boolean;
-  /** Der Arbeiter (der Prüfstand ohne Vite reicht einen eigenen herein). */
+  /** Der Arbeiter und seine Helfer (der Prüfstand ohne Vite reicht eigene herein). */
   createWorker?: () => Worker;
+  createHelper?: () => Worker;
+  /** Das Labor in einer eigenen Karte mit allen Kernen öffnen (`lab.html`, `fullLab.ts`); bekommt, was gebaut wurde. Fehlt, wo es das schon ist. */
+  fullPower?: (scene: () => Promise<Record<string, unknown> | null>) => void;
 }) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<ParticleHost | null>(null);
@@ -134,12 +148,19 @@ export function ParticleLab({ config, whole = false, createWorker = createEngine
   const [apparatus, setApparatus] = useState<ApparatusKey>('beaker');
   const [brushMm, setBrushMm] = useState(8);
   const [tempC, setTempC] = useState(20);
-  const [quality, setQuality] = useState<Quality>(() => readScene(config.scene).scene.quality);
+  const [quality, setQuality] = useState<Quality>(() => savedQuality() ?? readScene(config.scene).scene.quality);
   const [showAir, setShowAir] = useState(true);
   const [info, setInfo] = useState<ParticleInfo | null | undefined>(undefined);
   const [line, setLine] = useState<readonly [number, number, number, number] | null>(null);
+  /** Das Tempo der Simulation (× Echtzeit), solange der Rechner nicht nachkommt — sonst `null`. */
+  const [lagging, setLagging] = useState<number | null>(null);
   const airRef = useRef(showAir);
   airRef.current = showAir;
+  const qualityRef = useRef(quality);
+  qualityRef.current = quality;
+  const speedRef = useRef(SPEEDS[speedAt]);
+  speedRef.current = SPEEDS[speedAt];
+  const lagRef = useRef(0);
 
   useEffect(() => {
     const box = boxRef.current;
@@ -148,10 +169,18 @@ export function ParticleLab({ config, whole = false, createWorker = createEngine
     canvas.className = 'pl-canvas';
     box.prepend(canvas);
     setError(null);
-    const host = new ParticleHost(canvas, createWorker, { onReady: () => setReady(true), onStats: setStats, onError: setError });
+    /* Kommt der Rechner bei Tempo 1 (oder langsamer) drei Sekunden lang nicht nach, sagt es die Seite; erst bei fast vollem Tempo verschwindet der Hinweis. */
+    const onStats = (s: HostStats): void => {
+      setStats(s);
+      const want = speedRef.current;
+      if (s.paused || want > 1 || s.simRate >= 0.97 * want) { lagRef.current = 0; setLagging(null); return; }
+      if (s.simRate < 0.9 * want) lagRef.current += 1;
+      if (lagRef.current >= 15) setLagging(s.simRate);
+    };
+    const host = new ParticleHost(canvas, createWorker, { onReady: () => setReady(true), onStats, onError: setError }, createHelper);
     hostRef.current = host;
     const r = box.getBoundingClientRect();
-    void host.start(config.scene, airRef.current, r.width, r.height, window.devicePixelRatio || 1);
+    void host.start(withQuality(config.scene, qualityRef.current), airRef.current, r.width, r.height, window.devicePixelRatio || 1);
     const ro = new ResizeObserver(() => {
       const q = box.getBoundingClientRect();
       host.resize(q.width, q.height, window.devicePixelRatio || 1);
@@ -164,7 +193,7 @@ export function ParticleLab({ config, whole = false, createWorker = createEngine
       hostRef.current = null;
       setReady(false);
     };
-  }, [config.scene, createWorker]);
+  }, [config.scene, createWorker, createHelper]);
 
   const host = (): ParticleHost | null => hostRef.current;
   const local = (e: ReactPointerEvent<HTMLDivElement>): [number, number] => {
@@ -237,6 +266,9 @@ export function ParticleLab({ config, whole = false, createWorker = createEngine
   };
   const changeQuality = (q: Quality): void => {
     setQuality(q);
+    saveQuality(q);
+    lagRef.current = 0;
+    setLagging(null);
     host()?.setQuality(q);
   };
   const emptyBox = (): void => {
@@ -245,7 +277,10 @@ export function ParticleLab({ config, whole = false, createWorker = createEngine
   };
 
   const speed = SPEEDS[speedAt];
+  const canFull = fullPower !== undefined && fullLabUseful();
+  const openFull = (): void => { const h = host(); if (fullPower !== undefined && h !== null) fullPower(() => h.serialize()); };
   const hint = TOOLS.find((k) => k.key === tool)?.hint ?? 'hintPaint';
+  const lower: Quality | undefined = QUALITIES[QUALITIES.indexOf(quality) + 1];
   const bar = (
     <>
       <button type="button" className={`lab-tool${paused ? '' : ' is-on'}`} onClick={togglePause} title={paused ? t('play') : t('pause')} aria-label={paused ? t('play') : t('pause')}>
@@ -256,6 +291,11 @@ export function ParticleLab({ config, whole = false, createWorker = createEngine
       </button>
       <button type="button" className="lab-tool" onClick={cycleSpeed} title={t('speed')} aria-label={`${t('speed')} ${speed}×`}>{num(speed, speed < 1 ? 2 : 0)}×</button>
       <button type="button" className={`lab-tool${hud ? ' is-on' : ''}`} onClick={() => setHud(!hud)} title={t('hud')} aria-label={t('hud')}>HUD</button>
+      {canFull && (
+        <button type="button" className="lab-tool" onClick={openFull} title={t('fullPowerTitle')} aria-label={t('fullPowerTitle')}>
+          <Icon name="external" />{t('fullPower')}
+        </button>
+      )}
     </>
   );
 
@@ -272,7 +312,21 @@ export function ParticleLab({ config, whole = false, createWorker = createEngine
   const side = (
     <div className="lab-side-in">
       {config.text.map((p, k) => <p key={k} className="lab-text">{p}</p>)}
-      <p className="lab-muted">{t('m0Note')}</p>
+      <p className="lab-muted">{t('m1Note')}</p>
+      {lagging !== null && (
+        <div className="pl-slow" role="status">
+          <p>{t('slow').replace('{x}', num(lagging, 2))}</p>
+          {canFull && (
+            <>
+              <p className="lab-muted">{t('fullPowerSlow')}</p>
+              <button type="button" className="lab-tool" onClick={openFull}><Icon name="external" />{t('fullPower')}</button>
+            </>
+          )}
+          {lower !== undefined
+            ? <button type="button" className="lab-tool" onClick={() => changeQuality(lower)}>{t('slowLower')}: {t(QUALITY_LABEL[lower])}</button>
+            : <p className="lab-muted">{t('slowLowest')}</p>}
+        </div>
+      )}
       <details className="lab-section" open>
         <summary>{t('tools')}</summary>
         <div className="lab-section-body">
@@ -321,12 +375,13 @@ export function ParticleLab({ config, whole = false, createWorker = createEngine
           </label>
           <label className="lab-field">{t('quality')}
             <select value={quality} onChange={(e) => changeQuality(e.currentTarget.value as Quality)}>
-              {QUALITIES.map((q) => <option key={q.key} value={q.key}>{t(q.label)}</option>)}
+              {QUALITIES.map((q) => <option key={q} value={q}>{t(QUALITY_LABEL[q])} · {num(SPACING[q] * 1000, 1)} mm</option>)}
             </select>
           </label>
           <label className="lab-row"><input type="checkbox" checked={showAir} onChange={(e) => { setShowAir(e.currentTarget.checked); host()?.showAir(e.currentTarget.checked); }} />{t('showAir')}</label>
+          <p className="lab-muted">{t('airNote')}</p>
           <div className="lab-row">
-            <button type="button" className="lab-tool" onClick={() => host()?.load(config.scene)}><Icon name="refresh" />{t('restart')}</button>
+            <button type="button" className="lab-tool" onClick={() => host()?.load(withQuality(config.scene, quality))}><Icon name="refresh" />{t('restart')}</button>
             <button type="button" className="lab-tool" onClick={emptyBox}><Icon name="trash" />{t('emptyBox')}</button>
           </div>
         </div>

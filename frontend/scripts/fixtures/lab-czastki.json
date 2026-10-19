@@ -1,0 +1,94 @@
+{
+  "format": "recreatio/page",
+  "version": 1,
+  "path": "laboratorium-czastek",
+  "title": "Laboratorium cząstek",
+  "lead": "Strona próbna silnika cząstek (etap M1a: mechanika). Woda i powietrze to cząstki; wypór, ciśnienie i napięcie powierzchniowe wynikają z reguł, nie ze skryptów.",
+  "mode": "page",
+  "theme": { "mode": "light", "accent": "#2f6fb0", "ink": "#13212b", "ground": "#f6f8f9", "muted": "#5b6b74" },
+  "modules": [
+    {
+      "id": "czastki-wstep",
+      "kind": "text",
+      "size": { "colSpan": 6, "rowSpan": 2 },
+      "config": {
+        "title": "Jak pracować",
+        "body": "Narzędzie „Badaj” pokazuje temperaturę, ciśnienie, gęstość i skład cząstki. „Maluj” dodaje wodę, „Ściana” rysuje szkło.\n## Wszystkie rdzenie\nNa stronie laboratorium liczy na jednym wątku. Przycisk „Wszystkie rdzenie” otwiera je w nowej karcie, gdzie liczy na wszystkich rdzeniach procesora."
+      }
+    },
+    {
+      "id": "czastki-zlewka",
+      "kind": "particles",
+      "size": { "colSpan": 6, "rowSpan": 5 },
+      "config": {
+        "title": "Zlewka z wodą na płycie grzejnej",
+        "text": [
+          "W zlewce jest woda o temperaturze pokojowej, pod nią płyta grzejna (grzanie przyjdzie w etapie M1b).",
+          "Zbadaj cząstkę wody przy dnie i przy powierzchni: ciśnienie rośnie o około 98 Pa na każdy centymetr głębokości."
+        ],
+        "mode": "experiment",
+        "scene": {
+          "format": "recreatio/particles", "version": 1, "seed": 1,
+          "box": { "w": 0.3, "h": 0.2, "depth": 0.01 },
+          "ambient": { "p": 101.325, "T": 20, "g": 9.81 },
+          "sides": { "left": "wall", "right": "wall", "bottom": "wall", "top": "open" },
+          "quality": "very-high",
+          "ops": [
+            { "op": "hotplate", "x": 0.15, "y": 0, "w": 0.16, "h": 0.012, "material": "steel", "mode": "power", "power": 50, "target": 150, "on": true, "T": 20 },
+            { "op": "beaker", "x": 0.15, "y": 0.012, "w": 0.07, "h": 0.09, "wall": 0.0025, "material": "glass", "T": 20 },
+            { "op": "fill", "region": { "rect": [0.116, 0.017, 0.184, 0.067] }, "composition": { "H2O": 1 }, "phase": "liquid", "T": 20 }
+          ]
+        }
+      }
+    },
+    {
+      "id": "czastki-babel",
+      "kind": "particles",
+      "size": { "colSpan": 6, "rowSpan": 5 },
+      "config": {
+        "title": "Pęcherz pary w wodzie",
+        "text": [
+          "Na dnie zbiornika jest pęcherz pary wodnej (100 °C). Para jest około 20 razy lżejsza od wody w modelu — obserwuj, jak wypływa.",
+          "Nikt nie każe mu się wznosić: wypór wynika z grawitacji i z tego, że ciecz nie daje się ścisnąć."
+        ],
+        "mode": "experiment",
+        "scene": {
+          "format": "recreatio/particles", "version": 1, "seed": 2,
+          "box": { "w": 0.12, "h": 0.12, "depth": 0.01 },
+          "ambient": { "p": 101.325, "T": 20, "g": 9.81 },
+          "sides": { "left": "wall", "right": "wall", "bottom": "wall", "top": "open" },
+          "quality": "very-high",
+          "ops": [
+            { "op": "fill", "region": { "rect": [0, 0, 0.12, 0.07] }, "composition": { "H2O": 1 }, "phase": "liquid", "T": 20 },
+            { "op": "fill", "region": { "circle": [0.06, 0.014, 0.008] }, "composition": { "H2O": 1 }, "phase": "gas", "T": 100 }
+          ]
+        }
+      }
+    },
+    {
+      "id": "czastki-kropla",
+      "kind": "particles",
+      "size": { "colSpan": 6, "rowSpan": 5 },
+      "config": {
+        "title": "Kropla spada do zlewki",
+        "text": [
+          "Kropla wody wisi nad zlewką. Uruchom czas: spada wolniej niż w próżni, bo rozpycha powietrze, i rozpryskuje się na powierzchni.",
+          "Zbadaj ciśnienie wewnątrz małej kropli — napięcie powierzchniowe podnosi je o σ/R."
+        ],
+        "mode": "experiment",
+        "scene": {
+          "format": "recreatio/particles", "version": 1, "seed": 3,
+          "box": { "w": 0.3, "h": 0.2, "depth": 0.01 },
+          "ambient": { "p": 101.325, "T": 20, "g": 9.81 },
+          "sides": { "left": "wall", "right": "wall", "bottom": "wall", "top": "open" },
+          "quality": "very-high",
+          "ops": [
+            { "op": "beaker", "x": 0.15, "y": 0, "w": 0.08, "h": 0.08, "wall": 0.004, "material": "glass", "T": 20 },
+            { "op": "fill", "region": { "rect": [0.114, 0.004, 0.186, 0.05] }, "composition": { "H2O": 1 }, "phase": "liquid", "T": 20 },
+            { "op": "fill", "region": { "circle": [0.15, 0.15, 0.008] }, "composition": { "H2O": 1 }, "phase": "liquid", "T": 20 }
+          ]
+        }
+      }
+    }
+  ]
+}

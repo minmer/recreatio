@@ -34,9 +34,12 @@ const PL = {
   brush: 'Pędzel',
   temperature: 'Temperatura malowania',
   quality: 'Jakość (rozdzielczość)',
-  qualityLow: 'Niska',
-  qualityMedium: 'Średnia',
+  qualityVeryHigh: 'Bardzo wysoka (zalecana)',
   qualityHigh: 'Wysoka',
+  qualityMedium: 'Średnia (słabszy komputer)',
+  slow: 'Komputer nie nadąża: symulacja biegnie w tempie {x}× czasu rzeczywistego.',
+  slowLower: 'Obniż jakość',
+  slowLowest: 'To już najniższa jakość. Czas w symulacji płynie wolniej, ale wyniki są te same.',
   showAir: 'Pokaż cząstki powietrza',
   restart: 'Od nowa',
   emptyBox: 'Pusta skrzynka',
@@ -68,7 +71,15 @@ const PL = {
   fps: 'klatek/s',
   renderWorker: 'rysuje wątek roboczy',
   renderMain: 'rysuje strona',
-  m0Note: 'Etap M0: szkielet silnika. Cząstki na razie tylko się nie przenikają — prawdziwa ciecz, ciepło i wrzenie przyjdą w kolejnych etapach.'
+  m1Note: 'Etap M1a: mechanika — ciecz i gaz, ścianki, napięcie powierzchniowe, wypór. Ciepło i wrzenie przyjdą w kolejnych etapach.',
+  airNote: 'Powietrze z dala od wszystkiego liczy się bez cząstek: spokojne, o temperaturze pokoju (tło skrzynki). Cząstki powietrza są tylko w pobliżu cieczy i aparatury.',
+  fullPower: 'Wszystkie rdzenie',
+  fullPowerTitle: 'Otwórz laboratorium w nowej karcie — liczy na wszystkich rdzeniach procesora',
+  fullPowerSlow: 'W nowej karcie laboratorium liczy na wszystkich rdzeniach:',
+  threads: 'wątki',
+  airParticles: 'powietrze',
+  ambientAir: 'Powietrze otoczenia (bez cząstek)',
+  pressure: 'Ciśnienie'
 } as const;
 
 export type TextKey = keyof typeof PL;
@@ -96,7 +107,23 @@ const DE: Partial<Record<TextKey, string>> = {
   matSteel: 'Stahl',
   matChips: 'Siedesteine',
   appBeaker: 'Becherglas',
-  appHotplate: 'Heizplatte'
+  appHotplate: 'Heizplatte',
+  quality: 'Qualität (Auflösung)',
+  qualityVeryHigh: 'Sehr hoch (empfohlen)',
+  qualityHigh: 'Hoch',
+  qualityMedium: 'Mittel (schwächerer Rechner)',
+  slow: 'Der Rechner kommt nicht nach: die Simulation läuft mit {x}× Echtzeit.',
+  slowLower: 'Qualität senken',
+  slowLowest: 'Das ist schon die niedrigste Stufe. Die Zeit läuft langsamer, die Ergebnisse bleiben dieselben.',
+  m1Note: 'Stufe M1a: Mechanik — Flüssigkeit und Gas, Wände, Oberflächenspannung, Auftrieb. Wärme und Sieden folgen.',
+  airNote: 'Luft fern von allem wird ohne Teilchen gerechnet: ruhig, mit Raumtemperatur (der Hintergrund der Kiste). Luftteilchen gibt es nur nahe Flüssigkeit und Geräten.',
+  fullPower: 'Alle Kerne',
+  fullPowerTitle: 'Das Labor in einem neuen Tab öffnen — es rechnet auf allen Prozessorkernen',
+  fullPowerSlow: 'In einem neuen Tab rechnet das Labor auf allen Kernen:',
+  threads: 'Threads',
+  airParticles: 'Luft',
+  ambientAir: 'Umgebungsluft (ohne Teilchen)',
+  pressure: 'Druck'
 };
 
 const EN: Partial<Record<TextKey, string>> = {
@@ -122,7 +149,23 @@ const EN: Partial<Record<TextKey, string>> = {
   matSteel: 'Steel',
   matChips: 'Boiling chips',
   appBeaker: 'Beaker',
-  appHotplate: 'Hot plate'
+  appHotplate: 'Hot plate',
+  quality: 'Quality (resolution)',
+  qualityVeryHigh: 'Very high (recommended)',
+  qualityHigh: 'High',
+  qualityMedium: 'Medium (slower computer)',
+  slow: 'This computer cannot keep up: the simulation runs at {x}× real time.',
+  slowLower: 'Lower the quality',
+  slowLowest: 'This is already the lowest level. Time runs slower, but the results stay the same.',
+  m1Note: 'Stage M1a: mechanics — liquid and gas, walls, surface tension, buoyancy. Heat and boiling come next.',
+  airNote: 'Air far from everything is computed without particles: still, at room temperature (the background of the box). Air particles exist only near liquids and apparatus.',
+  fullPower: 'All cores',
+  fullPowerTitle: 'Open the lab in a new tab — it computes on every processor core',
+  fullPowerSlow: 'In a new tab the lab computes on every core:',
+  threads: 'threads',
+  airParticles: 'air',
+  ambientAir: 'Ambient air (no particles)',
+  pressure: 'Pressure'
 };
 
 const TABLES: Readonly<Record<Lang, Partial<Record<TextKey, string>>>> = { pl: PL, de: DE, en: EN };

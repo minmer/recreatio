@@ -2,9 +2,13 @@
  * LABORATORIUM CZĄSTEK (2026-10-19) — ein Baustein mit der Partikel-Engine
  * (`lab/particles/`, documentation/particles/): eine Kiste voll Luft, in die
  * man Stoffe malt und Geräte stellt; was geschieht, folgt aus lokalen Regeln
- * und der Stoffdatenbank — nichts ist vorgespielt. Meilenstein 0: das Gerüst
- * (Arbeiter, Speicher, Gitter, Zeichner, Oberfläche, Malen, Wände); Mechanik,
- * Wärme und Sieden folgen.
+ * und der Stoffdatenbank — nichts ist vorgespielt. Meilenstein M1a: die
+ * Mechanik (Flüssigkeit und Gas nach PBF, Wände, Oberflächenspannung,
+ * Auftrieb); Wärme und Sieden folgen.
+ *
+ * <b>Alle Kerne</b>: auf einer Seite rechnet das Labor mit einem Faden; ein
+ * Knopf öffnet es mit dem, was gebaut wurde, in einer eigenen Karte
+ * (`lab.html`), die „cross-origin isolated“ ist und mit allen Kernen rechnet.
  *
  * <b>Die Engine ist Code, der Aufbau ist gespeichert</b>: `scene` (JSON) sagt,
  * was am Anfang wo steht — die Kiste, die Umgebung, die Seiten, der Samen und
@@ -17,6 +21,7 @@
 import { definePart, lines, text, type RawConfig } from '../part';
 import { later } from '../../ui/later';
 import { LabEditor } from '../../lab/LabEditor';
+import { openFullLab } from '../../lab/particles/fullLab';
 
 interface Config {
   readonly title: string;
@@ -49,7 +54,7 @@ function Preview({ title, text: body, scene }: { title: string; text: readonly s
 /** Eine leere Kiste voll Luft (für den Editor, solange nichts eingestellt ist). */
 const SANDBOX = {
   format: 'recreatio/particles', version: 1, seed: 1, box: { w: 0.3, h: 0.2, depth: 0.01 },
-  ambient: { p: 101.325, T: 20, g: 9.81 }, sides: { left: 'wall', right: 'wall', bottom: 'wall', top: 'open' }, quality: 'high', ops: []
+  ambient: { p: 101.325, T: 20, g: 9.81 }, sides: { left: 'wall', right: 'wall', bottom: 'wall', top: 'open' }, quality: 'very-high', ops: []
 };
 
 const SCENE_DOCS: Readonly<Record<string, string>> = {
@@ -72,7 +77,7 @@ const SCENE_DOCS: Readonly<Record<string, string>> = {
   '.sides.right': 'Prawy bok',
   '.sides.bottom': 'Dno skrzynki',
   '.sides.top': 'Góra (zwykle "open")',
-  '.quality': 'Rozdzielczość: "low" (cząstki 4 mm), "medium" (3 mm), "high" (2,5 mm)',
+  '.quality': 'Rozdzielczość: "very-high" (cząstki 2 mm, zwykła), "high" (2,5 mm), "medium" (3 mm, dla słabszego komputera); urządzenie, na którym ktoś wybrał niższą, zostaje przy swojej',
   '.ops': 'Kroki budowy po kolei — układ startowy, nie przebieg',
   '.ops[].op': '"fill" (ciecz/gaz), "erase" (usuń — wraca powietrze), "solid" (nieruchome ciało stałe), "beaker" (zlewka), "hotplate" (płyta grzejna)',
   '.ops[].region': 'Obszar: rect, circle, poly albo line z width',
@@ -100,7 +105,7 @@ const SCENE_DOCS: Readonly<Record<string, string>> = {
 const EXAMPLE_SCENE = {
   format: 'recreatio/particles', version: 1, seed: 7, box: { w: 0.3, h: 0.2, depth: 0.01 },
   ambient: { p: 101.325, T: 20, g: 9.81, air: { N2: 0.7676, O2: 0.2324 } },
-  sides: { left: 'wall', right: 'wall', bottom: 'wall', top: 'open' }, quality: 'medium',
+  sides: { left: 'wall', right: 'wall', bottom: 'wall', top: 'open' }, quality: 'very-high',
   ops: [
     { op: 'hotplate', x: 0.15, y: 0, w: 0.16, h: 0.012, material: 'steel', mode: 'power', power: 50, target: 150, on: true, T: 20 },
     { op: 'beaker', x: 0.15, y: 0.012, w: 0.07, h: 0.09, wall: 0.0025, material: 'glass', T: 20 },
@@ -114,7 +119,7 @@ const EXAMPLE_SCENE = {
 export const particlesPart = definePart<Config>({
   kind: 'particles',
   label: 'Laboratorium cząstek',
-  use: 'Laboratorium cząstek 2D: skrzynka pełna powietrza, w którą maluje się wodę i stawia aparaturę (zlewka, płyta grzejna) — wszystko liczy silnik z lokalnych reguł i bazy substancji. Etap M0: szkielet silnika; ciepło i wrzenie w kolejnych etapach. Pełny ekran.',
+  use: 'Laboratorium cząstek 2D: skrzynka pełna powietrza, w którą maluje się wodę i stawia aparaturę (zlewka, płyta grzejna) — wszystko liczy silnik z lokalnych reguł i bazy substancji. Etap M1a: mechanika (ciecz i gaz, ścianki, napięcie powierzchniowe, wypór); ciepło i wrzenie w kolejnych etapach. Pełny ekran; przycisk „Wszystkie rdzenie” otwiera je w nowej karcie, liczące na wszystkich rdzeniach.',
   box: { colSpan: 6, rowSpan: 5 },
   fields: [],
   read,
@@ -138,7 +143,9 @@ export const particlesPart = definePart<Config>({
         </div>
       );
     }
-    return <Lab config={{ title: config.title, text: config.text, scene: config.scene }} whole={ctx.whole === true} />;
+    const fullPower = (scene: () => Promise<Record<string, unknown> | null>): void =>
+      openFullLab(async () => ({ title: config.title, text: config.text, scene: (await scene()) ?? config.scene }));
+    return <Lab config={{ title: config.title, text: config.text, scene: config.scene }} whole={ctx.whole === true} fullPower={fullPower} />;
   },
   example: {
     title: 'Zlewka na płycie grzejnej',

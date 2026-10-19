@@ -15,7 +15,7 @@ export const SANDBOX_PARTICLES: Readonly<Record<string, unknown>> = {
   box: { w: 0.3, h: 0.2, depth: 0.01 },
   ambient: { p: 101.325, T: 20, g: 9.81 },
   sides: { left: 'wall', right: 'wall', bottom: 'wall', top: 'open' },
-  quality: 'high',
+  quality: 'very-high',
   ops: []
 };
 

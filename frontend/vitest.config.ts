@@ -9,6 +9,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    /* Lange Läufe (zehn simulierte Minuten) nur mit `npm run test:particles:slow`. */
+    exclude: ['**/node_modules/**', 'src/**/*.slow.test.ts'],
     testTimeout: 120_000
   }
 });

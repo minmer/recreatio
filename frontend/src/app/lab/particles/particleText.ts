@@ -17,7 +17,7 @@ export function particleDescription(): string {
     '  "box": { "w": szerokość, "h": wysokość, "depth": grubość warstwy 2D (zwykle 0.01) },',
     '  "ambient": { "p": kPa (101.325), "T": °C, "g": m/s² (0 — nieważkość), "air": { "N2": 0.7676, "O2": 0.2324 } },',
     '  "sides": { "left" | "right" | "bottom" | "top": "wall" albo "open" (otwarta strona to pokój) },',
-    '  "quality": "low" | "medium" | "high" (rozmiar cząstki 4 / 3 / 2,5 mm),',
+    '  "quality": "very-high" | "high" | "medium" (rozmiar cząstki 2 / 2,5 / 3 mm; zwykle "very-high"),',
     '  "ops": [ kroki budowy po kolei ] }',
     '',
     'Kroki ("op"):',

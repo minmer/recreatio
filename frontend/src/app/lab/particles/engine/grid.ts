@@ -4,17 +4,27 @@
  * Zählsortieren (Präfixsummen) und legt die Liste der lebenden Partikeln
  * nach Zellen geordnet ab (`sorted`) — über sie laufen alle Schleifen.
  * Gesucht wird nur in den 3×3 Zellen um eine Partikel; die Nachbarlisten
- * (feste Plätze je Partikel) entstehen einmal je Teilschritt und dienen allen
- * Löser-Iterationen. Nach dem ersten Bau wird nichts mehr angelegt.
+ * (feste Plätze je Partikel, `solver.ts`) entstehen einmal je Teilschritt und
+ * dienen allen Löser-Iterationen. Nach dem ersten Bau wird nichts mehr
+ * angelegt.
+ *
+ * Eine Zelle (h = 2s) deckt genau 2 × 2 Plätze des Gitters der Kiste: das
+ * Gitter beginnt 6 Plätze vor der Kiste. Zellen ohne Partikeln, die
+ * Umgebungsluft sind (`cellAir`), zählen mit ihren freien Plätzen
+ * (`siteFree`) wie ruhende Luft (`band.ts`).
  */
 
+import type { Mem } from './mem';
 import type { Store } from './store';
 
-/** Höchstens so viele Nachbarn je Partikel (2D, h = 2s: üblich 12–20). */
-export const MAX_NBR = 48;
+/** Höchstens so viele Nachbarn je Partikel (2D, h = 2s: im Gitter 8, gedrückt bis etwa 14). */
+export const MAX_NBR = 32;
+/** Das Gitter beginnt so viele Plätze vor der Kiste. */
+export const MARGIN_SITES = 6;
 
 export class Grid {
   readonly cell: number;
+  readonly spacing: number;
   readonly nx: number;
   readonly ny: number;
   readonly x0: number;
@@ -24,31 +34,51 @@ export class Grid {
   private readonly cursor: Int32Array;
   /** Zelle je Partikel (Index des Speichers). */
   readonly cellOf: Int32Array;
-  /** Lebende Partikeln nach Zellen geordnet; gültig sind die ersten `n`. */
+  /** Lebende Partikeln nach Zellen geordnet (in einer Zelle nach Index); gültig sind die ersten `n`. */
   readonly sorted: Int32Array;
-  /** Der Platz jeder Partikel in `sorted` (Reihenfolge von unten nach oben, Zeile für Zeile). */
-  readonly rank: Int32Array;
   n = 0;
-  /** Nachbarn je Partikel: `nbrCount[i]` Einträge ab `i·MAX_NBR` in `nbrList`. */
+  /** Nur die beweglichen, in derselben Reihenfolge — über sie laufen die Kerne (gleich viel Arbeit je Stück); gültig die ersten `nMove`. */
+  readonly moving: Int32Array;
+  nMove = 0;
+  /** Nachbarn je Partikel: `nbrCount[i]` Einträge ab `i·MAX_NBR` in `nbrList`, mit dem Gradienten des Kerns zu jedem (`pgx, pgy`, aus der Suche). */
   readonly nbrCount: Uint8Array;
   readonly nbrList: Int32Array;
+  readonly pgx: Float32Array;
+  readonly pgy: Float32Array;
+  /** Der Kern W_ij zu jedem Nachbarn (für die XSPH-Glättung). */
+  readonly pw: Float32Array;
+  /** 1: die Zelle ist Umgebungsluft ohne Partikeln. */
+  readonly cellAir: Uint8Array;
+  /** Plätze des Gitters (2·nx × 2·ny): 1, wo Luft sein kann (in der Kiste oder hinter einer offenen Seite) und nichts Festes steht. */
+  readonly siteFree: Uint8Array;
+  readonly siteNx: number;
+  readonly siteNy: number;
   /** Wie oft eine Liste voll war (Diagnose). */
   overflow = 0;
 
-  constructor(cap: number, x0: number, y0: number, w: number, h: number, cell: number) {
-    this.cell = cell;
+  /** Ein Gitter, das (x0, y0) bis (x0 + w, y0 + h) deckt; `spacing` ist die Weite der Plätze (die Zelle ist 2·spacing). */
+  constructor(cap: number, x0: number, y0: number, w: number, h: number, spacing: number, mem: Mem) {
+    this.spacing = spacing;
+    this.cell = 2 * spacing;
     this.x0 = x0;
     this.y0 = y0;
-    this.nx = Math.max(1, Math.ceil(w / cell));
-    this.ny = Math.max(1, Math.ceil(h / cell));
+    this.nx = Math.max(1, Math.ceil(w / this.cell));
+    this.ny = Math.max(1, Math.ceil(h / this.cell));
     const cells = this.nx * this.ny;
-    this.cellStart = new Int32Array(cells + 1);
+    this.cellStart = mem.i32('cellStart', cells + 1);
     this.cursor = new Int32Array(cells);
-    this.cellOf = new Int32Array(cap);
-    this.sorted = new Int32Array(cap);
-    this.rank = new Int32Array(cap);
-    this.nbrCount = new Uint8Array(cap);
-    this.nbrList = new Int32Array(cap * MAX_NBR);
+    this.cellOf = mem.i32('cellOf', cap);
+    this.sorted = mem.i32('sorted', cap);
+    this.moving = mem.i32('moving', cap);
+    this.nbrCount = mem.u8('nbrCount', cap);
+    this.nbrList = mem.i32('nbrList', cap * MAX_NBR);
+    this.pgx = mem.f32('pgx', cap * MAX_NBR);
+    this.pgy = mem.f32('pgy', cap * MAX_NBR);
+    this.pw = mem.f32('pw', cap * MAX_NBR);
+    this.cellAir = mem.u8('cellAir', cells);
+    this.siteNx = 2 * this.nx;
+    this.siteNy = 2 * this.ny;
+    this.siteFree = mem.u8('siteFree', this.siteNx * this.siteNy);
   }
 
   /** Die Zelle eines Punktes (am Rand festgehalten — wer hinausfliegt, landet in der Randzelle). */
@@ -60,19 +90,39 @@ export class Grid {
     return cy * this.nx + cx;
   }
 
+  /** Der Platz (a, b) des Gitters, auf dem der Platz (i, j) der Kiste liegt — als ein Index (−1: ausserhalb). */
+  siteOf(i: number, j: number): number {
+    const a = i + MARGIN_SITES;
+    const b = j + MARGIN_SITES;
+    if (a < 0 || b < 0 || a >= this.siteNx || b >= this.siteNy) return -1;
+    return b * this.siteNx + a;
+  }
+
+  /** Die Zelle, in der ein Platz des Gitters liegt. */
+  cellOfSite(site: number): number {
+    const a = site % this.siteNx;
+    const b = (site - a) / this.siteNx;
+    return (b >> 1) * this.nx + (a >> 1);
+  }
+
   /** Neu einordnen (nach den vorhergesagten Orten `px, py` oder den Orten `x, y`). */
   build(st: Store, predicted: boolean): void {
     const xs = predicted ? st.px : st.x;
     const ys = predicted ? st.py : st.y;
+    const top = st.highWater;
+    for (let i = 0; i < top; i += 1) if (st.alive[i] === 1) this.cellOf[i] = this.cellIndex(xs[i], ys[i]);
+    this.sort(st);
+  }
+
+  /** Neu einordnen mit den Zellen, die die Kerne schon ausgerechnet haben (`cellOf`, beim Vorhersagen). */
+  sort(st: Store): void {
     const cells = this.nx * this.ny;
     const start = this.cellStart;
     start.fill(0);
     const top = st.highWater;
     for (let i = 0; i < top; i += 1) {
       if (st.alive[i] === 0) continue;
-      const c = this.cellIndex(xs[i], ys[i]);
-      this.cellOf[i] = c;
-      start[c + 1] += 1;
+      start[this.cellOf[i] + 1] += 1;
     }
     for (let c = 0; c < cells; c += 1) start[c + 1] += start[c];
     const cur = this.cursor;
@@ -82,59 +132,14 @@ export class Grid {
       if (st.alive[i] === 0) continue;
       sorted[cur[this.cellOf[i]]++] = i;
     }
-    /* In jeder Zelle von unten nach oben (Einfügen — wenige je Zelle): so läuft `sorted` Zeile für Zeile aufwärts. */
-    for (let c = 0; c < cells; c += 1) {
-      const a = start[c];
-      const b = start[c + 1];
-      for (let k = a + 1; k < b; k += 1) {
-        const i = sorted[k];
-        const y = ys[i];
-        let m = k - 1;
-        while (m >= a && ys[sorted[m]] > y) { sorted[m + 1] = sorted[m]; m -= 1; }
-        sorted[m + 1] = i;
-      }
-    }
     this.n = start[cells];
-    for (let k = 0; k < this.n; k += 1) this.rank[sorted[k]] = k;
-  }
-
-  /** Die Nachbarlisten aller lebenden Partikeln im Radius `radius` (nach `build`, dieselben Orte). */
-  neighbours(st: Store, radius: number, predicted: boolean): void {
-    const xs = predicted ? st.px : st.x;
-    const ys = predicted ? st.py : st.y;
-    const r2 = radius * radius;
-    const { nx, ny, cellStart, sorted, nbrList, nbrCount } = this;
-    this.overflow = 0;
-    for (let s = 0; s < this.n; s += 1) {
-      const i = sorted[s];
-      const xi = xs[i];
-      const yi = ys[i];
-      const c = this.cellOf[i];
-      const cx = c % nx;
-      const cy = (c - cx) / nx;
-      const base = i * MAX_NBR;
-      let count = 0;
-      const ya = cy > 0 ? cy - 1 : 0;
-      const yb = cy < ny - 1 ? cy + 1 : ny - 1;
-      const xa = cx > 0 ? cx - 1 : 0;
-      const xb = cx < nx - 1 ? cx + 1 : nx - 1;
-      for (let gy = ya; gy <= yb; gy += 1) {
-        for (let gx = xa; gx <= xb; gx += 1) {
-          const g = gy * nx + gx;
-          const end = cellStart[g + 1];
-          for (let k = cellStart[g]; k < end; k += 1) {
-            const j = sorted[k];
-            if (j === i) continue;
-            const dx = xi - xs[j];
-            const dy = yi - ys[j];
-            if (dx * dx + dy * dy >= r2) continue;
-            if (count < MAX_NBR) nbrList[base + count++] = j;
-            else this.overflow += 1;
-          }
-        }
-      }
-      nbrCount[i] = count;
-      st.nbr[i] = count;
+    let m = 0;
+    const fixed = st.fixed;
+    const moving = this.moving;
+    for (let k = 0; k < this.n; k += 1) {
+      const i = sorted[k];
+      if (fixed[i] === 0) moving[m++] = i;
     }
+    this.nMove = m;
   }
 }

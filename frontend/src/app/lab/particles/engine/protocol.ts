@@ -13,7 +13,7 @@ export interface View { readonly x0: number; readonly y0: number; readonly x1: n
 
 export type HostMessage =
   | { readonly type: 'probe' }
-  | { readonly type: 'init'; readonly canvas: OffscreenCanvas | null; readonly width: number; readonly height: number; readonly dpr: number; readonly scene: unknown; readonly showAir: boolean }
+  | { readonly type: 'init'; readonly canvas: OffscreenCanvas | null; readonly width: number; readonly height: number; readonly dpr: number; readonly scene: unknown; readonly showAir: boolean; readonly helpers: readonly MessagePort[] }
   | { readonly type: 'resize'; readonly width: number; readonly height: number; readonly dpr: number }
   | { readonly type: 'op'; readonly op: Op }
   | { readonly type: 'setHeater'; readonly group: number; readonly mode: HeaterMode; readonly power: number; readonly target: number; readonly on: boolean }

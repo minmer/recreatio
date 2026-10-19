@@ -13,9 +13,16 @@ import type { Region } from './shapes';
 import { spIndex } from './species';
 import { G0, P_ATM, T0 } from './units';
 
-export type Quality = 'low' | 'medium' | 'high';
+/**
+ * Qualitätsstufen, von fein nach grob. Das Labor ist für leistungsstarke
+ * Rechner gebaut: „sehr hoch“ ist der Normalfall, „hoch“ geht auch, „mittel“
+ * ist die Wahl für einen schwächeren Rechner.
+ */
+export type Quality = 'very-high' | 'high' | 'medium';
+export const QUALITIES: readonly Quality[] = ['very-high', 'high', 'medium'];
 /** Gitterweite je Qualitätsstufe (m). */
-export const SPACING: Readonly<Record<Quality, number>> = { low: 0.004, medium: 0.003, high: 0.0025 };
+export const SPACING: Readonly<Record<Quality, number>> = { 'very-high': 0.002, high: 0.0025, medium: 0.003 };
+export const isQuality = (v: unknown): v is Quality => typeof v === 'string' && (QUALITIES as readonly string[]).includes(v);
 export type Side = 'wall' | 'open';
 export type HeaterMode = 'power' | 'thermostat';
 
@@ -47,7 +54,7 @@ export const EMPTY_SCENE: Scene = {
   box: { w: 0.3, h: 0.2, depth: 0.01 },
   ambient: { p: P_ATM, T: T0 + 20, g: G0, air: DEFAULT_AIR },
   sides: { left: 'wall', right: 'wall', bottom: 'wall', top: 'open' },
-  quality: 'high',
+  quality: 'very-high',
   ops: []
 };
 
@@ -137,7 +144,8 @@ export function readScene(raw: unknown): { scene: Scene; warnings: string[] } {
   const amb = isObj(raw.ambient) ? raw.ambient : {};
   const sides = isObj(raw.sides) ? raw.sides : {};
   const side = (v: unknown, d: Side): Side => (v === 'open' ? 'open' : v === 'wall' ? 'wall' : d);
-  const quality: Quality = raw.quality === 'low' || raw.quality === 'medium' || raw.quality === 'high' ? raw.quality : EMPTY_SCENE.quality;
+  const quality: Quality = isQuality(raw.quality) ? raw.quality : EMPTY_SCENE.quality;
+  if (raw.quality !== undefined && !isQuality(raw.quality)) warnings.push(`quality: nieznana jakość „${String(raw.quality)}” — przyjęto „${quality}”`);
   const ops: Op[] = [];
   if (Array.isArray(raw.ops)) raw.ops.forEach((o, k) => { const op = readOp(o, warnings, k); if (op !== null) ops.push(op); });
   const scene: Scene = {

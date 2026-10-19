@@ -14,6 +14,19 @@
   background: color-mix(in srgb, var(--wk-surface) 86%, transparent); color: var(--wk-ink);
   font-family: var(--wk-mono); font-size: var(--wk-text-xs); line-height: 1.35; white-space: pre; overflow: hidden; pointer-events: none;
 }
+/* Der Rechner kommt nicht nach: ein Hinweis in der Bedienung, mit dem Knopf für die nächstniedrigere Stufe. */
+.pl-slow {
+  display: grid; gap: var(--wk-space-1); padding: var(--wk-space-2); border-left: 3px solid var(--wk-accent);
+  background: color-mix(in srgb, var(--wk-accent) 8%, transparent); font-size: var(--wk-text-sm);
+}
+.pl-slow p { margin: 0; }
+.pl-slow .lab-tool { justify-self: start; }
+/* Die Karte mit allen Kernen (lab.html): das Labor füllt das Fenster. */
+.pl-page { position: fixed; inset: 0; display: grid; background: var(--wk-ground); color: var(--wk-ink); font-family: var(--wk-font); }
+.pl-page > .lab { grid-template-rows: auto minmax(0, 1fr); border: 0; border-radius: 0; min-height: 0; }
+.pl-page .lab-body { min-height: 0; }
+.pl-page .lab-side { max-height: none; overflow-y: auto; }
+
 .pl-status {
   position: absolute; left: 50%; bottom: var(--wk-space-3); transform: translateX(-50%); max-width: calc(100% - 2 * var(--wk-space-3));
   padding: var(--wk-space-1) var(--wk-space-3); border-radius: var(--wk-radius-sm);

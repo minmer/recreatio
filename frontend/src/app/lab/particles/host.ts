@@ -5,6 +5,11 @@
  * gibt die Puffer zurück). Befehle gehen als Nachrichten hin, Antworten auf
  * Fragen (Inspektor, Speichern) kommen als Versprechen zurück. Zeiger rechnet
  * sie mit der Ansicht des Arbeiters in Meter um.
+ *
+ * In einer Seite, die „cross-origin isolated“ ist (`lab.html`, auf GitHub
+ * Pages durch `public/lab-sw.js`), legt sie Helfer an — so viele Kerne, wie
+ * der Rechner hat, weniger zwei — und gibt jedem einen Kanal zum Arbeiter: die
+ * Engine rechnet dann auf gemeinsamem Speicher mit allen (`engine/runner.ts`).
  */
 
 import type { ParticleInfo } from './engine/engine';
@@ -19,8 +24,18 @@ export interface HostEvents {
   readonly onError: (message: string) => void;
 }
 
+/** Wie viele Helfer: Kerne weniger zwei (der Faden der Seite, der des Arbeiters), höchstens sieben; ohne Isolation keine. */
+export function helperCount(): number {
+  const isolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined';
+  if (!isolated) return 0;
+  const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 2 : 2;
+  return Math.max(0, Math.min(7, cores - 2));
+}
+
 export class ParticleHost {
   private readonly worker: Worker;
+  private readonly helpers: Worker[] = [];
+  private readonly createHelper: (() => Worker) | null;
   private readonly canvas: HTMLCanvasElement;
   private readonly events: HostEvents;
   private renderer: ParticleRenderer | null = null;
@@ -32,9 +47,10 @@ export class ParticleHost {
   private readonly waiting = new Map<number, (data: unknown) => void>();
   private disposed = false;
 
-  constructor(canvas: HTMLCanvasElement, createWorker: () => Worker, events: HostEvents) {
+  constructor(canvas: HTMLCanvasElement, createWorker: () => Worker, events: HostEvents, createHelper: (() => Worker) | null = null) {
     this.canvas = canvas;
     this.events = events;
+    this.createHelper = createHelper;
     this.worker = createWorker();
     this.worker.addEventListener('message', (e: MessageEvent<WorkerMessage>) => this.receive(e.data));
     this.worker.addEventListener('error', (e) => events.onError(e.message || 'Silnik przestał działać.'));
@@ -47,16 +63,31 @@ export class ParticleHost {
     this.dpr = dpr;
     const webgl2 = await this.probe();
     if (this.disposed) return;
+    const ports = this.spawnHelpers();
     if (webgl2 && typeof this.canvas.transferControlToOffscreen === 'function') {
       const off = this.canvas.transferControlToOffscreen();
-      this.post({ type: 'init', canvas: off, width, height, dpr, scene, showAir }, [off]);
+      this.post({ type: 'init', canvas: off, width, height, dpr, scene, showAir, helpers: ports }, [off, ...ports]);
       return;
     }
     const gl = this.canvas.getContext('webgl2', { antialias: true, premultipliedAlpha: true, alpha: false });
     if (gl === null) this.events.onError('Ta przeglądarka nie obsługuje WebGL2 — laboratorium liczy, ale nie rysuje.');
     else this.renderer = new ParticleRenderer(gl);
     this.sizeCanvas();
-    this.post({ type: 'init', canvas: null, width, height, dpr, scene, showAir });
+    this.post({ type: 'init', canvas: null, width, height, dpr, scene, showAir, helpers: ports }, ports);
+  }
+
+  /** Die Helfer anlegen; je einer bekommt die eine Seite eines Kanals, der Arbeiter der Engine die andere. */
+  private spawnHelpers(): MessagePort[] {
+    const n = this.createHelper === null ? 0 : helperCount();
+    const ports: MessagePort[] = [];
+    for (let k = 0; k < n && this.createHelper !== null; k += 1) {
+      const helper = this.createHelper();
+      const channel = new MessageChannel();
+      helper.postMessage({ port: channel.port2 }, [channel.port2]);
+      this.helpers.push(helper);
+      ports.push(channel.port1);
+    }
+    return ports;
   }
 
   private probe(): Promise<boolean> {
@@ -159,5 +190,7 @@ export class ParticleHost {
     this.disposed = true;
     this.waiting.clear();
     this.worker.terminate();
+    for (const helper of this.helpers) helper.terminate();
+    this.helpers.length = 0;
   }
 }
