@@ -419,7 +419,7 @@ export class Engine {
     if (liquid.weightsDirty) liquid.computeWeights();
     liquid.splatVolume();
     this.prevKind.set(grid.kind);
-    liquid.classify();
+    liquid.classify(this.prevKind);
     gas.transitions(this.prevKind);
     regions.update(particles, bubbles);
     if (this.p0Start.length < regions.count) this.p0Start = new Float64Array(2 * regions.count);

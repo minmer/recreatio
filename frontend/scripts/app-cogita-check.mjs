@@ -548,6 +548,36 @@ check('a question without its answer is no card', Cards.questionCard(e('hx', ['q
   truth('a kind from a source cannot be removed here', KR.planKindRemoval({ kind: WORD, isBase: false, kinds: kinds5, entities: items, look: look5, isOwn: () => false, templates: [], forms: [], collections: [] }).blocked !== null);
 }
 
+/* 2026-10-20 — ein Schritt, bei jedem Wert der Rodzaj gewählt (Psalm oder Pieśń), in der getippten Reihenfolge. */
+{
+  const PSALM = kind('k-ps6', { name: 'Psalm', label: 'Ps {numer}', fields: [{ key: 'numer', label: 'Numer', type: 'line' }] });
+  const SONG = kind('k-pn6', { name: 'Pieśń', label: '{zrodlo}', fields: [{ key: 'zrodlo', label: 'Miejsce w Piśmie', type: 'line' }] });
+  const PLACE = kind('k-mi6', { name: 'Miejsce', label: '{dzien}', fields: [{ key: 'dzien', label: 'Dzień', type: 'line' }, { key: 'psalmy', label: 'Psalmy i pieśni', type: 'ref', multi: true, to: ['k-ps6', 'k-pn6'] }] });
+  const items = [e('old63', ['k-ps6'], { numer: '63' })];
+  const look6 = S.lookupOf([PSALM, SONG, PLACE], items);
+  let c6 = 0;
+  const ctx6 = { look: look6, pool: (k) => items.filter((x) => x.kinds.includes(k)), isOwn: () => true, newId: () => `c6-${++c6}` };
+  const form6 = AF.readAddForm('f6', { name: 'Brewiarz', graph: {
+    nodes: [
+      { id: 't', type: 'entry', x: 0, y: 0, config: { kind: 'k-ps6', also: ['k-pn6'], many: true, fields: { numer: { from: 'type' } } } },
+      { id: 'm', type: 'entry', x: 260, y: 0, config: { kind: 'k-mi6', fields: { dzien: { from: 'type' } } } }
+    ],
+    edges: [{ id: 'e', from: 't', out: 'out', to: 'm', in: 'psalmy' }]
+  }, order: ['m', 't'] });
+  const g6 = AF.groupsOf(form6, look6);
+  check('a step with a kind to choose: one input, the kinds to choose, its own first', g6.map((g) => [g.label, g.fields.map((f) => f.key), (g.choices ?? []).map((ch) => `${ch.kind.name}:${ch.field.key}`)]),
+    [['Miejsce', ['dzien'], []], ['Psalm', ['numer'], ['Psalm:numer', 'Pieśń:zrodlo']]]);
+  const plan6 = AF.planForm(form6, ctx6, [{ m: [{ dzien: 'środa' }], t: [{ numer: '63' }, { numer: 'Dn 3,57-88', _kind: 'k-pn6' }, { numer: '149' }] }], { picks: {}, asks: {} });
+  const place6 = plan6.saves.find((x) => x.kinds.includes('k-mi6'));
+  const named6 = (id) => { const x = plan6.saves.find((y) => y.id === id); return x === undefined ? (id === 'old63' ? 'Ps 63 (był)' : id) : `${x.kinds[0]}=${Object.values(x.data)[0]}`; };
+  check('… each value of its chosen kind, in the typed order; an existing psalm reused',
+    [place6?.data.psalmy.map(named6), plan6.rows[0].problems], [['Ps 63 (był)', 'k-pn6=Dn 3,57-88', 'k-ps6=149'], []]);
+  const pasted6 = AT.parsePaste('czwartek | 72 / Pieśń: Ap 11,17-18;12,10b-12a', g6, { columns: '|', values: '/', header: false });
+  check('… pasted: a prefix with the kind name chooses it', pasted6.rows[0].t, [{ numer: '72' }, { numer: 'Ap 11,17-18;12,10b-12a', _kind: 'k-pn6' }]);
+  check('… and in JSON the kinds to choose travel as references', AF.mapFormRefs(form6.graph, (k) => `@${k}`, (x) => x).nodes.find((n) => n.id === 't').config.also, ['@k-pn6']);
+  truth('… the description says so', AT.describeForm(form6, look6).some((l) => l.includes('Przy każdej wartości wybiera się rodzaj: Psalm (Numer) albo Pieśń (Miejsce w Piśmie)')), AT.describeForm(form6, look6));
+}
+
 /* ── Wiederholung ─────────────────────────────────────────────────────── */
 
 const words = ENTITIES.filter((x) => x.kinds.includes('k-word'));

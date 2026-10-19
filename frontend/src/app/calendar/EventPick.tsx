@@ -30,6 +30,12 @@
  * ein einzelner Termin gelöscht), „Te i następne" (`endSeriesBefore`),
  * „Całe serie" — und „Przesuń" um einen Tag, eine Woche, eine Stunde.
  *
+ * <b>Um einen eigenen Zeitraum</b> (2026-10-20, `Period`): wie viele Minuten,
+ * Stunden, Tage, Wochen oder Monate, früher oder später — verschoben oder als
+ * Kopie, mit den Punkten des Programms, zurücknehmbar wie das Einfügen. Tage,
+ * Wochen und Monate sind Kalendertage: die Uhrzeit bleibt, auch über die
+ * Zeitumstellung; Ganztägiges rückt nur um ganze Tage.
+ *
  * Wählbar ist nur, was ich ändern darf (eigene Art, Schreibrecht). Lehnt der
  * Dienst einen ab (eine Messe mit Intentionen), laufen die übrigen weiter und
  * es wird gesagt, wie viele nicht gingen.
@@ -38,12 +44,13 @@
 import { useState } from 'react';
 
 import { localDate, localTime } from '../areas/WhoSees';
-import { startOfDay } from '../core/dayMath';
+import { monthOfName, startOfDay, WEEK_HEADS } from '../core/dayMath';
 import type { Ring } from '../core/keys';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
 import { askText, toast } from '../ui/dialogs';
 import { MenuButton } from '../ui/Menu';
+import { Segment } from '../ui/Segment';
 import { cancelOne, deleteEvent, draftOf, endSeriesBefore, moveOne, repeats, restoreOne, saveEvent, type OpenedItem } from './agenda';
 import { setPeople } from './calendar';
 import type { CalEvent } from './calendarModel';
@@ -88,6 +95,68 @@ const shiftDays = (at: Date, days: number): Date =>
   new Date(at.getFullYear(), at.getMonth(), at.getDate() + days, at.getHours(), at.getMinutes(), at.getSeconds());
 
 const dayDiff = (from: Date, to: Date): number => Math.round((startOfDay(to).getTime() - startOfDay(from).getTime()) / DAY);
+
+/* -- 2026-10-20: um einen Zeitraum ------------------------------------------------------- */
+
+export const PERIOD_UNITS = ['minute', 'hour', 'day', 'week', 'month'] as const;
+export type PeriodUnit = (typeof PERIOD_UNITS)[number];
+
+/** Um wie viel: `amount` mit Vorzeichen (weniger als null — früher). */
+export interface Period {
+  readonly amount: number;
+  readonly unit: PeriodUnit;
+}
+
+/** Ganze Monate weiter, derselbe Tag (am Monatsende der letzte), dieselbe Uhrzeit. */
+const shiftMonths = (at: Date, months: number): Date => {
+  const first = new Date(at.getFullYear(), at.getMonth() + months, 1);
+  const last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  return new Date(first.getFullYear(), first.getMonth(), Math.min(at.getDate(), last), at.getHours(), at.getMinutes(), at.getSeconds());
+};
+
+/** Tage, Wochen, Monate: ganze Kalendertage (die Uhrzeit bleibt); Minuten und Stunden: die Zeit selbst. */
+export function shiftBy(at: Date, period: Period): Date {
+  switch (period.unit) {
+    case 'minute': return new Date(at.getTime() + period.amount * 60_000);
+    case 'hour': return new Date(at.getTime() + period.amount * HOUR);
+    case 'day': return shiftDays(at, period.amount);
+    case 'week': return shiftDays(at, 7 * period.amount);
+    case 'month': return shiftMonths(at, period.amount);
+  }
+}
+
+/** Ganztägiges rückt nur um ganze Tage. */
+export const wholeDays = (unit: PeriodUnit): boolean => unit === 'day' || unit === 'week' || unit === 'month';
+
+/** Das Wort nach „o": 1 godzinę, 2 godziny, 5 godzin … */
+export function unitWord(unit: PeriodUnit, n: number): string {
+  const few = n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14);
+  switch (unit) {
+    case 'minute': return n === 1 ? 'minutę' : few ? 'minuty' : 'minut';
+    case 'hour': return n === 1 ? 'godzinę' : few ? 'godziny' : 'godzin';
+    case 'day': return n === 1 ? 'dzień' : 'dni';
+    case 'week': return n === 1 ? 'tydzień' : few ? 'tygodnie' : 'tygodni';
+    case 'month': return n === 1 ? 'miesiąc' : few ? 'miesiące' : 'miesięcy';
+  }
+}
+
+/** „o 2 godziny później", „o tydzień wcześniej". */
+export function periodText(period: Period): string {
+  const n = Math.abs(period.amount);
+  return `o ${n === 1 ? '' : `${n} `}${unitWord(period.unit, n)} ${period.amount < 0 ? 'wcześniej' : 'później'}`;
+}
+
+/** Jeder um denselben Zeitraum — Ganztägiges nur um ganze Tage (die übrigen bleiben, wo sie sind). */
+export function planShift(events: readonly CalEvent[], period: Period): { placed: { event: CalEvent; start: Date }[]; skipped: number } {
+  const moving = events.filter((e) => wholeDays(period.unit) || !e.allDay);
+  return { placed: moving.map((event) => ({ event, start: shiftBy(event.start, period) })), skipped: events.length - moving.length };
+}
+
+const isPeriod = (target: PasteAt | Period): target is Period => 'unit' in target;
+
+/** „pn 19 paź, 10:00" — wo ein Termin beginnt, kurz. */
+const whenShort = (at: Date, allDay: boolean): string =>
+  `${WEEK_HEADS[(at.getDay() + 6) % 7]} ${at.getDate()} ${monthOfName(at).slice(0, 3)}${allDay ? '' : `, ${at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`}`;
 
 /**
  * Die Punkte des Programms gehen mit: zu jedem Termin die Punkte (beliebig
@@ -169,15 +238,20 @@ export interface PasteResult {
   readonly done: number;
   readonly failed: number;
   readonly why: string | null;
+  /** 2026-10-20 — ganztägige, die um weniger als einen Tag nicht rücken. */
+  readonly skipped: number;
   readonly undo: (() => Promise<void>) | null;
 }
 
 /**
  * EINFÜGEN — verschieben (`cut`) oder kopieren, mit den Punkten des
- * Programms. Was scheitert, hält die übrigen nicht auf.
+ * Programms: an einen Tag, eine Stunde — oder 2026-10-20 um einen Zeitraum.
+ * Was scheitert, hält die übrigen nicht auf.
  */
-export async function pasteClip(ring: Ring, clip: Clip, target: PasteAt, all: readonly CalEvent[]): Promise<PasteResult> {
-  const placed = plan(withParts(clip.events.filter(pickable), all), target);
+export async function pasteClip(ring: Ring, clip: Clip, target: PasteAt | Period, all: readonly CalEvent[]): Promise<PasteResult> {
+  const events = withParts(clip.events.filter(pickable), all);
+  const shifted = isPeriod(target) ? planShift(events, target) : null;
+  const placed = shifted?.placed ?? plan(events, target as PasteAt);
   const undos: Undo[] = [];
   let done = 0;
   let failed = 0;
@@ -215,7 +289,7 @@ export async function pasteClip(ring: Ring, clip: Clip, target: PasteAt, all: re
   }
 
   return {
-    done, failed, why,
+    done, failed, why, skipped: shifted?.skipped ?? 0,
     undo: undos.length === 0 ? null : async () => { for (const one of [...undos].reverse()) await one(); }
   };
 }
@@ -230,8 +304,9 @@ export function tellPasted(result: PasteResult, mode: Clip['mode'], reload: () =
       () => { toast('Cofnięto.'); reload(); },
       (e: unknown) => { toast(e instanceof WorkspaceError ? e.message : 'Nie udało się cofnąć.', { kind: 'error' }); reload(); })
   };
-  if (result.failed === 0) toast(`${word} ${terms(result.done)}.`, { action, ms: 8000 });
-  else toast(`${word} ${terms(result.done)}, nie udało się: ${result.failed}${result.why !== null ? ` — ${result.why}` : ''}`, { kind: 'error', action, ms: 10000 });
+  const left = result.skipped === 0 ? '' : ` Całodniowe przesuwają się tylko o pełne dni — bez zmian: ${terms(result.skipped)}.`;
+  if (result.failed === 0) toast(`${word} ${terms(result.done)}.${left}`, { action, ms: 8000 });
+  else toast(`${word} ${terms(result.done)}, nie udało się: ${result.failed}${result.why !== null ? ` — ${result.why}` : ''}.${left}`, { kind: 'error', action, ms: 10000 });
 }
 
 /**
@@ -296,13 +371,7 @@ export function usePickActions(me: Me, picked: readonly CalEvent[], onDone: () =
     void runAll([...byItem.keys()].map((itemId) => () => deleteEvent(itemId)), `Usunięto ${series(byItem.size)}.`);
   };
 
-  /* Ganztägiges rückt nur um ganze Tage. */
-  const moveBy = (ms: number) => {
-    const moving = picked.filter((e) => e.item !== undefined && (ms % DAY === 0 || !e.allDay));
-    void runAll(moving.map((e) => () => moveTo(me.ring, e, new Date(e.start.getTime() + ms))), `Przesunięto ${terms(moving.length)}.`);
-  };
-
-  return { busy, anySeries, removeThese, endFollowing, removeSeries, moveBy };
+  return { busy, anySeries, removeThese, endFollowing, removeSeries };
 }
 
 export type PickActions = ReturnType<typeof usePickActions>;
@@ -311,16 +380,30 @@ export type PickActions = ReturnType<typeof usePickActions>;
  * DIE LEISTE: was gewählt ist und was damit geht — und, solange etwas im
  * Schoss liegt, wohin es kommt.
  */
-export function PickBar({ picked, clip, actions, onCut, onCopy, onClear, onClearClip }: {
+export function PickBar({ picked, clip, actions, onCut, onCopy, onShift, onClear, onClearClip }: {
   picked: readonly CalEvent[];
   clip: Clip | null;
   actions: PickActions;
   onCut: () => void;
   onCopy: () => void;
+  /** 2026-10-20 — die Auswahl um einen Zeitraum verschieben oder kopieren. */
+  onShift: (period: Period, mode: Clip['mode']) => void;
   onClear: () => void;
   onClearClip: () => void;
 }) {
   const { busy } = actions;
+  /* Die Zeile „um einen eigenen Zeitraum": offen zum Verschieben oder Kopieren; das Gewählte bleibt für das nächste Mal. */
+  const [shifting, setShifting] = useState<Clip['mode'] | null>(null);
+  const [amount, setAmount] = useState('1');
+  const [unit, setUnit] = useState<PeriodUnit>('week');
+  const [later, setLater] = useState(true);
+  const n = Number(amount);
+  const valid = Number.isInteger(n) && n >= 1 && n <= 999;
+  const period: Period = { amount: (later ? 1 : -1) * (valid ? n : 1), unit };
+  const shown = picked.filter((e) => wholeDays(unit) || !e.allDay);
+  const first = shown.length === 0 ? null : shown.reduce((a, b) => (b.start < a.start ? b : a));
+  const run = () => { if (valid && shifting !== null && shown.length > 0) { onShift(period, shifting); setShifting(null); } };
+
   return (
     <div className="wk-cal2-pickbar" role="toolbar" aria-label="Zaznaczone terminy" aria-busy={busy || undefined}>
       {picked.length > 0 && (
@@ -338,14 +421,39 @@ export function PickBar({ picked, clip, actions, onCut, onCopy, onClear, onClear
             ]} />
           )}
           <MenuButton label="Przesuń zaznaczone" text="Przesuń…" disabled={busy} items={[
-            { label: 'O dzień wcześniej', onSelect: () => actions.moveBy(-DAY) },
-            { label: 'O dzień później', onSelect: () => actions.moveBy(DAY) },
-            { label: 'O tydzień później', onSelect: () => actions.moveBy(7 * DAY) },
-            { label: 'O godzinę wcześniej', onSelect: () => actions.moveBy(-HOUR) },
-            { label: 'O godzinę później', onSelect: () => actions.moveBy(HOUR) }
+            { label: 'O dzień wcześniej', onSelect: () => onShift({ amount: -1, unit: 'day' }, 'cut') },
+            { label: 'O dzień później', onSelect: () => onShift({ amount: 1, unit: 'day' }, 'cut') },
+            { label: 'O tydzień wcześniej', onSelect: () => onShift({ amount: -1, unit: 'week' }, 'cut') },
+            { label: 'O tydzień później', onSelect: () => onShift({ amount: 1, unit: 'week' }, 'cut') },
+            { label: 'O godzinę wcześniej', onSelect: () => onShift({ amount: -1, unit: 'hour' }, 'cut') },
+            { label: 'O godzinę później', onSelect: () => onShift({ amount: 1, unit: 'hour' }, 'cut') },
+            { label: 'O inny okres…', onSelect: () => setShifting('cut') },
+            { label: 'Kopiuj o okres…', onSelect: () => setShifting('copy') }
           ]} />
           <button type="button" className="wk-btn wk-btn-quiet wk-cal2-pickdone" disabled={busy} title="Esc" onClick={onClear}>Gotowe</button>
         </div>
+      )}
+      {/* 2026-10-20 — um einen eigenen Zeitraum: wie viel, wovon, früher oder später; daneben, wohin der erste kommt. */}
+      {shifting !== null && picked.length > 0 && (
+        <form className="wk-cal2-pickrow wk-cal2-shift" aria-label="Przesuń o okres"
+          onSubmit={(e) => { e.preventDefault(); run(); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setShifting(null); } }}>
+          <Segment now={shifting} busy={busy} onPick={setShifting} options={[{ value: 'cut', label: 'Przesuń' }, { value: 'copy', label: 'Kopiuj' }]} />
+          <span>o</span>
+          <input className="wk-cal2-shiftn" type="number" inputMode="numeric" min={1} max={999} step={1} value={amount} disabled={busy}
+            aria-label="Ile" aria-invalid={!valid} autoFocus onChange={(e) => setAmount(e.target.value)} />
+          <select value={unit} disabled={busy} aria-label="Czego" onChange={(e) => setUnit(e.target.value as PeriodUnit)}>
+            {PERIOD_UNITS.map((one) => <option key={one} value={one}>{unitWord(one, valid ? n : 1)}</option>)}
+          </select>
+          <Segment now={later ? 'later' : 'earlier'} busy={busy} onPick={(v) => setLater(v === 'later')}
+            options={[{ value: 'earlier', label: 'wcześniej' }, { value: 'later', label: 'później' }]} />
+          <button type="submit" className="wk-btn" disabled={busy || !valid || shown.length === 0}>{shifting === 'cut' ? 'Przesuń' : 'Kopiuj'}</button>
+          <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setShifting(null)}>Anuluj</button>
+          <span className="wk-cal2-shiftsee">
+            {first === null ? 'Całodniowe przesuwają się tylko o pełne dni.'
+              : `${whenShort(first.start, first.allDay)} → ${whenShort(shiftBy(first.start, period), first.allDay)}${shown.length < picked.length ? ` · całodniowe zostają: ${picked.length - shown.length}` : ''}`}
+          </span>
+        </form>
       )}
       {clip !== null && (
         <div className="wk-cal2-pickrow is-clip">

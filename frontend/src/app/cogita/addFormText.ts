@@ -7,7 +7,7 @@
 
 import { order } from './graph';
 import {
-  COLUMN_SEPARATOR_LABEL, entryConfig, groupsOf, identityOf, isTypeable, KEY_ACTION_LABEL, KEY_NAMES, nodeLabel, pickConfig, refFields, topOf, typedFields,
+  choicesOf, COLUMN_SEPARATOR_LABEL, entryConfig, groupsOf, identityOf, isTypeable, KEY_ACTION_LABEL, KEY_NAMES, nodeLabel, pickConfig, refFields, topOf, typedFields,
   type AddForm, type FormGroup, type Instance, type PasteRule, type RowInput, type TopItem
 } from './addForm';
 import type { GraphNode } from './graph';

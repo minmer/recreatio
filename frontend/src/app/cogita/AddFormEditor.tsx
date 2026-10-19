@@ -23,7 +23,7 @@ import { askText, toast } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
 import { MenuButton } from '../ui/Menu';
 import {
-  addFormDoc, COLUMN_SEPARATOR_LABEL, COLUMN_SEPARATORS, DEFAULT_KEYS, DEFAULT_PASTE, entryConfig,
+  addFormDoc, choiceField, COLUMN_SEPARATOR_LABEL, COLUMN_SEPARATORS, DEFAULT_KEYS, DEFAULT_PASTE, entryConfig,
   fieldsSet, formPalette, groupsOf, identityOf, isTypeable, KEY_ACTION_LABEL, KEY_ACTIONS, KEY_NAMES, nodeLabel,
   pickConfig, readAddForm, refFields, SOURCE_LABEL, typedFields, VALUE_SEPARATOR_LABEL, VALUE_SEPARATORS,
   type AddForm, type FieldSource, type SourceMode

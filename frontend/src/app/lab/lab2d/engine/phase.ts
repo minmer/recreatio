@@ -60,6 +60,9 @@ export class Phase {
   private readonly Fe: Float64Array;
   private readonly dm: Float64Array;
   private readonly side = new Int32Array(4);
+  /** Rand der Diffusion je Zelle und Seite (Leitwert, Wert) — beim Aufbau berechnet, bei den Flüssen gelesen. */
+  private readonly bG: Float64Array;
+  private readonly bY: Float64Array;
 
   constructor(engine: Engine) {
     this.e = engine;
@@ -74,6 +77,8 @@ export class Phase {
     this.Fm = new Float64Array(n);
     this.Fe = new Float64Array(n);
     this.dm = new Float64Array(engine.particles.cap);
+    this.bG = new Float64Array(4 * n);
+    this.bY = new Float64Array(4 * n);
   }
 
   /* -- Hilfen ---------------------------------------------------------------------------------------- */
@@ -151,11 +156,32 @@ export class Phase {
       const m = P.mass[p] + d;
       if (m < MIN_MASS * nominal) {
         /* Der Rest des Teilchens wird Dampf in der Gaszelle über ihm (genau gebucht: latente Wärme aus seiner Zelle). */
+        this.track(p, -P.mass[p]);
         this.vanish(p, Math.max(0, m), dt);
         continue;
       }
+      this.track(p, d);
       P.mass[p] = m;
       L.dVp[p] += m / P.rho[p] - before;
+    }
+  }
+
+  /** Die Sammlung der Zellen nachführen, wenn sich die Masse von Teilchen p um d ändert (sein h bleibt). */
+  private track(p: number, d: number): void {
+    const { grid: g, particles: P, liquid: L } = this.e;
+    const { nx, ny } = g;
+    const o = 9 * p;
+    const cp = cpL(P.T[p]);
+    for (let k = 0; k < 9; k += 1) {
+      const w = L.wt[o + k];
+      if (w === 0) continue;
+      const i = L.bi[p] + (k % 3);
+      const j = L.bj[p] + ((k / 3) | 0);
+      if (i < 0 || j < 0 || i >= nx || j >= ny) continue;
+      const c = i + j * nx;
+      this.acc[c] += w * d;
+      this.accH[c] += w * d * P.h[p];
+      this.Cl[c] += w * d * cp;
     }
   }
 
@@ -190,9 +216,8 @@ export class Phase {
   /* -- Ein Schritt ----------------------------------------------------------------------------------- */
 
   step(dt: number): void {
-    this.gatherLiquid();
+    /* Die Sammlung der Flüssigkeit stammt aus der Blasenstufe dieses Schritts (applyMass hält sie aktuell). */
     this.diffuse(dt);
-    this.gatherLiquid();
     this.flash();
     this.fog();
     this.films();
@@ -230,6 +255,8 @@ export class Phase {
         let gb = 0;
         for (let k = 0; k < 4; k += 1) {
           const G = this.boundary(c, i, j, k, yAmb);
+          this.bG[4 * c + k] = G;
+          this.bY[4 * c + k] = this.yb;
           if (G <= 0) continue;
           gb += G;
           b += G * this.yb;
@@ -238,7 +265,7 @@ export class Phase {
         sys.b[s] = b;
       }
     }
-    S.solve(1e-10, 200, false);
+    S.solve(1e-9, 200, false);
     /* Flüsse aus dem gelösten Y: innen antisymmetrisch (Dampf hin, Luft zurück), an den Rändern einseitig. */
     Fm.fill(0);
     Fe.fill(0);
@@ -250,11 +277,12 @@ export class Phase {
         if (i + 1 < nx && kind[c + 1] === GAS && mtot[c + 1] > 0) this.exchange(c, c + 1, dt * 0.5 * (rd[c] + rd[c + 1]) * depth * (Yc - sys.x[S.at(i + 1, j)]));
         if (j + 1 < ny && kind[c + nx] === GAS && mtot[c + nx] > 0) this.exchange(c, c + nx, dt * 0.5 * (rd[c] + rd[c + nx]) * depth * (Yc - sys.x[S.at(i, j + 1)]));
         for (let k = 0; k < 4; k += 1) {
-          const G = this.boundary(c, i, j, k, yAmb);
+          const G = this.bG[4 * c + k];
           if (G <= 0) continue;
           /* Masse, die aus der Grenzfläche ins Gas geht (negativ: aus dem Gas hinaus). */
-          const F = dt * G * (this.yb - Yc);
-          const nb = this.side[k];
+          const F = dt * G * (this.bY[4 * c + k] - Yc);
+          const out = k === 0 ? i === 0 : k === 1 ? i === nx - 1 : k === 2 ? j === 0 : j === ny - 1;
+          const nb = out ? -1 : k === 0 ? c - 1 : k === 1 ? c + 1 : k === 2 ? c - nx : c + nx;
           if (nb < 0) {
             /* Offene Seite: Dampf hinein oder hinaus, Luft in Gegenrichtung (wie zwischen zwei Gaszellen). */
             this.ambientExchange(c, F);
@@ -542,6 +570,10 @@ export class Phase {
       const nDry = g.mg[N2 * n + c] / MOLAR[N2] + g.mg[O2 * n + c] / MOLAR[O2];
       const p = R.pAt(c);
       const T0 = g.T[c];
+      if (mf <= 0) {
+        const nv = mv / MOLAR[H2O];
+        if ((nv / (nv + nDry)) * p < 0.999 * pSatFast(T0)) continue;
+      }
       const gap0 = this.satGap(c, 0, nDry, p, T0);
       if (gap0 <= 0 && mf <= 0) continue;
       let lo: number, hi: number, flo: number, fhi: number;

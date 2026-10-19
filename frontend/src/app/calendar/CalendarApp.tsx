@@ -57,7 +57,7 @@ import { CALENDAR_KIND_LABEL, loadCalendars, type CalendarRow } from './calendar
 import { CalendarSettings } from './CalendarSettings';
 import { calendarLabel } from './calendarLabel';
 import type { EventTarget } from './EventDialog';
-import { pasteClip, pickable, PickBar, tellPasted, terms, usePickActions, type Clip, type PasteAt } from './EventPick';
+import { pasteClip, pickable, PickBar, tellPasted, terms, usePickActions, type Clip, type PasteAt, type Period } from './EventPick';
 import { usePickGestures } from './usePickGestures';
 import { ItemLink } from './ItemLink';
 import { intentionsWord } from '../masses/mass';
@@ -362,8 +362,8 @@ export function Calendar({ me, scope, startNew, at }: {
     setPicked(new Map());
   };
 
-  /* Einfügen: aus dem Schoss (nach dem Verschieben ist er leer, eine Kopie bleibt für die nächste Stelle) oder gezogen. */
-  const paste = (target: PasteAt, from: Clip | null = clip, fromClip = true) => {
+  /* Einfügen: aus dem Schoss (nach dem Verschieben ist er leer, eine Kopie bleibt für die nächste Stelle) oder gezogen — 2026-10-20: oder die Auswahl um einen Zeitraum. */
+  const paste = (target: PasteAt | Period, from: Clip | null = clip, fromClip = true) => {
     if (from === null || pasting) return;
     setPasting(true);
     void pasteClip(me.ring, from, target, all).then((result) => {
@@ -588,6 +588,11 @@ export function Calendar({ me, scope, startNew, at }: {
       {(picking || clip !== null) && (
         <PickBar picked={[...picked.values()]} clip={clip} actions={pickActions}
           onCut={() => toClip('cut')} onCopy={() => toClip('copy')}
+          onShift={(period, mode) => {
+            const list = [...picked.values()];
+            setPicked(new Map());
+            paste(period, { mode, events: list }, false);
+          }}
           onClear={() => setPicked(new Map())} onClearClip={() => setClip(null)} />
       )}
 

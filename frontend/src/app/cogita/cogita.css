@@ -343,6 +343,7 @@
 .cg-af-group > legend { padding: 0 var(--wk-space-1); font-weight: 700; }
 .cg-af-inst { display: flex; gap: var(--wk-space-2); align-items: center; }
 .cg-af-inst > :is(input, textarea, select) { flex: 1 1 7rem; min-width: 0; font-size: var(--wk-text-md); }
+.cg-af-inst > select.cg-af-kind { flex: 0 0 auto; width: auto; font-size: var(--wk-text-sm); }
 .cg-af-more { justify-self: start; }
 .cg-af-new { justify-self: start; font-size: var(--wk-text-sm); }
 .cg-af-keys { display: inline-flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-3); color: var(--wk-muted); font-size: var(--wk-text-sm); }

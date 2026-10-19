@@ -150,6 +150,9 @@
 .wk-cal2-pickrow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); }
 .wk-cal2-pickrow.is-clip { color: var(--wk-accent); }
 .wk-cal2-pickrow + .wk-cal2-pickrow { padding-top: var(--wk-space-2); border-top: 1px solid var(--wk-line); }
+/* 2026-10-20 — um einen eigenen Zeitraum: die Zahl schmal, daneben, wohin der erste kommt. */
+.wk-cal2-shiftn { width: 5rem; }
+.wk-cal2-shiftsee { flex: 1 0 100%; color: var(--wk-muted); font-size: var(--wk-text-sm); }
 
 /*
    Wählen mit Rechteck und langem Druck, Ziehen und Einfügen (`usePickGestures.ts`):

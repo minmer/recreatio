@@ -138,6 +138,7 @@ A **form for adding** (Formularz dodawania, doc kind `addform`) says once what o
 - **Editing what is there** (“Edycja tego, co już jest”, beside “Dodawanie” on the filling screen): the saved entries shown in the shape of the form — a row per connecting entry (a translation, a group), its entries in the columns of the row entries that would have made them (the words per language), empty places where something may still be added. The choice on top is the filter: English–Polish shows no German rows. Texts are changed in place; values are added (found or made as when adding, with their language and topics), taken out of a row (×), rows deleted — and nothing is saved until **one button, “Zapisz zmiany (n)”**; leaving with unsaved changes asks first. A field that takes ONE entry (the “z” of a translation) cannot be left empty (delete the row instead) and offers “+ dodaj” only while it is empty; one that takes several (the words of a group) always offers it. Entries from a source base are shown, not changed; a value that fits no column (a language the form does not know) stays on its entry, unseen. A form without a connecting entry shows its first column only.
 - **Where.** Built under Schemat (`schemat/formularz/<id>`), filled under Wpisy (`wpisy/dodaj/<id>`, the menu “Wiele naraz”, and Ctrl K). Forms belong to the schema JSON (`forms`) and travel with it; a reused base’s forms are usable here.
 - **A form as JSON** (2026-10-19): under each form „Formularz jako JSON” exports it with the own kinds it needs (in the schema format, so the Schemat import takes the same document) and imports one beside the generated description: the same `ref` changes the form in place, a new one creates a form. „+ Formularz → Z JSON (wklej)…” imports a form that is not here yet. The form import takes kinds, card templates and forms only; anything else in the document is named as left out. Several entry steps into one field that takes several give their values in the declared row order („Kolejność pól w wierszu”; without it, as on the canvas) — psalm, psalm, canticle. Example: `frontend/scripts/fixtures/brewiarz.json` — the psalter (kinds, a vespers and a compline form, five card templates), checked end to end in `app-cogita-check`.
+- **A kind to choose per value** (2026-10-20, entry key `also`): an entry step that takes several values can offer other kinds besides its own ('Przy każdej wartości do wyboru także') — each value gets a select (Psalm / Pieśń) before its input, typed into that kind's first plain field; values keep the typed order, so one step serves vespers (psalm, psalm, canticle) and lauds (psalm, canticle, psalm). In a pasted list a prefix with the kind name chooses it (`Pieśń: Ap 19,1-7`); without one, the step's own kind. Such a step takes no reference connections.
 
 ## 3. Knowledge layer
 
@@ -566,7 +567,7 @@ Phones stay awake.
 
 | check | count |
 |---|---|
-| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 303 |
+| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 308 |
 | `backend/Api.Tests` (22 of them for the game rules) | 408 |
 | `backend/Kernel.Tests` | 122 |
 

@@ -5,8 +5,9 @@
  *   Enthalpie H; T folgt aus H (Newton auf Σ m_k h_k(T) + m_f h_l(T)), die
  *   Dichte aus den Massen und dem Gasvolumen V_gas = V_Zelle (1 − φ − α_b).
  * - Transport in Flussform zwischen Gaszellen und durch offene Seiten,
- *   MUSCL mit van-Leer-Begrenzer, in Teilschritten mit Courant-Zahl ≤ ½ (der
- *   Prompt verlangt ≤ 1); die Enthalpie fliesst mit denselben Flüssen. Flächen
+ *   MUSCL mit van-Leer-Begrenzer, in Teilschritten mit Courant-Zahl ≤ 0,9 (der
+ *   Prompt verlangt ≤ 1; der Ausfluss einer Zelle bleibt zusätzlich unter
+ *   ihrem Inhalt begrenzt); die Enthalpie fliesst mit denselben Flüssen. Flächen
  *   zur Flüssigkeit oder zu Feststoffen tragen keine Gasmasse.
  * - Geschwindigkeit: MacCormack (vorwärts und rückwärts semi-Lagrange mit
  *   Begrenzer, wie Energy2D), stabil beim Hauptschritt; Zähigkeit explizit;
@@ -33,8 +34,10 @@ const Q = GAS_SPECIES + 2;
 const QF = GAS_SPECIES;
 const QH = GAS_SPECIES + 1;
 /** Courant-Zahl je Teilschritt (Ausfluss einer Zelle je Teilschritt höchstens dieser Anteil). */
-const CFL = 0.5;
+const CFL = 0.9;
 const MAX_SUB = 16;
+/** Untergrenze der Dichte in Druck- und Auftriebskoeffizienten (kg/m³): heisser Dampf bei 1 atm hat 0,4; das hier ist nur eine Sicherung für fast leere Zellen. */
+const RHO_MIN = 0.05;
 
 export interface GasStats {
   solve: SolveResult;
@@ -169,6 +172,7 @@ export class Gas {
         if (Math.abs(dT) < 1e-10) break;
       }
     }
+    if (!(T > 150 && T < 3000)) T = Math.min(3000, Math.max(150, Number.isFinite(T) ? T : this.ambT));
     g.T[c] = T;
     this.cap[c] = gasHeatCapacity(mN, mO, mV, mF, T);
     this.rho[c] = m / vg;
@@ -664,8 +668,8 @@ export class Gas {
       const t = j < ny ? i + j * nx : -1;
       const rb = b >= 0 && kind[b] === GAS ? this.rho[b] : -1;
       const rt = t >= 0 && kind[t] === GAS ? this.rho[t] : -1;
-      const rf = rb > 0 && rt > 0 ? 0.5 * (rb + rt) : Math.max(rb, rt);
-      if (!(rf > 0)) continue;
+      const rf = Math.max(RHO_MIN, rb > 0 && rt > 0 ? 0.5 * (rb + rt) : Math.max(rb, rt));
+      if (!(rb > 0 || rt > 0)) continue;
       const c = rb > 0 ? b : t;
       const r = R.id[c];
       const ref = r >= 0 ? R.rhoBar[r] : R.rhoAmb;
@@ -679,7 +683,7 @@ export class Gas {
       const f = i + j * nxu;
       if (this.gasU[f] === 0) continue;
       const c = i < nx && kind[i + j * nx] === GAS ? i + j * nx : i - 1 + j * nx;
-      const nu = this.mu[c] / Math.max(1e-6, this.rho[c]);
+      const nu = this.mu[c] / Math.max(RHO_MIN, this.rho[c]);
       const uc = u1[f];
       const e = i < nx ? u1[f + 1] : uc;
       const w = i > 0 ? u1[f - 1] : uc;
@@ -691,7 +695,7 @@ export class Gas {
       const f = i + j * nx;
       if (this.gasV[f] === 0) continue;
       const c = j < ny && kind[i + j * nx] === GAS ? i + j * nx : i + (j - 1) * nx;
-      const nu = this.mu[c] / Math.max(1e-6, this.rho[c]);
+      const nu = this.mu[c] / Math.max(RHO_MIN, this.rho[c]);
       const vc = v1[f];
       const nn = j < ny ? v1[f + nx] : vc;
       const s = j > 0 ? v1[f - nx] : vc;
@@ -746,11 +750,11 @@ export class Gas {
         const fb = i + j * nx;
         const div = ug[fl + 1] - ug[fl] + vg[fb + nx] - vg[fb];
         sys.b[s] = g.Sg[c] * dx * dx - dx * div;
-        const rc = Math.max(1e-6, rho[c]);
-        if (i + 1 < nx) { if (kind[c + 1] === GAS && i + 1 <= i1) sys.ax[s] = (2 * dt) / (rc + Math.max(1e-6, rho[c + 1])); }
+        const rc = Math.max(RHO_MIN, rho[c]);
+        if (i + 1 < nx) { if (kind[c + 1] === GAS && i + 1 <= i1) sys.ax[s] = (2 * dt) / (rc + Math.max(RHO_MIN, rho[c + 1])); }
         else if (g.openR) sys.dDx[s] += (2 * dt) / rc;
         if (i === 0 && g.openL) sys.dDx[s] += (2 * dt) / rc;
-        if (j + 1 < ny) { if (kind[c + nx] === GAS && j + 1 <= j1) sys.ay[s] = (2 * dt) / (rc + Math.max(1e-6, rho[c + nx])); }
+        if (j + 1 < ny) { if (kind[c + nx] === GAS && j + 1 <= j1) sys.ay[s] = (2 * dt) / (rc + Math.max(RHO_MIN, rho[c + nx])); }
         else if (g.openT) sys.dDy[s] += (2 * dt) / rc;
         if (j === 0 && g.openB) sys.dDy[s] += (2 * dt) / rc;
       }
@@ -767,20 +771,20 @@ export class Gas {
     for (let j = 0; j < ny; j += 1) for (let i = 0; i <= nx; i += 1) {
       const f = i + j * nxu;
       if (this.gasU[f] === 0) continue;
-      if (i === 0) { ug[f] -= ((2 * dt) / Math.max(1e-6, rho[j * nx]) / dx) * pg[j * nx]; continue; }
-      if (i === nx) { ug[f] += ((2 * dt) / Math.max(1e-6, rho[nx - 1 + j * nx]) / dx) * pg[nx - 1 + j * nx]; continue; }
+      if (i === 0) { ug[f] -= ((2 * dt) / Math.max(RHO_MIN, rho[j * nx]) / dx) * pg[j * nx]; continue; }
+      if (i === nx) { ug[f] += ((2 * dt) / Math.max(RHO_MIN, rho[nx - 1 + j * nx]) / dx) * pg[nx - 1 + j * nx]; continue; }
       const L = i - 1 + j * nx;
       const Rr = i + j * nx;
-      ug[f] -= ((2 * dt) / (Math.max(1e-6, rho[L]) + Math.max(1e-6, rho[Rr])) / dx) * (pg[Rr] - pg[L]);
+      ug[f] -= ((2 * dt) / (Math.max(RHO_MIN, rho[L]) + Math.max(RHO_MIN, rho[Rr])) / dx) * (pg[Rr] - pg[L]);
     }
     for (let j = 0; j <= ny; j += 1) for (let i = 0; i < nx; i += 1) {
       const f = i + j * nx;
       if (this.gasV[f] === 0) continue;
-      if (j === 0) { vg[f] -= ((2 * dt) / Math.max(1e-6, rho[i]) / dx) * pg[i]; continue; }
-      if (j === ny) { vg[f] += ((2 * dt) / Math.max(1e-6, rho[i + (ny - 1) * nx]) / dx) * pg[i + (ny - 1) * nx]; continue; }
+      if (j === 0) { vg[f] -= ((2 * dt) / Math.max(RHO_MIN, rho[i]) / dx) * pg[i]; continue; }
+      if (j === ny) { vg[f] += ((2 * dt) / Math.max(RHO_MIN, rho[i + (ny - 1) * nx]) / dx) * pg[i + (ny - 1) * nx]; continue; }
       const B = i + (j - 1) * nx;
       const T = i + j * nx;
-      vg[f] -= ((2 * dt) / (Math.max(1e-6, rho[B]) + Math.max(1e-6, rho[T])) / dx) * (pg[T] - pg[B]);
+      vg[f] -= ((2 * dt) / (Math.max(RHO_MIN, rho[B]) + Math.max(RHO_MIN, rho[T])) / dx) * (pg[T] - pg[B]);
     }
     return this.last;
   }

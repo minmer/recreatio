@@ -117,12 +117,21 @@ export function EditRows({ form, choice, onDirty }: { form: AddForm; choice: Top
                         <td key={g.node}>
                           {values.map((v, i) => (
                             <span key={v.id ?? `nowy-${i}`} className="cg-af-edit-value">
+                              {/* Rodzaj zur Wahl: bei einem neuen Wert wählbar, bei einem vorhandenen genannt. */}
+                              {g.choices !== undefined && (v.id === undefined
+                                ? (
+                                  <select className="cg-af-kind" aria-label={`${g.label}: rodzaj`} value={v.texts._kind ?? g.choices[0].kind.id} disabled={gone || busy}
+                                    onChange={(e) => setText(row, g.node, i, '_kind', e.target.value)}>
+                                    {g.choices.map((ch) => <option key={ch.kind.id} value={ch.kind.id}>{ch.kind.name}</option>)}
+                                  </select>
+                                )
+                                : <span className="cg-muted">{g.choices.find((ch) => ch.kind.id === v.texts._kind)?.kind.name}</span>)}
                               {g.fields.map((f) => (
                                 <CellInput key={f.key} field={f} value={v.texts[f.key] ?? ''} disabled={gone || busy} fresh={v.id === undefined}
                                   label={`${g.label}: ${f.label}`} placeholder={g.fields.length > 1 ? f.label : v.id === undefined ? 'nowe' : undefined}
                                   onChange={(t) => setText(row, g.node, i, f.key, t)} />
                               ))}
-                              {!own && !gone && <button type="button" className="wk-link-btn" aria-label={`Wyjmij z wiersza: ${Object.values(v.texts).join(' ')}`} onClick={() => takeOut(row, g.node, i)}>×</button>}
+                              {!own && !gone && <button type="button" className="wk-link-btn" aria-label={`Wyjmij z wiersza: ${Object.entries(v.texts).filter(([k]) => k !== '_kind').map(([, t]) => t).join(' ')}`} onClick={() => takeOut(row, g.node, i)}>×</button>}
                             </span>
                           ))}
                           {!own && !gone && (several || values.length === 0) && <button type="button" className="wk-link-btn cg-af-edit-add" onClick={() => add(row, g.node)}>+ dodaj</button>}

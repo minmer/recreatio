@@ -123,8 +123,21 @@ const belongs = (entity: Entity, kind: string, constraints: readonly Constraint[
     return values.every((v) => have.has(norm(v)));
   });
 
-const textsOf = (group: FormGroup, entity: Entity): Record<string, string> =>
-  Object.fromEntries(group.fields.map((f) => [f.key, textOf(f, entity)]));
+/** Mit Rodzaj zur Wahl (Psalm oder Pieśń): das Feld, das dieser Eintrag getippt bekam — unter dem Schlüssel der Spalte. */
+const fieldsFor = (group: FormGroup, entity: Entity | undefined): { key: string; field: FieldDef }[] => {
+  const ch = group.choices === undefined || entity === undefined ? undefined : group.choices.find((x) => entity.kinds.includes(x.kind.id));
+  return ch === undefined ? group.fields.map((f) => ({ key: f.key, field: f })) : [{ key: group.fields[0].key, field: ch.field }];
+};
+
+const textsOf = (group: FormGroup, entity: Entity): Record<string, string> => {
+  const texts: Record<string, string> = Object.fromEntries(fieldsFor(group, entity).map(({ key, field }) => [key, textOf(field, entity)]));
+  const ch = group.choices?.find((x) => entity.kinds.includes(x.kind.id));
+  return ch === undefined ? texts : { ...texts, _kind: ch.kind.id };
+};
+
+/** Gehört ein Eintrag in die Spalte dieser Gruppe — auch als einer der wählbaren Rodzaje? */
+const fitsGroup = (g: FormGroup, e: Entity, constraints: readonly Constraint[]): boolean =>
+  belongs(e, g.kind.id, constraints) || (g.choices ?? []).slice(1).some((ch) => e.kinds.includes(ch.kind.id));
 
 /**
  * WAS SCHON DA IST, als Zeilen dieses Formulars — bei dieser Wahl oben. Eine
@@ -167,7 +180,7 @@ export function existingRows(form: AddForm, look: Lookup, pool: (kind: string) =
       for (const v of valuesOf(entity, f)) {
         const target = typeof v.value === 'string' ? look.entity(v.value) : undefined;
         if (target === undefined) continue;
-        const into = sources.find((g) => belongs(target, g.kind.id, constraints.get(g.node) ?? []));
+        const into = sources.find((g) => fitsGroup(g, target, constraints.get(g.node) ?? []));
         if (into === undefined) { if (!f.multi) fits = false; continue; }
         (cells[into.node] ??= []).push({ id: target.id, texts: textsOf(into, target) });
         any = true;
@@ -198,7 +211,7 @@ export interface EditPlan {
 const same = (a: Readonly<Record<string, string>>, b: Readonly<Record<string, string>>): boolean =>
   Object.keys({ ...a, ...b }).every((k) => (a[k] ?? '').trim() === (b[k] ?? '').trim());
 
-const filled = (v: EditValue): boolean => Object.values(v.texts).some((t) => t.trim() !== '');
+const filled = (v: EditValue): boolean => Object.entries(v.texts).some(([k, t]) => k !== '_kind' && t.trim() !== '');
 
 /** Der Teil des Formulars, der EINEN Knoten macht: er selbst und seine Wahlen oben. */
 function alone(form: AddForm, node: string): AddForm {
@@ -231,8 +244,8 @@ export function planEdit(form: AddForm, ctx: PlanCtx, top: TopChoice, shape: Edi
     for (const g of groups) {
       for (const v of draft.cells[g.node] ?? []) {
         if (v.id !== undefined && filled(v)) {
-          for (const f of g.fields) {
-            const text = (v.texts[f.key] ?? '').trim();
+          for (const { key, field: f } of fieldsFor(g, look.entity(v.id))) {
+            const text = (v.texts[key] ?? '').trim();
             if (text === '') continue;
             const parsed = typedValue(f, text);
             if ('error' in parsed) { problems.push(`„${label(row)}": ${f.label} — ${parsed.error}.`); ok = false; }
@@ -274,8 +287,8 @@ export function planEdit(form: AddForm, ctx: PlanCtx, top: TopChoice, shape: Edi
         const entity = look.entity(v.id);
         if (entity === undefined || !ctx.isOwn(v.id)) continue;
         const data: Record<string, unknown> = { ...(saves.get(v.id)?.data ?? entity.data) };
-        for (const f of g.fields) {
-          const text = (v.texts[f.key] ?? '').trim();
+        for (const { key, field: f } of fieldsFor(g, entity)) {
+          const text = (v.texts[key] ?? '').trim();
           if (text === '') { delete data[f.key]; continue; }
           const parsed = typedValue(f, text);
           if ('value' in parsed) data[f.key] = parsed.value;
