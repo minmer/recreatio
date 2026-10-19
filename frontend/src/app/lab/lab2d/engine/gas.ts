@@ -75,6 +75,8 @@ export class Gas {
   private readonly v0: Float32Array;
   private readonly u1: Float32Array;
   private readonly v1: Float32Array;
+  /** Grenzen der Stützwerte je Fläche (u-Flächen, dann v-Flächen; je Min und Max). */
+  private readonly lim: Float32Array;
   /** Umgebungsluft je Volumen: Massen der Arten, Nebel 0, Enthalpie (für Zufluss an offenen Seiten). */
   readonly amb = new Float64Array(Q);
   ambT = 293.15;
@@ -108,6 +110,7 @@ export class Gas {
     this.v0 = new Float32Array(grid.nv);
     this.u1 = new Float32Array(grid.nu);
     this.v1 = new Float32Array(grid.nv);
+    this.lim = new Float32Array(2 * (grid.nu + grid.nv));
   }
 
   /** Die Umgebungsluft festlegen: T (K), p (Pa), Massenanteile Y (je Gasart). */
@@ -564,6 +567,10 @@ export class Gas {
 
   /* -- Geschwindigkeit ------------------------------------------------------------------------------ */
 
+  /** Min und Max der vier Stützwerte der letzten Abfrage (für den Begrenzer von MacCormack). */
+  private lo = 0;
+  private hi = 0;
+
   private sampleU(a: Float32Array, x: number, y: number): number {
     const g = this.g;
     const { nx, ny, dx } = g;
@@ -572,7 +579,10 @@ export class Gas {
     const fy = Math.min(ny - 1.000001, Math.max(0, y / dx - 0.5));
     const i = Math.floor(fx), j = Math.floor(fy);
     const tx = fx - i, ty = fy - j;
-    return (1 - ty) * ((1 - tx) * a[i + j * nxu] + tx * a[i + 1 + j * nxu]) + ty * ((1 - tx) * a[i + (j + 1) * nxu] + tx * a[i + 1 + (j + 1) * nxu]);
+    const a0 = a[i + j * nxu], a1 = a[i + 1 + j * nxu], a2 = a[i + (j + 1) * nxu], a3 = a[i + 1 + (j + 1) * nxu];
+    this.lo = Math.min(a0, a1, a2, a3);
+    this.hi = Math.max(a0, a1, a2, a3);
+    return (1 - ty) * ((1 - tx) * a0 + tx * a1) + ty * ((1 - tx) * a2 + tx * a3);
   }
 
   private sampleV(a: Float32Array, x: number, y: number): number {
@@ -582,34 +592,12 @@ export class Gas {
     const fy = Math.min(ny - 1e-6, Math.max(0, y / dx));
     const i = Math.floor(fx), j = Math.floor(fy);
     const tx = fx - i, ty = fy - j;
-    return (1 - ty) * ((1 - tx) * a[i + j * nx] + tx * a[i + 1 + j * nx]) + ty * ((1 - tx) * a[i + (j + 1) * nx] + tx * a[i + 1 + (j + 1) * nx]);
-  }
-
-  /** Min und Max der vier Stützwerte um (x, y) im u-Gitter (für den Begrenzer). */
-  private boundsU(a: Float32Array, x: number, y: number, out: Float64Array): void {
-    const g = this.g;
-    const { nx, ny, dx } = g;
-    const nxu = nx + 1;
-    const fx = Math.min(nx - 1e-6, Math.max(0, x / dx));
-    const fy = Math.min(ny - 1.000001, Math.max(0, y / dx - 0.5));
-    const i = Math.floor(fx), j = Math.floor(fy);
-    const a0 = a[i + j * nxu], a1 = a[i + 1 + j * nxu], a2 = a[i + (j + 1) * nxu], a3 = a[i + 1 + (j + 1) * nxu];
-    out[0] = Math.min(a0, a1, a2, a3);
-    out[1] = Math.max(a0, a1, a2, a3);
-  }
-
-  private boundsV(a: Float32Array, x: number, y: number, out: Float64Array): void {
-    const g = this.g;
-    const { nx, ny, dx } = g;
-    const fx = Math.min(nx - 1.000001, Math.max(0, x / dx - 0.5));
-    const fy = Math.min(ny - 1e-6, Math.max(0, y / dx));
-    const i = Math.floor(fx), j = Math.floor(fy);
     const a0 = a[i + j * nx], a1 = a[i + 1 + j * nx], a2 = a[i + (j + 1) * nx], a3 = a[i + 1 + (j + 1) * nx];
-    out[0] = Math.min(a0, a1, a2, a3);
-    out[1] = Math.max(a0, a1, a2, a3);
+    this.lo = Math.min(a0, a1, a2, a3);
+    this.hi = Math.max(a0, a1, a2, a3);
+    return (1 - ty) * ((1 - tx) * a0 + tx * a1) + ty * ((1 - tx) * a2 + tx * a3);
   }
 
-  private readonly mm = new Float64Array(2);
 
   /** MacCormack-Transport der Gasgeschwindigkeit, Auftrieb, Zähigkeit. */
   velocity(dt: number, gy: number): void {
@@ -618,23 +606,29 @@ export class Gas {
     const nxu = nx + 1;
     const ug = g.ug;
     const vg = g.vg;
-    const { u0, v0, u1, v1, mm } = this;
+    const { u0, v0, u1, v1 } = this;
+    const lim = this.lim;
     u0.set(ug);
     v0.set(vg);
-    /* Vorwärts: û = u(x − Δt U). */
+    /* Vorwärts: û = u(x − Δt U); die Grenzen der Stützwerte für den Begrenzer gleich mit. */
     for (let j = 0; j < ny; j += 1) for (let i = 0; i <= nx; i += 1) {
       const f = i + j * nxu;
       if (this.gasU[f] === 0) { u1[f] = u0[f]; continue; }
       const x = i * dx, y = (j + 0.5) * dx;
       const v = this.sampleV(v0, x, y);
       u1[f] = this.sampleU(u0, x - dt * u0[f], y - dt * v);
+      lim[2 * f] = this.lo;
+      lim[2 * f + 1] = this.hi;
     }
+    const off = 2 * g.nu;
     for (let j = 0; j <= ny; j += 1) for (let i = 0; i < nx; i += 1) {
       const f = i + j * nx;
       if (this.gasV[f] === 0) { v1[f] = v0[f]; continue; }
       const x = (i + 0.5) * dx, y = j * dx;
       const u = this.sampleU(u0, x, y);
       v1[f] = this.sampleV(v0, x - dt * u, y - dt * v0[f]);
+      lim[off + 2 * f] = this.lo;
+      lim[off + 2 * f + 1] = this.hi;
     }
     /* Rückwärts und Korrektur: u = û + ½ (u − ũ), begrenzt auf die Stützwerte des Vorwärtsschritts. */
     for (let j = 0; j < ny; j += 1) for (let i = 0; i <= nx; i += 1) {
@@ -644,8 +638,7 @@ export class Gas {
       const v = this.sampleV(v0, x, y);
       const back = this.sampleU(u1, x + dt * u0[f], y + dt * v);
       let val = u1[f] + 0.5 * (u0[f] - back);
-      this.boundsU(u0, x - dt * u0[f], y - dt * v, mm);
-      if (val < mm[0] || val > mm[1]) val = u1[f];
+      if (val < lim[2 * f] || val > lim[2 * f + 1]) val = u1[f];
       ug[f] = val;
     }
     for (let j = 0; j <= ny; j += 1) for (let i = 0; i < nx; i += 1) {
@@ -655,8 +648,7 @@ export class Gas {
       const u = this.sampleU(u0, x, y);
       const back = this.sampleV(v1, x + dt * u, y + dt * v0[f]);
       let val = v1[f] + 0.5 * (v0[f] - back);
-      this.boundsV(v0, x - dt * u, y - dt * v0[f], mm);
-      if (val < mm[0] || val > mm[1]) val = v1[f];
+      if (val < lim[off + 2 * f] || val > lim[off + 2 * f + 1]) val = v1[f];
       vg[f] = val;
     }
     /* Auftrieb auf den v-Flächen: g (ρ − ρ̄)/ρ, ρ̄ die Bezugsdichte des Gebiets. */
@@ -712,7 +704,17 @@ export class Gas {
     const g = this.g;
     const inv = 1 / (g.vCell * dt);
     for (let c = 0; c < g.n; c += 1) {
-      g.Sg[c] = g.kind[c] === GAS ? ((this.veos[c] - this.vgas[c]) + this.srcV[c]) * inv : 0;
+      if (g.kind[c] !== GAS) { g.Sg[c] = 0; continue; }
+      /*
+       * Die Volumenkorrektur je Schritt höchstens um eine halbe Zelle (in beide
+       * Richtungen): ein plötzlicher Überschuss — eine grosse Blase platzt in
+       * eine kleine Zelle — wird über einige Schritte hinausgedrückt (ein
+       * kurzer Überdruck), statt eine Geschwindigkeit zu verlangen, die der
+       * Transport nicht mehr fassen kann.
+       */
+      const corr = Math.max(-0.5 * g.vCell, Math.min(0.5 * g.vCell, this.veos[c] - this.vgas[c]));
+      const src = Math.max(-0.5 * g.vCell, Math.min(0.5 * g.vCell, this.srcV[c]));
+      g.Sg[c] = (corr + src) * inv;
     }
   }
 

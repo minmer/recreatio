@@ -579,42 +579,46 @@ function EntryPanel({ form, node, readOnly, onGraph, wire, onChoose }: {
     if (next === undefined) return;
     /* Ein anderer Rodzaj hat andere Felder: was hierher führte, passt nicht mehr. */
     const kept = { nodes: graph.nodes, edges: graph.edges.filter((e) => e.to !== node.id) };
-    onGraph(withConfig(kept, node.id, { kind: id, fields: Object.fromEntries(defaultTyped(next).map((f) => [f.key, { from: 'type' }])), identity: undefined }));
+    onGraph(withConfig(kept, node.id, { kind: id, fields: Object.fromEntries(defaultTyped(next).map((f) => [f.key, { from: 'type' }])), identity: undefined, also: (c.also ?? []).filter((x) => x !== id).length === 0 ? undefined : (c.also ?? []).filter((x) => x !== id) }));
   };
+
+  /* Weitere Rodzaje: man tippt bei ihnen ihr Etikettfeld. */
+  const setAlso = (next: string[]) => {
+    const also = [...new Set(next.filter((x) => x !== c.kind))];
+    /* Mit Wahl in der Zeile kommen in den Schritt keine Verweise über Kanten. */
+    const kept = also.length === 0 ? graph : { nodes: graph.nodes, edges: graph.edges.filter((e) => e.to !== node.id) };
+    onGraph(withConfig(kept, node.id, { also: also.length === 0 ? undefined : also, ...(also.length === 0 ? {} : { many: true }) }));
+  };
+  const spare = lib.kinds.filter((k) => k.id !== c.kind && !(c.also ?? []).includes(k.id) && choiceField(k) !== undefined);
 
   const set = kind === undefined ? [] : fieldsSet(form, node, kind);
   const identity = kind === undefined ? [] : identityOf(form, node, kind);
 
   return (
     <div className="wk-form cg cg-af-panel">
-      <label className="wk-field"><span>Rodzaj</span>
-        <select value={c.kind} disabled={readOnly} onChange={(e) => changeKind(e.target.value)}>
+      {/* 2026-10-20 — Rodzaj, auch mehrere: dann wählt man in der Zeile bei jedem Wert, welcher (Psalm oder Pieśń). */}
+      <div className="wk-field"><span>Rodzaj</span>
+        <select aria-label="Rodzaj" value={c.kind} disabled={readOnly} onChange={(e) => changeKind(e.target.value)}>
           {kind === undefined && <option value={c.kind}>— wybierz —</option>}
           {lib.kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
         </select>
-      </label>
+        {(c.also ?? []).map((id, i) => (
+          <span key={i} className="cg-af-also">
+            <select aria-label={`Rodzaj ${i + 2}`} value={id} disabled={readOnly} onChange={(e) => setAlso((c.also ?? []).map((x, j) => (j === i ? e.target.value : x)))}>
+              {lib.kinds.filter((k) => k.id === id || (k.id !== c.kind && !(c.also ?? []).includes(k.id) && choiceField(k) !== undefined)).map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
+            </select>
+            {!readOnly && <button type="button" className="wk-link-btn" aria-label={`Usuń rodzaj ${lib.kind(id)?.name ?? ''}`} onClick={() => setAlso((c.also ?? []).filter((_, j) => j !== i))}>×</button>}
+          </span>
+        ))}
+        {!readOnly && typedFields(kind, c).length > 0 && spare.length > 0 && (
+          <button type="button" className="wk-link-btn" onClick={() => setAlso([...(c.also ?? []), spare[0].id])}>+ inny rodzaj</button>
+        )}
+        {(c.also ?? []).length > 0 && <span className="cg-muted">W wierszu przy każdej wartości wybiera się, który rodzaj.</span>}
+      </div>
       <label className="wk-field"><span>Nazwa w formularzu</span>
         <input value={c.label ?? ''} disabled={readOnly} placeholder={kind?.name ?? ''} onChange={(e) => setConfig({ label: e.target.value.trim() === '' ? undefined : e.target.value })} />
       </label>
       {typedFields(kind, c).length > 0 && <label className="pe-check"><input type="checkbox" checked={c.many} disabled={readOnly} onChange={(e) => setConfig({ many: e.target.checked })} /><span>Kilka w jednym wierszu (np. dwa słowa o tym samym znaczeniu)</span></label>}
-      {/* 2026-10-20 — bei jedem Wert ein anderer Rodzaj wählbar (Psalm oder Pieśń): ein Schritt, die Reihenfolge, wie man tippt. */}
-      {typedFields(kind, c).length > 0 && (
-        <fieldset className="cg-af-fields"><legend>Przy każdej wartości do wyboru także</legend>
-          {lib.kinds.filter((k) => k.id !== c.kind && choiceField(k) !== undefined).map((k) => {
-            const on = (c.also ?? []).includes(k.id);
-            return (
-              <label key={k.id} className="pe-check">
-                <input type="checkbox" checked={on} disabled={readOnly} onChange={() => {
-                  const next = on ? (c.also ?? []).filter((x) => x !== k.id) : [...(c.also ?? []), k.id];
-                  setConfig({ also: next.length === 0 ? undefined : next });
-                }} />
-                <span>{k.name} <span className="cg-muted">({choiceField(k)?.label})</span></span>
-              </label>
-            );
-          })}
-        </fieldset>
-      )}
-
       {kind !== undefined && (
         <fieldset className="cg-af-fields"><legend>Pola</legend>
           {kind.fields.map((f) => (f.type === 'ref'

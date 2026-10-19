@@ -800,14 +800,19 @@ export class BubbleModel {
     const mv = B.m[o + H2O];
     const mAir = B.m[o + N2] + B.m[o + O2];
     if (burst || mAir > 0) {
-      /* Die Gaszelle über der Blase. */
+      /* Die Gaszellen über der Blase: so viele, wie ihr Volumen braucht (eine Reihe Zellen über ihrer Breite), sonst die erste darüber. */
       let c = g.cellAt(B.x[b], Math.min(g.h - 1e-9, B.y[b] + B.r[b]));
       while (c >= 0 && g.kind[c] !== GAS) c = c + g.nx < n ? c + g.nx : -1;
       if (c < 0) c = this.anyGasAbove(B.x[b]);
       if (c >= 0) {
-        for (let k = 0; k < SPECIES_SLOTS; k += 1) g.mg[k * n + c] += B.m[o + k];
-        g.Hg[c] += B.H[b];
-        e.gas.deriveCell(c);
+        const k = this.gasCellsAround(c, B.V[b]);
+        for (let q = 0; q < k; q += 1) {
+          const cq = this.cells[q];
+          const w = this.wts[q];
+          for (let s2 = 0; s2 < SPECIES_SLOTS; s2 += 1) g.mg[s2 * n + cq] += w * B.m[o + s2];
+          g.Hg[cq] += w * B.H[b];
+          e.gas.deriveCell(cq);
+        }
         this.burstVapour += mv;
         if (burst) {
           this.burst += 1;
@@ -847,6 +852,36 @@ export class BubbleModel {
       if (ls >= 0) this.siteBubble[ls] = B.id[last];
     }
     B.remove(b);
+  }
+
+  /** Gaszellen um c (c zuerst, dann die Nachbarn in der Reihe und darüber), bis ihr Volumen das der Blase fasst; Gewichte nach Gasvolumen in cells/wts. */
+  private gasCellsAround(c: number, V: number): number {
+    const g = this.e.grid;
+    const { nx, ny } = g;
+    const vg = this.e.gas.vgas;
+    const ci = c % nx;
+    const cj = (c - ci) / nx;
+    let k = 0;
+    let total = 0;
+    for (let ring = 0; ring <= 6 && (k === 0 || total < 2 * V); ring += 1) {
+      for (let dj = 0; dj <= ring; dj += 1) {
+        for (let di = -ring; di <= ring; di += 1) {
+          if (Math.max(Math.abs(di), dj) !== ring) continue;
+          const i = ci + di;
+          const j = cj + dj;
+          if (i < 0 || j < 0 || i >= nx || j >= ny) continue;
+          const q = i + j * nx;
+          if (g.kind[q] !== GAS || k >= this.cells.length) continue;
+          const v = Math.max(1e-3 * g.vCell, vg[q]);
+          this.cells[k] = q;
+          this.wts[k] = v;
+          total += v;
+          k += 1;
+        }
+      }
+    }
+    for (let q = 0; q < k; q += 1) this.wts[q] /= total;
+    return k;
   }
 
   private anyGasAbove(x: number): number {

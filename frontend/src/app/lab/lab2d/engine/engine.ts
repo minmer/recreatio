@@ -457,7 +457,8 @@ export class Engine {
     stamp[5] = now();
 
     /* 6. Wärme. */
-    heat.step(dt, 1e-8, 200);
+    /* Die Bilanz der Wärme ist für jede Toleranz genau (Flüsse aus den gelösten Temperaturen); 1e-6 relativ zum Wärmestrom genügt. */
+    heat.step(dt, 1e-6, 200);
     this.flows.heater += heat.last.heater;
     this.flows.lossWalls += heat.last.lossWalls;
     this.flows.lossOpen += heat.last.lossOpen;
