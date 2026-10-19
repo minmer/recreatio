@@ -31,7 +31,6 @@ import type { PartModule } from '../part';
 import { animationPart } from './animation';
 import { calendarPart } from './calendar';
 import { chatPart } from './chat';
-import { chemistryPart } from './chemistry';
 import { cogitaFlowPart, cogitaLivePart, cogitaRevisionPart, entityCardPart, entityTablePart, knowledgeMapPart, seatLearnPart, topicExplorerPart } from './cogita';
 import { contactPart } from './contact';
 import { costsPart } from './costs';
@@ -49,7 +48,6 @@ import { mapPart } from './map';
 import { formPart, massesPart, slotsPart } from './live';
 import { noticePart } from './notice';
 import { peoplePart } from './people';
-import { physicsPart } from './physics';
 import { planPart } from './plan';
 import { programPart } from './program';
 import { shapePart } from './shape';
@@ -74,10 +72,6 @@ export const PARTS: readonly PartModule[] = [
   /* 0107 — aus dem Pokaz von Cogita: ein Bild aus Ebenen mit eigener Bewegung, und die bewegten Bilder selbst. */
   layersPart,
   animationPart,
-
-  /* 2026-10-18 — Laboratoria: ein fest eingebauter Motor, der Versuch als Dokument (Fizyka 2D, Chemia). */
-  physicsPart,
-  chemistryPart,
 
   /* Was eine Ereignisseite trägt (0063, aus dem Altbestand). */
   heroPart,
