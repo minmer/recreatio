@@ -428,8 +428,9 @@ export interface TopChoice {
   readonly asks: Readonly<Record<string, string>>;
 }
 
+/* Die Wahl des Rodzaj (`_kind`) allein füllt keine Zeile. */
 export const rowIsEmpty = (row: RowInput): boolean =>
-  !Object.values(row).some((list) => list.some((one) => Object.values(one).some((t) => t.trim() !== '')));
+  !Object.values(row).some((list) => list.some((one) => Object.entries(one).some(([k, t]) => k !== '_kind' && t.trim() !== '')));
 
 /* -- Getippt → Wert ----------------------------------------------------------------------- */
 

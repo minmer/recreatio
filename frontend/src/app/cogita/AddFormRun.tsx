@@ -328,12 +328,19 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
                 <legend>{g.label}<GroupContext form={form} node={g.node} label={g.label} choice={choice} /></legend>
                 {(row[g.node] ?? [{}]).map((inst, i) => (
                   <div key={i} className="cg-af-inst">
+                    {/* 2026-10-20 — bei jedem Wert der Rodzaj (Psalm oder Pieśń), in der getippten Reihenfolge. */}
+                    {g.choices !== undefined && (
+                      <select className="cg-af-kind" aria-label={`${g.label}: rodzaj${i > 0 ? ` (${i + 1})` : ''}`} value={inst._kind ?? g.choices[0].kind.id}
+                        onChange={(e) => setText({ node: g.node, i, field: '_kind' }, e.target.value)}>
+                        {g.choices.map((ch) => <option key={ch.kind.id} value={ch.kind.id}>{ch.kind.name}</option>)}
+                      </select>
+                    )}
                     {g.fields.map((f) => {
                       const at = { node: g.node, i, field: f.key };
                       const k = spots.findIndex((s) => spotKey(s) === spotKey(at));
                       return (
                         <RowField key={f.key} field={f} value={inst[f.key] ?? ''} label={`${g.label}: ${f.label}${i > 0 ? ` (${i + 1})` : ''}`}
-                          placeholder={g.fields.length > 1 ? f.label : i > 0 ? 'kolejne' : undefined}
+                          placeholder={g.choices !== undefined ? (g.choices.find((ch) => ch.kind.id === inst._kind) ?? g.choices[0]).field.label : g.fields.length > 1 ? f.label : i > 0 ? 'kolejne' : undefined}
                           last={k === spots.length - 1 && form.keys.enter === 'next'}
                           register={(el) => { if (el === null) inputs.current.delete(spotKey(at)); else inputs.current.set(spotKey(at), el); }}
                           onChange={(v) => setText(at, v)} onKey={(e) => onKey(e, at, isLong(f))} />

@@ -597,6 +597,23 @@ function EntryPanel({ form, node, readOnly, onGraph, wire, onChoose }: {
         <input value={c.label ?? ''} disabled={readOnly} placeholder={kind?.name ?? ''} onChange={(e) => setConfig({ label: e.target.value.trim() === '' ? undefined : e.target.value })} />
       </label>
       {typedFields(kind, c).length > 0 && <label className="pe-check"><input type="checkbox" checked={c.many} disabled={readOnly} onChange={(e) => setConfig({ many: e.target.checked })} /><span>Kilka w jednym wierszu (np. dwa słowa o tym samym znaczeniu)</span></label>}
+      {/* 2026-10-20 — bei jedem Wert ein anderer Rodzaj wählbar (Psalm oder Pieśń): ein Schritt, die Reihenfolge, wie man tippt. */}
+      {typedFields(kind, c).length > 0 && (
+        <fieldset className="cg-af-fields"><legend>Przy każdej wartości do wyboru także</legend>
+          {lib.kinds.filter((k) => k.id !== c.kind && choiceField(k) !== undefined).map((k) => {
+            const on = (c.also ?? []).includes(k.id);
+            return (
+              <label key={k.id} className="pe-check">
+                <input type="checkbox" checked={on} disabled={readOnly} onChange={() => {
+                  const next = on ? (c.also ?? []).filter((x) => x !== k.id) : [...(c.also ?? []), k.id];
+                  setConfig({ also: next.length === 0 ? undefined : next });
+                }} />
+                <span>{k.name} <span className="cg-muted">({choiceField(k)?.label})</span></span>
+              </label>
+            );
+          })}
+        </fieldset>
+      )}
 
       {kind !== undefined && (
         <fieldset className="cg-af-fields"><legend>Pola</legend>

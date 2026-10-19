@@ -61,7 +61,17 @@ export function parsePaste(text: string, groups: readonly FormGroup[], rule: Pas
         return cell.split(rule.values).map((x) => x.trim()).filter(Boolean);
       });
       const count = Math.max(1, ...parts.map((p) => p.length));
-      row[g.node] = Array.from({ length: count }, (_, k) => Object.fromEntries(g.fields.map((f, i) => [f.key, parts[i][k] ?? ''])));
+      row[g.node] = Array.from({ length: count }, (_, k) => {
+        const inst: Instance = Object.fromEntries(g.fields.map((f, i) => [f.key, parts[i][k] ?? '']));
+        /* Rodzaj zur Wahl: „Pieśń: Ap 19,1-7" — ohne Vorsatz der erste. */
+        if (g.choices !== undefined) {
+          const text = inst[g.fields[0].key] ?? '';
+          const cut = text.indexOf(':');
+          const named = cut > 0 ? g.choices.find((ch) => ch.kind.name.toLowerCase() === text.slice(0, cut).trim().toLowerCase()) : undefined;
+          if (named !== undefined) return { [g.fields[0].key]: text.slice(cut + 1).trim(), _kind: named.kind.id };
+        }
+        return inst;
+      });
     }
     return row;
   });
@@ -158,6 +168,7 @@ export function describeForm(form: AddForm, look: Pick<Lookup, 'kind'>): string[
     const sentence = [
       `${quote(nodeLabel(node, look, form.graph))} (${kind.name}): ${parts.join('; ') || 'bez pól'}.`,
       c.many ? 'Kilka w jednym wierszu.' : '',
+      choicesOf(c, look).length > 1 ? `Przy każdej wartości wybiera się rodzaj: ${choicesOf(c, look).map((ch) => `${ch.kind.name} (${ch.field.label})`).join(' albo ')}; na liście — przedrostek, np. „${choicesOf(c, look)[1].kind.name}: …”.` : '',
       pairs.length > 0 ? `Po jednym dla każdej pary (${pairs.map((f) => f.label).join(', ')} przyjmuje jeden wpis).` : '',
       needs.length > 0 ? `Powstaje tylko, gdy w wierszu jest ${needs.join(' i ')}.` : '',
       identity.length > 0 ? `Jeśli taki już jest (to samo: ${identity.map((f) => f.label).join(', ')}), zostaje użyty, a brakujące wartości są dopisane.` : 'Zawsze powstaje nowy.'
