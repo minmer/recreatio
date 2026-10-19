@@ -270,6 +270,8 @@ function RowOrder({ form, readOnly, onOrder }: { form: AddForm; readOnly: boolea
     onOrder(ids);
   };
   return (
+    <>
+    <p className="cg-muted">W tej kolejności wpisujesz pola (Enter) i stoją kolumny wklejanej listy — i w tej kolejności trafiają do pola, które przyjmuje kilka wpisów (np. psalm, psalm, pieśń).</p>
     <ol className="cg-af-order">
       {groups.map((g, i) => (
         <li key={g.node}>
@@ -283,6 +285,7 @@ function RowOrder({ form, readOnly, onOrder }: { form: AddForm; readOnly: boolea
         </li>
       ))}
     </ol>
+    </>
   );
 }
 

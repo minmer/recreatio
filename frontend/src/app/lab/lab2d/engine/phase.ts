@@ -523,7 +523,9 @@ export class Phase {
     const mf = g.mfog[c] + d;
     const T = this.tempWith(c, mv, mf, T0);
     const nv = mv / MOLAR[H2O];
-    return (nv / (nv + nDry)) * p - pSatFast(T);
+    /* Reiner Dampf ohne Luft: p_v = p; ganz ohne Gas: p_v = 0. */
+    const pv = nv + nDry > 0 ? (nv / (nv + nDry)) * p : 0;
+    return pv - pSatFast(T);
   }
 
   /** 3. Nebel: Kondensation bis genau zur Sättigung, oder Verdunsten von Nebel in untersättigtem Gas. */
@@ -561,8 +563,9 @@ export class Phase {
       let side = 0;
       for (let it = 0; it < 40; it += 1) {
         d = (lo * fhi - hi * flo) / (fhi - flo);
+        if (!Number.isFinite(d) || d <= Math.min(lo, hi) || d >= Math.max(lo, hi)) d = 0.5 * (lo + hi);
         const f = this.satGap(c, d, nDry, p, T0);
-        if (Math.abs(f) <= 1e-9 * p) break;
+        if (Math.abs(f) <= 1e-13 * p) break;
         if (f > 0) { lo = d; flo = f; if (side === 1) fhi /= 2; side = 1; }
         else { hi = d; fhi = f; if (side === -1) flo /= 2; side = -1; }
       }
@@ -579,7 +582,7 @@ export class Phase {
   private setFog(c: number, d: number): void {
     const { grid: g, gas } = this.e;
     const n = g.n;
-    if (d === 0) return;
+    if (d === 0 || !Number.isFinite(d)) return;
     const dd = Math.max(-g.mfog[c], Math.min(g.mg[H2O * n + c], d));
     g.mg[H2O * n + c] -= dd;
     g.mfog[c] += dd;

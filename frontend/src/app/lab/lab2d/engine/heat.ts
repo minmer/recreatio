@@ -33,7 +33,7 @@ import { cpL, hL, H_EXT, kL, kMix, SOLIDS } from './materials';
 import type { Particles } from './particles';
 import type { HeaterMode } from './scene';
 import type { GridSolver, SolveResult } from './solver';
-import { H2O, T0 } from './units';
+import { GAS, H2O, LIQUID, SOLID, T0 } from './units';
 
 export interface Heater {
   readonly group: number;
@@ -82,6 +82,12 @@ export class Heat {
   private readonly q: Float64Array;
   heaters: Heater[] = [];
   ambientT = 293.15;
+  /** Geleitete Energie seit dem Start (J) zwischen Zellarten: Feststoff → Flüssigkeit, Flüssigkeit → Gas, Feststoff → Gas (für Test 11 und die Energiebilanz der Anzeige). */
+  fluxSL = 0;
+  fluxLG = 0;
+  fluxSG = 0;
+  /** Davon über Wandseiten aus festen Zellen verloren (J, seit dem Start). */
+  lossSolids = 0;
   /** Leistung, die gleichmässig in die Flüssigkeit geht (W; nach Wärmekapazität verteilt — wie ein Mikrowellenherd; Prüfstand und Werkzeug). */
   liquidPower = 0;
   hExt = H_EXT;
@@ -293,6 +299,7 @@ export class Heat {
           const F = G2 * (Tn[c + 1] - Tn[c]) * dt;
           dE[c] += F;
           dE[c + 1] -= F;
+          if (g.kind[c] !== g.kind[c + 1]) this.pair(g.kind[c], g.kind[c + 1], F);
         }
         if (j + 1 < ny && C[c + nx] > 0) {
           const kn = k[c + nx];
@@ -300,6 +307,7 @@ export class Heat {
           const F = G2 * (Tn[c + nx] - Tn[c]) * dt;
           dE[c] += F;
           dE[c + nx] -= F;
+          if (g.kind[c] !== g.kind[c + nx]) this.pair(g.kind[c], g.kind[c + nx], F);
         }
         /* Seiten der Kiste. */
         for (let side = 0; side < 4; side += 1) {
@@ -309,6 +317,7 @@ export class Heat {
           const F = this.sideConductance(open, kc, hA, depth) * (Tn[c] - Ta) * dt;
           dE[c] -= F;
           if (open) lossOpen += F; else lossWalls += F;
+          if (g.solid[c] !== 0) this.lossSolids += F;
         }
       }
     }
@@ -349,6 +358,16 @@ export class Heat {
     out.lossWalls = lossWalls;
     out.lossOpen = lossOpen;
     return out;
+  }
+
+  /** Energie F (J) floss von einer Zelle der Art b in eine der Art a: nach Paaren buchen. */
+  private pair(a: number, b: number, F: number): void {
+    if (a === SOLID && b === LIQUID) this.fluxSL -= F;
+    else if (a === LIQUID && b === SOLID) this.fluxSL += F;
+    else if (a === LIQUID && b === GAS) this.fluxLG -= F;
+    else if (a === GAS && b === LIQUID) this.fluxLG += F;
+    else if (a === SOLID && b === GAS) this.fluxSG -= F;
+    else if (a === GAS && b === SOLID) this.fluxSG += F;
   }
 
   /** Leitwert einer Kistenseite (W/K): Wand = h_ext A in Reihe mit k A/(Δx/2); offen = k A/(Δx/2) zur Umgebung. */

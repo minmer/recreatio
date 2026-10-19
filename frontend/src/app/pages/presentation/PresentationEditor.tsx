@@ -293,8 +293,11 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
   const effective = (place: Place) => placeFor(place, tall);
   const patchPlace = (place: Place, patch: Partial<Place>): Place => {
     if (!tall) return { ...place, ...patch };
-    const { x, y, w, h, max, scale, rotate, ...rest } = patch;
+    const { x, y, w, h, max, scale, rotate, crop, mask, ...rest } = patch;
     const tallPatch: Record<string, unknown> = {};
+    /* 2026-10-19 — Ausschnitt und Maske hat ein Platz auf dem Telefon auch eigene. */
+    if (crop !== undefined) tallPatch.crop = crop ?? undefined;
+    if (mask !== undefined) tallPatch.mask = mask;
     if (x !== undefined) tallPatch.x = x;
     if (y !== undefined) tallPatch.y = y;
     if (w !== undefined) tallPatch.w = w;

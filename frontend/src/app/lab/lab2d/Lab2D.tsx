@@ -1,0 +1,532 @@
+/**
+ * LABOR 2D (v2) — DIE OBERFLÄCHE (React): Rahmen, Werkzeuge, Palette,
+ * Inspektor, Blasenansicht, Einblendungen, Schreiber, zwei Stufen, Szenen und
+ * das Entwickler-HUD um die Bühne. Die Engine läuft im Arbeiter (host.ts,
+ * engine.worker.ts); in React stehen nur Einstellungen und die Kennzahlen, die
+ * der Arbeiter fünfmal je Sekunde schickt — nie Feld- oder Teilchendaten.
+ *
+ * Die Leinwand entsteht im Effekt selbst (nicht im JSX): eine Leinwand lässt
+ * sich nur einmal an einen Arbeiter übergeben, und React ruft Effekte im
+ * StrictMode zweimal auf.
+ */
+
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+
+import { Icon, type IconName } from '../../ui/icons';
+import { LabFrame, LabSection } from '../LabFrame';
+import type { ProbeInfo } from './engine/engine';
+import type { ChartSample, HostStats } from './engine/protocol';
+import { CELL, QUALITIES, isQuality, readScene, writeScene, type Op, type Quality, type SideName } from './engine/scene';
+import type { Region } from './engine/shapes';
+import { LabHost } from './host';
+import { num, t, type TextKey } from './i18n';
+import { About, BubblePanel, Charts, forcesOf, Hud, Inspector, type Level } from './panels';
+import { OVERLAYS, type Overlay } from './render/frame';
+import type { Walls } from './render/glRenderer';
+import type { View } from './render/view';
+import { createLabWorker } from './workerFactory';
+
+import './lab2d.css';
+
+export interface Lab2DConfig {
+  readonly title: string;
+  readonly text: readonly string[];
+  readonly scene: unknown;
+}
+
+type Tool = 'paint' | 'erase' | 'place' | 'drag' | 'wall' | 'inspect';
+type ApparatusKey = 'beaker' | 'hotplate';
+
+interface Material {
+  readonly key: string;
+  readonly label: TextKey;
+  readonly solid: string | null;
+  readonly color: string;
+}
+
+const MATERIALS: readonly Material[] = [
+  { key: 'water', label: 'matWater', solid: null, color: '#3d8fd8' },
+  { key: 'air', label: 'matAir', solid: null, color: '#e6eef3' },
+  { key: 'glass', label: 'matGlass', solid: 'glass', color: '#9cc3d5' },
+  { key: 'steel', label: 'matSteel', solid: 'steel', color: '#7d858e' },
+  { key: 'chips', label: 'matChips', solid: 'ceramic', color: '#d8ccb4' }
+];
+
+const TOOLS: readonly { readonly key: Tool; readonly label: TextKey; readonly icon: IconName; readonly hint: TextKey }[] = [
+  { key: 'paint', label: 'toolPaint', icon: 'edit', hint: 'hintPaint' },
+  { key: 'erase', label: 'toolErase', icon: 'x', hint: 'hintErase' },
+  { key: 'place', label: 'toolPlace', icon: 'plus', hint: 'hintPlace' },
+  { key: 'drag', label: 'toolDrag', icon: 'shuffle', hint: 'hintDrag' },
+  { key: 'wall', label: 'toolWall', icon: 'minus', hint: 'hintWall' },
+  { key: 'inspect', label: 'toolInspect', icon: 'search', hint: 'hintInspect' }
+];
+
+const OVERLAY_LABEL: Readonly<Record<Overlay, TextKey>> = {
+  none: 'ovNone', temperature: 'ovTemperature', pressure: 'ovPressure', velocity: 'ovVelocity', humidity: 'ovHumidity', vapour: 'ovVapour', phase: 'ovPhase'
+};
+const QUALITY_LABEL: Readonly<Record<Quality, TextKey>> = { 'very-high': 'qualityVeryHigh', high: 'qualityHigh', medium: 'qualityMedium' };
+const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 4, 8, 16];
+const T0 = 273.15;
+const G0 = 9.80665;
+const PRESSURES: readonly { readonly key: TextKey; readonly kPa: number }[] = [
+  { key: 'pSea', kPa: 101.325 }, { key: 'pMountain', kPa: 70 }, { key: 'pCooker', kPa: 200 }
+];
+
+/** Die Stufe dieses Geräts (wer einmal eine niedrigere gewählt hat, bekommt sie wieder). */
+const QUALITY_KEY = 'recreatio.lab2d.quality';
+function savedQuality(): Quality | null {
+  try { const v = window.localStorage.getItem(QUALITY_KEY); return isQuality(v) ? v : null; } catch { return null; }
+}
+function saveQuality(q: Quality): void {
+  try { window.localStorage.setItem(QUALITY_KEY, q); } catch { /* ohne Speicher gilt die Wahl nur jetzt */ }
+}
+const LEVEL_KEY = 'recreatio.lab2d.level';
+function savedLevel(): Level {
+  try { return window.localStorage.getItem(LEVEL_KEY) === 'secondary' ? 'secondary' : 'primary'; } catch { return 'primary'; }
+}
+function withQuality(raw: unknown, q: Quality): unknown {
+  return raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>), quality: q } : { quality: q };
+}
+
+/** Ein Gerät an der Stelle (x, y): Mitte und Unterkante; dicht über dem Boden steht es auf ihm. */
+function apparatusOp(kind: ApparatusKey, x: number, y: number): Op {
+  const yy = y < 0.012 ? 0 : y;
+  return kind === 'beaker'
+    ? { op: 'beaker', x, y: yy, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T: T0 + 20, lid: false }
+    : { op: 'hotplate', x, y: yy, w: 0.12, h: 0.008, material: 'steel', T: T0 + 20, mode: 'power', power: 40, target: T0 + 150, on: true };
+}
+
+/** Das Rechteck eines Geräts aus seinem JSON (für „Przesuń“). */
+function apparatusRect(op: Record<string, unknown>): [number, number, number, number] | null {
+  if ((op.op !== 'beaker' && op.op !== 'hotplate') || typeof op.x !== 'number' || typeof op.y !== 'number' || typeof op.w !== 'number' || typeof op.h !== 'number') return null;
+  return [op.x - op.w / 2, op.y, op.x + op.w / 2, op.y + op.h];
+}
+
+function Swatch({ color }: { color: string }) {
+  return <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill={color} stroke="currentColor" strokeOpacity="0.35" /></svg>;
+}
+
+function ApparatusIcon({ kind }: { kind: ApparatusKey }) {
+  return kind === 'beaker'
+    ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v17h12V3" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M7 12h10v7H7z" fill="#3d8fd8" opacity="0.6" /></svg>
+    : <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="14" width="20" height="6" rx="1" fill="#7d858e" /><path d="M6 17h12" stroke="#e8823a" strokeWidth="2" /></svg>;
+}
+
+export function Lab2D({ config, whole = false, createWorker = createLabWorker }: {
+  config: Lab2DConfig;
+  whole?: boolean;
+  createWorker?: () => Worker;
+}) {
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const hostRef = useRef<LabHost | null>(null);
+  const drag = useRef<{ start: [number, number]; startPx: [number, number]; last: [number, number]; at: number; target: number } | null>(null);
+  const samplesRef = useRef<ChartSample[]>([]);
+  const opsRef = useRef<Record<string, unknown>[]>([]);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [stats, setStats] = useState<HostStats | null>(null);
+  const [samples, setSamples] = useState<readonly ChartSample[]>([]);
+  const [paused, setPaused] = useState(false);
+  const [speedAt, setSpeedAt] = useState(3);
+  const [hud, setHud] = useState(false);
+  const [tool, setTool] = useState<Tool>('paint');
+  const [material, setMaterial] = useState('water');
+  const [apparatus, setApparatus] = useState<ApparatusKey>('beaker');
+  const [brushMm, setBrushMm] = useState(8);
+  const [tempC, setTempC] = useState(20);
+  const [quality, setQuality] = useState<Quality>(() => savedQuality() ?? readScene(config.scene).scene.quality);
+  const [level, setLevel] = useState<Level>(savedLevel);
+  const [overlay, setOverlay] = useState<Overlay>('none');
+  const [info, setInfo] = useState<ProbeInfo | null | undefined>(undefined);
+  const [line, setLine] = useState<readonly [number, number, number, number] | null>(null);
+  const [lagging, setLagging] = useState<number | null>(null);
+  const [view, setView] = useState<{ view: View; walls: Walls } | null>(null);
+  const [ambient, setAmbientState] = useState(() => { const a = readScene(config.scene).scene.ambient; return { p: a.p / 1000, T: a.T - T0, rh: a.rh, g: a.g / G0 }; });
+  const qualityRef = useRef(quality);
+  qualityRef.current = quality;
+  const speedRef = useRef(SPEEDS[speedAt]);
+  speedRef.current = SPEEDS[speedAt];
+  const lagRef = useRef(0);
+
+  const refreshOps = (h: LabHost): void => {
+    void h.serialize().then((s) => { const ops = s?.ops; opsRef.current = Array.isArray(ops) ? (ops as Record<string, unknown>[]) : []; });
+  };
+
+  useEffect(() => {
+    const box = boxRef.current;
+    if (box === null) return undefined;
+    const canvas = document.createElement('canvas');
+    canvas.className = 'l2d-canvas';
+    box.prepend(canvas);
+    setError(null);
+    samplesRef.current = [];
+    const dark = typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches === true;
+    const onStats = (s: HostStats): void => {
+      setStats(s);
+      if (s.samples.length > 0) {
+        const all = samplesRef.current;
+        all.push(...s.samples);
+        if (all.length > 600) all.splice(0, all.length - 600);
+        setSamples([...all]);
+      }
+      const want = speedRef.current;
+      if (s.paused || want > 1 || s.simRate >= 0.97 * want) { lagRef.current = 0; setLagging(null); return; }
+      if (s.simRate < 0.9 * want) lagRef.current += 1;
+      if (lagRef.current >= 15) setLagging(s.simRate);
+    };
+    const host = new LabHost(canvas, createWorker, {
+      onReady: () => { setReady(true); refreshOps(host); },
+      onStats,
+      onView: (v, w) => setView({ view: v, walls: w }),
+      onRefused: () => setNote(t('refused')),
+      onError: setError
+    });
+    hostRef.current = host;
+    const r = box.getBoundingClientRect();
+    void host.start(withQuality(config.scene, qualityRef.current), r.width, r.height, window.devicePixelRatio || 1, dark);
+    const ro = new ResizeObserver(() => {
+      const q = box.getBoundingClientRect();
+      host.resize(q.width, q.height, window.devicePixelRatio || 1);
+    });
+    ro.observe(box);
+    return () => {
+      ro.disconnect();
+      host.dispose();
+      canvas.remove();
+      hostRef.current = null;
+      setReady(false);
+    };
+  }, [config.scene, createWorker]);
+
+  useEffect(() => {
+    if (note === null) return undefined;
+    const id = window.setTimeout(() => setNote(null), 5000);
+    return () => window.clearTimeout(id);
+  }, [note]);
+
+  const host = (): LabHost | null => hostRef.current;
+  const local = (e: ReactPointerEvent<HTMLDivElement>): [number, number] => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top];
+  };
+
+  const brushAt = (x: number, y: number): void => {
+    const h = host();
+    if (h === null) return;
+    const region: Region = { circle: [x, y, brushMm / 1000] };
+    if (tool === 'erase') { h.apply({ op: 'erase', region }); return; }
+    const m = MATERIALS.find((k) => k.key === material) ?? MATERIALS[0];
+    if (m.solid !== null) h.addSolid(region, m.solid, T0 + tempC);
+    else if (m.key === 'water') h.addLiquid(region, { H2O: 1 }, T0 + tempC);
+    else h.apply({ op: 'fill', region, phase: 'gas', T: T0 + tempC, composition: { N2: 0.7676, O2: 0.2324 } });
+  };
+
+  const apparatusAt = (x: number, y: number): number => {
+    const ops = opsRef.current;
+    for (let k = ops.length - 1; k >= 0; k -= 1) {
+      const r = apparatusRect(ops[k]);
+      if (r !== null && x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]) return k;
+    }
+    return -1;
+  };
+
+  const onDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
+    const h = host();
+    if (h === null || !ready) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const px = local(e);
+    const w = h.toWorld(px[0], px[1]);
+    drag.current = { start: w, startPx: px, last: w, at: performance.now(), target: -1 };
+    if (tool === 'paint' || tool === 'erase') brushAt(w[0], w[1]);
+    else if (tool === 'place') { h.apply(apparatusOp(apparatus, w[0], w[1])); drag.current = null; window.setTimeout(() => refreshOps(h), 50); }
+    else if (tool === 'inspect') {
+      void h.query(w[0], w[1]).then((q) => { setInfo(q); h.select(q?.bubble?.id ?? null); });
+      drag.current = null;
+    } else if (tool === 'wall') setLine([px[0], px[1], px[0], px[1]]);
+    else if (tool === 'drag') {
+      const k = apparatusAt(w[0], w[1]);
+      if (k < 0) drag.current = null;
+      else { drag.current.target = k; setLine([px[0], px[1], px[0], px[1]]); }
+    }
+  };
+
+  const onMove = (e: ReactPointerEvent<HTMLDivElement>): void => {
+    const d = drag.current;
+    const h = host();
+    if (d === null || h === null) return;
+    const px = local(e);
+    const w = h.toWorld(px[0], px[1]);
+    if (tool === 'wall' || tool === 'drag') { setLine([d.startPx[0], d.startPx[1], px[0], px[1]]); return; }
+    const moved = Math.hypot(w[0] - d.last[0], w[1] - d.last[1]);
+    const now = performance.now();
+    if (moved < brushMm / 3000 && now - d.at < 60) return;
+    d.last = w;
+    d.at = now;
+    brushAt(w[0], w[1]);
+  };
+
+  const onUp = (e: ReactPointerEvent<HTMLDivElement>): void => {
+    const d = drag.current;
+    const h = host();
+    drag.current = null;
+    setLine(null);
+    if (d === null || h === null) return;
+    const px = local(e);
+    const [x, y] = h.toWorld(px[0], px[1]);
+    const cell = stats?.engine.dx ?? 0.002;
+    if (tool === 'wall') {
+      if (Math.hypot(x - d.start[0], y - d.start[1]) < cell) return;
+      const m = MATERIALS.find((k) => k.key === material);
+      h.addSolid({ line: [d.start[0], d.start[1], x, y], width: Math.max(2 * cell, 0.004) }, m?.solid ?? 'glass', T0 + tempC);
+    } else if (tool === 'drag' && d.target >= 0) {
+      const op = opsRef.current[d.target];
+      const r = op === undefined ? null : apparatusRect(op);
+      if (op === undefined || r === null) return;
+      const dx = x - d.start[0];
+      const dy = y - d.start[1];
+      if (Math.hypot(dx, dy) < cell) return;
+      /* Das Gerät an der alten Stelle entfernen, an der neuen aufbauen (seine Zellen; der Inhalt bleibt). */
+      h.apply({ op: 'erase', region: { rect: r } });
+      const moved = { ...op, x: (op.x as number) + dx, y: Math.max(0, (op.y as number) + dy) };
+      h.apply(readScene({ ops: [moved] }).scene.ops[0]);
+      window.setTimeout(() => refreshOps(h), 50);
+    }
+  };
+
+  const togglePause = (): void => { const next = !paused; setPaused(next); host()?.pause(next); };
+  const cycleSpeed = (): void => { const next = (speedAt + 1) % SPEEDS.length; setSpeedAt(next); host()?.setSpeed(SPEEDS[next]); };
+  const changeQuality = (q: Quality): void => { setQuality(q); saveQuality(q); lagRef.current = 0; setLagging(null); samplesRef.current = []; setSamples([]); host()?.setQuality(q); };
+  const changeLevel = (l: Level): void => { setLevel(l); try { window.localStorage.setItem(LEVEL_KEY, l); } catch { /* nur jetzt */ } };
+  const changeOverlay = (o: Overlay): void => { setOverlay(o); host()?.overlay(o); };
+  const changeAmbient = (next: { p: number; T: number; rh: number; g: number }): void => {
+    setAmbientState(next);
+    host()?.setAmbient(next.p * 1000, T0 + next.T, next.rh, next.g * G0);
+  };
+  const reload = (scene: unknown): void => {
+    samplesRef.current = [];
+    setSamples([]);
+    const h = host();
+    h?.load(withQuality(scene, quality));
+    if (h !== null) window.setTimeout(() => refreshOps(h), 100);
+  };
+  const emptyBox = (): void => { const base = readScene(config.scene).scene; reload(writeScene({ ...base, ops: [] })); };
+  /* Szenen als Dateien: Speichern lädt ein JSON herunter (mit dem Samen), Laden liest eins ein. */
+  const save = (): void => {
+    void host()?.serialize().then((s) => {
+      if (s === null) return;
+      const blob = new Blob([JSON.stringify(s, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'laboratorium-2d.json';
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setNote(t('saved'));
+    });
+  };
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const load = (): void => fileRef.current?.click();
+  const loadFile = (file: File | undefined): void => {
+    if (file === undefined) return;
+    void file.text().then((text) => {
+      try { reload(JSON.parse(text) as unknown); } catch (err) { setNote(err instanceof Error ? err.message : String(err)); }
+    });
+  };
+
+  const speed = SPEEDS[speedAt];
+  const hint = TOOLS.find((k) => k.key === tool)?.hint ?? 'hintPaint';
+  const lower: Quality | undefined = QUALITIES[QUALITIES.indexOf(quality) + 1];
+  const heaters = stats?.engine.heaters ?? [];
+  const bubble = stats?.bubble ?? null;
+
+  /* Pfeile der Kräfte an der gewählten Blase (Bildschirmkoordinaten, auf die grösste Kraft normiert). */
+  let arrows: { key: string; x1: number; y1: number; x2: number; y2: number; label: string }[] = [];
+  const h0 = hostRef.current;
+  if (bubble !== null && h0 !== null && view !== null) {
+    const [bx, by] = h0.toScreen(bubble.x, bubble.y);
+    const forces = forcesOf(bubble);
+    const big = Math.max(1e-30, ...forces.map((f) => Math.hypot(f.x, f.y)));
+    arrows = forces.filter((f) => Math.hypot(f.x, f.y) > 1e-4 * big).map((f) => {
+      const len = 70 * Math.sqrt(Math.hypot(f.x, f.y) / big);
+      const a = Math.atan2(f.y, f.x);
+      return { key: f.key, x1: bx, y1: by, x2: bx + len * Math.cos(a), y2: by - len * Math.sin(a), label: t(f.key) };
+    });
+  }
+
+  const bar = (
+    <>
+      <button type="button" className={`lab-tool${paused ? '' : ' is-on'}`} onClick={togglePause} title={paused ? t('play') : t('pause')} aria-label={paused ? t('play') : t('pause')}>
+        <Icon name={paused ? 'play' : 'pause'} />
+      </button>
+      <button type="button" className="lab-tool" disabled={!paused} onClick={() => host()?.step()} title={t('step')} aria-label={t('step')}><Icon name="next" /></button>
+      <button type="button" className="lab-tool" onClick={cycleSpeed} title={t('speed')} aria-label={`${t('speed')} ${speed}×`}>{num(speed, speed < 1 ? 2 : 0)}×</button>
+      <button type="button" className={`lab-tool${hud ? ' is-on' : ''}`} onClick={() => setHud(!hud)} title={t('hud')} aria-label={t('hud')}>HUD</button>
+    </>
+  );
+
+  const stage = (
+    <div ref={boxRef} className="l2d-box" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+      <svg className="l2d-overlay" aria-hidden="true">
+        <defs>
+          <marker id="l2d-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" className="l2d-arrowhead" /></marker>
+        </defs>
+        {line !== null && <line className="l2d-preview" x1={line[0]} y1={line[1]} x2={line[2]} y2={line[3]} />}
+        {arrows.map((a) => (
+          <g key={a.key} className={`l2d-force l2d-force-${a.key}`}>
+            <line x1={a.x1} y1={a.y1} x2={a.x2} y2={a.y2} markerEnd="url(#l2d-head)" />
+            <text x={a.x2 + 4} y={a.y2}>{a.label}</text>
+          </g>
+        ))}
+      </svg>
+      {hud && stats !== null && <Hud stats={stats} />}
+      {note !== null && <div className="l2d-note" role="status">{note}</div>}
+      {(!ready || error !== null) && <div className="l2d-status">{error ?? t('loading')}</div>}
+    </div>
+  );
+
+  const side = (
+    <div className="lab-side-in">
+      {config.text.map((p, k) => <p key={k} className="lab-text">{p}</p>)}
+      {lagging !== null && (
+        <div className="l2d-slow" role="status">
+          <p>{t('slow').replace('{x}', num(lagging, 2))}</p>
+          {lower !== undefined
+            ? <button type="button" className="lab-tool" onClick={() => changeQuality(lower)}>{t('slowLower')}: {t(QUALITY_LABEL[lower])}</button>
+            : <p className="lab-muted">{t('slowLowest')}</p>}
+        </div>
+      )}
+      <LabSection title={t('tools')}>
+        <div className="lab-palette">
+          {TOOLS.map((k) => (
+            <button key={k.key} type="button" className={`lab-item${tool === k.key ? ' is-on' : ''}`} onClick={() => setTool(k.key)}><Icon name={k.icon} />{t(k.label)}</button>
+          ))}
+        </div>
+        <p className="lab-muted">{t(hint)}</p>
+      </LabSection>
+      <LabSection title={t('materials')}>
+        <div className="lab-palette">
+          {MATERIALS.map((m) => (
+            <button key={m.key} type="button" className={`lab-item${material === m.key ? ' is-on' : ''}`} onClick={() => { setMaterial(m.key); if (tool !== 'paint' && tool !== 'wall') setTool('paint'); }}>
+              <Swatch color={m.color} />{t(m.label)}
+            </button>
+          ))}
+        </div>
+        <label className="lab-field">{t('brush')}: {brushMm} mm
+          <input type="range" min={2} max={30} step={1} value={brushMm} onChange={(e) => setBrushMm(Number(e.currentTarget.value))} />
+        </label>
+        <label className="lab-field">{t('paintTemp')}: {tempC} °C
+          <input type="range" min={0} max={100} step={1} value={tempC} onChange={(e) => setTempC(Number(e.currentTarget.value))} />
+        </label>
+      </LabSection>
+      <LabSection title={t('apparatus')}>
+        <div className="lab-palette">
+          {(['beaker', 'hotplate'] as const).map((k) => (
+            <button key={k} type="button" className={`lab-item${apparatus === k && tool === 'place' ? ' is-on' : ''}`} onClick={() => { setApparatus(k); setTool('place'); }}>
+              <ApparatusIcon kind={k} />{t(k === 'beaker' ? 'appBeaker' : 'appHotplate')}
+            </button>
+          ))}
+        </div>
+      </LabSection>
+      <LabSection title={t('heater')}>
+        {heaters.length === 0 && <p className="lab-muted">{t('heaterNone')}</p>}
+        {heaters.map((h) => (
+          <div key={h.group} className="lab-section-body">
+            <label className="lab-row"><input type="checkbox" checked={h.on} onChange={(e) => host()?.setHeater(h.group, h.mode, h.power, h.target, e.currentTarget.checked)} />{t('heaterOn')} · {num(h.Tmean - T0, 0)} °C · {num(h.P, 1)} W</label>
+            <label className="lab-field">{t('heaterMode')}
+              <select value={h.mode} onChange={(e) => host()?.setHeater(h.group, e.currentTarget.value === 'thermostat' ? 'thermostat' : 'power', h.power, h.target, h.on)}>
+                <option value="power">{t('modePower')}</option>
+                <option value="thermostat">{t('modeThermostat')}</option>
+              </select>
+            </label>
+            <label className="lab-field">{t('heaterPower')}: {num(h.power, 0)} W
+              <input type="range" min={0} max={150} step={1} value={h.power} onChange={(e) => host()?.setHeater(h.group, h.mode, Number(e.currentTarget.value), h.target, h.on)} />
+            </label>
+            {h.mode === 'thermostat' && (
+              <label className="lab-field">{t('heaterTarget')}: {num(h.target - T0, 0)} °C
+                <input type="range" min={30} max={400} step={1} value={Math.round(h.target - T0)} onChange={(e) => host()?.setHeater(h.group, h.mode, h.power, T0 + Number(e.currentTarget.value), h.on)} />
+              </label>
+            )}
+          </div>
+        ))}
+      </LabSection>
+      <LabSection title={t('view')}>
+        <label className="lab-field">{t('overlay')}
+          <select value={overlay} onChange={(e) => changeOverlay(e.currentTarget.value as Overlay)}>
+            {OVERLAYS.map((o) => <option key={o} value={o}>{t(OVERLAY_LABEL[o])}</option>)}
+          </select>
+        </label>
+        <p className="lab-muted">{t('vapourNote')}</p>
+        <label className="lab-field">{t('level')}
+          <select value={level} onChange={(e) => changeLevel(e.currentTarget.value === 'secondary' ? 'secondary' : 'primary')}>
+            <option value="primary">{t('levelPrimary')}</option>
+            <option value="secondary">{t('levelSecondary')}</option>
+          </select>
+        </label>
+        <label className="lab-field">{t('quality')}
+          <select value={quality} onChange={(e) => changeQuality(e.currentTarget.value as Quality)}>
+            {QUALITIES.map((q) => <option key={q} value={q}>{t(QUALITY_LABEL[q])}</option>)}
+          </select>
+        </label>
+      </LabSection>
+      <LabSection title={t('room')} open={false}>
+        <div className="lab-row">
+          {PRESSURES.map((p) => (
+            <button key={p.key} type="button" className={`lab-tool${Math.abs(ambient.p - p.kPa) < 0.5 ? ' is-on' : ''}`} onClick={() => changeAmbient({ ...ambient, p: p.kPa })}>{t(p.key)}</button>
+          ))}
+        </div>
+        <label className="lab-field">{t('pressure')}: {num(ambient.p, 1)} kPa
+          <input type="range" min={50} max={250} step={0.5} value={ambient.p} onChange={(e) => changeAmbient({ ...ambient, p: Number(e.currentTarget.value) })} />
+        </label>
+        <label className="lab-field">{t('roomTemp')}: {num(ambient.T, 0)} °C
+          <input type="range" min={0} max={40} step={1} value={ambient.T} onChange={(e) => changeAmbient({ ...ambient, T: Number(e.currentTarget.value) })} />
+        </label>
+        <label className="lab-field">{t('humidity')}: {num(100 * ambient.rh, 0)} %
+          <input type="range" min={0} max={1} step={0.05} value={ambient.rh} onChange={(e) => changeAmbient({ ...ambient, rh: Number(e.currentTarget.value) })} />
+        </label>
+        <label className="lab-field">{t('gravity')}: {num(ambient.g, 2)} g
+          <input type="range" min={0.25} max={2} step={0.05} value={ambient.g} onChange={(e) => changeAmbient({ ...ambient, g: Number(e.currentTarget.value) })} />
+        </label>
+        <div className="lab-field">{t('sides')}
+          <div className="lab-row">
+            {(['left', 'right', 'bottom', 'top'] as const).map((s: SideName) => {
+              const wall = view === null ? s !== 'top' : view.walls[s];
+              return (
+                <button key={s} type="button" className={`lab-tool${wall ? ' is-on' : ''}`} onClick={() => host()?.setBoundary(s, wall ? 'open' : 'wall')}>
+                  {t(s === 'left' ? 'sideLeft' : s === 'right' ? 'sideRight' : s === 'bottom' ? 'sideBottom' : 'sideTop')}: {t(wall ? 'sideWall' : 'sideOpen')}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </LabSection>
+      {tool === 'inspect' && info !== undefined && (
+        <LabSection title={t('inspect')}>
+          {info === null ? <p className="lab-muted">{t('nothingHere')}</p> : <Inspector info={info} level={level} />}
+        </LabSection>
+      )}
+      <LabSection title={t('bubble')} open={bubble !== null}>
+        <BubblePanel b={bubble} level={level} />
+      </LabSection>
+      <LabSection title={t('charts')} open={false}>
+        <Charts samples={samples} level={level} />
+      </LabSection>
+      <LabSection title={t('scene')} open={false}>
+        <div className="lab-row">
+          <button type="button" className="lab-tool" onClick={() => reload(config.scene)}><Icon name="refresh" />{t('restart')}</button>
+          <button type="button" className="lab-tool" onClick={emptyBox}><Icon name="trash" />{t('emptyBox')}</button>
+          <button type="button" className="lab-tool" onClick={save}><Icon name="download" />{t('save')}</button>
+          <button type="button" className="lab-tool" onClick={load}><Icon name="upload" />{t('loadScene')}</button>
+          <input ref={fileRef} type="file" accept=".json,application/json" className="l2d-file" onChange={(e) => { loadFile(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} />
+        </div>
+        <p className="lab-muted">Δx = {num((CELL[quality] ?? 0.002) * 1000, 0)} mm</p>
+      </LabSection>
+      <details className="lab-section">
+        <summary>{t('about')}</summary>
+        <About level={level} />
+      </details>
+    </div>
+  );
+
+  return <LabFrame title={config.title || t('title')} bar={bar} stage={stage} side={side} whole={whole} />;
+}

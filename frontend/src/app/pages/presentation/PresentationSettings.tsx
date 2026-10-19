@@ -2,10 +2,12 @@
  * Die Einstellungen am Rand des Präsentations-Editors: das Ganze, eine Szene, ein Baustein.
  */
 
+import { useEffect, useState } from 'react';
+
 import { MotionField } from '../motion/MotionField';
 import type { DraftPart } from '../page';
 import { PartSettings } from '../PageBuilder';
-import { ImagePicker } from '../PageFiles';
+import { ImagePicker, MediaPicker } from '../PageFiles';
 import { partSize } from '../part';
 import { partLabel } from '../parts/registry';
 import { COLOR_KEYS, type SlideColors } from '../slides/slides';
@@ -13,14 +15,26 @@ import { DEFAULT_THEMES, type Look, resolveTheme } from '../slides/slideLook';
 import { ColorField, ThemeEditor } from '../slides/SlideSettings';
 import { LayerEditor } from '../slides/LayerEditor';
 import { pieceLabelOf } from './PagePresentation';
-import { ALIGNS, ARRIVALS, ARRIVAL_LABEL, type Align, DEPTH, EASES, EASE_LABEL, FONT_LABEL, FONT_PAIRS, FORMATS, FORMAT_LABEL, MEDIA, type Media, NAVS, NAV_LABEL, ORIGINS, ORIGIN_LABEL, type Piece, type Place, SCENE_CHANGES, SCENE_CHANGE_LABEL, SKINS, SKIN_LABEL, type Scene, type Show, TEXT_TYPES, TEXT_TYPE_LABEL, THREADS, THREAD_LABEL, WORDS, placeFor, readPiece } from './presentation';
-import { END, targetLabel, targetOptions, withGo, withNext } from './showPaths';
+import {
+  ALIGNS, ARRIVALS, ARRIVAL_LABEL, type Align, DEPTH, EASES, EASE_LABEL, FONT_LABEL, FONT_PAIRS, FORMATS, FORMAT_LABEL, framesJson, MASK, type Mask,
+  MASK_SHAPES, MEDIA, type Media, NAVS, NAV_LABEL, ORIGINS, ORIGIN_LABEL, type Piece, type Place, PROGRESS, readCrop, readFrames, SCENE_CHANGES,
+  SCENE_CHANGE_LABEL, SKINS, SKIN_LABEL, type Scene, type Show, TEXT_TYPES, TEXT_TYPE_LABEL, THREADS, THREAD_LABEL, WORDS, placeFor, readPiece
+} from './presentation';
+import { END, EVERY, goOptions, targetLabel, targetOptions, withGo, withNext } from './showPaths';
 
 const FULL = partSize({ colSpan: 6, rowSpan: 5 });
 
 const ALIGN_LABEL: Record<Align, string> = { start: 'Do początku', center: 'Środek', end: 'Do końca' };
 
 const COLOR_LABEL: Record<(typeof COLOR_KEYS)[number], string> = { accent: 'Akcent', ink: 'Tekst', ground: 'Tło sceny', muted: 'Tekst drugi' };
+
+/* 2026-10-19 — Maske, Fortschritt. */
+const MASK_LABEL: Record<Mask['shape'], string> = { circle: 'Koło', ellipse: 'Owal', inset: 'Prostokąt (wcięcia, rogi)' };
+const PROGRESS_LABEL: Record<Place['by'], string> = {
+  scene: 'Wnętrze sceny (od pierwszego do ostatniego kroku)',
+  enter: 'Wejście sceny (przejście z poprzedniej)',
+  leave: 'Wyjście sceny (przejście do następnej)'
+};
 
 /* -- Die ganze Präsentation -------------------------------------------------------------- */
 
@@ -62,6 +76,24 @@ export function ShowSettings({ look, show, path, theme, busy, onLook, onShow }: 
           Stoi za wszystkimi scenami. Gdy jest, sceny są przezroczyste, a ich własne tła (kolor sceny, jej warstwy) leżą w nim i przechodzą płynnie jedno w drugie — nici, fale i mgła zostają.
         </p>
         <LayerEditor path={path} theme={theme} label="" layers={show.backdrop} busy={busy} blank onChange={(backdrop) => onShow({ ...show, backdrop })} />
+      </details>
+      {/* 2026-10-19 — der Klang der Umgebung: nur auf Wunsch des Gastes, so laut, wie jede Szene sagt. */}
+      <details className="wk-fold">
+        <summary>Dźwięk otoczenia{show.sound !== null ? ` — ${show.sound.label || 'jest'}` : ''}</summary>
+        <MediaPicker path={path} kind="audio" value={show.sound?.url ?? ''} busy={busy}
+          onPick={(url) => onShow({ ...show, sound: { url, label: show.sound?.label ?? '', volume: show.sound?.volume ?? 0.6 } })} />
+        {show.sound !== null && (
+          <>
+            <label className="se-inline" title="Gra dopiero, gdy gość kliknie ten przycisk w pasku na dole — w kółko, cichnie, gdy karta jest ukryta.">
+              <span>Napis na przycisku</span>
+              <input value={show.sound.label} disabled={busy} maxLength={60} placeholder="np. Odgłosy ogrodu"
+                onChange={(e) => onShow({ ...show, sound: { ...show.sound!, label: e.target.value } })} />
+            </label>
+            <Num label="Głośność" value={show.sound.volume} min={0} max={1} step={0.05} busy={busy}
+              onChange={(volume) => onShow({ ...show, sound: { ...show.sound!, volume } })} hint="Na każdej scenie może być ciszej (ustawienia sceny)." />
+            <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onShow({ ...show, sound: null })}>Bez dźwięku</button>
+          </>
+        )}
       </details>
       <ThemeEditor look={look} busy={busy} onChange={onLook} legend="Kolory" />
       {look.theme !== null && (
@@ -187,6 +219,12 @@ export function SceneSettings({ scene, show, first, next, path, theme, need, bus
         </>
       )}
 
+      {show.sound !== null && (
+        <Num label="Głośność dźwięku otoczenia" value={scene.volume ?? 1} min={0} max={1} step={0.05} busy={busy}
+          onChange={(volume) => onChange({ ...scene, volume: volume >= 1 ? null : volume })}
+          hint="1 — jak w całej prezentacji, 0 — cisza na tej scenie; między scenami przechodzi płynnie." />
+      )}
+
       <label className="wk-field">
         <span>Podpowiedź na dole (np. „Przewiń”)</span>
         <input value={scene.hint} disabled={busy} maxLength={60} onChange={(e) => onChange({ ...scene, hint: e.target.value })} />
@@ -285,6 +323,14 @@ export function PieceSettings({ part, show, scene, scenes, tall, path, busy, onP
   const media: Media | null = piece.media;
   const setMedia = (patch: Partial<Media> | null) =>
     onPiece({ ...piece, media: patch === null ? null : { ...(media ?? MEDIA), ...patch } });
+  /* 2026-10-19 — welcher Schlüssel den Knopf auf dieser Szene trägt: ihr eigener, sonst „*". */
+  const goKey = piece.go[scene.key] !== undefined ? scene.key : piece.go[EVERY] !== undefined ? EVERY : null;
+  const goLabel = (target: string) => {
+    if (target === 'step') return 'własny krok';
+    const step = /^step:(\d+)$/.exec(target);
+    return step !== null ? `krok ${Number(step[1]) + 1}` : targetLabel(show, target, 'nigdzie');
+  };
+  const framed = part.kind === 'image' || media !== null;
 
   return (
     <section className="pe-piece">
@@ -305,23 +351,34 @@ export function PieceSettings({ part, show, scene, scenes, tall, path, busy, onP
         />
       </details>
 
-      {/* 0089 — ein Knopf: auf dieser Szene ein Ausgang, mit eigenem Ziel. */}
-      <details className="wk-fold pe-go" open={piece.go[scene.key] !== undefined}>
-        <summary>Przycisk{piece.go[scene.key] !== undefined ? ` → ${targetLabel(show, piece.go[scene.key], 'nigdzie')}` : ''}</summary>
+      {/* 0089 — ein Knopf: auf dieser Szene ein Ausgang, mit eigenem Ziel; 2026-10-19 — oder auf jeder seiner Szenen („*"), oder zu einem Schritt. */}
+      <details className="wk-fold pe-go" open={goKey !== null}>
+        <summary>Przycisk{goKey !== null ? ` → ${goLabel(piece.go[goKey])}${goKey === EVERY ? ' (na każdej scenie)' : ''}` : ''}</summary>
         <label className="wk-check">
-          <input type="checkbox" checked={piece.go[scene.key] !== undefined} disabled={busy}
-            onChange={(ev) => onPiece(withGo(piece, scene.key, ev.target.checked ? '' : undefined))} />
+          <input type="checkbox" checked={goKey !== null} disabled={busy}
+            onChange={(ev) => onPiece(withGo(piece, goKey ?? scene.key, ev.target.checked ? '' : undefined))} />
           <span>Na tej scenie to przycisk — kliknięcie prowadzi dalej</span>
         </label>
-        {piece.go[scene.key] !== undefined && (
-          <label className="wk-field">
-            <span>Prowadzi do</span>
-            <select value={piece.go[scene.key]} disabled={busy} onChange={(ev) => onPiece(withGo(piece, scene.key, ev.target.value))}>
-              <option value="">— nigdzie (jeszcze) —</option>
-              {targetOptions(show).filter((o) => o.value !== scene.key || o.value === END).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            <span className="wk-hint">Linki na zewnątrz dodasz w widoku „Przejścia”.</span>
-          </label>
+        {goKey !== null && (
+          <>
+            <label className="wk-field">
+              <span>Prowadzi do</span>
+              <select value={piece.go[goKey]} disabled={busy} onChange={(ev) => onPiece(withGo(piece, goKey, ev.target.value))}>
+                <option value="">— nigdzie (jeszcze) —</option>
+                {goOptions(show, scene.steps).filter((o) => o.value !== scene.key || o.value === END).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <span className="wk-hint">Linki na zewnątrz dodasz w widoku „Przejścia”.</span>
+            </label>
+            <label className="wk-check" title="Np. stały przycisk „Kontakt”, który stoi na wszystkich scenach (z „Stoi też przed pierwszym i po ostatnim”). Cel ustawiony osobno dla sceny ma pierwszeństwo.">
+              <input type="checkbox" checked={goKey === EVERY} disabled={busy}
+                onChange={(ev) => {
+                  const target = piece.go[goKey];
+                  const moved = withGo(piece, goKey, undefined);
+                  onPiece(withGo(moved, ev.target.checked ? EVERY : scene.key, target));
+                }} />
+              <span>Ten sam cel na każdej scenie, na której stoi</span>
+            </label>
+          </>
         )}
       </details>
 
@@ -362,7 +419,11 @@ export function PieceSettings({ part, show, scene, scenes, tall, path, busy, onP
             {Array.from({ length: Math.max(scene.steps + 1, (place.step ?? 0) + 1) }, (_, n) => <option key={n} value={n}>{n + 1}</option>)}
           </select>
         </label>
+        {framed && <CropField value={e.crop} busy={busy} onChange={(crop) => onPlace({ crop })} />}
+        <MaskField mask={e.mask} busy={busy} onChange={(mask) => onPlace({ mask })} />
       </details>
+
+      <FramesField place={place} at={e} steps={scene.steps} busy={busy} onPlace={onPlace} />
 
       <details className="wk-fold">
         <summary>Wygląd</summary>
@@ -502,8 +563,17 @@ export function PieceSettings({ part, show, scene, scenes, tall, path, busy, onP
           <input type="checkbox" checked={piece.hold} disabled={busy} onChange={(ev) => onPiece({ ...piece, hold: ev.target.checked })} />
           <span>Stoi też przed pierwszym i po ostatnim swoim miejscu</span>
         </label>
+        {Object.keys(piece.places).length > 1 && (
+          <label className="se-inline" title="„Odchodzi i wraca” — ten sam obraz na początku i na końcu opowieści, a w środku go nie ma; stoi wtedy w scenie, na której jest, jak jej własny moduł.">
+            <span>Przez sceny bez miejsca</span>
+            <select value={piece.between} disabled={busy} onChange={(ev) => onPiece({ ...piece, between: ev.target.value as Piece['between'] })}>
+              <option value="glide">sunie przez nie</option>
+              <option value="leave">odchodzi ze swoją sceną i wraca z następną</option>
+            </select>
+          </label>
+        )}
         <Num label="Warstwa" value={piece.layer} min={-10} max={20} step={1} busy={busy} onChange={(layer) => onPiece({ ...piece, layer })}
-          hint="Wyżej — z przodu. Wędrujący od 10 w górę stoi nad wszystkimi scenami." />
+          hint="Wyżej — z przodu. Wędrujący z ujemną (−1…−5) stoi przed tłem sceny, ale za jej tekstami; od 10 w górę — nad wszystkimi scenami." />
       </details>
 
       <div className="wk-actions">
@@ -514,5 +584,127 @@ export function PieceSettings({ part, show, scene, scenes, tall, path, busy, onP
         <button type="button" className="wk-link-btn se-drop" disabled={busy} onClick={onDelete}>Usuń moduł ze strony</button>
       </div>
     </section>
+  );
+}
+
+/* -- 2026-10-19: Ausschnitt, Maske, Klatki --------------------------------------------- */
+
+/** Wo der Ausschnitt eines Bildes sitzt — getippt, gilt beim Verlassen des Feldes (halbe Eingaben sind keine Punkte). */
+function CropField({ value, busy, onChange }: { value: string | null; busy: boolean; onChange: (crop: string | null) => void }) {
+  const [text, setText] = useState(value ?? '');
+  useEffect(() => { setText(value ?? ''); }, [value]);
+  const bad = text.trim() !== '' && readCrop(text) === null;
+  const commit = () => { if (!bad) onChange(text.trim() === '' ? null : readCrop(text)); };
+  return (
+    <label className="se-inline" title="Ten punkt obrazu zostaje w widoku, gdy pole zmienia wymiary (np. „50% 58%” — ognisko). Puste — punkt ustawiony w module obrazu.">
+      <span>Punkt kadru{bad ? ' (np. 57% 40%)' : ''}</span>
+      <input value={text} disabled={busy} maxLength={30} placeholder="jak w obrazie" aria-invalid={bad}
+        onChange={(ev) => setText(ev.target.value)} onBlur={commit} onKeyDown={(ev) => { if (ev.key === 'Enter') commit(); }} />
+    </label>
+  );
+}
+
+/** Was vom Baustein zu sehen ist: Kreis, Oval, Rechteck mit Rundung — oder alles. */
+function MaskField({ mask, busy, onChange }: { mask: Mask | null; busy: boolean; onChange: (mask: Mask | null) => void }) {
+  const set = (patch: Partial<Mask>) => onChange({ ...(mask ?? MASK), ...patch });
+  return (
+    <>
+      <label className="se-inline">
+        <span>Maska</span>
+        <select value={mask?.shape ?? ''} disabled={busy} onChange={(ev) => (ev.target.value === '' ? onChange(null) : set({ shape: ev.target.value as Mask['shape'] }))}>
+          <option value="">— cały moduł</option>
+          {MASK_SHAPES.map((one) => <option key={one} value={one}>{MASK_LABEL[one]}</option>)}
+        </select>
+      </label>
+      {mask?.shape === 'circle' && (
+        <Num label="Promień %" value={mask.r} min={0} max={150} step={1} busy={busy} onChange={(r) => set({ r })} hint="71 — sięga rogów, gdy środek jest w środku." />
+      )}
+      {mask?.shape === 'ellipse' && (
+        <>
+          <Num label="Szerokość owalu %" value={mask.rx} min={0} max={300} step={1} busy={busy} onChange={(rx) => set({ rx })} />
+          <Num label="Wysokość owalu %" value={mask.ry} min={0} max={300} step={1} busy={busy} onChange={(ry) => set({ ry })} />
+        </>
+      )}
+      {(mask?.shape === 'circle' || mask?.shape === 'ellipse') && (
+        <>
+          <Num label="Środek x %" value={mask.x} min={-100} max={200} step={1} busy={busy} onChange={(x) => set({ x })} />
+          <Num label="Środek y %" value={mask.y} min={-100} max={200} step={1} busy={busy} onChange={(y) => set({ y })} />
+        </>
+      )}
+      {mask?.shape === 'inset' && (
+        <>
+          <Num label="Wcięcie z góry %" value={mask.top} min={0} max={100} step={1} busy={busy} onChange={(top) => set({ top })} />
+          <Num label="Wcięcie z prawej %" value={mask.right} min={0} max={100} step={1} busy={busy} onChange={(right) => set({ right })} />
+          <Num label="Wcięcie z dołu %" value={mask.bottom} min={0} max={100} step={1} busy={busy} onChange={(bottom) => set({ bottom })} />
+          <Num label="Wcięcie z lewej %" value={mask.left} min={0} max={100} step={1} busy={busy} onChange={(left) => set({ left })} />
+          <Num label="Rogi (rem)" value={mask.round} min={0} max={20} step={0.1} busy={busy} onChange={(round) => set({ round })} />
+        </>
+      )}
+    </>
+  );
+}
+
+const framesText = (place: Place) => (place.frames.length === 0 ? '' : JSON.stringify(framesJson(place.frames), null, 1));
+
+/**
+ * KLATKI: wie sich der Baustein mit dem Fortschritt der Szene ändert — als
+ * JSON (dieselbe Liste wie im Import). Ein Knopf legt eine Klatka mit dem
+ * Platz an, wie er jetzt ist: ein Anfang zum Abändern.
+ */
+function FramesField({ place, at, steps, busy, onPlace }: {
+  place: Place; at: Place; steps: number; busy: boolean; onPlace: (patch: Partial<Place>) => void;
+}) {
+  const [text, setText] = useState(() => framesText(place));
+  const [error, setError] = useState(false);
+  const said = JSON.stringify(framesJson(place.frames));
+  /* Von aussen geändert (ein anderer Baustein, ein Import): neu zeigen — die eigene Eingabe bleibt, wie sie getippt ist. */
+  useEffect(() => {
+    let same = false;
+    try { same = JSON.stringify(framesJson(readFrames(text.trim() === '' ? [] : JSON.parse(text)))) === said; } catch { same = false; }
+    if (!same) { setText(framesText(place)); setError(false); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [said]);
+
+  const type = (value: string) => {
+    setText(value);
+    try {
+      const list: unknown = value.trim() === '' ? [] : JSON.parse(value);
+      if (!Array.isArray(list)) throw new Error('not a list');
+      setError(false);
+      onPlace({ frames: readFrames(list) });
+    } catch {
+      setError(true);
+    }
+  };
+  const here = () => {
+    const frame = { at: 1, x: at.x, y: at.y, w: at.w, ...(at.h === null ? {} : { h: at.h }), scale: at.scale, opacity: at.opacity };
+    onPlace({ frames: readFrames([...framesJson(place.frames), frame]) });
+  };
+
+  return (
+    <details className="wk-fold" open={place.frames.length > 0}>
+      <summary>Klatki — zmiana z postępem sceny{place.frames.length > 0 ? ` (${place.frames.length})` : ''}</summary>
+      <label className="se-inline" title="Przewijanie (także w tył), klawiatura i pokaz poruszają ten sam postęp — zatrzymany postęp to zatrzymany obraz.">
+        <span>Postęp</span>
+        <select value={place.by} disabled={busy} onChange={(ev) => onPlace({ by: ev.target.value as Place['by'] })}>
+          {PROGRESS.map((one) => <option key={one} value={one}>{PROGRESS_LABEL[one]}</option>)}
+        </select>
+      </label>
+      {place.by === 'scene' && steps < 2 && place.frames.length > 0 && <p className="wk-error">Scena ma jeden krok — postęp stoi na 0. Dodaj krok w ustawieniach sceny.</p>}
+      <label className="wk-field" title='[{ "at": 0.4, "x": 30, "w": 40, "h": 55, "crop": "50% 60%" }, { "step": 2, "opacity": 0, "tall": { "y": 20 } }] — "at" 0–1 albo "step" (od 0); klatka zmienia tylko to, co podaje; "tall" — jej wartości na telefonie.'>
+        <span>Klatki (JSON){error ? ' — to nie jest lista klatek' : ''}</span>
+        <textarea rows={Math.min(12, Math.max(3, text.split('\n').length))} value={text} disabled={busy} spellCheck={false} aria-invalid={error}
+          placeholder='[{ "at": 1, "x": 30, "w": 42, "h": 70 }]' onChange={(ev) => type(ev.target.value)} />
+      </label>
+      <div className="wk-actions">
+        <button type="button" className="wk-link-btn" disabled={busy} onClick={here}>+ Klatka na końcu: miejsce jak teraz</button>
+        {place.frames.length > 0 && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onPlace({ frames: [] })}>Bez klatek</button>}
+      </div>
+      <label className="se-inline" title="Przy ustawieniu „mniej ruchu” klatki stoją w jednym miejscu (0–1) — nieruchoma kompozycja z tą samą treścią. Puste: na końcu (przy wyjściu — na początku); klatki z krokami przeskakują z kroku na krok.">
+        <span>Przy „mniej ruchu”</span>
+        <input type="number" min={0} max={1} step={0.05} value={place.still ?? ''} placeholder="koniec" disabled={busy}
+          onChange={(ev) => onPlace({ still: ev.target.value.trim() === '' ? null : Math.min(1, Math.max(0, Number(ev.target.value))) })} />
+      </label>
+    </details>
   );
 }

@@ -13,6 +13,11 @@
  *      importiert ohne Warnung und kommt unverändert wieder heraus; das
  *      Beispiel der Beschreibung ebenso.
  *   8. Text: grosse, leise Zeilen, Verweise — und keiner nach `javascript:`.
+ *   9. Wege: ein Eingang, mehrere Ausgänge.
+ *  10. 2026-10-19 — Klatki am Fortschritt der Szene, Ausschnitt, Maske, Gehen und
+ *      Wiederkommen, Knöpfe zu Schritten und auf jeder Szene, der Klang.
+ *  11. Hortus Dei (`fixtures/hortus-dei.json`, geschrieben von `hortus-dei.mjs`):
+ *      das Szenario des Konzepts importiert ohne Warnung und kommt unverändert heraus.
  */
 
 import { build } from 'esbuild';
@@ -28,7 +33,7 @@ const app = join(process.cwd(), 'src/app/').replace(/\\/g, '/');
 await writeFile(entry, `
 export * from '${app}pages/presentation/presentationMotion';
 export * from '${app}pages/presentation/presentation';
-export { END, LINK, resolveTarget, nextOf, chainFrom, routeOf, branch, routeTo, reachable, autoMap, targetOptions, withGo, withNext, brokenTarget } from '${app}pages/presentation/showPaths';
+export { END, LINK, resolveTarget, nextOf, chainFrom, routeOf, branch, routeTo, reachable, autoMap, targetOptions, withGo, withNext, brokenTarget, goOf, goOptions } from '${app}pages/presentation/showPaths';
 export { planImport, exportPage, DEFAULT_IMPORT } from '${app}pages/pageJson';
 export { presentationExample, pageDescription } from '${app}pages/pageJsonText';
 export { readLook, writeLook, resolveTheme } from '${app}pages/slides/slideLook';
@@ -412,6 +417,180 @@ try {
     assert.deepEqual(m.routeOf(example), ['start', 'dni', 'zapisy'], 'the example: in order');
     assert.equal(m.nextOf(example, 'zapisy').kind, 'link', 'the example ends with a way out');
     ok('paths: one entrance, many exits — the way without a button, branching keeps the way so far, loops stop, the way to a scene, ways out (safe), JSON and warnings');
+  }
+  /* -- 10. Klatki, Ausschnitt, Maske, Gehen und Wiederkommen, Knöpfe zu Schritten, Klang (2026-10-19) -- */
+  {
+    const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
+    const placeOf = (raw) => m.readPieceValue({ places: { a: raw } }).places.a;
+
+    /* Klatki: was eine nennt, gilt ab ihr; dazwischen ein Zug in ihrer Kurve; ein Halt; geordnet nach "at". */
+    const p = placeOf({ x: 50, y: 50, w: 100, h: 100, frames: [{ at: 0.2 }, { at: 1, x: 30, w: 40, h: 60, ease: 'linear' }, { at: 0.5, opacity: 0.5, ease: 'linear' }] });
+    assert.equal(p.frames.length, 3);
+    assert.equal(m.placeAt(p, 0.1).x, 50, 'before the first frame: the place itself (a hold)');
+    assert.ok(near(m.placeAt(p, 0.35).opacity, 0.75) && m.placeAt(p, 0.35).x === 50, 'half way to the opacity frame: only the opacity moves');
+    const mid = m.placeAt(p, 0.75);
+    assert.ok(near(mid.x, 40) && near(mid.w, 70) && near(mid.h, 80) && near(mid.opacity, 0.5), 'the next frame starts where the last left off (cumulative)');
+    const end = m.placeAt(p, 1);
+    assert.deepEqual([end.x, end.w, end.h, end.opacity, end.frames.length], [30, 40, 60, 0.5, 0], 'at the end: everything said so far');
+    assert.equal(m.placeAt(p, 0.75).x, m.placeAt(p, 0.75).x, 'the same progress is the same picture (rewinding restores it)');
+
+    /* Klatki an Schritten: Schritt n von 4 ist n/3. */
+    const steps = placeOf({ x: 50, frames: [{ step: 1, x: 10, ease: 'linear' }, { step: 3, x: 30, ease: 'linear' }] });
+    assert.equal(m.frameAt(steps.frames[0], 4), 1 / 3);
+    assert.equal(m.frameAt(steps.frames[0], 1), 0, 'a scene of one step: everything at 0');
+    assert.ok(near(m.placeAt(steps, 1 / 3, 4).x, 10) && near(m.placeAt(steps, 2 / 3, 4).x, 20) && near(m.placeAt(steps, 1, 4).x, 30));
+
+    /* Der Fortschritt: das Innere der Szene, ihr Kommen, ihr Gehen. */
+    const zone = { at: 4, to: 7 };
+    assert.deepEqual([3, 4, 5.5, 7, 9].map((s) => m.progressOf('scene', zone, s)), [0, 0, 0.5, 1, 1]);
+    assert.deepEqual([m.progressOf('enter', zone, 3.5), m.progressOf('enter', zone, 3.5, true)], [0.5, 1], 'the first scene is always there');
+    assert.deepEqual([m.progressOf('leave', zone, 7.5), m.progressOf('leave', zone, 7.5, false, true)], [0.5, 0], 'the last never leaves');
+    assert.equal(m.progressOf('scene', { at: 2, to: 2 }, 2.5), 0, 'one step: progress stands at 0');
+
+    /* „Weniger Bewegung": eine stille Stelle — an Schritten springt sie von Schritt zu Schritt. */
+    assert.equal(m.stillOf(p), 1, 'by default the end');
+    assert.equal(m.stillOf(placeOf({ by: 'leave', frames: [{ at: 1, x: 1 }] })), 0, 'leaving: the beginning (the scene is still there)');
+    assert.equal(m.stillOf(placeOf({ still: 0.25, frames: [{ at: 1, x: 1 }] })), 0.25);
+    assert.deepEqual([5.4, 6.6, 4].map((s) => m.stillAt(steps, zone, s)), [1 / 3, 1, 0], 'step frames snap to the step one stands on');
+    assert.equal(m.stillAt(p, zone, 5), 1, 'frames by "at": the still place');
+
+    /* Der Ausschnitt: wie CSS ihn kennt, gespeichert als zwei Prozente. */
+    assert.deepEqual(['center', 'left top', 'top left', '57% 40%', '30%', 'bottom', 'left left', 'nonsense', '1% 2% 3%', 7].map(m.readCrop),
+      ['50% 50%', '0% 0%', '0% 0%', '57% 40%', '30% 50%', '50% 100%', null, null, null, null]);
+    assert.equal(m.mixCrop('0% 0%', '100% 50%', 0.5), '50% 25%');
+    assert.equal(m.mixCrop(null, '10% 10%', 0.4), null, 'without one: the first until half way');
+
+    /* Die Maske: Kreis, Oval, Rechteck; ohne — mit der, die alles zeigt. */
+    const circle = m.readMaskValue({ shape: 'circle', r: 40 });
+    assert.equal(m.maskCss(circle), 'circle(40% at 50% 50%)');
+    assert.deepEqual(m.maskJson(circle), { shape: 'circle', r: 40 }, 'compact: only what differs');
+    assert.equal(m.maskCss(m.readMaskValue({ shape: 'inset', top: 10, round: 1.5 })), 'inset(10% 0% 0% 0% round 1.5rem)');
+    assert.equal(m.maskCss(m.readMaskValue({ shape: 'ellipse', rx: 60, ry: 40, x: 30 })), 'ellipse(60% 40% at 30% 50%)');
+    assert.equal(m.readMaskValue('none'), null);
+    assert.equal(m.readMaskValue({ shape: 'star' }), undefined, 'an unknown shape is no mask');
+    assert.ok(near(m.mixMask(null, circle, 0.5).r, (141.5 + 40) / 2), 'from no mask: from the circle that shows everything');
+    const oval = m.fullMask(m.readMaskValue({ shape: 'ellipse', x: 30 }));
+    assert.ok(near(oval.rx, 99, 0.02) && near(oval.ry, 70.71, 0.02), `the whole oval reaches the far corner: ${JSON.stringify(oval)}`);
+    assert.equal(m.maskCss(null), '');
+
+    /* Hochkant: eigener Ausschnitt, eigene Maske, eigene Werte je Klatka. */
+    const tallPlace = placeOf({ x: 10, crop: '10% 10%', mask: { shape: 'circle' }, tall: { x: 50, crop: '20% 20%', mask: null }, frames: [{ at: 1, x: 30, tall: { x: 70 } }] });
+    const phone = m.placeFor(tallPlace, true);
+    assert.deepEqual([phone.x, phone.crop, phone.mask, phone.frames[0].x], [50, '20% 20%', null, 70]);
+    assert.deepEqual([m.placeFor(tallPlace, false).crop, m.placeFor(tallPlace, false).frames[0].x], ['10% 10%', 30]);
+
+    /* Gehen und wiederkommen: mit der einen Szene fort, mit der anderen zurück — dazwischen nicht da, und immer in der Ebene der Szene, auf der er ist. */
+    const zones = m.zonesOf([2, 1, 1, 2]);
+    const two = new Map([[0, m.PLACE], [3, { ...m.PLACE, x: 80 }]]);
+    const at = (s, between) => m.journeyAt(two, zones, s, 'linear', false, undefined, between);
+    assert.deepEqual([at(1, 'leave').presence, at(1, 'leave').scene], [1, 0]);
+    assert.deepEqual([at(1.5, 'leave').presence, at(1.5, 'leave').scene, at(1.5, 'leave').place.x], [0.5, 0, 50], 'leaving with its scene, where it stood');
+    assert.equal(at(2.5, 'leave').presence, 0, 'in between: not there');
+    assert.deepEqual([at(3.5, 'leave').presence, at(3.5, 'leave').arriving, at(3.5, 'leave').scene, at(3.5, 'leave').place.x], [0.5, 3, 3, 80], 'coming with the other scene, at its place there');
+    assert.ok(at(2.5, 'glide').presence === 1 && at(2.5, 'glide').place.x > 50 && at(2.5, 'glide').scene === 0, 'gliding (as before): through the scenes in between');
+    const next = new Map([[0, m.PLACE], [1, m.PLACE]]);
+    assert.equal(m.journeyAt(next, zones, 1.5, 'linear', false, undefined, 'leave').scene, 1, 'neighbours, going with its scenes: already in the plane of the coming one');
+    assert.equal(m.journeyAt(next, zones, 1.5, 'linear', false, undefined, 'glide').scene, 0, 'neighbours, gliding: the plane of its first scene (as before)');
+
+    /* Knöpfe: zum eigenen Schritt, zu einem genannten, auf jeder Szene („*"; die eigene geht vor). */
+    const show2 = m.readShow({ scenes: [{ key: 'a', steps: 3 }, { key: 'b' }, { key: 'c' }] });
+    assert.deepEqual(m.resolveTarget(show2, 'step'), { kind: 'step', step: null });
+    assert.deepEqual(m.resolveTarget(show2, 'step:2'), { kind: 'step', step: 2 });
+    assert.deepEqual(m.resolveTarget(show2, 'step:x'), { kind: 'none' });
+    const button = m.readPieceValue({ places: { a: {}, b: {} }, go: { '*': 'c', a: 'step' } });
+    assert.deepEqual(m.pieceJson(button).go, { '*': 'c', a: 'step' }, 'kept as written');
+    assert.deepEqual([m.goOf(show2, button, 'a').kind, m.goOf(show2, button, 'b').kind, m.goOf(show2, button, 'b').key], ['step', 'scene', 'c'], 'its own scene first, then "*"');
+    const offered = m.goOptions(show2, 3).map((o) => o.value);
+    assert.ok(offered.includes('step') && offered.includes('step:0') && offered.includes('step:2') && !offered.includes('step:3'));
+    assert.ok(!m.goOptions(show2, 1).some((o) => o.value.startsWith('step')), 'one step: nothing to step to');
+
+    /* Wandern: zwischen Szenen ohne Platz; geschrieben nur, wenn es nicht gleitet. */
+    assert.equal(m.readPieceValue({ places: { a: {} }, between: 'leave' }).between, 'leave');
+    assert.equal(m.readPieceValue({ places: { a: {} }, between: 'jump' }).between, 'glide');
+    assert.equal(m.pieceJson(m.readPieceValue({ places: { a: {} } })).between, undefined);
+
+    /* Der Klang: eine Adresse, die er sein darf, eine Lautstärke 0–1; je Szene leiser. */
+    const sounding = m.readShow({ scenes: [{ key: 'a', volume: 0.3 }, { key: 'b' }], sound: { url: 'https://example.org/a.mp3', label: 'Ogień', volume: 2 } });
+    assert.deepEqual(sounding.sound, { url: 'https://example.org/a.mp3', label: 'Ogień', volume: 1 });
+    assert.deepEqual([sounding.scenes[0].volume, sounding.scenes[1].volume], [0.3, null]);
+    assert.deepEqual(m.readShow(m.showJson(sounding)), sounding, 'round trip');
+    assert.equal(m.readShow({ scenes: [{ key: 'a' }], sound: { url: 'javascript:alert(1)' } }).sound, null, 'a script is no sound');
+    assert.equal(m.mediaUrl('page-image:01a15629-8c30-764d-88ad-8cfee5e4f6d9'), 'page-image:01a15629-8c30-764d-88ad-8cfee5e4f6d9');
+    assert.equal(m.mediaUrl('data:audio/mp3;base64,AAAA'), null);
+
+    /* Ein Platz mit allem: geschrieben und gelesen — dasselbe. */
+    const full = m.readPieceValue({
+      places: { a: { x: 20, crop: 'left', mask: { shape: 'ellipse', rx: 50 }, by: 'enter', still: 0.5, frames: [{ at: 0.5, crop: '10% 20%', mask: null, ease: 'out', tall: { y: 30 } }, { step: 1, z: -20 }] } },
+      between: 'leave', go: { '*': 'step:1' }
+    });
+    assert.deepEqual(m.readPieceValue(m.pieceJson(full)), full, 'a place with frames, crop, mask, progress and still: round trip');
+
+    /* Import: was nicht passt, wird gesagt. */
+    const now = { path: 'zz/x', title: 't', lead: '', mode: 'presentation', look: m.readLook(null, 'presentation'), parts: [], logic: null, menu: null };
+    const bad = m.planImport({
+      format: 'recreatio/page', version: 1, mode: 'presentation',
+      show: { scenes: [{ key: 'a', steps: 2, volume: 'loud' }, { key: 'b' }], sound: { url: 'ftp://x' } },
+      modules: [{ kind: 'image', config: { url: '/a.jpg' }, show: { between: 'jump', places: { a: { crop: 'somewhere', mask: { shape: 'star' }, by: 'later', frames: [{ x: 1 }, { at: 1, ease: 'bounce' }] }, b: { frames: 'none' } } } }]
+    }, now, { ...m.DEFAULT_IMPORT, replace: true });
+    for (const word of ['"crop"', '"mask"', '"by"', 'brak "at"', '"ease"', '"frames" to nie lista', 'between', '"show.sound"', '"volume"']) {
+      assert.ok(bad.warnings.some((w) => w.includes(word)), `reported: ${word} — ${JSON.stringify(bad.warnings)}`);
+    }
+
+    /* Die Beschreibung erklärt jeden neuen Schlüssel. */
+    const doc = m.pageDescription();
+    for (const key of ['"crop" — ', '"mask" — ', '"frames" — ', '"by" — ', '"still" — ', '"between" — ', '"sound" — ', '"volume" — ', '"step:2"', '"*"']) {
+      assert.ok(doc.includes(key), `the description explains ${key}`);
+    }
+    ok('frames: cumulative, holds, eases, steps; progress inside, entering, leaving; still places (steps snap); crop, masks (mix from the whole), tall own values; going and coming back (planes); buttons to a step and on every scene; the sound and its volumes; round trips, warnings, description');
+  }
+
+  /* -- 11. Hortus Dei: das Szenario des Konzepts als Import (`fixtures/hortus-dei.json`) -------------- */
+  {
+    const hortus = JSON.parse(await readFile(join(process.cwd(), 'scripts/fixtures/hortus-dei.json'), 'utf8'));
+    const now = { path: 'hortusdei', title: '', lead: '', mode: 'page', look: { theme: null, cover: [] }, parts: [], logic: null, menu: null };
+    const plan = m.planImport(hortus, now, { ...m.DEFAULT_IMPORT, replace: true });
+    assert.ok(!('error' in plan), JSON.stringify(plan));
+    assert.deepEqual(plan.warnings, [], 'the scenario imports without a warning');
+    assert.equal(plan.mode, 'presentation');
+    const show = m.readShow(plan.look.show);
+    assert.deepEqual(show.scenes.map((sc) => sc.key), ['ogien', 'ogrod', 'rytm', 'las', 'poczatek', 'dom', 'powrot', 'praktycznie'], 'seven moments and the practical part');
+    assert.ok(plan.parts.length <= 60 && plan.parts.length >= 30, `within the limit of 60 modules: ${plan.parts.length}`);
+    for (const mod of hortus.modules) assert.ok(JSON.stringify(mod.config).length < 64000, `${mod.id}: under 64 000 characters`);
+
+    const pieces = plan.parts.map((p) => m.readPiece(p.layout));
+    for (const sc of show.scenes) assert.ok(sc.steps >= m.stepsNeeded(sc.key, pieces), `${sc.key}: enough steps`);
+    assert.deepEqual([...m.reachable(show, pieces)].sort(), show.scenes.map((sc) => sc.key).sort(), 'every scene is on a way');
+    for (const piece of pieces) for (const target of Object.values(piece.go)) assert.ok(!m.brokenTarget(show, target), `a button leads somewhere: ${target}`);
+
+    /* Die Fotos: jedes heisst nach seiner Datei, und keine ist darin (sie werden im Editor hochgeladen). */
+    const photos = hortus.modules.filter((mod) => mod.kind === 'image');
+    assert.deepEqual(photos.map((mod) => /(\d{10})\.jpg/.exec(mod.name)?.[1]).sort(),
+      ['1000003240', '1000003284', '1000003288', '1000003290', '1000003297', '1000003305', '1000003341', '1000003831'], 'the eight photos of the concept, each named after its file');
+    assert.ok(photos.every((mod) => mod.config.url === undefined && mod.config.alt !== ''), 'no file inside, a description for screen readers');
+
+    /* Das Feuer: eröffnet, geht mit seiner Szene, kommt am Ende wieder — hinter den Texten, das Feuer im Ausschnitt. */
+    const fire = m.readPieceValue(hortus.modules.find((mod) => mod.id === 'ognisko').show);
+    assert.deepEqual(Object.keys(fire.places), ['ogien', 'powrot']);
+    assert.ok(fire.between === 'leave' && fire.layer < 0 && fire.places.ogien.crop === '50% 58%' && fire.places.ogien.frames.length > 0, 'the fire frame');
+    const fireEnd = m.placeAt(fire.places.ogien, 1, 2);
+    assert.ok(fireEnd.w < 50 && fireEnd.mask?.shape === 'inset', 'it shrinks into a rounded frame within the scene');
+    /* Die Wahl auf „rytm": Bild und Name führen zum eigenen Schritt; ohne Geste erzählen die Schritte dasselbe. */
+    const choices = pieces.filter((piece) => piece.go.rytm === 'step');
+    assert.equal(choices.length, 6, 'three photos and three names are buttons');
+    assert.ok(choices.every((piece) => piece.places.rytm.step !== null), 'each has its own step');
+    /* Die feste Navigation: auf jeder Szene zum Praktischen. */
+    const pill = m.readPieceValue(hortus.modules.find((mod) => mod.id === 'kontakt-pigulka').show);
+    assert.deepEqual(pill.go, { '*': 'praktycznie' });
+    assert.ok(pill.layer >= 10, 'above every scene');
+
+    const again = m.exportPage({ ...now, title: plan.title, lead: plan.lead ?? '', mode: plan.mode, look: plan.look, parts: plan.parts, logic: null, menu: null, names: plan.names });
+    assert.deepEqual(again.show, hortus.show, 'the scenes come out as they went in');
+    again.modules.forEach((mod, i) => {
+      assert.deepEqual(mod.show, hortus.modules[i].show, `${hortus.modules[i].id}: its places come out as they went in`);
+      assert.deepEqual(mod.config, hortus.modules[i].config, `${hortus.modules[i].id}: its content too`);
+      assert.equal(mod.name, hortus.modules[i].name, `${hortus.modules[i].id}: and its name`);
+    });
+    ok(`Hortus Dei: ${hortus.modules.length} modules, ${show.scenes.length} scenes — imports without warning, every scene reachable, the fire leaves and returns, choices step, the pill leads to the practical part; comes out unchanged`);
   }
 } finally {
   await rm(workspace, { recursive: true, force: true });

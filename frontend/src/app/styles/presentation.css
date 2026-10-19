@@ -52,7 +52,8 @@ body.has-pz { overflow: hidden; }
 .pz-empty { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--pz-muted); }
 
 /* -- Eine Szene ----------------------------------------------------------- */
-.pz-scene {
+/* 2026-10-19 — ihr Grund (Farbe, Schichten) steht für sich darunter (`.pz-back`): zwischen beiden kann ein Wandernder stehen. */
+.pz-scene, .pz-back {
   /* 2026-10-19 — "ground" in einer Szene ist ihr eigener Grund, wenn sie einen hat. */
   --wk-ground: var(--pz-scene-ground, var(--pz-ground));
   --wk-ink: var(--pz-ink);

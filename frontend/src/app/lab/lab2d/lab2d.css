@@ -1,0 +1,58 @@
+/*
+ * LABOR 2D (v2) — die Bühne: die Leinwand (der Arbeiter zeichnet in sie),
+ * darüber Vorschau einer Wand, Pfeile der Kräfte einer Blase, HUD, Meldung
+ * und Status; daneben die Schreiber und die Tafel „O tym modelu”. Rahmen,
+ * Abschnitte und Kacheln kommen aus lab.css.
+ */
+
+.l2d-box { position: absolute; inset: 0; touch-action: none; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+.l2d-box canvas.l2d-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+.l2d-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.l2d-preview { stroke: var(--wk-accent); stroke-width: 3; stroke-dasharray: 6 4; stroke-linecap: round; }
+.l2d-arrowhead { fill: currentColor; }
+.l2d-force { color: var(--wk-ink); }
+.l2d-force line { stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; }
+.l2d-force text { fill: currentColor; font-size: var(--wk-text-xs); font-weight: 600; paint-order: stroke; stroke: var(--wk-surface); stroke-width: 3; }
+.l2d-force-fBuoyancy { color: #1f78b4; }
+.l2d-force-fWeight { color: #6a3d9a; }
+.l2d-force-fDrag { color: #e66101; }
+.l2d-force-fAdded { color: #1b9e77; }
+
+.l2d-hud {
+  position: absolute; top: var(--wk-space-2); left: var(--wk-space-2); max-width: calc(100% - 2 * var(--wk-space-2));
+  padding: var(--wk-space-1) var(--wk-space-2); border-radius: var(--wk-radius-sm);
+  background: color-mix(in srgb, var(--wk-surface) 86%, transparent); color: var(--wk-ink);
+  font-family: var(--wk-mono); font-size: var(--wk-text-xs); line-height: 1.35; white-space: pre; overflow: hidden; pointer-events: none;
+}
+.l2d-note, .l2d-status {
+  position: absolute; left: 50%; transform: translateX(-50%); max-width: calc(100% - 2 * var(--wk-space-3));
+  padding: var(--wk-space-1) var(--wk-space-3); border-radius: var(--wk-radius-sm);
+  background: color-mix(in srgb, var(--wk-surface) 90%, transparent); box-shadow: var(--wk-shadow-pop); font-size: var(--wk-text-sm); pointer-events: none;
+}
+.l2d-note { top: var(--wk-space-2); border-left: 3px solid var(--wk-accent); }
+.l2d-status { bottom: var(--wk-space-3); }
+
+.l2d-slow {
+  display: grid; gap: var(--wk-space-1); padding: var(--wk-space-2); border-left: 3px solid var(--wk-accent);
+  background: color-mix(in srgb, var(--wk-accent) 8%, transparent); font-size: var(--wk-text-sm);
+}
+.l2d-slow p { margin: 0; }
+.l2d-slow .lab-tool { justify-self: start; }
+
+/* Schreiber: Linien in den Farben einer für Farbsehschwäche geeigneten Folge (Okabe & Ito 2008). */
+.l2d-chart { margin: 0; display: grid; gap: var(--wk-space-1); }
+.l2d-chart figcaption { font-size: var(--wk-text-sm); font-weight: 600; color: var(--wk-ink); }
+.l2d-chart svg { width: 100%; height: auto; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-ground); }
+.l2d-line { fill: none; stroke-width: 1.8; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.l2d-axis { fill: var(--wk-muted); font-size: var(--wk-text-xs); }
+.l2d-legend { display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-2); font-size: var(--wk-text-xs); }
+.l2d-legend span::before { content: ''; display: inline-block; width: 0.8em; height: 0.25em; margin-right: 0.3em; vertical-align: middle; background: currentColor; }
+.l2d-s0 { stroke: #0072b2; color: #0072b2; }
+.l2d-s1 { stroke: #e69f00; color: #b37a00; }
+.l2d-s2 { stroke: #009e73; color: #007a59; }
+.l2d-s3 { stroke: #cc79a7; color: #a3507f; }
+.l2d-s4 { stroke: #56b4e9; color: #2b8ac0; }
+.l2d-s5 { stroke: #d55e00; color: #b04d00; }
+
+.l2d-about { margin: 0; padding-left: 1.2rem; display: grid; gap: var(--wk-space-1); font-size: var(--wk-text-sm); line-height: 1.45; }
+.l2d-file { display: none; }

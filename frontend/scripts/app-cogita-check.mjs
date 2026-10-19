@@ -1143,6 +1143,12 @@ check('goals and lines follow the one logic', [
   check('a weekday takes the hour set on top (Nieszpory), compline repeats weekly (no week)',
     [blib.ofKind(placeKind).map((e) => blib.label(e)).sort()],
     [['Tydzień I niedziela · II Nieszpory', 'Tydzień I poniedziałek · Nieszpory', 'Tydzień II niedziela · II Nieszpory', 'niedziela · Kompleta', 'sobota · Kompleta']]);
+  /* Die Reihenfolge der Zeile bestimmt auch die Reihenfolge im Feld, das mehrere nimmt (Jutrznia: Psalm, Pieśń, Psalm). */
+  const reordered = { ...vespers, order: ['miejsce', 'ps1', 'piesn', 'ps2'] };
+  const ro = AF.planForm(reordered, bctx(), [row('środa', 'Ps 63', 'Ps 149', 'Dn 3,57-88')], { picks: {}, asks: { 'miejsce.godzina': 'Jutrznia' } });
+  const roPlace = ro.saves.find((x) => x.kinds.includes(placeKind));
+  const labelOfPlanned = (id) => ro.saves.find((x) => x.id === id)?.data.nazwa;
+  check('the declared row order is the order of the texts in the place', roPlace?.data.teksty.map(labelOfPlanned), ['Ps 63', 'Dn 3,57-88', 'Ps 149']);
   const bcards = (await blib.cards('brew')).cards;
   const tpl = (name) => blib.templates().find((t) => t.name === name).id;
   const cardOf = (name, label) => bcards.find((c) => c.template === tpl(name) && blib.label(blib.entity(c.entity)) === label);
@@ -1153,6 +1159,13 @@ check('goals and lines follow the one logic', [
   check('… no second text where there is one, no third in compline', [cardOf('2. tekst w tym miejscu', 'niedziela · Kompleta'), cardOf('3. tekst w tym miejscu', 'sobota · Kompleta')], [undefined, undefined]);
   const when = bcards.find((c) => c.template === tpl('Kiedy jest ten psalm lub pieśń?') && blib.label(blib.entity(c.entity)) === 'Ps 110');
   check('… and back: where Ps 110 is said — both Sundays', when.answer.correct.map((i) => when.answer.options[i]).sort(), ['Tydzień I niedziela · II Nieszpory', 'Tydzień II niedziela · II Nieszpory']);
+  const bschema = Js.exportSchema(blib, 'Brewiarz', blib.kinds);
+  const whenOut = bschema.templates.find((t) => t.name === 'Kiedy jest ten psalm lub pieśń?').graph.nodes.find((x) => x.id === 'gdzie').config.kind;
+  const again = Js.planImport(new So.CogitaLibrary(fake('H', 'area-h', []), true), bschema);
+  const placeAgain = again.kinds.find((k) => k.def.name === 'Miejsce w brewiarzu').id;
+  check('a kind named inside a template („Wpisy rodzaju") goes out as a reference and comes back as the new copy',
+    [whenOut, again.docs.find((d) => d.kind === 'template' && d.data.name === 'Kiedy jest ten psalm lub pieśń?').data.graph.nodes.find((x) => x.id === 'gdzie').config.kind === placeAgain],
+    [`@${placeKind}`, true]);
 }
 
 await rm(workspace, { recursive: true, force: true });

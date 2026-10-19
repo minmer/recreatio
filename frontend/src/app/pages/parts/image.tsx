@@ -84,7 +84,19 @@ function ImageView({ config }: { config: Config }) {
     else void el.play().catch(() => undefined);
   }, [phase, playing, config.video]);
 
-  const ready = () => setLoaded(true);
+  /* 2026-10-19 — sichtbar erst, wenn es entschlüsselt ist: sonst stünde beim Wechsel einen Augenblick ein leerer Rahmen da. */
+  const ready = () => {
+    const el = img.current;
+    if (el !== null && typeof el.decode === 'function') void el.decode().then(() => setLoaded(true), () => setLoaded(true));
+    else setLoaded(true);
+  };
+
+  /* Die Szene ist nah (die nächste): das Bild schon jetzt entschlüsseln, nicht erst, wenn sie kommt. */
+  useEffect(() => {
+    const el = img.current;
+    if (el === null || phase === 'away' || typeof el.decode !== 'function') return;
+    void el.decode().catch(() => undefined);
+  }, [phase, config.url]);
   const style = { objectFit: config.fit, objectPosition: position } as const;
   const media = playing ? (
     /* Ein Film blendet nicht aus, solange er lädt: sein Plakat (das Bild) steht ja schon. */

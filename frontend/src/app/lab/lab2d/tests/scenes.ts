@@ -3,6 +3,8 @@
  * SI ausser den Feldern der Szene selbst (m, °C, kPa, W).
  */
 
+import type { Engine } from '../engine/engine';
+
 export interface TestScene {
   format: 'recreatio/lab2d';
   version: 1;
@@ -39,6 +41,27 @@ export function boilingScene(quality: TestScene['quality'] = 'high', extra: Reco
       ...extra
     ]
   });
+}
+
+/** Höhe der freien Oberfläche (m): wo φ in den inneren Spalten ½ kreuzt, gemittelt. */
+export function level(e: Engine): number {
+  const g = e.grid;
+  let sum = 0, n = 0;
+  for (let i = 3; i < g.nx - 3; i += 1) {
+    let top = -1;
+    for (let j = g.ny - 1; j >= 0; j -= 1) if (g.phi[i + j * g.nx] >= 0.5) { top = j; break; }
+    if (top < 0 || top >= g.ny - 1) continue;
+    const a = g.phi[i + top * g.nx];
+    const b = g.phi[i + (top + 1) * g.nx];
+    sum += (top + 0.5 + (a - 0.5) / (a - b)) * g.dx;
+    n += 1;
+  }
+  return sum / n;
+}
+
+/** „Genau bis auf Rundung“ für die Wassermasse: 1e-12 der ganzen Wassermasse (Summen über zehntausende Teilchen in Float64). */
+export function waterTolerance(e: Engine): number {
+  return 1e-12 * Math.max(1e-6, e.measureBudget().water.total);
 }
 
 /** Mittel und Median einer Liste. */

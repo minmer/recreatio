@@ -24,7 +24,7 @@ import { newId } from '../core/ids';
 import { addFormDoc, COLUMN_SEPARATORS, KEY_ACTIONS, mapFormRefs, readAddForm, VALUE_SEPARATORS } from './addForm';
 import { readTemplate } from './cards';
 import { readFlow } from './flow';
-import { graphJson, readGraph } from './graph';
+import { graphJson, readGraph, type Graph, type GraphNode } from './graph';
 import { DOC_KINDS, DOC_LABEL, isBaseKind, kindDoc, type DocKind } from './kinds';
 import { FIELD_TYPE_LABEL, FIELD_TYPES, readKind, type Entity, type KindDef } from './schema';
 import type { CogitaLibrary } from './store';
@@ -67,10 +67,23 @@ function refsOut(lib: CogitaLibrary, entity: Entity): Record<string, unknown> {
   return out;
 }
 
+/*
+  2026-10-19 — EIN RODZAJ IN EINER VORLAGE („Wpisy rodzaju": welche Einträge)
+  geht als `@kennung` hinaus, wie die Rodzaje der Vorlage selbst. Wörtlich
+  stehen gelassen zeigte er in einer anderen Baza wiedzy ins Leere.
+*/
+const templateGraphJson = (graph: Graph): Record<string, unknown> => {
+  const g = graphJson(graph);
+  const nodes = (g.nodes as GraphNode[]).map((n) => (n.type === 'entries' && typeof n.config.kind === 'string' && n.config.kind !== '' && !n.config.kind.startsWith('@')
+    ? { ...n, config: { ...n.config, kind: `@${n.config.kind}` } }
+    : n));
+  return { ...g, nodes };
+};
+
 const docJson = (kind: DocKind, id: string, data: Readonly<Record<string, unknown>>): Record<string, unknown> => {
   const { public: _public, ...rest } = data as Record<string, unknown>;
   if (kind === 'addform') return formJson(id, data);
-  return { ref: `@${id}`, ...rest, ...(kind === 'template' || kind === 'revision' ? { graph: graphJson(readGraph(data.graph)) } : {}), ...(kind === 'flow' ? { graph: graphJson(readGraph(data.graph, true)) } : {}) };
+  return { ref: `@${id}`, ...rest, ...(kind === 'template' ? { graph: templateGraphJson(readGraph(data.graph)) } : kind === 'revision' ? { graph: graphJson(readGraph(data.graph)) } : {}), ...(kind === 'flow' ? { graph: graphJson(readGraph(data.graph, true)) } : {}) };
 };
 
 /** 2026-10-17 — ein Formularz dodawania: seine Rodzaje und voreingestellten Einträge als `@kennung`, damit er auch in einer anderen Baza wiedzy gilt. */
@@ -109,7 +122,7 @@ export function exportSchema(lib: CogitaLibrary, name: string, kinds: readonly K
     version: 1,
     name,
     kinds: kinds.map((k) => ({ ref: `@${k.id}`, ...kindDoc(k) })),
-    templates: lib.templates().filter((t) => t.kinds.some((k) => ids.has(k))).map((t) => ({ ref: `@${t.id}`, name: t.name, kinds: t.kinds.map((k) => `@${k}`), direction: t.direction, graph: graphJson(t.graph) })),
+    templates: lib.templates().filter((t) => t.kinds.some((k) => ids.has(k))).map((t) => ({ ref: `@${t.id}`, name: t.name, kinds: t.kinds.map((k) => `@${k}`), direction: t.direction, graph: templateGraphJson(t.graph) })),
     /* 2026-10-17 — die Formularze dodawania gehören zum Schema: sie sagen, wie man seine Einträge anlegt. */
     forms: lib.docs('addform').filter((e) => lib.isOwn(e.id)).map((e) => formJson(e.id, e.data))
   };

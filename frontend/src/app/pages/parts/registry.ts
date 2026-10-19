@@ -49,6 +49,7 @@ import { formPart, massesPart, slotsPart } from './live';
 import { noticePart } from './notice';
 import { peoplePart } from './people';
 import { particlesPart } from './particles';
+import { lab2dPart } from './lab2d';
 import { physicsPart } from './physics';
 import { planPart } from './plan';
 import { programPart } from './program';
@@ -80,6 +81,9 @@ export const PARTS: readonly PartModule[] = [
 
   /* 2026-10-19 — Laboratorium cząstek: eine Partikel-Engine (documentation/particles/), der Aufbau als Dokument. */
   particlesPart,
+
+  /* 2026-10-20 — Laboratorium 2D: die Lab-Engine v2 (Gitter, APIC-Wasser, Blasen; documentation/lab2d/). */
+  lab2dPart,
 
   /* Was eine Ereignisseite trägt (0063, aus dem Altbestand). */
   heroPart,

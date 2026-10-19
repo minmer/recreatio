@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Engine } from '../engine/engine';
 import { cpL, SOLIDS } from '../engine/materials';
-import { scene } from './scenes';
+import { scene, waterTolerance } from './scenes';
 
 const sealed = { left: 'wall', right: 'wall', bottom: 'wall', top: 'wall' } as const;
 
@@ -35,7 +35,7 @@ describe('M1a/M1b — test 4 over ten simulated minutes', () => {
     const s = e.stats();
     console.log(`test 4 (air, 10 min): ∫P dt = ${s.flows.heater.toFixed(1)} J, error ${s.energyError.toExponential(3)} J (${(100 * Math.abs(s.energyError) / s.flows.heater).toExponential(2)} %), water ${s.waterError.toExponential(2)} kg, p0 ${(s.regions[0].p0 / 1000).toFixed(3)} kPa`);
     expect(Math.abs(s.energyError) / s.flows.heater).toBeLessThan(0.005);
-    expect(Math.abs(s.waterError)).toBeLessThan(1e-15);
+    expect(Math.abs(s.waterError)).toBeLessThan(waterTolerance(e));
   });
 
   it('sealed, insulated beaker of water on a hot plate: |ΔE − ∫P dt| below 0.5 % of ∫P dt, water exact', () => {
@@ -44,7 +44,7 @@ describe('M1a/M1b — test 4 over ten simulated minutes', () => {
     const s = e.stats();
     console.log(`test 4 (water, 10 min): ∫P dt = ${s.flows.heater.toFixed(1)} J, error ${s.energyError.toExponential(3)} J (${(100 * Math.abs(s.energyError) / s.flows.heater).toExponential(2)} %), water ${s.waterError.toExponential(2)} kg, water ${(s.waterT - 273.15).toFixed(2)} °C`);
     expect(Math.abs(s.energyError) / s.flows.heater).toBeLessThan(0.005);
-    expect(Math.abs(s.waterError)).toBeLessThan(1e-15);
+    expect(Math.abs(s.waterError)).toBeLessThan(waterTolerance(e));
   });
 });
 

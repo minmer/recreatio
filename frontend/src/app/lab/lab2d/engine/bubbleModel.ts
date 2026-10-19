@@ -764,8 +764,9 @@ export class BubbleModel {
     B.H[b] += B.H[q];
     B.H[q] = 0;
     B.age[b] = Math.max(B.age[b], B.age[q]);
-    if (B.site[b] < 0 && B.site[q] >= 0) { B.site[b] = B.site[q]; this.siteBubble[B.site[q]] = B.id[b]; }
-    else if (B.site[q] >= 0) this.siteBubble[B.site[q]] = 0;
+    /* Frei bleibt frei: ein neuer Keim, der eine eben abgerissene Blase berührt, geht in ihr auf (die Dampfsäule), die Kavität wird frei. Hängen beide, bleibt b an seiner Kavität. */
+    if (B.site[q] >= 0) this.siteBubble[B.site[q]] = 0;
+    if ((B.site[b] >= 0) !== (B.site[q] >= 0) && B.site[b] >= 0) { this.siteBubble[B.site[b]] = 0; B.site[b] = -1; }
     B.site[q] = -1;
     B.V[q] = 0;
     B.r[b] = Math.cbrt((3 * V) / (4 * Math.PI));

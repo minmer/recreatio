@@ -43,7 +43,7 @@
 
 import { ANY, graphJson, order, paletteOf, readGraph, type Graph, type GraphNode, type Palette, type Ports } from './graph';
 import {
-  dateKey, parseRange, readDate, readNumber, readTyped, valuesOf,
+  dateKey, parseRange, patternKeys, readDate, readNumber, readTyped, valuesOf,
   type Entity, type FieldDef, type KindDef, type Lookup
 } from './schema';
 
@@ -126,6 +126,12 @@ export interface EntryConfig {
   readonly reuse: Reuse;
   /** Woran man einen vorhandenen erkennt; fehlt: die einfachen Felder, die der Knoten setzt. */
   readonly identity?: readonly string[];
+  /**
+   * 2026-10-20 — weitere Rodzaje, zwischen denen man in der Zeile bei JEDEM
+   * Wert wählt (Psalm oder Pieśń): ein Schritt, die Werte in der Reihenfolge,
+   * in der man sie tippt. Getippt wird je Rodzaj sein Etikettfeld.
+   */
+  readonly also?: readonly string[];
 }
 
 export interface PickConfig {
@@ -184,8 +190,29 @@ export function entryConfig(raw: unknown): EntryConfig {
     many: c.many === true,
     fields,
     reuse: c.reuse === 'never' ? 'never' : 'same',
-    ...(Array.isArray(c.identity) ? { identity } : {})
+    ...(Array.isArray(c.identity) ? { identity } : {}),
+    ...(strings(c.also).filter((k) => k !== str(c.kind).trim()).length > 0 ? { also: [...new Set(strings(c.also).filter((k) => k !== str(c.kind).trim()))] } : {})
   };
+}
+
+/** Was man von einem Rodzaj tippt, wenn man ihn in der Zeile wählt: das Feld seines Etiketts, sonst sein erstes Textfeld. */
+export function choiceField(kind: KindDef): FieldDef | undefined {
+  const inLabel = new Set(patternKeys(kind.label));
+  return kind.fields.find((f) => inLabel.has(f.key) && isTypeable(f) && f.type !== 'ref') ?? kind.fields.find((f) => isTypeable(f) && f.type !== 'ref');
+}
+
+/** Die Rodzaje eines Schritts zur Wahl in der Zeile — der eigene zuerst; leer: keine Wahl. */
+export function choicesOf(c: EntryConfig, look: Pick<Lookup, 'kind'>): { readonly kind: KindDef; readonly field: FieldDef }[] {
+  if (c.also === undefined || c.also.length === 0) return [];
+  const main = look.kind(c.kind);
+  const mainField = main === undefined ? undefined : typedFields(main, c)[0] ?? choiceField(main);
+  const out: { kind: KindDef; field: FieldDef }[] = main !== undefined && mainField !== undefined ? [{ kind: main, field: mainField }] : [];
+  for (const id of c.also) {
+    const k = look.kind(id);
+    const f = k === undefined ? undefined : choiceField(k);
+    if (k !== undefined && f !== undefined) out.push({ kind: k, field: f });
+  }
+  return out;
 }
 
 export function pickConfig(raw: unknown): PickConfig {
@@ -261,6 +288,7 @@ export function mapFormRefs(graph: unknown, kind: (id: string) => string | null,
     const c: Record<string, unknown> = { ...n.config };
     if (typeof c.kind === 'string') { const k = kind(c.kind); if (k === null) delete c.kind; else c.kind = k; }
     if (Array.isArray(c.kinds)) c.kinds = strings(c.kinds).map(kind).filter((k): k is string => k !== null);
+    if (Array.isArray(c.also)) c.also = strings(c.also).map(kind).filter((k): k is string => k !== null);
     if (Array.isArray(c.value)) c.value = strings(c.value).map(entity).filter((e): e is string => e !== null);
     return { ...n, config: c };
   });
@@ -345,6 +373,8 @@ export interface FormGroup {
   readonly kind: KindDef;
   readonly fields: readonly FieldDef[];
   readonly many: boolean;
+  /** Rodzaje zur Wahl bei jedem Wert (der eigene zuerst) — dann ist `fields` genau ein Feld, und `_kind` im Wert sagt, welcher. */
+  readonly choices?: readonly { readonly kind: KindDef; readonly field: FieldDef }[];
 }
 
 /**
@@ -360,7 +390,8 @@ export function groupsOf(form: AddForm, look: Pick<Lookup, 'kind'>): FormGroup[]
     const kind = look.kind(c.kind);
     const fields = typedFields(kind, c);
     if (kind === undefined || fields.length === 0) continue;
-    out.push({ node: n.id, label: nodeLabel(n, look, form.graph), kind, fields, many: c.many });
+    const choices = choicesOf(c, look);
+    out.push({ node: n.id, label: nodeLabel(n, look, form.graph), kind, fields: choices.length > 1 ? fields.slice(0, 1) : fields, many: c.many, ...(choices.length > 1 ? { choices } : {}) });
   }
   return out;
 }
@@ -652,6 +683,35 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
     const made: Made[] = [];
     const skipped: { node: string; why: string }[] = [];
     const rowProblems: string[] = [];
+    /* Einen Eintrag finden (gleiche Erkennung), schon geplant ergänzen, oder neu planen — gibt seine Kennung. */
+    const settle = (nodeId: string, k: KindDef, identity: readonly FieldDef[], set: readonly FieldDef[], data: Record<string, unknown>): string => {
+      let found: string | undefined;
+      let index: Map<string, string> | undefined;
+      let key = '';
+      if (identity.length > 0) {
+        index = indexFor(k, identity);
+        key = keyOf(identity, (f) => plannedValues(f, data[f.key]));
+        found = stageIndex.find(([ix, kk]) => ix === index && kk === key)?.[2] ?? index.get(key);
+      }
+      if (found === undefined) {
+        const fresh: PlannedEntry = { id: ctx.newId(), kinds: [k.id], data, isNew: true, node: nodeId, depth: depth.get(nodeId) ?? 1 };
+        stage.set(fresh.id, fresh);
+        if (index !== undefined) stageIndex.push([index, key, fresh.id]);
+        made.push({ node: nodeId, id: fresh.id, isNew: true, changed: false });
+        return fresh.id;
+      }
+      const planned = stage.get(found) ?? committed.get(found);
+      const entity = planned === undefined ? look.entity(found) : undefined;
+      const merged = planned !== undefined
+        ? mergeData(set, planned.data, (f) => plannedValues(f, planned.data[f.key]), data)
+        : entity !== undefined && ctx.isOwn(found) ? mergeData(set, entity.data, (f) => existingValues(entity, f), data) : null;
+      if (merged !== null) {
+        const base = planned ?? { id: found, kinds: entity!.kinds, data: entity!.data, isNew: false, node: nodeId, depth: depth.get(nodeId) ?? 1 };
+        stage.set(found, { ...base, data: merged });
+      }
+      made.push({ node: nodeId, id: found, isNew: planned?.isNew === true, changed: merged !== null && planned?.isNew !== true });
+      return found;
+    };
 
     for (const id of sequence) {
       const node = byId.get(id)!;
@@ -660,6 +720,31 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
       const kind = look.kind(c.kind)!;
       const label = nodeLabel(node, look, form.graph);
       const typed = typedFields(kind, c);
+
+      /*
+        2026-10-20 — RODZAJ JE WERT GEWÄHLT (Psalm oder Pieśń): jeder Wert für
+        sich, in der getippten Reihenfolge; erkannt wird er am getippten Feld
+        seines Rodzaj. Verweise nimmt ein solcher Schritt nicht.
+      */
+      const choices = choicesOf(c, look);
+      if (choices.length > 1 && typed.length > 0) {
+        const ids: string[] = [];
+        let list = (row[id] ?? []).filter((inst) => (inst[typed[0].key] ?? '').trim() !== '');
+        if (!c.many) list = list.slice(0, 1);
+        const fixed = constant.get(id) ?? {};
+        for (const inst of list) {
+          const choice = choices.find((x) => x.kind.id === inst._kind) ?? choices[0];
+          const v = typedValue(choice.field, (inst[typed[0].key] ?? '').trim());
+          if ('error' in v) { rowProblems.push(`${label}: ${choice.field.label} — ${v.error}.`); continue; }
+          const own = choice.kind.id === kind.id;
+          const data: Record<string, unknown> = own ? { ...fixed, [choice.field.key]: v.value } : { [choice.field.key]: v.value };
+          const identity = c.reuse === 'never' ? [] : own ? identityOf(form, node, kind) : [choice.field];
+          const got = settle(id, choice.kind, identity, own ? fieldsSet(form, node, kind) : [choice.field], data);
+          if (!ids.includes(got)) ids.push(got);
+        }
+        outputs.set(id, ids);
+        continue;
+      }
 
       /* Was in der Zeile für diesen Knoten getippt wurde. */
       let combos: Record<string, unknown>[] = [];
@@ -687,10 +772,12 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
       /* Die Verweise: aus den Wahlen und den Einträgen dieser Zeile. */
       let missing: string | null = null;
       for (const field of refFields(kind)) {
+        /* 2026-10-20 — die Werte eines Feldes, das mehrere nimmt, stehen in der Reihenfolge der Zeile („Kolejność pól w wierszu") — Psalm, Psalm, Pieśń. */
+        const sourceOrder = rowOrder(form);
         const edges = form.graph.edges.filter((e) => e.to === id && e.in === field.key).sort((a, b) => {
           const pa = position.get(a.from)!;
           const pb = position.get(b.from)!;
-          return pa.y - pb.y || pa.x - pb.x || pa.i - pb.i;
+          return sourceOrder({ n: byId.get(a.from)!, i: pa.i }, { n: byId.get(b.from)!, i: pb.i });
         });
         if (edges.length === 0) continue;
         /*
@@ -714,33 +801,8 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
       const set = fieldsSet(form, node, kind);
       const ids: string[] = [];
       for (const data of combos) {
-        let found: string | undefined;
-        let index: Map<string, string> | undefined;
-        let key = '';
-        if (identity.length > 0) {
-          index = indexFor(kind, identity);
-          key = keyOf(identity, (f) => plannedValues(f, data[f.key]));
-          found = stageIndex.find(([ix, k]) => ix === index && k === key)?.[2] ?? index.get(key);
-        }
-        if (found === undefined) {
-          const fresh: PlannedEntry = { id: ctx.newId(), kinds: [kind.id], data, isNew: true, node: id, depth: depth.get(id) ?? 1 };
-          stage.set(fresh.id, fresh);
-          if (index !== undefined) stageIndex.push([index, key, fresh.id]);
-          made.push({ node: id, id: fresh.id, isNew: true, changed: false });
-          if (!ids.includes(fresh.id)) ids.push(fresh.id);
-          continue;
-        }
-        const planned = stage.get(found) ?? committed.get(found);
-        const entity = planned === undefined ? look.entity(found) : undefined;
-        const merged = planned !== undefined
-          ? mergeData(set, planned.data, (f) => plannedValues(f, planned.data[f.key]), data)
-          : entity !== undefined && ctx.isOwn(found) ? mergeData(set, entity.data, (f) => existingValues(entity, f), data) : null;
-        if (merged !== null) {
-          const base = planned ?? { id: found, kinds: entity!.kinds, data: entity!.data, isNew: false, node: id, depth: depth.get(id) ?? 1 };
-          stage.set(found, { ...base, data: merged });
-        }
-        made.push({ node: id, id: found, isNew: planned?.isNew === true, changed: merged !== null && planned?.isNew !== true });
-        if (!ids.includes(found)) ids.push(found);
+        const got = settle(id, kind, identity, set, data);
+        if (!ids.includes(got)) ids.push(got);
       }
       outputs.set(id, ids);
     }

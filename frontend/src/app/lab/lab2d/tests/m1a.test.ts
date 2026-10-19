@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { Engine } from '../engine/engine';
 import { MOLAR } from '../engine/materials';
 import { GAS, H2O, N2, O2, T0 } from '../engine/units';
-import { boilingScene, erf, scene } from './scenes';
+import { boilingScene, erf, scene, waterTolerance } from './scenes';
 
 const sealed = { left: 'wall', right: 'wall', bottom: 'wall', top: 'wall' } as const;
 
@@ -95,7 +95,7 @@ describe('M1a — test 4, gas part: conservation', () => {
     const err = Math.abs(s.energyError);
     console.log(`test 4 (sealed, 60 s): ∫P dt = ${s.flows.heater.toFixed(2)} J, |ΔE − ∫P dt| = ${err.toExponential(3)} J (${(100 * err / s.flows.heater).toExponential(2)} %), water error ${s.waterError.toExponential(2)} kg`);
     expect(err / s.flows.heater).toBeLessThan(0.005);
-    expect(Math.abs(s.waterError)).toBeLessThan(1e-15);
+    expect(Math.abs(s.waterError)).toBeLessThan(waterTolerance(e));
     expect(Math.abs(s.budget.air / air0 - 1)).toBeLessThan(1e-12);
     expect(s.flows.lossWalls).toBe(0);
   });
@@ -113,7 +113,7 @@ describe('M1a — test 4, gas part: conservation', () => {
     console.log(`test 4 (open, 30 s): heater ${s.flows.heater.toFixed(2)} J, walls ${s.flows.lossWalls.toFixed(3)} J, open-side conduction ${s.flows.lossOpen.toFixed(3)} J, escaped ${s.flows.escapedEnergy.toFixed(3)} J; error ${err.toExponential(3)} J, escaped air ${s.flows.escapedAir.toExponential(3)} kg`);
     expect(err / s.flows.heater).toBeLessThan(0.005);
     expect(Math.abs(s.budget.air / air0 - 1)).toBeLessThan(1e-9);
-    expect(Math.abs(s.waterError)).toBeLessThan(1e-15);
+    expect(Math.abs(s.waterError)).toBeLessThan(waterTolerance(e));
   });
 });
 

@@ -950,6 +950,11 @@ export function PresentationView({
   /* Ein wandernder Baustein: da, solange die jetzige Szene zwischen seinem ersten und letzten Platz liegt (oder er stehen bleibt). */
   const travelPhase = (one: Placed): Phase => {
     const keys = [...one.places.keys()];
+    /* 2026-10-19 — wer mit seinen Szenen geht, ist nur auf ihnen da: dort spielt er (ein Film), daneben wartet er, dazwischen steht er still. */
+    if (one.piece.between === 'leave' && !one.piece.hold) {
+      if (keys.includes(active)) return 'here';
+      return keys.some((k) => Math.abs(k - active) === 1) ? 'near' : 'away';
+    }
     const first = Math.min(...keys);
     const last = Math.max(...keys);
     if (one.piece.hold || (active >= first && active <= last)) return 'here';
@@ -1023,7 +1028,7 @@ export function PresentationView({
                 <Fragment key={sc.key}>
                 {!shared && (
                   <div
-                    className="pz-scene pz-scene-back"
+                    className="pz-back"
                     ref={(el) => { backEls.current[i] = el; }}
                     aria-hidden="true"
                     style={{ ...sceneVars(sc), visibility: 'hidden' }}

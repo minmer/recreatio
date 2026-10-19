@@ -14,7 +14,7 @@ import { Particles } from '../engine/particles';
 import { readScene, writeScene } from '../engine/scene';
 import { STAGES } from '../engine/stages';
 import { LIQUID, N2, O2, H2O, SOLID, T0 } from '../engine/units';
-import { boilingScene, scene } from './scenes';
+import { boilingScene, scene, waterTolerance } from './scenes';
 
 describe('M0 — materials and IAPWS-IF97', () => {
   it('reproduces the IF97 verification values of region 4 (R7-97(2012), tables 35 and 36)', () => {
@@ -148,7 +148,7 @@ describe('M0 — scenes, painting, the loop', () => {
     for (const t of s.stages) expect(t).toBeGreaterThanOrEqual(0);
     for (let p = 0; p < e.particles.count; p += 1) expect(Number.isFinite(e.particles.x[p] + e.particles.vx[p] + e.particles.h[p])).toBe(true);
     for (let c = 0; c < e.grid.n; c += 1) expect(Number.isFinite(e.grid.T[c])).toBe(true);
-    expect(Math.abs(s.waterError)).toBeLessThan(1e-12);
+    expect(Math.abs(s.waterError)).toBeLessThan(waterTolerance(e));
     expect(Math.abs(s.energyError)).toBeLessThan(1e-6 * Math.max(1, s.flows.heater));
   });
 
