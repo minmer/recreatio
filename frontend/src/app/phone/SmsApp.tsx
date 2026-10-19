@@ -9,30 +9,42 @@
  *   #/workspace/sms/<gespräch>      ein Gespräch, mit dem Schreibfeld
  *   #/workspace/sms/nowa?do=&tekst= eine neue Nachricht — auch aus „Napisz SMS"
  *   #/workspace/sms/archiwum        das Archiv: wie viel, „Archiwizuj teraz", lesen
+ *   #/workspace/sms/pliki           Pliki przez link (0117)
+ *   #/workspace/sms/numery          die eigenen Nummern und Gruppen mit eigener Nummer
  * </code>
+ *
+ * 2026-10-19 — AUSSEHEN WIE DIE ROZMOWY (`smsChat.tsx`): Liste, Kopf, Blasen und Feld
+ * mit den Bausteinen des Chats. Im Kopf neben dem Namen die eigene Nummer, von der
+ * geschrieben wird (`lines.ts`), und ob das Gespräch ins Archiv geht; im Menü ⋮
+ * wyciszyć, zablokować (Spam), usunąć, der Kontakt.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { Avatar, cls, Icon, listTime, PopMenu, useButtonMenu, type MenuItem } from '../chat/ChatKit';
 import { useCrumbs } from '../shell/crumbTrail';
 import { viewPath } from '../routes';
 import { useRemembered } from '../core/prefs';
 import type { Who } from '../core/session';
 import { ask, toast } from '../ui/dialogs';
-import { Icon } from '../ui/icons';
 import { Loading } from '../ui/Loading';
-import { MenuButton } from '../ui/Menu';
+import { Modal } from '../ui/Modal';
 import { PageHeader } from '../ui/PageHeader';
 import { useBarHeight } from '../ui/useBarHeight';
+import { ARCHIVE_PREF, readSettings, saveSettings, type ArchiveSettings } from './archiveSettings';
 import { Composer } from './Composer';
-import { contactMatches, loadContacts, type Contact } from './contactStore';
-import { Phone, phoneHere, type NativeMessage, type NativePart, type NativeThread, type PhoneStatus, type ScheduledEntry, type ThreadPage } from './native';
+import { contactMatches, type Contact } from './contactStore';
+import { chooseLine, contactsOf, lineKeyOf, lineName, useContactIndex, useLineRules, usePhoneLines } from './lines';
+import { LinesView } from './LinesView';
+import { Phone, phoneHere, pluginSource, type NativeMessage, type NativePart, type NativeThread, type PhoneStatus, type ScheduledEntry, type ThreadPage } from './native';
 import { phoneKey, phoneShown } from './numbers';
-import { openPhone } from './phoneContext';
-import { copyReadable, MessageReader, SelectionBar, usePress, type Readable } from './reading';
+import { openArea } from './phoneContext';
+import { archiveNow } from './phoneJobs';
 import { SharesView } from './Shares';
+import { conversationKey, dropConversation } from './smsArchive';
 import { SmsArchiveView } from './SmsArchiveView';
-import { aheadWhen, around, Avatar, barStyle, conversationMatches, dayLabel, isMode, Linked, SEARCH, shortWhen, timeOf, type SearchMode } from './smsShared';
+import { ArchiveMark, BlockDialog, LineChip, MuteDialog, PlannedRow, SmsHeader, SmsLog, useRoomFrame, type SmsItem } from './smsChat';
+import { aheadWhen, around, barStyle, conversationMatches, isMode, SEARCH, type SearchMode } from './smsShared';
 import './phone.css';
 
 export function SmsApp({ who, trail }: { who: Who; trail: readonly string[] }) {
@@ -40,8 +52,9 @@ export function SmsApp({ who, trail }: { who: Who; trail: readonly string[] }) {
   /* Pliki przez link (0117) — auf dem Telefon und im Browser. */
   if (step === 'pliki') return <SharesView who={who} />;
   if (!phoneHere()) return <SmsArchiveView who={who} trail={trail} />;
-  if (step === undefined) return <Threads />;
+  if (step === undefined) return <Threads who={who} />;
   if (step === 'nowa') return <Compose who={who} />;
+  if (step === 'numery') return <LinesView who={who} />;
   if (step === 'archiwum') return <SmsArchiveView who={who} trail={trail.slice(1)} />;
   return <Thread threadId={step} who={who} />;
 }
@@ -98,6 +111,27 @@ function useChanged(on: (threadId: string | null) => void): void {
     };
   }, []);
 }
+
+/** Welche Gespräche still sind — {Gespräch: Ende}. */
+function useMutes(): [Readonly<Record<string, number>>, () => void] {
+  const [muted, setMuted] = useState<Readonly<Record<string, number>>>({});
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    void Phone.mutes().then((r) => { if (alive) setMuted(r.muted); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [tick]);
+  return [muted, useCallback(() => setTick((n) => n + 1), [])];
+}
+
+/** Die Einstellungen des Archivs (am Konto). */
+function useArchive(): ArchiveSettings {
+  const [text] = useRemembered(ARCHIVE_PREF, '');
+  return useMemo(() => readSettings(text), [text]);
+}
+
+const archivedIn = (settings: ArchiveSettings, key: string): boolean =>
+  settings.areaId !== null && (settings.mode === 'all' || settings.chosen.includes(key));
 
 /**
  * Was noch fehlt, damit SMS hier ankommen: die SMS-App sein, Kontakte lesen dürfen — und
@@ -161,6 +195,10 @@ function Setup({ status, onChanged }: { status: PhoneStatus; onChanged: () => vo
 let threadsSeen: readonly NativeThread[] | null = null;
 const pagesSeen = new Map<string, ThreadPage>();
 
+/** Das Bild in der Liste: eine Gruppe, eine Nummer ohne Namen (ein Mensch) — sonst die Anfangsbuchstaben. */
+const avatarIcon = (title: string, people: number): 'users' | 'user' | undefined =>
+  people > 1 ? 'users' : /\p{L}/u.test(title) ? undefined : 'user';
+
 /** Wie ein Gespräch heisst: die Namen aus dem Adressbuch, sonst die Nummern. */
 const titleOf = (t: NativeThread): string =>
   t.addresses.length === 0 ? 'Bez numeru' : t.addresses.map((a, i) => t.names?.[i] ?? phoneShown(a)).join(', ');
@@ -169,15 +207,21 @@ const titleOf = (t: NativeThread): string =>
 
 type SearchHit = Awaited<ReturnType<typeof Phone.search>>['hits'][number];
 
-function Threads() {
+function Threads({ who }: { who: Who }) {
   const [threads, setThreads] = useState<readonly NativeThread[] | null>(threadsSeen);
   const [failed, setFailed] = useState<string | null>(null);
   const [status, refreshStatus] = useStatus();
+  const [muted, refreshMutes] = useMutes();
   const [modeText, setModeText] = useRemembered('sms.search', 'osoby');
   const mode: SearchMode = isMode(modeText) ? modeText : 'osoby';
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<readonly SearchHit[] | null>(null);
   const [checking, setChecking] = useState(false);
+  const [blockedOpen, setBlockedOpen] = useState(false);
+  const lines = usePhoneLines();
+  const contacts = useContactIndex(who);
+  const { groupRules, threadRules } = useLineRules();
+  const more = useButtonMenu();
   const top = useBarHeight();
   useCrumbs([]);
 
@@ -192,7 +236,32 @@ function Threads() {
     }
   }, []);
   useEffect(() => { void load(); }, [load]);
-  useChanged(() => void load());
+  useChanged(() => { void load(); refreshMutes(); });
+
+  /* Welche Karte jedes Gespräch nimmt — nur, was nicht die des Telefons ist, steht in der Zeile. */
+  const lineOf = useMemo(() => {
+    const out = new Map<string, { name: string; subId: number }>();
+    if (lines.length < 2) return out;
+    for (const t of threads ?? []) {
+      const choice = chooseLine({ peers: t.addresses, lines, contacts, groupRules, threadRules, defaultSub: status?.defaultSubId ?? null });
+      if (choice.line !== null && (choice.why === 'thread' || choice.why === 'group')) {
+        out.set(t.threadId, { name: lineName(choice.line), subId: choice.line.subId });
+      }
+    }
+    return out;
+  }, [threads, lines, contacts, groupRules, threadRules, status]);
+
+  /* Antworten aus der Meldung nehmen dieselbe Karte — das Telefon erfährt die Regeln je Gespräch. */
+  const pushed = useRef('');
+  useEffect(() => {
+    if (threads === null || lines.length < 2) return;
+    const subs: Record<string, number> = {};
+    for (const t of threads) subs[t.threadId] = lineOf.get(t.threadId)?.subId ?? -1;
+    const text = JSON.stringify(subs);
+    if (text === pushed.current) return;
+    pushed.current = text;
+    void Phone.threadSubs({ subs }).catch(() => undefined);
+  }, [threads, lineOf, lines]);
 
   const q = query.trim();
   const shown = useMemo(
@@ -237,43 +306,80 @@ function Threads() {
     }
   };
 
+  const items: MenuItem[] = [
+    { label: 'Sprawdź nowe wiadomości', icon: 'refresh', disabled: checking, onSelect: () => void recheck() },
+    { label: 'Archiwum', icon: 'archive', onSelect: () => { window.location.hash = viewPath('sms', 'archiwum'); } },
+    { label: 'Pliki przez link', icon: 'link', onSelect: () => { window.location.hash = viewPath('sms', 'pliki'); } },
+    { label: 'Numery i grupy', icon: 'phone', onSelect: () => { window.location.hash = viewPath('sms', 'numery'); } },
+    { label: 'Zablokowane numery', icon: 'ban', onSelect: () => setBlockedOpen(true) }
+  ];
+
+  const row = (t: NativeThread) => {
+    const title = titleOf(t);
+    const line = lineOf.get(t.threadId);
+    return (
+      <li key={t.threadId}>
+        <a className={cls('ch-item', t.unread > 0 && 'is-unread')} href={viewPath('sms', t.threadId)}>
+          <Avatar seed={t.addresses.map(phoneKey).join(',') || t.threadId} name={title} icon={avatarIcon(title, t.addresses.length)} />
+          <span className="ch-item-main">
+            <span className="ch-item-top">
+              <strong className="ch-item-title">{title}</strong>
+              <time className="ch-item-time" dateTime={new Date(t.date).toISOString()}>{listTime(new Date(t.date).toISOString())}</time>
+            </span>
+            <span className="ch-item-bottom">
+              <span className="ch-item-sub">{t.error ? '⚠ ' : ''}{t.attachment && t.snippet === '' ? '📷 Zdjęcie' : t.snippet}</span>
+              {line !== undefined && <span className="ph-item-line" title={`Z numeru: ${line.name}`}><Icon name="phone" />{line.name}</span>}
+              {muted[t.threadId] !== undefined && <span className="ch-item-muted"><Icon name="bell-off" label="wyciszona" /></span>}
+              {t.unread > 0 && <span className="ch-badge" aria-label={`${t.unread} nieprzeczytanych`}>{t.unread}</span>}
+            </span>
+          </span>
+        </a>
+      </li>
+    );
+  };
+
   return (
-    <div className="ph-threads" style={barStyle(top)}>
+    <div className="ph-chats" style={barStyle(top)}>
       <PageHeader title="SMS" />
       {status !== null && <Setup status={status} onChanged={refreshStatus} />}
       <div className="ph-bar" role="search">
-        <select value={mode} aria-label="Szukaj w" onChange={(e) => setModeText(e.target.value)}>
-          {(Object.keys(SEARCH) as SearchMode[]).map((m) => <option key={m} value={m}>{SEARCH[m].label}</option>)}
-        </select>
-        <input type="search" value={query} placeholder={SEARCH[mode].placeholder} aria-label={SEARCH[mode].placeholder}
-          inputMode={mode === 'numery' ? 'tel' : 'search'} onChange={(e) => setQuery(e.target.value)} />
-        <a className="wk-btn ph-bar-new" href={viewPath('sms', 'nowa')} title="Nowa wiadomość"><Icon name="compose" /><span>Nowa</span></a>
-        <MenuButton label="Więcej: SMS" items={[
-          { label: 'Sprawdź nowe wiadomości', icon: 'refresh', disabled: checking, onSelect: () => void recheck() },
-          { label: 'Archiwum', icon: 'archive', onSelect: () => { window.location.hash = viewPath('sms', 'archiwum'); } },
-          { label: 'Pliki przez link', icon: 'link', onSelect: () => { window.location.hash = viewPath('sms', 'pliki'); } }
-        ]} />
+        <label className="ch-side-search ph-search-pill">
+          <Icon name="search" />
+          <select value={mode} aria-label="Szukaj w" onChange={(e) => setModeText(e.target.value)}>
+            {(Object.keys(SEARCH) as SearchMode[]).map((m) => <option key={m} value={m}>{SEARCH[m].label}</option>)}
+          </select>
+          <input type="search" value={query} placeholder={SEARCH[mode].placeholder} aria-label={SEARCH[mode].placeholder}
+            inputMode={mode === 'numery' ? 'tel' : 'search'} onChange={(e) => setQuery(e.target.value)} />
+        </label>
+        <a className="ch-icon-btn ph-bar-new" href={viewPath('sms', 'nowa')} aria-label="Nowa wiadomość" title="Nowa wiadomość"><Icon name="compose" /></a>
+        <button type="button" className="ch-icon-btn" aria-label="Więcej: SMS" title="Więcej" aria-haspopup="menu" aria-expanded={more.open !== null}
+          onClick={(e) => more.toggle(e.currentTarget)}>
+          <Icon name="more" />
+        </button>
+        {more.open !== null && <PopMenu anchor={{ rect: more.open.rect }} from={more.open.from} label="SMS" items={items} onClose={more.close} />}
       </div>
-      {failed !== null && <p className="wk-error">{failed}</p>}
+      {failed !== null && <p className="ch-bar is-error" role="alert">{failed}</p>}
       {threads === null && failed === null && <Loading label="Wczytywanie wiadomości…" />}
 
       {mode === 'tresc' && q.length >= 2 ? (
         hits === null ? <Loading label="Szukanie…" lines={2} />
           : hits.length === 0 ? <p className="wk-empty">Żadna wiadomość tego nie zawiera.</p>
           : (
-            <ul className="ph-list" aria-label="Znalezione wiadomości">
+            <ul className="ch-list ph-chat-list" aria-label="Znalezione wiadomości">
               {hits.map((h) => {
                 const thread = byId.get(h.threadId);
                 const title = thread !== undefined ? titleOf(thread) : h.address === null ? 'MMS' : phoneShown(h.address);
                 return (
                   <li key={h.id}>
-                    <a className="ph-row" href={viewPath('sms', h.threadId)}>
-                      <Avatar name={thread !== undefined && thread.addresses.length > 1 ? '#' : title} seed={h.address ?? h.threadId} />
-                      <span className="ph-row-text">
-                        <span className="ph-row-name">{title}</span>
-                        <span className="ph-row-snippet">{around(h.snippet, q)}</span>
+                    <a className="ch-item" href={viewPath('sms', h.threadId)}>
+                      <Avatar seed={h.address ?? h.threadId} name={title} icon={avatarIcon(title, thread?.addresses.length ?? 1)} />
+                      <span className="ch-item-main">
+                        <span className="ch-item-top">
+                          <strong className="ch-item-title">{title}</strong>
+                          <time className="ch-item-time">{listTime(new Date(h.date).toISOString())}</time>
+                        </span>
+                        <span className="ch-item-bottom"><span className="ch-item-sub">{around(h.snippet, q)}</span></span>
                       </span>
-                      <span className="ph-row-end">{shortWhen(h.date)}</span>
                     </a>
                   </li>
                 );
@@ -283,30 +389,42 @@ function Threads() {
       ) : threads !== null && (
         shown.length === 0
           ? <p className="wk-empty">{q === '' ? 'Nie ma jeszcze wiadomości.' : 'Nic nie pasuje.'}</p>
-          : (
-            <ul className="ph-list">
-              {shown.map((t) => {
-                const title = titleOf(t);
-                return (
-                  <li key={t.threadId}>
-                    <a className={`ph-row${t.unread > 0 ? ' is-unread' : ''}`} href={viewPath('sms', t.threadId)}>
-                      <Avatar name={t.addresses.length > 1 ? '#' : title} seed={t.addresses.map(phoneKey).join(',') || t.threadId} />
-                      <span className="ph-row-text">
-                        <span className="ph-row-name">{title}</span>
-                        <span className="ph-row-snippet">{t.error ? '⚠ ' : ''}{t.attachment && t.snippet === '' ? '📷 Zdjęcie' : t.snippet}</span>
-                      </span>
-                      <span className="ph-row-end">
-                        <span>{shortWhen(t.date)}</span>
-                        {t.unread > 0 && <span className="ph-unread" aria-label={`${t.unread} nieprzeczytanych`}>{t.unread}</span>}
-                      </span>
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          )
+          : <ul className="ch-list ph-chat-list">{shown.map(row)}</ul>
       )}
+
+      {blockedOpen && <BlockedList onClose={() => setBlockedOpen(false)} />}
     </div>
+  );
+}
+
+/** ZABLOKOWANE — im Telefon (auch aus der Telefon-App) und hier; einzeln wieder frei. */
+function BlockedList({ onClose }: { onClose: () => void }) {
+  const [list, setList] = useState<{ numbers: readonly string[]; system: boolean } | null>(null);
+  const load = useCallback(() => { void Phone.blocked().then(setList).catch(() => setList({ numbers: [], system: false })); }, []);
+  useEffect(() => { load(); }, [load]);
+  const free = async (number: string) => {
+    if (!await ask({ title: `Odblokować ${phoneShown(number)}?`, body: 'Telefon znów przyjmie od tego numeru SMS i połączenia.', confirm: 'Odblokuj' })) return;
+    await Phone.unblock({ number }).catch(() => toast('Nie udało się odblokować.'));
+    load();
+  };
+  return (
+    <Modal title="Zablokowane numery" onClose={onClose}>
+      {list === null && <Loading label="Wczytywanie…" lines={1} />}
+      {list !== null && list.numbers.length === 0 && <p className="wk-empty">Nie ma zablokowanych numerów.</p>}
+      {list !== null && list.numbers.length > 0 && (
+        <ul className="ph-blocked">
+          {list.numbers.map((n) => (
+            <li key={n}>
+              <span>{phoneShown(n)}</span>
+              <button type="button" className="wk-link-btn" onClick={() => void free(n)}>Odblokuj</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {list !== null && !list.system && (
+        <p className="ch-compose-line">Telefon nie pozwala tej aplikacji blokować w systemie (nie jest aplikacją SMS) — blokuje tylko ona sama.</p>
+      )}
+    </Modal>
   );
 }
 
@@ -315,33 +433,38 @@ function Threads() {
 const PAGE = 60;
 
 /*
- * DAS GESPRÄCH FÜLLT DAS FENSTER unter der Kopfleiste: oben wer (mit dem Weg zurück),
- * dazwischen die Nachrichten — nur sie rollen —, unten das Schreibfeld. So bleibt der Kopf
- * stehen, und unter dem Schreibfeld ist kein Rand für die Leiste des Telefons mehr.
+ * DAS GESPRÄCH WIE EINE ROZMOWA: der Kopf steht (zurück, wer, die eigene Nummer, das
+ * Archiv, Anrufen, Lupe, ⋮), nur der Verlauf rollt, unten das Feld. Es füllt das Fenster
+ * unter der Kopfleiste — kein Rand unter dem Feld für die Leiste des Telefons.
  */
 function Thread({ threadId, who }: { threadId: string; who: Who }) {
   const [page, setPage] = useState<ThreadPage | null>(pagesSeen.get(threadId) ?? null);
   const [failed, setFailed] = useState<string | null>(null);
   const [status] = useStatus();
+  const [muted, refreshMutes] = useMutes();
   const [olderBusy, setOlderBusy] = useState(false);
   const [planned, setPlanned] = useState<readonly ScheduledEntry[]>([]);
-  /** Gewählte Nachrichten (lange drücken) — solange welche gewählt sind, wählt jeder Tipp. */
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [reading, setReading] = useState(false);
-  const scroller = useRef<HTMLDivElement | null>(null);
-  const inner = useRef<HTMLDivElement | null>(null);
-  /** Unten bleiben: wer am Ende war, sieht auch das Neue (und nach dem Senden immer). */
-  const stick = useRef(true);
-  /** Beim Nachladen oben: die Höhe vorher — damit dieselbe Nachricht stehen bleibt. */
-  const anchor = useRef<number | null>(null);
+  const [search, setSearch] = useState('');
+  const [follow, setFollow] = useState(0);
+  const [dialog, setDialog] = useState<'mute' | 'block' | null>(null);
+  const lines = usePhoneLines();
+  const contacts = useContactIndex(who);
+  const { groupRules, threadRules, setThreadRule } = useLineRules();
+  const settings = useArchive();
   const top = useBarHeight();
+  useRoomFrame();
   useCrumbs([]);
 
   const messages = page?.messages ?? null;
-  const peers = page?.peers ?? [];
+  const peers = useMemo(() => page?.peers ?? [], [page]);
   const names = useMemo(() => new Map(Object.entries(page?.names ?? {})), [page]);
   const title = peers.length === 0 ? (page === null ? '' : 'SMS') : peers.map((p) => nameOf(names, p)).join(', ');
   const single = peers.length === 1 ? peers[0] : null;
+  const group = peers.length > 1;
+  const key = conversationKey(peers);
+  const archived = archivedIn(settings, key);
+  const isMuted = muted[threadId] !== undefined;
+  const contact: Contact | undefined = single === null ? undefined : contacts.get(phoneKey(single));
 
   useEffect(() => { if (page !== null) pagesSeen.set(threadId, page); }, [threadId, page]);
 
@@ -371,8 +494,7 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
   }, [threadId, loadPlanned]);
 
   useEffect(() => {
-    stick.current = true;
-    setSelected(new Set());
+    setSearch('');
     void load();
     void Phone.viewing({ threadId });
     return () => { void Phone.viewing({ threadId: null }); };
@@ -385,8 +507,6 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
     setOlderBusy(true);
     try {
       const fresh = await Phone.messages({ threadId, before: messages[0].date, limit: PAGE });
-      const el = scroller.current;
-      if (el !== null) anchor.current = el.scrollHeight;
       setPage((had) => {
         if (had === null) return had;
         const known = new Set(had.messages.map((m) => m.id));
@@ -399,47 +519,19 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
     }
   };
 
-  /* Nach dem Zeichnen, vor dem Anzeigen: unten bleiben, oder nach dem Nachladen oben an derselben Stelle. */
-  useLayoutEffect(() => {
-    const el = scroller.current;
-    if (el === null) return;
-    if (anchor.current !== null) {
-      el.scrollTop += el.scrollHeight - anchor.current;
-      anchor.current = null;
-    } else if (stick.current) {
-      el.scrollTop = el.scrollHeight;
-    }
-  }, [messages, planned]);
+  /* Die Karte: gewählt, nach Gruppe, wo zuletzt etwas kam, die des Telefons. */
+  const lastSub = useMemo(() => [...(messages ?? [])].reverse().find((m) => m.box === 'in' && m.subId !== null)?.subId ?? null, [messages]);
+  const choice = useMemo(() => chooseLine({ peers, lines, contacts, groupRules, threadRules, lastSub, defaultSub: status?.defaultSubId ?? null }),
+    [peers, lines, contacts, groupRules, threadRules, lastSub, status]);
+  const sub = choice.line?.subId ?? status?.defaultSubId ?? null;
 
-  /* Die Tastatur geht auf, ein Bild ist geladen: wer unten war, bleibt unten. */
+  /* Antworten aus der Meldung nehmen dieselbe Karte. */
   useEffect(() => {
-    const el = scroller.current;
-    const content = inner.current;
-    if (el === null || content === null || typeof ResizeObserver === 'undefined') return undefined;
-    const keep = new ResizeObserver(() => { if (stick.current) el.scrollTop = el.scrollHeight; });
-    keep.observe(el);
-    keep.observe(content);
-    return () => keep.disconnect();
-  }, []);
+    if (lines.length < 2 || choice.line === null) return;
+    void Phone.threadSubs({ subs: { [threadId]: choice.why === 'default' ? -1 : choice.line.subId } }).catch(() => undefined);
+  }, [threadId, choice, lines]);
 
-  const onScroll = () => {
-    const el = scroller.current;
-    if (el === null) return;
-    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64;
-    if (el.scrollTop < 160 && page?.more === true && !olderBusy) void loadOlder();
-  };
-
-  const toggle = (id: string) => setSelected((had) => {
-    const next = new Set(had);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
-  const chosen: Readable[] = (messages ?? []).filter((m) => selected.has(m.id)).map((m) => ({
-    key: m.id,
-    who: m.box === 'in' ? (m.address !== null ? nameOf(names, m.address) : title) : 'Ty',
-    at: m.date,
-    body: m.body !== '' ? m.body : m.parts.length > 0 ? '[MMS]' : ''
-  }));
+  const items: SmsItem[] = useMemo(() => (messages ?? []).map((m) => itemOf(m, names, group, () => void load())), [messages, names, group, load]);
 
   const cancelPlanned = async (id: string) => {
     if (!await ask({ title: 'Odwołać zaplanowaną wiadomość?', confirm: 'Odwołaj', danger: true })) return;
@@ -448,118 +540,137 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
     await loadPlanned();
   };
 
-  return (
-    <div className="ph-thread" style={barStyle(top)}>
-      {selected.size > 0 ? (
-        <SelectionBar count={selected.size} onShow={() => setReading(true)} onCopy={() => copyReadable(chosen)} onClear={() => setSelected(new Set())} />
-      ) : (
-        <header className="ph-thread-head">
-          <a className="wk-icon-btn" href={viewPath('sms')} aria-label="Wszystkie wiadomości" title="Wszystkie wiadomości"><Icon name="back" /></a>
-          {peers.length > 0 && <Avatar name={peers.length > 1 ? '#' : title} seed={peers.map(phoneKey).join(',')} />}
-          <span className="ph-thread-title">
-            <h1 className="ph-thread-name">{title}</h1>
-            {peers.some((p) => names.has(p)) && <span className="ph-thread-sub">{peers.map(phoneShown).join(', ')}</span>}
-          </span>
-          {single !== null && (
-            <a className="wk-icon-btn" href={`tel:${single.replace(/\s+/g, '')}`} aria-label="Zadzwoń" title="Zadzwoń"><Icon name="phone" /></a>
-          )}
-        </header>
-      )}
+  const toggleArchive = () => {
+    const on = !settings.chosen.includes(key);
+    saveSettings({ ...settings, chosen: on ? [...settings.chosen, key] : settings.chosen.filter((k) => k !== key) });
+    toast(on ? 'Ta rozmowa będzie archiwizowana — cała, także starsze wiadomości.' : 'Ta rozmowa nie będzie już archiwizowana (to, co już jest w archiwum, zostaje).');
+    if (on) void archiveNow(who, pluginSource).catch(() => undefined);
+  };
 
-      <div className="ph-scroll" ref={scroller} onScroll={onScroll}>
-        <div className="ph-scroll-inner" ref={inner}>
-          {failed !== null && <p className="wk-error">{failed}</p>}
-          {messages === null && failed === null && <Loading label="Wczytywanie rozmowy…" />}
-          {page?.more === true && (
-            <button type="button" className="wk-btn wk-btn-quiet ph-more" disabled={olderBusy} onClick={() => void loadOlder()}>Wcześniejsze wiadomości</button>
-          )}
-          {messages !== null && messages.map((m, i) => {
-            const before = messages[i - 1];
-            const newDay = before === undefined || new Date(before.date).toDateString() !== new Date(m.date).toDateString();
-            return (
-              <MessageView key={m.id} m={m} newDay={newDay} group={peers.length > 1} names={names}
-                selected={selected.has(m.id)} selecting={selected.size > 0} onSelect={() => toggle(m.id)}
-                onChanged={() => void load()} />
-            );
-          })}
-          {planned.map((p) => {
-            const notSent = p.state === 'failed';
-            return (
-              <div key={p.id} className={`ph-msg is-out is-planned${notSent ? ' is-failed' : ''}`}>
-                <span>{p.body}</span>
-                <span className={`ph-msg-meta${notSent ? ' is-failed' : ''}`}>
-                  {notSent ? `Nie wysłano${p.error !== undefined ? ` · ${p.error}` : ''}` : p.state === 'sending' ? 'Wysyłanie…' : `Zaplanowana · ${aheadWhen(p.sendAt)}`}
-                  {p.outboxId !== undefined ? ' · z przeglądarki' : ''}
-                </span>
-                {p.state === 'scheduled' && (
-                  <span className="ph-msg-tools">
-                    <button type="button" className="wk-link-btn wk-danger-link" onClick={() => void cancelPlanned(p.id)}>Odwołaj</button>
-                  </span>
-                )}
-                {notSent && p.outboxId === undefined && (
-                  <span className="ph-msg-tools">
-                    <button type="button" className="wk-link-btn" onClick={() => void Phone.forgetScheduled({ id: p.id }).then(loadPlanned)}>Ukryj</button>
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+  const block = async (alsoArchive: boolean) => {
+    try {
+      const done = await Phone.block({ numbers: peers, threadId });
+      let dropped = 0;
+      if (alsoArchive && settings.areaId !== null) {
+        dropped = await dropConversation(await openArea(who, settings.areaId), key).catch(() => 0);
+        if (settings.chosen.includes(key)) saveSettings({ ...settings, chosen: settings.chosen.filter((k) => k !== key) });
+      }
+      toast([
+        done.system ? 'Zablokowano i usunięto rozmowę.' : 'Zablokowano (w tej aplikacji) i usunięto rozmowę.',
+        dropped > 0 ? 'Usunięto ją też z archiwum.' : ''
+      ].filter(Boolean).join(' '));
+      window.location.hash = viewPath('sms');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Nie udało się zablokować.');
+    }
+  };
+
+  const remove = async () => {
+    const yes = await ask({
+      title: 'Usunąć tę rozmowę z telefonu?',
+      body: 'Wszystkie jej wiadomości znikną z telefonu. Archiwum zostaje bez zmian.',
+      confirm: 'Usuń', danger: true
+    });
+    if (!yes) return;
+    try {
+      await Phone.deleteThread({ threadId });
+      toast('Usunięto rozmowę z telefonu.');
+      window.location.hash = viewPath('sms');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Nie udało się usunąć.');
+    }
+  };
+
+  const menu: MenuItem[] = [
+    ...(contact !== undefined
+      ? [{ label: `Kontakt: ${contact.name}`, icon: 'user' as const, onSelect: () => { window.location.hash = viewPath('contacts', contact.id); } }]
+      : single !== null && /\d/.test(single)
+        ? [{ label: 'Dodaj do kontaktów', icon: 'plus' as const, onSelect: () => { window.location.hash = `${viewPath('contacts', 'nowy')}?numer=${encodeURIComponent(single)}`; } }]
+        : []),
+    isMuted
+      ? { label: 'Włącz powiadomienia', icon: 'bell', onSelect: () => void Phone.mute({ threadId, until: -1 }).then(refreshMutes) }
+      : { label: 'Wycisz…', icon: 'bell-off', onSelect: () => setDialog('mute') },
+    settings.areaId === null
+      ? { label: 'Archiwum nie jest jeszcze włączone', icon: 'archive', disabled: true, onSelect: () => undefined }
+      : settings.mode === 'all'
+        ? { label: 'Archiwizowane są wszystkie rozmowy', icon: 'archive', disabled: true, onSelect: () => undefined }
+        : { label: 'Archiwizuj tę rozmowę', icon: 'archive', checked: archived, onSelect: toggleArchive },
+    { label: 'Zablokuj (spam)…', icon: 'ban', danger: true, onSelect: () => setDialog('block') },
+    { label: 'Usuń rozmowę z telefonu…', icon: 'trash', danger: true, onSelect: () => void remove() }
+  ];
+
+  const numbers = peers.some((p) => names.has(p)) ? peers.map(phoneShown).join(', ') : null;
+  const subtitle = (
+    <>
+      <LineChip lines={lines} choice={choice} onChoose={(l) => setThreadRule(peers, l === null ? null : lineKeyOf(l))} />
+      <ArchiveMark on={archived} />
+      {numbers !== null && <span className="ph-head-numbers">{numbers}</span>}
+    </>
+  );
+
+  return (
+    <div className="ch-room ph-room" style={barStyle(top)}>
+      <SmsHeader back={viewPath('sms')} title={title} seed={peers.map(phoneKey).join(',') || threadId} group={group}
+        sub={subtitle} menu={menu} search={search} onSearch={setSearch} call={single !== null && /\d/.test(single) ? single : null} muted={isMuted} />
+
+      <SmsLog items={messages === null ? null : items} failed={failed} title={title} group={group} search={search} follow={follow}
+        more={page?.more === true} onEarlier={() => void loadOlder()}
+        pickActions={(chosen, done) => chosen.length === 1 && chosen[0].body !== '' ? (
+          <button type="button" className="wk-link-btn" onClick={() => {
+            done();
+            window.location.hash = `${viewPath('sms', 'nowa')}?tekst=${encodeURIComponent(chosen[0].body)}`;
+          }}>Przekaż</button>
+        ) : null}
+        tail={planned.length === 0 ? undefined : planned.map((p) => {
+          const notSent = p.state === 'failed';
+          const meta = notSent ? `Nie wysłano${p.error !== undefined ? ` · ${p.error}` : ''}` : p.state === 'sending' ? 'Wysyłanie…' : `Zaplanowana · ${aheadWhen(p.sendAt)}`;
+          return (
+            <PlannedRow key={p.id} text={p.body} failed={notSent} meta={`${meta}${p.outboxId !== undefined ? ' · z przeglądarki' : ''}`}
+              tools={p.state === 'scheduled' ? <button type="button" className="wk-link-btn wk-danger-link" onClick={() => void cancelPlanned(p.id)}>Odwołaj</button>
+                : notSent && p.outboxId === undefined ? <button type="button" className="wk-link-btn" onClick={() => void Phone.forgetScheduled({ id: p.id }).then(loadPlanned)}>Ukryj</button>
+                : undefined} />
+          );
+        })} />
 
       {peers.length > 0 && (
-        <Composer to={peers} sims={status?.sims ?? []} defaultSub={status?.defaultSubId ?? null} who={who}
+        <Composer to={peers} sub={sub} sims={status?.sims ?? []} who={who}
           disabled={status !== null && !status.defaultSms}
-          onSent={() => { stick.current = true; void load(); }}
-          onScheduled={() => { stick.current = true; void loadPlanned(); }} />
+          onSent={() => { setFollow((n) => n + 1); void load(); }}
+          onScheduled={() => { setFollow((n) => n + 1); void loadPlanned(); }} />
       )}
 
-      {reading && <MessageReader title={title} items={chosen} onClose={() => setReading(false)} />}
+      {dialog === 'mute' && <MuteDialog onClose={() => setDialog(null)} onMute={(until) => void Phone.mute({ threadId, until }).then(refreshMutes)} />}
+      {dialog === 'block' && <BlockDialog title={title} archived={archived} onClose={() => setDialog(null)} onBlock={(also) => void block(also)} />}
     </div>
   );
 }
 
-function MessageView({ m, newDay, group, names, selected, selecting, onSelect, onChanged }: {
-  m: NativeMessage; newDay: boolean; group: boolean; names: ReadonlyMap<string, string>;
-  selected: boolean; selecting: boolean; onSelect: () => void; onChanged: () => void;
-}) {
-  const incoming = m.box === 'in';
+/** Eine Nachricht des Telefons für den Verlauf. */
+function itemOf(m: NativeMessage, names: ReadonlyMap<string, string>, group: boolean, onChanged: () => void): SmsItem {
   const failed = m.box === 'failed' || m.status === 'failed';
   const sending = m.box === 'outbox' || m.box === 'queued' || m.status === 'pending';
-  /* Lange drücken wählt; solange gewählt wird, wählt auch ein kurzer Tipp. */
-  const press = usePress(onSelect, () => { if (selecting) onSelect(); });
   /* Noch einmal senden ersetzt die nicht gesendete. */
   const resend = () => { void Phone.send({ to: m.peers, body: m.body }).then(() => Phone.remove({ id: m.id })).then(onChanged); };
-  return (
-    <>
-      {newDay && <span className="ph-day">{dayLabel(m.date)}</span>}
-      <div className={`ph-msg ${incoming ? 'is-in' : 'is-out'}${failed ? ' is-failed' : ''}${selected ? ' is-selected' : ''}`} role="article"
-        aria-selected={selecting ? selected : undefined} tabIndex={0} {...press}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); } }}>
-        {group && incoming && m.address !== null && <span className="ph-msg-from">{nameOf(names, m.address)}</span>}
-        {m.subject !== null && <span className="ph-msg-subject">{m.subject}</span>}
-        {m.pending ? (
-          <span>
-            MMS — jeszcze nie pobrana.{' '}
-            <button type="button" className="wk-link-btn" onClick={(e) => { e.stopPropagation(); void Phone.retryMms({ id: m.id }).then(() => toast('Pobieranie…')); }}>Pobierz</button>
-          </span>
-        ) : (
-          <>
-            {m.parts.length > 0 && <div className="ph-media">{m.parts.map((p) => <MediaPart key={p.partId} part={p} />)}</div>}
-            {m.body !== '' && <span><Linked text={m.body} live={!selecting} /></span>}
-          </>
-        )}
-        <span className={`ph-msg-meta${failed ? ' is-failed' : ''}`}>
-          {failed ? 'Nie wysłano · ' : sending ? 'Wysyłanie… · ' : ''}{timeOf(m.date)}
-        </span>
-        {failed && m.kind === 'sms' && !selecting && (
-          <span className="ph-msg-tools">
-            <button type="button" className="wk-link-btn" onClick={(e) => { e.stopPropagation(); resend(); }}>Wyślij ponownie</button>
-          </span>
-        )}
+  return {
+    key: m.id,
+    mine: m.box !== 'in',
+    at: m.date,
+    body: m.pending ? '' : m.body,
+    subject: m.subject,
+    author: group && m.box === 'in' && m.address !== null ? nameOf(names, m.address) : null,
+    authorSeed: m.address ?? undefined,
+    state: failed ? 'failed' : sending ? 'sending' : null,
+    media: !m.pending && m.parts.length > 0 ? m.parts.map((p) => <MediaPart key={p.partId} part={p} />) : undefined,
+    note: m.pending ? (
+      <div className="ph-note">
+        MMS — jeszcze nie pobrana.{' '}
+        <button type="button" className="wk-link-btn" onClick={(e) => { e.stopPropagation(); void Phone.retryMms({ id: m.id }).then(() => toast('Pobieranie…')); }}>Pobierz</button>
       </div>
-    </>
-  );
+    ) : undefined,
+    tools: failed && m.kind === 'sms'
+      ? <button type="button" className="wk-link-btn" onClick={(e) => { e.stopPropagation(); resend(); }}>Wyślij ponownie</button>
+      : undefined
+  };
 }
 
 const parts = new Map<string, Promise<string | null>>();
@@ -591,7 +702,7 @@ function MediaPart({ part }: { part: NativePart }) {
 
   if (!visual) return <span className="ph-media-file">📎 {part.name ?? part.type}</span>;
   return (
-    <div ref={box}>
+    <div ref={box} className="ph-media">
       {url === null ? <span className="ph-media-file">{part.type.startsWith('image/') ? '📷 Zdjęcie…' : '🎞 …'}</span>
         : part.type.startsWith('image/') ? <img src={url} alt={part.name ?? 'Zdjęcie'} loading="lazy" />
         : part.type.startsWith('video/') ? <video src={url} controls preload="metadata" />
@@ -616,11 +727,14 @@ function Compose({ who }: { who: Who }) {
   const [contacts, setContacts] = useState<readonly Contact[]>([]);
   const [separate, setSeparate] = useState(true);
   const [status] = useStatus();
+  const lines = usePhoneLines();
+  const index = useContactIndex(who);
+  const { groupRules, threadRules, setThreadRule } = useLineRules();
   useCrumbs([{ label: 'Nowa wiadomość', href: null }]);
 
   useEffect(() => {
     let alive = true;
-    void openPhone(who).then(loadContacts).then((list) => { if (alive) setContacts(list); }).catch(() => undefined);
+    void contactsOf(who).then((list) => { if (alive) setContacts(list); }).catch(() => undefined);
     return () => { alive = false; };
   }, [who]);
 
@@ -644,12 +758,18 @@ function Compose({ who }: { who: Who }) {
     setTyped('');
   };
 
+  /* Die Karte für diese Empfänger — wie im Gespräch (eine Gruppe mit eigener Nummer zuerst). */
+  const choice = chooseLine({ peers: to, lines, contacts: index, groupRules, threadRules, defaultSub: status?.defaultSubId ?? null });
+
   return (
     <>
       <PageHeader title="Nowa wiadomość" />
       {status !== null && <Setup status={status} onChanged={() => undefined} />}
       <div className="wk-field">
-        <span>Do</span>
+        <span className="ph-to-head">
+          Do
+          {to.length > 0 && <LineChip lines={lines} choice={choice} onChoose={(l) => setThreadRule(to, l === null ? null : lineKeyOf(l))} />}
+        </span>
         <div className="ph-to">
           {to.map((n) => (
             <span key={n} className="ph-chip">
@@ -683,17 +803,19 @@ function Compose({ who }: { who: Who }) {
           <label className="wk-check"><input type="radio" checked={!separate} onChange={() => setSeparate(false)} /><span>Jako grupa (MMS — odpowiedzi widzą wszyscy)</span></label>
         </div>
       )}
-      <Composer to={to} sims={status?.sims ?? []} defaultSub={status?.defaultSubId ?? null} separate={separate} who={who}
-        disabled={to.length === 0 || (status !== null && !status.defaultSms)} initial={query.get('tekst') ?? ''}
-        onSent={(threadId) => {
-          if (to.length > 1 && separate) {
-            toast(`Wysłano do ${to.length} osób.`);
-            window.location.hash = viewPath('sms');
-          } else {
-            window.location.hash = viewPath('sms', threadId);
-          }
-        }}
-        onScheduled={(threads) => { window.location.hash = threads.length === 1 ? viewPath('sms', threads[0]) : viewPath('sms'); }} />
+      <div className="ph-compose-box">
+        <Composer to={to} sub={choice.line?.subId ?? status?.defaultSubId ?? null} sims={status?.sims ?? []} separate={separate} who={who}
+          disabled={to.length === 0 || (status !== null && !status.defaultSms)} initial={query.get('tekst') ?? ''}
+          onSent={(threadId) => {
+            if (to.length > 1 && separate) {
+              toast(`Wysłano do ${to.length} osób.`);
+              window.location.hash = viewPath('sms');
+            } else {
+              window.location.hash = viewPath('sms', threadId);
+            }
+          }}
+          onScheduled={(threads) => { window.location.hash = threads.length === 1 ? viewPath('sms', threads[0]) : viewPath('sms'); }} />
+      </div>
     </>
   );
 }

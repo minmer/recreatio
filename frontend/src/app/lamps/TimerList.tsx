@@ -7,6 +7,7 @@
 import { Icon } from '../ui/icons';
 import { timerPath, timerTitle, timeText, type Lamp, type LampTimer } from './lampStore';
 import type { TimerStatus } from './native';
+import { paceSummary } from './pace';
 import { actionsText, daysText, nextRun, stampText, whenText } from './timers';
 
 export function TimerList({ lamps, timers, native, status, busy, onEnabled, onPhone }: {
@@ -60,6 +61,7 @@ export function TimerList({ lamps, timers, native, status, busy, onEnabled, onPh
                       <span className="lp-timer-text">
                         <span className="lp-timer-name">{t.name.trim() || 'Timer'} · {daysText(t.days)}</span>
                         <span className="lp-facts">{actionsText(t, lamps) || 'bez akcji'}</span>
+                        {paceSummary(t.pace) !== null && <span className="lp-facts">tempo: {paceSummary(t.pace)}</span>}
                         <span className="lp-facts">{t.enabled ? (next !== null ? `następnie ${whenText(next, now)}` : '') : 'wyłączony'}</span>
                       </span>
                       <Icon name="next" />

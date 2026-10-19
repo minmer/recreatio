@@ -329,6 +329,22 @@ final class SmsStore {
         return false;
     }
 
+    /** Ein ganzes Gespräch fort — SMS und MMS (nur die SMS-App des Telefons darf das). */
+    static int deleteThread(Context context, long threadId) {
+        return context.getContentResolver().delete(Uri.parse("content://mms-sms/conversations/" + threadId), null, null);
+    }
+
+    /** Über welche Karte zuletzt etwas in diesem Gespräch ankam — oder -1. */
+    static int lastIncomingSub(Context context, long threadId) {
+        try (Cursor c = context.getContentResolver().query(SMS, new String[] { "sub_id" }, "thread_id = ? AND type = 1",
+                new String[] { String.valueOf(threadId) }, "date DESC LIMIT 1")) {
+            if (c != null && c.moveToFirst() && !c.isNull(0)) return c.getInt(0);
+        } catch (RuntimeException ignored) {
+            // ohne Karte
+        }
+        return -1;
+    }
+
     static void markRead(Context context, long threadId) {
         ContentValues read = new ContentValues();
         read.put("read", 1);

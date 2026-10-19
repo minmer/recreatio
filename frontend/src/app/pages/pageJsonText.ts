@@ -63,6 +63,7 @@ Slajd modułu ("slide") — wszystko poza "label" i "layers" jest nieobowiązkow
 
 const PRESENTATION = `## Prezentacja ("mode": "presentation")
 Sceny to ekrany; moduły stoją na nich w dowolnym miejscu. Scena może mieć kilka kroków — wtedy wyróżnienie przechodzi z modułu na moduł, a scena idzie za wyróżnionym. Moduł z miejscem na kilku scenach wędruje: przy zmianie sceny przechodzi płynnie na swoje następne miejsce. Wszystko idzie za przewijaniem (kółko, palec, strzałki), w „Pokazie” — za klawiaturą i kliknięciem.
+Wewnątrz sceny moduł może zmieniać się z jej POSTĘPEM ("frames" miejsca): duże zdjęcie maleje do kadru, przesuwa się, odsłania przez maskę — przewijanie wstecz cofa zmianę, zatrzymanie ją zatrzymuje, a koło, palec, klawiatura i pokaz poruszają ten sam postęp. Im więcej "steps" ma scena, tym dłuższa jej droga.
 Sceny nie muszą iść po kolei: każda ma jedno wejście i wyjścia — „dalej” (strzałki, przewijanie: "next") i przyciski (moduły z "go"). Wyjście prowadzi do sceny, do końca ("end") albo na zewnątrz ("link:<id>" z "links"). Kto naciśnie przycisk, idzie dalej tą drogą; wstecz — drogą, którą przyszedł.
 
 "show" strony:
@@ -71,6 +72,7 @@ Sceny nie muszą iść po kolei: każda ma jedno wejście i wyjścia — „dale
   "nav" — pasek scen: "labels" (nazwy u góry), "dots" (kropki z prawej), "none"
   "links" — drogi na zewnątrz: [{ "id": "zapisy", "label": "Zapisz się", "href": "https://…" | "#/strona" | "mailto:…" }] — wyjście sceny albo przycisku prowadzi tam przez "link:<id>"
   "width" — najwyżej tyle rem szerokości sceny: w niej liczą się miejsca modułów (x, y w procentach), tło zostaje na całym ekranie (np. 80 — jak pokaz Cogita); pominięte — całe okno
+  "sound" — dźwięk otoczenia (ogień, liście), tylko na życzenie widza: { "url": "page-image:<id>" | "https://…/ogrod.mp3", "label": "Odgłosy ogrodu", "volume": 0.6 } — w pasku na dole jest przycisk z "label"; bez kliknięcia nic nie gra; gra w kółko, cichnie, gdy karta jest ukryta. Plik: MP3, M4A, OGG albo WAV (plik strony do 30 MB). Głośność na scenie — "volume" sceny
   "backdrop" — tło wspólne: warstwy (jak przy slajdach: "gradient", "image", "glow", "vignette", "haze", "mesh", "waves" …), które stoją za wszystkimi scenami; sceny są wtedy przezroczyste, a ich własne tło (kolor "ground", warstwy "layers") leży w nim i przechodzi płynnie w tło następnej
   "map" — gdzie stoją sceny na mapie przejść w edytorze: { "<klucz sceny>" | "link:<id>" | "end": { "x", "y" } } — tylko dla edytora
   "scenes" — lista scen w kolejności:
@@ -90,6 +92,7 @@ Sceny nie muszą iść po kolei: każda ma jedno wejście i wyjścia — „dale
     "words" — chmura słów w głębi: { "list": ["colligere", …], "prefix": "RE", "count": 39, "seed": 7, "color": null }
     "depth" — { "perspective": 1000, "travel": 2200, "linger": true } — głębia sceny i jak daleko przelatuje kamera; "linger" — zwalnia przy najgłębszym module
     "next" — dokąd prowadzi „dalej” (strzałki, przewijanie): klucz sceny, "end" (tu koniec) albo "link:<id>"; pominięte — następna scena na liście
+    "volume" — jak głośny jest dźwięk otoczenia ("sound") na tej scenie, 0–1 (pominięte — 1; 0 — cisza); między scenami przechodzi płynnie
 
 "show" modułu:
   "places" — { "<klucz sceny>": miejsce } — jedno miejsce: moduł należy do tej sceny; kilka: wędruje
@@ -97,7 +100,12 @@ Sceny nie muszą iść po kolei: każda ma jedno wejście i wyjścia — „dale
       "x", "y" — punkt modułu (zwykle środek — zob. "origin") w procentach sceny; "w" — szerokość w procentach szerokości; "h" — wysokość w procentach wysokości (null — jak treść)
       "max" — najwyżej tyle szerokości w rem (np. 22): na dużym ekranie moduł nie rośnie dalej, na telefonie bierze "w" procent
       "z" — głębia w pikselach (0 płasko, −980 daleko); "step" — w którym kroku sceny jest wyróżniony (od 0)
-      "tall" — inne wartości na wąskim ekranie: { "x", "y", "w", "h", "max", "scale", "rotate" } (tylko te, które się różnią)
+      "tall" — inne wartości na wąskim ekranie: { "x", "y", "w", "h", "max", "scale", "rotate", "crop", "mask" } (tylko te, które się różnią)
+      "crop" — punkt kadru obrazu na tym miejscu: "57% 40%", "center", "left top" — przy kadrze ("fit": "cover" modułu "image", obraz w oprawie "media") ten punkt zostaje w widoku, gdy pole zmienia wymiary (ognisko zostaje ogniskiem, także na telefonie — "crop" w "tall"); pominięty — "at" obrazu; w klatkach przechodzi płynnie
+      "mask" — co z modułu widać: koło { "shape": "circle", "r": 40, "x": 50, "y": 50 } ("r" — promień w %; 71 sięga rogów, gdy środek jest w środku), owal { "shape": "ellipse", "rx": 60, "ry": 40, "x": 50, "y": 50 } ("rx" — % szerokości, "ry" — % wysokości), prostokąt { "shape": "inset", "top": 10, "right": 10, "bottom": 10, "left": 10, "round": 1.5 } (wcięcia w %, "round" — rogi w rem); null — cały moduł; w klatkach maski tego samego kształtu przechodzą płynnie, a maska z null rośnie od całości
+      "frames" — KLATKI sterowane postępem sceny (nie zegarem), najwyżej 16: [{ "at": 0.4, "x": 30, "w": 40, "h": 55, "crop": "50% 60%" }, …] — "at" 0–1 postępu albo "step": numer kroku sceny (od 0) zamiast "at"; klatka zmienia tylko to, co podaje ("x", "y", "w", "h", "max", "rotate", "scale", "opacity", "z", "crop", "mask"), reszta zostaje jak w klatce przed nią; samo miejsce to stan przy 0; do każdej klatki moduł przechodzi płynnie w jej "ease" ("inOut" — zwykle, "linear", "in", "out"); po ostatniej zostaje; klatka bez zmian trzyma stan (np. { "at": 0.3 } — stoi do 0,3); "tall" w klatce — jej inne wartości na telefonie
+      "by" — czym jest postęp klatek: "scene" (zwykle) — wnętrze sceny: 0 na pierwszym kroku, 1 na ostatnim (scena musi mieć co najmniej 2 "steps"; przy 1 kroku stoi na 0); "enter" — wejście sceny: 0, gdy przejście z poprzedniej się zaczyna, 1, gdy scena jest; "leave" — wyjście sceny: 0 na ostatnim kroku, 1, gdy jest już następna
+      "still" — przy ustawieniu „mniej ruchu”: na jakim postępie (0–1) stoją klatki — nieruchoma kompozycja z tymi samymi nagłówkami, obrazami i przyciskami; pominięte — na końcu (przy "leave" — na początku), a klatki ze "step" przeskakują wtedy z kroku na krok, bez drogi pomiędzy
   "skin" — oprawa: "plain" (bez tła), "card" (tafla), "bubble" (bańka), "pill" (pigułka), "panel" (pole wypełniające "w"×"h")
   "type" — tylko "text": "auto" (jak na stronie), "display" (wielkie zdanie — nagłówek strony), "title" (wersaliki), "heading" (nagłówek z treścią), "kicker" (nagłówek w kolorze akcentu z treścią), "body" (akapity), "close" (puenta: kursywa w kolorze akcentu, pusta linia dzieli grupy), "note" (mały dopisek)
   "fill", "ink", "accent" — kolor tła, pisma i akcentu (linki, puenta): "#rrggbb", para "jasny|ciemny" albo nazwa: "accent", "ink", "ground", "muted"
@@ -108,9 +116,10 @@ Sceny nie muszą iść po kolei: każda ma jedno wejście i wyjścia — „dale
   "delay", "span" — kiedy w przejściu zaczyna (0–1) i jaką jego część trwa (0–1)
   "ease" — ruch wędrującego: "inOut", "linear", "in" (przyspiesza), "out"
   "hold" — true: stoi też przed pierwszym i po ostatnim swoim miejscu
-  "layer" — wyżej z przodu; wędrujący od 10 stoi nad wszystkimi scenami
-  "go" — moduł jest przyciskiem: { "<klucz sceny>": cel } — na tej scenie kliknięcie prowadzi do celu (klucz sceny, "end" albo "link:<id>"; "" — jeszcze nigdzie)
-  "motion" — ruch według zegara (opis: Ruch): raz, gdy scena zostaje osiągnięta (np. { "name": "rise", "delay": 220 } — tekst unosi się po dotarciu), albo w pętli, dopóki moduł widać; niezależny od "arrive", które idzie za przewijaniem
+  "between" — moduł z miejscami na scenach NIE po kolei: "glide" — sunie przez sceny pomiędzy (zwykle), "leave" — odchodzi ze swoją sceną i wraca z następną, na której ma miejsce (ten sam obraz na początku i na końcu opowieści, a w środku go nie ma); stoi wtedy zawsze w scenie, na której jest — jak jej własny moduł
+  "layer" — wyżej z przodu; wędrujący z ujemnym (-1 … -5) stoi przed tłem sceny, ale za jej tekstami (zdjęcie na całą scenę, a na nim napis) — w scenie swojego pierwszego miejsca, z "between": "leave" w scenie, na której właśnie jest; wędrujący od 10 stoi nad wszystkimi scenami
+  "go" — moduł jest przyciskiem: { "<klucz sceny>": cel } — na tej scenie kliknięcie prowadzi do celu (klucz sceny, "end", "link:<id>", "step" — do własnego kroku tego modułu na tej scenie: wyróżnia go, scena zostaje, "step:2" — do kroku 3 tej sceny; "" — jeszcze nigdzie); zamiast klucza sceny "*" — na każdej scenie, na której moduł stoi (np. stały przycisk „Kontakt” z "hold": true), klucz sceny ma pierwszeństwo przed "*"
+  "motion" — ruch według zegara (opis: Ruch): raz, gdy scena zostaje osiągnięta (np. { "name": "rise", "delay": 220 } — tekst unosi się po dotarciu), albo w pętli, dopóki moduł widać; niezależny od "arrive", które idzie za przewijaniem; z "by" ("scene", "enter", "leave") ruch idzie za postępem sceny zamiast zegara — np. { "name": "keys", "by": "enter", "keys": [{ "at": 0, "clip": "circle(0% at 50% 50%)" }, { "at": 1, "clip": "circle(75% at 50% 50%)" }] } — zdjęcie odsłania się przez rosnące koło, gdy scena wchodzi
 
 Tekst ("text") w prezentacji i na stronie: "## " — śródtytuł, "# " — duża linia, "> " — mała, cicha linia, [napis](https://… | #/strona | #scena | mailto:… | tel:…) — link; linia z samych linków to rząd linków.`;
 
@@ -262,11 +271,12 @@ export function presentationExample(): Record<string, unknown> {
       fonts: 'spectral',
       nav: 'dots',
       scenes: [
-        { key: 'start', label: 'Start', colors: { ground: '#14180f', ink: '#f2f4ef' }, hint: 'Przewiń', words: { list: ['colligere', 'novatio', 'quies'], prefix: 'RE', count: 15, seed: 7 } },
+        { key: 'start', label: 'Start', steps: 3, colors: { ground: '#14180f', ink: '#f2f4ef' }, hint: 'Przewiń', words: { list: ['colligere', 'novatio', 'quies'], prefix: 'RE', count: 15, seed: 7 } },
         { key: 'dni', label: 'Trzy dni', steps: 3, change: 'fly', grow: { from: 0.8, to: 1.08 }, thread: 'dots' },
         { key: 'zapisy', label: 'Zapisy', colors: { ink: '#f2f4ef', accent: '#9ed3b4' }, next: 'link:parafia' }
       ],
-      links: [{ id: 'parafia', label: 'Strona parafii', href: '#/parafia' }]
+      links: [{ id: 'parafia', label: 'Strona parafii', href: '#/parafia' }],
+      sound: { url: 'https://example.org/ognisko.mp3', label: 'Ognisko', volume: 0.5 }
     },
     modules: [
       { id: 'haslo', kind: 'text', size: { colSpan: 6, rowSpan: 3 }, show: { places: { start: { x: 50, y: 56, w: 40, z: -980 } }, skin: 'plain', type: 'display', align: 'center' }, config: { title: 'Trzy dni, jedna wspólnota' } },
@@ -277,7 +287,22 @@ export function presentationExample(): Record<string, unknown> {
       })),
       { id: 'kolo', kind: 'shape', size: { colSpan: 2, rowSpan: 2 }, show: { places: { dni: { x: 50, y: 50, w: 12, opacity: 0 }, zapisy: { x: 50, y: 50, w: 12, scale: 22 } }, skin: 'plain', ease: 'in', layer: -2 }, config: { shape: 'circle', fill: '#14180f' } },
       { id: 'zapis', kind: 'text', size: { colSpan: 3, rowSpan: 3 }, show: { places: { zapisy: { x: 34, y: 52, w: 40 } }, skin: 'plain', type: 'heading', arrive: 'fade', delay: 0.45, span: 0.55 }, config: { title: 'Zapisy', body: ['# [zapisy@example.pl](mailto:zapisy@example.pl)', '> Zapisy do 15 maja.'] } },
-      { id: 'skrot', kind: 'text', size: { colSpan: 2, rowSpan: 1 }, show: { places: { start: { x: 50, y: 84, w: 22 } }, skin: 'pill', type: 'note', align: 'center', go: { start: 'zapisy' } }, config: { title: 'Od razu do zapisów' } }
+      { id: 'skrot', kind: 'text', size: { colSpan: 2, rowSpan: 1 }, show: { places: { start: { x: 50, y: 84, w: 22 } }, skin: 'pill', type: 'note', align: 'center', go: { start: 'zapisy' } }, config: { title: 'Od razu do zapisów' } },
+      /* 2026-10-19 — ein Bild: erst der ganze Grund, dann ein Kadr rechts (der Ausschnitt bleibt beim Feuer); auf den Zapisy kommt es wieder. */
+      {
+        id: 'ognisko', kind: 'image', size: { colSpan: 3, rowSpan: 3 },
+        show: {
+          places: {
+            start: {
+              x: 50, y: 50, w: 100, h: 100, opacity: 0.55, crop: '57% 60%',
+              frames: [{ at: 0.3 }, { at: 1, x: 74, y: 50, w: 40, h: 62, opacity: 1, crop: '50% 70%', mask: { shape: 'inset', round: 1.5 }, tall: { x: 50, y: 30, w: 86, h: 34 } }]
+            },
+            zapisy: { x: 74, y: 52, w: 34, h: 46, crop: '50% 70%', mask: { shape: 'circle', r: 60 } }
+          },
+          skin: 'plain', layer: -3, between: 'leave', arrive: 'fade'
+        },
+        config: { url: '/Hortus.jpg', alt: 'Ognisko w ogrodzie', fit: 'cover', at: '57% 50%' }
+      }
     ]
   };
 }

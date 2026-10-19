@@ -137,6 +137,7 @@ A **form for adding** (Formularz dodawania, doc kind `addform`) says once what o
 - **Choosing an entry** (everywhere a reference is picked: the choices on top, the defaults in the designer, reference fields in the entry editor): type to search, or open the list with the arrow; when nothing matches exactly and the place takes exactly one kind with a text field (the one in its label, else its first line), the list ends with “+ Utwórz „…” — Rodzaj”, which creates the entry and chooses it.
 - **Editing what is there** (“Edycja tego, co już jest”, beside “Dodawanie” on the filling screen): the saved entries shown in the shape of the form — a row per connecting entry (a translation, a group), its entries in the columns of the row entries that would have made them (the words per language), empty places where something may still be added. The choice on top is the filter: English–Polish shows no German rows. Texts are changed in place; values are added (found or made as when adding, with their language and topics), taken out of a row (×), rows deleted — and nothing is saved until **one button, “Zapisz zmiany (n)”**; leaving with unsaved changes asks first. A field that takes ONE entry (the “z” of a translation) cannot be left empty (delete the row instead) and offers “+ dodaj” only while it is empty; one that takes several (the words of a group) always offers it. Entries from a source base are shown, not changed; a value that fits no column (a language the form does not know) stays on its entry, unseen. A form without a connecting entry shows its first column only.
 - **Where.** Built under Schemat (`schemat/formularz/<id>`), filled under Wpisy (`wpisy/dodaj/<id>`, the menu “Wiele naraz”, and Ctrl K). Forms belong to the schema JSON (`forms`) and travel with it; a reused base’s forms are usable here.
+- **A form as JSON** (2026-10-19): under each form „Formularz jako JSON” exports it with the own kinds it needs (in the schema format, so the Schemat import takes the same document) and imports one beside the generated description: the same `ref` changes the form in place, a new one creates a form. „+ Formularz → Z JSON (wklej)…” imports a form that is not here yet. The form import takes kinds, card templates and forms only; anything else in the document is named as left out. Several entry steps into one field that takes several give their values in the order of the steps on the canvas (top to bottom). Example: `frontend/scripts/fixtures/brewiarz.json` — the psalter (kinds, a vespers and a compline form, five card templates), checked end to end in `app-cogita-check`.
 
 ## 3. Knowledge layer
 
@@ -565,7 +566,7 @@ Phones stay awake.
 
 | check | count |
 |---|---|
-| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 291 |
+| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 301 |
 | `backend/Api.Tests` (22 of them for the game rules) | 408 |
 | `backend/Kernel.Tests` | 122 |
 

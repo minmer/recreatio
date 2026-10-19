@@ -1,0 +1,2322 @@
+{
+  "format": "recreatio/page",
+  "version": 1,
+  "path": "hortusdei",
+  "title": "Hortus Dei — miejsce na Waszą historię",
+  "lead": null,
+  "mode": "presentation",
+  "theme": {
+    "mode": "light",
+    "accent": "#b4602a",
+    "ink": "#1f2b20",
+    "ground": "#f4eee1",
+    "muted": "#5d6b58",
+    "night": {
+      "accent": "#efa45c",
+      "ink": "#eee8db",
+      "ground": "#151a14",
+      "muted": "#97a08d"
+    }
+  },
+  "cover": [],
+  "show": {
+    "format": "screen",
+    "fonts": "spectral",
+    "nav": "dots",
+    "scenes": [
+      {
+        "key": "ogien",
+        "label": "Zaproszenie",
+        "steps": 2,
+        "colors": {
+          "accent": "#f0a35e",
+          "ink": "#f8f1e5",
+          "ground": "#17110c",
+          "muted": "#c9b8a1"
+        },
+        "hint": "Przewiń"
+      },
+      {
+        "key": "ogrod",
+        "label": "Ogród",
+        "steps": 2,
+        "change": "dissolve",
+        "colors": {
+          "accent": "#b4602a",
+          "ink": "#1f2b20",
+          "ground": "#f4eee1",
+          "muted": "#5d6b58"
+        }
+      },
+      {
+        "key": "rytm",
+        "label": "Wasz rytm",
+        "steps": 4,
+        "change": "build",
+        "colors": {
+          "accent": "#b4602a",
+          "ink": "#1f2b20",
+          "ground": "#f4eee1",
+          "muted": "#5d6b58"
+        },
+        "emphasis": false
+      },
+      {
+        "key": "las",
+        "label": "Między drzewami",
+        "steps": 2,
+        "change": "cover",
+        "colors": {
+          "accent": "#eaa461",
+          "ink": "#eef2e6",
+          "ground": "#1c2a20",
+          "muted": "#a9baa1"
+        }
+      },
+      {
+        "key": "poczatek",
+        "label": "Początek",
+        "steps": 2,
+        "change": "reveal",
+        "colors": {
+          "accent": "#b4602a",
+          "ink": "#2a2118",
+          "ground": "#f3e7d0",
+          "muted": "#7c6a55"
+        }
+      },
+      {
+        "key": "dom",
+        "label": "Nowy dom",
+        "steps": 2,
+        "colors": {
+          "accent": "#b4602a",
+          "ink": "#1f2b20",
+          "ground": "#f4eee1",
+          "muted": "#5d6b58"
+        }
+      },
+      {
+        "key": "powrot",
+        "label": "Wasza historia",
+        "steps": 2,
+        "change": "dissolve",
+        "colors": {
+          "accent": "#f0a35e",
+          "ink": "#f8f1e5",
+          "ground": "#17110c",
+          "muted": "#c9b8a1"
+        }
+      },
+      {
+        "key": "praktycznie",
+        "label": "Praktycznie",
+        "colors": {
+          "accent": "#b4602a",
+          "ink": "#1f2b20",
+          "ground": "#f4eee1",
+          "muted": "#5d6b58"
+        }
+      }
+    ]
+  },
+  "modules": [
+    {
+      "id": "ognisko",
+      "name": "Zdjęcie 1000003240.jpg — ognisko (otwarcie i powrót)",
+      "kind": "image",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "ogien": {
+            "x": 50,
+            "y": 50,
+            "w": 100,
+            "h": 100,
+            "crop": "50% 58%",
+            "frames": [
+              {
+                "at": 0.15
+              },
+              {
+                "at": 1,
+                "x": 30,
+                "y": 50,
+                "w": 42,
+                "h": 70,
+                "crop": "52% 60%",
+                "mask": {
+                  "shape": "inset",
+                  "round": 1.2
+                },
+                "tall": {
+                  "x": 50,
+                  "y": 30,
+                  "w": 88,
+                  "h": 36
+                }
+              }
+            ]
+          },
+          "powrot": {
+            "x": 40,
+            "y": 46,
+            "w": 30,
+            "h": 46,
+            "tall": {
+              "x": 50,
+              "y": 41,
+              "w": 62,
+              "h": 28
+            },
+            "crop": "50% 58%",
+            "mask": {
+              "shape": "inset",
+              "round": 1.2
+            },
+            "frames": [
+              {
+                "at": 0.15
+              },
+              {
+                "at": 1,
+                "x": 30,
+                "y": 50,
+                "w": 42,
+                "h": 70,
+                "crop": "52% 60%",
+                "tall": {
+                  "x": 50,
+                  "y": 30,
+                  "w": 88,
+                  "h": 36
+                }
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "layer": -2,
+        "between": "leave"
+      },
+      "config": {
+        "alt": "Wieczorne ognisko w ogrodzie Hortus Dei",
+        "fit": "cover",
+        "at": "50% 58%"
+      }
+    },
+    {
+      "id": "swiatlo",
+      "kind": "animation",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "ogien": {
+            "x": 50,
+            "y": 60,
+            "w": 46,
+            "tall": {
+              "w": 120
+            },
+            "frames": [
+              {
+                "at": 0.15
+              },
+              {
+                "at": 0.7,
+                "opacity": 0
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "layer": -1
+      },
+      "config": {
+        "size": [
+          200,
+          120
+        ],
+        "elements": [
+          {
+            "type": "ellipse",
+            "x": 100,
+            "y": 60,
+            "w": 196,
+            "h": 116,
+            "fill": "radial(accent/55, transparent 100%)",
+            "motion": {
+              "name": "glow",
+              "duration": 4200
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "iskry",
+      "kind": "animation",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "ogien": {
+            "x": 50,
+            "y": 54,
+            "w": 16,
+            "tall": {
+              "w": 38
+            },
+            "frames": [
+              {
+                "at": 0.15
+              },
+              {
+                "at": 0.6,
+                "opacity": 0
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "layer": -1
+      },
+      "config": {
+        "size": [
+          100,
+          100
+        ],
+        "elements": [
+          {
+            "type": "circle",
+            "x": 30,
+            "y": 92,
+            "r": 0.9,
+            "fill": "accent",
+            "glow": "0 0 5px accent/70",
+            "motion": {
+              "name": "keys",
+              "duration": 2600,
+              "delay": 0,
+              "repeat": "loop",
+              "keys": [
+                {
+                  "at": 0,
+                  "y": 0,
+                  "opacity": 0
+                },
+                {
+                  "at": 0.15,
+                  "opacity": 1
+                },
+                {
+                  "at": 1,
+                  "y": -64,
+                  "x": 5,
+                  "opacity": 0
+                }
+              ]
+            }
+          },
+          {
+            "type": "circle",
+            "x": 38,
+            "y": 87,
+            "r": 1.4,
+            "fill": "accent",
+            "glow": "0 0 5px accent/70",
+            "motion": {
+              "name": "keys",
+              "duration": 2900,
+              "delay": 420,
+              "repeat": "loop",
+              "keys": [
+                {
+                  "at": 0,
+                  "y": 0,
+                  "opacity": 0
+                },
+                {
+                  "at": 0.15,
+                  "opacity": 1
+                },
+                {
+                  "at": 1,
+                  "y": -64,
+                  "x": -5,
+                  "opacity": 0
+                }
+              ]
+            }
+          },
+          {
+            "type": "circle",
+            "x": 46,
+            "y": 82,
+            "r": 0.9,
+            "fill": "accent",
+            "glow": "0 0 5px accent/70",
+            "motion": {
+              "name": "keys",
+              "duration": 3200,
+              "delay": 840,
+              "repeat": "loop",
+              "keys": [
+                {
+                  "at": 0,
+                  "y": 0,
+                  "opacity": 0
+                },
+                {
+                  "at": 0.15,
+                  "opacity": 1
+                },
+                {
+                  "at": 1,
+                  "y": -64,
+                  "x": 5,
+                  "opacity": 0
+                }
+              ]
+            }
+          },
+          {
+            "type": "circle",
+            "x": 54,
+            "y": 92,
+            "r": 1.4,
+            "fill": "accent",
+            "glow": "0 0 5px accent/70",
+            "motion": {
+              "name": "keys",
+              "duration": 3500,
+              "delay": 1260,
+              "repeat": "loop",
+              "keys": [
+                {
+                  "at": 0,
+                  "y": 0,
+                  "opacity": 0
+                },
+                {
+                  "at": 0.15,
+                  "opacity": 1
+                },
+                {
+                  "at": 1,
+                  "y": -64,
+                  "x": -5,
+                  "opacity": 0
+                }
+              ]
+            }
+          },
+          {
+            "type": "circle",
+            "x": 62,
+            "y": 87,
+            "r": 0.9,
+            "fill": "accent",
+            "glow": "0 0 5px accent/70",
+            "motion": {
+              "name": "keys",
+              "duration": 3800,
+              "delay": 1680,
+              "repeat": "loop",
+              "keys": [
+                {
+                  "at": 0,
+                  "y": 0,
+                  "opacity": 0
+                },
+                {
+                  "at": 0.15,
+                  "opacity": 1
+                },
+                {
+                  "at": 1,
+                  "y": -64,
+                  "x": 5,
+                  "opacity": 0
+                }
+              ]
+            }
+          },
+          {
+            "type": "circle",
+            "x": 70,
+            "y": 82,
+            "r": 1.4,
+            "fill": "accent",
+            "glow": "0 0 5px accent/70",
+            "motion": {
+              "name": "keys",
+              "duration": 4100,
+              "delay": 2100,
+              "repeat": "loop",
+              "keys": [
+                {
+                  "at": 0,
+                  "y": 0,
+                  "opacity": 0
+                },
+                {
+                  "at": 0.15,
+                  "opacity": 1
+                },
+                {
+                  "at": 1,
+                  "y": -64,
+                  "x": -5,
+                  "opacity": 0
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "welon",
+      "kind": "animation",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "ogien": {
+            "x": 50,
+            "y": 42,
+            "w": 66,
+            "tall": {
+              "x": 50,
+              "y": 42,
+              "w": 130
+            },
+            "frames": [
+              {
+                "at": 0.15
+              },
+              {
+                "at": 0.8,
+                "opacity": 0
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "arrive": "none",
+        "layer": -1
+      },
+      "config": {
+        "size": [
+          240,
+          120
+        ],
+        "elements": [
+          {
+            "type": "ellipse",
+            "x": 120,
+            "y": 60,
+            "w": 236,
+            "h": 116,
+            "fill": "radial(ground/72, transparent 100%)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "miejsce",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "ogien": {
+            "x": 50,
+            "y": 33,
+            "w": 50,
+            "tall": {
+              "x": 50,
+              "y": 35,
+              "w": 88
+            },
+            "frames": [
+              {
+                "at": 0.15
+              },
+              {
+                "at": 1,
+                "x": 71,
+                "y": 31,
+                "w": 38,
+                "tall": {
+                  "x": 50,
+                  "y": 55,
+                  "w": 88
+                }
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "type": "note",
+        "align": "center",
+        "arrive": "none"
+      },
+      "config": {
+        "title": "HORTUS DEI · LIMANOWA"
+      }
+    },
+    {
+      "id": "naglowek",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "ogien": {
+            "x": 50,
+            "y": 46,
+            "w": 64,
+            "max": 46,
+            "scale": 1.3,
+            "tall": {
+              "x": 50,
+              "y": 46,
+              "w": 88,
+              "scale": 1
+            },
+            "frames": [
+              {
+                "at": 0.15
+              },
+              {
+                "at": 1,
+                "x": 71,
+                "y": 42,
+                "w": 38,
+                "max": 30,
+                "scale": 1,
+                "tall": {
+                  "x": 50,
+                  "y": 65,
+                  "w": 88
+                }
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "type": "display",
+        "align": "center",
+        "arrive": "none"
+      },
+      "config": {
+        "title": "Jest miejsce na Waszą historię."
+      }
+    },
+    {
+      "id": "zaproszenie",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "ogien": {
+            "x": 71,
+            "y": 60,
+            "w": 36,
+            "max": 28,
+            "opacity": 0,
+            "tall": {
+              "x": 50,
+              "y": 81,
+              "w": 88
+            },
+            "frames": [
+              {
+                "at": 0.55
+              },
+              {
+                "at": 1,
+                "opacity": 1
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "type": "body",
+        "align": "center",
+        "arrive": "none"
+      },
+      "config": {
+        "body": [
+          "Zobaczcie, jak może wyglądać Wasz dzień w ogrodzie."
+        ]
+      }
+    },
+    {
+      "id": "kontakt-pigulka",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "ogien": {
+            "x": 89,
+            "y": 7,
+            "w": 15,
+            "tall": {
+              "x": 78,
+              "y": 4,
+              "w": 36
+            }
+          },
+          "powrot": {
+            "x": 89,
+            "y": 7,
+            "w": 15,
+            "tall": {
+              "x": 78,
+              "y": 4,
+              "w": 36
+            }
+          }
+        },
+        "skin": "pill",
+        "type": "note",
+        "fill": "#f4eee1",
+        "ink": "#1f2b20",
+        "align": "center",
+        "arrive": "none",
+        "layer": 12,
+        "go": {
+          "*": "praktycznie"
+        }
+      },
+      "config": {
+        "title": "Kontakt i dojazd"
+      }
+    },
+    {
+      "id": "ogrod-foto",
+      "name": "Zdjęcie 1000003288.jpg — górny ogród, wspólne siedzenie",
+      "kind": "image",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "ogrod": {
+            "x": 50,
+            "y": 50,
+            "w": 100,
+            "h": 100,
+            "crop": "50% 55%",
+            "frames": [
+              {
+                "at": 0.15
+              },
+              {
+                "at": 1,
+                "x": 30,
+                "y": 50,
+                "w": 42,
+                "h": 70,
+                "mask": {
+                  "shape": "inset",
+                  "round": 1.2
+                },
+                "tall": {
+                  "x": 50,
+                  "y": 30,
+                  "w": 88,
+                  "h": 36
+                }
+              }
+            ]
+          },
+          "rytm": {
+            "x": 50,
+            "y": 42,
+            "w": 27,
+            "h": 40,
+            "tall": {
+              "x": 24,
+              "y": 48,
+              "w": 42,
+              "h": 16
+            },
+            "crop": "50% 60%",
+            "mask": {
+              "shape": "inset",
+              "round": 1.2
+            },
+            "frames": [
+              {
+                "step": 1,
+                "x": 51,
+                "w": 22,
+                "opacity": 0.7,
+                "h": 32,
+                "tall": {
+                  "x": 18,
+                  "y": 75,
+                  "w": 30,
+                  "h": 11
+                }
+              },
+              {
+                "step": 2,
+                "x": 50,
+                "w": 33,
+                "opacity": 1,
+                "h": 50,
+                "tall": {
+                  "x": 50,
+                  "y": 31.5,
+                  "w": 92,
+                  "h": 29
+                }
+              },
+              {
+                "step": 3,
+                "x": 49,
+                "w": 22,
+                "opacity": 0.7,
+                "h": 32,
+                "tall": {
+                  "x": 18,
+                  "y": 88.5,
+                  "w": 30,
+                  "h": 11
+                }
+              }
+            ]
+          },
+          "powrot": {
+            "x": 11,
+            "y": 22,
+            "w": 16,
+            "h": 24,
+            "tall": {
+              "x": 24,
+              "y": 13,
+              "w": 40,
+              "h": 13
+            },
+            "mask": {
+              "shape": "inset",
+              "round": 1.2
+            },
+            "frames": [
+              {
+                "at": 0.15
+              },
+              {
+                "at": 0.6,
+                "x": 6,
+                "opacity": 0,
+                "scale": 0.92,
+                "tall": {
+                  "x": 18
+                }
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "go": {
+          "rytm": "step"
+        },
+        "between": "leave"
+      },
+      "config": {
+        "alt": "Górna część ogrodu z miejscem do wspólnego siedzenia",
+        "fit": "cover",
+        "at": "50% 55%"
+      }
+    },
+    {
+      "id": "ogrod-tekst",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "ogrod": {
+            "x": 72,
+            "y": 47,
+            "w": 36,
+            "max": 30,
+            "opacity": 0,
+            "tall": {
+              "x": 50,
+              "y": 69,
+              "w": 88
+            },
+            "frames": [
+              {
+                "at": 0.45
+              },
+              {
+                "at": 1,
+                "opacity": 1
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "type": "heading",
+        "arrive": "none"
+      },
+      "config": {
+        "title": "55 arów w centrum Limanowej",
+        "body": [
+          "Jest gdzie działać wspólnie, rozmawiać w mniejszych grupach i znaleźć chwilę dla siebie."
+        ]
+      }
+    },
+    {
+      "id": "linia",
+      "kind": "animation",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "ogrod": {
+            "x": 55.5,
+            "y": 52,
+            "w": 2.2,
+            "tall": {
+              "x": 50,
+              "y": 91,
+              "w": 1.4
+            }
+          }
+        },
+        "skin": "plain",
+        "arrive": "none"
+      },
+      "config": {
+        "size": [
+          10,
+          200
+        ],
+        "elements": [
+          {
+            "type": "path",
+            "d": "M5 0 C 1 60, 9 130, 5 200",
+            "stroke": "accent",
+            "width": 0.9,
+            "fill": "none",
+            "motion": {
+              "name": "draw",
+              "by": "scene"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rytm-tytul",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "rytm": {
+            "x": 50,
+            "y": 11,
+            "w": 70,
+            "tall": {
+              "x": 50,
+              "y": 10.5,
+              "w": 72
+            }
+          }
+        },
+        "skin": "plain",
+        "type": "title",
+        "align": "center",
+        "arrive": "rise"
+      },
+      "config": {
+        "title": "Każda grupa ma swój rytm"
+      }
+    },
+    {
+      "id": "boisko",
+      "name": "Zdjęcie 1000003290.jpg — boisko",
+      "kind": "image",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "rytm": {
+            "x": 19,
+            "y": 42,
+            "w": 27,
+            "h": 40,
+            "tall": {
+              "x": 24,
+              "y": 28,
+              "w": 42,
+              "h": 16
+            },
+            "mask": {
+              "shape": "inset",
+              "round": 1.2
+            },
+            "frames": [
+              {
+                "step": 1,
+                "x": 21,
+                "w": 33,
+                "opacity": 1,
+                "h": 50,
+                "tall": {
+                  "x": 50,
+                  "y": 31.5,
+                  "w": 92,
+                  "h": 29
+                }
+              },
+              {
+                "step": 2,
+                "x": 17,
+                "w": 22,
+                "opacity": 0.7,
+                "h": 32,
+                "tall": {
+                  "x": 18,
+                  "y": 75,
+                  "w": 30,
+                  "h": 11
+                }
+              },
+              {
+                "step": 3,
+                "x": 19,
+                "w": 22,
+                "opacity": 0.7,
+                "h": 32,
+                "tall": {
+                  "x": 18,
+                  "y": 75,
+                  "w": 30,
+                  "h": 11
+                }
+              }
+            ]
+          },
+          "powrot": {
+            "x": 11,
+            "y": 66,
+            "w": 16,
+            "h": 24,
+            "tall": {
+              "x": 24,
+              "y": 69,
+              "w": 40,
+              "h": 13
+            },
+            "mask": {
+              "shape": "inset",
+              "round": 1.2
+            },
+            "frames": [
+              {
+                "at": 0.15
+              },
+              {
+                "at": 0.6,
+                "x": 6,
+                "opacity": 0,
+                "scale": 0.92,
+                "tall": {
+                  "x": 18
+                }
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "arrive": "zoom",
+        "go": {
+          "rytm": "step"
+        },
+        "between": "leave"
+      },
+      "config": {
+        "alt": "Boisko w ogrodzie",
+        "fit": "cover",
+        "at": "50% 55%"
+      }
+    },
+    {
+      "id": "domek",
+      "name": "Zdjęcie 1000003284.jpg — domek",
+      "kind": "image",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "rytm": {
+            "x": 81,
+            "y": 42,
+            "w": 27,
+            "h": 40,
+            "tall": {
+              "x": 24,
+              "y": 68,
+              "w": 42,
+              "h": 16
+            },
+            "mask": {
+              "shape": "inset",
+              "round": 1.2
+            },
+            "frames": [
+              {
+                "step": 1,
+                "x": 81,
+                "w": 22,
+                "opacity": 0.7,
+                "h": 32,
+                "tall": {
+                  "x": 18,
+                  "y": 88.5,
+                  "w": 30,
+                  "h": 11
+                }
+              },
+              {
+                "step": 2,
+                "x": 83,
+                "w": 22,
+                "opacity": 0.7,
+                "h": 32,
+                "tall": {
+                  "x": 18,
+                  "y": 88.5,
+                  "w": 30,
+                  "h": 11
+                }
+              },
+              {
+                "step": 3,
+                "x": 79,
+                "w": 33,
+                "opacity": 1,
+                "h": 50,
+                "tall": {
+                  "x": 50,
+                  "y": 31.5,
+                  "w": 92,
+                  "h": 29
+                }
+              }
+            ]
+          },
+          "powrot": {
+            "x": 69,
+            "y": 19,
+            "w": 16,
+            "h": 22,
+            "tall": {
+              "x": 76,
+              "y": 13,
+              "w": 40,
+              "h": 13
+            },
+            "mask": {
+              "shape": "inset",
+              "round": 1.2
+            },
+            "frames": [
+              {
+                "at": 0.15
+              },
+              {
+                "at": 0.6,
+                "x": 74,
+                "opacity": 0,
+                "scale": 0.92,
+                "tall": {
+                  "x": 82
+                }
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "arrive": "zoom",
+        "go": {
+          "rytm": "step"
+        },
+        "between": "leave"
+      },
+      "config": {
+        "alt": "Domek i jego otoczenie",
+        "fit": "cover",
+        "at": "50% 50%"
+      }
+    },
+    {
+      "id": "etykieta-gra",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "rytm": {
+            "x": 19,
+            "y": 72,
+            "w": 24,
+            "step": 1,
+            "tall": {
+              "x": 70,
+              "y": 28,
+              "w": 52
+            },
+            "frames": [
+              {
+                "step": 1,
+                "x": 21,
+                "opacity": 1,
+                "scale": 1.08,
+                "tall": {
+                  "x": 50,
+                  "y": 51,
+                  "w": 80
+                }
+              },
+              {
+                "step": 2,
+                "x": 17,
+                "opacity": 0.6,
+                "scale": 1,
+                "tall": {
+                  "x": 64,
+                  "y": 75,
+                  "w": 56
+                }
+              },
+              {
+                "step": 3,
+                "x": 19,
+                "opacity": 0.6,
+                "scale": 1,
+                "tall": {
+                  "x": 64,
+                  "y": 75,
+                  "w": 56
+                }
+              }
+            ]
+          }
+        },
+        "skin": "pill",
+        "type": "note",
+        "align": "center",
+        "arrive": "rise",
+        "go": {
+          "rytm": "step"
+        }
+      },
+      "config": {
+        "title": "Zagrać razem"
+      }
+    },
+    {
+      "id": "etykieta-rozmowa",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "rytm": {
+            "x": 50,
+            "y": 72,
+            "w": 24,
+            "step": 2,
+            "tall": {
+              "x": 70,
+              "y": 48,
+              "w": 52
+            },
+            "frames": [
+              {
+                "step": 1,
+                "x": 51,
+                "opacity": 0.6,
+                "scale": 1,
+                "tall": {
+                  "x": 64,
+                  "y": 75,
+                  "w": 56
+                }
+              },
+              {
+                "step": 2,
+                "x": 50,
+                "opacity": 1,
+                "scale": 1.08,
+                "tall": {
+                  "x": 50,
+                  "y": 51,
+                  "w": 80
+                }
+              },
+              {
+                "step": 3,
+                "x": 49,
+                "opacity": 0.6,
+                "scale": 1,
+                "tall": {
+                  "x": 64,
+                  "y": 88.5,
+                  "w": 56
+                }
+              }
+            ]
+          }
+        },
+        "skin": "pill",
+        "type": "note",
+        "align": "center",
+        "arrive": "rise",
+        "go": {
+          "rytm": "step"
+        }
+      },
+      "config": {
+        "title": "Usiąść i porozmawiać"
+      }
+    },
+    {
+      "id": "etykieta-pomysl",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "rytm": {
+            "x": 81,
+            "y": 72,
+            "w": 24,
+            "step": 3,
+            "tall": {
+              "x": 70,
+              "y": 68,
+              "w": 52
+            },
+            "frames": [
+              {
+                "step": 1,
+                "x": 81,
+                "opacity": 0.6,
+                "scale": 1,
+                "tall": {
+                  "x": 64,
+                  "y": 88.5,
+                  "w": 56
+                }
+              },
+              {
+                "step": 2,
+                "x": 83,
+                "opacity": 0.6,
+                "scale": 1,
+                "tall": {
+                  "x": 64,
+                  "y": 88.5,
+                  "w": 56
+                }
+              },
+              {
+                "step": 3,
+                "x": 79,
+                "opacity": 1,
+                "scale": 1.08,
+                "tall": {
+                  "x": 50,
+                  "y": 51,
+                  "w": 80
+                }
+              }
+            ]
+          }
+        },
+        "skin": "pill",
+        "type": "note",
+        "align": "center",
+        "arrive": "rise",
+        "go": {
+          "rytm": "step"
+        }
+      },
+      "config": {
+        "title": "Znaleźć własny pomysł"
+      }
+    },
+    {
+      "id": "dopowiedzenie-gra",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "rytm": {
+            "x": 50,
+            "y": 86,
+            "w": 54,
+            "max": 40,
+            "opacity": 0,
+            "tall": {
+              "x": 50,
+              "y": 60.5,
+              "w": 88
+            },
+            "frames": [
+              {
+                "step": 1,
+                "opacity": 1
+              },
+              {
+                "step": 2,
+                "opacity": 0
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "type": "body",
+        "align": "center",
+        "arrive": "none"
+      },
+      "config": {
+        "body": [
+          "Działające boisko w górnej części ogrodu — na wspólną grę i ruch."
+        ]
+      }
+    },
+    {
+      "id": "dopowiedzenie-rozmowa",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "rytm": {
+            "x": 50,
+            "y": 86,
+            "w": 54,
+            "max": 40,
+            "opacity": 0,
+            "tall": {
+              "x": 50,
+              "y": 60.5,
+              "w": 88
+            },
+            "frames": [
+              {
+                "step": 1,
+                "opacity": 0
+              },
+              {
+                "step": 2,
+                "opacity": 1
+              },
+              {
+                "step": 3,
+                "opacity": 0
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "type": "body",
+        "align": "center",
+        "arrive": "none"
+      },
+      "config": {
+        "body": [
+          "Miejsce do wspólnego siedzenia — na rozmowę całą grupą albo w małych kręgach."
+        ]
+      }
+    },
+    {
+      "id": "dopowiedzenie-pomysl",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "rytm": {
+            "x": 50,
+            "y": 86,
+            "w": 54,
+            "max": 40,
+            "opacity": 0,
+            "tall": {
+              "x": 50,
+              "y": 60.5,
+              "w": 88
+            },
+            "frames": [
+              {
+                "step": 2,
+                "opacity": 0
+              },
+              {
+                "step": 3,
+                "opacity": 1
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "type": "body",
+        "align": "center",
+        "arrive": "none"
+      },
+      "config": {
+        "body": [
+          "Domek i zakątki ogrodu — przestrzeń na Wasz własny plan dnia."
+        ]
+      }
+    },
+    {
+      "id": "rytm-wskazowka",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "rytm": {
+            "x": 50,
+            "y": 86,
+            "w": 50,
+            "tall": {
+              "x": 50,
+              "y": 86,
+              "w": 88
+            },
+            "frames": [
+              {
+                "step": 1,
+                "opacity": 0
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "type": "note",
+        "align": "center"
+      },
+      "config": {
+        "title": "Dotknij zdjęcia — albo przewijaj dalej"
+      }
+    },
+    {
+      "id": "las-pionowe",
+      "name": "Zdjęcie 1000003341.jpg — zieleń, zdjęcie pionowe",
+      "kind": "image",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "las": {
+            "x": 27,
+            "y": 50,
+            "w": 34,
+            "h": 88,
+            "tall": {
+              "x": 50,
+              "y": 29,
+              "w": 92,
+              "h": 46
+            },
+            "crop": "50% 40%",
+            "mask": {
+              "shape": "inset",
+              "round": 1.2
+            },
+            "frames": [
+              {
+                "at": 1,
+                "y": 47,
+                "crop": "50% 70%",
+                "tall": {
+                  "y": 27
+                }
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "arrive": "none",
+        "motion": {
+          "name": "keys",
+          "keys": [
+            {
+              "at": 0,
+              "clip": "circle(8% at 50% 62%)"
+            },
+            {
+              "at": 1,
+              "clip": "circle(75% at 50% 50%)"
+            }
+          ],
+          "by": "enter"
+        }
+      },
+      "config": {
+        "alt": "Zielona, spokojniejsza część ogrodu",
+        "fit": "cover",
+        "at": "50% 50%"
+      }
+    },
+    {
+      "id": "hustawka",
+      "name": "Zdjęcie 1000003305.jpg — huśtawka między drzewami",
+      "kind": "image",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "las": {
+            "x": 64,
+            "y": 33,
+            "w": 24,
+            "h": 34,
+            "scale": 1.04,
+            "tall": {
+              "x": 27,
+              "y": 84,
+              "w": 44,
+              "h": 19
+            },
+            "mask": {
+              "shape": "inset",
+              "round": 1.2
+            },
+            "frames": [
+              {
+                "at": 1,
+                "y": 25,
+                "scale": 1,
+                "tall": {
+                  "y": 81
+                }
+              }
+            ]
+          },
+          "powrot": {
+            "x": 40,
+            "y": 85,
+            "w": 16,
+            "h": 20,
+            "tall": {
+              "x": 76,
+              "y": 69,
+              "w": 40,
+              "h": 13
+            },
+            "mask": {
+              "shape": "inset",
+              "round": 1.2
+            },
+            "frames": [
+              {
+                "at": 0.15
+              },
+              {
+                "at": 0.6,
+                "y": 92,
+                "opacity": 0,
+                "scale": 0.92,
+                "tall": {
+                  "x": 82
+                }
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "arrive": "rise",
+        "delay": 0.1,
+        "between": "leave"
+      },
+      "config": {
+        "alt": "Miejsce odpoczynku wśród drzew, huśtawka",
+        "fit": "cover",
+        "at": "50% 50%"
+      }
+    },
+    {
+      "id": "sciezka",
+      "name": "Zdjęcie 1000003297.jpg — ścieżka między drzewami",
+      "kind": "image",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "las": {
+            "x": 84,
+            "y": 70,
+            "w": 24,
+            "h": 36,
+            "scale": 1.04,
+            "tall": {
+              "x": 73,
+              "y": 84,
+              "w": 44,
+              "h": 19
+            },
+            "mask": {
+              "shape": "inset",
+              "round": 1.2
+            },
+            "frames": [
+              {
+                "at": 1,
+                "y": 60,
+                "scale": 1,
+                "tall": {
+                  "y": 81
+                }
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "arrive": "rise",
+        "delay": 0.2
+      },
+      "config": {
+        "alt": "Ścieżka i urządzona część terenu między drzewami",
+        "fit": "cover",
+        "at": "50% 60%"
+      }
+    },
+    {
+      "id": "las-tekst",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "las": {
+            "x": 60,
+            "y": 73,
+            "w": 22,
+            "max": 22,
+            "tall": {
+              "x": 50,
+              "y": 61,
+              "w": 88
+            }
+          }
+        },
+        "skin": "plain",
+        "type": "heading",
+        "arrive": "rise",
+        "delay": 0.3
+      },
+      "config": {
+        "title": "Być razem. Mieć też przestrzeń dla siebie.",
+        "body": [
+          "W dolnej części ogrodu jest las i strumień — na zabawę, spacer i chwilę ciszy."
+        ]
+      }
+    },
+    {
+      "id": "stol",
+      "kind": "animation",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "poczatek": {
+            "x": 30,
+            "y": 52,
+            "w": 40,
+            "max": 36,
+            "tall": {
+              "x": 50,
+              "y": 28,
+              "w": 84
+            }
+          }
+        },
+        "skin": "plain"
+      },
+      "config": {
+        "alt": "Rysunek: stół z krzesłami w lesie — od niego zaczęło się wspólne bycie w ogrodzie",
+        "size": [
+          200,
+          120
+        ],
+        "elements": [
+          {
+            "type": "path",
+            "d": "M28 54 L172 54",
+            "stroke": "ink",
+            "width": 2.4,
+            "cap": "round",
+            "motion": {
+              "name": "keys",
+              "by": "enter",
+              "keys": [
+                {
+                  "at": 0,
+                  "draw": 0
+                },
+                {
+                  "at": 0.2,
+                  "draw": 0
+                },
+                {
+                  "at": 0.85,
+                  "draw": 1
+                }
+              ]
+            }
+          },
+          {
+            "type": "path",
+            "d": "M44 54 L38 102 M156 54 L162 102",
+            "stroke": "ink",
+            "width": 2.2,
+            "cap": "round",
+            "motion": {
+              "name": "keys",
+              "by": "enter",
+              "keys": [
+                {
+                  "at": 0,
+                  "draw": 0
+                },
+                {
+                  "at": 0.4,
+                  "draw": 0
+                },
+                {
+                  "at": 1,
+                  "draw": 1
+                }
+              ]
+            }
+          },
+          {
+            "type": "path",
+            "d": "M14 34 L14 80 L36 80 M14 80 L14 104 M36 80 L36 104",
+            "stroke": "accent",
+            "width": 2,
+            "cap": "round",
+            "motion": {
+              "name": "keys",
+              "by": "scene",
+              "keys": [
+                {
+                  "at": 0,
+                  "draw": 0
+                },
+                {
+                  "at": 0.7,
+                  "draw": 1
+                }
+              ]
+            }
+          },
+          {
+            "type": "path",
+            "d": "M186 34 L186 80 L164 80 M186 80 L186 104 M164 80 L164 104",
+            "stroke": "accent",
+            "width": 2,
+            "cap": "round",
+            "motion": {
+              "name": "keys",
+              "by": "scene",
+              "keys": [
+                {
+                  "at": 0,
+                  "draw": 0
+                },
+                {
+                  "at": 0.15,
+                  "draw": 0
+                },
+                {
+                  "at": 0.85,
+                  "draw": 1
+                }
+              ]
+            }
+          },
+          {
+            "type": "path",
+            "d": "M4 110 C 60 106, 140 114, 196 108",
+            "stroke": "muted",
+            "width": 1.2,
+            "cap": "round",
+            "motion": {
+              "name": "keys",
+              "by": "scene",
+              "keys": [
+                {
+                  "at": 0,
+                  "draw": 0
+                },
+                {
+                  "at": 0.4,
+                  "draw": 0
+                },
+                {
+                  "at": 1,
+                  "draw": 1
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "poczatek-tekst",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "poczatek": {
+            "x": 70,
+            "y": 36,
+            "w": 36,
+            "max": 30,
+            "tall": {
+              "x": 50,
+              "y": 58,
+              "w": 88
+            }
+          }
+        },
+        "skin": "plain",
+        "type": "heading",
+        "arrive": "rise"
+      },
+      "config": {
+        "title": "Gościnność ma swój początek",
+        "body": [
+          "Prace zaczęły się w 2019 roku. Z wysokiej trawy powoli wyłaniał się ogród, a jednym z pierwszych miejsc wspólnego pobytu był stół z krzesłami w lesie."
+        ]
+      }
+    },
+    {
+      "id": "poczatek-wdziecznosc",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "poczatek": {
+            "x": 70,
+            "y": 68,
+            "w": 36,
+            "max": 30,
+            "opacity": 0,
+            "tall": {
+              "x": 50,
+              "y": 82,
+              "w": 88
+            },
+            "frames": [
+              {
+                "at": 0.3
+              },
+              {
+                "at": 1,
+                "opacity": 1
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "type": "close",
+        "arrive": "none"
+      },
+      "config": {
+        "body": [
+          "Rodzina kupiła tę działkę, by stworzyć miejsce, którym można się dzielić —",
+          "wotum wdzięczności Bogu za prowadzenie i dobro otrzymane w życiu i w pracy."
+        ]
+      }
+    },
+    {
+      "id": "budowa",
+      "name": "Zdjęcie 1000003831.jpg — budowa domu",
+      "kind": "image",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "dom": {
+            "x": 66,
+            "y": 50,
+            "w": 42,
+            "h": 56,
+            "tall": {
+              "x": 50,
+              "y": 30,
+              "w": 90,
+              "h": 34
+            },
+            "mask": {
+              "shape": "inset",
+              "round": 1.2
+            },
+            "frames": [
+              {
+                "at": 1,
+                "x": 64,
+                "w": 56,
+                "h": 76,
+                "tall": {
+                  "x": 50,
+                  "y": 31,
+                  "w": 96,
+                  "h": 40
+                }
+              }
+            ]
+          }
+        },
+        "skin": "plain"
+      },
+      "config": {
+        "alt": "Budowa nowego domu dla grup",
+        "fit": "cover",
+        "at": "50% 50%"
+      }
+    },
+    {
+      "id": "w-budowie",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "dom": {
+            "x": 52,
+            "y": 27,
+            "w": 11,
+            "tall": {
+              "x": 20,
+              "y": 17,
+              "w": 28
+            },
+            "frames": [
+              {
+                "at": 1,
+                "x": 43,
+                "y": 17,
+                "tall": {
+                  "x": 17,
+                  "y": 15
+                }
+              }
+            ]
+          }
+        },
+        "skin": "pill",
+        "type": "note",
+        "align": "center",
+        "layer": 2
+      },
+      "config": {
+        "title": "W budowie"
+      }
+    },
+    {
+      "id": "droga",
+      "kind": "animation",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "dom": {
+            "x": 22,
+            "y": 84,
+            "w": 40,
+            "tall": {
+              "x": 50,
+              "y": 55,
+              "w": 70
+            }
+          }
+        },
+        "skin": "plain",
+        "arrive": "none"
+      },
+      "config": {
+        "size": [
+          400,
+          80
+        ],
+        "elements": [
+          {
+            "type": "path",
+            "d": "M0 70 C 110 78, 240 66, 400 8",
+            "stroke": "accent",
+            "width": 2,
+            "cap": "round",
+            "motion": {
+              "name": "draw",
+              "by": "enter"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "dom-tekst",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "dom": {
+            "x": 20,
+            "y": 46,
+            "w": 30,
+            "max": 26,
+            "tall": {
+              "x": 50,
+              "y": 75,
+              "w": 88
+            }
+          }
+        },
+        "skin": "plain",
+        "type": "heading",
+        "arrive": "rise"
+      },
+      "config": {
+        "title": "Przestrzeń na dalszy rozwój",
+        "body": [
+          "Powstaje dom dla grup do około 50 osób, z kaplicą i zapleczem gastronomicznym — następny rozdział tej samej gościnności.",
+          "> Termin otwarcia nie jest jeszcze znany."
+        ]
+      }
+    },
+    {
+      "id": "cta-tekst",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "powrot": {
+            "x": 73,
+            "y": 44,
+            "w": 36,
+            "max": 30,
+            "opacity": 0,
+            "tall": {
+              "x": 50,
+              "y": 64,
+              "w": 88
+            },
+            "frames": [
+              {
+                "at": 0.5
+              },
+              {
+                "at": 1,
+                "opacity": 1
+              }
+            ]
+          }
+        },
+        "skin": "plain",
+        "type": "heading",
+        "arrive": "none"
+      },
+      "config": {
+        "title": "Opowiedz o swojej grupie",
+        "body": [
+          "Napisz, kim jesteście, jaki macie pomysł i kiedy chcielibyście przyjechać. Kolejne wspomnienia tego miejsca mogą należeć do Was."
+        ]
+      }
+    },
+    {
+      "id": "cta-przycisk",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "powrot": {
+            "x": 73,
+            "y": 66,
+            "w": 26,
+            "tall": {
+              "x": 50,
+              "y": 88,
+              "w": 76
+            }
+          }
+        },
+        "skin": "pill",
+        "type": "body",
+        "fill": "accent",
+        "ink": "#1b120b",
+        "align": "center",
+        "layer": 4,
+        "go": {
+          "powrot": "praktycznie"
+        }
+      },
+      "config": {
+        "title": "Napisz do gospodarzy"
+      }
+    },
+    {
+      "id": "praktyczne",
+      "kind": "text",
+      "size": {
+        "colSpan": 3,
+        "rowSpan": 2
+      },
+      "show": {
+        "places": {
+          "praktycznie": {
+            "x": 36,
+            "y": 50,
+            "w": 50,
+            "max": 40,
+            "tall": {
+              "x": 50,
+              "y": 42,
+              "w": 92
+            }
+          }
+        },
+        "type": "body",
+        "arrive": "rise"
+      },
+      "config": {
+        "title": "Praktycznie",
+        "body": [
+          "## Na miejscu",
+          "W górnej części ogrodu działają boisko, domek i miejsce na ognisko; w dolnej jest las ze strumieniem.",
+          "## W budowie",
+          "Dom dla grup do około 50 osób, z kaplicą i zapleczem gastronomicznym. Termin otwarcia nie jest jeszcze znany.",
+          "## Dojazd",
+          "Limanowa, około 15 minut spacerem do sanktuarium. Adres — w kontakcie.",
+          "## Zapytajcie gospodarzy",
+          "O noclegi, toalety, parking, ceny i zasady pobytu grup."
+        ]
+      }
+    },
+    {
+      "id": "kontakt",
+      "name": "Kontakt gospodarzy — do uzupełnienia (adres, telefon, e-mail)",
+      "kind": "contact",
+      "size": {
+        "colSpan": 2,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "praktycznie": {
+            "x": 76,
+            "y": 50,
+            "w": 30,
+            "max": 24,
+            "tall": {
+              "x": 50,
+              "y": 87,
+              "w": 92
+            }
+          }
+        },
+        "arrive": "rise",
+        "delay": 0.15
+      },
+      "config": {}
+    }
+  ]
+}

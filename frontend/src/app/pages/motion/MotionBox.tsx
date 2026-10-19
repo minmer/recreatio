@@ -16,6 +16,10 @@
  * ist, und spielt seinen Auftritt einmal.
  *
  * <b>Weniger Bewegung</b> (System): nichts läuft; alles steht im letzten Bild.
+ *
+ * <b>2026-10-19 — nach dem Fortschritt</b> (`by`, in einer Szene einer
+ * Präsentation): die Bewegung steht angehalten und bekommt bei jedem Bild der
+ * Bühne die Stelle, die dem Fortschritt der Szene entspricht (`ShowClock`).
  */
 
 import {
@@ -23,6 +27,7 @@ import {
 } from 'react';
 
 import { dashArray, dashOf, isOnce, keyframesOf, motionDef, timingOf, type MotionUse } from './motion';
+import { ShowClock } from '../presentation/showContext';
 
 export type Phase = 'here' | 'near' | 'away';
 
@@ -81,11 +86,31 @@ export function useMotion(ref: RefObject<HTMLElement | null>, use: MotionUse, ph
   const anim = useRef<Animation | null>(null);
   const played = useRef(false);
   const key = JSON.stringify(use);
+  /* 2026-10-19 — folgt sie dem Fortschritt der Szene (und steht sie in einer)? */
+  const clock = useContext(ShowClock);
+  const by = use.by;
+  const scrubbed = by !== null && clock !== null && typeof clock.progress === 'function';
 
   useEffect(() => {
     const el = ref.current;
     const def = motionDef(use.name);
     if (el === null || def === undefined || reduced || typeof el.animate !== 'function') return undefined;
+    if (scrubbed) {
+      /* Ein Durchgang, angehalten: jede Stelle des Fortschritts ist eine Stelle der Bewegung. */
+      const timing = timingOf(use);
+      const span = typeof timing.duration === 'number' ? Math.max(1, timing.duration) : 1000;
+      const made = el.animate(keyframesOf(use), { ...timing, delay: 0, iterations: 1, direction: 'normal' });
+      anim.current = made;
+      made.pause();
+      const follow = () => { made.currentTime = clock!.progress!(by!) * span; };
+      follow();
+      const off = clock!.subscribe(follow);
+      return () => {
+        off();
+        made.cancel();
+        if (anim.current === made) anim.current = null;
+      };
+    }
     const made = el.animate(keyframesOf(use), timingOf(use));
     anim.current = made;
     played.current = false;
@@ -97,12 +122,12 @@ export function useMotion(ref: RefObject<HTMLElement | null>, use: MotionUse, ph
     };
     /* Die Bewegung als Text: dieselbe Bewegung in einem neuen Objekt baut nichts neu. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, reduced, ref]);
+  }, [key, reduced, ref, scrubbed, clock]);
 
   useEffect(() => {
     const made = anim.current;
     const def = motionDef(use.name);
-    if (made === null || def === undefined) return;
+    if (made === null || def === undefined || scrubbed) return;
     if (isOnce(use)) {
       if (phase === 'away') {
         if (replay || !played.current) { made.pause(); made.currentTime = 0; played.current = false; }

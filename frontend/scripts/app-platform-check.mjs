@@ -35,7 +35,8 @@
  *  29. Das Telefon (Ausgabe „sms"): Nummern in einer Form, die Länge einer SMS, vCard hin und zurück, Kontakte
  *      einlesen ohne Doppelte (und nie zwei Menschen in einen), das Archiv: eine Form je Nachricht, Gespräche;
  *      die eigene Nummer je Nachricht, Antworten aus dem Browser (0116), was unter einem Gespräch stehen bleibt;
- *      Pliki przez link (0117): Kennung und Schlüssel aus dem Geheimnis, die Hülle, Fotos ohne den Ort.
+ *      Pliki przez link (0117): Kennung und Schlüssel aus dem Geheimnis, die Hülle, Fotos ohne den Ort;
+ *      welche Karte ein Gespräch nimmt (gewählt, Gruppe, zuletzt, das Telefon).
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -124,6 +125,7 @@ export { readMessage, pendingOf } from '${app}phone/outbox';
 export { aheadWhen, localInput } from '${app}phone/smsShared';
 export { shareKeys, guidText, shareLink, secretOf, packShare, unpackShare, sealShare, openShare, withoutPlace, shownAs, sizeText, cleanName } from '${app}phone/share';
 export { ROUTES } from '${app}routes';
+export { chooseLine, ruledNumber, readRules, lineKeyOf, findLine, lineText as simLineText } from '${app}phone/lines';
 export { readSettings, settingsText } from '${app}phone/archiveSettings';
 `);
 await build({
@@ -2127,6 +2129,32 @@ try {
     const parts = /Parts = new\(StringComparer\.Ordinal\) \{([^}]*)\}/.exec(claim)?.[1].split(',').map((p) => p.trim().replace(/"/g, '')).filter(Boolean).sort();
     assert.deepEqual(parts, Object.keys(m.ROUTES).sort(), 'Slug.IsReserved knows every route word of the browser');
     ok('Pliki przez link (0117): id and key from the link secret (HKDF), sealed and opened with the link alone, photos without their place, only safe types shown, route word reserved');
+
+    /* 2026-10-19 — two SIMs: one number for everyone, the other for a group. */
+    const orange = { subId: 1, slot: 0, name: 'Orange', number: null, known: false };
+    const alt = { subId: 2, slot: 1, name: 'Alternatywa', number: '+48 505 548 677', known: false };
+    const sims = [orange, alt];
+    assert.deepEqual([m.lineKeyOf(orange), m.lineKeyOf(alt)], ['sim:0', '+48505548677'], 'a card by its number — or by its slot, when nobody knows the number');
+    assert.equal(m.findLine(sims, '+48505548677'), alt);
+    assert.equal(m.simLineText(orange), 'Orange · numer nieznany');
+    assert.deepEqual(m.readRules('{"Praca":"+48505548677","zle":5,"":"x"}'), { Praca: '+48505548677' }, 'rules read tolerantly');
+    assert.deepEqual(m.readRules('nonsense'), {});
+    const index = new Map([['+48600100200', { groups: ['Praca'] }], ['+48700800900', { groups: ['Rodzina'] }]]);
+    const pick = (peers, more = {}) => m.chooseLine({ peers, lines: sims, contacts: index, groupRules: { Praca: '+48505548677' }, threadRules: {}, defaultSub: 1, ...more });
+    const byGroup = pick(['600 100 200']);
+    assert.deepEqual([byGroup.line?.subId, byGroup.why, byGroup.group], [2, 'group', 'Praca'], 'a member of the group: the group\'s number');
+    assert.deepEqual([pick(['700800900']).line?.subId, pick(['700800900']).why], [1, 'default'], 'anyone else: the phone\'s SMS card');
+    assert.deepEqual([pick(['700800900'], { lastSub: 2 }).line?.subId, pick(['700800900'], { lastSub: 2 }).why], [2, 'last'], 'no rule: where the last message came in');
+    const chosen = pick(['600100200'], { threadRules: { '+48600100200': 'sim:0' }, lastSub: 2 });
+    assert.deepEqual([chosen.line?.subId, chosen.why], [1, 'thread'], 'the choice in the conversation\'s head wins over the group');
+    assert.equal(pick(['600100200'], { groupRules: { Praca: '+48111222333' } }).why, 'default', 'a rule for a number this phone does not have: ignored');
+    /* The browser has no cards: the same rules, as numbers — the reply goes to the phone with that number. */
+    const web = (peers, more = {}) => m.ruledNumber({ peers, contacts: index, groupRules: { Praca: '+48505548677' }, threadRules: {}, ...more });
+    assert.deepEqual(web(['600100200']), { number: '+48505548677', why: 'group', group: 'Praca' }, 'the browser: a member of the group gets the group\'s number');
+    assert.equal(web(['700800900']), null, 'the browser: no rule — the conversation\'s last number stays');
+    assert.deepEqual(web(['600100200'], { threadRules: { '+48600100200': '+48501502503' } }), { number: '+48501502503', why: 'thread', group: null }, 'the browser: the conversation\'s choice first');
+    assert.deepEqual(web(['600100200'], { threadRules: { '+48600100200': 'sim:0' } }), { number: '+48505548677', why: 'group', group: 'Praca' }, 'the browser: a card without a number is the phone\'s business');
+    ok('two SIMs: the conversation\'s choice, then a group\'s own number, then where the last message came in, then the phone\'s card; the browser follows the same rules by number');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

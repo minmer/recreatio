@@ -31,6 +31,7 @@ import {
 } from './contactStore';
 import { Phone, phoneHere, pluginSource, type PhoneStatus } from './native';
 import { phoneShown } from './numbers';
+import { findLine, forgetContacts, lineKeyOf, lineText, useLineRules, usePhoneLines } from './lines';
 import { contactsNow } from './phoneJobs';
 import { openPhone, type PhoneCtx } from './phoneContext';
 import { Avatar, shortWhen } from './smsShared';
@@ -46,6 +47,7 @@ export function ContactsApp({ who, trail }: { who: Who; trail: readonly string[]
   const [status, setStatus] = useState<PhoneStatus | null>(null);
 
   const reload = useCallback(async (opened: PhoneCtx) => {
+    forgetContacts();
     setContacts(await loadContacts(opened));
   }, []);
 
@@ -85,11 +87,13 @@ export function ContactsApp({ who, trail }: { who: Who; trail: readonly string[]
     return (
       <ContactEdit ctx={ctx} contact={had} native={native}
         onSaved={(saved) => {
+          forgetContacts();
           setContacts((list) => [...(list ?? []).filter((c) => c.id !== saved.id), saved]);
           toPhoneSoon(ctx);
           window.location.hash = viewPath('contacts');
         }}
         onRemoved={(id) => {
+          forgetContacts();
           setContacts((list) => (list ?? []).filter((c) => c.id !== id));
           toPhoneSoon(ctx);
           window.location.hash = viewPath('contacts');
@@ -188,6 +192,9 @@ function ContactList({ contacts, native, status, busy, onImportPhone, onMovePhon
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<string | null>(null);
   const file = useRef<HTMLInputElement | null>(null);
+  /* 2026-10-19 — eine Gruppe kann ihre eigene Nummer für SMS haben (zwei Karten im Telefon). */
+  const lines = usePhoneLines();
+  const { groupRules, setGroupRule } = useLineRules();
   useCrumbs([]);
 
   const groups = useMemo(() => [...new Set(contacts.flatMap((c) => c.groups))].sort((a, b) => a.localeCompare(b, 'pl')), [contacts]);
@@ -249,6 +256,15 @@ function ContactList({ contacts, native, status, busy, onImportPhone, onMovePhon
             <button key={g} type="button" className="ui-filter" aria-pressed={group === g} onClick={() => setGroup(group === g ? null : g)}>{g}</button>
           ))}
         </div>
+      )}
+      {group !== null && native && lines.length > 1 && (
+        <label className="wk-field ph-group-line">
+          <span>SMS do grupy „{group}” wysyłaj z numeru</span>
+          <select value={findLine(lines, groupRules[group]) === null ? '' : groupRules[group]} onChange={(e) => setGroupRule(group, e.target.value === '' ? null : e.target.value)}>
+            <option value="">Numer domyślny</option>
+            {lines.map((l) => <option key={l.subId} value={lineKeyOf(l)}>{lineText(l)}</option>)}
+          </select>
+        </label>
       )}
 
       {shown.length === 0

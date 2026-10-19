@@ -11,6 +11,9 @@
  *   6. Die Wörter des Telefons (LampPlugin/LampRadio/LampTimers.java) kennt die Seite alle.
  *   7. Timer: gespeichert neben den Geräten, Uhrzeit und Tage, der nächste Lauf (wie im Telefon), der Plan
  *      für das Telefon (nur Sendbares), welches Telefon sie ausführt.
+ *   8. Tempo (zwei Regler): Pause zwischen Sendungen, Limit je Ramka — beim Senden, in der Warteschlange,
+ *      beim Stop mitten in der Pause; die Regler der Knöpfe nur für die Knöpfe, jeder Timer mit eigenen
+ *      (gespeichert im Timer, im Plan des Telefons, bei „Wykonaj teraz"); gespeichert bleibt der schnellste Sygnał.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -28,6 +31,7 @@ export * from '${app}lamps/lampStore';
 export * from '${app}lamps/transmit';
 export * from '${app}lamps/learn';
 export * from '${app}lamps/timers';
+export * from '${app}lamps/pace';
 `);
 await build({
   entryPoints: [entry],
@@ -462,6 +466,86 @@ try {
   await m.syncTimers(p, [lampNow], [savedTimer], { enable: false });
   assert.equal(p.on, false, 'the switch on the page switches it off');
   ok('timers: time and days, the next run as on the phone, stored beside the devices, the phone\'s plan (only what can be sent), which phone runs them');
+
+  /* -- 8. Tempo --------------------------------------------------------------------------------------- */
+
+  assert.deepEqual(m.readPace(''), m.FASTEST, 'nothing remembered: fastest');
+  assert.deepEqual(m.readPace('{"pauseMs":250,"limitMs":300}'), { pauseMs: 250, limitMs: 300 });
+  assert.deepEqual(m.readPace('{"pauseMs":-5,"limitMs":20}'), { pauseMs: 0, limitMs: 100 }, 'no negative pause, no frame under 100 ms');
+  assert.deepEqual(m.readPace('{"pauseMs":99999,"limitMs":null}'), { pauseMs: 10000, limitMs: null }, 'a pause the phone accepts');
+  assert.deepEqual(m.readPace(m.paceText({ pauseMs: 400, limitMs: 750 })), { pauseMs: 400, limitMs: 750 });
+  assert.deepEqual([m.isFastest(m.FASTEST), m.isFastest({ pauseMs: 0, limitMs: 500 })], [true, false]);
+  assert.deepEqual([m.nearestStep(m.PAUSE_STEPS, 0), m.nearestStep(m.PAUSE_STEPS, 260), m.PAUSE_STEPS[m.nearestStep(m.PAUSE_STEPS, 999_999)]], [0, 5, 5000]);
+  assert.deepEqual([m.pauseText(0), m.pauseText(300), m.pauseText(1500), m.limitText(null), m.limitText(200), m.limitText(2000)],
+    ['bez przerwy', '300 ms', '1,5 s', 'jak zapisano', 'najwyżej 200 ms', 'najwyżej 2 s']);
+
+  const three = [{ manufacturerId: 0, data: 'AA', durationMs: 250, gapMs: 0 }, { manufacturerId: 0, data: 'BB', durationMs: 1200, gapMs: 9900 }, { manufacturerId: 0, data: 'CC', durationMs: 80, gapMs: 0 }];
+  assert.deepEqual(m.pacedFrames(three, m.FASTEST), three, 'fastest: exactly as saved');
+  assert.deepEqual(m.pacedFrames(three, { pauseMs: 300, limitMs: 500 }).map((x) => [x.durationMs, x.gapMs]), [[250, 300], [500, 10000], [100, 0]],
+    'limit only shortens (never under 100 ms), the pause goes between frames (capped at 10 s), not after the last');
+
+  const slowSeq = signal('Cykl', FIRST, { frames: [{ hex: FIRST, durationMs: 250, gapMs: 0 }, { hex: SECOND, durationMs: 2000, gapMs: 0 }] });
+  const paced = m.prepareSignal(slowSeq, { pauseMs: 200, limitMs: 1000 });
+  assert.deepEqual(paced.frames.map((x) => [x.durationMs, x.gapMs]), [[250, 200], [1000, 0]]);
+  assert.deepEqual(paced.shown.map((x) => [x.durationMs, x.gapMs]), [[250, 200], [1000, 0]], 'the console shows what really goes out');
+  assert.deepEqual(m.prepareSignal(slowSeq).frames.map((x) => x.durationMs), [250, 2000], 'the stored signal is untouched');
+
+  /* In der Warteschlange: zwischen zwei Drücken die Pause; das Limit kürzt; es gilt das Tempo, wenn der Druck dran ist. */
+  m.forgetAttempts();
+  const times = [];
+  r = radio({ send: async (frames) => { times.push({ at: Date.now(), frames }); await new Promise((done) => setTimeout(done, 10)); return okResult(frames); } });
+  m.setPace({ pauseMs: 150, limitMs: 400 });
+  const twice = [m.transmit(r, lamp, on), m.transmit(r, lamp, signal('Wyłącz', SECOND))];
+  m.setPace({ pauseMs: 150, limitMs: 300 });
+  const pair = await Promise.all(twice);
+  assert.ok(times[1].at - times[0].at >= 150 + 10 - 5, `the second waits for the pause (${times[1].at - times[0].at} ms)`);
+  assert.deepEqual(times.map((t) => t.frames[0].durationMs), [300, 300], 'the pace at the moment each is sent: limited to 300 ms');
+  assert.equal(pair[1].frames[0].durationMs, 300, 'and the console says so');
+
+  /* Stop mitten in der Pause: der wartende Druck geht nie hinaus und endet sofort. */
+  m.setPace({ pauseMs: 5000, limitMs: null });
+  times.length = 0;
+  const one = m.transmit(r, lamp, on);
+  const waiting = m.transmit(r, lamp, signal('Wyłącz', SECOND));
+  await one;
+  const stopAt = Date.now();
+  await m.stopTransmission(r);
+  const cut = await waiting;
+  assert.ok(Date.now() - stopAt < 1000, 'stop does not wait out the pause');
+  assert.deepEqual([cut.state, times.length], ['stopped', 1], 'the waiting press never reached the phone');
+  m.setPace(m.FASTEST);
+  assert.equal((await m.transmit(radio(), lamp, on)).state, 'sent', 'fastest again: goes out at once');
+
+  /* Jeder Timer hat SEIN Tempo — gespeichert im Timer, ein alter Timer ohne Regler ist der schnellste. */
+  assert.deepEqual(savedTimer.pace, m.FASTEST, 'a timer from before the sliders: as fast as saved');
+  assert.deepEqual(m.readTimer(JSON.stringify({ v: 1, kind: 'timer', minute: 60, actions: [] })).pace, m.FASTEST);
+  assert.deepEqual(m.tidyPace({ pauseMs: 123.4, limitMs: 50 }), { pauseMs: 123, limitMs: 100 });
+  assert.deepEqual(m.tidyPace({ pauseMs: 'x', limitMs: 'y' }), m.FASTEST);
+  const slowTimer = await m.saveTimer(ctx, savedTimer.id, { ...savedTimer, pace: { pauseMs: 500, limitMs: 200 } }, savedTimer.version);
+  const reread = (await m.loadLamps(ctx)).timers.find((t) => t.id === savedTimer.id);
+  assert.deepEqual(reread.pace, { pauseMs: 500, limitMs: 200 }, 'the timer\'s own sliders are stored with it (sealed)');
+  assert.equal(m.paceSummary(reread.pace), 'przerwa 500 ms · najwyżej 200 ms');
+  assert.equal(m.paceSummary(m.FASTEST), null);
+
+  /* Im Plan: die Ramki des Timers gekürzt, die Pause zwischen seinen Aktionen — die Regler der Knöpfe zählen nicht. */
+  m.setPace({ pauseMs: 3000, limitMs: 100 });
+  const pacedPlan = m.timerPlan([lampNow], [slowTimer, night]);
+  assert.deepEqual(pacedPlan.timers.map((t) => [t.name, t.pauseMs, t.actions.map((x) => x.frames[0].durationMs)]),
+    [['Rano', 500, [200, 200]], ['Timer 23:00', 0, [1000]]], 'each timer by its own sliders; the buttons\' sliders do not reach the timers');
+  p = fakePhone(true, true);
+  await m.syncTimers(p, [lampNow], [slowTimer]);
+  assert.deepEqual([p.calls[0].timers[0].pauseMs, 'pace' in p.calls[0]], [500, false], 'the phone gets the pause per timer, no shared pace');
+
+  /* „Wykonaj teraz" eines Timers: sein Tempo, nicht das der Knöpfe — auch die Pause davor. */
+  m.forgetAttempts();
+  times.length = 0;
+  r = radio({ send: async (frames) => { times.push({ at: Date.now(), frames }); return okResult(frames); } });
+  const own = { pauseMs: 120, limitMs: 250 };
+  await Promise.all([m.transmit(r, lamp, on, own), m.transmit(r, lamp, signal('Wyłącz', SECOND), own)]);
+  assert.deepEqual(times.map((t) => t.frames[0].durationMs), [250, 250], 'the timer\'s limit, not the buttons\' 100 ms');
+  assert.ok(times[1].at - times[0].at >= 115 && times[1].at - times[0].at < 2500, `the timer's pause, not the buttons' 3 s (${times[1].at - times[0].at} ms)`);
+  m.setPace(m.FASTEST);
+  ok('pace: pause between transmissions and a limit per frame — when sending, in the queue (taken when each press is due), stop in the middle of a pause; the buttons\' sliders only for the buttons, every timer with its own (stored with it, in the phone\'s plan, for „Wykonaj teraz"); the stored signal stays the fastest');
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;
   globalThis.fetch = realFetch;

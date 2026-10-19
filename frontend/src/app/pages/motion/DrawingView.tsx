@@ -18,12 +18,13 @@
  * so, wie sie ohne Bewegung beschrieben ist.
  */
 
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react';
+import { lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react';
 
 import { needsLive, radialOf, type Drawing, type Shape } from './drawing';
 import { dashArray, dashOf, keyframesOf, paint, timingOf, touchesPaint, type MotionUse } from './motion';
 import { usePhase, useReducedMotion, type Phase } from './MotionBox';
 import { imageUrl } from '../slides/slideLook';
+import { ShowClock } from '../presentation/showContext';
 
 interface Planned {
   readonly id: number;
@@ -160,19 +161,32 @@ function renderShape(s: Shape, ctx: Ctx, key: string): ReactNode {
  * DIE BEWEGUNGEN EINER ZEICHNUNG ABSPIELEN — geteilt mit dem Bild zum Anfassen
  * (`LiveDrawing`): alle angehalten im ersten Bild, bis die Zeichnung erreicht
  * ist; dann alle zugleich von vorn; fort — alle halten.
+ *
+ * 2026-10-19 — eine Bewegung mit `by` (in einer Szene einer Präsentation)
+ * folgt nicht der Uhr, sondern dem Fortschritt der Szene: eine Linie, die sich
+ * beim Rollen zeichnet, und zurückrollend wieder verschwindet.
  */
 export function useMotionPlan(svg: RefObject<SVGSVGElement | null>, plan: readonly { readonly id: number; readonly use: MotionUse; readonly shift: number }[], quiet: boolean, phase: Phase): void {
   const anims = useRef<Animation[]>([]);
   const armed = useRef(true);
+  const clock = useContext(ShowClock);
 
   useEffect(() => {
     const root = svg.current;
     if (root === null || quiet || typeof root.animate !== 'function') return undefined;
     const made: Animation[] = [];
+    const scrubbed: { readonly animation: Animation; readonly span: number; readonly by: NonNullable<MotionUse['by']> }[] = [];
     for (const item of plan) {
       const el = root.querySelector(`[data-mo~="${item.id}"]`);
       if (el === null) continue;
       const timing = timingOf(item.use);
+      if (item.use.by !== null && clock !== null && typeof clock.progress === 'function') {
+        const span = typeof timing.duration === 'number' ? Math.max(1, timing.duration) : 1000;
+        const animation = (el as Element).animate(keyframesOf(item.use, 'svg'), { ...timing, delay: 0, iterations: 1, direction: 'normal' });
+        animation.pause();
+        scrubbed.push({ animation, span, by: item.use.by });
+        continue;
+      }
       const animation = (el as Element).animate(keyframesOf(item.use, 'svg'), { ...timing, delay: Number(timing.delay ?? 0) + item.shift });
       animation.pause();
       animation.currentTime = 0;
@@ -180,8 +194,19 @@ export function useMotionPlan(svg: RefObject<SVGSVGElement | null>, plan: readon
     }
     anims.current = made;
     armed.current = true;
-    return () => { for (const a of made) a.cancel(); anims.current = []; };
-  }, [svg, plan, quiet]);
+    let off: (() => void) | null = null;
+    if (scrubbed.length > 0 && clock !== null) {
+      const follow = () => { for (const one of scrubbed) one.animation.currentTime = clock.progress!(one.by) * one.span; };
+      follow();
+      off = clock.subscribe(follow);
+    }
+    return () => {
+      off?.();
+      for (const a of made) a.cancel();
+      for (const one of scrubbed) one.animation.cancel();
+      anims.current = [];
+    };
+  }, [svg, plan, quiet, clock]);
 
   /* Erreicht: alle zugleich von vorn · fort: alle halten · zu sehen, schon gelaufen: weiter. */
   useEffect(() => {

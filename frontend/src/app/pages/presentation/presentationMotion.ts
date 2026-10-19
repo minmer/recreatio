@@ -17,9 +17,16 @@
  *   pIn  — wie weit die Szene hereingekommen ist   (0 bei zone.at − 1, 1 bei zone.at)
  *   pOut — wie weit sie schon gegangen ist          (0 bei zone.to,     1 bei zone.to + 1)
  * </code>
+ *
+ * 2026-10-19 — dieselbe Zahl treibt die KLATKI eines Platzes (`placeAt`): ihr
+ * Fortschritt ist das Innere der Szene, ihr Kommen oder ihr Gehen (`progressOf`);
+ * Ausschnitt und Maske mischen sich mit (`mixCrop`, `mixMask`, `maskCss`).
  */
 
-import { ORIGIN_AT, type Arrival, type Ease, type Origin, type Place, type SceneChange, type Words } from './presentation';
+import {
+  ORIGIN_AT, type Arrival, type Between, type Ease, type Frame, type FrameValues, type Mask, type Origin, type Place, type Progress,
+  type SceneChange, type Words
+} from './presentation';
 
 export const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -311,7 +318,12 @@ export function mixPlace(a: Place, b: Place, t: number): Place {
     opacity: mix(a.opacity, b.opacity, t),
     z: mix(a.z, b.z, t),
     step: t < 0.5 ? a.step : b.step,
-    tall: null
+    tall: null,
+    crop: mixCrop(a.crop, b.crop, t),
+    mask: mixMask(a.mask, b.mask, t),
+    frames: [],
+    by: a.by,
+    still: a.still
   };
 }
 
@@ -323,6 +335,8 @@ export interface Journey {
   readonly arriving: number | null;
   /** Wie weit er zwischen zwei Plätzen ist (0–1, mit Kurve) — für den Editor. */
   readonly between: number;
+  /** 2026-10-19 — auf welcher Szene er gerade steht (beim Gleiten: die, von der er kommt — wer mit seinen Szenen geht, die, zu der er geht). */
+  readonly scene: number;
 }
 
 /**
@@ -331,35 +345,191 @@ export interface Journey {
  * eigenen Platz hinweg. Vor dem ersten und nach dem letzten: bleibt er
  * (`hold`), oder er kommt mit seiner ersten Szene und geht mit seiner letzten.
  */
-export function journeyAt(places: ReadonlyMap<number, Place>, zones: readonly Zone[], s: number, ease: Ease, hold: boolean): Journey | null {
+export function journeyAt(
+  places: ReadonlyMap<number, Place>, zones: readonly Zone[], s: number, ease: Ease, hold: boolean,
+  /** 2026-10-19 — der Platz auf Szene `i` an der Stelle `s` (mit seinen Klatki); fehlt: wie er dasteht. */
+  framed: (i: number, s: number) => Place = (i) => places.get(i)!,
+  /** 2026-10-19 — zwischen Plätzen auf nicht benachbarten Szenen: gleiten (wie bisher) oder gehen und wiederkommen. */
+  between: Between = 'glide'
+): Journey | null {
   const keyed = [...places.keys()].filter((i) => zones[i] !== undefined).sort((a, b) => a - b);
   if (keyed.length === 0) return null;
   const first = keyed[0], last = keyed[keyed.length - 1];
   const firstZone = zones[first], lastZone = zones[last];
 
   if (s <= firstZone.to) {
-    const place = places.get(first)!;
-    if (hold || first === 0) return { place, presence: 1, arriving: null, between: 0 };
+    const place = framed(first, s);
+    if (hold || first === 0) return { place, presence: 1, arriving: null, between: 0, scene: first };
     const pIn = enteredOf(firstZone, s);
-    return { place, presence: pIn, arriving: pIn < 1 ? first : null, between: 0 };
+    return { place, presence: pIn, arriving: pIn < 1 ? first : null, between: 0, scene: first };
   }
 
   if (s >= lastZone.at) {
-    const place = places.get(last)!;
-    if (s <= lastZone.to || hold || last === zones.length - 1) return { place, presence: 1, arriving: null, between: 0 };
-    return { place, presence: 1 - leftOf(lastZone, s), arriving: null, between: 0 };
+    const place = framed(last, s);
+    if (s <= lastZone.to || hold || last === zones.length - 1) return { place, presence: 1, arriving: null, between: 0, scene: last };
+    return { place, presence: 1 - leftOf(lastZone, s), arriving: null, between: 0, scene: last };
   }
 
   for (let k = 0; k < keyed.length - 1; k += 1) {
     const a = keyed[k], b = keyed[k + 1];
     const from = zones[a].to, to = zones[b].at;
-    if (s >= zones[a].at && s <= zones[a].to) return { place: places.get(a)!, presence: 1, arriving: null, between: 0 };
+    if (s >= zones[a].at && s <= zones[a].to) return { place: framed(a, s), presence: 1, arriving: null, between: 0, scene: a };
     if (s > from && s < to) {
+      /*
+       * 2026-10-19 — GEHEN UND WIEDERKOMMEN: zwischen nicht benachbarten Szenen
+       * geht er mit der einen (wie ein Baustein seiner Szene) und kommt mit der
+       * anderen — dazwischen ist er nicht da.
+       */
+      if (between === 'leave' && b > a + 1) {
+        if (s < from + 1) return { place: framed(a, s), presence: 1 - leftOf(zones[a], s), arriving: null, between: 0, scene: a };
+        if (s > to - 1) {
+          const pIn = enteredOf(zones[b], s);
+          return { place: framed(b, s), presence: pIn, arriving: pIn < 1 ? b : null, between: 0, scene: b };
+        }
+        return { place: framed(a, s), presence: 0, arriving: null, between: 0, scene: a };
+      }
       const t = easeOf(ease, (s - from) / (to - from));
-      return { place: mixPlace(places.get(a)!, places.get(b)!, t), presence: 1, arriving: null, between: t };
+      /* 2026-10-19 — wer mit seinen Szenen geht ("leave"), steht beim Gleiten schon in der Ebene der kommenden: ihr Grund deckt ihn nicht zu. */
+      return { place: mixPlace(framed(a, s), framed(b, s), t), presence: 1, arriving: null, between: t, scene: between === 'leave' ? b : a };
     }
   }
-  return { place: places.get(last)!, presence: 1, arriving: null, between: 0 };
+  return { place: framed(last, s), presence: 1, arriving: null, between: 0, scene: last };
+}
+
+/* -- 2026-10-19: Klatki nach dem Fortschritt einer Szene ------------------------------------------ */
+
+/**
+ * WIE WEIT EINE SZENE IST — nach der Art des Fortschritts, je 0–1 (`Progress`):
+ * das Innere (vom ersten zum letzten Schritt; ohne zweiten Schritt 0), das Kommen
+ * (die erste Szene ist immer da), das Gehen (die letzte geht nie).
+ */
+export function progressOf(by: Progress, zone: Zone, s: number, first = false, last = false): number {
+  switch (by) {
+    case 'scene': return zone.to <= zone.at ? 0 : clamp01((s - zone.at) / (zone.to - zone.at));
+    case 'enter': return first ? 1 : enteredOf(zone, s);
+    case 'leave': return last ? 0 : leftOf(zone, s);
+  }
+}
+
+/** Wo eine Klatka steht: an einem Schritt (in Teilen der Schritte der Szene) oder bei `at`. */
+export const frameAt = (frame: Frame, steps: number): number =>
+  frame.step === null ? frame.at : steps <= 1 ? 0 : clamp01(frame.step / (steps - 1));
+
+/** Die zwei Prozente eines Ausschnitts („57% 40%" — so speichert ihn `readCrop`). */
+const cropXY = (crop: string): { x: number; y: number } | null => {
+  const m = /^(-?[\d.]+)% (-?[\d.]+)%$/.exec(crop);
+  return m === null ? null : { x: Number(m[1]), y: Number(m[2]) };
+};
+
+/** Zwei Ausschnitte gemischt — Prozent um Prozent; fehlt einer, gilt bis zur Mitte der eine, danach der andere. */
+export function mixCrop(a: string | null, b: string | null, t: number): string | null {
+  if (a === b) return a;
+  const pa = a === null ? null : cropXY(a);
+  const pb = b === null ? null : cropXY(b);
+  if (pa === null || pb === null) return t < 0.5 ? a : b;
+  return `${r2(mix(pa.x, pb.x, t))}% ${r2(mix(pa.y, pb.y, t))}%`;
+}
+
+/**
+ * Die Maske, die ALLES zeigt — in der Form einer anderen und um ihre Mitte
+ * (damit eine Maske aus dem Nichts aufgeht, statt zu springen). Ein Kreis
+ * braucht dafür höchstens 141 % (bis in die fernste Ecke, wie gestreckt der
+ * Kasten auch ist), eine Ellipse √2 mal den Weg zum fernsten Rand.
+ */
+export function fullMask(like: Mask): Mask {
+  switch (like.shape) {
+    case 'circle': return { ...like, r: 141.5 };
+    case 'ellipse': return { ...like, rx: r2(1.4143 * Math.max(like.x, 100 - like.x)), ry: r2(1.4143 * Math.max(like.y, 100 - like.y)) };
+    case 'inset': return { ...like, top: 0, right: 0, bottom: 0, left: 0 };
+  }
+}
+
+/** Zwei Masken gemischt: dieselbe Form Zahl um Zahl; ohne Maske — mit der, die alles zeigt; verschiedene Formen wechseln in der Mitte. */
+export function mixMask(a: Mask | null, b: Mask | null, t: number): Mask | null {
+  if (a === null && b === null) return null;
+  if (t <= 0) return a;
+  if (t >= 1) return b;
+  const from = a ?? fullMask(b!);
+  const to = b ?? fullMask(a!);
+  if (from.shape !== to.shape) return t < 0.5 ? a : b;
+  return {
+    shape: from.shape,
+    x: mix(from.x, to.x, t), y: mix(from.y, to.y, t), r: mix(from.r, to.r, t), rx: mix(from.rx, to.rx, t), ry: mix(from.ry, to.ry, t),
+    top: mix(from.top, to.top, t), right: mix(from.right, to.right, t), bottom: mix(from.bottom, to.bottom, t), left: mix(from.left, to.left, t),
+    round: mix(from.round, to.round, t)
+  };
+}
+
+/** Eine Maske als `clip-path` — keine: leer. */
+export function maskCss(mask: Mask | null): string {
+  if (mask === null) return '';
+  switch (mask.shape) {
+    case 'circle': return `circle(${r2(mask.r)}% at ${r2(mask.x)}% ${r2(mask.y)}%)`;
+    case 'ellipse': return `ellipse(${r2(mask.rx)}% ${r2(mask.ry)}% at ${r2(mask.x)}% ${r2(mask.y)}%)`;
+    case 'inset': return `inset(${r2(mask.top)}% ${r2(mask.right)}% ${r2(mask.bottom)}% ${r2(mask.left)}%${mask.round > 0 ? ` round ${r2(mask.round)}rem` : ''})`;
+  }
+}
+
+/** Was eine Klatka zeigt — der Platz ohne Kennung, Schritt und Klatki. */
+type Look = Pick<Place, 'x' | 'y' | 'w' | 'h' | 'max' | 'rotate' | 'scale' | 'opacity' | 'z' | 'crop' | 'mask'>;
+
+const lookOf = (p: Place): Look => ({ x: p.x, y: p.y, w: p.w, h: p.h, max: p.max, rotate: p.rotate, scale: p.scale, opacity: p.opacity, z: p.z, crop: p.crop, mask: p.mask });
+
+const withValues = (look: Look, v: FrameValues): Look => ({
+  x: v.x ?? look.x, y: v.y ?? look.y, w: v.w ?? look.w,
+  h: v.h === undefined ? look.h : v.h, max: v.max === undefined ? look.max : v.max,
+  rotate: v.rotate ?? look.rotate, scale: v.scale ?? look.scale, opacity: v.opacity ?? look.opacity, z: v.z ?? look.z,
+  crop: v.crop ?? look.crop, mask: v.mask === undefined ? look.mask : v.mask
+});
+
+const mixLook = (a: Look, b: Look, t: number): Look => ({
+  x: mix(a.x, b.x, t), y: mix(a.y, b.y, t), w: mix(a.w, b.w, t),
+  h: a.h !== null && b.h !== null ? mix(a.h, b.h, t) : t < 0.5 ? a.h : b.h,
+  max: a.max !== null && b.max !== null ? mix(a.max, b.max, t) : t < 0.5 ? a.max : b.max,
+  rotate: mix(a.rotate, b.rotate, t), scale: mix(a.scale, b.scale, t), opacity: mix(a.opacity, b.opacity, t), z: mix(a.z, b.z, t),
+  crop: mixCrop(a.crop, b.crop, t), mask: mixMask(a.mask, b.mask, t)
+});
+
+/**
+ * DER PLATZ BEI `u` (0–1 seines Fortschritts) — mit seinen Klatki. Der Platz
+ * selbst ist das Bild bei 0; jede Klatka ändert, was sie nennt (das Übrige
+ * bleibt, wie es in der Klatka davor war), und der Baustein geht in ihrer
+ * Kurve (`ease`) von der Klatka davor zu ihr. Nach der letzten bleibt er. Eine
+ * Klatka ohne Änderung hält also einfach still — bis zur nächsten. `steps`:
+ * die Schritte der Szene (für Klatki an einem Schritt).
+ */
+export function placeAt(place: Place, u: number, steps = 1): Place {
+  if (place.frames.length === 0) return place;
+  const frames = place.frames
+    .map((frame, i) => ({ frame, at: frameAt(frame, steps), i }))
+    .sort((a, b) => a.at - b.at || a.i - b.i);
+  let look = lookOf(place);
+  let at = 0;
+  for (const one of frames) {
+    const next = withValues(look, one.frame);
+    if (u <= one.at) {
+      const t = one.at <= at ? 1 : clamp01((u - at) / (one.at - at));
+      return { ...place, ...mixLook(look, next, easeOf(one.frame.ease, t)), frames: [] };
+    }
+    look = next;
+    at = one.at;
+  }
+  return { ...place, ...look, frames: [] };
+}
+
+/** Wo die Klatki bei „weniger Bewegung" stehen: `still` — sonst am Ende (beim Gehen am Anfang: die Szene ist ja noch da). */
+export const stillOf = (place: Place): number => place.still ?? (place.by === 'leave' ? 0 : 1);
+
+/**
+ * 2026-10-19 — UND AN DIESER STELLE `s`: Klatki an Schritten (eine Wahl, die
+ * ein Schritt trifft) springen von Schritt zu Schritt, ohne Weg dazwischen —
+ * sonst stünde die Szene auf einer einzigen Wahl, und die anderen Texte wären
+ * nie zu sehen. Ein gesetztes `still` gilt immer.
+ */
+export function stillAt(place: Place, zone: Zone, s: number): number {
+  if (place.still !== null || place.by !== 'scene' || !place.frames.some((frame) => frame.step !== null)) return stillOf(place);
+  const span = zone.to - zone.at;
+  return span <= 0 ? 0 : clamp01(Math.round(s - zone.at) / span);
 }
 
 /* -- Tiefe ------------------------------------------------------------------------------- */

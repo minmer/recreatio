@@ -1,7 +1,9 @@
 /**
  * EIN TIMER — Uhrzeit, Wochentage (keiner gewählt: jeden Tag), an/aus und die
- * Aktionen: je Aktion ein Gerät und einer seiner Sygnały, nacheinander gesendet.
- * „Wykonaj teraz" sendet sie gleich, über dieselbe Warteschlange wie die Knöpfe.
+ * Aktionen: je Aktion ein Gerät und einer seiner Sygnały, nacheinander gesendet —
+ * im Tempo DIESES Timers (eigene zwei Regler; die der Knöpfe gelten hier nicht).
+ * „Wykonaj teraz" sendet sie gleich, über dieselbe Warteschlange wie die Knöpfe,
+ * aber in seinem eigenen Tempo.
  */
 
 import { useState } from 'react';
@@ -19,6 +21,7 @@ import {
   type Lamp, type LampTimer, type LampTimerAction, type LampTimerData
 } from './lampStore';
 import { LampRadio } from './native';
+import { PaceControl } from './PaceControl';
 import { DAY_SHORT, nextRun, WEEKEND, whenText, WORKDAYS } from './timers';
 import { transmit } from './transmit';
 
@@ -95,7 +98,7 @@ export function TimerEdit({ ctx, timer, lamps, native, onSaved, onRemoved }: {
   const runNow = () => {
     for (const a of draft.actions) {
       const found = actionOf(lamps, a);
-      if (found !== null) void transmit(LampRadio, found.lamp, found.signal);
+      if (found !== null) void transmit(LampRadio, found.lamp, found.signal, draft.pace);
     }
   };
 
@@ -179,6 +182,9 @@ export function TimerEdit({ ctx, timer, lamps, native, onSaved, onRemoved }: {
         )}
       </div>
       <p className="wk-working">Akcje idą po kolei, każda tak długo, jak jej sygnał (zwykle ok. 1 s). Timer wykonuje telefon z włączonymi timerami, także przy zamkniętej aplikacji.</p>
+
+      <PaceControl pace={draft.pace} onChange={(pace) => set({ pace })} title="Tempo tego timera" between="między akcjami"
+        note="Tylko dla tego timera: przerwa między akcjami (i ramkami jednego sygnału) i najdłuższe nadawanie ramki. Suwaki przycisków go nie zmieniają." />
 
       <LampConsole native={native} />
 

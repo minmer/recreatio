@@ -47,6 +47,11 @@ public class SmsReceiver extends BroadcastReceiver {
         int subId = intent.getIntExtra("android.telephony.extra.SUBSCRIPTION_INDEX", intent.getIntExtra("subscription", -1));
 
         Context app = context.getApplicationContext();
+        /* Zablokowany (2026-10-19): das Telefon hält Nummern meist selbst zurück; Absender ohne Rufnummer nicht immer. */
+        if (Spam.blocked(app, address)) {
+            Log.i(TAG, "sms from a blocked sender dropped");
+            return;
+        }
         Uri row = null;
         try {
             row = SmsStore.insertInbox(app, address, body.toString(), sentAt, subId);

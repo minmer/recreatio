@@ -402,6 +402,18 @@ async function readBatches(ctx: PhoneCtx, ids: readonly string[], onProgress?: (
 export const loadConversation = (ctx: PhoneCtx, conversation: ArchivedConversation): Promise<ArchivedMessage[]> =>
   readBatches(ctx, conversation.batches);
 
+/**
+ * EIN GESPRÄCH AUS DEM ARCHIV (2026-10-19, Spam): seine Stapel fort. Gibt zurück, wie viele
+ * Nachrichten darin standen. Das Archiv vergisst sonst nichts — nur, wer es so will.
+ */
+export async function dropConversation(ctx: PhoneCtx, key: string): Promise<number> {
+  const { conversations } = await archiveIndex(ctx);
+  const found = conversations.find((c) => c.key === key);
+  if (found === undefined) return 0;
+  for (const id of found.batches) await call(`${base(ctx)}/sms/batch/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  return found.count;
+}
+
 /** ALLES — für die Suche im Text. */
 export async function loadAll(ctx: PhoneCtx, onProgress?: (done: number, total: number) => void): Promise<ArchivedMessage[]> {
   const summary = await archiveSummary(ctx, false);

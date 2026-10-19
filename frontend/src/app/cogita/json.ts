@@ -25,7 +25,7 @@ import { addFormDoc, COLUMN_SEPARATORS, KEY_ACTIONS, mapFormRefs, readAddForm, V
 import { readTemplate } from './cards';
 import { readFlow } from './flow';
 import { graphJson, readGraph } from './graph';
-import { DOC_KINDS, isBaseKind, kindDoc, type DocKind } from './kinds';
+import { DOC_KINDS, DOC_LABEL, isBaseKind, kindDoc, type DocKind } from './kinds';
 import { FIELD_TYPE_LABEL, FIELD_TYPES, readKind, type Entity, type KindDef } from './schema';
 import type { CogitaLibrary } from './store';
 
@@ -113,6 +113,54 @@ export function exportSchema(lib: CogitaLibrary, name: string, kinds: readonly K
     /* 2026-10-17 — die Formularze dodawania gehören zum Schema: sie sagen, wie man seine Einträge anlegt. */
     forms: lib.docs('addform').filter((e) => lib.isOwn(e.id)).map((e) => formJson(e.id, e.data))
   };
+}
+
+/**
+ * 2026-10-19 — FORMULARZE DODAWANIA ALS JSON, für sich: die Formulare und die
+ * eigenen Rodzaje, die sie brauchen (die ihrer Knoten und, Schritt für
+ * Schritt, die, auf die deren Verweisfelder zeigen). So trägt man einen
+ * Formularz in eine andere Baza wiedzy — oder ändert ihn im Text und holt ihn
+ * zurück: derselbe `ref` ändert ihn an Ort und Stelle. Das Format ist das des
+ * Schemas; der Import dort nimmt dasselbe Dokument.
+ */
+export function exportForms(lib: CogitaLibrary, forms: readonly { readonly id: string; readonly data: Readonly<Record<string, unknown>> }[], name: string): Record<string, unknown> {
+  const used = new Set<string>();
+  for (const f of forms) {
+    for (const n of readAddForm(f.id, f.data).graph.nodes) {
+      if (typeof n.config.kind === 'string') used.add(n.config.kind);
+      if (Array.isArray(n.config.kinds)) for (const k of n.config.kinds) if (typeof k === 'string') used.add(k);
+    }
+  }
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const id of [...used]) {
+      for (const f of lib.kind(id)?.fields ?? []) {
+        for (const t of f.type === 'ref' ? f.to ?? [] : []) if (!used.has(t)) { used.add(t); grew = true; }
+      }
+    }
+  }
+  const kinds = lib.refKinds.filter((k) => used.has(k.id) && ((!isBaseKind(k.id) && lib.isOwn(k.id)) || lib.docs('kind').some((e) => e.data.builtin === k.id)));
+  return {
+    format: SCHEMA_FORMAT,
+    version: 1,
+    name,
+    kinds: kinds.map((k) => ({ ref: `@${k.id}`, ...kindDoc(k) })),
+    forms: forms.map((f) => formJson(f.id, f.data))
+  };
+}
+
+/**
+ * Was der Import EINES FORMULARS nimmt: Rodzaje, Formulare und Kartenvorlagen
+ * (ein Formular kommt oft mit den Vorlagen, die aus seinen Einträgen Karten
+ * machen) — keine Einträge, keine Wiederholungen. Ohne Formular kein Import.
+ */
+export function planFormImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { error: string } {
+  if (!isObject(doc)) return { error: 'To nie jest dokument JSON.' };
+  if (!Array.isArray(doc.forms) || doc.forms.length === 0) return { error: 'W dokumencie nie ma formularza — brak listy „forms".' };
+  const extra = ['entities', 'revisions', 'flows', 'collections', 'looks', 'rules', 'values', 'views', 'settings'].filter((k) => doc[k] !== undefined);
+  const plan = planImport(lib, { format: doc.format, version: doc.version, name: doc.name, kinds: doc.kinds, templates: doc.templates, forms: doc.forms });
+  if ('error' in plan || extra.length === 0) return plan;
+  return { ...plan, warnings: [...plan.warnings, `Pominięte (to importuje się w Schemacie albo w Ustawieniach): ${extra.join(', ')}.`] };
 }
 
 /** Ein Ablauf mit allem, was er zeigt [F34]. */
@@ -255,7 +303,7 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
     entities.length === 0 ? '' : `Wpisy: ${entities.filter((e) => e.isNew).length} nowych, ${entities.filter((e) => !e.isNew).length} do zmiany.`,
     ...DOC_KINDS.map((k) => {
       const n = docs.filter((d) => d.kind === k);
-      return n.length === 0 ? '' : `${k}: ${n.filter((d) => d.isNew).length} nowych, ${n.filter((d) => !d.isNew).length} do zmiany.`;
+      return n.length === 0 ? '' : `${DOC_LABEL[k]}: ${n.filter((d) => d.isNew).length} nowych, ${n.filter((d) => !d.isNew).length} do zmiany.`;
     })
   ].filter(Boolean);
   if (lines.length === 0) return { error: 'W dokumencie nie ma nic do zaimportowania.' };
@@ -300,9 +348,50 @@ export async function applyImport(lib: CogitaLibrary, plan: ImportPlan, stage: (
 
 /* -- Beschreibung und Auftrag ------------------------------------------------------------------ */
 
+/** Die Rodzaje dieser Baza wiedzy, kurz — damit ein Dokument sie beim Namen nennen kann. */
+const kindsOfBase = (lib?: CogitaLibrary): string =>
+  lib === undefined ? '' : `\nRodzaje tej bazy wiedzy:\n${lib.kinds.map((k) => `  "${isBaseKind(k.id) ? k.id : k.name}" — ${k.name}: ${k.fields.map((f) => `${f.key} (${FIELD_TYPE_LABEL[f.type]}${f.multi ? ', kilka' : ''}${f.uncertain ? ', niepewne' : ''})`).join(', ')}`).join('\n')}\n`;
+
+/** Was ein Formularz dodawania im JSON ist — im Kurs, im Schema und für sich. */
+const formsSection = (): string => `"forms" — formularze dodawania (należą do schematu): {"ref", "name", "says", "graph", "keys", "paste", "order"}
+  węzeł "pick" — wybór na początek, zostaje dla wszystkich wierszy: "config": {"label", "kinds": ["@rodzaj"], "many", "optional", "value": ["@wpis"]}
+  węzeł "entry" — wpis z każdego wiersza: "config": {"kind": "@rodzaj", "label", "many" (kilka w wierszu), "reuse": "same|never", "identity": ["pole"],
+    "fields": {"pole": {"from": "type|ask|fixed", "value": "tekst"}}} — type: wpisywane w wierszu, ask: ustawiane na początek ("value" — domyślnie), fixed: stała wartość
+  krawędź {"id", "from": węzeł, "out": "out", "to": węzeł "entry", "in": klucz pola-odwołania} — wypełnia to pole wpisem z węzła "from";
+    kilka krawędzi do pola, które przyjmuje kilka: wartości po kolei według położenia węzłów (z góry na dół); wpis powstaje, gdy w wierszu są wszystkie połączone
+  "order": ["id węzła entry"] — kolejność pól w wierszu (Enter, kolumny wklejanej listy); bez niej jak na płótnie
+  "keys": {"enter", "ctrlEnter", "shiftEnter"}: ${KEY_ACTIONS.map((k) => `"${k}"`).join(', ')}
+  "paste": {"columns": ${COLUMN_SEPARATORS.map((k) => `"${k}"`).join(', ')}, "values": ${VALUE_SEPARATORS.map((k) => `"${k}"`).join(', ')}, "header": true|false}`;
+
+/** Was ein Rodzaj im JSON ist. */
+const kindsSection = (): string => `"kinds" — rodzaje:
+  "name" — nazwa, "label" — wzór etykiety, np. "{givenNames} {surname}", "tells" — pole, które odróżnia imienników,
+  "builtin" — zmiana wbudowanego rodzaju (person, work, quote, topic, text, project, knowledge, question),
+  "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "options", "to", "inverse", "symmetric", "media", "rangeOf", "says"}]
+  "options" (wybór z listy) — [{"value", "label"}]
+  "to" (odwołanie) — na jakie rodzaje wskazuje: ["@ref rodzaju z tego dokumentu", "Nazwa rodzaju", "topic"]; puste — na dowolne
+  typy pól: ${FIELD_TYPES.map((t) => `"${t}" (${FIELD_TYPE_LABEL[t]})`).join(', ')}`;
+
+/** 2026-10-19 — neben dem JSON eines Formulars: nur, was ihn betrifft. */
+export function formDescription(lib?: CogitaLibrary): string {
+  return `# Formularz dodawania jako JSON
+
+Format: "${SCHEMA_FORMAT}" (ten sam co schemat), wersja 1:
+  {"format", "version": 1, "name", "kinds": [...], "templates": [...], "forms": [...]}
+  "kinds" — rodzaje, których formularze potrzebują; bez nich muszą już być w tej bazie wiedzy (rozpoznane po "ref", nazwie albo wbudowanym identyfikatorze).
+  "templates" — szablony kart dla tych rodzajów (opcjonalnie): {"ref", "name", "kinds": ["@rodzaj"], "direction", "graph"}.
+  Formularz z tym samym "ref" co istniejący zmienia go w miejscu; inny — powstaje nowy. Niczego się nie usuwa.
+  "ref" — własna nazwa, np. "@miejsce"; w tym samym dokumencie odwołuje się nią do rodzaju ("kind": "@miejsce", "to": ["@miejsce"]).
+
+${kindsSection()}
+
+${formsSection()}
+${kindsOfBase(lib)}`;
+}
+
 /** Was die Formate bedeuten — neben jedem Import. */
 export function courseDescription(lib?: CogitaLibrary): string {
-  const kinds = lib === undefined ? '' : `\nRodzaje tej bazy wiedzy:\n${lib.kinds.map((k) => `  "${isBaseKind(k.id) ? k.id : k.name}" — ${k.name}: ${k.fields.map((f) => `${f.key} (${FIELD_TYPE_LABEL[f.type]}${f.multi ? ', kilka' : ''}${f.uncertain ? ', niepewne' : ''})`).join(', ')}`).join('\n')}\n`;
+  const kinds = kindsOfBase(lib);
   return `# Cogita jako JSON
 
 Formaty:
@@ -316,12 +405,7 @@ Wspólne:
   "ref" — własna nazwa wpisu, np. "@dawid"; inne pola odwołują się do niej tak samo: "@dawid".
   Istniejące wpisy rozpoznaje się po identyfikatorze (z eksportu); import zmienia je w miejscu i niczego nie usuwa.
 
-"kinds" — rodzaje:
-  "name" — nazwa, "label" — wzór etykiety, np. "{givenNames} {surname}", "tells" — pole, które odróżnia imienników,
-  "builtin" — zmiana wbudowanego rodzaju (person, work, quote, topic, text, project, knowledge, question),
-  "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "options", "to", "inverse", "symmetric", "media", "rangeOf", "says"}]
-  "to" (odwołanie) — na jakie rodzaje wskazuje: ["@ref rodzaju z tego dokumentu", "Nazwa rodzaju", "topic"]; puste — na dowolne
-  typy pól: ${FIELD_TYPES.map((t) => `"${t}" (${FIELD_TYPE_LABEL[t]})`).join(', ')}
+${kindsSection()}
   wartość niepewna: {"value": …, "state": "known|approximate|disputed|unknown|na|pending", "source": {"work": "@dzielo", "locator": "s. 23"}, "note": "…"}
   data: "1999", "1999-05", "1999-05-03", "-1000" (przed Chr.); zakres: {"segments": [{"from": 992, "to": 1000}]}
 
@@ -336,14 +420,7 @@ Wspólne:
 "revisions" — powtórki: {"name", "graph"} (źródła → filtr → … → jeden „Sposób pytania")
 "flows" — przebiegi: {"name", "look": "reading|slides|scenes|dialogue|flashcards|map", "start", "graph", "slots", "goals", "lines"}
 "collections" — zbiory: {"name", "rule": {"op": "and|or", "items": [{"field", "cmp", "value"}]}, "list": ["@wpis"]}
-"forms" — formularze dodawania (należą do schematu): {"name", "says", "graph", "keys", "paste", "order"}
-  węzeł "pick" — wybór na początek, zostaje dla wszystkich wierszy: "config": {"label", "kinds": ["@rodzaj"], "many", "optional", "value": ["@wpis"]}
-  węzeł "entry" — wpis z każdego wiersza: "config": {"kind": "@rodzaj", "label", "many" (kilka w wierszu), "reuse": "same|never", "identity": ["pole"],
-    "fields": {"pole": {"from": "type|ask|fixed", "value": "tekst"}}} — type: wpisywane w wierszu, ask: ustawiane na początek, fixed: stała wartość
-  krawędź {"id", "from": węzeł, "out": "out", "to": węzeł "entry", "in": klucz pola-odwołania} — wypełnia to pole wpisem z węzła "from"
-  "order": ["id węzła entry"] — kolejność pól w wierszu (Enter, kolumny wklejanej listy); bez niej jak na płótnie
-  "keys": {"enter", "ctrlEnter", "shiftEnter"}: ${KEY_ACTIONS.map((k) => `"${k}"`).join(', ')}
-  "paste": {"columns": ${COLUMN_SEPARATORS.map((k) => `"${k}"`).join(', ')}, "values": ${VALUE_SEPARATORS.map((k) => `"${k}"`).join(', ')}, "header": true|false}
+${formsSection()}
 ${kinds}`;
 }
 

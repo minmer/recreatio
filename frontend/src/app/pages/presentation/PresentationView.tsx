@@ -22,10 +22,18 @@
  * über den Szenen (er wandert) — dann zwischen der Szene, auf der er zuerst
  * steht, und der nächsten, damit ein Kreis über den Vierteln und unter dem
  * Text des letzten Bildes liegen kann.
+ *
+ * <b>2026-10-19 — Klatki, Ausschnitt, Maske, Klang</b> (Hortus Dei): ein Platz
+ * mit Klatki steht, wo der Fortschritt seiner Szene ihn hinstellt (`placeAt`);
+ * sein Ausschnitt geht als `--pz-crop` an das Bild darin, seine Maske als
+ * `clip-path` an den Baustein. Ein Baustein, der zwischen nicht benachbarten
+ * Szenen geht und wiederkommt (`between: "leave"`), steht in der Ebene der
+ * Szene, auf der er gerade ist. Der Klang der Umgebung spielt erst nach einem
+ * Klick auf seinen Knopf — leiser oder lauter, wie die Szenen es sagen.
  */
 
 import {
-  useEffect, useLayoutEffect, useMemo, useRef, useState,
+  Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState,
   type CSSProperties, type MutableRefObject, type ReactNode
 } from 'react';
 
@@ -35,7 +43,7 @@ import {
 } from './presentation';
 import {
   activeScene, arriveProgress, arriveStyle, betweenOf, clamp01, depthFade, emphasisOf, EMPHASIS, enteredOf, flightCurve,
-  growAt, journeyAt, panAt, sceneState, scatterWords, walkOf, yieldOf, zonesOf, type Stepped, type Zone
+  growAt, journeyAt, maskCss, panAt, placeAt, progressOf, sceneState, scatterWords, stillAt, walkOf, yieldOf, zonesOf, type Stepped, type Zone
 } from './presentationMotion';
 import { branch, goOf, nextOf, resolveTarget, routeOf, type Target } from './showPaths';
 import { ShowClock, ShowDark, type ShowClockValue } from './showContext';
@@ -98,6 +106,12 @@ function layerStyle(layer: Layer): CSSProperties {
 
 const plainClick = (event: React.MouseEvent) =>
   event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+
+/** 2026-10-19 — die Farben einer Szene, die ein Wandernder in ihrer Ebene trägt (`sceneVars`). */
+const PLANE_VARS = ['--pz-accent', '--pz-ink', '--pz-muted', '--pz-scene-ground', '--pz-paper'] as const;
+
+/** Wie hoch eine Szene steht, die über der nächsten fortgeht (Flug, Zoom, Aufdecken): über deren Grund (+10) UND Inhalt (+15). */
+const ABOVE = 16;
 
 /**
  * 2026-10-18 — wie hoch ein Baustein höchstens sein darf (in % der Bühne):
@@ -291,6 +305,10 @@ export function PresentationView({
   /* -- Malen ------------------------------------------------------------------------- */
 
   const sceneEls = useRef<(HTMLElement | null)[]>([]);
+  /* 2026-10-19 — der Grund einer Szene (Farbe, Schichten) für sich, unter ihrem Inhalt: dazwischen kann ein Wandernder stehen. */
+  const backEls = useRef<(HTMLDivElement | null)[]>([]);
+  /* 2026-10-19 — welche Farben ein Wandernder gerade trägt (die seiner Ebene) — nur neu setzen, wenn sie sich ändern. */
+  const planeOf = useRef(new WeakMap<HTMLElement, { readonly planes: readonly Record<string, string>[]; readonly level: number }>());
   const contentEls = useRef<(HTMLDivElement | null)[]>([]);
   const camEls = useRef<(HTMLDivElement | null)[]>([]);
   const hintEls = useRef<(HTMLParagraphElement | null)[]>([]);
@@ -319,16 +337,56 @@ export function PresentationView({
     clockListeners.current.add(listener);
     return () => { clockListeners.current.delete(listener); };
   }).current;
+  /* 2026-10-19 — und wie weit ihre Szene ist (für Bewegungen, die dem Fortschritt folgen). */
+  const progressAt = (i: number, by: 'scene' | 'enter' | 'leave'): number => {
+    const all = zonesRef.current;
+    const zone = all[i];
+    return zone === undefined ? 0 : progressOf(by, zone, sNow.current, i === 0, i === all.length - 1);
+  };
   const clocks: readonly ShowClockValue[] = useMemo(() => scenes.map((_, i) => ({
     step: () => sNow.current - (zonesRef.current[i]?.at ?? 0),
     subscribe,
-    go: (target: string) => goRef.current(target, i)
+    go: (target: string) => goRef.current(target, i),
+    progress: (by: 'scene' | 'enter' | 'leave') => progressAt(i, by)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   })), [scenes, subscribe]);
   const travelClock: ShowClockValue = useMemo(() => ({
     step: () => sNow.current - (zonesRef.current[activeScene(zonesRef.current, sNow.current)]?.at ?? 0),
     subscribe,
-    go: (target: string) => goRef.current(target, activeRef.current)
+    go: (target: string) => goRef.current(target, activeRef.current),
+    progress: (by: 'scene' | 'enter' | 'leave') => progressAt(activeScene(zonesRef.current, sNow.current), by)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [subscribe]);
+
+  /*
+   * 2026-10-19 — DER KLANG DER UMGEBUNG (`show.sound`): erst, wenn der Zuschauer
+   * ihn einschaltet (ein Klick — ohne Klick spielt kein Browser Ton ab, und
+   * ungefragt soll es auch nicht klingen); so laut, wie die Szenen sagen,
+   * dazwischen fliessend. Eine verborgene Seite schweigt.
+   */
+  const sound = show.sound;
+  const [soundOn, setSoundOn] = useState(false);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const soundLevel = useRef(1);
+  useEffect(() => {
+    if (sound === null || !soundOn) { audio.current?.pause(); return undefined; }
+    let el = audio.current;
+    if (el === null || el.dataset.src !== sound.url) {
+      el?.pause();
+      el = new Audio(imageUrl(sound.url));
+      el.loop = true;
+      el.preload = 'auto';
+      el.dataset.src = sound.url;
+      audio.current = el;
+    }
+    const player = el;
+    player.volume = clamp01(sound.volume * soundLevel.current);
+    void player.play().catch(() => setSoundOn(false));
+    const onVisible = () => { if (document.hidden) player.pause(); else void player.play().catch(() => undefined); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { document.removeEventListener('visibilitychange', onVisible); player.pause(); };
+  }, [sound, soundOn]);
+  useEffect(() => () => { audio.current?.pause(); audio.current = null; }, []);
 
   const paintRef = useRef<(s: number) => void>(() => undefined);
   paintRef.current = (s: number) => {
@@ -339,24 +397,55 @@ export function PresentationView({
     const states = scenes.map((_, i) => sceneState(zones, i, s, changes, reduced, keeps));
     const cams = scenes.map((sc, i) => (states[i].flown && !reduced ? sc.depth.travel * flightCurve(states[i].pOut, sc.depth.linger) : 0));
 
+    /*
+     * 2026-10-19 — EIN PLATZ MIT KLATKI: wo er an der Stelle `at` steht — nach
+     * dem Fortschritt seiner Szene (bei „weniger Bewegung" an seiner stillen
+     * Stelle). Hochkant bleibt ein Text auch dann auf der Bühne.
+     */
+    const framed = (one: Placed, i: number, at: number): Place => {
+      const raw = one.places.get(i)!;
+      if (raw.frames.length === 0) return raw;
+      const zone = zones[i];
+      if (zone === undefined) return raw;
+      const u = reduced ? stillAt(raw, zone, at) : progressOf(raw.by, zone, at, i === 0, i === scenes.length - 1);
+      const p = placeAt(raw, u, scenes[i]?.steps ?? 1);
+      return one.inside ? keepInside(p, one.piece.origin, narrowW) : p;
+    };
+
     scenes.forEach((sc, i) => {
       const el = sceneEls.current[i];
       if (el === null || el === undefined) return;
       const st = states[i];
+      /* 2026-10-19 — ihr Grund geht mit ihr (dieselbe Lage, dieselbe Deckkraft), steht aber eine Ebene tiefer. */
+      const back = backEls.current[i] ?? null;
+      const both = back === null ? [el] : [el, back];
       if (!st.visible) {
-        el.style.visibility = 'hidden';
-        el.style.opacity = '0';
+        for (const one of both) {
+          one.style.visibility = 'hidden';
+          one.style.opacity = '0';
+        }
         el.setAttribute('aria-hidden', 'true');
         return;
       }
-      el.style.visibility = 'visible';
       el.removeAttribute('aria-hidden');
-      el.style.opacity = String(st.opacity);
-      el.style.transform = st.x === 0 && st.y === 0 && st.scale === 1 && st.lift === 0 ? ''
+      const transform = st.x === 0 && st.y === 0 && st.scale === 1 && st.lift === 0 ? ''
         : `translate3d(${st.x}%, ${st.lift === 0 ? `${st.y}%` : `calc(${st.y}% + ${st.lift.toFixed(2)}px)`}, 0) scale(${st.scale})`;
       /* 0108 — beim Rozmycie verschwimmt die Szene ein wenig. */
-      el.style.filter = [st.dim > 0 ? `brightness(${1 - st.dim})` : '', st.blur > 0.01 ? `blur(${st.blur.toFixed(2)}px)` : ''].filter((f) => f !== '').join(' ');
-      el.style.zIndex = String(10 * (i + 1) + (st.above ? 12 : 0));
+      const filter = [st.dim > 0 ? `brightness(${1 - st.dim})` : '', st.blur > 0.01 ? `blur(${st.blur.toFixed(2)}px)` : ''].filter((f) => f !== '').join(' ');
+      for (const one of both) {
+        one.style.visibility = 'visible';
+        one.style.opacity = String(st.opacity);
+        one.style.transform = transform;
+        one.style.filter = filter;
+      }
+      /*
+       * Die Ebenen einer Szene: ihr Grund bei 10·(i+1), ihr Inhalt fünf darüber —
+       * ein Wandernder in ihrer Ebene steht bei 10·(i+1) + 5 + layer: mit
+       * negativem "layer" zwischen Grund und Texten, sonst davor.
+       */
+      const level = 10 * (i + 1) + (st.above ? ABOVE : 0);
+      if (back !== null) back.style.zIndex = String(level);
+      el.style.zIndex = String(level + 5);
 
       const content = contentEls.current[i];
       if (content !== null && content !== undefined) {
@@ -384,11 +473,16 @@ export function PresentationView({
       if (el === null || el === undefined) continue;
       let place: Place;
       let opacity = 1, dx = 0, dy = 0, scale = 1, f = 0, z = 0;
+      /* 2026-10-19 — Abblenden und Verschwimmen seiner Szene (nur, wer mit ihr geht). */
+      let look = '';
+      /* 2026-10-19 — in wessen Ebene ein Wandernder steht: der seiner ersten Szene — wer geht und wiederkommt, der Szene, auf der er gerade ist. */
+      let level = one.home;
 
       if (one.travel) {
-        const j = journeyAt(one.places, zones, s, one.piece.ease, one.piece.hold);
+        const j = journeyAt(one.places, zones, s, one.piece.ease, one.piece.hold, (i, at) => framed(one, i, at), one.piece.between);
         if (j === null || j.presence <= 0) { el.style.visibility = 'hidden'; el.style.pointerEvents = 'none'; continue; }
         place = j.place;
+        if (one.piece.between === 'leave') level = j.scene;
         if (j.arriving !== null) {
           const pIn = enteredOf(zones[j.arriving], s);
           const a = arriveStyle(one.piece.arrive, arriveProgress(pIn, one.piece.delay, one.piece.span), place, reduced, one.piece.origin);
@@ -396,8 +490,24 @@ export function PresentationView({
         } else if (j.presence < 1) {
           opacity = j.presence;
         }
+        /*
+         * 2026-10-19 — WER MIT SEINEN SZENEN GEHT, geht auch mit ihrer Bewegung:
+         * die Szene deckt zu, steigt auf, rückt zur Seite, verschwimmt — er mit
+         * ihr, wie ein Baustein von ihr (beim Gleiten zwischen zwei Plätzen nicht).
+         */
+        if (one.piece.between === 'leave' && j.between === 0) {
+          const st = states[j.scene];
+          if (st !== undefined && st.visible) {
+            if (j.arriving === null) opacity = 1;
+            opacity *= st.opacity;
+            dx += st.x + (place.x - 50) * (st.scale - 1);
+            dy += st.y + (place.y - 50) * (st.scale - 1) + (size.h > 0 ? (st.lift / size.h) * 100 : 0);
+            scale *= st.scale;
+            look = [st.dim > 0 ? `brightness(${1 - st.dim})` : '', st.blur > 0.01 ? `blur(${st.blur.toFixed(2)}px)` : ''].filter((f) => f !== '').join(' ');
+          }
+        }
       } else {
-        place = one.places.get(one.home)!;
+        place = framed(one, one.home, s);
         const st = states[one.home];
         if (st === undefined || !st.visible) { el.style.visibility = 'hidden'; el.style.pointerEvents = 'none'; continue; }
         const a = arriveStyle(one.piece.arrive, arriveProgress(st.pIn, one.piece.delay, one.piece.span), place, reduced, one.piece.origin);
@@ -434,10 +544,42 @@ export function PresentationView({
       el.style.opacity = String(opacity);
       el.style.transform = `translate(${-pin.x * 100}%, ${-pin.y * 100}%)${z !== 0 ? ` translateZ(${z}px)` : ''}${place.rotate !== 0 ? ` rotate(${place.rotate}deg)` : ''} scale(${place.scale * scale})`;
       el.style.setProperty('--pz-f', f.toFixed(3));
+      /* 2026-10-19 — der Ausschnitt geht an das Bild darin, die Maske an den Baustein. */
+      if (place.crop === null) el.style.removeProperty('--pz-crop');
+      else el.style.setProperty('--pz-crop', place.crop);
+      el.style.clipPath = maskCss(place.mask);
       el.style.zIndex = one.travel
-        ? String(one.piece.layer >= 10 ? 2000 + one.piece.layer : 10 * (one.home + 1) + 5 + one.piece.layer)
+        ? String(one.piece.layer >= 10 ? 2000 + one.piece.layer : 10 * (level + 1) + (states[level]?.above ? ABOVE : 0) + 5 + one.piece.layer)
         : String(Math.max(0, Math.round(20 + one.piece.layer * 2 + f)));
       el.style.pointerEvents = opacity > 0.3 ? 'auto' : 'none';
+      if (el.style.filter !== look) el.style.filter = look;
+      /* 2026-10-19 — ein Wandernder trägt die Farben der Szene, in deren Ebene er steht: Schrift, Papier, der Grund unter einem Bild, das noch lädt. */
+      if (one.travel) {
+        const was = planeOf.current.get(el);
+        if (was === undefined || was.level !== level || was.planes !== planes) {
+          planeOf.current.set(el, { planes, level });
+          const vars = planes[level] ?? {};
+          for (const name of PLANE_VARS) {
+            const value = vars[name];
+            if (value === undefined) el.style.removeProperty(name);
+            else el.style.setProperty(name, value);
+          }
+        }
+      }
+    }
+
+    /* 2026-10-19 — wie laut die Umgebung gerade ist: gewogen nach den Szenen, die zu sehen sind. */
+    if (sound !== null) {
+      let sum = 0, weight = 0;
+      states.forEach((st, i) => {
+        if (!st.visible) return;
+        const k = st.pIn * (1 - st.pOut);
+        weight += k;
+        sum += k * (scenes[i].volume ?? 1);
+      });
+      soundLevel.current = weight > 0 ? sum / weight : 1;
+      const player = audio.current;
+      if (player !== null && !player.paused) player.volume = clamp01(sound.volume * soundLevel.current);
     }
 
     /*
@@ -557,7 +699,15 @@ export function PresentationView({
     if (sc === undefined) return;
     if (target === 'back') { drive.current?.toScene(Math.max(0, from - 1)); return; }
     const t = target === 'next' ? nextOf(show, sc.key) : resolveTarget(show, target);
+    if (t.kind === 'step' && t.step !== null) { toStep(from, t.step); return; }
     if (t.kind === 'scene' || t.kind === 'link') follow(t, from);
+  };
+
+  /** 2026-10-19 — zu einem Schritt einer Szene des Weges (ein Bild antippen hebt es hervor, die Szene bleibt). */
+  const toStep = (index: number, step: number) => {
+    const zone = zones[index];
+    if (zone === undefined) return;
+    drive.current?.go(Math.min(zone.to, zone.at + Math.max(0, step)), 700);
   };
 
   /** Ein Knopf wurde gedrückt: auf seiner Szene (ein wandernder — auf der, die gerade dran ist). */
@@ -569,6 +719,13 @@ export function PresentationView({
     if (sc === undefined) return false;
     const target = goOf(show, one.piece, sc.key);
     if (target.kind === 'none') return false;
+    /* 2026-10-19 — ein Schritt derselben Szene: der eigene des Knopfes oder ein genannter. */
+    if (target.kind === 'step') {
+      const step = target.step ?? one.places.get(from)?.step ?? null;
+      if (step === null) return false;
+      toStep(from, step);
+      return true;
+    }
     follow(target, from);
     return true;
   };
@@ -679,6 +836,9 @@ export function PresentationView({
 
   const ending = branching && scenes.length > 0 && active === scenes.length - 1 ? nextOf(show, scenes[active].key) : null;
   const wayOut = ending !== null && ending.kind === 'link' ? ending.link : null;
+  /* Die kleine Leiste unten rechts: Zähler und Pfeile (im Vortrag, auf der Seite mit Leiste) — 2026-10-19: und der Knopf des Klangs, wo es einen gibt (nicht im stehenden Editor). */
+  const withTools = mode === 'present' || (mode === 'page' && show.nav !== 'none');
+  const withSound = sound !== null && frozen === null;
 
   const vars = {
     '--pz-accent': look.accent,
@@ -704,10 +864,16 @@ export function PresentationView({
         if (v !== null) out[`--pz-${key}`] = v;
       }
       const g = resolveColor(c.ground, dark);
-      if (g !== null) out['--pz-scene-ground'] = g;
+      /* 2026-10-19 — eine Karte, eine Pille auf einer Szene mit eigenem Grund liegt auf diesem (nicht auf dem der Seite): helle Schrift auf hellem Papier war unlesbar. */
+      if (g !== null) {
+        out['--pz-scene-ground'] = g;
+        out['--pz-paper'] = g;
+      }
     }
     return out as CSSProperties;
   };
+  /* Die Farben jeder Szene — für die Wandernden in ihrer Ebene. */
+  const planes = scenes.map((sc) => sceneVars(sc) as Record<string, string>);
 
   const pieceView = (one: Placed) => {
     const p = one.piece;
@@ -854,8 +1020,19 @@ export function PresentationView({
               const flat = own.filter((one) => !one.deep);
               const space = deep.length > 0 || words[i].length > 0;
               return (
+                <Fragment key={sc.key}>
+                {!shared && (
+                  <div
+                    className="pz-scene pz-scene-back"
+                    ref={(el) => { backEls.current[i] = el; }}
+                    aria-hidden="true"
+                    style={{ ...sceneVars(sc), visibility: 'hidden' }}
+                  >
+                    <div className="pz-ground" />
+                    {sc.layers.map((layer, n) => layerView(layer, n))}
+                  </div>
+                )}
                 <section
-                  key={sc.key}
                   ref={(el) => { sceneEls.current[i] = el; }}
                   className={`pz-scene${active === i ? ' is-active' : ''}${shared ? ' is-clear' : ''}`}
                   id={`scena-${anchorOf(sc.label) || i + 1}`}
@@ -863,9 +1040,6 @@ export function PresentationView({
                   data-change={sc.change}
                   style={{ ...sceneVars(sc), visibility: 'hidden' }}
                 >
-                  {!shared && <div className="pz-ground" aria-hidden="true" />}
-                  {!shared && sc.layers.map((layer, n) => layerView(layer, n))}
-
                   <SlidePhase.Provider value={phaseOf(i)}>
                   <ShowClock.Provider value={clocks[i] ?? null}>
                   {space && (
@@ -903,6 +1077,7 @@ export function PresentationView({
                     </p>
                   )}
                 </section>
+                </Fragment>
               );
             })}
 
@@ -937,15 +1112,32 @@ export function PresentationView({
           </a>
         )}
 
-        {(mode === 'present' || (mode === 'page' && show.nav !== 'none')) && scenes.length > 0 && (
+        {(withTools || withSound) && scenes.length > 0 && (
           <div className="pz-tools">
-            <span className="pz-count" aria-live="polite">{active + 1} / {scenes.length}</span>
-            <button type="button" aria-label="Wstecz" disabled={active === 0 && (drive.current?.at() ?? 0) <= 0} onClick={() => drive.current?.stepBy(-1)}>‹</button>
-            <button type="button" aria-label="Dalej" onClick={() => drive.current?.stepBy(1)}>›</button>
-            {mode === 'page' && onPresent !== undefined && (
-              <button type="button" className="pz-present" onClick={onPresent} title="Pokaz na pełnym ekranie">Pokaz</button>
+            {/* 2026-10-19 — der Klang der Umgebung: aus, bis der Zuschauer ihn will. */}
+            {withSound && sound !== null && (
+              <button type="button" className={`pz-sound${soundOn ? ' is-on' : ''}`} aria-pressed={soundOn}
+                title={soundOn ? 'Wyłącz dźwięk' : 'Włącz dźwięk'} onClick={() => setSoundOn((was) => !was)}>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" />
+                  {soundOn
+                    ? <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                    : <path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />}
+                </svg>
+                <span>{sound.label || 'Dźwięk'}</span>
+              </button>
             )}
-            {mode === 'present' && <button type="button" className="pz-present" onClick={onExit}>Zakończ</button>}
+            {withTools && (
+              <>
+                <span className="pz-count" aria-live="polite">{active + 1} / {scenes.length}</span>
+                <button type="button" aria-label="Wstecz" disabled={active === 0 && (drive.current?.at() ?? 0) <= 0} onClick={() => drive.current?.stepBy(-1)}>‹</button>
+                <button type="button" aria-label="Dalej" onClick={() => drive.current?.stepBy(1)}>›</button>
+                {mode === 'page' && onPresent !== undefined && (
+                  <button type="button" className="pz-present" onClick={onPresent} title="Pokaz na pełnym ekranie">Pokaz</button>
+                )}
+                {mode === 'present' && <button type="button" className="pz-present" onClick={onExit}>Zakończ</button>}
+              </>
+            )}
           </div>
         )}
       </div>

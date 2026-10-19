@@ -20,6 +20,18 @@ internal static class PageFileChecks
         check(PageImage.Looks("application/gpx+xml", "<gpx creator=\"x\">"u8), "bare gpx");
         check(!PageImage.Looks("application/gpx+xml", "<?xml version=\"1.0\"?><html xmlns=\"http://www.w3.org/1999/xhtml\">"u8), "xhtml posing as gpx refused");
 
+        /* 2026-10-19 — Filme und Klänge einer Präsentation: erlaubt, 30 MB, am Kopf erkannt, im Element (kein Download). */
+        check(PageImage.Allowed("video/mp4") && PageImage.Allowed("video/webm") && PageImage.Allowed("audio/mpeg"), "video and audio allowed");
+        check(!PageImage.Allowed("video/quicktime"), "quicktime refused");
+        check(PageImage.MaxBytesOf("video/mp4") == 30 * 1024 * 1024, "media get 30 MB");
+        check(PageImage.IsMedia("audio/ogg") && !PageImage.IsMedia("application/pdf"), "media are known");
+        check(PageImage.Looks("video/mp4", new byte[] { 0, 0, 0, 0x20, (byte)'f', (byte)'t', (byte)'y', (byte)'p', (byte)'i', (byte)'s', (byte)'o', (byte)'m' }), "mp4 by its ftyp box");
+        check(!PageImage.Looks("video/mp4", "%PDF-1.7\n"u8), "pdf posing as mp4 refused");
+        check(PageImage.Looks("video/webm", new byte[] { 0x1A, 0x45, 0xDF, 0xA3, 0x9F }), "webm by its EBML head");
+        check(PageImage.Looks("audio/mpeg", "ID3\u0004\u0000"u8) && PageImage.Looks("audio/mpeg", new byte[] { 0xFF, 0xFB, 0x90 }), "mp3 with a tag or a frame");
+        check(PageImage.Looks("audio/ogg", "OggS\u0000"u8) && !PageImage.Looks("audio/ogg", "<html>"u8), "ogg by its head");
+        check(PageImage.Looks("audio/wav", "RIFF$\u0000\u0000\u0000WAVEfmt "u8) && !PageImage.Looks("audio/wav", "RIFF$\u0000\u0000\u0000WEBPVP8 "u8), "wav, not webp");
+
         var id = Guid.Parse("01a0f4c1-bab6-7be5-bdfc-6f198a63ecea");
         var said = PageImage.Disposition("Regulamin \"2026\"; ż.pdf", id);
         check(said.StartsWith("attachment; ", StringComparison.Ordinal), "files go out as downloads");

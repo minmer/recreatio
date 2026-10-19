@@ -42,6 +42,10 @@ import java.util.TimeZone;
  * Sonst schalteten zwei Telefone dieselbe Lampe zweimal. Wer auf einem Telefon den
  * ersten Timer anlegt, schaltet es dort ein ({@code decided}).</p>
  *
+ * <p><b>Das Tempo</b> jedes Timers (seine eigenen zwei Regler) steckt schon im Plan: die
+ * Ramki sind gekürzt und haben mehr Pause dazwischen, und zwischen den Aktionen steht
+ * {@code pauseMs}.</p>
+ *
  * <p><b>Ein Wecker</b> für die nächste fällige Minute (genau, wo Android es erlaubt —
  * {@code USE_EXACT_ALARM} ab Android 13; davor ungenau). Klingelt er, laufen alle Timer
  * dieser Minute nacheinander ({@link LampTimerReceiver}), dann wird der nächste gestellt.
@@ -107,7 +111,7 @@ final class LampTimers {
     }
 
     static synchronized void store(Context context, JSONArray timers) {
-        prefs(context).edit().putString("plan", timers.toString()).apply();
+        prefs(context).edit().putString("plan", timers.toString()).remove("pace").apply();
         arm(context);
     }
 
@@ -199,11 +203,14 @@ final class LampTimers {
     private static void run(Context context, JSONObject timer, long planned) {
         JSONArray actions = timer.optJSONArray("actions");
         int total = actions == null ? 0 : actions.length();
+        long pause = Math.max(0, Math.min(LampFrame.MAX_GAP_MS, timer.optLong("pauseMs", 0)));
         int ok = 0;
         JSArray failed = new JSArray();
         for (int i = 0; i < total; i++) {
             JSONObject action = actions.optJSONObject(i);
             if (action == null) continue;
+            /* Das Tempo des Timers: eine Pause vor jeder weiteren Aktion — die Lampe zählt sie einzeln. */
+            if (i > 0 && pause > 0) LampRadio.NEVER.hold(pause);
             String code;
             String detail = null;
             try {

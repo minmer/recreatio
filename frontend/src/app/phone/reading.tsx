@@ -2,7 +2,7 @@
  * MEHRERE NACHRICHTEN AUF EINMAL (2026-10-18) — lange drücken wählt eine, dann
  * wählt jeder kurze Tipp weitere; „Wyświetl" zeigt sie gross (A− / A+, am Konto
  * gemerkt), „Kopiuj" nimmt ihren Text mit. Im Gespräch auf dem Telefon und im
- * Archiv, auch im Browser. Löschen gibt es hier nicht.
+ * Archiv, auch im Browser. Die Leiste darüber ist die des Chats (`SmsLog`).
  */
 
 import { useRef, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
@@ -66,18 +66,6 @@ export function copyReadable(items: readonly Readable[]): void {
   const text = items.map((m) => `${m.who} (${stamp(m.at)}):\n${m.body}`).join('\n\n');
   void navigator.clipboard?.writeText(text).then(() => toast(items.length === 1 ? 'Skopiowano wiadomość.' : `Skopiowano wiadomości: ${items.length}.`))
     .catch(() => toast('Nie udało się skopiować.'));
-}
-
-/** Die Leiste, solange gewählt wird — statt des Kopfes des Gesprächs. */
-export function SelectionBar({ count, onShow, onCopy, onClear }: { count: number; onShow: () => void; onCopy: () => void; onClear: () => void }) {
-  return (
-    <div className="ph-thread-head ph-select-bar" role="toolbar" aria-label="Zaznaczone wiadomości">
-      <button type="button" className="wk-icon-btn" aria-label="Zakończ zaznaczanie" title="Zakończ zaznaczanie" onClick={onClear}><Icon name="x" /></button>
-      <span className="ph-thread-title"><strong className="ph-thread-name">Zaznaczone: {count}</strong></span>
-      <button type="button" className="wk-btn wk-btn-quiet" onClick={onCopy}><Icon name="copy" />Kopiuj</button>
-      <button type="button" className="wk-btn" onClick={onShow}><Icon name="eye" />Wyświetl</button>
-    </div>
-  );
 }
 
 const SIZES = { min: 0.8, max: 4, step: 0.2 };

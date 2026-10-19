@@ -10,8 +10,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
 import {
-  deletePageImage, describeFile, FILE_ACCEPT, imageRef, isImageType, loadPageImages, typeOfFile, uploadPageFile,
-  uploadPageImage, type PageImageRow
+  deletePageImage, describeFile, FILE_ACCEPT, imageRef, isAudioType, isImageType, isMediaType, isVideoType, loadPageImages, mediaAccept, typeOfFile,
+  uploadPageFile, uploadPageImage, type PageImageRow
 } from './pageImages';
 import { WorkspaceError } from '../core/session';
 import { imageUrl } from './slides/slideLook';
@@ -123,7 +123,7 @@ export function FilePicker({ path, value, busy, onPick }: {
     }
   };
 
-  const documents = (files ?? []).filter((one) => !isImageType(one.contentType));
+  const documents = (files ?? []).filter((one) => !isImageType(one.contentType) && !isMediaType(one.contentType));
 
   return (
     <div className="pe-files">
@@ -144,6 +144,61 @@ export function FilePicker({ path, value, busy, onPick }: {
       <input ref={input} type="file" accept={`${FILE_ACCEPT},image/*`} hidden
         onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void upload(file); }} />
       <span className="wk-hint">Pliki strony są publiczne jak sama strona i pobierają się jako plik (do 25 MB).</span>
+      {failed !== null && <span className="wk-error">{failed}</span>}
+    </div>
+  );
+}
+
+/**
+ * 2026-10-19 — EIN FILM ODER EIN KLANG der Seite (Präsentation): wählen oder
+ * hochladen. Öffentlich wie die Seite, wie ihre Bilder.
+ */
+export function MediaPicker({ path, kind, value, busy, onPick }: {
+  path: string;
+  kind: 'video' | 'audio';
+  value: string;
+  busy: boolean;
+  onPick: (url: string) => void;
+}) {
+  const { files, setFiles } = usePageFiles(path);
+  const [working, setWorking] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement | null>(null);
+  const fits = kind === 'video' ? isVideoType : isAudioType;
+  const list = (files ?? []).filter((one) => fits(one.contentType));
+
+  const upload = async (file: File) => {
+    setWorking(true);
+    setFailed(null);
+    try {
+      const type = typeOfFile(file);
+      if (type === null || !fits(type)) throw new WorkspaceError(kind === 'video' ? 'Tylko filmy MP4 albo WebM.' : 'Tylko dźwięki MP3, M4A, OGG albo WAV.');
+      const made = await uploadPageFile(path, file, file.name, type);
+      setFiles((was) => [made, ...(was ?? [])]);
+      onPick(imageRef(made.id));
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wgrać pliku.');
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <div className="pe-files">
+      {list.length > 0 && (
+        <select className="pe-files-pick" value={list.some((one) => imageRef(one.id) === value) ? value : ''} disabled={busy}
+          aria-label={kind === 'video' ? 'Film z tej strony' : 'Dźwięk z tej strony'}
+          onChange={(e) => { if (e.target.value !== '') onPick(e.target.value); }}>
+          <option value="">{kind === 'video' ? '— film z tej strony —' : '— dźwięk z tej strony —'}</option>
+          {list.map((one) => <option key={one.id} value={imageRef(one.id)}>{one.name ?? one.id} · {describeFile(one.name ?? '', one.size)}</option>)}
+        </select>
+      )}
+      <button type="button" className="wk-btn wk-btn-quiet pe-files-add" disabled={busy || working} onClick={() => input.current?.click()}
+        title="Pliki strony są publiczne jak sama strona (do 30 MB).">
+        {working ? 'Wgrywanie…' : kind === 'video' ? 'Wgraj film (publiczny, do 30 MB)' : 'Wgraj dźwięk (publiczny, do 30 MB)'}
+      </button>
+      <input ref={input} type="file" accept={mediaAccept(kind)} hidden
+        onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void upload(file); }} />
       {failed !== null && <span className="wk-error">{failed}</span>}
     </div>
   );

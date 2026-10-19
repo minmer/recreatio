@@ -53,13 +53,14 @@ body.has-pz { overflow: hidden; }
 
 /* -- Eine Szene ----------------------------------------------------------- */
 .pz-scene {
-  --wk-ground: var(--pz-ground);
+  /* 2026-10-19 — "ground" in einer Szene ist ihr eigener Grund, wenn sie einen hat. */
+  --wk-ground: var(--pz-scene-ground, var(--pz-ground));
   --wk-ink: var(--pz-ink);
   --wk-muted: var(--pz-muted);
   --wk-accent: var(--pz-accent);
   --wk-line: var(--pz-line);
-  --wk-surface: color-mix(in srgb, var(--pz-ground) 90%, var(--pz-ink) 10%);
-  --wk-soft: color-mix(in srgb, var(--pz-ground) 84%, var(--pz-ink) 16%);
+  --wk-surface: color-mix(in srgb, var(--pz-scene-ground, var(--pz-ground)) 90%, var(--pz-ink) 10%);
+  --wk-soft: color-mix(in srgb, var(--pz-scene-ground, var(--pz-ground)) 84%, var(--pz-ink) 16%);
 
   position: absolute;
   inset: 0;
@@ -139,7 +140,10 @@ body.has-pz { overflow: hidden; }
   box-shadow: 0 14px 40px rgb(20 24 15 / 0.10);
 }
 .skin-pill .pz-box { padding: 0.75rem 1.25rem; border-radius: 999px; background: var(--pz-paper); box-shadow: 0 8px 24px rgb(20 24 15 / 0.08); }
-.pz-el.skin-pill { width: auto !important; max-width: 90%; white-space: nowrap; }
+/* 2026-10-19 — so breit wie ihr Text: auch nah am rechten Rand (dort liesse "auto" nur den Rest bis zum Rand, und sie bräche um). */
+.pz-el.skin-pill { width: max-content !important; max-width: 90%; white-space: nowrap; }
+/* 2026-10-19 — ein Wandernder schreibt in der Schrift der Szene, in deren Ebene er steht (die Farben setzt die Bühne an ihn). */
+.pz-travel > .pz-el { color: var(--pz-ink); }
 /* Das Feld (Altbestand: die Viertel) — Fläche mit Text und Bild, ohne Rundung. */
 .skin-panel .pz-box {
   grid-template-rows: auto minmax(0, 1fr); gap: 0; align-content: stretch;
@@ -217,8 +221,9 @@ body.has-pz { overflow: hidden; }
 }
 .pz-close .pz-gapline { display: block; height: 0.5em; }
 .type-close .pz-title { font-size: clamp(1.1rem, 1.9cqw, 1.5rem); color: var(--pz-accent); }
+/* 2026-10-19 — eine eigene Schrift ("ink" des Bausteins) geht vor: ein Knopf in Akzentfarbe braucht dunkle Schrift, nicht die leise. */
 .type-note .pz-title, .type-note .wk-card-text {
-  margin: 0; font-family: var(--pz-ui); font-size: var(--wk-text-sm); letter-spacing: 0.12em; color: var(--pz-muted); font-weight: 400;
+  margin: 0; font-family: var(--pz-ui); font-size: var(--wk-text-sm); letter-spacing: 0.12em; color: var(--pz-box-ink, var(--pz-muted)); font-weight: 400;
 }
 
 /* Hochkant ist die Breite knapp (Altbestand: @media (orientation: portrait)). */
@@ -281,6 +286,10 @@ body.has-pz { overflow: hidden; }
 .pz-tools button:disabled { opacity: 0.35; cursor: default; }
 .pz-count { font-variant-numeric: tabular-nums; padding: 0 0.25rem; }
 .pz-present { font-weight: 600; }
+/* 2026-10-19 — der Klang der Umgebung: ein Knopf in der Leiste, aus, bis man ihn will. */
+.pz-tools .pz-sound { display: inline-flex; align-items: center; gap: 0.3rem; }
+.pz-tools .pz-sound svg { width: 1.05rem; height: 1.05rem; flex: none; }
+.pz-tools .pz-sound.is-on { color: var(--pz-accent); border-color: color-mix(in srgb, var(--pz-accent) 45%, transparent); }
 .pz-extra {
   position: absolute; left: clamp(0.6rem, 2vw, 1.2rem); top: clamp(0.6rem, 2vh, 1.2rem); z-index: 3000; max-width: min(28rem, 90%);
   display: grid; gap: 0.5rem;
@@ -294,6 +303,16 @@ body.has-pz { overflow: hidden; }
 .pz .wk-image.is-cover, .pz .wk-image.is-cover .wk-image-link { height: 100%; }
 .pz .wk-image.is-cover .wk-image-img { height: 100%; aspect-ratio: auto; }
 .wk-image-link { display: block; }
+/*
+   2026-10-19 — EIN BILD, DAS NOCH LÄDT, ist eine ruhige Fläche in den Farben der Szene, keine leere
+   Stelle; dann blendet es weich ein. So kommt keine Szene mit einem Loch oder einem Blitz herein, auch
+   wenn die Datei langsam kommt.
+*/
+.wk-image-img { transition: opacity 280ms ease; }
+.wk-image-img.is-loading { opacity: 0; }
+.wk-image.is-pending { background: color-mix(in srgb, var(--wk-ink, #7f7f7f) 7%, transparent); }
+.pz .wk-image.is-pending { background: color-mix(in srgb, var(--pz-ink) 9%, var(--pz-scene-ground, var(--pz-ground))); }
+@media (prefers-reduced-motion: reduce) { .wk-image-img { transition: none; } }
 .wk-image-caption { display: grid; gap: 0.125rem; font-size: var(--wk-text-sm); color: var(--wk-muted); }
 .pz .wk-image-caption { font-style: italic; color: var(--pz-accent); font-size: clamp(0.95rem, 1.6cqw, 1.3rem); }
 .wk-image-edit { display: grid; gap: 0.5rem; }

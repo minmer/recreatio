@@ -34,6 +34,11 @@
  * Bahn (`slideMotion.ts`, `presentationMotion.ts`); was hier steht, ist ein
  * Auftritt nach der Uhr.
  *
+ * 2026-10-19 — `by` (in einer Szene einer Präsentation): die Bewegung folgt
+ * nicht der Uhr, sondern dem FORTSCHRITT der Szene — ihrem Inneren (`scene`),
+ * ihrem Kommen (`enter`), ihrem Gehen (`leave`), je 0–1 vom ersten zum
+ * letzten Bild. Zurückrollen spielt sie rückwärts, Stillstand hält sie an.
+ *
  * <b>Dieselben Wörter überall:</b> an einem Baustein auf einem Slajd oder in
  * einer Szene (`MotionBox.tsx`), an einer Ebene eines Bildes aus Schichten,
  * an einer Schicht der Luft, und an jedem Teil einer Zeichnung („Animacja",
@@ -307,7 +312,13 @@ export interface MotionUse {
   readonly path: readonly Point[] | null;
   readonly times: readonly number[] | null;
   readonly keys: readonly Key[] | null;
+  /** 2026-10-19 — dem Fortschritt der Szene folgen statt der Uhr; `null`: der Uhr. */
+  readonly by: MotionBy | null;
 }
+
+/** 2026-10-19 — welchem Fortschritt einer Szene eine Bewegung folgt (sonst der Uhr). */
+export const MOTION_BY = ['scene', 'enter', 'leave'] as const;
+export type MotionBy = (typeof MOTION_BY)[number];
 
 /** Höchstens so viele Bewegungen an einem Ding — eine im Auftritt, eine in der Schleife, eine dazu. */
 export const MAX_MOTIONS = 3;
@@ -362,8 +373,18 @@ export function glowValue(value: unknown): string | null {
   return `${px(m[1])} ${px(m[2])} ${px(m[3])} ${m[4].trim()}`;
 }
 
-/** Ein Ausschnitt: `inset(…)` mit Längen und Prozenten. */
-const CLIP = /^inset\(\s*-?[\d.]+(px|%)?(\s+-?[\d.]+(px|%)?){0,3}\s*\)$/;
+/**
+ * Ein Ausschnitt: `inset(…)` mit Längen und Prozenten (und runden Ecken), und
+ * 2026-10-19 ein Kreis oder eine Ellipse mit Mitte: `circle(40% at 50% 60%)`,
+ * `ellipse(60% 40% at 50% 50%)` — eine Maske, die mit dem Fortschritt aufgeht.
+ */
+const LEN = '-?[\\d.]+(?:px|%|rem)?';
+const AT = `(?:\\s+at\\s+${LEN}\\s+${LEN})?`;
+const CLIP = new RegExp(
+  `^(?:inset\\(\\s*${LEN}(?:\\s+${LEN}){0,3}(?:\\s+round\\s+${LEN})?\\s*\\)`
+  + `|circle\\(\\s*${LEN}${AT}\\s*\\)`
+  + `|ellipse\\(\\s*${LEN}\\s+${LEN}${AT}\\s*\\))$`
+);
 
 const EASE_NAMES: Readonly<Record<string, string>> = {
   linear: 'linear', ease: 'ease', in: 'ease-in', out: 'ease-out', inOut: 'ease-in-out',
@@ -458,7 +479,8 @@ export function readMotionUse(value: unknown): MotionUse | null {
     to: valueOf(one.to),
     path: path !== null && path.length >= 2 ? path : null,
     times: times !== null && path !== null && times.length === path.length ? times : null,
-    keys: keys !== null && keys.length >= 1 ? keys : null
+    keys: keys !== null && keys.length >= 1 ? keys : null,
+    by: (MOTION_BY as readonly string[]).includes(typeof one.by === 'string' ? one.by : '') ? one.by as MotionBy : null
   };
 }
 
@@ -496,7 +518,8 @@ export function motionUseJson(use: MotionUse): Record<string, unknown> {
     ...(use.to === null ? {} : { to: use.to }),
     ...(use.path === null ? {} : { path: use.path }),
     ...(use.times === null ? {} : { times: use.times }),
-    ...(use.keys === null ? {} : { keys: use.keys })
+    ...(use.keys === null ? {} : { keys: use.keys }),
+    ...(use.by === null ? {} : { by: use.by })
   };
 }
 
@@ -723,11 +746,12 @@ export function motionDescription(): string {
     '  "repeat" — "once" (raz, gdy rzecz zostaje osiągnięta; przy następnym przyjściu od nowa — do tego czasu stoi w pierwszej klatce), "loop" (w kółko, dopóki widać), "alternate" (tam i z powrotem), albo liczba powtórzeń',
     '  "ease" — jak przechodzi z klatki do klatki: "linear", "ease", "in", "out", "inOut", "step" albo "cubic-bezier(a, b, c, d)"',
     '  "unit" — "px" (zwykle; w rysunku — jednostki rysunku) albo "%" (procent własnej wielkości)',
+    '  "by" — tylko w scenie prezentacji: ruch idzie nie za zegarem, lecz za POSTĘPEM sceny — "scene" (wnętrze sceny: od pierwszego do ostatniego kroku), "enter" (wejście sceny), "leave" (wyjście sceny); 0 — pierwsza klatka, 1 — ostatnia. Przewijanie wstecz cofa ruch, zatrzymanie go zatrzymuje; "duration", "delay" i "repeat" wtedy nie grają roli',
     '  Słowa podstawowe (z nich da się złożyć każdy ruch):',
     ...MOTIONS.filter((d) => d.verb).map(line),
     '  Klatka ("keys"): "at" 0–1 — kiedy; "x", "y" — przesunięcie; "scale" albo "sx", "sy" — wielkość; "rotate" — stopnie; "opacity" 0–1; "blur" — rozmycie w px;',
     '    "draw" — ile linii narysowane (0–1); "color" — kolor wypełnienia albo napisu; "stroke" — kolor linii; "glow" — poświata "x y rozmycie kolor" (np. "0 0 10px rgba(160, 220, 255, 0.75)");',
-    '    "reveal" 0–1 — ile widać od lewej; "clip" — wycinek "inset(góra prawa dół lewa)"; "ease" — przejście do następnej klatki. Czego klatka nie podaje, płynie jednym ruchem między klatkami, które to podają; przed pierwszą taką — jak rzecz jest sama z siebie, po ostatniej — zostaje.',
+    '    "reveal" 0–1 — ile widać od lewej; "clip" — wycinek "inset(góra prawa dół lewa round 1rem)", koło "circle(40% at 50% 50%)" albo owal "ellipse(60% 40% at 50% 50%)" (z "by" — maska, która rośnie z postępem); "ease" — przejście do następnej klatki. Czego klatka nie podaje, płynie jednym ruchem między klatkami, które to podają; przed pierwszą taką — jak rzecz jest sama z siebie, po ostatniej — zostaje.',
     '  Kolory: "#rrggbb", "rgba(…)", nazwy motywu "accent", "ink", "ground", "muted", "ok", "danger" — z "/35" na końcu: krycie 35 %.',
     '  Gotowe ruchy (ze starego pokazu Cogita) — wejścia:',
     ...MOTIONS.filter((d) => !d.verb && d.kind === 'enter').map(line),

@@ -135,6 +135,11 @@ final class SmsNotices {
     static void incoming(Context context, long thread) {
         if (thread < 0) return;
         if (MainActivity.inFront && PhonePlugin.viewing() == thread) return;
+        /* Wyciszone (2026-10-19): die Nachricht steht im Gespräch, gemeldet wird sie nicht. */
+        if (Spam.muted(context, thread)) {
+            Notices.cancel(context, idOf(thread));
+            return;
+        }
         List<Line> lines = unread(context, thread);
         if (lines.isEmpty()) {
             Notices.cancel(context, idOf(thread));
@@ -228,9 +233,12 @@ final class SmsNotices {
             new Thread(() -> {
                 try {
                     if (reply != null) {
+                        /* Über die Karte des Gesprächs (die Seite legt sie fest), sonst über die, auf der zuletzt etwas kam. */
+                        int sub = Spam.threadSub(app, thread);
+                        if (sub < 0) sub = SmsStore.lastIncomingSub(app, thread);
                         List<String> to = SmsStore.recipients(app, thread);
-                        if (to.size() == 1) SmsSender.sendSms(app, to.get(0), reply, -1);
-                        else if (to.size() > 1) SmsSender.sendMms(app, to, reply, null, null, null, -1);
+                        if (to.size() == 1) SmsSender.sendSms(app, to.get(0), reply, sub);
+                        else if (to.size() > 1) SmsSender.sendMms(app, to, reply, null, null, null, sub);
                     }
                     SmsStore.markRead(app, thread);
                     cancel(app, thread);

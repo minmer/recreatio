@@ -9,6 +9,10 @@
  *
  * Ein Ausgang führt zu einer Szene, zum Ende (`end`) oder HINAUS — zu einer
  * Seite im Netz oder hier (`link:<id>`, die Wege stehen in `show.links`).
+ * 2026-10-19 — oder zu einem SCHRITT derselben Szene (`step`: dem eigenen des
+ * Knopfes, `step:<n>`: diesem): ein Bild antippen hebt es hervor, ohne die
+ * Szene zu verlassen. Und `*` statt einer Szene: auf jeder Szene, auf der der
+ * Knopf steht (eine kleine, feste Leiste mit „Kontakt").
  * Ohne eigenes Ziel führt „dalej" zur nächsten Szene der Liste: eine
  * Präsentation ohne Wege bleibt genau, wie sie war.
  *
@@ -32,9 +36,16 @@ export const LINK = 'link:';
 /** „dalej": der Ausgang jeder Szene, der an Pfeilen, Rad und Leertaste hängt. */
 export const NEXT = 'next';
 
+/** 2026-10-19 — ein Schritt derselben Szene: `step` (der eigene des Knopfes) oder `step:<n>` (ab 0). */
+export const STEP = 'step';
+
+/** 2026-10-19 — ein Knopf auf jeder Szene, auf der er steht (`go: { "*": … }`); eine Szene mit eigenem Ziel geht vor. */
+export const EVERY = '*';
+
 export type Target =
   | { readonly kind: 'scene'; readonly key: string }
   | { readonly kind: 'link'; readonly link: ShowLink }
+  | { readonly kind: 'step'; readonly step: number | null }
   | { readonly kind: 'end' }
   | { readonly kind: 'none' };
 
@@ -43,6 +54,9 @@ export function resolveTarget(show: Show, said: string | null | undefined): Targ
   const t = (said ?? '').trim();
   if (t === '') return { kind: 'none' };
   if (t === END) return { kind: 'end' };
+  if (t === STEP) return { kind: 'step', step: null };
+  const step = /^step:(\d{1,2})$/.exec(t);
+  if (step !== null) return { kind: 'step', step: Number(step[1]) };
   if (t.startsWith(LINK)) {
     const link = show.links.find((one) => one.id === t.slice(LINK.length));
     return link === undefined ? { kind: 'none' } : { kind: 'link', link };
@@ -60,8 +74,9 @@ export function nextOf(show: Show, key: string): Target {
   return after === undefined ? { kind: 'end' } : { kind: 'scene', key: after.key };
 }
 
-/** Wohin ein Knopf auf dieser Szene führt. */
-export const goOf = (show: Show, piece: Piece, sceneKey: string): Target => resolveTarget(show, piece.go[sceneKey]);
+/** Wohin ein Knopf auf dieser Szene führt — ihr eigenes Ziel, sonst das für jede Szene (`*`). */
+export const goOf = (show: Show, piece: Piece, sceneKey: string): Target =>
+  resolveTarget(show, piece.go[sceneKey] !== undefined ? piece.go[sceneKey] : piece.go[EVERY]);
 
 /** Von einer Szene aus „dalej" entlang — bis zum Ende, hinaus, oder zu einer Szene, die schon dran war. */
 export function chainFrom(show: Show, key: string, taken: ReadonlySet<string> = new Set()): string[] {
@@ -152,6 +167,7 @@ export function targetLabel(show: Show, said: string | null | undefined, fallbac
     return `${at + 1}. ${show.scenes[at].label || 'Scena'}`;
   }
   if (t.kind === 'link') return `↗ ${t.link.label || t.link.href}`;
+  if (t.kind === 'step') return t.step === null ? 'Własny krok tej sceny' : `Krok ${t.step + 1} tej sceny`;
   if (t.kind === 'end') return 'Koniec';
   return fallback;
 }
@@ -162,6 +178,15 @@ export function targetOptions(show: Show): { readonly value: string; readonly la
     ...show.scenes.map((sc, i) => ({ value: sc.key, label: `${i + 1}. ${sc.label || 'Scena'}` })),
     ...show.links.map((link) => ({ value: `${LINK}${link.id}`, label: `↗ ${link.label || link.href}` })),
     { value: END, label: 'Koniec' }
+  ];
+}
+
+/** 2026-10-19 — wohin ein KNOPF führen kann: dazu die Schritte dieser Szene (`steps` — wie viele sie hat). */
+export function goOptions(show: Show, steps: number): { readonly value: string; readonly label: string }[] {
+  return [
+    ...targetOptions(show),
+    ...(steps > 1 ? [{ value: STEP, label: 'Własny krok tej sceny' }] : []),
+    ...Array.from({ length: steps > 1 ? steps : 0 }, (_, n) => ({ value: `${STEP}:${n}`, label: `Krok ${n + 1} tej sceny` }))
   ];
 }
 

@@ -21,6 +21,12 @@ export interface ShowClockValue {
   readonly step: () => number;
   readonly subscribe: (listener: () => void) => () => void;
   readonly go: (target: string) => void;
+  /**
+   * 2026-10-19 — wie weit die Szene ist, je 0–1: ihr Inneres (`scene`), ihr
+   * Kommen (`enter`), ihr Gehen (`leave`) — für Bewegungen, die dem
+   * Fortschritt folgen statt der Uhr (`motion` mit `by`).
+   */
+  readonly progress?: (by: 'scene' | 'enter' | 'leave') => number;
 }
 
 export const ShowClock = createContext<ShowClockValue | null>(null);

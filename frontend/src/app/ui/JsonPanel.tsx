@@ -25,7 +25,7 @@ export interface JsonPreview {
 }
 
 export function JsonPanel({
-  summary, lead, fileName, exportDoc, description, preview, options, importLabel, onImport, note, busy = false
+  summary, lead, fileName, exportDoc, description, preview, options, importLabel, onImport, note, busy = false, open = false
 }: {
   /** Die Überschrift des Fachs. */
   summary: string;
@@ -43,6 +43,8 @@ export function JsonPanel({
   /** Ein Hinweis direkt über dem Knopf — etwa, dass ungespeicherte Änderungen mitgehen. */
   note?: ReactNode;
   busy?: boolean;
+  /** Gleich offen — etwa in einem Dialog, der nur dafür da ist. */
+  open?: boolean;
 }) {
   const [exported, setExported] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -105,7 +107,7 @@ export function JsonPanel({
   const working = busy || stage !== null;
 
   return (
-    <details className="wk-fold wk-json">
+    <details className="wk-fold wk-json" open={open || undefined}>
       <summary>{summary}</summary>
       <div className="wk-json-body">
         <p className="wk-hint">{lead}</p>

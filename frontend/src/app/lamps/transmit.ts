@@ -15,6 +15,12 @@
  * als „Czeka" im Protokoll und geht hinaus, wenn er dran ist. „Stop" (und das
  * Verlassen der App) bricht das Laufende ab und streicht, was noch wartet.
  *
+ * <b>Das Tempo</b> (`pace.ts`, zwei Regler) gilt beim Senden, nicht beim
+ * Speichern: eine Pause zwischen zwei Sendungen (Ramki eines Sygnał und
+ * aufeinanderfolgende Drücke) und ein Limit, wie lange jede Ramka hinausgeht.
+ * Ohne eigenes Tempo zählen die Regler der Knöpfe, so wie sie stehen, wenn ein
+ * Druck dran ist; ein Timer, den man von Hand auslöst, bringt seine eigenen mit.
+ *
  * <b>„Nadano" heisst: Android hat gestartet und gestoppt.</b> Ob eine Lampe es
  * gehört und getan hat, weiss das Telefon nicht; im Protokoll lässt sich von
  * Hand vermerken, ob sie reagiert hat.
@@ -27,6 +33,7 @@ import { hexOf, readFrame } from './adv';
 import type { LampData, LampSignal } from './lampStore';
 import { lampTitle, signalProblem } from './lampStore';
 import type { LampCode, LampNative, LampSupport, NativeFrame, NativeSendResult } from './native';
+import { FASTEST, pacedDuration, pacedGap, type Pace } from './pace';
 
 export type AttemptState = 'queued' | 'sending' | 'sent' | 'failed' | 'stopped';
 
@@ -100,24 +107,29 @@ export interface Prepared {
   readonly problem: string | null;
 }
 
-/** Ein Sygnał → was der Sender bekommt: je Ramka Kennung und Daten des Herstellers. */
-export function prepareSignal(signal: LampSignal): Prepared {
+/**
+ * Ein Sygnał → was der Sender bekommt: je Ramka Kennung und Daten des Herstellers,
+ * mit dem Tempo `pace` (Limit je Ramka, Pause zwischen den Ramki).
+ */
+export function prepareSignal(signal: LampSignal, pace: Pace = FASTEST): Prepared {
   const shown: AttemptFrame[] = [];
   const frames: NativeFrame[] = [];
-  for (const f of signal.frames) {
+  signal.frames.forEach((f, i) => {
     const read = readFrame(f.hex);
     const air = read.advertising === null ? read.hex : hexOf(read.advertising.bytes.slice(0, read.advertising.bytes.length - read.advertising.padding));
+    const durationMs = pacedDuration(f.durationMs, pace);
+    const gapMs = i < signal.frames.length - 1 ? pacedGap(f.gapMs, pace) : f.gapMs;
     shown.push({
       hex: air,
       size: read.advertising === null ? Math.floor(read.hex.length / 2) : read.advertising.bytes.length - read.advertising.padding,
       manufacturerId: read.advertising?.manufacturer?.id ?? null,
-      durationMs: f.durationMs,
-      gapMs: f.gapMs
+      durationMs,
+      gapMs
     });
     if (read.manufacturer !== null) {
-      frames.push({ manufacturerId: read.manufacturer.id, data: hexOf(read.manufacturer.data), durationMs: f.durationMs, gapMs: f.gapMs });
+      frames.push({ manufacturerId: read.manufacturer.id, data: hexOf(read.manufacturer.data), durationMs, gapMs });
     }
-  }
+  });
   return { frames, shown, problem: signalProblem(signal) };
 }
 
@@ -171,6 +183,7 @@ export function markResponded(id: string, responded: boolean | null): void {
 /** Für die Prüfungen. */
 export function forgetAttempts(): void {
   attempts = [];
+  lastEnded = 0;
   for (const one of listeners) one();
 }
 
@@ -181,14 +194,42 @@ let counter = 0;
 /** Zählt bei „Stop" (und beim Verlassen der App) hoch — was davor gedrückt wurde und noch wartet, entfällt. */
 let epoch = 0;
 
+/* -- Das Tempo ---------------------------------------------------------------------------- */
+
+let pace: Pace = FASTEST;
+/** Wann die letzte Sendung endete — die Pause zählt ab da. */
+let lastEnded = 0;
+/** Wer gerade eine Pause abwartet — „Stop" weckt sie. */
+const sleepers = new Set<() => void>();
+
+/** Das Tempo der Regler — gilt für jeden Druck, der ab jetzt dran ist. */
+export const setPace = (next: Pace): void => { pace = next; };
+export const paceNow = (): Pace => pace;
+
+/** Warten, bis die Pause seit der letzten Sendung um ist — oder bis „Stop". */
+function pauseBeforeNext(p: Pace): Promise<void> {
+  const wait = lastEnded + p.pauseMs - Date.now();
+  if (lastEnded === 0 || wait <= 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      sleepers.delete(done);
+      resolve();
+    };
+    const timer = setTimeout(done, wait);
+    sleepers.add(done);
+  });
+}
+
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : typeof e === 'string' ? e : 'Nieznany błąd.');
 
 /**
  * Einen Sygnał senden — nach allen, die schon warten. `radio` ist der Sender
- * (`LampRadio`) oder `null` im Browser. Wirft nie: wie es ausging, steht im Versuch.
+ * (`LampRadio`) oder `null` im Browser. `own`: ein eigenes Tempo (ein Timer, von
+ * Hand ausgelöst) statt der Regler der Knöpfe. Wirft nie: wie es ausging, steht im Versuch.
  */
-export function transmit(radio: LampNative | null, lamp: Pick<LampData, 'name' | 'number'>, signal: LampSignal): Promise<Attempt> {
-  const prepared = prepareSignal(signal);
+export function transmit(radio: LampNative | null, lamp: Pick<LampData, 'name' | 'number'>, signal: LampSignal, own: Pace | null = null): Promise<Attempt> {
+  const prepared = prepareSignal(signal, own ?? pace);
   const queued = put({
     id: `t${++counter}-${Date.now()}`,
     at: Date.now(),
@@ -204,7 +245,7 @@ export function transmit(radio: LampNative | null, lamp: Pick<LampData, 'name' |
     responded: null
   });
   const mine = epoch;
-  const run = queue.then(() => sendOne(radio, queued, prepared, mine));
+  const run = queue.then(() => sendOne(radio, queued, signal, own, mine));
   queue = run.catch(() => undefined);
   return run;
 }
@@ -212,12 +253,17 @@ export function transmit(radio: LampNative | null, lamp: Pick<LampData, 'name' |
 /** Was noch wartet, entfällt — mit diesem Grund (`stopped`, `paused`). */
 function dropQueue(code: LampCode): void {
   epoch++;
+  for (const wake of [...sleepers]) wake();
   for (const a of attempts) {
     if (a.state === 'queued') put({ ...a, state: stateOf(code), code, message: codeText(code) });
   }
 }
 
-async function sendOne(radio: LampNative | null, queued: Attempt, prepared: Prepared, mine: number): Promise<Attempt> {
+async function sendOne(radio: LampNative | null, queued: Attempt, signal: LampSignal, own: Pace | null, mine: number): Promise<Attempt> {
+  /* Die Pause seit der letzten Sendung — dann gilt das Tempo, das JETZT eingestellt ist (oder das eigene). */
+  const now = own ?? pace;
+  if (mine === epoch) await pauseBeforeNext(now);
+  const prepared = prepareSignal(signal, now);
   const finish = (code: LampCode, detail: string | null = null, result: NativeSendResult | null = null, message: string | null = null): Attempt =>
     put({
       ...(attempts.find((a) => a.id === queued.id) ?? queued),
@@ -234,7 +280,7 @@ async function sendOne(radio: LampNative | null, queued: Attempt, prepared: Prep
     const dropped = attempts.find((a) => a.id === queued.id);
     return dropped !== undefined && dropped.state !== 'queued' ? dropped : finish('stopped');
   }
-  put({ ...(attempts.find((a) => a.id === queued.id) ?? queued), state: 'sending' });
+  put({ ...(attempts.find((a) => a.id === queued.id) ?? queued), state: 'sending', frames: prepared.shown });
   if (prepared.problem !== null) return finish('bad-frame', null, null, prepared.problem);
   if (radio === null) return finish('unavailable');
 
@@ -247,6 +293,7 @@ async function sendOne(radio: LampNative | null, queued: Attempt, prepared: Prep
       if (!granted) return finish('no-permission');
     }
     const result = await radio.send({ frames: prepared.frames });
+    lastEnded = Date.now();
     /* Die App ist vom Bildschirm gegangen: was danach noch wartete, geht auch nicht mehr hinaus. */
     if (result.code === 'paused') dropQueue('paused');
     return finish(result.code, result.detail, result, result.code === 'bad-frame' && result.detail !== null ? result.detail : null);

@@ -29,6 +29,7 @@ import {
   type AddForm, type FieldSource, type SourceMode
 } from './addForm';
 import { COLUMN, defaultTyped, designOrder, duplicateEntry, formFromKind } from './addFormBuild';
+import { FormJsonDialog, FormJsonPanel } from './AddFormJson';
 import { describeForm, formProblems } from './addFormText';
 import { ValueInput } from './AddFormRun';
 import { connect, problemsOf as graphProblems, wouldCycle, type Graph, type GraphNode } from './graph';
@@ -41,6 +42,7 @@ import { creatorFor, EntityPicker, entityName, useBusy, useCtx } from './ui';
 /** „+ Formularz": leer, oder als Anfang aus einem Rodzaj (`formFromKind`). */
 export function NewFormMenu({ onMade }: { onMade: (id: string) => void }) {
   const { lib } = useCtx();
+  const [json, setJson] = useState(false);
   const make = async (kind: KindDef | null) => {
     try {
       const made = kind === null ? { name: 'Nowy formularz', graph: { nodes: [], edges: [] } } : formFromKind(kind, lib.look, () => newId().slice(-8));
@@ -51,11 +53,15 @@ export function NewFormMenu({ onMade }: { onMade: (id: string) => void }) {
     }
   };
   return (
-    <MenuButton label="Nowy formularz dodawania" text="Formularz" icon="plus"
-      items={[
-        ...lib.kinds.map((k) => ({ label: `Z rodzaju: ${k.name}`, onSelect: () => void make(k) })),
-        { label: 'Pusty', onSelect: () => void make(null) }
-      ]} />
+    <>
+      <MenuButton label="Nowy formularz dodawania" text="Formularz" icon="plus"
+        items={[
+          ...lib.kinds.map((k) => ({ label: `Z rodzaju: ${k.name}`, onSelect: () => void make(k) })),
+          { label: 'Pusty', onSelect: () => void make(null) },
+          { label: 'Z JSON (wklej)…', onSelect: () => setJson(true) }
+        ]} />
+      {json && <FormJsonDialog onClose={() => setJson(false)} onImported={(id) => { toast('Zaimportowano formularz.'); onMade(id); }} />}
+    </>
   );
 }
 
@@ -86,7 +92,7 @@ export function AddFormEditor({ formId, onChoose, onBack, onRun }: {
       ) : (
         <>
           {from !== undefined && <p className="wk-note">Z „{from.name}” — tu tylko do odczytu (wypełniać można). <a href={viewPath('learn', from.libraryId, 'schemat', 'formularz', entry.id)}>Zmień tam</a></p>}
-          <FormDesigner key={entry.id} entryId={entry.id} version={entry.version} data={entry.data} writes={writes && from === undefined} onRun={() => onRun(entry.id)} onGone={() => onChoose(null)} />
+          <FormDesigner key={entry.id} entryId={entry.id} version={entry.version} data={entry.data} writes={writes && from === undefined} onRun={() => onRun(entry.id)} onGone={() => onChoose(null)} onOpen={(id) => onChoose(id)} />
         </>
       )}
     </div>
@@ -118,13 +124,15 @@ const pickNode = (x: number, y: number, label: string | undefined, kinds: readon
   id: newId().slice(-8), type: 'pick', x, y, config: cleanConfig({ label, kinds: [...kinds], many, optional: many, value: [] })
 });
 
-function FormDesigner({ entryId, version, data, writes, onRun, onGone }: {
+function FormDesigner({ entryId, version, data, writes, onRun, onGone, onOpen }: {
   entryId: string;
   version: number;
   data: Readonly<Record<string, unknown>>;
   writes: boolean;
   onRun: () => void;
   onGone: () => void;
+  /** Ein anderes Formular öffnen — nach einem Import, der eines anlegte. */
+  onOpen: (id: string) => void;
 }) {
   const { lib } = useCtx();
   const [draft, setDraft] = useState<AddForm>(() => readAddForm(entryId, data));
@@ -241,6 +249,12 @@ function FormDesigner({ entryId, version, data, writes, onRun, onGone }: {
         <h3>Jak działa ten formularz</h3>
         <ul className="cg-af-desc">{describeForm(draft, lib.look).map((line, i) => <li key={i}>{line}</li>)}</ul>
       </section>
+      {/* 2026-10-19 — dieser Formularz als JSON: hinaus mit seinen Rodzaje, herein mit dem Plan davor. */}
+      {writes && (
+        <FormJsonPanel forms={() => [{ id: draft.id, data: addFormDoc(draft) }]} name={draft.name}
+          {...(dirty ? { note: 'Masz niezapisane zmiany: eksport je zawiera, a import tego samego formularza („ref”) zastąpi je zapisanym.' } : {})}
+          onImported={(id) => { if (id !== draft.id) onOpen(id); else setDirty(false); }} />
+      )}
     </div>
   );
 }

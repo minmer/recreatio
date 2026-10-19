@@ -67,6 +67,8 @@ public class MmsReceiver extends BroadcastReceiver {
             return;
         }
         if (m.type != MmsPdu.NOTIFICATION_IND || m.contentLocation == null) return;
+        /* Zablokowany (2026-10-19): gar nicht erst laden. */
+        if (m.from != null && Spam.blocked(context, m.from)) return;
 
         /* Netzbetreiber schicken eine Ankündigung manchmal zweimal: dieselbe Transaktion nur einmal. */
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);

@@ -86,87 +86,10 @@
 }
 :root[data-theme="dark"] .ph-avatar { background: hsl(var(--ph-h, 30) 30% 26%); color: hsl(var(--ph-h, 30) 45% 86%); }
 
-/* -- Ein Gespräch --------------------------------------------------------------- */
-
-/*
- * Es füllt das Fenster unter der Kopfleiste: der Kopf steht, nur die Nachrichten rollen,
- * das Schreibfeld liegt unten. Kein Rand unter dem Schreibfeld (den hält der Arbeitsplatz
- * sonst für die Leiste des Telefons frei, die hier verschwindet).
- */
-.wk-app .wk-main:has(.ph-thread) { padding-top: var(--wk-space-2); padding-bottom: 0; }
-.ph-thread {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  height: calc(100vh - var(--ph-top, var(--wk-bar-h)) - var(--wk-space-2));
-  min-height: 18rem;
-}
-/* dvh (die Höhe ohne die Leisten des Browsers) nur, wo es sie gibt: mit var() darin fiele eine
-   unbekannte Einheit nicht auf die Zeile davor zurück, sondern auf „auto" — und das Gespräch wüchse. */
-@supports (height: 100dvh) {
-  .ph-thread { height: calc(100dvh - var(--ph-top, var(--wk-bar-h)) - var(--wk-space-2)); }
-}
-.ph-thread-head { display: flex; align-items: center; gap: var(--wk-space-2); min-width: 0; padding-bottom: var(--wk-space-2); border-bottom: 1px solid var(--wk-line); }
-.ph-thread-title { display: grid; min-width: 0; flex: 1; }
-.ph-thread-name { margin: 0; font-size: var(--wk-text-md); font-weight: 700; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ph-thread-sub { color: var(--wk-muted); font-size: var(--wk-text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ph-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-/* Wenige Nachrichten stehen unten, am Schreibfeld — viele rollen ganz normal. */
-.ph-scroll-inner { min-height: 100%; display: grid; align-content: end; gap: var(--wk-space-2); padding: var(--wk-space-2) 0; box-sizing: border-box; }
-.ph-day { justify-self: center; margin: var(--wk-space-2) 0; padding: 0 var(--wk-space-2); color: var(--wk-muted); font-size: var(--wk-text-xs); font-weight: 600; }
-.ph-msg {
-  max-width: min(82%, 36rem);
-  display: grid;
-  gap: var(--wk-space-1);
-  padding: var(--wk-space-2) var(--wk-space-3);
-  border-radius: var(--wk-radius-lg);
-  background: var(--wk-surface);
-  border: 1px solid var(--wk-line);
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-}
-.ph-msg.is-in { justify-self: start; border-bottom-left-radius: var(--wk-radius-sm); }
-.ph-msg.is-out { justify-self: end; background: var(--wk-accent-soft); border-color: color-mix(in srgb, var(--wk-accent) 30%, var(--wk-line)); border-bottom-right-radius: var(--wk-radius-sm); }
-.ph-msg.is-failed { border-color: var(--wk-danger); }
-.ph-msg-from { font-size: var(--wk-text-xs); font-weight: 700; color: var(--wk-accent); }
-.ph-msg-subject { font-weight: 700; }
-.ph-msg-meta { justify-self: end; font-size: var(--wk-text-xs); color: var(--wk-muted); white-space: nowrap; }
-.ph-msg-meta.is-failed { color: var(--wk-danger); font-weight: 700; }
-.ph-msg-tools { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); justify-self: end; }
+/* -- Bilder einer MMS (in der Blase) ---------------------------------------- */
 .ph-media { display: grid; gap: var(--wk-space-1); }
 .ph-media img, .ph-media video { display: block; max-width: 100%; max-height: 22rem; border-radius: var(--wk-radius-sm); }
 .ph-media-file { font-size: var(--wk-text-sm); color: var(--wk-muted); }
-.ph-more { justify-self: center; }
-
-/* Das Schreibfeld steht unten, über dem Rand des Telefons. */
-.ph-composer {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  display: grid;
-  gap: var(--wk-space-2);
-  padding: var(--wk-space-2) 0 calc(var(--wk-space-2) + env(safe-area-inset-bottom, 0px));
-  background: var(--wk-ground);
-  border-top: 1px solid var(--wk-line);
-}
-.ph-composer-row { display: flex; align-items: flex-end; gap: var(--wk-space-2); }
-.ph-composer textarea { flex: 1; min-width: 0; min-height: 2.75rem; max-height: 12rem; resize: none; }
-.ph-composer-info { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2) var(--wk-space-3); font-size: var(--wk-text-xs); color: var(--wk-muted); }
-.ph-attached { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); }
-.ph-attached-file { display: inline-flex; align-items: center; gap: var(--wk-space-1); min-width: 0; overflow-wrap: anywhere; }
-.ph-attached-size { color: var(--wk-muted); font-size: var(--wk-text-xs); }
-.ph-attached select { min-height: 2rem; }
-.ph-attached img { width: 3.5rem; height: 3.5rem; object-fit: cover; border-radius: var(--wk-radius-sm); }
-.ph-attach-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.ph-thread .ph-composer { position: static; }
-@media (max-width: 63.99rem) {
-  .wk-root:has(.ph-thread) .wk-phone-bar { display: none; }
-}
-/* Im Blatt „Napisz SMS" (`SmsSheet`) steht das Schreibfeld im Dialog, nicht am unteren Rand. */
-.ph-sheet .ph-composer { position: static; padding: 0; background: none; border-top: 0; }
-.ph-sheet .ph-composer textarea { min-height: 6rem; }
 
 /* -- Neue Nachricht: Empfänger --------------------------------------------- */
 .ph-to { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1); padding: var(--wk-space-1); border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius-sm); background: var(--wk-surface); }
@@ -211,17 +134,7 @@
 .ph-number { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2) var(--wk-space-3); }
 .ph-number-label { color: var(--wk-muted); font-size: var(--wk-text-sm); }
 
-/* -- Mehrere wählen, gross lesen, später senden (2026-10-18) ----------------------------- */
-/* Auf dem Touchscreen wählt langes Drücken die Nachricht, nicht den Text („Kopiuj" nimmt ihn mit). */
-@media (pointer: coarse) {
-  .ph-msg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-}
-.ph-msg.is-selected { box-shadow: 0 0 0 2px var(--wk-accent); }
-/* Eine Nachricht nimmt den Fokus (Enter wählt sie) — der Ring nur für die Tastatur, nicht nach einem Tipp. */
-.ph-msg:focus:not(:focus-visible) { outline: none; }
-.ph-msg:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
-.ph-msg.is-planned { border-style: dashed; background: var(--wk-surface); }
-.ph-select-bar { background: var(--wk-accent-soft); border-radius: var(--wk-radius-sm); padding: var(--wk-space-1) var(--wk-space-2); }
+/* -- Gross lesen (2026-10-18): die markierten Nachrichten im ganzen Fenster ----------------------- */
 .ph-reader-tools {
   position: sticky;
   top: 0;
@@ -239,20 +152,6 @@
 .ph-reader-msg { display: grid; gap: var(--wk-space-1); }
 .ph-reader-msg header { color: var(--wk-muted); font-size: var(--wk-text-sm); font-weight: 600; }
 .ph-reader-msg p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.ph-composer .wk-icon-btn.is-on { color: var(--wk-accent); background: var(--wk-accent-soft); }
-.ph-later { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); font-size: var(--wk-text-sm); }
-.ph-later input { min-height: 2.25rem; }
-
-/* Antworten im Browser: was nicht geht, steht still unten, wo sonst das Schreibfeld ist. */
-.ph-reply-note {
-  margin: 0;
-  padding: var(--wk-space-2) 0 calc(var(--wk-space-2) + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--wk-line);
-  color: var(--wk-muted);
-  font-size: var(--wk-text-sm);
-}
-.ph-reply .ph-composer-info input { min-height: 2rem; width: 12rem; max-width: 100%; }
-
 /* Die eigenen Nummern (Archiwum auf dem Telefon). */
 .ph-own-lines { display: grid; gap: var(--wk-space-2); margin: 0; padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); }
 .ph-own-lines legend { padding: 0 var(--wk-space-1); font-weight: 700; }
@@ -266,7 +165,6 @@
 .ph-attach-how { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-3); font-size: var(--wk-text-sm); }
 .ph-attach-how select { min-height: 2rem; }
 .ph-progress { width: 100%; height: 0.375rem; accent-color: var(--wk-accent); }
-.ph-msg a { color: inherit; text-decoration: underline; overflow-wrap: anywhere; }
 
 /* Die Seite eines Links (ohne Konto). */
 .ph-shared { display: grid; gap: var(--wk-space-3); max-width: 60rem; margin: 0 auto; padding: var(--wk-space-4) 0; }
@@ -283,3 +181,121 @@
 .ph-share-name { display: flex; align-items: center; gap: var(--wk-space-2); min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
 .ph-share small { color: var(--wk-muted); font-size: var(--wk-text-xs); }
 .ph-share-tools { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); }
+
+/* -- Wie die Rozmowy (2026-10-19): Liste, Gespräch und Feld mit den Bausteinen des Chats ---------- */
+
+/* Die Liste: dieselben Zeilen wie die Rozmowy, ohne eigenen Rollbalken — die Seite rollt. Breiten mit
+   Rand und Polster (der Chat setzt das nur in seinem eigenen Rahmen): sonst ragte jede Zeile hinaus. */
+.ph-chats, .ph-chats *, .ph-threads, .ph-threads *, .ph-compose-box *, .ph-sheet * { box-sizing: border-box; }
+/* Im Raster von <main> (eine Spalte „auto"): ohne min-width: 0 macht die Leiste mit ihrem Feld die Spalte breiter als das Telefon. */
+.ph-chats, .ph-threads { min-width: 0; }
+.ph-chat-list { flex: none; overflow: visible; padding: 0; }
+.ph-search-pill { flex: 1 1 auto; min-width: 0; margin: 0; }
+.ph-bar .ph-search-pill select { flex: none; max-width: 7.5rem; padding: var(--wk-space-2) 0; border: 0; background: transparent; color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); box-shadow: none; }
+.ph-bar .ph-search-pill input { min-height: 0; box-shadow: none; }
+.ph-item-line {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0 var(--wk-space-2);
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-soft);
+  color: var(--wk-muted);
+  font-size: var(--wk-text-xs);
+}
+.ph-item-line .ch-i { width: 0.75rem; height: 0.75rem; }
+.ph-item-count { flex: none; color: var(--wk-muted); font-size: var(--wk-text-xs); font-variant-numeric: tabular-nums; }
+
+/* Das Gespräch füllt das Fenster unter der Kopfleiste — wie eine Rozmowa auf dem Telefon. Die Klasse an
+   <html> setzt das Gespräch selbst (useRoomFrame): :has() kennen ältere WebViews nicht, und dort läge
+   die untere Leiste über dem Feld. */
+.ph-in-room .wk-app .wk-main { padding: var(--wk-space-1) var(--wk-space-1) 0; }
+.ph-room {
+  height: calc(100vh - var(--ph-top, var(--wk-bar-h)) - var(--wk-space-1));
+  min-height: 18rem;
+  border: 1px solid var(--wk-line);
+  border-bottom: 0;
+  border-radius: var(--wk-radius) var(--wk-radius) 0 0;
+  overflow: hidden;
+}
+/* dvh (die Höhe ohne die Leisten des Browsers) nur, wo es sie gibt: mit var() darin fiele eine
+   unbekannte Einheit nicht auf die Zeile davor zurück, sondern auf „auto" — und das Gespräch wüchse. */
+@supports (height: 100dvh) {
+  .ph-room { height: calc(100dvh - var(--ph-top, var(--wk-bar-h)) - var(--wk-space-1)); }
+}
+@media (max-width: 63.99rem) {
+  .ph-in-room .wk-phone-bar { display: none; }
+}
+
+/* Im Kopf neben dem Namen: die eigene Karte (wählbar), das Archiv, die Nummer. Abstand als Rand, nicht
+   als gap (das fehlt älteren WebViews) — und nicht am Menü, das fest über allem steht. */
+.ph-head-sub { gap: 0; }
+.ph-head-sub > .ph-line-chip, .ph-head-sub > .ph-arch { margin-right: var(--wk-space-2); }
+.ph-head-numbers { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ph-line-chip { flex: none; gap: 0.2rem; padding: 0 var(--wk-space-2); font-size: var(--wk-text-xs); line-height: 1.6; }
+.ph-line-chip .ch-i { width: 0.75rem; height: 0.75rem; }
+.ph-arch { display: inline-flex; flex: none; align-items: center; gap: 0.2rem; color: var(--wk-muted); font-size: var(--wk-text-xs); }
+.ph-arch .ch-i { width: 0.75rem; height: 0.75rem; }
+.ph-arch.is-on { color: var(--wk-accent); }
+
+/* In der Blase: Betreff, eine MMS, die noch kommt, Knöpfe, was nicht hinaus ging, was geplant ist. */
+.ph-subject { font-weight: 700; }
+.ph-note { color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.ph-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--wk-space-2); margin-top: var(--wk-space-1); }
+.ch-bubble.ph-failed { box-shadow: 0 0 0 1px var(--wk-danger); }
+.ph-meta-failed, .ch-meta.is-failed { color: var(--wk-danger); font-weight: 700; }
+.ch-bubble.ph-planned { border: 1px dashed color-mix(in srgb, var(--wk-accent) 55%, var(--wk-line)); background: var(--wk-surface); box-shadow: none; }
+.ph-room .ch-atts img, .ph-room .ch-atts video { display: block; max-width: 100%; max-height: 22rem; border-radius: var(--wk-radius-sm); }
+.ph-room .ch-atts audio { width: 100%; }
+.ph-error { color: var(--wk-danger); }
+/* Eine Zeile nimmt den Fokus (Enter markiert sie) — der Ring nur für die Tastatur. */
+/* Auf dem Telefon nur die Zahl: sonst bricht „Zaznaczone:" neben drei Knöpfen um (der Vorleser hört es weiter). */
+@media (max-width: 30rem) {
+  .ph-pick-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+
+.ph-room .ch-row:focus { outline: none; }
+.ph-room .ch-row:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+
+/* Ältere WebViews (das alte Telefon, das nur archiviert) kennen color-mix nicht: dann die weichen Töne. */
+@supports not (color: color-mix(in srgb, red 50%, blue)) {
+  .ph-room .ch-row.is-mine .ch-bubble { background: var(--wk-accent-soft); }
+  .ph-room .ch-pickbar { background: var(--wk-surface); }
+  .ph-room .ch-wall, .ph-room .ch-log { background-color: var(--wk-ground); }
+}
+
+/* Das Feld: wie im Chat; darüber, wie ein Anhang hinausgeht. */
+.ph-compose { padding-bottom: calc(var(--wk-space-2) + env(safe-area-inset-bottom, 0px)); }
+.ph-attach-how { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); font-size: var(--wk-text-sm); }
+.ph-attach-how select, .ph-compose .ch-files select { flex: none; align-self: center; min-height: 2rem; }
+.ph-attach-how .ch-chip.is-on { border-color: var(--wk-accent); background: color-mix(in srgb, var(--wk-accent) 14%, var(--wk-surface)); }
+.ph-attach-how .ch-chip:disabled { opacity: 0.45; cursor: default; }
+.ph-compose-box .ch-compose { border: 1px solid var(--wk-line); border-radius: var(--wk-radius); }
+.ph-to-head { display: flex; align-items: center; gap: var(--wk-space-2); }
+/* Im Blatt „Napisz SMS" (`SmsSheet`) steht das Feld im Dialog, nicht am unteren Rand. */
+.ph-sheet .ch-compose { padding: 0; border-top: 0; background: none; }
+.ph-sheet .ch-field textarea { min-height: 6rem; }
+
+/* Zablokowane numery. */
+.ph-blocked { list-style: none; margin: 0; padding: 0; display: grid; }
+.ph-blocked li { display: flex; align-items: center; justify-content: space-between; gap: var(--wk-space-3); padding: var(--wk-space-2); border-bottom: 1px solid var(--wk-line); }
+
+/* Numery i grupy. */
+.ph-section-title { margin: var(--wk-space-4) 0 var(--wk-space-1); font-size: var(--wk-text-md); }
+.ph-section-note { margin: 0 0 var(--wk-space-3); color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.ph-group-rows { list-style: none; margin: 0 0 var(--wk-space-3); padding: 0; display: grid; gap: var(--wk-space-2); }
+.ph-group-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wk-space-2) var(--wk-space-3);
+  padding: var(--wk-space-2) var(--wk-space-3);
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface);
+}
+.ph-group-name { display: grid; flex: 1 1 10rem; min-width: 0; }
+.ph-group-name small { color: var(--wk-muted); font-size: var(--wk-text-xs); }
+.ph-group-edit { display: grid; gap: var(--wk-space-3); }
+.ph-group-line { max-width: 32rem; margin-bottom: var(--wk-space-3); }

@@ -114,6 +114,8 @@ export interface NativeTimer {
   readonly minute: number;
   /** Bit 0 = Montag … Bit 6 = Sonntag; 0 = jeden Tag. */
   readonly days: number;
+  /** Pause zwischen den Aktionen (das Tempo dieses Timers), ms. */
+  readonly pauseMs: number;
   readonly actions: readonly { readonly label: string; readonly frames: readonly NativeFrame[] }[];
 }
 

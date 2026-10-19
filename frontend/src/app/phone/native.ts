@@ -237,6 +237,18 @@ interface PhonePluginApi {
   exportMessages(o: ExportRequest): Promise<ExportPage>;
   archiveState(): Promise<{ state: string }>;
   setArchiveState(o: { state: string; at?: number }): Promise<void>;
+  /** 2026-10-19 — still: `until` ms (0 = für immer, &lt; 0 = wieder laut); die Nachrichten kommen, gemeldet wird nichts. */
+  mute(o: { threadId: string; until: number }): Promise<void>;
+  /** {Gespräch: Ende} — 0 heisst für immer. */
+  mutes(): Promise<{ muted: Record<string, number> }>;
+  /** Sperren (im Telefon — auch für Anrufe — und hier); mit `threadId` ist das Gespräch danach fort. */
+  block(o: { numbers: readonly string[]; threadId?: string }): Promise<{ blocked: number; deleted: number; system: boolean }>;
+  unblock(o: { number: string }): Promise<void>;
+  blocked(): Promise<{ numbers: string[]; system: boolean }>;
+  /** Ein Gespräch vom Telefon löschen — das Archiv bleibt, wie es ist. */
+  deleteThread(o: { threadId: string }): Promise<{ deleted: number }>;
+  /** Die Karte je Gespräch für Antworten aus der Meldung — {Gespräch: subId}, -1 = keine eigene. */
+  threadSubs(o: { subs: Record<string, number> }): Promise<void>;
   addListener(event: 'smsChanged', listener: (e: { threadId: string | null }) => void): Promise<PluginListenerHandle>;
 }
 

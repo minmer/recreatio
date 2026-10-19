@@ -43,6 +43,7 @@ import java.util.concurrent.Executors;
  *   contacts, writeContacts, dropLocal, contactsSoon
  *   exportMessages, archiveState, setArchiveState, requestSmsRead
  *   lines, setLine, schedule, unschedule, scheduled, forgetScheduled
+ *   mute, mutes, block, unblock, blocked, deleteThread, threadSubs   (2026-10-19, {@link Spam})
  * </code>
  *
  * <p><b>Ein altes Telefon</b> muss nicht die SMS-App sein, um sein Archiv beizutragen:
@@ -395,6 +396,88 @@ public class PhonePlugin extends Plugin {
             JSObject out = new JSObject();
             out.put("removed", SmsStore.remove(context(), id));
             return out;
+        });
+    }
+
+    /** Still: {@code threadId}, {@code until} (ms; 0 = für immer; &lt; 0 = wieder laut). */
+    @PluginMethod
+    public void mute(PluginCall call) {
+        JSObject data = call.getData();
+        String id = data.getString("threadId", "");
+        long until = data.has("until") ? data.optLong("until", 0) : 0;
+        on(SCREEN, call, () -> {
+            long thread = Long.parseLong(id);
+            Spam.mute(context(), thread, until);
+            if (until >= 0) SmsNotices.cancel(context(), thread);
+            return null;
+        });
+    }
+
+    @PluginMethod
+    public void mutes(PluginCall call) {
+        on(SCREEN, call, () -> js(new JSONObject().put("muted", Spam.mutes(context()))));
+    }
+
+    /**
+     * Sperren: {@code numbers} (im Telefon, wenn es geht, und hier); mit {@code threadId} ist das
+     * Gespräch danach fort.
+     */
+    @PluginMethod
+    public void block(PluginCall call) {
+        JSObject data = call.getData();
+        on(SCREEN, call, () -> {
+            JSONArray numbers = data.optJSONArray("numbers");
+            int done = 0;
+            for (int i = 0; numbers != null && i < numbers.length(); i++) if (Spam.block(context(), numbers.optString(i, ""))) done++;
+            int deleted = 0;
+            String thread = data.optString("threadId", "");
+            if (!thread.isEmpty()) {
+                long id = Long.parseLong(thread);
+                deleted = SmsStore.deleteThread(context(), id);
+                SmsNotices.cancel(context(), id);
+                Spam.mute(context(), id, -1);
+                changed(id);
+            }
+            return js(new JSONObject().put("blocked", done).put("deleted", deleted).put("system", Spam.canBlock(context())));
+        });
+    }
+
+    @PluginMethod
+    public void unblock(PluginCall call) {
+        String number = call.getData().getString("number", "");
+        on(SCREEN, call, () -> {
+            Spam.unblock(context(), number);
+            return null;
+        });
+    }
+
+    @PluginMethod
+    public void blocked(PluginCall call) {
+        on(SCREEN, call, () -> js(new JSONObject().put("numbers", Spam.blockedList(context())).put("system", Spam.canBlock(context()))));
+    }
+
+    /** Ein ganzes Gespräch löschen — vom Telefon (das Archiv bleibt, wie es ist). */
+    @PluginMethod
+    public void deleteThread(PluginCall call) {
+        String id = call.getData().getString("threadId", "");
+        on(SCREEN, call, () -> {
+            long thread = Long.parseLong(id);
+            int deleted = SmsStore.deleteThread(context(), thread);
+            SmsNotices.cancel(context(), thread);
+            Spam.mute(context(), thread, -1);
+            changed(thread);
+            return js(new JSONObject().put("deleted", deleted));
+        });
+    }
+
+    /** Die Karte je Gespräch für Antworten aus der Meldung: {@code subs} = {Gespräch: subId}, -1 = keine eigene. */
+    @PluginMethod
+    public void threadSubs(PluginCall call) {
+        JSObject data = call.getData();
+        on(SCREEN, call, () -> {
+            JSONObject subs = data.optJSONObject("subs");
+            if (subs != null) Spam.threadSubs(context(), subs);
+            return null;
         });
     }
 

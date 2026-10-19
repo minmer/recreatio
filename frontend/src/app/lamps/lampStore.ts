@@ -25,6 +25,7 @@ import { call, WorkspaceError } from '../core/session';
 import type { PhoneCtx } from '../phone/phoneContext';
 import { viewPath } from '../routes';
 import { normalizeHex, readFrame } from './adv';
+import type { Pace } from './pace';
 
 /** Die Wörter im Weg (`#/workspace/lamps/…`): ein neues Gerät, der Pilot, ein Timer (`timer/<kennung>`, `timer/nowy`). */
 export const NEW_LAMP = 'nowe';
@@ -85,6 +86,11 @@ export interface LampTimerData {
   readonly enabled: boolean;
   /** Nacheinander, in dieser Reihenfolge. */
   readonly actions: readonly LampTimerAction[];
+  /**
+   * Das Tempo DIESES Timers (seine eigenen zwei Regler, unabhängig von denen der
+   * Knöpfe): Pause zwischen den Aktionen und Ramki, Limit je Ramka.
+   */
+  readonly pace: Pace;
 }
 
 export interface LampTimer extends LampTimerData {
@@ -196,7 +202,19 @@ export const sealedJson = (d: LampData): string => JSON.stringify({ v: 1, kind: 
 
 /* -- Timer ------------------------------------------------------------------------------------ */
 
-export const emptyTimer = (): LampTimerData => ({ name: '', minute: 7 * 60, days: [], enabled: true, actions: [] });
+export const emptyTimer = (): LampTimerData => ({ name: '', minute: 7 * 60, days: [], enabled: true, actions: [], pace: tidyPace(null) });
+
+/**
+ * Ein Tempo (`pace.ts`), gelesen und begrenzt: die Pause 0 bis {@link GAP_MAX}, das Limit
+ * nicht unter {@link DURATION_MIN}. Fehlt es oder ist es unlesbar: „najszybciej".
+ */
+export function tidyPace(v: unknown): Pace {
+  const o = v !== null && typeof v === 'object' ? v as Record<string, unknown> : {};
+  const number = (x: unknown): number | null => (typeof x === 'number' && Number.isFinite(x) ? Math.round(x) : null);
+  const pause = number(o.pauseMs) ?? 0;
+  const limit = number(o.limitMs);
+  return { pauseMs: Math.min(GAP_MAX, Math.max(0, pause)), limitMs: limit === null ? null : Math.max(DURATION_MIN, limit) };
+}
 
 export function tidyTimer(d: LampTimerData): LampTimerData {
   return {
@@ -204,7 +222,8 @@ export function tidyTimer(d: LampTimerData): LampTimerData {
     minute: whole(d.minute, -1),
     days: [...new Set(d.days.map((n) => whole(n, 0)).filter((n) => n >= 1 && n <= 7))].sort((a, b) => a - b),
     enabled: d.enabled !== false,
-    actions: d.actions.filter((a) => typeof a.lampId === 'string' && typeof a.signalId === 'string').map((a) => ({ lampId: a.lampId, signalId: a.signalId }))
+    actions: d.actions.filter((a) => typeof a.lampId === 'string' && typeof a.signalId === 'string').map((a) => ({ lampId: a.lampId, signalId: a.signalId })),
+    pace: tidyPace(d.pace)
   };
 }
 
@@ -218,7 +237,9 @@ export function readTimer(json: string): LampTimerData {
     minute: whole(o.minute, -1),
     days: Array.isArray(o.days) ? o.days.map((n) => whole(n, 0)) : [],
     enabled: o.enabled !== false,
-    actions: actions.map((a) => ({ lampId: String(a.lampId ?? ''), signalId: String(a.signalId ?? '') }))
+    actions: actions.map((a) => ({ lampId: String(a.lampId ?? ''), signalId: String(a.signalId ?? '') })),
+    /* Ein Timer von vor den Reglern hat keins: dann so schnell wie gespeichert. */
+    pace: tidyPace(o.pace)
   });
 }
 

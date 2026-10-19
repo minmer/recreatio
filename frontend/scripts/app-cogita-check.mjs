@@ -8,7 +8,7 @@
  * Wörtern und einem Zitat.
  */
 import { build } from 'esbuild';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -1098,6 +1098,61 @@ check('goals and lines follow the one logic', [
   const sp = Js.planImport(lib2, schemaDoc);
   check('a reference field points at a kind further down the same document, and at a built-in one',
     sp.kinds.find((k) => k.def.name === 'Słowo').def.fields.map((f) => f.to ?? null), [null, [sp.kinds.find((k) => k.def.name === 'Język').id], ['topic']]);
+
+  /* 2026-10-19 — ein Formularz als JSON für sich; und der Brewiarz vom Dokument bis zur Karte. */
+  const oneForm = Js.exportForms(lib, [{ id: 'af1', data: own.get('af1').data }], 'Postacie');
+  check('a form as JSON: the schema format, the form, its kind as a reference (a source kind is not copied)',
+    [oneForm.format, oneForm.forms.map((f) => [f.ref, f.graph.nodes[0].config.kind]), oneForm.kinds], ['recreatio.cogita.schema', [['@af1', '@kB']], []]);
+  check('a form import needs a form', 'error' in Js.planFormImport(lib2, { format: 'recreatio.cogita.schema', version: 1, kinds: [] }), true);
+  const skipped = Js.planFormImport(lib2, { ...oneForm, entities: [{ ref: '@x', kinds: ['knowledge'], data: { text: 'x' } }] });
+  truth('… and leaves out what does not belong to forms, saying so', skipped.entities.length === 0 && skipped.warnings.some((w) => w.includes('entities')), skipped.warnings);
+
+  const brew = JSON.parse(await readFile('scripts/fixtures/brewiarz.json', 'utf8'));
+  const bstore = fake('G', 'area-g', []);
+  bstore.saveMany = async (inputs) => { const saved = []; for (const one of inputs) saved.push(await bstore.save(one)); return { saved, failed: [] }; };
+  const blib = new So.CogitaLibrary(bstore, true);
+  const bplan = Js.planFormImport(blib, brew);
+  check('the breviary JSON: two kinds, five templates, two forms', bplan.lines, ['Rodzaje: 2 nowych, 0 do zmiany.', 'Szablon kart: 5 nowych, 0 do zmiany.', 'Formularz dodawania: 2 nowych, 0 do zmiany.']);
+  await Js.applyImport(blib, bplan, () => undefined);
+  const formNamed = (name) => { const e = blib.docs('addform').find((x) => x.data.name === name); return AF.readAddForm(e.id, e.data); };
+  let bn = 0;
+  const bctx = () => ({ look: blib.look, pool: (k) => blib.ofKind(k), isOwn: (id) => blib.isOwn(id), newId: () => `brew-${++bn}` });
+  const fill = async (form, rows, asks) => {
+    const plan = AF.planForm(form, bctx(), rows, { picks: {}, asks });
+    if (plan.problems.length > 0 || plan.rows.some((r) => r.problems.length > 0 || r.skipped.length > 0)) throw new Error(JSON.stringify([plan.problems, plan.rows]));
+    await blib.saveMany(plan.saves.map((x) => ({ id: x.id, kinds: x.kinds, data: x.data })));
+  };
+  const vespers = formNamed('Nieszpory — psałterz czterotygodniowy');
+  const compline = formNamed('Kompleta — co tydzień');
+  const row = (day, a, b, c) => ({ miejsce: [{ dzien: day }], ps1: [{ nazwa: a }], ps2: [{ nazwa: b }], piesn: [{ nazwa: c }] });
+  await fill(vespers, [row('niedziela', 'Ps 110', 'Ps 114', 'Ap 19,1-7')], { 'miejsce.tydzien': 'I', 'miejsce.godzina': 'II Nieszpory' });
+  await fill(vespers, [row('poniedziałek', 'Ps 11', 'Ps 15', 'Ef 1,3-10')], {});
+  await fill(vespers, [row('niedziela', 'Ps 110', 'Ps 115', 'Ap 19,1-7')], { 'miejsce.tydzien': 'II', 'miejsce.godzina': 'II Nieszpory' });
+  await fill(compline, [
+    { miejsce: [{ dzien: 'sobota' }], psalmy: [{ nazwa: 'Ps 4' }, { nazwa: 'Ps 134' }] },
+    { miejsce: [{ dzien: 'niedziela' }], psalmy: [{ nazwa: 'Ps 91' }] }
+  ], {});
+  const textKind = blib.kinds.find((k) => k.name === 'Psalm lub pieśń').id;
+  const placeKind = blib.kinds.find((k) => k.name === 'Miejsce w brewiarzu').id;
+  check('filled: each psalm and canticle once (Ps 110 and Ap 19 used twice), five places',
+    [blib.ofKind(textKind).length, blib.ofKind(placeKind).length], [10, 5]);
+  const placeOf = (label) => blib.ofKind(placeKind).find((e) => blib.label(e) === label);
+  check('a place holds its texts in order, the canticle last, with its hour and week',
+    (() => { const e = placeOf('Tydzień I niedziela · II Nieszpory'); return e === undefined ? null : [e.data.teksty.map((id) => blib.label(blib.entity(id))), e.data.godzina, e.data.tydzien]; })(),
+    [['Ps 110', 'Ps 114', 'Ap 19,1-7'], 'II Nieszpory', 'I']);
+  check('a weekday takes the hour set on top (Nieszpory), compline repeats weekly (no week)',
+    [blib.ofKind(placeKind).map((e) => blib.label(e)).sort()],
+    [['Tydzień I niedziela · II Nieszpory', 'Tydzień I poniedziałek · Nieszpory', 'Tydzień II niedziela · II Nieszpory', 'niedziela · Kompleta', 'sobota · Kompleta']]);
+  const bcards = (await blib.cards('brew')).cards;
+  const tpl = (name) => blib.templates().find((t) => t.name === name).id;
+  const cardOf = (name, label) => bcards.find((c) => c.template === tpl(name) && blib.label(blib.entity(c.entity)) === label);
+  check('cards: the first, the third (the canticle) of a vespers; the second of a compline',
+    [cardOf('1. tekst w tym miejscu', 'Tydzień I niedziela · II Nieszpory')?.prompt[0].text, cardOf('1. tekst w tym miejscu', 'Tydzień I niedziela · II Nieszpory')?.answer.accepted,
+      cardOf('3. tekst w tym miejscu', 'Tydzień I niedziela · II Nieszpory')?.answer.accepted, cardOf('2. tekst w tym miejscu', 'sobota · Kompleta')?.answer.accepted],
+    ['Tydzień I niedziela · II Nieszpory — 1. psalm lub pieśń?', ['Ps 110'], ['Ap 19,1-7'], ['Ps 134']]);
+  check('… no second text where there is one, no third in compline', [cardOf('2. tekst w tym miejscu', 'niedziela · Kompleta'), cardOf('3. tekst w tym miejscu', 'sobota · Kompleta')], [undefined, undefined]);
+  const when = bcards.find((c) => c.template === tpl('Kiedy jest ten psalm lub pieśń?') && blib.label(blib.entity(c.entity)) === 'Ps 110');
+  check('… and back: where Ps 110 is said — both Sundays', when.answer.correct.map((i) => when.answer.options[i]).sort(), ['Tydzień I niedziela · II Nieszpory', 'Tydzień II niedziela · II Nieszpory']);
 }
 
 await rm(workspace, { recursive: true, force: true });

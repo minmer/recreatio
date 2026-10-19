@@ -28,13 +28,24 @@ namespace Api;
 /// XML-Datei, die der Browser als Seite öffnete, liefe sonst unter der Adresse
 /// des Dienstes — dort, wo die Sitzung liegt.
 /// </para>
+///
+/// <para>
+/// <b>2026-10-19 — auch Filme und Klänge</b> (eine Präsentation: ein Feuer in
+/// Schleife, die Geräusche eines Gartens). Sie gehen wie Bilder hinaus — im
+/// Element, nicht als Download — und mit Teilabruf (<c>Range</c>): ohne ihn
+/// spielt Safari kein MP4, und kein Browser kann im Film springen.
+/// </para>
 /// </summary>
 public static class PageImage
 {
     private const int MaxImageBytes = 8 * 1024 * 1024;
     private const int MaxFileBytes = 25 * 1024 * 1024;
+    private const int MaxMediaBytes = 30 * 1024 * 1024;
 
     private static readonly string[] Images = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
+
+    /// <summary>2026-10-19 — Filme und Klänge einer Präsentation (die Liste steht auch in <c>pageImages.ts</c>).</summary>
+    private static readonly string[] Media = ["video/mp4", "video/webm", "audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav"];
 
     /// <summary>0063 — was ausser Bildern an einer Seite liegen darf.</summary>
     private static readonly string[] Documents =
@@ -51,9 +62,12 @@ public static class PageImage
 
     public static bool IsImage(string type) => Images.Contains(type);
 
-    public static bool Allowed(string type) => Images.Contains(type) || Documents.Contains(type);
+    /// <summary>2026-10-19 — ein Film oder ein Klang: ausgeliefert wie ein Bild, mit Teilabruf.</summary>
+    public static bool IsMedia(string type) => Media.Contains(type);
 
-    public static int MaxBytesOf(string type) => IsImage(type) ? MaxImageBytes : MaxFileBytes;
+    public static bool Allowed(string type) => Images.Contains(type) || Documents.Contains(type) || Media.Contains(type);
+
+    public static int MaxBytesOf(string type) => IsImage(type) ? MaxImageBytes : IsMedia(type) ? MaxMediaBytes : MaxFileBytes;
 
     public static void Map(WebApplication app)
     {
@@ -79,6 +93,15 @@ public static class PageImage
         "image/avif" => head.Length >= 12 && head[4] == 'f' && head[5] == 't' && head[6] == 'y' && head[7] == 'p'
                         && head[8] == 'a' && head[9] == 'v' && head[10] == 'i',
         "application/pdf" => head.Length >= 5 && head[..5].SequenceEqual("%PDF-"u8),
+
+        /* 2026-10-19 — Filme und Klänge: MP4/M4A tragen „ftyp" ab dem vierten Byte, WebM ist EBML, MP3 beginnt mit ID3 oder einem Rahmen. */
+        "video/mp4" or "audio/mp4" => head.Length >= 8 && head[4] == 'f' && head[5] == 't' && head[6] == 'y' && head[7] == 'p',
+        "video/webm" => head.Length >= 4 && head[0] == 0x1A && head[1] == 0x45 && head[2] == 0xDF && head[3] == 0xA3,
+        "audio/mpeg" => (head.Length >= 3 && head[0] == 'I' && head[1] == 'D' && head[2] == '3')
+                        || (head.Length >= 2 && head[0] == 0xFF && (head[1] & 0xE0) == 0xE0),
+        "audio/ogg" => head.Length >= 4 && head[0] == 'O' && head[1] == 'g' && head[2] == 'g' && head[3] == 'S',
+        "audio/wav" => head.Length >= 12 && head[0] == 'R' && head[1] == 'I' && head[2] == 'F' && head[3] == 'F'
+                       && head[8] == 'W' && head[9] == 'A' && head[10] == 'V' && head[11] == 'E',
 
         /* Word, Excel, PowerPoint und OpenDocument sind ZIP-Archive. */
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -138,14 +161,14 @@ public static class PageImage
         var type = (ctx.Request.ContentType ?? string.Empty).Split(';')[0].Trim().ToLowerInvariant();
         if (!Allowed(type))
         {
-            await Fail(ctx, 400, "Tylko obrazy (JPEG, PNG, WebP, GIF, AVIF), PDF, dokumenty Office i OpenDocument albo ślad GPX.");
+            await Fail(ctx, 400, "Tylko obrazy (JPEG, PNG, WebP, GIF, AVIF), filmy (MP4, WebM), dźwięki (MP3, M4A, OGG, WAV), PDF, dokumenty Office i OpenDocument albo ślad GPX.");
             return;
         }
 
         var most = MaxBytesOf(type);
         if (ctx.Request.ContentLength is not long size || size < 16 || size > most)
         {
-            await Fail(ctx, 400, IsImage(type) ? "Obraz może mieć najwyżej 8 MB." : "Plik może mieć najwyżej 25 MB.");
+            await Fail(ctx, 400, IsImage(type) ? "Obraz może mieć najwyżej 8 MB." : IsMedia(type) ? "Film albo dźwięk może mieć najwyżej 30 MB." : "Plik może mieć najwyżej 25 MB.");
             return;
         }
 
@@ -162,7 +185,7 @@ public static class PageImage
 
         if (bytes.Length != size || !Looks(type, bytes.AsSpan(0, Math.Min(512, bytes.Length))))
         {
-            await Fail(ctx, 400, IsImage(type) ? "To nie jest obraz tego rodzaju." : "Zawartość pliku nie pasuje do jego rodzaju.");
+            await Fail(ctx, 400, IsImage(type) ? "To nie jest obraz tego rodzaju." : IsMedia(type) ? "To nie jest film ani dźwięk tego rodzaju." : "Zawartość pliku nie pasuje do jego rodzaju.");
             return;
         }
 
@@ -275,7 +298,7 @@ public static class PageImage
         var file = FileOf(config, id);
         if (!File.Exists(file)) { ctx.Response.StatusCode = 404; return; }
 
-        if (!IsImage(type))
+        if (!IsImage(type) && !IsMedia(type))
         {
             /* Ein Download, nie eine Seite — und selbst wenn doch: ohne Skript, ohne Herkunft. */
             ctx.Response.Headers.ContentDisposition = Disposition(name, id);
@@ -286,6 +309,14 @@ public static class PageImage
         ctx.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
         ctx.Response.Headers.XContentTypeOptions = "nosniff";
         ctx.Response.Headers["Cross-Origin-Resource-Policy"] = "cross-origin";
+
+        /* 2026-10-19 — ein Film, ein Klang: in Stücken, wie der Browser sie verlangt (Range → 206). */
+        if (IsMedia(type))
+        {
+            await Results.File(file, type, enableRangeProcessing: true).ExecuteAsync(ctx);
+            return;
+        }
+
         await ctx.Response.SendFileAsync(file, ctx.RequestAborted);
     }
 

@@ -9,6 +9,10 @@
  * <b>0063 — auch Dateien.</b> Das Regulamin als PDF, Dokumente, ein GPX-Track:
  * dieselbe Ablage, dieselbe Schreibweise (`page-image:<id>`), nur dass der
  * Dienst sie als Download ausliefert.
+ *
+ * <b>2026-10-19 — auch Filme und Klänge</b> (Präsentation: ein Feuer in
+ * Schleife, die Geräusche des Gartens): dieselbe Ablage; der Dienst liefert
+ * sie wie Bilder aus, mit Teilabruf, damit ein Film springen kann.
  */
 
 import { API, call, WorkspaceError } from '../core/session';
@@ -39,6 +43,27 @@ export const FILE_TYPES: Readonly<Record<string, string>> = {
 };
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
+/** 2026-10-19 — Filme und Klänge; der Dienst hat dieselbe Liste (`PageImage.Media`). */
+export const MEDIA_TYPES: Readonly<Record<string, string>> = {
+  mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm',
+  mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/mp4', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg', wav: 'audio/wav'
+};
+export const MAX_MEDIA_BYTES = 30 * 1024 * 1024;
+
+/** Wie Browser dieselben Arten auch nennen. */
+const MEDIA_ALIASES: Readonly<Record<string, string>> = {
+  'audio/mp3': 'audio/mpeg', 'audio/x-mp3': 'audio/mpeg', 'audio/x-wav': 'audio/wav', 'audio/wave': 'audio/wav', 'audio/vnd.wave': 'audio/wav',
+  'audio/x-m4a': 'audio/mp4', 'audio/aac': 'audio/mp4', 'video/x-m4v': 'video/mp4', 'audio/opus': 'audio/ogg'
+};
+
+export const isMediaType = (type: string): boolean => Object.values(MEDIA_TYPES).includes(type);
+export const isVideoType = (type: string): boolean => isMediaType(type) && type.startsWith('video/');
+export const isAudioType = (type: string): boolean => isMediaType(type) && type.startsWith('audio/');
+
+/** Was im Dateidialog für einen Film oder einen Klang angeboten wird. */
+export const mediaAccept = (kind: 'video' | 'audio'): string =>
+  Object.entries(MEDIA_TYPES).filter(([, type]) => type.startsWith(`${kind}/`)).map(([ext]) => `.${ext}`).join(',') + `,${kind}/*`;
+
 /** Was im Dateidialog angeboten wird. */
 export const FILE_ACCEPT = Object.keys(FILE_TYPES).map((ext) => `.${ext}`).join(',');
 
@@ -49,10 +74,11 @@ export const isImageType = (type: string): boolean => (IMAGE_TYPES as readonly s
  * ohne an —, dann entscheidet die Endung.
  */
 export function typeOfFile(file: File): string | null {
-  const said = file.type.toLowerCase();
-  if (isImageType(said) || Object.values(FILE_TYPES).includes(said)) return said;
+  const raw = file.type.toLowerCase();
+  const said = MEDIA_ALIASES[raw] ?? raw;
+  if (isImageType(said) || Object.values(FILE_TYPES).includes(said) || isMediaType(said)) return said;
   const ext = /\.([a-z0-9]+)$/i.exec(file.name)?.[1]?.toLowerCase() ?? '';
-  return FILE_TYPES[ext] ?? null;
+  return FILE_TYPES[ext] ?? MEDIA_TYPES[ext] ?? null;
 }
 
 /** „PDF, 240 kB" — wie die Liste der Pliki es neben den Namen schreibt. */
@@ -68,11 +94,13 @@ export const loadPageImages = (path: string): Promise<{ images: readonly PageIma
 /** Eine Datei an die Seite legen — ein Bild oder (0063) ein Dokument. */
 export async function uploadPageFile(path: string, file: File | Blob, name: string, type: string): Promise<PageImageRow> {
   const image = isImageType(type);
-  if (!image && !Object.values(FILE_TYPES).includes(type)) {
-    throw new WorkspaceError('Tylko obrazy (JPEG, PNG, WebP, GIF, AVIF), PDF, dokumenty Office i OpenDocument albo ślad GPX.');
+  const media = isMediaType(type);
+  if (!image && !media && !Object.values(FILE_TYPES).includes(type)) {
+    throw new WorkspaceError('Tylko obrazy (JPEG, PNG, WebP, GIF, AVIF), filmy (MP4, WebM), dźwięki (MP3, M4A, OGG, WAV), PDF, dokumenty Office i OpenDocument albo ślad GPX.');
   }
-  if (file.size > (image ? MAX_IMAGE_BYTES : MAX_FILE_BYTES)) {
-    throw new WorkspaceError(image ? 'Obraz może mieć najwyżej 8 MB.' : 'Plik może mieć najwyżej 25 MB.');
+  const most = image ? MAX_IMAGE_BYTES : media ? MAX_MEDIA_BYTES : MAX_FILE_BYTES;
+  if (file.size > most) {
+    throw new WorkspaceError(image ? 'Obraz może mieć najwyżej 8 MB.' : media ? 'Film albo dźwięk może mieć najwyżej 30 MB.' : 'Plik może mieć najwyżej 25 MB.');
   }
 
   let response: Response;

@@ -90,8 +90,10 @@ export interface Plan {
 
 /**
  * Die Timer → der Plan für das Telefon: nur eingeschaltete, je Aktion die Ramki
- * ihres Sygnał (wie beim Drücken, `prepareSignal`). Was nicht gesendet werden
- * kann (gelöschtes Gerät, kaputtes Paket), bleibt draussen und wird genannt.
+ * ihres Sygnał (wie beim Drücken, `prepareSignal`) — im Tempo DES TIMERS (seine
+ * eigenen Regler; die Pause steht auch zwischen den Aktionen). Die Regler der Knöpfe
+ * gelten hier nicht. Was nicht gesendet werden kann (gelöschtes Gerät, kaputtes
+ * Paket), bleibt draussen und wird genannt.
  */
 export function timerPlan(lamps: readonly Lamp[], timers: readonly LampTimer[]): Plan {
   const out: NativeTimer[] = [];
@@ -103,11 +105,11 @@ export function timerPlan(lamps: readonly Lamp[], timers: readonly LampTimer[]):
     t.actions.forEach((a, i) => {
       const found = actionOf(lamps, a);
       if (found === null) { problems.push(`${name}, akcja ${i + 1}: tego urządzenia albo sygnału już nie ma.`); return; }
-      const prepared = prepareSignal(found.signal);
+      const prepared = prepareSignal(found.signal, t.pace);
       if (prepared.problem !== null) { problems.push(`${name}, ${found.signal.label}: ${prepared.problem}`); return; }
       actions.push({ label: `${lampTitle(found.lamp)}: ${found.signal.label}`, frames: prepared.frames });
     });
-    if (actions.length > 0) out.push({ id: t.id, name, minute: t.minute, days: daysMask(t.days), actions });
+    if (actions.length > 0) out.push({ id: t.id, name, minute: t.minute, days: daysMask(t.days), pauseMs: t.pace.pauseMs, actions });
   }
   return { timers: out, problems };
 }
@@ -117,7 +119,10 @@ export function timerPlan(lamps: readonly Lamp[], timers: readonly LampTimer[]):
  * Angabe bleibt es, wie es ist — nur der erste Timer, der hier gespeichert wird,
  * schaltet ein Telefon ein, das sich noch nie entschieden hat (`firstTimer`).
  */
-export async function syncTimers(radio: LampNative, lamps: readonly Lamp[], timers: readonly LampTimer[], options: { enable?: boolean; firstTimer?: boolean } = {}): Promise<{ status: TimerStatus; problems: string[] }> {
+export async function syncTimers(
+  radio: LampNative, lamps: readonly Lamp[], timers: readonly LampTimer[],
+  options: { enable?: boolean; firstTimer?: boolean } = {}
+): Promise<{ status: TimerStatus; problems: string[] }> {
   const plan = timerPlan(lamps, timers);
   let enable = options.enable;
   if (enable === undefined && options.firstTimer === true && !(await radio.timerStatus()).decided) enable = true;

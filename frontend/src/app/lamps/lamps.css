@@ -135,3 +135,11 @@
 .lp-action-list { margin: 0; padding-left: var(--wk-space-5); display: grid; gap: var(--wk-space-2); }
 .lp-action { display: flex; align-items: center; gap: var(--wk-space-2); }
 .lp-action select { flex: 1; min-width: 0; }
+
+/* -- Das Tempo: zwei Regler unter den Knöpfen ------------------------------------------- */
+.lp-pace { margin: var(--wk-space-3) 0; }
+.lp-slider { display: grid; gap: var(--wk-space-1); }
+.lp-slider input[type="range"] { width: 100%; accent-color: var(--wk-accent); min-height: var(--wk-control-h-sm); }
+.lp-slider-head { display: flex; justify-content: space-between; gap: var(--wk-space-2); font-size: var(--wk-text-sm); }
+.lp-slider-head strong { font-variant-numeric: tabular-nums; }
+.lp-slider-ends { display: flex; justify-content: space-between; color: var(--wk-muted); font-size: var(--wk-text-xs); }

@@ -17,7 +17,9 @@
  * nach, was dazukam. Lange drücken wählt Nachrichten — „Wyświetl" zeigt sie gross.
  */
 
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+
+import { Avatar, cls, Icon, listTime, PopMenu, useButtonMenu, type MenuItem } from '../chat/ChatKit';
 
 import { useCrumbs } from '../shell/crumbTrail';
 import { viewPath } from '../routes';
@@ -28,24 +30,27 @@ import { WorkspaceError, type Who } from '../core/session';
 import { myRoleNames } from '../roles/roleNames';
 import { selfOf } from '../roles/roles';
 import { ask, toast } from '../ui/dialogs';
-import { Icon } from '../ui/icons';
+import { Icon as UiIcon } from '../ui/icons';
 import { Loading } from '../ui/Loading';
+import { Modal } from '../ui/Modal';
 import { PageHeader } from '../ui/PageHeader';
 import { useBarHeight } from '../ui/useBarHeight';
 import { ARCHIVE_PREF, archiveArea, readSettings, saveSettings, type ArchiveSettings } from './archiveSettings';
-import { loadContacts, nameIndex } from './contactStore';
-import { Phone, phoneHere, pluginSource, type Line, type NativeThread, type PhoneStatus } from './native';
+import { nameIndex } from './contactStore';
+import { contactsOf, ruledNumber, useContactIndex, useLineRules } from './lines';
+import { OwnLines } from './LinesView';
+import { Phone, phoneHere, pluginSource, type NativeThread, type PhoneStatus } from './native';
 import { phoneKey, phoneShown, smsParts } from './numbers';
 import { cancelReply, loadOutbox, pendingOf, queueReply, type OutboxEntry } from './outbox';
 import { archiveNow, archiveRunning, MEDIA_PREF } from './phoneJobs';
 import { openArea, openPhone, type PhoneCtx } from './phoneContext';
-import { copyReadable, MessageReader, SelectionBar, usePress, type Readable } from './reading';
 import {
   archivedFileUrl, archiveIndex, conversationKey, loadAll, loadConversation, readableArchives,
   type ArchivedConversation, type ArchivedMessage, type ArchivedPart, type ArchiveProgress, type ArchiveSummary
 } from './smsArchive';
 import { daysLabel, SHARE_DAYS, SHARE_MAX, shareFile, shareLink, sizeText } from './share';
-import { aheadWhen, around, Avatar, barStyle, conversationMatches, dayLabel, isMode, Linked, localInput, SEARCH, shortWhen, timeOf, type SearchMode } from './smsShared';
+import { PlanDialog, PlannedRow, SmsHeader, SmsLog, useRoomFrame, type SmsItem } from './smsChat';
+import { aheadWhen, around, barStyle, conversationMatches, isMode, SEARCH, timeOf, type SearchMode } from './smsShared';
 import './phone.css';
 
 const mb = (bytes: number) => `${(bytes / 1024 / 1024).toLocaleString('pl-PL', { maximumFractionDigits: 1 })} MB`;
@@ -164,7 +169,7 @@ function useNames(who: Who, native: boolean, conversations: readonly ArchivedCon
     void (async () => {
       const out = new Map<string, string>();
       try {
-        for (const [k, c] of nameIndex(await loadContacts(await openPhone(who)))) out.set(k, c.name);
+        for (const [k, c] of nameIndex(await contactsOf(who))) out.set(k, c.name);
       } catch {
         // ohne Kontakte in recreatio
       }
@@ -238,7 +243,7 @@ function ArchiveList({ who, native, settings, archives, areaId, ctx, index, fail
     <div className="ph-threads" style={barStyle(top)}>
       <PageHeader title={native ? 'Archiwum SMS' : 'SMS'} meta={index === null ? undefined
         : `W archiwum: ${index.summary.messages.toLocaleString('pl-PL')} wiadomości · ${mb(index.summary.bytes)} z ${mb(index.summary.limit)}`}
-        actions={native ? undefined : <a className="wk-btn wk-btn-quiet" href={viewPath('sms', 'pliki')}><Icon name="link" />Pliki przez link</a>} />
+        actions={native ? undefined : <a className="wk-btn wk-btn-quiet" href={viewPath('sms', 'pliki')}><UiIcon name="link" />Pliki przez link</a>} />
       {index !== null && <span className="ph-meter" aria-hidden="true"><span style={meterStyle(index.summary)} /></span>}
 
       {native && <ArchiveSetup who={who} settings={settings} conversations={conversations} ownName={ownName} onArchived={onArchived} />}
@@ -263,30 +268,35 @@ function ArchiveList({ who, native, settings, archives, areaId, ctx, index, fail
       {ctx !== null && (
         <>
           <div className="ph-bar" role="search">
-            <select value={mode} aria-label="Szukaj w" onChange={(e) => setModeText(e.target.value)}>
-              {(Object.keys(SEARCH) as SearchMode[]).map((m) => <option key={m} value={m}>{SEARCH[m].label}</option>)}
-            </select>
-            <input type="search" value={query} placeholder={SEARCH[mode].placeholder} aria-label={SEARCH[mode].placeholder}
-              inputMode={mode === 'numery' ? 'tel' : 'search'} onChange={(e) => setQuery(e.target.value)} />
+            <label className="ch-side-search ph-search-pill">
+              <Icon name="search" />
+              <select value={mode} aria-label="Szukaj w" onChange={(e) => setModeText(e.target.value)}>
+                {(Object.keys(SEARCH) as SearchMode[]).map((m) => <option key={m} value={m}>{SEARCH[m].label}</option>)}
+              </select>
+              <input type="search" value={query} placeholder={SEARCH[mode].placeholder} aria-label={SEARCH[mode].placeholder}
+                inputMode={mode === 'numery' ? 'tel' : 'search'} onChange={(e) => setQuery(e.target.value)} />
+            </label>
           </div>
           {index === null && <Loading label="Wczytywanie archiwum…" />}
           {loadingAll !== null && <Loading label={loadingAll} lines={1} />}
 
           {hits !== null ? (
             hits.length === 0 ? <p className="wk-empty">Żadna wiadomość w archiwum tego nie zawiera.</p> : (
-              <ul className="ph-list" aria-label="Znalezione wiadomości">
+              <ul className="ch-list ph-chat-list" aria-label="Znalezione wiadomości">
                 {hits.map((m) => {
                   const key = conversationKey(m.peers);
                   const title = titleOf({ peers: m.peers });
                   return (
                     <li key={m.key}>
-                      <a className="ph-row" href={conversationHref(key)}>
-                        <Avatar name={m.peers.length > 1 ? '#' : title} seed={key} />
-                        <span className="ph-row-text">
-                          <span className="ph-row-name">{title}</span>
-                          <span className="ph-row-snippet">{around(m.body, q)}</span>
+                      <a className="ch-item" href={conversationHref(key)}>
+                        <Avatar seed={key || '?'} name={title} icon={m.peers.length > 1 ? 'users' : /\p{L}/u.test(title) ? undefined : 'user'} />
+                        <span className="ch-item-main">
+                          <span className="ch-item-top">
+                            <strong className="ch-item-title">{title}</strong>
+                            <time className="ch-item-time">{listTime(new Date(m.at).toISOString())}</time>
+                          </span>
+                          <span className="ch-item-bottom"><span className="ch-item-sub">{around(m.body, q)}</span></span>
                         </span>
-                        <span className="ph-row-end">{shortWhen(m.at)}</span>
                       </a>
                     </li>
                   );
@@ -297,20 +307,22 @@ function ArchiveList({ who, native, settings, archives, areaId, ctx, index, fail
             shown.length === 0
               ? <p className="wk-empty">{conversations.length === 0 ? (native ? 'Archiwum jest jeszcze puste — „Archiwizuj teraz".' : 'Archiwum jest puste.') : 'Nic nie pasuje.'}</p>
               : (
-                <ul className="ph-list">
+                <ul className="ch-list ph-chat-list">
                   {shown.map((c) => {
                     const title = titleOf(c);
                     return (
                       <li key={c.key}>
-                        <a className="ph-row" href={conversationHref(c.key)}>
-                          <Avatar name={c.peers.length > 1 ? '#' : title} seed={c.key || '?'} />
-                          <span className="ph-row-text">
-                            <span className="ph-row-name">{title}</span>
-                            <span className="ph-row-snippet">{c.lastBody !== '' ? c.lastBody : c.lastMedia ? '📷 MMS' : ''}</span>
-                          </span>
-                          <span className="ph-row-end">
-                            <span>{c.last > 0 ? shortWhen(c.last) : ''}</span>
-                            <span>{c.count.toLocaleString('pl-PL')}</span>
+                        <a className={cls('ch-item', c.lastBox === 'in' && 'ph-last-in')} href={conversationHref(c.key)}>
+                          <Avatar seed={c.key || '?'} name={title} icon={c.peers.length > 1 ? 'users' : /\p{L}/u.test(title) ? undefined : 'user'} />
+                          <span className="ch-item-main">
+                            <span className="ch-item-top">
+                              <strong className="ch-item-title">{title}</strong>
+                              {c.last > 0 && <time className="ch-item-time">{listTime(new Date(c.last).toISOString())}</time>}
+                            </span>
+                            <span className="ch-item-bottom">
+                              <span className="ch-item-sub">{c.lastBox === 'in' ? '' : 'Ty: '}{c.lastBody !== '' ? c.lastBody : c.lastMedia ? '📷 MMS' : ''}</span>
+                              <span className="ph-item-count" title="Wiadomości w archiwum">{c.count.toLocaleString('pl-PL')}</span>
+                            </span>
                           </span>
                         </a>
                       </li>
@@ -500,7 +512,7 @@ function ArchiveSetup({ who, settings, conversations, ownName, onArchived }: {
       </p>
       <div className="wk-actions">
         <button type="button" className="wk-btn" disabled={running || status?.smsRead === false} onClick={() => void run(false)}>
-          <Icon name="archive" />{running ? 'Archiwizowanie…' : 'Archiwizuj teraz'}
+          <UiIcon name="archive" />{running ? 'Archiwizowanie…' : 'Archiwizuj teraz'}
         </button>
         <button type="button" className="wk-btn wk-btn-quiet" disabled={running || status?.smsRead === false} onClick={() => void run(true)}>Sprawdź wszystko od początku</button>
       </div>
@@ -511,51 +523,6 @@ function ArchiveSetup({ who, settings, conversations, ownName, onArchived }: {
         </p>
       )}
     </section>
-  );
-}
-
-/**
- * DIE EIGENEN NUMMERN — das Archiv vermerkt bei jeder Nachricht, von welcher sie ging, und
- * eine Antwort aus dem Browser sendet nur ein Telefon mit dieser Nummer. Nennt eine Karte
- * ihre Nummer nicht, trägt man sie hier ein (nur auf diesem Telefon).
- */
-function OwnLines() {
-  const [lines, setLines] = useState<readonly Line[] | null>(null);
-  const [typed, setTyped] = useState<Readonly<Record<string, string>>>({});
-  const load = useCallback(() => { void Phone.lines().then((r) => setLines(r.lines)).catch(() => setLines([])); }, []);
-  useEffect(() => { load(); }, [load]);
-  if (lines === null || lines.length === 0) return null;
-
-  const save = async (line: Line) => {
-    const value = (typed[line.subId] ?? line.number ?? '').trim();
-    try {
-      await Phone.setLine({ subId: line.subId, number: value === '' ? null : value });
-      toast(value === '' ? 'Usunięto numer.' : 'Zapisano numer.');
-      load();
-    } catch {
-      toast('Nie udało się zapisać numeru.');
-    }
-  };
-
-  return (
-    <fieldset className="ph-own-lines">
-      <legend>Twoje numery</legend>
-      <p>Odpowiedź napisaną w przeglądarce wysyła telefon, który ma numer tej rozmowy — archiwum zapisuje przy wiadomościach, z którego numeru poszły.</p>
-      <ul>
-        {lines.map((l) => (
-          <li key={l.subId}>
-            <span>{l.name}</span>
-            {l.known ? <strong>{phoneShown(l.number)}</strong> : (
-              <span className="ph-own-line">
-                <input type="tel" value={typed[l.subId] ?? l.number ?? ''} placeholder="Numer tej karty, np. +48 600 100 200" aria-label={`Numer: ${l.name}`}
-                  onChange={(e) => setTyped({ ...typed, [l.subId]: e.target.value })} />
-                <button type="button" className="wk-btn wk-btn-quiet" onClick={() => void save(l)}>Zapisz</button>
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-    </fieldset>
   );
 }
 
@@ -583,10 +550,25 @@ function useOutbox(ctx: PhoneCtx, on: boolean): [readonly OutboxEntry[], () => v
   return [entries, useCallback(() => setTick((n) => n + 1), [])];
 }
 
+/** Wo eine aus dem Browser gerade ist — die Zeile unter ihrem Text. */
+function outboxMeta(entry: OutboxEntry): { text: string; future: boolean } {
+  const m = entry.message;
+  const at = m?.sendAt ?? 0;
+  const future = m !== null && m.sendAt !== null && at > Date.now();
+  const device = entry.device !== null ? ` (${entry.device})` : '';
+  const text = entry.state === 'waiting' ? (future ? `Zaplanowana · ${aheadWhen(at)} · czeka na telefon` : 'Czeka na telefon…')
+    : entry.state === 'taken' ? (future ? `Zaplanowana · ${aheadWhen(at)} · telefon ją ma${device}` : `Telefon wysyła${device}…`)
+    : entry.state === 'sent' ? `Wysłano z telefonu${device}${entry.doneAt !== null ? ` · ${timeOf(Date.parse(entry.doneAt))}` : ''}`
+    : entry.state === 'failed' ? `Nie wysłano${entry.error !== null ? ` · ${entry.error}` : ''}`
+    : 'Odwołana — telefon jeszcze tego nie potwierdził';
+  return { text, future };
+}
+
 /*
- * IM BROWSER ANTWORTEN: unten schreiben (gleich oder zu einer Zeit), das Telefon mit der
- * Nummer dieser Rozmowa sendet. Darüber steht, was unterwegs ist, bis es im Archiv steht.
- * Auf dem Telefon (Archiwum) bleibt das Gespräch zum Lesen — geschrieben wird in SMS.
+ * EIN GESPRÄCH AUS DEM ARCHIV, wie eine Rozmowa (2026-10-19): der Kopf mit dem Namen und —
+ * im Browser — der eigenen Nummer, von der das Telefon die Antwort senden soll; darunter,
+ * was unterwegs ist, bis es im Archiv steht; unten das Feld. Auf dem Telefon (Archiwum)
+ * bleibt es zum Lesen — geschrieben wird in SMS.
  */
 function ArchiveConversation({ who, ctx, conversation, title, names, back, native, lines, mayWrite }: {
   who: Who; ctx: PhoneCtx; conversation: ArchivedConversation; title: string; names: ReadonlyMap<string, string>; back: string; native: boolean;
@@ -597,15 +579,28 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
   const [messages, setMessages] = useState<readonly ArchivedMessage[] | null>(conversationSeen.get(seenKey) ?? null);
   const [count, setCount] = useState(STEP);
   const [failed, setFailed] = useState<string | null>(null);
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [reading, setReading] = useState(false);
   const [outbox, reloadOutbox] = useOutbox(ctx, !native);
-  const scroller = useRef<HTMLDivElement | null>(null);
-  const inner = useRef<HTMLDivElement | null>(null);
-  const anchor = useRef<number | null>(null);
-  /** Unten bleiben, wer unten war — was alle halbe Minute dazukommt, reisst nicht nach unten. */
-  const stick = useRef(true);
+  const [search, setSearch] = useState('');
+  const [follow, setFollow] = useState(0);
+  const [ownText, setOwnText] = useRemembered('sms.line', '');
+  const [askingLine, setAskingLine] = useState(false);
+  const own = phoneKey(ownText);
+  /*
+    Von welcher Nummer: dieselben Regeln wie auf dem Telefon (am Konto) — die Wahl dieser
+    Rozmowa, sonst die Nummer ihrer Gruppe; dann die zuletzt benutzte. Was hier gewählt wird,
+    ist die Wahl der Rozmowa, auch auf dem Telefon.
+  */
+  const { groupRules, threadRules, setThreadRule } = useLineRules();
+  const contacts = useContactIndex(who);
+  const rule = useMemo(() => ruledNumber({ peers: conversation.peers, contacts, groupRules, threadRules }),
+    [conversation.peers, contacts, groupRules, threadRules]);
+  const line = rule?.number ?? conversation.lastLine ?? lines[0] ?? own;
+  const options = useMemo(() => [...new Set([line, conversation.lastLine, ...lines, own]
+    .filter((l): l is string => l !== null && l !== ''))], [line, conversation.lastLine, lines, own]);
+  const lineMenu = useButtonMenu();
   const top = useBarHeight();
+  const group = conversation.peers.length > 1;
+  useRoomFrame();
   useCrumbs(native ? [{ label: 'Archiwum', href: back }] : []);
 
   useEffect(() => {
@@ -618,59 +613,21 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx, seenKey, batchKey]);
 
-  useEffect(() => { setSelected(new Set()); stick.current = true; }, [seenKey]);
-
-  const shown = messages === null ? [] : messages.slice(Math.max(0, messages.length - count));
+  const shown = useMemo(() => (messages === null ? [] : messages.slice(Math.max(0, messages.length - count))), [messages, count]);
   const more = messages !== null && count < messages.length;
   const pending = useMemo(() => pendingOf(outbox, conversation.key, messages ?? []), [outbox, conversation.key, messages]);
 
-  /* Beim Öffnen unten; nach „Wcześniejsze" an derselben Nachricht; sonst bleibt, wer oben liest. */
-  useLayoutEffect(() => {
-    const el = scroller.current;
-    if (el === null) return;
-    if (anchor.current !== null) {
-      el.scrollTop += el.scrollHeight - anchor.current;
-      anchor.current = null;
-    } else if (stick.current) {
-      el.scrollTop = el.scrollHeight;
-    }
-  }, [messages, count, pending.length]);
-
-  /* Das Antwortfeld wächst, die Zeit kommt dazu, ein Bild ist geladen: wer unten war, bleibt unten. */
-  useEffect(() => {
-    const el = scroller.current;
-    const content = inner.current;
-    if (el === null || content === null || typeof ResizeObserver === 'undefined') return undefined;
-    const keep = new ResizeObserver(() => { if (stick.current) el.scrollTop = el.scrollHeight; });
-    keep.observe(el);
-    keep.observe(content);
-    return () => keep.disconnect();
-  }, []);
-
-  const earlier = () => {
-    const el = scroller.current;
-    if (el !== null) anchor.current = el.scrollHeight;
-    setCount(count + STEP);
-  };
-
-  const onScroll = () => {
-    const el = scroller.current;
-    if (el === null) return;
-    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64;
-    if (el.scrollTop < 120 && more) earlier();
-  };
-
-  const toggle = (key: string) => setSelected((had) => {
-    const next = new Set(had);
-    if (next.has(key)) next.delete(key); else next.add(key);
-    return next;
-  });
-  const chosen: Readable[] = (messages ?? []).filter((m) => selected.has(m.key)).map((m) => ({
+  const items: SmsItem[] = useMemo(() => shown.map((m) => ({
     key: m.key,
-    who: m.box === 'in' ? (m.from !== null ? names.get(m.from) ?? phoneShown(m.from) : title) : 'Ty',
+    mine: m.box !== 'in',
     at: m.at,
-    body: m.body !== '' ? m.body : m.parts.length > 0 ? '[MMS]' : ''
-  }));
+    body: m.body,
+    subject: m.subject,
+    author: group && m.box === 'in' && m.from !== null ? names.get(m.from) ?? phoneShown(m.from) : null,
+    authorSeed: m.from ?? undefined,
+    state: m.box === 'failed' ? 'failed' as const : null,
+    media: m.parts.length > 0 ? m.parts.map((p, j) => <ArchivedMedia key={j} ctx={ctx} part={p} />) : undefined
+  })), [shown, group, names, ctx]);
 
   const cancel = async (entry: OutboxEntry) => {
     if (!await ask({ title: 'Odwołać tę wiadomość?', body: 'Telefon jej nie wyśle — chyba że już to zrobił.', confirm: 'Odwołaj', danger: true })) return;
@@ -692,128 +649,107 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
     reloadOutbox();
   };
 
+  const tail = pending.length === 0 ? undefined : pending.map((entry) => {
+    const meta = outboxMeta(entry);
+    const failedHere = entry.state === 'failed';
+    return (
+      <PlannedRow key={entry.id} text={entry.message?.body ?? ''} meta={meta.text} failed={failedHere}
+        tools={entry.state === 'waiting' || (entry.state === 'taken' && meta.future)
+          ? <button type="button" className="wk-link-btn wk-danger-link" onClick={() => void cancel(entry)}>Odwołaj</button>
+          : failedHere ? <button type="button" className="wk-link-btn" onClick={() => void retry(entry)}>Wyślij ponownie</button>
+          : undefined} />
+    );
+  });
+
   const from = messages !== null && messages.length > 0 ? messages[0].at : conversation.first;
-  return (
-    <div className="ph-thread" style={barStyle(top)}>
-      {selected.size > 0 ? (
-        <SelectionBar count={selected.size} onShow={() => setReading(true)} onCopy={() => copyReadable(chosen)} onClear={() => setSelected(new Set())} />
-      ) : (
-        <header className="ph-thread-head">
-          <a className="wk-icon-btn" href={back} aria-label="Wszystkie rozmowy w archiwum" title="Wszystkie rozmowy w archiwum"><Icon name="back" /></a>
-          <Avatar name={conversation.peers.length > 1 ? '#' : title} seed={conversation.key || '?'} />
-          <span className="ph-thread-title">
-            <h1 className="ph-thread-name">{title}</h1>
-            <span className="ph-thread-sub">
-              {messages === null ? conversation.count : messages.length} wiadomości w archiwum{from > 0 ? ` · od ${new Date(from).toLocaleDateString('pl-PL')}` : ''}
-            </span>
-          </span>
-        </header>
+  const replying = !native && mayWrite && conversation.peers.length === 1;
+  const ruleText = rule === null ? '' : rule.why === 'thread' ? ' — wybrany dla tej rozmowy' : ` — grupa „${rule.group ?? ''}”`;
+  const lineItems: MenuItem[] = [
+    ...options.map((l) => ({
+      label: `${phoneShown(l)}${l === rule?.number ? ruleText : l === conversation.lastLine ? ' — ta rozmowa' : ''}`,
+      icon: 'phone' as const, checked: line === l, onSelect: () => setThreadRule(conversation.peers, l)
+    })),
+    { label: 'Inny numer…', icon: 'edit', onSelect: () => setAskingLine(true) },
+    ...(rule?.why === 'thread' ? [{ label: 'Jak dotąd: według grupy i ostatniej wiadomości', icon: 'refresh' as const, onSelect: () => setThreadRule(conversation.peers, null) }] : [])
+  ];
+  const sub = (
+    <>
+      {replying && (
+        <>
+          <button type="button" className="ch-chip ph-line-chip" aria-haspopup="menu" aria-expanded={lineMenu.open !== null}
+            title="Z którego numeru telefon wyśle odpowiedź" onClick={(e) => lineMenu.toggle(e.currentTarget)}>
+            <Icon name="phone" />{line === '' ? 'wybierz numer' : phoneShown(line)}<Icon name="down" />
+          </button>
+          {lineMenu.open !== null && (
+            <PopMenu anchor={{ rect: lineMenu.open.rect }} from={lineMenu.open.from} label="Z którego numeru" items={lineItems} onClose={lineMenu.close}>
+              <p className="ch-pop-head">Telefon z tym numerem wyśle odpowiedź — wybór zostaje dla tej rozmowy, także na telefonie</p>
+            </PopMenu>
+          )}
+        </>
       )}
-      <div className="ph-scroll" ref={scroller} onScroll={onScroll}>
-        <div className="ph-scroll-inner" ref={inner}>
-          {failed !== null && <p className="wk-error">{failed}</p>}
-          {messages === null && failed === null && <Loading label="Wczytywanie rozmowy…" />}
-          {more && <button type="button" className="wk-btn wk-btn-quiet ph-more" onClick={earlier}>Wcześniejsze wiadomości</button>}
-          {shown.map((m, i) => {
-            const before = shown[i - 1];
-            const newDay = before === undefined || new Date(before.at).toDateString() !== new Date(m.at).toDateString();
-            return (
-              <Fragment key={m.key}>
-                {newDay && <span className="ph-day">{dayLabel(m.at)}</span>}
-                <ArchivedBubble ctx={ctx} m={m} group={conversation.peers.length > 1} names={names}
-                  selected={selected.has(m.key)} selecting={selected.size > 0} onSelect={() => toggle(m.key)} />
-              </Fragment>
-            );
-          })}
-          {pending.map((e) => <OutboxBubble key={e.id} entry={e} onCancel={() => void cancel(e)} onRetry={() => void retry(e)} />)}
-        </div>
-      </div>
+      <span className="ph-head-numbers">{messages === null ? conversation.count : messages.length} w archiwum{from > 0 ? ` · od ${new Date(from).toLocaleDateString('pl-PL')}` : ''}</span>
+    </>
+  );
+
+  return (
+    <div className="ch-room ph-room" style={barStyle(top)}>
+      <SmsHeader back={back} title={title} seed={conversation.key || '?'} group={group} sub={sub} menu={[]} search={search} onSearch={setSearch} />
+      <SmsLog items={messages === null ? null : items} failed={failed} title={title} group={group} search={search} follow={follow}
+        more={more} onEarlier={() => setCount((n) => n + STEP)} tail={tail} empty="W archiwum nie ma jeszcze wiadomości tej rozmowy." />
       {!native && (
-        <ReplyBox who={who} ctx={ctx} conversation={conversation} lines={lines} mayWrite={mayWrite}
-          onQueued={() => { stick.current = true; reloadOutbox(); }} />
+        <ReplyBox who={who} ctx={ctx} conversation={conversation} line={line} mayWrite={mayWrite}
+          onQueued={() => { setFollow((n) => n + 1); reloadOutbox(); }} />
       )}
-      {reading && <MessageReader title={title} items={chosen} onClose={() => setReading(false)} />}
+      {askingLine && (
+        <OtherLine value={ownText} onClose={() => setAskingLine(false)}
+          onSave={(value) => { setOwnText(value); setThreadRule(conversation.peers, phoneKey(value)); setAskingLine(false); }} />
+      )}
     </div>
   );
 }
 
-function ArchivedBubble({ ctx, m, group, names, selected, selecting, onSelect }: {
-  ctx: PhoneCtx; m: ArchivedMessage; group: boolean; names: ReadonlyMap<string, string>;
-  selected: boolean; selecting: boolean; onSelect: () => void;
-}) {
-  const incoming = m.box === 'in';
-  /* Lange drücken wählt; solange gewählt wird, wählt auch ein kurzer Tipp. */
-  const press = usePress(onSelect, () => { if (selecting) onSelect(); });
+/** Ein anderer eigener Numer — den das Archiv noch nicht kennt. */
+function OtherLine({ value, onSave, onClose }: { value: string; onSave: (value: string) => void; onClose: () => void }) {
+  const [text, setText] = useState(value);
   return (
-    <div className={`ph-msg ${incoming ? 'is-in' : 'is-out'}${m.box === 'failed' ? ' is-failed' : ''}${selected ? ' is-selected' : ''}`} role="article"
-      aria-selected={selecting ? selected : undefined} tabIndex={0} {...press}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); } }}>
-      {group && incoming && m.from !== null && <span className="ph-msg-from">{names.get(m.from) ?? phoneShown(m.from)}</span>}
-      {m.subject !== null && <span className="ph-msg-subject">{m.subject}</span>}
-      {m.parts.length > 0 && <div className="ph-media">{m.parts.map((p, j) => <ArchivedMedia key={j} ctx={ctx} part={p} />)}</div>}
-      {m.body !== '' && <span><Linked text={m.body} live={!selecting} /></span>}
-      <span className={`ph-msg-meta${m.box === 'failed' ? ' is-failed' : ''}`}>{m.box === 'failed' ? 'Nie wysłano · ' : ''}{timeOf(m.at)}</span>
-    </div>
+    <Modal title="Z którego numeru?" onClose={onClose}>
+      <label className="wk-field">
+        <span>Twój numer — wyśle telefon, który go ma</span>
+        <input type="tel" value={text} placeholder="+48 600 100 200" autoFocus onChange={(e) => setText(e.target.value)} />
+      </label>
+      <div className="wk-actions">
+        <button type="button" className="wk-btn" disabled={phoneKey(text) === ''} onClick={() => onSave(text)}>Ustaw</button>
+        <button type="button" className="wk-link-btn" onClick={onClose}>Anuluj</button>
+      </div>
+    </Modal>
   );
 }
-
-/** Eine aus dem Browser — wo sie gerade ist. */
-function OutboxBubble({ entry, onCancel, onRetry }: { entry: OutboxEntry; onCancel: () => void; onRetry: () => void }) {
-  const m = entry.message;
-  if (m === null) return null;
-  const at = m.sendAt ?? 0;
-  const future = m.sendAt !== null && at > Date.now();
-  const device = entry.device !== null ? ` (${entry.device})` : '';
-  const failed = entry.state === 'failed';
-  const said = entry.state === 'waiting' ? (future ? `Zaplanowana · ${aheadWhen(at)} · czeka na telefon` : 'Czeka na telefon…')
-    : entry.state === 'taken' ? (future ? `Zaplanowana · ${aheadWhen(at)} · telefon ją ma${device}` : `Telefon wysyła${device}…`)
-    : entry.state === 'sent' ? `Wysłano z telefonu${device}${entry.doneAt !== null ? ` · ${timeOf(Date.parse(entry.doneAt))}` : ''}`
-    : failed ? `Nie wysłano${entry.error !== null ? ` · ${entry.error}` : ''}`
-    : 'Odwołana — telefon jeszcze tego nie potwierdził';
-  return (
-    <div className={`ph-msg is-out is-planned${failed ? ' is-failed' : ''}`} role="article">
-      <span>{m.body}</span>
-      <span className={`ph-msg-meta${failed ? ' is-failed' : ''}`}>{said}</span>
-      {(entry.state === 'waiting' || (entry.state === 'taken' && future)) && (
-        <span className="ph-msg-tools"><button type="button" className="wk-link-btn wk-danger-link" onClick={onCancel}>Odwołaj</button></span>
-      )}
-      {failed && (
-        <span className="ph-msg-tools"><button type="button" className="wk-link-btn" onClick={onRetry}>Wyślij ponownie</button></span>
-      )}
-    </div>
-  );
-}
-
-const OTHER_LINE = '+';
 
 /**
- * DIE ANTWORT AUS DEM BROWSER — an die eine Person der Rozmowa, von der eigenen Nummer,
- * die das Archiv bei ihr vermerkt hat (oder einer gewählten). Nur das Telefon mit dieser
- * Nummer nimmt sie; es erfährt davon über den Wecker (FCM), sonst spätestens in einer
- * Viertelstunde.
+ * DIE ANTWORT AUS DEM BROWSER — wie das Feld des Chats: 📎 (eine Datei geht als Link mit),
+ * die Lasche für „Wyślij później", Senden. An die eine Person der Rozmowa, von der Nummer
+ * im Kopf; nur das Telefon mit dieser Nummer nimmt sie (FCM weckt es, sonst spätestens in
+ * einer Viertelstunde).
  */
-function ReplyBox({ who, ctx, conversation, lines, mayWrite, onQueued }: {
-  who: Who; ctx: PhoneCtx; conversation: ArchivedConversation; lines: readonly string[]; mayWrite: boolean; onQueued: () => void;
+function ReplyBox({ who, ctx, conversation, line, mayWrite, onQueued }: {
+  who: Who; ctx: PhoneCtx; conversation: ArchivedConversation; line: string; mayWrite: boolean; onQueued: () => void;
 }) {
-  const [ownText, setOwnText] = useRemembered('sms.line', '');
-  const own = phoneKey(ownText);
-  const options = useMemo(() => [...new Set([conversation.lastLine, ...lines, own === '' ? null : own]
-    .filter((l): l is string => l !== null && l !== ''))], [conversation.lastLine, lines, own]);
-  const [picked, setPicked] = useState<string>(conversation.lastLine ?? options[0] ?? OTHER_LINE);
   const [text, setText] = useState('');
-  const [later, setLater] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [planning, setPlanning] = useState(false);
+  const [sendMenu, setSendMenu] = useState<{ rect: DOMRect; from: Element } | null>(null);
   /* 0117 — eine Datei geht als Link mit (in voller Grösse, versiegelt im eigenen Bereich). */
   const [file, setFile] = useState<File | null>(null);
   const [daysText, setDaysText] = useRemembered('sms.linkDays', '30');
   const [progress, setProgress] = useState<number | null>(null);
   const uploaded = useRef<{ readonly file: File; readonly link: string } | null>(null);
-  const line = picked === OTHER_LINE ? own : picked;
+  const picker = useRef<HTMLInputElement | null>(null);
   const days = (SHARE_DAYS as readonly number[]).includes(Number(daysText)) ? Number(daysText) : 30;
 
-  if (!mayWrite) return <p className="ph-reply-note">To archiwum możesz czytać; odpowiadać mogą ci, którzy mogą w nim pisać.</p>;
-  if (conversation.peers.length !== 1) return <p className="ph-reply-note">Z przeglądarki można odpowiadać w rozmowach z jedną osobą.</p>;
+  if (!mayWrite) return <p className="ch-compose is-readonly">To archiwum możesz czytać; odpowiadać mogą ci, którzy mogą w nim pisać.</p>;
+  if (conversation.peers.length !== 1) return <p className="ch-compose is-readonly">Z przeglądarki można odpowiadać w rozmowach z jedną osobą.</p>;
 
+  const content = text.trim() !== '' || file !== null;
   const withLink = (link: string) => (text.trim() === '' ? link : `${text.trimEnd()}\n${link}`);
   const count = smsParts(file === null ? text : withLink(shareLink('x'.repeat(22))));
   const pick = (e: ChangeEvent<HTMLInputElement>) => {
@@ -824,11 +760,9 @@ function ReplyBox({ who, ctx, conversation, lines, mayWrite, onQueued }: {
     uploaded.current = null;
     setFile(chosen);
   };
-  const send = async () => {
-    const at = later === null ? null : new Date(later).getTime();
-    if (at !== null && (!Number.isFinite(at) || at <= Date.now())) { toast('Wybierz czas w przyszłości.'); return; }
-    if (line === '') { toast('Podaj numer, z którego telefon ma wysłać.'); return; }
-    if (busy || (text.trim() === '' && file === null)) return;
+  const send = async (at: number | null) => {
+    if (line === '') { toast('Wybierz w nagłówku numer, z którego telefon ma wysłać.'); return; }
+    if (busy || !content) return;
     setBusy(true);
     try {
       let body = text;
@@ -851,7 +785,6 @@ function ReplyBox({ who, ctx, conversation, lines, mayWrite, onQueued }: {
       setText('');
       setFile(null);
       uploaded.current = null;
-      setLater(null);
       toast(at === null ? 'Przekazano telefonowi — wyśle, gdy tylko się zgłosi.' : `Telefon wyśle ją: ${aheadWhen(at)}.`);
       onQueued();
     } catch (e) {
@@ -861,59 +794,55 @@ function ReplyBox({ who, ctx, conversation, lines, mayWrite, onQueued }: {
     }
   };
 
+  const status = busy && progress !== null ? `Wysyłanie pliku… ${Math.round(progress * 100)}%`
+    : line === '' ? 'Wybierz w nagłówku numer, z którego telefon ma wysłać.'
+    : `${text !== '' || file !== null ? `${count.parts > 1 ? `${count.parts} SMS · ` : ''}zostało ${count.left}${file !== null ? ' · z linkiem' : ''} · ` : ''}wyśle telefon z numerem ${phoneShown(line)}`;
+
   return (
-    <div className="ph-composer ph-reply">
+    <form className="ch-compose ph-compose ph-reply" onSubmit={(e) => { e.preventDefault(); void send(null); }}>
       {file !== null && (
-        <div className="ph-attached">
-          <span className="ph-attached-file"><Icon name="file" />{file.name}</span>
-          <span className="ph-attached-size">{sizeText(file.size)} · link, pełna jakość</span>
+        <div className="ch-files">
+          <span className="ch-file-chip">
+            <span className="ch-file-ic"><Icon name="file" /></span>
+            <span className="ch-file-text"><span className="ch-file-name">{file.name}</span><small>{sizeText(file.size)} · link, pełna jakość</small></span>
+            <button type="button" className="ch-icon-btn is-small" aria-label={`Usuń załącznik ${file.name}`} disabled={busy}
+              onClick={() => { setFile(null); uploaded.current = null; }}><Icon name="x" /></button>
+          </span>
           <select aria-label="Jak długo działa link" value={days} disabled={busy} onChange={(e) => setDaysText(e.target.value)}>
             {SHARE_DAYS.map((d) => <option key={d} value={d}>ważny {daysLabel(d)}</option>)}
           </select>
-          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => { setFile(null); uploaded.current = null; }}>Usuń załącznik</button>
         </div>
       )}
-      <div className="ph-composer-row">
-        <label className="wk-icon-btn" aria-label="Dodaj plik (pójdzie jako link)" title="Dodaj plik (pójdzie jako link)">
-          <Icon name="clip" />
-          <input className="ph-attach-input" type="file" onChange={pick} disabled={busy} />
-        </label>
-        <textarea rows={2} value={text} placeholder="Odpowiedź (SMS wyśle telefon)" aria-label="Treść odpowiedzi" onChange={(e) => setText(e.target.value)} />
-        <button type="button" className={`wk-icon-btn${later !== null ? ' is-on' : ''}`} aria-label="Wyślij później" title="Wyślij później"
-          aria-pressed={later !== null} disabled={busy} onClick={() => setLater(later === null ? localInput(Date.now() + 3600_000) : null)}>
-          <Icon name="clock" />
-        </button>
-        <button type="button" className="wk-btn" disabled={busy || (text.trim() === '' && file === null) || line === ''} onClick={() => void send()}>
-          {later !== null ? <><Icon name="clock" />Zaplanuj</> : <><Icon name="send" />{!busy ? 'Wyślij' : progress !== null ? `${Math.round(progress * 100)}%` : 'Przekazywanie…'}</>}
+      <div className="ch-compose-row">
+        <div className="ch-field">
+          <textarea rows={1} value={text} placeholder="Odpowiedź — SMS wyśle telefon" aria-label="Treść odpowiedzi" onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(null); } }} />
+          <button type="button" className="ch-icon-btn" aria-label="Dołącz plik (pójdzie jako link)" title="Dołącz plik (pójdzie jako link)" disabled={busy}
+            onClick={() => picker.current?.click()}>
+            <Icon name="clip" />
+          </button>
+        </div>
+        {content && (
+          <button type="button" className="ch-send-more" aria-label="Wyślij później" title="Wyślij później" aria-haspopup="menu" aria-expanded={sendMenu !== null}
+            disabled={busy} onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => { const el = e.currentTarget; setSendMenu(sendMenu === null ? { rect: el.getBoundingClientRect(), from: el } : null); }}>
+            <Icon name="chevron" />
+          </button>
+        )}
+        <button type="submit" className="ch-send" aria-label="Wyślij" title="Wyślij" disabled={busy || !content || line === ''} onMouseDown={(e) => e.preventDefault()}>
+          <Icon name="send" />
         </button>
       </div>
       {progress !== null && <progress className="ph-progress" value={progress} max={1} aria-label="Przesyłanie pliku" />}
-      {later !== null && (
-        <div className="ph-later">
-          <label>
-            Wyślij{' '}
-            <input type="datetime-local" value={later} min={localInput(Date.now())} onChange={(e) => setLater(e.target.value)} />
-          </label>
-        </div>
+      <p className="ch-compose-line" role="status">{status}</p>
+      <input ref={picker} type="file" className="ch-picker" tabIndex={-1} aria-label="Wybierz plik" onChange={pick} />
+      {sendMenu !== null && (
+        <PopMenu anchor={{ rect: sendMenu.rect, above: true }} from={sendMenu.from} label="Wysyłanie" onClose={() => setSendMenu(null)} items={[
+          { label: 'Wyślij później…', icon: 'clock', onSelect: () => setPlanning(true) }
+        ]} />
       )}
-      <div className="ph-composer-info">
-        {(text !== '' || file !== null) && (
-          <span>{count.parts > 1 ? `${count.parts} SMS · ` : ''}zostało {count.left}{count.unicode ? ' (polskie znaki: 70 na SMS)' : ''}{file !== null ? ' · z linkiem' : ''}</span>
-        )}
-        <label>
-          Z numeru{' '}
-          <select value={picked} onChange={(e) => setPicked(e.target.value)}>
-            {options.map((l) => <option key={l} value={l}>{phoneShown(l)}{l === conversation.lastLine ? ' (ta rozmowa)' : ''}</option>)}
-            <option value={OTHER_LINE}>Inny numer…</option>
-          </select>
-        </label>
-        {picked === OTHER_LINE && (
-          <input type="tel" value={ownText} placeholder="+48 600 100 200" aria-label="Twój numer, z którego telefon ma wysłać"
-            onChange={(e) => setOwnText(e.target.value)} />
-        )}
-        <span>wyśle telefon z tym numerem</span>
-      </div>
-    </div>
+      {planning && <PlanDialog onClose={() => setPlanning(false)} onPlan={(at) => void send(at)} note="Telefon z tym numerem wyśle ją o tej porze." />}
+    </form>
   );
 }
 

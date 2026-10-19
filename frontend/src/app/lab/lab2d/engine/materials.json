@@ -1,0 +1,122 @@
+{
+  "format": "recreatio/lab2d-materials",
+  "version": 1,
+  "sources": {
+    "iapws-if97": "IAPWS R7-97(2012), Revised Release on the IAPWS Industrial Formulation 1997 for the Thermodynamic Properties of Water and Steam — region 4 (saturation line)",
+    "iapws-sat": "IAPWS SR1-86(1992), Revised Supplementary Release on Saturation Properties of Ordinary Water Substance (Wagner & Pruss 1993): saturated liquid and vapour densities",
+    "iapws-st": "IAPWS R1-76(2014), Revised Release on Surface Tension of Ordinary Water Substance",
+    "iapws-k": "IAPWS R15-11, Thermal Conductivity of Ordinary Water Substance (2011): saturated liquid 0–100 °C, quadratic fit in this repository",
+    "kell": "G. S. Kell (1975), Density, thermal expansivity and compressibility of liquid water from 0 to 150 °C, J. Chem. Eng. Data 20(1), 97–105",
+    "nist": "NIST Chemistry WebBook, SRD 69, Thermophysical Properties of Fluid Systems (water: IAPWS-95) — saturated liquid water and steam at 1 atm",
+    "vogel": "Viscosity of liquid water, Vogel equation μ = A·10^(B/(T−C)), A = 2.414e-5 Pa·s, B = 247.8 K, C = 140 K (fit to IAPWS 2008 viscosity data, within 2.5 % from 0 to 100 °C)",
+    "janaf": "NIST-JANAF Thermochemical Tables, 4th ed. (Chase 1998): ideal-gas heat capacities, standard enthalpies of formation and entropies",
+    "incropera": "Incropera, DeWitt, Bergman, Lavine, Fundamentals of Heat and Mass Transfer, 6th ed., Tables A.1 (metals), A.3 (non-metallic solids), A.4 (gases at 1 atm)",
+    "sutherland": "F. M. White, Viscous Fluid Flow, 3rd ed., Table 1-2: Sutherland-law constants",
+    "massman": "W. J. Massman (1998), A review of the molecular diffusivities of H2O, CO2, CH4, CO, O3, SO2, NH3, N2O, NO, and NO2 in air, O2 and N2 near STP, Atmospheric Environment 32(6), 1111–1127",
+    "schott": "SCHOTT Borofloat 33 / DURAN borosilicate glass 3.3, data sheets",
+    "codata": "CODATA 2018 (molar gas constant), IUPAC standard atomic weights",
+    "contact": "Typical static contact angles of water: clean borosilicate glass 20–30°, stainless steel 60–80°, porous hydrophilic ceramic ≈ 10° (Yuan & Lee 2013, Contact Angle and Wetting Properties, Surface Science Techniques, Springer)",
+    "lemmert": "Lemmert & Chawla (1977) active nucleation-site density N = (210 ΔT_w)^1.805 m⁻² (ΔT_w in K), as implemented in OpenFOAM (LemmertChawla.C); cavity populations of glass and ceramic scaled from it in this repository",
+    "model": "Model parameter, not a measured property — chosen and documented in documentation/lab2d/SIMPLIFICATIONS.md"
+  },
+  "ambient": {
+    "p": { "v": 101325, "src": "codata" },
+    "T": { "v": 293.15, "src": "model" },
+    "rh": { "v": 0.5, "src": "model" },
+    "air": { "N2": { "v": 0.7676, "src": "incropera" }, "O2": { "v": 0.2324, "src": "incropera" } },
+    "hExt": { "v": 10, "src": "model" }
+  },
+  "species": [
+    {
+      "id": "H2O",
+      "name": { "pl": "woda", "de": "Wasser", "en": "water" },
+      "molarMass": { "v": 0.01801528, "src": "codata" },
+      "liquid": {
+        "name": { "pl": "woda", "de": "Wasser", "en": "water" },
+        "kell": { "c": [999.83952, 16.945176, -7.9870401e-3, -46.170461e-6, 105.56302e-9, -280.54253e-12, 16.879850e-3], "src": "kell" },
+        "cp": { "table": [[273.16, 4219.9], [283.15, 4195.5], [293.15, 4184.3], [303.15, 4180.1], [313.15, 4179.6], [323.15, 4181.5], [333.15, 4185.1], [343.15, 4190.2], [353.15, 4196.9], [363.15, 4205.3], [373.15, 4215.7], [383.15, 4228.3], [393.15, 4243.5], [403.15, 4261.5], [413.15, 4282.6], [423.15, 4307.0]], "src": "nist" },
+        "k": { "poly": [0.5587, 2.1825e-3, -9.78e-6], "src": "iapws-k" },
+        "mu": { "vogel": [2.414e-5, 247.8, 140], "src": "vogel" },
+        "color": "#3d8fd8"
+      },
+      "vapour": {
+        "name": { "pl": "para wodna", "de": "Wasserdampf", "en": "water vapour" },
+        "cp": { "linear": [1864.5, 0.374, 298.15], "src": "janaf" },
+        "k": { "v": 0.0248, "src": "nist" },
+        "mu": { "v": 1.227e-5, "src": "nist" }
+      },
+      "saturation": {
+        "if97": { "n": [0.11670521452767e4, -0.72421316703206e6, -0.17073846940092e2, 0.12020824702470e5, -0.32325550322333e7, 0.14915108613530e2, -0.48232657361591e4, 0.40511340542057e6, -0.23855557567849, 0.65017534844798e3], "src": "iapws-if97" },
+        "Tc": { "v": 647.096, "src": "iapws-sat" },
+        "rhoc": { "v": 322, "src": "iapws-sat" },
+        "vapourDensity": { "c": [-2.03150240, -2.68302940, -5.38626492, -17.2991605, -44.7586581, -63.9201063], "src": "iapws-sat" },
+        "liquidDensity": { "b": [1.99274064, 1.09965342, -0.510839303, -1.75493479, -45.5170352, -6.74694450e5], "src": "iapws-sat" },
+        "hlv100": { "v": 2256400, "src": "nist" }
+      },
+      "surfaceTension": { "B": 235.8e-3, "b": -0.625, "mu": 1.256, "src": "iapws-st" },
+      "thermo": {
+        "liquid": { "dHf": { "v": -285830, "src": "janaf" }, "S": { "v": 69.95, "src": "janaf" } },
+        "gas": { "dHf": { "v": -241826, "src": "janaf" }, "S": { "v": 188.835, "src": "janaf" } }
+      }
+    },
+    {
+      "id": "N2",
+      "name": { "pl": "azot", "de": "Stickstoff", "en": "nitrogen" },
+      "molarMass": { "v": 0.0280134, "src": "codata" },
+      "gas": {
+        "cp": { "v": 1041, "src": "incropera" },
+        "k": { "power": [0.0259, 300, 0.81], "src": "incropera" },
+        "mu": { "sutherland": [1.663e-5, 273.15, 107], "src": "sutherland" }
+      },
+      "thermo": { "gas": { "dHf": { "v": 0, "src": "janaf" }, "S": { "v": 191.609, "src": "janaf" } } }
+    },
+    {
+      "id": "O2",
+      "name": { "pl": "tlen", "de": "Sauerstoff", "en": "oxygen" },
+      "molarMass": { "v": 0.0319988, "src": "codata" },
+      "gas": {
+        "cp": { "v": 920, "src": "incropera" },
+        "k": { "power": [0.0268, 300, 0.80], "src": "incropera" },
+        "mu": { "sutherland": [1.919e-5, 273.15, 139], "src": "sutherland" }
+      },
+      "thermo": { "gas": { "dHf": { "v": 0, "src": "janaf" }, "S": { "v": 205.147, "src": "janaf" } } }
+    }
+  ],
+  "vapourInAir": {
+    "D0": { "v": 2.178e-5, "src": "massman" },
+    "T0": { "v": 273.15, "src": "massman" },
+    "exponent": { "v": 1.81, "src": "massman" }
+  },
+  "solids": [
+    {
+      "id": "glass",
+      "name": { "pl": "szkło borokrzemowe", "de": "Borosilikatglas", "en": "borosilicate glass" },
+      "rho": { "v": 2230, "src": "schott" },
+      "cp": { "v": 830, "src": "schott" },
+      "k": { "v": 1.2, "src": "schott" },
+      "contactAngle": { "v": 25, "src": "contact" },
+      "cavities": { "scale": { "v": 0.02, "src": "lemmert" }, "rmax": { "v": 3e-6, "src": "model" } },
+      "color": "#9cc3d5"
+    },
+    {
+      "id": "steel",
+      "name": { "pl": "stal nierdzewna", "de": "Edelstahl", "en": "stainless steel" },
+      "rho": { "v": 7900, "src": "incropera" },
+      "cp": { "v": 477, "src": "incropera" },
+      "k": { "v": 14.9, "src": "incropera" },
+      "contactAngle": { "v": 70, "src": "contact" },
+      "cavities": { "scale": { "v": 1, "src": "lemmert" }, "rmax": { "v": 40e-6, "src": "model" } },
+      "color": "#7d858e"
+    },
+    {
+      "id": "ceramic",
+      "name": { "pl": "kamyczki wrzenne (ceramika porowata)", "de": "Siedesteine (poröse Keramik)", "en": "boiling chips (porous ceramic)" },
+      "rho": { "v": 1920, "src": "incropera" },
+      "cp": { "v": 835, "src": "incropera" },
+      "k": { "v": 0.72, "src": "incropera" },
+      "contactAngle": { "v": 10, "src": "contact" },
+      "cavities": { "scale": { "v": 50, "src": "lemmert" }, "rmax": { "v": 150e-6, "src": "model" } },
+      "color": "#d8ccb4"
+    }
+  ]
+}

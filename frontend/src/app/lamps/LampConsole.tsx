@@ -110,7 +110,7 @@ export function LampQueueBar({ native }: { native: boolean }) {
   return (
     <div className="lp-queue" role="status" aria-live="polite">
       <span className="lp-queue-text">
-        {now !== null ? <>Nadawanie: {now.lamp} → <strong>{now.signal}</strong></> : 'Za chwilę…'}
+        {now !== null ? <>Nadawanie: {now.lamp} → <strong>{now.signal}</strong></> : 'Przerwa przed następnym…'}
         {waiting > 0 && <> · w kolejce {waiting}</>}
       </span>
       <button type="button" className="wk-btn wk-btn-small wk-btn-danger" onClick={() => void stopTransmission(LampRadio)}>Stop</button>

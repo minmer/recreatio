@@ -34,8 +34,8 @@ import { readSubject, subjectKindOf, writeSubject } from './pageSubject';
 import type { RawConfig } from './part';
 import { partOf } from './parts/registry';
 import {
-  ARRIVALS, EASES, FONT_PAIRS, FORMATS, NAVS, ORIGINS, pieceJson, readPiece, readPieceValue, readShow, SCENE_CHANGES, showJson, SKINS,
-  TEXT_TYPES, THREADS, withPiece, type Piece
+  ARRIVALS, BETWEENS, EASES, FONT_PAIRS, FORMATS, MASK_SHAPES, MAX_FRAMES, mediaUrl, NAVS, ORIGINS, pieceJson, PROGRESS, readCrop, readPiece, readPieceValue,
+  readShow, SCENE_CHANGES, showJson, SKINS, TEXT_TYPES, THREADS, withPiece, type Piece
 } from './presentation/presentation';
 import { unknownMotions } from './motion/motion';
 import { brokenTarget } from './presentation/showPaths';
@@ -232,10 +232,45 @@ function pieceWarnings(said: Record<string, unknown>, where: string): string[] {
   check('arrive', ARRIVALS, 'fade');
   check('ease', EASES, 'inOut');
   check('origin', ORIGINS, 'center');
+  check('between', BETWEENS, 'glide');
   /* 0108 — ein Ruch, den das Wörterbuch nicht kennt, bewegt nichts. */
   for (const name of unknownMotions(said.motion)) out.push(`${where}: ruch "show.motion" „${name}” — nie ma go w słowniku (niżej: Ruch); pominięty.`);
   if (has(said, 'places') && (typeof said.places !== 'object' || said.places === null || Array.isArray(said.places))) {
     out.push(`${where}: "show.places" to nie obiekt { "klucz sceny": miejsce } — moduł nie stanie w prezentacji.`);
+  }
+  /* 2026-10-19 — was an Klatki, Ausschnitt und Maske eines Platzes nicht passt. */
+  for (const [key, raw] of Object.entries(asRecord(said.places))) out.push(...placeWarnings(asRecord(raw), `${where}, scena „${key}”`));
+  return out;
+}
+
+/** 2026-10-19 — ein Ausschnitt, der kein Ausschnitt ist, und eine Maske, deren Form es nicht gibt. */
+function lookWarnings(said: Record<string, unknown>, where: string): string[] {
+  const out: string[] = [];
+  if (has(said, 'crop') && readCrop(said.crop) === null) out.push(`${where}: "crop" „${asText(said.crop)}” — to nie punkt kadru (np. "57% 40%", "center", "left top"); pominięty.`);
+  if (has(said, 'mask') && said.mask !== null && said.mask !== 'none') {
+    const shape = asText(asRecord(said.mask).shape);
+    if (!(MASK_SHAPES as readonly string[]).includes(shape)) out.push(`${where}: "mask" — kształt „${shape}” — dozwolone: ${MASK_SHAPES.join(', ')}; pominięta.`);
+  }
+  return out;
+}
+
+/** 2026-10-19 — was an einem Platz (seinen Klatki, seinem Fortschritt) nicht stimmt. */
+function placeWarnings(said: Record<string, unknown>, where: string): string[] {
+  const out = lookWarnings(said, where);
+  if (has(said, 'tall')) out.push(...lookWarnings(asRecord(said.tall), `${where}, "tall"`));
+  if (has(said, 'by') && !(PROGRESS as readonly string[]).includes(asText(said.by))) out.push(`${where}: "by" „${asText(said.by)}” — dozwolone: ${PROGRESS.join(', ')}; będzie "scene".`);
+  if (has(said, 'frames')) {
+    if (!Array.isArray(said.frames)) out.push(`${where}: "frames" to nie lista klatek — pominięte.`);
+    else {
+      if (said.frames.length > MAX_FRAMES) out.push(`${where}: ${said.frames.length} klatek — liczy się pierwszych ${MAX_FRAMES}.`);
+      said.frames.forEach((raw, i) => {
+        const one = asRecord(raw);
+        if (typeof one.at !== 'number' && typeof one.step !== 'number') out.push(`${where}, klatka ${i + 1}: brak "at" (0–1) albo "step" — pominięta.`);
+        if (has(one, 'ease') && !(EASES as readonly string[]).includes(asText(one.ease))) out.push(`${where}, klatka ${i + 1}: "ease" „${asText(one.ease)}” — dozwolone: ${EASES.join(', ')}; będzie "inOut".`);
+        out.push(...lookWarnings(one, `${where}, klatka ${i + 1}`));
+        if (has(one, 'tall')) out.push(...lookWarnings(asRecord(one.tall), `${where}, klatka ${i + 1}, "tall"`));
+      });
+    }
   }
   return out;
 }
@@ -268,8 +303,13 @@ function showWarnings(value: unknown): string[] {
   if (has(root, 'fonts') && !(FONT_PAIRS as readonly string[]).includes(asText(root.fonts))) out.push(`"show.fonts" „${asText(root.fonts)}” — dozwolone: ${FONT_PAIRS.join(', ')}; będzie "app".`);
   if (has(root, 'nav') && !(NAVS as readonly string[]).includes(asText(root.nav))) out.push(`"show.nav" „${asText(root.nav)}” — dozwolone: ${NAVS.join(', ')}; będzie "labels".`);
   out.push(...layerWarnings(root.backdrop, '"show.backdrop"'));
+  /* 2026-10-19 — ein Klang ohne Adresse, die er sein darf, klingt nicht. */
+  if (has(root, 'sound') && root.sound !== null && mediaUrl(asRecord(root.sound).url) === null) {
+    out.push('"show.sound" nie ma adresu dźwięku ("url": "page-image:<id>" albo "https://…") — bez dźwięku.');
+  }
   asArray(root.scenes).forEach((raw, i) => {
     const scene = asRecord(raw);
+    if (has(scene, 'volume') && typeof scene.volume !== 'number') out.push(`Scena ${i + 1}: "volume" to nie liczba 0–1 — będzie 1.`);
     if (has(scene, 'change') && !(SCENE_CHANGES as readonly string[]).includes(asText(scene.change))) {
       out.push(`Scena ${i + 1}: "change" „${asText(scene.change)}” — dozwolone: ${SCENE_CHANGES.join(', ')}; będzie "fade".`);
     }

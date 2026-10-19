@@ -14,12 +14,14 @@
  * Gespeichert im eigenen Bereich (0118, `lampStore.ts`) — nach einer
  * Neuinstallation und im Browser ist alles wieder da; senden kann nur das Telefon.
  * Ändert sich auf dem Telefon ein Gerät oder ein Timer, bekommt das Telefon gleich
- * den neuen Plan der Timer (`timers.ts`).
+ * den neuen Plan der Timer (`timers.ts`). Die zwei Regler unter den Knöpfen (`pace.ts`)
+ * gelten nur für die Knöpfe — jeder Timer hat seine eigenen.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { plural } from '../core/plural';
+import { useRemembered } from '../core/prefs';
 import { WorkspaceError, type Who } from '../core/session';
 import { useCrumbs } from '../shell/crumbTrail';
 import { viewPath } from '../routes';
@@ -36,10 +38,12 @@ import {
   type Lamp, type LampSignal, type LampTimer
 } from './lampStore';
 import { LampRadio, lampHere, type LampSupport, type TimerStatus } from './native';
+import { PaceControl } from './PaceControl';
+import { PACE_PREF, paceText, readPace, type Pace } from './pace';
 import { TimerEdit } from './TimerEdit';
 import { TimerList } from './TimerList';
 import { syncTimers } from './timers';
-import { transmit } from './transmit';
+import { setPace, transmit } from './transmit';
 import './lamps.css';
 
 interface Home {
@@ -59,6 +63,11 @@ export function LampsApp({ who, trail }: { who: Who; trail: readonly string[] })
   const { support, refresh } = useLampSupport(native);
   /* Der jüngste Stand — damit zwei schnelle Änderungen nacheinander nicht vom selben alten ausgehen. */
   const latest = useRef<Home | null>(null);
+
+  /* Das Tempo der Knöpfe (zwei Regler), gemerkt am Konto — gilt sofort für jeden Druck, nicht für die Timer. */
+  const [paceStored, storePace] = useRemembered(PACE_PREF, '');
+  const pace = readPace(paceStored);
+  useEffect(() => { setPace(readPace(paceStored)); }, [paceStored]);
 
   /** Auf dem Telefon: den Plan der Timer neu ablegen (und den Wecker stellen). */
   const sync = useCallback(async (now: Home, options: { enable?: boolean; firstTimer?: boolean } = {}) => {
@@ -142,6 +151,7 @@ export function LampsApp({ who, trail }: { who: Who; trail: readonly string[] })
   return (
     <LampList ctx={ctx} home={home} native={native} support={support} refresh={refresh}
       timerStatus={timerStatus} planProblems={planProblems}
+      pace={pace} onPace={(next) => { setPace(next); storePace(paceText(next)); }}
       onTimerSaved={timerSaved}
       onPhone={(on) => change((h) => h, { enable: on })} />
   );
@@ -151,7 +161,7 @@ export default LampsApp;
 
 /* -- Die Lampen mit ihren Knöpfen -------------------------------------------------------------- */
 
-function LampList({ ctx, home, native, support, refresh, timerStatus, planProblems, onTimerSaved, onPhone }: {
+function LampList({ ctx, home, native, support, refresh, timerStatus, planProblems, pace, onPace, onTimerSaved, onPhone }: {
   ctx: PhoneCtx;
   home: Home;
   native: boolean;
@@ -159,6 +169,8 @@ function LampList({ ctx, home, native, support, refresh, timerStatus, planProble
   refresh: () => void;
   timerStatus: TimerStatus | null;
   planProblems: readonly string[];
+  pace: Pace;
+  onPace: (next: Pace) => void;
   onTimerSaved: (timer: LampTimer) => void;
   onPhone: (on: boolean) => void;
 }) {
@@ -217,6 +229,9 @@ function LampList({ ctx, home, native, support, refresh, timerStatus, planProble
             ))}
           </div>
         )}
+
+      <PaceControl pace={pace} onChange={onPace} title="Tempo przycisków" between="między sygnałami"
+        note="Dotyczy tylko przycisków (i prób nadania). Sygnały zostają zapisane w najszybszej postaci; każdy timer ma własne suwaki." />
 
       <TimerList lamps={lamps} timers={timers} native={native} status={timerStatus} busy={busy}
         onEnabled={(t, enabled) => void setEnabled(t, enabled)} onPhone={onPhone} />

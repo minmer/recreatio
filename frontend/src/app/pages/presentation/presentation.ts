@@ -27,6 +27,16 @@
  *
  * <b>Duldsam wie alles, was als Zeichenkette vom Dienst kommt</b>: was nicht
  * passt, nimmt die Vorgabe an; geworfen wird nie.
+ *
+ * <b>2026-10-19 — BILDER IN EINER SZENE</b> (Hortus Dei): ein Platz kann
+ * Klatki tragen (`frames`), die nicht der Uhr folgen, sondern dem FORTSCHRITT
+ * der Szene (`by`: ihr Inneres, ihr Kommen, ihr Gehen — je 0–1). Zurückrollen
+ * zeigt das Bild davor, Stillstand ein stehendes Bild; Rad, Finger, Tasten und
+ * Vortrag bewegen dieselbe Zahl. Dazu je Platz der Mittelpunkt eines Ausschnitts
+ * (`crop`, auch hochkant und in Klatki) und eine Maske (`mask`: Kreis,
+ * Ellipse, Rechteck); je Baustein, ob er zwischen nicht benachbarten Szenen
+ * gleitet oder geht und wiederkommt (`between`); je Präsentation ein Klang
+ * der Umgebung (`sound`, nur auf Wunsch) und je Szene seine Lautstärke.
  */
 
 import type { Layout } from '../layout';
@@ -198,6 +208,47 @@ export type Nav = (typeof NAVS)[number];
 
 export const NAV_LABEL: Record<Nav, string> = { labels: 'Nazwy scen', dots: 'Kropki', none: 'Bez paska' };
 
+/**
+ * 2026-10-19 — WOVON DIE KLATKI EINES PLATZES ABHÄNGEN, je 0–1:
+ *
+ * <code>
+ *   scene   das Innere der Szene: 0 an ihrem ersten Schritt, 1 an ihrem letzten
+ *           (eine Szene mit einem Schritt hat kein Inneres — dort steht 0)
+ *   enter   ihr Kommen: 0, wenn der Wechsel herein beginnt, 1, wenn sie da ist (die erste Szene ist immer da)
+ *   leave   ihr Gehen: 0 an ihrem letzten Schritt, 1, wenn die nächste da ist (die letzte geht nie)
+ * </code>
+ */
+export const PROGRESS = ['scene', 'enter', 'leave'] as const;
+export type Progress = (typeof PROGRESS)[number];
+
+export const PROGRESS_LABEL: Record<Progress, string> = {
+  scene: 'Wnętrze sceny — od pierwszego do ostatniego kroku',
+  enter: 'Wejście sceny — przejście z poprzedniej',
+  leave: 'Wyjście sceny — przejście do następnej'
+};
+
+/** 2026-10-19 — die Form einer Maske: was vom Baustein zu sehen ist. */
+export const MASK_SHAPES = ['circle', 'ellipse', 'inset'] as const;
+export type MaskShape = (typeof MASK_SHAPES)[number];
+
+export const MASK_LABEL: Record<MaskShape, string> = {
+  circle: 'Koło', ellipse: 'Owal', inset: 'Prostokąt (wcięty od brzegów)'
+};
+
+/**
+ * 2026-10-19 — WIE EIN BAUSTEIN MIT PLÄTZEN AUF NICHT BENACHBARTEN SZENEN
+ * dazwischen ist: er GLEITET über die Szenen dazwischen (wie bisher), oder er
+ * GEHT mit seiner Szene und KOMMT mit der nächsten, auf der er steht — dasselbe
+ * Bild am Anfang und am Ende, ohne dass es dazwischen herumschwebt.
+ */
+export const BETWEENS = ['glide', 'leave'] as const;
+export type Between = (typeof BETWEENS)[number];
+
+export const BETWEEN_LABEL: Record<Between, string> = {
+  glide: 'Sunie przez sceny pomiędzy',
+  leave: 'Odchodzi ze swoją sceną i wraca z następną'
+};
+
 /* -- Ein Platz ------------------------------------------------------------------------ */
 
 /**
@@ -209,6 +260,11 @@ export const NAV_LABEL: Record<Nav, string> = { labels: 'Nazwy scen', dots: 'Kro
  * Pixeln (0 flach, −1000 weit hinten — nur wo die Kamera fliegt, sieht man es).
  * `step` — der Schritt der Szene, in dem er betont ist (`null`: keiner).
  * `tall` — andere Werte auf einem hohen, schmalen Bild (Telefon hochkant).
+ *
+ * 2026-10-19 — `crop`: wo der Mittelpunkt des Ausschnitts eines Bildes sitzt
+ * (das Feuer bleibt im Bild, wenn der Kasten schmaler wird); `mask`: was vom
+ * Baustein zu sehen ist; `frames`: Klatki nach dem Fortschritt `by` der Szene;
+ * `still`: wo sie bei „weniger Bewegung" stehen (fehlt: am Ende — beim Gehen am Anfang).
  */
 export interface Place {
   readonly x: number;
@@ -222,6 +278,11 @@ export interface Place {
   readonly z: number;
   readonly step: number | null;
   readonly tall: TallPlace | null;
+  readonly crop: string | null;
+  readonly mask: Mask | null;
+  readonly frames: readonly Frame[];
+  readonly by: Progress;
+  readonly still: number | null;
 }
 
 export interface TallPlace {
@@ -232,9 +293,67 @@ export interface TallPlace {
   readonly max?: number | null;
   readonly scale?: number;
   readonly rotate?: number;
+  readonly crop?: string;
+  readonly mask?: Mask | null;
 }
 
-export const PLACE: Place = { x: 50, y: 50, w: 30, h: null, max: null, rotate: 0, scale: 1, opacity: 1, z: 0, step: null, tall: null };
+/**
+ * 2026-10-19 — EINE MASKE in Prozent des Kastens: ein Kreis (`r` — 71 reicht
+ * aus der Mitte bis in die Ecken eines Quadrats), eine Ellipse (`rx` der Breite,
+ * `ry` der Höhe; 71 und 71 decken den Kasten aus der Mitte), oder ein
+ * Rechteck, von den Rändern her eingerückt (`round`: Ecken in rem).
+ */
+export interface Mask {
+  readonly shape: MaskShape;
+  readonly x: number;
+  readonly y: number;
+  readonly r: number;
+  readonly rx: number;
+  readonly ry: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+  readonly left: number;
+  readonly round: number;
+}
+
+export const MASK: Mask = { shape: 'circle', x: 50, y: 50, r: 71, rx: 71, ry: 71, top: 0, right: 0, bottom: 0, left: 0, round: 0 };
+
+/** Was eine Klatka ändern kann — jeder Schlüssel ist freiwillig; was fehlt, bleibt, wie es in der Klatka davor war. */
+export interface FrameValues {
+  readonly x?: number;
+  readonly y?: number;
+  readonly w?: number;
+  readonly h?: number | null;
+  readonly max?: number | null;
+  readonly rotate?: number;
+  readonly scale?: number;
+  readonly opacity?: number;
+  readonly z?: number;
+  readonly crop?: string;
+  readonly mask?: Mask | null;
+}
+
+/**
+ * 2026-10-19 — EINE KLATKA: an der Stelle `at` (0–1 des Fortschritts) — oder
+ * am Schritt `step` der Szene (dann gilt `at` nicht) — steht der Baustein so;
+ * `ease` sagt, wie er von der Klatka davor hierher kommt; `tall` — andere Werte
+ * auf einem hohen Bild.
+ */
+export interface Frame extends FrameValues {
+  readonly at: number;
+  readonly step: number | null;
+  readonly ease: Ease;
+  readonly tall: FrameValues | null;
+}
+
+/** Höchstens so viele Klatki an einem Platz. */
+export const MAX_FRAMES = 16;
+
+export const PLACE: Place = {
+  x: 50, y: 50, w: 30, h: null, max: null, rotate: 0, scale: 1, opacity: 1, z: 0, step: null, tall: null,
+  crop: null, mask: null, frames: [], by: 'scene', still: null
+};
 
 /** Grenzen — weit genug für einen Kreis, der zum Grund wächst (×26), eng genug, dass nichts ins Unendliche geht. */
 export const LIMITS = {
@@ -299,11 +418,13 @@ export interface Piece {
    * zu sehen ist. Das Kommen mit der Bahn (`arrive`) bleibt davon unberührt.
    */
   readonly motion: readonly MotionUse[];
+  /** 2026-10-19 — zwischen Plätzen auf nicht benachbarten Szenen: gleiten oder gehen und wiederkommen. */
+  readonly between: Between;
 }
 
 export const PIECE: Piece = {
   places: {}, skin: 'card', type: 'auto', fill: null, ink: null, accent: null, origin: 'center', media: null, align: 'start', valign: 'start',
-  arrive: 'fade', delay: 0, span: 0.6, ease: 'inOut', hold: false, layer: 0, go: {}, motion: []
+  arrive: 'fade', delay: 0, span: 0.6, ease: 'inOut', hold: false, layer: 0, go: {}, motion: [], between: 'glide'
 };
 
 /* -- Eine Szene ---------------------------------------------------------------------- */
@@ -364,12 +485,25 @@ export interface Scene {
    * `end` oder `link:<id>`. `null`: zur nächsten in der Liste — wie bisher.
    */
   readonly next: string | null;
+  /** 2026-10-19 — wie laut der Klang der Umgebung (`show.sound`) auf dieser Szene ist (0–1); `null`: ganz. */
+  readonly volume: number | null;
 }
 
 export const SCENE: Omit<Scene, 'key'> = {
   label: '', steps: 1, change: 'fade', keep: false, duration: 700, colors: null, layers: [], grow: null,
-  follow: { wide: 0.45, tall: 1 }, emphasis: true, thread: 'none', hint: '', words: null, depth: DEPTH, next: null
+  follow: { wide: 0.45, tall: 1 }, emphasis: true, thread: 'none', hint: '', words: null, depth: DEPTH, next: null, volume: null
 };
+
+/**
+ * 2026-10-19 — DER KLANG DER UMGEBUNG: eine Aufnahme (ein Feuer, Blätter), die
+ * in Schleife läuft — aber erst, wenn der Zuschauer es will (ein Knopf). Die
+ * Szenen sagen, wie laut (`volume`); dazwischen geht es fliessend über.
+ */
+export interface Sound {
+  readonly url: string;
+  readonly label: string;
+  readonly volume: number;
+}
 
 /** 0089 — EIN WEG HINAUS: eine Seite im Netz oder hier (`#/…`), auf die ein Ausgang führen kann. */
 export interface ShowLink {
@@ -397,9 +531,11 @@ export interface Show {
   readonly backdrop: readonly Layer[];
   /** 0108 — wie breit die Bühne höchstens ist (rem): die Plätze rechnen darin, der Hintergrund bleibt ganz. `null`: das Fenster. */
   readonly width: number | null;
+  /** 2026-10-19 — der Klang der Umgebung, nur auf Wunsch — `null`: keiner. */
+  readonly sound: Sound | null;
 }
 
-export const NO_SHOW: Show = { format: 'screen', fonts: 'app', nav: 'labels', scenes: [], links: [], map: {}, backdrop: [], width: null };
+export const NO_SHOW: Show = { format: 'screen', fonts: 'app', nav: 'labels', scenes: [], links: [], map: {}, backdrop: [], width: null, sound: null };
 
 /* -- Duldsame Leser ------------------------------------------------------------------- */
 
@@ -434,7 +570,162 @@ function readTall(value: unknown): TallPlace | null {
   if (one.max === null || typeof one.max === 'number') out.max = one.max === null ? null : within(one.max, LIMITS.max, 20);
   if (typeof one.scale === 'number') out.scale = within(one.scale, LIMITS.scale, 1);
   if (typeof one.rotate === 'number') out.rotate = within(one.rotate, LIMITS.rotate, 0);
+  const crop = readCrop(one.crop);
+  if (crop !== null) out.crop = crop;
+  const mask = readMaskValue(one.mask);
+  if (mask !== undefined) out.mask = mask;
   return Object.keys(out).length === 0 ? null : out;
+}
+
+/* -- 2026-10-19: Ausschnitt, Maske, Klatki --------------------------------------------------------- */
+
+/** Ein Wort eines Ausschnitts: wo es hingehört (waagrecht, senkrecht, beides) und wie viel. */
+const CROP_WORDS: Readonly<Record<string, { readonly axis: 'x' | 'y' | 'any'; readonly at: number }>> = {
+  left: { axis: 'x', at: 0 }, right: { axis: 'x', at: 100 }, top: { axis: 'y', at: 0 }, bottom: { axis: 'y', at: 100 }, center: { axis: 'any', at: 50 }
+};
+
+const cropWord = (word: string): { axis: 'x' | 'y' | 'any'; at: number } | null => {
+  const known = CROP_WORDS[word];
+  if (known !== undefined) return known;
+  const m = /^(-?\d+(?:\.\d+)?)%$/.exec(word);
+  return m === null ? null : { axis: 'any', at: Math.min(200, Math.max(-100, Number(m[1]))) };
+};
+
+/**
+ * 2026-10-19 — DER MITTELPUNKT EINES AUSSCHNITTS, wie ihn CSS kennt
+ * („57% 40%", „center", „left top", „30%") — immer als zwei Prozente
+ * gespeichert, damit sich zwei Ausschnitte mischen lassen. Was nicht passt: keiner.
+ */
+export function readCrop(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const words = value.trim().toLowerCase().split(/\s+/).filter((w) => w !== '');
+  if (words.length === 0 || words.length > 2) return null;
+  const parts = words.map(cropWord);
+  if (parts.some((p) => p === null)) return null;
+  const [a, b] = parts as { axis: 'x' | 'y' | 'any'; at: number }[];
+  let x = 50, y = 50;
+  if (b === undefined) {
+    if (a.axis === 'y') y = a.at; else x = a.at;
+  } else if (a.axis === 'y' || b.axis === 'x') {
+    if (a.axis === 'x' || b.axis === 'y') return null;
+    x = b.at; y = a.at;
+  } else {
+    x = a.at; y = b.at;
+  }
+  return `${roundTo(x)}% ${roundTo(y)}%`;
+}
+
+/**
+ * Eine Maske aus dem Gespeicherten. `undefined`: keine Angabe (oder eine, die
+ * nicht passt); `null`: ausdrücklich keine (`null` oder `"none"` — ab hier ist
+ * alles zu sehen).
+ */
+export function readMaskValue(value: unknown): Mask | null | undefined {
+  if (value === null || value === 'none') return null;
+  if (typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const one = record(value);
+  const shape = (MASK_SHAPES as readonly string[]).includes(str(one.shape)) ? str(one.shape) as MaskShape : null;
+  if (shape === null) return undefined;
+  return {
+    shape,
+    x: within(one.x, [-100, 200], MASK.x),
+    y: within(one.y, [-100, 200], MASK.y),
+    r: within(one.r, [0, 150], MASK.r),
+    rx: within(one.rx, [0, 300], MASK.rx),
+    ry: within(one.ry, [0, 300], MASK.ry),
+    top: within(one.top, [0, 100], 0),
+    right: within(one.right, [0, 100], 0),
+    bottom: within(one.bottom, [0, 100], 0),
+    left: within(one.left, [0, 100], 0),
+    round: within(one.round, [0, 20], 0)
+  };
+}
+
+/** Eine Maske knapp: nur, was ihre Form braucht und von der Vorgabe abweicht. */
+export function maskJson(mask: Mask | null): Record<string, unknown> | null {
+  if (mask === null) return null;
+  const out: Record<string, unknown> = { shape: mask.shape };
+  const put = (key: keyof Mask, fallback: number) => { if (mask[key] !== fallback) out[key] = roundTo(mask[key] as number); };
+  if (mask.shape === 'circle') { put('r', MASK.r); put('x', MASK.x); put('y', MASK.y); }
+  if (mask.shape === 'ellipse') { put('rx', MASK.rx); put('ry', MASK.ry); put('x', MASK.x); put('y', MASK.y); }
+  if (mask.shape === 'inset') { put('top', 0); put('right', 0); put('bottom', 0); put('left', 0); put('round', 0); }
+  return out;
+}
+
+/** Was eine Klatka (oder ihre Werte hochkant) ändert — nur, was dasteht und passt. */
+function readFrameValues(one: Record<string, unknown>): FrameValues {
+  const out: { -readonly [K in keyof FrameValues]: FrameValues[K] } = {};
+  if (typeof one.x === 'number' && Number.isFinite(one.x)) out.x = within(one.x, LIMITS.x, 50);
+  if (typeof one.y === 'number' && Number.isFinite(one.y)) out.y = within(one.y, LIMITS.y, 50);
+  if (typeof one.w === 'number' && Number.isFinite(one.w)) out.w = within(one.w, LIMITS.w, 30);
+  if (one.h === null || (typeof one.h === 'number' && Number.isFinite(one.h))) out.h = one.h === null ? null : within(one.h, LIMITS.h, 30);
+  if (one.max === null || (typeof one.max === 'number' && Number.isFinite(one.max))) out.max = one.max === null ? null : within(one.max, LIMITS.max, 20);
+  if (typeof one.rotate === 'number' && Number.isFinite(one.rotate)) out.rotate = within(one.rotate, LIMITS.rotate, 0);
+  if (typeof one.scale === 'number' && Number.isFinite(one.scale)) out.scale = within(one.scale, LIMITS.scale, 1);
+  if (typeof one.opacity === 'number' && Number.isFinite(one.opacity)) out.opacity = within(one.opacity, LIMITS.opacity, 1);
+  if (typeof one.z === 'number' && Number.isFinite(one.z)) out.z = within(one.z, LIMITS.z, 0);
+  const crop = readCrop(one.crop);
+  if (crop !== null) out.crop = crop;
+  const mask = readMaskValue(one.mask);
+  if (mask !== undefined) out.mask = mask;
+  return out;
+}
+
+/** Eine Klatka — ohne `at` und ohne `step` keine. */
+function readFrame(value: unknown): Frame | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const one = record(value);
+  const step = typeof one.step === 'number' && Number.isFinite(one.step) ? Math.round(within(one.step, LIMITS.step, 0)) : null;
+  const at = typeof one.at === 'number' && Number.isFinite(one.at) ? within(one.at, [0, 1], 0) : null;
+  if (step === null && at === null) return null;
+  const tall = typeof one.tall === 'object' && one.tall !== null && !Array.isArray(one.tall) ? readFrameValues(record(one.tall)) : null;
+  return {
+    ...readFrameValues(one),
+    at: step === null ? at ?? 0 : 0,
+    step,
+    ease: oneOf(one.ease, EASES, 'inOut'),
+    tall: tall === null || Object.keys(tall).length === 0 ? null : tall
+  };
+}
+
+/** Die Klatki eines Platzes — eine Liste; was keine Klatka ist, fällt weg. */
+export function readFrames(value: unknown): Frame[] {
+  return (Array.isArray(value) ? value : []).slice(0, MAX_FRAMES).map(readFrame).filter((f): f is Frame => f !== null);
+}
+
+/** Die Werte einer Klatka knapp. */
+function frameValuesJson(values: FrameValues): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of ['x', 'y', 'w', 'rotate', 'opacity'] as const) if (values[key] !== undefined) out[key] = roundTo(values[key]!);
+  if (values.h !== undefined) out.h = values.h === null ? null : roundTo(values.h);
+  if (values.max !== undefined) out.max = values.max === null ? null : roundTo(values.max);
+  if (values.scale !== undefined) out.scale = roundTo(values.scale, 3);
+  if (values.z !== undefined) out.z = Math.round(values.z);
+  if (values.crop !== undefined) out.crop = values.crop;
+  if (values.mask !== undefined) out.mask = maskJson(values.mask);
+  return out;
+}
+
+/** Die Klatki knapp: `at` (oder `step`), was sich ändert, `ease`, wenn nicht die Vorgabe, `tall`. */
+export function framesJson(frames: readonly Frame[]): Record<string, unknown>[] {
+  return frames.map((f) => ({
+    ...(f.step === null ? { at: roundTo(f.at, 4) } : { step: f.step }),
+    ...frameValuesJson(f),
+    ...(f.ease !== 'inOut' ? { ease: f.ease } : {}),
+    ...(f.tall === null ? {} : { tall: frameValuesJson(f.tall) })
+  }));
+}
+
+/** Die Werte hochkant knapp. */
+function tallJson(tall: TallPlace): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of ['x', 'y', 'w'] as const) if (tall[key] !== undefined) out[key] = tall[key];
+  if (tall.h !== undefined) out.h = tall.h;
+  if (tall.max !== undefined) out.max = tall.max;
+  for (const key of ['scale', 'rotate'] as const) if (tall[key] !== undefined) out[key] = tall[key];
+  if (tall.crop !== undefined) out.crop = tall.crop;
+  if (tall.mask !== undefined) out.mask = maskJson(tall.mask);
+  return out;
 }
 
 export function readPlace(value: unknown): Place | null {
@@ -452,7 +743,12 @@ export function readPlace(value: unknown): Place | null {
     opacity: within(one.opacity, LIMITS.opacity, PLACE.opacity),
     z: within(one.z, LIMITS.z, PLACE.z),
     step,
-    tall: readTall(one.tall)
+    tall: readTall(one.tall),
+    crop: readCrop(one.crop),
+    mask: readMaskValue(one.mask) ?? null,
+    frames: readFrames(one.frames),
+    by: oneOf(one.by, PROGRESS, PLACE.by),
+    still: typeof one.still === 'number' && Number.isFinite(one.still) ? within(one.still, [0, 1], 1) : null
   };
 }
 
@@ -499,7 +795,8 @@ export function readPieceValue(value: unknown): Piece {
     hold: one.hold === true,
     layer: Math.round(within(one.layer, [-20, 20], PIECE.layer)),
     go: readGo(one.go),
-    motion: readMotions(one.motion)
+    motion: readMotions(one.motion),
+    between: oneOf(one.between, BETWEENS, PIECE.between)
   };
 }
 
@@ -530,7 +827,12 @@ export function placeJson(place: Place): Record<string, unknown> {
   if (place.opacity !== 1) out.opacity = roundTo(place.opacity);
   if (place.z !== 0) out.z = Math.round(place.z);
   if (place.step !== null) out.step = place.step;
-  if (place.tall !== null) out.tall = place.tall;
+  if (place.tall !== null) out.tall = tallJson(place.tall);
+  if (place.crop !== null) out.crop = place.crop;
+  if (place.mask !== null) out.mask = maskJson(place.mask);
+  if (place.frames.length > 0) out.frames = framesJson(place.frames);
+  if (place.by !== PLACE.by) out.by = place.by;
+  if (place.still !== null) out.still = roundTo(place.still, 3);
   return out;
 }
 
@@ -569,6 +871,7 @@ export function pieceJson(piece: Piece): Record<string, unknown> {
   if (Object.keys(piece.go).length > 0) out.go = piece.go;
   const motion = motionsJson(piece.motion);
   if (motion !== undefined) out.motion = motion;
+  if (piece.between !== PIECE.between) out.between = piece.between;
   return out;
 }
 
@@ -638,7 +941,8 @@ export function readScene(value: unknown, index: number): Scene {
       travel: within(depth.travel, [0, 8000], DEPTH.travel),
       linger: depth.linger !== false
     },
-    next: typeof one.next === 'string' && one.next.trim() !== '' ? one.next.trim().slice(0, 80) : null
+    next: typeof one.next === 'string' && one.next.trim() !== '' ? one.next.trim().slice(0, 80) : null,
+    volume: typeof one.volume === 'number' && Number.isFinite(one.volume) ? within(one.volume, [0, 1], 1) : null
   };
 }
 
@@ -668,6 +972,30 @@ function readMap(value: unknown): Record<string, { x: number; y: number }> {
   return out;
 }
 
+/**
+ * 2026-10-19 — eine Adresse, unter der ein Bild, ein Film oder ein Klang liegen
+ * darf: eine Datei dieser Seite (`page-image:<id>`), eine Adresse im Netz, ein
+ * Pfad hier. Alles andere (`javascript:`, `data:`) nicht.
+ */
+export function mediaUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const t = value.trim();
+  if (t === '' || t.length > 500) return null;
+  if (/^page-image:[0-9a-f-]{36}$/i.test(t)) return t;
+  if (/^https?:\/\/[^\s"'<>]+$/i.test(t)) return t;
+  if (/^\/[^\s"'<>]*$/.test(t) && !t.startsWith('//')) return t;
+  return null;
+}
+
+/** 2026-10-19 — der Klang der Umgebung — ohne gültige Adresse keiner. */
+function readSound(value: unknown): Sound | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const one = record(value);
+  const url = mediaUrl(one.url);
+  if (url === null) return null;
+  return { url, label: str(one.label).trim().slice(0, 60), volume: within(one.volume, [0, 1], 0.6) };
+}
+
 /** Die Präsentation aus dem, was im Aussehen der Seite unter "show" liegt. */
 export function readShow(value: unknown): Show {
   const one = record(value);
@@ -688,7 +1016,8 @@ export function readShow(value: unknown): Show {
     links: readLinks(one.links),
     map: readMap(one.map),
     backdrop: readLayers(one.backdrop),
-    width: typeof one.width === 'number' && Number.isFinite(one.width) ? Math.min(240, Math.max(20, one.width)) : null
+    width: typeof one.width === 'number' && Number.isFinite(one.width) ? Math.min(240, Math.max(20, one.width)) : null,
+    sound: readSound(one.sound)
   };
 }
 
@@ -727,6 +1056,7 @@ export function sceneJson(scene: Scene): Record<string, unknown> {
     };
   }
   if (scene.next !== null) out.next = scene.next;
+  if (scene.volume !== null) out.volume = roundTo(scene.volume, 3);
   return out;
 }
 
@@ -739,7 +1069,8 @@ export function showJson(show: Show): Record<string, unknown> {
     ...(show.links.length > 0 ? { links: show.links.map((l) => ({ id: l.id, label: l.label, href: l.href })) } : {}),
     ...(Object.keys(show.map).length > 0 ? { map: show.map } : {}),
     ...(show.backdrop.length > 0 ? { backdrop: layersJson(show.backdrop) } : {}),
-    ...(show.width !== null ? { width: show.width } : {})
+    ...(show.width !== null ? { width: show.width } : {}),
+    ...(show.sound !== null ? { sound: { url: show.sound.url, ...(show.sound.label !== '' ? { label: show.sound.label } : {}), volume: roundTo(show.sound.volume, 3) } } : {})
   };
 }
 
@@ -748,18 +1079,31 @@ export const blankScene = (key: string, label: string): Scene => ({ ...SCENE, ke
 
 /* -- Für die Darstellung ---------------------------------------------------------------- */
 
-/** Der Platz, der gerade gilt — auf einem hohen Bild mit seinen eigenen Werten. */
-export const placeFor = (place: Place, tall: boolean): Place =>
-  !tall || place.tall === null ? place : {
+/**
+ * Der Platz, der gerade gilt — auf einem hohen Bild mit seinen eigenen Werten
+ * (2026-10-19: auch Ausschnitt und Maske, und jede Klatka mit ihren eigenen).
+ */
+export function placeFor(place: Place, tall: boolean): Place {
+  if (!tall) return place;
+  const frames = place.frames.some((f) => f.tall !== null)
+    ? place.frames.map((f) => (f.tall === null ? f : { ...f, ...f.tall, tall: null }))
+    : place.frames;
+  const t = place.tall;
+  if (t === null) return frames === place.frames ? place : { ...place, frames };
+  return {
     ...place,
-    x: place.tall.x ?? place.x,
-    y: place.tall.y ?? place.y,
-    w: place.tall.w ?? place.w,
-    h: place.tall.h === undefined ? place.h : place.tall.h,
-    max: place.tall.max === undefined ? place.max : place.tall.max,
-    scale: place.tall.scale ?? place.scale,
-    rotate: place.tall.rotate ?? place.rotate
+    x: t.x ?? place.x,
+    y: t.y ?? place.y,
+    w: t.w ?? place.w,
+    h: t.h === undefined ? place.h : t.h,
+    max: t.max === undefined ? place.max : t.max,
+    scale: t.scale ?? place.scale,
+    rotate: t.rotate ?? place.rotate,
+    crop: t.crop === undefined ? place.crop : t.crop,
+    mask: t.mask === undefined ? place.mask : t.mask,
+    frames
   };
+}
 
 /**
  * 2026-10-17 — HOCHKANT BLEIBT EIN TEXT AUF DER BÜHNE: auf dem Telefon ragten

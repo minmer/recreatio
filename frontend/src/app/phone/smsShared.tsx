@@ -59,22 +59,34 @@ const HOME = `https://${PRIMARY_HOST}/#/`;
 
 /**
  * Verweise in einer SMS werden klickbar; einer auf recreatio.pl (ein Plik przez link)
- * öffnet hier, ohne den Browser zu wechseln. `live` aus (beim Wählen): nur Text.
+ * öffnet hier, ohne den Browser zu wechseln. `live` aus (beim Markieren): nur Text.
+ * `mark`: das Gesuchte hervorgehoben (wie im Chat).
  */
-export function Linked({ text, live = true }: { text: string; live?: boolean }) {
-  if (!live) return <>{text}</>;
+export function Linked({ text, live = true, mark = '' }: { text: string; live?: boolean; mark?: string }) {
   const out: ReactNode[] = [];
+  const needle = mark.trim().toLocaleLowerCase('pl-PL');
+  const marked = (part: string, key: string) => {
+    if (needle === '') { out.push(part); return; }
+    const hay = part.toLocaleLowerCase('pl-PL');
+    let at = 0;
+    for (let i = hay.indexOf(needle); i >= 0; i = hay.indexOf(needle, at)) {
+      if (i > at) out.push(part.slice(at, i));
+      out.push(<mark key={`${key}-${i}`} className="ch-hit">{part.slice(i, i + needle.length)}</mark>);
+      at = i + needle.length;
+    }
+    if (at < part.length) out.push(part.slice(at));
+  };
   let at = 0;
   for (const found of text.matchAll(URL_RE)) {
     const i = found.index ?? 0;
     const url = found[0];
-    if (i > at) out.push(text.slice(at, i));
-    out.push(url.startsWith(HOME)
-      ? <a key={i} href={url.slice(url.indexOf('#'))} onClick={(e) => e.stopPropagation()}>{url}</a>
-      : <a key={i} href={url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>{url}</a>);
+    if (i > at) marked(text.slice(at, i), `t${at}`);
+    if (!live) out.push(url);
+    else if (url.startsWith(HOME)) out.push(<a key={i} href={url.slice(url.indexOf('#'))} onClick={(e) => e.stopPropagation()}>{url}</a>);
+    else out.push(<a key={i} href={url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>{url}</a>);
     at = i + url.length;
   }
-  if (at < text.length) out.push(text.slice(at));
+  if (at < text.length) marked(text.slice(at), `t${at}`);
   return <>{out}</>;
 }
 

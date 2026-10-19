@@ -1,0 +1,24 @@
+# 2D lab engine (v2) — simplifications
+
+Every approximation of the model, with why it is there and what it changes. The "About this model" panel shows the
+same list to students (Polish first, two levels of wording) — that models simplify reality is itself a lesson. When
+a milestone adds or removes an approximation, this file changes with the code. Architecture:
+[ARCHITECTURE.md](ARCHITECTURE.md).
+
+| # | Simplification | Why | What it changes |
+|---|---|---|---|
+| 1 | **A 2D slab.** The box is a slab of depth D (1 cm); nothing moves across it, and the front and back faces neither lose heat nor touch anything. | 3D at this resolution is beyond a school laptop in real time. | Flows are planar. Bubbles are spheres inside the slab until they are wider than it, then discs of depth D. Masses and energies are real for the slab. |
+| 2 | **Fields on cells of 1–3 mm.** Temperature, pressure, gas velocity, composition and fog are one value per cell. | The cell count decides the speed. | Anything thinner than a cell (the thermal boundary layer at a hot wall, a thin film) is not resolved; the wall contact temperature (#9) stands in for the boundary layer. |
+| 3 | **Separate liquid and gas solves.** The liquid sees the gas as a uniform pressure; the gas sees the liquid as a moving wall. | Water is about 830 times denser than air; one-way coupling of pressure is accurate for that ratio and far cheaper. | Air trapped in water, or air blown hard against a water surface, is not modelled (MultiFLIP is the upgrade path). |
+| 4 | **Low-Mach gas.** Gas density follows temperature and composition at the region's pressure p0; local pressure differences only drive flow. | The standard model for slow, hot flows; it keeps the step large. | No sound, no pressure waves; explosions are out of reach (a later milestone needs a compressible solver). |
+| 5 | **Constant-density liquid projection with a temperature-dependent body force.** | Exact hydrostatics with real densities, without the cost and instability of a variable-density projection. | Buoyancy of warm water is right; the liquid's pressure waves are not modelled (water is incompressible here). |
+| 6 | **No surface tension on the resolved water surface.** | The capillary length of water (≈ 2.7 mm) is about one cell; resolving it needs a much smaller time step. Gravity therefore stays at 0.25 g or more. | Droplets and meniscuses on the cell scale take no shape from surface tension; zero gravity is not available in M1. Surface tension acts through the bubble models (pressure inside a bubble, nucleation, departure). |
+| 7 | **No radiation.** Heat moves by conduction, convection and phase change only. | Radiation matters at a glowing plate, not in a boiling beaker. | A very hot plate loses less heat than in reality and does not glow. |
+| 8 | **Heat loss through one coefficient** h_ext = 10 W/(m²·K) on the box walls. | The room outside is not simulated. | Cooling is approximate; the front and back of the slab lose nothing (#1). |
+| 9 | **Wall contact temperature.** Where liquid touches a solid, nucleation and attached bubbles use T_f = (k_s T_s + k_l T_l)/(k_s + k_l). | Cells of 2 mm cannot resolve the thermal boundary layer; without this the wall overheats by tens of kelvin. | Superheat at the wall is approximate; nucleation onsets follow the cavity model, not a resolved boundary layer. |
+| 10 | **Cavities as a sampled list per surface cell.** Mouth radii come from a per-material distribution (steel calibrated to Lemmert & Chawla). | Cavities are microscopic. | Where and when bubbles form is statistically right for the material, not for a particular real surface. |
+| 11 | **Bubbles as spheres or discs with correlations.** Growth (Plesset–Zwick, Ranz–Marshall), departure (Fritz), drag (Tomiyama, contaminated water); no lift, no bubble collisions except coalescence. | Bubbles are smaller than or comparable to a cell; their flow cannot be resolved. | Bubble sizes, growth and rise speeds follow the correlations within their accuracy (about 10–20 %); bubble shapes are not drawn deformed. |
+| 12 | **Ideal gases**, dry air = N₂ + O₂, vapour enthalpy depending on temperature only. | Accurate within a fraction of a per cent at these pressures. | The latent heat away from 100 °C follows Kirchhoff's law from the IF97 value at 100 °C (0.5 % low at 20 °C). |
+| 13 | **Fog is a field, not droplets.** Condensed water in the gas is a mass per cell that moves with the gas, without falling. | Fog droplets are microscopic. | Fog does not settle or rain out; dew forms only on walls. |
+| 14 | **The room beyond an open side is ambient air.** Inflow brings ambient air; what leaves is booked as escaped. | The room is not simulated. | Steam leaving the box is counted, not followed. |
+| 15 | **Apparatus is static and rigid.** Beakers and plates are solid cells. | Movable and melting solids come in later milestones. | A beaker cannot be knocked over or moved by the flow. |
