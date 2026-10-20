@@ -79,6 +79,9 @@ export class Heat {
   readonly k: Float64Array;
   readonly dE: Float64Array;
   private readonly Tnew: Float64Array;
+  /** Leitwerte der Flächen je Schritt (W/K): zur rechten (gx) und zur oberen Nachbarzelle (gy) — einmal berechnet, im Aufbau und bei den Flüssen gelesen. */
+  private readonly gx: Float64Array;
+  private readonly gy: Float64Array;
   private readonly q: Float64Array;
   heaters: Heater[] = [];
   ambientT = 293.15;
@@ -109,6 +112,8 @@ export class Heat {
     this.k = new Float64Array(n);
     this.dE = new Float64Array(n);
     this.Tnew = new Float64Array(n);
+    this.gx = new Float64Array(n);
+    this.gy = new Float64Array(n);
     this.q = new Float64Array(n);
   }
 
@@ -138,8 +143,8 @@ export class Heat {
 
   /* -- Heizung --------------------------------------------------------------------------------------- */
 
-  /** Leistung jeder Heizgruppe für diesen Schritt (Thermostat: PI auf die mittlere Plattentemperatur). */
-  private heaterPower(dt: number): void {
+  /** Zellen und mittlere Temperatur jeder Heizgruppe (vor jeder Leistung und nach jedem Handgriff). */
+  countHeaters(): void {
     const g = this.g;
     for (const h of this.heaters) { h.Tmean = 0; h.cells = 0; }
     for (let c = 0; c < g.n; c += 1) {
@@ -150,9 +155,14 @@ export class Heat {
       h.Tmean += g.T[c];
       h.cells += 1;
     }
+    for (const h of this.heaters) if (h.cells > 0) h.Tmean /= h.cells;
+  }
+
+  /** Leistung jeder Heizgruppe für diesen Schritt (Thermostat: PI auf die mittlere Plattentemperatur). */
+  private heaterPower(dt: number): void {
+    this.countHeaters();
     for (const h of this.heaters) {
       if (h.cells === 0) { h.P = 0; continue; }
-      h.Tmean /= h.cells;
       if (!h.on) { h.P = 0; h.integral = 0; continue; }
       if (h.mode === 'power') { h.P = h.power; continue; }
       const kp = h.power / KP_FULL_K;
@@ -227,9 +237,23 @@ export class Heat {
       }
       q[c] = qc;
     }
+    /* Leitwerte der Flächen: harmonisches Mittel der Wärmeleitfähigkeiten, mal Tiefe (Fläche Δx·D über den Abstand Δx). */
+    const { gx, gy } = this;
+    for (let j = 0; j < ny; j += 1) {
+      for (let i = 0; i < nx; i += 1) {
+        const c = i + j * nx;
+        gx[c] = 0;
+        gy[c] = 0;
+        if (C[c] <= 0) continue;
+        const kc = k[c];
+        if (i + 1 < nx && C[c + 1] > 0) { const kn = k[c + 1]; if (kc + kn > 0) gx[c] = ((2 * kc * kn) / (kc + kn)) * depth; }
+        if (j + 1 < ny && C[c + nx] > 0) { const kn = k[c + nx]; if (kc + kn > 0) gy[c] = ((2 * kc * kn) / (kc + kn)) * depth; }
+      }
+    }
     /* Das System in δ = T^{n+1} − T*. */
     const S = this.solver;
     const sys = S.begin(nx, ny);
+    const stride = sys.stride;
     const A = dx * depth;
     const hA = this.hExt * A;
     const Ta = this.ambientT;
@@ -237,34 +261,17 @@ export class Heat {
       for (let i = 0; i < nx; i += 1) {
         const c = i + j * nx;
         if (C[c] <= 0) continue;
-        const s = S.at(i, j);
+        const s = i + 1 + (j + 1) * stride;
         sys.act[s] = 1;
         sys.dH[s] = C[c] / dt;
         let b = q[c];
         const kc = k[c];
         /* Nachbarn: rechts und oben setzen die Fläche; die Flüsse der alten Temperaturen in die rechte Seite. */
-        if (i + 1 < nx && C[c + 1] > 0) {
-          const kn = k[c + 1];
-          const G2 = kc + kn > 0 ? (2 * kc * kn) / (kc + kn) * depth : 0;
-          sys.ax[s] = G2;
-          b += G2 * (Tstar[c + 1] - Tstar[c]);
-        }
-        if (i > 0 && C[c - 1] > 0) {
-          const kn = k[c - 1];
-          const G2 = kc + kn > 0 ? (2 * kc * kn) / (kc + kn) * depth : 0;
-          b += G2 * (Tstar[c - 1] - Tstar[c]);
-        }
-        if (j + 1 < ny && C[c + nx] > 0) {
-          const kn = k[c + nx];
-          const G2 = kc + kn > 0 ? (2 * kc * kn) / (kc + kn) * depth : 0;
-          sys.ay[s] = G2;
-          b += G2 * (Tstar[c + nx] - Tstar[c]);
-        }
-        if (j > 0 && C[c - nx] > 0) {
-          const kn = k[c - nx];
-          const G2 = kc + kn > 0 ? (2 * kc * kn) / (kc + kn) * depth : 0;
-          b += G2 * (Tstar[c - nx] - Tstar[c]);
-        }
+        const Tc = Tstar[c];
+        if (i + 1 < nx) { sys.ax[s] = gx[c]; b += gx[c] * (Tstar[c + 1] - Tc); }
+        if (i > 0) b += gx[c - 1] * (Tstar[c - 1] - Tc);
+        if (j + 1 < ny) { sys.ay[s] = gy[c]; b += gy[c] * (Tstar[c + nx] - Tc); }
+        if (j > 0) b += gy[c - nx] * (Tstar[c - nx] - Tc);
         /* Seiten der Kiste: Wand (h_ext in Reihe mit der halben Zelle) oder offen (Leitung zur Umgebung). */
         let Gb = 0;
         if (i === 0) Gb += this.sideConductance(g.openL, kc, hA, depth);
@@ -279,9 +286,10 @@ export class Heat {
     const st = this.last.solve;
     st.iterations = res.iterations; st.residual = res.residual; st.capped = res.capped;
     const Tn = this.Tnew;
+    const X = sys.x;
     for (let j = 0; j < ny; j += 1) for (let i = 0; i < nx; i += 1) {
       const c = i + j * nx;
-      Tn[c] = C[c] > 0 ? Tstar[c] + sys.x[S.at(i, j)] : g.T[c];
+      Tn[c] = C[c] > 0 ? Tstar[c] + X[i + 1 + (j + 1) * stride] : g.T[c];
     }
     /* Energie je Zelle aus den Flüssen der gelösten Temperaturen: jede Fläche einmal. */
     const dE = this.dE;
@@ -293,18 +301,14 @@ export class Heat {
         const c = i + j * nx;
         if (C[c] <= 0) continue;
         const kc = k[c];
-        if (i + 1 < nx && C[c + 1] > 0) {
-          const kn = k[c + 1];
-          const G2 = kc + kn > 0 ? (2 * kc * kn) / (kc + kn) * depth : 0;
-          const F = G2 * (Tn[c + 1] - Tn[c]) * dt;
+        if (gx[c] > 0) {
+          const F = gx[c] * (Tn[c + 1] - Tn[c]) * dt;
           dE[c] += F;
           dE[c + 1] -= F;
           if (g.kind[c] !== g.kind[c + 1]) this.pair(g.kind[c], g.kind[c + 1], F);
         }
-        if (j + 1 < ny && C[c + nx] > 0) {
-          const kn = k[c + nx];
-          const G2 = kc + kn > 0 ? (2 * kc * kn) / (kc + kn) * depth : 0;
-          const F = G2 * (Tn[c + nx] - Tn[c]) * dt;
+        if (gy[c] > 0) {
+          const F = gy[c] * (Tn[c + nx] - Tn[c]) * dt;
           dE[c] += F;
           dE[c + nx] -= F;
           if (g.kind[c] !== g.kind[c + nx]) this.pair(g.kind[c], g.kind[c + nx], F);

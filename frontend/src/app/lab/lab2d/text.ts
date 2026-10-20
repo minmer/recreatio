@@ -20,6 +20,7 @@ export function lab2dDescription(): string {
     'Kroki ("op"):',
     '  { "op": "fill", "region": obszar, "composition": { "H2O": 1 }, "phase": "liquid", "T": °C } — woda w obszarze; "phase": "gas" z { "N2": 0.7676, "O2": 0.2324 } — powietrze',
     '  { "op": "erase", "region": obszar } — usuwa wodę, pęcherze i ciała stałe; wraca powietrze z pokoju',
+    '  { "op": "move", "region": obszar, "dx": m, "dy": m } — przesuwa ciała stałe z obszaru razem z wodą i pęcherzami w nim (o całe komórki); tak zapisuje się narzędzie „Przesuń”',
     '  { "op": "solid", "region": obszar, "material": "glass" | "steel" | "ceramic", "T": °C } — nieruchome ciało stałe (ceramic = kamyczki wrzenne)',
     '  { "op": "beaker", "x": środek, "y": dół, "w": szerokość, "h": wysokość, "wall": grubość ścianki, "material": "glass", "T": °C, "lid": true (opcjonalnie, szczelna pokrywka) } — zlewka (przekrój)',
     '  { "op": "hotplate", "x": środek, "y": dół, "w", "h", "material": "steel", "mode": "power" | "thermostat", "power": W, "target": °C, "on": true, "T": °C } — płyta grzejna',

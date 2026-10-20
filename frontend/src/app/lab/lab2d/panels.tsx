@@ -8,10 +8,14 @@
  * „rozszerzony” (alle Grössen in SI-Einheiten).
  */
 
+import { useId } from 'react';
+
 import type { ProbeInfo } from './engine/engine';
 import type { BubbleView, ChartSample, HostStats } from './engine/protocol';
 import { STAGES } from './engine/stages';
-import { num, SIMPLIFICATIONS_PL, t, type TextKey } from './i18n';
+import { materialName, num, SIMPLIFICATIONS_PL, t, type TextKey } from './i18n';
+import type { Overlay } from './render/frame';
+import { VIRIDIS } from './render/palette';
 
 export type Level = 'primary' | 'secondary';
 const C = (k: number): number => k - 273.15;
@@ -20,11 +24,13 @@ function Row({ label, value }: { label: string; value: string }) {
   return <div className="lab-value"><span>{label}</span><output>{value}</output></div>;
 }
 
-/** Ein Wort für eine Temperatur auf der Grundstufe. */
-function feel(T: number, Tsat: number): string {
-  if (T >= Tsat - 0.3) return t('boiling');
+/** Ein Wort für eine Temperatur auf der Grundstufe („wrze“ nur für Wasser). */
+function feel(T: number, Tsat: number, liquid: boolean): string {
+  if (liquid && T >= Tsat - 0.3) return t('boiling');
+  if (T > 273.15 + 80) return t('veryHot');
   if (T > 273.15 + 50) return t('hot');
-  if (T > 273.15 + 25) return t('warm');
+  if (T > 273.15 + 30) return t('warm');
+  if (T > 273.15 + 15) return t('feelRoom');
   return t('cold');
 }
 
@@ -34,8 +40,8 @@ export function Inspector({ info, level }: { info: ProbeInfo; level: Level }) {
   if (level === 'primary') {
     return (
       <div className="lab-values">
-        <Row label={t('cell')} value={`${kind}${c.material !== null ? ` · ${c.material}` : ''}${c.heater ? ` · ${t('heating')}` : ''}`} />
-        <Row label={t('temp')} value={`${num(C(c.T), 0)} °C · ${feel(c.T, c.Tsat)}`} />
+        <Row label={t('cell')} value={`${kind}${c.material !== null ? ` · ${materialName(c.material)}` : ''}${c.heater ? ` · ${t('heating')}` : ''}`} />
+        <Row label={t('temp')} value={`${num(C(c.T), 0)} °C · ${feel(c.T, c.Tsat, c.kind === 'liquid')}`} />
         <Row label={t('tsatHere')} value={`${num(C(c.Tsat), 1)} °C`} />
         {c.kind === 'gas' && <Row label={t('rh')} value={`${num(100 * Math.min(1, c.rh), 0)} %`} />}
         {c.kind === 'gas' && c.fog > 0 && <Row label={t('fog')} value={`${num(c.fog * 1000, 2)} g/m³`} />}
@@ -45,7 +51,7 @@ export function Inspector({ info, level }: { info: ProbeInfo; level: Level }) {
   }
   return (
     <div className="lab-values">
-      <Row label={t('cell')} value={`${kind}${c.material !== null ? ` (${c.material})` : ''}${c.heater ? ` · ${t('heating')}` : ''}`} />
+      <Row label={t('cell')} value={`${kind}${c.material !== null ? ` (${materialName(c.material)})` : ''}${c.heater ? ` · ${t('heating')}` : ''}`} />
       <Row label={t('temp')} value={`${num(C(c.T), 2)} °C`} />
       <Row label={t('absPressure')} value={`${num(c.p / 1000, 3)} kPa`} />
       <Row label={t('tsatHere')} value={`${num(C(c.Tsat), 3)} °C`} />
@@ -76,15 +82,19 @@ export function forcesOf(b: BubbleView): { key: 'fBuoyancy' | 'fWeight' | 'fDrag
   ];
 }
 
+const FATE: Readonly<Record<NonNullable<BubbleView['fate']>, TextKey>> = { burst: 'fateBurst', collapsed: 'fateCollapsed', merged: 'fateMerged' };
+
 export function BubblePanel({ b, level }: { b: BubbleView | null; level: Level }) {
   if (b === null) return <p className="lab-muted">{t('bubbleHint')}</p>;
   const forces = forcesOf(b);
   const buoy = Math.hypot(forces[0].x, forces[0].y);
   const weight = Math.hypot(forces[1].x, forces[1].y);
   const ratio = weight > 0 ? buoy / weight : 0;
+  const fate = b.fate === null ? null : <p className="l2d-fate" role="status">{t(FATE[b.fate])}</p>;
   if (level === 'primary') {
     return (
       <div className="lab-values">
+        {fate}
         <Row label={t('diameter')} value={`${num(2 * b.r * 1000, 2)} mm`} />
         <Row label={t('temp')} value={`${num(C(b.T), 1)} °C`} />
         <p className="lab-text">{b.attached ? t('attached') : t('free')}</p>
@@ -95,6 +105,7 @@ export function BubblePanel({ b, level }: { b: BubbleView | null; level: Level }
   }
   return (
     <div className="lab-values">
+      {fate}
       <Row label={t('radius')} value={`${num(b.r * 1000, 3)} mm`} />
       <Row label={t('vapourMass')} value={`${num(b.mv * 1e9, 3)} µg`} />
       {b.ma > 0 && <Row label={t('airMass')} value={`${num(b.ma * 1e9, 3)} µg`} />}
@@ -184,6 +195,56 @@ export function About({ level }: { level: Level }) {
           <li key={s.title}><strong>{s.title}.</strong> {level === 'primary' ? s.primary : s.secondary}</li>
         ))}
       </ol>
+    </div>
+  );
+}
+
+/** Zahl mit zwei geltenden Stellen (für die Enden einer Skala). */
+function short(x: number): string {
+  const a = Math.abs(x);
+  return num(x, a >= 100 ? 0 : a >= 10 ? 1 : a >= 1 ? 2 : 3);
+}
+
+const PHASE_KEYS: readonly { readonly key: TextKey; readonly cls: string }[] = [
+  { key: 'phaseWater', cls: 'l2d-sw-water' }, { key: 'phaseGas', cls: 'l2d-sw-gas' },
+  { key: 'phaseSolid', cls: 'l2d-sw-solid' }, { key: 'phaseBubbles', cls: 'l2d-sw-bubbles' }
+];
+
+/** Die Legende der Einblendung: Farbskala mit Anfang und Ende (aus dem letzten Bild) oder die Farben der Mapa stanów. */
+export function Legend({ overlay, scale }: { overlay: Overlay; scale: readonly [number, number, number] }) {
+  const id = useId();
+  if (overlay === 'none') return null;
+  if (overlay === 'phase') {
+    return (
+      <div className="l2d-legend-box" aria-hidden="true">
+        <strong>{t('ovPhase')}</strong>
+        <div className="l2d-swatches">{PHASE_KEYS.map((k) => <span key={k.key} className={k.cls}>{t(k.key)}</span>)}</div>
+      </div>
+    );
+  }
+  const [lo, hi] = scale;
+  const blue = overlay === 'humidity' || overlay === 'vapour';
+  const title = overlay === 'temperature' ? t('ovTemperature') : overlay === 'pressure' ? t('legendPressure') : overlay === 'velocity' ? t('legendVelocity') : overlay === 'humidity' ? t('ovHumidity') : t('legendVapour');
+  const ends: readonly [string, string] = overlay === 'temperature' ? [`${num(lo - 273.15, 0)} °C`, `${num(hi - 273.15, 0)} °C`]
+    : overlay === 'pressure' ? [`${short(lo)} Pa`, `+${short(hi)} Pa`]
+    : overlay === 'velocity' ? ['0', `${short(hi * 100)} cm/s`]
+    : overlay === 'humidity' ? ['0 %', '100 %']
+    : ['0', `${num(hi * 1000, 0)} g/m³`];
+  return (
+    <div className="l2d-legend-box" aria-hidden="true">
+      <strong>{title}</strong>
+      <svg viewBox="0 0 100 8" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={id}>
+            {blue
+              ? <><stop offset="0" stopColor="#286edc" stopOpacity="0" /><stop offset="1" stopColor="#286edc" stopOpacity="0.86" /></>
+              : VIRIDIS.map((c, k) => <stop key={k} offset={k / (VIRIDIS.length - 1)} stopColor={`rgb(${c[0]},${c[1]},${c[2]})`} />)}
+          </linearGradient>
+        </defs>
+        <rect width="100" height="8" fill={`url(#${id})`} />
+      </svg>
+      <div className="l2d-legend-ends"><span>{ends[0]}</span><span>{ends[1]}</span></div>
+      {overlay === 'velocity' && <span>{t('arrowsNote').replace('{g}', short(scale[1] * 100)).replace('{w}', short(scale[2] * 100))}</span>}
     </div>
   );
 }

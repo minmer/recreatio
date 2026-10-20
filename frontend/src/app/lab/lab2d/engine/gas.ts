@@ -26,16 +26,10 @@
 import type { Grid } from './grid';
 import { gasHeatCapacity, gasTemperature, hGas, hL, MOLAR, muMix } from './materials';
 import type { Regions } from './regions';
+import { GasTransport, Q, QF, QH } from './gasTransport';
 import type { GridSolver, SolveResult } from './solver';
 import { GAS, GAS_SPECIES, H2O, LIQUID, R_GAS, SOLID } from './units';
 
-/** Transportierte Grössen je Zelle: die Gasarten, der Nebel, die Enthalpie. */
-const Q = GAS_SPECIES + 2;
-const QF = GAS_SPECIES;
-const QH = GAS_SPECIES + 1;
-/** Courant-Zahl je Teilschritt (Ausfluss einer Zelle je Teilschritt höchstens dieser Anteil). */
-const CFL = 0.9;
-const MAX_SUB = 16;
 /** Untergrenze der Dichte in Druck- und Auftriebskoeffizienten (kg/m³): heisser Dampf bei 1 atm hat 0,4; das hier ist nur eine Sicherung für fast leere Zellen. */
 const RHO_MIN = 0.05;
 
@@ -62,12 +56,8 @@ export class Gas {
   /** Volumenänderung durch Quellen im letzten Schritt (m³) und V_eos nach dem Transport (für die nächste). */
   readonly srcV: Float64Array;
   readonly veosMid: Float64Array;
-  /* Transport. */
-  private readonly conc: Float64Array;
-  private readonly fu: Float64Array;
-  private readonly fv: Float64Array;
-  private readonly outM: Float64Array;
-  private readonly scale: Float64Array;
+  /* Transport (gasTransport.ts). */
+  private readonly mover: GasTransport;
   /* Geschwindigkeit. */
   readonly gasU: Uint8Array;
   readonly gasV: Uint8Array;
@@ -99,11 +89,6 @@ export class Gas {
     this.veos = new Float64Array(n);
     this.srcV = new Float64Array(n);
     this.veosMid = new Float64Array(n);
-    this.conc = new Float64Array(Q * n);
-    this.fu = new Float64Array(Q * grid.nu);
-    this.fv = new Float64Array(Q * grid.nv);
-    this.outM = new Float64Array(n);
-    this.scale = new Float64Array(n);
     this.gasU = new Uint8Array(grid.nu);
     this.gasV = new Uint8Array(grid.nv);
     this.u0 = new Float32Array(grid.nu);
@@ -111,6 +96,7 @@ export class Gas {
     this.u1 = new Float32Array(grid.nu);
     this.v1 = new Float32Array(grid.nv);
     this.lim = new Float32Array(2 * (grid.nu + grid.nv));
+    this.mover = new GasTransport(grid, this);
   }
 
   /** Die Umgebungsluft festlegen: T (K), p (Pa), Massenanteile Y (je Gasart). */
@@ -359,210 +345,9 @@ export class Gas {
     }
   }
 
-  /** Flussform-Transport aller Grössen mit den Gasgeschwindigkeiten (Teilschritte, Courant ≤ ½). */
+  /** Flussform-Transport aller Grössen mit den Gasgeschwindigkeiten (gasTransport.ts); liefert die Zahl der Teilschritte. */
   transport(dt: number): number {
-    const g = this.g;
-    const { nx, ny, n, kind, dx } = g;
-    const nxu = nx + 1;
-    const ug = g.ug;
-    const vg = g.vg;
-    /* Teilschritte aus dem grössten Ausfluss einer Zelle. */
-    let maxOut = 0;
-    let umax = 0;
-    for (let j = 0; j < ny; j += 1) for (let i = 0; i < nx; i += 1) {
-      const c = i + j * nx;
-      if (kind[c] !== GAS) continue;
-      const fl = i + j * nxu;
-      const fb = i + j * nx;
-      const out = Math.max(0, -ug[fl]) + Math.max(0, ug[fl + 1]) + Math.max(0, -vg[fb]) + Math.max(0, vg[fb + nx]);
-      const vfrac = this.vgas[c] / g.vCell;
-      if (out / vfrac > maxOut) maxOut = out / vfrac;
-      const s = Math.max(Math.abs(ug[fl]), Math.abs(ug[fl + 1]), Math.abs(vg[fb]), Math.abs(vg[fb + nx]));
-      if (s > umax) umax = s;
-    }
-    this.last.uMax = umax;
-    const sub = Math.min(MAX_SUB, Math.max(1, Math.ceil((maxOut * dt) / dx / CFL)));
-    const h = dt / sub;
-    const A = g.aFace;
-    const conc = this.conc;
-    const fu = this.fu;
-    const fv = this.fv;
-    const nu = g.nu;
-    const nv = g.nv;
-    for (let s = 0; s < sub; s += 1) {
-      /* Konzentrationen (je Volumen) der Gaszellen. */
-      for (let c = 0; c < n; c += 1) {
-        if (kind[c] !== GAS) { for (let q = 0; q < Q; q += 1) conc[q * n + c] = 0; continue; }
-        const iv = 1 / this.vgas[c];
-        for (let k = 0; k < GAS_SPECIES; k += 1) conc[k * n + c] = g.mg[k * n + c] * iv;
-        conc[QF * n + c] = g.mfog[c] * iv;
-        conc[QH * n + c] = g.Hg[c] * iv;
-      }
-      /* Flüsse durch u-Flächen. */
-      for (let j = 0; j < ny; j += 1) {
-        for (let i = 0; i <= nx; i += 1) {
-          const f = i + j * nxu;
-          if (this.gasU[f] === 0 || ug[f] === 0) { for (let q = 0; q < Q; q += 1) fu[q * nu + f] = 0; continue; }
-          const u = ug[f];
-          const vol = u * A * h;
-          if (i === 0 || i === nx) {
-            /* Offene Seite: Zufluss bringt Umgebungsluft, Abfluss trägt die Zelle hinaus. */
-            const c = i === 0 ? j * nx : nx - 1 + j * nx;
-            const inflow = i === 0 ? u > 0 : u < 0;
-            for (let q = 0; q < Q; q += 1) fu[q * nu + f] = vol * (inflow ? this.amb[q] : conc[q * n + c]);
-            continue;
-          }
-          const L = i - 1 + j * nx;
-          const Rr = i + j * nx;
-          const donor = u > 0 ? L : Rr;
-          const down = u > 0 ? Rr : L;
-          const upi = u > 0 ? i - 2 : i + 1;
-          const up = upi >= 0 && upi < nx && kind[upi + j * nx] === GAS ? upi + j * nx : -1;
-          for (let q = 0; q < Q; q += 1) {
-            const cd = conc[q * n + donor];
-            let face = cd;
-            if (up >= 0) {
-              const d1 = cd - conc[q * n + up];
-              const d2 = conc[q * n + down] - cd;
-              if (d1 * d2 > 0) face += (d1 * d2) / (d1 + d2);
-            }
-            fu[q * nu + f] = vol * face;
-          }
-        }
-      }
-      /* Flüsse durch v-Flächen. */
-      for (let j = 0; j <= ny; j += 1) {
-        for (let i = 0; i < nx; i += 1) {
-          const f = i + j * nx;
-          if (this.gasV[f] === 0 || vg[f] === 0) { for (let q = 0; q < Q; q += 1) fv[q * nv + f] = 0; continue; }
-          const v = vg[f];
-          const vol = v * A * h;
-          if (j === 0 || j === ny) {
-            const c = j === 0 ? i : i + (ny - 1) * nx;
-            const inflow = j === 0 ? v > 0 : v < 0;
-            for (let q = 0; q < Q; q += 1) fv[q * nv + f] = vol * (inflow ? this.amb[q] : conc[q * n + c]);
-            continue;
-          }
-          const B = i + (j - 1) * nx;
-          const T = i + j * nx;
-          const donor = v > 0 ? B : T;
-          const down = v > 0 ? T : B;
-          const upj = v > 0 ? j - 2 : j + 1;
-          const up = upj >= 0 && upj < ny && kind[i + upj * nx] === GAS ? i + upj * nx : -1;
-          for (let q = 0; q < Q; q += 1) {
-            const cd = conc[q * n + donor];
-            let face = cd;
-            if (up >= 0) {
-              const d1 = cd - conc[q * n + up];
-              const d2 = conc[q * n + down] - cd;
-              if (d1 * d2 > 0) face += (d1 * d2) / (d1 + d2);
-            }
-            fv[q * nv + f] = vol * face;
-          }
-        }
-      }
-      /* Ausfluss höchstens der Inhalt (gemeinsamer Faktor je Spenderzelle). */
-      this.limitOutflow();
-      /* Anwenden. */
-      for (let j = 0; j < ny; j += 1) {
-        for (let i = 0; i <= nx; i += 1) {
-          const f = i + j * nxu;
-          if (this.gasU[f] === 0) continue;
-          const L = i > 0 ? i - 1 + j * nx : -1;
-          const Rr = i < nx ? i + j * nx : -1;
-          for (let q = 0; q < Q; q += 1) {
-            const F = fu[q * nu + f];
-            if (F === 0) continue;
-            if (L >= 0) this.sub(q, L, F); else this.escaped[q] -= F;
-            if (Rr >= 0) this.add(q, Rr, F); else this.escaped[q] += F;
-          }
-        }
-      }
-      for (let j = 0; j <= ny; j += 1) {
-        for (let i = 0; i < nx; i += 1) {
-          const f = i + j * nx;
-          if (this.gasV[f] === 0) continue;
-          const B = j > 0 ? i + (j - 1) * nx : -1;
-          const T = j < ny ? i + j * nx : -1;
-          for (let q = 0; q < Q; q += 1) {
-            const F = fv[q * nv + f];
-            if (F === 0) continue;
-            if (B >= 0) this.sub(q, B, F); else this.escaped[q] -= F;
-            if (T >= 0) this.add(q, T, F); else this.escaped[q] += F;
-          }
-        }
-      }
-    }
-    for (let c = 0; c < n; c += 1) if (kind[c] === GAS) this.deriveCell(c);
-    this.last.substeps = sub;
-    return sub;
-  }
-
-  private add(q: number, c: number, F: number): void {
-    const g = this.g;
-    if (q < GAS_SPECIES) g.mg[q * g.n + c] += F;
-    else if (q === QF) g.mfog[c] += F;
-    else g.Hg[c] += F;
-  }
-
-  private sub(q: number, c: number, F: number): void {
-    this.add(q, c, -F);
-  }
-
-  /** Flüsse, die aus einer Zelle mehr Masse holen würden, als sie hat, verkleinern (alle Grössen mit demselben Faktor). */
-  private limitOutflow(): void {
-    const g = this.g;
-    const { nx, ny, n } = g;
-    const nxu = nx + 1;
-    const { fu, fv, outM, scale } = this;
-    const nu = g.nu;
-    const nv = g.nv;
-    outM.fill(0);
-    const massFlux = Gas.massFlux;
-    for (let j = 0; j < ny; j += 1) for (let i = 0; i <= nx; i += 1) {
-      const f = i + j * nxu;
-      if (this.gasU[f] === 0) continue;
-      const m = massFlux(fu, nu, f);
-      if (m > 0 && i > 0) outM[i - 1 + j * nx] += m;
-      else if (m < 0 && i < nx) outM[i + j * nx] -= m;
-    }
-    for (let j = 0; j <= ny; j += 1) for (let i = 0; i < nx; i += 1) {
-      const f = i + j * nx;
-      if (this.gasV[f] === 0) continue;
-      const m = massFlux(fv, nv, f);
-      if (m > 0 && j > 0) outM[i + (j - 1) * nx] += m;
-      else if (m < 0 && j < ny) outM[i + j * nx] -= m;
-    }
-    let any = false;
-    for (let c = 0; c < n; c += 1) {
-      const have = 0.9 * this.massOf(c);
-      scale[c] = outM[c] > have && outM[c] > 0 ? have / outM[c] : 1;
-      if (scale[c] < 1) any = true;
-    }
-    if (!any) return;
-    for (let j = 0; j < ny; j += 1) for (let i = 0; i <= nx; i += 1) {
-      const f = i + j * nxu;
-      if (this.gasU[f] === 0) continue;
-      const m = massFlux(fu, nu, f);
-      const donor = m > 0 ? (i > 0 ? i - 1 + j * nx : -1) : i < nx ? i + j * nx : -1;
-      if (donor < 0 || scale[donor] >= 1) continue;
-      for (let q = 0; q < Q; q += 1) fu[q * nu + f] *= scale[donor];
-    }
-    for (let j = 0; j <= ny; j += 1) for (let i = 0; i < nx; i += 1) {
-      const f = i + j * nx;
-      if (this.gasV[f] === 0) continue;
-      const m = massFlux(fv, nv, f);
-      const donor = m > 0 ? (j > 0 ? i + (j - 1) * nx : -1) : j < ny ? i + j * nx : -1;
-      if (donor < 0 || scale[donor] >= 1) continue;
-      for (let q = 0; q < Q; q += 1) fv[q * nv + f] *= scale[donor];
-    }
-  }
-
-  /** Massenfluss (alle Arten und Nebel) einer Fläche. */
-  private static massFlux(arr: Float64Array, stride: number, f: number): number {
-    let m = 0;
-    for (let q = 0; q <= QF; q += 1) m += arr[q * stride + f];
-    return m;
+    return this.mover.transport(dt);
   }
 
   /* -- Geschwindigkeit ------------------------------------------------------------------------------ */

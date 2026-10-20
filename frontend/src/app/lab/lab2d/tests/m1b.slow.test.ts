@@ -11,6 +11,8 @@ import { cpL, SOLIDS } from '../engine/materials';
 import { scene, waterTolerance } from './scenes';
 
 const sealed = { left: 'wall', right: 'wall', bottom: 'wall', top: 'wall' } as const;
+/** Zeitgrenze je Lauf (ms): zehn simulierte Minuten brauchen auf dem Bezugsrechner bis zu 16 Minuten, wenn anderes nebenher läuft. */
+const LONG = 45 * 60 * 1000;
 
 const beakerOnPlate = (power: number, rh: number) => scene({
   box: { w: 0.10, h: 0.08, depth: 0.01 },
@@ -36,7 +38,7 @@ describe('M1a/M1b — test 4 over ten simulated minutes', () => {
     console.log(`test 4 (air, 10 min): ∫P dt = ${s.flows.heater.toFixed(1)} J, error ${s.energyError.toExponential(3)} J (${(100 * Math.abs(s.energyError) / s.flows.heater).toExponential(2)} %), water ${s.waterError.toExponential(2)} kg, p0 ${(s.regions[0].p0 / 1000).toFixed(3)} kPa`);
     expect(Math.abs(s.energyError) / s.flows.heater).toBeLessThan(0.005);
     expect(Math.abs(s.waterError)).toBeLessThan(waterTolerance(e));
-  });
+  }, LONG);
 
   it('sealed, insulated beaker of water on a hot plate: |ΔE − ∫P dt| below 0.5 % of ∫P dt, water exact', () => {
     const e = new Engine(beakerOnPlate(5, 0.5), { insulated: true });
@@ -45,7 +47,7 @@ describe('M1a/M1b — test 4 over ten simulated minutes', () => {
     console.log(`test 4 (water, 10 min): ∫P dt = ${s.flows.heater.toFixed(1)} J, error ${s.energyError.toExponential(3)} J (${(100 * Math.abs(s.energyError) / s.flows.heater).toExponential(2)} %), water ${s.waterError.toExponential(2)} kg, water ${(s.waterT - 273.15).toFixed(2)} °C`);
     expect(Math.abs(s.energyError) / s.flows.heater).toBeLessThan(0.005);
     expect(Math.abs(s.waterError)).toBeLessThan(waterTolerance(e));
-  });
+  }, LONG);
 });
 
 describe('M1b — test 3: heating rate', () => {
@@ -73,5 +75,5 @@ describe('M1b — test 3: heating rate', () => {
     const expected = P / (C + Cs + Cg);
     console.log(`test 3: Σ m c_p = ${(C + Cs + Cg).toFixed(2)} J/K (water ${C.toFixed(2)}, solids ${Cs.toFixed(2)}, air ${Cg.toFixed(3)}), dT/dt = ${slope.toFixed(5)} K/s, P/Σ m c_p = ${expected.toFixed(5)} K/s (${(100 * (slope / expected - 1)).toFixed(2)} %)`);
     expect(Math.abs(slope / expected - 1)).toBeLessThan(0.05);
-  });
+  }, LONG);
 });

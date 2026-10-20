@@ -22,11 +22,12 @@ export type HostMessage =
   | { readonly type: 'addLiquid'; readonly region: Region; readonly composition: Readonly<Record<string, number>>; readonly T: number }
   | { readonly type: 'addSolid'; readonly region: Region; readonly material: string; readonly T: number }
   | { readonly type: 'setHeater'; readonly group: number; readonly mode: HeaterMode; readonly power: number; readonly target: number; readonly on: boolean }
-  | { readonly type: 'setAmbient'; readonly p: number; readonly T: number; readonly rh: number; readonly g: number }
+  | { readonly type: 'setAmbient'; readonly p: number; readonly T: number; readonly rh: number; readonly g: number; readonly air?: { readonly N2: number; readonly O2: number } }
   | { readonly type: 'setBoundary'; readonly side: SideName; readonly value: Side }
   | { readonly type: 'query'; readonly id: number; readonly x: number; readonly y: number }
   | { readonly type: 'select'; readonly bubble: number | null }
   | { readonly type: 'overlay'; readonly overlay: Overlay }
+  | { readonly type: 'particles'; readonly on: boolean }
   | { readonly type: 'pause'; readonly paused: boolean }
   | { readonly type: 'step' }
   | { readonly type: 'setSpeed'; readonly speed: number }
@@ -62,7 +63,10 @@ export interface ChartSample {
 }
 
 /** Die gewählte Blase für die Ansicht „Blase“: Zustand und Kräfte (N). */
-export type BubbleView = NonNullable<ProbeInfo['bubble']> & { readonly x: number; readonly y: number; readonly Tl: number };
+/** Was aus der gewählten Blase wurde: lebt (null), geplatzt, vergangen (kondensiert), in eine andere aufgegangen (die gezeigte ist die vereinigte). */
+export type BubbleFate = 'burst' | 'collapsed' | 'merged' | null;
+
+export type BubbleView = NonNullable<ProbeInfo['bubble']> & { readonly x: number; readonly y: number; readonly Tl: number; readonly fate: BubbleFate };
 
 export interface HostStats {
   readonly engine: EngineStats;
@@ -74,6 +78,8 @@ export interface HostStats {
   readonly paused: boolean;
   readonly samples: readonly ChartSample[];
   readonly bubble: BubbleView | null;
+  /** Anfang und Ende der Farbskala der Einblendung im letzten Bild (SI-Einheiten); dazu die grösste Geschwindigkeit des Wassers (Pfeile). */
+  readonly overlayScale: readonly [number, number, number];
 }
 
 export type WorkerMessage =

@@ -9,11 +9,13 @@ import { describe, expect, it } from 'vitest';
 import { Bubbles } from '../engine/bubbles';
 import { Engine } from '../engine/engine';
 import { pSat, rhoLiquidSat, rhoVapourSat, tSat } from '../engine/if97';
-import { data, diffVapour, gasTemperature, hGas, hL, hLV, rhoL, sigma, tFromHL } from '../engine/materials';
+import { data, diffVapour, gasTemperature, hGas, hL, hLV, rhoL, sigma, solidIndex, tFromHL } from '../engine/materials';
 import { Particles } from '../engine/particles';
 import { readScene, writeScene } from '../engine/scene';
 import { STAGES } from '../engine/stages';
 import { LIQUID, N2, O2, H2O, SOLID, T0 } from '../engine/units';
+import { LAB2D_PRESETS } from '../presets';
+import fixture from '../../../../../scripts/fixtures/lab2d-wrzenie.json';
 import { boilingScene, scene, waterTolerance } from './scenes';
 
 describe('M0 — materials and IAPWS-IF97', () => {
@@ -101,6 +103,18 @@ describe('M0 — scenes, painting, the loop', () => {
     expect(readScene(raw).warnings).toEqual([]);
   });
 
+  it('reads the scenes of the presets and of the page fixture (scripts/fixtures/lab2d-wrzenie.json) without a warning', () => {
+    const page = fixture as { modules: { kind: string; config: { scene?: unknown } }[] };
+    const scenes = [...LAB2D_PRESETS.map((p) => p.scene), ...page.modules.filter((m) => m.kind === 'lab2d').map((m) => m.config.scene)];
+    expect(scenes.length).toBe(LAB2D_PRESETS.length + 4);
+    for (const raw of scenes) {
+      const { scene, warnings } = readScene(raw);
+      expect(warnings).toEqual([]);
+      const e = new Engine(scene);
+      expect(e.warnings).toEqual([]);
+    }
+  });
+
   it('paints water as four particles per cell, apparatus as solid cells', () => {
     const e = new Engine(boilingScene());
     const g = e.grid;
@@ -137,6 +151,47 @@ describe('M0 — scenes, painting, the loop', () => {
     let solid = 0;
     for (let c = 0; c < e.grid.n; c += 1) if (e.grid.solid[c] !== 0) solid += 1;
     expect(solid).toBe(0);
+  });
+
+  it('moves a beaker with its water and a hot plate with its heater, and the budgets stay closed', () => {
+    const e = new Engine(boilingScene());
+    for (let k = 0; k < 20; k += 1) e.step();
+    const g = e.grid;
+    const count = e.particles.count;
+    const cellsOf = (pred: (c: number) => boolean): number => { let n = 0; for (let c = 0; c < g.n; c += 1) if (pred(c)) n += 1; return n; };
+    const GLASS = solidIndex('glass') + 1;
+    const glass = cellsOf((c) => g.solid[c] === GLASS);
+    const x0 = e.particles.x[0];
+    /* Die Zlewka (Aussenrechteck) samt Wasser 2 cm nach links und 1 cm hinauf; die Heizplatte 1 cm nach rechts. */
+    e.apply({ op: 'move', region: { rect: [0.065, 0.008, 0.135, 0.088] }, dx: -0.02, dy: 0.01 });
+    expect(e.particles.count).toBe(count);
+    expect(e.particles.x[0]).toBeCloseTo(x0 - 0.02, 6);
+    expect(cellsOf((c) => g.solid[c] === GLASS)).toBe(glass);
+    e.apply({ op: 'move', region: { rect: [0.04, 0, 0.16, 0.008] }, dx: 0.01, dy: 0 });
+    expect(cellsOf((c) => g.role[c] === 1)).toBe(60 * 4);
+    expect(e.stats().heaters.length).toBe(1);
+    expect(g.role[Math.round(0.165 / g.dx) + g.nx]).toBe(1);
+    for (let k = 0; k < 20; k += 1) e.step();
+    const s = e.stats();
+    expect(Math.abs(s.waterError)).toBeLessThan(waterTolerance(e));
+    expect(Math.abs(s.energyError)).toBeLessThan(1e-6 * Math.max(1, s.flows.heater));
+    /* Der Handgriff steht in der Szene und lässt sich wieder lesen. */
+    const again = readScene(writeScene(e.scene)).scene;
+    expect(again.ops.filter((op) => op.op === 'move').length).toBe(2);
+  });
+
+  it('keeps the energy budget closed when a side or a lid seals or opens a region (U = H − p0·V is booked as an edit)', () => {
+    const e = new Engine(boilingScene());
+    for (let k = 0; k < 10; k += 1) e.step();
+    e.setBoundary('top', 'wall');
+    for (let k = 0; k < 10; k += 1) e.step();
+    e.apply({ op: 'solid', region: { rect: [0.065, 0.086, 0.135, 0.088] }, material: 'glass', T: 293.15 });
+    for (let k = 0; k < 10; k += 1) e.step();
+    e.setBoundary('top', 'open');
+    for (let k = 0; k < 10; k += 1) e.step();
+    const s = e.stats();
+    expect(Math.abs(s.energyError)).toBeLessThan(1e-6 * Math.max(1, s.flows.heater));
+    expect(Math.abs(s.waterError)).toBeLessThan(waterTolerance(e));
   });
 
   it('runs the eight stages with a time for each, and keeps every number finite', () => {

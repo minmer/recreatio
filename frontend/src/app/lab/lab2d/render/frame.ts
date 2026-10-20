@@ -3,13 +3,20 @@
  * Zustand der Engine, ohne die Engine selbst (so geht es auch als
  * übertragbares Abbild zur Seite).
  *
- * - Zelltextur (nx × ny, RGBA): Feststoffe in ihrer Farbe (eine Heizplatte
- *   glüht mit ihrer Temperatur), Nebel weiss mit seiner Dichte, sonst
- *   durchsichtig — oder die gewählte Einblendung.
+ * - Zelltextur (nx × ny, RGBA, scharf gelesen): Feststoffe in ihrer Farbe
+ *   (eine Heizplatte glüht mit ihrer Temperatur), in der Mapa stanów die
+ *   Zustände; sonst durchsichtig.
+ * - Feldtextur (nx × ny, RGBA mit vormultipliziertem Alpha, linear gelesen —
+ *   weiche Übergänge): Nebel weiss mit seiner Dichte und die stetigen
+ *   Einblendungen (Temperatur, Druck, Geschwindigkeit, Feuchte, Dampf); ihre
+ *   Skala steht in scaleLo/scaleHi (für die Legende).
  * - Flüssigkeit (2nx × 2ny, RGBA): R = Bedeckung aus den Teilchen (B-Spline auf
  *   halben Zellen; der Shader zieht bei ½ eine glatte Oberfläche), G = ihre
  *   Temperatur (für die Einblendung), B = Bedeckung aus Blasen.
  * - Blasen: Mitte, Radius, Anteil Luft — Kreise in wahrer Grösse.
+ * - Wahlweise die rohen Teilchen (x, y, Temperatur auf der Skala) und in der
+ *   Einblendung „Prędkość“ Pfeile der Geschwindigkeit auf einem groben Raster —
+ *   erst die des Gases, dann die des Wassers (jedes mit eigenem Massstab).
  * Wasserdampf selbst bleibt unsichtbar; nur Nebel und Flüssigkeit sind weiss
  * bzw. blau (Prompt v2). Ein Schalter zeigt den Dampf als Feld.
  */
@@ -27,6 +34,7 @@ export interface FrameBuffers {
   nx: number;
   ny: number;
   cells: Uint8Array;
+  field: Uint8Array;
   lx: number;
   ly: number;
   liquid: Uint8Array;
@@ -38,12 +46,29 @@ export interface FrameBuffers {
   overlay: Overlay;
   /** Wasser einfärben (Temperatur) oder in seiner Farbe. */
   tintLiquid: boolean;
+  /** Die Skala der Einblendung (in SI: K, Pa, m/s, 1, kg/m³) — Anfang und Ende der Farbskala. */
+  scaleLo: number;
+  scaleHi: number;
+  /** Rohe Teilchen (wenn gezeigt): je Teilchen x, y, Temperatur auf der Skala (0–1); np Teilchen. */
+  parts: Float32Array;
+  np: number;
+  /** Pfeile (Einblendung „Prędkość“): je Strecke x0, y0, x1, y1 — erst nag Strecken des Gases, dann nal des Wassers. */
+  arrows: Float32Array;
+  nag: number;
+  nal: number;
+  /** Grösste Geschwindigkeit des Wassers an den Pfeilen (m/s; die des Gases steht in scaleHi). */
+  vLiq: number;
 }
 
-export function allocFrame(nx: number, ny: number, bubbles: number): FrameBuffers {
+/** Abstand der Pfeile (m): etwa alle 6 mm einer, mindestens alle zwei Zellen. */
+const ARROW_SPACING = 0.006;
+const arrowStep = (dx: number): number => Math.max(2, Math.round(ARROW_SPACING / dx));
+
+export function allocFrame(nx: number, ny: number, bubbles: number, particles = 0): FrameBuffers {
   return {
     nx, ny,
     cells: new Uint8Array(4 * nx * ny),
+    field: new Uint8Array(4 * nx * ny),
     lx: 2 * nx,
     ly: 2 * ny,
     liquid: new Uint8Array(4 * 4 * nx * ny),
@@ -51,22 +76,71 @@ export function allocFrame(nx: number, ny: number, bubbles: number): FrameBuffer
     bubbles: new Float32Array(4 * Math.max(16, bubbles)),
     boxW: 0, boxH: 0,
     overlay: 'none',
-    tintLiquid: false
+    tintLiquid: false,
+    scaleLo: 0,
+    scaleHi: 1,
+    parts: new Float32Array(3 * particles),
+    np: 0,
+    /* Höchstens ein Pfeil je 2 × 2 Zellen, drei Strecken (Schaft, zwei Spitzen) zu vier Zahlen. */
+    arrows: new Float32Array(12 * Math.ceil(nx / 2) * Math.ceil(ny / 2)),
+    nag: 0,
+    nal: 0,
+    vLiq: 0
   };
 }
 
-/** Passt der Puffer noch zu dieser Engine? */
-export function frameFits(f: FrameBuffers, e: Engine): boolean {
-  return f.nx === e.grid.nx && f.ny === e.grid.ny && f.bubbles.length >= 4 * e.bubbles.count;
+/** Die übertragbaren Puffer eines Bildes (Arbeiter ↔ Seite). */
+export function frameTransfer(f: FrameBuffers): ArrayBuffer[] {
+  return [f.cells.buffer, f.field.buffer, f.liquid.buffer, f.bubbles.buffer, f.parts.buffer, f.arrows.buffer] as ArrayBuffer[];
+}
+
+/** Passt der Puffer noch zu dieser Engine (mit den rohen Teilchen, wenn sie gezeigt werden)? */
+export function frameFits(f: FrameBuffers, e: Engine, particles = false): boolean {
+  return f.nx === e.grid.nx && f.ny === e.grid.ny && f.bubbles.length >= 4 * e.bubbles.count && (!particles || f.parts.length >= 3 * e.particles.count);
 }
 
 const SOLID_RGB = SOLIDS.map((s) => hex(s.color));
+
+/*
+ * Deckkraft des Nebels nach Beer–Lambert: α = 1 − exp(−β·L), β = 3·Q·LWC/(4·ρ_w·r)
+ * für Tröpfchen vom Radius r mit Extinktionseffizienz Q ≈ 2 (geometrische
+ * Optik; Bohren & Huffman 1983, Kap. 4). Annahmen (Modellparameter, keine
+ * Messung): frisch kondensierter Dampfnebel mit r ≈ 1,5 µm; Sichtweg L = 7 cm
+ * (so breit wie eine Zlewka — wie man eine Dampffahne sieht) statt der 1 cm
+ * der Schicht, durch die echter Nebel fast unsichtbar wäre (SIMPLIFICATIONS.md).
+ * Ergibt LWC_ref = 4·ρ_w·r/(3·Q·L) ≈ 14 g/m³: 3 g/m³ → 19 %, 10 g/m³ → 50 %,
+ * 15 g/m³ → 65 % (über heissem Wasser bildet die Engine 1–15 g/m³).
+ */
+const FOG_REF = (4 * 1000 * 1.5e-6) / (3 * 2 * 0.07);
+/** Unter den Einblendungen Temperatur, Druck und Geschwindigkeit wird der Nebel blasser (die Farben bleiben lesbar). */
+const FOG_UNDER_OVERLAY = 0.3;
 const scratch = new Uint8Array(4);
+/** Dampfdichte, bei der die Einblendung „Para wodna“ voll deckt (kg/m³): gesättigter Dampf bei 100 °C hat 0,598 (IAPWS). */
+export const VAPOUR_FULL = 0.6;
 let lw = new Float32Array(0);
 let lt = new Float32Array(0);
+let tmp = new Float32Array(0);
+
+/** [1 2 1]/4 in x und in y (Ränder wiederholt) — in place, mit einem Zwischenspeicher. */
+function blur121(a: Float32Array, lx: number, ly: number): void {
+  for (let j = 0; j < ly; j += 1) {
+    const o = j * lx;
+    for (let i = 0; i < lx; i += 1) {
+      const l = i > 0 ? a[o + i - 1] : a[o + i];
+      const r = i < lx - 1 ? a[o + i + 1] : a[o + i];
+      tmp[o + i] = 0.25 * l + 0.5 * a[o + i] + 0.25 * r;
+    }
+  }
+  for (let j = 0; j < ly; j += 1) {
+    const o = j * lx;
+    const ob = j > 0 ? o - lx : o;
+    const ot = j < ly - 1 ? o + lx : o;
+    for (let i = 0; i < lx; i += 1) a[o + i] = 0.25 * tmp[ob + i] + 0.5 * tmp[o + i] + 0.25 * tmp[ot + i];
+  }
+}
 
 /** Das Bild aus der Engine in die Puffer schreiben. */
-export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay): void {
+export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay, particles = false): void {
   const g = e.grid;
   const { nx, ny, n } = g;
   f.boxW = g.w;
@@ -74,6 +148,7 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay): void {
   f.overlay = overlay;
   f.tintLiquid = overlay === 'temperature';
   const cells = f.cells;
+  const field = f.field;
   const tmin = T_SCALE[0];
   const tspan = T_SCALE[1] - T_SCALE[0];
   /* Zellen. */
@@ -95,6 +170,7 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay): void {
       const o = 4 * c;
       const kind = g.kind[c];
       cells[o] = 0; cells[o + 1] = 0; cells[o + 2] = 0; cells[o + 3] = 0;
+      field[o] = 0; field[o + 1] = 0; field[o + 2] = 0; field[o + 3] = 0;
       if (kind === SOLID) {
         const rgb = SOLID_RGB[g.solid[c] - 1];
         /* Heiss: Rot mischt sich bei (mit der Temperatur über 60 °C, voll bei 400 °C). */
@@ -118,46 +194,54 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay): void {
         continue;
       }
       if (kind !== GAS) continue;
-      if (overlay === 'temperature') {
-        viridis((g.T[c] - T0 - tmin) / tspan, cells, o);
-        cells[o + 3] = 140;
-      } else if (overlay === 'pressure') {
-        viridis(0.5 + (0.5 * g.pg[c]) / pmax, cells, o);
-        cells[o + 3] = 140;
-      } else if (overlay === 'velocity') {
-        const u = 0.5 * (g.ug[i + j * (nx + 1)] + g.ug[i + 1 + j * (nx + 1)]);
-        const v = 0.5 * (g.vg[c] + g.vg[c + nx]);
-        viridis(Math.hypot(u, v) / vmax, cells, o);
-        cells[o + 3] = 140;
+      /* Einblendung: Farbe (0–255) und Deckkraft (0–1), am Ende vormultipliziert. */
+      let r = 0, gg = 0, bl = 0, a = 0;
+      if (overlay === 'temperature' || overlay === 'pressure' || overlay === 'velocity') {
+        let t = 0;
+        if (overlay === 'temperature') t = (g.T[c] - T0 - tmin) / tspan;
+        else if (overlay === 'pressure') t = 0.5 + (0.5 * g.pg[c]) / pmax;
+        else {
+          const u = 0.5 * (g.ug[i + j * (nx + 1)] + g.ug[i + 1 + j * (nx + 1)]);
+          const v = 0.5 * (g.vg[c] + g.vg[c + nx]);
+          t = Math.hypot(u, v) / vmax;
+        }
+        viridis(t, scratch, 0);
+        r = scratch[0]; gg = scratch[1]; bl = scratch[2]; a = overlay === 'velocity' ? 0.4 : 0.55;
       } else if (overlay === 'humidity' || overlay === 'vapour') {
         const mv = g.mg[H2O * n + c];
         const nd = g.mg[N2 * n + c] / MOLAR[N2] + g.mg[O2 * n + c] / MOLAR[O2];
         const nv = mv / MOLAR[H2O];
         const x = nv + nd > 0 ? nv / (nv + nd) : 0;
-        const value = overlay === 'humidity' ? (x * e.regions.pAt(c)) / pSatFast(g.T[c]) : Math.min(1, (mv / Math.max(1e-12, e.gas.vgas[c])) / 0.6);
-        cells[o] = 40; cells[o + 1] = 110; cells[o + 2] = 220;
-        cells[o + 3] = Math.min(220, 220 * value);
+        const value = overlay === 'humidity' ? (x * e.regions.pAt(c)) / pSatFast(g.T[c]) : (mv / Math.max(1e-12, e.gas.vgas[c])) / VAPOUR_FULL;
+        r = 40; gg = 110; bl = 220; a = Math.min(0.86, 0.86 * value);
       }
-      /* Nebel immer: weiss, die Deckkraft aus seiner Dichte (1 g/m³ ist dichter Nebel). */
+      /* Nebel immer: weiss, die Deckkraft nach Beer–Lambert aus seiner Dichte (oben). */
       const fog = g.mfog[c] / Math.max(1e-12, e.gas.vgas[c]);
       if (fog > 0) {
-        const a = Math.min(0.92, fog / 1e-3);
-        const base = cells[o + 3] / 255;
-        const outA = a + base * (1 - a);
+        let af = Math.min(0.95, 1 - Math.exp(-fog / FOG_REF));
+        if (overlay === 'temperature' || overlay === 'pressure' || overlay === 'velocity') af *= FOG_UNDER_OVERLAY;
+        const outA = af + a * (1 - af);
         if (outA > 0) {
-          cells[o] = (255 * a + cells[o] * base * (1 - a)) / outA;
-          cells[o + 1] = (255 * a + cells[o + 1] * base * (1 - a)) / outA;
-          cells[o + 2] = (255 * a + cells[o + 2] * base * (1 - a)) / outA;
-          cells[o + 3] = 255 * outA;
+          r = (255 * af + r * a * (1 - af)) / outA;
+          gg = (255 * af + gg * a * (1 - af)) / outA;
+          bl = (255 * af + bl * a * (1 - af)) / outA;
         }
+        a = outA;
       }
+      field[o] = r * a; field[o + 1] = gg * a; field[o + 2] = bl * a; field[o + 3] = 255 * a;
     }
   }
+  /* Die Skala für die Legende. */
+  if (overlay === 'temperature') { f.scaleLo = T0 + tmin; f.scaleHi = T0 + T_SCALE[1]; }
+  else if (overlay === 'pressure') { f.scaleLo = -pmax; f.scaleHi = pmax; }
+  else if (overlay === 'velocity') { f.scaleLo = 0; f.scaleHi = vmax; }
+  else if (overlay === 'vapour') { f.scaleLo = 0; f.scaleHi = VAPOUR_FULL; }
+  else { f.scaleLo = 0; f.scaleHi = 1; }
   /* Flüssigkeit: Bedeckung auf halben Zellen (quadratischer B-Spline), Temperatur gewichtet. */
   const lx = f.lx;
   const ly = f.ly;
   const nl = lx * ly;
-  if (lw.length < nl) { lw = new Float32Array(nl); lt = new Float32Array(nl); }
+  if (lw.length < nl) { lw = new Float32Array(nl); lt = new Float32Array(nl); tmp = new Float32Array(nl); }
   lw.fill(0, 0, nl);
   lt.fill(0, 0, nl);
   const P = e.particles;
@@ -186,6 +270,9 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay): void {
       }
     }
   }
+  /* Teilchen liegen nie ganz gleichmässig: ohne Weichzeichner zeigen sich einzelne Lücken als Löcher im Wasser (die Oberfläche bei ½ bleibt, wo sie ist). */
+  blur121(lw, lx, ly);
+  blur121(lt, lx, ly);
   const liq = f.liquid;
   for (let k = 0; k < nl; k += 1) {
     const w = lw[k];
@@ -205,5 +292,83 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay): void {
     f.bubbles[o + 1] = B.y[b];
     f.bubbles[o + 2] = B.r[b];
     f.bubbles[o + 3] = total > 0 ? (B.m[b * SPECIES_SLOTS + N2] + B.m[b * SPECIES_SLOTS + O2]) / total : 0;
+  }
+  /* Rohe Teilchen. */
+  f.np = 0;
+  if (particles && f.parts.length >= 3 * P.count) {
+    const pp = f.parts;
+    for (let q = 0; q < P.count; q += 1) {
+      pp[3 * q] = P.x[q];
+      pp[3 * q + 1] = P.y[q];
+      pp[3 * q + 2] = Math.min(1, Math.max(0, (P.T[q] - T0 - tmin) / tspan));
+    }
+    f.np = P.count;
+  }
+  /* Pfeile der Geschwindigkeit. */
+  f.nag = 0;
+  f.nal = 0;
+  f.vLiq = 0;
+  if (overlay === 'velocity') arrows(e, f);
+}
+
+/** Geschwindigkeit in der Mitte der Zelle (i, j) aus den Flächen u, v (in vel[0], vel[1]). */
+const vel = new Float64Array(2);
+function centre(u: Float32Array, v: Float32Array, i: number, j: number, nx: number): void {
+  vel[0] = 0.5 * (u[i + j * (nx + 1)] + u[i + 1 + j * (nx + 1)]);
+  vel[1] = 0.5 * (v[i + j * nx] + v[i + (j + 1) * nx]);
+}
+
+/** Pfeile auf einem groben Raster: Gas und Wasser je mit eigenem Massstab (die grösste Geschwindigkeit ist 0,9 Rasterweiten lang). */
+function arrows(e: Engine, f: FrameBuffers): void {
+  const g = e.grid;
+  const { nx, ny, dx } = g;
+  const step = arrowStep(dx);
+  const half = step >> 1;
+  let vGas = 0;
+  let vLiq = 0;
+  for (let j = half; j < ny; j += step) {
+    for (let i = half; i < nx; i += step) {
+      const k = g.kind[i + j * nx];
+      if (k === GAS) { centre(g.ug, g.vg, i, j, nx); vGas = Math.max(vGas, Math.hypot(vel[0], vel[1])); }
+      else if (k === LIQUID) { centre(g.ul, g.vl, i, j, nx); vLiq = Math.max(vLiq, Math.hypot(vel[0], vel[1])); }
+    }
+  }
+  f.scaleHi = Math.max(f.scaleHi, vGas);
+  f.vLiq = vLiq;
+  const out = f.arrows;
+  const len = 0.9 * step * dx;
+  let n = 0;
+  const cap = out.length / 4;
+  for (let pass = 0; pass < 2; pass += 1) {
+    const kind = pass === 0 ? GAS : LIQUID;
+    const vmax = pass === 0 ? f.scaleHi : vLiq;
+    const start = n;
+    if (vmax > 1e-6) {
+      for (let j = half; j < ny; j += step) {
+        for (let i = half; i < nx; i += step) {
+          if (g.kind[i + j * nx] !== kind || n + 3 > cap) continue;
+          if (kind === GAS) centre(g.ug, g.vg, i, j, nx); else centre(g.ul, g.vl, i, j, nx);
+          const s = Math.hypot(vel[0], vel[1]);
+          if (s < 0.03 * vmax) continue;
+          const L = (len * s) / vmax;
+          const ux = vel[0] / s;
+          const uy = vel[1] / s;
+          const cx = (i + 0.5) * dx;
+          const cy = (j + 0.5) * dx;
+          const x1 = cx + 0.5 * L * ux;
+          const y1 = cy + 0.5 * L * uy;
+          const o = 4 * n;
+          out[o] = cx - 0.5 * L * ux; out[o + 1] = cy - 0.5 * L * uy; out[o + 2] = x1; out[o + 3] = y1;
+          /* Spitze: zwei Striche zurück unter ±25°, 35 % der Länge. */
+          const h = 0.35 * L;
+          const ca = 0.9063;
+          const sa = 0.4226;
+          out[o + 4] = x1; out[o + 5] = y1; out[o + 6] = x1 - h * (ca * ux - sa * uy); out[o + 7] = y1 - h * (sa * ux + ca * uy);
+          out[o + 8] = x1; out[o + 9] = y1; out[o + 10] = x1 - h * (ca * ux + sa * uy); out[o + 11] = y1 - h * (-sa * ux + ca * uy);
+          n += 3;
+        }
+      }
+    }
+    if (pass === 0) f.nag = n - start; else f.nal = n - start;
   }
 }

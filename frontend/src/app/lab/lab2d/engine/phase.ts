@@ -63,6 +63,12 @@ export class Phase {
   /** Rand der Diffusion je Zelle und Seite (Leitwert, Wert) — beim Aufbau berechnet, bei den Flüssen gelesen. */
   private readonly bG: Float64Array;
   private readonly bY: Float64Array;
+  /** Je Gaszelle: hat sie einen Rand (Seite zu Flüssigkeit, Feststoff oder Kistenrand)? Nur dort fragt die Diffusion boundary(). */
+  private readonly edge: Uint8Array;
+  /** Je Zelle bei ihrer Temperatur (für die Flüsse der Diffusion einmal je Schritt): h_v, h_N₂, h_O₂ (J/kg). */
+  private readonly hvC: Float64Array;
+  private readonly hnC: Float64Array;
+  private readonly hoC: Float64Array;
 
   constructor(engine: Engine) {
     this.e = engine;
@@ -79,6 +85,10 @@ export class Phase {
     this.dm = new Float64Array(engine.particles.cap);
     this.bG = new Float64Array(4 * n);
     this.bY = new Float64Array(4 * n);
+    this.edge = new Uint8Array(n);
+    this.hvC = new Float64Array(n);
+    this.hnC = new Float64Array(n);
+    this.hoC = new Float64Array(n);
   }
 
   /* -- Hilfen ---------------------------------------------------------------------------------------- */
@@ -228,35 +238,49 @@ export class Phase {
     const e = this.e;
     const { grid: g, gas, regions: R, heat, solver: S } = e;
     const { nx, ny, n, depth, kind } = g;
-    const { mtot, rd, Y0, Tl, Fm, Fe, accH, acc } = this;
+    const { mtot, rd, Y0, Tl, Fm, Fe, accH, acc, edge, hvC, hnC, hoC } = this;
     let any = false;
     for (let c = 0; c < n; c += 1) {
       if (kind[c] !== GAS) { mtot[c] = 0; continue; }
       const m = g.mg[c] + g.mg[n + c] + g.mg[H2O * n + c];
       mtot[c] = m;
       Y0[c] = m > 0 ? g.mg[H2O * n + c] / m : 0;
-      rd[c] = gas.rho[c] * diffVapour(g.T[c], R.pAt(c));
+      const T = g.T[c];
+      rd[c] = gas.rho[c] * diffVapour(T, R.pAt(c));
+      hvC[c] = hV(T);
+      hnC[c] = hGas(N2, T);
+      hoC[c] = hGas(O2, T);
       any = true;
     }
     if (!any) return;
+    /* Gaszellen mit einem Rand: eine Seite zu Flüssigkeit, Feststoff oder zum Kistenrand. */
+    for (let j = 0; j < ny; j += 1) {
+      for (let i = 0; i < nx; i += 1) {
+        const c = i + j * nx;
+        edge[c] = kind[c] === GAS && (i === 0 || j === 0 || i === nx - 1 || j === ny - 1 || kind[c - 1] !== GAS || kind[c + 1] !== GAS || kind[c - nx] !== GAS || kind[c + nx] !== GAS) ? 1 : 0;
+      }
+    }
     const sys = S.begin(nx, ny);
+    const stride = sys.stride;
     const yAmb = e.ambientY[H2O];
+    const { bG, bY } = this;
     for (let j = 0; j < ny; j += 1) {
       for (let i = 0; i < nx; i += 1) {
         const c = i + j * nx;
         if (kind[c] !== GAS || mtot[c] <= 0) continue;
-        const s = S.at(i, j);
+        const s = i + 1 + (j + 1) * stride;
         sys.act[s] = 1;
         sys.x[s] = Y0[c];
         sys.dH[s] = mtot[c] / dt;
         let b = (mtot[c] * Y0[c]) / dt;
         if (i + 1 < nx && kind[c + 1] === GAS && mtot[c + 1] > 0) sys.ax[s] = 0.5 * (rd[c] + rd[c + 1]) * depth;
         if (j + 1 < ny && kind[c + nx] === GAS && mtot[c + nx] > 0) sys.ay[s] = 0.5 * (rd[c] + rd[c + nx]) * depth;
+        if (edge[c] === 0) { sys.b[s] = b; continue; }
         let gb = 0;
         for (let k = 0; k < 4; k += 1) {
           const G = this.boundary(c, i, j, k, yAmb);
-          this.bG[4 * c + k] = G;
-          this.bY[4 * c + k] = this.yb;
+          bG[4 * c + k] = G;
+          bY[4 * c + k] = this.yb;
           if (G <= 0) continue;
           gb += G;
           b += G * this.yb;
@@ -269,18 +293,21 @@ export class Phase {
     /* Flüsse aus dem gelösten Y: innen antisymmetrisch (Dampf hin, Luft zurück), an den Rändern einseitig. */
     Fm.fill(0);
     Fe.fill(0);
+    const X = sys.x;
     for (let j = 0; j < ny; j += 1) {
       for (let i = 0; i < nx; i += 1) {
         const c = i + j * nx;
         if (kind[c] !== GAS || mtot[c] <= 0) continue;
-        const Yc = sys.x[S.at(i, j)];
-        if (i + 1 < nx && kind[c + 1] === GAS && mtot[c + 1] > 0) this.exchange(c, c + 1, dt * 0.5 * (rd[c] + rd[c + 1]) * depth * (Yc - sys.x[S.at(i + 1, j)]));
-        if (j + 1 < ny && kind[c + nx] === GAS && mtot[c + nx] > 0) this.exchange(c, c + nx, dt * 0.5 * (rd[c] + rd[c + nx]) * depth * (Yc - sys.x[S.at(i, j + 1)]));
+        const s = i + 1 + (j + 1) * stride;
+        const Yc = X[s];
+        if (i + 1 < nx && kind[c + 1] === GAS && mtot[c + 1] > 0) this.exchange(c, c + 1, dt * 0.5 * (rd[c] + rd[c + 1]) * depth * (Yc - X[s + 1]));
+        if (j + 1 < ny && kind[c + nx] === GAS && mtot[c + nx] > 0) this.exchange(c, c + nx, dt * 0.5 * (rd[c] + rd[c + nx]) * depth * (Yc - X[s + stride]));
+        if (edge[c] === 0) continue;
         for (let k = 0; k < 4; k += 1) {
-          const G = this.bG[4 * c + k];
+          const G = bG[4 * c + k];
           if (G <= 0) continue;
           /* Masse, die aus der Grenzfläche ins Gas geht (negativ: aus dem Gas hinaus). */
-          const F = dt * G * (this.bY[4 * c + k] - Yc);
+          const F = dt * G * (bY[4 * c + k] - Yc);
           const out = k === 0 ? i === 0 : k === 1 ? i === nx - 1 : k === 2 ? j === 0 : j === ny - 1;
           const nb = out ? -1 : k === 0 ? c - 1 : k === 1 ? c + 1 : k === 2 ? c - nx : c + nx;
           if (nb < 0) {
@@ -380,12 +407,12 @@ export class Phase {
     const air = airN + airO;
     const back = Math.min(F, air);
     if (F <= 0) return;
-    const Tf = g.T[from];
-    const Tt = g.T[to];
+    /* h_v(T) der Spenderzelle, h der Luft bei T der Empfängerzelle — aus den Zellwerten dieses Schritts (diffuse()). */
+    const hv = this.hvC[from];
     g.mg[H2O * n + from] -= F;
     g.mg[H2O * n + to] += F;
-    g.Hg[from] -= F * hV(Tf);
-    g.Hg[to] += F * hV(Tf);
+    g.Hg[from] -= F * hv;
+    g.Hg[to] += F * hv;
     if (back > 0) {
       const fN = (back * airN) / air;
       const fO = back - fN;
@@ -393,7 +420,7 @@ export class Phase {
       g.mg[O2 * n + to] -= fO;
       g.mg[N2 * n + from] += fN;
       g.mg[O2 * n + from] += fO;
-      const h = fN * hGas(N2, Tt) + fO * hGas(O2, Tt);
+      const h = fN * this.hnC[to] + fO * this.hoC[to];
       g.Hg[to] -= h;
       g.Hg[from] += h;
     }

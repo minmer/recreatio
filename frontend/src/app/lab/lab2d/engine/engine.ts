@@ -253,6 +253,7 @@ export class Engine {
     this.gas.deriveAll();
     liquid.computeHeatWeights();
     for (let c = 0; c < grid.n; c += 1) if (grid.solid[c] !== 0) this.heat.deriveSolid(c);
+    this.heat.countHeaters();
   }
 
   /** Umgebung: Druck (Pa), Temperatur (K), relative Feuchte, Schwerkraft, trockene Luft (Massenanteile). */
@@ -310,10 +311,17 @@ export class Engine {
     if (op.op === 'fill' && op.phase === 'liquid' && !this.surfaceAfterFill(op)) {
       return 'refused: the liquid would have no free surface (no pressure law for a region filled with liquid in M1)';
     }
+    /*
+     * Ein Handgriff kann Gebiete verschliessen, öffnen oder ihr Volumen ändern:
+     * dann springt der Anteil −p0·V der Bilanz (U statt H) — ein Eingriff,
+     * kein Fluss; er wird gebucht.
+     */
+    const pv0 = this.regions.pvTerm();
     const warning = applyOp(this.world(), op);
     if (op.op === 'hotplate') this.heaterOps.set(this.heat.heaters.length - 1, this.scene.ops.length);
     this.scene = { ...this.scene, ops: [...this.scene.ops, op] };
     this.settle();
+    this.ledger.energy += this.regions.pvTerm() - pv0;
     if (warning !== null) this.warnings.push(warning);
     return warning;
   }
@@ -370,13 +378,17 @@ export class Engine {
   }
 
   /** Umgebung zur Laufzeit: Druck (Pa), Temperatur (K), Feuchte (0–1), Schwerkraft (m/s²). */
-  setAmbient(p: number, T: number, rh: number, g: number): void {
+  /** Umgebung: Druck (Pa), Temperatur (K), relative Feuchte, Schwerkraft, wahlweise die trockene Luft (Massenanteile) — sie kommt durch offene Seiten herein; das Gas in der Kiste behält seine. */
+  setAmbient(p: number, T: number, rh: number, g: number, air?: { readonly N2: number; readonly O2: number }): void {
     const gg = this.options.harness === true ? g : Math.min(2 * 9.80665, Math.max(0.25 * 9.80665, g));
-    this.scene = { ...this.scene, ambient: { ...this.scene.ambient, p, T, rh, g: gg } };
-    this.setAmbientState(p, T, rh, gg, this.scene.ambient.air.N2, this.scene.ambient.air.O2);
+    const dry = air !== undefined && air.N2 >= 0 && air.O2 >= 0 && air.N2 + air.O2 > 0 ? { N2: air.N2 / (air.N2 + air.O2), O2: air.O2 / (air.N2 + air.O2) } : this.scene.ambient.air;
+    this.scene = { ...this.scene, ambient: { ...this.scene.ambient, p, T, rh, g: gg, air: dry } };
+    this.setAmbientState(p, T, rh, gg, dry.N2, dry.O2);
   }
 
   setBoundary(side: SideName, value: Side): void {
+    /* Eine Seite zu- oder aufmachen verschliesst oder öffnet Gebiete: der Sprung von −p0·V wird gebucht (siehe apply). */
+    const pv0 = this.regions.pvTerm();
     this.scene = { ...this.scene, sides: { ...this.scene.sides, [side]: value } };
     const g = this.grid;
     if (side === 'left') g.openL = value === 'open';
@@ -385,6 +397,7 @@ export class Engine {
     if (side === 'top') g.openT = value === 'open';
     this.solidsChanged();
     this.settle();
+    this.ledger.energy += this.regions.pvTerm() - pv0;
   }
 
   /** Die Szene, wie sie jetzt aufgebaut ist (Anfangsaufbau plus Handgriffe), als JSON. */
@@ -585,11 +598,13 @@ export class Engine {
       const d = (P.x[q] - x) ** 2 + (P.y[q] - y) ** 2;
       if (d < bd) { bd = d; best = q; }
     }
+    /* Die nächste Blase im Umkreis von drei Zellen (oder ihrem Radius): Blasen sind klein und bewegen sich — ein Tipp daneben trifft sie trotzdem. */
     const B = this.bubbles;
     let bb = -1;
+    let bbd = Infinity;
     for (let b = 0; b < B.count; b += 1) {
       const d = Math.hypot(B.x[b] - x, B.y[b] - y);
-      if (d <= Math.max(B.r[b], 0.6 * g.dx)) { bb = b; break; }
+      if (d <= Math.max(B.r[b], 3 * g.dx) && d < bbd) { bb = b; bbd = d; }
     }
     return {
       x, y,
@@ -654,7 +669,7 @@ export class Engine {
       capped: this.cappedCount,
       waterT: wt.mean,
       waterTmax: wt.max,
-      heaters: this.heat.heaters.map((h: Heater) => ({ group: h.group, P: h.P, Tmean: h.Tmean, mode: h.mode, power: h.power, target: h.target, on: h.on })),
+      heaters: this.heat.heaters.filter((h: Heater) => h.cells > 0).map((h: Heater) => ({ group: h.group, P: h.P, Tmean: h.Tmean, mode: h.mode, power: h.power, target: h.target, on: h.on })),
       regions,
       budget: { ...budget, water: { ...budget.water } },
       flows: { ...f },

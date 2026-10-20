@@ -20,7 +20,7 @@ import { CELL, QUALITIES, isQuality, readScene, writeScene, type Op, type Qualit
 import type { Region } from './engine/shapes';
 import { LabHost } from './host';
 import { num, t, type TextKey } from './i18n';
-import { About, BubblePanel, Charts, forcesOf, Hud, Inspector, type Level } from './panels';
+import { About, BubblePanel, Charts, forcesOf, Hud, Inspector, Legend, type Level } from './panels';
 import { OVERLAYS, type Overlay } from './render/frame';
 import type { Walls } from './render/glRenderer';
 import type { View } from './render/view';
@@ -68,6 +68,11 @@ const QUALITY_LABEL: Readonly<Record<Quality, TextKey>> = { 'very-high': 'qualit
 const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 4, 8, 16];
 const T0 = 273.15;
 const G0 = 9.80665;
+/** Molmassen (kg/mol) für die Umrechnung Volumen- ↔ Massenanteil des Sauerstoffs (IUPAC; wie materials.json). */
+const M_N2 = 0.0280134;
+const M_O2 = 0.0319988;
+const o2Volume = (yO2: number): number => (yO2 / M_O2) / (yO2 / M_O2 + (1 - yO2) / M_N2);
+const o2Mass = (xO2: number): number => (xO2 * M_O2) / (xO2 * M_O2 + (1 - xO2) * M_N2);
 const PRESSURES: readonly { readonly key: TextKey; readonly kPa: number }[] = [
   { key: 'pSea', kPa: 101.325 }, { key: 'pMountain', kPa: 70 }, { key: 'pCooker', kPa: 200 }
 ];
@@ -88,18 +93,50 @@ function withQuality(raw: unknown, q: Quality): unknown {
   return raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>), quality: q } : { quality: q };
 }
 
-/** Ein Gerät an der Stelle (x, y): Mitte und Unterkante; dicht über dem Boden steht es auf ihm. */
-function apparatusOp(kind: ApparatusKey, x: number, y: number): Op {
-  const yy = y < 0.012 ? 0 : y;
+type Rect = [number, number, number, number];
+
+/** So nah (m) über dem Boden oder einem Gerät rastet ein neues Gerät darauf ein. */
+const SNAP = 0.012;
+
+/**
+ * Ein Gerät an der Stelle (x, y): Mitte und Unterkante. Dicht über dem Boden
+ * oder über einem Gerät darunter (eine Zlewka über der Heizplatte) steht es
+ * darauf — nie in ihm.
+ */
+function apparatusOp(kind: ApparatusKey, x: number, y: number, rects: readonly Rect[]): Op {
+  const half = (kind === 'beaker' ? 0.07 : 0.12) / 2;
+  let base = 0;
+  for (const r of rects) if (r[2] > x - half && r[0] < x + half && r[3] <= y + SNAP && r[3] > base) base = r[3];
+  const yy = y - base < SNAP ? base : y;
   return kind === 'beaker'
     ? { op: 'beaker', x, y: yy, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T: T0 + 20, lid: false }
     : { op: 'hotplate', x, y: yy, w: 0.12, h: 0.008, material: 'steel', T: T0 + 20, mode: 'power', power: 40, target: T0 + 150, on: true };
 }
 
 /** Das Rechteck eines Geräts aus seinem JSON (für „Przesuń“). */
-function apparatusRect(op: Record<string, unknown>): [number, number, number, number] | null {
+function apparatusRect(op: Record<string, unknown>): Rect | null {
   if ((op.op !== 'beaker' && op.op !== 'hotplate') || typeof op.x !== 'number' || typeof op.y !== 'number' || typeof op.w !== 'number' || typeof op.h !== 'number') return null;
   return [op.x - op.w / 2, op.y, op.x + op.w / 2, op.y + op.h];
+}
+
+/** Wo die Geräte jetzt stehen: ihre Rechtecke, verschoben von den späteren „move“-Handgriffen (deren Fläche ihre Mitte enthält). */
+function apparatusRects(ops: readonly Record<string, unknown>[]): Rect[] {
+  const rects: Rect[] = [];
+  for (const op of ops) {
+    const r = apparatusRect(op);
+    if (r !== null) { rects.push(r); continue; }
+    if (op.op !== 'move' || typeof op.dx !== 'number' || typeof op.dy !== 'number') continue;
+    const region = op.region as { rect?: unknown } | undefined;
+    const m = Array.isArray(region?.rect) ? (region?.rect as number[]) : null;
+    if (m === null || m.length !== 4) continue;
+    for (const q of rects) {
+      const cx = (q[0] + q[2]) / 2;
+      const cy = (q[1] + q[3]) / 2;
+      if (cx < m[0] || cx > m[2] || cy < m[1] || cy > m[3]) continue;
+      q[0] += op.dx; q[2] += op.dx; q[1] += op.dy; q[3] += op.dy;
+    }
+  }
+  return rects;
 }
 
 function Swatch({ color }: { color: string }) {
@@ -119,7 +156,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
 }) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<LabHost | null>(null);
-  const drag = useRef<{ start: [number, number]; startPx: [number, number]; last: [number, number]; at: number; target: number } | null>(null);
+  const drag = useRef<{ start: [number, number]; startPx: [number, number]; last: [number, number]; at: number; target: Rect | null } | null>(null);
   const samplesRef = useRef<ChartSample[]>([]);
   const opsRef = useRef<Record<string, unknown>[]>([]);
   const [ready, setReady] = useState(false);
@@ -142,7 +179,8 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
   const [line, setLine] = useState<readonly [number, number, number, number] | null>(null);
   const [lagging, setLagging] = useState<number | null>(null);
   const [view, setView] = useState<{ view: View; walls: Walls } | null>(null);
-  const [ambient, setAmbientState] = useState(() => { const a = readScene(config.scene).scene.ambient; return { p: a.p / 1000, T: a.T - T0, rh: a.rh, g: a.g / G0 }; });
+  const [ambient, setAmbientState] = useState(() => { const a = readScene(config.scene).scene.ambient; return { p: a.p / 1000, T: a.T - T0, rh: a.rh, g: a.g / G0, o2: o2Volume(a.air.O2) }; });
+  const [particles, setParticles] = useState(false);
   const qualityRef = useRef(quality);
   qualityRef.current = quality;
   const speedRef = useRef(SPEEDS[speedAt]);
@@ -222,13 +260,14 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
     else h.apply({ op: 'fill', region, phase: 'gas', T: T0 + tempC, composition: { N2: 0.7676, O2: 0.2324 } });
   };
 
-  const apparatusAt = (x: number, y: number): number => {
-    const ops = opsRef.current;
-    for (let k = ops.length - 1; k >= 0; k -= 1) {
-      const r = apparatusRect(ops[k]);
-      if (r !== null && x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]) return k;
+  /** Das oberste Gerät an (x, y) — sein jetziges Rechteck — oder null. */
+  const apparatusAt = (x: number, y: number): Rect | null => {
+    const rects = apparatusRects(opsRef.current);
+    for (let k = rects.length - 1; k >= 0; k -= 1) {
+      const r = rects[k];
+      if (x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]) return r;
     }
-    return -1;
+    return null;
   };
 
   const onDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
@@ -237,17 +276,17 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
     e.currentTarget.setPointerCapture(e.pointerId);
     const px = local(e);
     const w = h.toWorld(px[0], px[1]);
-    drag.current = { start: w, startPx: px, last: w, at: performance.now(), target: -1 };
+    drag.current = { start: w, startPx: px, last: w, at: performance.now(), target: null };
     if (tool === 'paint' || tool === 'erase') brushAt(w[0], w[1]);
-    else if (tool === 'place') { h.apply(apparatusOp(apparatus, w[0], w[1])); drag.current = null; window.setTimeout(() => refreshOps(h), 50); }
+    else if (tool === 'place') { h.apply(apparatusOp(apparatus, w[0], w[1], apparatusRects(opsRef.current))); drag.current = null; window.setTimeout(() => refreshOps(h), 50); }
     else if (tool === 'inspect') {
       void h.query(w[0], w[1]).then((q) => { setInfo(q); h.select(q?.bubble?.id ?? null); });
       drag.current = null;
     } else if (tool === 'wall') setLine([px[0], px[1], px[0], px[1]]);
     else if (tool === 'drag') {
-      const k = apparatusAt(w[0], w[1]);
-      if (k < 0) drag.current = null;
-      else { drag.current.target = k; setLine([px[0], px[1], px[0], px[1]]); }
+      const r = apparatusAt(w[0], w[1]);
+      if (r === null) drag.current = null;
+      else { drag.current.target = r; setLine([px[0], px[1], px[0], px[1]]); }
     }
   };
 
@@ -279,17 +318,14 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
       if (Math.hypot(x - d.start[0], y - d.start[1]) < cell) return;
       const m = MATERIALS.find((k) => k.key === material);
       h.addSolid({ line: [d.start[0], d.start[1], x, y], width: Math.max(2 * cell, 0.004) }, m?.solid ?? 'glass', T0 + tempC);
-    } else if (tool === 'drag' && d.target >= 0) {
-      const op = opsRef.current[d.target];
-      const r = op === undefined ? null : apparatusRect(op);
-      if (op === undefined || r === null) return;
-      const dx = x - d.start[0];
-      const dy = y - d.start[1];
-      if (Math.hypot(dx, dy) < cell) return;
-      /* Das Gerät an der alten Stelle entfernen, an der neuen aufbauen (seine Zellen; der Inhalt bleibt). */
-      h.apply({ op: 'erase', region: { rect: r } });
-      const moved = { ...op, x: (op.x as number) + dx, y: Math.max(0, (op.y as number) + dy) };
-      h.apply(readScene({ ops: [moved] }).scene.ops[0]);
+    } else if (tool === 'drag' && d.target !== null) {
+      const r = d.target;
+      /* Auf ganze Zellen gerundet (so verschiebt die Engine), nicht unter den Boden. */
+      const dx = Math.round((x - d.start[0]) / cell) * cell;
+      const dy = Math.max(Math.round(-r[1] / cell) * cell, Math.round((y - d.start[1]) / cell) * cell);
+      if (dx === 0 && dy === 0) return;
+      /* Das Gerät samt Wasser und Blasen darin verschieben (seine Zellen behalten Temperatur und Heizung). */
+      h.apply({ op: 'move', region: { rect: r }, dx, dy });
       window.setTimeout(() => refreshOps(h), 50);
     }
   };
@@ -299,10 +335,12 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
   const changeQuality = (q: Quality): void => { setQuality(q); saveQuality(q); lagRef.current = 0; setLagging(null); samplesRef.current = []; setSamples([]); host()?.setQuality(q); };
   const changeLevel = (l: Level): void => { setLevel(l); try { window.localStorage.setItem(LEVEL_KEY, l); } catch { /* nur jetzt */ } };
   const changeOverlay = (o: Overlay): void => { setOverlay(o); host()?.overlay(o); };
-  const changeAmbient = (next: { p: number; T: number; rh: number; g: number }): void => {
+  const changeAmbient = (next: { p: number; T: number; rh: number; g: number; o2: number }): void => {
     setAmbientState(next);
-    host()?.setAmbient(next.p * 1000, T0 + next.T, next.rh, next.g * G0);
+    const yO2 = o2Mass(next.o2);
+    host()?.setAmbient(next.p * 1000, T0 + next.T, next.rh, next.g * G0, { N2: 1 - yO2, O2: yO2 });
   };
+  const changeParticles = (on: boolean): void => { setParticles(on); host()?.particles(on); };
   const reload = (scene: unknown): void => {
     samplesRef.current = [];
     setSamples([]);
@@ -343,7 +381,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
   /* Pfeile der Kräfte an der gewählten Blase (Bildschirmkoordinaten, auf die grösste Kraft normiert). */
   let arrows: { key: string; x1: number; y1: number; x2: number; y2: number; label: string }[] = [];
   const h0 = hostRef.current;
-  if (bubble !== null && h0 !== null && view !== null) {
+  if (bubble !== null && (bubble.fate === null || bubble.fate === 'merged') && h0 !== null && view !== null) {
     const [bx, by] = h0.toScreen(bubble.x, bubble.y);
     const forces = forcesOf(bubble);
     const big = Math.max(1e-30, ...forces.map((f) => Math.hypot(f.x, f.y)));
@@ -380,6 +418,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
         ))}
       </svg>
       {hud && stats !== null && <Hud stats={stats} />}
+      {overlay !== 'none' && stats !== null && <Legend overlay={overlay} scale={stats.overlayScale} />}
       {note !== null && <div className="l2d-note" role="status">{note}</div>}
       {(!ready || error !== null) && <div className="l2d-status">{error ?? t('loading')}</div>}
     </div>
@@ -457,6 +496,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
           </select>
         </label>
         <p className="lab-muted">{t('vapourNote')}</p>
+        <label className="lab-row"><input type="checkbox" checked={particles} onChange={(e) => changeParticles(e.currentTarget.checked)} />{t('showParticles')}</label>
         <label className="lab-field">{t('level')}
           <select value={level} onChange={(e) => changeLevel(e.currentTarget.value === 'secondary' ? 'secondary' : 'primary')}>
             <option value="primary">{t('levelPrimary')}</option>
@@ -484,6 +524,10 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
         <label className="lab-field">{t('humidity')}: {num(100 * ambient.rh, 0)} %
           <input type="range" min={0} max={1} step={0.05} value={ambient.rh} onChange={(e) => changeAmbient({ ...ambient, rh: Number(e.currentTarget.value) })} />
         </label>
+        <label className="lab-field">{t('oxygen')}: {num(100 * ambient.o2, 0)} %
+          <input type="range" min={0} max={0.5} step={0.01} value={ambient.o2} onChange={(e) => changeAmbient({ ...ambient, o2: Number(e.currentTarget.value) })} />
+        </label>
+        <p className="lab-muted">{t('oxygenNote')}</p>
         <label className="lab-field">{t('gravity')}: {num(ambient.g, 2)} g
           <input type="range" min={0.25} max={2} step={0.05} value={ambient.g} onChange={(e) => changeAmbient({ ...ambient, g: Number(e.currentTarget.value) })} />
         </label>

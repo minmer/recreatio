@@ -15,8 +15,12 @@
  * - <b>Druck</b>: CG, vorkonditioniert mit einem V-Zyklus des geometrischen
  *   Mehrgitters (McAdams, Sifakis, Teran 2010): Zellmitten-Stufen 2 × 2 → 1;
  *   rot-schwarzes Gauss-Seidel vor (rot, schwarz) und nach (schwarz, rot)
- *   dem Grobgitter, bilineare Verlängerung der Zellmitten, Restriktion = ihre
- *   Transponierte — so bleibt der Vorkonditionierer symmetrisch.
+ *   dem Grobgitter, dazu ein Gauss-Seidel-Durchgang über das Randband (Zellen
+ *   an Wänden und Dirichlet-Rändern, wo grobe Zellen über dünne Wände greifen
+ *   und der V-Zyklus am schlechtesten wirkt — McAdams et al. 2010, §4):
+ *   vorwärts davor, rückwärts danach. Bilineare Verlängerung der Zellmitten,
+ *   Restriktion = ihre Transponierte — so bleibt der Vorkonditionierer
+ *   symmetrisch. (Siedeszene: 13 → 11 Iterationen im Gas.)
  *   <b>Grobe Operatoren geometrisch</b>: jede grobe Zelle kennt ihre aktive
  *   Fläche und deren Schwerpunkt; eine grobe Fläche bekommt Σ κL ihrer feinen
  *   Flächen geteilt durch den Abstand der Schwerpunkte, eine
@@ -70,6 +74,9 @@ interface Level {
   readonly x: Float64Array;
   readonly b: Float64Array;
   readonly r: Float64Array;
+  /** Randband: aktive Zellen mit einem inaktiven Nachbarn oder einer Dirichlet-Kopplung (Index-Liste) und ihre Anzahl. */
+  readonly band: Int32Array;
+  bandCount: number;
 }
 
 /** Was der Aufrufer füllt: die Koeffizienten, die rechte Seite und (Warmstart) x — alles mit Rand, Index über `at`. */
@@ -121,7 +128,9 @@ const makeLevel = (n: number, fineN: number): Level => ({
   act: new Uint8Array(n),
   x: new Float64Array(n),
   b: new Float64Array(n),
-  r: new Float64Array(n)
+  r: new Float64Array(n),
+  band: new Int32Array(n),
+  bandCount: 0
 });
 
 /** Kleinste Stufe: so grob wird das Mehrgitter höchstens. */
@@ -130,8 +139,32 @@ const COARSE_CELLS = 24;
 const PRE = 1;
 const POST = 1;
 const COARSEST_SWEEPS = 24;
+/** Zusätzliche Gauss-Seidel-Durchgänge im Randband je Glättung. */
+const BAND_SWEEPS = 1;
 
 const padded = (nx: number, ny: number): number => (nx + 2) * (ny + 2);
+
+/* Die Vektorschritte des CG als kleine Funktionen (V8 optimiert sie einzeln besser als eine lange Schleifenfolge). */
+function dot(a: Float64Array, b: Float64Array, n: number): number {
+  let s = 0;
+  for (let c = 0; c < n; c += 1) s += a[c] * b[c];
+  return s;
+}
+/** x += α p, r −= α q; liefert r·r. */
+function step(x: Float64Array, r: Float64Array, p: Float64Array, q: Float64Array, alpha: number, n: number): number {
+  let rr = 0;
+  for (let c = 0; c < n; c += 1) {
+    x[c] += alpha * p[c];
+    const rc = r[c] - alpha * q[c];
+    r[c] = rc;
+    rr += rc * rc;
+  }
+  return rr;
+}
+/** p = z + β p. */
+function direction(p: Float64Array, z: Float64Array, beta: number, n: number): void {
+  for (let c = 0; c < n; c += 1) p[c] = z[c] + beta * p[c];
+}
 
 export class GridSolver {
   private readonly levels: Level[] = [];
@@ -212,7 +245,13 @@ export class GridSolver {
 
   /* -- Hilfen ------------------------------------------------------------------------------------- */
 
-  /** Diagonale und ihr Kehrwert; inaktive Zellen: 1 (Koeffizienten zu ihnen sind 0). */
+  /**
+   * Diagonale und ihr Kehrwert; inaktive Zellen: 1 (Koeffizienten zu ihnen
+   * sind 0). Eine aktive Zelle ganz ohne Kopplung (eine einzelne Gaszelle
+   * zwischen Wasser und Wand; auf groben Stufen ein so eingeschlossenes
+   * Grüppchen) hat keine Gleichung: sie wird inaktiv (Lösung 0) — mit 1/0 als
+   * Kehrwert sprengte sie sonst den V-Zyklus.
+   */
   private static diagonal(L: Level): void {
     const { nx, ny, stride, ax, ay, dH, dDx, dDy, diag, inv, act } = L;
     for (let j = 1; j <= ny; j += 1) {
@@ -220,8 +259,9 @@ export class GridSolver {
       for (let i = 1; i <= nx; i += 1, c += 1) {
         if (act[c] === 0) { diag[c] = 1; inv[c] = 1; continue; }
         const d = dH[c] + dDx[c] + dDy[c] + ax[c] + ax[c - 1] + ay[c] + ay[c - stride];
-        diag[c] = d > 0 ? d : 1e-300;
-        inv[c] = 1 / diag[c];
+        if (!(d > 0)) { act[c] = 0; diag[c] = 1; inv[c] = 1; continue; }
+        diag[c] = d;
+        inv[c] = 1 / d;
       }
     }
   }
@@ -246,6 +286,29 @@ export class GridSolver {
       for (; c <= end; c += 2) {
         x[c] = (b[c] + ax[c] * x[c + 1] + ax[c - 1] * x[c - 1] + ay[c] * x[c + stride] + ay[c - stride] * x[c - stride]) * inv[c];
       }
+    }
+  }
+
+  /** Das Randband einer Stufe: aktive Zellen, denen ein aktiver Nachbar fehlt oder die an einen Dirichlet-Wert koppeln. */
+  private static findBand(L: Level): void {
+    const { nx, ny, stride, act, dDx, dDy, band } = L;
+    let k = 0;
+    for (let j = 1; j <= ny; j += 1) {
+      let c = 1 + j * stride;
+      for (let i = 1; i <= nx; i += 1, c += 1) {
+        if (act[c] === 0) continue;
+        if (act[c - 1] === 0 || act[c + 1] === 0 || act[c - stride] === 0 || act[c + stride] === 0 || dDx[c] > 0 || dDy[c] > 0) band[k++] = c;
+      }
+    }
+    L.bandCount = k;
+  }
+
+  /** Gauss-Seidel über das Randband, vorwärts (dir = 1) oder rückwärts (−1) — rückwärts ist das Adjungierte von vorwärts. */
+  private static bandSweep(L: Level, dir: number): void {
+    const { stride, ax, ay, inv, x, b, band, bandCount } = L;
+    for (let q = dir > 0 ? 0 : bandCount - 1; dir > 0 ? q < bandCount : q >= 0; q += dir) {
+      const c = band[q];
+      x[c] = (b[c] + ax[c] * x[c + 1] + ax[c - 1] * x[c - 1] + ay[c] * x[c + stride] + ay[c - stride] * x[c - stride]) * inv[c];
     }
   }
 
@@ -392,6 +455,7 @@ export class GridSolver {
         }
       }
       GridSolver.diagonal(C);
+      GridSolver.findBand(C);
       /* 3. Die Übertragung F ↔ C einmal je Lösen. */
       for (let j = 0; j < F.ny; j += 1) {
         let f = 1 + (j + 1) * fs;
@@ -426,11 +490,12 @@ export class GridSolver {
     at[3] = base + di + dj * cs;
     const okI = I + di >= 0 && I + di < C.nx;
     const okJ = J + dj >= 0 && J + dj < C.ny;
-    w[0] = 9 / 16;
     w[1] = okI && C.act[at[1]] !== 0 ? 3 / 16 : 0;
     w[2] = okJ && C.act[at[2]] !== 0 ? 3 / 16 : 0;
     w[3] = okI && okJ && C.act[at[3]] !== 0 ? 1 / 16 : 0;
-    if (!dirichlet) w[0] = 1 - w[1] - w[2] - w[3];
+    /* Eine inaktive Mutter (ohne Gleichung, siehe diagonal()) gibt und nimmt nichts. */
+    if (C.act[base] === 0) w[0] = 0;
+    else w[0] = dirichlet ? 9 / 16 : 1 - w[1] - w[2] - w[3];
   }
 
   /** Ein V-Zyklus ab Stufe l (x der Stufe startet bei 0, b ist gesetzt). */
@@ -442,6 +507,7 @@ export class GridSolver {
       return;
     }
     for (let s = 0; s < PRE; s += 1) { GridSolver.color(L, 0); GridSolver.color(L, 1); }
+    for (let s = 0; s < BAND_SWEEPS; s += 1) GridSolver.bandSweep(L, 1);
     GridSolver.apply(L, L.x, L.r);
     const C = this.levels[l + 1];
     C.b.fill(0, 0, padded(C.nx, C.ny));
@@ -472,6 +538,7 @@ export class GridSolver {
         x[c] += pW[o] * cx[pIdx[o]] + pW[o + 1] * cx[pIdx[o + 1]] + pW[o + 2] * cx[pIdx[o + 2]] + pW[o + 3] * cx[pIdx[o + 3]];
       }
     }
+    for (let s = 0; s < BAND_SWEEPS; s += 1) GridSolver.bandSweep(L, -1);
     for (let s = 0; s < POST; s += 1) { GridSolver.color(L, 1); GridSolver.color(L, 0); }
   }
 
@@ -481,6 +548,10 @@ export class GridSolver {
     const { nx, ny, stride, ax, ay, dH, dDx, dDy, act } = L;
     const id = this.nullId;
     const n = padded(nx, ny);
+    /* Hat jede aktive Zelle einen Flächenterm (Wärme, Diffusion: C/Δt), ist kein Gebiet rein Neumann'sch — ohne Flutfüllung. */
+    let free = false;
+    for (let c = 0; c < n; c += 1) if (act[c] !== 0 && !(dH[c] > 0)) { free = true; break; }
+    if (!free) { this.nullCount = 0; return; }
     id.fill(-2, 0, n);
     this.nullCount = 0;
     for (let j = 1; j <= ny; j += 1) {
@@ -555,9 +626,11 @@ export class GridSolver {
       if (c + s >= n || act[c + s] === 0) L0.ay[c] = 0;
     }
     GridSolver.diagonal(L0);
+    /* Zellen, die diagonal() stillgelegt hat: ohne Wert. */
+    for (let c = 0; c < n; c += 1) if (act[c] === 0) { x[c] = 0; b[c] = 0; }
     this.findNull();
     this.project(b);
-    if (mg) { this.prepareFine(); this.coarsen(); }
+    if (mg) { GridSolver.findBand(L0); this.prepareFine(); this.coarsen(); }
     /* r liegt in L0.b (der V-Zyklus liest es nur), z in L0.x — beim Jacobi-Verfahren in eigenen Feldern. */
     const r = mg ? L0.b : this.rj;
     const z = mg ? L0.x : this.zj;
@@ -591,25 +664,17 @@ export class GridSolver {
     while (it < maxIter) {
       it += 1;
       GridSolver.apply(L0, p, q);
-      let pq = 0;
-      for (let c = 0; c < n; c += 1) pq += p[c] * q[c];
+      const pq = dot(p, q, n);
       if (!(pq > 0)) break;
       const alpha = rz / pq;
-      rr = 0;
-      for (let c = 0; c < n; c += 1) {
-        x[c] += alpha * p[c];
-        const rc = r[c] - alpha * q[c];
-        r[c] = rc;
-        rr += rc * rc;
-      }
+      rr = step(x, r, p, q, alpha, n);
       res = Math.sqrt(rr) / bnorm;
       if (res <= tol) break;
       this.precondition(mg, r, z, n);
-      let rz2 = 0;
-      for (let c = 0; c < n; c += 1) rz2 += r[c] * z[c];
+      const rz2 = dot(r, z, n);
       const beta = rz2 / rz;
       rz = rz2;
-      for (let c = 0; c < n; c += 1) p[c] = z[c] + beta * p[c];
+      direction(p, z, beta, n);
     }
     this.project(x);
     for (let c = 0; c < n; c += 1) if (act[c] === 0) x[c] = 0;

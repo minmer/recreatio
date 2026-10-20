@@ -32,6 +32,8 @@ export const MAX_CELLS = 160_000;
 export type Op =
   | { readonly op: 'fill'; readonly region: Region; readonly phase: 'liquid' | 'gas'; readonly T: number; readonly composition: Readonly<Record<string, number>> }
   | { readonly op: 'erase'; readonly region: Region }
+  /** Alles Feste in der Fläche samt Wasser und Blasen darin um (dx, dy) verschieben (auf ganze Zellen gerundet) — „Przesuń“. */
+  | { readonly op: 'move'; readonly region: Region; readonly dx: number; readonly dy: number }
   | { readonly op: 'solid'; readonly region: Region; readonly material: string; readonly T: number }
   | { readonly op: 'beaker'; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly wall: number; readonly material: string; readonly T: number; readonly lid: boolean }
   | { readonly op: 'hotplate'; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly material: string; readonly T: number; readonly mode: HeaterMode; readonly power: number; readonly target: number; readonly on: boolean };
@@ -102,6 +104,11 @@ function readOp(raw: unknown, warnings: string[], at: number): Op | null {
       const region = readRegion(r.region);
       if (region === null) break;
       return { op: 'erase', region };
+    }
+    case 'move': {
+      const region = readRegion(r.region);
+      if (region === null) break;
+      return { op: 'move', region, dx: clamp(num(r.dx, 0), -1, 1), dy: clamp(num(r.dy, 0), -1, 1) };
     }
     case 'solid': {
       const region = readRegion(r.region);
@@ -175,6 +182,8 @@ export function writeOp(op: Op): Record<string, unknown> {
       return { op: 'fill', region: writeRegion(op.region), composition: { ...op.composition }, phase: op.phase, T: round(op.T - T0, 3) };
     case 'erase':
       return { op: 'erase', region: writeRegion(op.region) };
+    case 'move':
+      return { op: 'move', region: writeRegion(op.region), dx: round(op.dx), dy: round(op.dy) };
     case 'solid':
       return { op: 'solid', region: writeRegion(op.region), material: op.material, T: round(op.T - T0, 3) };
     case 'beaker':

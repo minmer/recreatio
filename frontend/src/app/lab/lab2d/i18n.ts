@@ -4,6 +4,8 @@
  * Texte; Stoffnamen stehen in materials.json.
  */
 
+import materials from './engine/materials.json';
+
 export type Lang = 'pl' | 'de' | 'en';
 
 const PL = {
@@ -34,7 +36,7 @@ const PL = {
   hintPaint: 'Przeciągnij po skrzynce, żeby malować wybranym materiałem.',
   hintErase: 'Przeciągnij, żeby usunąć — w puste miejsce wraca powietrze z pokoju.',
   hintPlace: 'Kliknij, gdzie ma stanąć wybrana aparatura (dół w miejscu kliknięcia).',
-  hintDrag: 'Chwyć zlewkę albo płytę i upuść w nowym miejscu (przesuwa się sama aparatura, nie jej zawartość).',
+  hintDrag: 'Chwyć zlewkę albo płytę i upuść w nowym miejscu — woda w zlewce przesuwa się razem z nią.',
   hintWall: 'Przeciągnij od początku do końca ścianki.',
   hintInspect: 'Kliknij punkt: komórka, najbliższa cząstka wody albo pęcherz.',
   matWater: 'Woda',
@@ -50,10 +52,21 @@ const PL = {
   ovNone: 'Bez nakładki',
   ovTemperature: 'Temperatura',
   ovPressure: 'Ciśnienie',
-  ovVelocity: 'Prędkość gazu',
+  ovVelocity: 'Prędkość (gaz i woda)',
   ovHumidity: 'Wilgotność',
   ovVapour: 'Para wodna (niewidoczna — tu pokazana)',
   ovPhase: 'Mapa stanów',
+  legendPressure: 'Ciśnienie względem otoczenia',
+  legendVelocity: 'Prędkość gazu (kolor)',
+  arrowsNote: 'Strzałki: gaz do {g} cm/s (ciemne), woda do {w} cm/s (białe) — każde w swojej skali.',
+  showParticles: 'Pokaż cząstki wody zamiast powierzchni (kolor: temperatura)',
+  oxygen: 'Tlen w powietrzu (objętościowo)',
+  oxygenNote: 'Dotyczy powietrza, które napływa przez otwarte boki — gaz w skrzynce zachowuje swój skład.',
+  legendVapour: 'Para wodna (gęstość)',
+  phaseWater: 'woda',
+  phaseGas: 'gaz',
+  phaseSolid: 'ciało stałe',
+  phaseBubbles: 'pęcherze',
   vapourNote: 'Para wodna jest niewidoczna. Biały to mgła — drobne kropelki skroplonej wody.',
   level: 'Poziom',
   levelPrimary: 'Podstawowy',
@@ -144,10 +157,15 @@ const PL = {
   fAdded: 'masa dodana',
   buoyancyRatio: 'Wypór jest {x} razy większy od ciężaru pęcherza.',
   bubbleHint: 'Kliknij pęcherz narzędziem „Badaj”, żeby zobaczyć siły.',
+  fateBurst: 'Ten pęcherz dopłynął do powierzchni i pękł — jego para uszła do powietrza. Poniżej jego ostatni stan.',
+  fateCollapsed: 'Ten pęcherz zniknął: para w nim skropliła się w chłodniejszej wodzie. Poniżej jego ostatni stan.',
+  fateMerged: 'Ten pęcherz połączył się z innym — teraz widać pęcherz po połączeniu.',
   whyRise: 'Dlaczego pęcherz się wznosi? Woda naciska na niego mocniej od dołu niż od góry (wypór) — a para prawie nic nie waży.',
-  hot: 'gorąca',
-  warm: 'ciepła',
-  cold: 'zimna',
+  veryHot: 'bardzo gorąco',
+  hot: 'gorąco',
+  warm: 'ciepło',
+  feelRoom: 'jak w pokoju',
+  cold: 'zimno',
   boiling: 'wrze',
   stateSolid: 'ciało stałe',
   stateLiquid: 'ciecz',
@@ -201,7 +219,27 @@ const DE: Partial<Record<TextKey, string>> = {
   level: 'Stufe',
   levelPrimary: 'Grundstufe',
   levelSecondary: 'Erweitert (SI-Einheiten)',
+  veryHot: 'sehr heiss',
+  hot: 'heiss',
+  warm: 'warm',
+  feelRoom: 'wie im Zimmer',
+  cold: 'kalt',
+  boiling: 'siedet',
+  legendPressure: 'Druck gegenüber der Umgebung',
+  legendVelocity: 'Gasgeschwindigkeit (Farbe)',
+  arrowsNote: 'Pfeile: Gas bis {g} cm/s (dunkel), Wasser bis {w} cm/s (weiss) — jedes in eigenem Massstab.',
+  showParticles: 'Wasserteilchen statt der Oberfläche zeigen (Farbe: Temperatur)',
+  oxygen: 'Sauerstoff in der Luft (Volumen)',
+  oxygenNote: 'Gilt für die Luft, die durch offene Seiten hereinkommt — das Gas in der Kiste behält seine Zusammensetzung.',
+  legendVapour: 'Wasserdampf (Dichte)',
+  phaseWater: 'Wasser',
+  phaseGas: 'Gas',
+  phaseSolid: 'Feststoff',
+  phaseBubbles: 'Blasen',
   vapourNote: 'Wasserdampf ist unsichtbar. Weiss ist Nebel — winzige Tröpfchen kondensierten Wassers.',
+  fateBurst: 'Diese Blase hat die Oberfläche erreicht und ist geplatzt — ihr Dampf ist in die Luft entwichen. Unten ihr letzter Zustand.',
+  fateCollapsed: 'Diese Blase ist verschwunden: ihr Dampf ist im kälteren Wasser kondensiert. Unten ihr letzter Zustand.',
+  fateMerged: 'Diese Blase hat sich mit einer anderen vereinigt — gezeigt wird jetzt die vereinigte Blase.',
   whyRise: 'Warum steigt die Blase? Das Wasser drückt von unten stärker als von oben (Auftrieb) — und Dampf wiegt fast nichts.',
   aboutLead: 'Jedes Modell vereinfacht die Wirklichkeit — auch das ist eine Lektion. Das lässt dieses Modell weg oder nähert es an.'
 };
@@ -241,7 +279,27 @@ const EN: Partial<Record<TextKey, string>> = {
   level: 'Level',
   levelPrimary: 'Primary',
   levelSecondary: 'Secondary (SI units)',
+  veryHot: 'very hot',
+  hot: 'hot',
+  warm: 'warm',
+  feelRoom: 'room temperature',
+  cold: 'cold',
+  boiling: 'boiling',
+  legendPressure: 'Pressure relative to the room',
+  legendVelocity: 'Gas speed (colour)',
+  arrowsNote: 'Arrows: gas up to {g} cm/s (dark), water up to {w} cm/s (white) — each on its own scale.',
+  showParticles: 'Show the water particles instead of the surface (colour: temperature)',
+  oxygen: 'Oxygen in the air (by volume)',
+  oxygenNote: 'Applies to the air that flows in through open sides — the gas in the box keeps its composition.',
+  legendVapour: 'Water vapour (density)',
+  phaseWater: 'water',
+  phaseGas: 'gas',
+  phaseSolid: 'solid',
+  phaseBubbles: 'bubbles',
   vapourNote: 'Water vapour is invisible. White is fog — tiny droplets of condensed water.',
+  fateBurst: 'This bubble reached the surface and burst — its vapour escaped into the air. Below is its last state.',
+  fateCollapsed: 'This bubble vanished: its vapour condensed in the cooler water. Below is its last state.',
+  fateMerged: 'This bubble merged with another one — the merged bubble is shown now.',
   whyRise: 'Why does the bubble rise? The water pushes harder from below than from above (buoyancy) — and vapour weighs almost nothing.',
   aboutLead: 'Every model simplifies reality — that is a lesson too. Here is what this model leaves out or approximates.'
 };
@@ -258,10 +316,18 @@ export function t(key: TextKey, lang: Lang = pageLang()): string {
   return TABLES[lang][key] ?? PL[key];
 }
 
+/** Der Name eines Feststoffs aus materials.json (die Engine kennt nur seine Kennung). */
+export function materialName(id: string, lang: Lang = pageLang()): string {
+  const m = (materials.solids as readonly { readonly id: string; readonly name: Readonly<Record<Lang, string>> }[]).find((k) => k.id === id);
+  return m === undefined ? id : m.name[lang] ?? m.name.pl;
+}
+
 /** Eine Zahl auf polnische (deutsche) Art: Komma statt Punkt. */
 export function num(x: number, digits = 1, lang: Lang = pageLang()): string {
   if (!Number.isFinite(x)) return '–';
-  const s = x.toFixed(digits);
+  let s = x.toFixed(digits);
+  /* „−0,000“ (ein winziger negativer Rest) ohne Vorzeichen. */
+  if (/^-0(\.0*)?$/.test(s)) s = s.slice(1);
   return lang === 'en' ? s : s.replace('.', ',').replace('-', '−');
 }
 
@@ -283,5 +349,9 @@ export const SIMPLIFICATIONS_PL: readonly { readonly title: string; readonly pri
   { title: 'Gazy idealne', primary: 'Powietrze to azot i tlen; para zachowuje się jak gaz idealny.', secondary: 'Entalpia pary zależy tylko od T; ciepło parowania poza 100 °C z prawa Kirchhoffa (0,5 % za mało przy 20 °C).' },
   { title: 'Mgła nie opada', primary: 'Mgła płynie z powietrzem i nie opada jak deszcz.', secondary: 'Mgła to masa na komórkę przenoszona z gazem; rosa osiada tylko na ściankach.' },
   { title: 'Pokój za otwartym bokiem', primary: 'Za otwartym bokiem jest zwykłe powietrze pokoju.', secondary: 'Napływ przynosi powietrze otoczenia; to, co wypływa, jest liczone jako „uszło”.' },
-  { title: 'Aparatura stoi', primary: 'Zlewek i płyt nie da się przewrócić; nie topią się.', secondary: 'Ciała stałe są statycznymi komórkami (ruch i topienie: kolejne etapy).' }
+  { title: 'Aparatura stoi', primary: 'Zlewek i płyt nie da się przewrócić; nie topią się. „Przesuń” przestawia je od razu.', secondary: 'Ciała stałe są statycznymi komórkami (ruch i topienie: kolejne etapy); „Przesuń” przenosi je o całe kratki razem z wodą w środku — woda się przy tym nie kołysze.' },
+  { title: 'Ścianki bez tarcia', primary: 'Woda ślizga się po ściankach bez tarcia. Przy prawdziwej ściance cienka warstewka wody stoi w miejscu.', secondary: 'Swobodny poślizg na ściankach (lustrzane węzły w APIC): warstwa przyścienna jest dużo cieńsza niż komórka.' },
+  { title: 'W wodzie tylko pęcherze', primary: 'W środku wody nie mogą powstać puste miejsca — gaz w wodzie to tylko pęcherze.', secondary: 'Komórka staje się gazem tylko wtedy, gdy była gazem albo graniczy z gazem: nie ma kawitacji ani bąbli powietrza porwanych przy chlapaniu.' },
+  { title: 'Dużo małych pęcherzyków', primary: 'Przy gorącym dnie rodzi się więcej malutkich pęcherzyków niż naprawdę; większość od razu znika.', secondary: 'Jedna komórka ścianki (2 mm) trzyma całe przegrzanie przy ściance, więc wnęka szybko znów jest gotowa; w niedogrzanej wodzie tysiące pęcherzyków na sekundę rodzą się i zapadają. Energia się zgadza, liczba pęcherzy jest za duża.' },
+  { title: 'Jak biała jest mgła', primary: 'Mgłę rysujemy tak, jakbyś patrzył przez całą zlewkę, a nie przez cienką warstwę 1 cm.', secondary: 'Nieprzezroczystość z prawa Beera–Lamberta dla kropelek o promieniu 1,5 µm na drodze 7 cm. Ilość mgły jest liczona, jej biel to założenie.' }
 ];

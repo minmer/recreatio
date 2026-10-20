@@ -4,7 +4,7 @@
  * Stützstellen linear gelesen), Werkstoffe aus materials.json.
  */
 
-const VIRIDIS: readonly (readonly [number, number, number])[] = [
+export const VIRIDIS: readonly (readonly [number, number, number])[] = [
   [68, 1, 84], [72, 40, 120], [62, 74, 137], [49, 104, 142], [38, 130, 142],
   [31, 158, 137], [53, 183, 121], [109, 205, 89], [180, 222, 44], [253, 231, 37]
 ];

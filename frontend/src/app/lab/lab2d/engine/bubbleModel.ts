@@ -40,23 +40,23 @@
 
 import { Bubbles, FORCE_SLOTS } from './bubbles';
 import { bubbleEnthalpy, footprint, solveBubble, type BubbleShape } from './bubbleState';
+import { BubbleMotion } from './bubbleMotion';
+import { activation, Cavities } from './cavities';
 import type { Engine, ProbeInfo } from './engine';
-import { pSatFast, rhoVapourSatFast, tSat } from './if97';
+import { rhoVapourSatFast, tSat } from './if97';
 import { cpL, hGas, hL, hV, kL, MOLAR, muL, rhoL, sigma, SOLIDS } from './materials';
-import { hash3, Rng } from './rng';
-import { GAS, H2O, LIQUID, N2, O2, P_ATM, SOLID, SPECIES_SLOTS } from './units';
+import { GAS, H2O, LIQUID, N2, O2, SOLID, SPECIES_SLOTS } from './units';
 
-/** Kavitäten je Fläche höchstens (SIMPLIFICATIONS.md #10). */
-const SITES_PER_FACE = 8;
-/** Lemmert & Chawla: N = (210 ΔT)^1,805 m⁻². */
-const LC_A = 210;
-const LC_N = 1.805;
-/** Kleinste Kavität, die gezogen wird (m): darunter brauchte es über 100 K Überhitzung. */
-const R_MIN = 0.3e-6;
-/** Virtuelle Masse einer Kugel. */
-const C_A = 0.5;
 /** Fritz (1935): 0,0208 je Grad Kontaktwinkel. */
 const FRITZ = 0.0208;
+/**
+ * Teilschritt des Wachstums höchstens dieser Bruchteil des Alters: der Radius
+ * ändert sich je Teilschritt um höchstens etwa die Hälfte (Plesset–Zwick: r ∝ √t,
+ * Δr/r ≈ h/(2t)). Das Wachstum selbst ist über jeden Teilschritt geschlossen
+ * integriert; der Schritt folgt nur der Laplace-Überhitzung 2σ/r, die sich mit r
+ * ändert. (0,25 kostete je neuer Blase rund 50 Teilschritte im ersten Schritt.)
+ */
+const AGE_STEP = 1;
 
 export class BubbleModel {
   private readonly e: Engine;
@@ -81,16 +81,14 @@ export class BubbleModel {
   departureCount = 0;
   /** Prüfstand: ein anderer Kontaktwinkel für alle Werkstoffe (Grad). */
   contactAngleOverride: number | null = null;
-  /* Kavitäten. */
-  siteCount = 0;
-  private siteCell: Int32Array = new Int32Array(0);
-  private siteFluid: Int32Array = new Int32Array(0);
-  private siteDir: Uint8Array = new Uint8Array(0);
-  private siteR: Float32Array = new Float32Array(0);
-  private siteS: Float32Array = new Float32Array(0);
-  private siteZ: Float32Array = new Float32Array(0);
-  /** Nummer der hängenden Blase (0: keine). */
-  private siteBubble: Uint32Array = new Uint32Array(0);
+  /** Die gewählte Blase (Kennung, −1: keine). Verschmilzt sie, zeigt watch auf die überlebende; wird sie entfernt, wird watch −1. */
+  watch = -1;
+  /** Was aus der gewählten Blase wurde: 0 lebt, 1 an der Oberfläche geplatzt, 2 vergangen (kondensiert), 3 in eine andere aufgegangen. */
+  watchFate = 0;
+  /** Die Kavitäten der festen Oberflächen (cavities.ts). */
+  private readonly sites = new Cavities();
+  /** Die Bewegung freier Blasen (bubbleMotion.ts); hält auch die zuletzt gesehene Flüssigkeitsgeschwindigkeit je Blase. */
+  private readonly motion: BubbleMotion;
   /* Arbeitsfelder. */
   private readonly shape: BubbleShape = { r: 0, V: 0, pb: 0, pv: 0, Tb: 0, area: 0, front: 0 };
   private readonly cells = new Int32Array(1024);
@@ -99,12 +97,9 @@ export class BubbleModel {
   private readonly budget: Float64Array;
   private readonly tsatCell: Float64Array;
   private readonly Fm: Float64Array;
-  private readonly ux0: Float32Array;
-  private readonly uy0: Float32Array;
   private readonly vel = new Float64Array(2);
   private readonly head: Int32Array;
   private readonly next: Int32Array;
-  private readonly w3 = new Float64Array(6);
   private bulkCold = false;
 
   constructor(engine: Engine) {
@@ -115,85 +110,33 @@ export class BubbleModel {
     this.tsatCell = new Float64Array(n);
     this.Fm = new Float64Array(n);
     const cap = engine.bubbles.cap;
-    this.ux0 = new Float32Array(cap);
-    this.uy0 = new Float32Array(cap);
+    this.motion = new BubbleMotion(engine);
     this.head = new Int32Array(n);
     this.next = new Int32Array(cap);
   }
 
   private get B(): Bubbles { return this.e.bubbles; }
 
-  /* -- Kavitäten ------------------------------------------------------------------------------------- */
+  /* -- Kavitäten (cavities.ts) ------------------------------------------------------------------------ */
 
-  /** Die Kavitäten aller festen Oberflächenflächen neu auslegen (nach jeder Änderung der Feststoffe). */
+  /** Die Kavitäten aller festen Oberflächenflächen neu auslegen (nach jeder Änderung der Feststoffe); hängende Blasen verlieren ihre. */
   rebuildSites(): void {
-    const e = this.e;
-    const g = e.grid;
-    const { nx, ny } = g;
-    /* Radius, bei dem ΔT_act bei 1 atm genau 1 K ist: 2σ/r = p_sat(T_sat + 1 K) − p. */
-    const Ts = tSat(P_ATM);
-    const r1 = (2 * sigma(Ts)) / (pSatFast(Ts + 1) - P_ATM);
-    const rRef = LC_A * r1;
-    const area = g.dx * g.depth;
-    const cell: number[] = [];
-    const fluid: number[] = [];
-    const dir: number[] = [];
-    const rad: number[] = [];
-    const pos: number[] = [];
-    const dep: number[] = [];
-    const rng = new Rng(1);
-    for (let c = 0; c < g.n; c += 1) {
-      if (g.solid[c] === 0) continue;
-      const mat = SOLIDS[g.solid[c] - 1];
-      const i = c % nx;
-      const j = (c - i) / nx;
-      for (let k = 0; k < 4; k += 1) {
-        const ii = k === 0 ? i - 1 : k === 1 ? i + 1 : i;
-        const jj = k === 2 ? j - 1 : k === 3 ? j + 1 : j;
-        if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
-        const nb = ii + jj * nx;
-        if (g.solid[nb] !== 0) continue;
-        rng.state = hash3(e.scene.seed, c, k) || 1;
-        const base = Math.pow(rRef / mat.cavRmax, LC_N);
-        let S = 0;
-        for (let q = 0; q < SITES_PER_FACE; q += 1) {
-          S += rng.exp();
-          const r = rRef * Math.pow(S / (area * mat.cavScale) + base, -1 / LC_N);
-          if (r < R_MIN) break;
-          cell.push(c);
-          fluid.push(nb);
-          dir.push(k);
-          rad.push(r);
-          pos.push(rng.next());
-          dep.push(rng.next());
-        }
-      }
-    }
-    this.siteCount = cell.length;
-    this.siteCell = Int32Array.from(cell);
-    this.siteFluid = Int32Array.from(fluid);
-    this.siteDir = Uint8Array.from(dir);
-    this.siteR = Float32Array.from(rad);
-    this.siteS = Float32Array.from(pos);
-    this.siteZ = Float32Array.from(dep);
-    this.siteBubble = new Uint32Array(cell.length);
-    /* Hängende Blasen verlieren ihre Kavität. */
+    this.sites.rebuild(this.e.grid, this.e.scene.seed);
     const B = this.B;
     for (let b = 0; b < B.count; b += 1) B.site[b] = -1;
   }
 
   /** Grösster Mündungsradius einer Kavität aus Werkstoff `id` (m) — für Anzeigen und Test 12. */
   largestCavity(id: string): number {
-    let best = 0;
-    for (let s = 0; s < this.siteCount; s += 1) if (SOLIDS[this.e.grid.solid[this.siteCell[s]] - 1].id === id && this.siteR[s] > best) best = this.siteR[s];
-    return best;
+    return this.sites.largest(this.e.grid, id);
   }
 
   /** ΔT_act einer Kavität des Radius r beim Druck p. */
   activation(r: number, p: number): number {
-    const Ts = tSat(p);
-    return tSat(p + (2 * sigma(Ts)) / r) - Ts;
+    return activation(r, p);
   }
+
+  get siteCount(): number { return this.sites.count; }
 
   /* -- Hilfen ---------------------------------------------------------------------------------------- */
 
@@ -272,7 +215,7 @@ export class BubbleModel {
     this.Fm.fill(0);
     const wt = e.waterTemperature();
     this.bulkCold = wt.mass > 0 && wt.mean <= tSat(e.regions.pAmb) - 5;
-    if (B.count > 0 || this.siteCount > 0) {
+    if (B.count > 0 || this.sites.count > 0) {
       this.nucleate(dt);
       for (let b = 0; b < B.count; b += 1) this.advance(b, dt);
       this.coalesce();
@@ -288,11 +231,11 @@ export class BubbleModel {
     const g = e.grid;
     const B = this.B;
     const phase = e.phase;
-    for (let s = 0; s < this.siteCount; s += 1) {
-      if (this.siteBubble[s] !== 0) continue;
-      const fc = this.siteFluid[s];
+    for (let s = 0; s < this.sites.count; s += 1) {
+      if (this.sites.bubble[s] !== 0) continue;
+      const fc = this.sites.fluid[s];
       if (g.kind[fc] !== LIQUID || phase.acc[fc] <= 0) continue;
-      const sc = this.siteCell[s];
+      const sc = this.sites.cell[s];
       const mat = SOLIDS[g.solid[sc] - 1];
       const Tl = phase.Tl[fc];
       const kl = kL(Tl);
@@ -300,16 +243,16 @@ export class BubbleModel {
       const pl = e.pRef + g.pl[fc];
       const Ts = this.tsatCell[fc] > 0 ? this.tsatCell[fc] : tSat(pl);
       if (Tf - Ts < 0) continue;
-      const rc = this.siteR[s];
-      if (Tf - Ts < this.activation(rc, pl)) continue;
+      const rc = this.sites.r[s];
+      if (Tf - Ts < activation(rc, pl)) continue;
       /* Keim: reiner Dampf, gesättigt beim Druck in der Kavitätenmündung. */
       const pb = pl + (2 * sigma(Tf)) / rc;
       const Tb = tSat(pb);
       const V = (4 / 3) * Math.PI * rc * rc * rc;
       const mv = rhoVapourSatFast(Tb) * V;
       if (mv * 4 > phase.acc[fc]) continue;
-      const pos = this.sitePosition(s, rc);
-      const b = B.add(pos[0], pos[1], Math.min(g.depth - rc, Math.max(rc, this.siteZ[s] * g.depth)));
+      const pos = this.sites.position(this.e.grid, s, rc);
+      const b = B.add(pos[0], pos[1], Math.min(g.depth - rc, Math.max(rc, this.sites.z[s] * g.depth)));
       if (b < 0) return;
       B.m[b * SPECIES_SLOTS + H2O] = mv;
       B.r[b] = rc;
@@ -320,9 +263,9 @@ export class BubbleModel {
       B.H[b] = mv * hV(Tb);
       B.site[b] = s;
       B.age[b] = 0;
-      this.siteBubble[s] = B.id[b];
-      this.ux0[b] = 0;
-      this.uy0[b] = 0;
+      this.sites.bubble[s] = B.id[b];
+      this.motion.ux0[b] = 0;
+      this.motion.uy0[b] = 0;
       /* Die Masse aus den Teilchen vor der Kavität, die Wärme aus der Wand. */
       const hbar = phase.accH[fc] / phase.acc[fc];
       this.Fm[fc] -= mv;
@@ -333,24 +276,6 @@ export class BubbleModel {
         this.firstMaterial = mat.id;
       }
     }
-  }
-
-  private readonly pos = new Float64Array(2);
-
-  /** Mitte einer Blase des Radius r an der Kavität s: auf der Fläche, um r ins Fluid gerückt. */
-  private sitePosition(s: number, r: number): Float64Array {
-    const g = this.e.grid;
-    const c = this.siteCell[s];
-    const i = c % g.nx;
-    const j = (c - i) / g.nx;
-    const t = this.siteS[s];
-    const k = this.siteDir[s];
-    const dx = g.dx;
-    if (k === 0) { this.pos[0] = i * dx - r; this.pos[1] = (j + t) * dx; }
-    else if (k === 1) { this.pos[0] = (i + 1) * dx + r; this.pos[1] = (j + t) * dx; }
-    else if (k === 2) { this.pos[0] = (i + t) * dx; this.pos[1] = j * dx - r; }
-    else { this.pos[0] = (i + t) * dx; this.pos[1] = (j + 1) * dx + r; }
-    return this.pos;
   }
 
   /** Wachsen und Bewegen der Blase b über Δt, in eigenen Teilschritten. */
@@ -369,15 +294,15 @@ export class BubbleModel {
       Vprev = B.V[b];
       const r = B.r[b];
       const vmag = Math.hypot(B.vx[b], B.vy[b]);
-      let h = Math.min(dt - t, Math.max(1e-7, 0.25 * B.age[b]), (0.25 * g.dx) / (vmag + 1e-9));
+      let h = Math.min(dt - t, Math.max(1e-7, AGE_STEP * B.age[b]), (0.25 * g.dx) / (vmag + 1e-9));
       if (h < 1e-7) h = Math.min(dt - t, 1e-7);
       /* Die treibende Temperatur: hängend die Kontakttemperatur, frei die Flüssigkeit der Spur. */
       let Tl: number;
       let srcCell = -1;
       let k = 0;
       if (site >= 0) {
-        const fc = this.siteFluid[site];
-        const sc = this.siteCell[site];
+        const fc = this.sites.fluid[site];
+        const sc = this.sites.cell[site];
         const mat = SOLIDS[g.solid[sc] - 1];
         const Tw = phase.Tl[fc];
         const kl = kL(Tw);
@@ -399,7 +324,7 @@ export class BubbleModel {
       /* Plesset–Zwick über den Teilschritt geschlossen integriert: ∫ k √(3/(π α t)) dt = k √(3/(π α)) · 2(√t₁ − √t₀). */
       const age = B.age[b];
       const pzk = kl * Math.sqrt(3 / (Math.PI * alpha));
-      const slip = site >= 0 ? 0 : Math.hypot(B.vx[b] - this.ux0[b], B.vy[b] - this.uy0[b]);
+      const slip = site >= 0 ? 0 : Math.hypot(B.vx[b] - this.motion.ux0[b], B.vy[b] - this.motion.uy0[b]);
       const Re = (rhol * slip * d) / mul;
       const Pr = (mul * cpl) / kl;
       const hRM = (kl / d) * (2 + 0.6 * Math.sqrt(Re) * Math.cbrt(Pr));
@@ -453,7 +378,7 @@ export class BubbleModel {
       if (dm < 0) dm = Math.max(dm, -B.m[o + H2O]);
       if (dm !== 0) {
         if (site >= 0) {
-          const fc = this.siteFluid[site];
+          const fc = this.sites.fluid[site];
           if (dm > 0 && phase.acc[fc] + this.Fm[fc] - dm < 0) dm = Math.max(0, phase.acc[fc] + this.Fm[fc]);
           const hbar = phase.acc[fc] > 0 ? phase.accH[fc] / phase.acc[fc] : hL(Tl);
           this.Fm[fc] -= dm;
@@ -480,13 +405,13 @@ export class BubbleModel {
       if (B.r[b] < 1e-6 || (B.m[o + H2O] <= 1e-18 && B.m[o + N2] + B.m[o + O2] <= 0)) { B.age[b] += h; break; }
       /* Bewegung (frei) oder Ablösen (hängend). */
       if (site >= 0) {
-        const pos = this.sitePosition(site, B.r[b]);
+        const pos = this.sites.position(this.e.grid, site, B.r[b]);
         B.x[b] = pos[0];
         B.y[b] = pos[1];
         this.departure(b, Tl);
         site = B.site[b];
       } else {
-        this.move(b, h, (B.V[b] - Vprev) / h);
+        this.motion.move(b, h, (B.V[b] - Vprev) / h);
       }
       B.age[b] += h;
       t += h;
@@ -504,21 +429,6 @@ export class BubbleModel {
     this.budget[sc] -= Q;
   }
 
-  /** Wärme- und Stirnfläche der Blase b in this.shape (aus V und r). */
-  private areaOf(b: number): void {
-    const B = this.B;
-    const D = this.e.grid.depth;
-    const V = B.V[b];
-    const r = B.r[b];
-    const v1 = (Math.PI * D * D * D) / 6;
-    const v2 = (Math.PI * D * D * D) / 4;
-    if (V <= v1) { this.shape.area = 4 * Math.PI * r * r; this.shape.front = Math.PI * r * r; return; }
-    if (V >= v2) { this.shape.area = 2 * Math.PI * r * D; this.shape.front = 2 * r * D; return; }
-    const t = (V - v1) / (v2 - v1);
-    this.shape.area = Math.PI * D * D;
-    this.shape.front = (1 - t) * (Math.PI * D * D) / 4 + t * D * D;
-  }
-
   /** H_b auf Σ m_k h_k(T_b) setzen; die Differenz geht als Wärme an die Spur (frei) oder die Wand (hängend). */
   private restoreEnthalpy(b: number, site: number, k: number, dt: number): void {
     const e = this.e;
@@ -527,7 +437,7 @@ export class BubbleModel {
     const dH = H - B.H[b];
     if (dH === 0) return;
     B.H[b] = H;
-    if (site >= 0) { e.heat.src[this.siteCell[site]] -= dH / dt; return; }
+    if (site >= 0) { e.heat.src[this.sites.cell[site]] -= dH / dt; return; }
     if (k === 0) return;
     for (let q = 0; q < k; q += 1) e.heat.src[this.cells[q]] -= (dH * this.wts[q]) / dt;
   }
@@ -539,7 +449,7 @@ export class BubbleModel {
     const B = this.B;
     const s = B.site[b];
     if (s < 0 || e.gy <= 0) return Infinity;
-    const mat = SOLIDS[g.solid[this.siteCell[s]] - 1];
+    const mat = SOLIDS[g.solid[this.sites.cell[s]] - 1];
     const theta = this.contactAngleOverride ?? mat.contactAngle;
     const rhov = B.totalMass(b) / Math.max(1e-30, B.V[b]);
     return FRITZ * theta * Math.sqrt(sigma(B.Tb[b]) / (e.gy * (rhoL(Tl) - rhov)));
@@ -554,7 +464,7 @@ export class BubbleModel {
     const Dd = this.fritz(b, Tl);
     const deq = 2 * Math.cbrt((3 * B.V[b]) / (4 * Math.PI));
     if (deq < Dd * (1 - 1e-4)) return;
-    this.siteBubble[s] = 0;
+    this.sites.bubble[s] = 0;
     B.site[b] = -1;
     this.departed += 1;
     this.departures[this.departureCount % this.departures.length] = deq;
@@ -562,149 +472,10 @@ export class BubbleModel {
     /* Die Flüssigkeit an ihrem Ort als Ausgang für ihren Nachlauf. */
     const vel = this.vel;
     e.liquid.velocityAt(B.x[b], B.y[b], vel);
-    this.ux0[b] = vel[0];
-    this.uy0[b] = vel[1];
+    this.motion.ux0[b] = vel[0];
+    this.motion.uy0[b] = vel[1];
     B.vx[b] = vel[0];
     B.vy[b] = vel[1];
-  }
-
-  /** Die Bewegung einer freien Blase über h (halbimplizit im Widerstand); Gegenkräfte auf die Flüssigkeit. */
-  private move(b: number, h: number, Vdot: number): void {
-    const e = this.e;
-    const g = e.grid;
-    const B = this.B;
-    const L = e.liquid;
-    const x = B.x[b];
-    const y = B.y[b];
-    const r = B.r[b];
-    const V = B.V[b];
-    /* u und ∇p ausserhalb der eigenen Spur: auf einem Ring vom Radius R. */
-    const R = Math.max(r + g.dx, 2 * g.dx);
-    const vel = this.vel;
-    let ux = 0;
-    let uy = 0;
-    for (let q = 0; q < 8; q += 1) {
-      const a = (q * Math.PI) / 4;
-      L.velocityAt(x + R * Math.cos(a), y + R * Math.sin(a), vel);
-      ux += vel[0] / 8;
-      uy += vel[1] / 8;
-    }
-    const cc = g.cellAt(x, y);
-    const Tl = cc >= 0 && e.phase.Cl[cc] > 0 ? e.phase.Tl[cc] : B.Tb[b];
-    const rhol = L.rhoRef;
-    const mul = muL(Tl);
-    const rhov = B.totalMass(b) / Math.max(1e-30, V);
-    const dux = (ux - this.ux0[b]) / Math.max(h, 1e-6);
-    const duy = (uy - this.uy0[b]) / Math.max(h, 1e-6);
-    this.ux0[b] = ux;
-    this.uy0[b] = uy;
-    /* Kleinste Blasen (unter 20 µm) haben keine nennenswerte Trägheit: sie schwimmen mit der Flüssigkeit. */
-    if (r < 20e-6) {
-      B.vx[b] = ux;
-      B.vy[b] = uy;
-      B.x[b] = Math.min(g.w - 1e-6, Math.max(1e-6, x + h * ux));
-      B.y[b] = Math.min(g.h - 1e-6, Math.max(1e-6, y + h * uy));
-      return;
-    }
-    const rx = B.vx[b] - ux;
-    const ry = B.vy[b] - uy;
-    const slip = Math.hypot(rx, ry);
-    const d = 2 * r;
-    const Re = Math.max(1e-6, (rhol * slip * d) / mul);
-    const Eo = (Math.max(0, e.gy) * (rhol - rhov) * d * d) / sigma(Tl);
-    /* Tomiyama et al. (1998), verunreinigtes Wasser. */
-    const CD = Math.max((24 / Re) * (1 + 0.15 * Math.pow(Re, 0.687)), (8 / 3) * (Eo / (Eo + 4)));
-    this.areaOf(b);
-    const K = 0.5 * CD * rhol * this.shape.front * slip;
-    const mEff = (rhov + C_A * rhol) * V;
-    /*
-     * Kräfte ohne Widerstand. −V∇p_l aus der Impulsgleichung der Flüssigkeit,
-     * −∇p = ρ_l (Du/Dt − g): in ruhender Flüssigkeit genau der Auftrieb ρ_l V g,
-     * in bewegter mit ihrer Beschleunigung (Prompt v2). Aus dem Druckfeld
-     * gelesen enthielte er die Störung, die die Gegenkraft der Blase selbst
-     * darin erzeugt (die Blase stiege dann zu langsam).
-     */
-    const Fpx = rhol * V * dux;
-    const Fpy = rhol * V * (duy + e.gy);
-    const Fwy = -rhov * V * e.gy;
-    const Fax = C_A * rhol * V * dux;
-    const Fay = C_A * rhol * V * duy;
-    /* Wachsende Blase: −C_A ρ_l V̇ (v − u) wirkt wie ein Widerstand (implizit); schrumpfend explizit. */
-    const Kv = Vdot > 0 ? C_A * rhol * Vdot : 0;
-    /* Schrumpfend verstärkt der Term den Schlupf ((v − u) ∝ 1/V bei erhaltenem Impuls der virtuellen Masse); je Teilschritt höchstens um 20 % von V. */
-    const shrink = Vdot < 0 ? Math.min(-Vdot, (0.2 * V) / h) : 0;
-    const Fvx = C_A * rhol * shrink * rx;
-    const Fvy = C_A * rhol * shrink * ry;
-    const vx = (mEff * B.vx[b] + h * (Fpx + Fax + Fvx) + h * (K + Kv) * ux) / (mEff + h * (K + Kv));
-    const vy = (mEff * B.vy[b] + h * (Fpy + Fwy + Fay + Fvy) + h * (K + Kv) * uy) / (mEff + h * (K + Kv));
-    B.vx[b] = Number.isFinite(vx) ? vx : ux;
-    B.vy[b] = Number.isFinite(vy) ? vy : uy;
-    const Fdx = -K * (vx - ux);
-    const Fdy = -K * (vy - uy);
-    const f = b * FORCE_SLOTS;
-    B.force[f] = Fpx; B.force[f + 1] = Fpy;
-    B.force[f + 2] = 0; B.force[f + 3] = Fwy;
-    B.force[f + 4] = Fdx; B.force[f + 5] = Fdy;
-    B.force[f + 6] = Fax + Fvx - Kv * (vx - ux); B.force[f + 7] = Fay + Fvy - Kv * (vy - uy);
-    /* Gegenkraft auf die Flüssigkeit: −(Widerstand + virtuelle Masse), über h gemittelt auf den Schritt. */
-    this.spreadForce(x, y, -(Fdx + B.force[f + 6]) * (h / e.dt), -(Fdy + B.force[f + 7]) * (h / e.dt));
-    let nxp = x + h * vx;
-    let nyp = y + h * vy;
-    /* Wände: nicht hinein. */
-    const dist = g.sdfAt(nxp, nyp);
-    if (dist < r) {
-      const eps = 0.25 * g.dx;
-      let gx = g.sdfAt(nxp + eps, nyp) - g.sdfAt(nxp - eps, nyp);
-      let gy = g.sdfAt(nxp, nyp + eps) - g.sdfAt(nxp, nyp - eps);
-      const len = Math.hypot(gx, gy);
-      if (len > 1e-12) {
-        gx /= len;
-        gy /= len;
-        nxp += (r - dist) * gx;
-        nyp += (r - dist) * gy;
-        const vn = B.vx[b] * gx + B.vy[b] * gy;
-        if (vn < 0) { B.vx[b] -= vn * gx; B.vy[b] -= vn * gy; }
-      }
-    }
-    B.x[b] = Math.min(g.w - 1e-6, Math.max(1e-6, nxp));
-    B.y[b] = Math.min(g.h - 1e-6, Math.max(1e-6, nyp));
-    /* Die Tiefe bleibt in [r, D − r]. */
-    const D = g.depth;
-    B.z[b] = 2 * r >= D ? D / 2 : Math.min(D - r, Math.max(r, B.z[b]));
-  }
-
-  /** Eine Kraft (N) mit den Flächengewichten des B-Splines um (x, y) auf die Flüssigkeit verteilen. */
-  private spreadForce(x: number, y: number, fx: number, fy: number): void {
-    const L = this.e.liquid;
-    const g = this.e.grid;
-    const { nx, ny, dx } = g;
-    const w = this.w3;
-    /* u-Flächen bei (i, j + ½). */
-    let i0 = Math.floor(x / dx - 0.5);
-    let f = x / dx - i0;
-    w[0] = 0.5 * (1.5 - f) ** 2; w[1] = 0.75 - (f - 1) ** 2; w[2] = 0.5 * (f - 0.5) ** 2;
-    let j0 = Math.floor(y / dx - 1);
-    f = y / dx - 0.5 - j0;
-    w[3] = 0.5 * (1.5 - f) ** 2; w[4] = 0.75 - (f - 1) ** 2; w[5] = 0.5 * (f - 0.5) ** 2;
-    for (let b = 0; b < 3; b += 1) for (let a = 0; a < 3; a += 1) {
-      const i = i0 + a;
-      const j = j0 + b;
-      if (i < 0 || i > nx || j < 0 || j >= ny) continue;
-      L.fU[i + j * (nx + 1)] += fx * w[a] * w[3 + b];
-    }
-    /* v-Flächen bei (i + ½, j). */
-    i0 = Math.floor(x / dx - 1);
-    f = x / dx - 0.5 - i0;
-    w[0] = 0.5 * (1.5 - f) ** 2; w[1] = 0.75 - (f - 1) ** 2; w[2] = 0.5 * (f - 0.5) ** 2;
-    j0 = Math.floor(y / dx - 0.5);
-    f = y / dx - j0;
-    w[3] = 0.5 * (1.5 - f) ** 2; w[4] = 0.75 - (f - 1) ** 2; w[5] = 0.5 * (f - 0.5) ** 2;
-    for (let b = 0; b < 3; b += 1) for (let a = 0; a < 3; a += 1) {
-      const i = i0 + a;
-      const j = j0 + b;
-      if (i < 0 || i >= nx || j < 0 || j > ny) continue;
-      L.fV[i + j * nx] += fy * w[a] * w[3 + b];
-    }
   }
 
   /** Blasen, die sich in 3D überlappen, verschmelzen (Masse, Impuls, Energie bleiben). */
@@ -765,10 +536,11 @@ export class BubbleModel {
     B.H[q] = 0;
     B.age[b] = Math.max(B.age[b], B.age[q]);
     /* Frei bleibt frei: ein neuer Keim, der eine eben abgerissene Blase berührt, geht in ihr auf (die Dampfsäule), die Kavität wird frei. Hängen beide, bleibt b an seiner Kavität. */
-    if (B.site[q] >= 0) this.siteBubble[B.site[q]] = 0;
-    if ((B.site[b] >= 0) !== (B.site[q] >= 0) && B.site[b] >= 0) { this.siteBubble[B.site[b]] = 0; B.site[b] = -1; }
+    if (B.site[q] >= 0) this.sites.bubble[B.site[q]] = 0;
+    if ((B.site[b] >= 0) !== (B.site[q] >= 0) && B.site[b] >= 0) { this.sites.bubble[B.site[b]] = 0; B.site[b] = -1; }
     B.site[q] = -1;
     B.V[q] = 0;
+    if (B.id[q] === this.watch) { this.watch = B.id[b]; this.watchFate = 3; }
     B.r[b] = Math.cbrt((3 * V) / (4 * Math.PI));
     this.merged += 1;
   }
@@ -842,14 +614,15 @@ export class BubbleModel {
       if (this.bulkCold) this.collapsedCold += 1; else this.collapsedWarm += 1;
     }
     const s = B.site[b];
-    if (s >= 0) this.siteBubble[s] = 0;
+    if (s >= 0) this.sites.bubble[s] = 0;
+    if (B.id[b] === this.watch) { this.watch = -1; this.watchFate = burst ? 1 : 2; }
     /* Gepackt: die letzte Blase rückt an b — ihre Zwischenspeicher wandern mit. */
     const last = B.count - 1;
     if (b !== last) {
-      this.ux0[b] = this.ux0[last];
-      this.uy0[b] = this.uy0[last];
+      this.motion.ux0[b] = this.motion.ux0[last];
+      this.motion.uy0[b] = this.motion.uy0[last];
       const ls = B.site[last];
-      if (ls >= 0) this.siteBubble[ls] = B.id[last];
+      if (ls >= 0) this.sites.bubble[ls] = B.id[last];
     }
     B.remove(b);
   }
@@ -943,8 +716,8 @@ export class BubbleModel {
     e.ledger.water += B.m[o + H2O];
     e.ledger.air += B.m[o + N2] + B.m[o + O2];
     e.ledger.energy += B.H[b];
-    this.ux0[b] = 0;
-    this.uy0[b] = 0;
+    this.motion.ux0[b] = 0;
+    this.motion.uy0[b] = 0;
     return b;
   }
 
@@ -972,7 +745,7 @@ export class BubbleModel {
 
   /** Die Flüssigkeitsgeschwindigkeit, die die Blase zuletzt gesehen hat (für die Schlupfgeschwindigkeit). */
   liquidVelocity(b: number): [number, number] {
-    return [this.ux0[b], this.uy0[b]];
+    return [this.motion.ux0[b], this.motion.uy0[b]];
   }
 
   get solidKind(): number { return SOLID; }

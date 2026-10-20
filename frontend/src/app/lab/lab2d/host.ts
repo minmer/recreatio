@@ -11,7 +11,7 @@ import type { ProbeInfo } from './engine/engine';
 import type { HostMessage, HostStats, WorkerMessage } from './engine/protocol';
 import type { HeaterMode, Op, Quality, Side, SideName } from './engine/scene';
 import type { Region } from './engine/shapes';
-import type { Overlay } from './render/frame';
+import { frameTransfer, type Overlay } from './render/frame';
 import { LabRenderer, type Walls } from './render/glRenderer';
 import { toScreen, toWorld, type View } from './render/view';
 
@@ -107,7 +107,7 @@ export class LabHost {
         this.view = m.view;
         this.walls = m.walls;
         this.renderer?.draw(m.frame, m.view, this.canvas.width, this.canvas.height, m.walls, 0.003);
-        this.post({ type: 'frameDone', frame: m.frame }, [m.frame.cells.buffer, m.frame.liquid.buffer, m.frame.bubbles.buffer]);
+        this.post({ type: 'frameDone', frame: m.frame }, frameTransfer(m.frame));
         break;
       case 'reply': {
         const fn = this.waiting.get(m.id);
@@ -159,7 +159,9 @@ export class LabHost {
   addLiquid(region: Region, composition: Readonly<Record<string, number>>, T: number): void { this.post({ type: 'addLiquid', region, composition, T }); }
   addSolid(region: Region, material: string, T: number): void { this.post({ type: 'addSolid', region, material, T }); }
   setHeater(group: number, mode: HeaterMode, power: number, target: number, on: boolean): void { this.post({ type: 'setHeater', group, mode, power, target, on }); }
-  setAmbient(p: number, T: number, rh: number, g: number): void { this.post({ type: 'setAmbient', p, T, rh, g }); }
+  setAmbient(p: number, T: number, rh: number, g: number, air?: { N2: number; O2: number }): void { this.post({ type: 'setAmbient', p, T, rh, g, air }); }
+  /** Die rohen Teilchen zeigen statt der glatten Wasserfläche. */
+  particles(on: boolean): void { this.post({ type: 'particles', on }); }
   setBoundary(side: SideName, value: Side): void { this.post({ type: 'setBoundary', side, value }); }
   select(bubble: number | null): void { this.post({ type: 'select', bubble }); }
   overlay(overlay: Overlay): void { this.post({ type: 'overlay', overlay }); }

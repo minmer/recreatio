@@ -86,9 +86,8 @@ export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Fl
     bubWater += B.m[b * SPECIES_SLOTS + H2O];
     air += B.m[b * SPECIES_SLOTS + N2] + B.m[b * SPECIES_SLOTS + O2];
   }
-  let pv = 0;
   /* Verschlossen: U = H − p0 V für alle Phasen des Gebiets (Gas, Flüssigkeit, Blasen) — V_Fluid bleibt fest. */
-  for (let r = 0; r < R.count; r += 1) if (R.open[r] === 0) pv -= R.p0[r] * R.vFluid[r];
+  const pv = R.pvTerm();
   out.solids = solids;
   out.liquid = liquid;
   out.gas = gas;

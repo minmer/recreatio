@@ -194,6 +194,13 @@ export class Regions {
     return r >= 0 && this.open[r] !== 0;
   }
 
+  /** Der Anteil −Σ_verschlossen p0·V_Fluid der Energiebilanz (U = H − p0 V in verschlossenen Gebieten). */
+  pvTerm(): number {
+    let pv = 0;
+    for (let r = 0; r < this.count; r += 1) if (this.open[r] === 0) pv -= this.p0[r] * this.vFluid[r];
+    return pv;
+  }
+
   /** Wie viele verschlossene Gebiete es gibt (für die Anzeige). */
   sealedCount(): number {
     let s = 0;

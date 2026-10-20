@@ -215,6 +215,9 @@ export function applyOp(w: World, op: Op): string | null {
       clearSolid(w, cells);
       return null;
     }
+    case 'move':
+      moveSolids(w, op.region, Math.round(op.dx / g.dx), Math.round(op.dy / g.dx));
+      return null;
     case 'solid': {
       const s = solidIndex(op.material);
       if (s < 0) return `solid: unknown material ${op.material}`;
@@ -258,6 +261,93 @@ export function applyOp(w: World, op: Op): string | null {
       return null;
     }
   }
+}
+
+/**
+ * Feste Zellen in der Fläche um (di, dj) Zellen verschieben — jede behält
+ * Werkstoff, Temperatur (Energie), Heizgruppe und Belag —, dazu Wasserteilchen
+ * und Blasen in der Fläche um denselben Weg (so bleibt das Wasser in seiner
+ * Zlewka). Was am Ziel war, weicht (gebucht wie bei makeSolid); frei gewordene
+ * Zellen füllt Umgebungsluft. Was die Kiste verlässt, ist weg (gebucht).
+ */
+function moveSolids(w: World, region: Region, di: number, dj: number): void {
+  const g = w.grid;
+  const { nx, ny, dx } = g;
+  if (di === 0 && dj === 0) return;
+  const src: number[] = [];
+  eachCell(g, region, (c) => { if (g.solid[c] !== 0) src.push(c); });
+  const P = w.particles;
+  const B = w.bubbles;
+  const ox = di * dx;
+  const oy = dj * dx;
+  /* Wasser und Blasen mitnehmen. */
+  for (let q = 0; q < P.count; q += 1) {
+    if (!inside(region, P.x[q], P.y[q])) continue;
+    const x = P.x[q] + ox;
+    const y = P.y[q] + oy;
+    if (x <= 0 || y <= 0 || x >= g.w || y >= g.h) {
+      w.ledger.water -= P.mass[q];
+      w.ledger.energy -= P.mass[q] * P.h[q];
+      w.liquid.removeParticle(q);
+      q -= 1;
+      continue;
+    }
+    P.x[q] = x;
+    P.y[q] = y;
+  }
+  for (let b = 0; b < B.count; b += 1) {
+    if (!inside(region, B.x[b], B.y[b])) continue;
+    B.x[b] = Math.min(g.w - 1e-6, Math.max(1e-6, B.x[b] + ox));
+    B.y[b] = Math.min(g.h - 1e-6, Math.max(1e-6, B.y[b] + oy));
+    B.site[b] = -1;
+  }
+  w.liquid.weightsDirty = true;
+  if (src.length === 0) return;
+  /* Die Zustände der festen Zellen merken und die Quellen räumen (gebucht: ihre Energie und ihr Belag gehen hinaus …). */
+  const state = src.map((c) => ({ c, s: g.solid[c], role: g.role[c], heater: g.heater[c], T: g.T[c], Es: g.Es[c], film: g.film[c] }));
+  for (const k of state) {
+    w.ledger.energy -= k.Es;
+    w.ledger.water -= k.film;
+    g.solid[k.c] = 0;
+    g.role[k.c] = 0;
+    g.heater[k.c] = -1;
+    g.Es[k.c] = 0;
+    g.film[k.c] = 0;
+    g.kind[k.c] = 0;
+  }
+  /* … und am Ziel wieder hinein. */
+  for (const k of state) {
+    const i = (k.c % nx) + di;
+    const j = Math.floor(k.c / nx) + dj;
+    if (i < 0 || j < 0 || i >= nx || j >= ny) continue;
+    const t = i + j * nx;
+    if (g.solid[t] !== 0) {
+      w.ledger.energy -= g.Es[t];
+      w.ledger.water -= g.film[t];
+    } else {
+      dropGas(w, t);
+    }
+    g.solid[t] = k.s;
+    g.role[t] = k.role;
+    g.heater[t] = k.heater;
+    g.T[t] = k.T;
+    g.Es[t] = k.Es;
+    g.film[t] = k.film;
+    g.kind[t] = SOLID;
+    w.ledger.energy += k.Es;
+    w.ledger.water += k.film;
+  }
+  /* Teilchen, die jetzt in festen Zellen liegen: entfernen. */
+  for (let q = 0; q < P.count; q += 1) {
+    const c = g.cellAt(P.x[q], P.y[q]);
+    if (c < 0 || g.solid[c] === 0) continue;
+    w.ledger.water -= P.mass[q];
+    w.ledger.energy -= P.mass[q] * P.h[q];
+    w.liquid.removeParticle(q);
+    q -= 1;
+  }
+  w.solidsChanged();
+  for (const k of state) if (g.solid[k.c] === 0 && w.gas.massOf(k.c) <= 0) putGas(w, k.c, w.ambientT, w.ambientY);
 }
 
 /** Alle Zellen im umschliessenden Rechteck einer Fläche (für Teilchen, deren Plätze einzeln geprüft werden). */

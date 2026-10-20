@@ -17,8 +17,8 @@
 
 import { Charts } from './engine/charts';
 import { Engine } from './engine/engine';
-import type { ChartSample, HostMessage, HostStats, WorkerMessage } from './engine/protocol';
-import { allocFrame, buildFrame, frameFits, type FrameBuffers, type Overlay } from './render/frame';
+import type { BubbleView, ChartSample, HostMessage, HostStats, WorkerMessage } from './engine/protocol';
+import { allocFrame, buildFrame, frameFits, frameTransfer, type FrameBuffers, type Overlay } from './render/frame';
 import { LabRenderer, type Walls } from './render/glRenderer';
 import { fitView, type View } from './render/view';
 
@@ -50,7 +50,12 @@ let walls: Walls = { left: true, right: true, bottom: true, top: false };
 let paused = false;
 let speed = 1;
 let overlay: Overlay = 'none';
-let selected: number | null = null;
+/** Der letzte Zustand der gewählten Blase (nach ihrem Ende bleibt er stehen, mit dem, was aus ihr wurde). */
+let lastBubble: BubbleView | null = null;
+/** Die Skala der Einblendung im zuletzt gezeichneten Bild (für die Legende). */
+const scale: [number, number, number] = [0, 1, 0];
+/** Die rohen Teilchen zeigen (statt der glatten Fläche). */
+let showParticles = false;
 let pendingSteps = 0;
 let acc = 0;
 let lastTick = 0;
@@ -92,34 +97,52 @@ function resize(w: number, h: number, ratio: number): void {
 
 function fresh(): FrameBuffers {
   if (engine === null) return allocFrame(0, 0, 0);
-  return allocFrame(engine.grid.nx, engine.grid.ny, Math.max(64, Math.ceil(engine.bubbles.count * 1.5)));
+  return allocFrame(engine.grid.nx, engine.grid.ny, Math.max(64, Math.ceil(engine.bubbles.count * 1.5)), showParticles ? Math.ceil(engine.particles.count * 1.25) + 64 : 0);
 }
 
 function render(): boolean {
   if (engine === null) return false;
   const t0 = performance.now();
   if (renderer !== null && canvas !== null) {
-    if (!frameFits(own, engine)) own = fresh();
-    buildFrame(engine, own, overlay);
+    if (!frameFits(own, engine, showParticles)) own = fresh();
+    buildFrame(engine, own, overlay, showParticles);
+    scale[0] = own.scaleLo;
+    scale[1] = own.scaleHi;
+    scale[2] = own.vLiq;
     renderer.draw(own, view, canvas.width, canvas.height, walls, 0.003);
   } else if (spares.length > 0) {
     let f = spares.pop() as FrameBuffers;
-    if (!frameFits(f, engine)) f = fresh();
-    buildFrame(engine, f, overlay);
-    post({ type: 'frame', frame: f, view, walls }, [f.cells.buffer, f.liquid.buffer, f.bubbles.buffer]);
+    if (!frameFits(f, engine, showParticles)) f = fresh();
+    buildFrame(engine, f, overlay, showParticles);
+    scale[0] = f.scaleLo;
+    scale[1] = f.scaleHi;
+    scale[2] = f.vLiq;
+    post({ type: 'frame', frame: f, view, walls }, frameTransfer(f));
   } else return false;
   renderMs += performance.now() - t0;
   return true;
 }
 
 function bubbleView(): HostStats['bubble'] {
-  if (engine === null || selected === null) return null;
-  const b = engine.bubbles.find(selected);
-  if (b < 0) { selected = null; return null; }
-  const d = engine.bubbleModel.describe(b);
-  if (d === null) return null;
-  const c = engine.grid.cellAt(engine.bubbles.x[b], engine.bubbles.y[b]);
-  return { ...d, x: engine.bubbles.x[b], y: engine.bubbles.y[b], Tl: c >= 0 ? engine.phase.Tl[c] : 0 };
+  if (engine === null) return null;
+  const bm = engine.bubbleModel;
+  const b = bm.watch >= 0 ? engine.bubbles.find(bm.watch) : -1;
+  if (b >= 0) {
+    const d = bm.describe(b);
+    if (d === null) return null;
+    const c = engine.grid.cellAt(engine.bubbles.x[b], engine.bubbles.y[b]);
+    lastBubble = { ...d, x: engine.bubbles.x[b], y: engine.bubbles.y[b], Tl: c >= 0 ? engine.phase.Tl[c] : 0, fate: bm.watchFate === 3 ? 'merged' : null };
+    return lastBubble;
+  }
+  if (lastBubble !== null && (bm.watchFate === 1 || bm.watchFate === 2)) return { ...lastBubble, fate: bm.watchFate === 1 ? 'burst' : 'collapsed' };
+  return null;
+}
+
+function select(id: number | null): void {
+  lastBubble = null;
+  if (engine === null) return;
+  engine.bubbleModel.watch = id ?? -1;
+  engine.bubbleModel.watchFate = 0;
 }
 
 function sendStats(t: number): void {
@@ -134,7 +157,8 @@ function sendStats(t: number): void {
     mode: renderer !== null ? 'worker' : 'main',
     paused,
     samples: pendingSamples.splice(0, pendingSamples.length),
-    bubble: bubbleView()
+    bubble: bubbleView(),
+    overlayScale: [scale[0], scale[1], scale[2]]
   };
   post({ type: 'stats', stats });
   frames = 0;
@@ -209,6 +233,7 @@ function theme(dark: boolean): void {
   renderer.ground = dark ? [0.1, 0.12, 0.15] : [0.93, 0.95, 0.97];
   renderer.outside = dark ? [0.06, 0.07, 0.09] : [0.86, 0.88, 0.9];
   renderer.wall = dark ? [0.55, 0.6, 0.66] : [0.42, 0.46, 0.5];
+  renderer.ink = dark ? [0.9, 0.93, 0.96] : [0.08, 0.1, 0.12];
 }
 
 function restart(): void {
@@ -217,7 +242,7 @@ function restart(): void {
   nextSample = 0;
   pendingSamples.length = 0;
   acc = 0;
-  selected = null;
+  select(null);
   setWalls();
   resize(cssW, cssH, dpr);
   if (renderer === null) { spares.length = 0; spares.push(fresh(), fresh()); }
@@ -273,7 +298,7 @@ scope.addEventListener('message', (event) => {
         engine?.setHeater(m.group, m.mode, m.power, m.target, m.on);
         break;
       case 'setAmbient':
-        engine?.setAmbient(m.p, m.T, m.rh, m.g);
+        engine?.setAmbient(m.p, m.T, m.rh, m.g, m.air);
         break;
       case 'setBoundary':
         engine?.setBoundary(m.side, m.value);
@@ -284,10 +309,13 @@ scope.addEventListener('message', (event) => {
         post({ type: 'reply', id: m.id, data: engine?.query(m.x, m.y) ?? null });
         break;
       case 'select':
-        selected = m.bubble;
+        select(m.bubble);
         break;
       case 'overlay':
         overlay = m.overlay;
+        break;
+      case 'particles':
+        showParticles = m.on;
         break;
       case 'pause':
         paused = m.paused;
