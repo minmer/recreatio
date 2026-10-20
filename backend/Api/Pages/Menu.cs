@@ -168,11 +168,21 @@ public static class Menu
         return await find.ExecuteScalarAsync(ct) is Guid found ? found : null;
     }
 
-    /// <summary>Die Pfade von hier nach oben — „a/b/c", „a/b", „a".</summary>
-    private static List<string> Upwards(string path)
+    /// <summary>
+    /// Die Pfade von hier nach oben — „a/b/c", „a/b", „a" und zuletzt die
+    /// Hauptseite „" (recreatio.pl/).
+    /// </summary>
+    /// <remarks>
+    /// 2026-10-20 — ohne die Hauptseite am Ende fand die Hauptseite ihr EIGENES
+    /// Menü nie: ihr Pfad ist leer, und von „" nach oben gab es keinen einzigen
+    /// Schritt. Im Editor stand es gespeichert da, auf recreatio.pl fehlte es.
+    /// </remarks>
+    public static List<string> Upwards(string path)
     {
         var steps = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return Enumerable.Range(0, steps.Length).Select(n => string.Join('/', steps.Take(steps.Length - n))).ToList();
+        var up = Enumerable.Range(0, steps.Length).Select(n => string.Join('/', steps.Take(steps.Length - n))).ToList();
+        up.Add("");
+        return up;
     }
 
     /// <summary>

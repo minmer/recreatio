@@ -1,8 +1,9 @@
 # 2D lab engine (v2) — architecture
 
 Status (2026-10-20): Milestones M0–M1d are built on the CPU and pass their tests except the time budget of test 16;
-M1e (the WebGPU path) is not built — [MILESTONES.md](MILESTONES.md) has the measured numbers and the reasons.
-Written as a design before the code (2026-10-19, as the build prompt v2 asks) and updated to what was built.
+M1e, the WebGPU path, is built as the "accelerated view" — the whole step on the GPU (§15) — and meets test 17 (test 11
+at the edge of its tolerance, as on the CPU). [MILESTONES.md](MILESTONES.md) has the measured numbers. Written as a
+design before the code (2026-10-19, as the build prompt v2 asks) and updated to what was built.
 Code: `frontend/src/app/lab/lab2d/`. Simplifications: [SIMPLIFICATIONS.md](SIMPLIFICATIONS.md).
 
 Version 1 (`lab/particles/`, documentation/particles/) simulated everything, air included, with Position Based
@@ -16,7 +17,7 @@ setting, the slow-computer hint).
 A real-time 2D lab engine for a school chemistry sandbox. Students drag materials and apparatus into a box; the
 engine computes what happens from local physical laws and real material data. The first complete scene: a beaker of
 water boiling on a hot plate. Milestone 1 covers heat and gas (M1a), the liquid (M1b), bubbles and phase change (M1c),
-the teaching tools (M1d) and a WebGPU path (M1e, not built).
+the teaching tools (M1d) and a WebGPU path (M1e, the accelerated view).
 
 Quality = cell size: medium 3 mm, high 2 mm (the default), very high 1 mm. A device that once chose a lower quality
 keeps it (localStorage). Budget of the prompt: at most 12 ms of simulation per 60 Hz frame at 2 mm cells
@@ -58,7 +59,18 @@ lab/lab2d/
     engine.ts          the Engine: commands, the step loop with timing per stage, queries, stats
     protocol.ts        messages between host and worker
   render/              frame buffers from the engine state, WebGL2 renderer, palette, view fitting (§11)
+  gpu/                 the accelerated view (M1e, §15): WebGPU kernels as WGSL in TypeScript strings, the state on the GPU
+    kernel.ts          GpuCtx: device, kernels with explicit bind layouts, dispatch, a per-dispatch profiler
+    slots.ts, lib.ts   buffer layouts (counters, cell and face fields, records) and the shared WGSL library
+    state.ts           all GPU buffers; upload from and download to the CPU Engine (tools, inspector, saving)
+    engine.ts          GpuEngine: the step as compute passes, readbacks with interval sums, iterations recorded ahead
+    solver.ts          MGPCG: levels, V-cycle, the CG loop (kernels in ksolver.ts and kmg.ts)
+    k*.ts              the stages: liquid (kliquid), gas (kgas, kgasflow), bubbles (kbubbles, kbubend), interface
+                       and phase change (kphase), heat and diagnostics (kheat); kernels.ts lists them all
+    render.ts          the WebGPU renderer (fields and cells built by compute kernels, bubbles and particles from storage)
+    charts.ts          chart samples from the readouts
   engine.worker.ts     the worker: owns the Engine and (OffscreenCanvas) the renderer; two rhythms (steps, frames)
+  gpu.worker.ts        the accelerated view's worker: a CPU Engine for the tools and the GpuEngine; draws with WebGPU
   host.ts              main thread: starts the worker, forwards commands, receives stats and fallback frames
   workerFactory.ts     the module worker (Vite)
   Lab2D.tsx            the React shell (LabFrame): tools, palette, inspector, bubble view, charts, levels, scenes
@@ -269,16 +281,21 @@ rectangle of the grid. Systems in finite-volume form (A x)_c = (dH + dD + Σ a_f
   antisymmetric, tangential symmetric: free slip); open sides are clamped. Without the mirrors truncated stencils made
   water climb the walls.
 - **Volume fractions**: φ = Σ w m_p/ρ(T_p)/V_cell + φ_s (the static solid share of the stencil stands in for the
-  particles walls do not have), α_b = Σ w V_b/V_cell. A cell is liquid when it has particles (φ > 0) and
-  φ + φ_s + α_b ≥ ½ — and a cell may become gas only if it was gas, touches gas or touches an open side (no gas voids
-  inside the liquid; cavitation is not modelled, bubbles are the only gas in the liquid).
+  particles walls do not have), α_b = Σ w V_b/V_cell as far as the liquid has made room for it (see the divergence
+  source). A cell is liquid when it has particles (φ > 0) and φ + φ_s + α_b ≥ ½ — and a cell may become gas only if
+  it was gas, touches gas or touches an open side (no gas voids inside the liquid; cavitation is not modelled,
+  bubbles are the only gas in the liquid).
 - **Body force** g ρ(T)/ρ_ref with the mass-weighted mean density ρ_ref and a constant-density projection: the
   pressure is the real hydrostatic pressure, warm water rises, the density maximum near 4 °C is kept. Bubble reaction
   forces (drag, added mass) are added on the faces with the bubble's weights.
 - **Divergence source**: the volume change of every particle in the last step (thermal expansion, evaporation,
   condensation), splatted with its weights, plus Δα_b·V/Δt of the bubbles (growth, motion, bursting), plus the drift
   correction 0.1 (φ + α_b − 1)/Δt (the positive part everywhere, both signs in the interior) — it works on volume,
-  not particle count, so bubbles and evaporation keep their volume.
+  not particle count, so bubbles and evaporation keep their volume. α_b follows the bubbles' footprint by at most
+  ALPHA_RATE = 200 cell volumes per second: a merge, a burst or a collapse happens within one step however short the
+  step is, and without the limit its source demanded speeds ∝ 1/Δt — the step size (set by the fastest liquid) fell to
+  zero and the run ended in NaN (cold water painted onto the bare hot plate). Ordinary boiling stays below the limit
+  (at most 22 /s at 2 mm, 121 /s at 1 mm measured), so no test result changes.
 - **Projection**: free surface at the gas pressure of the region (Dirichlet in gas cells), walls and solids
   impermeable; PCG + multigrid on the bounding rectangle of the liquid.
 - **Advection**: RK2 in the grid velocity; particles that end in a solid are pushed out along the distance field
@@ -322,7 +339,8 @@ momentum form, F_p = ρ_l V (Du/Dt + g) (the bubble's own perturbation of ∇p w
 mass (C_A = ½, with the V̇ term; its shrinking part limited per substep), Tomiyama (1998) drag for contaminated water,
 semi-implicit; the liquid velocity is sampled outside the bubble's footprint; drag and added-mass reactions go to the
 liquid. Bubbles below 20 µm move with the liquid (their force balance is stiff and irrelevant). Bubbles that overlap
-in 3D (depths included; discs overlap in the plane) merge, conserving mass, momentum and energy; a free bubble stays
+in 3D (depths included; discs overlap in the plane) merge, conserving mass, momentum and energy (the radius follows
+the summed volume; the volume itself is derived from the summed masses at the next solve); a free bubble stays
 free when it swallows a new one. At the free surface a bubble releases its species and enthalpy into the gas cells
 above it — as many as its volume needs, weighted by gas volume — with a volume source; a bubble whose vapour
 condenses away (collapse) gives the rest to the liquid of its footprint.
@@ -377,6 +395,9 @@ Water vapour itself is invisible; the "vapour" overlay shows it next to the fog.
 the HUD and notes as SVG/HTML over the canvas. The inspector asks the worker (`query`); a selected bubble is followed
 through merges, and when it bursts or collapses its last state stays with a note saying what happened.
 
+The accelerated view (§15) swaps the worker: `gpu.worker.ts` steps and draws with WebGPU on its own OffscreenCanvas
+and answers the same host messages, so the shell, the tools, the inspector and the charts stay as they are.
+
 ## 12. Tests
 
 Vitest, headless in Node on the engine alone: `npm run test:lab2d` (33 tests, ~3 minutes) and
@@ -401,7 +422,7 @@ Vitest, headless in Node on the engine alone: `npm run test:lab2d` (33 tests, ~3
 | 14 | Fog only where supersaturated, exactly saturated after, water exact | m1c.test.ts |
 | 15 | Sealed box: p0 rises by p0 ΔT/T (±1 %) | m1a.test.ts |
 | 16 | Performance: ms per stage (HUD, test output, `npm run bench:lab2d`); ≤ 12 ms per frame at the default resolution | m1a.test.ts |
-| 17 | GPU equivalence on tests 1–3, 6, 11 | not built (M1e) |
+| 17 | GPU equivalence on tests 1–3, 6, 11 | browser harness in headless Edge (Node has no WebGPU); numbers in MILESTONES.md (M1e) |
 
 The browser side (tools, overlays, inspector, bubble view, charts, scenes, phone layout) was walked through in
 headless Edge against a bundle of the shell; the results are in MILESTONES.md (M1d).
@@ -412,7 +433,8 @@ headless Edge against a bundle of the shell; the results are in MILESTONES.md (M
 prints ms per stage, CG iterations and gas substeps. Budget per 60 Hz frame: 12 ms, i.e. 6 ms per step. Numbers and
 their history: MILESTONES.md. Where the time goes at 2 mm: the gas stage (transport in ~4 substeps and a projection
 of ~11 MGPCG iterations — thin beaker walls make coarse cells straddle two gas regions, which slows the V-cycle), the
-vapour diffusion, the heat solve, the liquid, the bubbles.
+vapour diffusion, the heat solve, the liquid, the bubbles. On the GPU (accelerated view, §15; RTX 3070 laptop) the
+benchmark scene takes 4.9 ms per step at 2 mm and 7.7 ms at 1 mm, the gas stage again the largest.
 
 ## 14. Designed for, not built
 
@@ -420,6 +442,41 @@ Chemistry (M2: species and reactions as a graph, each cell a well-mixed reactor,
 liquid becomes bubbles, gas in the gas phase a divergence source); solids (M3: rigid bodies rasterised into moving
 solid cells, melting by an enthalpy method into liquid particles); energetic reactions (M4: an explicit sub-model for
 the Coulomb explosion of sodium; hydrogen ignition needs a compressible solver); zero gravity (surface tension on the
-resolved surface); a molecule lens (read-only Lennard-Jones view); the WebGPU path (M1e, MILESTONES.md has a design).
+resolved surface); a molecule lens (read-only Lennard-Jones view).
 Nothing in M1 blocks them: six species slots on cells and bubbles, two composition slots on particles, the object
 store, the chemistry hook in the loop.
+
+## 15. The GPU path (M1e): the accelerated view
+
+The button "Widok przyspieszony" (shown where the browser has WebGPU) restarts the lab in a second worker,
+`gpu.worker.ts`, that runs the whole step on the GPU — at 1 mm, or at the saved quality — and draws with WebGPU;
+"Widok zwykły" returns to the CPU worker with the same scene. If the device or a kernel fails, the shell falls back
+to the CPU worker with a note. The view is not bit-reproducible (float atomics, order-free merging): the prompt's
+determinism stays a property of the CPU engine.
+
+- **State**: every field lives on the GPU in field-major buffers (cell fields, face fields, atomic accumulators),
+  particles and bubbles as records; a CPU `Engine` in the worker mirrors the scene. Every tool runs on the CPU: the
+  worker downloads the GPU state into the mirror, applies the operation there and uploads the result
+  (`GpuState.download`/`upload`), so the tools use the CPU code unchanged and their bookkeeping stays exact. The
+  inspector and saving download as well.
+- **Step**: the eight stages as compute passes in the CPU's order. Particles are sorted by cell twice per step (a
+  counting sort); every particle→grid transfer is a gather over the sorted particles, so P2G needs no float atomics.
+  Bubbles: one thread per bubble with its own substeps (identical to the CPU per bubble); merging chains each bubble to
+  the lowest-numbered bubble it touches (positions from the start of the merge); per-cell heat budgets are shared by
+  atomics without priority.
+- **Solves**: MGPCG for the liquid and gas pressure and — unlike the CPU's Jacobi-PCG — also for heat and vapour
+  diffusion. Coarse levels are built geometrically on the GPU; red-black smoothing runs in shared-memory tiles
+  (pre-smoothing fused with the restriction, prolongation with post-smoothing), the coarse tail of the V-cycle in one
+  workgroup. Pure-Neumann gas components are found by union-find (atomicMin) and projected every iteration. The CG
+  scalars are per-workgroup partial sums folded by one workgroup (no contended float atomics).
+- **No round trips inside a step**: iteration counts are recorded ahead from the last readbacks (×1.5 + 2 when a solve
+  hit its cap); iterations after convergence return at once. The gas transport records all 16 substeps and the GPU
+  decides each step how many of them work — a count taken from the readbacks came too late for a sudden splash, and a
+  smaller Δt did not help because the gas source grows with 1/Δt. Indirect dispatches are avoided (Chrome validates
+  each one with an extra pass, ~30 µs).
+- **Readbacks**: a few times per second the worker reads counters, interval sums (energy and water flows, phase change,
+  bubble events), regions, heaters and the watched bubble, and keeps f64 totals. Budgets on the GPU are f32: energy
+  errors of 1e-5–1e-4 of the energy turned over instead of the CPU's 1e-9 (MILESTONES.md).
+- **Frames**: up to eight steps per frame, at most three frames in flight; compute kernels build the field and cell
+  textures and the liquid coverage, render pipelines draw them, the bubbles from the bubble buffer and the particles
+  from the particle buffer — nothing is copied to the CPU per frame.

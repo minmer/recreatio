@@ -7,3 +7,8 @@
 export function createLabWorker(): Worker {
   return new Worker(new URL('./engine.worker.ts', import.meta.url), { type: 'module' });
 }
+
+/** Der Arbeiter des beschleunigten Wegs (WebGPU, gpu.worker.ts). */
+export function createGpuWorker(): Worker {
+  return new Worker(new URL('./gpu.worker.ts', import.meta.url), { type: 'module' });
+}

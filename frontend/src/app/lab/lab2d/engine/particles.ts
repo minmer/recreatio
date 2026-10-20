@@ -16,6 +16,9 @@ export class Particles {
   readonly cap: number;
   count = 0;
   private nextId = 1;
+  /** Die nächste freie Nummer — und für den beschleunigten Weg (gpu/), der eigene Nummern vergibt: nie unter die dort vergebenen. */
+  get nextFree(): number { return this.nextId; }
+  reserveIds(next: number): void { if (next > this.nextId) this.nextId = next >>> 0 || 1; }
   readonly x: Float32Array;
   readonly y: Float32Array;
   readonly vx: Float32Array;

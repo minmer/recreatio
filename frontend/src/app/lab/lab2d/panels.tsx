@@ -253,7 +253,7 @@ export function Hud({ stats }: { stats: HostStats }) {
   const e = stats.engine;
   const lines = [
     `${e.nx}×${e.ny} · Δx ${num(e.dx * 1000, 1)} mm · ${e.particles} ${t('particles')} · ${e.bubbles} ${t('bubbles')} · Δt ${num(e.dt * 1000, 2)} ms`,
-    `${Math.round(stats.stepsPerSecond)} ${t('stepsPerSecond')} · ${t('simRate')} ${num(stats.simRate, 2)}× · ${Math.round(stats.fps)} ${t('fps')} · ${stats.mode === 'worker' ? t('renderWorker') : t('renderMain')} ${num(stats.renderMs, 2)} ms`,
+    `${Math.round(stats.stepsPerSecond)} ${t('stepsPerSecond')} · ${t('simRate')} ${num(stats.simRate, 2)}× · ${Math.round(stats.fps)} ${t('fps')} · ${stats.mode === 'gpu' ? `${t('renderGpu')}${stats.adapter ? ` · ${stats.adapter}` : ''}` : `${stats.mode === 'worker' ? t('renderWorker') : t('renderMain')} ${num(stats.renderMs, 2)} ms`}`,
     ...STAGES.map((name, k) => `${name.padEnd(12)} ${(e.stages[k] ?? 0).toFixed(3)} ms`),
     `${t('hudStep').padEnd(12)} ${e.stepMs.toFixed(3)} ms · frame ${(2 * e.stepMs).toFixed(2)} ms`,
     `CG ${e.liquid.iterations}/${e.gas.iterations}/${e.heat.iterations}${e.capped > 0 ? ` · cap ${e.capped}` : ''} · sub ${e.gasSubsteps}`,

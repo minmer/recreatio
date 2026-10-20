@@ -106,7 +106,8 @@ export const ICON_PATHS = {
   redo: <><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></>,
   minus: <path d="M5 12h14" />,
   fit: <><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></>,
-  shuffle: <><path d="m18 14 4 4-4 4" /><path d="m18 2 4 4-4 4" /><path d="M2 18h2a4 4 0 0 0 3.3-1.7l5.4-8.6A4 4 0 0 1 16 6h6" /><path d="M2 6h2a4 4 0 0 1 3.6 2.2" /><path d="M22 18h-6a4 4 0 0 1-3.3-1.8l-.4-.5" /></>
+  shuffle: <><path d="m18 14 4 4-4 4" /><path d="m18 2 4 4-4 4" /><path d="M2 18h2a4 4 0 0 0 3.3-1.7l5.4-8.6A4 4 0 0 1 16 6h6" /><path d="M2 6h2a4 4 0 0 1 3.6 2.2" /><path d="M22 18h-6a4 4 0 0 1-3.3-1.8l-.4-.5" /></>,
+  bolt: <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
 } as const satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof ICON_PATHS;

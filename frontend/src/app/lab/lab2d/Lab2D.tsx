@@ -24,7 +24,7 @@ import { About, BubblePanel, Charts, forcesOf, Hud, Inspector, Legend, type Leve
 import { OVERLAYS, type Overlay } from './render/frame';
 import type { Walls } from './render/glRenderer';
 import type { View } from './render/view';
-import { createLabWorker } from './workerFactory';
+import { createGpuWorker, createLabWorker } from './workerFactory';
 
 import './lab2d.css';
 
@@ -93,6 +93,9 @@ function withQuality(raw: unknown, q: Quality): unknown {
   return raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>), quality: q } : { quality: q };
 }
 
+/** Kann dieser Browser WebGPU (der beschleunigte Weg)? Ob die Karte mitspielt, sagt erst der Arbeiter. */
+const HAS_WEBGPU = typeof navigator !== 'undefined' && 'gpu' in navigator;
+
 type Rect = [number, number, number, number];
 
 /** So nah (m) über dem Boden oder einem Gerät rastet ein neues Gerät darauf ein. */
@@ -149,10 +152,12 @@ function ApparatusIcon({ kind }: { kind: ApparatusKey }) {
     : <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="14" width="20" height="6" rx="1" fill="#7d858e" /><path d="M6 17h12" stroke="#e8823a" strokeWidth="2" /></svg>;
 }
 
-export function Lab2D({ config, whole = false, createWorker = createLabWorker }: {
+export function Lab2D({ config, whole = false, createWorker = createLabWorker, createAccelWorker = createGpuWorker }: {
   config: Lab2DConfig;
   whole?: boolean;
   createWorker?: () => Worker;
+  /** Der Arbeiter des beschleunigten Wegs (WebGPU). */
+  createAccelWorker?: () => Worker;
 }) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<LabHost | null>(null);
@@ -181,6 +186,9 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
   const [view, setView] = useState<{ view: View; walls: Walls } | null>(null);
   const [ambient, setAmbientState] = useState(() => { const a = readScene(config.scene).scene.ambient; return { p: a.p / 1000, T: a.T - T0, rh: a.rh, g: a.g / G0, o2: o2Volume(a.air.O2) }; });
   const [particles, setParticles] = useState(false);
+  /* Der beschleunigte Weg (WebGPU): ein anderer Arbeiter; die Szene wandert beim Umschalten mit (nextScene). */
+  const [accel, setAccel] = useState(false);
+  const nextScene = useRef<unknown>(null);
   const qualityRef = useRef(quality);
   qualityRef.current = quality;
   const speedRef = useRef(SPEEDS[speedAt]);
@@ -213,16 +221,27 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
       if (s.simRate < 0.9 * want) lagRef.current += 1;
       if (lagRef.current >= 15) setLagging(s.simRate);
     };
-    const host = new LabHost(canvas, createWorker, {
+    const startScene = nextScene.current ?? withQuality(config.scene, qualityRef.current);
+    nextScene.current = null;
+    const host = new LabHost(canvas, accel ? createAccelWorker : createWorker, {
       onReady: () => { setReady(true); refreshOps(host); },
       onStats,
       onView: (v, w) => setView({ view: v, walls: w }),
       onRefused: () => setNote(t('refused')),
-      onError: setError
+      onError: setError,
+      onGpu: (ok, _adapter, message) => {
+        if (ok) return;
+        /* WebGPU fehlt oder die Karte gibt auf: zurück zur CPU, mit derselben Szene. */
+        const q = savedQuality() ?? readScene(config.scene).scene.quality;
+        nextScene.current = withQuality(startScene, q);
+        setQuality(q);
+        setNote(`${t('accelFailed')}${message ? ` (${message})` : ''}`);
+        setAccel(false);
+      }
     });
     hostRef.current = host;
     const r = box.getBoundingClientRect();
-    void host.start(withQuality(config.scene, qualityRef.current), r.width, r.height, window.devicePixelRatio || 1, dark);
+    void host.start(startScene, r.width, r.height, window.devicePixelRatio || 1, dark);
     const ro = new ResizeObserver(() => {
       const q = box.getBoundingClientRect();
       host.resize(q.width, q.height, window.devicePixelRatio || 1);
@@ -235,7 +254,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
       hostRef.current = null;
       setReady(false);
     };
-  }, [config.scene, createWorker]);
+  }, [config.scene, createWorker, createAccelWorker, accel]);
 
   useEffect(() => {
     if (note === null) return undefined;
@@ -332,7 +351,25 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
 
   const togglePause = (): void => { const next = !paused; setPaused(next); host()?.pause(next); };
   const cycleSpeed = (): void => { const next = (speedAt + 1) % SPEEDS.length; setSpeedAt(next); host()?.setSpeed(SPEEDS[next]); };
-  const changeQuality = (q: Quality): void => { setQuality(q); saveQuality(q); lagRef.current = 0; setLagging(null); samplesRef.current = []; setSamples([]); host()?.setQuality(q); };
+  const changeQuality = (q: Quality): void => { setQuality(q); if (!accel) saveQuality(q); lagRef.current = 0; setLagging(null); samplesRef.current = []; setSamples([]); host()?.setQuality(q); };
+  /* Umschalten zwischen dem normalen und dem beschleunigten Weg: die jetzige Szene (Aufbau samt Handgriffen) geht mit; beschleunigt mit 1 mm. */
+  const toggleAccel = (): void => {
+    const h = host();
+    const next = !accel;
+    const q: Quality = next ? 'very-high' : savedQuality() ?? readScene(config.scene).scene.quality;
+    const go = (scene: unknown): void => {
+      nextScene.current = withQuality(scene, q);
+      setQuality(q);
+      lagRef.current = 0;
+      setLagging(null);
+      samplesRef.current = [];
+      setSamples([]);
+      setStats(null);
+      setAccel(next);
+    };
+    if (h === null) { go(config.scene); return; }
+    void h.serialize().then((s) => go(s ?? config.scene));
+  };
   const changeLevel = (l: Level): void => { setLevel(l); try { window.localStorage.setItem(LEVEL_KEY, l); } catch { /* nur jetzt */ } };
   const changeOverlay = (o: Overlay): void => { setOverlay(o); host()?.overlay(o); };
   const changeAmbient = (next: { p: number; T: number; rh: number; g: number; o2: number }): void => {
@@ -400,6 +437,11 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
       <button type="button" className="lab-tool" disabled={!paused} onClick={() => host()?.step()} title={t('step')} aria-label={t('step')}><Icon name="next" /></button>
       <button type="button" className="lab-tool" onClick={cycleSpeed} title={t('speed')} aria-label={`${t('speed')} ${speed}×`}>{num(speed, speed < 1 ? 2 : 0)}×</button>
       <button type="button" className={`lab-tool${hud ? ' is-on' : ''}`} onClick={() => setHud(!hud)} title={t('hud')} aria-label={t('hud')}>HUD</button>
+      {(HAS_WEBGPU || accel) && (
+        <button type="button" className={`lab-tool${accel ? ' is-on' : ''}`} onClick={toggleAccel} title={accel ? t('accelClose') : t('accelTitle')} aria-pressed={accel}>
+          <Icon name="bolt" />{accel ? t('accelClose') : t('accelOpen')}
+        </button>
+      )}
     </>
   );
 
@@ -490,6 +532,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker }:
         ))}
       </LabSection>
       <LabSection title={t('view')}>
+        {accel && <p className="lab-muted">{t('accelNote')}</p>}
         <label className="lab-field">{t('overlay')}
           <select value={overlay} onChange={(e) => changeOverlay(e.currentTarget.value as Overlay)}>
             {OVERLAYS.map((o) => <option key={o} value={o}>{t(OVERLAY_LABEL[o])}</option>)}

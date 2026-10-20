@@ -26,7 +26,7 @@ Architecture: [ARCHITECTURE.md](ARCHITECTURE.md). Numbers: [MILESTONES.md](MILES
 | 17 | **No gas pockets in the water except bubbles.** A cell may turn into gas only if it was gas, touches gas or touches an open side. | A void inside the liquid would have no pressure law in this model (like a liquid region without a free surface, which the tools refuse). | No cavitation; air entrained by splashing closes up instead of forming pockets. |
 | 18 | **Many small bubbles at a hot wall.** One wall cell holds the whole local wall superheat, so a cavity is ready again as soon as its cell is warm. | The thin superheated layer that really limits re-nucleation is not resolved (#2, #9). | In subcooled water thousands of tiny bubbles per second form and collapse at the bottom (energy is right; the count is too high). |
 | 19 | **Bubbles inside the slab.** Spheres until they are as wide as the slab, then flattened, then discs of depth D; the Laplace pressure stays 2σ/r for discs. Bubbles below 20 µm move with the water. | The slab has a depth; a disc's real meniscus adds about 2σ/D (15 Pa at 1 cm). | Large bubbles are slightly too easy to compress (15 Pa of about 100 kPa); tiny bubbles do not slip. |
-| 20 | **Bursts spread over the gas above.** A bursting bubble gives its content to as many gas cells above it as its volume needs; the gas volume correction is capped at ±½ cell per step. | A large bubble bursting into one small cell would demand a velocity the transport cannot carry. | A big burst is pushed out over a few steps (a short overpressure) instead of as an instant jet. |
+| 20 | **Bursts spread over the gas above.** A bursting bubble gives its content to as many gas cells above it as its volume needs; the gas volume correction is capped at ±½ cell per step, and the liquid makes room for bubbles (or closes in behind them) at most 200 cell volumes per second. | A large bubble bursting into one small cell would demand a velocity the transport cannot carry; a merge or collapse within one short step demanded liquid speeds ∝ 1/Δt. | A big burst is pushed out over a few steps (a short overpressure) instead of as an instant jet; a big merge or collapse is displaced over a few steps. Ordinary boiling never reaches the limit. |
 | 21 | **Fog opacity is a drawing assumption.** White with opacity from Beer–Lambert for droplets of 1.5 µm radius seen through 7 cm (a beaker's width), not through the 1 cm slab. | Through 1 cm real steam fog would be almost invisible. | The fog mass is computed; how white it looks is an assumption (with 1 µm droplets it would look denser, with 5 µm thinner). |
 
 ## Performance-related choices
@@ -37,3 +37,8 @@ These do not change the physics model, but they decide what a student's computer
   simulation in slow motion; the shell says so and offers a coarser cell.
 - Pressure solves stop at a relative residual of 1e-5 (the prompt's real-time tolerance); the bookkeeping of mass and
   energy is exact regardless of solver tolerances.
+- The accelerated view (WebGPU, ARCHITECTURE.md §15) computes in 32-bit floats: per-cell masses and energies are f32,
+  the totals f64 on the CPU; its energy budget closes to 1e-5–1e-4 of the energy turned over (the CPU to 1e-9). Bubbles
+  that share a cell draw on its heat budget at the same time, and merging does not follow the bubbles' order — the
+  statistics of nucleation, merging and collapse differ by a few per cent from the CPU, and runs are not repeatable.
+  Heat and vapour diffusion use multigrid there instead of Jacobi preconditioning (same tolerance).

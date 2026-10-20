@@ -19,13 +19,14 @@ Reproduce: `npm run test:lab2d` (fast tests, ~3 min), `npm run test:lab2d:slow` 
 | M1b Liquid | tests 1, 3, 4, 5, 16 | tests met; **16 not met** |
 | M1c Bubbles and phase change | tests 6–14, 16 | tests met; **16 not met** |
 | M1d Teaching tools | 16 and a walkthrough of the boiling scene | walkthrough done; **16 not met** |
-| M1e GPU path | test 17, 1 mm in the budget | **not built** (§M1e) |
+| M1e GPU path | test 17, 1 mm in the budget | built (the accelerated view): test 17 met (test 11 at the edge, as on the CPU); 2 mm 4.9 ms per step; **1 mm 7.7 ms, above the 6 ms** (§M1e) |
 
 Test 16 (≤ 12 ms of simulation per 60 Hz frame at the default resolution) is the one gate that fails throughout:
 the CPU step of the benchmark scene at 2 mm takes 21.6 ms (budget 6 ms per step, two steps per frame): the
 simulation runs at 0.39 × real time, in slow motion with the same results. The shell shows the tempo and offers 3 mm
 cells, where a step takes 8.5 ms (0.98 × real time on the reference machine, still above the 12 ms per frame of the
-budget); 1 mm takes 102 ms per step (0.08 ×). Details and history under "Benchmark".
+budget); 1 mm takes 102 ms per step (0.08 ×). Details and history under "Benchmark". On the GPU path (M1e) the same
+scene takes 4.9 ms per step at 2 mm — inside the budget — and 7.7 ms at 1 mm.
 
 ## M0 — Skeleton
 
@@ -104,27 +105,66 @@ texture with Beer–Lambert opacity); holes in the drawn water (coverage now blu
 30 J when a side was closed (the −p0·V term is now booked as an edit); a singular multigrid cell (an isolated gas cell
 with no coupling) that broke the gas solve after a splash; ghost heaters listed after a plate was erased.
 
-## M1e — GPU path (not built)
+## M1e — GPU path (built: the accelerated view)
 
-The gate asks for WebGPU compute for advection, pressure and conduction with fixed-point-atomic particle-to-grid
-transfers, test 17 (GPU equals CPU on tests 1–3, 6, 11) and 1 mm cells within the time budget. It was not built,
-because the measurements say it would not reach its gate in the form the milestone describes:
+Built (2026-10-20): the whole step on the GPU (WebGPU compute in a worker of its own, ARCHITECTURE.md §15), started
+from the lab with "Widok przyspieszony". Measured on the reference laptop's RTX 3070 (laptop) in Edge; the prompt's
+fixed-point atomics and df64 bookkeeping were not needed for the gate as built (P2G is a gather over sorted particles;
+budgets are f32 on the GPU with f64 totals) and determinism was waived for this view.
 
-- At 2 mm the linear solves are about 40 % of a 21 ms step. A WebGPU path for the solves alone must read every solution
-  back before the next stage can use it (mapAsync; typically 0.5–2 ms per round trip in Chrome), four solves per step.
-  The gain at 2 mm would be a few milliseconds at most; the step would stay far above 6 ms.
-- At 1 mm (30 000 cells, 13 000 particles) a step takes 102 ms (measured); even with free solves the rest would take
-  about 60 ms. "1 mm within the time budget" therefore needs the whole step on the GPU: APIC with fixed-point atomics,
-  MUSCL transport, MacCormack, multigrid-PCG, the heat and vapour solves, fog and flash, and the bubbles either on the
-  GPU or with a narrow per-step exchange of their footprints.
-- WGSL has no 64-bit floats. The prompt's exact Float64 bookkeeping of masses and energies needs double-float (df64)
-  arithmetic for the conserved quantities on the GPU, so that test 17 compares like with like.
-- Node, which runs the tests, has no WebGPU: test 17 needs a browser harness (headless Chrome/Edge; the reference
-  machine has an RTX 3070, so it can run there).
+**Test 17 — the GPU on tests 1–3, 6, 11** (headless Edge; same scenes and measures as the Vitest files):
 
-Proposal: a GPU-resident grid pipeline behind the same stage interfaces (data stays on the GPU between stages), df64
-for conserved quantities, the bubble model on the CPU with a per-step exchange, and a browser equivalence harness
-for test 17. It is a project of several weeks and should be decided on its own.
+| Test | Gate | GPU | CPU |
+|---|---|---|---|
+| 1 Hydrostatics 20 °C | 97.9 Pa/cm ±2 %, currents < 1 mm/s | **97.924** Pa/cm, 0.0032 mm/s | 97.924, 0.0027 mm/s |
+| 1 Hydrostatics 90 °C | 94.7 Pa/cm ±2 % | **94.698** Pa/cm, 0.0026 mm/s | 94.698, 0.0027 mm/s |
+| 2 Conduction | erf within 2 % | **0.0679 K** of 80 K (0.085 %) | 0.0679 K (0.085 %) |
+| 3 Heating rate | dT/dt = P/Σ(m c_p) within 5 % | **−1.92 %** (−1.68 % in a second run) | −2.30 % |
+| 6 Saturation shift at 10 cm | 0.26 K ± 0.01 | **0.2604 K** (945.4 Pa) | 0.2604 K (945.3 Pa) |
+| 11 Boiling plateau | mean water within 0.5 K of T_sat; vapour within 5 % | **−0.495 K**, vapour **+0.06 %** (a second run: −0.534 K, +0.05 %) | −0.48 K, +0.05 % |
+
+Test 11's temperature criterion is met by the CPU with 0.02 K to spare; the GPU lands on either side of it from run to
+run (its bubble statistics are not repeatable). Energy budgets on the GPU: test 3 (sealed, insulated, 300 s, 3000 J of
+heating) closes to 0.48 J (1.6e-4), test 11 (60 s) to 0.04 J, the 12 s compact boiling run to 6 mJ of 8 kJ.
+
+The compact boiling beaker over 12 s at 2 mm, GPU and CPU: water 99.19 and 99.23 °C; nucleated 77 753 and 78 697;
+departed 71 232 and 72 254; burst 2 572 and 2 496; collapsed 9 849 and 15 932 (the largest difference; merging
+and the shared heat budgets follow no order on the GPU); merged 31 899 and 34 397; vapour produced 48.18 and
+47.78 mg.
+
+Time per step, benchmark scene (300 steps after a 300-step start, the GPU busy without waiting for readbacks; the
+stage times are timestamps of single steps, so they leave out the gaps between passes):
+
+| Cells | liquid | gas | bubbles | interface | heat | diag. | step | CPU step | speed-up |
+|---|---|---|---|---|---|---|---|---|---|
+| 2 mm (100 × 75) | 1.08 | 1.63 | 0.90 | 0.64 | 0.48 | 0.11 | **4.93** | 21.59 | 4.4 × |
+| 1 mm (200 × 150) | 1.59 | 2.83 | 0.95 | 0.93 | 0.79 | 0.16 | **7.67** | 101.78 | 13 × |
+
+In the browser, at 1 mm with drawing: 96–121 steps per second, 0.8–1.0 × real time (the worker's pacing with three
+frames in flight; two left the GPU idle between frames: 98 instead of 121 steps per second). At 2 mm the GPU path
+meets test 16's budget; at 1 mm it needs 7.7 ms per step against 6 ms.
+
+Found and fixed on the way:
+
+- The gas transport's substep count taken from the readbacks came too late for a sudden splash (painted water
+  landing beside the beaker, 2 mm): the transport ran with too few substeps, and the run lost energy and blew up. All
+  16 substeps are now recorded and the GPU decides each step how many work, as the CPU does (two dispatches per
+  substep, the spare ones return at once: about 0.2 ms per step at 1 mm).
+- Merged bubbles took the summed volume at once on the GPU, while the CPU keeps the absorbed volume out until the
+  next solve; with whole clusters merging in cold water the GPU's α_b jumped and the liquid source grew with 1/Δt.
+  The GPU now merges as the CPU does.
+- **Both engines**: a merge, burst or collapse changes α_b within one step however short; its source Δα_b·V/Δt then
+  demands liquid speeds ∝ 1/Δt, and the step (set by the fastest liquid) fell to zero — cold water painted onto the
+  bare hot plate ended in NaN on the CPU too (`wrzenie`, 2 mm, at t ≈ 0.13 s). α_b now follows the bubbles' footprint
+  by at most 200 cell volumes per second (ARCHITECTURE.md §7). Ordinary boiling never reaches the limit: all fast and
+  slow tests give the same numbers as before, to the last digit printed.
+
+Open: at 1 mm, cold water painted onto the bare 140 °C plate (beside the beaker) can still run away — on the CPU
+for a large blob, on the GPU already for a small one (the step size falls towards zero). Painted into the beaker it
+stays stable on both engines (1 mm, blobs of 8 and 12 mm radius; GPU and CPU agree to 0.002 K in the water
+temperature after 0.4–0.5 s). Suspected: the coupling of large bubbles and the liquid at 1 mm cells — a bubble's forces
+use the liquid's acceleration, estimated from a step's velocity change over the bubble's own substep; capping that
+estimate did not fix it reliably.
 
 ## Benchmark
 
@@ -140,8 +180,11 @@ two steps. Budget: 6 ms per step.
 | M1d (final) | 2 mm | 0.00 | 2.14 | 10.71 | 2.33 | 3.74 | 2.48 | 0.20 | **21.59** | 43.2 |
 | M1d (final) | 3 mm | 0.00 | 0.83 | 3.85 | 1.09 | 1.64 | 1.02 | 0.09 | **8.53** | 17.1 |
 | M1d (final) | 1 mm | 0.00 | 7.97 | 58.38 | 3.17 | 19.73 | 11.75 | 0.78 | **101.78** | 203.6 |
+| M1e GPU² | 2 mm | 0.00 | 1.08 | 1.63 | 0.90 | 0.64 | 0.48 | 0.11 | **4.93** | 9.9 |
+| M1e GPU² | 1 mm | 0.00 | 1.59 | 2.83 | 0.95 | 0.93 | 0.79 | 0.16 | **7.67** | 15.3 |
 
 ¹ measured inside the test run with other test files in parallel, before bubbles and phase change existed.
+² the accelerated view on the RTX 3070 (laptop); the step is the throughput, the stages are timestamps (§M1e).
 
 What the M1d optimisations changed (2 mm): one Gauss–Seidel sweep over the boundary band in the multigrid (gas
 iterations 13.2 → 11.0), the gas transport rewritten without per-face method calls, bubble growth substeps tied to
@@ -159,9 +202,13 @@ cross-origin-isolation service worker that v1's own tab uses).
 
 ## Requirements of the prompt that were changed or could not be met
 
-- **Test 16** — not met on the CPU (above). The default stays 2 mm, as the project owner asked for v1 ("the normal
-  situation should be high or very high"); slower machines get a hint to switch to 3 mm.
-- **M1e** — not built (above).
+- **Test 16** — not met on the CPU (above); met on the GPU path at 2 mm (4.9 ms per step), not at 1 mm (7.7 ms). The
+  default stays 2 mm, as the project owner asked for v1 ("the normal situation should be high or very high"); slower
+  machines get a hint to switch to 3 mm.
+- **M1e** — built without fixed-point atomics and without df64: P2G gathers over particles sorted by cell, budgets are
+  f32 on the GPU with f64 totals (energy errors 1e-5–1e-4 relative instead of 1e-9); bubble merging and shared heat
+  budgets do not follow an order; heat and vapour diffusion use MGPCG instead of Jacobi-PCG. Not deterministic (waived
+  for the accelerated view).
 - **Test 7** — met, but the prompt's 1.20 mm is the pure Plesset–Zwick radius; with surface tension acting on the
   10 µm seed the exact ODE gives 1.179 mm. The engine gives 1.171 mm.
 - **Test 5** — met at 2 mm with a +0.22 % bias of the level measurement (see the table).

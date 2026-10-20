@@ -5,6 +5,10 @@ internal static class PageFileChecks
 {
     public static void Run(Action<bool, string> check)
     {
+        /* 2026-10-20 — das Menü sucht von der Seite nach oben, bis zur Hauptseite: auch die Hauptseite selbst findet ihr eigenes. */
+        check(Menu.Upwards("").SequenceEqual([""]), "the main page looks at itself");
+        check(Menu.Upwards("parish/grzegorzki").SequenceEqual(["parish/grzegorzki", "parish", ""]), "a page looks up to the main page");
+
         check(PageImage.Allowed("application/pdf"), "pdf allowed");
         check(PageImage.Allowed("application/gpx+xml"), "gpx allowed");
         check(!PageImage.Allowed("text/html"), "html refused");

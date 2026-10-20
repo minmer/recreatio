@@ -182,6 +182,9 @@ export class Engine {
   get boxW(): number { return this.grid.w; }
   get boxH(): number { return this.grid.h; }
   get currentQuality(): Quality { return this.quality; }
+  /** Die Bezugswerte der Bilanzen (Energie und Wasser beim Aufbau) — für die Kennzahlen des beschleunigten Wegs (gpu/). */
+  get baseline(): { readonly energy0: number; readonly water0: number } { return { energy0: this.energy0, water0: this.water0 }; }
+  get optionsUsed(): EngineOptions { return this.options; }
 
   /* -- Aufbau ---------------------------------------------------------------------------------------- */
 

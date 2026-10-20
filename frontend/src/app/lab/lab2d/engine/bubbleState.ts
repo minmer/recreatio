@@ -21,6 +21,16 @@ import { rhoVapourSatFast, tSat } from './if97';
 import { MOLAR, sigma } from './materials';
 import { H2O, N2, O2, R_GAS, SPECIES_SLOTS } from './units';
 
+/**
+ * Höchstens so schnell (Zellvolumen je Sekunde) macht die Flüssigkeit den Blasen einer Zelle Platz oder füllt ihn
+ * wieder; der Rest folgt in den nächsten Schritten. Verschmelzen, Platzen, Vergehen und Umrastern geschehen in einem
+ * Schritt, gleich wie kurz er ist: ihre Volumenquelle Δα_b·V/Δt verlangte sonst Geschwindigkeiten ∝ 1/Δt, der
+ * Zeitschritt nach der schnellsten Flüssigkeit fiel, und die Quelle wuchs weiter (kaltes Wasser auf die heisse Platte
+ * gemalt: Δt gegen null, dann NaN). Im gewöhnlichen Sieden bleibt die Rate darunter (gemessen höchstens 22 /s bei
+ * 2 mm, 121 /s bei 1 mm).
+ */
+export const ALPHA_RATE = 200;
+
 export interface BubbleShape {
   r: number;
   V: number;

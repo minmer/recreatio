@@ -39,7 +39,7 @@
  */
 
 import { Bubbles, FORCE_SLOTS } from './bubbles';
-import { bubbleEnthalpy, footprint, solveBubble, type BubbleShape } from './bubbleState';
+import { ALPHA_RATE, bubbleEnthalpy, footprint, solveBubble, type BubbleShape } from './bubbleState';
 import { BubbleMotion } from './bubbleMotion';
 import { activation, Cavities } from './cavities';
 import type { Engine, ProbeInfo } from './engine';
@@ -93,7 +93,8 @@ export class BubbleModel {
   private readonly shape: BubbleShape = { r: 0, V: 0, pb: 0, pv: 0, Tb: 0, area: 0, front: 0 };
   private readonly cells = new Int32Array(1024);
   private readonly wts = new Float64Array(1024);
-  private readonly alphaOld: Float32Array;
+  /** Die Spur der Blasen (Σ w V_b/V_Zelle); grid.alpha folgt ihr höchstens mit ALPHA_RATE. */
+  private readonly alphaTarget: Float32Array;
   private readonly budget: Float64Array;
   private readonly tsatCell: Float64Array;
   private readonly Fm: Float64Array;
@@ -105,7 +106,7 @@ export class BubbleModel {
   constructor(engine: Engine) {
     this.e = engine;
     const n = engine.grid.n;
-    this.alphaOld = new Float32Array(n);
+    this.alphaTarget = new Float32Array(n);
     this.budget = new Float64Array(n);
     this.tsatCell = new Float64Array(n);
     this.Fm = new Float64Array(n);
@@ -137,6 +138,10 @@ export class BubbleModel {
   }
 
   get siteCount(): number { return this.sites.count; }
+
+  /** Für den beschleunigten Weg (gpu/): die Kavitäten und die zuletzt gesehenen Flüssigkeitsgeschwindigkeiten der Blasen. */
+  get cavities(): Cavities { return this.sites; }
+  get motionState(): BubbleMotion { return this.motion; }
 
   /* -- Hilfen ---------------------------------------------------------------------------------------- */
 
@@ -664,23 +669,31 @@ export class BubbleModel {
     return -1;
   }
 
-  /** α_b der Zellen neu; seine Änderung ist eine Quelle der Divergenz der Flüssigkeit. */
+  /**
+   * α_b der Zellen neu: grid.alpha ist der Anteil, dem die Flüssigkeit schon Platz gemacht hat (Zellart, V_gas und
+   * Driftausgleich sehen nur ihn); er folgt der Spur der Blasen um höchstens ALPHA_RATE·Δt je Schritt. Seine Änderung
+   * ist eine Quelle der Divergenz der Flüssigkeit.
+   */
   private updateAlpha(dt: number): void {
     const e = this.e;
     const g = e.grid;
     const B = this.B;
-    const alpha = g.alpha;
-    alpha.fill(0);
+    const target = this.alphaTarget;
+    target.fill(0);
     const inv = 1 / g.vCell;
     for (let b = 0; b < B.count; b += 1) {
       const k = footprint(B.x[b], B.y[b], B.r[b], B.V[b], g.depth, g.dx, g.nx, g.ny, this.cells, this.wts);
-      for (let q = 0; q < k; q += 1) alpha[this.cells[q]] += this.wts[q] * B.V[b] * inv;
+      for (let q = 0; q < k; q += 1) target[this.cells[q]] += this.wts[q] * B.V[b] * inv;
     }
+    const alpha = g.alpha;
     const src = e.liquid.volSrc;
+    const cap = ALPHA_RATE * dt;
     for (let c = 0; c < g.n; c += 1) {
-      const d = alpha[c] - this.alphaOld[c];
-      if (d !== 0) src[c] += (d * g.vCell) / dt;
-      this.alphaOld[c] = alpha[c];
+      const d = target[c] - alpha[c];
+      if (d === 0) continue;
+      if (d > cap) { src[c] += (cap * g.vCell) / dt; alpha[c] += cap; }
+      else if (d < -cap) { src[c] -= (cap * g.vCell) / dt; alpha[c] -= cap; }
+      else { src[c] += (d * g.vCell) / dt; alpha[c] = target[c]; }
     }
   }
 

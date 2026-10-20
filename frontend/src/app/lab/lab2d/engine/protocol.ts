@@ -74,7 +74,10 @@ export interface HostStats {
   readonly simRate: number;
   readonly fps: number;
   readonly renderMs: number;
-  readonly mode: 'worker' | 'main';
+  /** Wer rechnet und zeichnet: der Arbeiter (CPU, WebGL2), die Seite (Bilder vom Arbeiter) oder der beschleunigte Weg (WebGPU). */
+  readonly mode: 'worker' | 'main' | 'gpu';
+  /** Beschleunigter Weg: die Grafikkarte. */
+  readonly adapter?: string;
   readonly paused: boolean;
   readonly samples: readonly ChartSample[];
   readonly bubble: BubbleView | null;
@@ -90,4 +93,6 @@ export type WorkerMessage =
   | { readonly type: 'frame'; readonly frame: FrameBuffers; readonly view: View; readonly walls: Walls }
   | { readonly type: 'reply'; readonly id: number; readonly data: ProbeInfo | Record<string, unknown> | null }
   | { readonly type: 'refused'; readonly message: string }
+  /** Beschleunigter Weg: ob WebGPU läuft (sonst zurück zur CPU) und auf welcher Karte. */
+  | { readonly type: 'gpu'; readonly ok: boolean; readonly adapter: string; readonly message: string }
   | { readonly type: 'error'; readonly message: string };

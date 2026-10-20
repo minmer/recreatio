@@ -21,6 +21,8 @@ export interface HostEvents {
   readonly onView: (view: View, walls: Walls) => void;
   readonly onRefused: (message: string) => void;
   readonly onError: (message: string) => void;
+  /** Beschleunigter Weg: läuft WebGPU (sonst kehrt die Oberfläche zur CPU zurück)? */
+  readonly onGpu?: (ok: boolean, adapter: string, message: string) => void;
 }
 
 export class LabHost {
@@ -120,6 +122,9 @@ export class LabHost {
         break;
       case 'error':
         this.events.onError(m.message);
+        break;
+      case 'gpu':
+        this.events.onGpu?.(m.ok, m.adapter, m.message);
         break;
       case 'probe':
         break;
