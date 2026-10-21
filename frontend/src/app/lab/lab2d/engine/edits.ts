@@ -13,17 +13,19 @@ import type { Gas } from './gas';
 import type { Grid } from './grid';
 import type { Heat } from './heat';
 import type { Liquid } from './liquid';
-import { hL, rhoL, solidIndex, SOLIDS } from './materials';
+import { hLiq, liquidIndex, LIQUIDS, rhoLiq, solidIndex, SOLIDS, WATER } from './materials';
 import type { Particles } from './particles';
 import type { Op } from './scene';
 import { bounds, inside, type Region } from './shapes';
 import { GAS_SPECIES, H2O, N2, O2, SOLID, SPECIES_SLOTS, T0 } from './units';
 
-/** Was ein Handgriff bucht: Wasser- und Gasmasse und Energie, die von aussen kamen (negativ: weggenommen). */
+/** Was ein Handgriff bucht: Wasser-, Gas- und andere Flüssigkeitsmasse (Öl) und Energie, die von aussen kamen (negativ: weggenommen). */
 export interface EditLedger {
   water: number;
   air: number;
   energy: number;
+  /** Flüssigkeiten ausser Wasser (kg). */
+  other: number;
 }
 
 export interface World {
@@ -76,13 +78,20 @@ function putGas(w: World, c: number, T: number, Y: Float64Array): void {
   w.ledger.energy += g.Hg[c];
 }
 
+/** Ein Teilchen als Eingriff ausbuchen (Wasser oder eine andere Flüssigkeit) — vor dem Entfernen. */
+function unbook(w: World, p: number): void {
+  const P = w.particles;
+  if (P.mat[p] === WATER) w.ledger.water -= P.mass[p];
+  else w.ledger.other -= P.mass[p];
+  w.ledger.energy -= P.mass[p] * P.h[p];
+}
+
 /** Teilchen und Blasen in einer Fläche entfernen (gebucht). */
 function removeLiquid(w: World, region: Region): void {
   const P = w.particles;
   for (let p = 0; p < P.count; p += 1) {
     if (!inside(region, P.x[p], P.y[p])) continue;
-    w.ledger.water -= P.mass[p];
-    w.ledger.energy -= P.mass[p] * P.h[p];
+    unbook(w, p);
     w.liquid.removeParticle(p);
     p -= 1;
   }
@@ -123,8 +132,7 @@ function makeSolid(w: World, cells: readonly number[], s: number, T: number, hea
   for (let p = 0; p < P.count; p += 1) {
     const c = g.cellAt(P.x[p], P.y[p]);
     if (c < 0 || g.solid[c] === 0) continue;
-    w.ledger.water -= P.mass[p];
-    w.ledger.energy -= P.mass[p] * P.h[p];
+    unbook(w, p);
     w.liquid.removeParticle(p);
     p -= 1;
   }
@@ -180,13 +188,30 @@ export function applyOp(w: World, op: Op): string | null {
         eachCell(g, op.region, (c) => { if (g.solid[c] === 0) putGas(w, c, op.T, Y); });
         return null;
       }
-      /* Flüssigkeit: vorhandene Teilchen und Blasen in der Fläche ersetzen, dann 2 × 2 Teilchen je Zelle. */
+      /*
+       * Flüssigkeit: vorhandene Teilchen und Blasen in der Fläche ersetzen,
+       * dann 2 × 2 Teilchen je Zelle. Die Zusammensetzung nennt Flüssigkeiten
+       * (H2O, oil-rapeseed …) mit Massenanteilen; mehrere unmischbare werden
+       * nach ihren Volumenanteilen gleichmässig verteilt (jedes Teilchen ist
+       * eine von ihnen) — die Schwerkraft trennt sie dann.
+       */
       removeLiquid(w, op.region);
-      const water = op.composition.H2O ?? 0;
-      if (water <= 0) return 'fill: only water is a liquid in M1';
-      const rho = rhoL(op.T);
-      const m = (rho * g.vCell) / 4;
-      const h = hL(op.T);
+      const NL = LIQUIDS.length;
+      const vf = new Float64Array(NL);
+      let vsum = 0;
+      for (const [k, v] of Object.entries(op.composition)) {
+        const l = liquidIndex(k);
+        if (l < 0 || !(v > 0)) continue;
+        vf[l] += v / rhoLiq(l, op.T);
+        vsum += v / rhoLiq(l, op.T);
+      }
+      if (vsum <= 0) return 'fill: no known liquid in the composition';
+      for (let l = 0; l < NL; l += 1) vf[l] /= vsum;
+      const mOf = new Float64Array(NL);
+      const hOf = new Float64Array(NL);
+      for (let l = 0; l < NL; l += 1) { mOf[l] = (rhoLiq(l, op.T) * g.vCell) / 4; hOf[l] = hLiq(l, op.T); }
+      /* Fehlerverteilung: jedes Teilchen nimmt die Flüssigkeit, die ihrem Anteil am weitesten hinterherhinkt. */
+      const due = new Float64Array(NL);
       const P = w.particles;
       let full = false;
       eachCellBox(g, op.region, (i, j) => {
@@ -197,9 +222,14 @@ export function applyOp(w: World, op: Op): string | null {
           const x = (i + 0.25 + 0.5 * a) * g.dx;
           const y = (j + 0.25 + 0.5 * b) * g.dx;
           if (!inside(op.region, x, y)) continue;
-          if (P.add(x, y, m, h, 0) < 0) { full = true; continue; }
+          let l = 0;
+          for (let k = 0; k < NL; k += 1) { due[k] += vf[k]; if (due[k] > due[l]) l = k; }
+          due[l] -= 1;
+          const m = mOf[l];
+          const h = hOf[l];
+          if (P.add(x, y, m, h, l) < 0) { full = true; continue; }
           placed += 1;
-          w.ledger.water += m;
+          if (l === WATER) w.ledger.water += m; else w.ledger.other += m;
           w.ledger.energy += m * h;
         }
         /* Ganz gefüllte Zellen: ihre Luft weicht (gebucht). */
@@ -286,8 +316,7 @@ function moveSolids(w: World, region: Region, di: number, dj: number): void {
     const x = P.x[q] + ox;
     const y = P.y[q] + oy;
     if (x <= 0 || y <= 0 || x >= g.w || y >= g.h) {
-      w.ledger.water -= P.mass[q];
-      w.ledger.energy -= P.mass[q] * P.h[q];
+      unbook(w, q);
       w.liquid.removeParticle(q);
       q -= 1;
       continue;
@@ -341,8 +370,7 @@ function moveSolids(w: World, region: Region, di: number, dj: number): void {
   for (let q = 0; q < P.count; q += 1) {
     const c = g.cellAt(P.x[q], P.y[q]);
     if (c < 0 || g.solid[c] === 0) continue;
-    w.ledger.water -= P.mass[q];
-    w.ledger.energy -= P.mass[q] * P.h[q];
+    unbook(w, q);
     w.liquid.removeParticle(q);
     q -= 1;
   }

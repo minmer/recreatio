@@ -30,7 +30,7 @@ import { Grid } from './grid';
 import { Heat, type Heater } from './heat';
 import { pSat, tSat } from './if97';
 import { Liquid } from './liquid';
-import { AIR_N2, AIR_O2, MOLAR, SOLIDS } from './materials';
+import { AIR_N2, AIR_O2, LIQUIDS, MOLAR, rhoLiq, SOLIDS, WATER } from './materials';
 import { Particles } from './particles';
 import { Phase } from './phase';
 import { Regions } from './regions';
@@ -82,14 +82,18 @@ export interface EngineStats {
   /** Mittlere Wassertemperatur (K, massengewichtet), höchste, Wassermasse. */
   waterT: number;
   waterTmax: number;
+  /** Andere Flüssigkeiten (Öl): Masse (kg) und mittlere Temperatur (K, 0 ohne). */
+  otherMass: number;
+  otherT: number;
   heaters: { group: number; P: number; Tmean: number; mode: HeaterMode; power: number; target: number; on: boolean }[];
   /** Druck p0 je Gebiet (Pa), verschlossen? */
   regions: { p0: number; sealed: boolean; vGas: number }[];
   budget: BudgetSnapshot;
   flows: Flows;
-  /** Abweichung der Energiebilanz (J) und der Wasserbilanz (kg) seit dem Start. */
+  /** Abweichung der Energiebilanz (J), der Wasserbilanz und der Bilanz der anderen Flüssigkeiten (kg) seit dem Start. */
   energyError: number;
   waterError: number;
+  otherError: number;
   /** Erzeugter Dampf (kg/s, gleitendes Mittel) und (P − Verluste)/h_lv als Vergleich. */
   vapourRate: number;
   ambientT: number;
@@ -118,8 +122,10 @@ export interface ProbeInfo {
     v: number;
     heater: boolean;
     film: number;
+    /** Die Flüssigkeiten der Zelle mit ihrem Massenanteil (leer ohne Flüssigkeit). */
+    liquids: { id: string; share: number }[];
   };
-  particle: { id: number; T: number; vx: number; vy: number; mass: number; rho: number; dist: number } | null;
+  particle: { id: number; T: number; vx: number; vy: number; mass: number; rho: number; dist: number; liquid: string } | null;
   bubble: { id: number; r: number; T: number; pb: number; pv: number; Tsat: number; mv: number; ma: number; vx: number; vy: number; dmdt: number; attached: boolean; force: number[] } | null;
 }
 
@@ -153,11 +159,12 @@ export class Engine {
   ambientT = 293.15;
   pRef = 101325;
   /* -- Bilanzen -- */
-  readonly ledger: EditLedger = { water: 0, air: 0, energy: 0 };
+  readonly ledger: EditLedger = { water: 0, air: 0, energy: 0, other: 0 };
   flows: Flows = emptyFlows();
   private readonly snap: BudgetSnapshot = emptySnapshot();
   private energy0 = 0;
   private water0 = 0;
+  private other0 = 0;
   private cappedCount = 0;
   private vapourRate = 0;
   private vapourLast = 0;
@@ -222,6 +229,7 @@ export class Engine {
     this.ledger.water = 0;
     this.ledger.air = 0;
     this.ledger.energy = 0;
+    this.ledger.other = 0;
     this.flows = emptyFlows();
     this.heaterOps.clear();
     this.setAmbientState(scene.ambient.p, scene.ambient.T, scene.ambient.rh, scene.ambient.g, scene.ambient.air.N2, scene.ambient.air.O2);
@@ -240,9 +248,11 @@ export class Engine {
     this.ledger.water = 0;
     this.ledger.air = 0;
     this.ledger.energy = 0;
+    this.ledger.other = 0;
     this.measureBudget();
     this.energy0 = this.snap.energy;
     this.water0 = this.snap.water.total;
+    this.other0 = this.snap.other.total;
   }
 
   /** Nach Aufbau und Werkzeugen: Gewichte, Volumenanteile, Arten und abgeleitete Grössen ohne Zeitschritt bestimmen. */
@@ -444,6 +454,7 @@ export class Engine {
     liquid.step(dt, this.gy, this.tol, this.maxIter);
     liquid.computeHeatWeights();
     this.flows.escapedWater += liquid.last.escapedMass;
+    this.flows.escapedOther += liquid.last.escapedOther;
     this.flows.escapedEnergy += liquid.last.escapedEnergy;
     stamp[2] = now();
 
@@ -537,6 +548,7 @@ export class Engine {
     f.editEnergy = this.ledger.energy;
     f.editWater = this.ledger.water;
     f.editAir = this.ledger.air;
+    f.editOther = this.ledger.other;
     return measure(this.grid, this.particles, this.bubbles, this.regions, this.flows, this.snap);
   }
 
@@ -553,6 +565,12 @@ export class Engine {
     return s.water.total - this.water0 - this.flows.editWater;
   }
 
+  /** Abweichung der Bilanz der anderen Flüssigkeiten (Öl) seit dem Start (kg) — sie verdampfen nicht, ihre Masse bleibt genau. */
+  otherError(): number {
+    const s = this.measureBudget();
+    return s.other.total - this.other0 - this.flows.editOther;
+  }
+
   /* -- Fragen ---------------------------------------------------------------------------------------- */
 
   /** Mittlere Wassertemperatur (massengewichtet, K), höchste und Masse. */
@@ -562,11 +580,25 @@ export class Engine {
     let mt = 0;
     let max = 0;
     for (let p = 0; p < P.count; p += 1) {
+      if (P.mat[p] !== WATER) continue;
       m += P.mass[p];
       mt += P.mass[p] * P.T[p];
       if (P.T[p] > max) max = P.T[p];
     }
     return { mean: m > 0 ? mt / m : 0, max, mass: m };
+  }
+
+  /** Mittlere Temperatur (K) und Masse der anderen Flüssigkeiten (Öl). */
+  otherTemperature(): { mean: number; mass: number } {
+    const P = this.particles;
+    let m = 0;
+    let mt = 0;
+    for (let p = 0; p < P.count; p += 1) {
+      if (P.mat[p] === WATER) continue;
+      m += P.mass[p];
+      mt += P.mass[p] * P.T[p];
+    }
+    return { mean: m > 0 ? mt / m : 0, mass: m };
   }
 
   /** Absoluter Druck in Zelle c (Pa). */
@@ -620,15 +652,38 @@ export class Engine {
         x: xs,
         rh: kind === 'gas' ? pv / pSat(g.T[c]) : 0,
         fog: kind === 'gas' ? g.mfog[c] / Math.max(1e-12, this.gas.vgas[c]) : 0,
-        rho: kind === 'gas' ? this.gas.rho[c] : kind === 'liquid' ? this.liquid.rhoRef : g.solid[c] !== 0 ? SOLIDS[g.solid[c] - 1].rho : 0,
+        rho: kind === 'gas' ? this.gas.rho[c] : kind === 'liquid' ? (this.phase.mixed ? rhoLiq(this.phase.host[c], T) : this.liquid.rhoRef) : g.solid[c] !== 0 ? SOLIDS[g.solid[c] - 1].rho : 0,
         phi: g.phi[c],
         u, v,
         heater: g.role[c] === 1,
-        film: g.film[c]
+        film: g.film[c],
+        liquids: this.liquidsAt(c)
       },
-      particle: best < 0 ? null : { id: P.id[best], T: P.T[best], vx: P.vx[best], vy: P.vy[best], mass: P.mass[best], rho: P.rho[best], dist: Math.sqrt(bd) },
+      particle: best < 0 ? null : { id: P.id[best], T: P.T[best], vx: P.vx[best], vy: P.vy[best], mass: P.mass[best], rho: P.rho[best], dist: Math.sqrt(bd), liquid: LIQUIDS[P.mat[best]]?.id ?? LIQUIDS[0].id },
       bubble: bb < 0 ? null : this.bubbleModel.describe(bb)
     };
+  }
+
+  /** Die Flüssigkeiten einer Zelle mit ihrem Massenanteil — aus den Teilchen, deren Wärmegewicht in die Zelle fällt. */
+  liquidsAt(c: number): { id: string; share: number }[] {
+    const { particles: P, liquid: L, grid: g } = this;
+    const m = new Float64Array(LIQUIDS.length);
+    let all = 0;
+    for (let p = 0; p < P.count; p += 1) {
+      for (let k = 0; k < 9; k += 1) {
+        const w = L.wt[9 * p + k];
+        if (w === 0) continue;
+        const i = L.bi[p] + (k % 3);
+        const j = L.bj[p] + ((k / 3) | 0);
+        if (i < 0 || j < 0 || i >= g.nx || j >= g.ny || i + j * g.nx !== c) continue;
+        m[P.mat[p]] += w * P.mass[p];
+        all += w * P.mass[p];
+      }
+    }
+    if (all <= 0) return [];
+    const out: { id: string; share: number }[] = [];
+    for (let l = 0; l < LIQUIDS.length; l += 1) if (m[l] > 0) out.push({ id: LIQUIDS[l].id, share: m[l] / all });
+    return out;
   }
 
   stats(): EngineStats {
@@ -637,10 +692,12 @@ export class Engine {
     let gasCells = 0;
     for (let c = 0; c < g.n; c += 1) { if (g.kind[c] === LIQUID) liquidCells += 1; else if (g.kind[c] === GAS) gasCells += 1; }
     const wt = this.waterTemperature();
+    const ot = this.otherTemperature();
     const budget = this.measureBudget();
     const f = this.flows;
     const energyError = budget.energy - this.energy0 - (f.heater - f.lossWalls - f.lossOpen - f.escapedEnergy + f.editEnergy);
     const waterError = budget.water.total - this.water0 - f.editWater;
+    const otherError = budget.other.total - this.other0 - f.editOther;
     const produced = this.phase.produced + this.bubbleModel.burstVapour;
     const span = this.time - this.vapourLast;
     if (span > 0.2) {
@@ -672,12 +729,15 @@ export class Engine {
       capped: this.cappedCount,
       waterT: wt.mean,
       waterTmax: wt.max,
+      otherMass: ot.mass,
+      otherT: ot.mean,
       heaters: this.heat.heaters.filter((h: Heater) => h.cells > 0).map((h: Heater) => ({ group: h.group, P: h.P, Tmean: h.Tmean, mode: h.mode, power: h.power, target: h.target, on: h.on })),
       regions,
-      budget: { ...budget, water: { ...budget.water } },
+      budget: { ...budget, water: { ...budget.water }, other: { ...budget.other } },
       flows: { ...f },
       energyError,
       waterError,
+      otherError,
       vapourRate: this.vapourRate,
       ambientT: this.ambientT,
       ambientP: this.pRef,

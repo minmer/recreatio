@@ -18,7 +18,7 @@
  */
 
 import { rhoVapourSatFast, tSat } from './if97';
-import { MOLAR, sigma } from './materials';
+import { MOLAR, sigmaLiq, WATER } from './materials';
 import { H2O, N2, O2, R_GAS, SPECIES_SLOTS } from './units';
 
 /**
@@ -71,9 +71,10 @@ function areas(V: number, r: number, D: number, out: BubbleShape): void {
 /**
  * Den Zustand einer Blase lösen: Massen m (je Gasart, kg) und Druck der
  * Flüssigkeit pl (Pa, absolut); Tl: Temperatur der Flüssigkeit (für eine
- * Blase ohne Dampf); rGuess: der letzte Radius.
+ * Blase ohne Dampf); rGuess: der letzte Radius; host: die Flüssigkeit um die
+ * Blase (ihre Oberflächenspannung im Laplace-Druck).
  */
-export function solveBubble(m: Float64Array, o: number, pl: number, Tl: number, D: number, rGuess: number, out: BubbleShape): void {
+export function solveBubble(m: Float64Array, o: number, pl: number, Tl: number, D: number, rGuess: number, out: BubbleShape, host = WATER): void {
   const mv = m[o + H2O];
   const na = m[o + N2] / MOLAR[N2] + m[o + O2] / MOLAR[O2];
   const nv = mv / MOLAR[H2O];
@@ -83,7 +84,7 @@ export function solveBubble(m: Float64Array, o: number, pl: number, Tl: number, 
   let Tb = Tl;
   let V = 0;
   for (let it = 0; it < 8; it += 1) {
-    pb = pl + (2 * sigma(Tb)) / r;
+    pb = pl + (2 * sigmaLiq(host, Tb)) / r;
     if (na <= 0) {
       pv = pb;
       Tb = tSat(pv);
@@ -118,7 +119,7 @@ export function solveBubble(m: Float64Array, o: number, pl: number, Tl: number, 
   }
   out.r = r;
   out.V = V;
-  out.pb = pl + (2 * sigma(Tb)) / r;
+  out.pb = pl + (2 * sigmaLiq(host, Tb)) / r;
   out.pv = pv;
   out.Tb = Tb;
   areas(V, r, D, out);

@@ -1,0 +1,198 @@
+/*
+ * KAZANIA (2026-10-21) — der Plan als Weg, die Wygłoszenia mit dem, was
+ * gesagt und was ausgelassen wurde, das Archiv mit Aspekten (Filter, Tabelle,
+ * Baum); im Arbeitsplatz der Plan zum Tippen und „co z planu". Nach
+ * `library.css`: es baut auf dessen Klassen auf (lib-chip, lib-meta, …).
+ */
+
+/* -- Der Plan auf der Seite: Stationen der Reihe nach -- */
+
+.lib-plan { display: grid; gap: var(--wk-space-2); }
+.lib-plan-legend { margin: 0; font-family: var(--wk-font); font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.lib-plan-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); }
+.lib-point { display: grid; grid-template-columns: 2.75rem minmax(0, 1fr); gap: var(--wk-space-2); align-items: start; }
+.lib-point-no { font-family: var(--wk-font); font-size: var(--wk-text-sm); font-weight: 600; color: var(--wk-accent); font-variant-numeric: tabular-nums; padding-top: 0.2em; text-align: right; }
+.lib-point-body { display: grid; gap: var(--wk-space-1); min-width: 0; }
+.lib-point-body > p { margin: 0; }
+.lib-plan-list > .lib-point.is-d0 { padding-top: var(--wk-space-2); border-top: 1px solid var(--wk-line); }
+.lib-plan-list > .lib-point.is-d0:first-child { border-top: 0; padding-top: 0; }
+.lib-point.is-d0 > .lib-point-body > p:first-of-type { font-weight: 600; }
+.lib-point.is-d1 { margin-left: 1.5rem; }
+.lib-point.is-d2 { margin-left: 3rem; }
+.lib-point.is-d1 .lib-point-body, .lib-point.is-d2 .lib-point-body { font-size: var(--wk-text-md); }
+.lib-point-kind { justify-self: start; font-family: var(--wk-font); font-size: var(--wk-text-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--wk-muted); }
+.lib-point .lib-embed { padding: var(--wk-space-3) var(--wk-space-4); }
+
+/* Ein gewähltes Wygłoszenie auf dem Plan: was gesagt, was nur gestreift, was ausgelassen wurde. */
+.lib-plan.is-marked .lib-point.is-skipped .lib-point-body > :not(.lib-mark) { opacity: 0.5; }
+.lib-plan.is-marked .lib-point.is-open .lib-point-body > :not(.lib-mark) { opacity: 0.75; }
+.lib-mark { margin: 0; display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-2); align-items: baseline; font-family: var(--wk-font); font-size: var(--wk-text-sm); }
+.lib-mark-state { font-weight: 600; padding: 0 var(--wk-space-2); border-radius: var(--wk-radius-pill); }
+.lib-mark.is-said .lib-mark-state { background: var(--wk-ok-soft); color: var(--wk-ok); }
+.lib-mark.is-short .lib-mark-state { background: var(--wk-warn-soft); color: var(--wk-warn); }
+.lib-mark.is-skipped .lib-mark-state { background: var(--wk-danger-soft); color: var(--wk-danger); }
+.lib-mark.is-added .lib-mark-state { background: var(--wk-info-soft); color: var(--wk-info); }
+.lib-mark-time { font: inherit; font-variant-numeric: tabular-nums; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-accent); padding: 0 var(--wk-space-2); cursor: pointer; }
+button.lib-mark-time:hover { border-color: var(--wk-accent); }
+button.lib-mark-time:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+span.lib-mark-time { cursor: default; color: var(--wk-muted); }
+.lib-mark-note { color: var(--wk-muted); font-style: italic; }
+.lib-added .lib-point-no { color: var(--wk-info); }
+.lib-added .lib-point-body { padding: var(--wk-space-2) var(--wk-space-3); border: 1px dashed var(--wk-info); border-radius: var(--wk-radius-sm); background: var(--wk-info-soft); }
+
+/* -- Die Wygłoszenia eines Textes -- */
+
+.lib-deliveries { display: grid; gap: var(--wk-space-2); }
+.lib-delivery-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); }
+.lib-delivery-list > li { border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); overflow: hidden; }
+.lib-delivery-list > li.is-on { border-color: var(--wk-accent); }
+.lib-delivery { font: inherit; font-family: var(--wk-font); width: 100%; text-align: left; display: grid; gap: 0.125rem; padding: var(--wk-space-2) var(--wk-space-3); border: 0; background: none; color: var(--wk-ink); cursor: pointer; }
+.lib-delivery:hover { background: var(--wk-soft); }
+.lib-delivery:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.lib-delivery-when { font-weight: 600; }
+.lib-delivery-meta, .lib-delivery-counts { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.lib-delivery-act { font-size: var(--wk-text-sm); color: var(--wk-accent); }
+.lib-delivery-open { display: grid; gap: var(--wk-space-2); padding: 0 var(--wk-space-3) var(--wk-space-3); }
+.lib-delivery-summary { margin: 0; font-size: var(--wk-text-md); }
+.lib-delivery-added { margin: 0; padding-left: 1.25rem; font-size: var(--wk-text-md); }
+.lib-transcript summary { cursor: pointer; font-family: var(--wk-font); font-size: var(--wk-text-sm); color: var(--wk-accent); }
+.lib-transcript[open] { display: grid; gap: var(--wk-space-2); }
+.lib-transcript .lib-body { font-size: var(--wk-text-md); }
+.lib-body-part { display: grid; gap: var(--wk-space-3); padding-top: var(--wk-space-4); border-top: 1px solid var(--wk-line); }
+.lib-chip-aspect { color: var(--wk-muted); margin-right: 0.25em; }
+.lib-chip.is-on .lib-chip-aspect { color: inherit; opacity: 0.8; }
+.lib-teaser-plan { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.125rem; font-size: var(--wk-text-sm); }
+.lib-print { display: flex; flex-wrap: wrap; gap: var(--wk-space-3); margin: 0; }
+
+/* -- Das Archiv: Suche, Filter je Aspekt, Lista · Tabela · Drzewo -- */
+
+.lib-browse { gap: var(--wk-space-3); }
+.lib-browse-bar { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); align-items: center; }
+.lib-browse-bar .lib-archive-search { flex: 1 1 14rem; }
+.lib-filters { display: flex; flex-wrap: wrap; gap: var(--wk-space-2) var(--wk-space-3); }
+.lib-filter { display: grid; gap: 0.125rem; font-family: var(--wk-font); font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.lib-filter select { box-sizing: border-box; font: inherit; font-size: var(--wk-text-sm); color: var(--wk-ink); padding: 0.25rem 2rem 0.25rem 0.5rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs); background-color: var(--wk-surface); max-width: 16rem; }
+.lib-chosen { margin: 0; display: flex; flex-wrap: wrap; gap: var(--wk-space-1); align-items: center; }
+.lib-chosen .lib-chip-x { color: inherit; }
+.lib-results-bar { display: flex; flex-wrap: wrap; gap: var(--wk-space-2) var(--wk-space-3); align-items: center; justify-content: space-between; }
+.lib-results { margin: 0; font-family: var(--wk-font); font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.lib-order { display: inline-flex; gap: var(--wk-space-1); align-items: center; font-family: var(--wk-font); font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.lib-order select { box-sizing: border-box; font: inherit; font-size: var(--wk-text-sm); color: var(--wk-ink); padding: 0.125rem 1.75rem 0.125rem 0.375rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs); background-color: var(--wk-surface); }
+.lib-year { font-family: var(--wk-font); font-size: var(--wk-text-xs); font-weight: 600; letter-spacing: 0.08em; color: var(--wk-muted); padding: var(--wk-space-3) var(--wk-space-2) 0; }
+.lib-archive-entry { display: grid; gap: 0.125rem; }
+.lib-archive-entry .lib-topics { padding: 0 var(--wk-space-2) var(--wk-space-2); }
+.lib-archive-entry .lib-chip { cursor: pointer; }
+.lib-archive-entry .lib-chip:hover { border-color: var(--wk-accent); }
+
+.lib-table-wrap { overflow-x: auto; }
+.lib-table { border-collapse: collapse; width: 100%; font-family: var(--wk-font); font-size: var(--wk-text-sm); }
+.lib-table th, .lib-table td { text-align: left; vertical-align: top; padding: var(--wk-space-2); border-bottom: 1px solid var(--wk-line); }
+.lib-table th { white-space: nowrap; color: var(--wk-muted); font-weight: 600; }
+.lib-table th button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+.lib-table th button:hover { color: var(--wk-accent); }
+.lib-table-title { font: inherit; font-size: var(--wk-text-md); font-weight: 600; text-align: left; border: 0; background: none; padding: 0; color: var(--wk-ink); cursor: pointer; }
+.lib-table-title:hover { color: var(--wk-accent); text-decoration: underline; }
+.lib-table-sub { display: block; color: var(--wk-muted); }
+.lib-table-date { white-space: nowrap; }
+.lib-cell-chip { font: inherit; border: 0; background: none; padding: 0; color: var(--wk-ink); cursor: pointer; text-align: left; }
+.lib-cell-chip + .lib-cell-chip::before { content: ', '; color: var(--wk-muted); }
+.lib-cell-chip:hover { color: var(--wk-accent); text-decoration: underline; }
+/* Wąsko (telefon, wąski kafelek): wiersz tabeli staje się kartką — każda wartość z nazwą swojego aspektu. */
+@container (max-width: 36rem) {
+  .lib-table thead { display: none; }
+  .lib-table, .lib-table tbody, .lib-table tr, .lib-table td { display: block; }
+  .lib-table tr { padding: var(--wk-space-2) 0; border-bottom: 1px solid var(--wk-line); }
+  .lib-table td { border: 0; padding: 0.125rem var(--wk-space-2); }
+  .lib-table td:empty { display: none; }
+  .lib-table td[data-label]::before { content: attr(data-label) ": "; color: var(--wk-muted); }
+  .lib-table-date { white-space: normal; }
+  .lib-table-date .lib-table-sub { display: inline; margin-left: var(--wk-space-1); }
+}
+
+.lib-tree-layout { display: grid; gap: var(--wk-space-4); align-items: start; }
+@container (min-width: 44rem) { .lib-tree-layout { grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr); } }
+.lib-tree { display: grid; gap: var(--wk-space-2); font-family: var(--wk-font); font-size: var(--wk-text-sm); }
+.lib-tree-tabs { display: flex; flex-wrap: wrap; gap: var(--wk-space-1); }
+.lib-tree-tabs .lib-chip { cursor: pointer; }
+.lib-tree-list, .lib-tree-list ul { list-style: none; margin: 0; padding: 0; }
+.lib-tree-list ul { padding-left: 1.1rem; }
+.lib-node { display: flex; align-items: baseline; gap: var(--wk-space-1); padding: 0.125rem 0; }
+.lib-twist { font: inherit; width: 1.25rem; flex: none; border: 0; background: none; color: var(--wk-muted); cursor: pointer; padding: 0; text-align: center; }
+span.lib-twist { cursor: default; }
+.lib-node-name { font: inherit; border: 0; background: none; padding: 0.125rem 0.375rem; border-radius: var(--wk-radius-xs); color: var(--wk-ink); cursor: pointer; text-align: left; }
+.lib-node-name:hover { background: var(--wk-soft); }
+.lib-node.is-on .lib-node-name { background: var(--wk-accent); color: var(--wk-on-accent); }
+.lib-node-count { margin-left: auto; color: var(--wk-muted); font-variant-numeric: tabular-nums; }
+.lib-tree-results { display: grid; gap: var(--wk-space-2); min-width: 0; }
+
+/* -- Im Arbeitsplatz: der Plan zum Tippen -- */
+
+.lib-plan-edit { display: grid; gap: var(--wk-space-2); min-width: 0; align-content: start; }
+.lib-plan-empty { display: grid; gap: var(--wk-space-2); justify-items: start; padding: var(--wk-space-3); border: 1px dashed var(--wk-line); border-radius: var(--wk-radius-sm); }
+.lib-plan-empty p { margin: 0; color: var(--wk-muted); }
+.lib-plan-edit-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); }
+.lib-plan-edit-row { display: grid; grid-template-columns: 2.5rem 7.5rem minmax(0, 1fr); gap: var(--wk-space-2); align-items: start; padding: var(--wk-space-1); border-radius: var(--wk-radius-xs); }
+.lib-plan-edit-row.is-focus { background: var(--wk-soft); }
+.lib-plan-edit-row.is-d1 { margin-left: 1.5rem; }
+.lib-plan-edit-row.is-d2 { margin-left: 3rem; }
+.lib-plan-edit-row .lib-point-no { padding-top: 0.45rem; }
+.lib-plan-kind { box-sizing: border-box; font: inherit; font-size: var(--wk-text-sm); padding: 0.375rem 1.75rem 0.375rem 0.375rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs); background-color: var(--wk-surface); color: var(--wk-ink); }
+.lib-plan-edit-body { display: grid; gap: var(--wk-space-1); min-width: 0; }
+.lib-plan-text { box-sizing: border-box; font: inherit; width: 100%; resize: none; overflow: hidden; padding: 0.375rem 0.5rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs); background: var(--wk-surface); color: var(--wk-ink); line-height: 1.5; }
+.lib-plan-edit-row.is-d0 .lib-plan-text { font-weight: 600; }
+.lib-plan-text:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.lib-plan-note { display: grid; gap: 0.125rem; font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.lib-plan-note input { box-sizing: border-box; font: inherit; font-size: var(--wk-text-sm); padding: 0.25rem 0.5rem; border: 1px dashed var(--wk-line); border-radius: var(--wk-radius-xs); background: var(--wk-surface); color: var(--wk-ink); }
+.lib-plan-keys { font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.lib-plan-paste { box-sizing: border-box; font: inherit; width: 100%; padding: 0.5rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs); background: var(--wk-surface); color: var(--wk-ink); }
+@container (max-width: 34rem) {
+  .lib-plan-edit-row { grid-template-columns: 2rem minmax(0, 1fr); }
+  .lib-plan-kind { grid-column: 2; justify-self: start; }
+  .lib-plan-edit-body { grid-column: 1 / -1; }
+  .lib-plan-edit-row.is-d1 { margin-left: 0.75rem; }
+  .lib-plan-edit-row.is-d2 { margin-left: 1.5rem; }
+}
+
+/* -- Im Arbeitsplatz: ein Wygłoszenie -- */
+
+.lib-delivery-form { display: grid; gap: var(--wk-space-4); min-width: 0; }
+.lib-cover { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.lib-cover .wk-h2 { margin: 0; }
+.lib-cover-lead { margin: 0; color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.lib-cover-text-block { display: grid; gap: var(--wk-space-2); }
+.lib-cover-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); }
+.lib-cover-row { display: grid; grid-template-columns: 2.5rem auto minmax(0, 1fr) auto; gap: var(--wk-space-1) var(--wk-space-2); align-items: center; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs); background: var(--wk-surface); }
+.lib-cover-row.is-d1 { margin-left: 1.25rem; }
+.lib-cover-row.is-d2 { margin-left: 2.5rem; }
+.lib-cover-row.is-said { border-left: 4px solid var(--wk-ok); }
+.lib-cover-row.is-short { border-left: 4px solid var(--wk-warn); }
+.lib-cover-row.is-skipped { border-left: 4px solid var(--wk-danger); }
+.lib-cover-row.is-skipped .lib-cover-point { color: var(--wk-muted); }
+.lib-cover-point { grid-column: 2 / 4; min-width: 0; overflow-wrap: anywhere; }
+.lib-cover-states { grid-column: 4; flex-wrap: wrap; }
+.lib-cover-row > .lib-cover-time { grid-column: 2; }
+.lib-cover-states .wk-seg-opt.is-said { background: var(--wk-ok-soft); color: var(--wk-ok); }
+.lib-cover-states .wk-seg-opt.is-short { background: var(--wk-warn-soft); color: var(--wk-warn); }
+.lib-cover-states .wk-seg-opt.is-skipped { background: var(--wk-danger-soft); color: var(--wk-danger); }
+.lib-cover-time { display: inline-flex; gap: var(--wk-space-1); align-items: center; }
+.lib-cover-time input { box-sizing: border-box; font: inherit; width: 5rem; padding: 0.25rem 0.5rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs); background: var(--wk-surface); color: var(--wk-ink); font-variant-numeric: tabular-nums; }
+.lib-cover-note { box-sizing: border-box; grid-column: 3 / -1; font: inherit; font-size: var(--wk-text-sm); padding: 0.25rem 0.5rem; border: 1px dashed var(--wk-line); border-radius: var(--wk-radius-xs); background: var(--wk-surface); color: var(--wk-ink); }
+@container (max-width: 40rem) {
+  .lib-cover-row { grid-template-columns: 2rem minmax(0, 1fr); }
+  .lib-cover-point, .lib-cover-states, .lib-cover-row > .lib-cover-time, .lib-cover-note { grid-column: 2; }
+  .lib-cover-row.is-d1, .lib-cover-row.is-d2 { margin-left: 0.5rem; }
+}
+.lib-added-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); }
+.lib-added-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--wk-space-1) var(--wk-space-2); align-items: start; padding: var(--wk-space-2); border: 1px dashed var(--wk-info); border-radius: var(--wk-radius-xs); background: var(--wk-info-soft); }
+.lib-added-row textarea { box-sizing: border-box; grid-column: 1 / -1; font: inherit; width: 100%; padding: 0.375rem 0.5rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs); background: var(--wk-surface); color: var(--wk-ink); }
+.lib-added-row select { justify-self: start; box-sizing: border-box; font: inherit; font-size: var(--wk-text-sm); max-width: 100%; padding: 0.25rem 1.75rem 0.25rem 0.375rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs); background-color: var(--wk-surface); color: var(--wk-ink); }
+
+/* -- Themen Achse für Achse; der Baum der Themen in der Bibliothek -- */
+
+.lib-aspect-pick { display: grid; gap: var(--wk-space-2); }
+.lib-aspect-row { display: grid; gap: 0.125rem; }
+.lib-aspect-name { font-size: var(--wk-text-xs); font-weight: 600; letter-spacing: 0.04em; color: var(--wk-muted); }
+.lib-topic-row.is-d1 .lib-row { padding-left: 1.5rem; }
+.lib-topic-row.is-d2 .lib-row { padding-left: 2.75rem; }
+.lib-topic-row.is-d3 .lib-row, .lib-topic-row.is-d4 .lib-row { padding-left: 4rem; }
+.lib-badge.is-aspect { background: var(--wk-accent-soft); color: var(--wk-accent); box-shadow: inset 0 0 0 1px var(--wk-accent); }

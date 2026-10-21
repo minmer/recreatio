@@ -10,7 +10,7 @@
  */
 
 import { readRegion, writeRegion, type Region } from './shapes';
-import { solidIndex } from './materials';
+import { liquidIndex, solidIndex } from './materials';
 import { G0, P_ATM, T0 } from './units';
 
 export const SCENE_FORMAT = 'recreatio/lab2d';
@@ -98,7 +98,17 @@ function readOp(raw: unknown, warnings: string[], at: number): Op | null {
     case 'fill': {
       const region = readRegion(r.region);
       if (region === null) break;
-      return { op: 'fill', region, phase: r.phase === 'gas' ? 'gas' : 'liquid', T, composition: readComposition(r.composition) };
+      const phase = r.phase === 'gas' ? 'gas' : 'liquid';
+      /* Bekannte Stoffe behalten: Flüssigkeiten der Datenbank (H2O, oil-rapeseed …), Gase N2, O2, H2O. */
+      const raw = readComposition(r.composition);
+      const known = (k: string): boolean => (phase === 'gas' ? k === 'N2' || k === 'O2' || k === 'H2O' : liquidIndex(k) >= 0);
+      const kept: Record<string, number> = {};
+      for (const [k, v] of Object.entries(raw)) {
+        if (known(k)) kept[k] = v;
+        else warnings.push(`ops[${at}]: unknown ${phase} "${k}" dropped`);
+      }
+      const composition = Object.keys(kept).length > 0 ? readComposition(kept) : phase === 'gas' ? { N2: 0.7676, O2: 0.2324 } : { H2O: 1 };
+      return { op: 'fill', region, phase, T, composition };
     }
     case 'erase': {
       const region = readRegion(r.region);

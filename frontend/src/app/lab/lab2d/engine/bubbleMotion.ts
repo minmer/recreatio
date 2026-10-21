@@ -14,7 +14,7 @@
 
 import { FORCE_SLOTS } from './bubbles';
 import type { Engine } from './engine';
-import { muL, sigma } from './materials';
+import { muLiq, rhoLiq, sigmaLiq } from './materials';
 
 /** Virtuelle Masse einer Kugel (Prompt v2: C_A = ½). */
 const C_A = 0.5;
@@ -57,8 +57,10 @@ export class BubbleMotion {
     }
     const cc = g.cellAt(x, y);
     const Tl = cc >= 0 && e.phase.Cl[cc] > 0 ? e.phase.Tl[cc] : B.Tb[b];
-    const rhol = L.rhoRef;
-    const mul = muL(Tl);
+    /* Die Flüssigkeit um die Blase: mit nur Wasser die mittlere Dichte (wie in M1), mit mehreren Flüssigkeiten die der vorherrschenden. */
+    const hm = cc >= 0 ? e.phase.host[cc] : 0;
+    const rhol = e.phase.mixed ? rhoLiq(hm, Tl) : L.rhoRef;
+    const mul = muLiq(hm, Tl);
     const rhov = B.totalMass(b) / Math.max(1e-30, V);
     const dux = (ux - this.ux0[b]) / Math.max(h, 1e-6);
     const duy = (uy - this.uy0[b]) / Math.max(h, 1e-6);
@@ -77,7 +79,7 @@ export class BubbleMotion {
     const slip = Math.hypot(rx, ry);
     const d = 2 * r;
     const Re = Math.max(1e-6, (rhol * slip * d) / mul);
-    const Eo = (Math.max(0, e.gy) * (rhol - rhov) * d * d) / sigma(Tl);
+    const Eo = (Math.max(0, e.gy) * (rhol - rhov) * d * d) / sigmaLiq(hm, Tl);
     /* Tomiyama et al. (1998), verunreinigtes Wasser. */
     const CD = Math.max((24 / Re) * (1 + 0.15 * Math.pow(Re, 0.687)), (8 / 3) * (Eo / (Eo + 4)));
     const K = 0.5 * CD * rhol * this.front(b) * slip;

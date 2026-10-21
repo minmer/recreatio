@@ -1,0 +1,1 @@
+import{j as a}from"./vendor-BMOWVYiU.js";function i({now:s,options:l,busy:t,onPick:r}){return a.jsx("div",{className:"wk-seg",role:"group",children:l.map(e=>a.jsx("button",{type:"button","aria-pressed":e.value===s,className:e.value===s?"wk-seg-opt wk-seg-on":"wk-seg-opt",disabled:t||e.value===s,onClick:()=>r(e.value),children:e.label},e.value))})}export{i as S};

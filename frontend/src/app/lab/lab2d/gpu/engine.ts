@@ -560,7 +560,9 @@ export class GpuEngine {
     const budget = this.budget();
     const flows = {
       heater: t.heater, lossWalls: t.lossWalls, lossOpen: t.lossOpen, escapedEnergy: t.escapedEnergy, editEnergy: e.ledger.energy,
-      escapedWater: t.escapedWater, escapedAir: t.escapedAir, editWater: e.ledger.water, editAir: e.ledger.air
+      escapedWater: t.escapedWater, escapedAir: t.escapedAir, editWater: e.ledger.water, editAir: e.ledger.air,
+      /* Andere Flüssigkeiten kennt der beschleunigte Weg noch nicht (er lehnt solche Szenen ab). */
+      escapedOther: 0, editOther: e.ledger.other
     };
     const e0 = this.energy0 ?? budget.energy;
     const w0 = this.water0 ?? budget.water.total;
@@ -593,12 +595,15 @@ export class GpuEngine {
       capped: t.capped,
       waterT: r?.waterT ?? 0,
       waterTmax: r?.waterTmax ?? 0,
+      otherMass: 0,
+      otherT: 0,
       heaters,
       regions: (r?.regions ?? []).map((q) => ({ p0: q.p0, sealed: q.sealed, vGas: q.vGas })),
       budget,
       flows,
       energyError,
       waterError,
+      otherError: 0,
       vapourRate: this.vapourRate,
       ambientT: e.ambientT,
       ambientP: e.pRef,
@@ -620,7 +625,7 @@ export class GpuEngine {
       liquid: r?.liquidMass ?? 0, vapour: r?.vapour ?? 0, fog: r?.fog ?? 0, film: r?.film ?? 0, bubbles: r?.bubWater ?? 0, escaped: t.escapedWater,
       total: (r?.liquidMass ?? 0) + (r?.vapour ?? 0) + (r?.fog ?? 0) + (r?.film ?? 0) + (r?.bubWater ?? 0) + t.escapedWater
     };
-    return { energy: solids + liquid + gas + bubbles + pv, solids, liquid, gas, bubbles, pv, water, air: (r?.air ?? 0) + (r?.bubAir ?? 0) + t.escapedAir };
+    return { energy: solids + liquid + gas + bubbles + pv, solids, liquid, gas, bubbles, pv, water, other: { liquid: 0, escaped: 0, total: 0 }, air: (r?.air ?? 0) + (r?.bubAir ?? 0) + t.escapedAir };
   }
 
   /** Neue Szene: Gesamtsummen, Bezugswerte, Schreiber von vorn. */

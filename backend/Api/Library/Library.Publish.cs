@@ -230,6 +230,162 @@ public static partial class Library
         }
     }
 
+    /* -- Das Archiv durchsuchen (2026-10-21) ------------------------------------------------- */
+
+    private const int MaxGroups = 8;
+    private const int MaxGroupIds = 200;
+    private const int MaxFilterIds = 400;
+    private const int MaxCounts = 5000;
+
+    /// <summary>
+    /// Die Filter einer Seite: je <c>ref</c> eine Gruppe von Kennungen, durch
+    /// Kommas getrennt — innerhalb einer Gruppe ODER, zwischen den Gruppen UND
+    /// („Adwent oder Wielki Post" und „Ewangelia Jana"). Leere Gruppen zählen
+    /// nicht. <c>null</c> mit einem Satz, wenn etwas nicht passt.
+    /// </summary>
+    public static List<List<Guid>>? ParseGroups(IEnumerable<string?>? refs, out string? error)
+    {
+        error = null;
+        var groups = new List<List<Guid>>();
+        var total = 0;
+        foreach (var raw in refs ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            var group = new List<Guid>();
+            foreach (var part in raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (!Guid.TryParse(part, out var one)) { error = "Nieczytelne odwołanie."; return null; }
+                if (!group.Contains(one)) group.Add(one);
+            }
+            if (group.Count == 0) continue;
+            if (group.Count > MaxGroupIds) { error = $"Najwyżej {MaxGroupIds} wartości w jednym filtrze."; return null; }
+            total += group.Count;
+            groups.Add(group);
+        }
+        if (groups.Count > MaxGroups) { error = $"Najwyżej {MaxGroups} filtrów naraz."; return null; }
+        if (total > MaxFilterIds) { error = $"Najwyżej {MaxFilterIds} wartości we wszystkich filtrach."; return null; }
+        return groups;
+    }
+
+    /// <summary>Wonach geordnet wird: <c>sort</c> (Datum und Titel, wie der Browser ihn baut), <c>key</c> (der Schlüssel — fast der Titel); <c>-</c> rückwärts. <c>null</c>: unbekannt.</summary>
+    public static string? BrowseOrder(string? order) => (order ?? "") switch
+    {
+        "" or "sort" => "e.public_sort",
+        "-sort" => "e.public_sort DESC",
+        "key" => "e.public_key",
+        "-key" => "e.public_key DESC",
+        _ => null
+    };
+
+    /// <summary>
+    /// DAS ARCHIV EINER SEITE — viele Predigten, geordnet nach Aspekten. Wie
+    /// <see cref="PublishedListAsync"/>, aber mit mehreren Filtern zugleich
+    /// (<see cref="ParseGroups"/>) und, auf Wunsch, wie viele der gefundenen
+    /// Einträge auf jedes Ziel zeigen (<c>counts</c>): daraus macht die Seite
+    /// „Adwent (12)" im Baum und in der Auswahl. Der Dienst kennt dafür weder
+    /// Themen noch Aspekte — nur die offenen Verweise, die der Browser beim
+    /// Veröffentlichen schrieb (ein Thema samt denen darüber).
+    /// </summary>
+    private static async Task PublishedBrowseAsync(
+        HttpContext ctx, Db db, Guid id, string? kind, string[]? @ref, string? q, string? order, int? take, int? skip, bool? counts)
+    {
+        if (kind is not null && !IsKind(kind))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieznany rodzaj wpisu.");
+            return;
+        }
+
+        var groups = ParseGroups(@ref, out var wrong);
+        if (groups is null) { await Fail(ctx, StatusCodes.Status400BadRequest, wrong ?? "Nieczytelny filtr."); return; }
+
+        var orderBy = BrowseOrder(order);
+        if (orderBy is null) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieznany porządek."); return; }
+
+        var limit = Math.Clamp(take ?? 30, 1, 200);
+        var offset = Math.Max(0, skip ?? 0);
+        var search = string.IsNullOrWhiteSpace(q) ? null : q.Trim()[..Math.Min(q.Trim().Length, 100)];
+
+        var filters = string.Concat(groups.Select((group, g) =>
+            $" AND EXISTS (SELECT 1 FROM app.library_public_ref r{g} WHERE r{g}.entry_id = e.id AND r{g}.ref_id IN ({string.Join(", ", group.Select((_, i) => $"@g{g}_{i}"))}))"));
+        var where = $"""
+            e.library_id = @id AND e.published_at IS NOT NULL
+            {(kind is null ? "" : "AND e.kind = @kind")}
+            {filters}
+            {(search is null ? "" : "AND e.public_summary LIKE @q ESCAPE N'\\'")}
+            """;
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        int total;
+        await using (var count = new SqlCommand($"SELECT COUNT(*) FROM app.library_entry e WHERE {where};", connection))
+        {
+            Bind(count);
+            total = (int)(await count.ExecuteScalarAsync(ctx.RequestAborted))!;
+        }
+
+        var items = new List<object>();
+        await using (var cmd = new SqlCommand($"""
+            SELECT e.id, e.kind, e.public_key, e.public_sort, e.public_summary, e.published_at, e.published_as
+            FROM app.library_entry e
+            WHERE {where}
+            ORDER BY {orderBy}, e.published_at DESC, e.id
+            OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY;
+            """, connection))
+        {
+            Bind(cmd);
+            cmd.Parameters.AddWithValue("@skip", offset);
+            cmd.Parameters.AddWithValue("@take", limit);
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                items.Add(new
+                {
+                    entryId = Ids.ToText(reader.GetGuid(0)),
+                    kind = reader.GetString(1),
+                    key = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    sort = reader.IsDBNull(3) ? null : reader.GetString(3),
+                    summary = reader.IsDBNull(4) ? null : reader.GetString(4),
+                    publishedAt = reader.GetDateTimeOffset(5),
+                    publishedAs = reader.GetString(6)
+                });
+            }
+        }
+
+        List<object>? counted = null;
+        if (counts == true)
+        {
+            counted = [];
+            await using var cmd = new SqlCommand($"""
+                SELECT TOP (@max) r.ref_id, COUNT(*)
+                FROM app.library_public_ref r
+                JOIN app.library_entry e ON e.id = r.entry_id
+                WHERE {where}
+                GROUP BY r.ref_id
+                ORDER BY COUNT(*) DESC;
+                """, connection);
+            Bind(cmd);
+            cmd.Parameters.AddWithValue("@max", MaxCounts);
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted)) counted.Add(new { id = Ids.ToText(reader.GetGuid(0)), n = reader.GetInt32(1) });
+        }
+
+        ctx.Response.Headers.CacheControl = "no-cache";
+        await ctx.Response.WriteAsJsonAsync(new { total, items, counts = counted });
+
+        void Bind(SqlCommand cmd)
+        {
+            cmd.Parameters.AddWithValue("@id", id);
+            if (kind is not null) cmd.Parameters.AddWithValue("@kind", kind);
+            for (var g = 0; g < groups.Count; g++)
+                for (var i = 0; i < groups[g].Count; i++) cmd.Parameters.AddWithValue($"@g{g}_{i}", groups[g][i]);
+            if (search is not null)
+            {
+                var escaped = search.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_").Replace("[", "\\[");
+                cmd.Parameters.AddWithValue("@q", $"%{escaped}%");
+            }
+        }
+    }
+
     /// <summary>
     /// Ein veröffentlichter Eintrag GANZ — und was er nennt, Stufe um Stufe
     /// (Text → Zitat → Werk → Autor), soweit es selbst veröffentlicht ist.

@@ -11,9 +11,13 @@
  * (offene Seiten bleiben offen).
  */
 
+import { LIQUIDS } from '../engine/materials';
 import type { FrameBuffers } from './frame';
-import { viridis } from './palette';
+import { hex, viridis } from './palette';
 import type { View } from './view';
+
+/** Farbe der zweiten Flüssigkeit (Öl) aus materials.json, 0–1. */
+const OIL = (LIQUIDS[1] ? hex(LIQUIDS[1].color) : [227, 180, 55]).map((v) => v / 255);
 
 const QUAD_VS = `#version 300 es
 layout(location = 0) in vec2 corner;
@@ -50,6 +54,8 @@ in vec2 uv;
 uniform sampler2D tex;
 uniform sampler2D lut;
 uniform vec3 water;
+/* Die zweite Flüssigkeit (Öl): ihr Anteil steht in Kanal B. */
+uniform vec3 oil;
 uniform float tint;
 uniform vec2 texel;
 out vec4 color;
@@ -58,7 +64,7 @@ void main() {
   float cover = c.r;
   float a = smoothstep(0.42, 0.58, cover);
   if (a <= 0.0) discard;
-  vec3 rgb = mix(water, texture(lut, vec2(c.g, 0.5)).rgb, tint);
+  vec3 rgb = mix(mix(water, oil, c.b), texture(lut, vec2(c.g, 0.5)).rgb, tint);
   /* Die Oberfläche als feine dunklere Linie: dort, wo die Bedeckung ½ kreuzt. */
   float edge = 1.0 - smoothstep(0.0, 0.12, abs(cover - 0.5));
   rgb *= 1.0 - 0.25 * edge;
@@ -341,6 +347,7 @@ export class LabRenderer {
     gl.uniform4f(gl.getUniformLocation(this.liquidProg, 'view'), view.x0, view.y0, view.x1, view.y1);
     gl.uniform2f(gl.getUniformLocation(this.liquidProg, 'box'), f.boxW, f.boxH);
     gl.uniform3f(gl.getUniformLocation(this.liquidProg, 'water'), this.water[0], this.water[1], this.water[2]);
+    gl.uniform3f(gl.getUniformLocation(this.liquidProg, 'oil'), OIL[0], OIL[1], OIL[2]);
     gl.uniform1f(gl.getUniformLocation(this.liquidProg, 'tint'), f.tintLiquid ? 1 : 0);
     gl.uniform2f(gl.getUniformLocation(this.liquidProg, 'texel'), 1 / f.lx, 1 / f.ly);
     gl.activeTexture(gl.TEXTURE0);

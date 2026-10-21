@@ -29,7 +29,7 @@
 import type { Gas } from './gas';
 import type { Grid } from './grid';
 import type { Liquid } from './liquid';
-import { cpL, hL, H_EXT, kL, kMix, SOLIDS } from './materials';
+import { cpL, cpLiq, hL, H_EXT, kL, kLiq, kMix, SOLIDS, WATER } from './materials';
 import type { Particles } from './particles';
 import type { HeaterMode } from './scene';
 import type { GridSolver, SolveResult } from './solver';
@@ -83,6 +83,9 @@ export class Heat {
   private readonly gx: Float64Array;
   private readonly gy: Float64Array;
   private readonly q: Float64Array;
+  /** Je Zelle: Wärmekapazität und Σ C·k der Teilchen anderer Flüssigkeiten als Wasser (ihre Leitfähigkeit mischt sich ein). */
+  private readonly Co: Float64Array;
+  private readonly CKo: Float64Array;
   heaters: Heater[] = [];
   ambientT = 293.15;
   /** Geleitete Energie seit dem Start (J) zwischen Zellarten: Feststoff → Flüssigkeit, Flüssigkeit → Gas, Feststoff → Gas (für Test 11 und die Energiebilanz der Anzeige). */
@@ -115,6 +118,8 @@ export class Heat {
     this.gx = new Float64Array(n);
     this.gy = new Float64Array(n);
     this.q = new Float64Array(n);
+    this.Co = new Float64Array(n);
+    this.CKo = new Float64Array(n);
   }
 
   /* -- Feststoffe ------------------------------------------------------------------------------------ */
@@ -186,14 +191,20 @@ export class Heat {
     CTl.fill(0);
     const Cl = g.Cl;
     Cl.fill(0);
+    const { Co, CKo } = this;
+    let other = false;
     let ClSum = 0;
     for (let p = 0; p < P.count; p += 1) {
-      const Cp = P.mass[p] * cpL(P.T[p]);
-      ClSum += Cp;
+      const mat = P.mat[p];
       const Tp = P.T[p];
+      const Cp = P.mass[p] * cpLiq(mat, Tp);
+      ClSum += Cp;
       const o = 9 * p;
       const i0 = L.bi[p];
       const j0 = L.bj[p];
+      /* Andere Flüssigkeiten: ihr Anteil an der Leitfähigkeit der Zelle (nach Wärmekapazität gewichtet). */
+      const kp = mat === WATER ? 0 : kLiq(mat, Tp);
+      if (mat !== WATER && !other) { other = true; Co.fill(0); CKo.fill(0); }
       for (let kk = 0; kk < 9; kk += 1) {
         const w = L.wt[o + kk];
         if (w === 0) continue;
@@ -203,6 +214,7 @@ export class Heat {
         const c = i + j * nx;
         Cl[c] += w * Cp;
         CTl[c] += w * Cp * Tp;
+        if (mat !== WATER) { Co[c] += w * Cp; CKo[c] += w * Cp * kp; }
       }
     }
     let heaterW = 0;
@@ -224,7 +236,7 @@ export class Heat {
       Tstar[c] = T;
       if (cl > 0) g.Tl[c] = CTl[c] / cl;
       if (g.solid[c] === 0) {
-        if (cl >= cg) kc = kL(T);
+        if (cl >= cg) kc = other && Co[c] > 0 ? ((cl - Co[c]) * kL(T) + CKo[c]) / cl : kL(T);
         else kc = kMix(g.mg[c], g.mg[n + c], g.mg[H2O * n + c], T);
       }
       k[c] = kc;
@@ -351,7 +363,7 @@ export class Heat {
       if (dT === 0) continue;
       const m = P.mass[p];
       const before = m / P.rho[p];
-      P.h[p] += cpL(P.T[p]) * dT;
+      P.h[p] += cpLiq(P.mat[p], P.T[p]) * dT;
       P.derive(p);
       L.dVp[p] += m / P.rho[p] - before;
     }

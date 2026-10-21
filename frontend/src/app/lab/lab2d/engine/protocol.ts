@@ -94,5 +94,6 @@ export type WorkerMessage =
   | { readonly type: 'reply'; readonly id: number; readonly data: ProbeInfo | Record<string, unknown> | null }
   | { readonly type: 'refused'; readonly message: string }
   /** Beschleunigter Weg: ob WebGPU läuft (sonst zurück zur CPU) und auf welcher Karte. */
-  | { readonly type: 'gpu'; readonly ok: boolean; readonly adapter: string; readonly message: string }
+  /** Der beschleunigte Weg: gestartet oder nicht; lehnt er eine Szene ab (z. B. mit Öl), schickt er sie zurück (scene), damit der normale Weg mit allen Handgriffen weitermacht. */
+  | { readonly type: 'gpu'; readonly ok: boolean; readonly adapter: string; readonly message: string; readonly scene?: unknown }
   | { readonly type: 'error'; readonly message: string };

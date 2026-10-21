@@ -61,7 +61,9 @@ export const isDocKind = (kind: string): kind is DocKind => (DOC_KINDS as readon
 
 const TYPE_OF: Record<LibFieldType, FieldType> = {
   line: 'line', text: 'text', markup: 'markup', number: 'number', date: 'date',
-  select: 'choice', url: 'url', ref: 'ref', refs: 'ref', outline: 'outline'
+  select: 'choice', url: 'url', ref: 'ref', refs: 'ref', outline: 'outline',
+  /* 2026-10-21 — eine Liste von Objekten (der Plan eines Textes): hier nur zum Lesen, nie geschrieben. */
+  items: 'list'
 };
 
 function fromLibrary(f: LibField): FieldDef {
@@ -87,7 +89,8 @@ const PATTERNS: Record<string, { label: string; tells?: string }> = {
   quote: { label: '{text}', tells: 'locator' },
   topic: { label: '{name}', tells: 'parent' },
   text: { label: '{title}', tells: 'date' },
-  project: { label: '{title}', tells: 'projectType' }
+  project: { label: '{title}', tells: 'projectType' },
+  delivery: { label: '{date} {occasion}', tells: 'place' }
 };
 
 const field = (key: string, label: string, type: FieldType, more: Partial<FieldDef> = {}): FieldDef =>
@@ -191,7 +194,7 @@ export const QUESTION: KindDef = {
 
 /** In dieser Reihenfolge stehen sie in Listen. */
 const BASE: readonly KindDef[] = [
-  ...['person', 'work', 'quote', 'topic', 'text', 'project'].map(builtin),
+  ...['person', 'work', 'quote', 'topic', 'text', 'delivery', 'project'].map(builtin),
   KNOWLEDGE,
   QUESTION
 ];

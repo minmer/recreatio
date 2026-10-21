@@ -40,6 +40,7 @@ const PL = {
   hintWall: 'Przeciągnij od początku do końca ścianki.',
   hintInspect: 'Kliknij punkt: komórka, najbliższa cząstka wody albo pęcherz.',
   matWater: 'Woda',
+  matOil: 'Olej',
   matAir: 'Powietrze',
   matGlass: 'Szkło',
   matSteel: 'Stal',
@@ -183,6 +184,7 @@ const PL = {
   accelOpen: 'Widok przyspieszony',
   accelClose: 'Widok zwykły',
   accelTitle: 'Otwórz widok przyspieszony: cały model liczy karta graficzna (WebGPU), z kratką 1 mm.',
+  accelNoOther: 'Widok przyspieszony nie zna jeszcze innych cieczy niż woda (np. oleju) — ta scena liczy się w widoku zwykłym.',
   accelNote: 'Widok przyspieszony: wszystkie etapy liczy karta graficzna (WebGPU) w pojedynczej precyzji, kratka 1 mm. Wyniki zgadzają się z widokiem zwykłym w granicach dokładności, ale nie co do bitu. Każde narzędzie na chwilę zatrzymuje obliczenia. Przełączenie widoku zaczyna scenę od początku (z Twoimi zmianami), bo zmienia się kratka.',
   accelFailed: 'Widok przyspieszony nie ruszył (ta przeglądarka albo karta nie obsługuje WebGPU) — wracam do widoku zwykłego.',
   budget: 'bilans'
@@ -196,6 +198,7 @@ const DE: Partial<Record<TextKey, string>> = {
   accelOpen: 'Beschleunigte Ansicht',
   accelClose: 'Normale Ansicht',
   accelTitle: 'Beschleunigte Ansicht öffnen: das ganze Modell rechnet die Grafikkarte (WebGPU), mit 1-mm-Raster.',
+  accelNoOther: 'Die beschleunigte Ansicht kennt noch keine anderen Flüssigkeiten als Wasser (etwa Öl) — diese Szene rechnet die normale Ansicht.',
   accelNote: 'Beschleunigte Ansicht: alle Stufen rechnet die Grafikkarte (WebGPU) in einfacher Genauigkeit, Raster 1 mm. Die Ergebnisse stimmen mit der normalen Ansicht im Rahmen der Genauigkeit überein, aber nicht Bit für Bit. Jedes Werkzeug hält die Rechnung kurz an. Das Umschalten beginnt die Szene von vorn (mit deinen Änderungen), weil sich das Raster ändert.',
   accelFailed: 'Die beschleunigte Ansicht ist nicht gestartet (dieser Browser oder diese Grafikkarte kann kein WebGPU) — zurück zur normalen Ansicht.',
   loading: 'Engine startet…',
@@ -222,6 +225,7 @@ const DE: Partial<Record<TextKey, string>> = {
   toolWall: 'Wand',
   toolInspect: 'Untersuchen',
   matWater: 'Wasser',
+  matOil: 'Öl',
   matAir: 'Luft',
   matGlass: 'Glas',
   matSteel: 'Stahl',
@@ -262,6 +266,7 @@ const EN: Partial<Record<TextKey, string>> = {
   accelOpen: 'Accelerated view',
   accelClose: 'Normal view',
   accelTitle: 'Open the accelerated view: the whole model runs on the graphics card (WebGPU), on a 1 mm grid.',
+  accelNoOther: 'The accelerated view does not know liquids other than water yet (such as oil) — this scene runs in the normal view.',
   accelNote: 'Accelerated view: every stage runs on the graphics card (WebGPU) in single precision, 1 mm grid. Results match the normal view within its accuracy, but not bit for bit. Every tool briefly pauses the computation. Switching views starts the scene again from the beginning (with your changes), because the grid changes.',
   accelFailed: 'The accelerated view did not start (this browser or graphics card has no WebGPU) — back to the normal view.',
   loading: 'Starting the engine…',
@@ -288,6 +293,7 @@ const EN: Partial<Record<TextKey, string>> = {
   toolWall: 'Wall',
   toolInspect: 'Inspect',
   matWater: 'Water',
+  matOil: 'Oil',
   matAir: 'Air',
   matGlass: 'Glass',
   matSteel: 'Steel',
@@ -340,6 +346,20 @@ export function materialName(id: string, lang: Lang = pageLang()): string {
   return m === undefined ? id : m.name[lang] ?? m.name.pl;
 }
 
+/** Der Kurzname einer Flüssigkeit aus materials.json („woda“, „olej“). */
+export function liquidName(id: string, lang: Lang = pageLang()): string {
+  const m = (materials.species as readonly { readonly id: string; readonly liquid?: { readonly name: Readonly<Record<Lang, string>> } }[]).find((k) => k.id === id);
+  return m?.liquid === undefined ? id : m.liquid.name[lang] ?? m.liquid.name.pl;
+}
+
+/** Die Flüssigkeiten einer Zelle als Text: „woda“ oder „woda 60 %, olej 40 %“. */
+export function liquidsText(list: readonly { readonly id: string; readonly share: number }[], lang: Lang = pageLang()): string {
+  if (list.length === 0) return '';
+  const sorted = [...list].sort((a, b) => b.share - a.share);
+  if (sorted[0].share > 0.995) return liquidName(sorted[0].id, lang);
+  return sorted.map((l) => `${liquidName(l.id, lang)} ${num(100 * l.share, 0, lang)} %`).join(', ');
+}
+
 /** Eine Zahl auf polnische (deutsche) Art: Komma statt Punkt. */
 export function num(x: number, digits = 1, lang: Lang = pageLang()): string {
   if (!Number.isFinite(x)) return '–';
@@ -366,6 +386,10 @@ export const SIMPLIFICATIONS_PL: readonly { readonly title: string; readonly pri
   { title: 'Pęcherze z wzorów', primary: 'Wzrost, odrywanie i ruch pęcherzy liczą wzory sprawdzone w laboratoriach (z dokładnością ok. 10–20 %).', secondary: 'Wzrost: Plesset–Zwick i Ranz–Marshall; odrywanie: Fritz; opór: Tomiyama (woda zanieczyszczona); bez siły nośnej i zderzeń poza łączeniem.' },
   { title: 'Gazy idealne', primary: 'Powietrze to azot i tlen; para zachowuje się jak gaz idealny.', secondary: 'Entalpia pary zależy tylko od T; ciepło parowania poza 100 °C z prawa Kirchhoffa (0,5 % za mało przy 20 °C).' },
   { title: 'Mgła nie opada', primary: 'Mgła płynie z powietrzem i nie opada jak deszcz.', secondary: 'Mgła to masa na komórkę przenoszona z gazem; rosa osiada tylko na ściankach.' },
+  { title: 'Kilka cieczy, jeden ruch', primary: 'Woda i olej płyną we wspólnym polu prędkości; każda ciecz ma swoją gęstość, więc olej pływa na wodzie.', secondary: 'Rzut ze stałą (średnią) gęstością, siła ciężkości z gęstości każdej cząstki — hydrostatyka dokładna w każdej warstwie, bezwładność przybliżona (dobra przy stosunku gęstości ok. 0,7–1,5).' },
+  { title: 'Lepkość tylko tam, gdzie się liczy', primary: 'Olej płynie „gęsto”, woda prawie bez tarcia — bo w kratkach po 2 mm tarcie wody jest znikome.', secondary: 'Lepkość liczona niejawnie w uproszczonej postaci ∇·(η∇u), tylko gdy w scenie jest ciecz inna niż woda; ciecz przylega do ścianek, powierzchnia swobodna nie ma naprężeń.' },
+  { title: 'Krople mniejsze od kratki', primary: 'Kropelka oleju w wodzie (albo wody w oleju) unosi się lub opada z prędkością, jaką miałaby prawdziwa kropla tej wielkości.', secondary: 'Cząstka otoczona inną cieczą dryfuje z prędkością graniczną kropli o swojej objętości (opór Schiller–Naumann, poprawka Hadamard–Rybczyński). Napięcia między cieczami nie ma — krople nie są okrągłe, a emulsja rozdziela się szybciej niż prawdziwa drobna.' },
+  { title: 'Paruje tylko woda', primary: 'Olej nie paruje, nie dymi i się nie pali. Pęcherz pary w oleju po prostu przez niego przechodzi.', secondary: 'Olej nie ma prężności pary w modelu; pęcherz pary w oleju nie rośnie i nie skrapla się; dane oleju zmierzone w 20–160 °C, wyżej przedłużone.' },
   { title: 'Pokój za otwartym bokiem', primary: 'Za otwartym bokiem jest zwykłe powietrze pokoju.', secondary: 'Napływ przynosi powietrze otoczenia; to, co wypływa, jest liczone jako „uszło”.' },
   { title: 'Aparatura stoi', primary: 'Zlewek i płyt nie da się przewrócić; nie topią się. „Przesuń” przestawia je od razu.', secondary: 'Ciała stałe są statycznymi komórkami (ruch i topienie: kolejne etapy); „Przesuń” przenosi je o całe kratki razem z wodą w środku — woda się przy tym nie kołysze.' },
   { title: 'Ścianki bez tarcia', primary: 'Woda ślizga się po ściankach bez tarcia. Przy prawdziwej ściance cienka warstewka wody stoi w miejscu.', secondary: 'Swobodny poślizg na ściankach (lustrzane węzły w APIC): warstwa przyścienna jest dużo cieńsza niż komórka.' },

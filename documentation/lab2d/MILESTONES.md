@@ -20,6 +20,7 @@ Reproduce: `npm run test:lab2d` (fast tests, ~3 min), `npm run test:lab2d:slow` 
 | M1c Bubbles and phase change | tests 6–14, 16 | tests met; **16 not met** |
 | M1d Teaching tools | 16 and a walkthrough of the boiling scene | walkthrough done; **16 not met** |
 | M1e GPU path | test 17, 1 mm in the budget | built (the accelerated view): test 17 met (test 11 at the edge, as on the CPU); 2 mm 4.9 ms per step; **1 mm 7.7 ms, above the 6 ms** (§M1e) |
+| M2a liquids (oil) | tests 18–22 (SANDBOX.md §13), water unchanged | built on the CPU (2026-10-21): all met; every M1 number unchanged to the last printed digit; water scenes as fast as before (§M2a); the accelerated view hands oil scenes back to the CPU |
 
 Test 16 (≤ 12 ms of simulation per 60 Hz frame at the default resolution) is the one gate that fails throughout:
 the CPU step of the benchmark scene at 2 mm takes 21.6 ms (budget 6 ms per step, two steps per frame): the
@@ -199,6 +200,43 @@ stays stable on both engines (1 mm, blobs of 8 and 12 mm radius; GPU and CPU agr
 temperature after 0.4–0.5 s). Suspected: the coupling of large bubbles and the liquid at 1 mm cells — a bubble's forces
 use the liquid's acceleration, estimated from a step's velocity change over the bubble's own substep; capping that
 estimate did not fix it reliably.
+
+## M2a — more liquids (oil)
+
+Built on the CPU (2026-10-21), the first step of [SANDBOX.md](SANDBOX.md): the materials database lists substances
+(format version 2), every particle carries its liquid, rapeseed (canola) oil is the second liquid — the oil sold in
+Polish kitchens — with the measurements of Rojas, Coimbra & Telis-Romero (2013), 20–160 °C. Viscosity and drifting
+droplets are new in the liquid stage; bubbles and the interface exchange mass with water only. Palette ("Olej"),
+presets "Woda pod olejem" and "Olej i woda się rozdzielają", inspector and the AI prompt know the oil. The accelerated
+view hands a scene with oil back to the normal view, with the tools applied (a paint stroke of oil in the accelerated
+view arrives in the normal view).
+
+| Test | Gate | Result |
+|---|---|---|
+| Data | oil laws against the paper's tables at 20, 100, 160 °C | density, c_p, k, μ within 0.3 %, 2 %, 0.6 %, 1.5 % |
+| Mixed fill | 50/50 by mass → particles by volume | oil/water particles 1.0847, ρ_w/ρ_oil 1.0843 |
+| 18 Two layers at rest | ρ_w g, ρ_oil g ±2 %, currents < 1 mm/s | **97.924** (ρ_w g 97.924) and **90.310** (ρ_oil g 90.310) Pa/cm, 0.0027 mm/s after 5 s |
+| 19 Oil under water | interface from the volumes ±1 cell | interface at **32.00 mm** (32 mm), no oil below it after 20 s |
+| 20 Viscosity | one implicit step against the exact factor of the discrete shear mode ±1 % | **0.999161** against 0.999161 (continuous e^(−νk²Δt): 0.999160) |
+| 21 Oil 140 → 150 °C | no bubbles or vapour, dT/dt = P/(m c_p) ±2 % | 0 bubbles, 0 vapour, **−0.04 %**, energy error −6e-6 J, oil mass exact |
+| 22 Water boiling under oil | bubbles cross the oil and burst, budgets close | 11 166 nucleated, 27 burst at the oil surface, water error 6e-16 kg of 18.6 g, energy error 2e-10 J, oil mass exact |
+
+All tests of M0–M1 give the same numbers as before, to the last digit printed (the water functions are unchanged and
+every new branch is skipped when only water is present). The benchmark scene with the committed engine against M2a,
+alternating, four runs each: 17.03 and 17.13 ms per step (medians, +0.6 %, within run-to-run noise), with the same water
+temperature to six decimals after 450 steps. The 50/50 mixture separates in 5–10 s at 2 mm (oil centre 46.5 mm, water
+21.8 mm).
+
+Found and fixed on the way:
+
+- **Viscosity acted on the gravity kick.** With viscosity between the forces and the projection, the no-slip walls
+  damped the kick g Δt unevenly, and the projection left a circulation: two layers at rest moved at 55 mm/s. Viscosity
+  now comes before the forces (on the moving liquid only); the layers rest as still as water alone (0.0027 mm/s).
+- **Mixtures did not separate.** Particles of two liquids follow one grid velocity; a cell with two water and two oil
+  particles has the mean density and no buoyancy, so a fine mixture stayed mixed and oil lingered for a minute in a
+  band under the interface (16 % after 20 s). Drifting droplets (ARCHITECTURE.md §7) separate it in seconds.
+- A particle created in the middle of a step (a wall film's drop, now also condensate) read the weights and the volume
+  change of the particle that last held its slot; it gets its own now (`Liquid.placeParticle`).
 
 ## Benchmark
 

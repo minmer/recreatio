@@ -27,7 +27,8 @@
 
 import type { Grid } from './grid';
 import type { Particles } from './particles';
-import type { GridSolver, SolveResult } from './solver';
+import { LIQUIDS, muLiq, rhoLiq, WATER } from './materials';
+import { GridSolver, type SolveResult } from './solver';
 import { GAS, LIQUID, SOLID } from './units';
 
 /** Driftausgleich: Anteil des Volumenfehlers, der je Schritt behoben wird (Modellparameter). */
@@ -51,8 +52,12 @@ export interface LiquidStats {
   solve: SolveResult;
   cells: number;
   uMax: number;
+  /** Entwichen durch offene Seiten in diesem Schritt: Wasser (kg), andere Flüssigkeiten (kg), Energie (J). */
   escapedMass: number;
+  escapedOther: number;
   escapedEnergy: number;
+  /** Iterationen der beiden Zähigkeitslösungen (u, v); 0 ohne zähe Flüssigkeit. */
+  viscIterations: number;
 }
 
 export class Liquid {
@@ -90,9 +95,16 @@ export class Liquid {
   /** Mittlere Dichte der Flüssigkeit (kg/m³) — die konstante Dichte der Projektion. */
   rhoRef = 998;
   weightsDirty = true;
-  readonly last: LiquidStats = { solve: { iterations: 0, residual: 0, capped: false }, cells: 0, uMax: 0, escapedMass: 0, escapedEnergy: 0 };
+  readonly last: LiquidStats = { solve: { iterations: 0, residual: 0, capped: false }, cells: 0, uMax: 0, escapedMass: 0, escapedOther: 0, escapedEnergy: 0, viscIterations: 0 };
   private escM = 0;
+  private escO = 0;
   private escE = 0;
+  /** Gibt es in diesem Schritt eine andere Flüssigkeit als Wasser (dann Zähigkeit, M2a)? */
+  private viscous = false;
+  /** Zähigkeit je Fläche (massengewichtet aus den Teilchen, Pa·s) und der Löser der Zähigkeit (bei Bedarf angelegt). */
+  private etaU: Float64Array | null = null;
+  private etaV: Float64Array | null = null;
+  private vsolver: GridSolver | null = null;
 
   constructor(grid: Grid, particles: Particles, solver: GridSolver) {
     this.g = grid;
@@ -184,6 +196,37 @@ export class Liquid {
     }
   }
 
+  /**
+   * Ein mitten im Schritt angelegtes Teilchen (Kondensat, Wandfilm): seine
+   * rohen Gewichte und Wärmegewichte sofort, und keine Volumenänderung aus dem
+   * Platz, den es erbt — sonst läsen die folgenden Stufen die Werte des
+   * Teilchens, das zuletzt an dieser Stelle stand.
+   */
+  placeParticle(p: number): void {
+    const { P, g, w, bi, bj, wr, wt } = this;
+    const { nx, ny, kind } = g;
+    const inv = 1 / g.dx;
+    bi[p] = bspline(P.x[p] * inv - 0.5, w, 0);
+    bj[p] = bspline(P.y[p] * inv - 0.5, w, 3);
+    const o = 9 * p;
+    let sum = 0;
+    for (let b = 0; b < 3; b += 1) {
+      for (let a = 0; a < 3; a += 1) {
+        const k = a + 3 * b;
+        const v = w[a] * w[3 + b];
+        wr[o + k] = v;
+        const i = bi[p] + a;
+        const j = bj[p] + b;
+        const ok = i >= 0 && j >= 0 && i < nx && j < ny && kind[i + j * nx] === LIQUID;
+        wt[o + k] = ok ? v : 0;
+        if (ok) sum += v;
+      }
+    }
+    if (sum > 0) { for (let k = 0; k < 9; k += 1) wt[o + k] /= sum; }
+    else { for (let k = 0; k < 9; k += 1) wt[o + k] = 0; wt[o + 4] = 1; }
+    this.dVp[p] = 0;
+  }
+
   /* -- Teilchen → Gitter ---------------------------------------------------------------------- */
 
   /** Volumenanteil φ (nur Teilchen) je Zelle und ρ_ref. */
@@ -247,10 +290,17 @@ export class Liquid {
     const nxu = nx + 1;
     mu.fill(0); pu.fill(0); mv.fill(0); pv.fill(0); rv.fill(0);
     const rr = 1 / this.rhoRef;
+    /* Mit einer zähen Flüssigkeit: Σ w m η je Fläche (die Zähigkeit der Fläche ist das massengewichtete Mittel). */
+    const viscous = this.viscous;
+    if (viscous && (this.etaU === null || this.etaV === null)) { this.etaU = new Float64Array(g.nu); this.etaV = new Float64Array(g.nv); }
+    const etaU = this.etaU as Float64Array;
+    const etaV = this.etaV as Float64Array;
+    if (viscous) { etaU.fill(0); etaV.fill(0); }
     for (let p = 0; p < P.count; p += 1) {
       const x = P.x[p];
       const y = P.y[p];
       const m = P.mass[p];
+      const eta = viscous ? muLiq(P.mat[p], P.T[p]) : 0;
       const ux = P.vx[p];
       const uy = P.vy[p];
       const c00 = P.c00[p], c01 = P.c01[p], c10 = P.c10[p], c11 = P.c11[p];
@@ -270,10 +320,12 @@ export class Liquid {
             const f = i + j * nxu;
             mu[f] += wm;
             pu[f] += mom;
+            if (viscous) etaU[f] += wm * eta;
           } else {
             this.mirrorU(i, j);
             mu[this.mf] += wm;
             pu[this.mf] += this.ms * mom;
+            if (viscous) etaU[this.mf] += wm * eta;
           }
         }
       }
@@ -295,6 +347,7 @@ export class Liquid {
           mv[f] += wm;
           pv[f] += sign * mom;
           rv[f] += wm * ratio;
+          if (viscous) etaV[f] += wm * eta;
         }
       }
     }
@@ -357,6 +410,8 @@ export class Liquid {
     const { g, P } = this;
     const { nx, ny, dx, kind } = g;
     const nxu = nx + 1;
+    /* Zähigkeit nur mit einer anderen Flüssigkeit als Wasser: Wasser ist auf Zellgrösse reibungsfrei (wie in M1, ohne Kosten). */
+    this.viscous = P.hasOther();
     this.p2g();
     const { mu, pu, mv, pv, rv, knownU, knownV } = this;
     const ul = g.ul;
@@ -364,12 +419,19 @@ export class Liquid {
     const nominal = this.rhoRef * g.vCell * 0.25;
     const empty = EMPTY * nominal;
 
-    /* Geschwindigkeiten der Flächen, Schwerkraft g·ρ(T)/ρ_ref, Kräfte der Blasen. */
+    /*
+     * Geschwindigkeiten der Flächen, Schwerkraft g·ρ(T)/ρ_ref, Kräfte der
+     * Blasen. Mit Zähigkeit kommen die Kräfte erst nach ihr: sie wirkt auf die
+     * bewegte Flüssigkeit, nicht auf den Schub der Schwerkraft, den die
+     * Projektion gleich wieder aufhebt (an haftenden Wänden dämpfte sie ihn
+     * ungleich, und ruhende Schichten kreisten mit Zentimetern je Sekunde).
+     */
+    const visc = this.viscous;
     for (let f = 0; f < g.nu; f += 1) {
-      ul[f] = mu[f] > empty ? pu[f] / mu[f] + (dt * this.fU[f]) / (this.rhoRef * g.vCell) : 0;
+      ul[f] = mu[f] > empty ? pu[f] / mu[f] + (visc ? 0 : (dt * this.fU[f]) / (this.rhoRef * g.vCell)) : 0;
     }
     for (let f = 0; f < g.nv; f += 1) {
-      vl[f] = mv[f] > empty ? pv[f] / mv[f] - dt * gy * (rv[f] / mv[f]) + (dt * this.fV[f]) / (this.rhoRef * g.vCell) : 0;
+      vl[f] = mv[f] > empty ? pv[f] / mv[f] + (visc ? 0 : -dt * gy * (rv[f] / mv[f]) + (dt * this.fV[f]) / (this.rhoRef * g.vCell)) : 0;
     }
 
     /* Welche Flächen gehören zur Flüssigkeit, welche sind fest? */
@@ -394,6 +456,15 @@ export class Liquid {
         if (wallB || wallT || b === SOLID || t === SOLID) { vl[f] = 0; knownV[f] = 2; continue; }
         knownV[f] = b === LIQUID || t === LIQUID ? 1 : 0;
       }
+    }
+
+    /* Zähigkeit implizit, dann die Kräfte (vor der Projektion, die danach die Divergenz entfernt). */
+    this.last.viscIterations = 0;
+    if (visc) {
+      this.viscosity(dt);
+      const a = dt / (this.rhoRef * g.vCell);
+      for (let f = 0; f < g.nu; f += 1) if (knownU[f] !== 2 && mu[f] > empty) ul[f] += a * this.fU[f];
+      for (let f = 0; f < g.nv; f += 1) if (knownV[f] !== 2 && mv[f] > empty) vl[f] += -dt * gy * (rv[f] / mv[f]) + a * this.fV[f];
     }
 
     /* Projektion auf dem umschliessenden Rechteck der Flüssigkeit. */
@@ -490,7 +561,7 @@ export class Liquid {
 
     /* Gitter → Teilchen (APIC), dann der Transport. */
     const uMax = this.g2p();
-    this.advect(dt);
+    this.advect(dt, gy);
     this.dVp.fill(0, 0, P.count);
     this.volSrc.fill(0);
     this.fU.fill(0);
@@ -500,8 +571,115 @@ export class Liquid {
     L.cells = cells;
     L.uMax = uMax;
     L.escapedMass = this.escM;
+    L.escapedOther = this.escO;
     L.escapedEnergy = this.escE;
     return L;
+  }
+
+  /**
+   * Zähigkeit (M2a), implizit je Komponente mit der konstanten Dichte der
+   * Projektion:
+   *
+   *   ρ_ref Δx²/Δt (u* − u) = Σ_Nachbarn η_f (u_nb − u*)
+   *
+   * (je Flächen-Kontrollvolumen Δx × Δx der Tiefe D, geteilt durch D). η_f
+   * zwischen zwei Flächen: harmonisches Mittel ihrer massengewichteten
+   * Zähigkeit. Ränder: an Wänden und Feststoffen haftet die Flüssigkeit
+   * (u = 0; quer zur Wand im halben Abstand: 2η), an der freien Oberfläche
+   * und zu leeren Flächen keine Spannung. Die vereinfachte Form ∇·(η∇u)
+   * ohne die Glieder ∇·(η (∇u)ᵀ) (SIMPLIFICATIONS.md). SPD, CG mit Jacobi.
+   */
+  private viscosity(dt: number): void {
+    const g = this.g;
+    const { nx, ny, dx, kind } = g;
+    if (this.vsolver === null) this.vsolver = new GridSolver(nx + 1, ny + 1);
+    const S = this.vsolver;
+    const etaU = this.etaU as Float64Array;
+    const etaV = this.etaV as Float64Array;
+    const { mu, mv, knownU, knownV } = this;
+    const empty = EMPTY * this.rhoRef * g.vCell * 0.25;
+    for (let f = 0; f < g.nu; f += 1) etaU[f] = mu[f] > empty ? etaU[f] / mu[f] : 0;
+    for (let f = 0; f < g.nv; f += 1) etaV[f] = mv[f] > empty ? etaV[f] / mv[f] : 0;
+    const dH = (this.rhoRef * dx * dx) / dt;
+    const hm = (a: number, b: number): number => (a + b > 0 ? (2 * a * b) / (a + b) : 0);
+    void kind;
+    let its = 0;
+    /* u-Flächen: Gitter (nx + 1) × ny. */
+    {
+      const nxu = nx + 1;
+      const sys = S.begin(nxu, ny);
+      const ul = g.ul;
+      for (let j = 0; j < ny; j += 1) {
+        for (let i = 0; i <= nx; i += 1) {
+          const f = i + j * nxu;
+          if (knownU[f] !== 1) continue;
+          const s = S.at(i, j);
+          const e = etaU[f];
+          sys.act[s] = 1;
+          sys.dH[s] = dH;
+          sys.x[s] = ul[f];
+          sys.b[s] = dH * ul[f];
+          /* Rechts (die Kopplung nach links steht beim linken Nachbarn); eine Wandfläche dort: u = 0 im Abstand Δx. */
+          if (i + 1 <= nx) {
+            const k = knownU[f + 1];
+            if (k === 1) sys.ax[s] = hm(e, etaU[f + 1]);
+            else if (k === 2) sys.dDx[s] += e;
+          }
+          if (i > 0 && knownU[f - 1] === 2) sys.dDx[s] += e;
+          /* Oben und unten: Nachbarfläche, Feststoff (Wand im halben Abstand) oder Kistenrand. */
+          if (j + 1 < ny) {
+            const k = knownU[f + nxu];
+            if (k === 1) sys.ay[s] = hm(e, etaU[f + nxu]);
+            else if (k === 2) sys.dDy[s] += 2 * e;
+          } else if (!g.openT) sys.dDy[s] += 2 * e;
+          if (j > 0) { if (knownU[f - nxu] === 2) sys.dDy[s] += 2 * e; }
+          else if (!g.openB) sys.dDy[s] += 2 * e;
+        }
+      }
+      const res = S.solve(1e-6, 200, false);
+      its += res.iterations;
+      for (let j = 0; j < ny; j += 1) for (let i = 0; i <= nx; i += 1) {
+        const f = i + j * nxu;
+        if (knownU[f] === 1) ul[f] = sys.x[S.at(i, j)];
+      }
+    }
+    /* v-Flächen: Gitter nx × (ny + 1). */
+    {
+      const sys = S.begin(nx, ny + 1);
+      const vl = g.vl;
+      for (let j = 0; j <= ny; j += 1) {
+        for (let i = 0; i < nx; i += 1) {
+          const f = i + j * nx;
+          if (knownV[f] !== 1) continue;
+          const s = S.at(i, j);
+          const e = etaV[f];
+          sys.act[s] = 1;
+          sys.dH[s] = dH;
+          sys.x[s] = vl[f];
+          sys.b[s] = dH * vl[f];
+          if (j + 1 <= ny) {
+            const k = knownV[f + nx];
+            if (k === 1) sys.ay[s] = hm(e, etaV[f + nx]);
+            else if (k === 2) sys.dDy[s] += e;
+          }
+          if (j > 0 && knownV[f - nx] === 2) sys.dDy[s] += e;
+          if (i + 1 < nx) {
+            const k = knownV[f + 1];
+            if (k === 1) sys.ax[s] = hm(e, etaV[f + 1]);
+            else if (k === 2) sys.dDx[s] += 2 * e;
+          } else if (!g.openR) sys.dDx[s] += 2 * e;
+          if (i > 0) { if (knownV[f - 1] === 2) sys.dDx[s] += 2 * e; }
+          else if (!g.openL) sys.dDx[s] += 2 * e;
+        }
+      }
+      const res = S.solve(1e-6, 200, false);
+      its += res.iterations;
+      for (let j = 0; j <= ny; j += 1) for (let i = 0; i < nx; i += 1) {
+        const f = i + j * nx;
+        if (knownV[f] === 1) vl[f] = sys.x[S.at(i, j)];
+      }
+    }
+    this.last.viscIterations = its;
   }
 
   /** Grenzt (i, j) an Gas — eine Gaszelle oder eine offene Seite? */
@@ -660,14 +838,91 @@ export class Liquid {
 
   private readonly vel = new Float64Array(2);
 
-  /** RK2 im Gitterfeld, Stoss an Feststoffen, Entweichen durch offene Seiten (Masse und Energie des Entwichenen in escM, escE). */
-  private advect(dt: number): void {
+  /** Je Zelle die Masse jeder Flüssigkeit (für die Tröpfchen; bei Bedarf angelegt) und die vorherrschende. */
+  private cellMat: Float64Array | null = null;
+  private cellHost: Uint8Array | null = null;
+
+  /**
+   * Unaufgelöste Tröpfchen (M2a): ein Teilchen, dessen Flüssigkeit in seiner
+   * Zelle in der Minderheit ist, ist ein Tropfen seines eigenen Volumens in der
+   * vorherrschenden Flüssigkeit. Er bewegt sich gegen die Strömung mit seiner
+   * Endgeschwindigkeit: |Δρ| g V = ½ ρ_c C_D A U² mit C_D = 24/Re · K (1 +
+   * 0,15 Re^0,687) (Schiller & Naumann 1933) und dem Faktor K = (2μ_c +
+   * 3μ_d)/(3μ_c + 3μ_d) für flüssige Tropfen (Hadamard–Rybczynski 1911).
+   * Nur der Ort wandert, nicht der Impuls (die Mischung behält ihren);
+   * höchstens eine Viertelzelle je Schritt. Ohne diese Drift trennten sich
+   * zwei unmischbare Flüssigkeiten nicht unter der Zellgrösse: eine Zelle aus
+   * zwei Wasser- und zwei Ölteilchen hat die mittlere Dichte und keinen
+   * Auftrieb (SIMPLIFICATIONS.md).
+   * Liefert die Drift je Teilchen in drift (m in y), 0 für die anderen.
+   */
+  private droplets(dt: number, gy: number, drift: Float64Array): boolean {
+    const { P, g } = this;
+    const { nx, ny, n } = g;
+    const NL = LIQUIDS.length;
+    if (this.cellMat === null || this.cellHost === null) { this.cellMat = new Float64Array(n * NL); this.cellHost = new Uint8Array(n); }
+    const cm = this.cellMat;
+    const host = this.cellHost;
+    cm.fill(0);
+    for (let p = 0; p < P.count; p += 1) {
+      const i = Math.min(nx - 1, Math.max(0, Math.floor(P.x[p] / g.dx)));
+      const j = Math.min(ny - 1, Math.max(0, Math.floor(P.y[p] / g.dx)));
+      cm[(i + j * nx) * NL + P.mat[p]] += P.mass[p];
+    }
+    for (let c = 0; c < n; c += 1) {
+      let best = 0;
+      for (let l = 1; l < NL; l += 1) if (cm[c * NL + l] > cm[c * NL + best]) best = l;
+      host[c] = best;
+    }
+    let any = false;
+    const cap = 0.25 * g.dx;
+    for (let p = 0; p < P.count; p += 1) {
+      drift[p] = 0;
+      const i = Math.min(nx - 1, Math.max(0, Math.floor(P.x[p] / g.dx)));
+      const j = Math.min(ny - 1, Math.max(0, Math.floor(P.y[p] / g.dx)));
+      const hc = host[i + j * nx];
+      const md = P.mat[p];
+      if (md === hc) continue;
+      const T = P.T[p];
+      const rc = rhoLiq(hc, T);
+      const rd = P.rho[p];
+      const muc = muLiq(hc, T);
+      const mud = muLiq(md, T);
+      const V = P.mass[p] / rd;
+      const d = Math.cbrt((6 * V) / Math.PI);
+      const dr = Math.abs(rc - rd);
+      if (dr <= 0 || gy <= 0) continue;
+      const K = (2 * muc + 3 * mud) / (3 * muc + 3 * mud);
+      /* Endgeschwindigkeit: von Stokes (mit K) aus, dann einige Festpunktschritte mit dem Widerstand nach Schiller–Naumann. */
+      let U = (dr * gy * d * d) / (18 * muc * K);
+      for (let it = 0; it < 8; it += 1) {
+        const Re = Math.max(1e-9, (rc * U * d) / muc);
+        const CD = (24 / Re) * K * (1 + 0.15 * Math.pow(Re, 0.687));
+        U = Math.sqrt((4 * dr * gy * d) / (3 * rc * CD));
+      }
+      const s = rd < rc ? 1 : -1;
+      drift[p] = s * Math.min(cap, U * dt);
+      any = true;
+    }
+    return any;
+  }
+
+  private dropletDrift: Float64Array | null = null;
+
+  /** RK2 im Gitterfeld, Stoss an Feststoffen, Entweichen durch offene Seiten (Masse und Energie des Entwichenen in escM, escE); mit mehreren Flüssigkeiten die Drift der Tröpfchen. */
+  private advect(dt: number, gy: number): void {
     const { P, g, vel } = this;
     const W = g.w;
     const H = g.h;
     const dx = g.dx;
     let escM = 0;
+    let escO = 0;
     let escE = 0;
+    let drift: Float64Array | null = null;
+    if (this.viscous) {
+      if (this.dropletDrift === null || this.dropletDrift.length < P.cap) this.dropletDrift = new Float64Array(P.cap);
+      if (this.droplets(dt, gy, this.dropletDrift)) drift = this.dropletDrift;
+    }
     for (let p = 0; p < P.count; p += 1) {
       const x0 = P.x[p];
       const y0 = P.y[p];
@@ -676,11 +931,13 @@ export class Liquid {
       const ym = y0 + 0.5 * dt * vel[1];
       this.velocityAt(xm, ym, vel);
       let x = x0 + dt * vel[0];
-      let y = y0 + dt * vel[1];
+      let y = y0 + dt * vel[1] + (drift !== null ? drift[p] : 0);
       /* Offene Seiten: hinaus ist hinaus. */
       if ((x < 0 && g.openL) || (x > W && g.openR) || (y < 0 && g.openB) || (y > H && g.openT)) {
-        escM += P.mass[p];
+        if (P.mat[p] === WATER) escM += P.mass[p]; else escO += P.mass[p];
         escE += P.mass[p] * P.h[p];
+        /* Das letzte Teilchen rückt an p: seine Drift mit. */
+        if (drift !== null) drift[p] = drift[P.count - 1];
         this.removeParticle(p);
         p -= 1;
         continue;
@@ -713,6 +970,7 @@ export class Liquid {
       P.y[p] = y;
     }
     this.escM = escM;
+    this.escO = escO;
     this.escE = escE;
   }
 }

@@ -13,6 +13,7 @@ import type { Bubbles } from './bubbles';
 import type { Grid } from './grid';
 import type { Particles } from './particles';
 import type { Regions } from './regions';
+import { WATER } from './materials';
 import { H2O, N2, O2, SOLID, SPECIES_SLOTS } from './units';
 
 export interface WaterByState {
@@ -21,6 +22,13 @@ export interface WaterByState {
   fog: number;
   film: number;
   bubbles: number;
+  escaped: number;
+  total: number;
+}
+
+/** Flüssigkeiten ausser Wasser (Öl): sie verdampfen nicht — in der Kiste und entwichen (kg). */
+export interface OtherLiquids {
+  liquid: number;
   escaped: number;
   total: number;
 }
@@ -35,6 +43,7 @@ export interface BudgetSnapshot {
   bubbles: number;
   pv: number;
   water: WaterByState;
+  other: OtherLiquids;
   /** Luft (N₂ + O₂) in Zellen und Blasen plus entwichen (kg). */
   air: number;
 }
@@ -51,10 +60,13 @@ export interface Flows {
   escapedAir: number;
   editWater: number;
   editAir: number;
+  /** Andere Flüssigkeiten (kg): entwichen, Eingriffe. */
+  escapedOther: number;
+  editOther: number;
 }
 
 export function emptyFlows(): Flows {
-  return { heater: 0, lossWalls: 0, lossOpen: 0, escapedEnergy: 0, editEnergy: 0, escapedWater: 0, escapedAir: 0, editWater: 0, editAir: 0 };
+  return { heater: 0, lossWalls: 0, lossOpen: 0, escapedEnergy: 0, editEnergy: 0, escapedWater: 0, escapedAir: 0, editWater: 0, editAir: 0, escapedOther: 0, editOther: 0 };
 }
 
 /** Den Inhalt zählen. */
@@ -75,9 +87,11 @@ export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Fl
   }
   let liquid = 0;
   let liquidMass = 0;
+  let otherMass = 0;
   for (let p = 0; p < P.count; p += 1) {
     liquid += P.mass[p] * P.h[p];
-    liquidMass += P.mass[p];
+    if (P.mat[p] === WATER) liquidMass += P.mass[p];
+    else otherMass += P.mass[p];
   }
   let bub = 0;
   let bubWater = 0;
@@ -102,6 +116,10 @@ export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Fl
   w.bubbles = bubWater;
   w.escaped = flows.escapedWater;
   w.total = liquidMass + vapour + fog + film + bubWater + flows.escapedWater;
+  const o = out.other;
+  o.liquid = otherMass;
+  o.escaped = flows.escapedOther;
+  o.total = otherMass + flows.escapedOther;
   out.air = air + flows.escapedAir;
   return out;
 }
@@ -109,6 +127,7 @@ export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Fl
 export function emptySnapshot(): BudgetSnapshot {
   return {
     energy: 0, solids: 0, liquid: 0, gas: 0, bubbles: 0, pv: 0, air: 0,
-    water: { liquid: 0, vapour: 0, fog: 0, film: 0, bubbles: 0, escaped: 0, total: 0 }
+    water: { liquid: 0, vapour: 0, fog: 0, film: 0, bubbles: 0, escaped: 0, total: 0 },
+    other: { liquid: 0, escaped: 0, total: 0 }
   };
 }

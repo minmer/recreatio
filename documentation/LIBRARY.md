@@ -20,8 +20,9 @@ An **entry** is one typed document. The kinds live in `frontend/src/app/library/
 | `person` | author, editor, translator, institution | given names, surname or single name, years, description |
 | `work` | a source: book, chapter, article, periodical, Church document, Bible, web page, talk | authors / editors / translators (refs), container (ref), volume, issue, edition, publisher, place, year, series, pages, page count, binding, height / width / thickness, siglum, ISBN, own number (private), DOI, URL, original title |
 | `quote` | a passage of a work | text, work (ref), locator (`s. 23`, `J 3,16`, `nr 24`), translation, description, topics |
-| `topic` | a subject heading, nestable | name, description, parent (ref) |
-| `text` | own writing: sermon, homily, meditation, chapter, article, note | title, date, occasion, readings, summary, **body** and **further** (markup), project (ref), topics, audio and video links |
+| `topic` | a subject heading, nestable; an **aspect** is a topic marked as an axis (see “Sermons”) | name, description, parent (ref), aspect, order |
+| `text` | own writing: sermon, homily, meditation, chapter, article, note | title, date, occasion, readings, summary, **plan** (points), **body** and **further** (markup), project (ref), topics, audio and video links |
+| `delivery` | one time a text was preached or given (2026-10-21) | texts (refs), date, occasion, place, audience, readings, audio, video, duration, summary, **coverage** and **added** (items), transcript (markup), topics, hidden |
 | `project` | a book or series | outline (`{heading}` and `{text: ref}` items), description |
 
 Every field says whether it is **private**: notes, writing status, deadlines and targets. Private fields never leave the browser in plaintext.
@@ -51,8 +52,74 @@ Nothing is public until it is explicitly published (`libraryPublish.ts`).
 | kind | shows | sizes |
 |---|---|---|
 | `writing` — Tekst z biblioteki (text from the library) | one published text | strip: a button; block: title, date and opening; tall or fullscreen: the full text with notes and sources |
-| `writings` — Archiwum tekstów (text archive) | published texts of a library, project or topic, newest first | strip: the newest; block: recent texts; tall: search, topics, "Więcej" (more); `?t=<id>` opens a text |
+| `writings` — Archiwum tekstów (text archive) | published texts of a library, project or topic, newest first | strip: the newest; block: recent texts; tall and fullscreen: the whole archive — search, a filter per aspect, list (by year), table (a column per aspect) or tree (the topics of an aspect with counts); `?t=<id>` opens a text (see “Sermons”) |
 | `quotes` — Zbiór cytatów (quote collection) | published quotes | small: "Myśl dnia" (one or two quotes, changing daily, the same for everyone); tall: search and topic filter |
+
+## Sermons: plan, deliveries, aspects (2026-10-21)
+
+A page for a very large number of sermons, built from the existing pieces. The rule: **the order lives in the library, not in the page module.** The page needs no new module, no new page type and no page subject; the two existing modules (`writing`, `writings`) show more, and the archive module gained one setting.
+
+### The model
+
+- **A sermon is a `text`** (as before). It may now have a **plan** (`plan`, field type `items`): the main thoughts in order and, under each, quotes, examples, questions and applications.
+  - A point is `{ id, text, depth, kind, note }`. `text` is markup, so `[@key, s. 12]` becomes a footnote and a point that is only `![@quote-key]` is a quote from the library, shown in full. `depth` is 0 (main thought), 1 or 2. `kind` is thought, quote, example, question or application. `note` is private (never published).
+  - Every point keeps a **stable id** (`p4k2x`) wherever it moves. Deliveries refer to points by it.
+  - The plan's sources count like the body's: backlinks, publication, the bibliography, LaTeX, the dependency map (`markupsOf` in `libraryKinds.ts` collects all markup of an entry, sub-fields included).
+- **A delivery (`delivery`, "Wygłoszenie") is one time a text was preached** — the "record". One text, many deliveries (every Mass of a Sunday, and again years later). It names its text(s), date, occasion, place, audience, readings, recording (audio/video URL), duration and a summary, and says about the plan:
+  - `coverage`: per point, `said` / `short` (only mentioned) / `skipped`, the time in the recording (`m:ss`) and a note on what was different;
+  - `added`: what was said that is not in the plan, with its time and the point it came after;
+  - `transcript` (markup), its own topics, private notes, and `hidden` ("Nie publikuj").
+- **Aspects are topics marked as axes** (`aspect: "yes"`): "Okres liturgiczny", "Temat", "Księga", "Okazja". Their sub-topics, at any depth, are the values; `order` sorts siblings (liturgical seasons in their order). One sermon carries values of several aspects at once. Topics outside any aspect are "Inne tematy"; a library without aspects gets one axis "Tematy".
+- **Series** stay `project` entries (groups).
+
+So the three ways to organise the user asked for are: groups = projects, hierarchies = topic trees, table = aspects as columns.
+
+### Publication
+
+- **A delivery goes out with its text.** Publishing a text publishes its deliveries (implicit) — except the hidden ones. A delivery is never published on its own. Its box in the editor says whether it is out, and "Opublikuj razem z tekstem" / "Zaktualizuj publikację" refreshes it together with its text.
+- The text's public document lists its deliveries (`deliveries`, newest first), and its public refs include them, so **one request returns the sermon with its recordings**, quotes, works and topics. A new or changed delivery makes the text "not current" ("Zmiany nie są jeszcze opublikowane").
+- **Topic refs include the topics above** (`publicRefs`): a sermon tagged "I Niedziela Adwentu" is also found under "Adwent" and "Okres liturgiczny", and counts per topic are exact — without the service knowing the tree.
+- The text's summary carries the main thoughts, the number of deliveries, the last date and up to 12 deliveries; its public sort key is the **date it was last preached**.
+- Entries published before 2026-10-21 lack the ancestors and the new summary fields until republished: Ustawienia → "Odśwież wszystkie publikacje" republishes everything once.
+
+### On the page
+
+- **`writing` (one text)** and an opened text in the archive show: header → **Wygłoszenia** (newest first; choosing one opens its player, summary and transcript) → **Plan** (numbered like on the pulpit: 1, 1.1, 2) → the full text → further information, footnotes, sources, topic chips with their aspect. With a delivery chosen, the plan shows on each point ✓ said / ◐ short / ✕ skipped, the time (a click jumps in the player — or opens YouTube/Vimeo/a file at that place) and the note; what was added stands after its point. Block size: title, date, main thoughts.
+- **`writings` (the archive)**, tall and fullscreen: search, a select per aspect (values indented, with counts), chips of the chosen filters, and three views the visitor can switch — **Lista** (year headings), **Tabela** (a column per aspect plus "Cykl"; on a phone each row becomes a labelled card) and **Drzewo** (tabs per aspect, the topic tree with counts, results beside it). The setting "Na początek" (`layout`: lista, tabela, drzewo) picks the starting view. One value per aspect; different aspects add up (AND); a value of an aspect is counted without that aspect's own filter, so its other values stay visible.
+- The state is in the address: `?t=` (open text), `?tw=` (chosen delivery), `?tu=` (view), `?tq=` (search), `?tf=` (chosen values), `?to=` (order). A link to a delivery opens its sermon with it chosen.
+- Files: `library/LibraryBrowse.tsx` (archive), `browse.ts` and `archiveLayout.ts` (pure logic), `SermonParts.tsx` (plan and deliveries), `LibraryText.tsx` (the text), `markupView.tsx` (markup drawing shared by both), `topics.ts` (tree and aspects), `styles/sermons.css`.
+
+### The service
+
+`GET /library/{id}/published/browse?kind=&ref=a,b&ref=c&q=&order=&take=&skip=&counts=true` (anonymous, `Library.Publish.cs`): several filters at once — a comma is OR, another `ref` is AND (at most 8 filters, 200 values each, 400 in all) — order `sort`, `-sort`, `key` (≈ title), `-key`, and with `counts` how many of the found entries point at each target. A page facing an older service (404) falls back to `published` with one filter and no counts.
+
+### In the workspace
+
+- **Plan** is the first tab of a text (Plan · Treść · Dalsze informacje), an outliner (`PlanEditor.tsx`): Enter makes a point (splitting at the cursor), Tab / Shift+Tab deeper / higher, Alt+↑↓ moves, Backspace in an empty point removes it, Esc leaves the point. "Źródło…" and "Cytat z biblioteki…" work as in the body; a kind per point; a private note; "Wklej gotowy plan" reads a typed outline (numbers, letters, indentation, `>` quotes, `?` questions — `planFromText`).
+- A text's side shows its **Wygłoszenia** with "+ Wygłoszenie". The delivery form (`DeliveryForm.tsx`): text, day, place; the recording (a file plays right there, and ⏱ beside a point takes the player's time); "Co z planu zostało powiedziane" point by point (three buttons, time, note; "Resztę oznacz: …"); "Co doszło"; summary, topics, transcript.
+- **Topics per aspect**: every `topics` field shows a row per aspect (values of that aspect only; "+ Utwórz" creates the value under its aspect) and "Inne tematy" (`TopicPick.tsx`). The Tematy tab shows the tree with an "aspekt" badge and "+ Aspekt".
+- A library tab **Wygłoszenia** lists all deliveries by date with what was said.
+
+### AI stays outside
+
+Two prompts to copy into one's own chat, each with an import that fills the **open form** (`patchFromDoc`), not the store behind it:
+- on a delivery, "Z nagrania albo zapisu — przez AI we własnym czacie": the plan with its point ids, the rules and the format; the answer (library JSON for this delivery) fills coverage, added, summary, duration, transcript (`deliveryPrompt`);
+- on a text with a body, "Plan z treści": the body; the answer fills the plan (`planPrompt`).
+
+### Printing
+
+`textToLatex` puts the plan (nested `enumerate`, footnotes) before the body. `planToLatex` prints **only the plan for the pulpit**: one page, 14 pt, quotes in full, own notes on request — "Plan na ambonę (.tex)" in the editor, "Sam plan (LaTeX)" on the page.
+
+### Further expansions this is built for
+
+- Other prepared talks use the same pieces: conferences, catechesis, retreat talks (`textType`) with deliveries; a retreat is a project.
+- `items` is a general field type (a list of objects with declared sub-fields): described, imported, searched and published like any field.
+- Aspects serve every kind with `topics` (quotes, works), and any later list module can use `browse` the same way.
+- Natural next steps, not built: a delivery linked to a calendar item (the Mass it was preached at), recordings stored as library files instead of URLs, a podcast feed of public deliveries, filtering texts by the topics of their deliveries.
+
+### Checks
+
+`app-library-check.mjs` section 7 (plan reading and numbering, pasting, times and links, aspects, publication with deliveries and topic ancestors, marks on the drawn plan, LaTeX, prompts, JSON into the form, archive rows and filters); `Api.Tests` LibraryChecks (filter groups, order); a browser harness drive outside the repository (67 checks: table, filters, tree, list, opening, marks, player, phone, dark, an older service, the editors).
 
 ## Books on the shelf
 

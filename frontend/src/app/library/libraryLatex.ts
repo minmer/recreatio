@@ -14,8 +14,9 @@
  */
 
 import { bibliography, citeSegs, newCiteState, originOf, workBehind, type CiteState, type Seg } from './libraryCite';
-import { ids, outline, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
+import { ids, markupsOf, outline, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
 import { parseMarkup, walkBlocks, type Block, type Inline } from './libraryMarkup';
+import { planOf, type PlanPoint } from './sermon';
 
 /** Was in LaTeX eine Bedeutung hat, entschärft — und die Typografie, die TeX selbst nicht errät. */
 export function latexEscape(text: string): string {
@@ -141,10 +142,32 @@ function metaLine(d: LibEntry['data']): string {
   ].filter(Boolean).join('\n');
 }
 
+/**
+ * 2026-10-21 — DER PLAN als verschachtelte Aufzählung: Hauptgedanken
+ * nummeriert, darunter, was zu ihnen gehört; Quellen als Fussnoten, ein
+ * eingebettetes Zitat als `quotation` im Punkt.
+ */
+function planLatex(points: readonly PlanPoint[], ctx: Ctx): string {
+  const out: string[] = [];
+  let open = -1;
+  const indent = (level: number) => '  '.repeat(level + 1);
+  for (const point of points) {
+    while (open < point.depth) { open += 1; out.push(`${indent(open - 1)}\\begin{enumerate}${open === 0 ? '' : '[label*=.\\arabic*]'}`); }
+    while (open > point.depth) { out.push(`${indent(open - 1)}\\end{enumerate}`); open -= 1; }
+    const parsed = parseMarkup(point.text);
+    const single = parsed.length === 1 && parsed[0].t === 'p' ? inlines(parsed[0].c, ctx) : blocks(parsed, ctx, 1);
+    out.push(`${indent(open)}\\item ${single}`);
+  }
+  while (open >= 0) { out.push(`${indent(open - 1)}\\end{enumerate}`); open -= 1; }
+  return out.join('\n');
+}
+
 /** Ein Text im Körper — für einen eigenen Artikel oder als Kapitel eines Buches. */
 function textBody(entry: LibEntry, ctx: Ctx, depth: 0 | 1): string {
   const d = entry.data;
-  const body = blocks(parseMarkup(str(d, 'body')), ctx, depth);
+  const points = planOf(d);
+  const plan = points.length === 0 ? '' : `${depth === 0 ? '\\section*' : '\\subsection*'}{Plan}\n${planLatex(points, ctx)}\n\n`;
+  const body = plan + blocks(parseMarkup(str(d, 'body')), ctx, depth);
   const further = str(d, 'further').trim() === '' ? ''
     : `\n\n${depth === 0 ? '\\section*' : '\\subsection*'}{Dalsze informacje}\n${blocks(parseMarkup(str(d, 'further')), ctx, depth)}`;
   return `${body}${further}`;
@@ -240,18 +263,47 @@ export function projectToLatex(project: LibEntry, look: Lookup, options: { autho
   ].filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n');
 }
 
-/** Der Dateiname: der Titel als ASCII. */
-export function latexFileName(entry: LibEntry): string {
+/**
+ * 2026-10-21 — NUR DER PLAN, für die Kanzel: eine Seite in grösserer Schrift,
+ * ohne Titelseite — Titel, Tag und Lesungen oben, die Punkte, die Zitate in
+ * vollem Wortlaut, die Quellen klein am Ende. Mit `notes` stehen die privaten
+ * Notizen der Punkte kursiv darunter (es ist das eigene Blatt).
+ */
+export function planToLatex(entry: LibEntry, look: Lookup, options: { notes?: boolean } = {}): string {
+  const d = entry.data;
+  const ctx: Ctx = { look, state: newCiteState(), works: [] };
+  const points = planOf(d).map((p) => (options.notes === true && p.note.trim() !== ''
+    ? { ...p, text: `${p.text}\n*(${p.note.trim().replace(/[*_]/g, '')})*` } : p));
+  return [
+    PREAMBLE('article').replace('[11pt,a4paper', '[14pt,a4paper').replace('{article}', '{extarticle}'),
+    '\\usepackage[margin=2cm]{geometry}',
+    '\\pagestyle{empty}',
+    '',
+    '\\begin{document}',
+    `\\noindent{\\LARGE\\bfseries ${latexEscape(str(d, 'title') || 'Bez tytułu')}}\\par\\medskip`,
+    metaLine(d),
+    '',
+    planLatex(points, ctx),
+    '',
+    sources(ctx, '\\vfill\\small\\section*{Źródła}'),
+    '\\end{document}',
+    ''
+  ].filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n');
+}
+
+/** Der Dateiname: der Titel als ASCII (`suffix`: „-plan"). */
+export function latexFileName(entry: LibEntry, suffix = ''): string {
   const base = (str(entry.data, 'title') || entry.kind).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
-  return `${base || 'tekst'}.tex`;
+  return `${base || 'tekst'}${suffix}.tex`;
 }
 
 /** Die Schlüssel, die ein Text nennt, aber die Bibliothek nicht hat — vor dem Export zu sagen. */
 export function missingKeys(entry: LibEntry, look: Lookup): string[] {
   const missing = new Set<string>();
-  for (const field of ['body', 'further']) {
-    walkBlocks(parseMarkup(str(entry.data, field)),
+  /* 2026-10-21 — alles im Zapis: auch die Punkte des Plans. */
+  for (const source of markupsOf(entry)) {
+    walkBlocks(parseMarkup(source),
       (b) => { if (b.t === 'embed' && look.byKey(b.key) === undefined) missing.add(b.key); },
       (i) => { if (i.t === 'cite') for (const item of i.items) if (look.byKey(item.key) === undefined) missing.add(item.key); });
   }

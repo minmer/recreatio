@@ -44,7 +44,7 @@ import { BubbleMotion } from './bubbleMotion';
 import { activation, Cavities } from './cavities';
 import type { Engine, ProbeInfo } from './engine';
 import { rhoVapourSatFast, tSat } from './if97';
-import { cpL, hGas, hL, hV, kL, MOLAR, muL, rhoL, sigma, SOLIDS } from './materials';
+import { cpLiq, hGas, hL, hV, kLiq, MOLAR, muLiq, rhoLiq, sigmaLiq, SOLIDS } from './materials';
 import { GAS, H2O, LIQUID, N2, O2, SOLID, SPECIES_SLOTS } from './units';
 
 /** Fritz (1935): 0,0208 je Grad Kontaktwinkel. */
@@ -188,12 +188,12 @@ export class BubbleModel {
     return sum > 0 ? m : 0;
   }
 
-  /** Den Zustand der Blase b lösen (Druck der Flüssigkeit an ihrer Mitte). */
+  /** Den Zustand der Blase b lösen (Druck der Flüssigkeit an ihrer Mitte, die Oberflächenspannung der Flüssigkeit um sie). */
   private solve(b: number, Tl: number): void {
     const B = this.B;
     const g = this.e.grid;
     const s = this.shape;
-    solveBubble(B.m, b * SPECIES_SLOTS, this.pressure(B.x[b], B.y[b]), Tl, g.depth, B.r[b], s);
+    solveBubble(B.m, b * SPECIES_SLOTS, this.pressure(B.x[b], B.y[b]), Tl, g.depth, B.r[b], s, this.e.phase.hostAt(B.x[b], B.y[b]));
     B.r[b] = s.r;
     B.V[b] = s.V;
     B.pb[b] = s.pb;
@@ -239,11 +239,12 @@ export class BubbleModel {
     for (let s = 0; s < this.sites.count; s += 1) {
       if (this.sites.bubble[s] !== 0) continue;
       const fc = this.sites.fluid[s];
-      if (g.kind[fc] !== LIQUID || phase.acc[fc] <= 0) continue;
+      /* Keime nur im Wasser (der einzigen flüchtigen Flüssigkeit): die Zelle vor der Kavität muss vor allem Wasser sein. */
+      if (g.kind[fc] !== LIQUID || phase.acc[fc] <= 0 || phase.waterShare(fc) < 0.5) continue;
       const sc = this.sites.cell[s];
       const mat = SOLIDS[g.solid[sc] - 1];
       const Tl = phase.Tl[fc];
-      const kl = kL(Tl);
+      const kl = kLiq(phase.host[fc], Tl);
       const Tf = (mat.k * g.T[sc] + kl * Tl) / (mat.k + kl);
       const pl = e.pRef + g.pl[fc];
       const Ts = this.tsatCell[fc] > 0 ? this.tsatCell[fc] : tSat(pl);
@@ -251,7 +252,7 @@ export class BubbleModel {
       const rc = this.sites.r[s];
       if (Tf - Ts < activation(rc, pl)) continue;
       /* Keim: reiner Dampf, gesättigt beim Druck in der Kavitätenmündung. */
-      const pb = pl + (2 * sigma(Tf)) / rc;
+      const pb = pl + (2 * sigmaLiq(phase.host[fc], Tf)) / rc;
       const Tb = tSat(pb);
       const V = (4 / 3) * Math.PI * rc * rc * rc;
       const mv = rhoVapourSatFast(Tb) * V;
@@ -272,7 +273,7 @@ export class BubbleModel {
       this.motion.ux0[b] = 0;
       this.motion.uy0[b] = 0;
       /* Die Masse aus den Teilchen vor der Kavität, die Wärme aus der Wand. */
-      const hbar = phase.accH[fc] / phase.acc[fc];
+      const hbar = phase.waterH(fc);
       this.Fm[fc] -= mv;
       e.heat.src[sc] -= (mv * (hV(Tb) - hbar)) / dt;
       this.nucleated += 1;
@@ -310,7 +311,7 @@ export class BubbleModel {
         const sc = this.sites.cell[site];
         const mat = SOLIDS[g.solid[sc] - 1];
         const Tw = phase.Tl[fc];
-        const kl = kL(Tw);
+        const kl = kLiq(phase.host[fc], Tw);
         Tl = (mat.k * g.T[sc] + kl * Tw) / (mat.k + kl);
         srcCell = sc;
       } else {
@@ -320,10 +321,12 @@ export class BubbleModel {
         for (let q = 0; q < k; q += 1) Tl += this.wts[q] * phase.Tl[this.cells[q]];
       }
       const Tb = B.Tb[b];
-      const kl = kL(Tl);
-      const rhol = rhoL(Tl);
-      const cpl = cpL(Tl);
-      const mul = muL(Tl);
+      /* Stoffwerte der Flüssigkeit um die Blase (Wasser, oder Öl über einer Wasserschicht). */
+      const hm = site >= 0 ? phase.host[this.sites.fluid[site]] : phase.hostAt(B.x[b], B.y[b]);
+      const kl = kLiq(hm, Tl);
+      const rhol = rhoLiq(hm, Tl);
+      const cpl = cpLiq(hm, Tl);
+      const mul = muLiq(hm, Tl);
       const alpha = kl / (rhol * cpl);
       const d = 2 * r;
       /* Plesset–Zwick über den Teilschritt geschlossen integriert: ∫ k √(3/(π α t)) dt = k √(3/(π α)) · 2(√t₁ − √t₀). */
@@ -381,19 +384,31 @@ export class BubbleModel {
       }
       let dm = Q / L;
       if (dm < 0) dm = Math.max(dm, -B.m[o + H2O]);
+      /*
+       * Nur Wasser verdampft in die Blase und nimmt ihr Kondensat auf: frei
+       * zählt jede Zelle der Spur mit dem Anteil des Wassers an ihrer
+       * Flüssigkeit (reines Wasser: 1, wie vor M2a). In reinem Öl tauscht eine
+       * Dampfblase keine Masse (SIMPLIFICATIONS.md) — sie steigt und platzt.
+       */
+      let fwSum = 1;
+      if (site < 0 && dm !== 0 && phase.mixed) {
+        fwSum = 0;
+        for (let q = 0; q < k; q += 1) fwSum += this.wts[q] * phase.waterShare(this.cells[q]);
+        dm *= fwSum;
+      }
       if (dm !== 0) {
         if (site >= 0) {
           const fc = this.sites.fluid[site];
           if (dm > 0 && phase.acc[fc] + this.Fm[fc] - dm < 0) dm = Math.max(0, phase.acc[fc] + this.Fm[fc]);
-          const hbar = phase.acc[fc] > 0 ? phase.accH[fc] / phase.acc[fc] : hL(Tl);
+          const hbar = phase.waterH(fc);
           this.Fm[fc] -= dm;
           e.heat.src[srcCell] -= (dm * (hV(Tb) - hbar)) / dt;
           this.budgetSolid(srcCell, dm * (hV(Tb) - hbar));
         } else {
           for (let q = 0; q < k; q += 1) {
             const c = this.cells[q];
-            const w = this.wts[q];
-            const hbar = phase.acc[c] > 0 ? phase.accH[c] / phase.acc[c] : hL(Tl);
+            const w = phase.mixed ? (this.wts[q] * phase.waterShare(c)) / fwSum : this.wts[q];
+            const hbar = phase.waterH(c);
             this.Fm[c] -= dm * w;
             e.heat.src[c] -= (dm * w * (hV(Tb) - hbar)) / dt;
             this.budget[c] -= dm * w * (hV(Tb) - hbar);
@@ -457,7 +472,8 @@ export class BubbleModel {
     const mat = SOLIDS[g.solid[this.sites.cell[s]] - 1];
     const theta = this.contactAngleOverride ?? mat.contactAngle;
     const rhov = B.totalMass(b) / Math.max(1e-30, B.V[b]);
-    return FRITZ * theta * Math.sqrt(sigma(B.Tb[b]) / (e.gy * (rhoL(Tl) - rhov)));
+    const hm = e.phase.host[this.sites.fluid[s]];
+    return FRITZ * theta * Math.sqrt(sigmaLiq(hm, B.Tb[b]) / (e.gy * (rhoLiq(hm, Tl) - rhov)));
   }
 
   /** Abreissen beim Fritz-Durchmesser. */
@@ -600,14 +616,20 @@ export class BubbleModel {
         return;
       }
     } else if (mv > 0) {
-      /* Der Rest Dampf kondensiert in die Flüssigkeit der Spur (latente Wärme dort). */
+      /* Der Rest Dampf kondensiert in das Wasser der Spur (latente Wärme dort); ohne Wasser in der Spur wird er dort ein neues Wasserteilchen. */
       const k = this.liquidFootprint(b);
       if (k > 0) {
         const phase = e.phase;
+        let fs = 1;
+        if (phase.mixed) {
+          fs = 0;
+          for (let q = 0; q < k; q += 1) fs += this.wts[q] * phase.waterShare(this.cells[q]);
+        }
         for (let q = 0; q < k; q += 1) {
           const c = this.cells[q];
-          const w = this.wts[q];
-          const hbar = phase.acc[c] > 0 ? phase.accH[c] / phase.acc[c] : hL(B.Tb[b]);
+          const w = phase.mixed && fs > 0 ? (this.wts[q] * phase.waterShare(c)) / fs : this.wts[q];
+          if (w === 0) continue;
+          const hbar = phase.waterH(c);
           this.Fm[c] += mv * w;
           e.heat.src[c] += (w * (B.H[b] - mv * hbar)) / dt;
         }
@@ -712,7 +734,7 @@ export class BubbleModel {
     const pl = this.pressure(x, y);
     const c = e.grid.cellAt(x, y);
     const Tl = c >= 0 && e.phase.Tl[c] > 0 ? e.phase.Tl[c] : e.ambientT;
-    const pb = pl + (2 * sigma(Tl)) / r;
+    const pb = pl + (2 * sigmaLiq(c >= 0 ? e.phase.host[c] : 0, Tl)) / r;
     const V = (4 / 3) * Math.PI * r * r * r;
     const o = b * SPECIES_SLOTS;
     if (airFraction <= 0) {

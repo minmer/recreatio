@@ -6,13 +6,23 @@
  * seinen Speicher als `Lookup` herein, die öffentliche Seite die offenen
  * Fassungen, die mit dem Text kamen (`publicLookup`). Was der Leser sieht,
  * sieht der Schreibende schon beim Tippen.
+ *
+ * <b>2026-10-21 — ein Kazanie:</b> über der Treść die Wygłoszenia (mit
+ * Player) und der Plan; wer ein Wygłoszenie wählt, sieht auf dem Plan, was
+ * diesmal gesagt, nur gestreift, ausgelassen wurde und was dazukam. Ein Text
+ * ohne Plan und ohne Wygłoszenia sieht aus wie bisher. Die Bausteine des
+ * Zapis stehen in `markupView.tsx`, der Plan und die Wygłoszenia in
+ * `SermonParts.tsx`.
  */
 
-import { Fragment, useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { bibliography, citeSegs, newCiteState, originOf, workBehind, type CiteState, type Seg } from './libraryCite';
-import { ids, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
-import { parseMarkup, walkBlocks, type Block, type Inline } from './libraryMarkup';
+import { bibliography, originOf } from './libraryCite';
+import { ids, isAspect, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
+import { parseMarkup } from './libraryMarkup';
+import { Blocks, countNotes, NoteList, QuoteBody, Segs } from './markupView';
+import { deliveriesOf, mediaFile, planOf, timeLink } from './sermon';
+import { DeliveriesSection, MediaPlayer, PlanSection } from './SermonParts';
 
 /** Eine Sammlung offener Fassungen als `Lookup` — so liest die öffentliche Seite. */
 export function publicLookup(entries: readonly LibEntry[]): Lookup {
@@ -32,151 +42,6 @@ export function readPublic(json: string): LibEntry | null {
   }
 }
 
-export function Segs({ segs }: { segs: readonly Seg[] }) {
-  return (
-    <>
-      {segs.map((s, i) => {
-        const inner = s.italic === true ? <i>{s.text}</i> : s.text;
-        return s.href !== undefined
-          ? <a key={i} href={s.href} {...(/^https?:/i.test(s.href) ? { target: '_blank', rel: 'noreferrer noopener' } : {})}>{inner}</a>
-          : <Fragment key={i}>{inner}</Fragment>;
-      })}
-    </>
-  );
-}
-
-/* -- Fussnoten zählen --------------------------------------------------------------------- */
-
-type Note = { readonly n: number; readonly body: ReactNode };
-
-interface Notes {
-  readonly numbers: WeakMap<Inline, number>;
-  readonly list: Note[];
-  readonly works: LibEntry[];
-}
-
-/**
- * Ein Durchgang VOR dem Zeichnen: jede Fussnote bekommt ihre Nummer in der
- * Reihenfolge des Textes, und „Tamże" / „dz. cyt." folgen genau dieser
- * Reihenfolge — auch über „Treść" und „Dalsze informacje" hinweg.
- */
-function countNotes(parts: readonly (readonly Block[])[], look: Lookup, hrefOf?: (e: LibEntry) => string | undefined): Notes {
-  const numbers = new WeakMap<Inline, number>();
-  const list: Note[] = [];
-  const works: LibEntry[] = [];
-  const state: CiteState = newCiteState();
-
-  for (const blocks of parts) {
-    walkBlocks(blocks, (b) => {
-      if (b.t !== 'embed') return;
-      const work = workBehind(look.byKey(b.key), look);
-      if (work !== undefined) works.push(work);
-    }, (inline) => {
-      if (inline.t === 'cite') {
-        const n = list.length + 1;
-        numbers.set(inline, n);
-        const segs: Seg[] = [];
-        inline.items.forEach((item, i) => {
-          const target = look.byKey(item.key);
-          const work = workBehind(target, look);
-          if (work !== undefined) works.push(work);
-          if (i > 0) segs.push({ text: '; ' });
-          segs.push(...citeSegs(target, item.locator, look, state, hrefOf));
-        });
-        list.push({ n, body: <><Segs segs={segs} />.</> });
-      } else if (inline.t === 'note') {
-        const n = list.length + 1;
-        numbers.set(inline, n);
-        state.last = null;
-        list.push({ n, body: <Inlines list={inline.c} notes={null} /> });
-      }
-    });
-  }
-
-  return { numbers, list, works };
-}
-
-/* -- Zeichnen ------------------------------------------------------------------------------- */
-
-function Inlines({ list, notes, prefix = '' }: { list: readonly Inline[]; notes: Notes | null; prefix?: string }) {
-  return (
-    <>
-      {list.map((one, i) => {
-        switch (one.t) {
-          case 'text': return <Fragment key={i}>{one.v}</Fragment>;
-          case 'br': return <br key={i} />;
-          case 'b': return <strong key={i}><Inlines list={one.c} notes={notes} prefix={prefix} /></strong>;
-          case 'i': return <em key={i}><Inlines list={one.c} notes={notes} prefix={prefix} /></em>;
-          case 'link':
-            return (
-              <a key={i} href={one.href} {...(/^https?:/i.test(one.href) ? { target: '_blank', rel: 'noreferrer noopener' } : {})}>
-                <Inlines list={one.c} notes={notes} prefix={prefix} />
-              </a>
-            );
-          case 'cite':
-          case 'note': {
-            const n = notes?.numbers.get(one);
-            if (n === undefined) return null;
-            return <sup key={i} className="lib-fnref" id={`${prefix}fnref-${n}`}><a href={`#${prefix}fn-${n}`} onClick={(e) => jump(e, `${prefix}fn-${n}`)}>{n}</a></sup>;
-          }
-          default: return null;
-        }
-      })}
-    </>
-  );
-}
-
-/** Ein Sprung innerhalb der Seite — die Adresse trägt die Weiche (`#/…`), deshalb von Hand. */
-function jump(e: React.MouseEvent, id: string) {
-  e.preventDefault();
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-
-function QuoteBody({ text }: { text: string }) {
-  return (
-    <>
-      {text.split(/\n\s*\n/).map((p, i) => <p key={i}>{p.split('\n').map((line, j) => <Fragment key={j}>{j > 0 && <br />}{line}</Fragment>)}</p>)}
-    </>
-  );
-}
-
-function Blocks({ blocks, look, notes, prefix }: { blocks: readonly Block[]; look: Lookup; notes: Notes; prefix: string }) {
-  return (
-    <>
-      {blocks.map((b, i) => {
-        switch (b.t) {
-          case 'p': return <p key={i}><Inlines list={b.c} notes={notes} prefix={prefix} /></p>;
-          case 'h': {
-            const H = b.level === 2 ? 'h3' : b.level === 3 ? 'h4' : 'h5';
-            return <H key={i} className="lib-h"><Inlines list={b.c} notes={notes} prefix={prefix} /></H>;
-          }
-          case 'quote': return <blockquote key={i} className="lib-blockquote"><Blocks blocks={b.c} look={look} notes={notes} prefix={prefix} /></blockquote>;
-          case 'list': {
-            const L = b.ordered ? 'ol' : 'ul';
-            return <L key={i}>{b.items.map((item, j) => <li key={j}><Inlines list={item} notes={notes} prefix={prefix} /></li>)}</L>;
-          }
-          case 'hr': return <hr key={i} className="lib-hr" />;
-          case 'embed': {
-            const quote = look.byKey(b.key);
-            if (quote === undefined) return <p key={i} className="lib-missing">[brak cytatu „{b.key}”]</p>;
-            if (quote.kind !== 'quote') return <p key={i} className="lib-missing">„{b.key}” to nie cytat.</p>;
-            const origin = originOf(quote, look);
-            const where = b.locator !== '' ? b.locator : '';
-            return (
-              <figure key={i} className="lib-embed">
-                <blockquote><QuoteBody text={str(quote.data, 'text')} /></blockquote>
-                {str(quote.data, 'translation') !== '' && <p className="lib-embed-translation">{str(quote.data, 'translation')}</p>}
-                <figcaption>— {[origin, where].filter(Boolean).join(', ')}</figcaption>
-              </figure>
-            );
-          }
-          default: return null;
-        }
-      })}
-    </>
-  );
-}
-
 const typeLabel = (value: string) => TEXT_TYPES.find((t) => t.value === value)?.label ?? '';
 
 export function dateWords(iso: string): string {
@@ -185,31 +50,68 @@ export function dateWords(iso: string): string {
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-/** Ein Nagranie: ein Player, wo die Adresse eine Tondatei ist — sonst ein Link. */
-function Recording({ url, kind }: { url: string; kind: 'audio' | 'video' }) {
-  const file = /\.(mp3|m4a|ogg|oga|wav|aac|opus)(\?|$)/i.test(url) && kind === 'audio';
-  const movie = /\.(mp4|webm|mov)(\?|$)/i.test(url) && kind === 'video';
-  if (!/^https?:\/\//i.test(url)) return null;
-  if (file) return <audio className="lib-audio" controls preload="none" src={url} />;
-  if (movie) return <video className="lib-video" controls preload="none" src={url} />;
-  return <a className="lib-recording" href={url} target="_blank" rel="noreferrer noopener">{kind === 'audio' ? 'Nagranie' : 'Wideo'} ↗</a>;
+/**
+ * 2026-10-21 — DER ASPEKT EINES THEMAS, über die Sammlung nach oben gelesen
+ * („Adwent" → „Okres liturgiczny"). Ein Thema, das selbst Aspekt ist, oder
+ * eines ohne Aspekt darüber: leer.
+ */
+function aspectName(topic: LibEntry, look: Lookup): string {
+  let at = look.get(ids(topic.data, 'parent')[0] ?? '');
+  for (let step = 0; step < 20 && at !== undefined && at.id !== topic.id; step += 1) {
+    if (isAspect(at.data)) return str(at.data, 'name');
+    at = look.get(ids(at.data, 'parent')[0] ?? '');
+  }
+  return '';
 }
 
-export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, compact = false }: {
+export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, compact = false, delivery = null, onDelivery }: {
   entry: LibEntry;
   look: Lookup;
   /** Kennungen der Fussnoten — zwei Texte auf einer Seite dürfen sich nicht ins Gehege kommen. */
   prefix?: string;
   heading?: 'h1' | 'h2' | 'h3';
   hrefOf?: (e: LibEntry) => string | undefined;
-  /** Ohne Bibliografie und Dalsze informacje — für die Vorschau neben dem Schreiben. */
+  /** Ohne Bibliografie, Dalsze informacje und Wygłoszenia — für die Vorschau neben dem Schreiben. */
   compact?: boolean;
+  /** 2026-10-21 — das Wygłoszenie, das gleich gewählt ist (etwa aus der Adresse). */
+  delivery?: string | null;
+  /** … und wohin eine andere Wahl gemeldet wird (die Adresse). */
+  onDelivery?: (id: string | null) => void;
 }) {
   const d = entry.data;
+  /* Gelesen EINMAL: die Fussnoten hängen an genau diesen Bäumen — erst der Plan, dann die Treść. */
+  const plan = useMemo(() => planOf(d).map((point) => ({ point, blocks: parseMarkup(point.text) })), [d]);
   const body = useMemo(() => parseMarkup(str(d, 'body')), [d]);
   const further = useMemo(() => parseMarkup(str(d, 'further')), [d]);
-  const notes = useMemo(() => countNotes(compact ? [body] : [body, further], look, hrefOf), [body, further, look, compact, hrefOf]);
+  const notes = useMemo(() => countNotes([...plan.map((p) => p.blocks), body, ...(compact ? [] : [further])], look, hrefOf), [plan, body, further, look, compact, hrefOf]);
   const sources = useMemo(() => bibliography(notes.works, look), [notes, look]);
+  const deliveries = useMemo(() => (compact ? [] : deliveriesOf(entry, look)), [entry, look, compact]);
+  const [chosenId, setChosenId] = useState<string | null>(delivery);
+  useEffect(() => { setChosenId(delivery); }, [delivery]);
+  const chosen = deliveries.find((one) => one.id === chosenId) ?? null;
+  const media = useRef<HTMLMediaElement | null>(null);
+
+  const choose = (id: string | null) => {
+    setChosenId(id);
+    onDelivery?.(id);
+  };
+
+  /* Eine Zeit im Plan: im Player dorthin — oder YouTube, Vimeo, die Datei an der Stelle öffnen. */
+  const linkable = chosen === null ? undefined
+    : [str(chosen.data, 'video'), str(chosen.data, 'audio')].find((url) => url !== '' && timeLink(url, 0) !== null);
+  const playable = chosen !== null && (mediaFile(str(chosen.data, 'audio')) !== null || mediaFile(str(chosen.data, 'video')) !== null);
+  const seek = (seconds: number) => {
+    const el = media.current;
+    if (el !== null && el.isConnected) {
+      el.currentTime = seconds;
+      void el.play().catch(() => undefined);
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+    const link = linkable === undefined ? null : timeLink(linkable, seconds);
+    if (link !== null) window.open(link, '_blank', 'noopener,noreferrer');
+  };
+
   const topics = ids(d, 'topics').map((id) => look.get(id)).filter((t): t is LibEntry => t !== undefined);
   const project = look.get(ids(d, 'project')[0] ?? '');
   const H = heading;
@@ -227,13 +129,24 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
         {str(d, 'readings') !== '' && <p className="lib-readings"><span>Czytania:</span> {str(d, 'readings')}</p>}
         {(str(d, 'audio') !== '' || str(d, 'video') !== '') && (
           <div className="lib-recordings">
-            {str(d, 'audio') !== '' && <Recording url={str(d, 'audio')} kind="audio" />}
-            {str(d, 'video') !== '' && <Recording url={str(d, 'video')} kind="video" />}
+            {str(d, 'audio') !== '' && <MediaPlayer url={str(d, 'audio')} kind="audio" />}
+            {str(d, 'video') !== '' && <MediaPlayer url={str(d, 'video')} kind="video" />}
           </div>
         )}
       </header>
 
-      <div className="lib-body"><Blocks blocks={body} look={look} notes={notes} prefix={prefix} /></div>
+      <DeliveriesSection deliveries={deliveries} chosen={chosen} onChoose={choose} plan={plan.map((p) => p.point)} look={look} prefix={prefix} media={media} />
+
+      {plan.length > 0 && (
+        <PlanSection points={plan} look={look} notes={notes} prefix={prefix} delivery={chosen} onSeek={playable || linkable !== undefined ? seek : undefined} />
+      )}
+
+      {plan.length > 0 && body.length > 0 ? (
+        <section className="lib-body-part">
+          <h3 className="lib-section">Tekst</h3>
+          <div className="lib-body"><Blocks blocks={body} look={look} notes={notes} prefix={prefix} /></div>
+        </section>
+      ) : (body.length > 0 || plan.length === 0) && <div className="lib-body"><Blocks blocks={body} look={look} notes={notes} prefix={prefix} /></div>}
 
       {!compact && further.length > 0 && (
         <section className="lib-further">
@@ -242,19 +155,7 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
         </section>
       )}
 
-      {notes.list.length > 0 && (
-        <section className="lib-notes">
-          <h3 className="lib-section">Przypisy</h3>
-          <ol>
-            {notes.list.map((note) => (
-              <li key={note.n} id={`${prefix}fn-${note.n}`}>
-                {note.body}{' '}
-                <a className="lib-back" href={`#${prefix}fnref-${note.n}`} aria-label="Wróć do tekstu" onClick={(e) => jump(e, `${prefix}fnref-${note.n}`)}>↩</a>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
+      <NoteList notes={notes} prefix={prefix} />
 
       {!compact && sources.length > 0 && (
         <section className="lib-sources">
@@ -271,7 +172,12 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
       )}
 
       {!compact && topics.length > 0 && (
-        <p className="lib-topics">{topics.map((t) => <span key={t.id} className="lib-chip">{str(t.data, 'name')}</span>)}</p>
+        <p className="lib-topics">
+          {topics.map((t) => {
+            const aspect = aspectName(t, look);
+            return <span key={t.id} className="lib-chip">{aspect !== '' && <span className="lib-chip-aspect">{aspect}:</span>}{str(t.data, 'name')}</span>;
+          })}
+        </p>
       )}
     </article>
   );

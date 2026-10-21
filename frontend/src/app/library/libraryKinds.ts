@@ -32,9 +32,19 @@ export interface LibEntry {
 export interface Lookup {
   get(id: string): LibEntry | undefined;
   byKey(key: string): LibEntry | undefined;
+  /**
+   * 2026-10-21 — wer auf einen Eintrag zeigt. Nur der Speicher im Browser
+   * kennt es (die Wygłoszenia eines Textes); eine veröffentlichte Sammlung
+   * nennt sie im Text selbst (`deliveries`).
+   */
+  backlinks?(id: string): readonly LibEntry[];
 }
 
-export type LibFieldType = 'line' | 'text' | 'markup' | 'number' | 'date' | 'select' | 'url' | 'ref' | 'refs' | 'outline';
+/**
+ * `items` (2026-10-21): eine Liste von Objekten mit eigenen Feldern (`LibField.item`)
+ * — die Punkte eines Plans, die Zeilen „co z planu" eines Wygłoszenia.
+ */
+export type LibFieldType = 'line' | 'text' | 'markup' | 'number' | 'date' | 'select' | 'url' | 'ref' | 'refs' | 'outline' | 'items';
 
 export interface LibField {
   readonly key: string;
@@ -50,6 +60,12 @@ export interface LibField {
   readonly private?: boolean;
   /** Nur gezeigt, wenn — etwa Seitenzahlen nur bei Kapitel und Artikel. */
   readonly when?: (data: EntryData) => boolean;
+  /**
+   * 2026-10-21 — bei `items`: die Felder EINES Eintrags der Liste. Sie werden
+   * beschrieben, importiert, durchsucht und veröffentlicht wie die Felder
+   * einer Art; ein privates Unterfeld geht nie hinaus.
+   */
+  readonly item?: readonly LibField[];
 }
 
 export interface LibKind {
@@ -86,6 +102,13 @@ export const num = (data: EntryData, key: string): number | null => {
   const parsed = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : Number.NaN;
   return Number.isFinite(parsed) ? parsed : null;
 };
+
+/** Die Einträge eines `items`-Feldes — duldsam: was kein Objekt ist, fällt weg. */
+export function itemsOf(data: EntryData, key: string): Record<string, unknown>[] {
+  const value = data[key];
+  if (!Array.isArray(value)) return [];
+  return value.filter((one): one is Record<string, unknown> => typeof one === 'object' && one !== null && !Array.isArray(one));
+}
 
 /** Ein Punkt der Gliederung eines Projekts: eine Überschrift oder ein Text. */
 export type OutlineItem = { readonly heading: string } | { readonly text: string };
@@ -272,21 +295,37 @@ const QUOTE: LibKind = {
 
 /* -- Themen -------------------------------------------------------------------------------- */
 
+/*
+ * 2026-10-21 — ASPEKTE: ein Thema kann eine ACHSE sein („Okres liturgiczny",
+ * „Księga", „Okazja") — seine Unterthemen sind ihre Werte. Ein Text liegt so
+ * zugleich in mehreren Ordnungen; die Seite macht daraus Spalten einer
+ * Tabelle, Filter und Bäume, ohne dass ein Baustein etwas davon wissen muss.
+ */
+export const ASPECT_YES = [{ value: 'yes', label: 'Tak — oś podziału' }] as const;
+
+/** Ist dieses Thema ein Aspekt? */
+export const isAspect = (data: EntryData): boolean => str(data, 'aspect') === 'yes';
+
 const TOPIC: LibKind = {
   kind: 'topic',
   label: 'Temat',
   plural: 'Tematy',
-  says: 'Hasło, według którego porządkuje się cytaty, źródła i teksty; tematy mogą mieć nadrzędne.',
+  says: 'Hasło, według którego porządkuje się cytaty, źródła i teksty; tematy mogą mieć nadrzędne. Temat-aspekt (np. „Okres liturgiczny”) jest osią podziału: jego podtematy to wartości.',
   keyed: true,
   fields: [
     { key: 'name', label: 'Nazwa', type: 'line', says: 'Nazwa tematu' },
     { key: 'description', label: 'Opis', type: 'text', says: 'Opis tematu' },
     { key: 'parent', label: 'Temat nadrzędny', type: 'ref', to: ['topic'], says: 'Temat nadrzędny — odwołanie' },
+    {
+      key: 'aspect', label: 'Aspekt', type: 'select', options: ASPECT_YES,
+      says: '"yes" — ten temat jest aspektem, osią podziału (np. „Okres liturgiczny”, „Księga”, „Okazja”): jego podtematy to wartości; na stronie — kolumna tabeli, filtr i drzewo'
+    },
+    { key: 'order', label: 'Kolejność', type: 'number', says: 'Miejsce wśród tematów o tym samym nadrzędnym (np. okresy liturgiczne po kolei); puste — według nazwy', hint: 'np. 1' },
     { key: 'notes', label: 'Notatki prywatne', type: 'text', private: true, says: 'Tylko dla Ciebie — nigdy nie jest publikowane' }
   ],
   title: (data) => str(data, 'name').trim() || 'Temat',
   sort: (entry) => str(entry.data, 'name').toLowerCase(),
-  example: { key: 'modlitwa', data: { name: 'Modlitwa', description: 'Rozmowa z Bogiem.' } }
+  example: { key: 'modlitwa', data: { name: 'Modlitwa', description: 'Rozmowa z Bogiem.', order: 2 } }
 };
 
 /* -- Eigene Texte ------------------------------------------------------------------------- */
@@ -309,6 +348,53 @@ export const TEXT_STATUS = [
   { value: 'final', label: 'Gotowy' }
 ] as const;
 
+/*
+ * 2026-10-21 — DER PLAN EINES TEXTES: die Hauptgedanken der Reihe nach, unter
+ * ihnen Zitate, Beispiele, Fragen, Anwendungen. Jeder Punkt hat eine feste
+ * Kennung — ein Wygłoszenie sagt über sie, was gesagt wurde und was nicht.
+ * Der Punkt selbst ist Zapis: `[@klucz, s. 12]` wird zur Fussnote, ein
+ * `![@cytat]` allein ist ein Zitat aus der Bibliothek.
+ */
+export const POINT_KINDS = [
+  { value: 'thought', label: 'Myśl' },
+  { value: 'quote', label: 'Cytat' },
+  { value: 'example', label: 'Przykład' },
+  { value: 'question', label: 'Pytanie' },
+  { value: 'application', label: 'Zastosowanie' }
+] as const;
+
+const PLAN_ITEM: readonly LibField[] = [
+  { key: 'id', label: 'Identyfikator', type: 'line', says: 'Stały identyfikator punktu (np. "p4k2x"); pominięty — nada się sam. Wygłoszenia wskazują punkty po nim' },
+  { key: 'text', label: 'Treść', type: 'markup', says: 'Myśl w jednym-dwóch zdaniach, w zapisie treści: [@klucz, s. 12] — źródło, sam ![@klucz-cytatu] — cytat z biblioteki' },
+  { key: 'depth', label: 'Poziom', type: 'number', says: '0 — główna myśl, 1 — pod nią, 2 — jeszcze głębiej' },
+  { key: 'kind', label: 'Rodzaj', type: 'select', options: POINT_KINDS, says: `Rodzaj punktu: ${POINT_KINDS.map((k) => `"${k.value}" (${k.label})`).join(', ')}; pominięty — myśl` },
+  { key: 'note', label: 'Notatka', type: 'text', private: true, says: 'Notatka dla siebie przy tym punkcie (np. „tu pauza”) — nigdy nie jest publikowana' }
+];
+
+/*
+ * 2026-10-21 — WAS EIN WYGŁOSZENIE ÜBER DEN PLAN SAGT: Punkt für Punkt, ob er
+ * gesagt, nur gestreift oder ausgelassen wurde (mit der Stelle im Nagranie),
+ * und was dazukam, das nicht im Plan stand.
+ */
+export const COVERAGE_STATES = [
+  { value: 'said', label: 'Powiedziane' },
+  { value: 'short', label: 'Krótko' },
+  { value: 'skipped', label: 'Pominięte' }
+] as const;
+
+const COVERAGE_ITEM: readonly LibField[] = [
+  { key: 'point', label: 'Punkt planu', type: 'line', says: '"id" punktu z planu tekstu' },
+  { key: 'state', label: 'Jak', type: 'select', options: COVERAGE_STATES, says: '"said" — powiedziane, "short" — tylko wspomniane, krótko, "skipped" — pominięte' },
+  { key: 'at', label: 'Czas', type: 'line', says: 'Kiedy w nagraniu zaczyna się ten punkt (mm:ss albo gg:mm:ss)' },
+  { key: 'note', label: 'Uwaga', type: 'text', says: 'Co było inaczej niż w planie' }
+];
+
+const ADDED_ITEM: readonly LibField[] = [
+  { key: 'text', label: 'Co', type: 'markup', says: 'Co zostało powiedziane (jedno-dwa zdania), w zapisie treści' },
+  { key: 'at', label: 'Czas', type: 'line', says: 'Kiedy w nagraniu (mm:ss)' },
+  { key: 'after', label: 'Po punkcie', type: 'line', says: '"id" punktu planu, po którym to padło; puste — na końcu' }
+];
+
 const TEXT: LibKind = {
   kind: 'text',
   label: 'Tekst',
@@ -326,6 +412,10 @@ const TEXT: LibKind = {
     { key: 'place', label: 'Miejsce', type: 'line', says: 'Gdzie wygłoszony' },
     { key: 'readings', label: 'Czytania', type: 'line', says: 'Czytania, sigla biblijne', hint: 'np. Iz 55,1-3; Rz 8,35.37-39; Mt 14,13-21' },
     { key: 'summary', label: 'Krótki opis', type: 'text', says: 'Krótki opis — w archiwum, nad treścią' },
+    {
+      key: 'plan', label: 'Plan', type: 'items', item: PLAN_ITEM,
+      says: 'Plan — główne myśli po kolei, pod nimi cytaty, przykłady, pytania, zastosowania; lista punktów { "id", "text", "depth", "kind", "note" }. Wygłoszenia odwołują się do punktów po "id"'
+    },
     { key: 'body', label: 'Treść', type: 'markup', says: 'Treść w prostym zapisie (niżej: "Zapis treści") — z odwołaniami [@klucz, s. 12]' },
     { key: 'further', label: 'Dalsze informacje', type: 'markup', says: 'Dalsze informacje pod tekstem — w tym samym zapisie' },
     { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy — odwołania' },
@@ -342,8 +432,75 @@ const TEXT: LibKind = {
       textType: 'sermon', title: 'Chleb, który daje życie', date: '2026-08-02', occasion: 'XVIII Niedziela zwykła',
       readings: 'Wj 16,2-4.12-15; Ef 4,17.20-24; J 6,24-35', status: 'final',
       summary: 'O głodzie, którego nie nasyci chleb.',
+      plan: [
+        { id: 'p1', text: 'Głód, którego nie nasyci chleb', depth: 0 },
+        { id: 'p2', text: 'Jezus: „Ja jestem chlebem życia” [@bt, J 6,35]', depth: 1, kind: 'quote' },
+        { id: 'p3', text: '![@ratzinger2007-1]', depth: 1, kind: 'quote' },
+        { id: 'p4', text: 'Chleb dzielony przy stole w domu', depth: 1, kind: 'example', note: 'Krótko — bez nazwisk.' },
+        { id: 'p5', text: 'Gdzie w tym tygodniu będę szukać chleba?', depth: 0, kind: 'question' }
+      ],
       body: '## Głód\nJezus mówi: „Ja jestem chlebem życia” [@bt, J 6,35].\n\n![@ratzinger2007-1]\n\nModlitwa to nie technika^[Por. też Katechizm, nr 2559.].',
       further: 'Do czytania: [@ratzinger2007].', topics: ['@modlitwa'], project: '@niedziele-2026'
+    }
+  }
+};
+
+/* -- Wygłoszenia: ein Text, gesagt (2026-10-21) --------------------------------------------- */
+
+/** Der erste Text eines Wygłoszenia — sein Titel nennt es in Listen. */
+const deliveredText = (data: EntryData, look: Lookup): LibEntry | undefined => look.get(ids(data, 'texts')[0] ?? '');
+
+const DELIVERY: LibKind = {
+  kind: 'delivery',
+  label: 'Wygłoszenie',
+  plural: 'Wygłoszenia',
+  says: 'Jedno wygłoszenie przygotowanego tekstu (kazania, konferencji): kiedy i gdzie, nagranie — i co z planu zostało powiedziane, co tylko krótko, co pominięte, a co doszło.',
+  keyed: false,
+  fields: [
+    { key: 'texts', label: 'Kazanie (tekst)', type: 'refs', to: ['text'], says: 'Który przygotowany tekst wygłoszono — odwołanie (zwykle jedno; kilka, gdy łączyło się materiał)' },
+    { key: 'date', label: 'Data', type: 'date', says: 'Kiedy (RRRR-MM-DD) — według niej układa się archiwum' },
+    { key: 'occasion', label: 'Okazja', type: 'line', says: 'Dzień liturgiczny, okazja', hint: 'np. XVIII Niedziela zwykła' },
+    { key: 'place', label: 'Miejsce', type: 'line', says: 'Gdzie: kościół, Msza', hint: 'np. Kraków, Msza o 10:30' },
+    { key: 'audience', label: 'Dla kogo', type: 'line', says: 'Słuchacze', hint: 'np. Msza z udziałem dzieci' },
+    { key: 'readings', label: 'Czytania', type: 'line', says: 'Czytania tego dnia, sigla biblijne' },
+    { key: 'audio', label: 'Nagranie (adres)', type: 'url', says: 'Adres nagrania audio — plik (mp3, m4a, ogg) albo strona z nagraniem' },
+    { key: 'video', label: 'Wideo (adres)', type: 'url', says: 'Adres nagrania wideo — plik (mp4, webm) albo YouTube' },
+    { key: 'duration', label: 'Długość', type: 'line', says: 'Długość nagrania (mm:ss)', hint: 'np. 14:30' },
+    { key: 'summary', label: 'Krótko o tym wygłoszeniu', type: 'text', says: 'Co tym razem było najważniejsze, czym się różniło' },
+    {
+      key: 'coverage', label: 'Co z planu', type: 'items', item: COVERAGE_ITEM,
+      says: 'Co z planu tekstu zostało powiedziane — punkt po punkcie: { "point", "state", "at", "note" }'
+    },
+    {
+      key: 'added', label: 'Co doszło', type: 'items', item: ADDED_ITEM,
+      says: 'Co zostało powiedziane, a nie było w planie: { "text", "at", "after" }'
+    },
+    { key: 'transcript', label: 'Zapis (transkrypcja)', type: 'markup', says: 'To, co zostało powiedziane, spisane słowo w słowo — w zapisie treści' },
+    { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy i aspekty tego wygłoszenia (np. okazja) — odwołania' },
+    {
+      key: 'hidden', label: 'Nie publikuj', type: 'select', options: [{ value: 'yes', label: 'Tak — zostaje prywatne' }], private: true,
+      says: '"yes" — to wygłoszenie zostaje prywatne, także gdy jego tekst jest opublikowany'
+    },
+    { key: 'notes', label: 'Notatki prywatne', type: 'text', private: true, says: 'Tylko dla Ciebie — nigdy nie jest publikowane' }
+  ],
+  title: (data, look) => {
+    const text = deliveredText(data, look);
+    return [text === undefined ? '' : str(text.data, 'title').trim(), str(data, 'date'), str(data, 'occasion')].filter((s) => s !== '').join(' · ') || 'Wygłoszenie';
+  },
+  sort: (entry, look) => clip(`${str(entry.data, 'date') || '0000-00-00'} ${str(deliveredText(entry.data, look)?.data ?? {}, 'title').toLowerCase()}`, 64),
+  example: {
+    data: {
+      texts: ['@kazanie-chleb'], date: '2026-08-02', occasion: 'XVIII Niedziela zwykła', place: 'Kraków, Msza o 10:30',
+      audio: 'https://example.pl/kazania/2026-08-02.mp3', duration: '14:30', summary: 'Tym razem mocniej o niedzielnej Eucharystii.',
+      coverage: [
+        { point: 'p1', state: 'said', at: '0:40' },
+        { point: 'p2', state: 'said', at: '2:05' },
+        { point: 'p3', state: 'short', at: '4:30', note: 'Bez całego cytatu.' },
+        { point: 'p4', state: 'skipped' },
+        { point: 'p5', state: 'said', at: '11:20' }
+      ],
+      added: [{ text: 'Zaproszenie na czwartkową adorację.', at: '13:05', after: 'p5' }],
+      notes: 'Za długo — następnym razem bez wstępu.'
     }
   }
 };
@@ -391,7 +548,7 @@ const PROJECT: LibKind = {
   }
 };
 
-export const KINDS: readonly LibKind[] = [TEXT, PROJECT, QUOTE, WORK, PERSON, TOPIC];
+export const KINDS: readonly LibKind[] = [TEXT, DELIVERY, PROJECT, QUOTE, WORK, PERSON, TOPIC];
 
 const BY_KIND = new Map(KINDS.map((one) => [one.kind, one]));
 
@@ -415,8 +572,47 @@ export function fieldRefs(entry: LibEntry, onlyPublic = false): string[] {
     if (onlyPublic && field.private === true) continue;
     if (field.type === 'ref' || field.type === 'refs') out.push(...ids(entry.data, field.key));
     if (field.type === 'outline') for (const item of outline(entry.data, field.key)) if ('text' in item) out.push(item.text);
+    if (field.type === 'items') {
+      for (const item of itemsOf(entry.data, field.key)) {
+        for (const sub of field.item ?? []) {
+          if (onlyPublic && sub.private === true) continue;
+          if (sub.type === 'ref' || sub.type === 'refs') out.push(...ids(item, sub.key));
+        }
+      }
+    }
   }
   return [...new Set(out)];
+}
+
+/**
+ * 2026-10-21 — ALLES, WAS EIN EINTRAG IM ZAPIS TRÄGT: die Felder und die
+ * Unterfelder (die Punkte eines Plans, „co doszło" eines Wygłoszenia). Wer
+ * Quellen sucht — Rückverweise, Veröffentlichung, Bibliografie, LaTeX —,
+ * liest hier, nicht Feld für Feld.
+ */
+export function markupsOf(entry: LibEntry, onlyPublic = false): string[] {
+  const def = kindOf(entry.kind);
+  if (def === undefined) return [];
+  const out: string[] = [];
+  for (const field of def.fields) {
+    if (onlyPublic && field.private === true) continue;
+    if (field.type === 'markup') out.push(str(entry.data, field.key));
+    if (field.type !== 'items') continue;
+    for (const item of itemsOf(entry.data, field.key)) {
+      for (const sub of field.item ?? []) if (sub.type === 'markup' && !(onlyPublic && sub.private === true)) out.push(str(item, sub.key));
+    }
+  }
+  return out.filter((one) => one.trim() !== '');
+}
+
+const empty = (value: unknown): boolean =>
+  value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
+
+/** Ein Eintrag einer Liste ohne seine privaten Felder — und ohne, was keines ist. */
+function publicItem(item: Record<string, unknown>, fields: readonly LibField[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const sub of fields) if (sub.private !== true && !empty(item[sub.key])) out[sub.key] = item[sub.key];
+  return out;
 }
 
 /** Die Felder ohne die privaten — die offene Fassung eines Eintrags. */
@@ -426,8 +622,10 @@ export function publicData(entry: LibEntry): EntryData {
   const out: EntryData = {};
   for (const field of def.fields) {
     if (field.private === true) continue;
-    const value = entry.data[field.key];
-    if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) continue;
+    const value = field.type === 'items'
+      ? itemsOf(entry.data, field.key).map((item) => publicItem(item, field.item ?? [])).filter((item) => Object.keys(item).length > 0)
+      : entry.data[field.key];
+    if (empty(value)) continue;
     out[field.key] = value;
   }
   return out;

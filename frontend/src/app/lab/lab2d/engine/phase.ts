@@ -29,7 +29,7 @@
 
 import type { Engine } from './engine';
 import { pSatFast, tSat } from './if97';
-import { cpL, diffVapour, gasHeatCapacity, gasTemperature, hGas, hL, hV, MOLAR } from './materials';
+import { cpLiq, diffVapour, gasHeatCapacity, gasTemperature, hGas, hL, hV, LIQUIDS, MOLAR, WATER } from './materials';
 import { GAS, H2O, LIQUID, N2, O2, SOLID } from './units';
 
 /** Ein Teilchen unter diesem Anteil seiner Nennmasse verschwindet (sein Rest wird Dampf). */
@@ -51,11 +51,23 @@ export class Phase {
   private readonly mtot: Float64Array;
   private readonly rd: Float64Array;
   private readonly Y0: Float64Array;
-  /** Je Zelle aus den Teilchen (mit den Wärmegewichten): Temperatur und Wärmekapazität des flüssigen Anteils, Σ w m, Σ w m h. */
+  /**
+   * Je Zelle aus den Teilchen (mit den Wärmegewichten): Temperatur und
+   * Wärmekapazität des flüssigen Anteils (aller Flüssigkeiten), Σ w m und
+   * Σ w m h des WASSERS (nur Wasser verdampft und kondensiert: alles, was
+   * Masse zwischen Flüssigkeit und Dampf bewegt, liest diese beiden), Σ w m
+   * aller Flüssigkeiten und die vorherrschende Flüssigkeit (für die Stoffwerte
+   * um eine Blase).
+   */
   readonly Tl: Float64Array;
   readonly Cl: Float64Array;
   readonly acc: Float64Array;
   readonly accH: Float64Array;
+  readonly accAll: Float64Array;
+  readonly host: Uint8Array;
+  /** Gibt es Teilchen anderer Flüssigkeiten (seit dem letzten gatherLiquid)? */
+  mixed = false;
+  private readonly accMat: Float64Array;
   private readonly Fm: Float64Array;
   private readonly Fe: Float64Array;
   private readonly dm: Float64Array;
@@ -80,6 +92,9 @@ export class Phase {
     this.Cl = new Float64Array(n);
     this.acc = new Float64Array(n);
     this.accH = new Float64Array(n);
+    this.accAll = new Float64Array(n);
+    this.host = new Uint8Array(n);
+    this.accMat = new Float64Array(n * LIQUIDS.length);
     this.Fm = new Float64Array(n);
     this.Fe = new Float64Array(n);
     this.dm = new Float64Array(engine.particles.cap);
@@ -105,18 +120,21 @@ export class Phase {
     return (x * MOLAR[H2O]) / (x * MOLAR[H2O] + (1 - x) * mDry);
   }
 
-  /** Temperatur und Wärmekapazität des flüssigen Anteils jeder Zelle, und Σ w m, Σ w m h der Teilchen (mit den Wärmegewichten). */
+  /** Temperatur und Wärmekapazität des flüssigen Anteils jeder Zelle, Σ w m und Σ w m h des Wassers, Σ w m aller Flüssigkeiten (mit den Wärmegewichten). */
   gatherLiquid(): void {
     const { grid: g, particles: P, liquid: L } = this.e;
-    const { nx, ny } = g;
-    const { Tl, Cl, acc, accH } = this;
+    const { nx, ny, n } = g;
+    const { Tl, Cl, acc, accH, accAll } = this;
     Cl.fill(0);
     Tl.fill(0);
     acc.fill(0);
     accH.fill(0);
+    let mixed = false;
     for (let p = 0; p < P.count; p += 1) {
       const m = P.mass[p];
-      const Cp = m * cpL(P.T[p]);
+      const mat = P.mat[p];
+      const Cp = m * cpLiq(mat, P.T[p]);
+      if (mat !== WATER && !mixed) { mixed = true; accAll.fill(0); this.accMat.fill(0); }
       const o = 9 * p;
       for (let k = 0; k < 9; k += 1) {
         const w = L.wt[o + k];
@@ -127,17 +145,61 @@ export class Phase {
         const c = i + j * nx;
         Cl[c] += w * Cp;
         Tl[c] += w * Cp * P.T[p];
-        acc[c] += w * m;
-        accH[c] += w * m * P.h[p];
+        if (mat === WATER) {
+          acc[c] += w * m;
+          accH[c] += w * m * P.h[p];
+        }
+        if (mixed) this.accMat[mat * n + c] += w * m;
       }
     }
-    for (let c = 0; c < g.n; c += 1) Tl[c] = Cl[c] > 0 ? Tl[c] / Cl[c] : g.T[c];
+    for (let c = 0; c < n; c += 1) Tl[c] = Cl[c] > 0 ? Tl[c] / Cl[c] : g.T[c];
+    this.mixed = mixed;
+    if (!mixed) {
+      /* Nur Wasser: alle Flüssigkeit ist Wasser. */
+      accAll.set(acc);
+      this.host.fill(WATER);
+      return;
+    }
+    /* Mit anderen Flüssigkeiten: das Wasser der Teilchen vor dem ersten anderen fehlte in accMat — aus acc nachtragen. */
+    const NL = LIQUIDS.length;
+    for (let c = 0; c < n; c += 1) {
+      this.accMat[WATER * n + c] = acc[c];
+      let all = 0;
+      let best = WATER;
+      let bm = -1;
+      for (let l = 0; l < NL; l += 1) {
+        const v = this.accMat[l * n + c];
+        all += v;
+        if (v > bm) { bm = v; best = l; }
+      }
+      accAll[c] = all;
+      this.host[c] = best;
+    }
+  }
+
+  /** Anteil des Wassers an der Flüssigkeit der Zelle c (1 ohne Flüssigkeit — wie vor M2a). */
+  waterShare(c: number): number {
+    const all = this.accAll[c];
+    return all > 0 ? this.acc[c] / all : 1;
+  }
+
+  /** Mittlere spezifische Enthalpie des Wassers der Zelle c (J/kg); ohne Wasserteilchen die des Wassers bei der Temperatur der Zelle. */
+  waterH(c: number): number {
+    return this.acc[c] > 0 ? this.accH[c] / this.acc[c] : hL(this.Tl[c]);
+  }
+
+  /** Die vorherrschende Flüssigkeit am Ort (x, y) (Wasser, wenn dort keine ist). */
+  hostAt(x: number, y: number): number {
+    const c = this.e.grid.cellAt(x, y);
+    return c < 0 ? WATER : this.host[c];
   }
 
   /**
-   * Die Masse Fm[c] (positiv: hinzu, negativ: weg) auf die Teilchen jeder Zelle
-   * verteilen, nach w·m (aus dem letzten gatherLiquid); die Teilchen behalten
-   * ihr h — die Energie ist dann Fm·h̄ der Zelle, wie die Aufrufer sie buchen.
+   * Die Masse Fm[c] (positiv: hinzu, negativ: weg) auf die WASSERteilchen
+   * jeder Zelle verteilen, nach w·m (aus dem letzten gatherLiquid); die
+   * Teilchen behalten ihr h — die Energie ist dann Fm·waterH(c), wie die
+   * Aufrufer sie buchen. Kommt Wasser in eine Zelle ohne Wasserteilchen (Dampf
+   * kondensiert in Öl), entsteht dort ein neues Teilchen mit waterH(c).
    */
   applyMass(Fm: Float64Array, dt: number): void {
     const { grid: g, particles: P, liquid: L } = this.e;
@@ -145,6 +207,7 @@ export class Phase {
     const { acc, dm } = this;
     dm.fill(0, 0, P.count);
     for (let p = 0; p < P.count; p += 1) {
+      if (P.mat[p] !== WATER) continue;
       const o = 9 * p;
       let d = 0;
       for (let k = 0; k < 9; k += 1) {
@@ -174,6 +237,17 @@ export class Phase {
       P.mass[p] = m;
       L.dVp[p] += m / P.rho[p] - before;
     }
+    /* Wasser in Zellen ohne Wasserteilchen: ein neues Teilchen (mit waterH, wie die Aufrufer gebucht haben). */
+    for (let c = 0; c < g.n; c += 1) {
+      if (Fm[c] <= 0 || acc[c] > 0) continue;
+      const i = c % nx;
+      const j = (c - i) / nx;
+      const q = P.add((i + 0.5) * g.dx, (j + 0.5) * g.dx, Fm[c], this.waterH(c), WATER);
+      if (q < 0) continue;
+      L.placeParticle(q);
+      L.dVp[q] = Fm[c] / P.rho[q];
+      this.track(q, Fm[c]);
+    }
   }
 
   /** Die Sammlung der Zellen nachführen, wenn sich die Masse von Teilchen p um d ändert (sein h bleibt). */
@@ -181,7 +255,7 @@ export class Phase {
     const { grid: g, particles: P, liquid: L } = this.e;
     const { nx, ny } = g;
     const o = 9 * p;
-    const cp = cpL(P.T[p]);
+    const cp = cpLiq(P.mat[p], P.T[p]);
     for (let k = 0; k < 9; k += 1) {
       const w = L.wt[o + k];
       if (w === 0) continue;
@@ -191,6 +265,7 @@ export class Phase {
       const c = i + j * nx;
       this.acc[c] += w * d;
       this.accH[c] += w * d * P.h[p];
+      this.accAll[c] += w * d;
       this.Cl[c] += w * d * cp;
     }
   }
@@ -209,9 +284,9 @@ export class Phase {
       this.produced += m;
       gas.deriveCell(gc);
     } else if (m > 0 && c0 >= 0) {
-      /* Kein Gas darüber: die Masse bleibt Flüssigkeit — beim nächsten Teilchen der Zelle. */
+      /* Kein Gas darüber: die Masse bleibt Flüssigkeit — beim nächsten Teilchen derselben Flüssigkeit in der Zelle. */
       for (let q = 0; q < P.count; q += 1) {
-        if (q !== p && g.cellAt(P.x[q], P.y[q]) === c0) {
+        if (q !== p && P.mat[q] === P.mat[p] && g.cellAt(P.x[q], P.y[q]) === c0) {
           const e = P.mass[q] * P.h[q] + m * P.h[p];
           P.mass[q] += m;
           P.h[q] = e / P.mass[q];
@@ -238,7 +313,7 @@ export class Phase {
     const e = this.e;
     const { grid: g, gas, regions: R, heat, solver: S } = e;
     const { nx, ny, n, depth, kind } = g;
-    const { mtot, rd, Y0, Tl, Fm, Fe, accH, acc, edge, hvC, hnC, hoC } = this;
+    const { mtot, rd, Y0, Tl, Fm, Fe, edge, hvC, hnC, hoC } = this;
     let any = false;
     for (let c = 0; c < n; c += 1) {
       if (kind[c] !== GAS) { mtot[c] = 0; continue; }
@@ -352,11 +427,10 @@ export class Phase {
         }
       }
     }
-    /* Die Teilchen: Masse nach w·m verteilt, die latente Wärme als Quelle ihrer Zelle: (Energie des Dampfs − Masse · mittleres h) / Δt. */
+    /* Die Teilchen: Masse nach w·m verteilt, die latente Wärme als Quelle ihrer Zelle: (Energie des Dampfs − Masse · mittleres h des Wassers) / Δt. */
     for (let c = 0; c < n; c += 1) {
-      if (Fm[c] === 0 || acc[c] <= 0) continue;
-      const hbar = accH[c] / acc[c];
-      heat.src[c] += (Fe[c] - Fm[c] * hbar) / dt;
+      if (Fm[c] === 0) continue;
+      heat.src[c] += (Fe[c] - Fm[c] * this.waterH(c)) / dt;
     }
     this.applyMass(Fm, dt);
     for (let c = 0; c < n; c += 1) if (kind[c] === GAS && mtot[c] > 0) gas.deriveCell(c);
@@ -382,8 +456,11 @@ export class Phase {
     const Y = this.Y0[c];
     const p = this.e.regions.pAt(c);
     if (kn === LIQUID) {
+      /* Nur Wasser verdunstet und nimmt Tau auf: die Fläche zählt mit dem Anteil des Wassers an der Flüssigkeit dieser Zelle (Öl allein: kein Austausch). */
+      const fw = this.waterShare(nb);
+      if (fw <= 0) return 0;
       this.yb = this.ysat(this.Tl[nb], p, c);
-      return half * (1 - Y);
+      return half * (1 - Y) * fw;
     }
     if (kn === SOLID) {
       const ys = this.ysat(g.T[nb], p, c);
@@ -494,6 +571,8 @@ export class Phase {
     const vapH = this.Y0;
     vapH.fill(0);
     for (let p = 0; p < P.count; p += 1) {
+      /* Nur Wasser hat eine Siedelinie. */
+      if (P.mat[p] !== WATER) continue;
       const o = 9 * p;
       let lost = 0;
       let lostE = 0;
@@ -668,11 +747,12 @@ export class Phase {
       const x = (ti + 0.5 + 0.25 * Math.sign(i - ti)) * g.dx;
       const y = (tj + 0.5 + 0.25 * Math.sign(j - tj)) * g.dx;
       const Tw = g.T[c];
-      const p = P.add(x, y, full, hL(Tw), 0);
+      const p = P.add(x, y, full, hL(Tw), WATER);
       if (p < 0) continue;
       g.film[c] -= full;
       g.Es[c] -= full * hL(Tw);
-      L.weightsDirty = true;
+      L.placeParticle(p);
+      L.dVp[p] = full / P.rho[p];
     }
   }
 }

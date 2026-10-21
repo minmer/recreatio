@@ -11,14 +11,15 @@ import { viewPath } from '../routes';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import type { OpenLibrary } from './library';
 import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJson';
-import { type LibEntry, isKey, kindOf, str } from './libraryKinds';
-import { latexFileName, missingKeys, projectToLatex, textToLatex } from './libraryLatex';
+import { type LibEntry, isKey, kindOf, markupsOf } from './libraryKinds';
+import { latexFileName, missingKeys, planToLatex, projectToLatex, textToLatex } from './libraryLatex';
 import { citedKeys } from './libraryMarkup';
 import { entryLine } from './LibraryPick';
 import { neededBy } from './libraryPublish';
 import type { Entry, LibraryStore } from './libraryStore';
+import { isHidden, planOf, textsOf } from './sermon';
 
-export const TAB_OF: Record<string, string> = { text: 'teksty', project: 'projekty', quote: 'cytaty', work: 'zrodla', person: 'osoby', topic: 'tematy' };
+export const TAB_OF: Record<string, string> = { text: 'teksty', delivery: 'wyglaszenia', project: 'projekty', quote: 'cytaty', work: 'zrodla', person: 'osoby', topic: 'tematy' };
 
 /* -- Der Schlüssel ------------------------------------------------------------------------------ */
 
@@ -39,6 +40,66 @@ export function KeyBox({ store, id, value, readOnly, onChange }: { store: Librar
 /* -- Veröffentlichung ----------------------------------------------------------------------------- */
 
 export function PublishBox({ store, entry, readOnly }: { store: LibraryStore; entry: Entry; readOnly: boolean }) {
+  if (entry.kind === 'delivery') return <DeliveryPublishBox store={store} entry={entry} readOnly={readOnly} />;
+  return <EntryPublishBox store={store} entry={entry} readOnly={readOnly} />;
+}
+
+/**
+ * 2026-10-21 — EIN WYGŁOSZENIE GEHT MIT SEINEM TEXT HINAUS: wer ein Kazanie
+ * veröffentlicht, veröffentlicht seine Aufnahmen (ohne die privaten). Hier
+ * steht deshalb kein „Opublikuj", sondern ob es draussen ist — und, wenn
+ * sein Text draussen ist, „Zaktualizuj publikację", das es mitnimmt (oder,
+ * privat gestellt, zurückzieht).
+ */
+function DeliveryPublishBox({ store, entry, readOnly }: { store: LibraryStore; entry: Entry; readOnly: boolean }) {
+  const [current, setCurrent] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const texts = textsOf(entry, store).map((t) => store.get(t.id)).filter((t): t is Entry => t !== undefined);
+  const outside = texts.filter((t) => t.publishedAs !== null);
+  const hidden = isHidden(entry);
+
+  useEffect(() => {
+    if (entry.publishedAs === null) { setCurrent(null); return undefined; }
+    let alive = true;
+    const timer = window.setTimeout(() => { void store.publicIsCurrent(entry.id).then((ok) => { if (alive) setCurrent(ok); }); }, 600);
+    return () => { alive = false; window.clearTimeout(timer); };
+  }, [store, entry.id, entry.publishedAs, entry.version, store.revision]);
+
+  const refresh = async () => {
+    setBusy(true);
+    setFailed(null);
+    try {
+      await store.apply(store.planFor({ refresh: [entry.id, ...outside.map((t) => t.id)] }));
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const due = outside.length > 0 && ((hidden && entry.publishedAs !== null) || (!hidden && (entry.publishedAs === null || current === false)));
+  return (
+    <section className="lib-box">
+      <h2 className="lib-box-h">Publikacja</h2>
+      {entry.publishedAs !== null && !hidden && <p><span className="lib-badge is-public">publiczne</span> razem z tekstem {outside.map((t) => `„${store.title(t)}”`).join(', ')}.</p>}
+      {entry.publishedAs === null && !hidden && outside.length === 0 && <p>Prywatne — stanie się publiczne razem ze swoim tekstem, gdy go opublikujesz.</p>}
+      {entry.publishedAs === null && !hidden && outside.length > 0 && <p className="wk-warn">Tekst jest publiczny, to wygłoszenie jeszcze nie.</p>}
+      {hidden && <p>Prywatne („Nie publikuj”){entry.publishedAs !== null ? ' — jest jeszcze na stronie; aktualizacja je wycofa.' : '.'}</p>}
+      {current === false && !hidden && <p className="wk-warn">Zmiany nie są jeszcze opublikowane.</p>}
+      {!readOnly && due && (
+        <div className="wk-actions">
+          <button type="button" className="wk-btn" disabled={busy} onClick={() => void refresh()}>
+            {busy ? 'Publikowanie…' : hidden ? 'Wycofaj z publikacji' : entry.publishedAs === null ? 'Opublikuj razem z tekstem' : 'Zaktualizuj publikację'}
+          </button>
+        </div>
+      )}
+      {failed !== null && <p className="wk-error">{failed}</p>}
+    </section>
+  );
+}
+
+function EntryPublishBox({ store, entry, readOnly }: { store: LibraryStore; entry: Entry; readOnly: boolean }) {
   const [current, setCurrent] = useState<boolean | null>(null);
   const [asking, setAsking] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -99,7 +160,7 @@ export function PublishBox({ store, entry, readOnly }: { store: LibraryStore; en
           {asking !== null && <button type="button" className="wk-link-btn" onClick={() => setAsking(null)}>Anuluj</button>}
         </div>
       )}
-      {entry.publishedAs === 'explicit' && entry.kind === 'text' && <p className="wk-hint">Na stronie pokaże go moduł „Tekst z biblioteki” albo „Archiwum tekstów”.</p>}
+      {entry.publishedAs === 'explicit' && entry.kind === 'text' && <p className="wk-hint">Na stronie pokaże go moduł „Tekst z biblioteki” albo „Archiwum tekstów” — z planem i wygłoszeniami.</p>}
       {entry.publishedAs === 'explicit' && entry.kind === 'quote' && <p className="wk-hint">Widoczny w module „Zbiór cytatów”.</p>}
       {failed !== null && <p className="wk-error">{failed}</p>}
     </section>
@@ -114,10 +175,11 @@ export function Relations({ store, library, entry }: { store: LibraryStore; libr
   const texts = back.filter((e) => e.kind === 'text');
   const works = back.filter((e) => e.kind === 'work');
   const projects = back.filter((e) => e.kind === 'project');
-  const other = back.filter((e) => !['quote', 'text', 'work', 'project'].includes(e.kind));
+  const deliveries = back.filter((e) => e.kind === 'delivery');
+  const other = back.filter((e) => !['quote', 'text', 'work', 'project', 'delivery'].includes(e.kind));
   const link = (e: Entry) => <a href={viewPath('library', library.libraryId, e.id)}>{e.kind === 'quote' ? `„${store.title(e)}”` : entryLine(e, store)}</a>;
 
-  const cited = entry.kind === 'text' ? citedKeys(str(entry.data, 'body'), str(entry.data, 'further')).map((k) => store.byKey(k)).filter((e): e is Entry => e !== undefined) : [];
+  const cited = entry.kind === 'text' || entry.kind === 'delivery' ? citedKeys(...markupsOf(entry)).map((k) => store.byKey(k)).filter((e): e is Entry => e !== undefined) : [];
 
   if (back.length === 0 && cited.length === 0 && entry.kind !== 'work') return null;
 
@@ -134,6 +196,7 @@ export function Relations({ store, library, entry }: { store: LibraryStore; libr
       {works.length > 0 && <><p className="lib-box-sub">Źródła</p><ul className="lib-rel">{works.map((w) => <li key={w.id}>{link(w)}</li>)}</ul></>}
       {texts.length > 0 && <><p className="lib-box-sub">Przywołują go teksty</p><ul className="lib-rel">{texts.map((t) => <li key={t.id}>{link(t)}</li>)}</ul></>}
       {projects.length > 0 && <><p className="lib-box-sub">W projekcie</p><ul className="lib-rel">{projects.map((o) => <li key={o.id}>{link(o)}</li>)}</ul></>}
+      {deliveries.length > 0 && entry.kind !== 'text' && <><p className="lib-box-sub">W wygłoszeniach</p><ul className="lib-rel">{deliveries.map((o) => <li key={o.id}>{link(o)}</li>)}</ul></>}
       {other.length > 0 && <><p className="lib-box-sub">Inne</p><ul className="lib-rel">{other.map((o) => <li key={o.id}>{link(o)}</li>)}</ul></>}
       {cited.length > 0 && <><p className="lib-box-sub">Ten tekst przywołuje</p><ul className="lib-rel">{cited.map((c) => <li key={c.id}>{link(c)}</li>)}</ul></>}
     </section>
@@ -169,6 +232,13 @@ export function LatexBox({ store, entry }: { store: LibraryStore; entry: LibEntr
         <button type="button" className="wk-link-btn" onClick={() => setShown((was) => !was)}>{shown ? 'Ukryj podgląd' : 'Podgląd'}</button>
         <button type="button" className="wk-link-btn" onClick={() => void navigator.clipboard?.writeText(source())}>Kopiuj</button>
       </div>
+      {entry.kind === 'text' && planOf(entry.data).length > 0 && (
+        <div className="wk-actions">
+          <button type="button" className="wk-btn wk-btn-line" onClick={() => void saveBlob(new Blob([planToLatex(entry, store, { notes: true })], { type: 'application/x-tex' }), latexFileName(entry, '-plan'))}>
+            Plan na ambonę (.tex)
+          </button>
+        </div>
+      )}
       {shown && <pre className="lib-latex">{source()}</pre>}
     </section>
   );

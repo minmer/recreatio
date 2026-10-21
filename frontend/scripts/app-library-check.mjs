@@ -12,6 +12,11 @@
  *   5. Der Text, gezeichnet: Fussnoten in Reihenfolge, Quellen darunter.
  *   6. Bücher: ISBN, Strichcode (ZXing), Katalog (MARC, ONIX), eigene Nummer,
  *      Zitate eines Buches (Format, Polecenie, Plan, Import, Export).
+ *   7. Kazania (2026-10-21): der Plan (Lesen, Nummern, Einfügen), Wygłoszenia
+ *      (was gesagt wurde, Zeiten, Links an die Stelle), Aspekte der Themen,
+ *      Veröffentlichung (ein Text nimmt seine Wygłoszenia mit, private nicht;
+ *      Themen samt denen darüber), die Zeichnung mit gewähltem Wygłoszenie,
+ *      LaTeX, das Polecenie, JSON ins offene Formular, die Zeilen des Archivs.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -34,7 +39,12 @@ export * from '${app}library/isbn';
 export * from '${app}library/libraryCatalog';
 export * from '${app}library/libraryQuotes';
 export { decodeGray } from '${app}library/barcode';
-export { readAmount } from '${app}library/libraryJson';
+export { readAmount, patchFromDoc } from '${app}library/libraryJson';
+export * from '${app}library/sermon';
+export * from '${app}library/topics';
+export { textToLatex, planToLatex } from '${app}library/libraryLatex';
+export { archiveRow, choose, facetKey, PROJECTS } from '${app}library/browse';
+export { layoutOf } from '${app}library/archiveLayout';
 export { renderToStaticMarkup } from 'react-dom/server';
 export { createElement } from 'react';
 `);
@@ -395,6 +405,193 @@ try {
     assert.ok(promptWhole.includes('cały tekst') && promptWhole.includes(m.QUOTES_FORMAT), 'also when the whole photo is the quote');
     assert.equal(m.QUOTES_TOOL, undefined, 'no AI is called from the app');
     ok('quotes of a book: duplicates, hyphenation, pages, topics by name, import with new topics, export → import, description from the kind, prompt');
+  }
+
+  /* -- 7. Kazania: Plan, Wygłoszenia, Aspekte ------------------------------------------------- */
+  {
+    /* Der Plan, duldsam gelesen: leere Punkte fallen weg, keine Stufe springt um zwei, ohne Kennung eine aus der Stelle. */
+    const plan = m.planOf({ plan: [
+      { id: 'p1', text: 'Głód', depth: 0 }, { id: 'p2', text: 'Za głęboko', depth: 2 }, { text: '  ' }, { text: 'Bez kennung', depth: 1, kind: 'nonsense' },
+      { id: 'p4', text: '![@q]', depth: 2 }, { id: 'p5', text: 'Druga', depth: 0, kind: 'question' }
+    ] });
+    assert.deepEqual(plan.map((p) => [p.id, p.depth, p.kind]), [['p1', 0, 'thought'], ['p2', 1, 'thought'], ['#4', 1, 'thought'], ['p4', 2, 'quote'], ['p5', 0, 'question']],
+      'plan: depth never jumps by two, empty points go, an embed alone is a quote, unknown kinds are thoughts');
+    assert.equal(m.planOf({ plan: [{ id: 'a', text: '' }] }, { keepEmpty: true }).length, 1, 'the editor keeps an empty point');
+    assert.deepEqual([...m.pointNumbers(plan).values()], ['1', '1.1', '1.2', '1.2.1', '2'], 'numbers as on the pulpit');
+    assert.deepEqual(m.pointData({ id: 'x', text: 'T', depth: 0, kind: 'thought', note: '' }), { id: 'x', text: 'T' }, 'defaults are not stored');
+    const taken = new Set(['pa']);
+    const fresh = m.newPointId((id) => taken.has(id));
+    assert.ok(/^p[a-z0-9]{4}$/.test(fresh) && !taken.has(fresh), `a new point id is short and free (${fresh})`);
+
+    const pasted = m.planFromText('1. Głód chleba\n   a) przykład z domu\n   > Ja jestem chlebem życia\n2. Szukam Boga?\n\t- jak?\n2.1. Podpunkt\nI. Rzymska');
+    assert.deepEqual(pasted.map((p) => [p.text, p.depth, p.kind]), [
+      ['Głód chleba', 0, 'thought'], ['przykład z domu', 1, 'thought'], ['Ja jestem chlebem życia', 1, 'quote'],
+      ['Szukam Boga?', 0, 'question'], ['jak?', 1, 'question'], ['Podpunkt', 1, 'thought'], ['Rzymska', 0, 'thought']
+    ], 'pasting a plan: numbers, letters, indentation, bullets, > quotes, ? questions, a Roman numeral is a main point');
+
+    /* Zeit und Stelle. */
+    assert.deepEqual(['4:30', '1:02:05', '95', 'abc'].map(m.secondsOf), [270, 3725, 95, null]);
+    assert.deepEqual([270, 3725, 5].map(m.timeText), ['4:30', '1:02:05', '0:05']);
+    assert.equal(m.timeLink('https://www.youtube.com/watch?v=abc', 95), 'https://www.youtube.com/watch?v=abc&t=95s', 'YouTube at the place');
+    assert.equal(m.timeLink('https://youtu.be/abc', 95), 'https://youtu.be/abc?t=95s');
+    assert.equal(m.timeLink('https://vimeo.com/123', 95), 'https://vimeo.com/123#t=95s');
+    assert.equal(m.timeLink('https://example.pl/k/2026-08-02.mp3', 95), 'https://example.pl/k/2026-08-02.mp3#t=95', 'a file by media fragment');
+    assert.equal(m.timeLink('https://example.pl/kazanie', 95), null, 'a page has no place');
+    assert.deepEqual(['https://x.pl/a.mp3', 'https://x.pl/a.MP4?x=1', 'https://youtu.be/a', 'ftp://x/a.mp3'].map(m.mediaFile), ['audio', 'video', null, null]);
+
+    /* Eine kleine Bibliothek mit Aspekten, einem Kazanie und drei Wygłoszenia (eins privat). */
+    const E = (id, kind, data, key) => ({ id, kind, ...(key === undefined ? {} : { key }), data });
+    const entries = [
+      ...lib.all(),
+      E('t-okres', 'topic', { name: 'Okres liturgiczny', aspect: 'yes', order: 1 }, 'okres'),
+      E('t-adwent', 'topic', { name: 'Adwent', parent: 't-okres', order: 1 }, 'adwent'),
+      E('t-adwent1', 'topic', { name: 'I Niedziela Adwentu', parent: 't-adwent' }, 'adwent1'),
+      E('t-post', 'topic', { name: 'Wielki Post', parent: 't-okres', order: 3 }, 'post'),
+      E('t-temat', 'topic', { name: 'Temat', aspect: 'yes', order: 2 }, 'temat'),
+      E('t-nadzieja', 'topic', { name: 'Nadzieja', parent: 't-temat' }, 'nadzieja'),
+      E('t-rozne', 'topic', { name: 'Różne' }, 'rozne'),
+      E('sermon', 'text', {
+        textType: 'sermon', title: 'Chleb', date: '2020-01-01', topics: ['t-adwent1', 't-nadzieja'],
+        plan: [
+          { id: 'p1', text: 'Głód, którego nie nasyci chleb [@bt, J 6,35]', depth: 0, note: 'Krótko — bez nazwisk' },
+          { id: 'p2', text: '![@q]', depth: 1, kind: 'quote' },
+          { id: 'p3', text: 'Chleb w domu', depth: 1, kind: 'example' },
+          { id: 'p4', text: 'Gdzie szukam?', depth: 0, kind: 'question' },
+          { id: 'p5', text: 'Zastosowanie na tydzień', depth: 0, kind: 'application' }
+        ],
+        body: 'Treść [@jezus, s. 5].'
+      }, 'chleb'),
+      E('d1', 'delivery', {
+        texts: ['sermon'], date: '2026-08-02', occasion: 'XVIII Niedziela zwykła', audio: 'https://example.pl/k/d1.mp3', notes: 'tajne-d1',
+        coverage: [{ point: 'p1', state: 'said', at: '0:40' }, { point: 'p2', state: 'short', note: 'Bez całego cytatu' }, { point: 'p3', state: 'skipped' }],
+        added: [{ text: 'Zaproszenie na adorację', at: '12:50', after: 'p4' }]
+      }),
+      E('d2', 'delivery', { texts: ['sermon'], date: '2027-01-01', hidden: 'yes' }),
+      E('d3', 'delivery', { texts: ['sermon'], date: '2025-12-01' })
+    ];
+    /* Wie der Speicher: wer zeigt worauf (Felder und Zapis). */
+    const lookB = (list) => {
+      const base = look(list);
+      return { ...base, backlinks: (id) => list.filter((e) => m.fieldRefs(e).includes(id) || m.citedKeys(...m.markupsOf(e)).some((k) => base.byKey(k)?.id === id)) };
+    };
+    const L = lookB(entries);
+    const sermon = L.get('sermon');
+
+    assert.ok(m.markupsOf(sermon).includes('Gdzie szukam?') && m.markupsOf(sermon).length === 6, 'markup of the plan counts as markup');
+    assert.deepEqual(m.citedKeys(...m.markupsOf(sermon)), ['bt', 'q', 'jezus'], 'sources of the plan and the body');
+    assert.ok(!JSON.stringify(m.publicData(sermon)).includes('bez nazwisk'), 'a private note of a point stays home');
+    assert.deepEqual(m.deliveriesOf(sermon, L).map((d) => d.id), ['d1', 'd3'], 'deliveries newest first, the private one left out');
+    assert.equal(m.lastHeld(sermon, L), '2026-08-02');
+    const counts = m.coverageCounts(m.planOf(sermon.data), m.coverageOf(L.get('d1').data), m.addedOf(L.get('d1').data));
+    assert.deepEqual(counts, { points: 5, said: 1, short: 1, skipped: 1, open: 2, added: 1 });
+    assert.equal(m.countsLine(counts), 'powiedziane 1 z 5 · krótko 1 · pominięte 1 · bez oznaczenia 2 · dodane 1');
+    assert.equal(m.kindOf('delivery').title(L.get('d1').data, L), 'Chleb · 2026-08-02 · XVIII Niedziela zwykła', 'a delivery is named after its text');
+
+    /* Aspekte: Achsen aus Themen. */
+    const tree = m.topicTree(entries.filter((e) => e.kind === 'topic').map(m.topicNode));
+    assert.deepEqual(tree.aspects.map((a) => a.name), ['Okres liturgiczny', 'Temat'], 'aspects in their order');
+    assert.equal(tree.aspectOf('t-adwent1').id, 't-okres', 'a value belongs to the aspect above it');
+    assert.equal(tree.aspectOf('t-rozne'), null);
+    assert.deepEqual(tree.flat('t-okres').map((v) => [v.node.name, v.depth]), [['Adwent', 0], ['I Niedziela Adwentu', 1], ['Wielki Post', 0]], 'values in tree order with depth');
+    assert.deepEqual(m.facetsOf(tree).map((f) => f.name), ['Okres liturgiczny', 'Temat', 'Inne tematy'], 'facets: the aspects, then loose topics');
+    assert.deepEqual(m.facetsOf(m.topicTree([{ id: 'a', name: 'A', parent: null, aspect: false, order: null }])).map((f) => f.name), ['Tematy'], 'without aspects one facet over all topics');
+
+    /* Veröffentlichen: ein Kazanie nimmt seine Wygłoszenia mit — das private nicht —, die Themen samt denen darüber. */
+    const marked = entries.map((e) => ({ ...e, publishedAs: null }));
+    const P = m.plan(marked, L, { add: ['sermon'] });
+    const out = P.publish.map((p) => p.id);
+    for (const id of ['sermon', 'd1', 'd3', 't-adwent1', 't-adwent', 't-okres', 't-nadzieja', 't-temat', 'bt', 'q', 'jezus', 'rat']) assert.ok(out.includes(id), `${id} goes out with the sermon`);
+    assert.ok(!out.includes('d2') && !out.includes('t-post') && !out.includes('t-rozne'), 'the private delivery and unrelated topics stay home');
+    assert.equal(P.publish.find((p) => p.id === 'd1').as, 'implicit');
+    const after = new Set(out);
+    const pubSermon = m.publicEntry(sermon, 'explicit', L, (id) => after.has(id));
+    const sermonDoc = JSON.parse(pubSermon.json);
+    assert.deepEqual(sermonDoc.data.deliveries, ['d1', 'd3'], 'the text names its deliveries');
+    assert.ok(!pubSermon.json.includes('bez nazwisk') && !JSON.stringify(sermonDoc.data.plan).includes('note'), 'no private notes in the public plan');
+    for (const id of ['d1', 'd3', 't-okres', 't-adwent', 't-temat', 'bt', 'q', 'jezus']) assert.ok(pubSermon.refs.includes(id), `public refs name ${id} (filters find a text under its aspects)`);
+    const sum = JSON.parse(pubSermon.summary);
+    assert.deepEqual(sum.plan, ['Głód, którego nie nasyci chleb', 'Gdzie szukam?', 'Zastosowanie na tydzień'], 'the summary carries the main thoughts');
+    assert.equal(sum.deliveries, 2);
+    assert.equal(sum.last, '2026-08-02');
+    assert.equal(sum.held[0].recorded, true);
+    assert.ok(pubSermon.sort.startsWith('2026-08-02'), 'a text stands where it was last preached');
+    const pubD1 = m.publicEntry(L.get('d1'), 'implicit', L, (id) => after.has(id));
+    assert.ok(!pubD1.json.includes('tajne-d1'), 'private notes of a delivery stay home');
+    assert.deepEqual(JSON.parse(pubD1.summary).counts, counts, 'a delivery says how much of the plan was said');
+    const topicSum = JSON.parse(m.publicEntry(L.get('t-okres'), 'implicit', L, () => true).summary);
+    assert.deepEqual([topicSum.aspect, topicSum.order], [true, 1], 'a topic says it is an aspect, and its place');
+    assert.equal(m.topicNodeOfSummary('t-okres', topicSum).aspect, true, 'the public page reads it back');
+
+    const published = marked.map((e) => ({ ...e, publishedAs: after.has(e.id) ? (e.id === 'sermon' ? 'explicit' : 'implicit') : null }));
+    const edited = m.plan(published, L, { refresh: ['d1'] });
+    assert.ok(edited.publish.some((p) => p.id === 'd1') && edited.publish.some((p) => p.id === 'sermon'), 'an edited delivery refreshes its text');
+    const hiddenList = published.map((e) => (e.id === 'd1' ? { ...e, data: { ...e.data, hidden: 'yes' } } : e));
+    const hidden = m.plan(hiddenList, lookB(hiddenList), { refresh: ['d1'] });
+    assert.ok(hidden.unpublish.includes('d1'), 'a delivery set private is withdrawn');
+    assert.ok(hidden.publish.some((p) => p.id === 'sermon'), '… and its text no longer names it');
+    const newOne = [...published, { ...E('d4', 'delivery', { texts: ['sermon'], date: '2026-09-01' }), publishedAs: null }];
+    const added = m.plan(newOne, lookB(newOne), { refresh: ['d4', 'sermon'] });
+    assert.ok(added.publish.some((p) => p.id === 'd4' && p.as === 'implicit'), 'a new delivery goes out with its published text');
+
+    /* Gezeichnet: der Plan, und auf ihm das gewählte Wygłoszenie. */
+    const docs = [...after].map((id) => m.publicEntry(L.get(id), id === 'sermon' ? 'explicit' : 'implicit', L, (x) => after.has(x)))
+      .map((one) => ({ ...JSON.parse(one.json) }));
+    const pub = m.publicLookup(docs);
+    const plain = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: pub.get('sermon'), look: pub }));
+    assert.ok(plain.includes('lib-plan') && plain.includes('Modlitwa jest rozmową.') && plain.includes('Wygłoszenia (2)'), 'plan with the embedded quote, and the deliveries');
+    assert.ok(!plain.includes('lib-mark '), 'no marks while no delivery is chosen');
+    const notes = [...plain.matchAll(/<li id="fn-(\d+)">(.*?)<\/li>/g)].map((x) => x[2].replace(/<[^>]+>/g, ''));
+    assert.ok(notes[0].startsWith('J 6,35 (BT)') && notes[1].startsWith('J. Ratzinger, Jezus z Nazaretu'), `footnotes count the plan first, then the text (${notes.join(' | ')})`);
+    assert.ok(!plain.includes('bez nazwisk'), 'no private note on the page');
+    const marks = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: pub.get('sermon'), look: pub, delivery: 'd1' }));
+    assert.ok(marks.includes('lib-mark is-said') && marks.includes('lib-mark is-short') && marks.includes('lib-mark is-skipped'), 'the chosen delivery marks the plan');
+    assert.ok(marks.includes('▶ 0:40') && marks.includes('Bez całego cytatu'), 'times you can jump to, and what was different');
+    const addedAt = marks.indexOf('Zaproszenie na adorację');
+    assert.ok(addedAt > marks.indexOf('Gdzie szukam?') && addedAt < marks.indexOf('Zastosowanie na tydzień'), 'what was added stands after its point');
+
+    /* Druck: der Plan im Text, und der Plan allein für die Kanzel. */
+    const tex = m.textToLatex(sermon, L);
+    assert.ok(tex.includes('\\section*{Plan}') && tex.includes('\\begin{enumerate}') && tex.includes('\\item Głód') && tex.includes('\\footnote{J 6,35 (BT).}'), 'LaTeX: the plan as a numbered list with its footnotes');
+    assert.equal((tex.match(/\\begin\{enumerate\}/g) ?? []).length, (tex.match(/\\end\{enumerate\}/g) ?? []).length, 'LaTeX: every list is closed');
+    const pulpit = m.planToLatex(sermon, L, { notes: true });
+    assert.ok(pulpit.includes('{extarticle}') && pulpit.includes('14pt') && pulpit.includes('Krótko --- bez nazwisk'), 'the pulpit sheet: large, with own notes');
+    assert.ok(!m.planToLatex(sermon, L).includes('bez nazwisk'), 'without notes when not asked');
+
+    /* Das Polecenie für den eigenen Chat — und die Antwort ins offene Formular. */
+    const prompt = m.deliveryPrompt(L.get('d1'), L);
+    assert.ok(prompt.includes('[p1] 1 Głód') && prompt.includes('[p2]') && prompt.includes('Modlitwa jest rozmową.') && prompt.includes('"id": "d1"') && prompt.includes('"coverage"'), 'the delivery prompt carries the plan with ids and the format');
+    assert.ok(m.planPrompt(sermon).includes('Treść [@jezus, s. 5].') && m.planPrompt(sermon).includes('"id": "sermon"'), 'the plan prompt carries the text');
+    const answer = { format: m.LIBRARY_FORMAT, version: 1, entries: [
+      { id: 'd1', kind: 'delivery', data: { coverage: [{ point: 'p4', state: 'Pominięte', at: '9:00' }], summary: 'Nowe' } },
+      { kind: 'topic', data: { name: 'x' } }
+    ] };
+    const patch = m.patchFromDoc(answer, { id: 'd1', kind: 'delivery' }, L);
+    assert.deepEqual(Object.keys(patch.patch).sort(), ['coverage', 'summary'], 'only the fields the answer gives');
+    assert.deepEqual(patch.patch.coverage, [{ point: 'p4', state: 'skipped', at: '9:00' }], 'a state by its label means its value');
+    assert.ok(patch.warnings.some((w) => w.includes('Pozostałe wpisy')), 'other entries are named, not imported');
+    assert.ok('error' in m.patchFromDoc({ format: 'recreatio/page' }, { id: 'd1', kind: 'delivery' }, L));
+
+    /* JSON der Bibliothek: Punkte ohne Kennung bekommen eine, Werte beim Namen, Unbekanntes wird gemeldet. */
+    const imported = m.planLibraryImport({ entries: [{ kind: 'text', key: 'nowy', data: { plan: [{ text: 'A' }, { text: 'B', depth: '1', kind: 'Przykład' }, 'C', { text: 'D', bogus: 1 }, { id: 'same', text: 'E' }, { id: 'same', text: 'F' }] } }] }, empty);
+    const iplan = imported.drafts[0].data.plan;
+    assert.equal(iplan.length, 6);
+    assert.ok(iplan.every((p) => typeof p.id === 'string' && p.id !== '') && new Set(iplan.map((p) => p.id)).size === 6, 'every point gets a unique id');
+    assert.deepEqual([iplan[1].depth, iplan[1].kind, iplan[2].text, iplan[4].id], [1, 'example', 'C', 'same']);
+    assert.ok(imported.warnings.some((w) => w.includes('bogus')), 'unknown point fields are reported');
+    for (const sub of ['"depth" — Poziom', '"state" — Jak', '"after" — Po punkcie', '"aspect" — Aspekt', '"texts" — Kazanie (tekst)']) assert.ok(description.includes(sub), `description explains ${sub}`);
+
+    /* Das Archiv: Zeilen aus Kurzfassungen, Filter je Achse. */
+    const row = m.archiveRow({ entryId: 'sermon', summary: pubSermon.summary });
+    assert.deepEqual([row.title, row.date, row.occasion, row.held, row.recorded, row.topics.length, row.plan.length], ['Chleb', '2026-08-02', 'XVIII Niedziela zwykła', 2, true, 2, 3]);
+    const keyOf = (id) => m.facetKey(id, tree, new Set(['proj']));
+    assert.deepEqual([keyOf('t-adwent1'), keyOf('t-nadzieja'), keyOf('t-rozne'), keyOf('proj')], ['t-okres', 't-temat', '', m.PROJECTS]);
+    assert.deepEqual(m.choose([], 't-adwent', keyOf, false), ['t-adwent']);
+    assert.deepEqual(m.choose(['t-adwent'], 't-post', keyOf, false), ['t-post'], 'one value per aspect: another replaces it');
+    assert.deepEqual(m.choose(['t-adwent'], 't-nadzieja', keyOf, false), ['t-adwent', 't-nadzieja'], 'different aspects add up');
+    assert.deepEqual(m.choose(['t-adwent', 't-nadzieja'], 't-adwent', keyOf, false), ['t-nadzieja'], 'the same value again removes it');
+    assert.deepEqual(m.choose(['t-adwent'], 't-nadzieja', keyOf, true), ['t-nadzieja'], 'an older service takes one filter');
+    assert.deepEqual(['Tabela', 'drzewo', 'list', ''].map(m.layoutOf), ['table', 'tree', 'list', 'list']);
+    ok('sermons: plan (depth, numbers, paste), times and links, aspects, publication with deliveries and topic ancestors, marks on the plan, LaTeX, prompts, JSON into the form, archive rows and filters');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

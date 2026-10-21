@@ -23,6 +23,8 @@ export const SANDBOX_LAB2D: Readonly<Record<string, unknown>> = { ...BASE, ops: 
 const plate = (power: number, T = 20) => ({ op: 'hotplate', x: 0.1, y: 0, w: 0.12, h: 0.008, material: 'steel', mode: 'power', power, target: 150, on: true, T });
 const beaker = (T = 20, lid = false) => ({ op: 'beaker', x: 0.1, y: 0.008, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T, ...(lid ? { lid: true } : {}) });
 const water = (T: number) => ({ op: 'fill', region: { rect: [0.067, 0.010, 0.133, 0.06] }, composition: { H2O: 1 }, phase: 'liquid', T });
+/** Eine Schicht einer Flüssigkeit in der Zlewka, von y0 bis y1 (M2a: jede Flüssigkeit der Datenbank). */
+const layer = (composition: Record<string, number>, T: number, y0: number, y1: number) => ({ op: 'fill', region: { rect: [0.067, y0, 0.133, y1] }, composition, phase: 'liquid', T });
 const chips = (T: number) => [
   { op: 'solid', region: { rect: [0.082, 0.010, 0.086, 0.012] }, material: 'ceramic', T },
   { op: 'solid', region: { rect: [0.112, 0.010, 0.116, 0.012] }, material: 'ceramic', T }
@@ -60,6 +62,26 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
       'Porównaj temperaturę wrzenia w inspektorze z otwartą skrzynką.'
     ],
     scene: { ...BASE, sides: { left: 'wall', right: 'wall', bottom: 'wall', top: 'wall' }, ops: [plate(40, 120), beaker(100), water(97), ...chips(97)] }
+  },
+  {
+    key: 'woda-pod-olejem',
+    title: 'Woda pod olejem',
+    summary: 'gorąca woda (97 °C) pod warstwą oleju na gorącej płycie — pęcherze pary przebijają się przez olej',
+    text: [
+      'Olej jest lżejszy od wody i nie miesza się z nią, więc pływa na wierzchu. Pod nim woda zaczyna wrzeć.',
+      'Pęcherze pary rodzą się tylko w wodzie i przechodzą przez olej — sam olej nie paruje (aż do temperatury dymienia, ok. 200 °C).'
+    ],
+    scene: { ...BASE, ops: [plate(40, 140), beaker(105), layer({ H2O: 1 }, 97, 0.010, 0.040), layer({ 'oil-rapeseed': 1 }, 97, 0.040, 0.060), ...chips(97)] }
+  },
+  {
+    key: 'olej-i-woda',
+    title: 'Olej i woda się rozdzielają',
+    summary: 'woda i olej wymieszane pół na pół — grawitacja je rozdziela: olej wypływa na górę',
+    text: [
+      'W zlewce jest drobna mieszanina wody i oleju. Olej jest lżejszy (920 kg/m³), więc jego kropelki wypływają do góry, a woda opada.',
+      'Olej płynie też dużo „gęściej”: w 20 °C jego lepkość jest prawie sto razy większa niż wody — dlatego rozdzielanie trwa.'
+    ],
+    scene: { ...BASE, ops: [beaker(), layer({ H2O: 0.5, 'oil-rapeseed': 0.5 }, 20, 0.010, 0.060)] }
   },
   {
     key: 'mgla',

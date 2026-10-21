@@ -57,6 +57,9 @@ public static partial class Library
         app.MapGet("/library/{id:guid}/published", PublishedListAsync);
         app.MapGet("/library/{id:guid}/published/{entryId:guid}", PublishedOneAsync);
 
+        /* 2026-10-21 — das Archiv durchsuchen: Filter je Aspekt, Zahlen je Thema (Library.Publish.cs). */
+        app.MapGet("/library/{id:guid}/published/browse", PublishedBrowseAsync);
+
         /* 0109 — Fassungen, versiegelte Dateien, Lesen über einen Platz oder Link (Library.Cogita.cs). */
         MapCogita(app);
     }

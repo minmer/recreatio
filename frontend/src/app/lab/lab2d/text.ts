@@ -18,7 +18,7 @@ export function lab2dDescription(): string {
     '  "ops": [ kroki budowy po kolei ] }',
     '',
     'Kroki ("op"):',
-    '  { "op": "fill", "region": obszar, "composition": { "H2O": 1 }, "phase": "liquid", "T": °C } — woda w obszarze; "phase": "gas" z { "N2": 0.7676, "O2": 0.2324 } — powietrze',
+    '  { "op": "fill", "region": obszar, "composition": { "H2O": 1 }, "phase": "liquid", "T": °C } — ciecz w obszarze: "H2O" (woda) albo "oil-rapeseed" (olej rzepakowy; nie paruje, lżejszy od wody, gęstszy w ruchu); kilka cieczy naraz (udziały masowe) rozkłada się równo i rozdziela się pod wpływem grawitacji; "phase": "gas" z { "N2": 0.7676, "O2": 0.2324 } — powietrze',
     '  { "op": "erase", "region": obszar } — usuwa wodę, pęcherze i ciała stałe; wraca powietrze z pokoju',
     '  { "op": "move", "region": obszar, "dx": m, "dy": m } — przesuwa ciała stałe z obszaru razem z wodą i pęcherzami w nim (o całe komórki); tak zapisuje się narzędzie „Przesuń”',
     '  { "op": "solid", "region": obszar, "material": "glass" | "steel" | "ceramic", "T": °C } — nieruchome ciało stałe (ceramic = kamyczki wrzenne)',
@@ -31,7 +31,7 @@ export function lab2dDescription(): string {
 
 export function lab2dPrompt(): string {
   return [
-    'Przygotuj układ startowy JSON dla modułu „Laboratorium 2D” w REcreatio (szkolna piaskownica: ciepło, wrzenie, parowanie, mgła).',
+    'Przygotuj układ startowy JSON dla modułu „Laboratorium 2D” w REcreatio (szkolna piaskownica: ciepło, wrzenie, parowanie, mgła, woda i olej).',
     'Temat: [opisz, co ma stać w skrzynce, np. „zlewka z gorącą wodą na płycie grzejnej, kamyczki wrzenne na dnie”].',
     'Zasady: realne rozmiary (zlewka 7 cm szerokości, płyta 12 cm), rzeczy nie nachodzą na siebie, aparatura stoi na dnie (y = 0) albo na innej rzeczy, woda wewnątrz zlewki nad jej dnem. Zwróć JEDEN obiekt JSON, bez komentarzy.',
     '',

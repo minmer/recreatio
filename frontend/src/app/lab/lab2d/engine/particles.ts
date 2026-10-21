@@ -2,7 +2,8 @@
  * LABOR 2D (v2) — DIE FLÜSSIGKEITSTEILCHEN (ARCHITECTURE.md §3.2): etwa vier
  * je Flüssigkeitszelle, jedes mit Ort, Geschwindigkeit, affiner APIC-Matrix C,
  * Masse, spezifischer Enthalpie (die Temperatur folgt aus ihr), zwei Plätzen
- * für gelöste Stoffe (M2) und dem Stoff.
+ * für gelöste Stoffe (M2) und der Flüssigkeit (`mat`, Index in LIQUIDS: 0
+ * Wasser) — ihre Stoffgesetze bestimmen T und ρ.
  *
  * Feste Kapazität, in einem Stück gepackt: Entfernen holt das letzte Teilchen
  * an die freie Stelle (eine Freiliste der Länge eins) — die Schleifen laufen
@@ -10,7 +11,7 @@
  * Teilchen über Bilder hinweg verfolgen kann.
  */
 
-import { rhoL, tFromHL } from './materials';
+import { rhoLiq, tFromHLiq, WATER } from './materials';
 
 export class Particles {
   readonly cap: number;
@@ -85,11 +86,18 @@ export class Particles {
     return p;
   }
 
-  /** Temperatur und Dichte aus der Enthalpie. */
+  /** Temperatur und Dichte aus der Enthalpie — mit den Gesetzen der eigenen Flüssigkeit. */
   derive(p: number): void {
-    const T = tFromHL(this.h[p]);
+    const m = this.mat[p];
+    const T = tFromHLiq(m, this.h[p]);
     this.T[p] = T;
-    this.rho[p] = rhoL(T);
+    this.rho[p] = rhoLiq(m, T);
+  }
+
+  /** Gibt es Teilchen einer anderen Flüssigkeit als Wasser? */
+  hasOther(): boolean {
+    for (let p = 0; p < this.count; p += 1) if (this.mat[p] !== WATER) return true;
+    return false;
   }
 
   /** Entfernen: das letzte Teilchen rückt an seine Stelle. */

@@ -16,7 +16,7 @@ import { useEffect, useId, useMemo, useState } from 'react';
 
 import { libraryKindOf, loadLibraries, loadPublished, openLibraries, summaryOf, type LibraryKind, type OpenLibrary, type PublishedItem } from './library';
 import { kindOf, str, type LibEntry } from './libraryKinds';
-import type { LibraryStore } from './libraryStore';
+import type { Entry, LibraryStore } from './libraryStore';
 import { useMe, useWho } from '../core/me';
 import { viewPath } from '../routes';
 import { WorkspaceError, type Who } from '../core/session';
@@ -36,7 +36,7 @@ export function entryLine(entry: LibEntry, store: LibraryStore): string {
 /** Das Feld, das beim schnellen Anlegen den getippten Namen bekommt. */
 const NAME_FIELD: Record<string, string> = { person: 'name', topic: 'name', work: 'title', project: 'title', text: 'title', quote: 'text' };
 
-export function RefPicker({ store, kinds, value, multiple, busy, onChange, placeholder }: {
+export function RefPicker({ store, kinds, value, multiple, busy, onChange, placeholder, only, makeWith }: {
   store: LibraryStore;
   kinds: readonly string[];
   value: readonly string[];
@@ -44,6 +44,10 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
   busy?: boolean;
   onChange: (next: string[]) => void;
   placeholder?: string;
+  /** 2026-10-21 — nur diese zur Wahl (die Werte EINES Aspekts). */
+  only?: (entry: Entry) => boolean;
+  /** … und was ein neu angelegter dazu bekommt (sein Oberthema: der Aspekt). */
+  makeWith?: Readonly<Record<string, unknown>>;
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -54,9 +58,9 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
   const chosen = value.map((id) => store.get(id)).filter((e): e is NonNullable<typeof e> => e !== undefined);
   const found = useMemo(() => (query.trim() === ''
     ? store.all().filter((e) => kinds.includes(e.kind)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    : store.search(query, kinds)).filter((e) => !value.includes(e.id)).slice(0, 8),
+    : store.search(query, kinds)).filter((e) => !value.includes(e.id) && (only === undefined || only(e))).slice(0, 8),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [query, kinds, value, store, store.revision]);
+  [query, kinds, value, store, store.revision, only]);
 
   const pick = (id: string) => {
     onChange(multiple ? [...value, id] : [id]);
@@ -71,7 +75,7 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
     setMaking(true);
     setFailed(null);
     try {
-      const data: Record<string, unknown> = { [NAME_FIELD[kind] ?? 'title']: name };
+      const data: Record<string, unknown> = { ...(makeWith ?? {}), [NAME_FIELD[kind] ?? 'title']: name };
       if (kind === 'person') {
         const parts = name.split(/\s+/);
         if (parts.length >= 2 && !/^(św\.|bł\.|ks\.|o\.|s\.)$/i.test(parts[0])) {

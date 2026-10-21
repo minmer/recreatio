@@ -30,6 +30,8 @@ import { LibraryEditor } from './LibraryEditor';
 import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJson';
 import { ids, KINDS, kindOf, str, TEXT_STATUS, TEXT_TYPES, wordCount, type LibEntry } from './libraryKinds';
 import { useLibraryStore, type Entry, type LibraryStore } from './libraryStore';
+import { countsLine, coverageCounts, coverageOf, addedOf, deliveryPlan, isHidden, lastHeld, planOf, deliveriesOf } from './sermon';
+import { topicNode, topicTree } from './topics';
 import { useMe, type Me } from '../core/me';
 import { viewPath } from '../routes';
 import { LibraryMap } from './LibraryMap';
@@ -39,6 +41,8 @@ import { Loading } from '../ui/Loading';
 /** Die Reiter einer Bibliothek — Wort in der Adresse, Art, Name. */
 export const TABS = [
   { slug: 'teksty', kind: 'text' },
+  /* 2026-10-21 — jedes Mal, wenn ein Text gehalten wurde: wann, wo, was aus dem Plan. */
+  { slug: 'wyglaszenia', kind: 'delivery' },
   { slug: 'projekty', kind: 'project' },
   { slug: 'cytaty', kind: 'quote' },
   { slug: 'zrodla', kind: 'work' },
@@ -222,7 +226,7 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
         <a className={tab === 'ustawienia' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'ustawienia')}>Ustawienia</a>
       </nav>
       <div className="wk-panel">
-        {tab === 'ustawienia' ? <Settings me={me} library={library} areas={areas} onChanged={onChanged} />
+        {tab === 'ustawienia' ? <Settings me={me} library={library} areas={areas} store={store} onChanged={onChanged} />
           : tab === 'json' ? <LibraryJson store={store} library={library} />
           : tab === 'mapa' ? <LibraryMap store={store} libraryId={library.libraryId} />
           : <KindList store={store} library={library} kind={TABS.find((t) => t.slug === tab)!.kind} />}
@@ -299,19 +303,32 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
   const [query, setQuery] = useState('');
 
   const all = store.ofKind(kind);
-  const topics = store.ofKind('topic').sort((a, b) => store.title(a).localeCompare(store.title(b), 'pl'));
+  /* 2026-10-21 — die Themen als Baum (Aspekte mit ihren Werten), auch in der Auswahl. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const tree = useMemo(() => topicTree(store.ofKind('topic').map(topicNode)), [store, store.revision]);
+  const topicRows = tree.flat(null);
   const projects = store.ofKind('project');
 
   let list = query.trim() === '' ? all : store.search(query, [kind]);
-  if (topic !== '') list = list.filter((e) => ids(e.data, 'topics').includes(topic) || (kind === 'topic' && ids(e.data, 'parent').includes(topic)));
+  if (topic !== '') {
+    const under = new Set([topic, ...tree.flat(topic).map((one) => one.node.id)]);
+    list = list.filter((e) => ids(e.data, 'topics').some((id) => under.has(id)) || (kind === 'topic' && under.has(e.id) && e.id !== topic));
+  }
   if (project !== '' && kind === 'text') list = list.filter((e) => ids(e.data, 'project').includes(project));
 
-  list = [...list].sort((a, b) => kind === 'text'
-    ? (str(b.data, 'date') || b.updatedAt).localeCompare(str(a.data, 'date') || a.updatedAt)
+  const when = (e: Entry) => (kind === 'text' ? lastHeld(e, store) : str(e.data, 'date')) || e.updatedAt;
+  list = [...list].sort((a, b) => kind === 'text' || kind === 'delivery'
+    ? when(b).localeCompare(when(a))
     : (store.title(a)).localeCompare(store.title(b), 'pl'));
   if (kind === 'work' || kind === 'quote' || kind === 'person') {
     const sortKey = (e: Entry) => (kind === 'quote' ? originOf(e, store) : lineOf(e, store)).toLowerCase();
     list.sort((a, b) => sortKey(a).localeCompare(sortKey(b), 'pl'));
+  }
+  /* Die Themen stehen in der Ordnung ihres Baums, eingerückt. */
+  const depth = new Map(topicRows.map((one) => [one.node.id, one.depth]));
+  if (kind === 'topic' && query.trim() === '') {
+    const shown = new Set(list.map((e) => e.id));
+    list = topicRows.map((one) => store.get(one.node.id)).filter((e): e is Entry => e !== undefined && shown.has(e.id));
   }
 
   const add = viewPath('library', library.libraryId, 'nowy', kind);
@@ -320,10 +337,10 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
     <>
       <div className="lib-toolbar">
         <input type="search" value={query} placeholder={`Szukaj: ${def.plural.toLowerCase()}`} onChange={(e) => setQuery(e.target.value)} aria-label={`Szukaj: ${def.plural}`} />
-        {kind !== 'person' && topics.length > 0 && (
+        {kind !== 'person' && topicRows.length > 0 && (
           <select value={topic} onChange={(e) => setTopic(e.target.value)} aria-label="Temat">
             <option value="">wszystkie tematy</option>
-            {topics.map((t) => <option key={t.id} value={t.id}>{store.title(t)}</option>)}
+            {topicRows.map((t) => <option key={t.node.id} value={t.node.id}>{'— '.repeat(t.depth)}{t.node.name}{t.node.aspect ? ' (aspekt)' : ''}</option>)}
           </select>
         )}
         {kind === 'text' && projects.length > 0 && (
@@ -333,6 +350,7 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
           </select>
         )}
         {library.writes && <a className="wk-btn" href={add}>+ {def.label}</a>}
+        {library.writes && kind === 'topic' && <a className="wk-btn wk-btn-line" href={viewPath('library', library.libraryId, 'nowy', 'topic', 'aspect=yes')}>+ Aspekt</a>}
       </div>
       <p className="wk-hint">{def.says}</p>
 
@@ -341,10 +359,12 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
       ) : (
         <ul className="lib-list">
           {list.map((entry) => (
-            <li key={entry.id}>
+            <li key={entry.id} className={kind === 'topic' ? `lib-topic-row is-d${Math.min(4, depth.get(entry.id) ?? 0)}` : undefined}>
               <a className="lib-row" href={viewPath('library', library.libraryId, entry.id)}>
                 <span className="lib-row-title">
                   {kind === 'quote' ? <q>{store.title(entry)}</q> : store.title(entry)}
+                  {kind === 'topic' && tree.nodes.get(entry.id)?.aspect === true && <span className="lib-badge is-aspect">aspekt</span>}
+                  {kind === 'delivery' && isHidden(entry) && <span className="lib-badge is-implicit">prywatne</span>}
                   <PublicBadge entry={entry} />
                 </span>
                 <span className="lib-row-meta">{metaOf(entry, store)}</span>
@@ -361,8 +381,17 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
 function metaOf(entry: Entry, store: LibraryStore): string {
   const d = entry.data;
   switch (entry.kind) {
-    case 'text': return [typeLabel(str(d, 'textType')), str(d, 'date'), str(d, 'occasion'), statusLabel(str(d, 'status')), `${wordCount(str(d, 'body'))} słów`]
-      .filter(Boolean).join(' · ');
+    case 'text': {
+      const points = planOf(d).length;
+      const held = deliveriesOf(entry, store).length;
+      return [typeLabel(str(d, 'textType')), str(d, 'date'), str(d, 'occasion'), statusLabel(str(d, 'status')),
+        points > 0 ? `plan: ${points} pkt` : '', `${wordCount(str(d, 'body'))} słów`, held > 0 ? `wygłoszony ${held}×, ostatnio ${lastHeld(entry, store)}` : '']
+        .filter(Boolean).join(' · ');
+    }
+    case 'delivery': {
+      const counts = countsLine(coverageCounts(deliveryPlan(entry, store).flatMap((p) => p.points), coverageOf(d), addedOf(d)));
+      return [str(d, 'occasion'), str(d, 'place'), str(d, 'duration'), counts, str(d, 'audio') !== '' || str(d, 'video') !== '' ? 'nagranie' : ''].filter(Boolean).join(' · ');
+    }
     case 'quote': return [originOf(entry, store), ...ids(d, 'topics').map((id) => store.get(id)).filter((t): t is Entry => t !== undefined).map((t) => `#${store.title(t)}`)].join(' · ');
     case 'work': {
       const quotes = store.backlinks(entry.id).filter((e) => e.kind === 'quote').length;
@@ -382,7 +411,7 @@ function metaOf(entry: Entry, store: LibraryStore): string {
 
 /* -- Einstellungen ---------------------------------------------------------------------------- */
 
-function Settings({ me, library, areas, onChanged }: { me: Me; library: OpenLibrary; areas: readonly AreaRow[]; onChanged: () => void }) {
+function Settings({ me, library, areas, store, onChanged }: { me: Me; library: OpenLibrary; areas: readonly AreaRow[]; store: LibraryStore; onChanged: () => void }) {
   const [name, setName] = useState(library.name);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -402,6 +431,23 @@ function Settings({ me, library, areas, onChanged }: { me: Me; library: OpenLibr
         <p className="wk-hint">Obszar: {area?.personal === true ? 'tylko Ty' : area?.name ?? 'nieznany'} — kto ma jego klucz, czyta tę bibliotekę{library.writes ? '' : '. Ty możesz ją tylko czytać'}.</p>
         {library.writes && <div className="wk-actions"><button type="submit" className="wk-btn" disabled={busy || name.trim() === ''}>Zapisz nazwę</button></div>}
       </form>
+
+      {library.writes && (
+        <section className="wk-form">
+          <h2 className="wk-h2">Publikacja</h2>
+          <p>
+            Publicznych wpisów: {store.all().filter((e) => e.publishedAs !== null).length}. Gdy zmienia się sposób publikowania
+            (plan, wygłoszenia, aspekty tematów), „Odśwież” przelicza publiczne wersje wszystkich opublikowanych wpisów —
+            to samo, co „Zaktualizuj publikację” przy każdym z nich.
+          </p>
+          <div className="wk-actions">
+            <button type="button" className="wk-btn wk-btn-line" disabled={busy}
+              onClick={() => void act(() => store.refresh(store.all().filter((e) => e.publishedAs !== null).map((e) => e.id)))}>
+              Odśwież wszystkie publikacje
+            </button>
+          </div>
+        </section>
+      )}
 
       {library.writes && (
         <section className="wk-form lib-danger">

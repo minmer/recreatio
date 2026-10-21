@@ -27,7 +27,7 @@ export const writingPart = definePart<WritingConfig>({
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
   example: { library: '<id-biblioteki>', entry: '<id-opublikowanego-tekstu>' },
   label: 'Tekst z biblioteki',
-  use: 'Kazanie albo inny tekst z Biblioteki — z przypisami, dalszymi informacjami i źródłami.',
+  use: 'Kazanie albo inny tekst z Biblioteki — z planem, nagraniami wygłoszeń (co powiedziano, co pominięto), przypisami i źródłami.',
   box: { colSpan: 6, rowSpan: 5 },
 
   fields: [
@@ -43,8 +43,8 @@ export const writingPart = definePart<WritingConfig>({
   strip: { title: 'Tekst', open: 'Czytaj' },
   fullscreen: true,
   shows: (_c, size) => size.height === 'strip' ? 'Przycisk, który otwiera tekst.'
-    : size.height === 'tall' ? 'Cały tekst z przypisami, dalszymi informacjami i źródłami.'
-    : 'Tytuł, data i początek — całość po kliknięciu „Czytaj całość”.',
+    : size.height === 'tall' ? 'Cały tekst: plan, wygłoszenia z nagraniem (co powiedziano, co pominięto), treść, przypisy i źródła.'
+    : 'Tytuł, data, główne myśli planu — całość po kliknięciu.',
 
   View: ({ config, ctx }) => (
     <WritingCard library={config.library} entryId={config.entry} size={ctx.size} whole={ctx.whole === true} prefix={`w${ctx.moduleId.slice(0, 8)}-`} />

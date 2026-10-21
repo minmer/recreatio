@@ -23,16 +23,27 @@ import { WorkspaceError } from '../core/session';
 import { QuoteIntake } from './QuoteIntake';
 import { DeleteBox, EntryJson, KeyBox, LatexBox, PublishBox, Relations, TAB_OF } from './LibraryEntryBoxes';
 import { FieldList, OutlineEditor, TextForm } from './LibraryTextForm';
+import { DeliveriesBox, DeliveryForm } from './DeliveryForm';
 
 type SaveState = 'new' | 'saved' | 'dirty' | 'saving' | 'failed' | 'stale';
+
+/** Heute, als RRRR-MM-DD — der Tag eines neuen Wygłoszenia. */
+const today = (): string => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
 
 function defaults(kind: string, preset: Record<string, unknown>): EntryData {
   const base: EntryData = kind === 'text' ? { textType: 'sermon', status: 'draft' }
     : kind === 'work' ? { workType: 'book' }
     : kind === 'person' ? { personType: 'person' }
     : kind === 'project' ? { projectType: 'book', status: 'writing' }
+    /* 2026-10-21 — ein Wygłoszenie: heute, und der Text, von dem man kommt (`nowy/delivery/texts=<id>`). */
+    : kind === 'delivery' ? { date: today() }
     : {};
-  return { ...base, ...preset };
+  const out: EntryData = { ...base, ...preset };
+  if (kind === 'delivery' && typeof out.texts === 'string') out.texts = out.texts.split(',').filter(Boolean);
+  return out;
 }
 
 export function LibraryEditor({ store, library, entryId, kind, preset = {} }: {
@@ -161,6 +172,8 @@ function Editor({ store, library, existing, kind, preset }: {
         <div className="lib-editor-main">
           {kind === 'text' ? (
             <TextForm store={store} entry={live} data={data} set={set} readOnly={readOnly} />
+          ) : kind === 'delivery' ? (
+            <DeliveryForm store={store} library={library} entry={live} data={data} set={set} readOnly={readOnly} />
           ) : (
             <FieldList store={store} kind={kind} data={data} set={set} readOnly={readOnly} extras={extras} />
           )}
@@ -178,6 +191,7 @@ function Editor({ store, library, existing, kind, preset }: {
             <KeyBox store={store} id={id} value={key} readOnly={readOnly} onChange={(next) => { setKey(next); setState((was) => (was === 'new' ? 'new' : 'dirty')); }} />
           )}
           {saved !== undefined && <PublishBox store={store} entry={saved} readOnly={readOnly} />}
+          {saved !== undefined && kind === 'text' && <DeliveriesBox store={store} library={library} text={saved} readOnly={readOnly} />}
           {saved !== undefined && <Relations store={store} library={library} entry={saved} />}
           {kind === 'quote' && str(data, 'text') !== '' && <section className="lib-box"><h2 className="lib-box-h">Podgląd</h2><QuoteFigure entry={live} look={store} /></section>}
           {saved !== undefined && (kind === 'text' || kind === 'project') && <LatexBox store={store} entry={live} />}

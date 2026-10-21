@@ -233,6 +233,79 @@ export function loadPublished(libraryId: string, query: PublishedQuery): Promise
 export const loadPublishedOne = (libraryId: string, entryId: string): Promise<{ entry: PublishedEntry; refs: readonly PublishedEntry[] }> =>
   call(`/library/${encodeURIComponent(libraryId)}/published/${encodeURIComponent(entryId)}`);
 
+/* -- 2026-10-21: das Archiv durchsuchen ----------------------------------------------------- */
+
+export interface BrowseQuery {
+  readonly kind?: string;
+  /** Die Filter: innerhalb einer Gruppe ODER, zwischen den Gruppen UND. */
+  readonly groups?: readonly (readonly string[])[];
+  readonly q?: string;
+  readonly order?: 'sort' | '-sort' | 'key' | '-key';
+  readonly take?: number;
+  readonly skip?: number;
+  /** Auch zählen, wie viele der gefundenen auf jedes Ziel zeigen (die Zahlen im Baum). */
+  readonly counts?: boolean;
+}
+
+export interface BrowseResult {
+  readonly total: number;
+  readonly items: readonly PublishedItem[];
+  /** Je Ziel (Thema, Projekt) die Zahl der gefundenen — `null`: der Dienst kann es noch nicht. */
+  readonly counts: ReadonlyMap<string, number> | null;
+  /** Ob alle Filter gegriffen haben — ein älterer Dienst nimmt nur einen. */
+  readonly exact: boolean;
+}
+
+/** Bibliotheken, deren Dienst `/published/browse` noch nicht kennt — einmal gemerkt, nicht bei jeder Anfrage neu versucht. */
+const withoutBrowse = new Set<string>();
+
+/**
+ * DAS ARCHIV DURCHSUCHEN — mehrere Filter zugleich, mit Zahlen je Thema.
+ * Kennt der Dienst den Weg noch nicht (die Seite kam vor ihm hinaus), geht
+ * es über die einfache Liste: nur der zuletzt gewählte Filter, ohne Zahlen.
+ */
+export async function browsePublished(libraryId: string, query: BrowseQuery): Promise<BrowseResult> {
+  const groups = (query.groups ?? []).map((group) => group.filter((one) => one !== '')).filter((group) => group.length > 0);
+  if (!withoutBrowse.has(libraryId)) {
+    const params = new URLSearchParams();
+    if (query.kind !== undefined) params.set('kind', query.kind);
+    for (const group of groups) params.append('ref', group.join(','));
+    if (query.q !== undefined && query.q.trim() !== '') params.set('q', query.q.trim());
+    if (query.order !== undefined) params.set('order', query.order);
+    if (query.take !== undefined) params.set('take', String(query.take));
+    if (query.skip !== undefined) params.set('skip', String(query.skip));
+    if (query.counts === true) params.set('counts', 'true');
+    try {
+      const found = await call<{ total: number; items: PublishedItem[]; counts?: { id: string; n: number }[] | null }>(
+        `/library/${encodeURIComponent(libraryId)}/published/browse?${params.toString()}`);
+      return { total: found.total, items: found.items, counts: found.counts == null ? null : new Map(found.counts.map((c) => [c.id, c.n])), exact: true };
+    } catch (e) {
+      /* Ein Dienst ohne diesen Weg antwortet 404 ohne Text („Nie udało się."); jeder andere Fehler bleibt einer. */
+      if (!(e instanceof WorkspaceError) || e.message !== 'Nie udało się.') throw e;
+      withoutBrowse.add(libraryId);
+    }
+  }
+  const last = groups[groups.length - 1];
+  const order = query.order === 'key' ? 'sort' : query.order === '-key' ? '-sort' : query.order;
+  const found = await loadPublished(libraryId, {
+    ...(query.kind === undefined ? {} : { kind: query.kind }), ...(last === undefined ? {} : { ref: last[0] }),
+    ...(query.q === undefined ? {} : { q: query.q }), ...(order === undefined ? {} : { order }),
+    ...(query.take === undefined ? {} : { take: query.take }), ...(query.skip === undefined ? {} : { skip: query.skip })
+  });
+  return { total: found.total, items: found.items, counts: null, exact: groups.length <= 1 && (last?.length ?? 0) <= 1 };
+}
+
+/** Bis zu `max` veröffentlichte Einträge einer Art — der Dienst gibt höchstens 200 auf einmal. */
+export async function loadPublishedAll(libraryId: string, query: PublishedQuery, max = 2000): Promise<PublishedItem[]> {
+  const out: PublishedItem[] = [];
+  while (out.length < max) {
+    const page = await loadPublished(libraryId, { ...query, take: 200, skip: out.length });
+    out.push(...page.items);
+    if (page.items.length < 200 || out.length >= page.total) break;
+  }
+  return out;
+}
+
 /** Eine Kurzfassung lesen — duldsam: eine kaputte Zeile ist eine leere. */
 export function summaryOf(item: { readonly summary: string | null }): Record<string, unknown> {
   if (item.summary === null) return {};

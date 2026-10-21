@@ -1,6 +1,6 @@
 {
   "format": "recreatio/lab2d-materials",
-  "version": 1,
+  "version": 2,
   "sources": {
     "iapws-if97": "IAPWS R7-97(2012), Revised Release on the IAPWS Industrial Formulation 1997 for the Thermodynamic Properties of Water and Steam — region 4 (saturation line)",
     "iapws-sat": "IAPWS SR1-86(1992), Revised Supplementary Release on Saturation Properties of Ordinary Water Substance (Wagner & Pruss 1993): saturated liquid and vapour densities",
@@ -17,6 +17,9 @@
     "codata": "CODATA 2018 (molar gas constant), IUPAC standard atomic weights",
     "contact": "Typical static contact angles of water: clean borosilicate glass 20–30°, stainless steel 60–80°, porous hydrophilic ceramic ≈ 10° (Yuan & Lee 2013, Contact Angle and Wetting Properties, Surface Science Techniques, Springer)",
     "lemmert": "Lemmert & Chawla (1977) active nucleation-site density N = (210 ΔT_w)^1.805 m⁻² (ΔT_w in K), as implemented in OpenFOAM (LemmertChawla.C); cavity populations of glass and ceramic scaled from it in this repository",
+    "rojas2013": "E. E. Garcia Rojas, J. S. R. Coimbra, J. Telis-Romero (2013), Thermophysical properties of cotton, canola, sunflower, and soybean oils as a function of temperature, International Journal of Food Properties 16(7), 1620–1629, doi:10.1080/10942912.2011.604889 — canola oil measured at 293.15–433.15 K; Table 7: density ρ = 990.070 − 0.237·T (kg/m³, R² 0.99) and heat capacity c_p = 0.287 + 0.0053·T (J/(g·K), R² 0.99), T in K",
+    "rojas2013fit": "Fits in this repository to the canola measurements of Rojas, Coimbra & Telis-Romero (2013), 293.15–433.15 K: thermal conductivity (Table 4) by least squares, k = 0.13939 + 9.0714e-5·T (W/(m·K), T in K, largest deviation 0.5 %); dynamic viscosity (Table 5) by the Vogel equation μ = A·10^(B/(T − C)), A = 3.35812e-5 Pa·s, B = 593.635 K, C = 120.95 K (largest deviation 1.3 %)",
+    "melo2014": "E. A. Melo-Espinosa et al. (2014), Surface tension prediction of vegetable oils using artificial neural networks and multiple linear regression, Energy Procedia 57, 886–895, Table 1: rapeseed oil 32.90–33.83 mN/m at 20 °C (values from the literature); their mean is used at all temperatures (SIMPLIFICATIONS.md)",
     "model": "Model parameter, not a measured property — chosen and documented in documentation/lab2d/SIMPLIFICATIONS.md"
   },
   "ambient": {
@@ -80,6 +83,20 @@
         "mu": { "sutherland": [1.919e-5, 273.15, 139], "src": "sutherland" }
       },
       "thermo": { "gas": { "dHf": { "v": 0, "src": "janaf" }, "S": { "v": 205.147, "src": "janaf" } } }
+    },
+    {
+      "id": "oil-rapeseed",
+      "name": { "pl": "olej rzepakowy", "de": "Rapsöl", "en": "rapeseed (canola) oil" },
+      "liquid": {
+        "name": { "pl": "olej", "de": "Öl", "en": "oil" },
+        "rho": { "linear": [990.070, -0.237], "src": "rojas2013" },
+        "cp": { "linear": [287, 5.3], "src": "rojas2013" },
+        "k": { "linear": [0.13939, 9.0714e-5], "src": "rojas2013fit" },
+        "mu": { "vogel": [3.35812e-5, 593.635, 120.95], "src": "rojas2013fit" },
+        "sigma": { "v": 0.0334, "src": "melo2014" },
+        "range": { "lo": 293.15, "hi": 433.15, "src": "rojas2013" },
+        "color": "#e3b437"
+      }
     }
   ],
   "vapourInAir": {

@@ -21,7 +21,22 @@ type Lang3 = { readonly pl: string; readonly de: string; readonly en: string };
 interface V { readonly v: number; readonly src: string }
 interface Thermo { readonly dHf: V; readonly S: V }
 
-/** Die Gestalt von materials.json (die drei Stoffe des M1 mit allem, was die Engine liest). */
+/**
+ * Eine weitere Flüssigkeit (M2a): Stoffgesetze als benannte Modelle, jede Zahl
+ * mit Quelle — Dichte und c_p linear in T, Wärmeleitfähigkeit linear, Zähigkeit
+ * nach Vogel, Oberflächenspannung konstant; `range` der Messbereich.
+ */
+interface LiquidEntry {
+  readonly id: string; readonly name: Lang3;
+  readonly liquid: {
+    readonly name: Lang3;
+    readonly rho: { readonly linear: readonly number[] }; readonly cp: { readonly linear: readonly number[] };
+    readonly k: { readonly linear: readonly number[] }; readonly mu: { readonly vogel: readonly number[] };
+    readonly sigma: V; readonly range: { readonly lo: number; readonly hi: number }; readonly color: string;
+  };
+}
+
+/** Die Gestalt von materials.json (die Stoffe mit allem, was die Engine liest; H₂O, N₂, O₂ zuerst, dann weitere Flüssigkeiten). */
 export interface MaterialsFile {
   readonly sources: Readonly<Record<string, string>>;
   readonly ambient: { readonly p: V; readonly T: V; readonly rh: V; readonly air: { readonly N2: V; readonly O2: V }; readonly hExt: V };
@@ -41,7 +56,8 @@ export interface MaterialsFile {
       readonly thermo: { readonly liquid: Thermo; readonly gas: Thermo };
     },
     GasEntry,
-    GasEntry
+    GasEntry,
+    ...LiquidEntry[]
   ];
   readonly vapourInAir: { readonly D0: V; readonly T0: V; readonly exponent: V };
   readonly solids: readonly {
@@ -334,10 +350,117 @@ export function solidIndex(id: string): number {
   return SOLIDS.findIndex((s) => s.id === id);
 }
 
-/** Die Flüssigkeiten der Datenbank (M1: Wasser). */
-export const LIQUIDS: readonly { readonly id: string; readonly name: Lang3; readonly color: string }[] = [
-  { id: water.id, name: water.liquid.name, color: water.liquid.color }
+/* -- Alle Flüssigkeiten (M2a) -------------------------------------------------------------------------
+ *
+ * Ein Teilchen trägt den Index seiner Flüssigkeit (`mat`). Wasser ist 0 und
+ * behält seine Funktionen oben unverändert (dieselben Zahlen wie in M1); jede
+ * weitere Flüssigkeit kommt mit ihren Gesetzen aus materials.json. Nur
+ * flüchtige Flüssigkeiten (mit Sättigungslinie: Wasser) verdampfen, bilden
+ * Blasen und Nebel.
+ */
+
+/** Index des Wassers unter den Flüssigkeiten. */
+export const WATER = 0;
+
+export interface LiquidInfo {
+  readonly id: string;
+  readonly name: Lang3;
+  /** Kurzname der Flüssigkeit („woda“, „olej“). */
+  readonly short: Lang3;
+  readonly color: string;
+  /** Verdampft sie (hat sie eine Sättigungslinie)? */
+  readonly volatile: boolean;
+  /** Gemessener Bereich der Stoffwerte (K). */
+  readonly range: readonly [number, number];
+}
+
+interface Generic {
+  readonly rA: number; readonly rB: number;
+  readonly cA: number; readonly cB: number;
+  readonly kA: number; readonly kB: number;
+  readonly mA: number; readonly mB: number; readonly mC: number;
+  readonly sigma: number;
+  /** h(T) = cA (T − T0) + ½ cB (T² − T0²); hier der feste Teil cA·T0 + ½ cB·T0². */
+  readonly h0: number;
+}
+
+const others = data.species.slice(3) as readonly LiquidEntry[];
+const GEN: readonly (Generic | null)[] = [null, ...others.map((s): Generic => {
+  const l = s.liquid;
+  const [cA, cB] = l.cp.linear;
+  return {
+    rA: l.rho.linear[0], rB: l.rho.linear[1],
+    cA, cB,
+    kA: l.k.linear[0], kB: l.k.linear[1],
+    mA: l.mu.vogel[0], mB: l.mu.vogel[1], mC: l.mu.vogel[2],
+    sigma: l.sigma.v,
+    h0: cA * T0 + 0.5 * cB * T0 * T0
+  };
+})];
+
+/** Die Flüssigkeiten der Datenbank: Wasser zuerst, dann die weiteren in der Reihenfolge von materials.json. */
+export const LIQUIDS: readonly LiquidInfo[] = [
+  { id: water.id, name: water.name, short: water.liquid.name, color: water.liquid.color, volatile: true, range: [T0, T0 + 150] },
+  ...others.map((s): LiquidInfo => ({ id: s.id, name: s.name, short: s.liquid.name, color: s.liquid.color, volatile: false, range: [s.liquid.range.lo, s.liquid.range.hi] }))
 ];
+
+/** Index einer Flüssigkeit (−1: unbekannt). */
+export function liquidIndex(id: string): number {
+  return LIQUIDS.findIndex((l) => l.id === id);
+}
+
+const gen = (m: number): Generic => GEN[m] ?? (GEN[1] as Generic);
+
+/** c_p der Flüssigkeit m bei T (J/(kg·K)). */
+export function cpLiq(m: number, T: number): number {
+  if (m === WATER) return cpL(T);
+  const q = gen(m);
+  return q.cA + q.cB * T;
+}
+
+/** Spezifische Enthalpie der Flüssigkeit m (J/kg, 0 bei 0 °C): das genaue Integral ihrer c_p. */
+export function hLiq(m: number, T: number): number {
+  if (m === WATER) return hL(T);
+  const q = gen(m);
+  return q.cA * T + 0.5 * q.cB * T * T - q.h0;
+}
+
+/** T (K) der Flüssigkeit m aus ihrer spezifischen Enthalpie — genau (quadratisch, auslöschungsfrei). */
+export function tFromHLiq(m: number, h: number): number {
+  if (m === WATER) return tFromHL(h);
+  const q = gen(m);
+  /* ½ cB T² + cA T − c = 0 mit c = h + h0. */
+  const c = h + q.h0;
+  if (q.cB === 0) return c / q.cA;
+  return (2 * c) / (q.cA + Math.sqrt(Math.max(0, q.cA * q.cA + 2 * q.cB * c)));
+}
+
+/** Dichte der Flüssigkeit m bei T (kg/m³). */
+export function rhoLiq(m: number, T: number): number {
+  if (m === WATER) return rhoL(T);
+  const q = gen(m);
+  return q.rA + q.rB * T;
+}
+
+/** Wärmeleitfähigkeit der Flüssigkeit m (W/(m·K)). */
+export function kLiq(m: number, T: number): number {
+  if (m === WATER) return kL(T);
+  const q = gen(m);
+  return q.kA + q.kB * T;
+}
+
+/** Dynamische Viskosität der Flüssigkeit m (Pa·s) — Vogel (Wasser: IAPWS-Fit, weitere: Fits an ihre Messungen). */
+export function muLiq(m: number, T: number): number {
+  if (m === WATER) return muL(T);
+  const q = gen(m);
+  return q.mA * Math.pow(10, q.mB / (Math.max(T, q.mC + 60) - q.mC));
+}
+
+/** Oberflächenspannung der Flüssigkeit m gegen Gas (N/m). */
+export function sigmaLiq(m: number, T: number): number {
+  if (m === WATER) return sigma(T);
+  return gen(m).sigma;
+}
 
 /** Die Quellen der Datenbank (Schlüssel → Zitat), für die Tafel „O modelu”. */
 export const SOURCES: Readonly<Record<string, string>> = data.sources;

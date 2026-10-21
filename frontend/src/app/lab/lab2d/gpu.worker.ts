@@ -133,6 +133,16 @@ async function settleGpu(): Promise<void> {
   gpu.baselineFromLast();
 }
 
+/**
+ * Andere Flüssigkeiten als Wasser (Öl, M2a) rechnet der beschleunigte Weg noch
+ * nicht: die Szene geht mit allen Handgriffen an den normalen Weg zurück.
+ */
+function refuseOther(): boolean {
+  if (cpu === null || !cpu.particles.hasOther()) return false;
+  post({ type: 'gpu', ok: false, adapter, message: 'other-liquid', scene: cpu.serialize() });
+  return true;
+}
+
 /** Nach einem Hochladen oder Neuaufbau. */
 function afterUpload(version: number): void {
   if (gpu !== null && renderer !== null && gpu.stateVersion !== version) renderer.reset();
@@ -148,6 +158,7 @@ function applyOps(): void {
       const warning = cpu.apply(op);
       if (warning !== null && warning.startsWith('refused')) post({ type: 'refused', message: warning });
     }
+    if (refuseOther()) return;
     const v = gpu.stateVersion;
     gpu.upload();
     afterUpload(v);
@@ -257,6 +268,7 @@ function frame(): void {
 
 async function init(m: Extract<HostMessage, { type: 'init' }>): Promise<void> {
   cpu = new Engine(m.scene);
+  if (refuseOther()) return;
   canvas = m.canvas;
   if (canvas === null) throw new Error('no OffscreenCanvas');
   gpu = await GpuEngine.create(cpu);
@@ -386,7 +398,7 @@ scope.addEventListener('message', (event) => {
         else task(async () => { post({ type: 'reply', id: m.id, data: cpu?.serialize() ?? null }); });
         break;
       case 'load':
-        task(async () => { if (cpu === null) return; cpu.load(m.scene); restart(); });
+        task(async () => { if (cpu === null) return; cpu.load(m.scene); if (refuseOther()) return; restart(); });
         break;
       case 'theme':
         theme(m.dark);

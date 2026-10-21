@@ -82,8 +82,16 @@ export interface ImportBase {
   byKey(key: string): LibEntry | undefined;
 }
 
-/** In welcher Reihenfolge gespeichert wird: wer genannt wird, zuerst (der Schlüssel eines Zitats folgt seinem Werk). */
-const SAVE_ORDER = ['person', 'topic', 'work', 'quote', 'project', 'text'];
+/** In welcher Reihenfolge gespeichert wird: wer genannt wird, zuerst (der Schlüssel eines Zitats folgt seinem Werk; ein Wygłoszenie seinem Text). */
+const SAVE_ORDER = ['person', 'topic', 'work', 'quote', 'project', 'text', 'delivery'];
+
+/** Eine Kennung für einen Punkt einer Liste — „p" und fünf Zeichen, eindeutig in der Liste. */
+function itemId(taken: Set<string>): string {
+  for (;;) {
+    const id = `p${newId().replace(/-/g, '').slice(-5)}`;
+    if (!taken.has(id)) return id;
+  }
+}
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -159,6 +167,37 @@ export function planLibraryImport(doc: unknown, base: ImportBase): LibraryImport
         if (n === null) { warnings.push(`${where}: „${String(value)}” to nie liczba — pominięte.`); return null; }
         return n;
       }
+      case 'items': {
+        /*
+         * 2026-10-21 — eine Liste von Objekten (die Punkte eines Plans): jedes
+         * Feld nach seiner Art, Unbekanntes mit einer Warnung; ein Punkt ohne
+         * (oder mit doppelter) Kennung bekommt eine neue.
+         */
+        const subs = field.item ?? [];
+        const out: Record<string, unknown>[] = [];
+        const unknown = new Set<string>();
+        for (const raw of Array.isArray(value) ? value : []) {
+          const given = typeof raw === 'string' ? { [subs.find((s) => s.type === 'markup')?.key ?? 'text']: raw } : asRecord(raw);
+          const item: Record<string, unknown> = {};
+          for (const [name, one] of Object.entries(given)) {
+            const sub = subs.find((s) => s.key === name);
+            if (sub === undefined) { unknown.add(name); continue; }
+            const next = coerce(sub, one, `${where} · ${name}`);
+            if (next !== null && next !== '' && !(Array.isArray(next) && next.length === 0)) item[name] = next;
+          }
+          if (Object.keys(item).length > 0) out.push(item);
+        }
+        if (unknown.size > 0) warnings.push(`${where}: nieznane pola punktów (${[...unknown].join(', ')}) — pominięte.`);
+        if (subs.some((s) => s.key === 'id')) {
+          const taken = new Set<string>();
+          for (const item of out) {
+            const id = typeof item.id === 'string' ? item.id.trim() : '';
+            item.id = id === '' || taken.has(id) ? itemId(taken) : id;
+            taken.add(item.id as string);
+          }
+        }
+        return out;
+      }
       case 'select': {
         const s = String(value);
         if (field.options === undefined || field.options.some((o) => o.value === s)) return s;
@@ -212,15 +251,57 @@ export function planLibraryImport(doc: unknown, base: ImportBase): LibraryImport
   return { drafts, created, updated, unchanged, lines, warnings };
 }
 
+/**
+ * 2026-10-21 — EIN EINTRAG AUS EINEM DOKUMENT, FÜR EIN OFFENES FORMULAR: was
+ * ein Sprachmodell für dieses Wygłoszenie (diesen Plan) geschrieben hat, geht
+ * in das Formular, nicht am Formular vorbei in den Speicher — sonst stiesse
+ * das Speichern des Formulars danach auf eine neuere Fassung. Geprüft wird
+ * wie beim Import (`planLibraryImport`); heraus kommen nur die Felder, die
+ * das Dokument nennt (`null`: leeren).
+ */
+export function patchFromDoc(doc: unknown, target: { readonly id: string; readonly kind: string }, base: ImportBase):
+  { patch: EntryData; lines: readonly string[]; warnings: readonly string[] } | { error: string } {
+  const root = asRecord(doc);
+  const list: unknown[] = Array.isArray(doc) ? doc : Array.isArray(root.entries) ? root.entries : typeof root.kind === 'string' || typeof root.data === 'object' ? [root] : [];
+  if (root.format !== undefined && root.format !== LIBRARY_FORMAT) return { error: `Inny format: „${String(root.format)}”, a tu przyjmowany jest "${LIBRARY_FORMAT}".` };
+  const records = list.map(asRecord);
+  const mine = records.find((one) => one.id === target.id) ?? (records.filter((one) => one.kind === target.kind || one.kind === undefined).length === 1
+    ? records.find((one) => one.kind === target.kind || one.kind === undefined) : undefined);
+  if (mine === undefined) return { error: records.length === 0 ? 'Brak wpisu — dokument powinien mieć "entries" z jednym wpisem.' : 'Nie ma tu wpisu dla tego formularza (sprawdź "id" i "kind").' };
+  const given = asRecord(mine.data);
+  if (Object.keys(given).length === 0) return { error: 'Wpis nie ma pól ("data").' };
+  const planned = planLibraryImport({ format: LIBRARY_FORMAT, entries: [{ id: target.id, kind: target.kind, data: given }] }, base);
+  if ('error' in planned) return planned;
+  const draft = planned.drafts[0];
+  const patch: EntryData = {};
+  for (const key of Object.keys(given)) {
+    if (kindOf(target.kind)?.fields.some((f) => f.key === key) !== true) continue;
+    patch[key] = draft === undefined ? (base.get(target.id)?.data[key] ?? null) : (draft.data[key] ?? null);
+  }
+  const others = records.length - 1;
+  return {
+    patch,
+    lines: [`Pola do wpisania w formularz: ${Object.keys(patch).join(', ') || 'żadne'}.`],
+    warnings: [...planned.warnings, ...(others > 0 ? [`Pozostałe wpisy w dokumencie (${others}) są tu pomijane.`] : [])]
+  };
+}
+
 /* -- Die Beschreibung --------------------------------------------------------------------------- */
 
 const TYPE_SAYS: Record<LibField['type'], string> = {
   line: 'tekst', text: 'tekst (może mieć wiele wierszy)', markup: 'tekst w zapisie treści (niżej)', number: 'liczba',
   date: 'data RRRR-MM-DD', select: 'jedna z wartości', url: 'adres https://…', ref: 'odwołanie: kennung albo "@klucz"',
-  refs: 'lista odwołań: kennungi albo "@klucze"', outline: 'lista punktów planu'
+  refs: 'lista odwołań: kennungi albo "@klucze"', outline: 'lista punktów planu', items: 'lista obiektów o polach:'
 };
 
-export const MARKUP_DOC = `## Zapis treści (pola "body" i "further" tekstu)
+/** Ein Feld in der Beschreibung — bei `items` darunter seine Unterfelder. */
+function fieldDoc(f: LibField, indent: string): string {
+  const head = `${indent}"${f.key}" — ${f.label}: ${f.says} (${TYPE_SAYS[f.type]}${f.private === true ? '; prywatne — nigdy nie jest publikowane' : ''})`;
+  if (f.type !== 'items') return head;
+  return [head, ...(f.item ?? []).map((sub) => fieldDoc(sub, `${indent}    `))].join('\n');
+}
+
+export const MARKUP_DOC = `## Zapis treści (pola "body" i "further" tekstu, punkty planu "plan[].text", "transcript" i "added[].text" wygłoszenia)
   ## Śródtytuł            (# albo ## — śródtytuł, ### — mniejszy)
   Akapity oddziela pusta linia; pojedyncze przejście do nowej linii zostaje (psalmy, pieśni).
   **pogrubienie**  *kursywa*  [opis linku](https://…)
@@ -237,7 +318,7 @@ Przypisy liczą się same; pierwszy raz źródło jest podane w całości, potem
 
 export function libraryDescription(): string {
   const kinds = KINDS.map((def) => {
-    const fields = def.fields.map((f) => `  "${f.key}" — ${f.label}: ${f.says} (${TYPE_SAYS[f.type]}${f.private === true ? '; prywatne — nigdy nie jest publikowane' : ''})`).join('\n');
+    const fields = def.fields.map((f) => fieldDoc(f, '  ')).join('\n');
     const example = { kind: def.kind, ...(def.example.key === undefined ? {} : { key: def.example.key }), data: def.example.data };
     return `### "${def.kind}" — ${def.label}\n${def.says}${def.keyed ? ' Ma klucz cytowania.' : ''}\n"data":\n${fields}\nPrzykład:\n${JSON.stringify(example, null, 2)}`;
   }).join('\n\n');
@@ -247,7 +328,8 @@ export function libraryDescription(): string {
 Co robi import:
 - Każdy wpis to { "id", "kind", "key", "data" }. Wpis z kennung z eksportu (albo z kluczem istniejącego wpisu tego samego rodzaju) jest ZMIENIANY — tylko pola podane w "data"; pola, których nie ma, zostają. Żeby wyczyścić pole, podaj null.
 - Wpis bez kennung (albo z nieznaną) powstaje nowy. Import niczego nie usuwa.
-- Odwołania ("authors", "work", "topics", "project", plan projektu) mogą być kennungami albo kluczami: "@ratzinger2007". Klucze z tego samego dokumentu też działają — można opisać całą bibliotekę, nie znając żadnej kennung.
+- Odwołania ("authors", "work", "topics", "project", plan projektu, "texts" wygłoszenia) mogą być kennungami albo kluczami: "@ratzinger2007". Klucze z tego samego dokumentu też działają — można opisać całą bibliotekę, nie znając żadnej kennung.
+- Plan tekstu ("plan") to lista punktów; punkt bez "id" dostaje go sam. Wygłoszenie ("delivery") mówi o punktach po ich "id": co powiedziano ("coverage"), co doszło ("added"). Lista podana w imporcie zastępuje całą dotychczasową.
 - "key" to klucz cytowania: krótki, bez spacji (np. "ratzinger2007"); w tekstach odwołuje się do niego [@ratzinger2007, s. 23]. Pominięty — zostanie zaproponowany sam.
 - Liczby mogą mieć jednostkę ("384 s.", "20,5 cm"); pole wyboru przyjmuje wartość ("hard") albo jej nazwę ("Twarda").
 - Cytaty z jednej książki (np. odczytane przez AI ze zdjęć) mają własny format "${QUOTES_FORMAT}" — importuje się je na stronie tej książki.

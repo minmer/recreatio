@@ -23,7 +23,7 @@
 
 import type { Engine } from '../engine/engine';
 import { pSatFast } from '../engine/if97';
-import { MOLAR, SOLIDS } from '../engine/materials';
+import { MOLAR, SOLIDS, WATER } from '../engine/materials';
 import { GAS, H2O, LIQUID, N2, O2, SOLID, SPECIES_SLOTS, T0 } from '../engine/units';
 import { hex, T_SCALE, viridis } from './palette';
 
@@ -119,6 +119,8 @@ const scratch = new Uint8Array(4);
 export const VAPOUR_FULL = 0.6;
 let lw = new Float32Array(0);
 let lt = new Float32Array(0);
+/** Volumen der anderen Flüssigkeit (Öl) je Texel — ihr Anteil färbt die Fläche (Kanal B der Flüssigkeitstextur). */
+let lo = new Float32Array(0);
 let tmp = new Float32Array(0);
 
 /** [1 2 1]/4 in x und in y (Ränder wiederholt) — in place, mit einem Zwischenspeicher. */
@@ -241,9 +243,11 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay, particl
   const lx = f.lx;
   const ly = f.ly;
   const nl = lx * ly;
-  if (lw.length < nl) { lw = new Float32Array(nl); lt = new Float32Array(nl); tmp = new Float32Array(nl); }
+  if (lw.length < nl) { lw = new Float32Array(nl); lt = new Float32Array(nl); lo = new Float32Array(nl); tmp = new Float32Array(nl); }
   lw.fill(0, 0, nl);
   lt.fill(0, 0, nl);
+  lo.fill(0, 0, nl);
+  let other = false;
   const P = e.particles;
   const h = g.dx / 2;
   const invTexel = 1 / (h * h * g.depth);
@@ -256,6 +260,8 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay, particl
     const fx = sx - i0;
     const fy = sy - j0;
     const T = P.T[p];
+    const oil = P.mat[p] !== WATER;
+    if (oil) other = true;
     for (let b = 0; b < 3; b += 1) {
       const j = j0 + b;
       if (j < 0 || j >= ly) continue;
@@ -267,19 +273,21 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay, particl
         const w = wx * wy * vp;
         lw[i + j * lx] += w;
         lt[i + j * lx] += w * T;
+        if (oil) lo[i + j * lx] += w;
       }
     }
   }
   /* Teilchen liegen nie ganz gleichmässig: ohne Weichzeichner zeigen sich einzelne Lücken als Löcher im Wasser (die Oberfläche bei ½ bleibt, wo sie ist). */
   blur121(lw, lx, ly);
   blur121(lt, lx, ly);
+  if (other) blur121(lo, lx, ly);
   const liq = f.liquid;
   for (let k = 0; k < nl; k += 1) {
     const w = lw[k];
     const o = 4 * k;
     liq[o] = Math.min(255, 255 * w);
     liq[o + 1] = w > 0 ? Math.min(255, Math.max(0, (255 * (lt[k] / w - T0 - tmin)) / tspan)) : 0;
-    liq[o + 2] = 0;
+    liq[o + 2] = other && w > 0 ? Math.min(255, (255 * lo[k]) / w) : 0;
     liq[o + 3] = 255;
   }
   /* Blasen. */

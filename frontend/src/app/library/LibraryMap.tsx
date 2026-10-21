@@ -16,13 +16,15 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { ids, kindOf, str, type EntryData } from './libraryKinds';
+import { ids, kindOf, markupsOf, type EntryData } from './libraryKinds';
 import { citedKeys } from './libraryMarkup';
 import type { Entry, LibraryStore } from './libraryStore';
 import { viewPath } from '../routes';
 import { WorkspaceError } from '../core/session';
 
-const COLUMN: Record<string, number> = { project: 0, text: 1, topic: 1, quote: 2, work: 3, person: 4 };
+/* 2026-10-21 — die Wygłoszenia links neben ihren Texten. */
+const COLUMN: Record<string, number> = { delivery: 0, project: 0, text: 1, topic: 1, quote: 2, work: 3, person: 4 };
+const MAP_KINDS = ['project', 'delivery', 'text', 'topic', 'quote', 'work', 'person'];
 
 interface Data { readonly label: string; readonly kind: string; readonly id: string }
 
@@ -46,7 +48,7 @@ function fieldFor(kind: string, target: string): { key: string; many: boolean; l
 }
 
 export function LibraryMap({ store, libraryId }: { store: LibraryStore; libraryId: string }) {
-  const [kinds, setKinds] = useState<ReadonlySet<string>>(new Set(['project', 'text', 'topic', 'quote', 'work', 'person']));
+  const [kinds, setKinds] = useState<ReadonlySet<string>>(new Set(MAP_KINDS));
   const [failed, setFailed] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const revision = store.revision;
@@ -76,8 +78,9 @@ export function LibraryMap({ store, libraryId }: { store: LibraryStore; libraryI
           lines.push({ id: `f:${e.id}:${field.key}:${target}`, source: e.id, target, label: field.label, data: { field: field.key, many: field.type === 'refs' } });
         }
       }
-      if (e.kind === 'text') {
-        for (const key of citedKeys(str(e.data, 'body'), str(e.data, 'further'))) {
+      /* Zitiert wird im Zapis — in der Treść, im Plan, in „co doszło". */
+      {
+        for (const key of citedKeys(...markupsOf(e))) {
           const target = store.byKey(key);
           if (target === undefined || !shown.has(target.id)) continue;
           lines.push({ id: `c:${e.id}:${target.id}`, source: e.id, target: target.id, label: 'cytuje', deletable: false, className: 'is-fixed', animated: false });
@@ -129,7 +132,7 @@ export function LibraryMap({ store, libraryId }: { store: LibraryStore; libraryI
         żeby je usunąć. Szare linie „cytuje" pochodzą z treści tekstu. Dwuklik otwiera wpis.
       </p>
       <div className="lib-map-kinds">
-        {['project', 'text', 'topic', 'quote', 'work', 'person'].map((k) => (
+        {MAP_KINDS.map((k) => (
           <label key={k} className="wk-check">
             <input type="checkbox" checked={kinds.has(k)} onChange={(e) => setKinds((was) => {
               const next = new Set(was); if (e.target.checked) next.add(k); else next.delete(k); return next;

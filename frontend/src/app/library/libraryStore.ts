@@ -23,7 +23,7 @@ import {
 } from './library';
 import { originOf } from './libraryCite';
 import {
-  entryTitle, fieldRefs, kindOf, str, suggestKey, uniqueKey,
+  entryTitle, fieldRefs, kindOf, markupsOf, suggestKey, uniqueKey,
   type EntryData, type LibEntry, type Lookup
 } from './libraryKinds';
 import { citedKeys } from './libraryMarkup';
@@ -143,13 +143,10 @@ export class LibraryStore implements Lookup {
       };
       for (const entry of this.entries.values()) {
         for (const ref of fieldRefs(entry)) add(ref, entry.id);
-        const def = kindOf(entry.kind);
-        for (const field of def?.fields ?? []) {
-          if (field.type !== 'markup') continue;
-          for (const key of citedKeys(str(entry.data, field.key))) {
-            const target = this.byKey(key);
-            if (target !== undefined) add(target.id, entry.id);
-          }
+        /* 2026-10-21 — auch der Zapis in Unterfeldern: ein Zitat im Plan einer Predigt. */
+        for (const key of citedKeys(...markupsOf(entry))) {
+          const target = this.byKey(key);
+          if (target !== undefined) add(target.id, entry.id);
         }
       }
       this.backIndex = index;
@@ -163,7 +160,11 @@ export class LibraryStore implements Lookup {
       const index = new Map<string, string>();
       for (const entry of this.entries.values()) {
         const parts = [this.title(entry), entry.key ?? ''];
-        for (const value of Object.values(entry.data)) if (typeof value === 'string') parts.push(value);
+        for (const value of Object.values(entry.data)) {
+          if (typeof value === 'string') parts.push(value);
+          /* 2026-10-21 — die Punkte eines Plans, die Zeilen eines Wygłoszenia. */
+          else if (Array.isArray(value)) for (const item of value) if (typeof item === 'object' && item !== null) for (const one of Object.values(item)) if (typeof one === 'string') parts.push(one);
+        }
         if (entry.kind === 'quote') parts.push(originOf(entry, this));
         if (entry.kind === 'work') for (const id of fieldRefs(entry)) { const p = this.get(id); if (p !== undefined) parts.push(this.title(p)); }
         index.set(entry.id, fold(parts.join(' ')));

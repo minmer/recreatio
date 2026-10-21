@@ -18,10 +18,11 @@
 
 import { authorOf, originOf, personShort, segText, workSegs } from './libraryCite';
 import {
-  entrySort, entryTitle, ids, kindOf, outline, personName, publicData, str, wordCount,
+  entrySort, entryTitle, ids, isAspect, itemsOf, kindOf, markupsOf, num, outline, personName, publicData, str, wordCount,
   type EntryData, type LibEntry, type Lookup
 } from './libraryKinds';
 import { citedKeys, excerpt } from './libraryMarkup';
+import { addedOf, coverageCounts, coverageOf, deliveriesOf, lastHeld, planOf, pointLine, textsOf } from './sermon';
 
 export type PublishedAs = 'explicit' | 'implicit';
 
@@ -52,12 +53,34 @@ export interface PublicEntryIn {
 const clip = (text: string, length: number): { text: string; truncated: boolean } =>
   text.length <= length ? { text, truncated: false } : { text: `${text.slice(0, length - 1).trimEnd()}…`, truncated: true };
 
+/** Die Themen über einem Thema — höchstens zwanzig Stufen. */
+function topicAncestors(id: string, look: Lookup): string[] {
+  const out: string[] = [];
+  let at = look.get(id);
+  for (let step = 0; step < 20 && at !== undefined; step += 1) {
+    const parent = ids(at.data, 'parent')[0];
+    if (parent === undefined || parent === id || out.includes(parent)) break;
+    out.push(parent);
+    at = look.get(parent);
+  }
+  return out;
+}
+
 /**
  * WORAUF EINE OFFENE FASSUNG ZEIGT — und was deshalb mit ihr hinausgeht.
  *
  * Die öffentlichen Verweisfelder, und bei einem Text die Schlüssel in seinem
  * Zapis. Nicht die Gliederung eines Projekts: wer einen Text eines Buches
  * veröffentlicht, veröffentlicht nicht das ganze Buch.
+ *
+ * 2026-10-21 — dazu:
+ * - der Zapis in den Unterfeldern (die Punkte des Plans, „co doszło");
+ * - bei Themen eines Eintrags (`topics`) auch die darüber: wer „Adwent" trägt,
+ *   steht auch unter „Okres liturgiczny" — so findet ein Filter auf ein Thema
+ *   alles darunter, und die Zahlen im Baum stimmen, ohne dass der Dienst den
+ *   Baum kennt;
+ * - bei einem Text seine Wygłoszenia (ohne die privaten): sie gehen mit ihm
+ *   hinaus, und EINE Anfrage holt die Predigt samt Aufnahmen.
  */
 export function publicRefs(entry: LibEntry, look: Lookup): string[] {
   const def = kindOf(entry.kind);
@@ -65,14 +88,22 @@ export function publicRefs(entry: LibEntry, look: Lookup): string[] {
   const out = new Set<string>();
   for (const field of def.fields) {
     if (field.private === true) continue;
-    if (field.type === 'ref' || field.type === 'refs') ids(entry.data, field.key).forEach((one) => out.add(one));
-    if (field.type === 'markup') {
-      for (const key of citedKeys(str(entry.data, field.key))) {
-        const target = look.byKey(key);
-        if (target !== undefined) out.add(target.id);
+    if (field.type === 'ref' || field.type === 'refs') {
+      const found = ids(entry.data, field.key);
+      found.forEach((one) => out.add(one));
+      if (field.type === 'refs' && field.to?.length === 1 && field.to[0] === 'topic') for (const topic of found) topicAncestors(topic, look).forEach((one) => out.add(one));
+    }
+    if (field.type === 'items') {
+      for (const item of itemsOf(entry.data, field.key)) {
+        for (const sub of field.item ?? []) if (sub.private !== true && (sub.type === 'ref' || sub.type === 'refs')) ids(item, sub.key).forEach((one) => out.add(one));
       }
     }
   }
+  for (const key of citedKeys(...markupsOf(entry, true))) {
+    const target = look.byKey(key);
+    if (target !== undefined) out.add(target.id);
+  }
+  if (entry.kind === 'text') for (const delivery of deliveriesOf(entry, look)) out.add(delivery.id);
   out.delete(entry.id);
   return [...out].filter((id) => look.get(id) !== undefined);
 }
@@ -117,6 +148,16 @@ export function publicDoc(entry: LibEntry, look: Lookup, isPublic: (id: string) 
   if (entry.kind === 'project' && Array.isArray(data.outline)) {
     data.outline = outline(entry.data).filter((item) => !('text' in item) || isPublic(item.text));
   }
+  /*
+   * 2026-10-21 — ein Text nennt seine Wygłoszenia (ohne die privaten), neueste
+   * zuerst: die Seite liest sie aus der einen Anfrage, und ein neues
+   * Wygłoszenie macht den Text „nicht aktuell" — „Zaktualizuj publikację"
+   * nimmt es mit hinaus.
+   */
+  if (entry.kind === 'text') {
+    const deliveries = deliveriesOf(entry, look).map((one) => one.id);
+    if (deliveries.length > 0) data.deliveries = deliveries;
+  }
   return { id: entry.id, kind: entry.kind, ...(entry.key === undefined ? {} : { key: entry.key }), title: entryTitle(entry, look), data };
 }
 
@@ -147,14 +188,41 @@ export function publicSummary(entry: LibEntry, look: Lookup, isPublic: (id: stri
   switch (entry.kind) {
     case 'text': {
       const project = look.get(ids(d, 'project')[0] ?? '');
-      const lead = str(d, 'summary').trim() || excerpt(str(d, 'body'), 320);
+      const plan = planOf(d);
+      const lead = str(d, 'summary').trim() || excerpt(str(d, 'body'), 320)
+        || plan.filter((p) => p.depth === 0).map((p) => pointLine(p.text)).filter(Boolean).join(' · ');
+      /* 2026-10-21 — für Listen und Tabellen: die Hauptgedanken und wann der Text gehalten wurde. */
+      const held = deliveriesOf(entry, look);
       return {
         title: str(d, 'title'), subtitle: str(d, 'subtitle'), textType: str(d, 'textType'),
         date: str(d, 'date'), occasion: str(d, 'occasion'), place: str(d, 'place'), readings: str(d, 'readings'),
         summary: clip(lead, 600).text, topics: topicsOf(entry, look),
         project: project === undefined ? null : { id: project.id, title: str(project.data, 'title') },
         words: wordCount(str(d, 'body')), audio: str(d, 'audio'), video: str(d, 'video'),
-        further: str(d, 'further').trim() !== ''
+        further: str(d, 'further').trim() !== '',
+        ...(plan.length === 0 ? {} : {
+          points: plan.length,
+          plan: plan.filter((p) => p.depth === 0).map((p) => clip(pointLine(p.text), 160).text).filter((s) => s !== '').slice(0, 8)
+        }),
+        ...(held.length === 0 ? {} : {
+          deliveries: held.length,
+          last: lastHeld(entry, look),
+          held: held.slice(0, 12).map((one) => ({
+            id: one.id, date: str(one.data, 'date'), occasion: str(one.data, 'occasion'), place: str(one.data, 'place'),
+            recorded: str(one.data, 'audio') !== '' || str(one.data, 'video') !== ''
+          }))
+        })
+      };
+    }
+    case 'delivery': {
+      const texts = textsOf(entry, look);
+      const counts = coverageCounts(texts.flatMap((t) => planOf(t.data)), coverageOf(d), addedOf(d));
+      return {
+        title: entryTitle(entry, look), date: str(d, 'date'), occasion: str(d, 'occasion'), place: str(d, 'place'),
+        audience: str(d, 'audience'), duration: str(d, 'duration'), audio: str(d, 'audio'), video: str(d, 'video'),
+        summary: clip(str(d, 'summary').trim(), 600).text, topics: topicsOf(entry, look),
+        texts: texts.map((t) => ({ id: t.id, title: str(t.data, 'title') })),
+        counts
       };
     }
     case 'quote': {
@@ -178,7 +246,13 @@ export function publicSummary(entry: LibEntry, look: Lookup, isPublic: (id: stri
       return { name: personName(d), years: str(d, 'years'), description: clip(str(d, 'description').trim(), 300).text };
     case 'topic': {
       const parent = look.get(ids(d, 'parent')[0] ?? '');
-      return { name: str(d, 'name'), parent: parent === undefined ? null : { id: parent.id, name: str(parent.data, 'name') } };
+      const order = num(d, 'order');
+      return {
+        name: str(d, 'name'), parent: parent === undefined ? null : { id: parent.id, name: str(parent.data, 'name') },
+        /* 2026-10-21 — eine Achse der Seite (Spalte, Filter, Baum) und der Platz unter Geschwistern. */
+        ...(isAspect(d) ? { aspect: true } : {}),
+        ...(order === null ? {} : { order })
+      };
     }
     case 'project':
       return {
@@ -191,13 +265,23 @@ export function publicSummary(entry: LibEntry, look: Lookup, isPublic: (id: stri
   }
 }
 
+/**
+ * Wonach öffentlich geordnet wird. 2026-10-21 — ein Text, der gehalten
+ * wurde, steht dort, wo er ZULETZT gehalten wurde: „neueste zuerst" zeigt,
+ * was am letzten Sonntag gesagt wurde, auch wenn der Text älter ist.
+ */
+function publicSort(entry: LibEntry, look: Lookup): string {
+  if (entry.kind !== 'text' || deliveriesOf(entry, look).length === 0) return entrySort(entry, look);
+  return `${lastHeld(entry, look) || '0000-00-00'} ${str(entry.data, 'title').toLowerCase()}`.slice(0, 64);
+}
+
 /** Ein Eintrag, wie er zum Dienst geht. */
 export function publicEntry(entry: LibEntry, as: PublishedAs, look: Lookup, isPublic: (id: string) => boolean): PublicEntryIn {
   return {
     entryId: entry.id,
     as,
     key: entry.key ?? null,
-    sort: entrySort(entry, look),
+    sort: publicSort(entry, look),
     summary: JSON.stringify(publicSummary(entry, look, isPublic)),
     json: JSON.stringify(publicDoc(entry, look, isPublic)),
     refs: publicRefs(entry, look)
@@ -270,6 +354,17 @@ export function plan(
     const entry = look.get(id);
     if (entry?.kind !== 'text') continue;
     for (const project of ids(entry.data, 'project')) if (needed.has(project)) fresh.add(project);
+  }
+
+  /*
+   * 2026-10-21 — ein Text nennt seine Wygłoszenia (Liste, Daten, Zahlen in
+   * seiner Kurzfassung): er folgt, wenn eines geändert wird, hinaus- oder
+   * hereingeht — auch ein privat gestelltes („Nie publikuj").
+   */
+  for (const id of [...edited, ...moved]) {
+    const entry = look.get(id);
+    if (entry?.kind !== 'delivery') continue;
+    for (const text of ids(entry.data, 'texts')) if (needed.has(text)) fresh.add(text);
   }
 
   const alsoNew = [...needed].filter((id) => !published.has(id) && !(change.add ?? []).includes(id));

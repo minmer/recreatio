@@ -15,6 +15,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { Icon, type IconName } from '../../ui/icons';
 import { LabFrame, LabSection } from '../LabFrame';
 import type { ProbeInfo } from './engine/engine';
+import { LIQUIDS } from './engine/materials';
 import type { ChartSample, HostStats } from './engine/protocol';
 import { CELL, QUALITIES, isQuality, readScene, writeScene, type Op, type Quality, type SideName } from './engine/scene';
 import type { Region } from './engine/shapes';
@@ -41,11 +42,14 @@ interface Material {
   readonly key: string;
   readonly label: TextKey;
   readonly solid: string | null;
+  /** Eine Flüssigkeit der Datenbank (H2O, oil-rapeseed …): gemalt als Füllung mit dieser Zusammensetzung. */
+  readonly liquid?: string;
   readonly color: string;
 }
 
 const MATERIALS: readonly Material[] = [
-  { key: 'water', label: 'matWater', solid: null, color: '#3d8fd8' },
+  { key: 'water', label: 'matWater', solid: null, liquid: 'H2O', color: '#3d8fd8' },
+  { key: 'oil', label: 'matOil', solid: null, liquid: 'oil-rapeseed', color: LIQUIDS[1]?.color ?? '#e3b437' },
   { key: 'air', label: 'matAir', solid: null, color: '#e6eef3' },
   { key: 'glass', label: 'matGlass', solid: 'glass', color: '#9cc3d5' },
   { key: 'steel', label: 'matSteel', solid: 'steel', color: '#7d858e' },
@@ -241,13 +245,13 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
       onView: (v, w) => setView({ view: v, walls: w }),
       onRefused: () => setNote(t('refused')),
       onError: setError,
-      onGpu: (ok, _adapter, message) => {
+      onGpu: (ok, _adapter, message, scene) => {
         if (ok) return;
-        /* WebGPU fehlt oder die Karte gibt auf: zurück zur CPU, mit derselben Szene. */
+        /* WebGPU fehlt, die Karte gibt auf oder die Szene enthält, was der beschleunigte Weg noch nicht kann (Öl): zurück zur CPU — mit der Szene, die er zurückgibt (samt Handgriffen), sonst der vom Start. */
         const q = savedQuality() ?? readScene(config.scene).scene.quality;
-        nextScene.current = withQuality(startScene, q);
+        nextScene.current = withQuality(scene ?? startScene, q);
         setQuality(q);
-        setNote(`${t('accelFailed')}${message ? ` (${message})` : ''}`);
+        setNote(message === 'other-liquid' ? t('accelNoOther') : `${t('accelFailed')}${message ? ` (${message})` : ''}`);
         setAccel(false);
       }
     });
@@ -287,7 +291,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
     if (tool === 'erase') { h.apply({ op: 'erase', region }); return; }
     const m = MATERIALS.find((k) => k.key === material) ?? MATERIALS[0];
     if (m.solid !== null) h.addSolid(region, m.solid, T0 + tempC);
-    else if (m.key === 'water') h.addLiquid(region, { H2O: 1 }, T0 + tempC);
+    else if (m.liquid !== undefined) h.addLiquid(region, { [m.liquid]: 1 }, T0 + tempC);
     else h.apply({ op: 'fill', region, phase: 'gas', T: T0 + tempC, composition: { N2: 0.7676, O2: 0.2324 } });
   };
 
@@ -424,6 +428,8 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   };
 
   const speed = SPEEDS[speedAt];
+  /* Andere Flüssigkeiten (Öl) kennt der beschleunigte Weg noch nicht: dann bleibt der normale Weg. */
+  const otherLiquid = (stats?.engine.otherMass ?? 0) > 0;
   const hint = TOOLS.find((k) => k.key === tool)?.hint ?? 'hintPaint';
   const lower: Quality | undefined = QUALITIES[QUALITIES.indexOf(quality) + 1];
   const heaters = stats?.engine.heaters ?? [];
@@ -452,7 +458,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
       <button type="button" className="lab-tool" onClick={cycleSpeed} title={t('speed')} aria-label={`${t('speed')} ${speed}×`}>{num(speed, speed < 1 ? 2 : 0)}×</button>
       <button type="button" className={`lab-tool${hud ? ' is-on' : ''}`} onClick={() => setHud(!hud)} title={t('hud')} aria-label={t('hud')}>HUD</button>
       {(HAS_WEBGPU || accel) && (
-        <button type="button" className={`lab-tool${accel ? ' is-on' : ''}`} onClick={toggleAccel} title={accel ? t('accelClose') : t('accelTitle')} aria-pressed={accel}>
+        <button type="button" className={`lab-tool${accel ? ' is-on' : ''}`} onClick={toggleAccel} disabled={!accel && otherLiquid} title={accel ? t('accelClose') : otherLiquid ? t('accelNoOther') : t('accelTitle')} aria-pressed={accel}>
           <Icon name="bolt" />{accel ? t('accelClose') : t('accelOpen')}
         </button>
       )}
@@ -511,7 +517,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
           <input type="range" min={2} max={30} step={1} value={brushMm} onChange={(e) => setBrushMm(Number(e.currentTarget.value))} />
         </label>
         <label className="lab-field">{t('paintTemp')}: {tempC} °C
-          <input type="range" min={0} max={100} step={1} value={tempC} onChange={(e) => setTempC(Number(e.currentTarget.value))} />
+          <input type="range" min={0} max={200} step={1} value={tempC} onChange={(e) => setTempC(Number(e.currentTarget.value))} />
         </label>
       </LabSection>
       <LabSection title={t('apparatus')}>

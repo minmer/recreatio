@@ -1,8 +1,10 @@
 # 2D lab engine (v2) — architecture
 
-Status (2026-10-20): Milestones M0–M1d are built on the CPU and pass their tests except the time budget of test 16;
+Status (2026-10-21): Milestones M0–M1d are built on the CPU and pass their tests except the time budget of test 16;
 M1e, the WebGPU path, is built as the "accelerated view" — the whole step on the GPU (§15) — and meets test 17 (test 11
-at the edge of its tolerance, as on the CPU). [MILESTONES.md](MILESTONES.md) has the measured numbers. Written as a
+at the edge of its tolerance, as on the CPU). M2a, the first step of the sandbox plan ([SANDBOX.md](SANDBOX.md)), adds
+liquids other than water (rapeseed oil first) on the CPU: per-material particles, viscosity and drifting droplets
+(tests 18–22); the accelerated view does not take them yet. [MILESTONES.md](MILESTONES.md) has the measured numbers. Written as a
 design before the code (2026-10-19, as the build prompt v2 asks) and updated to what was built.
 Code: `frontend/src/app/lab/lab2d/`. Simplifications: [SIMPLIFICATIONS.md](SIMPLIFICATIONS.md).
 
@@ -123,8 +125,8 @@ stable `id` travels with it for the inspector).
 | `c00, c01, c10, c11` | f32 | APIC affine matrix C (1/s) |
 | `mass` | f64 | substance mass (kg) |
 | `h` | f64 | specific enthalpy (J/kg) — the state; `T` and `rho` are cached from it |
-| `spc[2]`, `smass[2]` | u8, f64 | composition slots for dissolved species (M2; empty in M1) |
-| `mat` | u8 | material (species) index |
+| `spc[2]`, `smass[2]` | u8, f64 | composition slots for dissolved species (M2b; empty so far) |
+| `mat` | u8 | the particle's liquid: index into `LIQUIDS` (0 water, 1 rapeseed oil); its laws give T and ρ from h |
 
 ### 3.3 Objects (bubbles in M1)
 
@@ -145,8 +147,16 @@ Lemmert & Chawla). A test checks that every value cites a source.
   (SR1-86); vapour c_p (ideal gas, linear in T), k, μ; molar mass; ΔfH°, S° for later chemistry.
 - **N₂, O₂**: molar mass, c_p, k(T) (power law), μ(T) (Sutherland), diffusivity of water vapour in air (Massman).
   Gas properties are tabulated from these laws at 1 K steps (150–1150 K, linear reading, error < 1e-5).
+- **Rapeseed (canola) oil** (M2a): ρ(T) and c_p(T) linear (the fits of Rojas, Coimbra & Telis-Romero 2013, measured
+  20–160 °C), k(T) linear and μ(T) after Vogel (fits in this repository to their tables, within 0.5 % and 1.3 %),
+  surface tension constant (33.4 mN/m, the 20 °C literature mean of Melo-Espinosa et al. 2014). Not volatile.
 - **Borosilicate glass, stainless steel, porous ceramic**: ρ, c_p, k, contact angle with water, cavity population
   (scale, largest mouth radius): glass 0.02 / 3 µm / 25°, steel 1 / 40 µm / 70°, ceramic 50 / 150 µm / 10° (§8.2).
+
+**Several liquids** (M2a, format version 2): every substance with a `liquid` block is a liquid of the engine
+(`LIQUIDS`: water first). `cpLiq`, `hLiq`, `tFromHLiq`, `rhoLiq`, `kLiq`, `muLiq`, `sigmaLiq` take the liquid's index;
+water keeps its own functions, so water-only scenes compute exactly what they computed in M1. Each liquid has its own
+enthalpy reference (0 at 0 °C): no liquid turns into another, so the references never meet.
 
 **Enthalpy closure.** Every enthalpy is evaluated with the same functions everywhere: h_l(T) = ∫c_p,l dT from 0 °C,
 h_v(T) = h_l(100 °C) + h_lv(100 °C) + ∫c_p,v dT from 100 °C (ideal gas, T only; h_lv(100 °C) = 2256.4 kJ/kg from
@@ -286,7 +296,17 @@ rectangle of the grid. Systems in finite-volume form (A x)_c = (dH + dD + Σ a_f
   it was gas, touches gas or touches an open side (no gas voids inside the liquid; cavitation is not modelled,
   bubbles are the only gas in the liquid).
 - **Body force** g ρ(T)/ρ_ref with the mass-weighted mean density ρ_ref and a constant-density projection: the
-  pressure is the real hydrostatic pressure, warm water rises, the density maximum near 4 °C is kept. Bubble reaction
+  pressure is the real hydrostatic pressure, warm water rises, the density maximum near 4 °C is kept. With several
+  liquids each particle brings its own density: oil floats, layers have exact hydrostatics (SIMPLIFICATIONS.md #22).
+- **Viscosity** (M2a, only when a liquid other than water is present): after P2G and before the forces, implicit
+  per velocity component, ρ_ref Δx²/Δt (u* − u) = Σ η_f (u_nb − u*), η_f the harmonic mean of the faces' mass-weighted
+  particle viscosities; no slip at walls and solids (2η across half a cell), no stress at the free surface and toward
+  empty faces; CG with Jacobi. Forces come after it: viscosity acting on the gravity kick that the projection removes
+  made resting layers circulate at centimetres per second near no-slip walls.
+- **Droplets** (M2a): a particle whose liquid is the minority in its cell drifts relative to the flow at the terminal
+  velocity of a droplet of its own volume in the majority liquid (Schiller–Naumann drag, Hadamard–Rybczynski factor;
+  at most a quarter cell per step; position only, the mixture keeps its momentum). Without it immiscible liquids would
+  not separate below the cell size (SIMPLIFICATIONS.md #24). Bubble reaction
   forces (drag, added mass) are added on the faces with the bubble's weights.
 - **Divergence source**: the volume change of every particle in the last step (thermal expansion, evaporation,
   condensation), splatted with its weights, plus Δα_b·V/Δt of the bubbles (growth, motion, bursting), plus the drift
@@ -302,6 +322,12 @@ rectangle of the grid. Systems in finite-volume form (A x)_c = (dH + dD + Σ a_f
   (their normal velocity removed); particles that leave through an open side are booked as escaped.
 
 A fill that would leave a liquid region without a free surface is refused (the prompt: no pressure law for it in M1).
+
+**Only water exchanges mass with the gas and the bubbles** (M2a): the per-cell sums that every transfer reads (Σ w m,
+Σ w m h) count water particles only; evaporation and dew at a surface cell scale with its share of water, flash takes
+only water particles, condensate in a cell without water becomes a new water particle (with the enthalpy the transfer
+booked). Bubbles nucleate only where the liquid is mostly water, use the density, viscosity and surface tension of the
+liquid around them, and exchange vapour only with water (a steam bubble in oil rises and bursts).
 
 ## 8. Bubbles
 
@@ -367,7 +393,8 @@ A scene is a starting layout: box (w, h, depth), ambient (p, T, relative humidit
 adjustable while it runs; a new composition enters through open sides, the gas in the box keeps its own), sides,
 quality, seed and an ordered list of operations — `fill` (liquid water, or gas of a composition), `erase`, `move`
 (everything solid in a region, with the water and bubbles inside, by whole cells — the drag tool), `solid`, `beaker`
-(with an optional lid), `hotplate` (power or thermostat). JSON, `format: "recreatio/lab2d"`, version 1, in m / °C /
+(with an optional lid), `hotplate` (power or thermostat). `fill` takes any liquid of the database (`H2O`, `oil-rapeseed`) with mass fractions; several immiscible liquids are
+spread evenly by volume, each particle being one of them. JSON, `format: "recreatio/lab2d"`, version 1, in m / °C /
 kPa / W (`scene.ts`; unknown parts are dropped with a warning). Every tool is an operation appended to the scene, so
 "save" writes the current layout with its seed, and a change of quality rebuilds the same layout at the new cell size.
 Edits book the mass and energy they add or remove (the budgets close across tools).
@@ -400,7 +427,7 @@ and answers the same host messages, so the shell, the tools, the inspector and t
 
 ## 12. Tests
 
-Vitest, headless in Node on the engine alone: `npm run test:lab2d` (33 tests, ~3 minutes) and
+Vitest, headless in Node on the engine alone: `npm run test:lab2d` (41 tests, ~4 minutes) and
 `npm run test:lab2d:slow` (tests 3, 4 over ten simulated minutes, 10, 11, 12). MILESTONES.md records the numbers.
 
 | # | Test | File |
@@ -422,6 +449,11 @@ Vitest, headless in Node on the engine alone: `npm run test:lab2d` (33 tests, ~3
 | 14 | Fog only where supersaturated, exactly saturated after, water exact | m1c.test.ts |
 | 15 | Sealed box: p0 rises by p0 ΔT/T (±1 %) | m1a.test.ts |
 | 16 | Performance: ms per stage (HUD, test output, `npm run bench:lab2d`); ≤ 12 ms per frame at the default resolution | m1a.test.ts |
+| 18 | Two layers at rest: dp/dy = ρ_oil g and ρ_w g (±2 %), currents < 1 mm/s | m2a.test.ts |
+| 19 | Oil poured under water ends on top, interface from the volumes (±1 cell) | m2a.test.ts |
+| 20 | Viscosity: one implicit step damps a shear mode by its exact discrete factor (±1 %); water alone solves none | m2a.test.ts |
+| 21 | Oil 140 → 150 °C: no bubbles, no vapour, dT/dt = P/(m c_p) (±2 %), energy and oil mass close | m2a.test.ts |
+| 22 | Water boiling under oil: bubbles cross the oil and burst; oil, water and energy budgets close | m2a.test.ts |
 | 17 | GPU equivalence on tests 1–3, 6, 11 | browser harness in headless Edge (Node has no WebGPU) and in Firefox (a visible window: headless Firefox gets no WebGPU adapter); numbers in MILESTONES.md (M1e) |
 
 The browser side (tools, overlays, inspector, bubble view, charts, scenes, phone layout) was walked through in
@@ -446,12 +478,18 @@ resolved surface); a molecule lens (read-only Lennard-Jones view).
 Nothing in M1 blocks them: six species slots on cells and bubbles, two composition slots on particles, the object
 store, the chemistry hook in the loop.
 
+The plan for the next steps — several liquids (oil), bodies that fall, float and tip, melting and freezing, salt in
+solution and as grains, and baked clips — is [SANDBOX.md](SANDBOX.md) (2026-10-21, a design before the code). It
+replaces the M3 sketch above: melting there is an interface process at the solution's freezing point, not a volume
+enthalpy rule.
+
 ## 15. The GPU path (M1e): the accelerated view
 
 The button "Widok przyspieszony" (shown where the browser has WebGPU) restarts the lab in a second worker,
 `gpu.worker.ts`, that runs the whole step on the GPU — at 1 mm, or at the saved quality — and draws with WebGPU;
 "Widok zwykły" returns to the CPU worker with the same scene. If the device or a kernel fails, the shell falls back
-to the CPU worker with a note. The view is not bit-reproducible (float atomics, order-free merging): the prompt's
+to the CPU worker with a note; a scene with a liquid other than water goes back to the CPU worker the same way, with
+its tools applied (M2a is not ported yet). The view is not bit-reproducible (float atomics, order-free merging): the prompt's
 determinism stays a property of the CPU engine. Checked in two WebGPU implementations: Edge/Chrome (Dawn) and Firefox
 (wgpu). They schedule workgroups differently, so a kernel whose result depends on that order works in one and fails
 in the other (§15, solves). Checked on 2026-10-21 by running every kernel with its workgroups in reverse order

@@ -13,7 +13,7 @@ import { useId } from 'react';
 import type { ProbeInfo } from './engine/engine';
 import type { BubbleView, ChartSample, HostStats } from './engine/protocol';
 import { STAGES } from './engine/stages';
-import { materialName, num, SIMPLIFICATIONS_PL, t, type TextKey } from './i18n';
+import { liquidName, liquidsText, materialName, num, SIMPLIFICATIONS_PL, t, type TextKey } from './i18n';
 import type { Overlay } from './render/frame';
 import { VIRIDIS } from './render/palette';
 
@@ -40,7 +40,7 @@ export function Inspector({ info, level }: { info: ProbeInfo; level: Level }) {
   if (level === 'primary') {
     return (
       <div className="lab-values">
-        <Row label={t('cell')} value={`${kind}${c.material !== null ? ` · ${materialName(c.material)}` : ''}${c.heater ? ` · ${t('heating')}` : ''}`} />
+        <Row label={t('cell')} value={`${kind}${c.material !== null ? ` · ${materialName(c.material)}` : ''}${c.kind === 'liquid' && c.liquids.length > 0 ? ` · ${liquidsText(c.liquids)}` : ''}${c.heater ? ` · ${t('heating')}` : ''}`} />
         <Row label={t('temp')} value={`${num(C(c.T), 0)} °C · ${feel(c.T, c.Tsat, c.kind === 'liquid')}`} />
         <Row label={t('tsatHere')} value={`${num(C(c.Tsat), 1)} °C`} />
         {c.kind === 'gas' && <Row label={t('rh')} value={`${num(100 * Math.min(1, c.rh), 0)} %`} />}
@@ -51,7 +51,7 @@ export function Inspector({ info, level }: { info: ProbeInfo; level: Level }) {
   }
   return (
     <div className="lab-values">
-      <Row label={t('cell')} value={`${kind}${c.material !== null ? ` (${materialName(c.material)})` : ''}${c.heater ? ` · ${t('heating')}` : ''}`} />
+      <Row label={t('cell')} value={`${kind}${c.material !== null ? ` (${materialName(c.material)})` : ''}${c.liquids.length > 0 ? ` · ${liquidsText(c.liquids)}` : ''}${c.heater ? ` · ${t('heating')}` : ''}`} />
       <Row label={t('temp')} value={`${num(C(c.T), 2)} °C`} />
       <Row label={t('absPressure')} value={`${num(c.p / 1000, 3)} kPa`} />
       <Row label={t('tsatHere')} value={`${num(C(c.Tsat), 3)} °C`} />
@@ -63,7 +63,7 @@ export function Inspector({ info, level }: { info: ProbeInfo; level: Level }) {
       {c.film > 0 && <Row label={t('film')} value={`${num(c.film * 1e6, 3)} mg`} />}
       {info.particle !== null && (
         <>
-          <Row label={t('particle')} value={`${num(C(info.particle.T), 2)} °C · ${num(info.particle.mass * 1e6, 3)} mg`} />
+          <Row label={t('particle')} value={`${liquidName(info.particle.liquid)} · ${num(C(info.particle.T), 2)} °C · ${num(info.particle.mass * 1e6, 3)} mg`} />
           <Row label={t('velocity')} value={`${num(Math.hypot(info.particle.vx, info.particle.vy) * 100, 2)} cm/s · ρ ${num(info.particle.rho, 1)} kg/m³`} />
         </>
       )}
