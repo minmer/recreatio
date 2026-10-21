@@ -7,6 +7,9 @@ import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
+import android.bluetooth.le.AdvertisingSet;
+import android.bluetooth.le.AdvertisingSetCallback;
+import android.bluetooth.le.AdvertisingSetParameters;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -35,10 +38,17 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@link BluetoothLeAdvertiser}.
  *
  * <p>Legacy, nicht verbindbar (dann setzt Android keine Flags davor, und die 31 Bytes
- * bleiben ganz für das Paket), {@code ADVERTISE_MODE_LOW_LATENCY}, ohne Namen und ohne
- * Sendeleistung im Paket. Je Ramka: starten, auf den Rückruf warten (höchstens
- * {@link #CALLBACK_MS}), halten, stoppen, die Pause abwarten. Wie oft Android das Paket in
- * dieser Zeit wiederholt, bestimmt Android (bei LOW_LATENCY etwa alle 100 ms).</p>
+ * bleiben ganz für das Paket), ohne Namen und ohne Sendeleistung im Paket. Je Ramka:
+ * starten, auf den Rückruf warten (höchstens {@link #CALLBACK_MS}), halten, stoppen, die
+ * Pause abwarten.</p>
+ *
+ * <p><b>Der Abstand der Pakete</b> (2026-10-21): solange eine Ramka gesendet wird,
+ * wiederholt Android ihr Paket — so oft, wie das Intervall sagt. Ab Android 8 wird es
+ * genau gesetzt ({@link AdvertisingSetParameters#setInterval}: 100 ms ist das Schnellste,
+ * mehr verlangsamt — die Pause der Regler steht so auch zwischen den einzelnen Paketen).
+ * Dieselben Einstellungen wie {@code startAdvertising} mit LOW_LATENCY (Legacy,
+ * scannbar, nicht verbindbar, hohe Leistung), nur mit eigenem Intervall. Davor (Android
+ * 7) gibt es nur drei Stufen: 100 ms, 250 ms, 1 s.</p>
  *
  * <p><b>Nacheinander.</b> Alles Senden läuft auf EINEM Faden ({@link #RADIO}) — ein Druck
  * auf der Seite und ein Timer überlagern sich nie. Wann abgebrochen wird, sagt der Auftrag
@@ -51,12 +61,63 @@ final class LampRadio {
     /** So lange darf Android mit „gestartet" oder „ging nicht" brauchen. */
     static final long CALLBACK_MS = 3000;
 
-    private static final AdvertiseSettings SETTINGS = new AdvertiseSettings.Builder()
-        .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-        .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-        .setConnectable(false)
-        .setTimeout(0)
-        .build();
+    /** Android 7: die Stufe, die dem Abstand am nächsten liegt (100 ms, 250 ms, 1 s). */
+    private static AdvertiseSettings settingsOf(LampFrame frame) {
+        int mode = frame.intervalMs <= 175 ? AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY
+            : frame.intervalMs <= 625 ? AdvertiseSettings.ADVERTISE_MODE_BALANCED
+            : AdvertiseSettings.ADVERTISE_MODE_LOW_POWER;
+        return new AdvertiseSettings.Builder()
+            .setAdvertiseMode(mode)
+            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+            .setConnectable(false)
+            .setTimeout(0)
+            .build();
+    }
+
+    /** Ab Android 8: wie {@code startAdvertising} es täte (Legacy, scannbar, nicht verbindbar, hohe Leistung) — mit genauem Intervall. */
+    private static AdvertisingSetParameters parametersOf(LampFrame frame) {
+        return new AdvertisingSetParameters.Builder()
+            .setLegacyMode(true)
+            .setConnectable(false)
+            .setScannable(true)
+            .setInterval(frame.intervalUnits())
+            .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+            .build();
+    }
+
+    /**
+     * Eine Ramka starten. Der Rückruf (auf dem Hauptfaden) setzt {@code status}: 0 läuft,
+     * sonst der Fehler — für beide Wege dieselben Zahlen. Zurück kommt, wie man sie stoppt.
+     */
+    @SuppressLint("MissingPermission")
+    private static Runnable start(BluetoothLeAdvertiser advertiser, LampFrame frame, AdvertiseData data, AtomicInteger status, CountDownLatch answered) {
+        if (Build.VERSION.SDK_INT >= 26) {
+            AdvertisingSetCallback callback = new AdvertisingSetCallback() {
+                @Override
+                public void onAdvertisingSetStarted(AdvertisingSet set, int txPower, int result) {
+                    status.set(result);
+                    answered.countDown();
+                }
+            };
+            advertiser.startAdvertisingSet(parametersOf(frame), data, null, null, null, callback);
+            return () -> advertiser.stopAdvertisingSet(callback);
+        }
+        AdvertiseCallback callback = new AdvertiseCallback() {
+            @Override
+            public void onStartSuccess(AdvertiseSettings settingsInEffect) {
+                status.set(0);
+                answered.countDown();
+            }
+
+            @Override
+            public void onStartFailure(int errorCode) {
+                status.set(errorCode);
+                answered.countDown();
+            }
+        };
+        advertiser.startAdvertising(settingsOf(frame), data, callback);
+        return () -> advertiser.stopAdvertising(callback);
+    }
 
     /** Wann ein Auftrag endet, bevor er fertig ist. */
     interface Cancel {
@@ -118,7 +179,8 @@ final class LampRadio {
         List<LampFrame> out = new ArrayList<>();
         for (int i = 0; i < list.length(); i++) {
             JSONObject one = list.getJSONObject(i);
-            out.add(LampFrame.of(one.getInt("manufacturerId"), one.getString("data"), one.optLong("durationMs", 1000), one.optLong("gapMs", 0)));
+            out.add(LampFrame.of(one.getInt("manufacturerId"), one.getString("data"), one.optLong("durationMs", 1000), one.optLong("gapMs", 0),
+                one.optLong("intervalMs", LampFrame.MIN_INTERVAL_MS)));
         }
         return out;
     }
@@ -143,9 +205,9 @@ final class LampRadio {
         return out;
     }
 
-    private static void stopQuietly(BluetoothLeAdvertiser advertiser, AdvertiseCallback callback) {
+    private static void stopQuietly(Runnable stop) {
         try {
-            advertiser.stopAdvertising(callback);
+            stop.run();
         } catch (RuntimeException ignored) {
             // Bluetooth inzwischen aus: dann wirbt auch nichts mehr.
         }
@@ -170,6 +232,7 @@ final class LampRadio {
             JSObject one = new JSObject();
             one.put("index", i);
             one.put("requestedMs", frame.durationMs);
+            one.put("intervalMs", frame.intervalMs);
             done.put(one);
 
             AdvertiseData data = new AdvertiseData.Builder()
@@ -180,23 +243,11 @@ final class LampRadio {
 
             CountDownLatch answered = new CountDownLatch(1);
             AtomicInteger failure = new AtomicInteger(Integer.MIN_VALUE);
-            AdvertiseCallback callback = new AdvertiseCallback() {
-                @Override
-                public void onStartSuccess(AdvertiseSettings settingsInEffect) {
-                    failure.set(0);
-                    answered.countDown();
-                }
-
-                @Override
-                public void onStartFailure(int errorCode) {
-                    failure.set(errorCode);
-                    answered.countDown();
-                }
-            };
+            Runnable stop;
 
             long asked = SystemClock.elapsedRealtime();
             try {
-                advertiser.startAdvertising(SETTINGS, data, callback);
+                stop = start(advertiser, frame, data, failure, answered);
             } catch (SecurityException e) {
                 one.put("code", "no-permission");
                 return outcome("no-permission", e.getMessage(), began, done);
@@ -204,6 +255,10 @@ final class LampRadio {
                 /* „BT Adapter is not turned ON" — zwischen der Prüfung und dem Start ausgeschaltet. */
                 one.put("code", "bluetooth-off");
                 return outcome("bluetooth-off", e.getMessage(), began, done);
+            } catch (IllegalArgumentException e) {
+                /* startAdvertisingSet prüft selbst: „Legacy advertising data too big". */
+                one.put("code", "data-too-large");
+                return outcome("data-too-large", e.getMessage(), began, done);
             } catch (RuntimeException e) {
                 one.put("code", "error");
                 return outcome("error", e.getClass().getSimpleName() + ": " + e.getMessage(), began, done);
@@ -219,7 +274,7 @@ final class LampRadio {
             long startedAt = SystemClock.elapsedRealtime();
             one.put("startMs", startedAt - asked);
             if (!heardBack) {
-                stopQuietly(advertiser, callback);
+                stopQuietly(stop);
                 one.put("code", "no-callback");
                 return outcome("no-callback", "Brak AdvertiseCallback po " + CALLBACK_MS + " ms.", began, done);
             }
@@ -231,7 +286,7 @@ final class LampRadio {
 
             one.put("startedAt", System.currentTimeMillis());
             boolean full = cancel.hold(frame.durationMs);
-            stopQuietly(advertiser, callback);
+            stopQuietly(stop);
             one.put("stoppedAt", System.currentTimeMillis());
             one.put("heldMs", SystemClock.elapsedRealtime() - startedAt);
             one.put("code", full ? "ok" : cancel.reason());

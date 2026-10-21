@@ -106,6 +106,12 @@ export interface MenuItem {
   readonly kind: 'abs' | 'rel' | 'url' | 'none';
   readonly target: string;
   readonly children: readonly MenuItem[];
+  /**
+   * 2026-10-21 — EIN BILD STATT DES NAMENS (ein Logo): ein Bild der Seite
+   * (`page-image:<id>`), https oder ein eigener Pfad (`/logo.svg`). Der Name
+   * bleibt — er ist, was ein Bildschirmleser vorliest.
+   */
+  readonly image?: string;
 }
 
 /**

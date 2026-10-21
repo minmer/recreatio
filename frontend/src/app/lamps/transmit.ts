@@ -33,7 +33,7 @@ import { hexOf, readFrame } from './adv';
 import type { LampData, LampSignal } from './lampStore';
 import { lampTitle, signalProblem } from './lampStore';
 import type { LampCode, LampNative, LampSupport, NativeFrame, NativeSendResult } from './native';
-import { FASTEST, pacedDuration, pacedGap, type Pace } from './pace';
+import { FASTEST, pacedDuration, pacedGap, packetInterval, type Pace } from './pace';
 
 export type AttemptState = 'queued' | 'sending' | 'sent' | 'failed' | 'stopped';
 
@@ -44,6 +44,8 @@ export interface AttemptFrame {
   readonly manufacturerId: number | null;
   readonly durationMs: number;
   readonly gapMs: number;
+  /** Abstand der einzelnen Pakete, solange die Ramka hinausgeht. */
+  readonly intervalMs: number;
 }
 
 export interface Attempt {
@@ -109,7 +111,8 @@ export interface Prepared {
 
 /**
  * Ein Sygnał → was der Sender bekommt: je Ramka Kennung und Daten des Herstellers,
- * mit dem Tempo `pace` (Limit je Ramka, Pause zwischen den Ramki).
+ * mit dem Tempo `pace` (Limit je Ramka, Pause zwischen den Ramki und zwischen den
+ * einzelnen Paketen jeder Ramka).
  */
 export function prepareSignal(signal: LampSignal, pace: Pace = FASTEST): Prepared {
   const shown: AttemptFrame[] = [];
@@ -119,15 +122,17 @@ export function prepareSignal(signal: LampSignal, pace: Pace = FASTEST): Prepare
     const air = read.advertising === null ? read.hex : hexOf(read.advertising.bytes.slice(0, read.advertising.bytes.length - read.advertising.padding));
     const durationMs = pacedDuration(f.durationMs, pace);
     const gapMs = i < signal.frames.length - 1 ? pacedGap(f.gapMs, pace) : f.gapMs;
+    const intervalMs = packetInterval(pace);
     shown.push({
       hex: air,
       size: read.advertising === null ? Math.floor(read.hex.length / 2) : read.advertising.bytes.length - read.advertising.padding,
       manufacturerId: read.advertising?.manufacturer?.id ?? null,
       durationMs,
-      gapMs
+      gapMs,
+      intervalMs
     });
     if (read.manufacturer !== null) {
-      frames.push({ manufacturerId: read.manufacturer.id, data: hexOf(read.manufacturer.data), durationMs, gapMs });
+      frames.push({ manufacturerId: read.manufacturer.id, data: hexOf(read.manufacturer.data), durationMs, gapMs, intervalMs });
     }
   });
   return { frames, shown, problem: signalProblem(signal) };

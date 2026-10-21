@@ -29,6 +29,7 @@ import { newId } from '../core/ids';
 import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Breakpoint, type Frame, type Layout } from './layout';
 import type { MenuState } from './menu';
 import { PAGE_MODES, type DraftPart, type MenuItem, type PageMode } from './page';
+import { menuImageOf } from './menuPath';
 import { readLogic, type PageLogic } from './pageLogic';
 import { readSubject, subjectKindOf, writeSubject } from './pageSubject';
 import type { RawConfig } from './part';
@@ -323,12 +324,17 @@ function showWarnings(value: unknown): string[] {
 
 const MENU_KINDS: readonly MenuItem['kind'][] = ['abs', 'rel', 'url', 'none'];
 
-function readMenuItems(value: unknown, depth = 0): MenuItem[] {
+/** `badImages`: die Namen der Einträge, deren "image" kein Bild sein kann (es fällt weg — und wird gesagt). */
+function readMenuItems(value: unknown, depth = 0, badImages: string[] = []): MenuItem[] {
   return asArray(value).map(asRecord).filter((one) => asText(one.label).trim() !== '').map((one) => {
     const target = asText(one.target).trim();
     const said = asText(one.kind) as MenuItem['kind'];
     const kind = MENU_KINDS.includes(said) ? said : target === '' ? 'none' : /^https?:/i.test(target) ? 'url' : 'abs';
-    return { label: asText(one.label).trim(), kind, target, children: depth < 4 ? readMenuItems(one.children, depth + 1) : [] };
+    const label = asText(one.label).trim();
+    /* 2026-10-21 — ein Logo statt des Namens. */
+    const image = menuImageOf(one.image);
+    if (image === null && asText(one.image).trim() !== '') badImages.push(label);
+    return { label, kind, target, children: depth < 4 ? readMenuItems(one.children, depth + 1, badImages) : [], ...(image === null ? {} : { image }) };
   });
 }
 
@@ -604,7 +610,9 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
     if (has(root, 'menu')) {
       if (root.menu === null) { plan.menu = null; lines.push('Menu: bez menu.'); }
       else if (Array.isArray(root.menu)) {
-        const items = readMenuItems(root.menu);
+        const badImages: string[] = [];
+        const items = readMenuItems(root.menu, 0, badImages);
+        for (const label of badImages) warnings.push(`Menu: „${label}” — "image" to nie obraz (page-image:<id>, https://… albo /plik.svg) — zostaje sama nazwa.`);
         plan.menu = items.length === 0 ? null : { items };
         lines.push(items.length === 0 ? 'Menu: bez menu.' : `Menu: ${count(items.length, 'pozycja', 'pozycje', 'pozycji')}.`);
       } else if (asText(asRecord(root.menu).from).trim() !== '') {

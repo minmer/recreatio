@@ -9,6 +9,15 @@ internal static class PageFileChecks
         check(Menu.Upwards("").SequenceEqual([""]), "the main page looks at itself");
         check(Menu.Upwards("parish/grzegorzki").SequenceEqual(["parish/grzegorzki", "parish", ""]), "a page looks up to the main page");
 
+        /* 2026-10-21 — ein Logo statt des Namens: ein Bild der Seite, https oder ein eigener Pfad; sonst nichts. */
+        check(Menu.ImageShape("page-image:01a15629-8c30-764d-88ad-8cfee5e4f6d9"), "menu image: a page image");
+        check(Menu.ImageShape("https://recreatio.pl/logo.svg") && Menu.ImageShape("/Hortus.jpg"), "menu image: https and own paths");
+        check(!Menu.ImageShape("page-image:nope") && !Menu.ImageShape("http://x.pl/a.png") && !Menu.ImageShape("//x.pl/a.png"), "menu image: no broken ids, no http, no foreign protocol-relative");
+        check(!Menu.ImageShape("javascript:alert(1)") && !Menu.ImageShape("/a.png\" onerror=\"x") && !Menu.ImageShape("/a b.png"), "menu image: no scripts, quotes or spaces");
+        var web = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        check(!System.Text.Json.JsonSerializer.Serialize(new Menu.Clean("Start", "abs", "", []), web).Contains("image"), "menu item without an image stays as before");
+        check(System.Text.Json.JsonSerializer.Serialize(new Menu.Clean("Start", "abs", "", [], "/logo.svg"), web).Contains("\"image\":\"/logo.svg\""), "menu item with an image keeps it");
+
         check(PageImage.Allowed("application/pdf"), "pdf allowed");
         check(PageImage.Allowed("application/gpx+xml"), "gpx allowed");
         check(!PageImage.Allowed("text/html"), "html refused");

@@ -422,7 +422,7 @@ Vitest, headless in Node on the engine alone: `npm run test:lab2d` (33 tests, ~3
 | 14 | Fog only where supersaturated, exactly saturated after, water exact | m1c.test.ts |
 | 15 | Sealed box: p0 rises by p0 ΔT/T (±1 %) | m1a.test.ts |
 | 16 | Performance: ms per stage (HUD, test output, `npm run bench:lab2d`); ≤ 12 ms per frame at the default resolution | m1a.test.ts |
-| 17 | GPU equivalence on tests 1–3, 6, 11 | browser harness in headless Edge (Node has no WebGPU); numbers in MILESTONES.md (M1e) |
+| 17 | GPU equivalence on tests 1–3, 6, 11 | browser harness in headless Edge (Node has no WebGPU) and in Firefox (a visible window: headless Firefox gets no WebGPU adapter); numbers in MILESTONES.md (M1e) |
 
 The browser side (tools, overlays, inspector, bubble view, charts, scenes, phone layout) was walked through in
 headless Edge against a bundle of the shell; the results are in MILESTONES.md (M1d).
@@ -452,7 +452,10 @@ The button "Widok przyspieszony" (shown where the browser has WebGPU) restarts t
 `gpu.worker.ts`, that runs the whole step on the GPU — at 1 mm, or at the saved quality — and draws with WebGPU;
 "Widok zwykły" returns to the CPU worker with the same scene. If the device or a kernel fails, the shell falls back
 to the CPU worker with a note. The view is not bit-reproducible (float atomics, order-free merging): the prompt's
-determinism stays a property of the CPU engine.
+determinism stays a property of the CPU engine. Checked in two WebGPU implementations: Edge/Chrome (Dawn) and Firefox
+(wgpu). They schedule workgroups differently, so a kernel whose result depends on that order works in one and fails
+in the other (§15, solves). Checked on 2026-10-21 by running every kernel with its workgroups in reverse order
+(MILESTONES.md, M1e).
 
 - **State**: every field lives on the GPU in field-major buffers (cell fields, face fields, atomic accumulators),
   particles and bubbles as records; a CPU `Engine` in the worker mirrors the scene. Every tool runs on the CPU: the
@@ -467,8 +470,13 @@ determinism stays a property of the CPU engine.
 - **Solves**: MGPCG for the liquid and gas pressure and — unlike the CPU's Jacobi-PCG — also for heat and vapour
   diffusion. Coarse levels are built geometrically on the GPU; red-black smoothing runs in shared-memory tiles
   (pre-smoothing fused with the restriction, prolongation with post-smoothing), the coarse tail of the V-cycle in one
-  workgroup. Pure-Neumann gas components are found by union-find (atomicMin) and projected every iteration. The CG
-  scalars are per-workgroup partial sums folded by one workgroup (no contended float atomics).
+  workgroup. A tile reads a border of cells that belong to its neighbours, so no field a tile reads may be written in
+  the same dispatch: pre-smoothing starts every level at x = 0 and writes the smoothed x to a field of its own (`xp`);
+  post-smoothing reads `xp` and the coarse x and writes x. (With x read and written in place, the result depended on
+  the order in which the GPU ran the tiles: in Firefox the solver did not converge at all and the water tore along the
+  tile edges; Edge happened to schedule it harmlessly.) Pure-Neumann gas components are found by union-find
+  (atomicMin) and projected every iteration. The CG scalars are per-workgroup partial sums folded by one workgroup (no
+  contended float atomics).
 - **No round trips inside a step**: iteration counts are recorded ahead from the last readbacks (×1.5 + 2 when a solve
   hit its cap); iterations after convergence return at once. The gas transport records all 16 substeps and the GPU
   decides each step how many of them work — a count taken from the readbacks came too late for a sudden splash, and a

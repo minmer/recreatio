@@ -112,16 +112,17 @@ from the lab with "Widok przyspieszony". Measured on the reference laptop's RTX 
 fixed-point atomics and df64 bookkeeping were not needed for the gate as built (P2G is a gather over sorted particles;
 budgets are f32 on the GPU with f64 totals) and determinism was waived for this view.
 
-**Test 17 — the GPU on tests 1–3, 6, 11** (headless Edge; same scenes and measures as the Vitest files):
+**Test 17 — the GPU on tests 1–3, 6, 11** (headless Edge, RTX 3070; same scenes and measures as the Vitest files;
+run again on 2026-10-21 after the multigrid fix below, the earlier runs in brackets):
 
 | Test | Gate | GPU | CPU |
 |---|---|---|---|
-| 1 Hydrostatics 20 °C | 97.9 Pa/cm ±2 %, currents < 1 mm/s | **97.924** Pa/cm, 0.0032 mm/s | 97.924, 0.0027 mm/s |
-| 1 Hydrostatics 90 °C | 94.7 Pa/cm ±2 % | **94.698** Pa/cm, 0.0026 mm/s | 94.698, 0.0027 mm/s |
+| 1 Hydrostatics 20 °C | 97.9 Pa/cm ±2 %, currents < 1 mm/s | **97.924** Pa/cm, 0.0029 mm/s (0.0032) | 97.924, 0.0027 mm/s |
+| 1 Hydrostatics 90 °C | 94.7 Pa/cm ±2 % | **94.698** Pa/cm, 0.0024 mm/s (0.0026) | 94.698, 0.0027 mm/s |
 | 2 Conduction | erf within 2 % | **0.0679 K** of 80 K (0.085 %) | 0.0679 K (0.085 %) |
-| 3 Heating rate | dT/dt = P/Σ(m c_p) within 5 % | **−1.92 %** (−1.68 % in a second run) | −2.30 % |
-| 6 Saturation shift at 10 cm | 0.26 K ± 0.01 | **0.2604 K** (945.4 Pa) | 0.2604 K (945.3 Pa) |
-| 11 Boiling plateau | mean water within 0.5 K of T_sat; vapour within 5 % | **−0.495 K**, vapour **+0.06 %** (a second run: −0.534 K, +0.05 %) | −0.48 K, +0.05 % |
+| 3 Heating rate | dT/dt = P/Σ(m c_p) within 5 % | **−2.61 %** (−1.92 %, −1.68 %) | −2.30 % |
+| 6 Saturation shift at 10 cm | 0.26 K ± 0.01 | **0.2604 K** (945.3 Pa) | 0.2604 K (945.3 Pa) |
+| 11 Boiling plateau | mean water within 0.5 K of T_sat; vapour within 5 % | **−0.517 K**, vapour **+0.05 %** (−0.495 K and −0.534 K, +0.06 % and +0.05 %) | −0.48 K, +0.05 % |
 
 Test 11's temperature criterion is met by the CPU with 0.02 K to spare; the GPU lands on either side of it from run to
 run (its bubble statistics are not repeatable). Energy budgets on the GPU: test 3 (sealed, insulated, 300 s, 3000 J of
@@ -144,6 +145,18 @@ In the browser, at 1 mm with drawing: 96–121 steps per second, 0.8–1.0 × re
 frames in flight; two left the GPU idle between frames: 98 instead of 121 steps per second). At 2 mm the GPU path
 meets test 16's budget; at 1 mm it needs 7.7 ms per step against 6 ms.
 
+Firefox (2026-10-21, Firefox 157; its WebGPU took the integrated AMD GPU of the reference laptop although the lab asks
+for high performance, and it hides the adapter's name): the same results as Edge, but slower. Building the 106
+kernels takes 20.5 s (Edge 5.4 s): Firefox compiles them one after another. A step takes 27 ms at 1 mm against 11.8 ms
+in Edge on the same GPU, so the lab runs at 0.25 × real time; at 2 mm 11 ms, 0.5 ×. Measured per kernel, the extra time
+sits in the kernels with large workgroup memory (pre-smoothing 98 µs per dispatch against 27 µs, post-smoothing 57
+against 11, the multigrid tail 42 against 21). Firefox fills workgroup memory with zeros from one thread at the start
+of every workgroup, at a cost that grows with its size in bytes: in a test kernel over 130 workgroups, 576 floats cost
+25 µs per dispatch and five arrays of them 121 µs (Edge: 4 and 7 µs). Packing four arrays into one of `vec4` does not
+help (121 µs). The same fill makes those kernels slow to compile (multigrid tail 3.8 s, 0.26 s with tiny arrays).
+Less workgroup memory per kernel is the only lever, e.g. keeping only x in the smoothing tiles and reading the
+coefficients from memory.
+
 Found and fixed on the way:
 
 - The gas transport's substep count taken from the readbacks came too late for a sudden splash (painted water
@@ -160,6 +173,16 @@ Found and fixed on the way:
   real time. Stale readbacks are now discarded, the sorted count is set at upload, and after a change of resolution the
   recorded iterations start again from their defaults. Switching views now also carries pause, speed, overlay and
   the particle view to the new worker (the bar showed paused while the new worker ran).
+- **The multigrid tiles raced** (2026-10-21, reported from Firefox: within a few frames the water tore into horizontal
+  bands 16 cells apart, large bubbles grew in 20 °C water, the energy went NaN and each frame took seconds). A tile
+  reads a border of cells that belong to its neighbours: pre-smoothing read the level's x (zero, while neighbouring
+  tiles were writing their smoothed values into it), and post-smoothing read x plus the coarse correction and wrote x
+  in the same dispatch, so a tile that started late added the correction a second time along its edges. Edge
+  scheduled the tiles so that this did no visible harm; in Firefox the solver did not converge at all (a Poisson test
+  system: residual 1.06 after 32 iterations, Edge 1e-4 after 4). Pre-smoothing now starts from zero and writes `xp`,
+  post-smoothing reads `xp` and writes x: Firefox and Edge give the same residuals to the digit, and Edge needs one
+  iteration fewer (5 instead of 6 to 1e-5). Running every kernel with its workgroups in reverse order then found
+  nothing else that depends on the order beyond the rounding of atomic sums (and bubble merges that flip on it).
 - **Both engines**: a merge, burst or collapse changes α_b within one step however short; its source Δα_b·V/Δt then
   demands liquid speeds ∝ 1/Δt, and the step (set by the fastest liquid) fell to zero — cold water painted onto the
   bare hot plate ended in NaN on the CPU too (`wrzenie`, 2 mm, at t ≈ 0.13 s). α_b now follows the bubbles' footprint
@@ -167,7 +190,11 @@ Found and fixed on the way:
   slow tests give the same numbers as before, to the last digit printed.
 
 Open: at 1 mm, cold water painted onto the bare 140 °C plate (beside the beaker) can still run away — on the CPU
-for a large blob, on the GPU already for a small one (the step size falls towards zero). Painted into the beaker it
+for a large blob, on the GPU already for a small one (the step size falls towards zero). After the multigrid fix
+(2026-10-21) the small one no longer does: a blob of 4 mm radius dropped from 10 cm onto the plate's edge stays stable
+on the GPU (water within 0.013 K of the CPU after 1.76 s), and blobs of 4, 6 and 8 mm set down on the bare plate stay
+stable on both engines (within 0.06 K after 2.6–3.3 s). The 8 mm blob dropped from 10 cm still runs away on the GPU
+at the impact (t ≈ 0.67 s), where the CPU's step also falls to 0.2 ms. Painted into the beaker it
 stays stable on both engines (1 mm, blobs of 8 and 12 mm radius; GPU and CPU agree to 0.002 K in the water
 temperature after 0.4–0.5 s). Suspected: the coupling of large bubbles and the liquid at 1 mm cells — a bubble's forces
 use the liquid's acceleration, estimated from a step's velocity change over the bubble's own substep; capping that

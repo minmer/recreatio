@@ -230,7 +230,7 @@ function LampList({ ctx, home, native, support, refresh, timerStatus, planProble
           </div>
         )}
 
-      <PaceControl pace={pace} onChange={onPace} title="Tempo przycisków" between="między sygnałami"
+      <PaceControl pace={pace} onChange={onPace} title="Tempo przycisków" between="między ramkami i naciśnięciami"
         note="Dotyczy tylko przycisków (i prób nadania). Sygnały zostają zapisane w najszybszej postaci; każdy timer ma własne suwaki." />
 
       <TimerList lamps={lamps} timers={timers} native={native} status={timerStatus} busy={busy}

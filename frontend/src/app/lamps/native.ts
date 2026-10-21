@@ -83,12 +83,16 @@ export interface NativeFrame {
   readonly durationMs: number;
   /** Pause nach dieser Ramka, bevor die nächste startet. */
   readonly gapMs: number;
+  /** Abstand der einzelnen Pakete, solange die Ramka gesendet wird — 100 ms ist das Schnellste. */
+  readonly intervalMs: number;
 }
 
 export interface NativeFrameResult {
   readonly index: number;
   readonly code: LampCode;
   readonly requestedMs: number;
+  /** Der Abstand der Pakete, mit dem gesendet wurde. */
+  readonly intervalMs?: number;
   /** Wie lange Android bis zum Rückruf brauchte. */
   readonly startMs?: number;
   /** Uhrzeit (ms) des Rückrufs „gestartet" und des Stopps. */

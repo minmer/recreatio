@@ -177,7 +177,7 @@ function AttemptView({ attempt, open }: { attempt: Attempt; open: boolean }) {
               <dd>
                 <span className="lp-hex">{spaced(f.hex)}</span>
                 <span className="lp-facts">
-                  {f.size} B{f.manufacturerId !== null && <> · producent {idText(f.manufacturerId)}</>} · żądano {f.durationMs} ms
+                  {f.size} B{f.manufacturerId !== null && <> · producent {idText(f.manufacturerId)}</>} · żądano {f.durationMs} ms · pakiet co {f.intervalMs} ms
                   {f.gapMs > 0 && i < attempt.frames.length - 1 && <> · przerwa {f.gapMs} ms</>}
                 </span>
                 {r !== undefined && (
@@ -225,7 +225,7 @@ export function LampLimits() {
         <li><strong>Wybór urządzenia nie adresuje lampy.</strong> Reklama BLE trafia do wszystkich w zasięgu. Którą lampę włączy, decydują bajty w pakiecie (identyfikator, licznik — zależnie od producenta), nie nazwa ani numer tutaj.</li>
         <li><strong>Adres pilota nie zostanie podrobiony.</strong> Telefon nadaje ze swojego (losowego) adresu; zwykła aplikacja nie może go zmienić. Jeśli lampa sprawdza adres nadawcy, sam pakiet nie wystarczy.</li>
         <li><strong>Zabezpieczenie przed powtórzeniem.</strong> Jeśli pilot zmienia licznik lub kod przy każdym naciśnięciu, nagrany pakiet może zostać odrzucony.</li>
-        <li><strong>Czasy są przybliżone.</strong> Odstępy między pakietami ustala Android (przy niskim opóźnieniu ok. 100 ms); start i przejście między ramkami trwają dziesiątki milisekund. Odstępy rzędu kilku ms jak w pilocie nie są możliwe — konsola pokazuje, ile naprawdę trwało.</li>
+        <li><strong>Czasy są przybliżone.</strong> Pakiet idzie najczęściej co 100 ms — szybciej Android nie nadaje (suwak przerwy może ten odstęp tylko wydłużyć); start i przejście między ramkami trwają dziesiątki milisekund. Odstępy rzędu kilku ms jak w pilocie nie są możliwe — konsola pokazuje, ile naprawdę trwało.</li>
         <li><strong>Nadawane bez zmian są tylko dane producenta (0xFF).</strong> Inne struktury (nazwa, flagi, UUID) Android układa po swojemu — takie pakiety są odrzucane z opisem, a nie zmieniane po cichu.</li>
       </ul>
       <p className="wk-working">Telefon nadaje z mocą „wysoka", bez możliwości połączenia; 31 bajtów to granica reklamy legacy.</p>

@@ -99,5 +99,13 @@ check('the roof of the marked entry', m.under('1', '1.1'), true);
 check('a neighbour is not a roof', m.under('0', '1.1'), false);
 check('the entry itself is not its own roof', m.under('1.1', '1.1'), false);
 
+/* ── 2026-10-21: ein Bild statt des Namens ──────────────────────────────────── */
+
+check('a page image is a logo', m.menuImageOf('page-image:01a15629-8c30-764d-88ad-8cfee5e4f6d9'), 'page-image:01a15629-8c30-764d-88ad-8cfee5e4f6d9');
+check('https and own paths are logos', [m.menuImageOf(' https://recreatio.pl/logo.svg '), m.menuImageOf('/Hortus.jpg')], ['https://recreatio.pl/logo.svg', '/Hortus.jpg']);
+check('no broken ids, no http, no other hosts without https, no scripts, no quotes',
+  ['page-image:nope', 'http://x.pl/a.png', '//x.pl/a.png', 'javascript:alert(1)', '/a.png\" onerror=\"x', '/a b.png', '', 7].map(m.menuImageOf),
+  [null, null, null, null, null, null, null, null]);
+
 await rm(workspace, { recursive: true, force: true });
 process.exit(failed === 0 ? 0 : 1);

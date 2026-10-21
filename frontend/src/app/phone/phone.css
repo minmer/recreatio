@@ -239,6 +239,11 @@
 .ph-arch .ch-i { width: 0.75rem; height: 0.75rem; }
 .ph-arch.is-on { color: var(--wk-accent); }
 
+/* Zwischen Nachrichten derselben Person etwas Luft (2026-10-21) — im Abschnitt eines Tages standen
+   sie Kante an Kante; eine neue Folge (anderer Absender, später) bekommt etwas mehr. */
+.ph-room .ch-dayblock > .ch-row + .ch-row { margin-top: 0.25rem; }
+.ph-room .ch-dayblock > .ch-row.is-start { margin-top: 0.625rem; }
+
 /* In der Blase: Betreff, eine MMS, die noch kommt, Knöpfe, was nicht hinaus ging, was geplant ist. */
 .ph-subject { font-weight: 700; }
 .ph-note { color: var(--wk-muted); font-size: var(--wk-text-sm); }

@@ -1,17 +1,18 @@
 /**
  * DIE ZWEI REGLER DES TEMPOS (`pace.ts`) — wie lange zwischen zwei Sendungen
- * gewartet wird und wie lange eine Ramka höchstens hinausgeht. Ganz links bzw. ganz
+ * gewartet wird (zwischen den einzelnen Paketen, den Ramki und den Drücken bzw.
+ * Aktionen) und wie lange eine Ramka höchstens hinausgeht. Ganz links bzw. ganz
  * rechts: wie gespeichert, so schnell wie möglich. Zweimal da: unter den Knöpfen
  * (nur für die Knöpfe) und in jedem Timer (nur für diesen Timer).
  */
 
-import { isFastest, LIMIT_STEPS, limitText, nearestStep, PAUSE_STEPS, pauseText, FASTEST, type Pace } from './pace';
+import { isFastest, LIMIT_STEPS, limitText, nearestStep, packetInterval, PAUSE_STEPS, pauseText, FASTEST, type Pace } from './pace';
 
 export function PaceControl({ pace, onChange, title, between, note }: {
   pace: Pace;
   onChange: (next: Pace) => void;
   title: string;
-  /** Wozwischen die Pause steht: „między sygnałami", „między akcjami". */
+  /** Wo die Pause ausser zwischen den Paketen noch steht: „między ramkami i naciśnięciami". */
   between: string;
   note: string;
 }) {
@@ -30,13 +31,18 @@ export function PaceControl({ pace, onChange, title, between, note }: {
       <div className="wk-box-body">
         <label className="lp-slider">
           <span className="lp-slider-head">
-            <span>Przerwa {between}</span>
+            <span>Przerwa między pakietami</span>
             <strong>{pauseText(pace.pauseMs)}</strong>
           </span>
           <input type="range" min={0} max={PAUSE_STEPS.length - 1} step={1} value={pauseAt}
             aria-valuetext={pauseText(pace.pauseMs)}
             onChange={(e) => onChange({ ...pace, pauseMs: PAUSE_STEPS[Number(e.target.value)] })} />
           <span className="lp-slider-ends"><span>najszybciej</span><span>wolniej</span></span>
+          <span className="lp-facts">
+            {pace.pauseMs === 0
+              ? `Pakiet co ${packetInterval(pace)} ms — najszybciej, jak nadaje Android.`
+              : `Pakiet co ${packetInterval(pace)} ms; tyle samo przerwy ${between}.`}
+          </span>
         </label>
         <label className="lp-slider">
           <span className="lp-slider-head">

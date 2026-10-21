@@ -3,7 +3,8 @@ package pl.recreatio.app;
 /**
  * EINE RAMKA FÜR DIE LAMPE (2026-10-18) — was {@link LampPlugin} als BLE-Werbung
  * sendet: die Kennung des Herstellers und die Daten dahinter, wie
- * {@code AdvertiseData.Builder.addManufacturerData} sie nimmt, und wie lange.
+ * {@code AdvertiseData.Builder.addManufacturerData} sie nimmt, wie lange, und (2026-10-21)
+ * in welchem Abstand die einzelnen Pakete hinausgehen ({@link #intervalMs}).
  *
  * <p>Die Seite zerlegt das Paket (`lamps/adv.ts`); hier wird nur noch einmal
  * geprüft, was ankommt. Android schreibt daraus wieder
@@ -19,22 +20,33 @@ final class LampFrame {
     static final long MIN_MS = 100;
     static final long MAX_MS = 30_000;
     static final long MAX_GAP_MS = 10_000;
+    /** Ein Paket höchstens alle 100 ms — schneller lässt Android eine Legacy-Werbung nicht senden (160 × 0,625 ms). */
+    static final long MIN_INTERVAL_MS = 100;
+    static final long MAX_INTERVAL_MS = 10_100;
     static final int MAX_FRAMES = 20;
 
     final int manufacturerId;
     final byte[] data;
     final long durationMs;
     final long gapMs;
+    /** Abstand zwischen zwei Paketen dieser Ramka, solange sie gesendet wird. */
+    final long intervalMs;
 
-    private LampFrame(int manufacturerId, byte[] data, long durationMs, long gapMs) {
+    private LampFrame(int manufacturerId, byte[] data, long durationMs, long gapMs, long intervalMs) {
         this.manufacturerId = manufacturerId;
         this.data = data;
         this.durationMs = durationMs;
         this.gapMs = gapMs;
+        this.intervalMs = intervalMs;
+    }
+
+    /** So schnell, wie Android kann (ein Paket alle {@link #MIN_INTERVAL_MS} ms). */
+    static LampFrame of(int manufacturerId, String hex, long durationMs, long gapMs) {
+        return of(manufacturerId, hex, durationMs, gapMs, MIN_INTERVAL_MS);
     }
 
     /** Geprüft — sonst {@link IllegalArgumentException} mit dem Grund (für die Seite, polnisch). */
-    static LampFrame of(int manufacturerId, String hex, long durationMs, long gapMs) {
+    static LampFrame of(int manufacturerId, String hex, long durationMs, long gapMs, long intervalMs) {
         if (manufacturerId < 0 || manufacturerId > 0xFFFF) {
             throw new IllegalArgumentException("Identyfikator producenta poza zakresem 0x0000–0xFFFF.");
         }
@@ -48,7 +60,15 @@ final class LampFrame {
         if (gapMs < 0 || gapMs > MAX_GAP_MS) {
             throw new IllegalArgumentException("Przerwa od 0 do " + MAX_GAP_MS + " ms.");
         }
-        return new LampFrame(manufacturerId, data, durationMs, gapMs);
+        if (intervalMs < MIN_INTERVAL_MS || intervalMs > MAX_INTERVAL_MS) {
+            throw new IllegalArgumentException("Odstęp między pakietami od " + MIN_INTERVAL_MS + " do " + MAX_INTERVAL_MS + " ms.");
+        }
+        return new LampFrame(manufacturerId, data, durationMs, gapMs, intervalMs);
+    }
+
+    /** Das Intervall in den Einheiten von Android (0,625 ms), wie {@code AdvertisingSetParameters.setInterval} es nimmt. */
+    int intervalUnits() {
+        return (int) Math.max(160, Math.min(16_777_215L, Math.round(intervalMs / 0.625)));
     }
 
     /** Hex (ohne Trenner, beliebige Schreibung) → Bytes. */

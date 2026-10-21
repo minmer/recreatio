@@ -48,6 +48,24 @@ public class LampFrameTest {
     }
 
     @Test
+    public void packetsAreSpacedAsAsked() {
+        assertEquals("as fast as Android allows by default", 100, LampFrame.of(0, "AA", 1000, 0).intervalMs);
+        assertEquals("100 ms = 160 units of 0.625 ms", 160, LampFrame.of(0, "AA", 1000, 0).intervalUnits());
+        assertEquals("400 ms = 640 units", 640, LampFrame.of(0, "AA", 1000, 0, 400).intervalUnits());
+        refusedInterval(99, "faster than Android sends");
+        refusedInterval(10_101, "slower than the sliders go");
+    }
+
+    private static void refusedInterval(long interval, String why) {
+        try {
+            LampFrame.of(0, "AA", 1000, 0, interval);
+            fail(why);
+        } catch (IllegalArgumentException e) {
+            assertTrue(why, e.getMessage() != null && !e.getMessage().isEmpty());
+        }
+    }
+
+    @Test
     public void emptyDataIsJustTheId() {
         assertArrayEquals(new byte[] { 0x03, (byte) 0xFF, 0x00, 0x00 }, LampFrame.of(0, "", 100, 0).air());
     }

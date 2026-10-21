@@ -56,7 +56,7 @@ export function SmsApp({ who, trail }: { who: Who; trail: readonly string[] }) {
   if (step === 'nowa') return <Compose who={who} />;
   if (step === 'numery') return <LinesView who={who} />;
   if (step === 'archiwum') return <SmsArchiveView who={who} trail={trail.slice(1)} />;
-  return <Thread threadId={step} who={who} />;
+  return <Thread key={step} threadId={step} who={who} />;
 }
 
 export default SmsApp;
@@ -447,6 +447,9 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
   const [search, setSearch] = useState('');
   const [follow, setFollow] = useState(0);
   const [dialog, setDialog] = useState<'mute' | 'block' | null>(null);
+  /* Was beim Öffnen neu (ungelesen) war — dorthin geht der Verlauf. Einmal, beim ersten frischen Laden (danach ist es gelesen). */
+  const [firstNew, setFirstNew] = useState<string | null | undefined>(undefined);
+  const opened = useRef(false);
   const lines = usePhoneLines();
   const contacts = useContactIndex(who);
   const { groupRules, threadRules, setThreadRule } = useLineRules();
@@ -477,6 +480,10 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
   const load = useCallback(async () => {
     try {
       const fresh = await Phone.messages({ threadId, limit: PAGE });
+      if (!opened.current) {
+        opened.current = true;
+        setFirstNew(fresh.messages.find((m) => m.box === 'in' && !m.read)?.id ?? null);
+      }
       setPage((had) => {
         if (had === null || had.messages.length === 0) return fresh;
         /* Was weiter oben schon geladen war, bleibt. */
@@ -614,7 +621,7 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
         sub={subtitle} menu={menu} search={search} onSearch={setSearch} call={single !== null && /\d/.test(single) ? single : null} muted={isMuted} />
 
       <SmsLog items={messages === null ? null : items} failed={failed} title={title} group={group} search={search} follow={follow}
-        more={page?.more === true} onEarlier={() => void loadOlder()}
+        more={page?.more === true} onEarlier={() => void loadOlder()} place={`thread:${threadId}`} lasting firstNew={firstNew}
         pickActions={(chosen, done) => chosen.length === 1 && chosen[0].body !== '' ? (
           <button type="button" className="wk-link-btn" onClick={() => {
             done();

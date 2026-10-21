@@ -145,7 +145,7 @@ export function SmsArchiveView({ who, trail }: { who: Who; trail: readonly strin
     if (ctx === null || index === null) return failed !== null ? <p className="wk-error">{failed}</p> : <Loading label="Otwieranie archiwum…" />;
     if (conversation === null) return <p className="wk-empty">Takiej rozmowy nie ma w archiwum.</p>;
     return (
-      <ArchiveConversation who={who} ctx={ctx} conversation={conversation} title={titleOf(conversation)} names={names} back={listHref} native={native}
+      <ArchiveConversation key={conversation.key} who={who} ctx={ctx} conversation={conversation} title={titleOf(conversation)} names={names} back={listHref} native={native}
         lines={lines} mayWrite={mayWrite} />
     );
   }
@@ -577,7 +577,8 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
   const seenKey = `${ctx.areaId}:${conversation.key}`;
   const batchKey = conversation.batches.join(',');
   const [messages, setMessages] = useState<readonly ArchivedMessage[] | null>(conversationSeen.get(seenKey) ?? null);
-  const [count, setCount] = useState(STEP);
+  /* Die älteste gezeigte — sie bleibt, wenn Neues dazukommt; sonst rutschte das Fenster, und wer weiter oben liest, verlöre seine Stelle. */
+  const [oldest, setOldest] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [outbox, reloadOutbox] = useOutbox(ctx, !native);
   const [search, setSearch] = useState('');
@@ -613,8 +614,17 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx, seenKey, batchKey]);
 
-  const shown = useMemo(() => (messages === null ? [] : messages.slice(Math.max(0, messages.length - count))), [messages, count]);
-  const more = messages !== null && count < messages.length;
+  const firstShown = useMemo(() => {
+    if (messages === null) return 0;
+    const at = oldest === null ? -1 : messages.findIndex((m) => m.key === oldest);
+    return at >= 0 ? at : Math.max(0, messages.length - STEP);
+  }, [messages, oldest]);
+  useEffect(() => {
+    if (oldest === null && messages !== null && messages.length > 0) setOldest(messages[firstShown].key);
+  }, [messages, oldest, firstShown]);
+  const shown = useMemo(() => (messages === null ? [] : messages.slice(firstShown)), [messages, firstShown]);
+  const more = firstShown > 0;
+  const earlier = () => { if (messages !== null && firstShown > 0) setOldest(messages[Math.max(0, firstShown - STEP)].key); };
   const pending = useMemo(() => pendingOf(outbox, conversation.key, messages ?? []), [outbox, conversation.key, messages]);
 
   const items: SmsItem[] = useMemo(() => shown.map((m) => ({
@@ -695,7 +705,8 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
     <div className="ch-room ph-room" style={barStyle(top)}>
       <SmsHeader back={back} title={title} seed={conversation.key || '?'} group={group} sub={sub} menu={[]} search={search} onSearch={setSearch} />
       <SmsLog items={messages === null ? null : items} failed={failed} title={title} group={group} search={search} follow={follow}
-        more={more} onEarlier={() => setCount((n) => n + STEP)} tail={tail} empty="W archiwum nie ma jeszcze wiadomości tej rozmowy." />
+        more={more} onEarlier={earlier} tail={tail} empty="W archiwum nie ma jeszcze wiadomości tej rozmowy."
+        place={`archive:${ctx.areaId}:${conversation.key}`} firstNew={null} />
       {!native && (
         <ReplyBox who={who} ctx={ctx} conversation={conversation} line={line} mayWrite={mayWrite}
           onQueued={() => { setFollow((n) => n + 1); reloadOutbox(); }} />

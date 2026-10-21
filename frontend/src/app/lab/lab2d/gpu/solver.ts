@@ -13,7 +13,8 @@ import type { GpuCtx, Resource } from './kernel';
 import { COARSE_CELLS, MAX_LEVELS, TAIL_SH } from './ksolver';
 import { C, CGS_STRIDE } from './slots';
 
-const F_FIELDS = ['ax', 'ay', 'dH', 'dDx', 'dDy', 'diag', 'inv', 'x', 'b', 'gx', 'gy', 'gDx', 'gDy', 'eDx', 'eDy', 'area', 'ox', 'oy'] as const;
+/* xp: x nach dem Vorglätten — getrennt von x, weil das Nachglätten einer Kachel x schreibt, während die Nachbarkacheln im selben Aufruf ihren Rand lesen. */
+const F_FIELDS = ['ax', 'ay', 'dH', 'dDx', 'dDy', 'diag', 'inv', 'x', 'xp', 'b', 'gx', 'gy', 'gDx', 'gDy', 'eDx', 'eDy', 'area', 'ox', 'oy'] as const;
 type FField = (typeof F_FIELDS)[number];
 
 export interface LevelPlan {
@@ -87,7 +88,7 @@ function levelWords(L: LevelPlan | null, lv: number, out: Uint32Array, o: number
     L.f.b, L.h, L.f.gx, L.f.gy,
     L.f.gDx, L.f.gDy, L.f.eDx, L.f.eDy,
     L.f.area, L.f.ox, L.f.oy, L.act,
-    L.pIdx, L.f.pW, lv, 0, 0, 0, 0, 0
+    L.pIdx, L.f.pW, lv, L.f.xp, 0, 0, 0, 0
   ];
   out.set(w, o);
 }
@@ -258,7 +259,7 @@ export class GpuSolver {
     /* Grosse Stufen: Vorglätten in Kacheln (vier Durchgänge, ein Aufruf), Restriktion; zurück Verlängerung und Nachglätten in einem Aufruf. */
     const tiles = (L: LevelPlan): number => 256 * Math.ceil(L.nx / 16) * Math.ceil(L.ny / 16);
     const tiles12 = (L: LevelPlan): number => 256 * Math.ceil(L.nx / 12) * Math.ceil(L.ny / 12);
-    for (let l = 0; l < lt; l += 1) this.run(pass, l === 0 ? 'mgPreR0' : 'mgPreR', tiles12(levels[l]), `l${l + 1}`, { LP: this.lpRes(l + 1) });
+    for (let l = 0; l < lt; l += 1) this.run(pass, 'mgPreR', tiles12(levels[l]), `l${l + 1}`, { LP: this.lpRes(l + 1) });
     this.ctx.dispatchOne(pass, 'mgTail', this.group('mgTail', '', {}));
     for (let l = lt - 1; l >= 0; l -= 1) this.run(pass, 'mgPost', tiles(levels[l]), `l${l + 1}`, { LP: this.lpRes(l + 1) });
   }

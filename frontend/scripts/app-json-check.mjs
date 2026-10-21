@@ -128,7 +128,7 @@ try {
     look: { theme: { mode: 'dark', accent: '#4c7dd6', ink: '#eef2f8', ground: '#080d15', muted: '#a3b2c9' }, cover: [] },
     parts,
     logic: JSON.stringify({ version: 1, nodes: [{ id: 'n1', kind: 'part', x: 0, y: 0, partId: ids[1] }], edges: [] }),
-    menu: { path: 'zz-probe/json', items: [{ label: 'Start', kind: 'abs', target: 'zz-probe', children: [] }], uses: null, inherited: null, usable: [] }
+    menu: { path: 'zz-probe/json', items: [{ label: 'Start', kind: 'abs', target: 'zz-probe', children: [], image: '/logo.svg' }, { label: 'Zapisy', kind: 'rel', target: 'zapisy', children: [] }], uses: null, inherited: null, usable: [] }
   };
   const doc = JSON.parse(JSON.stringify(m.exportPage(now)));
   assert.equal(doc.format, m.PAGE_FORMAT);
@@ -149,7 +149,11 @@ try {
   assert.equal(back.look, undefined, 'an unchanged look is not rewritten');
   assert.deepEqual(back.menu, { items: now.menu.items });
   assert.equal(JSON.parse(back.logic).nodes[0].partId, ids[1], 'the logic still points at the same place');
-  ok('page export → import (replace): same places, same modules, same content, layout, slides, look, menu and logic');
+  /* 2026-10-21 — ein Logo im Menü: kommt mit, und was kein Bild sein kann, wird gesagt und fällt weg. */
+  const badLogo = m.planImport({ format: m.PAGE_FORMAT, version: 1, menu: [{ label: 'Start', kind: 'abs', target: '', image: 'javascript:alert(1)' }] }, now, m.DEFAULT_IMPORT);
+  assert.ok(badLogo.warnings.some((w) => w.includes('Start') && w.includes('image')), 'a menu image that is no image is reported');
+  assert.equal(badLogo.menu.items[0].image, undefined, 'and dropped');
+  ok('page export → import (replace): same places, same modules, same content, layout, slides, look, menu (with a logo) and logic');
 
   /* 0082 — „Wybór na stronie": ein Objekt im Dokument, an Ort und Stelle. */
   const decl = { kind: 'entry', form: shared, list: 'zz-probe/lista' };

@@ -170,13 +170,112 @@ const GAP = 10 * 60_000;
 
 const fold = (text: string) => text.toLocaleLowerCase('pl-PL').normalize('NFD').replace(/\p{M}/gu, '');
 
+/* -- Wo man stand ------------------------------------------------------------------------------ */
+
+/**
+ * Wo ein Verlauf stand, als man ging: am Ende — oder welche Nachricht unten im Blick war
+ * und wie weit über dem unteren Rand. Unten verankert, wie alles hier.
+ */
+interface Place {
+  readonly end: boolean;
+  readonly key: string;
+  readonly below: number;
+}
+
+const PLACES = 'sms.places';
+const PLACES_MAX = 150;
+/** Wie oft beim Wiederherstellen Früheres nachgeladen wird, bis die Nachricht da ist. */
+const RESTORE_PAGES = 20;
+/** In der Reihenfolge des Merkens — die älteste fällt zuerst. */
+const placesHere = new Map<string, { readonly place: Place; readonly lasting: boolean }>();
+let placesRead = false;
+
+const isPlace = (p: unknown): p is Place => p !== null && typeof p === 'object'
+  && typeof (p as Place).end === 'boolean' && typeof (p as Place).key === 'string' && typeof (p as Place).below === 'number';
+
+function placeNamed(name: string): Place | null {
+  if (!placesRead) {
+    placesRead = true;
+    try {
+      const stored = JSON.parse(localStorage.getItem(PLACES) ?? '{}') as unknown;
+      if (stored !== null && typeof stored === 'object' && !Array.isArray(stored)) {
+        for (const [n, p] of Object.entries(stored)) if (isPlace(p) && !placesHere.has(n)) placesHere.set(n, { place: p, lasting: true });
+      }
+    } catch {
+      // ohne gemerkte Stellen
+    }
+  }
+  return placesHere.get(name)?.place ?? null;
+}
+
+/** `lasting`: auch über das Schliessen der App hinaus — nur für Namen ohne Telefonnummern darin. */
+function keepPlace(name: string, place: Place, lasting: boolean): void {
+  placeNamed(name);
+  placesHere.delete(name);
+  placesHere.set(name, { place, lasting });
+  for (const old of placesHere.keys()) {
+    if (placesHere.size <= PLACES_MAX) break;
+    placesHere.delete(old);
+  }
+  if (!lasting) return;
+  try {
+    const out: Record<string, Place> = {};
+    for (const [n, p] of placesHere) if (p.lasting) out[n] = p.place;
+    localStorage.setItem(PLACES, JSON.stringify(out));
+  } catch {
+    // voll oder gesperrt: dann nur, bis die App schliesst
+  }
+}
+
+/** Die Nachricht unten im Blick — die letzte, deren Oberkante über dem unteren Rand liegt. */
+function placeOf(el: HTMLElement, end: boolean): Place {
+  if (end) return { end: true, key: '', below: 0 };
+  const rows = el.querySelectorAll<HTMLElement>('.ch-row[data-key]');
+  const bottom = el.getBoundingClientRect().bottom;
+  let hit = -1;
+  for (let lo = 0, hi = rows.length - 1; lo <= hi;) {
+    const mid = (lo + hi) >> 1;
+    if (rows[mid].getBoundingClientRect().top < bottom) { hit = mid; lo = mid + 1; } else hi = mid - 1;
+  }
+  if (hit < 0) return { end: true, key: '', below: 0 };
+  return { end: false, key: rows[hit].dataset.key ?? '', below: Math.round(bottom - rows[hit].getBoundingClientRect().bottom) };
+}
+
+const atEndOf = (el: HTMLElement) => el.scrollHeight - el.scrollTop - el.clientHeight < 64;
+
+/**
+ * Die Nachricht der Stelle wieder so weit über den unteren Rand. `null`: sie ist nicht (mehr) da;
+ * sonst, um wie viele Pixel es daneben blieb (der Anfang oder das Ende des Geladenen hält auf).
+ */
+function putPlace(el: HTMLElement, place: Place): number | null {
+  const row = el.querySelector<HTMLElement>(`.ch-row[data-key="${CSS.escape(place.key)}"]`);
+  if (row === null) return null;
+  el.scrollTop += row.getBoundingClientRect().bottom - (el.getBoundingClientRect().bottom - place.below);
+  return Math.round(el.getBoundingClientRect().bottom - row.getBoundingClientRect().bottom - place.below);
+}
+
+/**
+ * Zum Neuen ab `target` (der Trenner oder die erste neue Nachricht): passt alles Neue in den
+ * Blick, das Ende — sonst steht es oben, unter dem klebenden Tag. `true`: am Ende.
+ */
+function showFrom(el: HTMLElement, target: HTMLElement, smooth = false): boolean {
+  const top = target.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
+  const fits = el.scrollHeight - top <= el.clientHeight;
+  const to = fits ? el.scrollHeight : Math.max(0, top - 40);
+  if (smooth) el.scrollTo({ top: to, behavior: 'smooth' }); else el.scrollTop = to;
+  return fits;
+}
+
 /**
  * DER VERLAUF: Tage als Abschnitte (das Datum klebt oben, solange sein Tag zu sehen ist),
- * Folgen eines Absenders, die Zeit in der Blase. Unten bleibt, wer unten war; was oben
- * nachgeladen wird, schiebt nichts weg; wer weiter oben liest, bekommt den Knopf nach
- * unten mit der Zahl dessen, was inzwischen kam.
+ * Folgen eines Absenders, die Zeit in der Blase. Beim ersten Öffnen das Ende; danach die
+ * Stelle, an der man ging (`place`) — ausser es kam Neues (`firstNew`): dann dorthin, mit
+ * „Nieprzeczytane" davor. Wird der Verlauf niedriger (die Tastatur, ein Feld mit mehr
+ * Zeilen), bleibt unten, was unten war, und oben verschwindet etwas. Was oben nachgeladen
+ * wird, schiebt nichts weg; wer weiter oben liest, bekommt den Knopf nach unten mit der
+ * Zahl dessen, was inzwischen kam — er führt zur ersten davon.
  */
-export function SmsLog({ items, failed = null, more = false, onEarlier, group = false, search = '', tail, empty, pickActions, follow = 0, title }: {
+export function SmsLog({ items, failed = null, more = false, onEarlier, group = false, search = '', tail, empty, pickActions, follow = 0, title, place, lasting = false, firstNew }: {
   items: readonly SmsItem[] | null;
   failed?: string | null;
   more?: boolean;
@@ -192,12 +291,31 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
   follow?: number;
   /** Für den Leser: wie das Gespräch heisst. */
   title: string;
+  /** Unter diesem Namen merkt sich der Verlauf, wo man stand. */
+  place?: string;
+  /** Auch über das Schliessen der App hinaus (im Gerät) — nur, wenn der Name keine Telefonnummer enthält. */
+  lasting?: boolean;
+  /**
+   * Die erste Nachricht, die beim Öffnen neu (ungelesen) war: dorthin statt zur gemerkten Stelle.
+   * `null`: nichts Neues; nicht gesetzt: noch nicht bekannt — die gemerkte Stelle wartet darauf.
+   */
+  firstNew?: string | null;
 }) {
   const box = useRef<HTMLDivElement | null>(null);
   const inner = useRef<HTMLDivElement | null>(null);
   const stick = useRef(true);
   const anchor = useRef<number | null>(null);
-  const seen = useRef<{ first: string | null; last: string | null; count: number }>({ first: null, last: null, count: 0 });
+  const seen = useRef<{ first: string | null; last: string | null }>({ first: null, last: null });
+  /* Zum ersten Mal: das Ende. Sonst die gemerkte Stelle — notfalls mit früheren Seiten, bis ihre Nachricht da ist. */
+  const [from] = useState(() => (place === undefined ? null : placeNamed(place)));
+  const restoring = useRef<{ readonly place: Place; pages: number } | null>(from !== null && !from.end ? { place: from, pages: 0 } : null);
+  /* Wer nicht am Ende ist: die Nachricht unten im Blick — an ihr hält sich der Verlauf, wenn sich Höhen ändern. */
+  const pin = useRef<Place | null>(null);
+  /* Zu welcher neuen schon gegangen wurde; die erste von dem, was kam, während man weiter oben las. */
+  const shownNew = useRef<string | null>(null);
+  const freshFrom = useRef<string | null>(null);
+  const giveUp = useRef<number | undefined>(undefined);
+  const saveSoon = useRef<number | undefined>(undefined);
   const [away, setAway] = useState(false);
   const [fresh, setFresh] = useState(0);
   const [picked, setPicked] = useState<ReadonlySet<string> | null>(null);
@@ -208,7 +326,21 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
   const first = visible[0]?.key ?? null;
   const last = visible[visible.length - 1]?.key ?? null;
 
-  /* Nach dem Zeichnen, vor dem Anzeigen: oben nachgeladen → an derselben Stelle; unten → mit; sonst zählen. */
+  const earlier = () => {
+    const el = box.current;
+    if (el !== null) anchor.current = el.scrollHeight;
+    onEarlier?.();
+  };
+
+  /* Merken, wo man steht — nicht während der Suche (dann steht nur ein Teil da) und nicht, solange noch gesucht wird, wo man war. */
+  const save = useRef<() => void>(() => undefined);
+  save.current = () => {
+    if (place === undefined || restoring.current !== null || needle !== '' || items === null || items.length === 0) return;
+    const here = stick.current ? { end: true, key: '', below: 0 } : pin.current;
+    if (here !== null) keepPlace(place, here, lasting);
+  };
+
+  /* Nach dem Zeichnen, vor dem Anzeigen: oben nachgeladen → an derselben Stelle; die gemerkte Stelle; unten → mit; sonst zählen. */
   useLayoutEffect(() => {
     const el = box.current;
     if (el === null) return;
@@ -216,55 +348,135 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
     if (anchor.current !== null && first !== was.first) {
       el.scrollTop += el.scrollHeight - anchor.current;
       anchor.current = null;
+    }
+    /* Neues beim Öffnen: dorthin — einmal, sobald bekannt ist, was neu war. */
+    let toNew: HTMLElement | null = null;
+    if (typeof firstNew === 'string' && shownNew.current !== firstNew && needle === '') {
+      shownNew.current = firstNew;
+      toNew = el.querySelector<HTMLElement>('.ch-unread');
+    }
+    const wanted = restoring.current;
+    if (toNew !== null) {
+      restoring.current = null;
+      window.clearTimeout(giveUp.current);
+      stick.current = showFrom(el, toNew);
+      pin.current = stick.current ? null : placeOf(el, false);
+      setAway(!stick.current);
+    } else if (wanted !== null) {
+      if (items !== null && firstNew === undefined) {
+        el.scrollTop = el.scrollHeight;
+      } else if (items !== null) {
+        const miss = items.length > 0 && needle === '' ? putPlace(el, wanted.place) : null;
+        /* Steht die Nachricht zu weit oben im Geladenen, hält dessen Anfang sie auf: erst Früheres laden. */
+        const short = miss !== null && Math.abs(miss) > 2 && el.scrollTop <= 0 && more && wanted.pages < RESTORE_PAGES;
+        if (miss !== null && !short) {
+          restoring.current = null;
+          stick.current = atEndOf(el);
+          pin.current = stick.current ? null : wanted.place;
+          setAway(!stick.current);
+        } else if (items.length > 0 && needle === '' && more && wanted.pages < RESTORE_PAGES) {
+          /* Bis die Seite kommt, das Ende; bleibt sie aus, dort bleiben. */
+          el.scrollTop = el.scrollHeight;
+          if (anchor.current === null) {
+            wanted.pages++;
+            earlier();
+            window.clearTimeout(giveUp.current);
+            giveUp.current = window.setTimeout(() => {
+              if (restoring.current !== wanted) return;
+              restoring.current = null;
+              anchor.current = null;
+              stick.current = true;
+              const now = box.current;
+              if (now !== null) now.scrollTop = now.scrollHeight;
+            }, 4000);
+          }
+        } else {
+          restoring.current = null;
+          stick.current = true;
+          el.scrollTop = el.scrollHeight;
+        }
+      }
     } else if (stick.current) {
       el.scrollTop = el.scrollHeight;
     } else if (last !== was.last && was.last !== null) {
-      setFresh((n) => n + Math.max(1, visible.length - was.count));
+      /* Gezählt ab der bisher letzten — oben kann zugleich eine wegfallen (das Archiv zeigt die letzten n). */
+      const after = visible.findIndex((m) => m.key === was.last);
+      if (freshFrom.current === null) freshFrom.current = after < 0 ? last : visible[after + 1]?.key ?? last;
+      setFresh((n) => n + (after < 0 ? 1 : visible.length - 1 - after));
     }
-    seen.current = { first, last, count: visible.length };
-  }, [visible, first, last, tail]);
+    seen.current = { first, last };
+  }, [visible, first, last, tail, items, more, needle, firstNew]);
 
   /* Gesendet: ans Ende. */
   useEffect(() => {
     if (follow === 0) return;
+    restoring.current = null;
     stick.current = true;
     const el = box.current;
     if (el !== null) el.scrollTop = el.scrollHeight;
   }, [follow]);
 
-  /* Die Tastatur geht auf, ein Bild ist geladen: wer unten war, bleibt unten. */
+  /*
+    Der Verlauf wird niedriger oder höher (die Tastatur, das Feld mit einer Zeile mehr), ein
+    Bild lädt nach: wer am Ende war, bleibt am Ende; sonst bleibt unten, was unten war —
+    oben verschwindet etwas. (Das Verankern des Browsers ist im Verlauf aus, `overflow-anchor`.)
+  */
   useEffect(() => {
     const el = box.current;
     const content = inner.current;
     if (el === null || content === null || typeof ResizeObserver === 'undefined') return undefined;
-    const keep = new ResizeObserver(() => { if (stick.current) el.scrollTop = el.scrollHeight; });
+    const keep = new ResizeObserver(() => {
+      if (stick.current) { el.scrollTop = el.scrollHeight; return; }
+      if (restoring.current === null && pin.current !== null) putPlace(el, pin.current);
+    });
     keep.observe(el);
     keep.observe(content);
     return () => keep.disconnect();
   }, []);
 
-  const earlier = () => {
-    const el = box.current;
-    if (el !== null) anchor.current = el.scrollHeight;
-    onEarlier?.();
-  };
+  /* Wer geht (oder die App in den Hintergrund legt), hinterlässt seine Stelle. */
+  useEffect(() => {
+    const hide = () => { if (document.visibilityState === 'hidden') save.current(); };
+    document.addEventListener('visibilitychange', hide);
+    return () => {
+      document.removeEventListener('visibilitychange', hide);
+      window.clearTimeout(saveSoon.current);
+      window.clearTimeout(giveUp.current);
+      save.current();
+    };
+  }, []);
 
+  /*
+    Nur wer nach oben rollt, verlässt das Ende. Kommt das Ereignis erst, nachdem der Verlauf
+    gewachsen ist (ein Bild, die Schrift), sähe es sonst „nicht am Ende" — und das Ende bliebe
+    zurück, gleich beim Öffnen.
+  */
+  const lastTop = useRef(0);
   const onScroll = () => {
     const el = box.current;
-    if (el === null) return;
-    const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 64;
-    stick.current = atEnd;
+    if (el === null || restoring.current !== null) return;
+    const atEnd = atEndOf(el);
+    const up = el.scrollTop < lastTop.current - 1;
+    lastTop.current = el.scrollTop;
+    if (atEnd) stick.current = true; else if (up) stick.current = false;
+    pin.current = stick.current ? null : placeOf(el, false);
     setAway(!atEnd);
-    if (atEnd) setFresh(0);
+    if (atEnd) { setFresh(0); freshFrom.current = null; }
     if (el.scrollTop < 160 && more && anchor.current === null) earlier();
+    window.clearTimeout(saveSoon.current);
+    saveSoon.current = window.setTimeout(() => save.current(), 300);
   };
 
+  /* ↓: mit einer Zahl zur ersten dessen, was kam (passt alles in den Blick: ans Ende); ohne ans Ende. */
   const toBottom = () => {
     const el = box.current;
     if (el === null) return;
+    const from = freshFrom.current === null ? null : el.querySelector<HTMLElement>(`.ch-row[data-key="${CSS.escape(freshFrom.current)}"]`);
+    freshFrom.current = null;
+    setFresh(0);
+    if (from !== null && !showFrom(el, from, true)) return;
     stick.current = true;
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-    setFresh(0);
   };
 
   const toggle = (key: string) => setPicked((had) => {
@@ -289,7 +501,9 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
       blocks.push({ key: `d-${m.key}`, nodes: rows });
       rows.push(<div key={`d-${m.key}`} className="ch-day" role="separator"><span>{dayLabel(iso(m.at))}</span></div>);
     }
-    const start = newDay || prev === undefined || prev.mine !== m.mine || (prev.author ?? '') !== (m.author ?? '') || m.at - prev.at > GAP;
+    const isNew = m.key === firstNew && needle === '';
+    if (isNew) rows.push(<div key="new" className="ch-unread" role="separator"><span>Nieprzeczytane</span></div>);
+    const start = isNew || newDay || prev === undefined || prev.mine !== m.mine || (prev.author ?? '') !== (m.author ?? '') || m.at - prev.at > GAP;
     rows.push(
       <SmsRow key={m.key} m={m} start={start} group={group} search={search}
         picked={picked === null ? null : picked.has(m.key)} onPick={() => toggle(m.key)} />
@@ -325,7 +539,7 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
       </div>
 
       {(away || fresh > 0) && (
-        <button type="button" className="ch-jump" aria-label={fresh > 0 ? `Nowe wiadomości: ${fresh} — przewiń na dół` : 'Przewiń na dół'} onClick={toBottom}>
+        <button type="button" className="ch-jump" aria-label={fresh > 0 ? `Nowe wiadomości: ${fresh} — przejdź do nich` : 'Przewiń na dół'} onClick={toBottom}>
           <Icon name="chevron" />
           {fresh > 0 && <span className="ch-jump-count">{fresh}</span>}
         </button>
@@ -356,7 +570,7 @@ function SmsRow({ m, start, group, search, picked, onPick }: {
   const textOnly = m.media === undefined && m.note === undefined;
   return (
     <div className={cls('ch-row', m.mine ? 'is-mine' : 'is-theirs', start && 'is-start', picking && 'is-picking', picked === true && 'is-picked')}
-      aria-selected={picking ? picked === true : undefined} {...press}
+      data-key={m.key} aria-selected={picking ? picked === true : undefined} {...press}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(); } }} tabIndex={0}>
       {picking && <span className="ch-pick" aria-hidden="true">{picked && <Icon name="check" />}</span>}
       <div className={cls('ch-bubble', failed && 'ph-failed', m.media !== undefined && m.body === '' && 'is-media')}>

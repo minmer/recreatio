@@ -110,7 +110,7 @@ struct Level {
   b: u32, h: u32, gx: u32, gy: u32,
   gDx: u32, gDy: u32, eDx: u32, eDy: u32,
   area: u32, ox: u32, oy: u32, act: u32,
-  pIdx: u32, pW: u32, lv: u32, pad0: u32,
+  pIdx: u32, pW: u32, lv: u32, xp: u32,
   pad1: u32, pad2: u32, pad3: u32, pad4: u32,
 }
 struct LevelPair { F: Level, C: Level }

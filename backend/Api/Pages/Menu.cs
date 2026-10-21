@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Data.SqlClient;
 
 namespace Api;
@@ -49,12 +50,16 @@ public static class Menu
     private const int MaxDepth = 3;
     private const int MaxLabel = 80;
     private const int MaxTarget = 400;
+    private const int MaxImage = 400;
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
-    public sealed record Item(string? Label, string? Kind, string? Target, IReadOnlyList<Item>? Children);
+    /// <summary>2026-10-21 — <c>Image</c>: ein Bild statt des Namens (ein Logo); der Name bleibt, was ein Bildschirmleser vorliest.</summary>
+    public sealed record Item(string? Label, string? Kind, string? Target, IReadOnlyList<Item>? Children, string? Image = null);
 
-    public sealed record Clean(string Label, string Kind, string Target, IReadOnlyList<Clean> Children);
+    public sealed record Clean(
+        string Label, string Kind, string Target, IReadOnlyList<Clean> Children,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Image = null);
 
     /// <summary>
     /// Entweder <c>Items</c> (ein eigenes Menü) oder <c>Uses</c> (der Pfad der
@@ -131,6 +136,14 @@ public static class Menu
                     return null;
             }
 
+            /* 2026-10-21 — ein Bild statt des Namens: ein Bild der Seite oder eine Adresse, die ein Bild sein darf. */
+            var image = (one.Image ?? string.Empty).Trim();
+            if (image.Length > 0 && !ImageShape(image))
+            {
+                error = $"„{label}”: obraz to plik strony (page-image:…), adres https://… albo /plik.svg.";
+                return null;
+            }
+
             var children = Validate(one.Children, depth + 1, ref count, out error);
             if (children is null) return null;
 
@@ -140,10 +153,25 @@ public static class Menu
                 return null;
             }
 
-            out_.Add(new Clean(label, kind, target, children));
+            out_.Add(new Clean(label, kind, target, children, image.Length > 0 ? image : null));
         }
 
         return out_;
+    }
+
+    /// <summary>
+    /// 2026-10-21 — WAS ALS BILD IM MENÜ STEHEN DARF: ein Bild der Seite
+    /// (<c>page-image:&lt;id&gt;</c>), eine Adresse über https oder ein Pfad
+    /// dieser Domain (<c>/logo.svg</c>) — nichts mit Leerzeichen, Anführungen
+    /// oder spitzen Klammern, nichts über http.
+    /// </summary>
+    public static bool ImageShape(string image)
+    {
+        if (image.Length is 0 or > MaxImage) return false;
+        if (image.Any(c => char.IsWhiteSpace(c) || c is '"' or '\'' or '<' or '>' or '\\')) return false;
+        if (image.StartsWith("page-image:", StringComparison.OrdinalIgnoreCase)) return Guid.TryParse(image["page-image:".Length..], out _);
+        if (image.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return image.Length > "https://".Length;
+        return image.StartsWith('/') && !image.StartsWith("//") && image.Length > 1;
     }
 
     /// <summary>„oaza", „./oaza", „../", „../kontakt/mapa" — Schritte aus Wörtern, Punkt und zwei Punkten.</summary>

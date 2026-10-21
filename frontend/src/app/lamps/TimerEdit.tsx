@@ -183,8 +183,8 @@ export function TimerEdit({ ctx, timer, lamps, native, onSaved, onRemoved }: {
       </div>
       <p className="wk-working">Akcje idą po kolei, każda tak długo, jak jej sygnał (zwykle ok. 1 s). Timer wykonuje telefon z włączonymi timerami, także przy zamkniętej aplikacji.</p>
 
-      <PaceControl pace={draft.pace} onChange={(pace) => set({ pace })} title="Tempo tego timera" between="między akcjami"
-        note="Tylko dla tego timera: przerwa między akcjami (i ramkami jednego sygnału) i najdłuższe nadawanie ramki. Suwaki przycisków go nie zmieniają." />
+      <PaceControl pace={draft.pace} onChange={(pace) => set({ pace })} title="Tempo tego timera" between="między ramkami i akcjami"
+        note="Tylko dla tego timera: przerwa między pakietami, ramkami i akcjami oraz najdłuższe nadawanie ramki. Suwaki przycisków go nie zmieniają." />
 
       <LampConsole native={native} />
 

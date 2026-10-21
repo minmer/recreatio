@@ -23,8 +23,10 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { adoptMenuOf, hrefOf, loadMenu, saveMenu } from './menu';
-import { joinPath } from './menuPath';
+import { joinPath, menuImageOf } from './menuPath';
 import { type MenuItem } from './page';
+import { ImagePicker } from './PageFiles';
+import { imageUrl } from './slides/slideLook';
 import { WorkspaceError } from '../core/session';
 import { askText, toast } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
@@ -35,6 +37,8 @@ interface Draft {
   readonly kind: MenuItem['kind'];
   readonly target: string;
   readonly children: readonly Draft[];
+  /** 2026-10-21 — ein Bild statt des Namens (leer: keines). */
+  readonly image: string;
 }
 
 const MAX_DEPTH = 3;
@@ -42,12 +46,15 @@ let counter = 0;
 const nextId = () => ++counter;
 
 const toDraft = (items: readonly MenuItem[]): Draft[] =>
-  items.map((one) => ({ id: nextId(), label: one.label, kind: one.kind, target: one.target, children: toDraft(one.children) }));
+  items.map((one) => ({ id: nextId(), label: one.label, kind: one.kind, target: one.target, children: toDraft(one.children), image: one.image ?? '' }));
 
 const toItems = (drafts: readonly Draft[]): MenuItem[] =>
-  drafts.map((one) => ({ label: one.label.trim(), kind: one.kind, target: one.target.trim(), children: toItems(one.children) }));
+  drafts.map((one) => ({
+    label: one.label.trim(), kind: one.kind, target: one.target.trim(), children: toItems(one.children),
+    ...(one.image.trim() === '' ? {} : { image: one.image.trim() })
+  }));
 
-const blank = (): Draft => ({ id: nextId(), label: '', kind: 'rel', target: '', children: [] });
+const blank = (): Draft => ({ id: nextId(), label: '', kind: 'rel', target: '', children: [], image: '' });
 
 /**
  * Ein Menü von oben ÜBERNEHMEN: seine relativen Ziele galten von DORT aus —
@@ -98,6 +105,8 @@ export function MenuEditor({ path }: { path: string }) {
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  /* 2026-10-21 — bei welchem Eintrag die Auswahl des Bildes offen ist. */
+  const [picking, setPicking] = useState<number | null>(null);
 
   const look = useCallback(async () => {
     try {
@@ -171,11 +180,19 @@ export function MenuEditor({ path }: { path: string }) {
     const siblings = where.length === 1 ? items : at(items, where.slice(0, -1))!.children;
     const href = draft.kind === 'none' ? null : hrefOf({ ...draft, children: [] }, path);
     const kind = KINDS.find((k) => k.value === draft.kind)!;
+    const image = menuImageOf(draft.image);
 
     return (
       <li key={draft.id} className="wk-menued-item">
         <div className="wk-menued-row" style={{ paddingLeft: `${(depth - 1) * 1.5}rem` }}>
-          <input className="wk-menued-label" value={draft.label} placeholder="Nazwa" aria-label="Nazwa pozycji" maxLength={80}
+          {/* 2026-10-21 — ein Logo statt des Namens: das Bildchen öffnet die Auswahl. */}
+          <button type="button" className={`wk-menued-btn wk-menued-logo${image === null ? '' : ' is-set'}`}
+            aria-label={image === null ? 'Obraz zamiast nazwy (logo)' : 'Zmień obraz pozycji'} aria-expanded={picking === draft.id}
+            title={image === null ? 'Obraz zamiast nazwy (logo)' : 'Obraz zamiast nazwy — zmień albo usuń'}
+            onClick={() => setPicking(picking === draft.id ? null : draft.id)}>
+            {image === null ? '▣' : <img src={imageUrl(image)} alt="" />}
+          </button>
+          <input className="wk-menued-label" value={draft.label} placeholder={image === null ? 'Nazwa' : 'Nazwa (opis obrazu)'} aria-label="Nazwa pozycji" maxLength={80}
             onChange={(e) => set({ label: e.target.value })} />
           <select value={draft.kind} aria-label="Rodzaj celu" onChange={(e) => set({ kind: e.target.value as MenuItem['kind'] })}>
             {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
@@ -213,6 +230,21 @@ export function MenuEditor({ path }: { path: string }) {
             <span className="wk-menued-preview">→ <code>{href}</code></span>
           )}
         </div>
+
+        {picking === draft.id && (
+          <div className={`wk-menued-image is-depth-${depth}`}>
+            <ImagePicker path={path} value={draft.image} busy={busy} onPick={(url) => set({ image: url })} />
+            <label className="se-inline">
+              <span>Adres obrazu</span>
+              <input value={draft.image} maxLength={400} placeholder="wybierz powyżej albo /logo.svg, https://…" aria-invalid={draft.image.trim() !== '' && image === null}
+                onChange={(e) => set({ image: e.target.value })} />
+            </label>
+            <div className="wk-actions">
+              {draft.image !== '' && <button type="button" className="wk-link-btn" onClick={() => set({ image: '' })}>Bez obrazu — sama nazwa</button>}
+              <button type="button" className="wk-link-btn" onClick={() => setPicking(null)}>Gotowe</button>
+            </div>
+          </div>
+        )}
 
         {draft.children.length > 0 && (
           <ul className="wk-menued-list">

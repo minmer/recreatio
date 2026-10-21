@@ -2,7 +2,7 @@
  * LABOR 2D (v2) — DIE KERNE DES MEHRGITTERS auf der GPU (der Vorkonditionierer
  * der Löser in ksolver.ts): Aufbau der groben Stufen (mgC1–mgC4, mgTailBuild),
  * Vorglätten mit Restriktion und Verlängerung mit Nachglätten in Kacheln im
- * gemeinsamen Speicher (mgPreR0, mgPreR, mgPost), der Schwanz ab Stufe lt in
+ * gemeinsamen Speicher (mgPreR, mgPost), der Schwanz ab Stufe lt in
  * einer Arbeitsgruppe (mgTail).
  */
 
@@ -68,6 +68,12 @@ ${MAIN} {
    * dass am Ende genau die 16 × 16 Zellen stimmen — dieselben Zahlen wie vier
    * Durchgänge über das ganze Gitter, aber ein Aufruf statt vier. Nachglätten
    * zieht die Verlängerung mit in denselben Aufruf.
+   * Kein Feld wird im selben Aufruf geschrieben und im Rand einer anderen
+   * Kachel gelesen: das Vorglätten beginnt bei x = 0 und schreibt xp, das
+   * Nachglätten liest xp (und das grobe x) und schreibt x. Sonst hängt das
+   * Ergebnis davon ab, in welcher Reihenfolge die Grafikkarte die Kacheln
+   * rechnet (Firefox: der Löser konvergierte gar nicht, das Wasser zerriss
+   * entlang der Kachelgrenzen).
    */
   {
     name: 'mgPost', wg: WG,
@@ -99,7 +105,7 @@ ${MAIN} {
     var x = 0.0; var b = 0.0; var ax = 0.0; var ay = 0.0; var inv = 0.0;
     if (I >= -1 && J >= -1 && I <= i32(L.nx) && J <= i32(L.ny)) {
       let s = u32(I + 1) + u32(J + 1) * L.stride;
-      x = mgF[L.x + s];
+      x = mgF[L.xp + s];
       b = mgF[L.b + s]; ax = mgF[L.ax + s]; ay = mgF[L.ay + s]; inv = mgF[L.inv + s];
       /* Verlängerung: x += Σ pW x_grob. */
       if (I >= 0 && J >= 0 && I < i32(L.nx) && J < i32(L.ny) && mgU[L.act + s] != 0u) {
@@ -143,8 +149,8 @@ ${MAIN} {
    * über die Kachel hinaus, das Residuum eine Zelle darüber hinaus, und das
    * reicht für die 6 × 6 groben Zellen der Kachel (jede liest 4 × 4 feine).
    */
-  ...([['mgPreR0', true], ['mgPreR', false]] as const).map(([name, first]): KernelDef => ({
-    name, wg: WG,
+  {
+    name: 'mgPreR', wg: WG,
     bind: 'P:u LP:u<LevelPair> mgF:w mgU:r cgs:r<u32>',
     code: `${INTERIOR}
 ${CONVERGED_R}
@@ -167,16 +173,16 @@ ${MAIN} {
   let tj = wid3.x / tx;
   let i0 = i32(ti * TILE) - i32(HALO);
   let j0 = i32(tj * TILE) - i32(HALO);
+  /* Laden; x beginnt auf jeder Stufe bei null (die Korrektur der groben Stufe), wird also nicht gelesen. */
   for (var q = lid; q < TS * TS; q += WG) {
     let I = i0 + i32(q % TS);
     let J = j0 + i32(q / TS);
-    var x = 0.0; var b = 0.0; var ax = 0.0; var ay = 0.0; var inv = 0.0;
+    var b = 0.0; var ax = 0.0; var ay = 0.0; var inv = 0.0;
     if (I >= -1 && J >= -1 && I <= i32(F.nx) && J <= i32(F.ny)) {
       let s = u32(I + 1) + u32(J + 1) * F.stride;
-      ${first ? '' : 'x = mgF[F.x + s];'}
       b = mgF[F.b + s]; ax = mgF[F.ax + s]; ay = mgF[F.ay + s]; inv = mgF[F.inv + s];
     }
-    sx[q] = x; sb[q] = b; sax[q] = ax; say[q] = ay; sinv[q] = inv;
+    sx[q] = 0.0; sb[q] = b; sax[q] = ax; say[q] = ay; sinv[q] = inv;
   }
   workgroupBarrier();
   for (var k = 0u; k < ${TILE_SWEEPS}u; k++) {
@@ -192,14 +198,14 @@ ${MAIN} {
     }
     workgroupBarrier();
   }
-  /* x der Kachel zurück; das Residuum b − A x (Diagonale = 1/inv) eine Zelle über die Kachel hinaus in sinv. */
+  /* x der Kachel zurück (nach xp: das Nachglätten liest es); das Residuum b − A x (Diagonale = 1/inv) eine Zelle über die Kachel hinaus in sinv. */
   for (var q = lid; q < TILE * TILE; q += WG) {
     let a = q % TILE + HALO;
     let c = q / TILE + HALO;
     let I = i0 + i32(a);
     let J = j0 + i32(c);
     if (I < 0 || J < 0 || I >= i32(F.nx) || J >= i32(F.ny)) { continue; }
-    mgF[F.x + u32(I + 1) + u32(J + 1) * F.stride] = sx[a + c * TS];
+    mgF[F.xp + u32(I + 1) + u32(J + 1) * F.stride] = sx[a + c * TS];
   }
   for (var q = lid; q < TS * TS; q += WG) {
     let a = q % TS;
@@ -211,7 +217,7 @@ ${MAIN} {
     sinv[q] = r;
   }
   workgroupBarrier();
-  /* Die 6 × 6 groben Zellen der Kachel: Σ pW r der feinen Zellen, die auf sie zeigen; x der groben Zelle 0. */
+  /* Die 6 × 6 groben Zellen der Kachel: Σ pW r der feinen Zellen, die auf sie zeigen. */
   for (var q = lid; q < 36u; q += WG) {
     let I = ti * 6u + q % 6u;
     let J = tj * 6u + q / 6u;
@@ -235,10 +241,9 @@ ${MAIN} {
       }
     }
     mgF[C.b + sc] = acc;
-    mgF[C.x + sc] = 0.0;
   }
 }`
-  })),
+  },
   {
     /*
      * Der Rest des V-Zyklus ab Stufe lt in einer Arbeitsgruppe (b von lt ist

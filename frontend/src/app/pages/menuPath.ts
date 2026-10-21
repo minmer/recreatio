@@ -10,10 +10,25 @@
  *   joinPath      „oaza", „../kontakt" → ein Pfad im Register
  *   registryPath  wohin ein Eintrag zeigt — oder nichts (draussen, nur Dach)
  *   hereIn        WELCHER Eintrag „hier" ist
+ *   menuImageOf   2026-10-21 — was als Bild (Logo) eines Eintrags stehen darf
  * </code>
  */
 
 import type { MenuItem } from './page';
+
+/**
+ * 2026-10-21 — DAS BILD EINES EINTRAGS, wie es der Dienst annimmt: ein Bild der
+ * Seite, eine Adresse über https, ein Pfad dieser Domain — ohne Leerzeichen,
+ * Anführungen, spitze Klammern. Sonst keines (`null`).
+ */
+export function menuImageOf(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const image = value.trim();
+  if (image === '' || image.length > 400 || /[\s"'<>\\]/.test(image)) return null;
+  if (/^page-image:/i.test(image)) return /^page-image:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(image) ? image : null;
+  if (/^https:\/\/./i.test(image)) return image;
+  return /^\/[^/]/.test(image) ? image : null;
+}
 
 /**
  * Wohin ein relativer Pfad von `from` aus führt — „.." geht eine Seite

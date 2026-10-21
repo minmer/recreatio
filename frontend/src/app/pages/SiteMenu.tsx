@@ -21,8 +21,9 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { hrefOf } from './menu';
-import { hereIn, under, type Spot } from './menuPath';
+import { hereIn, menuImageOf, under, type Spot } from './menuPath';
 import { type MenuItem } from './page';
+import { imageUrl } from './slides/slideLook';
 
 export function SiteMenu({ items, from, here }: {
   items: readonly MenuItem[];
@@ -50,19 +51,39 @@ export function SiteMenu({ items, from, here }: {
   /* Einmal für das ganze Menü: zwei Einträge können nicht beide „hier" sein. */
   const spot = hereIn(items, from, here);
 
+  /*
+     2026-10-21 — DAS ZEICHEN VORNE: ist der erste Eintrag ein Bild ohne
+     Untereinträge (das Logo, das nach Hause führt), steht er vor der Leiste —
+     auf dem Telefon neben „Menu", nicht erst im aufgeklappten Blatt.
+  */
+  const brand = menuImageOf(items[0].image) !== null && items[0].children.length === 0 ? items[0] : null;
+
   return (
-    <nav ref={nav} className={`wk-sitemenu${mobile ? ' is-open' : ''}`} aria-label="Menu strony">
+    <nav ref={nav} className={`wk-sitemenu${mobile ? ' is-open' : ''}${brand === null ? '' : ' has-brand'}`} aria-label="Menu strony">
+      {brand !== null && <Brand item={brand} from={from} current={spot !== null && spot.exact && spot.at === '0'} />}
       <button type="button" className="wk-sitemenu-toggle" aria-expanded={mobile} onClick={() => setMobile(!mobile)}>
         <span aria-hidden="true">☰</span> Menu
       </button>
 
       <ul className="wk-sitemenu-list">
-        {items.map((item, i) => (
+        {items.map((item, i) => (brand !== null && i === 0 ? null : (
           <Entry key={`${i}-${item.label}`} item={item} from={from} spot={spot} depth={0}
             path={String(i)} open={open} onOpen={setOpen} />
-        ))}
+        )))}
       </ul>
     </nav>
+  );
+}
+
+/** 2026-10-21 — das Logo vorne: ein Verweis mit dem Bild, der Name ist sein Text für den Bildschirmleser. */
+function Brand({ item, from, current }: { item: MenuItem; from: string; current: boolean }) {
+  const href = hrefOf(item, from);
+  const external = item.kind === 'url' && /^https?:/i.test(item.target);
+  return (
+    <a className="wk-sitemenu-brand" href={href ?? undefined} aria-current={current ? 'page' : undefined}
+      {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+      <img className="wk-sitemenu-logo" src={imageUrl(menuImageOf(item.image)!)} alt={item.label} />
+    </a>
   );
 }
 
@@ -87,23 +108,26 @@ function Entry({ item, from, spot, depth, path, open, onOpen }: {
   const within = spot !== null && !current && (spot.at === path || under(path, spot.at));
   const expanded = open !== null && (open === path || open.startsWith(`${path}.`));
   const external = item.kind === 'url' && /^https?:/i.test(item.target);
+  /* 2026-10-21 — ein Logo statt des Namens; der Name bleibt sein Text für den Bildschirmleser. */
+  const image = menuImageOf(item.image);
+  const face = image === null ? item.label : <img className="wk-sitemenu-logo" src={imageUrl(image)} alt={item.label} />;
 
   const link = href === null ? (
     <button type="button" className={`wk-sitemenu-link${within ? ' is-within' : ''}`} aria-expanded={expanded}
       onClick={() => onOpen(expanded ? null : path)}>
-      {item.label}<span className="wk-sitemenu-caret" aria-hidden="true">▾</span>
+      {face}<span className="wk-sitemenu-caret" aria-hidden="true">▾</span>
     </button>
   ) : (
     <a className={`wk-sitemenu-link${within ? ' is-within' : ''}`} href={href}
       aria-current={current ? 'page' : undefined}
       {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
       onClick={() => onOpen(null)}>
-      {item.label}{external && <span className="wk-sitemenu-out" aria-hidden="true"> ↗</span>}
+      {face}{external && <span className="wk-sitemenu-out" aria-hidden="true"> ↗</span>}
     </a>
   );
 
   return (
-    <li className={`wk-sitemenu-item${item.children.length > 0 ? ' has-sub' : ''}${expanded ? ' is-expanded' : ''}`}>
+    <li className={`wk-sitemenu-item${item.children.length > 0 ? ' has-sub' : ''}${expanded ? ' is-expanded' : ''}${image === null ? '' : ' has-logo'}`}>
       <span className="wk-sitemenu-row">
         {link}
         {item.children.length > 0 && href !== null && (
