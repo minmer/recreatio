@@ -330,6 +330,8 @@ export class GpuState {
     const cnt = new Uint32Array(CNT_SIZE);
     const cntF = new Float32Array(cnt.buffer);
     cnt[C.PCOUNT] = P.count;
+    /* Die Teilchen liegen dicht und lebend vor: so viele zählen auch vor dem ersten Sortieren (eine Ablesung gleich nach dem Hochladen sah sonst kein Wasser — und nahm das als Bezugswert der Bilanz). */
+    cnt[C.PSORT] = P.count;
     cnt[C.BCOUNT] = B.count;
     cnt[C.NEXTID_B] = Math.max(1, B.nextFree);
     cnt[C.NEXTID_P] = Math.max(1, P.nextFree);

@@ -475,8 +475,10 @@ determinism stays a property of the CPU engine.
   smaller Δt did not help because the gas source grows with 1/Δt. Indirect dispatches are avoided (Chrome validates
   each one with an extra pass, ~30 µs).
 - **Readbacks**: a few times per second the worker reads counters, interval sums (energy and water flows, phase change,
-  bubble events), regions, heaters and the watched bubble, and keeps f64 totals. Budgets on the GPU are f32: energy
-  errors of 1e-5–1e-4 of the energy turned over instead of the CPU's 1e-9 (MILESTONES.md).
+  bubble events), regions, heaters and the watched bubble, and keeps f64 totals; each readback carries the layout it was
+  recorded with, and one that is still in flight when the state is rebuilt is discarded. Budgets on the GPU are f32:
+  energy errors of 1e-5–4e-4 of the energy turned over (the sealed box the most) instead of the CPU's 1e-9
+  (MILESTONES.md).
 - **Frames**: up to eight steps per frame, at most three frames in flight; compute kernels build the field and cell
   textures and the liquid coverage, render pipelines draw them, the bubbles from the bubble buffer and the particles
   from the particle buffer — nothing is copied to the CPU per frame.

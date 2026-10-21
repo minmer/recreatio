@@ -9,9 +9,10 @@
  * die GPU selbst (Courant der Flüssigkeit). Etwa fünfmal je Sekunde liest er
  * die Zähler, die Teilsummen der Kennzahlen und die gewählte Blase zurück
  * (ohne zu warten) und führt daraus die Gesamtsummen in f64 — und passt die
- * aufgezeichneten Iterationen der Löser und die Teilschritte des Transports an
- * das an, was die letzten Schritte brauchten. Keine Wiederholbarkeit Bit für
- * Bit (atomare Summen); die Bilanzen gelten bis auf die Rundung in f32.
+ * aufgezeichneten Iterationen der Löser an das an, was die letzten Schritte
+ * brauchten (der Transport zeichnet immer alle 16 Teilschritte auf). Keine
+ * Wiederholbarkeit Bit für Bit (atomare Summen); die Bilanzen gelten bis auf
+ * die Rundung in f32.
  */
 
 import type { Engine, EngineStats } from '../engine/engine';
@@ -82,6 +83,20 @@ const emptyTotals = (): Totals => ({
   burstCold: 0, burstWarm: 0, collapsedCold: 0, collapsedWarm: 0, fluxSL: 0, fluxLG: 0, fluxSG: 0, lossSolids: 0, capped: 0
 });
 
+/** Wo im Zwischenpuffer einer Ablesung was liegt (Bytes). */
+interface ReadLayout { readonly cnt: number; readonly glob: number; readonly reg: number; readonly heat: number; readonly meas: number; readonly probe: number; readonly ts: number; readonly total: number }
+/** Der Zustand, für den eine Ablesung aufgezeichnet wurde. */
+interface ReadMeta {
+  readonly version: number;
+  readonly layout: ReadLayout;
+  /** GPU-Gebiet je CPU-Gebiet und Zahl der Heizungen beim Aufzeichnen. */
+  readonly regions: readonly number[];
+  readonly heaters: number;
+  readonly groups: readonly number[];
+  readonly nreg: number;
+  readonly nheat: number;
+}
+
 type Variant = '' | 'A' | 'B' | 'S1' | 'S2';
 const SLOT = 256;
 const QUERIES = 2 * STAGE_COUNT;
@@ -103,12 +118,16 @@ export class GpuEngine {
   nsub = 0;
   readonly totals: Totals = emptyTotals();
   last: Readout | null = null;
+  /** Die letzte Ablesung mit Schritten: Löser und Teilschritte für die Anzeige, auch während der Pause. */
+  private stepped: Readout | null = null;
   /** Bezugswerte der Bilanzen (die erste Ablesung auf der GPU — die f32-Rundung des Hochladens zählt so nicht als Fehler). */
   private energy0: number | null = null;
   private water0: number | null = null;
   private sealed = false;
   private readonly staging: GPUBuffer[] = [];
   private readonly busy = new Set<GPUBuffer>();
+  /** Wofür eine Ablesung aufgezeichnet wurde: ein Neuaufbau dazwischen macht sie wertlos; Gebiete und Heizungen gelten wie beim Aufzeichnen. */
+  private readonly reading = new Map<GPUBuffer, ReadMeta>();
   private readonly querySet: GPUQuerySet | null;
   private readonly queryBuf: GPUBuffer | null;
   private vapourMark = 0;
@@ -136,9 +155,15 @@ export class GpuEngine {
   /** Alle Puffer neu für die jetzige CPU-Engine (neue Szene, andere Auflösung, mehr Kavitäten, Gebiete, Heizungen als Platz). */
   rebuild(): void {
     this.stateVersion += 1;
+    const before = this.state === undefined ? null : this.state.d;
     if (this.state !== undefined) this.state.destroy();
+    if (this.solver !== undefined) this.solver.destroy();
+    if (this.sub !== undefined) this.ctx.release([this.sub]);
     this.state = new GpuState(this.ctx, this.cpu);
     const S = this.state;
+    /* Ein anderes Gitter braucht andere Iterationszahlen: von den reichlichen Anfangswerten aus anpassen (mit denen der
+       alten Auflösung war jeder Schritt der ersten Ablesungen gekappt). */
+    if (before === null || before.nx !== S.d.nx || before.ny !== S.d.ny) { this.itL = 16; this.itG = 18; this.itH = 8; this.itD = 6; }
     this.solver = new GpuSolver(this.ctx, S.plan, { params: S.params, mgF: S.mgF, mgU: S.mgU, cgv: S.cgv, cgs: S.cgs, lab: S.lab, cfl: S.cfl, csum: S.csum, cnt: S.cnt, cgp: S.cgp });
     const sub = new Uint32Array((SLOT / 4) * 16);
     for (let s = 0; s < 16; s += 1) sub[(SLOT / 4) * s] = s;
@@ -363,7 +388,7 @@ export class GpuEngine {
 
   /* -- Ablesen -------------------------------------------------------------------------------------- */
 
-  private layout(): { cnt: number; glob: number; reg: number; heat: number; meas: number; probe: number; ts: number; total: number } {
+  private layout(): ReadLayout {
     const S = this.state;
     const cnt = 0;
     const glob = cnt + 4 * CNT_SIZE;
@@ -402,45 +427,59 @@ export class GpuEngine {
     if (timed && this.queryBuf !== null) enc.copyBufferToBuffer(this.queryBuf, 0, buf, L.ts, 8 * QUERIES);
     enc.clearBuffer(S.cnt, 4 * INTERVAL_FIRST, 4 * (INTERVAL_END - INTERVAL_FIRST));
     this.busy.add(buf);
+    const regions: number[] = [];
+    for (let k = 0; k < this.cpu.regions.count; k += 1) regions.push(S.gpuRegion(k));
+    this.reading.set(buf, { version: this.stateVersion, layout: L, regions, heaters: this.cpu.heat.heaters.length, groups: [...S.measGroups], nreg: S.d.nreg, nheat: S.d.nheat });
     return buf;
   }
 
   /** Eine aufgezeichnete Ablesung lesen (nach dem Abschicken), die Gesamtsummen führen, die Zahlen der Löser anpassen. */
   async finishReadback(buf: GPUBuffer, timed: boolean): Promise<Readout | null> {
-    const L = this.layout();
+    const meta = this.reading.get(buf);
+    const done = (): void => { this.busy.delete(buf); this.reading.delete(buf); };
     try {
       await buf.mapAsync(GPUMapMode.READ);
     } catch {
-      this.busy.delete(buf);
+      done();
       return null;
     }
-    const all = buf.getMappedRange(0, Math.ceil(L.total / 16) * 16).slice(0);
+    /*
+     * Neu aufgebaut, während die Ablesung unterwegs war (andere Auflösung, neue Szene): ihre Zahlen gehören zu keinem
+     * Zustand mehr. Mit der neuen Aufteilung gelesen, wurden sie zu Unsinn in den Gesamtsummen und im Bezugswert der
+     * Bilanzen (E NaN, ein Wasserfehler von Gramm, Löser bei 60 Iterationen).
+     */
+    if (meta === undefined || meta.version !== this.stateVersion) {
+      buf.unmap();
+      done();
+      return null;
+    }
+    const all = buf.getMappedRange(0, Math.ceil(meta.layout.total / 16) * 16).slice(0);
     buf.unmap();
-    this.busy.delete(buf);
-    const r = this.parse(all, L, timed);
+    done();
+    const r = this.parse(all, meta, timed);
     this.absorb(r);
     return r;
   }
 
-  private parse(all: ArrayBuffer, L: ReturnType<GpuEngine['layout']>, timed: boolean): Readout {
-    const S = this.state;
+  private parse(all: ArrayBuffer, meta: ReadMeta, timed: boolean): Readout {
+    const L = meta.layout;
     const cu = new Uint32Array(all, L.cnt, CNT_SIZE);
     const cf = new Float32Array(all, L.cnt, CNT_SIZE);
     const glob = new Float32Array(all, L.glob, GLOB_SIZE);
-    const reg = new Float32Array(all, L.reg, REG_STRIDE * S.d.nreg);
-    const heat = new Float32Array(all, L.heat, HEAT_STRIDE * S.d.nheat);
+    const reg = new Float32Array(all, L.reg, REG_STRIDE * meta.nreg);
+    const heat = new Float32Array(all, L.heat, HEAT_STRIDE * meta.nheat);
     const meas = new Float32Array(all, L.meas, (L.probe - L.meas) / 4);
     const probe = new Float32Array(all, L.probe, 64);
     /* Teilsummen in f64 addieren. */
-    const [g0, g1, g2] = S.measGroups;
+    const [g0, g1, g2] = meta.groups;
     const sum = (base: number, groups: number, k: number): number => { let s = 0; for (let g = 0; g < groups; g += 1) s += meas[(base + g) * MEAS_K + k]; return s; };
     const regions: Readout['regions'] = [];
-    for (let k = 0; k < this.cpu.regions.count; k += 1) {
-      const o = REG_STRIDE * S.gpuRegion(k);
+    for (const gr of meta.regions) {
+      const o = REG_STRIDE * gr;
       regions.push({ p0: reg[o + R.P0], sealed: reg[o + R.OPEN] === 0, vGas: reg[o + R.VGAS], vFluid: reg[o + R.VFLUID] });
     }
     const heaters: Readout['heaters'] = [];
-    for (let k = 0; k < this.cpu.heat.heaters.length; k += 1) {
+    for (let k = 0; k < meta.heaters; k += 1) {
       const o = HEAT_STRIDE * k;
       heaters.push({ P: heat[o + H.P], Tmean: heat[o + H.TMEAN], integral: heat[o + H.INTEGRAL], cells: heat[o + H.CELLS] });
     }
@@ -489,21 +528,24 @@ export class GpuEngine {
   private absorb(r: Readout): void {
     const t = this.totals;
     this.last = r;
+    if (r.stepsSince > 0) this.stepped = r;
     if (r.stageMs !== null) this.stageMs = r.stageMs;
     for (const [key] of INTERVALS) t[key] += r.intervals[key];
     t.time += r.simSince;
     t.steps += r.stepsSince;
     t.capped += r.capL + r.capG + r.capH + r.capD;
-    const adapt = (cur: number, used: number, capped: number, lo: number, hi: number): number => {
+    /* Das meiste Gebrauchte seit der letzten Ablesung plus Spielraum; gekappt: anderthalbmal so viele. Die Gaslösung schwankt
+       am meisten von Schritt zu Schritt (mit einer Iteration Spielraum war sie alle paar Sekunden einmal gekappt). */
+    const adapt = (cur: number, used: number, capped: number, lo: number, hi: number, margin: number): number => {
       if (used === 0 && capped === 0) return cur;
-      const want = capped > 0 ? Math.ceil(cur * 1.5) + 2 : used + 1;
+      const want = capped > 0 ? Math.ceil(cur * 1.5) + 2 : used + margin;
       return Math.min(hi, Math.max(lo, cur > want ? Math.max(want, cur - 2) : want));
     };
     if (r.stepsSince > 0) {
-      this.itL = adapt(this.itL, r.itL, r.capL, 4, 60);
-      this.itG = adapt(this.itG, r.itG, r.capG, 4, 60);
-      this.itH = adapt(this.itH, r.itH, r.capH, 3, 60);
-      this.itD = adapt(this.itD, r.itD, r.capD, 3, 60);
+      this.itL = adapt(this.itL, r.itL, r.capL, 4, 60, 1);
+      this.itG = adapt(this.itG, r.itG, r.capG, 4, 60, 2);
+      this.itH = adapt(this.itH, r.itH, r.capH, 3, 60, 1);
+      this.itD = adapt(this.itD, r.itD, r.capD, 3, 60, 1);
       this.nsub = r.nsub;
     }
   }
@@ -530,6 +572,7 @@ export class GpuEngine {
     const heaters = e.heat.heaters.map((h, k) => ({ h, k, rd: r?.heaters[k] })).filter(({ rd, h }) => (rd?.cells ?? h.cells) > 0)
       .map(({ h, rd }) => ({ group: h.group, P: rd?.P ?? h.P, Tmean: rd?.Tmean ?? h.Tmean, mode: h.mode, power: h.power, target: h.target, on: h.on }));
     const sol = (it: number, res: number, capped: number): { iterations: number; residual: number; capped: boolean } => ({ iterations: it, residual: res, capped: capped > 0 });
+    const rs = this.stepped ?? r;
     return {
       time: t.time,
       dt: r?.dt ?? e.dt,
@@ -543,10 +586,10 @@ export class GpuEngine {
       gasCells: r?.gasCells ?? 0,
       stages: [...this.stageMs],
       stepMs,
-      liquid: sol(r?.itL ?? 0, r?.resL ?? 0, r?.capL ?? 0),
-      gas: sol(r?.itG ?? 0, r?.resG ?? 0, r?.capG ?? 0),
-      heat: sol(r?.itH ?? 0, r?.resH ?? 0, r?.capH ?? 0),
-      gasSubsteps: r?.nsub ?? 0,
+      liquid: sol(rs?.itL ?? 0, rs?.resL ?? 0, rs?.capL ?? 0),
+      gas: sol(rs?.itG ?? 0, rs?.resG ?? 0, rs?.capG ?? 0),
+      heat: sol(rs?.itH ?? 0, rs?.resH ?? 0, rs?.capH ?? 0),
+      gasSubsteps: rs?.nsub ?? 0,
       capped: t.capped,
       waterT: r?.waterT ?? 0,
       waterTmax: r?.waterTmax ?? 0,
@@ -584,6 +627,7 @@ export class GpuEngine {
   resetTotals(): void {
     Object.assign(this.totals, emptyTotals());
     this.last = null;
+    this.stepped = null;
     this.energy0 = null;
     this.water0 = null;
     this.vapourMark = 0;

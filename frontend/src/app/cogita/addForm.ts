@@ -73,6 +73,10 @@ export interface KeyMap {
 
 export const KEY_NAMES: readonly (readonly [keyof KeyMap, string])[] = [['enter', 'Enter'], ['ctrlEnter', 'Ctrl+Enter'], ['shiftEnter', 'Shift+Enter']];
 
+/** „Kolejna wartość tutaj" geht nur, wo ein Schritt mehrere nimmt — sonst tut die Taste „dalej", und so heißt sie auch. */
+export const keyActionIn = (action: KeyAction, groups: readonly { readonly many: boolean }[]): KeyAction =>
+  action === 'more' && !groups.some((g) => g.many) ? 'next' : action;
+
 export const DEFAULT_KEYS: KeyMap = { enter: 'next', ctrlEnter: 'more', shiftEnter: 'save' };
 
 /** Woran die Spalten einer eingefügten Liste getrennt sind. `auto`: am häufigsten Zeichen erkannt. */

@@ -168,6 +168,12 @@ export class GpuSolver {
   /** Stufe 0 als Uniform (für die Kerne, die ein System aufbauen). */
   get level0(): GPUBuffer { return this.l0; }
 
+  /** Die eigenen Puffer freigeben (beim Neuaufbau des Zustands). */
+  destroy(): void {
+    this.ctx.release([this.l0, this.lp, this.lv, this.it, this.cfg]);
+    this.groups.clear();
+  }
+
   /** Die Einstellungen eines Lösers (bis zu vier verschiedene). */
   private setKind(k: SolveKind): number {
     let i = this.kinds.indexOf(k);

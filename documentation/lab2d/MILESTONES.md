@@ -153,6 +153,13 @@ Found and fixed on the way:
 - Merged bubbles took the summed volume at once on the GPU, while the CPU keeps the absorbed volume out until the
   next solve; with whole clusters merging in cold water the GPU's α_b jumped and the liquid source grew with 1/Δt.
   The GPU now merges as the CPU does.
+- Readbacks after a rebuild or an upload (quality change, new scene, tools): one still in flight was read with the
+  new layout, and one taken before the first step after an upload counted no particles (the sorted count was set only
+  by the first sort). Both went into the totals and the budget baseline — the HUD showed E NaN, a water error of
+  grams, the gas solve recorded at 60 iterations and capped all the time, 16 substeps, and the lab ran at a third of
+  real time. Stale readbacks are now discarded, the sorted count is set at upload, and after a change of resolution the
+  recorded iterations start again from their defaults. Switching views now also carries pause, speed, overlay and
+  the particle view to the new worker (the bar showed paused while the new worker ran).
 - **Both engines**: a merge, burst or collapse changes α_b within one step however short; its source Δα_b·V/Δt then
   demands liquid speeds ∝ 1/Δt, and the step (set by the fastest liquid) fell to zero — cold water painted onto the
   bare hot plate ended in NaN on the CPU too (`wrzenie`, 2 mm, at t ≈ 0.13 s). α_b now follows the bubbles' footprint
@@ -206,9 +213,9 @@ cross-origin-isolation service worker that v1's own tab uses).
   default stays 2 mm, as the project owner asked for v1 ("the normal situation should be high or very high"); slower
   machines get a hint to switch to 3 mm.
 - **M1e** — built without fixed-point atomics and without df64: P2G gathers over particles sorted by cell, budgets are
-  f32 on the GPU with f64 totals (energy errors 1e-5–1e-4 relative instead of 1e-9); bubble merging and shared heat
-  budgets do not follow an order; heat and vapour diffusion use MGPCG instead of Jacobi-PCG. Not deterministic (waived
-  for the accelerated view).
+  f32 on the GPU with f64 totals (energy errors 1e-5–4e-4 relative instead of 1e-9, the sealed box the most); bubble
+  merging and shared heat budgets do not follow an order; heat and vapour diffusion use MGPCG instead of Jacobi-PCG. Not
+  deterministic (waived for the accelerated view).
 - **Test 7** — met, but the prompt's 1.20 mm is the pure Plesset–Zwick radius; with surface tension acting on the
   10 µm seed the exact ODE gives 1.179 mm. The engine gives 1.171 mm.
 - **Test 5** — met at 2 mm with a +0.22 % bias of the level measurement (see the table).

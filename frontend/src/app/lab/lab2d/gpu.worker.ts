@@ -229,7 +229,10 @@ function frame(): void {
       steps = inflight >= MAX_INFLIGHT ? 0 : Math.min(MAX_STEPS, Math.floor(acc / Math.max(1e-5, dt)));
       acc -= steps * dt;
     }
-    const due = !readPending && now - lastStats > STATS_MS;
+    /* Am liebsten zusammen mit Schritten ablesen — nur dann misst sie die Zeiten der Stufen (bei 16× war die GPU voll,
+       die Ablesung fiel immer auf Bilder ohne Schritte, und die Anzeige zeigte 0 ms); ohne Schritte nur in der Pause oder
+       wenn es schon zu lange her ist. */
+    const due = !readPending && now - lastStats > STATS_MS && (steps > 0 || paused || now - lastStats > 4 * STATS_MS);
     const enc = dev.createCommandEncoder();
     if (steps > 0) gpu.encodeSteps(enc, steps, due);
     const buf = due ? gpu.encodeReadback(enc, due && steps > 0) : null;
@@ -378,7 +381,9 @@ scope.addEventListener('message', (event) => {
         task(async () => { if (cpu === null) return; cpu.setQuality(m.quality); restart(); });
         break;
       case 'serialize':
-        post({ type: 'reply', id: m.id, data: cpu?.serialize() ?? null });
+        /* Hinter den wartenden Handgriffen: sonst fehlten die letzten Pinselstriche (Umschalten gleich nach dem Malen). */
+        if (gpu === null) post({ type: 'reply', id: m.id, data: cpu?.serialize() ?? null });
+        else task(async () => { post({ type: 'reply', id: m.id, data: cpu?.serialize() ?? null }); });
         break;
       case 'load':
         task(async () => { if (cpu === null) return; cpu.load(m.scene); restart(); });

@@ -18,7 +18,7 @@ import { plural } from '../core/plural';
 import { askText, toast } from '../ui/dialogs';
 import { Segment } from '../ui/Segment';
 import {
-  COLUMN_SEPARATOR_LABEL, COLUMN_SEPARATORS, groupsOf, isLong, KEY_ACTION_SHORT, KEY_NAMES, nodeLabel,
+  COLUMN_SEPARATOR_LABEL, COLUMN_SEPARATORS, groupsOf, isLong, keyActionIn, KEY_ACTION_SHORT, KEY_NAMES, nodeLabel,
   planForm, readAddForm, rowIsEmpty, topOf, VALUE_SEPARATOR_LABEL, VALUE_SEPARATORS,
   type AddForm, type FormGroup, type FormPlan, type Instance, type KeyAction, type PasteRule, type RowInput, type TopChoice, type TopItem
 } from './addForm';
@@ -286,7 +286,7 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
     act(action, at);
   };
 
-  const keyLine = KEY_NAMES.filter(([key]) => form.keys[key] !== 'none').map(([key, name]) => ({ name, what: KEY_ACTION_SHORT[form.keys[key]] }));
+  const keyLine = KEY_NAMES.filter(([key]) => form.keys[key] !== 'none').map(([key, name]) => ({ name, what: KEY_ACTION_SHORT[keyActionIn(form.keys[key], groups)] }));
   const items = log.current;
   const busy = items.filter((x) => x.status === 'waiting' || x.status === 'saving').length;
 

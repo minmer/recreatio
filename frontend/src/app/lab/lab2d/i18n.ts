@@ -183,7 +183,7 @@ const PL = {
   accelOpen: 'Widok przyspieszony',
   accelClose: 'Widok zwykły',
   accelTitle: 'Otwórz widok przyspieszony: cały model liczy karta graficzna (WebGPU), z kratką 1 mm.',
-  accelNote: 'Widok przyspieszony: wszystkie etapy liczy karta graficzna (WebGPU) w pojedynczej precyzji, kratka 1 mm. Wyniki zgadzają się z widokiem zwykłym w granicach dokładności, ale nie co do bitu. Każde narzędzie na chwilę zatrzymuje obliczenia.',
+  accelNote: 'Widok przyspieszony: wszystkie etapy liczy karta graficzna (WebGPU) w pojedynczej precyzji, kratka 1 mm. Wyniki zgadzają się z widokiem zwykłym w granicach dokładności, ale nie co do bitu. Każde narzędzie na chwilę zatrzymuje obliczenia. Przełączenie widoku zaczyna scenę od początku (z Twoimi zmianami), bo zmienia się kratka.',
   accelFailed: 'Widok przyspieszony nie ruszył (ta przeglądarka albo karta nie obsługuje WebGPU) — wracam do widoku zwykłego.',
   budget: 'bilans'
 } as const;
@@ -196,7 +196,7 @@ const DE: Partial<Record<TextKey, string>> = {
   accelOpen: 'Beschleunigte Ansicht',
   accelClose: 'Normale Ansicht',
   accelTitle: 'Beschleunigte Ansicht öffnen: das ganze Modell rechnet die Grafikkarte (WebGPU), mit 1-mm-Raster.',
-  accelNote: 'Beschleunigte Ansicht: alle Stufen rechnet die Grafikkarte (WebGPU) in einfacher Genauigkeit, Raster 1 mm. Die Ergebnisse stimmen mit der normalen Ansicht im Rahmen der Genauigkeit überein, aber nicht Bit für Bit. Jedes Werkzeug hält die Rechnung kurz an.',
+  accelNote: 'Beschleunigte Ansicht: alle Stufen rechnet die Grafikkarte (WebGPU) in einfacher Genauigkeit, Raster 1 mm. Die Ergebnisse stimmen mit der normalen Ansicht im Rahmen der Genauigkeit überein, aber nicht Bit für Bit. Jedes Werkzeug hält die Rechnung kurz an. Das Umschalten beginnt die Szene von vorn (mit deinen Änderungen), weil sich das Raster ändert.',
   accelFailed: 'Die beschleunigte Ansicht ist nicht gestartet (dieser Browser oder diese Grafikkarte kann kein WebGPU) — zurück zur normalen Ansicht.',
   loading: 'Engine startet…',
   play: 'Start',
@@ -262,7 +262,7 @@ const EN: Partial<Record<TextKey, string>> = {
   accelOpen: 'Accelerated view',
   accelClose: 'Normal view',
   accelTitle: 'Open the accelerated view: the whole model runs on the graphics card (WebGPU), on a 1 mm grid.',
-  accelNote: 'Accelerated view: every stage runs on the graphics card (WebGPU) in single precision, 1 mm grid. Results match the normal view within its accuracy, but not bit for bit. Every tool briefly pauses the computation.',
+  accelNote: 'Accelerated view: every stage runs on the graphics card (WebGPU) in single precision, 1 mm grid. Results match the normal view within its accuracy, but not bit for bit. Every tool briefly pauses the computation. Switching views starts the scene again from the beginning (with your changes), because the grid changes.',
   accelFailed: 'The accelerated view did not start (this browser or graphics card has no WebGPU) — back to the normal view.',
   loading: 'Starting the engine…',
   play: 'Play',

@@ -7,7 +7,7 @@
 
 import { order } from './graph';
 import {
-  choicesOf, COLUMN_SEPARATOR_LABEL, entryConfig, groupsOf, identityOf, isTypeable, KEY_ACTION_LABEL, KEY_NAMES, nodeLabel, pickConfig, refFields, topOf, typedFields,
+  choicesOf, COLUMN_SEPARATOR_LABEL, entryConfig, groupsOf, identityOf, isTypeable, KEY_ACTION_LABEL, keyActionIn, KEY_NAMES, nodeLabel, pickConfig, refFields, topOf, typedFields,
   type AddForm, type FormGroup, type Instance, type PasteRule, type RowInput, type TopItem
 } from './addForm';
 import type { GraphNode } from './graph';
@@ -175,7 +175,7 @@ export function describeForm(form: AddForm, look: Pick<Lookup, 'kind'>): string[
     ].filter(Boolean).join(' ');
     out.push(sentence);
   }
-  out.push(`Klawisze: ${KEY_NAMES.map(([key, name]) => `${name} — ${KEY_ACTION_LABEL[form.keys[key]]}`).join('; ')}.`);
+  out.push(`Klawisze: ${KEY_NAMES.map(([key, name]) => `${name} — ${KEY_ACTION_LABEL[keyActionIn(form.keys[key], groups)]}`).join('; ')}.`);
   const columns = groups.flatMap((g) => g.fields.map((f) => (g.fields.length > 1 ? `${g.label}: ${f.label}` : g.label)));
   if (columns.length > 0) {
     const sep = columns.length > 1 ? ` — kolumny: ${columns.join(' | ')}, oddzielone: ${COLUMN_SEPARATOR_LABEL[form.paste.columns]}` : '';

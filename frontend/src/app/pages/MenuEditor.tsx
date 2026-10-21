@@ -61,6 +61,13 @@ const absolutise = (items: readonly MenuItem[], from: string): MenuItem[] =>
     children: absolutise(one.children, from)
   }));
 
+/*
+ * 2026-10-20 — DIE HAUPTSEITE hat den leeren Pfad: gezeigt als „recreatio.pl/", gewählt als „/"
+ * (ein leeres "uses" hiesse für den Dienst: den Verweis lösen; „/" macht er selbst zu „").
+ */
+const shownPath = (path: string): string => (path === '' ? 'recreatio.pl/' : path);
+const pickPath = (path: string): string => (path === '' ? '/' : path);
+
 /* -- Den Baum umbauen: jede Änderung gibt einen neuen Baum zurück ------------------------ */
 
 type Path = readonly number[];
@@ -221,7 +228,7 @@ export function MenuEditor({ path }: { path: string }) {
       {uses !== null ? (
         <div className="wk-menued-source">
           <p className="wk-note">
-            To menu jest ze strony <code>{uses.from}</code>
+            To menu jest ze strony <code>{shownPath(uses.from)}</code>
             {uses.items === null
               ? <> — a tamta strona nie ma już własnego menu, więc tutaj nie pokazuje się nic.</>
               : <> ({uses.items.length} poz.). Zmiany tam pokazują się także tutaj.</>}
@@ -254,8 +261,8 @@ export function MenuEditor({ path }: { path: string }) {
           {/* 0058 — die Seite darüber hat eines: als Vorschlag, nicht von selbst. */}
           {inherited !== null && (
             <div className="wk-actions">
-              <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => void take(inherited.from)}>
-                Użyj menu strony {inherited.from}
+              <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => void take(pickPath(inherited.from))}>
+                Użyj menu strony {shownPath(inherited.from)}
               </button>
               <span className="wk-hint">({inherited.items.length} poz.; zmiany tam pokażą się także tutaj)</span>
             </div>
@@ -268,7 +275,7 @@ export function MenuEditor({ path }: { path: string }) {
               <select value="" disabled={busy} onChange={(e) => { if (e.target.value !== '') void take(e.target.value); }}>
                 <option value="">— wybierz stronę —</option>
                 {usable.map((one) => (
-                  <option key={one.path} value={one.path}>{one.path} ({one.items} poz.)</option>
+                  <option key={one.path} value={pickPath(one.path)}>{shownPath(one.path)} ({one.items} poz.)</option>
                 ))}
               </select>
               <span className="wk-hint">

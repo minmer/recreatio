@@ -38,7 +38,8 @@ These do not change the physics model, but they decide what a student's computer
 - Pressure solves stop at a relative residual of 1e-5 (the prompt's real-time tolerance); the bookkeeping of mass and
   energy is exact regardless of solver tolerances.
 - The accelerated view (WebGPU, ARCHITECTURE.md §15) computes in 32-bit floats: per-cell masses and energies are f32,
-  the totals f64 on the CPU; its energy budget closes to 1e-5–1e-4 of the energy turned over (the CPU to 1e-9). Bubbles
-  that share a cell draw on its heat budget at the same time, and merging does not follow the bubbles' order — the
-  statistics of nucleation, merging and collapse differ by a few per cent from the CPU, and runs are not repeatable.
-  Heat and vapour diffusion use multigrid there instead of Jacobi preconditioning (same tolerance).
+  the totals f64 on the CPU; its energy budget closes to 1e-5–4e-4 of the energy turned over (the CPU to 1e-9; the
+  sealed box the most). Bubbles that share a cell draw on its heat budget at the same time, and merging does not follow
+  the bubbles' order — the statistics of nucleation, merging and collapse differ by a few per cent from the CPU, and
+  runs are not repeatable. Heat and vapour diffusion use multigrid there instead of Jacobi preconditioning (same
+  tolerance).

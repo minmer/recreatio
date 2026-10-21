@@ -193,6 +193,10 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   qualityRef.current = quality;
   const speedRef = useRef(SPEEDS[speedAt]);
   speedRef.current = SPEEDS[speedAt];
+  /* Ein neu gestarteter Arbeiter (anderer Weg, neue Szene) bekommt die Einstellungen der Oberfläche: sonst rechnete er,
+     während die Leiste „Pause“ zeigt, und zeichnete ohne die gewählte Einblendung. */
+  const settingsRef = useRef({ paused, overlay, particles });
+  settingsRef.current = { paused, overlay, particles };
   const lagRef = useRef(0);
 
   const refreshOps = (h: LabHost): void => {
@@ -224,7 +228,15 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
     const startScene = nextScene.current ?? withQuality(config.scene, qualityRef.current);
     nextScene.current = null;
     const host = new LabHost(canvas, accel ? createAccelWorker : createWorker, {
-      onReady: () => { setReady(true); refreshOps(host); },
+      onReady: () => {
+        setReady(true);
+        refreshOps(host);
+        const s = settingsRef.current;
+        if (speedRef.current !== 1) host.setSpeed(speedRef.current);
+        if (s.overlay !== 'none') host.overlay(s.overlay);
+        if (s.particles) host.particles(true);
+        if (s.paused) host.pause(true);
+      },
       onStats,
       onView: (v, w) => setView({ view: v, walls: w }),
       onRefused: () => setNote(t('refused')),
@@ -368,7 +380,9 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
       setAccel(next);
     };
     if (h === null) { go(config.scene); return; }
-    void h.serialize().then((s) => go(s ?? config.scene));
+    /* Antwortet der Arbeiter nicht (eine hängende Grafikkarte), wechselt der Knopf trotzdem — mit der Szene ohne die Handgriffe. */
+    const late = new Promise<null>((resolve) => { window.setTimeout(() => resolve(null), 3000); });
+    void Promise.race([h.serialize(), late]).then((s) => go(s ?? config.scene));
   };
   const changeLevel = (l: Level): void => { setLevel(l); try { window.localStorage.setItem(LEVEL_KEY, l); } catch { /* nur jetzt */ } };
   const changeOverlay = (o: Overlay): void => { setOverlay(o); host()?.overlay(o); };
