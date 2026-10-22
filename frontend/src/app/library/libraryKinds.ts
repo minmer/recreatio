@@ -159,7 +159,7 @@ const PERSON: LibKind = {
     { key: 'givenNames', label: 'Imiona', type: 'line', says: 'Imiona — w przypisach skracane do inicjałów', hint: 'np. Joseph' },
     { key: 'surname', label: 'Nazwisko', type: 'line', says: 'Nazwisko — według niego układa się bibliografia', hint: 'np. Ratzinger' },
     { key: 'years', label: 'Lata', type: 'line', says: 'Lata życia albo działalności', hint: 'np. 1927–2022' },
-    { key: 'description', label: 'Opis', type: 'text', says: 'Krótki opis — widoczny przy opublikowanych źródłach' },
+    { key: 'description', label: 'Opis', type: 'text', says: 'Krótki opis osoby (biogram) — widoczny przy jej źródłach' },
     { key: 'url', label: 'Adres strony', type: 'url', says: 'Strona o tej osobie (np. biografia)' }
   ],
   title: (data) => personName(data),
@@ -522,7 +522,7 @@ const PROJECT: LibKind = {
     { key: 'title', label: 'Tytuł', type: 'line', says: 'Tytuł' },
     { key: 'subtitle', label: 'Podtytuł', type: 'line', says: 'Podtytuł' },
     { key: 'description', label: 'Opis', type: 'text', says: 'Opis projektu — o czym jest książka albo cykl' },
-    { key: 'outline', label: 'Plan', type: 'outline', says: 'Plan: lista {"heading": "Część I"} i {"text": <odwołanie do tekstu>} w kolejności; publicznie widać tylko opublikowane teksty' },
+    { key: 'outline', label: 'Plan', type: 'outline', says: 'Plan: lista {"heading": "Część I"} i {"text": <odwołanie do tekstu>} w kolejności; czytelnik widzi te teksty, które może czytać' },
     { key: 'status', label: 'Stan', type: 'select', options: PROJECT_STATUS, says: `Stan: ${PROJECT_STATUS.map((t) => `"${t.value}"`).join(', ')}` },
     { key: 'deadline', label: 'Termin', type: 'date', says: 'Do kiedy (RRRR-MM-DD)' },
     { key: 'targetWords', label: 'Docelowa liczba słów', type: 'number', says: 'Ile słów ma mieć całość' }
