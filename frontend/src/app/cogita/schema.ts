@@ -26,11 +26,13 @@
  */
 
 import { plainText } from '../library/libraryMarkup';
+import { blocksOf, firstSentence, type CommentBlock } from '../library/comment';
 
 /* -- Wörterbücher ------------------------------------------------------------------ */
 
 export const FIELD_TYPES = ['line', 'text', 'markup', 'number', 'date', 'bool', 'choice', 'ref', 'media', 'url', 'list', 'geo', 'range'] as const;
-export type FieldType = (typeof FIELD_TYPES)[number] | 'outline';
+/** `outline` (Zarys eines Projekts) und `blocks` (die Bausteine eines Komentarza, 2026-10-22) gehören den Arten der Bibliothek — gelesen, nie angeboten. */
+export type FieldType = (typeof FIELD_TYPES)[number] | 'outline' | 'blocks';
 
 export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   line: 'Wiersz tekstu',
@@ -46,7 +48,8 @@ export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   list: 'Lista w kolejności',
   geo: 'Miejsce na mapie',
   range: 'Zakres z kilku odcinków',
-  outline: 'Plan (nagłówki i teksty)'
+  outline: 'Plan (nagłówki i teksty)',
+  blocks: 'Treść komentarza (akapity, listy, tabele)'
 };
 
 /**
@@ -54,7 +57,7 @@ export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
  * Überschriften und Texten). Angeboten wird es nicht — gelesen schon, damit
  * der Plan eines Buches beim Umzug in das Schema nicht verloren geht.
  */
-const KNOWN_TYPES: ReadonlySet<string> = new Set<string>([...FIELD_TYPES, 'outline']);
+const KNOWN_TYPES: ReadonlySet<string> = new Set<string>([...FIELD_TYPES, 'outline', 'blocks']);
 
 export const VALUE_STATES = ['known', 'approximate', 'disputed', 'unknown', 'na', 'pending'] as const;
 export type ValueState = (typeof VALUE_STATES)[number];
@@ -222,7 +225,7 @@ export type OutlineItem = { readonly heading: string } | { readonly text: string
 /** `bool` kennt drei Antworten [B2]; „nie wiadomo" ist eine davon, kein leeres Feld. */
 export type BoolValue = boolean | 'unknown';
 
-export type FieldValue = string | number | BoolValue | MediaRef | GeoPoint | RangeValue | readonly string[] | readonly OutlineItem[];
+export type FieldValue = string | number | BoolValue | MediaRef | GeoPoint | RangeValue | readonly string[] | readonly OutlineItem[] | readonly CommentBlock[];
 
 /** Ein Wert, wie ihn alles Weitere sieht — gleich, wie er gespeichert ist. */
 export interface Value {
@@ -589,6 +592,10 @@ export function readTyped(field: FieldDef, raw: unknown): FieldValue | undefined
       const range = readRange(raw, field.rangeOf ?? 'number');
       return range === null ? undefined : range;
     }
+    case 'blocks': {
+      const blocks = blocksOf({ blocks: raw });
+      return blocks.length === 0 ? undefined : blocks;
+    }
     case 'outline': {
       if (!Array.isArray(raw)) return undefined;
       const items: OutlineItem[] = [];
@@ -636,7 +643,7 @@ function readOne(field: FieldDef, raw: unknown): Value | undefined {
 export function valuesOf(entity: Entity, field: FieldDef): Value[] {
   const raw = entity.data[field.key];
   if (raw === undefined || raw === null) return [];
-  const whole = field.type === 'list' || field.type === 'outline';
+  const whole = field.type === 'list' || field.type === 'outline' || field.type === 'blocks';
   const many = Array.isArray(raw) && !(whole && !raw.some((one) => Array.isArray(one) || isEnvelope(one)));
   const list: unknown[] = many ? (raw as unknown[]) : [raw];
   const out: Value[] = [];
@@ -694,7 +701,7 @@ export function outsideOf(entity: Entity, look: Pick<Lookup, 'kind'>): Outside[]
     if (raw === undefined || raw === null) continue;
     const field = fields.get(key);
     if (field === undefined) { out.push({ key, raw, reason: 'removed' }); continue; }
-    const whole = field.type === 'list' || field.type === 'outline';
+    const whole = field.type === 'list' || field.type === 'outline' || field.type === 'blocks';
     const count = Array.isArray(raw) && !whole ? raw.length : 1;
     if (count > 0 && valuesOf(entity, field).length < Math.min(count, field.multi ? count : 1)) out.push({ key, raw, reason: 'retyped' });
   }
@@ -748,6 +755,11 @@ export function valueText(field: FieldDef, value: FieldValue | null, look: Looku
     case 'geo': return isObject(value) && 'lat' in value ? `${(value as GeoPoint).lat}, ${(value as GeoPoint).lon}` : '';
     case 'range': return isObject(value) && 'segments' in value ? rangeText(value as RangeValue, field.rangeOf ?? 'number') : '';
     case 'outline': return Array.isArray(value) ? `${value.length} poz.` : '';
+    /* Eine Aussage heisst nach ihrer Teza (dem ersten Satz). */
+    case 'blocks': {
+      const first = Array.isArray(value) ? (value as readonly CommentBlock[])[0] : undefined;
+      return first?.type === 'paragraph' ? firstSentence(first.text) : first === undefined ? '' : 'Komentarz';
+    }
   }
 }
 

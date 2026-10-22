@@ -21,7 +21,7 @@
 
 import { newId } from '../core/ids';
 import type { Entry, LibraryStore } from '../library/libraryStore';
-import { entryTitle, type Lookup as MarkupLookup } from '../library/libraryKinds';
+import { entryTitle, KINDS as LIBRARY_KINDS, type Lookup as MarkupLookup } from '../library/libraryKinds';
 import { cardsOf, questionCard, readTemplate, templatesFor, topicCard, type Template } from './cards';
 import { type Card } from './cardBasics';
 import { baseKind, DOC_KINDS, entityOf, entryData, isBaseKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, type DocKind } from './kinds';
@@ -141,7 +141,8 @@ export function readSources(raw: unknown): SourceRef[] {
 }
 
 /** Was eine Bibliothek ist und keine Baza wiedzy: diese Arten legt man in der Bibliothek an — hier verweist man auf sie. */
-export const BOOK_KINDS: ReadonlySet<string> = new Set(['person', 'work', 'quote', 'text', 'delivery', 'comment', 'project']);
+/** 2026-10-22 — die Arten der Bibliothek ausser dem Thema (Themen gehören beiden Seiten) — aus `libraryKinds.ts`, keine eigene Liste. */
+export const BOOK_KINDS: ReadonlySet<string> = new Set(LIBRARY_KINDS.map((k) => k.kind).filter((k) => k !== 'topic'));
 
 /** Was eine wiederverwendete Baza wiedzy mitbringt — Einstellungen, Widoki, Vorschläge und Arten (die kommen über das Schema) bleiben ihre. */
 const SHARED_DOCS: ReadonlySet<string> = new Set<DocKind>(['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'merge', 'addform']);
@@ -583,7 +584,8 @@ export class CogitaLibrary {
 
   /** Die eingebauten Rodzaje, die hier (noch) nicht stehen — zum Hinzufügen. */
   missingBuiltins(): KindDef[] {
-    return ['topic', 'knowledge', 'question'].filter((id) => !this.kinds.some((k) => k.id === id)).map((id) => baseKind(id)).filter((k): k is KindDef => k !== undefined);
+    /* 2026-10-22 — „Wiedza" nicht mehr: Aussagen sind Komentarze einer Bibliothek (Schritt 6). */
+    return ['topic', 'question'].filter((id) => !this.kinds.some((k) => k.id === id)).map((id) => baseKind(id)).filter((k): k is KindDef => k !== undefined);
   }
 
   /** Einen eingebauten Rodzaj hinzufügen — er steht dann da, auch ohne Einträge. */

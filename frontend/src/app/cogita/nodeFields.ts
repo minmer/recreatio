@@ -41,6 +41,10 @@ const TEMPLATE_FIELDS: Record<string, readonly ConfigField[]> = {
     f('value', 'Wartość, gdy nic nie przychodzi do „Porównaj z"', 'lines', { hint: 'np. angielski — jedna w wierszu' })
   ],
   unique: [],
+  'statement.thesis': [],
+  'statement.part': [f('n', 'Który kawałek (1, 2, …)', 'number', { hint: 'puste: wszystkie akapity' })],
+  'statement.table': [f('table', 'Która tabela', 'number', { hint: '1' }), f('left', 'Kolumna po lewej', 'number', { hint: '1' }), f('right', 'Kolumna po prawej', 'number', { hint: '2' })],
+  'statement.subjects': [],
   entries: [
     f('kind', 'Rodzaj', 'kind', { hint: 'puste: rodzaj tego wpisu' }),
     f('key', 'Tylko te, których pole', 'field', { hint: 'puste: wszystkie wpisy rodzaju' }),
@@ -126,9 +130,9 @@ const FLOW_FIELDS: Record<string, readonly ConfigField[]> = {
   subflow: [f('flow', 'Przebieg', 'flow')],
   each: [f('collection', 'Zbiór', 'collection'), f('kind', 'albo rodzaj', 'kind'), f('flow', 'Przebieg dla każdego', 'flow')],
   prerequisite: [f('of', 'Co trzeba znać', 'entity'), f('threshold', 'Od jakiej znajomości', 'number')],
-  expand: [f('of', 'Pojęcie', 'entity'), f('explain', 'Wyjaśnienie (wiedza)', 'entity', { kinds: ['knowledge'] }), f('threshold', 'Kto zna od', 'number')],
+  expand: [f('of', 'Pojęcie', 'entity'), f('explain', 'Wyjaśnienie (komentarz albo wiedza)', 'entity', { kinds: ['comment', 'knowledge'] }), f('threshold', 'Kto zna od', 'number')],
   opening: [TITLE, f('mode', 'Otwarcie', 'select', { options: opts([['discovery', 'odkrywanie — najpierw pytanie'], ['recall', 'przypomnienie — najpierw treść']]) }), f('of', 'Czego dotyczy', 'entity')],
-  line: [f('character', 'Postać', 'entity'), f('of', 'Co mówi (wiedza)', 'entity', { kinds: ['knowledge'] }), f('mood', 'Nastrój', 'text'), f('condition', 'Tylko gdy', 'condition')],
+  line: [f('character', 'Postać', 'entity'), f('of', 'Co mówi (komentarz albo wiedza)', 'entity', { kinds: ['comment', 'knowledge'] }), f('mood', 'Nastrój', 'text'), f('condition', 'Tylko gdy', 'condition')],
   handoff: [f('flow', 'Do przebiegu', 'flow')],
   end: [],
   return: []

@@ -22,6 +22,7 @@ import { connect, problemsOf, type Graph, type GraphNode, type Palette } from '.
 import { readAction, readCondition, type Action } from './logic';
 import { configFields, configSummary, FORM_OPTIONS, LEVEL_OPTIONS, type ConfigField } from './nodeFields';
 import { ActionsEditor, ConditionEditor, EntityPicker, KindSelect, MediaView, entityName, useCtx } from './ui';
+import { BOOK_KINDS } from './store';
 import { areaKeys, newestKey } from '../chat/chat';
 import type { MediaRef } from './schema';
 
@@ -427,7 +428,7 @@ function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
       );
     }
     case 'entity':
-      return <div className="wk-field">{label}<EntityPicker lib={lib} kinds={field.kinds} value={typeof value === 'string' && value !== '' ? value : null} onPick={(id) => onSet(id ?? undefined)} /></div>;
+      return <div className="wk-field">{label}<EntityPicker lib={lib} kinds={field.kinds} refs={field.kinds?.some((k) => BOOK_KINDS.has(k)) === true} value={typeof value === 'string' && value !== '' ? value : null} onPick={(id) => onSet(id ?? undefined)} /></div>;
     case 'collection':
       return (
         <label className="wk-field">{label}

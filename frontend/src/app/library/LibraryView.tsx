@@ -31,11 +31,12 @@ import {
   createLibrary, deleteLibrary, isUuid, libraryKindOf, loadLibraries, openedLibraryNames, openLibraries, renameLibrary, type OpenLibrary
 } from './library';
 import { originOf } from './libraryCite';
+import { isQuestion, statementRole, thesisProblem } from './comment';
 import { LibraryEditor } from './LibraryEditor';
 import { PassageList } from './LibraryRelations';
 import { parseBible } from './bible';
 import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJson';
-import { ids, KINDS, kindOf, quoteOrder, str, TEXT_STATUS, TEXT_TYPES, wordCount, type LibEntry } from './libraryKinds';
+import { ids, KINDS, kindOf, quoteOrder, refTarget, str, TEXT_STATUS, TEXT_TYPES, wordCount, type LibEntry } from './libraryKinds';
 import { storeOf, useLibraryStore, type Entry, type LibraryStore } from './libraryStore';
 import { audienceWords } from './LibraryAreaBox';
 import { RebuildView } from './rebuild/RebuildView';
@@ -432,6 +433,12 @@ function metaOf(entry: Entry, store: LibraryStore): string {
     }
     case 'person': return [str(d, 'years'), `${store.backlinks(entry.id).filter((e) => e.kind === 'work').length} źródeł`].filter(Boolean).join(' · ');
     case 'topic': return `${store.backlinks(entry.id).length} wpisów`;
+    /* 2026-10-22 — was eine Aussage ist, gerechnet: Rolle, Frage, Teza (Schritt 6). */
+    case 'comment': {
+      const problem = thesisProblem(d);
+      return [statementRole(d, (t) => refTarget(store, t)?.kind) === 'information' ? 'informacja' : 'interpretacja', isQuestion(d) ? 'pytanie' : '',
+        problem === 'missing' ? 'brak tezy' : problem === 'long' ? 'za długa teza' : ''].filter(Boolean).join(' · ');
+    }
     case 'project': {
       const texts = store.ofKind('text').filter((t) => ids(t.data, 'project').includes(entry.id));
       const words = texts.reduce((n, t) => n + wordCount(str(t.data, 'body')), 0);

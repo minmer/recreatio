@@ -459,6 +459,10 @@ Komentarz to osobny wpis: przemyślenie, które można osadzić w wielu tekstach
   { "type": "table", "columns": ["…", "…"], "rows": [ [komórka, komórka], … ] }   porównanie: każdy wiersz porównuje to samo w kolumnach
 Komórka (i punkt listy) to lista kawałków: { "text": "zapis treści" } albo { "ref": "@klucz", "locator": "Dz 1,8" } — PRAWDZIWE odwołanie, nie tekst, który je udaje. Sam napis "…" znaczy { "text": "…" }.
 Nie dodawaj rodzaju komentarza ani stopnia pewności — waga twierdzenia należy do jego słów.
+Zacznij od tezy: pierwsze zdanie pierwszego akapitu jest tezą komentarza (jego nazwą i przodem karty w nauce) — jedno krótkie zdanie, najwyżej 200 znaków; rozwinięcie w dalszych zdaniach.
+Pytanie to komentarz, którego pierwsze zdanie jest pytaniem („Dlaczego Duch zstępuje dwa razy?”); odpowiedzią jest komentarz, który się do niego odwołuje (w "subjects" albo w tekście [@klucz-pytania]).
+Czy komentarz jest informacją, czy interpretacją, aplikacja wylicza sama: informacja cytuje dzieło, cytat albo osobę (np. [@bt, Łk 1,35]) i nie opiera się na innym komentarzu ani tabeli; reszta to interpretacja. Tego się nie wpisuje.
+Stwierdzenia wiedzy (dawne "knowledge" z baz wiedzy) zapisuj jako komentarze; źródło stwierdzenia to przypis w jego akapicie: "Apostołowie trwali na modlitwie [@bt, Dz 1,14]."
 
 Przykład — całość w jednym dokumencie (Pismo Święte jako źródło i komentarz z tabelą zestawiającą fragmenty):
 ${JSON.stringify({

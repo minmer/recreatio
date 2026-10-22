@@ -25,9 +25,24 @@
  *
  * Diese Datei liest nichts aus \`libraryKinds.ts\` zur Laufzeit — die Art
  * selbst steht dort, und sie liest von hier (keine Schleife beim Laden).
+ *
+ * <b>2026-10-22 — DIE AUSSAGE (Schritt 6).</b> Der Komentarz ist die eine Art
+ * für Aussagen: was Cogita „Wiedza" nannte, wird ein Komentarz in einer
+ * Bibliothek (Porządki: „Wiedza → komentarze"). Was eine Aussage ist, wird
+ * gerechnet, nicht gespeichert:
+ *
+ * <code>
+ *   Teza          der erste Satz des ersten Absatzes (Entscheidung 1) — fehlt er
+ *                 oder ist er länger als 200 Zeichen, steht es unter „Do zrobienia"
+ *   Pytanie       eine Aussage, deren erster Satz eine Frage ist (Entscheidung 2);
+ *                 beantwortet, sobald eine andere Aussage auf sie zeigt
+ *   Informacja /  gibt wieder, was eine Quelle sagt (zitiert ein Werk, ein Zitat,
+ *   Interpretacja eine Person, stützt sich auf keine andere Aussage, vergleicht
+ *                 nicht in einer Tabelle) — sonst eine Deutung
+ * </code>
  */
 
-/** Was an der Stelle eines Verweises steht, dessen Ziel dieser Leser nicht lesen darf — nichts über das Ziel, nicht einmal sein Titel. */
+import { citedKeys, plainText } from './libraryMarkup';
 
 export type Run = { readonly text: string } | { readonly ref: string; readonly locator?: string };
 export type Cell = readonly Run[];
@@ -226,4 +241,99 @@ export const LEGACY_COMMENT_FIELDS: Readonly<Record<string, readonly { key: stri
 /** Ein alter Wert als Komentarz: Absätze bleiben Absätze. */
 export function legacyBlocks(value: string): CommentBlock[] {
   return value.replace(/\r\n?/g, '\n').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).map((text) => ({ type: 'paragraph', text }));
+}
+
+/* -- 2026-10-22: die Aussage — Teza, Frage, Rolle (Schritt 6) -------------------------------------- */
+
+/** Nach diesen Abkürzungen endet kein Satz (polnisch, lateinisch, englisch; Bücher der Schrift). */
+const ABBREVIATION = /(?:^|[\s(„"])(?:św|bł|ks|o|s|ss|r|rr|n|nr|np|tzw|por|zob|dz|cyt|wg|tj|itd|itp|ok|jw|art|kan|pkt|rozdz|t|tt|wyd|red|tłum|przyp|pt|cf|vs|ca|op|loc|ibid|id|al|ch|vol|ed|eds|trans|p|pp|m\.in)\.$/iu;
+/** Ein Anfangsbuchstabe („J. Ratzinger") beendet keinen Satz. */
+const INITIAL = /(?:^|[\s(„"])\p{Lu}\.$/u;
+
+/**
+ * DER ERSTE SATZ eines Textes (ohne Zeichen des Zapis): bis zum ersten . ! ? …
+ * vor einem neuen Satz (Grossbuchstabe, Anführung, Klammer, Ziffer) — nicht
+ * nach einer Abkürzung („św.", „np.", „Łk."). Ohne solches Ende: der ganze Text.
+ */
+export function firstSentence(text: string): string {
+  const flat = plainText(text).replace(/\s+/g, ' ').trim();
+  for (const m of flat.matchAll(/([.!?…]+)(["”»)]*)\s+(?=[\p{Lu}„"«(\d])/gu)) {
+    const stop = (m.index ?? 0) + m[1].length;
+    if (m[1] === '.' && (ABBREVIATION.test(flat.slice(0, stop)) || INITIAL.test(flat.slice(0, stop)))) continue;
+    return flat.slice(0, stop + m[2].length).trim();
+  }
+  return flat;
+}
+
+/** Die Teza einer Aussage: der erste Satz ihres ersten Absatzes — leer, wenn sie nicht mit einem Absatz beginnt. */
+export function thesisOf(data: Readonly<Record<string, unknown>>): string {
+  const first = blocksOf(data)[0];
+  return first?.type === 'paragraph' ? firstSentence(first.text) : '';
+}
+
+/** Ab hier ist eine Teza zu lang (Entscheidung 1). */
+export const THESIS_LIMIT = 200;
+
+/** Was an der Teza fehlt: `missing` — sie beginnt nicht mit einem Satz, `long` — der erste Satz ist zu lang; `null` — gut. */
+export function thesisProblem(data: Readonly<Record<string, unknown>>): 'missing' | 'long' | null {
+  const thesis = thesisOf(data);
+  if (thesis === '') return 'missing';
+  return thesis.length > THESIS_LIMIT ? 'long' : null;
+}
+
+/** Entscheidung 2: eine Frage ist eine Aussage, deren erster Satz eine Frage ist. */
+export const isQuestion = (data: Readonly<Record<string, unknown>>): boolean => /\?["”»)]*$/.test(thesisOf(data));
+
+/** Die Absätze einer Aussage als Zapis (für Suche, Karten, Lesen ohne Tabellen). */
+export function statementText(data: Readonly<Record<string, unknown>>): string {
+  return blocksOf(data).filter((b): b is Extract<CommentBlock, { type: 'paragraph' }> => b.type === 'paragraph').map((b) => b.text).join('\n\n');
+}
+
+/** Was eine Aussage nennt: ihre Gegenstände, die Verweise in ihren Zellen und im Zapis (Kennungen oder Schlüssel). */
+export function statementTokens(data: Readonly<Record<string, unknown>>): string[] {
+  const blocks = blocksOf(data);
+  return [...new Set([...subjectsOf(data).map((s) => s.ref), ...blockRefs(blocks).map((r) => r.ref), ...citedKeys(...blockMarkups(blocks))])];
+}
+
+export type StatementRole = 'information' | 'interpretation';
+
+/**
+ * DIE ROLLE, GERECHNET (nicht gespeichert): eine Information gibt wieder, was
+ * eine Quelle sagt — sie zitiert ein Werk, ein Zitat oder eine Person (im
+ * Zapis oder in einer Zelle), stützt sich auf keine andere Aussage und stellt
+ * nichts in einer Tabelle gegenüber. Alles andere ist eine Interpretation:
+ * eine Deutung, ein Vergleich, eine Synthese, ein eigener Gedanke.
+ * `kindOf`: die Art eines Ziels (Kennung oder Schlüssel) — `undefined`: nicht lesbar.
+ */
+export function statementRole(data: Readonly<Record<string, unknown>>, kindOf: (token: string) => string | undefined): StatementRole {
+  const blocks = blocksOf(data);
+  if (blocks.some((b) => b.type === 'table')) return 'interpretation';
+  const cited = [...new Set([...blockRefs(blocks).map((r) => r.ref), ...citedKeys(...blockMarkups(blocks))])].map(kindOf);
+  const about = subjectsOf(data).map((s) => kindOf(s.ref));
+  if ([...cited, ...about].includes('comment')) return 'interpretation';
+  return cited.some((k) => k === 'work' || k === 'quote' || k === 'person') ? 'information' : 'interpretation';
+}
+
+/** Ein Stück einer Zelle als Zapis: Text bleibt, ein Verweis mit Stelle wird ein Link mit der Stelle (`[[Łk 1,35|@…]]`), ohne Stelle ein Verweis. */
+const runMarkup = (run: Run): string => ('ref' in run ? (run.locator !== undefined && run.locator !== '' ? `[[${run.locator}|@${run.ref}]]` : `[@${run.ref}]`) : run.text);
+
+/**
+ * 2026-10-22 — EINE AUSSAGE ALS ZAPIS (für einen Ablauf, eine Sprechblase,
+ * eine öffentliche Fassung): Absätze, wie sie sind; Listen als Listen;
+ * eine Tabelle Zeile für Zeile („Łk 1,35 — Dz 1,8").
+ */
+export function blocksMarkup(blocks: readonly CommentBlock[]): string {
+  return blocks.map((block) => {
+    if (block.type === 'paragraph') return block.text;
+    if (block.type === 'table') return block.rows.map((row) => `- ${row.map((cell) => cell.map(runMarkup).join(' ')).join(' — ')}`).join('\n');
+    return block.items.map((cell, i) => `${block.type === 'ordered' ? `${i + 1}.` : '-'} ${cell.map(runMarkup).join(' ')}`).join('\n');
+  }).join('\n\n');
+}
+
+/** Ein Baustein als Klartext — eine Zelle mit den Namen ihrer Verweise (`label`: Kennung → Name, Stelle). */
+export function blockPlain(block: CommentBlock, label: (ref: string, locator: string) => string): string {
+  const cell = (c: Cell) => c.map((run) => ('ref' in run ? label(run.ref, run.locator ?? '') : plainText(run.text))).join(' ').replace(/\s+/g, ' ').trim();
+  if (block.type === 'paragraph') return plainText(block.text).replace(/\s+/g, ' ').trim();
+  if (block.type === 'table') return block.rows.map((row) => row.map(cell).join(' — ')).join('; ');
+  return block.items.map(cell).join('; ');
 }

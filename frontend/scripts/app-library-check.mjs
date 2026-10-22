@@ -5,6 +5,8 @@
  *      alle Beispiele zusammen lassen sich importieren — Verweise per @schlüssel.
  *   2. Der Zapis: Überschriften, Absätze, Listen, Zitate, eingebettete Zitate,
  *      Verweise mit Stellen, eigene Fussnoten, Links, Escapes.
+ *  2e. Aussagen (2026-10-22, Schritt 6): Teza = erster Satz (Abkürzungen), Frage,
+ *      Rolle (Informacja / Interpretacja), Wiedza → Komentarz, die Marken.
  *  2d. Stellen der Schrift und das Verzeichnis der Verweise (2026-10-22): Bücher
  *      polnisch, lateinisch, englisch; Bereiche, Listen, Kapitel; Ordnung nach
  *      dem Kanon; wer auf eine Stelle zeigt — über Bibliotheken und Bazy wiedzy.
@@ -58,6 +60,8 @@ export * from '${app}library/topics';
 export * from '${app}library/bible';
 export * from '${app}library/refIndex';
 export { Relations, PassageBox, PassageList } from '${app}library/LibraryRelations';
+export { StatementMarks } from '${app}library/markupView';
+export { knowledgeAsStatement, isKnowledge } from '${app}library/rebuild/knowledgeToStatements';
 export { textToLatex, planToLatex } from '${app}library/libraryLatex';
 export { archiveRow, browseLocal, choose, facetKey, PROJECTS } from '${app}library/browse';
 export { layoutOf } from '${app}library/archiveLayout';
@@ -347,6 +351,44 @@ try {
     const passage = m.renderToStaticMarkup(m.createElement(m.PassageList, { store: fake, spans: m.parseBible('Dz 1:14') }));
     assert.ok(passage.includes('Dz 1,14') && passage.includes('nic tu nie wskazuje'), 'the passage list draws');
   }
+  /* -- 2e. Aussagen (Schritt 6) ---------------------------------------------------------------- */
+  {
+    assert.equal(m.firstSentence('Św. Jan pisze o miłości. Bóg jest miłością.'), 'Św. Jan pisze o miłości.', 'an abbreviation does not end a sentence');
+    assert.equal(m.firstSentence('J. Ratzinger zauważa to (zob. s. 23). Dalej.'), 'J. Ratzinger zauważa to (zob. s. 23).', 'initials and „zob. s." neither');
+    assert.equal(m.firstSentence('Np. tak jest, m.in. dlatego. Koniec.'), 'Np. tak jest, m.in. dlatego.');
+    assert.equal(m.firstSentence('Czy Duch zstępuje dwa razy? Tak.'), 'Czy Duch zstępuje dwa razy?');
+    assert.equal(m.firstSentence('Duch **zstępuje** [@bt, Łk 1,35]. Potem.'), 'Duch zstępuje.', 'markup and citations do not count');
+    assert.equal(m.firstSentence('Bez kropki na końcu'), 'Bez kropki na końcu');
+    const para = (text) => ({ blocks: [{ type: 'paragraph', text }] });
+    assert.equal(m.thesisOf({ blocks: [{ type: 'table', columns: ['a'], rows: [] }, { type: 'paragraph', text: 'A.' }] }), '', 'a statement must begin with a sentence');
+    assert.deepEqual([m.thesisProblem(para('Krótko.')), m.thesisProblem(para(`${'x'.repeat(201)}.`)), m.thesisProblem({ blocks: [] })], [null, 'long', 'missing']);
+    assert.ok(m.isQuestion(para('Dlaczego dwa razy? Bo…')) && !m.isQuestion(para('Dwa razy. Czemu?')), 'a question is a statement whose FIRST sentence asks');
+    const kinds = { bt: 'work', q1: 'quote', c9: 'comment' };
+    const role = (data) => m.statementRole(data, (t) => kinds[t]);
+    assert.equal(role(para('Łukasz pisze o mocy Najwyższego [@bt, Łk 1,35].')), 'information', 'a source cited: information');
+    assert.equal(role(para('Moim zdaniem to ten sam obłok.')), 'interpretation', 'nothing cited: interpretation');
+    assert.equal(role(para('Jak w [@c9], tu też [@bt, Dz 1,8].')), 'interpretation', 'built on another statement: interpretation');
+    assert.equal(role({ blocks: [{ type: 'paragraph', text: 'Porównanie [@bt].' }, { type: 'table', columns: ['a', 'b'], rows: [] }] }), 'interpretation', 'a table compares: interpretation');
+    assert.equal(m.blocksMarkup([{ type: 'table', columns: ['Łk', 'Dz'], rows: [[[{ ref: 'bt', locator: 'Łk 1,35' }], [{ ref: 'bt', locator: 'Dz 1,8' }]]] }]), '- [[Łk 1,35|@bt]] — [[Dz 1,8|@bt]]', 'a table row as markup links');
+
+    /* Wiedza → Komentarz: dieselbe Kennung, nichts geht verloren. */
+    const k = { _kinds: ['knowledge'], text: 'Dawid był królem.', about: ['p1', { value: 'p2', state: 'known' }], source: 'w1', locator: 's. 3', tags: ['historyczna'], extra: 1, _checked: { p1: 'x' } };
+    assert.deepEqual(m.knowledgeAsStatement(k), { tags: ['historyczna'], extra: 1, _checked: { p1: 'x' }, subjects: [{ ref: 'p1' }, { ref: 'p2' }], blocks: [{ type: 'paragraph', text: 'Dawid był królem [@w1, s. 3].' }] }, 'text → paragraph, source → citation inside it, about → subjects, the rest stays');
+    assert.deepEqual(m.knowledgeAsStatement({ source: 'w1' }).subjects, [{ ref: 'w1' }], 'no text but a source: the source stays as a subject');
+    assert.ok(m.isKnowledge({ id: 'x', kind: 'entity', data: { _kinds: ['knowledge'] } }) && m.isKnowledge({ id: 'y', kind: 'entity', data: {} }) && !m.isKnowledge({ id: 'z', kind: 'entity', data: { _kinds: ['knowledge', 'k-x'] } }), 'only pure knowledge moves');
+
+    /* Die Marken: eine Frage, auf die eine andere Aussage zeigt, ist beantwortet. */
+    const Q = { id: 'cq', kind: 'comment', key: 'cq', data: para('Dlaczego Duch zstępuje dwa razy? Szukam.') };
+    const A1 = { id: 'ca', kind: 'comment', key: 'ca', data: { subjects: [{ ref: 'cq' }], blocks: [{ type: 'paragraph', text: 'Bo Kościół rodzi się jak Chrystus.' }] } };
+    const marks = (entries) => m.renderToStaticMarkup(m.createElement(m.StatementMarks, { comment: Q, look: { ...look(entries), readable: () => entries }, author: true }));
+    assert.ok(marks([Q]).includes('Pytanie otwarte') && marks([Q, A1]).includes('Pytanie — jest odpowiedź'), 'open until another statement points at it');
+    assert.ok(marks([Q]).includes('Interpretacja') && !marks([Q]).includes('Brak tezy'));
+    const told = m.libraryDescription();
+    assert.ok(told.includes('pierwsze zdanie pierwszego akapitu jest tezą') && told.includes('Pytanie to komentarz') && told.includes('aplikacja wylicza sama'), 'the description tells an AI how statements work');
+    assert.ok(m.courseDescription().includes('"statement.thesis"') && m.courseDescription().includes('"kinds": ["comment"]'), 'the Cogita description shows statement templates');
+  }
+  ok('statements: the thesis is the first sentence (abbreviations, markup), questions, information vs interpretation, knowledge → comment under the same id, the marks');
+
   ok('Scripture: books in Polish, Latin and English, ranges, lists, chapters, canonical order; the reference index over libraries and knowledge bases (fields, markup with places, comment subjects and cells, sources of values, documents); a passage found in every edition');
 
   /* -- 3. Die Angaben -------------------------------------------------------------------- */

@@ -265,8 +265,9 @@ function Goals({ flow, reached }: { flow: Flow; reached: readonly string[] }) {
 /** Ein Eintrag im Ablauf: Wissen ganz, andere mit ihren Feldern und Bildern. */
 export function EntityView({ entity, fileUrl }: { entity: PublicEntity | null; fileUrl?: (fileId: string, library?: string) => string }) {
   if (entity === null) return <p className="wk-hint">(tego wpisu tu nie ma)</p>;
-  const text = entity.fields.find((f) => f.key === 'text' && f.type === 'markup');
-  if ((entity.kindIds ?? []).includes('knowledge') && text !== undefined) return <Markup text={text.text} />;
+  /* 2026-10-22 — ein Komentarz (seine Bausteine als Zapis) wie ein Wissen: ganz. */
+  const text = entity.fields.find((f) => (f.key === 'text' && f.type === 'markup') || f.type === 'blocks');
+  if (((entity.kindIds ?? []).includes('knowledge') || (entity.kindIds ?? []).includes('comment')) && text !== undefined) return <Markup text={text.text} />;
   return (
     <div className="cg">
       <h3>{entity.label}</h3>
@@ -283,7 +284,7 @@ export function EntityView({ entity, fileUrl }: { entity: PublicEntity | null; f
 
 function Bubble({ who, text, fileUrl, mood }: { who: PublicEntity | null; text: PublicEntity | null; fileUrl?: (fileId: string, library?: string) => string; mood: string | null }) {
   const portrait = who?.media.find((m) => m.type === 'image');
-  const line = text?.fields.find((f) => f.key === 'text')?.text ?? text?.label ?? '';
+  const line = text?.fields.find((f) => f.key === 'text' || f.type === 'blocks')?.text ?? text?.label ?? '';
   return (
     <div className="cg-bubble">
       <span className="cg-bubble-face" title={who?.label ?? ''}>

@@ -345,3 +345,77 @@ the text). LaTeX prints the same with `\emph{…}`.
 2. Karty → "+ Nowy szablon" → "Dla rodzaju": "Cytat (z biblioteki)", "Początek": "Luki w cytacie" (field: Tekst
    cytatu) → Utwórz. The preview shows a library quote with its gaps.
 3. Powtórki → "+ Nowa powtórka" → "Z czego": rodzaj → "Cytat (z biblioteki)" → Utwórz → Ucz się: the quotes are asked.
+
+---
+
+## Step 6 — Statements: one kind, computed roles
+
+**Built**
+
+- **The library comment is the one kind for statements** (decision 5: it lives in libraries; plaintext kind stays
+  `comment`, label "Komentarz"). Computed, never stored (`library/comment.ts`):
+  - **thesis** = the first sentence of the first paragraph (decision 1; `firstSentence` skips "św.", "np.", "zob. s.",
+    initials, markup and citations). Missing or over 200 characters: a warning in the editor, "brak tezy" / "za długa
+    teza" in the comments list, and "Komentarze bez dobrej tezy" in Cogita's "Do zrobienia";
+  - **question** = a comment whose first sentence is a question (decision 2); answered once another readable comment
+    points at it; open ones are listed in "Do zrobienia" ("Pytania bez odpowiedzi");
+  - **information / interpretation** (`statementRole`): information cites a work, a quote or a person and rests on no
+    other comment and no table. A mark on every comment card, in the editor preview and in the list.
+- **Cogita reads statements**: the comment's `blocks` are a read-only field type `blocks`; the comment is named by its
+  thesis; new template nodes (group "Komentarz"): thesis, piece n (paragraph, each list item, each table row), table
+  columns as the two sides of "dopasowanie par", subjects with places; two starts for comments ("Teza komentarza",
+  "Tabela komentarza: dopasuj pary"), offered only for comments.
+- **Flows and explanations accept statements**: `line` and `expand` steps and the dialogue editor pick comments; a
+  question's "Wyjaśnienie" and the explanation after an answer show a comment whole (`CommentCard`); the flow player
+  shows it as markup (`blocksMarkup`).
+- **Migration "Wiedza → komentarze"** (Porządki, tab 3, `rebuild/knowledgeToStatements.ts`): every knowledge statement
+  of a base you may write moves into a library of the same area as a comment under the same id; `text` → paragraph,
+  `source` + `locator` → a citation inside it, `about` → subjects, `tags` and all other fields stay; the library becomes
+  a source of the base; a library "Komentarze — <obszar>" is made where none can be written. Skipped and named: entries
+  with other kinds too, published ones (until step 8), bases you only read. Idempotent.
+- **Service**: a move may now go from a knowledge base into a library — only within the same area
+  (`Library.Areas.cs` `MoveAsync`), so nobody reads more than before. `LibraryStore.moveTo(id, target, as)` carries the
+  new kind and data.
+- **New statements are not made as "Wiedza" any more**: "+ Rodzaj" no longer offers it; an accepted proposal
+  ("wyjaśnienie") becomes a comment of the base's library in its area (as "Wiedza" only where there is none).
+- `BOOK_KINDS` is derived from the library kinds (no own list).
+- Descriptions: `COMMENT_DOC` (thesis, question, computed role, knowledge as comments with the source as a citation),
+  `courseDescription()` (statement templates and nodes).
+- Checks: `app-library-check` 2e (first sentence and abbreviations, thesis problems, questions, roles, `blocksMarkup`,
+  the conversion, the marks), `app-cogita-check` (label by thesis, `blocks` values, thesis and table cards, presets
+  for comments only, `BOOK_KINDS`), drive `statements-api.mjs` against the local API (cross-area move refused; plan;
+  run; same id as a comment with the citation inside; subject and tags kept; key; the base reads the library; the
+  question's explanation resolves as a comment named by its thesis; a library made in an empty area; second plan
+  empty).
+
+**Removed**
+
+- The `knowledge` kind from "+ Rodzaj" (existing ones keep working until migrated).
+- The own list of library kinds in `cogita/store.ts`.
+
+**Choices**
+
+- **The source of a knowledge statement becomes a citation inside its paragraph**, before the final punctuation
+  ("… na modlitwie [@bt, Dz 1,14]."), as decided — not an extra subject. Without text, the source stays as a subject.
+- **Perspectives (`tags`) stay on the moved comments as they are**; step 7 turns them into aspects.
+- **Published knowledge entries are not moved**: the service clears the public copy on a move, and public bundles go
+  only in step 8.
+- **A table makes a comment an interpretation** (it compares), even when its cells cite sources.
+- Templates over "Wiedza" do not apply to moved entries (they are comments now); the report says so and points at the
+  two comment starts. Card progress rows stay stored.
+
+**Owner must run**
+
+1. Deploy the API (`-p:PublishProfile=Webio -p:IsGetPasswordEnabled=true`) — the move rule changed — and the website.
+2. Biblioteka → Porządki → "Wiedza → komentarze": read "Co się zmieni", then "Wykonaj". (On production the knowledge
+   bases held 21 entries in total — probably dictionary words, which are not "Wiedza" and are not touched.)
+
+**Test in the browser**
+
+1. Open a comment in the library: the preview shows "Informacja" or "Interpretacja"; write a first sentence over 200
+   characters — the editor warns; start with a question — "Pytanie otwarte" until another comment refers to it.
+2. Cogita → Karty → "+ Nowy szablon" → "Komentarz (z biblioteki)" → "Teza komentarza" → the preview shows "Co mówi
+   komentarz o: Łk 1,35?" with the thesis on the back.
+3. Cogita → Do zrobienia: "Pytania bez odpowiedzi" and "Komentarze bez dobrej tezy".
+4. Porządki → "Wiedza → komentarze" on a base with a "Wiedza" entry: after "Wykonaj" it opens in the library as a
+   comment; a flow line that spoke it still shows it.

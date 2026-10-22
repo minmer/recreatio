@@ -25,6 +25,7 @@ import type { Dependency } from './knowness';
 import { planOf, type Plan } from './revision';
 import { fieldsOf, fieldText, labelOf, plainOf, valuesOf, type Entity, type MediaRef } from './schema';
 import { ENTITY_BUNDLE, FLOW_BUNDLE, REVISION_BUNDLE } from './published';
+import { blocksMarkup, blocksOf } from '../library/comment';
 import type { CogitaLibrary } from './store';
 
 /* -- Die Adresse ------------------------------------------------------------------------------ */
@@ -94,7 +95,10 @@ export function publicEntity(lib: CogitaLibrary, entity: Entity): PublicEntity {
       continue;
     }
     const text = fieldText(entity, field, look);
-    if (text !== '') fields.push({ key: field.key, label: field.label, text: field.type === 'markup' ? String((entity.data[field.key] as string | undefined) ?? text) : text, type: field.type });
+    /* 2026-10-22 — die Bausteine eines Komentarza ganz, als Zapis (`blocksMarkup`): ein Ablauf zeigt sie wie einen Text. */
+    const shown = field.type === 'markup' ? String((entity.data[field.key] as string | undefined) ?? text)
+      : field.type === 'blocks' ? blocksMarkup(blocksOf(entity.data, field.key)) : text;
+    if (text !== '') fields.push({ key: field.key, label: field.label, text: shown, type: field.type });
   }
   return { id: entity.id, label: labelOf(entity, look), kinds: entity.kinds.map((k) => lib.kind(k)?.name ?? k), kindIds: [...entity.kinds], fields, media };
 }

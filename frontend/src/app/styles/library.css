@@ -216,6 +216,13 @@ h5.lib-h { font-size: var(--wk-text-md); font-style: italic; }
 .lib-comment > p, .lib-comment ol, .lib-comment ul { margin: 0; }
 .lib-comment.is-embedded { margin: var(--wk-space-2) 0; }
 .lib-comment-about { color: var(--wk-muted); font-size: var(--wk-text-sm); }
+/* 2026-10-22 — Informacja / Interpretacja, Pytanie, Teza: gerechnet, nicht gespeichert. */
+.lib-stmts { margin: 0; display: flex; flex-wrap: wrap; gap: var(--wk-space-1); }
+.lib-stmt { font-size: var(--wk-text-xs); padding: 0 var(--wk-space-2); border-radius: var(--wk-radius-pill); background: var(--wk-sunk); color: var(--wk-muted); }
+.lib-stmt.is-info { background: var(--wk-info-soft); color: var(--wk-info); }
+.lib-stmt.is-question { background: var(--wk-ok-soft); }
+.lib-stmt.is-open { background: var(--wk-warn-soft); color: var(--wk-warn); }
+.lib-stmt.is-warn { background: var(--wk-danger-soft); color: var(--wk-danger); }
 .lib-comments { display: grid; gap: var(--wk-space-2); }
 .lib-comments-head { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); font-weight: 600; }
 .lib-table-wrap { overflow-x: auto; }

@@ -9,7 +9,7 @@
 
 import { createContext, Fragment, useContext, useMemo, type MouseEvent, type ReactNode } from 'react';
 
-import { blocksOf, commentsAbout, subjectsOf } from './comment';
+import { blocksOf, commentsAbout, isQuestion, statementRole, statementTokens, subjectsOf, thesisProblem, THESIS_LIMIT } from './comment';
 import { citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from './libraryCite';
 import { isSource, ownTitle, refTarget, str, type LibEntry, type Lookup } from './libraryKinds';
 import { parseInline, parseMarkup, UNREADABLE, walkBlocks, walkInline, type Block, type Inline } from './libraryMarkup';
@@ -206,6 +206,32 @@ export function commentsOn(id: string, look: Lookup, point?: string): LibEntry[]
 }
 
 /**
+ * 2026-10-22 — WAS EINE AUSSAGE IST, GERECHNET (`comment.ts`): Informacja oder
+ * Interpretacja, eine Frage (offen oder beantwortet — beantwortet, sobald eine
+ * andere lesbare Aussage auf sie zeigt); für den, der schreibt (`author`),
+ * dazu eine Teza, die fehlt oder zu lang ist.
+ */
+export function StatementMarks({ comment, look, author = false }: { comment: LibEntry; look: Lookup; author?: boolean }) {
+  const kindOf = (token: string) => refTarget(look, token)?.kind;
+  const role = statementRole(comment.data, kindOf);
+  const question = isQuestion(comment.data);
+  const answered = question && (look.readable?.() ?? []).some((e) => e.id !== comment.id && e.kind === 'comment'
+    && statementTokens(e.data).some((t) => refTarget(look, t)?.id === comment.id));
+  const problem = author ? thesisProblem(comment.data) : null;
+  return (
+    <p className="lib-stmts">
+      <span className={`lib-stmt ${role === 'information' ? 'is-info' : 'is-interp'}`}
+        title={role === 'information' ? 'Zdaje sprawę ze źródła: cytuje dzieło, cytat albo osobę i nie opiera się na innym komentarzu.' : 'Własna myśl, porównanie albo synteza — nie samo źródło.'}>
+        {role === 'information' ? 'Informacja' : 'Interpretacja'}
+      </span>
+      {question && <span className={`lib-stmt is-question${answered ? '' : ' is-open'}`}>{answered ? 'Pytanie — jest odpowiedź' : 'Pytanie otwarte'}</span>}
+      {problem === 'missing' && <span className="lib-stmt is-warn">Brak tezy: komentarz nie zaczyna się od zdania</span>}
+      {problem === 'long' && <span className="lib-stmt is-warn">Teza dłuższa niż {THESIS_LIMIT} znaków</span>}
+    </p>
+  );
+}
+
+/**
  * EIN KOMENTARZ FÜR SICH — unter einem Zitat, einem Werk, einem Punkt des
  * Plans: mit eigenen Fussnoten (eigener Präfix), damit er die Zählung des
  * Textes nicht stört.
@@ -218,6 +244,7 @@ export function CommentCard({ comment, look, prefix, about = false }: { comment:
   }, [comment, look]);
   return (
     <aside className="lib-comment">
+      <StatementMarks comment={comment} look={look} />
       {about && <p className="lib-comment-about">o: {aboutLine(comment, look)}</p>}
       <CommentBody comment={comment} look={look} notes={notes} prefix={own} />
       <NoteList notes={notes} prefix={own} />

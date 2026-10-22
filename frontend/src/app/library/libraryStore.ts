@@ -517,7 +517,13 @@ export class LibraryStore implements Lookup {
    * jeder Verweis zeigt weiter auf ihn; der Schlüssel bleibt, wenn er drüben
    * frei ist (sonst ein freier, und `keyChanged` sagt es).
    */
-  async moveTo(id: string, target: LibraryStore): Promise<{ entry: Entry; keyChanged: boolean; from?: string; pinned: number }> {
+  /**
+   * `as` (2026-10-22, Schritt 6): der Eintrag kommt drüben als andere Art an —
+   * ein „Wiedza" einer Baza wiedzy wird ein Komentarz der Bibliothek desselben
+   * Bereichs (der Dienst erlaubt das nur so). Kennung bleibt; Verweise im Zapis
+   * werden drüben Kennungen wie bei jedem Speichern.
+   */
+  async moveTo(id: string, target: LibraryStore, as?: { readonly kind: string; readonly data: EntryData }): Promise<{ entry: Entry; keyChanged: boolean; from?: string; pinned: number }> {
     if (this.entries.get(id) === undefined) throw new WorkspaceError('Ten wpis należy do innej biblioteki.');
     if (target === this) return { entry: this.entries.get(id)!, keyChanged: false, pinned: 0 };
     /* Erst die Texte, die ihn noch über den Schlüssel nennen, auf seine Kennung — drüben könnte der Schlüssel einem anderen gehören. */
@@ -525,15 +531,17 @@ export class LibraryStore implements Lookup {
     const entry = this.entries.get(id);
     if (entry === undefined) throw new WorkspaceError('Ten wpis należy do innej biblioteki.');
     const newest = await target.writeKey();
-    const key = target.keyFor(entry, entry.key);
-    const aliases = nextAliases(entry.key, key, aliasesOf(entry.data));
-    const data: EntryData = { ...entry.data };
+    const kind = as?.kind ?? entry.kind;
+    const shaped = as === undefined ? entry.data : storedMarkup(kind, as.data, target);
+    const key = target.keyFor({ ...entry, kind, data: shaped }, entry.key);
+    const aliases = nextAliases(entry.key, key, aliasesOf(shaped));
+    const data: EntryData = { ...shaped };
     if (aliases.length > 0) data[ALIASES] = aliases; else delete data[ALIASES];
-    const doc: EntryDoc = { v: 1, id, kind: entry.kind, ...(key === undefined ? {} : { key }), data };
+    const doc: EntryDoc = { v: 1, id, kind, ...(key === undefined ? {} : { key }), data };
     let done;
     try {
       done = await moveEntry(this.libraryId, id, {
-        toLibrary: target.libraryId, kind: entry.kind, epoch: newest.epoch, sealed: await sealEntry(newest.key, doc), version: entry.version
+        toLibrary: target.libraryId, kind, epoch: newest.epoch, sealed: await sealEntry(newest.key, doc), version: entry.version
       });
     } catch (e) {
       if (e instanceof WorkspaceError && e.verdict === 'stale') await this.sync().catch(() => undefined);
@@ -541,7 +549,7 @@ export class LibraryStore implements Lookup {
     }
     this.drop(id);
     const moved: Entry = {
-      ...entry, libraryId: target.libraryId, ...(key === undefined ? {} : { key }), data,
+      ...entry, kind, libraryId: target.libraryId, ...(key === undefined ? {} : { key }), data,
       version: done.version, epoch: newest.epoch, updatedAt: done.updatedAt, publishedAt: null, publishedAs: null
     };
     target.put(moved);

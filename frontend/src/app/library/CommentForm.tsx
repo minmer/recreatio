@@ -11,16 +11,13 @@
 
 import { useState } from 'react';
 
-import {
-  BLOCK_TYPES, blockData, blocksOf, subjectData, subjectsOf,
-  type Cell, type CommentBlock, type Run, type Subject
-} from './comment';
+import { BLOCK_TYPES, blockData, blocksOf, type Cell, type CommentBlock, isQuestion, type Run, type Subject, subjectData, subjectsOf, THESIS_LIMIT, thesisOf, thesisProblem } from './comment';
 import { refLabel } from './libraryCite';
 import { KINDS, type EntryData, type LibEntry } from './libraryKinds';
 import { RefPicker } from './LibraryPick';
 import type { LibraryStore } from './libraryStore';
 import { FieldList } from './LibraryTextForm';
-import { CommentCard } from './markupView';
+import { CommentCard, StatementMarks } from './markupView';
 import { planOf, pointLine, pointNumbers } from './sermon';
 
 const ANY = KINDS.map((k) => k.kind);
@@ -105,6 +102,10 @@ export function CommentForm({ store, entry, data, set, readOnly }: {
           </div>
         )}
         <p className="lib-cm-lede">Forma coś znaczy: lista numerowana — kolejność (tok myśli), lista punktów — rzeczy równorzędne, tabela — porównanie (każdy wiersz porównuje to samo).</p>
+        {/* 2026-10-22 — die Teza ist der erste Satz (Entscheidung 1); eine Frage als erster Satz macht den Komentarz zur Frage (Entscheidung 2). */}
+        <p className="lib-cm-lede">Teza (pierwsze zdanie): {thesisOf(data) === '' ? '—' : `„${thesisOf(data)}”`}{isQuestion(data) ? ' — to pytanie; odpowiedzią będzie komentarz, który się do niego odwoła.' : ''}</p>
+        {thesisProblem(data) === 'missing' && <p className="wk-warn">Zacznij od zdania, które mówi najważniejsze — to teza komentarza (jego nazwa, pierwsza strona karty w nauce).</p>}
+        {thesisProblem(data) === 'long' && <p className="wk-warn">Pierwsze zdanie ma ponad {THESIS_LIMIT} znaków — skróć tezę, rozwinięcie zostaw na dalsze zdania.</p>}
       </section>
 
       <FieldList store={store} kind="comment" data={data} set={set} readOnly={readOnly} only={['topics']} />
@@ -112,6 +113,7 @@ export function CommentForm({ store, entry, data, set, readOnly }: {
       {blocks.length > 0 && (
         <section className="lib-box">
           <h2 className="lib-box-h">Podgląd</h2>
+          <StatementMarks comment={{ ...entry, data }} look={store} author />
           <CommentCard comment={entry} look={store} prefix="cm-preview-" about />
         </section>
       )}

@@ -64,8 +64,8 @@ const TYPE_OF: Record<LibFieldType, FieldType> = {
   select: 'choice', url: 'url', ref: 'ref', refs: 'ref', outline: 'outline',
   /* 2026-10-21 — eine Liste von Objekten (der Plan eines Textes): hier nur zum Lesen, nie geschrieben. */
   items: 'list',
-  /* 2026-10-22 — die Bausteine eines Komentarza: hier nur zum Lesen. */
-  blocks: 'list'
+  /* 2026-10-22 — die Bausteine eines Komentarza: hier nur zum Lesen, für Szablony lesbar (`blocks`, Schritt 6). */
+  blocks: 'blocks'
 };
 
 function fromLibrary(f: LibField): FieldDef {
@@ -91,7 +91,9 @@ const PATTERNS: Record<string, { label: string; tells?: string }> = {
   topic: { label: '{name}', tells: 'parent' },
   text: { label: '{title}', tells: 'date' },
   project: { label: '{title}', tells: 'projectType' },
-  delivery: { label: '{date} {occasion}', tells: 'place' }
+  delivery: { label: '{date} {occasion}', tells: 'place' },
+  /* 2026-10-22 — ein Komentarz heisst nach seiner Teza (dem ersten Satz). */
+  comment: { label: '{blocks}' }
 };
 
 const field = (key: string, label: string, type: FieldType, more: Partial<FieldDef> = {}): FieldDef =>

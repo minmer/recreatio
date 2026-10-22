@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds'];
 await build({
   entryPoints: names.map((n) => `src/app/cogita/${n}.ts`),
   bundle: true,
@@ -24,7 +24,7 @@ await build({
   logLevel: 'error'
 });
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD] = await Promise.all(names.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -621,6 +621,29 @@ truth('… without "from" the kind comes from everywhere', new Set(anyLib.cards.
   check('a template over quotes makes cards of library quotes, keyed template:entry', made5.cards.filter((c) => c.entity === 'q-1').map((c) => c.question), ['t-q:q-1']);
   check('… asking for the place of the quote', made5.cards.find((c) => c.entity === 'q-2')?.answer.accepted, ['J 1,1']);
   check('… a revision knows where they come from', lib5.revisionContext(made5.cards, () => [], 0).from('q-1'), 'lib');
+}
+{
+  /* 2026-10-22 — Aussagen (Komentarze): Teza als Name, Bausteine lesbar, Karten aus Teza und Tabelle. */
+  const COMMENT = KD.baseKind('comment');
+  const BT = e('bt', ['k-work'], { title: 'Biblia', year: 1965, workType: 'bible' });
+  const c1 = e('c1', ['comment'], {
+    subjects: [{ ref: 'bt', locator: 'Łk 1,35' }, { ref: 'bt', locator: 'Dz 1,8' }],
+    blocks: [{ type: 'paragraph', text: 'Duch Święty zstępuje dwa razy. Najpierw na Maryję, potem na Kościół.' },
+      { type: 'table', columns: ['Łukasz', 'Dzieje'], rows: [[[{ ref: 'bt', locator: 'Łk 1,35' }], [{ ref: 'bt', locator: 'Dz 1,8' }]], [[{ text: 'Maryja' }], [{ text: 'Apostołowie' }]]] }]
+  });
+  const look6 = S.lookupOf([...KINDS, COMMENT], [...ENTITIES, BT, c1]);
+  check('a comment is named by its thesis', S.labelOf(c1, look6), 'Duch Święty zstępuje dwa razy.');
+  check('its blocks are one value of the blocks type', S.valuesOf(c1, COMMENT.fields.find((f) => f.key === 'blocks')).map((v) => v.value.length), [2]);
+  const ctx6 = (entity) => ({ look: look6, entity, pool: () => [], seed: 's' });
+  const thesisCards = (await Cards.cardsOf(Cards.readTemplate('t-thesis', P.TEMPLATE_PRESETS.find((x) => x.id === 'thesis').make('comment')), ctx6(c1))).cards;
+  check('thesis card: the front names what it is about (Bible places)', thesisCards[0]?.prompt.map((p) => p.text).join(' '), 'Co mówi komentarz o: Łk 1,35; Dz 1,8?');
+  check('… the back is the thesis, the comment explains', [thesisCards[0]?.answer.back, thesisCards[0]?.explain], [['Duch Święty zstępuje dwa razy.'], ['c1']]);
+  const tableCards = (await Cards.cardsOf(Cards.readTemplate('t-table', P.TEMPLATE_PRESETS.find((x) => x.id === 'statement-table').make('comment')), ctx6(c1))).cards;
+  check('table card: pairs from two columns', [tableCards[0]?.answer.form, [...tableCards[0]?.answer.left ?? []].sort(), [...tableCards[0]?.answer.right ?? []].sort()], ['match', ['Maryja', 'Łk 1,35'], ['Apostołowie', 'Dz 1,8']]);
+  const noAbout = e('c2', ['comment'], { blocks: [{ type: 'paragraph', text: 'Bez przedmiotu.' }] });
+  check('… a comment about nothing gives no thesis card', (await Cards.cardsOf(Cards.readTemplate('t-thesis', P.TEMPLATE_PRESETS.find((x) => x.id === 'thesis').make('comment')), ctx6(noAbout))).cards.length, 0);
+  check('the statement presets are offered for comments only', P.TEMPLATE_PRESETS.filter((x) => x.kinds !== undefined).map((x) => [x.id, x.kinds]), [['thesis', ['comment']], ['statement-table', ['comment']]]);
+  check('the library kinds come from the library (comment yes, topic no)', [ST.BOOK_KINDS.has('comment'), ST.BOOK_KINDS.has('quote'), ST.BOOK_KINDS.has('topic')], [true, true, false]);
 }
 check('a revision without a strategy is refused', (await R.planOf(G.readGraph({ nodes: [n('src', 'source.all')] }), revCtx())).problems, ['Powtórka nie ma kroku „Sposób pytania".']);
 

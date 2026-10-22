@@ -53,6 +53,8 @@ export interface TemplatePreset {
    */
   readonly needs: readonly ('field' | 'second' | 'date' | 'through' | 'back')[];
   readonly asks?: PresetAsks;
+  /** 2026-10-22 — nur für diese Rodzaje (die Anfänge für Komentarze); fehlt: für jeden. */
+  readonly kinds?: readonly string[];
   readonly make: (kindId: string, field: PresetField, second?: PresetField, more?: { readonly back?: { readonly kind: string; readonly key: string } }) => Record<string, unknown>;
 }
 
@@ -125,6 +127,46 @@ const WORD_ASKS: PresetAsks = {
 };
 
 export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
+  /* 2026-10-22 — Komentarze (Aussagen) der Bibliothek: die Teza zu ihrem Gegenstand, die Paare einer Tabelle. */
+  {
+    id: 'thesis', label: 'Teza komentarza', says: 'Na przodzie: o czym jest komentarz (np. „Łk 1,35; Dz 1,8"), z tyłu jego teza — pierwsze zdanie. Oceniasz się sam.', needs: [], kinds: ['comment'],
+    make: (kind) => {
+      const subjects = node('statement.subjects', 0, 0);
+      const when = node('when', 230, 0, { test: 'filled' });
+      const pattern = node('pattern', 460, 0, { text: 'Co mówi komentarz o: {0}?', inputs: 1, joiner: '; ' });
+      const prompt = node('prompt', 690, 0);
+      const thesis = node('statement.thesis', 0, 160);
+      const answer = node('answer.flash', 690, 160);
+      const self = node('entity', 460, 280);
+      const card = node('card', 920, 80);
+      return {
+        name: 'Teza komentarza', kinds: [kind], direction: 'o czym→teza',
+        graph: graphOf([subjects, when, pattern, prompt, thesis, answer, self, card], [
+          edge(subjects, 'entities', when, 'items'), edge(when, 'items', pattern, 'p0'), edge(pattern, 'text', prompt, 'parts'),
+          edge(thesis, 'text', answer, 'back'), edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer'),
+          edge(self, 'entities', card, 'explain')
+        ])
+      };
+    }
+  },
+  {
+    id: 'statement-table', label: 'Tabela komentarza: dopasuj pary', says: 'Wiersze tabeli komentarza (kolumna 1 ↔ kolumna 2) do połączenia w pary; nad nimi teza.', needs: [], kinds: ['comment'],
+    make: (kind) => {
+      const thesis = node('statement.thesis', 0, 0);
+      const prompt = node('prompt', 230, 0);
+      const table = node('statement.table', 0, 160, { table: 1, left: 1, right: 2 });
+      const answer = node('answer.match', 230, 160);
+      const self = node('entity', 230, 300);
+      const card = node('card', 460, 80);
+      return {
+        name: 'Tabela komentarza', kinds: [kind], direction: 'pary',
+        graph: graphOf([thesis, prompt, table, answer, self, card], [
+          edge(thesis, 'text', prompt, 'parts'), edge(table, 'left', answer, 'left'), edge(table, 'right', answer, 'right'),
+          edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer'), edge(self, 'entities', card, 'explain')
+        ])
+      };
+    }
+  },
   {
     id: 'ask', label: 'Pytanie o pole', says: '„Rok urodzenia: Mickiewicz?" — wpisz wartość pola.', needs: ['field'],
     make: (kind, field) => {

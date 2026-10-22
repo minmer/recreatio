@@ -170,6 +170,9 @@ function FieldEditor({ field, raw, writes, onChange, onOpen }: { field: FieldDef
   if (field.type === 'outline') {
     return <div className="wk-field">{label}<span className="wk-hint">Plan projektu edytuje się w Bibliotece ({Array.isArray(raw) ? raw.length : 0} pozycji).</span></div>;
   }
+  if (field.type === 'blocks') {
+    return <div className="wk-field">{label}<span className="cg-muted">Treść komentarza pisze się w Bibliotece ({Array.isArray(raw) ? raw.length : 0} części).</span></div>;
+  }
 
   if (many !== null) {
     return (

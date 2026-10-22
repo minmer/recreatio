@@ -216,7 +216,7 @@ function LinesEditor({ lines, writes, onChange }: { lines: readonly CharacterLin
         <div key={i} className="cg-card">
           <div className="cg-row">
             <EntityPicker lib={lib} value={l.character} onPick={(v) => v !== null && onChange(lines.map((x, j) => (j === i ? { ...x, character: v } : x)))} allowClear={false} placeholder="kto mówi" />
-            <EntityPicker lib={lib} kinds={['knowledge']} value={l.of} onPick={(v) => v !== null && onChange(lines.map((x, j) => (j === i ? { ...x, of: v } : x)))} allowClear={false} placeholder="co mówi (wiedza)" />
+            <EntityPicker lib={lib} kinds={['comment', 'knowledge']} refs value={l.of} onPick={(v) => v !== null && onChange(lines.map((x, j) => (j === i ? { ...x, of: v } : x)))} allowClear={false} placeholder="co mówi (komentarz)" />
             <label className="pe-check"><input type="checkbox" checked={l.once} disabled={!writes} onChange={(e) => onChange(lines.map((x, j) => (j === i ? { ...x, once: e.target.checked } : x)))} /><span>raz</span></label>
             {writes && <button type="button" className="wk-link-btn" onClick={() => onChange(lines.filter((_, j) => j !== i))}>×</button>}
           </div>
@@ -227,7 +227,7 @@ function LinesEditor({ lines, writes, onChange }: { lines: readonly CharacterLin
         <div className="cg-row">
           <span className="cg-muted">Nowe zdanie:</span>
           <EntityPicker lib={lib} value={who} onPick={(v) => add(v, what)} placeholder="kto mówi" />
-          <EntityPicker lib={lib} kinds={['knowledge']} value={what} onPick={(v) => add(who, v)} placeholder="co mówi (wiedza)" />
+          <EntityPicker lib={lib} kinds={['comment', 'knowledge']} refs value={what} onPick={(v) => add(who, v)} placeholder="co mówi (komentarz)" />
         </div>
       )}
     </div>

@@ -17,6 +17,7 @@ import { fieldText, fieldsOf, labelOf, type Entity } from './schema';
 import type { PublicEntity } from './publish';
 import type { CogitaLibrary } from './store';
 import { Markup, MediaView, percent, PublicContext } from './ui';
+import { CommentCard } from '../library/markupView';
 
 /* -- Die Frage ----------------------------------------------------------------------- */
 
@@ -312,6 +313,9 @@ export function EntityGlance({ lib, entity, onEntity }: { lib: CogitaLibrary; en
   const look = lib.look;
   const fields = fieldsOf(entity, look).filter((f) => f.type !== 'ref' && f.type !== 'media').slice(0, 4);
   const knowledge = entity.kinds.includes('knowledge');
+  /* 2026-10-22 — ein Komentarz erklärt mit seinen Bausteinen (dieselbe Zeichnung wie in der Bibliothek). */
+  const statement = entity.kinds.includes('comment') ? lib.entry(entity.id) : undefined;
+  if (statement !== undefined) return <div className="cg-card"><CommentCard comment={statement} look={lib.markupLook} prefix={`cg${entity.id.slice(0, 8)}-`} /></div>;
   return (
     <div className="cg-card">
       {knowledge ? <Markup text={String(entity.data.text ?? '')} onEntity={onEntity} lib={lib} />
@@ -330,10 +334,10 @@ export function EntityGlance({ lib, entity, onEntity }: { lib: CogitaLibrary; en
 
 /** Dasselbe aus einem Bündel (eine öffentliche Seite): Wissen ganz, sonst das Etikett und einige Felder. */
 export function PublicGlance({ entity }: { entity: PublicEntity }) {
-  const text = entity.fields.find((f) => f.key === 'text' && f.type === 'markup');
+  const text = entity.fields.find((f) => (f.key === 'text' && f.type === 'markup') || f.type === 'blocks');
   return (
     <div className="cg-card">
-      {(entity.kindIds ?? []).includes('knowledge') && text !== undefined ? <Markup text={text.text} /> : (
+      {((entity.kindIds ?? []).includes('knowledge') || (entity.kindIds ?? []).includes('comment')) && text !== undefined ? <Markup text={text.text} /> : (
         <>
           <strong>{entity.label}</strong>
           {entity.fields.slice(0, 4).map((f) => <span key={f.key} className="cg-muted">{f.label}: {f.type === 'markup' ? <Markup text={f.text} /> : f.text}</span>)}

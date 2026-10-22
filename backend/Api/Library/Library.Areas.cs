@@ -245,6 +245,11 @@ public static partial class Library
     /// versiegelt (unter dem Schlüssel des Ziels) aus dem Browser; die
     /// Kennung bleibt, so zeigen alle Verweise weiter auf ihn. Schreiben
     /// müssen beide Seiten dürfen.
+    ///
+    /// 2026-10-22 (Schritt 6) — auch aus einer Baza wiedzy in eine Bibliothek:
+    /// ein „Wiedza" wird dabei ein Komentarz (die neue Hülle sagt es). Dann nur
+    /// in eine Bibliothek DESSELBEN Bereichs — so wird keine Aussage für mehr
+    /// Menschen lesbar, als sie es vorher war.
     /// </summary>
     private static async Task MoveAsync(HttpContext ctx, Db db, Guid id, Guid entryId, MoveRequest body)
     {
@@ -260,12 +265,19 @@ public static partial class Library
         }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
-        if (await AllowedAsync(ctx, connection, who.Value.AccountId, id, Capability.Write) is null) return;
+        var source = await AllowedAsync(ctx, connection, who.Value.AccountId, id, Capability.Write);
+        if (source is null) return;
         var target = await AllowedAsync(ctx, connection, who.Value.AccountId, to, Capability.Write);
         if (target is null) return;
-        if (await KindOfLibraryAsync(connection, id, ctx.RequestAborted) != "books" || await KindOfLibraryAsync(connection, to, ctx.RequestAborted) != "books")
+        var fromKind = await KindOfLibraryAsync(connection, id, ctx.RequestAborted);
+        if (await KindOfLibraryAsync(connection, to, ctx.RequestAborted) != "books" || (fromKind != "books" && fromKind != "knowledge"))
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Przenosić można tylko między bibliotekami.");
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Przenosić można tylko do biblioteki — z innej biblioteki albo z bazy wiedzy.");
+            return;
+        }
+        if (fromKind == "knowledge" && source.Value.AreaId != target.Value.AreaId)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Z bazy wiedzy przenosi się tylko do biblioteki tego samego obszaru.");
             return;
         }
         if (body.Epoch < 1 || body.Epoch > target.Value.CurrentEpoch) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nie ma takiej epoki obszaru."); return; }

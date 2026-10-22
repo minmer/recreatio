@@ -64,7 +64,7 @@ function NewTemplate({ onMade }: { onMade: (id: string) => void }) {
         </label>
         <label className="wk-field"><span>Początek</span>
           <select value={preset} onChange={(e) => { setPreset(e.target.value); setField(''); setSecond(''); setBack(''); }}>
-            {TEMPLATE_PRESETS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+            {TEMPLATE_PRESETS.filter((x) => x.kinds === undefined || x.kinds.includes(kind)).map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
             <option value="empty">Pusty graf</option>
           </select>
         </label>

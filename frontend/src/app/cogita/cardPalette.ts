@@ -6,6 +6,7 @@ import { type AnswerSpec, type Fragment, type Item, type PromptPart, type Templa
 import { GAP_RULE, TEXT_RULE, readDateAnswer, readRule } from './check';
 import { type NodeKind, type Port, paletteOf } from './graph';
 import { type DatePrecision, type Entity, type GeoPoint, type MediaRef, dateKey, fieldOf, labelOf, plainOf, readDate, readNumber, valueText, valuesOf } from './schema';
+import { blockPlain, blocksOf, subjectsOf, thesisOf, type CommentBlock } from '../library/comment';
 
 /** Was an einem Eingang ankam — alle Kanten, alle Stücke, in einer Liste. */
 const itemsAt = (inputs: Readonly<Record<string, readonly unknown[]>>, port: string): Item[] =>
@@ -36,6 +37,8 @@ function readField(ctx: TemplateContext, entities: readonly Entity[], key: strin
       if (field.type === 'ref' && typeof v.value === 'string') out.push({ text, entity: v.value, state: v.state });
       else if (field.type === 'media' && isObject(v.value)) out.push({ text, media: v.value as unknown as MediaRef, state: v.state });
       else if (field.type === 'markup' && typeof v.value === 'string') out.push({ text: plainOf(v.value), value: v.value, state: v.state });
+      /* 2026-10-22 — die Bausteine eines Komentarza: einer je Stück (Absatz, Liste, Tabelle). */
+      else if (field.type === 'blocks' && Array.isArray(v.value)) for (const block of v.value as readonly CommentBlock[]) out.push({ text: blockPlain(block, refName(ctx)), state: v.state });
       else out.push({ text, value: v.value, state: v.state });
     }
   }
@@ -47,6 +50,77 @@ const FIELD: Kind = {
   says: 'Wartości jednego pola — tego wpisu albo wpisów, które przychodzą z lewej.',
   ports: () => ({ inputs: [port('of', 'Z wpisów', 'items', true)], outputs: [port('values', 'Wartości')] }),
   run: ({ config, inputs, ctx }) => ({ values: readField(ctx, sourcesOf(ctx, itemsAt(inputs, 'of')), str(config.key)) })
+};
+
+/* -- 2026-10-22: Aussagen (Komentarze) — Teza, Stücke, Tabelle, Gegenstände ------------------------- */
+
+/** Wie ein Verweis in einer Zelle heisst: bei der Schrift die Stelle allein („Łk 1,35"), sonst der Name mit der Stelle. */
+const refName = (ctx: TemplateContext) => (ref: string, locator: string): string => {
+  const target = ctx.look.entity(ref);
+  if (target === undefined) return locator;
+  if (target.data.workType === 'bible' && locator !== '') return locator;
+  return [labelOf(target, ctx.look), locator].filter(Boolean).join(', ');
+};
+
+const STATEMENT_THESIS: Kind = {
+  type: 'statement.thesis', label: 'Teza komentarza', group: 'Komentarz',
+  says: 'Pierwsze zdanie komentarza — jego teza (tego wpisu albo komentarzy, które przychodzą z lewej).',
+  ports: () => ({ inputs: [port('of', 'Z komentarzy', 'items', true)], outputs: [port('text', 'Teza')] }),
+  run: ({ inputs, ctx }) => ({ text: sourcesOf(ctx, itemsAt(inputs, 'of')).map((e) => ({ text: thesisOf(e.data), entity: e.id })).filter((i) => i.text !== '') })
+};
+
+const STATEMENT_PART: Kind = {
+  type: 'statement.part', label: 'Część komentarza', group: 'Komentarz',
+  says: 'Stück numer n (1, 2, …): akapit jako tekst, lista — każdy punkt osobno, tabela — każdy wiersz („Łk 1,35 — Dz 1,8"). Puste: wszystkie akapity.',
+  ports: () => ({ inputs: [port('of', 'Z komentarzy', 'items', true)], outputs: [port('values', 'Części')] }),
+  run: ({ config, inputs, ctx }) => {
+    const n = Math.round(num(config.n, 0));
+    const out: Item[] = [];
+    for (const e of sourcesOf(ctx, itemsAt(inputs, 'of'))) {
+      const blocks = blocksOf(e.data);
+      const chosen = n > 0 ? blocks.slice(n - 1, n) : blocks.filter((b) => b.type === 'paragraph');
+      for (const block of chosen) {
+        if (block.type === 'paragraph') out.push({ text: blockPlain(block, refName(ctx)) });
+        else if (block.type === 'table') for (const row of block.rows) out.push({ text: blockPlain({ type: 'table', columns: block.columns, rows: [row] }, refName(ctx)) });
+        else for (const cell of block.items) out.push({ text: blockPlain({ type: block.type, items: [cell] }, refName(ctx)) });
+      }
+    }
+    return { values: out.filter((i) => i.text !== '') };
+  }
+};
+
+const STATEMENT_TABLE: Kind = {
+  type: 'statement.table', label: 'Tabela komentarza', group: 'Komentarz',
+  says: 'Wiersze tabeli komentarza jako dwie strony: kolumna A po lewej, kolumna B po prawej (te same miejsca tworzą parę) — do „dopasowania par" albo pytań o kolumnę.',
+  ports: () => ({ inputs: [port('of', 'Z komentarzy', 'items', true)], outputs: [port('left', 'Kolumna A'), port('right', 'Kolumna B')] }),
+  run: ({ config, inputs, ctx }) => {
+    const a = Math.max(1, Math.round(num(config.left, 1))) - 1;
+    const b = Math.max(1, Math.round(num(config.right, 2))) - 1;
+    const which = Math.max(1, Math.round(num(config.table, 1)));
+    const left: Item[] = [];
+    const right: Item[] = [];
+    for (const e of sourcesOf(ctx, itemsAt(inputs, 'of'))) {
+      const table = blocksOf(e.data).filter((x): x is Extract<CommentBlock, { type: 'table' }> => x.type === 'table')[which - 1];
+      if (table === undefined) continue;
+      for (const row of table.rows) {
+        const l = row[a] === undefined ? '' : blockPlain({ type: 'unordered', items: [row[a]!] }, refName(ctx));
+        const r = row[b] === undefined ? '' : blockPlain({ type: 'unordered', items: [row[b]!] }, refName(ctx));
+        if (l === '' || r === '') continue;
+        left.push({ text: l });
+        right.push({ text: r });
+      }
+    }
+    return { left, right };
+  }
+};
+
+const STATEMENT_SUBJECTS: Kind = {
+  type: 'statement.subjects', label: 'O czym jest komentarz', group: 'Komentarz',
+  says: 'Wpisy, o których jest komentarz — z miejscem (np. „Łk 1,35").',
+  ports: () => ({ inputs: [port('of', 'Z komentarzy', 'items', true)], outputs: [port('entities', 'Wpisy')] }),
+  run: ({ inputs, ctx }) => ({
+    entities: sourcesOf(ctx, itemsAt(inputs, 'of')).flatMap((e) => subjectsOf(e.data).map((s) => ({ text: refName(ctx)(s.ref, s.locator), entity: s.ref })))
+  })
 };
 
 const MEDIA: Kind = {
@@ -717,6 +791,7 @@ const CARD: Kind = {
 /** Die Bausteine einer Kartenvorlage — die Palette, die der Editor zeigt [D2, D3]. */
 export const TEMPLATE_PALETTE = paletteOf<TemplateContext>('card-template', [
   FIELD, MEDIA, FOLLOW, LIST, SELF, ENTRIES, FILTER, UNIQUE,
+  STATEMENT_THESIS, STATEMENT_PART, STATEMENT_TABLE, STATEMENT_SUBJECTS,
   PATTERN, MASK, FRAGMENTS,
   PICK, DISTRACTORS, EACH, PAIRS,
   RANDOM, MATH, COMPARE, WHEN, PYTHON,
