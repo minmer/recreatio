@@ -428,7 +428,7 @@ function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
       );
     }
     case 'entity':
-      return <div className="wk-field">{label}<EntityPicker lib={lib} kinds={field.kinds} refs={field.kinds?.some((k) => BOOK_KINDS.has(k)) === true} value={typeof value === 'string' && value !== '' ? value : null} onPick={(id) => onSet(id ?? undefined)} /></div>;
+      return <div className="wk-field">{label}<EntityPicker lib={lib} kinds={field.kinds} refs={field.kinds?.some((k) => BOOK_KINDS.has(k) || k === 'topic') === true} value={typeof value === 'string' && value !== '' ? value : null} onPick={(id) => onSet(id ?? undefined)} /></div>;
     case 'collection':
       return (
         <label className="wk-field">{label}

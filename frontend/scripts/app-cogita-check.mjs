@@ -645,6 +645,30 @@ truth('… without "from" the kind comes from everywhere', new Set(anyLib.cards.
   check('the statement presets are offered for comments only', P.TEMPLATE_PRESETS.filter((x) => x.kinds !== undefined).map((x) => [x.id, x.kinds]), [['thesis', ['comment']], ['statement-table', ['comment']]]);
   check('the library kinds come from the library (comment yes, topic no)', [ST.BOOK_KINDS.has('comment'), ST.BOOK_KINDS.has('quote'), ST.BOOK_KINDS.has('topic')], [true, true, false]);
 }
+{
+  /* 2026-10-22 (Schritt 7) — ein Themensystem: Themen der Bibliothek, das Thema folgt den Rückverweisen, die Felder des Lernens sind eine Erweiterung. */
+  const U = (tail) => `00000000-0000-4000-8000-00000000${tail}`;
+  const fake = (libraryId, entries) => ({ libraryId, areaId: `a-${libraryId}`, revision: 1, all: () => entries, get: (id) => entries.find((x) => x.id === id), byKey: (k) => entries.find((x) => x.key === k) });
+  const root = { id: U('a001'), kind: 'topic', key: 'tajemnice', data: { name: 'Tajemnice różańca', aspect: 'yes' } };
+  const light = { id: U('a002'), kind: 'topic', key: 'swiatla', data: { name: 'Tajemnice światła', parent: [U('a001')] } };
+  const cana = { id: U('a003'), kind: 'topic', key: 'kana', data: { name: 'Cud w Kanie', parent: [U('a002')] } };
+  const sermon = { id: U('b001'), kind: 'text', data: { title: 'Kana', topics: [U('a003')] } };
+  const statement = { id: U('b002'), kind: 'comment', data: { blocks: [{ type: 'paragraph', text: 'Maryja prowadzi do Syna.' }], topics: [U('a003')] } };
+  const other = { id: U('b003'), kind: 'text', data: { title: 'Inne', topics: [U('a001')] } };
+  const question = { id: U('b004'), kind: 'entity', data: { _kinds: ['question'], form: 'text', prompt: 'Gdzie był pierwszy cud?', answers: ['w Kanie'], about: [U('a003')] } };
+  const lib7 = new ST.CogitaLibrary(fake('base', [question]), false);
+  lib7.setSources([{ store: fake('lib', [root, light, cana, sermon, statement, other]), kind: 'books', name: 'Biblioteka' }]);
+  check('the topics of a source library are this base\'s topics', lib7.topics().map((t) => t.id).sort(), [U('a001'), U('a002'), U('a003')]);
+  const under = lib7.topicTree(U('a002'), 9);
+  truth('a topic subtree picks up sermons, statements and questions tagged there (backlinks)', [U('a002'), U('a003'), U('b001'), U('b002'), U('b004')].every((id) => under.has(id)), [...under]);
+  check('… not what is tagged above it', under.has(U('b003')), false);
+  check('… and depth limits the subtopics', lib7.topicTree(U('a001'), 0).has(U('a003')), false);
+  check('what points at a topic', [...lib7.taggedWith(U('a003'))].sort(), [U('b001'), U('b002'), U('b004')]);
+  const plainTopic = KD.kindDefs([]).find((k) => k.id === 'topic');
+  check('a plain topic has no learning fields', plainTopic.fields.some((f) => f.key === 'answers'), false);
+  check('… a base whose topics carry them still sees them', KD.kindDefs([{ id: 'x', kind: 'topic', data: { name: 'A', level: 2 } }]).find((k) => k.id === 'topic').fields.some((f) => f.key === 'level'), true);
+  check('… and the extension adds them (an override of the topic)', KD.kindDefs([{ id: 'k', kind: 'kind', data: KD.kindDoc({ ...KD.baseKind('topic'), fields: [...KD.TOPIC_LEARNING] }) }]).find((k) => k.id === 'topic').fields.map((f) => f.key).filter((k) => ['answers', 'open', 'landmark'].includes(k)), ['answers', 'landmark', 'open']);
+}
 check('a revision without a strategy is refused', (await R.planOf(G.readGraph({ nodes: [n('src', 'source.all')] }), revCtx())).problems, ['Powtórka nie ma kroku „Sposób pytania".']);
 
 const runAll = (session, correctness = () => 1, limit = 200) => {

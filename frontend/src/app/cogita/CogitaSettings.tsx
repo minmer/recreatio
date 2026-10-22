@@ -33,7 +33,6 @@ export function CogitaSettings() {
     void loadAreas().then((r) => setAreas(r.areas)).catch(() => undefined);
     if (me !== null) void loadLibraries().then((r) => openLibraries(me.ring, r.libraries)).then(setLibraries).catch(() => undefined);
   }, [me]);
-  const [tags, setTags] = useState(settings.tags.join('\n'));
   const [joinPage, setJoinPage] = useState(settings.joinPage ?? '');
   const save = (patch: Record<string, unknown>) => run(() => lib.saveSettings(patch));
   if (!writes) return <p className="wk-hint">Ustawienia bazy wiedzy zmieniają autorzy.</p>;
@@ -66,10 +65,12 @@ export function CogitaSettings() {
         <p className="wk-hint">Rankingi są tylko w sesjach na żywo.</p>
       </section>
 
+      {/* 2026-10-22 (Schritt 7) — Perspektiven sind eine Achse der Themen in der Bibliothek, keine Liste hier. */}
       <section className="cg-card">
-        <h3>Perspektywy (tagi wiedzy)</h3>
-        <textarea rows={3} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="historyczna&#10;duchowa&#10;literacka" />
-        <button type="button" className="wk-btn" disabled={busy} onClick={() => void save({ tags: tags.split('\n').map((t) => t.trim()).filter(Boolean) })}>Zapisz perspektywy</button>
+        <h3>Perspektywy</h3>
+        {settings.tags.length > 0
+          ? <p className="cg-muted">Perspektywy tej bazy ({settings.tags.join(', ')}) staną się osią tematów „Perspektywy” w bibliotece obszaru: Biblioteka → Porządki → „Tematy i perspektywy → biblioteka”.</p>
+          : <p className="cg-muted">Perspektywy to oś tematów „Perspektywy” w bibliotece obszaru — wartości dodaje się tam jak każdy temat, a wpisy dostają je w polu „Tematy”.</p>}
       </section>
 
       <section className="cg-card">

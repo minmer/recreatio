@@ -14,7 +14,7 @@ import { WorkspaceError } from '../core/session';
 import { nodeLabel, readAddForm } from './addForm';
 import { NewFormMenu } from './AddFormEditor';
 import { applyImport, courseDescription, exportSchema, planImport } from './json';
-import { isBaseKind } from './kinds';
+import { isBaseKind, TOPIC_LEARNING } from './kinds';
 import {
   FIELD_KEY, FIELD_ROLES, FIELD_TYPE_LABEL, FIELD_TYPES, MEDIA_TYPES, patternKeys, problemsOf, RANGE_OF, readKind,
   type FieldDef, type FieldType, type KindDef
@@ -209,6 +209,13 @@ function KindForm({ draft, writes, busy, onChange, onSave, onRemove }: { draft: 
       </div>
       <p className="wk-hint">W etykiecie: {draft.fields.map((f) => `{${f.key}}`).join(' ')} {patternKeys(draft.label).length === 0 && '— wzór nie używa jeszcze żadnego pola.'}</p>
       {base && <p className="wk-hint">Pola wbudowanego rodzaju zostają (korzystają z nich przypisy, publikacja i ISBN) — można zmienić ich nazwy i dodać własne.</p>}
+      {/* 2026-10-22 (Schritt 7) — die Felder des Lernens am Thema sind eine Erweiterung: hier dazunehmen (gespeichert als Änderung des Themas). */}
+      {draft.id === 'topic' && writes && TOPIC_LEARNING.some((m) => !draft.fields.some((f) => f.key === m.key)) && (
+        <p className="cg-row">
+          <button type="button" className="wk-btn wk-btn-line" onClick={() => set({ fields: [...draft.fields, ...TOPIC_LEARNING.filter((m) => !draft.fields.some((f) => f.key === m.key))] })}>+ Pola nauki</button>
+          <span className="cg-muted">odpowiedzi, dotyczy, głębokość, próg, wymiar, do rozwinięcia — tematy w tej bazie wiedzy</span>
+        </p>
+      )}
 
       {/*
         2026-10-17 — DIE EINSTELLUNGEN EINES FELDES STEHEN UNTER SEINER ZEILE, über

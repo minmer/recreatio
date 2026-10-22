@@ -419,3 +419,66 @@ the text). LaTeX prints the same with `\emph{…}`.
 3. Cogita → Do zrobienia: "Pytania bez odpowiedzi" and "Komentarze bez dobrej tezy".
 4. Porządki → "Wiedza → komentarze" on a base with a "Wiedza" entry: after "Wykonaj" it opens in the library as a
    comment; a flow line that spoke it still shows it.
+
+---
+
+## Step 7 — One topic system
+
+**Built**
+
+- **Topics from libraries are a base's topics** (`CogitaLibrary.topics()`): its own (until they move) and those of its
+  source libraries — the library's aspects are the axes. ExploreMap, "Do zrobienia" and the topic pickers of revisions
+  (also in graph nodes) use them.
+- **A topic follows backlinks** (`topicTree`, `taggedWith`): a topic and its subtopics take everything that points at
+  them — a sermon's `topics`, a statement's markup, a question's `about` — computed over the base and its library
+  material (`refsOf`), besides `answers` and `entity` as before. A revision "everything under Tajemnice światła" now
+  picks up statements, sermons and questions tagged there. A library topic with answers keeps giving its topic card.
+- **Learning fields are an optional extension** of the built-in topic (`TOPIC_LEARNING`: answers, entity, level,
+  landmark, dimension, open): Schemat → Temat → "+ Pola nauki" adds them as an override of the topic; a base whose
+  topics already carry them keeps seeing them (`kindDefs`). The built-in topic is the library topic. The `tags` field of
+  library texts in Cogita is gone; `answers` also accepts comments.
+- **Migration "Tematy i perspektywy → biblioteka"** (Porządki, tab 4, `rebuild/topicsToLibrary.ts`): the topics of every
+  base you may write move into the library of its area (same ids, parents kept, learning fields along; the base gets
+  "Pola nauki"); a topic the library already has (same name and parent) is named, not merged. Perspectives (the base's
+  settings list and the `tags` of entries) become the aspect topic "Perspektywy" with one value per perspective;
+  library entries with `tags` get those topics and lose `tags`; the settings list goes. Base entries whose kind has no
+  topics keep their perspectives and are named. Library creation and the source link are shared with tab 3
+  (`rebuild/areaLibrary.ts`).
+- Cogita settings: the perspectives textarea is replaced by a note pointing at the axis (and at the migration while a
+  list remains).
+- `courseDescription()` explains topics from the library, the learning extension and the perspectives axis.
+- Checks: `app-cogita-check` (topics from a source library; a subtree with sermons, statements and questions via
+  backlinks, nothing above it, depth; what points at a topic; topic fields plain / kept when used / added by the
+  extension), `app-library-check` 2f (the plan: move, twin named, extension, one axis case-insensitive, library entries
+  converted, base entries named, description), drive `topics-api.mjs` (moved topics with fields and parents, the twin
+  stays, the extension doc, the axis and its values, the comment's topics, the settings list gone, the base sees the
+  topics with their fields, the subtree holds the question via its `about`, a revision by topic asks it, second plan
+  empty).
+
+**Removed**
+
+- `TOPIC_MORE` as a part of the built-in topic (it is the `TOPIC_LEARNING` extension now), `TEXT_MORE` (perspectives
+  on texts), the perspectives list in Cogita settings (after the migration).
+
+**Choices**
+
+- **Twins are not merged automatically** — "report, don't guess": Cogita's "Połącz z duplikatem" merges, then the
+  migration runs again.
+- **`topic.answers` stays** for now (data rule: removed only after its data stands elsewhere); topic trees read it and
+  backlinks together. Dropping it needs the overview entries of a later step.
+- **Perspectives on topics stay in their field**: a library topic has no "Tematy" of its own; the plan names them.
+
+**Owner must run**
+
+- Deploy the website (no API change in this step; the step-6 API deploy covers the moves).
+- Biblioteka → Porządki → "Tematy i perspektywy → biblioteka" after "Wiedza → komentarze" (so moved statements bring
+  their perspectives into the library first).
+
+**Test in the browser**
+
+1. Cogita → Powtórki → "+ Nowa powtórka" → "Z czego: temat z podtematami" → pick "Tajemnice światła" (a library topic
+   now) → Utwórz → Ucz się: the cards of sermons, comments and questions tagged under it are asked (given templates for
+   texts or comments, or hand-written questions).
+2. Cogita → Schemat → Temat → "+ Pola nauki" → Zapisz: topics show Głębokość, Próg, Do rozwinięcia.
+3. Porządki → "Tematy i perspektywy": the plan lists the topics and the axis; after "Wykonaj" the library's Tematy show
+   "Perspektywy" with its values.

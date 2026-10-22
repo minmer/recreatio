@@ -24,7 +24,8 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
   const [learning, setLearning] = useState<string | null>(null);
 
   const { nodes, edges, place } = useMemo(() => {
-    const topics = lib.ofKind('topic');
+    /* 2026-10-22 — die Themen aus allen Quellen (ein Themensystem). */
+    const topics = lib.topics();
     const ids = new Set<string>(topics.map((t) => t.id));
     const links: { from: string; to: string }[] = [];
     for (const t of topics) {

@@ -22,6 +22,7 @@
 import { newId } from '../core/ids';
 import type { Entry, LibraryStore } from '../library/libraryStore';
 import { entryTitle, KINDS as LIBRARY_KINDS, type Lookup as MarkupLookup } from '../library/libraryKinds';
+import { refsOf } from '../library/refIndex';
 import { cardsOf, questionCard, readTemplate, templatesFor, topicCard, type Template } from './cards';
 import { type Card } from './cardBasics';
 import { baseKind, DOC_KINDS, entityOf, entryData, isBaseKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, type DocKind } from './kinds';
@@ -256,6 +257,8 @@ interface Memo {
   markup: MarkupLookup | null;
   /** 2026-10-22 — die eigenen Arten und die der Bibliotheken, aus denen Stoff kommt. */
   materialKinds: readonly KindDef[] | null;
+  /** 2026-10-22 (Schritt 7) — wer auf welches Thema zeigt (Feld oder Zapis), über Eigenes und Stoff. */
+  topicLinks: Map<string, Set<string>> | null;
 }
 
 /** Suchtext je Entität: Etikett, Unterscheidung, alle Textwerte — ohne Akzente. */
@@ -332,7 +335,7 @@ export class CogitaLibrary {
         wo es Einträge von ihnen gibt. Die Maschine kennt sie trotzdem (`look`).
       */
       stamp, kinds, contentKinds: kinds.filter((k) => !BOOK_KINDS.has(k.id) && (!isBaseKind(k.id) || byKind.has(k.id) || added.has(k.id))), entities, refs,
-      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, search: null, refSearch: null, markup: null, materialKinds: null
+      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, search: null, refSearch: null, markup: null, materialKinds: null, topicLinks: null
     };
     return this.memo;
   }
@@ -468,19 +471,63 @@ export class CogitaLibrary {
     return out;
   }
 
-  /** Ein Thema und seine Unterthemen bis zur Tiefe — mit dem, was sie beantworten und woran sie hängen. */
+  /**
+   * 2026-10-22 (Schritt 7) — ALLE THEMEN, die diese Baza kennt: die eigenen
+   * (bis zum Umzug), die ihrer Bazy-Quellen und die der Bibliotheken, aus denen
+   * sie schöpft — EIN Themensystem mit den Achsen der Bibliothek.
+   */
+  topics(): readonly Entity[] {
+    return [...this.ofKind('topic'), ...this.fresh().refs.filter((r) => r.kinds.includes('topic'))];
+  }
+
+  /** Wer auf ein Thema zeigt — ein Feld (`topics`, `about`, `subjects` …) oder der Zapis —, unter allem Eigenen und dem Stoff der Quellen. */
+  private topicLinks(): Map<string, Set<string>> {
+    const m = this.fresh();
+    if (m.topicLinks === null) {
+      const topics = new Set(this.topics().map((t) => t.id));
+      const links = new Map<string, Set<string>>();
+      const resolve = (token: string) => this.resolve(token);
+      for (const e of [...m.entities, ...m.refs]) {
+        for (const ref of refsOf(e, resolve)) {
+          if (!topics.has(ref.target) || ref.target === e.id) continue;
+          let set = links.get(ref.target);
+          if (set === undefined) { set = new Set(); links.set(ref.target, set); }
+          set.add(e.id);
+        }
+      }
+      m.topicLinks = links;
+    }
+    return m.topicLinks;
+  }
+
+  /** Was auf ein Thema zeigt (ohne seine Unterthemen). */
+  taggedWith(topicId: string): ReadonlySet<string> {
+    return this.topicLinks().get(topicId) ?? new Set();
+  }
+
+  /**
+   * Ein Thema und seine Unterthemen bis zur Tiefe — mit dem, was auf sie zeigt
+   * (2026-10-22: Rückverweise — eine Frage über `about`, ein Kazanie über
+   * `topics`, ein Komentarz in seinem Zapis), was sie beantworten und woran
+   * sie hängen. Themen auch aus den Bibliotheken der Quellen.
+   */
   topicTree(topicId: string, depth: number): ReadonlySet<string> {
     const out = new Set<string>();
     const look = this.look;
     const children = new Map<string, string[]>();
-    for (const t of this.ofKind('topic')) {
+    const links = this.topicLinks();
+    for (const t of this.topics()) {
       const field = fieldsOf(t, look).find((f) => f.key === 'parent');
       for (const v of field === undefined ? [] : valuesOf(t, field)) if (typeof v.value === 'string') children.set(v.value, [...(children.get(v.value) ?? []), t.id]);
     }
+    /* Besucht wird je Thema einmal — ein Unterthema zeigt über \`parent\` auf sein Oberthema und steht so schon in \`out\`, bevor es selbst dran ist. */
+    const seen = new Set<string>();
     const walk = (id: string, left: number) => {
-      if (out.has(id)) return;
+      if (seen.has(id)) return;
+      seen.add(id);
       out.add(id);
       const topic = this.entity(id);
+      for (const linked of links.get(id) ?? []) out.add(linked);
       if (topic !== undefined) {
         for (const key of ['answers', 'entity']) {
           const field = fieldsOf(topic, look).find((f) => f.key === key);
@@ -716,6 +763,11 @@ export class CogitaLibrary {
       }
       const material = (kind: string) => this.material(kind);
       for (const entity of this.fresh().refs) {
+        /* 2026-10-22 (Schritt 7) — ein Thema der Bibliothek mit Odpowiedzi (ein umgezogenes) gibt seine Karte wie vorher. */
+        if (entity.kinds.includes('topic')) {
+          const card = topicCard(entity, look);
+          if (card !== null) cards.push(card);
+        }
         for (const template of templatesFor(entity, templates).filter((t) => t.kinds.some((k) => BOOK_KINDS.has(k) && entity.kinds.includes(k)))) {
           const done = await cardsOf(template, { look, entity, pool: material, seed, ...(this.python === undefined ? {} : { python: this.python }) });
           cards.push(...done.cards);

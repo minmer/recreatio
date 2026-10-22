@@ -23,11 +23,13 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
   const look = lib.look;
 
   /* 0110 — was offen ist, in DIESER Baza wiedzy; was eine Quelle offen hat, ist dort zu tun. */
-  const open = lib.ofKind('topic').filter((t) => lib.isOwn(t.id)).filter((t) => {
+  /* 2026-10-22 (Schritt 7) — Themen aus allen Quellen: als offen markierte; dazu eigene, auf die nichts zeigt. */
+  const open = lib.topics().filter((t) => {
     const f = fieldsOf(t, look);
     const flag = f.find((x) => x.key === 'open');
     const answers = f.find((x) => x.key === 'answers');
-    return (flag !== undefined && valuesOf(t, flag)[0]?.value === true) || (answers !== undefined && valuesOf(t, answers).length === 0 && t.kinds.includes('topic') && lib.backlinks(t.id).length === 0);
+    return (flag !== undefined && valuesOf(t, flag)[0]?.value === true)
+      || (lib.isOwn(t.id) && (answers === undefined || valuesOf(t, answers).length === 0) && lib.taggedWith(t.id).size === 0);
   });
 
   const stale = [...lib.ofKind('knowledge'), ...lib.ofKind('topic')].filter((e) => lib.isOwn(e.id)).filter((e) => {

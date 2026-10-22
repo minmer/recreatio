@@ -105,7 +105,7 @@ const field = (key: string, label: string, type: FieldType, more: Partial<FieldD
  * zusätzlich zu Name, Beschreibung und Oberthema der Bibliothek.
  */
 const TOPIC_MORE: readonly FieldDef[] = [
-  field('answers', 'Odpowiedzi', 'ref', { multi: true, to: ['knowledge', 'text', 'quote'], inverse: 'odpowiada na', says: 'Wiedza, teksty i cytaty, które odpowiadają na ten temat (pytanie)' }),
+  field('answers', 'Odpowiedzi', 'ref', { multi: true, to: ['comment', 'knowledge', 'text', 'quote'], inverse: 'odpowiada na', says: 'Komentarze, teksty i cytaty, które odpowiadają na ten temat (pytanie)' }),
   field('entity', 'Dotyczy', 'ref', { inverse: 'tematy', says: 'Wpis, o którym jest ten temat (np. osoba)' }),
   field('level', 'Głębokość', 'number', { says: 'Jak głęboko sięga (1 — podstawy, 2, 3 … — dalej)' }),
   field('landmark', 'Próg', 'bool', { says: 'Pojęcie progowe: bez niego dalej się nie da (tak/nie)' }),
@@ -114,15 +114,24 @@ const TOPIC_MORE: readonly FieldDef[] = [
   field('tags', 'Perspektywy', 'list', { says: 'Perspektywy z listy bazy wiedzy (np. historyczna, duchowa)' })
 ];
 
-/** Was ein eigener Text zusätzlich trägt: die Wissenssätze, die er einbettet, stehen in seinem Zapis (`![@…]`). */
-const TEXT_MORE: readonly FieldDef[] = [
-  field('tags', 'Perspektywy', 'list', { says: 'Perspektywy z listy bazy wiedzy' })
-];
+/**
+ * 2026-10-22 (Schritt 7) — EIN THEMENSYSTEM: das Thema ist das der Bibliothek
+ * (Name, Beschreibung, Oberthema, Aspekt, Ordnung). Was Cogita am Thema lernt
+ * — Odpowiedzi, Dotyczy, Głębokość, Próg, Wymiar, Do rozwinięcia — ist eine
+ * ERWEITERUNG, die eine Baza dazunimmt (Schemat → Temat → „+ Pola nauki"; sie
+ * steht dann als Änderung des eingebauten Themas in ihrem Schema). Perspektiven
+ * sind keine Felder mehr: sie werden Aspekte (Porządki → „Tematy i perspektywy").
+ * Eine Baza, deren Themen die Felder schon tragen, sieht sie weiter (`kindDefs`).
+ */
+export const TOPIC_LEARNING: readonly FieldDef[] = TOPIC_MORE.filter((f) => f.key !== 'tags');
+
+/** Trägt ein Thema schon Felder des Lernens (aus der Zeit, als sie zum Thema gehörten)? */
+const usesLearning = (entry: LibEntry): boolean => entry.kind === 'topic' && TOPIC_MORE.some((f) => entry.data[f.key] !== undefined);
 
 function builtin(id: string): KindDef {
   const lib = LIBRARY_KINDS.find((k) => k.kind === id)!;
   const fields = lib.fields.map(fromLibrary);
-  const more = id === 'topic' ? TOPIC_MORE : id === 'text' ? TEXT_MORE : [];
+  const more: readonly FieldDef[] = [];
   return {
     id,
     name: lib.label,
@@ -232,14 +241,18 @@ function overridden(base: KindDef, doc: KindDef): KindDef {
 export function kindDefs(entries: Iterable<LibEntry>): KindDef[] {
   const overrides = new Map<string, KindDef>();
   const own: KindDef[] = [];
+  let learning = false;
   for (const entry of entries) {
+    if (usesLearning(entry)) learning = true;
     if (entry.kind !== 'kind') continue;
     const builtinId = typeof entry.data.builtin === 'string' ? entry.data.builtin : null;
     const base = builtinId === null ? undefined : BASE_BY_ID.get(builtinId);
     if (base !== undefined) overrides.set(base.id, overridden(base, readKind(base.id, entry.data)));
     else own.push(readKind(entry.id, entry.data));
   }
-  return [...BASE.map((k) => overrides.get(k.id) ?? k), ...own];
+  /* Die Felder des Lernens: wo die Baza sie dazugenommen hat (eine Änderung des Themas) — oder wo Themen sie schon tragen. */
+  const topic = (k: KindDef): KindDef => (!learning ? k : { ...k, fields: [...k.fields, ...TOPIC_MORE.filter((m) => !k.fields.some((f) => f.key === m.key))] });
+  return [...BASE.map((k) => { const done = overrides.get(k.id) ?? k; return k.id === 'topic' ? topic(done) : done; }), ...own];
 }
 
 /** Der Eintrag, der eine eingebaute Art ändert — damit ein zweites Speichern ihn trifft und nicht einen neuen anlegt. */

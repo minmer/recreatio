@@ -6,5 +6,6 @@
 import type { Rebuild } from './rebuild';
 import { knowledgeToStatements } from './knowledgeToStatements';
 import { refsToIds } from './refsToIds';
+import { topicsToLibrary } from './topicsToLibrary';
 
-export const REBUILDS: readonly Rebuild[] = [refsToIds, knowledgeToStatements];
+export const REBUILDS: readonly Rebuild[] = [refsToIds, knowledgeToStatements, topicsToLibrary];

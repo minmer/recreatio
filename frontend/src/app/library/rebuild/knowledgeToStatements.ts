@@ -24,9 +24,10 @@
  */
 
 import { plural } from '../../core/plural';
-import { createLibrary, libraryKindOf, loadLibraries, openLibraries } from '../library';
+import { libraryKindOf } from '../library';
 import { ids, str, type EntryData, type LibEntry } from '../libraryKinds';
-import { storeOf, type Entry, type LibraryStore } from '../libraryStore';
+import type { Entry, LibraryStore } from '../libraryStore';
+import { libraryFor, linkSource, newLibraryName, targetIn } from './areaLibrary';
 import { libraryName, writes, type Change, type Rebuild, type RebuildCtx, type RebuildPlan } from './rebuild';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -65,16 +66,6 @@ export function knowledgeAsStatement(data: EntryData): EntryData {
   };
 }
 
-/** Die Bibliothek des Bereichs, in die ein Wiedza zieht: eine Quelle der Baza zuerst, dann jede, in der ich schreiben darf. */
-function targetIn(ctx: RebuildCtx, base: LibraryStore): string | null {
-  const settings = base.all().find((e) => e.kind === 'settings');
-  const sources = new Set((Array.isArray(settings?.data.sources) ? settings!.data.sources : []).map((s) => (isObject(s) ? str(s, 'id') : '')));
-  const candidates = ctx.libraries.filter((l) => libraryKindOf(l) === 'books' && l.areaId === base.areaId && l.writes);
-  return (candidates.find((l) => sources.has(l.libraryId)) ?? candidates[0])?.libraryId ?? null;
-}
-
-const areaName = (ctx: RebuildCtx, areaId: string) => ctx.areas.find((a) => a.areaId === areaId)?.name ?? 'obszar';
-
 export const knowledgeToStatements: Rebuild = {
   id: 'wiedza',
   title: 'Wiedza → komentarze',
@@ -97,7 +88,7 @@ export const knowledgeToStatements: Rebuild = {
         continue;
       }
       const target = targetIn(ctx, store);
-      const into = target === null ? `nowej bibliotece „Komentarze — ${areaName(ctx, base.areaId)}”` : `bibliotece „${libraryName(ctx, target)}”`;
+      const into = target === null ? `nowej bibliotece „${newLibraryName(ctx, base.areaId)}”` : `bibliotece „${libraryName(ctx, target)}”`;
       for (const e of knowledge) {
         const published = (e as Entry).publishedAt != null;
         changes.push({
@@ -116,29 +107,15 @@ export const knowledgeToStatements: Rebuild = {
     const report: string[] = [];
     let moved = 0;
     const failed: string[] = [];
-    const created = new Map<string, LibraryStore>();
+    const made = new Map<string, LibraryStore>();
     const linked = new Set<string>();
     for (const change of plan.changes.filter((c) => c.ok && c.entryId !== undefined)) {
       const base = ctx.stores.get(change.libraryId);
       const entry = base?.own(change.entryId!);
       if (base === undefined || entry === undefined || !isKnowledge(entry)) continue;
       try {
-        /* Die Bibliothek des Bereichs — vorhanden oder neu. */
-        let targetId = targetIn(ctx, base);
-        let target = targetId === null ? created.get(base.areaId) : ctx.stores.get(targetId);
-        if (target === undefined) {
-          if (targetId === null) {
-            ctx.progress(`Zakładanie biblioteki „Komentarze — ${areaName(ctx, base.areaId)}”…`);
-            targetId = await createLibrary(ctx.me.ring, base.areaId, `Komentarze — ${areaName(ctx, base.areaId)}`);
-            report.push(`Założono bibliotekę „Komentarze — ${areaName(ctx, base.areaId)}” w obszarze „${areaName(ctx, base.areaId)}”.`);
-          }
-          const rows = await openLibraries(ctx.me.ring, (await loadLibraries()).libraries);
-          const row = rows.find((r) => r.libraryId === targetId);
-          if (row === undefined) throw new Error('nie widać biblioteki docelowej');
-          target = storeOf(ctx.me.ring, row);
-          await target.sync();
-          created.set(base.areaId, target);
-        }
+        /* Die Bibliothek des Bereichs — vorhanden oder neu (`areaLibrary.ts`). */
+        const target = await libraryFor(ctx, base, made, report);
         ctx.progress(`Przenoszenie: ${change.where}`);
         await base.moveTo(entry.id, target, { kind: 'comment', data: knowledgeAsStatement(entry.data) });
         moved += 1;
@@ -146,13 +123,7 @@ export const knowledgeToStatements: Rebuild = {
         const pair = `${base.libraryId}>${target.libraryId}`;
         if (!linked.has(pair)) {
           linked.add(pair);
-          const settings = base.all().find((e) => e.kind === 'settings');
-          const sources = Array.isArray(settings?.data.sources) ? settings!.data.sources.filter(isObject) : [];
-          if (!sources.some((s) => str(s, 'id') === target!.libraryId)) {
-            const name = ctx.libraries.find((l) => l.libraryId === target!.libraryId)?.name ?? `Komentarze — ${areaName(ctx, base.areaId)}`;
-            await base.save({ ...(settings === undefined ? {} : { id: settings.id }), kind: 'settings', data: { ...(settings?.data ?? {}), sources: [...sources, { id: target.libraryId, kind: 'books', name }] } });
-            report.push(`„${libraryName(ctx, base.libraryId)}” korzysta teraz z biblioteki „${name}”.`);
-          }
+          await linkSource(ctx, base, target, report);
         }
       } catch (e) {
         failed.push(`${change.where}: ${e instanceof Error ? e.message : 'nie udało się'}`);

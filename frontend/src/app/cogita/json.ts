@@ -425,6 +425,7 @@ ${kindsSection()}
 "entities" — wpisy: {"ref", "kinds": ["person", "Postać"], "data": {pole: wartość}}
   wiedza: "kinds": ["knowledge"], "data": {"text": "Dawid był [[królem|@izrael]]…", "tags": ["historyczna"], "about": ["@dawid"]}
     od 2026-10-22 nowe stwierdzenia zapisuj jako komentarze w bibliotece, z której korzysta baza (format "recreatio/library", rodzaj "comment": teza w pierwszym zdaniu, źródło jako przypis); "knowledge" zostaje dla istniejących wpisów
+    tematy: tematy biblioteki-źródła ("topic", oś = temat z "aspect": "yes", wartości to jego podtematy); pola nauki tematu ("answers", "entity", "level", "landmark", "dimension", "open") to rozszerzenie: {"builtin": "topic", "fields": [{"key": "level", "label": "Głębokość", "type": "number"}, …]} w "kinds"; perspektywy to oś „Perspektywy” — wpis dostaje temat w polu "topics"; powtórka „temat" bierze wszystko, co wskazuje na temat lub jego podtematy
     karty z komentarzy: szablon z "kinds": ["comment"] i węzłami "statement.thesis" (teza), "statement.part" ({"n": 2} — drugi kawałek; puste: akapity), "statement.table" ({"table": 1, "left": 1, "right": 2} — pary z kolumn), "statement.subjects" (o czym, z miejscem)
     zapis tekstu (ten sam co w Bibliotece): akapity oddziela pusta linia, "## śródtytuł", **pogrubienie**, *kursywa*, [opis](https://…), ^[przypis], "> cytat", "- punkt";
     [[słowo|@wpis]] — link do wpisu (tej bazy, innej bazy albo biblioteki) z tymi słowami; nigdy przypis;

@@ -73,7 +73,7 @@ function NewRevision({ onMade }: { onMade: (id: string) => void }) {
         {from === 'kind' && BOOK_KINDS.has(kind) && lib.templates().every((t) => !t.kinds.includes(kind)) && (
           <p className="wk-warn">Z tego rodzaju nie powstają jeszcze karty — dodaj w „Karty” szablon dla niego (np. „Luki w cytacie”).</p>
         )}
-        {from === 'topic' && <EntityPicker lib={lib} kinds={['topic']} value={topic} onPick={setTopic} />}
+        {from === 'topic' && <EntityPicker lib={lib} kinds={['topic']} refs value={topic} onPick={setTopic} />}
         {from === 'collection' && <select value={collection} onChange={(e) => setCollection(e.target.value)}>{lib.collections().map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>}
         <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => {
           const doc = p.make(from === 'kind' ? { kind, library } : from === 'topic' && topic !== null ? { topic } : from === 'collection' && collection !== '' ? { collection } : undefined);

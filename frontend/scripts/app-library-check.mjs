@@ -62,6 +62,7 @@ export * from '${app}library/refIndex';
 export { Relations, PassageBox, PassageList } from '${app}library/LibraryRelations';
 export { StatementMarks } from '${app}library/markupView';
 export { knowledgeAsStatement, isKnowledge } from '${app}library/rebuild/knowledgeToStatements';
+export { topicsToLibrary, PERSPECTIVES } from '${app}library/rebuild/topicsToLibrary';
 export { textToLatex, planToLatex } from '${app}library/libraryLatex';
 export { archiveRow, browseLocal, choose, facetKey, PROJECTS } from '${app}library/browse';
 export { layoutOf } from '${app}library/archiveLayout';
@@ -387,6 +388,36 @@ try {
     assert.ok(told.includes('pierwsze zdanie pierwszego akapitu jest tezą') && told.includes('Pytanie to komentarz') && told.includes('aplikacja wylicza sama'), 'the description tells an AI how statements work');
     assert.ok(m.courseDescription().includes('"statement.thesis"') && m.courseDescription().includes('"kinds": ["comment"]'), 'the Cogita description shows statement templates');
   }
+  /* -- 2f. Themen und Perspektiven → Bibliothek: der Plan (Schritt 7) ------------------------------------ */
+  {
+    const store = (libraryId, areaId, entries) => ({ libraryId, areaId, all: () => entries, ofKind: (k) => entries.filter((e) => e.kind === k), title: (e) => String(e.data.name ?? e.data.title ?? e.id) });
+    const base = store('base', 'area-1', [
+      { id: 't1', kind: 'topic', data: { name: 'Modlitwa', level: 2 } },
+      { id: 't2', kind: 'topic', data: { name: 'Post' } },
+      { id: 'e1', kind: 'entity', data: { _kinds: ['question'], tags: ['duchowa'] } },
+      { id: 'set', kind: 'settings', data: { tags: ['historyczna', 'duchowa'], sources: [{ id: 'lib', kind: 'books', name: 'B' }] } }
+    ]);
+    const lib = store('lib', 'area-1', [
+      { id: 'twin', kind: 'topic', data: { name: 'post' } },
+      { id: 'c1', kind: 'comment', data: { blocks: [], tags: ['Historyczna'] } }
+    ]);
+    const ctx = {
+      me: { ring: null }, areas: [{ areaId: 'area-1', name: 'Parafia' }], progress: () => undefined,
+      libraries: [{ libraryId: 'base', areaId: 'area-1', kind: 'knowledge', writes: true, name: 'Baza' }, { libraryId: 'lib', areaId: 'area-1', kind: 'books', writes: true, name: 'Biblioteka' }],
+      stores: new Map([['base', base], ['lib', lib]])
+    };
+    const plan = await m.topicsToLibrary.plan(ctx);
+    const by = (key) => plan.changes.find((c) => c.key === key);
+    assert.ok(by('t:t1').ok && by('t:t1').what.includes('Biblioteka'), 'a topic moves into the library of its area');
+    assert.ok(!by('t:t2').ok && by('t:t2').what.includes('Połącz z duplikatem'), 'a topic the library already has is not guessed — merge first');
+    assert.ok(by('l:base')?.ok, 'learning fields in use: the base gets the extension');
+    assert.ok(by('p:base').what.includes('historyczna') && by('p:base').what.includes('duchowa') && !by('p:base').what.includes('Historyczna'), 'one axis value per perspective, case-insensitive');
+    assert.ok(by('e:c1')?.ok, 'a library comment with perspectives gets topics');
+    assert.ok(by('e:e1')?.ok === false, 'a base entry with perspectives stays (its kind has no topics)');
+    assert.ok(m.courseDescription().includes('perspektywy to oś') && m.courseDescription().includes('"builtin": "topic"'), 'the Cogita description explains one topic system');
+  }
+  ok('topics and perspectives → library: plan (move, twins named not merged, learning extension, one axis, entries)');
+
   ok('statements: the thesis is the first sentence (abbreviations, markup), questions, information vs interpretation, knowledge → comment under the same id, the marks');
 
   ok('Scripture: books in Polish, Latin and English, ranges, lists, chapters, canonical order; the reference index over libraries and knowledge bases (fields, markup with places, comment subjects and cells, sources of values, documents); a passage found in every edition');

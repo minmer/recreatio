@@ -102,6 +102,7 @@ The service cannot read sealed entries, so every change of their content runs in
 1. **Widoczność i komentarze** — the visibility change below.
 2. **Odwołania w tekstach** (`rebuild/refsToIds.ts`) — texts saved before 2026-10-22 name entries by key; this rewrites them to ids, in every library and knowledge base you may write (`[[Wort|@token]]` links of knowledge bases too). Keys that resolve nowhere stay as written and are listed.
 3. **Wiedza → komentarze** (`rebuild/knowledgeToStatements.ts`, step 6) — every "Wiedza" of a knowledge base you may write moves into a library of the SAME area as a comment, under the same id (`LibraryStore.moveTo` with `as`; the service allows moves out of a base only within its area, so nobody reads more than before). `text` → the first paragraph, `source` + `locator` → a citation inside it ("… [@bt, Dz 1,14]."), `about` → subjects, `tags` and every other field stay. The library becomes a source of the base, so flows, questions ("Wyjaśnienie"), topics and progress still find the entries. Without a writable library in the area one is made ("Komentarze — <obszar>"). Not moved, and said why: entries that have other kinds too, published ones (their public copy would go — after step 8), bases you only read.
+4. **Tematy i perspektywy → biblioteka** (`rebuild/topicsToLibrary.ts`, step 7) — the topics of every base you may write move into the library of its area (same ids; a topic the library already has — same name, same parent — is named, not merged: merge it in Cogita first). Topics with learning fields bring them along, and the base gets the "Pola nauki" extension. Perspectives (the base settings list and the `tags` of entries) become the aspect "Perspektywy" with one topic per perspective; library entries with `tags` (comments moved in step 6, texts) get those topics in "Tematy" and lose `tags` once all are there; the settings list goes. The library and base helpers are shared with tab 3 (`rebuild/areaLibrary.ts`).
 
 ### Visibility (2026-10-22)
 
@@ -275,6 +276,7 @@ These follow the standing JSON rule.
 - **A base reads libraries as sources** (`settings.sources`, `cogita/sources.ts`): their works, quotes, persons and comments are reference targets and card material (2026-10-22: a template over a library kind makes cards of its entries; a revision can take "Cytaty" from one library); they are never copied.
 - **Cards are computed, not stored.** A card is `template:entry[:value]` plus a direction; answers go into sealed `learn_batch` rows of the storage area, keyed by those ids.
 - **Collections, views, revisions and flows are documents of the base** that hold entry ids and rules.
+- **One topic system** (2026-10-22, step 7): the library topics with their aspects are the axes; a base sees the topics of its source libraries, a revision "everything under a topic" takes what points at it (backlinks); Cogita's learning fields on topics are an extension of the base, perspectives an aspect "Perspektywy".
 - **Writing is the library's `text` and `project`** with the `[@key]` / `![@key]` markup.
 
 ## Adding a kind
