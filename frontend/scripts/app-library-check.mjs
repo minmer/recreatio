@@ -142,6 +142,62 @@ try {
   assert.equal(m.excerpt('## T\nJeden dwa trzy cztery pięć sześć', 16), 'Jeden dwa trzy…', 'the start of a text skips its headings');
   ok('markup: headings, paragraphs, lists, quotes, embeds, cites with locators, notes, safe links, escapes, words');
 
+  /* -- 2b. Kennungen im Speicher, Schlüssel im Editor (2026-10-22) ------------------------- */
+  {
+    const up = (t) => (t === 'a' ? 'ID-A' : t === 'b' ? 'ID-B' : t);
+    const text = 'X [@a, s. 3; @b] y ^[n [@a]] [link](https://e.pl) \\[@a] [[Wort|@a]]\n\n![@b, J 1,1]\n\n[@zzz]';
+    const mapped = m.mapRefTokens(text, up);
+    assert.equal(mapped, 'X [@ID-A, s. 3; @ID-B] y ^[n [@ID-A]] [link](https://e.pl) \\[@a] [[Wort|@ID-A]]\n\n![@ID-B, J 1,1]\n\n[@zzz]', 'only reference tokens change: cites, notes, embeds, base links — escapes and links stay');
+    assert.equal(m.mapRefTokens(mapped, (t) => (t === 'ID-A' ? 'a' : t === 'ID-B' ? 'b' : t)), text, 'and back, character for character');
+
+    const W = { id: '11111111-1111-4111-8111-111111111111', kind: 'work', key: 'ratz', data: { workType: 'book', title: 'Jezus' } };
+    const W2 = { id: '22222222-2222-4222-8222-222222222222', kind: 'work', key: 'ratz', data: { workType: 'book', title: 'Inny Ratzinger' } };
+    const L1 = look([W]);
+    assert.equal(m.storedText('Zob. [@ratz, s. 5] i [@nie-ma].', L1), `Zob. [@${W.id}, s. 5] i [@nie-ma].`, 'a key that resolves is stored as the id; an unknown key stays as typed');
+    assert.equal(m.shownText(`Zob. [@${W.id}, s. 5].`, L1), 'Zob. [@ratz, s. 5].', 'the editor shows the key');
+    /* Dieselbe Taste in zwei Bibliotheken: von hier aus führt „ratz" zu W — für W2 bleibt die Kennung stehen. */
+    const both = { get: (id) => [W, W2].find((e) => e.id === id), byKey: (k) => (k === 'ratz' ? W : undefined) };
+    assert.equal(m.shownText(`[@${W2.id}] [@${W.id}]`, both), `[@${W2.id}] [@ratz]`, 'an ambiguous key is never shown — the id stays, so the text keeps pointing at the right entry');
+
+    const sermon = { id: 's1', kind: 'text', data: {
+      body: 'A [@ratz, s. 1].', plan: [{ id: 'p1', text: 'Punkt [@ratz]' }]
+    } };
+    const stored = m.storedMarkup('text', sermon.data, L1);
+    assert.equal(stored.body, `A [@${W.id}, s. 1].`);
+    assert.equal(stored.plan[0].text, `Punkt [@${W.id}]`, 'plan points are text too');
+    const comment = { subjects: [{ ref: W.id }], blocks: [{ type: 'paragraph', text: 'Por. [@ratz].' }, { type: 'table', columns: ['A'], rows: [[[{ text: 'zob. [@ratz]' }, { ref: W.id }]]] }] };
+    const storedComment = m.storedMarkup('comment', comment, L1);
+    assert.equal(storedComment.blocks[0].text, `Por. [@${W.id}].`);
+    assert.equal(storedComment.blocks[1].rows[0][0][0].text, `zob. [@${W.id}]`, 'text runs in table cells too');
+    assert.deepEqual(storedComment.blocks[1].rows[0][0][1], { ref: W.id }, 'real refs stay refs');
+    assert.equal(m.storedMarkup('text', { body: 'bez odwołań' }, L1).body, 'bez odwołań');
+
+    /* Die Taste ändert sich: der gespeicherte Text zeigt weiter auf denselben Eintrag. */
+    const renamed = { ...W, key: 'ratzinger-jezus' };
+    const html = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: { id: 's1', kind: 'text', data: stored }, look: look([renamed]) }));
+    assert.ok(html.includes('Jezus') && !html.includes('brak źródła'), 'a renamed key orphans nothing: the footnote still finds the work');
+    assert.deepEqual(m.nextAliases('ratz', 'ratzinger-jezus', []), ['ratz'], 'the old key stays as a second key');
+    assert.deepEqual(m.nextAliases('b', 'a', ['a', 'c', 'C']), ['c', 'b'], 'never the new key, each once');
+
+    /* JSON: hinaus mit Schlüsseln, herein wieder Kennungen — und nichts ändert sich. */
+    const shelf = [W, { id: 's2', kind: 'text', key: 'kaz', data: { title: 'K', body: `Tekst [@${W.id}, s. 9].` } }];
+    const S2 = look(shelf);
+    const out = m.exportLibrary('x', shelf, S2);
+    const outText = out.entries.find((e) => e.id === 's2');
+    assert.equal(outText.data.body, 'Tekst [@ratz, s. 9].', 'the JSON shows keys');
+    const back = m.planLibraryImport(out, S2);
+    assert.equal(back.unchanged, shelf.length, 'export → import: the keys turn back into the same ids');
+    const fresh = m.planLibraryImport({ entries: [{ kind: 'work', key: 'nowe', data: { title: 'Nowe' } }, { kind: 'text', data: { title: 'T', body: 'Cytuję [@nowe] i [@brak].' } }] }, look([]));
+    const made = fresh.drafts.find((d) => d.kind === 'text');
+    const work = fresh.drafts.find((d) => d.kind === 'work');
+    assert.equal(made.data.body, `Cytuję [@${work.id}] i [@brak].`, 'import stores ids for keys of the same document');
+    assert.ok(fresh.warnings.some((w) => w.includes('@brak')), 'an unknown key is reported');
+    const aliased = m.planLibraryImport({ entries: [{ id: W.id, kind: 'work', key: 'ratz', data: { _aliases: ['stary'] } }] }, L1);
+    assert.deepEqual(aliased.drafts[0].data._aliases, ['stary'], 'old keys travel through JSON without a warning');
+    assert.equal(aliased.warnings.length, 0);
+  }
+  ok('ids in markup: only reference tokens are rewritten, stored as ids, shown as keys (ambiguous ones stay ids), a renamed key orphans nothing, JSON round trip');
+
   /* -- 3. Die Angaben -------------------------------------------------------------------- */
   const P = (id, given, surname, extra = {}) => ({ id, kind: 'person', key: id, data: { givenNames: given, surname, ...extra } });
   const W = (id, data) => ({ id, kind: 'work', key: id, data });

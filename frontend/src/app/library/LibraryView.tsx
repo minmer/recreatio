@@ -7,7 +7,7 @@
  *   #/workspace/library/&lt;id&gt;/cytaty           ein Reiter
  *   #/workspace/library/&lt;id&gt;/&lt;eintrag&gt;        ein Eintrag, ganz
  *   #/workspace/library/&lt;id&gt;/nowy/&lt;art&gt;      ein neuer
- *   #/workspace/library/porzadki             die Umstellung von 2026-10-22 (LibraryTidy)
+ *   #/workspace/library/porzadki             die Umbauten (rebuild/RebuildView): Sichtbarkeit, Verweise, …
  * </code>
  *
  * 2026-10-22 — alle lesbaren Bibliotheken zusammen: geöffnet wird eine,
@@ -36,7 +36,7 @@ import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJ
 import { ids, KINDS, kindOf, str, TEXT_STATUS, TEXT_TYPES, wordCount, type LibEntry } from './libraryKinds';
 import { storeOf, useLibraryStore, type Entry, type LibraryStore } from './libraryStore';
 import { audienceWords } from './LibraryAreaBox';
-import { LibraryTidy } from './LibraryTidy';
+import { RebuildView } from './rebuild/RebuildView';
 import { countsLine, coverageCounts, coverageOf, addedOf, deliveryPlan, lastHeld, planOf, deliveriesOf } from './sermon';
 import { topicNode, topicTree } from './topics';
 import { useMe, type Me } from '../core/me';
@@ -76,6 +76,8 @@ export function LibraryView({ who, trail }: { who: Who; trail: readonly string[]
 function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
   const [libraries, setLibraries] = useState<readonly OpenLibrary[] | null>(null);
   const [knowledge, setKnowledge] = useState<ReadonlySet<string>>(new Set());
+  /* 2026-10-22 — alle lesbaren, auch die Bazy wiedzy: die Umbauten (Porządki) gehen über beide. */
+  const [everything, setEverything] = useState<readonly OpenLibrary[]>([]);
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -92,6 +94,7 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
         /* Die anderen lesbaren Bibliotheken im Hintergrund — sie sind die Nachbarn der offenen. */
         for (const one of books) void storeOf(me.ring, one).sync().catch(() => undefined);
         setKnowledge(new Set(opened.filter((one) => libraryKindOf(one) === 'knowledge').map((one) => one.libraryId)));
+        setEverything(opened);
         setAreas(found.areas);
         setFailed(null);
       } catch (e) {
@@ -113,7 +116,7 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
   if (failed !== null) return <p className="wk-error">{failed}</p>;
   if (libraries === null) return <Loading label="Wczytywanie…" />;
 
-  if (libraryId === 'porzadki') return <LibraryTidy me={me} libraries={libraries} areas={areas} onChanged={() => setTick((n) => n + 1)} />;
+  if (libraryId === 'porzadki') return <RebuildView me={me} libraries={everything} areas={areas} onChanged={() => setTick((n) => n + 1)} />;
 
   if (libraryId !== undefined) {
     if (current === null && knowledge.has(libraryId)) return <p className="wk-note">To jest baza wiedzy — jest w Nauce. <a href={viewPath('learn', libraryId)}>Otwórz ją</a></p>;
@@ -164,8 +167,10 @@ function LibraryList({ me, libraries, areas, onChanged }: {
         Wszystko jest szyfrowane w przeglądarce. Każdy obszar ma swoją bibliotekę: widzą ją członkowie obszaru, a gdy obszar jest publiczny — wszyscy.
         Pracujesz ze wszystkimi naraz: odwołania, wyszukiwanie i osadzanie sięgają do każdej biblioteki, którą widzisz.
       </p>
-      {libraries.some((one) => one.writes && one.areaRuleAt == null) && (
+      {libraries.some((one) => one.writes && one.areaRuleAt == null) ? (
         <p className="wk-note">Po zmianie zasad widoczności czekają porządki (opisy i notatki → komentarze). <a href={viewPath('library', 'porzadki')}>Przejrzyj je</a></p>
+      ) : (
+        <p className="lib-key-hint"><a href={viewPath('library', 'porzadki')}>Porządki</a> — przebudowa danych biblioteki i Cogity: każda zmiana najpierw pokazuje, co się zmieni.</p>
       )}
 
       {libraries.length > 0 && (
@@ -506,7 +511,7 @@ function LibraryJson({ store, library, only }: { store: LibraryStore; library: O
           ? <>Wszystkie wpisy (albo wybrane rodzaje) jako jeden dokument — kopia zapasowa, przeniesienie, praca z AI. Import zmienia istniejące wpisy w miejscu i dodaje nowe; niczego nie usuwa.</>
           : <>{onlyDef.plural} jako JSON — np. kilka książek naraz przygotowanych przez AI. Import przyjmuje też osoby i tematy, na które wskazują; istniejące wpisy zmienia w miejscu, niczego nie usuwa.</>}
         fileName={`biblioteka-${library.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}${only === undefined ? '' : `-${only}`}.json`}
-        exportDoc={() => exportLibrary(library.name, store.all().filter((e) => kinds.includes(e.kind)))}
+        exportDoc={() => exportLibrary(library.name, store.all().filter((e) => kinds.includes(e.kind)), store)}
         description={libraryDescription}
         preview={preview}
         importLabel="Importuj i zapisz"

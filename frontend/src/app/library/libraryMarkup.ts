@@ -253,6 +253,63 @@ export function citedKeys(...sources: readonly string[]): string[] {
   return [...new Set(keys)];
 }
 
+/* -- 2026-10-22: Verweise umschreiben ------------------------------------------------------- */
+
+const TOKEN_ONLY = new RegExp(`^${KEY}$`);
+const ITEM_TOKEN = new RegExp(`(^|;)(\\s*)@(${KEY})`, 'g');
+
+/**
+ * DIE VERWEISE EINES ZAPIS UMSCHREIBEN — und sonst nichts. In Quellen
+ * `[@a, s. 3; @b]`, eingebetteten Blöcken `![@a]` und Links der Bazy wiedzy
+ * `[[Wort|@a]]` wird jedes `@token` durch `map(token)` ersetzt; jedes andere
+ * Zeichen bleibt, wie es war (auch Escapes, Zeilenwenden, Leerzeichen).
+ *
+ * Damit wechselt der gespeicherte Text zwischen seinen zwei Formen: im
+ * Speicher stehen Kennungen (ein Schlüssel kann sich ändern, eine Kennung
+ * nicht), im Editor und im JSON die Schlüssel (`storedMarkup` / `shownMarkup`
+ * in `libraryKinds.ts`).
+ */
+export function mapRefTokens(source: string, map: (token: string) => string): string {
+  const edits: { at: number; length: number; to: string }[] = [];
+  for (let i = 0; i < source.length; i += 1) {
+    const c = source[i];
+    if (c === '\\') { i += 1; continue; }
+    if (c !== '[') continue;
+
+    /* Ein Link der Bazy wiedzy: [[Wort|@token]] */
+    if (source[i + 1] === '[') {
+      const end = source.indexOf(']]', i + 2);
+      if (end > i + 2) {
+        const inside = source.slice(i + 2, end);
+        const bar = inside.lastIndexOf('|@');
+        const token = bar < 0 ? '' : inside.slice(bar + 2);
+        if (bar >= 0 && TOKEN_ONLY.test(token)) {
+          const to = map(token);
+          if (to !== token) edits.push({ at: i + 2 + bar + 2, length: token.length, to });
+        }
+        i = end + 1;
+        continue;
+      }
+    }
+
+    /* Eine Quelle oder ein Block: [@a, Stelle; @b] — und ![@a] (das `!` steht davor). */
+    const end = closing(source, i, '[', ']');
+    if (end < 0) continue;
+    const inside = source.slice(i + 1, end);
+    if (!inside.startsWith('@') || citeItems(inside) === null) continue;
+    ITEM_TOKEN.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = ITEM_TOKEN.exec(inside)) !== null) {
+      const token = m[3];
+      const to = map(token);
+      if (to !== token) edits.push({ at: i + 1 + m.index + m[1].length + m[2].length + 1, length: token.length, to });
+    }
+  }
+  let out = source;
+  for (const e of edits.sort((a, b) => b.at - a.at)) out = out.slice(0, e.at) + e.to + out.slice(e.at + e.length);
+  return out;
+}
+
 /** Der Text ohne Zeichen — für Auszüge und die Suche. `headings: false` — nur, was man liest (für den Anfang eines Textes). */
 export function plainText(source: string, headings = true): string {
   const parts: string[] = [];

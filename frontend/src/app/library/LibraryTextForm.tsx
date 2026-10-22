@@ -13,7 +13,7 @@ import { viewPath } from '../routes';
 import type { OpenLibrary } from './library';
 import { bibliography, segText, workBehind } from './libraryCite';
 import { MARKUP_DOC } from './libraryJson';
-import { type EntryData, type LibEntry, type LibField, type OutlineItem, TEXT_STATUS, ids, kindOf, num, str, wordCount } from './libraryKinds';
+import { type EntryData, type LibEntry, type LibField, type OutlineItem, TEXT_STATUS, ids, kindOf, num, refTarget, str, wordCount } from './libraryKinds';
 import { citedKeys } from './libraryMarkup';
 import { RefPicker } from './LibraryPick';
 import type { Entry, LibraryStore } from './libraryStore';
@@ -124,7 +124,7 @@ export function TextForm({ store, entry, data, set, readOnly }: {
   const [part, setPart] = useState<'plan' | 'body' | 'further'>(() => (planOf(data).length > 0 || str(data, 'body').trim() === '' ? 'plan' : 'body'));
   const words = wordCount(str(data, 'body'));
   const target = num(data, 'targetWords');
-  const missing = citedKeys(str(data, 'body'), str(data, 'further'), ...planOf(data).map((p) => p.text)).filter((k) => store.byKey(k) === undefined);
+  const missing = citedKeys(str(data, 'body'), str(data, 'further'), ...planOf(data).map((p) => p.text)).filter((k) => refTarget(store, k) === undefined);
 
   return (
     <>
@@ -206,7 +206,7 @@ export function OutlineEditor({ store, library, project, value, readOnly, onChan
     onChange(next);
   };
 
-  const works = texts.flatMap((t) => citedKeys(str(t.data, 'body'), str(t.data, 'further')).map((k) => workBehind(store.byKey(k), store)))
+  const works = texts.flatMap((t) => citedKeys(str(t.data, 'body'), str(t.data, 'further')).map((k) => workBehind(refTarget(store, k), store)))
     .filter((w): w is Entry => w !== undefined);
   const bib = bibliography(works, store);
 

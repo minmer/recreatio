@@ -21,7 +21,8 @@
 import { newId } from '../core/ids';
 import { blockData, blockOf, LEGACY_COMMENT_FIELDS, legacyBlocks, type CommentBlock, type Run } from './comment';
 import { isUuid } from './library';
-import { KINDS, kindOf, outline, slug, type EntryData, type LibEntry, type LibField } from './libraryKinds';
+import { mapRefTokens } from './libraryMarkup';
+import { KINDS, kindOf, outline, slug, type EntryData, type LibEntry, type LibField, ALIASES, aliasesOf, mapMarkups, shownMarkup, type Lookup } from './libraryKinds';
 
 export const LIBRARY_FORMAT = 'recreatio/library';
 
@@ -56,14 +57,23 @@ export interface ExportEntry {
 }
 
 /** Was eine Bibliothek (oder ein Ausschnitt) als Dokument ist. */
-export function exportLibrary(name: string, entries: readonly LibEntry[]): Record<string, unknown> {
+/**
+ * Hinaus — mit `look` stehen im Zapis die Schlüssel (`[@ratzinger2007]`), wie
+ * man sie tippt und wie eine KI sie schreibt; gespeichert sind Kennungen
+ * (2026-10-22). Wo ein Schlüssel von hier aus nicht eindeutig ist, bleibt die
+ * Kennung stehen; der Import nimmt beides.
+ */
+export function exportLibrary(name: string, entries: readonly LibEntry[], look?: Lookup): Record<string, unknown> {
   const order = new Map(KINDS.map((k, i) => [k.kind, i]));
   const sorted = [...entries].sort((a, b) => (order.get(a.kind) ?? 99) - (order.get(b.kind) ?? 99));
   return {
     format: LIBRARY_FORMAT,
     version: LIBRARY_VERSION,
     name,
-    entries: sorted.map((e): ExportEntry => ({ id: e.id, kind: e.kind, ...(e.key === undefined ? {} : { key: e.key }), data: e.data }))
+    entries: sorted.map((e): ExportEntry => ({
+      id: e.id, kind: e.kind, ...(e.key === undefined ? {} : { key: e.key }),
+      data: look === undefined ? e.data : shownMarkup(e.kind, e.data, look)
+    }))
   };
 }
 
@@ -285,12 +295,29 @@ export function planLibraryImport(doc: unknown, base: ImportBase): LibraryImport
     for (const [name, value] of Object.entries(given)) {
       const field = def.fields.find((f) => f.key === name);
       const where = `${def.label} „${String(given.title ?? given.name ?? given.text ?? one.key ?? '').slice(0, 40)}” · ${name}`;
+      /* 2026-10-22 — alte Schlüssel (`_aliases`) reisen mit, ohne Warnung. */
+      if (field === undefined && name === ALIASES) { const aliases = aliasesOf(given); if (aliases.length > 0) data[name] = aliases; else delete data[name]; continue; }
       if (field === undefined) { warnings.push(`${where}: nieznane pole — pominięte.`); continue; }
       const next = coerce(field, value, where);
       if (next === null || next === '' || (Array.isArray(next) && next.length === 0 && field.type !== 'outline')) delete data[name];
       else data[name] = next;
     }
     if (one.kind === 'project' && Array.isArray(data.outline)) data.outline = outline(data);
+
+    /*
+     * 2026-10-22 — IM ZAPIS STEHEN IM SPEICHER KENNUNGEN. Ein Schlüssel aus dem
+     * Dokument (oder des Bestands) wird hier zu seiner Kennung; was nicht
+     * aufgeht, bleibt, wie es geschrieben ist — mit einer Warnung.
+     */
+    const lost = new Set<string>();
+    const pinned = mapMarkups(one.kind, data, (text) => mapRefTokens(text, (token) => {
+      if (isUuid(token) && (usedIds.has(token) || base.get(token) !== undefined)) return token;
+      const id = keyToId.get(token.toLowerCase()) ?? base.byKey(token)?.id;
+      if (id === undefined) { lost.add(token); return token; }
+      return id;
+    }));
+    for (const [name, value] of Object.entries(pinned)) data[name] = value;
+    for (const token of lost) warnings.push(`${def.label} „${String(given.title ?? given.name ?? one.key ?? '').slice(0, 40)}”: w tekście „@${token}” nie wskazuje żadnego wpisu — zostaje, jak jest.`);
 
     const key = one.key ?? one.existing?.key;
     if (one.existing !== undefined && JSON.stringify(one.existing.data) === JSON.stringify(data) && (one.existing.key ?? '') === (key ?? '')) {
@@ -377,7 +404,8 @@ export const MARKUP_DOC = `## Zapis treści (pola "body" i "further" tekstu, pun
   - punkt   ·   1. punkt
   ---                      linia oddzielająca
   \\znak                    znak bez znaczenia (np. \\* zamiast kursywy)
-Przypisy liczą się same; pierwszy raz źródło jest podane w całości, potem skrótem z „dz. cyt.”, a tuż po sobie — „Tamże”. Pod tekstem pojawia się bibliografia.`;
+Przypisy liczą się same; pierwszy raz źródło jest podane w całości, potem skrótem z „dz. cyt.”, a tuż po sobie — „Tamże”. Pod tekstem pojawia się bibliografia.
+Klucz to pomoc przy pisaniu: aplikacja zapamiętuje stały odnośnik do wpisu (jego kennungę), więc późniejsza zmiana klucza nie psuje tekstu. Zamiast klucza można też podać kennungę wpisu: [@01a1…-…, s. 3]. Klucz, którego nie ma, zostaje w tekście, jak jest (z ostrzeżeniem przy imporcie).`;
 
 export function libraryDescription(): string {
   const kinds = KINDS.map((def) => {

@@ -249,7 +249,7 @@ export function DeliveryForm({ store, library, entry, data, set, readOnly }: {
           summary="Z nagrania albo zapisu — przez AI we własnym czacie"
           lead={<>Skopiuj polecenie — jest w nim plan z identyfikatorami punktów. Wklej je w swoim czacie razem z nagraniem albo zapisem, a odpowiedź (JSON) wklej tutaj: trafi do tego formularza.</>}
           fileName={`wyglosznie-${str(data, 'date') || entry.id.slice(0, 8)}.json`}
-          exportDoc={() => exportLibrary('wygłoszenie', [entry])}
+          exportDoc={() => exportLibrary('wygłoszenie', [entry], store)}
           description={() => deliveryPrompt(entry, store)}
           preview={(doc) => {
             const found = patchFromDoc(doc, { id: entry.id, kind: 'delivery' }, store);

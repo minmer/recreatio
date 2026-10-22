@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { IsbnTools, NumberTools, savePersons } from './BookLookup';
 import type { OpenLibrary } from './library';
-import { kindOf, outline, str, type EntryData, type LibEntry } from './libraryKinds';
+import { kindOf, outline, str, type EntryData, type LibEntry, shownMarkup } from './libraryKinds';
 import type { Entry, LibraryStore } from './libraryStore';
 import { QuoteFigure } from './LibraryText';
 import { newId } from '../core/ids';
@@ -83,7 +83,8 @@ function Editor({ store, library, existing, kind, preset }: {
 }) {
   const def = kindOf(kind)!;
   const [id] = useState(() => existing?.id ?? newId());
-  const [data, setData] = useState<EntryData>(() => existing?.data ?? defaults(kind, preset));
+  /* 2026-10-22 — im Editor stehen Schlüssel (`shownMarkup`); der Speicher schreibt daraus Kennungen (`storedMarkup`). */
+  const [data, setData] = useState<EntryData>(() => (existing === undefined ? defaults(kind, preset) : shownMarkup(kind, existing.data, store)));
   const [key, setKey] = useState(existing?.key ?? '');
   const [state, setState] = useState<SaveState>(existing === undefined ? 'new' : 'saved');
   const [failed, setFailed] = useState<string | null>(null);
@@ -126,7 +127,7 @@ function Editor({ store, library, existing, kind, preset }: {
   /* Was ein anderer Tab gespeichert hat, kommt herein — solange hier nichts offen ist. */
   useEffect(() => {
     const fresh = store.get(id);
-    if (fresh !== undefined && state === 'saved') { setData(fresh.data); setKey(fresh.key ?? ''); }
+    if (fresh !== undefined && state === 'saved') { setData(shownMarkup(kind, fresh.data, store)); setKey(fresh.key ?? ''); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.revision]);
 
@@ -137,7 +138,7 @@ function Editor({ store, library, existing, kind, preset }: {
 
   const reloadTheirs = () => {
     const fresh = store.get(id);
-    if (fresh !== undefined) { setData(fresh.data); setKey(fresh.key ?? ''); }
+    if (fresh !== undefined) { setData(shownMarkup(kind, fresh.data, store)); setKey(fresh.key ?? ''); }
     setState('saved');
     setFailed(null);
   };
@@ -204,7 +205,13 @@ function Editor({ store, library, existing, kind, preset }: {
 
         <aside className="lib-editor-side">
           {def.keyed && (
-            <KeyBox store={store} id={id} value={key} readOnly={readOnly} onChange={(next) => { setKey(next); setState((was) => (was === 'new' ? 'new' : 'dirty')); }} />
+            <KeyBox store={store} id={id} value={key} readOnly={readOnly} onChange={async (next) => {
+              /* 2026-10-22 — vor dem neuen Schlüssel: was den Eintrag noch über den alten nennt, nennt ihn über die Kennung. */
+              const pinned = saved?.key !== undefined && next !== saved.key ? await store.pinCitations(id) : null;
+              setKey(next);
+              setState((was) => (was === 'new' ? 'new' : 'dirty'));
+              return pinned;
+            }} />
           )}
           {saved !== undefined && <AreaBox store={store} library={library} entry={saved} readOnly={readOnly} />}
           {saved !== undefined && kind === 'text' && <DeliveriesBox store={store} library={library} text={saved} readOnly={readOnly} />}

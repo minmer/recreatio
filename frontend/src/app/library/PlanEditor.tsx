@@ -21,7 +21,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from
 
 import { JsonPanel } from '../ui/JsonPanel';
 import { exportLibrary, patchFromDoc } from './libraryJson';
-import { POINT_KINDS, str, type EntryData, type LibEntry } from './libraryKinds';
+import { POINT_KINDS, refTarget, str, type EntryData, type LibEntry } from './libraryKinds';
 import type { LibraryStore } from './libraryStore';
 import { QuoteFigure } from './LibraryText';
 import { commentsAbout } from './comment';
@@ -241,7 +241,7 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
         <ol className="lib-plan-edit-list">
           {points.map((p, at) => {
             const quote = embedOf(p.text);
-            const quoteEntry = quote === null ? undefined : store.byKey(quote);
+            const quoteEntry = quote === null ? undefined : refTarget(store, quote);
             return (
               <li key={p.id} className={`lib-plan-edit-row is-d${p.depth}${focused === p.id ? ' is-focus' : ''}`}>
                 <span className="lib-point-no">{numbers.get(p.id)}</span>
@@ -292,7 +292,7 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
           summary="Plan z treści — przez AI we własnym czacie"
           lead={<>Skopiuj polecenie (z treścią tekstu), wklej je w swoim czacie, a odpowiedź — JSON — wklej tutaj. Plan trafi do tego formularza{points.length > 0 ? ' i zastąpi obecny' : ''}.</>}
           fileName={`plan-${text.key ?? text.id.slice(0, 8)}.json`}
-          exportDoc={() => exportLibrary('plan', [{ ...text, data: { plan: points.map(pointData) } }])}
+          exportDoc={() => exportLibrary('plan', [{ ...text, data: { plan: points.map(pointData) } }], store)}
           description={() => planPrompt(text)}
           preview={(doc) => {
             const found = patchFromDoc(doc, { id: text.id, kind: 'text' }, store);

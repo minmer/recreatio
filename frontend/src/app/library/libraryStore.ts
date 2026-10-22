@@ -23,10 +23,10 @@ import {
 } from './library';
 import { originOf } from './libraryCite';
 import {
-  entryTitle, fieldRefs, kindOf, markupsOf, suggestKey, uniqueKey,
+  ALIASES, aliasesOf, entryTitle, fieldRefs, kindOf, mapMarkups, markupsOf, nextAliases, refTarget, storedMarkup, suggestKey, uniqueKey,
   type EntryData, type LibEntry, type Lookup
 } from './libraryKinds';
-import { citedKeys } from './libraryMarkup';
+import { citedKeys, mapRefTokens } from './libraryMarkup';
 import { plan, publicEntry, type PublishPlan, type PubEntry } from './libraryPublish';
 import { WorkspaceError } from '../core/session';
 
@@ -104,6 +104,8 @@ export class LibraryStore implements Lookup {
   private readonly ring: Ring | null;
   private readonly entries = new Map<string, Entry>();
   private readonly keys = new Map<string, string>();
+  /** 2026-10-22 — alte Schlüssel (`_aliases`): ein Text mit einem alten Schlüssel findet den Eintrag weiter. */
+  private readonly aliases = new Map<string, string>();
   private readonly listeners = new Set<() => void>();
   private since: string | null = null;
   private syncing: Promise<void> | null = null;
@@ -152,7 +154,7 @@ export class LibraryStore implements Lookup {
   own(id: string): Entry | undefined { return this.entries.get(id); }
 
   ownByKey(key: string): Entry | undefined {
-    const id = this.keys.get(key.toLowerCase());
+    const id = this.keys.get(key.toLowerCase()) ?? this.aliases.get(key.toLowerCase());
     return id === undefined ? undefined : this.entries.get(id);
   }
 
@@ -190,9 +192,19 @@ export class LibraryStore implements Lookup {
 
   title(entry: LibEntry): string { return entryTitle(entry, this); }
 
+  /** In dieser Bibliothek vergeben — als Schlüssel oder als alter Schlüssel eines anderen Eintrags. */
   keyTaken(key: string, except?: string): boolean {
-    const id = this.keys.get(key.toLowerCase());
+    const id = this.keys.get(key.toLowerCase()) ?? this.aliases.get(key.toLowerCase());
     return id !== undefined && id !== except;
+  }
+
+  /**
+   * 2026-10-22 — derselbe Schlüssel in einer anderen lesbaren Bibliothek: kein
+   * Fehler (Texte halten Kennungen), aber eine Warnung beim Vergeben. Bibliotheken,
+   * die ich nicht lesen kann, werden nie gefragt.
+   */
+  keyTakenElsewhere(key: string, except?: string): LibraryStore | undefined {
+    return this.peers().find((p) => p.keyTaken(key, except));
   }
 
   /** Wer auf einen Eintrag zeigt — hier und in den Nachbarn. */
@@ -214,7 +226,7 @@ export class LibraryStore implements Lookup {
         for (const ref of fieldRefs(entry)) add(ref, entry.id);
         /* 2026-10-21 — auch der Zapis in Unterfeldern: ein Zitat im Plan einer Predigt. */
         for (const key of citedKeys(...markupsOf(entry))) {
-          const target = this.byKey(key);
+          const target = refTarget(this, key);
           if (target !== undefined) add(target.id, entry.id);
         }
       }
@@ -267,14 +279,20 @@ export class LibraryStore implements Lookup {
 
   private put(entry: Entry): void {
     const before = this.entries.get(entry.id);
-    if (before?.key !== undefined && this.keys.get(before.key.toLowerCase()) === entry.id) this.keys.delete(before.key.toLowerCase());
+    if (before !== undefined) this.unindex(before);
     this.entries.set(entry.id, entry);
     if (entry.key !== undefined) this.keys.set(entry.key.toLowerCase(), entry.id);
+    for (const alias of aliasesOf(entry.data)) if (!this.aliases.has(alias.toLowerCase())) this.aliases.set(alias.toLowerCase(), entry.id);
+  }
+
+  private unindex(entry: Entry): void {
+    if (entry.key !== undefined && this.keys.get(entry.key.toLowerCase()) === entry.id) this.keys.delete(entry.key.toLowerCase());
+    for (const alias of aliasesOf(entry.data)) if (this.aliases.get(alias.toLowerCase()) === entry.id) this.aliases.delete(alias.toLowerCase());
   }
 
   private drop(id: string): void {
     const before = this.entries.get(id);
-    if (before?.key !== undefined && this.keys.get(before.key.toLowerCase()) === id) this.keys.delete(before.key.toLowerCase());
+    if (before !== undefined) this.unindex(before);
     this.entries.delete(id);
   }
 
@@ -377,11 +395,15 @@ export class LibraryStore implements Lookup {
 
   /* -- Schreiben -------------------------------------------------------------------------- */
 
-  /** Ein Schlüssel für diesen Eintrag: der gewünschte, sonst ein Vorschlag — eindeutig in der Bibliothek. */
+  /**
+   * Ein Schlüssel für diesen Eintrag: der gewünschte (eindeutig in der
+   * Bibliothek; in einer anderen lesbaren nur gewarnt), sonst ein Vorschlag,
+   * der in KEINER lesbaren Bibliothek vergeben ist (2026-10-22).
+   */
   keyFor(entry: LibEntry, wanted?: string): string | undefined {
     if (kindOf(entry.kind)?.keyed !== true) return undefined;
-    const base = (wanted ?? '').trim() !== '' ? wanted!.trim() : suggestKey(entry, this);
-    return uniqueKey(base, (key) => this.keyTaken(key, entry.id));
+    if ((wanted ?? '').trim() !== '') return uniqueKey(wanted!.trim(), (key) => this.keyTaken(key, entry.id));
+    return uniqueKey(suggestKey(entry, this), (key) => this.keyTaken(key, entry.id) || this.keyTakenElsewhere(key, entry.id) !== undefined);
   }
 
   /**
@@ -447,8 +469,12 @@ export class LibraryStore implements Lookup {
     const id = input.id ?? newId();
     const before = this.entries.get(id);
     if (before === undefined && this.get(id) !== undefined) throw new WorkspaceError('Ten wpis należy do innej biblioteki — zmień go tam.');
-    const data = cleanData(input.data);
+    /* 2026-10-22 — im Speicher stehen Kennungen: ein Schlüssel im Zapis, der aufgeht, wird die Kennung seines Eintrags. */
+    const data: EntryData = { ...storedMarkup(input.kind, cleanData(input.data), this) };
     const key = this.keyFor({ id, kind: input.kind, data }, input.key ?? before?.key);
+    /* Der bisherige Schlüssel bleibt als alter Schlüssel — ein Text, der ihn noch nennt, findet den Eintrag weiter. */
+    const aliases = nextAliases(before?.key, key, [...aliasesOf(before?.data ?? {}), ...aliasesOf(data)]);
+    if (aliases.length > 0) data[ALIASES] = aliases; else delete data[ALIASES];
     const doc: EntryDoc = { v: 1, id, kind: input.kind, ...(key === undefined ? {} : { key }), data };
     const done = await putEntry(this.libraryId, id, {
       kind: input.kind, epoch: newest.epoch, sealed: await sealEntry(newest.key, doc), version: before?.version ?? 0
@@ -477,13 +503,19 @@ export class LibraryStore implements Lookup {
    * jeder Verweis zeigt weiter auf ihn; der Schlüssel bleibt, wenn er drüben
    * frei ist (sonst ein freier, und `keyChanged` sagt es).
    */
-  async moveTo(id: string, target: LibraryStore): Promise<{ entry: Entry; keyChanged: boolean }> {
+  async moveTo(id: string, target: LibraryStore): Promise<{ entry: Entry; keyChanged: boolean; from?: string; pinned: number }> {
+    if (this.entries.get(id) === undefined) throw new WorkspaceError('Ten wpis należy do innej biblioteki.');
+    if (target === this) return { entry: this.entries.get(id)!, keyChanged: false, pinned: 0 };
+    /* Erst die Texte, die ihn noch über den Schlüssel nennen, auf seine Kennung — drüben könnte der Schlüssel einem anderen gehören. */
+    const { pinned } = await this.pinCitations(id);
     const entry = this.entries.get(id);
     if (entry === undefined) throw new WorkspaceError('Ten wpis należy do innej biblioteki.');
-    if (target === this) return { entry, keyChanged: false };
     const newest = await target.writeKey();
     const key = target.keyFor(entry, entry.key);
-    const doc: EntryDoc = { v: 1, id, kind: entry.kind, ...(key === undefined ? {} : { key }), data: entry.data };
+    const aliases = nextAliases(entry.key, key, aliasesOf(entry.data));
+    const data: EntryData = { ...entry.data };
+    if (aliases.length > 0) data[ALIASES] = aliases; else delete data[ALIASES];
+    const doc: EntryDoc = { v: 1, id, kind: entry.kind, ...(key === undefined ? {} : { key }), data };
     let done;
     try {
       done = await moveEntry(this.libraryId, id, {
@@ -495,13 +527,44 @@ export class LibraryStore implements Lookup {
     }
     this.drop(id);
     const moved: Entry = {
-      ...entry, libraryId: target.libraryId, ...(key === undefined ? {} : { key }),
+      ...entry, libraryId: target.libraryId, ...(key === undefined ? {} : { key }), data,
       version: done.version, epoch: newest.epoch, updatedAt: done.updatedAt, publishedAt: null, publishedAs: null
     };
     target.put(moved);
     this.changed();
     target.changed();
-    return { entry: moved, keyChanged: key !== entry.key };
+    return { entry: moved, keyChanged: key !== entry.key, ...(entry.key === undefined ? {} : { from: entry.key }), pinned };
+  }
+
+  /**
+   * 2026-10-22 — TEXTE, DIE EINEN EINTRAG NOCH ÜBER SEINEN SCHLÜSSEL NENNEN (aus
+   * der Zeit vor den Kennungen, aus einem Import, als alter Schlüssel), nennen
+   * ihn danach über seine Kennung — in jeder lesbaren Bibliothek, in der ich
+   * schreiben darf. Vor jeder Änderung des Schlüssels und vor jedem Umzug: so
+   * verwaist kein Zitat. Wo ich nicht schreiben darf, bleibt der alte
+   * Schlüssel als zweiter am Eintrag und findet ihn weiter.
+   */
+  async pinCitations(id: string): Promise<{ pinned: number; failed: number }> {
+    const target = this.get(id);
+    if (target === undefined) return { pinned: 0, failed: 0 };
+    const names = new Set([target.key, ...aliasesOf(target.data)].filter((k): k is string => k !== undefined).map((k) => k.toLowerCase()));
+    if (names.size === 0) return { pinned: 0, failed: 0 };
+    let pinned = 0;
+    let failed = 0;
+    for (const store of [this, ...this.peers()]) {
+      for (const entry of store.all()) {
+        const next = mapMarkups(entry.kind, entry.data, (text) => mapRefTokens(text, (token) =>
+          names.has(token.toLowerCase()) && refTarget(store, token)?.id === id ? id : token));
+        if (next === entry.data) continue;
+        try {
+          await store.save({ id: entry.id, kind: entry.kind, ...(entry.key === undefined ? {} : { key: entry.key }), data: next });
+          pinned += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+    }
+    return { pinned, failed };
   }
 
   /* -- Öffentlich (nur noch Bazy wiedzy) ----------------------------------------------- */

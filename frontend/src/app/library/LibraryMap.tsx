@@ -16,7 +16,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { ids, kindOf, markupsOf, type EntryData } from './libraryKinds';
+import { ids, kindOf, markupsOf, refTarget, type EntryData } from './libraryKinds';
 import { citedKeys } from './libraryMarkup';
 import type { Entry, LibraryStore } from './libraryStore';
 import { viewPath } from '../routes';
@@ -81,7 +81,7 @@ export function LibraryMap({ store, libraryId }: { store: LibraryStore; libraryI
       /* Zitiert wird im Zapis — in der Treść, im Plan, in „co doszło". */
       {
         for (const key of citedKeys(...markupsOf(e))) {
-          const target = store.byKey(key);
+          const target = refTarget(store, key);
           if (target === undefined || !shown.has(target.id)) continue;
           lines.push({ id: `c:${e.id}:${target.id}`, source: e.id, target: target.id, label: 'cytuje', deletable: false, className: 'is-fixed', animated: false });
         }

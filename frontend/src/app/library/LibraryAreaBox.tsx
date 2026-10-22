@@ -11,6 +11,7 @@
 import { useState } from 'react';
 
 import { useMe, useWho } from '../core/me';
+import { toast } from '../ui/dialogs';
 import { WorkspaceError } from '../core/session';
 import { viewPath } from '../routes';
 import { libraryKindOf, type OpenLibrary } from './library';
@@ -45,7 +46,11 @@ export function AreaBox({ store, library, entry, readOnly }: { store: LibrarySto
     try {
       const there = storeOf(me.ring, chosen);
       await there.sync();
-      await store.moveTo(entry.id, there);
+      const moved = await store.moveTo(entry.id, there);
+      if (moved.keyChanged) {
+        /* 2026-10-22 — drüben war der Schlüssel vergeben: der neue gilt, der alte bleibt als zweiter, und Texte zeigen über die Kennung. */
+        toast(`W tamtej bibliotece klucz „${moved.from ?? ''}” był już zajęty — wpis ma teraz klucz „${moved.entry.key ?? ''}”. Stary zostaje przy wpisie, a teksty wskazują go stałym odnośnikiem, więc nic się nie zepsuło.`);
+      }
       window.location.hash = viewPath('library', chosen.libraryId, entry.id);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się przenieść.');

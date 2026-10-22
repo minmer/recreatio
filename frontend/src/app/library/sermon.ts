@@ -24,7 +24,7 @@
 
 import { citeSegs, newCiteState, originOf, segText } from './libraryCite';
 import {
-  COVERAGE_STATES, ids, itemsOf, kindOf, num, POINT_KINDS, str,
+  COVERAGE_STATES, ids, itemsOf, kindOf, num, POINT_KINDS, refTarget, str,
   type EntryData, type LibEntry, type Lookup
 } from './libraryKinds';
 import { parseMarkup, plainText, type Inline } from './libraryMarkup';
@@ -135,12 +135,12 @@ export function pointLine(text: string, look?: Lookup, length = 400): string {
       case 'br': return ' ';
       case 'note': return '';
       case 'cite': return look === undefined ? ''
-        : ` (${one.items.map((item) => segText(citeSegs(look.byKey(item.key), item.locator, look, newCiteState()))).join('; ')})`;
+        : ` (${one.items.map((item) => segText(citeSegs(refTarget(look, item.key), item.locator, look, newCiteState()))).join('; ')})`;
       default: return flat(one.c);
     }
   }).join('');
   const quoted = (key: string): string => {
-    const quote = look?.byKey(key);
+    const quote = look === undefined ? undefined : refTarget(look, key);
     if (look === undefined || quote === undefined || quote.kind !== 'quote') return look === undefined ? '' : `[cytat ${key}]`;
     return `„${cut(str(quote.data, 'text').replace(/\s+/g, ' ').trim(), length)}” — ${originOf(quote, look)}`;
   };

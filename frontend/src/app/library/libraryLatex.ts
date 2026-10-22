@@ -15,7 +15,7 @@
 
 import { blocksOf, commentsAbout, type Cell } from './comment';
 import { bibliography, citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from './libraryCite';
-import { ids, markupsOf, outline, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
+import { ids, markupsOf, outline, refTarget, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
 import { parseInline, parseMarkup, plainText, walkBlocks, type Block, type Inline } from './libraryMarkup';
 import { planOf, type PlanPoint } from './sermon';
 
@@ -62,7 +62,7 @@ function inlines(list: readonly Inline[], ctx: Ctx, inNote = false): string {
       case 'link': return `\\href{${hrefEscape(one.href)}}{${inlines(one.c, ctx, inNote)}}`;
       case 'cite': {
         const parts = one.items.map((item) => {
-          const target = ctx.look.byKey(item.key);
+          const target = refTarget(ctx.look, item.key);
           const work = workBehind(target, ctx.look);
           if (work !== undefined) ctx.works.push(work);
           return segsLatex(citeSegs(target, item.locator, ctx.look, ctx.state));
@@ -99,7 +99,7 @@ function blocks(list: readonly Block[], ctx: Ctx, depth: 0 | 1): string {
       }
       case 'hr': out.push('\\begin{center}*\\quad*\\quad*\\end{center}'); break;
       case 'embed': {
-        const quote = ctx.look.byKey(b.key);
+        const quote = refTarget(ctx.look, b.key);
         /* 2026-10-22 — ein Komentarz steht mit seinen Bausteinen da; einer, der sich (über andere) selbst einbettet, nur einmal. */
         if (quote?.kind === 'comment') {
           if (ctx.path?.has(quote.id) === true) break;
@@ -342,8 +342,8 @@ export function missingKeys(entry: LibEntry, look: Lookup): string[] {
   /* 2026-10-21 — alles im Zapis: auch die Punkte des Plans. */
   for (const source of markupsOf(entry)) {
     walkBlocks(parseMarkup(source),
-      (b) => { if (b.t === 'embed' && look.byKey(b.key) === undefined) missing.add(b.key); },
-      (i) => { if (i.t === 'cite') for (const item of i.items) if (look.byKey(item.key) === undefined) missing.add(item.key); });
+      (b) => { if (b.t === 'embed' && refTarget(look, b.key) === undefined) missing.add(b.key); },
+      (i) => { if (i.t === 'cite') for (const item of i.items) if (refTarget(look, item.key) === undefined) missing.add(item.key); });
   }
   return [...missing];
 }

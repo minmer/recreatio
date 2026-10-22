@@ -19,8 +19,10 @@ import { storeOf } from './libraryStore';
 
 const FIELD_WORDS: Record<string, string> = { description: 'opis', notes: 'notatki', 'plan.note': 'notatka przy punkcie planu' };
 
-export function LibraryTidy({ me, libraries, areas, onChanged }: {
+export function LibraryTidy({ me, libraries, areas, onChanged, embedded = false }: {
   me: Me; libraries: readonly OpenLibrary[]; areas: readonly AreaRow[]; onChanged: () => void;
+  /** 2026-10-22 — als erste Seite des Umbau-Bildschirms (RebuildView): ohne eigenen Kopf. */
+  embedded?: boolean;
 }) {
   const libs: TidyLibrary[] = useMemo(() => libraries.map((library) => ({ library, store: storeOf(me.ring, library) })), [libraries, me.ring]);
   const [loaded, setLoaded] = useState(false);
@@ -82,8 +84,8 @@ export function LibraryTidy({ me, libraries, areas, onChanged }: {
 
   return (
     <>
-      <p><a className="wk-link" href={viewPath('library')}>← Biblioteki</a></p>
-      <h1 className="wk-h1">Porządki: komentarze i widoczność</h1>
+      {!embedded && <p><a className="wk-link" href={viewPath('library')}>← Biblioteki</a></p>}
+      {!embedded && <h1 className="wk-h1">Porządki: komentarze i widoczność</h1>}
       <p className="wk-lede">
         Od teraz o tym, kto widzi wpis, decyduje wyłącznie obszar jego biblioteki — nie ma już publikowania pojedynczych wpisów ani pól prywatnych.
         Opisy i notatki stają się komentarzami. Nic nie zmienia się samo: najpierw zobacz, co trafi gdzie.

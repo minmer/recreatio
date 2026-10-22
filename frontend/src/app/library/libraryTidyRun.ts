@@ -79,6 +79,7 @@ export async function finish(plan: TidyPlan, choices: ReadonlyMap<string, string
 
   /* 2. Umzüge — und mit dem Eintrag die Komentarze aus seiner description. */
   let moved = 0;
+  const keyNotes: string[] = [];
   let personal: LibraryStore | null = null;
   for (const move of plan.moves) {
     const target = choices.has(move.entryId) ? choices.get(move.entryId)! : move.target;
@@ -87,14 +88,16 @@ export async function finish(plan: TidyPlan, choices: ReadonlyMap<string, string
     const into = target === PERSONAL ? (personal ??= await personalStore(ctx, plan)) : storeFor.get(target);
     if (from === undefined || into === undefined || from.own(move.entryId) === undefined) continue;
     ctx.progress(`Przenoszenie ${moved + 1}…`);
-    await from.moveTo(move.entryId, into);
+    const result = await from.moveTo(move.entryId, into);
+    /* 2026-10-22 — drüben war der Schlüssel vergeben: sagen, nicht verschweigen (Texte zeigen über die Kennung, der alte bleibt als zweiter). */
+    if (result.keyChanged) keyNotes.push(`Klucz „${result.from ?? ''}” był w tamtej bibliotece zajęty — wpis ma teraz „${result.entry.key ?? ''}”; stary zostaje przy nim, a teksty wskazują go stałym odnośnikiem.`);
     moved += 1;
     for (const c of plan.comments) {
       if (c.entryId !== move.entryId || c.target !== 'with-entry' || c.existing === null) continue;
       if (from.own(c.existing) !== undefined) await from.moveTo(c.existing, into);
     }
   }
-  done.push(`Przeniesiono ${moved} wpisów.`);
+  done.push(`Przeniesiono ${moved} wpisów.`, ...keyNotes);
 
   /* 3. Die alten offenen Fassungen zurückziehen. */
   for (const [libraryId, ids] of plan.unpublish) {

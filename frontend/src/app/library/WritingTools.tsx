@@ -128,6 +128,8 @@ export function CitePicker({ store, mode, selection, onClose, onCite, onEmbed }:
   const [quoteLocator, setQuoteLocator] = useState('');
   const [failed, setFailed] = useState<string | null>(null);
   const kinds = mode === 'cite' ? ['work', 'quote', 'text'] : ['quote'];
+  /* 2026-10-22 — getippt wird der Schlüssel, wo er von hier aus genau diesen Eintrag findet; sonst die Kennung (gespeichert wird ohnehin die Kennung). */
+  const tokenOf = (entry: Entry): string => (entry.key !== undefined && store.byKey(entry.key)?.id === entry.id ? entry.key : entry.id);
 
   const found = useMemo(() => (query.trim() === ''
     ? store.all().filter((e) => kinds.includes(e.kind)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
@@ -139,7 +141,7 @@ export function CitePicker({ store, mode, selection, onClose, onCite, onEmbed }:
     setFailed(null);
     try {
       const saved = await store.save({ kind: 'quote', data: { text: selection.trim(), work: work[0] ?? '', locator: quoteLocator } });
-      onEmbed(saved.key!, true);
+      onEmbed(tokenOf(saved), true);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać cytatu.');
     }
@@ -173,10 +175,9 @@ export function CitePicker({ store, mode, selection, onClose, onCite, onEmbed }:
             {found.map((entry) => (
               <li key={entry.id}>
                 <button type="button" onClick={() => {
-                  if (entry.key === undefined) return;
-                  if (mode === 'embed') onEmbed(entry.key, false);
+                  if (mode === 'embed') onEmbed(tokenOf(entry), false);
                   else if (entry.kind === 'work') setChosen(entry);
-                  else onCite(entry.key, '');
+                  else onCite(tokenOf(entry), '');
                 }}>
                   <span className="lib-option-kind">{kindOf(entry.kind)?.label}</span> {entry.kind === 'quote' ? `„${store.title(entry)}” — ${originOf(entry, store)}` : entryLine(entry, store)}
                 </button>
@@ -186,13 +187,13 @@ export function CitePicker({ store, mode, selection, onClose, onCite, onEmbed }:
           </ul>
         </>
       ) : (
-        <form onSubmit={(e) => { e.preventDefault(); onCite(chosen.key!, locator.trim()); }}>
+        <form onSubmit={(e) => { e.preventDefault(); onCite(tokenOf(chosen), locator.trim()); }}>
           <p>{entryLine(chosen, store)}</p>
           <label className="wk-field"><span>Miejsce (strona, werset, numer) — można pominąć</span>
             <input autoFocus value={locator} placeholder={str(chosen.data, 'workType') === 'bible' ? 'J 3,16' : 's. 23'} onChange={(e) => setLocator(e.target.value)} />
           </label>
           <div className="wk-actions">
-            <button type="submit" className="wk-btn">Wstaw [@{chosen.key}{locator.trim() === '' ? '' : `, ${locator.trim()}`}]</button>
+            <button type="submit" className="wk-btn">Wstaw [@{tokenOf(chosen)}{locator.trim() === '' ? '' : `, ${locator.trim()}`}]</button>
             <button type="button" className="wk-link-btn" onClick={() => setChosen(null)}>Inne źródło</button>
           </div>
         </form>

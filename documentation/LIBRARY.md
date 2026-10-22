@@ -32,7 +32,7 @@ An **entry** is one typed document. The kinds live in `frontend/src/app/library/
 
 What stays on an entry is its own description in the narrow sense: a topic's definition, a person's bio, a project's description, a text's summary. Everything else one thinks about an entry is a comment.
 
-Keyed kinds carry a **citation key** (`ratzinger2007`). Texts cite by key, Pandoc-style: `[@ratzinger2007, s. 23]`, several sources in one note as `[@bt, J 6,35; @ratzinger2007]`, an own footnote as `^[…]`, and an embedded quote or comment as `![@key]`. The markup is in `libraryMarkup.ts` and documented in `MARKUP_DOC`. Footnotes follow Polish humanities practice (`libraryCite.ts`): the first mention is full, later ones are short with "dz. cyt.", an immediate repeat is "Tamże", and a bibliography closes the text.
+Keyed kinds carry a **citation key** (`ratzinger2007`). **The key is a writing aid; the id is what is stored** (2026-10-22): you type `[@ratzinger2007, s. 23]`, the store saves `[@<id of the work>, s. 23]` (`storedMarkup`), and every editor, preview, JSON export and AI description shows the key again (`shownMarkup`) — unless that key, seen from here, would find a different entry (two libraries may use the same key), in which case the id stays visible. Renaming a key therefore orphans nothing; the previous key also stays at the entry as an alias (`_aliases`), so old JSON files and texts in libraries you cannot edit still find it. Texts cite Pandoc-style: `[@ratzinger2007, s. 23]`, several sources in one note as `[@bt, J 6,35; @ratzinger2007]`, an own footnote as `^[…]`, and an embedded quote or comment as `![@key]`. The markup is in `libraryMarkup.ts` and documented in `MARKUP_DOC`. Footnotes follow Polish humanities practice (`libraryCite.ts`): the first mention is full, later ones are short with "dz. cyt.", an immediate repeat is "Tamże", and a bibliography closes the text.
 
 ## Storage and cryptography
 
@@ -40,7 +40,8 @@ Keyed kinds carry a **citation key** (`ratzinger2007`). Texts cite by key, Pando
 - `app.library_entry`: kind (plaintext), epoch, **one sealed JSON document** (`{v, id, kind, key, data}`) under the area's epoch key, AAD `library:entry:<id>:library_entry:1`. The service never sees fields, references or keys.
 - Concurrency: `version` per entry. A save with a stale version gets 409 `stale`, and the editor offers to load the newer version or overwrite.
 - Sync: the browser holds the whole library in memory (`libraryStore.ts`) and asks only for what changed since its last read (`updated_at`). Deleted entries are tombstones without a body.
-- Search, backlinks ("where is this quote used"), key uniqueness and citation formatting all run in the browser, because only the browser can read entries. Keys are unique per library; across libraries a key resolves in the current library first.
+- Search, backlinks ("where is this quote used"), key uniqueness and citation formatting all run in the browser, because only the browser can read entries.
+- **Keys:** unique within a library (a taken key gets a letter); a suggested key avoids every key of the libraries you can read, and choosing a key used in another readable library is a warning, not an error (texts hold ids). Libraries you cannot read are never checked. A typed key resolves in the current library first (its keys, then its aliases), then in the others. The key field takes the new key when you leave it (or press Enter), never the half-typed steps in between; before it does, texts that still name the entry by the old key are rewritten to its id (`LibraryStore.pinCitations`) — the same happens before a move to another library, where the key may be taken and change (the move says so).
 - **Moving** (`POST /workspace/library/{id}/entry/{entryId}/move`, `Library.Areas.cs`): the browser reseals the entry under the target area's key; the id stays, so every reference keeps working. The old version goes to `library_entry_version`; `app.library_moved` (0122) lets the old library's sync report the entry as gone.
 
 ## Comments (2026-10-22)
@@ -65,9 +66,16 @@ The service never decrypts. A page opens libraries in the browser (`libraryOpen.
 - An entry that moved to another library is found there (`findOnPage`), so a page configured with the old library still shows it.
 - The archive filters, searches and counts in the browser (`browseLocal` in `browse.ts`): a topic also finds its sub-topics, OR within an axis, AND between axes. There are no public summaries or browse endpoints any more.
 
-## Migration (2026-10-22): "Porządki"
+## Porządki: migrations in the browser
 
-`#/workspace/library/porzadki` (`LibraryTidy.tsx`; plan in `libraryMigrate.ts`, execution in `libraryTidyRun.ts`). It runs in the browser, where the keys are, in two steps; nothing happens without a click, and the hard rule is: **nobody may see anything afterwards that they could not see before.**
+The service cannot read sealed entries, so every change of their content runs in the browser of someone who holds the keys, on one screen: `#/workspace/library/porzadki` (`rebuild/RebuildView.tsx`). Each migration is a `Rebuild` (`rebuild/rebuild.ts`): `plan()` lists what would change ("Co się zmieni") and what cannot be done ("Czego nie zmienię": read-only libraries, references that do not resolve), `run()` rewrites entry after entry under the same id and returns a report. Every migration is idempotent (what is done no longer appears in the next plan) and never deletes data before it stands in its new place. The owner runs them; nothing happens by itself. The tabs, in order:
+
+1. **Widoczność i komentarze** — the visibility change below.
+2. **Odwołania w tekstach** (`rebuild/refsToIds.ts`) — texts saved before 2026-10-22 name entries by key; this rewrites them to ids, in every library and knowledge base you may write (`[[Wort|@token]]` links of knowledge bases too). Keys that resolve nowhere stay as written and are listed.
+
+### Visibility (2026-10-22)
+
+The first tab (`LibraryTidy.tsx`; plan in `libraryMigrate.ts`, execution in `libraryTidyRun.ts`) runs in two steps; nothing happens without a click, and the hard rule is: **nobody may see anything afterwards that they could not see before.**
 
 | before | after |
 |---|---|

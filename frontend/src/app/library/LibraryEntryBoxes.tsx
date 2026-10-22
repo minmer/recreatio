@@ -4,7 +4,7 @@
  * `LibraryAreaBox.tsx` (seit 2026-10-22 statt „Opublikuj").
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { saveBlob } from '../core/platform';
 import { useRemembered } from '../core/prefs';
@@ -13,7 +13,7 @@ import { viewPath } from '../routes';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import type { OpenLibrary } from './library';
 import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJson';
-import { type LibEntry, isKey, kindOf, markupsOf } from './libraryKinds';
+import { type LibEntry, isKey, kindOf, markupsOf, refTarget } from './libraryKinds';
 import { latexFileName, missingKeys, planToLatex, projectToLatex, textToLatex } from './libraryLatex';
 import { citedKeys } from './libraryMarkup';
 import { entryLine } from './LibraryPick';
@@ -25,16 +25,39 @@ export const TAB_OF: Record<string, string> = { text: 'teksty', delivery: 'wygla
 
 /* -- Der Schlüssel ------------------------------------------------------------------------------ */
 
-export function KeyBox({ store, id, value, readOnly, onChange }: { store: LibraryStore; id: string; value: string; readOnly: boolean; onChange: (next: string) => void }) {
-  const taken = value !== '' && store.keyTaken(value, id);
-  const wrong = value !== '' && !isKey(value);
+/**
+ * DER ZITIERSCHLÜSSEL — eine Schreibhilfe (2026-10-22): Texte speichern die
+ * Kennung, nicht den Schlüssel. Übernommen wird er erst beim Verlassen des
+ * Feldes oder mit Enter — nicht jedes halb getippte Zwischenstück; der alte
+ * bleibt als zweiter Schlüssel am Eintrag (`_aliases`).
+ */
+export function KeyBox({ store, id, value, readOnly, onChange }: {
+  store: LibraryStore; id: string; value: string; readOnly: boolean;
+  onChange: (next: string) => Promise<{ pinned: number; failed: number } | null>;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => { setDraft(value); }, [value]);
+  const taken = draft !== '' && store.keyTaken(draft, id);
+  const elsewhere = draft !== '' && !taken ? store.keyTakenElsewhere(draft, id) : undefined;
+  const wrong = draft !== '' && !isKey(draft);
+  const commit = () => {
+    if (draft === value || wrong) return;
+    void onChange(draft).then((r) => setNote(r === null || r.pinned + r.failed === 0 ? null
+      : `Teksty, które nazywały wpis starym kluczem (${r.pinned}), wskazują go teraz na stałe${r.failed > 0 ? `; ${r.failed} w bibliotekach, których nie możesz zmieniać — tam działa stary klucz, zachowany przy wpisie` : ''}.`));
+  };
   return (
     <section className="lib-box">
       <h2 className="lib-box-h">Klucz cytowania</h2>
-      <input value={value} disabled={readOnly} placeholder="zostanie zaproponowany" onChange={(e) => onChange(e.target.value.replace(/\s+/g, ''))} aria-label="Klucz cytowania" />
-      {value !== '' && !taken && !wrong && <p className="wk-hint">W tekście: <code>[@{value}]</code> albo <code>[@{value}, s. 12]</code></p>}
-      {taken && <p className="wk-warn">Ten klucz ma już inny wpis — zostanie uzupełniony literą.</p>}
+      <input value={draft} disabled={readOnly} placeholder="zostanie zaproponowany" aria-label="Klucz cytowania"
+        onChange={(e) => setDraft(e.target.value.replace(/\s+/g, ''))}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }} />
+      {draft !== '' && !taken && !wrong && <p className="lib-key-hint">W tekście: <code>[@{draft}]</code> albo <code>[@{draft}, s. 12]</code> — zapisze się stały odnośnik, więc zmiana klucza niczego nie zepsuje.</p>}
+      {taken && <p className="wk-warn">Ten klucz ma już inny wpis w tej bibliotece — zostanie uzupełniony literą.</p>}
+      {elsewhere !== undefined && <p className="wk-warn">Ten klucz ma już wpis w innej bibliotece, którą widzisz. Pisząc [@{draft}] w tej bibliotece wybierasz ten wpis; w tekstach zapisze się stały odnośnik, więc nic się nie pomyli.</p>}
       {wrong && <p className="wk-warn">Tylko litery, cyfry i znaki . _ : -</p>}
+      {note !== null && <p className="wk-note">{note}</p>}
     </section>
   );
 }
@@ -53,7 +76,7 @@ export function Relations({ store, library, entry }: { store: LibraryStore; libr
   const other = back.filter((e) => !['quote', 'text', 'work', 'project', 'delivery'].includes(e.kind) && !about.includes(e));
   const link = (e: Entry) => <a href={viewPath('library', e.libraryId, e.id)}>{e.kind === 'quote' ? `„${store.title(e)}”` : entryLine(e, store)}</a>;
 
-  const cited = entry.kind === 'text' || entry.kind === 'delivery' ? citedKeys(...markupsOf(entry)).map((k) => store.byKey(k)).filter((e): e is Entry => e !== undefined) : [];
+  const cited = entry.kind === 'text' || entry.kind === 'delivery' ? citedKeys(...markupsOf(entry)).map((k) => refTarget(store, k) as Entry | undefined).filter((e): e is Entry => e !== undefined) : [];
 
   return (
     <section className="lib-box">
@@ -154,7 +177,7 @@ export function EntryJson({ store, library, entry, isNew }: { store: LibraryStor
         ? <>Wklej opis ({label}) jako JSON — np. przygotowany przez AI. Powstanie ten wpis (i osoby, tematy, które w nim są).</>
         : <>Ten wpis jako JSON — do poprawienia ręcznie albo przez AI. Import zmienia go w miejscu (pola, których nie podasz, zostają).</>}
       fileName={`wpis-${entry.key ?? entry.id.slice(0, 8)}.json`}
-      exportDoc={() => exportLibrary(library.name, [entry])}
+      exportDoc={() => exportLibrary(library.name, [entry], store)}
       description={libraryDescription}
       preview={preview}
       importLabel="Importuj i zapisz"

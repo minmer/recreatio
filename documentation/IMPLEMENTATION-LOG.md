@@ -86,3 +86,64 @@ it shows prepared material and stores none.
 4. For the matrix of step 10 the axes need groups: the 20 mysteries as four sub-topics (radosne, światła,
    bolesne, chwalebne) under the root, five each; the 12 areas as three groups of four. Arrange `parent` that way
    if it is not so already.
+
+---
+
+## Step 2 — Ids in markup, keys as writing aids
+
+**Built**
+
+- **Stored text holds ids.** `LibraryStore.write` turns every key in the markup that resolves (own library first,
+  then the other readable ones) into the entry's id (`storedMarkup` in `libraryKinds.ts`, built on
+  `mapRefTokens` in `libraryMarkup.ts`, which rewrites only reference tokens — in cites, embeds, notes and the
+  `[[Wort|@token]]` links of knowledge bases — and leaves every other character as it was). Keys that resolve
+  nowhere stay as typed.
+- **Editors, previews, JSON export and AI descriptions show keys** (`shownMarkup`): the entry editor loads its data
+  in key form, `exportLibrary(name, entries, look)` writes keys, `CitePicker` inserts the key. Where a key, seen
+  from here, would find a different entry (two libraries using the same key), the id stays visible — so the text
+  always points where it pointed.
+- **Rendering resolves id first, then key** (`refTarget`): footnotes, embeds, LaTeX, plan points, backlinks, the
+  library map, missing-source warnings.
+- **A key change never orphans a citation.**
+  - The key field commits on leaving it or on Enter, never on every keystroke (intermediate keys were autosaved
+    before).
+  - Before a new key is taken, `pinCitations` rewrites texts that still name the entry by its key (in every
+    readable library the user may write) to its id.
+  - The previous key stays at the entry as an alias (`_aliases`, at most ten): old JSON files and texts in
+    libraries the user cannot edit still find it. A new entry cannot take an alias of another one.
+- **`moveTo` no longer ignores `keyChanged`.** It pins citations before the move, keeps the old key as an alias,
+  and says so — a toast in "Kto widzi", a report line in the visibility migration.
+- **Keys across libraries (decision 6):** a suggested key avoids every key of the readable libraries; choosing a
+  key used in another readable library shows a warning in the key box (not an error); unreadable libraries are
+  never consulted.
+- **Import** (`recreatio/library`): keys in the markup become ids (document keys first, then the store); unknown
+  keys stay and are reported; `_aliases` travel without a warning. Export → import of a library changes nothing.
+- **Porządki became a hub** (`library/rebuild/`): one tab per migration, each with "Co się zmieni" → run →
+  report (`Rebuild` interface in `rebuild.ts`, panel in `RebuildView.tsx`). The visibility migration is the first
+  tab; the second is **"Odwołania w tekstach"** (`rebuild/refsToIds.ts`): every text saved before today, in every
+  library and knowledge base the user may write, gets ids instead of keys; unknown keys are listed.
+
+**Removed**
+
+- Nothing user-visible. The key-based resolution stays as a fallback for typing and for old texts.
+
+**Choices**
+
+- Aliases rather than rewriting texts one cannot write: some texts live in libraries the user may only read.
+- The text example of the `text` kind now cites the work example (`[@ratzinger2007, s. 183]`) instead of `@bt`,
+  which no example defines — the "examples import without a warning" check would otherwise fail on the new
+  unknown-key warning.
+
+**Owner must run**
+
+- Deploy the website (no API change in this step).
+- Biblioteka → "Porządki" → tab "Odwołania w tekstach": read "Co się zmieni", press "Wykonaj". Repeat after the
+  visibility migration if that one moved anything (it does not touch text).
+
+**Test in the browser**
+
+1. Open a sermon that cites a book (`[@klucz, s. 5]`); open the book; change its "Klucz cytowania" and leave the
+   field. Back in the sermon the footnote still names the book; the editor shows the new key.
+2. Type the old key in another text: it still finds the book (alias).
+3. Export the library as JSON: texts show keys, not long ids.
+4. Porządki → "Odwołania w tekstach": after "Wykonaj", the plan reads "Wszystko jest już po nowemu".

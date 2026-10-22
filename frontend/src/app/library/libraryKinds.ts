@@ -20,6 +20,7 @@
  */
 
 import { blockMarkups, blockRefs, blocksOf, commentTitle } from './comment';
+import { mapRefTokens } from './libraryMarkup';
 
 export type EntryData = Record<string, unknown>;
 
@@ -430,12 +431,12 @@ const TEXT: LibKind = {
       summary: 'O głodzie, którego nie nasyci chleb.',
       plan: [
         { id: 'p1', text: 'Głód, którego nie nasyci chleb', depth: 0 },
-        { id: 'p2', text: 'Jezus: „Ja jestem chlebem życia” [@bt, J 6,35]', depth: 1, kind: 'quote' },
+        { id: 'p2', text: 'Prośba o chleb sięga dalej niż pokarm [@ratzinger2007, s. 183]', depth: 1, kind: 'quote' },
         { id: 'p3', text: '![@ratzinger2007-1]', depth: 1, kind: 'quote' },
         { id: 'p4', text: 'Chleb dzielony przy stole w domu', depth: 1, kind: 'example' },
         { id: 'p5', text: 'Gdzie w tym tygodniu będę szukać chleba?', depth: 0, kind: 'question' }
       ],
-      body: '## Głód\nJezus mówi: „Ja jestem chlebem życia” [@bt, J 6,35].\n\n![@ratzinger2007-1]\n\nModlitwa to nie technika^[Por. też Katechizm, nr 2559.].',
+      body: '## Głód\nJezus mówi, że jest chlebem życia — a prośba o chleb sięga dalej niż pokarm [@ratzinger2007, s. 183].\n\n![@ratzinger2007-1]\n\nModlitwa to nie technika^[Por. też Katechizm, nr 2559.].',
       further: 'Do czytania: [@ratzinger2007].', topics: ['@modlitwa'], project: '@niedziele-2026'
     }
   }
@@ -642,6 +643,122 @@ export function markupsOf(entry: LibEntry): string[] {
     }
   }
   return out.filter((one) => one.trim() !== '');
+}
+
+/* -- 2026-10-22: Kennungen im Speicher, Schlüssel im Editor ----------------------------------- */
+
+/**
+ * Wohin ein Verweis im Zapis zeigt. Gespeichert steht eine Kennung (sie
+ * ändert sich nie); getippt, im JSON und in alten Texten ein Schlüssel. Beide
+ * gelten — die Kennung zuerst.
+ */
+export function refTarget(look: Lookup, token: string): LibEntry | undefined {
+  return look.get(token) ?? look.byKey(token);
+}
+
+/** Für den Speicher: ein Schlüssel, der aufgeht, wird seine Kennung; was nicht aufgeht, bleibt, wie es getippt ist. */
+export const storedText = (text: string, look: Lookup): string =>
+  mapRefTokens(text, (token) => (look.get(token) !== undefined ? token : (look.byKey(token)?.id ?? token)));
+
+/**
+ * Für den Editor, das JSON, die Polecenia: eine Kennung wird ihr Schlüssel —
+ * aber nur, wenn dieser Schlüssel von hier aus wieder genau diesen Eintrag
+ * findet (zwei Bibliotheken können denselben Schlüssel haben). Sonst bleibt
+ * die Kennung stehen; der Text zeigt dann weiter genau dorthin.
+ */
+export const shownText = (text: string, look: Lookup): string =>
+  mapRefTokens(text, (token) => {
+    const entry = look.get(token);
+    if (entry?.key === undefined) return token;
+    return look.byKey(entry.key)?.id === entry.id ? entry.key : token;
+  });
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * Jeder Zapis eines Eintrags durch `fn`: die Felder, die Unterfelder (die
+ * Punkte eines Plans, „co doszło"), die Absätze und Textstücke eines
+ * Komentarza. Was sich nicht ändert, bleibt dasselbe Objekt.
+ */
+export function mapMarkups(kind: string, data: EntryData, fn: (text: string) => string): EntryData {
+  const def = kindOf(kind);
+  if (def === undefined) return data;
+  let out: EntryData | null = null;
+  const set = (key: string, value: unknown) => { out ??= { ...data }; out[key] = value; };
+
+  for (const field of def.fields) {
+    const value = data[field.key];
+    if (field.type === 'markup' && typeof value === 'string') {
+      const next = fn(value);
+      if (next !== value) set(field.key, next);
+    } else if (field.type === 'items' && Array.isArray(value)) {
+      const subs = (field.item ?? []).filter((sub) => sub.type === 'markup');
+      if (subs.length === 0) continue;
+      let changed = false;
+      const items = value.map((raw) => {
+        if (!isRecord(raw)) return raw;
+        let item = raw;
+        for (const sub of subs) {
+          const text = item[sub.key];
+          if (typeof text !== 'string') continue;
+          const next = fn(text);
+          if (next !== text) { item = { ...item, [sub.key]: next }; changed = true; }
+        }
+        return item;
+      });
+      if (changed) set(field.key, items);
+    } else if (field.type === 'blocks' && Array.isArray(value)) {
+      let changed = false;
+      const run = (raw: unknown): unknown => {
+        if (typeof raw === 'string') { const next = fn(raw); if (next !== raw) changed = true; return next; }
+        if (isRecord(raw) && typeof raw.text === 'string') { const next = fn(raw.text); if (next !== raw.text) { changed = true; return { ...raw, text: next }; } }
+        return raw;
+      };
+      const cell = (raw: unknown): unknown => (Array.isArray(raw) ? raw.map(run) : run(raw));
+      const blocks = value.map((raw) => {
+        if (!isRecord(raw)) return raw;
+        if (typeof raw.text === 'string' && raw.type === 'paragraph') { const next = fn(raw.text); if (next !== raw.text) { changed = true; return { ...raw, text: next }; } return raw; }
+        if (Array.isArray(raw.items)) return { ...raw, items: raw.items.map(cell) };
+        if (Array.isArray(raw.rows)) return { ...raw, rows: raw.rows.map((row) => (Array.isArray(row) ? row.map(cell) : cell(row))) };
+        return raw;
+      });
+      if (changed) set(field.key, blocks);
+    }
+  }
+  return out ?? data;
+}
+
+/** Ein ganzer Eintrag für den Speicher (Kennungen) … */
+export const storedMarkup = (kind: string, data: EntryData, look: Lookup): EntryData => mapMarkups(kind, data, (text) => storedText(text, look));
+
+/** … und für den Editor und das JSON (Schlüssel, wo sie eindeutig sind). */
+export const shownMarkup = (kind: string, data: EntryData, look: Lookup): EntryData => mapMarkups(kind, data, (text) => shownText(text, look));
+
+/**
+ * ALTE SCHLÜSSEL (2026-10-22): wer einen Schlüssel ändert, behält den alten als
+ * zweiten (`_aliases` in den Daten). Ein Text, der noch den alten nennt (aus
+ * einer JSON-Datei, aus der Zeit vor den Kennungen, aus einer Bibliothek, die
+ * man nicht ändern darf), findet den Eintrag weiter.
+ */
+export const ALIASES = '_aliases';
+
+export function aliasesOf(data: EntryData): string[] {
+  const value = data[ALIASES];
+  return Array.isArray(value) ? value.filter((one): one is string => typeof one === 'string' && isKey(one)) : [];
+}
+
+/** Die alten Schlüssel nach einer Änderung: der bisherige kommt dazu, der neue nicht; jeder einmal, höchstens zehn. */
+export function nextAliases(previousKey: string | undefined, nextKey: string | undefined, given: readonly string[]): string[] {
+  const all = [...given, ...(previousKey !== undefined && previousKey !== nextKey ? [previousKey] : [])];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const one of all) {
+    const low = one.toLowerCase();
+    if ((nextKey !== undefined && low === nextKey.toLowerCase()) || seen.has(low)) continue;
+    seen.add(low);
+    out.push(one);
+  }
+  return out.slice(-10);
 }
 
 /** Wörter eines Textes — ohne Zeichen des Zapis, ohne Verweise. */

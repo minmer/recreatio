@@ -11,7 +11,7 @@ import { Fragment, useMemo, type MouseEvent, type ReactNode } from 'react';
 
 import { blocksOf, commentsAbout, subjectsOf, UNREADABLE } from './comment';
 import { citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from './libraryCite';
-import { str, type LibEntry, type Lookup } from './libraryKinds';
+import { refTarget, str, type LibEntry, type Lookup } from './libraryKinds';
 import { parseInline, parseMarkup, walkBlocks, walkInline, type Block, type Inline } from './libraryMarkup';
 
 export function Segs({ segs }: { segs: readonly Seg[] }) {
@@ -53,7 +53,7 @@ export function countNotes(parts: readonly (readonly Block[])[], look: Lookup, h
   /* 2026-10-22 — ein eingebetteter Komentarz zählt mit, wo er steht; einer, der sich selbst (über andere) einbettet, nur einmal. */
   const onBlock = (path: ReadonlySet<string>) => (b: Block) => {
     if (b.t !== 'embed') return;
-    const target = look.byKey(b.key);
+    const target = refTarget(look, b.key);
     if (target?.kind === 'comment') {
       if (!path.has(target.id)) walkComment(target, new Set([...path, target.id]));
       return;
@@ -76,7 +76,7 @@ export function countNotes(parts: readonly (readonly Block[])[], look: Lookup, h
         numbers.set(inline, n);
         const segs: Seg[] = [];
         inline.items.forEach((item, i) => {
-          const target = look.byKey(item.key);
+          const target = refTarget(look, item.key);
           const work = workBehind(target, look);
           if (work !== undefined) works.push(work);
           if (i > 0) segs.push({ text: '; ' });
@@ -273,7 +273,7 @@ export function Blocks({ blocks, look, notes, prefix, path = new Set() }: { bloc
           }
           case 'hr': return <hr key={i} className="lib-hr" />;
           case 'embed': {
-            const quote = look.byKey(b.key);
+            const quote = refTarget(look, b.key);
             if (quote === undefined) return <p key={i} className="lib-missing">{UNREADABLE}</p>;
             if (quote.kind === 'comment') {
               if (path.has(quote.id)) return <p key={i} className="lib-missing">[komentarz osadza sam siebie]</p>;
