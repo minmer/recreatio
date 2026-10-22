@@ -22,25 +22,16 @@ namespace Api;
 /// <c>Library.Areas.cs</c>): seine Mitglieder über
 /// <c>/workspace/library/{id}/entries</c>, und ist er öffentlich (und die
 /// Bibliothek durchgesehen, 0122), jeder über <c>/library/{id}/open</c> —
-/// dieselben Hüllen, geöffnet im Browser. Offene Fassungen
-/// (<c>Library.Publish.cs</c>) stellen nur noch Bazy wiedzy hinaus.
+/// dieselben Hüllen, geöffnet im Browser. Offene Fassungen gibt es keine
+/// neuen mehr; die alten zieht <c>Library.Publish.cs</c> zurück (Schritt 8).
 /// </para>
 /// </summary>
 public static partial class Library
 {
     private const int MaxName = 4096;
     private const long MaxSealed = 4L * 1024 * 1024;
-    private const int MaxSummary = 16_000;
-    private const int MaxPublic = 2 * 1024 * 1024;
-    private const int MaxKey = 120;
-    private const int MaxSort = 64;
     private const int MaxEntries = 50_000;
     private const int MaxBatch = 1000;
-    private const int MaxRefs = 500;
-
-    /// <summary>So viele Quellen bekommt ein Text höchstens mit — und so tief geht die Kette (Zitat → Werk → Autor).</summary>
-    private const int MaxClosure = 600;
-    private const int ClosureDepth = 4;
 
     public static void Map(WebApplication app)
     {
@@ -52,11 +43,8 @@ public static partial class Library
         app.MapGet("/workspace/library/{id:guid}/entries", EntriesAsync);
         app.MapPut("/workspace/library/{id:guid}/entry/{entryId:guid}", SaveAsync);
         app.MapDelete("/workspace/library/{id:guid}/entry/{entryId:guid}", RemoveAsync);
+        /* 2026-10-22 (Schritt 8) — nur noch Zurückziehen: die alten offenen Fassungen gehen, gelesen wird über /open. */
         app.MapPost("/workspace/library/{id:guid}/publish", PublishAsync);
-
-        /* Ohne Konto — das ist der Zweck: wer die Predigt liest, sieht ihre Quellen. */
-        app.MapGet("/library/{id:guid}/published", PublishedListAsync);
-        app.MapGet("/library/{id:guid}/published/{entryId:guid}", PublishedOneAsync);
 
         /* 2026-10-22 — Sichtbarkeit allein durch den Bereich: öffentlich lesen, wo es liegt, umziehen (Library.Areas.cs). */
         MapAreas(app);

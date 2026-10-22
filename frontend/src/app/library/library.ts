@@ -10,7 +10,8 @@
  * Wer liest, entscheidet der Bereich (2026-10-22): Mitglieder über
  * `/workspace/library/…/entries`, jeder andere über `/library/{id}/open` —
  * dieselben Hüllen, geöffnet mit dem offengelegten Schlüssel des Bereichs.
- * Die offenen Fassungen (`libraryPublish.ts`) hat nur noch eine Baza wiedzy.
+ * 2026-10-22 (Schritt 8) ebenso jede Baza wiedzy: offene Fassungen entstehen
+ * nicht mehr; alte werden nur noch zurückgezogen (`withdrawEntries`).
  */
 
 import { areaKeys, newestKey } from '../chat/chat';
@@ -18,10 +19,12 @@ import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../c
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import type { EntryData } from './libraryKinds';
-import type { PublicEntryIn, PublishedAs } from './libraryPublish';
 import { call, WorkspaceError } from '../core/session';
 
 /* -- Bibliotheken --------------------------------------------------------------------- */
+
+/** Wie ein Eintrag früher hinausging (ausdrücklich oder mitgezogen) — nur noch, um alte offene Fassungen zurückzuziehen. */
+export type PublishedAs = 'explicit' | 'implicit';
 
 /**
  * 0110 — ZWEI STRUKTUREN NEBENEINANDER, EIN SPEICHER: `books` ist die
@@ -197,11 +200,10 @@ export const moveEntry = (
 export const settleLibrary = (libraryId: string): Promise<{ areaRuleAt: string }> =>
   call(`/workspace/library/${encodeURIComponent(libraryId)}/area-rule`, { method: 'POST' });
 
-export const publishEntries = (
-  libraryId: string, publish: readonly PublicEntryIn[], unpublish: readonly string[]
-): Promise<{ published: number; unpublished: number; at: string }> =>
+/** 2026-10-22 (Schritt 8) — alte offene Fassungen zurückziehen; hinaus geht nichts mehr (der Dienst nimmt nur das an). */
+export const withdrawEntries = (libraryId: string, ids: readonly string[]): Promise<{ unpublished: number; at: string }> =>
   call(`/workspace/library/${encodeURIComponent(libraryId)}/publish`, {
-    method: 'POST', body: JSON.stringify({ publish, unpublish })
+    method: 'POST', body: JSON.stringify({ publish: [], unpublish: ids })
   });
 
 /* -- Öffentlich ------------------------------------------------------------------------------ */
@@ -234,62 +236,6 @@ export async function openLibraryName(key: Uint8Array | undefined, libraryId: st
     return await openText(key, nameAad(libraryId), fromBase64Url(nameSealed));
   } catch {
     return 'Biblioteka';
-  }
-}
-
-export interface PublishedItem {
-  readonly entryId: string;
-  readonly kind: string;
-  readonly key: string | null;
-  readonly sort: string | null;
-  readonly summary: string | null;
-  readonly publishedAt: string;
-  readonly publishedAs: PublishedAs;
-}
-
-export interface PublishedEntry {
-  readonly entryId: string;
-  readonly kind: string;
-  readonly key: string | null;
-  readonly sort: string | null;
-  readonly json: string;
-  readonly publishedAt: string;
-  readonly publishedAs: PublishedAs;
-}
-
-export interface PublishedQuery {
-  readonly kind?: string;
-  readonly ref?: string;
-  readonly q?: string;
-  readonly order?: 'sort' | '-sort';
-  readonly explicitOnly?: boolean;
-  readonly take?: number;
-  readonly skip?: number;
-}
-
-export function loadPublished(libraryId: string, query: PublishedQuery): Promise<{ total: number; items: readonly PublishedItem[] }> {
-  const params = new URLSearchParams();
-  if (query.kind !== undefined) params.set('kind', query.kind);
-  if (query.ref !== undefined && query.ref !== '') params.set('ref', query.ref);
-  if (query.q !== undefined && query.q.trim() !== '') params.set('q', query.q.trim());
-  if (query.order !== undefined) params.set('order', query.order);
-  if (query.explicitOnly === true) params.set('explicitOnly', 'true');
-  if (query.take !== undefined) params.set('take', String(query.take));
-  if (query.skip !== undefined) params.set('skip', String(query.skip));
-  return call(`/library/${encodeURIComponent(libraryId)}/published?${params.toString()}`);
-}
-
-export const loadPublishedOne = (libraryId: string, entryId: string): Promise<{ entry: PublishedEntry; refs: readonly PublishedEntry[] }> =>
-  call(`/library/${encodeURIComponent(libraryId)}/published/${encodeURIComponent(entryId)}`);
-
-/** Eine Kurzfassung lesen — duldsam: eine kaputte Zeile ist eine leere. */
-export function summaryOf(item: { readonly summary: string | null }): Record<string, unknown> {
-  if (item.summary === null) return {};
-  try {
-    const parsed: unknown = JSON.parse(item.summary);
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
-  } catch {
-    return {};
   }
 }
 

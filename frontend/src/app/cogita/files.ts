@@ -4,9 +4,12 @@
  *
  * Versiegelt im Browser unter dem jüngsten Schlüssel des Bereichs — wie jeder
  * Eintrag —, beim Dienst nur als Hülle mit Grösse. Ein Eintrag zeigt auf eine
- * Datei mit `{file, type, name, mime}` (Feldtyp `media`). Wer einen Kurs
- * veröffentlicht, stellt die Dateien, die er zeigt, OFFEN daneben: ein Besucher
- * ohne Konto hat keinen Schlüssel.
+ * Datei mit `{file, type, name, mime}` (Feldtyp `media`).
+ *
+ * 2026-10-22 (Schritt 8) — keine offenen Kopien mehr: ein Besucher ohne Konto
+ * holt die Hülle einer öffentlichen Baza (`/library/{id}/file/{fileId}/sealed`)
+ * und öffnet sie mit dem offengelegten Schlüssel ihres Bereichs — dieselbe
+ * Regel wie für ihre Einträge. Alte Kopien zieht Porządki zurück.
  */
 
 import { aad, Field, open, seal } from '../core/crypto';
@@ -75,7 +78,11 @@ export function fileUrl(libraryId: string, ref: MediaRef, keyOf: (epoch: number)
         ? `/workspace/library/${encodeURIComponent(libraryId)}/file/${encodeURIComponent(ref.file)}`
         : `/seat/${encodeURIComponent(seat)}/library/${encodeURIComponent(libraryId)}/file/${encodeURIComponent(ref.file)}`;
       const links = seat === undefined ? await heldProofs().catch(() => [] as string[]) : [];
-      const response = await fetch(`${API}${path}`, { credentials: 'include', headers: links.length > 0 ? { [LINKS_HEADER]: links.join(',') } : {} });
+      let response = await fetch(`${API}${path}`, { credentials: 'include', headers: links.length > 0 ? { [LINKS_HEADER]: links.join(',') } : {} });
+      /* 2026-10-22 (Schritt 8) — ohne Zugang als Mitglied: die Hülle einer öffentlichen Bibliothek (geöffnet mit dem offengelegten Schlüssel). */
+      if (!response.ok && seat === undefined) {
+        response = await fetch(`${API}/library/${encodeURIComponent(libraryId)}/file/${encodeURIComponent(ref.file)}/sealed`);
+      }
       if (!response.ok) return null;
       /*
         2026-10-17 — `X-Epoch` sieht der Browser über Herkünfte hinweg (recreatio.pl
@@ -99,18 +106,8 @@ export function fileUrl(libraryId: string, ref: MediaRef, keyOf: (epoch: number)
   return found;
 }
 
-/** Die offene Fassung hinausstellen (ein veröffentlichter Kurs zeigt sie). */
-export async function publishFile(libraryId: string, ref: MediaRef, plainUrl: string): Promise<void> {
-  const mime = ref.mime ?? '';
-  const bytes = new Uint8Array(await (await fetch(plainUrl)).arrayBuffer());
-  await call(`/workspace/library/${encodeURIComponent(libraryId)}/file/${encodeURIComponent(ref.file)}/public?type=${encodeURIComponent(mime)}`, {
-    method: 'PUT', body: new Blob([bytes as BlobPart])
-  }, { 'Content-Type': mime || 'application/octet-stream' });
-}
-
+/** Eine alte offene Kopie zurückziehen (neue gibt es seit Schritt 8 nicht mehr — gelesen wird die Hülle). */
 export const unpublishFile = (libraryId: string, fileId: string): Promise<{ unpublished: boolean }> =>
   call(`/workspace/library/${encodeURIComponent(libraryId)}/file/${encodeURIComponent(fileId)}/public`, { method: 'DELETE' });
 
-/** Wo die offene Fassung liegt — ohne Konto. */
-export const publicFileUrl = (libraryId: string, fileId: string): string =>
-  `${API}/library/${encodeURIComponent(libraryId)}/file/${encodeURIComponent(fileId)}`;
+

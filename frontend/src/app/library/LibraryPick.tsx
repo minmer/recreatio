@@ -8,13 +8,14 @@
  *                      Baza wiedzy) ein Baustein zeigt
  *   PickLibraryEntry   im Seiteneditor: welcher Text, welches Projekt, welches
  *                      Thema — wer ihn auf der Seite sieht, sagt der Bereich der
- *                      Bibliothek (2026-10-22); bei einer Baza wiedzy nur Veröffentlichtes
+ *                      Bibliothek (2026-10-22); 2026-10-22 (Schritt 8) ebenso bei
+ *                      einer Baza wiedzy: aus ihren Einträgen, nicht mehr aus Bündeln
  * </code>
  */
 
 import { useEffect, useId, useMemo, useState } from 'react';
 
-import { libraryKindOf, loadLibraries, loadPublished, openedLibraryKind, openLibraries, summaryOf, type LibraryKind, type OpenLibrary, type PublishedItem } from './library';
+import { libraryKindOf, loadLibraries, openedLibraryKind, openLibraries, type LibraryKind, type OpenLibrary } from './library';
 import { usePageLibrary } from './libraryOpen';
 import { entrySort, kindOf, str } from './libraryKinds';
 import type { Entry, LibraryStore } from './libraryStore';
@@ -172,7 +173,7 @@ export function PickLibrary({ value, busy, onPick, kind = 'books' }: { value: st
     <>
       <select value={value} disabled={busy} onChange={(e) => onPick(e.target.value)}>
         <option value="">{knowledge ? '— wybierz bazę wiedzy —' : '— wybierz bibliotekę —'}</option>
-        {libraries.map((one) => <option key={one.libraryId} value={one.libraryId}>{one.name}{knowledge ? ` (${one.published} publicznych)` : one.areaPublic === true ? ' — publiczna' : ' — dla członków obszaru'}</option>)}
+        {libraries.map((one) => <option key={one.libraryId} value={one.libraryId}>{one.name}{audienceTag(one, knowledge)}</option>)}
         {value !== '' && !libraries.some((one) => one.libraryId === value) && <option value={value}>{value}</option>}
       </select>
       {libraries.length === 0 && (knowledge
@@ -182,12 +183,12 @@ export function PickLibrary({ value, busy, onPick, kind = 'books' }: { value: st
   );
 }
 
-const itemLabel = (item: PublishedItem): string => {
-  const s = summaryOf(item);
-  const title = String(s.title ?? s.name ?? s.text ?? item.key ?? item.entryId);
-  const date = typeof s.date === 'string' && s.date !== '' ? ` · ${s.date}` : '';
-  return `${title.slice(0, 80)}${date}`;
-};
+/** Wer liest, was dieser Baustein zeigt — kurz, hinter dem Namen in der Wahl. */
+function audienceTag(one: OpenLibrary, knowledge: boolean): string {
+  if (one.areaPublic !== true) return ' — dla członków obszaru';
+  if (one.areaRuleAt == null) return knowledge ? ' — obszar publiczny, baza jeszcze nie otwarta' : ' — obszar publiczny, czeka na porządki';
+  return knowledge ? ' — publiczna w całości' : ' — publiczna';
+}
 
 interface EntryPickProps {
   library: string;
@@ -200,11 +201,11 @@ interface EntryPickProps {
 
 /**
  * 2026-10-22 — in einer Bibliothek wählt man aus ihren Einträgen (der
- * Bereich sagt, wer sie auf der Seite sieht); eine Baza wiedzy stellt weiter
- * ihre Bündel hinaus, dort wählt man aus den veröffentlichten.
+ * Bereich sagt, wer sie auf der Seite sieht); (Schritt 8) in einer Baza
+ * wiedzy ebenso — Powtórki, Przebiegi, Einträge, wie sie die Baza kennt.
  */
 export function PickLibraryEntry(props: EntryPickProps) {
-  return openedLibraryKind(props.library) === 'knowledge' ? <PickPublished {...props} /> : <PickBooksEntry {...props} />;
+  return openedLibraryKind(props.library) === 'knowledge' ? <PickBaseEntry {...props} /> : <PickBooksEntry {...props} />;
 }
 
 function PickBooksEntry({ library, kinds, value, busy, optional, onPick }: EntryPickProps) {
@@ -229,26 +230,30 @@ function PickBooksEntry({ library, kinds, value, busy, optional, onPick }: Entry
   );
 }
 
-function PickPublished({ library, kinds, value, busy, optional, onPick }: EntryPickProps) {
-  const [items, setItems] = useState<readonly PublishedItem[] | null>(null);
+function PickBaseEntry({ library, kinds, value, busy, optional, onPick }: EntryPickProps) {
+  const [items, setItems] = useState<readonly { id: string; label: string }[] | 'closed' | null>(null);
   useEffect(() => {
     if (library === '') { setItems([]); return undefined; }
     let alive = true;
-    void Promise.all(kinds.map((kind) => loadPublished(library, { kind, order: kind === 'text' ? '-sort' : 'sort', take: 200 })))
-      .then((all) => { if (alive) setItems(all.flatMap((r) => r.items)); }, () => { if (alive) setItems([]); });
+    setItems(null);
+    /* Cogita erst hier laden: wer nur Bibliotheken wählt, trägt sie nicht mit. */
+    void import('../cogita/pageBase')
+      .then(({ openPageBase, baseChoices }) => openPageBase(library).then((lib) => (lib === null ? 'closed' as const : baseChoices(lib, kinds))))
+      .then((got) => { if (alive) setItems(got); }, () => { if (alive) setItems('closed'); });
     return () => { alive = false; };
   }, [library, kinds.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (library === '') return <span className="wk-hint">Najpierw wybierz bibliotekę.</span>;
+  if (library === '') return <span className="wk-hint">Najpierw wybierz bazę wiedzy.</span>;
   if (items === null) return <Loading lines={1} />;
+  if (items === 'closed') return <span className="wk-hint">Nie możesz czytać tej bazy wiedzy.</span>;
   return (
     <>
       <select value={value} disabled={busy} onChange={(e) => onPick(e.target.value)}>
         <option value="">{optional === true ? '— wszystkie —' : '— wybierz —'}</option>
-        {items.map((item) => <option key={item.entryId} value={item.entryId}>{itemLabel(item)}</option>)}
-        {value !== '' && !items.some((item) => item.entryId === value) && <option value={value}>(nieopublikowany) {value}</option>}
+        {items.map((item) => <option key={item.id} value={item.id}>{item.label.slice(0, 80)}</option>)}
+        {value !== '' && !items.some((item) => item.id === value) && <option value={value}>(nie ma go w tej bazie) {value}</option>}
       </select>
-      {items.length === 0 && <span className="wk-hint">Tu są tylko wpisy opublikowane — opublikuj je w <a href={viewPath('library', library)}>Bibliotece</a>.</span>}
+      {items.length === 0 && <span className="wk-hint">W tej bazie nie ma jeszcze nic takiego.</span>}
     </>
   );
 }

@@ -18,8 +18,8 @@ import { idbDelete, idbForget, idbGet, idbPut } from '../core/idb';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import {
-  forgetLibraryNames, loadEntries, loadLibraries, moveEntry, openedLibraryKind, openEntry, openLibraries, publishEntries, putEntry, removeEntry, sealEntry,
-  type EntryDoc, type LibraryRow, type SealedEntry
+  forgetLibraryNames, loadEntries, loadLibraries, moveEntry, openedLibraryKind, openEntry, openLibraries, putEntry, removeEntry, sealEntry, withdrawEntries,
+  type EntryDoc, type LibraryRow, type PublishedAs, type SealedEntry
 } from './library';
 import { originOf } from './libraryCite';
 import {
@@ -27,10 +27,9 @@ import {
   type EntryData, type LibEntry, type Lookup
 } from './libraryKinds';
 import { citedKeys, mapRefTokens } from './libraryMarkup';
-import { plan, publicEntry, type PublishPlan, type PubEntry } from './libraryPublish';
 import { WorkspaceError } from '../core/session';
 
-export interface Entry extends PubEntry {
+export interface Entry extends LibEntry {
   /** 2026-10-22 — die Bibliothek (und damit der Bereich), in der er liegt. */
   readonly libraryId: string;
   readonly key?: string;
@@ -39,6 +38,8 @@ export interface Entry extends PubEntry {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly publishedAt: string | null;
+  /** Eine alte offene Fassung (bis 2026-10-22) — nur noch, damit Porządki sie zurückzieht. */
+  readonly publishedAs: PublishedAs | null;
 }
 
 /** Was gespeichert wird: ohne Kennung ein neuer Eintrag. */
@@ -503,12 +504,9 @@ export class LibraryStore implements Lookup {
   }
 
   async remove(id: string): Promise<void> {
-    const entry = this.entries.get(id);
     await removeEntry(this.libraryId, id);
     this.drop(id);
     this.changed();
-    /* Was nur für ihn draussen stand, geht mit (eine Baza wiedzy — eine Bibliothek veröffentlicht nichts mehr). */
-    if (entry?.publishedAs !== null && entry !== undefined && openedLibraryKind(this.libraryId) === 'knowledge') await this.apply(plan(this.all(), this, {})).catch(() => undefined);
   }
 
   /**
@@ -589,47 +587,22 @@ export class LibraryStore implements Lookup {
     return { pinned, failed };
   }
 
-  /* -- Öffentlich (nur noch Bazy wiedzy) ----------------------------------------------- */
+  /* -- Alte offene Fassungen (bis 2026-10-22) ------------------------------------------------- */
 
-  planFor(change: { add?: readonly string[]; remove?: readonly string[]; refresh?: readonly string[] }): PublishPlan {
-    return plan(this.all(), this, change);
-  }
-
-  /** Einen Plan ausführen — in Stücken, die der Dienst annimmt (höchstens ~3 MB je Gang). */
-  async apply(next: PublishPlan): Promise<void> {
-    if (next.publish.length === 0 && next.unpublish.length === 0) return;
-    const docs = next.publish
-      .filter((p) => this.entries.has(p.id))
-      .map((p) => publicEntry(this.entries.get(p.id)!, p.as, this));
-
-    const chunks: (typeof docs)[] = [[]];
-    let size = 0;
-    for (const doc of docs) {
-      const weight = doc.json.length + doc.summary.length;
-      if (chunks[chunks.length - 1].length > 0 && (size + weight > 3_000_000 || chunks[chunks.length - 1].length >= 400)) { chunks.push([]); size = 0; }
-      chunks[chunks.length - 1].push(doc);
-      size += weight;
-    }
-
-    let at = new Date().toISOString();
-    for (const [index, chunk] of chunks.entries()) {
-      const done = await publishEntries(this.libraryId, chunk, index === 0 ? next.unpublish : []);
-      at = done.at;
-    }
-
-    for (const p of next.publish) {
-      const entry = this.entries.get(p.id);
-      if (entry !== undefined) this.put({ ...entry, publishedAs: p.as, publishedAt: entry.publishedAt ?? at });
-    }
-    for (const id of next.unpublish) {
+  /**
+   * 2026-10-22 (Schritt 8) — alte offene Fassungen zurückziehen (Porządki).
+   * Hinaus geht nichts mehr: wer liest, sagt der Bereich.
+   */
+  async withdraw(ids: readonly string[]): Promise<number> {
+    let done = 0;
+    for (let i = 0; i < ids.length; i += 400) done += (await withdrawEntries(this.libraryId, ids.slice(i, i + 400))).unpublished;
+    for (const id of ids) {
       const entry = this.entries.get(id);
       if (entry !== undefined) this.put({ ...entry, publishedAs: null, publishedAt: null });
     }
     this.changed();
+    return done;
   }
-
-  publish(ids: readonly string[]): Promise<void> { return this.apply(this.planFor({ add: ids })); }
-  unpublish(ids: readonly string[]): Promise<void> { return this.apply(this.planFor({ remove: ids })); }
 }
 
 /* -- Ein Speicher je Bibliothek und Tab ------------------------------------------------------ */

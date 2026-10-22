@@ -15,6 +15,7 @@ import { createIntake } from '../forms/intake';
 import { deleteLibrary, libraryKindOf, loadLibraries, openLibraries, renameLibrary, type OpenLibrary } from '../library/library';
 import { viewPath } from '../routes';
 import { BASES_CHANGED } from './sources';
+import { BaseVisibility } from './BaseWho';
 import { DEPENDENCY_KINDS, DEPENDENCY_LABEL, type DependencyKind } from './knowness';
 import { intakeOf } from './learn';
 import { LOOK_LABEL, LOOK_TYPES, type LookType } from './flow';
@@ -29,10 +30,11 @@ export function CogitaSettings() {
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [libraries, setLibraries] = useState<readonly OpenLibrary[]>([]);
   const { me } = useCtx();
+  const [round, setRound] = useState(0);
   useEffect(() => {
     void loadAreas().then((r) => setAreas(r.areas)).catch(() => undefined);
     if (me !== null) void loadLibraries().then((r) => openLibraries(me.ring, r.libraries)).then(setLibraries).catch(() => undefined);
-  }, [me]);
+  }, [me, round]);
   const [joinPage, setJoinPage] = useState(settings.joinPage ?? '');
   const save = (patch: Record<string, unknown>) => run(() => lib.saveSettings(patch));
   if (!writes) return <p className="wk-hint">Ustawienia bazy wiedzy zmieniają autorzy.</p>;
@@ -40,6 +42,7 @@ export function CogitaSettings() {
   return (
     <div className="cg">
       <BaseSection areas={areas} />
+      <BaseVisibility libraries={libraries} areas={areas} onChanged={() => setRound((n) => n + 1)} />
       <Sources libraries={libraries} areas={areas} />
 
       <section className="cg-card">

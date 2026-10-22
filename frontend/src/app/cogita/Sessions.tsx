@@ -26,8 +26,7 @@ import { newId } from '../core/ids';
 import { AnswerInput, answerText, Verdict } from './CardFace';
 import { checkCard } from './cards';
 import { type Card } from './cardBasics';
-import { contentOfBundle, FlowPlayer } from './FlowPlayer';
-import { readFlow, resolveFlow } from './flow';
+import { contentOfLibrary, FlowPlayer } from './FlowPlayer';
 import { readGame } from './game';
 import { GameHost, GamePlay } from './GamePanel';
 import { intakeOf, type Learner } from './learn';
@@ -40,11 +39,9 @@ import { startGame } from './game';
 import { describeRules, DEFAULT_RULES, onAllAnswered, onFirstAnswer, PRESETS, readRules, roundDeadline, scoreRound, type LiveRules, type Move, type Points } from './rules';
 import { planFor } from './RevisionRun';
 import { RevisionRun } from './RevisionRun';
-import { PublicRevisionRun } from './PublicRun';
-import { loadPublishedOne } from '../library/library';
-import { publicFileUrl } from './files';
-import type { PublicFlow } from './publish';
-import { CogitaContext, useBusy, useCtx } from './ui';
+import { PageRevisionRun } from './PublicRun';
+import { usePageBase } from './pageBase';
+import { CogitaContext, useAsync, useBusy, useCtx } from './ui';
 import { askText } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
 
@@ -712,8 +709,10 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
 
   /*
    * IM EIGENEN TEMPO: aus der Bibliothek, wenn sie hier offen ist — sonst (ein
-   * Code, ein Link ohne Konto) aus der veröffentlichten Powtórka, die die
-   * Sitzung offen nennt (`meta`). Jede Antwort geht auch an den Gastgeber.
+   * Code, ein Link ohne Konto) aus der Baza, so wie ihr Bereich sie diesem
+   * Teilnehmer zeigt (2026-10-22, Schritt 8: öffentlich, Link, Platz), mit der
+   * Powtórka, die die Sitzung offen nennt (`meta`). Jede Antwort geht auch an
+   * den Gastgeber.
    */
   const asyncRevision = session.kind === 'async' ? (config?.revisionId ?? meta?.revision ?? null) : null;
   if (asyncRevision !== null) {
@@ -723,7 +722,7 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
       return <RevisionRun lib={ctx.lib} source={{ revisionId: asyncRevision, title }} learner={learner ?? null} via={session.sessionId} onAnswer={report} />;
     }
     const libraryId = meta?.library ?? session.libraryId;
-    if (libraryId != null) return <PublicRevisionRun libraryId={libraryId} revisionId={asyncRevision} learner={learner ?? null} title={title} via={session.sessionId} onAnswer={report} />;
+    if (libraryId != null) return <PageRevisionRun libraryId={libraryId} revisionId={asyncRevision} learner={learner ?? null} title={title} via={session.sessionId} onAnswer={report} />;
   }
 
   if (finished) return <div className="cg-live-screen"><h2>Koniec</h2>{mine !== null && <p className="cg-live-code">{mine.total}</p>}</div>;
@@ -757,7 +756,11 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
   );
 }
 
-/** Eine Erzählung oder ein Spiel in einer Sitzung — aus dem veröffentlichten Ablauf (der Code bringt keinen Schlüssel). */
+/**
+ * Eine Erzählung oder ein Spiel in einer Sitzung — 2026-10-22 (Schritt 8) aus
+ * der Baza wiedzy selbst, wie dieser Teilnehmer sie lesen darf (öffentlicher
+ * Bereich, Link, Konto): der Code allein bringt keinen Schlüssel.
+ */
 function StoryPlay({ session, meta, learner, jump, raw, onAnswer, game }: {
   session: SessionRow;
   meta: { flow?: string | null; library?: string } | null;
@@ -767,23 +770,21 @@ function StoryPlay({ session, meta, learner, jump, raw, onAnswer, game }: {
   onAnswer: (step: string, correctness: number, given: unknown) => void;
   game: { cred: Credentials; player: string; team: string | null; onOpen: (step: string) => void } | null;
 }) {
-  const [bundle, setBundle] = useState<PublicFlow | null | undefined>(undefined);
-  const libraryId = meta?.library ?? session.libraryId ?? null;
+  const libraryId = meta?.library ?? session.libraryId ?? '';
   const flowId = meta?.flow ?? null;
-  useEffect(() => {
-    if (libraryId === null || flowId === null) { setBundle(null); return; }
-    void loadPublishedOne(libraryId, flowId).then((r) => {
-      try { setBundle((JSON.parse(r.entry.json) as { data: PublicFlow }).data); } catch { setBundle(null); }
-    }, () => setBundle(null));
-  }, [libraryId, flowId]);
-  if (bundle === undefined) return <Loading label="Wczytywanie…" />;
-  if (bundle === null || libraryId === null) return <p className="wk-error">Ten przebieg nie jest opublikowany — gospodarz musi go opublikować.</p>;
-  const content = contentOfBundle(bundle, (fileId, from) => publicFileUrl(from ?? libraryId, fileId));
-  const flow = resolveFlow(readFlow(String(bundle.flow.id ?? ''), bundle.flow), content.flow);
+  const { lib, ctx } = usePageBase(libraryId);
+  const cards = useAsync(lib == null ? null : () => lib.cards('flow').then((r) => r.cards), [lib, lib?.revision]);
+  const content = useMemo(() => (lib == null || cards == null ? null : contentOfLibrary(lib, cards)), [lib, cards]);
+  const flow = content === null || flowId === null ? undefined : content.flow(flowId);
+  if (lib === undefined || (lib !== null && content === null)) return <Loading label="Wczytywanie…" />;
+  if (lib === null || ctx === null || content === null) return <p className="wk-error">Tej bazy wiedzy nie możesz czytać — przebieg bez konta działa w bazie z obszaru publicznego (albo z linkiem do niego).</p>;
+  if (flow === undefined) return <p className="wk-error">Tego przebiegu nie ma w bazie wiedzy.</p>;
   return (
-    <div className="cg">
-      {game !== null && <GamePlay sessionId={session.sessionId} cred={game.cred} player={game.player} team={game.team} events={raw} onOpen={game.onOpen} />}
-      <FlowPlayer flow={flow} content={content} learner={learner} jumpTo={jump} onAnswer={(step, _card, correctness, given) => onAnswer(step, correctness, given)} />
-    </div>
+    <CogitaContext.Provider value={ctx}>
+      <div className="cg">
+        {game !== null && <GamePlay sessionId={session.sessionId} cred={game.cred} player={game.player} team={game.team} events={raw} onOpen={game.onOpen} />}
+        <FlowPlayer flow={flow} content={content} learner={learner} jumpTo={jump} onAnswer={(step, _card, correctness, given) => onAnswer(step, correctness, given)} />
+      </div>
+    </CogitaContext.Provider>
   );
 }

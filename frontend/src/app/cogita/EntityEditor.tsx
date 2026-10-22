@@ -11,12 +11,11 @@ import { areaKeys, newestKey } from '../chat/chat';
 import { answerText } from './CardFace';
 import { uploadFile } from './files';
 import { GeoMap } from './GeoMap';
-import { entityBundle, publicEntity, publishBundle, publishMedia, unpublishBundle } from './publish';
+import { WhoSees } from './BaseWho';
 import {
   dateText, FIELD_TYPE_LABEL, fieldsOf, labelOf, outsideOf, parseRange, rangeText, readDate, readRange, VALUE_STATE_LABEL, VALUE_STATES,
   type Entity, type FieldDef, type GeoPoint, type MediaRef, type RangeValue, type ValueState
 } from './schema';
-import { LIBRARY_KIND_IDS } from './kinds';
 import { linkedOf } from './store';
 import { creatorFor, EntityPicker, Markup, MediaView, entityName, useAsync, useBusy, useCtx } from './ui';
 import { loadVersions, openVersion } from './versions';
@@ -86,7 +85,6 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
         <div className="cg-row-between">
           <h2 className="wk-h2">{entityId === null ? 'Nowy wpis' : labelOf(draft, look)}</h2>
           <span className="cg-row">
-            {entry?.publishedAs != null && <span className="cg-tag is-ok">publiczny</span>}
             {dirty && <span className="cg-tag is-warn">niezapisane</span>}
           </span>
         </div>
@@ -130,7 +128,8 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
         {existing !== undefined && <EntityCards entity={existing} />}
         {existing !== undefined && writes && <Merge entity={existing} onMerged={() => onDone(existing.id)} />}
         {existing !== undefined && writes && me !== null && <History entityId={existing.id} onRestored={() => setDirty(false)} />}
-        {existing !== undefined && writes && <PublishEntity entity={existing} />}
+        {/* 2026-10-22 (Schritt 8) — wer ihn liest, sagt die Baza; veröffentlichen heisst: in eine öffentliche Baza tragen. */}
+        {existing !== undefined && lib.isOwn(existing.id) && <WhoSees id={existing.id} />}
       </aside>
     </div>
   );
@@ -487,29 +486,3 @@ function History({ entityId, onRestored }: { entityId: string; onRestored: () =>
   );
 }
 
-function PublishEntity({ entity }: { entity: Entity }) {
-  const { lib, keyIn } = useCtx();
-  const entry = lib.entry(entity.id);
-  const { busy, failed, run } = useBusy();
-  const builtin = entry !== undefined && LIBRARY_KIND_IDS.has(entry.kind);
-  const publish = async () => {
-    const bundle = entityBundle(lib, entity);
-    await publishMedia(lib, publicEntity(lib, entity).media, keyIn);
-    await publishBundle(lib, entity.id, bundle);
-  };
-  if (entry === undefined || builtin) return null;
-  return (
-    <Section title="Na stronie">
-      <span className="wk-hint">Opublikowany wpis może pokazać moduł „Karta wpisu" na stronie (bez klucza, dla każdego).</span>
-      {entry.publishedAs === null
-        ? <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(publish)}>Opublikuj</button>
-        : (
-          <span className="cg-row">
-            <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(publish)}>Zaktualizuj publikację</button>
-            <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => unpublishBundle(lib, entity.id))}>Wycofaj</button>
-          </span>
-        )}
-      {failed !== null && <p className="wk-error">{failed}</p>}
-    </Section>
-  );
-}

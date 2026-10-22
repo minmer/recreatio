@@ -1,13 +1,15 @@
 /**
- * COGITA AUF EINER SEITE (0109, COGITA.md §14) — was eine Baza wiedzy
- * veröffentlicht hat, läuft hier ohne Schlüssel und ohne Konto:
+ * COGITA AUF EINER SEITE (0109, COGITA.md §14) — eine Baza wiedzy auf einer
+ * Seite. 2026-10-22 (Schritt 8): keine Abschriften mehr; jeder Baustein liest
+ * die Baza selbst, so wie ihr Bereich sie dem Leser zeigt — ein öffentlicher
+ * (und geöffneter) jedem, ohne Konto; sonst Mitgliedern, Links, Plätzen:
  *
  * <code>
- *   cogita-revision   eine Powtórka — die Abschrift ihrer Karten
+ *   cogita-revision   eine Powtórka — ihre Karten, im Browser gerechnet
  *   cogita-flow       ein Przebieg: Kurs, Erzählung, Gespräch, Karte zum Entdecken
  *   cogita-live       an einer Sitzung teilnehmen — mit dem Code oder dem Link
  *   entity-card       die Karte eines Eintrags
- *   entity-table      die veröffentlichten Einträge als Tabelle
+ *   entity-table      die Einträge als Tabelle
  *   topic-explorer    die Themen, eins im anderen, mit dem, was zu ihnen gehört
  *   knowledge-map     die Karte des Wissens einer Powtórka, im eigenen Nebel
  *   seat-learn        hinter einem persönlichen Link: das Lernen dieses Menschen
@@ -49,9 +51,9 @@ export interface RevisionConfig {
 
 export const cogitaRevisionPart = definePart<RevisionConfig>({
   kind: 'cogita-revision',
-  example: { title: 'Powtórka przed bierzmowaniem', library: '<id-biblioteki>', revision: '<id-opublikowanej-powtórki>' },
+  example: { title: 'Powtórka przed bierzmowaniem', library: '<id-biblioteki>', revision: '<id-powtórki>' },
   label: 'Powtórka',
-  use: 'Opublikowana powtórka z bazy wiedzy (Cogita) — każdy powtarza bez konta, postępy zostają w jego przeglądarce.',
+  use: 'Powtórka z bazy wiedzy (Cogita). Widzą ją ci, którzy mogą czytać bazę — w jawnym obszarze (baza otwarta) każdy, bez konta; postępy bez konta zostają w przeglądarce.',
   box: { colSpan: 4, rowSpan: 3 },
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'puste: nazwa powtórki' },
@@ -60,7 +62,7 @@ export const cogitaRevisionPart = definePart<RevisionConfig>({
   ],
   read: (raw: RawConfig): RevisionConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), revision: text(raw, 'revision') }),
   hasContent: (c) => c.library !== '' && c.revision !== '',
-  missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : c.revision === '' ? 'Wybierz opublikowaną powtórkę (Nauka → baza wiedzy → Powtórki → Udostępnij).' : null),
+  missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : c.revision === '' ? 'Wybierz powtórkę z tej bazy wiedzy.' : null),
   strip: { title: 'Powtórka', open: 'Zacznij' },
   fullscreen: true,
   shows: (_c, size) => size.height === 'tall' ? 'Cała powtórka od razu — karta po karcie.'
@@ -79,9 +81,9 @@ export interface FlowConfig {
 
 export const cogitaFlowPart = definePart<FlowConfig>({
   kind: 'cogita-flow',
-  example: { title: 'Droga przez Ewangelię Marka', library: '<id-biblioteki>', flow: '<id-opublikowanego-przebiegu>' },
+  example: { title: 'Droga przez Ewangelię Marka', library: '<id-biblioteki>', flow: '<id-przebiegu>' },
   label: 'Kurs / opowieść',
-  use: 'Opublikowany przebieg z bazy wiedzy (Cogita): kurs, opowieść, rozmowa w dymkach, mapa do odkrywania — bez konta.',
+  use: 'Przebieg z bazy wiedzy (Cogita): kurs, opowieść, rozmowa w dymkach, mapa do odkrywania. Widzą go ci, którzy mogą czytać bazę — w jawnym obszarze każdy, bez konta.',
   box: { colSpan: 6, rowSpan: 5 },
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'puste: nazwa przebiegu' },
@@ -90,7 +92,7 @@ export const cogitaFlowPart = definePart<FlowConfig>({
   ],
   read: (raw: RawConfig): FlowConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), flow: text(raw, 'flow') }),
   hasContent: (c) => c.library !== '' && c.flow !== '',
-  missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : c.flow === '' ? 'Wybierz opublikowany przebieg (Nauka → baza wiedzy → Przebiegi → Opublikuj).' : null),
+  missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : c.flow === '' ? 'Wybierz przebieg z tej bazy wiedzy.' : null),
   strip: { title: 'Kurs', open: 'Zacznij' },
   fullscreen: true,
   shows: (_c, size) => size.height === 'tall' ? 'Cały przebieg od razu, krok po kroku.'
@@ -131,9 +133,9 @@ export interface EntityConfig {
 
 export const entityCardPart = definePart<EntityConfig>({
   kind: 'entity-card',
-  example: { title: 'Św. Józef', library: '<id-biblioteki>', entry: '<id-opublikowanego-wpisu>' },
+  example: { title: 'Św. Józef', library: '<id-biblioteki>', entry: '<id-wpisu>' },
   label: 'Karta wpisu',
-  use: 'Jeden opublikowany wpis bazy wiedzy — postać, miejsce, pojęcie, wiedza — z polami i zdjęciem.',
+  use: 'Jeden wpis bazy wiedzy — postać, miejsce, pojęcie, wiedza — z polami i zdjęciem. Widzą go ci, którzy mogą czytać bazę.',
   box: { colSpan: 3, rowSpan: 3 },
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'puste: nazwa wpisu' },
@@ -164,7 +166,7 @@ export const entityTablePart = definePart<TableConfig>({
   kind: 'entity-table',
   example: { title: 'Postacie Starego Testamentu', library: '<id-biblioteki>', kind: 'Postać', columns: 'Kiedy żył, Księga' },
   label: 'Tabela wpisów',
-  use: 'Opublikowane wpisy bazy wiedzy jako tabela — z wyszukiwaniem; mały kafelek pokazuje listę.',
+  use: 'Wpisy bazy wiedzy jako tabela — z wyszukiwaniem; mały kafelek pokazuje listę. Widzą je ci, którzy mogą czytać bazę.',
   box: { colSpan: 6, rowSpan: 3 },
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Postacie' },
@@ -197,7 +199,7 @@ export const topicExplorerPart = definePart<TopicsConfig>({
   kind: 'topic-explorer',
   example: { title: 'Tematy katechezy', library: '<id-biblioteki>', topic: '<id-tematu albo puste>' },
   label: 'Tematy',
-  use: 'Opublikowane tematy bazy wiedzy, jeden w drugim — i to, co do nich należy.',
+  use: 'Tematy bazy wiedzy (i bibliotek, z których czerpie), jeden w drugim — i to, co do nich należy.',
   box: { colSpan: 4, rowSpan: 3 },
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Tematy' },
@@ -224,9 +226,9 @@ export interface MapConfig {
 
 export const knowledgeMapPart = definePart<MapConfig>({
   kind: 'knowledge-map',
-  example: { title: 'Mapa: Dzieje Apostolskie', library: '<id-biblioteki>', revision: '<id-opublikowanej-powtórki>' },
+  example: { title: 'Mapa: Dzieje Apostolskie', library: '<id-biblioteki>', revision: '<id-powtórki>' },
   label: 'Mapa wiedzy',
-  use: 'Wpisy opublikowanej powtórki jako mapa: co już umiesz, jest jasne; granica do odkrycia; reszta we mgle — bez konta.',
+  use: 'Wpisy powtórki jako mapa: co już umiesz, jest jasne; granica do odkrycia; reszta we mgle. Widzą ją ci, którzy mogą czytać bazę (jawny obszar: każdy, bez konta).',
   box: { colSpan: 6, rowSpan: 5 },
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Mapa wiedzy' },
@@ -235,7 +237,7 @@ export const knowledgeMapPart = definePart<MapConfig>({
   ],
   read: (raw: RawConfig): MapConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), revision: text(raw, 'revision') }),
   hasContent: (c) => c.library !== '' && c.revision !== '',
-  missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : c.revision === '' ? 'Wybierz opublikowaną powtórkę.' : null),
+  missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : c.revision === '' ? 'Wybierz powtórkę.' : null),
   fullscreen: true,
   shows: (_c, size) => size.height === 'strip' ? 'Jedna linia: ile już umiesz, przycisk „Mapa".'
     : size.height === 'tall' ? 'Cała mapa z nazwami; kliknięty wpis i „Ucz się tego".'

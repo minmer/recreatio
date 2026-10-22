@@ -17,8 +17,11 @@ namespace Api;
 /// <b>Dateien</b> [G10]: Erzählton, Bilder, Filme einer Bibliothek, versiegelt
 /// unter dem Schlüssel ihres Bereichs wie jeder Eintrag. Sie liegen als Dateien
 /// neben der Datenbank (<c>Cogita:FileDirectory</c>), ein Ordner je Bibliothek.
-/// Ein öffentlicher Kurs hat keinen Schlüssel: wer einen Ablauf veröffentlicht,
-/// stellt die Dateien, die er zeigt, ausdrücklich OFFEN daneben.
+/// 2026-10-22 (Schritt 8): wer eine öffentliche Baza wiedzy ohne Konto liest,
+/// holt ihre Dateien versiegelt (<c>/library/{id}/file/{fileId}/sealed</c>,
+/// <c>Library.Areas.cs</c>) und öffnet sie mit dem offengelegten Schlüssel
+/// des Bereichs. Offene Kopien neben der Hülle entstehen nicht mehr; alte
+/// werden nur noch zurückgezogen (Porządki).
 /// </para>
 ///
 /// <para>
@@ -33,15 +36,6 @@ public static partial class Library
     private const long LibraryQuota = 2L * 1024 * 1024 * 1024;
     private const int MaxVersionsListed = 200;
 
-    /// <summary>Was offen hinausgehen darf — und nur so, wie es hier steht.</summary>
-    private static readonly HashSet<string> PublicTypes = new(StringComparer.Ordinal)
-    {
-        "image/png", "image/jpeg", "image/webp", "image/gif",
-        "audio/mpeg", "audio/ogg", "audio/wav", "audio/webm", "audio/mp4",
-        "video/mp4", "video/webm",
-        "application/pdf"
-    };
-
     private static void MapCogita(WebApplication app)
     {
         app.MapGet("/workspace/library/{id:guid}/entry/{entryId:guid}/versions", VersionsAsync);
@@ -51,11 +45,8 @@ public static partial class Library
         app.MapPut("/workspace/library/{id:guid}/file/{fileId:guid}", UploadAsync);
         app.MapGet("/workspace/library/{id:guid}/file/{fileId:guid}", DownloadAsync);
         app.MapDelete("/workspace/library/{id:guid}/file/{fileId:guid}", DropFileAsync);
-        app.MapPut("/workspace/library/{id:guid}/file/{fileId:guid}/public", PublishFileAsync);
+        /* 2026-10-22 (Schritt 8) — nur noch zurückziehen: eine alte offene Kopie verlässt den Dienst. */
         app.MapDelete("/workspace/library/{id:guid}/file/{fileId:guid}/public", UnpublishFileAsync);
-
-        /* Ohne Konto: die offene Fassung einer Datei, die ein veröffentlichter Kurs zeigt. */
-        app.MapGet("/library/{id:guid}/file/{fileId:guid}", PublicFileAsync);
 
         /* Ein Platz liest die Bibliothek eines Bereichs, den seine Rollen lesen. */
         app.MapGet("/seat/{token}/library/{id:guid}", SeatLibraryRowAsync);
@@ -448,62 +439,6 @@ public static partial class Library
         await ctx.Response.WriteAsJsonAsync(new { fileId = Ids.ToText(fileId), deleted = gone > 0 });
     }
 
-    /// <summary>
-    /// DIE OFFENE FASSUNG einer Datei — der Browser hat sie geöffnet und schickt
-    /// sie unverschlüsselt, weil ein veröffentlichter Kurs sie zeigt. Nur in den
-    /// Arten, die hier stehen (<see cref="PublicTypes"/>).
-    /// </summary>
-    private static async Task PublishFileAsync(HttpContext ctx, Db db, IConfiguration config, Guid id, Guid fileId, string? type)
-    {
-        AllowBody(ctx);
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
-        if (type is null || !PublicTypes.Contains(type))
-        {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Publicznie można pokazać obraz, dźwięk, film albo PDF.");
-            return;
-        }
-        if (ctx.Request.ContentLength is not long size || size < 1 || size > MaxFile)
-        {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Plik musi mieć najwyżej 50 MB.");
-            return;
-        }
-
-        await using var connection = await db.OpenAsync(ctx.RequestAborted);
-        if (await AllowedAsync(ctx, connection, who.Value.AccountId, id, Capability.Write) is null) return;
-        if (await FileRowAsync(connection, id, fileId, ctx.RequestAborted) is null)
-        {
-            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego pliku nie ma.");
-            return;
-        }
-
-        var path = PublicPath(config, id, fileId);
-        var temp = path + ".part";
-        try
-        {
-            await CopyBodyAsync(ctx, temp, size);
-            File.Move(temp, path, overwrite: true);
-        }
-        catch
-        {
-            try { File.Delete(temp); } catch (IOException) { }
-            throw;
-        }
-
-        await using var update = new SqlCommand("""
-            UPDATE app.library_file SET public_size = @size, public_type = @type, public_at = SYSDATETIMEOFFSET()
-            WHERE id = @id AND library_id = @library;
-            """, connection);
-        update.Parameters.AddWithValue("@size", (int)size);
-        update.Parameters.AddWithValue("@type", type);
-        update.Parameters.AddWithValue("@id", fileId);
-        update.Parameters.AddWithValue("@library", id);
-        await update.ExecuteNonQueryAsync(ctx.RequestAborted);
-
-        await ctx.Response.WriteAsJsonAsync(new { fileId = Ids.ToText(fileId), publicType = type, publicSize = size });
-    }
-
     private static async Task UnpublishFileAsync(HttpContext ctx, Db db, IConfiguration config, Guid id, Guid fileId)
     {
         var who = await Auth.WhoAsync(ctx, db);
@@ -520,23 +455,5 @@ public static partial class Library
         var changed = await update.ExecuteNonQueryAsync(ctx.RequestAborted);
         try { File.Delete(PublicPath(config, id, fileId)); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         await ctx.Response.WriteAsJsonAsync(new { fileId = Ids.ToText(fileId), unpublished = changed > 0 });
-    }
-
-    private static async Task PublicFileAsync(HttpContext ctx, Db db, IConfiguration config, Guid id, Guid fileId)
-    {
-        await using var connection = await db.OpenAsync(ctx.RequestAborted);
-        var row = await FileRowAsync(connection, id, fileId, ctx.RequestAborted);
-        var path = PublicPath(config, id, fileId);
-        if (row?.PublicType is not string type || row.Value.PublicSize is not int size || !File.Exists(path))
-        {
-            ctx.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
-        ctx.Response.Headers.CacheControl = "public, max-age=3600";
-        ctx.Response.Headers.XContentTypeOptions = "nosniff";
-        ctx.Response.Headers.ContentSecurityPolicy = "sandbox; default-src 'none'";
-        ctx.Response.ContentType = type;
-        ctx.Response.ContentLength = size;
-        await ctx.Response.SendFileAsync(path, ctx.RequestAborted);
     }
 }

@@ -96,12 +96,12 @@ Formula, code and duration are not field types.
 **Schema changes** keep the values of removed or retyped fields, marked “outside the schema”, until someone resolves them [B13].
 
 **The built-in kinds** (person, work, quote, topic, text, delivery, comment, project) become the editable starting schema [B1].
-- Citations, publication, the ISBN lookup and LaTeX keep running on the existing library code.
+- Citations, the ISBN lookup and LaTeX keep running on the existing library code.
 - They find their fields through **field roles** (authors, title, year, container, locator…).
 
 **What the service sees** [B20]:
 - only `entity`; the kinds and their names stay inside the sealed document;
-- published entries keep a plain kind for public lists.
+- nothing is published one by one any more (step 8, 2026-10-22): a base is read by whoever reads its area (§13).
 
 **Merging duplicates** [B16] rewrites every reference onto the entry that stays. The other becomes a tombstone pointing at it.
 
@@ -282,7 +282,7 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 
 There are three separate layers: content (§2–3), flow and look [G1].
 
-**A flow is a sealed library entry.** Publishing it creates or updates a page [G2].
+**A flow is a sealed library entry.** A page shows it through the module `cogita-flow`, which reads the base itself — whoever can read the base can play it there (§13, step 8) [G2].
 - A flow never holds text of its own. Everything a learner reads is a knowledge node, a text or an entity [G9].
   - Step titles, choice labels and chapter names are flow data.
 
@@ -385,7 +385,7 @@ Phones stay awake.
 - Answers also enter each participant’s progress (§7).
 - Sessions can be planned in the calendar, with a join link [I11, P02].
 
-**Shared revisions** are published revisions at a generated address [I13, F20] (see §14, publishing modules).
+**Shared revisions** are revision modules on a page at a generated address (`c/<id>`) [I13, F20]; who can use them is decided by the base's area (§13).
 
 ## 11. Games
 
@@ -424,6 +424,11 @@ Phones stay awake.
 - **No secret test areas.** Sessions send question copies without answers [L3].
 - **User types** (teacher, student, self-learner, researcher, casual) are starting presets of views and display modes [L4].
 - **Another organisation** gets access through a link role, as everywhere since 0091 [L8].
+- **Visibility follows the area** (step 8, 2026-10-22; decision 3 of the target architecture):
+  - members of the base's area read it; through a link or a seat, whoever holds them;
+  - a base in a **public** area is public **as a whole** — entries, questions with their answers, drafts, revisions, flows — once a writer has opened it (**Ustawienia → Kto czyta**, after the plain statement; migration 0123 left every existing base unopened; a new base is opened at creation, and the creation form says what that means in a public area);
+  - there is no per-item publishing: to make something public, move it into a base of a public area (**Kto widzi → Przenieś**, same id; what it needs can move along, and the old base takes the new one as a source); to keep something for a few, move it into a base of a closed area;
+  - pages and keyless sessions read the base itself (`pageBase.ts`), so a page shows exactly what its reader may read.
 
 ## 14. In the workspace
 
@@ -437,8 +442,8 @@ Phones stay awake.
 | Page subject | A page about one entity (“Kim był Dawid?”) | P07 |
 | Widgets | A revision, a quiz or a quote of the day on other websites | P08 |
 | Forms and steps | Learning targets as steps (“Naucz się: Modlitwy, 80%”), with progress in the office list; enrolling through a form | P09, L5 |
-| Publication | Public courses | P10 |
-| Publishing modules | One common way to publish any module directly (a form, a revision, a flow…) at `recreatio.pl/#/c/<id>`, owned by whoever publishes, without building a page by hand | F20 |
+| Public courses | A knowledge base in a public area, opened by a writer (Ustawienia → Kto czyta): everyone reads it as a whole, without an account (§13) | P10 |
+| Pages with one module | One common way to put a module on its own page (a form, a revision, a flow…) at `recreatio.pl/#/c/<id>`, owned by whoever creates it, without building a page by hand; the module reads the base itself | F20 |
 | Search | Library and knowledge-base content in Ctrl K | P12 |
 | Nauka | The workspace view of Cogita: due now, sessions, the knowledge bases (each with its tabs at `#/workspace/learn/<id>`), and offline practice. The library itself has no Cogita tab. | A1 |
 | JSON and your AI | Schema, entities, knowledge, questions and flows from a text: a prompt to copy and an import with review | P13 |
@@ -465,10 +470,12 @@ Phones stay awake.
 | session events and results | the kind of session, participants’ ids, times |
 | — | game data while a game runs: positions and values [J2] |
 
+A public, opened base (§13) is served to anyone as the same sealed entries and files (`/library/{id}/open`, `/library/{id}/file/{fileId}/sealed`); the browser opens them with the area's published key. The service still reads none of it.
+
 ## 16. New storage (migrations)
 
 1. **Library:**
-   - the plain kind becomes `entity`, while published entries keep a public kind;
+   - the plain kind becomes `entity`, while published entries keep a public kind (until step 8, 2026-10-22: nothing is published one by one now — §13);
    - `library_entry_version`;
    - sealed library files.
 2. **Answers:** answer batches (holder, storage area, sealed batch with key copies) and the next due time.
@@ -542,7 +549,8 @@ Phones stay awake.
 | Learning | `learn.ts` (sealed batches, outbox, due), `holders.ts`, `offline.ts`, `python.ts` with `python.worker.ts` (Pyodide) |
 | Screens | `LearnView.tsx` (the workspace view **Nauka**: the knowledge bases, due, sessions, offline), `CogitaHome.tsx` (one knowledge base and its tabs), `LearnPart.tsx` (the view part), `AddFormEditor.tsx`, `AddFormRun.tsx` and `AddFormRows.tsx` (forms for adding and editing in their shape, §2.4), and the editors and players beside them |
 | Sessions | `live.ts` (keys, events, SignalR client with polling fallback), `Sessions.tsx`, `GamePanel.tsx` |
-| Public pages | `parts/cogita.tsx` (definitions) with `parts/cogitaViews.tsx` (loaded only when shown), `PublicRun.tsx`, `published.ts`, `entitySubject.tsx`, `seatLearn.ts` |
+| Public pages | `parts/cogita.tsx` (definitions) with `parts/cogitaViews.tsx` (loaded only when shown), `pageBase.ts` (the base as this reader may read it — step 8), `PublicRun.tsx` (a keyless revision), `entitySubject.tsx`, `seatLearn.ts` |
+| Visibility | `visibility.ts` (who reads, in words; what an item needs when it moves), `BaseWho.tsx` ("Kto widzi" with the move, "Kto czyta" in settings), `library/rebuild/baseVisibility.ts` (Porządki tab 5) |
 | Forms | `LearnStep.tsx`; the step kind `learn` in `steps.ts` and `StepList.tsx` |
 | Service | `backend/Api/`: `Library.Cogita.cs` (versions, files, seat reading), `Cogita.cs` (batches, due, reports, the `c/` addresses), `Cogita.Session.cs`, `CogitaHub.cs` (`/cogita/hub`), `Cogita.Game.cs` (triggers, `CogitaClock`) |
 
@@ -560,7 +568,7 @@ Phones stay awake.
 - **Pages.** Eight modules: `cogita-revision`, `cogita-flow`, `cogita-live`, `entity-card`, `entity-table`, `topic-explorer`, `knowledge-map`, `seat-learn`. They pick a knowledge base (field kind `knowledge`).
   - In a presentation: the module `question` and the storyboard (§8, built 2026-10-21).
   - The page subject **Wpis z bazy wiedzy** (`entity`).
-  - `c/<8 characters>` addresses for modules published directly.
+  - `c/<8 characters>` addresses for pages with one module.
 - **Forms.** The step **Naucz się**.
   - The browser of the person with the link measures the knowness and ticks the step at the threshold.
   - The office sees the step in the list. The details are in Postępy.
@@ -589,8 +597,8 @@ Phones stay awake.
 
 | check | count |
 |---|---|
-| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 308 |
-| `backend/Api.Tests` (22 of them for the game rules) | 408 |
+| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 339 (2026-10-22) |
+| `backend/Api.Tests` (22 of them for the game rules) | 470 (2026-10-22) |
 | `backend/Kernel.Tests` | 122 |
 
 The full `tsc -p tsconfig.json` is clean now that the legacy tree is gone.

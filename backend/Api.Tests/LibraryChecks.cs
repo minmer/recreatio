@@ -1,6 +1,6 @@
 using Api;
 
-/// <summary>0064 — was die Bibliothek annimmt: Arten und offene Fassungen.</summary>
+/// <summary>0064 — was die Bibliothek annimmt: Arten, wo ein Eintrag liegt, wohin er ziehen darf.</summary>
 internal static class LibraryChecks
 {
     public static void Run(Action<bool, string> check)
@@ -9,19 +9,15 @@ internal static class LibraryChecks
         check(!Library.IsKind("Quote") && !Library.IsKind("q") && !Library.IsKind("a b") && !Library.IsKind(null), "anything else is no kind");
         check(!Library.IsKind(new string('a', 33)), "at most 32 letters");
 
-        var id = "01a0f4c1-bab6-7be5-bdfc-6f198a63ecea";
-        Library.PublicEntry Good(string? json = "{}", string? @as = "explicit", List<string>? refs = null) =>
-            new(id, @as, "ratzinger2007", "ratzinger jezus", "{\"title\":\"Jezus\"}", json, refs ?? []);
-
-        check(Library.Check(Good()) is null, "a plain public entry passes");
-        check(Library.Check(Good(@as: "implicit")) is null, "implicit passes");
-        check(Library.Check(Good(@as: "public")) is not null, "published_as is explicit or implicit");
-        check(Library.Check(Good(json: null)) is not null, "a public entry needs its JSON");
-        check(Library.Check(Good(json: new string('x', 2 * 1024 * 1024 + 1))) is not null, "public JSON at most 2 MB");
-        check(Library.Check(Good(refs: ["not-a-guid"])) is not null, "refs are ids");
-        check(Library.Check(Good(refs: Enumerable.Range(0, 501).Select(_ => id).ToList())) is not null, "at most 500 refs");
-        check(Library.Check(Good() with { EntryId = "x" }) is not null, "the entry is an id");
-        check(Library.Check(Good() with { Key = new string('k', 121) }) is not null, "keys at most 120");
+        /*
+         * 2026-10-22 (Schritt 8) — nichts geht mehr einzeln hinaus (der Dienst nimmt nur das Zurückziehen
+         * alter offener Fassungen an); veröffentlichen heisst: in eine Bibliothek / Baza eines öffentlichen
+         * Bereichs tragen. Wohin ein Eintrag ziehen darf:
+         */
+        check(Library.MayMove("books", "books", false) && Library.MayMove("books", "books", true), "a library entry moves to any library");
+        check(Library.MayMove("knowledge", "knowledge", false), "a knowledge-base entry moves to any knowledge base (that is publishing now)");
+        check(Library.MayMove("knowledge", "books", true) && !Library.MayMove("knowledge", "books", false), "from a knowledge base into a library: only within the same area");
+        check(!Library.MayMove("books", "knowledge", true) && !Library.MayMove(null, "books", true) && !Library.MayMove("books", null, true), "never from a library into a knowledge base, never from or to nothing");
 
         /* 2026-10-22 — wo ein Eintrag liegt: Kennungen, jede einmal, höchstens 400. */
         var a = "01a0f4c1-bab6-7be5-bdfc-6f198a63ecea";

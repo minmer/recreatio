@@ -1,5 +1,6 @@
 /**
- * BIBLIOTHEKEN AUF EINER SEITE LESEN (2026-10-22).
+ * BIBLIOTHEKEN AUF EINER SEITE LESEN (2026-10-22) — seit Schritt 8 auch die
+ * Bazy wiedzy (`cogita/pageBase.ts`).
  *
  * Wer eine Bibliothek liest, entscheidet ihr Bereich. Eine Seite holt darum
  * keine „veröffentlichten Fassungen" mehr, sondern dieselben Hüllen wie ein
@@ -48,6 +49,9 @@ async function keysOf(areaId: string, epochs: readonly number[]): Promise<Readon
   return out;
 }
 
+/** 2026-10-22 (Schritt 8) — der Schlüssel einer Epoche, wie die Seite ihn hat (offengelegt, oder über Link, Platz, Konto). */
+export const pageKey = (areaId: string, epoch: number): Promise<Uint8Array | undefined> => keysOf(areaId, [epoch]).then((keys) => keys.get(epoch));
+
 /* -- Die Speicher der Seite ------------------------------------------------------------- */
 
 const opened = new Map<string, Promise<LibraryStore | null>>();
@@ -76,9 +80,9 @@ async function openOne(libraryId: string): Promise<LibraryStore | null> {
       return loadOpen(libraryId, since);
     }, keysOf);
   } else {
-    /* Der Weg eines Mitglieds (oder eines Links): die Liste der Bibliotheken nennt den Bereich. */
+    /* Der Weg eines Mitglieds (oder eines Links): die Liste der Bibliotheken nennt den Bereich — 2026-10-22 auch einer Baza wiedzy. */
     const row = await loadLibraries().then((r) => r.libraries.find((l) => l.libraryId === libraryId), () => undefined);
-    if (row === undefined || row.kind === 'knowledge') return null;
+    if (row === undefined) return null;
     store = readOnlyStore(row, (since) => loadEntries(libraryId, since), keysOf);
   }
 

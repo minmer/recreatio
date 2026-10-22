@@ -482,3 +482,147 @@ the text). LaTeX prints the same with `\emph{…}`.
 2. Cogita → Schemat → Temat → "+ Pola nauki" → Zapisz: topics show Głębokość, Próg, Do rozwinięcia.
 3. Porządki → "Tematy i perspektywy": the plan lists the topics and the axis; after "Wykonaj" the library's Tematy show
    "Perspektywy" with its values.
+
+## Step 8 — Knowledge bases follow their area
+
+**Built**
+
+- **Service.** `GET /library/{id}/open` now serves a base too — when its area is public **and** the base is opened
+  (`area_rule_at`). `GET /library/{id}/file/{fileId}/sealed` serves a file of a public library or base, sealed, and only
+  under a published epoch; the browser opens it with the area's published key. `POST …/publish` only withdraws old
+  copies — a request to publish an entry is refused with a sentence that says what to do instead. The move endpoint
+  also takes base → base, in any area (`Library.MayMove`: library → library anywhere, base → base anywhere, base →
+  library only in the same area, library → base never).
+- **Migration 0123** clears `area_rule_at` of every existing base. Before step 8 the mark had no effect on bases, but a
+  base created after 0122 got it at creation without anyone reading what it means. Now no base is public until a
+  writer opens it. Libraries are untouched.
+- **Pages read the base itself** (`cogita/pageBase.ts`: `openPageBase`, `usePageBase`, `baseChoices`,
+  `entityChoices`). This covers the six modules (revision, flow, entity card, entity table, topics, knowledge map),
+  the page subject "Wpis z bazy wiedzy", keyless sessions (an async revision through `PageRevisionRun`, a story
+  through `StoryPlay`), and the editor's entry picker (`PickLibraryEntry` on a base). A page shows a base to whoever
+  may read it: publicly, through a link, a seat, or as a member. Otherwise it says so. Files open for strangers from
+  the sealed endpoint (`files.ts`). The base picker tells each base apart: "publiczna w całości", "obszar publiczny,
+  baza jeszcze nie otwarta" or "dla członków obszaru".
+- **"Kto widzi"** (`cogita/BaseWho.tsx`, words and logic in `cogita/visibility.ts`) replaces "Opublikuj" on an entry,
+  a revision and a flow.
+  - It says who reads the item.
+  - **"Przenieś do innej bazy wiedzy"** shows its plan first: who reads the item afterwards, and the plain statement
+    when the target is public as a whole. It names what the item needs from this base (its kind, templates, entries
+    it points at; `needsOf`, step by step), which moves along by default. The old base takes the new one as a source.
+    A tick "Rozumiem: to będzie publiczne" is required.
+  - A revision and a flow keep "Utwórz stronę z …" (a `c/<id>` page with the module), with one line on who will see
+    it.
+- **"Kto czyta"** in the base settings (`BaseVisibility`) says in words who reads the base. In a public area, an
+  unopened base shows "Co się zmieni" with what is inside, counted. "Otwórz całą bazę dla wszystkich" sits behind
+  "Rozumiem: cała baza będzie publiczna", and stays blocked while an old copy remains inside an entry.
+- **The plain statement wherever a base becomes public:**
+  - the "Nowa baza wiedzy" form, when a public area is chosen;
+  - "Kto czyta";
+  - "Kto widzi" and its move;
+  - the area's "Dla wszystkich" panel (its libraries and bases; the bases as a whole).
+- **Porządki tab 5 "Bazy wiedzy: stare publikacje"** (`library/rebuild/baseVisibility.ts`):
+  - It withdraws old public copies at the service. The entry stays. In a closed area the plan says that only members
+    read the entry afterwards, and how to keep it public: move it.
+  - It removes the copy in `data.public` only when everything that copy shows still stands in the base or its
+    sources. Otherwise the copy stays, and the plan says why.
+  - It withdraws old open copies of files. The sealed file stays.
+  - It names bases in public areas that wait to be opened. It never opens one.
+- **Descriptions:**
+  - `courseDescription()` has a "Kto czyta" paragraph;
+  - the page modules' `use`, `missing` and example texts no longer say "opublikowana";
+  - the page subject's texts are updated;
+  - the JSON export still leaves out `data.public`.
+- **Checks:**
+  - `app-cogita-check` (339): the audience in words; public = public area AND opened; `needsOf` (follows references
+    step by step, skips settings and anything unknown, respects its cap); `baseChoices` and `entityChoices` over a
+    base with sources.
+  - `app-library-check` 2g: the tab-5 plan per base, the run, and a second run that leaves only what could not be
+    done.
+  - `Api.Tests` (470): `MayMove`.
+  - Drives against LocalDB:
+    - `visibility-api.mjs` (22 checks): a new base in a public area is readable by a stranger; a closed one is not;
+      files of one base are not served through another; the old readers are gone; publishing is refused,
+      withdrawing accepted; a base with its mark cleared (0123) is closed until `settleLibrary`; an entry moved from a
+      closed base is readable, the draft left behind is not; library → base is refused; tab 5 on simulated old copies
+      withdraws, strips and is resumable.
+    - `visibility-anon.mjs` (8 checks): a fresh browser without an account opens the public base with the published
+      key, sees the moved entry and the answers of its questions, picks its revision, opens a file; the closed base
+      stays closed.
+
+**Removed**
+
+- Browser:
+  - `cogita/published.ts` and `library/libraryPublish.ts` (plan, closure, public summary);
+  - the bundle builders in `cogita/publish.ts` (entity, revision and flow bundles, `publishMedia`, `publishBundle`,
+    `unpublishBundle`), `publishFile` and `publicFileUrl`;
+  - `PublicContext`, `PublicGlance` and `contentOfBundle`;
+  - `PickPublished`, and `loadPublished`, `loadPublishedOne` and `summaryOf` with their types;
+  - `LibraryStore.planFor`, `apply` and `publish` (replaced by `withdraw`); the automatic re-publish on removal;
+  - `PublishEntity` and the "publiczny" tag on an entry.
+- Service: `Library.Check(PublicEntry)` with its limits, `GET /library/{id}/published` and
+  `/published/{entryId}`, `PublishFileAsync`, and the open file copy route `GET /library/{id}/file/{fileId}`.
+
+**Choices**
+
+- **Existing bases are opened explicitly** (0123), not by "follow the area" alone. This keeps rule 1: bases created
+  between 0122 and this step were marked at creation without the statement.
+- **New bases are opened at creation**, like libraries. The creation form says what that means in a public area.
+- **Moving is publishing.** What an item needs moves along by default, and the old base takes the new one as a
+  source, so nothing breaks there. Learners' answers stay with the old base, because progress is keyed by base. The
+  move dialog says so.
+- **An old copy goes only when what it shows still stands** (rule 2). A base still holding such a copy cannot be
+  opened, because the copy may carry content of a source in another area.
+- **The published readers are removed now**, not with the columns:
+  - production has no published base entries;
+  - the one published library row, "Kazania Maryjne", lies in a closed area. Under the area rule it is not public,
+    so it is no longer served to strangers. Tab 1 offers to move it into the public library, which keeps it public.
+    Its old columns stay until the drop.
+- **The columns are dropped later.** First the owner must have run Porządki everywhere (SQL below).
+
+**Special attention on production**
+
+- **"Biblioteka" (public area), 14 entries never published.** `/open` keeps that library closed until tab 1 krok 2
+  settles it. Tab 1 proposes the private library for each entry; "zostaw — niech będą publiczne" is a choice. Decide
+  each one before krok 2.
+- **"Kazania Maryjne", published in a closed area.** Once the step-8 API runs, its old copy is no longer served. In
+  tab 1 it shows as "would disappear → move to the public library" (the default when there is exactly one public
+  library). Keep that choice to keep it public, or choose "zostaw". Krok 2 withdraws the old copy.
+
+**Owner must run**
+
+1. `migrate` (0123) **before** deploying the API. The old API never serves a base publicly, so clearing the marks
+   first means the new API opens only bases a writer opens afterwards.
+2. Deploy the API (`-p:PublishProfile=Webio -p:IsGetPasswordEnabled=true`), then the website.
+3. Biblioteka → Porządki:
+   - tab 1 "Widoczność i komentarze", if not done yet: decide the 14 entries of "Biblioteka" and "Kazania Maryjne",
+     then krok 2;
+   - tab 5 "Bazy wiedzy: stare publikacje".
+4. For each base in a public area that should be public: Nauka → the base → Ustawienia → Kto czyta → read, tick,
+   "Otwórz całą bazę dla wszystkich".
+5. **Later**, once 3 is done everywhere: one numbered migration drops the old columns, together with the code that
+   still names them. That code is the entries list (`publishedAs`), the clearing on save and move, the withdraw
+   endpoint, the files list and `UnpublishFileAsync`, plus `Entry.publishedAs`, tab 1's `unpublish` and tab 5's
+   withdrawals in the browser. Check first (read-only):
+
+   ```sql
+   SELECT COUNT(*) FROM app.library_entry WHERE published_at IS NOT NULL;   -- must be 0
+   SELECT COUNT(*) FROM app.library_file  WHERE public_at    IS NOT NULL;   -- must be 0
+   ```
+
+   The migration:
+
+   ```sql
+   DROP INDEX IF EXISTS ix_library_entry_public ON app.library_entry;
+   ALTER TABLE app.library_entry DROP CONSTRAINT IF EXISTS ck_library_entry_public;
+   ALTER TABLE app.library_entry DROP COLUMN published_at, published_as, public_key, public_sort, public_summary, public_json;
+   DROP TABLE IF EXISTS app.library_public_ref;
+   ALTER TABLE app.library_file DROP COLUMN public_size, public_type, public_at;
+   ```
+
+**Test in the browser**
+
+1. Nauka → a base in a public area → Ustawienia → Kto czyta: read "Co się zmieni", tick, press "Otwórz całą bazę dla
+   wszystkich". In a private window, a page with that base's revision module works without an account.
+2. A base in a closed area → Wpisy → an entry → Kto widzi → "Przenieś do innej bazy wiedzy" → the public base. The plan
+   lists what moves along. Tick "Rozumiem", then press Przenieś: the entry opens in the public base.
+3. Biblioteka → Porządki → "Bazy wiedzy: stare publikacje": read the plan and run it. A second run shows nothing left.

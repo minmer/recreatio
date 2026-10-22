@@ -393,7 +393,7 @@ export const markSaid = (state: FlowState, lines: readonly CharacterLine[]): Flo
 /** Welche Ziele erreicht sind [H6]. */
 export const goalsReached = (flow: Flow, facts: Facts): string[] => flow.goals.filter((g) => g.condition !== null && holds(g.condition, facts)).map((g) => g.id);
 
-/** Was der Ablauf zeigt (ohne Logik): die Einträge, Wissen, Fragen, Dateien — für die Veröffentlichung und das Lernen ohne Netz. */
+/** Was der Ablauf zeigt (ohne Logik): die Einträge, Wissen, Fragen, Dateien — für das Lernen ohne Netz. */
 export function contentOf(flow: Flow): { entities: string[]; flows: string[]; files: string[] } {
   const entities = new Set<string>();
   const flows = new Set<string>();

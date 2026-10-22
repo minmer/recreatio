@@ -63,6 +63,7 @@ export { Relations, PassageBox, PassageList } from '${app}library/LibraryRelatio
 export { StatementMarks } from '${app}library/markupView';
 export { knowledgeAsStatement, isKnowledge } from '${app}library/rebuild/knowledgeToStatements';
 export { topicsToLibrary, PERSPECTIVES } from '${app}library/rebuild/topicsToLibrary';
+export { baseVisibility, hasOldCopies, missingIn, oldCopyOf, withoutCopy } from '${app}library/rebuild/baseVisibility';
 export { textToLatex, planToLatex } from '${app}library/libraryLatex';
 export { archiveRow, browseLocal, choose, facetKey, PROJECTS } from '${app}library/browse';
 export { layoutOf } from '${app}library/archiveLayout';
@@ -417,6 +418,65 @@ try {
     assert.ok(m.courseDescription().includes('perspektywy to oś') && m.courseDescription().includes('"builtin": "topic"'), 'the Cogita description explains one topic system');
   }
   ok('topics and perspectives → library: plan (move, twins named not merged, learning extension, one axis, entries)');
+
+  /* -- 2g. Bazy wiedzy: stare publikacje (Schritt 8) ---------------------------------------------------- */
+  {
+    const U = (n) => `${String(n).repeat(8)}-${String(n).repeat(4)}-4${String(n).repeat(3)}-8${String(n).repeat(3)}-${String(n).repeat(12)}`;
+    const [A, B, GONE] = [1, 2, 3].map(U);
+    const fake = (libraryId, entries) => {
+      const map = new Map(entries.map((e) => [e.id, e]));
+      const store = {
+        libraryId, withdrawn: [], saved: [],
+        all: () => [...map.values()], get: (id) => map.get(id), title: (e) => String(e.data.name ?? e.id),
+        withdraw: async (ids) => { store.withdrawn.push(...ids); for (const id of ids) map.set(id, { ...map.get(id), publishedAs: null }); return ids.length; },
+        save: async (input) => { const was = map.get(input.id); map.set(input.id, { ...was, ...input }); store.saved.push(input.id); return map.get(input.id); }
+      };
+      return store;
+    };
+    const copyOk = { format: 'recreatio.cogita.revision', cards: [{ entity: A, question: A }], explain: { [B]: { label: 'x' } } };
+    const copyLost = { format: 'recreatio.cogita.flow', entities: { [GONE]: { label: 'skasowany' } } };
+    const open = fake('open', [
+      { id: A, kind: 'entity', publishedAs: 'explicit', data: { name: 'Józef', public: copyOk } },
+      { id: B, kind: 'entity', publishedAs: null, data: { name: 'Maryja' } },
+      { id: 'f1', kind: 'flow', publishedAs: null, data: { name: 'Droga', public: copyLost } }
+    ]);
+    const closed = fake('closed', [{ id: 'c1', kind: 'revision', publishedAs: 'explicit', data: { name: 'Stara powtórka' } }]);
+    const other = fake('other', [{ id: 'o1', kind: 'revision', publishedAs: 'explicit', data: { name: 'Cudza' } }]);
+    const ctx = {
+      me: { ring: null }, areas: [], progress: () => undefined,
+      libraries: [
+        { libraryId: 'open', areaId: 'a1', kind: 'knowledge', writes: true, name: 'Parafia', areaPublic: true, areaRuleAt: null },
+        { libraryId: 'closed', areaId: 'a2', kind: 'knowledge', writes: true, name: 'Klasa', areaPublic: false, areaRuleAt: null },
+        { libraryId: 'other', areaId: 'a3', kind: 'knowledge', writes: false, name: 'Cudza baza', areaPublic: true, areaRuleAt: 'x' }
+      ],
+      stores: new Map([['open', open], ['closed', closed], ['other', other]])
+    };
+    assert.deepEqual(m.missingIn(copyOk, (id) => id === A || id === B), [], 'everything the copy shows is still there');
+    assert.deepEqual(m.missingIn(copyLost, () => false), [GONE], 'the copy shows an entry that is gone');
+    assert.deepEqual(m.withoutCopy({ name: 'x', public: {}, more: 1 }), { name: 'x', more: 1 }, 'only the copy leaves the entry');
+    assert.ok(m.hasOldCopies(open) && !m.hasOldCopies(closed), 'a base with an old copy inside an entry is not opened before Porządki');
+
+    const plan = await m.baseVisibility.plan(ctx);
+    const by = (key) => plan.changes.find((c) => c.key === key);
+    assert.ok(by(`withdraw:${A}`)?.ok && !by(`withdraw:${A}`).what.includes('członkowie'), 'an old public copy in a public area is withdrawn — the entry stays');
+    assert.ok(by('withdraw:c1')?.ok && by('withdraw:c1').what.includes('tylko członkowie') && by('withdraw:c1').what.includes('Przenieś'), 'in a closed area: said plainly who reads it afterwards, and how to keep it public');
+    assert.ok(by(`strip:${A}`)?.ok, 'a copy whose content is all still in the base leaves the entry');
+    assert.equal(by('strip:f1')?.ok, false, 'a copy that holds the only trace of a deleted entry stays');
+    assert.equal(plan.changes.some((c) => c.libraryId === 'other'), false, 'a base I only read: nothing planned …');
+    assert.ok(plan.notes.some((n) => n.includes('Cudza baza') && n.includes('tylko czytać')), '… but named');
+    assert.ok(plan.notes.some((n) => n.includes('Parafia') && n.includes('nie jest otwarta') && n.includes('Kto czyta')), 'a base in a public area is not opened here — where to open it is said');
+    assert.equal(plan.changes.some((c) => c.key.startsWith('open')), false, 'opening is never part of this plan');
+
+    const report = await m.baseVisibility.run(plan, ctx);
+    assert.deepEqual([open.withdrawn, closed.withdrawn, open.saved], [[A], ['c1'], [A]], 'withdrawn per base, one copy removed');
+    assert.equal(m.oldCopyOf(open.get(A)), null, 'the copy is gone from the entry …');
+    assert.equal(open.get(A).data.name, 'Józef', '… the entry itself is not');
+    assert.ok(m.oldCopyOf(open.get('f1')) !== null, 'the kept copy is still there');
+    assert.ok(report[0].includes('Wycofane stare kopie publiczne: 2') && report[0].includes('Usunięte kopie we wpisach: 1') && report.some((r) => r.includes('Nie zmieniono: 1')), report.join(' | '));
+    const again = await m.baseVisibility.plan(ctx);
+    assert.deepEqual(again.changes.map((c) => c.key), ['strip:f1'], 'run again: only what could not be done is left (resumable)');
+  }
+  ok('knowledge bases, old publications: withdraw per base (closed area said plainly), copies out of entries only when nothing is lost, bases never opened here, resumable');
 
   ok('statements: the thesis is the first sentence (abbreviations, markup), questions, information vs interpretation, knowledge → comment under the same id, the marks');
 

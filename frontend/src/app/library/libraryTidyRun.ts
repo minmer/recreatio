@@ -9,7 +9,7 @@ import { ensurePrivateArea } from '../calendar/agenda';
 import type { AreaRow } from '../areas/area';
 import type { Me } from '../core/me';
 import { blockData, legacyBlocks } from './comment';
-import { createLibrary, publishEntries, settleLibrary } from './library';
+import { createLibrary, settleLibrary, withdrawEntries } from './library';
 import { legacyFields, PERSONAL, stripped, type TidyLibrary, type TidyPlan } from './libraryMigrate';
 import { storeOf, type LibraryStore } from './libraryStore';
 
@@ -101,7 +101,7 @@ export async function finish(plan: TidyPlan, choices: ReadonlyMap<string, string
 
   /* 3. Die alten offenen Fassungen zurückziehen. */
   for (const [libraryId, ids] of plan.unpublish) {
-    for (let i = 0; i < ids.length; i += 400) await publishEntries(libraryId, [], ids.slice(i, i + 400));
+    for (let i = 0; i < ids.length; i += 400) await withdrawEntries(libraryId, ids.slice(i, i + 400));
   }
   done.push(`Wycofano stare publiczne kopie: ${[...plan.unpublish.values()].reduce((n, ids) => n + ids.length, 0)}.`);
 

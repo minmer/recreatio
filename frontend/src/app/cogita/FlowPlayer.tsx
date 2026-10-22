@@ -5,8 +5,9 @@
  * Werten, die der Lernende mitnimmt. Wo er steht, bleibt über Geräte hinweg
  * [G14].
  *
- * Derselbe Spieler zeigt einen Ablauf aus der Bibliothek und einen
- * veröffentlichten (ohne Schlüssel) — der Inhalt kommt über `FlowContent`.
+ * Derselbe Spieler zeigt einen Ablauf im Arbeitsbereich und auf einer Seite —
+ * dort aus der Baza, so wie ihr Bereich sie dem Leser zeigt (2026-10-22,
+ * Schritt 8; keine Abschriften mehr). Der Inhalt kommt über `FlowContent`.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -21,12 +22,12 @@ import {
 import type { Learner } from './learn';
 import { knownessOf, average } from './knowness';
 import type { Facts } from './logic';
-import { publicEntity, type PublicEntity, type PublicFlow } from './publish';
+import { publicEntity, type PublicEntity } from './publish';
 import type { MediaRef } from './schema';
 import type { CogitaLibrary } from './store';
 import { Markup, MediaView } from './ui';
 
-/** Woher der Inhalt eines Ablaufs kommt — die Bibliothek, oder eine veröffentlichte Abschrift. */
+/** Woher der Inhalt eines Ablaufs kommt — die Baza wiedzy (2026-10-22, Schritt 8: auch auf einer Seite; keine Abschriften mehr). */
 export interface FlowContent {
   readonly entity: (id: string) => PublicEntity | null;
   readonly card: (id: string) => Card | null;
@@ -34,9 +35,6 @@ export interface FlowContent {
   readonly members: (collectionOrKind: string) => readonly string[];
   /** Karten eines Eintrags — für seine Kenntnis. */
   readonly cardsOf: (id: string) => readonly Card[];
-  /** Eine offene Datei (veröffentlicht) — sonst öffnet `MediaView` sie mit dem Schlüssel. */
-  /** `library`: wo die Datei liegt (0110 — eine Quelle); fehlt: die des Ablaufs. */
-  readonly fileUrl?: (fileId: string, library?: string) => string;
 }
 
 export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): FlowContent {
@@ -54,21 +52,6 @@ export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): Fl
     flow: find,
     members: (x) => [...(lib.members(x) ?? new Set(lib.ofKind(x).map((e) => e.id)))],
     cardsOf: (id) => cards.filter((c) => c.entity === id || c.question === id)
-  };
-}
-
-export function contentOfBundle(bundle: PublicFlow, fileUrl: (fileId: string, library?: string) => string): FlowContent {
-  const flows = new Map([bundle.flow, ...bundle.flows].map((raw) => {
-    const f = readFlow(String(raw.id ?? ''), raw);
-    return [f.id, f] as const;
-  }));
-  return {
-    entity: (id) => bundle.entities[id] ?? null,
-    card: (id) => bundle.cards.find((c) => c.question === id || c.key === id) ?? null,
-    flow: (id) => flows.get(id),
-    members: (x) => Object.values(bundle.entities).filter((e) => (e.kindIds ?? []).includes(x)).map((e) => e.id),
-    cardsOf: (id) => bundle.cards.filter((c) => c.entity === id || c.question === id),
-    fileUrl
   };
 }
 
@@ -176,8 +159,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         return (
           <>
             {current.type === 'opening' && <p className="cg-muted">{c.mode === 'discovery' ? 'Zanim przeczytasz — jak myślisz?' : 'Przypomnij sobie:'}</p>}
-            {media !== null && <MediaView media={media} publicUrl={content.fileUrl?.(media.file, media.library)} />}
-            {id !== '' && <EntityView entity={content.entity(current.type === 'expand' && typeof c.explain === 'string' ? c.explain : id)} fileUrl={content.fileUrl} />}
+            {media !== null && <MediaView media={media} />}
+            {id !== '' && <EntityView entity={content.entity(current.type === 'expand' && typeof c.explain === 'string' ? c.explain : id)} />}
             <Next onNext={() => go('next')} />
           </>
         );
@@ -212,7 +195,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         const said = typeof c.of === 'string' ? content.entity(c.of) : null;
         return (
           <>
-            <Bubble who={who} text={said} fileUrl={content.fileUrl} mood={typeof c.mood === 'string' ? c.mood : null} />
+            <Bubble who={who} text={said} mood={typeof c.mood === 'string' ? c.mood : null} />
             <Next onNext={() => go('next')} />
           </>
         );
@@ -238,7 +221,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       </div>
       {lines.length > 0 && (
         <div className="cg-bubbles">
-          {lines.map((l) => <Bubble key={`${l.character}:${l.of}`} who={content.entity(l.character)} text={content.entity(l.of)} fileUrl={content.fileUrl} mood={null} />)}
+          {lines.map((l) => <Bubble key={`${l.character}:${l.of}`} who={content.entity(l.character)} text={content.entity(l.of)} mood={null} />)}
         </div>
       )}
       <div className={`cg-flow-step${c.open === 'inline' ? ' cg-flow-inline' : ''}`}>
@@ -263,7 +246,7 @@ function Goals({ flow, reached }: { flow: Flow; reached: readonly string[] }) {
 }
 
 /** Ein Eintrag im Ablauf: Wissen ganz, andere mit ihren Feldern und Bildern. */
-export function EntityView({ entity, fileUrl }: { entity: PublicEntity | null; fileUrl?: (fileId: string, library?: string) => string }) {
+export function EntityView({ entity }: { entity: PublicEntity | null }) {
   if (entity === null) return <p className="wk-hint">(tego wpisu tu nie ma)</p>;
   /* 2026-10-22 — ein Komentarz (seine Bausteine als Zapis) wie ein Wissen: ganz. */
   const text = entity.fields.find((f) => (f.key === 'text' && f.type === 'markup') || f.type === 'blocks');
@@ -271,7 +254,7 @@ export function EntityView({ entity, fileUrl }: { entity: PublicEntity | null; f
   return (
     <div className="cg">
       <h3>{entity.label}</h3>
-      {entity.media.slice(0, 3).map((m) => <MediaView key={m.file} media={m} publicUrl={fileUrl?.(m.file, m.library)} />)}
+      {entity.media.slice(0, 3).map((m) => <MediaView key={m.file} media={m} />)}
       {entity.fields.filter((f) => f.text !== '').slice(0, 12).map((f) => (
         <div key={f.key}>
           <span className="cg-muted">{f.label}: </span>
@@ -282,13 +265,13 @@ export function EntityView({ entity, fileUrl }: { entity: PublicEntity | null; f
   );
 }
 
-function Bubble({ who, text, fileUrl, mood }: { who: PublicEntity | null; text: PublicEntity | null; fileUrl?: (fileId: string, library?: string) => string; mood: string | null }) {
+function Bubble({ who, text, mood }: { who: PublicEntity | null; text: PublicEntity | null; mood: string | null }) {
   const portrait = who?.media.find((m) => m.type === 'image');
   const line = text?.fields.find((f) => f.key === 'text' || f.type === 'blocks')?.text ?? text?.label ?? '';
   return (
     <div className="cg-bubble">
       <span className="cg-bubble-face" title={who?.label ?? ''}>
-        {portrait !== undefined ? <MediaView media={portrait} publicUrl={fileUrl?.(portrait.file, portrait.library)} /> : (who?.label ?? '?').slice(0, 1)}
+        {portrait !== undefined ? <MediaView media={portrait} /> : (who?.label ?? '?').slice(0, 1)}
       </span>
       <span className="cg-bubble-text">
         <strong>{who?.label ?? 'Postać'}{mood !== null && mood !== '' ? <span className="cg-muted"> ({mood})</span> : null}</strong>

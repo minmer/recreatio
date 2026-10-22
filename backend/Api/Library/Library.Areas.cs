@@ -18,14 +18,17 @@ namespace Api;
 /// </para>
 ///
 /// <code>
-///   GET  /library/{id}/open           ein öffentlicher Bereich: alle Hüllen, ohne Konto
+///   GET  /library/{id}/open           ein öffentlicher Bereich: alle Hüllen, ohne Konto — Bibliotheken und Bazy wiedzy (Schritt 8)
+///   GET  /library/{id}/file/{fileId}/sealed   eine Datei derselben Bibliothek, versiegelt, unter einer offengelegten Epoche
 ///   GET  /library/where?ids=…          in welcher Bibliothek ein Eintrag liegt — nur, wo der Rufer lesen darf
-///   POST /workspace/library/{id}/entry/{entryId}/move   einen Eintrag in die Bibliothek eines anderen Bereichs tragen
+///   POST /workspace/library/{id}/entry/{entryId}/move   einen Eintrag in eine andere Bibliothek (Baza wiedzy) tragen — die Kennung bleibt
 ///   POST /workspace/library/{id}/area-rule        die Umstellung dieser Bibliothek ist durchgesehen (0122)
 /// </code>
 ///
-/// Die Bazy wiedzy (Art <c>knowledge</c>) behalten ihr Veröffentlichen fürs
-/// Erste (Cogita: Powtórki, Przebiegi unter <c>c/</c>).
+/// 2026-10-22 (Schritt 8) — die Bazy wiedzy folgen derselben Regel: eine
+/// Baza in einem öffentlichen Bereich ist, sobald ihre Umstellung bestätigt ist
+/// (<c>area_rule_at</c>), als GANZE öffentlich — mit Fragen, Antworten,
+/// Entwürfen, Przebiegi. Das einzelne Veröffentlichen ist fort.
 /// </summary>
 public static partial class Library
 {
@@ -34,6 +37,7 @@ public static partial class Library
     private static void MapAreas(WebApplication app)
     {
         app.MapGet("/library/{id:guid}/open", OpenEntriesAsync);
+        app.MapGet("/library/{id:guid}/file/{fileId:guid}/sealed", OpenFileAsync);
         app.MapGet("/library/where", WhereAsync);
         app.MapPost("/workspace/library/{id:guid}/entry/{entryId:guid}/move", MoveAsync);
         app.MapPost("/workspace/library/{id:guid}/area-rule", AreaRuleAsync);
@@ -116,9 +120,7 @@ public static partial class Library
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var library = await LibraryAsync(connection, id, ctx.RequestAborted);
-        if (library is null || await KindOfLibraryAsync(connection, id, ctx.RequestAborted) != "books"
-            || !await AreaIsPublicAsync(connection, library.Value.AreaId, ctx.RequestAborted)
-            || !await AreaRuleSetAsync(connection, id, ctx.RequestAborted))
+        if (library is null || !await PublicLibraryAsync(connection, id, library.Value.AreaId, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Ta biblioteka nie jest publiczna.");
             return;
@@ -182,6 +184,40 @@ public static partial class Library
         });
     }
 
+    /// <summary>
+    /// Öffentlich lesbar: eine Bibliothek ODER eine Baza wiedzy (Schritt 8) in
+    /// einem öffentlichen Bereich, deren Umstellung bestätigt ist.
+    /// </summary>
+    private static async Task<bool> PublicLibraryAsync(SqlConnection connection, Guid id, Guid areaId, CancellationToken ct) =>
+        await KindOfLibraryAsync(connection, id, ct) is "books" or "knowledge"
+        && await AreaIsPublicAsync(connection, areaId, ct)
+        && await AreaRuleSetAsync(connection, id, ct);
+
+    /// <summary>
+    /// 2026-10-22 (Schritt 8) — EINE DATEI EINER ÖFFENTLICHEN BIBLIOTHEK, ohne
+    /// Konto: die Hülle, wie ein Mitglied sie bekommt — nur unter einer
+    /// offengelegten Epoche (eine andere könnte der Leser ohnehin nicht öffnen).
+    /// Ersetzt die offenen Kopien der Dateien.
+    /// </summary>
+    private static async Task OpenFileAsync(HttpContext ctx, Db db, IConfiguration config, Guid id, Guid fileId)
+    {
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var library = await LibraryAsync(connection, id, ctx.RequestAborted);
+        var row = await FileRowAsync(connection, id, fileId, ctx.RequestAborted);
+        if (library is null || row is null || !await PublicLibraryAsync(connection, id, library.Value.AreaId, ctx.RequestAborted))
+        {
+            ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+        await using (var shown = new SqlCommand("SELECT CASE WHEN EXISTS (SELECT 1 FROM app.area_epoch WHERE area_id = @area AND epoch = @epoch AND key_public IS NOT NULL) THEN 1 ELSE 0 END;", connection))
+        {
+            shown.Parameters.AddWithValue("@area", library.Value.AreaId);
+            shown.Parameters.AddWithValue("@epoch", row.Value.Epoch);
+            if ((int)(await shown.ExecuteScalarAsync(ctx.RequestAborted) ?? 0) != 1) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }
+        }
+        await SendSealedAsync(ctx, connection, config, id, fileId);
+    }
+
     /// <summary>Die Kennungen aus <c>ids=a,b,c</c> — höchstens <see cref="MaxWhere"/>, sonst <c>null</c>.</summary>
     public static List<Guid>? ParseIds(string? ids)
     {
@@ -239,6 +275,24 @@ public static partial class Library
     public sealed record MoveRequest(string? ToLibrary, string? Kind, int Epoch, string? Sealed, int Version);
 
     /// <summary>
+    /// Wohin ein Eintrag ziehen darf (Schreiben müssen beide Seiten dürfen):
+    /// <code>
+    ///   books     → books      in jeden Bereich (die Sichtbarkeit folgt dem neuen Bereich)
+    ///   knowledge → knowledge  in jeden Bereich — 2026-10-22 (Schritt 8): so „veröffentlicht"
+    ///                          man jetzt: man trägt etwas in eine Baza eines öffentlichen Bereichs
+    ///   knowledge → books      nur im selben Bereich (Schritt 6: ein Stwierdzenie wird ein Komentarz)
+    ///   books     → knowledge  nie
+    /// </code>
+    /// </summary>
+    public static bool MayMove(string? fromKind, string? toKind, bool sameArea) => (fromKind, toKind) switch
+    {
+        ("books", "books") => true,
+        ("knowledge", "knowledge") => true,
+        ("knowledge", "books") => sameArea,
+        _ => false
+    };
+
+    /// <summary>
     /// EINEN EINTRAG IN EINEN ANDEREN BEREICH TRAGEN — das ist jetzt, was
     /// früher „veröffentlichen" hiess: wer ihn öffentlich will, trägt ihn in
     /// die Bibliothek eines öffentlichen Bereichs. Die Hülle kommt neu
@@ -250,6 +304,10 @@ public static partial class Library
     /// ein „Wiedza" wird dabei ein Komentarz (die neue Hülle sagt es). Dann nur
     /// in eine Bibliothek DESSELBEN Bereichs — so wird keine Aussage für mehr
     /// Menschen lesbar, als sie es vorher war.
+    ///
+    /// 2026-10-22 (Schritt 8) — und von einer Baza wiedzy in eine andere, in
+    /// jeden Bereich: das ist in Cogita jetzt das Veröffentlichen. Der Browser
+    /// sagt vorher, dass eine öffentliche Baza als Ganze öffentlich ist.
     /// </summary>
     private static async Task MoveAsync(HttpContext ctx, Db db, Guid id, Guid entryId, MoveRequest body)
     {
@@ -270,14 +328,12 @@ public static partial class Library
         var target = await AllowedAsync(ctx, connection, who.Value.AccountId, to, Capability.Write);
         if (target is null) return;
         var fromKind = await KindOfLibraryAsync(connection, id, ctx.RequestAborted);
-        if (await KindOfLibraryAsync(connection, to, ctx.RequestAborted) != "books" || (fromKind != "books" && fromKind != "knowledge"))
+        var toKind = await KindOfLibraryAsync(connection, to, ctx.RequestAborted);
+        if (!MayMove(fromKind, toKind, source.Value.AreaId == target.Value.AreaId))
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Przenosić można tylko do biblioteki — z innej biblioteki albo z bazy wiedzy.");
-            return;
-        }
-        if (fromKind == "knowledge" && source.Value.AreaId != target.Value.AreaId)
-        {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Z bazy wiedzy przenosi się tylko do biblioteki tego samego obszaru.");
+            await Fail(ctx, StatusCodes.Status400BadRequest, fromKind == "knowledge" && toKind == "books"
+                ? "Z bazy wiedzy do biblioteki przenosi się tylko w tym samym obszarze."
+                : "Wpis przenosi się z biblioteki do biblioteki albo z bazy wiedzy do bazy wiedzy.");
             return;
         }
         if (body.Epoch < 1 || body.Epoch > target.Value.CurrentEpoch) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nie ma takiej epoki obszaru."); return; }

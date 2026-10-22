@@ -4,7 +4,7 @@
  * und dem Wissen, das sie erklärt [D14].
  */
 
-import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { checkCard } from './cards';
 import { type Card, type PromptPart } from './cardBasics';
@@ -14,9 +14,8 @@ import { GeoMap } from './GeoMap';
 import { InteractiveAnswer, InteractiveReplay } from './InteractiveAnswer';
 import { givenValuesText, solutionText } from './interactive';
 import { fieldText, fieldsOf, labelOf, type Entity } from './schema';
-import type { PublicEntity } from './publish';
 import type { CogitaLibrary } from './store';
-import { Markup, MediaView, percent, PublicContext } from './ui';
+import { Markup, MediaView, percent } from './ui';
 import { CommentCard } from '../library/markupView';
 
 /* -- Die Frage ----------------------------------------------------------------------- */
@@ -274,10 +273,8 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
   const expected = outcome.expected ?? answerText(card);
   const a = card.answer;
   const others = a.form === 'text' || a.form === 'gap' ? a.accepted.filter((x) => x.trim().toLowerCase() !== expected.trim().toLowerCase()) : [];
+  /* 2026-10-22 (Schritt 8) — auch auf einer Seite liest die Karte die Baza selbst: keine Erklärungen aus einem Bündel mehr. */
   const explain = (lib === undefined ? [] : card.explain.map((id) => lib.entity(id)).filter((e): e is Entity => e !== undefined));
-  /* 0109 — ohne Bibliothek (eine öffentliche Seite): die Erklärungen, die das Bündel mitbringt. */
-  const shown = useContext(PublicContext);
-  const explainPublic = lib !== undefined || shown === null ? [] : card.explain.map((id) => shown.entity(id)).filter((e): e is PublicEntity => e !== null);
   return (
     <div className={`cg-verdict ${level}`} role="status">
       <strong>{outcome.correct ? 'Dobrze!' : outcome.correctness > 0.5 ? `Prawie (${percent(outcome.correctness)})` : outcome.answered ? 'Niestety nie.' : 'Bez odpowiedzi.'}</strong>
@@ -296,11 +293,6 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
       {explain.length > 0 && lib !== undefined && (
         <div className="cg-explain">
           {explain.map((e) => <EntityGlance key={e.id} lib={lib} entity={e} onEntity={onEntity} />)}
-        </div>
-      )}
-      {explainPublic.length > 0 && (
-        <div className="cg-explain">
-          {explainPublic.map((e) => <PublicGlance key={e.id} entity={e} />)}
         </div>
       )}
       {extra}
@@ -332,20 +324,6 @@ export function EntityGlance({ lib, entity, onEntity }: { lib: CogitaLibrary; en
   );
 }
 
-/** Dasselbe aus einem Bündel (eine öffentliche Seite): Wissen ganz, sonst das Etikett und einige Felder. */
-export function PublicGlance({ entity }: { entity: PublicEntity }) {
-  const text = entity.fields.find((f) => (f.key === 'text' && f.type === 'markup') || f.type === 'blocks');
-  return (
-    <div className="cg-card">
-      {((entity.kindIds ?? []).includes('knowledge') || (entity.kindIds ?? []).includes('comment')) && text !== undefined ? <Markup text={text.text} /> : (
-        <>
-          <strong>{entity.label}</strong>
-          {entity.fields.slice(0, 4).map((f) => <span key={f.key} className="cg-muted">{f.label}: {f.type === 'markup' ? <Markup text={f.text} /> : f.text}</span>)}
-        </>
-      )}
-    </div>
-  );
-}
 
 /* -- Frage, Antwort, Urteil ------------------------------------------------------------------- */
 

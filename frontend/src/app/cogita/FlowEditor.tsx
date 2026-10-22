@@ -2,7 +2,9 @@
  * COGITA — ABLÄUFE BAUEN (COGITA.md §8, §9, §11): Schritte als Graph, das
  * Aussehen, Platzhalter einer Erzählvorlage und ihre Verwendung, Ziele (eine
  * Aufgabe), Zeilen der Gestalten, und — für ein Spiel — Zonen, Werte und
- * Auslöser. Daneben: ausprobieren, veröffentlichen, Abhängigkeiten vorschlagen.
+ * Auslöser. Daneben: ausprobieren, wer ihn sieht („Kto widzi" — 2026-10-22,
+ * Schritt 8: keine Abschrift mehr, die Baza selbst entscheidet), eine Seite mit
+ * ihm anlegen, Abhängigkeiten vorschlagen.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -14,8 +16,8 @@ import { readGame, type GameRules } from './game';
 import { graphJson, type Graph } from './graph';
 import { GraphEditor } from './GraphEditor';
 import { FLOW_PRESETS } from './presets';
-import { flowBundle, pageUrl, publishBundle, publishMedia, publishModule, unpublishBundle } from './publish';
-import { FLOW_BUNDLE } from './published';
+import { pageUrl, publishModule } from './publish';
+import { WhoSees } from './BaseWho';
 import { readCondition } from './logic';
 import { ConditionEditor, EntityPicker, entityName, ForeignOnly, useAsync, useBusy, useCtx } from './ui';
 import { askText } from '../ui/dialogs';
@@ -148,7 +150,8 @@ function FlowForm({ id }: { id: string }) {
           <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => { if (await askText('Usunąć przebieg?')) void run(() => lib.remove(id)); }}>Usuń</button>
         </div>
       )}
-      {writes && me !== null && <PublishFlow id={id} name={flow.name} onSaid={setSaid} />}
+      <WhoSees id={id} />
+      {writes && me !== null && <PageWithFlow id={id} name={flow.name} onSaid={setSaid} />}
     </div>
   );
 }
@@ -234,38 +237,28 @@ function LinesEditor({ lines, writes, onChange }: { lines: readonly CharacterLin
   );
 }
 
-function PublishFlow({ id, name, onSaid }: { id: string; name: string; onSaid: (s: string) => void }) {
-  const { lib, me, keyIn } = useCtx();
-  const entry = lib.entry(id);
+/**
+ * 2026-10-22 (Schritt 8) — eine Seite mit diesem Przebieg. Keine Abschrift:
+ * der Baustein liest die Baza selbst; wer die Seite sieht, liest sie so, wie
+ * die Baza ihn lässt („Kto widzi").
+ */
+function PageWithFlow({ id, name, onSaid }: { id: string; name: string; onSaid: (s: string) => void }) {
+  const { lib, me } = useCtx();
   const { busy, failed, run } = useBusy();
   const [role, setRole] = useState(me?.person.id ?? '');
-  const published = entry?.publishedAs != null;
   if (me === null) return null;
   return (
     <section className="cg-card">
-      <h3>Opublikuj kurs</h3>
-      <p className="wk-hint">Wychodzi przebieg z tym, co pokazuje (wpisy, wiedza, pytania, pliki) — bez reszty bazy wiedzy i bez postępów. Pliki stają się publiczne.</p>
+      <h3>Strona z tym kursem</h3>
+      <p className="cg-muted">Kurs na stronie czytają ci, którzy mogą czytać tę bazę wiedzy (zob. „Kto widzi” wyżej).</p>
       <div className="cg-row">
-        <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => {
-          const bundle = await flowBundle(lib, id);
-          if ('error' in bundle) throw new Error(bundle.error);
-          /* Die Dateien, die der Kurs zeigt, gehen offen daneben — nur Bilder, Ton, Film und PDF. */
-          await publishMedia(lib, bundle.files, keyIn);
-          await publishBundle(lib, id, { ...bundle, format: FLOW_BUNDLE });
-          onSaid(`Opublikowano (${Object.keys(bundle.entities).length} wpisów, ${bundle.files.length} plików).`);
-        })}>{published ? 'Zaktualizuj publikację' : 'Opublikuj'}</button>
-        {published && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => unpublishBundle(lib, id))}>Wycofaj</button>}
+        <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Czyja strona">{me.roles.filter((r) => r.kind !== 'account').map((r) => <option key={r.id} value={r.id}>{me.names.get(r.id) ?? 'rola'}</option>)}</select>
+        <button type="button" className="wk-btn" disabled={busy || role === ''} onClick={() => void run(async () => {
+          const path = await publishModule({ roleId: role, title: name, parts: [{ kind: 'cogita-flow', config: { library: lib.libraryId, flow: id } }] });
+          await navigator.clipboard?.writeText(pageUrl(path)).catch(() => undefined);
+          onSaid(`Strona kursu: ${pageUrl(path)} (skopiowano).`);
+        })}>Utwórz stronę z tym kursem</button>
       </div>
-      {published && (
-        <div className="cg-row">
-          <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Czyja strona">{me.roles.filter((r) => r.kind !== 'account').map((r) => <option key={r.id} value={r.id}>{me.names.get(r.id) ?? 'rola'}</option>)}</select>
-          <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => {
-            const path = await publishModule({ roleId: role, title: name, parts: [{ kind: 'cogita-flow', config: { library: lib.libraryId, flow: id } }] });
-            await navigator.clipboard?.writeText(pageUrl(path)).catch(() => undefined);
-            onSaid(`Strona kursu: ${pageUrl(path)} (skopiowano).`);
-          })}>Utwórz stronę z tym kursem</button>
-        </div>
-      )}
       {failed !== null && <p className="wk-error">{failed}</p>}
     </section>
   );

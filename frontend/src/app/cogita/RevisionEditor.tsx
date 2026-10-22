@@ -2,13 +2,14 @@
  * COGITA — WIEDERHOLUNGEN (COGITA.md §6, [F15]): ein Graph wählt die Karten
  * (Quellen → Filter → Sperre → ein Weg). Hier: anlegen aus einem Anfang,
  * bearbeiten, ausprobieren, für die Zeit ohne Netz behalten, als Aufgabe in
- * den Kalender stellen, und direkt veröffentlichen (`c/<kennung>`, [I13, F20]).
+ * den Kalender stellen, und auf eine eigene Seite (`c/<kennung>`, [I13, F20]) —
+ * 2026-10-22 (Schritt 8) ohne Kopie der Karten: wer sie dort sieht, sagt die Baza.
  */
 
 import { useEffect, useState } from 'react';
 
-import { publishModule, pageUrl, publishBundle, publishMedia, revisionBundle, unpublishBundle } from './publish';
-import { REVISION_BUNDLE } from './published';
+import { publishModule, pageUrl } from './publish';
+import { WhoSees } from './BaseWho';
 import { graphJson, readGraph, type Graph } from './graph';
 import { GraphEditor } from './GraphEditor';
 import { REVISION_PALETTE, MODE_LABEL } from './revision';
@@ -140,6 +141,7 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
             </button>
             <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => { if (await askText('Usunąć powtórkę? Odpowiedzi zostają.')) void run(() => lib.remove(id)); }}>Usuń</button>
           </div>
+          <WhoSees id={id} />
           <Share id={id} name={name} onSaid={setSaid} />
         </>
       )}
@@ -148,39 +150,30 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
   );
 }
 
-/** Wspólna powtórka [I13, F20]: kopia kart wychodzi na zewnątrz (bez postępów), a pod nowym adresem stoi moduł „Powtórka". */
+/**
+ * Wspólna powtórka [I13, F20] — 2026-10-22 (Schritt 8) ohne Kopie der Karten:
+ * unter einer neuen Adresse steht der Baustein „Powtórka", der die Baza selbst
+ * liest. Wer ihn sieht, sagt die Baza („Kto widzi"); ohne Konto bleiben die
+ * Fortschritte im Browser.
+ */
 function Share({ id, name, onSaid }: { id: string; name: string; onSaid: (s: string) => void }) {
-  const { lib, me, keyIn } = useCtx();
-  const entry = lib.entry(id);
+  const { lib, me } = useCtx();
   const { busy, failed, run } = useBusy();
-  const published = entry?.publishedAs != null;
   const roles = me?.roles.filter((r) => r.kind !== 'account') ?? [];
   const [role, setRole] = useState(me?.person.id ?? '');
+  if (me === null) return null;
   return (
     <section className="cg-card">
-      <h3>Udostępnij jako otwartą powtórkę</h3>
-      <p className="wk-hint">Każdy z linkiem powtarza bez konta (postępy zostają w jego przeglądarce). Wychodzi kopia kart — bez odpowiedzi uczących się i bez reszty bazy wiedzy.</p>
+      <h3>Strona z tą powtórką</h3>
+      <p className="cg-muted">Powtarzają na niej ci, którzy mogą czytać tę bazę wiedzy (zob. „Kto widzi” wyżej) — bez konta postępy zostają w ich przeglądarce.</p>
       <div className="cg-row">
-        <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => {
-          const bundle = await revisionBundle(lib, id);
-          if ('error' in bundle) throw new Error(bundle.error);
-          /* Die Bilder und Töne der Karten gehen offen daneben — sonst sähe die Seite nur ihre Namen. */
-          const files = await publishMedia(lib, bundle.files ?? [], keyIn);
-          await publishBundle(lib, id, { ...bundle, format: REVISION_BUNDLE });
-          onSaid(`Opublikowano ${bundle.cards.length} kart${files > 0 ? ` i ${files} plików` : ''}.`);
-        })}>{published ? 'Zaktualizuj kopię kart' : 'Opublikuj kopię kart'}</button>
-        {published && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => unpublishBundle(lib, id))}>Wycofaj</button>}
+        <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Czyja strona">{roles.map((r) => <option key={r.id} value={r.id}>{me.names.get(r.id) ?? 'rola'}</option>)}</select>
+        <button type="button" className="wk-btn" disabled={busy || role === ''} onClick={() => void run(async () => {
+          const path = await publishModule({ roleId: role, title: name, parts: [{ kind: 'cogita-revision', config: { library: lib.libraryId, revision: id } }] });
+          await navigator.clipboard?.writeText(pageUrl(path)).catch(() => undefined);
+          onSaid(`Strona gotowa: ${pageUrl(path)} (skopiowano).`);
+        })}>Utwórz stronę z tą powtórką</button>
       </div>
-      {published && me !== null && (
-        <div className="cg-row">
-          <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Czyja strona">{roles.map((r) => <option key={r.id} value={r.id}>{me.names.get(r.id) ?? 'rola'}</option>)}</select>
-          <button type="button" className="wk-btn" disabled={busy || role === ''} onClick={() => void run(async () => {
-            const path = await publishModule({ roleId: role, title: name, parts: [{ kind: 'cogita-revision', config: { library: lib.libraryId, revision: id } }] });
-            await navigator.clipboard?.writeText(pageUrl(path)).catch(() => undefined);
-            onSaid(`Strona gotowa: ${pageUrl(path)} (skopiowano).`);
-          })}>Utwórz stronę z tą powtórką</button>
-        </div>
-      )}
       {failed !== null && <p className="wk-error">{failed}</p>}
     </section>
   );

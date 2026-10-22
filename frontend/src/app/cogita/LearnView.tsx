@@ -29,6 +29,7 @@ import { plural } from '../core/plural';
 import { viewPath } from '../routes';
 import { WorkspaceError, type Who } from '../core/session';
 import { CogitaHome } from './CogitaHome';
+import { WHOLE_BASE } from './visibility';
 import { BASES_CHANGED } from './sources';
 import { holderOfMe } from './holders';
 import { isDocKind } from './kinds';
@@ -248,6 +249,10 @@ function NewBase({ me, areas, onCreated }: { me: Me; areas: readonly AreaRow[]; 
         />
       </label>
       <p className="wk-hint">Kto czyta obszar, uczy się z tej bazy; kto w nim pisze, ją buduje.</p>
+      {/* 2026-10-22 (Schritt 8) — eine Baza folgt ihrem Bereich: in einem jawnym ist sie als Ganze öffentlich. */}
+      {(areas.find((a) => a.areaId === areaId)?.publicLevel ?? 'none') !== 'none' && (
+        <p className="wk-warn">Ten obszar jest jawny: każdy, bez konta, przeczyta {WHOLE_BASE} tej bazy. Jeśli coś ma zostać dla wybranych, załóż bazę w obszarze zamkniętym.</p>
+      )}
       {failed !== null && <p className="wk-error">{failed}</p>}
       <div className="wk-actions">
         <button type="submit" className="wk-btn" disabled={busy}>{busy ? 'Zakładanie…' : 'Załóż'}</button>

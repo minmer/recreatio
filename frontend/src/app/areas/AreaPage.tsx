@@ -407,6 +407,11 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
               Zamknięcie nie odbiera klucza tym, którzy już go sobie zapisali.
             </p>
           )}
+          {/* 2026-10-22 (Schritt 8) — was „jawny" für die Bibliotheken und Bazy wiedzy des Bereichs heisst. */}
+          <p className="wk-note">
+            {area.publicLevel === 'none' ? 'Gdy obszar stanie się jawny, każdy przeczyta' : 'Każdy czyta'} jego biblioteki i bazy wiedzy (te już otwarte) —
+            bazy wiedzy w całości: wpisy, pytania razem z odpowiedziami, szkice, powtórki i przebiegi.
+          </p>
         </div>
       )}
     </>

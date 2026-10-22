@@ -2,23 +2,24 @@
  * 0109 — „WYBÓR NA STRONIE": EIN EINTRAG AUS EINER BAZA WIEDZY [P07].
  *
  * Eine Seite für alle Postacie (Miejsca, Pojęcia …) statt einer je Eintrag:
- * oben die Auswahl eines veröffentlichten Eintrags (◀ ▶ durch die Liste), und
- * die Bausteine „Karta wpisu" ohne eigenen Eintrag zeigen ihn; eine „Tabela
- * wpisów" derselben Bibliothek wählt mit einem Klick.
+ * oben die Auswahl eines Eintrags (◀ ▶ durch die Liste), und die Bausteine
+ * „Karta wpisu" ohne eigenen Eintrag zeigen ihn; eine „Tabela wpisów"
+ * derselben Bibliothek wählt mit einem Klick.
  *
  * <b>Die Wahl steht in der Adresse</b> (`?wpis=…`, wie bei der Osoba z
  * formularza) — die Seite eines Eintrags lässt sich als Link weitergeben. Die
- * Adresse wird ersetzt, nicht verlängert. Kein Schlüssel: nur, was
- * veröffentlicht ist.
+ * Adresse wird ersetzt, nicht verlängert.
+ *
+ * 2026-10-22 (Schritt 8) — zur Wahl stehen die Einträge der Baza wiedzy
+ * selbst, so wie dieser Leser sie lesen darf (`pageBase.ts`, erst bei Bedarf
+ * geladen): eine öffentliche Baza jeder, sonst ihre Mitglieder.
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { readEntryQuery, withEntryQuery } from '../forms/entryDesk';
-import { summaryOf } from '../library/library';
 import { PickLibrary } from '../library/LibraryPick';
 import type { SubjectDecl, SubjectKind } from '../pages/pageSubject';
-import { ENTITY_BUNDLE, publishedAll, titleOf } from './published';
 
 const said = (decl: SubjectDecl, key: string): string => {
   const v = decl[key];
@@ -62,7 +63,7 @@ function useChosen(): [string | null, (id: string | null) => void] {
 
 function EntityProvider({ decl, children }: { decl: SubjectDecl; path: string; children: ReactNode }) {
   const library = said(decl, 'library');
-  const of = said(decl, 'of').toLocaleLowerCase('pl-PL');
+  const of = said(decl, 'of');
   const [list, setList] = useState<readonly EntityChoice[] | null>(null);
   const [given, choose] = useChosen();
 
@@ -70,18 +71,10 @@ function EntityProvider({ decl, children }: { decl: SubjectDecl; path: string; c
     if (library === '') { setList([]); return undefined; }
     let alive = true;
     setList(null);
-    void publishedAll(library, { kind: 'entity', order: 'sort' }, 1000).then((items) => {
-      const out: EntityChoice[] = [];
-      for (const item of items) {
-        const s = summaryOf(item);
-        if (s.format !== ENTITY_BUNDLE) continue;
-        const kinds = Array.isArray(s.kinds) ? s.kinds.filter((k): k is string => typeof k === 'string') : [];
-        if (of !== '' && !kinds.some((k) => k.toLocaleLowerCase('pl-PL') === of)) continue;
-        out.push({ id: item.entryId, label: titleOf(item), kinds });
-      }
-      out.sort((a, b) => a.label.localeCompare(b.label, 'pl'));
-      if (alive) setList(out);
-    }, () => { if (alive) setList([]); });
+    /* Die Baza erst hier laden — eine Seite ohne diese Wahl trägt Cogita nicht mit. */
+    void import('./pageBase')
+      .then(({ openPageBase, entityChoices }) => openPageBase(library, false).then((lib) => (lib === null ? [] : entityChoices(lib, of))))
+      .then((out) => { if (alive) setList(out); }, () => { if (alive) setList([]); });
     return () => { alive = false; };
   }, [library, of]);
 
@@ -96,7 +89,7 @@ function EntityBar() {
   const s = useEntitySubject();
   if (s === null) return null;
   if (s.list === null) return <div className="wk-subject-bar is-waiting"><span className="wk-hint">Wczytywanie wpisów…</span></div>;
-  if (s.list.length === 0) return <div className="wk-subject-bar"><span className="wk-hint">W tej bazie wiedzy nie ma jeszcze opublikowanych wpisów.</span></div>;
+  if (s.list.length === 0) return <div className="wk-subject-bar"><span className="wk-hint">Brak wpisów do wyboru — baza jest pusta albo nie możesz jej czytać.</span></div>;
   const at = s.list.findIndex((e) => e.id === s.chosen);
   const prev = at > 0 ? s.list[at - 1] : null;
   const next = at < 0 ? s.list[0] : at < s.list.length - 1 ? s.list[at + 1] : null;
@@ -132,7 +125,7 @@ function EntitySettings({ decl, busy, onChange }: { decl: SubjectDecl; busy: boo
         <span>Tylko rodzaj (nieobowiązkowo)</span>
         <input value={typeof decl.of === 'string' ? decl.of : ''} disabled={busy} placeholder="np. Postać" onChange={(e) => onChange({ ...decl, of: e.target.value })} />
       </label>
-      <span className="wk-hint">Do wyboru są wpisy opublikowane w bazie wiedzy (wpis → „Na stronie” → Opublikuj). Moduły „Karta wpisu” bez własnego wpisu pokażą wybrany.</span>
+      <span className="wk-hint">Do wyboru są wpisy tej bazy wiedzy. Widzi je ten, kto może czytać bazę: jeśli jej obszar jest publiczny (a baza otwarta), każdy — wtedy publiczna jest cała baza, także odpowiedzi pytań i szkice. Moduły „Karta wpisu” bez własnego wpisu pokażą wybrany.</span>
     </>
   );
 }
@@ -140,10 +133,10 @@ function EntitySettings({ decl, busy, onChange }: { decl: SubjectDecl; busy: boo
 export const entitySubjectKind: SubjectKind = {
   kind: 'entity',
   label: 'Wpis z bazy wiedzy',
-  use: 'U góry strony wybór jednego opublikowanego wpisu bazy wiedzy (◀ ▶ po liście); moduły „Karta wpisu” bez własnego wpisu pokazują ten. Jedna strona dla wszystkich postaci, miejsc, pojęć.',
+  use: 'U góry strony wybór jednego wpisu bazy wiedzy (◀ ▶ po liście); moduły „Karta wpisu” bez własnego wpisu pokazują ten. Jedna strona dla wszystkich postaci, miejsc, pojęć. Wpisy widzi ten, kto może czytać bazę (publiczny obszar: każdy).',
   keys: {
     kind: '"entity"',
-    library: 'identyfikator bazy wiedzy — czyje opublikowane wpisy są do wyboru',
+    library: 'identyfikator bazy wiedzy — jej wpisy są do wyboru',
     of: 'nieobowiązkowo: nazwa rodzaju (np. „Postać”) — tylko wpisy tego rodzaju'
   },
   example: { kind: 'entity', library: '0190a0a0-0000-7000-8000-0000000000bb', of: 'Postać' },

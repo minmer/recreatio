@@ -17,7 +17,6 @@ import { fileUrl } from './files';
 import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, readCondition, type Action, type CompareOp, type Condition, type ConditionType } from './logic';
 import { runPython } from './python';
 import { viewPath } from '../routes';
-import type { PublicEntity } from './publish';
 import type { SourceState } from './sources';
 import { patternKeys, type Entity, type MediaRef } from './schema';
 import { BOOK_KINDS, CogitaLibrary, lineOf, type Origin } from './store';
@@ -45,20 +44,6 @@ export interface CogitaCtx {
 }
 
 export const CogitaContext = createContext<CogitaCtx | null>(null);
-
-/**
- * 0109 — AUF EINER ÖFFENTLICHEN SEITE gibt es keinen Schlüssel: die Dateien
- * kommen in ihrer offenen Fassung, die Erklärungen aus dem Bündel. Wer ein
- * Bündel zeigt (`parts/cogita.tsx`), stellt beides hierher; Karte, Urteil und
- * Bild fragen hier, bevor sie nach Schlüsseln fragen.
- */
-export interface PublicCtx {
-  /** `library`: wo die Datei liegt (0110 — eine Quelle); fehlt: die des Bündels. */
-  readonly fileUrl: (fileId: string, library?: string) => string;
-  readonly entity: (id: string) => PublicEntity | null;
-}
-
-export const PublicContext = createContext<PublicCtx | null>(null);
 
 export function useCtx(): CogitaCtx {
   const ctx = useContext(CogitaContext);
@@ -300,17 +285,19 @@ export function Markup({ text, onEntity, lib }: { text: string; onEntity?: (id: 
 
 /* -- Dateien ------------------------------------------------------------------------------ */
 
-export function MediaView({ media, publicUrl: given }: { media: MediaRef; publicUrl?: string }) {
+/**
+ * Eine Datei, geöffnet mit dem Schlüssel ihres Bereichs — 2026-10-22 (Schritt 8)
+ * auch auf einer öffentlichen Seite (der offengelegte Schlüssel, die versiegelte
+ * Datei); offene Kopien gibt es nicht mehr.
+ */
+export function MediaView({ media }: { media: MediaRef }) {
   const ctx = useContext(CogitaContext);
-  const shown = useContext(PublicContext);
-  const publicUrl = given ?? (ctx === null ? shown?.fileUrl(media.file, media.library) : undefined);
   /* 0110 — die Datei liegt dort, woher ihr Eintrag kommt, unter dem Schlüssel jenes Bereichs. */
   const owner = media.library ?? ctx?.lib.libraryId ?? '';
-  const url = useAsync(publicUrl !== undefined ? () => Promise.resolve(publicUrl)
-    : ctx === null ? null : () => {
-      const area = ctx.lib.areaOf(owner) ?? ctx.lib.areaId;
-      return fileUrl(owner, media, area === ctx.lib.areaId ? ctx.keyOf : (epoch) => ctx.keyIn(area, epoch), ctx.seat);
-    }, [media.file, owner, publicUrl]);
+  const url = useAsync(ctx === null ? null : () => {
+    const area = ctx.lib.areaOf(owner) ?? ctx.lib.areaId;
+    return fileUrl(owner, media, area === ctx.lib.areaId ? ctx.keyOf : (epoch) => ctx.keyIn(area, epoch), ctx.seat);
+  }, [media.file, owner]);
   if (url === undefined) return <span className="wk-hint">Otwieranie pliku…</span>;
   if (url === null) return <span className="wk-hint">Pliku nie da się otworzyć.</span>;
   if (media.type === 'image') return <img className="cg-media" src={url} alt={media.name ?? ''} />;

@@ -915,10 +915,10 @@ check('the stand of the plan before a run', R.levelsOf(plan, () => [], 0), { uns
  * gebaut mit dem, was diese Module mitziehen (der Dienst, die Schlüssel), aber
  * ohne einen Aufruf: nur gerechnet.
  */
-const more = ['logic', 'flow', 'rules', 'game', 'kinds', 'live', 'store', 'sources', 'json'];
+const more = ['logic', 'flow', 'rules', 'game', 'kinds', 'live', 'store', 'sources', 'json', 'pageBase', 'visibility'];
 const moreOut = join(workspace, 'more');
 await build({
-  entryPoints: { ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), libraryPublish: 'src/app/library/libraryPublish.ts', steps: 'src/app/steps/steps.ts' },
+  entryPoints: { ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), steps: 'src/app/steps/steps.ts' },
   bundle: true,
   format: 'esm',
   platform: 'node',
@@ -930,7 +930,7 @@ await build({
 /* Wie in app-json-check: ein BroadcastChannel des Schlüsselbunds hielte den Lauf sonst am Leben. */
 globalThis.BroadcastChannel = undefined;
 const loadMore = (name) => import(pathToFileURL(join(moreOut, `${name}.js`)).href);
-const [Lg, Fl, Ru, Ga, Ki, Li, So, Src, Js, Pub, St] = await Promise.all([...more, 'libraryPublish', 'steps'].map(loadMore));
+const [Lg, Fl, Ru, Ga, Ki, Li, So, Src, Js, PB, Vis, St] = await Promise.all([...more, 'steps'].map(loadMore));
 
 /* -- Die eine Logik ------------------------------------------------------------------------------- */
 
@@ -1083,13 +1083,25 @@ check('goals and lines follow the one logic', [
   check('… and nothing that explains it or tells the answer apart', [stripped[0].explain, stripped[0].fingerprint], [[], '']);
 }
 
-/* -- Was eine öffentliche Seite über ein Bündel erfährt ---------------------------------------------- */
+/* -- 2026-10-22 (Schritt 8): wer eine Baza liest, und was ein Eintrag braucht, wenn er umzieht ----------- */
 
 {
-  const look = { get: () => undefined, byKey: () => undefined };
-  const summary = Pub.publicSummary({ id: 'x', kind: 'entity', data: { _kinds: ['k1'], public: { format: 'recreatio.cogita.entity', title: 'Józef', kinds: ['Postać', 7], list: [{ label: 'Urodzony', text: 'ok. 1 r. p.n.e.' }, { label: 1 }] } } }, look, () => true);
-  check('an entity bundle tells its kinds and fields in words — nothing else', summary, { title: 'Józef', format: 'recreatio.cogita.entity', kinds: ['Postać'], list: [{ label: 'Urodzony', text: 'ok. 1 r. p.n.e.' }] });
-  check('a built-in kind publishes nothing from data.public', Pub.publicSummary({ id: 'p', kind: 'person', data: { name: 'A', public: { format: 'x' } } }, look, () => true).format, undefined);
+  check('a base in a closed area: its members', Vis.audience({ areaPublic: false, areaRuleAt: '2026-10-22' }).startsWith('członkowie jej obszaru'), true);
+  truth('a public area, base not opened yet: still members — and where to open it', Vis.audience({ areaPublic: true, areaRuleAt: null }).includes('nie jest jeszcze otwarta') && Vis.audience({ areaPublic: true, areaRuleAt: null }).includes('Kto czyta'));
+  truth('a public, opened base: everyone, the WHOLE base said plainly', Vis.audience({ areaPublic: true, areaRuleAt: 'x' }).startsWith('każdy') && Vis.audience({ areaPublic: true, areaRuleAt: 'x' }).includes('pytania razem z odpowiedziami') && Vis.audience({ areaPublic: true, areaRuleAt: 'x' }).includes('szkice'));
+  check('public = public area AND opened', [Vis.isPublicBase({ areaPublic: true, areaRuleAt: 'x' }), Vis.isPublicBase({ areaPublic: true, areaRuleAt: null }), Vis.isPublicBase({ areaPublic: false, areaRuleAt: 'x' }), Vis.isPublicBase(undefined)], [true, false, false, false]);
+  const U = (n) => `${String(n).repeat(8)}-${String(n).repeat(4)}-4${String(n).repeat(3)}-8${String(n).repeat(3)}-${String(n).repeat(12)}`;
+  const [R, T, K, E, X, S] = [1, 2, 3, 4, 5, 6].map(U);
+  const entries = new Map([
+    [R, { kind: 'revision', data: { name: 'Powtórka', graph: { nodes: [{ config: { template: T, entity: E } }, { config: { missing: X } }] } } }],
+    [T, { kind: 'template', data: { kinds: [K], note: `zob. [[x|@${R}]]` } }],
+    [K, { kind: 'kind', data: { name: 'Postać' } }],
+    [E, { kind: 'entity', data: { _kinds: [K], settings: S } }],
+    [S, { kind: 'settings', data: { sources: [] } }]
+  ]);
+  const vlib = { store: { get: (id) => entries.get(id) } };
+  check('what a revision needs from its base: templates, entries, kinds — step by step, no circle, no settings, nothing unknown', Vis.needsOf(vlib, R), [T, E, K]);
+  check('… capped', Vis.needsOf(vlib, R, 1), [T]);
 }
 
 /* -- Der Schritt „Naucz się" ----------------------------------------------------------------------- */
@@ -1159,6 +1171,11 @@ check('goals and lines follow the one logic', [
   check('where things come from', [lib.origin('k1').own, lib.origin('e2').name, lib.origin('w1').kind, lib.isOwn('e2')], [true, 'Parafia', 'books', false]);
   check('the dependencies of a reused base hold here', lib.dependencies().map((d) => `${d.parent}>${d.child}`), ['e2>k1']);
   check('learning search finds no books; a reference search does', [lib.search('Mickiewicz').length, lib.search('Mickiewicz', ['person'], true).map((e) => e.id)], [0, ['p1']]);
+
+  /* 2026-10-22 (Schritt 8) — was ein Seitenbaustein aus der Baza selbst wählen kann (keine „veröffentlichten" mehr). */
+  check('a page module picks revisions of the base and of its sources', PB.baseChoices(lib, ['revision']).map((c) => [c.id, c.label]), [['r1', 'Codzienna'], ['rB', 'Postacie']]);
+  check('… entries (own and reused), and a library kind from the books it draws on', [PB.baseChoices(lib, ['entity']).map((c) => c.id).sort(), PB.baseChoices(lib, ['work']).map((c) => c.label)], [['e2', 'k1', 'q2'], ['Pan Tadeusz']]);
+  check('the page’s own choice of an entry: own entries only, one kind by its name in any case', [PB.entityChoices(lib, '').map((c) => c.id), PB.entityChoices(lib, 'WIEDZA A').map((c) => c.id), PB.entityChoices(lib, 'Postać').map((c) => c.id)], [['k1'], ['k1'], []]);
   const cards = (await lib.cards('kb')).cards;
   truth('a reused base’s question becomes a card here', cards.some((c) => c.question === 'q2'), cards.map((c) => c.question));
 
