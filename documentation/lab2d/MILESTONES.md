@@ -22,6 +22,7 @@ Reproduce: `npm run test:lab2d` (fast tests, ~3 min), `npm run test:lab2d:slow` 
 | M1e GPU path | test 17, 1 mm in the budget | built (the accelerated view): test 17 met (test 11 was at the edge, as on the CPU, until the particles of a cell shared their heat: now −0.37 K); 2 mm 4.9 ms per step; **1 mm 7.7 ms, above the 6 ms** (§M1e) |
 | M2a liquids (oil) | tests 18–22 (SANDBOX.md §13), water unchanged | built on the CPU (2026-10-21): all met; every M1 number unchanged to the last printed digit; water scenes as fast as before (§M2a); the accelerated view hands oil scenes back to the CPU |
 | M2b solutions (salt) | tests 23–27 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met; then particles of a cell share heat and salt at the diffusion rate and salt diffuses between cells (tests 28–30, met); all M1/M2a tests still met, some numbers moved slightly (§M2b); water +2.4 % per step, brine +12 % over water; the accelerated view shares heat like the CPU and hands salt scenes back to the CPU |
+| B baking and playback | tests 31–34 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met — playback frame-identical to the live view, seeking exact, going on from a keyframe bit for bit; 33.6 MB per simulated minute of boiling at 2 mm (gate set at 40 from it); the lab never starts by itself, a module can bake on opening, one lab offers several scenarios (§B) |
 
 Test 16 (≤ 12 ms of simulation per 60 Hz frame at the default resolution) is the one gate that fails throughout:
 the CPU step of the benchmark scene at 2 mm takes 21.6 ms (budget 6 ms per step, two steps per frame): the
@@ -345,6 +346,50 @@ All 56 fast tests and the slow suite pass. What the sharing moved:
 Tests 1, 2, 7–9, 14, 15, 18–20, 23 and the M0 checks give the same numbers; tests 6 (945.4 Pa instead of 945.3), 13
 (the surface 0.002 K warmer), 21, 24 and 25 differ in the last digits; in the fast version of test 4 the sealed beaker
 ends at 21.83 °C instead of 21.76 °C after 60 s (the same energy, more of it in the water).
+
+## B — baking and playback
+
+Built on the CPU (2026-10-22), the third step of [SANDBOX.md](SANDBOX.md), with what the user asked for on starting:
+the lab never starts by itself (it shows the start and waits for "Uruchom na żywo" or "Upiecz"), baking is started by
+a button, and a module can be set to bake on opening ("Po otwarciu" in the editor, `start: "bake"`; a clip already in
+the browser then plays at once). One lab can offer several scenarios (`scenarios`, a picker above the text; each with
+its own clip). The page `scripts/fixtures/lab2d-scenariusze.json` (written by `node scripts/lab2d-scenarios.mjs` from
+the presets) has one lab with eleven scenarios — three of them new presets: "Konwekcja nad grzałką", "Wrzenie w
+górach" (70 kPa) and "Solanka pod słodką wodą" — and one lab that bakes ten seconds of boiling on opening.
+ARCHITECTURE.md §16 describes the format.
+
+| Test | Gate | Result |
+|---|---|---|
+| 31 Playback | every frame of a clip draws what the live view drew while baking | 3 s of the compact boiling beaker (50 × 40 cells, 91 frames): **308 drawn frames identical** (without overlay every frame, each of the eight overlays every third frame, where its layers are stored) |
+| 32 Seeking | frames in any order equal frames in sequence; t → frame floor(30 t) | **12 frames** read out of order (across chunk boundaries) equal; frameAt exact at 0, 1/30, 1, 1.0333 s, the end, beyond and before |
+| 33 Going on | a restored keyframe runs on bit for bit | the whole state equal after 120 steps in **four scenes**: boiling (1207 particles, 148 bubbles), brine dried to a crust (96 particles, 19 bubbles), water under oil (viscosity on; 120 bubbles), a sealed box with fog; from the keyframe at 5 s of a 6 s clip **108 drawn frames** equal the clip |
+| 34 Size per minute | measure, then set the gate | the boiling beaker (preset "Wrzenie", 20 × 15 cm, 2 mm), one minute: 1801 frames, **11.6 kB per frame** (20.8 MB), 13 keyframes of **980 kB** (12.7 MB): **33.6 MB per simulated minute**; gate 40 MB. Baked in 475 s: **0.13× real time** |
+
+In the browser (headless Edge, a bundle of the shell; 26 checks): the start panel stays for three seconds with
+nothing computing; "Upiecz" for 10 s of convection bakes in 18–19 s (0.43–0.53× real time, a preview every 0.3 s);
+the clip plays, the temperature overlay works in playback, the slider seeks to 5.0 s, "Na żywo od tej chwili" goes
+live (paused, tools back), a reload offers "Odtwórz nagranie (10 s)" from IndexedDB and plays it at once, closing
+returns to the start; the scenario picker lists all presets and switches paused; a module with `start: "bake"` bakes
+by itself and then plays; no errors in the page. On a phone (390 px, dark) the playback bar fits one row (the live
+button as an icon).
+
+Found and fixed on the way:
+
+- **The first frames were 57 MB per minute.** Pressure and speed were stored relative to the frame's maximum, so
+  every cell changed whenever the maximum moved; the temperature in 0.05 K steps flickered in the low bits; deflate saw
+  frame after frame. Now fixed quadratic 8-bit scales, 0.5 K, the chunk ordered by layer, two seconds per chunk, and
+  the gas-overlay layers every third frame (held in between): 22.9 → 8.0 kB per frame over the first 10 s of boiling
+  (27.3 MB per minute with the keyframes; boiling grows, so a whole minute takes 33.6).
+- **Keyframes stored scratch twice.** `solver.system.x` is `solver.xs` under a second name; skipped under one path it
+  was taken under the other (270 kB per keyframe). Skipped objects now count as seen. Getters (`system.nx`) are left
+  out — they cannot be written back.
+- **A solver created on first use** (`liquid.vsolver`, only once viscosity runs) gave a fresh engine another layout
+  than a running one; it is scratch and left out.
+- **Scratch for the physics, not for the frame**: the water's face velocities are rewritten every step, but the frame
+  reads them for the water arrows — the first frame after going live differed in the velocity overlay. They are kept.
+- **The playback slider jumped back**: the worker reports its time five times a second, React reset the controlled
+  slider to the old time right after the input event, and the change event that followed undid the seek. The dragged
+  time now holds for 0.6 s.
 
 ## Benchmark
 

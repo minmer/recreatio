@@ -13,12 +13,19 @@
  *   zeichnen die Happen selbst.
  *
  * Kennzahlen und neue Proben der Schreiber gehen fünfmal je Sekunde zur Seite.
+ *
+ * Nachweise (B, clip/session.ts): beim Backen rechnen die Happen ohne Pause
+ * und ohne zu zeichnen (alle 0,3 s ein Vorschaubild), bei der Wiedergabe
+ * rechnet nichts — das Bild kommt aus dem Nachweis. Das Labor beginnt ruhend
+ * (init.paused): es startet nie von selbst.
  */
 
+import { ClipSession } from './clip/session';
 import { Charts } from './engine/charts';
 import { Engine } from './engine/engine';
 import type { BubbleView, ChartSample, HostMessage, HostStats, WorkerMessage } from './engine/protocol';
-import { allocFrame, buildFrame, frameFits, frameTransfer, type FrameBuffers, type Overlay } from './render/frame';
+import { allocFrame, buildFrame, frameFits, frameFitsLayers, frameFromLayers, frameTransfer, type FrameBuffers, type Overlay } from './render/frame';
+import type { Layers } from './render/layers';
 import { LabRenderer, type Walls } from './render/glRenderer';
 import { fitView, type View } from './render/view';
 
@@ -40,6 +47,10 @@ const SAMPLE_EVERY = 0.25;
 
 let engine: Engine | null = null;
 let charts: Charts | null = null;
+let session: ClipSession | null = null;
+/* Bei der Wiedergabe nur neu zeichnen, wenn sich Bild, Einblendung oder Grösse ändern. */
+let shown = '';
+let lastBeat = 0;
 let renderer: LabRenderer | null = null;
 let canvas: OffscreenCanvas | null = null;
 let cssW = 1;
@@ -100,20 +111,46 @@ function fresh(): FrameBuffers {
   return allocFrame(engine.grid.nx, engine.grid.ny, Math.max(64, Math.ceil(engine.bubbles.count * 1.5)), showParticles ? Math.ceil(engine.particles.count * 1.25) + 64 : 0);
 }
 
+/** Was jetzt zu zeichnen ist, wenn nicht die Engine: das Bild der Wiedergabe oder eine Vorschau beim Backen (undefined: live; null: nichts Neues). */
+function clipLayers(): Layers | null | undefined {
+  if (session === null || session.mode === 'live') return undefined;
+  if (session.mode === 'baking') return session.preview();
+  const L = session.current();
+  if (L === null) return null;
+  const key = `${L.t}|${overlay}|${cssW}x${cssH}`;
+  if (key === shown) return null;
+  shown = key;
+  return L;
+}
+
+function fromLayers(f: FrameBuffers, L: Layers): FrameBuffers {
+  const out = frameFitsLayers(f, L) ? f : allocFrame(L.nx, L.ny, Math.max(64, Math.ceil(L.nb * 1.5)), 0);
+  frameFromLayers(L, out, overlay);
+  return out;
+}
+
 function render(): boolean {
   if (engine === null) return false;
+  const L = clipLayers();
+  if (L === null) return false;
   const t0 = performance.now();
   if (renderer !== null && canvas !== null) {
-    if (!frameFits(own, engine, showParticles)) own = fresh();
-    buildFrame(engine, own, overlay, showParticles);
+    if (L !== undefined) own = fromLayers(own, L);
+    else {
+      if (!frameFits(own, engine, showParticles)) own = fresh();
+      buildFrame(engine, own, overlay, showParticles);
+    }
     scale[0] = own.scaleLo;
     scale[1] = own.scaleHi;
     scale[2] = own.vLiq;
     renderer.draw(own, view, canvas.width, canvas.height, walls, 0.003);
   } else if (spares.length > 0) {
     let f = spares.pop() as FrameBuffers;
-    if (!frameFits(f, engine, showParticles)) f = fresh();
-    buildFrame(engine, f, overlay, showParticles);
+    if (L !== undefined) f = fromLayers(f, L);
+    else {
+      if (!frameFits(f, engine, showParticles)) f = fresh();
+      buildFrame(engine, f, overlay, showParticles);
+    }
     scale[0] = f.scaleLo;
     scale[1] = f.scaleHi;
     scale[2] = f.vLiq;
@@ -158,7 +195,8 @@ function sendStats(t: number): void {
     paused,
     samples: pendingSamples.splice(0, pendingSamples.length),
     bubble: bubbleView(),
-    overlayScale: [scale[0], scale[1], scale[2]]
+    overlayScale: [scale[0], scale[1], scale[2]],
+    clip: session?.stats() ?? null
   };
   post({ type: 'stats', stats });
   frames = 0;
@@ -193,6 +231,14 @@ function oneStep(): void {
 
 function tick(): void {
   if (engine === null) return;
+  /* Backen: Happen ohne Pause (die Nachrichten kommen zwischen ihnen durch); bei der Wiedergabe rechnet nichts. */
+  if (session !== null && session.mode !== 'live') {
+    if (session.mode === 'baking' && session.slice()) wake(0);
+    lastTick = performance.now();
+    /* Ein voller Faden lässt rAF nicht zu Wort kommen: dann zeichnen (Vorschau) und melden die Happen selbst. */
+    if (lastTick - lastDraw >= DRAW_GAP_MS) draw(lastTick);
+    return;
+  }
   const t = performance.now();
   const real = lastTick === 0 ? 0 : Math.min(0.1, (t - lastTick) / 1000);
   lastTick = t;
@@ -223,6 +269,9 @@ function draw(t: number): void {
 
 function frame(): void {
   const beat = performance.now();
+  /* Die Uhr der Wiedergabe läuft mit den Bildern des Bildschirms. */
+  if (session !== null) session.advance(lastBeat === 0 ? 0 : Math.min(0.1, (beat - lastBeat) / 1000));
+  lastBeat = beat;
   if (beat - lastDraw >= (behind ? DRAW_GAP_MS : BEAT_GAP_MS)) draw(beat);
   if (renderer !== null && typeof scope.requestAnimationFrame === 'function') scope.requestAnimationFrame(frame);
   else setTimeout(frame, Math.max(0, FRAME_MS - (performance.now() - beat)));
@@ -236,17 +285,30 @@ function theme(dark: boolean): void {
   renderer.ink = dark ? [0.9, 0.93, 0.96] : [0.08, 0.1, 0.12];
 }
 
-function restart(): void {
+/** Nach einem neuen Aufbau der Engine: Ansicht, Wände, Puffer (die Schreiber bleiben, wie sie sind). */
+function rebuilt(): void {
   if (engine === null) return;
-  charts = new Charts(engine);
-  nextSample = 0;
-  pendingSamples.length = 0;
+  nextSample = engine.time;
   acc = 0;
+  shown = '';
   select(null);
   setWalls();
   resize(cssW, cssH, dpr);
   if (renderer === null) { spares.length = 0; spares.push(fresh(), fresh()); }
   post({ type: 'view', view, walls });
+}
+
+function restart(): void {
+  if (engine === null) return;
+  charts = new Charts(engine);
+  pendingSamples.length = 0;
+  rebuilt();
+  session?.checkSoon();
+}
+
+/** Ein Handgriff ändert die Szene — nur live (bei Wiedergabe und Backen gehört das Bild dem Nachweis). */
+function live(): Engine | null {
+  return session !== null && session.mode !== 'live' ? null : engine;
 }
 
 scope.addEventListener('message', (event) => {
@@ -262,6 +324,15 @@ scope.addEventListener('message', (event) => {
       case 'init': {
         engine = new Engine(m.scene);
         charts = new Charts(engine);
+        paused = m.paused === true;
+        session = new ClipSession({
+          engine: () => engine as Engine,
+          charts: () => charts as Charts,
+          setCharts: (c) => { charts = c; pendingSamples.length = 0; },
+          post: (msg) => post(msg),
+          rebuilt,
+          wake: () => wake(0)
+        });
         canvas = m.canvas;
         if (canvas !== null) {
           const gl = canvas.getContext('webgl2', { antialias: true, premultipliedAlpha: true, alpha: false }) as WebGL2RenderingContext | null;
@@ -274,6 +345,7 @@ scope.addEventListener('message', (event) => {
         post({ type: 'ready', offscreen: renderer !== null, warnings: engine.warnings, view, quality: engine.currentQuality, walls });
         if (!started) { started = true; lastStats = performance.now(); frame(); }
         lastTick = performance.now();
+        void session.check();
         wake(0);
         break;
       }
@@ -282,28 +354,35 @@ scope.addEventListener('message', (event) => {
         post({ type: 'view', view, walls });
         break;
       case 'op': {
-        const warning = engine?.apply(m.op) ?? null;
+        const warning = live()?.apply(m.op) ?? null;
         if (warning !== null && warning.startsWith('refused')) post({ type: 'refused', message: warning });
+        session?.checkSoon();
         break;
       }
       case 'addLiquid': {
-        const warning = engine?.apply({ op: 'fill', region: m.region, phase: 'liquid', T: m.T, composition: m.composition }) ?? null;
+        const warning = live()?.apply({ op: 'fill', region: m.region, phase: 'liquid', T: m.T, composition: m.composition }) ?? null;
         if (warning !== null && warning.startsWith('refused')) post({ type: 'refused', message: warning });
+        session?.checkSoon();
         break;
       }
       case 'addSolid':
-        engine?.apply({ op: 'solid', region: m.region, material: m.material, T: m.T });
+        live()?.apply({ op: 'solid', region: m.region, material: m.material, T: m.T });
+        session?.checkSoon();
         break;
       case 'setHeater':
-        engine?.setHeater(m.group, m.mode, m.power, m.target, m.on);
+        live()?.setHeater(m.group, m.mode, m.power, m.target, m.on);
+        session?.checkSoon();
         break;
       case 'setAmbient':
-        engine?.setAmbient(m.p, m.T, m.rh, m.g, m.air);
+        live()?.setAmbient(m.p, m.T, m.rh, m.g, m.air);
+        session?.checkSoon();
         break;
       case 'setBoundary':
+        if (live() === null) break;
         engine?.setBoundary(m.side, m.value);
         setWalls();
         post({ type: 'view', view, walls });
+        session?.checkSoon();
         break;
       case 'query':
         post({ type: 'reply', id: m.id, data: engine?.query(m.x, m.y) ?? null });
@@ -313,6 +392,7 @@ scope.addEventListener('message', (event) => {
         break;
       case 'overlay':
         overlay = m.overlay;
+        shown = '';
         break;
       case 'particles':
         showParticles = m.on;
@@ -328,19 +408,54 @@ scope.addEventListener('message', (event) => {
         break;
       case 'setSpeed':
         speed = Math.min(64, Math.max(0.05, m.speed));
+        if (session !== null) session.speed = Math.min(16, Math.max(0.05, m.speed));
         if (!paused) wake(0);
         break;
       case 'setQuality':
-        if (engine !== null) { engine.setQuality(m.quality); restart(); }
+        if (engine !== null && live() !== null) { engine.setQuality(m.quality); restart(); }
         break;
       case 'serialize':
         post({ type: 'reply', id: m.id, data: engine?.serialize() ?? null });
         break;
       case 'load':
-        if (engine !== null) { engine.load(m.scene); restart(); }
+        if (engine !== null && session?.mode !== 'baking') {
+          if (session?.mode === 'playback') session.close();
+          engine.load(m.scene);
+          restart();
+        }
+        break;
+      case 'bake':
+        void session?.bake(m.seconds);
+        break;
+      case 'bakeStop':
+        session?.stopBake();
+        break;
+      case 'clipOpen':
+        shown = '';
+        void session?.open(m.play);
+        break;
+      case 'clipPlay':
+        session?.play(m.playing);
+        break;
+      case 'clipSeek':
+        session?.seek(m.t);
+        break;
+      case 'clipLoop':
+        if (session !== null) session.loop = m.on;
+        break;
+      case 'clipLive':
+        void session?.live().then(() => { paused = true; acc = 0; lastTick = performance.now(); });
+        break;
+      case 'clipClose':
+        session?.close();
+        session?.checkSoon();
+        break;
+      case 'clipDelete':
+        void session?.remove();
         break;
       case 'theme':
         theme(m.dark);
+        shown = '';
         break;
       case 'frameDone':
         spares.push(m.frame);

@@ -12,17 +12,32 @@
  *
  * <b>Je Grösse</b>: im Streifen eine Karte mit Knopf (das Labor öffnet sich im
  * ganzen Fenster); als Block das Labor selbst, mit eigenem Vollbild-Knopf.
+ *
+ * <b>Start</b> (B): das Labor rechnet nie von selbst — es wartet auf „Uruchom
+ * na żywo“ oder „Upiecz“; mit `start: "bake"` beginnt das Backen beim Öffnen
+ * (ein in diesem Browser schon gebackener Nachweis spielt dann gleich ab).
+ * `seconds`: Länge eines Nachweises. `scenarios`: weitere Szenariusze, zwischen
+ * denen die Schüler im Labor wählen.
  */
 
-import { definePart, lines, text, type RawConfig } from '../part';
+import { definePart, lines, maybeNumber, text, type RawConfig } from '../part';
 import { later } from '../../ui/later';
-import { LabEditor } from '../../lab/LabEditor';
+import { LabEditor, type LabChoice } from '../../lab/LabEditor';
+
+interface Scenario {
+  readonly title: string;
+  readonly text: readonly string[];
+  readonly scene: unknown;
+}
 
 interface Config {
   readonly title: string;
   readonly text: readonly string[];
   readonly mode: 'sandbox' | 'experiment';
   readonly scene: unknown;
+  readonly start: 'button' | 'bake';
+  readonly seconds: number;
+  readonly scenarios: readonly Scenario[];
   readonly raw: RawConfig;
 }
 
@@ -30,13 +45,36 @@ const parse = (value: string): unknown => {
   try { return value.trim() === '' ? null : JSON.parse(value) as unknown; } catch { return null; }
 };
 
+/** Die Szenariusze: eine Liste von { title, text, scene } — Unbrauchbares fällt weg. */
+function scenariosOf(value: unknown): Scenario[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((x): Scenario[] => {
+    if (x === null || typeof x !== 'object') return [];
+    const o = x as Record<string, unknown>;
+    if (o.scene === null || typeof o.scene !== 'object' || Array.isArray(o.scene)) return [];
+    const body = Array.isArray(o.text) ? o.text.filter((t): t is string => typeof t === 'string') : typeof o.text === 'string' ? o.text.split('\n') : [];
+    return [{ title: typeof o.title === 'string' ? o.title.trim() : '', text: body.map((t) => t.trim()).filter((t) => t !== ''), scene: o.scene }];
+  });
+}
+
+const BAKE_SECONDS = [10, 30, 60, 120, 300];
+
 const read = (raw: RawConfig): Config => ({
   title: text(raw, 'title'),
   text: lines(raw, 'text'),
   mode: text(raw, 'mode') === 'experiment' ? 'experiment' : 'sandbox',
   scene: parse(raw.scene ?? ''),
+  start: text(raw, 'start') === 'bake' ? 'bake' : 'button',
+  seconds: Math.max(5, Math.min(600, maybeNumber(raw, 'seconds') ?? 30)),
+  scenarios: scenariosOf(parse(raw.scenarios ?? '')),
   raw
 });
+
+/** Die Auswahlfelder im Editor: wie das Labor beim Öffnen startet, wie lange ein Nachweis wird. */
+const CHOICES: readonly LabChoice[] = [
+  { key: 'start', label: 'Po otwarciu', choices: [{ value: 'button', label: 'Czeka na przycisk (uruchom na żywo albo upiecz)' }, { value: 'bake', label: 'Od razu piecze nagranie (gotowe odtwarza się od razu)' }] },
+  { key: 'seconds', label: 'Długość nagrania', choices: BAKE_SECONDS.map((s) => ({ value: String(s), label: `${s} s czasu symulacji` })).sort((a, b) => (a.value === '30' ? -1 : b.value === '30' ? 1 : 0)) }
+];
 
 /** Das Labor — erst geladen, wenn es gezeigt wird (eine öffentliche Seite lädt die Engine nicht mit). */
 const Lab = later(() => import('../../lab/lab2d/Lab2D').then((m) => m.Lab2D));
@@ -101,6 +139,17 @@ const SCENE_DOCS: Readonly<Record<string, string>> = {
   '.ops[].on': 'false — płyta wyłączona'
 };
 
+/** Ein zweites Szenariusz im Beispiel: Mgła nad gorącą wodą. */
+const EXAMPLE_FOG = {
+  format: 'recreatio/lab2d', version: 1, seed: 1, box: { w: 0.2, h: 0.15, depth: 0.01 },
+  ambient: { p: 101.325, T: 10, rh: 0.8, g: 9.81 }, sides: { left: 'wall', right: 'wall', bottom: 'wall', top: 'open' }, quality: 'high',
+  ops: [
+    { op: 'hotplate', x: 0.1, y: 0, w: 0.12, h: 0.008, material: 'steel', mode: 'power', power: 15, on: true, T: 90 },
+    { op: 'beaker', x: 0.1, y: 0.008, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T: 90 },
+    { op: 'fill', region: { rect: [0.067, 0.010, 0.133, 0.06] }, composition: { H2O: 1 }, phase: 'liquid', T: 90 }
+  ]
+};
+
 const EXAMPLE_SCENE = {
   format: 'recreatio/lab2d', version: 1, seed: 7, box: { w: 0.2, h: 0.15, depth: 0.01 },
   ambient: { p: 101.325, T: 20, rh: 0.5, g: 9.81, air: { N2: 0.7676, O2: 0.2324 } },
@@ -129,7 +178,7 @@ export const lab2dPart = definePart<Config>({
     : `„${c.title || 'Laboratorium 2D'}” — skrzynka z wodą i aparaturą, narzędzia obok albo pod nią, przycisk pełnego ekranu.`,
   fullscreen: true,
   Editor: (props) => (
-    <LabEditor {...props} presets={presets} sandbox={SANDBOX} what="laboratorium 2D" Preview={Preview}
+    <LabEditor {...props} presets={presets} sandbox={SANDBOX} what="laboratorium 2D" Preview={Preview} choices={CHOICES} scenarios
       prompt={() => import('../../lab/lab2d/text').then((m) => m.lab2dPrompt())} />
   ),
   View: ({ config, ctx }) => {
@@ -142,18 +191,31 @@ export const lab2dPart = definePart<Config>({
         </div>
       );
     }
-    return <Lab config={{ title: config.title, text: config.text, scene: config.scene }} whole={ctx.whole === true} />;
+    return <Lab config={{ title: config.title, text: config.text, scene: config.scene, start: config.start, seconds: config.seconds, scenarios: config.scenarios }} whole={ctx.whole === true} />;
   },
   example: {
     title: 'Zlewka na płycie grzejnej',
     text: 'W zlewce jest woda, pod nią płyta grzejna.\nObserwuj pęcherze przy dnie i wykres temperatury.',
     mode: 'sandbox',
-    scene: JSON.stringify(EXAMPLE_SCENE)
+    scene: JSON.stringify(EXAMPLE_SCENE),
+    start: 'button',
+    seconds: '30',
+    scenarios: JSON.stringify([{ title: 'Mgła nad gorącą wodą', text: ['Gorąca woda w chłodnym pokoju — nad zlewką powstaje mgła.'], scene: EXAMPLE_FOG }])
   },
   extra: [
     { key: 'title', shape: 'line', says: 'Tytuł laboratorium (nad skrzynką)' },
     { key: 'text', shape: 'lines', says: 'Tekst dla uczniów — co mają zrobić i zaobserwować (akapity)' },
     { key: 'mode', shape: 'line', says: '"sandbox" — piaskownica (wszystkie narzędzia), "experiment" — zarezerwowane dla doświadczeń z krokami' },
-    { key: 'scene', shape: 'json', says: 'Układ startowy: skrzynka, otoczenie, boki, ziarno i kroki budowy (woda, powietrze, ciało stałe, zlewka, płyta grzejna, usuń) — silnik jest wbudowany, scena mówi, co na początku gdzie stoi', inside: SCENE_DOCS }
+    { key: 'scene', shape: 'json', says: 'Układ startowy: skrzynka, otoczenie, boki, ziarno i kroki budowy (woda, powietrze, ciało stałe, zlewka, płyta grzejna, usuń) — silnik jest wbudowany, scena mówi, co na początku gdzie stoi', inside: SCENE_DOCS },
+    { key: 'start', shape: 'line', says: 'Co robi laboratorium po otwarciu: "button" (domyślnie) — nic się nie liczy, czeka na przycisk „Uruchom na żywo” albo „Upiecz”; "bake" — od razu piecze nagranie (scena liczy się raz, jak najszybciej, i zapisuje w tej przeglądarce; gotowe nagranie od razu się odtwarza)' },
+    { key: 'seconds', shape: 'line', says: 'Długość nagrania w sekundach czasu symulacji: 10, 30 (domyślnie), 60, 120 albo 300' },
+    {
+      key: 'scenarios', shape: 'json', says: 'Dodatkowe scenariusze do wyboru w laboratorium (pierwszym jest scena z klucza scene): lista { title, text, scene }',
+      inside: {
+        '[].title': 'Tytuł scenariusza (na liście wyboru i nad skrzynką)',
+        '[].text': 'Tekst dla uczniów do tego scenariusza — lista akapitów',
+        ...Object.fromEntries(Object.entries({ '': 'Scena scenariusza — taka jak w kluczu scene', ...SCENE_DOCS }).map(([k, v]) => [`[].scene${k}`, v]))
+      }
+    }
   ]
 });

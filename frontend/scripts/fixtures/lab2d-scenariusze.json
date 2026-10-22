@@ -1,0 +1,1152 @@
+{
+  "format": "recreatio/page",
+  "version": 1,
+  "path": "laboratorium-2d-scenariusze",
+  "title": "Laboratorium 2D — scenariusze",
+  "lead": "Jedno laboratorium, wiele doświadczeń: wybierz scenariusz, uruchom go na żywo albo upiecz nagranie i odtwarzaj je płynnie. Wszystko wynika z praw fizyki i bazy materiałów — nic nie jest odegrane.",
+  "mode": "page",
+  "theme": {
+    "mode": "light",
+    "accent": "#2f6fb0",
+    "ink": "#13212b",
+    "ground": "#f6f8f9",
+    "muted": "#5b6b74"
+  },
+  "modules": [
+    {
+      "id": "lab2d-scen-wstep",
+      "kind": "text",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 2
+      },
+      "config": {
+        "title": "Jak pracować",
+        "body": "Laboratorium nic nie liczy samo. Po otwarciu czeka: „Uruchom na żywo” liczy symulację w tej chwili (na słabszym komputerze wolniej niż w rzeczywistości), „Upiecz” liczy wybrany scenariusz raz, jak najszybciej, i zapisuje nagranie w tej przeglądarce.\n## Nagranie\nUpieczone nagranie odtwarza się płynnie, bez liczenia — także na telefonie: przewijaj suwakiem czasu, zmieniaj tempo i nakładki. „Na żywo od tej chwili” liczy dalej dokładnie od pokazanego obrazu; wtedy znów działają narzędzia.\n## Scenariusze\nNad tekstem po prawej wybierasz scenariusz: od nagrzewania wody przez wrzenie (także w szybkowarze i w górach) po olej, solankę i mgłę. Każdy ma własne nagranie."
+      }
+    },
+    {
+      "id": "lab2d-scen-lab",
+      "kind": "lab2d",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 5
+      },
+      "config": {
+        "title": "Zlewka z wodą na płycie grzejnej",
+        "text": [
+          "W zlewce jest woda o temperaturze pokojowej, pod nią płyta grzejna o mocy 40 W. Obserwuj, jak najpierw nagrzewa się płyta, potem szkło, potem woda.",
+          "Przy dnie pojawią się pęcherze. Dopóki woda jest chłodna, znikają, zanim dopłyną do powierzchni. Wykres „Temperatura wody” pokaże plateau przy temperaturze wrzenia."
+        ],
+        "mode": "sandbox",
+        "scene": {
+          "format": "recreatio/lab2d",
+          "version": 1,
+          "seed": 1,
+          "box": {
+            "w": 0.2,
+            "h": 0.15,
+            "depth": 0.01
+          },
+          "ambient": {
+            "p": 101.325,
+            "T": 20,
+            "rh": 0.5,
+            "g": 9.81
+          },
+          "sides": {
+            "left": "wall",
+            "right": "wall",
+            "bottom": "wall",
+            "top": "open"
+          },
+          "quality": "high",
+          "ops": [
+            {
+              "op": "hotplate",
+              "x": 0.1,
+              "y": 0,
+              "w": 0.12,
+              "h": 0.008,
+              "material": "steel",
+              "mode": "power",
+              "power": 40,
+              "target": 150,
+              "on": true,
+              "T": 20
+            },
+            {
+              "op": "beaker",
+              "x": 0.1,
+              "y": 0.008,
+              "w": 0.07,
+              "h": 0.08,
+              "wall": 0.002,
+              "material": "glass",
+              "T": 20
+            },
+            {
+              "op": "fill",
+              "region": {
+                "rect": [
+                  0.067,
+                  0.01,
+                  0.133,
+                  0.06
+                ]
+              },
+              "composition": {
+                "H2O": 1
+              },
+              "phase": "liquid",
+              "T": 20
+            },
+            {
+              "op": "solid",
+              "region": {
+                "rect": [
+                  0.082,
+                  0.01,
+                  0.086,
+                  0.012
+                ]
+              },
+              "material": "ceramic",
+              "T": 20
+            },
+            {
+              "op": "solid",
+              "region": {
+                "rect": [
+                  0.112,
+                  0.01,
+                  0.116,
+                  0.012
+                ]
+              },
+              "material": "ceramic",
+              "T": 20
+            }
+          ]
+        },
+        "start": "button",
+        "seconds": "30",
+        "scenarios": [
+          {
+            "title": "Konwekcja nad grzałką",
+            "text": [
+              "W zimnej wodzie, przy dnie po lewej, leży mała grzałka (6 W). Ogrzana woda jest lżejsza i unosi się nad nią, chłodniejsza opada po drugiej stronie — powstaje wir.",
+              "Włącz nakładkę „Temperatura”, a potem „Prędkość” (białe strzałki pokazują, jak płynie woda)."
+            ],
+            "scene": {
+              "format": "recreatio/lab2d",
+              "version": 1,
+              "seed": 1,
+              "box": {
+                "w": 0.2,
+                "h": 0.15,
+                "depth": 0.01
+              },
+              "ambient": {
+                "p": 101.325,
+                "T": 20,
+                "rh": 0.5,
+                "g": 9.81
+              },
+              "sides": {
+                "left": "wall",
+                "right": "wall",
+                "bottom": "wall",
+                "top": "open"
+              },
+              "quality": "high",
+              "ops": [
+                {
+                  "op": "beaker",
+                  "x": 0.1,
+                  "y": 0.008,
+                  "w": 0.07,
+                  "h": 0.08,
+                  "wall": 0.002,
+                  "material": "glass",
+                  "T": 20
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.067,
+                      0.01,
+                      0.133,
+                      0.06
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 1
+                  },
+                  "phase": "liquid",
+                  "T": 20
+                },
+                {
+                  "op": "hotplate",
+                  "x": 0.08,
+                  "y": 0.012,
+                  "w": 0.012,
+                  "h": 0.004,
+                  "material": "steel",
+                  "mode": "power",
+                  "power": 6,
+                  "target": 150,
+                  "on": true,
+                  "T": 20
+                }
+              ]
+            }
+          },
+          {
+            "title": "Wrzenie z kamyczkami",
+            "text": [
+              "Woda ma 98 °C, płyta jest gorąca. Kamyczki wrzenne mają wiele wgłębień, w których rodzą się pęcherze — woda wrze spokojnie, bez przegrzania.",
+              "Zbadaj pęcherz narzędziem „Badaj”: wypór jest setki razy większy od jego ciężaru."
+            ],
+            "scene": {
+              "format": "recreatio/lab2d",
+              "version": 1,
+              "seed": 1,
+              "box": {
+                "w": 0.2,
+                "h": 0.15,
+                "depth": 0.01
+              },
+              "ambient": {
+                "p": 101.325,
+                "T": 20,
+                "rh": 0.5,
+                "g": 9.81
+              },
+              "sides": {
+                "left": "wall",
+                "right": "wall",
+                "bottom": "wall",
+                "top": "open"
+              },
+              "quality": "high",
+              "ops": [
+                {
+                  "op": "hotplate",
+                  "x": 0.1,
+                  "y": 0,
+                  "w": 0.12,
+                  "h": 0.008,
+                  "material": "steel",
+                  "mode": "power",
+                  "power": 40,
+                  "target": 150,
+                  "on": true,
+                  "T": 140
+                },
+                {
+                  "op": "beaker",
+                  "x": 0.1,
+                  "y": 0.008,
+                  "w": 0.07,
+                  "h": 0.08,
+                  "wall": 0.002,
+                  "material": "glass",
+                  "T": 105
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.067,
+                      0.01,
+                      0.133,
+                      0.06
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 1
+                  },
+                  "phase": "liquid",
+                  "T": 98
+                },
+                {
+                  "op": "solid",
+                  "region": {
+                    "rect": [
+                      0.082,
+                      0.01,
+                      0.086,
+                      0.012
+                    ]
+                  },
+                  "material": "ceramic",
+                  "T": 98
+                },
+                {
+                  "op": "solid",
+                  "region": {
+                    "rect": [
+                      0.112,
+                      0.01,
+                      0.116,
+                      0.012
+                    ]
+                  },
+                  "material": "ceramic",
+                  "T": 98
+                }
+              ]
+            }
+          },
+          {
+            "title": "Szybkowar — zamknięta skrzynka",
+            "text": [
+              "Skrzynka jest szczelnie zamknięta. Gdy woda paruje, para nie ma ujścia — ciśnienie rośnie i temperatura wrzenia też.",
+              "Porównaj temperaturę wrzenia w inspektorze z otwartą skrzynką."
+            ],
+            "scene": {
+              "format": "recreatio/lab2d",
+              "version": 1,
+              "seed": 1,
+              "box": {
+                "w": 0.2,
+                "h": 0.15,
+                "depth": 0.01
+              },
+              "ambient": {
+                "p": 101.325,
+                "T": 20,
+                "rh": 0.5,
+                "g": 9.81
+              },
+              "sides": {
+                "left": "wall",
+                "right": "wall",
+                "bottom": "wall",
+                "top": "wall"
+              },
+              "quality": "high",
+              "ops": [
+                {
+                  "op": "hotplate",
+                  "x": 0.1,
+                  "y": 0,
+                  "w": 0.12,
+                  "h": 0.008,
+                  "material": "steel",
+                  "mode": "power",
+                  "power": 40,
+                  "target": 150,
+                  "on": true,
+                  "T": 120
+                },
+                {
+                  "op": "beaker",
+                  "x": 0.1,
+                  "y": 0.008,
+                  "w": 0.07,
+                  "h": 0.08,
+                  "wall": 0.002,
+                  "material": "glass",
+                  "T": 100
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.067,
+                      0.01,
+                      0.133,
+                      0.06
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 1
+                  },
+                  "phase": "liquid",
+                  "T": 97
+                },
+                {
+                  "op": "solid",
+                  "region": {
+                    "rect": [
+                      0.082,
+                      0.01,
+                      0.086,
+                      0.012
+                    ]
+                  },
+                  "material": "ceramic",
+                  "T": 97
+                },
+                {
+                  "op": "solid",
+                  "region": {
+                    "rect": [
+                      0.112,
+                      0.01,
+                      0.116,
+                      0.012
+                    ]
+                  },
+                  "material": "ceramic",
+                  "T": 97
+                }
+              ]
+            }
+          },
+          {
+            "title": "Wrzenie w górach",
+            "text": [
+              "Wysoko w górach ciśnienie powietrza jest niższe: tutaj 70 kPa zamiast 101 kPa. Woda wrze wtedy w niższej temperaturze — ok. 90 °C.",
+              "Zbadaj wodę narzędziem „Badaj”: inspektor pokazuje temperaturę wrzenia w danym miejscu. Porównaj z „Wrzeniem z kamyczkami”."
+            ],
+            "scene": {
+              "format": "recreatio/lab2d",
+              "version": 1,
+              "seed": 1,
+              "box": {
+                "w": 0.2,
+                "h": 0.15,
+                "depth": 0.01
+              },
+              "ambient": {
+                "p": 70,
+                "T": 15,
+                "rh": 0.4,
+                "g": 9.81
+              },
+              "sides": {
+                "left": "wall",
+                "right": "wall",
+                "bottom": "wall",
+                "top": "open"
+              },
+              "quality": "high",
+              "ops": [
+                {
+                  "op": "hotplate",
+                  "x": 0.1,
+                  "y": 0,
+                  "w": 0.12,
+                  "h": 0.008,
+                  "material": "steel",
+                  "mode": "power",
+                  "power": 40,
+                  "target": 150,
+                  "on": true,
+                  "T": 130
+                },
+                {
+                  "op": "beaker",
+                  "x": 0.1,
+                  "y": 0.008,
+                  "w": 0.07,
+                  "h": 0.08,
+                  "wall": 0.002,
+                  "material": "glass",
+                  "T": 95
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.067,
+                      0.01,
+                      0.133,
+                      0.06
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 1
+                  },
+                  "phase": "liquid",
+                  "T": 88
+                },
+                {
+                  "op": "solid",
+                  "region": {
+                    "rect": [
+                      0.082,
+                      0.01,
+                      0.086,
+                      0.012
+                    ]
+                  },
+                  "material": "ceramic",
+                  "T": 88
+                },
+                {
+                  "op": "solid",
+                  "region": {
+                    "rect": [
+                      0.112,
+                      0.01,
+                      0.116,
+                      0.012
+                    ]
+                  },
+                  "material": "ceramic",
+                  "T": 88
+                }
+              ]
+            }
+          },
+          {
+            "title": "Woda pod olejem",
+            "text": [
+              "Olej jest lżejszy od wody i nie miesza się z nią, więc pływa na wierzchu. Pod nim woda zaczyna wrzeć.",
+              "Pęcherze pary rodzą się tylko w wodzie i przechodzą przez olej — sam olej nie paruje (aż do temperatury dymienia, ok. 200 °C)."
+            ],
+            "scene": {
+              "format": "recreatio/lab2d",
+              "version": 1,
+              "seed": 1,
+              "box": {
+                "w": 0.2,
+                "h": 0.15,
+                "depth": 0.01
+              },
+              "ambient": {
+                "p": 101.325,
+                "T": 20,
+                "rh": 0.5,
+                "g": 9.81
+              },
+              "sides": {
+                "left": "wall",
+                "right": "wall",
+                "bottom": "wall",
+                "top": "open"
+              },
+              "quality": "high",
+              "ops": [
+                {
+                  "op": "hotplate",
+                  "x": 0.1,
+                  "y": 0,
+                  "w": 0.12,
+                  "h": 0.008,
+                  "material": "steel",
+                  "mode": "power",
+                  "power": 40,
+                  "target": 150,
+                  "on": true,
+                  "T": 140
+                },
+                {
+                  "op": "beaker",
+                  "x": 0.1,
+                  "y": 0.008,
+                  "w": 0.07,
+                  "h": 0.08,
+                  "wall": 0.002,
+                  "material": "glass",
+                  "T": 105
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.067,
+                      0.01,
+                      0.133,
+                      0.04
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 1
+                  },
+                  "phase": "liquid",
+                  "T": 97
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.067,
+                      0.04,
+                      0.133,
+                      0.06
+                    ]
+                  },
+                  "composition": {
+                    "oil-rapeseed": 1
+                  },
+                  "phase": "liquid",
+                  "T": 97
+                },
+                {
+                  "op": "solid",
+                  "region": {
+                    "rect": [
+                      0.082,
+                      0.01,
+                      0.086,
+                      0.012
+                    ]
+                  },
+                  "material": "ceramic",
+                  "T": 97
+                },
+                {
+                  "op": "solid",
+                  "region": {
+                    "rect": [
+                      0.112,
+                      0.01,
+                      0.116,
+                      0.012
+                    ]
+                  },
+                  "material": "ceramic",
+                  "T": 97
+                }
+              ]
+            }
+          },
+          {
+            "title": "Olej i woda się rozdzielają",
+            "text": [
+              "W zlewce jest drobna mieszanina wody i oleju. Olej jest lżejszy (920 kg/m³), więc jego kropelki wypływają do góry, a woda opada.",
+              "Olej płynie też dużo „gęściej”: w 20 °C jego lepkość jest prawie sto razy większa niż wody — dlatego rozdzielanie trwa."
+            ],
+            "scene": {
+              "format": "recreatio/lab2d",
+              "version": 1,
+              "seed": 1,
+              "box": {
+                "w": 0.2,
+                "h": 0.15,
+                "depth": 0.01
+              },
+              "ambient": {
+                "p": 101.325,
+                "T": 20,
+                "rh": 0.5,
+                "g": 9.81
+              },
+              "sides": {
+                "left": "wall",
+                "right": "wall",
+                "bottom": "wall",
+                "top": "open"
+              },
+              "quality": "high",
+              "ops": [
+                {
+                  "op": "beaker",
+                  "x": 0.1,
+                  "y": 0.008,
+                  "w": 0.07,
+                  "h": 0.08,
+                  "wall": 0.002,
+                  "material": "glass",
+                  "T": 20
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.067,
+                      0.01,
+                      0.133,
+                      0.06
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 0.5,
+                    "oil-rapeseed": 0.5
+                  },
+                  "phase": "liquid",
+                  "T": 20
+                }
+              ]
+            }
+          },
+          {
+            "title": "Solanka wrze później",
+            "text": [
+              "Po lewej czysta woda, po prawej solanka z 15 % soli; obie mają 97 °C i stoją na takich samych płytach.",
+              "Woda zaczyna wrzeć przy 100 °C, solanka dopiero przy ok. 103 °C. Zbadaj obie narzędziem „Badaj”: inspektor pokazuje, w jakiej temperaturze wrze ciecz w danym miejscu.",
+              "Sól nie paruje: gdy woda ucieka jako para, solanka robi się coraz bardziej słona (nakładka „Stężenie soli”)."
+            ],
+            "scene": {
+              "format": "recreatio/lab2d",
+              "version": 1,
+              "seed": 1,
+              "box": {
+                "w": 0.2,
+                "h": 0.15,
+                "depth": 0.01
+              },
+              "ambient": {
+                "p": 101.325,
+                "T": 20,
+                "rh": 0.5,
+                "g": 9.81
+              },
+              "sides": {
+                "left": "wall",
+                "right": "wall",
+                "bottom": "wall",
+                "top": "open"
+              },
+              "quality": "high",
+              "ops": [
+                {
+                  "op": "hotplate",
+                  "x": 0.05,
+                  "y": 0,
+                  "w": 0.08,
+                  "h": 0.008,
+                  "material": "steel",
+                  "mode": "power",
+                  "power": 30,
+                  "target": 150,
+                  "on": true,
+                  "T": 140
+                },
+                {
+                  "op": "hotplate",
+                  "x": 0.15,
+                  "y": 0,
+                  "w": 0.08,
+                  "h": 0.008,
+                  "material": "steel",
+                  "mode": "power",
+                  "power": 30,
+                  "target": 150,
+                  "on": true,
+                  "T": 140
+                },
+                {
+                  "op": "beaker",
+                  "x": 0.05,
+                  "y": 0.008,
+                  "w": 0.06,
+                  "h": 0.07,
+                  "wall": 0.002,
+                  "material": "glass",
+                  "T": 105
+                },
+                {
+                  "op": "beaker",
+                  "x": 0.15,
+                  "y": 0.008,
+                  "w": 0.06,
+                  "h": 0.07,
+                  "wall": 0.002,
+                  "material": "glass",
+                  "T": 105
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.022,
+                      0.01,
+                      0.078,
+                      0.05
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 1
+                  },
+                  "phase": "liquid",
+                  "T": 97
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.122,
+                      0.01,
+                      0.178,
+                      0.05
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 0.85,
+                    "NaCl": 0.15
+                  },
+                  "phase": "liquid",
+                  "T": 97
+                },
+                {
+                  "op": "solid",
+                  "region": {
+                    "rect": [
+                      0.036,
+                      0.01,
+                      0.04,
+                      0.012
+                    ]
+                  },
+                  "material": "ceramic",
+                  "T": 97
+                },
+                {
+                  "op": "solid",
+                  "region": {
+                    "rect": [
+                      0.136,
+                      0.01,
+                      0.14,
+                      0.012
+                    ]
+                  },
+                  "material": "ceramic",
+                  "T": 97
+                }
+              ]
+            }
+          },
+          {
+            "title": "Solanka pod słodką wodą",
+            "text": [
+              "Na dnie zlewki leży solanka z 20 % soli, nad nią słodka woda. Płyta grzeje od dołu: solanka krąży i się nagrzewa, ale zostaje na dnie — nawet ciepła jest cięższa od wody nad nią.",
+              "Nakładka „Stężenie soli” pokazuje, że granica zostaje ostra (sól przechodzi przez nią tylko dyfuzją, milimetry na godzinę). Nakładka „Temperatura” pokazuje, że ciepło przechodzi przez granicę dużo szybciej."
+            ],
+            "scene": {
+              "format": "recreatio/lab2d",
+              "version": 1,
+              "seed": 1,
+              "box": {
+                "w": 0.2,
+                "h": 0.15,
+                "depth": 0.01
+              },
+              "ambient": {
+                "p": 101.325,
+                "T": 20,
+                "rh": 0.5,
+                "g": 9.81
+              },
+              "sides": {
+                "left": "wall",
+                "right": "wall",
+                "bottom": "wall",
+                "top": "open"
+              },
+              "quality": "high",
+              "ops": [
+                {
+                  "op": "hotplate",
+                  "x": 0.1,
+                  "y": 0,
+                  "w": 0.12,
+                  "h": 0.008,
+                  "material": "steel",
+                  "mode": "power",
+                  "power": 15,
+                  "target": 150,
+                  "on": true,
+                  "T": 20
+                },
+                {
+                  "op": "beaker",
+                  "x": 0.1,
+                  "y": 0.008,
+                  "w": 0.07,
+                  "h": 0.08,
+                  "wall": 0.002,
+                  "material": "glass",
+                  "T": 20
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.067,
+                      0.01,
+                      0.133,
+                      0.03
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 0.8,
+                    "NaCl": 0.2
+                  },
+                  "phase": "liquid",
+                  "T": 20
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.067,
+                      0.03,
+                      0.133,
+                      0.06
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 1
+                  },
+                  "phase": "liquid",
+                  "T": 20
+                }
+              ]
+            }
+          },
+          {
+            "title": "Odparowanie solanki",
+            "text": [
+              "W zlewce jest cienka warstwa solanki z 25 % soli — prawie tyle, ile woda może rozpuścić. Termostat trzyma płytę w 250 °C.",
+              "Woda wrze i paruje, sól zostaje. Gdy roztwór jest nasycony, nadmiar soli krystalizuje i osiada na dnie jako biały osad — aż cała woda zniknie.",
+              "W panelu deweloperskim bilans „NaCl” pokazuje, że żadna sól nie ginie: cała trafia do osadu."
+            ],
+            "scene": {
+              "format": "recreatio/lab2d",
+              "version": 1,
+              "seed": 1,
+              "box": {
+                "w": 0.2,
+                "h": 0.15,
+                "depth": 0.01
+              },
+              "ambient": {
+                "p": 101.325,
+                "T": 20,
+                "rh": 0.5,
+                "g": 9.81
+              },
+              "sides": {
+                "left": "wall",
+                "right": "wall",
+                "bottom": "wall",
+                "top": "open"
+              },
+              "quality": "high",
+              "ops": [
+                {
+                  "op": "hotplate",
+                  "x": 0.1,
+                  "y": 0,
+                  "w": 0.12,
+                  "h": 0.008,
+                  "material": "steel",
+                  "mode": "thermostat",
+                  "power": 150,
+                  "target": 250,
+                  "on": true,
+                  "T": 180
+                },
+                {
+                  "op": "beaker",
+                  "x": 0.1,
+                  "y": 0.008,
+                  "w": 0.07,
+                  "h": 0.08,
+                  "wall": 0.002,
+                  "material": "glass",
+                  "T": 115
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.067,
+                      0.01,
+                      0.133,
+                      0.015
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 0.75,
+                    "NaCl": 0.25
+                  },
+                  "phase": "liquid",
+                  "T": 105
+                }
+              ]
+            }
+          },
+          {
+            "title": "Mgła nad gorącą wodą",
+            "text": [
+              "Woda w zlewce jest gorąca, pokój chłodny. Para wodna jest niewidoczna — biała mgła powstaje dopiero tam, gdzie wilgotne powietrze się ochładza.",
+              "Włącz nakładkę „Para wodna”, żeby zobaczyć niewidoczną parę obok widocznej mgły."
+            ],
+            "scene": {
+              "format": "recreatio/lab2d",
+              "version": 1,
+              "seed": 1,
+              "box": {
+                "w": 0.2,
+                "h": 0.15,
+                "depth": 0.01
+              },
+              "ambient": {
+                "p": 101.325,
+                "T": 10,
+                "rh": 0.8,
+                "g": 9.81
+              },
+              "sides": {
+                "left": "wall",
+                "right": "wall",
+                "bottom": "wall",
+                "top": "open"
+              },
+              "quality": "high",
+              "ops": [
+                {
+                  "op": "hotplate",
+                  "x": 0.1,
+                  "y": 0,
+                  "w": 0.12,
+                  "h": 0.008,
+                  "material": "steel",
+                  "mode": "power",
+                  "power": 15,
+                  "target": 150,
+                  "on": true,
+                  "T": 90
+                },
+                {
+                  "op": "beaker",
+                  "x": 0.1,
+                  "y": 0.008,
+                  "w": 0.07,
+                  "h": 0.08,
+                  "wall": 0.002,
+                  "material": "glass",
+                  "T": 90
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.067,
+                      0.01,
+                      0.133,
+                      0.06
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 1
+                  },
+                  "phase": "liquid",
+                  "T": 90
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "lab2d-scen-nagranie",
+      "kind": "lab2d",
+      "size": {
+        "colSpan": 6,
+        "rowSpan": 5
+      },
+      "config": {
+        "title": "Wrzenie z kamyczkami — nagranie",
+        "text": [
+          "To laboratorium piecze nagranie samo, zaraz po otwarciu strony (10 s wrzenia). Gdy jest gotowe, odtwarza się od razu — przy następnej wizycie bez czekania.",
+          "Woda ma 98 °C, płyta jest gorąca. Kamyczki wrzenne mają wiele wgłębień, w których rodzą się pęcherze — woda wrze spokojnie, bez przegrzania.",
+          "Zbadaj pęcherz narzędziem „Badaj”: wypór jest setki razy większy od jego ciężaru."
+        ],
+        "mode": "sandbox",
+        "scene": {
+          "format": "recreatio/lab2d",
+          "version": 1,
+          "seed": 1,
+          "box": {
+            "w": 0.2,
+            "h": 0.15,
+            "depth": 0.01
+          },
+          "ambient": {
+            "p": 101.325,
+            "T": 20,
+            "rh": 0.5,
+            "g": 9.81
+          },
+          "sides": {
+            "left": "wall",
+            "right": "wall",
+            "bottom": "wall",
+            "top": "open"
+          },
+          "quality": "high",
+          "ops": [
+            {
+              "op": "hotplate",
+              "x": 0.1,
+              "y": 0,
+              "w": 0.12,
+              "h": 0.008,
+              "material": "steel",
+              "mode": "power",
+              "power": 40,
+              "target": 150,
+              "on": true,
+              "T": 140
+            },
+            {
+              "op": "beaker",
+              "x": 0.1,
+              "y": 0.008,
+              "w": 0.07,
+              "h": 0.08,
+              "wall": 0.002,
+              "material": "glass",
+              "T": 105
+            },
+            {
+              "op": "fill",
+              "region": {
+                "rect": [
+                  0.067,
+                  0.01,
+                  0.133,
+                  0.06
+                ]
+              },
+              "composition": {
+                "H2O": 1
+              },
+              "phase": "liquid",
+              "T": 98
+            },
+            {
+              "op": "solid",
+              "region": {
+                "rect": [
+                  0.082,
+                  0.01,
+                  0.086,
+                  0.012
+                ]
+              },
+              "material": "ceramic",
+              "T": 98
+            },
+            {
+              "op": "solid",
+              "region": {
+                "rect": [
+                  0.112,
+                  0.01,
+                  0.116,
+                  0.012
+                ]
+              },
+              "material": "ceramic",
+              "T": 98
+            }
+          ]
+        },
+        "start": "bake",
+        "seconds": "10"
+      }
+    }
+  ]
+}

@@ -270,6 +270,7 @@ function frame(): void {
 
 async function init(m: Extract<HostMessage, { type: 'init' }>): Promise<void> {
   cpu = new Engine(m.scene);
+  paused = m.paused === true;
   if (refuseOther()) return;
   canvas = m.canvas;
   if (canvas === null) throw new Error('no OffscreenCanvas');

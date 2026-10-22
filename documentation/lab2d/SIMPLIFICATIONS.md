@@ -54,3 +54,10 @@ These do not change the physics model, but they decide what a student's computer
   the bubbles' order — the statistics of nucleation, merging and collapse differ by a few per cent from the CPU, and
   runs are not repeatable. Heat and vapour diffusion use multigrid there instead of Jacobi preconditioning (same
   tolerance).
+- Baked clips (B, ARCHITECTURE.md §16) store what is visible at display precision: temperature in 0.5 K steps,
+  pressure, speed and the arrow velocities on fixed quadratic 8-bit scales, humidity in 64 steps; the live view draws
+  from the same layers, so playback shows exactly what the live view showed. The layers that only the gas overlays
+  show (temperature, pressure, speed, humidity, vapour, bubbles in the phase map, arrows) are stored in every third
+  frame and held in between; the frame without overlay and the liquid are stored in every frame. Clips hold no single
+  particles (the particle view works live). None of this touches the computation: a clip continued live is bit for bit
+  the run it was baked from.

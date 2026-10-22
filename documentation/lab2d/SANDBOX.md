@@ -1,7 +1,7 @@
 # 2D lab engine — the sandbox plan (more matter, everything falls, melting, salt, baking)
 
-Status (2026-10-22): a design before the code, as ARCHITECTURE.md was. **M2a and M2b are built** (several liquids,
-rapeseed oil; salt solutions with a crust — MILESTONES.md §M2a, §M2b); the rest is not. The user confirmed the order of §13 and decided (2026-10-21):
+Status (2026-10-22): a design before the code, as ARCHITECTURE.md was. **M2a, M2b and B are built** (several liquids,
+rapeseed oil; salt solutions with a crust; baked clips — MILESTONES.md §M2a, §M2b, §B); the rest is not. The user confirmed the order of §13 and decided (2026-10-21):
 
 - every object is one whole — a beaker, a plate, an ice cube moves as one piece; for each object the user decides
   whether it is pinned or reacts to gravity;
@@ -263,6 +263,16 @@ Storage and use:
 - **Old clips**: they stay playable after engine updates, because they hold render data. Resuming live needs the
   same engine version and is refused otherwise, with a note.
 
+**As built (B, 2026-10-22)** — ARCHITECTURE.md §16, MILESTONES.md §B. The user added how it starts: the lab never
+starts by itself (it waits for "Uruchom na żywo" or "Upiecz"), baking starts by a button, and a module can be set to
+bake on opening (a clip already in the browser then plays at once); one lab can offer several scenarios. Changed from
+the design: baking only (recording a live run with its edits is not built); the CPU bakes, not the GPU; the frame
+layers are the ones the live view draws from (`render/layers.ts`), so playback equals the live view; the gas-overlay
+layers are stored every third frame; keyframes are a walk through the engine's object graph with measured scratch
+left out, and "the same engine version" is the same set of state paths (the layout). The inspector works live only.
+Measured: 33.6 MB per simulated minute of boiling at 2 mm (frames 11.6 kB, keyframes 980 kB every 5 s), baking at
+0.13–0.5× real time on the reference laptop.
+
 ## 10. The step loop after the change
 
 1. Inputs (tools, heaters, ambient).
@@ -323,7 +333,7 @@ costs most of the step and 20 s of compile time).
 |---|---|---|---|
 | **M2a** Substances and liquids (**built**) | materials v2, per-material particles, oil, liquid viscosity, drifting droplets, palette and presets | two-layer hydrostatics: dp/dy = ρ_oil g and ρ_w g (±2 %); oil poured under water ends on top with layer heights from the volumes (±1 cell); viscous decay of a shear profile, exp(−ν k² t) (±5 %); oil heated to 150 °C without boiling, budgets closed; steam bubbles rise through an oil layer | — |
 | **M2b** Solutions (**built**) | NaCl dissolved: activity model, colligative properties, density, evaporation concentrates, crust | density at 10 and 20 % (±0.3 %); boiling point at 1 and 3 mol/kg (±0.1 K of the data); freezing point at 1 and 3 mol/kg (±0.1 K); salt mass exact over boiling; crust mass = salt mass after drying | M2a |
-| **B** Baking and recording | clip format, bake runner, cache in the browser, playback, resume from keyframe | playback frame-identical to the recording; seeking to within one frame; CPU resume bit-identical to a straight run; measured size per minute (gate set from the measurement) | — (keyframe sections grow with later steps) |
+| **B** Baking and recording (**built**, baking only) | clip format, bake runner, cache in the browser, playback, resume from keyframe | playback frame-identical to the recording; seeking to within one frame; CPU resume bit-identical to a straight run; measured size per minute (gate set from the measurement) | — (keyframe sections grow with later steps) |
 | **M3a** Bodies | voxel bodies, contacts (physics-lab solver), fluid coupling, heat in bodies, apparatus as bodies, pin | floating depth ρ_b/ρ_l for wood and ice (±2 %); a sinking block reaches a drag-law terminal speed (±15 %) and rests without jitter; a stack of two blocks stands; a full beaker tips at its geometric tipping angle (±3°); budgets close with moving solids | M2a |
 | **M3b** Melting and freezing | ice; interface at T_f(w); melt to particles, freeze onto voxels; salt rejection | Stefan melting front against the Neumann solution (±5 %); ice cube in warm water: energy budget closes; brine with ice settles at T_f(w) (±0.2 K) and approaches the eutectic with enough salt; freezing brine keeps all its salt | M3a, M2b |
 | **M3c** Grains | grain particles: settling, dry granular flow, dissolution, crystallisation, cavities on grains | angle of repose of salt (±3° of the cited value); settling speed (±10 %); dissolution time against the mass-transfer correlation (±20 %); temperature drop from Δ_solH; salt mass exact through dissolving and crystallising | M2b, M3a |

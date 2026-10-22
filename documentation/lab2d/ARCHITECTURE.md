@@ -8,7 +8,10 @@ liquids other than water (rapeseed oil first) on the CPU: per-material particles
 brine density and heat capacity, crystallisation to a crust (tests 23–27), and droplets below the cell size that boil
 off and fly; particles of one cell share heat and salt at the rate of diffusion across the cell, and salt diffuses
 from cell to cell (`exchange.ts`, tests 28–30). The accelerated view takes neither oil nor salt yet; it shares heat
-within cells like the CPU. [MILESTONES.md](MILESTONES.md) has the measured numbers. Written as a
+within cells like the CPU. B (2026-10-22) bakes a scene into a clip — computed once as fast as the machine allows,
+kept in the browser, played back without computing and continued live from any frame bit for bit (§16, tests 31–34);
+the lab never starts by itself, a module may bake on opening, and one lab can offer several scenarios.
+[MILESTONES.md](MILESTONES.md) has the measured numbers. Written as a
 design before the code (2026-10-19, as the build prompt v2 asks) and updated to what was built.
 Code: `frontend/src/app/lab/lab2d/`. Simplifications: [SIMPLIFICATIONS.md](SIMPLIFICATIONS.md).
 
@@ -74,6 +77,14 @@ lab/lab2d/
     probe.ts           what the inspector sees at a point (cell, particle, bubble; brine: w, m, T_b, T_f)
     protocol.ts        messages between host and worker
   render/              frame buffers from the engine state, WebGL2 renderer, palette, view fitting (§11)
+    layers.ts          the layers of a frame (what is visible, independent of the overlay, at clip precision) and
+                       the frame of an overlay composed from them — live and in playback (§16)
+  clip/                clips (B, §16)
+    clip.ts            the clip header, the baker (records frames, keyframes, chart samples) and the player
+    codec.ts           frames as bytes: chunks of two seconds, deltas, layer-major, deflate (CompressionStream)
+    snapshot.ts        a keyframe: the whole engine state by a walk through its object graph, scratch left out
+    session.ts         baking, playback and going live inside the worker
+    store.ts           IndexedDB (headers, chunks, keyframes; the least recently played go first)
   gpu/                 the accelerated view (M1e, §15): WebGPU kernels as WGSL in TypeScript strings, the state on the GPU
     kernel.ts          GpuCtx: device, kernels with explicit bind layouts, dispatch, a per-dispatch profiler
     slots.ts, lib.ts   buffer layouts (counters, cell and face fields, records) and the shared WGSL library
@@ -88,7 +99,8 @@ lab/lab2d/
   gpu.worker.ts        the accelerated view's worker: a CPU Engine for the tools and the GpuEngine; draws with WebGPU
   host.ts              main thread: starts the worker, forwards commands, receives stats and fallback frames
   workerFactory.ts     the module worker (Vite)
-  Lab2D.tsx            the React shell (LabFrame): tools, palette, inspector, bubble view, charts, levels, scenes
+  Lab2D.tsx            the React shell (LabFrame): tools, palette, inspector, bubble view, charts, levels, scenes, scenarios
+  ClipControls.tsx     the start panel, the baking progress, the playback bar and the section "Nagranie" (§16)
   panels.tsx           inspector, bubble panel, charts, legend, "About this model", HUD
   presets.ts           starting layouts as data (the benchmark scene first)
   text.ts              the scene description and the prompt to copy for an outside AI
@@ -98,6 +110,8 @@ lab/lab2d/
 pages/parts/lab2d.tsx  the page part `lab2d` (card in a strip, the lab in a block, fullscreen)
 scripts/lab2d-bench.mjs  the benchmark scene, timing per stage (§13)
 scripts/fixtures/lab2d-wrzenie.json  a page with four labs, for import
+scripts/lab2d-scenarios.mjs  writes scripts/fixtures/lab2d-scenariusze.json from the presets: one lab with eleven
+                       scenarios to choose, one lab that bakes on opening (for import)
 ```
 
 ## 3. Data layout
@@ -504,13 +518,18 @@ Water vapour itself is invisible; the "vapour" overlay shows it next to the fog.
 the HUD and notes as SVG/HTML over the canvas. The inspector asks the worker (`query`); a selected bubble is followed
 through merges, and when it bursts or collapses its last state stays with a note saying what happened.
 
+Since B every frame is drawn in two steps (`render/layers.ts`): the layers of the state — what is visible,
+independent of the overlay and already at the precision a clip stores — and from them the frame of the chosen
+overlay. Live, only the layers the overlay needs are sampled; a clip samples all. A clip played back therefore shows
+exactly what the live view showed (§16).
+
 The accelerated view (§15) swaps the worker: `gpu.worker.ts` steps and draws with WebGPU on its own OffscreenCanvas
 and answers the same host messages, so the shell, the tools, the inspector and the charts stay as they are.
 
 ## 12. Tests
 
-Vitest, headless in Node on the engine alone: `npm run test:lab2d` (56 tests, ~6 minutes) and
-`npm run test:lab2d:slow` (tests 3, 4 over ten simulated minutes, 10, 11, 12). MILESTONES.md records the numbers.
+Vitest, headless in Node on the engine alone: `npm run test:lab2d` (64 tests, ~7 minutes) and
+`npm run test:lab2d:slow` (tests 3, 4 over ten simulated minutes, 10, 11, 12, 34). MILESTONES.md records the numbers.
 
 | # | Test | File |
 |---|---|---|
@@ -544,10 +563,15 @@ Vitest, headless in Node on the engine alone: `npm run test:lab2d` (56 tests, ~6
 | 28 | Heat inside a cell: a 2 K difference between a cell's particles decays at π² α/Δx² (±1 %), energy exact | m2b.test.ts |
 | 29 | Salt inside a cell: 10 % brine beside fresh water evens out at π² D/Δx² at 20 and 80 °C (±1 %), salt and energy exact | m2b.test.ts |
 | 30 | Salt between cells: a cosine across 2 cm decays at the discrete Fick rate (±1 %; the continuum's D k² within 4 %), salt exact | m2b.test.ts |
+| 31 | Playback: every frame of a clip draws the same pixels as the live view did while baking (without overlay every frame, with each overlay every third frame) | b.test.ts |
+| 32 | Seeking: frames read in any order equal frames read in sequence; time t is frame floor(30 t) | b.test.ts |
+| 33 | Going on from a keyframe: the whole state equals the run that never stopped (boiling, brine to a crust, water under oil, a sealed box with fog); from a clip's keyframe the frames equal the clip | b.test.ts |
+| 34 | Size: a minute of the boiling beaker at 2 mm stays under 40 MB (measured 33.6) | b.slow.test.ts |
 | 17 | GPU equivalence on tests 1–3, 6, 11 | browser harness in headless Edge (Node has no WebGPU) and in Firefox (a visible window: headless Firefox gets no WebGPU adapter); numbers in MILESTONES.md (M1e) |
 
 The browser side (tools, overlays, inspector, bubble view, charts, scenes, phone layout) was walked through in
-headless Edge against a bundle of the shell; the results are in MILESTONES.md (M1d).
+headless Edge against a bundle of the shell; the results are in MILESTONES.md (M1d); baking, playback, seeking, going
+live, the clip cache, baking on opening and the scenarios likewise (MILESTONES.md §B).
 
 ## 13. Performance
 
@@ -569,8 +593,8 @@ Nothing in M1 blocks them: six species slots on cells and bubbles, two compositi
 store, the chemistry hook in the loop.
 
 The plan for the next steps — several liquids (oil), bodies that fall, float and tip, melting and freezing, salt in
-solution and as grains, and baked clips — is [SANDBOX.md](SANDBOX.md) (2026-10-21, a design before the code; M2a and
-M2b are built). It replaces the M3 sketch above: melting there is an interface process at the solution's freezing
+solution and as grains, and baked clips — is [SANDBOX.md](SANDBOX.md) (2026-10-21, a design before the code; M2a,
+M2b and B are built). It replaces the M3 sketch above: melting there is an interface process at the solution's freezing
 point, not a volume enthalpy rule. Still open from M2b: the crust does not dissolve (grains and dissolution are M3c),
 only NaCl, one diffusion coefficient for all concentrations.
 
@@ -621,3 +645,65 @@ in the other (§15, solves). Checked on 2026-10-21 by running every kernel with 
 - **Frames**: up to eight steps per frame, at most three frames in flight; compute kernels build the field and cell
   textures and the liquid coverage, render pipelines draw them, the bubbles from the bubble buffer and the particles
   from the particle buffer — nothing is copied to the CPU per frame.
+
+## 16. Clips: baking and playback (B)
+
+A scene can be **baked**: the worker computes it from its start as fast as the machine allows, without drawing (a
+preview every 0.3 s and a progress bar), records it and keeps the clip in the browser. A clip **plays back** without
+computing — smoothly also on a weak computer or a phone — with a timeline, 0.25–4× speed, loop and every overlay, and
+**"Na żywo od tej chwili"** continues live from the frame on screen. Clips stay in the browser (the user's decision,
+SANDBOX.md §9): no files, nothing attached to pages.
+
+**Starting.** The lab never starts by itself: it shows the scene's start and waits — "Uruchom na żywo" runs it live,
+"Upiecz" bakes it (10, 30, 60, 120 or 300 s of simulated time), and when this browser already holds a clip of the
+scene, "Odtwórz nagranie" plays it. A module may bake on opening (`start: "bake"` in its configuration, set in the
+editor as "Po otwarciu"); a clip already baked then plays at once. `seconds` sets the length, `scenarios` adds
+further scenes to choose from (a picker above the text; each scenario has its own clip and, with `start: "bake"`,
+bakes when chosen). Restart and choosing a scenario also come back paused.
+
+**The clip** (`recreatio/lab2d-clip`, version 1; `clip/clip.ts`):
+
+- *Header*: the scene (canonical JSON with quality, seed and every operation), the grid, 30 frames per second of
+  simulated time, the sizes of the chunks, the keyframes, the chart samples (every 0.25 s) and the layout of the engine
+  that baked it.
+- *Frames*: the layers of each frame (`render/layers.ts`) — per cell the kind and material, salt crust, the glow of
+  hot solids, fog opacity, the temperature (0.5 K), gas pressure and speed (8 bit on a fixed quadratic scale, so a
+  value changes only where it changes, not when the frame's maximum moves), humidity (64 steps) and vapour; the liquid
+  on half cells (coverage, temperature, oil and salt share); the velocity at the arrow points (8 bit, quadratic);
+  bubbles (position, radius in µm, air share, 16 bit each). Two seconds make a chunk; each layer is stored as the
+  byte-wise difference to the previous frame (what does not change becomes zero), the chunk ordered by layer (all
+  temperatures, then all pressures …: a quarter smaller than frame by frame) and packed with the browser's deflate
+  (`CompressionStream`; `clip/codec.ts`). What the frame without overlay needs is stored in every frame; what only the
+  gas overlays show (temperature, pressure, speed, humidity, vapour, bubbles in the phase map, arrows) in every third,
+  and playback holds it in between — that halves a clip. Lossless: playback composes the very layers that were baked.
+- *Keyframes*: the whole engine state every 5 s (`clip/snapshot.ts`). Instead of a list per module a walk through the
+  object graph of the engine and its chart sampler takes every number, string and typed array in field order — each
+  object once (the modules share arrays), plain data objects as one value (so null ↔ object does not change the
+  structure), getters left out; per-particle and per-bubble arrays only up to the count. Left out is scratch: arrays
+  rewritten in every step before anyone reads them — measured, not guessed: an array filled with nonsense (NaN, or a
+  large integer) that leaves the run of four scenes (boiling, brine to a crust, oil, a sealed box with fog) unchanged
+  after 60 steps; what the frame reads stays in (the water's velocity for its arrows). Every entry carries its path;
+  restoring writes by path into an engine freshly built from the clip's scene (an array still missing there is
+  created). The set of paths is the layout: a clip baked by an engine with another layout plays back but cannot be
+  continued live.
+- *Going live* loads the keyframe before the frame on screen into a fresh engine and computes on to that frame (in
+  slices, with progress) — the CPU engine is deterministic, so the state is bit for bit the state the frame was baked
+  from (test 33).
+
+**The store** (`clip/store.ts`): IndexedDB `recreatio-lab2d` — headers in `clips`, packed chunks in `chunks`, keyframes
+in `keys`, so playback fetches only what it needs (the chunk on screen and the next; three chunks in memory). The key
+of a clip is SHA-256 over the format and the canonical scene: the same scene in the same quality finds its clip again
+— also after an edit is undone, never for a changed scene. More than 16 clips or 600 MB: the least recently played go
+first. Without IndexedDB (a private window) the clip lives as long as the lab is open.
+
+**In the worker** (`clip/session.ts`): three states. *Live*: as before. *Baking*: the engine is rebuilt from the scene
+as it is now laid out (with the user's edits) and the baker steps in slices of 30 ms, so messages get through; each
+frame is captured when the simulated time reaches it (layers sampled in full, a keyframe every 5 s); chunks are packed
+alongside. Stopping keeps what is recorded as a shorter clip. *Playback*: nothing computes; the clock advances with the
+display, the frame on screen is composed from its layers (redrawn only when the frame, the overlay or the size
+changes). Tools act only live; in playback a note points to "Na żywo od tej chwili".
+
+**Sizes and speed** (MILESTONES.md §B): the boiling beaker at 2 mm — 11.6 kB per frame and 980 kB per keyframe, 33.6 MB
+per simulated minute; baking it runs at 0.13× real time on the reference laptop (a minute in about eight minutes),
+calmer scenes several times faster (convection: 0.43×). Baking runs on the CPU only; the accelerated view neither bakes
+nor plays clips (its button is off while a clip plays or bakes).

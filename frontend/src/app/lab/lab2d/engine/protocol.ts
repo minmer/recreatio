@@ -7,6 +7,7 @@
  * er je Bild die Puffer (übertragbar), und die Seite gibt sie zurück.
  */
 
+import type { ClipInfo } from '../clip/clip';
 import type { FrameBuffers, Overlay } from '../render/frame';
 import type { Walls } from '../render/glRenderer';
 import type { View } from '../render/view';
@@ -16,7 +17,8 @@ import type { Region } from './shapes';
 
 export type HostMessage =
   | { readonly type: 'probe' }
-  | { readonly type: 'init'; readonly canvas: OffscreenCanvas | null; readonly width: number; readonly height: number; readonly dpr: number; readonly scene: unknown; readonly dark: boolean }
+  /** paused: ruhend beginnen (das Labor startet nie von selbst, B). */
+  | { readonly type: 'init'; readonly canvas: OffscreenCanvas | null; readonly width: number; readonly height: number; readonly dpr: number; readonly scene: unknown; readonly dark: boolean; readonly paused?: boolean }
   | { readonly type: 'resize'; readonly width: number; readonly height: number; readonly dpr: number }
   | { readonly type: 'op'; readonly op: Op }
   | { readonly type: 'addLiquid'; readonly region: Region; readonly composition: Readonly<Record<string, number>>; readonly T: number }
@@ -35,7 +37,28 @@ export type HostMessage =
   | { readonly type: 'serialize'; readonly id: number }
   | { readonly type: 'load'; readonly scene: unknown }
   | { readonly type: 'theme'; readonly dark: boolean }
-  | { readonly type: 'frameDone'; readonly frame: FrameBuffers };
+  | { readonly type: 'frameDone'; readonly frame: FrameBuffers }
+  /* -- Nachweise (B): backen, abspielen, live weiter (nur der normale Weg) -- */
+  | { readonly type: 'bake'; readonly seconds: number }
+  | { readonly type: 'bakeStop' }
+  | { readonly type: 'clipOpen'; readonly play: boolean }
+  | { readonly type: 'clipPlay'; readonly playing: boolean }
+  | { readonly type: 'clipSeek'; readonly t: number }
+  | { readonly type: 'clipLoop'; readonly on: boolean }
+  | { readonly type: 'clipLive' }
+  | { readonly type: 'clipClose' }
+  | { readonly type: 'clipDelete' };
+
+/** Der Stand eines Nachweises in den Kennzahlen: beim Backen (t: aufgenommen) oder bei der Wiedergabe (t: gezeigt). */
+export interface ClipStats {
+  readonly mode: 'baking' | 'playback';
+  readonly t: number;
+  readonly duration: number;
+  readonly playing: boolean;
+  readonly loop: boolean;
+  /** Ein Stück liess sich nicht laden (Meldung) — sonst null. */
+  readonly loading: string | null;
+}
 
 /** Eine Zeile der Schreiber (alle 0,25 s Simulationszeit). */
 export interface ChartSample {
@@ -83,6 +106,8 @@ export interface HostStats {
   readonly bubble: BubbleView | null;
   /** Anfang und Ende der Farbskala der Einblendung im letzten Bild (SI-Einheiten); dazu die grösste Geschwindigkeit des Wassers (Pfeile). */
   readonly overlayScale: readonly [number, number, number];
+  /** Backen oder Wiedergabe (null: live). */
+  readonly clip?: ClipStats | null;
 }
 
 export type WorkerMessage =
@@ -96,4 +121,10 @@ export type WorkerMessage =
   /** Beschleunigter Weg: ob WebGPU läuft (sonst zurück zur CPU) und auf welcher Karte. */
   /** Der beschleunigte Weg: gestartet oder nicht; lehnt er eine Szene ab (z. B. mit Öl), schickt er sie zurück (scene), damit der normale Weg mit allen Handgriffen weitermacht. */
   | { readonly type: 'gpu'; readonly ok: boolean; readonly adapter: string; readonly message: string; readonly scene?: unknown }
-  | { readonly type: 'error'; readonly message: string };
+  | { readonly type: 'error'; readonly message: string }
+  /** Der Nachweis der jetzigen Szene (null: keiner) — nach dem Start, nach Änderungen, nach dem Backen. */
+  | { readonly type: 'clip'; readonly info: ClipInfo | null }
+  /** Backen: läuft (t von seconds, rate: Simulations- je echte Sekunde), wird gespeichert, fertig, fehlgeschlagen; seeking: auf dem Weg zum gezeigten Bild (live weiter). */
+  | { readonly type: 'bake'; readonly state: 'running' | 'saving' | 'done' | 'failed' | 'seeking'; readonly t: number; readonly seconds: number; readonly rate: number; readonly message?: string }
+  /** Live weiter ab t (die Wiedergabe ist vorbei; das Labor ruht). */
+  | { readonly type: 'live'; readonly t: number };

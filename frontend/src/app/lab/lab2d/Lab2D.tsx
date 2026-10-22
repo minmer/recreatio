@@ -8,12 +8,20 @@
  * Die Leinwand entsteht im Effekt selbst (nicht im JSX): eine Leinwand lässt
  * sich nur einmal an einen Arbeiter übergeben, und React ruft Effekte im
  * StrictMode zweimal auf.
+ *
+ * Das Labor startet nie von selbst (B): es zeigt den Anfang und wartet auf
+ * „Uruchom na żywo“ oder „Upiecz“ — ausser der Baustein sagt, dass das Backen
+ * beim Öffnen beginnt (config.start = 'bake'; ein schon gebackener Nachweis
+ * spielt dann gleich ab). Mehrere Szenariusze (config.scenarios) stehen oben
+ * an der Seite zur Wahl.
  */
 
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 
 import { Icon, type IconName } from '../../ui/icons';
 import { LabFrame, LabSection } from '../LabFrame';
+import { BakePanel, ClipSection, PlayerBar, StartPanel, type BakeProgress } from './ClipControls';
+import type { ClipInfo } from './clip/clip';
 import type { ProbeInfo } from './engine/engine';
 import { LIQUIDS } from './engine/materials';
 import type { ChartSample, HostStats } from './engine/protocol';
@@ -29,10 +37,23 @@ import { createGpuWorker, createLabWorker } from './workerFactory';
 
 import './lab2d.css';
 
+/** Ein Szenariusz zur Wahl: Titel, Text für die Schüler, Szene. */
+export interface Lab2DScenario {
+  readonly title: string;
+  readonly text: readonly string[];
+  readonly scene: unknown;
+}
+
 export interface Lab2DConfig {
   readonly title: string;
   readonly text: readonly string[];
   readonly scene: unknown;
+  /** Beim Öffnen: nichts tun (Knöpfe) oder gleich backen ('bake'). */
+  readonly start?: 'button' | 'bake';
+  /** Länge eines Nachweises beim Backen (s). */
+  readonly seconds?: number;
+  /** Weitere Szenariusze neben der eigenen Szene. */
+  readonly scenarios?: readonly Lab2DScenario[];
 }
 
 type Tool = 'paint' | 'erase' | 'place' | 'drag' | 'wall' | 'inspect';
@@ -176,7 +197,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   const [note, setNote] = useState<string | null>(null);
   const [stats, setStats] = useState<HostStats | null>(null);
   const [samples, setSamples] = useState<readonly ChartSample[]>([]);
-  const [paused, setPaused] = useState(false);
+  const [paused, setPaused] = useState(true);
   const [speedAt, setSpeedAt] = useState(3);
   const [hud, setHud] = useState(false);
   const [tool, setTool] = useState<Tool>('paint');
@@ -198,6 +219,23 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   /* Der beschleunigte Weg (WebGPU): ein anderer Arbeiter; die Szene wandert beim Umschalten mit (nextScene). */
   const [accel, setAccel] = useState(false);
   const nextScene = useRef<unknown>(null);
+  /* Nachweise (B): der der jetzigen Szene, der Fortschritt beim Backen, die gewählte Länge; das gewählte Szenariusz. */
+  const [clip, setClip] = useState<ClipInfo | null>(null);
+  const [bake, setBake] = useState<BakeProgress | null>(null);
+  const [seconds, setSeconds] = useState(() => (config.seconds !== undefined && config.seconds > 0 ? config.seconds : 30));
+  const [playSpeed, setPlaySpeed] = useState(1);
+  const [scenarioAt, setScenarioAt] = useState(0);
+  const scenarios = useMemo(() => [{ title: config.title, text: config.text, scene: config.scene }, ...(config.scenarios ?? [])], [config.title, config.text, config.scene, config.scenarios]);
+  const scenario = scenarios[Math.min(scenarioAt, scenarios.length - 1)] ?? scenarios[0];
+  /* Für die Ereignisse des Arbeiters (ohne veraltete Werte): Startart, Länge, Szenariusz, für welches schon von selbst begonnen wurde, Nachweis. */
+  const startRef = useRef(config.start);
+  startRef.current = config.start;
+  const secondsRef = useRef(seconds);
+  secondsRef.current = seconds;
+  const scenarioRef = useRef(0);
+  const autoRef = useRef(-1);
+  const clipRef = useRef<ClipInfo | null>(null);
+  clipRef.current = clip;
   const qualityRef = useRef(quality);
   qualityRef.current = quality;
   const speedRef = useRef(SPEEDS[speedAt]);
@@ -250,6 +288,25 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
       onView: (v, w) => setView({ view: v, walls: w }),
       onRefused: () => setNote(t('refused')),
       onError: setError,
+      onClip: (info) => {
+        setClip(info);
+        /* Der Baustein will, dass beim Öffnen gebacken wird: einmal je Szenariusz — ein schon gebackener Nachweis spielt gleich ab. */
+        if (startRef.current === 'bake' && autoRef.current !== scenarioRef.current) {
+          autoRef.current = scenarioRef.current;
+          if (info !== null) host.clipOpen(true); else host.bake(secondsRef.current);
+        }
+      },
+      onBake: (m) => {
+        setBake(m.state === 'done' || m.state === 'failed' ? null : { state: m.state, t: m.t, seconds: m.seconds, rate: m.rate, message: m.message });
+        if (m.state === 'failed') setNote(m.message === 'engine' ? t('clipEngine') : m.message === 'short' ? t('bakeShort') : `${t('bakeFailed')}${m.message ? ` (${m.message})` : ''}`);
+      },
+      onLive: (time) => {
+        setBake(null);
+        setPaused(true);
+        const kept = (clipRef.current?.samples ?? []).filter((x) => x.t <= time + 1e-9);
+        samplesRef.current = [...kept];
+        setSamples([...kept]);
+      },
       onGpu: (ok, _adapter, message, scene) => {
         if (ok) return;
         /* WebGPU fehlt, die Karte gibt auf oder die Szene enthält, was der beschleunigte Weg noch nicht kann (Öl): zurück zur CPU — mit der Szene, die er zurückgibt (samt Handgriffen), sonst der vom Start. */
@@ -262,7 +319,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
     });
     hostRef.current = host;
     const r = box.getBoundingClientRect();
-    void host.start(startScene, r.width, r.height, window.devicePixelRatio || 1, dark);
+    void host.start(startScene, r.width, r.height, window.devicePixelRatio || 1, dark, settingsRef.current.paused);
     const ro = new ResizeObserver(() => {
       const q = box.getBoundingClientRect();
       host.resize(q.width, q.height, window.devicePixelRatio || 1);
@@ -314,6 +371,8 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   const onDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
     const h = host();
     if (h === null || !ready) return;
+    /* Bei der Wiedergabe und beim Backen gehört das Bild dem Nachweis. */
+    if (mode !== 'live' || bake !== null) { setNote(t('clipTools')); return; }
     e.currentTarget.setPointerCapture(e.pointerId);
     const px = local(e);
     const w = h.toWorld(px[0], px[1]);
@@ -402,13 +461,29 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
     host()?.setAmbient(next.p * 1000, T0 + next.T, next.rh, next.g * G0, { N2: 1 - yO2, O2: yO2 });
   };
   const changeParticles = (on: boolean): void => { setParticles(on); host()?.particles(on); };
+  /* Neu laden beginnt ruhend am Anfang (das Labor startet nie von selbst). */
   const reload = (scene: unknown): void => {
     samplesRef.current = [];
     setSamples([]);
+    setPaused(true);
     const h = host();
+    h?.pause(true);
     h?.load(withQuality(scene, quality));
     if (h !== null) window.setTimeout(() => refreshOps(h), 100);
   };
+  const pickScenario = (i: number): void => {
+    const next = scenarios[i];
+    if (next === undefined) return;
+    setScenarioAt(i);
+    scenarioRef.current = i;
+    setInfo(undefined);
+    reload(next.scene);
+  };
+  /* Nachweise. */
+  const startBake = (): void => { lagRef.current = 0; setLagging(null); host()?.bake(seconds); };
+  const playClip = (): void => host()?.clipOpen(true);
+  const goLive = (): void => host()?.clipLive();
+  const changePlaySpeed = (s: number): void => { setPlaySpeed(s); host()?.setSpeed(s); };
   const emptyBox = (): void => { const base = readScene(config.scene).scene; reload(writeScene({ ...base, ops: [] })); };
   /* Szenen als Dateien: Speichern lädt ein JSON herunter (mit dem Samen), Laden liest eins ein. */
   const save = (): void => {
@@ -434,6 +509,12 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   };
 
   const speed = SPEEDS[speedAt];
+  const clipStats = stats?.clip ?? null;
+  const mode = clipStats?.mode ?? 'live';
+  const busy = mode !== 'live' || bake !== null;
+  const showStart = ready && error === null && !busy && paused && (stats?.engine.time ?? 0) === 0;
+  /* Bei der Wiedergabe zeigen die Schreiber den Nachweis bis zum gezeigten Bild. */
+  const shownSamples = mode === 'playback' && clip !== null && clipStats !== null ? clip.samples.filter((x) => x.t <= clipStats.t + 1e-9) : samples;
   /* Andere Flüssigkeiten (Öl) und Salz kennt der beschleunigte Weg noch nicht: dann bleibt der normale Weg. */
   const otherLiquid = (stats?.engine.otherMass ?? 0) > 0 || (stats?.engine.saltMass ?? 0) > 0 || (stats?.engine.saltSolid ?? 0) > 0;
   const hint = TOOLS.find((k) => k.key === tool)?.hint ?? 'hintPaint';
@@ -457,14 +538,19 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
 
   const bar = (
     <>
-      <button type="button" className={`lab-tool${paused ? '' : ' is-on'}`} onClick={togglePause} title={paused ? t('play') : t('pause')} aria-label={paused ? t('play') : t('pause')}>
-        <Icon name={paused ? 'play' : 'pause'} />
-      </button>
-      <button type="button" className="lab-tool" disabled={!paused} onClick={() => host()?.step()} title={t('step')} aria-label={t('step')}><Icon name="next" /></button>
-      <button type="button" className="lab-tool" onClick={cycleSpeed} title={t('speed')} aria-label={`${t('speed')} ${speed}×`}>{num(speed, speed < 1 ? 2 : 0)}×</button>
+      {mode === 'live' && (
+        <>
+          <button type="button" className={`lab-tool${paused ? '' : ' is-on'}`} disabled={bake !== null} onClick={togglePause} title={paused ? t('play') : t('pause')} aria-label={paused ? t('play') : t('pause')}>
+            <Icon name={paused ? 'play' : 'pause'} />
+          </button>
+          <button type="button" className="lab-tool" disabled={!paused || bake !== null} onClick={() => host()?.step()} title={t('step')} aria-label={t('step')}><Icon name="next" /></button>
+          <button type="button" className="lab-tool" onClick={cycleSpeed} title={t('speed')} aria-label={`${t('speed')} ${speed}×`}>{num(speed, speed < 1 ? 2 : 0)}×</button>
+          {!accel && <button type="button" className="lab-tool" disabled={bake !== null} onClick={startBake} title={t('bakeTitle')}><Icon name="clock" />{t('bake')}</button>}
+        </>
+      )}
       <button type="button" className={`lab-tool${hud ? ' is-on' : ''}`} onClick={() => setHud(!hud)} title={t('hud')} aria-label={t('hud')}>HUD</button>
       {(HAS_WEBGPU || accel) && (
-        <button type="button" className={`lab-tool${accel ? ' is-on' : ''}`} onClick={toggleAccel} disabled={!accel && otherLiquid} title={accel ? t('accelClose') : otherLiquid ? t('accelNoOther') : t('accelTitle')} aria-pressed={accel}>
+        <button type="button" className={`lab-tool${accel ? ' is-on' : ''}`} onClick={toggleAccel} disabled={busy || (!accel && otherLiquid)} title={busy ? t('clipAccel') : accel ? t('accelClose') : otherLiquid ? t('accelNoOther') : t('accelTitle')} aria-pressed={accel}>
           <Icon name="bolt" />{accel ? t('accelClose') : t('accelOpen')}
         </button>
       )}
@@ -472,7 +558,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   );
 
   const stage = (
-    <div ref={boxRef} className="l2d-box" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+    <div ref={boxRef} className={`l2d-box${mode === 'playback' ? ' is-clip' : ''}${bake !== null ? ' is-baking' : ''}`} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
       <svg className="l2d-overlay" aria-hidden="true">
         <defs>
           <marker id="l2d-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" className="l2d-arrowhead" /></marker>
@@ -489,12 +575,28 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
       {overlay !== 'none' && stats !== null && <Legend overlay={overlay} scale={stats.overlayScale} />}
       {note !== null && <div className="l2d-note" role="status">{note}</div>}
       {(!ready || error !== null) && <div className="l2d-status">{error ?? t('loading')}</div>}
+      {showStart && (
+        <StartPanel clip={accel ? null : clip} seconds={seconds} onSeconds={setSeconds} canBake={!accel}
+          onLive={togglePause} onBake={startBake} onPlay={playClip} />
+      )}
+      {bake !== null && <BakePanel progress={bake} onStop={() => host()?.stopBake()} />}
+      {mode === 'playback' && clipStats !== null && bake === null && (
+        <PlayerBar clip={clip} stats={clipStats} speed={playSpeed} onPlay={(p) => host()?.clipPlay(p)} onSeek={(x) => host()?.clipSeek(x)}
+          onSpeed={changePlaySpeed} onLoop={(on) => host()?.clipLoop(on)} onLive={goLive} onClose={() => { host()?.clipClose(); setPaused(true); }} />
+      )}
     </div>
   );
 
   const side = (
     <div className="lab-side-in">
-      {config.text.map((p, k) => <p key={k} className="lab-text">{p}</p>)}
+      {scenarios.length > 1 && (
+        <label className="lab-field">{t('scenario')}
+          <select value={scenarioAt} disabled={bake !== null} onChange={(e) => pickScenario(Number(e.currentTarget.value))}>
+            {scenarios.map((x, k) => <option key={k} value={k}>{x.title || `${t('scenario')} ${k + 1}`}</option>)}
+          </select>
+        </label>
+      )}
+      {scenario.text.map((p, k) => <p key={k} className="lab-text">{p}</p>)}
       {lagging !== null && (
         <div className="l2d-slow" role="status">
           <p>{t('slow').replace('{x}', num(lagging, 2))}</p>
@@ -570,7 +672,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
           </select>
         </label>
         <p className="lab-muted">{t('vapourNote')}</p>
-        <label className="lab-row"><input type="checkbox" checked={particles} onChange={(e) => changeParticles(e.currentTarget.checked)} />{t('showParticles')}</label>
+        <label className="lab-row" title={mode === 'playback' ? t('clipParticles') : undefined}><input type="checkbox" checked={particles} disabled={mode === 'playback'} onChange={(e) => changeParticles(e.currentTarget.checked)} />{t('showParticles')}</label>
         <label className="lab-field">{t('level')}
           <select value={level} onChange={(e) => changeLevel(e.currentTarget.value === 'secondary' ? 'secondary' : 'primary')}>
             <option value="primary">{t('levelPrimary')}</option>
@@ -626,12 +728,13 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
       <LabSection title={t('bubble')} open={bubble !== null}>
         <BubblePanel b={bubble} level={level} />
       </LabSection>
+      <ClipSection clip={clip} seconds={seconds} onSeconds={setSeconds} onBake={startBake} onPlay={playClip} onDelete={() => host()?.clipDelete()} busy={bake !== null} accel={accel} />
       <LabSection title={t('charts')} open={false}>
-        <Charts samples={samples} level={level} />
+        <Charts samples={shownSamples} level={level} />
       </LabSection>
       <LabSection title={t('scene')} open={false}>
         <div className="lab-row">
-          <button type="button" className="lab-tool" onClick={() => reload(config.scene)}><Icon name="refresh" />{t('restart')}</button>
+          <button type="button" className="lab-tool" disabled={bake !== null} onClick={() => reload(scenario.scene)}><Icon name="refresh" />{t('restart')}</button>
           <button type="button" className="lab-tool" onClick={emptyBox}><Icon name="trash" />{t('emptyBox')}</button>
           <button type="button" className="lab-tool" onClick={save}><Icon name="download" />{t('save')}</button>
           <button type="button" className="lab-tool" onClick={load}><Icon name="upload" />{t('loadScene')}</button>
@@ -646,5 +749,5 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
     </div>
   );
 
-  return <LabFrame title={config.title || t('title')} bar={bar} stage={stage} side={side} whole={whole} />;
+  return <LabFrame title={(scenarios.length > 1 ? scenario.title : config.title) || t('title')} bar={bar} stage={stage} side={side} whole={whole} />;
 }

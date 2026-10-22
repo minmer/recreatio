@@ -128,6 +128,36 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
     scene: { ...BASE, ambient: { p: 101.325, T: 10, rh: 0.8, g: 9.81 }, ops: [plate(15, 90), beaker(90), water(90)] }
   },
   {
+    key: 'wysoka-gora',
+    title: 'Wrzenie w górach',
+    summary: 'ta sama zlewka przy ciśnieniu 70 kPa (ok. 3000 m n.p.m.) — woda wrze już w ok. 90 °C',
+    text: [
+      'Wysoko w górach ciśnienie powietrza jest niższe: tutaj 70 kPa zamiast 101 kPa. Woda wrze wtedy w niższej temperaturze — ok. 90 °C.',
+      'Zbadaj wodę narzędziem „Badaj”: inspektor pokazuje temperaturę wrzenia w danym miejscu. Porównaj z „Wrzeniem z kamyczkami”.'
+    ],
+    scene: { ...BASE, ambient: { p: 70, T: 15, rh: 0.4, g: 9.81 }, ops: [plate(40, 130), beaker(95), water(88), ...chips(88)] }
+  },
+  {
+    key: 'konwekcja',
+    title: 'Konwekcja nad grzałką',
+    summary: 'mała grzałka w zimnej wodzie — ciepła woda unosi się, chłodna opada i powstaje wir',
+    text: [
+      'W zimnej wodzie, przy dnie po lewej, leży mała grzałka (6 W). Ogrzana woda jest lżejsza i unosi się nad nią, chłodniejsza opada po drugiej stronie — powstaje wir.',
+      'Włącz nakładkę „Temperatura”, a potem „Prędkość” (białe strzałki pokazują, jak płynie woda).'
+    ],
+    scene: { ...BASE, ops: [beaker(20), water(20), { op: 'hotplate', x: 0.08, y: 0.012, w: 0.012, h: 0.004, material: 'steel', mode: 'power', power: 6, target: 150, on: true, T: 20 }] }
+  },
+  {
+    key: 'solanka-pod-woda',
+    title: 'Solanka pod słodką wodą',
+    summary: 'warstwa solanki (20 %) pod słodką wodą, płyta grzeje od dołu — warstwy się nie mieszają',
+    text: [
+      'Na dnie zlewki leży solanka z 20 % soli, nad nią słodka woda. Płyta grzeje od dołu: solanka krąży i się nagrzewa, ale zostaje na dnie — nawet ciepła jest cięższa od wody nad nią.',
+      'Nakładka „Stężenie soli” pokazuje, że granica zostaje ostra (sól przechodzi przez nią tylko dyfuzją, milimetry na godzinę). Nakładka „Temperatura” pokazuje, że ciepło przechodzi przez granicę dużo szybciej.'
+    ],
+    scene: { ...BASE, ops: [plate(15), beaker(), layer({ H2O: 0.8, NaCl: 0.2 }, 20, 0.010, 0.030), layer({ H2O: 1 }, 20, 0.030, 0.060)] }
+  },
+  {
     key: 'pusta-skrzynka',
     title: 'Pusta skrzynka',
     summary: 'skrzynka pełna powietrza — maluj wodę, stawiaj ścianki, zlewki i płyty grzejne',

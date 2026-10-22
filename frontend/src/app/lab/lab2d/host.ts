@@ -7,6 +7,7 @@
  * des Arbeiters in Meter um.
  */
 
+import type { ClipInfo } from './clip/clip';
 import type { ProbeInfo } from './engine/engine';
 import type { HostMessage, HostStats, WorkerMessage } from './engine/protocol';
 import type { HeaterMode, Op, Quality, Side, SideName } from './engine/scene';
@@ -23,6 +24,10 @@ export interface HostEvents {
   readonly onError: (message: string) => void;
   /** Beschleunigter Weg: läuft WebGPU (sonst kehrt die Oberfläche zur CPU zurück)? */
   readonly onGpu?: (ok: boolean, adapter: string, message: string, scene?: unknown) => void;
+  /** Nachweise (B): der Nachweis der jetzigen Szene (null: keiner), der Fortschritt des Backens, live weiter ab t. */
+  readonly onClip?: (info: ClipInfo | null) => void;
+  readonly onBake?: (m: Extract<WorkerMessage, { type: 'bake' }>) => void;
+  readonly onLive?: (t: number) => void;
 }
 
 export class LabHost {
@@ -47,7 +52,8 @@ export class LabHost {
     this.worker.addEventListener('error', (e) => events.onError(e.message || 'Silnik przestał działać.'));
   }
 
-  async start(scene: unknown, width: number, height: number, dpr: number, dark: boolean): Promise<void> {
+  /** paused: ruhend beginnen (das Labor startet nie von selbst). */
+  async start(scene: unknown, width: number, height: number, dpr: number, dark: boolean, paused = true): Promise<void> {
     this.width = width;
     this.height = height;
     this.dpr = dpr;
@@ -55,7 +61,7 @@ export class LabHost {
     if (this.disposed) return;
     if (webgl2 && typeof this.canvas.transferControlToOffscreen === 'function') {
       const off = this.canvas.transferControlToOffscreen();
-      this.post({ type: 'init', canvas: off, width, height, dpr, scene, dark }, [off]);
+      this.post({ type: 'init', canvas: off, width, height, dpr, scene, dark, paused }, [off]);
       return;
     }
     const gl = this.canvas.getContext('webgl2', { antialias: true, premultipliedAlpha: true, alpha: false });
@@ -65,7 +71,7 @@ export class LabHost {
       this.theme(dark);
     }
     this.sizeCanvas();
-    this.post({ type: 'init', canvas: null, width, height, dpr, scene, dark });
+    this.post({ type: 'init', canvas: null, width, height, dpr, scene, dark, paused });
   }
 
   private probe(): Promise<boolean> {
@@ -126,6 +132,15 @@ export class LabHost {
       case 'gpu':
         this.events.onGpu?.(m.ok, m.adapter, m.message, m.scene);
         break;
+      case 'clip':
+        this.events.onClip?.(m.info);
+        break;
+      case 'bake':
+        this.events.onBake?.(m);
+        break;
+      case 'live':
+        this.events.onLive?.(m.t);
+        break;
       case 'probe':
         break;
     }
@@ -175,6 +190,16 @@ export class LabHost {
   setSpeed(speed: number): void { this.post({ type: 'setSpeed', speed }); }
   setQuality(quality: Quality): void { this.post({ type: 'setQuality', quality }); }
   load(scene: unknown): void { this.post({ type: 'load', scene }); }
+  /* Nachweise (B). */
+  bake(seconds: number): void { this.post({ type: 'bake', seconds }); }
+  stopBake(): void { this.post({ type: 'bakeStop' }); }
+  clipOpen(play: boolean): void { this.post({ type: 'clipOpen', play }); }
+  clipPlay(playing: boolean): void { this.post({ type: 'clipPlay', playing }); }
+  clipSeek(t: number): void { this.post({ type: 'clipSeek', t }); }
+  clipLoop(on: boolean): void { this.post({ type: 'clipLoop', on }); }
+  clipLive(): void { this.post({ type: 'clipLive' }); }
+  clipClose(): void { this.post({ type: 'clipClose' }); }
+  clipDelete(): void { this.post({ type: 'clipDelete' }); }
 
   query(x: number, y: number): Promise<ProbeInfo | null> {
     return this.ask<ProbeInfo>((id) => ({ type: 'query', id, x, y }));
