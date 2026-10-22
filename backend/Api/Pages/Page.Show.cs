@@ -225,7 +225,7 @@ public static partial class Page
                     UNION ALL
                     SELECT h.start, e.to_role_id, h.depth + 1
                     FROM reach h
-                    JOIN app.role_edge e ON e.from_role_id = h.id AND e.revoked_at IS NULL
+                    JOIN app.role_edge e ON e.from_role_id = h.id AND {RoleEdges.Live("e")}
                                         AND e.edge_kind = N'holds'
                     JOIN app.role x      ON x.id = e.to_role_id AND x.revoked_at IS NULL
                     WHERE h.depth < {RoleGraph.MaxDepth}

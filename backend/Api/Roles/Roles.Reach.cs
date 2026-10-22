@@ -37,10 +37,10 @@ public static partial class Roles
         /* Unmittelbar: wer hält wen, welche Bereiche je Rolle, welche Rollen Links sind. */
         var holds = new Dictionary<Guid, List<Guid>>();
         var edges = new List<RoleGraph.Edge>();
-        await using (var cmd = new SqlCommand("""
+        await using (var cmd = new SqlCommand($"""
             SELECT e.from_role_id, e.to_role_id FROM app.role_edge e
             JOIN app.role r ON r.id = e.to_role_id AND r.revoked_at IS NULL
-            WHERE e.revoked_at IS NULL AND e.edge_kind = N'holds';
+            WHERE {RoleEdges.Live("e")} AND e.edge_kind = N'holds';
             """, connection))
         {
             await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);

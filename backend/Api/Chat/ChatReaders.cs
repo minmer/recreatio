@@ -47,7 +47,7 @@ internal static class ChatReaders
             UNION ALL
             SELECT u.k, e.from_role_id, u.depth + 1
             FROM up u
-            JOIN app.role_edge e ON e.to_role_id = u.id AND e.revoked_at IS NULL AND e.edge_kind = N'holds'
+            JOIN app.role_edge e ON e.to_role_id = u.id AND {RoleEdges.Live("e")} AND e.edge_kind = N'holds'
             WHERE u.depth < {RoleGraph.MaxDepth}
         )
         INSERT INTO @who (k, principal)

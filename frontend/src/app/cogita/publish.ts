@@ -89,7 +89,6 @@ export function publicEntity(lib: CogitaLibrary, entity: Entity): PublicEntity {
   const fields: { key: string; label: string; text: string; type: string }[] = [];
   const media: MediaRef[] = [];
   for (const field of fieldsOf(entity, look)) {
-    if (field.private === true) continue;
     if (field.type === 'media') {
       for (const v of valuesOf(entity, field)) if (v.value !== null && typeof v.value === 'object' && 'file' in v.value) media.push(v.value as MediaRef);
       continue;

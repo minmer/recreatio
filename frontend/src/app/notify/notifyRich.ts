@@ -32,6 +32,7 @@ import { loadLinks } from '../links/linkAccess';
 import type { Digest, DigestChat, DigestForm } from './notify';
 import { handOverRoleKeys } from '../roles/memberRole';
 import { applyVirtualArea, loadVirtualPlan } from '../forms/virtualAreas';
+import { noteRenewal, renewArea } from '../areas/renew';
 import { keysFor } from '../core/ringOf';
 import { authorText, chooseSpeaker, messageAuthor, speakersOf, throughRole } from '../chat/chatAuthor';
 import type { RoleEdge } from '../roles/roles';
@@ -273,6 +274,34 @@ export async function applyVirtualWaiting(who: Who, virtualAreaIds: readonly str
 }
 
 const virtualTried = new Map<string, number>();
+
+/**
+ * 2026-10-22 — MITGLIEDSCHAFTEN, DIE EIN JAHR ALT SIND: die Glocke nennt die
+ * Bereiche (`renewals.waiting`), in denen dieses Konto aufnehmen darf; der
+ * Schlüsselbund unterschreibt die Zertifikate neu (`areas/renew.ts`). Was
+ * nicht geht, wird nicht jede Minute von vorn versucht.
+ */
+export async function renewWaiting(who: Who, areaIds: readonly string[]): Promise<number> {
+  if (areaIds.length === 0) return 0;
+  const me = await opener(who);
+  if (me === 'session' || me === 'key') return 0;
+  let done = 0;
+  for (const areaId of areaIds) {
+    if (Date.now() - (renewTried.get(areaId) ?? 0) < 60 * 60_000) continue;
+    let now = 0;
+    try {
+      now = await renewArea(me.ring, areaId);
+      noteRenewal(areaId, null);
+    } catch (e) {
+      noteRenewal(areaId, e instanceof WorkspaceError ? e.message : 'Nie udało się przedłużyć dostępu.');
+    }
+    if (now === 0) renewTried.set(areaId, Date.now()); else renewTried.delete(areaId);
+    done += now;
+  }
+  return done;
+}
+
+const renewTried = new Map<string, number>();
 
 const locked = (reason: 'session' | 'key'): News => ({ state: 'locked', reason, conversations: [], forms: [], links: null, reminders: null });
 

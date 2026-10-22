@@ -73,8 +73,9 @@ export interface PageContent {
   readonly editable: boolean;
 
   /**
-   * 0054 — DAS MENÜ, das hier gilt: das eigene der Seite oder das der nächsten
-   * darüber (`from`), von wo aus seine relativen Ziele gelten.
+   * 0054 — DAS MENÜ, das hier gilt: das eigene der Seite oder eines, das sie
+   * von einer anderen Seite holt (0056, `from`: von wo aus seine relativen
+   * Ziele gelten). Geerbt wird nicht (0058).
    */
   readonly menu?: { readonly from: string; readonly items: readonly MenuItem[] } | null;
 

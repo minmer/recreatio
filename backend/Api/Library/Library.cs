@@ -18,11 +18,12 @@ namespace Api;
 /// </para>
 ///
 /// <para>
-/// <b>Öffentlich ist nur, was ausdrücklich hinausgestellt wird</b> — als offene
-/// Fassung daneben, die der Browser aus den öffentlichen Feldern der Art baut.
-/// Mit einem Text gehen die Quellen hinaus, die er nennt. Eine öffentliche
-/// Seite holt einen Text samt diesen Quellen in einer Anfrage
-/// (<see cref="PublishedOneAsync"/>).
+/// <b>Wer liest, entscheidet der Bereich</b> (seit 2026-10-22,
+/// <c>Library.Areas.cs</c>): seine Mitglieder über
+/// <c>/workspace/library/{id}/entries</c>, und ist er öffentlich (und die
+/// Bibliothek durchgesehen, 0122), jeder über <c>/library/{id}/open</c> —
+/// dieselben Hüllen, geöffnet im Browser. Offene Fassungen
+/// (<c>Library.Publish.cs</c>) stellen nur noch Bazy wiedzy hinaus.
 /// </para>
 /// </summary>
 public static partial class Library

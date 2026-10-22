@@ -417,6 +417,29 @@ public static class Notify
         }
 
         /*
+         * -- 2026-10-22: MITGLIEDSCHAFTEN, DIE ERNEUERT WERDEN WOLLEN. Bereiche, in denen
+         * eine meiner Rollen aufnehmen darf (admin/certify) und deren Zertifikate
+         * weniger als ein Jahr behalten (Area.Renew.cs). Der Browser unterschreibt
+         * sie neu, sobald er das hier liest.
+         */
+        var renewWaiting = new List<Guid>();
+        if (!countsOnly && mine.Count > 0)
+        {
+            var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
+            await using var cmd = new SqlCommand($"""
+                SELECT DISTINCT TOP 20 m.scope_id FROM app.certificate m
+                WHERE m.scope_kind = N'area' AND m.capability IN (N'admin', N'certify')
+                  AND m.revoked_at IS NULL AND m.expires_at > @now AND m.subject_role_id IN ({names})
+                  AND EXISTS ({Area.DueMemberships("m.scope_id")});
+                """, connection);
+            cmd.Parameters.AddWithValue("@now", now);
+            cmd.Parameters.AddWithValue("@due", now + Area.RenewBefore);
+            for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i]);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) renewWaiting.Add(reader.GetGuid(0));
+        }
+
+        /*
          * -- Anmeldungen: neu seit `since`, in Formularen, deren Bereich ich lesen kann —
          *    und, 0090, nach der Marke des Formulars (die Kanzlei hat die Liste geöffnet).
          */
@@ -661,6 +684,9 @@ public static class Notify
 
             /* 0120 — virtuelle Bereiche, deren Kleinbereiche fehlen oder hinter der Regel sind: die App legt an und trägt nach. */
             @virtual = new { waiting = virtualWaiting.Select(Ids.ToText).ToList() },
+
+            /* 2026-10-22 — Bereiche, deren Mitgliedschaften erneuert werden wollen: die App unterschreibt sie neu. */
+            renewals = new { waiting = renewWaiting.Select(Ids.ToText).ToList() },
 
             /* 0094 — was auf die Kanzlei wartet: Reservierungen zum Bestätigen, Schritte nach ihrer Frist. */
             bookings = new

@@ -88,9 +88,9 @@ public static partial class Roles
             }
         }
 
-        await using (var cmd = new SqlCommand("""
+        await using (var cmd = new SqlCommand($"""
             SELECT id, from_role_id, to_role_id, signer_role_id, edge_kind, created_at, expires_at
-            FROM app.role_edge WHERE revoked_at IS NULL;
+            FROM app.role_edge e WHERE {RoleEdges.Live("e")};
             """, connection, tx))
         {
             await using var reader = await cmd.ExecuteReaderAsync(ct);

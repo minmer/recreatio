@@ -2,9 +2,11 @@
  * „TEKST Z BIBLIOTEKI" (0064) — eine Predigt, ein Kapitel, eine Betrachtung
  * aus der Bibliothek, mit Fussnoten, „Dalsze informacje" und den Quellen.
  *
- * Gezeigt wird, was veröffentlicht ist — die Fassung der Bibliothek, nicht
- * eine Kopie: wer den Text dort überarbeitet und die Veröffentlichung
- * aktualisiert, ändert ihn auf jeder Seite, auf der er steht.
+ * Gezeigt wird der Eintrag selbst, nicht eine Kopie: wer den Text in der
+ * Bibliothek überarbeitet, ändert ihn auf jeder Seite, auf der er steht. Wer
+ * ihn sieht, entscheidet der Bereich der Bibliothek (2026-10-22) — ein Leser,
+ * der ihn nicht lesen darf, sieht „Tego tekstu nie ma albo nie możesz go
+ * zobaczyć".
  *
  * <b>Je Grösse:</b> im Streifen ein Knopf; als Block Titel, Datum und der
  * Anfang, „Czytaj całość" klappt auf; hoch und im Vollbild das Ganze.
@@ -25,7 +27,7 @@ export const writingPart = definePart<WritingConfig>({
   kind: 'writing',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { library: '<id-biblioteki>', entry: '<id-opublikowanego-tekstu>' },
+  example: { library: '<id-biblioteki>', entry: '<id-tekstu>' },
   label: 'Tekst z biblioteki',
   use: 'Kazanie albo inny tekst z Biblioteki — z planem, nagraniami wygłoszeń (co powiedziano, co pominięto), przypisami i źródłami.',
   box: { colSpan: 6, rowSpan: 5 },
@@ -38,7 +40,7 @@ export const writingPart = definePart<WritingConfig>({
   read: (raw: RawConfig): WritingConfig => ({ library: text(raw, 'library'), entry: text(raw, 'entry') }),
 
   hasContent: (c) => c.library !== '' && c.entry !== '',
-  missing: (c) => (c.library === '' || c.entry === '' ? 'Wybierz bibliotekę i opublikowany tekst.' : null),
+  missing: (c) => (c.library === '' || c.entry === '' ? 'Wybierz bibliotekę i tekst.' : null),
 
   strip: { title: 'Tekst', open: 'Czytaj' },
   fullscreen: true,

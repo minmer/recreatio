@@ -233,10 +233,11 @@ These follow the standing JSON rule.
 
 ## How Cogita builds on this
 
-- **A notion is a library entry.** Cogita's own kinds (`word`, `sentence`, `language`, `question`, …) are added to `KINDS` with their fields, examples and descriptions. Nothing else needs to change for storage, sync, search or JSON.
-- **Cards, revisions, knowness and dependency graphs reference entries by id.** They should live in their own tables keyed by `library_entry.id`. Cards can be generated from an entry's kind, for example quote → completion card or person → "who wrote" card.
-- **Collections are queries over the store** (kind, topic, project) or explicit lists of entry ids.
-- **Writing in Cogita is the `text` and `project` kinds.** The Cogita spec's "citation / notion insertion" is the `[@key]` and `![@key]` markup.
+- **A knowledge base is a library of kind `knowledge`** (0110) in the same store: sealed entries, sync, versions, files. Its own kinds are `kind` documents (schema as data, `cogita/schema.ts`), not entries in `KINDS`; the library kinds appear there as built-in kinds (`cogita/kinds.ts` `fromLibrary`).
+- **A base reads libraries as sources** (`settings.sources`, `cogita/sources.ts`): their works, quotes, persons and comments are reference targets and card material; they are never copied.
+- **Cards are computed, not stored.** A card is `template:entry[:value]` plus a direction; answers go into sealed `learn_batch` rows of the storage area, keyed by those ids.
+- **Collections, views, revisions and flows are documents of the base** that hold entry ids and rules.
+- **Writing is the library's `text` and `project`** with the `[@key]` / `![@key]` markup.
 
 ## Adding a kind
 

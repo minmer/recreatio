@@ -129,6 +129,12 @@ epoch key ──opens──► everything sealed in the area (names, fields, pag
   `holds` (0034). Certificates (`read`, `write`, `admin`, `certify`) on an area are signed in the browser by the
   issuing role and verified by the service. A page is led by the role that claimed its address; a page with access
   is bound to areas.
+- **Lifetimes.** A certificate lasts two years (Kernel E-07: a certificate without an end is a promise forever).
+  When one has less than a year left, the browser of anyone who may admit people in that area re-signs it with
+  the same role and level — the bell names the areas (`renewals.waiting`), `areas/renew.ts` signs,
+  `Areas/Area.Renew.cs` accepts only memberships that still exist (a dropped role stays out). The area's people
+  list shows until when each level holds and warns when renewal failed. A role edge with `expires_at` in the
+  past gives no reach (`Roles/RoleEdges.cs`, checked by every query that walks edges).
 - **Answers.** Each value has its own key. A public submission wraps it for the intake public key (RSA); the first
   time the office opens it, the browser re-seals it under the office role key and the RSA envelope goes (0037).
 - **Seats.** A person's place has a seat key; the link carries a secret that opens it. The office reaches seats

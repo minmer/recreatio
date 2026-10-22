@@ -20,6 +20,7 @@ import { AreaOverview } from '../workspace/WorkspaceHome';
 import { AddRole } from './AddRole';
 import { type AreaRow, type Member, PUBLIC_LEVELS, type PublicLevel, SEAT_LEVELS, dropFromArea, loadMembers, myEpochKeys, setPublicLevel, setSeatLevel } from './area';
 import { AreaControllerSettings } from './AreaController';
+import { daysLeft, memberUntil, noteRenewal, RENEW_BEFORE_DAYS, renewalFailure, renewArea, WARN_BEFORE_DAYS } from './renew';
 import { AREA_TABS, type AreaTab, KIND_NAME, LEVEL_NAME, OTHER_LEVEL } from './areaWords';
 
 /* -- Ein Bereich, ganz ------------------------------------------------------ */
@@ -38,6 +39,18 @@ import { AREA_TABS, type AreaTab, KIND_NAME, LEVEL_NAME, OTHER_LEVEL } from './a
  * etwas tun, um überhaupt etwas zu sehen. „Wer ist hier" ist die Frage, mit der
  * fast jeder kommt.
  */
+/** 2026-10-22 — bis wann eine Mitgliedschaft gilt; erneuert wird von selbst, ein Jahr vorher. */
+function Until({ iso }: { iso: string | null }) {
+  if (iso === null) return null;
+  const left = daysLeft(iso);
+  const date = new Date(iso).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' });
+  return (
+    <span className={left < WARN_BEFORE_DAYS ? 'wk-person-until is-soon' : 'wk-person-until'} title="Dostęp przedłuża się sam rok przed tym terminem">
+      do {date}
+    </span>
+  );
+}
+
 export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy, onAct }: {
   who: Who;
   desk: Desk;
@@ -53,6 +66,8 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
   const [members, setMembers] = useState<readonly Member[] | null>(null);
   const [names, setNames] = useState<ReadonlyMap<string, Called>>(new Map());
   const [note, setNote] = useState<string | null>(null);
+  /* 2026-10-22 — was beim Erneuern nicht ging (hier oder zuletzt im Hintergrund). */
+  const [renewError, setRenewError] = useState<string | null>(() => renewalFailure(area.areaId)?.message ?? null);
 
   useEffect(() => {
     if (tab !== 'osoby') return;
@@ -65,6 +80,29 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
       if (dropped) return;
 
       setMembers(found);
+
+      /*
+       * 2026-10-22 — FÄLLIGES GLEICH HIER ERNEUERN: wer aufnehmen darf und
+       * einen Schlüsselbund hat, unterschreibt, was weniger als ein Jahr übrig
+       * hat (dasselbe tut die Glocke im Hintergrund). Geht es nicht, steht es
+       * unten als Warnung.
+       */
+      const due = found.some((m) => { const until = memberUntil(m.expires); return until !== null && daysLeft(until) < RENEW_BEFORE_DAYS; });
+      if (due && area.mayCertify && ring !== null) {
+        try {
+          if (await renewArea(ring, area.areaId) > 0) {
+            noteRenewal(area.areaId, null);
+            if (!dropped) setRenewError(null);
+            found = (await loadMembers(area.areaId)).members;
+            if (!dropped) setMembers(found);
+          }
+        } catch (e) {
+          const message = e instanceof WorkspaceError ? e.message : 'Nie udało się przedłużyć dostępu.';
+          noteRenewal(area.areaId, message);
+          if (!dropped) setRenewError(message);
+        }
+      }
+      if (dropped) return;
 
       /*
        * NAMEN STATT KENNUNGEN, wo es geht — und bei Menschen der echte Name:
@@ -244,6 +282,7 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
                       .map((c) => (
                         <span className="wk-tag" key={c}>{OTHER_LEVEL[c] ?? c}</span>
                       ))}
+                    <Until iso={memberUntil(m.expires)} />
                   </span>
 
                   {area.mayCertify && (
@@ -269,6 +308,19 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
             seine eigenen Rollen, und wer innen steht, muss aussen nicht stehen.
           */}
           {note !== null && <p className="wk-note">{note}</p>}
+
+          {/* 2026-10-22 — Dostęp się przedłuża sam; gdy to nie wychodzi albo termin jest blisko, mówimy to wprost. */}
+          {renewError !== null && (
+            <p className="wk-warn">
+              Nie udało się przedłużyć dostępu w tym obszarze: {renewError}
+              {area.mayCertify ? ' Spróbuj jeszcze raz, otwierając tę kartę ponownie.' : ''}
+            </p>
+          )}
+          {members !== null && ring !== null && members.some((m) => ring.has(m.roleId) && (() => { const u = memberUntil(m.expires); return u !== null && daysLeft(u) < WARN_BEFORE_DAYS; })()) && (
+            <p className="wk-warn">
+              Twój dostęp do tego obszaru niedługo wygasa i nikt go jeszcze nie przedłużył. Przedłuża go automatycznie każdy, kto może tu wpuszczać, gdy otworzy aplikację — poproś prowadzącego, żeby ją otworzył.
+            </p>
+          )}
 
           {area.mayCertify && ring !== null && graph !== null && members !== null && (
             <AddRole

@@ -38,8 +38,12 @@ public static partial class Area
     /// <summary>Ein Schlüssel ist 32 Byte. Alles andere ist keiner.</summary>
     public const int KeySize = 32;
 
-    private static readonly TimeSpan MembershipLife = TimeSpan.FromDays(365 * 2);
-    internal static readonly TimeSpan MaxLife = TimeSpan.FromDays(365 * 5);
+    /// <summary>
+    /// 2026-10-22 — wie lange ein Zertifikat höchstens gilt: zwei Jahre (und ein
+    /// Tag Spiel für Uhren). Nach einem Jahr erneuert es der Browser eines
+    /// Aufnehmenden (<see cref="RenewBefore"/>, Area.Renew.cs).
+    /// </summary>
+    internal static readonly TimeSpan MaxLife = TimeSpan.FromDays(365 * 2 + 1);
     internal static readonly TimeSpan ClockSlack = TimeSpan.FromHours(1);
 
     public static void Map(WebApplication app)
@@ -56,6 +60,8 @@ public static partial class Area
          */
         app.MapGet("/workspace/area/{id:guid}/keys", MyKeysAsync);
         app.MapPost("/workspace/area/{id:guid}/grant", GrantAsync);
+        app.MapGet("/workspace/area/{id:guid}/renewals", RenewalsAsync);
+        app.MapPost("/workspace/area/{id:guid}/renew", RenewAsync);
 
         /*
          * Die Gestalt eines Bereichs (0035): wie weit er nach aussen offen

@@ -147,12 +147,7 @@ export interface FieldDef {
   readonly role?: string;
   /** Was das Feld bedeutet — für die Beschreibung neben dem JSON. */
   readonly says?: string;
-  /**
-   * Geht nie in die offene Fassung — NUR bei den eingebauten Arten (Notizen,
-   * Stand der Arbeit). Eigene Arten haben keine privaten Felder [B18]; das
-   * Lesen eines Dokuments setzt es deshalb nie.
-   */
-  readonly private?: boolean;
+  /* 2026-10-22 — keine „privaten" Felder mehr: wer ein Feld liest, entscheidet der Bereich, nicht das Feld. */
 }
 
 /**

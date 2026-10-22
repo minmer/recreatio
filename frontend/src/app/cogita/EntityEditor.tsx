@@ -161,7 +161,7 @@ function KindsRow({ kinds, writes, onChange }: { kinds: readonly string[]; write
 function FieldEditor({ field, raw, writes, onChange, onOpen }: { field: FieldDef; raw: unknown; writes: boolean; onChange: (v: unknown) => void; onOpen: (id: string) => void }) {
   const whole = field.type === 'list' || field.type === 'outline';
   const many = field.multi && !whole ? (Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw]) : null;
-  const label = <span>{field.label}{field.private === true && <span className="cg-tag">prywatne</span>}<span className="cg-muted"> — {FIELD_TYPE_LABEL[field.type]}{field.unit ? `, ${field.unit}` : ''}</span></span>;
+  const label = <span>{field.label}<span className="cg-muted"> — {FIELD_TYPE_LABEL[field.type]}{field.unit ? `, ${field.unit}` : ''}</span></span>;
 
   if (field.type === 'outline') {
     return <div className="wk-field">{label}<span className="wk-hint">Plan projektu edytuje się w Bibliotece ({Array.isArray(raw) ? raw.length : 0} pozycji).</span></div>;

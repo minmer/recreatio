@@ -6,8 +6,9 @@
  * führt, und zeigt es gleich daneben ausgerechnet — ein relativer Pfad ist
  * sonst eine Vermutung.
  *
- * <b>Hat die Seite kein eigenes Menü, gilt das der nächsten darüber</b>; das
- * steht hier, samt dem Weg, es zu übernehmen und abzuwandeln.
+ * <b>Hat die Seite kein eigenes Menü, hat sie keines</b> (0058: geerbt wird
+ * nicht). Hat die Seite darüber eines, steht es hier als Vorschlag — samt dem
+ * Weg, es zu übernehmen und abzuwandeln.
  *
  * <b>Oder sie HOLT sich eines (0056).</b> „Das Menü der Pfarrei gilt auch
  * hier" — dann steht dieselbe Leiste auf beiden Seiten, und wer einen

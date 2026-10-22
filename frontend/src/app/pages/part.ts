@@ -355,7 +355,7 @@ const FIELD_SAYS: Record<FieldKind, string> = {
   chat: 'identyfikator rozmowy grupy — najprościej wybrać w edytorze',
   library: 'identyfikator biblioteki — najprościej wybrać w edytorze',
   knowledge: 'identyfikator bazy wiedzy (Cogita) — najprościej wybrać w edytorze',
-  libraryEntry: 'identyfikator opublikowanego wpisu biblioteki — najprościej wybrać w edytorze',
+  libraryEntry: 'identyfikator wpisu biblioteki albo bazy wiedzy — najprościej wybrać w edytorze',
   calendarItem: 'identyfikator terminu z wybranego kalendarza — najprościej wybrać w edytorze',
   page: 'ścieżka strony, np. "parafia/bierzmowanie/kandydat" — najprościej wybrać w edytorze'
 };

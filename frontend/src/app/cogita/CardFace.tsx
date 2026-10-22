@@ -310,7 +310,7 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
 /** Ein Eintrag in Kürze: sein Etikett und, was er sagt — Wissen ganz, andere Felder in Worten. */
 export function EntityGlance({ lib, entity, onEntity }: { lib: CogitaLibrary; entity: Entity; onEntity?: (id: string) => void }) {
   const look = lib.look;
-  const fields = fieldsOf(entity, look).filter((f) => f.private !== true && f.type !== 'ref' && f.type !== 'media').slice(0, 4);
+  const fields = fieldsOf(entity, look).filter((f) => f.type !== 'ref' && f.type !== 'media').slice(0, 4);
   const knowledge = entity.kinds.includes('knowledge');
   return (
     <div className="cg-card">

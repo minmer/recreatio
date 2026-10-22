@@ -1,5 +1,6 @@
 /**
- * „ARCHIWUM TEKSTÓW" (0064) — die veröffentlichten Texte einer Bibliothek:
+ * „ARCHIWUM TEKSTÓW" (0064) — die Texte einer Bibliothek (wer sie sieht,
+ * entscheidet seit 2026-10-22 ihr Bereich):
  * alle, die eines Projekts (ein Zyklus von Predigten, ein Buch) oder eines
  * Themas. Jeder öffnet sich ganz, an Ort und Stelle; `?t=<kennung>` in der
  * Adresse öffnet ihn gleich — ein Text des Archivs lässt sich verschicken.

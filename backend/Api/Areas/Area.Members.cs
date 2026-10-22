@@ -168,7 +168,7 @@ public static partial class Area
         }
 
         await using var cmd = new SqlCommand("""
-            SELECT r.id, r.kind, r.wrap_public_key, c.capability
+            SELECT r.id, r.kind, r.wrap_public_key, c.capability, c.expires_at
             FROM app.certificate c
             JOIN app.role r ON r.id = c.subject_role_id AND r.revoked_at IS NULL
             WHERE c.scope_kind = N'area' AND c.scope_id = @area
@@ -191,7 +191,7 @@ public static partial class Area
          * verschluckte genau den Fall, fuer den es sie gibt — den Pfarrer, der
          * jemanden aufnimmt, ohne selbst hineinzusehen.
          */
-        var found = new Dictionary<Guid, (string Kind, byte[] Wrap, List<string> Caps)>();
+        var found = new Dictionary<Guid, (string Kind, byte[] Wrap, List<string> Caps, Dictionary<string, DateTimeOffset> Until)>();
         var order = new List<Guid>();
 
         await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
@@ -201,13 +201,17 @@ public static partial class Area
 
             if (!found.TryGetValue(roleId, out var row))
             {
-                row = (reader.GetString(1), (byte[])reader[2], []);
+                row = (reader.GetString(1), (byte[])reader[2], [], []);
                 found[roleId] = row;
                 order.Add(roleId);
             }
 
             var capability = reader.GetString(3);
             if (!row.Caps.Contains(capability)) row.Caps.Add(capability);
+
+            /* 2026-10-22 — bis wann diese Stufe gilt: das späteste lebende Zertifikat (erneuert wird von selbst, Area.Renew.cs). */
+            var until = reader.GetDateTimeOffset(4);
+            if (!row.Until.TryGetValue(capability, out var had) || until > had) row.Until[capability] = until;
         }
 
         var members = order.Select(roleId =>
@@ -221,7 +225,10 @@ public static partial class Area
                 wrapPublicKey = Base64Url.Encode(row.Wrap),
 
                 /* Alle Stufen dieser Rolle — `read`/`write`/`admin` und `certify`. */
-                capabilities = row.Caps
+                capabilities = row.Caps,
+
+                /* 2026-10-22 — je Stufe, bis wann sie gilt. */
+                expires = row.Until.ToDictionary(p => p.Key, p => p.Value)
             };
         }).ToList();
 

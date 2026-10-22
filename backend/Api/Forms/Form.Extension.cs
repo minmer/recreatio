@@ -228,7 +228,7 @@ public static partial class Form
                 UNION ALL
                 SELECT d.k, e.to_role_id, d.depth + 1
                 FROM down d
-                JOIN app.role_edge e ON e.from_role_id = d.id AND e.revoked_at IS NULL AND e.edge_kind = N'holds'
+                JOIN app.role_edge e ON e.from_role_id = d.id AND {RoleEdges.Live("e")} AND e.edge_kind = N'holds'
                 WHERE d.depth < {Kernel.RoleGraph.MaxDepth}
             )
             INSERT INTO @chats (k, chat, kind, area)

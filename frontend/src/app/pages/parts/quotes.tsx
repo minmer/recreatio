@@ -1,6 +1,7 @@
 /**
- * „ZBIÓR CYTATÓW" (0064) — die veröffentlichten Zitate einer Bibliothek, mit
- * Herkunft, Beschreibung und Themen.
+ * „ZBIÓR CYTATÓW" (0064) — die Zitate einer Bibliothek, mit Herkunft, Themen
+ * und den Komentarzen über sie (wer sie sieht, entscheidet seit 2026-10-22 der
+ * Bereich der Bibliothek).
  *
  * <b>Je Grösse:</b> im Streifen und als Block die „Myśl dnia" — ein Zitat
  * (breit: zwei), jeden Tag ein anderes, für alle dasselbe; hoch und im
@@ -25,7 +26,7 @@ export const quotesPart = definePart<QuotesConfig>({
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
   example: { title: 'Myśl dnia', library: '<id-biblioteki>', topic: '<id-tematu albo puste>' },
   label: 'Zbiór cytatów',
-  use: 'Opublikowane cytaty z Biblioteki — z opisem, źródłem i tematami; mały kafelek pokazuje „myśl dnia”.',
+  use: 'Cytaty z Biblioteki — ze źródłem, tematami i komentarzami (widzi je ten, kto widzi obszar biblioteki); mały kafelek pokazuje „myśl dnia”.',
   box: { colSpan: 3, rowSpan: 3 },
 
   fields: [

@@ -223,7 +223,7 @@ public static class Workspace
                     brachte eine Lesekante saemtliche Rechte dieser Rolle mit,
                     und das waere das Gegenteil dessen, was sie heisst.
                 */
-                JOIN app.role_edge e ON e.from_role_id = h.id AND e.revoked_at IS NULL
+                JOIN app.role_edge e ON e.from_role_id = h.id AND {RoleEdges.Live("e")}
                                     AND e.edge_kind = N'holds'
                 JOIN app.role r      ON r.id = e.to_role_id AND r.revoked_at IS NULL
                 WHERE h.depth < {RoleGraph.MaxDepth}
@@ -272,7 +272,7 @@ public static class Workspace
 
                 SELECT e.to_role_id, h.depth + 1
                 FROM held h
-                JOIN app.role_edge e ON e.from_role_id = h.id AND e.revoked_at IS NULL
+                JOIN app.role_edge e ON e.from_role_id = h.id AND {RoleEdges.Live("e")}
                                     AND e.edge_kind = N'holds'
                 JOIN app.role r      ON r.id = e.to_role_id AND r.revoked_at IS NULL
                 WHERE h.depth <= {RoleGraph.MaxDepth}

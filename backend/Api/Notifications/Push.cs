@@ -130,7 +130,7 @@ public sealed class Push(Db db, IConfiguration configuration, IHostEnvironment e
                 UNION ALL
                 SELECT e.from_role_id, u.depth + 1
                 FROM up u
-                JOIN app.role_edge e ON e.to_role_id = u.role_id AND e.revoked_at IS NULL AND e.edge_kind = N'holds'
+                JOIN app.role_edge e ON e.to_role_id = u.role_id AND {RoleEdges.Live("e")} AND e.edge_kind = N'holds'
                 JOIN app.role r ON r.id = e.from_role_id AND r.revoked_at IS NULL
                 WHERE u.depth < {RoleGraph.MaxDepth}
             )

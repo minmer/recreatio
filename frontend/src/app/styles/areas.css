@@ -330,3 +330,7 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 
 /* Dasselbe eine Stufe tiefer: „albo załóż nowy" im Bausteinwähler. */
 .pb-new > summary { cursor: pointer; font-size: var(--wk-text-sm); color: var(--wk-accent); }
+
+/* 2026-10-22 — bis wann eine Mitgliedschaft gilt (sie erneuert sich von selbst). */
+.wk-person-until { font-size: var(--wk-text-xs); color: var(--wk-muted); align-self: center; }
+.wk-person-until.is-soon { color: var(--wk-danger); font-weight: 600; }

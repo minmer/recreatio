@@ -85,7 +85,7 @@ Formula, code and duration are not field types.
 **Not wanted:**
 - subentities [B7];
 - per-statement aliases [B17];
-- private fields in your own kinds [B18]. The private fields of the built-in kinds stay.
+- private fields [B18]. Neither own nor built-in kinds have them: since 2026-10-22 who reads a field is decided by the area that holds the entry.
 
 **Scope and templates:**
 - A schema belongs to one library [B12].
@@ -95,7 +95,7 @@ Formula, code and duration are not field types.
 
 **Schema changes** keep the values of removed or retyped fields, marked “outside the schema”, until someone resolves them [B13].
 
-**The six built-in kinds** (person, work, quote, topic, text, project) become the editable starting schema [B1].
+**The built-in kinds** (person, work, quote, topic, text, delivery, comment, project) become the editable starting schema [B1].
 - Citations, publication, the ISBN lookup and LaTeX keep running on the existing library code.
 - They find their fields through **field roles** (authors, title, year, container, locator…).
 

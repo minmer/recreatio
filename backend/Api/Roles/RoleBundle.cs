@@ -82,7 +82,7 @@ internal static class RoleBundle
         await using (var cmd = new SqlCommand($"""
             SELECT g.role_id, g.key_ref, g.sealed_blob FROM app.key_grant g
             JOIN app.role_edge e ON e.from_role_id = g.role_id AND e.to_role_id = g.key_ref
-                                AND e.revoked_at IS NULL AND e.edge_kind = N'holds'
+                                AND {RoleEdges.Live("e")} AND e.edge_kind = N'holds'
             WHERE g.key_kind = N'role' AND g.destroyed_at IS NULL AND g.key_epoch IS NULL
               AND g.role_id IN ({names}) AND g.key_ref IN ({names});
             """, connection))

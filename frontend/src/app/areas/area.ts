@@ -101,6 +101,9 @@ export interface Member {
 
   /** Alle Stufen dieser Rolle — `read`/`write`/`admin` und/oder `certify`. */
   readonly capabilities: readonly string[];
+
+  /** 2026-10-22 — je Stufe, bis wann sie gilt (ISO); ein älterer Dienst schickt es nicht. */
+  readonly expires?: Readonly<Record<string, string>>;
 }
 
 /* -- Die Ordnung, in der sie liegen ---------------------------------------
@@ -245,7 +248,12 @@ export const loadPublicKey = (
 
 /* -- Ein Zertifikat, hier unterschrieben ----------------------------------- */
 
-const YEAR_IN_SECONDS = 365 * 24 * 60 * 60;
+/**
+ * 2026-10-22 — zwei Jahre. Nach einem Jahr erneuert der Browser eines
+ * Aufnehmenden das Zertifikat von selbst (`renew.ts`); Rechte bleiben so
+ * stehen, und was niemand mehr erneuert, läuft trotzdem einmal aus.
+ */
+const LIFETIME_SECONDS = 2 * 365 * 24 * 60 * 60;
 
 export type Capability = 'read' | 'write' | 'admin' | 'certify';
 
@@ -265,7 +273,7 @@ export async function signedCertificate(ring: Ring, what: {
 }) {
   const id = newId();
   const issuedAt = Math.floor(Date.now() / 1000);
-  const expiresAt = issuedAt + YEAR_IN_SECONDS;
+  const expiresAt = issuedAt + LIFETIME_SECONDS;
 
   const value = certificateValue({
     capability: what.capability,

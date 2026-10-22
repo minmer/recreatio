@@ -162,7 +162,7 @@ export function SchemaEditor({ chosenId, onChoose, onForm }: { chosenId: string 
 function KindForm({ draft, writes, busy, onChange, onSave, onRemove }: { draft: KindDef; writes: boolean; busy: boolean; onChange: (k: KindDef) => void; onSave: () => void; onRemove?: () => void }) {
   const { lib } = useCtx();
   const base = isBaseKind(draft.id);
-  const builtinKeys = useMemo(() => new Set(base ? (lib.kind(draft.id)?.fields ?? []).filter((f) => f.role === f.key || f.private === true).map((f) => f.key) : []), [base, draft.id, lib]);
+  const builtinKeys = useMemo(() => new Set(base ? (lib.kind(draft.id)?.fields ?? []).filter((f) => f.role === f.key).map((f) => f.key) : []), [base, draft.id, lib]);
   const problems = problemsOf(draft, lib.look);
   const keys = new Set<string>();
   const dupes = draft.fields.filter((f) => { const d = keys.has(f.key); keys.add(f.key); return d; }).map((f) => f.key);
@@ -229,7 +229,7 @@ function KindForm({ draft, writes, busy, onChange, onSave, onRemove }: { draft: 
                 <Fragment key={key}>
                   <tr className={`cg-field-row${open ? ' is-open' : ''}`}>
                     <td className="cg-field-key" data-label="Klucz"><input value={f.key} disabled={!writes || fixed} onChange={(e) => setField(i, { key: e.target.value })} aria-label="Klucz pola" /></td>
-                    <td className="cg-field-label" data-label="Nazwa"><input value={f.label} disabled={!writes} onChange={(e) => setField(i, { label: e.target.value })} aria-label="Nazwa pola" />{f.private === true && <span className="cg-tag">prywatne</span>}</td>
+                    <td className="cg-field-label" data-label="Nazwa"><input value={f.label} disabled={!writes} onChange={(e) => setField(i, { label: e.target.value })} aria-label="Nazwa pola" /></td>
                     <td className="cg-field-type" data-label="Typ">
                       <select value={typeValue(f)} disabled={!writes || fixed} aria-label="Typ pola"
                         onChange={(e) => setField(i, e.target.value.startsWith(REF_TO) ? { type: 'ref', to: [e.target.value.slice(REF_TO.length)] } : { type: e.target.value as FieldType, ...(e.target.value === 'ref' ? { to: [] } : {}) })}>

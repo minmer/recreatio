@@ -189,9 +189,9 @@ public static partial class Roles
     /// <summary>0091 — die Rollen, die eine (Link-)Rolle unmittelbar hält: das, was der Link gibt.</summary>
     internal static async Task<List<string>> HeldRoleIdsAsync(SqlConnection connection, Guid roleId, CancellationToken ct)
     {
-        await using var cmd = new SqlCommand("""
+        await using var cmd = new SqlCommand($"""
             SELECT e.to_role_id FROM app.role_edge e JOIN app.role r ON r.id = e.to_role_id AND r.revoked_at IS NULL
-            WHERE e.from_role_id = @role AND e.revoked_at IS NULL AND e.edge_kind = N'holds'
+            WHERE e.from_role_id = @role AND {RoleEdges.Live("e")} AND e.edge_kind = N'holds'
             ORDER BY e.created_at;
             """, connection);
         cmd.Parameters.AddWithValue("@role", roleId);
@@ -234,10 +234,10 @@ public static partial class Roles
         foreach (var row in rows)
         {
             var redeemed = new List<object>();
-            await using (var cmd = new SqlCommand("""
+            await using (var cmd = new SqlCommand($"""
                 SELECT r.role_id, r.redeemed_at,
                        CASE WHEN EXISTS (SELECT 1 FROM app.role_edge e WHERE e.from_role_id = r.role_id AND e.to_role_id = @role
-                                          AND e.revoked_at IS NULL) THEN 1 ELSE 0 END
+                                          AND {RoleEdges.Live("e")}) THEN 1 ELSE 0 END
                 FROM app.invitation_redemption r WHERE r.invitation_id = @id ORDER BY r.redeemed_at;
                 """, connection))
             {
