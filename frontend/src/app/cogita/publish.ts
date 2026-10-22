@@ -164,14 +164,7 @@ export async function revisionBundle(lib: CogitaLibrary, revisionId: string, now
   const entry = lib.docs('revision').find((e) => e.id === revisionId);
   if (entry === undefined) return { error: 'Nie ma takiej powtórki.' };
   const { cards } = await lib.cards('public');
-  const result = await planOf(readGraph(entry.data.graph), {
-    cards,
-    kindsOf: (id) => lib.entity(id)?.kinds ?? [],
-    collection: (id) => lib.members(id),
-    topic: (id, depth) => lib.topicTree(id, depth),
-    marks: () => [],
-    now
-  });
+  const result = await planOf(readGraph(entry.data.graph), lib.revisionContext(cards, () => [], now));
   if (result.plan === null) return { error: result.problems.join(' ') || 'Powtórka nie dała planu.' };
   const { cards: chosen, ...plan } = result.plan;
   const explain: Record<string, PublicEntity> = {};

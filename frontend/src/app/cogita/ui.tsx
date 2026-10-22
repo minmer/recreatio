@@ -20,7 +20,7 @@ import { viewPath } from '../routes';
 import type { PublicEntity } from './publish';
 import type { SourceState } from './sources';
 import { patternKeys, type Entity, type MediaRef } from './schema';
-import { CogitaLibrary, lineOf, type Origin } from './store';
+import { BOOK_KINDS, CogitaLibrary, lineOf, type Origin } from './store';
 import './cogita.css';
 
 /* -- Der Zusammenhang -------------------------------------------------------------------- */
@@ -253,14 +253,18 @@ export function ForeignOnly({ id, tab, children }: { id: string | null; tab: str
   );
 }
 
-export function KindSelect({ lib, value, onChange, empty }: { lib: CogitaLibrary; value: string; onChange: (id: string) => void; empty?: string }) {
+/** `material`: auch die Arten der Bibliotheken, aus denen diese Baza schöpft (2026-10-22) — für Szablony und Powtórki. */
+export function KindSelect({ lib, value, onChange, empty, material = false }: { lib: CogitaLibrary; value: string; onChange: (id: string) => void; empty?: string; material?: boolean }) {
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)}>
       {empty !== undefined && <option value="">{empty}</option>}
-      {lib.kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
+      {(material ? lib.materialKinds : lib.kinds).map((k) => <option key={k.id} value={k.id}>{kindLabel(k)}</option>)}
     </select>
   );
 }
+
+/** Wie eine Art in einer Auswahl heisst — eine der Bibliotheken mit „(z biblioteki)". */
+export const kindLabel = (k: { readonly id: string; readonly name: string }): string => (BOOK_KINDS.has(k.id) ? `${k.name} (z biblioteki)` : k.name);
 
 /* -- Auszeichnung des Wissens ------------------------------------------------------------- */
 

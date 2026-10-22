@@ -52,6 +52,8 @@ export interface RevisionContext {
   readonly topic: (id: string, depth: number) => ReadonlySet<string>;
   readonly marks: (key: string) => readonly Mark[];
   readonly now: number;
+  /** 2026-10-22 — aus welcher Bibliothek oder Baza wiedzy ein Eintrag kommt (für „Rodzaj … z …"). */
+  readonly from?: (entity: string) => string | undefined;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -91,9 +93,13 @@ const ALL: Kind = {
 
 const BY_KIND: Kind = {
   type: 'source.kind', label: 'Rodzaj', group: 'Źródła',
-  says: 'Karty wpisów jednego rodzaju.',
+  says: 'Karty wpisów jednego rodzaju — także z biblioteki, z której korzysta ta baza (np. cytaty); „Skąd" zawęża do jednej biblioteki albo bazy.',
   ports: () => ({ inputs: [], outputs: [port('cards', 'Karty')] }),
-  run: ({ config, ctx }) => out(ctx.cards.filter((c) => c.entity !== undefined && ctx.kindsOf(c.entity).includes(str(config.kind))))
+  run: ({ config, ctx }) => {
+    const from = str(config.from);
+    return out(ctx.cards.filter((c) => c.entity !== undefined && ctx.kindsOf(c.entity).includes(str(config.kind))
+      && (from === '' || ctx.from?.(c.entity) === from)));
+  }
 };
 
 const BY_COLLECTION: Kind = {

@@ -297,3 +297,51 @@ the text). LaTeX prints the same with `\emph{…}`.
 3. Open a topic → "Powiązania" → "Szukaj we wszystkich…": knowledge bases that use it appear with their entries.
 4. "Sprawdź strony" on a sermon shown by a "Tekst z biblioteki" module: the page is listed with the module.
 5. Cytaty tab: Bible quotes stand in the order of the Bible.
+
+---
+
+## Step 5 — Cogita learns from Library material
+
+**Built**
+
+- **Material kinds** (`CogitaLibrary.materialKinds`): a base's own kinds plus the kinds of its source libraries that
+  have entries there (quotes, works, texts, comments, projects, deliveries, persons), labelled "(z biblioteki)" in the
+  template editor, the new-revision form and every kind choice of a graph node.
+- **Cards from library entries.** A template over a library kind makes cards of that library's entries, keyed
+  `template:entry` like every card — entry ids are stable, so progress keys stay. "Wpisy rodzaju" and "Dystraktory" of
+  such a template draw from the same material (`material(kind)`, `poolFor(entity)`); templates over the base's own
+  kinds draw from its own entries as before.
+- **Revision source "kind from where"**: `source.kind` has "Skąd" (`from`): empty — this base and all sources; or one
+  library or base. The new-revision form offers the library kinds and, with several libraries, which one; it warns when
+  no template makes cards of that kind yet. One place builds the revision context (`CogitaLibrary.revisionContext`, used
+  by Nauka and the public bundle).
+- The template preview works on a library entry (picker over library material).
+- `courseDescription()` shows a template over `"kinds": ["quote"]` and a revision source with `"from"`.
+- Checks: `app-cogita-check` (a kind from one library; material kinds, material, cards keyed template:entry, the place
+  as the answer, where entries come from), a drive against the local API (`material-api.mjs`: a library with a Bible,
+  quotes, a sermon and a comment; a knowledge base reading it; the passage search over both; a template over quotes;
+  a revision of that library's quotes plans all three, one "from the base" plans none).
+
+**Removed**
+
+- The hard-coded copies of the library kinds in `TemplateEditor.tsx` and `EntityEditor.tsx` (now `BOOK_KINDS` and
+  `LIBRARY_KIND_IDS`).
+- The two hand-built revision contexts in `RevisionRun.tsx` and `publish.ts`.
+
+**Choices**
+
+- **Library material enters only through templates and revisions that name its kind.** Nothing changes for existing
+  bases: no template over a library kind could be made before, and the base's own lists ("Wpisy", "Do zrobienia")
+  still show only its own entries.
+- Library topics give no cards yet — the two topic systems become one in step 7.
+
+**Owner must run**
+
+- Deploy the website (no API change, no migration).
+
+**Test in the browser**
+
+1. Nauka → a knowledge base → Ustawienia: add the library with your quotes as a source.
+2. Karty → "+ Nowy szablon" → "Dla rodzaju": "Cytat (z biblioteki)", "Początek": "Luki w cytacie" (field: Tekst
+   cytatu) → Utwórz. The preview shows a library quote with its gaps.
+3. Powtórki → "+ Nowa powtórka" → "Z czego": rodzaj → "Cytat (z biblioteki)" → Utwórz → Ucz się: the quotes are asked.

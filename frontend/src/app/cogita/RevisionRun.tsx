@@ -36,14 +36,7 @@ export async function planFor(lib: CogitaLibrary, revisionId: string, learner: L
   const { cards } = await lib.cards(seed);
   const rename = renamer(lib.merges());
   const fp = new Map(cards.map((c) => [c.key, c.fingerprint]));
-  const result = await planOf(readGraph(entry.data.graph), {
-    cards,
-    kindsOf: (id) => lib.entity(id)?.kinds ?? [],
-    collection: (id) => lib.members(id),
-    topic: (id, depth) => lib.topicTree(id, depth),
-    marks: (key) => learner?.marks(key, fp.get(key), rename) ?? [],
-    now
-  });
+  const result = await planOf(readGraph(entry.data.graph), lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], now));
   const plan = result.plan === null || learner === null ? result.plan : { ...result.plan, cards: result.plan.cards.filter((c) => !learner.progress.suspended.has(c.key)) };
   return { plan, problems: result.problems, cards };
 }

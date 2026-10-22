@@ -256,6 +256,7 @@ try {
     const told = m.libraryDescription();
     assert.ok(told.includes('[[te słowa|@klucz]]') && told.includes('nigdy przypis') && told.includes('[odwołanie niedostępne]'), 'the library description tells an AI: sources are cited, own entries linked');
     assert.ok(m.courseDescription().includes('[[słowo|@wpis]]') && m.courseDescription().includes('staje się przypisem'), 'the Cogita description says the same');
+    assert.ok(m.courseDescription().includes('"kinds": ["quote"]') && m.courseDescription().includes('"from": "<identyfikator biblioteki>"'), 'the Cogita description shows templates and revisions over library material (step 5)');
   }
   ok('one reader, drawn by kind: sources are footnotes, own entries are links (also [[words|@key]]), unreadable targets say nothing; LaTeX, plan lines, page text and Cogita alike');
 

@@ -16,6 +16,7 @@ import {
   dateText, FIELD_TYPE_LABEL, fieldsOf, labelOf, outsideOf, parseRange, rangeText, readDate, readRange, VALUE_STATE_LABEL, VALUE_STATES,
   type Entity, type FieldDef, type GeoPoint, type MediaRef, type RangeValue, type ValueState
 } from './schema';
+import { LIBRARY_KIND_IDS } from './kinds';
 import { linkedOf } from './store';
 import { creatorFor, EntityPicker, Markup, MediaView, entityName, useAsync, useBusy, useCtx } from './ui';
 import { loadVersions, openVersion } from './versions';
@@ -487,7 +488,7 @@ function PublishEntity({ entity }: { entity: Entity }) {
   const { lib, keyIn } = useCtx();
   const entry = lib.entry(entity.id);
   const { busy, failed, run } = useBusy();
-  const builtin = entry !== undefined && ['person', 'work', 'quote', 'topic', 'text', 'delivery', 'comment', 'project'].includes(entry.kind);
+  const builtin = entry !== undefined && LIBRARY_KIND_IDS.has(entry.kind);
   const publish = async () => {
     const bundle = entityBundle(lib, entity);
     await publishMedia(lib, publicEntity(lib, entity).media, keyIn);

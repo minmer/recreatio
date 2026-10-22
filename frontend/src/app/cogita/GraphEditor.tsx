@@ -131,8 +131,9 @@ export function GraphEditor<C>({ graph, palette, onChange, cycles = false, field
   const [chosen, setChosen] = useState<string | null>(null);
   const [moving, setMoving] = useState<Readonly<Record<string, { x: number; y: number }>>>({});
   const [said, setSaid] = useState<string | null>(null);
-  const name = (kind: 'entity' | 'kind' | 'collection' | 'flow' | 'template', id: string): string => {
+  const name = (kind: 'entity' | 'kind' | 'collection' | 'flow' | 'template' | 'source', id: string): string => {
     if (kind === 'entity') return entityName(lib, id);
+    if (kind === 'source') return id === lib.libraryId ? 'ta baza' : lib.sourceList().find((s) => s.store.libraryId === id)?.name ?? id;
     if (kind === 'kind') return lib.kind(id)?.name ?? id;
     if (kind === 'collection') return lib.collections().find((c) => c.id === id)?.name ?? id;
     if (kind === 'template') return lib.templates().find((t) => t.id === id)?.name ?? id;
@@ -391,7 +392,17 @@ function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
         </label>
       );
     case 'kind':
-      return <label className="wk-field">{label}<KindSelect lib={lib} value={typeof value === 'string' ? value : ''} empty="—" onChange={(v) => onSet(v)} /></label>;
+      return <label className="wk-field">{label}<KindSelect lib={lib} material value={typeof value === 'string' ? value : ''} empty="—" onChange={(v) => onSet(v)} /></label>;
+    case 'source':
+      return (
+        <label className="wk-field">{label}
+          <select value={typeof value === 'string' ? value : ''} disabled={readOnly} onChange={(e) => onSet(e.target.value === '' ? undefined : e.target.value)}>
+            <option value="">— zewsząd</option>
+            <option value={lib.libraryId}>ta baza wiedzy</option>
+            {lib.sourceList().map((s) => <option key={s.store.libraryId} value={s.store.libraryId}>{s.name}{s.kind === 'books' ? ' (biblioteka)' : ''}</option>)}
+          </select>
+        </label>
+      );
     case 'kinds':
     case 'templates':
     case 'forms':

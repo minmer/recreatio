@@ -13,7 +13,8 @@ import { TEMPLATE_PALETTE } from './cardPalette';
 import { evaluate, graphJson, type Graph } from './graph';
 import { GraphEditor, type FieldKey } from './GraphEditor';
 import { presetChoice, presetField, TEMPLATE_PRESETS } from './presets';
-import { EntityPicker, ForeignOnly, useAsync, useBusy, useCtx } from './ui';
+import { BOOK_KINDS } from './store';
+import { EntityPicker, ForeignOnly, kindLabel, useAsync, useBusy, useCtx } from './ui';
 import { askText } from '../ui/dialogs';
 
 export function TemplateEditor({ chosenId, onChoose }: { chosenId: string | null; onChoose: (id: string | null) => void }) {
@@ -41,7 +42,8 @@ export function TemplateEditor({ chosenId, onChoose }: { chosenId: string | null
 
 function NewTemplate({ onMade }: { onMade: (id: string) => void }) {
   const { lib } = useCtx();
-  const [kind, setKind] = useState(lib.kinds.find((k) => !['person', 'work', 'quote', 'topic', 'text', 'delivery', 'comment', 'project'].includes(k.id))?.id ?? 'person');
+  /* Zuerst eine eigene Art, die keine der Bibliotheken ist — die Bibliotheken stehen darunter (2026-10-22: auch ihr Stoff gibt Karten). */
+  const [kind, setKind] = useState(lib.materialKinds.find((k) => !BOOK_KINDS.has(k.id) && k.id !== 'topic')?.id ?? lib.materialKinds[0]?.id ?? 'knowledge');
   const [preset, setPreset] = useState('ask');
   const [field, setField] = useState('');
   const [second, setSecond] = useState('');
@@ -50,7 +52,7 @@ function NewTemplate({ onMade }: { onMade: (id: string) => void }) {
   const box = useRef<HTMLDetailsElement>(null);
   const p = TEMPLATE_PRESETS.find((x) => x.id === preset);
   /* Was dieser Anfang braucht, mit seinen eigenen Namen — die Wörter einer Übersetzung, die Sprache eines Wortes, wo seine Übersetzungen stehen. */
-  const c = p === undefined ? null : presetChoice(lib.kinds, kind, p, { field, second, back });
+  const c = p === undefined ? null : presetChoice(lib.refKinds, kind, p, { field, second, back });
   const asks = p?.asks;
   const needs = (n: 'second' | 'through' | 'back') => p?.needs.includes(n) === true;
   return (
@@ -58,7 +60,7 @@ function NewTemplate({ onMade }: { onMade: (id: string) => void }) {
       <summary>+ Nowy szablon</summary>
       <div className="cg">
         <label className="wk-field"><span>Dla rodzaju</span>
-          <select value={kind} onChange={(e) => { setKind(e.target.value); setField(''); setSecond(''); setBack(''); }}>{lib.kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
+          <select value={kind} onChange={(e) => { setKind(e.target.value); setField(''); setSecond(''); setBack(''); }}>{lib.materialKinds.map((k) => <option key={k.id} value={k.id}>{kindLabel(k)}</option>)}</select>
         </label>
         <label className="wk-field"><span>Początek</span>
           <select value={preset} onChange={(e) => { setPreset(e.target.value); setField(''); setSecond(''); setBack(''); }}>
@@ -118,11 +120,11 @@ function TemplateForm({ template }: { template: Template }) {
     „Wpisy rodzaju"), zwei Schritte weit; am Ende alle übrigen.
   */
   const fieldKeys = useMemo((): FieldKey[] => {
-    const own = lib.kinds.filter((k) => draft.kinds.includes(k.id));
+    const own = lib.refKinds.filter((k) => draft.kinds.includes(k.id));
     /* Wie weit ein Rodzaj entfernt ist — ein Verweis hin oder her ist ein Schritt. */
     const steps = new Map(own.map((k) => [k.id, 0]));
     for (let step = 1; step <= 2; step += 1) {
-      for (const k of lib.kinds) {
+      for (const k of lib.refKinds) {
         for (const f of k.fields) {
           if (f.type !== 'ref') continue;
           const targets = f.to ?? [];
@@ -131,7 +133,7 @@ function TemplateForm({ template }: { template: Template }) {
         }
       }
     }
-    const ordered = [...lib.kinds].sort((a, b) => (steps.get(a.id) ?? 9) - (steps.get(b.id) ?? 9));
+    const ordered = [...lib.refKinds].filter((k) => steps.has(k.id) || lib.kinds.includes(k)).sort((a, b) => (steps.get(a.id) ?? 9) - (steps.get(b.id) ?? 9));
     const seen = new Set<string>();
     const out: FieldKey[] = [];
     for (const kind of ordered) {
@@ -144,9 +146,9 @@ function TemplateForm({ template }: { template: Template }) {
     return out;
   }, [draft.kinds, lib]);
 
-  const entity = sample === null ? lib.ofKind(draft.kinds[0] ?? '')[0] : lib.entity(sample);
+  const entity = sample === null ? lib.material(draft.kinds[0] ?? '')[0] : lib.entity(sample);
   const preview = useAsync(entity === undefined ? null : async () => {
-    const ctx = { look: lib.look, entity, pool: (k: string) => lib.ofKind(k), seed: 'podglad', ...(lib.python === undefined ? {} : { python: lib.python }) };
+    const ctx = { look: lib.look, entity, pool: lib.poolFor(entity), seed: 'podglad', ...(lib.python === undefined ? {} : { python: lib.python }) };
     const made = await cardsOf(draft, ctx);
     const evaluated = await evaluate(draft.graph, TEMPLATE_PALETTE, ctx);
     return { made, errors: evaluated.errors };
@@ -165,10 +167,10 @@ function TemplateForm({ template }: { template: Template }) {
         <label className="wk-field"><span>Nazwa</span><input value={draft.name} disabled={!writes} onChange={(e) => set({ name: e.target.value })} /></label>
         <label className="wk-field"><span>Kierunek (część klucza karty)</span><input value={draft.direction} disabled={!writes} placeholder="np. a→b" onChange={(e) => set({ direction: e.target.value })} /></label>
         <fieldset className="cg-row"><legend>Dla rodzajów</legend>
-          {lib.kinds.map((k) => (
+          {[...lib.materialKinds, ...lib.refKinds.filter((k) => draft.kinds.includes(k.id) && !lib.materialKinds.includes(k))].map((k) => (
             <label key={k.id} className="pe-check">
               <input type="checkbox" checked={draft.kinds.includes(k.id)} disabled={!writes} onChange={(e) => set({ kinds: e.target.checked ? [...draft.kinds, k.id] : draft.kinds.filter((x) => x !== k.id) })} />
-              <span>{k.name}</span>
+              <span>{kindLabel(k)}</span>
             </label>
           ))}
         </fieldset>
@@ -180,7 +182,7 @@ function TemplateForm({ template }: { template: Template }) {
       {problems.map((p, i) => <p key={i} className="wk-warn">{p}</p>)}
       <div className="cg-card">
         <div className="cg-row"><strong>Podgląd na wpisie:</strong>
-          <EntityPicker lib={lib} kinds={draft.kinds} value={entity?.id ?? null} onPick={setSample} allowClear={false} />
+          <EntityPicker lib={lib} kinds={draft.kinds} refs={draft.kinds.some((k) => BOOK_KINDS.has(k))} value={entity?.id ?? null} onPick={setSample} allowClear={false} />
         </div>
         {entity === undefined ? <span className="wk-hint">Nie ma jeszcze wpisu tego rodzaju.</span>
           : preview === undefined ? <span className="wk-hint">Liczenie…</span>

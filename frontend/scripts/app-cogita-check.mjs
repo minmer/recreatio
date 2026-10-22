@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store'];
 await build({
   entryPoints: names.map((n) => `src/app/cogita/${n}.ts`),
   bundle: true,
@@ -24,7 +24,7 @@ await build({
   logLevel: 'error'
 });
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST] = await Promise.all(names.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -598,6 +598,30 @@ const { plan } = await R.planOf(rev({ mode: 'random', count: 3 }), revCtx());
 check('the revision graph gives a plan of the words that have a translation', plan.cards.length, 5);
 const deck = (await R.planOf(G.readGraph({ nodes: [n('src', 'source.collection', { collection: 'pets' }), n('s', 'strategy', { mode: 'once' }, 10)], edges: [l('1', 'src', 'cards', 's', 'cards')] }), revCtx())).plan;
 check('a collection as the source', deck.cards.map((c) => c.entity).sort(), ['v2', 'v3']);
+/* 2026-10-22 — „Rodzaj … z …": eine Art aus einer bestimmten Bibliothek (der Stoff der Bibliotheken). */
+const fromLib = (await R.planOf(G.readGraph({ nodes: [n('src', 'source.kind', { kind: 'k-word', from: 'lib-b' }), n('s', 'strategy', { mode: 'once' }, 10)], edges: [l('1', 'src', 'cards', 's', 'cards')] }),
+  { ...revCtx(), from: (id) => (id === 'v2' ? 'lib-b' : 'lib-a') })).plan;
+check('a kind from one library: only the cards of its entries', [...new Set(fromLib.cards.map((c) => c.entity))], ['v2']);
+const anyLib = (await R.planOf(G.readGraph({ nodes: [n('src', 'source.kind', { kind: 'k-word' }), n('s', 'strategy', { mode: 'once' }, 10)], edges: [l('1', 'src', 'cards', 's', 'cards')] }),
+  { ...revCtx(), from: (id) => (id === 'v2' ? 'lib-b' : 'lib-a') })).plan;
+truth('… without "from" the kind comes from everywhere', new Set(anyLib.cards.map((c) => c.entity)).size > 1);
+{
+  /* Der Stoff einer Bibliothek: ein Szablon auf Cytaty gibt Karten der Zitate einer Quelle, die Liste der Wpisy bleibt die eigene. */
+  const fake = (libraryId, entries) => ({ libraryId, areaId: `a-${libraryId}`, revision: 1, all: () => entries, get: (id) => entries.find((e) => e.id === id), byKey: (k) => entries.find((e) => e.key === k) });
+  const work = { id: 'w-bt', kind: 'work', key: 'bt', data: { title: 'Biblia Tysiąclecia', workType: 'bible' } };
+  const q1 = { id: 'q-1', kind: 'quote', key: 'q1', data: { text: 'Bóg jest miłością.', work: ['w-bt'], locator: '1 J 4,8' } };
+  const q2 = { id: 'q-2', kind: 'quote', key: 'q2', data: { text: 'Na początku było Słowo.', work: ['w-bt'], locator: 'J 1,1' } };
+  const tpl = { id: 't-q', kind: 'template', data: P.TEMPLATE_PRESETS.find((x) => x.id === 'ask').make('quote', { key: 'locator', label: 'Miejsce' }) };
+  const lib5 = new ST.CogitaLibrary(fake('base', [tpl]), false);
+  lib5.setSources([{ store: fake('lib', [work, q1, q2]), kind: 'books', name: 'Biblioteka' }]);
+  check('library kinds with entries are material to learn from (not kinds of the base)', [lib5.materialKinds.some((k) => k.id === 'quote'), lib5.kinds.some((k) => k.id === 'quote')], [true, false]);
+  check('… the quotes of the library are material of their kind', lib5.material('quote').map((e) => e.id).sort(), ['q-1', 'q-2']);
+  check('… but not entries of the base', lib5.entities().some((e) => e.id === 'q-1'), false);
+  const made5 = await lib5.cards('s');
+  check('a template over quotes makes cards of library quotes, keyed template:entry', made5.cards.filter((c) => c.entity === 'q-1').map((c) => c.question), ['t-q:q-1']);
+  check('… asking for the place of the quote', made5.cards.find((c) => c.entity === 'q-2')?.answer.accepted, ['J 1,1']);
+  check('… a revision knows where they come from', lib5.revisionContext(made5.cards, () => [], 0).from('q-1'), 'lib');
+}
 check('a revision without a strategy is refused', (await R.planOf(G.readGraph({ nodes: [n('src', 'source.all')] }), revCtx())).problems, ['Powtórka nie ma kroku „Sposób pytania".']);
 
 const runAll = (session, correctness = () => 1, limit = 200) => {

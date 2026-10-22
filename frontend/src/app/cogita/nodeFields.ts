@@ -11,7 +11,9 @@ import { LEVEL_LABEL } from './knowness';
 export type ConfigType =
   | 'text' | 'longtext' | 'code' | 'number' | 'bool' | 'select' | 'lines'
   | 'field' | 'kind' | 'kinds' | 'entity' | 'collection' | 'template' | 'templates' | 'flow' | 'rule'
-  | 'condition' | 'actions' | 'options' | 'chapters' | 'media' | 'forms' | 'levels';
+  | 'condition' | 'actions' | 'options' | 'chapters' | 'media' | 'forms' | 'levels'
+  /* 2026-10-22 — eine Bibliothek oder Baza wiedzy: diese oder eine ihrer Quellen. */
+  | 'source';
 
 export interface ConfigField {
   readonly key: string;
@@ -91,7 +93,7 @@ const TEMPLATE_FIELDS: Record<string, readonly ConfigField[]> = {
 
 const REVISION_FIELDS: Record<string, readonly ConfigField[]> = {
   'source.all': [],
-  'source.kind': [f('kind', 'Rodzaj', 'kind')],
+  'source.kind': [f('kind', 'Rodzaj', 'kind'), f('from', 'Skąd', 'source', { hint: 'puste: z tej bazy i ze wszystkich źródeł' })],
   'source.collection': [f('collection', 'Zbiór', 'collection')],
   'source.topic': [f('topic', 'Temat', 'entity', { kinds: ['topic'] }), f('depth', 'Głębokość', 'number')],
   'source.list': [f('ids', 'Wpisy albo pytania', 'lines', { hint: 'identyfikatory, jeden w wierszu' })],
@@ -141,13 +143,13 @@ export const FORM_OPTIONS = ANSWER_FORMS.map((form) => ({ value: form, label: AN
 export const LEVEL_OPTIONS = (['unseen', 'learning', 'known'] as const).map((l) => ({ value: l, label: LEVEL_LABEL[l] }));
 
 /** Ein kurzer Satz am Knoten: was er gerade einstellt. */
-export function configSummary(palette: string, type: string, config: Readonly<Record<string, unknown>>, name: (kind: 'entity' | 'kind' | 'collection' | 'flow' | 'template', id: string) => string): string {
+export function configSummary(palette: string, type: string, config: Readonly<Record<string, unknown>>, name: (kind: 'entity' | 'kind' | 'collection' | 'flow' | 'template' | 'source', id: string) => string): string {
   const parts: string[] = [];
   for (const field of configFields(palette, type)) {
     const v = config[field.key];
     if (v === undefined || v === '' || (Array.isArray(v) && v.length === 0)) continue;
     if (field.type === 'entity' && typeof v === 'string') parts.push(name('entity', v));
-    else if ((field.type === 'kind' || field.type === 'collection' || field.type === 'flow') && typeof v === 'string') parts.push(name(field.type, v));
+    else if ((field.type === 'kind' || field.type === 'collection' || field.type === 'flow' || field.type === 'source') && typeof v === 'string') parts.push(name(field.type, v));
     else if (field.type === 'select' && typeof v === 'string') parts.push(field.options?.find((o) => o.value === v)?.label ?? v);
     else if (typeof v === 'string' && field.type !== 'code') parts.push(v.length > 28 ? `${v.slice(0, 27)}…` : v);
     else if (typeof v === 'number' || typeof v === 'boolean') parts.push(`${field.label.split(' ')[0].toLowerCase()} ${v === true ? 'tak' : v === false ? 'nie' : v}`);

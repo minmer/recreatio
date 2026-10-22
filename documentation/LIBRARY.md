@@ -267,7 +267,7 @@ These follow the standing JSON rule.
 ## How Cogita builds on this
 
 - **A knowledge base is a library of kind `knowledge`** (0110) in the same store: sealed entries, sync, versions, files. Its own kinds are `kind` documents (schema as data, `cogita/schema.ts`), not entries in `KINDS`; the library kinds appear there as built-in kinds (`cogita/kinds.ts` `fromLibrary`).
-- **A base reads libraries as sources** (`settings.sources`, `cogita/sources.ts`): their works, quotes, persons and comments are reference targets and card material; they are never copied.
+- **A base reads libraries as sources** (`settings.sources`, `cogita/sources.ts`): their works, quotes, persons and comments are reference targets and card material (2026-10-22: a template over a library kind makes cards of its entries; a revision can take "Cytaty" from one library); they are never copied.
 - **Cards are computed, not stored.** A card is `template:entry[:value]` plus a direction; answers go into sealed `learn_batch` rows of the storage area, keyed by those ids.
 - **Collections, views, revisions and flows are documents of the base** that hold entry ids and rules.
 - **Writing is the library's `text` and `project`** with the `[@key]` / `![@key]` markup.

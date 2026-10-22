@@ -174,7 +174,11 @@ These are fixed system kinds that the engine understands. You may add fields to 
 
 ## 5. Cards
 
-**Where cards come from:** templates per kind, plus hand-written `question` entries [D1]. A template is a graph built from these blocks [D2]:
+**Where cards come from:** templates per kind, plus hand-written `question` entries [D1].
+
+**Library material** (2026-10-22). A base that reads a library as a source (`settings.sources`) learns from it too: the library's kinds that have entries there (quotes, works, texts, comments, projects, deliveries, persons) are "material kinds" (`CogitaLibrary.materialKinds`, labelled "(z biblioteki)"). A template may target one of them — "Luki w cytacie" over quotes, "Pytanie o pole" on a quote's place — and then makes cards of the library's entries, keyed `template:entry` like every card (entry ids are stable, so progress stays). "Wpisy rodzaju" and "Dystraktory" of such a template draw from the same material (`material(kind)`, `poolFor`). The base's own lists ("Wpisy") still show only its own entries; library topics give no cards yet (step 7).
+
+A template is a graph built from these blocks [D2]:
 - a field of the entity, or a reference followed several steps deep;
 - a split by a field (“Filtr”, added 2026-10-18): the entries whose field has one of the values arriving at “Porównaj z” — or typed in — and the rest (the words in the language of this card, and the others); without a field it compares the entries themselves (“all but this one”). “Bez powtórzeń” passes each entry or text once;
 - the entries of a kind (“Wpisy rodzaju”, 2026-10-18): all of them, or those whose field has one of the arriving or typed values — the words spelled the same, the translations that hold this word (the way back), the words of a language — optionally without this entry, only from the current collection, at most N at random (random per entry, so the card counts as varying). It reads an index per pool and field, built once for all cards, not the whole pool per card;
@@ -236,7 +240,7 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 ## 6. Revision, collections, knowness, dependencies
 
 **A revision is a graph that selects cards** [F15]. Its nodes:
-- sources: a kind, a collection, a topic subtree, a list;
+- sources: a kind — also a kind of a source library, optionally only from one library or base ("Skąd", `source.kind` `from`; 2026-10-22) —, a collection, a topic subtree, a list;
 - dependency gates;
 - one strategy node from a fixed list, with its parameters [E6]: random fixed number, whole stack once, levels, time-knowness;
 - order and limits.

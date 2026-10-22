@@ -457,7 +457,8 @@ export interface RevisionPreset {
   readonly id: string;
   readonly label: string;
   readonly says: string;
-  readonly make: (from?: { kind?: string; topic?: string; collection?: string }) => Record<string, unknown>;
+  /** `library` (2026-10-22): nur Einträge dieser Bibliothek oder Baza wiedzy (mit `kind`). */
+  readonly make: (from?: { kind?: string; library?: string; topic?: string; collection?: string }) => Record<string, unknown>;
 }
 
 const revisionGraph = (source: GraphNode, strategy: Record<string, unknown>) => {
@@ -465,8 +466,8 @@ const revisionGraph = (source: GraphNode, strategy: Record<string, unknown>) => 
   return graphOf([source, s], [edge(source, 'cards', s, 'cards')]);
 };
 
-const sourceOf = (from?: { kind?: string; topic?: string; collection?: string }) =>
-  from?.kind !== undefined ? node('source.kind', 0, 0, { kind: from.kind })
+const sourceOf = (from?: { kind?: string; library?: string; topic?: string; collection?: string }) =>
+  from?.kind !== undefined ? node('source.kind', 0, 0, { kind: from.kind, ...(from.library === undefined || from.library === '' ? {} : { from: from.library }) })
     : from?.topic !== undefined ? node('source.topic', 0, 0, { topic: from.topic, depth: 9 })
     : from?.collection !== undefined ? node('source.collection', 0, 0, { collection: from.collection })
     : node('source.all', 0, 0);

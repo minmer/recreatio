@@ -26,7 +26,8 @@ import { cardsOf, questionCard, readTemplate, templatesFor, topicCard, type Temp
 import { type Card } from './cardBasics';
 import { baseKind, DOC_KINDS, entityOf, entryData, isBaseKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, type DocKind } from './kinds';
 import { planKindRemoval, type KindRemoval } from './kindRemoval';
-import type { Dependency, DependencyKind } from './knowness';
+import type { Dependency, DependencyKind, Mark } from './knowness';
+import type { RevisionContext } from './revision';
 import { DEPENDENCY_KINDS } from './knowness';
 import { labelOf, lookupOf, plainOf, refIndex, replaceRef, tellOf, valuesOf, fieldsOf, type Backlink, type Entity, type KindDef, type Lookup } from './schema';
 
@@ -252,6 +253,8 @@ interface Memo {
   search: Map<string, string> | null;
   refSearch: Map<string, string> | null;
   markup: MarkupLookup | null;
+  /** 2026-10-22 — die eigenen Arten und die der Bibliotheken, aus denen Stoff kommt. */
+  materialKinds: readonly KindDef[] | null;
 }
 
 /** Suchtext je Entität: Etikett, Unterscheidung, alle Textwerte — ohne Akzente. */
@@ -328,7 +331,7 @@ export class CogitaLibrary {
         wo es Einträge von ihnen gibt. Die Maschine kennt sie trotzdem (`look`).
       */
       stamp, kinds, contentKinds: kinds.filter((k) => !BOOK_KINDS.has(k.id) && (!isBaseKind(k.id) || byKind.has(k.id) || added.has(k.id))), entities, refs,
-      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, search: null, refSearch: null, markup: null
+      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, search: null, refSearch: null, markup: null, materialKinds: null
     };
     return this.memo;
   }
@@ -337,6 +340,47 @@ export class CogitaLibrary {
   get kinds(): readonly KindDef[] { return this.fresh().contentKinds; }
   /** Dazu die Arten der Bibliotheken — als Ziele eines Verweises. */
   get refKinds(): readonly KindDef[] { return this.fresh().kinds; }
+
+  /**
+   * 2026-10-22 — STOFF ZUM LERNEN (Schritt 5): die eigenen Arten und die Arten
+   * der Bibliotheken, aus denen diese Baza wiedzy schöpft — sofern dort
+   * Einträge stehen (Cytaty, Dzieła, Teksty, Komentarze …). Szablony und
+   * Powtórki dürfen sie wählen; „Wpisy" listet weiter nur das Eigene.
+   */
+  get materialKinds(): readonly KindDef[] {
+    const m = this.fresh();
+    m.materialKinds ??= [...m.contentKinds, ...m.kinds.filter((k) => BOOK_KINDS.has(k.id) && m.refs.some((r) => r.kinds.includes(k.id)))];
+    return m.materialKinds;
+  }
+
+  /** Die Einträge einer Art als Stoff: die eigenen (und die der Bazy wiedzy) — bei einer Art der Bibliotheken auch deren Einträge. */
+  material(kindId: string): readonly Entity[] {
+    const own = this.ofKind(kindId);
+    if (!BOOK_KINDS.has(kindId)) return own;
+    return [...own, ...this.fresh().refs.filter((r) => r.kinds.includes(kindId))];
+  }
+
+  /** Woraus die Wpisy rodzaju und Dystraktory eines Szablons schöpfen: für Stoff einer Bibliothek aus dem Stoff, sonst aus dem Eigenen. */
+  poolFor(entity: Entity): (kindId: string) => readonly Entity[] {
+    return this.fresh().refs.includes(entity) ? (k) => this.material(k) : (k) => this.ofKind(k);
+  }
+
+  /**
+   * Was eine Powtórka zum Wählen braucht — die Karten, die Arten eines
+   * Eintrags (auch eines aus einer Bibliothek), Zbiory, Themen, den
+   * Fortschritt, und (2026-10-22) woher ein Eintrag kommt.
+   */
+  revisionContext(cards: readonly Card[], marks: (key: string) => readonly Mark[], now: number): RevisionContext {
+    return {
+      cards,
+      kindsOf: (id) => this.entity(id)?.kinds ?? [],
+      collection: (id) => this.members(id),
+      topic: (id, depth) => this.topicTree(id, depth),
+      marks,
+      now,
+      from: (id) => this.origin(id)?.libraryId
+    };
+  }
   get look(): Lookup { return this.fresh().look; }
   kind(id: string): KindDef | undefined { return this.fresh().look.kind(id); }
   entities(): readonly Entity[] { return this.fresh().entities; }
@@ -638,8 +682,11 @@ export class CogitaLibrary {
   /**
    * ALLE KARTEN dieser Baza wiedzy: jede Vorlage für jede Entität ihrer Arten,
    * jede von Hand geschriebene Frage, jedes Thema mit Antworten — die eigenen
-   * und die wiederverwendeter Quellen (Bibliotheken geben keine Karten). Je
-   * Stand der Speicher und Samen einmal gerechnet.
+   * und die wiederverwendeter Quellen. 2026-10-22: dazu der Stoff der
+   * Bibliotheken — ein Szablon für eine ihrer Arten (Cytat, Dzieło, Tekst,
+   * Komentarz …) gibt Karten ihrer Einträge, mit Schlüsseln `szablon:wpis` wie
+   * sonst; ihre Themen geben (noch) keine. Je Stand der Speicher und Samen
+   * einmal gerechnet.
    */
   cards(seed = ''): Promise<{ cards: Card[]; problems: Map<string, string[]> }> {
     const revision = this.revision;
@@ -663,6 +710,14 @@ export class CogitaLibrary {
         if (entity.kinds.includes('topic')) {
           const card = topicCard(entity, look);
           if (card !== null) cards.push(card);
+        }
+      }
+      const material = (kind: string) => this.material(kind);
+      for (const entity of this.fresh().refs) {
+        for (const template of templatesFor(entity, templates).filter((t) => t.kinds.some((k) => BOOK_KINDS.has(k) && entity.kinds.includes(k)))) {
+          const done = await cardsOf(template, { look, entity, pool: material, seed, ...(this.python === undefined ? {} : { python: this.python }) });
+          cards.push(...done.cards);
+          if (done.problems.length > 0) problems.set(template.id, [...(problems.get(template.id) ?? []), ...done.problems]);
         }
       }
       return { cards, problems };
