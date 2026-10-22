@@ -23,6 +23,8 @@ import { readAction, readCondition, type Action } from './logic';
 import { configFields, configSummary, FORM_OPTIONS, LEVEL_OPTIONS, type ConfigField } from './nodeFields';
 import { ActionsEditor, ConditionEditor, EntityPicker, KindSelect, MediaView, entityName, useCtx } from './ui';
 import { BOOK_KINDS } from './store';
+import { RuleEditor } from './RuleEditor';
+import { readRule as readQuery } from './selection';
 import { areaKeys, newestKey } from '../chat/chat';
 import type { MediaRef } from './schema';
 
@@ -346,7 +348,8 @@ function NodePanel<C>({ node, palette, fieldKeys, readOnly, graph, cycles, onCon
 const lines = (v: unknown): string => (Array.isArray(v) ? v.map(String).join('\n') : typeof v === 'string' ? v : '');
 const toLines = (text: string): string[] => text.split('\n').map((t) => t.trim()).filter((t) => t !== '');
 
-function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
+/** Ein Feld eines Knotens — 2026-10-22 (Schritt 9) auch für die Schritte eines Widoku (`ViewSteps.tsx`). */
+export function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
   field: ConfigField;
   value: unknown;
   fieldKeys: readonly FieldKey[];
@@ -458,6 +461,8 @@ function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
       );
     case 'rule':
       return <RuleInput value={value} readOnly={readOnly} onSet={onSet} label={field.label} />;
+    case 'query':
+      return <div className="wk-field">{label}<RuleEditor rule={readQuery(value) ?? { op: 'and', items: [] }} onChange={(r) => onSet(r)} /></div>;
     case 'condition':
       return <div className="wk-field">{label}<ConditionEditor value={readCondition(value)} onChange={(c) => onSet(c ?? undefined)} name={(id) => entityName(lib, id)} /></div>;
     case 'actions':

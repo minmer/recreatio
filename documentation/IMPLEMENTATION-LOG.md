@@ -626,3 +626,85 @@ the text). LaTeX prints the same with `\emph{…}`.
 2. A base in a closed area → Wpisy → an entry → Kto widzi → "Przenieś do innej bazy wiedzy" → the public base. The plan
    lists what moves along. Tick "Rozumiem", then press Przenieś: the entry opens in the public base.
 3. Biblioteka → Porządki → "Bazy wiedzy: stare publikacje": read the plan and run it. A second run shows nothing left.
+
+## Step 9 — Views, step 1: one selection, a View module, state per module
+
+**Built**
+
+- **One selection in steps** (`cogita/selection.ts`), shared by views and revisions:
+  - sources: `source.all`, `source.kind` (with `from`), `source.collection`, `source.topic` (subtopics and what
+    points at them), `source.list`;
+  - `follow`: along one reference field or all of them, or backwards (`back: true`) to whatever points at the
+    entries, in fields or markup, including library material (`CogitaLibrary.pointing`);
+  - `filter.rule`: the collections' rule.
+
+  The collections' rule (`RuleGroup`, `ruleMatches`) moved here; `store.ts` re-exports it, so old imports keep
+  working. `CogitaLibrary.selectContext()` gives a selection what it needs.
+- **The revision graph has the same steps as nodes:** "Idź po odwołaniu" gives the cards of the reached entries,
+  "Filtr wpisów" keeps the cards whose entry passes the rule. Both nodes have the same settings fields as the view
+  steps (`nodeFields.ts`, palettes `revision` and `view`), and the reference-field picker now lists the base's
+  reference fields (`refFieldKeys`). New config type `query` (the rule) is edited by `RuleEditor.tsx`, which used to
+  live inside `EntityList.tsx`.
+- **The view document** (`cogita/views.ts`) holds its selection as `steps`, plus `query`, `group`, `columns`, `sort`
+  and `positions`.
+  - Groups for the tree: by kind (as before), by the values of a field, or by an axis of topics. An axis is a topic
+    marked as an aspect, and its subtopics in their order are the values. An entry can stand in several groups,
+    and what fits nowhere comes last.
+  - `readView` reads the old shape (`kind` + `rule`) as steps. `viewJson` writes only the new shape. The Cogita JSON
+    export and import convert the same way, and `courseDescription()` documents `views` and the shared nodes with
+    a worked example.
+- **Wpisy** (`EntityList.tsx`) works on the view document. "Rodzaj" and "Filtr" stay as short cuts into the steps,
+  and "Wybór i grupy" (`ViewSteps.tsx`) edits the source, adds "Idź po odwołaniu" and "Filtr", and picks the tree's
+  grouping (`GroupTree`). The table's column chooser works for any source.
+- **The page module "Widok"** (`pages/parts/view.tsx`, lazy view `viewViews.tsx`) shows a saved view of a base:
+  - fields: title, base, view (the picker lists the base's views), and "tabela / drzewo";
+  - in the strip, one line with "Zobacz"; as a block, the first eight entries; tall or full screen, search, Tabela /
+    Drzewo, sortable columns, and the clicked entry opened below the view (or chosen at the top, when the page
+    chooses an entry of that base);
+  - it reads the base the way the reader may read it (`pageBase.ts`, step 8).
+- **State per module in the address** (`pages/partQuery.ts`): `?<scope>.<key>=…`, where the scope is the last six
+  characters of the module id. "Widok" keeps its search, open entry, presentation and sort there. Two views on one
+  page keep separate state, and a link carries it. The address is replaced, not pushed, and back and forward are
+  followed.
+- **Checks:**
+  - `app-cogita-check` (360): an old view reads as steps and is written new; a kind by label; everything; follow
+    forward twice, backwards along a field and backwards along anything (the question about him); the rule; a
+    collection; a topic; search and sort both ways; groups by field and by an axis in its order with the rest
+    last; the axes; the short cuts; default columns; the same follow and filter as revision nodes; two module
+    scopes in one address.
+  - `app-json-check`: the module "view" with its example, keys and round trip.
+  - Drives against LocalDB:
+    - `views-api.mjs`: an author saves a tree view grouped by an axis, a "children" view that follows backwards,
+      and an old-shape view doc.
+    - `views-anon.mjs`: a stranger's browser opens the public base, sees all three views in the module picker, and
+      gets the same list, the groups in axis order, the children and the old view's entries. Two module scopes stay
+      apart in one address.
+
+**Removed**
+
+- The private `ViewDoc` reader and the inline `RuleEditor` of `EntityList.tsx` (both now shared).
+- The view's `kind` and `rule` keys on save. Old documents are still read.
+
+**Choices**
+
+- **A view is a list of steps, not a drawn graph.** The steps are the revision's node types with the same configs
+  and code, so the two stay one language. A view has one path (source → steps), which a list edits more simply
+  than a canvas. Revisions keep their graph, with union, gates and strategy.
+- **A page search narrows the saved selection.** It does not replace the view's own query.
+- **The canvas mode is not shown on pages.** A page shows it as a table.
+- **Scope = the module id, not the placement.** The same module placed twice shares its state, which is the same
+  view anyway.
+- `entity-table`, `topic-explorer`, `knowledge-map` and the `writings` table stay until step 10 (matrix, inner views,
+  converter).
+
+**Owner must run**
+
+- Deploy the website. There is no API change and no migration.
+
+**Test in the browser**
+
+1. Nauka → a base → Wpisy → choose a kind → "Wybór i grupy" → "Drzewo grupuje: według osi tematów …" → Drzewo →
+   "Zapisz jako widok".
+2. A page → add the module "Widok" → choose the base and that view. Add a second "Widok" with another view. Search
+   in one: the other does not change, and the address holds both (`?abc123.q=…`).
+3. Open the page in a private window (public base): the same entries, and a click opens the entry below.

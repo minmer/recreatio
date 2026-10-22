@@ -60,6 +60,7 @@ import { textPart } from './text';
 import { quotesPart } from './quotes';
 import { writingPart } from './writing';
 import { writingsPart } from './writings';
+import { viewPart } from './view';
 
 export const PARTS: readonly PartModule[] = [
   /* Was auf jeder Seite steht. */
@@ -112,6 +113,8 @@ export const PARTS: readonly PartModule[] = [
   entityCardPart,
   entityTablePart,
   topicExplorerPart,
+  /* 2026-10-22 (Schritt 9) — ein gespeicherter Widok einer Baza: Tabela oder Drzewo, der Zustand je Baustein in der Adresse. */
+  viewPart,
 
   /* Was seinen Inhalt woanders herholt. */
   massesPart,

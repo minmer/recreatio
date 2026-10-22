@@ -28,6 +28,7 @@ import { graphJson, readGraph, type Graph, type GraphNode } from './graph';
 import { DOC_KINDS, DOC_LABEL, isBaseKind, kindDoc, type DocKind } from './kinds';
 import { FIELD_TYPE_LABEL, FIELD_TYPES, readKind, type Entity, type KindDef } from './schema';
 import type { CogitaLibrary } from './store';
+import { readView, viewJson } from './views';
 
 export const COURSE_FORMAT = 'recreatio.cogita.course';
 export const SCHEMA_FORMAT = 'recreatio.cogita.schema';
@@ -83,6 +84,8 @@ const templateGraphJson = (graph: Graph): Record<string, unknown> => {
 const docJson = (kind: DocKind, id: string, data: Readonly<Record<string, unknown>>): Record<string, unknown> => {
   const { public: _public, ...rest } = data as Record<string, unknown>;
   if (kind === 'addform') return formJson(id, data);
+  /* 2026-10-22 (Schritt 9) — ein Widok geht immer in der neuen Gestalt hinaus (Schritte statt Art und Filter). */
+  if (kind === 'view') return { ref: `@${id}`, ...viewJson(readView(data)) };
   return { ref: `@${id}`, ...rest, ...(kind === 'template' ? { graph: templateGraphJson(readGraph(data.graph)) } : kind === 'revision' ? { graph: graphJson(readGraph(data.graph)) } : {}), ...(kind === 'flow' ? { graph: graphJson(readGraph(data.graph, true)) } : {}) };
 };
 
@@ -302,6 +305,8 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
         const kindOf = (k: string) => (kinds.some((x) => x.id === k) ? k : kindId(k));
         data = addFormDoc(readAddForm(id, { ...data, graph: mapFormRefs(data.graph, kindOf, (e) => e) }));
       }
+      /* 2026-10-22 (Schritt 9) — ein Widok in der alten Gestalt (Art und Filter) kommt als Schritte an. */
+      if (kind === 'view') data = viewJson(readView(data));
       if (kind === 'settings') {
         const had = lib.settingsEntry();
         docs.push({ id: had?.id ?? id, kind, data: { ...(had?.data ?? {}), ...data }, isNew: had === undefined });
@@ -441,9 +446,15 @@ ${kindsSection()}
 "templates" — szablony kart: {"name", "kinds": ["@rodzaj"], "direction": "a→b", "graph": {"nodes": [{"id", "type", "x", "y", "config"}], "edges": [{"id", "from", "out", "to", "in"}]}}
   szablon może dotyczyć rodzaju z biblioteki, z której korzysta ta baza ("quote", "work", "text", "comment", "project", "delivery", "person"): wtedy karty powstają z jej wpisów, np. {"name": "Miejsce cytatu", "kinds": ["quote"], "direction": "locator", "graph": …}
 "revisions" — powtórki: {"name", "graph"} (źródła → filtr → … → jeden „Sposób pytania")
+  także kroki wspólne z widokami: {"type": "follow", "config": {"field": "authors", "back": false}} — karty wpisów, do których prowadzi odwołanie (albo, "back": true, które wskazują na te wpisy); {"type": "filter.rule", "config": {"rule": {"op": "and", "items": [{"field", "cmp", "value"}]}}} — karty wpisów spełniających regułę
   źródło „rodzaj z biblioteki": {"type": "source.kind", "config": {"kind": "quote", "from": "<identyfikator biblioteki>"}} — "from" puste: z tej bazy i ze wszystkich źródeł
 "flows" — przebiegi: {"name", "look": "reading|slides|scenes|dialogue|flashcards|map", "start", "graph", "slots", "goals", "lines"}
 "collections" — zbiory: {"name", "rule": {"op": "and|or", "items": [{"field", "cmp", "value"}]}, "list": ["@wpis"]}
+"views" — widoki (te same kroki co powtórka, po wpisach): {"name", "mode": "table|tree|canvas", "steps": [krok, …], "query", "group", "columns": ["klucz pola"], "sort": {"key", "dir": 1|-1}}
+  pierwszy krok to źródło: "source.all" | "source.kind" {"kind": "@rodzaj", "from"} | "source.collection" {"collection": "@zbiór"} | "source.topic" {"topic": "@temat", "depth": 9} | "source.list" {"ids": ["@wpis"]};
+  potem "follow" {"field", "back"} i "filter.rule" {"rule"}; "group" (drzewo): {"by": "kind"} | {"by": "field", "field": "klucz"} | {"by": "topic", "axis": "@oś (temat-aspekt)"}
+  np. {"name": "Postacie według okresu", "mode": "tree", "steps": [{"type": "source.kind", "config": {"kind": "@postac"}}], "group": {"by": "topic", "axis": "@okres"}}
+  na stronie: moduł "view" {"library": "<id bazy>", "view": "<id widoku>", "mode": "tabela|drzewo"} — stan w adresie osobno dla każdego modułu
 ${formsSection()}
 ${kinds}`;
 }

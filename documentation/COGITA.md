@@ -113,6 +113,13 @@ Formula, code and duration are not field types.
 
 - A table with column filters and sorting, a tree by kind, and a graph canvas whose positions all authors share [F2, F3].
 - Saved views (filter, columns, sorting) can be shared by a link [F7].
+- **A view is a selection in steps** (2026-10-22, step 9; `views.ts`, `selection.ts`). The steps are the ones a revision graph uses, with the same settings and the same code:
+  - a source: everything, a kind (also a kind of a source library, optionally from one library), a collection, a topic with its subtopics and what points at them, a list;
+  - **Idź po odwołaniu** (`follow`): along one reference field or all of them, or backwards to whatever points at the entries (fields and markup, library material too);
+  - **Filtr** (`filter.rule`): the collections' rule.
+- The tree groups by kind (the topic hierarchy as before), by the values of a field, or by an **axis of topics**: a topic marked as an aspect, whose subtopics are the values. An entry can stand in several groups.
+- In **Wpisy**, "Rodzaj" and "Filtr" are short cuts into the steps; "Wybór i grupy" edits them all (`ViewSteps.tsx`). A view saved before step 9 (`kind` + `rule`) reads as steps and is written in the new shape; the JSON export and import do the same.
+- **On a page**: the module **Widok** (`view`) shows a saved view as a table or a tree, with search, sorting and a clicked entry opened below it. Each module keeps its state in the address under its own scope (`?<scope>.q=…`, `pages/partQuery.ts`), so two views on one page do not disturb each other and a link carries the state.
 - **Choosing many** (2026-10-18): in the table, the box in front of a row, Ctrl+click, Shift+click (everything between), dragging over the boxes, or holding a row on a phone; once something is chosen, a click chooses instead of opening, Esc clears. A bar floating at the bottom (so the list does not move) acts on them: set a field for all (add, replace or remove a value, clear — e.g. the language or a topic), put them into a collection (an existing or a new one), delete them (the question says how many other entries point at them; entries from source bases are left alone).
 - Library content appears in the workspace search, Ctrl K [F5, P12].
 - “Looks per kind” replace the old approaches, such as the citation view and the vocabulary card [F47].
@@ -243,6 +250,7 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 
 **A revision is a graph that selects cards** [F15]. Its nodes:
 - sources: a kind — also a kind of a source library, optionally only from one library or base ("Skąd", `source.kind` `from`; 2026-10-22) —, a collection, a topic subtree, a list;
+- the steps shared with views (step 9): **Idź po odwołaniu** gives the cards of the entries reached along a reference (or backwards), **Filtr wpisów** keeps the cards whose entry passes the collections' rule;
 - dependency gates;
 - one strategy node from a fixed list, with its parameters [E6]: random fixed number, whole stack once, levels, time-knowness;
 - order and limits.
@@ -438,7 +446,7 @@ Phones stay awake.
 | Calendar | Revision as a repeating personal task with a link; sessions as appointments | P02 |
 | Notifications | Revision due; a session starting | P03 |
 | Chat | Discuss a card or a topic in a chat topic; turn a message into a question; the dialogue look | P04, P05 |
-| Pages | Modules: revision, live participant, live host, flow player, entity card, entity table, topic explorer, knowledge map | P06 |
+| Pages | Modules: revision, live participant, live host, flow player, entity card, entity table, topic explorer, knowledge map, and (step 9) **Widok**: a saved view as a table or a tree | P06 |
 | Page subject | A page about one entity (“Kim był Dawid?”) | P07 |
 | Widgets | A revision, a quiz or a quote of the day on other websites | P08 |
 | Forms and steps | Learning targets as steps (“Naucz się: Modlitwy, 80%”), with progress in the office list; enrolling through a form | P09, L5 |
@@ -551,6 +559,7 @@ A public, opened base (§13) is served to anyone as the same sealed entries and 
 | Sessions | `live.ts` (keys, events, SignalR client with polling fallback), `Sessions.tsx`, `GamePanel.tsx` |
 | Public pages | `parts/cogita.tsx` (definitions) with `parts/cogitaViews.tsx` (loaded only when shown), `pageBase.ts` (the base as this reader may read it — step 8), `PublicRun.tsx` (a keyless revision), `entitySubject.tsx`, `seatLearn.ts` |
 | Visibility | `visibility.ts` (who reads, in words; what an item needs when it moves), `BaseWho.tsx` ("Kto widzi" with the move, "Kto czyta" in settings), `library/rebuild/baseVisibility.ts` (Porządki tab 5) |
+| Views | `selection.ts` (the steps shared with revisions, the collections' rule, groups), `views.ts` (the view document, its list, groups and columns), `ViewSteps.tsx` and `RuleEditor.tsx` (editing them); on pages `pages/parts/view.tsx` with `viewViews.tsx`, and `pages/partQuery.ts` (state per module in the address) |
 | Forms | `LearnStep.tsx`; the step kind `learn` in `steps.ts` and `StepList.tsx` |
 | Service | `backend/Api/`: `Library.Cogita.cs` (versions, files, seat reading), `Cogita.cs` (batches, due, reports, the `c/` addresses), `Cogita.Session.cs`, `CogitaHub.cs` (`/cogita/hub`), `Cogita.Game.cs` (triggers, `CogitaClock`) |
 
@@ -565,7 +574,7 @@ A public, opened base (§13) is served to anyone as the same sealed entries and 
   - A revision becomes a daily task. A session goes into the area's calendar with its join link and code.
   - Ctrl K finds entries and documents of the libraries opened in the tab.
   - The starter **Kurs do nauki** creates an area, a knowledge base, the intake, a daily revision, a learners' role and a link.
-- **Pages.** Eight modules: `cogita-revision`, `cogita-flow`, `cogita-live`, `entity-card`, `entity-table`, `topic-explorer`, `knowledge-map`, `seat-learn`. They pick a knowledge base (field kind `knowledge`).
+- **Pages.** Nine modules: `cogita-revision`, `cogita-flow`, `cogita-live`, `entity-card`, `entity-table`, `topic-explorer`, `knowledge-map`, `seat-learn`, and `view` (step 9). They pick a knowledge base (field kind `knowledge`).
   - In a presentation: the module `question` and the storyboard (§8, built 2026-10-21).
   - The page subject **Wpis z bazy wiedzy** (`entity`).
   - `c/<8 characters>` addresses for pages with one module.

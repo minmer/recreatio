@@ -3,6 +3,11 @@
  * Spalten, Filtern und Sortierung, als Baum nach Arten (und Themen), als
  * Leinwand, deren Plätze alle Autoren teilen. Ein Widok merkt sich Filter,
  * Spalten und Sortierung — und lässt sich als Link weitergeben.
+ *
+ * 2026-10-22 (Schritt 9) — der Widok ist das Dokument aus `views.ts`: eine
+ * Auswahl in Schritten (dieselben wie in der Powtórka, `selection.ts`),
+ * Gruppen für das Drzewo; derselbe Widok steht als Baustein „Widok" auf einer
+ * Seite. „Rodzaj" und „Filtr" oben sind Abkürzungen in seine Schritte.
  */
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
@@ -11,41 +16,14 @@ import 'reactflow/dist/style.css';
 
 import { MenuButton } from '../ui/Menu';
 import { fieldsOf, fieldText, valuesOf, type Entity } from './schema';
-import { COMPARE_LABEL, readRule, ruleMatches, type Compare, type Condition, type RuleGroup } from './store';
 import { SelectionBar } from './EntitySelection';
+import { RuleEditor } from './RuleEditor';
 import { OriginTag, useBusy, useCtx } from './ui';
+import { ViewSteps } from './ViewSteps';
+import { readView, ruleOf, sourceKind, viewColumns, viewGroups, viewJson, viewList, withRule, withSourceKind, type ViewDoc } from './views';
+import type { Group } from './selection';
 
-export type ListMode = 'table' | 'tree' | 'canvas';
-
-interface ViewDoc {
-  readonly name: string;
-  readonly mode: ListMode;
-  readonly kind: string;
-  readonly query: string;
-  readonly rule: RuleGroup | null;
-  readonly columns: readonly string[];
-  readonly sort: { readonly key: string; readonly dir: 1 | -1 } | null;
-  readonly positions: Readonly<Record<string, { x: number; y: number }>>;
-}
-
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-
-function readView(raw: unknown): ViewDoc {
-  const d = isObject(raw) ? raw : {};
-  const sort = isObject(d.sort) && typeof d.sort.key === 'string' ? { key: d.sort.key, dir: d.sort.dir === -1 ? -1 as const : 1 as const } : null;
-  const positions: Record<string, { x: number; y: number }> = {};
-  if (isObject(d.positions)) for (const [k, v] of Object.entries(d.positions)) if (isObject(v) && typeof v.x === 'number' && typeof v.y === 'number') positions[k] = { x: v.x, y: v.y };
-  return {
-    name: typeof d.name === 'string' ? d.name : 'Widok',
-    mode: d.mode === 'tree' || d.mode === 'canvas' ? d.mode : 'table',
-    kind: typeof d.kind === 'string' ? d.kind : '',
-    query: typeof d.query === 'string' ? d.query : '',
-    rule: readRule(d.rule),
-    columns: Array.isArray(d.columns) ? d.columns.filter((c): c is string => typeof c === 'string') : [],
-    sort,
-    positions
-  };
-}
+export type { ListMode } from './views';
 
 export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
   viewId: string | null;
@@ -72,40 +50,25 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
     return () => window.removeEventListener('keydown', esc);
   }, [picked.size]);
 
-  const list = useMemo(() => {
-    let out: Entity[] = view.query.trim() === '' ? [...lib.entities()] : lib.search(view.query);
-    if (view.kind !== '') out = out.filter((e) => e.kinds.includes(view.kind));
-    if (view.rule !== null && view.rule.items.length > 0) out = out.filter((e) => ruleMatches(e, look, view.rule!));
-    const sort = view.sort;
-    if (sort !== null) {
-      const valueOf = (e: Entity) => {
-        if (sort.key === '_label') return lib.label(e);
-        const f = fieldsOf(e, look).find((x) => x.key === sort.key);
-        if (f === undefined) return '';
-        const v = valuesOf(e, f)[0]?.value;
-        return typeof v === 'number' ? v : typeof v === 'string' ? v : fieldText(e, f, look);
-      };
-      out.sort((a, b) => {
-        const x = valueOf(a);
-        const y = valueOf(b);
-        return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'pl', { numeric: true })) * sort.dir;
-      });
-    } else {
-      out.sort((a, b) => lib.label(a).localeCompare(lib.label(b), 'pl'));
-    }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lib, lib.revision, view.query, view.kind, JSON.stringify(view.rule), JSON.stringify(view.sort)]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const list = useMemo(() => viewList(lib, view), [lib, lib.revision, view.query, JSON.stringify(view.steps), JSON.stringify(view.sort)]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const groups = useMemo(() => (view.mode === 'tree' && view.group !== null ? viewGroups(lib, view, list) : null), [list, view.mode, JSON.stringify(view.group)]);
 
-  const kind = view.kind === '' ? undefined : lib.kind(view.kind);
-  const columns = view.columns.length > 0 ? view.columns : (kind?.fields ?? []).filter((f) => f.type !== 'markup' && f.type !== 'text').slice(0, 4).map((f) => f.key);
+  const quickKind = sourceKind(view);
+  const kind = quickKind === null || quickKind === '' ? undefined : lib.kind(quickKind);
+  const shownColumns = viewColumns(lib, view, list);
+  const columns = view.columns.length > 0 ? view.columns : kind !== undefined ? kind.fields.filter((f) => f.type !== 'markup' && f.type !== 'text').slice(0, 4).map((f) => f.key) : shownColumns.map((f) => f.key);
+  const chooserFields = kind !== undefined ? kind.fields.map((f) => ({ key: f.key, label: f.label }))
+    : [...new Map(list.slice(0, 200).flatMap((e) => fieldsOf(e, look)).filter((f) => f.type !== 'markup' && f.type !== 'blocks').map((f) => [f.key, { key: f.key, label: f.label }])).values()];
   const setV = (patch: Partial<ViewDoc>) => setView((v) => ({ ...v, ...patch }));
+  const rule = ruleOf(view);
 
   const saveView = (asNew: boolean) => run(async () => {
     const name = asNew ? window.prompt('Nazwa widoku', view.name === 'Widok' ? (kind?.name ?? 'Widok') : view.name) : view.name;
     if (name === null) return;
-    const doc = { ...view, name: name.trim() || 'Widok' };
-    const done = await lib.saveDoc('view', doc as unknown as Record<string, unknown>, asNew ? undefined : viewId ?? undefined);
+    const doc = viewJson({ ...view, name: name.trim() || 'Widok' });
+    const done = await lib.saveDoc('view', doc, asNew ? undefined : viewId ?? undefined);
     onView(done.id);
   });
 
@@ -113,14 +76,15 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
     <div className="cg">
       <div className="cg-row">
         <input type="search" value={view.query} placeholder="Szukaj we wpisach…" onChange={(e) => setV({ query: e.target.value })} aria-label="Szukaj" />
-        <select value={view.kind} onChange={(e) => setV({ kind: e.target.value, columns: [] })} aria-label="Rodzaj">
+        <select value={quickKind ?? '#inne'} onChange={(e) => { if (e.target.value !== '#inne') setView(withSourceKind(view, e.target.value)); }} aria-label="Rodzaj">
           <option value="">wszystkie rodzaje</option>
           {lib.kinds.map((k) => <option key={k.id} value={k.id}>{k.name} ({lib.ofKind(k.id).length})</option>)}
+          {quickKind === null && <option value="#inne">inne źródło (zob. „Wybór")</option>}
         </select>
         <span className="cg-subtabs">
           {(['table', 'tree', 'canvas'] as const).map((m) => <button key={m} type="button" className={view.mode === m ? 'is-on' : ''} onClick={() => setV({ mode: m })}>{{ table: 'Tabela', tree: 'Drzewo', canvas: 'Płótno' }[m]}</button>)}
         </span>
-        {writes && <button type="button" className="wk-btn" disabled={lib.kinds.length === 0} title={lib.kinds.length === 0 ? 'Najpierw dodaj rodzaj w Schemacie' : undefined} onClick={() => onNew(view.kind === '' ? lib.kinds[0]?.id ?? 'knowledge' : view.kind)}>+ Wpis{kind === undefined ? '' : `: ${kind.name}`}</button>}
+        {writes && <button type="button" className="wk-btn" disabled={lib.kinds.length === 0} title={lib.kinds.length === 0 ? 'Najpierw dodaj rodzaj w Schemacie' : undefined} onClick={() => onNew(kind?.id ?? lib.kinds[0]?.id ?? 'knowledge')}>+ Wpis{kind === undefined ? '' : `: ${kind.name}`}</button>}
         {writes && (
           <MenuButton label="Dodaj wiele naraz — formularzem" text="Wiele naraz" icon="list"
             items={[
@@ -130,8 +94,12 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
         )}
       </div>
       <details>
-        <summary>Filtr {view.rule !== null && view.rule.items.length > 0 ? `(${view.rule.items.length})` : ''}</summary>
-        <RuleEditor rule={view.rule ?? { op: 'and', items: [] }} onChange={(rule) => setV({ rule })} />
+        <summary>Filtr {rule !== null && rule.items.length > 0 ? `(${rule.items.length})` : ''}</summary>
+        <RuleEditor rule={rule ?? { op: 'and', items: [] }} onChange={(next) => setView(withRule(view, next))} />
+      </details>
+      <details>
+        <summary>Wybór i grupy {view.steps.length > 1 || quickKind === null ? `(${view.steps.length} ${view.steps.length === 1 ? 'krok' : 'kroki'})` : ''}</summary>
+        <ViewSteps view={view} onChange={setView} />
       </details>
       <div className="cg-row">
         <span className="cg-muted">{list.length} wpisów</span>
@@ -146,59 +114,16 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
       {failed !== null && <p className="wk-error">{failed}</p>}
       {picked.size > 0 && <SelectionBar ids={picked} total={list.length} onAll={() => setPicked(new Set(list.map((e) => e.id)))} onClear={() => setPicked(new Set())} onKept={setPicked} />}
       {view.mode === 'table' && <Table list={list} picked={picked} onPick={setPicked} columns={columns} sort={view.sort} onSort={(key) => setV({ sort: view.sort?.key === key ? { key, dir: view.sort.dir === 1 ? -1 : 1 } : { key, dir: 1 } })} onOpen={onOpen}
-        onColumns={kind === undefined ? undefined : (cols) => setV({ columns: cols })} kindFields={kind?.fields.map((f) => ({ key: f.key, label: f.label })) ?? []} />}
-      {view.mode === 'tree' && <Tree list={list} onOpen={onOpen} />}
+        onColumns={(cols) => setV({ columns: cols })} kindFields={chooserFields} />}
+      {view.mode === 'tree' && (groups === null ? <Tree list={list} onOpen={onOpen} /> : <GroupTree groups={groups} onOpen={onOpen} />)}
       {view.mode === 'canvas' && <Canvas list={list} positions={view.positions} onOpen={onOpen}
         onMoved={(id, at) => {
           const next = { ...view, positions: { ...view.positions, [id]: at } };
           setView(next);
-          if (writes && viewId !== null) void lib.saveDoc('view', next as unknown as Record<string, unknown>, viewId).catch(() => undefined);
+          if (writes && viewId !== null) void lib.saveDoc('view', viewJson(next), viewId).catch(() => undefined);
         }} />}
       {view.mode === 'canvas' && viewId === null && writes && <p className="wk-hint">Zapisz widok, żeby miejsca na płótnie zostały — widzą je wszyscy autorzy.</p>}
       {picked.size > 0 && <div className="cg-select-room" aria-hidden />}
-    </div>
-  );
-}
-
-function RuleEditor({ rule, onChange, depth = 0 }: { rule: RuleGroup; onChange: (r: RuleGroup) => void; depth?: number }) {
-  const { lib } = useCtx();
-  const keys = [...new Map(lib.kinds.flatMap((k) => k.fields).map((f) => [f.key, f.label])).entries()];
-  const set = (i: number, item: Condition | RuleGroup | null) => onChange({ ...rule, items: item === null ? rule.items.filter((_, j) => j !== i) : rule.items.map((x, j) => (j === i ? item : x)) });
-  return (
-    <div className="cg-cond">
-      <div className="cg-cond-row">
-        <select value={rule.op} onChange={(e) => onChange({ ...rule, op: e.target.value === 'or' ? 'or' : 'and' })}>
-          <option value="and">wszystkie warunki (I)</option>
-          <option value="or">którykolwiek (LUB)</option>
-        </select>
-      </div>
-      <div className="cg-cond-items">
-        {rule.items.map((item, i) => 'items' in item
-          ? <div key={i} className="cg-cond-item"><RuleEditor rule={item} depth={depth + 1} onChange={(r) => set(i, r)} /><button type="button" className="wk-link-btn" onClick={() => set(i, null)}>×</button></div>
-          : (
-            <div key={i} className="cg-cond-row">
-              {item.cmp !== 'kind' && item.cmp !== 'refers' && (
-                <select value={item.field ?? ''} onChange={(e) => set(i, { ...item, field: e.target.value })}>
-                  <option value="">pole…</option>
-                  {keys.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                </select>
-              )}
-              <select value={item.cmp} onChange={(e) => set(i, { ...item, cmp: e.target.value as Compare })}>
-                {(Object.keys(COMPARE_LABEL) as Compare[]).map((c) => <option key={c} value={c}>{COMPARE_LABEL[c]}</option>)}
-              </select>
-              {item.cmp === 'kind' ? (
-                <select value={item.value ?? ''} onChange={(e) => set(i, { ...item, value: e.target.value })}>
-                  {lib.kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
-                </select>
-              ) : item.cmp !== 'filled' && item.cmp !== 'empty' && <input value={item.value ?? ''} onChange={(e) => set(i, { ...item, value: e.target.value })} />}
-              <button type="button" className="wk-link-btn" onClick={() => set(i, null)}>×</button>
-            </div>
-          ))}
-        <span className="cg-row">
-          <button type="button" className="wk-link-btn" onClick={() => onChange({ ...rule, items: [...rule.items, { cmp: 'contains', field: keys[0]?.[0], value: '' }] })}>+ warunek</button>
-          {depth < 3 && <button type="button" className="wk-link-btn" onClick={() => onChange({ ...rule, items: [...rule.items, { op: rule.op === 'and' ? 'or' : 'and', items: [] }] })}>+ grupa</button>}
-        </span>
-      </div>
     </div>
   );
 }
@@ -365,6 +290,28 @@ function Tree({ list, onOpen }: { list: readonly Entity[]; onOpen: (id: string) 
           </li>
         );
       })}
+    </ul>
+  );
+}
+
+/** 2026-10-22 (Schritt 9) — das Drzewo nach den Gruppen des Widoku: nach einem Feld oder einer Achse von Tematy. */
+function GroupTree({ groups, onOpen }: { groups: readonly Group[]; onOpen: (id: string) => void }) {
+  const { lib } = useCtx();
+  return (
+    <ul className="cg-tree">
+      {groups.map((g) => (
+        <li key={g.key || '#reszta'}>
+          <details open={groups.length < 8}>
+            <summary><strong>{g.label}</strong> <span className="cg-muted">({g.ids.length})</span></summary>
+            <ul className="cg-tree">
+              {g.ids.slice(0, 500).map((id) => {
+                const e = lib.entity(id);
+                return e === undefined ? null : <li key={id}><button type="button" className="cg-ref" onClick={() => onOpen(id)}>{lib.label(e)}</button> <OriginTag id={id} /></li>;
+              })}
+            </ul>
+          </details>
+        </li>
+      ))}
     </ul>
   );
 }

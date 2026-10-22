@@ -5,7 +5,9 @@
  * <b>Die Auswahl ist ein Graph</b> [F15]: Quellen (alle Karten, eine Art, eine
  * Sammlung, ein Thema samt Unterthemen, eine Liste) → Filter (Vorlage,
  * Richtung, Form, Stand, nur Fällige) → Vereinigung → Sperre durch
- * Voraussetzungen → EINE Strategie. Die Strategien sind eine feste Liste mit
+ * Voraussetzungen → EINE Strategie. 2026-10-22 (Schritt 9): dazu „Idź po
+ * odwołaniu" und „Filtr wpisów" — dieselben Schritte wie ein Widok
+ * (`selection.ts`), hier über die Einträge der Karten. Die Strategien sind eine feste Liste mit
  * Parametern [E6], dieselben wie im Altbestand (`features/revision/registry.ts`):
  *
  * <code>
@@ -32,6 +34,7 @@ import { rngOf, shuffle, type Card } from './cardBasics';
 import { evaluate, paletteOf, type Graph, type NodeKind, type Port } from './graph';
 import { average, blockedBy, dueAt, knownessOf, KNOWN, levelOf, propagate, snapshotOf, type Dependency, type Level, type Mark, type Snapshot } from './knowness';
 import type { TextRule } from './check';
+import { pick, STEP_WORDS, type SelectContext, type Step } from './selection';
 
 /* -- Was durch den Auswahlgraphen fliesst ----------------------------------------- */
 
@@ -54,6 +57,8 @@ export interface RevisionContext {
   readonly now: number;
   /** 2026-10-22 — aus welcher Bibliothek oder Baza wiedzy ein Eintrag kommt (für „Rodzaj … z …"). */
   readonly from?: (entity: string) => string | undefined;
+  /** 2026-10-22 (Schritt 9) — die Auswahl, die ein Widok auch benutzt (`selection.ts`); fehlt sie, lassen die Schritte alles durch. */
+  readonly select?: SelectContext;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -160,6 +165,36 @@ const FILTER: Kind = {
   }
 };
 
+/** Der Eintrag einer Karte — ein Pytanie ist selbst einer. */
+const entityOfCard = (c: Card): string => c.entity ?? c.question;
+
+/**
+ * 2026-10-22 (Schritt 9) — EIN SCHRITT DER AUSWAHL über die Einträge der
+ * Karten: „Idź po odwołaniu" nimmt die Karten der erreichten Einträge (aus
+ * allen Karten), „Filtr wpisów" behält die Karten, deren Eintrag die Regel
+ * erfüllt.
+ */
+function throughEntities(ctx: RevisionContext, flow: CardFlow, step: Step): CardFlow {
+  if (ctx.select === undefined) return flow;
+  const kept = pick(ctx.select, step, new Set(flow.cards.map(entityOfCard)));
+  const from = step.type === 'follow' ? ctx.cards : flow.cards;
+  return { cards: from.filter((c) => kept.has(entityOfCard(c))), gate: flow.gate };
+}
+
+const FOLLOW: Kind = {
+  type: 'follow', label: STEP_WORDS.follow.label, group: 'Zawężenie',
+  says: `${STEP_WORDS.follow.says} Daje karty tamtych wpisów.`,
+  ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('cards', 'Karty')] }),
+  run: ({ config, inputs, ctx }) => ({ cards: throughEntities(ctx, merge(flowsAt(inputs, 'cards')), { type: 'follow', config }) })
+};
+
+const FILTER_RULE: Kind = {
+  type: 'filter.rule', label: 'Filtr wpisów', group: 'Zawężenie',
+  says: `${STEP_WORDS['filter.rule'].says} Zostają karty tych wpisów.`,
+  ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('cards', 'Karty')] }),
+  run: ({ config, inputs, ctx }) => ({ cards: throughEntities(ctx, merge(flowsAt(inputs, 'cards')), { type: 'filter.rule', config }) })
+};
+
 const UNION: Kind = {
   type: 'union', label: 'Razem', group: 'Zawężenie',
   says: 'Łączy kilka źródeł w jeden stos, bez powtórzeń.',
@@ -232,7 +267,7 @@ const STRATEGY: Kind = {
   }
 };
 
-export const REVISION_PALETTE = paletteOf<RevisionContext>('revision', [ALL, BY_KIND, BY_COLLECTION, BY_TOPIC, BY_LIST, FILTER, UNION, GATE, STRATEGY]);
+export const REVISION_PALETTE = paletteOf<RevisionContext>('revision', [ALL, BY_KIND, BY_COLLECTION, BY_TOPIC, BY_LIST, FILTER, FOLLOW, FILTER_RULE, UNION, GATE, STRATEGY]);
 
 /** Der Plan einer Wiederholung aus ihrem Graphen — genau ein „Sposób pytania". */
 export async function planOf(graph: Graph, ctx: RevisionContext): Promise<{ plan: Plan | null; problems: string[] }> {

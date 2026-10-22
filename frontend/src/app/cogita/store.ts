@@ -31,6 +31,7 @@ import type { Dependency, DependencyKind, Mark } from './knowness';
 import type { RevisionContext } from './revision';
 import { DEPENDENCY_KINDS } from './knowness';
 import { labelOf, lookupOf, plainOf, refIndex, replaceRef, tellOf, valuesOf, fieldsOf, type Backlink, type Entity, type KindDef, type Lookup } from './schema';
+import { readRule, ruleMatches, type RuleGroup, type SelectContext } from './selection';
 
 /* -- Einstellungen einer Bibliothek als Kurs -------------------------------------------- */
 
@@ -150,23 +151,8 @@ const SHARED_DOCS: ReadonlySet<string> = new Set<DocKind>(['template', 'revision
 
 /* -- Zbiory: gespeicherte Filter und Listen [F1, F19] -------------------------------------- */
 
-export type Compare = 'eq' | 'ne' | 'contains' | 'filled' | 'empty' | 'gt' | 'lt' | 'kind' | 'refers';
-
-export const COMPARE_LABEL: Record<Compare, string> = {
-  eq: 'równe', ne: 'różne od', contains: 'zawiera', filled: 'wypełnione', empty: 'puste',
-  gt: 'większe niż / po', lt: 'mniejsze niż / przed', kind: 'jest rodzaju', refers: 'odwołuje się do'
-};
-
-export interface Condition {
-  readonly field?: string;
-  readonly cmp: Compare;
-  readonly value?: string;
-}
-
-export interface RuleGroup {
-  readonly op: 'and' | 'or';
-  readonly items: readonly (Condition | RuleGroup)[];
-}
+/* 2026-10-22 (Schritt 9) — die Regel gehört zur Auswahl, die Widoki und Powtórki teilen (`selection.ts`); alte Importe gelten weiter. */
+export { COMPARE_LABEL, matches, readRule, ruleMatches, type Compare, type Condition, type RuleGroup } from './selection';
 
 export interface Collection {
   readonly id: string;
@@ -175,67 +161,12 @@ export interface Collection {
   readonly list: readonly string[];
 }
 
-const isGroup = (v: Condition | RuleGroup): v is RuleGroup => 'items' in v;
-
-export function readRule(raw: unknown, depth = 0): RuleGroup | null {
-  if (!isObject(raw) || depth > 6) return null;
-  const items: (Condition | RuleGroup)[] = [];
-  for (const one of Array.isArray(raw.items) ? raw.items : []) {
-    if (!isObject(one)) continue;
-    if (Array.isArray(one.items)) {
-      const inner = readRule(one, depth + 1);
-      if (inner !== null) items.push(inner);
-      continue;
-    }
-    const cmp = str(one.cmp) as Compare;
-    if (!(cmp in COMPARE_LABEL)) continue;
-    items.push({ ...(str(one.field) !== '' ? { field: str(one.field) } : {}), cmp, ...(one.value !== undefined ? { value: str(one.value) } : {}) });
-  }
-  return { op: raw.op === 'or' ? 'or' : 'and', items };
-}
-
 export const readCollection = (id: string, raw: unknown): Collection => {
   const d = isObject(raw) ? raw : {};
   return { id, name: str(d.name).trim() || 'Zbiór', rule: readRule(d.rule), list: strings(d.list) };
 };
 
 const fold = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
-
-/** Gilt eine Bedingung für diese Entität? Texte ohne Rücksicht auf Akzente; Zahlen und Daten als solche. */
-export function matches(entity: Entity, look: Lookup, cond: Condition): boolean {
-  if (cond.cmp === 'kind') return entity.kinds.includes(cond.value ?? '');
-  if (cond.cmp === 'refers') {
-    const target = cond.value ?? '';
-    return fieldsOf(entity, look).some((f) => f.type === 'ref' && valuesOf(entity, f).some((v) => v.value === target));
-  }
-  const field = fieldsOf(entity, look).find((f) => f.key === cond.field);
-  const values = field === undefined ? [] : valuesOf(entity, field).map((v) => v.value).filter((v) => v !== null);
-  const texts = values.map((v) => (typeof v === 'string' ? v : typeof v === 'number' || typeof v === 'boolean' ? String(v) : JSON.stringify(v)));
-  const want = cond.value ?? '';
-  switch (cond.cmp) {
-    case 'filled': return values.length > 0;
-    case 'empty': return values.length === 0;
-    case 'eq': return texts.some((t) => fold(t) === fold(want));
-    case 'ne': return texts.every((t) => fold(t) !== fold(want));
-    case 'contains': return texts.some((t) => fold(plainOf(t)).includes(fold(want)));
-    case 'gt':
-    case 'lt': {
-      const number = Number(want.replace(',', '.'));
-      return values.some((v) => {
-        if (typeof v === 'number' && Number.isFinite(number)) return cond.cmp === 'gt' ? v > number : v < number;
-        if (typeof v === 'string') return cond.cmp === 'gt' ? v > want : v < want;
-        return false;
-      });
-    }
-    default: return false;
-  }
-}
-
-export function ruleMatches(entity: Entity, look: Lookup, rule: RuleGroup): boolean {
-  if (rule.items.length === 0) return true;
-  const results = rule.items.map((one) => (isGroup(one) ? ruleMatches(entity, look, one) : matches(entity, look, one)));
-  return rule.op === 'and' ? results.every(Boolean) : results.some(Boolean);
-}
 
 /* -- Die Baza wiedzy --------------------------------------------------------------------- */
 
@@ -259,6 +190,8 @@ interface Memo {
   materialKinds: readonly KindDef[] | null;
   /** 2026-10-22 (Schritt 7) — wer auf welches Thema zeigt (Feld oder Zapis), über Eigenes und Stoff. */
   topicLinks: Map<string, Set<string>> | null;
+  /** 2026-10-22 (Schritt 9) — wer auf welchen Eintrag zeigt, überhaupt (für „Idź po odwołaniu" rückwärts). */
+  links: Map<string, Set<string>> | null;
 }
 
 /** Suchtext je Entität: Etikett, Unterscheidung, alle Textwerte — ohne Akzente. */
@@ -335,7 +268,7 @@ export class CogitaLibrary {
         wo es Einträge von ihnen gibt. Die Maschine kennt sie trotzdem (`look`).
       */
       stamp, kinds, contentKinds: kinds.filter((k) => !BOOK_KINDS.has(k.id) && (!isBaseKind(k.id) || byKind.has(k.id) || added.has(k.id))), entities, refs,
-      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, search: null, refSearch: null, markup: null, materialKinds: null, topicLinks: null
+      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, search: null, refSearch: null, markup: null, materialKinds: null, topicLinks: null, links: null
     };
     return this.memo;
   }
@@ -382,7 +315,8 @@ export class CogitaLibrary {
       topic: (id, depth) => this.topicTree(id, depth),
       marks,
       now,
-      from: (id) => this.origin(id)?.libraryId
+      from: (id) => this.origin(id)?.libraryId,
+      select: this.selectContext()
     };
   }
   get look(): Lookup { return this.fresh().look; }
@@ -498,6 +432,46 @@ export class CogitaLibrary {
       m.topicLinks = links;
     }
     return m.topicLinks;
+  }
+
+  /**
+   * 2026-10-22 (Schritt 9) — WER AUF EINEN EINTRAG ZEIGT, gleich welcher Art:
+   * Felder und Zapis, über Eigenes und den Stoff der Bibliotheken.
+   */
+  pointing(id: string): ReadonlySet<string> {
+    const m = this.fresh();
+    if (m.links === null) {
+      const links = new Map<string, Set<string>>();
+      const resolve = (token: string) => this.resolve(token);
+      for (const e of [...m.entities, ...m.refs]) {
+        for (const ref of refsOf(e, resolve)) {
+          if (ref.target === e.id) continue;
+          let set = links.get(ref.target);
+          if (set === undefined) { set = new Set(); links.set(ref.target, set); }
+          set.add(e.id);
+        }
+      }
+      m.links = links;
+    }
+    return m.links.get(id) ?? new Set();
+  }
+
+  /**
+   * 2026-10-22 (Schritt 9) — WAS EINE AUSWAHL VON DER BAZA BRAUCHT
+   * (`selection.ts`): dieselbe für einen Widok und für die Knoten einer
+   * Powtórka.
+   */
+  selectContext(): SelectContext {
+    return {
+      entities: () => this.entities(),
+      material: (kind) => this.material(kind),
+      entity: (id) => this.entity(id),
+      look: this.look,
+      collection: (id) => this.members(id),
+      topic: (id, depth) => this.topicTree(id, depth),
+      pointing: (id) => this.pointing(id),
+      from: (id) => this.origin(id)?.libraryId
+    };
   }
 
   /** Was auf ein Thema zeigt (ohne seine Unterthemen). */

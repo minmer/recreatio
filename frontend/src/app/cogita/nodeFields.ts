@@ -12,6 +12,8 @@ export type ConfigType =
   | 'text' | 'longtext' | 'code' | 'number' | 'bool' | 'select' | 'lines'
   | 'field' | 'kind' | 'kinds' | 'entity' | 'collection' | 'template' | 'templates' | 'flow' | 'rule'
   | 'condition' | 'actions' | 'options' | 'chapters' | 'media' | 'forms' | 'levels'
+  /* 2026-10-22 (Schritt 9) — die Regel der Zbiory (Feld, Vergleich, Gruppen), für „Filtr wpisów". */
+  | 'query'
   /* 2026-10-22 — eine Bibliothek oder Baza wiedzy: diese oder eine ihrer Quellen. */
   | 'source';
 
@@ -102,6 +104,9 @@ const REVISION_FIELDS: Record<string, readonly ConfigField[]> = {
   'source.topic': [f('topic', 'Temat', 'entity', { kinds: ['topic'] }), f('depth', 'Głębokość', 'number')],
   'source.list': [f('ids', 'Wpisy albo pytania', 'lines', { hint: 'identyfikatory, jeden w wierszu' })],
   filter: [f('templates', 'Tylko szablony', 'templates'), f('directions', 'Tylko kierunki', 'lines'), f('forms', 'Tylko formy', 'forms'), f('levels', 'Tylko stany', 'levels'), f('dueOnly', 'Tylko te, na które przyszła pora', 'bool')],
+  /* 2026-10-22 (Schritt 9) — dieselben Schritte wie ein Widok (`selection.ts`). */
+  follow: [f('field', 'Po którym polu', 'field', { hint: 'puste: po wszystkich odwołaniach' }), f('back', 'Wstecz: do tego, co wskazuje na te wpisy', 'bool')],
+  'filter.rule': [f('rule', 'Reguła', 'query')],
   union: [],
   gate: [f('threshold', 'Od jakiej znajomości (1 = umie)', 'number')],
   strategy: [
@@ -139,7 +144,8 @@ const FLOW_FIELDS: Record<string, readonly ConfigField[]> = {
 };
 
 export function configFields(palette: string, type: string): readonly ConfigField[] {
-  const table = palette === 'card-template' ? TEMPLATE_FIELDS : palette === 'revision' ? REVISION_FIELDS : palette === 'flow' ? FLOW_FIELDS : {};
+  /* 2026-10-22 (Schritt 9) — ein Widok wählt mit denselben Schritten wie die Powtórka. */
+  const table = palette === 'card-template' ? TEMPLATE_FIELDS : palette === 'revision' || palette === 'view' ? REVISION_FIELDS : palette === 'flow' ? FLOW_FIELDS : {};
   return table[type] ?? [];
 }
 

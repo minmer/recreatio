@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views'];
 await build({
   entryPoints: names.map((n) => `src/app/cogita/${n}.ts`),
   bundle: true,
@@ -24,7 +24,7 @@ await build({
   logLevel: 'error'
 });
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW] = await Promise.all(names.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -918,7 +918,7 @@ check('the stand of the plan before a run', R.levelsOf(plan, () => [], 0), { uns
 const more = ['logic', 'flow', 'rules', 'game', 'kinds', 'live', 'store', 'sources', 'json', 'pageBase', 'visibility'];
 const moreOut = join(workspace, 'more');
 await build({
-  entryPoints: { ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), steps: 'src/app/steps/steps.ts' },
+  entryPoints: { ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), steps: 'src/app/steps/steps.ts', partQuery: 'src/app/pages/partQuery.ts' },
   bundle: true,
   format: 'esm',
   platform: 'node',
@@ -930,7 +930,7 @@ await build({
 /* Wie in app-json-check: ein BroadcastChannel des Schlüsselbunds hielte den Lauf sonst am Leben. */
 globalThis.BroadcastChannel = undefined;
 const loadMore = (name) => import(pathToFileURL(join(moreOut, `${name}.js`)).href);
-const [Lg, Fl, Ru, Ga, Ki, Li, So, Src, Js, PB, Vis, St] = await Promise.all([...more, 'steps'].map(loadMore));
+const [Lg, Fl, Ru, Ga, Ki, Li, So, Src, Js, PB, Vis, St, PQ] = await Promise.all([...more, 'steps', 'partQuery'].map(loadMore));
 
 /* -- Die eine Logik ------------------------------------------------------------------------------- */
 
@@ -1284,6 +1284,78 @@ check('goals and lines follow the one logic', [
   check('a kind named inside a template („Wpisy rodzaju") goes out as a reference and comes back as the new copy',
     [whenOut, again.docs.find((d) => d.kind === 'template' && d.data.name === 'Kiedy jest ten psalm lub pieśń?').data.graph.nodes.find((x) => x.id === 'gdzie').config.kind === placeAgain],
     [`@${placeKind}`, true]);
+}
+
+/* ══ 2026-10-22 (Schritt 9) — Widoki: eine Auswahl in Schritten, geteilt mit der Powtórka; Gruppen; der Zustand je Baustein ══ */
+
+{
+  const U = (n) => `${String(n).repeat(8)}-${String(n).repeat(4)}-4${String(n).repeat(3)}-8${String(n).repeat(3)}-${String(n).repeat(12)}`;
+  const [abr, iza, jak, daw, tOs, tObiet, tKrol, q1] = [1, 2, 3, 4, 5, 6, 7, 8].map(U);
+  const kP = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
+  const map = new Map();
+  const store = {
+    libraryId: 'V', areaId: 'area-v', revision: 1, loaded: true,
+    all: () => [...map.values()], get: (id) => map.get(id), byKey: () => undefined,
+    save: async (input) => { map.set(input.id, input); store.revision += 1; return input; }, subscribe: () => () => undefined
+  };
+  const E = (id, kinds, data) => map.set(id, { id, kind: 'entity', data: { _kinds: kinds, ...data } });
+  map.set(kP, { id: kP, kind: 'kind', data: { name: 'Postać', label: '{name}', fields: [
+    { key: 'name', label: 'Imię', type: 'line' }, { key: 'father', label: 'Ojciec', type: 'ref', to: [kP] },
+    { key: 'era', label: 'Epoka', type: 'line' }, { key: 'topics', label: 'Tematy', type: 'ref', multi: true, to: ['topic'] }] } });
+  E(abr, [kP], { name: 'Abraham', era: 'patriarchowie' });
+  E(iza, [kP], { name: 'Izaak', father: abr, era: 'patriarchowie' });
+  E(jak, [kP], { name: 'Jakub', father: iza, era: 'patriarchowie', topics: [tObiet] });
+  E(daw, [kP], { name: 'Dawid', era: 'królowie', topics: [tKrol] });
+  E(tOs, ['topic'], { name: 'Wątki', aspect: 'yes' });
+  E(tObiet, ['topic'], { name: 'Obietnica', parent: [tOs], order: 1 });
+  E(tKrol, ['topic'], { name: 'Królestwo', parent: [tOs], order: 2 });
+  E(q1, ['question'], { form: 'text', prompt: 'Kto był ojcem Jakuba?', answers: ['Izaak'], about: [jak] });
+  map.set('c1', { id: 'c1', kind: 'collection', data: { name: 'Pierwsi', list: [abr, iza] } });
+  const lib = new ST.CogitaLibrary(store, true);
+  const names = (steps, more = {}) => VW.viewList(lib, VW.readView({ steps, ...more })).map((e) => lib.label(e));
+  const step = (type, config = {}) => ({ type, config });
+
+  const old = VW.readView({ name: 'Stary', mode: 'tree', kind: kP, rule: { op: 'and', items: [{ field: 'era', cmp: 'eq', value: 'królowie' }] } });
+  check('an old view (kind + filter) reads as steps', old.steps.map((x) => x.type), ['source.kind', 'filter.rule']);
+  const json = VW.viewJson(old);
+  check('… and is written in the new shape only', [Object.keys(json).includes('kind'), Object.keys(json).includes('rule'), VW.readView(json).steps.length], [false, false, 2]);
+  check('a view of one kind, by label', names([step('source.kind', { kind: kP })]), ['Abraham', 'Dawid', 'Izaak', 'Jakub']);
+  check('no source: everything the base knows', names([]).length, 8);
+  check('follow a field forward, twice', [names([step('source.list', { ids: [jak] }), step('follow', { field: 'father' })]), names([step('source.list', { ids: [jak] }), step('follow', { field: 'father' }), step('follow', { field: 'father' })])], [['Izaak'], ['Abraham']]);
+  check('follow backwards along one field: the children', names([step('source.list', { ids: [abr] }), step('follow', { field: 'father', back: true })]), ['Izaak']);
+  truth('backwards along anything: the question about him', names([step('source.list', { ids: [jak] }), step('follow', { back: true })]).includes('Kto był ojcem Jakuba?'), names([step('source.list', { ids: [jak] }), step('follow', { back: true })]));
+  check('a filter with the collections’ rule', names([step('source.kind', { kind: kP }), step('filter.rule', { rule: { op: 'and', items: [{ field: 'era', cmp: 'eq', value: 'królowie' }] } })]), ['Dawid']);
+  check('a collection as the source', names([step('source.collection', { collection: 'c1' })]), ['Abraham', 'Izaak']);
+  truth('a topic as the source: what points at it', names([step('source.topic', { topic: tObiet })]).includes('Jakub'));
+  check('the search narrows; the order follows a field, both ways', [names([step('source.kind', { kind: kP })], { query: 'iza' }), names([step('source.kind', { kind: kP })], { sort: { key: 'era', dir: 1 } })[0], names([step('source.kind', { kind: kP })], { sort: { key: 'era', dir: -1 } })[3]], [['Izaak'], 'Dawid', 'Dawid']);
+  const view = VW.readView({ steps: [step('source.kind', { kind: kP })] });
+  const list = VW.viewList(lib, view);
+  check('groups by a field', VW.viewGroups(lib, { ...view, group: { by: 'field', field: 'era' } }, list).map((g) => [g.label, g.ids.length]), [['królowie', 1], ['patriarchowie', 3]]);
+  check('groups by an axis of topics, in its order; the rest last', VW.viewGroups(lib, { ...view, group: { by: 'topic', axis: tOs } }, list).map((g) => [g.label, g.ids.map((id) => lib.label(lib.entity(id)))]),
+    [['Obietnica', ['Jakub']], ['Królestwo', ['Dawid']], ['bez wartości na tej osi', ['Abraham', 'Izaak']]]);
+  check('the axes: topics marked as aspects', VW.axesOf(lib).map((t) => lib.label(t)), ['Wątki']);
+  check('the quick kind and the first filter are views into the steps', [VW.sourceKind(view), VW.sourceKind(VW.readView({ steps: [step('source.collection', { collection: 'c1' })] })), VW.ruleOf(VW.withRule(view, { op: 'or', items: [] }))?.op, VW.withSourceKind(view, '').steps[0].type],
+    [kP, null, 'or', 'source.all']);
+  check('columns: the first fields that are not long text', VW.viewColumns(lib, view, list).map((f) => f.key), ['name', 'father', 'era', 'topics']);
+
+  /* Dieselben Schritte als Knoten der Powtórka. */
+  const card = (id) => ({ key: `k-${id}`, entity: id, question: id, direction: 'a→b', answer: { form: 'flash' }, explain: [] });
+  const cards = [abr, iza, jak, daw].map(card);
+  const rctx = lib.revisionContext(cards, () => [], Date.now());
+  const followed = (await R.planOf(G.readGraph({ nodes: [n('src', 'source.list', { ids: [jak] }), n('f', 'follow', { field: 'father' }, 5), n('s', 'strategy', { mode: 'once', order: 'given' }, 10)], edges: [l('1', 'src', 'cards', 'f', 'cards'), l('2', 'f', 'cards', 's', 'cards')] }), rctx)).plan;
+  check('a revision follows the same step: the cards of the father', followed.cards.map((c) => c.entity), [iza]);
+  const ruled = (await R.planOf(G.readGraph({ nodes: [n('src', 'source.all'), n('f', 'filter.rule', { rule: { op: 'and', items: [{ field: 'era', cmp: 'eq', value: 'królowie' }] } }, 5), n('s', 'strategy', { mode: 'once', order: 'given' }, 10)], edges: [l('1', 'src', 'cards', 'f', 'cards'), l('2', 'f', 'cards', 's', 'cards')] }), rctx)).plan;
+  check('… and the same filter', ruled.cards.map((c) => c.entity), [daw]);
+
+  /* Der Zustand je Baustein in der Adresse. */
+  const a = PQ.scopeOf('0190a0a0-0000-7000-8000-00000000aaa1');
+  const b = PQ.scopeOf('0190a0a0-0000-7000-8000-00000000bbb2');
+  truth('two modules have two scopes (the random end of their ids)', a !== b && a.length === 6, [a, b]);
+  let hash = '#/parafia/postacie?wpis=x';
+  hash = PQ.withScope(hash, a, { q: 'Józef', e: 'id1' });
+  hash = PQ.withScope(hash, b, { q: 'Dawid' });
+  check('each module reads only its own keys; other keys stay', [PQ.readScope(hash, a), PQ.readScope(hash, b), hash.includes('wpis=x')], [{ q: 'Józef', e: 'id1' }, { q: 'Dawid' }, true]);
+  check('clearing a key removes only that one', PQ.readScope(PQ.withScope(hash, a, { e: null }), a), { q: 'Józef' });
 }
 
 await rm(workspace, { recursive: true, force: true });

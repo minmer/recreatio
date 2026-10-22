@@ -12,6 +12,7 @@ import { publishModule, pageUrl } from './publish';
 import { WhoSees } from './BaseWho';
 import { graphJson, readGraph, type Graph } from './graph';
 import { GraphEditor } from './GraphEditor';
+import { refFieldKeys } from './ViewSteps';
 import { REVISION_PALETTE, MODE_LABEL } from './revision';
 import { REVISION_PRESETS } from './presets';
 import { planFor } from './RevisionRun';
@@ -120,7 +121,7 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
         <label className="wk-field"><span>Krótki opis</span><input value={summary} disabled={!writes} onChange={(e) => { setSummary(e.target.value); setDirty(true); }} /></label>
         <button type="button" className="wk-btn" onClick={onRun}>Powtarzaj</button>
       </div>
-      <GraphEditor graph={graph} palette={REVISION_PALETTE} readOnly={!writes} onChange={(g) => { setGraph(g); setDirty(true); }} />
+      <GraphEditor graph={graph} palette={REVISION_PALETTE} fieldKeys={refFieldKeys(lib)} readOnly={!writes} onChange={(g) => { setGraph(g); setDirty(true); }} />
       <p className="cg-muted">
         {plan === undefined ? 'Liczenie kart…' : plan === null ? 'Podgląd się nie udał.'
           : plan.plan === null ? plan.problems.join(' ') : `${plan.plan.cards.length} kart · ${MODE_LABEL[plan.plan.mode]}${plan.plan.gate !== null ? ' · najpierw podstawy' : ''}`}
