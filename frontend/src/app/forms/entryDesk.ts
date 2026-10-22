@@ -375,13 +375,15 @@ export function withEntryQuery(hash: string, query: EntryQuery): string {
 /* -- Was das Panel eines Menschen zeigt ----------------------------------------------- */
 
 /** Die Stücke des Panels — alle, oder einzelne in eigenen Kacheln. */
-export const PANEL_SECTIONS = ['answers', 'steps', 'extensions', 'link', 'actions'] as const;
+export const PANEL_SECTIONS = ['answers', 'steps', 'extensions', 'areas', 'link', 'actions'] as const;
 export type PanelSection = (typeof PANEL_SECTIONS)[number];
 
 export const PANEL_SECTION_LABEL: Record<PanelSection, string> = {
   answers: 'Odpowiedzi',
   steps: 'Kroki',
   extensions: 'Rozszerzenia',
+  /* 0120 — die Kleinbereiche dieser Person (je virtuellem Bereich des Formulars). */
+  areas: 'Obszary osoby',
   link: 'Link osoby',
   actions: 'Napisz, ukryj, usuń'
 };

@@ -74,6 +74,21 @@ public static partial class Module
 
         var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
 
+        /*
+         * 0120 — die Rollen eines Formulars, durch Kommas, in ihrer Reihenfolge
+         * (`FOR XML PATH`: dieser Server kennt `STRING_AGG` nicht). Vor der
+         * Migration gibt es die Tabelle nicht — dann eben keine Liste, und die
+         * eine Rolle von 0091 steht weiter in `memberRoleId`.
+         */
+        var memberRoles = await Schema.VirtualAreasAsync(connection, ctx.RequestAborted)
+            ? """
+              (SELECT CONVERT(nvarchar(36), mr.role_id) + N','
+                 FROM app.module_role mr WHERE mr.module_id = m.id
+                ORDER BY mr.position, mr.created_at
+                  FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)')
+              """
+            : "CAST(NULL AS nvarchar(max))";
+
         /* 0081 — welche Formulare an einem Baustein hängen (Audience, „Napisz do nas"): wer dort schreiben darf. */
         var audience = new Dictionary<Guid, List<string>>();
         await using (var forms = new SqlCommand("""
@@ -143,7 +158,10 @@ public static partial class Module
                    m.form_group_id, m.group_position,
 
                    /* 0097 — der Name eines Formulars: versiegelt unter dem Schlüssel seines Bereichs. */
-                   m.name_sealed, m.name_epoch
+                   m.name_sealed, m.name_epoch,
+
+                   /* 0120 — alle Rollen, die seine Menschen bekommen (Spalte 21: die Nummern davor bleiben). */
+                   {memberRoles} AS member_roles
             FROM app.module m
             LEFT JOIN app.area a ON a.id = m.area_id
             WHERE
@@ -212,6 +230,10 @@ public static partial class Module
                 /* 0091 — die Rolle, die jeder bekommt, der es einsendet (null: keine). */
                 memberRoleId = reader.IsDBNull(16) ? null : Ids.ToText(reader.GetGuid(16)),
 
+                /* 0120 — alle Rollen; ohne die Migration die eine von 0091 als Liste. */
+                memberRoleIds = MemberRoleList(reader.IsDBNull(21) ? null : reader.GetString(21),
+                    reader.IsDBNull(16) ? null : reader.GetGuid(16)),
+
                 /* 0096 — die Gruppe von Formularen (ein Ordner), und die Stelle darin. */
                 groupId = reader.IsDBNull(17) ? null : Ids.ToText(reader.GetGuid(17)),
                 groupPosition = reader.IsDBNull(18) ? (int?)null : reader.GetInt32(18)
@@ -223,6 +245,23 @@ public static partial class Module
     }
 
 /* -- Gemeinsames --------------------------------------------------------- */
+
+    /// <summary>
+    /// 0120 — die Rollen eines Formulars aus der Liste, die SQL baut (Kennungen
+    /// mit Komma dahinter, wie der Server sie schreibt: gross). Ohne Liste die
+    /// eine Rolle von 0091, damit ein Browser nur EIN Feld lesen muss.
+    /// </summary>
+    public static List<string> MemberRoleList(string? list, Guid? single)
+    {
+        if (list is null) return single is null ? [] : [Ids.ToText(single.Value)];
+
+        var roles = new List<string>();
+        foreach (var part in list.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (Guid.TryParse(part, out var role) && !roles.Contains(Ids.ToText(role))) roles.Add(Ids.ToText(role));
+        }
+        return roles;
+    }
 
     internal readonly record struct Row(
         Guid Id, Guid? AreaId, string Kind, string? Name, string ForKind,

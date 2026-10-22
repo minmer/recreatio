@@ -15,6 +15,8 @@
  *      das Intervall 100 ms + Pause), Limit je Ramka — beim Senden, in der Warteschlange,
  *      beim Stop mitten in der Pause; die Regler der Knöpfe nur für die Knöpfe, jeder Timer mit eigenen
  *      (gespeichert im Timer, im Plan des Telefons, bei „Wykonaj teraz"); gespeichert bleibt der schnellste Sygnał.
+ *   9. Kurz oder gehalten (2026-10-21): kurz der ganze Sygnał, gehalten so lange wie gedrückt (live im Telefon,
+ *      losgelassen sofort; wartete er, danach so lange, wie gedrückt war), Stop; die Knöpfe ohne Limit.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -554,6 +556,79 @@ try {
   assert.ok(times[1].at - times[0].at >= 115 && times[1].at - times[0].at < 2500, `the timer's pause, not the buttons' 3 s (${times[1].at - times[0].at} ms)`);
   m.setPace(m.FASTEST);
   ok('pace: pause between transmissions (also between the single packets inside every frame: 100 ms + pause) and a limit per frame — when sending, in the queue (taken when each press is due), stop in the middle of a pause; the buttons\' sliders only for the buttons, every timer with its own (stored with it, in the phone\'s plan, for „Wykonaj teraz"); the stored signal stays the fastest');
+
+  /* -- 9. Kurz oder gehalten (2026-10-21) -------------------------------------------------------------- */
+
+  /* Die Knöpfe haben kein Limit mehr — ein früher gemerktes gilt dort nicht; die Pause bleibt. */
+  assert.deepEqual(m.buttonPace({ pauseMs: 300, limitMs: 500 }), { pauseMs: 300, limitMs: null }, 'the buttons: only the pause, how long is the finger\'s');
+  assert.deepEqual(m.buttonPace(m.readPace('{"pauseMs":150,"limitMs":200}')), { pauseMs: 150, limitMs: null });
+
+  /* Ein Druck, der vorbei war, als er dran kam: so lange, wie gedrückt war. */
+  const oneFrame = [{ manufacturerId: 0, data: 'AA', durationMs: 1000, gapMs: 0, intervalMs: 100 }];
+  assert.deepEqual(m.heldFrames(oneFrame, 2500), [{ ...oneFrame[0], durationMs: 2500 }], 'one frame: as long as pressed');
+  assert.deepEqual(m.heldFrames(oneFrame, 20).map((f) => f.durationMs), [100], 'never under the shortest frame');
+  assert.deepEqual(m.heldFrames(oneFrame, 99_000).map((f) => f.durationMs), [30_000], 'never over 30 s');
+  const two = [{ manufacturerId: 0, data: 'AA', durationMs: 400, gapMs: 100, intervalMs: 100 }, { manufacturerId: 0, data: 'BB', durationMs: 300, gapMs: 50, intervalMs: 100 }];
+  assert.deepEqual(m.heldFrames(two, 1500).map((f) => [f.data, f.durationMs, f.gapMs]), [['AA', 400, 100], ['BB', 300, 50], ['AA', 400, 100], ['BB', 150, 0]],
+    'several frames: in order and again from the first, the last one shortened, no pause after it');
+  assert.ok(m.heldFrames(two, 30_000).length <= 20, 'at most the frames the phone takes');
+
+  /* Gehalten: das Telefon sendet, bis losgelassen wird. */
+  const holdRadio = () => {
+    const r = {
+      sends: [], releases: [], stopped: 0,
+      async support() { return READY; },
+      async requestPermission() { return { granted: true }; },
+      send({ frames, hold }) {
+        r.sends.push({ frames, hold: hold === true });
+        if (hold !== true) return Promise.resolve(okResult(frames));
+        return new Promise((resolve) => {
+          r.end = (code, heldMs) => resolve({ code, detail: null, startedAt: 5000, endedAt: 5000 + heldMs, frames: [{ index: 0, code, requestedMs: frames[0].durationMs, startMs: 9, startedAt: 5009, stoppedAt: 5009 + heldMs, heldMs }] });
+        });
+      },
+      async release({ heldMs }) { r.releases.push(heldMs); r.end?.('ok', 1800); return { released: true }; },
+      async stop() { r.stopped++; r.end?.('stopped', 700); return { stopped: true }; },
+      async openSettings() {}
+    };
+    return r;
+  };
+  m.forgetAttempts();
+  let hr = holdRadio();
+  let held = m.pressHold();
+  const live = m.transmit(hr, lamp, on, null, held);
+  await new Promise((ok) => setTimeout(ok, 5));
+  assert.deepEqual([hr.sends.length, hr.sends[0].hold, held.live, m.attemptsNow()[0].state], [1, true, true, 'sending'], 'still pressed when its turn comes: sent while held');
+  m.releaseHold(hr, held, 2100);
+  a = await live;
+  assert.deepEqual([a.code, a.state, a.held, hr.releases, a.timing], ['ok', 'sent', true, [2100], []], 'released: the phone stops; no timing complaints about a held frame');
+  assert.match(a.message, /Nadano przez 1,8 s — tak długo, jak trzymano przycisk/);
+  m.releaseHold(hr, held, 2500);
+  assert.deepEqual(hr.releases, [2100], 'released once');
+
+  /* Gehalten hinter einem anderen, losgelassen, bevor er dran war: danach so lange, wie gedrückt war. */
+  hr = holdRadio();
+  const before = m.transmit(hr, lamp, signal('Długi', FIRST));
+  held = m.pressHold();
+  const later = m.transmit(hr, lamp, on, null, held);
+  m.releaseHold(hr, held, 2500);
+  await Promise.all([before, later]);
+  assert.deepEqual(hr.sends.map((x) => [x.hold, x.frames[0].durationMs]), [[false, 1000], [false, 2500]], 'the waiting press goes out as long as it was pressed');
+  assert.deepEqual(hr.releases, [], 'nothing to release on the phone: it was never held there');
+
+  /* Stop während gehalten wird. */
+  hr = holdRadio();
+  held = m.pressHold();
+  const stopped = m.transmit(hr, lamp, on, null, held);
+  await new Promise((ok) => setTimeout(ok, 5));
+  await m.stopTransmission(hr);
+  a = await stopped;
+  assert.deepEqual([a.code, a.state], ['stopped', 'stopped'], 'Stop ends a held press too');
+  m.releaseHold(hr, held, 900);
+
+  /* Das Telefon kennt das Halten. */
+  assert.match(plugin, /public void release\(PluginCall/, 'the plugin can be told the key was released');
+  assert.match(plugin, /static final class Press/, 'the radio keeps a held press');
+  ok('short or held: a short press sends the whole signal, a held one while it is held (live on the phone, released at once), one released before its turn as long as it was pressed; Stop ends it; the buttons keep only the pause');
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;
   globalThis.fetch = realFetch;

@@ -123,6 +123,29 @@ public static class Workspace
 
         var open = await OpenPagesAsync(connection, roles, pages.Select(p => p.Path).ToHashSet(StringComparer.Ordinal), ctx.RequestAborted);
 
+        /*
+         * 0121 — VERSIEGELTE SEITEN: ihr Titel und ihr Wybór sind Hüllen. Daneben
+         * stehen die Hüllen ihres Schlüssels, damit der Browser sie in der Liste
+         * öffnet (wer keinen Schlüssel hat, sieht die Adresse).
+         */
+        var sealOf = new Dictionary<string, object>(StringComparer.Ordinal);
+        var sealPaths = pages.Select(p => p.Path).Concat(open.Select(o => o.Path)).Distinct(StringComparer.Ordinal).ToList();
+        if (sealPaths.Count > 0 && await Page.SealReadyAsync(connection, ctx.RequestAborted))
+        {
+            var names = string.Join(", ", sealPaths.Select((_, i) => $"@s{i}"));
+            await using var cmd = new SqlCommand($"""
+                SELECT path, id, page_seal FROM app.slug
+                WHERE path IN ({names}) AND page_seal IS NOT NULL;
+                """, connection);
+            for (var i = 0; i < sealPaths.Count; i++) cmd.Parameters.AddWithValue($"@s{i}", sealPaths[i]);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                if (Page.SealOut(reader.GetGuid(1), reader.GetString(2)) is { } seal) sealOf[reader.GetString(0)] = seal;
+            }
+        }
+
         await ctx.Response.WriteAsJsonAsync(new
         {
             roles = roles.Select(r => new { id = Ids.ToText(r.Id), kind = r.Kind, isPersonal = r.IsPersonal, depth = r.Depth }),
@@ -133,7 +156,7 @@ public static class Workspace
              * seine — vorbereitet von jemand anderem. Damit steht der Warsztat
              * für sie nicht leer da („Nie prowadzisz żadnej strony").
              */
-            open = open.Select(o => new { path = o.Path, title = o.Title, why = o.Why }),
+            open = open.Select(o => new { path = o.Path, title = o.Title, why = o.Why, seal = sealOf.GetValueOrDefault(o.Path) }),
             pages = pages.Select(p => new
             {
                 path = p.Path,
@@ -152,7 +175,10 @@ public static class Workspace
                 accessAreaIds = areasOf.TryGetValue(p.Path, out var bound) ? bound : [],
 
                 /* 0082 — „Wybór na stronie" (JSON, im Browser gelesen) — oder null. */
-                subject = subjectOf.TryGetValue(p.Path, out var subject) ? subject : null
+                subject = subjectOf.TryGetValue(p.Path, out var subject) ? subject : null,
+
+                /* 0121 — versiegelt: die Hüllen des Seitenschlüssels (Titel und Wybór sind dann Hüllen). */
+                seal = sealOf.GetValueOrDefault(p.Path)
             })
         });
     }

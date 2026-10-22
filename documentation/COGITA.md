@@ -302,6 +302,21 @@ Each step opens on a new screen or expands in place [G12].
 
 **The player** is the presentation engine (0085, 0089). It is extended with question pieces, conditions from the logic engine and modules bound to library content [G3].
 
+**Built on 2026-10-21: the storyboard of a presentation.** One presentation page is both the example and the course. Pages have no second structure for flows.
+- The presentation carries `show.story`: values (start, min, max), gates and, for a connected page, the knowledge base (`base`) and the area where answers count (`storage`).
+- A gate is a node on the map (`gate:<key>`). A condition gate has a yes and a no exit. Its condition comes from the one logic (`cogita/logic.ts`): answered right or wrong, a value, a visited scene, knowness, time, and/or/not. A set gate changes values and has one exit. Any exit can lead to a gate: „dalej”, a button or an answer.
+- The module **Pytanie** (`question`) is a Cogita card on a scene. It has one exit for a right answer and one for a wrong one. A scene with a question waits: „dalej” does not pass it before the answer. Coming back to it asks again.
+- Where it runs:
+  - Without `base`, answers, values and the place stay in the browser (IndexedDB, holder `page:<id>`). This is the example: nothing leaves the device.
+  - With `base`, a signed-in person (or a seat) learns into the knowledge base, as in any Cogita run. The batches are sealed into the named area; without one, a person learns into their private area and a seat stays in the browser. A visitor without an account still gets the browser-only run.
+  - A reload resumes at the last scene.
+- Editor: Prezentacja → Przejścia. Gates are on the map, each question has its outcome selects, and the panel „Przebieg” holds the mode, the base and the values.
+- Files: `pages/presentation/story.ts` (model, gates, the way through them), `storyRun.tsx` (the run on a Cogita `Learner`), `StoryPanel.tsx`, `PathsEditor.tsx`; `pages/parts/question.tsx` and `questionView.tsx`.
+- Not yet:
+  - Cogita flows (`FlowEditor`, `FlowPlayer`, sessions, games, characters) still run on their own flow entries.
+  - The tab Przebiegi does not list presentation pages.
+  - Browser progress of a storyboard is not taken over after signing in.
+
 **Media** — narration audio, images, video — are sealed library files [G10, F31]. Browser speech is not used [G11].
 
 **Other:**
@@ -537,6 +552,7 @@ Phones stay awake.
   - Ctrl K finds entries and documents of the libraries opened in the tab.
   - The starter **Kurs do nauki** creates an area, a knowledge base, the intake, a daily revision, a learners' role and a link.
 - **Pages.** Eight modules: `cogita-revision`, `cogita-flow`, `cogita-live`, `entity-card`, `entity-table`, `topic-explorer`, `knowledge-map`, `seat-learn`. They pick a knowledge base (field kind `knowledge`).
+  - In a presentation: the module `question` and the storyboard (§8, built 2026-10-21).
   - The page subject **Wpis z bazy wiedzy** (`entity`).
   - `c/<8 characters>` addresses for modules published directly.
 - **Forms.** The step **Naucz się**.

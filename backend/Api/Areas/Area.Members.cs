@@ -36,6 +36,20 @@ public static partial class Area
 
         var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
 
+        /*
+         * 0120 — ein virtueller Bereich sagt, zu welchem Formular er gehört; die
+         * Kleinbereiche darin (einer je Einsendung) stehen NICHT in dieser Liste:
+         * sie sind Teil des Menschen, nicht eine Gruppe, und hundert davon in jeder
+         * Auswahl wären keine Auswahl mehr. Erreicht werden sie über die Einsendung.
+         */
+        var ready = await Schema.VirtualAreasAsync(connection, ctx.RequestAborted);
+        var virtualOf = ready
+            ? "(SELECT v.module_id FROM app.virtual_area v WHERE v.area_id = a.id)"
+            : "CAST(NULL AS uniqueidentifier)";
+        var notInstance = ready
+            ? "AND NOT EXISTS (SELECT 1 FROM app.area_instance ai WHERE ai.area_id = a.id)"
+            : string.Empty;
+
         await using var cmd = new SqlCommand($"""
             SELECT a.id, a.name, a.current_epoch,
                    (SELECT COUNT(*) FROM app.key_grant g
@@ -73,13 +87,17 @@ public static partial class Area
                    CAST(CASE WHEN a.personal_role_id IN ({names}) THEN 1 ELSE 0 END AS bit) AS personal,
 
                    /* Der eigene Bereich einer Rozmowa (Gruppe, zu zweit) — in Auswahllisten ein eigener Abschnitt. */
-                   (SELECT TOP 1 c.kind FROM app.chat c WHERE c.area_id = a.id AND c.kind IN (N'group', N'direct'))
+                   (SELECT TOP 1 c.kind FROM app.chat c WHERE c.area_id = a.id AND c.kind IN (N'group', N'direct')),
+
+                   /* 0120 — der virtuelle Bereich eines Formulars. */
+                   {virtualOf} AS virtual_of
             FROM app.area a
             WHERE EXISTS (
                 SELECT 1 FROM app.certificate c
                  WHERE c.scope_kind = N'area' AND c.scope_id = a.id
                    AND c.revoked_at IS NULL AND c.expires_at > @now
                    AND c.subject_role_id IN ({names}))
+              {notInstance}
             ORDER BY a.name;
             """, connection);
 
@@ -114,7 +132,10 @@ public static partial class Area
 
                 /* 0054 — „Tylko ja": nirgends anbieten, wo etwas geteilt wird. */
                 personal = reader.GetBoolean(10),
-                ownChat = reader.IsDBNull(11) ? null : reader.GetString(11)
+                ownChat = reader.IsDBNull(11) ? null : reader.GetString(11),
+
+                /* 0120 — das Formular, dessen virtueller Bereich er ist (sonst null). */
+                virtualOf = reader.IsDBNull(12) ? null : Ids.ToText(reader.GetGuid(12))
             });
         }
 

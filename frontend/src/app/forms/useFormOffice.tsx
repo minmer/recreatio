@@ -13,6 +13,7 @@ import { type Who, WorkspaceError } from '../core/session';
 import type { ModuleRow, ResealIn, Resealed } from '../modules/module';
 import { markFormSeen } from '../notify/notify';
 import { handOverRoleKeys } from '../roles/memberRole';
+import { applyFormVirtualAreas } from './virtualAreas';
 import { selfOf } from '../roles/roles';
 import { loadSteps } from '../steps/steps';
 import { type Crooked, crookedOf, seatKeyFinder, straighten as straightenAll, tidyKindOf } from './answerTidy';
@@ -281,6 +282,9 @@ export function useFormOffice(props: FormOfficeProps) {
 
     /* 0091 — wer über dieses Formular zur Rolle gehört und noch auf ihren Schlüssel wartet, bekommt ihn jetzt (still). */
     void handOverRoleKeys(bund, partId).catch(() => 0);
+
+    /* 0120 — und wer seine Obszary osób noch nicht hat, bekommt sie (still, nach der Regel jedes virtuellen Bereichs). */
+    void applyFormVirtualAreas(bund, partId).catch(() => 0);
 
     /*
      * Die Schlüssel der Bereiche, die ich halte — JEDER in seinem eigenen

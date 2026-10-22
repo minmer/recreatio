@@ -15,6 +15,11 @@
  *   T_sat(p_l + 2σ/r_c) − T_sat(p_l), mit der Kontakttemperatur
  *   T_f = (k_s T_s + k_l T_l)/(k_s + k_l). Nach dem Ablösen startet sie erst,
  *   wenn T_f die Schwelle wieder erreicht — die Wartezeit ergibt sich.
+ * - <b>In Salzlösung</b> (M2b) gilt statt T_sat die Siedetemperatur der Lösung
+ *   T_b(p, m) (solution.ts): Keime, Wärmebudget und die treibende Differenz
+ *   des Wachsens rechnen mit ihr — der Dampf in der Blase bleibt reiner Dampf
+ *   bei seinem Sättigungszustand, die Grenzfläche zur Sole steht um
+ *   ΔT_b = T_b − T_sat höher.
  * - <b>Wachsen und Kondensieren</b>: dm_v/dt = h A (T_l − T_sat(p_v)) /
  *   (h_v(T_b) − h_l(T_l)), h = max(k_l √(3/(π α_l t_b)), (k_l/d)(2 + 0,6
  *   Re^½ Pr^⅓)) — der erste Term ist genau das Wachstumsgesetz von Plesset
@@ -39,7 +44,7 @@
  */
 
 import { Bubbles, FORCE_SLOTS } from './bubbles';
-import { ALPHA_RATE, bubbleEnthalpy, footprint, solveBubble, type BubbleShape } from './bubbleState';
+import { ALPHA_RATE, anyGasAbove, bubbleEnthalpy, footprint, gasCellsAround, solveBubble, type BubbleShape } from './bubbleState';
 import { BubbleMotion } from './bubbleMotion';
 import { activation, Cavities } from './cavities';
 import type { Engine, ProbeInfo } from './engine';
@@ -97,6 +102,8 @@ export class BubbleModel {
   private readonly alphaTarget: Float32Array;
   private readonly budget: Float64Array;
   private readonly tsatCell: Float64Array;
+  /** Siedepunktserhöhung je flüssiger Zelle durch gelöstes Salz (K; 0 in reinem Wasser). */
+  private readonly dTb: Float64Array;
   private readonly Fm: Float64Array;
   private readonly vel = new Float64Array(2);
   private readonly head: Int32Array;
@@ -109,6 +116,7 @@ export class BubbleModel {
     this.alphaTarget = new Float32Array(n);
     this.budget = new Float64Array(n);
     this.tsatCell = new Float64Array(n);
+    this.dTb = new Float64Array(n);
     this.Fm = new Float64Array(n);
     const cap = engine.bubbles.cap;
     this.motion = new BubbleMotion(engine);
@@ -212,9 +220,11 @@ export class BubbleModel {
     const { n, kind } = g;
     /* Wieviel Wärme jede flüssige Zelle bis T_sat hergeben (positiv) oder aufnehmen (negativ) kann. */
     for (let c = 0; c < n; c += 1) {
-      if (kind[c] !== LIQUID) { this.budget[c] = 0; this.tsatCell[c] = 0; continue; }
-      const Ts = tSat(e.pRef + g.pl[c]);
+      if (kind[c] !== LIQUID) { this.budget[c] = 0; this.tsatCell[c] = 0; this.dTb[c] = 0; continue; }
+      const pc = e.pRef + g.pl[c];
+      const Ts = phase.boilingAt(c, pc);
       this.tsatCell[c] = Ts;
+      if (phase.salty) this.dTb[c] = Ts - tSat(pc);
       this.budget[c] = phase.Cl[c] * (phase.Tl[c] - Ts);
     }
     this.Fm.fill(0);
@@ -320,6 +330,12 @@ export class BubbleModel {
         Tl = 0;
         for (let q = 0; q < k; q += 1) Tl += this.wts[q] * phase.Tl[this.cells[q]];
       }
+      /* In Sole steht die Grenzfläche um ΔT_b über dem Dampf der Blase (0 in reinem Wasser). */
+      let shift = 0;
+      if (phase.salty) {
+        if (site >= 0) shift = this.dTb[this.sites.fluid[site]];
+        else for (let q = 0; q < k; q += 1) shift += this.wts[q] * this.dTb[this.cells[q]];
+      }
       const Tb = B.Tb[b];
       /* Stoffwerte der Flüssigkeit um die Blase (Wasser, oder Öl über einer Wasserschicht). */
       const hm = site >= 0 ? phase.host[this.sites.fluid[site]] : phase.hostAt(B.x[b], B.y[b]);
@@ -340,10 +356,10 @@ export class BubbleModel {
       /* ∫ h dt über den Teilschritt: der grössere der beiden Übergänge. */
       let hInt = Math.max(pzk * 2 * (Math.sqrt(age + h) - Math.sqrt(age)), hRM * h);
       /* Eine hängende Blase, die in diesem Teilschritt den Abreissdurchmesser erreichte: den Teilschritt genau dort enden lassen. */
-      if (site >= 0 && Tl > Tb) {
+      if (site >= 0 && Tl > Tb + shift) {
         const rdep = 0.5 * this.fritz(b, Tl);
         const rv = B.m[o + H2O] > 0 ? B.m[o + H2O] / B.V[b] : rhoVapourSatFast(Tb);
-        const drPlan = (hInt * (Tl - Tb)) / (rv * L);
+        const drPlan = (hInt * (Tl - Tb - shift)) / (rv * L);
         if (r < rdep && r + drPlan > rdep && drPlan > 0) {
           /* Der Bruchteil des Radiuszuwachses, der bis zum Abriss fehlt — h so verkleinern, dass ∫h dt genau dazu passt. */
           const want = (hInt * (rdep - r)) / drPlan;
@@ -363,12 +379,12 @@ export class BubbleModel {
       const D = g.depth;
       const V = B.V[b];
       const rhov = B.m[o + H2O] > 0 ? B.m[o + H2O] / V : rhoVapourSatFast(Tb);
-      const dr = (hInt * (Tl - Tb)) / (rhov * L);
+      const dr = (hInt * (Tl - Tb - shift)) / (rhov * L);
       const r1 = Math.max(0, r + dr);
       let dV: number;
       if (V <= (Math.PI * D * D * D) / 6) dV = (4 / 3) * Math.PI * (r1 * r1 * r1 - r * r * r);
       else if (V >= (Math.PI * D * D * D) / 4) dV = Math.PI * D * (r1 * r1 - r * r);
-      else dV = (Math.PI * D * D * hInt * (Tl - Tb)) / (rhov * L);
+      else dV = (Math.PI * D * D * hInt * (Tl - Tb - shift)) / (rhov * L);
       let Q = rhov * dV * L;
       /* Begrenzen: keine Zelle durch diesen Austausch über T_sat hinaus (oder darunter). */
       if (site >= 0) {
@@ -391,9 +407,13 @@ export class BubbleModel {
        * Dampfblase keine Masse (SIMPLIFICATIONS.md) — sie steigt und platzt.
        */
       let fwSum = 1;
-      if (site < 0 && dm !== 0 && phase.mixed) {
+      /* Zellen der Spur ohne Wasserteilchen (eine Zelle, die eine grosse Blase füllt) geben und nehmen nichts — sonst entstünde dort Wasser aus nichts. */
+      let dry = false;
+      if (site < 0 && dm !== 0 && !phase.mixed) for (let q = 0; q < k && !dry; q += 1) dry = phase.acc[this.cells[q]] <= 0;
+      const share = (c: number): number => (phase.acc[c] > 0 ? phase.waterShare(c) : 0);
+      if (site < 0 && dm !== 0 && (phase.mixed || dry)) {
         fwSum = 0;
-        for (let q = 0; q < k; q += 1) fwSum += this.wts[q] * phase.waterShare(this.cells[q]);
+        for (let q = 0; q < k; q += 1) fwSum += this.wts[q] * share(this.cells[q]);
         dm *= fwSum;
       }
       if (dm !== 0) {
@@ -407,7 +427,8 @@ export class BubbleModel {
         } else {
           for (let q = 0; q < k; q += 1) {
             const c = this.cells[q];
-            const w = phase.mixed ? (this.wts[q] * phase.waterShare(c)) / fwSum : this.wts[q];
+            const w = phase.mixed || dry ? (this.wts[q] * share(c)) / fwSum : this.wts[q];
+            if (w === 0) continue;
             const hbar = phase.waterH(c);
             this.Fm[c] -= dm * w;
             e.heat.src[c] -= (dm * w * (hV(Tb) - hbar)) / dt;
@@ -596,9 +617,9 @@ export class BubbleModel {
       /* Die Gaszellen über der Blase: so viele, wie ihr Volumen braucht (eine Reihe Zellen über ihrer Breite), sonst die erste darüber. */
       let c = g.cellAt(B.x[b], Math.min(g.h - 1e-9, B.y[b] + B.r[b]));
       while (c >= 0 && g.kind[c] !== GAS) c = c + g.nx < n ? c + g.nx : -1;
-      if (c < 0) c = this.anyGasAbove(B.x[b]);
+      if (c < 0) c = anyGasAbove(g, B.x[b]);
       if (c >= 0) {
-        const k = this.gasCellsAround(c, B.V[b]);
+        const k = gasCellsAround(g, e.gas.vgas, c, B.V[b], this.cells, this.wts);
         for (let q = 0; q < k; q += 1) {
           const cq = this.cells[q];
           const w = this.wts[q];
@@ -652,43 +673,6 @@ export class BubbleModel {
       if (ls >= 0) this.sites.bubble[ls] = B.id[last];
     }
     B.remove(b);
-  }
-
-  /** Gaszellen um c (c zuerst, dann die Nachbarn in der Reihe und darüber), bis ihr Volumen das der Blase fasst; Gewichte nach Gasvolumen in cells/wts. */
-  private gasCellsAround(c: number, V: number): number {
-    const g = this.e.grid;
-    const { nx, ny } = g;
-    const vg = this.e.gas.vgas;
-    const ci = c % nx;
-    const cj = (c - ci) / nx;
-    let k = 0;
-    let total = 0;
-    for (let ring = 0; ring <= 6 && (k === 0 || total < 2 * V); ring += 1) {
-      for (let dj = 0; dj <= ring; dj += 1) {
-        for (let di = -ring; di <= ring; di += 1) {
-          if (Math.max(Math.abs(di), dj) !== ring) continue;
-          const i = ci + di;
-          const j = cj + dj;
-          if (i < 0 || j < 0 || i >= nx || j >= ny) continue;
-          const q = i + j * nx;
-          if (g.kind[q] !== GAS || k >= this.cells.length) continue;
-          const v = Math.max(1e-3 * g.vCell, vg[q]);
-          this.cells[k] = q;
-          this.wts[k] = v;
-          total += v;
-          k += 1;
-        }
-      }
-    }
-    for (let q = 0; q < k; q += 1) this.wts[q] /= total;
-    return k;
-  }
-
-  private anyGasAbove(x: number): number {
-    const g = this.e.grid;
-    const i = Math.min(g.nx - 1, Math.max(0, Math.floor(x / g.dx)));
-    for (let j = g.ny - 1; j >= 0; j -= 1) if (g.kind[i + j * g.nx] === GAS) return i + j * g.nx;
-    return -1;
   }
 
   /**

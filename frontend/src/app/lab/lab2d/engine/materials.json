@@ -20,6 +20,16 @@
     "rojas2013": "E. E. Garcia Rojas, J. S. R. Coimbra, J. Telis-Romero (2013), Thermophysical properties of cotton, canola, sunflower, and soybean oils as a function of temperature, International Journal of Food Properties 16(7), 1620–1629, doi:10.1080/10942912.2011.604889 — canola oil measured at 293.15–433.15 K; Table 7: density ρ = 990.070 − 0.237·T (kg/m³, R² 0.99) and heat capacity c_p = 0.287 + 0.0053·T (J/(g·K), R² 0.99), T in K",
     "rojas2013fit": "Fits in this repository to the canola measurements of Rojas, Coimbra & Telis-Romero (2013), 293.15–433.15 K: thermal conductivity (Table 4) by least squares, k = 0.13939 + 9.0714e-5·T (W/(m·K), T in K, largest deviation 0.5 %); dynamic viscosity (Table 5) by the Vogel equation μ = A·10^(B/(T − C)), A = 3.35812e-5 Pa·s, B = 593.635 K, C = 120.95 K (largest deviation 1.3 %)",
     "melo2014": "E. A. Melo-Espinosa et al. (2014), Surface tension prediction of vegetable oils using artificial neural networks and multiple linear regression, Energy Procedia 57, 886–895, Table 1: rapeseed oil 32.90–33.83 mN/m at 20 °C (values from the literature); their mean is used at all temperatures (SIMPLIFICATIONS.md)",
+    "smw1990": "R. J. Spencer, N. Møller, J. H. Weare (1990), The prediction of mineral solubilities in natural waters: a chemical equilibrium model for the Na-K-Ca-Mg-Cl-SO4-H2O system at temperatures below 25 °C, Geochim. Cosmochim. Acta 54, 575–590 — Na+–Cl− parameters B0, B1, C0 as tabulated in PHREEQC frezchem.dat (Toner & Sletten 2013; same temperature form as pitzer.dat; valid from 25 °C down to −60 °C); used below 0 °C, where the parameters of pitzer.dat are extrapolated (at 3 mol/kg they put the freezing point 0.16 K above the measurements)",
+    "bodnar1993": "R. J. Bodnar (1993), Revised equation and table for determining the freezing point depression of H2O-NaCl solutions, Geochim. Cosmochim. Acta 57, 683–684: salinity (wt%) = 1.78 θ − 0.0442 θ² + 0.000557 θ³ (θ = freezing point depression in °C, 0–23.3 wt%, i.e. down to the eutectic of ice and hydrohalite at −21.2 °C and 23.2 wt%) — the reference of the freezing-point test",
+    "phreeqc-pitzer": "D. L. Parkhurst, C. A. J. Appelo (2013), Description of input and examples for PHREEQC version 3, U.S. Geological Survey Techniques and Methods 6-A43; database pitzer.dat (github.com/usgs-coupled/phreeqc3): Na+–Cl− parameters B0, B1, C0 with the temperature form of src/pitzer.cpp, P = a0 + a1(1/T − 1/T_R) + a2 ln(T/T_R) + a3(T − T_R) + a4(T² − T_R²) + a5(1/T² − 1/T_R²), T_R = 298.15 K; Pitzer's b = 1.2, α = 2; water activity a_w = exp(−2 m φ M_w)",
+    "malmberg1956": "C. G. Malmberg, A. A. Maryott (1956), Dielectric constant of water from 0° to 100 °C, J. Res. Natl. Bur. Stand. 56(1), 1–8: ε = 87.740 − 0.40008 t + 9.398e-4 t² − 1.410e-6 t³ (t in °C); with it and the density of water (Kell) the Debye–Hückel slope A_φ = ⅓ (2π N_A ρ_w)^½ (e²/(4π ε₀ ε k T))^{3/2} (0.3918 at 25 °C)",
+    "laliberte2009": "M. Laliberté (2009), A model for calculating the heat capacity of aqueous solutions, with updated density and viscosity data, J. Chem. Eng. Data 54(6), 1725–1760 — NaCl coefficients as tabulated in the open-source library chemicals (Electrolytes/Laliberte2009.tsv): density c0–c4 (0–140 °C, w ≤ 0.266, 869 points), heat capacity a1–a6 (1.5–120 °C, w ≤ 0.261, 356 points)",
+    "ppb1984": "K. S. Pitzer, J. C. Peiper, R. H. Busey (1984), Thermodynamic properties of aqueous sodium chloride solutions, J. Phys. Chem. Ref. Data 13(1), 1–102, doi:10.1063/1.555709 — Table 5: solubility of NaCl (mol/kg) from 0 to 150 °C; Tables A-9 (osmotic coefficient), A-15 (density) and A-17 (specific enthalpy of the solution) are the references of the tests",
+    "greenspan1977": "L. Greenspan (1977), Humidity fixed points of binary saturated aqueous solutions, J. Res. Natl. Bur. Stand. 81A(1), 89–96, Table 2: the air over saturated NaCl solution has 75.47 ± 0.14 % RH at 20 °C, 75.29 ± 0.12 % at 25 °C, 75.09 ± 0.11 % at 30 °C — the reference of the water-activity test",
+    "nbs1982": "D. D. Wagman et al. (1982), The NBS tables of chemical thermodynamic properties, J. Phys. Chem. Ref. Data 11, Suppl. 2: Δ_fH° NaCl(cr) −411.153 kJ/mol, NaCl(aq, standard state) −407.27 kJ/mol, so the heat of solution at infinite dilution is +3.883 kJ/mol; C_p° NaCl(cr) 50.50 J/(mol·K)",
+    "crc-nacl": "CRC Handbook of Chemistry and Physics, Physical constants of inorganic compounds: sodium chloride, density 2.17 g/cm³ (2.165)",
+    "iapws-ice": "IAPWS R10-06(2009), Revised Release on the Equation of State 2006 for H2O Ice Ih, Table 6: normal pressure melting point 273.152519 K; at the triple point the ice has h = −333 444.254 J/kg, c_p = 2096.784 J/(kg·K), ρ = 916.709 kg/m³, and the liquid h = p v = 0.612 J/kg (the IAPWS-95 reference state u = s = 0), so the enthalpy of melting is 333 444.87 J/kg",
     "model": "Model parameter, not a measured property — chosen and documented in documentation/lab2d/SIMPLIFICATIONS.md"
   },
   "ambient": {
@@ -57,6 +67,12 @@
         "hlv100": { "v": 2256400, "src": "nist" }
       },
       "surfaceTension": { "B": 235.8e-3, "b": -0.625, "mu": 1.256, "src": "iapws-st" },
+      "fusion": {
+        "T": { "v": 273.152519, "src": "iapws-ice" },
+        "h": { "v": 333444.87, "src": "iapws-ice" },
+        "cpIce": { "v": 2096.784, "src": "iapws-ice" },
+        "rhoIce": { "v": 916.709, "src": "iapws-ice" }
+      },
       "thermo": {
         "liquid": { "dHf": { "v": -285830, "src": "janaf" }, "S": { "v": 69.95, "src": "janaf" } },
         "gas": { "dHf": { "v": -241826, "src": "janaf" }, "S": { "v": 188.835, "src": "janaf" } }
@@ -96,6 +112,40 @@
         "sigma": { "v": 0.0334, "src": "melo2014" },
         "range": { "lo": 293.15, "hi": 433.15, "src": "rojas2013" },
         "color": "#e3b437"
+      }
+    }
+  ],
+  "solutes": [
+    {
+      "id": "NaCl",
+      "name": { "pl": "sól kuchenna (chlorek sodu)", "de": "Kochsalz (Natriumchlorid)", "en": "table salt (sodium chloride)" },
+      "short": { "pl": "sól", "de": "Salz", "en": "salt" },
+      "solvent": "H2O",
+      "molarMass": { "v": 0.0584428, "src": "codata" },
+      "ions": { "v": 2, "src": "phreeqc-pitzer" },
+      "pitzer": {
+        "b0": { "a": [7.534e-2, 9598.4, 35.48, -5.8731e-2, 1.798e-5, -5e5], "src": "phreeqc-pitzer" },
+        "b1": { "a": [0.2769, 1.377e4, 46.8, -6.9512e-2, 2e-5, -7.4823e5], "src": "phreeqc-pitzer" },
+        "c": { "a": [1.48e-3, -120.5, -0.2081, 0, 1.166e-7, 11121], "src": "phreeqc-pitzer" },
+        "b": { "v": 1.2, "src": "phreeqc-pitzer" },
+        "alpha": { "v": 2, "src": "phreeqc-pitzer" }
+      },
+      "pitzerCold": {
+        "below": { "v": 273.15, "src": "smw1990" },
+        "b0": { "a": [0.076276, -886.777, -4.19728, 0.00613645, -1.1006e-6, 8942.9], "src": "smw1990" },
+        "b1": { "a": [0.280431, -8677.858, -94.69966, 0.2944375, -0.000147476, -191956], "src": "smw1990" },
+        "c": { "a": [0.001271, 52.6, 0.07951, 0.00031974, -3.195e-7, -1237.7], "src": "smw1990" }
+      },
+      "dielectric": { "c": [87.740, -0.40008, 9.398e-4, -1.410e-6], "src": "malmberg1956" },
+      "density": { "laliberte": [-0.00324112223655149, 0.0636354335906616, 1.01371399467365, 0.0145951015210159, 3317.34854426537], "src": "laliberte2009" },
+      "cp": { "laliberte": [-0.0693559668993322, -0.0782134167486952, 3.84798479408635, -11.2762109247072, 8.73187698542672, 1.81245930472755], "range": { "lo": 274.65, "hi": 393.15 }, "src": "laliberte2009" },
+      "solubility": { "table": [[273.15, 6.097], [298.15, 6.146], [323.15, 6.275], [348.15, 6.460], [373.15, 6.680], [398.15, 6.935], [423.15, 7.198]], "src": "ppb1984" },
+      "dHsol": { "v": 3883, "src": "nbs1982" },
+      "eutectic": { "T": { "v": 251.95, "src": "bodnar1993" }, "w": { "v": 0.232, "src": "bodnar1993" } },
+      "solid": {
+        "rho": { "v": 2165, "src": "crc-nacl" },
+        "cp": { "v": 864.1, "src": "nbs1982" },
+        "color": "#f4f3ee"
       }
     }
   ],

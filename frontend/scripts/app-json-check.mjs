@@ -31,6 +31,7 @@ export * from '${app}pages/pageJsonText';
 export { QUESTION_EXAMPLE, QUESTION_KEYS, readQuestions } from '${app}forms/formJson';
 export { ENTRIES_FORMAT, ENTRIES_KEYS, ONCE_KEY, answerKeys, entriesDescription, exportEntries, planEntries } from '${app}forms/entriesJson';
 export { BREAKPOINTS } from '${app}pages/layout';
+export { readVirtualAreas, levelOf } from '${app}forms/virtualAreasJson';
 `);
 await build({
   entryPoints: [entry],
@@ -291,14 +292,46 @@ try {
   assert.equal(extModule.extends, 'b1');
   assert.equal(extModule.audience, 'office');
   assert.equal('repeat' in m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Chorzy', config: {} }), false, 'a plain form carries no repeat');
-  for (const key of ['"repeat" — ', '"extends", "audience" — ', '"memberRole" — ', '"group" — ']) assert.ok(m.moduleDescription('form').includes(key), `form module description explains ${key}`);
+  for (const key of ['"repeat" — ', '"extends", "audience" — ', '"memberRoles" — ', '"virtualAreas" — ', '"group" — ']) assert.ok(m.moduleDescription('form').includes(key), `form module description explains ${key}`);
   /* 0096 — die Gruppe (der Ordner) geht mit ihrem Namen mit; ohne Gruppe kein Schlüssel. */
   assert.equal(m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, group: 'Bierzmowanie 2027' }).group, 'Bierzmowanie 2027');
   assert.equal('group' in m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, group: null }), false, 'no group, no key');
-  /* 0091 — die Rolle seiner Menschen geht mit; ohne Rolle steht kein Schlüssel da. */
-  assert.equal(m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, memberRole: 'r1' }).memberRole, 'r1');
-  assert.equal('memberRole' in m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, memberRole: null }), false, 'no role, no key');
-  ok('module JSON: an extension says what it extends, who fills it and how often; a form carries the role of its people');
+  /* 0091/0120 — die Rollen seiner Menschen gehen als Liste mit; ohne Rolle steht kein Schlüssel da. */
+  assert.deepEqual(m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, memberRoles: ['r1', 'r2'] }).memberRoles, ['r1', 'r2']);
+  assert.equal('memberRoles' in m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, memberRoles: [] }), false, 'no role, no key');
+  assert.equal('memberRole' in m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, memberRoles: ['r1'] }), false, 'the old single key is read, not written');
+  ok('module JSON: an extension says what it extends, who fills it and how often; a form carries the roles of its people');
+
+  /* -- 0120: die Obszary osób im JSON des Moduls -------------------------------------------- */
+  {
+    const rules = [
+      { name: 'Kandydat i prowadzący', submitter: 'write', roles: [{ role: 'r-lead', level: 'admin' }, { role: 'r-kat', level: 'write' }] },
+      { name: 'Notatki prowadzących', submitter: 'none', roles: [{ role: 'r-lead', level: 'admin' }] }
+    ];
+    const out = m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, virtualAreas: rules });
+    assert.deepEqual(out.virtualAreas, rules, 'every rule goes out: name, what the person does, which roles at which level');
+    assert.equal('virtualAreas' in m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: {}, virtualAreas: [] }), false, 'no rule, no key');
+    const back = [];
+    assert.deepEqual(m.readVirtualAreas(JSON.parse(JSON.stringify(out.virtualAreas)), back), rules, 'export → import: the same rules');
+    assert.deepEqual(back, [], 'a clean document reads without warnings');
+    const said = [];
+    const read = m.readVirtualAreas([
+      { name: '  Wizytówka ', submitter: 'read', roles: [{ role: 'r-all', level: 'read' }, { role: 'r-all', level: 'write' }, { role: '', level: 'read' }, { role: 'x', level: 'boss' }] },
+      { name: 'wizytówka', submitter: 'write', roles: [] },
+      { submitter: 'write' },
+      { name: 'Bez stopnia', submitter: 'sometimes' }
+    ], said);
+    assert.deepEqual(read, [
+      { name: 'Wizytówka', submitter: 'read', roles: [{ role: 'r-all', level: 'read' }] },
+      { name: 'Bez stopnia', submitter: 'write', roles: [] }
+    ], 'trimmed names, one entry per name and role, unknown words dropped');
+    assert.equal(said.length, 5, 'each dropped thing says so: two bad roles, a repeated name, a nameless rule, an unknown submitter');
+    assert.equal(m.readVirtualAreas(undefined, []), undefined, 'no key: the document says nothing about it');
+    assert.deepEqual(m.readVirtualAreas('x', said), [], 'not a list: nothing, with a warning');
+    assert.equal(m.levelOf(['certify']), null, 'certify alone lets in, does not look in');
+    assert.equal(m.levelOf(['read', 'certify', 'admin']), 'admin');
+    ok('module JSON (0120): Obszary osób out and back in; tolerant reading with a word for every dropped thing');
+  }
 
   /* -- 0077: die Liste eines Formulars als JSON ------------------------------------------- */
   const field = (fieldId, label, kind = 'line', identityRole = 'none', options = []) =>

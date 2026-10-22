@@ -44,12 +44,15 @@ interface Material {
   readonly solid: string | null;
   /** Eine Flüssigkeit der Datenbank (H2O, oil-rapeseed …): gemalt als Füllung mit dieser Zusammensetzung. */
   readonly liquid?: string;
+  /** Ein darin gelöster Stoff (NaCl, M2b) — sein Massenanteil kommt vom Regler „Sól w solance“. */
+  readonly solute?: string;
   readonly color: string;
 }
 
 const MATERIALS: readonly Material[] = [
   { key: 'water', label: 'matWater', solid: null, liquid: 'H2O', color: '#3d8fd8' },
   { key: 'oil', label: 'matOil', solid: null, liquid: 'oil-rapeseed', color: LIQUIDS[1]?.color ?? '#e3b437' },
+  { key: 'brine', label: 'matBrine', solid: null, liquid: 'H2O', solute: 'NaCl', color: '#8dbbe3' },
   { key: 'air', label: 'matAir', solid: null, color: '#e6eef3' },
   { key: 'glass', label: 'matGlass', solid: 'glass', color: '#9cc3d5' },
   { key: 'steel', label: 'matSteel', solid: 'steel', color: '#7d858e' },
@@ -66,7 +69,7 @@ const TOOLS: readonly { readonly key: Tool; readonly label: TextKey; readonly ic
 ];
 
 const OVERLAY_LABEL: Readonly<Record<Overlay, TextKey>> = {
-  none: 'ovNone', temperature: 'ovTemperature', pressure: 'ovPressure', velocity: 'ovVelocity', humidity: 'ovHumidity', vapour: 'ovVapour', phase: 'ovPhase'
+  none: 'ovNone', temperature: 'ovTemperature', pressure: 'ovPressure', velocity: 'ovVelocity', humidity: 'ovHumidity', vapour: 'ovVapour', salt: 'ovSalt', phase: 'ovPhase'
 };
 const QUALITY_LABEL: Readonly<Record<Quality, TextKey>> = { 'very-high': 'qualityVeryHigh', high: 'qualityHigh', medium: 'qualityMedium' };
 const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 4, 8, 16];
@@ -181,6 +184,8 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   const [apparatus, setApparatus] = useState<ApparatusKey>('beaker');
   const [brushMm, setBrushMm] = useState(8);
   const [tempC, setTempC] = useState(20);
+  /* Massenanteil des Salzes in gemalter Solanka (%). */
+  const [saltPct, setSaltPct] = useState(10);
   const [quality, setQuality] = useState<Quality>(() => savedQuality() ?? readScene(config.scene).scene.quality);
   const [level, setLevel] = useState<Level>(savedLevel);
   const [overlay, setOverlay] = useState<Overlay>('none');
@@ -291,6 +296,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
     if (tool === 'erase') { h.apply({ op: 'erase', region }); return; }
     const m = MATERIALS.find((k) => k.key === material) ?? MATERIALS[0];
     if (m.solid !== null) h.addSolid(region, m.solid, T0 + tempC);
+    else if (m.liquid !== undefined && m.solute !== undefined) h.addLiquid(region, { [m.liquid]: 1 - saltPct / 100, [m.solute]: saltPct / 100 }, T0 + tempC);
     else if (m.liquid !== undefined) h.addLiquid(region, { [m.liquid]: 1 }, T0 + tempC);
     else h.apply({ op: 'fill', region, phase: 'gas', T: T0 + tempC, composition: { N2: 0.7676, O2: 0.2324 } });
   };
@@ -428,8 +434,8 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   };
 
   const speed = SPEEDS[speedAt];
-  /* Andere Flüssigkeiten (Öl) kennt der beschleunigte Weg noch nicht: dann bleibt der normale Weg. */
-  const otherLiquid = (stats?.engine.otherMass ?? 0) > 0;
+  /* Andere Flüssigkeiten (Öl) und Salz kennt der beschleunigte Weg noch nicht: dann bleibt der normale Weg. */
+  const otherLiquid = (stats?.engine.otherMass ?? 0) > 0 || (stats?.engine.saltMass ?? 0) > 0 || (stats?.engine.saltSolid ?? 0) > 0;
   const hint = TOOLS.find((k) => k.key === tool)?.hint ?? 'hintPaint';
   const lower: Quality | undefined = QUALITIES[QUALITIES.indexOf(quality) + 1];
   const heaters = stats?.engine.heaters ?? [];
@@ -516,6 +522,11 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
         <label className="lab-field">{t('brush')}: {brushMm} mm
           <input type="range" min={2} max={30} step={1} value={brushMm} onChange={(e) => setBrushMm(Number(e.currentTarget.value))} />
         </label>
+        {material === 'brine' && (
+          <label className="lab-field">{t('saltConc')}: {saltPct} %
+            <input type="range" min={1} max={26} step={1} value={saltPct} onChange={(e) => setSaltPct(Number(e.currentTarget.value))} />
+          </label>
+        )}
         <label className="lab-field">{t('paintTemp')}: {tempC} °C
           <input type="range" min={0} max={200} step={1} value={tempC} onChange={(e) => setTempC(Number(e.currentTarget.value))} />
         </label>

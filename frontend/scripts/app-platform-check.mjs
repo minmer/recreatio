@@ -95,7 +95,8 @@ export { readSlideValue, slideJson, remapStage } from '${app}pages/slides/slides
 export { DIGEST_PATH } from '${app}notify/notify';
 export { walkBundle, mergeAreaKeys, rememberSeatAreaKeys, seatAreaKey } from '${app}roles/roleBundle';
 export { reachWords, draftProblem } from '${app}roles/commonRole';
-export { seatRoleAad, openSeatRoles } from '${app}roles/memberRole';
+export { seatRoleAad, openSeatRoles, memberStateOf } from '${app}roles/memberRole';
+export { ruleOf, keyHolders, issuerOf, planWork, SUBMITTER_LEVELS, SUBMITTER_WORDS } from '${app}forms/virtualAreas';
 export { aadText, open, fromBase64Url } from '${app}core/crypto';
 export { scopeOf, withInside, AREA_PARTS, PART_DEFS, partDef } from '${app}workspace/workspaceViews';
 export { leadsNoPage } from '${app}workspace/desk';
@@ -104,7 +105,7 @@ export { fold, searchHits } from '${app}shell/search';
 export { slugOf } from '${app}workspace/Starters';
 export { personsHolding, speakersOf, chooseSpeaker, isMine, messageAuthor, authorText, speakerText, speakerKey, throughRole } from '${app}chat/chatAuthor';
 export { sealMessage, openMessage } from '${app}chat/chat';
-export { formSections, moveInGroup, logicDependencies, formMapModel } from '${app}forms/formGroups';
+export { formSections, moveInGroup, logicDependencies, formMapModel, memberRolesOf } from '${app}forms/formGroups';
 export {
   moduleNameAad, groupNameAad, seatNameAad, seatOwnNameAad, claimHolderAad, claimAskAad, hostWrapAad,
   personName, nameText, sealName, openWith, sealForIntake, openFromIntake, sealForPublic, openForPrivate
@@ -2155,6 +2156,42 @@ try {
     assert.deepEqual(web(['600100200'], { threadRules: { '+48600100200': '+48501502503' } }), { number: '+48501502503', why: 'thread', group: null }, 'the browser: the conversation\'s choice first');
     assert.deepEqual(web(['600100200'], { threadRules: { '+48600100200': 'sim:0' } }), { number: '+48505548677', why: 'group', group: 'Praca' }, 'the browser: a card without a number is the phone\'s business');
     ok('two SIMs: the conversation\'s choice, then a group\'s own number, then where the last message came in, then the phone\'s card; the browser follows the same rules by number');
+  }
+
+  /* -- 0120: several roles per form, virtual areas ------------------------------------------ */
+  {
+    /* A service from before 0120 answers with one role in flat fields — the client reads it as a list of one. */
+    const old = m.memberStateOf({ moduleId: 'f', seats: 4, roleId: 'r1', holdsRole: true, areas: [], members: 3, sealed: 2, waiting: [] });
+    assert.deepEqual(old.roles.map((r) => [r.roleId, r.holdsRole, r.members, r.sealed]), [['r1', true, 3, 2]], 'old answer: one role');
+    assert.deepEqual(m.memberStateOf({ moduleId: 'f', seats: 0, roleId: null }).roles, [], 'old answer without a role: none');
+    const both = m.memberStateOf({ moduleId: 'f', seats: 4, roles: [{ roleId: 'r1', holdsRole: true, areas: [], members: 4, sealed: 4, waiting: [] }, { roleId: 'r2', holdsRole: false, areas: [], members: 1, sealed: 0, waiting: [] }], roleId: 'r1' });
+    assert.deepEqual(both.roles.map((r) => r.roleId), ['r1', 'r2'], 'new answer: the list wins over the flat fields');
+
+    assert.deepEqual(m.memberRolesOf({ memberRoleId: 'r1' }), ['r1'], 'no list: the single role of 0091');
+    assert.deepEqual(m.memberRolesOf({ memberRoleId: 'r1', memberRoleIds: ['r1', 'r2'] }), ['r1', 'r2'], 'the list wins');
+    assert.deepEqual(m.memberRolesOf({ memberRoleId: null, memberRoleIds: [] }), [], 'an empty list is no role');
+
+    const form = (moduleId, more = {}) => ({ moduleId, name: moduleId, kind: 'form', extendsId: null, audience: 'public', pages: [], config: null, memberRoleId: null, entries: 0, closed: false, ...more });
+    const map = m.formMapModel({ sections: [{ group: null, items: [{ form: form('zap', { memberRoleId: 'r1', memberRoleIds: ['r1', 'r2'] }), subs: [] }] }], identity: new Map(), needs: [], roleName: (id) => `rola ${id}`, moduleName: () => null });
+    assert.deepEqual(map.edges.filter((e) => e.kind === 'role').map((e) => e.to).sort(), ['role:r1', 'role:r2'], 'the map: one edge per role');
+
+    /* The rule of a virtual area: one certificate per role and level; keys only for roles that look in. */
+    const members = [
+      { roleId: 'lead', kind: 'person', wrapPublicKey: 'k1', capabilities: ['admin', 'certify'] },
+      { roleId: 'kat', kind: 'role', wrapPublicKey: 'k2', capabilities: ['write'] },
+      { roleId: 'gate', kind: 'role', wrapPublicKey: 'k3', capabilities: ['certify'] }
+    ];
+    assert.deepEqual(m.ruleOf(members), [
+      { roleId: 'lead', capability: 'admin' }, { roleId: 'lead', capability: 'certify' },
+      { roleId: 'kat', capability: 'write' }, { roleId: 'gate', capability: 'certify' }
+    ], 'every certificate of the virtual area is one the mini area carries');
+    assert.deepEqual(m.keyHolders(members).map((r) => r.roleId), ['lead', 'kat'], 'certify alone gets no key: it lets in, it does not look in');
+    assert.equal(m.issuerOf({ issuers: ['gate', 'lead'] }, { maySign: (id) => id === 'lead' }), 'lead', 'the issuer: one that may issue AND whose sign key this ring holds');
+    assert.equal(m.issuerOf({ issuers: ['gate'] }, { maySign: () => false }), null, 'nobody here can sign: no issuer');
+    assert.deepEqual(m.planWork({ missing: [{}, {}], behind: [{}] }), { create: 2, mirror: 1 });
+    assert.deepEqual(m.SUBMITTER_LEVELS, ['write', 'read', 'none'], 'the person: writes first (the usual case), sees nothing last');
+    assert.ok(m.SUBMITTER_LEVELS.every((l) => typeof m.SUBMITTER_WORDS[l] === 'string'), 'every level has words');
+    ok('0120: several roles per form (old answers read as one), one map edge per role; the rule of a virtual area as certificates, keys and an issuer');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

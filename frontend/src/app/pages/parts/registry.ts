@@ -53,6 +53,7 @@ import { lab2dPart } from './lab2d';
 import { physicsPart } from './physics';
 import { planPart } from './plan';
 import { programPart } from './program';
+import { questionPart } from './question';
 import { shapePart } from './shape';
 import { seatAskPart, seatChatPart, seatSharedPart, seatStepsPart, seatSubmissionPart, seatTasksPart } from './seat';
 import { textPart } from './text';
@@ -100,6 +101,9 @@ export const PARTS: readonly PartModule[] = [
   writingPart,
   writingsPart,
   quotesPart,
+
+  /* 2026-10-21 — eine Frage zum Prüfen; in einer Präsentation ein Schritt des Przebiegs (dobrze / źle). */
+  questionPart,
 
   /* 0109 — Cogita: was eine Bibliothek zum Lernen veröffentlicht — ohne Konto, Fortschritt im Browser. */
   cogitaRevisionPart,

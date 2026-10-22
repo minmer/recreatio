@@ -12,7 +12,11 @@
  *   Skala steht in scaleLo/scaleHi (für die Legende).
  * - Flüssigkeit (2nx × 2ny, RGBA): R = Bedeckung aus den Teilchen (B-Spline auf
  *   halben Zellen; der Shader zieht bei ½ eine glatte Oberfläche), G = ihre
- *   Temperatur (für die Einblendung), B = Bedeckung aus Blasen.
+ *   Temperatur (für die Einblendung), B = Anteil der zweiten Flüssigkeit (Öl),
+ *   A = Massenanteil des gelösten Salzes (Einblendung „Stężenie“, M2b).
+ * - Salzkruste (M2b): feste Zellen mit Kruste mischen sich zur Farbe des
+ *   Kristalls (nach der Dicke der Kruste), Salz am Boden der Kiste färbt die
+ *   unterste Zelle seiner Spalte.
  * - Blasen: Mitte, Radius, Anteil Luft — Kreise in wahrer Grösse.
  * - Wahlweise die rohen Teilchen (x, y, Temperatur auf der Skala) und in der
  *   Einblendung „Prędkość“ Pfeile der Geschwindigkeit auf einem groben Raster —
@@ -24,11 +28,14 @@
 import type { Engine } from '../engine/engine';
 import { pSatFast } from '../engine/if97';
 import { MOLAR, SOLIDS, WATER } from '../engine/materials';
+import { RHO_CRYSTAL, SOLUTES } from '../engine/solution';
 import { GAS, H2O, LIQUID, N2, O2, SOLID, SPECIES_SLOTS, T0 } from '../engine/units';
 import { hex, T_SCALE, viridis } from './palette';
 
-export type Overlay = 'none' | 'temperature' | 'pressure' | 'velocity' | 'humidity' | 'vapour' | 'phase';
-export const OVERLAYS: readonly Overlay[] = ['none', 'temperature', 'pressure', 'velocity', 'humidity', 'vapour', 'phase'];
+export type Overlay = 'none' | 'temperature' | 'pressure' | 'velocity' | 'humidity' | 'vapour' | 'salt' | 'phase';
+export const OVERLAYS: readonly Overlay[] = ['none', 'temperature', 'pressure', 'velocity', 'humidity', 'vapour', 'salt', 'phase'];
+/** Massenanteil des Salzes, bei dem die Einblendung „Stężenie“ das Ende ihrer Farbskala erreicht (gesättigt sind 26,4 % bei 25 °C). */
+export const SALT_FULL = 0.3;
 
 export interface FrameBuffers {
   nx: number;
@@ -44,8 +51,8 @@ export interface FrameBuffers {
   boxW: number;
   boxH: number;
   overlay: Overlay;
-  /** Wasser einfärben (Temperatur) oder in seiner Farbe. */
-  tintLiquid: boolean;
+  /** Flüssigkeit einfärben: 0 in ihrer Farbe, 1 nach der Temperatur (Kanal G), 2 nach dem Salzgehalt (Kanal A). */
+  tintLiquid: number;
   /** Die Skala der Einblendung (in SI: K, Pa, m/s, 1, kg/m³) — Anfang und Ende der Farbskala. */
   scaleLo: number;
   scaleHi: number;
@@ -76,7 +83,7 @@ export function allocFrame(nx: number, ny: number, bubbles: number, particles = 
     bubbles: new Float32Array(4 * Math.max(16, bubbles)),
     boxW: 0, boxH: 0,
     overlay: 'none',
-    tintLiquid: false,
+    tintLiquid: 0,
     scaleLo: 0,
     scaleHi: 1,
     parts: new Float32Array(3 * particles),
@@ -100,6 +107,12 @@ export function frameFits(f: FrameBuffers, e: Engine, particles = false): boolea
 }
 
 const SOLID_RGB = SOLIDS.map((s) => hex(s.color));
+const CRYSTAL_RGB = hex(SOLUTES[0]?.color ?? '#f4f3ee');
+
+/** Deckung einer Salzkruste (0–1) aus ihrer Masse: die Dicke m/(ρ Δx D) als Bruchteil der Zelle, mit der Wurzel (dünne Krusten bleiben sichtbar). */
+function crustCover(m: number, dx: number, depth: number): number {
+  return m > 0 ? Math.min(1, Math.sqrt(m / (RHO_CRYSTAL * dx * depth) / dx)) : 0;
+}
 
 /*
  * Deckkraft des Nebels nach Beer–Lambert: α = 1 − exp(−β·L), β = 3·Q·LWC/(4·ρ_w·r)
@@ -121,6 +134,8 @@ let lw = new Float32Array(0);
 let lt = new Float32Array(0);
 /** Volumen der anderen Flüssigkeit (Öl) je Texel — ihr Anteil färbt die Fläche (Kanal B der Flüssigkeitstextur). */
 let lo = new Float32Array(0);
+/** Volumen mal Salzanteil je Texel (Kanal A, Einblendung „Stężenie“). */
+let ls = new Float32Array(0);
 let tmp = new Float32Array(0);
 
 /** [1 2 1]/4 in x und in y (Ränder wiederholt) — in place, mit einem Zwischenspeicher. */
@@ -148,7 +163,7 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay, particl
   f.boxW = g.w;
   f.boxH = g.h;
   f.overlay = overlay;
-  f.tintLiquid = overlay === 'temperature';
+  f.tintLiquid = overlay === 'temperature' ? 1 : overlay === 'salt' ? 2 : 0;
   const cells = f.cells;
   const field = f.field;
   const tmin = T_SCALE[0];
@@ -181,6 +196,12 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay, particl
         cells[o + 1] = rgb[1] * (1 - 0.6 * glow);
         cells[o + 2] = rgb[2] * (1 - 0.8 * glow);
         cells[o + 3] = 255;
+        const cr = crustCover(g.crust[c], g.dx, g.depth);
+        if (cr > 0) {
+          cells[o] += (CRYSTAL_RGB[0] - cells[o]) * cr;
+          cells[o + 1] += (CRYSTAL_RGB[1] - cells[o + 1]) * cr;
+          cells[o + 2] += (CRYSTAL_RGB[2] - cells[o + 2]) * cr;
+        }
         if (overlay === 'temperature') {
           viridis((g.T[c] - T0 - tmin) / tspan, scratch, 0);
           cells[o] = scratch[0]; cells[o + 1] = scratch[1]; cells[o + 2] = scratch[2];
@@ -194,6 +215,11 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay, particl
         else { cells[o] = 235; cells[o + 1] = 235; cells[o + 2] = 235; cells[o + 3] = 120; }
         if (g.alpha[c] > 0.02) { cells[o] = 250; cells[o + 1] = 200; cells[o + 2] = 80; cells[o + 3] = 220; }
         continue;
+      }
+      /* Salz am Boden der Kiste (wo unter der Lösung kein Feststoff lag): die unterste Zelle seiner Spalte. */
+      if (j === 0 && e.salt.floor[i] > 0) {
+        const cr = crustCover(e.salt.floor[i], g.dx, g.depth);
+        cells[o] = CRYSTAL_RGB[0]; cells[o + 1] = CRYSTAL_RGB[1]; cells[o + 2] = CRYSTAL_RGB[2]; cells[o + 3] = 255 * cr;
       }
       if (kind !== GAS) continue;
       /* Einblendung: Farbe (0–255) und Deckkraft (0–1), am Ende vormultipliziert. */
@@ -238,15 +264,18 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay, particl
   else if (overlay === 'pressure') { f.scaleLo = -pmax; f.scaleHi = pmax; }
   else if (overlay === 'velocity') { f.scaleLo = 0; f.scaleHi = vmax; }
   else if (overlay === 'vapour') { f.scaleLo = 0; f.scaleHi = VAPOUR_FULL; }
+  else if (overlay === 'salt') { f.scaleLo = 0; f.scaleHi = SALT_FULL; }
   else { f.scaleLo = 0; f.scaleHi = 1; }
   /* Flüssigkeit: Bedeckung auf halben Zellen (quadratischer B-Spline), Temperatur gewichtet. */
   const lx = f.lx;
   const ly = f.ly;
   const nl = lx * ly;
-  if (lw.length < nl) { lw = new Float32Array(nl); lt = new Float32Array(nl); lo = new Float32Array(nl); tmp = new Float32Array(nl); }
+  if (lw.length < nl) { lw = new Float32Array(nl); lt = new Float32Array(nl); lo = new Float32Array(nl); ls = new Float32Array(nl); tmp = new Float32Array(nl); }
   lw.fill(0, 0, nl);
   lt.fill(0, 0, nl);
   lo.fill(0, 0, nl);
+  const salty = overlay === 'salt';
+  if (salty) ls.fill(0, 0, nl);
   let other = false;
   const P = e.particles;
   const h = g.dx / 2;
@@ -262,6 +291,7 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay, particl
     const T = P.T[p];
     const oil = P.mat[p] !== WATER;
     if (oil) other = true;
+    const sw = salty ? P.saltFraction(p) : 0;
     for (let b = 0; b < 3; b += 1) {
       const j = j0 + b;
       if (j < 0 || j >= ly) continue;
@@ -274,6 +304,7 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay, particl
         lw[i + j * lx] += w;
         lt[i + j * lx] += w * T;
         if (oil) lo[i + j * lx] += w;
+        if (sw > 0) ls[i + j * lx] += w * sw;
       }
     }
   }
@@ -281,6 +312,7 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay, particl
   blur121(lw, lx, ly);
   blur121(lt, lx, ly);
   if (other) blur121(lo, lx, ly);
+  if (salty) blur121(ls, lx, ly);
   const liq = f.liquid;
   for (let k = 0; k < nl; k += 1) {
     const w = lw[k];
@@ -288,7 +320,7 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay, particl
     liq[o] = Math.min(255, 255 * w);
     liq[o + 1] = w > 0 ? Math.min(255, Math.max(0, (255 * (lt[k] / w - T0 - tmin)) / tspan)) : 0;
     liq[o + 2] = other && w > 0 ? Math.min(255, (255 * lo[k]) / w) : 0;
-    liq[o + 3] = 255;
+    liq[o + 3] = salty && w > 0 ? Math.min(255, (255 * ls[k]) / (w * SALT_FULL)) : 255;
   }
   /* Blasen. */
   const B = e.bubbles;

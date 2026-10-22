@@ -109,6 +109,8 @@ export interface Digest {
   readonly tasks: number;
   /** 0091 — Formulare, deren Menschen auf den Schlüssel ihrer Rolle warten. */
   readonly roles: { readonly waiting: readonly string[] };
+  /** 0120 — virtuelle Bereiche, deren Obszary osób fehlen oder hinter der Regel sind (ein Dienst von vorher schickt es nicht). */
+  readonly virtual?: { readonly waiting: readonly string[] };
   /** 0094 — Reservierungen, die auf ein Ja der Kanzlei warten. */
   readonly bookings: DigestWaiting;
   /** 0094 — Schritte der Kanzlei nach ihrer Frist. */
@@ -289,14 +291,16 @@ let handing = false;
 function handOverKeys(digest: Digest): void {
   const waiting = digest.chats.waiting ?? [];
   const roles = digest.roles?.waiting ?? [];
-  if ((waiting.length === 0 && roles.length === 0) || richWho === null || handing) return;
+  const areas = digest.virtual?.waiting ?? [];
+  if ((waiting.length === 0 && roles.length === 0 && areas.length === 0) || richWho === null || handing) return;
   handing = true;
   const who = richWho;
-  /* 0091 — und die Schlüssel der Rollen an die Menschen der Formulare, die darauf warten. */
+  /* 0091 — und die Schlüssel der Rollen an die Menschen der Formulare, die darauf warten; 0120 — und ihre Obszary osób. */
   void rich()
     .then(async (r) => {
       await r.handOverWaiting(who, waiting).catch(() => 0);
       await r.handOverRoleWaiting(who, roles).catch(() => 0);
+      await r.applyVirtualWaiting(who, areas).catch(() => 0);
     })
     .catch(() => undefined)
     .finally(() => { handing = false; });

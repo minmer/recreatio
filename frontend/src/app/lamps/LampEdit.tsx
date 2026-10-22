@@ -22,6 +22,7 @@ import {
   lampTitle, pilotPath, removeItem, saveLamp, SIGNALS_MAX, signalProblem, type Lamp, type LampData, type LampFrame, type LampSignal
 } from './lampStore';
 import { LampRadio } from './native';
+import { SendKey } from './SendKey';
 import { transmit } from './transmit';
 
 export type AfterSave = 'list' | 'open' | 'stay';
@@ -196,10 +197,11 @@ export function LampEdit({ ctx, lamp, native, onSaved, onRemoved }: {
               <button type="button" className="wk-link-btn" disabled={s.frames.length >= FRAMES_MAX}
                 onClick={() => setFrames(i, (frames) => [...frames, emptyFrame()])}>+ ramka (sekwencja)</button>
               {native && (
-                <button type="button" className="wk-btn wk-btn-small wk-btn-quiet" disabled={sending || problem !== null}
-                  onClick={() => void transmit(LampRadio, draft, s)}>
+                <SendKey className="wk-btn wk-btn-small wk-btn-quiet" disabled={sending || problem !== null}
+                  title="Krótko: cały sygnał. Przytrzymaj: nadaje, dopóki trzymasz."
+                  onSend={(hold) => void transmit(LampRadio, draft, s, null, hold)}>
                   <Icon name="radio" />Wyślij próbnie
-                </button>
+                </SendKey>
               )}
             </div>
           </fieldset>

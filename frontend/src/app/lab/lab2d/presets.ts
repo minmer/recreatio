@@ -84,6 +84,40 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
     scene: { ...BASE, ops: [beaker(), layer({ H2O: 0.5, 'oil-rapeseed': 0.5 }, 20, 0.010, 0.060)] }
   },
   {
+    key: 'solanka-wrze-pozniej',
+    title: 'Solanka wrze później',
+    summary: 'dwie zlewki na dwóch płytach: po lewej woda, po prawej solanka (15 % soli) — solanka wrze w wyższej temperaturze',
+    text: [
+      'Po lewej czysta woda, po prawej solanka z 15 % soli; obie mają 97 °C i stoją na takich samych płytach.',
+      'Woda zaczyna wrzeć przy 100 °C, solanka dopiero przy ok. 103 °C. Zbadaj obie narzędziem „Badaj”: inspektor pokazuje, w jakiej temperaturze wrze ciecz w danym miejscu.',
+      'Sól nie paruje: gdy woda ucieka jako para, solanka robi się coraz bardziej słona (nakładka „Stężenie soli”).'
+    ],
+    scene: {
+      ...BASE,
+      ops: [
+        { op: 'hotplate', x: 0.05, y: 0, w: 0.08, h: 0.008, material: 'steel', mode: 'power', power: 30, target: 150, on: true, T: 140 },
+        { op: 'hotplate', x: 0.15, y: 0, w: 0.08, h: 0.008, material: 'steel', mode: 'power', power: 30, target: 150, on: true, T: 140 },
+        { op: 'beaker', x: 0.05, y: 0.008, w: 0.06, h: 0.07, wall: 0.002, material: 'glass', T: 105 },
+        { op: 'beaker', x: 0.15, y: 0.008, w: 0.06, h: 0.07, wall: 0.002, material: 'glass', T: 105 },
+        { op: 'fill', region: { rect: [0.022, 0.010, 0.078, 0.05] }, composition: { H2O: 1 }, phase: 'liquid', T: 97 },
+        { op: 'fill', region: { rect: [0.122, 0.010, 0.178, 0.05] }, composition: { H2O: 0.85, NaCl: 0.15 }, phase: 'liquid', T: 97 },
+        { op: 'solid', region: { rect: [0.036, 0.010, 0.040, 0.012] }, material: 'ceramic', T: 97 },
+        { op: 'solid', region: { rect: [0.136, 0.010, 0.140, 0.012] }, material: 'ceramic', T: 97 }
+      ]
+    }
+  },
+  {
+    key: 'odparowanie-solanki',
+    title: 'Odparowanie solanki',
+    summary: 'cienka warstwa prawie nasyconej solanki (25 %) na płycie o 250 °C — woda wyparowuje, na dnie zostaje biały osad soli',
+    text: [
+      'W zlewce jest cienka warstwa solanki z 25 % soli — prawie tyle, ile woda może rozpuścić. Termostat trzyma płytę w 250 °C.',
+      'Woda wrze i paruje, sól zostaje. Gdy roztwór jest nasycony, nadmiar soli krystalizuje i osiada na dnie jako biały osad — aż cała woda zniknie.',
+      'W panelu deweloperskim bilans „NaCl” pokazuje, że żadna sól nie ginie: cała trafia do osadu.'
+    ],
+    scene: { ...BASE, ops: [{ ...plate(150, 180), mode: 'thermostat', target: 250 }, beaker(115), layer({ H2O: 0.75, NaCl: 0.25 }, 105, 0.010, 0.015)] }
+  },
+  {
     key: 'mgla',
     title: 'Mgła nad gorącą wodą',
     summary: 'gorąca woda (90 °C) w chłodnym, wilgotnym pokoju — nad zlewką tworzy się mgła',

@@ -37,6 +37,7 @@ import type { Ring } from '../core/keys';
 import { keysFor } from '../core/ringOf';
 import { pagePath, PATH_SHAPE } from '../routes';
 import { WorkspaceError, type Who } from '../core/session';
+import { ask } from '../ui/dialogs';
 import type { Node } from '../core/tree';
 
 /** Nur ein Stück, keine Schrägstriche: an einer Stelle im Baum ist das der Name. */
@@ -200,7 +201,7 @@ function Branch({ nodes, depth, ...rest }: Shared & {
 
 /* -- Eine Zeile ------------------------------------------------------------ */
 
-function Row({ node, depth, desk, names, areas, editing, dragging, over, allowed, busy,
+function Row({ node, depth, desk, names, ring, areas, editing, dragging, over, allowed, busy,
   onEdit, onDragStart, onDragEnd, onOver, onDrop, onAct }: Shared & {
   node: Node;
   depth: number;
@@ -274,6 +275,7 @@ function Row({ node, depth, desk, names, areas, editing, dragging, over, allowed
             {(page.accessAreaIds ?? []).length > 0
               ? `tylko z dostępem: ${(page.accessAreaIds ?? []).map((id) => areas.some((a) => a.areaId === id) ? areaPath(areas, id).short : 'obszar').join(', ')}`
               : 'publiczny'}
+            {page.seal != null ? ' · zaszyfrowana' : ''}
           </span>
         )}
       </span>
@@ -295,7 +297,7 @@ function Row({ node, depth, desk, names, areas, editing, dragging, over, allowed
       {open && page !== null && (
         <div className="wk-form" style={{ flexBasis: '100%' }}>
           <Rename page={page} busy={busy} onAct={onAct} />
-          <Visibility page={page} areas={areas} busy={busy} onAct={onAct} />
+          <Visibility page={page} areas={areas} ring={ring} busy={busy} onAct={onAct} />
           <AddChild parent={node.path} desk={desk} names={names} busy={busy} onAct={onAct} />
         </div>
       )}
@@ -319,9 +321,10 @@ function Row({ node, depth, desk, names, areas, editing, dragging, over, allowed
  * genau dieser Seite), eine Person mit Zugang zu einem dieser Bereiche, und
  * wer die Seite führt. Alle anderen lesen, dass es Zugang braucht.
  */
-function Visibility({ page, areas, busy, onAct }: {
+function Visibility({ page, areas, ring, busy, onAct }: {
   page: PageCard;
   areas: readonly AreaRow[];
+  ring: Ring | null;
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
@@ -380,7 +383,14 @@ function Visibility({ page, areas, busy, onAct }: {
       {!same && (restricted ? chosen.length > 0 : true) && (
         <span className="wk-actions">
           <button type="button" className="wk-btn" disabled={busy}
-            onClick={() => void onAct('Zapisywanie…', () => setPageAreas(page.path, restricted ? chosen : []))}>
+            onClick={() => void onAct('Zapisywanie…', async () => {
+              await setPageAreas(page.path, restricted ? chosen : []);
+              /* 0121 — eine versiegelte Seite bekommt gleich einen neuen Schlüssel: nur noch für die Bereiche, die jetzt gelten. */
+              if (page.seal != null && restricted && ring !== null) {
+                const { sealPage } = await import('./pageSealing');
+                await sealPage(page.path, chosen, page.roleId, ring);
+              }
+            })}>
             Zapisz
           </button>
         </span>
@@ -388,7 +398,98 @@ function Visibility({ page, areas, busy, onAct }: {
       {restricted && chosen.length === 0 && (
         <span className="wk-hint">Zaznacz co najmniej jeden obszar.</span>
       )}
+
+      {/* 0121 — erst, wenn die Seite mit Zugang GESPEICHERT ist: versiegelt wird, was gilt. */}
+      {now.length > 0 && same && restricted && (
+        <Sealing page={page} areas={areas} ring={ring} busy={busy} onAct={onAct} />
+      )}
     </fieldset>
+  );
+}
+
+/* -- Versiegelt (0121) ------------------------------------------------------------ */
+
+/**
+ * „ZASZYFROWANA" — eine Seite mit Zugang, deren Inhalt der Dienst nicht mehr
+ * liest. Was es kostet, steht dabei, nicht in einer Hilfe: Osoby z formularzy
+ * kommen erst mit einer Rolle und einem übergebenen Schlüssel hinein, Bausteine
+ * werden nicht mit anderen Seiten geteilt, und Dateien sind (noch) offen.
+ */
+function Sealing({ page, areas, ring, busy, onAct }: {
+  page: PageCard;
+  areas: readonly AreaRow[];
+  ring: Ring | null;
+  busy: boolean;
+  onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
+}) {
+  const sealed = page.seal != null;
+  const [state, setState] = useState<{ unwrapped: readonly string[]; open: readonly string[] } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void import('./pageSealing')
+      .then(({ sealState }) => sealState(page))
+      .then((found) => { if (alive) setState(found); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [page]);
+
+  const named = (ids: readonly string[]) =>
+    ids.map((id) => (areas.some((a) => a.areaId === id) ? areaPath(areas, id).full : 'obszar, którego nie widzisz')).join(', ');
+
+  const turnOn = async () => {
+    if (ring === null) return;
+    const yes = await ask({
+      title: 'Zaszyfrować tę stronę?',
+      body: 'Tytuł, tekst, wygląd, mapa, wybór, treść modułów i menu będą szyfrowane w przeglądarce. Serwer zobaczy tylko adres, to, że strona istnieje, i ile ma modułów. Klucz strony dostaną osoby z dostępem do jej obszarów i rola, która ją prowadzi.',
+      list: [
+        'Osoby z formularza (bez konta) zobaczą stronę dopiero wtedy, gdy formularz daje im rolę z jednym z tych obszarów i ktoś z obsługi przekaże im klucz.',
+        'Moduł z tej strony nie może stać na żadnej innej stronie.',
+        'Gdy zginą wszystkie klucze, strony nie da się odczytać — kopia bazy jej nie odtworzy.',
+        'Obrazy i pliki tej strony nie są (jeszcze) szyfrowane.'
+      ],
+      confirm: 'Zaszyfruj'
+    });
+    if (!yes) return;
+    const { sealPage } = await import('./pageSealing');
+    await onAct('Szyfrowanie strony…', () => sealPage(page.path, page.accessAreaIds ?? [], page.roleId, ring));
+  };
+
+  const turnOff = async () => {
+    const yes = await ask({
+      title: 'Wyłączyć szyfrowanie tej strony?',
+      body: 'Strona zostanie z dostępem, ale jej treść znów będzie zapisana otwarcie — tak, jak przed zaszyfrowaniem.',
+      confirm: 'Wyłącz szyfrowanie'
+    });
+    if (!yes) return;
+    const { unsealPage } = await import('./pageSealing');
+    await onAct('Odszyfrowywanie strony…', () => unsealPage(page.path));
+  };
+
+  const renew = async () => {
+    if (ring === null) return;
+    const { sealPage } = await import('./pageSealing');
+    await onAct('Odnawianie klucza strony…', () => sealPage(page.path, page.accessAreaIds ?? [], page.roleId, ring));
+  };
+
+  return (
+    <div className="wk-access-seal">
+      <label className="wk-check">
+        <input type="checkbox" checked={sealed} disabled={busy || ring === null}
+          onChange={() => void (sealed ? turnOff() : turnOn())} />
+        <span>Zaszyfrowana — treść strony czytają tylko osoby z kluczem jej obszarów; serwer jej nie zna (obrazów i plików jeszcze nie szyfruje)</span>
+      </label>
+      {ring === null && <span className="wk-warn">Do szyfrowania potrzebny jest klucz konta — zaloguj się ponownie.</span>}
+      {sealed && state !== null && state.unwrapped.length > 0 && (
+        <span className="wk-warn">
+          Bez klucza strony: {named(state.unwrapped)}. Osoby tylko z tych obszarów jej nie otworzą, dopóki ktoś z ich kluczem nie odnowi klucza strony.{' '}
+          <button type="button" className="wk-link-btn" disabled={busy || ring === null} onClick={() => void renew()}>Odnów klucz</button>
+        </span>
+      )}
+      {state !== null && state.open.length > 0 && (
+        <span className="wk-warn">Obszar {named(state.open)} jest jawny — każdy może pobrać jego klucz, więc szyfrowanie niczego przed nikim nie ukryje.</span>
+      )}
+    </div>
   );
 }
 

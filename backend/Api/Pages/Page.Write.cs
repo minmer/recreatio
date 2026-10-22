@@ -19,8 +19,13 @@ public static partial class Page
         HttpContext ctx, Db db, SqlConnection connection, string wanted, IReadOnlyList<string> seat, string? links = null)
     {
         Guid slugId, askedId;
-        string? title = null, lead = null, aliasOf = null, logic = null, mode = null, theme = null, subject = null;
+        string? title = null, lead = null, aliasOf = null, logic = null, mode = null, theme = null, subject = null, seal = null;
         DateTimeOffset? updatedAt = null;
+
+        /* 0121 — die Hüllen des Seitenschlüssels; vor der Migration gibt es die Spalte nicht. */
+        var sealColumn = await SealReadyAsync(connection, ctx.RequestAborted)
+            ? "CASE WHEN t.id IS NULL THEN s.page_seal ELSE t.page_seal END"
+            : "CAST(NULL AS nvarchar(max))";
 
         /*
          * EIN ALIAS ZEIGT AUF EINE ANDERE ADRESSE, und von dort kommt alles:
@@ -32,7 +37,7 @@ public static partial class Page
          * selbst schon jemandem gehört, entscheidet, wer ihn verwaltet — nicht,
          * ob die Seite zu sehen ist.
          */
-        await using (var cmd = new SqlCommand("""
+        await using (var cmd = new SqlCommand($"""
             SELECT COALESCE(t.id, s.id),
                    COALESCE(t.claimed_by_role_id, s.claimed_by_role_id),
                    p.title, p.lead, p.updated_at, s.alias_of,
@@ -40,7 +45,8 @@ public static partial class Page
                    CASE WHEN t.id IS NULL THEN s.page_logic ELSE t.page_logic END,
                    CASE WHEN t.id IS NULL THEN s.page_mode ELSE t.page_mode END,
                    CASE WHEN t.id IS NULL THEN s.page_theme ELSE t.page_theme END,
-                   CASE WHEN t.id IS NULL THEN s.page_subject ELSE t.page_subject END
+                   CASE WHEN t.id IS NULL THEN s.page_subject ELSE t.page_subject END,
+                   {sealColumn}
             FROM app.slug s
             LEFT JOIN app.slug t ON s.alias_of IS NOT NULL AND t.path = s.alias_of
             LEFT JOIN app.slug_page p ON p.slug_id = COALESCE(t.id, s.id)
@@ -73,6 +79,7 @@ public static partial class Page
             mode = reader.IsDBNull(8) ? null : reader.GetString(8);
             theme = reader.IsDBNull(9) ? null : reader.GetString(9);
             subject = reader.IsDBNull(10) ? null : reader.GetString(10);
+            seal = reader.IsDBNull(11) ? null : reader.GetString(11);
         }
 
         /*
@@ -149,7 +156,17 @@ public static partial class Page
 
             /* 0082 — worum es auf der Seite geht (JSON, im Browser gelesen). */
             subject,
-            menu = menu is null ? null : new { from = menu.Value.From, items = menu.Value.Items }
+            menu = menu is null ? null : new { from = menu.Value.From, items = menu.Value.Items },
+
+            /*
+             * 0121 — VERSIEGELT: Titel, Vorspann, Aussehen, Karte, Wybór, Bausteine
+             * und Menü sind Hüllen; hier stehen die Hüllen ihres Schlüssels und die
+             * Kennung der Seite, die in jedem Etikett steht. Fehlt es: offen.
+             * `id` — die Kennung der Seite (bei einem Alias: die seines Ziels),
+             * damit der Editor eine offene Seite versiegeln kann.
+             */
+            id = Ids.ToText(slugId),
+            seal = SealOut(slugId, seal)
         });
     }
 
@@ -167,15 +184,16 @@ public static partial class Page
             return;
         }
 
+        /* 0121 — auf einer versiegelten Seite kommen Titel und Vorspann als Hülle; die ist länger. */
         var title = (body.Title ?? string.Empty).Trim();
-        if (title.Length is 0 or > MaxTitle)
+        if (title.Length is 0 || title.Length > (IsEnvelope(title) ? SealedLimit(MaxTitle) : MaxTitle))
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, $"Tytuł: od 1 do {MaxTitle} znaków.");
             return;
         }
 
         var lead = string.IsNullOrWhiteSpace(body.Lead) ? null : body.Lead.Trim();
-        if (lead is not null && lead.Length > MaxLead)
+        if (lead is not null && lead.Length > (IsEnvelope(lead) ? SealedLimit(MaxLead) : MaxLead))
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, $"Tekst: najwyżej {MaxLead} znaków.");
             return;
@@ -232,6 +250,13 @@ public static partial class Page
 
         var slugId = row.Value.Id;
 
+        var sealedPage = await SealOfAsync(connection, slugId, ctx.RequestAborted) is not null;
+        if (!Fits(sealedPage, title) || !Fits(sealedPage, lead))
+        {
+            await SealMismatch(ctx, sealedPage);
+            return;
+        }
+
         var now = DateTimeOffset.UtcNow;
 
         await using var save = new SqlCommand("""
@@ -285,16 +310,16 @@ public static partial class Page
 
         var logic = string.IsNullOrWhiteSpace(body.Logic) ? null : body.Logic;
 
+        /* 0121 — versiegelt ist die Karte eine Hülle: kein JSON, nur ihre Grenze. */
         if (logic is not null)
         {
-            if (logic.Length > MaxLogic)
+            if (logic.Length > (IsEnvelope(logic) ? SealedLimit(MaxLogic) : MaxLogic))
             {
                 await Fail(ctx, StatusCodes.Status400BadRequest, "Mapa jest za duża.");
                 return;
             }
 
-            try { using var _ = System.Text.Json.JsonDocument.Parse(logic); }
-            catch (System.Text.Json.JsonException)
+            if (!IsEnvelope(logic) && !IsJson(logic))
             {
                 await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna mapa.");
                 return;
@@ -322,6 +347,13 @@ public static partial class Page
         {
             await Fail(ctx, StatusCodes.Status403Forbidden,
                 "Tego adresu nie prowadzi żadna z Twoich ról i nie masz do niego prawa zapisu.");
+            return;
+        }
+
+        var sealedPage = await SealOfAsync(connection, row.Value.Id, ctx.RequestAborted) is not null;
+        if (!Fits(sealedPage, logic))
+        {
+            await SealMismatch(ctx, sealedPage);
             return;
         }
 
@@ -358,13 +390,12 @@ public static partial class Page
         var subject = string.IsNullOrWhiteSpace(body.Subject) ? null : body.Subject;
         if (subject is not null)
         {
-            if (subject.Length > MaxSubject)
+            if (subject.Length > (IsEnvelope(subject) ? SealedLimit(MaxSubject) : MaxSubject))
             {
                 await Fail(ctx, StatusCodes.Status400BadRequest, "Wybór na stronie jest za długi.");
                 return;
             }
-            try { using var _ = System.Text.Json.JsonDocument.Parse(subject); }
-            catch (System.Text.Json.JsonException)
+            if (!IsEnvelope(subject) && !IsJson(subject))
             {
                 await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny wybór na stronie.");
                 return;
@@ -392,6 +423,13 @@ public static partial class Page
         {
             await Fail(ctx, StatusCodes.Status403Forbidden,
                 "Tego adresu nie prowadzi żadna z Twoich ról i nie masz do niego prawa zapisu.");
+            return;
+        }
+
+        var sealedPage = await SealOfAsync(connection, row.Value.Id, ctx.RequestAborted) is not null;
+        if (!Fits(sealedPage, subject))
+        {
+            await SealMismatch(ctx, sealedPage);
             return;
         }
 
@@ -451,14 +489,13 @@ public static partial class Page
 
         if (theme is not null)
         {
-            if (theme.Length > MaxTheme)
+            if (theme.Length > (IsEnvelope(theme) ? SealedLimit(MaxTheme) : MaxTheme))
             {
                 await Fail(ctx, StatusCodes.Status400BadRequest, "Wygląd strony jest za duży.");
                 return;
             }
 
-            try { using var _ = System.Text.Json.JsonDocument.Parse(theme); }
-            catch (System.Text.Json.JsonException)
+            if (!IsEnvelope(theme) && !IsJson(theme))
             {
                 await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny wygląd strony.");
                 return;
@@ -486,6 +523,13 @@ public static partial class Page
         {
             await Fail(ctx, StatusCodes.Status403Forbidden,
                 "Tego adresu nie prowadzi żadna z Twoich ról i nie masz do niego prawa zapisu.");
+            return;
+        }
+
+        var sealedPage = await SealOfAsync(connection, row.Value.Id, ctx.RequestAborted) is not null;
+        if (!Fits(sealedPage, theme))
+        {
+            await SealMismatch(ctx, sealedPage);
             return;
         }
 

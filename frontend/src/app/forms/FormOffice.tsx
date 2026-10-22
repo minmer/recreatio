@@ -26,6 +26,7 @@ import { plural } from '../core/plural';
 import { updateModule } from '../modules/module';
 import { ModuleSettings } from '../modules/ModuleSettings';
 import { MemberRoleSettings } from '../roles/MemberRoleSettings';
+import { VirtualAreasSettings } from './VirtualAreasSettings';
 import { Portal } from '../seats/Portal';
 import { Unlock } from '../shell/Unlock';
 import { StepsEditor, stepsKey } from '../steps/StepsEditor';
@@ -200,6 +201,9 @@ export function FormOffice(props: FormOfficeProps) {
 
               {/* 0091 — WELCHE ROLLE die Menschen dieses Formulars bekommen, und wozu sie führt. */}
               <MemberRoleSettings partId={partId} ring={ring} person={person} areas={areas} onRingChanged={() => void look()} />
+
+              {/* 0120 — DIE OBSZARY OSÓB: je Regel ein eigener Bereich jeder Person, und wer ihn sieht. */}
+              <VirtualAreasSettings partId={partId} ring={ring} person={person} />
 
               {/*
                 DAS ERSTE ÖFFNEN EINES LINKS (0046) — was gefragt wird. Die

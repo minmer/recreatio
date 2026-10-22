@@ -367,17 +367,53 @@ public static class Notify
         if (!countsOnly && mine.Count > 0)
         {
             var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
+
+            /* 0120 — eine der Rollen des Formulars (vorher: die eine). */
+            var ofForm = await Form.IsMemberRoleAsync(connection, "ar.module_id", "ar.role_id", ct);
             await using var cmd = new SqlCommand($"""
                 SELECT DISTINCT TOP 20 ar.module_id FROM app.access_role ar
                 JOIN app.access s ON s.id = ar.access_id
-                JOIN app.module m ON m.id = ar.module_id AND m.member_role_id = ar.role_id
-                WHERE ar.key_sealed IS NULL AND ar.role_id IN ({names})
-                  AND {Form.LiveMember} AND {Form.OpensSeat(names)};
+                WHERE ar.key_sealed IS NULL AND ar.role_id IN ({names}) AND ar.module_id IS NOT NULL
+                  AND {ofForm} AND {Form.LiveMember} AND {Form.OpensSeat(names)};
                 """, connection);
             cmd.Parameters.AddWithValue("@now", now);
             for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i]);
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct)) rolesWaiting.Add(reader.GetGuid(0));
+        }
+
+        /*
+         * -- 0120: OBSZARY OSÓB, DIE NOCH FEHLEN. Virtuelle Bereiche, deren Regel eine
+         * meiner Rollen anwenden darf (admin/certify) und denen etwas fehlt: der
+         * Kleinbereich einer Einsendung, oder in einem Kleinbereich ein Zertifikat der
+         * Regel. Der Browser legt an und trägt nach, sobald er das hier liest.
+         */
+        var virtualWaiting = new List<Guid>();
+        if (!countsOnly && mine.Count > 0 && await Schema.VirtualAreasAsync(connection, ct))
+        {
+            var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
+            await using var cmd = new SqlCommand($"""
+                SELECT TOP 20 v.area_id FROM app.virtual_area v
+                WHERE EXISTS (SELECT 1 FROM app.certificate c
+                               WHERE c.scope_kind = N'area' AND c.scope_id = v.area_id AND c.capability IN (N'admin', N'certify')
+                                 AND c.revoked_at IS NULL AND c.expires_at > @now AND c.subject_role_id IN ({names}))
+                  AND (EXISTS (SELECT 1 FROM app.registration g
+                                WHERE g.part_id = v.module_id AND g.base_id IS NULL AND g.withdrawn_at IS NULL AND g.is_hidden = 0
+                                  AND NOT EXISTS (SELECT 1 FROM app.area_instance ai
+                                                   WHERE ai.virtual_area_id = v.area_id AND ai.registration_id = g.id))
+                    OR EXISTS (SELECT 1 FROM app.area_instance ai
+                                JOIN app.certificate vc ON vc.scope_kind = N'area' AND vc.scope_id = ai.virtual_area_id
+                                                       AND vc.revoked_at IS NULL AND vc.expires_at > @now
+                                WHERE ai.virtual_area_id = v.area_id
+                                  AND NOT EXISTS (SELECT 1 FROM app.certificate ic
+                                                   WHERE ic.scope_kind = N'area' AND ic.scope_id = ai.area_id
+                                                     AND ic.subject_role_id = vc.subject_role_id AND ic.capability = vc.capability
+                                                     AND ic.revoked_at IS NULL AND ic.expires_at > @now)));
+                """, connection);
+            cmd.Parameters.AddWithValue("@now", now);
+            for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i]);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) virtualWaiting.Add(reader.GetGuid(0));
         }
 
         /*
@@ -622,6 +658,9 @@ public static class Notify
 
             /* 0091 — Formulare, deren Menschen auf den Schlüssel ihrer Rolle warten: die App gibt ihn weiter. */
             roles = new { waiting = rolesWaiting.Select(Ids.ToText).ToList() },
+
+            /* 0120 — virtuelle Bereiche, deren Kleinbereiche fehlen oder hinter der Regel sind: die App legt an und trägt nach. */
+            @virtual = new { waiting = virtualWaiting.Select(Ids.ToText).ToList() },
 
             /* 0094 — was auf die Kanzlei wartet: Reservierungen zum Bestätigen, Schritte nach ihrer Frist. */
             bookings = new

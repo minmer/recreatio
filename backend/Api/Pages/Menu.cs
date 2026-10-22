@@ -66,7 +66,12 @@ public static class Menu
     /// Seite, deren Menü hier gelten soll). Beides leer: die Seite hat keines
     /// mehr (0058: und dann auch keine Leiste — geerbt wird nicht).
     /// </summary>
-    public sealed record SaveRequest(string Path, IReadOnlyList<Item>? Items, string? Uses);
+    /// <remarks>
+    /// 0121 — <c>Sealed</c>: das eigene Menü einer VERSIEGELTEN Seite, als Hülle
+    /// unter ihrem Schlüssel (dann bleibt <c>Items</c> leer). Der Dienst sieht
+    /// seine Form nicht mehr und prüft nur die Hülle.
+    /// </remarks>
+    public sealed record SaveRequest(string Path, IReadOnlyList<Item>? Items, string? Uses, string? Sealed = null);
 
     public static void Map(WebApplication app)
     {
@@ -357,17 +362,20 @@ public static class Menu
                 if (path == except) continue;
 
                 var count = 0;
+                var sealedMenu = false;
                 try
                 {
                     using var document = JsonDocument.Parse(reader.GetString(2));
-                    count = document.RootElement.GetArrayLength();
+                    /* 0121 — das Menü einer versiegelten Seite ist eine Hülle: es lässt sich nicht teilen. */
+                    sealedMenu = document.RootElement.ValueKind != JsonValueKind.Array;
+                    if (!sealedMenu) count = document.RootElement.GetArrayLength();
                 }
                 catch (JsonException)
                 {
                     // Unlesbar gespeichert — dann steht eben keine Zahl daneben.
                 }
 
-                found.Add((path, reader.IsDBNull(1) ? null : reader.GetGuid(1), count));
+                if (!sealedMenu) found.Add((path, reader.IsDBNull(1) ? null : reader.GetGuid(1), count));
             }
         }
 
@@ -422,7 +430,10 @@ public static class Menu
             path = wanted,
             items = own?.Items,
             uses = uses is null ? null : new { from = uses.Value.From, items = uses.Value.Items },
-            inherited = above is null ? null : new { from = above.Value.From, items = above.Value.Items },
+            /* 0121 — das Menü einer versiegelten Seite darüber ist kein Vorschlag: es gehört unter ihren Schlüssel. */
+            inherited = above is null || above.Value.Items.ValueKind != JsonValueKind.Array
+                ? null
+                : new { from = above.Value.From, items = above.Value.Items },
             usable = (await UsableAsync(connection, who.Value.AccountId, wanted, ctx.RequestAborted))
                 .Select(one => new { path = one.Path, items = one.Count })
         });
@@ -460,6 +471,41 @@ public static class Menu
         if (slugId is null)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
+            return;
+        }
+
+        /*
+         * 0121 — EINE VERSIEGELTE SEITE trägt ihr eigenes Menü als Hülle; eine
+         * offene nimmt keine. Ein Menü einer anderen Seite (offen) darf auch eine
+         * versiegelte zeigen.
+         */
+        var sealedPage = await Page.SealOfAsync(connection, slugId.Value, ctx.RequestAborted) is not null;
+        var sealedMenu = string.IsNullOrWhiteSpace(body.Sealed) ? null : body.Sealed.Trim();
+
+        if (sealedMenu is not null && (!Page.IsEnvelope(sealedMenu) || clean.Count > 0 || borrowed != string.Empty || sealedMenu.Length > Page.SealedLimit(60_000)))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelne zaszyfrowane menu.");
+            return;
+        }
+
+        if ((sealedPage && clean.Count > 0) || (!sealedPage && sealedMenu is not null))
+        {
+            await Page.SealMismatch(ctx, sealedPage);
+            return;
+        }
+
+        if (sealedMenu is not null)
+        {
+            await using var keep = new SqlCommand("""
+                UPDATE app.slug_menu SET menu = @menu, uses_slug_id = NULL, updated_at = @now WHERE slug_id = @slug;
+                IF @@ROWCOUNT = 0
+                    INSERT INTO app.slug_menu (slug_id, menu, uses_slug_id, updated_at) VALUES (@slug, @menu, NULL, @now);
+                """, connection);
+            keep.Parameters.AddWithValue("@slug", slugId.Value);
+            keep.Parameters.AddWithValue("@menu", JsonSerializer.Serialize(sealedMenu));
+            keep.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            await keep.ExecuteNonQueryAsync(ctx.RequestAborted);
+            await ctx.Response.WriteAsJsonAsync(new { path = wanted, @sealed = true });
             return;
         }
 
@@ -504,10 +550,19 @@ public static class Menu
             }
 
             /* Nur auf ein EIGENES Menü — ein Verweis auf einen Verweis wäre eine Kette. */
-            if (await OwnAsync(connection, sourceId.Value, ctx.RequestAborted) is null)
+            var theirs = await OwnAsync(connection, sourceId.Value, ctx.RequestAborted);
+            if (theirs is null)
             {
                 await Fail(ctx, StatusCodes.Status400BadRequest,
                     "Tamta strona nie ma własnego menu — nie ma czego stąd pokazać.");
+                return;
+            }
+
+            /* 0121 — und nie auf ein versiegeltes: es geht nur mit dem Schlüssel seiner Seite auf. */
+            if (theirs.Value.Items.ValueKind != JsonValueKind.Array)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "Menu tamtej strony jest zaszyfrowane razem z nią — inne strony nie mogą go pokazywać.");
                 return;
             }
 

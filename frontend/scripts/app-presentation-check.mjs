@@ -18,6 +18,8 @@
  *      Wiederkommen, Knöpfe zu Schritten und auf jeder Szene, der Klang.
  *  11. Hortus Dei (`fixtures/hortus-dei.json`, geschrieben von `hortus-dei.mjs`):
  *      das Szenario des Konzepts importiert ohne Warnung und kommt unverändert heraus.
+ *  12. 2026-10-21 — der Przebieg: Werte, Tore (Bedingung, Wert), Fragen mit
+ *      „dobrze" / „źle", der Weg durch die Tore mit dem, was der Lernende weiss.
  */
 
 import { build } from 'esbuild';
@@ -33,7 +35,8 @@ const app = join(process.cwd(), 'src/app/').replace(/\\/g, '/');
 await writeFile(entry, `
 export * from '${app}pages/presentation/presentationMotion';
 export * from '${app}pages/presentation/presentation';
-export { END, LINK, resolveTarget, nextOf, chainFrom, routeOf, branch, routeTo, reachable, autoMap, targetOptions, withGo, withNext, brokenTarget, goOf, goOptions } from '${app}pages/presentation/showPaths';
+export { END, LINK, GATE, resolveTarget, nextOf, chainFrom, routeOf, branch, routeTo, reachable, autoMap, targetOptions, withGo, withNext, brokenTarget, goOf, goOptions } from '${app}pages/presentation/showPaths';
+export { readStory, storyJson, throughGates, storyChain, beyondOf, outcomeTarget, outcomeKey, isOutcomeKey, startValues, gateTargets, NO_STORY } from '${app}pages/presentation/story';
 export { planImport, exportPage, DEFAULT_IMPORT } from '${app}pages/pageJson';
 export { presentationExample, pageDescription } from '${app}pages/pageJsonText';
 export { readLook, writeLook, resolveTheme } from '${app}pages/slides/slideLook';
@@ -591,6 +594,64 @@ try {
       assert.equal(mod.name, hortus.modules[i].name, `${hortus.modules[i].id}: and its name`);
     });
     ok(`Hortus Dei: ${hortus.modules.length} modules, ${show.scenes.length} scenes — imports without warning, every scene reachable, the fire leaves and returns, choices step, the pill leads to the practical part; comes out unchanged`);
+  }
+
+  /* -- 12. Der Przebieg (2026-10-21) ------------------------------------------------------------- */
+  {
+    const facts = (over = {}) => ({ values: {}, knowness: () => 0, answered: () => null, visited: new Set(), now: new Date('2026-10-21T12:00:00'), ...over });
+
+    /* Duldsam lesen, knapp schreiben. */
+    const raw = {
+      base: 'kb-1', storage: 'area-1',
+      values: [{ id: 'pkt', label: 'Punkty', start: 1, min: 0, max: 10 }, { id: 'pkt' }, { id: 'zła kennung' }],
+      gates: [
+        { key: 'g1', type: 'condition', when: { type: 'answered', of: 'q1', correct: true }, yes: 'c', no: 'b' },
+        { key: 's1', type: 'set', actions: [{ type: 'add', value: 'pkt', by: 2 }, { type: 'go', step: 'x' }], next: 'gate:g2' },
+        { key: 'g2', label: 'Dużo punktów?', type: 'condition', when: { type: 'value', value: 'pkt', op: 'ge', than: 3 }, yes: 'd', no: 'b' },
+        { key: 'g1', type: 'set' }
+      ]
+    };
+    const story = m.readStory(raw);
+    assert.deepEqual(story.values.map((v) => v.id), ['pkt'], 'values: one per id, valid ids only');
+    assert.deepEqual(story.gates.map((g) => g.key), ['g1', 's1', 'g2'], 'gates: one per key');
+    assert.deepEqual(story.gates[1].actions.map((a) => a.type), ['add'], 'a set gate changes values, it does not jump');
+    assert.deepEqual(m.readStory(m.storyJson(story)), story, 'written as read');
+    assert.equal(m.readStory(undefined), null, 'no story: a presentation without logic');
+
+    /* Durch die Tore. */
+    assert.equal(m.throughGates(story, 'gate:g1', facts()).target, 'b', 'not answered: "nie"');
+    assert.equal(m.throughGates(story, 'gate:g1', facts({ answered: (id) => (id === 'q1' ? 1 : null) })).target, 'c', 'answered right: "tak"');
+    assert.equal(m.throughGates(story, 'gate:g1', facts({ answered: (id) => (id === 'q1' ? 0 : null) })).target, 'b', 'answered wrong: "nie"');
+    const through = m.throughGates(story, 'gate:s1', facts({ values: m.startValues(story, {}) }));
+    assert.deepEqual([through.target, through.values.pkt, through.passed.map((g) => g.key)], ['d', 3, ['s1', 'g2']], 'a value set on the way decides the next gate');
+    const capped = m.throughGates(story, 'gate:s1', facts({ values: { pkt: 9 } }));
+    assert.equal(capped.values.pkt, 10, 'within the value\'s limits');
+    const loop = m.readStory({ gates: [{ key: 'o', type: 'set', next: 'gate:o' }] });
+    assert.equal(m.throughGates(loop, 'gate:o', facts()).target, null, 'a circle of gates ends nowhere');
+    assert.equal(m.throughGates(story, 'c', facts()).target, 'c', 'a scene is no gate');
+
+    /* Der Weg durch die Tore: „dalej" von a geht durch g1. */
+    const scenes = ['a', 'b', 'c', 'd'].map((key, i) => ({ key, label: key.toUpperCase(), steps: 1, ...(key === 'a' ? { next: 'gate:g1' } : {}) }));
+    const show = m.readShow({ scenes, story: raw });
+    assert.deepEqual(m.storyChain(show, show.story, 'a', facts()).map((s) => s.key), ['a', 'b', 'c', 'd'], 'not answered: via B');
+    assert.deepEqual(m.storyChain(show, show.story, 'a', facts({ answered: () => 1 })).map((s) => s.key), ['a', 'c', 'd'], 'answered right: straight to C');
+    const viaSet = m.readShow({ scenes: scenes.map((sc) => (sc.key === 'a' ? { ...sc, next: 'gate:s1' } : sc)), story: raw });
+    const chain = m.storyChain(viaSet, viaSet.story, 'a', facts({ values: m.startValues(viaSet.story, {}) }));
+    assert.deepEqual(chain.map((s) => [s.key, s.via.map((g) => g.key)]), [['a', []], ['d', ['s1']]], 'the set gate on the way counts when D is reached');
+    assert.deepEqual(m.resolveTarget(show, 'gate:g1'), { kind: 'gate', key: 'g1' }, 'a gate is a target');
+    assert.equal(m.resolveTarget(show, 'gate:nope').kind, 'none', 'a gate that is gone is no target');
+    assert.ok(m.targetOptions(show).some((o) => o.value === 'gate:g2' && o.label.includes('Dużo punktów?')), 'gates are offered as targets');
+    assert.deepEqual([...m.reachable(viaSet, [])].sort(), ['a', 'b', 'c', 'd'], 'reachable over both sides of a condition (C behind B)');
+
+    /* Fragen: dobrze / źle je Szene, am Baustein. */
+    const question = m.readPieceValue({ places: { a: { x: 50, y: 50 } }, go: { [m.outcomeKey('a', 'right')]: 'c', [m.outcomeKey('a', 'wrong')]: 'gate:g1' } });
+    assert.deepEqual([m.outcomeTarget(question, 'a', 'right'), m.outcomeTarget(question, 'a', 'wrong'), m.outcomeTarget(question, 'b', 'right')], ['c', 'gate:g1', null], 'outcome exits per scene, none elsewhere');
+    assert.ok(m.isOutcomeKey('a:right') && !m.isOutcomeKey('a') && !m.isOutcomeKey('*'), 'an outcome exit is no button');
+    assert.ok(m.reachable(m.readShow({ scenes: scenes.map((sc) => ({ ...sc, next: sc.key === 'a' ? 'end' : undefined })) }), [question]).has('c'), 'a scene behind an answer is reachable');
+
+    /* Die Seite als JSON trägt den Przebieg unverändert. */
+    assert.deepEqual(m.readShow(m.showJson(show)).story, show.story, 'show JSON keeps the story');
+    ok('story: values, gates (condition, set), answers right / wrong, the way through the gates with what the learner knows, JSON');
   }
 } finally {
   await rm(workspace, { recursive: true, force: true });

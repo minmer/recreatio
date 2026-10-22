@@ -452,7 +452,15 @@ export function TreePick({ nodes, value, onChange, extras = [], recent, placehol
         aria-haspopup="tree"
         aria-expanded={shown !== null}
         title={path.length > 0 ? path.map((p) => p.label).join(' › ') : undefined}
-        onClick={(e) => setShown((was) => (was === null ? e.currentTarget.getBoundingClientRect() : null))}
+        onClick={(e) => {
+          /*
+           * Das Mass JETZT nehmen: den Updater ruft React oft erst beim Zeichnen
+           * auf, und dann ist `currentTarget` schon `null` — beim zweiten Öffnen
+           * stand deshalb „Ten widok się zatrzymał".
+           */
+          const rect = e.currentTarget.getBoundingClientRect();
+          setShown((was) => (was === null ? rect : null));
+        }}
         onKeyDown={(e) => {
           if (shown === null && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
             e.preventDefault();

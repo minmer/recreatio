@@ -25,6 +25,7 @@ import { keepFromAddress } from './seats/seatKeep';
 import { heldLinks, keepLinkFromAddress } from './links/linkKeep';
 import { keepsKey, signOut, whoIsThere, type Who } from './core/session';
 import { PublicPage } from './pages/PublicPage';
+import { forgetLoadedPageKeys } from './pages/page';
 import { SignIn } from './shell/SignIn';
 import { Widget } from './pages/Widget';
 import { Loading } from './ui/Loading';
@@ -239,7 +240,7 @@ export function App() {
       const [notify, chat, libraries] = await Promise.all([import('./notify/notify'), import('./chat/chat'), import('./library/libraryStore')]);
       await notify.forgetNotifications().catch(() => undefined);
       await signOut();
-      forgetState(); chat.forgetAreaKeys(); libraries.forgetLibraries(); setWho(null);
+      forgetState(); chat.forgetAreaKeys(); libraries.forgetLibraries(); forgetLoadedPageKeys(); setWho(null);
     })();
   };
 

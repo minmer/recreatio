@@ -418,7 +418,7 @@ public static partial class Chat
             return;
         }
 
-        if (!await SeatMayPostAsync(ctx, chat) || !await ValidSendAtAsync(ctx, body.SendAt) || !await OneWayAsync(ctx, body.SendAt, body.WhenOnline)) return;
+        if (!await SeatMayPostAsync(ctx, connection, chat) || !await ValidSendAtAsync(ctx, body.SendAt) || !await OneWayAsync(ctx, body.SendAt, body.WhenOnline)) return;
         var at = await InsertAsync(ctx, connection, chat, message, null, seat.Id, body.SendAt, body.TopicId, null,
             body.WhenOnline ? seat.Id : null, body.Silent);
         if (at is null) return;

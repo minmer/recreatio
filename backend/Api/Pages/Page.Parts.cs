@@ -64,13 +64,14 @@ public static partial class Page
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(part.Layout) || part.Layout.Length > MaxLayout)
+            /* 0121 — auf einer versiegelten Seite kommen Anordnung und Inhalt als Hülle; die ist länger. */
+            if (string.IsNullOrWhiteSpace(part.Layout) || part.Layout.Length > (IsEnvelope(part.Layout) ? SealedLimit(MaxLayout) : MaxLayout))
             {
                 await Fail(ctx, StatusCodes.Status400BadRequest, "Układ modułu jest pusty albo za długi.");
                 return;
             }
 
-            if (part.Config is not null && part.Config.Length > MaxConfig)
+            if (part.Config is not null && part.Config.Length > (IsEnvelope(part.Config) ? SealedLimit(MaxConfig) : MaxConfig))
             {
                 await Fail(ctx, StatusCodes.Status400BadRequest, $"Treść modułu: najwyżej {MaxConfig} znaków.");
                 return;
@@ -112,6 +113,36 @@ public static partial class Page
         }
 
         var slugId = row.Value.Id;
+
+        /*
+         * 0121 — VERSIEGELT ODER OFFEN, und zwar ganz: auf einer versiegelten
+         * Seite kommen Anordnung und Inhalt jedes Bausteins als Hülle (ein
+         * Formular behält seine offenen Einstellungen — der Dienst liest sie),
+         * auf einer offenen nichts Versiegeltes. Und kein Baustein steht
+         * zugleich auf einer versiegelten und einer anderen Seite.
+         */
+        var sealedPage = await SealOfAsync(connection, slugId, ctx.RequestAborted) is not null;
+        foreach (var part in parts)
+        {
+            var form = part.Kind.Trim() == "form";
+            if (!Fits(sealedPage, part.Layout) || (form ? IsEnvelope(part.Config) : !Fits(sealedPage, part.Config)))
+            {
+                await SealMismatch(ctx, sealedPage);
+                return;
+            }
+        }
+
+        var shared = await SharedAcrossSealAsync(connection, slugId, sealedPage,
+            parts.Where(one => one.Kind.Trim() != "form")
+                .Select(one => Guid.TryParse(one.ModuleId, out var module) ? module : Guid.Parse(one.Id))
+                .ToHashSet(), ctx.RequestAborted);
+        if (shared.Count > 0)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, sealedPage
+                ? $"Zaszyfrowana strona nie dzieli modułów — ten moduł stoi też na: {string.Join(", ", shared.Take(5))}."
+                : $"Ten moduł stoi na zaszyfrowanej stronie {string.Join(", ", shared.Take(5))} — tam jego treść jest zaszyfrowana. Skopiuj go zamiast wstawiać.");
+            return;
+        }
 
         var now = DateTimeOffset.UtcNow;
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
@@ -287,9 +318,17 @@ public static partial class Page
          * Gestaltung, keine Erweiterung. Wer einen Bereich hat, bleibt — den
          * sieht seine Gruppe in der Liste und entscheidet selbst.
          */
+        /* 0120 — auch keine Rollen und keine virtuellen Bereiche (die Tabellen gibt es erst mit der Migration). */
+        var heldBy0120 = dropped.Count > 0 && await Schema.VirtualAreasAsync(connection, ctx.RequestAborted, tx)
+            ? """
+                   AND NOT EXISTS (SELECT 1 FROM app.module_role r WHERE r.module_id = @module)
+                   AND NOT EXISTS (SELECT 1 FROM app.virtual_area v WHERE v.module_id = @module)
+              """
+            : string.Empty;
+
         foreach (var module in dropped.Distinct())
         {
-            await using var orphan = new SqlCommand("""
+            await using var orphan = new SqlCommand($"""
                 DELETE FROM app.module
                  WHERE id = @module AND area_id IS NULL
                    AND NOT EXISTS (SELECT 1 FROM app.slug_part p WHERE p.module_id = @module)
@@ -297,7 +336,8 @@ public static partial class Page
                    AND NOT EXISTS (SELECT 1 FROM app.registration g WHERE g.part_id = @module)
                    AND NOT EXISTS (SELECT 1 FROM app.form_step s WHERE s.module_id = @module)
                    AND NOT EXISTS (SELECT 1 FROM app.form_design d WHERE d.module_id = @module)
-                   AND NOT EXISTS (SELECT 1 FROM app.module x WHERE x.extends_id = @module);
+                   AND NOT EXISTS (SELECT 1 FROM app.module x WHERE x.extends_id = @module)
+                   {heldBy0120};
                 """, connection, tx);
             orphan.Parameters.AddWithValue("@module", module);
             await orphan.ExecuteNonQueryAsync(ctx.RequestAborted);

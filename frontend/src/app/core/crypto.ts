@@ -217,7 +217,23 @@ export const Field = {
   ShareFile: 'share_file',
   ShareLabel: 'share_label',
   /** 0118 — eine Lampe mit ihren Sygnały (Werbepakete für Bluetooth LE). */
-  PhoneLamp: 'phone_lamp'
+  PhoneLamp: 'phone_lamp',
+
+  /*
+   * 0121 — EINE VERSIEGELTE SEITE (`pages/pageSeal.ts`): ihr Schlüssel, verpackt
+   * für ihre Bereiche und die Rolle, die sie führt — und unter ihm jedes Stück
+   * mit eigenem Etikett, damit sich der Titel nicht an die Stelle des Menüs
+   * schieben lässt.
+   */
+  PageKey: 'page_key',
+  PageTitle: 'page_title',
+  PageLead: 'page_lead',
+  PageLook: 'page_look',
+  PageLogic: 'page_logic',
+  PageSubject: 'page_subject',
+  PagePartLayout: 'page_part_layout',
+  PageModuleConfig: 'page_module_config',
+  PageMenu: 'page_menu'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

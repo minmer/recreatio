@@ -378,6 +378,13 @@ public static partial class Module
             return;
         }
 
+        /* 0121 — ein Baustein auf einer versiegelten Seite ändert sich im Editor DIESER Seite: nur dort ist ihr Schlüssel. */
+        if (body.Config is not null && await Page.ModuleSealConflictAsync(connection, id, body.Config, ctx.RequestAborted) is { } sealConflict)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, sealConflict);
+            return;
+        }
+
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
 
         try
@@ -568,6 +575,15 @@ public static partial class Module
             IF @offPages = 1 DELETE FROM app.slug_part WHERE module_id = @id;
             /* 0091 — ein Rollenzugang „über dieses Formular" bleibt, nur ohne das Formular. */
             UPDATE app.access_role SET module_id = NULL WHERE module_id = @id;
+            /*
+               0120 — seine Rollen gehen mit; seine virtuellen Bereiche bleiben als
+               gewöhnliche Bereiche stehen (Kleinbereiche hat ein Formular ohne
+               Einsendungen keine). Bewacht: ohne die Migration fehlen die Tabellen.
+            */
+            IF OBJECT_ID(N'app.module_role', N'U') IS NOT NULL
+                DELETE FROM app.module_role WHERE module_id = @id;
+            IF OBJECT_ID(N'app.virtual_area', N'U') IS NOT NULL
+                DELETE FROM app.virtual_area WHERE module_id = @id;
             DELETE FROM app.slug_field WHERE part_id = @id;
             DELETE FROM app.form_design WHERE module_id = @id;
             DELETE FROM app.task_answer WHERE step_id IN (SELECT id FROM app.form_step WHERE module_id = @id);

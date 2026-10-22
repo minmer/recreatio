@@ -545,6 +545,20 @@ public static class AccountDeletion
             OR field_id IN (SELECT id FROM app.slug_field
                              WHERE part_id IN (SELECT id FROM #mods)
                                 OR area_id IN (SELECT id FROM #dead) OR label_area_id IN (SELECT id FROM #dead));
+        -- 0091 — ein Rollenzugang „über ein Formular", das geht, bleibt — nur ohne das Formular.
+        UPDATE app.access_role SET module_id = NULL WHERE module_id IN (SELECT id FROM #mods);
+        -- 0120 — Rollen und virtuelle Bereiche sterbender Formulare; ein Kleinbereich, den noch
+        -- jemand hält (ein Platz), bleibt als gewöhnlicher Bereich stehen. Bewacht: ohne die
+        -- Migration fehlen die Tabellen, und ein Konto muss sich trotzdem löschen lassen.
+        IF OBJECT_ID(N'app.area_instance', N'U') IS NOT NULL
+        BEGIN
+            DELETE FROM app.area_instance
+             WHERE area_id IN (SELECT id FROM #dead) OR virtual_area_id IN (SELECT id FROM #dead)
+                OR virtual_area_id IN (SELECT area_id FROM app.virtual_area WHERE module_id IN (SELECT id FROM #mods))
+                OR registration_id IN (SELECT id FROM app.registration WHERE part_id IN (SELECT id FROM #mods));
+            DELETE FROM app.virtual_area WHERE area_id IN (SELECT id FROM #dead) OR module_id IN (SELECT id FROM #mods);
+            DELETE FROM app.module_role  WHERE module_id IN (SELECT id FROM #mods);
+        END
         UPDATE app.registration SET base_id = NULL
          WHERE base_id IN (SELECT id FROM app.registration WHERE part_id IN (SELECT id FROM #mods))
            AND part_id NOT IN (SELECT id FROM #mods);

@@ -15,17 +15,20 @@ import type { Heat } from './heat';
 import type { Liquid } from './liquid';
 import { hLiq, liquidIndex, LIQUIDS, rhoLiq, solidIndex, SOLIDS, WATER } from './materials';
 import type { Particles } from './particles';
+import { hSol, rhoSol, soluteIndex } from './solution';
 import type { Op } from './scene';
 import { bounds, inside, type Region } from './shapes';
 import { GAS_SPECIES, H2O, N2, O2, SOLID, SPECIES_SLOTS, T0 } from './units';
 
-/** Was ein Handgriff bucht: Wasser-, Gas- und andere Flüssigkeitsmasse (Öl) und Energie, die von aussen kamen (negativ: weggenommen). */
+/** Was ein Handgriff bucht: Wasser-, Gas- und andere Flüssigkeitsmasse (Öl), Salz und Energie, die von aussen kamen (negativ: weggenommen). */
 export interface EditLedger {
   water: number;
   air: number;
   energy: number;
   /** Flüssigkeiten ausser Wasser (kg). */
   other: number;
+  /** Kochsalz, gelöst oder als Kruste (kg). */
+  salt: number;
 }
 
 export interface World {
@@ -78,12 +81,20 @@ function putGas(w: World, c: number, T: number, Y: Float64Array): void {
   w.ledger.energy += g.Hg[c];
 }
 
-/** Ein Teilchen als Eingriff ausbuchen (Wasser oder eine andere Flüssigkeit) — vor dem Entfernen. */
+/** Ein Teilchen als Eingriff ausbuchen (Wasser oder eine andere Flüssigkeit, gelöstes Salz) — vor dem Entfernen. */
 function unbook(w: World, p: number): void {
   const P = w.particles;
-  if (P.mat[p] === WATER) w.ledger.water -= P.mass[p];
-  else w.ledger.other -= P.mass[p];
+  const s = P.smass[2 * p];
+  if (P.mat[p] === WATER) w.ledger.water -= P.mass[p] - s;
+  else w.ledger.other -= P.mass[p] - s;
+  w.ledger.salt -= s;
   w.ledger.energy -= P.mass[p] * P.h[p];
+}
+
+/** Die Salzkruste einer festen Zelle geht mit ihr hinaus (gebucht; ihre Energie steckt in Es). */
+function unbookCrust(w: World, c: number): void {
+  w.ledger.salt -= w.grid.crust[c];
+  w.grid.crust[c] = 0;
 }
 
 /** Teilchen und Blasen in einer Fläche entfernen (gebucht). */
@@ -115,6 +126,7 @@ function makeSolid(w: World, cells: readonly number[], s: number, T: number, hea
     if (g.solid[c] !== 0) {
       w.ledger.energy -= g.Es[c];
       w.ledger.water -= g.film[c];
+      unbookCrust(w, c);
     } else {
       dropGas(w, c);
     }
@@ -148,6 +160,7 @@ function clearSolid(w: World, cells: readonly number[]): void {
     any = true;
     w.ledger.energy -= g.Es[c];
     w.ledger.water -= g.film[c];
+    unbookCrust(w, c);
     g.solid[c] = 0;
     g.role[c] = 0;
     g.heater[c] = -1;
@@ -191,25 +204,34 @@ export function applyOp(w: World, op: Op): string | null {
       /*
        * Flüssigkeit: vorhandene Teilchen und Blasen in der Fläche ersetzen,
        * dann 2 × 2 Teilchen je Zelle. Die Zusammensetzung nennt Flüssigkeiten
-       * (H2O, oil-rapeseed …) mit Massenanteilen; mehrere unmischbare werden
-       * nach ihren Volumenanteilen gleichmässig verteilt (jedes Teilchen ist
-       * eine von ihnen) — die Schwerkraft trennt sie dann.
+       * (H2O, oil-rapeseed …) und gelöste Stoffe (NaCl) mit Massenanteilen;
+       * mehrere unmischbare Flüssigkeiten werden nach ihren Volumenanteilen
+       * gleichmässig verteilt (jedes Teilchen ist eine von ihnen) — die
+       * Schwerkraft trennt sie dann. Salz löst sich im Wasser: jedes
+       * Wasserteilchen ist Sole des Massenanteils w = NaCl/(H2O + NaCl).
        */
       removeLiquid(w, op.region);
       const NL = LIQUIDS.length;
+      let saltIn = 0;
+      for (const [k, v] of Object.entries(op.composition)) if (soluteIndex(k) >= 0 && v > 0) saltIn += v;
+      const waterIn = op.composition[LIQUIDS[WATER].id] ?? 0;
+      const ws = saltIn > 0 && waterIn > 0 ? saltIn / (saltIn + waterIn) : 0;
+      const rhoOf = (l: number): number => (l === WATER && ws > 0 ? rhoSol(op.T, ws) : rhoLiq(l, op.T));
       const vf = new Float64Array(NL);
       let vsum = 0;
       for (const [k, v] of Object.entries(op.composition)) {
         const l = liquidIndex(k);
         if (l < 0 || !(v > 0)) continue;
-        vf[l] += v / rhoLiq(l, op.T);
-        vsum += v / rhoLiq(l, op.T);
+        const mass = l === WATER && ws > 0 ? v + saltIn : v;
+        vf[l] += mass / rhoOf(l);
+        vsum += mass / rhoOf(l);
       }
       if (vsum <= 0) return 'fill: no known liquid in the composition';
       for (let l = 0; l < NL; l += 1) vf[l] /= vsum;
       const mOf = new Float64Array(NL);
       const hOf = new Float64Array(NL);
-      for (let l = 0; l < NL; l += 1) { mOf[l] = (rhoLiq(l, op.T) * g.vCell) / 4; hOf[l] = hLiq(l, op.T); }
+      for (let l = 0; l < NL; l += 1) { mOf[l] = (rhoOf(l) * g.vCell) / 4; hOf[l] = l === WATER && ws > 0 ? hSol(op.T, ws) : hLiq(l, op.T); }
+      const sOf = ws * mOf[WATER];
       /* Fehlerverteilung: jedes Teilchen nimmt die Flüssigkeit, die ihrem Anteil am weitesten hinterherhinkt. */
       const due = new Float64Array(NL);
       const P = w.particles;
@@ -227,15 +249,18 @@ export function applyOp(w: World, op: Op): string | null {
           due[l] -= 1;
           const m = mOf[l];
           const h = hOf[l];
-          if (P.add(x, y, m, h, l) < 0) { full = true; continue; }
+          const s = l === WATER ? sOf : 0;
+          if (P.add(x, y, m, h, l, s) < 0) { full = true; continue; }
           placed += 1;
-          if (l === WATER) w.ledger.water += m; else w.ledger.other += m;
+          if (l === WATER) w.ledger.water += m - s; else w.ledger.other += m;
+          w.ledger.salt += s;
           w.ledger.energy += m * h;
         }
         /* Ganz gefüllte Zellen: ihre Luft weicht (gebucht). */
         if (placed === 4) dropGas(w, c);
       });
       w.liquid.weightsDirty = true;
+      if (saltIn > 0 && waterIn <= 0) return 'fill: salt needs water to dissolve in (NaCl dropped)';
       return full ? 'fill: particle capacity reached' : null;
     }
     case 'erase': {
@@ -333,15 +358,17 @@ function moveSolids(w: World, region: Region, di: number, dj: number): void {
   w.liquid.weightsDirty = true;
   if (src.length === 0) return;
   /* Die Zustände der festen Zellen merken und die Quellen räumen (gebucht: ihre Energie und ihr Belag gehen hinaus …). */
-  const state = src.map((c) => ({ c, s: g.solid[c], role: g.role[c], heater: g.heater[c], T: g.T[c], Es: g.Es[c], film: g.film[c] }));
+  const state = src.map((c) => ({ c, s: g.solid[c], role: g.role[c], heater: g.heater[c], T: g.T[c], Es: g.Es[c], film: g.film[c], crust: g.crust[c] }));
   for (const k of state) {
     w.ledger.energy -= k.Es;
     w.ledger.water -= k.film;
+    w.ledger.salt -= k.crust;
     g.solid[k.c] = 0;
     g.role[k.c] = 0;
     g.heater[k.c] = -1;
     g.Es[k.c] = 0;
     g.film[k.c] = 0;
+    g.crust[k.c] = 0;
     g.kind[k.c] = 0;
   }
   /* … und am Ziel wieder hinein. */
@@ -353,6 +380,7 @@ function moveSolids(w: World, region: Region, di: number, dj: number): void {
     if (g.solid[t] !== 0) {
       w.ledger.energy -= g.Es[t];
       w.ledger.water -= g.film[t];
+      unbookCrust(w, t);
     } else {
       dropGas(w, t);
     }
@@ -362,9 +390,11 @@ function moveSolids(w: World, region: Region, di: number, dj: number): void {
     g.T[t] = k.T;
     g.Es[t] = k.Es;
     g.film[t] = k.film;
+    g.crust[t] = k.crust;
     g.kind[t] = SOLID;
     w.ledger.energy += k.Es;
     w.ledger.water += k.film;
+    w.ledger.salt += k.crust;
   }
   /* Teilchen, die jetzt in festen Zellen liegen: entfernen. */
   for (let q = 0; q < P.count; q += 1) {

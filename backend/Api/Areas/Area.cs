@@ -39,8 +39,8 @@ public static partial class Area
     public const int KeySize = 32;
 
     private static readonly TimeSpan MembershipLife = TimeSpan.FromDays(365 * 2);
-    private static readonly TimeSpan MaxLife = TimeSpan.FromDays(365 * 5);
-    private static readonly TimeSpan ClockSlack = TimeSpan.FromHours(1);
+    internal static readonly TimeSpan MaxLife = TimeSpan.FromDays(365 * 5);
+    internal static readonly TimeSpan ClockSlack = TimeSpan.FromHours(1);
 
     public static void Map(WebApplication app)
     {
@@ -130,7 +130,7 @@ public static partial class Area
         return Capabilities.CoversAny(held, needed);
     }
 
-    private static async Task<byte[]?> PublicSignKeyAsync(
+    internal static async Task<byte[]?> PublicSignKeyAsync(
         SqlConnection connection, Guid roleId, CancellationToken ct)
     {
         await using var cmd = new SqlCommand(

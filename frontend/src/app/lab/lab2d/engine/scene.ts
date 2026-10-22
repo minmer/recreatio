@@ -11,6 +11,7 @@
 
 import { readRegion, writeRegion, type Region } from './shapes';
 import { liquidIndex, solidIndex } from './materials';
+import { soluteIndex } from './solution';
 import { G0, P_ATM, T0 } from './units';
 
 export const SCENE_FORMAT = 'recreatio/lab2d';
@@ -99,9 +100,9 @@ function readOp(raw: unknown, warnings: string[], at: number): Op | null {
       const region = readRegion(r.region);
       if (region === null) break;
       const phase = r.phase === 'gas' ? 'gas' : 'liquid';
-      /* Bekannte Stoffe behalten: Flüssigkeiten der Datenbank (H2O, oil-rapeseed …), Gase N2, O2, H2O. */
+      /* Bekannte Stoffe behalten: Flüssigkeiten der Datenbank (H2O, oil-rapeseed …) und gelöste Stoffe (NaCl), Gase N2, O2, H2O. */
       const raw = readComposition(r.composition);
-      const known = (k: string): boolean => (phase === 'gas' ? k === 'N2' || k === 'O2' || k === 'H2O' : liquidIndex(k) >= 0);
+      const known = (k: string): boolean => (phase === 'gas' ? k === 'N2' || k === 'O2' || k === 'H2O' : liquidIndex(k) >= 0 || soluteIndex(k) >= 0);
       const kept: Record<string, number> = {};
       for (const [k, v] of Object.entries(raw)) {
         if (known(k)) kept[k] = v;

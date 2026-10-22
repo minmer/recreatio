@@ -43,6 +43,7 @@ import type { Layout } from '../layout';
 import { motionsJson, readMotions, type MotionUse } from '../motion/motion';
 import { COLOR_KEYS, type SlideColors } from '../slides/slides';
 import { layersJson, readLayers, type Layer } from '../slides/slideLook';
+import { readStory, storyJson, type Story } from './story';
 
 /* -- Wörterbücher ------------------------------------------------------------------ */
 
@@ -533,9 +534,14 @@ export interface Show {
   readonly width: number | null;
   /** 2026-10-19 — der Klang der Umgebung, nur auf Wunsch — `null`: keiner. */
   readonly sound: Sound | null;
+  /**
+   * 2026-10-21 — DER PRZEBIEG (`story.ts`): Werte, Tore, wohin die Antworten
+   * gehen. `null`: eine Präsentation ohne Logik — sie läuft wie bisher.
+   */
+  readonly story: Story | null;
 }
 
-export const NO_SHOW: Show = { format: 'screen', fonts: 'app', nav: 'labels', scenes: [], links: [], map: {}, backdrop: [], width: null, sound: null };
+export const NO_SHOW: Show = { format: 'screen', fonts: 'app', nav: 'labels', scenes: [], links: [], map: {}, backdrop: [], width: null, sound: null, story: null };
 
 /* -- Duldsame Leser ------------------------------------------------------------------- */
 
@@ -1017,7 +1023,8 @@ export function readShow(value: unknown): Show {
     map: readMap(one.map),
     backdrop: readLayers(one.backdrop),
     width: typeof one.width === 'number' && Number.isFinite(one.width) ? Math.min(240, Math.max(20, one.width)) : null,
-    sound: readSound(one.sound)
+    sound: readSound(one.sound),
+    story: readStory(one.story)
   };
 }
 
@@ -1070,7 +1077,8 @@ export function showJson(show: Show): Record<string, unknown> {
     ...(Object.keys(show.map).length > 0 ? { map: show.map } : {}),
     ...(show.backdrop.length > 0 ? { backdrop: layersJson(show.backdrop) } : {}),
     ...(show.width !== null ? { width: show.width } : {}),
-    ...(show.sound !== null ? { sound: { url: show.sound.url, ...(show.sound.label !== '' ? { label: show.sound.label } : {}), volume: roundTo(show.sound.volume, 3) } } : {})
+    ...(show.sound !== null ? { sound: { url: show.sound.url, ...(show.sound.label !== '' ? { label: show.sound.label } : {}), volume: roundTo(show.sound.volume, 3) } } : {}),
+    ...(show.story !== null ? { story: storyJson(show.story) } : {})
   };
 }
 

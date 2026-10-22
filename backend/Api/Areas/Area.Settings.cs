@@ -254,11 +254,30 @@ public static partial class Area
             return;
         }
 
+        /*
+         * 0120 — ein virtueller Bereich ist die Regel seiner Kleinbereiche: wer
+         * hier hinausgeht, geht auch aus jedem Kleinbereich darin hinaus. Die
+         * Browser der Leiter haben die Zertifikate dort nach dieser Regel
+         * geschrieben; zurücknehmen kann sie der Dienst selbst.
+         */
+        var instances = await Schema.VirtualAreasAsync(connection, ctx.RequestAborted)
+            ? """
+
+                UPDATE app.certificate SET revoked_at = @now
+                WHERE scope_kind = N'area' AND subject_role_id = @role AND revoked_at IS NULL
+                  AND scope_id IN (SELECT ai.area_id FROM app.area_instance ai WHERE ai.virtual_area_id = @area);
+
+                UPDATE app.key_grant SET destroyed_at = @now
+                WHERE key_kind = N'epoch' AND role_id = @role AND destroyed_at IS NULL
+                  AND key_ref IN (SELECT ai.area_id FROM app.area_instance ai WHERE ai.virtual_area_id = @area);
+                """
+            : string.Empty;
+
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
 
         try
         {
-            await using (var cmd = new SqlCommand("""
+            await using (var cmd = new SqlCommand($"""
                 UPDATE app.certificate SET revoked_at = @now
                 WHERE scope_kind = N'area' AND scope_id = @area
                   AND subject_role_id = @role AND revoked_at IS NULL;
@@ -266,6 +285,7 @@ public static partial class Area
                 UPDATE app.key_grant SET destroyed_at = @now
                 WHERE key_kind = N'epoch' AND key_ref = @area
                   AND role_id = @role AND destroyed_at IS NULL;
+                {instances}
                 """, connection, tx))
             {
                 cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
@@ -319,7 +339,12 @@ public static partial class Area
             return;
         }
 
-        await using var cmd = new SqlCommand("UPDATE app.area SET name = @name WHERE id = @id;", connection);
+        /* 0120 — die Kleinbereiche eines virtuellen Bereichs tragen seinen Namen (nie den eines Menschen). */
+        var instances = await Schema.VirtualAreasAsync(connection, ctx.RequestAborted)
+            ? "UPDATE app.area SET name = @name WHERE id IN (SELECT ai.area_id FROM app.area_instance ai WHERE ai.virtual_area_id = @id);"
+            : string.Empty;
+
+        await using var cmd = new SqlCommand($"UPDATE app.area SET name = @name WHERE id = @id; {instances}", connection);
         cmd.Parameters.AddWithValue("@id", id);
         cmd.Parameters.AddWithValue("@name", name);
         await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);

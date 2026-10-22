@@ -56,6 +56,7 @@ uniform sampler2D lut;
 uniform vec3 water;
 /* Die zweite Flüssigkeit (Öl): ihr Anteil steht in Kanal B. */
 uniform vec3 oil;
+/* 0: Farbe der Flüssigkeit; 1: Temperatur (Kanal G); 2: Salzgehalt (Kanal A) — über die Farbskala. */
 uniform float tint;
 uniform vec2 texel;
 out vec4 color;
@@ -64,7 +65,8 @@ void main() {
   float cover = c.r;
   float a = smoothstep(0.42, 0.58, cover);
   if (a <= 0.0) discard;
-  vec3 rgb = mix(mix(water, oil, c.b), texture(lut, vec2(c.g, 0.5)).rgb, tint);
+  float t = tint > 1.5 ? c.a : c.g;
+  vec3 rgb = mix(mix(water, oil, c.b), texture(lut, vec2(t, 0.5)).rgb, tint > 0.5 ? 1.0 : 0.0);
   /* Die Oberfläche als feine dunklere Linie: dort, wo die Bedeckung ½ kreuzt. */
   float edge = 1.0 - smoothstep(0.0, 0.12, abs(cover - 0.5));
   rgb *= 1.0 - 0.25 * edge;
@@ -348,7 +350,7 @@ export class LabRenderer {
     gl.uniform2f(gl.getUniformLocation(this.liquidProg, 'box'), f.boxW, f.boxH);
     gl.uniform3f(gl.getUniformLocation(this.liquidProg, 'water'), this.water[0], this.water[1], this.water[2]);
     gl.uniform3f(gl.getUniformLocation(this.liquidProg, 'oil'), OIL[0], OIL[1], OIL[2]);
-    gl.uniform1f(gl.getUniformLocation(this.liquidProg, 'tint'), f.tintLiquid ? 1 : 0);
+    gl.uniform1f(gl.getUniformLocation(this.liquidProg, 'tint'), f.tintLiquid);
     gl.uniform2f(gl.getUniformLocation(this.liquidProg, 'texel'), 1 / f.lx, 1 / f.ly);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.liquidTex);

@@ -11,6 +11,11 @@ export const G0 = 9.80665;
 export const P_ATM = 101325;
 /** 0 °C in K — exakt. */
 export const T0 = 273.15;
+/** Elementarladung (C), Boltzmann-Konstante (J/K), Avogadro-Konstante (1/mol) — exakt seit der SI-Reform 2019; elektrische Feldkonstante (F/m) — CODATA 2018. */
+export const E_CHARGE = 1.602176634e-19;
+export const K_B = 1.380649e-23;
+export const N_A = 6.02214076e23;
+export const EPS0 = 8.8541878128e-12;
 
 export const kelvin = (celsius: number): number => celsius + T0;
 export const celsius = (kelvinValue: number): number => kelvinValue - T0;

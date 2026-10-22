@@ -241,7 +241,7 @@ public static partial class Chat
         var found = await SeatChatAsync(ctx, connection, token, message.ChatId);
         if (found is null) return;
         var (seat, chat) = found.Value;
-        if (!await SeatMayPostAsync(ctx, chat)) return;
+        if (!await SeatMayPostAsync(ctx, connection, chat)) return;
 
         if (message.AuthorSeat != seat.Id)
         {
@@ -360,7 +360,7 @@ public static partial class Chat
         var found = await SeatChatAsync(ctx, connection, token, message.ChatId);
         if (found is null) return;
 
-        if (!await SeatMayPostAsync(ctx, found.Value.Chat)) return;
+        if (!await SeatMayPostAsync(ctx, connection, found.Value.Chat)) return;
 
         if (!message.Deleted)
         {

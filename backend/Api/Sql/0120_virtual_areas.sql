@@ -31,20 +31,24 @@
     ihm selbst angelegt wird.
 
     =========================================================================
-    3. DER KLEINBEREICH — die eine Stelle, an der ein Bereich erbt
+    3. DER KLEINBEREICH — die Regel, angewandt im Browser eines Leiters
     =========================================================================
 
     Je Einsendung und virtuellem Bereich eine Zeile in `app.area` (Vater: der
-    virtuelle Bereich) und eine in `area_instance`. Eigene Zertifikate hat er
-    nicht: was an ihm erlaubt ist, sagen die Zertifikate seines virtuellen
-    Bereichs (`Area.MayAsync`). Für jeden anderen Bereich gilt 0035 weiter —
-    die Verschachtelung ist eine Voraussetzung, keine Vererbung.
+    virtuelle Bereich) und eine in `area_instance`. Er ist ein gewöhnlicher
+    Bereich mit eigenen Zertifikaten: der Browser eines Leiters (admin oder
+    certify am virtuellen Bereich) schreibt sie GENAU nach den Zertifikaten des
+    virtuellen Bereichs, und trägt nach, wenn dort eine Rolle dazukommt; geht
+    eine, nimmt der Dienst sie in jedem Kleinbereich zurück. So gilt für den
+    Kleinbereich alles, was für Bereiche gilt — Rozmowa, Kalender, Aufgaben,
+    Glocke —, ohne dass eine Stelle von virtuellen Bereichen wissen muss. 0035
+    bleibt für alle Bereiche: die Verschachtelung ist eine Voraussetzung, keine
+    Vererbung.
 
-    Seinen Schlüssel macht der Browser, der ihn anlegt, und verpackt ihn für
-    die öffentlichen Schlüssel der verbundenen Rollen (`key_grant`) und — wenn
-    der Einsender ihn erreicht — unter dem Platzschlüssel (`access_grant`,
-    0024) oder für seine Personenrolle. Keine Schlüsselerzeugung je Mensch,
-    nur Verpacken.
+    Seinen Schlüssel macht derselbe Browser und verpackt ihn für die
+    öffentlichen Schlüssel der Rollen der Regel (`key_grant`) und — wenn der
+    Einsender ihn erreicht — unter dem Platzschlüssel (`access_grant`, 0024).
+    Keine Schlüsselerzeugung je Mensch, nur Verpacken.
 
     Der Klartextname eines Kleinbereichs ist der seines virtuellen Bereichs,
     nie der Name eines Menschen (0097).

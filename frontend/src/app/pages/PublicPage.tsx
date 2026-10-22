@@ -139,6 +139,20 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
     );
   }
 
+  /*
+   * 0121 — VERSIEGELT, und dieser Browser hat (noch) keinen Schlüssel. Ein Platz
+   * öffnet seine Schlüssel erst gleich (`WithSeat`) — sobald er offen ist, wird
+   * die Seite noch einmal geholt.
+   */
+  if (page.locked === true) {
+    return (
+      <WithSeat path={page.path}>
+        <SeatBar path={page.path} />
+        <SealedPage onRetry={() => setRound((n) => n + 1)} />
+      </WithSeat>
+    );
+  }
+
   const parts = page.parts.map(toDraft);
 
   /*
@@ -195,7 +209,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
             /* 0085 — ALS PREZENTACJA: Szenen, auf denen die Bausteine frei stehen. */
             <UntilConfirmed path={page.path}>
               <PersonAccessGate>
-                <ShowBody path={page.path} parts={parts} theme={page.theme ?? null} title={page.title} />
+                <ShowBody path={page.path} parts={parts} theme={page.theme ?? null} title={page.title} pageId={page.id ?? null} />
               </PersonAccessGate>
             </UntilConfirmed>
           ) : (<>
@@ -233,6 +247,38 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
       </PersonProvider>
       </PageAccessContext.Provider>
     </WithSeat>
+  );
+}
+
+/**
+ * 0121 — EINE VERSIEGELTE SEITE OHNE SCHLÜSSEL. Der Zugang ist da (sonst hätte
+ * der Dienst sie gar nicht geschickt), aber kein Weg dieses Browsers öffnet
+ * ihren Schlüssel. Öffnet ein Platz gerade seine Schlüssel, wird es gleich
+ * noch einmal versucht — einmal je Platz, der aufgeht.
+ */
+function SealedPage({ onRetry }: { onRetry: () => void }) {
+  const states = useSeatStates();
+  const tried = useRef(new Set<string>());
+
+  useEffect(() => {
+    for (const one of states) {
+      if (one.state !== 'open' || tried.current.has(one.token)) continue;
+      tried.current.add(one.token);
+      onRetry();
+      return;
+    }
+  }, [states, onRetry]);
+
+  return (
+    <div className="ui-empty">
+      <h1 className="wk-h1">Ta strona jest zaszyfrowana</h1>
+      <p>
+        Masz do niej dostęp, ale ta przeglądarka nie ma jeszcze klucza, który ją otwiera. Klucz mają osoby z dostępem
+        do obszarów strony — po zalogowaniu albo przez link dostępu. Osoba z formularza dostaje go, gdy ktoś z obsługi
+        przekaże jej dostęp.
+      </p>
+      <button type="button" className="wk-btn" onClick={onRetry}>Spróbuj ponownie</button>
+    </div>
   );
 }
 
@@ -381,11 +427,13 @@ function SlidesBody({ path, parts, theme, title, lead }: {
  * darauf (die Szenen sagen, was sie sagen); für wen, und die Links, stehen
  * klein oben links, solange es etwas zu sagen gibt.
  */
-function ShowBody({ path, parts, theme, title }: {
+function ShowBody({ path, parts, theme, title, pageId }: {
   path: string;
   parts: ReturnType<typeof toDraft>[];
   theme: string | null;
   title: string | null;
+  /** 2026-10-21 — unter ihr merkt sich ein Przebieg Antworten und Stelle. */
+  pageId: string | null;
 }) {
   const look = useMemo(() => readLook(theme), [theme]);
 
@@ -394,6 +442,7 @@ function ShowBody({ path, parts, theme, title }: {
       parts={parts}
       look={look}
       title={title}
+      pageId={pageId}
       extra={<><SeatBar path={path} /><div className="wk-page-top"><PersonPicker /></div><SubjectBar /></>}
     />
   );

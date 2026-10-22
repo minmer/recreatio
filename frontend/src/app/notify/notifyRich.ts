@@ -31,6 +31,7 @@ import type { Ring, SealedRole } from '../core/keys';
 import { loadLinks } from '../links/linkAccess';
 import type { Digest, DigestChat, DigestForm } from './notify';
 import { handOverRoleKeys } from '../roles/memberRole';
+import { applyVirtualArea, loadVirtualPlan } from '../forms/virtualAreas';
 import { keysFor } from '../core/ringOf';
 import { authorText, chooseSpeaker, messageAuthor, speakersOf, throughRole } from '../chat/chatAuthor';
 import type { RoleEdge } from '../roles/roles';
@@ -248,6 +249,30 @@ export async function handOverRoleWaiting(who: Who, moduleIds: readonly string[]
 }
 
 const roleTried = new Map<string, number>();
+
+/**
+ * 0120 — OBSZARY OSÓB, DIE NOCH FEHLEN: die Glocke nennt die virtuellen
+ * Bereiche (`virtual.waiting`), deren Regel dieses Konto anwenden darf; der
+ * Schlüsselbund legt die fehlenden Kleinbereiche an und trägt nach, was eine
+ * neue Rolle braucht. Was er nicht kann (ein Platz, den er nicht öffnet),
+ * versucht er nicht jede Minute von vorn.
+ */
+export async function applyVirtualWaiting(who: Who, virtualAreaIds: readonly string[]): Promise<number> {
+  if (virtualAreaIds.length === 0) return 0;
+  const me = await opener(who);
+  if (me === 'session' || me === 'key') return 0;
+  let done = 0;
+  for (const areaId of virtualAreaIds) {
+    if (Date.now() - (virtualTried.get(areaId) ?? 0) < 10 * 60_000) continue;
+    const result = await loadVirtualPlan(areaId).then((plan) => applyVirtualArea(me.ring, plan)).catch(() => null);
+    const now = result === null ? 0 : result.created + result.mirrored;
+    if (now === 0) virtualTried.set(areaId, Date.now()); else virtualTried.delete(areaId);
+    done += now;
+  }
+  return done;
+}
+
+const virtualTried = new Map<string, number>();
 
 const locked = (reason: 'session' | 'key'): News => ({ state: 'locked', reason, conversations: [], forms: [], links: null, reminders: null });
 

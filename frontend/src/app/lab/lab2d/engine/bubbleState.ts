@@ -17,9 +17,10 @@
  * aus); beide sind beim Übergang π D².
  */
 
+import type { Grid } from './grid';
 import { rhoVapourSatFast, tSat } from './if97';
 import { MOLAR, sigmaLiq, WATER } from './materials';
-import { H2O, N2, O2, R_GAS, SPECIES_SLOTS } from './units';
+import { GAS, H2O, N2, O2, R_GAS, SPECIES_SLOTS } from './units';
 
 /**
  * Höchstens so schnell (Zellvolumen je Sekunde) macht die Flüssigkeit den Blasen einer Zelle Platz oder füllt ihn
@@ -199,4 +200,39 @@ export function footprint(x: number, y: number, r: number, V: number, D: number,
   }
   for (let q = 0; q < k; q += 1) weights[q] /= sum;
   return k;
+}
+
+/** Gaszellen um c (c zuerst, dann die Nachbarn in der Reihe und darüber), bis ihr Volumen das einer platzenden Blase (V) fasst; Gewichte nach Gasvolumen in cells/wts; Rückgabe: Anzahl. */
+export function gasCellsAround(g: Grid, vg: Float64Array, c: number, V: number, cells: Int32Array, wts: Float64Array): number {
+  const { nx, ny } = g;
+  const ci = c % nx;
+  const cj = (c - ci) / nx;
+  let k = 0;
+  let total = 0;
+  for (let ring = 0; ring <= 6 && (k === 0 || total < 2 * V); ring += 1) {
+    for (let dj = 0; dj <= ring; dj += 1) {
+      for (let di = -ring; di <= ring; di += 1) {
+        if (Math.max(Math.abs(di), dj) !== ring) continue;
+        const i = ci + di;
+        const j = cj + dj;
+        if (i < 0 || j < 0 || i >= nx || j >= ny) continue;
+        const q = i + j * nx;
+        if (g.kind[q] !== GAS || k >= cells.length) continue;
+        const v = Math.max(1e-3 * g.vCell, vg[q]);
+        cells[k] = q;
+        wts[k] = v;
+        total += v;
+        k += 1;
+      }
+    }
+  }
+  for (let q = 0; q < k; q += 1) wts[q] /= total;
+  return k;
+}
+
+/** Die oberste Gaszelle in der Spalte über x (−1: keine). */
+export function anyGasAbove(g: Grid, x: number): number {
+  const i = Math.min(g.nx - 1, Math.max(0, Math.floor(x / g.dx)));
+  for (let j = g.ny - 1; j >= 0; j -= 1) if (g.kind[i + j * g.nx] === GAS) return i + j * g.nx;
+  return -1;
 }

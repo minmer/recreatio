@@ -215,3 +215,9 @@ span.pe-item-title { cursor: default; }
 
 /* Ein Baustein der Ereignisseiten im Streifen nimmt die ganze Zeile — der Streifen ist ein flex-Behälter. */
 .wk-card[data-h='strip'] > .wk-evp { flex: 1 1 100%; }
+
+/* 2026-10-21 — der Editor einer Frage: die Möglichkeiten mit ihrem Häkchen. */
+.pb-question { display: grid; gap: var(--wk-space-2); }
+.pb-question-options { display: grid; gap: var(--wk-space-1); border: 0; padding: 0; margin: 0; }
+.pb-question-option { display: flex; gap: var(--wk-space-2); align-items: center; }
+.pb-question-option > input:not([type]) { flex: 1 1 auto; min-width: 0; }

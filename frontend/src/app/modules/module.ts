@@ -129,6 +129,9 @@ export interface ModuleRow {
   /** 0091 — die Rolle, die jeder bekommt, der dieses Formular einsendet (`null`: keine). */
   readonly memberRoleId: string | null;
 
+  /** 0120 — alle Rollen, die jeder bekommt, in ihrer Reihenfolge (ein Dienst von vorher schickt sie nicht: dann gilt `memberRoleId`). */
+  readonly memberRoleIds?: readonly string[];
+
   /** 0096 — die Gruppe von Formularen (ein Ordner), in der es steht, und an welcher Stelle. */
   readonly groupId?: string | null;
   readonly groupPosition?: number | null;

@@ -29,9 +29,10 @@
 import type { Gas } from './gas';
 import type { Grid } from './grid';
 import type { Liquid } from './liquid';
-import { cpL, cpLiq, hL, H_EXT, kL, kLiq, kMix, SOLIDS, WATER } from './materials';
+import { cpL, hL, H_EXT, kL, kLiq, kMix, SOLIDS, WATER } from './materials';
 import type { Particles } from './particles';
 import type { HeaterMode } from './scene';
+import { CP_CRYSTAL } from './solution';
 import type { GridSolver, SolveResult } from './solver';
 import { GAS, H2O, LIQUID, SOLID, T0 } from './units';
 
@@ -130,15 +131,20 @@ export class Heat {
     return s.rho * s.cp * this.g.vCell;
   }
 
-  /** Energie eines Feststoffs bei T (J): m c_s (T − 0 °C) plus der Wasserfilm mit h_l(T). */
+  /** Wärmekapazität des Feststoffs einer Zelle mit seiner Salzkruste, ohne Film (J/K). */
+  solidCapCrust(c: number): number {
+    return this.solidCap(c) + this.g.crust[c] * CP_CRYSTAL;
+  }
+
+  /** Energie eines Feststoffs bei T (J): (m c_s + m_Kruste c_Kristall)(T − 0 °C) plus der Wasserfilm mit h_l(T). */
   solidEnergy(c: number, T: number): number {
-    return this.solidCap(c) * (T - T0) + this.g.film[c] * hL(T);
+    return this.solidCapCrust(c) * (T - T0) + this.g.film[c] * hL(T);
   }
 
   /** T eines Feststoffs aus seiner Energie. */
   deriveSolid(c: number): void {
     const g = this.g;
-    const cs = this.solidCap(c);
+    const cs = this.solidCapCrust(c);
     const film = g.film[c];
     if (film <= 0) { g.T[c] = T0 + g.Es[c] / cs; return; }
     let T = g.T[c] > 100 ? g.T[c] : T0 + g.Es[c] / cs;
@@ -197,7 +203,7 @@ export class Heat {
     for (let p = 0; p < P.count; p += 1) {
       const mat = P.mat[p];
       const Tp = P.T[p];
-      const Cp = P.mass[p] * cpLiq(mat, Tp);
+      const Cp = P.mass[p] * P.cp(p);
       ClSum += Cp;
       const o = 9 * p;
       const i0 = L.bi[p];
@@ -222,7 +228,7 @@ export class Heat {
       let cs = 0;
       let kc = 0;
       if (g.solid[c] !== 0) {
-        cs = this.solidCap(c) + g.film[c] * cpL(g.T[c]);
+        cs = this.solidCapCrust(c) + g.film[c] * cpL(g.T[c]);
         kc = SOLIDS[g.solid[c] - 1].k;
       }
       const cg = G.cap[c] > 0 && g.solid[c] === 0 ? G.cap[c] : 0;
@@ -363,7 +369,7 @@ export class Heat {
       if (dT === 0) continue;
       const m = P.mass[p];
       const before = m / P.rho[p];
-      P.h[p] += cpLiq(P.mat[p], P.T[p]) * dT;
+      P.h[p] += P.cp(p) * dT;
       P.derive(p);
       L.dVp[p] += m / P.rho[p] - before;
     }

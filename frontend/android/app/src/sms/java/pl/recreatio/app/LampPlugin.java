@@ -34,12 +34,13 @@ import org.json.JSONArray;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 /**
  * DER SENDER FÜR DIE LAMPEN (Ausgabe „sms", 2026-10-18) — `lamps/native.ts`.
  *
  * <code>
- *   support, requestPermission, send, stop, openSettings
+ *   support, requestPermission, send, release, stop, openSettings
  *   requestScanPermission, startScan, stopScan   (Ereignisse lampScan, lampScanEnd)
  *   setTimers, timerStatus, setTimersOn          (die Timer: {@link LampTimers})
  * </code>
@@ -48,6 +49,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * anderen auf einem Faden, zusammen mit den Timern. Für die Seite gilt: „Stopp" und das
  * Verlassen der App erhöhen {@link #generation} — der laufende Auftrag stoppt sofort,
  * schon wartende enden, ohne zu senden. Einen Timer hält das nicht auf.</p>
+ *
+ * <p><b>Gehalten</b> (2026-10-21): {@code send} mit {@code hold} sendet, bis {@code release}
+ * kommt (der Knopf auf der Seite wurde losgelassen) — {@link LampRadio.Press}.</p>
  *
  * <p><b>Was nicht geht.</b> Die Adresse, mit der gesendet wird, wählt Android (eine
  * zufällige des Telefons) — die des Pilots lässt sich nicht nachmachen. Und ein
@@ -75,6 +79,8 @@ public class LampPlugin extends Plugin {
     private final AtomicInteger generation = new AtomicInteger();
     private volatile String cancelled = "stopped";
     private final Object wake = new Object();
+    /** Der Knopf, der gerade gehalten wird (höchstens einer — die Seite sendet nacheinander). */
+    private volatile LampRadio.Press pressing;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     /** Nur auf dem Hauptfaden. */
@@ -204,8 +210,29 @@ public class LampPlugin extends Plugin {
         }
         /* Die Zählung JETZT: ein Stopp, der vor dem Start kommt, gilt auch für diesen Auftrag. */
         int gen = generation.get();
+        /* Gehalten: schon jetzt bekannt — ein Loslassen, das vor dem Start kommt, findet ihn. */
+        LampRadio.Press press = Boolean.TRUE.equals(call.getBoolean("hold", false)) ? new LampRadio.Press() : null;
+        if (press != null) pressing = press;
         Context context = getContext().getApplicationContext();
-        LampRadio.RADIO.execute(() -> call.resolve(LampRadio.transmit(context, frames, cancelOf(gen))));
+        LampRadio.RADIO.execute(() -> {
+            JSObject out = LampRadio.transmit(context, frames, cancelOf(gen), press);
+            if (press != null && pressing == press) pressing = null;
+            call.resolve(out);
+        });
+    }
+
+    /** Der gehaltene Knopf wurde losgelassen: {@code heldMs} — wie lange er gedrückt war. */
+    @PluginMethod
+    public void release(PluginCall call) {
+        LampRadio.Press press = pressing;
+        Integer heldMs = call.getInt("heldMs", 0);
+        if (press != null) press.release(SystemClock.elapsedRealtime(), heldMs == null ? 0 : heldMs);
+        synchronized (wake) {
+            wake.notifyAll();
+        }
+        JSObject out = new JSObject();
+        out.put("released", press != null);
+        call.resolve(out);
     }
 
     @PluginMethod
@@ -236,6 +263,22 @@ public class LampPlugin extends Plugin {
                         if (left <= 0) return true;
                         try {
                             wake.wait(left);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            return false;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public boolean waitUntil(BooleanSupplier done) {
+                synchronized (wake) {
+                    while (generation.get() == gen) {
+                        if (done.getAsBoolean()) return true;
+                        try {
+                            wake.wait(LampRadio.WAIT_STEP_MS);
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                             return false;

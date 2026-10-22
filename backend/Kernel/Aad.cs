@@ -412,7 +412,23 @@ public enum Field
     ShareLabel,
 
     /// <summary>0118 — eine Lampe mit ihren Sygnały (Werbepakete für Bluetooth LE), als EIN Dokument.</summary>
-    PhoneLamp
+    PhoneLamp,
+
+    /// <summary>
+    /// 0121 — EINE VERSIEGELTE SEITE: ihr Schlüssel (verpackt für die Bereiche
+    /// der Seite und für die Rolle, die sie führt) und, unter ihm, jedes Stück
+    /// mit eigenem Etikett — Titel, Vorspann, Aussehen, Karte, Wybór, die
+    /// Anordnung eines Bausteins, sein Inhalt und das Menü.
+    /// </summary>
+    PageKey,
+    PageTitle,
+    PageLead,
+    PageLook,
+    PageLogic,
+    PageSubject,
+    PagePartLayout,
+    PageModuleConfig,
+    PageMenu
 }
 
 /// <summary>
@@ -600,6 +616,15 @@ public readonly record struct Aad
         Field.ShareFile               => "share_file",
         Field.ShareLabel              => "share_label",
         Field.PhoneLamp               => "phone_lamp",
+        Field.PageKey                 => "page_key",
+        Field.PageTitle               => "page_title",
+        Field.PageLead                => "page_lead",
+        Field.PageLook                => "page_look",
+        Field.PageLogic               => "page_logic",
+        Field.PageSubject             => "page_subject",
+        Field.PagePartLayout          => "page_part_layout",
+        Field.PageModuleConfig        => "page_module_config",
+        Field.PageMenu                => "page_menu",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

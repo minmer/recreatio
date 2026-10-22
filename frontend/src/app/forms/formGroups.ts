@@ -27,6 +27,8 @@ export interface FormLike {
   readonly pages: readonly string[];
   readonly config: string | null;
   readonly memberRoleId?: string | null;
+  /** 0120 — alle Rollen; fehlt die Liste (ein Dienst von vorher), gilt `memberRoleId`. */
+  readonly memberRoleIds?: readonly string[] | null;
   readonly entries: number;
   readonly closed: boolean;
 }
@@ -325,11 +327,10 @@ export function formMapModel<F extends FormLike>(input: MapInput<F>): { nodes: M
         if (portal !== '') edge(mainNode, outPage(portal), 'link', 'link osoby otwiera');
       }
 
-      /* Welche Rolle die Menschen bekommen (0091). */
-      if (main.memberRoleId != null) {
-        const roleNode = `role:${main.memberRoleId}`;
-        if (!roles.has(main.memberRoleId)) roles.set(main.memberRoleId, roles.size);
-        edge(mainNode, roleNode, 'role', 'osoby dostają rolę');
+      /* Welche Rollen die Menschen bekommen (0091; 0120 mehrere). */
+      for (const roleId of memberRolesOf(main)) {
+        if (!roles.has(roleId)) roles.set(roleId, roles.size);
+        edge(mainNode, `role:${roleId}`, 'role', 'osoby dostają rolę');
       }
 
       for (const [s, sub] of item.subs.entries()) {
@@ -388,9 +389,15 @@ export function formMapModel<F extends FormLike>(input: MapInput<F>): { nodes: M
 const audienceLine = (form: FormLike): string =>
   `${form.audience === 'office' ? 'tylko koordynator' : 'wypełnia osoba — przez swój link'}${REPEAT_WORD[form.repeat ?? ''] === undefined ? '' : ` · ${REPEAT_WORD[form.repeat ?? '']}`}`;
 
+/** 0120 — die Rollen eines Formulars: die Liste, sonst die eine von 0091. */
+export function memberRolesOf(form: Pick<FormLike, 'memberRoleId' | 'memberRoleIds'>): readonly string[] {
+  if (form.memberRoleIds != null) return form.memberRoleIds;
+  return form.memberRoleId == null ? [] : [form.memberRoleId];
+}
+
 function goesRight(form: FormLike): boolean {
   if (form.extendsId !== null) return false;
-  return form.memberRoleId != null || (form.audience === 'public' && (readConfigText(form.config).portalUnder ?? '').trim() !== '');
+  return memberRolesOf(form).length > 0 || (form.audience === 'public' && (readConfigText(form.config).portalUnder ?? '').trim() !== '');
 }
 
 function readConfigText(text: string | null): Record<string, string> {

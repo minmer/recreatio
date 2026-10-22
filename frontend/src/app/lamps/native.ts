@@ -7,6 +7,8 @@
  *   support            Bluetooth da und an? Werben möglich? Erlaubnis?
  *   requestPermission  „Urządzenia w pobliżu" (BLUETOOTH_ADVERTISE, Android 12+)
  *   send               Ramki nacheinander: starten, Rückruf abwarten, halten, stoppen
+ *                      (`hold`: solange der Knopf gedrückt ist — bis `release`)
+ *   release            der gehaltene Knopf ist losgelassen
  *   stop               das Laufende (und Wartende) abbrechen
  *   openSettings       die Bluetooth-Einstellungen des Telefons
  *
@@ -150,7 +152,13 @@ export interface TimerStatus {
 export interface LampNative {
   support(): Promise<LampSupport>;
   requestPermission(): Promise<{ granted: boolean }>;
-  send(options: { frames: readonly NativeFrame[] }): Promise<NativeSendResult>;
+  /**
+   * `hold`: ein gehaltener Knopf — eine Ramka geht ohne Unterbrechung hinaus, mehrere der Reihe nach
+   * und wieder von vorn, bis `release` kommt (höchstens 30 s); losgelassen endet es sofort.
+   */
+  send(options: { frames: readonly NativeFrame[]; hold?: boolean }): Promise<NativeSendResult>;
+  /** Der gehaltene Knopf ist losgelassen — `heldMs`: wie lange er gedrückt war (zählt, wenn der Sender noch nicht frei war). */
+  release(options: { heldMs: number }): Promise<{ released: boolean }>;
   stop(): Promise<{ stopped: boolean }>;
   openSettings(): Promise<void>;
 

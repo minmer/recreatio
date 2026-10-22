@@ -4,9 +4,12 @@
  *
  *   E = Σ E_s + Σ m_p h_p + Σ H_Gas + Σ H_Blase − Σ_verschlossen p0 V_g
  *
- * (in verschlossenen Gebieten zählt die innere Energie U = H − p0 V_g). Die
+ * (in verschlossenen Gebieten zählt die innere Energie U = H − p0 V_g; das
+ * Salz am Boden der Kiste zählt mit seiner Enthalpie zu den Feststoffen). Die
  * Änderung von E muss gleich sein: Heizung − Verluste durch Wände − Leitung an
- * offenen Seiten − Entwichenes + Eingriffe der Werkzeuge.
+ * offenen Seiten − Entwichenes + Eingriffe der Werkzeuge. Wasser zählt ohne
+ * sein gelöstes Salz; das Salz hat eine eigene Bilanz (gelöst, Kruste, Boden,
+ * entwichen).
  */
 
 import type { Bubbles } from './bubbles';
@@ -33,6 +36,21 @@ export interface OtherLiquids {
   total: number;
 }
 
+/** Kochsalz (M2b): gelöst in den Teilchen, als Kruste auf Feststoffen, am Boden der Kiste, entwichen (kg). */
+export interface SaltByState {
+  liquid: number;
+  crust: number;
+  floor: number;
+  escaped: number;
+  total: number;
+}
+
+/** Salz am Boden der Kiste (salt.ts): Masse und Enthalpie. */
+export interface FloorSalt {
+  readonly mass: number;
+  readonly energy: number;
+}
+
 export interface BudgetSnapshot {
   /** Energie des Inhalts (J) nach der Formel oben. */
   energy: number;
@@ -44,6 +62,7 @@ export interface BudgetSnapshot {
   pv: number;
   water: WaterByState;
   other: OtherLiquids;
+  salt: SaltByState;
   /** Luft (N₂ + O₂) in Zellen und Blasen plus entwichen (kg). */
   air: number;
 }
@@ -63,23 +82,29 @@ export interface Flows {
   /** Andere Flüssigkeiten (kg): entwichen, Eingriffe. */
   escapedOther: number;
   editOther: number;
+  /** Salz (kg): entwichen (mit Teilchen oder durch einen offenen Boden), Eingriffe. */
+  escapedSalt: number;
+  editSalt: number;
 }
 
 export function emptyFlows(): Flows {
-  return { heater: 0, lossWalls: 0, lossOpen: 0, escapedEnergy: 0, editEnergy: 0, escapedWater: 0, escapedAir: 0, editWater: 0, editAir: 0, escapedOther: 0, editOther: 0 };
+  return { heater: 0, lossWalls: 0, lossOpen: 0, escapedEnergy: 0, editEnergy: 0, escapedWater: 0, escapedAir: 0, editWater: 0, editAir: 0, escapedOther: 0, editOther: 0, escapedSalt: 0, editSalt: 0 };
 }
 
+const NO_FLOOR: FloorSalt = { mass: 0, energy: 0 };
+
 /** Den Inhalt zählen. */
-export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Flows, out: BudgetSnapshot): BudgetSnapshot {
+export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Flows, out: BudgetSnapshot, floor: FloorSalt = NO_FLOOR): BudgetSnapshot {
   const n = g.n;
   let solids = 0;
   let gas = 0;
   let vapour = 0;
   let fog = 0;
   let film = 0;
+  let crust = 0;
   let air = 0;
   for (let c = 0; c < n; c += 1) {
-    if (g.kind[c] === SOLID || g.solid[c] !== 0) { solids += g.Es[c]; film += g.film[c]; continue; }
+    if (g.kind[c] === SOLID || g.solid[c] !== 0) { solids += g.Es[c]; film += g.film[c]; crust += g.crust[c]; continue; }
     gas += g.Hg[c];
     vapour += g.mg[H2O * n + c];
     fog += g.mfog[c];
@@ -88,11 +113,15 @@ export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Fl
   let liquid = 0;
   let liquidMass = 0;
   let otherMass = 0;
+  let saltMass = 0;
   for (let p = 0; p < P.count; p += 1) {
     liquid += P.mass[p] * P.h[p];
-    if (P.mat[p] === WATER) liquidMass += P.mass[p];
-    else otherMass += P.mass[p];
+    const s = P.smass[2 * p];
+    saltMass += s;
+    if (P.mat[p] === WATER) liquidMass += P.mass[p] - s;
+    else otherMass += P.mass[p] - s;
   }
+  solids += floor.energy;
   let bub = 0;
   let bubWater = 0;
   for (let b = 0; b < B.count; b += 1) {
@@ -120,6 +149,12 @@ export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Fl
   o.liquid = otherMass;
   o.escaped = flows.escapedOther;
   o.total = otherMass + flows.escapedOther;
+  const sl = out.salt;
+  sl.liquid = saltMass;
+  sl.crust = crust;
+  sl.floor = floor.mass;
+  sl.escaped = flows.escapedSalt;
+  sl.total = saltMass + crust + floor.mass + flows.escapedSalt;
   out.air = air + flows.escapedAir;
   return out;
 }
@@ -128,6 +163,7 @@ export function emptySnapshot(): BudgetSnapshot {
   return {
     energy: 0, solids: 0, liquid: 0, gas: 0, bubbles: 0, pv: 0, air: 0,
     water: { liquid: 0, vapour: 0, fog: 0, film: 0, bubbles: 0, escaped: 0, total: 0 },
-    other: { liquid: 0, escaped: 0, total: 0 }
+    other: { liquid: 0, escaped: 0, total: 0 },
+    salt: { liquid: 0, crust: 0, floor: 0, escaped: 0, total: 0 }
   };
 }

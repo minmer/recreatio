@@ -94,6 +94,12 @@ public static class Audience
          * 0091 — UND WER ÜBER EINE ROLLE DAZUGEHÖRT: ein Platz, dessen Rolle
          * (die seines Formulars) im Bereich liest. Die Rolle sagt, wozu sie
          * Zugang gibt; der Platz muss nicht mehr einzeln aufgezählt werden.
+         *
+         * 0120 — UND WER DEN SCHLÜSSEL DES BEREICHS AM PLATZ HÄLT (access_grant):
+         * der Kleinbereich einer Einsendung gehört ihrem Menschen, wenn die
+         * Regel seines virtuellen Bereichs ihn hineinlässt — sonst gibt es die
+         * Hülle nicht (der Dienst legt sie nur dann an und nimmt sie bei
+         * „nie widzi" zurück). Eine alte Tabelle, keine neue: gilt auch vor 0120.
          */
         return $"""
             ({seat}.area_id = {areaId} OR EXISTS (
@@ -101,7 +107,8 @@ public static class Audience
                 JOIN app.registration ar ON ar.part_id = af.module_id
                 WHERE af.subject_kind = N'{kind}' AND af.subject_id = {subjectId} AND ar.access_id = {seat}.id
                   AND ar.withdrawn_at IS NULL AND ar.is_hidden = 0)
-             OR EXISTS (SELECT 1 FROM app.access_role_area rx WHERE rx.access_id = {seat}.id AND rx.area_id = {areaId}))
+             OR EXISTS (SELECT 1 FROM app.access_role_area rx WHERE rx.access_id = {seat}.id AND rx.area_id = {areaId})
+             OR EXISTS (SELECT 1 FROM app.access_grant ag WHERE ag.access_id = {seat}.id AND ag.area_id = {areaId}))
             """;
     }
 
@@ -125,6 +132,9 @@ public static class Audience
                 UNION
                 /* 0091 — die Bereiche seiner Rolle. */
                 SELECT rx.area_id FROM app.access_role_area rx WHERE rx.access_id = @seat
+                UNION
+                /* 0120 — Bereiche, deren Schlüssel er am Platz hält: seine Kleinbereiche (die Rozmowa darin ist seine). */
+                SELECT g.area_id FROM app.access_grant g WHERE g.access_id = @seat
             ),
             up AS (
                 SELECT id FROM near

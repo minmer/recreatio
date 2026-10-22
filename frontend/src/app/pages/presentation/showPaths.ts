@@ -42,12 +42,41 @@ export const STEP = 'step';
 /** 2026-10-19 — ein Knopf auf jeder Szene, auf der er steht (`go: { "*": … }`); eine Szene mit eigenem Ziel geht vor. */
 export const EVERY = '*';
 
+/** 2026-10-21 — vor der Kennung eines Tores des Przebiegs (`story.ts`): eine Bedingung, ein Wert. */
+export const GATE = 'gate:';
+
 export type Target =
   | { readonly kind: 'scene'; readonly key: string }
   | { readonly kind: 'link'; readonly link: ShowLink }
   | { readonly kind: 'step'; readonly step: number | null }
+  | { readonly kind: 'gate'; readonly key: string }
   | { readonly kind: 'end' }
   | { readonly kind: 'none' };
+
+/** Die Tore des Przebiegs dieser Präsentation (`story.ts`) — keine, wenn sie keinen hat. */
+const gatesOf = (show: Show) => show.story?.gates ?? [];
+
+/**
+ * 2026-10-21 — ALLES, wohin ein Ziel über die Tore führen KANN (beide Seiten
+ * einer Bedingung): für die Karte, „erreichbar" und den kürzesten Weg. Was zur
+ * Laufzeit gilt, entscheidet `story.ts` mit dem, was der Lernende weiss.
+ */
+function overGates(show: Show, said: string | null | undefined): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const walk = (at: string | null | undefined) => {
+    const t = (at ?? '').trim();
+    if (t === '' || seen.has(t)) return;
+    seen.add(t);
+    if (!t.startsWith(GATE)) { out.push(t); return; }
+    const gate = gatesOf(show).find((g) => g.key === t.slice(GATE.length));
+    if (gate === undefined) return;
+    if (gate.type === 'set') walk(gate.next);
+    else { walk(gate.yes); walk(gate.no); }
+  };
+  walk(said);
+  return out;
+}
 
 /** Was ein gespeichertes Ziel heisst — und ob es das gibt. Ein Ziel, das es nicht (mehr) gibt, ist `none`. */
 export function resolveTarget(show: Show, said: string | null | undefined): Target {
@@ -60,6 +89,10 @@ export function resolveTarget(show: Show, said: string | null | undefined): Targ
   if (t.startsWith(LINK)) {
     const link = show.links.find((one) => one.id === t.slice(LINK.length));
     return link === undefined ? { kind: 'none' } : { kind: 'link', link };
+  }
+  if (t.startsWith(GATE)) {
+    const key = t.slice(GATE.length);
+    return gatesOf(show).some((g) => g.key === key) ? { kind: 'gate', key } : { kind: 'none' };
   }
   return show.scenes.some((sc) => sc.key === t) ? { kind: 'scene', key: t } : { kind: 'none' };
 }
@@ -108,15 +141,19 @@ export function branch(show: Show, route: readonly string[], active: number, key
   return next.length === kept.length ? { route, index: Math.max(0, active) } : { route: next, index: kept.length };
 }
 
-/** Alle Ausgänge einer Szene, die zu einer anderen Szene führen — „dalej" und jeder Knopf. */
+/** Alle Ausgänge einer Szene, die zu einer anderen Szene führen — „dalej", jeder Knopf und (2026-10-21) jede Antwort einer Frage, durch die Tore. */
 function sceneExits(show: Show, pieces: readonly Piece[], key: string): string[] {
+  const scenes = new Set(show.scenes.map((sc) => sc.key));
   const out: string[] = [];
-  const next = nextOf(show, key);
-  if (next.kind === 'scene') out.push(next.key);
+  const add = (said: string | null | undefined) => { for (const t of overGates(show, said)) if (scenes.has(t)) out.push(t); };
+  const at = show.scenes.findIndex((sc) => sc.key === key);
+  const own = at < 0 ? null : show.scenes[at].next;
+  add(own !== null && own.trim() !== '' ? own : show.scenes[at + 1]?.key ?? END);
   for (const piece of pieces) {
     if (piece.places[key] === undefined && !piece.hold) continue;
-    const t = goOf(show, piece, key);
-    if (t.kind === 'scene') out.push(t.key);
+    add(piece.go[key] !== undefined ? piece.go[key] : piece.go[EVERY]);
+    add(piece.go[`${key}:right`]);
+    add(piece.go[`${key}:wrong`]);
   }
   return out;
 }
@@ -168,6 +205,10 @@ export function targetLabel(show: Show, said: string | null | undefined, fallbac
   }
   if (t.kind === 'link') return `↗ ${t.link.label || t.link.href}`;
   if (t.kind === 'step') return t.step === null ? 'Własny krok tej sceny' : `Krok ${t.step + 1} tej sceny`;
+  if (t.kind === 'gate') {
+    const gate = gatesOf(show).find((g) => g.key === t.key);
+    return `⑂ ${gate?.label || (gate?.type === 'set' ? 'Zmień wartość' : 'Warunek')}`;
+  }
   if (t.kind === 'end') return 'Koniec';
   return fallback;
 }
@@ -177,6 +218,8 @@ export function targetOptions(show: Show): { readonly value: string; readonly la
   return [
     ...show.scenes.map((sc, i) => ({ value: sc.key, label: `${i + 1}. ${sc.label || 'Scena'}` })),
     ...show.links.map((link) => ({ value: `${LINK}${link.id}`, label: `↗ ${link.label || link.href}` })),
+    /* 2026-10-21 — und die Tore des Przebiegs. */
+    ...gatesOf(show).map((gate) => ({ value: `${GATE}${gate.key}`, label: `⑂ ${gate.label || (gate.type === 'set' ? 'Zmień wartość' : 'Warunek')}` })),
     { value: END, label: 'Koniec' }
   ];
 }
@@ -234,6 +277,9 @@ export function autoMap(show: Show, pieces: readonly Piece[]): Record<string, { 
   show.scenes.filter((sc) => !depth.has(sc.key)).forEach((sc, i) => { out[sc.key] = { x: i * 300, y: (Math.max(...rows.values(), 1) + 1) * 190 }; });
   show.links.forEach((link, i) => { out[`${LINK}${link.id}`] = { x: (deepest + 1) * 300, y: i * 120 }; });
   out[END] = { x: (deepest + 1) * 300, y: show.links.length * 120 };
+  /* 2026-10-21 — die Tore des Przebiegs in einer Reihe unter allem anderen (ab der zweiten Spalte: links unten liegen die Knöpfe der Karte). */
+  const below = (Math.max(1, ...rows.values()) + 2) * 190;
+  gatesOf(show).forEach((gate, i) => { out[`${GATE}${gate.key}`] = { x: 300 + i * 260, y: below }; });
   return out;
 }
 

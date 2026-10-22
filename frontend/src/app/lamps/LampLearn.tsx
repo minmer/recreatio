@@ -25,6 +25,7 @@ import { LampConsole, SupportPanel, useAttempts } from './LampConsole';
 import { Capture, framesFrom, intervalOf, packetOf, parseNrfLog, patternOf, runsOf, scanText, type Packet, type Pattern, type Run } from './learn';
 import { emptyLamp, lampSaveProblem, lampTitle, saveLamp, signalProblem, type Lamp, type LampSignal } from './lampStore';
 import { LampRadio, type LampSupport, type NativePacket, type ScanCode } from './native';
+import { SendKey } from './SendKey';
 import { transmit } from './transmit';
 
 /** So lange hört das Telefon höchstens am Stück (Akku; Android drosselt zu häufiges Neustarten). */
@@ -376,10 +377,11 @@ function SaveLearned({ ctx, lamps, native, sending, runs, source, target, setTar
         <div className="wk-actions">
           <button type="button" className="wk-btn" disabled={busy} onClick={() => void save()}>{busy ? 'Zapisywanie…' : 'Zapisz sygnał'}</button>
           {native && (
-            <button type="button" className="wk-btn wk-btn-quiet" disabled={sending || runs.length === 0 || signalProblem({ ...draft, label: draft.label.trim() || 'Próba' }) !== null}
-              onClick={() => void transmit(LampRadio, { name: 'Próba z pilota', number: null }, { ...draft, label: label.trim() || 'Próba' })}>
+            <SendKey className="wk-btn wk-btn-quiet" disabled={sending || runs.length === 0 || signalProblem({ ...draft, label: draft.label.trim() || 'Próba' }) !== null}
+              title="Krótko: cały sygnał. Przytrzymaj: nadaje, dopóki trzymasz."
+              onSend={(hold) => void transmit(LampRadio, { name: 'Próba z pilota', number: null }, { ...draft, label: label.trim() || 'Próba' }, null, hold)}>
               <Icon name="send" />Wyślij próbnie
-            </button>
+            </SendKey>
           )}
         </div>
       </div>

@@ -44,7 +44,7 @@ public static partial class Chat
         {
             var found = await SeatChatAsync(ctx, c, token, id);
             return found is null ? null : new(found.Value.Chat, found.Value.Seat.Id, [], true,
-                ChatRules.SeatCanWrite(found.Value.Chat.Kind, found.Value.Chat.PostingPolicy), false);
+                await SeatWritesHereAsync(c, found.Value.Chat, ctx.RequestAborted), false);
         }
         var read = await ReadableAsync(ctx, db, c, id);
         if (read is null) return null;
@@ -54,11 +54,32 @@ public static partial class Chat
             await ModeratesAsync(c, chat, mine, ctx.RequestAborted));
     }
 
-    private static async Task<bool> SeatMayPostAsync(HttpContext ctx, ChatRow chat)
+    private static async Task<bool> SeatMayPostAsync(HttpContext ctx, SqlConnection connection, ChatRow chat)
     {
-        if (ChatRules.SeatCanWrite(chat.Kind, chat.PostingPolicy)) return true;
-        await Fail(ctx, 403, "Ten kanał pozwala Ci tylko czytać.");
+        if (await SeatWritesHereAsync(connection, chat, ctx.RequestAborted)) return true;
+        await Fail(ctx, 403, ChatRules.SeatCanWrite(chat.Kind, chat.PostingPolicy)
+            ? "W tym obszarze możesz tylko czytać."
+            : "Ten kanał pozwala Ci tylko czytać.");
         return false;
+    }
+
+    /// <summary>
+    /// Schreibt ein Mensch mit Link in dieser Rozmowa? Wie die Art es sagt — und
+    /// 0120 im Kleinbereich eines Formulars nur, wenn dessen Regel „pisze" sagt
+    /// (bei „czyta" liest er mit).
+    /// </summary>
+    private static async Task<bool> SeatWritesHereAsync(SqlConnection connection, ChatRow chat, CancellationToken ct)
+    {
+        if (!ChatRules.SeatCanWrite(chat.Kind, chat.PostingPolicy)) return false;
+        if (!await Schema.VirtualAreasAsync(connection, ct)) return true;
+
+        await using var cmd = new SqlCommand("""
+            SELECT v.submitter_level FROM app.area_instance ai
+            JOIN app.virtual_area v ON v.area_id = ai.virtual_area_id
+            WHERE ai.area_id = @area;
+            """, connection);
+        cmd.Parameters.AddWithValue("@area", chat.AreaId);
+        return await cmd.ExecuteScalarAsync(ct) is not string level || level == "write";
     }
     private static async Task<bool> ValidSendAtAsync(HttpContext ctx, DateTimeOffset? sendAt)
     {

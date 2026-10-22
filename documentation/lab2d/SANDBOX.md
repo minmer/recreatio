@@ -1,7 +1,7 @@
 # 2D lab engine — the sandbox plan (more matter, everything falls, melting, salt, baking)
 
-Status (2026-10-21): a design before the code, as ARCHITECTURE.md was. **M2a is built** (several liquids, rapeseed oil;
-MILESTONES.md §M2a); the rest is not. The user confirmed the order of §13 and decided (2026-10-21):
+Status (2026-10-22): a design before the code, as ARCHITECTURE.md was. **M2a and M2b are built** (several liquids,
+rapeseed oil; salt solutions with a crust — MILESTONES.md §M2a, §M2b); the rest is not. The user confirmed the order of §13 and decided (2026-10-21):
 
 - every object is one whole — a beaker, a plate, an ice cube moves as one piece; for each object the user decides
   whether it is pinned or reacts to gravity;
@@ -134,7 +134,7 @@ test keeps checking that every value cites one.
   - the vapour pressure of the solution, p_v = a_w·p_sat(T), used for evaporation, bubbles and flash;
   - the boiling point: the solution boils where a_w·p_sat(T_b) = p, about +1 K at 1 mol/kg and about 108–109 °C
     saturated;
-  - the freezing point (from the same a_w and h_sl): about −3.4 °C at 1 mol/kg, −21.1 °C at the eutectic (23.3 %).
+  - the freezing point (from the same a_w and h_sl): about −3.4 °C at 1 mol/kg, −21.2 °C at the eutectic (23.2 %).
 
   None of these is a separate rule: they follow from one quantity, so they stay consistent with each other.
 - **Solution properties**: ρ(T, w), c_p(T, w), μ(T, w) from the cited tables. Brine is denser (≈ 1071 kg/m³ at 10 %,
@@ -147,6 +147,14 @@ test keeps checking that every value cites one.
   Mixing comes from flow (honest, and stated in SIMPLIFICATIONS.md). The drawn concentration is smoothed over the
   particles of a cell.
 - **New overlay**: "Stężenie" (concentration), next to temperature and vapour.
+
+**As built (M2b, 2026-10-22)**: one solute, NaCl, in slot 0; Pitzer with the parameters of PHREEQC pitzer.dat and,
+below 0 °C, those of Spencer, Møller & Weare (pitzer.dat alone put the freezing point at 3 mol/kg 0.16 K too high);
+ρ and c_p after Laliberté, μ, k and σ of brine as water's (SIMPLIFICATIONS.md #27); the excess over the solubility
+goes at once to a crust on the nearest solid below (or a store on the bare box floor) — no grains, no supersaturation,
+and the crust does not dissolve again (dissolution comes with the grains, M3c). The drying scenes brought out older
+problems with droplets below the cell size (they never boiled and hovered in the air); they now flash and fly
+(ARCHITECTURE.md §7, §9). Numbers: MILESTONES.md §M2b.
 
 ## 6. Rigid bodies: everything falls
 
@@ -310,7 +318,7 @@ costs most of the step and 20 s of compile time).
 | Step | Contents | Acceptance tests (references) | Needs |
 |---|---|---|---|
 | **M2a** Substances and liquids (**built**) | materials v2, per-material particles, oil, liquid viscosity, drifting droplets, palette and presets | two-layer hydrostatics: dp/dy = ρ_oil g and ρ_w g (±2 %); oil poured under water ends on top with layer heights from the volumes (±1 cell); viscous decay of a shear profile, exp(−ν k² t) (±5 %); oil heated to 150 °C without boiling, budgets closed; steam bubbles rise through an oil layer | — |
-| **M2b** Solutions | NaCl dissolved: activity model, colligative properties, density, evaporation concentrates, crust | density at 10 and 20 % (±0.3 %); boiling point at 1 and 3 mol/kg (±0.1 K of the data); freezing point at 1 and 3 mol/kg (±0.1 K); salt mass exact over boiling; crust mass = salt mass after drying | M2a |
+| **M2b** Solutions (**built**) | NaCl dissolved: activity model, colligative properties, density, evaporation concentrates, crust | density at 10 and 20 % (±0.3 %); boiling point at 1 and 3 mol/kg (±0.1 K of the data); freezing point at 1 and 3 mol/kg (±0.1 K); salt mass exact over boiling; crust mass = salt mass after drying | M2a |
 | **B** Baking and recording | clip format, bake runner, cache in the browser, playback, resume from keyframe | playback frame-identical to the recording; seeking to within one frame; CPU resume bit-identical to a straight run; measured size per minute (gate set from the measurement) | — (keyframe sections grow with later steps) |
 | **M3a** Bodies | voxel bodies, contacts (physics-lab solver), fluid coupling, heat in bodies, apparatus as bodies, pin | floating depth ρ_b/ρ_l for wood and ice (±2 %); a sinking block reaches a drag-law terminal speed (±15 %) and rests without jitter; a stack of two blocks stands; a full beaker tips at its geometric tipping angle (±3°); budgets close with moving solids | M2a |
 | **M3b** Melting and freezing | ice; interface at T_f(w); melt to particles, freeze onto voxels; salt rejection | Stefan melting front against the Neumann solution (±5 %); ice cube in warm water: energy budget closes; brine with ice settles at T_f(w) (±0.2 K) and approaches the eutectic with enough salt; freezing brine keeps all its salt | M3a, M2b |

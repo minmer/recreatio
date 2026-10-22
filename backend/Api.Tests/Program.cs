@@ -121,4 +121,6 @@ LibraryChecks.Run(Check);
 PlatformChecks.Run(Check);
 CogitaChecks.Run(Check);
 PhoneChecks.Run(Check);
+VirtualAreaChecks.Run(Check);
+PageSealChecks.Run(Check);
 Console.WriteLine($"Passed {checks} chat authorization, scheduling and availability checks.");

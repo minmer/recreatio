@@ -20,7 +20,10 @@ import { moduleDescription } from '../pages/pageJsonText';
 import { partLabel } from '../pages/parts/registry';
 import { asRecord, asText, count } from '../pages/event/kit';
 import { REPEAT_LABEL, REPEATS, repeatOf, type Repeat } from '../forms/rounds';
-import { setMemberRole } from '../roles/memberRole';
+import { setMemberRoles } from '../roles/memberRole';
+import { keysFor } from '../core/ringOf';
+import { memberRolesOf } from '../forms/formGroups';
+import { describeVirtualAreas, exportVirtualAreas, importVirtualAreas, readVirtualAreas, type VirtualAreaDoc } from '../forms/virtualAreasJson';
 import type { Who } from '../core/session';
 
 /**
@@ -62,7 +65,11 @@ export function QuestionOptions({ answersTo, onAnswersTo, replace, onReplace }: 
 
 /** Der Inhalt eines Dokuments für dieses Modul — aus einem Modul, einem Eintrag einer Seite oder als blosser Inhalt. */
 function contentOf(doc: unknown, kind: string): {
-  config?: unknown; name?: string; questions?: unknown; design?: unknown; repeat?: Repeat; memberRole?: string | null;
+  config?: unknown; name?: string; questions?: unknown; design?: unknown; repeat?: Repeat;
+  /** 0091/0120 — die Rollen seiner Menschen (aus "memberRoles", oder dem älteren "memberRole"). */
+  memberRoles?: readonly string[];
+  /** 0120 — die Obszary osób, und was beim Lesen auffiel. */
+  virtualAreas?: readonly VirtualAreaDoc[]; virtualWarnings?: readonly string[];
   /** 0096 — wer ein Unterformular ausfüllt; die Gruppe (ein Name, oder null: keine). */
   audience?: 'person' | 'office'; group?: string | null;
 } | { error: string } {
@@ -80,12 +87,24 @@ function contentOf(doc: unknown, kind: string): {
     ...(has('design') ? { design: root.design } : {}),
     /* 0077 — wie oft eine Erweiterung ausgefüllt wird. Ein unbekanntes Wort ist keines. */
     ...((REPEATS as readonly string[]).includes(asText(root.repeat)) ? { repeat: asText(root.repeat) as Repeat } : {}),
-    /* 0091 — die Rolle seiner Menschen: eine Kennung, oder null (keine). */
-    ...(has('memberRole') ? { memberRole: root.memberRole === null ? null : asText(root.memberRole).trim() || null } : {}),
+    /* 0091/0120 — die Rollen seiner Menschen: eine Liste; älter: eine Kennung, oder null (keine). */
+    ...(has('memberRoles') && Array.isArray(root.memberRoles)
+      ? { memberRoles: [...new Set(root.memberRoles.map((r) => asText(r).trim()).filter((r) => r !== ''))] }
+      : has('memberRole') ? { memberRoles: root.memberRole === null || asText(root.memberRole).trim() === '' ? [] : [asText(root.memberRole).trim()] } : {}),
+    ...virtualOf(root.virtualAreas),
     ...(asText(root.audience) === 'person' || asText(root.audience) === 'office' ? { audience: asText(root.audience) as 'person' | 'office' } : {}),
     ...(has('group') ? { group: root.group === null ? null : asText(root.group).trim() || null } : {})
   };
 }
+
+/** 0120 — "virtualAreas" gelesen, mit dem, was dabei auffiel. */
+function virtualOf(value: unknown): { virtualAreas?: readonly VirtualAreaDoc[]; virtualWarnings?: readonly string[] } {
+  const warnings: string[] = [];
+  const read = readVirtualAreas(value, warnings);
+  return read === undefined ? {} : { virtualAreas: read, virtualWarnings: warnings };
+}
+
+const sameRoles = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onDone: () => Promise<void> | void }) {
   const form = row.kind === 'form';
@@ -114,9 +133,14 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
       else if (row.entries > 0) warnings.push('To rozszerzenie ma już wpisy — "repeat" zostaje bez zmian.');
       else lines.push(`Powtarzanie: ${REPEAT_LABEL[content.repeat]}.`);
     }
-    if (content.memberRole !== undefined && content.memberRole !== (row.memberRoleId ?? null)) {
-      if (!form || row.extendsId !== null) warnings.push('"memberRole" ma tylko formularz (nie rozszerzenie) — pominięte.');
-      else lines.push(content.memberRole === null ? 'Rola uczestników: żadna (kto już należy, zostaje).' : 'Rola uczestników: z dokumentu — jeśli ją masz.');
+    if (content.memberRoles !== undefined && !sameRoles(content.memberRoles, memberRolesOf(row))) {
+      if (!form || row.extendsId !== null) warnings.push('"memberRoles" mają tylko formularze (nie rozszerzenia) — pominięte.');
+      else lines.push(content.memberRoles.length === 0 ? 'Role uczestników: żadne (kto już należy, zostaje).' : 'Role uczestników: z dokumentu — te, które masz.');
+    }
+    if (content.virtualAreas !== undefined) {
+      warnings.push(...(content.virtualWarnings ?? []));
+      if (!form || row.extendsId !== null) warnings.push('"virtualAreas" mają tylko formularze (nie rozszerzenia) — pominięte.');
+      else lines.push(describeVirtualAreas(content.virtualAreas));
     }
     if (content.audience !== undefined && row.extendsId !== null && content.audience !== row.audience) {
       if (row.entries > 0) warnings.push('Ten podformularz ma już wpisy — "audience" zostaje bez zmian.');
@@ -177,13 +201,28 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
         lines.push('Treść zapisana.');
       }
     }
-    if (form && row.extendsId === null && content.memberRole !== undefined && content.memberRole !== (row.memberRoleId ?? null)) {
-      stage('Ustawianie roli uczestników…');
+    if (form && row.extendsId === null && content.memberRoles !== undefined && !sameRoles(content.memberRoles, memberRolesOf(row))) {
+      stage('Ustawianie ról uczestników…');
       try {
-        await setMemberRole(row.moduleId, content.memberRole);
-        lines.push(content.memberRole === null ? 'Rola uczestników: żadna.' : 'Rola uczestników ustawiona.');
+        /* Nur Rollen, die der Importierende hält — eine fremde Kennung nähme sonst der ganzen Liste die Wirkung. */
+        const { ring } = await keysFor(who);
+        const held = content.memberRoles.filter((roleId) => ring?.has(roleId) === true);
+        for (const roleId of content.memberRoles) {
+          if (!held.includes(roleId)) warnings.push(`Roli ${roleId.slice(0, 8)}… nie masz — pominięta.`);
+        }
+        await setMemberRoles(row.moduleId, held);
+        lines.push(held.length === 0 ? 'Role uczestników: żadne.' : 'Role uczestników ustawione.');
       } catch (e) {
-        warnings.push(`Rola uczestników nie została ustawiona: ${e instanceof Error ? e.message : 'nie udało się'}`);
+        warnings.push(`Role uczestników nie zostały ustawione: ${e instanceof Error ? e.message : 'nie udało się'}`);
+      }
+    }
+    if (form && row.extendsId === null && content.virtualAreas !== undefined) {
+      try {
+        const done = await importVirtualAreas(who, row.moduleId, content.virtualAreas, stage);
+        lines.push(...done.lines);
+        warnings.push(...done.warnings);
+      } catch (e) {
+        warnings.push(`Obszary osób: ${e instanceof Error ? e.message : 'nie udało się'}`);
       }
     }
     if (form && (content.questions !== undefined || content.design !== undefined)) {
@@ -203,7 +242,8 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
       fileName={`modul-${row.kind}-${row.moduleId.slice(0, 8)}.json`}
       exportDoc={async () => exportModule(
         {
-          moduleId: row.moduleId, kind: row.kind, name: row.name, config: readConfig(row.config), extendsId: row.extendsId, audience: row.audience, repeat: repeatOf(row.repeat), memberRole: row.memberRoleId ?? null,
+          moduleId: row.moduleId, kind: row.kind, name: row.name, config: readConfig(row.config), extendsId: row.extendsId, audience: row.audience, repeat: repeatOf(row.repeat), memberRoles: memberRolesOf(row),
+          virtualAreas: form && row.extendsId === null ? await exportVirtualAreas(row.moduleId) : undefined,
           group: row.groupId == null ? null : ((await loadModules()).groups ?? []).find((g) => g.groupId === row.groupId)?.name ?? null
         },
         form ? await readFormContent(who, row.moduleId) : undefined

@@ -14,8 +14,9 @@
  * Gespeichert im eigenen Bereich (0118, `lampStore.ts`) — nach einer
  * Neuinstallation und im Browser ist alles wieder da; senden kann nur das Telefon.
  * Ändert sich auf dem Telefon ein Gerät oder ein Timer, bekommt das Telefon gleich
- * den neuen Plan der Timer (`timers.ts`). Die zwei Regler unter den Knöpfen (`pace.ts`)
- * gelten nur für die Knöpfe — jeder Timer hat seine eigenen.
+ * den neuen Plan der Timer (`timers.ts`). Ein kurzer Druck sendet den ganzen Sygnał,
+ * ein gehaltener so lange, wie er gedrückt ist (`SendKey`); der Regler darunter
+ * (`pace.ts`, die Pause) gilt nur für die Knöpfe — jeder Timer hat seine eigenen.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -39,11 +40,12 @@ import {
 } from './lampStore';
 import { LampRadio, lampHere, type LampSupport, type TimerStatus } from './native';
 import { PaceControl } from './PaceControl';
-import { PACE_PREF, paceText, readPace, type Pace } from './pace';
+import { buttonPace, PACE_PREF, paceText, readPace, type Pace } from './pace';
+import { SendKey } from './SendKey';
 import { TimerEdit } from './TimerEdit';
 import { TimerList } from './TimerList';
 import { syncTimers } from './timers';
-import { setPace, transmit } from './transmit';
+import { setPace, transmit, type Hold } from './transmit';
 import './lamps.css';
 
 interface Home {
@@ -64,10 +66,10 @@ export function LampsApp({ who, trail }: { who: Who; trail: readonly string[] })
   /* Der jüngste Stand — damit zwei schnelle Änderungen nacheinander nicht vom selben alten ausgehen. */
   const latest = useRef<Home | null>(null);
 
-  /* Das Tempo der Knöpfe (zwei Regler), gemerkt am Konto — gilt sofort für jeden Druck, nicht für die Timer. */
+  /* Das Tempo der Knöpfe (die Pause), gemerkt am Konto — gilt sofort für jeden Druck, nicht für die Timer. Wie lange: das Halten. */
   const [paceStored, storePace] = useRemembered(PACE_PREF, '');
-  const pace = readPace(paceStored);
-  useEffect(() => { setPace(readPace(paceStored)); }, [paceStored]);
+  const pace = buttonPace(readPace(paceStored));
+  useEffect(() => { setPace(buttonPace(readPace(paceStored))); }, [paceStored]);
 
   /** Auf dem Telefon: den Plan der Timer neu ablegen (und den Wecker stellen). */
   const sync = useCallback(async (now: Home, options: { enable?: boolean; firstTimer?: boolean } = {}) => {
@@ -151,7 +153,7 @@ export function LampsApp({ who, trail }: { who: Who; trail: readonly string[] })
   return (
     <LampList ctx={ctx} home={home} native={native} support={support} refresh={refresh}
       timerStatus={timerStatus} planProblems={planProblems}
-      pace={pace} onPace={(next) => { setPace(next); storePace(paceText(next)); }}
+      pace={pace} onPace={(next) => { setPace(buttonPace(next)); storePace(paceText(buttonPace(next))); }}
       onTimerSaved={timerSaved}
       onPhone={(on) => change((h) => h, { enable: on })} />
   );
@@ -179,8 +181,8 @@ function LampList({ ctx, home, native, support, refresh, timerStatus, planProble
   const { lamps, timers } = home;
 
   /* Auch während gesendet wird: der Druck kommt in die Warteschlange und geht nach dem vorigen hinaus. */
-  const send = (lamp: Lamp, signal: LampSignal) => {
-    void transmit(LampRadio, lamp, signal).then((a) => {
+  const send = (lamp: Lamp, signal: LampSignal, hold: Hold | null) => {
+    void transmit(LampRadio, lamp, signal, null, hold).then((a) => {
       if (a.code === 'no-permission' || a.code === 'bluetooth-off' || a.code === 'no-advertiser') refresh();
     });
   };
@@ -218,9 +220,9 @@ function LampList({ ctx, home, native, support, refresh, timerStatus, planProble
                   {lamp.room !== null && <p className="lp-card-meta">{lamp.room}</p>}
                   <div className="lp-pad">
                     {lamp.signals.map((s) => (
-                      <button key={s.id} type="button" className="wk-btn lp-key" disabled={!native} onClick={() => send(lamp, s)}>
+                      <SendKey key={s.id} className="wk-btn lp-key" disabled={!native} onSend={(hold) => send(lamp, s, hold)}>
                         {s.label}
-                      </button>
+                      </SendKey>
                     ))}
                     {lamp.signals.length === 0 && <a className="wk-btn wk-btn-quiet lp-key" href={viewPath('lamps', lamp.id)}><Icon name="plus" />Sygnał</a>}
                   </div>
@@ -230,8 +232,8 @@ function LampList({ ctx, home, native, support, refresh, timerStatus, planProble
           </div>
         )}
 
-      <PaceControl pace={pace} onChange={onPace} title="Tempo przycisków" between="między ramkami i naciśnięciami"
-        note="Dotyczy tylko przycisków (i prób nadania). Sygnały zostają zapisane w najszybszej postaci; każdy timer ma własne suwaki." />
+      <PaceControl pace={pace} onChange={onPace} title="Tempo przycisków" between="między ramkami i naciśnięciami" limit={false}
+        note="Krótkie naciśnięcie wysyła cały sygnał, tak jak zapisano. Przytrzymanie nadaje tak długo, jak trzymasz (najwyżej 30 s). Dotyczy tylko przycisków (i prób nadania); każdy timer ma własne suwaki." />
 
       <TimerList lamps={lamps} timers={timers} native={native} status={timerStatus} busy={busy}
         onEnabled={(t, enabled) => void setEnabled(t, enabled)} onPhone={onPhone} />

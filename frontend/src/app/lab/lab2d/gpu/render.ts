@@ -25,7 +25,8 @@ const MAIN = '@compute @workgroup_size(WG) fn main(@builtin(global_invocation_id
 
 /** Abstand der Pfeile (m) wie frame.ts. */
 const ARROW_SPACING = 0.006;
-export const OVERLAY_CODE: Readonly<Record<Overlay, number>> = { none: 0, temperature: 1, pressure: 2, velocity: 3, humidity: 4, vapour: 5, phase: 6 };
+/* Salz kennt der beschleunigte Weg noch nicht (er lehnt Szenen mit Salz ab): „Stężenie“ zeigt dort reines Wasser. */
+export const OVERLAY_CODE: Readonly<Record<Overlay, number>> = { none: 0, temperature: 1, pressure: 2, velocity: 3, humidity: 4, vapour: 5, salt: 0, phase: 6 };
 /* Deckkraft des Nebels nach Beer–Lambert (frame.ts): LWC_ref. */
 const FOG_REF = (4 * 1000 * 1.5e-6) / (3 * 2 * 0.07);
 

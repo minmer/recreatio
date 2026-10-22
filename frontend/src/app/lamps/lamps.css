@@ -33,6 +33,12 @@
 }
 .lp-key { min-height: 3.5rem; justify-content: center; text-align: center; white-space: normal; font-weight: 600; }
 
+/* Ein Knopf, der sendet (2026-10-21): kurz der ganze Sygnał, gehalten so lange, wie der Finger liegt. Kein
+   Kontextmenü und keine Auswahl beim langen Drücken; Rollen bleibt möglich (bricht den Druck ab). */
+.lp-send { position: relative; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.lp-send.is-held { box-shadow: 0 0 0 3px var(--wk-ring); }
+.lp-send-held { position: absolute; right: var(--wk-space-2); bottom: 0.125rem; font-size: var(--wk-text-xs); font-weight: 700; font-variant-numeric: tabular-nums; color: inherit; opacity: 0.9; }
+
 /* -- Pakete ------------------------------------------------------------------ */
 .lp-hex { font-family: var(--wk-mono); font-size: var(--wk-text-sm); overflow-wrap: anywhere; word-break: break-all; }
 .lp-big { margin: 0; font-size: var(--wk-text-md); }
@@ -136,7 +142,7 @@
 .lp-action { display: flex; align-items: center; gap: var(--wk-space-2); }
 .lp-action select { flex: 1; min-width: 0; }
 
-/* -- Das Tempo: zwei Regler unter den Knöpfen ------------------------------------------- */
+/* -- Das Tempo: die Pause unter den Knöpfen; Pause und Limit in jedem Timer --------------------- */
 .lp-pace { margin: var(--wk-space-3) 0; }
 .lp-slider { display: grid; gap: var(--wk-space-1); }
 .lp-slider input[type="range"] { width: 100%; accent-color: var(--wk-accent); min-height: var(--wk-control-h-sm); }

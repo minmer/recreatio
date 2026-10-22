@@ -24,8 +24,10 @@ import type { DraftPart } from '../page';
 import { pieceLabelOf } from './PagePresentation';
 import { readPiece, textLink, withPiece, type Show, type ShowLink } from './presentation';
 import {
-  autoMap, END, LINK, NEXT, reachable, resolveTarget, routeOf, targetLabel, targetOptions, withGo, withNext
+  autoMap, END, GATE, LINK, NEXT, reachable, resolveTarget, routeOf, targetLabel, targetOptions, withGo, withNext
 } from './showPaths';
+import { GateSettings, StoryPanel } from './StoryPanel';
+import { GATE_LABEL, NO_STORY, outcomeKey, type Gate, type Outcome } from './story';
 
 /* -- Die Knoten ------------------------------------------------------------------------- */
 
@@ -37,6 +39,8 @@ interface Exit {
 type PathData =
   | { readonly kind: 'scene'; readonly index: number; readonly label: string; readonly start: boolean; readonly reached: boolean; readonly onRoute: boolean; readonly exits: readonly Exit[] }
   | { readonly kind: 'link'; readonly label: string; readonly href: string }
+  /* 2026-10-21 — ein Tor des Przebiegs: eine Bedingung (tak / nie) oder ein Wert (dalej). */
+  | { readonly kind: 'gate'; readonly label: string; readonly exits: readonly Exit[] }
   | { readonly kind: 'end' };
 
 function PathNode({ data, selected }: NodeProps<PathData>) {
@@ -45,6 +49,22 @@ function PathNode({ data, selected }: NodeProps<PathData>) {
       <div className={`pm-node is-end${selected ? ' is-on' : ''}`}>
         <Handle id="in" type="target" position={Position.Left} className="pm-handle" />
         <strong>Koniec</strong>
+      </div>
+    );
+  }
+  if (data.kind === 'gate') {
+    return (
+      <div className={`pm-node is-gate${selected ? ' is-on' : ''}`}>
+        <Handle id="in" type="target" position={Position.Left} className="pm-handle" />
+        <strong>⑂ {data.label}</strong>
+        <ul className="pm-exits">
+          {data.exits.map((exit) => (
+            <li key={exit.id} className="is-button">
+              <span>{exit.label}</span>
+              <Handle id={exit.id} type="source" position={Position.Right} className="pm-handle" title={exit.label} />
+            </li>
+          ))}
+        </ul>
       </div>
     );
   }
@@ -101,7 +121,13 @@ export function PathsEditor({ show, parts, busy, onShow, onParts, onOpenScene }:
   const at = (id: string) => moving[id] ?? show.map[id] ?? auto[id] ?? { x: 0, y: 0 };
 
   /** Die Knöpfe einer Szene — Bausteine, die dort stehen und dort ein Ausgang sind. */
-  const buttonsOf = (key: string) => pieces.filter((p) => p.piece.places[key] !== undefined && p.piece.go[key] !== undefined);
+  const buttonsOf = (key: string) => pieces.filter((p) => p.part.kind !== 'question' && p.piece.places[key] !== undefined && p.piece.go[key] !== undefined);
+  /** 2026-10-21 — die Fragen einer Szene: je eine für „dobrze" und eine für „źle". */
+  const questionsOn = (key: string) => pieces.filter((p) => p.part.kind === 'question' && p.piece.places[key] !== undefined);
+  const story = show.story ?? NO_STORY;
+  const gateExits = (gate: Gate): Exit[] => (gate.type === 'condition'
+    ? [{ id: 'yes', label: 'tak' }, { id: 'no', label: 'nie' }]
+    : [{ id: NEXT, label: 'dalej' }]);
 
   const nodes: Node<PathData>[] = [
     ...show.scenes.map((sc, index): Node<PathData> => ({
@@ -113,9 +139,17 @@ export function PathsEditor({ show, parts, busy, onShow, onParts, onOpenScene }:
         kind: 'scene', index, label: sc.label, start: index === 0, reached: reached.has(sc.key), onRoute: route.has(sc.key),
         exits: [
           { id: NEXT, label: 'Dalej — strzałki, przewijanie' },
-          ...buttonsOf(sc.key).map((p) => ({ id: p.part.id, label: `Przycisk: ${pieceLabelOf(p.part)}` }))
+          ...buttonsOf(sc.key).map((p) => ({ id: p.part.id, label: `Przycisk: ${pieceLabelOf(p.part)}` })),
+          ...questionsOn(sc.key).flatMap((p) => [
+            { id: `${p.part.id}:right`, label: `Dobrze: ${pieceLabelOf(p.part)}` },
+            { id: `${p.part.id}:wrong`, label: `Źle: ${pieceLabelOf(p.part)}` }
+          ])
         ]
       }
+    })),
+    ...story.gates.map((gate): Node<PathData> => ({
+      id: `${GATE}${gate.key}`, type: 'path', position: at(`${GATE}${gate.key}`), selected: chosen === `${GATE}${gate.key}`,
+      data: { kind: 'gate', label: gate.label || GATE_LABEL[gate.type], exits: gateExits(gate) }
     })),
     ...show.links.map((link): Node<PathData> => ({
       id: `${LINK}${link.id}`, type: 'path', position: at(`${LINK}${link.id}`), selected: chosen === `${LINK}${link.id}`,
@@ -127,7 +161,7 @@ export function PathsEditor({ show, parts, busy, onShow, onParts, onOpenScene }:
   /** Wohin ein Ziel in der Karte zeigt — der Knoten. */
   const nodeOf = (said: string): string | null => {
     const t = resolveTarget(show, said);
-    return t.kind === 'scene' ? t.key : t.kind === 'link' ? `${LINK}${t.link.id}` : t.kind === 'end' ? END : null;
+    return t.kind === 'scene' ? t.key : t.kind === 'link' ? `${LINK}${t.link.id}` : t.kind === 'gate' ? `${GATE}${t.key}` : t.kind === 'end' ? END : null;
   };
 
   const edges: Edge[] = show.scenes.flatMap((sc, i): Edge[] => {
@@ -144,8 +178,21 @@ export function PathsEditor({ show, parts, busy, onShow, onParts, onOpenScene }:
       const target = nodeOf(p.piece.go[sc.key] ?? '');
       if (target !== null) out.push({ id: `b|${sc.key}|${p.part.id}`, source: sc.key, sourceHandle: p.part.id, target, targetHandle: 'in', className: 'pm-edge is-button' });
     }
+    for (const p of questionsOn(sc.key)) {
+      for (const outcome of ['right', 'wrong'] as const) {
+        const target = nodeOf(p.piece.go[outcomeKey(sc.key, outcome)] ?? '');
+        if (target !== null) out.push({ id: `o|${sc.key}|${p.part.id}|${outcome}`, source: sc.key, sourceHandle: `${p.part.id}:${outcome}`, target, targetHandle: 'in', className: `pm-edge is-${outcome}` });
+      }
+    }
     return out;
-  });
+  }).concat(story.gates.flatMap((gate): Edge[] => {
+    const from = `${GATE}${gate.key}`;
+    const exits: [string, string | null][] = gate.type === 'condition' ? [['yes', gate.yes], ['no', gate.no]] : [[NEXT, gate.next]];
+    return exits.flatMap(([exit, said]) => {
+      const target = said === null ? null : nodeOf(said);
+      return target === null ? [] : [{ id: `g|${gate.key}|${exit}`, source: from, sourceHandle: exit, target, targetHandle: 'in', className: `pm-edge is-gate is-${exit}` }];
+    });
+  }));
 
   /* -- Ziele setzen --------------------------------------------------------------------- */
 
@@ -155,9 +202,46 @@ export function PathsEditor({ show, parts, busy, onShow, onParts, onOpenScene }:
   const setButton = (sceneKey: string, partId: string, target: string | undefined) =>
     onParts(parts.map((part) => (part.id === partId ? { ...part, layout: withPiece(part.layout, withGo(readPiece(part.layout), sceneKey, target)) } : part)));
 
+  /** 2026-10-21 — der Ausgang einer Frage für ein Ergebnis auf dieser Szene. */
+  const setOutcome = (sceneKey: string, partId: string, outcome: Outcome, target: string | undefined) =>
+    onParts(parts.map((part) => (part.id === partId ? { ...part, layout: withPiece(part.layout, withGo(readPiece(part.layout), outcomeKey(sceneKey, outcome), target)) } : part)));
+
+  /** 2026-10-21 — ein Tor ändern (oder weg damit, samt allem, was auf es zeigt). */
+  const setGate = (key: string, next: Gate | null) => {
+    const ref = `${GATE}${key}`;
+    const clear = (t: string | null) => (t === ref ? null : t);
+    onShow({
+      ...show,
+      scenes: next !== null ? show.scenes : show.scenes.map((sc) => (sc.next === ref ? withNext(sc, null) : sc)),
+      story: {
+        ...story,
+        gates: next !== null
+          ? story.gates.map((g) => (g.key === key ? next : g))
+          : story.gates.filter((g) => g.key !== key).map((g) => (g.type === 'set' ? { ...g, next: clear(g.next) } : { ...g, yes: clear(g.yes), no: clear(g.no) }))
+      }
+    });
+    if (next === null) {
+      onParts(parts.map((part) => {
+        const piece = readPiece(part.layout);
+        if (!Object.values(piece.go).includes(ref)) return part;
+        const go = Object.fromEntries(Object.entries(piece.go).map(([k, t]) => [k, t === ref ? '' : t]));
+        return { ...part, layout: withPiece(part.layout, { ...piece, go }) };
+      }));
+      setChosen(null);
+    }
+  };
+  const setGateExit = (key: string, exit: string, target: string | null) => {
+    const gate = story.gates.find((g) => g.key === key);
+    if (gate === undefined) return;
+    setGate(key, gate.type === 'set' ? { ...gate, next: target } : exit === 'yes' ? { ...gate, yes: target } : { ...gate, no: target });
+  };
+
   const connect = (c: Connection) => {
     if (busy || c.source === null || c.target === null || c.sourceHandle === null) return;
     const target = c.target;
+    if (c.source.startsWith(GATE)) { setGateExit(c.source.slice(GATE.length), c.sourceHandle, target); return; }
+    const outcome = /^(.+):(right|wrong)$/.exec(c.sourceHandle);
+    if (outcome !== null) { setOutcome(c.source, outcome[1], outcome[2] === 'right' ? 'right' : 'wrong', target); return; }
     if (c.sourceHandle === NEXT) setNext(c.source, target);
     else setButton(c.source, c.sourceHandle, target);
   };
@@ -165,10 +249,12 @@ export function PathsEditor({ show, parts, busy, onShow, onParts, onOpenScene }:
   const edgeChanges = (changes: EdgeChange[]) => {
     for (const ch of changes) {
       if (ch.type !== 'remove' || busy) continue;
-      const [kind, scene, part] = ch.id.split('|');
+      const [kind, scene, part, outcome] = ch.id.split('|');
       if (kind === 'n') setNext(scene, null);
       else if (kind === 'd') setNext(scene, END);
       else if (kind === 'b') setButton(scene, part, '');
+      else if (kind === 'o') setOutcome(scene, part, outcome === 'right' ? 'right' : 'wrong', undefined);
+      else if (kind === 'g') setGateExit(scene, part, null);
     }
   };
 
@@ -231,6 +317,7 @@ export function PathsEditor({ show, parts, busy, onShow, onParts, onOpenScene }:
   const scene = show.scenes.find((sc) => sc.key === chosen);
   const sceneIndex = scene === undefined ? -1 : show.scenes.indexOf(scene);
   const link = show.links.find((one) => `${LINK}${one.id}` === chosen);
+  const gate = chosen !== null && chosen.startsWith(GATE) ? story.gates.find((g) => g.key === chosen.slice(GATE.length)) : undefined;
 
   return (
     <section className="pm" aria-label="Przejścia między scenami">
@@ -248,6 +335,7 @@ export function PathsEditor({ show, parts, busy, onShow, onParts, onOpenScene }:
           deleteKeyCode={['Delete', 'Backspace']}
           nodesConnectable={!busy}
           fitView
+          minZoom={0.2}
           proOptions={{ hideAttribution: true }}
         >
           <Background />
@@ -291,10 +379,33 @@ export function PathsEditor({ show, parts, busy, onShow, onParts, onOpenScene }:
                 );
               })}
             </ul>
+            {questionsOn(scene.key).length > 0 && (
+              <>
+                <h4 className="pb-h">Pytania na tej scenie</h4>
+                {questionsOn(scene.key).map((p) => (
+                  <div key={p.part.id} className="pm-question">
+                    <strong>{pieceLabelOf(p.part)}</strong>
+                    {(['right', 'wrong'] as const).map((outcome) => (
+                      <label key={outcome} className="wk-field">
+                        <span>{outcome === 'right' ? 'Po dobrej odpowiedzi' : 'Po złej odpowiedzi'}</span>
+                        <select value={p.piece.go[outcomeKey(scene.key, outcome)] ?? ''} disabled={busy} data-pm-outcome={`${p.part.id}:${outcome}`}
+                          onChange={(e) => setOutcome(scene.key, p.part.id, outcome, e.target.value === '' ? undefined : e.target.value)}>
+                          <option value="">tak jak „dalej” tej sceny</option>
+                          {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </>
+            )}
             <div className="wk-actions">
               <button type="button" className="wk-link-btn" onClick={() => onOpenScene(sceneIndex)}>Otwórz scenę</button>
             </div>
           </div>
+        ) : gate !== undefined ? (
+          <GateSettings gate={gate} show={show} parts={parts} busy={busy}
+            onGate={(next) => setGate(gate.key, next)} onDelete={() => setGate(gate.key, null)} />
         ) : link !== undefined ? (
           <div className="wk-form">
             <h3 className="wk-h2">Link zewnętrzny</h3>
@@ -338,6 +449,8 @@ export function PathsEditor({ show, parts, busy, onShow, onParts, onOpenScene }:
             <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || !linkOk} onClick={addLink}>Dodaj link</button>
           </div>
         </details>
+
+        <StoryPanel show={show} busy={busy} onShow={onShow} onChoose={setChosen} />
 
         <div className="wk-actions">
           <button type="button" className="wk-link-btn" disabled={busy || Object.keys(show.map).length === 0}

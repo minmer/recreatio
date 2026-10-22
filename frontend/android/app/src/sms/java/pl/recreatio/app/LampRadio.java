@@ -31,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 /**
  * DAS SENDEN SELBST (2026-10-18) — für die Seite ({@link LampPlugin}) und für die
@@ -53,6 +54,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p><b>Nacheinander.</b> Alles Senden läuft auf EINEM Faden ({@link #RADIO}) — ein Druck
  * auf der Seite und ein Timer überlagern sich nie. Wann abgebrochen wird, sagt der Auftrag
  * ({@link Cancel}): die Seite bei „Stop" und beim Verlassen der App, ein Timer nie.</p>
+ *
+ * <p><b>Gehalten</b> (2026-10-21, {@link Press}): ein Knopf, der gedrückt bleibt, sendet,
+ * bis er losgelassen wird — eine Ramka ohne Unterbrechung, mehrere der Reihe nach und
+ * wieder von vorn; losgelassen endet es sofort, auch mitten in der ersten Ramka. Nie
+ * länger als {@link Press#MAX_MS}.</p>
  */
 final class LampRadio {
 
@@ -124,10 +130,47 @@ final class LampRadio {
         /** Warten — {@code false}, wenn vorher abgesagt wurde. */
         boolean hold(long ms);
 
+        /** Warten, bis {@code done} stimmt — {@code false}, wenn vorher abgesagt wurde. Ein Loslassen weckt sofort. */
+        boolean waitUntil(BooleanSupplier done);
+
         boolean cancelled();
 
         /** Das Wort für die Seite: {@code stopped}, {@code paused}. */
         String reason();
+    }
+
+    /** So oft wird beim Halten nachgesehen, ob losgelassen wurde (das Loslassen weckt ohnehin). */
+    static final long WAIT_STEP_MS = 20;
+
+    /**
+     * EIN GEHALTENER KNOPF der Seite. Bis wann gesendet wird ({@link #deadline()}): solange er
+     * gedrückt ist, höchstens {@link #MAX_MS} ab dem Start; losgelassen — sofort. Kam das
+     * Loslassen schon, bevor der Sender frei war (ein Timer lief noch), wird so lange gesendet,
+     * wie gedrückt war.
+     */
+    static final class Press {
+        static final long MAX_MS = LampFrame.MAX_MS;
+
+        private long startedAt = -1;
+        private long releasedAt = -1;
+        private long pressedMs = -1;
+
+        synchronized void start(long now) {
+            startedAt = now;
+        }
+
+        synchronized void release(long now, long heldMs) {
+            if (startedAt < 0) pressedMs = Math.max(LampFrame.MIN_MS, heldMs);
+            else if (releasedAt < 0) releasedAt = now;
+        }
+
+        synchronized long deadline() {
+            if (startedAt < 0) return Long.MAX_VALUE;
+            long last = startedAt + MAX_MS;
+            if (releasedAt >= 0) return Math.min(last, releasedAt);
+            if (pressedMs >= 0) return Math.min(last, startedAt + pressedMs);
+            return last;
+        }
     }
 
     /** Für die Timer: nie abgesagt, nur gewartet. */
@@ -141,6 +184,14 @@ final class LampRadio {
                 Thread.currentThread().interrupt();
                 return false;
             }
+        }
+
+        @Override
+        public boolean waitUntil(BooleanSupplier done) {
+            while (!done.getAsBoolean()) {
+                if (!hold(WAIT_STEP_MS)) return false;
+            }
+            return true;
         }
 
         @Override
@@ -214,8 +265,19 @@ final class LampRadio {
     }
 
     /** Auf {@link #RADIO}: die Ramki nacheinander. */
-    @SuppressLint("MissingPermission")
     static JSObject transmit(Context context, List<LampFrame> frames, Cancel cancel) {
+        return transmit(context, frames, cancel, null);
+    }
+
+    /** So viele Ramki stehen höchstens im Ergebnis — ein langes Halten wiederholt sie oft. */
+    private static final int RESULT_MAX = 60;
+
+    /**
+     * Auf {@link #RADIO}: die Ramki nacheinander — mit {@code press} (ein gehaltener Knopf)
+     * so lange, wie er gedrückt ist: eine Ramka ohne Unterbrechung, mehrere wieder von vorn.
+     */
+    @SuppressLint("MissingPermission")
+    static JSObject transmit(Context context, List<LampFrame> frames, Cancel cancel, Press press) {
         long began = System.currentTimeMillis();
         JSArray done = new JSArray();
         if (cancel.cancelled()) return outcome(cancel.reason(), null, began, done);
@@ -227,13 +289,15 @@ final class LampRadio {
         BluetoothLeAdvertiser advertiser = adapter.getBluetoothLeAdvertiser();
         if (advertiser == null) return outcome("no-advertiser", null, began, done);
 
-        for (int i = 0; i < frames.size(); i++) {
+        if (press != null) press.start(SystemClock.elapsedRealtime());
+        boolean single = frames.size() == 1;
+        for (int i = 0, sent = 0; ; sent++) {
             LampFrame frame = frames.get(i);
             JSObject one = new JSObject();
             one.put("index", i);
             one.put("requestedMs", frame.durationMs);
             one.put("intervalMs", frame.intervalMs);
-            done.put(one);
+            if (sent < RESULT_MAX) done.put(one);
 
             AdvertiseData data = new AdvertiseData.Builder()
                 .setIncludeDeviceName(false)
@@ -285,17 +349,45 @@ final class LampRadio {
             }
 
             one.put("startedAt", System.currentTimeMillis());
-            boolean full = cancel.hold(frame.durationMs);
+            boolean full;
+            if (press == null) {
+                full = cancel.hold(frame.durationMs);
+            } else {
+                /* Gehalten: eine einzige Ramka bis zum Loslassen; sonst jede so lange wie gespeichert — das Loslassen beendet sofort. */
+                long frameEnd = startedAt + frame.durationMs;
+                full = cancel.waitUntil(() -> {
+                    long now = SystemClock.elapsedRealtime();
+                    return now >= press.deadline() || (!single && now >= frameEnd);
+                });
+            }
             stopQuietly(stop);
             one.put("stoppedAt", System.currentTimeMillis());
             one.put("heldMs", SystemClock.elapsedRealtime() - startedAt);
             one.put("code", full ? "ok" : cancel.reason());
             if (!full) return outcome(cancel.reason(), null, began, done);
 
-            if (i < frames.size() - 1 && frame.gapMs > 0 && !cancel.hold(frame.gapMs)) {
-                return outcome(cancel.reason(), null, began, done);
+            boolean last = i == frames.size() - 1;
+            if (press == null) {
+                if (last) return outcome("ok", null, began, done);
+            } else if (SystemClock.elapsedRealtime() >= press.deadline() || single) {
+                return outcome("ok", null, began, done);
             }
+            /* Die Pause nach der Ramka — gehalten auch nach der letzten, bevor es wieder von vorn geht. */
+            if (frame.gapMs > 0) {
+                boolean waited;
+                if (press == null) {
+                    waited = cancel.hold(frame.gapMs);
+                } else {
+                    long gapEnd = SystemClock.elapsedRealtime() + frame.gapMs;
+                    waited = cancel.waitUntil(() -> {
+                        long now = SystemClock.elapsedRealtime();
+                        return now >= press.deadline() || now >= gapEnd;
+                    });
+                }
+                if (!waited) return outcome(cancel.reason(), null, began, done);
+                if (press != null && SystemClock.elapsedRealtime() >= press.deadline()) return outcome("ok", null, began, done);
+            }
+            i = last ? 0 : i + 1;
         }
-        return outcome("ok", null, began, done);
     }
 }

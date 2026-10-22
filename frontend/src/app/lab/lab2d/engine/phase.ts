@@ -15,25 +15,29 @@
  *    Jeder Übergang trägt die Masse mit der Enthalpie des Speichers, den sie
  *    verlässt; die Differenz ist latente Wärme der Zelle (Quelle der
  *    Wärmestufe) — die Bilanzen schliessen.
- * 2. <b>Entspannungsverdampfen</b>: eine Oberflächenzelle über T_sat(p) gibt
- *    ihre überschüssige fühlbare Wärme als Dampf ab; die Teilchen enden genau
- *    bei T_sat.
- * 3. <b>Nebel</b>: ist p_H₂O > p_sat(T), kondensiert Δm so, dass der
- *    restliche Dampf bei der neuen Temperatur genau gesättigt ist (H bleibt,
- *    T steigt um h_lv Δm/C) — gesucht mit einem eingeschlossenen
- *    Sekantenverfahren; „den Überschuss bei der alten Temperatur“ zu
- *    kondensieren schösse weit hinaus. Untersättigt verdunstet Nebel ebenso.
+ * 2. <b>Entspannungsverdampfen</b> (flash.ts): eine Oberflächenzelle über
+ *    T_sat(p) gibt ihre überschüssige fühlbare Wärme als Dampf ab; die
+ *    Teilchen enden genau bei T_sat. Ebenso Tröpfchen in Gaszellen.
+ * 3. <b>Nebel</b> (fog.ts): Kondensation im Gas genau bis zur Sättigung.
  *
- * Sättigung aus IAPWS-IF97 Region 4 beim örtlichen Druck.
+ * Sättigung aus IAPWS-IF97 Region 4 beim örtlichen Druck. Über Salzlösung
+ * (M2b) ist der Dampfdruck a_w p_sat(T) und die Siedetemperatur T_b(p, m)
+ * (solution.ts): beides je Zelle aus der Molalität ihres Wassers. Wasser
+ * verlässt eine Lösung mit seiner partiellen Enthalpie h̄_w (die Sammlung
+ * accH führt sie), das Salz bleibt; ein vertrocknendes Teilchen gibt sein Salz
+ * an die Kruste (salt.ts).
  */
 
 import type { Engine } from './engine';
+import { flashStep } from './flash';
+import { fogStep } from './fog';
 import { pSatFast, tSat } from './if97';
-import { cpLiq, diffVapour, gasHeatCapacity, gasTemperature, hGas, hL, hV, LIQUIDS, MOLAR, WATER } from './materials';
+import { cpLiq, diffVapour, hGas, hL, hV, LIQUIDS, MOLAR, WATER } from './materials';
+import { boilingPoint, hCrystal, hWaterIn, M_S, waterActivityFast } from './solution';
 import { GAS, H2O, LIQUID, N2, O2, SOLID } from './units';
 
 /** Ein Teilchen unter diesem Anteil seiner Nennmasse verschwindet (sein Rest wird Dampf). */
-const MIN_MASS = 1e-3;
+export const MIN_MASS = 1e-3;
 
 export class Phase {
   private readonly e: Engine;
@@ -47,10 +51,10 @@ export class Phase {
   /** Nebel in diesem Schritt: grösste relative Abweichung von der Sättigung in Zellen mit Nebel, Zellen mit Nebel ohne Übersättigung. */
   fogError = 0;
   fogWrong = 0;
-  /* Arbeitsfelder. */
-  private readonly mtot: Float64Array;
-  private readonly rd: Float64Array;
-  private readonly Y0: Float64Array;
+  /* Arbeitsfelder (auch für flash.ts). */
+  readonly mtot: Float64Array;
+  readonly rd: Float64Array;
+  readonly Y0: Float64Array;
   /**
    * Je Zelle aus den Teilchen (mit den Wärmegewichten): Temperatur und
    * Wärmekapazität des flüssigen Anteils (aller Flüssigkeiten), Σ w m und
@@ -67,11 +71,19 @@ export class Phase {
   readonly host: Uint8Array;
   /** Gibt es Teilchen anderer Flüssigkeiten (seit dem letzten gatherLiquid)? */
   mixed = false;
+  /**
+   * Gelöstes Salz (seit dem letzten gatherLiquid)? Dann je Zelle Σ w s (accS),
+   * die Molalität ihres Wassers (mol) und die Aktivität des Wassers (aw, bei Tl).
+   */
+  salty = false;
+  readonly accS: Float64Array;
+  readonly mol: Float64Array;
+  readonly aw: Float64Array;
   private readonly accMat: Float64Array;
   private readonly Fm: Float64Array;
   private readonly Fe: Float64Array;
   private readonly dm: Float64Array;
-  private readonly side = new Int32Array(4);
+  readonly side = new Int32Array(4);
   /** Rand der Diffusion je Zelle und Seite (Leitwert, Wert) — beim Aufbau berechnet, bei den Flüssen gelesen. */
   private readonly bG: Float64Array;
   private readonly bY: Float64Array;
@@ -95,6 +107,9 @@ export class Phase {
     this.accAll = new Float64Array(n);
     this.host = new Uint8Array(n);
     this.accMat = new Float64Array(n * LIQUIDS.length);
+    this.accS = new Float64Array(n);
+    this.mol = new Float64Array(n);
+    this.aw = new Float64Array(n);
     this.Fm = new Float64Array(n);
     this.Fe = new Float64Array(n);
     this.dm = new Float64Array(engine.particles.cap);
@@ -108,11 +123,11 @@ export class Phase {
 
   /* -- Hilfen ---------------------------------------------------------------------------------------- */
 
-  /** Gesättigter Massenanteil Y_sat bei T und p über einem Gas mit der trockenen Molmasse dieser Zelle. */
-  private ysat(T: number, p: number, c: number): number {
+  /** Gesättigter Massenanteil Y_sat bei T und p über einem Gas mit der trockenen Molmasse dieser Zelle (über Lösung: mit a_w). */
+  private ysat(T: number, p: number, c: number, aw = 1): number {
     const g = this.e.grid;
     const n = g.n;
-    const x = Math.min(0.999, pSatFast(T) / p);
+    const x = Math.min(0.999, (aw * pSatFast(T)) / p);
     const mN = g.mg[N2 * n + c];
     const mO = g.mg[O2 * n + c];
     const dry = mN + mO;
@@ -120,20 +135,30 @@ export class Phase {
     return (x * MOLAR[H2O]) / (x * MOLAR[H2O] + (1 - x) * mDry);
   }
 
-  /** Temperatur und Wärmekapazität des flüssigen Anteils jeder Zelle, Σ w m und Σ w m h des Wassers, Σ w m aller Flüssigkeiten (mit den Wärmegewichten). */
+  /**
+   * Temperatur und Wärmekapazität des flüssigen Anteils jeder Zelle, Σ w m_w
+   * und Σ w m_w h̄_w des Wassers (in Lösungen nur das Wasser, mit seiner
+   * partiellen Enthalpie; in reinem Wasser m und h), Σ w m aller
+   * Flüssigkeiten, mit Salz Σ w s (alles mit den Wärmegewichten).
+   */
   gatherLiquid(): void {
     const { grid: g, particles: P, liquid: L } = this.e;
     const { nx, ny, n } = g;
-    const { Tl, Cl, acc, accH, accAll } = this;
+    const { Tl, Cl, acc, accH, accAll, accS } = this;
     Cl.fill(0);
     Tl.fill(0);
     acc.fill(0);
     accH.fill(0);
     let mixed = false;
+    let salty = false;
     for (let p = 0; p < P.count; p += 1) {
       const m = P.mass[p];
       const mat = P.mat[p];
-      const Cp = m * cpLiq(mat, P.T[p]);
+      const Cp = m * P.cp(p);
+      const s = P.smass[2 * p];
+      const mw = m - s;
+      const hw = s > 0 ? hWaterIn(P.T[p], s / m) : P.h[p];
+      if (s > 0 && !salty) { salty = true; accS.fill(0); }
       if (mat !== WATER && !mixed) { mixed = true; accAll.fill(0); this.accMat.fill(0); }
       const o = 9 * p;
       for (let k = 0; k < 9; k += 1) {
@@ -146,14 +171,24 @@ export class Phase {
         Cl[c] += w * Cp;
         Tl[c] += w * Cp * P.T[p];
         if (mat === WATER) {
-          acc[c] += w * m;
-          accH[c] += w * m * P.h[p];
+          acc[c] += w * mw;
+          accH[c] += w * mw * hw;
         }
+        if (salty) accS[c] += w * s;
         if (mixed) this.accMat[mat * n + c] += w * m;
       }
     }
     for (let c = 0; c < n; c += 1) Tl[c] = Cl[c] > 0 ? Tl[c] / Cl[c] : g.T[c];
     this.mixed = mixed;
+    this.salty = salty;
+    if (salty) {
+      /* Je Zelle die Molalität ihres Wassers und dessen Aktivität bei der Temperatur der Flüssigkeit. */
+      for (let c = 0; c < n; c += 1) {
+        const mo = accS[c] > 0 && acc[c] > 0 ? accS[c] / (acc[c] * M_S) : 0;
+        this.mol[c] = mo;
+        this.aw[c] = mo > 0 ? waterActivityFast(Tl[c], mo) : 1;
+      }
+    }
     if (!mixed) {
       /* Nur Wasser: alle Flüssigkeit ist Wasser. */
       accAll.set(acc);
@@ -163,7 +198,7 @@ export class Phase {
     /* Mit anderen Flüssigkeiten: das Wasser der Teilchen vor dem ersten anderen fehlte in accMat — aus acc nachtragen. */
     const NL = LIQUIDS.length;
     for (let c = 0; c < n; c += 1) {
-      this.accMat[WATER * n + c] = acc[c];
+      this.accMat[WATER * n + c] = salty ? acc[c] + accS[c] : acc[c];
       let all = 0;
       let best = WATER;
       let bm = -1;
@@ -177,10 +212,16 @@ export class Phase {
     }
   }
 
-  /** Anteil des Wassers an der Flüssigkeit der Zelle c (1 ohne Flüssigkeit — wie vor M2a). */
+  /** Anteil des Wassers (mit seinem gelösten Salz) an der Flüssigkeit der Zelle c (1 ohne Flüssigkeit — wie vor M2a). */
   waterShare(c: number): number {
+    if (!this.mixed) return 1;
     const all = this.accAll[c];
-    return all > 0 ? this.acc[c] / all : 1;
+    return all > 0 ? (this.salty ? this.acc[c] + this.accS[c] : this.acc[c]) / all : 1;
+  }
+
+  /** Siedetemperatur der Flüssigkeit der Zelle c beim Druck p (K): mit Salz T_b(p, m), sonst T_sat(p). */
+  boilingAt(c: number, p: number): number {
+    return this.salty && this.mol[c] > 0 ? boilingPoint(p, this.mol[c]) : tSat(p);
   }
 
   /** Mittlere spezifische Enthalpie des Wassers der Zelle c (J/kg); ohne Wasserteilchen die des Wassers bei der Temperatur der Zelle. */
@@ -196,10 +237,11 @@ export class Phase {
 
   /**
    * Die Masse Fm[c] (positiv: hinzu, negativ: weg) auf die WASSERteilchen
-   * jeder Zelle verteilen, nach w·m (aus dem letzten gatherLiquid); die
-   * Teilchen behalten ihr h — die Energie ist dann Fm·waterH(c), wie die
-   * Aufrufer sie buchen. Kommt Wasser in eine Zelle ohne Wasserteilchen (Dampf
-   * kondensiert in Öl), entsteht dort ein neues Teilchen mit waterH(c).
+   * jeder Zelle verteilen, nach w·m_w (aus dem letzten gatherLiquid); reine
+   * Teilchen behalten ihr h, Teilchen mit Salz geben oder nehmen das Wasser mit
+   * seiner partiellen Enthalpie h̄_w — die Energie ist dann Fm·waterH(c), wie
+   * die Aufrufer sie buchen. Kommt Wasser in eine Zelle ohne Wasserteilchen
+   * (Dampf kondensiert in Öl), entsteht dort ein neues Teilchen mit waterH(c).
    */
   applyMass(Fm: Float64Array, dt: number): void {
     const { grid: g, particles: P, liquid: L } = this.e;
@@ -217,7 +259,7 @@ export class Phase {
         const j = L.bj[p] + ((k / 3) | 0);
         if (i < 0 || j < 0 || i >= nx || j >= ny) continue;
         const c = i + j * nx;
-        if (Fm[c] !== 0 && acc[c] > 0) d += (Fm[c] * w * P.mass[p]) / acc[c];
+        if (Fm[c] !== 0 && acc[c] > 0) d += (Fm[c] * w * (P.mass[p] - P.smass[2 * p])) / acc[c];
       }
       dm[p] = d;
     }
@@ -225,6 +267,7 @@ export class Phase {
     for (let p = P.count - 1; p >= 0; p -= 1) {
       const d = dm[p];
       if (d === 0) continue;
+      if (P.smass[2 * p] > 0) { this.applySalty(p, d, nominal, dt); continue; }
       const before = P.mass[p] / P.rho[p];
       const m = P.mass[p] + d;
       if (m < MIN_MASS * nominal) {
@@ -270,6 +313,93 @@ export class Phase {
     }
   }
 
+  /**
+   * Wasser d (kg) zu einem Teilchen mit Salz hinzu (oder weg): es trägt h̄_w
+   * beim Zustand, mit dem es in accH steht; die Sammlung wird mit dem neuen
+   * Zustand nachgeführt (h̄_w hängt von w ab). Bleibt kaum Wasser, vertrocknet
+   * das Teilchen: der Rest Wasser wird Dampf, das Salz Kruste.
+   */
+  private applySalty(p: number, d: number, nominal: number, dt: number): void {
+    const { particles: P, liquid: L } = this.e;
+    const s = P.smass[2 * p];
+    const m0 = P.mass[p];
+    const mw0 = m0 - s;
+    const hw0 = hWaterIn(P.T[p], s / m0);
+    const cp0 = P.cp(p);
+    const H = m0 * P.h[p] + d * hw0;
+    const mw1 = mw0 + d;
+    if (mw1 < MIN_MASS * nominal) {
+      this.trackSalty(p, -mw0, -mw0 * hw0, -m0, -s, -m0 * cp0);
+      this.dryUp(p, Math.max(0, mw1), H, dt);
+      return;
+    }
+    const before = m0 / P.rho[p];
+    P.mass[p] = m0 + d;
+    P.h[p] = H / P.mass[p];
+    P.derive(p);
+    L.dVp[p] += P.mass[p] / P.rho[p] - before;
+    const hw1 = hWaterIn(P.T[p], s / P.mass[p]);
+    this.trackSalty(p, d, mw1 * hw1 - mw0 * hw0, d, 0, P.mass[p] * P.cp(p) - m0 * cp0);
+  }
+
+  /** Die Sammlung für ein Teilchen mit Salz nachführen: Änderungen von Σ m_w, Σ m_w h̄_w, Σ m, Σ s und der Wärmekapazität. */
+  private trackSalty(p: number, dW: number, dWH: number, dAll: number, dS: number, dC: number): void {
+    const { grid: g, liquid: L } = this.e;
+    const { nx, ny } = g;
+    const o = 9 * p;
+    for (let k = 0; k < 9; k += 1) {
+      const w = L.wt[o + k];
+      if (w === 0) continue;
+      const i = L.bi[p] + (k % 3);
+      const j = L.bj[p] + ((k / 3) | 0);
+      if (i < 0 || j < 0 || i >= nx || j >= ny) continue;
+      const c = i + j * nx;
+      this.acc[c] += w * dW;
+      this.accH[c] += w * dWH;
+      this.accAll[c] += w * dAll;
+      this.accS[c] += w * dS;
+      this.Cl[c] += w * dC;
+    }
+  }
+
+  /**
+   * Ein Teilchen mit Salz vertrocknet: das restliche Wasser mw wird Dampf in
+   * der nächsten Gaszelle darüber, das Salz geht mit h_Kristall(T) in die Kruste
+   * (salt.ts); was die Energie H des Teilchens darüber hinaus hatte oder zu
+   * wenig hatte, ist latente Wärme seiner Zelle. Ohne Gas darüber geht das
+   * Wasser an ein anderes Teilchen der Zelle (wie bei reinem Wasser).
+   */
+  private dryUp(p: number, mw: number, H: number, dt: number): void {
+    const { grid: g, particles: P, liquid: L, heat, gas } = this.e;
+    const T = P.T[p];
+    const s = P.smass[2 * p];
+    const Hs = s * hCrystal(T);
+    this.e.salt.deposit(P.x[p], P.y[p], s, Hs);
+    const c0 = g.cellAt(P.x[p], P.y[p]);
+    let gc = c0;
+    while (gc >= 0 && g.kind[gc] !== GAS) gc = gc + g.nx < g.n ? gc + g.nx : -1;
+    if (c0 >= 0 && gc >= 0) {
+      if (mw > 0) {
+        g.mg[H2O * g.n + gc] += mw;
+        g.Hg[gc] += mw * hV(T);
+        this.produced += mw;
+        gas.deriveCell(gc);
+      }
+      heat.src[c0] -= (mw * hV(T) + Hs - H) / dt;
+    } else if (c0 >= 0) {
+      for (let q = 0; q < P.count; q += 1) {
+        if (q !== p && P.mat[q] === P.mat[p] && g.cellAt(P.x[q], P.y[q]) === c0) {
+          const e = P.mass[q] * P.h[q] + (H - Hs);
+          P.mass[q] += mw;
+          P.h[q] = e / P.mass[q];
+          P.derive(q);
+          break;
+        }
+      }
+    }
+    L.removeParticle(p);
+  }
+
   /** Ein fast leeres Teilchen verschwinden lassen: seine Restmasse wird Dampf in der nächsten Gaszelle darüber. */
   private vanish(p: number, m: number, dt: number): void {
     const { grid: g, particles: P, liquid: L, heat, gas } = this.e;
@@ -303,8 +433,8 @@ export class Phase {
   step(dt: number): void {
     /* Die Sammlung der Flüssigkeit stammt aus der Blasenstufe dieses Schritts (applyMass hält sie aktuell). */
     this.diffuse(dt);
-    this.flash();
-    this.fog();
+    flashStep(this.e, this, dt);
+    fogStep(this.e, this);
     this.films();
   }
 
@@ -458,8 +588,10 @@ export class Phase {
     if (kn === LIQUID) {
       /* Nur Wasser verdunstet und nimmt Tau auf: die Fläche zählt mit dem Anteil des Wassers an der Flüssigkeit dieser Zelle (Öl allein: kein Austausch). */
       const fw = this.waterShare(nb);
-      if (fw <= 0) return 0;
-      this.yb = this.ysat(this.Tl[nb], p, c);
+      /* Ohne Wasserteilchen in der Zelle (nur ihr Platz ist flüssig: Blasen, Öl) verdunstet nichts — sonst entstünde Dampf aus nichts. */
+      if (fw <= 0 || !(this.acc[nb] > 0)) return 0;
+      /* Über Salzlösung der Dampfdruck a_w p_sat (Raoult für Elektrolyte, mit φ nach Pitzer). */
+      this.yb = this.ysat(this.Tl[nb], p, c, this.salty ? this.aw[nb] : 1);
       return half * (1 - Y) * fw;
     }
     if (kn === SOLID) {
@@ -543,190 +675,6 @@ export class Phase {
       e.flows.escapedAir -= out;
       e.flows.escapedEnergy += out * hV(g.T[c]) - h;
     }
-  }
-
-  /** 2. Entspannungsverdampfen an der Oberfläche: Teilchenanteile über T_sat geben ihre Überhitzung als Dampf ab. */
-  private flash(): void {
-    const e = this.e;
-    const { grid: g, particles: P, liquid: L, regions: R, gas } = e;
-    const { nx, ny, n, kind } = g;
-    const { Tl } = this;
-    /* Oberflächenzellen über T_sat: die Siedetemperatur steht in rd[c] (Arbeitsfeld), sonst 0. */
-    const ts = this.rd;
-    let any = false;
-    for (let c = 0; c < n; c += 1) {
-      ts[c] = 0;
-      if (kind[c] !== LIQUID) continue;
-      const i = c % nx;
-      const j = (c - i) / nx;
-      const up = j + 1 < ny ? c + nx : -1;
-      const surface = (up >= 0 && kind[up] === GAS) || (i > 0 && kind[c - 1] === GAS) || (i < nx - 1 && kind[c + 1] === GAS) || (j > 0 && kind[c - nx] === GAS);
-      if (!surface) continue;
-      const Tsat = tSat(R.pAt(c));
-      if (Tl[c] > Tsat) { ts[c] = Tsat; any = true; }
-    }
-    if (!any) return;
-    const vap = this.mtot;
-    vap.fill(0);
-    const vapH = this.Y0;
-    vapH.fill(0);
-    for (let p = 0; p < P.count; p += 1) {
-      /* Nur Wasser hat eine Siedelinie. */
-      if (P.mat[p] !== WATER) continue;
-      const o = 9 * p;
-      let lost = 0;
-      let lostE = 0;
-      for (let k = 0; k < 9; k += 1) {
-        const w = L.wt[o + k];
-        if (w === 0) continue;
-        const i = L.bi[p] + (k % 3);
-        const j = L.bj[p] + ((k / 3) | 0);
-        if (i < 0 || j < 0 || i >= nx || j >= ny) continue;
-        const c = i + j * nx;
-        const Tsat = ts[c];
-        if (Tsat === 0) continue;
-        const hs = hL(Tsat);
-        if (P.h[p] <= hs) continue;
-        const hv = hV(Tsat);
-        const dmv = (w * P.mass[p] * (P.h[p] - hs)) / (hv - hs);
-        lost += dmv;
-        lostE += dmv * hv;
-        vap[c] += dmv;
-        vapH[c] += dmv * hv;
-      }
-      if (lost === 0) continue;
-      const before = P.mass[p] / P.rho[p];
-      const m = P.mass[p] - lost;
-      P.h[p] = (P.mass[p] * P.h[p] - lostE) / m;
-      P.mass[p] = m;
-      P.derive(p);
-      L.dVp[p] += m / P.rho[p] - before;
-    }
-    /* Der Dampf geht in die Gasnachbarn der Oberflächenzelle (bevorzugt nach oben). */
-    for (let c = 0; c < n; c += 1) {
-      if (vap[c] === 0) continue;
-      const i = c % nx;
-      const j = (c - i) / nx;
-      let targets = 0;
-      const up = j + 1 < ny && kind[c + nx] === GAS ? c + nx : -1;
-      if (up >= 0) {
-        g.mg[H2O * n + up] += vap[c];
-        g.Hg[up] += vapH[c];
-        gas.deriveCell(up);
-      } else {
-        const nbs = this.side;
-        nbs[0] = i > 0 && kind[c - 1] === GAS ? c - 1 : -1;
-        nbs[1] = i < nx - 1 && kind[c + 1] === GAS ? c + 1 : -1;
-        nbs[2] = j > 0 && kind[c - nx] === GAS ? c - nx : -1;
-        nbs[3] = -1;
-        for (let k = 0; k < 3; k += 1) if (nbs[k] >= 0) targets += 1;
-        for (let k = 0; k < 3; k += 1) {
-          if (nbs[k] < 0) continue;
-          g.mg[H2O * n + nbs[k]] += vap[c] / targets;
-          g.Hg[nbs[k]] += vapH[c] / targets;
-          gas.deriveCell(nbs[k]);
-        }
-      }
-      this.produced += vap[c];
-    }
-  }
-
-  /** Die Temperatur einer Gaszelle mit geänderten Massen (Dampf mv, Nebel mf) bei gleicher Enthalpie H. */
-  private tempWith(c: number, mv: number, mf: number, T0: number): number {
-    const g = this.e.grid;
-    const n = g.n;
-    const mN = g.mg[N2 * n + c];
-    const mO = g.mg[O2 * n + c];
-    const H = g.Hg[c];
-    if (mf <= 0) return gasTemperature(mN, mO, mv, H);
-    let T = T0;
-    for (let it = 0; it < 6; it += 1) {
-      const Hc = mN * hGas(N2, T) + mO * hGas(O2, T) + mv * hV(T) + mf * hL(T);
-      const dT = (H - Hc) / gasHeatCapacity(mN, mO, mv, mf, T);
-      T += dT;
-      if (Math.abs(dT) < 1e-10) break;
-    }
-    return T;
-  }
-
-  /** Abstand zur Sättigung p_v − p_sat(T) (Pa) nach dem Kondensieren von d (kg Dampf → Nebel). */
-  private satGap(c: number, d: number, nDry: number, p: number, T0: number): number {
-    const g = this.e.grid;
-    const n = g.n;
-    const mv = g.mg[H2O * n + c] - d;
-    const mf = g.mfog[c] + d;
-    const T = this.tempWith(c, mv, mf, T0);
-    const nv = mv / MOLAR[H2O];
-    /* Reiner Dampf ohne Luft: p_v = p; ganz ohne Gas: p_v = 0. */
-    const pv = nv + nDry > 0 ? (nv / (nv + nDry)) * p : 0;
-    return pv - pSatFast(T);
-  }
-
-  /** 3. Nebel: Kondensation bis genau zur Sättigung, oder Verdunsten von Nebel in untersättigtem Gas. */
-  private fog(): void {
-    const { grid: g, gas, regions: R } = this.e;
-    const n = g.n;
-    this.fogError = 0;
-    this.fogWrong = 0;
-    for (let c = 0; c < n; c += 1) {
-      if (g.kind[c] !== GAS) continue;
-      const mv = g.mg[H2O * n + c];
-      const mf = g.mfog[c];
-      if (mv <= 0 && mf <= 0) continue;
-      const nDry = g.mg[N2 * n + c] / MOLAR[N2] + g.mg[O2 * n + c] / MOLAR[O2];
-      const p = R.pAt(c);
-      const T0 = g.T[c];
-      if (mf <= 0) {
-        const nv = mv / MOLAR[H2O];
-        if ((nv / (nv + nDry)) * p < 0.999 * pSatFast(T0)) continue;
-      }
-      const gap0 = this.satGap(c, 0, nDry, p, T0);
-      if (gap0 <= 0 && mf <= 0) continue;
-      let lo: number, hi: number, flo: number, fhi: number;
-      if (gap0 > 0) {
-        lo = 0; flo = gap0;
-        hi = mv; fhi = this.satGap(c, hi, nDry, p, T0);
-      } else {
-        hi = 0; fhi = gap0;
-        lo = -mf; flo = this.satGap(c, lo, nDry, p, T0);
-        if (flo <= 0) {
-          /* Auch ohne Nebel untersättigt: aller Nebel verdunstet. */
-          this.setFog(c, lo);
-          continue;
-        }
-      }
-      if (fhi > 0) { this.setFog(c, hi); continue; }
-      /* Eingeschlossene Sekante (Illinois): f(lo) > 0 > f(hi). */
-      let d = lo;
-      let side = 0;
-      for (let it = 0; it < 40; it += 1) {
-        d = (lo * fhi - hi * flo) / (fhi - flo);
-        if (!Number.isFinite(d) || d <= Math.min(lo, hi) || d >= Math.max(lo, hi)) d = 0.5 * (lo + hi);
-        const f = this.satGap(c, d, nDry, p, T0);
-        if (Math.abs(f) <= 1e-13 * p) break;
-        if (f > 0) { lo = d; flo = f; if (side === 1) fhi /= 2; side = 1; }
-        else { hi = d; fhi = f; if (side === -1) flo /= 2; side = -1; }
-      }
-      this.setFog(c, d);
-      if (gap0 < 0 && d > 0) this.fogWrong += 1;
-      if (g.mfog[c] > 0) {
-        const after = this.satGap(c, 0, nDry, p, g.T[c]);
-        this.fogError = Math.max(this.fogError, Math.abs(after) / pSatFast(g.T[c]));
-      }
-      void gas;
-    }
-  }
-
-  private setFog(c: number, d: number): void {
-    const { grid: g, gas } = this.e;
-    const n = g.n;
-    if (d === 0 || !Number.isFinite(d)) return;
-    const dd = Math.max(-g.mfog[c], Math.min(g.mg[H2O * n + c], d));
-    g.mg[H2O * n + c] -= dd;
-    g.mfog[c] += dd;
-    if (g.mfog[c] < 1e-30) g.mfog[c] = 0;
-    this.fogMade += dd;
-    gas.deriveCell(c);
   }
 
   /** Volle Wandfilme geben ein Teilchen ab (in die Gaszelle neben der Wand, mit der Temperatur der Wand). */

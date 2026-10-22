@@ -1,10 +1,12 @@
 # 2D lab engine (v2) — architecture
 
-Status (2026-10-21): Milestones M0–M1d are built on the CPU and pass their tests except the time budget of test 16;
+Status (2026-10-22): Milestones M0–M1d are built on the CPU and pass their tests except the time budget of test 16;
 M1e, the WebGPU path, is built as the "accelerated view" — the whole step on the GPU (§15) — and meets test 17 (test 11
 at the edge of its tolerance, as on the CPU). M2a, the first step of the sandbox plan ([SANDBOX.md](SANDBOX.md)), adds
 liquids other than water (rapeseed oil first) on the CPU: per-material particles, viscosity and drifting droplets
-(tests 18–22); the accelerated view does not take them yet. [MILESTONES.md](MILESTONES.md) has the measured numbers. Written as a
+(tests 18–22). M2b adds dissolved salt (NaCl): one water activity for vapour pressure, boiling and freezing point,
+brine density and heat capacity, crystallisation to a crust (tests 23–27), and droplets below the cell size that boil
+off and fly. The accelerated view takes neither yet. [MILESTONES.md](MILESTONES.md) has the measured numbers. Written as a
 design before the code (2026-10-19, as the build prompt v2 asks) and updated to what was built.
 Code: `frontend/src/app/lab/lab2d/`. Simplifications: [SIMPLIFICATIONS.md](SIMPLIFICATIONS.md).
 
@@ -40,6 +42,8 @@ lab/lab2d/
     rng.ts             seeded random numbers (mulberry32) and an integer hash
     materials.json     species and solids, every value with its source key (§4)
     materials.ts       typed access and property functions: ρ, c_p, h, k, μ, σ, D_v; gas tables 150–1150 K
+    solution.ts        salt solutions (M2b): Pitzer water activity, boiling and freezing point, solubility,
+                       brine density, c_p, enthalpy and its inverse, partial enthalpy of water (§4)
     if97.ts            IAPWS-IF97 region 4 (p_sat, T_sat, dT_sat/dp), IAPWS saturation densities; fast tables
     shapes.ts          regions of scene operations: rect, circle, poly, line with width
     scene.ts           scene JSON: reading (tolerant, with warnings) and writing (§10)
@@ -49,16 +53,22 @@ lab/lab2d/
     solver.ts          PCG with a geometric-multigrid preconditioner (pressure), Jacobi-PCG (heat, diffusion) (§6.6)
     regions.ts         fluid regions (open or sealed) and the pressure p0 of sealed ones (§6.4)
     liquid.ts          APIC transfers, volume fractions, classification, liquid projection, advection (§7)
+    liquidMix.ts       several liquids (M2a): the viscosity step and the drift of unresolved droplets (§7)
+    extend.ts          velocity outside the liquid: extension, droplets that fly (M2b), sampling the grid (§7)
     gas.ts             conservative gas transport, MacCormack velocity, buoyancy, low-Mach sources, projection (§6)
     heat.ts            implicit conduction over all cells, heaters, losses (§6.5)
     bubbleState.ts     a bubble's radius, pressure and temperature from its masses; footprint weights (§8.1)
     bubbleModel.ts     cavities, nucleation, growth, departure, motion, coalescence, bursting (§8)
-    phase.ts           vapour diffusion with surface evaporation and dew, flash, fog, wall films (§9)
+    phase.ts           the liquid gathered per cell, vapour diffusion with surface evaporation and dew, wall films;
+                       mass to and from the particles (water with its partial enthalpy) (§9)
+    flash.ts, fog.ts   flash evaporation (surface cells and droplets), fog in the gas (§9)
+    salt.ts            crystallisation of supersaturated brine, the crust and the box-floor store (M2b, §9)
     edits.ts           scene operations and tools: fill, erase, move, solid, beaker, hot plate (§10)
     budget.ts          mass and energy budgets
     charts.ts          the samples behind the live charts (every 0.25 s)
     stages.ts          the eight stage names (HUD, tests)
     engine.ts          the Engine: commands, the step loop with timing per stage, queries, stats
+    probe.ts           what the inspector sees at a point (cell, particle, bubble; brine: w, m, T_b, T_f)
     protocol.ts        messages between host and worker
   render/              frame buffers from the engine state, WebGL2 renderer, palette, view fitting (§11)
   gpu/                 the accelerated view (M1e, §15): WebGPU kernels as WGSL in TypeScript strings, the state on the GPU
@@ -107,7 +117,8 @@ and energies Float64, everything else Float32 (as the prompt asks).
 | `mg[6]` | f64 | kg | gas species masses: N₂, O₂, H₂O vapour, three reserved slots |
 | `mfog` | f64 | kg | fog (condensed droplets suspended in the gas) |
 | `Hg` | f64 | J | gas enthalpy (species and fog) |
-| `Es`, `film` | f64 | J, kg | solid energy (with its wall film), wall-film water |
+| `Es`, `film` | f64 | J, kg | solid energy (with its wall film and salt crust), wall-film water |
+| `crust` | f64 | kg | salt crust on a solid cell (M2b; its enthalpy is in `Es`, its heat capacity part of the solid's) |
 | `T`, `Tl`, `Cl` | f32, f32, f64 | K, K, J/K | cell temperature; temperature and heat capacity of the cell's liquid share |
 | `Sl`, `Sg` | f32 | 1/s | divergence sources of the liquid and the gas |
 | `ul, vl`, `ug, vg` | f32 | m/s | liquid and gas face velocities |
@@ -123,9 +134,9 @@ stable `id` travels with it for the inspector).
 |---|---|---|
 | `x, y`, `vx, vy` | f32 | position (m), velocity (m/s) |
 | `c00, c01, c10, c11` | f32 | APIC affine matrix C (1/s) |
-| `mass` | f64 | substance mass (kg) |
-| `h` | f64 | specific enthalpy (J/kg) — the state; `T` and `rho` are cached from it |
-| `spc[2]`, `smass[2]` | u8, f64 | composition slots for dissolved species (M2b; empty so far) |
+| `mass` | f64 | substance mass (kg) — with salt: water plus salt |
+| `h` | f64 | specific enthalpy (J/kg; of the solution when there is salt) — the state; `T` and `rho` are cached from it |
+| `spc[2]`, `smass[2]` | u8, f64 | dissolved species: slot 0 holds NaCl (`spc` = 1) and its mass (M2b); slot 1 is free |
 | `mat` | u8 | the particle's liquid: index into `LIQUIDS` (0 water, 1 rapeseed oil); its laws give T and ρ from h |
 
 ### 3.3 Objects (bubbles in M1)
@@ -140,7 +151,9 @@ use the same store.
 `engine/materials.json`: species and solids in the schema the chemistry milestones will use. Every number carries a
 source key; `sources` maps keys to citations (IAPWS R7-97, SR1-86, R1-76, R15-11; Kell 1975; NIST WebBook; Vogel
 fit; NIST-JANAF; Incropera; Sutherland constants; Massman 1998; SCHOTT data sheets; CODATA; contact angles;
-Lemmert & Chawla). A test checks that every value cites a source.
+Lemmert & Chawla; for oil Rojas et al. 2013 and Melo-Espinosa et al. 2014; for salt PHREEQC pitzer.dat, Spencer,
+Møller & Weare 1990, Malmberg & Maryott 1956, Laliberté 2009, Pitzer, Peiper & Busey 1984, NBS 1982, IAPWS R10-06;
+the references of the tests: Greenspan 1977, Bodnar 1993). A test checks that every value cites a source.
 
 - **H₂O**: liquid ρ(T) (Kell), c_p(T) (table, piecewise linear with an exact enthalpy integral and inverse), k(T)
   (IAPWS 2011, quadratic), μ(T) (Vogel), σ(T) (IAPWS R1-76), saturation curve (IF97 region 4), saturated densities
@@ -150,6 +163,14 @@ Lemmert & Chawla). A test checks that every value cites a source.
 - **Rapeseed (canola) oil** (M2a): ρ(T) and c_p(T) linear (the fits of Rojas, Coimbra & Telis-Romero 2013, measured
   20–160 °C), k(T) linear and μ(T) after Vogel (fits in this repository to their tables, within 0.5 % and 1.3 %),
   surface tension constant (33.4 mN/m, the 20 °C literature mean of Melo-Espinosa et al. 2014). Not volatile.
+- **Sodium chloride** (M2b, `solutes`): water activity a_w = exp(−2 m φ M_w) from the Pitzer osmotic coefficient
+  φ = 1 − A_φ √m/(1 + 1.2√m) + m (β⁰ + β¹ e^{−2√m}) + m² C^φ, with the parameters and temperature form of PHREEQC
+  pitzer.dat and, below 0 °C, the set of Spencer, Møller & Weare (1990, PHREEQC frezchem.dat); A_φ from the dielectric
+  constant of Malmberg & Maryott (1956) and the Kell density. Brine density 1/ρ = (1 − w)/ρ_w + w/ρ_app and heat
+  capacity c_p = (1 − w) c_p,w + w c_app(T, w) after Laliberté (2009); solubility from Pitzer, Peiper & Busey (1984),
+  0–150 °C; heat of solution 3.883 kJ/mol at 25 °C (NBS); the crystal (ρ 2165 kg/m³, c_p 864 J/(kg·K)). For the
+  freezing point, ice after IAPWS R10-06 (melting at 273.152519 K, Δh 333.44 kJ/kg, c_p 2096.8 J/(kg·K)).
+  `solution.ts`; a_w is read from a 1 K × 0.05 mol/kg table built at the first salt.
 - **Borosilicate glass, stainless steel, porous ceramic**: ρ, c_p, k, contact angle with water, cavity population
   (scale, largest mouth radius): glass 0.02 / 3 µm / 25°, steel 1 / 40 µm / 70°, ceramic 50 / 150 µm / 10° (§8.2).
 
@@ -157,6 +178,15 @@ Lemmert & Chawla). A test checks that every value cites a source.
 (`LIQUIDS`: water first). `cpLiq`, `hLiq`, `tFromHLiq`, `rhoLiq`, `kLiq`, `muLiq`, `sigmaLiq` take the liquid's index;
 water keeps its own functions, so water-only scenes compute exactly what they computed in M1. Each liquid has its own
 enthalpy reference (0 at 0 °C): no liquid turns into another, so the references never meet.
+
+**Solutions** (M2b): a water particle with salt carries m = water + salt, the salt s and the specific enthalpy of
+the solution h(T, w) = (1 − w) h_l(T) + w q_s + A(w) I(T) + B(w) (T − 0 °C), the exact integral of the Laliberté
+c_p (A = 1000 a₁ w e^{a₄w}, B = 1000 a₅ w^{a₆+1}, I(T) = ∫ e^{a₂t + a₃e^{0.01t}} dT from 0 °C, tabulated at 0.5 K inside
+the measured 1.5–120 °C and held constant outside); q_s makes the heat of solution at 25 °C the NBS value. T(h, w) by
+Newton from the particle's last temperature. Water that leaves or joins a solution carries its partial specific
+enthalpy h̄_w = h − w ∂h/∂w — the per-cell sum Σ w m_w h̄_w is what the transfers book, kept current after every mass
+change — so the rest of the solution keeps its temperature. Crystallising salt leaves with the crystal's enthalpy
+c_s (T − 0 °C); the heat of crystallisation stays in the liquid.
 
 **Enthalpy closure.** Every enthalpy is evaluated with the same functions everywhere: h_l(T) = ∫c_p,l dT from 0 °C,
 h_v(T) = h_l(100 °C) + h_lv(100 °C) + ∫c_p,v dT from 100 °C (ideal gas, T only; h_lv(100 °C) = 2256.4 kJ/kg from
@@ -179,7 +209,7 @@ One loop for every scene (`engine.ts`); dt = min(1/120 s, 0.9 Δx/u_max of the l
    condensation, departure and motion in adaptive substeps; coalescence; bursting and collapse; mass to the
    particles; α_b.
 5. **Interface and gas-phase change** (§9): vapour diffusion with surface evaporation, condensation and dew; flash;
-   fog; wall films that spawn particles.
+   fog; wall films that spawn particles; supersaturated solutions crystallise (`salt.ts`).
 6. **Heat** (§6.5): implicit conduction over all cells with the latent heat of steps 4–5 as sources; heaters; losses.
 7. **Chemistry hook**: empty in M1.
 8. **Boundaries and diagnostics**: regions again, compression heating of sealed regions, pressure work on particles
@@ -319,9 +349,20 @@ rectangle of the grid. Systems in finite-volume form (A x)_c = (dH + dD + Σ a_f
 - **Projection**: free surface at the gas pressure of the region (Dirichlet in gas cells), walls and solids
   impermeable; PCG + multigrid on the bounding rectangle of the liquid.
 - **Advection**: RK2 in the grid velocity; particles that end in a solid are pushed out along the distance field
-  (their normal velocity removed); particles that leave through an open side are booked as escaped.
+  (their normal velocity removed); particles that leave through an open side are booked as escaped (water, other
+  liquids and salt separately).
+- **Droplets in the air** (M2b, `extend.ts`): a particle with no liquid cell within two cells (a splash, the last
+  remains of an evaporating layer) flies ballistically with its own velocity and gravity and stops where it hits a
+  solid or a box wall (it wets). The grid has no velocity there: the extension set such particles to zero (they hovered
+  where they were), and own-velocity faces next to extended ones made APIC ring up (a droplet over a brine surface
+  accelerated tenfold per step). Inside and near the liquid nothing changes.
 
 A fill that would leave a liquid region without a free surface is refused (the prompt: no pressure law for it in M1).
+
+**Salt water** (M2b) is water for all of this (`mat` = water): the sums count its water only, Σ w s is gathered per
+cell, and from it the molality of the cell's water, its activity a_w (at the cell's liquid temperature) and, where a
+stage needs it, the boiling point T_b(p, m). A cell without water particles (liquid only because a bubble fills it, or
+holding only oil) neither evaporates nor feeds a bubble — before M2b such a cell could make vapour out of nothing.
 
 **Only water exchanges mass with the gas and the bubbles** (M2a): the per-cell sums that every transfer reads (Σ w m,
 Σ w m h) count water particles only; evaporation and dew at a surface cell scale with its share of water, flash takes
@@ -347,7 +388,8 @@ Chawla, N = (210 ΔT_w)^1.805 m⁻², for steel (ΔT_act ∝ 1/r_c, calibrated a
 material (glass few and small, chips many and large). A cavity is active when T_f − T_sat(p_l) ≥ ΔT_act =
 T_sat(p_l + 2σ/r_c) − T_sat(p_l) with T_f = (k_s T_s + k_l T_l)/(k_s + k_l); a new bubble starts at r_c with vapour
 taken from the particles of the fluid cell. After a departure the site restarts when T_f again exceeds its ΔT_act —
-the waiting time emerges. Per-cell energy budgets keep the transfers from pushing a cell across T_sat.
+the waiting time emerges. Per-cell energy budgets keep the transfers from pushing a cell across T_sat. In brine
+(M2b) the cell's T_b(p, m) takes the place of T_sat for activation and budgets.
 
 ### 8.3 Growth and condensation
 
@@ -356,7 +398,9 @@ For sphere and disc the energy balance gives dr/dt = h ΔT/(ρ_v L) independent 
 by exactly ∫h dt · ΔT/(ρ_v L), with the Plesset–Zwick term integrated in closed form (with the area at the start of a
 substep the growth was 12 % too slow). Substeps: at most the bubble's age (Δr/r ≲ ½), a quarter cell of motion, and
 a substep that would carry an attached bubble past its departure diameter is cut exactly there. T_l is T_f for an
-attached bubble, whose heat comes from the solid cell; for a free one the liquid of its footprint.
+attached bubble, whose heat comes from the solid cell; for a free one the liquid of its footprint. In brine the vapour
+in the bubble stays pure and saturated at its pressure, while the interface with the brine stands ΔT_b = T_b − T_sat
+higher: growth is driven by T_l − T_sat(p_v) − ΔT_b.
 
 ### 8.4 Departure, motion, coalescence, bursting
 
@@ -378,8 +422,18 @@ condenses away (collapse) gives the rest to the liquid of its footprint.
   (1 − Y); gas–wall: dew into the wall film when the gas is wetter than Y_sat(T_wall), and a film evaporates back while
   it lasts; open sides exchange with ambient air (escaped). Between gas cells vapour moves one way and the same mass of
   air the other way, each with the enthalpy of its donor cell.
-- **Flash**: a surface cell whose liquid is above T_sat(p) turns its excess sensible heat into vapour; the particles
-  end exactly at T_sat (by their share).
+- **Flash** (`flash.ts`): a surface cell whose liquid is above T_sat(p) — over brine T_b(p, m) — turns its excess
+  sensible heat into vapour; the particles end exactly there (by their share), their salt stays. Particles in a cell
+  that is not liquid (droplets below the cell size) flash the same way into their own cell; a droplet that would boil
+  away completely vanishes (its salt goes to the crust, the cell takes the energy difference as heat). Before M2b a hot
+  plate heated such droplets far past boiling.
+- **Over brine** the vapour pressure is a_w p_sat(T): Y_sat at the surface face uses it, so the air over saturated
+  brine settles at 75.3 % relative humidity (the humidity fixed point of Greenspan 1977).
+- **Crystallisation** (`salt.ts`, after the interface stage): a particle above the solubility gives
+  x = (s − w_sat m)/(1 − w_sat) to the crust of the nearest solid — a solid next to its cell (below first), else the
+  first solid under it; over the bare box floor a store per column (energy kept, no heat exchange); through an open
+  bottom it escapes. A particle that dries up (less than 10⁻³ of a particle's water left) gives its water to the gas
+  and its salt to the crust. The crust does not dissolve again (SIMPLIFICATIONS.md #29).
 - **Fog**: where p_H2O > p_sat(T), Δm condenses so that the remaining vapour is exactly saturated at the new temperature
   (H fixed, T rises by h_lv Δm/C) — an Illinois-bracketed secant search to 1e-13 relative; subsaturated cells
   evaporate fog the same way; cells clearly below saturation without fog are skipped.
@@ -394,7 +448,8 @@ adjustable while it runs; a new composition enters through open sides, the gas i
 quality, seed and an ordered list of operations — `fill` (liquid water, or gas of a composition), `erase`, `move`
 (everything solid in a region, with the water and bubbles inside, by whole cells — the drag tool), `solid`, `beaker`
 (with an optional lid), `hotplate` (power or thermostat). `fill` takes any liquid of the database (`H2O`, `oil-rapeseed`) with mass fractions; several immiscible liquids are
-spread evenly by volume, each particle being one of them. JSON, `format: "recreatio/lab2d"`, version 1, in m / °C /
+spread evenly by volume, each particle being one of them; `NaCl` dissolves in the water of the fill
+(`{ "H2O": 0.9, "NaCl": 0.1 }` is 10 % brine; without water it is dropped with a warning). JSON, `format: "recreatio/lab2d"`, version 1, in m / °C /
 kPa / W (`scene.ts`; unknown parts are dropped with a warning). Every tool is an operation appended to the scene, so
 "save" writes the current layout with its seed, and a change of quality rebuilds the same layout at the new cell size.
 Edits book the mass and energy they add or remove (the budgets close across tools).
@@ -427,7 +482,7 @@ and answers the same host messages, so the shell, the tools, the inspector and t
 
 ## 12. Tests
 
-Vitest, headless in Node on the engine alone: `npm run test:lab2d` (41 tests, ~4 minutes) and
+Vitest, headless in Node on the engine alone: `npm run test:lab2d` (53 tests, ~6 minutes) and
 `npm run test:lab2d:slow` (tests 3, 4 over ten simulated minutes, 10, 11, 12). MILESTONES.md records the numbers.
 
 | # | Test | File |
@@ -454,6 +509,11 @@ Vitest, headless in Node on the engine alone: `npm run test:lab2d` (41 tests, ~4
 | 20 | Viscosity: one implicit step damps a shear mode by its exact discrete factor (±1 %); water alone solves none | m2a.test.ts |
 | 21 | Oil 140 → 150 °C: no bubbles, no vapour, dT/dt = P/(m c_p) (±2 %), energy and oil mass close | m2a.test.ts |
 | 22 | Water boiling under oil: bubbles cross the oil and burst; oil, water and energy budgets close | m2a.test.ts |
+| 23 | NaCl against its sources: density at 10 and 20 % (±0.3 %), φ at 25 and 100 °C (±0.5 %), boiling point at 1 and 3 mol/kg (±0.1 K), freezing point at 1 and 3 mol/kg (±0.1 K, Bodnar 1993), a_w of saturated brine (±0.3 % RH, Greenspan 1977), c_p and Δh (±0.5 %), enthalpy closure, fill and JSON | m2b.test.ts |
+| 24 | Brine under water at rest: dp/dy = ρ_brine g and ρ_w g (±2 %), the layers stay, salt exact | m2b.test.ts |
+| 25 | The air over saturated brine in a sealed box settles at 75.3 % RH (±0.5 %) | m2b.test.ts |
+| 26 | Brine boiling: bubbles nucleate and burst, the brine gets saltier, salt exact, water and energy close | m2b.test.ts |
+| 27 | Brine boiled dry: no particle left, the crust holds all the salt (exact), energy closes | m2b.test.ts |
 | 17 | GPU equivalence on tests 1–3, 6, 11 | browser harness in headless Edge (Node has no WebGPU) and in Firefox (a visible window: headless Firefox gets no WebGPU adapter); numbers in MILESTONES.md (M1e) |
 
 The browser side (tools, overlays, inspector, bubble view, charts, scenes, phone layout) was walked through in
@@ -479,17 +539,19 @@ Nothing in M1 blocks them: six species slots on cells and bubbles, two compositi
 store, the chemistry hook in the loop.
 
 The plan for the next steps — several liquids (oil), bodies that fall, float and tip, melting and freezing, salt in
-solution and as grains, and baked clips — is [SANDBOX.md](SANDBOX.md) (2026-10-21, a design before the code). It
-replaces the M3 sketch above: melting there is an interface process at the solution's freezing point, not a volume
-enthalpy rule.
+solution and as grains, and baked clips — is [SANDBOX.md](SANDBOX.md) (2026-10-21, a design before the code; M2a and
+M2b are built). It replaces the M3 sketch above: melting there is an interface process at the solution's freezing
+point, not a volume enthalpy rule. Still open from M2b: the crust does not dissolve (grains and dissolution are M3c),
+only NaCl, no ion diffusion.
 
 ## 15. The GPU path (M1e): the accelerated view
 
 The button "Widok przyspieszony" (shown where the browser has WebGPU) restarts the lab in a second worker,
 `gpu.worker.ts`, that runs the whole step on the GPU — at 1 mm, or at the saved quality — and draws with WebGPU;
 "Widok zwykły" returns to the CPU worker with the same scene. If the device or a kernel fails, the shell falls back
-to the CPU worker with a note; a scene with a liquid other than water goes back to the CPU worker the same way, with
-its tools applied (M2a is not ported yet). The view is not bit-reproducible (float atomics, order-free merging): the prompt's
+to the CPU worker with a note; a scene with a liquid other than water, with dissolved salt or with a salt crust goes
+back to the CPU worker the same way, with its tools applied (M2a and M2b are not ported yet; nor are the M2b changes
+for droplets below the cell size and for cells without water particles, §7, §9). The view is not bit-reproducible (float atomics, order-free merging): the prompt's
 determinism stays a property of the CPU engine. Checked in two WebGPU implementations: Edge/Chrome (Dawn) and Firefox
 (wgpu). They schedule workgroups differently, so a kernel whose result depends on that order works in one and fails
 in the other (§15, solves). Checked on 2026-10-21 by running every kernel with its workgroups in reverse order

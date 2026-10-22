@@ -15,9 +15,12 @@
  *
  * Beide Regler stehen am Anfang auf „najszybciej": keine Pause, kein Limit.
  *
- * <b>Zwei Paare von Reglern.</b> Die unter den Knöpfen gelten nur für das, was man von
- * Hand sendet (Knöpfe, Proben) — gemerkt am Konto (`lamps.pace`). Jeder Timer hat seine
- * eigenen, gespeichert im Timer (`LampTimerData.pace`) und im Plan des Telefons.
+ * <b>Die Knöpfe und die Timer.</b> Unter den Knöpfen steht nur noch die Pause — für das,
+ * was man von Hand sendet (Knöpfe, Proben), gemerkt am Konto (`lamps.pace`). Wie lange
+ * ein Knopf sendet, sagt seit 2026-10-21 der Finger (`SendKey`: kurz der ganze Sygnał,
+ * gehalten so lange, wie gedrückt) — ein früher gemerktes Limit gilt dort nicht mehr
+ * ({@link buttonPace}). Jeder Timer hat beide Regler, gespeichert im Timer
+ * (`LampTimerData.pace`) und im Plan des Telefons.
  */
 
 import { DURATION_MIN, GAP_MAX, tidyPace } from './lampStore';
@@ -60,6 +63,9 @@ export function readPace(text: string): Pace {
 }
 
 export const paceText = (p: Pace): string => JSON.stringify({ pauseMs: p.pauseMs, limitMs: p.limitMs });
+
+/** Das Tempo der Knöpfe: nur die Pause — wie lange, sagt das Halten des Knopfs. */
+export const buttonPace = (p: Pace): Pace => ({ pauseMs: p.pauseMs, limitMs: null });
 
 export const isFastest = (p: Pace): boolean => p.pauseMs === 0 && p.limitMs === null;
 

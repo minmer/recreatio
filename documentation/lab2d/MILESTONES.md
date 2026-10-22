@@ -21,6 +21,7 @@ Reproduce: `npm run test:lab2d` (fast tests, ~3 min), `npm run test:lab2d:slow` 
 | M1d Teaching tools | 16 and a walkthrough of the boiling scene | walkthrough done; **16 not met** |
 | M1e GPU path | test 17, 1 mm in the budget | built (the accelerated view): test 17 met (test 11 at the edge, as on the CPU); 2 mm 4.9 ms per step; **1 mm 7.7 ms, above the 6 ms** (§M1e) |
 | M2a liquids (oil) | tests 18–22 (SANDBOX.md §13), water unchanged | built on the CPU (2026-10-21): all met; every M1 number unchanged to the last printed digit; water scenes as fast as before (§M2a); the accelerated view hands oil scenes back to the CPU |
+| M2b solutions (salt) | tests 23–27 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met; all M1/M2a tests still met (long boiling runs differ in the last digits after a droplet leaves the liquid); water scenes as fast as before; brine costs 8 % per step (§M2b); the accelerated view hands salt scenes back to the CPU |
 
 Test 16 (≤ 12 ms of simulation per 60 Hz frame at the default resolution) is the one gate that fails throughout:
 the CPU step of the benchmark scene at 2 mm takes 21.6 ms (budget 6 ms per step, two steps per frame): the
@@ -237,6 +238,68 @@ Found and fixed on the way:
   band under the interface (16 % after 20 s). Drifting droplets (ARCHITECTURE.md §7) separate it in seconds.
 - A particle created in the middle of a step (a wall film's drop, now also condensate) read the weights and the volume
   change of the particle that last held its slot; it gets its own now (`Liquid.placeParticle`).
+
+## M2b — salt solutions (NaCl)
+
+Built on the CPU (2026-10-22), the second step of [SANDBOX.md](SANDBOX.md): sodium chloride dissolved in the water
+particles, one water activity (Pitzer) for the vapour pressure, the boiling and the freezing point, brine density and
+heat capacity after Laliberté, crystallisation of the excess over the solubility into a crust on the nearest solid
+(ARCHITECTURE.md §4, §9). Palette "Solanka" with a slider for the salt (1–26 %), the overlay "Stężenie soli", the
+inspector (salt share, molality, boiling and freezing point of the cell; the crust of a solid), the NaCl balance in the
+HUD, presets "Solanka wrze później" (water and 15 % brine side by side: the brine boils at 103 °C) and "Odparowanie
+solanki" (25 % brine boiled dry on a plate held at 250 °C: after about 3½ simulated minutes all salt lies in the crust —
+0.927 g, exact, energy error 6e-9 J). The accelerated view hands a scene with salt or a crust back to the normal view.
+
+| Test | Gate | Result |
+|---|---|---|
+| 23 Density | 10 and 20 %, 20 and 25 °C, ±0.3 % of PPB Table A-15 | **+0.001, +0.028, +0.007, +0.018 %** |
+| 23 Osmotic coefficient | 0.1–6 mol/kg at 25 and 100 °C, ±0.5 % of PPB Table A-9 | largest deviation **0.15 %** |
+| 23 Boiling point | 1 and 3 mol/kg at 101.325 kPa, ±0.1 K of the value from PPB's φ | **100.919 °C** (100.919) and **103.162 °C** (103.164); pure water 99.974 °C |
+| 23 Freezing point | 1 and 3 mol/kg, ±0.1 K of the measurements (Bodnar 1993) | **−3.396 °C** (−3.372) and **−10.906 °C** (−10.945) |
+| 23 Saturated brine | a_w at 20, 25, 30 °C ±0.3 % RH (Greenspan 1977) | **75.27, 75.21, 75.10 %** (75.47, 75.29, 75.09) |
+| 23 Heat | c_p(25 °C) and h(100 °C) − h(20 °C) at 1 and 3 mol/kg, ±0.5 % of PPB Table A-17 | c_p **3913** (3920) and **3562** (3560) J/(kg·K); Δh **314.8** (314.6) and **286.6** (286.2) kJ/kg |
+| 23 Closure | T(h(T)) = T, ∂h/∂T = c_p, h̄_w = ∂(m h)/∂m_w, Δ_solH(25 °C) = 3.883 kJ/mol | exact to 1e-7 K, 1e-6, 0.05 J/kg, 5 J/mol |
+| 24 Brine under water | dp/dy = ρ g in both layers ±2 %, layers stay, salt exact | **112.629** (ρ_brine g 112.629) and **97.924** (97.924) Pa/cm; no salt two cells above the interface after 5 s; 0.0023 mm/s |
+| 25 Air over saturated brine | sealed box at 25 °C: RH → 75.29 % ±0.5 % | 50.00 → **75.15 %** after 40 s; salt and water exact |
+| 26 Brine boiling | bubbles nucleate and burst, the brine gets saltier, budgets close | 48 492 nucleated, 3 387 burst, 34.1 mg of vapour in 5 s; salt share **5.5216 → 5.5301 %**; salt error 0 kg of 1.24 g, water error −1.4e-16 kg, energy error 4.0e-10 J |
+| 27 Boiled dry | no particle left, crust = salt (exact), energy closes | dry after **70.97 s**; crust **105.878249 mg** of 105.878249 mg; nothing spattered out; energy error −8e-11 J |
+
+All 53 fast tests pass; every number printed by the tests of M0–M2a is the same as before to the last digit. The slow
+suite passes too: tests 3, 4 (ten minutes) and 12 give the same numbers; the long boiling runs part from the old ones
+once a droplet leaves the liquid or a bubble fills a cell without water particles (both behave differently now, above):
+test 10 — in the subcooled phase the same 51 450 collapses and 21 bursts (0.04 %), in the warm phase 412 bursts and
+26 855 collapses (were 330 and 24 238); test 11 — 99.496 °C (was 99.495), vapour 5.220 mg/s against (P − losses)/h_lv
+5.217 mg/s (+0.05 %, as before).
+
+The boiling plateau in the scene of test 11 (compact beaker with chips, 30–60 s), measured beside the gates: water
+99.496 °C (T_sat 99.974 °C, −0.48 K as in test 11), 1 mol/kg brine 100.384 °C (T_b at its mean molality of 1.018:
+100.938 °C, −0.55 K), 3 mol/kg 102.696 °C (T_b at 3.057 mol/kg: 103.233 °C, −0.54 K). The plateau moves with the
+boiling point: +0.89 K and +3.20 K against +0.96 K and +3.26 K; it sits half a kelvin below it for the same reason as
+water's (surface evaporation and the cooler parts of the beaker).
+
+Performance: the benchmark scene with the committed engine against M2b, alternating, four runs each: 17.60 and 17.69 ms
+per step (medians, +0.5 %, run-to-run noise) with the same water temperature to six decimals after 450 steps; the same
+scene with 1 mol/kg brine 19.18 ms per step (+8 %: the solution's T(h, w), the activity table, the boiling point per
+cell, crystallisation).
+
+Found and fixed on the way:
+
+- **The freezing point at 3 mol/kg was 0.16 K too high** with the parameters of pitzer.dat, whose temperature form is
+  fitted above 0 °C; below 0 °C the low-temperature set of Spencer, Møller & Weare (1990) now applies (0.04 K).
+- **Droplets below the cell size never boiled.** A cell is liquid only when it is at least half full; the flash looked
+  at liquid cells only, so the last particles of a layer boiling on a hot plate were heated to 260 °C and then burst
+  into the liquid with temperatures below −100 °C. They flash now into their own cell; a droplet that would boil away
+  completely vanishes (its salt becomes crust) — before, its mass decayed by a constant fraction per step to 1e-51 kg
+  and the run ended in NaN.
+- **Droplets hovered.** The velocity extension sets faces far from the liquid to zero, so an isolated particle stayed
+  where it was. A first fix let faces that carry particle mass keep their own velocity; next to extended faces that made
+  APIC ring up (a droplet over the brine surface sped up 1.5 times per step, to 77 m/s in eight steps). Droplets with no
+  liquid within two cells now fly ballistically and stop where they land (`extend.ts`). Water scenes stay identical
+  until such a droplet appears (in the benchmark scene not within 700 steps).
+- **Vapour from nothing.** A cell that is liquid only because a bubble fills it has no water particles; evaporation from
+  it and bubble growth from it created water (jumps of 1e-8 kg in the water budget of a thin film on a 250 °C plate).
+  Such cells exchange no mass now.
+- `phase.ts` and `liquid.ts` were split (fog.ts, flash.ts; liquidMix.ts, extend.ts), the inspector moved to probe.ts.
 
 ## Benchmark
 

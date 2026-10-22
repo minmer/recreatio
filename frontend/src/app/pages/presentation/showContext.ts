@@ -7,6 +7,10 @@
 
 import { createContext } from 'react';
 
+import type { Card } from '../../cogita/cardBasics';
+import type { Facts } from '../../cogita/logic';
+import type { Gate } from './story';
+
 export const ShowDark = createContext<boolean | null>(null);
 
 /**
@@ -30,3 +34,40 @@ export interface ShowClockValue {
 }
 
 export const ShowClock = createContext<ShowClockValue | null>(null);
+
+/**
+ * 2026-10-21 — WELCHER BAUSTEIN ICH BIN (seine Kennung auf der Bühne): eine
+ * Frage sagt damit nach der Antwort, wessen Ausgang gilt
+ * (`go('answer:<baustein>:right')`).
+ */
+export const ShowPieceKey = createContext<string | null>(null);
+
+/**
+ * 2026-10-21 — WIE OFT DER ZUSCHAUER AN DIESER STELLE DES WEGES ANKAM (0: noch
+ * nie). Eine Frage beginnt mit jeder Ankunft neu — wer nach einer falschen
+ * Antwort zurückgeführt wird, findet sie leer.
+ */
+export const ShowArrival = createContext<number>(0);
+
+/**
+ * 2026-10-21 — DER PRZEBIEG IM LAUF (`story.ts`, `storyRun.tsx`): was über den
+ * Lernenden bekannt ist und wohin es geht — im Browser (ein Beispiel) oder in
+ * Cogita (verbunden, angemeldet oder als Platz). `null`: eine Präsentation ohne
+ * Przebieg, oder der Editor.
+ */
+export interface StoryRun {
+  /** `browser`: nichts verlässt ihn; `cogita`: es geht versiegelt in den Bereich der Bazy wiedzy. */
+  readonly mode: 'browser' | 'cogita';
+  /** Steigt bei jeder Änderung (eine Antwort, ein Wert) — dann wird der Weg ab hier neu berechnet. */
+  readonly version: number;
+  readonly facts: () => Facts;
+  readonly record: (card: Card, correctness: number, given?: string) => void;
+  /** Die `set`-Tore, durch die der Lernende gerade ging: ihre Werte gelten jetzt. */
+  readonly apply: (gates: readonly Gate[]) => void;
+  /** Hier ist er (gemerkt — er kommt wieder an diese Stelle zurück). */
+  readonly visit: (sceneKey: string) => void;
+  /** Wo er zuletzt war — `null`: zum ersten Mal hier. */
+  readonly last: () => string | null;
+}
+
+export const StoryContext = createContext<StoryRun | null>(null);

@@ -1,14 +1,18 @@
 /**
  * Was unter einer Adresse steht — holen und schreiben.
  *
- * <b>Nichts davon ist versiegelt.</b> Eine öffentliche Seite wird ohne Konto
- * ausgeliefert; hier gibt es keinen Schlüssel und keine Hülle, und das ist der
- * Unterschied zu allem anderen im Arbeitsplatz.
+ * <b>Offen, ausser die Seite ist versiegelt.</b> Eine öffentliche Seite wird
+ * ohne Konto ausgeliefert; hier gibt es keinen Schlüssel und keine Hülle.
+ * 0121 — eine Seite NUR MIT ZUGANG darf versiegelt sein: dann kommt sie hier
+ * als Hüllen an und geht als Hüllen hinaus (`pageSeal.ts`). Alles dazwischen —
+ * Editor, Anzeige, JSON — sieht sie offen, als wäre nichts.
  */
 
 import type { Layout } from './layout';
 import { readConfig } from '../modules/module';
-import { call } from '../core/session';
+import { call, WorkspaceError } from '../core/session';
+import type { Aad } from '../core/crypto';
+import type { PageKey, PageSealInfo } from './pageSeal';
 
 /**
  * Ein Baustein, so wie er gespeichert liegt.
@@ -89,6 +93,18 @@ export interface PageContent {
    * steht dann die Auswahl, und die Bausteine nehmen sie (`pageSubject.tsx`).
    */
   readonly subject?: string | null;
+
+  /** 0121 — die Kennung der Seite (bei einem Alias: die seines Ziels); sie steht in jedem Etikett einer Hülle. */
+  readonly id?: string;
+
+  /** 0121 — VERSIEGELT: die Hüllen des Seitenschlüssels. Fehlt es, ist die Seite offen. */
+  readonly seal?: PageSealInfo | null;
+
+  /**
+   * 0121 — versiegelt, und dieser Browser hat keinen Schlüssel dazu: Titel,
+   * Inhalt und Menü sind leer. Die Oberfläche sagt das, statt „nic tu nie ma".
+   */
+  readonly locked?: boolean;
 }
 
 /** Die drei Arten einer Seite (0062, 0085). */
@@ -139,48 +155,125 @@ export interface PageAccess {
 const encodePath = (path: string): string =>
   path.split('/').map(encodeURIComponent).join('/');
 
+/* -- 0121: der Schlüssel einer versiegelten Seite, solange sie offen ist ------------------------------ */
+
+/** Je ECHTEM Pfad (bei einem Alias: der seines Ziels) der Schlüssel der Seite, wie sie zuletzt geladen wurde. */
+const pageKeys = new Map<string, PageKey>();
+
+/** Der Schlüssel dieser Seite in diesem Tab — `null`: offen, oder (noch) nicht geladen. */
+export const pageKeyOf = (path: string): PageKey | null => pageKeys.get(path) ?? null;
+
+type SealModule = typeof import('./pageSeal');
+
+/** Das Stück zum Versiegeln — erst geladen, wenn es eine versiegelte Seite gibt (fast jeder Besucher braucht es nie). */
+let sealModule: Promise<SealModule> | null = null;
+const sealing = (): Promise<SealModule> => (sealModule ??= import('./pageSeal'));
+
+/** Bei der Abmeldung: nichts davon gehört dem Nächsten. */
+export function forgetLoadedPageKeys(): void {
+  pageKeys.clear();
+  if (sealModule !== null) void sealModule.then((m) => m.forgetPageKeys()).catch(() => undefined);
+}
+
+/**
+ * EINE GELADENE SEITE, wie die Oberfläche sie braucht: offen. Eine versiegelte
+ * wird hier geöffnet (das Stück dafür lädt erst, wenn es eine gibt) und ihr
+ * Schlüssel gemerkt — das Speichern versiegelt damit wieder.
+ */
+export async function openLoadedPage(raw: PageContent): Promise<PageContent> {
+  const real = raw.aliasOf ?? raw.path;
+  if (raw.seal == null) {
+    pageKeys.delete(real);
+    return raw;
+  }
+  const { openPageContent } = await sealing();
+  const { content, key } = await openPageContent(raw);
+  if (key !== null) pageKeys.set(real, key);
+  else pageKeys.delete(real);
+  return content;
+}
+
+/**
+ * Speichern auf einer Seite, die versiegelt sein KANN: mit ihrem Schlüssel,
+ * wenn sie einen hat. Sagt der Dienst, dass die Seite inzwischen anders ist
+ * (versiegelt oder wieder offen — Urteil `sealed` / `open`), wird sie neu geholt
+ * und einmal neu geschrieben.
+ */
+async function sealedWrite<T>(path: string, send: (key: PageKey | null) => Promise<T>): Promise<T> {
+  try {
+    return await send(pageKeys.get(path) ?? null);
+  } catch (e) {
+    if (!(e instanceof WorkspaceError) || (e.verdict !== 'sealed' && e.verdict !== 'open')) throw e;
+    await loadPage(path).catch(() => undefined);
+    const key = pageKeys.get(path) ?? null;
+    if (e.verdict === 'sealed' && key === null) throw new WorkspaceError('Ta strona jest zaszyfrowana, a ta przeglądarka nie ma do niej klucza.');
+    return send(e.verdict === 'open' ? null : key);
+  }
+}
+
+/** Ein Stück versiegeln, wenn es einen Schlüssel gibt — sonst bleibt es, wie es ist. */
+async function piece(key: PageKey | null, label: (seal: SealModule, key: PageKey) => Aad, text: string | null): Promise<string | null> {
+  if (key === null || text === null) return text;
+  const seal = await sealing();
+  return seal.sealPiece(key, label(seal, key), text);
+}
+
 /**
  * Eine Seite holen — mit den Links, die dieser Browser für ihr Haus hält.
  * Auf einer Seite nur mit Zugang entscheiden sie, ob (und für wen) man sie sieht.
  */
 /** `links`: die Beweise der Links mit Zugang in diesem Browser (0073, `linkAccess.heldProofs`). */
-export const loadPage = (path: string, seats: readonly string[] = [], links: readonly string[] = []): Promise<PageContent> => {
+export const loadPage = async (path: string, seats: readonly string[] = [], links: readonly string[] = []): Promise<PageContent> => {
   const query = [
     ...(seats.length === 0 ? [] : [`seats=${encodeURIComponent(seats.join(','))}`]),
     ...(links.length === 0 ? [] : [`links=${encodeURIComponent(links.join(','))}`])
   ];
-  return call<PageContent>(`/page/${encodePath(path)}${query.length === 0 ? '' : `?${query.join('&')}`}`);
+  return openLoadedPage(await call<PageContent>(`/page/${encodePath(path)}${query.length === 0 ? '' : `?${query.join('&')}`}`));
 };
 
 export const savePage = (
   path: string, body: { readonly title: string; readonly lead: string | null }
 ): Promise<PageContent> =>
-  call<PageContent>(`/workspace/page/${encodePath(path)}`, {
-    method: 'PUT',
-    body: JSON.stringify(body)
+  sealedWrite(path, async (key) => {
+    const saved = await call<PageContent>(`/workspace/page/${encodePath(path)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        title: await piece(key, (s, k) => s.sealAad.title(k.id, k.v), body.title.trim()),
+        lead: await piece(key, (s, k) => s.sealAad.lead(k.id, k.v), body.lead)
+      })
+    });
+    /* Die Antwort wiederholt, was ankam — offen zurück, wie es gemeint war. */
+    return { ...saved, title: body.title.trim(), lead: body.lead };
   });
 
 /** 0062 — Seite, Slajdy oder (0085) Prezentacja, und ihr Aussehen. `theme: null` — automatisch. */
 export const savePageLook = (
   path: string, look: { readonly mode: PageMode; readonly theme: string | null }
 ): Promise<{ mode: string; theme: string | null }> =>
-  call(`/workspace/page-look/${encodePath(path)}`, {
-    method: 'PUT',
-    body: JSON.stringify(look)
+  sealedWrite(path, async (key) => {
+    const saved = await call<{ mode: string; theme: string | null }>(`/workspace/page-look/${encodePath(path)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ mode: look.mode, theme: await piece(key, (s, k) => s.sealAad.look(k.id, k.v), look.theme) })
+    });
+    return { ...saved, theme: look.theme };
   });
 
 /** Die Karte der Seite speichern (0048) — als Ganzes; `null` nimmt sie weg. */
 export const savePageLogic = (path: string, logic: string | null): Promise<{ saved: boolean }> =>
-  call(`/workspace/page-logic/${encodePath(path)}`, {
-    method: 'PUT',
-    body: JSON.stringify({ logic })
-  });
+  sealedWrite(path, async (key) =>
+    call<{ saved: boolean }>(`/workspace/page-logic/${encodePath(path)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ logic: await piece(key, (s, k) => s.sealAad.logic(k.id, k.v), logic) })
+    }));
 
 /** 0082 — „Wybór na stronie" speichern; `null` nimmt ihn weg. */
 export const savePageSubject = (path: string, subject: string | null): Promise<{ subject: string | null }> =>
-  call(`/workspace/page-subject/${encodePath(path)}`, {
-    method: 'PUT',
-    body: JSON.stringify({ subject })
+  sealedWrite(path, async (key) => {
+    await call(`/workspace/page-subject/${encodePath(path)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ subject: await piece(key, (s, k) => s.sealAad.subject(k.id, k.v), subject) })
+    });
+    return { subject };
   });
 
 /** Ein Baustein, wie ihn der Editor hält: ausgepackt. */
@@ -230,16 +323,22 @@ export function toDraft(part: PagePart): DraftPart {
  * ersetzt.
  */
 export const saveParts = (path: string, parts: readonly DraftPart[]): Promise<{ parts: number }> =>
-  call<{ parts: number }>('/workspace/parts', {
+  sealedWrite(path, async (key) => call<{ parts: number }>('/workspace/parts', {
     method: 'PUT',
     body: JSON.stringify({
       path,
-      parts: parts.map((part) => ({
+      /*
+       * 0121 — auf einer versiegelten Seite Anordnung und Inhalt als Hülle; ein
+       * Formular behält seine offenen Einstellungen (der Dienst liest sie).
+       */
+      parts: await Promise.all(parts.map(async (part) => ({
         id: part.id,
         moduleId: part.moduleId,
         kind: part.kind,
-        layout: JSON.stringify(part.layout),
-        config: JSON.stringify(part.config)
-      }))
+        layout: await piece(key, (s, k) => s.sealAad.layout(part.id, k.v), JSON.stringify(part.layout)),
+        config: part.kind === 'form'
+          ? JSON.stringify(part.config)
+          : await piece(key, (s, k) => s.sealAad.config(part, k.v), JSON.stringify(part.config))
+      })))
     })
-  });
+  }));

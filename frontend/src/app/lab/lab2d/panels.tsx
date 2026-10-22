@@ -36,13 +36,21 @@ function feel(T: number, Tsat: number, liquid: boolean): string {
 
 export function Inspector({ info, level }: { info: ProbeInfo; level: Level }) {
   const c = info.cell;
-  const kind = c.kind === 'solid' ? t('kindSolid') : c.kind === 'liquid' ? t('kindLiquid') : t('kindGas');
+  const salt = c.salt;
+  /* Was in der Zelle ist: der Feststoff, das Gas oder die Flüssigkeiten (Wasser mit Salz heisst Sole). */
+  const liquid = c.liquids.length === 0 ? t('kindLiquid') : salt !== null && c.liquids.length === 1 ? t('kindBrine') : liquidsText(c.liquids);
+  const kind = c.kind === 'solid' ? t('kindSolid') : c.kind === 'liquid' ? liquid : t('kindGas');
+  /* In Sole siedet die Flüssigkeit bei T_b der Lösung (höher als T_sat des reinen Wassers). */
+  const Tboil = salt !== null ? salt.Tb : c.Tsat;
   if (level === 'primary') {
     return (
       <div className="lab-values">
-        <Row label={t('cell')} value={`${kind}${c.material !== null ? ` · ${materialName(c.material)}` : ''}${c.kind === 'liquid' && c.liquids.length > 0 ? ` · ${liquidsText(c.liquids)}` : ''}${c.heater ? ` · ${t('heating')}` : ''}`} />
-        <Row label={t('temp')} value={`${num(C(c.T), 0)} °C · ${feel(c.T, c.Tsat, c.kind === 'liquid')}`} />
-        <Row label={t('tsatHere')} value={`${num(C(c.Tsat), 1)} °C`} />
+        <Row label={t('cell')} value={`${kind}${c.material !== null ? ` · ${materialName(c.material)}` : ''}${c.heater ? ` · ${t('heating')}` : ''}`} />
+        <Row label={t('temp')} value={`${num(C(c.T), 0)} °C · ${feel(c.T, Tboil, c.kind === 'liquid')}`} />
+        {salt !== null && <Row label={t('saltHere')} value={`${num(100 * salt.w, 1)} %`} />}
+        <Row label={salt !== null ? t('boilsAt') : t('tsatHere')} value={`${num(C(Tboil), 1)} °C`} />
+        {salt !== null && <Row label={t('freezesAt')} value={`${num(C(salt.Tf), 1)} °C`} />}
+        {c.crust > 0 && <Row label={t('crust')} value={`${num(c.crust * 1e6, 1)} mg`} />}
         {c.kind === 'gas' && <Row label={t('rh')} value={`${num(100 * Math.min(1, c.rh), 0)} %`} />}
         {c.kind === 'gas' && c.fog > 0 && <Row label={t('fog')} value={`${num(c.fog * 1000, 2)} g/m³`} />}
         {info.bubble !== null && <p className="lab-muted">{t('bubbleHint')}</p>}
@@ -51,19 +59,27 @@ export function Inspector({ info, level }: { info: ProbeInfo; level: Level }) {
   }
   return (
     <div className="lab-values">
-      <Row label={t('cell')} value={`${kind}${c.material !== null ? ` (${materialName(c.material)})` : ''}${c.liquids.length > 0 ? ` · ${liquidsText(c.liquids)}` : ''}${c.heater ? ` · ${t('heating')}` : ''}`} />
+      <Row label={t('cell')} value={`${kind}${c.material !== null ? ` (${materialName(c.material)})` : ''}${c.kind !== 'liquid' && c.liquids.length > 0 ? ` · ${liquidsText(c.liquids)}` : ''}${c.heater ? ` · ${t('heating')}` : ''}`} />
       <Row label={t('temp')} value={`${num(C(c.T), 2)} °C`} />
       <Row label={t('absPressure')} value={`${num(c.p / 1000, 3)} kPa`} />
       <Row label={t('tsatHere')} value={`${num(C(c.Tsat), 3)} °C`} />
+      {salt !== null && (
+        <>
+          <Row label={t('saltHere')} value={`${num(100 * salt.w, 2)} % · ${t('molality')} ${num(salt.molality, 3)} mol/kg`} />
+          <Row label={t('boilsAt')} value={`${num(C(salt.Tb), 3)} °C`} />
+          <Row label={t('freezesAt')} value={`${num(C(salt.Tf), 2)} °C`} />
+        </>
+      )}
       <Row label={t('density')} value={`${num(c.rho, c.rho < 10 ? 4 : 1)} kg/m³`} />
       <Row label={t('velocity')} value={`${num(Math.hypot(c.u, c.v) * 100, 2)} cm/s`} />
       {c.kind === 'gas' && <Row label={t('composition')} value={`N₂ ${num(100 * c.x[0], 1)} %, O₂ ${num(100 * c.x[1], 1)} %, H₂O ${num(100 * c.x[2], 2)} % (mol)`} />}
       {c.kind === 'gas' && <Row label={t('rh')} value={`${num(100 * c.rh, 1)} %`} />}
       {c.kind === 'gas' && <Row label={t('fog')} value={`${num(c.fog * 1000, 3)} g/m³`} />}
       {c.film > 0 && <Row label={t('film')} value={`${num(c.film * 1e6, 3)} mg`} />}
+      {c.crust > 0 && <Row label={t('crust')} value={`${num(c.crust * 1e6, 3)} mg`} />}
       {info.particle !== null && (
         <>
-          <Row label={t('particle')} value={`${liquidName(info.particle.liquid)} · ${num(C(info.particle.T), 2)} °C · ${num(info.particle.mass * 1e6, 3)} mg`} />
+          <Row label={t('particle')} value={`${liquidName(info.particle.liquid)}${info.particle.salt > 0 ? ` · ${t('saltWord')} ${num(100 * info.particle.salt, 2)} %` : ''} · ${num(C(info.particle.T), 2)} °C · ${num(info.particle.mass * 1e6, 3)} mg`} />
           <Row label={t('velocity')} value={`${num(Math.hypot(info.particle.vx, info.particle.vy) * 100, 2)} cm/s · ρ ${num(info.particle.rho, 1)} kg/m³`} />
         </>
       )}
@@ -224,11 +240,12 @@ export function Legend({ overlay, scale }: { overlay: Overlay; scale: readonly [
   }
   const [lo, hi] = scale;
   const blue = overlay === 'humidity' || overlay === 'vapour';
-  const title = overlay === 'temperature' ? t('ovTemperature') : overlay === 'pressure' ? t('legendPressure') : overlay === 'velocity' ? t('legendVelocity') : overlay === 'humidity' ? t('ovHumidity') : t('legendVapour');
+  const title = overlay === 'temperature' ? t('ovTemperature') : overlay === 'pressure' ? t('legendPressure') : overlay === 'velocity' ? t('legendVelocity') : overlay === 'humidity' ? t('ovHumidity') : overlay === 'salt' ? t('legendSalt') : t('legendVapour');
   const ends: readonly [string, string] = overlay === 'temperature' ? [`${num(lo - 273.15, 0)} °C`, `${num(hi - 273.15, 0)} °C`]
     : overlay === 'pressure' ? [`${short(lo)} Pa`, `+${short(hi)} Pa`]
     : overlay === 'velocity' ? ['0', `${short(hi * 100)} cm/s`]
     : overlay === 'humidity' ? ['0 %', '100 %']
+    : overlay === 'salt' ? ['0 %', `${num(100 * hi, 0)} %`]
     : ['0', `${num(hi * 1000, 0)} g/m³`];
   return (
     <div className="l2d-legend-box" aria-hidden="true">
@@ -257,7 +274,7 @@ export function Hud({ stats }: { stats: HostStats }) {
     ...STAGES.map((name, k) => `${name.padEnd(12)} ${(e.stages[k] ?? 0).toFixed(3)} ms`),
     `${t('hudStep').padEnd(12)} ${e.stepMs.toFixed(3)} ms · frame ${(2 * e.stepMs).toFixed(2)} ms`,
     `CG ${e.liquid.iterations}/${e.gas.iterations}/${e.heat.iterations}${e.capped > 0 ? ` · cap ${e.capped}` : ''} · sub ${e.gasSubsteps}`,
-    `${t('budget')}: E ${e.energyError.toExponential(1)} J · H₂O ${e.waterError.toExponential(1)} kg`
+    `${t('budget')}: E ${e.energyError.toExponential(1)} J · H₂O ${e.waterError.toExponential(1)} kg${e.saltMass > 0 || e.saltSolid > 0 ? ` · NaCl ${e.saltError.toExponential(1)} kg` : ''}`
   ];
   return <div className="l2d-hud" aria-hidden="true">{lines.join('\n')}</div>;
 }

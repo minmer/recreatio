@@ -19,9 +19,9 @@
  */
 
 import { registryPath } from './menuPath';
-import type { MenuItem } from './page';
+import { loadPage, pageKeyOf, type MenuItem } from './page';
 import { pagePath } from '../routes';
-import { call } from '../core/session';
+import { call, WorkspaceError } from '../core/session';
 
 /** Die Adresse, auf die ein Eintrag verweist — `null`, wenn er nur Untereinträge trägt. */
 export function hrefOf(item: MenuItem, from: string): string | null {
@@ -50,11 +50,48 @@ export interface MenuState {
   readonly usable: readonly { readonly path: string; readonly items: number }[];
 }
 
-export const loadMenu = (path: string): Promise<MenuState> =>
-  call(`/workspace/menu?path=${encodeURIComponent(path)}`);
+/*
+ * 0121 — DAS MENÜ EINER VERSIEGELTEN SEITE ist eine Hülle unter ihrem
+ * Schlüssel. Den kennt dieser Tab, sobald die Seite geladen ist (`pageKeyOf`);
+ * sonst wird sie dafür einmal geholt.
+ */
+async function keyFor(path: string) {
+  return pageKeyOf(path) ?? await loadPage(path).then(() => pageKeyOf(path)).catch(() => null);
+}
 
-export const saveMenu = (path: string, items: readonly MenuItem[]): Promise<{ items: number }> =>
-  call('/workspace/menu', { method: 'POST', body: JSON.stringify({ path, items }) });
+export async function loadMenu(path: string): Promise<MenuState> {
+  const state = await call<MenuState>(`/workspace/menu?path=${encodeURIComponent(path)}`);
+  if (typeof (state.items as unknown) !== 'string') return state;
+
+  const key = await keyFor(path);
+  const seal = await import('./pageSeal');
+  const text = key === null ? null : await seal.openPiece(key, seal.sealAad.menu(key.id, key.v), state.items as unknown as string);
+  if (text === null) throw new WorkspaceError('Menu tej strony jest zaszyfrowane, a ta przeglądarka nie ma jej klucza.');
+  return { ...state, items: seal.readMenuItems(text) };
+}
+
+export async function saveMenu(path: string, items: readonly MenuItem[]): Promise<{ items: number }> {
+  const send = async (sealed: boolean): Promise<{ items: number }> => {
+    const key = sealed ? await keyFor(path) : null;
+    if (sealed && key === null) throw new WorkspaceError('Ta strona jest zaszyfrowana, a ta przeglądarka nie ma do niej klucza.');
+    if (key === null || items.length === 0) return call('/workspace/menu', { method: 'POST', body: JSON.stringify({ path, items }) });
+    const seal = await import('./pageSeal');
+    await call('/workspace/menu', {
+      method: 'POST',
+      body: JSON.stringify({ path, items: [], sealed: await seal.sealPiece(key, seal.sealAad.menu(key.id, key.v), JSON.stringify(items)) })
+    });
+    return { items: items.length };
+  };
+
+  try {
+    return await send(pageKeyOf(path) !== null);
+  } catch (e) {
+    /* Die Seite ist inzwischen anders, als dieser Tab dachte: neu holen und passend schreiben. */
+    if (!(e instanceof WorkspaceError) || (e.verdict !== 'sealed' && e.verdict !== 'open')) throw e;
+    await loadPage(path).catch(() => undefined);
+    return send(e.verdict === 'sealed');
+  }
+}
 
 /**
  * Das Menü einer anderen Seite hier gelten lassen — leer: den Verweis lösen.

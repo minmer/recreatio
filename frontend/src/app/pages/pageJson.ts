@@ -25,6 +25,7 @@
 
 import { asArray, asRecord, asText, count } from './event/kit';
 import { type FormContent } from '../forms/formJson';
+import type { VirtualAreaDoc } from '../forms/virtualAreasJson';
 import { newId } from '../core/ids';
 import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Breakpoint, type Frame, type Layout } from './layout';
 import type { MenuState } from './menu';
@@ -135,8 +136,10 @@ export function exportModule(module: {
   readonly moduleId: string; readonly kind: string; readonly name: string; readonly config: RawConfig;
   /** 0047/0077 — ein Formular, das ein anderes erweitert: wessen, wer es ausfüllt, wie oft. */
   readonly extendsId?: string | null; readonly audience?: string; readonly repeat?: string;
-  /** 0091 — die Rolle, die seine Menschen bekommen. */
-  readonly memberRole?: string | null;
+  /** 0091/0120 — die Rollen, die seine Menschen bekommen. */
+  readonly memberRoles?: readonly string[];
+  /** 0120 — seine Obszary osób: je Regel Name, was die Person tut, welche Rollen jeden solchen Bereich erreichen. */
+  readonly virtualAreas?: readonly VirtualAreaDoc[];
   /** 0096 — der Name der Gruppe (des Ordners), in dem das Formular steht. */
   readonly group?: string | null;
 }, form?: FormContent): Record<string, unknown> {
@@ -150,7 +153,10 @@ export function exportModule(module: {
     ...(module.extendsId == null ? {} : { extends: module.extendsId, audience: module.audience ?? 'person', repeat: module.repeat ?? 'once' }),
     config: def === undefined ? { ...module.config } : def.json.toJson(module.config),
     ...(form === undefined ? {} : { questions: form.questions, design: form.design }),
-    ...(module.memberRole == null ? {} : { memberRole: module.memberRole }),
+    ...(module.memberRoles === undefined || module.memberRoles.length === 0 ? {} : { memberRoles: [...module.memberRoles] }),
+    ...(module.virtualAreas === undefined || module.virtualAreas.length === 0 ? {} : {
+      virtualAreas: module.virtualAreas.map((va) => ({ name: va.name, submitter: va.submitter, roles: va.roles.map((r) => ({ ...r })) }))
+    }),
     ...(module.group == null ? {} : { group: module.group })
   };
 }

@@ -53,17 +53,43 @@ export interface MaterialsFile {
         readonly vapourDensity: { readonly c: readonly number[] }; readonly liquidDensity: { readonly b: readonly number[] }; readonly hlv100: V;
       };
       readonly surfaceTension: { readonly B: number; readonly b: number; readonly mu: number };
+      /** Schmelzen (M2b für den Gefrierpunkt von Lösungen, M3b für Eis): Schmelzpunkt, Schmelzenthalpie, Eis. */
+      readonly fusion: { readonly T: V; readonly h: V; readonly cpIce: V; readonly rhoIce: V };
       readonly thermo: { readonly liquid: Thermo; readonly gas: Thermo };
     },
     GasEntry,
     GasEntry,
     ...LiquidEntry[]
   ];
+  /** Gelöste Stoffe (M2b): Kochsalz in Wasser. */
+  readonly solutes: readonly SoluteEntry[];
   readonly vapourInAir: { readonly D0: V; readonly T0: V; readonly exponent: V };
   readonly solids: readonly {
     readonly id: string; readonly name: Lang3; readonly rho: V; readonly cp: V; readonly k: V; readonly contactAngle: V;
     readonly cavities: { readonly scale: V; readonly rmax: V }; readonly color: string;
   }[];
+}
+
+/**
+ * Ein gelöster Stoff (M2b, solution.ts): osmotischer Koeffizient nach Pitzer
+ * (Parameter mit Temperaturform), Dielektrizitätszahl des Wassers für die
+ * Debye–Hückel-Steigung, Dichte und c_p der Lösung nach Laliberté,
+ * Löslichkeit, Lösungsenthalpie und der Kristall.
+ */
+export interface SoluteEntry {
+  readonly id: string; readonly name: Lang3; readonly short: Lang3; readonly solvent: string;
+  readonly molarMass: V; readonly ions: V;
+  readonly pitzer: { readonly b0: { readonly a: readonly number[] }; readonly b1: { readonly a: readonly number[] }; readonly c: { readonly a: readonly number[] }; readonly b: V; readonly alpha: V };
+  /** Die Parameter unter `below` (K): ein Satz, der bis −60 °C gilt (für den Gefrierpunkt). */
+  readonly pitzerCold: { readonly below: V; readonly b0: { readonly a: readonly number[] }; readonly b1: { readonly a: readonly number[] }; readonly c: { readonly a: readonly number[] } };
+  readonly dielectric: { readonly c: readonly number[] };
+  readonly density: { readonly laliberte: readonly number[] };
+  readonly cp: { readonly laliberte: readonly number[]; readonly range: { readonly lo: number; readonly hi: number } };
+  readonly solubility: { readonly table: readonly (readonly number[])[] };
+  readonly dHsol: V;
+  /** Eutektikum von Eis und Hydrohalit (K, Massenanteil): stärkere Lösungen erstarren dort ganz. */
+  readonly eutectic: { readonly T: V; readonly w: V };
+  readonly solid: { readonly rho: V; readonly cp: V; readonly color: string };
 }
 
 interface GasEntry {

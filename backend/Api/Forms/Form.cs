@@ -161,8 +161,11 @@ public static partial class Form
         /* 0047 — Erweiterungen und Schritte (Form.Extension.cs). */
         MapExtension(app);
 
-        /* 0091 — die Rolle der Menschen eines Formulars (Form.Members.cs). */
+        /* 0091 — die Rolle der Menschen eines Formulars (Form.Members.cs); 0120 mehrere. */
         MapMembers(app);
+
+        /* 0120 — die virtuellen Bereiche eines Formulars und die Kleinbereiche darin (Form.Virtual.cs). */
+        MapVirtual(app);
     }
 
 /* -- Gemeinsames -------------------------------------------------------- */

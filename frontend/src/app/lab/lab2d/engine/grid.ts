@@ -60,6 +60,8 @@ export class Grid {
   readonly Es: Float64Array;
   /** Wasserfilm auf einer festen Oberflächenzelle (kg). */
   readonly film: Float64Array;
+  /** Salzkruste auf einer festen Zelle (kg Kochsalz, M2b) — ihre Enthalpie steckt in Es. */
+  readonly crust: Float64Array;
   /** Temperatur der Zelle (K, abgeleitet). */
   readonly T: Float32Array;
   /** Temperatur und Wärmekapazität des flüssigen Anteils (aus den Teilchen). */
@@ -99,6 +101,7 @@ export class Grid {
     this.Hg = new Float64Array(n);
     this.Es = new Float64Array(n);
     this.film = new Float64Array(n);
+    this.crust = new Float64Array(n);
     this.T = new Float32Array(n);
     this.Tl = new Float32Array(n);
     this.Cl = new Float64Array(n);

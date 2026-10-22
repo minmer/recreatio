@@ -19,7 +19,7 @@ import type { Op } from './engine/scene';
 import { GpuCharts } from './gpu/charts';
 import { GpuEngine, type Readout } from './gpu/engine';
 import { GpuRenderer } from './gpu/render';
-import type { Overlay } from './render/frame';
+import { SALT_FULL, type Overlay } from './render/frame';
 import type { Walls } from './render/glRenderer';
 import { T_SCALE } from './render/palette';
 import { fitView, type View } from './render/view';
@@ -134,11 +134,12 @@ async function settleGpu(): Promise<void> {
 }
 
 /**
- * Andere Flüssigkeiten als Wasser (Öl, M2a) rechnet der beschleunigte Weg noch
- * nicht: die Szene geht mit allen Handgriffen an den normalen Weg zurück.
+ * Andere Flüssigkeiten als Wasser (Öl, M2a) und Salz (M2b) rechnet der
+ * beschleunigte Weg noch nicht: die Szene geht mit allen Handgriffen an den
+ * normalen Weg zurück.
  */
 function refuseOther(): boolean {
-  if (cpu === null || !cpu.particles.hasOther()) return false;
+  if (cpu === null || !cpu.needsCpu()) return false;
   post({ type: 'gpu', ok: false, adapter, message: 'other-liquid', scene: cpu.serialize() });
   return true;
 }
@@ -172,6 +173,7 @@ function overlayScale(r: Readout | null): [number, number, number] {
   if (overlay === 'pressure') { const p = Math.max(1, ov[0]); return [-p, p, vliq]; }
   if (overlay === 'velocity') return [0, Math.max(0.02, ov[1]), vliq];
   if (overlay === 'vapour') return [0, 0.6, vliq];
+  if (overlay === 'salt') return [0, SALT_FULL, vliq];
   return [0, 1, vliq];
 }
 

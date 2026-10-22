@@ -11,13 +11,14 @@
  * Dienst verfolgt — hier gibt es keinen zweiten Weg zum selben Inhalt.
  */
 
-import type { PageContent } from './page';
+import { openLoadedPage, type PageContent } from './page';
 import { call } from '../core/session';
 
-export const loadSite = (host: string, path = '', seats: readonly string[] = [], links: readonly string[] = []): Promise<PageContent> =>
-  call<PageContent>(
+/** 0121 — eine versiegelte Seite wird auch hier geöffnet, wie unter recreatio.pl. */
+export const loadSite = async (host: string, path = '', seats: readonly string[] = [], links: readonly string[] = []): Promise<PageContent> =>
+  openLoadedPage(await call<PageContent>(
     `/site?host=${encodeURIComponent(host)}`
     + (path === '' ? '' : `&path=${encodeURIComponent(path)}`)
     + (seats.length === 0 ? '' : `&seats=${encodeURIComponent(seats.join(','))}`)
     + (links.length === 0 ? '' : `&links=${encodeURIComponent(links.join(','))}`)
-  );
+  ));

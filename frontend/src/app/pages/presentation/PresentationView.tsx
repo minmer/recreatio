@@ -45,8 +45,9 @@ import {
   activeScene, arriveProgress, arriveStyle, betweenOf, clamp01, depthFade, emphasisOf, EMPHASIS, enteredOf, flightCurve,
   growAt, journeyAt, maskCss, panAt, placeAt, progressOf, sceneState, scatterWords, stillAt, walkOf, yieldOf, zonesOf, type Stepped, type Zone
 } from './presentationMotion';
-import { branch, goOf, nextOf, resolveTarget, routeOf, type Target } from './showPaths';
-import { ShowClock, ShowDark, type ShowClockValue } from './showContext';
+import { branch, goOf, nextOf, resolveTarget, routeOf, routeTo, type Target } from './showPaths';
+import { ShowArrival, ShowClock, ShowDark, ShowPieceKey, type ShowClockValue, type StoryRun } from './showContext';
+import { isOutcomeKey, outcomeTarget, storyChain, throughGates, type Gate } from './story';
 import { LayerArt, layerBackground } from './deckLayers';
 import { MotionBox, SlidePhase, type Phase } from '../motion/MotionBox';
 import { backdropAt } from '../slides/slideMotion';
@@ -127,7 +128,7 @@ function roomOf(y: number, pinY: number): number {
 
 export function PresentationView({
   show, pieces, theme, title = null, mode, frozen = null, startAt = null, startRoute = null, boxAspect = null, virtual = null, extra, control, selected = null,
-  onPick, onStage, onActive, onPresent, onExit
+  onPick, onStage, onActive, onPresent, onExit, story = null
 }: {
   show: Show;
   pieces: readonly ShowPiece[];
@@ -159,6 +160,12 @@ export function PresentationView({
   onActive?: (index: number) => void;
   onPresent?: () => void;
   onExit?: () => void;
+  /**
+   * 2026-10-21 — DER PRZEBIEG IM LAUF (`storyRun.tsx`): mit ihm geht der Weg
+   * durch die Tore, Fragen führen weiter je nach Antwort, und wer
+   * wiederkommt, steht dort, wo er aufgehört hat. Ohne: wie bisher.
+   */
+  story?: StoryRun | null;
 }) {
   const deviceDark = usePrefersDark();
   const look = resolveTheme(theme, deviceDark);
@@ -173,10 +180,44 @@ export function PresentationView({
    */
   const branching = onPick === undefined;
   const byKey = useMemo(() => new Map(show.scenes.map((sc) => [sc.key, sc])), [show.scenes]);
-  const [route, setRoute] = useState<readonly string[]>(() => (startRoute !== null && startRoute.length > 0 ? startRoute : routeOf(show)));
+
+  /*
+   * 2026-10-21 — DER PRZEBIEG (`story.ts`): mit einem Lauf geht „dalej" durch
+   * die Tore, mit dem, was der Lernende gerade weiss und hat. Die `set`-Tore
+   * auf dem Weg zu einer Stelle gelten, wenn er dort ankommt (`viaRef`).
+   */
+  const storyOn = branching && show.story !== null && story !== null;
+  /* Szenen mit einer Frage warten: der Weg dahinter steht erst nach der Antwort fest. */
+  const waits = useMemo(() => new Set(pieces.filter((one) => one.kind === 'question').flatMap((one) => Object.keys(one.piece.places))), [pieces]);
+  const storyRef = useRef(story);
+  storyRef.current = story;
+  const viaRef = useRef(new Map<string, readonly Gate[]>());
+  /* Von welcher Stelle des Weges aus zuletzt ein Knopf oder eine Antwort weiterführte. */
+  const chosenRef = useRef<number | null>(null);
+  const appliedRef = useRef(new Set<string>());
+  const chainOf = (from: string, taken: ReadonlySet<string>, offset: number): string[] => {
+    const run = storyRef.current;
+    if (show.story === null || run === null) return [];
+    const stops = storyChain(show, show.story, from, run.facts(), taken, waits);
+    stops.forEach((stop, i) => { viaRef.current.set(`${offset + i}|${stop.key}`, stop.via); });
+    return stops.map((stop) => stop.key);
+  };
+  /** Der Weg von vorn — mit einem Przebieg durch die Tore; wer schon hier war, auf dem Weg zu seiner letzten Szene. */
+  const freshRoute = (): readonly string[] => {
+    if (!storyOn || show.scenes.length === 0) return routeOf(show);
+    const last = story.last();
+    if (last !== null && byKey.has(last) && last !== show.scenes[0].key) {
+      const way = routeTo(show, pieces.map((one) => one.piece), last);
+      const upTo = way.indexOf(last);
+      if (upTo > 0) return [...way.slice(0, upTo), ...chainOf(last, new Set(way.slice(0, upTo)), upTo)];
+    }
+    return chainOf(show.scenes[0].key, new Set(), 0);
+  };
+  const [route, setRoute] = useState<readonly string[]>(() => (startRoute !== null && startRoute.length > 0 ? startRoute : freshRoute()));
   const routeOk = route.length > 0 ? route.every((k) => byKey.has(k)) : show.scenes.length === 0;
   /* Ist eine Szene des Weges fort (der Editor hat sie gelöscht), beginnt der Weg neu. */
-  useEffect(() => { if (!routeOk) setRoute(routeOf(show)); }, [routeOk, show]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!routeOk) setRoute(freshRoute()); }, [routeOk, show]);
   const scenes: readonly Scene[] = useMemo(
     () => (!branching ? show.scenes : (routeOk ? route : routeOf(show)).map((k) => byKey.get(k)!)),
     [branching, show, route, routeOk, byKey]);
@@ -319,6 +360,21 @@ export function PresentationView({
   const backdropEls = useRef<(HTMLDivElement | null)[]>([]);
   const [active, setActive] = useState(0);
   const activeRef = useRef(0);
+  /*
+   * 2026-10-22 — WO DER ZUSCHAUER IST (`<stelle>|<szene>`) und wie oft er an
+   * jeder Stelle ankam: eine Frage fragt dann neu, der Przebieg merkt sich die
+   * Szene. `arrived` steigt mit jeder Ankunft, auch wenn die Stelle dieselbe
+   * bleibt („dalej" mitten im Flug, das zurückführt; ein Knopf zur eigenen Szene).
+   */
+  const markRef = useRef('');
+  const arrivals = useRef(new Map<string, number>());
+  const [arrived, setArrived] = useState(0);
+  const arrive = (mark: string) => {
+    /* Die erste Stelle ist keine Wiederkehr: eine Frage dort steht schon frisch da. */
+    if (markRef.current !== '') arrivals.current.set(mark, (arrivals.current.get(mark) ?? 0) + 1);
+    markRef.current = mark;
+    setArrived((n) => n + 1);
+  };
   /* 0108 — welche Szenen gerade auf der Bühne zu sehen sind (im Wechsel zwei): ihre Bewegungen dürfen laufen, alle anderen stehen und fangen von vorn an. */
   const [seen, setSeen] = useState('0');
   const seenRef = useRef('0');
@@ -599,8 +655,11 @@ export function PresentationView({
     }
 
     const now = activeScene(zones, s);
-    if (now !== activeRef.current) {
+    /* Eine andere Stelle — oder an derselben Stelle eine andere Szene (der Weg wurde neu gelegt). */
+    const mark = `${now}|${scenes[now]?.key ?? ''}`;
+    if (mark !== markRef.current) {
       activeRef.current = now;
+      arrive(mark);
       setActive(now);
     }
     const visible = states.flatMap((st, i) => (st.visible ? [i] : [])).join(',');
@@ -627,6 +686,12 @@ export function PresentationView({
     if (startAt !== null) return startAt;
     if (mode !== 'page') return 0;
     const n = slideInAddress(window.location.hash);
+    if (n === null && storyOn) {
+      /* 2026-10-21 — ein Przebieg: dort weiter, wo der Lernende aufgehört hat. */
+      const last = story.last();
+      const at = last === null ? -1 : scenes.findIndex((sc) => sc.key === last);
+      return at > 0 ? zones[at]?.at ?? 0 : 0;
+    }
     return n === null ? 0 : zones[Math.min(n, zones.length - 1)]?.at ?? 0;
   });
 
@@ -644,7 +709,9 @@ export function PresentationView({
       /* 0089 — „dalej" nach der letzten Szene des Weges: zurück (eine Schleife) oder hinaus. */
       if (!branching || dir < 0 || scenes.length === 0) return;
       const last = scenes.length - 1;
-      const target = nextOf(show, scenes[last].key);
+      /* 2026-10-21 — eine Frage wartet auf ihre Antwort: „dalej" geht nicht an ihr vorbei. */
+      if (storyOn && waits.has(scenes[last].key)) return;
+      const target = passGates(nextOf(show, scenes[last].key));
       if (target.kind === 'scene') follow(target, last);
       else if (target.kind === 'link' && via === 'key') follow(target, last);
     }
@@ -671,14 +738,46 @@ export function PresentationView({
 
   /** Wohin ein Ausgang führt — von Szene `from` des Weges aus. */
   const pending = useRef<number | null>(null);
-  const follow = (target: Target, from: number) => {
+
+  /**
+   * 2026-10-21 — DURCH DIE TORE: ein Ziel, das ein Tor ist, führt (mit dem, was
+   * der Lernende jetzt weiss) zu einer Szene, hinaus oder zum Ende; die
+   * `set`-Tore unterwegs gelten sofort (ein Knopf, eine Antwort ging hindurch).
+   */
+  const passGates = (target: Target): Target => {
+    const run = storyRef.current;
+    if (target.kind !== 'gate' || show.story === null || run === null) return target;
+    const passed = throughGates(show.story, `gate:${target.key}`, run.facts());
+    const sets = passed.passed.filter((g) => g.type === 'set');
+    if (sets.length > 0) run.apply(sets);
+    return resolveTarget(show, passed.target);
+  };
+
+  /** Ein Abzweig mit dem Przebieg: was hinter einem liegt, bleibt; ab hier der neue Weg durch die Tore. */
+  const branchStory = (now: readonly string[], active: number, key: string): { route: readonly string[]; index: number } => {
+    const behind = now.indexOf(key);
+    if (behind >= 0 && behind <= active) return { route: now, index: behind };
+    const kept = now.slice(0, active + 1);
+    const next = [...kept, ...chainOf(key, new Set(kept), kept.length)];
+    return next.length === kept.length ? { route: now, index: Math.max(0, active) } : { route: next, index: kept.length };
+  };
+
+  const follow = (said: Target, from: number) => {
+    const target = passGates(said);
     if (target.kind === 'link') { openLink(target.link.href); return; }
     if (target.kind !== 'scene') return;
     const now = routeRef.current;
-    const made = branch(show, now, from, target.key);
-    if (made.route === now) { drive.current?.toScene(made.index); return; }
+    const made = storyOn ? branchStory(now, from, target.key) : branch(show, now, from, target.key);
+    if (made.route === now) {
+      /* 2026-10-22 — schon an dieser Stelle (noch nicht weg, schon zurück; ein Knopf zur eigenen Szene): eine neue Ankunft. */
+      if (made.index === activeRef.current) arrive(markRef.current);
+      drive.current?.toScene(made.index);
+      return;
+    }
     /* Erst steht der neue Weg (die Bahn wird neu vermessen), dann fährt sie hin. */
     pending.current = made.index;
+    /* 2026-10-21 — von hier aus ausdrücklich gewählt: eine neue Antwort oder ein neuer Wert ändert diesen Schritt nicht mehr. */
+    chosenRef.current = from;
     setRoute(made.route);
   };
   useEffect(() => {
@@ -693,12 +792,19 @@ export function PresentationView({
    * wohin „dalej" von seiner Szene führt), zurück („back"), zu einer Szene
    * oder hinaus (`link:<id>`). Im Editor geht es nirgends hin.
    */
-  goRef.current = (target: string, from: number) => {
+  goRef.current = (said: string, from: number) => {
     if (!branching) return;
     const sc = scenes[from];
     if (sc === undefined) return;
+    let target = said;
+    /* 2026-10-21 — eine Frage wurde beantwortet: ihr Ausgang für dieses Ergebnis auf dieser Szene, sonst „dalej". */
+    const answer = /^answer:(.+):(right|wrong)$/.exec(said);
+    if (answer !== null) {
+      const one = placed.find((p) => p.key === answer[1]);
+      target = (one === undefined ? null : outcomeTarget(one.piece, sc.key, answer[2] === 'right' ? 'right' : 'wrong')) ?? 'next';
+    }
     if (target === 'back') { drive.current?.toScene(Math.max(0, from - 1)); return; }
-    const t = target === 'next' ? nextOf(show, sc.key) : resolveTarget(show, target);
+    const t = passGates(target === 'next' ? nextOf(show, sc.key) : resolveTarget(show, target));
     if (t.kind === 'step' && t.step !== null) { toStep(from, t.step); return; }
     if (t.kind === 'scene' || t.kind === 'link') follow(t, from);
   };
@@ -717,7 +823,7 @@ export function PresentationView({
     const from = one.travel ? activeRef.current : one.home;
     const sc = scenes[from];
     if (sc === undefined) return false;
-    const target = goOf(show, one.piece, sc.key);
+    const target = passGates(goOf(show, one.piece, sc.key));
     if (target.kind === 'none') return false;
     /* 2026-10-19 — ein Schritt derselben Szene: der eigene des Knopfes oder ein genannter. */
     if (target.kind === 'step') {
@@ -762,6 +868,46 @@ export function PresentationView({
   }, [placed, size.w, size.h]);
 
   useEffect(() => { onActive?.(active); }, [active, onActive]);
+
+  /**
+   * 2026-10-21 — DER WEG AB HIER, NEU: nach einer Antwort oder einem neuen Wert
+   * kann ein Tor anders entscheiden. Was hinter dem Lernenden liegt, bleibt.
+   */
+  const rechain = () => {
+    if (!storyOn) return;
+    const now = routeRef.current;
+    const at = activeRef.current;
+    /* Was der Lernende hier eben gewählt hat (ein Knopf, eine Antwort), bleibt: neu berechnet wird erst dahinter. */
+    const from = chosenRef.current === at && now[at + 1] !== undefined ? at + 1 : at;
+    const here = now[from];
+    if (here === undefined) return;
+    const next = [...now.slice(0, from), ...chainOf(here, new Set(now.slice(0, from)), from)];
+    if (next.length !== now.length || next.some((k, i) => k !== now[i])) setRoute(next);
+  };
+
+  /* Jede Ankunft (`arrived`), auch eine an derselben Stelle. */
+  useEffect(() => {
+    if (!storyOn) return;
+    const at = activeRef.current;
+    const key = scenes[at]?.key;
+    if (key === undefined) return;
+    story.visit(key);
+    const mark = `${at}|${key}`;
+    const via = viaRef.current.get(mark) ?? [];
+    if (via.length > 0 && !appliedRef.current.has(mark)) {
+      appliedRef.current.add(mark);
+      story.apply(via);
+    }
+    /* Eine Wahl gilt, bis der Lernende ankommt — woanders oder wieder an ihrer Stelle. */
+    chosenRef.current = null;
+    /* Zurück bei einer Frage (der Weg ging schon einmal weiter): der Weg dahinter gilt erst wieder nach der Antwort. */
+    if (waits.has(key)) rechain();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arrived, storyOn]);
+
+  /* Eine Antwort, ein Wert: der Weg ab hier neu. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { rechain(); }, [story?.version]);
 
   /*
    * 2026-10-18 — DIE BÜHNE ROLLT NIE: ihre Rahmen sind `overflow: hidden`, doch
@@ -878,7 +1024,7 @@ export function PresentationView({
   const pieceView = (one: Placed) => {
     const p = one.piece;
     /* 0089 — ein Knopf (auf einer seiner Szenen ein Ausgang): fokussierbar, mit Eingabe und Leertaste zu drücken. */
-    const isGo = branching && Object.values(p.go).some((t) => t.trim() !== '');
+    const isGo = branching && Object.entries(p.go).some(([k, t]) => !isOutcomeKey(k) && t.trim() !== '');
     const fill = resolveColor(p.fill, dark);
     const ink = resolveColor(p.ink, dark);
     const accent = resolveColor(p.accent, dark);
@@ -921,7 +1067,9 @@ export function PresentationView({
         >
           {media !== null && media.side !== 'after' && mediaEl}
           <div className="pz-body">
-            {p.motion.length === 0 ? one.content : <MotionBox motions={p.motion} bare className="pz-move">{one.content}</MotionBox>}
+            <ShowPieceKey.Provider value={one.key}>
+              {p.motion.length === 0 ? one.content : <MotionBox motions={p.motion} bare className="pz-move">{one.content}</MotionBox>}
+            </ShowPieceKey.Provider>
           </div>
           {media !== null && media.side === 'after' && mediaEl}
         </div>
@@ -1047,6 +1195,7 @@ export function PresentationView({
                 >
                   <SlidePhase.Provider value={phaseOf(i)}>
                   <ShowClock.Provider value={clocks[i] ?? null}>
+                  <ShowArrival.Provider value={arrivals.current.get(`${i}|${sc.key}`) ?? 0}>
                   {space && (
                     <div className="pz-space" style={{ perspective: `${sc.depth.perspective}px`, perspectiveOrigin: `${focus[i].x}% ${focus[i].y}%` }}>
                       <div className="pz-cam" ref={(el) => { camEls.current[i] = el; }}>
@@ -1073,6 +1222,7 @@ export function PresentationView({
                     {threadOf(i)}
                     {flat.map(pieceView)}
                   </div>
+                  </ShowArrival.Provider>
                   </ShowClock.Provider>
                   </SlidePhase.Provider>
 

@@ -23,6 +23,10 @@ import { usePageLogic } from '../pageLogic';
 import { partLabel, partOf } from '../parts/registry';
 import { readPiece, readShow, type TextType } from './presentation';
 import { PresentationView, type ShowPiece } from './PresentationView';
+import { StoryContext } from './showContext';
+import { NO_STORY } from './story';
+import { useStoryRun } from './storyRun';
+import { Loading } from '../../ui/Loading';
 import { inline, RichLine } from '../../ui/richText';
 import type { Look } from '../slides/slideLook';
 import type { DriveControl } from './usePresentationDrive';
@@ -67,7 +71,7 @@ function ShowText({ raw, type, first }: { raw: Record<string, string>; type: Tex
 
 export function PagePresentation({
   parts, look, title, extra, after, mode = 'page', frozen = null, boxAspect = null, selected = null, onPick, onStage, onActive, control,
-  presentAt = null, presentRoute = null, onPresentEnd, virtual = null
+  presentAt = null, presentRoute = null, onPresentEnd, virtual = null, pageId = null
 }: {
   parts: readonly DraftPart[];
   look: Look;
@@ -89,14 +93,26 @@ export function PagePresentation({
   /** 0089 — und auf welchem Weg (der Editor: der Weg zur gewählten Szene). */
   presentRoute?: readonly string[] | null;
   onPresentEnd?: () => void;
+  /**
+   * 2026-10-21 — die Kennung der Seite: unter ihr merkt sich ein Przebieg, was
+   * der Lernende geantwortet hat und wo er war. `null` (der Editor): kein Lauf.
+   */
+  pageId?: string | null;
 }) {
   const logic = usePageLogic();
   /* Ein Vortrag auf dem ganzen Bildschirm — von der Stelle aus, an der die Seite gerade steht; sie selbst steht solange still. */
   const [presenting, setPresenting] = useState<{ readonly at: number; readonly route: readonly string[] | null } | null>(null);
   const own = useRef<DriveControl | null>(null);
   const ctl = control ?? own;
-  const show = readShow(look.show);
+  const read = readShow(look.show);
+  /*
+   * 2026-10-21 — eine Präsentation mit Fragen hat einen Przebieg, auch wenn
+   * der Editor keinen eingestellt hat: die Antworten bleiben im Browser.
+   */
+  const show = read.story === null && parts.some((part) => part.kind === 'question') ? { ...read, story: NO_STORY } : read;
   const editing = onPick !== undefined;
+  /* 2026-10-21 — der Przebieg im Lauf: im Browser, oder in Cogita (`storyRun.tsx`). */
+  const { run: story, ready } = useStoryRun(show, editing ? null : pageId);
 
   const hidden = logic?.outcome.hidden ?? new Set<string>();
   const messages = logic?.outcome.messages ?? new Map<string, string>();
@@ -136,9 +152,13 @@ export function PagePresentation({
   const showing = presentAt !== null ? { at: presentAt, route: presentRoute } : presenting;
   const side = extra === undefined && after === undefined ? undefined : <>{extra}{after}</>;
 
+  /* Ein Przebieg wartet auf seinen Lauf: sein Weg geht von Anfang an durch die Tore, und wer wiederkommt, steht dort, wo er war. */
+  if (!ready) return <Loading />;
+
   return (
-    <>
+    <StoryContext.Provider value={story}>
       <PresentationView
+        story={story}
         show={show}
         pieces={pieces}
         theme={look.theme}
@@ -156,10 +176,10 @@ export function PagePresentation({
         onPresent={mode === 'page' ? () => setPresenting({ at: ctl.current?.at() ?? 0, route: ctl.current?.route?.() ?? null }) : undefined}
       />
       {showing !== null && createPortal(
-        <PresentationView show={show} pieces={pieces} theme={look.theme} title={title} mode="present" startAt={showing.at} startRoute={showing.route} onExit={stop} />,
+        <PresentationView show={show} pieces={pieces} theme={look.theme} title={title} mode="present" startAt={showing.at} startRoute={showing.route} onExit={stop} story={story} />,
         document.body
       )}
-    </>
+    </StoryContext.Provider>
   );
 }
 

@@ -1,6 +1,7 @@
 # Forms: roles and virtual areas
 
-*Design, 2026-10-21, agreed with the user in two rounds. Step 1 (§6) in progress.*
+*Design, 2026-10-21, agreed with the user in two rounds. Step 1 built (§6), not deployed; migration 0120 not applied on
+production.*
 
 ## 1. Why
 
@@ -81,25 +82,38 @@ Form "Zapisy do bierzmowania":
 
 - **A virtual area** is a row in `app.area` (parent: the form's area) plus `app.virtual_area` (the form, the
   submitter's access, the order). Its certificates name the connected roles. Its own key seals what is set up in it.
-- **A mini area** is a row in `app.area` (parent: its virtual area) plus `app.area_instance` (virtual area, seat,
-  registration). Its key is made in the browser that creates it — at sign-up, the submitter's — and sealed under the
-  seat key (`app.access_grant`, 0024) when the submitter is connected, and for the public key of every connected role
-  (`app.key_grant`). That is RSA encryption only, no key generation: signing up stays as fast as now.
-- **May.** A mini area has no certificates of its own; `Area.MayAsync` answers with its virtual area's. This is the
-  one place where an area inherits; ordinary sub-areas keep the 0035 rule ("a prerequisite, not inheritance").
-- **A role connected later** gets the keys of the existing mini areas from the browser that connects it.
-- Mini areas are not listed among areas, and their plaintext `area.name` never carries a person's name (0097).
+- **A mini area** is a row in `app.area` (parent: its virtual area) plus `app.area_instance` (virtual area,
+  registration). It is an ordinary area with **certificates of its own**, written by the browser of a leader whose
+  role holds `admin` or `certify` on the virtual area — exactly the virtual area's certificates, one per role and
+  level. Because of that, everything that works on areas (chats, calendars, tasks, the bell, push) works in a mini
+  area without knowing about virtual areas, and 0035 stays true for every area ("a prerequisite, not inheritance").
+- **Its key** is made by the same browser and wrapped for the public key of every role of the rule (`app.key_grant`)
+  and, when the person takes part, sealed under the seat key (`app.access_grant`, 0024). RSA encryption only, no key
+  generation per person.
+- **Applying the rule** (`forms/virtualAreas.ts`, `applyVirtualArea`): the plan (`GET /workspace/virtual/{id}/plan`)
+  lists submissions without a mini area and mini areas behind the rule (a certificate, a key, the seat's key);
+  `POST …/instances` creates, `POST …/mirror` tops up. It runs without a click: when the form's settings or office
+  open, and when the bell's digest names the virtual area (`virtual.waiting`). A role dropped from the virtual area
+  is revoked in every mini area by the service (`Area.DropAsync`); "nie widzi" removes the seats' keys.
+- **The person's side** uses the seat machinery that exists: holding the mini area's key makes the seat one of the
+  area's people (`Audience.PeopleOf`, `MayMeetAsync`). The conversation of a mini area the person takes part in is
+  a one-to-one chat (kind `seat`) at the mini area — titles, unread counts and key hand-over work as before; with
+  "czyta" the person reads but cannot post. A leaders-only mini area has an ordinary area chat about the person.
+- Mini areas are not listed among areas, and their plaintext `area.name` is the virtual area's name, never a
+  person's (0097).
 
 ## 6. Plan
 
 Each step works on its own and is deployed (API together with the frontend) before the next.
 
-1. **Roles and virtual areas exist.** Migration 0120 (`module_role`, `virtual_area`, `area_instance`); the form's
-   settings get several roles and the virtual areas with their connections; mini areas are made at sign-up and, for
-   existing submissions, by a leader's browser; leaders work in a person's mini areas (conversation, appointments,
-   tasks); JSON; the form map shows the small graph.
-2. **The submitter's side.** The seat acts in its mini areas (conversation, calendar, tasks); the person page shows
-   them.
+1. **Roles and virtual areas exist** — *built*. Migration 0120 (`module_role`, `virtual_area`, `area_instance`);
+   the form's settings: several roles ("Role uczestników") and "Obszary osób" (rules: name, what the person does,
+   roles with levels); mini areas made and topped up by leaders' browsers; the person panel ("Obszary osoby") with
+   the conversation; module JSON (`memberRoles`, `virtualAreas`); the digest. Still open: appointments and tasks
+   from the person panel, the form map's small graph.
+2. **The submitter's side** — *conversation built* (the seat reads and, with "pisze", writes in the one-to-one chat
+   of its mini area, shown by the existing chat strip). Still open: the person page's calendar and tasks of the mini
+   area.
 3. **Data into virtual areas.** Questions and sub-forms connected to a virtual area store their answers in the mini
    area; office sub-forms move.
 4. **For each person.** Tasks and meetings set up in a virtual area, done per mini area; the form's steps, tasks and

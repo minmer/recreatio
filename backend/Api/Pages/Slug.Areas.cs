@@ -80,10 +80,41 @@ public static partial class Slug
             slugId = found;
         }
 
+        /*
+         * 0121 — EINE VERSIEGELTE SEITE bleibt eine Seite mit Zugang: öffentlich
+         * wäre sie für niemanden lesbar. Und wer aus ihren Bereichen fällt, bekommt
+         * ihren Schlüssel nicht mehr: seine Hülle geht gleich mit. (Für einen neuen
+         * Bereich packt der Browser den Schlüssel neu — der Dienst hat ihn nicht.)
+         */
+        var seal = Page.ReadSeal(await Page.SealOfAsync(connection, slugId, ctx.RequestAborted));
+        if (seal is not null && areas.Count == 0)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Ta strona jest zaszyfrowana — wyłącz najpierw szyfrowanie, potem udostępnij ją wszystkim.");
+            return;
+        }
+
+        /* Bliebe keine Hülle übrig, hätte niemand mehr den Schlüssel — und die Seite wäre verloren. */
+        if (seal is not null && !seal.Wraps.Any(one => one.Area is null || areas.Contains(one.Area.Value)))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Po tej zmianie nikt nie miałby klucza do tej zaszyfrowanej strony — zostaw choć jeden z jej dotychczasowych obszarów.");
+            return;
+        }
+
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
 
         try
         {
+            if (seal is not null)
+            {
+                var kept = seal with { Wraps = seal.Wraps.Where(one => one.Area is null || areas.Contains(one.Area.Value)).ToList() };
+                await using var prune = new SqlCommand("UPDATE app.slug SET page_seal = @seal WHERE id = @slug;", connection, tx);
+                prune.Parameters.AddWithValue("@seal", Page.WriteSeal(kept));
+                prune.Parameters.AddWithValue("@slug", slugId);
+                await prune.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
             await using (var drop = new SqlCommand(
                 "DELETE FROM app.slug_area WHERE slug_id = @slug;", connection, tx))
             {
@@ -108,7 +139,7 @@ public static partial class Slug
             throw;
         }
 
-        await ctx.Response.WriteAsJsonAsync(new { path, areaIds = areas.Select(Ids.ToText) });
+        await ctx.Response.WriteAsJsonAsync(new { path, areaIds = areas.Select(Ids.ToText), @sealed = seal is not null });
     }
 
     public sealed record MoveRequest(string Path, string NewPath);

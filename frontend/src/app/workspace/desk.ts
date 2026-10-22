@@ -7,6 +7,7 @@
  */
 
 import { call } from '../core/session';
+import type { PageSealInfo } from '../pages/pageSeal';
 
 /** Eine Rolle dieses Kontos. Der Anzeigename ist versiegelt — hier steht die Art. */
 export interface RoleCard {
@@ -66,6 +67,9 @@ export interface PageCard {
 
   /** 0106 — der Titel der Seite (`null`: noch keiner). */
   readonly title: string | null;
+
+  /** 0121 — versiegelt: die Hüllen ihres Schlüssels. Titel und Wybór sind hier schon geöffnet (oder `null`). */
+  readonly seal?: PageSealInfo | null;
 }
 
 /**
@@ -77,6 +81,8 @@ export interface OpenPageCard {
   readonly path: string;
   readonly title: string | null;
   readonly why: 'area' | 'seat';
+  /** 0121 — versiegelt (der Titel ist schon geöffnet, oder `null`). */
+  readonly seal?: PageSealInfo | null;
 }
 
 export interface Desk {
@@ -94,7 +100,29 @@ export interface Desk {
  */
 export const leadsNoPage = (desk: Pick<Desk, 'pages'>): boolean => desk.pages.every((one) => one.aliasOf !== null);
 
-export const loadDesk = (): Promise<Desk> => call<Desk>('/workspace');
+/**
+ * 0121 — VERSIEGELTE SEITEN kommen mit versiegeltem Titel und Wybór: hier
+ * geöffnet, mit dem Schlüssel, den dieser Browser hat. Wer keinen hat, sieht
+ * die Adresse (Titel `null`).
+ */
+export async function loadDesk(): Promise<Desk> {
+  const desk = await call<Desk>('/workspace');
+  if (![...desk.pages, ...desk.open].some((one) => one.seal != null)) return desk;
+
+  const { openSealedTitle, openSealedSubject } = await import('../pages/pageSeal');
+  return {
+    ...desk,
+    pages: await Promise.all(desk.pages.map(async (one) => (one.seal == null ? one : {
+      ...one,
+      title: await openSealedTitle(one.title, one.seal).catch(() => null),
+      subject: await openSealedSubject(one.subject, one.seal).catch(() => null)
+    }))),
+    open: await Promise.all(desk.open.map(async (one) => (one.seal == null ? one : {
+      ...one,
+      title: await openSealedTitle(one.title, one.seal).catch(() => null)
+    })))
+  };
+}
 
 /**
  * Eine Adresse übernehmen.

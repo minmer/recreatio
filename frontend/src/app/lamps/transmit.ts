@@ -15,11 +15,14 @@
  * als „Czeka" im Protokoll und geht hinaus, wenn er dran ist. „Stop" (und das
  * Verlassen der App) bricht das Laufende ab und streicht, was noch wartet.
  *
- * <b>Das Tempo</b> (`pace.ts`, zwei Regler) gilt beim Senden, nicht beim
- * Speichern: eine Pause zwischen zwei Sendungen (Ramki eines Sygnał und
- * aufeinanderfolgende Drücke) und ein Limit, wie lange jede Ramka hinausgeht.
- * Ohne eigenes Tempo zählen die Regler der Knöpfe, so wie sie stehen, wenn ein
- * Druck dran ist; ein Timer, den man von Hand auslöst, bringt seine eigenen mit.
+ * <b>Das Tempo</b> (`pace.ts`) gilt beim Senden, nicht beim Speichern: eine Pause
+ * zwischen zwei Sendungen (Ramki eines Sygnał und aufeinanderfolgende Drücke) und —
+ * nur bei Timern — ein Limit, wie lange jede Ramka hinausgeht. Ohne eigenes Tempo
+ * zählt der Regler der Knöpfe, so wie er steht, wenn ein Druck dran ist; ein Timer,
+ * den man von Hand auslöst, bringt seine eigenen mit.
+ *
+ * <b>Kurz oder gehalten</b> (2026-10-21, {@link Hold}): ein kurzer Druck sendet den ganzen
+ * Sygnał, wie gespeichert; wer länger drückt, sendet so lange, wie er drückt.
  *
  * <b>„Nadano" heisst: Android hat gestartet und gestoppt.</b> Ob eine Lampe es
  * gehört und getan hat, weiss das Telefon nicht; im Protokoll lässt sich von
@@ -31,7 +34,7 @@
 
 import { hexOf, readFrame } from './adv';
 import type { LampData, LampSignal } from './lampStore';
-import { lampTitle, signalProblem } from './lampStore';
+import { DURATION_MAX, DURATION_MIN, FRAMES_MAX, lampTitle, signalProblem } from './lampStore';
 import type { LampCode, LampNative, LampSupport, NativeFrame, NativeSendResult } from './native';
 import { FASTEST, pacedDuration, pacedGap, packetInterval, type Pace } from './pace';
 
@@ -65,6 +68,8 @@ export interface Attempt {
   readonly timing: readonly string[];
   /** Von Hand: hat die Lampe reagiert? */
   readonly responded: boolean | null;
+  /** Ein gehaltener Knopf: so lange gesendet, wie gedrückt war. */
+  readonly held?: boolean;
 }
 
 export const HISTORY_MAX = 30;
@@ -158,6 +163,57 @@ export function timingNotes(shown: readonly AttemptFrame[], result: NativeSendRe
   return out;
 }
 
+/* -- Kurz oder gehalten (2026-10-21) ------------------------------------------------------------ */
+
+/** Kürzer gedrückt: der ganze Sygnał, wie gespeichert. Länger: so lange, wie gedrückt. */
+export const TAP_MS = 300;
+/** Länger wird nie gesendet — wie im Telefon (`LampRadio.Press.MAX_MS`). */
+export const HOLD_MAX_MS = DURATION_MAX;
+
+/**
+ * EIN GEHALTENER KNOPF — ab {@link TAP_MS} gedrückt, sendet er, bis er losgelassen wird.
+ * Wird er losgelassen, bevor er dran war (ein anderer lief noch), geht er danach so lange
+ * hinaus, wie er gedrückt war.
+ */
+export interface Hold {
+  /** Noch gedrückt? */
+  down: boolean;
+  /** Wie lange er gedrückt war (ms) — gesetzt beim Loslassen. */
+  heldMs: number;
+  /** Das Telefon sendet ihn gerade — dann geht das Loslassen an das Telefon. */
+  live: boolean;
+}
+
+export const pressHold = (): Hold => ({ down: true, heldMs: 0, live: false });
+
+/** Losgelassen, nach `heldMs` Drücken. */
+export function releaseHold(radio: LampNative | null, hold: Hold, heldMs: number): void {
+  if (!hold.down) return;
+  hold.down = false;
+  hold.heldMs = Math.max(0, Math.round(heldMs));
+  if (hold.live && radio !== null) void radio.release({ heldMs: hold.heldMs }).catch(() => undefined);
+}
+
+/**
+ * Die Ramki für einen Druck, der schon vorbei war, als er dran kam: so lange, wie gedrückt
+ * wurde — eine Ramka so lange, mehrere der Reihe nach und wieder von vorn (die letzte gekürzt).
+ */
+export function heldFrames(frames: readonly NativeFrame[], ms: number): NativeFrame[] {
+  if (frames.length === 0) return [];
+  const total = Math.min(HOLD_MAX_MS, Math.max(DURATION_MIN, Math.round(ms)));
+  if (frames.length === 1) return [{ ...frames[0], durationMs: total, gapMs: 0 }];
+  const out: NativeFrame[] = [];
+  let left = total;
+  for (let i = 0; left >= DURATION_MIN && out.length < FRAMES_MAX; i = (i + 1) % frames.length) {
+    const durationMs = Math.min(frames[i].durationMs, left);
+    out.push({ ...frames[i], durationMs });
+    left -= durationMs + frames[i].gapMs;
+  }
+  return out.map((f, i) => (i === out.length - 1 ? { ...f, gapMs: 0 } : f));
+}
+
+const seconds = (ms: number): string => `${(Math.round(ms / 100) / 10).toLocaleString('pl-PL')} s`;
+
 /* -- Das Protokoll ---------------------------------------------------------------------------- */
 
 let attempts: readonly Attempt[] = [];
@@ -231,9 +287,10 @@ const messageOf = (e: unknown): string => (e instanceof Error ? e.message : type
 /**
  * Einen Sygnał senden — nach allen, die schon warten. `radio` ist der Sender
  * (`LampRadio`) oder `null` im Browser. `own`: ein eigenes Tempo (ein Timer, von
- * Hand ausgelöst) statt der Regler der Knöpfe. Wirft nie: wie es ausging, steht im Versuch.
+ * Hand ausgelöst) statt der Regler der Knöpfe. `hold`: ein gehaltener Knopf — so
+ * lange, wie er gedrückt ist. Wirft nie: wie es ausging, steht im Versuch.
  */
-export function transmit(radio: LampNative | null, lamp: Pick<LampData, 'name' | 'number'>, signal: LampSignal, own: Pace | null = null): Promise<Attempt> {
+export function transmit(radio: LampNative | null, lamp: Pick<LampData, 'name' | 'number'>, signal: LampSignal, own: Pace | null = null, hold: Hold | null = null): Promise<Attempt> {
   const prepared = prepareSignal(signal, own ?? pace);
   const queued = put({
     id: `t${++counter}-${Date.now()}`,
@@ -247,10 +304,11 @@ export function transmit(radio: LampNative | null, lamp: Pick<LampData, 'name' |
     detail: null,
     result: null,
     timing: [],
-    responded: null
+    responded: null,
+    ...(hold !== null ? { held: true } : {})
   });
   const mine = epoch;
-  const run = queue.then(() => sendOne(radio, queued, signal, own, mine));
+  const run = queue.then(() => sendOne(radio, queued, signal, own, mine, hold));
   queue = run.catch(() => undefined);
   return run;
 }
@@ -264,20 +322,23 @@ function dropQueue(code: LampCode): void {
   }
 }
 
-async function sendOne(radio: LampNative | null, queued: Attempt, signal: LampSignal, own: Pace | null, mine: number): Promise<Attempt> {
+async function sendOne(radio: LampNative | null, queued: Attempt, signal: LampSignal, own: Pace | null, mine: number, hold: Hold | null): Promise<Attempt> {
   /* Die Pause seit der letzten Sendung — dann gilt das Tempo, das JETZT eingestellt ist (oder das eigene). */
   const now = own ?? pace;
   if (mine === epoch) await pauseBeforeNext(now);
   const prepared = prepareSignal(signal, now);
+  /* Gehalten: wie lange gesendet wurde, sagt das Ergebnis; die gespeicherten Zeiten gelten dann nicht. */
+  const heldText = (result: NativeSendResult): string =>
+    `Nadano przez ${seconds(Math.max(0, result.endedAt - result.startedAt))} — tak długo, jak trzymano przycisk. Czy lampa zareagowała — tego telefon nie wie.`;
   const finish = (code: LampCode, detail: string | null = null, result: NativeSendResult | null = null, message: string | null = null): Attempt =>
     put({
       ...(attempts.find((a) => a.id === queued.id) ?? queued),
       state: stateOf(code),
       code,
-      message: message ?? codeText(code),
+      message: message ?? (hold !== null && code === 'ok' && result !== null ? heldText(result) : codeText(code)),
       detail,
       result,
-      timing: result === null ? [] : timingNotes(prepared.shown, result)
+      timing: result === null || hold !== null ? [] : timingNotes(prepared.shown, result)
     });
 
   if (mine !== epoch) {
@@ -297,7 +358,16 @@ async function sendOne(radio: LampNative | null, queued: Attempt, signal: LampSi
       const { granted } = await radio.requestPermission();
       if (!granted) return finish('no-permission');
     }
-    const result = await radio.send({ frames: prepared.frames });
+    /*
+      Noch gedrückt: das Telefon sendet, bis losgelassen wird. Schon losgelassen (er wartete hinter einem
+      anderen): so lange, wie gedrückt war. Zwischen der Prüfung und dem Aufruf kann nichts dazwischenkommen —
+      ein Loslassen danach geht an das Telefon und kommt dort nach dem Senden an.
+    */
+    const live = hold !== null && hold.down;
+    if (live) hold.live = true;
+    const result = await radio.send(live ? { frames: prepared.frames, hold: true }
+      : { frames: hold !== null ? heldFrames(prepared.frames, hold.heldMs) : prepared.frames });
+    if (hold !== null) hold.live = false;
     lastEnded = Date.now();
     /* Die App ist vom Bildschirm gegangen: was danach noch wartete, geht auch nicht mehr hinaus. */
     if (result.code === 'paused') dropQueue('paused');

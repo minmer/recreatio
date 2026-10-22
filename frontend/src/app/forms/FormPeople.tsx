@@ -14,6 +14,7 @@ import { progressOf } from '../steps/steps';
 import { askText } from '../ui/dialogs';
 import { type DeskRow, type EntryDesk, type Numbered, PANEL_SECTIONS, type PanelSection, STEP_CHOICES, type StepInfo, deskChanged, deskRows, formAreasOf, seatAreasOf, stepKindsOf, stepMatches } from './entryDesk';
 import { ExtensionEntry } from './ExtensionSheet';
+import { PersonAreas } from './PersonAreas';
 import { type OpenField, consentGiven, consentText } from './form';
 import { type Submission, hideSubmission, removeSubmission } from './submissions';
 import { type ValueCheck, armCheck } from './valueCheck';
@@ -457,6 +458,11 @@ function EntryPanel({
             );
           })}
         </>
+      )}
+
+      {on.has('areas') && (
+        /* 0120 — DIE OBSZARY DIESER PERSON: je Regel des Formulars ihr eigener Bereich, mit der Rozmowa darin. */
+        <PersonAreas registrationId={s.registrationId} ring={ring} onError={onError} />
       )}
 
       {on.has('link') && (

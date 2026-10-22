@@ -28,18 +28,20 @@ import { applyOp, type EditLedger, type World } from './edits';
 import { Gas } from './gas';
 import { Grid } from './grid';
 import { Heat, type Heater } from './heat';
-import { pSat, tSat } from './if97';
+import { pSat } from './if97';
 import { Liquid } from './liquid';
-import { AIR_N2, AIR_O2, LIQUIDS, MOLAR, rhoLiq, SOLIDS, WATER } from './materials';
+import { AIR_N2, AIR_O2, MOLAR, WATER } from './materials';
 import { Particles } from './particles';
 import { Phase } from './phase';
+import { liquidsAt, probe } from './probe';
 import { Regions } from './regions';
 import { Rng } from './rng';
+import { Salt } from './salt';
 import { CELL, MAX_CELLS, readScene, writeScene, type HeaterMode, type Op, type Quality, type ReadOptions, type Scene, type Side, type SideName } from './scene';
 import { inside } from './shapes';
 import { GridSolver } from './solver';
 import { STAGE_COUNT } from './stages';
-import { GAS, GAS_SPECIES, H2O, LIQUID, N2, O2, R_GAS, SOLID, SPECIES_SLOTS } from './units';
+import { GAS, GAS_SPECIES, H2O, LIQUID, N2, O2, R_GAS, SPECIES_SLOTS } from './units';
 
 export interface EngineOptions extends ReadOptions {
   /** Relatives Residuum der Druckprojektionen (Prompt v2: 1e-5 in Echtzeit, 1e-8 in Tests). */
@@ -85,15 +87,19 @@ export interface EngineStats {
   /** Andere Flüssigkeiten (Öl): Masse (kg) und mittlere Temperatur (K, 0 ohne). */
   otherMass: number;
   otherT: number;
+  /** Kochsalz (M2b): gelöst in den Teilchen und ausgefallen (Kruste, Boden der Kiste) (kg). */
+  saltMass: number;
+  saltSolid: number;
   heaters: { group: number; P: number; Tmean: number; mode: HeaterMode; power: number; target: number; on: boolean }[];
   /** Druck p0 je Gebiet (Pa), verschlossen? */
   regions: { p0: number; sealed: boolean; vGas: number }[];
   budget: BudgetSnapshot;
   flows: Flows;
-  /** Abweichung der Energiebilanz (J), der Wasserbilanz und der Bilanz der anderen Flüssigkeiten (kg) seit dem Start. */
+  /** Abweichung der Energiebilanz (J), der Wasserbilanz, der Bilanz der anderen Flüssigkeiten und des Salzes (kg) seit dem Start. */
   energyError: number;
   waterError: number;
   otherError: number;
+  saltError: number;
   /** Erzeugter Dampf (kg/s, gleitendes Mittel) und (P − Verluste)/h_lv als Vergleich. */
   vapourRate: number;
   ambientT: number;
@@ -122,10 +128,15 @@ export interface ProbeInfo {
     v: number;
     heater: boolean;
     film: number;
+    /** Salzkruste eines Feststoffs (kg). */
+    crust: number;
     /** Die Flüssigkeiten der Zelle mit ihrem Massenanteil (leer ohne Flüssigkeit). */
     liquids: { id: string; share: number }[];
+    /** Lösung in der Zelle: Massenanteil des Salzes, Molalität (mol/kg), Siedepunkt beim Druck dort und Gefrierpunkt (K); null ohne Salz. */
+    salt: { w: number; molality: number; Tb: number; Tf: number } | null;
   };
-  particle: { id: number; T: number; vx: number; vy: number; mass: number; rho: number; dist: number; liquid: string } | null;
+  /** Das nächste Teilchen; salt: Massenanteil des gelösten Salzes (0: reine Flüssigkeit). */
+  particle: { id: number; T: number; vx: number; vy: number; mass: number; rho: number; dist: number; liquid: string; salt: number } | null;
   bubble: { id: number; r: number; T: number; pb: number; pv: number; Tsat: number; mv: number; ma: number; vx: number; vy: number; dmdt: number; attached: boolean; force: number[] } | null;
 }
 
@@ -145,6 +156,7 @@ export class Engine {
   heat!: Heat;
   bubbleModel!: BubbleModel;
   phase!: Phase;
+  salt!: Salt;
   solver!: GridSolver;
   private prevKind!: Uint8Array;
   private p0Start: Float64Array = new Float64Array(8);
@@ -159,12 +171,13 @@ export class Engine {
   ambientT = 293.15;
   pRef = 101325;
   /* -- Bilanzen -- */
-  readonly ledger: EditLedger = { water: 0, air: 0, energy: 0, other: 0 };
+  readonly ledger: EditLedger = { water: 0, air: 0, energy: 0, other: 0, salt: 0 };
   flows: Flows = emptyFlows();
   private readonly snap: BudgetSnapshot = emptySnapshot();
   private energy0 = 0;
   private water0 = 0;
   private other0 = 0;
+  private salt0 = 0;
   private cappedCount = 0;
   private vapourRate = 0;
   private vapourLast = 0;
@@ -221,6 +234,7 @@ export class Engine {
     this.heat = new Heat(grid, this.particles, this.liquid, this.gas, this.solver);
     this.bubbleModel = new BubbleModel(this);
     this.phase = new Phase(this);
+    this.salt = new Salt(this);
     this.prevKind = new Uint8Array(grid.n);
     this.rng = new Rng(scene.seed);
     this.time = 0;
@@ -230,6 +244,7 @@ export class Engine {
     this.ledger.air = 0;
     this.ledger.energy = 0;
     this.ledger.other = 0;
+    this.ledger.salt = 0;
     this.flows = emptyFlows();
     this.heaterOps.clear();
     this.setAmbientState(scene.ambient.p, scene.ambient.T, scene.ambient.rh, scene.ambient.g, scene.ambient.air.N2, scene.ambient.air.O2);
@@ -249,10 +264,12 @@ export class Engine {
     this.ledger.air = 0;
     this.ledger.energy = 0;
     this.ledger.other = 0;
+    this.ledger.salt = 0;
     this.measureBudget();
     this.energy0 = this.snap.energy;
     this.water0 = this.snap.water.total;
     this.other0 = this.snap.other.total;
+    this.salt0 = this.snap.salt.total;
   }
 
   /** Nach Aufbau und Werkzeugen: Gewichte, Volumenanteile, Arten und abgeleitete Grössen ohne Zeitschritt bestimmen. */
@@ -455,6 +472,7 @@ export class Engine {
     liquid.computeHeatWeights();
     this.flows.escapedWater += liquid.last.escapedMass;
     this.flows.escapedOther += liquid.last.escapedOther;
+    this.flows.escapedSalt += liquid.last.escapedSalt;
     this.flows.escapedEnergy += liquid.last.escapedEnergy;
     stamp[2] = now();
 
@@ -479,8 +497,9 @@ export class Engine {
     this.bubbleModel.step(dt);
     stamp[4] = now();
 
-    /* 5. Grenzfläche und Phasenwechsel im Gas. */
+    /* 5. Grenzfläche und Phasenwechsel im Gas; übersättigte Lösungen geben Kristalle ab (M2b). */
     this.phase.step(dt);
+    this.salt.step();
     stamp[5] = now();
 
     /* 6. Wärme. */
@@ -549,7 +568,8 @@ export class Engine {
     f.editWater = this.ledger.water;
     f.editAir = this.ledger.air;
     f.editOther = this.ledger.other;
-    return measure(this.grid, this.particles, this.bubbles, this.regions, this.flows, this.snap);
+    f.editSalt = this.ledger.salt;
+    return measure(this.grid, this.particles, this.bubbles, this.regions, this.flows, this.snap, this.salt.floorTotals());
   }
 
   /** Abweichung der Energiebilanz seit dem Start (J): ΔE − (Heizung − Verluste − Entwichenes + Eingriffe). */
@@ -569,6 +589,17 @@ export class Engine {
   otherError(): number {
     const s = this.measureBudget();
     return s.other.total - this.other0 - this.flows.editOther;
+  }
+
+  /** Braucht die Szene den normalen Weg? Andere Flüssigkeiten (M2a) und Salz — gelöst oder als Kruste (M2b) — kennt der beschleunigte Weg noch nicht. */
+  needsCpu(): boolean {
+    return this.particles.hasOther() || this.particles.hasSalt() || this.salt.crustMass() > 0 || this.salt.floorTotals().mass > 0;
+  }
+
+  /** Abweichung der Salzbilanz seit dem Start (kg): gelöst + Kruste + Boden + entwichen gegen den Anfang und die Eingriffe. */
+  saltError(): number {
+    const s = this.measureBudget();
+    return s.salt.total - this.salt0 - this.flows.editSalt;
   }
 
   /* -- Fragen ---------------------------------------------------------------------------------------- */
@@ -609,81 +640,14 @@ export class Engine {
     return this.regions.pAt(c);
   }
 
+  /** Was der Inspektor an (x, y) sieht (probe.ts). */
   query(x: number, y: number): ProbeInfo | null {
-    const g = this.grid;
-    const c = g.cellAt(x, y);
-    if (c < 0) return null;
-    const n = g.n;
-    const kind = g.kind[c] === SOLID ? 'solid' : g.kind[c] === LIQUID ? 'liquid' : 'gas';
-    const p = this.pressureAt(c);
-    let mol = 0;
-    const xs = [0, 0, 0];
-    for (let k = 0; k < GAS_SPECIES; k += 1) { xs[k] = g.mg[k * n + c] / MOLAR[k]; mol += xs[k]; }
-    for (let k = 0; k < GAS_SPECIES; k += 1) xs[k] = mol > 0 ? xs[k] / mol : 0;
-    const T = kind === 'liquid' && g.Cl[c] > 0 ? g.Tl[c] : g.T[c];
-    const pv = kind === 'gas' ? xs[H2O] * p : 0;
-    const i = Math.floor(x / g.dx);
-    const j = Math.floor(y / g.dx);
-    const u = kind === 'liquid' ? 0.5 * (g.ul[i + j * (g.nx + 1)] + g.ul[i + 1 + j * (g.nx + 1)]) : 0.5 * (g.ug[i + j * (g.nx + 1)] + g.ug[i + 1 + j * (g.nx + 1)]);
-    const v = kind === 'liquid' ? 0.5 * (g.vl[i + j * g.nx] + g.vl[i + (j + 1) * g.nx]) : 0.5 * (g.vg[i + j * g.nx] + g.vg[i + (j + 1) * g.nx]);
-    const P = this.particles;
-    let best = -1;
-    let bd = (1.5 * g.dx) ** 2;
-    for (let q = 0; q < P.count; q += 1) {
-      const d = (P.x[q] - x) ** 2 + (P.y[q] - y) ** 2;
-      if (d < bd) { bd = d; best = q; }
-    }
-    /* Die nächste Blase im Umkreis von drei Zellen (oder ihrem Radius): Blasen sind klein und bewegen sich — ein Tipp daneben trifft sie trotzdem. */
-    const B = this.bubbles;
-    let bb = -1;
-    let bbd = Infinity;
-    for (let b = 0; b < B.count; b += 1) {
-      const d = Math.hypot(B.x[b] - x, B.y[b] - y);
-      if (d <= Math.max(B.r[b], 3 * g.dx) && d < bbd) { bb = b; bbd = d; }
-    }
-    return {
-      x, y,
-      cell: {
-        kind,
-        material: g.solid[c] !== 0 ? SOLIDS[g.solid[c] - 1].id : null,
-        T,
-        p,
-        Tsat: tSat(p),
-        x: xs,
-        rh: kind === 'gas' ? pv / pSat(g.T[c]) : 0,
-        fog: kind === 'gas' ? g.mfog[c] / Math.max(1e-12, this.gas.vgas[c]) : 0,
-        rho: kind === 'gas' ? this.gas.rho[c] : kind === 'liquid' ? (this.phase.mixed ? rhoLiq(this.phase.host[c], T) : this.liquid.rhoRef) : g.solid[c] !== 0 ? SOLIDS[g.solid[c] - 1].rho : 0,
-        phi: g.phi[c],
-        u, v,
-        heater: g.role[c] === 1,
-        film: g.film[c],
-        liquids: this.liquidsAt(c)
-      },
-      particle: best < 0 ? null : { id: P.id[best], T: P.T[best], vx: P.vx[best], vy: P.vy[best], mass: P.mass[best], rho: P.rho[best], dist: Math.sqrt(bd), liquid: LIQUIDS[P.mat[best]]?.id ?? LIQUIDS[0].id },
-      bubble: bb < 0 ? null : this.bubbleModel.describe(bb)
-    };
+    return probe(this, x, y);
   }
 
   /** Die Flüssigkeiten einer Zelle mit ihrem Massenanteil — aus den Teilchen, deren Wärmegewicht in die Zelle fällt. */
   liquidsAt(c: number): { id: string; share: number }[] {
-    const { particles: P, liquid: L, grid: g } = this;
-    const m = new Float64Array(LIQUIDS.length);
-    let all = 0;
-    for (let p = 0; p < P.count; p += 1) {
-      for (let k = 0; k < 9; k += 1) {
-        const w = L.wt[9 * p + k];
-        if (w === 0) continue;
-        const i = L.bi[p] + (k % 3);
-        const j = L.bj[p] + ((k / 3) | 0);
-        if (i < 0 || j < 0 || i >= g.nx || j >= g.ny || i + j * g.nx !== c) continue;
-        m[P.mat[p]] += w * P.mass[p];
-        all += w * P.mass[p];
-      }
-    }
-    if (all <= 0) return [];
-    const out: { id: string; share: number }[] = [];
-    for (let l = 0; l < LIQUIDS.length; l += 1) if (m[l] > 0) out.push({ id: LIQUIDS[l].id, share: m[l] / all });
-    return out;
+    return liquidsAt(this, c);
   }
 
   stats(): EngineStats {
@@ -698,6 +662,7 @@ export class Engine {
     const energyError = budget.energy - this.energy0 - (f.heater - f.lossWalls - f.lossOpen - f.escapedEnergy + f.editEnergy);
     const waterError = budget.water.total - this.water0 - f.editWater;
     const otherError = budget.other.total - this.other0 - f.editOther;
+    const saltError = budget.salt.total - this.salt0 - f.editSalt;
     const produced = this.phase.produced + this.bubbleModel.burstVapour;
     const span = this.time - this.vapourLast;
     if (span > 0.2) {
@@ -731,13 +696,16 @@ export class Engine {
       waterTmax: wt.max,
       otherMass: ot.mass,
       otherT: ot.mean,
+      saltMass: budget.salt.liquid,
+      saltSolid: budget.salt.crust + budget.salt.floor,
       heaters: this.heat.heaters.filter((h: Heater) => h.cells > 0).map((h: Heater) => ({ group: h.group, P: h.P, Tmean: h.Tmean, mode: h.mode, power: h.power, target: h.target, on: h.on })),
       regions,
-      budget: { ...budget, water: { ...budget.water }, other: { ...budget.other } },
+      budget: { ...budget, water: { ...budget.water }, other: { ...budget.other }, salt: { ...budget.salt } },
       flows: { ...f },
       energyError,
       waterError,
       otherError,
+      saltError,
       vapourRate: this.vapourRate,
       ambientT: this.ambientT,
       ambientP: this.pRef,

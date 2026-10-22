@@ -345,7 +345,7 @@ export function PublicGlance({ entity }: { entity: PublicEntity }) {
 
 /* -- Frage, Antwort, Urteil ------------------------------------------------------------------- */
 
-export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel = 'Dalej', head, foot, onEntity }: {
+export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel = 'Dalej', head, foot, onEntity, autoFocus = true }: {
   card: Card;
   rule?: Partial<TextRule>;
   lib?: CogitaLibrary;
@@ -356,6 +356,8 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel = 'Dal
   head?: ReactNode;
   foot?: ReactNode;
   onEntity?: (id: string) => void;
+  /** 2026-10-21 — das Antwortfeld gleich fokussieren (nicht auf einer Szene, die gerade nicht dran ist). */
+  autoFocus?: boolean;
 }) {
   const [done, setDone] = useState<{ outcome: Outcome; given: unknown } | null>(null);
   const started = useMemo(() => Date.now(), [card.key, card.fingerprint]);
@@ -366,7 +368,7 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel = 'Dal
       {head}
       <CardPrompt parts={card.prompt} />
       {/* Die Antwort bleibt, wo sie war — darunter erscheint nur das Urteil. */}
-      <AnswerInput card={card} {...(done === null ? {} : { reveal: done })} onSubmit={(given) => {
+      <AnswerInput card={card} autoFocus={autoFocus} {...(done === null ? {} : { reveal: done })} onSubmit={(given) => {
         const outcome = checkCard(card, given, rule);
         setDone({ outcome, given });
         onAnswered(outcome, given, Date.now() - started);

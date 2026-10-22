@@ -71,6 +71,11 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
   /* 0064 — nach einem Import liest das Menü neu; es hält seinen Stand selbst. */
   const [menuKey, setMenuKey] = useState(0);
 
+  /* 0121 — versiegelt, und dieser Browser hat ihren Schlüssel nicht: dann kein Editor, der Leeres speichern könnte. */
+  const [locked, setLocked] = useState(false);
+  /* 0121 — versiegelt (und offen, weil der Schlüssel da ist): der Satz unter Titel und Text sagt es. */
+  const [sealedPage, setSealedPage] = useState(false);
+
   /* `quiet`: ohne „Wczytywanie…" dazwischen — nach einem Import bleibt das JSON-Fach mit seinem Ergebnis stehen. */
   const look = useCallback(async (quiet = false) => {
     if (!quiet) setReady(false);
@@ -78,6 +83,8 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
 
     try {
       const page = await loadPage(path);
+      setLocked(page.locked === true);
+      setSealedPage(page.seal != null);
       setTitle(page.title ?? '');
       setLead(page.lead ?? '');
       setParts(page.parts.map(toDraft));
@@ -125,6 +132,19 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
 
   if (!ready) return <Loading label="Wczytywanie strony…" />;
 
+  if (locked) {
+    return (
+      <div className="ui-empty">
+        <h2 className="wk-h2">Ta strona jest zaszyfrowana</h2>
+        <p>
+          Ta przeglądarka nie ma klucza, który ją otwiera — nie masz klucza żadnego z jej obszarów, a rola, która ją prowadzi,
+          nie dostała go przy szyfrowaniu. Poproś osobę z dostępem do jej obszarów, żeby w Ustawieniach strony odnowiła klucz.
+        </p>
+        <button type="button" className="wk-btn" onClick={() => void look()}>Spróbuj ponownie</button>
+      </div>
+    );
+  }
+
 
   return (
     <div className="wk-page-edit">
@@ -171,7 +191,13 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
           <textarea rows={5} value={lead} onChange={(e) => setLead(e.target.value)} />
         </label>
 
-        <p className="wk-hint">Tytuł i tekst są jawne — czyta je każdy, kto wejdzie pod ten adres.</p>
+        <p className="wk-hint">
+          {sealedPage
+            ? 'Tytuł i tekst są zaszyfrowane — czytają je tylko osoby z kluczem tej strony; serwer ich nie zna.'
+            : accessAreaIds.length > 0
+              ? 'Tytuł i tekst czytają osoby z dostępem do tej strony (serwer też je widzi, dopóki strona nie jest zaszyfrowana).'
+              : 'Tytuł i tekst są jawne — czyta je każdy, kto wejdzie pod ten adres.'}
+        </p>
 
         {failed !== null && <p className="wk-error">{failed}</p>}
 

@@ -56,6 +56,9 @@ public static partial class Page
 
         /* 0082 — worum es auf der Seite geht („Wybór na stronie"). */
         app.MapPut("/workspace/page-subject/{*path}", SaveSubjectAsync);
+
+        /* 0121 — eine Seite mit Zugang versiegeln oder wieder öffnen: alles, was sie trägt, in einem Zug. */
+        app.MapPut("/workspace/page-seal/{*path}", SealAsync);
     }
 
     public sealed record SaveRequest(string Title, string? Lead);
