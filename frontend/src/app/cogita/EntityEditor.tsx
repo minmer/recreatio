@@ -354,7 +354,7 @@ function MarkupInput({ value, writes, onChange, onOpen }: { value: string; write
             onChange(`${value}${value.endsWith(' ') || value === '' ? '' : ' '}[[${entity === undefined ? 'wpis' : lib.label(entity)}|@${id}]]`);
           }} />
         : <button type="button" className="wk-link-btn" onClick={() => setLinking(true)}>+ odwołanie do wpisu</button>)}
-      {value.trim() !== '' && <div className="cg-card"><Markup text={value} onEntity={onOpen} resolve={(t) => lib.resolve(t)} /></div>}
+      {value.trim() !== '' && <div className="cg-card"><Markup text={value} onEntity={onOpen} lib={lib} /></div>}
     </span>
   );
 }

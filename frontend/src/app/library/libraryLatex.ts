@@ -15,7 +15,7 @@
 
 import { blocksOf, commentsAbout, type Cell } from './comment';
 import { bibliography, citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from './libraryCite';
-import { ids, markupsOf, outline, refTarget, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
+import { ids, isSource, markupsOf, outline, ownTitle, refTarget, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
 import { parseInline, parseMarkup, plainText, walkBlocks, type Block, type Inline } from './libraryMarkup';
 import { planOf, type PlanPoint } from './sermon';
 
@@ -61,14 +61,18 @@ function inlines(list: readonly Inline[], ctx: Ctx, inNote = false): string {
       case 'i': return `\\emph{${inlines(one.c, ctx, inNote)}}`;
       case 'link': return `\\href{${hrefEscape(one.href)}}{${inlines(one.c, ctx, inNote)}}`;
       case 'cite': {
-        const parts = one.items.map((item) => {
+        /* 2026-10-22 — Quellen werden Fussnoten; ein eigener Eintrag steht mit seinem Namen im Text (gedruckt gibt es keinen Link). */
+        const own = one.items.filter((item) => !isSource(refTarget(ctx.look, item.key)))
+          .map((item) => { const e = refTarget(ctx.look, item.key)!; return `\\emph{${latexEscape(ownTitle(e, ctx.look))}}${item.locator === '' ? '' : `, ${latexEscape(item.locator)}`}`; });
+        const parts = one.items.filter((item) => isSource(refTarget(ctx.look, item.key))).map((item) => {
           const target = refTarget(ctx.look, item.key);
           const work = workBehind(target, ctx.look);
           if (work !== undefined) ctx.works.push(work);
           return segsLatex(citeSegs(target, item.locator, ctx.look, ctx.state));
         });
-        return `\\footnote{${parts.join('; ')}.}`;
+        return `${own.length === 0 ? '' : ` (zob. ${own.join('; ')})`}${parts.length === 0 ? '' : `\\footnote{${parts.join('; ')}.}`}`;
       }
+      case 'ref': return inlines(one.c, ctx, inNote);
       case 'note': {
         ctx.state.last = null;
         return `\\footnote{${inlines(one.c, ctx, true)}}`;

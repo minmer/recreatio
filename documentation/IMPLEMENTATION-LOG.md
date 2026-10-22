@@ -147,3 +147,92 @@ it shows prepared material and stores none.
 2. Type the old key in another text: it still finds the book (alias).
 3. Export the library as JSON: texts show keys, not long ids.
 4. Porządki → "Odwołania w tekstach": after "Wykonaj", the plan reads "Wszystko jest już po nowemu".
+
+---
+
+## Step 3 — One reader, drawn by kind
+
+**Built**
+
+- **One parser for every text.** `libraryMarkup.ts` now also reads `[[these words|@key]]` (a `ref` inline: a link
+  with its own words), and `safeHref` is the one rule for where a link may go — the web (`www.` becomes
+  `https://`), a page here (`#/…`, also `/#/…`), a scene (`#name`), a path, e-mail, telephone. The page and
+  presentation links (`textLink`) use the same rule. `UNREADABLE` ("[odwołanie niedostępne]") moved here.
+- **Sources are cited, own entries are linked (decision 9).** In `markupView.tsx` only a work, a quote or a person
+  becomes a footnote (`SOURCE_KINDS`, `isSource`). A citation of an own entry (text, comment, topic, project,
+  delivery, an entry of a knowledge base) becomes a link where the footnote would stand — "(zob. title)";
+  `[[words|@key]]` links with its words. A target the reader cannot open: the footnote "[brak źródła]" in a
+  citation (as before), "[odwołanie niedostępne]" or just the words of a `[[…]]` elsewhere — never its title or key.
+  Comment cells link own entries the same way.
+- **Where a link goes** (`MarkupLinks` context): in the workspace preview to the entry's editor; on a page the entry
+  opens under the text (`OpenedEntry` in `LibraryText.tsx`: a text in short, a comment with what it is about, a
+  quote with its origin, otherwise title and description) — only what this reader can already read.
+- **LaTeX and plan lines alike:** sources as `\footnote`, own entries as `(zob. \emph{title})`, `[[words|@key]]` as
+  its words (`libraryLatex.ts`, `sermon.ts` `pointLine`). `wordCount` counts the words of `[[…]]`.
+- **Cogita knowledge uses the same reader** (`cogita/ui.tsx` `Markup`): headings, lists, quotes and notes are now
+  drawn properly, a citation of a work becomes a real footnote instead of the text "[klucz]", and entity links
+  open the entity as before. Lookup through `CogitaLibrary.markupLook` (own base, then sources). Plain text for
+  search and labels (`plainOf`) comes from the same parser.
+- **The page `text` part:** inside a line the one reader works (`**bold**`, `*italic*`, links — `ui/richText.tsx`);
+  the line syntax stays (`## `, `# `, `> `, a row of links). New optional field **"Odwołania z biblioteki"**
+  (`library`): with it, `[@key, s. 12]` gives a footnote under the part, `[[words|@key]]` a link that opens the entry
+  under the text, `^[…]` a footnote (`library/LibraryLines.tsx`, loaded only when a text has references). Without a
+  library a reference says "[odwołanie niedostępne]" and a note stands in brackets.
+- **AI descriptions:** `MARKUP_DOC` (library JSON) and `courseDescription()` (Cogita JSON) say which citations
+  become footnotes and which links, with examples; the `text` part's hint and example show a citation and a link.
+- Checks: `app-library-check` 2c (kinds, `[[…]]`, unreadable targets, workspace links, LaTeX, plan lines, the page
+  part, Cogita, descriptions), `app-presentation-check` §8 (bold/italic, no library), `app-cogita-check`.
+
+**Removed**
+
+- The "Zob. komentarz: „…”" footnote and the link inside a footnote for own texts (`citeSegs` has no `href` any more).
+- Cogita's own regex renderer and the `resolve` prop of `Markup` (the lookup comes from the base).
+- `textLink`'s own rule (it now calls `safeHref`). A protocol-relative address (`//host/…`) is no longer a link.
+
+**Choices**
+
+- **"(zob. …)"** rather than a bare title: the author wrote the citation where a footnote belongs, so the link stands
+  there as the usual Polish cross-reference.
+- **The page part keeps its line syntax** (`# ` = big line, `> ` = quiet line). This differs from the library, where
+  `#` is a heading and `>` a block quote. Changing it would change 79 existing text parts and the presentations;
+  only the inline syntax and references are unified. Read-only check before the change: no existing text part used
+  `*`, `_`, `^[` or `\` in a way the new reader would read differently.
+- Data is not rewritten: `[@id]` citations of comments stay as they are and are drawn as links.
+- A knowledge base on a public page without keys (Cogita bundles) shows references as unreadable until step 8 moves
+  keyless sessions to the sealed store; there are no Cogita page modules on production (read-only check).
+
+**The change on one sermon** (decision 9). Production texts are sealed, and reading production is not permitted to
+me in this session, so here is a worked sermon with the same shapes (a Bible citation, a comment cited in a
+footnote, an own earlier sermon cited together with a book):
+
+```
+Anioł mówi: „Duch Święty zstąpi na Ciebie” [@bt, Łk 1,35]. Ten obłok zna już Stary Testament [@cien-ducha].
+Mówiliśmy o tym w zeszłym roku [@kazanie-zwiastowanie; @ratzinger2007, s. 40].
+```
+
+Before: three footnotes — ¹ Łk 1,35 (BT). ² Zob. komentarz: „„Moc Najwyższego osłoni Cię” — ten sam obłok…”.
+³ *Fiat — odwaga zgody* (2025-03-25); J. Ratzinger, *Jezus z Nazaretu*, Kraków 2007, s. 40.
+
+After: two footnotes, two links —
+
+```
+Anioł mówi: „Duch Święty zstąpi na Ciebie”¹. Ten obłok zna już Stary Testament (zob. „Moc Najwyższego osłoni
+Cię” — ten sam obłok, który osłaniał Namiot Spotkania.). Mówiliśmy o tym w zeszłym roku (zob. Fiat — odwaga zgody)².
+  ¹ Łk 1,35 (BT).   ² J. Ratzinger, Jezus z Nazaretu, Kraków 2007, s. 40.
+```
+
+The two "(zob. …)" are links (in the workspace to the editor, on the page they open the comment or the sermon under
+the text). LaTeX prints the same with `\emph{…}`.
+
+**Owner must run**
+
+- Deploy the website (no API change, no migration, no data change).
+
+**Test in the browser**
+
+1. Open a sermon that cites a comment (`[@klucz-komentarza]`): in the preview it reads "(zob. …)" as a link to the
+   comment, the footnotes count only books, the Bible and quotes.
+2. On the public page of that sermon click the link: the comment opens under the text with "Zamknij".
+3. A page "Tekst" part: choose "Odwołania z biblioteki", type `Zob. [@klucz, s. 3] i [[ten tekst|@klucz-tekstu]].`
+   → a footnote under the part and a link that opens the text.
+4. Cogita → a knowledge entry with `## Teza`, a list and `[@dzielo, s. 5]`: heading, list and a numbered footnote.

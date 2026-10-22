@@ -142,7 +142,7 @@ const merged = S.replaceRef(e('w9', ['k-work'], { authors: ['p1', 'p2'] }), look
 check('merging moves the reference and drops the duplicate', merged.data.authors, ['p1']);
 check('an entry that did not point at it is untouched', S.replaceRef(byId('w3'), look, 'p2', 'p1'), null);
 check('a single reference is swapped in place', S.replaceRef(byId('q1'), look, 'w1', 'w2').data.work, 'w2');
-check('the markup of a statement reads plainly', S.plainOf('Księgi [[Samuela|@samuel]] to część ![@q] Biblii [@bt, J 3,16].'), 'Księgi Samuela to część Biblii .');
+check('the markup of a statement reads plainly', S.plainOf('Księgi [[Samuela|@samuel]] to część ![@q] Biblii [@bt, J 3,16].'), 'Księgi Samuela to część Biblii.');
 
 /* ── Graph ──────────────────────────────────────────────────────────── */
 

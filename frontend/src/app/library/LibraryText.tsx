@@ -15,12 +15,12 @@
  * `SermonParts.tsx`.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { bibliography, originOf } from './libraryCite';
-import { ids, isAspect, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
+import { ids, isAspect, ownTitle, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
 import { parseMarkup } from './libraryMarkup';
-import { Blocks, CommentsOn, countNotes, NoteList, QuoteBody, Segs } from './markupView';
+import { Blocks, CommentCard, CommentsOn, countNotes, MarkupLinks, NoteList, QuoteBody, Segs } from './markupView';
 import { deliveriesOf, mediaFile, planOf, timeLink } from './sermon';
 import { DeliveriesSection, MediaPlayer, PlanSection } from './SermonParts';
 
@@ -52,6 +52,7 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
   /** Kennungen der Fussnoten — zwei Texte auf einer Seite dürfen sich nicht ins Gehege kommen. */
   prefix?: string;
   heading?: 'h1' | 'h2' | 'h3';
+  /** Wohin ein Link auf einen eigenen Eintrag führt (im Arbeitsbereich: sein Editor). Ohne: was die Umgebung sagt (`MarkupLinks`). */
   hrefOf?: (e: LibEntry) => string | undefined;
   /** Ohne Bibliografie, Dalsze informacje und Wygłoszenia — für die Vorschau neben dem Schreiben. */
   compact?: boolean;
@@ -65,7 +66,9 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
   const plan = useMemo(() => planOf(d).map((point) => ({ point, blocks: parseMarkup(point.text) })), [d]);
   const body = useMemo(() => parseMarkup(str(d, 'body')), [d]);
   const further = useMemo(() => parseMarkup(str(d, 'further')), [d]);
-  const notes = useMemo(() => countNotes([...plan.map((p) => p.blocks), body, ...(compact ? [] : [further])], look, hrefOf), [plan, body, further, look, compact, hrefOf]);
+  const notes = useMemo(() => countNotes([...plan.map((p) => p.blocks), body, ...(compact ? [] : [further])], look), [plan, body, further, look, compact]);
+  const outer = useContext(MarkupLinks);
+  const links = useMemo(() => (hrefOf === undefined ? outer : { ...outer, hrefOf }), [outer, hrefOf]);
   const sources = useMemo(() => bibliography(notes.works, look), [notes, look]);
   const deliveries = useMemo(() => (compact ? [] : deliveriesOf(entry, look)), [entry, look, compact]);
   const [chosenId, setChosenId] = useState<string | null>(delivery);
@@ -102,6 +105,7 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
     .filter((s) => s.trim() !== '');
 
   return (
+    <MarkupLinks.Provider value={links}>
     <article className="lib-article">
       <header className="lib-article-head">
         {project !== undefined && <p className="lib-eyebrow">{str(project.data, 'title')}</p>}
@@ -164,6 +168,35 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
         </p>
       )}
     </article>
+    </MarkupLinks.Provider>
+  );
+}
+
+/**
+ * 2026-10-22 — EIN EIGENER EINTRAG, AUS EINEM TEXT HERAUS GEÖFFNET (ein Link
+ * statt einer Fussnote): ein Text kurz (ohne Quellen und Wygłoszenia), ein
+ * Komentarz mit dem, worüber er ist, ein Zitat mit Herkunft, sonst Name und
+ * Beschreibung. Gezeigt wird nur, was dieser Leser ohnehin lesen kann — der
+ * Eintrag kommt aus seinem `Lookup`.
+ */
+export function OpenedEntry({ entry, look, prefix, onClose }: { entry: LibEntry; look: Lookup; prefix: string; onClose: () => void }) {
+  const said = str(entry.data, 'description') || str(entry.data, 'summary') || str(entry.data, 'note');
+  return (
+    <aside className="lib-opened" aria-label={ownTitle(entry, look)}>
+      <p className="lib-opened-bar">
+        <span className="lib-section">{entry.kind === 'comment' ? 'Komentarz' : entry.kind === 'text' ? 'Tekst' : entry.kind === 'quote' ? 'Cytat' : 'Wpis'}</span>
+        <button type="button" className="wk-link-btn" onClick={onClose}>Zamknij</button>
+      </p>
+      {entry.kind === 'text' ? <TextArticle entry={entry} look={look} prefix={prefix} heading="h3" compact />
+        : entry.kind === 'comment' ? <CommentCard comment={entry} look={look} prefix={prefix} about />
+        : entry.kind === 'quote' ? <QuoteFigure entry={entry} look={look} />
+        : (
+          <>
+            <h3 className="lib-h">{ownTitle(entry, look)}</h3>
+            {said !== '' && <p className="lib-opened-text">{said}</p>}
+          </>
+        )}
+    </aside>
   );
 }
 

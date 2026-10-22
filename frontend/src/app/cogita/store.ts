@@ -21,6 +21,7 @@
 
 import { newId } from '../core/ids';
 import type { Entry, LibraryStore } from '../library/libraryStore';
+import { entryTitle, type Lookup as MarkupLookup } from '../library/libraryKinds';
 import { cardsOf, questionCard, readTemplate, templatesFor, topicCard, type Template } from './cards';
 import { type Card } from './cardBasics';
 import { baseKind, DOC_KINDS, entityOf, entryData, isBaseKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, type DocKind } from './kinds';
@@ -250,6 +251,7 @@ interface Memo {
   backlinks: Map<string, Backlink[]> | null;
   search: Map<string, string> | null;
   refSearch: Map<string, string> | null;
+  markup: MarkupLookup | null;
 }
 
 /** Suchtext je Entität: Etikett, Unterscheidung, alle Textwerte — ohne Akzente. */
@@ -326,7 +328,7 @@ export class CogitaLibrary {
         wo es Einträge von ihnen gibt. Die Maschine kennt sie trotzdem (`look`).
       */
       stamp, kinds, contentKinds: kinds.filter((k) => !BOOK_KINDS.has(k.id) && (!isBaseKind(k.id) || byKind.has(k.id) || added.has(k.id))), entities, refs,
-      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, search: null, refSearch: null
+      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, search: null, refSearch: null, markup: null
     };
     return this.memo;
   }
@@ -365,6 +367,25 @@ export class CogitaLibrary {
   ofKind(kindId: string): readonly Entity[] { return this.fresh().byKind.get(kindId) ?? []; }
   docs(kind: DocKind): readonly Entry[] { return this.fresh().docs.get(kind) ?? []; }
   label(entity: Entity): string { return labelOf(entity, this.look); }
+
+  /**
+   * 2026-10-22 — DER ZAPIS EINES WISSENS liest mit denselben Bausteinen wie ein
+   * Text der Bibliothek (`markupView.tsx`): eine Kennung oder ein Schlüssel
+   * wird ein Eintrag — hier oder in einer Quelle. Ein Werk, ein Zitat, eine
+   * Person werden Fussnoten, alles andere ein Link mit dem Etikett.
+   */
+  get markupLook(): MarkupLookup {
+    const m = this.fresh();
+    if (m.markup === null) {
+      const look: MarkupLookup = {
+        get: (id) => this.entry(id),
+        byKey: (key) => { const id = this.resolve(key); return id === undefined ? undefined : this.entry(id); },
+        title: (entry) => { const e = this.entity(entry.id); return e === undefined ? entryTitle(entry, look) : this.label(e); }
+      };
+      m.markup = look;
+    }
+    return m.markup;
+  }
   tell(entity: Entity): string { return tellOf(entity, this.look); }
 
   /** Wer auf wen zeigt — mit dem Namen der Gegenseite [B9, B10]. */

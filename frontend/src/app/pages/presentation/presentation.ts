@@ -39,6 +39,7 @@
  * der Umgebung (`sound`, nur auf Wunsch) und je Szene seine Lautstärke.
  */
 
+import { safeHref } from '../../library/libraryMarkup';
 import type { Layout } from '../layout';
 import { motionsJson, readMotions, type MotionUse } from '../motion/motion';
 import { COLOR_KEYS, type SlideColors } from '../slides/slides';
@@ -1169,11 +1170,6 @@ export function resolveColor(value: string | null, dark: boolean): string | null
  * (`javascript:` und dergleichen) bleibt Text.
  */
 export function textLink(href: string): string | null {
-  const t = href.trim();
-  if (/^https?:\/\/[^\s]+$/i.test(t)) return t;
-  if (/^www\.[^\s]+$/i.test(t)) return `https://${t}`;
-  if (/^\/?#\/?[^\s]*$/.test(t)) return t.replace(/^\//, '');
-  if (/^mailto:[^\s@]+@[^\s@]+$/i.test(t)) return t;
-  if (/^tel:\+?[0-9 ()-]{3,}$/i.test(t)) return t.replace(/\s+/g, '');
-  return null;
+  /* 2026-10-22 — dieselbe Regel wie in jedem Text (`safeHref` im einen Leser): ins Netz, hier, Szene, E-Mail, Telefon. */
+  return safeHref(href);
 }

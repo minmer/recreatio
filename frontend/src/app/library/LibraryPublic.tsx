@@ -17,13 +17,14 @@
  * eine Übersicht, hoch und im Vollbild das Ganze.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { ids, str, type LibEntry, type Lookup } from './libraryKinds';
 import { excerpt } from './libraryMarkup';
-import { dateWords, QuoteFigure, TextArticle } from './LibraryText';
+import { dateWords, OpenedEntry, QuoteFigure, TextArticle } from './LibraryText';
 import { latexFileName, planToLatex, textToLatex } from './libraryLatex';
 import { findOnPage, usePageLibrary } from './libraryOpen';
+import { MarkupLinks, type MarkupLinkTo } from './markupView';
 import { deliveriesOf, planOf, pointLine } from './sermon';
 import { saveBlob } from '../core/platform';
 import type { PartSize } from '../pages/part';
@@ -67,6 +68,11 @@ export function WritingCard({ library, entryId, size, whole = false, prefix, del
 }) {
   const loaded = usePageEntry(library, entryId);
   const [open, setOpen] = useState(false);
+  /* 2026-10-22 — ein eigener Eintrag, auf den der Text verweist (ein Link, keine Fussnote), öffnet sich unter dem Text. */
+  const [opened, setOpened] = useState<LibEntry | null>(null);
+  const openedAt = useRef<HTMLDivElement | null>(null);
+  const links = useMemo<MarkupLinkTo>(() => ({ open: (e) => setOpened(e) }), []);
+  useEffect(() => { if (opened !== null) openedAt.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [opened]);
 
   if (loaded === null) return <Loading label="Wczytywanie tekstu…" />;
   if (loaded === 'missing') return <p className="wk-card-text">Tego tekstu nie ma albo nie możesz go zobaczyć.</p>;
@@ -75,8 +81,13 @@ export function WritingCard({ library, entryId, size, whole = false, prefix, del
   if (full) {
     const hasPlan = planOf(loaded.entry.data).length > 0;
     return (
-      <>
+      <MarkupLinks.Provider value={links}>
         <TextArticle entry={loaded.entry} look={loaded.look} prefix={prefix} delivery={delivery ?? loaded.delivery} onDelivery={onDelivery} />
+        {opened !== null && (
+          <div ref={openedAt}>
+            <OpenedEntry entry={opened} look={loaded.look} prefix={`${prefix}o${opened.id.slice(0, 8)}-`} onClose={() => setOpened(null)} />
+          </div>
+        )}
         {/* Druck: derselbe Text mit Fussnoten und Quellen als LaTeX — aus dem, was dieser Leser sieht. */}
         <p className="lib-print">
           <button type="button" className="wk-link-btn" onClick={() => void saveBlob(
@@ -90,7 +101,7 @@ export function WritingCard({ library, entryId, size, whole = false, prefix, del
             </button>
           )}
         </p>
-      </>
+      </MarkupLinks.Provider>
     );
   }
 

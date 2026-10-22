@@ -17,7 +17,8 @@
  * keine Zeichenketten: gezeichnet wird anderswo, geprüft wird hier.
  */
 
-import { commentTitle, UNREADABLE } from './comment';
+import { commentTitle } from './comment';
+import { UNREADABLE } from './libraryMarkup';
 import { entryTitle, ids, personName, str, workTitle, type LibEntry, type Lookup } from './libraryKinds';
 
 export interface Seg {
@@ -173,7 +174,7 @@ export function workSegs(work: LibEntry, look: Lookup, mode: 'full' | 'short' | 
  * EINE FUSSNOTE für einen Verweis `[@schlüssel, Stelle]` — beim ersten Mal
  * ganz, danach kurz mit „dz. cyt.", unmittelbar wiederholt „Tamże".
  */
-export function citeSegs(target: LibEntry | undefined, locator: string, look: Lookup, state: CiteState, href?: (e: LibEntry) => string | undefined): Seg[] {
+export function citeSegs(target: LibEntry | undefined, locator: string, look: Lookup, state: CiteState): Seg[] {
   if (target === undefined) return t(locator === '' ? '[brak źródła]' : `[brak źródła], ${locator}`);
 
   /* Ein Zitat nennt sein Werk, an seiner Stelle (oder an der, die der Verweis sagt). */
@@ -181,7 +182,7 @@ export function citeSegs(target: LibEntry | undefined, locator: string, look: Lo
     const work = look.get(ids(target.data, 'work')[0] ?? '');
     const where = locator !== '' ? locator : str(target.data, 'locator');
     if (work === undefined) return t(where === '' ? 'Cytat' : `Cytat, ${where}`);
-    return citeSegs(work, where, look, state, href);
+    return citeSegs(work, where, look, state);
   }
 
   if (target.kind === 'work') {
@@ -197,20 +198,12 @@ export function citeSegs(target: LibEntry | undefined, locator: string, look: Lo
   }
 
   state.last = target.id;
+  /* 2026-10-22 — ein eigener Text kommt hier nur noch an, wenn jemand ihn ausdrücklich als Quelle nennt (Druck eines Zitats). */
   if (target.kind === 'text') {
     const date = str(target.data, 'date');
-    const link = href?.(target);
-    return join([
-      [{ text: str(target.data, 'title') || 'Tekst', italic: true, ...(link === undefined ? {} : { href: link }) }],
-      t(date === '' ? '' : `(${date})`), t(locator)
-    ], ' ');
+    return join([[{ text: str(target.data, 'title') || 'Tekst', italic: true }], t(date === '' ? '' : `(${date})`), t(locator)], ' ');
   }
   if (target.kind === 'person') return join([t(personName(target.data)), t(locator)]);
-  /* 2026-10-22 — ein Komentarz in der Fussnote: „zob. komentarz" und sein Name. */
-  if (target.kind === 'comment') {
-    const link = href?.(target);
-    return join([t('Zob. komentarz:'), [{ text: `„${commentName(target, look)}”`, ...(link === undefined ? {} : { href: link }) }], t(locator)], ' ');
-  }
   return join([title(str(target.data, 'title') || str(target.data, 'name') || target.kind), t(locator)]);
 }
 

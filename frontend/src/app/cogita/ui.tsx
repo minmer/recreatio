@@ -4,11 +4,14 @@
  * Wissens, Dateien, Bedingungen und Aktionen der einen Logik.
  */
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import type { Me } from '../core/me';
 import { Icon } from '../ui/icons';
 import type { LibraryStore } from '../library/libraryStore';
+import type { LibEntry, Lookup as MarkupLookup } from '../library/libraryKinds';
+import { parseMarkup } from '../library/libraryMarkup';
+import { Blocks, countNotes, MarkupLinks, NoteList, type MarkupLinkTo } from '../library/markupView';
 import type { Who } from '../core/session';
 import { fileUrl } from './files';
 import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, readCondition, type Action, type CompareOp, type Condition, type ConditionType } from './logic';
@@ -261,45 +264,33 @@ export function KindSelect({ lib, value, onChange, empty }: { lib: CogitaLibrary
 
 /* -- Auszeichnung des Wissens ------------------------------------------------------------- */
 
+/** Wo es nichts nachzuschlagen gibt (eine öffentliche Seite ohne Schlüssel): jeder Verweis bleibt verborgen. */
+const NOTHING: MarkupLookup = { get: () => undefined, byKey: () => undefined };
+
 /**
- * WISSEN ZEIGEN: `[[Księgi Samuela|@samuel]]` wird ein Verweis auf den
- * Eintrag, `**fett**` und `*kursiv*` bleiben, `[@klucz, s. 23]` wird eine
- * kleine Quellenangabe, `^[…]` eine Fussnote am Ende.
+ * WISSEN ZEIGEN — 2026-10-22 mit demselben Leser und denselben Bausteinen wie
+ * ein Text der Bibliothek (`libraryMarkup.ts`, `markupView.tsx`): Absätze,
+ * `## Überschriften`, Listen, `> Zitate`, `**fett**`, `*kursiv*`,
+ * `[Wort](https://…)`, `^[Fussnote]`. Ein Verweis `[@klucz, s. 23]` auf ein
+ * Werk, ein Zitat oder eine Person wird eine Fussnote; `[[Wort|@klucz]]` und
+ * ein Verweis auf einen eigenen Eintrag ein Link (`onEntity`). Nachgeschlagen
+ * wird in `lib` — sonst in der Baza wiedzy, in der man steht.
  */
-export function Markup({ text, onEntity, resolve }: { text: string; onEntity?: (id: string) => void; resolve?: (token: string) => string | undefined }) {
-  const notes: string[] = [];
-  const paragraphs = text.split(/\n{2,}/);
-  const inline = (chunk: string, key: string): ReactNode[] => {
-    const out: ReactNode[] = [];
-    const pattern = /\[\[([^\]|]+)\|@([^\]]+)\]\]|\*\*([^*]+)\*\*|\*([^*]+)\*|\[@([^\]]+)\]|\^\[([^\]]+)\]/g;
-    let last = 0;
-    let m: RegExpExecArray | null;
-    let i = 0;
-    while ((m = pattern.exec(chunk)) !== null) {
-      if (m.index > last) out.push(chunk.slice(last, m.index));
-      const k = `${key}-${i++}`;
-      if (m[1] !== undefined) {
-        const id = resolve?.(m[2].trim()) ?? m[2].trim();
-        out.push(onEntity === undefined ? <span key={k} className="cg-ref">{m[1]}</span>
-          : <button key={k} type="button" className="cg-ref" onClick={() => onEntity(id)}>{m[1]}</button>);
-      } else if (m[3] !== undefined) out.push(<strong key={k}>{m[3]}</strong>);
-      else if (m[4] !== undefined) out.push(<em key={k}>{m[4]}</em>);
-      else if (m[5] !== undefined) out.push(<cite key={k} className="cg-cite">[{m[5]}]</cite>);
-      else if (m[6] !== undefined) { notes.push(m[6]); out.push(<sup key={k}>{notes.length}</sup>); }
-      last = pattern.lastIndex;
-    }
-    if (last < chunk.length) out.push(chunk.slice(last));
-    return out;
-  };
+export function Markup({ text, onEntity, lib }: { text: string; onEntity?: (id: string) => void; lib?: CogitaLibrary }) {
+  const ctx = useContext(CogitaContext);
+  const from = lib ?? ctx?.lib;
+  const prefix = `cg${useId().replace(/[^A-Za-z0-9]/g, '')}-`;
+  const look = from?.markupLook ?? NOTHING;
+  const blocks = useMemo(() => parseMarkup(text), [text]);
+  const notes = useMemo(() => countNotes([blocks], look), [blocks, look]);
+  const links = useMemo<MarkupLinkTo>(() => (onEntity === undefined ? {} : { open: (e: LibEntry) => onEntity(e.id) }), [onEntity]);
   return (
-    <div className="cg-markup">
-      {paragraphs.map((p, n) => {
-        const heading = /^#{1,3}\s+(.*)$/.exec(p.trim());
-        if (heading !== null) return <h3 key={n}>{inline(heading[1], `h${n}`)}</h3>;
-        return <p key={n}>{p.split('\n').flatMap((line, j) => (j === 0 ? inline(line, `p${n}-${j}`) : [<br key={`b${n}-${j}`} />, ...inline(line, `p${n}-${j}`)]))}</p>;
-      })}
-      {notes.length > 0 && <ol className="cg-notes">{notes.map((n, i) => <li key={i}>{n}</li>)}</ol>}
-    </div>
+    <MarkupLinks.Provider value={links}>
+      <div className="cg-markup">
+        <Blocks blocks={blocks} look={look} notes={notes} prefix={prefix} />
+        <NoteList notes={notes} prefix={prefix} />
+      </div>
+    </MarkupLinks.Provider>
   );
 }
 

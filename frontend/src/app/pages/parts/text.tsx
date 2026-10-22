@@ -16,22 +16,40 @@
  *
  * <b>„## " macht eine Zwischenüberschrift.</b> So schreibt man sie ohnehin in
  * ein Textfeld — und so standen sie schon da, als Doppelkreuz im Text.
+ *
+ * <b>2026-10-22 — derselbe Leser wie die Bibliothek.</b> `**fett**`,
+ * `*kursiv*`, `[napis](adres)` liest `libraryMarkup.ts`. Wer eine Bibliothek
+ * wählt (`library`), kann aus ihr zitieren: `[@klucz, s. 12]` auf ein Werk,
+ * ein Zitat, eine Person wird eine Fussnote, `[@klucz]` auf einen eigenen
+ * Eintrag (ein Text, ein Komentarz, ein Thema) und `[[Wort|@klucz]]` ein Link,
+ * `^[…]` eine Fussnote ohne Quelle. Was der Leser in dieser Bibliothek nicht
+ * lesen darf, heisst „[odwołanie niedostępne]" — nichts darüber hinaus.
  */
 
 import { useState } from 'react';
 
 import { definePart, lines, text, type RawConfig } from '../part';
 import { RichLine } from '../../ui/richText';
+import { later } from '../../ui/later';
+
+/* Die Bibliothek erst, wenn ein Text auf sie verweist (`ui/later`): ein schlichter Text lädt sie nicht. */
+const LibraryLines = later(() => import('../../library/LibraryLines').then((m) => m.LibraryLines));
 
 interface Config {
   readonly title: string;
   readonly body: readonly string[];
+  /** 2026-10-22 — woraus `[@…]` und `[[…|@…]]` zitieren (leer: aus nichts). */
+  readonly library: string;
 }
 
 const read = (raw: RawConfig): Config => ({
   title: text(raw, 'title'),
-  body: lines(raw, 'body')
+  body: lines(raw, 'body'),
+  library: text(raw, 'library')
 });
+
+/** Steht im Text ein Verweis oder eine Fussnote? Dann zeichnet ihn der Leser mit der Bibliothek. */
+const REFERENCES = /\[@|\|@[^\]]*\]\]|\^\[/;
 
 /**
  * Eine Zeile des Textes: Zwischenüberschrift, Absatz — und seit 0085 eine
@@ -42,7 +60,7 @@ function Line({ line }: { line: string }) {
   return <RichLine line={line} />;
 }
 
-function TextView({ config, strip }: { config: Config; strip: boolean }) {
+function TextView({ config, strip, prefix }: { config: Config; strip: boolean; prefix: string }) {
   const [open, setOpen] = useState(false);
 
   /* Der Anriss: der erste Absatz, der keine Überschrift ist. */
@@ -53,7 +71,9 @@ function TextView({ config, strip }: { config: Config; strip: boolean }) {
   return (
     <>
       {config.title !== '' && <h2 className="wk-card-title">{config.title}</h2>}
-      {shown.map((line, i) => <Line key={i} line={line} />)}
+      {shown.some((line) => REFERENCES.test(line))
+        ? <LibraryLines library={config.library} lines={shown} prefix={prefix} />
+        : shown.map((line, i) => <Line key={i} line={line} />)}
       {teaser && (
         <button type="button" className="wk-link-btn wk-card-more" onClick={() => setOpen(true)}>
           Czytaj dalej
@@ -69,7 +89,9 @@ export const textPart = definePart<Config>({
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
   example: {
     title: 'O wspólnocie',
-    body: 'Spotykamy się w każdy czwartek o 19:30 w salce przy kościele.\n## Kto może przyjść\nKażdy — nie trzeba się zapisywać.'
+    body: 'Spotykamy się w każdy czwartek o 19:30 w salce przy kościele.\n## Kto może przyjść\nKażdy — nie trzeba się zapisywać. **Wspólnota** rośnie ze słuchania słowa [@ratzinger2007, s. 183]; więcej w [[kazaniu o chlebie|@kazanie-chleb]].',
+    /* 2026-10-22 — woraus \`[@…]\` und \`[[…|@…]]\` zitieren; ohne Verweise im Text bleibt es leer. */
+    library: '<id-biblioteki>'
   },
   label: 'Tekst',
   use: 'Akapity — to, co strona ma powiedzieć.',
@@ -77,7 +99,8 @@ export const textPart = definePart<Config>({
 
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line' },
-    { key: 'body', label: 'Treść', kind: 'text', hint: 'Akapit w wierszu; „## " — śródtytuł, „# " — duża linia, „> " — mała; link: [napis](https://… albo #/strona)' }
+    { key: 'body', label: 'Treść', kind: 'text', hint: 'Akapit w wierszu; „## " — śródtytuł, „# " — duża linia, „> " — mała; **pogrubienie**, *kursywa*; link: [napis](https://… albo #/strona); z wybranej biblioteki: [@klucz, s. 12] — przypis do źródła, [[słowo|@klucz]] — link do wpisu, ^[…] — przypis' },
+    { key: 'library', label: 'Odwołania z biblioteki', kind: 'library', optional: true, hint: 'Opcjonalnie: biblioteka, z której tekst cytuje ([@klucz]). Kto jej nie może czytać, zobaczy „[odwołanie niedostępne]”.' }
   ],
 
   read,
@@ -93,5 +116,5 @@ export const textPart = definePart<Config>({
   /* Ein langer Text liest sich im ganzen Fenster besser — in zwei Spalten, ohne Seite drumherum. Ein kurzer nicht (2026-10-17). */
   fullscreen: (c) => c.body.length > 4 || c.body.join(' ').length > 480,
 
-  View: ({ config, ctx }) => <TextView config={config} strip={ctx.size.height === 'strip'} />
+  View: ({ config, ctx }) => <TextView config={config} strip={ctx.size.height === 'strip'} prefix={`t${ctx.moduleId.slice(0, 8)}-`} />
 });

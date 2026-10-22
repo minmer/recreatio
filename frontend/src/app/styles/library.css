@@ -225,6 +225,16 @@ h5.lib-h { font-size: var(--wk-text-md); font-style: italic; }
 .lib-ref { font-variant-numeric: tabular-nums; }
 .lib-ref.is-unreadable { color: var(--wk-muted); font-style: italic; }
 
+/* 2026-10-22 — eigene Einträge im Text: ein Link, keine Fussnote; geöffnet unter dem Text. */
+.lib-own-ref { color: var(--wk-accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.15em; }
+button.lib-own-ref { font: inherit; padding: 0; border: 0; background: none; cursor: pointer; text-align: inherit; }
+button.lib-own-ref:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+span.lib-own-ref { color: inherit; text-decoration: none; font-style: italic; }
+.lib-own-ref.is-unreadable { color: var(--wk-muted); }
+.lib-opened { display: grid; gap: var(--wk-space-2); margin-top: var(--wk-space-4); padding: var(--wk-space-3) var(--wk-space-4); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); }
+.lib-opened-bar { margin: 0; display: flex; justify-content: space-between; align-items: center; gap: var(--wk-space-2); }
+.lib-opened-text { margin: 0; white-space: pre-wrap; }
+
 /* 2026-10-22 — Edytor komentarza i porządki. */
 .lib-cm-part { display: grid; gap: var(--wk-space-2); }
 .lib-cm-lede { margin: 0; color: var(--wk-muted); font-size: var(--wk-text-sm); }

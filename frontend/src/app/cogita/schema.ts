@@ -25,6 +25,8 @@
  * gezeigt, nicht gelöscht.
  */
 
+import { plainText } from '../library/libraryMarkup';
+
 /* -- Wörterbücher ------------------------------------------------------------------ */
 
 export const FIELD_TYPES = ['line', 'text', 'markup', 'number', 'date', 'bool', 'choice', 'ref', 'media', 'url', 'list', 'geo', 'range'] as const;
@@ -711,16 +713,14 @@ export function patternKeys(pattern: string): string[] {
   return out;
 }
 
-/** Was von einer Auszeichnung lesbar bleibt: `[[Księgi Samuela|@samuel]]` → „Księgi Samuela". */
+/**
+ * Was von einer Auszeichnung lesbar bleibt: `[[Księgi Samuela|@samuel]]` →
+ * „Księgi Samuela", Verweise und Fussnoten fallen weg. 2026-10-22 — derselbe
+ * Leser wie in der Bibliothek (`plainText`), in einer Zeile.
+ */
 export function plainOf(markup: string): string {
-  return markup
-    .replace(/\[\[([^\]|]+)\|@[^\]]+\]\]/g, '$1')
-    .replace(/!\[@[^\]]+\]/g, '')
-    .replace(/\[@[^\]]*\]/g, '')
-    .replace(/\^\[[^\]]*\]/g, '')
-    .replace(/[#*_>`]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  if (!/[[*_#>^`\\]/.test(markup)) return markup.replace(/\s+/g, ' ').trim();
+  return plainText(markup.replace(/!\[@[^\]]+\]/g, '')).replace(/\s+/g, ' ').replace(/ +([.,;:!?])/g, '$1').trim();
 }
 
 /** Ein Wert in Worten, wie er in Listen, Etiketten und Karten steht. */

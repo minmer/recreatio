@@ -24,7 +24,7 @@
 
 import { citeSegs, newCiteState, originOf, segText } from './libraryCite';
 import {
-  COVERAGE_STATES, ids, itemsOf, kindOf, num, POINT_KINDS, refTarget, str,
+  COVERAGE_STATES, ids, isSource, itemsOf, kindOf, num, ownTitle, POINT_KINDS, refTarget, str,
   type EntryData, type LibEntry, type Lookup
 } from './libraryKinds';
 import { parseMarkup, plainText, type Inline } from './libraryMarkup';
@@ -134,8 +134,13 @@ export function pointLine(text: string, look?: Lookup, length = 400): string {
       case 'text': return one.v;
       case 'br': return ' ';
       case 'note': return '';
-      case 'cite': return look === undefined ? ''
-        : ` (${one.items.map((item) => segText(citeSegs(refTarget(look, item.key), item.locator, look, newCiteState()))).join('; ')})`;
+      case 'cite': {
+        if (look === undefined) return '';
+        /* 2026-10-22 — ein eigener Eintrag mit seinem Namen, Quellen in Klammern. */
+        const own = one.items.filter((item) => !isSource(refTarget(look, item.key))).map((item) => ownTitle(refTarget(look, item.key)!, look));
+        const sources = one.items.filter((item) => isSource(refTarget(look, item.key)));
+        return `${own.length === 0 ? '' : ` (zob. ${own.join('; ')})`}${sources.length === 0 ? '' : ` (${sources.map((item) => segText(citeSegs(refTarget(look, item.key), item.locator, look, newCiteState()))).join('; ')})`}`;
+      }
       default: return flat(one.c);
     }
   }).join('');

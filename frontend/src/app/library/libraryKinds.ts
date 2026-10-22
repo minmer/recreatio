@@ -44,6 +44,8 @@ export interface Lookup {
   backlinks?(id: string): readonly LibEntry[];
   /** 2026-10-22 — alles Lesbare, über die Bibliothek hinaus (für „Komentarze o tym wpisie"). */
   readable?(): readonly LibEntry[];
+  /** 2026-10-22 — wie ein Eintrag heisst, wo die Bibliothek seine Art nicht kennt (ein Eintrag einer Baza wiedzy). */
+  title?(entry: LibEntry): string;
 }
 
 /**
@@ -656,6 +658,21 @@ export function refTarget(look: Lookup, token: string): LibEntry | undefined {
   return look.get(token) ?? look.byKey(token);
 }
 
+/**
+ * 2026-10-22 — ZITIERT WIRD NUR, WAS VON AUSSEN KOMMT: ein Werk (auch ein
+ * Lexikon: ein Werk mit dem Stichwort als Stelle), ein Zitat, eine Person —
+ * das wird eine Fussnote. Die eigenen Einträge (Texte, Komentarze, Themen,
+ * Projekte, Wygłoszenia, Einträge der Bazy wiedzy) werden verlinkt oder
+ * eingebettet, nie zitiert. Ein Ziel, das dieser Leser nicht lesen kann,
+ * bleibt eine Fussnote „[brak źródła]" (man sieht, dass da etwas ist — mehr nicht).
+ */
+export const SOURCE_KINDS: ReadonlySet<string> = new Set(['work', 'quote', 'person']);
+
+export const isSource = (entry: LibEntry | undefined): boolean => entry === undefined || SOURCE_KINDS.has(entry.kind);
+
+/** Wie ein eigener Eintrag im Text heisst (der Link). */
+export const ownTitle = (entry: LibEntry, look: Lookup): string => look.title?.(entry) ?? entryTitle(entry, look);
+
 /** Für den Speicher: ein Schlüssel, der aufgeht, wird seine Kennung; was nicht aufgeht, bleibt, wie es getippt ist. */
 export const storedText = (text: string, look: Lookup): string =>
   mapRefTokens(text, (token) => (look.get(token) !== undefined ? token : (look.byKey(token)?.id ?? token)));
@@ -763,7 +780,7 @@ export function nextAliases(previousKey: string | undefined, nextKey: string | u
 
 /** Wörter eines Textes — ohne Zeichen des Zapis, ohne Verweise. */
 export function wordCount(text: string): number {
-  const plain = text.replace(/\[@[^\]]*\]/g, ' ').replace(/!\[@[^\]]*\]/g, ' ').replace(/[#>*_`[\]()^-]/g, ' ');
+  const plain = text.replace(/\[\[([^\]|]*)\|@[^\]]*\]\]/g, ' $1 ').replace(/\[@[^\]]*\]/g, ' ').replace(/!\[@[^\]]*\]/g, ' ').replace(/[#>*_`[\]()^-]/g, ' ');
   const words = plain.match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)?/gu);
   return words === null ? 0 : words.length;
 }

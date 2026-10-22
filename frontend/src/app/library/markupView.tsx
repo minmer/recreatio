@@ -7,12 +7,12 @@
  * Zählung hat wie eine im Text.
  */
 
-import { Fragment, useMemo, type MouseEvent, type ReactNode } from 'react';
+import { createContext, Fragment, useContext, useMemo, type MouseEvent, type ReactNode } from 'react';
 
-import { blocksOf, commentsAbout, subjectsOf, UNREADABLE } from './comment';
+import { blocksOf, commentsAbout, subjectsOf } from './comment';
 import { citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from './libraryCite';
-import { refTarget, str, type LibEntry, type Lookup } from './libraryKinds';
-import { parseInline, parseMarkup, walkBlocks, walkInline, type Block, type Inline } from './libraryMarkup';
+import { isSource, ownTitle, refTarget, str, type LibEntry, type Lookup } from './libraryKinds';
+import { parseInline, parseMarkup, UNREADABLE, walkBlocks, walkInline, type Block, type Inline } from './libraryMarkup';
 
 export function Segs({ segs }: { segs: readonly Seg[] }) {
   return (
@@ -25,6 +25,38 @@ export function Segs({ segs }: { segs: readonly Seg[] }) {
       })}
     </>
   );
+}
+
+/* -- 2026-10-22: eigene Einträge sind Links ------------------------------------------------- */
+
+/**
+ * Wohin ein Link auf einen eigenen Eintrag führt: eine Adresse (`hrefOf`, im
+ * Arbeitsbereich: sein Editor) oder eine Ansicht daneben (`open`, auf einer
+ * Seite). Ohne beides steht nur sein Name da.
+ */
+export interface MarkupLinkTo {
+  readonly hrefOf?: (entry: LibEntry) => string | undefined;
+  readonly open?: (entry: LibEntry) => void;
+}
+
+export const MarkupLinks = createContext<MarkupLinkTo>({});
+
+/**
+ * EIN VERWEIS AUF EINEN EIGENEN EINTRAG — ein Link mit seinem Namen (und der
+ * Stelle) oder mit dem eigenen Wortlaut aus `[[Wort|@…]]`. Kann dieser Leser
+ * das Ziel nicht lesen, steht der eigene Wortlaut ohne Link da, sonst
+ * „[odwołanie niedostępne]" — nie etwas über das Ziel.
+ */
+export function OwnRef({ token, locator = '', label, look }: { token: string; locator?: string; label?: readonly Inline[]; look?: Lookup }) {
+  const to = useContext(MarkupLinks);
+  const entry = look === undefined ? undefined : refTarget(look, token);
+  const said = label !== undefined && label.length > 0 ? <Inlines list={label} notes={null} look={look} /> : null;
+  if (entry === undefined || look === undefined) return <span className="lib-own-ref is-unreadable">{said ?? UNREADABLE}</span>;
+  const text = said ?? `${ownTitle(entry, look)}${locator === '' ? '' : `, ${locator}`}`;
+  const href = to.hrefOf?.(entry);
+  if (href !== undefined) return <a className="lib-own-ref" href={href}>{text}</a>;
+  if (to.open !== undefined) return <button type="button" className="lib-own-ref" onClick={() => to.open!(entry)}>{text}</button>;
+  return <span className="lib-own-ref">{text}</span>;
 }
 
 /* -- Fussnoten zählen --------------------------------------------------------------------- */
@@ -44,7 +76,7 @@ export interface Notes {
  * Gezählt wird an den GELESENEN Bäumen: dieselben Objekte müssen danach
  * gezeichnet werden (die Nummern hängen an ihnen).
  */
-export function countNotes(parts: readonly (readonly Block[])[], look: Lookup, hrefOf?: (e: LibEntry) => string | undefined): Notes {
+export function countNotes(parts: readonly (readonly Block[])[], look: Lookup): Notes {
   const numbers = new WeakMap<Inline, number>();
   const list: Note[] = [];
   const works: LibEntry[] = [];
@@ -72,22 +104,25 @@ export function countNotes(parts: readonly (readonly Block[])[], look: Lookup, h
   };
   const onInline = (inline: Inline) => {
       if (inline.t === 'cite') {
+        /* 2026-10-22 — nur die Quellen kommen in die Fussnote; eigene Einträge stehen als Link im Text. */
+        const sources = inline.items.filter((item) => isSource(refTarget(look, item.key)));
+        if (sources.length === 0) return;
         const n = list.length + 1;
         numbers.set(inline, n);
         const segs: Seg[] = [];
-        inline.items.forEach((item, i) => {
+        sources.forEach((item, i) => {
           const target = refTarget(look, item.key);
           const work = workBehind(target, look);
           if (work !== undefined) works.push(work);
           if (i > 0) segs.push({ text: '; ' });
-          segs.push(...citeSegs(target, item.locator, look, state, hrefOf));
+          segs.push(...citeSegs(target, item.locator, look, state));
         });
         list.push({ n, body: <><Segs segs={segs} />.</> });
       } else if (inline.t === 'note') {
         const n = list.length + 1;
         numbers.set(inline, n);
         state.last = null;
-        list.push({ n, body: <Inlines list={inline.c} notes={null} /> });
+        list.push({ n, body: <Inlines list={inline.c} notes={null} look={look} /> });
       }
   };
 
@@ -123,9 +158,13 @@ function parsedComment(comment: LibEntry): ParsedBlock[] {
 function Runs({ runs, look, notes, prefix }: { runs: readonly ParsedRun[]; look: Lookup; notes: Notes | null; prefix: string }) {
   return (
     <>
-      {runs.map((run, i) => (run.t === 'text'
-        ? <Inlines key={i} list={run.c} notes={notes} prefix={prefix} />
-        : <span key={i} className={look.get(run.ref) === undefined ? 'lib-ref is-unreadable' : 'lib-ref'}>{refLabel(run.ref, run.locator, look)}</span>))}
+      {runs.map((run, i) => {
+        if (run.t === 'text') return <Inlines key={i} list={run.c} notes={notes} prefix={prefix} look={look} />;
+        const target = look.get(run.ref);
+        /* 2026-10-22 — ein eigener Eintrag in einer Zelle ist ein Link; eine Quelle (Łk 1,35) steht als Name da. */
+        if (target !== undefined && !isSource(target)) return <OwnRef key={i} token={run.ref} locator={run.locator} look={look} />;
+        return <span key={i} className={target === undefined ? 'lib-ref is-unreadable' : 'lib-ref'}>{refLabel(run.ref, run.locator, look)}</span>;
+      })}
     </>
   );
 }
@@ -220,22 +259,34 @@ export function jump(e: MouseEvent, id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-export function Inlines({ list, notes, prefix = '' }: { list: readonly Inline[]; notes: Notes | null; prefix?: string }) {
+export function Inlines({ list, notes, prefix = '', look }: { list: readonly Inline[]; notes: Notes | null; prefix?: string; look?: Lookup }) {
   return (
     <>
       {list.map((one, i) => {
         switch (one.t) {
           case 'text': return <Fragment key={i}>{one.v}</Fragment>;
           case 'br': return <br key={i} />;
-          case 'b': return <strong key={i}><Inlines list={one.c} notes={notes} prefix={prefix} /></strong>;
-          case 'i': return <em key={i}><Inlines list={one.c} notes={notes} prefix={prefix} /></em>;
+          case 'b': return <strong key={i}><Inlines list={one.c} notes={notes} prefix={prefix} look={look} /></strong>;
+          case 'i': return <em key={i}><Inlines list={one.c} notes={notes} prefix={prefix} look={look} /></em>;
           case 'link':
             return (
               <a key={i} href={one.href} {...(/^https?:/i.test(one.href) ? { target: '_blank', rel: 'noreferrer noopener' } : {})}>
-                <Inlines list={one.c} notes={notes} prefix={prefix} />
+                <Inlines list={one.c} notes={notes} prefix={prefix} look={look} />
               </a>
             );
-          case 'cite':
+          /* 2026-10-22 — ein Verweis mit eigenem Wortlaut: ein Link, nie eine Fussnote. */
+          case 'ref': return <OwnRef key={i} token={one.key} label={one.c} look={look} />;
+          case 'cite': {
+            const n = notes?.numbers.get(one);
+            /* Eigene Einträge in der Klammer stehen als Links im Text — „(zob. …)", wo sonst die Fussnote stünde; nur die Quellen haben eine. */
+            const own = look === undefined ? [] : one.items.filter((item) => !isSource(refTarget(look, item.key)));
+            return (
+              <Fragment key={i}>
+                {own.length > 0 && <> (zob. {own.map((item, j) => <Fragment key={j}>{j > 0 && '; '}<OwnRef token={item.key} locator={item.locator} look={look} /></Fragment>)})</>}
+                {n !== undefined && <sup className="lib-fnref" id={`${prefix}fnref-${n}`}><a href={`#${prefix}fn-${n}`} onClick={(e) => jump(e, `${prefix}fn-${n}`)}>{n}</a></sup>}
+              </Fragment>
+            );
+          }
           case 'note': {
             const n = notes?.numbers.get(one);
             if (n === undefined) return null;
@@ -261,15 +312,15 @@ export function Blocks({ blocks, look, notes, prefix, path = new Set() }: { bloc
     <>
       {blocks.map((b, i) => {
         switch (b.t) {
-          case 'p': return <p key={i}><Inlines list={b.c} notes={notes} prefix={prefix} /></p>;
+          case 'p': return <p key={i}><Inlines list={b.c} notes={notes} prefix={prefix} look={look} /></p>;
           case 'h': {
             const H = b.level === 2 ? 'h3' : b.level === 3 ? 'h4' : 'h5';
-            return <H key={i} className="lib-h"><Inlines list={b.c} notes={notes} prefix={prefix} /></H>;
+            return <H key={i} className="lib-h"><Inlines list={b.c} notes={notes} prefix={prefix} look={look} /></H>;
           }
           case 'quote': return <blockquote key={i} className="lib-blockquote"><Blocks blocks={b.c} look={look} notes={notes} prefix={prefix} path={path} /></blockquote>;
           case 'list': {
             const L = b.ordered ? 'ol' : 'ul';
-            return <L key={i}>{b.items.map((item, j) => <li key={j}><Inlines list={item} notes={notes} prefix={prefix} /></li>)}</L>;
+            return <L key={i}>{b.items.map((item, j) => <li key={j}><Inlines list={item} notes={notes} prefix={prefix} look={look} /></li>)}</L>;
           }
           case 'hr': return <hr key={i} className="lib-hr" />;
           case 'embed': {

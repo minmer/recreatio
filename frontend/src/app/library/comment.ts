@@ -28,7 +28,6 @@
  */
 
 /** Was an der Stelle eines Verweises steht, dessen Ziel dieser Leser nicht lesen darf — nichts über das Ziel, nicht einmal sein Titel. */
-export const UNREADABLE = '[odwołanie niedostępne]';
 
 export type Run = { readonly text: string } | { readonly ref: string; readonly locator?: string };
 export type Cell = readonly Run[];

@@ -352,6 +352,10 @@ try {
     assert.ok(!html('[klik](javascript:alert(1))').includes('href'), 'no script link');
     assert.ok(html('[O nas](#/rc/o-nas) · [Kontakt](#/rc/kontakt)').includes('wk-card-links'), 'a row of links');
     assert.equal(html(''), '', 'an empty line in a paragraph text is nothing');
+    /* 2026-10-22 — das Innere liest der eine Leser (libraryMarkup): fett, kursiv; ohne Bibliothek nichts über Verweise. */
+    assert.ok(html('**mocno** i *lekko*').includes('<strong>mocno</strong>') && html('**mocno** i *lekko*').includes('<em>lekko</em>'), 'bold and italic');
+    const bare = html('Zob. [[ten tekst|@x1]] ^[uwaga] [@y1]');
+    assert.ok(bare.includes('ten tekst') && bare.includes('(uwaga)') && bare.includes('[odwołanie niedostępne]') && !bare.includes('x1') && !bare.includes('y1'), 'without a library: the words of a link, a note in brackets, a reference unreadable');
     ok('text: large and quiet lines, links (safe), a row of links — on pages and on the stage');
   }
 

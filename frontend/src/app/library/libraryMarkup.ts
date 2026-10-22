@@ -34,6 +34,8 @@ export type Inline =
   | { readonly t: 'cite'; readonly items: readonly CiteItem[] }
   | { readonly t: 'note'; readonly c: readonly Inline[] }
   | { readonly t: 'link'; readonly href: string; readonly c: readonly Inline[] }
+  /** 2026-10-22 — `[[Wort|@token]]`: ein Verweis mit eigenem Wortlaut (aus den Bazy wiedzy) — ein Link, nie eine Fussnote. */
+  | { readonly t: 'ref'; readonly key: string; readonly c: readonly Inline[] }
   | { readonly t: 'br' };
 
 export type Block =
@@ -48,12 +50,27 @@ const KEY = '[A-Za-z0-9][A-Za-z0-9_.:-]*';
 const EMBED = new RegExp(`^!\\[@(${KEY})(?:\\s*,\\s*([^\\]]*))?\\]\\s*$`);
 const CITE_ITEM = new RegExp(`^@(${KEY})(?:\\s*,\\s*(.*))?$`, 's');
 
-/** Eine Adresse, die ein Link sein darf — keine `javascript:`, keine Daten. */
+/**
+ * Eine Adresse, die ein Link sein darf — keine `javascript:`, keine Daten.
+ * 2026-10-22: dieselbe Regel für alle Texte (Bibliothek, Bazy wiedzy, die
+ * Bausteine einer Seite): ins Netz (`www.` wird `https://`), eine Seite hier
+ * (`#/…`, auch `/#/…`), ein Pfad, eine E-Mail, ein Telefon.
+ */
 export function safeHref(href: string): string | null {
   const h = href.trim();
-  if (/^(https?:\/\/|mailto:|#|\/)/i.test(h) && !/[\s<>"]/.test(h)) return h;
+  if (/^www\.[^\s<>"]+$/i.test(h)) return `https://${h}`;
+  if (/^tel:\+?[0-9 ()-]{3,}$/i.test(h)) return h.replace(/\s+/g, '');
+  if (/^\/#/.test(h) && !/[\s<>"]/.test(h)) return h.slice(1);
+  if (/^(https?:\/\/|mailto:|#|\/(?!\/))/i.test(h) && !/[\s<>"]/.test(h)) return h;
   return null;
 }
+
+/**
+ * Was an Stelle eines Verweises steht, den dieser Leser nicht öffnen kann —
+ * nie etwas über das Ziel (2026-10-22 aus `comment.ts` hierher: jeder Text,
+ * der Verweise zeigt, sagt dasselbe).
+ */
+export const UNREADABLE = '[odwołanie niedostępne]';
 
 /* -- Inline ------------------------------------------------------------------------------- */
 
@@ -98,6 +115,19 @@ export function parseInline(text: string): Inline[] {
 
     if (c === '\\' && i + 1 < text.length) { buffer += text[i + 1]; i += 1; continue; }
     if (c === '\n') { flush(); out.push({ t: 'br' }); continue; }
+
+    /* Ein Verweis mit eigenem Wortlaut: [[Wort|@token]] */
+    if (c === '[' && text[i + 1] === '[') {
+      const end = text.indexOf(']]', i + 2);
+      const inside = end > i + 2 ? text.slice(i + 2, end) : '';
+      const bar = inside.lastIndexOf('|@');
+      if (bar > 0 && TOKEN_ONLY.test(inside.slice(bar + 2))) {
+        flush();
+        out.push({ t: 'ref', key: inside.slice(bar + 2), c: parseInline(inside.slice(0, bar)) });
+        i = end + 1;
+        continue;
+      }
+    }
 
     /* Fussnote ohne Quelle: ^[…] */
     if (c === '^' && text[i + 1] === '[') {
@@ -229,7 +259,7 @@ export function parseMarkup(source: string): Block[] {
 export function walkInline(inlines: readonly Inline[], visit: (one: Inline) => void): void {
   for (const one of inlines) {
     visit(one);
-    if (one.t === 'b' || one.t === 'i' || one.t === 'note' || one.t === 'link') walkInline(one.c, visit);
+    if (one.t === 'b' || one.t === 'i' || one.t === 'note' || one.t === 'link' || one.t === 'ref') walkInline(one.c, visit);
   }
 }
 
@@ -242,13 +272,13 @@ export function walkBlocks(blocks: readonly Block[], onBlock: (b: Block) => void
   }
 }
 
-/** Alle Schlüssel, die ein Text nennt — als Quelle oder als eingebettetes Zitat, in der Reihenfolge. */
+/** Alle Verweise eines Textes (Kennungen oder Schlüssel) — Quellen, eingebettete Blöcke, Links `[[…|@…]]` — in der Reihenfolge. */
 export function citedKeys(...sources: readonly string[]): string[] {
   const keys: string[] = [];
   for (const source of sources) {
     walkBlocks(parseMarkup(source),
       (b) => { if (b.t === 'embed') keys.push(b.key); },
-      (i) => { if (i.t === 'cite') keys.push(...i.items.map((one) => one.key)); });
+      (i) => { if (i.t === 'cite') keys.push(...i.items.map((one) => one.key)); else if (i.t === 'ref') keys.push(i.key); });
   }
   return [...new Set(keys)];
 }

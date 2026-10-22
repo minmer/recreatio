@@ -424,6 +424,9 @@ ${kindsSection()}
 
 "entities" — wpisy: {"ref", "kinds": ["person", "Postać"], "data": {pole: wartość}}
   wiedza: "kinds": ["knowledge"], "data": {"text": "Dawid był [[królem|@izrael]]…", "tags": ["historyczna"], "about": ["@dawid"]}
+    zapis tekstu (ten sam co w Bibliotece): akapity oddziela pusta linia, "## śródtytuł", **pogrubienie**, *kursywa*, [opis](https://…), ^[przypis], "> cytat", "- punkt";
+    [[słowo|@wpis]] — link do wpisu (tej bazy, innej bazy albo biblioteki) z tymi słowami; nigdy przypis;
+    [@dzielo, s. 23] — źródło: dzieło, cytat, osoba z biblioteki staje się przypisem; ten sam zapis na wpis wiedzy, temat czy tekst daje w tekście link „(zob. etykieta)”
   pytanie: "kinds": ["question"], "data": {"form": "text|number|date|one|many|truefalse|order|match|gap|flash|code|point|interactive", "prompt", "answers", "options", "correct", …}
     "interactive" — rysunek do poruszania: "drawing" (ten sam JSON co moduł strony „Animacja”: vars, let, sim, controls, rules z "goal": true, world, elements — jako tekst JSON),
     "goal" (wyrażenie celu, np. "abs(x - cel) < 0.5 && y <= 0"; puste — reguły rysunku z "goal"), "solution" ("kat = 45; v0 = sqrt(cel*g)" — rachunek z wartościami rysunku; w świecie także "w2.pos = 5"; puste — "task.solve" rysunku, a jego "task" losuje przy każdej próbie zadanie tak samo trudne);

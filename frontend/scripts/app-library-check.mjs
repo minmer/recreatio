@@ -5,6 +5,9 @@
  *      alle Beispiele zusammen lassen sich importieren — Verweise per @schlüssel.
  *   2. Der Zapis: Überschriften, Absätze, Listen, Zitate, eingebettete Zitate,
  *      Verweise mit Stellen, eigene Fussnoten, Links, Escapes.
+ *  2c. Ein Leser, nach Art gezeichnet (2026-10-22): Quellen werden Fussnoten,
+ *      eigene Einträge Links (auch `[[Wort|@klucz]]`), unlesbare Ziele sagen
+ *      nichts; LaTeX, Planzeilen, der Baustein „Tekst" und Cogita ebenso.
  *   3. Die Angaben: Buch, Kapitel, Artikel, Dokument, Pismo Święte, Netz —
  *      voll, „dz. cyt.", „Tamże", Bibliografie.
  *   4. Komentarze und Bereiche (2026-10-22): Bausteine mit echten Verweisen,
@@ -38,6 +41,10 @@ export * from '${app}library/comment';
 export * from '${app}library/libraryMigrate';
 export { planLibraryImport, exportLibrary, libraryDescription, LIBRARY_FORMAT, LIBRARY_VERSION } from '${app}library/libraryJson';
 export { QuoteFigure, TextArticle } from '${app}library/LibraryText';
+export { LibraryLines } from '${app}library/LibraryLines';
+export { Markup as CogitaMarkup } from '${app}cogita/ui';
+export { plainOf } from '${app}cogita/schema';
+export { courseDescription } from '${app}cogita/json';
 export * from '${app}library/isbn';
 export * from '${app}library/libraryCatalog';
 export * from '${app}library/libraryQuotes';
@@ -198,6 +205,54 @@ try {
   }
   ok('ids in markup: only reference tokens are rewritten, stored as ids, shown as keys (ambiguous ones stay ids), a renamed key orphans nothing, JSON round trip');
 
+  /* -- 2c. Ein Leser, nach Art gezeichnet (2026-10-22) -------------------------------------- */
+  {
+    const W = { id: 'w1', kind: 'work', key: 'ratz', data: { workType: 'book', title: 'Jezus z Nazaretu' } };
+    const T = { id: 't1', kind: 'text', key: 'inny', data: { title: 'Chleb życia', date: '2026-08-02' } };
+    const C = { id: 'c1', kind: 'comment', key: 'kom', data: { subjects: [{ ref: 'w1' }], blocks: [{ type: 'paragraph', text: 'Uwaga.' }] } };
+    const L = { ...look([W, T, C]), readable: () => [W, T, C] };
+    const inl = m.parseInline('Zob. [[ten tekst|@inny]] i [[ukryty|@tajny]].');
+    assert.deepEqual(inl.filter((i) => i.t === 'ref').map((i) => i.key), ['inny', 'tajny'], '[[Wort|@klucz]] is a reference with its own words');
+    assert.deepEqual(m.citedKeys('A [[x|@inny]] [@ratz]'), ['inny', 'ratz'], 'base links count as references (backlinks see them)');
+    assert.ok(m.isSource(W) && m.isSource(undefined) && !m.isSource(T) && !m.isSource(C), 'works, quotes, persons are sources; own entries are not; an unreadable target stays a footnote');
+
+    const entry = { id: 's', kind: 'text', data: { title: 'K', body: 'Raz [@ratz, s. 3; @inny]. Dwa [@kom]. Trzy [[ten tekst|@inny]] i [[ukryty|@tajny]].' } };
+    const html = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry, look: L }));
+    const notes = [...html.matchAll(/<li id="fn-(\d+)">(.*?)<\/li>/g)].map((x) => x[2].replace(/<[^>]+>/g, ''));
+    assert.equal(notes.length, 1, 'one footnote: only the work');
+    assert.ok(notes[0].includes('Jezus z Nazaretu') && !notes[0].includes('Chleb'), 'the own text is not in the footnote');
+    assert.ok(html.includes('(zob. <span class="lib-own-ref">Chleb życia</span>)'), 'an own text cited in a bracket: „(zob. its title)" in the line');
+    assert.ok(!html.includes('Zob. komentarz'), 'a comment is never a footnote');
+    assert.ok(html.includes('<span class="lib-own-ref">ten tekst</span>'), '[[…|@…]] shows its own words');
+    assert.ok(html.includes('<span class="lib-own-ref is-unreadable">ukryty</span>') && !html.includes('tajny'), 'an unreadable target: its words, no link, nothing about the target');
+    const linked = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry, look: L, hrefOf: (e) => `#/x/${e.id}` }));
+    assert.ok(linked.includes('<a class="lib-own-ref" href="#/x/t1">Chleb życia</a>'), 'in the workspace an own entry links to its editor');
+
+    const latex = m.textToLatex(entry, L);
+    assert.ok(latex.includes('(zob. \\emph{Chleb życia})'), 'LaTeX: the own text by its title in the line');
+    assert.equal((latex.match(/\\footnote\{/g) ?? []).length, 1, 'LaTeX: one footnote — the work');
+    assert.ok(m.pointLine('Punkt [@inny] [@ratz, s. 1]', L).startsWith('Punkt (zob. Chleb życia) (Jezus'), 'a plan line: „(zob. title)", the source in brackets');
+    assert.equal(m.wordCount('Zob. [[ten tekst|@inny]].'), 3, 'base links count with their words');
+    assert.equal(m.safeHref('//obcy.pl/x'), null, 'no protocol-relative address');
+    assert.equal(m.safeHref('/#/rc/o-nas'), '#/rc/o-nas');
+    assert.equal(m.safeHref('www.recreatio.pl'), 'https://www.recreatio.pl');
+
+    /* Der Baustein „Tekst" (ohne geöffnete Bibliothek): dieselben Zeilen, Fussnoten unter dem Baustein. */
+    const lines = m.renderToStaticMarkup(m.createElement(m.LibraryLines, { library: '', lines: ['## Śródtytuł', 'Tekst **mocny** [@ratz] i ^[uwaga] oraz [[słowo|@inny]].', '> cicho'], prefix: 't-' }));
+    assert.ok(lines.includes('<h3 class="wk-card-sub">Śródtytuł</h3>') && lines.includes('wk-card-quiet') && lines.includes('<strong>mocny</strong>'), 'page text: its lines, the one reader inside');
+    assert.equal((lines.match(/<li id="t-fn-/g) ?? []).length, 2, 'page text: a source and a note become footnotes under the module');
+    assert.ok(lines.includes('słowo') && !lines.includes('@inny') && !lines.includes('ratz'), 'page text: nothing about what it cannot open');
+
+    /* Cogita: derselbe Leser über die Baza wiedzy. */
+    const cg = m.renderToStaticMarkup(m.createElement(m.CogitaMarkup, { text: '## Teza\n\nZdanie [@ratz, s. 3] i [[tekst|@inny]].', lib: { markupLook: L } }));
+    assert.ok(cg.includes('lib-h') && cg.includes('lib-own-ref') && cg.includes('Jezus z Nazaretu') && cg.includes('Przypisy'), 'Cogita: headings, a source footnote, a link — the same pieces');
+    assert.equal(m.plainOf('Księgi [[Samuela|@samuel]] to część Biblii [@bt, J 3,16].'), 'Księgi Samuela to część Biblii.', 'Cogita plain text from the same reader');
+    const told = m.libraryDescription();
+    assert.ok(told.includes('[[te słowa|@klucz]]') && told.includes('nigdy przypis') && told.includes('[odwołanie niedostępne]'), 'the library description tells an AI: sources are cited, own entries linked');
+    assert.ok(m.courseDescription().includes('[[słowo|@wpis]]') && m.courseDescription().includes('staje się przypisem'), 'the Cogita description says the same');
+  }
+  ok('one reader, drawn by kind: sources are footnotes, own entries are links (also [[words|@key]]), unreadable targets say nothing; LaTeX, plan lines, page text and Cogita alike');
+
   /* -- 3. Die Angaben -------------------------------------------------------------------- */
   const P = (id, given, surname, extra = {}) => ({ id, kind: 'person', key: id, data: { givenNames: given, surname, ...extra } });
   const W = (id, data) => ({ id, kind: 'work', key: id, data });
@@ -308,7 +363,7 @@ try {
     const html = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: sermon, look: R }));
     assert.ok(html.includes('<table class="lib-table">') && html.includes('Łk 1,35'), 'an embedded comment brings its table; a Bible ref shows its place');
     assert.ok(html.includes('Trzy.') && html.includes('[komentarz osadza sam siebie]'), 'c2 → c3 → c2: the cycle stops');
-    assert.ok(html.includes('Zob. komentarz:'), 'a comment in a footnote');
+    assert.ok(!html.includes('Zob. komentarz') && html.includes('class="lib-own-ref"'), 'a comment cited in the text is a link, never a footnote (2026-10-22)');
     assert.equal((html.match(/\[odwołanie niedostępne\]/g) ?? []).length, 2, 'an unreadable cell ref and an unreadable embed say only that');
     assert.ok(!html.includes('tajny'), '… and nothing about the target, not even its key');
     assert.ok(/J 1,1/.test(html.slice(html.indexOf('Przypisy'))), 'a footnote inside an embedded comment is counted with the text');

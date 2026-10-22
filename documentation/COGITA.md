@@ -146,7 +146,7 @@ These are fixed system kinds that the engine understands. You may add fields to 
 
 | kind | what it is |
 |---|---|
-| `knowledge` | One statement in markup. Words link to entities as `[[Księgi Samuela\|@samuel]]`, inserted from the search overlay [C3]. It carries perspective tags from the library’s own tag set [C8] and a source as in §2.2. |
+| `knowledge` | One statement in markup — read by the library's one reader since 2026-10-22 (headings, lists, quotes, notes; `[@work, s. 23]` on a work, quote or person is a footnote, a citation of an own entry is a link "(zob. …)"; LIBRARY.md "One reader for every text"). Words link to entities as `[[Księgi Samuela\|@samuel]]`, inserted from the search overlay [C3]. It carries perspective tags from the library’s own tag set [C8] and a source as in §2.2. |
 | `text` | The existing library text. It embeds knowledge nodes the way it embeds quotes (`![@key]`) and serves as a narrative [C2, K1]. |
 | `topic` | A question, a heading or a curriculum node: answers (knowledge, texts), child topics, an attached entity, a level for depth [C9] and a landmark flag for threshold concepts [C11]. Dimensions (What, Why, How…) are child topics [C10]. |
 | `question` | A hand-written check: an answer form, expected and accepted answers, linked entities, and right and wrong exits used in flows [C4, D1]. |

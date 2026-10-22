@@ -395,9 +395,11 @@ export const MARKUP_DOC = `## Zapis treści (pola "body" i "further" tekstu, pun
   ## Śródtytuł            (# albo ## — śródtytuł, ### — mniejszy)
   Akapity oddziela pusta linia; pojedyncze przejście do nowej linii zostaje (psalmy, pieśni).
   **pogrubienie**  *kursywa*  [opis linku](https://…)
-  [@klucz]                 odwołanie do źródła lub cytatu — staje się przypisem
+  [@klucz]                 odwołanie do źródła (dzieło, cytat, osoba) — staje się przypisem
   [@klucz, s. 23]          z miejscem w źródle
   [@bt, J 6,35; @klucz2]   kilka odwołań w jednym przypisie
+  [@klucz-tekstu]          odwołanie do WŁASNEGO wpisu (tekst, komentarz, temat, projekt, wpis bazy wiedzy) — nigdy przypis: w tekście staje się linkiem „(zob. jego tytuł)”
+  [[te słowa|@klucz]]      link do wpisu z własnymi słowami (np. [[kazaniu o chlebie|@kazanie-chleb]]) — też nigdy przypis
   ^[treść przypisu]        własny przypis, bez źródła
   ![@klucz-cytatu]         cytat z biblioteki jako osobny blok, z podpisem skąd pochodzi
   > tekst                  wcięty cytat
@@ -405,6 +407,7 @@ export const MARKUP_DOC = `## Zapis treści (pola "body" i "further" tekstu, pun
   ---                      linia oddzielająca
   \\znak                    znak bez znaczenia (np. \\* zamiast kursywy)
 Przypisy liczą się same; pierwszy raz źródło jest podane w całości, potem skrótem z „dz. cyt.”, a tuż po sobie — „Tamże”. Pod tekstem pojawia się bibliografia.
+Źródło (to, co przyszło z zewnątrz) się cytuje, własne wpisy się linkuje: [@ratzinger2007, s. 183; @kazanie-chleb] daje przypis do książki i w tekście link „(zob. Chleb życia)”. Czego czytelnik nie może otworzyć, pokazuje się jako „[odwołanie niedostępne]” (albo same słowa z [[…|@…]]) — bez tytułu i bez klucza.
 Klucz to pomoc przy pisaniu: aplikacja zapamiętuje stały odnośnik do wpisu (jego kennungę), więc późniejsza zmiana klucza nie psuje tekstu. Zamiast klucza można też podać kennungę wpisu: [@01a1…-…, s. 3]. Klucz, którego nie ma, zostaje w tekście, jak jest (z ostrzeżeniem przy imporcie).`;
 
 export function libraryDescription(): string {
@@ -421,7 +424,7 @@ Co robi import:
 - Wpis bez kennung (albo z nieznaną) powstaje nowy. Import niczego nie usuwa.
 - Odwołania ("authors", "work", "topics", "project", plan projektu, "texts" wygłoszenia) mogą być kennungami albo kluczami: "@ratzinger2007". Klucze z tego samego dokumentu też działają — można opisać całą bibliotekę, nie znając żadnej kennung.
 - Plan tekstu ("plan") to lista punktów; punkt bez "id" dostaje go sam. Wygłoszenie ("delivery") mówi o punktach po ich "id": co powiedziano ("coverage"), co doszło ("added"). Lista podana w imporcie zastępuje całą dotychczasową.
-- Własne przemyślenia o źródłach, cytatach, fragmentach Pisma i innych komentarzach to osobne wpisy "comment" (niżej: „Komentarz”) — nie opisy w polach innych wpisów. Tekst osadza komentarz blokiem ![@klucz] i przywołuje go w przypisie [@klucz].
+- Własne przemyślenia o źródłach, cytatach, fragmentach Pisma i innych komentarzach to osobne wpisy "comment" (niżej: „Komentarz”) — nie opisy w polach innych wpisów. Tekst osadza komentarz blokiem ![@klucz] albo linkuje do niego: [@klucz] (tytuł komentarza) lub [[własnymi słowami|@klucz]] — komentarz nigdy nie jest przypisem.
 - "key" to klucz cytowania: krótki, bez spacji (np. "ratzinger2007"); w tekstach odwołuje się do niego [@ratzinger2007, s. 23]. Pominięty — zostanie zaproponowany sam.
 - Liczby mogą mieć jednostkę ("384 s.", "20,5 cm"); pole wyboru przyjmuje wartość ("hard") albo jej nazwę ("Twarda").
 - Cytaty z jednej książki (np. odczytane przez AI ze zdjęć) mają własny format "${QUOTES_FORMAT}" — importuje się je na stronie tej książki.

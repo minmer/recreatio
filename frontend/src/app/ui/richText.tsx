@@ -10,41 +10,58 @@
  *   Ein Absatz mit einem [Verweis](https://…) darin.
  * </code>
  *
- * <b>Ein Verweis darf nur dorthin, wohin ein Verweis darf</b> (`textLink`):
+ * <b>Ein Verweis darf nur dorthin, wohin ein Verweis darf</b> (`safeHref`):
  * ins Netz, auf eine Seite hier, eine Szene, eine E-Mail, ein Telefon. Alles
  * andere bleibt, wie es geschrieben ist.
+ *
+ * <b>2026-10-22 — EIN LESER:</b> das Innere einer Zeile liest derselbe Leser
+ * wie die Texte der Bibliothek und das Wissen in Cogita (`libraryMarkup.ts`):
+ * `**fett**`, `*kursiv*`, `[napis](adres)`, `\\*` für ein Zeichen, wie es
+ * ist. Die Zeilen selbst (`## `, `# `, `> `) bleiben, wie sie waren — die
+ * Seiten, die es gibt, stehen so. Verweise auf Einträge (`[@…]`,
+ * `[[Wort|@…]]`) und Fussnoten (`^[…]`) zeigt der Baustein „Tekst" mit seiner
+ * Bibliothek (`library/LibraryLines.tsx`); hier, ohne Bibliothek, bleibt von
+ * `[[Wort|@…]]` das Wort, eine Fussnote steht in Klammern, ein Verweis sagt
+ * „[odwołanie niedostępne]".
  */
 
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 
-import { textLink } from '../pages/presentation/presentation';
+import { parseInline, safeHref, UNREADABLE, type Inline } from '../library/libraryMarkup';
 
 const LINK = /\[([^\]\n]{1,200})\]\(([^)\s]{1,600})\)/g;
 const ONLY_LINKS = /^(\s*\[[^\]\n]{1,200}\]\([^)\s]{1,600}\)\s*[·|,•]?\s*)+$/;
 
 /** Ein Verweis: in diesem Fenster, wenn er hierher führt — sonst in einem neuen. */
-function Link({ href, label }: { href: string; label: string }) {
+function Link({ href, children }: { href: string; children: ReactNode }) {
   const outside = /^https?:/i.test(href);
   return (
     <a className="wk-link" href={href} {...(outside ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
-      {label}
+      {children}
     </a>
   );
 }
 
-/** Ein Stück Text mit seinen Verweisen. */
+/** Das Gelesene ohne Bibliothek: Fett, Kursiv, Verweise; von `[[Wort|@…]]` das Wort. */
+function inlines(list: readonly Inline[]): ReactNode[] {
+  return list.map((one, i) => {
+    switch (one.t) {
+      case 'text': return <Fragment key={i}>{one.v}</Fragment>;
+      case 'br': return <br key={i} />;
+      case 'b': return <strong key={i}>{inlines(one.c)}</strong>;
+      case 'i': return <em key={i}>{inlines(one.c)}</em>;
+      case 'link': return <Link key={i} href={one.href}>{inlines(one.c)}</Link>;
+      case 'ref': return <Fragment key={i}>{inlines(one.c)}</Fragment>;
+      case 'note': return <small key={i} className="wk-card-aside"> ({inlines(one.c)})</small>;
+      case 'cite': return <small key={i} className="wk-card-aside"> {UNREADABLE}</small>;
+      default: return null;
+    }
+  });
+}
+
+/** Ein Stück Text mit seinen Verweisen — gelesen vom einen Leser. */
 export function inline(text: string): ReactNode[] {
-  const out: ReactNode[] = [];
-  let at = 0;
-  for (const match of text.matchAll(LINK)) {
-    const start = match.index ?? 0;
-    if (start > at) out.push(text.slice(at, start));
-    const href = textLink(match[2]);
-    out.push(href === null ? match[0] : <Link key={start} href={href} label={match[1]} />);
-    at = start + match[0].length;
-  }
-  if (at < text.length) out.push(text.slice(at));
-  return out;
+  return inlines(parseInline(text));
 }
 
 export type LineKind = 'gap' | 'sub' | 'lead' | 'quiet' | 'links' | 'text';
@@ -67,8 +84,8 @@ export function lineKind(line: string): { readonly kind: LineKind; readonly text
 export function linkRow(text: string): ReactNode[] {
   const out: ReactNode[] = [];
   for (const match of text.matchAll(LINK)) {
-    const href = textLink(match[2]);
-    out.push(href === null ? <span key={match.index}>{match[1]}</span> : <Link key={match.index} href={href} label={match[1]} />);
+    const href = safeHref(match[2]);
+    out.push(href === null ? <span key={match.index}>{match[1]}</span> : <Link key={match.index} href={href}>{inline(match[1])}</Link>);
   }
   return out;
 }

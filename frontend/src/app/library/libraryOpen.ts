@@ -15,7 +15,7 @@
  * `/library/where`: liegt es in einer Bibliothek, die dieser Browser lesen
  * darf, wird sie dazugeholt; sonst bleibt der Verweis ein Verweis ohne Ziel —
  * man sieht, dass es ihn gibt, aber nichts über das, worauf er zeigt
- * (`UNREADABLE` in `comment.ts`).
+ * (`UNREADABLE` in `libraryMarkup.ts`).
  */
 
 import { useEffect, useState } from 'react';

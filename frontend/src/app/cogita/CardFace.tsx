@@ -314,13 +314,13 @@ export function EntityGlance({ lib, entity, onEntity }: { lib: CogitaLibrary; en
   const knowledge = entity.kinds.includes('knowledge');
   return (
     <div className="cg-card">
-      {knowledge ? <Markup text={String(entity.data.text ?? '')} onEntity={onEntity} resolve={(t) => lib.resolve(t)} />
+      {knowledge ? <Markup text={String(entity.data.text ?? '')} onEntity={onEntity} lib={lib} />
         : (
           <>
             <strong>{onEntity === undefined ? labelOf(entity, look) : <button type="button" className="cg-ref" onClick={() => onEntity(entity.id)}>{labelOf(entity, look)}</button>}</strong>
             {fields.map((f) => {
               const text = fieldText(entity, f, look);
-              return text === '' ? null : <span key={f.key} className="cg-muted">{f.label}: {f.type === 'markup' ? <Markup text={String(entity.data[f.key] ?? '')} /> : text}</span>;
+              return text === '' ? null : <span key={f.key} className="cg-muted">{f.label}: {f.type === 'markup' ? <Markup text={String(entity.data[f.key] ?? '')} lib={lib} /> : text}</span>;
             })}
           </>
         )}
