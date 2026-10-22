@@ -63,7 +63,9 @@ const TYPE_OF: Record<LibFieldType, FieldType> = {
   line: 'line', text: 'text', markup: 'markup', number: 'number', date: 'date',
   select: 'choice', url: 'url', ref: 'ref', refs: 'ref', outline: 'outline',
   /* 2026-10-21 — eine Liste von Objekten (der Plan eines Textes): hier nur zum Lesen, nie geschrieben. */
-  items: 'list'
+  items: 'list',
+  /* 2026-10-22 — die Bausteine eines Komentarza: hier nur zum Lesen. */
+  blocks: 'list'
 };
 
 function fromLibrary(f: LibField): FieldDef {
@@ -77,8 +79,7 @@ function fromLibrary(f: LibField): FieldDef {
     options: type === 'choice' ? (f.options ?? []).map((o) => ({ value: o.value, label: o.label })) : undefined,
     to: type === 'ref' ? [...(f.to ?? [])] : undefined,
     role: f.key,
-    says: f.says,
-    ...(f.private === true ? { private: true } : {})
+    says: f.says
   };
 }
 
@@ -194,7 +195,7 @@ export const QUESTION: KindDef = {
 
 /** In dieser Reihenfolge stehen sie in Listen. */
 const BASE: readonly KindDef[] = [
-  ...['person', 'work', 'quote', 'topic', 'text', 'delivery', 'project'].map(builtin),
+  ...['person', 'work', 'quote', 'topic', 'text', 'delivery', 'comment', 'project'].map(builtin),
   KNOWLEDGE,
   QUESTION
 ];

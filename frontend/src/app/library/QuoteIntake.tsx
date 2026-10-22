@@ -236,7 +236,7 @@ function JsonIntake({ store, work, onClose }: { store: LibraryStore; work: Entry
                     {item.id !== undefined && <span className="lib-badge">zmiana istniejącego</span>}
                   </div>
                   <textarea rows={Math.min(8, Math.max(2, Math.ceil(item.text.length / 90)))} value={item.text} aria-label="Tekst cytatu" onChange={(e) => change(item.n, { text: e.target.value })} />
-                  <input value={item.description} placeholder="Opis (o czym jest fragment)" aria-label="Opis" onChange={(e) => change(item.n, { description: e.target.value })} />
+                  <input value={item.comment} placeholder="Komentarz (o czym jest fragment) — osobny wpis o tym cytacie" aria-label="Komentarz" onChange={(e) => change(item.n, { comment: e.target.value })} />
                   {item.topics.length > 0 && (
                     <p className="lib-review-topics">
                       {item.topics.map((t) => (
@@ -247,7 +247,7 @@ function JsonIntake({ store, work, onClose }: { store: LibraryStore; work: Entry
                       ))}
                     </p>
                   )}
-                  {item.notes !== '' && <input value={item.notes} aria-label="Notatki prywatne" onChange={(e) => change(item.n, { notes: e.target.value })} />}
+                  {item.check !== '' && <p className="wk-warn">Do sprawdzenia: {item.check}</p>}
                 </div>
               </li>
             ))}

@@ -1,8 +1,10 @@
 /**
- * Die Kästen unter einem Eintrag: Schlüssel, Veröffentlichen, Beziehungen, LaTeX, JSON, Löschen.
+ * Die Kästen unter einem Eintrag: Schlüssel, Beziehungen (mit den
+ * Komentarzen über ihn), LaTeX, JSON, Löschen. Wer ihn liest, sagt
+ * `LibraryAreaBox.tsx` (seit 2026-10-22 statt „Opublikuj").
  */
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { saveBlob } from '../core/platform';
 import { useRemembered } from '../core/prefs';
@@ -15,11 +17,11 @@ import { type LibEntry, isKey, kindOf, markupsOf } from './libraryKinds';
 import { latexFileName, missingKeys, planToLatex, projectToLatex, textToLatex } from './libraryLatex';
 import { citedKeys } from './libraryMarkup';
 import { entryLine } from './LibraryPick';
-import { neededBy } from './libraryPublish';
 import type { Entry, LibraryStore } from './libraryStore';
-import { isHidden, planOf, textsOf } from './sermon';
+import { commentsOn } from './markupView';
+import { planOf } from './sermon';
 
-export const TAB_OF: Record<string, string> = { text: 'teksty', delivery: 'wyglaszenia', project: 'projekty', quote: 'cytaty', work: 'zrodla', person: 'osoby', topic: 'tematy' };
+export const TAB_OF: Record<string, string> = { text: 'teksty', delivery: 'wyglaszenia', comment: 'komentarze', project: 'projekty', quote: 'cytaty', work: 'zrodla', person: 'osoby', topic: 'tematy' };
 
 /* -- Der Schlüssel ------------------------------------------------------------------------------ */
 
@@ -37,136 +39,6 @@ export function KeyBox({ store, id, value, readOnly, onChange }: { store: Librar
   );
 }
 
-/* -- Veröffentlichung ----------------------------------------------------------------------------- */
-
-export function PublishBox({ store, entry, readOnly }: { store: LibraryStore; entry: Entry; readOnly: boolean }) {
-  if (entry.kind === 'delivery') return <DeliveryPublishBox store={store} entry={entry} readOnly={readOnly} />;
-  return <EntryPublishBox store={store} entry={entry} readOnly={readOnly} />;
-}
-
-/**
- * 2026-10-21 — EIN WYGŁOSZENIE GEHT MIT SEINEM TEXT HINAUS: wer ein Kazanie
- * veröffentlicht, veröffentlicht seine Aufnahmen (ohne die privaten). Hier
- * steht deshalb kein „Opublikuj", sondern ob es draussen ist — und, wenn
- * sein Text draussen ist, „Zaktualizuj publikację", das es mitnimmt (oder,
- * privat gestellt, zurückzieht).
- */
-function DeliveryPublishBox({ store, entry, readOnly }: { store: LibraryStore; entry: Entry; readOnly: boolean }) {
-  const [current, setCurrent] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
-  const texts = textsOf(entry, store).map((t) => store.get(t.id)).filter((t): t is Entry => t !== undefined);
-  const outside = texts.filter((t) => t.publishedAs !== null);
-  const hidden = isHidden(entry);
-
-  useEffect(() => {
-    if (entry.publishedAs === null) { setCurrent(null); return undefined; }
-    let alive = true;
-    const timer = window.setTimeout(() => { void store.publicIsCurrent(entry.id).then((ok) => { if (alive) setCurrent(ok); }); }, 600);
-    return () => { alive = false; window.clearTimeout(timer); };
-  }, [store, entry.id, entry.publishedAs, entry.version, store.revision]);
-
-  const refresh = async () => {
-    setBusy(true);
-    setFailed(null);
-    try {
-      await store.apply(store.planFor({ refresh: [entry.id, ...outside.map((t) => t.id)] }));
-    } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const due = outside.length > 0 && ((hidden && entry.publishedAs !== null) || (!hidden && (entry.publishedAs === null || current === false)));
-  return (
-    <section className="lib-box">
-      <h2 className="lib-box-h">Publikacja</h2>
-      {entry.publishedAs !== null && !hidden && <p><span className="lib-badge is-public">publiczne</span> razem z tekstem {outside.map((t) => `„${store.title(t)}”`).join(', ')}.</p>}
-      {entry.publishedAs === null && !hidden && outside.length === 0 && <p>Prywatne — stanie się publiczne razem ze swoim tekstem, gdy go opublikujesz.</p>}
-      {entry.publishedAs === null && !hidden && outside.length > 0 && <p className="wk-warn">Tekst jest publiczny, to wygłoszenie jeszcze nie.</p>}
-      {hidden && <p>Prywatne („Nie publikuj”){entry.publishedAs !== null ? ' — jest jeszcze na stronie; aktualizacja je wycofa.' : '.'}</p>}
-      {current === false && !hidden && <p className="wk-warn">Zmiany nie są jeszcze opublikowane.</p>}
-      {!readOnly && due && (
-        <div className="wk-actions">
-          <button type="button" className="wk-btn" disabled={busy} onClick={() => void refresh()}>
-            {busy ? 'Publikowanie…' : hidden ? 'Wycofaj z publikacji' : entry.publishedAs === null ? 'Opublikuj razem z tekstem' : 'Zaktualizuj publikację'}
-          </button>
-        </div>
-      )}
-      {failed !== null && <p className="wk-error">{failed}</p>}
-    </section>
-  );
-}
-
-function EntryPublishBox({ store, entry, readOnly }: { store: LibraryStore; entry: Entry; readOnly: boolean }) {
-  const [current, setCurrent] = useState<boolean | null>(null);
-  const [asking, setAsking] = useState<string[] | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (entry.publishedAs === null) { setCurrent(null); return undefined; }
-    let alive = true;
-    const timer = window.setTimeout(() => { void store.publicIsCurrent(entry.id).then((ok) => { if (alive) setCurrent(ok); }); }, 600);
-    return () => { alive = false; window.clearTimeout(timer); };
-  }, [store, entry.id, entry.publishedAs, entry.version, store.revision]);
-
-  const run = async (todo: () => Promise<void>) => {
-    setBusy(true);
-    setFailed(null);
-    try { await todo(); setAsking(null); } catch (e) { setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.'); } finally { setBusy(false); }
-  };
-
-  const publish = () => {
-    const next = store.planFor({ add: [entry.id] });
-    if (next.alsoNew.length > 0 && asking === null) { setAsking([...next.alsoNew]); return; }
-    void run(() => store.apply(next));
-  };
-
-  const users = entry.publishedAs !== null ? neededBy(entry.id, store.all(), store).map((id) => store.get(id)).filter((e): e is Entry => e !== undefined) : [];
-
-  return (
-    <section className="lib-box">
-      <h2 className="lib-box-h">Publikacja</h2>
-      {entry.publishedAs === null && <p>Prywatny — widzą go tylko osoby z kluczem biblioteki.</p>}
-      {entry.publishedAs === 'explicit' && <p><span className="lib-badge is-public">publiczny</span></p>}
-      {entry.publishedAs === 'implicit' && (
-        <p><span className="lib-badge is-implicit">publiczny jako źródło</span> — przywołuje go: {users.slice(0, 4).map((u) => store.title(u)).join(', ') || 'opublikowany wpis'}.</p>
-      )}
-      {current === false && <p className="wk-warn">Zmiany nie są jeszcze opublikowane.</p>}
-
-      {asking !== null && (
-        <div className="lib-ask">
-          <p>Razem z nim staną się publiczne (bez prywatnych notatek):</p>
-          <ul>{asking.slice(0, 12).map((id) => <li key={id}>{kindOf(store.get(id)?.kind ?? '')?.label}: {store.title(store.get(id)!)}</li>)}</ul>
-          {asking.length > 12 && <p className="wk-hint">i {asking.length - 12} więcej</p>}
-        </div>
-      )}
-
-      {!readOnly && (
-        <div className="wk-actions">
-          {entry.publishedAs !== 'explicit' && (
-            <button type="button" className="wk-btn" disabled={busy} onClick={publish}>
-              {busy ? 'Publikowanie…' : asking !== null ? 'Opublikuj razem z nimi' : entry.publishedAs === 'implicit' ? 'Opublikuj też samodzielnie' : 'Opublikuj'}
-            </button>
-          )}
-          {entry.publishedAs !== null && current === false && (
-            <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(() => store.apply(store.planFor({ refresh: [entry.id] })))}>Zaktualizuj publikację</button>
-          )}
-          {entry.publishedAs === 'explicit' && (
-            <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => store.unpublish([entry.id]))}>Wycofaj publikację</button>
-          )}
-          {asking !== null && <button type="button" className="wk-link-btn" onClick={() => setAsking(null)}>Anuluj</button>}
-        </div>
-      )}
-      {entry.publishedAs === 'explicit' && entry.kind === 'text' && <p className="wk-hint">Na stronie pokaże go moduł „Tekst z biblioteki” albo „Archiwum tekstów” — z planem i wygłoszeniami.</p>}
-      {entry.publishedAs === 'explicit' && entry.kind === 'quote' && <p className="wk-hint">Widoczny w module „Zbiór cytatów”.</p>}
-      {failed !== null && <p className="wk-error">{failed}</p>}
-    </section>
-  );
-}
-
 /* -- Was auf ihn zeigt --------------------------------------------------------------------------- */
 
 export function Relations({ store, library, entry }: { store: LibraryStore; library: OpenLibrary; entry: Entry }) {
@@ -176,16 +48,19 @@ export function Relations({ store, library, entry }: { store: LibraryStore; libr
   const works = back.filter((e) => e.kind === 'work');
   const projects = back.filter((e) => e.kind === 'project');
   const deliveries = back.filter((e) => e.kind === 'delivery');
-  const other = back.filter((e) => !['quote', 'text', 'work', 'project', 'delivery'].includes(e.kind));
-  const link = (e: Entry) => <a href={viewPath('library', library.libraryId, e.id)}>{e.kind === 'quote' ? `„${store.title(e)}”` : entryLine(e, store)}</a>;
+  /* 2026-10-22 — die Komentarze ÜBER ihn (nicht die, die ihn nur in einer Zelle nennen: die stehen unter „Inne"). */
+  const about = commentsOn(entry.id, store) as Entry[];
+  const other = back.filter((e) => !['quote', 'text', 'work', 'project', 'delivery'].includes(e.kind) && !about.includes(e));
+  const link = (e: Entry) => <a href={viewPath('library', e.libraryId, e.id)}>{e.kind === 'quote' ? `„${store.title(e)}”` : entryLine(e, store)}</a>;
 
   const cited = entry.kind === 'text' || entry.kind === 'delivery' ? citedKeys(...markupsOf(entry)).map((k) => store.byKey(k)).filter((e): e is Entry => e !== undefined) : [];
-
-  if (back.length === 0 && cited.length === 0 && entry.kind !== 'work') return null;
 
   return (
     <section className="lib-box">
       <h2 className="lib-box-h">Powiązania</h2>
+      <p className="lib-box-sub">Komentarze o tym wpisie: {about.length}</p>
+      {about.length > 0 && <ul className="lib-rel">{about.map((c) => <li key={c.id}>{link(c)}</li>)}</ul>}
+      {library.writes && <a className="wk-link-btn" href={viewPath('library', library.libraryId, 'nowy', 'comment', `o=${entry.id}`)}>+ Komentarz</a>}
       {entry.kind === 'work' && (
         <>
           <p className="lib-box-sub">Cytaty z tego źródła: {quotes.length} <span className="wk-hint">— lista i dodawanie pod polami</span></p>
@@ -234,7 +109,7 @@ export function LatexBox({ store, entry }: { store: LibraryStore; entry: LibEntr
       </div>
       {entry.kind === 'text' && planOf(entry.data).length > 0 && (
         <div className="wk-actions">
-          <button type="button" className="wk-btn wk-btn-line" onClick={() => void saveBlob(new Blob([planToLatex(entry, store, { notes: true })], { type: 'application/x-tex' }), latexFileName(entry, '-plan'))}>
+          <button type="button" className="wk-btn wk-btn-line" onClick={() => void saveBlob(new Blob([planToLatex(entry, store, { comments: true })], { type: 'application/x-tex' }), latexFileName(entry, '-plan'))}>
             Plan na ambonę (.tex)
           </button>
         </div>
@@ -304,7 +179,7 @@ export function DeleteBox({ store, library, entry }: { store: LibraryStore; libr
         <button type="button" className="wk-link-btn lib-danger-link" onClick={() => setSure(true)}>Usuń ten wpis…</button>
       ) : (
         <>
-          <p>Usunąć „{store.title(entry)}”?{back.length > 0 ? ` Odwołuje się do niego ${back.length} wpisów — te odwołania zostaną puste.` : ''}{entry.publishedAs !== null ? ' Zniknie też z publikacji.' : ''}</p>
+          <p>Usunąć „{store.title(entry)}”?{back.length > 0 ? ` Odwołuje się do niego ${back.length} wpisów — te odwołania zostaną puste.` : ''}</p>
           <div className="wk-actions">
             <button type="button" className="wk-btn lib-btn-danger" onClick={() => void store.remove(entry.id).then(
               () => { window.location.hash = viewPath('library', library.libraryId, TAB_OF[entry.kind] ?? ''); },

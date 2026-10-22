@@ -7,16 +7,18 @@
  *      Verweise mit Stellen, eigene Fussnoten, Links, Escapes.
  *   3. Die Angaben: Buch, Kapitel, Artikel, Dokument, Pismo Święte, Netz —
  *      voll, „dz. cyt.", „Tamże", Bibliografie.
- *   4. Veröffentlichen: was mitgeht (Text → Zitat → Werk → Autor), dass
- *      Privates nie hinausgeht, was beim Zurückziehen bleibt.
+ *   4. Komentarze und Bereiche (2026-10-22): Bausteine mit echten Verweisen,
+ *      Import/Export (Fassung 2, alte Felder → Komentarze), Einbetten mit
+ *      Kreisschutz, unlesbare Ziele ohne Titel, die Umstellung (wohin jeder
+ *      alte Wert geht, was umziehen muss, damit niemand mehr sieht als vorher).
  *   5. Der Text, gezeichnet: Fussnoten in Reihenfolge, Quellen darunter.
  *   6. Bücher: ISBN, Strichcode (ZXing), Katalog (MARC, ONIX), eigene Nummer,
  *      Zitate eines Buches (Format, Polecenie, Plan, Import, Export).
  *   7. Kazania (2026-10-21): der Plan (Lesen, Nummern, Einfügen), Wygłoszenia
  *      (was gesagt wurde, Zeiten, Links an die Stelle), Aspekte der Themen,
- *      Veröffentlichung (ein Text nimmt seine Wygłoszenia mit, private nicht;
- *      Themen samt denen darüber), die Zeichnung mit gewähltem Wygłoszenie,
- *      LaTeX, das Polecenie, JSON ins offene Formular, die Zeilen des Archivs.
+ *      die Zeichnung mit gewähltem Wygłoszenie und den Komentarzen an den
+ *      Punkten, LaTeX, das Polecenie, JSON ins offene Formular, das Archiv
+ *      (Zeilen, Filter samt Oberthemen, Zahlen — im Browser gerechnet).
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -32,9 +34,10 @@ await writeFile(entry, `
 export * from '${app}library/libraryKinds';
 export * from '${app}library/libraryMarkup';
 export * from '${app}library/libraryCite';
-export * from '${app}library/libraryPublish';
-export { planLibraryImport, exportLibrary, libraryDescription, LIBRARY_FORMAT } from '${app}library/libraryJson';
-export { TextArticle, publicLookup } from '${app}library/LibraryText';
+export * from '${app}library/comment';
+export * from '${app}library/libraryMigrate';
+export { planLibraryImport, exportLibrary, libraryDescription, LIBRARY_FORMAT, LIBRARY_VERSION } from '${app}library/libraryJson';
+export { QuoteFigure, TextArticle } from '${app}library/LibraryText';
 export * from '${app}library/isbn';
 export * from '${app}library/libraryCatalog';
 export * from '${app}library/libraryQuotes';
@@ -43,7 +46,7 @@ export { readAmount, patchFromDoc } from '${app}library/libraryJson';
 export * from '${app}library/sermon';
 export * from '${app}library/topics';
 export { textToLatex, planToLatex } from '${app}library/libraryLatex';
-export { archiveRow, choose, facetKey, PROJECTS } from '${app}library/browse';
+export { archiveRow, browseLocal, choose, facetKey, PROJECTS } from '${app}library/browse';
 export { layoutOf } from '${app}library/archiveLayout';
 export { renderToStaticMarkup } from 'react-dom/server';
 export { createElement } from 'react';
@@ -113,8 +116,8 @@ try {
   const same = m.planLibraryImport(m.exportLibrary('x', stored), base);
   assert.equal(same.unchanged, stored.length, 'export → import changes nothing');
   assert.equal(same.drafts.length, 0);
-  const cleared = m.planLibraryImport({ entries: [{ id: byKind.work.id, kind: 'work', data: { description: null } }] }, base);
-  assert.equal(cleared.drafts[0].data.description, undefined, 'null clears a field');
+  const cleared = m.planLibraryImport({ entries: [{ id: byKind.work.id, kind: 'work', data: { year: null } }] }, base);
+  assert.equal(cleared.drafts[0].data.year, undefined, 'null clears a field');
   ok('import: in place by id or key, missing fields stay, null clears, export → import is a no-op');
 
   /* -- 2. Der Zapis -------------------------------------------------------------------- */
@@ -174,50 +177,130 @@ try {
   assert.equal(m.originOf(lib.get('q'), lib), 'J. Ratzinger, Jezus z Nazaretu, s. 168');
   ok('citations: book, chapter, article, document, Bible, web; full, dz. cyt., Tamże; bibliography');
 
-  /* -- 4. Veröffentlichen ---------------------------------------------------------------------- */
-  const entries = [
-    ...lib.all().map((e) => ({ ...e, publishedAs: null })),
-    { id: 'topic', kind: 'topic', key: 'modlitwa', data: { name: 'Modlitwa', notes: 'prywatne' }, publishedAs: null },
-    { id: 'proj', kind: 'project', key: 'proj', data: { title: 'Niedziele', status: 'writing', outline: [{ heading: 'Lipiec' }, { text: 'sermon' }, { text: 'draft' }] }, publishedAs: null },
-    { id: 'sermon', kind: 'text', key: 'sermon', data: { title: 'Chleb', status: 'final', notes: 'tajne', body: 'Ja jestem [@bt, J 6,35].\n\n![@q]', topics: ['topic'], project: 'proj' }, publishedAs: null },
-    { id: 'draft', kind: 'text', key: 'draft', data: { title: 'Szkic', body: 'x', project: 'proj' }, publishedAs: null }
-  ];
-  const L = look(entries);
-  const plan = m.plan(entries, L, { add: ['sermon'] });
-  const ids = plan.publish.map((p) => p.id).sort();
-  assert.deepEqual(ids, ['bt', 'jezus', 'kow', 'proj', 'q', 'rat', 'sermon', 'topic'].sort(), 'a text takes its quote, work, authors, translator, Bible, topic and project');
-  assert.equal(plan.publish.find((p) => p.id === 'sermon').as, 'explicit');
-  assert.equal(plan.publish.find((p) => p.id === 'q').as, 'implicit');
-  assert.ok(!ids.includes('draft'), 'other texts of the project stay private');
-  const sermonPublic = m.publicEntry(L.get('sermon'), 'explicit', L, (id) => ids.includes(id));
-  assert.ok(!sermonPublic.json.includes('tajne') && !sermonPublic.json.includes('"status"'), 'private fields never go out');
-  const projectPublic = JSON.parse(m.publicEntry(L.get('proj'), 'implicit', L, (id) => ids.includes(id)).json);
-  assert.deepEqual(projectPublic.data.outline, [{ heading: 'Lipiec' }, { text: 'sermon' }], 'the outline shows only published texts');
-  assert.ok(!JSON.stringify(projectPublic).includes('writing'), 'project status is private');
-  const topicPublic = m.publicEntry(L.get('topic'), 'implicit', L, () => true);
-  assert.ok(!topicPublic.json.includes('prywatne'));
-  assert.deepEqual([...sermonPublic.refs].sort(), ['bt', 'proj', 'q', 'topic'], 'refs: fields and the keys in the text');
-  const summary = JSON.parse(sermonPublic.summary);
-  assert.equal(summary.title, 'Chleb');
-  assert.equal(summary.project.title, 'Niedziele');
+  /* -- 4. Komentarze und Bereiche ------------------------------------------------------------- */
+  {
+    /* Bausteine: duldsam gelesen, ein blosser String ist Text, Verweise sind echte Verweise. */
+    const blocks = m.blocksOf({ blocks: [
+      'Prosa',
+      { type: 'table', columns: ['Łk', 'Dz'], rows: [[[{ ref: 'bt', locator: 'Łk 1,35' }], [{ ref: 'bt', locator: 'Dz 1,8' }]], ['zstąpi na ciebie', 'zstąpi na was']] },
+      { type: 'ordered', items: ['najpierw', [{ text: 'potem ' }, { ref: 'q' }]] },
+      { type: 'heading', text: 'nie ma takiego bloku' },
+      { type: 'paragraph', text: '   ' }
+    ] });
+    assert.deepEqual(blocks.map((x) => x.type), ['paragraph', 'table', 'ordered'], 'four block types only; empty and unknown blocks fall away');
+    assert.deepEqual(blocks[1].rows[1], [[{ text: 'zstąpi na ciebie' }], [{ text: 'zstąpi na was' }]], 'a plain string in a cell is text');
+    assert.deepEqual(m.blockRefs(blocks), [{ ref: 'bt', locator: 'Łk 1,35' }, { ref: 'bt', locator: 'Dz 1,8' }, { ref: 'q', locator: '' }]);
+    assert.equal(m.blocksOf({ blocks: [{ type: 'paragraph', text: '' }] }, 'blocks', true).length, 1, 'the editor keeps an empty block');
+    const c1 = { id: 'c1', kind: 'comment', key: 'paralela', data: { subjects: [{ ref: 'bt', locator: 'Łk 1,35' }, { ref: 'sermon', point: 'p1' }], blocks: blocks.map(m.blockData) } };
+    assert.deepEqual(m.pairedWith('bt', 'Dz 1,8', [c1]).map((p) => p.locator), ['Łk 1,35'], 'what Dz 1,8 was set beside, in the same row');
+    assert.deepEqual(m.commentsAbout('sermon', [c1], 'p1').map((c) => c.id), ['c1'], 'a comment about a point of a plan');
+    assert.deepEqual(m.commentsAbout('sermon', [c1], '').map((c) => c.id), [], '… is not one about the whole text');
+    assert.deepEqual(m.fieldRefs(c1).sort(), ['bt', 'q', 'sermon'], 'subjects and cell refs are references (backlinks, reach)');
 
-  /* Draussen: die Predigt und ein Zitat für die Sammlung. Dann zurückziehen. */
-  const published = entries.map((e) => ({ ...e, publishedAs: ids.includes(e.id) ? (e.id === 'sermon' ? 'explicit' : 'implicit') : null }));
-  const L2 = look(published);
-  const withQuote = m.plan(published, L2, { add: ['q'] });
-  assert.deepEqual(withQuote.publish.map((p) => [p.id, p.as]), [['q', 'explicit']], 'an implicit quote becomes explicit — nothing else changes');
-  const both = published.map((e) => (e.id === 'q' ? { ...e, publishedAs: 'explicit' } : e));
-  const L3 = look(both);
-  const dropSermon = m.plan(both, L3, { remove: ['sermon'] });
-  assert.deepEqual([...dropSermon.unpublish].sort(), ['bt', 'proj', 'sermon', 'topic'].sort(), 'what only the sermon needed goes with it');
-  assert.ok(!dropSermon.unpublish.includes('q') && !dropSermon.unpublish.includes('jezus'), 'the quote stays (explicit), and its work');
-  const dropQuote = m.plan(both, L3, { remove: ['q'] });
-  assert.deepEqual(dropQuote.unpublish, [], 'a quote the sermon still cites stays public');
-  assert.deepEqual(dropQuote.publish.map((p) => [p.id, p.as]), [['q', 'implicit']]);
-  assert.deepEqual(m.neededBy('q', both, L3), ['sermon']);
-  const renamed = m.plan(both, L3, { refresh: ['rat'] });
-  assert.ok(['rat', 'jezus', 'q'].every((id) => renamed.publish.some((p) => p.id === id)), 'a renamed author refreshes the work and the quote that name him');
-  ok('publishing: closure, private fields stay home, project outline filtered, unpublish keeps what others need');
+    /* JSON: Fassung 2, Bausteine mit Verweisen per @schlüssel, Export → Import ändert nichts. */
+    const shelf = [
+      { id: 'bt', kind: 'work', key: 'bt', data: { workType: 'bible', title: 'Pismo Święte', siglum: 'BT' } },
+      { id: 'q', kind: 'quote', key: 'q', data: { text: 'Modlitwa jest rozmową.', work: 'bt', locator: 'J 1,1' } }
+    ];
+    const S = look(shelf);
+    const doc = { format: m.LIBRARY_FORMAT, version: m.LIBRARY_VERSION, entries: [{ kind: 'comment', key: 'nowy', data: {
+      subjects: [{ ref: '@bt', locator: 'Łk 1,35' }],
+      blocks: [{ type: 'table', columns: ['A', 'B'], rows: [[[{ ref: '@bt', locator: 'Łk 1,35' }], [{ ref: '@q' }, { text: ' i więcej' }]]] }, { type: 'unordered', items: [[{ ref: '@nieznany' }]] }]
+    } }] };
+    const planned = m.planLibraryImport(doc, S);
+    const made = planned.drafts[0];
+    assert.equal(made.kind, 'comment');
+    assert.deepEqual(made.data.subjects, [{ ref: 'bt', locator: 'Łk 1,35' }], 'subjects resolve @keys');
+    assert.deepEqual(made.data.blocks[0].rows[0], [[{ ref: 'bt', locator: 'Łk 1,35' }], [{ ref: 'q' }, { text: ' i więcej' }]], 'refs inside table cells resolve, text runs stay');
+    assert.ok(planned.warnings.some((w) => w.includes('nieznany')), 'an unknown ref is reported, not kept as text');
+    const stored = [...shelf, { id: made.id, kind: 'comment', key: made.key, data: made.data }];
+    const again = m.planLibraryImport(m.exportLibrary('x', stored), look(stored));
+    assert.equal(again.unchanged, stored.length, 'export → import keeps block types and references');
+    assert.equal(m.exportLibrary('x', stored).version, 2, 'the format version is 2');
+
+    /* Fassung 1: was in description/notes stand (und die Notiz am Punkt), wird ein Komentarz. */
+    const old = m.planLibraryImport({ format: m.LIBRARY_FORMAT, version: 1, entries: [
+      { kind: 'quote', key: 'q2', data: { text: 'Y', work: '@bt', description: 'Opis.\n\nDrugi akapit.', notes: 'Moja notatka' } },
+      { kind: 'text', key: 't2', data: { title: 'T', plan: [{ id: 'p1', text: 'Myśl', note: 'tu pauza' }, { text: 'Bez notatki' }] } }
+    ] }, S);
+    const quote = old.drafts.find((d) => d.kind === 'quote');
+    const text = old.drafts.find((d) => d.kind === 'text');
+    const comments = old.drafts.filter((d) => d.kind === 'comment');
+    assert.equal(quote.data.description, undefined, 'no description on a quote any more');
+    assert.equal(quote.data.notes, undefined);
+    assert.equal(text.data.plan[0].note, undefined, 'no note on a point any more');
+    assert.equal(comments.length, 3, 'description, notes and the point note became comments');
+    assert.deepEqual(comments.map((c) => c.data.subjects[0]).map((s) => [s.ref === quote.id || s.ref === text.id, s.point ?? '']).sort(), [[true, ''], [true, ''], [true, 'p1']]);
+    assert.deepEqual(comments.find((c) => c.data.blocks.length === 2).data.blocks.map((x) => x.text), ['Opis.', 'Drugi akapit.'], 'paragraphs stay paragraphs');
+    assert.ok(old.warnings.some((w) => w.includes('komentarz')), 'the conversion is said');
+    assert.deepEqual(old.drafts.map((d) => d.kind).slice(-3), ['comment', 'comment', 'comment'], 'comments are saved last (after what they name)');
+
+    /* Die Beschreibung für die KI: kein „prywatne", die Regel des Bereichs, ein Beispiel mit Tabelle. */
+    const said = m.libraryDescription();
+    assert.ok(!said.includes('prywatne — nigdy') && !said.includes('co opublikujesz'), 'no privacy markers, no publishing');
+    assert.ok(said.includes('decyduje wyłącznie obszar'), 'the area rule in one line');
+    assert.ok(said.includes('"type": "table"') && said.includes('"comment"'), 'a worked comment example with a table');
+
+    /* Gezeichnet: eingebettet, mit Tabelle; ein Kreis wird erkannt; ein unlesbares Ziel bleibt ohne Titel. */
+    const ring = [
+      ...shelf,
+      { id: 'c2', kind: 'comment', key: 'c2', data: { subjects: [{ ref: 'q' }], blocks: [{ type: 'paragraph', text: 'Dwa [@bt, J 1,1].\n\n![@c3]' }, { type: 'table', columns: ['Tu', 'Tam'], rows: [[[{ ref: 'bt', locator: 'Łk 1,35' }], [{ ref: 'tajny' }]]] }] } },
+      { id: 'c3', kind: 'comment', key: 'c3', data: { subjects: [{ ref: 'c2' }], blocks: [{ type: 'paragraph', text: 'Trzy.\n\n![@c2]' }] } }
+    ];
+    const R = { ...look(ring), readable: () => ring };
+    const sermon = { id: 's', kind: 'text', data: { title: 'K', body: 'Wstęp [@c2].\n\n![@c2]\n\n![@tajny-klucz]' } };
+    const html = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: sermon, look: R }));
+    assert.ok(html.includes('<table class="lib-table">') && html.includes('Łk 1,35'), 'an embedded comment brings its table; a Bible ref shows its place');
+    assert.ok(html.includes('Trzy.') && html.includes('[komentarz osadza sam siebie]'), 'c2 → c3 → c2: the cycle stops');
+    assert.ok(html.includes('Zob. komentarz:'), 'a comment in a footnote');
+    assert.equal((html.match(/\[odwołanie niedostępne\]/g) ?? []).length, 2, 'an unreadable cell ref and an unreadable embed say only that');
+    assert.ok(!html.includes('tajny'), '… and nothing about the target, not even its key');
+    assert.ok(/J 1,1/.test(html.slice(html.indexOf('Przypisy'))), 'a footnote inside an embedded comment is counted with the text');
+    const quoteHtml = m.renderToStaticMarkup(m.createElement(m.QuoteFigure, { entry: ring[1], look: R }));
+    assert.ok(quoteHtml.includes('Komentarze (1)'), 'comments about a quote are reachable where it is shown');
+    assert.ok(m.textToLatex(sermon, R).includes('\\begin{tabular}'), 'LaTeX: a comment table is a tabular');
+
+    /* Die Umstellung: wohin jeder alte Wert geht, was umzieht. */
+    const lib = (id, extra) => ({ libraryId: id, areaId: `a-${id}`, name: id, writes: true, areaPublic: false, areaRuleAt: null, kind: 'books', ...extra });
+    const store = (entries) => ({ all: () => entries, own: (id) => entries.find((e) => e.id === id), title: (e) => e.id });
+    const E = (id, kind, data, publishedAs = null) => ({ id, kind, data, publishedAs, libraryId: '', version: 1 });
+    const pub = { library: lib('pub', { areaPublic: true }), store: store([
+      E('qa', 'quote', { text: 'a', description: 'Opis A', notes: 'Prywatne A' }),
+      E('qb', 'quote', { text: 'b' }, 'explicit'),
+      E('dh', 'delivery', { date: '2026-01-01', hidden: 'yes' })
+    ]) };
+    const shared = { library: lib('shared'), store: store([
+      E('proj', 'project', { title: 'Kazania Maryjne', notes: 'plan' }, 'explicit'),
+      E('tx', 'text', { title: 'T', plan: [{ id: 'p1', text: 'A', note: 'pauza' }] })
+    ]) };
+    const mine = { library: lib('mine', { areaId: 'me' }), store: store([E('pt', 'topic', { name: 'X', notes: 'tylko ja' })]) };
+    const done = { library: lib('done', { areaPublic: true, areaRuleAt: '2026-10-22', writes: false }), store: store([E('ok', 'quote', { text: 'c' })]) };
+    const tidy = m.planTidy([pub, shared, mine, done], 'me');
+    const where = Object.fromEntries(tidy.comments.map((c) => [c.key, c.target]));
+    assert.equal(where['qa:description'], 'with-entry', 'a description goes with its entry');
+    assert.equal(where['qa:notes'], 'mine', 'a private note goes to the private library');
+    assert.equal(where['proj:notes'], 'mine');
+    assert.equal(where['tx:plan:p1'], 'mine', 'the note of a point too, with its point');
+    assert.equal(where['pt:notes'], 'mine', 'a note already in the private library stays there');
+    const moves = Object.fromEntries(tidy.moves.map((x) => [x.entryId, [x.reason, x.target]]));
+    assert.deepEqual(moves.qa, ['exposure', 'mine'], 'never published in a public area: would become public → private by default');
+    assert.deepEqual(moves.dh, ['exposure', 'mine'], 'a hidden delivery in a public area too');
+    assert.equal(moves.qb, undefined, 'published in a public area: nothing changes');
+    assert.deepEqual(moves.proj, ['publicity', 'pub'], 'published in a closed area: would disappear → the public library by default');
+    assert.ok(tidy.moves.find((x) => x.entryId === 'qa').options.includes(null), '… and either can stay, by choice');
+    assert.equal(moves.ok, undefined, 'a library already settled is left alone');
+    assert.deepEqual([...tidy.settle].sort(), ['mine', 'pub', 'shared'], 'every library not yet settled is settled at the end');
+    assert.deepEqual(tidy.unpublish.get('pub'), ['qb'], 'old public copies are withdrawn');
+    assert.deepEqual(m.legacyFields(pub.store.own('dh')), ['hidden']);
+    const clean = m.stripped(shared.store.own('tx'));
+    assert.deepEqual(clean.plan, [{ id: 'p1', text: 'A' }], 'step 2 removes the note from the point');
+    assert.equal(m.stripped(pub.store.own('qa')).description, undefined);
+    const ro = m.planTidy([{ ...shared, library: { ...shared.library, writes: false } }], 'me');
+    assert.deepEqual([ro.blocked, ro.comments.length, ro.moves.length], [['shared'], 0, 0], 'a library I only read is not touched — it is named');
+    const noPrivate = m.planTidy([pub], null);
+    assert.equal(noPrivate.comments.find((c) => c.key === 'qa:notes').target, m.PERSONAL, 'without a private library one is made');
+  }
+  ok('comments: four blocks with real refs, JSON v2 round trip, v1 fields → comments, embed + cycle guard, unreadable refs, the migration plan');
 
   /* -- 5. Der Text, gezeichnet ------------------------------------------------------------------- */
   const sermon = { id: 'sermon', kind: 'text', key: 'sermon', data: {
@@ -378,7 +461,8 @@ try {
     assert.equal(saved[1].kind, 'quote');
     assert.equal(saved[1].data.work, 'w-ricci', 'every quote belongs to this book');
     assert.deepEqual(saved[1].data.topics, ['t-modlitwa', 'new-0']);
-    assert.equal(saved[1].data.notes, 'por. Dn 10');
+    assert.equal(saved[1].data.notes, undefined, 'a quote has no notes any more (v1 notes → a comment)');
+    assert.deepEqual(saved[2], { kind: 'comment', data: { subjects: [{ ref: saved[1].id }], blocks: [{ type: 'paragraph', text: 'por. Dn 10' }] }, id: 'new-2' }, 'the comment about the quote');
     assert.equal(saved[1].data.description, undefined, 'empty fields are not written');
 
     const exported = m.exportQuotes(book, shelf);
@@ -439,7 +523,7 @@ try {
     assert.equal(m.timeLink('https://example.pl/kazanie', 95), null, 'a page has no place');
     assert.deepEqual(['https://x.pl/a.mp3', 'https://x.pl/a.MP4?x=1', 'https://youtu.be/a', 'ftp://x/a.mp3'].map(m.mediaFile), ['audio', 'video', null, null]);
 
-    /* Eine kleine Bibliothek mit Aspekten, einem Kazanie und drei Wygłoszenia (eins privat). */
+    /* Eine kleine Bibliothek mit Aspekten, einem Kazanie, drei Wygłoszenia und einem Komentarz an einem Punkt. */
     const E = (id, kind, data, key) => ({ id, kind, ...(key === undefined ? {} : { key }), data });
     const entries = [
       ...lib.all(),
@@ -453,7 +537,7 @@ try {
       E('sermon', 'text', {
         textType: 'sermon', title: 'Chleb', date: '2020-01-01', topics: ['t-adwent1', 't-nadzieja'],
         plan: [
-          { id: 'p1', text: 'Głód, którego nie nasyci chleb [@bt, J 6,35]', depth: 0, note: 'Krótko — bez nazwisk' },
+          { id: 'p1', text: 'Głód, którego nie nasyci chleb [@bt, J 6,35]', depth: 0 },
           { id: 'p2', text: '![@q]', depth: 1, kind: 'quote' },
           { id: 'p3', text: 'Chleb w domu', depth: 1, kind: 'example' },
           { id: 'p4', text: 'Gdzie szukam?', depth: 0, kind: 'question' },
@@ -462,25 +546,25 @@ try {
         body: 'Treść [@jezus, s. 5].'
       }, 'chleb'),
       E('d1', 'delivery', {
-        texts: ['sermon'], date: '2026-08-02', occasion: 'XVIII Niedziela zwykła', audio: 'https://example.pl/k/d1.mp3', notes: 'tajne-d1',
+        texts: ['sermon'], date: '2026-08-02', occasion: 'XVIII Niedziela zwykła', audio: 'https://example.pl/k/d1.mp3',
         coverage: [{ point: 'p1', state: 'said', at: '0:40' }, { point: 'p2', state: 'short', note: 'Bez całego cytatu' }, { point: 'p3', state: 'skipped' }],
         added: [{ text: 'Zaproszenie na adorację', at: '12:50', after: 'p4' }]
       }),
-      E('d2', 'delivery', { texts: ['sermon'], date: '2027-01-01', hidden: 'yes' }),
-      E('d3', 'delivery', { texts: ['sermon'], date: '2025-12-01' })
+      E('d2', 'delivery', { texts: ['sermon'], date: '2024-06-01' }),
+      E('d3', 'delivery', { texts: ['sermon'], date: '2025-12-01' }),
+      E('cp1', 'comment', { subjects: [{ ref: 'sermon', point: 'p1' }], blocks: [{ type: 'paragraph', text: 'Krótko — bez nazwisk' }] })
     ];
     /* Wie der Speicher: wer zeigt worauf (Felder und Zapis). */
     const lookB = (list) => {
       const base = look(list);
-      return { ...base, backlinks: (id) => list.filter((e) => m.fieldRefs(e).includes(id) || m.citedKeys(...m.markupsOf(e)).some((k) => base.byKey(k)?.id === id)) };
+      return { ...base, readable: () => list, backlinks: (id) => list.filter((e) => m.fieldRefs(e).includes(id) || m.citedKeys(...m.markupsOf(e)).some((k) => base.byKey(k)?.id === id)) };
     };
     const L = lookB(entries);
     const sermon = L.get('sermon');
 
     assert.ok(m.markupsOf(sermon).includes('Gdzie szukam?') && m.markupsOf(sermon).length === 6, 'markup of the plan counts as markup');
     assert.deepEqual(m.citedKeys(...m.markupsOf(sermon)), ['bt', 'q', 'jezus'], 'sources of the plan and the body');
-    assert.ok(!JSON.stringify(m.publicData(sermon)).includes('bez nazwisk'), 'a private note of a point stays home');
-    assert.deepEqual(m.deliveriesOf(sermon, L).map((d) => d.id), ['d1', 'd3'], 'deliveries newest first, the private one left out');
+    assert.deepEqual(m.deliveriesOf(sermon, L).map((d) => d.id), ['d1', 'd3', 'd2'], 'deliveries newest first — all the reader can read (no "Nie publikuj")');
     assert.equal(m.lastHeld(sermon, L), '2026-08-02');
     const counts = m.coverageCounts(m.planOf(sermon.data), m.coverageOf(L.get('d1').data), m.addedOf(L.get('d1').data));
     assert.deepEqual(counts, { points: 5, said: 1, short: 1, skipped: 1, open: 2, added: 1 });
@@ -496,54 +580,14 @@ try {
     assert.deepEqual(m.facetsOf(tree).map((f) => f.name), ['Okres liturgiczny', 'Temat', 'Inne tematy'], 'facets: the aspects, then loose topics');
     assert.deepEqual(m.facetsOf(m.topicTree([{ id: 'a', name: 'A', parent: null, aspect: false, order: null }])).map((f) => f.name), ['Tematy'], 'without aspects one facet over all topics');
 
-    /* Veröffentlichen: ein Kazanie nimmt seine Wygłoszenia mit — das private nicht —, die Themen samt denen darüber. */
-    const marked = entries.map((e) => ({ ...e, publishedAs: null }));
-    const P = m.plan(marked, L, { add: ['sermon'] });
-    const out = P.publish.map((p) => p.id);
-    for (const id of ['sermon', 'd1', 'd3', 't-adwent1', 't-adwent', 't-okres', 't-nadzieja', 't-temat', 'bt', 'q', 'jezus', 'rat']) assert.ok(out.includes(id), `${id} goes out with the sermon`);
-    assert.ok(!out.includes('d2') && !out.includes('t-post') && !out.includes('t-rozne'), 'the private delivery and unrelated topics stay home');
-    assert.equal(P.publish.find((p) => p.id === 'd1').as, 'implicit');
-    const after = new Set(out);
-    const pubSermon = m.publicEntry(sermon, 'explicit', L, (id) => after.has(id));
-    const sermonDoc = JSON.parse(pubSermon.json);
-    assert.deepEqual(sermonDoc.data.deliveries, ['d1', 'd3'], 'the text names its deliveries');
-    assert.ok(!pubSermon.json.includes('bez nazwisk') && !JSON.stringify(sermonDoc.data.plan).includes('note'), 'no private notes in the public plan');
-    for (const id of ['d1', 'd3', 't-okres', 't-adwent', 't-temat', 'bt', 'q', 'jezus']) assert.ok(pubSermon.refs.includes(id), `public refs name ${id} (filters find a text under its aspects)`);
-    const sum = JSON.parse(pubSermon.summary);
-    assert.deepEqual(sum.plan, ['Głód, którego nie nasyci chleb', 'Gdzie szukam?', 'Zastosowanie na tydzień'], 'the summary carries the main thoughts');
-    assert.equal(sum.deliveries, 2);
-    assert.equal(sum.last, '2026-08-02');
-    assert.equal(sum.held[0].recorded, true);
-    assert.ok(pubSermon.sort.startsWith('2026-08-02'), 'a text stands where it was last preached');
-    const pubD1 = m.publicEntry(L.get('d1'), 'implicit', L, (id) => after.has(id));
-    assert.ok(!pubD1.json.includes('tajne-d1'), 'private notes of a delivery stay home');
-    assert.deepEqual(JSON.parse(pubD1.summary).counts, counts, 'a delivery says how much of the plan was said');
-    const topicSum = JSON.parse(m.publicEntry(L.get('t-okres'), 'implicit', L, () => true).summary);
-    assert.deepEqual([topicSum.aspect, topicSum.order], [true, 1], 'a topic says it is an aspect, and its place');
-    assert.equal(m.topicNodeOfSummary('t-okres', topicSum).aspect, true, 'the public page reads it back');
-
-    const published = marked.map((e) => ({ ...e, publishedAs: after.has(e.id) ? (e.id === 'sermon' ? 'explicit' : 'implicit') : null }));
-    const edited = m.plan(published, L, { refresh: ['d1'] });
-    assert.ok(edited.publish.some((p) => p.id === 'd1') && edited.publish.some((p) => p.id === 'sermon'), 'an edited delivery refreshes its text');
-    const hiddenList = published.map((e) => (e.id === 'd1' ? { ...e, data: { ...e.data, hidden: 'yes' } } : e));
-    const hidden = m.plan(hiddenList, lookB(hiddenList), { refresh: ['d1'] });
-    assert.ok(hidden.unpublish.includes('d1'), 'a delivery set private is withdrawn');
-    assert.ok(hidden.publish.some((p) => p.id === 'sermon'), '… and its text no longer names it');
-    const newOne = [...published, { ...E('d4', 'delivery', { texts: ['sermon'], date: '2026-09-01' }), publishedAs: null }];
-    const added = m.plan(newOne, lookB(newOne), { refresh: ['d4', 'sermon'] });
-    assert.ok(added.publish.some((p) => p.id === 'd4' && p.as === 'implicit'), 'a new delivery goes out with its published text');
-
     /* Gezeichnet: der Plan, und auf ihm das gewählte Wygłoszenie. */
-    const docs = [...after].map((id) => m.publicEntry(L.get(id), id === 'sermon' ? 'explicit' : 'implicit', L, (x) => after.has(x)))
-      .map((one) => ({ ...JSON.parse(one.json) }));
-    const pub = m.publicLookup(docs);
-    const plain = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: pub.get('sermon'), look: pub }));
-    assert.ok(plain.includes('lib-plan') && plain.includes('Modlitwa jest rozmową.') && plain.includes('Wygłoszenia (2)'), 'plan with the embedded quote, and the deliveries');
+    const plain = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: sermon, look: L }));
+    assert.ok(plain.includes('lib-plan') && plain.includes('Modlitwa jest rozmową.') && plain.includes('Wygłoszenia (3)'), 'plan with the embedded quote, and the deliveries');
     assert.ok(!plain.includes('lib-mark '), 'no marks while no delivery is chosen');
     const notes = [...plain.matchAll(/<li id="fn-(\d+)">(.*?)<\/li>/g)].map((x) => x[2].replace(/<[^>]+>/g, ''));
     assert.ok(notes[0].startsWith('J 6,35 (BT)') && notes[1].startsWith('J. Ratzinger, Jezus z Nazaretu'), `footnotes count the plan first, then the text (${notes.join(' | ')})`);
-    assert.ok(!plain.includes('bez nazwisk'), 'no private note on the page');
-    const marks = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: pub.get('sermon'), look: pub, delivery: 'd1' }));
+    assert.ok(plain.includes('Komentarze (1)') && plain.includes('Krótko — bez nazwisk'), 'a comment about a point stands at its point');
+    const marks = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: sermon, look: L, delivery: 'd1' }));
     assert.ok(marks.includes('lib-mark is-said') && marks.includes('lib-mark is-short') && marks.includes('lib-mark is-skipped'), 'the chosen delivery marks the plan');
     assert.ok(marks.includes('▶ 0:40') && marks.includes('Bez całego cytatu'), 'times you can jump to, and what was different');
     const addedAt = marks.indexOf('Zaproszenie na adorację');
@@ -553,9 +597,9 @@ try {
     const tex = m.textToLatex(sermon, L);
     assert.ok(tex.includes('\\section*{Plan}') && tex.includes('\\begin{enumerate}') && tex.includes('\\item Głód') && tex.includes('\\footnote{J 6,35 (BT).}'), 'LaTeX: the plan as a numbered list with its footnotes');
     assert.equal((tex.match(/\\begin\{enumerate\}/g) ?? []).length, (tex.match(/\\end\{enumerate\}/g) ?? []).length, 'LaTeX: every list is closed');
-    const pulpit = m.planToLatex(sermon, L, { notes: true });
-    assert.ok(pulpit.includes('{extarticle}') && pulpit.includes('14pt') && pulpit.includes('Krótko --- bez nazwisk'), 'the pulpit sheet: large, with own notes');
-    assert.ok(!m.planToLatex(sermon, L).includes('bez nazwisk'), 'without notes when not asked');
+    const pulpit = m.planToLatex(sermon, L, { comments: true });
+    assert.ok(pulpit.includes('{extarticle}') && pulpit.includes('14pt') && pulpit.includes('Krótko --- bez nazwisk'), 'the pulpit sheet: large, with the comments at the points');
+    assert.ok(!m.planToLatex(sermon, L).includes('bez nazwisk'), 'without comments when not asked');
 
     /* Das Polecenie für den eigenen Chat — und die Antwort ins offene Formular. */
     const prompt = m.deliveryPrompt(L.get('d1'), L);
@@ -580,9 +624,17 @@ try {
     assert.ok(imported.warnings.some((w) => w.includes('bogus')), 'unknown point fields are reported');
     for (const sub of ['"depth" — Poziom', '"state" — Jak', '"after" — Po punkcie', '"aspect" — Aspekt', '"texts" — Kazanie (tekst)']) assert.ok(description.includes(sub), `description explains ${sub}`);
 
-    /* Das Archiv: Zeilen aus Kurzfassungen, Filter je Achse. */
-    const row = m.archiveRow({ entryId: 'sermon', summary: pubSermon.summary });
-    assert.deepEqual([row.title, row.date, row.occasion, row.held, row.recorded, row.topics.length, row.plan.length], ['Chleb', '2026-08-02', 'XVIII Niedziela zwykła', 2, true, 2, 3]);
+    /* Das Archiv: Zeilen aus den Texten, Filter je Achse (ein Thema trifft auch, was darunter liegt), Zahlen. */
+    const row = m.archiveRow(sermon, L);
+    assert.deepEqual([row.title, row.date, row.occasion, row.held, row.recorded, row.topics.length, row.plan.length], ['Chleb', '2026-08-02', 'XVIII Niedziela zwykła', 3, true, 2, 3]);
+    const other = { ...row, id: 'x', title: 'Inny', date: '2019-01-01', topics: [{ id: 't-post', name: 'Wielki Post' }], project: null };
+    const found = (groups, order = '-sort', matching = null) => m.browseLocal([row, other], tree, { groups, matching, order });
+    assert.deepEqual(found([['t-okres']]).rows.map((r) => r.id), ['sermon', 'x'], 'an aspect finds everything under it');
+    assert.deepEqual(found([['t-adwent']]).rows.map((r) => r.id), ['sermon'], 'a topic finds its sub-topics');
+    assert.deepEqual(found([['t-adwent', 't-post'], ['t-nadzieja']]).rows.map((r) => r.id), ['sermon'], 'OR within a group, AND between groups');
+    assert.deepEqual(found([], 'sort').rows.map((r) => r.id), ['x', 'sermon'], 'oldest first');
+    assert.deepEqual(found([], '-sort', new Set(['x'])).rows.map((r) => r.id), ['x'], 'search narrows');
+    assert.deepEqual([found([]).counts.get('t-okres'), found([]).counts.get('t-adwent'), found([]).counts.get('t-post')], [2, 1, 1], 'counts include the topics above');
     const keyOf = (id) => m.facetKey(id, tree, new Set(['proj']));
     assert.deepEqual([keyOf('t-adwent1'), keyOf('t-nadzieja'), keyOf('t-rozne'), keyOf('proj')], ['t-okres', 't-temat', '', m.PROJECTS]);
     assert.deepEqual(m.choose([], 't-adwent', keyOf, false), ['t-adwent']);
@@ -591,7 +643,7 @@ try {
     assert.deepEqual(m.choose(['t-adwent', 't-nadzieja'], 't-adwent', keyOf, false), ['t-nadzieja'], 'the same value again removes it');
     assert.deepEqual(m.choose(['t-adwent'], 't-nadzieja', keyOf, true), ['t-nadzieja'], 'an older service takes one filter');
     assert.deepEqual(['Tabela', 'drzewo', 'list', ''].map(m.layoutOf), ['table', 'tree', 'list', 'list']);
-    ok('sermons: plan (depth, numbers, paste), times and links, aspects, publication with deliveries and topic ancestors, marks on the plan, LaTeX, prompts, JSON into the form, archive rows and filters');
+    ok('sermons: plan (depth, numbers, paste), times and links, aspects, marks and comments on the plan, LaTeX, prompts, JSON into the form, archive rows, filters and counts');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

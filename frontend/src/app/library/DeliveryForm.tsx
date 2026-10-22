@@ -26,8 +26,8 @@ import type { LibraryStore } from './libraryStore';
 import { FieldList } from './LibraryTextForm';
 import { MediaPlayer } from './SermonParts';
 import {
-  addedData, allDeliveriesOf, countsLine, coverageCounts, coverageData, coverageIndex, coverageOf, deliveryPlan, deliveryPrompt,
-  isHidden, mediaFile, orphanCoverage, planOf, pointLine, pointNumbers, timeText,
+  addedData, countsLine, coverageCounts, coverageData, coverageIndex, coverageOf, deliveryPlan, deliveryPrompt,
+  deliveriesOf, mediaFile, orphanCoverage, planOf, pointLine, pointNumbers, timeText,
   type AddedItem, type CoverageItem, type CoverageState
 } from './sermon';
 import { WritingArea } from './WritingTools';
@@ -236,7 +236,7 @@ export function DeliveryForm({ store, library, entry, data, set, readOnly }: {
       <CoverageEditor store={store} library={library} entry={entry} data={data} set={set} readOnly={readOnly} now={now} />
       <AddedEditor store={store} entry={entry} data={data} set={set} readOnly={readOnly} now={now} />
 
-      <FieldList store={store} kind="delivery" data={data} set={set} readOnly={readOnly} only={['summary', 'topics', 'hidden', 'notes']} />
+      <FieldList store={store} kind="delivery" data={data} set={set} readOnly={readOnly} only={['summary', 'topics']} />
 
       <details className="wk-fold">
         <summary>Zapis wygłoszenia (transkrypcja)</summary>
@@ -278,7 +278,7 @@ export function DeliveryForm({ store, library, entry, data, set, readOnly }: {
 /* -- Am Text: seine Wygłoszenia ------------------------------------------------------------------ */
 
 export function DeliveriesBox({ store, library, text, readOnly }: { store: LibraryStore; library: OpenLibrary; text: LibEntry; readOnly: boolean }) {
-  const list = allDeliveriesOf(text, store);
+  const list = deliveriesOf(text, store);
   const plan = planOf(text.data);
   return (
     <section className="lib-box">
@@ -290,7 +290,7 @@ export function DeliveriesBox({ store, library, text, readOnly }: { store: Libra
             return (
               <li key={d.id}>
                 <a href={viewPath('library', library.libraryId, d.id)}>{[str(d.data, 'date') || 'bez daty', str(d.data, 'occasion')].filter(Boolean).join(' · ')}</a>
-                {(counts !== '' || isHidden(d)) && <span className="lib-row-meta"> — {[counts, isHidden(d) ? 'prywatne' : ''].filter(Boolean).join(' · ')}</span>}
+                {counts !== '' && <span className="lib-row-meta"> — {counts}</span>}
               </li>
             );
           })}

@@ -453,7 +453,7 @@ function PublishEntity({ entity }: { entity: Entity }) {
   const { lib, keyIn } = useCtx();
   const entry = lib.entry(entity.id);
   const { busy, failed, run } = useBusy();
-  const builtin = entry !== undefined && ['person', 'work', 'quote', 'topic', 'text', 'delivery', 'project'].includes(entry.kind);
+  const builtin = entry !== undefined && ['person', 'work', 'quote', 'topic', 'text', 'delivery', 'comment', 'project'].includes(entry.kind);
   const publish = async () => {
     const bundle = entityBundle(lib, entity);
     await publishMedia(lib, publicEntity(lib, entity).media, keyIn);

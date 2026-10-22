@@ -3,9 +3,9 @@
  * Zitaten, „Dalsze informacje" und den Quellen darunter.
  *
  * <b>Dieselbe Zeichnung im Editor und auf der Seite.</b> Der Editor reicht
- * seinen Speicher als `Lookup` herein, die öffentliche Seite die offenen
- * Fassungen, die mit dem Text kamen (`publicLookup`). Was der Leser sieht,
- * sieht der Schreibende schon beim Tippen.
+ * seinen Speicher als `Lookup` herein, die Seite den Speicher, den sie für
+ * diesen Leser geöffnet hat (`libraryOpen.ts`). Was der Leser sieht, sieht
+ * der Schreibende schon beim Tippen — soweit der Leser es lesen darf.
  *
  * <b>2026-10-21 — ein Kazanie:</b> über der Treść die Wygłoszenia (mit
  * Player) und der Plan; wer ein Wygłoszenie wählt, sieht auf dem Plan, was
@@ -20,27 +20,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { bibliography, originOf } from './libraryCite';
 import { ids, isAspect, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
 import { parseMarkup } from './libraryMarkup';
-import { Blocks, countNotes, NoteList, QuoteBody, Segs } from './markupView';
+import { Blocks, CommentsOn, countNotes, NoteList, QuoteBody, Segs } from './markupView';
 import { deliveriesOf, mediaFile, planOf, timeLink } from './sermon';
 import { DeliveriesSection, MediaPlayer, PlanSection } from './SermonParts';
-
-/** Eine Sammlung offener Fassungen als `Lookup` — so liest die öffentliche Seite. */
-export function publicLookup(entries: readonly LibEntry[]): Lookup {
-  const byId = new Map(entries.map((e) => [e.id, e]));
-  const byKey = new Map(entries.filter((e) => e.key !== undefined).map((e) => [e.key!.toLowerCase(), e]));
-  return { get: (id) => byId.get(id), byKey: (key) => byKey.get(key.toLowerCase()) };
-}
-
-/** Eine offene Fassung (`PublicDoc` als JSON) als Eintrag — duldsam. */
-export function readPublic(json: string): LibEntry | null {
-  try {
-    const doc = JSON.parse(json) as { id?: unknown; kind?: unknown; key?: unknown; data?: unknown };
-    if (typeof doc.id !== 'string' || typeof doc.kind !== 'string' || typeof doc.data !== 'object' || doc.data === null) return null;
-    return { id: doc.id, kind: doc.kind, ...(typeof doc.key === 'string' ? { key: doc.key } : {}), data: doc.data as Record<string, unknown> };
-  } catch {
-    return null;
-  }
-}
 
 const typeLabel = (value: string) => TEXT_TYPES.find((t) => t.value === value)?.label ?? '';
 
@@ -138,7 +120,7 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
       <DeliveriesSection deliveries={deliveries} chosen={chosen} onChoose={choose} plan={plan.map((p) => p.point)} look={look} prefix={prefix} media={media} />
 
       {plan.length > 0 && (
-        <PlanSection points={plan} look={look} notes={notes} prefix={prefix} delivery={chosen} onSeek={playable || linkable !== undefined ? seek : undefined} />
+        <PlanSection textId={entry.id} points={plan} look={look} notes={notes} prefix={prefix} delivery={chosen} onSeek={playable || linkable !== undefined ? seek : undefined} />
       )}
 
       {plan.length > 0 && body.length > 0 ? (
@@ -157,6 +139,8 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
 
       <NoteList notes={notes} prefix={prefix} />
 
+      {!compact && <CommentsOn id={entry.id} point="" look={look} prefix={`${prefix}tc-`} title="Komentarze do tekstu" folded />}
+
       {!compact && sources.length > 0 && (
         <section className="lib-sources">
           <h3 className="lib-section">Źródła</h3>
@@ -164,7 +148,7 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
             {sources.map(({ work, segs }) => (
               <li key={work.id}>
                 <Segs segs={segs} />
-                {str(work.data, 'description') !== '' && <span className="lib-source-note">{str(work.data, 'description')}</span>}
+                <CommentsOn id={work.id} look={look} prefix={`${prefix}w${work.id.slice(0, 8)}-`} folded />
               </li>
             ))}
           </ul>
@@ -183,7 +167,7 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
   );
 }
 
-/** Ein Zitat mit Herkunft und Beschreibung — in der Sammlung, in der Bibliothek. */
+/** Ein Zitat mit Herkunft und den Komentarzen über es — in der Sammlung, in der Bibliothek. */
 export function QuoteFigure({ entry, look, full = true }: { entry: LibEntry; look: Lookup; full?: boolean }) {
   const d = entry.data;
   const topics = ids(d, 'topics').map((id) => look.get(id)).filter((t): t is LibEntry => t !== undefined);
@@ -192,7 +176,7 @@ export function QuoteFigure({ entry, look, full = true }: { entry: LibEntry; loo
       <blockquote><QuoteBody text={str(d, 'text')} /></blockquote>
       {str(d, 'translation') !== '' && <p className="lib-embed-translation">{str(d, 'translation')}</p>}
       <figcaption>— {originOf(entry, look)}</figcaption>
-      {full && str(d, 'description') !== '' && <p className="lib-quote-note">{str(d, 'description')}</p>}
+      {full && <CommentsOn id={entry.id} look={look} prefix={`q${entry.id.slice(0, 8)}-`} folded />}
       {full && topics.length > 0 && <p className="lib-topics">{topics.map((t) => <span key={t.id} className="lib-chip">{str(t.data, 'name')}</span>)}</p>}
     </figure>
   );

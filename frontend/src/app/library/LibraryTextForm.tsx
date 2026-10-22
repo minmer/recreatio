@@ -58,7 +58,7 @@ function FieldInput({ store, field, data, set, readOnly, extra }: {
   extra?: ReactNode;
 }) {
   const value = str(data, field.key);
-  const label = <span>{field.label}{field.private === true && <em className="lib-private" title="Nigdy nie jest publikowane"> · prywatne</em>}</span>;
+  const label = <span>{field.label}</span>;
   const wide = field.type === 'text' || field.type === 'refs' || field.key === 'title';
 
   if (field.type === 'ref' || field.type === 'refs') {

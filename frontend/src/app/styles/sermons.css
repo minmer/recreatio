@@ -141,8 +141,7 @@ span.lib-twist { cursor: default; }
 .lib-plan-text { box-sizing: border-box; font: inherit; width: 100%; resize: none; overflow: hidden; padding: 0.375rem 0.5rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs); background: var(--wk-surface); color: var(--wk-ink); line-height: 1.5; }
 .lib-plan-edit-row.is-d0 .lib-plan-text { font-weight: 600; }
 .lib-plan-text:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
-.lib-plan-note { display: grid; gap: 0.125rem; font-size: var(--wk-text-xs); color: var(--wk-muted); }
-.lib-plan-note input { box-sizing: border-box; font: inherit; font-size: var(--wk-text-sm); padding: 0.25rem 0.5rem; border: 1px dashed var(--wk-line); border-radius: var(--wk-radius-xs); background: var(--wk-surface); color: var(--wk-ink); }
+.lib-plan-comments { display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-3); margin: 0; font-size: var(--wk-text-xs); color: var(--wk-muted); }
 .lib-plan-keys { font-size: var(--wk-text-xs); color: var(--wk-muted); }
 .lib-plan-paste { box-sizing: border-box; font: inherit; width: 100%; padding: 0.5rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs); background: var(--wk-surface); color: var(--wk-ink); }
 @container (max-width: 34rem) {

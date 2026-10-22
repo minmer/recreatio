@@ -226,7 +226,7 @@ export function parseMarkup(source: string): Block[] {
 
 /* -- Was ein Text nennt ---------------------------------------------------------------- */
 
-function walkInline(inlines: readonly Inline[], visit: (one: Inline) => void): void {
+export function walkInline(inlines: readonly Inline[], visit: (one: Inline) => void): void {
   for (const one of inlines) {
     visit(one);
     if (one.t === 'b' || one.t === 'i' || one.t === 'note' || one.t === 'link') walkInline(one.c, visit);

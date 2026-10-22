@@ -7,7 +7,12 @@
  *   #/workspace/library/&lt;id&gt;/cytaty           ein Reiter
  *   #/workspace/library/&lt;id&gt;/&lt;eintrag&gt;        ein Eintrag, ganz
  *   #/workspace/library/&lt;id&gt;/nowy/&lt;art&gt;      ein neuer
+ *   #/workspace/library/porzadki             die Umstellung von 2026-10-22 (LibraryTidy)
  * </code>
+ *
+ * 2026-10-22 — alle lesbaren Bibliotheken zusammen: geöffnet wird eine,
+ * die anderen gleichen im Hintergrund ab; Verweise, Suche und Rückverweise
+ * reichen über sie hinaus (`LibraryStore.peers`).
  *
  * Jeder Schritt ist eine Adresse — wie bei den Bausteinen: ein Zitat, das
  * man gerade bearbeitet, lässt sich als Link weitergeben (an jemanden, der
@@ -23,14 +28,16 @@ import { ScanBook } from './BookLookup';
 import { useCrumbs } from '../shell/crumbTrail';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import {
-  createLibrary, deleteLibrary, isUuid, libraryKindOf, loadLibraries, openLibraries, renameLibrary, type OpenLibrary
+  createLibrary, deleteLibrary, isUuid, libraryKindOf, loadLibraries, openedLibraryNames, openLibraries, renameLibrary, type OpenLibrary
 } from './library';
 import { originOf } from './libraryCite';
 import { LibraryEditor } from './LibraryEditor';
 import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJson';
 import { ids, KINDS, kindOf, str, TEXT_STATUS, TEXT_TYPES, wordCount, type LibEntry } from './libraryKinds';
-import { useLibraryStore, type Entry, type LibraryStore } from './libraryStore';
-import { countsLine, coverageCounts, coverageOf, addedOf, deliveryPlan, isHidden, lastHeld, planOf, deliveriesOf } from './sermon';
+import { storeOf, useLibraryStore, type Entry, type LibraryStore } from './libraryStore';
+import { audienceWords } from './LibraryAreaBox';
+import { LibraryTidy } from './LibraryTidy';
+import { countsLine, coverageCounts, coverageOf, addedOf, deliveryPlan, lastHeld, planOf, deliveriesOf } from './sermon';
 import { topicNode, topicTree } from './topics';
 import { useMe, type Me } from '../core/me';
 import { viewPath } from '../routes';
@@ -43,6 +50,8 @@ export const TABS = [
   { slug: 'teksty', kind: 'text' },
   /* 2026-10-21 — jedes Mal, wenn ein Text gehalten wurde: wann, wo, was aus dem Plan. */
   { slug: 'wyglaszenia', kind: 'delivery' },
+  /* 2026-10-22 — eigene Gedanken zu Quellen, Zitaten, Stellen: ein Eintrag, viele Texte. */
+  { slug: 'komentarze', kind: 'comment' },
   { slug: 'projekty', kind: 'project' },
   { slug: 'cytaty', kind: 'quote' },
   { slug: 'zrodla', kind: 'work' },
@@ -78,7 +87,10 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
         const [rows, found] = await Promise.all([loadLibraries(), loadAreas()]);
         const opened = await openLibraries(me.ring, rows.libraries);
         if (!alive) return;
-        setLibraries(opened.filter((one) => libraryKindOf(one) === 'books'));
+        const books = opened.filter((one) => libraryKindOf(one) === 'books');
+        setLibraries(books);
+        /* Die anderen lesbaren Bibliotheken im Hintergrund — sie sind die Nachbarn der offenen. */
+        for (const one of books) void storeOf(me.ring, one).sync().catch(() => undefined);
         setKnowledge(new Set(opened.filter((one) => libraryKindOf(one) === 'knowledge').map((one) => one.libraryId)));
         setAreas(found.areas);
         setFailed(null);
@@ -100,6 +112,8 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
 
   if (failed !== null) return <p className="wk-error">{failed}</p>;
   if (libraries === null) return <Loading label="Wczytywanie…" />;
+
+  if (libraryId === 'porzadki') return <LibraryTidy me={me} libraries={libraries} areas={areas} onChanged={() => setTick((n) => n + 1)} />;
 
   if (libraryId !== undefined) {
     if (current === null && knowledge.has(libraryId)) return <p className="wk-note">To jest baza wiedzy — jest w Nauce. <a href={viewPath('learn', libraryId)}>Otwórz ją</a></p>;
@@ -147,8 +161,12 @@ function LibraryList({ me, libraries, areas, onChanged }: {
       <h1 className="wk-h1">Biblioteka</h1>
       <p className="wk-lede">
         Źródła, cytaty, autorzy, tematy i Twoje teksty — kazania, rozważania, rozdziały książek — w jednym miejscu.
-        Wszystko jest szyfrowane w przeglądarce; publiczne staje się tylko to, co opublikujesz, razem ze źródłami, które przywołuje.
+        Wszystko jest szyfrowane w przeglądarce. Każdy obszar ma swoją bibliotekę: widzą ją członkowie obszaru, a gdy obszar jest publiczny — wszyscy.
+        Pracujesz ze wszystkimi naraz: odwołania, wyszukiwanie i osadzanie sięgają do każdej biblioteki, którą widzisz.
       </p>
+      {libraries.some((one) => one.writes && one.areaRuleAt == null) && (
+        <p className="wk-note">Po zmianie zasad widoczności czekają porządki (opisy i notatki → komentarze). <a href={viewPath('library', 'porzadki')}>Przejrzyj je</a></p>
+      )}
 
       {libraries.length > 0 && (
         <ul className="lib-libraries">
@@ -156,7 +174,7 @@ function LibraryList({ me, libraries, areas, onChanged }: {
             <li key={one.libraryId}>
               <a className="lib-library" href={viewPath('library', one.libraryId)}>
                 <span className="lib-library-name">{one.name}</span>
-                <span className="lib-library-meta">{one.entries} wpisów · {one.published} publicznych · {areaName(one.areaId)}{one.writes ? '' : ' · tylko do czytania'}</span>
+                <span className="lib-library-meta">{one.entries} wpisów · {areaName(one.areaId)} · widzą: {audienceWords(one)}{one.writes ? '' : ' · tylko do czytania'}</span>
               </a>
             </li>
           ))}
@@ -226,7 +244,7 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
         <a className={tab === 'ustawienia' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'ustawienia')}>Ustawienia</a>
       </nav>
       <div className="wk-panel">
-        {tab === 'ustawienia' ? <Settings me={me} library={library} areas={areas} store={store} onChanged={onChanged} />
+        {tab === 'ustawienia' ? <Settings me={me} library={library} areas={areas} onChanged={onChanged} />
           : tab === 'json' ? <LibraryJson store={store} library={library} />
           : tab === 'mapa' ? <LibraryMap store={store} libraryId={library.libraryId} />
           : <KindList store={store} library={library} kind={TABS.find((t) => t.slug === tab)!.kind} />}
@@ -262,7 +280,7 @@ function SearchAll({ store, library }: { store: LibraryStore; library: OpenLibra
         <ul className="lib-search-hits">
           {found.map((entry) => (
             <li key={entry.id}>
-              <a href={viewPath('library', store.libraryId, entry.id)}>
+              <a href={viewPath('library', entry.libraryId, entry.id)}>
                 <span className="lib-option-kind">{kindOf(entry.kind)?.label}</span> {lineOf(entry, store)}
               </a>
             </li>
@@ -290,26 +308,24 @@ function lineOf(entry: LibEntry, store: LibraryStore): string {
   }
 }
 
-function PublicBadge({ entry }: { entry: Entry }) {
-  if (entry.publishedAs === 'explicit') return <span className="lib-badge is-public">publiczny</span>;
-  if (entry.publishedAs === 'implicit') return <span className="lib-badge is-implicit">publiczny jako źródło</span>;
-  return null;
-}
-
 function KindList({ store, library, kind }: { store: LibraryStore; library: OpenLibrary; kind: string }) {
   const def = kindOf(kind)!;
   const [topic, setTopic] = useState('');
   const [project, setProject] = useState('');
   const [query, setQuery] = useState('');
+  /* 2026-10-22 — auch die anderen lesbaren Bibliotheken (jede Zeile sagt, in welcher sie liegt). */
+  const [everywhere, setEverywhere] = useState(false);
+  const peers = store.peers();
+  const here = (e: Entry) => everywhere || e.libraryId === store.libraryId;
 
-  const all = store.ofKind(kind);
+  const all = everywhere ? store.readable().filter((e) => e.kind === kind) : store.ofKind(kind);
   /* 2026-10-21 — die Themen als Baum (Aspekte mit ihren Werten), auch in der Auswahl. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const tree = useMemo(() => topicTree(store.ofKind('topic').map(topicNode)), [store, store.revision]);
   const topicRows = tree.flat(null);
   const projects = store.ofKind('project');
 
-  let list = query.trim() === '' ? all : store.search(query, [kind]);
+  let list = query.trim() === '' ? all : store.search(query, [kind]).filter(here);
   if (topic !== '') {
     const under = new Set([topic, ...tree.flat(topic).map((one) => one.node.id)]);
     list = list.filter((e) => ids(e.data, 'topics').some((id) => under.has(id)) || (kind === 'topic' && under.has(e.id) && e.id !== topic));
@@ -349,6 +365,12 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
             {projects.map((p) => <option key={p.id} value={p.id}>{store.title(p)}</option>)}
           </select>
         )}
+        {peers.length > 0 && (
+          <label className="pe-check">
+            <input type="checkbox" checked={everywhere} onChange={(e) => setEverywhere(e.target.checked)} />
+            <span>też z innych bibliotek ({peers.length})</span>
+          </label>
+        )}
         {library.writes && <a className="wk-btn" href={add}>+ {def.label}</a>}
         {library.writes && kind === 'topic' && <a className="wk-btn wk-btn-line" href={viewPath('library', library.libraryId, 'nowy', 'topic', 'aspect=yes')}>+ Aspekt</a>}
       </div>
@@ -360,12 +382,11 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
         <ul className="lib-list">
           {list.map((entry) => (
             <li key={entry.id} className={kind === 'topic' ? `lib-topic-row is-d${Math.min(4, depth.get(entry.id) ?? 0)}` : undefined}>
-              <a className="lib-row" href={viewPath('library', library.libraryId, entry.id)}>
+              <a className="lib-row" href={viewPath('library', entry.libraryId, entry.id)}>
                 <span className="lib-row-title">
                   {kind === 'quote' ? <q>{store.title(entry)}</q> : store.title(entry)}
                   {kind === 'topic' && tree.nodes.get(entry.id)?.aspect === true && <span className="lib-badge is-aspect">aspekt</span>}
-                  {kind === 'delivery' && isHidden(entry) && <span className="lib-badge is-implicit">prywatne</span>}
-                  <PublicBadge entry={entry} />
+                  {entry.libraryId !== store.libraryId && <span className="lib-badge is-implicit">{openedLibraryNames().get(entry.libraryId) ?? 'inna biblioteka'}</span>}
                 </span>
                 <span className="lib-row-meta">{metaOf(entry, store)}</span>
               </a>
@@ -411,7 +432,7 @@ function metaOf(entry: Entry, store: LibraryStore): string {
 
 /* -- Einstellungen ---------------------------------------------------------------------------- */
 
-function Settings({ me, library, areas, store, onChanged }: { me: Me; library: OpenLibrary; areas: readonly AreaRow[]; store: LibraryStore; onChanged: () => void }) {
+function Settings({ me, library, areas, onChanged }: { me: Me; library: OpenLibrary; areas: readonly AreaRow[]; onChanged: () => void }) {
   const [name, setName] = useState(library.name);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -432,27 +453,16 @@ function Settings({ me, library, areas, store, onChanged }: { me: Me; library: O
         {library.writes && <div className="wk-actions"><button type="submit" className="wk-btn" disabled={busy || name.trim() === ''}>Zapisz nazwę</button></div>}
       </form>
 
-      {library.writes && (
-        <section className="wk-form">
-          <h2 className="wk-h2">Publikacja</h2>
-          <p>
-            Publicznych wpisów: {store.all().filter((e) => e.publishedAs !== null).length}. Gdy zmienia się sposób publikowania
-            (plan, wygłoszenia, aspekty tematów), „Odśwież” przelicza publiczne wersje wszystkich opublikowanych wpisów —
-            to samo, co „Zaktualizuj publikację” przy każdym z nich.
-          </p>
-          <div className="wk-actions">
-            <button type="button" className="wk-btn wk-btn-line" disabled={busy}
-              onClick={() => void act(() => store.refresh(store.all().filter((e) => e.publishedAs !== null).map((e) => e.id)))}>
-              Odśwież wszystkie publikacje
-            </button>
-          </div>
-        </section>
-      )}
+      <section className="wk-form">
+        <h2 className="wk-h2">Kto widzi</h2>
+        <p>Widzą: {audienceWords(library)}. Żeby wpis stał się publiczny (albo przestał), przenieś go do biblioteki innego obszaru — przy wpisie, w ramce „Kto widzi”.</p>
+        {library.writes && library.areaRuleAt == null && <p className="wk-note">Ta biblioteka czeka na porządki po zmianie zasad. <a href={viewPath('library', 'porzadki')}>Przejrzyj je</a></p>}
+      </section>
 
       {library.writes && (
         <section className="wk-form lib-danger">
           <h2 className="wk-h2">Usuń bibliotekę</h2>
-          <p className="wk-hint">Usuwa wszystkie wpisy — także opublikowane; strony, które je pokazywały, napiszą, że tekstu już nie ma. Tego nie da się cofnąć. Najpierw zrób eksport (Import / eksport).</p>
+          <p className="wk-hint">Usuwa wszystkie wpisy; strony, które je pokazywały, napiszą, że tekstu już nie ma. Tego nie da się cofnąć. Najpierw zrób eksport (Import / eksport).</p>
           <label className="wk-field"><span>Wpisz nazwę biblioteki, żeby potwierdzić</span><input value={confirm} onChange={(e) => setConfirm(e.target.value)} /></label>
           <div className="wk-actions">
             <button type="button" className="wk-btn lib-btn-danger" disabled={busy || confirm.trim() !== library.name.trim()}
@@ -515,12 +525,7 @@ function LibraryJson({ store, library, only }: { store: LibraryStore; library: O
               warnings.push(`${kindOf(draft.kind)?.label} „${String(draft.data.title ?? draft.data.name ?? draft.key ?? '')}”: ${e instanceof WorkspaceError ? e.message : 'nie udało się zapisać'}.`);
             }
           }
-          const refreshed = planned.drafts.filter((d) => store.get(d.id)?.publishedAs != null).map((d) => d.id);
-          if (refreshed.length > 0) {
-            stage('Aktualizowanie publikacji…');
-            await store.refresh(refreshed);
-          }
-          return { lines: [`Zapisano ${done} z ${planned.drafts.length}.`, ...planned.lines, ...(refreshed.length > 0 ? [`Zaktualizowano publikację: ${refreshed.length}.`] : [])], warnings };
+          return { lines: [`Zapisano ${done} z ${planned.drafts.length}.`, ...planned.lines], warnings };
         }}
       />
     </>

@@ -38,7 +38,12 @@ export interface PlanPoint {
   readonly text: string;
   readonly depth: 0 | 1 | 2;
   readonly kind: PointKind;
-  /** Privat — nur im Speicher, nie in der offenen Fassung. */
+  /**
+   * ALT (bis 2026-10-22): eine Notiz am Punkt. Sie wird bei der Umstellung
+   * ein Komentarz über diesen Punkt (`libraryMigrate.ts`); bis die
+   * Umstellung bestätigt ist, reist sie unverändert mit — gezeigt wird sie
+   * nirgends mehr.
+   */
   readonly note: string;
 }
 
@@ -317,28 +322,19 @@ export function timeLink(url: string, seconds: number): string | null {
 /* -- Texte und ihre Wygłoszenia --------------------------------------------------------------- */
 
 const isDelivery = (entry: LibEntry | undefined): entry is LibEntry => entry !== undefined && entry.kind === 'delivery';
-export const isHidden = (delivery: LibEntry): boolean => str(delivery.data, 'hidden') === 'yes';
 
 /** Neueste zuerst; ohne Datum ans Ende. */
 const newestFirst = (a: LibEntry, b: LibEntry): number =>
   (str(b.data, 'date') || '0000').localeCompare(str(a.data, 'date') || '0000') || a.id.localeCompare(b.id);
 
 /**
- * DIE WYGŁOSZENIA EINES TEXTES, neueste zuerst, ohne die privaten
- * („Nie publikuj"). Öffentlich nennt der Text sie selbst (`deliveries` in
- * seiner offenen Fassung); im Speicher des Browsers die Rückverweise.
+ * DIE WYGŁOSZENIA EINES TEXTES, neueste zuerst — alle, die dieser Leser
+ * lesen darf (2026-10-22: wer liest, sagt der Bereich; ein „Nie publikuj"
+ * gibt es nicht mehr).
  */
 export function deliveriesOf(text: LibEntry, look: Lookup): LibEntry[] {
-  const listed = text.data.deliveries;
-  const found = Array.isArray(listed)
-    ? listed.filter((id): id is string => typeof id === 'string').map((id) => look.get(id)).filter(isDelivery)
-    : (look.backlinks?.(text.id) ?? []).filter((one) => one.kind === 'delivery' && ids(one.data, 'texts').includes(text.id));
-  return [...new Map(found.filter((d) => !isHidden(d)).map((d) => [d.id, d])).values()].sort(newestFirst);
-}
-
-/** Auch die privaten — für den Editor. */
-export function allDeliveriesOf(text: LibEntry, look: Lookup): LibEntry[] {
-  return (look.backlinks?.(text.id) ?? []).filter((one) => one.kind === 'delivery' && ids(one.data, 'texts').includes(text.id)).sort(newestFirst);
+  const found = (look.backlinks?.(text.id) ?? []).filter((one) => isDelivery(one) && ids(one.data, 'texts').includes(text.id));
+  return [...new Map(found.map((d) => [d.id, d])).values()].sort(newestFirst);
 }
 
 /** Die Texte eines Wygłoszenia, die es (noch) gibt. */
@@ -377,7 +373,7 @@ const fieldLines = (kind: string, keys: readonly string[]): string => {
     const field = def?.fields.find((f) => f.key === key);
     if (field === undefined) continue;
     lines.push(`  "${field.key}" — ${field.says}`);
-    for (const sub of field.item ?? []) if (sub.private !== true) lines.push(`      "${sub.key}" — ${sub.says}`);
+    for (const sub of field.item ?? []) lines.push(`      "${sub.key}" — ${sub.says}`);
   }
   return lines.join('\n');
 };

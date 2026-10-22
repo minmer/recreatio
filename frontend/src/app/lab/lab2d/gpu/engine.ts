@@ -362,6 +362,7 @@ export class GpuEngine {
     this.solver.encodeMG(p, SOLVE_HEAT, this.itH, false);
     this.cells(p, 'heatFlux');
     this.parts(p, 'heatParts', 'A');
+    this.cells(p, 'heatShare', 'A');
     p.end();
     /* 7. Chemie: leer. 8. Ränder und Diagnose. */
     p = this.pass(enc, timed, 7);

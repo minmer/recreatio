@@ -154,7 +154,11 @@ below 0 °C, those of Spencer, Møller & Weare (pitzer.dat alone put the freezin
 goes at once to a crust on the nearest solid below (or a store on the bare box floor) — no grains, no supersaturation,
 and the crust does not dissolve again (dissolution comes with the grains, M3c). The drying scenes brought out older
 problems with droplets below the cell size (they never boiled and hovered in the air); they now flash and fly
-(ARCHITECTURE.md §7, §9). Numbers: MILESTONES.md §M2b.
+(ARCHITECTURE.md §7, §9). Numbers: MILESTONES.md §M2b. Changed from the design above: molecular diffusion is not
+neglected after all — the particles of a cell share salt (and heat) at the rate of diffusion across the cell, and salt
+diffuses between cells by Fick's law (ARCHITECTURE.md §6.5, SIMPLIFICATIONS.md #28, #32). At the physical rate this is
+no numerical smearing: brine still keeps its layers for hours, but brine and fresh water stirred into one cell even
+out in minutes instead of never.
 
 ## 6. Rigid bodies: everything falls
 

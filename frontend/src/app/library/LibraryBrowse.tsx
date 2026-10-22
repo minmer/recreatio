@@ -1,6 +1,6 @@
 /**
  * DAS ARCHIV AUF EINER SEITE (0064 „Archiwum tekstów"; 2026-10-21 für viele
- * Kazania) — ohne Konto, aus dem, was veröffentlicht ist.
+ * Kazania).
  *
  * <code>
  *   Streifen          der neueste Text
@@ -13,9 +13,11 @@
  *
  * <b>Die Ordnung steht in der Bibliothek, nicht im Baustein.</b> Welche Achsen
  * es gibt (Aspekte), welche Werte, in welcher Reihenfolge — das sind Themen
- * der Bibliothek. Der Baustein wählt nur, mit welcher Ansicht er beginnt. So
- * bleibt die Seite einfach, auch wenn es tausend Predigten werden: gesucht,
- * gefiltert und gezählt wird im Dienst (`browsePublished`), Seite für Seite.
+ * der Bibliothek. Der Baustein wählt nur, mit welcher Ansicht er beginnt.
+ *
+ * 2026-10-22 — wer was sieht, sagt der Bereich der Bibliothek: die Seite
+ * öffnet sie (`libraryOpen.ts`) und sucht, filtert, zählt hier
+ * (`browseLocal`) — es gibt keine veröffentlichten Kurzfassungen mehr.
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
@@ -26,13 +28,15 @@ import { Loading } from '../ui/Loading';
 import { Segment } from '../ui/Segment';
 import { LAYOUTS, layoutOf, layoutWord, type Layout } from './archiveLayout';
 import {
-  archiveRow, choose, facetKey, hashParam, orderOf, PROJECTS, setHashParams, yearOf,
+  archiveRow, browseLocal, choose, facetKey, hashParam, orderOf, PROJECTS, setHashParams, yearOf,
   type ArchiveRow, type Order
 } from './browse';
-import { browsePublished, loadPublishedAll, summaryOf } from './library';
+import { usePageLibrary } from './libraryOpen';
+import type { LibraryStore } from './libraryStore';
 import { WritingCard } from './LibraryPublic';
 import { dateWords } from './LibraryText';
-import { facetsOf, topicNodeOfSummary, topicTree, type Facet, type TopicNode, type TopicTree } from './topics';
+import { str } from './libraryKinds';
+import { facetsOf, topicNode, topicTree, type Facet, type TopicNode, type TopicTree } from './topics';
 
 const PAGE = 30;
 
@@ -57,6 +61,7 @@ export function WritingsCard({ library, title, project, topic, layout, size, who
 }) {
   const big = whole || size.height === 'tall';
   const top = useRef<HTMLDivElement | null>(null);
+  const { store, revision, state } = usePageLibrary(library === '' ? null : library);
   const [open, setOpen] = useState<{ text: string; delivery: string | null } | null>(() => {
     const text = hashParam('t');
     return text === null ? null : { text, delivery: hashParam('tw') };
@@ -83,13 +88,26 @@ export function WritingsCard({ library, title, project, topic, layout, size, who
     );
   }
 
+  if (state === 'loading') return <div ref={top} className="lib-archive-wrap"><Head title={title} /><Loading label="Wczytywanie…" /></div>;
+  if (store === null) return <div ref={top} className="lib-archive-wrap"><Head title={title} /><p className="wk-card-text">Tej biblioteki nie widzisz — jej obszar nie jest publiczny.</p></div>;
+
   return (
     <div ref={top} className="lib-archive-wrap">
       {big
-        ? <Browser library={library} title={title} project={project} topic={topic} initial={layoutOf(layout)} onOpen={pick} />
-        : <Recent library={library} title={title} project={project} topic={topic} size={size} onOpen={pick} />}
+        ? <Browser store={store} revision={revision} title={title} project={project} topic={topic} initial={layoutOf(layout)} onOpen={pick} />
+        : <Recent store={store} revision={revision} title={title} project={project} topic={topic} size={size} onOpen={pick} />}
     </div>
   );
+}
+
+/** Die Texte dieser Bibliothek als Zeilen, die Themen als Baum — neu, wenn sich die Bibliothek ändert. */
+function useArchive(store: LibraryStore, revision: number): { rows: readonly ArchiveRow[]; tree: TopicTree; projects: readonly { id: string; title: string }[] } {
+  return useMemo(() => ({
+    rows: store.ofKind('text').map((t) => archiveRow(t, store)),
+    tree: topicTree(store.ofKind('topic').map(topicNode)),
+    projects: store.ofKind('project').map((p) => ({ id: p.id, title: str(p.data, 'title') || 'Projekt' })).sort((a, b) => a.title.localeCompare(b.title, 'pl'))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [store, revision]);
 }
 
 /* -- Klein: die letzten Texte ------------------------------------------------------------------- */
@@ -98,8 +116,9 @@ const metaOf = (row: ArchiveRow): string =>
   [row.date === '' ? '' : dateWords(row.date), row.occasion, row.held > 1 ? `wygłoszony ${row.held}×` : '', row.recorded ? 'z nagraniem' : '']
     .filter(Boolean).join(' · ');
 
-function Recent({ library, title, project, topic, size, onOpen }: {
-  library: string;
+function Recent({ store, revision, title, project, topic, size, onOpen }: {
+  store: LibraryStore;
+  revision: number;
   title: string;
   project: string;
   topic: string;
@@ -107,33 +126,17 @@ function Recent({ library, title, project, topic, size, onOpen }: {
   onOpen: (id: string) => void;
 }) {
   const take = size.height === 'strip' ? 1 : size.width === 'narrow' ? 4 : 6;
-  const [rows, setRows] = useState<readonly ArchiveRow[] | null>(null);
-  const [total, setTotal] = useState(0);
-  const [failed, setFailed] = useState(false);
-  const groups = [[project], [topic]];
-
-  useEffect(() => {
-    if (library === '') return undefined;
-    let alive = true;
-    setRows(null);
-    void browsePublished(library, { kind: 'text', groups: [[project], [topic]], order: '-sort', take }).then(
-      (r) => { if (alive) { setRows(r.items.map(archiveRow)); setTotal(r.total); setFailed(false); } },
-      () => { if (alive) setFailed(true); });
-    return () => { alive = false; };
-  }, [library, project, topic, take]);
-
-  const more = async () => {
-    const r = await browsePublished(library, { kind: 'text', groups, order: '-sort', take, skip: rows?.length ?? 0 });
-    setRows([...(rows ?? []), ...r.items.map(archiveRow)]);
-  };
+  const [shown, setShown] = useState(take);
+  useEffect(() => { setShown(take); }, [take]);
+  const archive = useArchive(store, revision);
+  const found = useMemo(() => browseLocal(archive.rows, archive.tree, { groups: [[project], [topic]], matching: null, order: '-sort' }).rows, [archive, project, topic]);
+  const rows = found.slice(0, shown);
 
   return (
     <div className="lib-archive">
       {title !== '' && <h2 className="wk-card-title">{title}</h2>}
-      {failed && <p className="wk-card-text">Nie udało się wczytać tekstów.</p>}
-      {rows === null && !failed && <Loading label="Wczytywanie…" />}
-      {rows !== null && rows.length === 0 && <p className="wk-card-text">Nie ma jeszcze opublikowanych tekstów.</p>}
-      {rows !== null && rows.length > 0 && (
+      {rows.length === 0 && <p className="wk-card-text">Nie ma jeszcze tekstów.</p>}
+      {rows.length > 0 && (
         <ul className="lib-archive-list">
           {rows.map((row) => (
             <li key={row.id}>
@@ -146,8 +149,8 @@ function Recent({ library, title, project, topic, size, onOpen }: {
           ))}
         </ul>
       )}
-      {rows !== null && rows.length < total && size.height !== 'strip' && (
-        <button type="button" className="wk-link-btn" onClick={() => void more()}>Więcej ({total - rows.length})</button>
+      {rows.length < found.length && size.height !== 'strip' && (
+        <button type="button" className="wk-link-btn" onClick={() => setShown((n) => n + take)}>Więcej ({found.length - rows.length})</button>
       )}
     </div>
   );
@@ -160,18 +163,11 @@ interface Shape {
   readonly projects: readonly { readonly id: string; readonly title: string }[];
 }
 
-interface Found {
-  readonly rows: readonly ArchiveRow[];
-  readonly total: number;
-  /** Die Zahlen je Achse: für eine Achse mit gewähltem Wert ohne ihren eigenen Filter gezählt. */
-  readonly counts: ReadonlyMap<string, ReadonlyMap<string, number>> | null;
-  readonly exact: boolean;
-}
-
 const projectNode = (p: { id: string; title: string }): TopicNode => ({ id: p.id, name: p.title, parent: null, aspect: false, order: null });
 
-function Browser({ library, title, project, topic, initial, onOpen }: {
-  library: string;
+function Browser({ store, revision, title, project, topic, initial, onOpen }: {
+  store: LibraryStore;
+  revision: number;
   title: string;
   project: string;
   topic: string;
@@ -182,115 +178,69 @@ function Browser({ library, title, project, topic, initial, onOpen }: {
   const [query, setQuery] = useState(() => hashParam('tq') ?? '');
   const [chosen, setChosen] = useState<readonly string[]>(() => (hashParam('tf') ?? '').split(',').filter((id) => /^[0-9a-f-]{36}$/i.test(id)));
   const [order, setOrder] = useState<Order>(() => orderOf(hashParam('to')) ?? '-sort');
-  const [shape, setShape] = useState<Shape | null>(null);
-  const [found, setFound] = useState<Found | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState(PAGE);
+  useEffect(() => { setShown(PAGE); }, [query, chosen, order]);
 
-  /* Themen und Projekte — einmal je Bibliothek: daraus die Achsen. */
-  useEffect(() => {
-    if (library === '') return undefined;
-    let alive = true;
-    void Promise.all([loadPublishedAll(library, { kind: 'topic', order: 'sort' }), loadPublishedAll(library, { kind: 'project', order: 'sort' }, 400)]).then(
-      ([topics, projects]) => {
-        if (!alive) return;
-        setShape({
-          tree: topicTree(topics.map((item) => topicNodeOfSummary(item.entryId, summaryOf(item)))),
-          projects: projects.map((item) => ({ id: item.entryId, title: String(summaryOf(item).title ?? '').trim() || 'Projekt' }))
-        });
-      },
-      () => { if (alive) setShape({ tree: topicTree([]), projects: [] }); });
-    return () => { alive = false; };
-  }, [library]);
-
-  const projectIds = useMemo(() => new Set(shape?.projects.map((p) => p.id) ?? []), [shape]);
-  const keyOf = useMemo(() => (id: string) => facetKey(id, shape?.tree ?? null, projectIds), [shape, projectIds]);
+  const archive = useArchive(store, revision);
+  const shape: Shape = archive;
+  const projectIds = useMemo(() => new Set(shape.projects.map((p) => p.id)), [shape]);
+  const keyOf = useMemo(() => (id: string) => facetKey(id, shape.tree, projectIds), [shape, projectIds]);
   const facets = useMemo<Facet[]>(() => {
-    if (shape === null) return [];
     const out = facetsOf(shape.tree);
     if (shape.projects.length > 0) out.push({ id: PROJECTS, name: 'Cykl', values: shape.projects.map((p) => ({ node: projectNode(p), depth: 0 })) });
     return out;
   }, [shape]);
 
-  /* Die Ergebnisse — neu bei jedem Filter, jeder Reihenfolge, der Suche nach einer kurzen Pause. */
+  /* Gesucht, gefiltert und gezählt hier; eine Achse mit gewähltem Wert zählt ohne ihren eigenen Filter — sonst sähe man ihre anderen Werte nicht. */
+  const matching = useMemo(() => (query.trim() === '' ? null : new Set(store.ownSearch(query, ['text']).map((e) => e.id))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [query, store, revision]);
   const fixed = useMemo(() => [[project], [topic]], [project, topic]);
-  useEffect(() => {
-    if (library === '' || shape === null) return undefined;
-    let alive = true;
-    const timer = window.setTimeout(() => void (async () => {
-      try {
-        const main = await browsePublished(library, { kind: 'text', groups: [...fixed, ...chosen.map((id) => [id])], q: query, order, take: PAGE, counts: true });
-        const counts = new Map<string, ReadonlyMap<string, number>>();
-        if (main.counts !== null) {
-          /* Eine Achse mit gewähltem Wert zählt ohne ihren eigenen Filter — sonst sähe man ihre anderen Werte nicht. */
-          const own = [...new Set(chosen.map(keyOf))];
-          for (const facet of facets) if (!own.includes(facet.id)) counts.set(facet.id, main.counts);
-          await Promise.all(own.map(async (facet) => {
-            const other = chosen.filter((id) => keyOf(id) !== facet);
-            const r = await browsePublished(library, { kind: 'text', groups: [...fixed, ...other.map((id) => [id])], q: query, take: 1, counts: true });
-            if (r.counts !== null) counts.set(facet, r.counts);
-          }));
-        }
-        if (alive) { setFound({ rows: main.items.map(archiveRow), total: main.total, counts: main.counts === null ? null : counts, exact: main.exact }); setFailed(false); }
-      } catch {
-        if (alive) setFailed(true);
-      }
-    })(), query === '' ? 0 : 300);
-    return () => { alive = false; window.clearTimeout(timer); };
-  }, [library, shape, fixed, chosen, query, order, keyOf, facets]);
+  const found = useMemo(() => {
+    const main = browseLocal(archive.rows, shape.tree, { groups: [...fixed, ...chosen.map((id) => [id])], matching, order });
+    const counts = new Map<string, ReadonlyMap<string, number>>();
+    const own = [...new Set(chosen.map(keyOf))];
+    for (const facet of facets) if (!own.includes(facet.id)) counts.set(facet.id, main.counts);
+    for (const facet of own) {
+      const other = chosen.filter((id) => keyOf(id) !== facet);
+      counts.set(facet, browseLocal(archive.rows, shape.tree, { groups: [...fixed, ...other.map((id) => [id])], matching, order }).counts);
+    }
+    return { rows: main.rows, total: main.rows.length, counts };
+  }, [archive, shape, fixed, chosen, matching, order, keyOf, facets]);
 
   /* Der Zustand in der Adresse — ein gefiltertes Archiv lässt sich weitergeben. */
   useEffect(() => {
     setHashParams({ tu: layout === initial ? null : layoutWord(layout), tq: query.trim() === '' ? null : query.trim(), tf: chosen.length === 0 ? null : chosen.join(','), to: order === '-sort' ? null : order });
   }, [layout, query, chosen, order, initial]);
 
-  const more = async () => {
-    if (found === null) return;
-    setBusy(true);
-    try {
-      const r = await browsePublished(library, { kind: 'text', groups: [...fixed, ...chosen.map((id) => [id])], q: query, order, take: PAGE, skip: found.rows.length });
-      setFound({ ...found, rows: [...found.rows, ...r.items.map(archiveRow)] });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  /* Ohne Zahlen (ein älterer Dienst) greift nur ein Filter — dann ersetzt eine Wahl die andere. */
-  const single = found !== null && found.counts === null;
-  const pick = (id: string) => setChosen((was) => choose(was, id, keyOf, single));
-  const countOf = (facet: string, id: string): number | null => (found?.counts == null ? null : found.counts.get(facet)?.get(id) ?? 0);
-  const nameOf = (id: string): string => shape?.tree.nodes.get(id)?.name ?? shape?.projects.find((p) => p.id === id)?.title ?? '…';
+  const pick = (id: string) => setChosen((was) => choose(was, id, keyOf, false));
+  const countOf = (facet: string, id: string): number | null => found.counts.get(facet)?.get(id) ?? 0;
+  const nameOf = (id: string): string => shape.tree.nodes.get(id)?.name ?? shape.projects.find((p) => p.id === id)?.title ?? '…';
   const facetName = (id: string): string => facets.find((f) => f.id === keyOf(id))?.name ?? '';
 
-  if (shape === null) return <><Head title={title} /><Loading label="Wczytywanie…" /></>;
-
-  const rows = found?.rows ?? [];
+  const rows = found.rows.slice(0, shown);
   const searching = query.trim() !== '' || chosen.length > 0;
   const results = (
     <>
-      {failed && <p className="wk-card-text">Nie udało się wczytać tekstów.</p>}
-      {found === null && !failed && <Loading label="Wczytywanie…" />}
-      {found !== null && (
-        <div className="lib-results-bar">
-          <p className="lib-results" role="status">
-            {found.total} {plural(found.total, 'tekst', 'teksty', 'tekstów')}{query.trim() === '' ? '' : ` — „${query.trim()}”`}
-          </p>
-          <label className="lib-order">
-            <span>Kolejność</span>
-            <select value={order} onChange={(e) => setOrder(orderOf(e.target.value) ?? '-sort')}>
-              {ORDERS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </label>
-        </div>
-      )}
-      {found !== null && rows.length === 0 && (
-        <p className="wk-card-text">{searching ? 'Nic nie pasuje — zmień filtry albo wyszukiwanie.' : 'Nie ma jeszcze opublikowanych tekstów.'}</p>
+      <div className="lib-results-bar">
+        <p className="lib-results" role="status">
+          {found.total} {plural(found.total, 'tekst', 'teksty', 'tekstów')}{query.trim() === '' ? '' : ` — „${query.trim()}”`}
+        </p>
+        <label className="lib-order">
+          <span>Kolejność</span>
+          <select value={order} onChange={(e) => setOrder(orderOf(e.target.value) ?? '-sort')}>
+            {ORDERS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </label>
+      </div>
+      {rows.length === 0 && (
+        <p className="wk-card-text">{searching ? 'Nic nie pasuje — zmień filtry albo wyszukiwanie.' : 'Nie ma jeszcze tekstów.'}</p>
       )}
       {rows.length > 0 && (layout === 'table'
         ? <Table rows={rows} facets={facets} keyOf={keyOf} order={order} onOrder={setOrder} onOpen={onOpen} onPick={pick} />
         : <Rows rows={rows} order={order} onOpen={onOpen} onPick={pick} />)}
-      {found !== null && rows.length < found.total && (
-        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void more()}>Więcej ({found.total - rows.length})</button>
+      {rows.length < found.total && (
+        <button type="button" className="wk-link-btn" onClick={() => setShown((n) => n + PAGE)}>Więcej ({found.total - rows.length})</button>
       )}
     </>
   );
@@ -312,7 +262,7 @@ function Browser({ library, title, project, topic, initial, onOpen }: {
                 <span>{facet.name}</span>
                 <select value={value} onChange={(e) => {
                   const next = e.target.value;
-                  setChosen((was) => (next === '' ? was.filter((id) => keyOf(id) !== facet.id) : choose(was.filter((id) => keyOf(id) !== facet.id), next, keyOf, single)));
+                  setChosen((was) => (next === '' ? was.filter((id) => keyOf(id) !== facet.id) : choose(was.filter((id) => keyOf(id) !== facet.id), next, keyOf, false)));
                 }}>
                   <option value="">wszystkie</option>
                   {facet.values.filter((v) => { const n = countOf(facet.id, v.node.id); return n === null || n > 0 || v.node.id === value; }).map((v) => {

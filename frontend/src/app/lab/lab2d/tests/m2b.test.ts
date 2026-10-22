@@ -5,20 +5,21 @@
  * 3 mol/kg, Wärmekapazität und Enthalpie, Wasseraktivität der gesättigten
  * Lösung), dann die Engine: Hydrostatik von Sole unter Wasser, die Luft über
  * gesättigter Sole, Salz genau über dem Sieden, ein Tropfen trocknet zur
- * Kruste. Dass reines Wasser und Öl dieselben Zahlen geben wie vor M2b,
- * prüfen die Tests von M1 und M2a (und ein Vergleich Bit für Bit,
- * MILESTONES.md).
+ * Kruste; zuletzt der Austausch innerhalb einer Zelle (Wärme und Salz, so
+ * schnell wie die Diffusion über die Zelle, Tests 28 und 29). Seit diesem
+ * Austausch rechnen auch reines Wasser und Öl etwas anders als vorher (die
+ * Zahlen von M1 und M2a danach: MILESTONES.md).
  */
 
 import { describe, expect, it } from 'vitest';
 
 import { Engine } from '../engine/engine';
 import { pSatFast, tSat } from '../engine/if97';
-import { MOLAR } from '../engine/materials';
-import { readScene, writeScene } from '../engine/scene';
+import { cpL, kL, MOLAR, rhoL } from '../engine/materials';
+import { CELL, readScene, writeScene } from '../engine/scene';
 import {
-  boilingPoint, cpSol, freezingPoint, hCrystal, hSol, hWaterIn, massFraction, molality, M_S, M_W, osmotic, rhoSol,
-  satFraction, satMolality, tFromHSol, waterActivity
+  boilingPoint, cpSol, freezingPoint, hCrystal, hSaltIn, hSol, hWaterIn, massFraction, molality, M_S, M_W, osmotic,
+  rhoSol, saltDiffusivity, satFraction, satMolality, tFromHSol, waterActivity
 } from '../engine/solution';
 import { H2O, N2, O2, T0 } from '../engine/units';
 import { scene } from './scenes';
@@ -123,13 +124,15 @@ describe('M2b — test 23: sodium chloride against its sources', () => {
     }
   });
 
-  it('the enthalpy closes: T(h(T, w)) = T, ∂h/∂T = c_p, h̄_w = ∂(m h)/∂m_w, Δ_solH(25 °C) = 3.883 kJ/mol', () => {
+  it('the enthalpy closes: T(h(T, w)) = T, ∂h/∂T = c_p, h̄_w = ∂(m h)/∂m_w, h̄_s = ∂(m h)/∂m_s, Δ_solH(25 °C) = 3.883 kJ/mol', () => {
     for (const w of [0.01, 0.1, 0.2, 0.28]) {
       for (const T of [263.15, 280, 300, 350, 373.15, 400]) {
         expect(Math.abs(tFromHSol(hSol(T, w), w, T + 5) - T)).toBeLessThan(1e-7);
         expect(Math.abs((hSol(T + 1e-3, w) - hSol(T - 1e-3, w)) / 2e-3 / cpSol(T, w) - 1)).toBeLessThan(1e-6);
         const H = (mw: number): number => (mw + w) * hSol(T, w / (mw + w));
         expect(Math.abs((H(1 - w + 1e-6) - H(1 - w - 1e-6)) / 2e-6 - hWaterIn(T, w))).toBeLessThan(0.05);
+        const Hs = (ms: number): number => (1 - w + ms) * hSol(T, ms / (1 - w + ms));
+        expect(Math.abs((Hs(w + 1e-6) - Hs(w - 1e-6)) / 2e-6 - hSaltIn(T, w))).toBeLessThan(0.05);
       }
     }
     /* The heat of solution at infinite dilution: h̄_s(25 °C, w → 0) − h_crystal(25 °C). */
@@ -282,5 +285,125 @@ describe('M2b — test 27: brine boiled dry leaves its salt as a crust', () => {
     expect(Math.abs(b.salt.crust - s0)).toBeLessThan(1e-12 * s0);
     expect(Math.abs(e.saltError())).toBeLessThan(1e-12 * s0);
     expect(Math.abs(e.energyError())).toBeLessThan(0.5);
+  });
+});
+
+/**
+ * Wasser in einer Kiste ohne Schwerkraft (nichts strömt; g = 0 erlaubt nur harness), 2 × 2 Teilchen je Zelle; in
+ * jeder Zelle sind die beiden linken anders (wärmer oder salzig) — eine Füllung je halber Spalte ersetzt sie.
+ */
+function halves(T: number, left: { T: number; composition: Record<string, number> }): Engine {
+  const dx = CELL.high;
+  const ops: Record<string, unknown>[] = [{ op: 'fill', region: { rect: [0, 0, 0.03, 0.02] }, composition: { H2O: 1 }, phase: 'liquid', T }];
+  for (let i = 0; i < Math.round(0.03 / dx); i += 1) {
+    ops.push({ op: 'fill', region: { rect: [i * dx, 0, (i + 0.5) * dx, 0.02] }, composition: left.composition, phase: 'liquid', T: left.T });
+  }
+  return new Engine(scene({ box: { w: 0.03, h: 0.03, depth: 0.01 }, ambient: { p: 101.325, T, rh: 1, g: 0 }, sides: sealed, ops }), { harness: true, insulated: true });
+}
+
+/** Wie ungleich die Teilchen innerhalb ihrer Zellen sind: Wurzel des mittleren Quadrats der Abweichung vom Mittel der Zelle. */
+function spread(e: Engine, value: (p: number) => number): number {
+  const g = e.grid;
+  const P = e.particles;
+  const sum = new Float64Array(g.n);
+  const cnt = new Float64Array(g.n);
+  for (let p = 0; p < P.count; p += 1) { const c = g.cellAt(P.x[p], P.y[p]); sum[c] += value(p); cnt[c] += 1; }
+  let s2 = 0;
+  for (let p = 0; p < P.count; p += 1) { const c = g.cellAt(P.x[p], P.y[p]); s2 += (value(p) - sum[c] / cnt[c]) ** 2; }
+  return Math.sqrt(s2 / P.count);
+}
+
+function meanT(e: Engine): number {
+  const P = e.particles;
+  let s = 0;
+  for (let p = 0; p < P.count; p += 1) s += P.T[p];
+  return s / P.count;
+}
+
+describe('M2b — test 28: particles of one cell share their heat', () => {
+  it('a 2 K difference inside each cell decays at π² α/Δx² (the slowest mode a cell holds, ±1 %); energy exact, nothing moves', () => {
+    const e = halves(20, { T: 22, composition: { H2O: 1 } });
+    const P = e.particles;
+    const temp = (p: number): number => P.T[p];
+    const s0 = spread(e, temp);
+    const E0 = e.energyError();
+    while (e.time < 6) e.step();
+    const s1 = spread(e, temp);
+    const T = meanT(e);
+    const want = (Math.PI * Math.PI * kL(T)) / (rhoL(T) * cpL(T) * CELL.high * CELL.high);
+    const rate = Math.log(s0 / s1) / e.time;
+    let vmax = 0;
+    for (let p = 0; p < P.count; p += 1) vmax = Math.max(vmax, Math.hypot(P.vx[p], P.vy[p]));
+    console.log(`test 28: spread ${s0.toFixed(4)} → ${s1.toFixed(5)} K after ${e.time.toFixed(2)} s; rate ${rate.toFixed(4)} /s, π² α/Δx² ${want.toFixed(4)} /s (τ ${(1 / want).toFixed(3)} s at ${(T - T0).toFixed(2)} °C); energy error ${(e.energyError() - E0).toExponential(2)} J; largest speed ${(vmax * 1000).toExponential(2)} mm/s`);
+    expect(Math.abs(rate / want - 1)).toBeLessThan(0.01);
+    expect(Math.abs(e.energyError() - E0)).toBeLessThan(1e-6);
+    expect(vmax).toBeLessThan(1e-4);
+  });
+});
+
+describe('M2b — test 29: particles of one cell share their salt', () => {
+  it('10 % brine beside fresh water inside each cell evens out at π² D/Δx² at 20 and 80 °C (±1 %); salt and energy exact', () => {
+    for (const Tc of [20, 80]) {
+      const e = halves(Tc, { T: Tc, composition: { H2O: 0.9, NaCl: 0.1 } });
+      const P = e.particles;
+      const perWater = (p: number): number => P.smass[2 * p] / (P.mass[p] - P.smass[2 * p]);
+      const s0 = spread(e, perWater);
+      const salt0 = saltIn(e);
+      const E0 = e.energyError();
+      while (e.time < 10) e.step();
+      const s1 = spread(e, perWater);
+      const T = meanT(e);
+      const want = (Math.PI * Math.PI * saltDiffusivity(T)) / (CELL.high * CELL.high);
+      const rate = Math.log(s0 / s1) / e.time;
+      console.log(`test 29 at ${Tc} °C: spread ${s0.toExponential(4)} → ${s1.toExponential(4)} kg/kg after ${e.time.toFixed(2)} s; rate ${rate.toExponential(4)} /s, π² D/Δx² ${want.toExponential(4)} /s (τ ${(1 / want / 60).toFixed(2)} min); salt error ${e.saltError().toExponential(2)} kg of ${salt0.toExponential(3)}; energy error ${(e.energyError() - E0).toExponential(2)} J`);
+      expect(Math.abs(rate / want - 1)).toBeLessThan(0.01);
+      expect(Math.abs(e.saltError())).toBeLessThan(1e-12 * salt0);
+      expect(Math.abs(e.energyError() - E0)).toBeLessThan(1e-6);
+    }
+  });
+});
+
+describe('M2b — test 30: salt diffuses from cell to cell', () => {
+  it('a cosine of salt across 2 cm of water decays at Fick’s rate: the discrete D k² (sin(kΔx/2)/(kΔx/2))² within ±1 %, the continuous D k² within 4 %; salt exact', () => {
+    const dx = CELL.high;
+    const N = Math.round(0.02 / dx);
+    const kx = (2 * Math.PI) / 0.02;
+    const mode = (i: number): number => Math.cos(kx * (i + 0.5) * dx);
+    const ops: Record<string, unknown>[] = [];
+    for (let i = 0; i < N; i += 1) {
+      const b = 0.0525 + 0.011 * mode(i);
+      ops.push({ op: 'fill', region: { rect: [i * dx, 0, (i + 1) * dx, 0.01] }, composition: { H2O: 1, NaCl: b }, phase: 'liquid', T: 20 });
+    }
+    const e = new Engine(scene({ box: { w: 0.02, h: 0.02, depth: 0.01 }, ambient: { p: 101.325, T: 20, rh: 0.97, g: 0 }, sides: sealed, ops }), { harness: true, insulated: true });
+    const P = e.particles;
+    /* Die Amplitude der Mode im Salz je kg Wasser der Spalten. */
+    const amplitude = (): number => {
+      const S = new Float64Array(N);
+      const W = new Float64Array(N);
+      for (let p = 0; p < P.count; p += 1) {
+        const i = Math.min(N - 1, Math.floor(P.x[p] / dx));
+        S[i] += P.smass[2 * p];
+        W[i] += P.mass[p] - P.smass[2 * p];
+      }
+      let mean = 0;
+      for (let i = 0; i < N; i += 1) mean += S[i] / W[i] / N;
+      let a = 0, n2 = 0;
+      for (let i = 0; i < N; i += 1) { a += (S[i] / W[i] - mean) * mode(i); n2 += mode(i) ** 2; }
+      return a / n2;
+    };
+    const a0 = amplitude();
+    const salt0 = saltIn(e);
+    const E0 = e.energyError();
+    while (e.time < 150) e.step();
+    const a1 = amplitude();
+    const D = saltDiffusivity(meanT(e));
+    const cont = D * kx * kx;
+    const disc = cont * (Math.sin((kx * dx) / 2) / ((kx * dx) / 2)) ** 2;
+    const rate = Math.log(a0 / a1) / e.time;
+    console.log(`test 30: amplitude ${a0.toExponential(4)} → ${a1.toExponential(4)} kg/kg after ${e.time.toFixed(0)} s; rate ${rate.toExponential(4)} /s, discrete ${disc.toExponential(4)} /s (${(100 * (rate / disc - 1)).toFixed(2)} %), continuous D k² ${cont.toExponential(4)} /s (${(100 * (rate / cont - 1)).toFixed(2)} %); salt error ${e.saltError().toExponential(2)} kg of ${salt0.toExponential(3)}; energy error ${(e.energyError() - E0).toExponential(2)} J`);
+    expect(Math.abs(rate / disc - 1)).toBeLessThan(0.01);
+    expect(Math.abs(rate / cont - 1)).toBeLessThan(0.04);
+    expect(Math.abs(e.saltError())).toBeLessThan(1e-12 * salt0);
+    expect(Math.abs(e.energyError() - E0)).toBeLessThan(1e-6);
   });
 });

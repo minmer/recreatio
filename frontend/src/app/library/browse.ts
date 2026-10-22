@@ -1,8 +1,12 @@
 /**
  * DAS ARCHIV AUF EINER SEITE, GERECHNET (2026-10-21) — ohne Browser prüfbar:
- * welches Layout, welche Zeile aus welcher Kurzfassung, welcher Filter zu
- * welcher Achse gehört, und wie der Zustand in der Adresse steht (ein
- * gefiltertes Archiv lässt sich als Link weitergeben).
+ * welches Layout, welche Zeile aus welchem Text, welcher Filter zu welcher
+ * Achse gehört, und wie der Zustand in der Adresse steht (ein gefiltertes
+ * Archiv lässt sich als Link weitergeben).
+ *
+ * 2026-10-22 — gesucht, gefiltert und gezählt wird HIER, an den geöffneten
+ * Einträgen (`browseLocal`): der Dienst sieht keine Kurzfassungen mehr, nur
+ * Hüllen; die Seite öffnet die ganze Bibliothek eines öffentlichen Bereichs.
  *
  * <code>
  *   ?t=<text>       ein Text ist offen          ?tw=<wygłoszenie>  … mit diesem Wygłoszenie auf dem Plan
@@ -12,7 +16,8 @@
  * </code>
  */
 
-import { summaryOf, type PublishedItem } from './library';
+import { ids, str, type LibEntry, type Lookup } from './libraryKinds';
+import { deliveriesOf, lastHeld, planOf, pointLine } from './sermon';
 import { facetOf, type TopicTree } from './topics';
 
 /* Lista · Tabela · Drzewo stehen in `archiveLayout.ts` — ohne Importe, für die Beschreibung des Bausteins. */
@@ -25,7 +30,7 @@ export const orderOf = (word: string | null | undefined): Order | null =>
 /** Die Achse der Projekte (Cykle kazań, Bücher) — neben den Aspekten. */
 export const PROJECTS = '#cykle';
 
-/* -- Eine Zeile aus der Kurzfassung -------------------------------------------------------------- */
+/* -- Eine Zeile aus einem Text ------------------------------------------------------------------- */
 
 export interface ArchiveRow {
   readonly id: string;
@@ -45,30 +50,68 @@ export interface ArchiveRow {
   readonly plan: readonly string[];
 }
 
-const text = (value: unknown): string => (typeof value === 'string' ? value : '');
-
-export function archiveRow(item: PublishedItem): ArchiveRow {
-  const s = summaryOf(item);
-  const held = Array.isArray(s.held) ? s.held.filter((one): one is Record<string, unknown> => typeof one === 'object' && one !== null) : [];
-  const topics = Array.isArray(s.topics) ? s.topics.flatMap((t) => {
-    const o = t as { id?: unknown; name?: unknown };
-    return typeof o?.id === 'string' && typeof o.name === 'string' ? [{ id: o.id, name: o.name }] : [];
-  }) : [];
-  const project = typeof s.project === 'object' && s.project !== null && typeof (s.project as { id?: unknown }).id === 'string'
-    ? { id: (s.project as { id: string }).id, title: text((s.project as { title?: unknown }).title) } : null;
+export function archiveRow(entry: LibEntry, look: Lookup): ArchiveRow {
+  const d = entry.data;
+  const held = deliveriesOf(entry, look);
+  const topics = ids(d, 'topics').flatMap((id) => { const t = look.get(id); return t === undefined ? [] : [{ id, name: str(t.data, 'name') }]; });
+  const projectEntry = look.get(ids(d, 'project')[0] ?? '');
   return {
-    id: item.entryId,
-    title: text(s.title) || 'Bez tytułu',
-    subtitle: text(s.subtitle),
-    date: text(s.last) || text(s.date),
-    occasion: text(held[0]?.occasion) || text(s.occasion),
-    summary: text(s.summary),
-    held: typeof s.deliveries === 'number' ? s.deliveries : held.length,
-    recorded: text(s.audio) !== '' || text(s.video) !== '' || held.some((one) => one.recorded === true),
+    id: entry.id,
+    title: str(d, 'title') || 'Bez tytułu',
+    subtitle: str(d, 'subtitle'),
+    date: lastHeld(entry, look),
+    occasion: str(held[0]?.data ?? {}, 'occasion') || str(d, 'occasion'),
+    summary: str(d, 'summary'),
+    held: held.length,
+    recorded: str(d, 'audio') !== '' || str(d, 'video') !== '' || held.some((one) => str(one.data, 'audio') !== '' || str(one.data, 'video') !== ''),
     topics,
-    project,
-    plan: Array.isArray(s.plan) ? s.plan.filter((one): one is string => typeof one === 'string') : []
+    project: projectEntry === undefined ? null : { id: projectEntry.id, title: str(projectEntry.data, 'title') },
+    plan: planOf(d).filter((p) => p.depth === 0).map((p) => pointLine(p.text, look, 140)).filter((s) => s !== '').slice(0, 6)
   };
+}
+
+/* -- Suchen, filtern, zählen ---------------------------------------------------------------------- */
+
+export interface LocalQuery {
+  /** Die Filter: innerhalb einer Gruppe ODER, zwischen den Gruppen UND; ein Thema trifft auch seine Unterthemen. */
+  readonly groups: readonly (readonly string[])[];
+  /** Die Treffer der Suche (Kennungen) — `null`: keine Suche. */
+  readonly matching: ReadonlySet<string> | null;
+  readonly order: Order;
+}
+
+export interface LocalResult {
+  readonly rows: readonly ArchiveRow[];
+  /** Je Wert (Thema, Projekt): wie viele der gefundenen Texte ihn tragen — ein Thema zählt auch für seine Oberthemen. */
+  readonly counts: ReadonlyMap<string, number>;
+}
+
+/** Wofür ein Text steht: seine Themen mit ihren Oberthemen, und sein Projekt. */
+function marks(row: ArchiveRow, tree: TopicTree | null): Set<string> {
+  const out = new Set<string>();
+  for (const t of row.topics) {
+    out.add(t.id);
+    for (const a of tree?.ancestors(t.id) ?? []) out.add(a.id);
+  }
+  if (row.project !== null) out.add(row.project.id);
+  return out;
+}
+
+export function browseLocal(rows: readonly ArchiveRow[], tree: TopicTree | null, query: LocalQuery): LocalResult {
+  const groups = query.groups.map((g) => g.filter((one) => one !== '')).filter((g) => g.length > 0);
+  const found = rows.filter((row) => {
+    if (query.matching !== null && !query.matching.has(row.id)) return false;
+    const has = marks(row, tree);
+    return groups.every((g) => g.some((id) => has.has(id)));
+  });
+  const counts = new Map<string, number>();
+  for (const row of found) for (const id of marks(row, tree)) counts.set(id, (counts.get(id) ?? 0) + 1);
+  const by = query.order === 'key' || query.order === '-key'
+    ? (a: ArchiveRow, b: ArchiveRow) => a.title.localeCompare(b.title, 'pl')
+    : (a: ArchiveRow, b: ArchiveRow) => (a.date || '0000').localeCompare(b.date || '0000') || a.title.localeCompare(b.title, 'pl');
+  const sorted = [...found].sort(by);
+  if (query.order.startsWith('-')) sorted.reverse();
+  return { rows: sorted, counts };
 }
 
 /** Zu welcher Achse ein gewählter Wert gehört — ein Projekt, sonst der Aspekt seines Themas. */

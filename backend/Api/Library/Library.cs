@@ -57,8 +57,8 @@ public static partial class Library
         app.MapGet("/library/{id:guid}/published", PublishedListAsync);
         app.MapGet("/library/{id:guid}/published/{entryId:guid}", PublishedOneAsync);
 
-        /* 2026-10-21 — das Archiv durchsuchen: Filter je Aspekt, Zahlen je Thema (Library.Publish.cs). */
-        app.MapGet("/library/{id:guid}/published/browse", PublishedBrowseAsync);
+        /* 2026-10-22 — Sichtbarkeit allein durch den Bereich: öffentlich lesen, wo es liegt, umziehen (Library.Areas.cs). */
+        MapAreas(app);
 
         /* 0109 — Fassungen, versiegelte Dateien, Lesen über einen Platz oder Link (Library.Cogita.cs). */
         MapCogita(app);
@@ -126,7 +126,8 @@ public static partial class Library
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var held = await Agenda.HeldAreasAsync(connection, who.Value.AccountId, ctx.RequestAborted);
-        var rows = new List<(Guid Id, Guid AreaId, int Epoch, byte[] Name, DateTimeOffset Created, DateTimeOffset Updated, int Entries, int Published, string Kind)>();
+        var rows = new List<(Guid Id, Guid AreaId, int Epoch, byte[] Name, DateTimeOffset Created, DateTimeOffset Updated, int Entries, int Published, string Kind, DateTimeOffset? AreaRule)>();
+        var hasRule = await HasAreaRuleAsync(connection, ctx.RequestAborted);
 
         if (held.Count > 0)
         {
@@ -136,7 +137,7 @@ public static partial class Library
                        COALESCE((SELECT MAX(e.updated_at) FROM app.library_entry e WHERE e.library_id = l.id), l.updated_at),
                        (SELECT COUNT(*) FROM app.library_entry e WHERE e.library_id = l.id AND e.deleted_at IS NULL),
                        (SELECT COUNT(*) FROM app.library_entry e WHERE e.library_id = l.id AND e.published_at IS NOT NULL),
-                       l.kind
+                       l.kind, {(hasRule ? "l.area_rule_at" : "CAST(NULL AS datetimeoffset)")}
                 FROM app.library l
                 WHERE l.area_id IN ({names})
                 ORDER BY l.created_at;
@@ -146,15 +147,18 @@ public static partial class Library
             while (await reader.ReadAsync(ctx.RequestAborted))
             {
                 rows.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetInt32(2), (byte[])reader[3],
-                    reader.GetDateTimeOffset(4), reader.GetDateTimeOffset(5), reader.GetInt32(6), reader.GetInt32(7), reader.GetString(8)));
+                    reader.GetDateTimeOffset(4), reader.GetDateTimeOffset(5), reader.GetInt32(6), reader.GetInt32(7), reader.GetString(8),
+                    reader.IsDBNull(9) ? null : reader.GetDateTimeOffset(9)));
             }
         }
 
         /* Wo ich schreiben darf — je Bereich einmal gefragt, nicht je Bibliothek. */
         var writes = new Dictionary<Guid, bool>();
+        var open = new Dictionary<Guid, bool>();
         foreach (var area in rows.Select(r => r.AreaId).Distinct())
         {
             writes[area] = await Area.MayAsync(connection, who.Value.AccountId, area, Capability.Write, ctx.RequestAborted);
+            open[area] = await AreaIsPublicAsync(connection, area, ctx.RequestAborted);
         }
 
         await ctx.Response.WriteAsJsonAsync(new
@@ -170,7 +174,10 @@ public static partial class Library
                 entries = r.Entries,
                 published = r.Published,
                 kind = r.Kind,
-                writes = writes[r.AreaId]
+                writes = writes[r.AreaId],
+                /* 2026-10-22 — wer liest: der Bereich (offen oder nicht) und ob die Umstellung durchgesehen ist (0122). */
+                areaPublic = open[r.AreaId],
+                areaRuleAt = r.AreaRule
             })
         });
     }
@@ -219,6 +226,18 @@ public static partial class Library
             return;
         }
 
+        /* 2026-10-22 — jeder Bereich hat SEINE Bibliothek: wer liest, entscheidet der Bereich, also gibt es je Bereich eine. */
+        if (kind == "books")
+        {
+            await using var taken = new SqlCommand("SELECT COUNT(*) FROM app.library WHERE area_id = @area AND kind = N'books';", connection);
+            taken.Parameters.AddWithValue("@area", areaId);
+            if ((int)(await taken.ExecuteScalarAsync(ctx.RequestAborted))! > 0)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, "Ten obszar ma już swoją bibliotekę.");
+                return;
+            }
+        }
+
         var current = await CurrentEpochAsync(connection, areaId, ctx.RequestAborted);
         if (current is null || body.Epoch < 1 || body.Epoch > current)
         {
@@ -245,6 +264,15 @@ public static partial class Library
         {
             await Fail(ctx, StatusCodes.Status409Conflict, "Ta biblioteka już jest.");
             return;
+        }
+
+        /* 2026-10-22 — eine neue Bibliothek kennt nur die Regel des Bereichs: nichts durchzusehen. */
+        if (await HasAreaRuleAsync(connection, ctx.RequestAborted))
+        {
+            await using var rule = new SqlCommand("UPDATE app.library SET area_rule_at = @now WHERE id = @id;", connection);
+            rule.Parameters.AddWithValue("@id", id);
+            rule.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            await rule.ExecuteNonQueryAsync(ctx.RequestAborted);
         }
 
         await ctx.Response.WriteAsJsonAsync(new { libraryId = Ids.ToText(id) });
@@ -299,6 +327,7 @@ public static partial class Library
                 OR ref_id   IN (SELECT id FROM app.library_entry WHERE library_id = @id);
             DELETE FROM app.library_entry_version WHERE entry_id IN (SELECT id FROM app.library_entry WHERE library_id = @id);
             DELETE FROM app.library_file WHERE library_id = @id;
+            IF OBJECT_ID(N'app.library_moved', N'U') IS NOT NULL DELETE FROM app.library_moved WHERE from_library_id = @id;
             DELETE FROM app.learn_batch WHERE library_id = @id;
             DELETE FROM app.learn_due WHERE library_id = @id;
             UPDATE app.cogita_session SET library_id = NULL WHERE library_id = @id;
@@ -386,6 +415,9 @@ public static partial class Library
                 });
             }
         }
+
+        /* 2026-10-22 — was seitdem in einen anderen Bereich zog, ist HIER fort: es kommt als gelöscht. */
+        if (from is not null) await MovedAwayAsync(connection, id, from.Value, entries, ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new { now, entries });
     }

@@ -29,6 +29,7 @@
     "greenspan1977": "L. Greenspan (1977), Humidity fixed points of binary saturated aqueous solutions, J. Res. Natl. Bur. Stand. 81A(1), 89–96, Table 2: the air over saturated NaCl solution has 75.47 ± 0.14 % RH at 20 °C, 75.29 ± 0.12 % at 25 °C, 75.09 ± 0.11 % at 30 °C — the reference of the water-activity test",
     "nbs1982": "D. D. Wagman et al. (1982), The NBS tables of chemical thermodynamic properties, J. Phys. Chem. Ref. Data 11, Suppl. 2: Δ_fH° NaCl(cr) −411.153 kJ/mol, NaCl(aq, standard state) −407.27 kJ/mol, so the heat of solution at infinite dilution is +3.883 kJ/mol; C_p° NaCl(cr) 50.50 J/(mol·K)",
     "crc-nacl": "CRC Handbook of Chemistry and Physics, Physical constants of inorganic compounds: sodium chloride, density 2.17 g/cm³ (2.165)",
+    "crc-diffusion": "CRC Handbook of Chemistry and Physics, Ionic conductivity and diffusion at infinite dilution (25 °C): D(Na⁺) = 1.334·10⁻⁹ m²/s, D(Cl⁻) = 2.032·10⁻⁹ m²/s; for the salt the Nernst–Hartley mean 2 D₊D₋/(D₊ + D₋) = 1.611·10⁻⁹ m²/s; other temperatures by Stokes–Einstein, D ∝ T/μ_w (the decrease of D with concentration, about 8 % at 1 mol/kg, is left out)",
     "iapws-ice": "IAPWS R10-06(2009), Revised Release on the Equation of State 2006 for H2O Ice Ih, Table 6: normal pressure melting point 273.152519 K; at the triple point the ice has h = −333 444.254 J/kg, c_p = 2096.784 J/(kg·K), ρ = 916.709 kg/m³, and the liquid h = p v = 0.612 J/kg (the IAPWS-95 reference state u = s = 0), so the enthalpy of melting is 333 444.87 J/kg",
     "model": "Model parameter, not a measured property — chosen and documented in documentation/lab2d/SIMPLIFICATIONS.md"
   },
@@ -141,6 +142,7 @@
       "cp": { "laliberte": [-0.0693559668993322, -0.0782134167486952, 3.84798479408635, -11.2762109247072, 8.73187698542672, 1.81245930472755], "range": { "lo": 274.65, "hi": 393.15 }, "src": "laliberte2009" },
       "solubility": { "table": [[273.15, 6.097], [298.15, 6.146], [323.15, 6.275], [348.15, 6.460], [373.15, 6.680], [398.15, 6.935], [423.15, 7.198]], "src": "ppb1984" },
       "dHsol": { "v": 3883, "src": "nbs1982" },
+      "diffusivity": { "v": 1.611e-9, "src": "crc-diffusion" },
       "eutectic": { "T": { "v": 251.95, "src": "bodnar1993" }, "w": { "v": 0.232, "src": "bodnar1993" } },
       "solid": {
         "rho": { "v": 2165, "src": "crc-nacl" },

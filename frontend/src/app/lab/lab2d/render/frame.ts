@@ -56,7 +56,7 @@ export interface FrameBuffers {
   /** Die Skala der Einblendung (in SI: K, Pa, m/s, 1, kg/m³) — Anfang und Ende der Farbskala. */
   scaleLo: number;
   scaleHi: number;
-  /** Rohe Teilchen (wenn gezeigt): je Teilchen x, y, Temperatur auf der Skala (0–1); np Teilchen. */
+  /** Rohe Teilchen (wenn gezeigt): je Teilchen x, y, Wert auf der Farbskala (0–1: Temperatur, mit „Stężenie soli“ der Salzanteil); np Teilchen. */
   parts: Float32Array;
   np: number;
   /** Pfeile (Einblendung „Prędkość“): je Strecke x0, y0, x1, y1 — erst nag Strecken des Gases, dann nal des Wassers. */
@@ -333,14 +333,14 @@ export function buildFrame(e: Engine, f: FrameBuffers, overlay: Overlay, particl
     f.bubbles[o + 2] = B.r[b];
     f.bubbles[o + 3] = total > 0 ? (B.m[b * SPECIES_SLOTS + N2] + B.m[b * SPECIES_SLOTS + O2]) / total : 0;
   }
-  /* Rohe Teilchen. */
+  /* Rohe Teilchen: Farbe nach der Temperatur, mit der Einblendung „Stężenie soli“ nach dem Salzanteil (dieselbe Skala wie die Legende). */
   f.np = 0;
   if (particles && f.parts.length >= 3 * P.count) {
     const pp = f.parts;
     for (let q = 0; q < P.count; q += 1) {
       pp[3 * q] = P.x[q];
       pp[3 * q + 1] = P.y[q];
-      pp[3 * q + 2] = Math.min(1, Math.max(0, (P.T[q] - T0 - tmin) / tspan));
+      pp[3 * q + 2] = salty ? Math.min(1, P.saltFraction(q) / SALT_FULL) : Math.min(1, Math.max(0, (P.T[q] - T0 - tmin) / tspan));
     }
     f.np = P.count;
   }

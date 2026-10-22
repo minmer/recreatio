@@ -19,9 +19,9 @@ Reproduce: `npm run test:lab2d` (fast tests, ~3 min), `npm run test:lab2d:slow` 
 | M1b Liquid | tests 1, 3, 4, 5, 16 | tests met; **16 not met** |
 | M1c Bubbles and phase change | tests 6–14, 16 | tests met; **16 not met** |
 | M1d Teaching tools | 16 and a walkthrough of the boiling scene | walkthrough done; **16 not met** |
-| M1e GPU path | test 17, 1 mm in the budget | built (the accelerated view): test 17 met (test 11 at the edge, as on the CPU); 2 mm 4.9 ms per step; **1 mm 7.7 ms, above the 6 ms** (§M1e) |
+| M1e GPU path | test 17, 1 mm in the budget | built (the accelerated view): test 17 met (test 11 was at the edge, as on the CPU, until the particles of a cell shared their heat: now −0.37 K); 2 mm 4.9 ms per step; **1 mm 7.7 ms, above the 6 ms** (§M1e) |
 | M2a liquids (oil) | tests 18–22 (SANDBOX.md §13), water unchanged | built on the CPU (2026-10-21): all met; every M1 number unchanged to the last printed digit; water scenes as fast as before (§M2a); the accelerated view hands oil scenes back to the CPU |
-| M2b solutions (salt) | tests 23–27 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met; all M1/M2a tests still met (long boiling runs differ in the last digits after a droplet leaves the liquid); water scenes as fast as before; brine costs 8 % per step (§M2b); the accelerated view hands salt scenes back to the CPU |
+| M2b solutions (salt) | tests 23–27 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met; then particles of a cell share heat and salt at the diffusion rate and salt diffuses between cells (tests 28–30, met); all M1/M2a tests still met, some numbers moved slightly (§M2b); water +2.4 % per step, brine +12 % over water; the accelerated view shares heat like the CPU and hands salt scenes back to the CPU |
 
 Test 16 (≤ 12 ms of simulation per 60 Hz frame at the default resolution) is the one gate that fails throughout:
 the CPU step of the benchmark scene at 2 mm takes 21.6 ms (budget 6 ms per step, two steps per frame): the
@@ -73,7 +73,7 @@ closed; eight timed stages with finite state; bit-for-bit determinism for a seed
 | 8 Departure | 2.34 mm at 45° (±5 %) | 158 departures, mean **2.3498 mm** (Fritz at 100 °C: 2.3438 mm) |
 | 9 Rise velocity | 0.25 m/s at 3 mm, 0.23 m/s at 5 mm (±10 %) | **0.2491** (−0.4 %) and **0.2276 m/s** (−1.0 %) |
 | 10 Subcooled boiling | bubbles collapse while the bulk is ≥ 5 K below T_sat; later reach the surface | bulk ≥ 5 K below T_sat: 51 450 bubbles collapsed, **21 (0.04 %)** reached the surface; warmer: **330** reached it (24 238 collapsed); water 98.5 °C after 49 s (compact beaker 5 cm wide, 2.7 cm of water, 40 W) |
-| 11 Boiling plateau | mean water within 0.5 K of T_sat; vapour = (P − losses)/h_lv within 5 % | mean water **99.495 °C**, T_sat 99.974 °C (−0.48 K: inside the tolerance, with little margin — evaporation at the surface and the glass walls keep the bulk slightly below T_sat); vapour **5.233 mg/s** vs (P − losses)/h_lv **5.230 mg/s (+0.05 %)**, P 25 W, losses 13.2 W |
+| 11 Boiling plateau | mean water within 0.5 K of T_sat; vapour = (P − losses)/h_lv within 5 % | mean water **99.495 °C**, T_sat 99.974 °C (−0.48 K: inside the tolerance, with little margin — evaporation at the surface and the glass walls keep the bulk slightly below T_sat); vapour **5.233 mg/s** vs (P − losses)/h_lv **5.230 mg/s (+0.05 %)**, P 25 W, losses 13.2 W. Since the particles of a cell share their heat (M2b): **99.656 °C (−0.32 K)**, vapour 5.309 mg/s vs 5.307 mg/s (+0.05 %) |
 | 12 Superheating | ≤ 1 K with chips; ≥ ΔT_act of the largest glass cavity without | with chips **0.273 K** (on ceramic); without **9.965 K** on glass, ΔT_act of the largest glass cavity 9.461 K |
 | 13 Evaporation | rate = ρ D ΔY/L within 5 % | **+1.13 %** (2.168e-9 vs 2.144e-9 kg/s; the Stefan flow adds ≈ Y_sat/2) |
 | 14 Fog | fog only where p_H2O > p_sat; each fog cell exactly saturated; water exact | largest \|p_v − p_sat\|/p_sat in a fog cell **1.1e-11**; fog in subsaturated cells **0**; water error **1e-20 kg** |
@@ -129,6 +129,11 @@ run again on 2026-10-21 after the multigrid fix below, the earlier runs in brack
 Test 11's temperature criterion is met by the CPU with 0.02 K to spare; the GPU lands on either side of it from run to
 run (its bubble statistics are not repeatable). Energy budgets on the GPU: test 3 (sealed, insulated, 300 s, 3000 J of
 heating) closes to 0.48 J (1.6e-4), test 11 (60 s) to 0.04 J, the 12 s compact boiling run to 6 mJ of 8 kJ.
+
+Again on 2026-10-22 with the particles of a cell sharing their heat (kernel `heatShare`, §M2b): tests 1, 2 and 6 give
+the same numbers (90 °C: 0.0028 mm/s); test 3 **−2.18 %**, energy error −0.42 J; test 11 **−0.371 K**, vapour
+**+0.05 %**, energy error −0.04 J. The same check as test 28 on the GPU: a 2 K difference inside each cell decays at
+0.3549 /s in Edge and in Firefox (CPU 0.3549, π² α/Δx² 0.3547); without the kernel at 0.0003 /s.
 
 The compact boiling beaker over 12 s at 2 mm, GPU and CPU: water 99.19 and 99.23 °C; nucleated 77 753 and 78 697;
 departed 71 232 and 72 254; burst 2 572 and 2 496; collapsed 9 849 and 15 932 (the largest difference; merging
@@ -258,29 +263,35 @@ solanki" (25 % brine boiled dry on a plate held at 250 °C: after about 3½ simu
 | 23 Freezing point | 1 and 3 mol/kg, ±0.1 K of the measurements (Bodnar 1993) | **−3.396 °C** (−3.372) and **−10.906 °C** (−10.945) |
 | 23 Saturated brine | a_w at 20, 25, 30 °C ±0.3 % RH (Greenspan 1977) | **75.27, 75.21, 75.10 %** (75.47, 75.29, 75.09) |
 | 23 Heat | c_p(25 °C) and h(100 °C) − h(20 °C) at 1 and 3 mol/kg, ±0.5 % of PPB Table A-17 | c_p **3913** (3920) and **3562** (3560) J/(kg·K); Δh **314.8** (314.6) and **286.6** (286.2) kJ/kg |
-| 23 Closure | T(h(T)) = T, ∂h/∂T = c_p, h̄_w = ∂(m h)/∂m_w, Δ_solH(25 °C) = 3.883 kJ/mol | exact to 1e-7 K, 1e-6, 0.05 J/kg, 5 J/mol |
-| 24 Brine under water | dp/dy = ρ g in both layers ±2 %, layers stay, salt exact | **112.629** (ρ_brine g 112.629) and **97.924** (97.924) Pa/cm; no salt two cells above the interface after 5 s; 0.0023 mm/s |
+| 23 Closure | T(h(T)) = T, ∂h/∂T = c_p, h̄_w = ∂(m h)/∂m_w, h̄_s = ∂(m h)/∂m_s, Δ_solH(25 °C) = 3.883 kJ/mol | exact to 1e-7 K, 1e-6, 0.05 J/kg, 0.05 J/kg, 5 J/mol |
+| 24 Brine under water | dp/dy = ρ g in both layers ±2 %, layers stay, salt exact | **112.629** (ρ_brine g 112.629) and **97.924** (97.924) Pa/cm; no salt two cells above the interface after 5 s; 0.0024 mm/s |
 | 25 Air over saturated brine | sealed box at 25 °C: RH → 75.29 % ±0.5 % | 50.00 → **75.15 %** after 40 s; salt and water exact |
-| 26 Brine boiling | bubbles nucleate and burst, the brine gets saltier, budgets close | 48 492 nucleated, 3 387 burst, 34.1 mg of vapour in 5 s; salt share **5.5216 → 5.5301 %**; salt error 0 kg of 1.24 g, water error −1.4e-16 kg, energy error 4.0e-10 J |
-| 27 Boiled dry | no particle left, crust = salt (exact), energy closes | dry after **70.97 s**; crust **105.878249 mg** of 105.878249 mg; nothing spattered out; energy error −8e-11 J |
+| 26 Brine boiling | bubbles nucleate and burst, the brine gets saltier, budgets close | 46 974 nucleated, 4 011 burst, 32.2 mg of vapour in 5 s; salt share **5.5216 → 5.5297 %**; salt error −2.6e-17 kg of 1.24 g, water error −2.1e-16 kg, energy error 3.9e-10 J |
+| 27 Boiled dry | no particle left, crust = salt (exact), energy closes | dry after **67.58 s**; crust **105.878249 mg** of 105.878249 mg; nothing spattered out; energy error −1.5e-11 J |
+| 28 Heat inside a cell | a 2 K difference between a cell's particles decays at π² α/Δx² ±1 %, energy exact | **0.3549 /s** (0.3547 /s, τ = 2.82 s at 21 °C, +0.06 %); energy error −5.5e-8 J; the GPU path: **0.3549 /s** |
+| 29 Salt inside a cell | 10 % brine beside fresh water evens out at π² D/Δx² ±1 % at 20 and 80 °C, salt exact | **3.4747e-3 /s** (3.4752e-3, τ = 4.80 min, −0.01 %) and **1.1954e-2 /s** (1.1961e-2, τ = 1.39 min, −0.06 %); salt errors ≤ 2.4e-18 kg of 0.32 mg |
+| 30 Salt between cells | a cosine across 2 cm decays at the discrete Fick rate ±1 % (the continuous D k² within 4 %) | **1.3467e-4 /s**: discrete 1.3445e-4 (+0.16 %), continuous 1.3896e-4 (−3.09 %); salt error 7e-20 kg |
 
-All 53 fast tests pass; every number printed by the tests of M0–M2a is the same as before to the last digit. The slow
-suite passes too: tests 3, 4 (ten minutes) and 12 give the same numbers; the long boiling runs part from the old ones
+The first build (before the sharing between particles, below; the table shows the numbers after it): all 53 fast tests
+passed; every number printed by the tests of M0–M2a was the same as before to the last digit. The slow
+suite passed too: tests 3, 4 (ten minutes) and 12 gave the same numbers; the long boiling runs part from the old ones
 once a droplet leaves the liquid or a bubble fills a cell without water particles (both behave differently now, above):
 test 10 — in the subcooled phase the same 51 450 collapses and 21 bursts (0.04 %), in the warm phase 412 bursts and
 26 855 collapses (were 330 and 24 238); test 11 — 99.496 °C (was 99.495), vapour 5.220 mg/s against (P − losses)/h_lv
 5.217 mg/s (+0.05 %, as before).
 
-The boiling plateau in the scene of test 11 (compact beaker with chips, 30–60 s), measured beside the gates: water
-99.496 °C (T_sat 99.974 °C, −0.48 K as in test 11), 1 mol/kg brine 100.384 °C (T_b at its mean molality of 1.018:
-100.938 °C, −0.55 K), 3 mol/kg 102.696 °C (T_b at 3.057 mol/kg: 103.233 °C, −0.54 K). The plateau moves with the
-boiling point: +0.89 K and +3.20 K against +0.96 K and +3.26 K; it sits half a kelvin below it for the same reason as
+The boiling plateau in the scene of test 11 (compact beaker with chips, 30–60 s), measured beside the gates, with the
+sharing between particles (below; the first build in brackets): water 99.656 °C (T_sat 99.974 °C, −0.32 K as in test
+11; 99.496 °C), 1 mol/kg brine 100.554 °C (T_b at its mean molality of 1.018: 100.938 °C, −0.38 K; 100.384 °C),
+3 mol/kg 102.844 °C (T_b at 3.056 mol/kg: 103.232 °C, −0.39 K; 102.696 °C). The plateau moves with the boiling point:
++0.90 K and +3.19 K against +0.96 K and +3.26 K; it sits a few tenths of a kelvin below it for the same reason as
 water's (surface evaporation and the cooler parts of the beaker).
 
-Performance: the benchmark scene with the committed engine against M2b, alternating, four runs each: 17.60 and 17.69 ms
-per step (medians, +0.5 %, run-to-run noise) with the same water temperature to six decimals after 450 steps; the same
-scene with 1 mol/kg brine 19.18 ms per step (+8 %: the solution's T(h, w), the activity table, the boiling point per
-cell, crystallisation).
+Performance: the first build against M2a, alternating, four runs each: 17.60 and 17.69 ms per step (medians, +0.5 %,
+run-to-run noise) with the same water temperature to six decimals after 450 steps; the same scene with 1 mol/kg brine
+19.18 ms per step (+8 %: the solution's T(h, w), the activity table, the boiling point per cell, crystallisation). With
+the sharing between particles: water 17.45 → 17.87 ms per step (+2.4 %; one more T(h) per particle and step), 1 mol/kg
+brine 20.09 ms (+12 % over water).
 
 Found and fixed on the way:
 
@@ -300,6 +311,40 @@ Found and fixed on the way:
   it and bubble growth from it created water (jumps of 1e-8 kg in the water budget of a thin film on a 250 °C plate).
   Such cells exchange no mass now.
 - `phase.ts` and `liquid.ts` were split (fog.ts, flash.ts; liquidMix.ts, extend.ts), the inspector moved to probe.ts.
+
+### Particles share heat and salt (2026-10-22)
+
+After the first build the user noticed that water particles did not share their temperature and saltiness, as real
+water does. They did not: the grid conducted heat between cells through their means and gave every particle of a cell
+the same change, so a hot and a cold particle that the flow brought into one cell kept their difference for ever, and
+salt moved only with its particle. `exchange.ts` now runs after the heat solve: each particle moves toward its cell's
+mean with f = 1 − exp(−Δt/τ), τ = Δx²/(π² κ) — heat with κ = α (2.8 s at 2 mm), salt with κ = D (4.8 min at 20 °C,
+1.1 min at 100 °C) per kg of water — and salt diffuses between cells by Fick's law (ARCHITECTURE.md §6.5,
+SIMPLIFICATIONS.md #28, #32). Energy and salt stay exact. The GPU path got the heat part (kernel `heatShare`, §M1e);
+salt scenes run on the CPU anyway. Tests 28–30 are in the table above.
+
+Found on the way: relaxing the salt per kg of solution instead of per kg of water made the measured rate 4.7 % slower
+than 1/τ (moving salt changes the particle's mass, so its mass fraction does not decay as a pure exponential); per kg of
+water it is exact. A test scene with g = 0 needs `harness: true`: otherwise the scene reader clamps gravity to 0.25 g,
+and brine beside fresh water inside each cell (a density pattern below the cell size) set the water moving at 8 mm/s.
+
+All 56 fast tests and the slow suite pass. What the sharing moved:
+
+| Test | First build | With sharing |
+|---|---|---|
+| 3 Heating rate | −2.30 % | −2.20 % |
+| 4 Sealed beaker, 10 min | water 49.07 °C, error −3.3e-5 J | 49.23 °C, −1.1e-5 J |
+| 5 Thermal expansion (3.407 % expected) | 3.627 % | 3.562 % |
+| 10 Subcooled boiling | cold phase 51 450 collapsed, 21 surfaced; warm 26 855 and 412; 98.47 °C at 49.9 s | 50 366 and 21; 20 403 and 930; 98.47 °C at 47.1 s |
+| 11 Boiling plateau | 99.496 °C (−0.48 K), vapour +0.05 % | **99.656 °C (−0.32 K)**, +0.05 % |
+| 12 Superheating | chips 0.273 K at 23.0 s; glass 9.965 K at 24.5 s | 0.265 K at 22.6 s; 9.964 K at 26.6 s |
+| 22 Water boiling under oil | 11 166 nucleated, 27 burst | 11 142, 24 |
+| 26 Brine boiling | 48 492 nucleated, 3 387 burst, 34.1 mg | 46 974, 4 011, 32.2 mg |
+| 27 Boiled dry | 70.97 s | 67.58 s |
+
+Tests 1, 2, 7–9, 14, 15, 18–20, 23 and the M0 checks give the same numbers; tests 6 (945.4 Pa instead of 945.3), 13
+(the surface 0.002 K warmer), 21, 24 and 25 differ in the last digits; in the fast version of test 4 the sealed beaker
+ends at 21.83 °C instead of 21.76 °C after 60 s (the same energy, more of it in the water).
 
 ## Benchmark
 

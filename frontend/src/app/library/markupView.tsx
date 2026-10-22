@@ -7,11 +7,12 @@
  * Zählung hat wie eine im Text.
  */
 
-import { Fragment, type MouseEvent, type ReactNode } from 'react';
+import { Fragment, useMemo, type MouseEvent, type ReactNode } from 'react';
 
-import { citeSegs, newCiteState, originOf, workBehind, type CiteState, type Seg } from './libraryCite';
+import { blocksOf, commentsAbout, subjectsOf, UNREADABLE } from './comment';
+import { citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from './libraryCite';
 import { str, type LibEntry, type Lookup } from './libraryKinds';
-import { walkBlocks, type Block, type Inline } from './libraryMarkup';
+import { parseInline, parseMarkup, walkBlocks, walkInline, type Block, type Inline } from './libraryMarkup';
 
 export function Segs({ segs }: { segs: readonly Seg[] }) {
   return (
@@ -49,12 +50,27 @@ export function countNotes(parts: readonly (readonly Block[])[], look: Lookup, h
   const works: LibEntry[] = [];
   const state: CiteState = newCiteState();
 
-  for (const blocks of parts) {
-    walkBlocks(blocks, (b) => {
-      if (b.t !== 'embed') return;
-      const work = workBehind(look.byKey(b.key), look);
-      if (work !== undefined) works.push(work);
-    }, (inline) => {
+  /* 2026-10-22 — ein eingebetteter Komentarz zählt mit, wo er steht; einer, der sich selbst (über andere) einbettet, nur einmal. */
+  const onBlock = (path: ReadonlySet<string>) => (b: Block) => {
+    if (b.t !== 'embed') return;
+    const target = look.byKey(b.key);
+    if (target?.kind === 'comment') {
+      if (!path.has(target.id)) walkComment(target, new Set([...path, target.id]));
+      return;
+    }
+    const work = workBehind(target, look);
+    if (work !== undefined) works.push(work);
+  };
+  const walkComment = (comment: LibEntry, path: ReadonlySet<string>) => {
+    for (const block of parsedComment(comment)) {
+      if (block.type === 'paragraph') { walkBlocks(block.blocks, onBlock(path), onInline); continue; }
+      for (const run of (block.type === 'table' ? block.rows.flat() : block.items).flat()) {
+        if (run.t === 'text') walkInline(run.c, onInline);
+        else { const work = workBehind(look.get(run.ref), look); if (work !== undefined) works.push(work); }
+      }
+    }
+  };
+  const onInline = (inline: Inline) => {
       if (inline.t === 'cite') {
         const n = list.length + 1;
         numbers.set(inline, n);
@@ -73,10 +89,127 @@ export function countNotes(parts: readonly (readonly Block[])[], look: Lookup, h
         state.last = null;
         list.push({ n, body: <Inlines list={inline.c} notes={null} /> });
       }
-    });
-  }
+  };
+
+  for (const blocks of parts) walkBlocks(blocks, onBlock(new Set()), onInline);
 
   return { numbers, list, works };
+}
+
+/* -- Komentarze (2026-10-22) --------------------------------------------------------------- */
+
+type ParsedRun = { readonly t: 'text'; readonly c: readonly Inline[] } | { readonly t: 'ref'; readonly ref: string; readonly locator: string };
+type ParsedBlock =
+  | { readonly type: 'paragraph'; readonly blocks: readonly Block[] }
+  | { readonly type: 'ordered' | 'unordered'; readonly items: readonly (readonly ParsedRun[])[] }
+  | { readonly type: 'table'; readonly columns: readonly string[]; readonly rows: readonly (readonly (readonly ParsedRun[])[])[] };
+
+/* Gelesen EINMAL je Fassung: die Fussnoten hängen an genau diesen Bäumen (Zählen und Zeichnen sehen dieselben). */
+const parsed = new WeakMap<LibEntry, ParsedBlock[]>();
+
+function parsedComment(comment: LibEntry): ParsedBlock[] {
+  let found = parsed.get(comment);
+  if (found === undefined) {
+    const cell = (runs: readonly ({ text: string } | { ref: string; locator?: string })[]): ParsedRun[] =>
+      runs.map((run) => ('ref' in run ? { t: 'ref', ref: run.ref, locator: run.locator ?? '' } : { t: 'text', c: parseInline(run.text) }));
+    found = blocksOf(comment.data).map((block): ParsedBlock => (block.type === 'paragraph' ? { type: 'paragraph', blocks: parseMarkup(block.text) }
+      : block.type === 'table' ? { type: 'table', columns: block.columns, rows: block.rows.map((row) => row.map(cell)) }
+      : { type: block.type, items: block.items.map(cell) }));
+    parsed.set(comment, found);
+  }
+  return found;
+}
+
+function Runs({ runs, look, notes, prefix }: { runs: readonly ParsedRun[]; look: Lookup; notes: Notes | null; prefix: string }) {
+  return (
+    <>
+      {runs.map((run, i) => (run.t === 'text'
+        ? <Inlines key={i} list={run.c} notes={notes} prefix={prefix} />
+        : <span key={i} className={look.get(run.ref) === undefined ? 'lib-ref is-unreadable' : 'lib-ref'}>{refLabel(run.ref, run.locator, look)}</span>))}
+    </>
+  );
+}
+
+/** Die Bausteine eines Komentarza: Absätze, Listen, eine Tabelle. `path`: wer schon eingebettet ist (gegen Kreise). */
+export function CommentBody({ comment, look, notes, prefix, path = new Set() }: {
+  comment: LibEntry; look: Lookup; notes: Notes | null; prefix: string; path?: ReadonlySet<string>;
+}) {
+  const inner = new Set([...path, comment.id]);
+  return (
+    <>
+      {parsedComment(comment).map((block, i) => {
+        if (block.type === 'paragraph') return <Blocks key={i} blocks={block.blocks} look={look} notes={notes} prefix={prefix} path={inner} />;
+        if (block.type === 'table') {
+          return (
+            <div key={i} className="lib-table-wrap">
+              <table className="lib-table">
+                {block.columns.some((c) => c !== '') && <thead><tr>{block.columns.map((c, j) => <th key={j} scope="col">{c}</th>)}</tr></thead>}
+                <tbody>{block.rows.map((row, j) => <tr key={j}>{row.map((cell, k) => <td key={k}><Runs runs={cell} look={look} notes={notes} prefix={prefix} /></td>)}</tr>)}</tbody>
+              </table>
+            </div>
+          );
+        }
+        const L = block.type === 'ordered' ? 'ol' : 'ul';
+        return <L key={i}>{block.items.map((item, j) => <li key={j}><Runs runs={item} look={look} notes={notes} prefix={prefix} /></li>)}</L>;
+      })}
+    </>
+  );
+}
+
+/** Worüber ein Komentarz ist — „o: Łk 1,35; Dz 1,8". */
+export function aboutLine(comment: LibEntry, look: Lookup): string {
+  return subjectsOf(comment.data).map((s) => refLabel(s.ref, s.locator, look)).join('; ');
+}
+
+/** Die Komentarze über einen Eintrag (und einen Punkt seines Plans), soweit dieser Leser sie lesen darf. */
+export function commentsOn(id: string, look: Lookup, point?: string): LibEntry[] {
+  return commentsAbout(id, look.readable?.() ?? [], point);
+}
+
+/**
+ * EIN KOMENTARZ FÜR SICH — unter einem Zitat, einem Werk, einem Punkt des
+ * Plans: mit eigenen Fussnoten (eigener Präfix), damit er die Zählung des
+ * Textes nicht stört.
+ */
+export function CommentCard({ comment, look, prefix, about = false }: { comment: LibEntry; look: Lookup; prefix: string; about?: boolean }) {
+  const own = `${prefix}c${comment.id.slice(0, 8)}-`;
+  const notes = useMemo(() => {
+    const blocks = parsedComment(comment).flatMap((b) => (b.type === 'paragraph' ? [b.blocks] : []));
+    return countNotes(blocks, look);
+  }, [comment, look]);
+  return (
+    <aside className="lib-comment">
+      {about && <p className="lib-comment-about">o: {aboutLine(comment, look)}</p>}
+      <CommentBody comment={comment} look={look} notes={notes} prefix={own} />
+      <NoteList notes={notes} prefix={own} />
+    </aside>
+  );
+}
+
+/**
+ * Die Komentarze über einen Eintrag als Abschnitt — leer, wenn keiner da (oder
+ * lesbar) ist. `point`: '' — nur die über den ganzen Eintrag, sonst die über
+ * diesen Punkt. `folded`: zugeklappt, mit der Zahl.
+ */
+export function CommentsOn({ id, look, prefix, point, title = 'Komentarze', folded = false }: {
+  id: string; look: Lookup; prefix: string; point?: string; title?: string; folded?: boolean;
+}) {
+  const found = commentsOn(id, look, point);
+  if (found.length === 0) return null;
+  if (folded) {
+    return (
+      <details className="lib-comments is-folded">
+        <summary>{title} ({found.length})</summary>
+        {found.map((c) => <CommentCard key={c.id} comment={c} look={look} prefix={prefix} />)}
+      </details>
+    );
+  }
+  return (
+    <section className="lib-comments">
+      <h4 className="lib-comments-head">{title}</h4>
+      {found.map((c) => <CommentCard key={c.id} comment={c} look={look} prefix={prefix} />)}
+    </section>
+  );
 }
 
 /* -- Zeichnen ------------------------------------------------------------------------------- */
@@ -123,7 +256,7 @@ export function QuoteBody({ text }: { text: string }) {
   );
 }
 
-export function Blocks({ blocks, look, notes, prefix }: { blocks: readonly Block[]; look: Lookup; notes: Notes; prefix: string }) {
+export function Blocks({ blocks, look, notes, prefix, path = new Set() }: { blocks: readonly Block[]; look: Lookup; notes: Notes | null; prefix: string; path?: ReadonlySet<string> }) {
   return (
     <>
       {blocks.map((b, i) => {
@@ -133,7 +266,7 @@ export function Blocks({ blocks, look, notes, prefix }: { blocks: readonly Block
             const H = b.level === 2 ? 'h3' : b.level === 3 ? 'h4' : 'h5';
             return <H key={i} className="lib-h"><Inlines list={b.c} notes={notes} prefix={prefix} /></H>;
           }
-          case 'quote': return <blockquote key={i} className="lib-blockquote"><Blocks blocks={b.c} look={look} notes={notes} prefix={prefix} /></blockquote>;
+          case 'quote': return <blockquote key={i} className="lib-blockquote"><Blocks blocks={b.c} look={look} notes={notes} prefix={prefix} path={path} /></blockquote>;
           case 'list': {
             const L = b.ordered ? 'ol' : 'ul';
             return <L key={i}>{b.items.map((item, j) => <li key={j}><Inlines list={item} notes={notes} prefix={prefix} /></li>)}</L>;
@@ -141,8 +274,12 @@ export function Blocks({ blocks, look, notes, prefix }: { blocks: readonly Block
           case 'hr': return <hr key={i} className="lib-hr" />;
           case 'embed': {
             const quote = look.byKey(b.key);
-            if (quote === undefined) return <p key={i} className="lib-missing">[brak cytatu „{b.key}”]</p>;
-            if (quote.kind !== 'quote') return <p key={i} className="lib-missing">„{b.key}” to nie cytat.</p>;
+            if (quote === undefined) return <p key={i} className="lib-missing">{UNREADABLE}</p>;
+            if (quote.kind === 'comment') {
+              if (path.has(quote.id)) return <p key={i} className="lib-missing">[komentarz osadza sam siebie]</p>;
+              return <aside key={i} className="lib-comment is-embedded"><CommentBody comment={quote} look={look} notes={notes} prefix={prefix} path={path} /></aside>;
+            }
+            if (quote.kind !== 'quote') return <p key={i} className="lib-missing">„{b.key}” to nie cytat ani komentarz.</p>;
             const origin = originOf(quote, look);
             const where = b.locator !== '' ? b.locator : '';
             return (

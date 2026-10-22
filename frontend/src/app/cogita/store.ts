@@ -139,7 +139,7 @@ export function readSources(raw: unknown): SourceRef[] {
 }
 
 /** Was eine Bibliothek ist und keine Baza wiedzy: diese Arten legt man in der Bibliothek an — hier verweist man auf sie. */
-export const BOOK_KINDS: ReadonlySet<string> = new Set(['person', 'work', 'quote', 'text', 'delivery', 'project']);
+export const BOOK_KINDS: ReadonlySet<string> = new Set(['person', 'work', 'quote', 'text', 'delivery', 'comment', 'project']);
 
 /** Was eine wiederverwendete Baza wiedzy mitbringt — Einstellungen, Widoki, Vorschläge und Arten (die kommen über das Schema) bleiben ihre. */
 const SHARED_DOCS: ReadonlySet<string> = new Set<DocKind>(['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'merge', 'addform']);

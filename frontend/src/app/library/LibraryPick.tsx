@@ -6,16 +6,17 @@
  *                      oder gleich neu anlegen („Utwórz: Ratzinger")
  *   PickLibrary        im Seiteneditor: welche Bibliothek (oder 0110: welche
  *                      Baza wiedzy) ein Baustein zeigt
- *   PickLibraryEntry   im Seiteneditor: welcher veröffentlichte Text, welches
- *                      Projekt, welches Thema — nur Veröffentlichtes, denn nur
- *                      das kann eine öffentliche Seite zeigen
+ *   PickLibraryEntry   im Seiteneditor: welcher Text, welches Projekt, welches
+ *                      Thema — wer ihn auf der Seite sieht, sagt der Bereich der
+ *                      Bibliothek (2026-10-22); bei einer Baza wiedzy nur Veröffentlichtes
  * </code>
  */
 
 import { useEffect, useId, useMemo, useState } from 'react';
 
-import { libraryKindOf, loadLibraries, loadPublished, openLibraries, summaryOf, type LibraryKind, type OpenLibrary, type PublishedItem } from './library';
-import { kindOf, str, type LibEntry } from './libraryKinds';
+import { libraryKindOf, loadLibraries, loadPublished, openedLibraryKind, openLibraries, summaryOf, type LibraryKind, type OpenLibrary, type PublishedItem } from './library';
+import { usePageLibrary } from './libraryOpen';
+import { entrySort, kindOf, str, type LibEntry } from './libraryKinds';
 import type { Entry, LibraryStore } from './libraryStore';
 import { useMe, useWho } from '../core/me';
 import { viewPath } from '../routes';
@@ -36,7 +37,7 @@ export function entryLine(entry: LibEntry, store: LibraryStore): string {
 /** Das Feld, das beim schnellen Anlegen den getippten Namen bekommt. */
 const NAME_FIELD: Record<string, string> = { person: 'name', topic: 'name', work: 'title', project: 'title', text: 'title', quote: 'text' };
 
-export function RefPicker({ store, kinds, value, multiple, busy, onChange, placeholder, only, makeWith }: {
+export function RefPicker({ store, kinds, value, multiple, busy, onChange, placeholder, only, makeWith, canMake = true }: {
   store: LibraryStore;
   kinds: readonly string[];
   value: readonly string[];
@@ -48,6 +49,8 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
   only?: (entry: Entry) => boolean;
   /** … und was ein neu angelegter dazu bekommt (sein Oberthema: der Aspekt). */
   makeWith?: Readonly<Record<string, unknown>>;
+  /** 2026-10-22 — `false`: nur wählen (ein Verweis eines Komentarza kann auf jede Art zeigen). */
+  canMake?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -57,7 +60,7 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
 
   const chosen = value.map((id) => store.get(id)).filter((e): e is NonNullable<typeof e> => e !== undefined);
   const found = useMemo(() => (query.trim() === ''
-    ? store.all().filter((e) => kinds.includes(e.kind)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    ? store.readable().filter((e) => kinds.includes(e.kind)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     : store.search(query, kinds)).filter((e) => !value.includes(e.id) && (only === undefined || only(e))).slice(0, 8),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [query, kinds, value, store, store.revision, only]);
@@ -99,7 +102,7 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
         <ul className="lib-picked">
           {chosen.map((entry) => (
             <li key={entry.id} className="lib-chip">
-              <a href={viewPath('library', store.libraryId, entry.id)}>{entryLine(entry, store)}</a>
+              <a href={viewPath('library', (store.homeOf(entry.id) ?? store).libraryId, entry.id)}>{entryLine(entry, store)}</a>
               <button type="button" className="lib-chip-x" aria-label={`Usuń: ${store.title(entry)}`} disabled={busy}
                 onClick={() => onChange(value.filter((id) => id !== entry.id))}>×</button>
             </li>
@@ -132,7 +135,7 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
                   </button>
                 </li>
               ))}
-              {query.trim() !== '' && kinds.length > 0 && (
+              {canMake && query.trim() !== '' && kinds.length > 0 && (
                 <li>
                   <button type="button" className="lib-option-new" onMouseDown={(e) => e.preventDefault()} onClick={() => void make()} disabled={making}>
                     + Utwórz {kindOf(kinds[0])?.label.toLowerCase()}: „{query.trim()}”
@@ -179,7 +182,7 @@ export function PickLibrary({ value, busy, onPick, kind = 'books' }: { value: st
     <>
       <select value={value} disabled={busy} onChange={(e) => onPick(e.target.value)}>
         <option value="">{knowledge ? '— wybierz bazę wiedzy —' : '— wybierz bibliotekę —'}</option>
-        {libraries.map((one) => <option key={one.libraryId} value={one.libraryId}>{one.name} ({one.published} publicznych)</option>)}
+        {libraries.map((one) => <option key={one.libraryId} value={one.libraryId}>{one.name}{knowledge ? ` (${one.published} publicznych)` : one.areaPublic === true ? ' — publiczna' : ' — dla członków obszaru'}</option>)}
         {value !== '' && !libraries.some((one) => one.libraryId === value) && <option value={value}>{value}</option>}
       </select>
       {libraries.length === 0 && (knowledge
@@ -196,14 +199,47 @@ const itemLabel = (item: PublishedItem): string => {
   return `${title.slice(0, 80)}${date}`;
 };
 
-export function PickLibraryEntry({ library, kinds, value, busy, optional, onPick }: {
+interface EntryPickProps {
   library: string;
   kinds: readonly string[];
   value: string;
   busy: boolean;
   optional?: boolean;
   onPick: (id: string) => void;
-}) {
+}
+
+/**
+ * 2026-10-22 — in einer Bibliothek wählt man aus ihren Einträgen (der
+ * Bereich sagt, wer sie auf der Seite sieht); eine Baza wiedzy stellt weiter
+ * ihre Bündel hinaus, dort wählt man aus den veröffentlichten.
+ */
+export function PickLibraryEntry(props: EntryPickProps) {
+  return openedLibraryKind(props.library) === 'knowledge' ? <PickPublished {...props} /> : <PickBooksEntry {...props} />;
+}
+
+function PickBooksEntry({ library, kinds, value, busy, optional, onPick }: EntryPickProps) {
+  const { store, revision, state } = usePageLibrary(library === '' ? null : library);
+  const items = useMemo(() => (store === null ? [] : kinds.flatMap((kind) => store.ofKind(kind))
+    .sort((a, b) => (a.kind === 'text' ? -1 : 1) * entrySort(a, store).localeCompare(entrySort(b, store), 'pl'))),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [store, revision, kinds.join(',')]);
+  if (library === '') return <span className="wk-hint">Najpierw wybierz bibliotekę.</span>;
+  if (state === 'loading') return <Loading lines={1} />;
+  if (store === null) return <span className="wk-hint">Nie możesz czytać tej biblioteki.</span>;
+  const label = (e: Entry) => {
+    const date = str(e.data, 'date');
+    return `${store.title(e).slice(0, 80)}${date === '' ? '' : ` · ${date}`}`;
+  };
+  return (
+    <select value={value} disabled={busy} onChange={(e) => onPick(e.target.value)}>
+      <option value="">{optional === true ? '— wszystkie —' : '— wybierz —'}</option>
+      {items.map((e) => <option key={e.id} value={e.id}>{label(e)}</option>)}
+      {value !== '' && !items.some((e) => e.id === value) && <option value={value}>{store.get(value) === undefined ? '(w innej bibliotece albo niedostępny)' : label(store.get(value)!)}</option>}
+    </select>
+  );
+}
+
+function PickPublished({ library, kinds, value, busy, optional, onPick }: EntryPickProps) {
   const [items, setItems] = useState<readonly PublishedItem[] | null>(null);
   useEffect(() => {
     if (library === '') { setItems([]); return undefined; }

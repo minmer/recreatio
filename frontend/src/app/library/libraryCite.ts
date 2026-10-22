@@ -17,7 +17,8 @@
  * keine Zeichenketten: gezeichnet wird anderswo, geprüft wird hier.
  */
 
-import { ids, personName, str, workTitle, type LibEntry, type Lookup } from './libraryKinds';
+import { commentTitle, UNREADABLE } from './comment';
+import { entryTitle, ids, personName, str, workTitle, type LibEntry, type Lookup } from './libraryKinds';
 
 export interface Seg {
   readonly text: string;
@@ -205,7 +206,28 @@ export function citeSegs(target: LibEntry | undefined, locator: string, look: Lo
     ], ' ');
   }
   if (target.kind === 'person') return join([t(personName(target.data)), t(locator)]);
+  /* 2026-10-22 — ein Komentarz in der Fussnote: „zob. komentarz" und sein Name. */
+  if (target.kind === 'comment') {
+    const link = href?.(target);
+    return join([t('Zob. komentarz:'), [{ text: `„${commentName(target, look)}”`, ...(link === undefined ? {} : { href: link }) }], t(locator)], ' ');
+  }
   return join([title(str(target.data, 'title') || str(target.data, 'name') || target.kind), t(locator)]);
+}
+
+const commentName = (comment: LibEntry, look: Lookup): string =>
+  commentTitle(comment.data, (id) => { const e = look.get(id); return e === undefined ? undefined : entryTitle(e, look); });
+
+/**
+ * 2026-10-22 — WIE EIN VERWEIS IN EINER ZELLE HEISST (ein Komentarz): beim
+ * Pismo die Stelle allein („Łk 1,35"), sonst der Titel mit der Stelle — und
+ * über ein Ziel, das dieser Leser nicht lesen darf, nichts.
+ */
+export function refLabel(ref: string, locator: string, look: Lookup): string {
+  const target = look.get(ref);
+  if (target === undefined) return UNREADABLE;
+  if (target.kind === 'work' && str(target.data, 'workType') === 'bible' && locator !== '') return locator;
+  const title = target.kind === 'quote' ? originOf(target, look) : target.kind === 'comment' ? commentName(target, look) : entryTitle(target, look);
+  return [title, locator].filter(Boolean).join(', ');
 }
 
 /** Das Werk hinter einem Verweis — für die Bibliografie. */

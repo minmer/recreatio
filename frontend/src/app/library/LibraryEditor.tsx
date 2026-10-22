@@ -5,9 +5,8 @@
  *
  * <b>Gespeichert wird von selbst</b>, kurz nachdem das Tippen aufhört — ein
  * Kapitel geht nicht verloren, weil jemand vergass, auf „Zapisz" zu drücken.
- * Veröffentlicht wird NIE von selbst: wer eine veröffentlichte Predigt
- * überarbeitet, sieht „Zmiany nie są jeszcze opublikowane" und entscheidet,
- * wann die neue Fassung hinausgeht.
+ * Wer ihn liest, entscheidet der Bereich seiner Bibliothek (2026-10-22) —
+ * eine Änderung ist sofort für alle da, die ihn lesen.
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -21,7 +20,9 @@ import { newId } from '../core/ids';
 import { viewPath } from '../routes';
 import { WorkspaceError } from '../core/session';
 import { QuoteIntake } from './QuoteIntake';
-import { DeleteBox, EntryJson, KeyBox, LatexBox, PublishBox, Relations, TAB_OF } from './LibraryEntryBoxes';
+import { CommentForm } from './CommentForm';
+import { AreaBox } from './LibraryAreaBox';
+import { DeleteBox, EntryJson, KeyBox, LatexBox, Relations, TAB_OF } from './LibraryEntryBoxes';
 import { FieldList, OutlineEditor, TextForm } from './LibraryTextForm';
 import { DeliveriesBox, DeliveryForm } from './DeliveryForm';
 
@@ -43,6 +44,14 @@ function defaults(kind: string, preset: Record<string, unknown>): EntryData {
     : {};
   const out: EntryData = { ...base, ...preset };
   if (kind === 'delivery' && typeof out.texts === 'string') out.texts = out.texts.split(',').filter(Boolean);
+  /* 2026-10-22 — ein Komentarz über das, von dem man kommt (`nowy/comment/o=<id>&p=<punkt>`). */
+  if (kind === 'comment') {
+    const about = typeof preset.o === 'string' ? preset.o : '';
+    const point = typeof preset.p === 'string' ? preset.p : '';
+    delete out.o;
+    delete out.p;
+    if (about !== '') out.subjects = [{ ref: about, ...(point === '' ? {} : { point }) }];
+  }
   return out;
 }
 
@@ -53,7 +62,12 @@ export function LibraryEditor({ store, library, entryId, kind, preset = {} }: {
   kind: string | null;
   preset?: Record<string, unknown>;
 }) {
-  const existing = entryId === null ? undefined : store.get(entryId);
+  const existing = entryId === null ? undefined : store.own(entryId);
+  /* 2026-10-22 — ein Eintrag einer anderen lesbaren Bibliothek wird dort bearbeitet. */
+  const home = entryId === null || existing !== undefined ? undefined : store.homeOf(entryId);
+  if (entryId !== null && home !== undefined) {
+    return <p className="wk-note">Ten wpis jest w innej bibliotece. <a href={viewPath('library', home.libraryId, entryId)}>Otwórz go tam</a></p>;
+  }
   if (entryId !== null && existing === undefined) {
     return <p className="wk-empty">Tego wpisu nie ma (albo został usunięty). <a href={viewPath('library', library.libraryId)}>Wróć do biblioteki</a></p>;
   }
@@ -174,6 +188,8 @@ function Editor({ store, library, existing, kind, preset }: {
             <TextForm store={store} entry={live} data={data} set={set} readOnly={readOnly} />
           ) : kind === 'delivery' ? (
             <DeliveryForm store={store} library={library} entry={live} data={data} set={set} readOnly={readOnly} />
+          ) : kind === 'comment' ? (
+            <CommentForm store={store} entry={live} data={data} set={set} readOnly={readOnly} />
           ) : (
             <FieldList store={store} kind={kind} data={data} set={set} readOnly={readOnly} extras={extras} />
           )}
@@ -190,7 +206,7 @@ function Editor({ store, library, existing, kind, preset }: {
           {def.keyed && (
             <KeyBox store={store} id={id} value={key} readOnly={readOnly} onChange={(next) => { setKey(next); setState((was) => (was === 'new' ? 'new' : 'dirty')); }} />
           )}
-          {saved !== undefined && <PublishBox store={store} entry={saved} readOnly={readOnly} />}
+          {saved !== undefined && <AreaBox store={store} library={library} entry={saved} readOnly={readOnly} />}
           {saved !== undefined && kind === 'text' && <DeliveriesBox store={store} library={library} text={saved} readOnly={readOnly} />}
           {saved !== undefined && <Relations store={store} library={library} entry={saved} />}
           {kind === 'quote' && str(data, 'text') !== '' && <section className="lib-box"><h2 className="lib-box-h">Podgląd</h2><QuoteFigure entry={live} look={store} /></section>}

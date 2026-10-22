@@ -477,6 +477,7 @@ public static class AccountDeletion
         DELETE FROM app.learn_due   WHERE library_id IN (SELECT id FROM #libs);
         DELETE FROM app.library_entry_version WHERE entry_id IN (SELECT id FROM app.library_entry WHERE library_id IN (SELECT id FROM #libs));
         DELETE FROM app.library_file          WHERE library_id IN (SELECT id FROM #libs);
+        IF OBJECT_ID(N'app.library_moved', N'U') IS NOT NULL DELETE FROM app.library_moved WHERE from_library_id IN (SELECT id FROM #libs);
 
         DELETE FROM app.library_public_ref
          WHERE entry_id IN (SELECT e.id FROM app.library_entry e JOIN app.library l ON l.id = e.library_id WHERE l.area_id IN (SELECT id FROM #dead))

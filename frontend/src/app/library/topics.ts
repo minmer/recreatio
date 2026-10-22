@@ -53,19 +53,6 @@ export function topicNode(entry: LibEntry): TopicNode {
   };
 }
 
-/** Ein Thema aus seiner veröffentlichten Kurzfassung (`publicSummary`). */
-export function topicNodeOfSummary(id: string, summary: Record<string, unknown>): TopicNode {
-  const parent = summary.parent;
-  const order = typeof summary.order === 'number' && Number.isFinite(summary.order) ? summary.order : null;
-  return {
-    id,
-    name: typeof summary.name === 'string' && summary.name.trim() !== '' ? summary.name.trim() : 'Temat',
-    parent: typeof parent === 'object' && parent !== null && typeof (parent as { id?: unknown }).id === 'string' ? (parent as { id: string }).id : null,
-    aspect: summary.aspect === true,
-    order
-  };
-}
-
 export function topicTree(list: Iterable<TopicNode>): TopicTree {
   const nodes = new Map<string, TopicNode>();
   for (const node of list) nodes.set(node.id, node);

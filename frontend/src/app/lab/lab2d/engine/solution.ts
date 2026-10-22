@@ -34,7 +34,7 @@
  */
 
 import { tSat } from './if97';
-import { cpL, data, hL, rhoL, tFromHL } from './materials';
+import { cpL, data, hL, muL, rhoL, tFromHL } from './materials';
 import { E_CHARGE, EPS0, K_B, N_A, R_GAS, T0 } from './units';
 
 type Lang3 = { readonly pl: string; readonly de: string; readonly en: string };
@@ -350,6 +350,22 @@ export function tFromHSol(h: number, w: number, guess: number): number {
     if (Math.abs(dT) < 1e-8) break;
   }
   return T;
+}
+
+/** Partielle spezifische Enthalpie des gelösten Salzes h̄_s = h + (1 − w) ∂h/∂w (J/kg) — mit ihr wandert Salz zwischen Lösungen (exchange.ts). */
+export function hSaltIn(T: number, w: number): number {
+  const e = Math.exp(A4 * w);
+  const ia = 1000 * A1 * e * (w + (1 - w) * (1 + A4 * w));
+  const ib = w > 0 ? 1000 * A5 * Math.pow(w, A6) * (w + (1 - w) * (A6 + 1)) : 0;
+  return QS + ia * intE(T) + ib * (T - T0);
+}
+
+const D25 = S.diffusivity.v;
+const MU25 = muL(TR);
+
+/** Diffusionskoeffizient des Salzes in Wasser (m²/s): der Wert bei 25 °C, nach Stokes–Einstein D ∝ T/μ_w(T) übertragen. */
+export function saltDiffusivity(T: number): number {
+  return (D25 * (T / TR) * MU25) / muL(T);
 }
 
 /** Partielle spezifische Enthalpie des Wassers in der Lösung h̄_w = h − w ∂h/∂w (J/kg) — mit ihr verlässt Wasser die Lösung oder kommt hinzu. */

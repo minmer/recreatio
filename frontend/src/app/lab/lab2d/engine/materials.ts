@@ -87,6 +87,8 @@ export interface SoluteEntry {
   readonly cp: { readonly laliberte: readonly number[]; readonly range: { readonly lo: number; readonly hi: number } };
   readonly solubility: { readonly table: readonly (readonly number[])[] };
   readonly dHsol: V;
+  /** Diffusionskoeffizient des gelösten Salzes in Wasser bei 25 °C (m²/s). */
+  readonly diffusivity: V;
   /** Eutektikum von Eis und Hydrohalit (K, Massenanteil): stärkere Lösungen erstarren dort ganz. */
   readonly eutectic: { readonly T: V; readonly w: V };
   readonly solid: { readonly rho: V; readonly cp: V; readonly color: string };

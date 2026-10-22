@@ -349,6 +349,63 @@ ${MAIN} {
   parts[p] = q;
 }`
   },
+  {
+    /*
+     * Die Teilchen einer Zelle teilen ihre Wärme (wie engine/exchange.ts): jedes ein Stück f = 1 − exp(−Δt/τ) zum
+     * C-gewichteten Mittel der Zelle, τ = Δx²/(π² α); in Zellen der Flüssigkeit und an der Oberfläche. Ein Faden je
+     * Zelle über ihre sortierten Teilchen — keine Atome, die Energie der Zelle bleibt.
+     */
+    name: 'heatShare', wg: WG,
+    bind: 'P:u glob:r cu:r parts:w ccount:r cstart:r bsum:r',
+    code: `${WT}
+${MAIN} {
+  let c = gid.x;
+  let n = P.n;
+  if (c >= n) { return; }
+  let ok = U_KIND * n;
+  let kind = cu[ok + c];
+  if (kind != LIQUID) {
+    if (kind != GAS) { return; }
+    let i = ci(c);
+    let j = cj(c);
+    let surface = (i > 0 && cu[ok + c - 1u] == LIQUID) || (i + 1 < i32(P.nx) && cu[ok + c + 1u] == LIQUID)
+      || (j > 0 && cu[ok + c - P.nx] == LIQUID) || (j + 1 < i32(P.ny) && cu[ok + c + P.nx] == LIQUID);
+    if (!surface) { return; }
+  }
+  let cn = ccount[c];
+  if (cn < 2u) { return; }
+  let st = cellStart(c);
+  var C = 0.0;
+  var CT = 0.0;
+  var CA = 0.0;
+  for (var k = 0u; k < cn; k++) {
+    let pk = st + k;
+    if (!aliveI(pk)) { continue; }
+    let T = parts[pk].T;
+    let cp = cpL(T);
+    let Cp = parts[pk].mass * cp;
+    C += Cp;
+    CT += Cp * T;
+    CA += Cp * kL(T) / (parts[pk].rho * cp);
+  }
+  if (!(C > 0.0)) { return; }
+  let f = 1.0 - exp(-PI * PI * glob[G_DT] * P.invdx * P.invdx * CA / C);
+  let Tm = CT / C;
+  for (var k = 0u; k < cn; k++) {
+    let pk = st + k;
+    if (!aliveI(pk)) { continue; }
+    var q = parts[pk];
+    let dT = f * (Tm - q.T);
+    if (dT == 0.0) { continue; }
+    let before = q.mass / q.rho;
+    q.h += cpL(q.T) * dT;
+    q.T = tFromHL(q.h);
+    q.rho = rhoL(q.T);
+    q.dvp += q.mass / q.rho - before;
+    parts[pk] = q;
+  }
+}`
+  },
   /* -- Diagnose ------------------------------------------------------------------------------------- */
   {
     /* Verschlossene Gebiete: jede Phase bekommt dH = V dp0 (Teilchen). */

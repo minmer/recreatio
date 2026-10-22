@@ -2,11 +2,13 @@
 
 Status (2026-10-22): Milestones M0–M1d are built on the CPU and pass their tests except the time budget of test 16;
 M1e, the WebGPU path, is built as the "accelerated view" — the whole step on the GPU (§15) — and meets test 17 (test 11
-at the edge of its tolerance, as on the CPU). M2a, the first step of the sandbox plan ([SANDBOX.md](SANDBOX.md)), adds
+was at the edge of its tolerance, as on the CPU, until the particles of a cell shared their heat). M2a, the first step of the sandbox plan ([SANDBOX.md](SANDBOX.md)), adds
 liquids other than water (rapeseed oil first) on the CPU: per-material particles, viscosity and drifting droplets
 (tests 18–22). M2b adds dissolved salt (NaCl): one water activity for vapour pressure, boiling and freezing point,
 brine density and heat capacity, crystallisation to a crust (tests 23–27), and droplets below the cell size that boil
-off and fly. The accelerated view takes neither yet. [MILESTONES.md](MILESTONES.md) has the measured numbers. Written as a
+off and fly; particles of one cell share heat and salt at the rate of diffusion across the cell, and salt diffuses
+from cell to cell (`exchange.ts`, tests 28–30). The accelerated view takes neither oil nor salt yet; it shares heat
+within cells like the CPU. [MILESTONES.md](MILESTONES.md) has the measured numbers. Written as a
 design before the code (2026-10-19, as the build prompt v2 asks) and updated to what was built.
 Code: `frontend/src/app/lab/lab2d/`. Simplifications: [SIMPLIFICATIONS.md](SIMPLIFICATIONS.md).
 
@@ -57,6 +59,7 @@ lab/lab2d/
     extend.ts          velocity outside the liquid: extension, droplets that fly (M2b), sampling the grid (§7)
     gas.ts             conservative gas transport, MacCormack velocity, buoyancy, low-Mach sources, projection (§6)
     heat.ts            implicit conduction over all cells, heaters, losses (§6.5)
+    exchange.ts        particles of one cell share heat and salt (IEM at the diffusion rate); salt between cells (§6.5)
     bubbleState.ts     a bubble's radius, pressure and temperature from its masses; footprint weights (§8.1)
     bubbleModel.ts     cavities, nucleation, growth, departure, motion, coalescence, bursting (§8)
     phase.ts           the liquid gathered per cell, vapour diffusion with surface evaporation and dew, wall films;
@@ -210,7 +213,8 @@ One loop for every scene (`engine.ts`); dt = min(1/120 s, 0.9 Δx/u_max of the l
    particles; α_b.
 5. **Interface and gas-phase change** (§9): vapour diffusion with surface evaporation, condensation and dew; flash;
    fog; wall films that spawn particles; supersaturated solutions crystallise (`salt.ts`).
-6. **Heat** (§6.5): implicit conduction over all cells with the latent heat of steps 4–5 as sources; heaters; losses.
+6. **Heat** (§6.5): implicit conduction over all cells with the latent heat of steps 4–5 as sources; heaters; losses;
+   then the particles of each cell share heat and salt, and salt diffuses between cells (`exchange.ts`).
 7. **Chemistry hook**: empty in M1.
 8. **Boundaries and diagnostics**: regions again, compression heating of sealed regions, pressure work on particles
    and bubbles, the equation of state for the next step, the next dt, budgets, chart samples.
@@ -290,6 +294,25 @@ antisymmetric) plus q_i Δt, then distributed to the cell's parts by their share
 weights: no smearing of the liquid's own temperature differences). Counters record the heat that crosses
 solid–liquid, liquid–gas and solid–gas faces (for the charts and test 11).
 
+**Sharing inside a cell** (`exchange.ts`, after the solve). The particles of a cell still differ — a hot and a cold one
+that the flow brought together, brine beside fresh water — and real diffusion evens that out. Each particle moves
+toward its cell's mean (IEM, interaction by exchange with the mean, from Lagrangian PDF methods):
+
+```
+φ_p ← φ_p + f (φ̄ − φ_p),   f = 1 − exp(−Δt/τ),   τ = Δx²/(π² κ)
+```
+
+τ is the decay time of the slowest structure a cell holds (half a wave across it). Heat: φ = T, φ̄ the C-weighted mean
+of the cell's particles, κ = α = k/(ρ c_p) of its liquids (water at 20 °C: 2.8 s at 2 mm). Salt: φ = salt per kg of
+water (the water stays with its particle), κ = D (1.611·10⁻⁹ m²/s at 25 °C, Nernst–Hartley; Stokes–Einstein D ∝ T/μ_w
+for other temperatures: 4.8 min at 2 mm and 20 °C). Σ m c_p ΔT and Σ Δs vanish per cell, so energy and salt stay exact;
+salt changes particles with its partial enthalpy h̄_s = h + (1 − w) ∂h/∂w (donors give their own, receivers get the mean
+of what was given). Between neighbouring cells salt flows by Fick's law, explicitly: D Δt/Δx² · min(W_i, W_j) ·
+(b_i − b_j) per face, b = salt per kg of water, W the cell's water (D Δt/Δx² ≈ 10⁻⁵: far inside stability), carrying h̄_s
+of the giving cell; a giving cell takes it from its particles by their salt (none goes negative), a receiving one
+gives it by their water. Cells that share: liquid cells and gas cells next to one (the surface); a droplet alone in
+the gas does not. Heat between cells stays the solve's. SIMPLIFICATIONS.md #28, #32; tests 28–30.
+
 Heaters: static steel cells with role 1 and an internal source — power mode (W per slab depth) or a thermostat (PI on
 the mean heater temperature, power-limited, anti-windup). Box walls lose h_ext (T − T_amb) with h_ext = 10 W/(m²·K)
 in series with half a cell; open sides conduct to the room (2k/Δx) and exchange by inflow and outflow. A microwave-like
@@ -363,6 +386,7 @@ A fill that would leave a liquid region without a free surface is refused (the p
 cell, and from it the molality of the cell's water, its activity a_w (at the cell's liquid temperature) and, where a
 stage needs it, the boiling point T_b(p, m). A cell without water particles (liquid only because a bubble fills it, or
 holding only oil) neither evaporates nor feeds a bubble — before M2b such a cell could make vapour out of nothing.
+Salt moves with its particle, between the particles of a cell and by diffusion between cells (§6.5).
 
 **Only water exchanges mass with the gas and the bubbles** (M2a): the per-cell sums that every transfer reads (Σ w m,
 Σ w m h) count water particles only; evaporation and dew at a surface cell scale with its share of water, flash takes
@@ -461,8 +485,11 @@ display rate, stats to the page five times a second. WebGL2 on an OffscreenCanva
 worker builds frame buffers and transfers them (a ring of two) to a WebGL2 canvas on the page. Each frame:
 
 - the box ground; the liquid as a smooth surface: particle coverage splatted with B-splines on half cells, blurred
-  ([1 2 1]/4) and cut at ½ in the shader with a thin darker edge (tinted by temperature in the temperature overlay) —
-  or, in the raw-particle view, the particles as points coloured by temperature;
+  ([1 2 1]/4) and cut at ½ in the shader with a thin darker edge (tinted by temperature in the temperature overlay,
+  by the salt share in the salt overlay, M2b) — or, in the raw-particle view, the particles as points coloured by
+  temperature (in the salt overlay by their salt share);
+- salt crusts (M2b): solid cells blend toward the crystal's colour with the crust's thickness; salt on the bare box
+  floor tints the lowest cell of its column;
 - bubbles as circles at their true radius;
 - a field texture, read linearly with premultiplied alpha: the continuous overlays (temperature, pressure,
   velocity, humidity, invisible vapour) and fog — white with Beer–Lambert opacity from its water content
@@ -482,7 +509,7 @@ and answers the same host messages, so the shell, the tools, the inspector and t
 
 ## 12. Tests
 
-Vitest, headless in Node on the engine alone: `npm run test:lab2d` (53 tests, ~6 minutes) and
+Vitest, headless in Node on the engine alone: `npm run test:lab2d` (56 tests, ~6 minutes) and
 `npm run test:lab2d:slow` (tests 3, 4 over ten simulated minutes, 10, 11, 12). MILESTONES.md records the numbers.
 
 | # | Test | File |
@@ -514,6 +541,9 @@ Vitest, headless in Node on the engine alone: `npm run test:lab2d` (53 tests, ~6
 | 25 | The air over saturated brine in a sealed box settles at 75.3 % RH (±0.5 %) | m2b.test.ts |
 | 26 | Brine boiling: bubbles nucleate and burst, the brine gets saltier, salt exact, water and energy close | m2b.test.ts |
 | 27 | Brine boiled dry: no particle left, the crust holds all the salt (exact), energy closes | m2b.test.ts |
+| 28 | Heat inside a cell: a 2 K difference between a cell's particles decays at π² α/Δx² (±1 %), energy exact | m2b.test.ts |
+| 29 | Salt inside a cell: 10 % brine beside fresh water evens out at π² D/Δx² at 20 and 80 °C (±1 %), salt and energy exact | m2b.test.ts |
+| 30 | Salt between cells: a cosine across 2 cm decays at the discrete Fick rate (±1 %; the continuum's D k² within 4 %), salt exact | m2b.test.ts |
 | 17 | GPU equivalence on tests 1–3, 6, 11 | browser harness in headless Edge (Node has no WebGPU) and in Firefox (a visible window: headless Firefox gets no WebGPU adapter); numbers in MILESTONES.md (M1e) |
 
 The browser side (tools, overlays, inspector, bubble view, charts, scenes, phone layout) was walked through in
@@ -542,7 +572,7 @@ The plan for the next steps — several liquids (oil), bodies that fall, float a
 solution and as grains, and baked clips — is [SANDBOX.md](SANDBOX.md) (2026-10-21, a design before the code; M2a and
 M2b are built). It replaces the M3 sketch above: melting there is an interface process at the solution's freezing
 point, not a volume enthalpy rule. Still open from M2b: the crust does not dissolve (grains and dissolution are M3c),
-only NaCl, no ion diffusion.
+only NaCl, one diffusion coefficient for all concentrations.
 
 ## 15. The GPU path (M1e): the accelerated view
 
@@ -551,7 +581,8 @@ The button "Widok przyspieszony" (shown where the browser has WebGPU) restarts t
 "Widok zwykły" returns to the CPU worker with the same scene. If the device or a kernel fails, the shell falls back
 to the CPU worker with a note; a scene with a liquid other than water, with dissolved salt or with a salt crust goes
 back to the CPU worker the same way, with its tools applied (M2a and M2b are not ported yet; nor are the M2b changes
-for droplets below the cell size and for cells without water particles, §7, §9). The view is not bit-reproducible (float atomics, order-free merging): the prompt's
+for droplets below the cell size and for cells without water particles, §7, §9). The sharing of heat inside a cell
+(§6.5) is ported: kernel `heatShare`, one thread per cell over its sorted particles, after the heat solve. The view is not bit-reproducible (float atomics, order-free merging): the prompt's
 determinism stays a property of the CPU engine. Checked in two WebGPU implementations: Edge/Chrome (Dawn) and Firefox
 (wgpu). They schedule workgroups differently, so a kernel whose result depends on that order works in one and fails
 in the other (§15, solves). Checked on 2026-10-21 by running every kernel with its workgroups in reverse order

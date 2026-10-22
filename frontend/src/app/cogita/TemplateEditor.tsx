@@ -41,7 +41,7 @@ export function TemplateEditor({ chosenId, onChoose }: { chosenId: string | null
 
 function NewTemplate({ onMade }: { onMade: (id: string) => void }) {
   const { lib } = useCtx();
-  const [kind, setKind] = useState(lib.kinds.find((k) => !['person', 'work', 'quote', 'topic', 'text', 'delivery', 'project'].includes(k.id))?.id ?? 'person');
+  const [kind, setKind] = useState(lib.kinds.find((k) => !['person', 'work', 'quote', 'topic', 'text', 'delivery', 'comment', 'project'].includes(k.id))?.id ?? 'person');
   const [preset, setPreset] = useState('ask');
   const [field, setField] = useState('');
   const [second, setSecond] = useState('');

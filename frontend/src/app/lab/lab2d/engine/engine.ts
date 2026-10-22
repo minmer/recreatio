@@ -25,6 +25,7 @@ import { BubbleModel } from './bubbleModel';
 import { Bubbles } from './bubbles';
 import { emptyFlows, emptySnapshot, measure, type BudgetSnapshot, type Flows } from './budget';
 import { applyOp, type EditLedger, type World } from './edits';
+import { Exchange } from './exchange';
 import { Gas } from './gas';
 import { Grid } from './grid';
 import { Heat, type Heater } from './heat';
@@ -157,6 +158,7 @@ export class Engine {
   bubbleModel!: BubbleModel;
   phase!: Phase;
   salt!: Salt;
+  exchange!: Exchange;
   solver!: GridSolver;
   private prevKind!: Uint8Array;
   private p0Start: Float64Array = new Float64Array(8);
@@ -235,6 +237,7 @@ export class Engine {
     this.bubbleModel = new BubbleModel(this);
     this.phase = new Phase(this);
     this.salt = new Salt(this);
+    this.exchange = new Exchange(this);
     this.prevKind = new Uint8Array(grid.n);
     this.rng = new Rng(scene.seed);
     this.time = 0;
@@ -505,6 +508,8 @@ export class Engine {
     /* 6. Wärme. */
     /* Die Bilanz der Wärme ist für jede Toleranz genau (Flüsse aus den gelösten Temperaturen); 1e-6 relativ zum Wärmestrom genügt. */
     heat.step(dt, 1e-6, 200);
+    /* Innerhalb jeder Zelle gleichen ihre Teilchen Wärme und Salz aus, so schnell wie die Diffusion über die Zelle (M2b). */
+    this.exchange.step(dt);
     this.flows.heater += heat.last.heater;
     this.flows.lossWalls += heat.last.lossWalls;
     this.flows.lossOpen += heat.last.lossOpen;

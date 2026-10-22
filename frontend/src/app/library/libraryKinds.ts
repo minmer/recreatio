@@ -13,10 +13,13 @@
  * Zitate über ihren Zitierschlüssel (`[@ratzinger2007, s. 23]`). Wer den
  * Titel eines Werks berichtigt, berichtigt ihn überall, wo es genannt wird.
  *
- * <b>Privat ist, was `private` trägt</b> — Notizen, der Stand der Arbeit,
- * Fristen. Es geht nie in die offene Fassung, auch nicht mit einem
- * veröffentlichten Text.
+ * <b>Wer einen Eintrag liest, entscheidet sein Bereich — und nur er</b>
+ * (2026-10-22). Es gibt keine privaten Felder und kein einzelnes
+ * Veröffentlichen mehr: was nur für einen selbst ist, steht als Komentarz
+ * (`comment`) in einem privaten Bereich und zeigt auf das, worum es geht.
  */
+
+import { blockMarkups, blockRefs, blocksOf, commentTitle } from './comment';
 
 export type EntryData = Record<string, unknown>;
 
@@ -38,13 +41,17 @@ export interface Lookup {
    * nennt sie im Text selbst (`deliveries`).
    */
   backlinks?(id: string): readonly LibEntry[];
+  /** 2026-10-22 — alles Lesbare, über die Bibliothek hinaus (für „Komentarze o tym wpisie"). */
+  readable?(): readonly LibEntry[];
 }
 
 /**
  * `items` (2026-10-21): eine Liste von Objekten mit eigenen Feldern (`LibField.item`)
  * — die Punkte eines Plans, die Zeilen „co z planu" eines Wygłoszenia.
+ * `blocks` (2026-10-22): der Inhalt eines Komentarza — Absätze, Listen,
+ * Tabellen, in deren Zellen echte Verweise stehen (`comment.ts`).
  */
-export type LibFieldType = 'line' | 'text' | 'markup' | 'number' | 'date' | 'select' | 'url' | 'ref' | 'refs' | 'outline' | 'items';
+export type LibFieldType = 'line' | 'text' | 'markup' | 'number' | 'date' | 'select' | 'url' | 'ref' | 'refs' | 'outline' | 'items' | 'blocks';
 
 export interface LibField {
   readonly key: string;
@@ -56,14 +63,11 @@ export interface LibField {
   readonly options?: readonly { readonly value: string; readonly label: string }[];
   /** Bei `ref`/`refs`: auf welche Arten es zeigen darf. */
   readonly to?: readonly string[];
-  /** Geht nie in die offene Fassung. */
-  readonly private?: boolean;
   /** Nur gezeigt, wenn — etwa Seitenzahlen nur bei Kapitel und Artikel. */
   readonly when?: (data: EntryData) => boolean;
   /**
    * 2026-10-21 — bei `items`: die Felder EINES Eintrags der Liste. Sie werden
-   * beschrieben, importiert, durchsucht und veröffentlicht wie die Felder
-   * einer Art; ein privates Unterfeld geht nie hinaus.
+   * beschrieben, importiert und durchsucht wie die Felder einer Art.
    */
   readonly item?: readonly LibField[];
 }
@@ -156,8 +160,7 @@ const PERSON: LibKind = {
     { key: 'surname', label: 'Nazwisko', type: 'line', says: 'Nazwisko — według niego układa się bibliografia', hint: 'np. Ratzinger' },
     { key: 'years', label: 'Lata', type: 'line', says: 'Lata życia albo działalności', hint: 'np. 1927–2022' },
     { key: 'description', label: 'Opis', type: 'text', says: 'Krótki opis — widoczny przy opublikowanych źródłach' },
-    { key: 'url', label: 'Adres strony', type: 'url', says: 'Strona o tej osobie (np. biografia)' },
-    { key: 'notes', label: 'Notatki prywatne', type: 'text', private: true, says: 'Tylko dla Ciebie — nigdy nie jest publikowane' }
+    { key: 'url', label: 'Adres strony', type: 'url', says: 'Strona o tej osobie (np. biografia)' }
   ],
   title: (data) => personName(data),
   sort: (entry) => (str(entry.data, 'surname') || personName(entry.data)).toLowerCase(),
@@ -234,14 +237,12 @@ const WORK: LibKind = {
     { key: 'length', label: 'Grubość (cm)', type: 'number', says: 'Trzeci wymiar — grubość (długość grzbietu w głąb) w centymetrach', hint: 'np. 2,5', when: isVolume },
     { key: 'siglum', label: 'Skrót przekładu', type: 'line', says: 'Dla Pisma Świętego: skrót przekładu, dopisywany do sigli', hint: 'np. BT', when: (d) => str(d, 'workType') === 'bible' },
     { key: 'isbn', label: 'ISBN', type: 'line', says: 'Numer ISBN książki (z kreskami albo bez; kilka — po przecinku)' },
-    { key: 'libraryNumber', label: 'Numer w bibliotece', type: 'line', private: true, says: 'Własny numer egzemplarza w tej bibliotece (numer inwentarzowy, sygnatura) — można po nim szukać i go zeskanować', hint: 'np. B-0124', when: isVolume },
+    { key: 'libraryNumber', label: 'Numer w bibliotece', type: 'line', says: 'Własny numer egzemplarza w tej bibliotece (numer inwentarzowy, sygnatura) — można po nim szukać i go zeskanować', hint: 'np. B-0124', when: isVolume },
     { key: 'doi', label: 'DOI', type: 'line', says: 'Identyfikator DOI publikacji' },
     { key: 'url', label: 'Adres', type: 'url', says: 'Adres w sieci' },
     { key: 'accessed', label: 'Dostęp', type: 'date', says: 'Kiedy strona była czytana (RRRR-MM-DD)', when: (d) => str(d, 'workType') === 'web' || str(d, 'url') !== '' },
     { key: 'language', label: 'Język', type: 'line', says: 'Język (np. "pl", "la")' },
-    { key: 'description', label: 'Opis', type: 'text', says: 'Krótki opis źródła — widoczny przy publikacji' },
-    { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy — odwołania' },
-    { key: 'notes', label: 'Notatki prywatne', type: 'text', private: true, says: 'Tylko dla Ciebie — nigdy nie jest publikowane' }
+    { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy — odwołania' }
   ],
   title: (data) => workTitle(data),
   sort: (entry, look) => {
@@ -256,7 +257,7 @@ const WORK: LibKind = {
       workType: 'book', title: 'Jezus z Nazaretu', subtitle: 'Część 1: Od chrztu w Jordanie do Przemienienia',
       originalTitle: 'Jesus von Nazareth', authors: ['@ratzinger'], volume: '1', publisher: 'Wydawnictwo M', place: 'Kraków', year: '2007',
       series: 'Dzieła wybrane, t. 1', pageCount: 384, binding: 'hard', height: 24, width: 16.5, length: 3,
-      isbn: '978-83-7595-061-8', libraryNumber: 'B-0042', description: 'Pierwszy tom trylogii o Jezusie.', topics: ['@modlitwa']
+      isbn: '978-83-7595-061-8', libraryNumber: 'B-0042', topics: ['@modlitwa']
     }
   }
 };
@@ -275,9 +276,7 @@ const QUOTE: LibKind = {
     { key: 'locator', label: 'Miejsce', type: 'line', says: 'Gdzie w źródle: "s. 23", "J 3,16", "nr 24"', hint: 's. 23 · J 3,16 · nr 24' },
     { key: 'language', label: 'Język', type: 'line', says: 'Język cytatu (np. "pl", "la")' },
     { key: 'translation', label: 'Przekład', type: 'text', says: 'Przekład cytatu (gdy tekst jest w innym języku)' },
-    { key: 'description', label: 'Opis', type: 'text', says: 'Opis, komentarz, kontekst — widoczny w zbiorze cytatów' },
-    { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy — odwołania' },
-    { key: 'notes', label: 'Notatki prywatne', type: 'text', private: true, says: 'Tylko dla Ciebie — nigdy nie jest publikowane' }
+    { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy — odwołania' }
   ],
   title: (data) => clip(str(data, 'text').replace(/\s+/g, ' ').trim() || 'Cytat', 90),
   sort: (entry, look) => {
@@ -288,7 +287,7 @@ const QUOTE: LibKind = {
     key: 'ratzinger2007-1',
     data: {
       text: 'Modlitwa jest rozmową z Bogiem, w której człowiek staje się sobą.',
-      work: '@ratzinger2007', locator: 's. 168', description: 'O modlitwie Jezusa na górze.', topics: ['@modlitwa']
+      work: '@ratzinger2007', locator: 's. 168', topics: ['@modlitwa']
     }
   }
 };
@@ -320,8 +319,7 @@ const TOPIC: LibKind = {
       key: 'aspect', label: 'Aspekt', type: 'select', options: ASPECT_YES,
       says: '"yes" — ten temat jest aspektem, osią podziału (np. „Okres liturgiczny”, „Księga”, „Okazja”): jego podtematy to wartości; na stronie — kolumna tabeli, filtr i drzewo'
     },
-    { key: 'order', label: 'Kolejność', type: 'number', says: 'Miejsce wśród tematów o tym samym nadrzędnym (np. okresy liturgiczne po kolei); puste — według nazwy', hint: 'np. 1' },
-    { key: 'notes', label: 'Notatki prywatne', type: 'text', private: true, says: 'Tylko dla Ciebie — nigdy nie jest publikowane' }
+    { key: 'order', label: 'Kolejność', type: 'number', says: 'Miejsce wśród tematów o tym samym nadrzędnym (np. okresy liturgiczne po kolei); puste — według nazwy', hint: 'np. 1' }
   ],
   title: (data) => str(data, 'name').trim() || 'Temat',
   sort: (entry) => str(entry.data, 'name').toLowerCase(),
@@ -367,8 +365,7 @@ const PLAN_ITEM: readonly LibField[] = [
   { key: 'id', label: 'Identyfikator', type: 'line', says: 'Stały identyfikator punktu (np. "p4k2x"); pominięty — nada się sam. Wygłoszenia wskazują punkty po nim' },
   { key: 'text', label: 'Treść', type: 'markup', says: 'Myśl w jednym-dwóch zdaniach, w zapisie treści: [@klucz, s. 12] — źródło, sam ![@klucz-cytatu] — cytat z biblioteki' },
   { key: 'depth', label: 'Poziom', type: 'number', says: '0 — główna myśl, 1 — pod nią, 2 — jeszcze głębiej' },
-  { key: 'kind', label: 'Rodzaj', type: 'select', options: POINT_KINDS, says: `Rodzaj punktu: ${POINT_KINDS.map((k) => `"${k.value}" (${k.label})`).join(', ')}; pominięty — myśl` },
-  { key: 'note', label: 'Notatka', type: 'text', private: true, says: 'Notatka dla siebie przy tym punkcie (np. „tu pauza”) — nigdy nie jest publikowana' }
+  { key: 'kind', label: 'Rodzaj', type: 'select', options: POINT_KINDS, says: `Rodzaj punktu: ${POINT_KINDS.map((k) => `"${k.value}" (${k.label})`).join(', ')}; pominięty — myśl` }
 ];
 
 /*
@@ -406,7 +403,7 @@ const TEXT: LibKind = {
     { key: 'title', label: 'Tytuł', type: 'line', says: 'Tytuł' },
     { key: 'subtitle', label: 'Podtytuł', type: 'line', says: 'Podtytuł' },
     { key: 'project', label: 'Projekt (książka, cykl)', type: 'ref', to: ['project'], says: 'Do jakiej książki albo cyklu należy — odwołanie' },
-    { key: 'status', label: 'Stan pracy', type: 'select', options: TEXT_STATUS, private: true, says: `Stan pracy (prywatny): ${TEXT_STATUS.map((t) => `"${t.value}"`).join(', ')}` },
+    { key: 'status', label: 'Stan pracy', type: 'select', options: TEXT_STATUS, says: `Stan pracy: ${TEXT_STATUS.map((t) => `"${t.value}"`).join(', ')}` },
     { key: 'date', label: 'Data wygłoszenia / napisania', type: 'date', says: 'Data (RRRR-MM-DD) — według niej układa się archiwum' },
     { key: 'occasion', label: 'Okazja', type: 'line', says: 'Okazja, dzień liturgiczny', hint: 'np. XVIII Niedziela zwykła' },
     { key: 'place', label: 'Miejsce', type: 'line', says: 'Gdzie wygłoszony' },
@@ -421,8 +418,7 @@ const TEXT: LibKind = {
     { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy — odwołania' },
     { key: 'audio', label: 'Nagranie (adres)', type: 'url', says: 'Adres nagrania audio' },
     { key: 'video', label: 'Wideo (adres)', type: 'url', says: 'Adres nagrania wideo' },
-    { key: 'targetWords', label: 'Docelowa liczba słów', type: 'number', private: true, says: 'Ile słów ma mieć (prywatne)' },
-    { key: 'notes', label: 'Notatki prywatne', type: 'text', private: true, says: 'Tylko dla Ciebie — nigdy nie jest publikowane' }
+    { key: 'targetWords', label: 'Docelowa liczba słów', type: 'number', says: 'Ile słów ma mieć' }
   ],
   title: (data) => str(data, 'title').trim() || 'Bez tytułu',
   sort: (entry) => (str(entry.data, 'date') || '0000-00-00') + ' ' + str(entry.data, 'title').toLowerCase().slice(0, 50),
@@ -436,7 +432,7 @@ const TEXT: LibKind = {
         { id: 'p1', text: 'Głód, którego nie nasyci chleb', depth: 0 },
         { id: 'p2', text: 'Jezus: „Ja jestem chlebem życia” [@bt, J 6,35]', depth: 1, kind: 'quote' },
         { id: 'p3', text: '![@ratzinger2007-1]', depth: 1, kind: 'quote' },
-        { id: 'p4', text: 'Chleb dzielony przy stole w domu', depth: 1, kind: 'example', note: 'Krótko — bez nazwisk.' },
+        { id: 'p4', text: 'Chleb dzielony przy stole w domu', depth: 1, kind: 'example' },
         { id: 'p5', text: 'Gdzie w tym tygodniu będę szukać chleba?', depth: 0, kind: 'question' }
       ],
       body: '## Głód\nJezus mówi: „Ja jestem chlebem życia” [@bt, J 6,35].\n\n![@ratzinger2007-1]\n\nModlitwa to nie technika^[Por. też Katechizm, nr 2559.].',
@@ -476,12 +472,8 @@ const DELIVERY: LibKind = {
       says: 'Co zostało powiedziane, a nie było w planie: { "text", "at", "after" }'
     },
     { key: 'transcript', label: 'Zapis (transkrypcja)', type: 'markup', says: 'To, co zostało powiedziane, spisane słowo w słowo — w zapisie treści' },
-    { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy i aspekty tego wygłoszenia (np. okazja) — odwołania' },
-    {
-      key: 'hidden', label: 'Nie publikuj', type: 'select', options: [{ value: 'yes', label: 'Tak — zostaje prywatne' }], private: true,
-      says: '"yes" — to wygłoszenie zostaje prywatne, także gdy jego tekst jest opublikowany'
-    },
-    { key: 'notes', label: 'Notatki prywatne', type: 'text', private: true, says: 'Tylko dla Ciebie — nigdy nie jest publikowane' }
+    { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy i aspekty tego wygłoszenia (np. okazja) — odwołania' }
+
   ],
   title: (data, look) => {
     const text = deliveredText(data, look);
@@ -499,8 +491,7 @@ const DELIVERY: LibKind = {
         { point: 'p4', state: 'skipped' },
         { point: 'p5', state: 'said', at: '11:20' }
       ],
-      added: [{ text: 'Zaproszenie na czwartkową adorację.', at: '13:05', after: 'p5' }],
-      notes: 'Za długo — następnym razem bez wstępu.'
+      added: [{ text: 'Zaproszenie na czwartkową adorację.', at: '13:05', after: 'p5' }]
     }
   }
 };
@@ -530,12 +521,11 @@ const PROJECT: LibKind = {
     { key: 'projectType', label: 'Rodzaj', type: 'select', options: PROJECT_TYPES, says: `Rodzaj: ${PROJECT_TYPES.map((t) => `"${t.value}" (${t.label})`).join(', ')}` },
     { key: 'title', label: 'Tytuł', type: 'line', says: 'Tytuł' },
     { key: 'subtitle', label: 'Podtytuł', type: 'line', says: 'Podtytuł' },
-    { key: 'description', label: 'Opis', type: 'text', says: 'Opis — widoczny, gdy coś z projektu jest opublikowane' },
+    { key: 'description', label: 'Opis', type: 'text', says: 'Opis projektu — o czym jest książka albo cykl' },
     { key: 'outline', label: 'Plan', type: 'outline', says: 'Plan: lista {"heading": "Część I"} i {"text": <odwołanie do tekstu>} w kolejności; publicznie widać tylko opublikowane teksty' },
-    { key: 'status', label: 'Stan', type: 'select', options: PROJECT_STATUS, private: true, says: `Stan (prywatny): ${PROJECT_STATUS.map((t) => `"${t.value}"`).join(', ')}` },
-    { key: 'deadline', label: 'Termin', type: 'date', private: true, says: 'Do kiedy (prywatne, RRRR-MM-DD)' },
-    { key: 'targetWords', label: 'Docelowa liczba słów', type: 'number', private: true, says: 'Ile słów ma mieć całość (prywatne)' },
-    { key: 'notes', label: 'Notatki prywatne', type: 'text', private: true, says: 'Tylko dla Ciebie — nigdy nie jest publikowane' }
+    { key: 'status', label: 'Stan', type: 'select', options: PROJECT_STATUS, says: `Stan: ${PROJECT_STATUS.map((t) => `"${t.value}"`).join(', ')}` },
+    { key: 'deadline', label: 'Termin', type: 'date', says: 'Do kiedy (RRRR-MM-DD)' },
+    { key: 'targetWords', label: 'Docelowa liczba słów', type: 'number', says: 'Ile słów ma mieć całość' }
   ],
   title: (data) => str(data, 'title').trim() || 'Projekt',
   sort: (entry) => str(entry.data, 'title').toLowerCase(),
@@ -548,7 +538,59 @@ const PROJECT: LibKind = {
   }
 };
 
-export const KINDS: readonly LibKind[] = [TEXT, DELIVERY, PROJECT, QUOTE, WORK, PERSON, TOPIC];
+/* -- Komentarze: eigene Gedanken als eigener Eintrag (2026-10-22, `comment.ts`) ---------------- */
+
+const ALL_KINDS = ['work', 'quote', 'person', 'topic', 'text', 'delivery', 'project', 'comment'];
+
+const SUBJECT_ITEM: readonly LibField[] = [
+  { key: 'ref', label: 'O czym', type: 'ref', to: ALL_KINDS, says: 'Wpis, którego dotyczy: źródło, cytat, osoba, temat, tekst, wygłoszenie, projekt albo inny komentarz — kennung albo "@klucz"' },
+  { key: 'locator', label: 'Miejsce', type: 'line', says: 'Gdzie w nim: "s. 23", "J 3,16", "nr 24" — fragment Pisma to Pismo Święte jako źródło plus miejsce', hint: 'J 3,16 · s. 23' },
+  { key: 'point', label: 'Punkt planu', type: 'line', says: 'Przy tekście: "id" punktu jego planu, którego dotyczy komentarz' }
+];
+
+const COMMENT: LibKind = {
+  kind: 'comment',
+  label: 'Komentarz',
+  plural: 'Komentarze',
+  says: 'Własne przemyślenia o źródłach, cytatach, fragmentach Pisma i innych komentarzach — osobny wpis, który można osadzić w wielu tekstach. Synteza to komentarz o komentarzach.',
+  keyed: true,
+  fields: [
+    {
+      key: 'subjects', label: 'O czym', type: 'items', item: SUBJECT_ITEM,
+      says: 'O czym jest komentarz: lista { "ref", "locator", "point" } — jeden albo więcej wpisów, każdy z miejscem'
+    },
+    {
+      key: 'blocks', label: 'Treść', type: 'blocks',
+      says: 'Treść jako bloki, których forma coś znaczy: {"type":"paragraph","text"} — proza; {"type":"ordered","items"} — kolejność ma znaczenie (tok myśli); {"type":"unordered","items"} — równorzędne punkty; {"type":"table","columns","rows"} — porównanie: nazwane kolumny, każdy wiersz porównuje to samo. Punkt listy i komórka tabeli to lista kawałków: {"text": "zapis treści"} albo {"ref": "@klucz", "locator": "Dz 1,8"} — prawdziwe odwołanie; sam napis "…" znaczy {"text": "…"}'
+    },
+    { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy — odwołania' }
+  ],
+  title: (data, look) => commentTitle(data, (id) => {
+    const target = look.get(id);
+    return target === undefined ? undefined : kindOf(target.kind)?.title(target.data, look);
+  }),
+  sort: (entry, look) => (COMMENT.title(entry.data, look)).toLowerCase().slice(0, 64),
+  example: {
+    key: 'chleb-dwie-prosby',
+    data: {
+      subjects: [{ ref: '@ratzinger2007-1' }],
+      blocks: [
+        { type: 'paragraph', text: 'Ratzinger czyta prośbę o chleb razem z mową eucharystyczną [@ratzinger2007, s. 183].' },
+        {
+          type: 'table', columns: ['Prośba', 'Odpowiedź'],
+          rows: [
+            [[{ ref: '@ratzinger2007-1' }], [{ text: 'chleb powszedni' }]],
+            [[{ ref: '@ratzinger2007', locator: 's. 185' }], [{ text: 'chleb z nieba' }]]
+          ]
+        },
+        { type: 'ordered', items: [[{ text: 'Najpierw prośba' }], [{ text: 'potem dar — ' }, { ref: '@kazanie-chleb' }]] }
+      ],
+      topics: ['@modlitwa']
+    }
+  }
+};
+
+export const KINDS: readonly LibKind[] = [TEXT, DELIVERY, COMMENT, PROJECT, QUOTE, WORK, PERSON, TOPIC];
 
 const BY_KIND = new Map(KINDS.map((one) => [one.kind, one]));
 
@@ -564,22 +606,19 @@ export function entrySort(entry: LibEntry, look: Lookup): string {
 }
 
 /** Worauf ein Eintrag in seinen Feldern zeigt (Verweise in einem Text kommen aus `libraryMarkup`). */
-export function fieldRefs(entry: LibEntry, onlyPublic = false): string[] {
+export function fieldRefs(entry: LibEntry): string[] {
   const def = kindOf(entry.kind);
   if (def === undefined) return [];
   const out: string[] = [];
   for (const field of def.fields) {
-    if (onlyPublic && field.private === true) continue;
     if (field.type === 'ref' || field.type === 'refs') out.push(...ids(entry.data, field.key));
     if (field.type === 'outline') for (const item of outline(entry.data, field.key)) if ('text' in item) out.push(item.text);
     if (field.type === 'items') {
       for (const item of itemsOf(entry.data, field.key)) {
-        for (const sub of field.item ?? []) {
-          if (onlyPublic && sub.private === true) continue;
-          if (sub.type === 'ref' || sub.type === 'refs') out.push(...ids(item, sub.key));
-        }
+        for (const sub of field.item ?? []) if (sub.type === 'ref' || sub.type === 'refs') out.push(...ids(item, sub.key));
       }
     }
+    if (field.type === 'blocks') out.push(...blockRefs(blocksOf(entry.data, field.key)).map((r) => r.ref));
   }
   return [...new Set(out)];
 }
@@ -590,45 +629,19 @@ export function fieldRefs(entry: LibEntry, onlyPublic = false): string[] {
  * Quellen sucht — Rückverweise, Veröffentlichung, Bibliografie, LaTeX —,
  * liest hier, nicht Feld für Feld.
  */
-export function markupsOf(entry: LibEntry, onlyPublic = false): string[] {
+export function markupsOf(entry: LibEntry): string[] {
   const def = kindOf(entry.kind);
   if (def === undefined) return [];
   const out: string[] = [];
   for (const field of def.fields) {
-    if (onlyPublic && field.private === true) continue;
     if (field.type === 'markup') out.push(str(entry.data, field.key));
+    if (field.type === 'blocks') out.push(...blockMarkups(blocksOf(entry.data, field.key)));
     if (field.type !== 'items') continue;
     for (const item of itemsOf(entry.data, field.key)) {
-      for (const sub of field.item ?? []) if (sub.type === 'markup' && !(onlyPublic && sub.private === true)) out.push(str(item, sub.key));
+      for (const sub of field.item ?? []) if (sub.type === 'markup') out.push(str(item, sub.key));
     }
   }
   return out.filter((one) => one.trim() !== '');
-}
-
-const empty = (value: unknown): boolean =>
-  value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
-
-/** Ein Eintrag einer Liste ohne seine privaten Felder — und ohne, was keines ist. */
-function publicItem(item: Record<string, unknown>, fields: readonly LibField[]): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const sub of fields) if (sub.private !== true && !empty(item[sub.key])) out[sub.key] = item[sub.key];
-  return out;
-}
-
-/** Die Felder ohne die privaten — die offene Fassung eines Eintrags. */
-export function publicData(entry: LibEntry): EntryData {
-  const def = kindOf(entry.kind);
-  if (def === undefined) return {};
-  const out: EntryData = {};
-  for (const field of def.fields) {
-    if (field.private === true) continue;
-    const value = field.type === 'items'
-      ? itemsOf(entry.data, field.key).map((item) => publicItem(item, field.item ?? [])).filter((item) => Object.keys(item).length > 0)
-      : entry.data[field.key];
-    if (empty(value)) continue;
-    out[field.key] = value;
-  }
-  return out;
 }
 
 /** Wörter eines Textes — ohne Zeichen des Zapis, ohne Verweise. */
@@ -665,6 +678,8 @@ export function suggestKey(entry: LibEntry, look: Lookup): string {
       return slug(str(data, 'title')).slice(0, 40) || 'projekt';
     case 'topic':
       return slug(str(data, 'name')).slice(0, 40) || 'temat';
+    case 'comment':
+      return `komentarz-${slug(entryTitle(entry, look)).split('-').slice(0, 4).join('-')}`.slice(0, 40).replace(/-+$/, '') || 'komentarz';
     default:
       return entry.kind;
   }

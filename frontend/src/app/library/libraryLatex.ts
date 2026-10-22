@@ -13,9 +13,10 @@
  * die Angaben stehen fertig formatiert darin.
  */
 
-import { bibliography, citeSegs, newCiteState, originOf, workBehind, type CiteState, type Seg } from './libraryCite';
+import { blocksOf, commentsAbout, type Cell } from './comment';
+import { bibliography, citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from './libraryCite';
 import { ids, markupsOf, outline, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
-import { parseMarkup, walkBlocks, type Block, type Inline } from './libraryMarkup';
+import { parseInline, parseMarkup, plainText, walkBlocks, type Block, type Inline } from './libraryMarkup';
 import { planOf, type PlanPoint } from './sermon';
 
 /** Was in LaTeX eine Bedeutung hat, entschärft — und die Typografie, die TeX selbst nicht errät. */
@@ -47,6 +48,8 @@ interface Ctx {
   readonly look: Lookup;
   readonly state: CiteState;
   readonly works: LibEntry[];
+  /** 2026-10-22 — die Komentarze, in denen wir gerade stehen (gegen Kreise). */
+  readonly path?: ReadonlySet<string>;
 }
 
 function inlines(list: readonly Inline[], ctx: Ctx, inNote = false): string {
@@ -97,7 +100,13 @@ function blocks(list: readonly Block[], ctx: Ctx, depth: 0 | 1): string {
       case 'hr': out.push('\\begin{center}*\\quad*\\quad*\\end{center}'); break;
       case 'embed': {
         const quote = ctx.look.byKey(b.key);
-        if (quote === undefined || quote.kind !== 'quote') { out.push(`% brak cytatu: ${b.key}`); break; }
+        /* 2026-10-22 — ein Komentarz steht mit seinen Bausteinen da; einer, der sich (über andere) selbst einbettet, nur einmal. */
+        if (quote?.kind === 'comment') {
+          if (ctx.path?.has(quote.id) === true) break;
+          out.push(commentLatex(quote, { ...ctx, path: new Set([...(ctx.path ?? []), quote.id]) }, depth));
+          break;
+        }
+        if (quote === undefined || quote.kind !== 'quote') { out.push('% odwołanie niedostępne'); break; }
         const work = workBehind(quote, ctx.look);
         if (work !== undefined) ctx.works.push(work);
         const text = str(quote.data, 'text').split(/\n\s*\n/).map((p) => latexEscape(p).replace(/\n/g, '\\\\\n')).join('\n\n');
@@ -115,6 +124,33 @@ function blocks(list: readonly Block[], ctx: Ctx, depth: 0 | 1): string {
     }
   }
   return out.join('\n\n');
+}
+
+/** Eine Zelle eines Komentarza: Text im Zapis, Verweise als ihr Name mit Stelle. */
+function cellLatex(cell: Cell, ctx: Ctx): string {
+  return cell.map((run) => ('ref' in run ? latexEscape(refLabel(run.ref, run.locator ?? '', ctx.look)) : inlines(parseInline(run.text), ctx))).join('');
+}
+
+/** Ein Komentarz: Absätze, Listen, eine Tabelle (tabular, jede Spalte gleich breit). */
+function commentLatex(comment: LibEntry, ctx: Ctx, depth: 0 | 1): string {
+  const out: string[] = [];
+  for (const block of blocksOf(comment.data)) {
+    if (block.type === 'paragraph') { out.push(blocks(parseMarkup(block.text), ctx, depth)); continue; }
+    if (block.type === 'table') {
+      const width = Math.max(1, block.columns.length, ...block.rows.map((r) => r.length));
+      const col = `p{${(0.9 / width).toFixed(3)}\\linewidth}`;
+      const head = block.columns.some((c) => c !== '') ? [`${block.columns.map((c) => `\\textbf{${latexEscape(c)}}`).join(' & ')} \\\\`, '\\hline'] : [];
+      out.push([
+        `\\begin{tabular}{|${Array.from({ length: width }, () => col).join('|')}|}`, '\\hline', ...head,
+        ...block.rows.map((row) => `${Array.from({ length: width }, (_, k) => cellLatex(row[k] ?? [], ctx)).join(' & ')} \\\\ \\hline`),
+        '\\end{tabular}'
+      ].join('\n'));
+      continue;
+    }
+    const env = block.type === 'ordered' ? 'enumerate' : 'itemize';
+    out.push(`\\begin{${env}}\n${block.items.map((cell) => `  \\item ${cellLatex(cell, ctx)}`).join('\n')}\n\\end{${env}}`);
+  }
+  return `\\begin{quote}\n${out.join('\n\n')}\n\\end{quote}`;
 }
 
 const PREAMBLE = (kind: 'article' | 'book') => [
@@ -179,10 +215,7 @@ function sources(ctx: Ctx, heading: string): string {
   return [
     heading,
     '\\begin{itemize}[label={},leftmargin=1.5em,itemindent=-1.5em]',
-    ...list.map(({ work, segs }) => {
-      const note = str(work.data, 'description');
-      return `  \\item ${segsLatex(segs)}.${note === '' ? '' : ` ${latexEscape(note)}`}`;
-    }),
+    ...list.map(({ segs }) => `  \\item ${segsLatex(segs)}.`),
     '\\end{itemize}'
   ].join('\n');
 }
@@ -266,14 +299,19 @@ export function projectToLatex(project: LibEntry, look: Lookup, options: { autho
 /**
  * 2026-10-21 — NUR DER PLAN, für die Kanzel: eine Seite in grösserer Schrift,
  * ohne Titelseite — Titel, Tag und Lesungen oben, die Punkte, die Zitate in
- * vollem Wortlaut, die Quellen klein am Ende. Mit `notes` stehen die privaten
- * Notizen der Punkte kursiv darunter (es ist das eigene Blatt).
+ * vollem Wortlaut, die Quellen klein am Ende. Mit `comments` stehen die
+ * Komentarze über einen Punkt kursiv darunter (soweit dieser Leser sie liest —
+ * es ist das eigene Blatt).
  */
-export function planToLatex(entry: LibEntry, look: Lookup, options: { notes?: boolean } = {}): string {
+export function planToLatex(entry: LibEntry, look: Lookup, options: { comments?: boolean } = {}): string {
   const d = entry.data;
   const ctx: Ctx = { look, state: newCiteState(), works: [] };
-  const points = planOf(d).map((p) => (options.notes === true && p.note.trim() !== ''
-    ? { ...p, text: `${p.text}\n*(${p.note.trim().replace(/[*_]/g, '')})*` } : p));
+  const all = options.comments === true ? look.readable?.() ?? [] : [];
+  const points = planOf(d).map((p) => {
+    const said = commentsAbout(entry.id, all, p.id).flatMap((c) => blocksOf(c.data))
+      .map((b) => (b.type === 'paragraph' ? plainText(b.text) : '')).filter((s) => s.trim() !== '').join(' ');
+    return said === '' ? p : { ...p, text: `${p.text}\n*(${said.replace(/[*_]/g, '')})*` };
+  });
   return [
     PREAMBLE('article').replace('[11pt,a4paper', '[14pt,a4paper').replace('{article}', '{extarticle}'),
     '\\usepackage[margin=2cm]{geometry}',

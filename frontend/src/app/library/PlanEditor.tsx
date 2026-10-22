@@ -24,6 +24,8 @@ import { exportLibrary, patchFromDoc } from './libraryJson';
 import { POINT_KINDS, str, type EntryData, type LibEntry } from './libraryKinds';
 import type { LibraryStore } from './libraryStore';
 import { QuoteFigure } from './LibraryText';
+import { commentsAbout } from './comment';
+import { viewPath } from '../routes';
 import { CitePicker } from './WritingTools';
 import { embedOf, newPointId, planFromText, planOf, planPrompt, pointData, pointNumbers, type PlanPoint } from './sermon';
 
@@ -75,7 +77,6 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
   const [focused, setFocused] = useState<string | null>(null);
   const [caret, setCaret] = useState<{ id: string; at: number } | null>(null);
   const [picker, setPicker] = useState<'cite' | 'embed' | null>(null);
-  const [noted, setNoted] = useState<ReadonlySet<string>>(new Set());
   const [paste, setPaste] = useState('');
 
   const write = (next: readonly PlanPoint[]) => set({ plan: next.map(pointData) });
@@ -217,7 +218,6 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
               <button type="button" title="Głębiej (Tab)" aria-label="Poziom głębiej" onMouseDown={(e) => e.preventDefault()} onClick={() => shift(index, 1)}>→</button>
               <button type="button" title="Przesuń w górę (Alt+↑)" aria-label="Przesuń w górę" onMouseDown={(e) => e.preventDefault()} onClick={() => move(index, -1)}>↑</button>
               <button type="button" title="Przesuń w dół (Alt+↓)" aria-label="Przesuń w dół" onMouseDown={(e) => e.preventDefault()} onClick={() => move(index, 1)}>↓</button>
-              <button type="button" title="Notatka dla siebie (prywatna)" onMouseDown={(e) => e.preventDefault()} onClick={() => setNoted(new Set([...noted, points[index].id]))}>Notatka</button>
               <button type="button" title="Usuń punkt" aria-label="Usuń punkt" onMouseDown={(e) => e.preventDefault()} onClick={() => remove(index)}>×</button>
             </>
           )}
@@ -258,12 +258,7 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
                   />
                   {quoteEntry !== undefined && quoteEntry.kind === 'quote' && <QuoteFigure entry={quoteEntry} look={store} full={false} />}
                   {quote !== null && quoteEntry === undefined && <p className="lib-missing">Nie ma w bibliotece cytatu „{quote}”.</p>}
-                  {(p.note !== '' || noted.has(p.id)) && (
-                    <label className="lib-plan-note">
-                      <span>Notatka (prywatna)</span>
-                      <input value={p.note} disabled={readOnly} placeholder="np. tu pauza; krótko" onChange={(e) => update(p.id, { note: e.target.value })} />
-                    </label>
-                  )}
+                  <PointComments store={store} text={text} point={p.id} focused={focused === p.id} readOnly={readOnly} />
                 </div>
               </li>
             );
@@ -315,5 +310,22 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * 2026-10-22 — STATT DER NOTIZ AM PUNKT: die Komentarze über diesen Punkt
+ * (ein Komentarz mit dem Text und dem Punkt als Gegenstand). Wer sie sieht,
+ * sagt der Bereich ihrer Bibliothek — eine Notiz für sich gehört in die
+ * private Bibliothek.
+ */
+function PointComments({ store, text, point, focused, readOnly }: { store: LibraryStore; text: LibEntry; point: string; focused: boolean; readOnly: boolean }) {
+  const about = commentsAbout(text.id, store.readable(), point);
+  if (about.length === 0 && (!focused || readOnly)) return null;
+  return (
+    <p className="lib-plan-comments">
+      {about.map((c) => <a key={c.id} href={viewPath('library', c.libraryId, c.id)}>{store.title(c)}</a>)}
+      {!readOnly && <a className="wk-link-btn" href={viewPath('library', store.libraryId, 'nowy', 'comment', `o=${text.id}&p=${point}`)}>+ Komentarz do punktu</a>}
+    </p>
   );
 }

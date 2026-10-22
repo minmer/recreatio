@@ -18,7 +18,7 @@ import { idbDelete, idbForget, idbGet, idbPut } from '../core/idb';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import {
-  forgetLibraryNames, loadEntries, loadPublishedOne, openEntry, publishEntries, putEntry, removeEntry, sealEntry,
+  forgetLibraryNames, loadEntries, moveEntry, openedLibraryKind, openEntry, publishEntries, putEntry, removeEntry, sealEntry,
   type EntryDoc, type LibraryRow, type SealedEntry
 } from './library';
 import { originOf } from './libraryCite';
@@ -31,6 +31,8 @@ import { plan, publicEntry, type PublishPlan, type PubEntry } from './libraryPub
 import { WorkspaceError } from '../core/session';
 
 export interface Entry extends PubEntry {
+  /** 2026-10-22 — die Bibliothek (und damit der Bereich), in der er liegt. */
+  readonly libraryId: string;
   readonly key?: string;
   readonly version: number;
   readonly epoch: number;
@@ -84,6 +86,17 @@ interface Cached {
 
 const cacheKey = (libraryId: string) => `entries:${libraryId}`;
 
+/**
+ * 2026-10-22 — ALLE LESBAREN BIBLIOTHEKEN ZUSAMMEN. Jeder Bereich hat seine
+ * Bibliothek; wer mehrere lesen darf, arbeitet mit allen zugleich: ein
+ * Verweis, ein Zitat im Text, die Suche und die Rückverweise reichen über
+ * die Bibliothek hinaus, in der man gerade steht. Gelistet und geschrieben
+ * wird weiter je Bibliothek (`all`, `ofKind`, `save` — der eigene Bereich).
+ * Die Nachbarn sind die anderen offenen Speicher derselben Art: die des
+ * Kontos im Arbeitsbereich, die einer Seite auf der Seite (`setPeers`).
+ */
+const bus = new Set<LibraryStore>();
+
 export class LibraryStore implements Lookup {
   readonly libraryId: string;
   readonly areaId: string;
@@ -109,15 +122,66 @@ export class LibraryStore implements Lookup {
     this.ring = ring;
     this.libraryId = library.libraryId;
     this.areaId = library.areaId;
+    bus.add(this);
+  }
+
+  /* -- Die Nachbarn ----------------------------------------------------------------------- */
+
+  private peerSource: (() => readonly LibraryStore[]) | null = null;
+
+  /** Wer die Nachbarn sind, wenn es nicht die Speicher des Kontos sind (eine Seite). */
+  setPeers(source: () => readonly LibraryStore[]): void {
+    this.peerSource = source;
+  }
+
+  /** Die anderen lesbaren Bibliotheken — nur Bibliotheken (`books`), nie Bazy wiedzy. */
+  peers(): LibraryStore[] {
+    if (this.peerSource !== null) return this.peerSource().filter((s) => s !== this && s.loaded);
+    if (this.ring === null || openedLibraryKind(this.libraryId) !== 'books') return [];
+    return [...stores.values()].filter((s) => s !== this && s.loaded && openedLibraryKind(s.libraryId) === 'books');
+  }
+
+  /** Ein Nachbar hat sich geändert: neu zeichnen, die Verzeichnisse neu bauen — nicht weitersagen. */
+  private peerChanged(): void {
+    this.revision += 1;
+    this.backIndex = null;
+    for (const listener of this.listeners) listener();
+  }
+
+  /** Nur hier, ohne Nachbarn. */
+  own(id: string): Entry | undefined { return this.entries.get(id); }
+
+  ownByKey(key: string): Entry | undefined {
+    const id = this.keys.get(key.toLowerCase());
+    return id === undefined ? undefined : this.entries.get(id);
+  }
+
+  /** In welcher Bibliothek ein Eintrag liegt — diese oder ein Nachbar. */
+  homeOf(id: string): LibraryStore | undefined {
+    if (this.entries.has(id)) return this;
+    return this.peers().find((p) => p.own(id) !== undefined);
+  }
+
+  /** Alles Lesbare: hier und bei den Nachbarn. */
+  readable(): Entry[] {
+    return [...this.all(), ...this.peers().flatMap((p) => p.all())];
   }
 
   /* -- Lesen ------------------------------------------------------------------------------- */
 
-  get(id: string): Entry | undefined { return this.entries.get(id); }
+  get(id: string): Entry | undefined {
+    const here = this.entries.get(id);
+    if (here !== undefined) return here;
+    for (const peer of this.peers()) { const there = peer.own(id); if (there !== undefined) return there; }
+    return undefined;
+  }
 
+  /** Ein Schlüssel gilt zuerst hier, dann bei den Nachbarn (in einer Bibliothek ist er eindeutig, über sie hinweg nicht). */
   byKey(key: string): Entry | undefined {
-    const id = this.keys.get(key.toLowerCase());
-    return id === undefined ? undefined : this.entries.get(id);
+    const here = this.ownByKey(key);
+    if (here !== undefined) return here;
+    for (const peer of this.peers()) { const there = peer.ownByKey(key); if (there !== undefined) return there; }
+    return undefined;
   }
 
   all(): Entry[] { return [...this.entries.values()]; }
@@ -131,8 +195,13 @@ export class LibraryStore implements Lookup {
     return id !== undefined && id !== except;
   }
 
-  /** Wer auf einen Eintrag zeigt — über ein Feld oder einen Verweis im Text. */
+  /** Wer auf einen Eintrag zeigt — hier und in den Nachbarn. */
   backlinks(id: string): Entry[] {
+    return [...this.ownBacklinks(id), ...this.peers().flatMap((p) => p.ownBacklinks(id))];
+  }
+
+  /** Wer hier auf einen Eintrag zeigt — über ein Feld oder einen Verweis im Text. */
+  ownBacklinks(id: string): Entry[] {
     if (this.backIndex === null) {
       const index = new Map<string, Set<string>>();
       const add = (target: string, source: string) => {
@@ -154,8 +223,13 @@ export class LibraryStore implements Lookup {
     return [...(this.backIndex.get(id) ?? [])].map((one) => this.entries.get(one)).filter((e): e is Entry => e !== undefined);
   }
 
-  /** Suchen — in Titel, Schlüssel und allen Textfeldern, ohne Rücksicht auf Akzente. */
+  /** Suchen — hier zuerst, dann in den Nachbarn. */
   search(query: string, kinds?: readonly string[]): Entry[] {
+    return [...this.ownSearch(query, kinds), ...this.peers().flatMap((p) => p.ownSearch(query, kinds))];
+  }
+
+  /** Suchen — in Titel, Schlüssel und allen Textfeldern, ohne Rücksicht auf Akzente. */
+  ownSearch(query: string, kinds?: readonly string[]): Entry[] {
     if (this.searchIndex === null) {
       const index = new Map<string, string>();
       for (const entry of this.entries.values()) {
@@ -188,6 +262,7 @@ export class LibraryStore implements Lookup {
     this.backIndex = null;
     this.searchIndex = null;
     for (const listener of this.listeners) listener();
+    for (const other of bus) if (other !== this) other.peerChanged();
   }
 
   private put(entry: Entry): void {
@@ -235,7 +310,7 @@ export class LibraryStore implements Lookup {
       const doc = await openEntry(keys, row);
       if (doc === null) { unreadable += 1; continue; }
       this.put({
-        id: doc.id, kind: doc.kind, ...(doc.key === undefined ? {} : { key: doc.key }), data: doc.data,
+        libraryId: this.libraryId, id: doc.id, kind: doc.kind, ...(doc.key === undefined ? {} : { key: doc.key }), data: doc.data,
         version: row.version, epoch: row.epoch, createdAt: row.createdAt, updatedAt: row.updatedAt,
         publishedAt: row.publishedAt, publishedAs: row.publishedAs
       });
@@ -371,6 +446,7 @@ export class LibraryStore implements Lookup {
   private async write(input: SaveInput, newest: { epoch: number; key: Uint8Array }): Promise<Entry> {
     const id = input.id ?? newId();
     const before = this.entries.get(id);
+    if (before === undefined && this.get(id) !== undefined) throw new WorkspaceError('Ten wpis należy do innej biblioteki — zmień go tam.');
     const data = cleanData(input.data);
     const key = this.keyFor({ id, kind: input.kind, data }, input.key ?? before?.key);
     const doc: EntryDoc = { v: 1, id, kind: input.kind, ...(key === undefined ? {} : { key }), data };
@@ -378,7 +454,7 @@ export class LibraryStore implements Lookup {
       kind: input.kind, epoch: newest.epoch, sealed: await sealEntry(newest.key, doc), version: before?.version ?? 0
     });
     const entry: Entry = {
-      id, kind: input.kind, ...(key === undefined ? {} : { key }), data,
+      libraryId: this.libraryId, id, kind: input.kind, ...(key === undefined ? {} : { key }), data,
       version: done.version, epoch: newest.epoch, createdAt: before?.createdAt ?? done.updatedAt, updatedAt: done.updatedAt,
       publishedAt: before?.publishedAt ?? null, publishedAs: before?.publishedAs ?? null
     };
@@ -391,11 +467,44 @@ export class LibraryStore implements Lookup {
     await removeEntry(this.libraryId, id);
     this.drop(id);
     this.changed();
-    /* Was nur für ihn draussen stand, geht mit. */
-    if (entry?.publishedAs !== null && entry !== undefined) await this.apply(plan(this.all(), this, {})).catch(() => undefined);
+    /* Was nur für ihn draussen stand, geht mit (eine Baza wiedzy — eine Bibliothek veröffentlicht nichts mehr). */
+    if (entry?.publishedAs !== null && entry !== undefined && openedLibraryKind(this.libraryId) === 'knowledge') await this.apply(plan(this.all(), this, {})).catch(() => undefined);
   }
 
-  /* -- Öffentlich ------------------------------------------------------------------------ */
+  /**
+   * 2026-10-22 — IN DIE BIBLIOTHEK EINES ANDEREN BEREICHS TRAGEN: so wird ein
+   * Eintrag öffentlich (oder wieder nur für wenige). Die Kennung bleibt —
+   * jeder Verweis zeigt weiter auf ihn; der Schlüssel bleibt, wenn er drüben
+   * frei ist (sonst ein freier, und `keyChanged` sagt es).
+   */
+  async moveTo(id: string, target: LibraryStore): Promise<{ entry: Entry; keyChanged: boolean }> {
+    const entry = this.entries.get(id);
+    if (entry === undefined) throw new WorkspaceError('Ten wpis należy do innej biblioteki.');
+    if (target === this) return { entry, keyChanged: false };
+    const newest = await target.writeKey();
+    const key = target.keyFor(entry, entry.key);
+    const doc: EntryDoc = { v: 1, id, kind: entry.kind, ...(key === undefined ? {} : { key }), data: entry.data };
+    let done;
+    try {
+      done = await moveEntry(this.libraryId, id, {
+        toLibrary: target.libraryId, kind: entry.kind, epoch: newest.epoch, sealed: await sealEntry(newest.key, doc), version: entry.version
+      });
+    } catch (e) {
+      if (e instanceof WorkspaceError && e.verdict === 'stale') await this.sync().catch(() => undefined);
+      throw e;
+    }
+    this.drop(id);
+    const moved: Entry = {
+      ...entry, libraryId: target.libraryId, ...(key === undefined ? {} : { key }),
+      version: done.version, epoch: newest.epoch, updatedAt: done.updatedAt, publishedAt: null, publishedAs: null
+    };
+    target.put(moved);
+    this.changed();
+    target.changed();
+    return { entry: moved, keyChanged: key !== entry.key };
+  }
+
+  /* -- Öffentlich (nur noch Bazy wiedzy) ----------------------------------------------- */
 
   planFor(change: { add?: readonly string[]; remove?: readonly string[]; refresh?: readonly string[] }): PublishPlan {
     return plan(this.all(), this, change);
@@ -404,12 +513,9 @@ export class LibraryStore implements Lookup {
   /** Einen Plan ausführen — in Stücken, die der Dienst annimmt (höchstens ~3 MB je Gang). */
   async apply(next: PublishPlan): Promise<void> {
     if (next.publish.length === 0 && next.unpublish.length === 0) return;
-    const gone = new Set(next.unpublish);
-    const after = new Set([...this.all().filter((e) => e.publishedAs !== null).map((e) => e.id), ...next.publish.map((p) => p.id)]
-      .filter((id) => !gone.has(id)));
     const docs = next.publish
       .filter((p) => this.entries.has(p.id))
-      .map((p) => publicEntry(this.entries.get(p.id)!, p.as, this, (id) => after.has(id)));
+      .map((p) => publicEntry(this.entries.get(p.id)!, p.as, this));
 
     const chunks: (typeof docs)[] = [[]];
     let size = 0;
@@ -439,23 +545,6 @@ export class LibraryStore implements Lookup {
 
   publish(ids: readonly string[]): Promise<void> { return this.apply(this.planFor({ add: ids })); }
   unpublish(ids: readonly string[]): Promise<void> { return this.apply(this.planFor({ remove: ids })); }
-  refresh(ids: readonly string[]): Promise<void> {
-    return this.apply(this.planFor({ refresh: ids.filter((id) => this.entries.get(id)?.publishedAs != null) }));
-  }
-
-  /** Steht draussen dasselbe wie hier? `null`: nicht veröffentlicht. */
-  async publicIsCurrent(id: string): Promise<boolean | null> {
-    const entry = this.entries.get(id);
-    if (entry === undefined || entry.publishedAs === null) return null;
-    try {
-      const { entry: there } = await loadPublishedOne(this.libraryId, id);
-      const published = new Set(this.all().filter((e) => e.publishedAs !== null).map((e) => e.id));
-      const here = publicEntry(entry, entry.publishedAs, this, (one) => published.has(one));
-      return there.json === here.json;
-    } catch {
-      return false;
-    }
-  }
 }
 
 /* -- Ein Speicher je Bibliothek und Tab ------------------------------------------------------ */

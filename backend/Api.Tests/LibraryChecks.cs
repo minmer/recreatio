@@ -23,17 +23,11 @@ internal static class LibraryChecks
         check(Library.Check(Good() with { EntryId = "x" }) is not null, "the entry is an id");
         check(Library.Check(Good() with { Key = new string('k', 121) }) is not null, "keys at most 120");
 
-        /* 2026-10-21 — das Archiv: Filter je Aspekt (ODER innerhalb, UND zwischen), Reihenfolge. */
+        /* 2026-10-22 — wo ein Eintrag liegt: Kennungen, jede einmal, höchstens 400. */
         var a = "01a0f4c1-bab6-7be5-bdfc-6f198a63ecea";
         var b = "01a0f4c1-bab6-7be5-bdfc-6f198a63eceb";
-        var two = Library.ParseGroups([$"{a},{b}", b, "", null], out var none);
-        check(two is not null && none is null && two.Count == 2 && two[0].Count == 2 && two[1].Count == 1, "groups: a comma is OR, another ref is AND, empty refs do not count");
-        check(Library.ParseGroups([$"{a},{a}"], out _)?[0].Count == 1, "groups: the same id once");
-        check(Library.ParseGroups(["kein-guid"], out var bad) is null && bad is not null, "groups: only ids");
-        check(Library.ParseGroups(Enumerable.Repeat(a, 9), out _) is null, "groups: at most 8 filters");
-        check(Library.ParseGroups([string.Join(",", Enumerable.Range(0, 201).Select(i => Guid.NewGuid()))], out _) is null, "groups: at most 200 values in one filter");
-        check(Library.ParseGroups(null, out _) is { Count: 0 }, "groups: none is no filter");
-        check(Library.BrowseOrder(null) == "e.public_sort" && Library.BrowseOrder("-sort") == "e.public_sort DESC" && Library.BrowseOrder("-key") == "e.public_key DESC", "order: sort and key, both ways");
-        check(Library.BrowseOrder("e.id; DROP TABLE x") is null, "order: nothing else reaches the SQL");
+        check(Library.ParseIds($"{a}, {b},{a}") is { Count: 2 }, "where: ids, each once, spaces allowed");
+        check(Library.ParseIds("kein-guid") is null && Library.ParseIds("") is null && Library.ParseIds(null) is null, "where: only ids, at least one");
+        check(Library.ParseIds(string.Join(",", Enumerable.Range(0, 401).Select(_ => Guid.NewGuid()))) is null, "where: at most 400");
     }
 }
