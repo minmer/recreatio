@@ -16,23 +16,13 @@ import { useEffect, useId, useMemo, useState } from 'react';
 
 import { libraryKindOf, loadLibraries, loadPublished, openedLibraryKind, openLibraries, summaryOf, type LibraryKind, type OpenLibrary, type PublishedItem } from './library';
 import { usePageLibrary } from './libraryOpen';
-import { entrySort, kindOf, str, type LibEntry } from './libraryKinds';
+import { entrySort, kindOf, str } from './libraryKinds';
 import type { Entry, LibraryStore } from './libraryStore';
+import { entryLine } from './refLabels';
 import { useMe, useWho } from '../core/me';
 import { viewPath } from '../routes';
 import { WorkspaceError, type Who } from '../core/session';
 import { Loading } from '../ui/Loading';
-
-/** Wie ein Eintrag als Wahl erscheint: Titel und, wo es hilft, etwas dazu. */
-export function entryLine(entry: LibEntry, store: LibraryStore): string {
-  const title = store.title(entry);
-  if (entry.kind === 'person') return [title, str(entry.data, 'years')].filter(Boolean).join(' · ');
-  if (entry.kind === 'work') {
-    const author = store.get((entry.data.authors as string[] | undefined)?.[0] ?? '');
-    return [author === undefined ? '' : store.title(author), title, str(entry.data, 'year')].filter(Boolean).join(' · ');
-  }
-  return title;
-}
 
 /** Das Feld, das beim schnellen Anlegen den getippten Namen bekommt. */
 const NAME_FIELD: Record<string, string> = { person: 'name', topic: 'name', work: 'title', project: 'title', text: 'title', quote: 'text' };

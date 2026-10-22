@@ -225,6 +225,11 @@ h5.lib-h { font-size: var(--wk-text-md); font-style: italic; }
 .lib-ref { font-variant-numeric: tabular-nums; }
 .lib-ref.is-unreadable { color: var(--wk-muted); font-style: italic; }
 
+/* 2026-10-22 — Powiązania und „Fragment Pisma": wo im Zeigenden, welche Art. */
+.lib-rel-where { color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.lib-rel-kind { color: var(--wk-muted); font-size: var(--wk-text-xs); letter-spacing: 0.04em; text-transform: uppercase; }
+.lib-search-passage { display: grid; gap: var(--wk-space-1); padding-top: var(--wk-space-2); }
+
 /* 2026-10-22 — eigene Einträge im Text: ein Link, keine Fussnote; geöffnet unter dem Text. */
 .lib-own-ref { color: var(--wk-accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.15em; }
 button.lib-own-ref { font: inherit; padding: 0; border: 0; background: none; cursor: pointer; text-align: inherit; }

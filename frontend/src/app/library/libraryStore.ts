@@ -18,7 +18,7 @@ import { idbDelete, idbForget, idbGet, idbPut } from '../core/idb';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import {
-  forgetLibraryNames, loadEntries, moveEntry, openedLibraryKind, openEntry, publishEntries, putEntry, removeEntry, sealEntry,
+  forgetLibraryNames, loadEntries, loadLibraries, moveEntry, openedLibraryKind, openEntry, openLibraries, publishEntries, putEntry, removeEntry, sealEntry,
   type EntryDoc, type LibraryRow, type SealedEntry
 } from './library';
 import { originOf } from './libraryCite';
@@ -205,6 +205,20 @@ export class LibraryStore implements Lookup {
    */
   keyTakenElsewhere(key: string, except?: string): LibraryStore | undefined {
     return this.peers().find((p) => p.keyTaken(key, except));
+  }
+
+  /**
+   * 2026-10-22 — ALLES ÖFFNEN, WAS DIESES KONTO LESEN DARF: jede Bibliothek und
+   * jede Baza wiedzy, für das Verzeichnis der Verweise (`refIndex.ts`) und
+   * die Suche nach einer Stelle der Schrift. Ein Speicher ohne Konto öffnet
+   * nichts. Es kommt nur dazu, was ohnehin lesbar ist.
+   */
+  async openEverything(): Promise<number> {
+    if (this.ring === null) return 0;
+    const ring = this.ring;
+    const opened = await openLibraries(ring, (await loadLibraries()).libraries);
+    await Promise.all(opened.map((row) => storeOf(ring, row).sync().catch(() => undefined)));
+    return opened.length;
   }
 
   /** Wer auf einen Eintrag zeigt — hier und in den Nachbarn. */

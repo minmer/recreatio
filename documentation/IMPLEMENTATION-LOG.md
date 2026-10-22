@@ -236,3 +236,64 @@ the text). LaTeX prints the same with `\emph{…}`.
 3. A page "Tekst" part: choose "Odwołania z biblioteki", type `Zob. [@klucz, s. 3] i [[ten tekst|@klucz-tekstu]].`
    → a footnote under the part and a link that opens the text.
 4. Cogita → a knowledge entry with `## Teza`, a list and `[@dzielo, s. 5]`: heading, list and a numbered footnote.
+
+---
+
+## Step 4 — The reference index and places in the Scripture
+
+**Built**
+
+- **One reference index** (`library/refIndex.ts`) over every library and knowledge base open in the tab, computed in
+  the browser. `refsOf` finds references in any entry without knowing its kind: ids in fields, markup references with
+  their place (`[@x, Dz 1,14]`, `![@x]`, `[[words|@x]]`, also inside plan points — the hit names the point), comment
+  subjects and table/list cells (`{ref, locator}`), sources of uncertain Cogita values (`{work, locator}`), and every
+  id in Cogita documents (revisions, flows, views, collections, templates, add forms). Merges, settings and `_` fields
+  do not count. Keys resolve in the entry's own store first, then libraries, then other bases. Recomputed only when a
+  store changes.
+- **"Powiązania"** (`library/LibraryRelations.tsx`, replacing the box in `LibraryEntryBoxes.tsx`) now lists, besides the
+  library entries as before (with the plan point and place), the entries and documents of knowledge bases that use the
+  entry, grouped per base; **"Szukaj we wszystkich, które możesz czytać"** opens every library and base the account
+  may read (`LibraryStore.openEverything`); **"Sprawdź strony"** lists the pages this account leads whose modules show
+  the entry (`library/pageUses.ts`).
+- **Cogita "Odwołują się tutaj"** adds "Wspominają go": knowledge texts that link with `[[…]]`, revisions, flows, views,
+  collections, library texts and comments.
+- **The library map** shows comments, and draws grey lines for comment subjects and cells, project outlines and plan
+  points (`refsOf` instead of the cited keys only).
+- **Places in the Scripture** (`library/bible.ts`): the 73 books with Polish, Latin and English names and abbreviations;
+  the parser reads `Dz 1,14`, `Dz 1:14`, `Acts 1,14`, ranges, ranges over chapters, Polish and English lists, whole
+  chapters, several places with the book carrying on, `Ps 51(50),3`, `22,2a`, `16,9nn`. Overlap, canonical order,
+  writing back in three languages.
+- **"Fragment Pisma"** on every Bible work: type a place, see every quote, comment, plan point, text and knowledge entry
+  pointing at an overlapping place, in every edition of the Scripture (other editions show their siglum). The library
+  search does the same when the query is a place.
+- **Quotes in canonical order** (`quoteOrder`): in lists, in "Cytaty z tego źródła" and in the quotes JSON of a book —
+  "Dz 1,8" before "Dz 1,14", "s. 9" before "s. 10" (the old order compared text).
+- `MARKUP_DOC` tells an AI how to write a place in the Scripture.
+- Checks: `app-library-check` 2d (books in three languages, every locator form, overlap, order, `refsOf` per shape, the
+  index across stores with key resolution, the passage search across editions, the description).
+
+**Removed**
+
+- `pageNumber` (quote order by the first number) — replaced by `locatorKey`.
+- `entryLine` moved from `LibraryPick.tsx` to `refLabels.ts` (no copy left behind).
+
+**Choices**
+
+- **Nothing is stored for places.** Locators stay what people wrote; the index is computed. No migration.
+- **Pages: only those the account leads**, loaded on request, never other pages — the service is not asked to index
+  page configurations (sealed pages could only be read in the browser anyway).
+- Opening every readable base is a button, not automatic: a large knowledge base costs time and memory.
+- A place without a book ("1,14") is not read — a Bible locator must name its book.
+
+**Owner must run**
+
+- Deploy the website (no API change, no migration).
+
+**Test in the browser**
+
+1. Biblioteka → Źródła → the Bible (BT) → "Fragment Pisma": type `Dz 1:14`. Quotes, comments, sermons (with "plan,
+   punkt …") and, after "Szukaj we wszystkich…", knowledge entries citing that place appear; `Dz 1,12-14` is found too.
+2. In the library search type `Psalm 23`: the passage list appears under the search.
+3. Open a topic → "Powiązania" → "Szukaj we wszystkich…": knowledge bases that use it appear with their entries.
+4. "Sprawdź strony" on a sermon shown by a "Tekst z biblioteki" module: the page is listed with the module.
+5. Cytaty tab: Bible quotes stand in the order of the Bible.

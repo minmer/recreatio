@@ -7,6 +7,10 @@
  * Verweis, wenn das Feld auf diese Art zeigen darf (`LibField.to`); eine
  * gelöschte nimmt ihn weg. Zitate IM TEXT (`[@schlüssel]`) sind grau: sie
  * stehen im Text und werden dort geändert.
+ *
+ * 2026-10-22 — die grauen Linien kommen aus dem Verzeichnis der Verweise
+ * (`refsOf`): auch Komentarze (worüber, und was ihre Tabellen nennen), der
+ * Zarys eines Projekts und die Punkte eines Plans.
  */
 
 import { useMemo, useState } from 'react';
@@ -16,15 +20,18 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { ids, kindOf, markupsOf, refTarget, type EntryData } from './libraryKinds';
-import { citedKeys } from './libraryMarkup';
+import { ids, kindOf, refTarget, type EntryData } from './libraryKinds';
+import { refsOf } from './refIndex';
 import type { Entry, LibraryStore } from './libraryStore';
 import { viewPath } from '../routes';
 import { WorkspaceError } from '../core/session';
 
 /* 2026-10-21 — die Wygłoszenia links neben ihren Texten. */
-const COLUMN: Record<string, number> = { delivery: 0, project: 0, text: 1, topic: 1, quote: 2, work: 3, person: 4 };
-const MAP_KINDS = ['project', 'delivery', 'text', 'topic', 'quote', 'work', 'person'];
+const COLUMN: Record<string, number> = { delivery: 0, project: 0, text: 1, topic: 1, quote: 2, comment: 2, work: 3, person: 4 };
+const MAP_KINDS = ['project', 'delivery', 'text', 'topic', 'comment', 'quote', 'work', 'person'];
+
+/** Wie eine graue Linie heisst — nach dem Ort im Zeigenden. */
+const FIXED_LABEL: Record<string, string> = { subjects: 'o', blocks: 'wymienia', outline: 'w zarysie', plan: 'cytuje (plan)' };
 
 interface Data { readonly label: string; readonly kind: string; readonly id: string }
 
@@ -78,12 +85,14 @@ export function LibraryMap({ store, libraryId }: { store: LibraryStore; libraryI
           lines.push({ id: `f:${e.id}:${field.key}:${target}`, source: e.id, target, label: field.label, data: { field: field.key, many: field.type === 'refs' } });
         }
       }
-      /* Zitiert wird im Zapis — in der Treść, im Plan, in „co doszło". */
+      /* Was kein Verweisfeld ist: der Zapis (Treść, Plan, „co doszło"), die Gegenstände und Zellen eines Komentarza, der Zarys. */
       {
-        for (const key of citedKeys(...markupsOf(e))) {
-          const target = refTarget(store, key);
-          if (target === undefined || !shown.has(target.id)) continue;
-          lines.push({ id: `c:${e.id}:${target.id}`, source: e.id, target: target.id, label: 'cytuje', deletable: false, className: 'is-fixed', animated: false });
+        const fields = new Set((def?.fields ?? []).filter((f) => f.type === 'ref' || f.type === 'refs').map((f) => f.key));
+        const drawn = new Set<string>();
+        for (const ref of refsOf(e, (token) => refTarget(store, token)?.id)) {
+          if (fields.has(ref.field) || !shown.has(ref.target) || drawn.has(ref.target)) continue;
+          drawn.add(ref.target);
+          lines.push({ id: `c:${e.id}:${ref.target}`, source: e.id, target: ref.target, label: FIXED_LABEL[ref.field] ?? 'cytuje', deletable: false, className: 'is-fixed', animated: false });
         }
       }
     }
@@ -129,7 +138,7 @@ export function LibraryMap({ store, libraryId }: { store: LibraryStore; libraryI
     <div className="wk-dep">
       <p className="wk-hint">
         Przeciągnij linię, żeby ustawić odwołanie (tekst → projekt lub temat, cytat → źródło, źródło → autor). Zaznacz linię i naciśnij Delete,
-        żeby je usunąć. Szare linie „cytuje" pochodzą z treści tekstu. Dwuklik otwiera wpis.
+        żeby je usunąć. Szare linie („cytuje”, „o”, „wymienia”, „w zarysie”) pochodzą z treści tekstów i komentarzy. Dwuklik otwiera wpis.
       </p>
       <div className="lib-map-kinds">
         {MAP_KINDS.map((k) => (

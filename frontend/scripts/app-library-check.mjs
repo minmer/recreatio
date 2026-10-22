@@ -5,6 +5,9 @@
  *      alle Beispiele zusammen lassen sich importieren — Verweise per @schlüssel.
  *   2. Der Zapis: Überschriften, Absätze, Listen, Zitate, eingebettete Zitate,
  *      Verweise mit Stellen, eigene Fussnoten, Links, Escapes.
+ *  2d. Stellen der Schrift und das Verzeichnis der Verweise (2026-10-22): Bücher
+ *      polnisch, lateinisch, englisch; Bereiche, Listen, Kapitel; Ordnung nach
+ *      dem Kanon; wer auf eine Stelle zeigt — über Bibliotheken und Bazy wiedzy.
  *  2c. Ein Leser, nach Art gezeichnet (2026-10-22): Quellen werden Fussnoten,
  *      eigene Einträge Links (auch `[[Wort|@klucz]]`), unlesbare Ziele sagen
  *      nichts; LaTeX, Planzeilen, der Baustein „Tekst" und Cogita ebenso.
@@ -52,6 +55,9 @@ export { decodeGray } from '${app}library/barcode';
 export { readAmount, patchFromDoc } from '${app}library/libraryJson';
 export * from '${app}library/sermon';
 export * from '${app}library/topics';
+export * from '${app}library/bible';
+export * from '${app}library/refIndex';
+export { Relations, PassageBox, PassageList } from '${app}library/LibraryRelations';
 export { textToLatex, planToLatex } from '${app}library/libraryLatex';
 export { archiveRow, browseLocal, choose, facetKey, PROJECTS } from '${app}library/browse';
 export { layoutOf } from '${app}library/archiveLayout';
@@ -252,6 +258,95 @@ try {
     assert.ok(m.courseDescription().includes('[[słowo|@wpis]]') && m.courseDescription().includes('staje się przypisem'), 'the Cogita description says the same');
   }
   ok('one reader, drawn by kind: sources are footnotes, own entries are links (also [[words|@key]]), unreadable targets say nothing; LaTeX, plan lines, page text and Cogita alike');
+
+  /* -- 2d. Stellen der Schrift, das Verzeichnis der Verweise (2026-10-22) ------------------------ */
+  {
+    const book = (name) => m.bookOf(name)?.id;
+    assert.deepEqual(['Dz', 'Act', 'Acts', 'Dzieje Apostolskie', 'Actus Apostolorum'].map(book), ['Acts', 'Acts', 'Acts', 'Acts', 'Acts'], 'one book in three languages');
+    assert.deepEqual(['1 Kor', 'I Cor', '1Cor', '1 Corinthians', '1 List do Koryntian'].map(book), Array(5).fill('1Cor'), 'numbered books, also Roman and written out');
+    assert.deepEqual(['Łk', 'Lc', 'Lk', 'Luke', 'J', 'Jn', 'Io', '1 J', 'Ap', 'Rev', 'Ewangelia według św. Jana', 'List do Rzymian', 'Hi', 'Job'].map(book),
+      ['Luke', 'Luke', 'Luke', 'Luke', 'John', 'John', 'John', '1John', 'Rev', 'Rev', 'John', 'Rom', 'Job', 'Job']);
+    assert.equal(book('s'), undefined, 'a page is no book');
+
+    const one = (text) => m.parseBible(text).map((x) => [x.book, x.from.c, x.from.v, x.to.c, x.to.v]);
+    assert.deepEqual(one('Dz 1,14'), [['Acts', 1, 14, 1, 14]]);
+    assert.deepEqual(one('Dz 1:14'), one('Dz 1,14'), 'colon or comma');
+    assert.deepEqual(one('Acts 1,14'), one('Dz 1,14'), 'English book, Polish separator');
+    assert.deepEqual(one('Dz 1,8.14'), [['Acts', 1, 8, 1, 8], ['Acts', 1, 14, 1, 14]], 'a Polish list');
+    assert.deepEqual(one('Acts 1:8,14'), one('Dz 1,8.14'), 'an English list');
+    assert.deepEqual(one('Dz 1,14-16'), [['Acts', 1, 14, 1, 16]], 'a range');
+    assert.deepEqual(one('Łk 1,26–2,5'), [['Luke', 1, 26, 2, 5]], 'over a chapter');
+    assert.deepEqual(one('Ps 23'), [['Ps', 23, null, 23, null]], 'a whole psalm');
+    assert.deepEqual(one('Rdz 1-3'), [['Gen', 1, null, 3, null]], 'chapters');
+    assert.deepEqual(one('Mt 5,3-12; 6,1; Łk 6,20'), [['Matt', 5, 3, 5, 12], ['Matt', 6, 1, 6, 1], ['Luke', 6, 20, 6, 20]], 'several places, the book carries on');
+    assert.deepEqual(one('Ps 51(50),3'), [['Ps', 51, 3, 51, 3]], 'the second numbering of the psalms is dropped');
+    assert.deepEqual(one('Ps 22,2a'), [['Ps', 22, 2, 22, 2]], 'part of a verse');
+    assert.deepEqual(one('Mk 16,9nn'), [['Mark', 16, 9, 16, null]], '„i następne" to the end of the chapter');
+    assert.deepEqual(one('s. 23').concat(one('nr 24'), one('')), [], 'not the Scripture');
+
+    const hit = (a, b) => m.anyOverlap(m.parseBible(a), m.parseBible(b));
+    assert.ok(hit('Dz 1,12-14', 'Dz 1:14') && hit('Dz 1', 'Acts 1:14') && !hit('Dz 1,15', 'Dz 1,14') && !hit('Łk 1,14', 'Dz 1,14'), 'overlap: a range, a chapter, not the next verse, not another book');
+    const order = ['Dz 1,14', 'Dz 1,8', 'Mt 5,3', 'Rdz 1,1', 'Dz 2,1'].sort((a, b) => m.bibleKey(a).localeCompare(m.bibleKey(b)));
+    assert.deepEqual(order, ['Rdz 1,1', 'Mt 5,3', 'Dz 1,8', 'Dz 1,14', 'Dz 2,1'], 'canonical order: the canon, then chapter, then verse');
+    assert.deepEqual(['s. 10', 's. 9', 's. 100'].sort((a, b) => m.locatorKey(a, false).localeCompare(m.locatorKey(b, false))), ['s. 9', 's. 10', 's. 100'], 'pages as numbers');
+    assert.equal(m.formatBible(m.parseBible('Acts 1:14-16; 2:1')), 'Dz 1,14-16; Dz 2,1');
+    assert.equal(m.formatSpan(m.parseBible('Dz 1,14')[0], 'en'), 'Acts 1:14');
+
+    /* Zitate in der Ordnung der Schrift. */
+    const BT = { id: '00000000-0000-4000-8000-0000000000b1', kind: 'work', key: 'bt', data: { workType: 'bible', title: 'Biblia Tysiąclecia', siglum: 'BT' } };
+    const VG = { id: '00000000-0000-4000-8000-0000000000b2', kind: 'work', key: 'vg', data: { workType: 'bible', title: 'Nova Vulgata', siglum: 'Vg' } };
+    const q = (id, locator) => ({ id, kind: 'quote', key: id, data: { text: id, work: [BT.id], locator } });
+    const quotes = [q('q14', 'Dz 1,14'), q('q8', 'Dz 1,8'), q('qr', 'Rdz 1,1')];
+    const QL = look([BT, ...quotes]);
+    assert.deepEqual([...quotes].sort((a, b) => m.quoteOrder(a, QL).localeCompare(m.quoteOrder(b, QL))).map((x) => x.id), ['qr', 'q8', 'q14'], 'quotes of the Bible in canonical order');
+
+    /* Verweise eines Eintrags: Felder, Zapis mit Stelle, Gegenstände, Zellen, Quellen eines unsicheren Wertes, Dokumente. */
+    const resolve = (t) => ({ bt: BT.id, kom: 'k1' }[t]);
+    const refs = (data) => m.refsOf({ data }, resolve).map((r) => [r.target, r.locator, r.field, r.at ?? '']);
+    assert.deepEqual(refs({ text: 'x', work: [BT.id], locator: 'Dz 1,14' }), [[BT.id, 'Dz 1,14', 'work', '']], 'a quote: its work at its place');
+    assert.deepEqual(refs({ body: 'A [@bt, Dz 1,14]. B [[słowo|@kom]].', plan: [{ id: 'p1', text: 'Punkt [@bt, Dz 1,8]' }] }),
+      [[BT.id, 'Dz 1,14', 'body', ''], ['k1', '', 'body', ''], [BT.id, 'Dz 1,8', 'plan', 'p1']], 'markup with places; a plan point says which point');
+    assert.deepEqual(refs({ subjects: [{ ref: BT.id, locator: 'Dz 1,12-14' }], blocks: [{ type: 'table', columns: ['a'], rows: [[[{ text: 'zob.' }, { ref: BT.id, locator: 'Łk 1,35' }]]] }] }),
+      [[BT.id, 'Dz 1,12-14', 'subjects', ''], [BT.id, 'Łk 1,35', 'blocks', '']], 'a comment: what it is about, what its cells name');
+    assert.deepEqual(refs({ born: { value: '1999', state: 'disputed', source: { work: BT.id, locator: 'Dz 1,14' } }, _kinds: ['00000000-0000-4000-8000-00000000000f'] }),
+      [[BT.id, 'Dz 1,14', 'born', '']], 'Cogita: the source of an uncertain value; bookkeeping (_kinds) does not count');
+    assert.deepEqual(refs({ name: 'Powtórka', graph: { nodes: [{ id: 'n1', config: { list: ['k1', 'x', BT.id] } }] } }).map((r) => r[0]), [BT.id], 'a document: every id in it');
+
+    /* Das Verzeichnis über zwei Bibliotheken und eine Baza wiedzy — Schlüssel gelten zuerst im eigenen Speicher. */
+    const store = (libraryId, entries, books = true) => ({ libraryId, revision: 1, books, all: () => entries, ownByKey: (k) => entries.find((e) => e.key === k) });
+    const text = { id: 't1', kind: 'text', key: 'kaz', data: { title: 'Kazanie', body: 'Wstęp [@bt, Dz 1,14].', plan: [{ id: 'p9', text: 'Modlitwa [@bt, Acts 1:14]' }] } };
+    const comment = { id: 'c1', kind: 'comment', key: 'kom', data: { subjects: [{ ref: BT.id, locator: 'Dz 1,12-14' }], blocks: [{ type: 'paragraph', text: 'Trwali jednomyślnie.' }] } };
+    const far = { id: 'qx', kind: 'quote', key: 'qx', data: { text: 'Inny', work: [BT.id], locator: 'Dz 1,15' } };
+    const latin = { id: 'qv', kind: 'quote', key: 'qv', data: { text: 'Hi omnes erant perseverantes', work: [VG.id], locator: 'Act 1,14' } };
+    const E1 = '00000000-0000-4000-8000-0000000000e1';
+    const E2 = '00000000-0000-4000-8000-0000000000e2';
+    const knowledge = { id: E1, kind: 'entity', data: { _kinds: ['knowledge'], text: 'Apostołowie trwali na modlitwie [@bt, Dz 1,14] z [[Maryją|@maryja]].' } };
+    const maryja = { id: E2, kind: 'entity', key: 'maryja', data: { _kinds: ['person'], name: 'Maryja' } };
+    const revision = { id: 'r1', kind: 'revision', data: { name: 'Dzieje', graph: { nodes: [{ id: 'n', config: { list: [E1, E2] } }] } } };
+    const merge = { id: 'm1', kind: 'merge', data: { from: E2, to: E1 } };
+    const A = store('lib-a', [BT, ...quotes, text, comment, far]);
+    const B = store('lib-b', [VG, latin]);
+    const K = store('base-k', [knowledge, maryja, revision, merge], false);
+    const index = m.referenceIndex([A, B, K], (s) => s.books);
+    assert.deepEqual(index.to(E2).map((h) => h.from.id).sort(), [E1, 'r1'], 'a base entry: a knowledge text links it, a revision uses it — the merge does not count');
+    assert.ok(index.to(BT.id).some((h) => h.from.id === E1 && h.ref.locator === 'Dz 1,14'), 'a knowledge base citing a library Bible (key resolved through the libraries)');
+    assert.equal(m.referenceIndex([A, B, K], (s) => s.books), index, 'unchanged stores: the same index');
+
+    const found = m.passageHits(index, m.parseBible('Dz 1:14'));
+    const who = found.map((f) => [f.hit.from.id, f.hit.ref.field, f.hit.ref.at ?? '', f.work.id === VG.id ? 'Vg' : 'BT']);
+    assert.deepEqual(new Set(who.map((w) => w[0])), new Set(['q14', 't1', 'c1', E1, 'qv']), 'Dz 1:14 finds the quote, the sermon (body and plan point), the comment (Dz 1,12-14), the knowledge entry and the Latin quote — not Dz 1,15');
+    assert.ok(who.some((w) => w[0] === 't1' && w[1] === 'plan' && w[2] === 'p9'), 'the plan point is named');
+    assert.ok(who.some((w) => w[0] === 'qv' && w[3] === 'Vg'), 'in another edition of the Scripture too');
+    assert.deepEqual(m.passageHits(index, []), [], 'nothing typed, nothing found');
+    assert.ok(m.libraryDescription().includes('Łk 1,26–2,5') && m.libraryDescription().includes('Acts 1:14'), 'the description tells an AI how to write a place in the Scripture');
+    /* Die Kästen zeichnen (ohne offene Speicher im Prüfling: nur der Rahmen). */
+    const fake = { libraryId: 'lib-a', revision: 1, title: (e) => String(e.data.title ?? e.data.text ?? e.id), get: () => undefined, byKey: () => undefined, readable: () => [], all: () => [], ownByKey: () => undefined };
+    const rel = m.renderToStaticMarkup(m.createElement(m.Relations, { store: fake, library: { libraryId: 'lib-a', writes: true }, entry: { ...BT, libraryId: 'lib-a' } }));
+    assert.ok(rel.includes('Powiązania') && rel.includes('Sprawdź strony') && rel.includes('Szukaj we wszystkich'), 'the relations box draws');
+    const passage = m.renderToStaticMarkup(m.createElement(m.PassageList, { store: fake, spans: m.parseBible('Dz 1:14') }));
+    assert.ok(passage.includes('Dz 1,14') && passage.includes('nic tu nie wskazuje'), 'the passage list draws');
+  }
+  ok('Scripture: books in Polish, Latin and English, ranges, lists, chapters, canonical order; the reference index over libraries and knowledge bases (fields, markup with places, comment subjects and cells, sources of values, documents); a passage found in every edition');
 
   /* -- 3. Die Angaben -------------------------------------------------------------------- */
   const P = (id, given, surname, extra = {}) => ({ id, kind: 'person', key: id, data: { givenNames: given, surname, ...extra } });

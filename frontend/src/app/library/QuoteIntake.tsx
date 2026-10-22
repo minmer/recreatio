@@ -16,9 +16,10 @@
 import { useMemo, useRef, useState } from 'react';
 
 import type { OpenLibrary } from './library';
+import { locatorKey } from './bible';
 import { ids, str } from './libraryKinds';
 import {
-  exportQuotes, importQuotes, locatorOf, newTopics, pageNumber, planQuotes, quotesDescription, quotesPrompt,
+  exportQuotes, importQuotes, locatorOf, newTopics, planQuotes, quotesDescription, quotesPrompt,
   type MarkMode, type QuoteItem
 } from './libraryQuotes';
 import type { Entry, LibraryStore } from './libraryStore';
@@ -31,10 +32,12 @@ import { WorkspaceError } from '../core/session';
 const SHOWN = 6;
 
 export function QuoteIntake({ store, library, work }: { store: LibraryStore; library: OpenLibrary; work: Entry }) {
+  /* 2026-10-22 — nach der Stelle: Seiten als Zahlen, die Schrift nach dem Kanon. */
+  const bible = str(work.data, 'workType') === 'bible';
   const quotes = useMemo(() => store.ofKind('quote').filter((q) => ids(q.data, 'work').includes(work.id))
-    .sort((a, b) => pageNumber(str(a.data, 'locator')) - pageNumber(str(b.data, 'locator')) || a.createdAt.localeCompare(b.createdAt)),
+    .sort((a, b) => locatorKey(str(a.data, 'locator'), bible).localeCompare(locatorKey(str(b.data, 'locator'), bible)) || a.createdAt.localeCompare(b.createdAt)),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [store, store.revision, work.id]);
+  [store, store.revision, work.id, bible]);
   const [all, setAll] = useState(false);
   const [intake, setIntake] = useState(false);
 

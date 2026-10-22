@@ -1,6 +1,6 @@
 /**
- * Die Kästen unter einem Eintrag: Schlüssel, Beziehungen (mit den
- * Komentarzen über ihn), LaTeX, JSON, Löschen. Wer ihn liest, sagt
+ * Die Kästen unter einem Eintrag: Schlüssel, LaTeX, JSON, Löschen. Die
+ * Beziehungen stehen seit 2026-10-22 in `LibraryRelations.tsx`. Wer ihn liest, sagt
  * `LibraryAreaBox.tsx` (seit 2026-10-22 statt „Opublikuj").
  */
 
@@ -13,12 +13,9 @@ import { viewPath } from '../routes';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import type { OpenLibrary } from './library';
 import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJson';
-import { type LibEntry, isKey, kindOf, markupsOf, refTarget } from './libraryKinds';
+import { type LibEntry, isKey, kindOf } from './libraryKinds';
 import { latexFileName, missingKeys, planToLatex, projectToLatex, textToLatex } from './libraryLatex';
-import { citedKeys } from './libraryMarkup';
-import { entryLine } from './LibraryPick';
 import type { Entry, LibraryStore } from './libraryStore';
-import { commentsOn } from './markupView';
 import { planOf } from './sermon';
 
 export const TAB_OF: Record<string, string> = { text: 'teksty', delivery: 'wyglaszenia', comment: 'komentarze', project: 'projekty', quote: 'cytaty', work: 'zrodla', person: 'osoby', topic: 'tematy' };
@@ -58,45 +55,6 @@ export function KeyBox({ store, id, value, readOnly, onChange }: {
       {elsewhere !== undefined && <p className="wk-warn">Ten klucz ma już wpis w innej bibliotece, którą widzisz. Pisząc [@{draft}] w tej bibliotece wybierasz ten wpis; w tekstach zapisze się stały odnośnik, więc nic się nie pomyli.</p>}
       {wrong && <p className="wk-warn">Tylko litery, cyfry i znaki . _ : -</p>}
       {note !== null && <p className="wk-note">{note}</p>}
-    </section>
-  );
-}
-
-/* -- Was auf ihn zeigt --------------------------------------------------------------------------- */
-
-export function Relations({ store, library, entry }: { store: LibraryStore; library: OpenLibrary; entry: Entry }) {
-  const back = store.backlinks(entry.id);
-  const quotes = back.filter((e) => e.kind === 'quote');
-  const texts = back.filter((e) => e.kind === 'text');
-  const works = back.filter((e) => e.kind === 'work');
-  const projects = back.filter((e) => e.kind === 'project');
-  const deliveries = back.filter((e) => e.kind === 'delivery');
-  /* 2026-10-22 — die Komentarze ÜBER ihn (nicht die, die ihn nur in einer Zelle nennen: die stehen unter „Inne"). */
-  const about = commentsOn(entry.id, store) as Entry[];
-  const other = back.filter((e) => !['quote', 'text', 'work', 'project', 'delivery'].includes(e.kind) && !about.includes(e));
-  const link = (e: Entry) => <a href={viewPath('library', e.libraryId, e.id)}>{e.kind === 'quote' ? `„${store.title(e)}”` : entryLine(e, store)}</a>;
-
-  const cited = entry.kind === 'text' || entry.kind === 'delivery' ? citedKeys(...markupsOf(entry)).map((k) => refTarget(store, k) as Entry | undefined).filter((e): e is Entry => e !== undefined) : [];
-
-  return (
-    <section className="lib-box">
-      <h2 className="lib-box-h">Powiązania</h2>
-      <p className="lib-box-sub">Komentarze o tym wpisie: {about.length}</p>
-      {about.length > 0 && <ul className="lib-rel">{about.map((c) => <li key={c.id}>{link(c)}</li>)}</ul>}
-      {library.writes && <a className="wk-link-btn" href={viewPath('library', library.libraryId, 'nowy', 'comment', `o=${entry.id}`)}>+ Komentarz</a>}
-      {entry.kind === 'work' && (
-        <>
-          <p className="lib-box-sub">Cytaty z tego źródła: {quotes.length} <span className="wk-hint">— lista i dodawanie pod polami</span></p>
-          {library.writes && <a className="wk-link-btn" href={viewPath('library', library.libraryId, 'nowy', 'quote', `work=${entry.id}`)}>+ Cytat (pełny formularz)</a>}
-        </>
-      )}
-      {entry.kind !== 'work' && quotes.length > 0 && <><p className="lib-box-sub">Cytaty</p><ul className="lib-rel">{quotes.map((q) => <li key={q.id}>{link(q)}</li>)}</ul></>}
-      {works.length > 0 && <><p className="lib-box-sub">Źródła</p><ul className="lib-rel">{works.map((w) => <li key={w.id}>{link(w)}</li>)}</ul></>}
-      {texts.length > 0 && <><p className="lib-box-sub">Przywołują go teksty</p><ul className="lib-rel">{texts.map((t) => <li key={t.id}>{link(t)}</li>)}</ul></>}
-      {projects.length > 0 && <><p className="lib-box-sub">W projekcie</p><ul className="lib-rel">{projects.map((o) => <li key={o.id}>{link(o)}</li>)}</ul></>}
-      {deliveries.length > 0 && entry.kind !== 'text' && <><p className="lib-box-sub">W wygłoszeniach</p><ul className="lib-rel">{deliveries.map((o) => <li key={o.id}>{link(o)}</li>)}</ul></>}
-      {other.length > 0 && <><p className="lib-box-sub">Inne</p><ul className="lib-rel">{other.map((o) => <li key={o.id}>{link(o)}</li>)}</ul></>}
-      {cited.length > 0 && <><p className="lib-box-sub">Ten tekst przywołuje</p><ul className="lib-rel">{cited.map((c) => <li key={c.id}>{link(c)}</li>)}</ul></>}
     </section>
   );
 }

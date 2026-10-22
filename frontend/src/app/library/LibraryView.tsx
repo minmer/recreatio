@@ -32,8 +32,10 @@ import {
 } from './library';
 import { originOf } from './libraryCite';
 import { LibraryEditor } from './LibraryEditor';
+import { PassageList } from './LibraryRelations';
+import { parseBible } from './bible';
 import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJson';
-import { ids, KINDS, kindOf, str, TEXT_STATUS, TEXT_TYPES, wordCount, type LibEntry } from './libraryKinds';
+import { ids, KINDS, kindOf, quoteOrder, str, TEXT_STATUS, TEXT_TYPES, wordCount, type LibEntry } from './libraryKinds';
 import { storeOf, useLibraryStore, type Entry, type LibraryStore } from './libraryStore';
 import { audienceWords } from './LibraryAreaBox';
 import { RebuildView } from './rebuild/RebuildView';
@@ -272,6 +274,8 @@ function presetFrom(part: string | undefined): Record<string, unknown> {
 /** Suchen über alles — Ergebnisse unter dem Feld, gleich welcher Art. */
 function SearchAll({ store, library }: { store: LibraryStore; library: OpenLibrary }) {
   const [query, setQuery] = useState('');
+  /* 2026-10-22 — eine Stelle der Schrift („Dz 1:14", „Psalm 23"): dazu, was auf sie zeigt. */
+  const spans = useMemo(() => (/\d/.test(query) ? parseBible(query) : []), [query]);
   const found = useMemo(() => (query.trim().length < 2 ? [] : store.search(query).slice(0, 12)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [query, store, store.revision]);
@@ -292,7 +296,8 @@ function SearchAll({ store, library }: { store: LibraryStore; library: OpenLibra
           ))}
         </ul>
       )}
-      {query.trim().length >= 2 && found.length === 0 && <p className="wk-hint">Nic nie znaleziono.</p>}
+      {query.trim().length >= 2 && found.length === 0 && spans.length === 0 && <p className="wk-hint">Nic nie znaleziono.</p>}
+      {spans.length > 0 && <div className="lib-search-passage"><PassageList store={store} spans={spans} /></div>}
     </div>
   );
 }
@@ -342,7 +347,8 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
     ? when(b).localeCompare(when(a))
     : (store.title(a)).localeCompare(store.title(b), 'pl'));
   if (kind === 'work' || kind === 'quote' || kind === 'person') {
-    const sortKey = (e: Entry) => (kind === 'quote' ? originOf(e, store) : lineOf(e, store)).toLowerCase();
+    /* 2026-10-22 — Zitate nach Werk und Stelle (die Schrift nach dem Kanon), nicht nach dem Wortlaut ihrer Herkunft. */
+    const sortKey = (e: Entry) => (kind === 'quote' ? quoteOrder(e, store) : lineOf(e, store).toLowerCase());
     list.sort((a, b) => sortKey(a).localeCompare(sortKey(b), 'pl'));
   }
   /* Die Themen stehen in der Ordnung ihres Baums, eingerückt. */

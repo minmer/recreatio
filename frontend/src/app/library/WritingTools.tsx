@@ -10,7 +10,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { WorkspaceError } from '../core/session';
 import { originOf } from './libraryCite';
 import { kindOf, str } from './libraryKinds';
-import { RefPicker, entryLine } from './LibraryPick';
+import { RefPicker } from './LibraryPick';
+import { entryLine } from './refLabels';
 import type { Entry, LibraryStore } from './libraryStore';
 
 /** Das Schreibfeld — mit Knöpfen, die an der Schreibmarke einfügen. */

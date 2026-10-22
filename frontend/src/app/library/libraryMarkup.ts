@@ -283,6 +283,20 @@ export function citedKeys(...sources: readonly string[]): string[] {
   return [...new Set(keys)];
 }
 
+/**
+ * 2026-10-22 — DIE VERWEISE EINES TEXTES MIT IHREN STELLEN (`[@bt, Dz 1,14]`,
+ * `![@q, s. 3]`, `[[Wort|@x]]` ohne Stelle), in der Reihenfolge, jeder
+ * einmal — für das Verzeichnis der Verweise und die Suche nach einer Stelle.
+ */
+export function markupRefs(source: string): { readonly key: string; readonly locator: string }[] {
+  const out = new Map<string, { key: string; locator: string }>();
+  const add = (key: string, locator: string) => { const id = `${key}\u0000${locator}`; if (!out.has(id)) out.set(id, { key, locator }); };
+  walkBlocks(parseMarkup(source),
+    (b) => { if (b.t === 'embed') add(b.key, b.locator); },
+    (i) => { if (i.t === 'cite') for (const one of i.items) add(one.key, one.locator); else if (i.t === 'ref') add(i.key, ''); });
+  return [...out.values()];
+}
+
 /* -- 2026-10-22: Verweise umschreiben ------------------------------------------------------- */
 
 const TOKEN_ONLY = new RegExp(`^${KEY}$`);

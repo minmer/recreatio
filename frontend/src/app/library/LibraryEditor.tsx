@@ -22,7 +22,8 @@ import { WorkspaceError } from '../core/session';
 import { QuoteIntake } from './QuoteIntake';
 import { CommentForm } from './CommentForm';
 import { AreaBox } from './LibraryAreaBox';
-import { DeleteBox, EntryJson, KeyBox, LatexBox, Relations, TAB_OF } from './LibraryEntryBoxes';
+import { DeleteBox, EntryJson, KeyBox, LatexBox, TAB_OF } from './LibraryEntryBoxes';
+import { PassageBox, Relations } from './LibraryRelations';
 import { FieldList, OutlineEditor, TextForm } from './LibraryTextForm';
 import { DeliveriesBox, DeliveryForm } from './DeliveryForm';
 
@@ -215,6 +216,7 @@ function Editor({ store, library, existing, kind, preset }: {
           )}
           {saved !== undefined && <AreaBox store={store} library={library} entry={saved} readOnly={readOnly} />}
           {saved !== undefined && kind === 'text' && <DeliveriesBox store={store} library={library} text={saved} readOnly={readOnly} />}
+          {saved !== undefined && kind === 'work' && saved.data.workType === 'bible' && <PassageBox store={store} work={saved} />}
           {saved !== undefined && <Relations store={store} library={library} entry={saved} />}
           {kind === 'quote' && str(data, 'text') !== '' && <section className="lib-box"><h2 className="lib-box-h">Podgląd</h2><QuoteFigure entry={live} look={store} /></section>}
           {saved !== undefined && (kind === 'text' || kind === 'project') && <LatexBox store={store} entry={live} />}

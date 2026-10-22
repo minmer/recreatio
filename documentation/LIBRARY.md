@@ -60,6 +60,27 @@ A comment (`comment.ts`) is its own entry, written once and used in many texts.
 - **Unreadable targets**: a reference whose target the reader cannot read shows "[odwołanie niedostępne]" — that it exists, nothing about the target, not even its key (`UNREADABLE`, `refLabel`).
 - Editor: `CommentForm.tsx` (subjects with locator and point; blocks with type switch, ↑↓×; cells as runs with "+ tekst" / "+ odwołanie"); preview with `CommentCard`. LaTeX: paragraphs, lists, `tabular`.
 
+## References and places in the Scripture (2026-10-22)
+
+**One reference index** (`library/refIndex.ts`) answers "who points here?" over every library and knowledge base this tab has open — computed in the browser from what the reader can already read; nothing is stored, nothing goes to the service. It finds, without knowing the kind (`refsOf`):
+
+- ids in fields (a quote's work, a text's topics, a Cogita reference field);
+- references in markup, with their place: `[@x, Dz 1,14]`, `![@x, s. 3]`, `[[words|@x]]` — in the body, the further information, every plan point (the hit names the point), what a delivery added;
+- a comment's subjects `{ref, locator}` and the references in its list items and table cells;
+- the source of an uncertain Cogita value `{work, locator}`;
+- documents of a knowledge base: revisions, flows, views, collections, card templates, add forms — every id in them. Merges and settings are bookkeeping and do not count; fields starting with `_` neither.
+
+Keys in markup resolve first in the entry's own store, then in the libraries, then in the other bases.
+
+- **"Powiązania"** under every entry (`LibraryRelations.tsx`): comments about it, quotes, texts with the plan point ("plan, punkt 2.1 · Dz 1,14"), deliveries, projects, comments that mention it, and per knowledge base its entries and documents ("Powtórka: „Dzieje”"). "Szukaj we wszystkich, które możesz czytać" opens every library and base the account may read (`LibraryStore.openEverything`); "Sprawdź strony" looks through the pages this account leads (`pageUses.ts`: `loadDesk` → `loadPage`, sealed pages with this browser's key) and lists the modules that show the entry — other pages are never asked.
+- **Cogita** shows the same under "Odwołują się tutaj" ("Wspominają go": knowledge texts linking with `[[…]]`, revisions, flows, library texts).
+- **The library map** draws comments too, and grey lines for what is not a field (markup, comment subjects and cells, a project's outline).
+
+**Places in the Scripture** (`library/bible.ts`) are read, never stored: a locator stays the text someone wrote. The book table has the 73 books with Polish (Biblia Tysiąclecia), Latin (Nova Vulgata) and English names and abbreviations ("Dz", "Act", "Acts", "Dzieje Apostolskie", "1 Kor", "I Cor", "1 Corinthians", "Ewangelia według św. Jana"). The parser reads `Dz 1,14`, `Dz 1:14`, ranges `1,14-16`, across chapters `Łk 1,26–2,5`, lists `Dz 1,8.14` (English `Acts 1:8,14`), whole chapters `Ps 23`, `Rdz 1-3`, several places `Mt 5,3-12; 6,1; Łk 6,20` (the book carries on), the second numbering of the psalms `Ps 51(50),3`, parts of a verse `22,2a`, "i następne" `16,9nn`. Only references to a work with `workType: bible` are read this way.
+
+- **"Fragment Pisma"** on a Bible work: type a place and see every quote, comment, plan point, text and knowledge entry pointing at an overlapping place ("Dz 1:14" also finds "Dz 1,12-14"), in every edition of the Scripture the reader has (another edition shows its siglum). The library search does the same when the query is a place ("Psalm 23").
+- **Quotes stand in canonical order** (`quoteOrder`, `bibleKey`): "Rdz" before "Mt", "Dz 1,8" before "Dz 1,14"; pages of other works sort as numbers ("s. 9" before "s. 10").
+
 ## Reading on pages
 
 The service never decrypts. A page opens libraries in the browser (`libraryOpen.ts`):

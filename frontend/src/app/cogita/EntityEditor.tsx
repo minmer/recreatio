@@ -20,6 +20,9 @@ import { linkedOf } from './store';
 import { creatorFor, EntityPicker, Markup, MediaView, entityName, useAsync, useBusy, useCtx } from './ui';
 import { loadVersions, openVersion } from './versions';
 import { askText } from '../ui/dialogs';
+import { loadedStores } from '../library/libraryStore';
+import { referenceIndex } from '../library/refIndex';
+import { hitHref, hitTitle, isBooksStore, whereText } from '../library/refLabels';
 import { Loading } from '../ui/Loading';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -368,7 +371,21 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function Backlinks({ entity, onOpen }: { entity: Entity; onOpen: (id: string) => void }) {
   const { lib } = useCtx();
   const links = lib.backlinks(entity.id);
-  if (links.length === 0) return null;
+  /*
+    2026-10-22 — dazu, was nicht über ein Verweisfeld zeigt (`library/refIndex.ts`):
+    [[Wort|@…]] in einem Wissen, Powtórki, Przebiegi, Widoki, Zbiory, Texte und
+    Komentarze der Bibliotheken — aus allem, was dieser Tab offen hat.
+  */
+  const viaField = new Set(links.map((l) => l.from));
+  const more = new Map<string, { hit: ReturnType<typeof moreHits>[number]; places: string[] }>();
+  for (const hit of moreHits(entity.id)) {
+    if (hit.from.id === entity.id || viaField.has(hit.from.id)) continue;
+    const row = more.get(hit.from.id) ?? { hit, places: [] };
+    const place = whereText(hit);
+    if (place !== '' && !row.places.includes(place)) row.places.push(place);
+    more.set(hit.from.id, row);
+  }
+  if (links.length === 0 && more.size === 0) return null;
   const by = new Map<string, string[]>();
   for (const l of links) by.set(l.label, [...(by.get(l.label) ?? []), l.from]);
   return (
@@ -379,9 +396,26 @@ function Backlinks({ entity, onOpen }: { entity: Entity; onOpen: (id: string) =>
           {ids.map((id, i) => <span key={id}>{i > 0 && ', '}<button type="button" className="cg-ref" onClick={() => onOpen(id)}>{entityName(lib, id)}</button></span>)}
         </div>
       ))}
+      {more.size > 0 && (
+        <div>
+          <span className="cg-muted">Wspominają go:</span>{' '}
+          {[...more.values()].map(({ hit, places }, i) => (
+            <span key={hit.from.id}>
+              {i > 0 && ', '}
+              {lib.entity(hit.from.id) !== undefined
+                ? <button type="button" className="cg-ref" onClick={() => onOpen(hit.from.id)}>{entityName(lib, hit.from.id)}</button>
+                : <a className="cg-ref" href={hitHref(hit.from, hit.store)}>{hitTitle(hit.from, hit.store)}</a>}
+              {places.length > 0 && <span className="cg-muted"> ({places.join('; ')})</span>}
+            </span>
+          ))}
+        </div>
+      )}
     </Section>
   );
 }
+
+/** Was im ganzen Tab auf einen Eintrag zeigt — Bibliotheken und Bazy wiedzy. */
+const moreHits = (id: string) => referenceIndex(loadedStores(), isBooksStore).to(id);
 
 function EntityCards({ entity }: { entity: Entity }) {
   const { lib } = useCtx();

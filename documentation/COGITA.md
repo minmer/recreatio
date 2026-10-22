@@ -76,7 +76,7 @@ Formula, code and duration are not field types.
 - A source is a library work plus a locator (`s. 23`, `J 3,16`). The existing citation code formats it as a footnote [B4].
 
 **Relations:**
-- A reference field names the other side (“wrote” / “written by”), and the other side shows it as a backlink [B9].
+- A reference field names the other side (“wrote” / “written by”), and the other side shows it as a backlink [B9]. Since 2026-10-22 "Odwołują się tutaj" also lists what points without a field ("Wspominają go"): `[[…|@…]]` in knowledge texts, revisions, flows, views, collections and texts or comments of libraries — from the one reference index (LIBRARY.md, "References and places in the Scripture").
 - A symmetric relation is stored once [B10].
 - A relation with data of its own is an entry of a relation kind [B9].
 

@@ -19,6 +19,7 @@
  * (`comment`) in einem privaten Bereich und zeigt auf das, worum es geht.
  */
 
+import { locatorKey } from './bible';
 import { blockMarkups, blockRefs, blocksOf, commentTitle } from './comment';
 import { mapRefTokens } from './libraryMarkup';
 
@@ -282,10 +283,7 @@ const QUOTE: LibKind = {
     { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy — odwołania' }
   ],
   title: (data) => clip(str(data, 'text').replace(/\s+/g, ' ').trim() || 'Cytat', 90),
-  sort: (entry, look) => {
-    const work = look.get(ids(entry.data, 'work')[0] ?? '');
-    return clip(`${work === undefined ? '~' : WORK.sort(work, look)} ${str(entry.data, 'locator')}`, 64);
-  },
+  sort: (entry, look) => quoteOrder(entry, look).slice(0, 64),
   example: {
     key: 'ratzinger2007-1',
     data: {
@@ -294,6 +292,17 @@ const QUOTE: LibKind = {
     }
   }
 };
+
+/**
+ * 2026-10-22 — WIE ZITATE STEHEN: nach dem Werk, dann nach der Stelle — in der
+ * Schrift nach dem Kanon („Dz 1,8" vor „Dz 1,14", „Rdz" vor „Mt"), sonst mit
+ * Zahlen als Zahlen („s. 9" vor „s. 10").
+ */
+export function quoteOrder(entry: LibEntry, look: Lookup): string {
+  const work = look.get(ids(entry.data, 'work')[0] ?? '');
+  const bible = work !== undefined && str(work.data, 'workType') === 'bible';
+  return `${work === undefined ? '~' : WORK.sort(work, look).slice(0, 36)}|${locatorKey(str(entry.data, 'locator'), bible)}`;
+}
 
 /* -- Themen -------------------------------------------------------------------------------- */
 

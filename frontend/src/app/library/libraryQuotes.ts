@@ -27,6 +27,7 @@
  * wie die der ganzen Bibliothek (siehe [[json-import-export]]).
  */
 
+import { locatorKey } from './bible';
 import { blockData, blocksOf, commentsAbout, legacyBlocks } from './comment';
 import { isUuid } from './library';
 import { citeSegs, newCiteState, segText } from './libraryCite';
@@ -101,11 +102,6 @@ export function locatorOf(page: unknown, locator: unknown): string {
   return p;
 }
 
-/** Die erste Seitenzahl einer Stelle — zum Ordnen nach Seiten. */
-export const pageNumber = (locator: string): number => {
-  const m = /(\d+)/.exec(locator);
-  return m === null ? Number.POSITIVE_INFINITY : Number(m[1]);
-};
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -264,8 +260,9 @@ export async function importQuotes(
 
 /** Die Zitate des Buches als Dokument — zum Nachbessern (mit einer KI) und wieder Hereinholen. */
 export function exportQuotes(work: LibEntry, base: QuoteBase): Record<string, unknown> {
+  const bible = str(work.data, 'workType') === 'bible';
   const quotes = base.all().filter((e) => e.kind === 'quote' && ids(e.data, 'work').includes(work.id))
-    .sort((a, b) => pageNumber(str(a.data, 'locator')) - pageNumber(str(b.data, 'locator')));
+    .sort((a, b) => locatorKey(str(a.data, 'locator'), bible).localeCompare(locatorKey(str(b.data, 'locator'), bible)));
   const topicName = (id: string) => { const t = base.get(id); return t === undefined ? null : str(t.data, 'name'); };
   /* Ein Komentarz aus Absätzen über genau dieses Zitat reist als `comment` mit; reichere (Listen, Tabellen) bleiben in der Bibliothek. */
   const commentOf = (id: string): string => commentsAbout(id, base.all())
