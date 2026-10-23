@@ -43,6 +43,8 @@ public static partial class Library
         app.MapGet("/workspace/library/{id:guid}/entries", EntriesAsync);
         app.MapPut("/workspace/library/{id:guid}/entry/{entryId:guid}", SaveAsync);
         app.MapDelete("/workspace/library/{id:guid}/entry/{entryId:guid}", RemoveAsync);
+        /* 2026-10-23 — viele auf einmal (Zaznaczone → Usuń, „Stare wpisy"): wie einzeln, in einer Transaktion. */
+        app.MapPost("/workspace/library/{id:guid}/entries/remove", RemoveManyAsync);
         /* 2026-10-22 (Schritt 8) — nur noch Zurückziehen: die alten offenen Fassungen gehen, gelesen wird über /open. */
         app.MapPost("/workspace/library/{id:guid}/publish", PublishAsync);
 
@@ -571,6 +573,65 @@ public static partial class Library
 
         await ctx.Response.WriteAsJsonAsync(new { entryId = Ids.ToText(entryId), deleted = changed > 0 });
     }
+
+    public sealed record RemoveManyRequest(List<string>? Ids);
+
+    /// <summary>
+    /// 2026-10-23 — VIELE EINTRÄGE LÖSCHEN, ausdrücklich und bestätigt (im
+    /// Browser: zaznaczone wpisy, „Stare wpisy"). Je Eintrag dasselbe wie
+    /// <see cref="RemoveAsync"/>: die letzte Hülle bleibt als Fassung, ein
+    /// Grabstein für den Abgleich. Höchstens <see cref="MaxRemove"/> auf einmal.
+    /// </summary>
+    private static async Task RemoveManyAsync(HttpContext ctx, Db db, Guid id, RemoveManyRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var ids = new List<Guid>();
+        foreach (var text in body.Ids ?? [])
+        {
+            if (!Guid.TryParse(text, out var one)) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung wpisu."); return; }
+            if (!ids.Contains(one)) ids.Add(one);
+        }
+        if (ids.Count == 0 || ids.Count > MaxRemove)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, $"Od 1 do {MaxRemove} wpisów naraz.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        if (await AllowedAsync(ctx, connection, who.Value.AccountId, id, Capability.Write) is null) return;
+
+        var now = DateTimeOffset.UtcNow;
+        var deleted = 0;
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+        foreach (var entryId in ids)
+        {
+            await using var drop = new SqlCommand("""
+                INSERT INTO app.library_entry_version (entry_id, version, kind, epoch, sealed, written_at, written_by_account_id)
+                SELECT id, version, kind, epoch, sealed, updated_at, written_by_account_id
+                  FROM app.library_entry
+                 WHERE id = @entry AND library_id = @library AND sealed IS NOT NULL
+                   AND NOT EXISTS (SELECT 1 FROM app.library_entry_version v WHERE v.entry_id = @entry AND v.version = app.library_entry.version);
+                DELETE FROM app.library_public_ref WHERE entry_id = @entry OR ref_id = @entry;
+                UPDATE app.library_entry
+                   SET sealed = NULL, deleted_at = @now, updated_at = @now, version = version + 1,
+                       published_at = NULL, published_as = NULL, public_key = NULL, public_sort = NULL,
+                       public_summary = NULL, public_json = NULL
+                 WHERE id = @entry AND library_id = @library AND deleted_at IS NULL;
+                SELECT @@ROWCOUNT;
+                """, connection, tx);
+            drop.Parameters.AddWithValue("@entry", entryId);
+            drop.Parameters.AddWithValue("@library", id);
+            drop.Parameters.AddWithValue("@now", now);
+            deleted += Convert.ToInt32(await drop.ExecuteScalarAsync(ctx.RequestAborted) ?? 0);
+        }
+        await tx.CommitAsync(ctx.RequestAborted);
+
+        await ctx.Response.WriteAsJsonAsync(new { deleted });
+    }
+
+    private const int MaxRemove = 500;
 
 private static Task Fail(HttpContext ctx, int status, string message)
     {

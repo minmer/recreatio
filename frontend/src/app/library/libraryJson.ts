@@ -420,7 +420,7 @@ export function libraryDescription(): string {
     return `### "${def.kind}" — ${def.label}\n${def.says}${def.keyed ? ' Ma klucz cytowania.' : ''}\n"data":\n${fields}\nPrzykład:\n${JSON.stringify(example, null, 2)}`;
   }).join('\n\n');
 
-  return `# Biblioteka jako JSON ("${LIBRARY_FORMAT}", wersja 1)
+  return `# Biblioteka jako JSON ("${LIBRARY_FORMAT}", wersja ${LIBRARY_VERSION})
 
 Co robi import:
 - Każdy wpis to { "id", "kind", "key", "data" }. Wpis z kennung z eksportu (albo z kluczem istniejącego wpisu tego samego rodzaju) jest ZMIENIANY — tylko pola podane w "data"; pola, których nie ma, zostają. Żeby wyczyścić pole, podaj null.

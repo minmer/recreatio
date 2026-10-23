@@ -1093,3 +1093,67 @@ the text). LaTeX prints the same with `\emph{…}`.
 2. Wpisy → new Pytanie: form "number", answers "12", unit "N·m", „Wielkość” = moment siły. In Powtórki (or a page with
    the module „Pytanie”, form Liczba, same settings) answer "12 J": "Niestety nie" with the reason. Then "0,012 kN·m":
    "Dobrze!".
+
+---
+
+# Part two: three parts — Library (sources), Cogita (knowledge), Scriptorium (writing) (2026-10-23 →)
+
+The owner's task "Three parts: Library (sources), Cogita (knowledge), Scriptorium (writing)" replaces parts of the
+steps above:
+- the Library keeps only works, quotes, persons and files;
+- Cogita holds the owner's own schemas, without built-in content kinds or topics;
+- the new Scriptorium (`app.library.kind = 'writing'`) holds texts, deliveries, projects and the owner's text types;
+- references run one way: Scriptorium → Library and Cogita, Cogita → Library, Library → Library.
+
+All current content is test data, so no old content is migrated. The rule "no user data is deleted" is lifted only for
+the owner's explicit, confirmed deletions.
+
+## P1 — Safety check and delete tools
+
+**Safety check (section 3.1)**
+- One read-only query ran on production (in a transaction that was rolled back). It found four containers:
+  - "Biblioteka": books, 14 entries, written before writers were recorded;
+  - a knowledge base: 20 entries, one writing account, one learning batch;
+  - a knowledge base: 26 entries, one writing account;
+  - "Kazania, konferencje i rekolekcje": books, 210 entries, one writing account.
+- Migration 0123 is applied there.
+- The permission guard blocked the second query: members of the areas, writers, learners and pages using the
+  containers, printed as counts only. The owner then confirmed that all four containers and the pages built on them
+  are his, so every step goes ahead.
+
+**Built**
+- **Many entries deleted at once:**
+  - `POST /workspace/library/{id}/entries/remove` (`Library.cs`, up to 500 ids, write access) removes each entry as
+    a single delete does: the last envelope stays as a version, and the row becomes a tombstone for sync. All of it
+    runs in one transaction;
+  - `LibraryStore.removeMany` sends packets of 200.
+- **Selecting in the Library's lists** (`library/EntryPick.tsx`):
+  - own entries get a checkbox, and Esc clears the selection;
+  - a bar at the bottom offers "Zaznacz wszystkie", "Odznacz" and "Usuń (N)";
+  - the question before deleting says how many other entries point at the chosen ones;
+  - Cogita's Wpisy already had this (`EntitySelection.tsx`).
+- **"Stare wpisy"** (`library/OldEntries.tsx`) lists entries of kinds this version no longer knows, with their name
+  and old kind, to select and delete. The tab appears in a library only when there are such entries; that happens
+  from P2 on. Cogita gets the same list in P4.
+- **Deleting a whole library or knowledge base** with all its entries, files, learning batches and versions already
+  existed. It sits in Ustawienia: type the name, then "Usuń na zawsze". The Scriptorium gets the same in P3.
+
+**Checks**
+- All check scripts and both builds pass.
+- `clear-api.mjs` (LocalDB):
+  - seven entries are written;
+  - a stranger's batch delete is refused, and an empty request too;
+  - five are removed at once, and only two remain on the service;
+  - then the library and a knowledge base are deleted whole.
+
+**Owner must run**
+- Deploy the API and the website.
+- Then delete the test data in the browser:
+  - Biblioteka → the library → Ustawienia → "Usuń bibliotekę";
+  - Nauka → a base → Ustawienia → "Usuń bazę wiedzy";
+  - or only some entries: tick them in a list → "Usuń".
+
+**Test in the browser**
+1. Biblioteka → a library → Osoby: tick two entries, "Usuń (2)", confirm. Both are gone.
+2. Biblioteka → a test library → Ustawienia → type its name → "Usuń na zawsze". The list no longer shows it.
+3. Nauka → a test base → Ustawienia → "Usuń bazę wiedzy" → type its name → "Usuń na zawsze".

@@ -45,6 +45,8 @@ import { topicNode, topicTree } from './topics';
 import { useMe, type Me } from '../core/me';
 import { viewPath } from '../routes';
 import { LibraryMap } from './LibraryMap';
+import { PickBar, PickBox, usePicked } from './EntryPick';
+import { OldEntries, oldEntriesOf } from './OldEntries';
 import { WorkspaceError, type Who } from '../core/session';
 import { Loading } from '../ui/Loading';
 
@@ -236,7 +238,10 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
     return <LibraryEditor store={store} library={library} entryId={null} kind={trail[1]!} preset={presetFrom(trail[2])} />;
   }
 
-  const tab = first === 'ustawienia' || first === 'json' || first === 'mapa' ? first : (TABS.find((t) => t.slug === first)?.slug ?? 'teksty');
+  const tab = first === 'ustawienia' || first === 'json' || first === 'mapa' || first === 'stare' ? first : (TABS.find((t) => t.slug === first)?.slug ?? 'teksty');
+  /* 2026-10-23 — Wpisy rodzajów, których ta wersja nie zna: do przejrzenia i usunięcia. */
+  const known = (kind: string) => kindOf(kind) !== undefined;
+  const old = oldEntriesOf(store, known).length;
 
   return (
     <>
@@ -252,11 +257,13 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
         <a className={tab === 'mapa' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'mapa')}>Mapa</a>
         <a className={tab === 'json' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'json')}>Import / eksport</a>
         <a className={tab === 'ustawienia' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'ustawienia')}>Ustawienia</a>
+        {(old > 0 || tab === 'stare') && <a className={tab === 'stare' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'stare')}>Stare wpisy <span className="lib-count">{old}</span></a>}
       </nav>
       <div className="wk-panel">
         {tab === 'ustawienia' ? <Settings me={me} library={library} areas={areas} onChanged={onChanged} />
           : tab === 'json' ? <LibraryJson store={store} library={library} />
           : tab === 'mapa' ? <LibraryMap store={store} libraryId={library.libraryId} />
+          : tab === 'stare' ? <OldEntries store={store} known={known} writes={library.writes} where="Teksty, wygłoszenia i projekty są teraz w Skryptorium, komentarze to rodzaj w Nauce." />
           : <KindList store={store} library={library} kind={TABS.find((t) => t.slug === tab)!.kind} />}
       </div>
     </>
@@ -362,6 +369,8 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
   }
 
   const add = viewPath('library', library.libraryId, 'nowy', kind);
+  /* 2026-10-23 — zaznaczyć wiele i usunąć (tylko własne wpisy tej biblioteki). */
+  const { picked, toggle, set } = usePicked();
 
   return (
     <>
@@ -395,7 +404,8 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
       ) : (
         <ul className="lib-list">
           {list.map((entry) => (
-            <li key={entry.id} className={kind === 'topic' ? `lib-topic-row is-d${Math.min(4, depth.get(entry.id) ?? 0)}` : undefined}>
+            <li key={entry.id} className={[kind === 'topic' ? `lib-topic-row is-d${Math.min(4, depth.get(entry.id) ?? 0)}` : '', library.writes ? 'has-pick' : ''].filter(Boolean).join(' ') || undefined}>
+              {library.writes && (entry.libraryId === store.libraryId ? <PickBox checked={picked.has(entry.id)} label={store.title(entry)} onToggle={() => toggle(entry.id)} /> : <span />)}
               <a className="lib-row" href={viewPath('library', entry.libraryId, entry.id)}>
                 <span className="lib-row-title">
                   {kind === 'quote' ? <q>{store.title(entry)}</q> : store.title(entry)}
@@ -409,6 +419,7 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
         </ul>
       )}
       <LibraryJson key={kind} store={store} library={library} only={kind} />
+      <PickBar store={store} picked={picked} all={list.filter((e) => e.libraryId === store.libraryId).map((e) => e.id)} onPicked={set} writes={library.writes} />
     </>
   );
 }

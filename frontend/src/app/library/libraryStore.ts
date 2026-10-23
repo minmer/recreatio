@@ -18,7 +18,7 @@ import { idbDelete, idbForget, idbGet, idbPut } from '../core/idb';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import {
-  forgetLibraryNames, loadEntries, loadLibraries, moveEntry, openedLibraryKind, openEntry, openLibraries, putEntry, removeEntry, sealEntry, withdrawEntries,
+  forgetLibraryNames, loadEntries, loadLibraries, moveEntry, openedLibraryKind, openEntry, openLibraries, putEntry, removeEntries, removeEntry, sealEntry, withdrawEntries,
   type EntryDoc, type LibraryRow, type PublishedAs, type SealedEntry
 } from './library';
 import { originOf } from './libraryCite';
@@ -515,6 +515,25 @@ export class LibraryStore implements Lookup {
     await removeEntry(this.libraryId, id);
     this.drop(id);
     this.changed();
+  }
+
+  /**
+   * 2026-10-23 — VIELE AUF EINMAL LÖSCHEN (Zaznaczone → Usuń, „Stare wpisy"):
+   * nur eigene Einträge, in Paketen zu 200. Was danach noch da ist, gleicht
+   * der nächste Abgleich ab.
+   */
+  async removeMany(ids: readonly string[], progress?: (done: number, total: number) => void): Promise<number> {
+    const own = ids.filter((id) => this.entries.has(id));
+    let done = 0;
+    for (let at = 0; at < own.length; at += 200) {
+      const chunk = own.slice(at, at + 200);
+      await removeEntries(this.libraryId, chunk);
+      for (const id of chunk) this.drop(id);
+      done += chunk.length;
+      progress?.(done, own.length);
+      this.changed();
+    }
+    return done;
   }
 
   /**

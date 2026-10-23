@@ -188,6 +188,10 @@ export const putEntry = (
 export const removeEntry = (libraryId: string, entryId: string): Promise<{ deleted: boolean }> =>
   call(`/workspace/library/${encodeURIComponent(libraryId)}/entry/${encodeURIComponent(entryId)}`, { method: 'DELETE' });
 
+/** 2026-10-23 — viele auf einmal (höchstens 500 je Aufruf): ausdrücklich gewählt und bestätigt. */
+export const removeEntries = (libraryId: string, ids: readonly string[]): Promise<{ deleted: number }> =>
+  call(`/workspace/library/${encodeURIComponent(libraryId)}/entries/remove`, { method: 'POST', body: JSON.stringify({ ids }) });
+
 /** 2026-10-22 — einen Eintrag in die Bibliothek eines anderen Bereichs tragen: dieselbe Kennung, neu versiegelt. */
 export const moveEntry = (
   libraryId: string, entryId: string, body: { toLibrary: string; kind: string; epoch: number; sealed: string; version: number }
