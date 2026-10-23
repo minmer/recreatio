@@ -22,6 +22,12 @@
 .wk-link-qr { padding: 0.5rem; background: #ffffff; border-radius: 6px; line-height: 0; }
 .wk-confirm { display: grid; gap: 0.5rem; padding: 0.75rem; border: 1px solid var(--wk-danger); border-radius: 6px; }
 
+/* -- Dostęp dla AI (0126) -- */
+
+.wk-ai-title { margin-top: 0; }
+.wk-ai-when { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-ai-parts { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; font-size: var(--wk-text-sm); }
+
 /* -- Die Glocke (0067) -- */
 
 .wk-bell { position: relative; margin-left: auto; }

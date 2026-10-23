@@ -160,6 +160,9 @@ Module.Map(app);
 Library.Map(app);
 LibraryCatalog.Map(app);
 
+/* 0126 — Dostęp dla AI: ein Link, über den ein Assistent die drei Teile eines Bereichs liest — nur lesen. */
+AiAccess.Map(app);
+
 /* 0109 — Cogita: Antworten und Kenntnis (versiegelt, an die Annahme), direkt veröffentlichte Bausteine, Sitzungen, Spiele. */
 Cogita.Map(app);
 app.MapHub<CogitaHub>("/cogita/hub");

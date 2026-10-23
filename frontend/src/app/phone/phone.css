@@ -174,6 +174,18 @@
 .ph-shared-note { margin: 0; color: var(--wk-muted); font-size: var(--wk-text-sm); }
 .ph-shared .wk-actions { margin: 0; }
 
+/* 2026-10-24 — während die Datei kommt und aufgeht: was gerade geschieht, ein Balken, die Bitte um Geduld. */
+.ph-shared-busy { display: grid; gap: var(--wk-space-3); padding: var(--wk-space-4); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); }
+.ph-shared-busy .ph-shared-bar { margin: 0; height: 0.625rem; }
+.ph-shared-wait { position: relative; height: 0.625rem; border-radius: var(--wk-radius-pill); background: var(--wk-sunk); overflow: hidden; }
+.ph-shared-wait > span { position: absolute; inset: 0 auto 0 0; width: 35%; border-radius: inherit; background: var(--wk-accent); animation: ph-shared-wait 1.4s ease-in-out infinite; }
+@keyframes ph-shared-wait { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+@media (prefers-reduced-motion: reduce) {
+  .ph-shared-wait > span { width: 100%; animation: none; opacity: 0.45; }
+}
+.ph-shared-patience { display: flex; gap: var(--wk-space-2); align-items: flex-start; margin: 0; padding: var(--wk-space-2) var(--wk-space-3); border-radius: var(--wk-radius-sm); background: var(--wk-accent-soft); color: var(--wk-ink-2); }
+.ph-shared-patience > svg { flex: none; margin-top: 0.15em; }
+
 /* Die eigenen Links. */
 .ph-shares-intro { margin: 0 0 var(--wk-space-3); color: var(--wk-muted); }
 .ph-shares { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); }

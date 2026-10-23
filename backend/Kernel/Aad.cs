@@ -336,6 +336,20 @@ public enum Field
     LibraryEntry,
 
     /// <summary>
+    /// 0126 — Dostęp dla AI: der Schlüssel seiner Abschriften (C) einmal unter
+    /// dem Schlüssel des Bereichs (für die, die dort schreiben) und einmal
+    /// verpackt unter dem Schlüssel aus dem Link (für den Dienst, solange eine
+    /// Anfrage den Link trägt); das Geheimnis des Links unter dem Schlüssel des
+    /// Bereichs (für die, die ihn noch einmal kopieren); eine Abschrift eines
+    /// Behälters unter C. Vier Etiketten — keine Hülle lässt sich an die Stelle
+    /// einer anderen schieben.
+    /// </summary>
+    AiAccessKey,
+    AiAccessWrap,
+    AiAccessLink,
+    AiSnapshot,
+
+    /// <summary>
     /// 0071 — ein Haushalt (Familie, Personen, Kontakt, Notizen, die Besuche
     /// der Kolęda) als EIN Dokument unter dem Schlüssel des Bereichs, dem das
     /// Adressverzeichnis gehört. Die Adresse selbst liegt offen daneben.
@@ -599,6 +613,10 @@ public readonly record struct Aad
         Field.ParishGroupNote         => "parish_group_note",
         Field.LibraryName             => "library_name",
         Field.LibraryEntry            => "library_entry",
+        Field.AiAccessKey             => "ai_access_key",
+        Field.AiAccessWrap            => "ai_access_wrap",
+        Field.AiAccessLink            => "ai_access_link",
+        Field.AiSnapshot              => "ai_snapshot",
         Field.Household               => "household",
         Field.SeatRoleKey             => "seat_role_key",
         Field.ModuleName              => "module_name",

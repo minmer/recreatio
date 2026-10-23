@@ -12,6 +12,7 @@ import { ShareButton } from '../links/Share';
 import { type Called, namesInArea } from '../roles/called';
 import type { RoleGraphData } from '../roles/roles';
 import { viewPath } from '../routes';
+import { later } from '../ui/later';
 import { Loading } from '../ui/Loading';
 import { PageHeader } from '../ui/PageHeader';
 import { Segment } from '../ui/Segment';
@@ -24,6 +25,9 @@ import { daysLeft, memberUntil, noteRenewal, RENEW_BEFORE_DAYS, renewalFailure, 
 import { AREA_TABS, type AreaTab, KIND_NAME, LEVEL_NAME, OTHER_LEVEL } from './areaWords';
 
 /* -- Ein Bereich, ganz ------------------------------------------------------ */
+
+/** 0126 — Dostęp dla AI: erst geladen, wenn die Karte offen ist. */
+const AiAccessPanel = later(() => import('../aiAccess/AiAccessPanel').then((m) => m.AiAccessPanel));
 
 /** Welcher Abschnitt offen ist. Einer ist es immer. */
 
@@ -196,7 +200,12 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
           To Twoja prywatna przestrzeń: terminy i zadania zapisane jako „Tylko ja" widzisz tylko Ty.
           Nikogo tu nie dodasz i nie otworzysz jej dla innych — żeby coś pokazać innym, wybierz ich grupę.
         </p>
-      ) : (
+      ) : null}
+
+      {/* 0126 — auch der eigene Bereich hält Bibliothek und Skryptorium: sein Link für eine KI steht gleich hier. */}
+      {area.personal === true && tab !== 'ustawienia' && <AiAccessPanel area={area} ring={ring} />}
+
+      {area.personal === true ? null : (
         <nav className="wk-tabs" aria-label={area.name}>
           {AREA_TABS.map((one) => (
             <a key={one.id} className={tab === one.id ? 'wk-tab wk-tab-on' : 'wk-tab'} aria-current={tab === one.id ? 'page' : undefined}
@@ -247,6 +256,10 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
           <AccessLinks ring={ring} self={self} areas={areas} focusAreaId={area.areaId} busy={busy} onAct={onAct} />
         </div>
       )}
+
+      {/* -- 0126: Dostęp dla AI — jedes Mitglied sieht, dass es ihn gibt ------ */}
+
+      {area.personal !== true && tab === 'dostep' && <AiAccessPanel area={area} ring={ring} />}
 
       {/* -- Wer hier ist ---------------------------------------------- */}
 

@@ -157,6 +157,16 @@ export const Field = {
   LibraryEntry: 'library_entry',
 
   /*
+   * 0126 — Dostęp dla AI (`aiAccess/aiAccess.ts`): der Schlüssel der Abschriften
+   * unter dem Schlüssel des Bereichs und unter dem aus dem Link, das Geheimnis
+   * des Links unter dem Schlüssel des Bereichs, eine Abschrift unter ihrem Schlüssel.
+   */
+  AiAccessKey: 'ai_access_key',
+  AiAccessWrap: 'ai_access_wrap',
+  AiAccessLink: 'ai_access_link',
+  AiSnapshot: 'ai_snapshot',
+
+  /*
    * 0065 — die beiden Schlüssel einer Linkrolle, versiegelt unter dem
    * Geheimnis im Link (3.12: „der Rollenschlüssel, der mit einer Einladung reist").
    */

@@ -54,6 +54,16 @@ public static class Crypto
     public static string InfoInvitation(string tokenSecret) => $"recreatio:v1:invitation:{tokenSecret}";
 
     /// <summary>
+    /// 0126 — Der Schlüssel eines Dostęp dla AI, abgeleitet aus dem Geheimnis
+    /// im Link (IKM: dessen UTF-8) und an die Kennung des Zugangs gebunden.
+    /// Unter ihm liegt der Schlüssel der Abschriften. Der Dienst speichert das
+    /// Geheimnis nicht — er kann eine Abschrift nur öffnen, während eine
+    /// Anfrage den Link trägt. Der Browser leitet ihn genauso ab
+    /// (<c>aiAccess/aiAccess.ts</c>).
+    /// </summary>
+    public static string InfoAiAccess(Guid accessId) => $"recreatio:v1:ai-access:{Ids.ToText(accessId)}";
+
+    /// <summary>
     /// 3.4 — Das Salz einer Konto-Verpflichtung im Ketteneintrag.
     ///
     /// Es wird aus dem Servergeheimnis und der Eintragskennung ABGELEITET und

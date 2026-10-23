@@ -447,6 +447,7 @@ export class LibraryStore implements Lookup {
     try {
       const entry = await this.write(input, newest);
       this.changed();
+      this.written();
       return entry;
     } catch (e) {
       if (e instanceof WorkspaceError && e.verdict === 'stale') await this.sync().catch(() => undefined);
@@ -484,8 +485,20 @@ export class LibraryStore implements Lookup {
     };
     await Promise.all(Array.from({ length: Math.min(parallel, inputs.length) }, worker));
     this.changed();
+    if (saved.length > 0) this.written();
     if (stale) await this.sync().catch(() => undefined);
     return { saved, failed };
+  }
+
+  /**
+   * 0126 — NACH EIGENEM SCHREIBEN: schreibt ein Dostęp dla AI diesen Behälter
+   * ab, entsteht seine Abschrift neu, wenn Ruhe ist (`aiAccess/aiAccess.ts`,
+   * nachgeladen — ein Bereich ohne Link kostet eine Frage je zehn Minuten).
+   */
+  private written(): void {
+    const ring = this.ring;
+    if (ring === null) return;
+    void import('../aiAccess/aiAccess').then((m) => m.libraryWritten(ring, this.areaId, this.libraryId)).catch(() => undefined);
   }
 
   private async writeKey(): Promise<{ epoch: number; key: Uint8Array }> {
@@ -523,6 +536,7 @@ export class LibraryStore implements Lookup {
     await removeEntry(this.libraryId, id);
     this.drop(id);
     this.changed();
+    this.written();
   }
 
   /**
@@ -541,6 +555,7 @@ export class LibraryStore implements Lookup {
       progress?.(done, own.length);
       this.changed();
     }
+    if (done > 0) this.written();
     return done;
   }
 
@@ -588,6 +603,8 @@ export class LibraryStore implements Lookup {
     target.put(moved);
     this.changed();
     target.changed();
+    this.written();
+    target.written();
     return { entry: moved, keyChanged: key !== entry.key, ...(entry.key === undefined ? {} : { from: entry.key }), pinned };
   }
 
