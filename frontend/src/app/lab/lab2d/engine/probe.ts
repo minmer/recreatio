@@ -109,7 +109,41 @@ export function probe(e: Engine, x: number, y: number): ProbeInfo | null {
       salt
     },
     particle: best < 0 ? null : { id: P.id[best], T: P.T[best], vx: P.vx[best], vy: P.vy[best], mass: P.mass[best], rho: P.rho[best], dist: Math.sqrt(bd), liquid: LIQUIDS[P.mat[best]]?.id ?? LIQUIDS[0].id, salt: P.saltFraction(best) },
-    bubble: bb < 0 ? null : e.bubbleModel.describe(bb)
+    bubble: bb < 0 ? null : e.bubbleModel.describe(bb),
+    body: bodyInfo(e, x, y)
+  };
+}
+
+/** Der Körper an (x, y) für den Inspektor (M3a): Werkstoff (der häufigste), Masse, mittlere Temperatur seiner Voxel, Bewegung. */
+function bodyInfo(e: Engine, x: number, y: number): ProbeInfo['body'] {
+  const b = e.bodies.bodyAt(x, y);
+  if (b === null) return null;
+  const count = new Map<number, number>();
+  let C = 0;
+  let E = 0;
+  for (let k = 0; k < b.nv; k += 1) {
+    count.set(b.mat[k], (count.get(b.mat[k]) ?? 0) + 1);
+    const s = SOLIDS[b.mat[k]];
+    const c = s.rho * s.cp * e.grid.vCell;
+    C += c;
+    E += b.E[k];
+  }
+  let mat = b.mat[0];
+  let most = -1;
+  for (const [m, c] of count) if (c > most) { most = c; mat = m; }
+  /* Schläft oder steht er angeheftet, sind seine Zellen der Zustand (ihre Energie seit dem letzten Abgleich zählt mit). */
+  let dE = 0;
+  for (let q = 0; q < b.nc; q += 1) if (e.grid.owner[b.cells[q]] === b.index + 1) dE += e.grid.Es[b.cells[q]] - b.E0[q];
+  return {
+    index: b.index,
+    material: SOLIDS[mat].id,
+    mass: b.m,
+    T: C > 0 ? 273.15 + (E + dE) / C : 0,
+    vx: b.vx,
+    vy: b.vy,
+    angle: b.a,
+    w: b.w,
+    state: b.pinned ? 'pinned' : b.asleep ? 'asleep' : 'moving'
   };
 }
 

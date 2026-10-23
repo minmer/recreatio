@@ -14,6 +14,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { Engine } from '../engine/engine';
+import { stirFactor } from '../engine/exchange';
 import { pSatFast, tSat } from '../engine/if97';
 import { cpL, kL, MOLAR, rhoL } from '../engine/materials';
 import { CELL, readScene, writeScene } from '../engine/scene';
@@ -342,7 +343,7 @@ describe('M2b — test 28: particles of one cell share their heat', () => {
 });
 
 describe('M2b — test 29: particles of one cell share their salt', () => {
-  it('10 % brine beside fresh water inside each cell evens out at π² D/Δx² at 20 and 80 °C (±1 %); salt and energy exact', () => {
+  it('10 % brine beside fresh water inside each cell evens out at π² D/Δx² at 20 and 80 °C (±1 %, over about 10 % decay); salt and energy exact', () => {
     for (const Tc of [20, 80]) {
       const e = halves(Tc, { T: Tc, composition: { H2O: 0.9, NaCl: 0.1 } });
       const P = e.particles;
@@ -350,7 +351,8 @@ describe('M2b — test 29: particles of one cell share their salt', () => {
       const s0 = spread(e, perWater);
       const salt0 = saltIn(e);
       const E0 = e.energyError();
-      while (e.time < 10) e.step();
+      /* Gemessen über etwa 10 % Abklingen (bei 20 °C 30 s, bei 80 °C 10 s): Teilchen, die eine Zellgrenze kreuzen, verrauschen das Mass — über ein kürzeres Fenster um mehr als 1 %. */
+      while (e.time < (Tc === 20 ? 30 : 10)) e.step();
       const s1 = spread(e, perWater);
       const T = meanT(e);
       const want = (Math.PI * Math.PI * saltDiffusivity(T)) / (CELL.high * CELL.high);
@@ -405,5 +407,40 @@ describe('M2b — test 30: salt diffuses from cell to cell', () => {
     expect(Math.abs(rate / cont - 1)).toBeLessThan(0.04);
     expect(Math.abs(e.saltError())).toBeLessThan(1e-12 * salt0);
     expect(Math.abs(e.energyError() - E0)).toBeLessThan(1e-6);
+  });
+});
+
+/** Eine reine Dehnung u = λ (x − x_c), v = −λ (y − y_c) auf alle Flächen der Flüssigkeit legen (sie bleibt, solange niemand einen Schritt rechnet). */
+function strain(e: Engine, lambda: number): void {
+  const g = e.grid;
+  const { nx, ny, dx } = g;
+  for (let j = 0; j < ny; j += 1) for (let i = 0; i <= nx; i += 1) g.ul[i + j * (nx + 1)] = lambda * (i * dx - 0.5 * g.w);
+  for (let j = 0; j <= ny; j += 1) for (let i = 0; i < nx; i += 1) g.vl[i + j * nx] = -lambda * (j * dx - 0.5 * g.h);
+}
+
+describe('M2b — test 35: stirring speeds up the sharing of salt inside a cell', () => {
+  it('under an imposed pure strain λ the in-cell differences of salt decay at (π² D/Δx²)·x/W(x), x = 2(λ − 0.02/s)τ (±1 %) — at the molecular rate below 0.02/s; heat at its still rate π² α/Δx² for every λ', () => {
+    const dx = CELL.high;
+    const rows: string[] = [];
+    for (const lambda of [0, 0.01, 0.5, 2]) {
+      for (const what of ['salt', 'heat'] as const) {
+        const e = what === 'salt' ? halves(20, { T: 20, composition: { H2O: 0.9, NaCl: 0.1 } }) : halves(20, { T: 22, composition: { H2O: 1 } });
+        const P = e.particles;
+        const value = what === 'salt' ? (p: number): number => P.smass[2 * p] / (P.mass[p] - P.smass[2 * p]) : (p: number): number => P.T[p];
+        strain(e, lambda);
+        const s0 = spread(e, value);
+        const T = meanT(e);
+        const kappa = what === 'salt' ? saltDiffusivity(T) : kL(T) / (rhoL(T) * cpL(T));
+        const tau = (dx * dx) / (Math.PI * Math.PI * kappa);
+        const steps = 120;
+        for (let k = 0; k < steps; k += 1) e.exchange.step(e.dt);
+        const rate = Math.log(s0 / spread(e, value)) / (steps * e.dt);
+        /* Nur das Salz mischt schneller; die Wärme bleibt beim Gleichgewicht der ruhenden Zelle (exchange.ts, Test 12). */
+        const want = (what === 'salt' ? stirFactor(lambda, tau) : 1) / tau;
+        rows.push(`${what} λ ${lambda}/s: ${rate.toExponential(4)} /s, want ${want.toExponential(4)} /s (×${(want * tau).toFixed(1)} the still rate; ${(100 * (rate / want - 1)).toFixed(2)} %)`);
+        expect(Math.abs(rate / want - 1)).toBeLessThan(0.01);
+      }
+    }
+    console.log(`test 35:\n  ${rows.join('\n  ')}`);
   });
 });

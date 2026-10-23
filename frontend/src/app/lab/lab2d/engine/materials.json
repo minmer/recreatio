@@ -31,7 +31,12 @@
     "crc-nacl": "CRC Handbook of Chemistry and Physics, Physical constants of inorganic compounds: sodium chloride, density 2.17 g/cm³ (2.165)",
     "crc-diffusion": "CRC Handbook of Chemistry and Physics, Ionic conductivity and diffusion at infinite dilution (25 °C): D(Na⁺) = 1.334·10⁻⁹ m²/s, D(Cl⁻) = 2.032·10⁻⁹ m²/s; for the salt the Nernst–Hartley mean 2 D₊D₋/(D₊ + D₋) = 1.611·10⁻⁹ m²/s; other temperatures by Stokes–Einstein, D ∝ T/μ_w (the decrease of D with concentration, about 8 % at 1 mol/kg, is left out)",
     "iapws-ice": "IAPWS R10-06(2009), Revised Release on the Equation of State 2006 for H2O Ice Ih, Table 6: normal pressure melting point 273.152519 K; at the triple point the ice has h = −333 444.254 J/kg, c_p = 2096.784 J/(kg·K), ρ = 916.709 kg/m³, and the liquid h = p v = 0.612 J/kg (the IAPWS-95 reference state u = s = 0), so the enthalpy of melting is 333 444.87 J/kg",
-    "model": "Model parameter, not a measured property — chosen and documented in documentation/lab2d/SIMPLIFICATIONS.md"
+    "model": "Model parameter, not a measured property — chosen and documented in documentation/lab2d/SIMPLIFICATIONS.md",
+    "friction-dry": "Coefficients of sliding (kinetic) friction of clean, dry surfaces as compiled from the CRC Handbook of Chemistry and Physics and engineering tables: glass on glass 0.4 (static 0.9–1.0), hard steel on hard steel 0.42 (static 0.78), clean ice on ice at 0 °C 0.02 (static 0.1); one Coulomb coefficient is used for sliding and sticking (SIMPLIFICATIONS.md)",
+    "nasa-rp1228": "R. T. Barrett (1990), Fastener Design Manual, NASA Reference Publication 1228, table of friction coefficients: oak on oak parallel to the grain, static 0.62, sliding 0.48",
+    "byerlee1978": "J. Byerlee (1978), Friction of rocks, Pure and Applied Geophysics 116, 615–626: rock on rock τ = 0.85 σ below 200 MPa, τ = 50 MPa + 0.6 σ above; at low normal stress friction depends on the roughness — 0.6, the value nearly independent of rock type, is used for stone",
+    "slack1980": "G. A. Slack (1980), Thermal conductivity of ice, Phys. Rev. B 22, 3065; its best estimate fitted as k = 612/T W/(m·K) from 30 to 273 K (Carnahan, Wolfenbarger, Jordan, Hesse 2021, arXiv:2011.12502): 2.24 W/(m·K) at 0 °C",
+    "knight1967": "C. A. Knight (1967), The contact angle of water on ice, J. Colloid Interface Sci. 25(2), 280–284: about 12° (receding) just below 0 °C; Ketcham & Hobbs (1969) about 20° at 0 °C"
   },
   "ambient": {
     "p": { "v": 101325, "src": "codata" },
@@ -165,6 +170,8 @@
       "k": { "v": 1.2, "src": "schott" },
       "contactAngle": { "v": 25, "src": "contact" },
       "cavities": { "scale": { "v": 0.02, "src": "lemmert" }, "rmax": { "v": 3e-6, "src": "model" } },
+      "friction": { "v": 0.4, "src": "friction-dry" },
+      "restitution": { "v": 0.3, "src": "model" },
       "color": "#9cc3d5"
     },
     {
@@ -175,6 +182,8 @@
       "k": { "v": 14.9, "src": "incropera" },
       "contactAngle": { "v": 70, "src": "contact" },
       "cavities": { "scale": { "v": 1, "src": "lemmert" }, "rmax": { "v": 40e-6, "src": "model" } },
+      "friction": { "v": 0.42, "src": "friction-dry" },
+      "restitution": { "v": 0.3, "src": "model" },
       "color": "#7d858e"
     },
     {
@@ -185,7 +194,45 @@
       "k": { "v": 0.72, "src": "incropera" },
       "contactAngle": { "v": 10, "src": "contact" },
       "cavities": { "scale": { "v": 50, "src": "lemmert" }, "rmax": { "v": 150e-6, "src": "model" } },
+      "friction": { "v": 0.5, "src": "model" },
+      "restitution": { "v": 0.2, "src": "model" },
       "color": "#d8ccb4"
+    },
+    {
+      "id": "wood",
+      "name": { "pl": "drewno (sosna)", "de": "Holz (Kiefer)", "en": "wood (pine)" },
+      "rho": { "v": 510, "src": "incropera" },
+      "cp": { "v": 1380, "src": "incropera" },
+      "k": { "v": 0.12, "src": "incropera" },
+      "contactAngle": { "v": 70, "src": "model" },
+      "cavities": { "scale": { "v": 10, "src": "model" }, "rmax": { "v": 100e-6, "src": "model" } },
+      "friction": { "v": 0.48, "src": "nasa-rp1228" },
+      "restitution": { "v": 0.3, "src": "model" },
+      "color": "#c08a52"
+    },
+    {
+      "id": "ice",
+      "name": { "pl": "lód", "de": "Eis", "en": "ice" },
+      "rho": { "v": 916.709, "src": "iapws-ice" },
+      "cp": { "v": 2096.784, "src": "iapws-ice" },
+      "k": { "v": 2.24, "src": "slack1980" },
+      "contactAngle": { "v": 12, "src": "knight1967" },
+      "cavities": { "scale": { "v": 0.01, "src": "model" }, "rmax": { "v": 2e-6, "src": "model" } },
+      "friction": { "v": 0.02, "src": "friction-dry" },
+      "restitution": { "v": 0.1, "src": "model" },
+      "color": "#d4ecf7"
+    },
+    {
+      "id": "stone",
+      "name": { "pl": "kamień (granit)", "de": "Stein (Granit)", "en": "stone (granite)" },
+      "rho": { "v": 2630, "src": "incropera" },
+      "cp": { "v": 775, "src": "incropera" },
+      "k": { "v": 2.79, "src": "incropera" },
+      "contactAngle": { "v": 45, "src": "model" },
+      "cavities": { "scale": { "v": 5, "src": "model" }, "rmax": { "v": 80e-6, "src": "model" } },
+      "friction": { "v": 0.6, "src": "byerlee1978" },
+      "restitution": { "v": 0.2, "src": "model" },
+      "color": "#8e8a83"
     }
   ]
 }

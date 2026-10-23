@@ -328,7 +328,7 @@ export class Gas {
         if (l === GAS && r === GAS) gas = 1;
         else if ((i === 0 && g.openL && r === GAS) || (i === nx && g.openR && l === GAS)) gas = 1;
         this.gasU[f] = gas;
-        if (gas === 0) ug[f] = l === LIQUID || r === LIQUID ? (l === SOLID || r === SOLID || (i === 0 && !g.openL) || (i === nx && !g.openR) ? 0 : g.ul[f]) : 0;
+        if (gas === 0) ug[f] = l === LIQUID || r === LIQUID ? (l === SOLID || r === SOLID || (i === 0 && !g.openL) || (i === nx && !g.openR) ? 0 : g.ul[f]) : g.usol[f];
       }
     }
     for (let j = 0; j <= ny; j += 1) {
@@ -340,7 +340,7 @@ export class Gas {
         if (b === GAS && t === GAS) gas = 1;
         else if ((j === 0 && g.openB && t === GAS) || (j === ny && g.openT && b === GAS)) gas = 1;
         this.gasV[f] = gas;
-        if (gas === 0) vg[f] = b === LIQUID || t === LIQUID ? (b === SOLID || t === SOLID || (j === 0 && !g.openB) || (j === ny && !g.openT) ? 0 : g.vl[f]) : 0;
+        if (gas === 0) vg[f] = b === LIQUID || t === LIQUID ? (b === SOLID || t === SOLID || (j === 0 && !g.openB) || (j === ny && !g.openT) ? 0 : g.vl[f]) : g.vsol[f];
       }
     }
   }

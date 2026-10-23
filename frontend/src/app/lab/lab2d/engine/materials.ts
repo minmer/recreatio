@@ -66,7 +66,9 @@ export interface MaterialsFile {
   readonly vapourInAir: { readonly D0: V; readonly T0: V; readonly exponent: V };
   readonly solids: readonly {
     readonly id: string; readonly name: Lang3; readonly rho: V; readonly cp: V; readonly k: V; readonly contactAngle: V;
-    readonly cavities: { readonly scale: V; readonly rmax: V }; readonly color: string;
+    readonly cavities: { readonly scale: V; readonly rmax: V };
+    /** Reibung (Coulomb, eine Zahl für Gleiten und Haften) und Rückprall der Körper (M3a). */
+    readonly friction: V; readonly restitution: V; readonly color: string;
   }[];
 }
 
@@ -358,6 +360,9 @@ export interface SolidMaterial {
   /** Kavitäten: Dichte relativ zu Stahl nach Lemmert & Chawla und grösster Mündungsradius (m). */
   readonly cavScale: number;
   readonly cavRmax: number;
+  /** Körper (M3a): Reibungszahl (Coulomb) und Rückprallzahl — die Form, die die Berührungen der Fizyka 2D lesen. */
+  readonly friction: number;
+  readonly bounce: number;
   readonly color: string;
 }
 
@@ -370,6 +375,8 @@ export const SOLIDS: readonly SolidMaterial[] = data.solids.map((s) => ({
   contactAngle: s.contactAngle.v,
   cavScale: s.cavities.scale.v,
   cavRmax: s.cavities.rmax.v,
+  friction: s.friction.v,
+  bounce: s.restitution.v,
   color: s.color
 }));
 

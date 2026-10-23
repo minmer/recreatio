@@ -14,13 +14,29 @@
  *   φ_p ← φ_p + f (φ̄ − φ_p),  f = 1 − exp(−Δt/τ),  τ = Δx²/(π² κ),
  *
  * τ die Abklingzeit der langsamsten Struktur, die in eine Zelle passt (eine
- * halbe Welle über sie): schneller gleicht sich nichts in der Zelle aus.
- * Für Wärme ist κ = α = k/(ρ c_p) der Flüssigkeiten der Zelle (Wasser bei
- * 20 °C: τ = 2,8 s bei 2 mm, 0,7 s bei 1 mm), für Salz der
+ * halbe Welle über sie): in ruhender Flüssigkeit gleicht sich nichts in der
+ * Zelle schneller aus. Für Wärme ist κ = α = k/(ρ c_p) der Flüssigkeiten der
+ * Zelle (Wasser bei 20 °C: τ = 2,8 s bei 2 mm, 0,7 s bei 1 mm), für Salz der
  * Diffusionskoeffizient D (Nernst–Hartley, nach Stokes–Einstein mit der
  * Temperatur: 4,8 min bei 2 mm und 20 °C, 1,1 min bei 100 °C) — Salz
  * diffundiert hundertmal langsamer als Wärme. Salz gleicht sich je kg Wasser
  * an (das Wasser bleibt, wo es ist; nur das Salz wandert).
+ *
+ * Strömt die Flüssigkeit, mischt sie schneller: die Dehnung λ der Strömung
+ * (der grösste Eigenwert des Verzerrungstensors der Zelle) zieht jede
+ * Struktur in der Zelle zu Streifen aus, die exponentiell dünner werden,
+ * s(t) = Δx e^(−λt) — und über einen dünnen Streifen diffundiert es schnell
+ * (Rühren und Mischen: Ranz 1979; Villermaux 2019). Ausgeglichen ist, wenn die
+ * Zeit bis jetzt so lang ist wie die Diffusion über den Streifen,
+ * t = τ e^(−2λt): t = W(2λτ)/(2λ) mit der Lambertschen W-Funktion. In ruhender
+ * Flüssigkeit (λ → 0) ist das τ, bei kräftigem Rühren etwa ln(2λτ)/(2λ):
+ * Salz in einer Zelle, deren Wasser mit λ = 1/s strömt, ist in 2,4 s gemischt
+ * statt in 4,8 min. Dehnungen unter STIR_FLOOR (das Rauschen einer ruhenden
+ * Flüssigkeit, Test 1: Strömungen unter 0,01 mm/s) zählen nicht. Die Wärme
+ * bleibt beim Gleichgewicht der ruhenden Zelle (2,8 s): schneller geteilt,
+ * trüge sie die Wärme einer heissen Wand über die überlappenden Wärmegewichte
+ * der Teilchen (heat.ts) in die Nachbarzellen — das Wasser vor Siedesteinen
+ * bliebe zu kalt, und das Glas siedete zuerst (Test 12).
  *
  * Zwischen den Zellen leitet das Gitter die Wärme (heat.ts); für das Salz
  * gilt hier das Ficksche Gesetz, explizit: über jede Fläche zweier
@@ -38,9 +54,53 @@
  */
 
 import type { Engine } from './engine';
+import type { Grid } from './grid';
 import { kLiq, WATER } from './materials';
 import { hSaltIn, NACL, saltDiffusivity } from './solution';
 import { GAS, LIQUID } from './units';
+
+/** Dehnung der Strömung, ab der sie als Rühren zählt (1/s): darunter liegt das Rauschen einer ruhenden Flüssigkeit. */
+export const STIR_FLOOR = 0.02;
+
+/** Die Lambertsche W-Funktion (Hauptzweig) für x ≥ 0: w e^w = x — Halley ab einer Näherung, vier Schritte. */
+export function lambertW(x: number): number {
+  if (!(x > 1e-8)) return x > 0 ? x : 0;
+  const l = Math.log(1 + x);
+  let w = x < 1 ? x * (1 - x / (1 + x)) : l * (1 - Math.log(1 + l) / (2 + l));
+  for (let k = 0; k < 4; k += 1) {
+    const ew = Math.exp(w);
+    const f = w * ew - x;
+    w -= f / (ew * (w + 1) - ((w + 2) * f) / (2 * w + 2));
+  }
+  return w;
+}
+
+/**
+ * Um wie viel schneller sich eine Zelle mischt, deren Strömung mit λ dehnt, als
+ * ruhend (τ die Zeit der Diffusion über die Zelle): τ/t mit t = W(2λτ)/(2λ) —
+ * also x/W(x) mit x = 2λτ; 1 ohne Dehnung.
+ */
+export function stirFactor(lambda: number, tau: number): number {
+  const x = 2 * Math.max(0, lambda - STIR_FLOOR) * tau;
+  return x > 1e-8 ? x / lambertW(x) : 1;
+}
+
+/** Die Dehnung λ der Flüssigkeit in Zelle (i, j): der positive Eigenwert des spurfreien Verzerrungstensors aus den Flächengeschwindigkeiten (1/s). */
+export function strainAt(g: Grid, i: number, j: number): number {
+  const { nx, ny, dx, ul, vl } = g;
+  const nu = nx + 1;
+  const uc = (a: number, b: number): number => 0.5 * (ul[a + b * nu] + ul[a + 1 + b * nu]);
+  const vc = (a: number, b: number): number => 0.5 * (vl[a + b * nx] + vl[a + (b + 1) * nx]);
+  const dudx = (ul[i + 1 + j * nu] - ul[i + j * nu]) / dx;
+  const dvdy = (vl[i + (j + 1) * nx] - vl[i + j * nx]) / dx;
+  const jm = Math.max(0, j - 1);
+  const jp = Math.min(ny - 1, j + 1);
+  const im = Math.max(0, i - 1);
+  const ip = Math.min(nx - 1, i + 1);
+  const dudy = jp > jm ? (uc(i, jp) - uc(i, jm)) / ((jp - jm) * dx) : 0;
+  const dvdx = ip > im ? (vc(ip, j) - vc(im, j)) / ((ip - im) * dx) : 0;
+  return Math.hypot(0.5 * (dudx - dvdy), 0.5 * (dudy + dvdx));
+}
 
 export class Exchange {
   private readonly e: Engine;
@@ -113,23 +173,26 @@ export class Exchange {
       water[c] += P.mass[p] - s;
       if (s > 0) salty = true;
     }
-    /* Die Anteile je Zelle: einmal die Exponentialfunktion, nicht je Teilchen. */
+    /* Die Anteile je Zelle: einmal die Exponentialfunktion, nicht je Teilchen; Rühren beschleunigt das Salz (stirFactor). */
     const { nx, ny, kind } = g;
     const k = (Math.PI * Math.PI * dt) / (g.dx * g.dx);
     for (let c = 0; c < g.n; c += 1) {
       fH[c] = 0;
       fS[c] = 0;
       if (!(cap[c] > 0)) continue;
+      const i = c % nx;
+      const j = (c - i) / nx;
       if (kind[c] !== LIQUID) {
         if (kind[c] !== GAS) continue;
-        const i = c % nx;
-        const j = (c - i) / nx;
         const surface = (i > 0 && kind[c - 1] === LIQUID) || (i < nx - 1 && kind[c + 1] === LIQUID)
           || (j > 0 && kind[c - nx] === LIQUID) || (j < ny - 1 && kind[c + nx] === LIQUID);
         if (!surface) continue;
       }
       fH[c] = 1 - Math.exp((-k * capA[c]) / cap[c]);
-      if (salty && salt[c] > 0) fS[c] = 1 - Math.exp(-k * saltDiffusivity(capT[c] / cap[c]));
+      if (salty && salt[c] > 0) {
+        const D = saltDiffusivity(capT[c] / cap[c]);
+        fS[c] = 1 - Math.exp(-k * D * stirFactor(strainAt(g, i, j), dt / (k * D)));
+      }
     }
     /* Wärme: jedes Teilchen ein Stück zum Mittel seiner Zelle; Σ m c_p ΔT = 0 je Zelle. */
     for (let p = 0; p < P.count; p += 1) {

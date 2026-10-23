@@ -22,7 +22,7 @@
       },
       "config": {
         "title": "Jak pracować",
-        "body": "Laboratorium nic nie liczy samo. Po otwarciu czeka: „Uruchom na żywo” liczy symulację w tej chwili (na słabszym komputerze wolniej niż w rzeczywistości), „Upiecz” liczy wybrany scenariusz raz, jak najszybciej, i zapisuje nagranie w tej przeglądarce.\n## Nagranie\nUpieczone nagranie odtwarza się płynnie, bez liczenia — także na telefonie: przewijaj suwakiem czasu, zmieniaj tempo i nakładki. „Na żywo od tej chwili” liczy dalej dokładnie od pokazanego obrazu; wtedy znów działają narzędzia.\n## Scenariusze\nNad tekstem po prawej wybierasz scenariusz: od nagrzewania wody przez wrzenie (także w szybkowarze i w górach) po olej, solankę i mgłę. Każdy ma własne nagranie."
+        "body": "Laboratorium nic nie liczy samo. Po otwarciu czeka: „Uruchom na żywo” liczy symulację w tej chwili (na słabszym komputerze wolniej niż w rzeczywistości), „Upiecz” liczy wybrany scenariusz raz, jak najszybciej, i zapisuje nagranie w tej przeglądarce.\n## Nagranie\nUpieczone nagranie odtwarza się płynnie, bez liczenia — także na telefonie: przewijaj suwakiem czasu, zmieniaj tempo i nakładki. „Na żywo od tej chwili” liczy dalej dokładnie od pokazanego obrazu; wtedy znów działają narzędzia.\n## Scenariusze\nNad tekstem po prawej wybierasz scenariusz: od nagrzewania wody przez wrzenie (także w szybkowarze i w górach) po olej, solankę, mgłę i ciała, które pływają, toną albo się przewracają. Każdy ma własne nagranie."
       }
     },
     {
@@ -1032,6 +1032,166 @@
                   },
                   "phase": "liquid",
                   "T": 90
+                }
+              ]
+            }
+          },
+          {
+            "title": "Co pływa?",
+            "text": [
+              "Nad wodą wiszą trzy ciała: klocek sosnowy, kostka lodu i kamień (granit). Puść czas — spadną do wody.",
+              "Drewno (510 kg/m³) zanurza się do połowy, lód (917 kg/m³) prawie cały, a kamień (2630 kg/m³) idzie na dno. Pływające ciało wypiera tyle wody, ile samo waży — zbadaj je narzędziem „Badaj”.",
+              "Lód jeszcze się nie topi — to przyjdzie w kolejnym etapie."
+            ],
+            "scene": {
+              "format": "recreatio/lab2d",
+              "version": 1,
+              "seed": 1,
+              "box": {
+                "w": 0.2,
+                "h": 0.15,
+                "depth": 0.01
+              },
+              "ambient": {
+                "p": 101.325,
+                "T": 15,
+                "rh": 0.5,
+                "g": 9.81
+              },
+              "sides": {
+                "left": "wall",
+                "right": "wall",
+                "bottom": "wall",
+                "top": "open"
+              },
+              "quality": "high",
+              "ops": [
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0,
+                      0,
+                      0.2,
+                      0.07
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 1
+                  },
+                  "phase": "liquid",
+                  "T": 2
+                },
+                {
+                  "op": "body",
+                  "region": {
+                    "rect": [
+                      0.025,
+                      0.085,
+                      0.065,
+                      0.105
+                    ]
+                  },
+                  "material": "wood",
+                  "T": 15
+                },
+                {
+                  "op": "body",
+                  "region": {
+                    "rect": [
+                      0.09,
+                      0.085,
+                      0.11,
+                      0.105
+                    ]
+                  },
+                  "material": "ice",
+                  "T": -2
+                },
+                {
+                  "op": "body",
+                  "region": {
+                    "rect": [
+                      0.14,
+                      0.085,
+                      0.16,
+                      0.1
+                    ]
+                  },
+                  "material": "stone",
+                  "T": 15
+                }
+              ]
+            }
+          },
+          {
+            "title": "Przewrócona zlewka",
+            "text": [
+              "Zlewka z wodą (swobodna, nie przypięta) stoi na krawędzi stopnia tak, że jej środek ciężkości jest już poza krawędzią. Puść czas — zlewka obróci się wokół krawędzi i spadnie, a woda się wyleje.",
+              "Narzędziem „Przypnij” możesz ciało przypiąć (stoi w miejscu) albo odpiąć: przypiętą zlewkę ustaw „Przesuń” bliżej ściany stopnia i odepnij — jeśli jej środek ciężkości jest nad stopniem, zostanie."
+            ],
+            "scene": {
+              "format": "recreatio/lab2d",
+              "version": 1,
+              "seed": 1,
+              "box": {
+                "w": 0.24,
+                "h": 0.15,
+                "depth": 0.01
+              },
+              "ambient": {
+                "p": 101.325,
+                "T": 20,
+                "rh": 0.5,
+                "g": 9.81
+              },
+              "sides": {
+                "left": "wall",
+                "right": "wall",
+                "bottom": "wall",
+                "top": "open"
+              },
+              "quality": "high",
+              "ops": [
+                {
+                  "op": "solid",
+                  "region": {
+                    "rect": [
+                      0,
+                      0,
+                      0.1,
+                      0.03
+                    ]
+                  },
+                  "material": "stone",
+                  "T": 20
+                },
+                {
+                  "op": "beaker",
+                  "x": 0.11,
+                  "y": 0.03,
+                  "w": 0.07,
+                  "h": 0.08,
+                  "wall": 0.002,
+                  "material": "glass",
+                  "T": 20,
+                  "pinned": false
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.077,
+                      0.032,
+                      0.143,
+                      0.07
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 1
+                  },
+                  "phase": "liquid",
+                  "T": 20
                 }
               ]
             }

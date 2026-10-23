@@ -13,7 +13,17 @@
  *   Entweichen durch offene Seiten, Wärmegewichte.
  */
 
+import { THETA_MIN } from '../engine/liquid';
 import type { KernelDef } from './kernel';
+
+/** Wo die Oberfläche zwischen der Mitte der Flüssigkeitszelle c und ihrer Gasnachbarzelle n liegt (wie engine/liquid.ts, „ghost fluid“). */
+const THETA = `const THETA_MIN: f32 = ${THETA_MIN.toFixed(6)};
+fn thetaAt(c: u32, n: u32) -> f32 {
+  let fc = cf[cfi(F_PHI, c)] / (1.0 - min(0.9, cf[cfi(F_PHIS, c)])) + cf[cfi(F_ALPHA, c)];
+  let fo = cf[cfi(F_PHI, n)] / (1.0 - min(0.9, cf[cfi(F_PHIS, n)])) + cf[cfi(F_ALPHA, n)];
+  if (!(fc > 0.5) || !(fc > fo)) { return THETA_MIN; }
+  return clamp((fc - 0.5) / (fc - fo), THETA_MIN, 1.0);
+}`;
 
 /** Arbeitsgruppe der Teilchenkerne (indirekt aufgerufen: pargs). */
 export const WG_P = 128;
@@ -375,6 +385,7 @@ ${MAIN} {
     name: 'liqAssemble', wg: WG,
     bind: 'P:u L:u<Level> glob:r cf:r cu:r at:r ff:r reg:r mgF:w mgU:w cgv:w',
     code: `fn pGas(c: u32) -> f32 { return pAt(c) - P.pref; }
+${THETA}
 fn kindAt(i: i32, j: i32) -> u32 { return cu[U_KIND * P.n + cellOf(i, j)]; }
 fn gasAt(i: i32, j: i32) -> bool {
   if (i < 0) { return P.openL != 0u; }
@@ -415,17 +426,17 @@ ${MAIN} {
   var dDy = 0.0;
   if (i + 1 < nx) {
     let k = kindAt(i + 1, j);
-    if (k == LIQUID) { mgF[L.ax + s] = a; } else if (k == GAS) { dDx += a; b += a * pGas(c + 1u); }
+    if (k == LIQUID) { mgF[L.ax + s] = a; } else if (k == GAS) { let q = a / thetaAt(c, c + 1u); dDx += q; b += q * pGas(c + 1u); }
   } else if (P.openR != 0u) { dDx += 2.0 * a; }
   if (i > 0) {
-    if (kindAt(i - 1, j) == GAS) { dDx += a; b += a * pGas(c - 1u); }
+    if (kindAt(i - 1, j) == GAS) { let q = a / thetaAt(c, c - 1u); dDx += q; b += q * pGas(c - 1u); }
   } else if (P.openL != 0u) { dDx += 2.0 * a; }
   if (j + 1 < ny) {
     let k = kindAt(i, j + 1);
-    if (k == LIQUID) { mgF[L.ay + s] = a; } else if (k == GAS) { dDy += a; b += a * pGas(c + P.nx); }
+    if (k == LIQUID) { mgF[L.ay + s] = a; } else if (k == GAS) { let q = a / thetaAt(c, c + P.nx); dDy += q; b += q * pGas(c + P.nx); }
   } else if (P.openT != 0u) { dDy += 2.0 * a; }
   if (j > 0) {
-    if (kindAt(i, j - 1) == GAS) { dDy += a; b += a * pGas(c - P.nx); }
+    if (kindAt(i, j - 1) == GAS) { let q = a / thetaAt(c, c - P.nx); dDy += q; b += q * pGas(c - P.nx); }
   } else if (P.openB != 0u) { dDy += 2.0 * a; }
   mgF[L.dDx + s] = dDx;
   mgF[L.dDy + s] = dDy;
@@ -448,8 +459,17 @@ ${MAIN} {
   },
   {
     name: 'liqCorrect', wg: WG,
-    bind: 'P:u glob:r cf:r ff:w fu:w',
-    code: `${MAIN} {
+    bind: 'P:u glob:r cf:r cu:r ff:w fu:w',
+    code: `${THETA}
+/** Der Druckunterschied von Zelle l nach r; zwischen Flüssigkeit und Gas über den Abstand θ zur Oberfläche. */
+fn across(l: u32, r: u32, d: f32) -> f32 {
+  let kl = cu[cui(U_KIND, l)];
+  let kr = cu[cui(U_KIND, r)];
+  if (kl == GAS && kr == LIQUID) { return d / thetaAt(r, l); }
+  if (kr == GAS && kl == LIQUID) { return d / thetaAt(l, r); }
+  return d;
+}
+${MAIN} {
   let f = gid.x;
   if (f >= P.nf) { return; }
   let known = fu[fui(FU_KNOWN, f)];
@@ -464,7 +484,7 @@ ${MAIN} {
     var d = 0.0;
     if (i == 0u) { d = 2.0 * cf[o + j * nx]; }
     else if (i == nx) { d = -2.0 * cf[o + nx - 1u + j * nx]; }
-    else { d = cf[o + i + j * nx] - cf[o + i - 1u + j * nx]; }
+    else { d = across(i - 1u + j * nx, i + j * nx, cf[o + i + j * nx] - cf[o + i - 1u + j * nx]); }
     ff[ffi(FF_UL, f)] -= k * d;
   } else {
     let g = f - P.nu;
@@ -473,7 +493,7 @@ ${MAIN} {
     var d = 0.0;
     if (j == 0u) { d = 2.0 * cf[o + i]; }
     else if (j == P.ny) { d = -2.0 * cf[o + i + (P.ny - 1u) * nx]; }
-    else { d = cf[o + i + j * nx] - cf[o + i + (j - 1u) * nx]; }
+    else { d = across(i + (j - 1u) * nx, i + j * nx, cf[o + i + j * nx] - cf[o + i + (j - 1u) * nx]); }
     ff[ffi(FF_UL, f)] -= k * d;
   }
 }`

@@ -1,7 +1,8 @@
 # 2D lab engine — the sandbox plan (more matter, everything falls, melting, salt, baking)
 
-Status (2026-10-22): a design before the code, as ARCHITECTURE.md was. **M2a, M2b and B are built** (several liquids,
-rapeseed oil; salt solutions with a crust; baked clips — MILESTONES.md §M2a, §M2b, §B); the rest is not. The user confirmed the order of §13 and decided (2026-10-21):
+Status (2026-10-23): a design before the code, as ARCHITECTURE.md was. **M2a, M2b, B and M3a are built** (several
+liquids, rapeseed oil; salt solutions with a crust; baked clips; rigid bodies that fall, float, sink and tip —
+MILESTONES.md §M2a, §M2b, §B, §M3a; ARCHITECTURE.md §17); M3b and M3c are not. The user confirmed the order of §13 and decided (2026-10-21):
 
 - every object is one whole — a beaker, a plate, an ice cube moves as one piece; for each object the user decides
   whether it is pinned or reacts to gravity;
@@ -334,7 +335,7 @@ costs most of the step and 20 s of compile time).
 | **M2a** Substances and liquids (**built**) | materials v2, per-material particles, oil, liquid viscosity, drifting droplets, palette and presets | two-layer hydrostatics: dp/dy = ρ_oil g and ρ_w g (±2 %); oil poured under water ends on top with layer heights from the volumes (±1 cell); viscous decay of a shear profile, exp(−ν k² t) (±5 %); oil heated to 150 °C without boiling, budgets closed; steam bubbles rise through an oil layer | — |
 | **M2b** Solutions (**built**) | NaCl dissolved: activity model, colligative properties, density, evaporation concentrates, crust | density at 10 and 20 % (±0.3 %); boiling point at 1 and 3 mol/kg (±0.1 K of the data); freezing point at 1 and 3 mol/kg (±0.1 K); salt mass exact over boiling; crust mass = salt mass after drying | M2a |
 | **B** Baking and recording (**built**, baking only) | clip format, bake runner, cache in the browser, playback, resume from keyframe | playback frame-identical to the recording; seeking to within one frame; CPU resume bit-identical to a straight run; measured size per minute (gate set from the measurement) | — (keyframe sections grow with later steps) |
-| **M3a** Bodies | voxel bodies, contacts (physics-lab solver), fluid coupling, heat in bodies, apparatus as bodies, pin | floating depth ρ_b/ρ_l for wood and ice (±2 %); a sinking block reaches a drag-law terminal speed (±15 %) and rests without jitter; a stack of two blocks stands; a full beaker tips at its geometric tipping angle (±3°); budgets close with moving solids | M2a |
+| **M3a** Bodies (**built**) | voxel bodies, contacts (physics-lab solver), fluid coupling, heat in bodies, apparatus as bodies, pin | floating depth ρ_b/ρ_l for wood and ice (±2 %); a sinking block reaches a drag-law terminal speed (±15 %) and rests without jitter; a stack of two blocks stands; a full beaker tips at its geometric tipping angle (±3°); budgets close with moving solids | M2a |
 | **M3b** Melting and freezing | ice; interface at T_f(w); melt to particles, freeze onto voxels; salt rejection | Stefan melting front against the Neumann solution (±5 %); ice cube in warm water: energy budget closes; brine with ice settles at T_f(w) (±0.2 K) and approaches the eutectic with enough salt; freezing brine keeps all its salt | M3a, M2b |
 | **M3c** Grains | grain particles: settling, dry granular flow, dissolution, crystallisation, cavities on grains | angle of repose of salt (±3° of the cited value); settling speed (±10 %); dissolution time against the mass-transfer correlation (±20 %); temperature drop from Δ_solH; salt mass exact through dissolving and crystallising | M2b, M3a |
 | GPU ports | after each step (or two steps at a time) | test 17 extended by each step's tests | the step |

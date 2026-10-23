@@ -194,12 +194,12 @@ describe('M0 — scenes, painting, the loop', () => {
     expect(Math.abs(s.waterError)).toBeLessThan(waterTolerance(e));
   });
 
-  it('runs the eight stages with a time for each, and keeps every number finite', () => {
+  it('runs the nine stages with a time for each, and keeps every number finite', () => {
     const e = new Engine(boilingScene());
     for (let k = 0; k < 40; k += 1) e.step();
     const s = e.stats();
     expect(s.stages.length).toBe(STAGES.length);
-    expect(STAGES).toEqual(['inputs', 'liquid', 'gas', 'bubbles', 'interface', 'heat', 'chemistry', 'diagnostics']);
+    expect(STAGES).toEqual(['inputs', 'liquid', 'gas', 'bubbles', 'interface', 'heat', 'chemistry', 'diagnostics', 'bodies']);
     for (const t of s.stages) expect(t).toBeGreaterThanOrEqual(0);
     for (let p = 0; p < e.particles.count; p += 1) expect(Number.isFinite(e.particles.x[p] + e.particles.vx[p] + e.particles.h[p])).toBe(true);
     for (let c = 0; c < e.grid.n; c += 1) expect(Number.isFinite(e.grid.T[c])).toBe(true);

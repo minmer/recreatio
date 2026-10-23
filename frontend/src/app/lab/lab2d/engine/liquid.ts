@@ -18,8 +18,12 @@
  *   der Driftausgleich k_d (φ + α_b − 1)/Δt (Kompression überall, im Inneren
  *   beide Vorzeichen) — er wirkt auf das Volumen, nicht auf die Teilchenzahl.
  * - Projektion mit freier Oberfläche (Gaszellen: Dirichlet, der Druck ihres
- *   Gasgebiets), undurchlässige Wände; PCG mit Mehrgitter auf dem
- *   umschliessenden Rechteck der Flüssigkeit.
+ *   Gasgebiets, an der Stelle zwischen den Zellmitten, wo φ ½ kreuzt — „ghost
+ *   fluid“, Gibou et al. 2002, J. Comput. Phys. 176, 205; so steht der Druck in
+ *   der Tiefe d genau bei ρ g d, auch wenn die Oberfläche zwischen zwei
+ *   Zellmitten liegt: ein Körper schwimmt richtig tief, M3a), undurchlässige
+ *   und bewegte Wände; PCG mit Mehrgitter auf dem umschliessenden Rechteck der
+ *   Flüssigkeit.
  * - Transport: RK2 im Gitterfeld; wer in einem Feststoff landet, wird längs
  *   des Abstandsfelds hinausgeschoben (die Normalgeschwindigkeit fällt weg);
  *   wer eine offene Seite verlässt, ist „entwichen“. Tropfen fern der
@@ -31,7 +35,8 @@ import type { Grid } from './grid';
 import type { Particles } from './particles';
 import { extendVelocities, gridVelocityAt, markStranded } from './extend';
 import { DropletDrift, solveViscosity } from './liquidMix';
-import { muLiq, WATER } from './materials';
+import { moveParticles, type BodyHit, type Escaped } from './liquidMove';
+import { muLiq } from './materials';
 import { GridSolver, type SolveResult } from './solver';
 import { GAS, LIQUID, SOLID } from './units';
 
@@ -39,6 +44,8 @@ import { GAS, LIQUID, SOLID } from './units';
 export const DRIFT_GAIN = 0.1;
 /** Unterhalb dieser Masse (Anteil der Nennmasse) zählt eine Fläche als leer. */
 const EMPTY = 1e-9;
+/** Die Oberfläche rückt höchstens so nah an die Mitte einer Flüssigkeitszelle (Anteil des Abstands der Mitten) — sonst würde das System steif und das Rauschen von φ verstärkt. */
+export const THETA_MIN = 0.1;
 
 /** Gewichte des quadratischen B-Splines für eine Koordinate s (in Zellen, Knoten bei ganzen Zahlen): Basis i0 und drei Gewichte. */
 function bspline(s: number, w: Float64Array, o: number): number {
@@ -448,7 +455,8 @@ export class Liquid {
         const r = i < nx ? kind[i + j * nx] : -1;
         const wallL = i === 0 && !g.openL;
         const wallR = i === nx && !g.openR;
-        if (wallL || wallR || l === SOLID || r === SOLID) { ul[f] = 0; knownU[f] = 2; continue; }
+        /* Fest: die Wand der Kiste ruht, ein bewegter Körper gibt seine Geschwindigkeit an der Fläche (grid.usol, M3a). */
+        if (wallL || wallR || l === SOLID || r === SOLID) { ul[f] = wallL || wallR ? 0 : g.usol[f]; knownU[f] = 2; continue; }
         knownU[f] = l === LIQUID || r === LIQUID ? 1 : 0;
       }
     }
@@ -459,7 +467,7 @@ export class Liquid {
         const t = j < ny ? kind[i + j * nx] : -1;
         const wallB = j === 0 && !g.openB;
         const wallT = j === ny && !g.openT;
-        if (wallB || wallT || b === SOLID || t === SOLID) { vl[f] = 0; knownV[f] = 2; continue; }
+        if (wallB || wallT || b === SOLID || t === SOLID) { vl[f] = wallB || wallT ? 0 : g.vsol[f]; knownV[f] = 2; continue; }
         knownV[f] = b === LIQUID || t === LIQUID ? 1 : 0;
       }
     }
@@ -514,23 +522,23 @@ export class Liquid {
           if (i + 1 < nx) {
             const k = kind[c + 1];
             if (k === LIQUID) { if (i + 1 <= i1) sys.ax[s] = a; }
-            else if (k === GAS) { sys.dDx[s] += a; b += a * pGas[c + 1]; }
+            else if (k === GAS) { const q = a / this.theta(c, c + 1); sys.dDx[s] += q; b += q * pGas[c + 1]; }
           } else if (g.openR) { sys.dDx[s] += 2 * a; }
           /* Links (die Kopplung zu einer flüssigen Nachbarzelle steht bei ihr). */
           if (i > 0) {
             const k = kind[c - 1];
-            if (k === GAS) { sys.dDx[s] += a; b += a * pGas[c - 1]; }
+            if (k === GAS) { const q = a / this.theta(c, c - 1); sys.dDx[s] += q; b += q * pGas[c - 1]; }
           } else if (g.openL) { sys.dDx[s] += 2 * a; }
           /* Oben. */
           if (j + 1 < ny) {
             const k = kind[c + nx];
             if (k === LIQUID) { if (j + 1 <= j1) sys.ay[s] = a; }
-            else if (k === GAS) { sys.dDy[s] += a; b += a * pGas[c + nx]; }
+            else if (k === GAS) { const q = a / this.theta(c, c + nx); sys.dDy[s] += q; b += q * pGas[c + nx]; }
           } else if (g.openT) { sys.dDy[s] += 2 * a; }
           /* Unten. */
           if (j > 0) {
             const k = kind[c - nx];
-            if (k === GAS) { sys.dDy[s] += a; b += a * pGas[c - nx]; }
+            if (k === GAS) { const q = a / this.theta(c, c - nx); sys.dDy[s] += q; b += q * pGas[c - nx]; }
           } else if (g.openB) { sys.dDy[s] += 2 * a; }
           sys.b[s] = b;
         }
@@ -550,7 +558,7 @@ export class Liquid {
           if (knownU[f] !== 1) continue;
           if (i === 0) { ul[f] -= (a / dx) * 2 * (pl[j * nx] - 0); continue; }
           if (i === nx) { ul[f] -= (a / dx) * 2 * (0 - pl[nx - 1 + j * nx]); continue; }
-          ul[f] -= (a / dx) * (pl[i + j * nx] - pl[i - 1 + j * nx]);
+          ul[f] -= (a / dx) * this.across(i - 1 + j * nx, i + j * nx);
         }
       }
       for (let j = 0; j <= ny; j += 1) {
@@ -559,9 +567,11 @@ export class Liquid {
           if (knownV[f] !== 1) continue;
           if (j === 0) { vl[f] -= (a / dx) * 2 * (pl[i] - 0); continue; }
           if (j === ny) { vl[f] -= (a / dx) * 2 * (0 - pl[i + (ny - 1) * nx]); continue; }
-          vl[f] -= (a / dx) * (pl[i + j * nx] - pl[i + (j - 1) * nx]);
+          vl[f] -= (a / dx) * this.across(i + (j - 1) * nx, i + j * nx);
         }
       }
+      /* Wache Körper (M3a): ihre mitbewegte Masse mit derselben Matrix (bodies.ts). */
+      if (this.afterSolve !== null) this.afterSolve(S, i0, j0, dt);
     }
     this.extrapolate();
 
@@ -582,6 +592,30 @@ export class Liquid {
     L.escapedSalt = this.escS;
     L.escapedEnergy = this.escE;
     return L;
+  }
+
+  /**
+   * Wo zwischen der Mitte der Flüssigkeitszelle c und ihrer Gasnachbarzelle n
+   * die Oberfläche liegt — als Anteil θ des Abstands der Mitten, dort, wo φ
+   * linear zwischen den Mitten ½ kreuzt (so misst auch die Prüfung den
+   * Wasserspiegel). φ an Wänden ohne den Anteil der fehlenden Spiegelteilchen
+   * (φ/(1 − φ_s)), Blasen zählen zur Flüssigkeit. Nie näher als THETA_MIN.
+   */
+  private theta(c: number, n: number): number {
+    const g = this.g;
+    const fc = g.phi[c] / (1 - Math.min(0.9, g.phiS[c])) + g.alpha[c];
+    const fn = g.phi[n] / (1 - Math.min(0.9, g.phiS[n])) + g.alpha[n];
+    if (!(fc > 0.5) || !(fc > fn)) return THETA_MIN;
+    return Math.max(THETA_MIN, Math.min(1, (fc - 0.5) / (fc - fn)));
+  }
+
+  /** Der Druckunterschied über die Fläche von Zelle l nach r (r − l); zwischen Flüssigkeit und Gas über den Abstand θ zur Oberfläche. */
+  private across(l: number, r: number): number {
+    const { pl, kind } = this.g;
+    const d = pl[r] - pl[l];
+    if (kind[l] === GAS && kind[r] === LIQUID) return d / this.theta(r, l);
+    if (kind[r] === GAS && kind[l] === LIQUID) return d / this.theta(l, r);
+    return d;
   }
 
   /** Zähigkeit (M2a): der implizite Schritt je Komponente (liquidMix.ts). */
@@ -720,86 +754,28 @@ export class Liquid {
 
   private dropletDrift: Float64Array | null = null;
 
-  /** RK2 im Gitterfeld, Stoss an Feststoffen, Entweichen durch offene Seiten (Masse und Energie des Entwichenen in escM, escE); mit mehreren Flüssigkeiten die Drift der Tröpfchen. */
+  /** RK2 im Gitterfeld, Stoss an Feststoffen und wachen Körpern, Entweichen durch offene Seiten (liquidMove.ts); mit mehreren Flüssigkeiten die Drift der Tröpfchen. */
   private advect(dt: number, gy: number): void {
-    const { P, g, vel } = this;
-    const W = g.w;
-    const H = g.h;
-    const dx = g.dx;
-    let escM = 0;
-    let escO = 0;
-    let escS = 0;
-    let escE = 0;
+    const P = this.P;
     let drift: Float64Array | null = null;
     if (this.viscous) {
       if (this.dropletDrift === null || this.dropletDrift.length < P.cap) this.dropletDrift = new Float64Array(P.cap);
       if (this.droplets(dt, gy, this.dropletDrift)) drift = this.dropletDrift;
     }
-    const st = this.stranded;
-    for (let p = 0; p < P.count; p += 1) {
-      const x0 = P.x[p];
-      const y0 = P.y[p];
-      const fly = st[p] !== 0;
-      let x: number;
-      let y: number;
-      if (fly) {
-        x = x0 + dt * P.vx[p];
-        y = y0 + dt * P.vy[p];
-      } else {
-        this.velocityAt(x0, y0, vel);
-        const xm = x0 + 0.5 * dt * vel[0];
-        const ym = y0 + 0.5 * dt * vel[1];
-        this.velocityAt(xm, ym, vel);
-        x = x0 + dt * vel[0];
-        y = y0 + dt * vel[1] + (drift !== null ? drift[p] : 0);
-      }
-      /* Offene Seiten: hinaus ist hinaus. */
-      if ((x < 0 && g.openL) || (x > W && g.openR) || (y < 0 && g.openB) || (y > H && g.openT)) {
-        const s = P.smass[2 * p];
-        if (P.mat[p] === WATER) escM += P.mass[p] - s; else escO += P.mass[p] - s;
-        escS += s;
-        escE += P.mass[p] * P.h[p];
-        /* Das letzte Teilchen rückt an p: seine Drift und sein Flug mit. */
-        if (drift !== null) drift[p] = drift[P.count - 1];
-        st[p] = st[P.count - 1];
-        this.removeParticle(p);
-        p -= 1;
-        continue;
-      }
-      const m = 1e-4 * dx;
-      /* Ein fliegender Tropfen an einer Wand der Kiste bleibt dort (seine Geschwindigkeit in die Wand fällt weg). */
-      if (fly && (x < m || x > W - m)) P.vx[p] = 0;
-      if (fly && (y < m || y > H - m)) P.vy[p] = 0;
-      x = Math.min(W - m, Math.max(m, x));
-      y = Math.min(H - m, Math.max(m, y));
-      /* Feststoffe: längs des Abstandsfelds hinaus, die Normalgeschwindigkeit fällt weg (ein fliegender Tropfen bleibt liegen). */
-      let d = g.sdfAt(x, y);
-      if (d < 0.05 * dx) {
-        for (let it = 0; it < 3 && d < 0.05 * dx; it += 1) {
-          const e = 0.25 * dx;
-          let nxv = g.sdfAt(x + e, y) - g.sdfAt(x - e, y);
-          let nyv = g.sdfAt(x, y + e) - g.sdfAt(x, y - e);
-          const len = Math.hypot(nxv, nyv);
-          if (len < 1e-12) break;
-          nxv /= len;
-          nyv /= len;
-          const push = 0.05 * dx - d;
-          x += push * nxv;
-          y += push * nyv;
-          const vn = P.vx[p] * nxv + P.vy[p] * nyv;
-          if (fly) { P.vx[p] = 0; P.vy[p] = 0; }
-          else if (vn < 0) { P.vx[p] -= vn * nxv; P.vy[p] -= vn * nyv; }
-          x = Math.min(W - m, Math.max(m, x));
-          y = Math.min(H - m, Math.max(m, y));
-          d = g.sdfAt(x, y);
-        }
-      }
-      P.x[p] = x;
-      P.y[p] = y;
-    }
-    this.escM = escM;
-    this.escO = escO;
-    this.escS = escS;
-    this.escE = escE;
+    const out = this.escaped;
+    moveParticles(P, this.g, dt, this.stranded, drift, this.velocityAtFn, this.removeFn, this.bodyHit, this.vel, this.hit, out);
+    this.escM = out.m;
+    this.escO = out.o;
+    this.escS = out.s;
+    this.escE = out.e;
   }
+
+  /** Wache Körper (M3a, von der Engine gesetzt): was sie zum Weg eines Teilchens sagen (liquidMove.ts). */
+  bodyHit: BodyHit | null = null;
+  /** Nach der Projektion, mit ihrer Matrix noch im Löser (M3a: die mitbewegte Masse der Körper). */
+  afterSolve: ((S: GridSolver, i0: number, j0: number, dt: number) => void) | null = null;
+  private readonly hit = new Float64Array(6);
+  private readonly escaped: Escaped = { m: 0, o: 0, s: 0, e: 0 };
+  private readonly velocityAtFn = (x: number, y: number, out: Float64Array): void => { gridVelocityAt(this.g, x, y, out); };
+  private readonly removeFn = (p: number): void => { this.removeParticle(p); };
 }

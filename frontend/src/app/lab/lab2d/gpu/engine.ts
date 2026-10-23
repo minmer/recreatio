@@ -563,7 +563,7 @@ export class GpuEngine {
       heater: t.heater, lossWalls: t.lossWalls, lossOpen: t.lossOpen, escapedEnergy: t.escapedEnergy, editEnergy: e.ledger.energy,
       escapedWater: t.escapedWater, escapedAir: t.escapedAir, editWater: e.ledger.water, editAir: e.ledger.air,
       /* Andere Flüssigkeiten und Salz kennt der beschleunigte Weg noch nicht (er lehnt solche Szenen ab). */
-      escapedOther: 0, editOther: e.ledger.other, escapedSalt: 0, editSalt: e.ledger.salt
+      escapedOther: 0, editOther: e.ledger.other, escapedSalt: 0, editSalt: e.ledger.salt, bodyWork: 0
     };
     const e0 = this.energy0 ?? budget.energy;
     const w0 = this.water0 ?? budget.water.total;
@@ -600,6 +600,8 @@ export class GpuEngine {
       otherT: 0,
       saltMass: 0,
       saltSolid: 0,
+      /* Nur angeheftete Körper (freie rechnet der beschleunigte Weg nicht): sie stehen als feste Zellen da. */
+      bodies: { count: this.cpu.bodies.list.filter((b) => !b.gone).length, free: 0, awake: 0 },
       heaters,
       regions: (r?.regions ?? []).map((q) => ({ p0: q.p0, sealed: q.sealed, vGas: q.vGas })),
       budget,

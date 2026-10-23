@@ -21,7 +21,8 @@ describe('B — test 34: the size of a clip per simulated minute', () => {
     const sc = canonicalScene(e.serialize());
     const b = new Baker(e, charts, sc, await clipKey(sc), 60);
     const t0 = performance.now();
-    while (!b.run(2000)) { /* weiter */ }
+    /* Zwischen den Scheiben die Ereignisschleife frei geben: sonst wartet Vitests RPC des Arbeiters („onTaskUpdate“) minutenlang und meldet einen Fehler. */
+    while (!b.run(2000)) await new Promise((r) => setTimeout(r, 0));
     const ms = performance.now() - t0;
     const baked = await b.finish();
     if (baked === null) throw new Error('nothing baked');

@@ -36,8 +36,13 @@ export type Op =
   /** Alles Feste in der Fläche samt Wasser und Blasen darin um (dx, dy) verschieben (auf ganze Zellen gerundet) — „Przesuń“. */
   | { readonly op: 'move'; readonly region: Region; readonly dx: number; readonly dy: number }
   | { readonly op: 'solid'; readonly region: Region; readonly material: string; readonly T: number }
-  | { readonly op: 'beaker'; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly wall: number; readonly material: string; readonly T: number; readonly lid: boolean }
-  | { readonly op: 'hotplate'; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly material: string; readonly T: number; readonly mode: HeaterMode; readonly power: number; readonly target: number; readonly on: boolean };
+  /** Zlewka und Heizplatte sind Körper (M3a): angeheftet, wenn nicht `pinned: false`; `angle` (Grad, gegen den Uhrzeigersinn) dreht um die Mitte ihrer Unterkante. */
+  | { readonly op: 'beaker'; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly wall: number; readonly material: string; readonly T: number; readonly lid: boolean; readonly pinned: boolean; readonly angle: number }
+  | { readonly op: 'hotplate'; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly material: string; readonly T: number; readonly mode: HeaterMode; readonly power: number; readonly target: number; readonly on: boolean; readonly pinned: boolean; readonly angle: number }
+  /** Ein Körper (M3a) — „Postaw ciało“: die Fläche aus einem Werkstoff, frei (fällt, schwimmt, kippt) oder angeheftet; `angle` dreht um die Mitte der Fläche. */
+  | { readonly op: 'body'; readonly region: Region; readonly material: string; readonly T: number; readonly pinned: boolean; readonly angle: number }
+  /** „Przypnij“: den Körper unter (x, y) anheften oder lösen. */
+  | { readonly op: 'pin'; readonly x: number; readonly y: number; readonly pinned: boolean };
 
 export interface Ambient {
   /** Druck (Pa) auf Höhe des Kistenbodens. */
@@ -129,14 +134,23 @@ function readOp(raw: unknown, warnings: string[], at: number): Op | null {
     case 'beaker':
       return {
         op: 'beaker', x: num(r.x, 0.1), y: num(r.y, 0), w: clamp(num(r.w, 0.07), 0.01, 1), h: clamp(num(r.h, 0.09), 0.01, 1),
-        wall: clamp(num(r.wall, 0.002), 0.0005, 0.02), material: material('glass'), T, lid: r.lid === true
+        wall: clamp(num(r.wall, 0.002), 0.0005, 0.02), material: material('glass'), T, lid: r.lid === true,
+        pinned: r.pinned !== false, angle: clamp(num(r.angle, 0), -180, 180)
       };
     case 'hotplate':
       return {
         op: 'hotplate', x: num(r.x, 0.1), y: num(r.y, 0), w: clamp(num(r.w, 0.12), 0.005, 1), h: clamp(num(r.h, 0.008), 0.002, 0.1),
         material: material('steel'), T, mode: r.mode === 'thermostat' ? 'thermostat' : 'power',
-        power: clamp(num(r.power, 40), 0, 2000), target: T0 + clamp(num(r.target, 150), 0, 600), on: r.on !== false
+        power: clamp(num(r.power, 40), 0, 2000), target: T0 + clamp(num(r.target, 150), 0, 600), on: r.on !== false,
+        pinned: r.pinned !== false, angle: clamp(num(r.angle, 0), -180, 180)
       };
+    case 'body': {
+      const region = readRegion(r.region);
+      if (region === null) break;
+      return { op: 'body', region, material: material('wood'), T, pinned: r.pinned === true, angle: clamp(num(r.angle, 0), -180, 180) };
+    }
+    case 'pin':
+      return { op: 'pin', x: num(r.x, 0), y: num(r.y, 0), pinned: r.pinned !== false };
     default:
       break;
   }
@@ -198,11 +212,18 @@ export function writeOp(op: Op): Record<string, unknown> {
     case 'solid':
       return { op: 'solid', region: writeRegion(op.region), material: op.material, T: round(op.T - T0, 3) };
     case 'beaker':
-      return { op: 'beaker', x: op.x, y: op.y, w: op.w, h: op.h, wall: op.wall, material: op.material, T: round(op.T - T0, 3), ...(op.lid ? { lid: true } : {}) };
+      return { op: 'beaker', x: op.x, y: op.y, w: op.w, h: op.h, wall: op.wall, material: op.material, T: round(op.T - T0, 3), ...(op.lid ? { lid: true } : {}), ...placement(op) };
     case 'hotplate':
-      return { op: 'hotplate', x: op.x, y: op.y, w: op.w, h: op.h, material: op.material, mode: op.mode, power: op.power, target: round(op.target - T0, 3), on: op.on, T: round(op.T - T0, 3) };
+      return { op: 'hotplate', x: op.x, y: op.y, w: op.w, h: op.h, material: op.material, mode: op.mode, power: op.power, target: round(op.target - T0, 3), on: op.on, T: round(op.T - T0, 3), ...placement(op) };
+    case 'body':
+      return { op: 'body', region: writeRegion(op.region), material: op.material, T: round(op.T - T0, 3), ...(op.pinned ? { pinned: true } : {}), ...(op.angle !== 0 ? { angle: round(op.angle, 4) } : {}) };
+    case 'pin':
+      return { op: 'pin', x: round(op.x), y: round(op.y), pinned: op.pinned };
   }
 }
+
+/** Lose oder gedreht — nur, wenn es so ist (eine Szene von vor M3a schreibt sich so unverändert, und ihr Schlüssel im Speicher der Clips bleibt). */
+const placement = (op: { readonly pinned: boolean; readonly angle: number }): Record<string, unknown> => ({ ...(op.pinned ? {} : { pinned: false }), ...(op.angle !== 0 ? { angle: round(op.angle, 4) } : {}) });
 
 /** Eine Szene als JSON (°C, kPa) — so, wie readScene sie wieder liest. */
 export function writeScene(scene: Scene): Record<string, unknown> {

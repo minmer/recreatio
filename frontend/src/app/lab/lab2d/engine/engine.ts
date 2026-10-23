@@ -15,12 +15,16 @@
  *   6. Wärme          implizite Leitung über alle Zellen, latente Wärme als Quelle
  *   7. Chemie         leer in M1
  *   8. Ränder         offene Seiten, Bilanzen, Sonden, Zeitmessung
+ *   9. Körper         Kräfte der Flüssigkeit, Berührungen, neue Lagen (M3a;
+ *                     ins Gitter geschrieben werden die wachen Körper zu
+ *                     Beginn des nächsten Schritts, mit den Eingaben)
  *
  * Δt = min(1/120 s, Δx/u_max der Flüssigkeit). Nichts in der Schleife legt
  * Speicher an; der einzige Zufall ist der Generator mit Samen (Teil des
  * Zustands) — derselbe Samen, dieselben Befehle, derselbe Lauf.
  */
 
+import { Bodies } from './bodies';
 import { BubbleModel } from './bubbleModel';
 import { Bubbles } from './bubbles';
 import { emptyFlows, emptySnapshot, measure, type BudgetSnapshot, type Flows } from './budget';
@@ -91,6 +95,8 @@ export interface EngineStats {
   /** Kochsalz (M2b): gelöst in den Teilchen und ausgefallen (Kruste, Boden der Kiste) (kg). */
   saltMass: number;
   saltSolid: number;
+  /** Körper (M3a): alle, freie, wache. */
+  bodies: { count: number; free: number; awake: number };
   heaters: { group: number; P: number; Tmean: number; mode: HeaterMode; power: number; target: number; on: boolean }[];
   /** Druck p0 je Gebiet (Pa), verschlossen? */
   regions: { p0: number; sealed: boolean; vGas: number }[];
@@ -139,6 +145,8 @@ export interface ProbeInfo {
   /** Das nächste Teilchen; salt: Massenanteil des gelösten Salzes (0: reine Flüssigkeit). */
   particle: { id: number; T: number; vx: number; vy: number; mass: number; rho: number; dist: number; liquid: string; salt: number } | null;
   bubble: { id: number; r: number; T: number; pb: number; pv: number; Tsat: number; mv: number; ma: number; vx: number; vy: number; dmdt: number; attached: boolean; force: number[] } | null;
+  /** Der Körper an diesem Punkt (M3a): sein häufigster Werkstoff, Masse (kg), mittlere Temperatur (K), Geschwindigkeit (m/s), Drehung (rad, rad/s), Zustand. */
+  body: { index: number; material: string; mass: number; T: number; vx: number; vy: number; angle: number; w: number; state: 'pinned' | 'asleep' | 'moving' } | null;
 }
 
 const DT_MAX = 1 / 120;
@@ -159,6 +167,7 @@ export class Engine {
   phase!: Phase;
   salt!: Salt;
   exchange!: Exchange;
+  bodies!: Bodies;
   solver!: GridSolver;
   private prevKind!: Uint8Array;
   private p0Start: Float64Array = new Float64Array(8);
@@ -189,6 +198,8 @@ export class Engine {
   stepMs = 0;
   private quality: Quality = 'high';
   private readonly heaterOps = new Map<number, number>();
+  /** Werden gerade die Schritte der Szene aufgebaut (dann wecken Handgriffe keine Körper)? */
+  private building = false;
 
   constructor(raw: Scene | unknown, options: EngineOptions = {}) {
     this.options = options;
@@ -238,6 +249,9 @@ export class Engine {
     this.phase = new Phase(this);
     this.salt = new Salt(this);
     this.exchange = new Exchange(this);
+    this.bodies = new Bodies(this);
+    this.liquid.bodyHit = (x0, y0, x, y, out) => this.bodies.hitPoint(x0, y0, x, y, out);
+    this.liquid.afterSolve = (S, i0, j0, dt) => this.bodies.probe(S, i0, j0, dt);
     this.prevKind = new Uint8Array(grid.n);
     this.rng = new Rng(scene.seed);
     this.time = 0;
@@ -261,8 +275,12 @@ export class Engine {
       this.gas.fillCell(c, this.ambientT, this.ambientY);
     }
     this.bubbleModel.rebuildSites();
+    this.building = true;
     for (const op of scene.ops) this.apply(op);
+    this.building = false;
     this.settle();
+    /* Freie Körper schlafen; wer nichts berührt, fällt gleich. */
+    this.bodies.settleStart();
     this.ledger.water = 0;
     this.ledger.air = 0;
     this.ledger.energy = 0;
@@ -325,6 +343,8 @@ export class Engine {
       ambientY: this.ambientY,
       ambientT: this.ambientT,
       ledger: this.ledger,
+      bodies: this.bodies,
+      opIndex: this.scene.ops.length,
       solidsChanged: () => this.solidsChanged()
     };
   }
@@ -335,6 +355,7 @@ export class Engine {
     for (let r = 0; r < this.regions.count; r += 1) if (this.regions.open[r] !== 0) this.regions.p0[r] = this.pRef;
     this.bubbleModel.rebuildSites();
     this.liquid.weightsDirty = true;
+    this.bodies.changed();
   }
 
   /* -- Befehle --------------------------------------------------------------------------------------- */
@@ -355,6 +376,8 @@ export class Engine {
     this.scene = { ...this.scene, ops: [...this.scene.ops, op] };
     this.settle();
     this.ledger.energy += this.regions.pvTerm() - pv0;
+    /* Nach einem Werkzeug wachen die freien Körper auf (vielleicht fehlt ihnen der Halt); sie schlafen bald wieder ein. */
+    if (!this.building) this.bodies.wakeFree();
     if (warning !== null) this.warnings.push(warning);
     return warning;
   }
@@ -457,7 +480,13 @@ export class Engine {
     const dt = this.dt;
     const stamp = this.stamp;
     stamp[0] = now();
-    /* 1. Eingaben: Werkzeuge kommen zwischen den Schritten (apply); die Heizleistung regelt Stufe 6. */
+    /* 1. Eingaben: Werkzeuge kommen zwischen den Schritten (apply); die Heizleistung regelt Stufe 6. Die wachen Körper
+       ins Gitter (M3a); füllen oder leeren sie Zellen eines verschlossenen Gebiets, ist der Sprung von −p0·V ihre Arbeit. */
+    const pvBodies = regions.pvTerm();
+    if (this.bodies.prepare() > 0) {
+      regions.update(particles, bubbles);
+      this.flows.bodyWork += regions.pvTerm() - pvBodies;
+    }
     stamp[1] = now();
 
     /* 2. Flüssigkeit. */
@@ -529,8 +558,12 @@ export class Engine {
     if (heat.last.solve.capped) this.cappedCount += 1;
     this.time += dt;
     this.steps += 1;
-    this.dt = Math.min(this.dtMax, liquid.last.uMax > 0 ? (0.9 * grid.dx) / liquid.last.uMax : this.dtMax);
     stamp[8] = now();
+
+    /* 9. Körper (M3a): Kräfte, Berührungen, neue Lagen. Kein Punkt eines Körpers rückt mehr als eine halbe Zelle je Schritt. */
+    this.bodies.finish(dt);
+    this.dt = Math.min(this.dtMax, liquid.last.uMax > 0 ? (0.9 * grid.dx) / liquid.last.uMax : this.dtMax, this.bodies.dtLimit());
+    stamp[9] = now();
     /* Zeiten: gleitendes Mittel über etwa 30 Schritte. */
     const a = this.steps < 5 ? 1 : 1 / 30;
     for (let s = 0; s < STAGE_COUNT; s += 1) this.timings[s] += a * (stamp[s + 1] - stamp[s] - this.timings[s]);
@@ -581,7 +614,7 @@ export class Engine {
   energyError(): number {
     const s = this.measureBudget();
     const f = this.flows;
-    return s.energy - this.energy0 - (f.heater - f.lossWalls - f.lossOpen - f.escapedEnergy + f.editEnergy);
+    return s.energy - this.energy0 - (f.heater - f.lossWalls - f.lossOpen - f.escapedEnergy + f.editEnergy + f.bodyWork);
   }
 
   /** Abweichung der Wasserbilanz seit dem Start (kg): das Entwichene ist im Gesamtwert schon enthalten. */
@@ -596,9 +629,9 @@ export class Engine {
     return s.other.total - this.other0 - this.flows.editOther;
   }
 
-  /** Braucht die Szene den normalen Weg? Andere Flüssigkeiten (M2a) und Salz — gelöst oder als Kruste (M2b) — kennt der beschleunigte Weg noch nicht. */
+  /** Braucht die Szene den normalen Weg? Andere Flüssigkeiten (M2a), Salz — gelöst oder als Kruste (M2b) — und freie Körper (M3a) kennt der beschleunigte Weg noch nicht. */
   needsCpu(): boolean {
-    return this.particles.hasOther() || this.particles.hasSalt() || this.salt.crustMass() > 0 || this.salt.floorTotals().mass > 0;
+    return this.particles.hasOther() || this.particles.hasSalt() || this.salt.crustMass() > 0 || this.salt.floorTotals().mass > 0 || this.bodies.anyFree;
   }
 
   /** Abweichung der Salzbilanz seit dem Start (kg): gelöst + Kruste + Boden + entwichen gegen den Anfang und die Eingriffe. */
@@ -664,7 +697,7 @@ export class Engine {
     const ot = this.otherTemperature();
     const budget = this.measureBudget();
     const f = this.flows;
-    const energyError = budget.energy - this.energy0 - (f.heater - f.lossWalls - f.lossOpen - f.escapedEnergy + f.editEnergy);
+    const energyError = budget.energy - this.energy0 - (f.heater - f.lossWalls - f.lossOpen - f.escapedEnergy + f.editEnergy + f.bodyWork);
     const waterError = budget.water.total - this.water0 - f.editWater;
     const otherError = budget.other.total - this.other0 - f.editOther;
     const saltError = budget.salt.total - this.salt0 - f.editSalt;
@@ -703,6 +736,11 @@ export class Engine {
       otherT: ot.mean,
       saltMass: budget.salt.liquid,
       saltSolid: budget.salt.crust + budget.salt.floor,
+      bodies: {
+        count: this.bodies.list.filter((b) => !b.gone).length,
+        free: this.bodies.list.filter((b) => b.free).length,
+        awake: this.bodies.list.filter((b) => b.awake).length
+      },
       heaters: this.heat.heaters.filter((h: Heater) => h.cells > 0).map((h: Heater) => ({ group: h.group, P: h.P, Tmean: h.Tmean, mode: h.mode, power: h.power, target: h.target, on: h.on })),
       regions,
       budget: { ...budget, water: { ...budget.water }, other: { ...budget.other }, salt: { ...budget.salt } },

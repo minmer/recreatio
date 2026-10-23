@@ -42,6 +42,13 @@ export class Grid {
   readonly phiS: Float32Array;
   /** Vorzeichenbehafteter Abstand zur Feststoffgrenze in der Zellmitte (m): positiv im Fluid. */
   readonly sdf: Float32Array;
+  /** Körper (M3a): Nummer + 1 des Körpers, dem die feste Zelle gehört (0: keinem — ein fester Bau aus „solid“). */
+  readonly owner: Int16Array;
+  /** Wärmekapazität des Feststoffs einer Zelle, die ein gedrehter oder bewegter Körper füllt (J/K, aus seinen Voxeln; 0: aus dem Werkstoff). */
+  readonly capB: Float64Array;
+  /** Geschwindigkeit fester Seitenflächen (m/s): an Zellen bewegter Körper die des Körpers, sonst 0. */
+  readonly usol: Float32Array;
+  readonly vsol: Float32Array;
 
   /* -- je Schritt -- */
   readonly phi: Float32Array;
@@ -90,6 +97,10 @@ export class Grid {
     this.heater = new Int16Array(n).fill(-1);
     this.phiS = new Float32Array(n);
     this.sdf = new Float32Array(n);
+    this.owner = new Int16Array(n);
+    this.capB = new Float64Array(n);
+    this.usol = new Float32Array(this.nu);
+    this.vsol = new Float32Array(this.nv);
     this.phi = new Float32Array(n);
     this.alpha = new Float32Array(n);
     this.kind = new Uint8Array(n);
@@ -132,11 +143,20 @@ export class Grid {
     return this.solid[i + j * this.nx] !== 0;
   }
 
-  /** Feste Daten nach jeder Änderung der Feststoffe oder Seiten neu: φ_s und der Abstand zur Wand. */
-  updateStatic(): void {
+  /**
+   * Feste Daten nach jeder Änderung der Feststoffe oder Seiten neu: φ_s und der
+   * Abstand zur Wand — überall oder (bewegte Körper) nur in einem Rechteck der
+   * Zellen (i0, j0)–(i1, j1), das alle geänderten Zellen samt vier Zellen Rand
+   * (so weit sucht der Abstand) enthält.
+   */
+  updateStatic(ri0 = 0, rj0 = 0, ri1 = this.nx - 1, rj1 = this.ny - 1): void {
     const { nx, ny, dx } = this;
-    for (let j = 0; j < ny; j += 1) {
-      for (let i = 0; i < nx; i += 1) {
+    const I0 = Math.max(0, ri0);
+    const J0 = Math.max(0, rj0);
+    const I1 = Math.min(nx - 1, ri1);
+    const J1 = Math.min(ny - 1, rj1);
+    for (let j = J0; j <= J1; j += 1) {
+      for (let i = I0; i <= I1; i += 1) {
         const c = i + j * nx;
         if (this.solid[c] !== 0) { this.phiS[c] = 1; continue; }
         let s = 0;
@@ -147,8 +167,8 @@ export class Grid {
     /* Abstand: zum nächsten Punkt einer festen Zelle (oder einer Wandseite), höchstens 4 Zellen weit gesucht. */
     const R = 4;
     const far = R * dx;
-    for (let j = 0; j < ny; j += 1) {
-      for (let i = 0; i < nx; i += 1) {
+    for (let j = J0; j <= J1; j += 1) {
+      for (let i = I0; i <= I1; i += 1) {
         const c = i + j * nx;
         const inSolid = this.solid[c] !== 0;
         const x = (i + 0.5) * dx;

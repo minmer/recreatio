@@ -85,10 +85,12 @@ export interface Flows {
   /** Salz (kg): entwichen (mit Teilchen oder durch einen offenen Boden), Eingriffe. */
   escapedSalt: number;
   editSalt: number;
+  /** Arbeit bewegter Körper an verschlossenem Gas (J, M3a): der Sprung von −p0·V, wenn ein Körper Zellen eines verschlossenen Gebiets füllt oder freigibt. */
+  bodyWork: number;
 }
 
 export function emptyFlows(): Flows {
-  return { heater: 0, lossWalls: 0, lossOpen: 0, escapedEnergy: 0, editEnergy: 0, escapedWater: 0, escapedAir: 0, editWater: 0, editAir: 0, escapedOther: 0, editOther: 0, escapedSalt: 0, editSalt: 0 };
+  return { heater: 0, lossWalls: 0, lossOpen: 0, escapedEnergy: 0, editEnergy: 0, escapedWater: 0, escapedAir: 0, editWater: 0, editAir: 0, escapedOther: 0, editOther: 0, escapedSalt: 0, editSalt: 0, bodyWork: 0 };
 }
 
 const NO_FLOOR: FloorSalt = { mass: 0, energy: 0 };

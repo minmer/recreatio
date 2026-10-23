@@ -20,10 +20,12 @@ export function lab2dDescription(): string {
     'Kroki ("op"):',
     '  { "op": "fill", "region": obszar, "composition": { "H2O": 1 }, "phase": "liquid", "T": °C } — ciecz w obszarze: "H2O" (woda) albo "oil-rapeseed" (olej rzepakowy; nie paruje, lżejszy od wody, gęstszy w ruchu); kilka cieczy naraz (udziały masowe) rozkłada się równo i rozdziela się pod wpływem grawitacji; "NaCl" (sól kuchenna) rozpuszcza się w wodzie: { "H2O": 0.9, "NaCl": 0.1 } to solanka 10 % (nasycona ma ok. 26 %; nadmiar krystalizuje jako osad na dnie, solanka wrze wyżej niż 100 °C); "phase": "gas" z { "N2": 0.7676, "O2": 0.2324 } — powietrze',
     '  { "op": "erase", "region": obszar } — usuwa wodę, pęcherze i ciała stałe; wraca powietrze z pokoju',
-    '  { "op": "move", "region": obszar, "dx": m, "dy": m } — przesuwa ciała stałe z obszaru razem z wodą i pęcherzami w nim (o całe komórki); tak zapisuje się narzędzie „Przesuń”',
-    '  { "op": "solid", "region": obszar, "material": "glass" | "steel" | "ceramic", "T": °C } — nieruchome ciało stałe (ceramic = kamyczki wrzenne)',
-    '  { "op": "beaker", "x": środek, "y": dół, "w": szerokość, "h": wysokość, "wall": grubość ścianki, "material": "glass", "T": °C, "lid": true (opcjonalnie, szczelna pokrywka) } — zlewka (przekrój)',
-    '  { "op": "hotplate", "x": środek, "y": dół, "w", "h", "material": "steel", "mode": "power" | "thermostat", "power": W, "target": °C, "on": true, "T": °C } — płyta grzejna',
+    '  { "op": "move", "region": obszar, "dx": m, "dy": m } — przesuwa ciała stałe z obszaru razem z wodą i pęcherzami w nim (o całe komórki; ciało w całości); tak zapisuje się narzędzie „Przesuń”',
+    '  { "op": "solid", "region": obszar, "material": "glass" | "steel" | "ceramic" | "wood" | "ice" | "stone", "T": °C } — nieruchoma budowla (ceramic = kamyczki wrzenne)',
+    '  { "op": "body", "region": obszar, "material": "wood" | "ice" | "stone" | "glass" | "steel" | "ceramic", "T": °C, "pinned": true (opcjonalnie: stoi w miejscu), "angle": stopnie (opcjonalnie, obrót wokół środka) } — ciało: swobodne spada, pływa, tonie i przewraca się (drewno 510 kg/m³ pływa, lód 917 kg/m³ pływa prawie cały zanurzony, kamień tonie); lód się jeszcze nie topi',
+    '  { "op": "beaker", "x": środek, "y": dół, "w": szerokość, "h": wysokość, "wall": grubość ścianki, "material": "glass", "T": °C, "lid": true (opcjonalnie, szczelna pokrywka), "pinned": false (opcjonalnie: zlewka swobodna — może się przewrócić), "angle": stopnie (opcjonalnie, obrót wokół środka dna) } — zlewka (przekrój); bez "pinned": false stoi przypięta',
+    '  { "op": "hotplate", "x": środek, "y": dół, "w", "h", "material": "steel", "mode": "power" | "thermostat", "power": W, "target": °C, "on": true, "T": °C, "pinned": false (opcjonalnie) } — płyta grzejna (przypięta, chyba że "pinned": false)',
+    '  { "op": "pin", "x": m, "y": m, "pinned": true | false } — przypina albo odpina ciało w tym punkcie; tak zapisuje się narzędzie „Przypnij”',
     'Obszar: { "rect": [x0, y0, x1, y1] } | { "circle": [x, y, r] } | { "poly": [[x, y], …] } | { "line": [x0, y0, x1, y1], "width": grubość }',
     'Ciecz musi mieć swobodną powierzchnię (gaz nad sobą) — całkiem zalany zamknięty obszar zostanie odrzucony.'
   ].join('\n');
@@ -31,9 +33,9 @@ export function lab2dDescription(): string {
 
 export function lab2dPrompt(): string {
   return [
-    'Przygotuj układ startowy JSON dla modułu „Laboratorium 2D” w REcreatio (szkolna piaskownica: ciepło, wrzenie, parowanie, mgła, woda, olej i solanka).',
+    'Przygotuj układ startowy JSON dla modułu „Laboratorium 2D” w REcreatio (szkolna piaskownica: ciepło, wrzenie, parowanie, mgła, woda, olej i solanka, ciała, które spadają, pływają i toną).',
     'Temat: [opisz, co ma stać w skrzynce, np. „zlewka z gorącą wodą na płycie grzejnej, kamyczki wrzenne na dnie”].',
-    'Zasady: realne rozmiary (zlewka 7 cm szerokości, płyta 12 cm), rzeczy nie nachodzą na siebie, aparatura stoi na dnie (y = 0) albo na innej rzeczy, woda wewnątrz zlewki nad jej dnem. Zwróć JEDEN obiekt JSON, bez komentarzy.',
+    'Zasady: realne rozmiary (zlewka 7 cm szerokości, płyta 12 cm), rzeczy nie nachodzą na siebie, aparatura stoi na dnie (y = 0) albo na innej rzeczy, woda wewnątrz zlewki nad jej dnem; swobodne ciało może wisieć nad wodą — spadnie. Zwróć JEDEN obiekt JSON, bez komentarzy.',
     '',
     lab2dDescription(),
     '',

@@ -4,6 +4,6 @@
  * Oberfläche braucht die Namen, ohne die Engine mitzuladen.
  */
 
-export const STAGES = ['inputs', 'liquid', 'gas', 'bubbles', 'interface', 'heat', 'chemistry', 'diagnostics'] as const;
+export const STAGES = ['inputs', 'liquid', 'gas', 'bubbles', 'interface', 'heat', 'chemistry', 'diagnostics', 'bodies'] as const;
 export type StageName = (typeof STAGES)[number];
 export const STAGE_COUNT = STAGES.length;

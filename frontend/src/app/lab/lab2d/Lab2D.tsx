@@ -23,7 +23,7 @@ import { LabFrame, LabSection } from '../LabFrame';
 import { BakePanel, ClipSection, PlayerBar, StartPanel, type BakeProgress } from './ClipControls';
 import type { ClipInfo } from './clip/clip';
 import type { ProbeInfo } from './engine/engine';
-import { LIQUIDS } from './engine/materials';
+import { LIQUIDS, SOLIDS } from './engine/materials';
 import type { ChartSample, HostStats } from './engine/protocol';
 import { CELL, QUALITIES, isQuality, readScene, writeScene, type Op, type Quality, type SideName } from './engine/scene';
 import type { Region } from './engine/shapes';
@@ -56,7 +56,7 @@ export interface Lab2DConfig {
   readonly scenarios?: readonly Lab2DScenario[];
 }
 
-type Tool = 'paint' | 'erase' | 'place' | 'drag' | 'wall' | 'inspect';
+type Tool = 'paint' | 'erase' | 'place' | 'body' | 'pin' | 'drag' | 'wall' | 'inspect';
 type ApparatusKey = 'beaker' | 'hotplate';
 
 interface Material {
@@ -80,10 +80,18 @@ const MATERIALS: readonly Material[] = [
   { key: 'chips', label: 'matChips', solid: 'ceramic', color: '#d8ccb4' }
 ];
 
+/** Stoffe für Körper (M3a, „Postaw ciało“). */
+const BODY_MATERIALS: readonly { readonly key: string; readonly label: TextKey }[] = [
+  { key: 'wood', label: 'matWood' }, { key: 'ice', label: 'matIce' }, { key: 'stone', label: 'matStone' }, { key: 'glass', label: 'matGlass' }, { key: 'steel', label: 'matSteel' }
+];
+const solidColor = (id: string): string => SOLIDS.find((s) => s.id === id)?.color ?? '#888888';
+
 const TOOLS: readonly { readonly key: Tool; readonly label: TextKey; readonly icon: IconName; readonly hint: TextKey }[] = [
   { key: 'paint', label: 'toolPaint', icon: 'edit', hint: 'hintPaint' },
   { key: 'erase', label: 'toolErase', icon: 'x', hint: 'hintErase' },
   { key: 'place', label: 'toolPlace', icon: 'plus', hint: 'hintPlace' },
+  { key: 'body', label: 'toolBody', icon: 'blocks', hint: 'hintBody' },
+  { key: 'pin', label: 'toolPin', icon: 'pin', hint: 'hintPin' },
   { key: 'drag', label: 'toolDrag', icon: 'shuffle', hint: 'hintDrag' },
   { key: 'wall', label: 'toolWall', icon: 'minus', hint: 'hintWall' },
   { key: 'inspect', label: 'toolInspect', icon: 'search', hint: 'hintInspect' }
@@ -140,8 +148,8 @@ function apparatusOp(kind: ApparatusKey, x: number, y: number, rects: readonly R
   for (const r of rects) if (r[2] > x - half && r[0] < x + half && r[3] <= y + SNAP && r[3] > base) base = r[3];
   const yy = y - base < SNAP ? base : y;
   return kind === 'beaker'
-    ? { op: 'beaker', x, y: yy, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T: T0 + 20, lid: false }
-    : { op: 'hotplate', x, y: yy, w: 0.12, h: 0.008, material: 'steel', T: T0 + 20, mode: 'power', power: 40, target: T0 + 150, on: true };
+    ? { op: 'beaker', x, y: yy, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T: T0 + 20, lid: false, pinned: true, angle: 0 }
+    : { op: 'hotplate', x, y: yy, w: 0.12, h: 0.008, material: 'steel', T: T0 + 20, mode: 'power', power: 40, target: T0 + 150, on: true, pinned: true, angle: 0 };
 }
 
 /** Das Rechteck eines Geräts aus seinem JSON (für „Przesuń“). */
@@ -203,6 +211,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   const [tool, setTool] = useState<Tool>('paint');
   const [material, setMaterial] = useState('water');
   const [apparatus, setApparatus] = useState<ApparatusKey>('beaker');
+  const [bodyMat, setBodyMat] = useState('wood');
   const [brushMm, setBrushMm] = useState(8);
   const [tempC, setTempC] = useState(20);
   /* Massenanteil des Salzes in gemalter Solanka (%). */
@@ -382,7 +391,17 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
     else if (tool === 'inspect') {
       void h.query(w[0], w[1]).then((q) => { setInfo(q); h.select(q?.bubble?.id ?? null); });
       drag.current = null;
-    } else if (tool === 'wall') setLine([px[0], px[1], px[0], px[1]]);
+    } else if (tool === 'wall' || tool === 'body') setLine([px[0], px[1], px[0], px[1]]);
+    else if (tool === 'pin') {
+      /* Anheften oder lösen: was der Körper an dieser Stelle gerade ist, entscheidet. */
+      void h.query(w[0], w[1]).then((q) => {
+        const b = q?.body ?? null;
+        if (b === null) { setNote(t('noteNoBody')); return; }
+        h.apply({ op: 'pin', x: w[0], y: w[1], pinned: b.state !== 'pinned' });
+        window.setTimeout(() => refreshOps(h), 50);
+      });
+      drag.current = null;
+    }
     else if (tool === 'drag') {
       const r = apparatusAt(w[0], w[1]);
       if (r === null) drag.current = null;
@@ -396,7 +415,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
     if (d === null || h === null) return;
     const px = local(e);
     const w = h.toWorld(px[0], px[1]);
-    if (tool === 'wall' || tool === 'drag') { setLine([d.startPx[0], d.startPx[1], px[0], px[1]]); return; }
+    if (tool === 'wall' || tool === 'drag' || tool === 'body') { setLine([d.startPx[0], d.startPx[1], px[0], px[1]]); return; }
     const moved = Math.hypot(w[0] - d.last[0], w[1] - d.last[1]);
     const now = performance.now();
     if (moved < brushMm / 3000 && now - d.at < 60) return;
@@ -418,6 +437,12 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
       if (Math.hypot(x - d.start[0], y - d.start[1]) < cell) return;
       const m = MATERIALS.find((k) => k.key === material);
       h.addSolid({ line: [d.start[0], d.start[1], x, y], width: Math.max(2 * cell, 0.004) }, m?.solid ?? 'glass', T0 + tempC);
+    } else if (tool === 'body') {
+      /* Ein Körper aus dem gezogenen Rechteck (wenigstens eine Zelle), frei: er fällt, schwimmt oder sinkt. */
+      if (Math.abs(x - d.start[0]) < cell || Math.abs(y - d.start[1]) < cell) return;
+      const rect: [number, number, number, number] = [Math.min(x, d.start[0]), Math.max(0, Math.min(y, d.start[1])), Math.max(x, d.start[0]), Math.max(y, d.start[1])];
+      h.apply({ op: 'body', region: { rect }, material: bodyMat, T: T0 + tempC, pinned: false, angle: 0 });
+      window.setTimeout(() => refreshOps(h), 50);
     } else if (tool === 'drag' && d.target !== null) {
       const r = d.target;
       /* Auf ganze Zellen gerundet (so verschiebt die Engine), nicht unter den Boden. */
@@ -563,7 +588,8 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
         <defs>
           <marker id="l2d-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" className="l2d-arrowhead" /></marker>
         </defs>
-        {line !== null && <line className="l2d-preview" x1={line[0]} y1={line[1]} x2={line[2]} y2={line[3]} />}
+        {line !== null && tool === 'body' && <rect className="l2d-preview l2d-preview-box" x={Math.min(line[0], line[2])} y={Math.min(line[1], line[3])} width={Math.abs(line[2] - line[0])} height={Math.abs(line[3] - line[1])} />}
+        {line !== null && tool !== 'body' && <line className="l2d-preview" x1={line[0]} y1={line[1]} x2={line[2]} y2={line[3]} />}
         {arrows.map((a) => (
           <g key={a.key} className={`l2d-force l2d-force-${a.key}`}>
             <line x1={a.x1} y1={a.y1} x2={a.x2} y2={a.y2} markerEnd="url(#l2d-head)" />
@@ -640,6 +666,16 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
               <ApparatusIcon kind={k} />{t(k === 'beaker' ? 'appBeaker' : 'appHotplate')}
             </button>
           ))}
+        </div>
+      </LabSection>
+      <LabSection title={t('bodies')}>
+        <div className="lab-palette">
+          {BODY_MATERIALS.map((m) => (
+            <button key={m.key} type="button" className={`lab-item${bodyMat === m.key && tool === 'body' ? ' is-on' : ''}`} onClick={() => { setBodyMat(m.key); setTool('body'); }}>
+              <Swatch color={solidColor(m.key)} />{t(m.label)}
+            </button>
+          ))}
+          <button type="button" className={`lab-item${tool === 'pin' ? ' is-on' : ''}`} onClick={() => setTool('pin')}><Icon name="pin" />{t('toolPin')}</button>
         </div>
       </LabSection>
       <LabSection title={t('heater')}>

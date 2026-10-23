@@ -69,6 +69,18 @@ const RESUME: Record<string, { scene: () => unknown; warm: number }> = {
         { op: 'fill', region: { rect: [0.027, 0.008, 0.073, 0.040] }, composition: { H2O: 1 }, phase: 'liquid', T: 90 }
       ]
     })
+  },
+  /* M3a: ein Holzklotz fällt ins Wasser und schwimmt, ein heisser Stein sinkt und landet am Boden (Berührungen mit Warmstart). */
+  bodies: {
+    warm: 150,
+    scene: () => scene({
+      box: { w: 0.1, h: 0.08, depth: 0.01 },
+      ops: [
+        { op: 'fill', region: { rect: [0, 0, 0.1, 0.03] }, composition: { H2O: 1 }, phase: 'liquid', T: 20 },
+        { op: 'body', region: { rect: [0.02, 0.035, 0.044, 0.045] }, material: 'wood', T: 20 },
+        { op: 'body', region: { rect: [0.06, 0.02, 0.07, 0.028] }, material: 'stone', T: 60 }
+      ]
+    })
   }
 };
 
@@ -223,14 +235,14 @@ describe('B — test 33: going on from a keyframe is the same run', () => {
 });
 
 describe('B — the scenario page (scripts/fixtures/lab2d-scenariusze.json)', () => {
-  it('one lab with the scene and ten scenarios to choose, one lab that bakes on opening; every scene reads and builds without a warning', () => {
+  it('one lab with the scene and twelve scenarios to choose, one lab that bakes on opening; every scene reads and builds without a warning', () => {
     const page = scenarios as { modules: { kind: string; config: { scene?: unknown; start?: string; seconds?: string; scenarios?: { title: string; scene: unknown }[] } }[] };
     const labs = page.modules.filter((m) => m.kind === 'lab2d');
     expect(labs.length).toBe(2);
     expect(labs[0].config.start).toBe('button');
     expect(labs[1].config.start).toBe('bake');
     const scenes = [...labs.map((m) => m.config.scene), ...(labs[0].config.scenarios ?? []).map((x) => x.scene)];
-    expect(scenes.length).toBe(12);
+    expect(scenes.length).toBe(14);
     for (const raw of scenes) {
       const { scene: sc, warnings } = readScene(raw);
       expect(warnings).toEqual([]);

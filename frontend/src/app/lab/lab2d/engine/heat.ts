@@ -125,8 +125,10 @@ export class Heat {
 
   /* -- Feststoffe ------------------------------------------------------------------------------------ */
 
-  /** Wärmekapazität des Feststoffs einer Zelle ohne Film (J/K). */
+  /** Wärmekapazität des Feststoffs einer Zelle ohne Film (J/K) — eine Zelle eines gedrehten oder bewegten Körpers aus seinen Voxeln (bodyRaster.ts). */
   solidCap(c: number): number {
+    const cb = this.g.capB[c];
+    if (cb > 0) return cb;
     const s = SOLIDS[this.g.solid[c] - 1];
     return s.rho * s.cp * this.g.vCell;
   }

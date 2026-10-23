@@ -34,6 +34,11 @@ function feel(T: number, Tsat: number, liquid: boolean): string {
   return t('cold');
 }
 
+/** Was ein Körper gerade ist (M3a). */
+function bodyState(s: NonNullable<ProbeInfo['body']>['state']): string {
+  return t(s === 'pinned' ? 'bodyPinned' : s === 'asleep' ? 'bodyAsleep' : 'bodyMoving');
+}
+
 export function Inspector({ info, level }: { info: ProbeInfo; level: Level }) {
   const c = info.cell;
   const salt = c.salt;
@@ -51,6 +56,7 @@ export function Inspector({ info, level }: { info: ProbeInfo; level: Level }) {
         <Row label={salt !== null ? t('boilsAt') : t('tsatHere')} value={`${num(C(Tboil), 1)} °C`} />
         {salt !== null && <Row label={t('freezesAt')} value={`${num(C(salt.Tf), 1)} °C`} />}
         {c.crust > 0 && <Row label={t('crust')} value={`${num(c.crust * 1e6, 1)} mg`} />}
+        {info.body !== null && <Row label={t('bodyLabel')} value={`${materialName(info.body.material)} · ${bodyState(info.body.state)} · ${num(info.body.mass * 1000, 1)} g`} />}
         {c.kind === 'gas' && <Row label={t('rh')} value={`${num(100 * Math.min(1, c.rh), 0)} %`} />}
         {c.kind === 'gas' && c.fog > 0 && <Row label={t('fog')} value={`${num(c.fog * 1000, 2)} g/m³`} />}
         {info.bubble !== null && <p className="lab-muted">{t('bubbleHint')}</p>}
@@ -77,6 +83,12 @@ export function Inspector({ info, level }: { info: ProbeInfo; level: Level }) {
       {c.kind === 'gas' && <Row label={t('fog')} value={`${num(c.fog * 1000, 3)} g/m³`} />}
       {c.film > 0 && <Row label={t('film')} value={`${num(c.film * 1e6, 3)} mg`} />}
       {c.crust > 0 && <Row label={t('crust')} value={`${num(c.crust * 1e6, 3)} mg`} />}
+      {info.body !== null && (
+        <>
+          <Row label={t('bodyLabel')} value={`${materialName(info.body.material)} · ${bodyState(info.body.state)} · ${t('bodyMass')} ${num(info.body.mass * 1000, 2)} g · ${num(C(info.body.T), 2)} °C`} />
+          <Row label={t('velocity')} value={`${num(Math.hypot(info.body.vx, info.body.vy) * 100, 2)} cm/s · ${t('bodyAngle')} ${num((info.body.angle * 180) / Math.PI, 1)}° · ${num(info.body.w, 2)} rad/s`} />
+        </>
+      )}
       {info.particle !== null && (
         <>
           <Row label={t('particle')} value={`${liquidName(info.particle.liquid)}${info.particle.salt > 0 ? ` · ${t('saltWord')} ${num(100 * info.particle.salt, 2)} %` : ''} · ${num(C(info.particle.T), 2)} °C · ${num(info.particle.mass * 1e6, 3)} mg`} />

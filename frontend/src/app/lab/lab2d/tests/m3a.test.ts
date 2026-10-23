@@ -1,0 +1,283 @@
+/**
+ * LABOR 2D (v2) — M3a: KÖRPER (SANDBOX.md §6, §13). Schwimmen, Sinken, Stapeln,
+ * Kippen, die Bilanzen mit bewegten Körpern, das JSON der neuen Handgriffe.
+ */
+
+import { describe, expect, it } from 'vitest';
+
+import { Engine } from '../engine/engine';
+import { rhoL, SOLIDS } from '../engine/materials';
+import { readScene, writeScene } from '../engine/scene';
+import { T0 } from '../engine/units';
+import { scene, waterTolerance } from './scenes';
+
+const rhoOf = (id: string): number => (SOLIDS.find((s) => s.id === id) as { rho: number }).rho;
+
+/** Wasserspiegel (m): wo φ ½ kreuzt, gemittelt über die Spalten, die mehr als `away` vom Punkt x entfernt sind. */
+function levelAway(e: Engine, x: number, away: number): number {
+  const g = e.grid;
+  let s = 0;
+  let n = 0;
+  for (let i = 3; i < g.nx - 3; i += 1) {
+    if (Math.abs((i + 0.5) * g.dx - x) < away) continue;
+    let top = -1;
+    for (let j = g.ny - 1; j >= 0; j -= 1) if (g.phi[i + j * g.nx] >= 0.5) { top = j; break; }
+    if (top < 0 || top >= g.ny - 1) continue;
+    const a = g.phi[i + top * g.nx];
+    const b = g.phi[i + (top + 1) * g.nx];
+    s += (top + 0.5 + (a - 0.5) / (a - b)) * g.dx;
+    n += 1;
+  }
+  return s / n;
+}
+
+describe('M3a — test 36: floating depth', () => {
+  for (const [mat, W, H, Tw] of [['wood', 0.08, 0.04, 20], ['ice', 0.04, 0.04, 0]] as const) {
+    it(`${mat} ${W * 100} × ${H * 100} cm floats with ρ_b/ρ_l of its height under water (±2 %, mean over 3 s); budgets exact`, () => {
+      const want = (rhoOf(mat) / rhoL(T0 + Tw)) * H;
+      const e = new Engine(scene({
+        box: { w: 0.2, h: 0.15, depth: 0.01 },
+        ambient: { p: 101.325, T: Tw, rh: 0.5, g: 9.81 },
+        ops: [
+          { op: 'fill', region: { rect: [0, 0, 0.2, 0.08] }, composition: { H2O: 1 }, phase: 'liquid', T: Tw },
+          { op: 'body', region: { rect: [0.1 - W / 2, 0.08 - want, 0.1 + W / 2, 0.08 - want + H] }, material: mat, T: Tw }
+        ]
+      }), { insulated: true });
+      const b = e.bodies.list[0];
+      expect(b.free).toBe(true);
+      const drafts: number[] = [];
+      while (e.time < 6) {
+        e.step();
+        if (e.time > 3) drafts.push(levelAway(e, b.x, W / 2 + 0.02) - (b.y - H / 2));
+      }
+      const mean = drafts.reduce((s, d) => s + d, 0) / drafts.length;
+      const spread = Math.max(...drafts) - Math.min(...drafts);
+      console.log(`test 36 (${mat}): draft ${(mean * 1000).toFixed(3)} mm, ρ_b/ρ_l H ${(want * 1000).toFixed(3)} mm (${(100 * (mean / want - 1)).toFixed(2)} %), bobbing ${(spread * 500).toFixed(2)} mm; angle ${(b.a * 180 / Math.PI).toFixed(2)}°; added mass (x, y) ${(b.ma6[0] * 1000).toFixed(1)}, ${(b.ma6[3] * 1000).toFixed(1)} g of ${(b.m * 1000).toFixed(1)} g; energy error ${e.energyError().toExponential(2)} J, water error ${e.waterError().toExponential(2)} kg`);
+      expect(Math.abs(mean / want - 1)).toBeLessThan(0.02);
+      expect(Math.abs(b.a)).toBeLessThan(0.05);
+      expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
+      expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
+    });
+  }
+});
+
+describe('M3a — test 37: sinking and resting', () => {
+  it('a 2 cm ceramic disc sinks at the terminal speed of the drag law, v² = π(ρ_b/ρ_l − 1) g d/(2 C_D), C_D = 1.2 (±15 %)', () => {
+    const d = 0.02;
+    const depth = 0.27;
+    const e = new Engine(scene({
+      box: { w: 0.2, h: 0.3, depth: 0.01 },
+      ops: [
+        { op: 'fill', region: { rect: [0, 0, 0.2, depth] }, composition: { H2O: 1 }, phase: 'liquid', T: 20 },
+        { op: 'body', region: { circle: [0.1, depth - 0.01 - d / 2, d / 2] }, material: 'ceramic', T: 20 }
+      ]
+    }));
+    const b = e.bodies.list[0];
+    const vt = Math.sqrt((Math.PI * (rhoOf('ceramic') / rhoL(T0 + 20) - 1) * 9.81 * d) / (2 * 1.2));
+    let sum = 0;
+    let time = 0;
+    while (b.y > 0.04 && e.time < 2) {
+      e.step();
+      const sunk = depth - b.y;
+      if (sunk > 0.12 && sunk < 0.22) { sum += -b.vy * e.dt; time += e.dt; }
+    }
+    const v = sum / time;
+    console.log(`test 37 (disc): mean speed from 12 to 22 cm deep ${v.toFixed(3)} m/s, drag law ${vt.toFixed(3)} m/s (${(100 * (v / vt - 1)).toFixed(1)} %), drift sideways ${((b.x - 0.1) * 1000).toFixed(1)} mm`);
+    expect(Math.abs(v / vt - 1)).toBeLessThan(0.15);
+  });
+
+  it('a stone block lands on the bottom and rests without jitter: after 1 s it moves less than 0.1 mm and falls asleep', () => {
+    const e = new Engine(scene({
+      box: { w: 0.1, h: 0.08, depth: 0.01 },
+      ops: [
+        { op: 'fill', region: { rect: [0, 0, 0.1, 0.05] }, composition: { H2O: 1 }, phase: 'liquid', T: 20 },
+        { op: 'body', region: { rect: [0.04, 0.02, 0.06, 0.03] }, material: 'stone', T: 20 }
+      ]
+    }));
+    const b = e.bodies.list[0];
+    while (e.time < 1) e.step();
+    const x0 = b.x;
+    const y0 = b.y;
+    const a0 = b.a;
+    let worst = 0;
+    while (e.time < 2) {
+      e.step();
+      worst = Math.max(worst, Math.hypot(b.x - x0, b.y - y0) + 0.01 * Math.abs(b.a - a0));
+    }
+    console.log(`test 37 (rest): bottom of the block at ${((b.y - 0.005) * 1000).toFixed(3)} mm, moved at most ${(worst * 1000).toFixed(4)} mm in the second second, ${b.asleep ? 'asleep' : 'awake'}`);
+    expect(Math.abs(b.y - 0.005)).toBeLessThan(0.0005);
+    expect(worst).toBeLessThan(1e-4);
+    expect(b.asleep).toBe(true);
+  });
+});
+
+describe('M3a — test 38: a stack of two blocks stands', () => {
+  it('a wood block dropped 1 cm onto another lands flat on it; both rest in place and fall asleep; energy exact', () => {
+    const e = new Engine(scene({
+      ops: [
+        { op: 'body', region: { rect: [0.07, 0, 0.13, 0.03] }, material: 'wood', T: 20 },
+        { op: 'body', region: { rect: [0.08, 0.04, 0.12, 0.06] }, material: 'wood', T: 20 }
+      ]
+    }), { insulated: true });
+    const [lo, hi] = e.bodies.list;
+    /* Freie Körper setzen sich am Anfang kurz (bodies.settleStart); der obere fällt. */
+    expect(hi.awake).toBe(true);
+    const x0 = hi.x;
+    while (e.time < 2) e.step();
+    console.log(`test 38: upper block at y ${(hi.y * 1000).toFixed(3)} mm (on the lower one: 40.000), x moved ${((hi.x - x0) * 1000).toFixed(4)} mm, angle ${(hi.a * 180 / Math.PI).toFixed(4)}°; lower ${(lo.y * 1000).toFixed(3)} mm; ${lo.asleep && hi.asleep ? 'both asleep' : 'not asleep'}; energy error ${e.energyError().toExponential(2)} J`);
+    expect(Math.abs(hi.y - 0.04)).toBeLessThan(0.0003);
+    expect(Math.abs(hi.x - x0)).toBeLessThan(0.0005);
+    expect(Math.abs(hi.a)).toBeLessThan(0.01);
+    expect(Math.abs(lo.y - 0.015)).toBeLessThan(0.0003);
+    expect(lo.asleep && hi.asleep).toBe(true);
+    expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
+  });
+});
+
+/* -- Kippen: der geometrische Kippwinkel einer Zlewka mit Wasser (Oberfläche waagrecht) ------------------------------ */
+
+type P2 = [number, number];
+const rot = (p: P2, t: number): P2 => [p[0] * Math.cos(t) - p[1] * Math.sin(t), p[0] * Math.sin(t) + p[1] * Math.cos(t)];
+function clipBelow(poly: P2[], level: number): P2[] {
+  const out: P2[] = [];
+  for (let i = 0; i < poly.length; i += 1) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    if (a[1] <= level) out.push(a);
+    if ((a[1] <= level) !== (b[1] <= level)) { const t = (level - a[1]) / (b[1] - a[1]); out.push([a[0] + (b[0] - a[0]) * t, level]); }
+  }
+  return out;
+}
+function areaCentroid(poly: P2[]): { A: number; x: number } {
+  let A = 0;
+  let cx = 0;
+  for (let i = 0; i < poly.length; i += 1) {
+    const [x1, y1] = poly[i];
+    const [x2, y2] = poly[(i + 1) % poly.length];
+    const c = x1 * y2 - x2 * y1;
+    A += c / 2;
+    cx += (x1 + x2) * c;
+  }
+  return { A, x: A !== 0 ? cx / (6 * A) : 0 };
+}
+/** Die waagrechte Höhe, bis zu der die Fläche `area` im Vieleck steht. */
+function fillLevel(poly: P2[], area: number): number {
+  let lo = Math.min(...poly.map((p) => p[1]));
+  let hi = Math.max(...poly.map((p) => p[1]));
+  for (let k = 0; k < 60; k += 1) { const mid = (lo + hi) / 2; if (areaCentroid(clipBelow(poly, mid)).A < area) lo = mid; else hi = mid; }
+  return lo;
+}
+
+describe('M3a — test 39: a beaker of water tips at its geometric tipping angle', () => {
+  it('7 × 8 cm glass beaker with 4 cm of water on its corner: released 3° below the angle it falls back, 3° above it falls over (no slip, no spill)', () => {
+    const W = 0.07, H = 0.08, WALL = 0.002, X = 0.12, FILL = 0.04;
+    const interior: P2[] = [[-W / 2 + WALL, WALL], [W / 2 - WALL, WALL], [W / 2 - WALL, H], [-W / 2 + WALL, H]];
+    const glass: P2[][] = [
+      [[-W / 2, 0], [-W / 2 + WALL, 0], [-W / 2 + WALL, H], [-W / 2, H]],
+      [[W / 2 - WALL, 0], [W / 2, 0], [W / 2, H], [W / 2 - WALL, H]],
+      [[-W / 2 + WALL, 0], [W / 2 - WALL, 0], [W / 2 - WALL, WALL], [-W / 2 + WALL, WALL]]
+    ];
+    const area = (W - 2 * WALL) * (FILL - WALL);
+    /* Schwerpunkt-x von Glas und Wasser relativ zur linken unteren Ecke beim Winkel t: > 0 fällt zurück. */
+    const lever = (t: number): number => {
+      let m = 0, mx = 0;
+      for (const r of glass) { const ac = areaCentroid(r.map((p) => rot(p, t))); m += ac.A * rhoOf('glass'); mx += ac.A * rhoOf('glass') * ac.x; }
+      const inner = interior.map((p) => rot(p, t));
+      const water = areaCentroid(clipBelow(inner, fillLevel(inner, area)));
+      return (mx + water.A * 998 * water.x) / (m + water.A * 998) - rot([-W / 2, 0], t)[0];
+    };
+    let a0 = 0, a1 = Math.PI / 2;
+    for (let k = 0; k < 60; k += 1) { const m = (a0 + a1) / 2; if (lever(m) > 0) a0 = m; else a1 = m; }
+    const thetaC = (a0 * 180) / Math.PI;
+    const run = (deg: number): { angle: number; water: number; water0: number; error: number; tolerance: number } => {
+      const t = (deg * Math.PI) / 180;
+      const y0 = (W / 2) * Math.sin(t) + 0.0001;
+      const inner = interior.map((p) => rot(p, t)).map((p): P2 => [X + p[0], y0 + p[1]]);
+      const e = new Engine(scene({
+        box: { w: 0.24, h: 0.15, depth: 0.01 },
+        ops: [
+          { op: 'beaker', x: X, y: y0, w: W, h: H, wall: WALL, material: 'glass', T: 20, angle: deg },
+          { op: 'fill', region: { poly: clipBelow(inner, fillLevel(inner, area)) }, composition: { H2O: 1 }, phase: 'liquid', T: 20 }
+        ]
+      }));
+      const b = e.bodies.list[0];
+      const mass = (): number => { let s = 0; for (let p = 0; p < e.particles.count; p += 1) s += e.particles.mass[p]; return s; };
+      /* Angeheftet, bis das Wasser waagrecht steht; dann los. */
+      while (e.time < 1.5) e.step();
+      const water0 = mass();
+      /* „Przypnij“ auf den Boden der Zlewka (ihr Schwerpunkt liegt im Hohlraum). */
+      e.apply({ op: 'pin', x: X - Math.sin(t) * WALL / 2, y: y0 + Math.cos(t) * WALL / 2, pinned: false });
+      expect(b.awake).toBe(true);
+      while (e.time < 3.5) e.step();
+      return { angle: (b.a * 180) / Math.PI, water: mass(), water0, error: e.waterError(), tolerance: waterTolerance(e) };
+    };
+    const below = run(thetaC - 3);
+    const above = run(thetaC + 3);
+    console.log(`test 39: geometric tipping angle ${thetaC.toFixed(2)}°; released at ${(thetaC - 3).toFixed(2)}° it ends at ${below.angle.toFixed(2)}°, at ${(thetaC + 3).toFixed(2)}° at ${above.angle.toFixed(2)}°; liquid water ${(below.water * 1000).toFixed(2)} / ${(above.water * 1000).toFixed(2)} g (evaporated ${((below.water0 - below.water) * 1e6).toFixed(3)} / ${((above.water0 - above.water) * 1e6).toFixed(3)} mg), water errors ${below.error.toExponential(2)} / ${above.error.toExponential(2)} kg`);
+    expect(Math.abs(below.angle)).toBeLessThan(1);
+    expect(above.angle).toBeGreaterThan(60);
+    /* Kein Wasser verloren (nur ein wenig verdunstet, die Luft hat 50 % Feuchte); die Bilanz genau. */
+    expect(Math.abs(below.water / below.water0 - 1)).toBeLessThan(1e-4);
+    expect(Math.abs(above.water / above.water0 - 1)).toBeLessThan(1e-4);
+    expect(Math.abs(below.error)).toBeLessThan(below.tolerance);
+    expect(Math.abs(above.error)).toBeLessThan(above.tolerance);
+  });
+});
+
+describe('M3a — test 40: budgets close with moving solids', () => {
+  it('a hot stone sinks and a warm wood block floats in cold water: energy, water and air exact while they move and share heat', () => {
+    const e = new Engine(scene({
+      box: { w: 0.1, h: 0.1, depth: 0.01 },
+      ops: [
+        { op: 'fill', region: { rect: [0, 0, 0.1, 0.04] }, composition: { H2O: 1 }, phase: 'liquid', T: 20 },
+        { op: 'body', region: { rect: [0.03, 0.06, 0.042, 0.072] }, material: 'stone', T: 80 },
+        { op: 'body', region: { rect: [0.06, 0.05, 0.085, 0.06] }, material: 'wood', T: 40 }
+      ]
+    }), { insulated: true });
+    const heat = (): number => { let s = 0; for (const b of e.bodies.list) for (let k = 0; k < b.nv; k += 1) s += b.E[k]; return s; };
+    const E0 = heat();
+    const air0 = e.measureBudget().air;
+    while (e.time < 2) e.step();
+    const [stone, wood] = e.bodies.list;
+    const air = e.measureBudget().air;
+    console.log(`test 40: the bodies gave ${(E0 - heat()).toFixed(3)} J to water and air; stone ${stone.asleep ? 'resting' : 'moving'} at ${(stone.y * 1000).toFixed(1)} mm, wood at ${(wood.y * 1000).toFixed(1)} mm; energy error ${e.energyError().toExponential(2)} J, water error ${e.waterError().toExponential(2)} kg, air ${(air - air0).toExponential(2)} kg`);
+    expect(E0 - heat()).toBeGreaterThan(1);
+    expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
+    expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
+    expect(Math.abs(air - air0)).toBeLessThan(1e-12 * air0);
+  });
+});
+
+describe('M3a — bodies in the scene format and on the accelerated view', () => {
+  it('body and pin round-trip through JSON; beakers and plates stay pinned unless told; a scene of a version before M3a writes unchanged', () => {
+    const raw = scene({
+      ops: [
+        { op: 'hotplate', x: 0.1, y: 0, w: 0.12, h: 0.008, material: 'steel', mode: 'power', power: 40, on: true, T: 20 },
+        { op: 'beaker', x: 0.1, y: 0.008, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T: 20 },
+        { op: 'body', region: { rect: [0.02, 0.1, 0.05, 0.12] }, material: 'wood', T: 20, angle: 15 },
+        { op: 'body', region: { circle: [0.17, 0.05, 0.01] }, material: 'stone', T: 20, pinned: true },
+        { op: 'pin', x: 0.1, y: 0.009, pinned: false }
+      ]
+    });
+    const { scene: sc, warnings } = readScene(raw);
+    expect(warnings).toEqual([]);
+    expect(readScene(writeScene(sc)).scene).toEqual(sc);
+    const e = new Engine(sc);
+    expect(e.warnings).toEqual([]);
+    const [plate, beaker, wood, stone] = e.bodies.list;
+    expect(plate.pinned).toBe(true);
+    expect(beaker.pinned).toBe(false);
+    expect(wood.pinned).toBe(false);
+    expect(Math.abs(wood.a - (15 * Math.PI) / 180)).toBeLessThan(1e-12);
+    expect(stone.pinned).toBe(true);
+    expect(e.needsCpu()).toBe(true);
+    /* Nur angeheftete Körper: der beschleunigte Weg kann die Szene. */
+    const old = scene({ ops: raw.ops.slice(0, 2) });
+    const plain = new Engine(old);
+    expect(plain.needsCpu()).toBe(false);
+    for (const op of writeScene(readScene(old).scene).ops as Record<string, unknown>[]) {
+      expect('pinned' in op).toBe(false);
+      expect('angle' in op).toBe(false);
+    }
+  });
+});

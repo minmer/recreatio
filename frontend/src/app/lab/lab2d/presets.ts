@@ -158,10 +158,48 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
     scene: { ...BASE, ops: [plate(15), beaker(), layer({ H2O: 0.8, NaCl: 0.2 }, 20, 0.010, 0.030), layer({ H2O: 1 }, 20, 0.030, 0.060)] }
   },
   {
+    key: 'co-plywa',
+    title: 'Co pływa?',
+    summary: 'klocek drewna, kostka lodu i kamień wpadają do zimnej wody — drewno pływa, lód prawie cały zanurzony, kamień tonie',
+    text: [
+      'Nad wodą wiszą trzy ciała: klocek sosnowy, kostka lodu i kamień (granit). Puść czas — spadną do wody.',
+      'Drewno (510 kg/m³) zanurza się do połowy, lód (917 kg/m³) prawie cały, a kamień (2630 kg/m³) idzie na dno. Pływające ciało wypiera tyle wody, ile samo waży — zbadaj je narzędziem „Badaj”.',
+      'Lód jeszcze się nie topi — to przyjdzie w kolejnym etapie.'
+    ],
+    scene: {
+      ...BASE,
+      ambient: { p: 101.325, T: 15, rh: 0.5, g: 9.81 },
+      ops: [
+        { op: 'fill', region: { rect: [0, 0, 0.2, 0.07] }, composition: { H2O: 1 }, phase: 'liquid', T: 2 },
+        { op: 'body', region: { rect: [0.025, 0.085, 0.065, 0.105] }, material: 'wood', T: 15 },
+        { op: 'body', region: { rect: [0.09, 0.085, 0.11, 0.105] }, material: 'ice', T: -2 },
+        { op: 'body', region: { rect: [0.14, 0.085, 0.16, 0.1] }, material: 'stone', T: 15 }
+      ]
+    }
+  },
+  {
+    key: 'przewrocona-zlewka',
+    title: 'Przewrócona zlewka',
+    summary: 'zlewka z wodą stoi na krawędzi kamiennego stopnia, za daleko — przewraca się, a woda się wylewa',
+    text: [
+      'Zlewka z wodą (swobodna, nie przypięta) stoi na krawędzi stopnia tak, że jej środek ciężkości jest już poza krawędzią. Puść czas — zlewka obróci się wokół krawędzi i spadnie, a woda się wyleje.',
+      'Narzędziem „Przypnij” możesz ciało przypiąć (stoi w miejscu) albo odpiąć: przypiętą zlewkę ustaw „Przesuń” bliżej ściany stopnia i odepnij — jeśli jej środek ciężkości jest nad stopniem, zostanie.'
+    ],
+    scene: {
+      ...BASE,
+      box: { w: 0.24, h: 0.15, depth: 0.01 },
+      ops: [
+        { op: 'solid', region: { rect: [0, 0, 0.1, 0.03] }, material: 'stone', T: 20 },
+        { op: 'beaker', x: 0.11, y: 0.03, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T: 20, pinned: false },
+        { op: 'fill', region: { rect: [0.077, 0.032, 0.143, 0.07] }, composition: { H2O: 1 }, phase: 'liquid', T: 20 }
+      ]
+    }
+  },
+  {
     key: 'pusta-skrzynka',
     title: 'Pusta skrzynka',
-    summary: 'skrzynka pełna powietrza — maluj wodę, stawiaj ścianki, zlewki i płyty grzejne',
-    text: ['Skrzynka jest pełna powietrza. Maluj wodę, rysuj ścianki, stawiaj zlewki i płyty grzejne.'],
+    summary: 'skrzynka pełna powietrza — maluj wodę, stawiaj ścianki, zlewki, płyty grzejne i ciała',
+    text: ['Skrzynka jest pełna powietrza. Maluj wodę, rysuj ścianki, stawiaj zlewki, płyty grzejne i ciała (drewno, lód, kamień — spadają, pływają albo toną).'],
     scene: SANDBOX_LAB2D
   }
 ];

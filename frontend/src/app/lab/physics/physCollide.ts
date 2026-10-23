@@ -18,7 +18,29 @@
  * nähme die zuerst gelöste Ecke mehr, der Kasten kippelte, und ein Turm fiele.
  */
 
-import type { Body } from './physBody';
+import type { Shape } from './physShapes';
+
+/**
+ * Was eine Berührung von einem Körper braucht: Form, Stoff (Reibung, Rückprall),
+ * Lage und Ecken in der Welt, Geschwindigkeit, inverse Masse und
+ * Trägheitsmoment. Der Körper der Fizyka 2D hat das alles; das Labor 2D
+ * (lab2d/engine/bodyContacts.ts) baut daraus die Teile seiner Körper.
+ */
+export interface Collider {
+  readonly shape: Shape;
+  readonly material: { readonly friction: number; readonly bounce: number };
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  w: number;
+  invM: number;
+  invI: number;
+  readonly wx: Float64Array;
+  readonly wy: Float64Array;
+  readonly wnx: Float64Array;
+  readonly wny: Float64Array;
+}
 
 export const SLOP = 0.004;
 /** Bis zu diesem Spalt gilt eine Berührung schon (spekulativ): ein schnell fallender Körper steckt so nie tief im Boden. */
@@ -64,8 +86,11 @@ export class Contact {
   block = false;
   /** Die Länge des Schritts (für: berühren sie sich noch in diesem Schritt?). */
   h = 1 / 120;
+  /** Erlaubtes Eindringen und spekulativer Spalt (m) — die Fizyka 2D rechnet in Metern, das Labor 2D in Millimetern und setzt sie kleiner. */
+  slop = SLOP;
+  spec = SPEC;
 
-  constructor(readonly a: Body, readonly b: Body) {
+  constructor(readonly a: Collider, readonly b: Collider) {
     this.friction = Math.sqrt(a.material.friction * b.material.friction);
     this.bounce = Math.max(a.material.bounce, b.material.bounce);
   }
@@ -111,13 +136,13 @@ function setPoint(c: Contact, x: number, y: number, sep: number, id: number): vo
   c.count += 1;
 }
 
-function circles(c: Contact, a: Body, b: Body): void {
+function circles(c: Contact, a: Collider, b: Collider): void {
   const ra = (a.shape as { r: number }).r;
   const rb = (b.shape as { r: number }).r;
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const d = Math.hypot(dx, dy);
-  if (d > ra + rb + SPEC) return;
+  if (d > ra + rb + c.spec) return;
   const nx = d > 1e-9 ? dx / d : 0;
   const ny = d > 1e-9 ? dy / d : 1;
   c.nx = nx;
@@ -126,7 +151,7 @@ function circles(c: Contact, a: Body, b: Body): void {
 }
 
 /** Vieleck P und Kreis C — die Normale zeigt von P zu C (`flip`: der Kreis ist `a`). */
-function polyCircle(c: Contact, p: Body, k: Body, flip: boolean): void {
+function polyCircle(c: Contact, p: Collider, k: Collider, flip: boolean): void {
   const s = p.shape;
   if (s.kind !== 'poly') return;
   const r = (k.shape as { r: number }).r;
@@ -134,7 +159,7 @@ function polyCircle(c: Contact, p: Body, k: Body, flip: boolean): void {
   let edge = 0;
   for (let i = 0; i < s.n; i += 1) {
     const d = (k.x - p.wx[i]) * p.wnx[i] + (k.y - p.wy[i]) * p.wny[i];
-    if (d > r + SPEC) return;
+    if (d > r + c.spec) return;
     if (d > best) { best = d; edge = i; }
   }
   const i2 = (edge + 1) % s.n;
@@ -160,7 +185,7 @@ function polyCircle(c: Contact, p: Body, k: Body, flip: boolean): void {
       const dx = k.x - vx;
       const dy = k.y - vy;
       const d = Math.hypot(dx, dy);
-      if (d > r + SPEC) return;
+      if (d > r + c.spec) return;
       nx = d > 1e-9 ? dx / d : p.wnx[edge];
       ny = d > 1e-9 ? dy / d : p.wny[edge];
       sep = d - r;
@@ -177,7 +202,7 @@ function polyCircle(c: Contact, p: Body, k: Body, flip: boolean): void {
 }
 
 /** Wie weit B höchstens hinter einer Kante von A liegt — die beste (kleinste Eindringtiefe) Kante. */
-function maxSeparation(A: Body, B: Body): { sep: number; edge: number } {
+function maxSeparation(A: Collider, B: Collider): { sep: number; edge: number } {
   const sa = A.shape;
   const sb = B.shape;
   if (sa.kind !== 'poly' || sb.kind !== 'poly') return { sep: Infinity, edge: 0 };
@@ -196,11 +221,11 @@ function maxSeparation(A: Body, B: Body): { sep: number; edge: number } {
   return { sep: best, edge };
 }
 
-function polys(c: Contact, a: Body, b: Body): void {
+function polys(c: Contact, a: Collider, b: Collider): void {
   const A = maxSeparation(a, b);
-  if (A.sep > SPEC) return;
+  if (A.sep > c.spec) return;
   const B = maxSeparation(b, a);
-  if (B.sep > SPEC) return;
+  if (B.sep > c.spec) return;
   let ref = a;
   let inc = b;
   let edge = A.edge;
@@ -251,8 +276,8 @@ function polys(c: Contact, a: Body, b: Body): void {
   c.nx = flip ? -nx : nx;
   c.ny = flip ? -ny : ny;
   /* Der Punkt mitten zwischen den beiden Körpern. */
-  if (sa <= SPEC) setPoint(c, ax - nx * sa / 2, ay - ny * sa / 2, sa, base + ida);
-  if (sb <= SPEC) setPoint(c, bx - nx * sb / 2, by - ny * sb / 2, sb, base + idb);
+  if (sa <= c.spec) setPoint(c, ax - nx * sa / 2, ay - ny * sa / 2, sa, base + ida);
+  if (sb <= c.spec) setPoint(c, bx - nx * sb / 2, by - ny * sb / 2, sb, base + idb);
 }
 
 /* -- Lösen ---------------------------------------------------------------------------------- */
@@ -288,13 +313,13 @@ export function prestep(c: Contact, h: number): void {
      * der Spalt in diesem Schritt gerade zugeht — sonst klebte ein Kasten
      * schief in der Luft. Berührt: sanft auseinander (Baumgarte).
      */
-    p.bias = p.sep > 0 ? -p.sep / h : Math.min(MAX_PUSH, (BAUMGARTE / h) * Math.max(0, -p.sep - SLOP));
+    p.bias = p.sep > 0 ? -p.sep / h : Math.min(MAX_PUSH, (BAUMGARTE / h) * Math.max(0, -p.sep - c.slop));
     /* Rückprall: aus der Geschwindigkeit, mit der sie aufeinander zukommen. */
     const dvx = b.vx - b.w * p.rby - a.vx + a.w * p.ray;
     const dvy = b.vy + b.w * p.rbx - a.vy - a.w * p.rax;
     const vn = dvx * nx + dvy * ny;
     /* Prallt auf: schon berührt — oder der Spalt geht in diesem Schritt zu (sonst fräße der Spalt den Schwung). */
-    p.bounce = vn < -BOUNCE_FROM && (p.sep <= SLOP || p.sep + vn * h < 0) ? -c.bounce * vn : 0;
+    p.bounce = vn < -BOUNCE_FROM && (p.sep <= c.slop || p.sep + vn * h < 0) ? -c.bounce * vn : 0;
     /* Ein neuer Aufprall (oder einer im letzten Schritt): ohne den alten Stoss beginnen. */
     if (p.kicked || p.bounce > 0) { p.jn = 0; p.jt = 0; }
     p.kicked = false;
@@ -365,7 +390,7 @@ export function solve(c: Contact): void {
      * diesem Durchgang an — dann prallt auch dieser Kontakt zurück, sonst
      * teilten sich alle Kugeln den Schwung wie ein Klumpen.
      */
-    if (p.bounce === 0 && c.bounce >= 0.5 && vn < -BOUNCE_FROM && (p.sep <= SLOP || p.sep + vn * c.h < 0)) p.bounce = -c.bounce * vn;
+    if (p.bounce === 0 && c.bounce >= 0.5 && vn < -BOUNCE_FROM && (p.sep <= c.slop || p.sep + vn * c.h < 0)) p.bounce = -c.bounce * vn;
     const jn = Math.max(p.jn + p.massN * (-vn + target(p)), p.fixed);
     const dj = jn - p.jn;
     p.jn = jn;
@@ -378,7 +403,7 @@ export function solve(c: Contact): void {
 /** Die Geschwindigkeit, auf die ein Punkt kommen soll: Rückprall, Auseinanderschieben, oder (ein Spalt) höchstens so schnell heran. */
 const target = (p: ContactPoint): number => (p.bounce > 0 ? Math.max(p.bias, p.bounce) : p.bias);
 
-function impulse(a: Body, b: Body, px: number, py: number, p: ContactPoint): void {
+function impulse(a: Collider, b: Collider, px: number, py: number, p: ContactPoint): void {
   a.vx -= a.invM * px; a.vy -= a.invM * py; a.w -= a.invI * (p.rax * py - p.ray * px);
   b.vx += b.invM * px; b.vy += b.invM * py; b.w += b.invI * (p.rbx * py - p.rby * px);
 }

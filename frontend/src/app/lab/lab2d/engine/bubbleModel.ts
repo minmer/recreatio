@@ -252,6 +252,8 @@ export class BubbleModel {
       /* Keime nur im Wasser (der einzigen flüchtigen Flüssigkeit): die Zelle vor der Kavität muss vor allem Wasser sein. */
       if (g.kind[fc] !== LIQUID || phase.acc[fc] <= 0 || phase.waterShare(fc) < 0.5) continue;
       const sc = this.sites.cell[s];
+      /* Eine Kavität eines Körpers, der eben weiterrückte, bis die Tafel neu ist (M3a). */
+      if (g.solid[sc] === 0) continue;
       const mat = SOLIDS[g.solid[sc] - 1];
       const Tl = phase.Tl[fc];
       const kl = kLiq(phase.host[fc], Tl);

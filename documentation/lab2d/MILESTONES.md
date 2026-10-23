@@ -22,6 +22,7 @@ Reproduce: `npm run test:lab2d` (fast tests, ~3 min), `npm run test:lab2d:slow` 
 | M1e GPU path | test 17, 1 mm in the budget | built (the accelerated view): test 17 met (test 11 was at the edge, as on the CPU, until the particles of a cell shared their heat: now −0.37 K); 2 mm 4.9 ms per step; **1 mm 7.7 ms, above the 6 ms** (§M1e) |
 | M2a liquids (oil) | tests 18–22 (SANDBOX.md §13), water unchanged | built on the CPU (2026-10-21): all met; every M1 number unchanged to the last printed digit; water scenes as fast as before (§M2a); the accelerated view hands oil scenes back to the CPU |
 | M2b solutions (salt) | tests 23–27 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met; then particles of a cell share heat and salt at the diffusion rate and salt diffuses between cells (tests 28–30, met); all M1/M2a tests still met, some numbers moved slightly (§M2b); water +2.4 % per step, brine +12 % over water; the accelerated view shares heat like the CPU and hands salt scenes back to the CPU |
+| M3a bodies | tests 36–40 (SANDBOX.md §13) | built on the CPU (2026-10-23): all met — floating depth −0.13 % (pine) and −0.04 % (ice), a sinking disc +5 % of its drag law and at rest without jitter, a stack stands, a beaker of water falls back 3° below its tipping angle and over 3° above it, budgets exact with moving solids; scenes without free bodies unchanged; the free surface got its sub-cell position, which moved older numbers slightly (§M3a); the accelerated view hands free bodies back to the CPU |
 | B baking and playback | tests 31–34 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met — playback frame-identical to the live view, seeking exact, going on from a keyframe bit for bit; 33.6 MB per simulated minute of boiling at 2 mm (gate set at 40 from it); the lab never starts by itself, a module can bake on opening, one lab offers several scenarios (§B) |
 
 Test 16 (≤ 12 ms of simulation per 60 Hz frame at the default resolution) is the one gate that fails throughout:
@@ -347,6 +348,38 @@ Tests 1, 2, 7–9, 14, 15, 18–20, 23 and the M0 checks give the same numbers; 
 (the surface 0.002 K warmer), 21, 24 and 25 differ in the last digits; in the fast version of test 4 the sealed beaker
 ends at 21.83 °C instead of 21.76 °C after 60 s (the same energy, more of it in the water).
 
+### Stirring mixes salt faster (2026-10-22)
+
+The user saw salt mixing too slowly and implausibly: in "Solanka pod słodką wodą" salty and fresh particles stayed
+side by side in the same cells while the water circulated. Inside a cell, salt evened out at the rate of the slowest
+diffusion mode a cell holds (4.8 min at 2 mm) — right for still water, far too slow where the water moves: stirring
+stretches whatever is in a cell into striations that thin exponentially, and across a thin striation salt diffuses in
+seconds (the lamella picture: Ranz 1979; [Villermaux 2019](https://doi.org/10.1146/annurev-fluid-010518-040306)).
+`exchange.ts` now uses for salt the mixing time t = W(2λτ)/(2λ) instead of τ: λ the strain of the flow in the cell
+(the positive eigenvalue of the trace-free strain-rate tensor from the liquid face velocities), W the Lambert
+function — τ in still water, about ln(2λτ)/(2λ) when stirred: 2.4 s instead of 4.8 min at λ = 1/s. Strain below
+0.02/s (the noise of water at rest) does not count. ARCHITECTURE.md §6.5, SIMPLIFICATIONS.md #28.
+
+**Heat keeps its still rate.** The same rule for heat (0.7 s instead of 2.8 s at λ = 1/s) broke test 12: with boiling
+chips the first bubble came on glass at 9.97 K superheat. Sharing faster inside a cell carries the heat of a hot wall
+into the next cells through the particles' overlapping heat weights (B-spline weights over 3 × 3 cells, while a cell
+shares among the particles whose centre it holds), so the water in front of the chips stayed too cold (their surface
+at T_sat + 2 K, the water in front of them below T_sat). Heat back at the still rate gives test 12 bit for bit as
+before; a cell is even within 2.8 s anyway.
+
+| Measure (preset "Solanka pod słodką wodą") | Before | With stirring |
+|---|---|---|
+| Spread of salt between the particles of a cell, 15 W, 180 s | 1.08 % | **0.32 %** |
+| Salt in the band above the interface, 15 W, 180 s | 0.5 ± 0.9 % | 0.8 ± 1.0 % |
+| Spread inside cells, 80 W (the bottom boils), 180 s | 1.42 % | **0.75 %** |
+| Band above the interface, 80 W, 180 s | 1.4 ± 4.6 % (salty and fresh particles scattered) | 5.4 ± 5.1 % (a mixed layer) |
+
+Test 35 (new): under an imposed pure strain the in-cell differences of salt decay at (π² D/Δx²)·x/W(x),
+x = 2(λ − 0.02/s)τ — **0.00 %** at λ = 0 and 0.01/s, **0.02 %** at 0.5/s (66 times the still rate), **0.04 %** at
+2/s (213 times); heat at its still rate for every λ (0.00 %). Test 29 is now measured over about 10 % decay (30 s at
+20 °C, 10 s at 80 °C): over 10 s at 20 °C the spread decays only 3.5 %, and particles crossing cell boundaries moved
+the measured rate by 1.3 % (+0.39 % over 30 s, +0.43 % at 80 °C). Scenes without salt run bit for bit as before.
+
 ## B — baking and playback
 
 Built on the CPU (2026-10-22), the third step of [SANDBOX.md](SANDBOX.md), with what the user asked for on starting:
@@ -391,6 +424,115 @@ Found and fixed on the way:
   slider to the old time right after the input event, and the change event that followed undid the seek. The dragged
   time now holds for 0.6 s.
 
+## M3a — bodies
+
+Built on the CPU (2026-10-23), the fourth step of [SANDBOX.md](SANDBOX.md) §6, with the decisions of 2026-10-21:
+every object is one whole, each pinned or free, free ones asleep until something moves them. A beaker, a hot plate, a
+painted block ("Postaw ciało") is a **body**: a set of voxels at the grid's Δx in its own frame (material, energy,
+heater group, film and crust per voxel), a pose, velocities, mass and inertia, its outline edges and convex parts
+(`body.ts`). ARCHITECTURE.md §17 describes the machinery; the short version:
+
+- **Pinned or asleep**, a body stands in the grid as solid cells exactly like the solids before M3a — every scene
+  without a free body runs bit for bit as before (checked on all eleven older presets against the committed engine,
+  apart from the salt scenes, which the salt stirring of §M2b changes). Beakers and hot plates are pinned unless the
+  scene says `"pinned": false`; the tool "Przypnij" pins and releases.
+- **Awake**, a body is written into the grid at every step (`bodyRaster.ts`): the cells whose centres lie in its
+  voxels (a one-cell wall stays tight when tilted), its velocity on their faces (both projections see a moving wall),
+  energy, capacity, film and crust through the same weights there and back (cells read the voxel under their centre;
+  the change of every cell goes back to its voxels at the end of the step). Cells it enters give their gas to the
+  free neighbours, cells it leaves take gas from theirs or become liquid; particles and bubbles it covers go back
+  along their path in the body's frame to the side they came from.
+- **Forces** (`bodyForces.ts`): the pressure of both projections on the **true outline** — at the midpoint of every
+  outline edge, from the fluid cells on its outer side, brought to the edge's height hydrostatically (liquid and gas
+  separately; the larger wins at a waterline); an edge resting on another solid gets the pressure continued through
+  the solids (a "film"). Buoyancy is exact between cells, and a one-cell glass wall feels water inside and air
+  outside.
+- **Coupling**: partitioned, with the added mass measured from the pressure solve itself: three more solves with the
+  matrix of the step give M_a = Δt Δx² D Jᵀ A⁻¹ J (3 × 3 per body), and the body steps with
+  (M + M_a)(V_free − V) = Δt (m g + F) + M_a D, D the fluid-and-gravity part of the last velocity change. Contacts
+  use the body's own mass.
+- **Contacts** (`bodyContacts.ts`): the physics lab's solver (`lab/physics/physCollide.ts`, now typed for any
+  "collider" and with its slop and speculative gap per contact — the physics lab is unchanged, `app-lab-check` passes),
+  0.1 Δx slop and Δx gap; parts of a body forward their pose and velocity to it; box walls, painted solids (merged
+  into rectangles), pinned and sleeping bodies are static; warm starts survive a keyframe (stored in arrays, solved in
+  key order).
+- **Sleep and waking**: a body that has touched something and moved less than 2 mm/s for half a second falls asleep.
+  It wakes when an awake body touches it moving faster than 1 cm/s, when a tool changes the scene, or when the fluid
+  lifts it with more than its weight. Free bodies settle for a moment after loading (resting ones fall asleep again
+  within half a second; one hanging over an edge falls).
+- **Scene format** (still version 1, additive): `{"op": "body", "region", "material", "T", "pinned", "angle"}`,
+  `{"op": "pin", "x", "y", "pinned"}`, `pinned` and `angle` on `beaker` and `hotplate`; a scene from before M3a writes
+  unchanged (so its clips keep their keys). New solids with sourced data: pine wood, ice (IAPWS R10-06, conductivity
+  after Slack), granite; friction and restitution for every solid. Tools "Postaw ciało" (drag a rectangle, choose wood,
+  ice, stone, glass or steel) and "Przypnij"; the inspector shows the body (material, state, mass, temperature,
+  speed, rotation). Presets "Co pływa?" and "Przewrócona zlewka", both also among the scenarios of the page fixture
+  (`scripts/fixtures/lab2d-scenariusze.json`, regenerated). The accelerated view hands scenes with free bodies back to
+  the CPU.
+
+| Test | Gate (SANDBOX.md §13) | Result |
+|---|---|---|
+| 36 Floating depth | ρ_b/ρ_l of the height under water ±2 % (wood, ice) | pine 8 × 4 cm in 20 °C water: **20.41 mm** for 20.44 (−0.13 %); ice 4 × 4 cm in 0 °C water: **36.66 mm** for 36.67 (−0.04 %); mean over 3 s; energy error 4e-11 J |
+| 37 Sinking | a drag-law terminal speed ±15 %, then rest without jitter | a 2 cm ceramic disc between 12 and 22 cm depth: **0.511 m/s**, drag law with C_D = 1.2 (White, cylinder) 0.487 m/s (**+5.0 %**); a stone block lands and **moves 0.0000 mm** in the second after, asleep |
+| 38 Stack | a stack of two blocks stands | a pine block dropped 1 cm onto another: lands at **40.000 mm** (exactly on the lower one), slides 0.0001 mm, angle 0.0000°, both asleep; energy error 4e-14 J |
+| 39 Tipping | a full beaker tips at its geometric tipping angle ±3° | glass beaker 7 × 8 cm, 4 cm of water, on its corner, water at rest then released: geometric angle (glass and a level water surface) **46.11°**; released at 43.11° it **falls back to 0.00°**, at 49.11° it **falls over (90°)**; no water lost (0.1–0.2 mg evaporated), water budget 8e-16 kg |
+| 40 Budgets | budgets close with moving solids | a hot stone (80 °C) sinks and a warm pine block (40 °C) floats in 20 °C water: they give **9.67 J** to the water in 2 s; energy error **1.1e-10 J**, water 1.6e-15 kg, air 1.4e-20 kg |
+| 33 Going on (B) | a keyframe with moving bodies runs on bit for bit | a pine block falling into water and a hot stone landing on the bottom (contacts with warm starts): **identical** after 120 steps |
+| JSON | body and pin round-trip; older scenes unchanged | round trip equal; beaker and plate pinned unless told; a 15° body has exactly 15°; free bodies → CPU only |
+
+All 74 fast tests pass (8 files; the M3a file takes about 4 minutes), and so does the slow suite (its numbers at the
+end of this section).
+
+Measured on the way (not gates):
+
+- **Added mass, measured.** The pine block's vertical added mass is **44 g** — 2.7 times its own 16 g (it floats in
+  a tank whose water must squeeze past it), horizontal 3.7 g; the ice cube 12 g vertical. An a-priori estimate failed
+  both ways: 0.75 of ρ_l times the wetted hull made the block explode, 1.5 of it rocked it up to ±1.25 mm.
+- **The floating block still bobs** by up to ±1.4 mm (the wood above, ±0.7 mm the ice) and the water around it
+  sloshes in step: a pinned block in the same tank leaves the water at rest (±0.002 mm). The water a body displaces
+  changes in whole rows of cells, and those small kicks keep the heave mode alive; the mean depth is unaffected.
+- **A falling square has too little drag**: the 2 cm ceramic square reaches 0.485 m/s at 2 mm (0.48–0.50 at 1 mm)
+  where C_D = 2.1 (Lyn et al. 1995, square cylinder at Re 22 000, with vortex shedding) gives 0.415 — an effective
+  C_D of 1.5. Its wake stays symmetric for the whole fall; the disc's wake breaks symmetry by itself and its drag
+  matches the cylinder law. Test 37 therefore uses the disc; SIMPLIFICATIONS.md #36.
+- **A beaker that lands must not bounce back**: with the full velocity jump in the added-mass term (contact impulses
+  included), a glass beaker of water that rocked back onto its base was kicked into the air — the estimate expected
+  the water to push back with the added mass, the contained water did not. Only the fluid-and-gravity part counts
+  now; what the water does after the landing comes in the next step as a force on the floor.
+- **Pressure under a body lying flat** has to come from far away: continuing it three cells deep left the middle of
+  a 2.5 cm block's underside at zero gauge pressure — sealed boxes (+3 kPa) then pressed a pine block onto the bottom
+  with 50 times its weight. It is now continued layer by layer through all solids.
+- **A block landing flat on another traps air**: the gas of the cells between them had nowhere to go within three
+  cells (8 mJ vanished from the budget); it now goes to the nearest free cell, found through anything.
+- **Sealed boxes** with moving bodies are an edge case: the gas feels a body's displacement one step late (a gas
+  spring that makes a floating block in a small sealed box bob by several millimetres) and the energy budget closes
+  to about 1 % of the heat exchanged there (exact in open boxes). SIMPLIFICATIONS.md #38.
+- **Cost**: nothing when no body is awake (the eleven older presets: step times unchanged); the floating test scene
+  (20 × 15 cm, 2 mm, 12 000 particles, one awake body) runs at about 3.5 s per simulated second in Node, the three
+  added-mass solves about 10 % of it.
+
+**Not built from SANDBOX.md §6:** the drag tool as a mouse joint ("Przesuń" still moves a body by whole cells);
+cavities kept in the body's frame (they are redrawn from the cells whenever a moving body's cells change — only boiling on
+a moving body notices); the rendering of a body's true outline (a tilted body is drawn as cells).
+
+**The free surface got its sub-cell position** on the way (both CPU and GPU, `liquid.ts`, `kliquid.ts`): the
+pressure of a gas cell above the liquid now sits where φ crosses ½ between the cell centres ("ghost fluid", Gibou et
+al. 2002), not at the gas cell's centre. Before, the pressure at depth d was ρ g (d + ε) with ε between 0 and one cell
+(half a cell on average) — fine for hydrostatic gradients, but a floating block sat half a cell too high (−4.7 % in
+test 36). What it moved in the older tests: test 1 the hydrostatic gradient 97.924 → **97.921** Pa/cm and the residual
+currents 0.0027 → **0.11 mm/s** (still far below the 1 mm/s gate; GPU 0.10); test 5 the thermal expansion **3.418 %**
+(3.407 % expected, was 3.562 %); test 6 p(10 cm) 945.4 → **939.1 Pa** (ρ g h = 940.2); test 11 on the GPU the boiling
+plateau −0.37 → **−0.25 K** below T_sat; test 24 the water layer 97.933 Pa/cm and 0.044 mm/s; test 27 dry after 70.0 s;
+tests 7–9, 13–15, 18–20, 22, 23 within their last digits. Snapshots grew by the body arrays of the grid (owner,
+capacity, face velocities): 802 → 861 kB for the boiling beaker.
+
+The slow suite with both changes: test 3 **−2.33 %** (was −2.20 %); test 4 with water 3.4e-7 % of ∫P dt (the box of
+air unchanged); test 10 — while the bulk was ≥ 5 K below T_sat, **7 of 47 905** bubbles reached the surface (0.015 %;
+were 21 of 50 366), 538 later; test 11 **99.678 °C (−0.30 K)**, vapour 5.314 mg/s against (P − losses)/h_lv
+5.314 mg/s (0.00 %); test 12 with chips **0.271 K**, without **9.968 K**; test 34 **34.0 MB** per simulated minute
+(keyframes of 992 kB, were 980). Test 34's bake now gives the event loop a turn between its two-second slices: since
+B, Vitest's worker had waited minutes for an answer during the synchronous bake and ended every slow run with two
+"unhandled errors" (a timeout of its `onTaskUpdate` call), although the test's checks held.
+
 ## Benchmark
 
 The benchmark scene: the beaker with boiling chips on the hot plate, water at 98 °C (preset "wrzenie": it boils at
@@ -407,9 +549,14 @@ two steps. Budget: 6 ms per step.
 | M1d (final) | 1 mm | 0.00 | 7.97 | 58.38 | 3.17 | 19.73 | 11.75 | 0.78 | **101.78** | 203.6 |
 | M1e GPU² | 2 mm | 0.00 | 1.08 | 1.63 | 0.90 | 0.64 | 0.48 | 0.11 | **4.93** | 9.9 |
 | M1e GPU² | 1 mm | 0.00 | 1.59 | 2.83 | 0.95 | 0.93 | 0.79 | 0.16 | **7.67** | 15.3 |
+| M3a³ | 2 mm | 0.00 | 2.04 | 9.68 | 2.34 | 3.38 | 2.60 | 0.19 | **20.24** | 40.5 |
+| M3a³ | 3 mm | 0.00 | 0.85 | 3.71 | 1.10 | 1.54 | 1.15 | 0.09 | **8.45** | 16.9 |
 
 ¹ measured inside the test run with other test files in parallel, before bubbles and phase change existed.
 ² the accelerated view on the RTX 3070 (laptop); the step is the throughput, the stages are timestamps (§M1e).
+³ the CPU with M2a, M2b, B and M3a; the new stage `bodies` (the pinned beaker and plate) takes 0.01 ms. Against the
+committed engine of B on the same machine, alternating, four runs each: 19.22 and 19.04 ms per step (medians, −1 %:
+noise) — bodies and the new free surface cost nothing in a scene without free bodies.
 
 What the M1d optimisations changed (2 mm): one Gauss–Seidel sweep over the boundary band in the multigrid (gas
 iterations 13.2 → 11.0), the gas transport rewritten without per-face method calls, bubble growth substeps tied to

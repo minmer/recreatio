@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Engine } from '../engine/engine';
 import { MOLAR } from '../engine/materials';
+import { STAGES } from '../engine/stages';
 import { GAS, H2O, N2, O2, T0 } from '../engine/units';
 import { boilingScene, erf, scene, waterTolerance } from './scenes';
 
@@ -122,7 +123,7 @@ describe('M1a — test 16: time per stage', () => {
     const e = new Engine(boilingScene('high'));
     for (let k = 0; k < 240; k += 1) e.step();
     const s = e.stats();
-    const line = s.stages.map((t, k) => `${['inputs', 'liquid', 'gas', 'bubbles', 'interface', 'heat', 'chemistry', 'diagnostics'][k]} ${t.toFixed(2)}`).join(' · ');
+    const line = s.stages.map((t, k) => `${STAGES[k]} ${t.toFixed(2)}`).join(' · ');
     console.log(`test 16 (2 mm, ${s.nx}×${s.ny}, ${s.particles} particles): ${line} · step ${s.stepMs.toFixed(2)} ms · frame (2 steps) ${(2 * s.stepMs).toFixed(2)} ms`);
     expect(s.stages.every((t) => t >= 0)).toBe(true);
     expect(s.stepMs).toBeGreaterThan(0);
