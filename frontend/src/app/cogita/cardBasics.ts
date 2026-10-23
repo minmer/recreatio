@@ -87,7 +87,7 @@ export interface PromptPart {
 export type AnswerSpec =
   | { readonly form: 'text'; readonly accepted: readonly string[]; readonly rule: TextRule }
   | { readonly form: 'gap'; readonly shown: string; readonly accepted: readonly string[]; readonly rule: TextRule }
-  | { readonly form: 'number'; readonly values: readonly number[]; readonly tolerance: number; readonly relative: boolean; readonly unit: string }
+  | { readonly form: 'number'; readonly values: readonly number[]; readonly tolerance: number; readonly relative: boolean; readonly unit: string; readonly quantity?: string }
   | { readonly form: 'date'; readonly values: readonly string[]; readonly precision: DatePrecision; readonly tolerance: number }
   | { readonly form: 'one'; readonly options: readonly string[]; readonly correct: number }
   | { readonly form: 'many'; readonly options: readonly string[]; readonly correct: readonly number[] }

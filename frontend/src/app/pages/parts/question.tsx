@@ -14,6 +14,9 @@
  *
  * Die Ansicht mit `CardFace` (und den Stücken von Cogita) lädt erst, wenn eine
  * Seite eine Frage zeigt.
+ *
+ * 2026-10-23 (Schritt 13) — eine Zahl hat ihre Einheit, ihre Grösse und eine
+ * Toleranz: mit Grösse zählt die Einheit der Antwort (`core/quantities.ts`).
  */
 
 import { createElement, lazy, Suspense } from 'react';
@@ -41,6 +44,10 @@ export interface QuestionConfig {
   readonly value: boolean | null;
   /** Nach der Antwort zu lesen. */
   readonly explain: string;
+  /** 2026-10-23 (Schritt 13) — number: die Einheit der richtigen Antworten, die Grösse (QUDT), die erlaubte Abweichung. */
+  readonly unit: string;
+  readonly quantity: string;
+  readonly tolerance: number;
 }
 
 const lines = (raw: RawConfig, key: string): string[] =>
@@ -56,7 +63,11 @@ export function readQuestion(raw: RawConfig): QuestionConfig {
     correct: (raw.correct ?? '').split(',').map((one) => Number(one.trim())).filter((n) => Number.isInteger(n) && n >= 0 && n < options.length),
     answers: lines(raw, 'answers'),
     value: raw.value === 'tak' ? true : raw.value === 'nie' ? false : null,
-    explain: text(raw, 'explain')
+    explain: text(raw, 'explain'),
+    unit: text(raw, 'unit'),
+    /* geprüft wird die Grösse, wo gerechnet wird (`questionCard`); hier steht sie, wie sie ist */
+    quantity: text(raw, 'quantity'),
+    tolerance: Math.max(0, Number((raw.tolerance ?? '').replace(',', '.')) || 0)
   };
 }
 
@@ -81,7 +92,8 @@ export function questionData(c: QuestionConfig): Record<string, unknown> {
     correct: c.form === 'one' ? c.correct.slice(0, 1) : c.correct,
     answers: c.answers,
     back: c.form === 'flash' ? c.answers : [],
-    ...(c.value === null ? {} : { value: c.value })
+    ...(c.value === null ? {} : { value: c.value }),
+    ...(c.form === 'number' ? { unit: c.unit, tolerance: c.tolerance, ...(c.quantity === '' ? {} : { quantity: c.quantity }) } : {})
   };
 }
 
@@ -141,6 +153,9 @@ function QuestionEditor({ raw, onSet, busy }: EditorProps) {
         </label>
       )}
 
+      {/* 2026-10-23 (Schritt 13) — eine Zahl: Einheit, Grösse, Toleranz. */}
+      {c.form === 'number' && <Suspense fallback={null}><LazyNumber raw={raw} c={c} busy={busy} onSet={onSet} /></Suspense>}
+
       <label className="wk-field">
         <span>Wyjaśnienie po odpowiedzi</span>
         <textarea rows={2} value={raw.explain ?? ''} disabled={busy} onChange={(e) => onSet({ explain: e.target.value })} />
@@ -148,6 +163,9 @@ function QuestionEditor({ raw, onSet, busy }: EditorProps) {
     </div>
   );
 }
+
+/* 2026-10-23 (Schritt 13) — Einheit, Grösse, Toleranz einer Zahl: erst im Editor geladen (die Liste der Einheiten). */
+const LazyNumber = lazy(() => import('./questionNumber'));
 
 /* -- Die Ansicht, erst geladen, wenn sie gezeigt wird ------------------------------------------- */
 
@@ -159,7 +177,7 @@ function QuestionView({ config, ctx }: { config: QuestionConfig; ctx: PartContex
 
 export const questionPart = definePart<QuestionConfig>({
   kind: 'question',
-  example: { form: 'one', prompt: 'Ile jest sakramentów?', options: 'Pięć\nSiedem\nDwanaście', correct: '1', answers: 'siedem\n7', value: 'tak', explain: 'Chrzest, bierzmowanie, Eucharystia, pokuta, namaszczenie chorych, kapłaństwo, małżeństwo.' },
+  example: { form: 'one', prompt: 'Ile jest sakramentów?', options: 'Pięć\nSiedem\nDwanaście', correct: '1', answers: 'siedem\n7', value: 'tak', explain: 'Chrzest, bierzmowanie, Eucharystia, pokuta, namaszczenie chorych, kapłaństwo, małżeństwo.', unit: 'szt.', quantity: 'Dimensionless', tolerance: '0' },
   label: 'Pytanie',
   use: 'Pytanie z odpowiedzią do sprawdzenia. W prezentacji — krok przebiegu: po dobrej i po złej odpowiedzi może prowadzić w inne miejsce, a odpowiedzi liczą się w przeglądarce albo w Cogicie.',
   box: { colSpan: 4, rowSpan: 3 },
@@ -171,7 +189,10 @@ export const questionPart = definePart<QuestionConfig>({
     { key: 'correct', shape: 'line', says: 'numery dobrych możliwości od 0, po przecinku, np. "1" albo "0,2"' },
     { key: 'answers', shape: 'lines', says: 'dobre odpowiedzi, każda w osobnej linii (text, number); odwrotna strona (flash)' },
     { key: 'value', shape: 'line', says: '"tak" albo "nie" — czy zdanie jest prawdziwe (truefalse)' },
-    { key: 'explain', shape: 'lines', says: 'wyjaśnienie pokazywane po odpowiedzi' }
+    { key: 'explain', shape: 'lines', says: 'wyjaśnienie pokazywane po odpowiedzi' },
+    { key: 'unit', shape: 'line', says: 'jednostka dobrych odpowiedzi, np. "N·m" (number)' },
+    { key: 'quantity', shape: 'line', says: 'wielkość (number) — np. "Torque" (moment siły), "Energy", "Mass", "Length"; wtedy odpowiedź w innej jednostce tej wielkości jest przeliczana, a jednostka innej wielkości jest błędem ("12 J" na pytanie o moment siły)' },
+    { key: 'tolerance', shape: 'line', says: 'ile wolno się pomylić, w jednostce pytania, np. "0,5" (number)' }
   ],
   read: readQuestion,
   hasContent: (c) => questionMissing(c) === null,

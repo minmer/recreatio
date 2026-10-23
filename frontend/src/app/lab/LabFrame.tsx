@@ -13,6 +13,7 @@
 import { createContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { Icon } from '../ui/icons';
+import { fromSI, unitById } from '../core/quantities';
 
 import './lab.css';
 
@@ -120,6 +121,20 @@ export function LabValue({ label, value }: { label: string; value: string }) {
       <output>{value}</output>
     </div>
   );
+}
+
+/**
+ * 2026-10-23 (Schritt 13) — EINE ANZEIGE AUS SI: die Motoren rechnen in SI
+ * (ihre Daten bleiben Daten des Motors); angezeigt wird in einer Einheit der
+ * gemeinsamen Liste (`core/quantities.ts`) — „20,0 °C" aus 293,15 K,
+ * „101,3 kPa" aus 101 325 Pa. Die Zahl schreibt `format` (sonst `labNum`).
+ */
+export function labQuantity(si: number, unitId: string, digits: number, format?: (value: number, digits: number) => string): string {
+  const unit = unitById(unitId);
+  if (unit === undefined) return labNum(si, digits);
+  const value = fromSI(si, unit);
+  if (format === undefined) return labNum(value, digits, unit.symbol);
+  return unit.symbol === '' ? format(value, digits) : `${format(value, digits)} ${unit.symbol}`;
 }
 
 /** Eine Zahl mit Komma und Einheit (U+00A0 dazwischen). */

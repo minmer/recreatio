@@ -14,7 +14,9 @@ import { GeoMap } from './GeoMap';
 import { WhoSees } from './BaseWho';
 import {
   dateText, FIELD_TYPE_LABEL, fieldsOf, labelOf, outsideOf, parseRange, rangeText, readDate, readRange, VALUE_STATE_LABEL, VALUE_STATES,
-  type Entity, type FieldDef, type GeoPoint, type MediaRef, type RangeValue, type ValueState, placeText } from './schema';
+  type Entity, type FieldDef, type GeoPoint, type MediaRef, type RangeValue, type ValueState, placeText,
+  enteredText, fieldKind, fieldUnit, quantityEnvelope } from './schema';
+import { kindById, parseQuantity, unitById } from '../core/quantities';
 import { linkedOf } from './store';
 import { creatorFor, EntityPicker, Markup, MediaView, entityName, useAsync, useBusy, useCtx } from './ui';
 import { loadVersions, openVersion } from './versions';
@@ -163,7 +165,8 @@ function KindsRow({ kinds, writes, onChange }: { kinds: readonly string[]; write
 function FieldEditor({ field, raw, writes, onChange, onOpen }: { field: FieldDef; raw: unknown; writes: boolean; onChange: (v: unknown) => void; onOpen: (id: string) => void }) {
   const whole = field.type === 'list' || field.type === 'outline';
   const many = field.multi && !whole ? (Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw]) : null;
-  const label = <span>{field.label}<span className="cg-muted"> — {FIELD_TYPE_LABEL[field.type]}{field.unit ? `, ${field.unit}` : ''}</span></span>;
+  const kind = fieldKind(field);
+  const label = <span>{field.label}<span className="cg-muted"> — {FIELD_TYPE_LABEL[field.type]}{field.unit ? `, ${field.unit}` : ''}{kind !== undefined ? ` (${kindById(kind)?.label ?? kind})` : ''}</span></span>;
 
   if (field.type === 'outline') {
     return <div className="wk-field">{label}<span className="wk-hint">Plan projektu edytuje się w Bibliotece ({Array.isArray(raw) ? raw.length : 0} pozycji).</span></div>;
@@ -214,8 +217,49 @@ function PlaceInput({ field, target, locator, writes, onChange }: { field: Field
   );
 }
 
+/**
+ * 2026-10-23 (Schritt 13) — EINE GRÖSSE EINGEBEN: „1,5 kN" in ein Feld in N,
+ * „20 °C" in eines in K. Gespeichert wird, was eingegeben wurde, mit der
+ * Kennung der Einheit und SI (`{ value, unit, si }`); eine Einheit einer
+ * anderen Grösse wird nicht angenommen.
+ */
+function QuantityInput({ field, env, writes, onEnvelope }: { field: FieldDef; env: Record<string, unknown>; writes: boolean; onEnvelope: (patch: { value: number; unit: string; si: number } | null) => void }) {
+  const shown = (): string => {
+    const value = typeof env.value === 'number' ? env.value : null;
+    if (value === null) return '';
+    const typed = typeof env.unit === 'string' ? unitById(env.unit) : undefined;
+    return enteredText({ value, unit: typed?.id ?? fieldUnit(field)?.id ?? '' });
+  };
+  const [draft, setDraft] = useState(shown);
+  const [said, setSaid] = useState<string | null>(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setDraft(shown()); }, [env.value, env.unit]);
+  const commit = () => {
+    if (draft.trim() === '') { setSaid(null); onEnvelope(null); return; }
+    const read = parseQuantity(draft);
+    if (read === null) { setSaid('To nie jest liczba.'); return; }
+    if (read.unitText !== '' && read.unit === undefined) { setSaid(`Nie znam jednostki „${read.unitText}”.`); return; }
+    const made = quantityEnvelope(field, read.value, read.unit);
+    if ('error' in made) { setSaid(made.error); return; }
+    setSaid(null);
+    onEnvelope(made);
+  };
+  return (
+    <span className="cg-row">
+      <input value={draft} disabled={!writes} inputMode="decimal" aria-label={field.label} placeholder={`np. 12 ${fieldUnit(field)?.symbol ?? ''}`.trim()}
+        onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }} />
+      {said !== null && <span className="wk-error">{said}</span>}
+    </span>
+  );
+}
+
 /** Ein Wert — in seiner Hülle, wenn das Feld unsicher sein darf (Stand, Quelle, Notiz) oder eine Stelle trägt (Schritt 11). */
 function OneValue({ field, raw, writes, onChange, onOpen }: { field: FieldDef; raw: unknown; writes: boolean; onChange: (v: unknown) => void; onOpen: (id: string) => void }) {
+  /* 2026-10-23 (Schritt 13) — ein Grössenfeld: die Hülle { value, unit, si } (bei einem unsicheren Feld mit Stand, Quelle, Notiz darin). */
+  if (fieldKind(field) !== undefined && fieldUnit(field) !== undefined && !field.uncertain) {
+    const env: Record<string, unknown> = isEnvelope(raw) ? raw : raw === undefined ? {} : { value: raw };
+    return <QuantityInput field={field} env={env} writes={writes} onEnvelope={(made) => onChange(made === null ? undefined : made)} />;
+  }
   if (!field.uncertain && field.locator === true) {
     const env: Record<string, unknown> = isEnvelope(raw) ? raw : raw === undefined ? {} : { value: raw };
     /* Ohne Stelle bleibt der Wert, was er war — eine Kennung; mit Stelle eine Hülle { value, locator }. */
@@ -244,7 +288,9 @@ function OneValue({ field, raw, writes, onChange, onOpen }: { field: FieldDef; r
   return (
     <div className="cg-card">
       <div className="cg-row">
-        {withValue && <PlainValue field={field} value={env.value} writes={writes} onChange={(v) => set({ value: v })} onOpen={onOpen} />}
+        {withValue && (fieldKind(field) !== undefined && fieldUnit(field) !== undefined
+          ? <QuantityInput field={field} env={env} writes={writes} onEnvelope={(made) => set(made === null ? { value: undefined, unit: undefined, si: undefined } : made)} />
+          : <PlainValue field={field} value={env.value} writes={writes} onChange={(v) => set({ value: v })} onOpen={onOpen} />)}
         <select value={state} disabled={!writes} onChange={(e) => set({ state: e.target.value })} aria-label="Pewność">
           {VALUE_STATES.map((s) => <option key={s} value={s}>{VALUE_STATE_LABEL[s]}</option>)}
         </select>

@@ -140,7 +140,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
           {a.form === 'gap' && <div className="cg-prompt">{a.shown}</div>}
           <div className="cg-row">
             <input ref={field} type="text" className={reveal === undefined ? undefined : reveal.outcome.correct ? 'is-right' : reveal.outcome.correctness > 0.5 ? 'is-near' : 'is-wrong'} inputMode={a.form === 'number' ? 'decimal' : undefined} value={text} disabled={shut}
-              placeholder={a.form === 'date' ? 'np. 1410, 15 lipca 1410, 1410-07-15' : a.form === 'number' ? 'liczba' : 'odpowiedź'}
+              placeholder={a.form === 'date' ? 'np. 1410, 15 lipca 1410, 1410-07-15' : a.form === 'number' ? (a.quantity === undefined ? 'liczba' : 'liczba, może z jednostką') : 'odpowiedź'}
               aria-label="Odpowiedź" onChange={(e) => setText(e.target.value)} autoComplete="off" autoCapitalize="off" spellCheck={false} />
             {a.form === 'number' && a.unit !== '' && <span>{a.unit}</span>}
             <button type="submit" className="wk-btn" disabled={shut}>Sprawdź</button>
@@ -283,6 +283,8 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
         {others.length > 0 && <> · także: <span className="cg-expected">{others.join(', ')}</span></>}
         {showGiven && !outcome.correct && givenText(card, given) !== '' ? <> · Twoja odpowiedź: {givenText(card, given)}</> : null}
       </span>
+      {/* 2026-10-23 (Schritt 13) — z jakiego powodu, gdy nie chodzi o liczbę (jednostka innej wielkości). */}
+      {outcome.note !== undefined && <span className="cg-verdict-note">{outcome.note}</span>}
       {outcome.mask !== undefined && !outcome.correct && (
         <span className="cg-diff" aria-label="Porównanie znak po znaku">
           {spansOf(expected, outcome.mask).map((s, i) => <span key={i} className={`is-${s.level}`}>{s.text}</span>)}

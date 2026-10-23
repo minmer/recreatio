@@ -998,3 +998,98 @@ the text). LaTeX prints the same with `\emph{…}`.
    The presentation fills the screen; at the bottom left are the flow's name, the narrator and „zamknij”.
 3. Go to the question scene and close. Open the presentation page itself: it resumes at the same scene. (The account
    needs a private area, which the calendar creates.)
+
+## Step 13 — Quantities and units
+
+**Built**
+
+- **The quantity module** (`core/quantities.ts`, pure, no React):
+  - a QUDT subset: seven base dimensions, 33 quantity kinds and 135 units, each unit with its factor (and offset) to
+    SI;
+  - ids are QUDT's local names (`Torque`, `Energy`, `Mass`; `N-M`, `KiloN`, `DEG_C`), and labels are Polish;
+  - two kinds may share a dimension: torque and energy are both M L² T⁻². `N·m` measures torque and, ambiguously,
+    energy; `J` measures only energy;
+  - reading what people type: "12 N·m", "12Nm", "1,5 kN", "−3,2e3 J", "1,5·10³ Pa", "12 000 kg", "20 °C", "45°".
+    Letter case matters where it must (mm / Mm, km / KM);
+  - conversion to and from SI, a kind from a unit only when the unit is unambiguous, text for answers and readouts,
+    and a description for AI.
+- **Questions** (Cogita `question`, the card step „Odpowiedź: liczba”, and the page module „Pytanie”):
+  - a number question may name its `quantity`; then the answer is compared in SI and only within that kind;
+  - a torque of 12 N·m accepts "12 N·m", "12 Nm", "0,012 kN·m" and a bare "12" (in the question's unit);
+  - it rejects "12 J", and the verdict says why: „„J” to jednostka wielkości: energia (praca, ciepło) — a pytanie
+    dotyczy wielkości: moment siły.” An unknown unit is named too;
+  - right answers may be written with a unit, and the tolerance is in the question's unit (temperatures with their
+    offset: 68 °F is 20 °C);
+  - the page module gains `unit`, `quantity` and `tolerance` (it had none). Its editor loads the unit list only when
+    opened (`questionNumber.tsx`), so pages do not carry it.
+- **Number fields** (decision 15: the entered value and unit, plus SI):
+  - a field may name its `quantity` beside its display unit, and the schema editor offers the kinds („Wielkość”);
+  - a value is typed in any unit of the kind and stored as typed with SI: `{ "value": 1.5, "unit": "KiloN",
+    "si": 1500 }`;
+  - lists, cards, sorting and filters read the number in the field's unit (1500). It is shown as typed („1,5 kN”);
+  - a filter may name a unit („masa > 2 kg” over a field in grams);
+  - the entry editor takes "1,5 kN" and refuses "15 J" for a torque with the reason, and add-form rows do the same.
+- **Migration at read time, nothing rewritten:**
+  - a number field or question without a quantity takes the kind of its unit where the unit is unambiguous ("kg"
+    → mass, "m/s²" → acceleration);
+  - "N·m" stays without a kind (the old check, where only the number counts) until the author picks one. Both
+    editors say so: „„N·m” może znaczyć: energia albo moment siły — wybierz”;
+  - old plain numbers stay; they are in the field's unit;
+  - a card's fingerprint does not change, so progress stays.
+- **Labs:** the engines keep computing in SI, and their data stays engine data (decision C.10). `lab/LabFrame.tsx`
+  `labQuantity(si, unitId, digits)` shows an SI value in a unit of the shared list. The particle lab's inspector uses
+  it for temperature, pressure, mass, velocity, density and specific enthalpy (a new kind `SpecificEnergy`).
+- **Descriptions:** `courseDescription()` explains `"quantity"` on fields and questions, the stored envelope, an example
+  field and value, and lists every kind with its units. The page JSON help describes the module's `unit`, `quantity`
+  and `tolerance`.
+- **Checks:**
+  - `app-cogita-check` (415):
+    - the module is consistent: every unit measures known kinds of one dimension, every kind has its SI unit, ids
+      are unique;
+    - spellings, case, exponents, reading, SI both ways with an offset, guessing only when unambiguous, no
+      conversion across kinds, text, the description;
+    - the step's test: torque in N·m accepted (also "12", "Nm", "kN·m", "mN·m") and "12 J" rejected with the
+      reason;
+    - the legacy question with "N·m" unchanged, "kg" giving mass (2000 g right, 2 m wrong), answers written with
+      units, temperature offsets, an unchanged fingerprint;
+    - fields: the quantity kept, written back and dropped when unknown; the envelope, reading in the field's unit,
+      showing as typed, add-form rows, filters in other units.
+  - `app-json-check`: the module's new keys are in its example and described.
+  - Drives against LocalDB:
+    - `quantity-api.mjs`: a course with a torque field and question imported. Values come back from the service as
+      typed with SI. The stored question accepts N·m and rejects J. The export carries the quantity and the envelope,
+      and a second base reads the same.
+    - `quantity-browser.mjs` (headless Edge, a visitor on a public page): "12 J" is wrong with the reason; "12 N·m"
+      and "0,012 kN·m" are right.
+    - `quantity-editor.mjs`: the entry editor shows "0,012 kN·m" as typed and labels the field „N·m (moment siły)”.
+      It refuses "15 J" with the reason; "15 N·m" is saved and shown again after a reload.
+
+**Removed**
+
+- Nothing.
+
+**Choices**
+
+- **QUDT ids, a small list.** The local names keep the vocabulary shared and recognisable for AI and for imports.
+  The list covers school and workshop physics, chemistry basics and what the labs show. More units are one line each.
+- **N·m is ambiguous on purpose.** QUDT lists N·m for torque and energy. A torque question still rejects J (energy
+  only); an energy question would accept N·m. Without a chosen kind, the old number-only check stays.
+- **The number in the field's unit is what everything else reads.** The entered form and SI ride beside it
+  (`Value.entered`, `Value.si`). Nothing that sorted, filtered or built cards from numbers had to change.
+- **Labs: readouts only.** Inputs already convert at the engine boundary (°C → K in the particle lab). The lab2d and
+  physics labs have uncommitted work by the parallel lab session; their readouts can switch to `labQuantity` without
+  touching an engine. Interactive drawings keep display units (`vars[].unit`).
+- **Library amounts** (`libraryJson.ts` `readAmount`, "205 mm" stored as 205) are book data, not Cogita fields, and
+  stay as they are.
+
+**Owner must run**
+
+- Deploy the website. No migration, no API change.
+
+**Test in the browser**
+
+1. Nauka → a base → Schemat → a kind → a number field: unit "N·m", „Wielkość” = moment siły. In Wpisy, type "1,5 kN·m"
+   into the field (it stays "1,5 kN·m"), then try "15 J" (refused, with the reason).
+2. Wpisy → new Pytanie: form "number", answers "12", unit "N·m", „Wielkość” = moment siły. In Powtórki (or a page with
+   the module „Pytanie”, form Liczba, same settings) answer "12 J": "Niestety nie" with the reason. Then "0,012 kN·m":
+   "Dobrze!".

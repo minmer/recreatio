@@ -294,6 +294,7 @@ in view, and the drawing still in view with the piece scrolled to its end.
 
 ## 14. Not done
 
+- Units in drawings are display strings (`vars[].unit`). The shared quantity list (`core/quantities.ts`, step 13) is used by Cogita fields and questions and by the labs' readouts (`labQuantity`), not yet by drawings.
 - A Cogita flow with look `scenes` and a graph of its own still renders as styled reading. A flow that points at a
   presentation (`presentation`, step 12, COGITA.md §8) plays through the presentation engine, drawings included.
 - No visual drawing editor (JSON, preview, examples, AI prompt). The Cogita question editor shows `drawing` as a

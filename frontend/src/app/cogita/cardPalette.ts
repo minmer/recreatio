@@ -7,6 +7,7 @@ import { GAP_RULE, TEXT_RULE, readDateAnswer, readRule } from './check';
 import { type NodeKind, type Port, paletteOf } from './graph';
 import { type DatePrecision, type Entity, type GeoPoint, type MediaRef, dateKey, fieldOf, labelOf, plainOf, readDate, readNumber, valueText, valuesOf } from './schema';
 import { blockPlain, blocksOf, subjectsOf, thesisOf, type CommentBlock } from '../library/comment';
+import { guessKind, kindById } from '../core/quantities';
 
 /** Was an einem Eingang ankam — alle Kanten, alle Stücke, in einer Liste. */
 const itemsAt = (inputs: Readonly<Record<string, readonly unknown[]>>, port: string): Item[] =>
@@ -631,12 +632,13 @@ const ANSWER_GAP: Kind = {
 
 const ANSWER_NUMBER: Kind = {
   type: 'answer.number', label: 'Odpowiedź: liczba', group: 'Odpowiedź',
-  says: 'Uczący się wpisuje liczbę; tolerancja bezwzględna albo w procentach, jednostka do wpisania obok.',
+  says: 'Uczący się wpisuje liczbę; tolerancja bezwzględna albo w procentach, jednostka do wpisania obok; z wielkością (np. moment siły) liczy się jednostka odpowiedzi: inna jednostka tej samej wielkości jest przeliczana, jednostka innej wielkości — błędem.',
   ports: () => ({ inputs: [port('expected', 'Poprawna', 'items', true)], outputs: answerPort }),
   run: ({ config, inputs }) => {
     const values = numbersOf(itemsAt(inputs, 'expected'));
     if (values.length === 0) return {};
-    return { answer: { answer: { form: 'number', values, tolerance: Math.max(0, num(config.tolerance, 0)), relative: config.relative === true, unit: str(config.unit) } } satisfies Draft };
+    const quantity = kindById(str(config.quantity))?.id ?? guessKind(str(config.unit));
+    return { answer: { answer: { form: 'number', values, tolerance: Math.max(0, num(config.tolerance, 0)), relative: config.relative === true, unit: str(config.unit), ...(quantity === undefined ? {} : { quantity }) } } satisfies Draft };
   }
 };
 

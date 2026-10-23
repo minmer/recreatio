@@ -58,7 +58,7 @@ Status: decided on 2026-10-15 from your answers on the page “Cogita rebuild qu
 
 **Field types** [B2]:
 - line, long text, and markup (with citations and footnotes);
-- number with a unit, and date with precision (year, month or day);
+- number with a unit and, since step 13, a **quantity** (below), and date with precision (year, month or day);
 - yes / no / unknown, and choice from a list;
 - reference to one or more kinds;
 - media (image, audio, video, document) and web address;
@@ -66,6 +66,16 @@ Status: decided on 2026-10-15 from your answers on the page “Cogita rebuild qu
 - **range with several segments** [B6].
 
 Formula, code and duration are not field types.
+
+**Quantities** (step 13, 2026-10-23; target architecture B.11, decision 15). `core/quantities.ts` holds a small subset of QUDT: seven base dimensions, 33 quantity kinds and 135 units, each with its factor (and offset) to SI. The ids are QUDT's local names (`Torque`, `Energy`; `N-M`, `KiloN`, `DEG_C`).
+- Two kinds may share a dimension and still differ. Torque and energy are both M L² T⁻². `N·m` measures torque and, ambiguously, energy; `J` measures only energy.
+- **A number field names its quantity** (`quantity`, beside the display unit). A value is then typed in any unit of that kind ("1,5 kN" into a field in N). It is stored as typed, with the unit's id and the SI value: `{ "value": 1.5, "unit": "KiloN", "si": 1500 }`.
+  - Lists, filters, sorting and cards read the number in the field's own unit (1500).
+  - The value is shown as typed ("1,5 kN").
+  - A filter may name a unit ("masa > 2 kg" over a field in grams).
+  - Old plain numbers stay; they are in the field's unit.
+- **Existing units map to a kind where they are unambiguous, at read time.** "kg" means mass and "m/s²" acceleration. "N·m" stays without a kind until the author picks one: the schema editor says „może znaczyć: energia albo moment siły — wybierz”. No entry is rewritten.
+- **Engines stay engine data.** The labs keep computing in SI (`lab2d/engine/materials.json`, `particles/engine/species.json`). Their readouts name a unit from the shared list (`lab/LabFrame.tsx` `labQuantity`; the particle lab's inspector uses it).
 
 **Values:**
 - A field may be multi-value [B5].
@@ -225,7 +235,12 @@ A template is a graph built from these blocks [D2]:
 
 **Answer forms** [D3]:
 - typed text with a similarity threshold;
-- number with tolerance and unit, and date with precision;
+- number with tolerance and unit, and date with precision. A number question with a **quantity** (step 13) compares in SI within that kind only:
+  - a torque of 12 N·m accepts "12 N·m", "12 Nm", "0,012 kN·m" and a bare "12" (in the question's unit);
+  - it rejects "12 J", although the dimension is the same, and the verdict says why („„J” to jednostka wielkości: energia …”);
+  - right answers may be written with a unit, and the tolerance is in the question's unit;
+  - a question without a quantity takes the kind of an unambiguous unit; an ambiguous unit ("N·m") without a quantity keeps the old check, where only the number counts;
+  - the page module „Pytanie” has the same unit, quantity and tolerance, and so does the card step „Odpowiedź: liczba”;
 - one choice, several choices, and true or false;
 - ordering and matching — matching by tapping (2026-10-18): an item on one side, then its partner on the other; a pair carries one number on both sides, and tapping a paired item undoes its pair;
 - a gap in a quote (the old fragment tree) [F10];
@@ -600,6 +615,7 @@ A public, opened base (§13) is served to anyone as the same sealed entries and 
 | Public pages | `parts/cogita.tsx` (definitions) with `parts/cogitaViews.tsx` (loaded only when shown), `pageBase.ts` (the base as this reader may read it — step 8), `PublicRun.tsx` (a keyless revision), `entitySubject.tsx`, `seatLearn.ts` |
 | Visibility | `visibility.ts` (who reads, in words; what an item needs when it moves), `BaseWho.tsx` ("Kto widzi" with the move, "Kto czyta" in settings), `library/rebuild/baseVisibility.ts` (Porządki tab 5) |
 | Schema connections (step 11) | `schema.ts` (`locator`, `placeText`), `schemaStarts.ts` with `starts/psalterz.json`, `fromEntry.ts` (a revision from a sermon), `ViewEmbed.tsx` (a live view inside a text or plan point); in the library `BasePicker.tsx` and the cross-store lookup in `libraryStore.ts` |
+| Quantities (step 13) | `core/quantities.ts` (kinds, units, parsing, SI); in `schema.ts` `fieldKind`, `fieldUnit`, `quantityEnvelope`; in `check.ts` `checkQuantity`; the field input in `EntityEditor.tsx`, the kind choice in `SchemaEditor.tsx`; rows in `addForm.ts`, filters in `selection.ts`; lab readouts `lab/LabFrame.tsx` `labQuantity` |
 | Views | `selection.ts` (the steps shared with revisions, the collections' rule, groups), `views.ts` (the view document, its list, groups, columns, matrix; view ↔ revision), `viewActions.ts` (create here, add to plan, learn), `ViewSteps.tsx`, `RuleEditor.tsx` and `MatrixGrid.tsx`; on pages `pages/parts/view.tsx` with `viewViews.tsx` (inner views, map), and `pages/partQuery.ts` (state per module in the address); `library/rebuild/pageModules.ts` converts retired modules |
 | Forms | `LearnStep.tsx`; the step kind `learn` in `steps.ts` and `StepList.tsx` |
 | Service | `backend/Api/`: `Library.Cogita.cs` (versions, files, seat reading), `Cogita.cs` (batches, due, reports, the `c/` addresses), `Cogita.Session.cs`, `CogitaHub.cs` (`/cogita/hub`), `Cogita.Game.cs` (triggers, `CogitaClock`) |
@@ -647,7 +663,7 @@ A public, opened base (§13) is served to anyone as the same sealed entries and 
 
 | check | count |
 |---|---|
-| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 339 (2026-10-22) |
+| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 415 (2026-10-23) |
 | `backend/Api.Tests` (22 of them for the game rules) | 470 (2026-10-22) |
 | `backend/Kernel.Tests` | 122 |
 
@@ -655,7 +671,7 @@ The full `tsc -p tsconfig.json` is clean now that the legacy tree is gone.
 
 ### Left open
 
-- **No browser drive yet.** No end-to-end run with `zz-probe-` data has been done for sessions, games or the learning step. The anonymous routes and the SignalR negotiation answer correctly on a local service against the migrated database.
+- **Browser drives only for parts.** The first one plays a presentation flow in Nauka (step 12, headless Edge against a local service). There is still no end-to-end run with `zz-probe-` data for sessions, games or the learning step. The anonymous routes and the SignalR negotiation answer correctly on a local service against the migrated database.
 - **Legacy remnants, kept on purpose.** Six content files stay under `frontend/src/legacy/`:
   - `content/pl.ts` with `content/types.ts` and `types/navigation.ts`;
   - `public/content/pl.ts` with `public/content/types.ts` and `rc/lib/rcRoute.ts`.

@@ -12,7 +12,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 
 import { Icon, type IconName } from '../../ui/icons';
-import { LabFrame } from '../LabFrame';
+import { LabFrame, labQuantity } from '../LabFrame';
 import type { ParticleInfo } from './engine/engine';
 import type { HostStats } from './engine/protocol';
 import { QUALITIES, SPACING, isQuality, readScene, writeScene, type Op, type Quality } from './engine/scene';
@@ -95,17 +95,18 @@ function ApparatusIcon({ kind }: { kind: ApparatusKey }) {
     : <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="14" width="20" height="6" rx="1" fill="#7d858e" /><path d="M6 17h12" stroke="#e8823a" strokeWidth="2" /></svg>;
 }
 
+/* 2026-10-23 (Schritt 13) — die Werte des Motors (SI) in Einheiten der gemeinsamen Liste (core/quantities.ts, labQuantity). */
 function Inspector({ info }: { info: ParticleInfo }) {
   const phase = info.implicit ? t('ambientAir') : info.phase === SOLID ? t('phaseSolid') : info.phase === LIQUID ? t('phaseLiquid') : t('phaseGas');
   return (
     <div className="lab-values">
       <div className="lab-value"><span>{t('phase')}</span><output>{phase}{info.fixed ? ` · ${t('fixed')}` : ''}{info.role === 1 ? ` · ${t('heater')}` : ''}</output></div>
-      <div className="lab-value"><span>{t('temp')}</span><output>{num(info.T - T0, 1)} °C</output></div>
-      <div className="lab-value"><span>{t('pressure')}</span><output>{num(info.p / 1000, 3)} kPa</output></div>
-      {!info.implicit && <div className="lab-value"><span>{t('mass')}</span><output>{num(info.mass * 1e6, 2)} mg</output></div>}
-      <div className="lab-value"><span>{t('velocity')}</span><output>{num(Math.hypot(info.vx, info.vy) * 100, 1)} cm/s</output></div>
-      <div className="lab-value"><span>{t('density')}</span><output>{num(info.rho, info.rho < 10 ? 3 : 1)} kg/m³</output></div>
-      <div className="lab-value"><span>{t('enthalpy')}</span><output>{num(info.H / 1000, 1)} kJ/kg</output></div>
+      <div className="lab-value"><span>{t('temp')}</span><output>{labQuantity(info.T, 'DEG_C', 1, num)}</output></div>
+      <div className="lab-value"><span>{t('pressure')}</span><output>{labQuantity(info.p, 'KiloPA', 3, num)}</output></div>
+      {!info.implicit && <div className="lab-value"><span>{t('mass')}</span><output>{labQuantity(info.mass, 'MilliGM', 2, num)}</output></div>}
+      <div className="lab-value"><span>{t('velocity')}</span><output>{labQuantity(Math.hypot(info.vx, info.vy), 'CentiM-PER-SEC', 1, num)}</output></div>
+      <div className="lab-value"><span>{t('density')}</span><output>{labQuantity(info.rho, 'KiloGM-PER-M3', info.rho < 10 ? 3 : 1, num)}</output></div>
+      <div className="lab-value"><span>{t('enthalpy')}</span><output>{labQuantity(info.H, 'KiloJ-PER-KiloGM', 1, num)}</output></div>
       <div className="lab-value"><span>{t('neighbours')}</span><output>{info.neighbours}</output></div>
       <div className="lab-value"><span>{t('composition')}</span><output>{info.composition.map((c) => `${c.name} ${num(c.fraction * 100, 0)} %`).join(', ')}</output></div>
     </div>

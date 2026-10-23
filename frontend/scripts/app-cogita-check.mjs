@@ -918,7 +918,7 @@ check('the stand of the plan before a run', R.levelsOf(plan, () => [], 0), { uns
 const more = ['logic', 'flow', 'rules', 'game', 'kinds', 'live', 'store', 'sources', 'json', 'pageBase', 'visibility', 'fromEntry'];
 const moreOut = join(workspace, 'more');
 await build({
-  entryPoints: { ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), steps: 'src/app/steps/steps.ts', partQuery: 'src/app/pages/partQuery.ts' },
+  entryPoints: { ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), steps: 'src/app/steps/steps.ts', partQuery: 'src/app/pages/partQuery.ts', quantities: 'src/app/core/quantities.ts' },
   bundle: true,
   format: 'esm',
   platform: 'node',
@@ -930,7 +930,7 @@ await build({
 /* Wie in app-json-check: ein BroadcastChannel des Schlüsselbunds hielte den Lauf sonst am Leben. */
 globalThis.BroadcastChannel = undefined;
 const loadMore = (name) => import(pathToFileURL(join(moreOut, `${name}.js`)).href);
-const [Lg, Fl, Ru, Ga, Ki, Li, So, Src, Js, PB, Vis, FE, St, PQ] = await Promise.all([...more, 'steps', 'partQuery'].map(loadMore));
+const [Lg, Fl, Ru, Ga, Ki, Li, So, Src, Js, PB, Vis, FE, St, PQ, QT] = await Promise.all([...more, 'steps', 'partQuery', 'quantities'].map(loadMore));
 
 /* -- Die eine Logik ------------------------------------------------------------------------------- */
 
@@ -1447,6 +1447,71 @@ check('goals and lines follow the one logic', [
   const psalter = Js.planImport(new So.CogitaLibrary(freshStore, true), SS.SCHEMA_STARTS.find((x) => x.id === 'psalterz').doc());
   truth('the psalter start imports with a place in the Scripture', !('error' in psalter) && psalter.kinds.some((k) => k.def.fields.some((f) => f.key === 'miejsce' && f.locator === true && (f.to ?? []).includes('work'))), 'error' in psalter ? psalter.error : '');
   check('add to plan: new points at the end, the old ones stay, ids stay unique', [added, newPlan.length, newPlan[0].id, newPlan[1].text, new Set(newPlan.map((x) => x.id)).size], [2, 3, 'p1', `[[${lib.label(lib.entity(cm1)).replace(/[[\]|]/g, ' ').replace(/\s+/g, ' ').trim()}|@${cm1}]]`, 3]);
+}
+
+/* -- 2026-10-23 (Schritt 13): Größen und Einheiten ------------------------------------------------------ */
+
+{
+  const kinds = new Map(QT.QUANTITY_KINDS.map((k) => [k.id, k]));
+  const sameDim = (a, b) => JSON.stringify(kinds.get(a).dim) === JSON.stringify(kinds.get(b).dim);
+  truth('every unit measures known kinds of one dimension; every kind has its SI unit (factor 1, no offset)',
+    QT.UNITS.every((u) => u.kinds.length > 0 && u.kinds.every((k) => kinds.has(k) && sameDim(k, u.kinds[0])))
+    && QT.QUANTITY_KINDS.every((k) => { const si = QT.unitById(k.si); return si !== undefined && si.factor === 1 && (si.offset ?? 0) === 0 && si.kinds.includes(k.id); }));
+  check('unit ids are unique', new Set(QT.UNITS.map((u) => u.id)).size, QT.UNITS.length);
+  check('writing a unit: N*m, N m, Nm, N·m, N⋅m, the QUDT id', ['N*m', 'N m', 'Nm', 'N·m', 'N⋅m', 'N-M'].map((t) => QT.findUnit(t)?.id), ['N-M', 'N-M', 'N-M', 'N-M', 'N-M', 'N-M']);
+  check('case matters where it must: mm, km, KM (horsepower), nm', ['mm', 'km', 'KM', 'nm', 'KG'].map((t) => QT.findUnit(t)?.id ?? null), ['MilliM', 'KiloM', 'HP_Metric', 'NanoM', 'KiloGM']);
+  check('exponents: m/s2, m/s^2, cm3, m²', ['m/s2', 'm/s^2', 'cm3', 'm²'].map((t) => QT.findUnit(t)?.id), ['M-PER-SEC2', 'M-PER-SEC2', 'CentiM3', 'M2']);
+  check('reading quantities as typed',
+    ['12 N·m', '12Nm', '1,5 kN', '−3,2e3 J', '1,5·10³ Pa', '12 000 kg', '20 °C', '45°', '12'].map((t) => { const r = QT.parseQuantity(t); return r === null ? null : [r.value, r.unit?.id ?? null]; }),
+    [[12, 'N-M'], [12, 'N-M'], [1.5, 'KiloN'], [-3200, 'J'], [1500, 'PA'], [12000, 'KiloGM'], [20, 'DEG_C'], [45, 'DEG'], [12, null]]);
+  check('to SI and back: kN, °C (an offset), km/h', [QT.toSI(1.5, QT.unitById('KiloN')), QT.toSI(20, QT.unitById('DEG_C')), QT.fromSI(293.15, QT.unitById('DEG_C')), QT.toSI(36, QT.unitById('KiloM-PER-HR'))], [1500, 293.15, 20, 10]);
+  check('a kind from a unit only when it is unambiguous (N·m: torque or energy)', [QT.guessKind('kg'), QT.guessKind('m/s²'), QT.guessKind('N·m') ?? null, QT.guessKind('szt.') ?? null], ['Mass', 'Acceleration', null, null]);
+  check('converting within a kind, never across', [QT.convert(1, QT.unitById('KiloW-HR'), QT.unitById('MegaJ')), QT.convert(1, QT.unitById('KiloGM'), QT.unitById('M'))], [3.6, null]);
+  check('written back: 1,5 kN · 20 °C · 45°', [QT.quantityText(1.5, QT.unitById('KiloN')), QT.quantityText(20, QT.unitById('DEG_C')), QT.quantityText(45, QT.unitById('DEG'))], ['1,5 kN', '20 °C', '45°']);
+  truth('the description names every kind', QT.QUANTITY_KINDS.every((k) => QT.quantitiesDescription().includes(`${k.id} (`)));
+}
+{
+  /* Der Test des Schritts: ein Drehmoment in N·m ist richtig; dieselbe Zahl als Energie nicht. */
+  const torque = Cards.questionCard(e('tq', ['q'], { form: 'number', prompt: 'Jaki moment siły?', answers: ['12'], unit: 'N·m', quantity: 'Torque' }), 's');
+  const say = (given) => { const o = Cards.checkCard(torque, given); return [o.correct, o.note ?? null]; };
+  check('a torque answer in N·m is accepted — also without a unit, as Nm, in kN·m and mN·m', ['12 N·m', '12', '12 Nm', '0,012 kN·m', '12000 mN·m'].map((g) => say(g)[0]), [true, true, true, true, true]);
+  const asEnergy = say('12 J');
+  check('the same number entered as an energy is rejected — and the verdict says why', [asEnergy[0], asEnergy[1].includes('energia') && asEnergy[1].includes('moment siły')], [false, true]);
+  check('… an unknown unit says so', say('12 xyz'), [false, 'Nie znam jednostki „xyz”.']);
+  check('… a wrong number in the right unit is wrong', say('13 N·m')[0], false);
+  const legacy = Cards.questionCard(e('tl', ['q'], { form: 'number', prompt: '?', answers: ['12'], unit: 'N·m' }), 's');
+  check('without a quantity an ambiguous unit stays as it was: the number counts', [legacy.answer.quantity ?? null, Cards.checkCard(legacy, '12 J').correct], [null, true]);
+  const mass = Cards.questionCard(e('tm', ['q'], { form: 'number', prompt: 'Masa?', answers: ['2'], unit: 'kg', tolerance: 0.01 }), 's');
+  check('an unambiguous unit gives the quantity: 2000 g is 2 kg, 2 m is not', [mass.answer.quantity, Cards.checkCard(mass, '2000 g').correct, Cards.checkCard(mass, '2 m').correct], ['Mass', true, false]);
+  const written = Cards.questionCard(e('tw', ['q'], { form: 'number', prompt: '?', answers: ['0,012 kN·m'], unit: 'N·m', quantity: 'Torque' }), 's');
+  check('a right answer written with its unit is read in the question\u2019s unit', [written.answer.values, Cards.checkCard(written, '12').correct], [[12], true]);
+  const warm = Cards.questionCard(e('tt', ['q'], { form: 'number', prompt: '?', answers: ['20'], unit: '°C', quantity: 'ThermodynamicTemperature', tolerance: 0.5 }), 's');
+  check('a temperature with an offset: 293,4 K and 68 °F are 20 °C (± 0,5), 21 °C is not', ['293,4 K', '68 °F', '21 °C'].map((g) => Cards.checkCard(warm, g).correct), [true, true, false]);
+  check('the fingerprint of a number card does not change with its quantity (progress stays)', Cards.questionCard(e('tq', ['q'], { form: 'number', prompt: 'Jaki moment siły?', answers: ['12'], unit: 'N·m' }), 's').fingerprint, torque.fingerprint);
+}
+{
+  /* Zahlenfelder mit Größe: gespeichert wie eingegeben, mit SI; gezeigt wie eingegeben; die Zahl in der Einheit des Feldes. */
+  const MOTOR = kind('k-motor', { name: 'Silnik', label: '{name}', fields: [
+    { key: 'name', label: 'Nazwa', type: 'line' },
+    { key: 'moment', label: 'Moment', type: 'number', unit: 'N·m', quantity: 'Torque', multi: true },
+    { key: 'masa', label: 'Masa', type: 'number', unit: 'kg' },
+    { key: 'zle', label: 'Zła', type: 'number', unit: 'N·m', quantity: 'Nonsense' }
+  ] });
+  const [fName, fMoment, fMass, fBad] = MOTOR.fields;
+  check('a number field keeps its quantity; an unknown one is dropped; the kind writes it back', [fMoment.quantity, fBad.quantity ?? null, KD.kindDoc(MOTOR).fields[1].quantity], ['Torque', null, 'Torque']);
+  check('the kind of a field: named, or from an unambiguous unit', [S.fieldKind(fMoment), S.fieldKind(fMass), S.fieldKind(fBad) ?? null, S.fieldKind(fName) ?? null], ['Torque', 'Mass', null, null]);
+  const env = S.quantityEnvelope(fMoment, 1.5, QT.unitById('KiloN-M'));
+  check('entered in kN·m: kept as entered, with SI', env, { value: 1.5, unit: 'KiloN-M', si: 1500 });
+  check('an energy unit is not taken by a torque field', 'error' in S.quantityEnvelope(fMoment, 12, QT.unitById('J')), true);
+  const motor = e('m1', ['k-motor'], { name: 'Silnik A', moment: [env, 12, { value: 20, unit: 'N-M', si: 20 }], masa: { value: 2500, unit: 'GM', si: 2.5 } });
+  const lookM = S.lookupOf([MOTOR], [motor]);
+  const vals = S.valuesOf(motor, fMoment);
+  check('read in the field\u2019s unit, the entered form beside it', vals.map((v) => [v.value, v.entered ?? null, v.si]), [[1500, { value: 1.5, unit: 'KiloN-M' }, 1500], [12, null, 12], [20, { value: 20, unit: 'N-M' }, 20]]);
+  check('shown as entered', S.fieldText(motor, fMoment, lookM), '1,5 kN·m, 12 N·m, 20 N·m');
+  check('a mass entered in grams: 2,5 kg for the field, "2500 g" on screen', [S.valuesOf(motor, fMass)[0].value, S.fieldText(motor, fMass, lookM)], [2.5, '2500 g']);
+  check('typing a row of the add form: 1,5 kN·m, 12, 12 J', [AF.typedValue(fMoment, '1,5 kN·m'), AF.typedValue(fMoment, '12'), 'error' in AF.typedValue(fMoment, '12 J')], [{ value: [{ value: 1.5, unit: 'KiloN-M', si: 1500 }] }, { value: [{ value: 12, unit: 'N-M', si: 12 }] }, true]);
+  const rule = (cmp, value) => SEL.ruleMatches(motor, lookM, { op: 'and', items: [{ field: 'masa', cmp, value }] });
+  check('a filter in another unit of the same kind: masa > 2 kg, < 3000 g, = 2,5 kg; never in metres', [rule('gt', '2 kg'), rule('lt', '3000 g'), rule('eq', '2,5 kg'), rule('gt', '1 m'), rule('gt', '2')], [true, true, true, false, true]);
 }
 
 await rm(workspace, { recursive: true, force: true });

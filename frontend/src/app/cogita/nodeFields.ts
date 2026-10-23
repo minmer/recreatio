@@ -7,6 +7,10 @@
 import { ANSWER_FORM_LABEL, ANSWER_FORMS } from './check';
 import { MODE_LABEL, MODES } from './revision';
 import { LEVEL_LABEL } from './knowness';
+import { QUANTITY_KINDS } from '../core/quantities';
+
+/** 2026-10-23 (Schritt 13) — die Grössen zur Wahl (leer: nur die Zahl). */
+export const QUANTITY_OPTIONS: readonly { value: string; label: string }[] = [{ value: '', label: '— bez wielkości —' }, ...QUANTITY_KINDS.map((k) => ({ value: k.id, label: k.label }))];
 
 export type ConfigType =
   | 'text' | 'longtext' | 'code' | 'number' | 'bool' | 'select' | 'lines'
@@ -82,7 +86,7 @@ const TEMPLATE_FIELDS: Record<string, readonly ConfigField[]> = {
   prompt: [],
   'answer.text': [f('rule', 'Jak ściśle sprawdzać', 'rule')],
   'answer.gap': [f('rule', 'Jak ściśle sprawdzać', 'rule')],
-  'answer.number': [f('tolerance', 'Tolerancja', 'number'), f('relative', 'Tolerancja w ułamku wartości', 'bool'), f('unit', 'Jednostka', 'text')],
+  'answer.number': [f('tolerance', 'Tolerancja', 'number'), f('relative', 'Tolerancja w ułamku wartości', 'bool'), f('unit', 'Jednostka', 'text'), f('quantity', 'Wielkość', 'select', { options: QUANTITY_OPTIONS })],
   'answer.date': [f('precision', 'Dokładność', 'select', { options: opts([['year', 'rok'], ['month', 'miesiąc'], ['day', 'dzień']]) }), f('tolerance', 'Tolerancja', 'number')],
   'answer.one': [],
   'answer.many': [],

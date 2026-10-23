@@ -16,6 +16,8 @@ import { NewFormMenu } from './AddFormEditor';
 import { applyImport, courseDescription, exportSchema, planImport } from './json';
 import { SCHEMA_STARTS, type SchemaStart } from './schemaStarts';
 import { isBaseKind, TOPIC_LEARNING } from './kinds';
+import { QUANTITY_OPTIONS } from './nodeFields';
+import { findUnit, guessKind, kindById, kindsText, measures } from '../core/quantities';
 import {
   FIELD_KEY, FIELD_ROLES, FIELD_TYPE_LABEL, FIELD_TYPES, MEDIA_TYPES, patternKeys, problemsOf, RANGE_OF, readKind,
   type FieldDef, type FieldType, type KindDef
@@ -295,12 +297,33 @@ function KindForm({ draft, writes, busy, onChange, onSave, onRemove }: { draft: 
   );
 }
 
+/** 2026-10-23 (Schritt 13) — die Grösse eines Zahlenfeldes, und ob seine Einheit zu ihr passt. */
+function QuantityPick({ field, disabled, onSet }: { field: FieldDef; disabled: boolean; onSet: (patch: Partial<FieldDef>) => void }) {
+  const unit = findUnit(field.unit);
+  const guessed = field.quantity === undefined ? guessKind(field.unit) : undefined;
+  const say = field.quantity !== undefined && unit !== undefined && !measures(unit, field.quantity)
+    ? `„${unit.symbol}” nie mierzy wielkości: ${kindById(field.quantity)?.label ?? field.quantity}.`
+    : field.quantity === undefined && unit !== undefined && unit.kinds.length > 1
+      ? `„${unit.symbol}” może znaczyć: ${kindsText(unit.kinds)} — wybierz.`
+      : guessed !== undefined ? `Z jednostki: ${kindById(guessed)?.label ?? guessed}.` : null;
+  return (
+    <label className="wk-field"><span>Wielkość</span>
+      <select value={field.quantity ?? ''} disabled={disabled} onChange={(e) => onSet({ quantity: e.target.value || undefined })}>
+        {QUANTITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      {say !== null && <span className="cg-muted">{say}</span>}
+    </label>
+  );
+}
+
 /** Die Einstellungen eines Feldes — unter seiner Zeile, über die ganze Breite. */
 function FieldMore({ field, targets, disabled, own, onSet }: { field: FieldDef; targets: readonly { id: string; name: string }[]; disabled: boolean; own: boolean; onSet: (patch: Partial<FieldDef>) => void }) {
   return (
     <div className="cg-field-settings">
       <label className="wk-field"><span>Co znaczy (dla JSON i AI)</span><input value={field.says ?? ''} disabled={disabled && !own} onChange={(e) => onSet({ says: e.target.value || undefined })} /></label>
       {field.type === 'number' && <label className="wk-field"><span>Jednostka</span><input value={field.unit ?? ''} disabled={disabled} onChange={(e) => onSet({ unit: e.target.value || undefined })} /></label>}
+      {/* 2026-10-23 (Schritt 13) — welche Grösse: dann wird in jeder Einheit dieser Grösse eingegeben und dazu in SI gespeichert. */}
+      {field.type === 'number' && <QuantityPick field={field} disabled={disabled} onSet={onSet} />}
       {field.type === 'choice' && (
         <label className="wk-field"><span>Do wyboru (wartość=nazwa w wierszu)</span>
           <textarea rows={3} disabled={disabled} value={(field.options ?? []).map((o) => (o.value === o.label ? o.value : `${o.value}=${o.label}`)).join('\n')}

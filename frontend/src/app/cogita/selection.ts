@@ -33,7 +33,23 @@
  * sind etwas anderes und bleiben dort.
  */
 
-import { fieldsOf, fieldText, labelOf, plainOf, valuesOf, type Entity, type Lookup } from './schema';
+import { fieldKind, fieldsOf, fieldText, fieldUnit, labelOf, plainOf, valuesOf, type Entity, type FieldDef, type Lookup } from './schema';
+import { convert, measures, parseQuantity } from '../core/quantities';
+
+/**
+ * 2026-10-23 (Schritt 13) — DIE ZAHL EINER REGEL in der Einheit des Feldes:
+ * „> 1,5 kN" über einem Feld in N ist „> 1500"; eine Einheit einer anderen
+ * Grösse vergleicht nichts. Ohne Einheit: die Zahl, wie sie dasteht.
+ */
+function ruleNumber(field: FieldDef | undefined, want: string): number | null {
+  const read = parseQuantity(want);
+  if (read === null) return null;
+  if (read.unitText === '') return read.value;
+  const kind = field === undefined ? undefined : fieldKind(field);
+  const own = field === undefined ? undefined : fieldUnit(field);
+  if (read.unit === undefined || kind === undefined || own === undefined || !measures(read.unit, kind)) return null;
+  return convert(read.value, read.unit, own);
+}
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
@@ -93,12 +109,17 @@ export function matches(entity: Entity, look: Lookup, cond: Condition): boolean 
   switch (cond.cmp) {
     case 'filled': return values.length > 0;
     case 'empty': return values.length === 0;
-    case 'eq': return texts.some((t) => fold(t) === fold(want));
-    case 'ne': return texts.every((t) => fold(t) !== fold(want));
+    case 'eq':
+    case 'ne': {
+      /* Zahlen als Zahlen — auch mit Einheit (Schritt 13). */
+      const n = field?.type === 'number' ? ruleNumber(field, want) : null;
+      const same = (v: unknown, t: string) => (n !== null && typeof v === 'number' ? Math.abs(v - n) <= 1e-9 * Math.max(1, Math.abs(n)) : fold(t) === fold(want));
+      return cond.cmp === 'eq' ? values.some((v, i) => same(v, texts[i])) : values.every((v, i) => !same(v, texts[i]));
+    }
     case 'contains': return texts.some((t) => fold(plainOf(t)).includes(fold(want)));
     case 'gt':
     case 'lt': {
-      const number = Number(want.replace(',', '.'));
+      const number = field?.type === 'number' ? ruleNumber(field, want) ?? Number.NaN : Number(want.replace(',', '.'));
       return values.some((v) => {
         if (typeof v === 'number' && Number.isFinite(number)) return cond.cmp === 'gt' ? v > number : v < number;
         if (typeof v === 'string') return cond.cmp === 'gt' ? v > want : v < want;

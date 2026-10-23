@@ -29,6 +29,7 @@ import { DOC_KINDS, DOC_LABEL, isBaseKind, kindDoc, type DocKind } from './kinds
 import { FIELD_TYPE_LABEL, FIELD_TYPES, readKind, type Entity, type KindDef } from './schema';
 import type { CogitaLibrary } from './store';
 import { readView, viewJson } from './views';
+import { quantitiesDescription } from '../core/quantities';
 
 export const COURSE_FORMAT = 'recreatio.cogita.course';
 export const SCHEMA_FORMAT = 'recreatio.cogita.schema';
@@ -387,7 +388,13 @@ const formsSection = (): string => `"forms" — formularze dodawania (należą d
 const kindsSection = (): string => `"kinds" — rodzaje:
   "name" — nazwa, "label" — wzór etykiety, np. "{givenNames} {surname}", "tells" — pole, które odróżnia imienników,
   "builtin" — zmiana wbudowanego rodzaju (person, work, quote, topic, text, project, knowledge, question),
-  "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "options", "to", "inverse", "symmetric", "locator", "media", "rangeOf", "says"}]
+  "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "quantity", "options", "to", "inverse", "symmetric", "locator", "media", "rangeOf", "says"}]
+  "quantity" (liczba) — jaka wielkość (identyfikator z QUDT, np. "Torque", "Mass"); wtedy wartość wpisuje się w dowolnej jednostce tej wielkości, a zapisuje tak, jak wpisano, razem z SI:
+    {"value": 1.5, "unit": "KiloN", "si": 1500} ("unit" — identyfikator jednostki z QUDT: "N", "KiloN", "N-M", "J", "KiloGM", "DEG_C" …; liczba bez jednostki — w jednostce pola);
+    np. {"key": "moment", "label": "Moment obrotowy", "type": "number", "unit": "N·m", "quantity": "Torque"}, a we wpisie: "moment": {"value": 12, "unit": "N-M", "si": 12};
+    bez "quantity" pole bierze wielkość z jednostki, gdy jest jednoznaczna ("kg" → Mass; "N·m" — moment siły albo energia — trzeba wybrać)
+  pytanie z liczbą i wielkością: {"form": "number", "prompt": "Jaki moment siły…?", "answers": ["12"], "unit": "N·m", "quantity": "Torque", "tolerance": 0.1} — „12 N·m" i „0,012 kN·m" są dobre, „12 J" nie (energia, choć wymiar ten sam)
+  wielkości i ich jednostki: ${quantitiesDescription()}
   "options" (wybór z listy) — [{"value", "label"}]
   "to" (odwołanie) — na jakie rodzaje wskazuje: ["@ref rodzaju z tego dokumentu", "Nazwa rodzaju", "topic"]; puste — na dowolne
   "locator": true (odwołanie z miejscem) — każda wartość to {"value": "@dzielo", "locator": "Ps 110"}: psalm to Biblia z biblioteki + miejsce, hasło to leksykon + „s. 23"; miejsca w Piśmie aplikacja czyta (Ps 110 · Łk 1,46-55) i po nich szuka; tekstu Biblii się nie przechowuje

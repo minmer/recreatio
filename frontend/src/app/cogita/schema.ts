@@ -28,6 +28,7 @@
 import { plainText } from '../library/libraryMarkup';
 import { blocksOf, firstSentence, type CommentBlock } from '../library/comment';
 import { formatBible, parseBible } from '../library/bible';
+import { findUnit, fromSI, guessKind, kindById, measures, quantityText, siUnitOf, toSI, unitById, type Unit } from '../core/quantities';
 
 /* -- Wörterbücher ------------------------------------------------------------------ */
 
@@ -137,6 +138,14 @@ export interface FieldDef {
   readonly uncertain: boolean;
   /** `number`: die Einheit, die hinter der Zahl steht. */
   readonly unit?: string;
+  /**
+   * 2026-10-23 (Schritt 13) — `number`: WELCHE GRÖSSE (eine Art aus
+   * `core/quantities.ts`, QUDT: `Torque`, `Mass` …). Dann darf ein Wert in
+   * jeder Einheit dieser Art eingegeben werden; gespeichert wird er so, wie er
+   * eingegeben wurde, und dazu in SI (`{ value, unit, si }`). Fehlt sie, gilt
+   * die Art der Einheit, wenn diese eindeutig ist (`kg` → Masse; `N·m` nicht).
+   */
+  readonly quantity?: string;
   /** `choice`: was zur Wahl steht. */
   readonly options?: readonly ChoiceOption[];
   /** `ref`: auf welche Arten der Verweis zeigen darf — leer: auf jede [B9]. */
@@ -244,6 +253,13 @@ export interface Value {
   readonly note?: string;
   /** 2026-10-22 (Schritt 11) — die Stelle eines Verweises mit Stelle (`FieldDef.locator`). */
   readonly locator?: string;
+  /**
+   * 2026-10-23 (Schritt 13) — eine Grösse, wie sie eingegeben wurde (die Zahl
+   * und die Kennung ihrer Einheit); `value` ist dann dieselbe Grösse in der
+   * Einheit des Feldes, `si` in SI.
+   */
+  readonly entered?: { readonly value: number; readonly unit: string };
+  readonly si?: number;
 }
 
 /** Wie man Arten und Einträge findet — im Speicher des Browsers. */
@@ -295,6 +311,7 @@ export function readField(raw: unknown): FieldDef | null {
     multi: raw.multi === true,
     uncertain: raw.uncertain === true,
     unit: type === 'number' && str(raw.unit).trim() !== '' ? clip(str(raw.unit).trim(), 24) : undefined,
+    quantity: type === 'number' && kindById(str(raw.quantity)) !== undefined ? str(raw.quantity) : undefined,
     options: type === 'choice' ? options ?? [] : undefined,
     to: type === 'ref' ? to ?? [] : undefined,
     inverse: type === 'ref' && str(raw.inverse).trim() !== '' ? clip(str(raw.inverse).trim(), 120) : undefined,
@@ -632,6 +649,49 @@ function readSource(raw: unknown): SourceRef | undefined {
   return locator === '' ? { work } : { work, locator: clip(locator, 120) };
 }
 
+/* -- 2026-10-23 (Schritt 13): Grössen ------------------------------------------------------------------ */
+
+/** Welche Grösse ein Zahlenfeld misst: die genannte — sonst die seiner Einheit, wenn diese eindeutig ist. */
+export function fieldKind(field: FieldDef): string | undefined {
+  if (field.type !== 'number') return undefined;
+  return field.quantity ?? guessKind(field.unit);
+}
+
+/** In welcher Einheit das Feld seine Zahlen zeigt: seine Einheit (wenn sie die Grösse misst), sonst die SI-Einheit der Grösse. */
+export function fieldUnit(field: FieldDef): Unit | undefined {
+  const kind = fieldKind(field);
+  const own = findUnit(field.unit);
+  if (own !== undefined && (kind === undefined || measures(own, kind))) return own;
+  return kind === undefined ? undefined : siUnitOf(kind);
+}
+
+/**
+ * EIN WERT EINES GRÖSSENFELDES, wie er gespeichert wird: die eingegebene Zahl,
+ * die Kennung ihrer Einheit und SI (Entscheidung 15). Ohne Einheit: in der
+ * des Feldes. `error`: eine Einheit einer anderen Grösse, oder eine unbekannte.
+ */
+export function quantityEnvelope(field: FieldDef, value: number, unit: Unit | undefined): { value: number; unit: string; si: number } | { error: string } {
+  const kind = fieldKind(field);
+  const own = unit ?? fieldUnit(field);
+  if (own === undefined) return { error: 'To pole nie ma jednostki.' };
+  if (kind !== undefined && !measures(own, kind)) return { error: `„${own.symbol}” nie mierzy wielkości: ${kindById(kind)?.label ?? kind}.` };
+  return { value, unit: own.id, si: toSI(value, own) };
+}
+
+/** Die Zahl eines Grössenfeldes — in seiner Einheit, mit der Eingabe und SI daneben. */
+function measured(field: FieldDef, raw: unknown, value: number): Pick<Value, 'entered' | 'si'> & { value: number } {
+  const shown = fieldUnit(field);
+  const env = isEnvelope(raw) ? raw : null;
+  const typed = env === null || typeof env.unit !== 'string' ? undefined : unitById(env.unit) ?? findUnit(env.unit);
+  if (typed === undefined) return shown === undefined ? { value } : { value, si: toSI(value, shown) };
+  const si = toSI(value, typed);
+  const same = shown !== undefined && typed.kinds.some((k) => shown.kinds.includes(k));
+  return { value: same ? fromSI(si, shown) : value, entered: { value, unit: typed.id }, si };
+}
+
+/** Eine Grösse in Worten, wie sie eingegeben wurde („1,5 kN"). */
+export const enteredText = (entered: { readonly value: number; readonly unit: string }): string => quantityText(entered.value, unitById(entered.unit));
+
 function readOne(field: FieldDef, raw: unknown): Value | undefined {
   /* 2026-10-22 (Schritt 11) — die Stelle eines Verweises mit Stelle. */
   const locator = field.locator === true && isEnvelope(raw) ? clip(str(raw.locator).trim(), 120) : '';
@@ -643,10 +703,12 @@ function readOne(field: FieldDef, raw: unknown): Value | undefined {
     const extra = { ...(source ? { source } : {}), ...(note !== '' ? { note: clip(note, 1000) } : {}), ...place };
     if (WITHOUT_VALUE.has(state)) return { value: null, state, ...extra };
     const value = readTyped(field, raw.value);
-    return value === undefined ? undefined : { value, state, ...extra };
+    if (value === undefined) return undefined;
+    return typeof value === 'number' ? { ...measured(field, raw, value), state, ...extra } : { value, state, ...extra };
   }
   const value = readTyped(field, isEnvelope(raw) ? raw.value : raw);
-  return value === undefined ? undefined : { value, state: 'known', ...place };
+  if (value === undefined) return undefined;
+  return typeof value === 'number' ? { ...measured(field, raw, value), state: 'known', ...place } : { value, state: 'known', ...place };
 }
 
 /**
@@ -795,7 +857,8 @@ export function placeText(target: Entity | undefined, locator: string, label: st
 export function fieldText(entity: Entity, field: FieldDef, look: Lookup, depth = 0): string {
   return valuesOf(entity, field)
     .map((v) => {
-      const plain = valueText(field, v.value, look, depth);
+      /* 2026-10-23 (Schritt 13) — eine Grösse zeigt sich so, wie sie eingegeben wurde. */
+      const plain = v.entered !== undefined ? enteredText(v.entered) : valueText(field, v.value, look, depth);
       const text = v.locator === undefined || typeof v.value !== 'string' ? plain : placeText(look.entity(v.value), v.locator, plain);
       if (v.value === null) return `(${VALUE_STATE_LABEL[v.state]})`;
       return v.state === 'approximate' ? `ok. ${text}` : v.state === 'disputed' ? `${text} (?)` : text;

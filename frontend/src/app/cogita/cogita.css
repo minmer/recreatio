@@ -223,6 +223,8 @@
 .cg-verdict.is-right { background: var(--wk-free-bg); color: var(--wk-free-ink); border: 1px solid var(--wk-free-line); }
 .cg-verdict.is-near { background: var(--wk-held-bg); color: var(--wk-held-ink); border: 1px solid var(--wk-held-line); }
 .cg-verdict.is-wrong { background: var(--wk-shut-bg); color: var(--wk-shut-ink); border: 1px solid var(--wk-shut-line); }
+/* 2026-10-23 (Schritt 13) — warum nicht, wenn es nicht an der Zahl lag (eine Einheit einer anderen Grösse). */
+.cg-verdict-note { font-size: var(--wk-text-sm); }
 .cg-diff .is-hit { color: var(--wk-ok); }
 .cg-diff .is-near { color: var(--wk-held-ink); text-decoration: underline wavy; }
 .cg-diff .is-miss { color: var(--wk-danger); text-decoration: line-through; }

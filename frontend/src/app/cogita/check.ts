@@ -28,6 +28,7 @@
  */
 
 import { coarsen, dateKey, readDate, readNumber, type DatePrecision, type DateValue } from './schema';
+import { findUnit, kindById, kindsText, measures, parseQuantity, siUnitOf, toSI, type QuantityKind } from '../core/quantities';
 
 /* -- Formen ------------------------------------------------------------------------ */
 
@@ -95,6 +96,8 @@ export interface Outcome {
   readonly mask?: Uint8Array;
   /** Gegen welche der erlaubten Antworten verglichen wurde. */
   readonly expected?: string;
+  /** 2026-10-23 (Schritt 13) — warum nicht, wenn es nicht an der Zahl lag (eine Einheit einer anderen Grösse). */
+  readonly note?: string;
 }
 
 const NOTHING: Outcome = { correct: false, correctness: 0, answered: false };
@@ -284,15 +287,50 @@ export interface NumberExpected {
   /** Erlaubte Abweichung — absolut, oder mit `relative` als Anteil (0,05 = 5 %). */
   readonly tolerance: number;
   readonly relative: boolean;
+  /** 2026-10-23 (Schritt 13) — die Einheit der erwarteten Werte (wie sie hinter der Zahl steht). */
+  readonly unit?: string;
+  /** 2026-10-23 (Schritt 13) — welche Grösse gefragt ist (`core/quantities.ts`): dann zählt die Einheit der Antwort. */
+  readonly quantity?: string;
 }
 
 export function checkNumber(expected: NumberExpected, given: unknown): Outcome {
+  const kind = kindById(expected.quantity);
+  if (kind !== undefined && typeof given === 'string') return checkQuantity(expected, kind, given);
   const value = readNumber(given);
   if (value === null) return typeof given === 'string' && given.trim() !== '' ? { correct: false, correctness: 0, answered: true } : NOTHING;
   if (expected.values.length === 0) return { correct: false, correctness: 0, answered: true };
   const correct = expected.values.some((v) => {
     const allowed = expected.relative ? Math.abs(v) * Math.max(0, expected.tolerance) : Math.max(0, expected.tolerance);
     return Math.abs(v - value) <= allowed + 1e-9;
+  });
+  return { correct, correctness: correct ? 1 : 0, answered: true };
+}
+
+/**
+ * 2026-10-23 (Schritt 13) — EINE GRÖSSE: verglichen in SI, und nur innerhalb
+ * ihrer Art. „12 N·m" auf ein Drehmoment von 12 N·m gilt, „0,012 kN·m" auch;
+ * „12 J" nicht — dieselbe Dimension, aber eine Energie. Ohne Einheit gilt die
+ * der Frage (sie steht neben dem Feld).
+ */
+function checkQuantity(expected: NumberExpected, kind: QuantityKind, given: string): Outcome {
+  const read = parseQuantity(given);
+  if (read === null) return given.trim() === '' ? NOTHING : { correct: false, correctness: 0, answered: true };
+  if (expected.values.length === 0) return { correct: false, correctness: 0, answered: true };
+  const own = findUnit(expected.unit) ?? siUnitOf(kind.id);
+  if (own === undefined) return { correct: false, correctness: 0, answered: true };
+  let unit = own;
+  if (read.unitText !== '') {
+    if (read.unit === undefined) return { correct: false, correctness: 0, answered: true, note: `Nie znam jednostki „${read.unitText}”.` };
+    if (!measures(read.unit, kind.id)) {
+      return { correct: false, correctness: 0, answered: true, note: `„${read.unit.symbol}” to jednostka wielkości: ${kindsText(read.unit.kinds)} — a pytanie dotyczy wielkości: ${kind.label}.` };
+    }
+    unit = read.unit;
+  }
+  const si = toSI(read.value, unit);
+  const correct = expected.values.some((v) => {
+    const want = toSI(v, own);
+    const allowed = (expected.relative ? Math.abs(v) * Math.max(0, expected.tolerance) : Math.max(0, expected.tolerance)) * own.factor;
+    return Math.abs(want - si) <= allowed + 1e-9 * Math.max(1, Math.abs(want));
   });
   return { correct, correctness: correct ? 1 : 0, answered: true };
 }

@@ -37,6 +37,7 @@ import { dateKey, fieldsOf, labelOf, plainOf, readNumber, valuesOf, type DatePre
 import { type AnswerSpec, type Card, type Fragment, type Item, type PromptPart, type TemplateContext, cardKey, hashOf, isObject, lines, num, rngOf, shuffle, stable, str } from './cardBasics';
 import { type Draft, TEMPLATE_PALETTE } from './cardPalette';
 import { checkInteractive, interactiveExpected, interactiveSpec } from './interactive';
+import { convert, findUnit, guessKind, kindById, measures, parseQuantity } from '../core/quantities';
 
 /** Was als richtig gilt, ohne die Reihenfolge, in der es gezeigt wird — gemischte Wahlmöglichkeiten ändern nichts. */
 function expectedOf(answer: AnswerSpec): unknown {
@@ -235,9 +236,20 @@ const FORMS: readonly AnswerForm[] = ['text', 'number', 'date', 'one', 'many', '
  *   items       in richtiger Reihenfolge (order)  left/right  Paare (match), gleiche Stelle = Paar
  *   value       wahr oder falsch                  back        die Rückseite (flash)
  *   tolerance, relative, unit, precision, rule    wie streng
+ *   quantity    (Schritt 13) welche Grösse eine Zahl ist — dann zählt die Einheit der Antwort
  *   explain     Wissen und Einträge zur Erklärung
  * </code>
  */
+/** 2026-10-23 (Schritt 13) — eine richtige Antwort, auch mit Einheit geschrieben („0,012 kN·m"), in der Einheit der Frage. */
+function numberAnswer(text: string, unitText: string, quantity: string | undefined): number | null {
+  if (quantity === undefined) return readNumber(text);
+  const read = parseQuantity(text);
+  if (read === null) return readNumber(text);
+  const own = findUnit(unitText);
+  if (read.unit === undefined || own === undefined || !measures(read.unit, quantity)) return read.value;
+  return convert(read.value, read.unit, own) ?? read.value;
+}
+
 export function questionCard(entity: Entity, seed = ''): Card | null {
   const d = entity.data;
   const form = FORMS.find((f) => f === d.form) ?? 'text';
@@ -248,8 +260,10 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
     case 'text': answer = answers.length === 0 ? null : { form, accepted: answers, rule: readRule(d.rule, TEXT_RULE) }; break;
     case 'gap': answer = answers.length === 0 ? null : { form, shown: plainOf(str(d.prompt)), accepted: answers, rule: readRule(d.rule, GAP_RULE) }; break;
     case 'number': {
-      const values = answers.map(readNumber).filter((n): n is number => n !== null);
-      answer = values.length === 0 ? null : { form, values, tolerance: Math.max(0, num(d.tolerance, 0)), relative: d.relative === true, unit: str(d.unit) };
+      /* 2026-10-23 (Schritt 13) — die Grösse: genannt, sonst die der Einheit, wenn diese eindeutig ist. */
+      const quantity = kindById(str(d.quantity))?.id ?? guessKind(str(d.unit));
+      const values = answers.map((one) => numberAnswer(one, str(d.unit), quantity)).filter((n): n is number => n !== null);
+      answer = values.length === 0 ? null : { form, values, tolerance: Math.max(0, num(d.tolerance, 0)), relative: d.relative === true, unit: str(d.unit), ...(quantity === undefined ? {} : { quantity }) };
       break;
     }
     case 'date': {

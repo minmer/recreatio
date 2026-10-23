@@ -31,6 +31,7 @@
 
 import { KINDS as LIBRARY_KINDS, type LibEntry, type LibField, type LibFieldType } from '../library/libraryKinds';
 import { readKind, type Entity, type FieldDef, type FieldType, type KindDef } from './schema';
+import { QUANTITY_KINDS } from '../core/quantities';
 
 /** Die Art im Klartext für jeden Eintrag, der keine eingebaute ist. */
 export const ENTITY = 'entity';
@@ -188,6 +189,7 @@ export const QUESTION: KindDef = {
     field('tolerance', 'Tolerancja', 'number', { says: 'Ile wolno się pomylić (liczba; data — w jednostkach dokładności)' }),
     field('relative', 'Tolerancja względna', 'bool', { says: 'Tolerancja jako ułamek wartości (liczba)' }),
     field('unit', 'Jednostka', 'line', { says: 'Jednostka liczby' }),
+    field('quantity', 'Wielkość', 'choice', { options: QUANTITY_KINDS.map((k) => ({ value: k.id, label: k.label })), says: 'Jaka wielkość (number): Torque, Energy, Mass, Length … — wtedy odpowiedź może mieć inną jednostkę tej wielkości (przeliczana), a jednostka innej wielkości jest błędem (12 J na pytanie o moment siły)' }),
     field('precision', 'Dokładność daty', 'choice', { options: [{ value: 'year', label: 'rok' }, { value: 'month', label: 'miesiąc' }, { value: 'day', label: 'dzień' }], says: 'year, month albo day' }),
     field('task', 'Zadanie', 'text', { says: 'Opis zadania (code)' }),
     field('starter', 'Początek kodu', 'text', { says: 'Kod na start, z def transform(x): (code)' }),
@@ -274,6 +276,7 @@ export function kindDoc(kind: KindDef): Record<string, unknown> {
       if (f.multi) out.multi = true;
       if (f.uncertain) out.uncertain = true;
       if (f.unit !== undefined) out.unit = f.unit;
+      if (f.quantity !== undefined) out.quantity = f.quantity;
       if (f.options !== undefined) out.options = f.options;
       if (f.to !== undefined && f.to.length > 0) out.to = f.to;
       if (f.inverse !== undefined) out.inverse = f.inverse;

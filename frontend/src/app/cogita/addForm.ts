@@ -43,9 +43,10 @@
 
 import { ANY, graphJson, order, paletteOf, readGraph, type Graph, type GraphNode, type Palette, type Ports } from './graph';
 import {
-  dateKey, parseRange, patternKeys, readDate, readNumber, readTyped, valuesOf,
+  dateKey, fieldKind, parseRange, patternKeys, quantityEnvelope, readDate, readNumber, readTyped, valuesOf,
   type Entity, type FieldDef, type KindDef, type Lookup
 } from './schema';
+import { parseQuantity } from '../core/quantities';
 
 /* -- Wörterbücher ------------------------------------------------------------------- */
 
@@ -447,6 +448,14 @@ const one = (field: FieldDef, text: string): { value: unknown } | { error: strin
     case 'markup':
       return { value: text };
     case 'number': {
+      /* 2026-10-23 (Schritt 13) — ein Grössenfeld: „1,5 kN" mit seiner Einheit und SI. */
+      if (fieldKind(field) !== undefined) {
+        const read = parseQuantity(text);
+        if (read === null) return { error: `„${text}" to nie liczba` };
+        if (read.unitText !== '' && read.unit === undefined) return { error: `„${text}": nie znam jednostki „${read.unitText}"` };
+        const made = quantityEnvelope(field, read.value, read.unit);
+        return 'error' in made ? { error: `„${text}": ${made.error}` } : { value: made };
+      }
       const n = readNumber(text);
       return n === null ? { error: `„${text}" to nie liczba` } : { value: n };
     }

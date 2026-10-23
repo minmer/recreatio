@@ -32,7 +32,7 @@ Entry: `src/main.tsx` keeps an access link out of the address, starts the Androi
 
 | Folder | Responsibility |
 |---|---|
-| `core/` | crypto (`crypto.ts`, `canonical.ts`), the key ring (`keys.ts`, `ringOf.ts`, `keyring.ts`), session and kept keys, names sealing, prefs, small utilities (`plural.ts`, `dayMath.ts`, `masonry.ts`) |
+| `core/` | crypto (`crypto.ts`, `canonical.ts`), the key ring (`keys.ts`, `ringOf.ts`, `keyring.ts`), session and kept keys, names sealing, prefs, small utilities (`plural.ts`, `dayMath.ts`, `masonry.ts`); quantities and units (`quantities.ts`, a QUDT subset with factors to SI — step 13) |
 | `ui/` | the design system: tokens and components (`ui.css` → `tokens.css`, `components.css`, `frames.css`, `kit.css`), `Icon`, `Menu`, `Modal`, `PageHeader`, `Loading`, `ask`/`toast` (`dialogs.tsx`), `later` (lazy parts) |
 | `styles/` | the screen styles, imported in order by `app.css` (the order is part of the cascade) |
 | `shell/` | frames (workspace, plain, public), sign-in, unlock, crumbs, search palette, phone bar |
