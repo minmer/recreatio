@@ -605,6 +605,8 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
           <PathsEditor
             show={show}
             parts={parts}
+            path={path}
+            title={title}
             busy={busy}
             onShow={setShow}
             onParts={onChange}

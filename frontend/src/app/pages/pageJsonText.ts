@@ -79,6 +79,7 @@ Sceny nie muszą iść po kolei: każda ma jedno wejście i wyjścia — „dale
     "base" — baza wiedzy (Cogita), w której liczą się odpowiedzi zalogowanych (i osób z formularza); pominięte — przykład: odpowiedzi, wartości i miejsce, w którym ktoś skończył, zostają tylko w przeglądarce
     "storage" — obszar (z przyjmowaniem), do którego trafiają odpowiedzi; pominięte — prywatny obszar osoby
     "values" — [{ "id": "pkt", "label": "Punkty", "start": 0, "min": 0, "max": 10 }] — wartości przebiegu (punkty, bliskość postaci)
+    w bazie wiedzy ten sam przebieg to przebieg {"look": "scenes", "presentation": "<adres tej strony>"} (Prezentacja → Przejścia → „Przebieg w Nauce”): w Nauce gra tę prezentację, odpowiedzi i miejsce liczą się w bazie — bez kopii
     "gates" — bramki między scenami; wyjście sceny, przycisku albo pytania prowadzi do bramki przez "gate:<klucz>":
       { "key": "czy-umie", "label": "Umie?", "type": "condition", "when": { "type": "answered", "of": "<id modułu pytania>", "correct": true }, "yes": "<klucz sceny>", "no": "<klucz sceny>" } — warunek (jak w Cogicie: "answered", "value" { "value": "pkt", "op": "ge", "than": 3 }, "visited" { "of": "<klucz sceny>" }, "knowness", "time", "and"/"or"/"not" z "items")
       { "key": "punkt", "type": "set", "actions": [{ "type": "add", "value": "pkt", "by": 1 } | { "type": "set", "value": "pkt", "to": 0 }], "next": "<cel>" } — zmienia wartości, potem prowadzi dalej

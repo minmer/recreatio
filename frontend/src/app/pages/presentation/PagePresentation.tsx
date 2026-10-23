@@ -30,6 +30,7 @@ import { Loading } from '../../ui/Loading';
 import { inline, RichLine } from '../../ui/richText';
 import type { Look } from '../slides/slideLook';
 import type { DriveControl } from './usePresentationDrive';
+import type { Learner } from '../../cogita/learn';
 
 /** Diese Arten zeigen sich ohne Tafel — ein Bild ist ein Bild, ein Kształt eine Fläche. */
 const BARE = new Set(['image', 'shape', 'animation', 'layers']);
@@ -71,7 +72,7 @@ function ShowText({ raw, type, first }: { raw: Record<string, string>; type: Tex
 
 export function PagePresentation({
   parts, look, title, extra, after, mode = 'page', frozen = null, boxAspect = null, selected = null, onPick, onStage, onActive, control,
-  presentAt = null, presentRoute = null, onPresentEnd, virtual = null, pageId = null
+  presentAt = null, presentRoute = null, onPresentEnd, virtual = null, pageId = null, learner = null
 }: {
   parts: readonly DraftPart[];
   look: Look;
@@ -98,6 +99,11 @@ export function PagePresentation({
    * der Lernende geantwortet hat und wo er war. `null` (der Editor): kein Lauf.
    */
   pageId?: string | null;
+  /**
+   * 2026-10-22 (Schritt 12) — in Nauka: der Lernende der Baza wiedzy, als der
+   * der Przebieg läuft (statt der Person oben auf der Seite).
+   */
+  learner?: Learner | null;
 }) {
   const logic = usePageLogic();
   /* Ein Vortrag auf dem ganzen Bildschirm — von der Stelle aus, an der die Seite gerade steht; sie selbst steht solange still. */
@@ -112,7 +118,7 @@ export function PagePresentation({
   const show = read.story === null && parts.some((part) => part.kind === 'question') ? { ...read, story: NO_STORY } : read;
   const editing = onPick !== undefined;
   /* 2026-10-21 — der Przebieg im Lauf: im Browser, oder in Cogita (`storyRun.tsx`). */
-  const { run: story, ready } = useStoryRun(show, editing ? null : pageId);
+  const { run: story, ready } = useStoryRun(show, editing ? null : pageId, learner);
 
   const hidden = logic?.outcome.hidden ?? new Set<string>();
   const messages = logic?.outcome.messages ?? new Map<string, string>();

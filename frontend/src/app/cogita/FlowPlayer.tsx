@@ -8,15 +8,20 @@
  * Derselbe Spieler zeigt einen Ablauf im Arbeitsbereich und auf einer Seite —
  * dort aus der Baza, so wie ihr Bereich sie dem Leser zeigt (2026-10-22,
  * Schritt 8; keine Abschriften mehr). Der Inhalt kommt über `FlowContent`.
+ *
+ * 2026-10-22 (Schritt 12, COGITA.md §8 „One narrative"): ein Ablauf, der auf
+ * eine Präsentation zeigt (`presentation`), spielt sie selbst — durch ihren
+ * eigenen Motor, mit dem Lernenden der Baza (`PresentationInNauka`). Erzähler
+ * (`narrators`) wählen sich nach den Werten und stehen über jedem Schritt.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
 import { CardFace } from './CardFace';
 import { questionCard } from './cards';
 import { type Card } from './cardBasics';
 import {
-  advance, chaptersLeft, goalsReached, linesNow, markSaid, optionsOf, readFlow, resolveFlow, startFlow, STEP_LABEL,
+  advance, chaptersLeft, goalsReached, linesNow, markSaid, narratorNow, optionsOf, readFlow, resolveFlow, startFlow, STEP_LABEL,
   type Flow, type FlowState, type LookType, type PlayContext
 } from './flow';
 import type { Learner } from './learn';
@@ -26,6 +31,10 @@ import { publicEntity, type PublicEntity } from './publish';
 import type { MediaRef } from './schema';
 import type { CogitaLibrary } from './store';
 import { Markup, MediaView } from './ui';
+import { Loading } from '../ui/Loading';
+
+/* 2026-10-22 (Schritt 12) — erst geladen, wenn jemand ein Storyboard spielt (es bringt die Bausteine der Seiten mit). */
+const PresentationInNauka = lazy(() => import('../pages/presentation/PresentationInNauka'));
 
 /** Woher der Inhalt eines Ablaufs kommt — die Baza wiedzy (2026-10-22, Schritt 8: auch auf einer Seite; keine Abschriften mehr). */
 export interface FlowContent {
@@ -55,11 +64,16 @@ export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): Fl
   };
 }
 
-export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onAnswer }: {
+export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onAnswer, presentationAs = 'play' }: {
   flow: Flow;
   content: FlowContent;
   learner: Learner | null;
   onClose?: () => void;
+  /**
+   * 2026-10-22 (Schritt 12) — ein Storyboard: hier spielen (Nauka) oder nur
+   * hinführen (`link` — ein Baustein auf einer Seite: die Präsentation IST eine Seite).
+   */
+  presentationAs?: 'play' | 'link';
   /** Ein Schritt, der von aussen geöffnet wird (ein Auslöser im Spiel [J6]). */
   jumpTo?: { readonly step: string; readonly at: number } | null;
   /** Jede Antwort auch nach aussen (eine Sitzung mit Code sammelt sie für den Gastgeber). */
@@ -129,6 +143,32 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const reached = goalsReached(flow, facts(state));
 
   const restart = () => setState(startFlow(flow, learner?.progress.values ?? {}));
+  /* 2026-10-22 (Schritt 12) — wer gerade erzählt: der erste Erzähler, dessen Bedingung gilt. */
+  const narratorOf = (f: Facts): PublicEntity | null => {
+    const one = narratorNow(flow, f);
+    return one === null ? null : content.entity(one.character);
+  };
+
+  /* 2026-10-22 (Schritt 12) — ein Storyboard: die Präsentation spielt selbst; der Ablauf bringt den Lernenden und die Erzähler mit. */
+  if (flow.presentation !== undefined) {
+    if (presentationAs === 'link') {
+      return (
+        <section className="cg-flow">
+          <div className="cg-flow-step">
+            <h2>{flow.name}</h2>
+            <p className="cg-muted">Ten przebieg jest prezentacją.</p>
+            <div className="wk-actions"><a className="wk-btn" href={`#/${flow.presentation}`}>Otwórz prezentację</a></div>
+          </div>
+        </section>
+      );
+    }
+    return (
+      <Suspense fallback={<Loading />}>
+        <PresentationInNauka name={flow.name} path={flow.presentation} learner={learner} onClose={onClose}
+          narrator={flow.narrators.length === 0 ? undefined : (f) => <Narrator who={narratorOf(f)} says={null} />} />
+      </Suspense>
+    );
+  }
 
   if (state.ended || current === undefined) {
     return (
@@ -148,6 +188,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const c = current.config;
   const title = typeof c.title === 'string' && c.title !== '' ? c.title : null;
   const item = state.item === undefined ? null : content.entity(state.item);
+  /* Mit einem Erzähler sagt er den Titel des Schritts an (er steht dann nicht noch einmal darunter). */
+  const teller = narratorOf(facts(state));
 
   const body = (() => {
     switch (current.type) {
@@ -204,6 +246,17 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       case 'condition':
       case 'set':
         return <Next onNext={() => go('next')} />;
+      /* 2026-10-22 (Schritt 12) — eine Szene einer Präsentation in einem gewöhnlichen Ablauf: ihr Name und der Weg zu ihr. */
+      case 'scene': {
+        const page = typeof c.page === 'string' ? c.page.replace(/^#?\/?/, '') : '';
+        return (
+          <>
+            <p className="cg-muted">Scena prezentacji</p>
+            {page !== '' && <a className="wk-link" href={`#/${page}`} target="_blank" rel="noopener">Otwórz prezentację</a>}
+            <Next onNext={() => go('next')} />
+          </>
+        );
+      }
       default:
         return <><p className="cg-muted">{STEP_LABEL[current.type as keyof typeof STEP_LABEL] ?? current.type}</p><Next onNext={() => go('next')} /></>;
     }
@@ -224,12 +277,28 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
           {lines.map((l) => <Bubble key={`${l.character}:${l.of}`} who={content.entity(l.character)} text={content.entity(l.of)} mood={null} />)}
         </div>
       )}
+      {teller !== null && <Narrator who={teller} says={title} />}
       <div className={`cg-flow-step${c.open === 'inline' ? ' cg-flow-inline' : ''}`}>
-        {title !== null && <h2>{title}</h2>}
+        {title !== null && teller === null && <h2>{title}</h2>}
         {item !== null && <p className="cg-muted">{item.label}</p>}
         {body}
       </div>
     </section>
+  );
+}
+
+/** 2026-10-22 (Schritt 12) — wer erzählt: sein Bild, sein Name und was er ansagt (der Titel des Schritts). */
+function Narrator({ who, says }: { who: PublicEntity | null; says: string | null }) {
+  if (who === null) return null;
+  const portrait = who.media.find((m) => m.type === 'image');
+  return (
+    <div className="cg-bubble cg-narrator" data-narrator={who.id}>
+      <span className="cg-bubble-face" title={who.label}>{portrait !== undefined ? <MediaView media={portrait} /> : who.label.slice(0, 1)}</span>
+      <span className="cg-bubble-text">
+        <strong>{who.label}</strong>
+        <span>{says ?? 'opowiada'}</span>
+      </span>
+    </div>
   );
 }
 

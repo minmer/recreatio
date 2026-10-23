@@ -6,6 +6,9 @@
  * Bedingungen sind die der einen Logik (`cogita/logic.ts`); hier wählt man,
  * statt Kennungen zu tippen: eine Frage dieser Präsentation, eine Szene, einen
  * Wert.
+ *
+ * 2026-10-22 (Schritt 12) — „Przebieg w Nauce": derselbe Przebieg als Ablauf
+ * der Baza wiedzy (er zeigt auf diese Seite, `cogita/presentationFlow.ts`).
  */
 
 import { useEffect, useState } from 'react';
@@ -15,6 +18,8 @@ import { AreaPick } from '../../areas/AreaPick';
 import { PickLibrary } from '../../library/LibraryPick';
 import { COMPARE_LABEL, readCondition, type Action, type CompareOp, type Condition } from '../../cogita/logic';
 import { newId } from '../../core/ids';
+import { useMe, useWho } from '../../core/me';
+import { viewPath } from '../../routes';
 import type { DraftPart } from '../page';
 import { pieceLabelOf } from './PagePresentation';
 import type { Show } from './presentation';
@@ -206,10 +211,53 @@ function ActionsPick({ actions, story, busy, onActions }: {
   );
 }
 
+/* -- 2026-10-22 (Schritt 12): derselbe Przebieg in Nauka ------------------------------------------------------ */
+
+/**
+ * Der Ablauf der Baza, der auf diese Präsentation zeigt — gefunden oder (wer in
+ * der Baza schreibt) angelegt; geöffnet in einem neuen Fenster, der Editor
+ * bleibt offen.
+ */
+function NaukaFlow({ base, path, name, busy }: { base: string; path: string; name: string; busy: boolean }) {
+  const me = useMe(useWho());
+  const [working, setWorking] = useState(false);
+  const [said, setSaid] = useState<{ readonly href: string; readonly made: boolean } | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  if (me == null) return null;
+  const make = async () => {
+    setWorking(true);
+    setFailed(null);
+    try {
+      const { flowForPresentation } = await import('../../cogita/presentationFlow');
+      const done = await flowForPresentation(me.ring, base, path, name);
+      const href = viewPath('learn', base, 'przebiegi', done.flowId);
+      setSaid({ href, made: done.made });
+      window.open(href, '_blank', 'noopener');
+    } catch (e) {
+      setFailed(e instanceof Error ? e.message : 'Nie udało się.');
+    } finally {
+      setWorking(false);
+    }
+  };
+  return (
+    <div className="wk-field" data-pm-nauka="">
+      <span>Ten sam przebieg w Nauce — w bazie wiedzy, obok jej innych przebiegów (wskazuje na tę stronę, niczego nie kopiuje)</span>
+      <div className="wk-actions">
+        <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || working} onClick={() => void make()}>Przebieg w Nauce</button>
+        {said !== null && <a className="wk-link" href={said.href} target="_blank" rel="noopener">{said.made ? 'Założono — otwórz' : 'Otwórz'}</a>}
+      </div>
+      {failed !== null && <p className="wk-error">{failed}</p>}
+    </div>
+  );
+}
+
 /* -- Der Przebieg als Ganzes --------------------------------------------------------------------------------- */
 
-export function StoryPanel({ show, busy, onShow, onChoose }: {
+export function StoryPanel({ show, path, title, busy, onShow, onChoose }: {
   show: Show;
+  /** 2026-10-22 (Schritt 12) — die Seite und ihr Titel (der Name des Ablaufs in Nauka). */
+  path: string;
+  title: string;
   busy: boolean;
   onShow: (next: Show) => void;
   /** Ein neues Tor gleich auswählen (in der Karte). */
@@ -262,6 +310,7 @@ export function StoryPanel({ show, busy, onShow, onChoose }: {
             extras={[{ value: '', label: 'ich własny prywatny obszar' }]} disabled={busy}
             onChange={(id) => setStory({ storage: id })} />
           <p className="wk-card-muted">Bez konta odpowiedzi zostają w przeglądarce, jak w przykładzie. Osoba z formularza liczy się tylko wtedy, gdy wybrany jest obszar (z przyjmowaniem).</p>
+          {story.base !== '' && <NaukaFlow base={story.base} path={path} name={title.trim() || (path.split('/').pop() ?? 'Prezentacja')} busy={busy} />}
         </>
       )}
 

@@ -103,9 +103,12 @@ const NODE_TYPES = { path: PathNode };
 
 /* -- Die Karte ---------------------------------------------------------------------------- */
 
-export function PathsEditor({ show, parts, busy, onShow, onParts, onOpenScene }: {
+export function PathsEditor({ show, parts, path, title, busy, onShow, onParts, onOpenScene }: {
   show: Show;
   parts: readonly DraftPart[];
+  /** 2026-10-22 (Schritt 12) — die Seite: der Przebieg in Nauka zeigt auf sie. */
+  path: string;
+  title: string;
   busy: boolean;
   onShow: (next: Show) => void;
   onParts: (next: readonly DraftPart[]) => void;
@@ -450,7 +453,7 @@ export function PathsEditor({ show, parts, busy, onShow, onParts, onOpenScene }:
           </div>
         </details>
 
-        <StoryPanel show={show} busy={busy} onShow={onShow} onChoose={setChosen} />
+        <StoryPanel show={show} path={path} title={title} busy={busy} onShow={onShow} onChoose={setChosen} />
 
         <div className="wk-actions">
           <button type="button" className="wk-link-btn" disabled={busy || Object.keys(show.map).length === 0}

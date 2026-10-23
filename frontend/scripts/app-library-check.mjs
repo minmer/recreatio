@@ -423,6 +423,8 @@ try {
     assert.ok(by('e:c1')?.ok, 'a library comment with perspectives gets topics');
     assert.ok(by('e:e1')?.ok === false, 'a base entry with perspectives stays (its kind has no topics)');
     assert.ok(m.courseDescription().includes('perspektywy to oś') && m.courseDescription().includes('"builtin": "topic"'), 'the Cogita description explains one topic system');
+    /* 2026-10-22 (Schritt 12) — eine Erzählung: Przebieg aus einer Präsentation, Erzähler, der Schritt „scene". */
+    assert.ok(['"presentation": "parafia/droga"', '"narrators"', 'krok "scene"', '"b0"'].every((one) => m.courseDescription().includes(one)), 'the Cogita description shows presentation flows, narrators and the scene step');
   }
   ok('topics and perspectives → library: plan (move, twins named not merged, learning extension, one axis, entries)');
 

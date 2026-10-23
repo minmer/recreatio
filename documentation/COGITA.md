@@ -347,10 +347,29 @@ Each step opens on a new screen or expands in place [G12].
   - A reload resumes at the last scene.
 - Editor: Prezentacja → Przejścia. Gates are on the map, each question has its outcome selects, and the panel „Przebieg” holds the mode, the base and the values.
 - Files: `pages/presentation/story.ts` (model, gates, the way through them), `storyRun.tsx` (the run on a Cogita `Learner`), `StoryPanel.tsx`, `PathsEditor.tsx`; `pages/parts/question.tsx` and `questionView.tsx`.
-- Not yet:
-  - Cogita flows (`FlowEditor`, `FlowPlayer`, sessions, games, characters) still run on their own flow entries.
-  - The tab Przebiegi does not list presentation pages.
-  - Browser progress of a storyboard is not taken over after signing in.
+- Since step 12 (below) the storyboard is also the flow of a knowledge base: Przebiegi lists it once a flow points at the page, and it plays there through the presentation engine. Flows with their own graph (sessions, games, characters, templates) stay flow entries.
+- Not yet: browser progress of a storyboard is not taken over after signing in.
+
+**One narrative: a storyboard is a flow in look `scenes`** (step 12, 2026-10-22; target architecture B.10). Page steps and form steps stay outside (they are tasks for a person), and so does the sermon plan.
+- **One structure, stored once.** The storyboard stays in the presentation page: its scenes, „dalej”, buttons, the questions' outcomes, gates and values. It is plaintext like the page, so a public presentation keeps working for every visitor. A knowledge base lists it as a flow that points at it: `{ "name", "look": "scenes", "presentation": "<path>", "narrators": [...] }` (no graph of its own). Nothing is copied, so nothing drifts.
+- **The same graph, read as a flow** (`pages/presentation/storyFlow.ts`, `storyToFlow`):
+
+  | storyboard | flow |
+  |---|---|
+  | scene | step `scene` (`{ page, scene }`), exit `next` = its „dalej” |
+  | a question on the scene | the scene step's exits `right` / `wrong` |
+  | a button on the scene | an exit `b0`, `b1`, … to its target |
+  | condition gate | step `condition` (`yes` / `no`) |
+  | set gate | step `set` (`next`) |
+  | `end`, `link:<id>` | step `end` (a link keeps its target) |
+
+  The flow engine (`flow.ts`) walks this graph to the same scenes as the presentation's own runtime (`story.ts`) does with the same answers and values. `app-presentation-check` proves it on a storyboard with gates and questions. The flow editor shows the graph (read-only, "Edytuj w prezentacji"), and the map of a presentation flow is its storyboard.
+- **The same story runs in Nauka.** Przebiegi lists the presentation flows. Playing one renders the presentation through its own engine (`PagePresentation` with the base's learner instead of the page's person), and answers, values and the place count in the base as on a connected page. The position key is the same (`page:<id>`), so someone who stopped on the page continues in Nauka and the other way round.
+- **A step `scene` in any flow** (`{ page, scene }`) can name a scene of a presentation. Outside a presentation flow it shows its title with a link to the presentation (in a new tab) and „dalej”. Drawing a single scene through the engine inside another flow is left open.
+- **Where it plays:** in Nauka (Przebiegi, the Nauka tab) the presentation fills the screen below the header as on its page, with the flow's name, the narrator and „zamknij” at the top left. On a page, the module „Przebieg” with a presentation flow links to the presentation page (it *is* a page) instead of playing it inside itself. Whoever cannot see the page sees "[odwołanie niedostępne]".
+- **Adding one:** Przebiegi → „+ Nowy przebieg” → „Z prezentacji — adres strony”, or from the presentation editor (below). Files: `pages/presentation/storyFlow.ts` (the graph), `storyOfPage.ts` (the page loaded with the reader's own access), `PresentationInNauka.tsx`, `cogita/presentationFlow.ts` (find or create the pointing flow), `FlowEditor.tsx` (`StoryMap`, `NarratorsEditor`), `FlowPlayer.tsx` (`Narrator`).
+- **Narrators chosen by values** (`narrators: [{ character, condition }]`). At every step the first narrator whose condition holds tells it: a character entity with a portrait, above the step, with the step's title. Example: a value `przewodnik` = 1 / 2 chosen at the start picks "Piotr" or "Maria". This works in every look, also above a presentation in Nauka.
+- In the presentation editor, the panel „Przebieg” has **„Przebieg w Nauce”**. It creates (or finds) the pointing flow in the story's base and opens it.
 
 **Media** — narration audio, images, video — are sealed library files [G10, F31]. Browser speech is not used [G11].
 

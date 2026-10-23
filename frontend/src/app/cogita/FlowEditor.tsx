@@ -5,12 +5,17 @@
  * Auslöser. Daneben: ausprobieren, wer ihn sieht („Kto widzi" — 2026-10-22,
  * Schritt 8: keine Abschrift mehr, die Baza selbst entscheidet), eine Seite mit
  * ihm anlegen, Abhängigkeiten vorschlagen.
+ *
+ * 2026-10-22 (Schritt 12) — ein Ablauf, der auf eine Präsentation zeigt
+ * (`presentation`), hat keinen eigenen Graphen: seine Karte ist das Storyboard
+ * der Seite (nur zum Ansehen, geändert wird es dort). Erzähler (`narrators`)
+ * hat jeder Ablauf.
  */
 
 import { useEffect, useMemo, useState } from 'react';
 
 import { contentOfLibrary, FlowPlayer } from './FlowPlayer';
-import { FLOW_PALETTE, LOOK_LABEL, LOOK_TYPES, proposedDependencies, readFlow, resolveFlow, type CharacterLine, type Flow, type Goal, type LookType, type Slot } from './flow';
+import { FLOW_PALETTE, LOOK_LABEL, LOOK_TYPES, proposedDependencies, readFlow, resolveFlow, type CharacterLine, type Flow, type Goal, type LookType, type Narrator, type Slot } from './flow';
 import { GameRulesEditor } from './GamePanel';
 import { readGame, type GameRules } from './game';
 import { graphJson, type Graph } from './graph';
@@ -21,12 +26,16 @@ import { WhoSees } from './BaseWho';
 import { readCondition } from './logic';
 import { ConditionEditor, EntityPicker, entityName, ForeignOnly, useAsync, useBusy, useCtx } from './ui';
 import { askText } from '../ui/dialogs';
+import { Loading } from '../ui/Loading';
+import { pageSteps, viewPath } from '../routes';
 
 export function FlowEditor({ chosenId, onChoose }: { chosenId: string | null; onChoose: (id: string | null) => void }) {
   const { lib, writes } = useCtx();
   const flows = lib.docs('flow');
   const entry = chosenId === null ? undefined : flows.find((e) => e.id === chosenId);
   const { busy, failed, run } = useBusy();
+  /* 2026-10-22 (Schritt 12) — ein Przebieg aus einer Präsentation: nur ihr Adres. */
+  const [showPath, setShowPath] = useState('');
   return (
     <div className="cg">
       <div className="cg-row-between">
@@ -44,6 +53,15 @@ export function FlowEditor({ chosenId, onChoose }: { chosenId: string | null; on
                 </button>
               ))}
               <button type="button" className="cg-option" disabled={busy} onClick={() => void run(async () => { const made = await lib.saveDoc('flow', { name: 'Nowy przebieg', look: 'reading', graph: { nodes: [], edges: [] } }); onChoose(made.id); })}>Pusty</button>
+              <div className="cg-row">
+                <label className="wk-field"><span>Z prezentacji — adres strony</span><input value={showPath} placeholder="np. parafia/droga" onChange={(e) => setShowPath(e.target.value)} /></label>
+                <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || showPath.trim().replace(/^#?\/?/, '') === ''} onClick={() => void run(async () => {
+                  const path = showPath.trim().replace(/^#?\/?/, '');
+                  const made = await lib.saveDoc('flow', { name: path.split('/').pop() ?? 'Prezentacja', look: 'scenes', presentation: path, graph: { nodes: [], edges: [] } });
+                  setShowPath('');
+                  onChoose(made.id);
+                })}>Dodaj</button>
+              </div>
               {failed !== null && <p className="wk-error">{failed}</p>}
             </div>
           </details>
@@ -75,6 +93,9 @@ function FlowForm({ id }: { id: string }) {
     const doc: Record<string, unknown> = {
       ...entry.data, name: flow.name, look: flow.look, lookId: flow.lookId, start: flow.start, graph: graphJson(flow.graph),
       slots: flow.slots, template: flow.template, fill: flow.fill, overrides: flow.overrides, goals: flow.goals, lines: flow.lines,
+      /* 2026-10-22 (Schritt 12) */
+      narrators: flow.narrators.map((n) => ({ character: n.character, ...(n.condition === null ? {} : { condition: n.condition }) })),
+      presentation: flow.presentation,
       ...(game.zones.length + game.triggers.length + game.values.length > 0 ? { game } : { game: undefined })
     };
     await lib.saveDoc('flow', doc, id);
@@ -93,11 +114,20 @@ function FlowForm({ id }: { id: string }) {
       <div className="cg-row">
         <label className="wk-field"><span>Nazwa</span><input value={flow.name} disabled={!writes} onChange={(e) => set({ name: e.target.value })} /></label>
         <label className="wk-field"><span>Wygląd</span>
-          <select value={flow.look} disabled={!writes} onChange={(e) => set({ look: e.target.value as LookType })}>{LOOK_TYPES.map((l) => <option key={l} value={l}>{LOOK_LABEL[l]}</option>)}</select>
+          <select value={flow.look} disabled={!writes || flow.presentation !== undefined} onChange={(e) => set({ look: e.target.value as LookType })}>{LOOK_TYPES.map((l) => <option key={l} value={l}>{LOOK_LABEL[l]}</option>)}</select>
         </label>
         <button type="button" className="wk-btn" onClick={() => setPlaying(true)}>Wypróbuj</button>
       </div>
 
+      {/* 2026-10-22 (Schritt 12) — ein Storyboard: die Karte kommt aus der Präsentation. */}
+      {flow.presentation !== undefined && (
+        <>
+          <PresentationPath value={flow.presentation} writes={writes} onChange={(presentation) => set({ presentation })} />
+          <StoryMap path={flow.presentation} />
+        </>
+      )}
+
+      {flow.presentation === undefined && (<>
       <details open={flow.template !== undefined}>
         <summary>Szablon opowieści {flow.template !== undefined ? `(użyty: ${templates.find((t) => t.id === flow.template)?.data.name ?? '?'})` : ''}</summary>
         <div className="cg">
@@ -122,17 +152,21 @@ function FlowForm({ id }: { id: string }) {
         <GraphEditor graph={flow.graph} palette={FLOW_PALETTE} cycles readOnly={!writes} start={flow.start}
           onStart={(s) => set({ start: s })} onChange={(g: Graph) => set({ graph: g, start: flow.start ?? g.nodes[0]?.id ?? null })} />
       )}
+      </>)}
 
-      <details>
-        <summary>Cele (zadanie) i postacie</summary>
+      <details open={flow.narrators.length > 0}>
+        <summary>Cele (zadanie), narratorzy i postacie {flow.narrators.length > 0 ? `(${flow.narrators.length} narr.)` : ''}</summary>
         <GoalsEditor goals={flow.goals} writes={writes} onChange={(goals) => set({ goals })} />
+        <NarratorsEditor narrators={flow.narrators} writes={writes} onChange={(narrators) => set({ narrators })} />
         <LinesEditor lines={flow.lines} writes={writes} onChange={(lines) => set({ lines })} />
       </details>
 
-      <details>
-        <summary>Gra w terenie {game.zones.length > 0 ? `(${game.zones.length} stref)` : ''}</summary>
-        <GameRulesEditor rules={game} steps={steps} writes={writes} onChange={(g) => { setGame(g); setDirty(true); }} />
-      </details>
+      {flow.presentation === undefined && (
+        <details>
+          <summary>Gra w terenie {game.zones.length > 0 ? `(${game.zones.length} stref)` : ''}</summary>
+          <GameRulesEditor rules={game} steps={steps} writes={writes} onChange={(g) => { setGame(g); setDirty(true); }} />
+        </details>
+      )}
 
       {failed !== null && <p className="wk-error">{failed}</p>}
       {said !== null && <p className="wk-hint">{said}</p>}
@@ -152,6 +186,77 @@ function FlowForm({ id }: { id: string }) {
       )}
       <WhoSees id={id} />
       {writes && me !== null && <PageWithFlow id={id} name={flow.name} onSaid={setSaid} />}
+    </div>
+  );
+}
+
+/**
+ * 2026-10-22 (Schritt 12) — DAS STORYBOARD ALS KARTE: der Graph, wie ihn der
+ * Motor der Abläufe liest (`storyToFlow`) — nur zum Ansehen; geändert wird er
+ * in der Präsentation (Przejścia). Die Seite wird geholt wie jede andere, mit
+ * dem eigenen Zugang.
+ */
+function StoryMap({ path }: { path: string }) {
+  const [state, setState] = useState<{ graph: Graph; start: string | null; editable: boolean; real: string; scenes: number } | string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setState(null);
+    void import('../pages/presentation/storyOfPage').then((m) => m.loadStory(path)).then(
+      (s) => { if (alive) setState({ graph: s.flow.graph, start: s.flow.start, editable: s.page.editable, real: s.path, scenes: s.show.scenes.length }); },
+      (e: unknown) => { if (alive) setState(e instanceof Error ? e.message : 'Nie udało się wczytać prezentacji.'); });
+    return () => { alive = false; };
+  }, [path]);
+  if (state === null) return <Loading lines={2} />;
+  if (typeof state === 'string') return <p className="wk-error">{state}</p>;
+  return (
+    <div className="cg">
+      <div className="cg-row-between">
+        <span className="cg-muted">Storyboard prezentacji ({state.scenes} scen) — mapa tylko do oglądania; zmienia się ją w prezentacji (Przejścia).</span>
+        {state.editable && <a className="wk-btn wk-btn-quiet" href={viewPath('pages', ...pageSteps(state.real))}>Edytuj w prezentacji</a>}
+      </div>
+      <GraphEditor graph={state.graph} palette={FLOW_PALETTE} cycles readOnly start={state.start} onChange={() => undefined} />
+    </div>
+  );
+}
+
+/** Der Adres der Präsentation — übernommen beim Verlassen des Feldes (die Karte lädt dann neu). */
+function PresentationPath({ value, writes, onChange }: { value: string; writes: boolean; onChange: (path: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => { setDraft(value); }, [value]);
+  const commit = () => {
+    const path = draft.trim().replace(/^#?\/?/, '');
+    if (path !== '' && path !== value) onChange(path); else setDraft(value);
+  };
+  return (
+    <label className="wk-field"><span>Prezentacja (adres strony)</span>
+      <input value={draft} disabled={!writes} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') commit(); }} />
+    </label>
+  );
+}
+
+/** 2026-10-22 (Schritt 12) — Erzähler nach Werten: der erste, dessen Bedingung gilt, erzählt den Schritt. */
+function NarratorsEditor({ narrators, writes, onChange }: { narrators: readonly Narrator[]; writes: boolean; onChange: (n: Narrator[]) => void }) {
+  const { lib } = useCtx();
+  const put = (i: number, patch: Partial<Narrator>) => onChange(narrators.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  return (
+    <div className="cg">
+      <span className="cg-muted">Narratorzy — opowiada pierwszy, którego warunek jest spełniony (np. wartość „przewodnik” = 1 → Piotr, bez warunku → Maria). Jego portret i imię stoją nad krokiem, także nad prezentacją.</span>
+      {narrators.map((n, i) => (
+        <div key={i} className="cg-card" data-narrator-row={i}>
+          <div className="cg-row">
+            <EntityPicker lib={lib} value={n.character} onPick={(v) => v !== null && put(i, { character: v })} allowClear={false} placeholder="kto opowiada" />
+            {writes && i > 0 && <button type="button" className="wk-link-btn" aria-label="Wyżej" onClick={() => onChange(narrators.map((x, j) => (j === i - 1 ? narrators[i] : j === i ? narrators[i - 1] : x)))}>↑</button>}
+            {writes && <button type="button" className="wk-link-btn" aria-label="Usuń narratora" onClick={() => onChange(narrators.filter((_, j) => j !== i))}>×</button>}
+          </div>
+          <ConditionEditor value={n.condition} onChange={(c) => put(i, { condition: c })} name={(x) => entityName(lib, x)} />
+        </div>
+      ))}
+      {writes && (
+        <div className="cg-row">
+          <span className="cg-muted">Nowy narrator:</span>
+          <EntityPicker lib={lib} value={null} onPick={(v) => v !== null && onChange([...narrators, { character: v, condition: null }])} placeholder="kto opowiada" />
+        </div>
+      )}
     </div>
   );
 }

@@ -106,7 +106,7 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
     return (
       <CogitaContext.Provider value={cg}>
         {!isTall(ctx) && <Head title={title} />}
-        <FlowPlayer flow={flow} content={content} learner={learner} onClose={isTall(ctx) ? undefined : () => setPlaying(false)} />
+        <FlowPlayer flow={flow} content={content} learner={learner} onClose={isTall(ctx) ? undefined : () => setPlaying(false)} presentationAs="link" />
       </CogitaContext.Provider>
     );
   }

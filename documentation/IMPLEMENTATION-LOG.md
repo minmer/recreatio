@@ -892,3 +892,109 @@ the text). LaTeX prints the same with `\emph{…}`.
    odwołaniu" teksty). In the sermon's plan, "Z bazy wiedzy…" → that view. The point lists the psalms, and it changes
    when a psalm is added to the place.
 4. The sermon's "Nauka" box → "Powtórka z tego tekstu": the revision opens in Powtórki.
+
+## Step 12 — One narrative: a storyboard is a flow in look `scenes`
+
+**Built**
+
+- **Defined first** in COGITA.md §8 ("One narrative"): the storyboard stays in the presentation page, and a knowledge
+  base lists it as a flow that points at it: `{ "name", "look": "scenes", "presentation": "<path>", "narrators" }`,
+  with no graph of its own. Nothing is copied.
+- **The storyboard read as a flow** (`pages/presentation/storyFlow.ts`, `storyToFlow`):
+  - a scene becomes a step `scene` (`{ page, scene, title }`) whose exit `next` is its „dalej”;
+  - a question on the scene adds the exits `right` / `wrong`, and a button adds `b0`, `b1`, … to its target;
+  - a condition gate becomes `condition` (`yes` / `no`), a set gate becomes `set` (`next`);
+  - `end` and `link:<id>` become `end` steps, and a link keeps its target.
+- **The flow engine** (`cogita/flow.ts`):
+  - the new step type `scene`, with its exits, its fields in the editor and its JSON help;
+  - `presentation` on a flow;
+  - `narrators` (`[{ character, condition }]`, up to 12) and `narratorNow`: the first narrator whose condition holds;
+  - a template use keeps its own narrators, otherwise it takes the template's.
+- **In Nauka** (`PresentationInNauka.tsx`, loaded only when someone plays one):
+  - a presentation flow plays the presentation through its own engine, filling the screen below the header as on its
+    page;
+  - the learner is the base's (`useStoryRun(show, pageId, given)`: it listens to the given learner and never flushes
+    or closes it), so answers, values and the place count in the base;
+  - the place is kept under the same key as on the page (`page:<id>`);
+  - a box at the bottom left holds the flow's name, the narrator, „edytuj w prezentacji” (for those who may edit the
+    page) and „zamknij”.
+- **Rule 1:** the page is loaded through the usual page endpoint with the reader's own access (`storyOfPage.ts`).
+  Whoever cannot see it gets "[odwołanie niedostępne]".
+- **On a page**, the module „Przebieg” with a presentation flow links to the presentation (it *is* a page) instead of
+  playing it inside itself (`presentationAs="link"`).
+- **Narrators in every flow:**
+  - FlowPlayer shows the narrator above the step (portrait or initial, name), and the narrator announces the step's
+    title;
+  - the editor has „Narratorzy” (a character, a condition, order) next to goals and character lines.
+- **A step `scene` in an ordinary flow** shows its title, a link to the presentation (new tab) and „Dalej”.
+- **The flow editor** for a presentation flow (`StoryMap`):
+  - the path of the page (taken over when the field is left), and the storyboard as a read-only map from
+    `storyToFlow`;
+  - „Edytuj w prezentacji”;
+  - no own graph, template or field-game sections.
+- **Adding one:**
+  - Przebiegi → „+ Nowy przebieg” → „Z prezentacji — adres strony”;
+  - or the presentation editor → Przejścia → Przebieg → „Przebieg w Nauce” (`cogita/presentationFlow.ts`). It finds
+    the pointing flow in the story's base or, for someone who writes there, creates it, then opens it in a new tab.
+- **Descriptions:**
+  - `courseDescription()`: `"narrators"` with an example, the step `"scene"` with its exits, and a presentation flow
+    with an example;
+  - `pageDescription()`: the same story as a base flow (`"presentation"`, „Przebieg w Nauce”);
+  - `exportFlow` takes the narrators' entities along.
+- **Checks:**
+  - `app-presentation-check` — one narrative. On the storyboard with gates, the flow engine walks the graph from
+    `storyToFlow` to the same scenes as `storyChain`, unanswered and answered. A set gate changes the value on the way
+    and decides the next condition. A question scene waits in both engines. The answers lead where the question says.
+    A button is an exit, a way out is an end that keeps its link, and the scene names its page. Narrators are chosen
+    by values, and a flow's path is read without `#/`.
+  - `app-cogita-check` (386): template uses and narrators, the exits of a scene step, a presentation flow without its
+    own graph.
+  - `app-library-check`: the description.
+  - Drives against LocalDB:
+    - `story-api.mjs`: a public and a closed presentation with a gate, a question and a value. „Przebieg w Nauce”
+      creates the flow once, then finds it. The storyboard loads as a flow (four scenes, the gate, the end), and both
+      engines go A → B with few points and A → D with enough. At the question, right leads to D and wrong to A. The
+      author loads the closed storyboard; a visitor and a signed-in stranger do not ("[odwołanie niedostępne]"). A
+      stranger cannot add a flow to the base.
+    - `story-browser.mjs` (headless Edge, the built app):
+      - Nauka plays the presentation with the box and the narrator chosen by values (0 points: Piotr, not Maria);
+      - „dalej” goes through the gate to the question;
+      - after leaving Nauka, the public page resumes at the question (the same place);
+      - a right answer on the page leads to D;
+      - the flow editor draws the storyboard as a map;
+      - no console errors.
+
+**Removed**
+
+- From COGITA.md, the "Not yet" lines about flows running apart and Przebiegi not listing presentations. From
+  INTERACTIVE.md, the line saying that `scenes` flows only render as reading (it now applies only to flows with a
+  graph of their own).
+
+**Choices**
+
+- **Pointer, not copy.** A presentation flow stores only the path. The storyboard stays plaintext in the page, so a
+  public presentation keeps working for every visitor, and the base and the page cannot drift apart. The flow graph is
+  derived each time it is shown.
+- **One engine plays it.** Nauka renders the presentation itself rather than walking the derived graph step by step.
+  The derived graph is the editor's map and the proof (checked) that both engines agree. Drawing a single scene
+  inside an ordinary flow is left open.
+- **The learner chooses where answers go.** In Nauka they go into the base, as for any flow. On the page the existing
+  rule stays: the person's private area, or the page's named area, and otherwise the browser. The page never sends
+  progress into someone else's area by itself. A person without a private area therefore continues across page and
+  Nauka only once they have one (the calendar creates it).
+- **The place resumes inside the current route.** A scene past a question that waits is not resumed, which is the
+  2026-10-21 rule: coming back asks again.
+- **On a page, a link.** A presentation inside a page module would be a page inside a page.
+
+**Owner must run**
+
+- Deploy the website. No migration, no API change.
+
+**Test in the browser**
+
+1. Prezentacja → Przejścia → Przebieg: „W Cogicie”, pick a base → „Przebieg w Nauce”. A new tab opens the flow in
+   Przebiegi with the storyboard drawn as a map and „Edytuj w prezentacji”.
+2. Add a narrator under „Cele (zadanie), narratorzy i postacie” (any entry), save, then Nauka → the flow → „Zacznij”.
+   The presentation fills the screen; at the bottom left are the flow's name, the narrator and „zamknij”.
+3. Go to the question scene and close. Open the presentation page itself: it resumes at the same scene. (The account
+   needs a private area, which the calendar creates.)

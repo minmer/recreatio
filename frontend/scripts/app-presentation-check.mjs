@@ -36,7 +36,9 @@ await writeFile(entry, `
 export * from '${app}pages/presentation/presentationMotion';
 export * from '${app}pages/presentation/presentation';
 export { END, LINK, GATE, resolveTarget, nextOf, chainFrom, routeOf, branch, routeTo, reachable, autoMap, targetOptions, withGo, withNext, brokenTarget, goOf, goOptions } from '${app}pages/presentation/showPaths';
-export { readStory, storyJson, throughGates, storyChain, beyondOf, outcomeTarget, outcomeKey, isOutcomeKey, startValues, gateTargets, NO_STORY } from '${app}pages/presentation/story';
+export { readStory, storyJson, throughGates, storyChain, beyondOf, outcomeTarget, outcomeKey, isOutcomeKey, startValues, gateTargets, limitsOf, NO_STORY } from '${app}pages/presentation/story';
+export { storyToFlow, sceneNode, gateNode } from '${app}pages/presentation/storyFlow';
+export { readFlow, startFlow, advance, narratorNow, exitsOf } from '${app}cogita/flow';
 export { planImport, exportPage, DEFAULT_IMPORT } from '${app}pages/pageJson';
 export { presentationExample, pageDescription } from '${app}pages/pageJsonText';
 export { readLook, writeLook, resolveTheme } from '${app}pages/slides/slideLook';
@@ -656,6 +658,56 @@ try {
     /* Die Seite als JSON trägt den Przebieg unverändert. */
     assert.deepEqual(m.readShow(m.showJson(show)).story, show.story, 'show JSON keeps the story');
     ok('story: values, gates (condition, set), answers right / wrong, the way through the gates with what the learner knows, JSON');
+
+    /* -- 13. Schritt 12: das Storyboard IST ein Ablauf (look `scenes`) — beide Motoren gehen dieselben Szenen. ---------------- */
+    const sceneOf = (state) => (state.ended || state.step === null ? 'END' : state.step.startsWith('s:') ? state.step.slice(2) : state.step);
+    const asFlow = (sh, pcs) => {
+      const made = m.storyToFlow(sh, pcs, 'parafia/opowiesc');
+      return m.readFlow('f', { name: 'Opowieść', look: 'scenes', start: made.start, graph: made.graph });
+    };
+    /* Der Weg „dalej" entlang, im Motor der Abläufe: bis zum Ende oder bis eine Szene wartet (eine Frage). */
+    const flowChain = (flow, sh, from, f, waits = new Set()) => {
+      const ctx = { facts: (state) => ({ ...f, values: state.values }), flows: () => undefined, members: () => [], limits: m.limitsOf(sh.story) };
+      let state = m.startFlow(flow, f.values ?? {}, m.sceneNode(from));
+      const out = [];
+      for (let guard = 0; guard < 40 && !state.ended && state.step !== null; guard += 1) {
+        const key = sceneOf(state);
+        if (out.includes(key)) break;
+        out.push(key);
+        if (waits.has(key)) break;
+        state = m.advance(flow, state, 'next', ctx);
+      }
+      return { keys: out, state, ctx };
+    };
+    for (const [label, f] of [['not answered', facts()], ['answered right', facts({ answered: () => 1 })]]) {
+      const presentation = m.storyChain(show, show.story, 'a', f).map((x) => x.key);
+      const flow = flowChain(asFlow(show, []), show, 'a', f).keys;
+      assert.deepEqual(flow, presentation, `${label}: the flow engine walks the storyboard to the same scenes`);
+    }
+    const viaFlow = flowChain(asFlow(viaSet, []), viaSet, 'a', facts({ values: m.startValues(viaSet.story, {}) }));
+    assert.deepEqual([viaFlow.keys, viaFlow.state.values.pkt], [['a', 'd'], 3], 'a set gate as a "set" step: the value changes on the way and decides the condition');
+    /* Eine Frage auf B: dobrze → D, źle → zurück zu A; ein Knopf auf C führt hinaus (ein Weg). */
+    const qPiece = { key: 'p-q', kind: 'question', label: 'Pytanie', piece: m.readPieceValue({ places: { b: { x: 50, y: 50 } }, go: { [m.outcomeKey('b', 'right')]: 'd', [m.outcomeKey('b', 'wrong')]: 'a' } }) };
+    const bPiece = { key: 'p-b', kind: 'text', label: 'Do kontaktu', piece: m.readPieceValue({ places: { c: { x: 10, y: 10 } }, go: { c: 'link:kontakt' } }) };
+    const withQ = m.readShow({ scenes: scenes.map((sc) => ({ ...sc, next: undefined })), links: [{ id: 'kontakt', label: 'Kontakt', href: '#/kontakt' }] });
+    const qFlow = asFlow(withQ, [qPiece, bPiece]);
+    const bNode = qFlow.graph.nodes.find((n) => n.id === m.sceneNode('b'));
+    assert.deepEqual(m.exitsOf('scene', bNode.config).map((x) => x.id), ['next', 'right', 'wrong'], 'a scene with a question has the outcomes as exits');
+    const cNode = qFlow.graph.nodes.find((n) => n.id === m.sceneNode('c'));
+    assert.deepEqual([m.exitsOf('scene', cNode.config).map((x) => x.id), cNode.config.buttons[0].target], [['next', 'b0'], 'link:kontakt'], 'a button is an exit to its target');
+    assert.deepEqual(flowChain(qFlow, withQ, 'a', facts(), new Set(['b'])).keys, m.storyChain(withQ, { values: [], gates: [], base: '', storage: '' }, 'a', facts(), new Set(), new Set(['b'])).map((x) => x.key), 'a question scene waits in both engines');
+    const ctxQ = { facts: () => facts(), flows: () => undefined, members: () => [] };
+    const atB = m.startFlow(qFlow, {}, m.sceneNode('b'));
+    assert.deepEqual([sceneOf(m.advance(qFlow, atB, 'right', ctxQ)), sceneOf(m.advance(qFlow, atB, 'wrong', ctxQ))], [m.outcomeTarget(qPiece.piece, 'b', 'right'), m.outcomeTarget(qPiece.piece, 'b', 'wrong')], 'answers lead where the question says, in both');
+    const out = m.advance(qFlow, m.startFlow(qFlow, {}, m.sceneNode('c')), 'b0', ctxQ);
+    assert.ok(out.ended && qFlow.graph.nodes.find((n) => n.id === 'l:kontakt')?.config.link === 'kontakt', 'a way out is an end that keeps its link');
+    assert.equal(qFlow.graph.nodes.find((n) => n.id === m.sceneNode('a')).config.page, 'parafia/opowiesc', 'a scene step names its page');
+
+    /* Erzähler nach Werten. */
+    const told = m.readFlow('n', { name: 'x', narrators: [{ character: 'piotr', condition: { type: 'value', value: 'przewodnik', op: 'eq', than: 1 } }, { character: 'maria' }, { character: '' }] });
+    assert.deepEqual([told.narrators.length, m.narratorNow(told, facts({ values: { przewodnik: 1 } }))?.character, m.narratorNow(told, facts({ values: { przewodnik: 2 } }))?.character], [2, 'piotr', 'maria'], 'the first narrator whose condition holds tells the step');
+    assert.equal(m.readFlow('p', { name: 'x', look: 'scenes', presentation: '#/parafia/opowiesc' }).presentation, 'parafia/opowiesc', 'a flow points at its presentation by path');
+    ok('one narrative: the storyboard is a flow in look "scenes" — both engines walk the same scenes (gates, values, questions waiting and their outcomes, buttons, ways out); narrators by values');
   }
 } finally {
   await rm(workspace, { recursive: true, force: true });

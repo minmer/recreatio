@@ -25,8 +25,16 @@
  *   opening     ein Anfang: entdecken (erst fragen) oder erinnern (erst zeigen) [G13]
  *   line        eine Gestalt spricht (ihr Satz ist ein Wissen) [H2]
  *   handoff     weiter in einem anderen Ablauf (eine Übergabe)
+ *   scene       (Schritt 12) eine Szene einer Präsentation — Ausgänge „dalej", die Frage
+ *               auf ihr (dobrze / źle), ihre Knöpfe (b0, b1 …)
  *   end · return
  * </code>
+ *
+ * <b>Eine Erzählung</b> (2026-10-22, Schritt 12, COGITA.md §8): das Storyboard
+ * einer Präsentation IST ein Ablauf im Aussehen `scenes` — gespeichert bleibt
+ * es in der Seite; ein Ablauf der Baza zeigt nur auf sie (`presentation`), und
+ * `pages/presentation/storyFlow.ts` liest es als diesen Graphen. Erzähler
+ * (`narrators`) wählen sich nach den Werten.
  *
  * Jeder Schritt öffnet einen neuen Bildschirm oder klappt an Ort und Stelle
  * auf [G12]. Ein Ablauf darf zurückführen — ein Kapitel neu, zurück zur
@@ -42,7 +50,7 @@ import { apply, holds, readAction, readCondition, type Action, type Condition, t
 
 export const STEP_TYPES = [
   'show', 'question', 'choice', 'condition', 'set', 'chapters', 'chapterEnd', 'restart', 'subflow', 'each',
-  'prerequisite', 'expand', 'opening', 'line', 'handoff', 'end', 'return'
+  'prerequisite', 'expand', 'opening', 'line', 'handoff', 'scene', 'end', 'return'
 ] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 
@@ -50,7 +58,7 @@ export const STEP_LABEL: Record<StepType, string> = {
   show: 'Pokaż', question: 'Pytanie', choice: 'Wybór', condition: 'Warunek', set: 'Zmień wartość',
   chapters: 'Rozdziały', chapterEnd: 'Koniec rozdziału', restart: 'Rozdział od nowa', subflow: 'Inny przebieg',
   each: 'Dla każdego', prerequisite: 'Najpierw podstawy', expand: 'Wyjaśnij w miejscu', opening: 'Otwarcie',
-  line: 'Postać mówi', handoff: 'Przekazanie', end: 'Koniec', return: 'Powrót'
+  line: 'Postać mówi', handoff: 'Przekazanie', scene: 'Scena prezentacji', end: 'Koniec', return: 'Powrót'
 };
 
 /** Was ein Schritt im Ablauf-Editor bedeutet — ein Satz, auch für die Beschreibung des JSON. */
@@ -70,6 +78,7 @@ export const STEP_SAYS: Record<StepType, string> = {
   opening: 'Otwarcie ("mode": "discovery" — najpierw pytanie, "recall" — najpierw przypomnienie); "next".',
   line: 'Postać ("character") mówi zdanie ("of": wiedza); "mood" — nastrój; "next".',
   handoff: 'Przekazuje do innego przebiegu ("flow") — tamten zaczyna się od początku.',
+  scene: 'Scena prezentacji ("page" — adres strony, "scene" — klucz sceny, "title"); wyjście "next", przy pytaniu na scenie "right" i "wrong", przyciski "b0", "b1", … ("buttons": [{"exit", "label", "target"}]).',
   end: 'Koniec przebiegu.',
   return: 'Wraca z przebiegu wewnętrznego do miejsca, z którego wszedł.'
 };
@@ -87,6 +96,12 @@ export function exitsOf(type: string, config: Readonly<Record<string, unknown>>)
     case 'condition': return [port('yes', 'tak'), port('no', 'nie')];
     case 'chapters': return [...(Array.isArray(config.chapters) ? config.chapters : []).map((c, i) => port(`c${i}`, str(isObject(c) ? c.title : c) || `rozdział ${i + 1}`)), port('done', 'wszystkie przerobione')];
     case 'prerequisite': return [port('known', 'zna'), port('explain', 'wyjaśnij')];
+    /* 2026-10-22 (Schritt 12) — eine Szene: „dalej", die Frage auf ihr, ihre Knöpfe. */
+    case 'scene': return [
+      port('next', 'dalej'),
+      ...(config.question === true ? [port('right', 'dobrze'), port('wrong', 'źle')] : []),
+      ...(Array.isArray(config.buttons) ? config.buttons : []).flatMap((b) => (isObject(b) && str(b.exit) !== '' ? [port(str(b.exit), str(b.label) || str(b.exit))] : []))
+    ];
     case 'end':
     case 'return':
     case 'chapterEnd':
@@ -103,7 +118,7 @@ const STEP: (type: StepType) => NodeKind<FlowCtx> = (type) => ({
   type,
   label: STEP_LABEL[type],
   says: STEP_SAYS[type],
-  group: type === 'show' || type === 'line' || type === 'expand' ? 'Treść'
+  group: type === 'show' || type === 'line' || type === 'expand' || type === 'scene' ? 'Treść'
     : type === 'question' || type === 'choice' || type === 'opening' ? 'Rozmowa'
     : type === 'condition' || type === 'set' || type === 'prerequisite' ? 'Logika'
     : 'Przebieg',
@@ -136,6 +151,12 @@ export interface Goal {
   readonly condition: Condition | null;
 }
 
+/** 2026-10-22 (Schritt 12) — ein Erzähler: die Gestalt, die erzählt, solange ihre Bedingung gilt (die erste, die gilt). */
+export interface Narrator {
+  readonly character: string;
+  readonly condition: Condition | null;
+}
+
 /** Eine Zeile einer Gestalt, die von selbst fällt, wenn ihre Bedingung gilt [H2]. */
 export interface CharacterLine {
   readonly character: string;
@@ -160,6 +181,10 @@ export interface Flow {
   /** Ziele — ein Ablauf mit Zielen ist eine Aufgabe (quest) [H6]. */
   readonly goals: readonly Goal[];
   readonly lines: readonly CharacterLine[];
+  /** 2026-10-22 (Schritt 12) — wer erzählt, nach den Werten (der erste, dessen Bedingung gilt). */
+  readonly narrators: readonly Narrator[];
+  /** 2026-10-22 (Schritt 12) — ein Storyboard einer Präsentation (der Pfad der Seite): der Graph kommt aus ihr. */
+  readonly presentation?: string;
 }
 
 export function readFlow(id: string, raw: unknown): Flow {
@@ -182,8 +207,15 @@ export function readFlow(id: string, raw: unknown): Flow {
     fill,
     overrides,
     goals: (Array.isArray(d.goals) ? d.goals : []).flatMap((g): Goal[] => (isObject(g) && str(g.id) !== '' ? [{ id: str(g.id), title: str(g.title) || str(g.id), condition: readCondition(g.condition) }] : [])),
-    lines: (Array.isArray(d.lines) ? d.lines : []).flatMap((l): CharacterLine[] => (isObject(l) && str(l.character) !== '' && str(l.of) !== '' ? [{ character: str(l.character), of: str(l.of), condition: readCondition(l.condition), once: l.once !== false }] : []))
+    lines: (Array.isArray(d.lines) ? d.lines : []).flatMap((l): CharacterLine[] => (isObject(l) && str(l.character) !== '' && str(l.of) !== '' ? [{ character: str(l.character), of: str(l.of), condition: readCondition(l.condition), once: l.once !== false }] : [])),
+    narrators: (Array.isArray(d.narrators) ? d.narrators : []).flatMap((n): Narrator[] => (isObject(n) && str(n.character) !== '' ? [{ character: str(n.character), condition: readCondition(n.condition) }] : [])).slice(0, 12),
+    ...(str(d.presentation).trim() === '' ? {} : { presentation: str(d.presentation).trim().replace(/^#?\/?/, '') })
   };
+}
+
+/** 2026-10-22 (Schritt 12) — wer jetzt erzählt: der erste Erzähler, dessen Bedingung gilt (ohne Bedingung: immer). */
+export function narratorNow(flow: Pick<Flow, 'narrators'>, facts: Facts): Narrator | null {
+  return flow.narrators.find((n) => holds(n.condition, facts)) ?? null;
 }
 
 /**
@@ -203,7 +235,7 @@ export function resolveFlow(flow: Flow, find: (id: string) => Flow | undefined, 
     return value;
   };
   const nodes: GraphNode[] = template.graph.nodes.map((n) => ({ ...n, config: fill({ ...n.config, ...(flow.overrides[n.id] ?? {}) }) as Record<string, unknown> }));
-  return { ...template, id: flow.id, name: flow.name || template.name, look: flow.look, ...(flow.lookId === undefined ? {} : { lookId: flow.lookId }), graph: { nodes, edges: template.graph.edges }, fill: flow.fill, overrides: flow.overrides, template: flow.template };
+  return { ...template, id: flow.id, name: flow.name || template.name, look: flow.look, ...(flow.lookId === undefined ? {} : { lookId: flow.lookId }), graph: { nodes, edges: template.graph.edges }, fill: flow.fill, overrides: flow.overrides, template: flow.template, narrators: flow.narrators.length > 0 ? flow.narrators : template.narrators };
 }
 
 /* -- Der Spieler -------------------------------------------------------------------------- */

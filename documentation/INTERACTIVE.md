@@ -294,7 +294,8 @@ in view, and the drawing still in view with the piece scrolled to its end.
 
 ## 14. Not done
 
-- Cogita flows with look `scenes` still render as reading, not through the presentation engine.
+- A Cogita flow with look `scenes` and a graph of its own still renders as styled reading. A flow that points at a
+  presentation (`presentation`, step 12, COGITA.md §8) plays through the presentation engine, drawings included.
 - No visual drawing editor (JSON, preview, examples, AI prompt). The Cogita question editor shows `drawing` as a
   plain long text field without a preview.
 - A drawing on a page does not record progress into a Cogita question by itself; use a revision module.

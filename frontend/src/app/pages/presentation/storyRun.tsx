@@ -13,6 +13,12 @@
  * Es ist DERSELBE Lernende wie in Cogita (`cogita/learn.ts`): Antworten,
  * Werte, die Stelle, an der er war. Die Stücke von Cogita kommen erst, wenn
  * eine Präsentation einen Przebieg hat — eine gewöhnliche lädt davon nichts.
+ *
+ * 2026-10-22 (Schritt 12) — IN NAUKA bringt der Ablauf seinen Lernenden mit
+ * (`given`, der der Baza): dann lernt er als dieser, unter derselben Stelle
+ * (`page:<seite>`) — wer auf der Seite aufhörte, macht in Nauka weiter und
+ * umgekehrt. Er gehört dem, der ihn gab: hier wird er weder geschrieben
+ * (`flush`) noch geschlossen.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -22,6 +28,7 @@ import { usePerson } from '../pagePerson';
 import type { Show } from './presentation';
 import type { StoryRun } from './showContext';
 import { limitsOf, startValues, type Story } from './story';
+import type { Learner as CogitaLearner } from '../../cogita/learn';
 
 type Learn = typeof import('../../cogita/learn');
 type Holders = typeof import('../../cogita/holders');
@@ -75,13 +82,13 @@ async function learnerFor(learn: Learn, holders: Holders, base: string, storage:
  * Przebieg (oder im Editor) ist sie sofort so weit, ohne Lauf. Geht das
  * Laden schief, läuft sie ohne — wie eine Präsentation ohne Logik.
  */
-export function useStoryRun(show: Show, pageId: string | null): { readonly run: StoryRun | null; readonly ready: boolean } {
+export function useStoryRun(show: Show, pageId: string | null, given: CogitaLearner | null = null): { readonly run: StoryRun | null; readonly ready: boolean } {
   const story: Story | null = show.story;
   const person = usePerson();
   const chosen = person?.chosen ?? null;
   const chosenId = chosen?.id ?? null;
   /* Verbunden: erst, wenn die eigenen Personen da sind — sonst lernte er erst im Browser und gleich darauf noch einmal als er selbst. */
-  const waiting = (story?.base ?? '') !== '' && person?.loading === true;
+  const waiting = given === null && (story?.base ?? '') !== '' && person?.loading === true;
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [failed, setFailed] = useState(false);
   const [version, setVersion] = useState(0);
@@ -104,6 +111,14 @@ export function useStoryRun(show: Show, pageId: string | null): { readonly run: 
         const [learn, holders, knowness, logic]: [Learn, Holders, Knowness, Logic] = await Promise.all([
           import('../../cogita/learn'), import('../../cogita/holders'), import('../../cogita/knowness'), import('../../cogita/logic')
         ]);
+        /* Schritt 12 — der Lernende der Baza (Nauka): nur zuhören, nicht schreiben, nicht schliessen. */
+        if (given !== null) {
+          if (!alive) return;
+          off = given.subscribe(() => setVersion((n) => n + 1));
+          visited.current = new Set(given.progress.positions.get(flowOf(pageId))?.visited ?? []);
+          setLoaded({ learner: given, knowness, logic });
+          return;
+        }
         const { holder, target } = await learnerFor(learn, holders, base, storage, chosen);
         made = new learn.Learner(base !== '' ? base : flowOf(pageId), holder, target);
         off = made.subscribe(() => setVersion((n) => n + 1));
@@ -124,7 +139,7 @@ export function useStoryRun(show: Show, pageId: string | null): { readonly run: 
       leave();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [story === null, pageId, base, storage, chosenId, waiting]);
+  }, [story === null, pageId, base, storage, chosenId, waiting, given]);
 
   const run = useMemo((): StoryRun | null => {
     if (loaded === null || story === null || pageId === null) return null;

@@ -1015,6 +1015,23 @@ const outer = flowOf('outer', [n('o1', 'subflow', { flow: 'inner' }), n('o2', 's
   const resolved = Fl.resolveFlow(use, (id) => (id === 'story' ? story : undefined));
   check('a story template filled: the slot becomes the entry', [resolved.id, resolved.graph.nodes[0].config.character], ['use', 'p2']);
 }
+{
+  /* 2026-10-22 (Schritt 12) — Erzähler nach Werten; eine Verwendung behält ihre eigenen, sonst die der Vorlage. */
+  const tpl = Fl.readFlow('tpl', { name: 'T', narrators: [{ character: 'p1' }], graph: { nodes: [], edges: [] } });
+  const find = (id) => (id === 'tpl' ? tpl : undefined);
+  const own = Fl.resolveFlow(Fl.readFlow('u1', { template: 'tpl', narrators: [{ character: 'p2', condition: { type: 'value', value: 'v', op: 'ge', than: 1 } }] }), find);
+  const inherited = Fl.resolveFlow(Fl.readFlow('u2', { template: 'tpl' }), find);
+  check('narrators: a use keeps its own, otherwise the template\'s; the first whose condition holds tells', [
+    own.narrators.map((x) => x.character), inherited.narrators.map((x) => x.character),
+    Fl.narratorNow(own, facts({ values: { v: 0 } })), Fl.narratorNow(own, facts({ values: { v: 2 } }))?.character
+  ], [['p2'], ['p1'], null, 'p2']);
+  check('a scene step: "dalej", the question’s outcomes and the buttons are its exits', [
+    Fl.exitsOf('scene', {}).map((x) => x.id),
+    Fl.exitsOf('scene', { question: true, buttons: [{ exit: 'b0', label: 'Kontakt', target: 'link:k' }] }).map((x) => x.id),
+    Fl.STEP_TYPES.includes('scene')
+  ], [['next'], ['next', 'right', 'wrong', 'b0'], true]);
+  check('a presentation flow: a path, no graph of its own', [Fl.readFlow('pf', { name: 'Droga', look: 'scenes', presentation: '#/parafia/droga' }).presentation, Fl.readFlow('nf', { name: 'x' }).presentation], ['parafia/droga', undefined]);
+}
 check('goals and lines follow the one logic', [
   Fl.goalsReached(Fl.readFlow('g', { goals: [{ id: 'g1', title: 'Zdrowie', condition: { type: 'value', value: 'hp', op: 'ge', than: 3 } }, { id: 'g2', title: 'Nic' }] }), facts()),
   Fl.linesNow(Fl.readFlow('l', { lines: [{ character: 'p2', of: 'k1' }, { character: 'p2', of: 'k2', condition: { type: 'visited', of: 'zz' } }] }), Fl.startFlow(Fl.readFlow('l', {})), facts()).map((x) => x.of)
