@@ -8,12 +8,12 @@
  */
 
 import { viewPath } from '../routes';
-import { openedLibraryKind } from './library';
+import { containerPath, openedLibraryKind } from './library';
 import { entryTitle, kindOf, str, type LibEntry } from './libraryKinds';
 import { plainText } from './libraryMarkup';
 import type { Entry, LibraryStore } from './libraryStore';
 import type { Hit } from './refIndex';
-import { planOf, pointNumbers } from './sermon';
+import { planOf, pointNumbers } from '../scriptorium/sermon';
 
 /** Eine Bibliothek (`books`) — nicht eine Baza wiedzy. */
 export const isBooksStore = (store: Pick<LibraryStore, 'libraryId'>): boolean => openedLibraryKind(store.libraryId) !== 'knowledge';
@@ -52,9 +52,9 @@ export function hitTitle(entry: Entry, store: LibraryStore): string {
   return said === '' ? 'Wpis' : clip(said, 90);
 }
 
-/** Wohin ein Klick führt: in die Bibliothek oder in die Baza wiedzy (ihr Reiter). */
+/** Wohin ein Klick führt: in die Bibliothek, ins Skryptorium (2026-10-23) oder in die Baza wiedzy (ihr Reiter). */
 export function hitHref(entry: Entry, store: LibraryStore): string {
-  if (isBooksStore(store)) return viewPath('library', entry.libraryId, entry.id);
+  if (isBooksStore(store)) return containerPath(entry.libraryId, entry.id);
   const tab = DOC_TAB[entry.kind];
   if (tab !== undefined) return viewPath('learn', entry.libraryId, ...tab, entry.id);
   if (DOC_LABEL[entry.kind] !== undefined) return viewPath('learn', entry.libraryId, entry.kind === 'kind' ? 'schemat' : 'wpisy');

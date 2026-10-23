@@ -49,12 +49,15 @@ export async function revisionFromEntry(ring: Ring, libraryId: string, entryId: 
   const bases = rows.filter((r) => libraryKindOf(r) === 'knowledge' && r.writes);
   await Promise.all(bases.map((b) => storeOf(ring, b).sync().catch(() => undefined)));
   const chosen = baseFor(rows, libraryId, (row) => storeOf(ring, row));
-  if (chosen === null) throw new Error('Nie ma bazy wiedzy, która korzysta z tej biblioteki, ani takiej w jej obszarze — załóż ją w Nauce.');
+  const source = rows.find((r) => r.libraryId === libraryId);
+  const writing = source !== undefined && libraryKindOf(source) === 'writing';
+  if (chosen === null) throw new Error(writing ? 'Nie ma bazy wiedzy, która korzysta z tego skryptorium, ani takiej w jego obszarze — załóż ją w Nauce.' : 'Nie ma bazy wiedzy, która korzysta z tej biblioteki, ani takiej w jej obszarze — załóż ją w Nauce.');
   const store = storeOf(ring, chosen.base);
   if (chosen.link) {
     const settings = store.all().find((e) => e.kind === 'settings');
-    const name = rows.find((r) => r.libraryId === libraryId)?.name ?? 'Biblioteka';
-    await store.save({ ...(settings === undefined ? {} : { id: settings.id }), kind: 'settings', data: { ...(settings?.data ?? {}), sources: [...sourcesOf(store), { id: libraryId, kind: 'books', name }] } });
+    const name = source?.name ?? (writing ? 'Skryptorium' : 'Biblioteka');
+    /* 2026-10-23 — ein Skryptorium ist eine Quelle eigener Art (`writing`). */
+    await store.save({ ...(settings === undefined ? {} : { id: settings.id }), kind: 'settings', data: { ...(settings?.data ?? {}), sources: [...sourcesOf(store), { id: libraryId, kind: writing ? 'writing' : 'books', name }] } });
   }
   const lib = new CogitaLibrary(store, true);
   const saved = await lib.saveDoc('revision', { name: `Z kazania: ${title}`.slice(0, 120), graph: fromEntryGraph(entryId) });

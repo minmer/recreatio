@@ -167,6 +167,12 @@ button.lib-chip { cursor: pointer; }
 .lib-meta { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; font-size: var(--wk-text-sm); color: var(--wk-muted); }
 .lib-readings { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; font-size: var(--wk-text-sm); }
 .lib-readings span { color: var(--wk-muted); }
+/* 2026-10-23 — die eigenen Felder eines Textes (sein Rodzaj tekstu): „Tajemnica: Zwiastowanie". */
+.lib-type-lines { margin: 0.25rem 0 0; display: flex; flex-wrap: wrap; gap: 0.125rem 1rem; font-family: "Segoe UI", system-ui, sans-serif; font-size: var(--wk-text-sm); }
+.lib-type-lines div { display: flex; gap: 0.25rem; }
+.lib-type-lines dt { color: var(--wk-muted); }
+.lib-type-lines dt::after { content: ':'; }
+.lib-type-lines dd { margin: 0; }
 .lib-recordings { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .lib-audio { width: min(100%, 26rem); }
 .lib-video { width: 100%; max-height: 24rem; border-radius: 6px; background: #000; }

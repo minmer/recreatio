@@ -13,10 +13,11 @@
  * die Angaben stehen fertig formatiert darin.
  */
 
-import { blocksOf, commentsAbout, type Cell } from './comment';
-import { bibliography, citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from './libraryCite';
-import { ids, isSource, markupsOf, outline, ownTitle, refTarget, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
-import { parseInline, parseMarkup, plainText, walkBlocks, type Block, type Inline } from './libraryMarkup';
+import { blocksOf, commentsAbout, type Cell } from '../library/comment';
+import { bibliography, citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from '../library/libraryCite';
+import { typeLines } from './textTypes';
+import { ids, isSource, markupsOf, outline, ownTitle, refTarget, str, textTypeName, type LibEntry, type Lookup } from '../library/libraryKinds';
+import { parseInline, parseMarkup, plainText, walkBlocks, type Block, type Inline } from '../library/libraryMarkup';
 import { planOf, type PlanPoint } from './sermon';
 
 /** Was in LaTeX eine Bedeutung hat, entschärft — und die Typografie, die TeX selbst nicht errät. */
@@ -170,15 +171,17 @@ const PREAMBLE = (kind: 'article' | 'book') => [
   '\\frenchspacing'
 ].join('\n');
 
-const typeLabel = (value: string) => TEXT_TYPES.find((t) => t.value === value)?.label ?? '';
 
 /** Was über einem Text steht: Art, Datum, Anlass, Ort, Lesungen. */
-function metaLine(d: LibEntry['data']): string {
-  const meta = [typeLabel(str(d, 'textType')), str(d, 'date'), str(d, 'occasion'), str(d, 'place')].filter((s) => s.trim() !== '');
+function metaLine(d: LibEntry['data'], look: Lookup): string {
+  const meta = [textTypeName(d, look), str(d, 'date'), str(d, 'occasion'), str(d, 'place')].filter((s) => s.trim() !== '');
   const readings = str(d, 'readings');
+  /* 2026-10-23 — die eigenen Felder seines Rodzaj tekstu. */
+  const fields = typeLines(d, look).map((one) => `\\par\\noindent ${latexEscape(one.label)}: ${latexEscape(one.value)}`);
   return [
     meta.length > 0 ? `\\noindent\\textsc{${latexEscape(meta.join(' · '))}}` : '',
-    readings !== '' ? `\\par\\noindent Czytania: ${latexEscape(readings)}` : ''
+    readings !== '' ? `\\par\\noindent Czytania: ${latexEscape(readings)}` : '',
+    ...fields
   ].filter(Boolean).join('\n');
 }
 
@@ -241,7 +244,7 @@ export function textToLatex(entry: LibEntry, look: Lookup, options: { author?: s
     '\\begin{document}',
     '\\maketitle',
     project !== undefined ? `\\begin{center}\\emph{${latexEscape(str(project.data, 'title'))}}\\end{center}` : '',
-    metaLine(d),
+    metaLine(d, look),
     '',
     body,
     '',
@@ -274,7 +277,7 @@ export function projectToLatex(project: LibEntry, look: Lookup, options: { autho
       `\\chapter*{${latexEscape(title)}}`,
       `\\addcontentsline{toc}{chapter}{${latexEscape(title)}}`,
       str(text.data, 'subtitle') === '' ? '' : `\\noindent\\emph{${latexEscape(str(text.data, 'subtitle'))}}\\par\\medskip`,
-      metaLine(text.data),
+      metaLine(text.data, look),
       '',
       textBody(text, ctx, 0)
     ].filter((s) => s !== '').join('\n'));
@@ -323,7 +326,7 @@ export function planToLatex(entry: LibEntry, look: Lookup, options: { comments?:
     '',
     '\\begin{document}',
     `\\noindent{\\LARGE\\bfseries ${latexEscape(str(d, 'title') || 'Bez tytułu')}}\\par\\medskip`,
-    metaLine(d),
+    metaLine(d, look),
     '',
     planLatex(points, ctx),
     '',

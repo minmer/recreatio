@@ -65,6 +65,8 @@ const TYPE_OF: Record<LibFieldType, FieldType> = {
   select: 'choice', url: 'url', ref: 'ref', refs: 'ref', outline: 'outline',
   /* 2026-10-21 — eine Liste von Objekten (der Plan eines Textes): hier nur zum Lesen, nie geschrieben. */
   items: 'list',
+  /* 2026-10-23 — die Felder eines Rodzaj tekstu (Skryptorium); keine eingebaute Art von Nauka hat sie. */
+  fields: 'list',
   /* 2026-10-22 — die Bausteine eines Komentarza: hier nur zum Lesen, für Szablony lesbar (`blocks`, Schritt 6). */
   blocks: 'blocks'
 };

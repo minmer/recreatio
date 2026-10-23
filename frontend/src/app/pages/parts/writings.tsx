@@ -1,6 +1,7 @@
 /**
- * „ARCHIWUM TEKSTÓW" (0064) — die Texte einer Bibliothek (wer sie sieht,
- * entscheidet seit 2026-10-22 ihr Bereich):
+ * „ARCHIWUM TEKSTÓW" (0064) — die Texte eines Skryptorium (bis 2026-10-23:
+ * einer Bibliothek; eine ältere Seite nennt es noch `library`, es wird weiter
+ * gelesen). Wer sie sieht, entscheidet sein Bereich:
  * alle, die eines Projekts (ein Zyklus von Predigten, ein Buch) oder eines
  * Themas. Jeder öffnet sich ganz, an Ort und Stelle; `?t=<kennung>` in der
  * Adresse öffnet ihn gleich — ein Text des Archivs lässt sich verschicken.
@@ -23,14 +24,15 @@
 
 import { definePart, text, type RawConfig } from '../part';
 import { later } from '../../ui/later';
-import { layoutOf } from '../../library/archiveLayout';
+import { layoutOf } from '../../scriptorium/archiveLayout';
 
 /* 2026-10-17 — die Ansicht erst, wenn sie gezeigt wird (`ui/later`): eine Seite ohne diesen Baustein lädt sie nicht. */
-const WritingsCard = later(() => import('../../library/LibraryBrowse').then((m) => m.WritingsCard));
+const WritingsCard = later(() => import('../../scriptorium/ArchiveCard').then((m) => m.WritingsCard));
 
 interface WritingsConfig {
   readonly title: string;
-  readonly library: string;
+  /** 2026-10-23 — das Skryptorium (eine ältere Seite: `library`). */
+  readonly scriptorium: string;
   readonly project: string;
   readonly topic: string;
   /** 2026-10-21 — womit das Archiv beginnt: „lista", „tabela", „drzewo"; der Besucher kann wechseln. */
@@ -47,25 +49,25 @@ export const writingsPart = definePart<WritingsConfig>({
   kind: 'writings',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Kazania', library: '<id-biblioteki>', project: '<id-projektu albo puste>', topic: '<id-tematu albo puste>', layout: 'drzewo' },
+  example: { title: 'Kazania', scriptorium: '<id-skryptorium>', project: '<id-projektu albo puste>', topic: '<id-tematu albo puste>', layout: 'drzewo' },
   label: 'Archiwum tekstów',
-  use: 'Kazania i teksty z Biblioteki — z wyszukiwaniem, filtrami według aspektów, jako lista albo drzewo tematów; każdy otwiera się z planem, nagraniami i źródłami. Tabelę i macierz (np. tajemnice × okresy) daje moduł „Widok”.',
+  use: 'Kazania i teksty ze Skryptorium — z wyszukiwaniem, jako lista; każdy otwiera się z planem, nagraniami i źródłami. Tabelę i macierz (np. tajemnice × obszary) daje moduł „Widok”.',
   box: { colSpan: 6, rowSpan: 5 },
 
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Kazania' },
-    { key: 'library', label: 'Z której biblioteki', kind: 'library' },
-    { key: 'project', label: 'Tylko z projektu (cyklu, książki)', kind: 'libraryEntry', of: 'library', entryKinds: ['project'], optional: true },
-    { key: 'topic', label: 'Tylko z tematu', kind: 'libraryEntry', of: 'library', entryKinds: ['topic'], optional: true },
+    { key: 'scriptorium', label: 'Ze skryptorium', kind: 'scriptorium' },
+    { key: 'project', label: 'Tylko z projektu (cyklu, książki)', kind: 'libraryEntry', of: 'scriptorium', entryKinds: ['project'], optional: true },
+    { key: 'topic', label: 'Tylko z tematu', kind: 'libraryEntry', of: 'scriptorium', entryKinds: ['topic'], optional: true },
     { key: 'layout', label: 'Na początek', kind: 'line', hint: 'lista albo drzewo — odwiedzający może zmienić (tabela: moduł „Widok”)' }
   ],
 
   read: (raw: RawConfig): WritingsConfig => ({
-    title: text(raw, 'title'), library: text(raw, 'library'), project: text(raw, 'project'), topic: text(raw, 'topic'), layout: text(raw, 'layout')
+    title: text(raw, 'title'), scriptorium: text(raw, 'scriptorium') || text(raw, 'library'), project: text(raw, 'project'), topic: text(raw, 'topic'), layout: text(raw, 'layout')
   }),
 
-  hasContent: (c) => c.library !== '',
-  missing: (c) => (c.library === '' ? 'Wybierz bibliotekę.' : null),
+  hasContent: (c) => c.scriptorium !== '',
+  missing: (c) => (c.scriptorium === '' ? 'Wybierz skryptorium.' : null),
 
   fullscreen: true,
   shows: (c, size) => size.height === 'strip' ? 'Najnowszy tekst — tytuł i data.'
@@ -74,7 +76,7 @@ export const writingsPart = definePart<WritingsConfig>({
 
   View: ({ config, ctx }) => (
     <WritingsCard
-      library={config.library} title={config.title} project={config.project} topic={config.topic} layout={config.layout}
+      library={config.scriptorium} title={config.title} project={config.project} topic={config.topic} layout={config.layout}
       size={ctx.size} whole={ctx.whole === true} prefix={`a${ctx.moduleId.slice(0, 8)}-`}
     />
   )

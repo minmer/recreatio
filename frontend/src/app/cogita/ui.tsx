@@ -211,14 +211,16 @@ export function creatorFor(lib: CogitaLibrary, kinds: readonly string[] | undefi
 
 /** Der Weg zu einem Eintrag dort, wo er hingehört: in seiner Baza wiedzy (ihr Reiter) oder in seiner Bibliothek. */
 export const originPath = (origin: Origin, id: string, tab: string): string =>
-  origin.kind === 'books' ? viewPath('library', origin.libraryId, id) : viewPath('learn', origin.libraryId, tab, id);
+  origin.kind === 'books' ? viewPath('library', origin.libraryId, id)
+    : origin.kind === 'writing' ? viewPath('scriptorium', origin.libraryId, id)
+    : viewPath('learn', origin.libraryId, tab, id);
 
 /** Ein Schildchen, woher ein Eintrag kommt — nichts, wenn er hierher gehört. */
 export function OriginTag({ id }: { id: string }) {
   const { lib } = useCtx();
   const from = lib.origin(id);
   if (from === undefined || from.own) return null;
-  return <span className="cg-tag" title={from.kind === 'books' ? 'z biblioteki — tylko do odwołań' : 'z innej bazy wiedzy — tu tylko do odczytu'}>{from.name}</span>;
+  return <span className="cg-tag" title={from.kind === 'books' ? 'z biblioteki — tylko do odwołań' : from.kind === 'writing' ? 'ze skryptorium — tylko do odwołań' : 'z innej bazy wiedzy — tu tylko do odczytu'}>{from.name}</span>;
 }
 
 /**

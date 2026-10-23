@@ -531,8 +531,8 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
         ) : field.kind === 'calendarItem' ? (
           <PickCalendarItem calendarId={config[field.of ?? ''] ?? ''} value={value} busy={busy}
             onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }} />
-        ) : field.kind === 'library' || field.kind === 'knowledge' ? (
-          <PickLibrary kind={field.kind === 'knowledge' ? 'knowledge' : 'books'} value={value} busy={busy} onPick={(id) => void save(field.key, id)} />
+        ) : field.kind === 'library' || field.kind === 'knowledge' || field.kind === 'scriptorium' ? (
+          <PickLibrary kind={field.kind === 'knowledge' ? 'knowledge' : field.kind === 'scriptorium' ? 'writing' : 'books'} value={value} busy={busy} onPick={(id) => void save(field.key, id)} />
         ) : field.kind === 'libraryEntry' ? (
           <PickLibraryEntry library={config[field.of ?? ''] ?? ''} kinds={field.entryKinds ?? ['text']} value={value} busy={busy} optional={field.optional} onPick={(id) => void save(field.key, id)} />
         ) : field.kind === 'resource' ? (

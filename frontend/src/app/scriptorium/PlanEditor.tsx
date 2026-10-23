@@ -20,15 +20,14 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 
 import { JsonPanel } from '../ui/JsonPanel';
-import { exportLibrary, patchFromDoc } from './libraryJson';
-import { POINT_KINDS, refTarget, str, type EntryData, type LibEntry } from './libraryKinds';
-import type { LibraryStore } from './libraryStore';
-import { QuoteFigure } from './LibraryText';
-import { commentsAbout } from './comment';
-import { viewPath } from '../routes';
+import { patchFromDoc } from '../library/libraryJson';
+import { exportScriptorium, SCRIPTORIUM_SPEC } from './scriptoriumJson';
+import { POINT_KINDS, refTarget, str, type EntryData, type LibEntry } from '../library/libraryKinds';
+import type { LibraryStore } from '../library/libraryStore';
+import { QuoteFigure } from '../library/LibraryText';
 import { CitePicker } from './WritingTools';
 import { embedOf, newPointId, planFromText, planOf, planPrompt, pointData, pointNumbers, type PlanPoint } from './sermon';
-import { BasePicker } from './BasePicker';
+import { BasePicker } from '../library/BasePicker';
 
 /** Ein Punkt — das Feld wächst mit seinem Text. */
 function PointText({ point, readOnly, register, onFocus, onChange, onKey }: {
@@ -288,7 +287,6 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
                   />
                   {quoteEntry !== undefined && quoteEntry.kind === 'quote' && <QuoteFigure entry={quoteEntry} look={store} full={false} />}
                   {quote !== null && quoteEntry === undefined && <p className="lib-missing">Nie ma w bibliotece cytatu „{quote}”.</p>}
-                  <PointComments store={store} text={text} point={p.id} focused={focused === p.id} readOnly={readOnly} />
                 </div>
               </li>
             );
@@ -322,17 +320,17 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
           summary="Plan z treści — przez AI we własnym czacie"
           lead={<>Skopiuj polecenie (z treścią tekstu), wklej je w swoim czacie, a odpowiedź — JSON — wklej tutaj. Plan trafi do tego formularza{points.length > 0 ? ' i zastąpi obecny' : ''}.</>}
           fileName={`plan-${text.key ?? text.id.slice(0, 8)}.json`}
-          exportDoc={() => exportLibrary('plan', [{ ...text, data: { plan: points.map(pointData) } }], store)}
+          exportDoc={() => exportScriptorium('plan', [{ ...text, data: { plan: points.map(pointData) } }], store)}
           description={() => planPrompt(text)}
           preview={(doc) => {
-            const found = patchFromDoc(doc, { id: text.id, kind: 'text' }, store);
+            const found = patchFromDoc(doc, { id: text.id, kind: 'text' }, store, SCRIPTORIUM_SPEC);
             if ('error' in found) return found;
             const plan = planOf({ plan: found.patch.plan });
             return plan.length === 0 ? { error: 'W odpowiedzi nie ma planu ("plan").' } : { lines: [`Plan: ${plan.length} punktów, ${plan.filter((p) => p.depth === 0).length} głównych myśli.`], warnings: found.warnings };
           }}
           importLabel="Wpisz plan do formularza"
           onImport={async (doc) => {
-            const found = patchFromDoc(doc, { id: text.id, kind: 'text' }, store);
+            const found = patchFromDoc(doc, { id: text.id, kind: 'text' }, store, SCRIPTORIUM_SPEC);
             if ('error' in found) throw new Error(found.error);
             set({ plan: found.patch.plan ?? [] });
             return { lines: ['Plan jest w formularzu — zapisze się sam.'], warnings: found.warnings };
@@ -340,22 +338,5 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
         />
       )}
     </div>
-  );
-}
-
-/**
- * 2026-10-22 — STATT DER NOTIZ AM PUNKT: die Komentarze über diesen Punkt
- * (ein Komentarz mit dem Text und dem Punkt als Gegenstand). Wer sie sieht,
- * sagt der Bereich ihrer Bibliothek — eine Notiz für sich gehört in die
- * private Bibliothek.
- */
-function PointComments({ store, text, point, focused, readOnly }: { store: LibraryStore; text: LibEntry; point: string; focused: boolean; readOnly: boolean }) {
-  const about = commentsAbout(text.id, store.readable(), point);
-  if (about.length === 0 && (!focused || readOnly)) return null;
-  return (
-    <p className="lib-plan-comments">
-      {about.map((c) => <a key={c.id} href={viewPath('library', c.libraryId, c.id)}>{store.title(c)}</a>)}
-      {!readOnly && <a className="wk-link-btn" href={viewPath('library', store.libraryId, 'nowy', 'comment', `o=${text.id}&p=${point}`)}>+ Komentarz do punktu</a>}
-    </p>
   );
 }

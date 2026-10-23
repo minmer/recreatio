@@ -62,7 +62,7 @@ export { isYes, YES } from '${app}forms/form';
 export { linkSecrets, aimOf } from '${app}links/linkAccess';
 export { keepLinkFromAddress, linkHref, freshLink } from '${app}links/linkKeep';
 export { safeLink, itemFieldAad, linkWord, putText, emptyTexts } from '${app}calendar/calendar';
-export { latexEscape, textToLatex, projectToLatex, missingKeys } from '${app}library/libraryLatex';
+export { latexEscape, textToLatex, projectToLatex, missingKeys } from '${app}scriptorium/latex';
 export { openProgram, countParts } from '${app}calendar/program';
 export { placeDay, treeOrder, taskMarks, marksOn, railDay } from '${app}calendar/calendarModel';
 export { titleFrom } from '${app}chat/chatTopics';

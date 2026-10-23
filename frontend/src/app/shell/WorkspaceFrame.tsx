@@ -105,7 +105,8 @@ export function useNav(): Nav {
       entry('bookings', 'Rezerwacje', 'key', bookings),
       entry('registry', 'Kartoteka i kolęda', 'place')
     ],
-    knowledge: [entry('library', 'Biblioteka', 'book'), entry('learn', 'Nauka', 'cap')],
+    /* 2026-10-23 — drei Teile: Źródła (Biblioteka), Pisanie (Skryptorium), Wiedza (Nauka). */
+    knowledge: [entry('library', 'Biblioteka', 'book'), entry('scriptorium', 'Skryptorium', 'compose'), entry('learn', 'Nauka', 'cap')],
     settings: [entry('modules', 'Moduły', 'blocks'), entry('roles', 'Role', 'badge'), entry('addresses', 'Adresy i domeny', 'at')]
   };
 }

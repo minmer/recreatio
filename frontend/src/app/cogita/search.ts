@@ -9,7 +9,7 @@
  * Przebiegi, Szablony, Rodzaje, Widoki).
  */
 
-import { openedLibraryKind, openedLibraryNames } from '../library/library';
+import { containerPath, openedLibraryKind, openedLibraryNames } from '../library/library';
 import { kindOf } from '../library/libraryKinds';
 import { loadedStores } from '../library/libraryStore';
 import { viewPath } from '../routes';
@@ -34,14 +34,16 @@ const DOC_TAB: Partial<Record<DocKind, readonly string[]>> = {
 export function libraryHits(): SearchEntry[] {
   const names = openedLibraryNames();
   const isBase = (libraryId: string) => openedLibraryKind(libraryId) === 'knowledge';
+  /* 2026-10-23 — drei Teile: Bibliothek, Skryptorium, Baza wiedzy. */
+  const partName = (libraryId: string) => (isBase(libraryId) ? 'Baza wiedzy' : openedLibraryKind(libraryId) === 'writing' ? 'Skryptorium' : 'Biblioteka');
   const out: SearchEntry[] = [...names].map(([libraryId, name]) => ({
     id: `library:${libraryId}`, label: name,
-    kind: isBase(libraryId) ? 'Baza wiedzy' : 'Biblioteka',
-    href: isBase(libraryId) ? viewPath('learn', libraryId) : viewPath('library', libraryId)
+    kind: partName(libraryId),
+    href: isBase(libraryId) ? viewPath('learn', libraryId) : containerPath(libraryId)
   }));
   for (const store of loadedStores()) {
     const base = isBase(store.libraryId);
-    const where = names.get(store.libraryId) ?? (base ? 'Baza wiedzy' : 'Biblioteka');
+    const where = names.get(store.libraryId) ?? partName(store.libraryId);
     const lib = new CogitaLibrary(store, false);
     let count = 0;
     for (const entity of lib.entities()) {
@@ -51,7 +53,7 @@ export function libraryHits(): SearchEntry[] {
         id: `entry:${entity.id}`,
         label: lib.label(entity),
         kind: lib.kind(entity.kinds[0] ?? '')?.name ?? builtIn?.label ?? 'Wpis',
-        href: base ? viewPath('learn', store.libraryId, 'wpisy', entity.id) : viewPath('library', store.libraryId, entity.id),
+        href: base ? viewPath('learn', store.libraryId, 'wpisy', entity.id) : containerPath(store.libraryId, entity.id),
         hint: where
       });
     }

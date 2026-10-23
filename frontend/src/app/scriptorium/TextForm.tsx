@@ -1,123 +1,40 @@
 /**
- * Einen Eintrag der Bibliothek schreiben: Felder, Text mit Zitaten, Gliederung.
+ * EINEN TEXT SCHREIBEN (Skryptorium, seit 2026-10-23; vorher in der Bibliothek):
+ * Text mit Zitaten, und der Plan eines Projekts.
  *
  * 2026-10-21 — der Text hat drei Teile: Plan (die Hauptgedanken mit Zitaten,
- * `PlanEditor.tsx`), Treść und Dalsze informacje; Themen werden, wo die
- * Bibliothek Aspekte hat, Achse für Achse gewählt (`TopicPick.tsx`).
+ * `PlanEditor.tsx`), Treść und Dalsze informacje. Die einfachen Felder zeichnet
+ * `library/LibraryFields.tsx` (dieselben wie bei den Quellen).
  */
 
-import { type ReactNode, useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { count } from '../pages/event/kit';
 import { viewPath } from '../routes';
-import type { OpenLibrary } from './library';
-import { bibliography, segText, workBehind } from './libraryCite';
-import { MARKUP_DOC } from './libraryJson';
-import { type EntryData, type LibEntry, type LibField, type OutlineItem, TEXT_STATUS, ids, kindOf, num, refTarget, str, wordCount } from './libraryKinds';
-import { citedKeys } from './libraryMarkup';
-import { RefPicker } from './LibraryPick';
-import type { Entry, LibraryStore } from './libraryStore';
-import { TextArticle } from './LibraryText';
-import { Segs } from './markupView';
+import { containerPath } from '../library/library';
+import type { OpenLibrary } from '../library/library';
+import { bibliography, segText, workBehind } from '../library/libraryCite';
+import { MARKUP_DOC } from '../library/libraryJson';
+import { type EntryData, type LibEntry, type OutlineItem, TEXT_STATUS, ids, num, refTarget, str, wordCount } from '../library/libraryKinds';
+import { citedKeys } from '../library/libraryMarkup';
+import { FieldList } from '../library/LibraryFields';
+import type { Entry, LibraryStore } from '../library/libraryStore';
+import { TextArticle } from './TextArticle';
+import { Segs } from '../library/markupView';
 import { PlanEditor } from './PlanEditor';
 import { planOf } from './sermon';
-import { TopicsField } from './TopicPick';
 import { WritingArea } from './WritingTools';
-
-/* -- Felder ---------------------------------------------------------------------------------- */
-
-export function FieldList({ store, kind, data, set, readOnly, skip = [], only, extras = {} }: {
-  store: LibraryStore;
-  kind: string;
-  data: EntryData;
-  set: (patch: EntryData) => void;
-  readOnly: boolean;
-  skip?: readonly string[];
-  /** 2026-10-21 — nur diese Felder, in der Reihenfolge der Art (ein Formular in Abschnitten). */
-  only?: readonly string[];
-  /** Was unter einem Feld steht — Knöpfe, Hinweise (bei der ISBN: scannen, Katalog). */
-  extras?: Readonly<Record<string, ReactNode>>;
-}) {
-  const def = kindOf(kind)!;
-  return (
-    <div className="lib-fields">
-      {def.fields.filter((f) => !skip.includes(f.key) && (only === undefined || only.includes(f.key))
-        && f.type !== 'outline' && f.type !== 'markup' && f.type !== 'items' && (f.when === undefined || f.when(data))).map((field) => (
-        <FieldInput key={field.key} store={store} field={field} data={data} set={set} readOnly={readOnly} extra={extras[field.key]} />
-      ))}
-    </div>
-  );
-}
-
-function FieldInput({ store, field, data, set, readOnly, extra }: {
-  store: LibraryStore;
-  field: LibField;
-  data: EntryData;
-  set: (patch: EntryData) => void;
-  readOnly: boolean;
-  extra?: ReactNode;
-}) {
-  const value = str(data, field.key);
-  const label = <span>{field.label}</span>;
-  const wide = field.type === 'text' || field.type === 'refs' || field.key === 'title';
-
-  if (field.type === 'ref' || field.type === 'refs') {
-    /* 2026-10-21 — Themen Achse für Achse, wo die Bibliothek Aspekte hat. */
-    const topics = field.type === 'refs' && field.to?.length === 1 && field.to[0] === 'topic';
-    return (
-      <div className={`wk-field lib-field${wide ? ' is-wide' : ''}`}>
-        {label}
-        {topics ? (
-          <TopicsField store={store} value={ids(data, field.key)} readOnly={readOnly} onChange={(next) => set({ [field.key]: next })} />
-        ) : (
-          <RefPicker store={store} kinds={field.to ?? []} value={ids(data, field.key)} multiple={field.type === 'refs'} busy={readOnly}
-            onChange={(next) => set({ [field.key]: field.type === 'ref' ? (next[0] ?? '') : next })} />
-        )}
-      </div>
-    );
-  }
-
-  let input: ReactNode;
-  if (field.type === 'select') {
-    input = (
-      <select value={value} disabled={readOnly} onChange={(e) => set({ [field.key]: e.target.value })}>
-        <option value="">—</option>
-        {(field.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    );
-  } else if (field.type === 'text') {
-    input = <textarea rows={field.key === 'text' ? 6 : 3} value={value} placeholder={field.hint} disabled={readOnly} onChange={(e) => set({ [field.key]: e.target.value })} />;
-  } else {
-    input = (
-      <input
-        type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : field.type === 'url' ? 'url' : 'text'}
-        step={field.type === 'number' ? 'any' : undefined}
-        min={field.type === 'number' ? 0 : undefined}
-        value={field.type === 'number' ? (num(data, field.key) ?? '') : value}
-        placeholder={field.hint}
-        disabled={readOnly}
-        onChange={(e) => set({ [field.key]: field.type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value })}
-      />
-    );
-  }
-
-  if (extra === undefined || extra === null) return <label className={`wk-field lib-field${wide ? ' is-wide' : ''}`}>{label}{input}</label>;
-  return (
-    <div className={`lib-field-with${wide ? ' is-wide' : ''}`}>
-      <label className="wk-field lib-field">{label}{input}</label>
-      {extra}
-    </div>
-  );
-}
 
 /* -- Der Text: schreiben mit Quellen ------------------------------------------------------------- */
 
-export function TextForm({ store, entry, data, set, readOnly }: {
+export function TextForm({ store, entry, data, set, readOnly, typeFields }: {
   store: LibraryStore;
   entry: LibEntry;
   data: EntryData;
   set: (patch: EntryData) => void;
   readOnly: boolean;
+  /** 2026-10-23 — die Felder seines Rodzaj tekstu (`TypeFields.tsx`), unter den Daten des Textes. */
+  typeFields?: ReactNode;
 }) {
   const [view, setView] = useState<'write' | 'preview' | 'both'>(() => (window.matchMedia?.('(min-width: 70rem)').matches === true ? 'both' : 'write'));
   /* 2026-10-21 — ein neuer Text (und einer, der schon einen Plan hat) beginnt beim Plan; ein geschriebener bei der Treść. */
@@ -161,15 +78,16 @@ export function TextForm({ store, entry, data, set, readOnly }: {
         )}
         {view !== 'write' && (
           <div className="lib-preview" aria-label="Podgląd">
-            <TextArticle entry={entry} look={store} prefix="pv-" hrefOf={(e) => viewPath('library', store.libraryId, e.id)} />
+            <TextArticle entry={entry} look={store} prefix="pv-" hrefOf={(e) => (e.kind === 'entity' ? undefined : containerPath((store.homeOf(e.id) ?? store).libraryId, e.id))} />
           </div>
         )}
       </div>
       {missing.length > 0 && <p className="wk-warn">Nie ma w bibliotece: {missing.map((k) => `[@${k}]`).join(', ')} — te przypisy będą puste.</p>}
 
-      <details className="wk-fold lib-meta-fold" open={str(data, 'date') === '' && str(data, 'body') === ''}>
-        <summary>Dane tekstu — rodzaj, data, czytania, projekt, tematy, nagranie</summary>
+      <details className="wk-fold lib-meta-fold" open={(str(data, 'date') === '' && str(data, 'body') === '') || typeFields !== undefined}>
+        <summary>Dane tekstu — rodzaj, data, czytania, projekt, nagranie{typeFields !== undefined ? ' i pola rodzaju' : ''}</summary>
         <FieldList store={store} kind="text" data={data} set={set} readOnly={readOnly} skip={['title']} />
+        {typeFields}
       </details>
 
       <details className="wk-fold">
@@ -223,7 +141,7 @@ export function OutlineEditor({ store, library, project, value, readOnly, onChan
             {'heading' in item ? (
               <input value={item.heading} disabled={readOnly} aria-label="Nagłówek części" onChange={(e) => onChange(items.map((x, j) => (j === i ? { heading: e.target.value } : x)))} />
             ) : (
-              <a href={viewPath('library', library.libraryId, item.text)}>
+              <a href={viewPath('scriptorium', library.libraryId, item.text)}>
                 {store.title(store.get(item.text)!)}
                 <span className="lib-row-meta"> · {TEXT_STATUS.find((s) => s.value === str(store.get(item.text)!.data, 'status'))?.label ?? 'Szkic'} · {count(wordCount(str(store.get(item.text)!.data, 'body')), 'słowo', 'słowa', 'słów')}</span>
               </a>
@@ -244,7 +162,7 @@ export function OutlineEditor({ store, library, project, value, readOnly, onChan
           <ul>
             {outside.map((t) => (
               <li key={t.id}>
-                <a href={viewPath('library', library.libraryId, t.id)}>{store.title(t)}</a>{' '}
+                <a href={viewPath('scriptorium', library.libraryId, t.id)}>{store.title(t)}</a>{' '}
                 {!readOnly && <button type="button" className="wk-link-btn" onClick={() => onChange([...items, { text: t.id }])}>dodaj do planu</button>}
               </li>
             ))}
@@ -255,7 +173,7 @@ export function OutlineEditor({ store, library, project, value, readOnly, onChan
         <div className="wk-actions">
           <input value={heading} placeholder="Nagłówek części, np. Część I" onChange={(e) => setHeading(e.target.value)} aria-label="Nowy nagłówek" />
           <button type="button" className="wk-link-btn" disabled={heading.trim() === ''} onClick={() => { onChange([...items, { heading: heading.trim() }]); setHeading(''); }}>+ Nagłówek</button>
-          <a className="wk-btn" href={viewPath('library', library.libraryId, 'nowy', 'text', `project=${project.id}`)}>+ Nowy tekst w projekcie</a>
+          <a className="wk-btn" href={viewPath('scriptorium', library.libraryId, 'nowy', 'text', `project=${project.id}`)}>+ Nowy tekst w projekcie</a>
         </div>
       )}
       {bib.length > 0 && (

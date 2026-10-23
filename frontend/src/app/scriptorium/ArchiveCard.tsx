@@ -30,13 +30,13 @@ import { LAYOUTS, layoutOf, layoutWord, type Layout } from './archiveLayout';
 import {
   archiveRow, browseLocal, choose, facetKey, hashParam, orderOf, PROJECTS, setHashParams, yearOf,
   type ArchiveRow, type Order
-} from './browse';
-import { usePageLibrary } from './libraryOpen';
-import type { LibraryStore } from './libraryStore';
-import { WritingCard } from './LibraryPublic';
-import { dateWords } from './LibraryText';
-import { str } from './libraryKinds';
-import { facetsOf, topicNode, topicTree, type Facet, type TopicNode, type TopicTree } from './topics';
+} from './archive';
+import { usePageLibrary } from '../library/libraryOpen';
+import type { LibraryStore } from '../library/libraryStore';
+import { WritingCard } from './WritingCard';
+import { dateWords } from './TextArticle';
+import { str } from '../library/libraryKinds';
+import { facetsOf, topicNode, topicTree, type Facet, type TopicNode, type TopicTree } from '../library/topics';
 
 const PAGE = 30;
 
@@ -89,7 +89,7 @@ export function WritingsCard({ library, title, project, topic, layout, size, who
   }
 
   if (state === 'loading') return <div ref={top} className="lib-archive-wrap"><Head title={title} /><Loading label="Wczytywanie…" /></div>;
-  if (store === null) return <div ref={top} className="lib-archive-wrap"><Head title={title} /><p className="wk-card-text">Tej biblioteki nie widzisz — jej obszar nie jest publiczny.</p></div>;
+  if (store === null) return <div ref={top} className="lib-archive-wrap"><Head title={title} /><p className="wk-card-text">Tego skryptorium nie widzisz — jego obszar nie jest publiczny.</p></div>;
 
   return (
     <div ref={top} className="lib-archive-wrap">
@@ -398,7 +398,7 @@ function TreeNav({ shape, facets, chosen, keyOf, countOf, onPick }: {
   const facet = facets.find((f) => f.id === facetId) ?? facets[0];
   /* Offen: der Weg zum Gewählten. */
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set(chosen.flatMap((id) => shape.tree.ancestors(id).map((a) => a.id))));
-  if (facet === undefined) return <nav className="lib-tree" aria-label="Drzewo tematów"><p className="wk-card-text">Ta biblioteka nie ma jeszcze tematów.</p></nav>;
+  if (facet === undefined) return <nav className="lib-tree" aria-label="Drzewo tematów"><p className="wk-card-text">Teksty nie mają tematów.</p></nav>;
 
   const childrenOf = (id: string | null): readonly TopicNode[] => {
     if (facet.id === PROJECTS) return id === null ? shape.projects.map(projectNode) : [];

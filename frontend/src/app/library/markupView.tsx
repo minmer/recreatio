@@ -245,7 +245,8 @@ export function CommentCard({ comment, look, prefix, about = false }: { comment:
   const notes = useMemo(() => {
     const blocks = parsedComment(comment).flatMap((b) => (b.type === 'paragraph' ? [b.blocks] : []));
     return countNotes(blocks, look);
-  }, [comment, look]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comment, look, look.revision]);
   return (
     <aside className="lib-comment">
       <StatementMarks comment={comment} look={look} />

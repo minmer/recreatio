@@ -393,11 +393,18 @@ export const VIEWS = {
   forms: 'Formularze',
 
   /*
-   * 0064 — DIE BIBLIOTHEK: Werke, Zitate, Personen, Themen und die eigenen
-   * Texte. Vor den Bausteinen, weil Seiten aus ihr zeigen (Predigten,
-   * Zitatsammlung) — und weil Cogita auf ihr aufbaut.
+   * 0064 — DIE BIBLIOTHEK: seit 2026-10-23 nur Quellen — Werke, Zitate,
+   * Personen. Vor den Bausteinen, weil Seiten aus ihr zeigen
+   * (Zitatsammlung) — und weil Skryptorium und Cogita auf ihr aufbauen.
    */
   library: 'Biblioteka',
+
+  /*
+   * 2026-10-23 (0124) — DAS SKRYPTORIUM: die eigenen Texte, ihre
+   * Wygłoszenia, Projekte und Rodzaje tekstów. Zwischen Bibliothek und
+   * Nauka: es zitiert aus der einen und verweist auf die andere.
+   */
+  scriptorium: 'Skryptorium',
 
   /*
    * 0109 — NAUKA: was jetzt dran ist, Sitzungen, das Lernen ohne Netz — und

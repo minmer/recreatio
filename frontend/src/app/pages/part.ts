@@ -144,6 +144,8 @@ export interface PartContext {
 export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'calendar' | 'calendars' | 'chat' | 'library' | 'libraryEntry'
   /* 0110 — eine Baza wiedzy (Cogita), gewählt aus den eigenen; `library` wählt eine Bibliothek. */
   | 'knowledge'
+  /* 2026-10-23 — ein Skryptorium (Texte, Wygłoszenia), gewählt aus den eigenen. */
+  | 'scriptorium'
   /* 0070 — ein Termin eines Kalenders (`of` nennt das Feld mit dem Kalender). */
   | 'calendarItem'
   /* 0082 — eine Seite (ihr Pfad), gewählt aus den eigenen. */
@@ -361,8 +363,9 @@ const FIELD_SAYS: Record<FieldKind, string> = {
   calendars: 'lista identyfikatorów kalendarzy — najprościej wybrać w edytorze',
   chat: 'identyfikator rozmowy grupy — najprościej wybrać w edytorze',
   library: 'identyfikator biblioteki — najprościej wybrać w edytorze',
+  scriptorium: 'identyfikator skryptorium — najprościej wybrać w edytorze',
   knowledge: 'identyfikator bazy wiedzy (Cogita) — najprościej wybrać w edytorze',
-  libraryEntry: 'identyfikator wpisu biblioteki albo bazy wiedzy — najprościej wybrać w edytorze',
+  libraryEntry: 'identyfikator wpisu biblioteki, skryptorium albo bazy wiedzy — najprościej wybrać w edytorze',
   calendarItem: 'identyfikator terminu z wybranego kalendarza — najprościej wybrać w edytorze',
   page: 'ścieżka strony, np. "parafia/bierzmowanie/kandydat" — najprościej wybrać w edytorze'
 };

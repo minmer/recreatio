@@ -101,11 +101,15 @@ public static partial class Library
      */
     public sealed record LibraryRequest(string? LibraryId, string? AreaId, int Epoch, string? NameSealed, string? Kind = null);
 
-    /// <summary>Was eine Bibliothek ist — `null`, wenn das Wort keines ist.</summary>
+    /// <summary>
+    /// Was eine Bibliothek ist — `null`, wenn das Wort keines ist. 2026-10-23
+    /// (0124): dazu das Skryptorium (`writing`) — Texte, Wygłoszenia, Projekte.
+    /// </summary>
     public static string? LibraryKind(string? kind) => (kind ?? "").Trim() switch
     {
         "" or "books" => "books",
         "knowledge" => "knowledge",
+        "writing" => "writing",
         _ => null
     };
 
@@ -207,24 +211,28 @@ public static partial class Library
         if (name is null) { await Fail(ctx, StatusCodes.Status400BadRequest, error); return; }
 
         var kind = LibraryKind(body.Kind);
-        if (kind is null) { await Fail(ctx, StatusCodes.Status400BadRequest, "Biblioteka (books) albo baza wiedzy (knowledge)."); return; }
+        if (kind is null) { await Fail(ctx, StatusCodes.Status400BadRequest, "Biblioteka (books), baza wiedzy (knowledge) albo skryptorium (writing)."); return; }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
         if (!await Area.MayAsync(connection, who.Value.AccountId, areaId, Capability.Write, ctx.RequestAborted))
         {
-            await Fail(ctx, StatusCodes.Status403Forbidden, kind == "knowledge" ? "W tym obszarze nie możesz zakładać baz wiedzy." : "W tym obszarze nie możesz zakładać bibliotek.");
+            await Fail(ctx, StatusCodes.Status403Forbidden, kind switch { "knowledge" => "W tym obszarze nie możesz zakładać baz wiedzy.", "writing" => "W tym obszarze nie możesz zakładać skryptorium.", _ => "W tym obszarze nie możesz zakładać bibliotek." });
             return;
         }
 
-        /* 2026-10-22 — jeder Bereich hat SEINE Bibliothek: wer liest, entscheidet der Bereich, also gibt es je Bereich eine. */
-        if (kind == "books")
+        /*
+         * 2026-10-22 — jeder Bereich hat SEINE Bibliothek: wer liest, entscheidet der Bereich, also gibt es je Bereich eine.
+         * 2026-10-23 (0124) — ebenso höchstens ein Skryptorium.
+         */
+        if (kind is "books" or "writing")
         {
-            await using var taken = new SqlCommand("SELECT COUNT(*) FROM app.library WHERE area_id = @area AND kind = N'books';", connection);
+            await using var taken = new SqlCommand("SELECT COUNT(*) FROM app.library WHERE area_id = @area AND kind = @kind;", connection);
             taken.Parameters.AddWithValue("@area", areaId);
+            taken.Parameters.AddWithValue("@kind", kind);
             if ((int)(await taken.ExecuteScalarAsync(ctx.RequestAborted))! > 0)
             {
-                await Fail(ctx, StatusCodes.Status409Conflict, "Ten obszar ma już swoją bibliotekę.");
+                await Fail(ctx, StatusCodes.Status409Conflict, kind == "writing" ? "Ten obszar ma już swoje skryptorium." : "Ten obszar ma już swoją bibliotekę.");
                 return;
             }
         }

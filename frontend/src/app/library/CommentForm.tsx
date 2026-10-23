@@ -16,9 +16,9 @@ import { refLabel } from './libraryCite';
 import { KINDS, type EntryData, type LibEntry } from './libraryKinds';
 import { RefPicker } from './LibraryPick';
 import type { LibraryStore } from './libraryStore';
-import { FieldList } from './LibraryTextForm';
+import { FieldList } from './LibraryFields';
 import { CommentCard, StatementMarks } from './markupView';
-import { planOf, pointLine, pointNumbers } from './sermon';
+import { planOf, pointLine, pointNumbers } from '../scriptorium/sermon';
 
 const ANY = KINDS.map((k) => k.kind);
 type BlockType = CommentBlock['type'];

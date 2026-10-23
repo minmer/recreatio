@@ -1,25 +1,27 @@
 /**
- * Die Kästen unter einem Eintrag: Schlüssel, LaTeX, JSON, Löschen. Die
- * Beziehungen stehen seit 2026-10-22 in `LibraryRelations.tsx`. Wer ihn liest, sagt
- * `LibraryAreaBox.tsx` (seit 2026-10-22 statt „Opublikuj").
+ * Die Kästen neben einem Eintrag — in der Bibliothek und im Skryptorium
+ * (2026-10-23): Schlüssel, JSON, Löschen. Die Beziehungen stehen in
+ * `LibraryRelations.tsx`, wer ihn liest in `LibraryAreaBox.tsx`; LaTeX und
+ * die Powtórka eines Textes im Skryptorium (`scriptorium/WritingBoxes.tsx`).
+ *
+ * Welches Format ein Eintrag hat, sagt sein Teil (`EntryFormat`): die
+ * Bibliothek `recreatio/library`, das Skryptorium `recreatio/scriptorium`.
  */
 
 import { useEffect, useState } from 'react';
 
-import { saveBlob } from '../core/platform';
-import { useRemembered } from '../core/prefs';
 import { WorkspaceError } from '../core/session';
-import { viewPath } from '../routes';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
-import type { OpenLibrary } from './library';
-import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJson';
-import { type LibEntry, isKey, kindOf, entryTitle } from './libraryKinds';
-import { latexFileName, missingKeys, planToLatex, projectToLatex, textToLatex } from './libraryLatex';
+import type { LibraryImportPlan } from './libraryJson';
+import { type LibEntry, isKey, kindOf } from './libraryKinds';
 import type { Entry, LibraryStore } from './libraryStore';
-import { planOf } from './sermon';
-import { useMe, useWho } from '../core/me';
 
-export const TAB_OF: Record<string, string> = { text: 'teksty', delivery: 'wyglaszenia', comment: 'komentarze', project: 'projekty', quote: 'cytaty', work: 'zrodla', person: 'osoby', topic: 'tematy' };
+/** 2026-10-23 — wie ein Teil seine Einträge als JSON nimmt und gibt. */
+export interface EntryFormat {
+  readonly plan: (doc: unknown) => LibraryImportPlan | { error: string };
+  readonly exportDoc: (entries: readonly LibEntry[]) => Record<string, unknown>;
+  readonly describe: () => string;
+}
 
 /* -- Der Schlüssel ------------------------------------------------------------------------------ */
 
@@ -60,85 +62,6 @@ export function KeyBox({ store, id, value, readOnly, onChange }: {
   );
 }
 
-/* -- LaTeX (Druck) ------------------------------------------------------------------------------- */
-
-/**
- * DRUCKEN HEISST LaTeX. Ein Text (oder ein ganzes Projekt als Buch) als
- * `.tex`: Fussnoten mit den Quellen, Zitate mit Herkunft, Źródła am Ende —
- * dasselbe, was die Seite zeigt, für `pdflatex` (`libraryLatex.ts`).
- */
-export function LatexBox({ store, entry }: { store: LibraryStore; entry: LibEntry }) {
-  const [shown, setShown] = useState(false);
-  const [author, setAuthor] = useRemembered('library.latex.author', '');
-  const missing = entry.kind === 'text' ? missingKeys(entry, store) : [];
-  const source = () => (entry.kind === 'project'
-    ? projectToLatex(entry, store, { author })
-    : textToLatex(entry, store, { author }));
-
-  return (
-    <section className="lib-box">
-      <h2 className="lib-box-h">LaTeX</h2>
-      <p className="wk-hint">{entry.kind === 'project' ? 'Cały projekt jako książka: części, rozdziały, przypisy, źródła na końcu.' : 'Tekst do druku: przypisy ze źródłami, cytaty, źródła na końcu.'}</p>
-      <label className="wk-field">
-        <span>Autor (na stronie tytułowej)</span>
-        <input value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="np. ks. Jan Kowalski" />
-      </label>
-      {missing.length > 0 && <p className="wk-warn">Brakuje w bibliotece: {missing.map((k) => `@${k}`).join(', ')} — w przypisie stanie „[brak źródła]".</p>}
-      <div className="wk-actions">
-        <button type="button" className="wk-btn" onClick={() => void saveBlob(new Blob([source()], { type: 'application/x-tex' }), latexFileName(entry))}>Pobierz .tex</button>
-        <button type="button" className="wk-link-btn" onClick={() => setShown((was) => !was)}>{shown ? 'Ukryj podgląd' : 'Podgląd'}</button>
-        <button type="button" className="wk-link-btn" onClick={() => void navigator.clipboard?.writeText(source())}>Kopiuj</button>
-      </div>
-      {entry.kind === 'text' && planOf(entry.data).length > 0 && (
-        <div className="wk-actions">
-          <button type="button" className="wk-btn wk-btn-line" onClick={() => void saveBlob(new Blob([planToLatex(entry, store, { comments: true })], { type: 'application/x-tex' }), latexFileName(entry, '-plan'))}>
-            Plan na ambonę (.tex)
-          </button>
-        </div>
-      )}
-      {shown && <pre className="lib-latex">{source()}</pre>}
-    </section>
-  );
-}
-
-/* -- Nauka (Schritt 11) ------------------------------------------------------------------------------ */
-
-/**
- * 2026-10-22 (Schritt 11) — EINE POWTÓRKA AUS DIESEM TEXT: die Karten dessen,
- * worauf er verweist (Cytaty, Komentarze, Słowa, Stellen des Plans), in einer
- * Baza wiedzy, die diese Bibliothek als Quelle nennt (`cogita/fromEntry.ts`,
- * erst bei Bedarf geladen).
- */
-export function LearnBox({ library, entry }: { library: OpenLibrary; entry: LibEntry }) {
-  const me = useMe(useWho());
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
-  const make = async () => {
-    if (me == null) return;
-    setBusy(true);
-    setFailed(null);
-    try {
-      const { revisionFromEntry } = await import('../cogita/fromEntry');
-      const done = await revisionFromEntry(me.ring, library.libraryId, entry.id, entryTitle(entry, { get: () => undefined, byKey: () => undefined }));
-      window.location.hash = viewPath('learn', done.baseId, 'powtorki', done.revisionId);
-    } catch (e) {
-      setFailed(e instanceof Error ? e.message : 'Nie udało się utworzyć powtórki.');
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <section className="lib-box">
-      <h2 className="lib-box-h">Nauka</h2>
-      <p className="lib-meta">Powtórka z tego, na co wskazuje tekst: cytaty, komentarze, słowa ze słownika, miejsca z planu — w bazie wiedzy, która korzysta z tej biblioteki.</p>
-      <div className="wk-actions">
-        <button type="button" className="wk-btn wk-btn-line" disabled={busy || me == null} onClick={() => void make()}>{busy ? 'Tworzenie…' : 'Powtórka z tego tekstu'}</button>
-      </div>
-      {failed !== null && <p className="wk-error">{failed}</p>}
-    </section>
-  );
-}
-
 /* -- JSON und Löschen ------------------------------------------------------------------------------ */
 
 /**
@@ -160,36 +83,44 @@ function intoThis(doc: unknown, id: string, kind: string, store: LibraryStore): 
   return Array.isArray(doc) ? next : root!.entries !== undefined ? { ...root, entries: next } : next[0];
 }
 
-export function EntryJson({ store, library, entry, isNew }: { store: LibraryStore; library: OpenLibrary; entry: LibEntry; isNew: boolean }) {
+export function EntryJson({ store, entry, isNew, format, home }: {
+  store: LibraryStore;
+  entry: LibEntry;
+  isNew: boolean;
+  format: EntryFormat;
+  /** Wohin ein neuer Eintrag nach dem Import führt. */
+  home: (id: string) => string;
+}) {
   const label = kindOf(entry.kind)?.label.toLowerCase() ?? 'wpis';
   const shaped = (doc: unknown) => (isNew ? intoThis(doc, entry.id, entry.kind, store) : doc);
   const preview = (doc: unknown): JsonPreview | { error: string } => {
-    const planned = planLibraryImport(shaped(doc), store);
+    const planned = format.plan(shaped(doc));
     return 'error' in planned ? planned : { lines: planned.lines, warnings: planned.warnings };
   };
   return (
     <JsonPanel
       summary={isNew ? 'Import z JSON' : 'Import / eksport JSON'}
       lead={isNew
-        ? <>Wklej opis ({label}) jako JSON — np. przygotowany przez AI. Powstanie ten wpis (i osoby, tematy, które w nim są).</>
+        ? <>Wklej opis ({label}) jako JSON — np. przygotowany przez AI. Powstanie ten wpis (i to, na co w nim wskazujesz, jeśli opiszesz to w tym samym dokumencie).</>
         : <>Ten wpis jako JSON — do poprawienia ręcznie albo przez AI. Import zmienia go w miejscu (pola, których nie podasz, zostają).</>}
       fileName={`wpis-${entry.key ?? entry.id.slice(0, 8)}.json`}
-      exportDoc={() => exportLibrary(library.name, [entry], store)}
-      description={libraryDescription}
+      exportDoc={() => format.exportDoc([entry])}
+      description={format.describe}
       preview={preview}
       importLabel="Importuj i zapisz"
       onImport={async (doc) => {
-        const planned = planLibraryImport(shaped(doc), store);
+        const planned = format.plan(shaped(doc));
         if ('error' in planned) throw new WorkspaceError(planned.error);
         for (const draft of planned.drafts) await store.save({ id: draft.id, kind: draft.kind, ...(draft.key === undefined ? {} : { key: draft.key }), data: draft.data });
-        if (isNew && planned.drafts.some((d) => d.id === entry.id)) window.location.replace(viewPath('library', library.libraryId, entry.id));
+        if (isNew && planned.drafts.some((d) => d.id === entry.id)) window.location.replace(home(entry.id));
         return { lines: planned.lines, warnings: planned.warnings };
       }}
     />
   );
 }
 
-export function DeleteBox({ store, library, entry }: { store: LibraryStore; library: OpenLibrary; entry: Entry }) {
+/** `back`: wohin es nach dem Löschen geht (die Liste seiner Art). */
+export function DeleteBox({ store, entry, back: backTo }: { store: LibraryStore; entry: Entry; back: string }) {
   const [sure, setSure] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const back = store.backlinks(entry.id);
@@ -202,7 +133,7 @@ export function DeleteBox({ store, library, entry }: { store: LibraryStore; libr
           <p>Usunąć „{store.title(entry)}”?{back.length > 0 ? ` Odwołuje się do niego ${back.length} wpisów — te odwołania zostaną puste.` : ''}</p>
           <div className="wk-actions">
             <button type="button" className="wk-btn lib-btn-danger" onClick={() => void store.remove(entry.id).then(
-              () => { window.location.hash = viewPath('library', library.libraryId, TAB_OF[entry.kind] ?? ''); },
+              () => { window.location.hash = backTo; },
               (e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć.'))}>Usuń</button>
             <button type="button" className="wk-link-btn" onClick={() => setSure(false)}>Anuluj</button>
           </div>

@@ -38,7 +38,7 @@ import { later } from '../../ui/later';
 import { Loading } from '../../ui/Loading';
 import type { ViewConfig } from './view';
 
-const WritingCard = later(() => import('../../library/LibraryPublic').then((m) => m.WritingCard));
+const WritingCard = later(() => import('../../scriptorium/WritingCard').then((m) => m.WritingCard));
 
 const isTall = (ctx: PartContext): boolean => ctx.whole === true || ctx.size.height === 'tall';
 const fold = (s: string): string => s.toLocaleLowerCase('pl-PL').normalize('NFD').replace(/[̀-ͯ]/g, '');

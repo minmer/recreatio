@@ -16,9 +16,9 @@
  * </code>
  */
 
-import { ids, str, type LibEntry, type Lookup } from './libraryKinds';
+import { ids, str, type LibEntry, type Lookup } from '../library/libraryKinds';
 import { deliveriesOf, lastHeld, planOf, pointLine } from './sermon';
-import { facetOf, type TopicTree } from './topics';
+import { facetOf, type TopicTree } from '../library/topics';
 
 /* Lista · Tabela · Drzewo stehen in `archiveLayout.ts` — ohne Importe, für die Beschreibung des Bausteins. */
 

@@ -53,6 +53,12 @@ export interface Lookup {
   readable?(): readonly LibEntry[];
   /** 2026-10-22 — wie ein Eintrag heisst, wo die Bibliothek seine Art nicht kennt (ein Eintrag einer Baza wiedzy). */
   title?(entry: LibEntry): string;
+  /**
+   * 2026-10-23 — steigt, wenn sich hier oder bei einem Nachbarn etwas ändert (ein Speicher hat es).
+   * Eine Zeichnung, die sich etwas merkt (Fussnoten), rechnet damit neu: auf einer Seite kommt die
+   * Bibliothek, aus der ein Text des Skryptorium zitiert, oft erst nach dem Text an.
+   */
+  readonly revision?: number;
 }
 
 /**
@@ -60,8 +66,10 @@ export interface Lookup {
  * — die Punkte eines Plans, die Zeilen „co z planu" eines Wygłoszenia.
  * `blocks` (2026-10-22): der Inhalt eines Komentarza — Absätze, Listen,
  * Tabellen, in deren Zellen echte Verweise stehen (`comment.ts`).
+ * `fields` (2026-10-23): die Felder eines Rodzaj tekstu — Felder wie die
+ * eines Rodzaj in Nauka (`cogita/schema.ts`, `FieldDef`), mit demselben Editor.
  */
-export type LibFieldType = 'line' | 'text' | 'markup' | 'number' | 'date' | 'select' | 'url' | 'ref' | 'refs' | 'outline' | 'items' | 'blocks';
+export type LibFieldType = 'line' | 'text' | 'markup' | 'number' | 'date' | 'select' | 'url' | 'ref' | 'refs' | 'outline' | 'items' | 'blocks' | 'fields';
 
 export interface LibField {
   readonly key: string;
@@ -310,16 +318,11 @@ export function quoteOrder(entry: LibEntry, look: Lookup): string {
 
 /* -- Eigene Texte ------------------------------------------------------------------------- */
 
-export const TEXT_TYPES = [
-  { value: 'sermon', label: 'Kazanie' },
-  { value: 'homily', label: 'Homilia' },
-  { value: 'conference', label: 'Konferencja' },
-  { value: 'meditation', label: 'Rozważanie' },
-  { value: 'chapter', label: 'Rozdział' },
-  { value: 'article', label: 'Artykuł' },
-  { value: 'note', label: 'Notatka' },
-  { value: 'other', label: 'Inny' }
-] as const;
+/** 2026-10-23 — der Name des Rodzaj tekstu eines Textes (leer: ein einfacher Text). */
+export function textTypeName(data: EntryData, look: Lookup): string {
+  const type = look.get(ids(data, 'textType')[0] ?? '');
+  return type !== undefined && type.kind === 'texttype' ? str(type.data, 'name').trim() : '';
+}
 
 export const TEXT_STATUS = [
   { value: 'idea', label: 'Pomysł' },
@@ -381,7 +384,8 @@ const TEXT: LibKind = {
   says: 'Własny tekst — kazanie, rozważanie, rozdział książki — z odwołaniami do źródeł i cytatów.',
   keyed: true,
   fields: [
-    { key: 'textType', label: 'Rodzaj', type: 'select', options: TEXT_TYPES, says: `Rodzaj: ${TEXT_TYPES.map((t) => `"${t.value}" (${t.label})`).join(', ')}` },
+    /* 2026-10-23 — der Rodzaj gehört dem Besitzer (ein Eintrag „Rodzaj tekstu" mit eigenen Feldern); ohne ihn ist es ein einfacher Text. */
+    { key: 'textType', label: 'Rodzaj tekstu', type: 'ref', to: ['texttype'], says: 'Własny rodzaj tekstu — odwołanie (np. "@kazanie-maryjne"); jego dodatkowe pola stoją wtedy obok pól tekstu. Pominięty — zwykły tekst' },
     { key: 'title', label: 'Tytuł', type: 'line', says: 'Tytuł' },
     { key: 'subtitle', label: 'Podtytuł', type: 'line', says: 'Podtytuł' },
     { key: 'project', label: 'Projekt (książka, cykl)', type: 'ref', to: ['project'], says: 'Do jakiej książki albo cyklu należy — odwołanie' },
@@ -406,7 +410,7 @@ const TEXT: LibKind = {
   example: {
     key: 'kazanie-chleb',
     data: {
-      textType: 'sermon', title: 'Chleb, który daje życie', date: '2026-08-02', occasion: 'XVIII Niedziela zwykła',
+      textType: '@kazanie-maryjne', title: 'Chleb, który daje życie', date: '2026-08-02', occasion: 'XVIII Niedziela zwykła',
       readings: 'Wj 16,2-4.12-15; Ef 4,17.20-24; J 6,24-35', status: 'final',
       summary: 'O głodzie, którego nie nasyci chleb.',
       plan: [
@@ -566,11 +570,49 @@ const COMMENT: LibKind = {
   example: { key: 'komentarz', data: { subjects: [], blocks: [{ type: 'paragraph', text: 'Teza.' }] } }
 };
 
+/* -- Rodzaje tekstów (2026-10-23): eigene Felder eines Textes ------------------------------------
+ * Ein Rodzaj tekstu (Art `texttype`) gehört dem Besitzer des Skryptorium: ein Name und die
+ * Felder, die jeder Text dieses Rodzaju zusätzlich hat — beschrieben wie die
+ * Felder eines Rodzaj in Nauka (`FieldDef`) und mit DEMSELBEN Editor bearbeitet
+ * (`cogita/KindForm.tsx`). Ein Feld kann auf Einträge in Nauka zeigen („Kazanie
+ * maryjne": Tajemnica, Obszar). Die festen Felder eines Textes bleiben; ihre
+ * Schlüssel sind vergeben (`scriptorium/textTypes.ts`). */
+
+const TEXT_TYPE: LibKind = {
+  /* Gespeichert als Wort aus Kleinbuchstaben — wie jede Art beim Dienst (`IsKind`). */
+  kind: 'texttype',
+  label: 'Rodzaj tekstu',
+  plural: 'Rodzaje tekstów',
+  says: 'Własny rodzaj tekstu (np. „Kazanie maryjne”): nazwa i dodatkowe pola, które ma każdy tekst tego rodzaju — także odwołania do wpisów w Nauce (np. tajemnica, obszar). Tekst bez rodzaju to zwykły tekst.',
+  keyed: true,
+  fields: [
+    { key: 'name', label: 'Nazwa', type: 'line', says: 'Nazwa rodzaju, np. „Kazanie maryjne”' },
+    { key: 'description', label: 'Opis', type: 'text', says: 'Do czego służy ten rodzaj' },
+    {
+      key: 'fields', label: 'Dodatkowe pola', type: 'fields',
+      says: 'Pola, które ma każdy tekst tego rodzaju — opisane jak pola rodzaju w Nauce: lista {"key", "label", "type", "multi", "options", "to", "locator", "says"}. "type": line, text, number, date, bool, choice, ref, url, list. Przy "ref" — "to": nazwy rodzajów w Nauce (np. ["Tajemnica"]) albo "work", "quote", "person" z biblioteki; "locator": true — z miejscem (np. Pismo Święte + "Łk 1,26-38"). Klucze stałych pól tekstu (title, date, plan, body …) są zajęte'
+    }
+  ],
+  title: (data) => str(data, 'name').trim() || 'Rodzaj tekstu',
+  sort: (entry) => str(entry.data, 'name').toLowerCase(),
+  example: {
+    key: 'kazanie-maryjne',
+    data: {
+      name: 'Kazanie maryjne',
+      description: 'Kazania o tajemnicach różańca w obszarach życia Maryi.',
+      fields: [
+        { key: 'tajemnica', label: 'Tajemnica', type: 'ref', to: ['Tajemnica'], says: 'Która tajemnica różańca' },
+        { key: 'obszar', label: 'Obszar', type: 'ref', to: ['Obszar'], says: 'Który obszar życia Maryi' }
+      ]
+    }
+  }
+};
+
 /** Die Bibliothek (2026-10-23): nur Quellen — in dieser Reihenfolge stehen ihre Reiter. */
 export const LIBRARY_KINDS: readonly LibKind[] = [WORK, QUOTE, PERSON];
 
-/** Das Skryptorium (2026-10-23): das Schreiben. */
-export const WRITING_KINDS: readonly LibKind[] = [TEXT, DELIVERY, PROJECT];
+/** Das Skryptorium (2026-10-23): das Schreiben — Texte, Wygłoszenia, Projekte und die eigenen Rodzaje tekstów. */
+export const WRITING_KINDS: readonly LibKind[] = [TEXT, DELIVERY, PROJECT, TEXT_TYPE];
 
 /** Nur für Cogita, bis Schritt 4/5 (oben). */
 export const COGITA_LEGACY_KINDS: readonly LibKind[] = [TOPIC, COMMENT];

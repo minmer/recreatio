@@ -29,7 +29,7 @@ import { AXIS_COLUMN, cellKey, cellText, readView, ruleOf, sourceKind, viewColum
 import type { Group } from './selection';
 import { MatrixGrid } from './MatrixGrid';
 import { addToPlan, contextOf, createHere, learn } from './viewActions';
-import { viewPath } from '../routes';
+import { containerPath } from '../library/library';
 import { toast } from '../ui/dialogs';
 
 export type { ListMode } from './views';
@@ -89,7 +89,7 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
     const context = contextOf([{ grouping: view.matrix.rows, group: r }, { grouping: view.matrix.cols, group: c }]);
     const made = await createHere(lib, view, context);
     toast(`Nowy wpis: ${context.words.join(' × ')}`);
-    if (made.inLibrary) window.location.hash = viewPath('library', made.libraryId, made.id);
+    if (made.inLibrary) window.location.hash = containerPath(made.libraryId, made.id);
     else onOpen(made.id);
   });
   /* Do planu kazania: die Texte der Bibliotheken, aus denen die Baza schöpft. */

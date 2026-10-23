@@ -8,12 +8,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { WorkspaceError } from '../core/session';
-import { originOf } from './libraryCite';
-import { kindOf, str } from './libraryKinds';
-import { RefPicker } from './LibraryPick';
-import { entryLine } from './refLabels';
-import type { Entry, LibraryStore } from './libraryStore';
-import { BasePicker } from './BasePicker';
+import { originOf } from '../library/libraryCite';
+import { kindOf, str } from '../library/libraryKinds';
+import { RefPicker } from '../library/LibraryPick';
+import { entryLine } from '../library/refLabels';
+import type { Entry, LibraryStore } from '../library/libraryStore';
+import { BasePicker } from '../library/BasePicker';
 
 /** Das Schreibfeld — mit Knöpfen, die an der Schreibmarke einfügen. */
 export function WritingArea({ store, value, readOnly, placeholder, onChange }: {

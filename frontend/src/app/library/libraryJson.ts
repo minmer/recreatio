@@ -56,10 +56,18 @@ export interface FormatSpec {
   /** Ein Satz, wohin eine Art gehört, die dieses Format nicht nimmt — `null`: einfach unbekannt. */
   readonly elsewhere: (kind: string) => string | null;
   /** Zusätzliche Felder eines Eintrags (im Skryptorium: die seines Rodzaj tekstu), aus seinen Daten und dem Dokument. */
-  readonly extraFields?: (kind: string, data: Readonly<Record<string, unknown>>, resolve: (token: string) => string | null) => readonly LibField[];
+  readonly extraFields?: (kind: string, data: Readonly<Record<string, unknown>>, resolve: (token: string) => string | null) => readonly ExtraField[];
+  /** Ein Feld vom Typ `fields` lesen (die Felder eines Rodzaj tekstu). */
+  readonly readFields?: (value: unknown, where: string, warn: (line: string) => void) => unknown;
 }
 
-const WRITING_KINDS_NAMED: Readonly<Record<string, string>> = { text: 'teksty', delivery: 'wygłoszenia', project: 'projekty', textType: 'rodzaje tekstów' };
+/** 2026-10-23 — ein zusätzliches Feld: sein Schlüssel und wie ein Wert aus dem Dokument gelesen wird (`undefined`: weglassen). */
+export interface ExtraField {
+  readonly key: string;
+  readonly read: (value: unknown, where: string, ctx: { readonly resolve: (token: string, where: string) => string | null; readonly warn: (line: string) => void }) => unknown;
+}
+
+const WRITING_KINDS_NAMED: Readonly<Record<string, string>> = { text: 'teksty', delivery: 'wygłoszenia', project: 'projekty', texttype: 'rodzaje tekstów' };
 
 export const LIBRARY_SPEC: FormatSpec = {
   format: LIBRARY_FORMAT,
@@ -283,6 +291,8 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
         }
         return out;
       }
+      case 'fields':
+        return spec.readFields !== undefined ? spec.readFields(value, where, (line) => warnings.push(line)) : (Array.isArray(value) ? value : null);
       case 'select': {
         const s = String(value);
         if (field.options === undefined || field.options.some((o) => o.value === s)) return s;
@@ -311,10 +321,18 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
     /* 2026-10-23 — die Felder der Art und (im Skryptorium) die ihres Rodzaj tekstu. */
     const extra = spec.extraFields?.(one.kind, { ...data, ...given }, (token) => resolve(token, def.label)) ?? [];
     for (const [name, value] of Object.entries(given)) {
-      const field = def.fields.find((f) => f.key === name) ?? extra.find((f) => f.key === name);
+      const field = def.fields.find((f) => f.key === name);
       const where = `${def.label} „${String(given.title ?? given.name ?? given.text ?? one.key ?? '').slice(0, 40)}” · ${name}`;
       /* 2026-10-22 — alte Schlüssel (`_aliases`) reisen mit, ohne Warnung. */
       if (field === undefined && name === ALIASES) { const aliases = aliasesOf(given); if (aliases.length > 0) data[name] = aliases; else delete data[name]; continue; }
+      /* 2026-10-23 — ein Feld seines Rodzaj tekstu: gelesen, wie der Rodzaj es sagt. */
+      const more = field === undefined ? extra.find((f) => f.key === name) : undefined;
+      if (more !== undefined) {
+        const next = value === null ? undefined : more.read(value, where, { resolve: (token, at) => resolve(token, at), warn: (line) => warnings.push(line) });
+        if (next === undefined || next === null || next === '' || (Array.isArray(next) && next.length === 0)) delete data[name];
+        else data[name] = next;
+        continue;
+      }
       if (field === undefined) { warnings.push(`${where}: nieznane pole — pominięte.`); continue; }
       const next = coerce(field, value, where);
       if (next === null || next === '' || (Array.isArray(next) && next.length === 0 && field.type !== 'outline')) delete data[name];
@@ -397,7 +415,8 @@ const TYPE_SAYS: Record<LibField['type'], string> = {
   line: 'tekst', text: 'tekst (może mieć wiele wierszy)', markup: 'tekst w zapisie treści (niżej)', number: 'liczba',
   date: 'data RRRR-MM-DD', select: 'jedna z wartości', url: 'adres https://…', ref: 'odwołanie: kennung albo "@klucz"',
   refs: 'lista odwołań: kennungi albo "@klucze"', outline: 'lista punktów planu', items: 'lista obiektów o polach:',
-  blocks: 'lista bloków (niżej: „Komentarz”)'
+  blocks: 'lista bloków (niżej: „Komentarz”)',
+  fields: 'lista pól — jak pola rodzaju w Nauce'
 };
 
 /** Ein Feld in der Beschreibung — bei `items` darunter seine Unterfelder. */

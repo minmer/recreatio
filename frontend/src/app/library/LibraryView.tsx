@@ -117,7 +117,7 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
 
   if (libraryId !== undefined) {
     if (current === null && knowledge.has(libraryId)) return <p className="wk-note">To jest baza wiedzy — jest w Nauce. <a href={viewPath('learn', libraryId)}>Otwórz ją</a></p>;
-    if (current === null && writing.has(libraryId)) return <p className="wk-note">To jest skryptorium — teksty, wygłoszenia i projekty.</p>;
+    if (current === null && writing.has(libraryId)) return <p className="wk-note">To jest skryptorium — teksty, wygłoszenia i projekty. <a href={viewPath('scriptorium', libraryId)}>Otwórz je</a></p>;
     if (current === null) return <p className="wk-empty">Tej biblioteki nie ma albo nie masz do niej klucza. <a href={viewPath('library')}>Wszystkie biblioteki</a></p>;
     return <LibraryHome me={me} library={current} areas={areas} trail={trail.slice(1)} onChanged={() => setTick((n) => n + 1)} />;
   }

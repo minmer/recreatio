@@ -31,7 +31,7 @@ import { linkAudienceForm } from '../areas/audience';
 import { loadChats, type ChatRow } from '../chat/chat';
 import { loadDesk, type Desk } from '../workspace/desk';
 import { newId } from '../core/ids';
-import { loadLibraries, type LibraryRow } from '../library/library';
+import { libraryKindOf, loadLibraries, type LibraryRow } from '../library/library';
 import { loadModules, readConfig, updateModule, type ModuleRow } from './module';
 import { loadPage, savePageSubject, saveParts, toDraft } from '../pages/page';
 import { readSubject, subjectKindOf } from '../pages/pageSubject';
@@ -209,7 +209,8 @@ export function DependencyMap() {
       }
     }
     for (const c of world.calendars.filter((x) => x.archived !== true)) place(`calendar:${c.calendarId}`, { kind: 'calendar', label: c.title, sub: c.areaName });
-    for (const l of world.libraries) place(`library:${l.libraryId}`, { kind: 'library', label: 'Biblioteka', sub: l.libraryId.slice(0, 8) });
+    /* 2026-10-23 — drei Teile: Bibliothek, Skryptorium, Baza wiedzy. */
+    for (const l of world.libraries) place(`library:${l.libraryId}`, { kind: 'library', label: libraryKindOf(l) === 'writing' ? 'Skryptorium' : libraryKindOf(l) === 'knowledge' ? 'Baza wiedzy' : 'Biblioteka', sub: l.libraryId.slice(0, 8) });
 
     return { nodes: out, edges: lines };
   }, [world, onlyUsed]);

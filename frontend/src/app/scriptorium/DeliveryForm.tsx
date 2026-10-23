@@ -19,11 +19,12 @@ import { useRef } from 'react';
 
 import { viewPath } from '../routes';
 import { JsonPanel } from '../ui/JsonPanel';
-import type { OpenLibrary } from './library';
-import { exportLibrary, patchFromDoc } from './libraryJson';
-import { COVERAGE_STATES, itemsOf, str, type EntryData, type LibEntry } from './libraryKinds';
-import type { LibraryStore } from './libraryStore';
-import { FieldList } from './LibraryTextForm';
+import type { OpenLibrary } from '../library/library';
+import { patchFromDoc } from '../library/libraryJson';
+import { exportScriptorium, SCRIPTORIUM_SPEC } from './scriptoriumJson';
+import { COVERAGE_STATES, itemsOf, str, type EntryData, type LibEntry } from '../library/libraryKinds';
+import type { LibraryStore } from '../library/libraryStore';
+import { FieldList } from '../library/LibraryFields';
 import { MediaPlayer } from './SermonParts';
 import {
   addedData, countsLine, coverageCounts, coverageData, coverageIndex, coverageOf, deliveryPlan, deliveryPrompt,
@@ -94,7 +95,7 @@ function CoverageEditor({ store, library, entry, data, set, readOnly, now }: {
             {parts.length > 1 && <h3 className="lib-section">{str(text.data, 'title') || 'Bez tytułu'}</h3>}
             {points.length === 0 ? (
               <p className="lib-cover-lead">
-                Ten tekst nie ma jeszcze planu — <a href={viewPath('library', library.libraryId, text.id)}>dopisz go w tekście</a> (zakładka „Plan”), a tu zaznaczysz, co z niego padło.
+                Ten tekst nie ma jeszcze planu — <a href={viewPath('scriptorium', library.libraryId, text.id)}>dopisz go w tekście</a> (zakładka „Plan”), a tu zaznaczysz, co z niego padło.
               </p>
             ) : (
               <ol className="lib-cover-list">
@@ -249,10 +250,10 @@ export function DeliveryForm({ store, library, entry, data, set, readOnly }: {
           summary="Z nagrania albo zapisu — przez AI we własnym czacie"
           lead={<>Skopiuj polecenie — jest w nim plan z identyfikatorami punktów. Wklej je w swoim czacie razem z nagraniem albo zapisem, a odpowiedź (JSON) wklej tutaj: trafi do tego formularza.</>}
           fileName={`wyglosznie-${str(data, 'date') || entry.id.slice(0, 8)}.json`}
-          exportDoc={() => exportLibrary('wygłoszenie', [entry], store)}
+          exportDoc={() => exportScriptorium('wygłoszenie', [entry], store)}
           description={() => deliveryPrompt(entry, store)}
           preview={(doc) => {
-            const found = patchFromDoc(doc, { id: entry.id, kind: 'delivery' }, store);
+            const found = patchFromDoc(doc, { id: entry.id, kind: 'delivery' }, store, SCRIPTORIUM_SPEC);
             if ('error' in found) return found;
             const all = deliveryPlan(entry, store).flatMap((p) => p.points);
             const coverage = coverageOf(found.patch);
@@ -264,7 +265,7 @@ export function DeliveryForm({ store, library, entry, data, set, readOnly }: {
           }}
           importLabel="Wpisz do formularza"
           onImport={async (doc) => {
-            const found = patchFromDoc(doc, { id: entry.id, kind: 'delivery' }, store);
+            const found = patchFromDoc(doc, { id: entry.id, kind: 'delivery' }, store, SCRIPTORIUM_SPEC);
             if ('error' in found) throw new Error(found.error);
             set(found.patch);
             return { lines: ['Wpisane do formularza — zapisze się samo.'], warnings: found.warnings };
@@ -289,14 +290,14 @@ export function DeliveriesBox({ store, library, text, readOnly }: { store: Libra
             const counts = countsLine(coverageCounts(plan, coverageOf(d.data), addedRows(d.data).filter((a) => a.text.trim() !== '')));
             return (
               <li key={d.id}>
-                <a href={viewPath('library', library.libraryId, d.id)}>{[str(d.data, 'date') || 'bez daty', str(d.data, 'occasion')].filter(Boolean).join(' · ')}</a>
+                <a href={viewPath('scriptorium', library.libraryId, d.id)}>{[str(d.data, 'date') || 'bez daty', str(d.data, 'occasion')].filter(Boolean).join(' · ')}</a>
                 {counts !== '' && <span className="lib-row-meta"> — {counts}</span>}
               </li>
             );
           })}
         </ul>
       )}
-      {!readOnly && <a className="wk-link-btn" href={viewPath('library', library.libraryId, 'nowy', 'delivery', `texts=${text.id}`)}>+ Wygłoszenie</a>}
+      {!readOnly && <a className="wk-link-btn" href={viewPath('scriptorium', library.libraryId, 'nowy', 'delivery', `texts=${text.id}`)}>+ Wygłoszenie</a>}
     </section>
   );
 }

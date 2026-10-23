@@ -137,11 +137,19 @@ export class LibraryStore implements Lookup {
     this.peerSource = source;
   }
 
-  /** Die anderen lesbaren Bibliotheken — nur Bibliotheken (`books`), nie Bazy wiedzy. */
+  /**
+   * Die anderen lesbaren Behälter, durch die Verweise und Schlüssel gehen:
+   * eine Bibliothek sieht Bibliotheken (Quellen zeigen nur auf Quellen); ein
+   * Skryptorium (2026-10-23) Bibliotheken und andere Skryptoria — ein Text
+   * zitiert aus der Bibliothek, ein Wygłoszenie nennt einen Text, der in ein
+   * öffentliches Skryptorium gezogen ist. Bazy wiedzy nie (`bases`).
+   */
   peers(): LibraryStore[] {
     if (this.peerSource !== null) return this.peerSource().filter((s) => s !== this && s.loaded);
-    if (this.ring === null || openedLibraryKind(this.libraryId) !== 'books') return [];
-    return [...stores.values()].filter((s) => s !== this && s.loaded && openedLibraryKind(s.libraryId) === 'books');
+    const mine = openedLibraryKind(this.libraryId);
+    if (this.ring === null || (mine !== 'books' && mine !== 'writing')) return [];
+    const wanted = (kind: string | undefined) => kind === 'books' || (mine === 'writing' && kind === 'writing');
+    return [...stores.values()].filter((s) => s !== this && s.loaded && wanted(openedLibraryKind(s.libraryId)));
   }
 
   /** Ein Nachbar hat sich geändert: neu zeichnen, die Verzeichnisse neu bauen — nicht weitersagen. */

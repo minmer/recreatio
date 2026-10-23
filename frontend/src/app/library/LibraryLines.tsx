@@ -17,7 +17,7 @@ import { useMemo, useState } from 'react';
 import type { LibEntry, Lookup } from './libraryKinds';
 import { parseInline, type Block } from './libraryMarkup';
 import { usePageLibrary } from './libraryOpen';
-import { OpenedEntry } from './LibraryText';
+import { OpenedEntry } from '../scriptorium/TextArticle';
 import { countNotes, Inlines, MarkupLinks, NoteList, type MarkupLinkTo } from './markupView';
 import { lineKind, linkRow } from '../ui/richText';
 

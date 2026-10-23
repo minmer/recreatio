@@ -13,7 +13,7 @@ import type { Entry, LibraryStore } from './libraryStore';
 
 /** Jak nazywały się rodzaje, których już nie ma. */
 const OLD_KINDS: Readonly<Record<string, string>> = {
-  text: 'Tekst', delivery: 'Wygłoszenie', project: 'Projekt', comment: 'Komentarz', topic: 'Temat', knowledge: 'Wiedza', textType: 'Rodzaj tekstu'
+  text: 'Tekst', delivery: 'Wygłoszenie', project: 'Projekt', comment: 'Komentarz', topic: 'Temat', knowledge: 'Wiedza', texttype: 'Rodzaj tekstu'
 };
 
 export const oldKindLabel = (kind: string): string => OLD_KINDS[kind] ?? kind;

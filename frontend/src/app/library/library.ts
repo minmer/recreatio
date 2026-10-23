@@ -20,6 +20,7 @@ import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import type { EntryData } from './libraryKinds';
 import { call, WorkspaceError } from '../core/session';
+import { viewPath } from '../routes';
 
 /* -- Bibliotheken --------------------------------------------------------------------- */
 
@@ -73,6 +74,18 @@ const openedKinds = new Map<string, LibraryKind>();
 export const openedLibraryNames = (): ReadonlyMap<string, string> => openedNames;
 /** 0110 — ob eine geöffnete Bibliothek eine Bibliothek ist oder eine Baza wiedzy (für die Wege der Suche). */
 export const openedLibraryKind = (libraryId: string): LibraryKind | undefined => openedKinds.get(libraryId);
+
+/**
+ * 2026-10-23 — DREI TEILE, EIN SPEICHER: wo im Arbeitsbereich ein Behälter
+ * steht. Die Bibliothek (Quellen) unter `library`, das Skryptorium (Texte)
+ * unter `scriptorium`; eine Baza wiedzy hat ihre eigenen Wege in Nauka.
+ */
+export type PartView = 'library' | 'scriptorium';
+export const partOf = (row: { readonly kind?: string | null }): PartView => (libraryKindOf(row) === 'writing' ? 'scriptorium' : 'library');
+
+/** Eine Adresse in einem Behälter, nach seiner Art (wie er geöffnet wurde) — Bibliothek oder Skryptorium. */
+export const containerPath = (libraryId: string, ...trail: readonly string[]): string =>
+  viewPath(openedLibraryKind(libraryId) === 'writing' ? 'scriptorium' : 'library', libraryId, ...trail);
 export const forgetLibraryNames = (): void => { openedNames.clear(); openedKinds.clear(); };
 
 export async function openLibraries(ring: Ring, rows: readonly LibraryRow[]): Promise<OpenLibrary[]> {
@@ -101,7 +114,7 @@ async function newest(ring: Ring, areaId: string): Promise<{ epoch: number; key:
 export async function createLibrary(ring: Ring, areaId: string, name: string, kind: LibraryKind = 'books'): Promise<string> {
   const libraryId = newId();
   const { epoch, key } = await newest(ring, areaId);
-  const fallback = kind === 'knowledge' ? 'Baza wiedzy' : 'Biblioteka';
+  const fallback = kind === 'knowledge' ? 'Baza wiedzy' : kind === 'writing' ? 'Skryptorium' : 'Biblioteka';
   await call('/workspace/libraries', {
     method: 'POST',
     body: JSON.stringify({ libraryId, areaId, epoch, kind, nameSealed: toBase64Url(await sealText(key, nameAad(libraryId), name.trim() || fallback)) })

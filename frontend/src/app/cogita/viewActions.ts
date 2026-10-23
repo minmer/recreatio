@@ -15,7 +15,7 @@
 
 import { itemsOf, type EntryData } from '../library/libraryKinds';
 import type { LibraryStore } from '../library/libraryStore';
-import { newPointId } from '../library/sermon';
+import { newPointId } from '../scriptorium/sermon';
 import type { Group, Grouping } from './selection';
 import { BOOK_KINDS, type CogitaLibrary } from './store';
 import { viewToRevision, type ViewDoc } from './views';

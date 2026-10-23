@@ -162,7 +162,8 @@ function KindsRow({ kinds, writes, onChange }: { kinds: readonly string[]; write
 
 /* -- Ein Feld -------------------------------------------------------------------------------- */
 
-function FieldEditor({ field, raw, writes, onChange, onOpen }: { field: FieldDef; raw: unknown; writes: boolean; onChange: (v: unknown) => void; onOpen: (id: string) => void }) {
+/** 2026-10-23 — exportiert: das Skryptorium füllt die Felder eines Rodzaj tekstu mit demselben Feld. */
+export function FieldEditor({ field, raw, writes, onChange, onOpen }: { field: FieldDef; raw: unknown; writes: boolean; onChange: (v: unknown) => void; onOpen: (id: string) => void }) {
   const whole = field.type === 'list' || field.type === 'outline';
   const many = field.multi && !whole ? (Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw]) : null;
   const kind = fieldKind(field);

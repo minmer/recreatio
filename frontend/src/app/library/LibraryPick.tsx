@@ -15,7 +15,7 @@
 
 import { useEffect, useId, useMemo, useState } from 'react';
 
-import { libraryKindOf, loadLibraries, openedLibraryKind, openLibraries, type LibraryKind, type OpenLibrary } from './library';
+import { containerPath, libraryKindOf, loadLibraries, openedLibraryKind, openLibraries, type LibraryKind, type OpenLibrary } from './library';
 import { usePageLibrary } from './libraryOpen';
 import { entrySort, kindOf, str } from './libraryKinds';
 import type { Entry, LibraryStore } from './libraryStore';
@@ -93,7 +93,7 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
         <ul className="lib-picked">
           {chosen.map((entry) => (
             <li key={entry.id} className="lib-chip">
-              <a href={viewPath('library', (store.homeOf(entry.id) ?? store).libraryId, entry.id)}>{entryLine(entry, store)}</a>
+              <a href={containerPath((store.homeOf(entry.id) ?? store).libraryId, entry.id)}>{entryLine(entry, store)}</a>
               <button type="button" className="lib-chip-x" aria-label={`Usuń: ${store.title(entry)}`} disabled={busy}
                 onClick={() => onChange(value.filter((id) => id !== entry.id))}>×</button>
             </li>
@@ -162,23 +162,30 @@ export function useLibraries(given?: Who | null): readonly OpenLibrary[] | null 
   return libraries;
 }
 
-/** `kind`: Bibliotheken (Vorgabe) oder 0110 Bazy wiedzy — zwei Strukturen, zwei Listen. */
+/** `kind`: Bibliotheken (Vorgabe), 0110 Bazy wiedzy oder 2026-10-23 Skryptoria — drei Strukturen, drei Listen. */
 export function PickLibrary({ value, busy, onPick, kind = 'books' }: { value: string; busy: boolean; onPick: (id: string) => void; kind?: LibraryKind }) {
   const all = useLibraries();
   const knowledge = kind === 'knowledge';
-  if (all === undefined) return <p className="wk-hint">{knowledge ? 'Wczytywanie baz wiedzy…' : 'Wczytywanie bibliotek…'}</p>;
-  if (all === null) return <input value={value} disabled={busy} placeholder={knowledge ? 'kennung bazy wiedzy' : 'kennung biblioteki'} onChange={(e) => onPick(e.target.value.trim())} />;
+  const words = kind === 'knowledge' ? { loading: 'Wczytywanie baz wiedzy…', id: 'kennung bazy wiedzy', choose: '— wybierz bazę wiedzy —' }
+    : kind === 'writing' ? { loading: 'Wczytywanie skryptoriów…', id: 'kennung skryptorium', choose: '— wybierz skryptorium —' }
+    : { loading: 'Wczytywanie bibliotek…', id: 'kennung biblioteki', choose: '— wybierz bibliotekę —' };
+  if (all === undefined) return <p className="wk-hint">{words.loading}</p>;
+  if (all === null) return <input value={value} disabled={busy} placeholder={words.id} onChange={(e) => onPick(e.target.value.trim())} />;
   const libraries = all.filter((one) => libraryKindOf(one) === kind);
   return (
     <>
       <select value={value} disabled={busy} onChange={(e) => onPick(e.target.value)}>
-        <option value="">{knowledge ? '— wybierz bazę wiedzy —' : '— wybierz bibliotekę —'}</option>
+        <option value="">{words.choose}</option>
         {libraries.map((one) => <option key={one.libraryId} value={one.libraryId}>{one.name}{audienceTag(one, knowledge)}</option>)}
-        {value !== '' && !libraries.some((one) => one.libraryId === value) && <option value={value}>{value}</option>}
+        {value !== '' && !libraries.some((one) => one.libraryId === value) && <option value={value}>{all.find((one) => one.libraryId === value)?.name ?? value}</option>}
       </select>
-      {libraries.length === 0 && (knowledge
-        ? <span className="wk-hint">Nie masz jeszcze bazy wiedzy — <a href={viewPath('learn')}>załóż ją w Nauce</a>.</span>
-        : <span className="wk-hint">Nie masz jeszcze biblioteki — <a href={viewPath('library')}>załóż ją</a>.</span>)}
+      {libraries.length === 0 && (
+        <span className="wk-hint">
+          {knowledge ? <>Nie masz jeszcze bazy wiedzy — <a href={viewPath('learn')}>załóż ją w Nauce</a>.</>
+            : kind === 'writing' ? <>Nie masz jeszcze skryptorium — <a href={viewPath('scriptorium')}>załóż je</a>.</>
+            : <>Nie masz jeszcze biblioteki — <a href={viewPath('library')}>załóż ją</a>.</>}
+        </span>
+      )}
     </>
   );
 }

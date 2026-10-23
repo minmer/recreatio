@@ -16,8 +16,11 @@ internal static class LibraryChecks
          */
         check(Library.MayMove("books", "books", false) && Library.MayMove("books", "books", true), "a library entry moves to any library");
         check(Library.MayMove("knowledge", "knowledge", false), "a knowledge-base entry moves to any knowledge base (that is publishing now)");
-        check(Library.MayMove("knowledge", "books", true) && !Library.MayMove("knowledge", "books", false), "from a knowledge base into a library: only within the same area");
+        /* 2026-10-23 (0124) — drei Teile: ein Text zieht von Skryptorium zu Skryptorium; zwischen den Teilen zieht nichts. */
+        check(Library.MayMove("writing", "writing", false) && Library.MayMove("writing", "writing", true), "a text moves to any Scriptorium (that is how it becomes public)");
+        check(!Library.MayMove("knowledge", "books", true) && !Library.MayMove("writing", "books", true) && !Library.MayMove("books", "writing", true) && !Library.MayMove("knowledge", "writing", true), "never between the parts — the Library holds sources only");
         check(!Library.MayMove("books", "knowledge", true) && !Library.MayMove(null, "books", true) && !Library.MayMove("books", null, true), "never from a library into a knowledge base, never from or to nothing");
+        check(Library.LibraryKind("writing") == "writing" && Library.LibraryKind("") == "books" && Library.LibraryKind("knowledge") == "knowledge" && Library.LibraryKind("comments") is null, "the three containers: books, knowledge, writing");
 
         /* 2026-10-22 — wo ein Eintrag liegt: Kennungen, jede einmal, höchstens 400. */
         var a = "01a0f4c1-bab6-7be5-bdfc-6f198a63ecea";

@@ -1234,3 +1234,103 @@ the owner's explicit, confirmed deletions.
 3. Import / eksport: paste `{"format":"recreatio/library","entries":[{"kind":"text","data":{}}]}`. The message names
    the Scriptorium.
 4. A book → "Cytaty z tej książki" → JSON: the copied prompt no longer asks for topics.
+
+## P3 — The Scriptorium
+
+**Built**
+- **Container** (migration `0124_scriptorium.sql`): `app.library.kind = 'writing'` is allowed. The service:
+  - creates at most one Scriptorium per area, as with the Library;
+  - opens a Scriptorium in a public area to everyone (`/library/{id}/open`), like a library, and `/library/where`
+    finds entries in it;
+  - moves entries only within one part: Scriptorium to Scriptorium, Library to Library, base to base. A move from a
+    knowledge base into a library (a statement becoming a comment) is gone, because the Library holds no comments.
+- **Workspace** (`scriptorium/ScriptoriumView.tsx`, `#/workspace/scriptorium`): the menu reads Biblioteka,
+  Skryptorium, Nauka. Under Skryptorium are the list of Scriptoria and a create form; the area picker leaves out areas
+  that already have one and warns when the area is public. A Scriptorium has the tabs Teksty, Wygłoszenia, Projekty,
+  Rodzaje tekstów, Import / eksport and Ustawienia, plus Stare wpisy while it holds other kinds. Texts can be
+  filtered by type, and every list has select and delete. Ustawienia has rename, who reads it, and delete with the
+  typed name.
+- **Editors moved from the Library** to `scriptorium/`: the text editor (Plan / Treść / Dalsze informacje, pickers,
+  preview), deliveries with coverage, projects with outline, LaTeX and "Plan na ambonę", the AI prompts (now answered
+  in `recreatio/scriptorium`), the archive and the page card. Autosave is one hook for both parts
+  (`library/entryDraft.ts`). The plan editor no longer offers "+ Komentarz do punktu", since comments become a Cogita
+  kind in P4.
+- **Text types** (kind `texttype`; the service accepts only lower-case kinds):
+  - a type has a name, a description and extra fields;
+  - the fields are edited with the same schema editor as Cogita: `KindForm` was moved out of `SchemaEditor.tsx`
+    into `cogita/KindForm.tsx`, and both use it;
+  - for a text type the editor offers line, text, number, date, bool, choice, ref, url and list (no media, map,
+    range or markup), no "uncertain", no label pattern, and refuses the keys of the core text fields;
+  - a ref field can point at a Cogita kind of any readable base, or at work, quote, person or text;
+  - a text of a type fills its fields with the same field inputs as Cogita (`TypeFields.tsx`). It sees Nauka
+    through a read-only lens (`scriptorium/lens.ts`), which never creates Cogita entries;
+  - texts show the fields as "Tajemnica: Zwiastowanie" in the article, the preview, on pages and in LaTeX;
+  - a target the reader cannot open shows nothing, not even its name.
+- **Format** `recreatio/scriptorium` v1 (`scriptoriumJson.ts`), with the Library's import engine:
+  - it takes texttype, text, delivery and project, and refuses sources, comments and topics, naming where they go;
+  - in a text type, a ref field's targets may be Cogita kind names ("Tajemnica");
+  - in a text, values of type fields may be Cogita entries by name ("Zwiastowanie"), places as
+    `{ "value", "locator" }`, numbers with units;
+  - unknown fields and names are reported;
+  - `scriptoriumDescription()` (Polish) describes all four kinds, text types with a worked example ("Kazanie
+    maryjne" with Tajemnica, Obszar and a Scripture place), the markup and Scripture places.
+- **Pages**:
+  - `writing` and `writings` read a Scriptorium through the key `scriptorium`. An older page with `library` still
+    renders, because `read()` falls back to it;
+  - the new field kind `scriptorium` picks one in the page editor and the module manager;
+  - `pageDescription()` gains the rule: short copy stays in the module, longer texts live in the Scriptorium and
+    are shown with `writing` or `writings`.
+- **Moving a text** ("Kto widzi"): a text moves only to another Scriptorium; this is how it becomes public. Its text
+  type can go along (a checkbox), otherwise readers there do not see the type's fields.
+- **Paths** follow the part (`containerPath`): search hits, relations, pickers, Cogita origins, the dependency map.
+  The Library's address for a Scriptorium points to it.
+
+**Fixed on the way**
+- Footnotes on a page are now counted again when the cited library arrives after the text (`Lookup.revision`). A
+  text in the Scriptorium citing the Library showed "[brak źródła]" until a reload.
+
+**Kept for now, and why**
+- The archive module (`writings`) still has its topic facets. Texts carry no topics, so they stay empty. P5 decides
+  the archive filters.
+- The Library's comment display pieces stay until P4 turns comments into a Cogita kind.
+
+**Checks**
+- All check scripts and both builds pass; Api.Tests 472. The style ratchet is locked at `wk-hint` 567.
+- `app-library-check`: the Scriptorium format, text types, rendering, export → import round trip and the AI
+  description:
+  - all writing examples import next to the Library's sources, text types first;
+  - text-type targets resolve by Cogita kind name; core keys, markup and unknown kinds are refused with warnings;
+  - text values resolve by entry name, places, numbers and several values; unknown names are reported;
+  - the article and LaTeX show the type fields; an unreadable target shows nothing, not even its id.
+- `scriptorium-api.mjs` (LocalDB), 14 checks:
+  - one Scriptorium per area;
+  - a stranger is refused;
+  - a text moves from the closed Scriptorium into the public one, but never into the library;
+  - without an account the public Scriptorium opens and the closed one does not;
+  - `where` never reveals the hidden entry;
+  - page modules read the `scriptorium` key, and an older `library` key still works.
+- `scriptorium-browser.mjs` (headless Edge, built app), the step's test:
+  - the menu order is right;
+  - a new text type is made in the UI; its field type offers "→ Tajemnica (Różaniec)" from Nauka;
+  - a sermon of that type is written in the UI: the Tajemnica is picked from Nauka and the quote cited, and the
+    preview shows "Tajemnica: Zwiastowanie" and the footnote Łk 2,19;
+  - a delivery is recorded;
+  - a visitor without an account sees the sermon on a page with its Tajemnica, the quote and the delivery, and
+    nothing of the entry in the closed base;
+  - footnotes resolve;
+  - an older page still renders;
+  - no console errors.
+
+**Owner must run**
+- Apply migration 0124 (`dotnet Api.dll migrate`), then deploy the API and the website.
+- Create a Scriptorium (Skryptorium → "Załóż") in each area that writes texts. Old texts in a library are
+  "Stare wpisy" there and can be deleted (test data, no migration).
+
+**Test in the browser**
+1. Skryptorium → "Załóż" (your private area) → Rodzaje tekstów → "+ Rodzaj tekstu": name "Kazanie maryjne",
+   "+ pole" key `tajemnica`, type "→ Tajemnica (…)" (a kind of one of your bases) → "Zapisz rodzaj tekstu".
+2. "+ Tekst tego rodzaju": a title → "Zapisz"; under "Dane tekstu" choose the Tajemnica; in Treść write
+   `[@klucz-cytatu]`. The preview shows the Tajemnica and the footnote.
+3. "+ Wygłoszenie" → "Zapisz". The text lists the delivery.
+4. A page → module "Tekst ze skryptorium" → choose the Scriptorium and the text. If the area is public, a visitor
+   sees it.

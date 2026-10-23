@@ -22,12 +22,12 @@
  * ändert.
  */
 
-import { citeSegs, newCiteState, originOf, segText } from './libraryCite';
+import { citeSegs, newCiteState, originOf, segText } from '../library/libraryCite';
 import {
   COVERAGE_STATES, ids, isSource, itemsOf, kindOf, num, ownTitle, POINT_KINDS, refTarget, str,
   type EntryData, type LibEntry, type Lookup
-} from './libraryKinds';
-import { parseMarkup, plainText, type Inline } from './libraryMarkup';
+} from '../library/libraryKinds';
+import { parseMarkup, plainText, type Inline } from '../library/libraryMarkup';
 
 export type PointKind = (typeof POINT_KINDS)[number]['value'];
 export type CoverageState = (typeof COVERAGE_STATES)[number]['value'];
@@ -385,8 +385,8 @@ const fieldLines = (kind: string, keys: readonly string[]): string => {
 /**
  * DAS POLECENIE FÜR EIN WYGŁOSZENIE: den Plan (mit Kennungen) neben das
  * Nagranie oder den Zapis legen und sagen lassen, was gesagt wurde, was nur
- * kurz, was nicht — und was dazukam. Zurück kommt EIN Dokument der
- * Bibliothek, das genau dieses Wygłoszenie ändert (nur die genannten Felder).
+ * kurz, was nicht — und was dazukam. Zurück kommt EIN Dokument des
+ * Skryptorium, das genau dieses Wygłoszenie ändert (nur die genannten Felder).
  */
 export function deliveryPrompt(delivery: LibEntry, look: Lookup): string {
   const parts = deliveryPlan(delivery, look);
@@ -395,7 +395,7 @@ export function deliveryPrompt(delivery: LibEntry, look: Lookup): string {
   const titles = parts.map((p) => `„${str(p.text.data, 'title') || 'Bez tytułu'}”`).join(' i ');
   const plans = parts.map((p) => `Plan ${parts.length > 1 ? `tekstu „${str(p.text.data, 'title')}”` : ''}:\n${p.points.length === 0 ? '(ten tekst nie ma planu)' : planLines(p.points, look)}`).join('\n\n');
   const example = {
-    format: 'recreatio/library',
+    format: 'recreatio/scriptorium',
     version: 1,
     entries: [{
       id: delivery.id,
@@ -439,7 +439,7 @@ ${fieldLines('delivery', ['summary', 'duration', 'coverage', 'added', 'transcrip
 export function planPrompt(text: LibEntry): string {
   const d = text.data;
   const example = {
-    format: 'recreatio/library',
+    format: 'recreatio/scriptorium',
     version: 1,
     entries: [{
       id: text.id,

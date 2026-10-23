@@ -13,6 +13,10 @@
  *      Abschriften nur ohne Verlust heraus, wiederholbar.
  *  2h. Ausgemusterte Bausteine: nicht in der Palette, zeichnen weiter, sagen womit
  *      man sie ersetzt.
+ *  2i. Das Skryptorium (2026-10-23): sein Format (Texte, Wygłoszenia, Projekte,
+ *      Rodzaje tekstów), die Felder eines Rodzaj tekstu (Ziele beim Namen eines
+ *      Rodzaj in Nauka, Werte beim Namen eines Eintrags, belegte Schlüssel),
+ *      der Text mit seinen Feldern gezeichnet, die Beschreibung für eine KI.
  *  2d. Stellen der Schrift und das Verzeichnis der Verweise (2026-10-22): Bücher
  *      polnisch, lateinisch, englisch; Bereiche, Listen, Kapitel; Ordnung nach
  *      dem Kanon; wer auf eine Stelle zeigt — über Bibliotheken und Bazy wiedzy.
@@ -49,7 +53,10 @@ export * from '${app}library/libraryMarkup';
 export * from '${app}library/libraryCite';
 export * from '${app}library/comment';
 export { planLibraryImport, exportLibrary, libraryDescription, kindsDoc, LIBRARY_FORMAT, LIBRARY_SPEC, LIBRARY_VERSION, MARKUP_DOC } from '${app}library/libraryJson';
-export { QuoteFigure, TextArticle } from '${app}library/LibraryText';
+export { QuoteFigure } from '${app}library/LibraryText';
+export { TextArticle } from '${app}scriptorium/TextArticle';
+export { planScriptoriumImport, exportScriptorium, scriptoriumDescription, scriptoriumSpec, SCRIPTORIUM_FORMAT, SCRIPTORIUM_SPEC, SCRIPTORIUM_VERSION } from '${app}scriptorium/scriptoriumJson';
+export { typeLines, typeFieldsOf, textTypeOf, typeRefs, CORE_KEYS, TEXT_TYPE_FIELD_TYPES } from '${app}scriptorium/textTypes';
 export { LibraryLines } from '${app}library/LibraryLines';
 export { Markup as CogitaMarkup } from '${app}cogita/ui';
 export { plainOf } from '${app}cogita/schema';
@@ -59,7 +66,7 @@ export * from '${app}library/libraryCatalog';
 export * from '${app}library/libraryQuotes';
 export { decodeGray } from '${app}library/barcode';
 export { readAmount, patchFromDoc } from '${app}library/libraryJson';
-export * from '${app}library/sermon';
+export * from '${app}scriptorium/sermon';
 export * from '${app}library/topics';
 export * from '${app}library/bible';
 export * from '${app}library/refIndex';
@@ -67,9 +74,9 @@ export { Relations, PassageBox, PassageList } from '${app}library/LibraryRelatio
 export { StatementMarks } from '${app}library/markupView';
 export { hasOldCopies, missingIn, oldCopiesLine, oldCopyOf, withdrawOldCopies, withoutCopy } from '${app}cogita/oldCopies';
 export { palette, PARTS } from '${app}pages/parts/registry';
-export { textToLatex, planToLatex } from '${app}library/libraryLatex';
-export { archiveRow, browseLocal, choose, facetKey, PROJECTS } from '${app}library/browse';
-export { layoutOf } from '${app}library/archiveLayout';
+export { textToLatex, planToLatex } from '${app}scriptorium/latex';
+export { archiveRow, browseLocal, choose, facetKey, PROJECTS } from '${app}scriptorium/archive';
+export { layoutOf } from '${app}scriptorium/archiveLayout';
 export { renderToStaticMarkup } from 'react-dom/server';
 export { createElement } from 'react';
 `);
@@ -221,7 +228,7 @@ try {
     assert.deepEqual(m.nextAliases('b', 'a', ['a', 'c', 'C']), ['c', 'b'], 'never the new key, each once');
 
     /* JSON: hinaus mit Schlüsseln, herein wieder Kennungen — und nichts ändert sich (Texte: das Format der Schreibarten, 2026-10-23). */
-    const WRITING = { format: 'recreatio/scriptorium', version: 1, kinds: m.WRITING_KINDS, saveOrder: ['text', 'project', 'delivery'], elsewhere: () => null };
+    const WRITING = m.SCRIPTORIUM_SPEC;
     const shelf = [W, { id: 's2', kind: 'text', key: 'kaz', data: { title: 'K', body: `Tekst [@${W.id}, s. 9].` } }];
     const S2 = look(shelf);
     const out = m.exportLibrary('x', shelf, S2, WRITING);
@@ -460,6 +467,101 @@ try {
     assert.ok(m.PARTS.filter((x) => x.retired !== undefined).every((x) => !x.retired.includes('Porządki') && x.retired.includes('„Widok”')), 'a retired module says what replaces it — and names no tool that is gone');
   }
   ok('page modules: retired ones leave the palette, still render, and say what replaces them');
+
+  /* -- 2i. Das Skryptorium (2026-10-23) ---------------------------------------------------------------- */
+  {
+    /* Was Nauka weiss: zwei Rodzaje und ihre Einträge (beim Namen). */
+    const [KT, KO, EZ, EN, EM] = ['0a', '0b', '0c', '0d', '0e'].map((n) => `00000000-0000-4000-8000-0000000000${n}`);
+    const KINDS_BY_NAME = { tajemnica: KT, obszar: KO };
+    const ENTRIES = { zwiastowanie: [EZ, KT], nawiedzenie: [EN, KT], modlitwa: [EM, KO] };
+    const ctx = {
+      kindRef: (token) => KINDS_BY_NAME[token.toLowerCase()] ?? ([KT, KO].includes(token) ? token : null),
+      entryByName: (name, kinds) => { const hit = ENTRIES[name.toLowerCase()]; return hit !== undefined && (kinds.length === 0 || kinds.includes(hit[1])) ? hit[0] : null; }
+    };
+    const BT = { id: '00000000-0000-4000-8000-0000000000b1', kind: 'work', key: 'bt', data: { workType: 'bible', title: 'Biblia Tysiąclecia', siglum: 'BT' } };
+    const ZW = { id: EZ, kind: 'entity', data: { _kinds: [KT], name: 'Zwiastowanie' } };
+    const MOD = { id: EM, kind: 'entity', data: { _kinds: [KO], name: 'Modlitwa' } };
+
+    /* Die Arten und ihre Beispiele: alle zusammen importierbar (Quellen aus der Bibliothek daneben). */
+    const told = m.scriptoriumDescription();
+    for (const def of m.WRITING_KINDS) {
+      for (const field of def.fields) assert.ok(told.includes(`"${field.key}" — ${field.label}`), `the Scriptorium description explains ${def.kind}.${field.key}`);
+      assert.ok(told.includes(`### "${def.kind}" — ${def.label}`), `the Scriptorium description lists ${def.kind}`);
+    }
+    assert.deepEqual(m.WRITING_KINDS.map((k) => k.kind), ['text', 'delivery', 'project', 'texttype']);
+    const libraryPart = m.planLibraryImport({ entries: m.LIBRARY_KINDS.map((def) => ({ kind: def.kind, key: def.example.key, data: def.example.data })) }, { get: () => undefined, byKey: () => undefined });
+    const sources = libraryPart.drafts.map((d) => ({ id: d.id, kind: d.kind, key: d.key, data: d.data }));
+    const examples = { format: m.SCRIPTORIUM_FORMAT, version: m.SCRIPTORIUM_VERSION, entries: m.WRITING_KINDS.map((def) => ({ kind: def.kind, key: def.example.key, data: def.example.data })) };
+    const planned = m.planScriptoriumImport(examples, look(sources), ctx);
+    assert.ok(!('error' in planned), 'all writing examples import');
+    assert.deepEqual(planned.warnings, [], `the writing examples import without a warning (${planned.warnings.join(' | ')})`);
+    assert.deepEqual(planned.drafts.map((d) => d.kind), ['texttype', 'project', 'text', 'delivery'], 'text types first, then projects, texts, deliveries');
+    const byKind = Object.fromEntries(planned.drafts.map((d) => [d.kind, d]));
+    assert.equal(byKind.text.data.textType, byKind.texttype.id, 'a text points at its text type (@key of the same document)');
+    assert.equal(byKind.text.data.project, byKind.project.id);
+    assert.deepEqual(byKind.texttype.data.fields.map((f) => [f.key, f.type, f.to]), [['tajemnica', 'ref', [KT]], ['obszar', 'ref', [KO]]], 'the fields of a text type: targets by the NAME of a kind in Nauka');
+    assert.ok(byKind.text.data.body.includes(sources.find((e) => e.key === 'ratzinger2007').id), 'a text cites the library by id (stored), written as @key');
+    ok(`${m.WRITING_KINDS.length} writing kinds: described, examples import with library sources beside them, text types first`);
+
+    /* Ein Rodzaj tekstu und ein Text dieses Rodzaju — Werte beim Namen, Stellen, belegte Schlüssel, falsche Typen. */
+    const doc = { format: m.SCRIPTORIUM_FORMAT, version: 1, entries: [
+      { kind: 'texttype', key: 'maryjne', data: { name: 'Kazanie maryjne', fields: [
+        { key: 'tajemnica', label: 'Tajemnica', type: 'ref', to: ['Tajemnica'] },
+        { key: 'obszar', label: 'Obszar', type: 'ref', to: ['Obszar'], multi: true },
+        { key: 'fragment', label: 'Fragment', type: 'ref', to: ['work'], locator: true },
+        { key: 'ile', label: 'Ilu słuchaczy', type: 'number' },
+        { key: 'title', label: 'Tytuł', type: 'line' },
+        { key: 'notatka', label: 'Notatka', type: 'markup' },
+        { key: 'gdzie', label: 'Gdzie', type: 'ref', to: ['Miejsce'] }
+      ] } },
+      { kind: 'text', key: 'k1', data: { textType: '@maryjne', title: 'Niech mi się stanie', tajemnica: 'Zwiastowanie', obszar: ['Modlitwa', 'Nieznane'], fragment: { value: '@bt', locator: 'Łk 1,26-38' }, ile: '120 osób', nieznane: 1 } },
+      { kind: 'work', data: { title: 'Nie tutaj' } }
+    ] };
+    const refused = m.planScriptoriumImport(doc, look([BT, ZW, MOD]), ctx);
+    assert.ok('error' in refused && refused.error.includes('"recreatio/library"'), 'a source in a Scriptorium file is refused, naming the Library');
+    const ok2 = m.planScriptoriumImport({ ...doc, entries: doc.entries.slice(0, 2) }, look([BT, ZW, MOD]), ctx);
+    assert.ok(!('error' in ok2));
+    const type = ok2.drafts.find((d) => d.kind === 'texttype');
+    const text = ok2.drafts.find((d) => d.kind === 'text');
+    assert.deepEqual(type.data.fields.map((f) => f.key), ['tajemnica', 'obszar', 'fragment', 'ile', 'gdzie'], 'a core key (title) and a type a text type does not offer (markup) are dropped');
+    assert.equal(type.data.fields.find((f) => f.key === 'gdzie').to, undefined, 'a kind Nauka does not have: the limit is dropped, said in a warning');
+    assert.ok(ok2.warnings.some((w) => w.includes('„title”') && w.includes('stałych pól')) && ok2.warnings.some((w) => w.includes('„markup”')) && ok2.warnings.some((w) => w.includes('„Miejsce”')), ok2.warnings.join(' | '));
+    assert.equal(text.data.tajemnica, EZ, 'a value by the NAME of an entry in Nauka (among the kinds of the field)');
+    assert.deepEqual(text.data.obszar, [EM], 'several values; an unknown name is reported and left out');
+    assert.ok(ok2.warnings.some((w) => w.includes('Nieznane')), 'the unknown name is said');
+    assert.deepEqual(text.data.fragment, { value: BT.id, locator: 'Łk 1,26-38' }, 'a reference with a place: the Bible at Łk 1,26-38');
+    assert.equal(text.data.ile, 120, 'a number with a unit is a number');
+    assert.ok(text.data.nieznane === undefined && ok2.warnings.some((w) => w.includes('nieznane') && w.includes('nieznane pole')), 'a field the text type does not have is reported');
+    ok('text types: fields by the name of a kind in Nauka, core keys and unoffered types refused; a text of the type: values by the name of an entry, places, numbers, unknowns reported; sources refused');
+
+    /* Gezeichnet: der Text mit den Feldern seines Rodzaju; was der Leser nicht lesen kann, fehlt. */
+    const typeEntry = { id: type.id, kind: 'texttype', key: 'maryjne', data: type.data };
+    const textEntry = { id: text.id, kind: 'text', data: { ...text.data, body: 'Treść [@bt, Łk 1,29].' } };
+    const all = [BT, ZW, MOD, typeEntry, textEntry];
+    const L = { ...look(all), readable: () => all, title: (e) => String(e.data.name ?? e.data.title ?? e.id) };
+    assert.deepEqual(m.typeLines(textEntry.data, L), [{ label: 'Tajemnica', value: 'Zwiastowanie' }, { label: 'Obszar', value: 'Modlitwa' }, { label: 'Fragment', value: 'Biblia Tysiąclecia, Łk 1,26-38' }, { label: 'Ilu słuchaczy', value: '120' }]);
+    const html = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: textEntry, look: L }));
+    assert.ok(html.includes('Kazanie maryjne') && html.includes('<dt>Tajemnica</dt><dd>Zwiastowanie</dd>'), 'the text shows its type and its fields');
+    const hidden = { ...look([BT, typeEntry, textEntry]), readable: () => [BT, typeEntry, textEntry] };
+    const html2 = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: textEntry, look: hidden }));
+    assert.ok(!html2.includes('Zwiastowanie') && !html2.includes(EZ) && html2.includes('Fragment'), 'an entry of Nauka the reader cannot read: nothing about it, not even its id');
+    assert.deepEqual(m.typeRefs(textEntry.data, L).sort(), [BT.id, EM, EZ].sort(), 'what the fields point at (reach, backlinks)');
+    assert.ok(m.textToLatex(textEntry, L).includes('Tajemnica: Zwiastowanie'), 'LaTeX: the fields under the title');
+
+    /* JSON hinaus und wieder herein: nichts ändert sich (die Werte der Felder bleiben Kennungen). */
+    const shelf = [BT, ZW, MOD, typeEntry, { id: text.id, kind: 'text', key: 'k1', data: text.data }];
+    const out = m.exportScriptorium('x', shelf, look(shelf));
+    assert.deepEqual([out.format, out.version, out.entries.length], [m.SCRIPTORIUM_FORMAT, 1, 2], 'export: only the kinds of the Scriptorium');
+    const back = m.planScriptoriumImport(out, look(shelf), ctx);
+    assert.equal(back.unchanged, 2, `export → import changes nothing (${back.warnings.join(' | ')})`);
+
+    /* Die Beschreibung für eine KI. */
+    assert.ok(told.includes('"textType": "@kazanie-maryjne"') && told.includes('NAZWĄ') && told.includes('"locator": "Łk 1,26-38"'), 'the description shows a text of a type with values by name and a place');
+    assert.ok(told.includes('[[te słowa|@klucz]]') && told.includes('Łk 1,26–2,5'), 'the description carries the markup and the Scripture places');
+    assert.ok([...m.CORE_KEYS.keys()].every((k) => told.includes(k)), 'the description names the taken keys');
+    assert.ok(!told.includes('### "work"') && !told.includes('### "comment"') && !told.includes('### "topic"'), 'no other kinds');
+  }
+  ok('the Scriptorium: a text with the fields of its type drawn (unreadable targets say nothing), LaTeX, export → import, the description');
 
   ok('statements: the thesis is the first sentence (abbreviations, markup), questions, information vs interpretation, the marks');
 
@@ -853,7 +955,7 @@ try {
     const prompt = m.deliveryPrompt(L.get('d1'), L);
     assert.ok(prompt.includes('[p1] 1 Głód') && prompt.includes('[p2]') && prompt.includes('Modlitwa jest rozmową.') && prompt.includes('"id": "d1"') && prompt.includes('"coverage"'), 'the delivery prompt carries the plan with ids and the format');
     assert.ok(m.planPrompt(sermon).includes('Treść [@jezus, s. 5].') && m.planPrompt(sermon).includes('"id": "sermon"'), 'the plan prompt carries the text');
-    const WRITING = { format: 'recreatio/scriptorium', version: 1, kinds: m.WRITING_KINDS, saveOrder: ['text', 'project', 'delivery'], elsewhere: () => null };
+    const WRITING = m.SCRIPTORIUM_SPEC;
     const answer = { format: WRITING.format, version: 1, entries: [
       { id: 'd1', kind: 'delivery', data: { coverage: [{ point: 'p4', state: 'Pominięte', at: '9:00' }], summary: 'Nowe' } },
       { kind: 'topic', data: { name: 'x' } }

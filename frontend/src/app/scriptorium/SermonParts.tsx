@@ -18,9 +18,9 @@
 
 import { Fragment, useMemo, type MutableRefObject } from 'react';
 
-import { str, type LibEntry, type Lookup } from './libraryKinds';
-import { parseMarkup, type Block } from './libraryMarkup';
-import { Blocks, CommentsOn, countNotes, NoteList, type Notes } from './markupView';
+import { str, type LibEntry, type Lookup } from '../library/libraryKinds';
+import { parseMarkup, type Block } from '../library/libraryMarkup';
+import { Blocks, CommentsOn, countNotes, NoteList, type Notes } from '../library/markupView';
 import {
   addedOf, countsLine, coverageCounts, coverageIndex, coverageOf, mediaFile, pointKindLabel, pointLine, pointNumbers,
   secondsOf, stateLabel, timeText, type AddedItem, type CoverageItem, type PlanPoint
@@ -137,7 +137,8 @@ export function PlanSection({ textId, points, look, notes, prefix, delivery, onS
 
 function Transcript({ delivery, look, prefix }: { delivery: LibEntry; look: Lookup; prefix: string }) {
   const blocks = useMemo(() => parseMarkup(str(delivery.data, 'transcript')), [delivery]);
-  const notes = useMemo(() => countNotes([blocks], look), [blocks, look]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const notes = useMemo(() => countNotes([blocks], look), [blocks, look, look.revision]);
   if (blocks.length === 0) return null;
   return (
     <details className="lib-transcript">

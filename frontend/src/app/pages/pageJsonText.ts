@@ -234,6 +234,9 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
       krawędź: { "id", "from", "to", "port": "show"|"done"|"applies"|"in" }
   "modules" — moduły w kolejności czytania
 
+## Teksty na stronie
+Krótki napis (powitanie, ogłoszenie, kilka zdań) zostaje w module — np. "text". Dłuższy tekst (kazanie, konferencja, rozważanie, rozdział) mieszka w Skryptorium i stamtąd go się pokazuje: moduł "writing" (jeden tekst — z planem, wygłoszeniami, przypisami) albo "writings" (archiwum tekstów jednego skryptorium). Wtedy poprawka w Skryptorium jest od razu na każdej stronie, a kto widzi tekst, decyduje obszar skryptorium. Cytaty pokazuje moduł "quotes" (z Biblioteki).
+
 ## Moduł (wpis w "modules")
 ${keyLines(ENTRY_KEYS)}
 
