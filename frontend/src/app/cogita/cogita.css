@@ -417,3 +417,10 @@
 .cg-af-edit td.cg-af-edit-tools { min-width: 0; white-space: nowrap; text-align: right; padding-top: calc(0.375rem + var(--wk-space-2)); }
 .cg-af-edit-tools > * + * { margin-left: var(--wk-space-3); }
 .cg-af-edit-add { font-size: var(--wk-text-sm); }
+
+/* 2026-10-22 (Schritt 10) — die Macierz eines Widoku: Zahlen in der Mitte, das gewählte Feld markiert, die erste Spalte bleibt stehen. */
+.cg-matrix td, .cg-matrix th[scope="col"] { text-align: center; }
+.cg-matrix th[scope="row"] { position: sticky; left: 0; background: var(--wk-surface); font-weight: 600; }
+.cg-matrix td.is-on { background: var(--wk-soft); box-shadow: 0 0 0 2px var(--wk-accent) inset; }
+.cg-matrix td .cg-ref { min-width: 2rem; }
+.cg-crumbs { display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: baseline; }

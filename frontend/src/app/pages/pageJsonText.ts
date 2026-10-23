@@ -27,7 +27,7 @@ export function kindSection(def: PartModule): string {
     def.Editor !== null ? 'w edytorze: własny edytor list' : null
   ].filter((one) => one !== null);
   return [
-    `### "${def.kind}" — ${def.label}`,
+    `### "${def.kind}" — ${def.label}${def.retired === undefined ? '' : ' (WYCOFANY — nie dodawaj; ' + def.retired + ')'}`,
     def.use + (flags.length === 0 ? '' : ` (${flags.join('; ')})`),
     `Domyślny rozmiar: ${def.box.colSpan}×${def.box.rowSpan}.`,
     '"config":',

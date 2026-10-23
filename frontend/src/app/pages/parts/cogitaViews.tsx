@@ -33,6 +33,7 @@ import { Bar, CogitaContext, useAsync, useBusy, type CogitaCtx } from '../../cog
 import { OnSeat } from './seat';
 import type { EntityConfig, FlowConfig, LiveConfig, MapConfig, RevisionConfig, SeatLearnConfig, TableConfig, TopicsConfig } from './cogita';
 import { Loading } from '../../ui/Loading';
+import { FogMap } from '../../cogita/FogMap';
 
 /** Hoch oder im ganzen Fenster: das Ganze. */
 const isTall = (ctx: PartContext): boolean => ctx.whole === true || ctx.size.height === 'tall';
@@ -450,28 +451,13 @@ export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: Part
     <CogitaContext.Provider value={cg}>
       <Head title={title} />
       <p className="wk-card-muted">{known} z {graph.ids.length} umiesz · przerywana obwódka — możesz tam wejść; mgła — jeszcze nieodkryte.</p>
-      <div className={`cg-explore${tall ? '' : ' is-small'}`}>
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
-          {graph.edges.map((e, i) => {
-            const a = graph.place.get(e.from);
-            const b = graph.place.get(e.to);
-            return a === undefined || b === undefined ? null : <line key={i} x1={a.x * 100} y1={a.y * 100} x2={b.x * 100} y2={b.y * 100} />;
-          })}
-        </svg>
-        {graph.ids.map((id) => {
-          const at = graph.place.get(id) ?? { x: 0.5, y: 0.5 };
+      <FogMap tall={tall} edges={graph.edges} place={graph.place} onOpen={setChosen}
+        nodes={graph.ids.map((id) => {
           const state = fog.get(id) ?? 'fog';
           const e = lib.entity(id);
           const label = e === undefined ? '?' : lib.label(e);
-          return (
-            <button key={id} type="button" className={`cg-explore-node is-${state}`} style={{ left: `${at.x * 100}%`, top: `${at.y * 100}%` }}
-              disabled={state === 'fog'} title={state === 'fog' ? 'Jeszcze w mgle' : `${label} · ${Math.round(shareOf(knowness(id)) * 100)}%`}
-              onClick={() => setChosen(id)}>
-              {tall ? label : label.slice(0, 14)}
-            </button>
-          );
-        })}
-      </div>
+          return { id, label, state, title: state === 'fog' ? 'Jeszcze w mgle' : `${label} · ${Math.round(shareOf(knowness(id)) * 100)}%` };
+        })} />
       {entity !== undefined && chosen !== null && (
         <div className="cg-card">
           <EntityView entity={tall ? publicEntity(lib, entity) : { ...publicEntity(lib, entity), media: [], fields: publicEntity(lib, entity).fields.slice(0, 2) }} />

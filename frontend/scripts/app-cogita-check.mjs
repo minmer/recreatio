@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions'];
 await build({
   entryPoints: names.map((n) => `src/app/cogita/${n}.ts`),
   bundle: true,
@@ -24,7 +24,7 @@ await build({
   logLevel: 'error'
 });
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA] = await Promise.all(names.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -1356,6 +1356,52 @@ check('goals and lines follow the one logic', [
   hash = PQ.withScope(hash, b, { q: 'Dawid' });
   check('each module reads only its own keys; other keys stay', [PQ.readScope(hash, a), PQ.readScope(hash, b), hash.includes('wpis=x')], [{ q: 'Józef', e: 'id1' }, { q: 'Dawid' }, true]);
   check('clearing a key removes only that one', PQ.readScope(PQ.withScope(hash, a, { e: null }), a), { q: 'Józef' });
+
+  /* ══ 2026-10-22 (Schritt 10) — die Macierz, Achsen als Spalten, ein Widok als Powtórka, die Taten ══ */
+  const [tOkres, tAdw, tPost, tZwykly, txt1, txt2, cm1] = [9, 'a', 'b', 'c', 'd', 'e', 'f'].map(U);
+  const bmap = new Map();
+  const books = {
+    libraryId: 'B', areaId: 'area-b', revision: 1, loaded: true, saved: [],
+    all: () => [...bmap.values()], get: (id) => bmap.get(id), byKey: () => undefined,
+    save: async (input) => { const entry = { ...input, id: input.id ?? `nowy-${books.saved.length}` }; bmap.set(entry.id, entry); books.saved.push(entry); books.revision += 1; return entry; },
+    subscribe: () => () => undefined
+  };
+  const B = (id, kind, data) => bmap.set(id, { id, kind, data });
+  B(tOkres, 'topic', { name: 'Okres', aspect: 'yes' });
+  B(tAdw, 'topic', { name: 'Adwent', parent: [tOkres], order: 1 });
+  B(tPost, 'topic', { name: 'Wielki Post', parent: [tOkres], order: 2 });
+  B(tZwykly, 'topic', { name: 'Okres zwykły', parent: [tOkres], order: 3 });
+  B(txt1, 'text', { title: 'Kazanie o obietnicy', date: '2026-12-01', topics: [tAdw, tObiet], plan: [{ id: 'p1', text: 'Wstęp', depth: 0 }] });
+  B(txt2, 'text', { title: 'Kazanie o królestwie', date: '2026-03-01', topics: [tPost, tKrol] });
+  B(cm1, 'comment', { blocks: [{ type: 'paragraph', text: 'Obietnica dojrzewa w czasie.' }], subjects: [], topics: [tAdw, tObiet] });
+  lib.setSources([{ store: books, kind: 'books', name: 'Kazania' }]);
+  const both = VW.readView({ name: 'Kazania i komentarze', mode: 'matrix', steps: [step('source.kind', { kind: 'text' }), step('source.kind', { kind: 'comment' })], matrix: { rows: { by: 'topic', axis: tOs }, cols: { by: 'topic', axis: tOkres } } });
+  const bothList = VW.viewList(lib, both);
+  check('two sources at the start count together: sermons and statements', bothList.map((e) => lib.label(e)).sort(), [lib.label(lib.entity(cm1)), 'Kazanie o królestwie', 'Kazanie o obietnicy'].sort());
+  truth('a source after a step starts anew', names([step('source.kind', { kind: kP }), step('filter.rule', { rule: { op: 'and', items: [] } }), step('source.list', { ids: [daw] })]).join() === 'Dawid');
+  const mx = VW.viewMatrix(lib, both, bothList);
+  check('the matrix shows every value of both axes, also empty ones', [mx.rows.map((g) => g.label), mx.cols.map((g) => g.label)], [['Obietnica', 'Królestwo'], ['Adwent', 'Wielki Post', 'Okres zwykły']]);
+  check('a cell holds what belongs to both — a sermon and a statement', mx.cell(tObiet, tAdw).length === 2 && mx.cell(tKrol, tPost).length === 1 && mx.cell(tObiet, tZwykly).length === 0, true);
+  check('an axis as a column: the values the entry belongs to', VW.cellText(lib, lib.entity(txt1), `#axis:${tOkres}`), 'Adwent');
+  check('the address of a cell', VW.cellKey('r', 'c'), 'r~c');
+
+  const rev = VW.viewToRevision(both);
+  check('a view becomes a revision: the same steps as nodes, two sources through „Razem", one strategy', rev.graph.nodes.map((x) => x.type), ['source.kind', 'source.kind', 'union', 'strategy']);
+  check('… and back: what a revision selects, as steps', VW.stepsOfRevision(VW.viewToRevision(VW.readView({ steps: [step('source.kind', { kind: kP }), step('follow', { field: 'father' })] })).graph).map((x) => x.type), ['source.kind', 'follow']);
+  const planned = (await R.planOf(G.readGraph(VW.viewToRevision(VW.readView({ steps: [step('source.list', { ids: [jak] }), step('follow', { field: 'father' })] })).graph), lib.revisionContext(cards, () => [], Date.now()))).plan;
+  check('the revision made from a view asks the cards of its entries', planned.cards.map((c) => c.entity), [iza]);
+
+  const here = VA.contextOf([{ grouping: { by: 'topic', axis: tOs }, group: mx.rows[0] }, { grouping: { by: 'topic', axis: tOkres }, group: mx.cols[1] }]);
+  check('a cell’s context: both topics, in words', [here.topics, here.words], [[tObiet, tPost], ['Obietnica', 'Wielki Post']]);
+  const madeComment = await VA.createHere(lib, VW.readView({ steps: [step('source.kind', { kind: 'comment' })] }), here);
+  check('a statement created in a cell goes to the library, with both topics', [madeComment.inLibrary, madeComment.libraryId, bmap.get(madeComment.id)?.kind, bmap.get(madeComment.id)?.data.topics], [true, 'B', 'comment', [tObiet, tPost]]);
+  const field = VA.contextOf([{ grouping: { by: 'field', field: 'era' }, group: { key: 't:krolowie', label: 'królowie', ids: [] } }]);
+  const madePerson = await VA.createHere(lib, VW.readView({ steps: [step('source.kind', { kind: kP })] }), field);
+  check('an entry of the base created in a group gets the group’s value', [madePerson.inLibrary, map.get(madePerson.id)?.data.era], [false, 'królowie']);
+  check('a quote goes into a plan embedded, anything else as a link with its name', [VA.pointFor('quote', 'q', 'x'), VA.pointFor('comment', 'c', 'O [obietnicy] | czasie')], [{ text: '![@q]', kind: 'quote' }, { text: '[[O obietnicy czasie|@c]]', kind: 'thought' }]);
+  const added = await VA.addToPlan(lib, txt1, [cm1, daw]);
+  const newPlan = bmap.get(txt1).data.plan;
+  check('add to plan: new points at the end, the old ones stay, ids stay unique', [added, newPlan.length, newPlan[0].id, newPlan[1].text, new Set(newPlan.map((x) => x.id)).size], [2, 3, 'p1', `[[${lib.label(lib.entity(cm1)).replace(/[[\]|]/g, ' ').replace(/\s+/g, ' ').trim()}|@${cm1}]]`, 3]);
 }
 
 await rm(workspace, { recursive: true, force: true });

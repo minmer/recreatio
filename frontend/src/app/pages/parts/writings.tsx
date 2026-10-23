@@ -15,6 +15,10 @@
  * dem, was gesagt und was ausgelassen wurde) und die Quellen. Die Achsen
  * stehen in der Bibliothek (Themen mit „Aspekt"); hier wird nur gewählt,
  * womit das Archiv beginnt — der Baustein bleibt so klein wie vorher.
+ *
+ * 2026-10-22 (Schritt 10) — die TABELA ist ausgemustert: Tabelle und Macierz
+ * gibt der Baustein „Widok" (mit dem Kazanie als innerer Ansicht). Wer sie
+ * schon eingestellt hat, behält sie, bis Porządki ihn umstellt.
  */
 
 import { definePart, text, type RawConfig } from '../part';
@@ -43,9 +47,9 @@ export const writingsPart = definePart<WritingsConfig>({
   kind: 'writings',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Kazania', library: '<id-biblioteki>', project: '<id-projektu albo puste>', topic: '<id-tematu albo puste>', layout: 'tabela' },
+  example: { title: 'Kazania', library: '<id-biblioteki>', project: '<id-projektu albo puste>', topic: '<id-tematu albo puste>', layout: 'drzewo' },
   label: 'Archiwum tekstów',
-  use: 'Kazania i teksty z Biblioteki — z wyszukiwaniem, filtrami według aspektów, jako lista, tabela albo drzewo tematów; każdy otwiera się z planem, nagraniami i źródłami.',
+  use: 'Kazania i teksty z Biblioteki — z wyszukiwaniem, filtrami według aspektów, jako lista albo drzewo tematów; każdy otwiera się z planem, nagraniami i źródłami. Tabelę i macierz (np. tajemnice × okresy) daje moduł „Widok”.',
   box: { colSpan: 6, rowSpan: 5 },
 
   fields: [
@@ -53,7 +57,7 @@ export const writingsPart = definePart<WritingsConfig>({
     { key: 'library', label: 'Z której biblioteki', kind: 'library' },
     { key: 'project', label: 'Tylko z projektu (cyklu, książki)', kind: 'libraryEntry', of: 'library', entryKinds: ['project'], optional: true },
     { key: 'topic', label: 'Tylko z tematu', kind: 'libraryEntry', of: 'library', entryKinds: ['topic'], optional: true },
-    { key: 'layout', label: 'Na początek', kind: 'line', hint: 'lista, tabela albo drzewo — odwiedzający może zmienić' }
+    { key: 'layout', label: 'Na początek', kind: 'line', hint: 'lista albo drzewo — odwiedzający może zmienić (tabela: moduł „Widok”)' }
   ],
 
   read: (raw: RawConfig): WritingsConfig => ({

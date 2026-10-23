@@ -62,6 +62,14 @@ import { writingPart } from './writing';
 import { writingsPart } from './writings';
 import { viewPart } from './view';
 
+/**
+ * 2026-10-22 (Schritt 10) — WAS MAN HINZUFÜGEN KANN: alle ausser den
+ * ausgemusterten (`retired`). Gezeichnet, gelesen und beschrieben werden
+ * weiter alle (`PARTS`) — eine Seite, die einen ausgemusterten trägt, bleibt,
+ * wie sie ist, bis Porządki ihn umstellt.
+ */
+export const palette = (): readonly PartModule[] => PARTS.filter((one) => one.retired === undefined);
+
 export const PARTS: readonly PartModule[] = [
   /* Was auf jeder Seite steht. */
   textPart,

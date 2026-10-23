@@ -8,6 +8,11 @@
  * Auswahl in Schritten (dieselben wie in der Powtórka, `selection.ts`),
  * Gruppen für das Drzewo; derselbe Widok steht als Baustein „Widok" auf einer
  * Seite. „Rodzaj" und „Filtr" oben sind Abkürzungen in seine Schritte.
+ *
+ * 2026-10-22 (Schritt 10) — die Macierz (Zeilen × Spalten, ein Feld öffnet
+ * sich darunter) und, wer schreiben darf, die Taten (`viewActions.ts`): ein
+ * neuer Eintrag mit dem Zusammenhang des Feldes, die Einträge an den Plan eines
+ * Kazanie, eine Powtórka aus dem Widok oder aus einem Feld.
  */
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
@@ -19,9 +24,13 @@ import { fieldsOf, fieldText, valuesOf, type Entity } from './schema';
 import { SelectionBar } from './EntitySelection';
 import { RuleEditor } from './RuleEditor';
 import { OriginTag, useBusy, useCtx } from './ui';
-import { ViewSteps } from './ViewSteps';
-import { readView, ruleOf, sourceKind, viewColumns, viewGroups, viewJson, viewList, withRule, withSourceKind, type ViewDoc } from './views';
+import { axisColumns, ViewSteps } from './ViewSteps';
+import { AXIS_COLUMN, cellKey, cellText, readView, ruleOf, sourceKind, viewColumns, viewGroups, viewJson, viewList, viewMatrix, withRule, withSourceKind, type ViewDoc } from './views';
 import type { Group } from './selection';
+import { MatrixGrid } from './MatrixGrid';
+import { addToPlan, contextOf, createHere, learn } from './viewActions';
+import { viewPath } from '../routes';
+import { toast } from '../ui/dialogs';
 
 export type { ListMode } from './views';
 
@@ -34,7 +43,7 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
   onForm: (id: string) => void;
   onForms: () => void;
 }) {
-  const { lib, writes } = useCtx();
+  const { lib, writes, href } = useCtx();
   const saved = viewId === null ? undefined : lib.docs('view').find((e) => e.id === viewId);
   const [view, setView] = useState<ViewDoc>(() => readView(saved?.data ?? { mode: 'table' }));
   const [shownFor, setShownFor] = useState(viewId);
@@ -54,13 +63,48 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
   const list = useMemo(() => viewList(lib, view), [lib, lib.revision, view.query, JSON.stringify(view.steps), JSON.stringify(view.sort)]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const groups = useMemo(() => (view.mode === 'tree' && view.group !== null ? viewGroups(lib, view, list) : null), [list, view.mode, JSON.stringify(view.group)]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const matrix = useMemo(() => (view.mode === 'matrix' ? viewMatrix(lib, view, list) : null), [list, view.mode, JSON.stringify(view.matrix)]);
+  const [cell, setCell] = useState<{ row: string; col: string } | null>(null);
+  const cellIds = matrix === null || cell === null ? [] : matrix.cell(cell.row, cell.col);
 
   const quickKind = sourceKind(view);
   const kind = quickKind === null || quickKind === '' ? undefined : lib.kind(quickKind);
   const shownColumns = viewColumns(lib, view, list);
   const columns = view.columns.length > 0 ? view.columns : kind !== undefined ? kind.fields.filter((f) => f.type !== 'markup' && f.type !== 'text').slice(0, 4).map((f) => f.key) : shownColumns.map((f) => f.key);
-  const chooserFields = kind !== undefined ? kind.fields.map((f) => ({ key: f.key, label: f.label }))
-    : [...new Map(list.slice(0, 200).flatMap((e) => fieldsOf(e, look)).filter((f) => f.type !== 'markup' && f.type !== 'blocks').map((f) => [f.key, { key: f.key, label: f.label }])).values()];
+  const chooserFields = [
+    ...(kind !== undefined ? kind.fields.map((f) => ({ key: f.key, label: f.label }))
+      : [...new Map(list.slice(0, 200).flatMap((e) => fieldsOf(e, look)).filter((f) => f.type !== 'markup' && f.type !== 'blocks').map((f) => [f.key, { key: f.key, label: f.label }])).values()]),
+    /* 2026-10-22 (Schritt 10) — eine Achse von Tematy als Spalte: ihre Werte, zu denen der Eintrag gehört. */
+    ...axisColumns(lib)
+  ];
+  const label = (key: string) => (key.startsWith(AXIS_COLUMN) ? chooserFields.find((f) => f.key === key)?.label.replace(/ \(oś tematów\)$/, '') ?? key : undefined);
+
+  /* Die Taten (Schritt 10) — nur, wer schreiben darf. */
+  const here = (row: string, col: string) => run(async () => {
+    if (matrix === null || view.matrix === null) return;
+    const r = matrix.rows.find((g) => g.key === row);
+    const c = matrix.cols.find((g) => g.key === col);
+    if (r === undefined || c === undefined) return;
+    const context = contextOf([{ grouping: view.matrix.rows, group: r }, { grouping: view.matrix.cols, group: c }]);
+    const made = await createHere(lib, view, context);
+    toast(`Nowy wpis: ${context.words.join(' × ')}`);
+    if (made.inLibrary) window.location.hash = viewPath('library', made.libraryId, made.id);
+    else onOpen(made.id);
+  });
+  /* Do planu kazania: die Texte der Bibliotheken, aus denen die Baza schöpft. */
+  const texts = useMemo(() => [...lib.material('text')].sort((a, b) => lib.label(a).localeCompare(lib.label(b), 'pl')), [lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [planText, setPlanText] = useState('');
+  const toPlan = (ids: readonly string[]) => run(async () => {
+    const text = texts.find((t) => t.id === planText);
+    if (text === undefined) return;
+    const n = await addToPlan(lib, text.id, ids);
+    toast(`Dodano ${n} punktów do planu „${lib.label(text)}”.`);
+  });
+  const toRevision = (ids?: readonly string[], name?: string) => run(async () => {
+    const id = await learn(lib, view, ids, name);
+    window.location.hash = href('powtorki', id);
+  });
   const setV = (patch: Partial<ViewDoc>) => setView((v) => ({ ...v, ...patch }));
   const rule = ruleOf(view);
 
@@ -82,7 +126,7 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
           {quickKind === null && <option value="#inne">inne źródło (zob. „Wybór")</option>}
         </select>
         <span className="cg-subtabs">
-          {(['table', 'tree', 'canvas'] as const).map((m) => <button key={m} type="button" className={view.mode === m ? 'is-on' : ''} onClick={() => setV({ mode: m })}>{{ table: 'Tabela', tree: 'Drzewo', canvas: 'Płótno' }[m]}</button>)}
+          {(['table', 'tree', 'matrix', 'canvas'] as const).map((m) => <button key={m} type="button" className={view.mode === m ? 'is-on' : ''} onClick={() => setV({ mode: m, ...(m === 'matrix' && view.matrix === null ? { matrix: { rows: view.group ?? { by: 'kind' }, cols: { by: 'kind' } } } : {}) })}>{{ table: 'Tabela', tree: 'Drzewo', matrix: 'Macierz', canvas: 'Płótno' }[m]}</button>)}
         </span>
         {writes && <button type="button" className="wk-btn" disabled={lib.kinds.length === 0} title={lib.kinds.length === 0 ? 'Najpierw dodaj rodzaj w Schemacie' : undefined} onClick={() => onNew(kind?.id ?? lib.kinds[0]?.id ?? 'knowledge')}>+ Wpis{kind === undefined ? '' : `: ${kind.name}`}</button>}
         {writes && (
@@ -110,11 +154,43 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
         {writes && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void saveView(true)}>Zapisz jako widok</button>}
         {writes && viewId !== null && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void saveView(false)}>Zapisz zmiany widoku</button>}
         {viewId !== null && <button type="button" className="wk-link-btn" onClick={() => { void navigator.clipboard?.writeText(window.location.href); }}>Kopiuj link do widoku</button>}
+        {writes && list.length > 0 && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void toRevision()}>Powtórka z tego widoku</button>}
       </div>
       {failed !== null && <p className="wk-error">{failed}</p>}
       {picked.size > 0 && <SelectionBar ids={picked} total={list.length} onAll={() => setPicked(new Set(list.map((e) => e.id)))} onClear={() => setPicked(new Set())} onKept={setPicked} />}
       {view.mode === 'table' && <Table list={list} picked={picked} onPick={setPicked} columns={columns} sort={view.sort} onSort={(key) => setV({ sort: view.sort?.key === key ? { key, dir: view.sort.dir === 1 ? -1 : 1 } : { key, dir: 1 } })} onOpen={onOpen}
-        onColumns={(cols) => setV({ columns: cols })} kindFields={chooserFields} />}
+        onColumns={(cols) => setV({ columns: cols })} kindFields={chooserFields} label={label} />}
+      {view.mode === 'matrix' && matrix === null && <p className="cg-muted">Wybierz wiersze i kolumny macierzy w „Wybór i grupy".</p>}
+      {view.mode === 'matrix' && matrix !== null && (
+        <>
+          <MatrixGrid matrix={matrix} chosen={cell === null ? null : cellKey(cell.row, cell.col)}
+            onCell={(row, col) => setCell(cell !== null && cell.row === row && cell.col === col ? null : { row, col })}
+            onEmpty={writes ? (row, col) => void here(row, col) : undefined} />
+          {cell !== null && (
+            <section className="cg-card">
+              <h3>{matrix.rows.find((g) => g.key === cell.row)?.label} × {matrix.cols.find((g) => g.key === cell.col)?.label} <span className="cg-muted">({cellIds.length})</span></h3>
+              <ul className="cg-plain-list">
+                {cellIds.map((id) => { const e = lib.entity(id); return e === undefined ? null : <li key={id}><button type="button" className="cg-ref" onClick={() => onOpen(id)}>{lib.label(e)}</button> <span className="cg-muted">{e.kinds.map((k) => lib.kind(k)?.name ?? k).join(', ')}</span> <OriginTag id={id} /></li>; })}
+              </ul>
+              {writes && (
+                <span className="cg-row">
+                  <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void here(cell.row, cell.col)}>+ Nowy wpis tutaj</button>
+                  {cellIds.length > 0 && texts.length > 0 && (
+                    <span className="cg-row">
+                      <select value={planText} aria-label="Do planu którego tekstu" onChange={(e) => setPlanText(e.target.value)}>
+                        <option value="">— do planu kazania —</option>
+                        {texts.map((t) => <option key={t.id} value={t.id}>{lib.label(t).slice(0, 70)}</option>)}
+                      </select>
+                      <button type="button" className="wk-link-btn" disabled={busy || planText === ''} onClick={() => void toPlan(cellIds)}>Dodaj do planu</button>
+                    </span>
+                  )}
+                  {cellIds.length > 0 && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void toRevision(cellIds, `${view.name}: ${matrix.rows.find((g) => g.key === cell.row)?.label ?? ''} × ${matrix.cols.find((g) => g.key === cell.col)?.label ?? ''}`)}>Powtórka z tego pola</button>}
+                </span>
+              )}
+            </section>
+          )}
+        </>
+      )}
       {view.mode === 'tree' && (groups === null ? <Tree list={list} onOpen={onOpen} /> : <GroupTree groups={groups} onOpen={onOpen} />)}
       {view.mode === 'canvas' && <Canvas list={list} positions={view.positions} onOpen={onOpen}
         onMoved={(id, at) => {
@@ -128,7 +204,7 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
   );
 }
 
-function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns, kindFields }: {
+function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns, kindFields, label }: {
   list: readonly Entity[];
   picked: ReadonlySet<string>;
   onPick: (next: ReadonlySet<string>) => void;
@@ -138,6 +214,8 @@ function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns,
   onOpen: (id: string) => void;
   onColumns?: (cols: string[]) => void;
   kindFields: readonly { key: string; label: string }[];
+  /** 2026-10-22 (Schritt 10) — der Name einer Spalte, die kein Feld ist (eine Achse). */
+  label?: (key: string) => string | undefined;
 }) {
   const { lib } = useCtx();
   const look = lib.look;
@@ -209,7 +287,7 @@ function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns,
               <th className="cg-pick-cell"><input type="checkbox" checked={allOnPage} aria-label="Zaznacz wszystkie na tej stronie" onChange={() => mark(pageIds, !allOnPage)} /></th>
               <th><button type="button" onClick={() => onSort('_label')}>Wpis{arrow('_label')}</button></th>
               <th>Rodzaj</th>
-              {columns.map((c) => <th key={c}><button type="button" onClick={() => onSort(c)}>{kindFields.find((f) => f.key === c)?.label ?? c}{arrow(c)}</button></th>)}
+              {columns.map((c) => <th key={c}><button type="button" onClick={() => onSort(c)}>{label?.(c) ?? kindFields.find((f) => f.key === c)?.label ?? c}{arrow(c)}</button></th>)}
             </tr>
           </thead>
           <tbody>
@@ -234,6 +312,7 @@ function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns,
                 <td>{lib.label(e)}{lib.tell(e) !== '' && <span className="cg-muted"> · {lib.tell(e)}</span>} <OriginTag id={e.id} /></td>
                 <td className="cg-muted">{e.kinds.map((k) => lib.kind(k)?.name ?? k).join(', ')}</td>
                 {columns.map((c) => {
+                  if (c.startsWith(AXIS_COLUMN)) return <td key={c}>{cellText(lib, e, c).slice(0, 120)}</td>;
                   const f = fieldsOf(e, look).find((x) => x.key === c);
                   return <td key={c}>{f === undefined ? '' : fieldText(e, f, look).slice(0, 120)}</td>;
                 })}

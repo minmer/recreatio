@@ -250,7 +250,8 @@ function Browser({ store, revision, title, project, topic, initial, onOpen }: {
       <Head title={title} />
       <div className="lib-browse-bar">
         <input className="lib-archive-search" type="search" value={query} placeholder="Szukaj w tekstach…" aria-label="Szukaj w tekstach" onChange={(e) => setQuery(e.target.value)} />
-        <Segment now={layout} options={LAYOUTS} busy={false} onPick={setLayout} />
+        {/* 2026-10-22 (Schritt 10) — die Tabela ist ausgemustert (Baustein „Widok"); wer sie eingestellt hat, behält sie bis zur Umstellung. */}
+        <Segment now={layout} options={initial === 'table' || layout === 'table' ? LAYOUTS : LAYOUTS.filter((l) => l.value !== 'table')} busy={false} onPick={setLayout} />
       </div>
 
       {layout !== 'tree' && facets.length > 0 && (

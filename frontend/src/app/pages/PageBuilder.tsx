@@ -33,7 +33,7 @@ import {
   type Breakpoint, type Frame, type Handle, type Layout
 } from './layout';
 import { partSize, SIZE_WORD, type PartSize } from './part';
-import { PARTS, partLabel, partOf } from './parts/registry';
+import { palette, partLabel, partOf } from './parts/registry';
 import { PickModule } from '../modules/PickModule';
 import { PickForm, PickQuestions, pickedForm } from '../forms/FormPick';
 import { PickPage } from './PickPage';
@@ -326,7 +326,7 @@ export function PageBuilder({ parts, onChange: report, busy, onOpenModule, path 
         onDragEnd={onDragEnd}
       >
         <div className="pb-palette">
-          {PARTS.map((one) => (
+          {palette().map((one) => (
             <Pill key={one.kind} kind={one.kind} label={one.label} use={one.use} />
           ))}
         </div>

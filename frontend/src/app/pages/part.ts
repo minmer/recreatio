@@ -180,6 +180,13 @@ export interface PartModule {
   readonly label: string;
 
   /**
+   * 2026-10-22 (Schritt 10) — AUSGEMUSTERT, mit dem Grund in Worten (wohin er
+   * gegangen ist). Er steht nicht mehr in den Listen zum Hinzufügen; wo er
+   * schon steht, zeichnet er weiter, bis Porządki ihn umstellt.
+   */
+  readonly retired?: string;
+
+  /**
    * WOZU er da ist, in einer Zeile.
    *
    * Der Editor zeigte bisher nur den Namen. „Formularz" sagt, was es ist, und
@@ -489,6 +496,8 @@ export function definePart<C>(spec: {
 
   /** Ein eigenes JSON statt des flachen (die Bausteine der Ereignisseiten). */
   json?: PartJson;
+  /** 2026-10-22 (Schritt 10) — siehe `PartModule.retired`. */
+  retired?: string;
 }): PartModule {
   /*
    * Als echtes Bauteil eingehängt und nicht als Funktion aufgerufen: sonst
@@ -507,6 +516,7 @@ export function definePart<C>(spec: {
   return {
     kind: spec.kind,
     label: spec.label,
+    ...(spec.retired === undefined ? {} : { retired: spec.retired }),
     use: spec.use,
     box: spec.box,
     takes: spec.takes ?? false,

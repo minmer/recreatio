@@ -247,7 +247,8 @@ export function Modules({ who, trail, forms = false }: { who: Who; trail: readon
         <Unused modules={all} busy={busy !== null} onAct={act} />
 
         <ul className="wk-box wk-kind-list" aria-label="Rodzaje modułów">
-          {PARTS.map((one) => {
+          {/* 2026-10-22 (Schritt 10) — ein ausgemusterter Baustein nur, solange es ihn noch gibt. */}
+          {PARTS.filter((one) => one.retired === undefined || all.some((m) => m.kind === one.kind)).map((one) => {
             const count = all.filter((m) => m.kind === one.kind).length;
 
             return (
@@ -255,7 +256,7 @@ export function Modules({ who, trail, forms = false }: { who: Who; trail: readon
                 <a className="wk-line" href={modulePath(one.kind)}>
                   <span className="wk-line-text">
                     <span className="wk-line-title">{one.label}</span>
-                    <span className="wk-line-sub">{one.use}</span>
+                    <span className="wk-line-sub">{one.retired === undefined ? one.use : `Wycofany: ${one.retired}`}</span>
                   </span>
                   <span className="wk-line-end">{count === 0 ? '—' : <span className="wk-count is-quiet">{count}</span>}</span>
                 </a>

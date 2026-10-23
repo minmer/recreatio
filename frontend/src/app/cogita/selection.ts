@@ -18,6 +18,10 @@
  *   filter.rule         nur, was die Regel erfüllt (die Regel der Zbiory: Feld, Vergleich, Gruppen)
  * </code>
  *
+ * <b>Quellen am Anfang zählen zusammen</b> (2026-10-22, Schritt 10): „Kazania"
+ * und „Komentarze" in einem Widok sind zwei Quellen hintereinander; eine Quelle
+ * nach einem anderen Schritt beginnt neu.
+ *
  * Dazu, nur für Widoki: <b>Gruppen</b> (`groupsOf`) — nach Rodzaj, nach den
  * Werten eines Feldes oder nach einer Achse von Tematy (ein Temat-Aspekt, seine
  * Unterthemen sind die Werte). Ein Eintrag kann in mehreren Gruppen stehen.
@@ -217,13 +221,21 @@ export function pick(ctx: SelectContext, step: Step, input: ReadonlySet<string> 
   }
 }
 
-/** Die Schritte der Reihe nach — ohne Quelle beginnt es bei allem. Was keiner kennt, fällt weg (und wird genannt). */
+/**
+ * Die Schritte der Reihe nach — ohne Quelle beginnt es bei allem. Quellen am
+ * Anfang zählen zusammen (Kazania UND Komentarze); eine spätere beginnt neu.
+ * Was keiner kennt, fällt weg (und wird genannt).
+ */
 export function runSteps(ctx: SelectContext, steps: readonly Step[]): { ids: string[]; problems: string[] } {
   const problems: string[] = [];
   let now: Set<string> | null = steps.length > 0 && isSource(steps[0].type) ? null : pick(ctx, { type: 'source.all', config: {} }, null);
+  let leading = true;
   for (const step of steps) {
     if (step.type === 'source.collection' && ctx.collection(str(step.config.collection)) === undefined) problems.push('Nie ma takiego zbioru.');
-    now = pick(ctx, step, now);
+    const got = pick(ctx, step, now);
+    if (leading && isSource(step.type) && now !== null) { for (const id of got) now.add(id); continue; }
+    if (!isSource(step.type)) leading = false;
+    now = got;
   }
   const ids = [...(now ?? [])].filter((id) => ctx.entity(id) !== undefined);
   return { ids, problems };
@@ -266,7 +278,7 @@ export function childTopics(ctx: Pick<SelectContext, 'look'>, topics: readonly E
  * keine passt, steht zuletzt unter „bez …". Die Reihenfolge der Werte: nach dem
  * Etikett (eine Achse: wie ihre Unterthemen stehen).
  */
-export function groupsOf(ctx: SelectContext, ids: readonly string[], grouping: Grouping, topics: readonly Entity[] = []): Group[] {
+export function groupsOf(ctx: SelectContext, ids: readonly string[], grouping: Grouping, topics: readonly Entity[] = [], options: { readonly all?: boolean } = {}): Group[] {
   const look = ctx.look;
   const groups = new Map<string, { label: string; ids: string[] }>();
   const rest: string[] = [];
@@ -283,6 +295,8 @@ export function groupsOf(ctx: SelectContext, ids: readonly string[], grouping: G
       for (const { v, members } of inValue) if (members.has(id) && id !== v.id) { put(v.id, labelOf(v, look), id); placed = true; }
       if (!placed) rest.push(id);
     }
+    /* `all`: auch die Werte ohne Einträge — eine Macierz zeigt alle Zeilen ihrer Achse (20 × 12, auch leere Felder). */
+    if (options.all === true) for (const v of values) if (!groups.has(v.id)) groups.set(v.id, { label: labelOf(v, look), ids: [] });
     const order = new Map(values.map((v, i) => [v.id, i]));
     return [
       ...[...groups.entries()].sort((a, b) => (order.get(a[0]) ?? 0) - (order.get(b[0]) ?? 0)).map(([key, g]) => ({ key, label: g.label, ids: g.ids })),

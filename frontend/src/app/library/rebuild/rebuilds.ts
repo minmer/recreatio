@@ -6,7 +6,8 @@
 import type { Rebuild } from './rebuild';
 import { baseVisibility } from './baseVisibility';
 import { knowledgeToStatements } from './knowledgeToStatements';
+import { pageModules } from './pageModules';
 import { refsToIds } from './refsToIds';
 import { topicsToLibrary } from './topicsToLibrary';
 
-export const REBUILDS: readonly Rebuild[] = [refsToIds, knowledgeToStatements, topicsToLibrary, baseVisibility];
+export const REBUILDS: readonly Rebuild[] = [refsToIds, knowledgeToStatements, topicsToLibrary, baseVisibility, pageModules];

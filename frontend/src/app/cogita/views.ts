@@ -5,12 +5,20 @@
  * Plätze auf der Leinwand — und wie er sich zeigt.
  *
  * <code>
- *   { name, mode: "table" | "tree" | "canvas",
+ *   { name, mode: "table" | "tree" | "canvas" | "matrix" | "map",
  *     steps: [{ type: "source.kind", config: { kind } }, { type: "follow", config: { field, back } },
  *             { type: "filter.rule", config: { rule } }],
  *     query, group: { by: "kind" | "field" | "topic", field?, axis? },
- *     columns: [klucze pól], sort: { key, dir }, positions: { id: { x, y } } }
+ *     columns: [klucze pól | "#axis:<temat>"], sort: { key, dir }, positions: { id: { x, y } },
+ *     matrix: { rows: grupowanie, cols: grupowanie } }
  * </code>
+ *
+ * 2026-10-22 (Schritt 10) — <b>Macierz</b>: Zeilen und Spalten sind zwei
+ * Gruppierungen (meist zwei Achsen von Tematy: 20 Tajemnice × 12 …), ein Feld
+ * hält, was zu beiden gehört. <b>Mapa</b>: die Einträge im Nebel des Lernens
+ * (aus „Mapa wiedzy"). Eine Spalte kann eine Achse sein (`#axis:<id>`): ihre
+ * Werte, zu denen der Eintrag gehört. Und ein Widok wird eine Powtórka
+ * (`viewToRevision`) — dieselben Schritte als Knoten.
  *
  * Gezeigt wird er in „Wpisy" (`EntityList.tsx`) und auf einer Seite (der
  * Baustein „Widok", `pages/parts/view.tsx`). Die alte Gestalt (bis Schritt 9:
@@ -18,13 +26,20 @@
  * die neue.
  */
 
-import { fieldsOf, fieldText, valuesOf, type Entity, type FieldDef, type Lookup } from './schema';
+import { readGraph, type Graph } from './graph';
+import { fieldsOf, fieldText, labelOf, valuesOf, type Entity, type FieldDef, type Lookup } from './schema';
 import {
-  groupsOf, readGrouping, readRule, readSteps, runSteps, isSource,
+  childTopics, groupsOf, readGrouping, readRule, readSteps, runSteps, isSource,
   type Group, type Grouping, type RuleGroup, type SelectContext, type Step
 } from './selection';
 
-export type ListMode = 'table' | 'tree' | 'canvas';
+export type ListMode = 'table' | 'tree' | 'canvas' | 'matrix' | 'map';
+
+/** Zeilen und Spalten einer Macierz. */
+export interface MatrixDef {
+  readonly rows: Grouping;
+  readonly cols: Grouping;
+}
 
 export interface ViewDoc {
   readonly name: string;
@@ -35,6 +50,7 @@ export interface ViewDoc {
   readonly columns: readonly string[];
   readonly sort: { readonly key: string; readonly dir: 1 | -1 } | null;
   readonly positions: Readonly<Record<string, { x: number; y: number }>>;
+  readonly matrix: MatrixDef | null;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -58,14 +74,22 @@ export function readView(raw: unknown): ViewDoc {
   if (steps.length === 0 || !isSource(steps[0].type)) steps = [{ type: 'source.all', config: {} }, ...steps];
   return {
     name: typeof d.name === 'string' ? d.name : 'Widok',
-    mode: d.mode === 'tree' || d.mode === 'canvas' ? d.mode : 'table',
+    mode: d.mode === 'tree' || d.mode === 'canvas' || d.mode === 'matrix' || d.mode === 'map' ? d.mode : 'table',
     steps,
     query: typeof d.query === 'string' ? d.query : '',
     group: readGrouping(d.group),
     columns: Array.isArray(d.columns) ? d.columns.filter((c): c is string => typeof c === 'string') : [],
     sort,
-    positions
+    positions,
+    matrix: readMatrix(d.matrix)
   };
+}
+
+function readMatrix(raw: unknown): MatrixDef | null {
+  if (!isObject(raw)) return null;
+  const rows = readGrouping(raw.rows);
+  const cols = readGrouping(raw.cols);
+  return rows === null || cols === null ? null : { rows, cols };
 }
 
 /** Wie ein Widok gespeichert wird — immer in der neuen Gestalt. */
@@ -77,7 +101,8 @@ export function viewJson(view: ViewDoc): Record<string, unknown> {
     ...(view.group === null ? {} : { group: view.group }),
     columns: view.columns,
     ...(view.sort === null ? {} : { sort: view.sort }),
-    positions: view.positions
+    positions: view.positions,
+    ...(view.matrix === null ? {} : { matrix: view.matrix })
   };
 }
 
@@ -152,12 +177,125 @@ export function viewGroups(lib: ViewLib, view: ViewDoc, list: readonly Entity[])
   return groupsOf(lib.selectContext(), list.map((e) => e.id), view.group ?? { by: 'kind' }, lib.topics());
 }
 
-/** Die Spalten: die gewählten — sonst die ersten vier Felder (ohne Fliesstext) der Einträge. */
-export function viewColumns(lib: ViewLib, view: ViewDoc, list: readonly Entity[]): FieldDef[] {
+export interface ViewColumn {
+  readonly key: string;
+  readonly label: string;
+}
+
+export const AXIS_COLUMN = '#axis:';
+
+/** Was in einer Zelle steht: ein Feld in Worten — oder die Werte einer Achse, zu denen der Eintrag gehört. */
+export function cellText(lib: ViewLib, e: Entity, key: string): string {
+  if (key === '_label') return lib.label(e);
+  if (key.startsWith(AXIS_COLUMN)) {
+    const ctx = lib.selectContext();
+    return childTopics(ctx, lib.topics(), key.slice(AXIS_COLUMN.length)).filter((v) => ctx.topic(v.id, 9).has(e.id)).map((v) => labelOf(v, lib.look)).join(', ');
+  }
+  const f = fieldsOf(e, lib.look).find((x) => x.key === key);
+  return f === undefined ? '' : fieldText(e, f, lib.look);
+}
+
+/** Die Spalten: die gewählten (Felder und Achsen) — sonst die ersten vier Felder (ohne Fliesstext) der Einträge. */
+export function viewColumns(lib: ViewLib, view: ViewDoc, list: readonly Entity[]): ViewColumn[] {
   const fields = new Map<string, FieldDef>();
   for (const e of list.slice(0, 200)) for (const f of fieldsOf(e, lib.look)) if (!fields.has(f.key)) fields.set(f.key, f);
-  if (view.columns.length > 0) return view.columns.map((key) => fields.get(key)).filter((f): f is FieldDef => f !== undefined);
-  return [...fields.values()].filter((f) => f.type !== 'markup' && f.type !== 'text' && f.type !== 'blocks' && f.type !== 'media').slice(0, 4);
+  if (view.columns.length > 0) {
+    return view.columns.flatMap((key): ViewColumn[] => {
+      if (key.startsWith(AXIS_COLUMN)) {
+        const axis = lib.selectContext().entity(key.slice(AXIS_COLUMN.length));
+        return axis === undefined ? [] : [{ key, label: labelOf(axis, lib.look) }];
+      }
+      const f = fields.get(key);
+      return f === undefined ? [] : [{ key, label: f.label }];
+    });
+  }
+  return [...fields.values()].filter((f) => f.type !== 'markup' && f.type !== 'text' && f.type !== 'blocks' && f.type !== 'media').slice(0, 4).map((f) => ({ key: f.key, label: f.label }));
+}
+
+/* -- Macierz ------------------------------------------------------------------------------------- */
+
+export interface Matrix {
+  readonly rows: readonly Group[];
+  readonly cols: readonly Group[];
+  /** Was in einem Feld steht — Zeile und Spalte nach ihrem Schlüssel. */
+  readonly cell: (row: string, col: string) => readonly string[];
+}
+
+/** Ein Feld in der Adresse: `<zeile>~<spalte>`. */
+export const cellKey = (row: string, col: string): string => `${row}~${col}`;
+
+/**
+ * DIE MACIERZ: Zeilen und Spalten nach ihren Gruppierungen — eine Achse mit
+ * ALLEN ihren Werten (auch leeren: 20 × 12 bleibt 20 × 12), ein Feld mit den
+ * Werten, die vorkommen; was in keine passt, zuletzt.
+ */
+export function viewMatrix(lib: ViewLib, view: ViewDoc, list: readonly Entity[]): Matrix | null {
+  if (view.matrix === null) return null;
+  const ctx = lib.selectContext();
+  const ids = list.map((e) => e.id);
+  const rows = groupsOf(ctx, ids, view.matrix.rows, lib.topics(), { all: true });
+  const cols = groupsOf(ctx, ids, view.matrix.cols, lib.topics(), { all: true });
+  const colSets = new Map(cols.map((c) => [c.key, new Set(c.ids)]));
+  const cells = new Map<string, string[]>();
+  for (const r of rows) for (const c of cols) cells.set(cellKey(r.key, c.key), r.ids.filter((id) => colSets.get(c.key)!.has(id)));
+  return { rows, cols, cell: (row, col) => cells.get(cellKey(row, col)) ?? [] };
+}
+
+/* -- Ein Widok wird eine Powtórka, eine Powtórka ein Widok ------------------------------------------- */
+
+/**
+ * DIESELBEN SCHRITTE ALS KNOTEN: die Quellen am Anfang (mehrere über
+ * „Razem"), dann „Idź po odwołaniu" und „Filtr wpisów", zuletzt ein „Sposób
+ * pytania" (nach dem, was ich umiem). „Ucz się tego widoku".
+ */
+export function viewToRevision(view: ViewDoc): Record<string, unknown> {
+  const nodes: { id: string; type: string; x: number; y: number; config: Readonly<Record<string, unknown>> }[] = [];
+  const edges: { id: string; from: string; out: string; to: string; in: string }[] = [];
+  const link = (from: string, to: string) => edges.push({ id: `e${edges.length + 1}`, from, out: 'cards', to, in: 'cards' });
+  const sources = [];
+  let at = 0;
+  while (at < view.steps.length && isSource(view.steps[at].type)) { sources.push(view.steps[at]); at += 1; }
+  sources.forEach((step, i) => nodes.push({ id: `s${i + 1}`, type: step.type, x: 40, y: 40 + i * 120, config: step.config }));
+  let last = 's1';
+  if (sources.length > 1) {
+    nodes.push({ id: 'u', type: 'union', x: 300, y: 40, config: {} });
+    sources.forEach((_, i) => link(`s${i + 1}`, 'u'));
+    last = 'u';
+  }
+  for (const [i, step] of view.steps.slice(at).entries()) {
+    const id = `k${i + 1}`;
+    nodes.push({ id, type: isSource(step.type) ? 'filter.rule' : step.type, x: 560 + i * 260, y: 40, config: isSource(step.type) ? {} : step.config });
+    link(last, id);
+    last = id;
+  }
+  nodes.push({ id: 'plan', type: 'strategy', x: 560 + (view.steps.length - at) * 260, y: 40, config: { mode: 'temporal', stackSize: 20 } });
+  link(last, 'plan');
+  return { name: `Powtórka: ${view.name}`, graph: { nodes, edges } };
+}
+
+/**
+ * Und zurück: welche Einträge eine Powtórka wählt, als Schritte (für die
+ * Umstellung von „Mapa wiedzy" auf den Widok). Die Quellen werden zusammen
+ * genommen, „Idź po odwołaniu" und „Filtr wpisów" in der Reihenfolge ihrer
+ * Kanten; was nur Karten betrifft (Vorlage, Richtung, Stand, Sperre), fällt weg.
+ */
+export function stepsOfRevision(raw: unknown): Step[] {
+  const graph: Graph = readGraph(raw);
+  const sources = graph.nodes.filter((n) => isSource(n.type)).map((n): Step => ({ type: n.type as Step['type'], config: n.config }));
+  const chain: Step[] = [];
+  const seen = new Set<string>();
+  const next = (from: readonly string[]): string[] => graph.edges.filter((e) => from.includes(e.from)).map((e) => e.to);
+  let frontier = graph.nodes.filter((n) => isSource(n.type)).map((n) => n.id);
+  for (let depth = 0; depth < 20 && frontier.length > 0; depth += 1) {
+    const nodes = next(frontier).filter((id) => !seen.has(id));
+    for (const id of nodes) {
+      seen.add(id);
+      const node = graph.nodes.find((n) => n.id === id);
+      if (node !== undefined && (node.type === 'follow' || node.type === 'filter.rule')) chain.push({ type: node.type, config: node.config });
+    }
+    frontier = nodes;
+  }
+  return [...(sources.length === 0 ? [{ type: 'source.all' as const, config: {} }] : sources), ...chain];
 }
 
 /** Achsen zum Gruppieren: Tematy-Aspekte (`aspect: "yes"`) — sonst oberste Themen mit Unterthemen. */

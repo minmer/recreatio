@@ -120,6 +120,16 @@ Formula, code and duration are not field types.
 - The tree groups by kind (the topic hierarchy as before), by the values of a field, or by an **axis of topics**: a topic marked as an aspect, whose subtopics are the values. An entry can stand in several groups.
 - In **Wpisy**, "Rodzaj" and "Filtr" are short cuts into the steps; "Wybór i grupy" edits them all (`ViewSteps.tsx`). A view saved before step 9 (`kind` + `rule`) reads as steps and is written in the new shape; the JSON export and import do the same.
 - **On a page**: the module **Widok** (`view`) shows a saved view as a table or a tree, with search, sorting and a clicked entry opened below it. Each module keeps its state in the address under its own scope (`?<scope>.q=…`, `pages/partQuery.ts`), so two views on one page do not disturb each other and a link carries the state.
+- **Matrix and map** (step 10). A view can be a **matrix**: rows and columns are two groupings, usually two axes of topics such as 20 mysteries × 12 periods. Every value of an axis gets its row or column, also an empty one, and a cell holds what belongs to both (`viewMatrix`). A view can also be a **map**: the knowledge map's fog over the view's entries.
+  - Sources at the start of a view count together, so one view can hold sermons and statements (`text` and `comment` from a source library).
+  - A table column can be an axis (`#axis:<topic>`), which shows the axis values the entry belongs to.
+- **Inner views with a path** (step 10). On a page a cell opens its entries below the matrix (`c=<row>~<col>`), and an entry opens itself (`e=`): a statement with its blocks, a sermon whole with its plan and deliveries (`d=`), anything else as a card. A breadcrumb leads back, and the address carries the whole path.
+- **Actions** (step 10, `viewActions.ts`):
+  - **Ucz się tego** (pages): the cards of what is shown, asked without an account.
+  - **Powtórka z tego widoku / z tego pola** (Wpisy): a revision made of the same steps (`viewToRevision`; leading sources through "Razem").
+  - **+ Nowy wpis tutaj** in a cell, or on an empty "+": a new entry carrying the cell's context (both topics, a field's value). A statement goes into the library it draws from, and an entry of the base stays in the base.
+  - **Dodaj do planu** in a cell: the cell's entries become new points at the end of a sermon's plan. A quote is embedded and anything else becomes a link.
+- **Retired** (step 10): `entity-table`, `topic-explorer`, `knowledge-map` and the archive's table layout. They left the palette, and existing placements keep rendering. **Porządki → "Moduły stron → Widok"** (`library/rebuild/pageModules.ts`) converts them on the pages you lead into a saved view plus the module "Widok" in the same place. The report lists the converted pages.
 - **Choosing many** (2026-10-18): in the table, the box in front of a row, Ctrl+click, Shift+click (everything between), dragging over the boxes, or holding a row on a phone; once something is chosen, a click chooses instead of opening, Esc clears. A bar floating at the bottom (so the list does not move) acts on them: set a field for all (add, replace or remove a value, clear — e.g. the language or a topic), put them into a collection (an existing or a new one), delete them (the question says how many other entries point at them; entries from source bases are left alone).
 - Library content appears in the workspace search, Ctrl K [F5, P12].
 - “Looks per kind” replace the old approaches, such as the citation view and the vocabulary card [F47].
@@ -446,7 +456,7 @@ Phones stay awake.
 | Calendar | Revision as a repeating personal task with a link; sessions as appointments | P02 |
 | Notifications | Revision due; a session starting | P03 |
 | Chat | Discuss a card or a topic in a chat topic; turn a message into a question; the dialogue look | P04, P05 |
-| Pages | Modules: revision, live participant, live host, flow player, entity card, entity table, topic explorer, knowledge map, and (step 9) **Widok**: a saved view as a table or a tree | P06 |
+| Pages | Modules: revision, live participant, live host, flow player, entity card, and **Widok** (steps 9–10): a saved view as a table, tree, matrix or map. Entity table, topic explorer and knowledge map are retired into it. | P06 |
 | Page subject | A page about one entity (“Kim był Dawid?”) | P07 |
 | Widgets | A revision, a quiz or a quote of the day on other websites | P08 |
 | Forms and steps | Learning targets as steps (“Naucz się: Modlitwy, 80%”), with progress in the office list; enrolling through a form | P09, L5 |
@@ -559,7 +569,7 @@ A public, opened base (§13) is served to anyone as the same sealed entries and 
 | Sessions | `live.ts` (keys, events, SignalR client with polling fallback), `Sessions.tsx`, `GamePanel.tsx` |
 | Public pages | `parts/cogita.tsx` (definitions) with `parts/cogitaViews.tsx` (loaded only when shown), `pageBase.ts` (the base as this reader may read it — step 8), `PublicRun.tsx` (a keyless revision), `entitySubject.tsx`, `seatLearn.ts` |
 | Visibility | `visibility.ts` (who reads, in words; what an item needs when it moves), `BaseWho.tsx` ("Kto widzi" with the move, "Kto czyta" in settings), `library/rebuild/baseVisibility.ts` (Porządki tab 5) |
-| Views | `selection.ts` (the steps shared with revisions, the collections' rule, groups), `views.ts` (the view document, its list, groups and columns), `ViewSteps.tsx` and `RuleEditor.tsx` (editing them); on pages `pages/parts/view.tsx` with `viewViews.tsx`, and `pages/partQuery.ts` (state per module in the address) |
+| Views | `selection.ts` (the steps shared with revisions, the collections' rule, groups), `views.ts` (the view document, its list, groups, columns, matrix; view ↔ revision), `viewActions.ts` (create here, add to plan, learn), `ViewSteps.tsx`, `RuleEditor.tsx` and `MatrixGrid.tsx`; on pages `pages/parts/view.tsx` with `viewViews.tsx` (inner views, map), and `pages/partQuery.ts` (state per module in the address); `library/rebuild/pageModules.ts` converts retired modules |
 | Forms | `LearnStep.tsx`; the step kind `learn` in `steps.ts` and `StepList.tsx` |
 | Service | `backend/Api/`: `Library.Cogita.cs` (versions, files, seat reading), `Cogita.cs` (batches, due, reports, the `c/` addresses), `Cogita.Session.cs`, `CogitaHub.cs` (`/cogita/hub`), `Cogita.Game.cs` (triggers, `CogitaClock`) |
 

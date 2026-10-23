@@ -450,11 +450,14 @@ ${kindsSection()}
   źródło „rodzaj z biblioteki": {"type": "source.kind", "config": {"kind": "quote", "from": "<identyfikator biblioteki>"}} — "from" puste: z tej bazy i ze wszystkich źródeł
 "flows" — przebiegi: {"name", "look": "reading|slides|scenes|dialogue|flashcards|map", "start", "graph", "slots", "goals", "lines"}
 "collections" — zbiory: {"name", "rule": {"op": "and|or", "items": [{"field", "cmp", "value"}]}, "list": ["@wpis"]}
-"views" — widoki (te same kroki co powtórka, po wpisach): {"name", "mode": "table|tree|canvas", "steps": [krok, …], "query", "group", "columns": ["klucz pola"], "sort": {"key", "dir": 1|-1}}
-  pierwszy krok to źródło: "source.all" | "source.kind" {"kind": "@rodzaj", "from"} | "source.collection" {"collection": "@zbiór"} | "source.topic" {"topic": "@temat", "depth": 9} | "source.list" {"ids": ["@wpis"]};
-  potem "follow" {"field", "back"} i "filter.rule" {"rule"}; "group" (drzewo): {"by": "kind"} | {"by": "field", "field": "klucz"} | {"by": "topic", "axis": "@oś (temat-aspekt)"}
+"views" — widoki (te same kroki co powtórka, po wpisach): {"name", "mode": "table|tree|matrix|map|canvas", "steps": [krok, …], "query", "group", "matrix", "columns": ["klucz pola" | "#axis:@oś"], "sort": {"key", "dir": 1|-1}}
+  na początku źródła — kilka pod rząd sumuje się (np. kazania i komentarze): "source.all" | "source.kind" {"kind": "@rodzaj" albo "text"/"comment" z biblioteki, "from"} | "source.collection" {"collection": "@zbiór"} | "source.topic" {"topic": "@temat", "depth": 9} | "source.list" {"ids": ["@wpis"]};
+  potem "follow" {"field", "back"} i "filter.rule" {"rule"} (źródło po innym kroku zaczyna od nowa);
+  grupowanie (drzewo "group", wiersze i kolumny "matrix": {"rows": grupowanie, "cols": grupowanie}): {"by": "kind"} | {"by": "field", "field": "klucz"} | {"by": "topic", "axis": "@oś (temat-aspekt; jego podtematy to wartości)"}
+  kolumna "#axis:@oś" — wartości osi, do których należy wpis
   np. {"name": "Postacie według okresu", "mode": "tree", "steps": [{"type": "source.kind", "config": {"kind": "@postac"}}], "group": {"by": "topic", "axis": "@okres"}}
-  na stronie: moduł "view" {"library": "<id bazy>", "view": "<id widoku>", "mode": "tabela|drzewo"} — stan w adresie osobno dla każdego modułu
+  np. macierz 20 × 12: {"name": "Tajemnice × okresy", "mode": "matrix", "steps": [{"type": "source.kind", "config": {"kind": "text"}}, {"type": "source.kind", "config": {"kind": "comment"}}], "matrix": {"rows": {"by": "topic", "axis": "@tajemnice"}, "cols": {"by": "topic", "axis": "@okresy"}}}
+  na stronie: moduł "view" {"library": "<id bazy>", "view": "<id widoku>", "mode": "tabela|drzewo|macierz|mapa"} — pole macierzy i wpis otwierają się pod spodem, droga w adresie osobno dla każdego modułu
 ${formsSection()}
 ${kinds}`;
 }

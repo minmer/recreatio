@@ -64,6 +64,8 @@ export { StatementMarks } from '${app}library/markupView';
 export { knowledgeAsStatement, isKnowledge } from '${app}library/rebuild/knowledgeToStatements';
 export { topicsToLibrary, PERSPECTIVES } from '${app}library/rebuild/topicsToLibrary';
 export { baseVisibility, hasOldCopies, missingIn, oldCopyOf, withoutCopy } from '${app}library/rebuild/baseVisibility';
+export { convertPart, retiredKind } from '${app}library/rebuild/pageModules';
+export { palette, PARTS } from '${app}pages/parts/registry';
 export { textToLatex, planToLatex } from '${app}library/libraryLatex';
 export { archiveRow, browseLocal, choose, facetKey, PROJECTS } from '${app}library/browse';
 export { layoutOf } from '${app}library/archiveLayout';
@@ -477,6 +479,31 @@ try {
     assert.deepEqual(again.changes.map((c) => c.key), ['strip:f1'], 'run again: only what could not be done is left (resumable)');
   }
   ok('knowledge bases, old publications: withdraw per base (closed area said plainly), copies out of entries only when nothing is lost, bases never opened here, resumable');
+
+  /* -- 2h. Moduły stron → Widok (Schritt 10) ---------------------------------------------------------- */
+  {
+    const facts = {
+      kindByName: (name) => (name.toLowerCase() === 'postać' ? { id: 'kP', fields: [{ key: 'name', label: 'Imię' }, { key: 'era', label: 'Epoka' }] } : undefined),
+      revisionGraph: (id) => (id === 'r1' ? { nodes: [{ id: 's', type: 'source.topic', x: 0, y: 0, config: { topic: 'T', depth: 2 } }, { id: 'f', type: 'filter', x: 1, y: 0, config: {} }, { id: 'g', type: 'strategy', x: 2, y: 0, config: {} }], edges: [{ id: 'e1', from: 's', out: 'cards', to: 'f', in: 'cards' }, { id: 'e2', from: 'f', out: 'cards', to: 'g', in: 'cards' }] } : undefined),
+      aspects: ['A1', 'A2']
+    };
+    assert.deepEqual([m.retiredKind('entity-table', {}), m.retiredKind('writings', { layout: 'tabela' }), m.retiredKind('writings', { layout: 'lista' }), m.retiredKind('text', {})], ['entity-table', 'writings', null, null], 'what is retired: three modules and the archive’s table');
+    const table = m.convertPart('entity-table', { title: 'Postacie', kind: 'Postać', columns: 'Epoka, nie-ma' }, facts);
+    assert.deepEqual([table.mode, table.view.mode, table.view.steps[0], table.view.columns, table.view.name], ['tabela', 'table', { type: 'source.kind', config: { kind: 'kP' } }, ['era'], 'Postacie'], 'entity table → a table view of the kind, columns by their names');
+    assert.ok('problem' in m.convertPart('entity-table', { kind: 'Miejsce' }, facts), 'a kind the base does not have is reported, not guessed');
+    const topics = m.convertPart('topic-explorer', { topic: 'T' }, facts);
+    assert.deepEqual([topics.mode, topics.view.steps[0].type, topics.view.group], ['drzewo', 'source.topic', { by: 'topic', axis: 'T' }], 'topic explorer → a tree grouped by the topic as an axis');
+    const map = m.convertPart('knowledge-map', { revision: 'r1' }, facts);
+    assert.deepEqual([map.mode, map.view.mode, map.view.steps.map((x) => x.type)], ['mapa', 'map', ['source.topic']], 'knowledge map → a map view of what the revision selects (card filters dropped)');
+    assert.ok('problem' in m.convertPart('knowledge-map', { revision: 'gone' }, facts), 'a missing revision is reported');
+    const archive = m.convertPart('writings', { title: 'Kazania', library: 'L', topic: 'T', project: 'P', layout: 'tabela' }, facts);
+    assert.deepEqual([archive.view.steps.map((x) => x.type), archive.view.columns, archive.view.sort], [['source.topic', 'filter.rule', 'filter.rule'], ['date', '#axis:A1', '#axis:A2'], { key: 'date', dir: -1 }], 'the archive’s table → texts of the topic and project, date and the aspects as columns, newest first');
+    const plain = m.convertPart('writings', { library: 'L' }, facts);
+    assert.deepEqual(plain.view.steps[0], { type: 'source.kind', config: { kind: 'text', from: 'L' } }, 'without a topic: the texts of that library');
+    const offered = m.palette().map((x) => x.kind);
+    assert.ok(!offered.includes('entity-table') && !offered.includes('topic-explorer') && !offered.includes('knowledge-map') && offered.includes('view') && m.PARTS.some((x) => x.kind === 'entity-table'), 'retired modules leave the palette but still render');
+  }
+  ok('page modules → View: what is retired, each conversion (kind by name, topic axis, revision steps, archive with aspects), problems reported, palette without the retired');
 
   ok('statements: the thesis is the first sentence (abbreviations, markup), questions, information vs interpretation, knowledge → comment under the same id, the marks');
 

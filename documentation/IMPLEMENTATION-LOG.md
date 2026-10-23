@@ -708,3 +708,103 @@ the text). LaTeX prints the same with `\emph{…}`.
 2. A page → add the module "Widok" → choose the base and that view. Add a second "Widok" with another view. Search
    in one: the other does not change, and the address holds both (`?abc123.q=…`).
 3. Open the page in a private window (public base): the same entries, and a click opens the entry below.
+
+## Step 10 — Views, step 2: matrix, inner views, actions; four modules retired
+
+**Built**
+
+- **Sources at the start count together** (`runSteps`): "Kazania" and "Komentarze" (`text` and `comment` of a source
+  library) make one view. A source after another step starts anew.
+- **Matrix** (`views.ts` `viewMatrix`, `MatrixGrid.tsx`):
+  - rows and columns are two groupings: kind, the values of a field, or an axis of topics;
+  - an axis lists all its values in their order, also empty ones, so 20 mysteries × 12 periods stays 20 × 12;
+  - a cell holds what belongs to both.
+
+  The view document gains `matrix: { rows, cols }` and the modes `matrix` and `map`. A table column can be an axis
+  (`#axis:<topic>`): the values the entry belongs to.
+- **Wpisy** offers Tabela, Drzewo, Macierz and Płótno. "Wybór i grupy" adds "+ Źródło (razem)" and the rows and
+  columns of the matrix. A cell opens below the matrix with its entries, and writers get the actions:
+  - **+ Nowy wpis tutaj** (also "+" on an empty cell): a new entry with the cell's context (`viewActions.ts`
+    `createHere`). For a library kind, a statement or text goes into the library it draws from (or the one holding
+    the topic), with both topics. An entry of the base gets them in its first reference field to topics, and a
+    field grouping sets the field.
+  - **Dodaj do planu** (pick a sermon): the cell's entries become new points at the end of its plan, with stable
+    point ids and the old points kept. A quote is embedded (`![@id]`), anything else becomes a link
+    (`[[name|@id]]`).
+  - **Powtórka z tego pola**, and in the toolbar **Powtórka z tego widoku**: a revision made of the same steps
+    (`viewToRevision`; several sources through "Razem", ending in "Sposób pytania" by knowness). It opens in
+    Powtórki.
+- **The module "Widok" on a page** (`viewViews.tsx`):
+  - table, tree, matrix and map, switchable;
+  - **inner views with a path in the address**, under the module's scope: a cell (`c=<row>~<col>`) opens its
+    entries, and an entry (`e=`) opens a statement with its blocks (`CommentCard`), a sermon whole with its plan and
+    deliveries (`WritingCard`, delivery in `d=`), or anything else as a card;
+  - a breadcrumb back ("Widok › row × col › entry"), so the address can be shared;
+  - **Ucz się tego**: the cards of what is shown (a cell or the whole view), asked without an account, with
+    progress kept in the browser;
+  - **Mapa**: the knowledge map's fog over the view's entries, with "Ucz się tego".
+- **Retired:** `entity-table`, `topic-explorer`, `knowledge-map` (`retired` on the module definition), and the
+  archive's **table** layout.
+  - They are gone from the four "add" lists (`palette()`) and from the module list unless still used, where they are
+    marked "Wycofany". The JSON help marks them "WYCOFANY".
+  - Existing placements keep rendering. An archive set to start as a table keeps its table, and old `?tu=tabela`
+    links still work.
+- **Converter, Porządki tab 6 "Moduły stron → Widok"** (`library/rebuild/pageModules.ts`). On pages the account
+  leads, each retired placement becomes the module "Widok" in the same place, with a saved view (`convertPart`):
+  - entity table → table of the kind, with the columns found by their names;
+  - topic explorer → tree by the topic as an axis;
+  - knowledge map → map of what its revision selects (`stepsOfRevision`);
+  - the archive's table → the library's texts (topic and project kept as steps), with the date and the library's
+    aspects as columns, newest first. The view lives in a base of the library's area that draws on the library,
+    linked or made ("Widoki — <obszar>"). The plan says so, including that such a base in a public area is public
+    and holds only views.
+
+  Bases the account only reads, unknown kinds and missing revisions are named and left. The report lists the
+  converted pages, and a second run finds nothing.
+- **Descriptions:** `courseDescription()` explains views with matrix, axes, axis columns, leading sources and the
+  20 × 12 example. The "view" module's `use`, `shows` and example (`macierz`) are updated.
+- **Checks:**
+  - `app-cogita-check` (374): sources united and restarted; the matrix with every value of both axes; a cell with a
+    sermon and a statement; axis columns; cell keys; view → revision (nodes, union, round trip, the plan asks the
+    reached cards); a cell's context; a statement created in a cell goes to the library with both topics; an entry
+    of the base gets a group's field value; points for quotes and links; add to plan keeps the old points and
+    unique ids.
+  - `app-library-check` 2h: what is retired; each conversion; problems reported; the palette without the retired
+    modules while they still render.
+  - Drives against LocalDB:
+    - `matrix-api.mjs`: a public library with 20 + 12 topics, sermons and statements, a base drawing on it, the
+      matrix view; a page with the view and two retired modules; Porządki converts both, the page has three "Widok"
+      modules in place and the views are in the base, and a second plan is empty.
+    - `matrix-anon.mjs`: a stranger loads the page, gets 20 × 12, the cell with the sermon and the statement, the
+      statement as a library comment, the path in the address, and an empty cell empty.
+
+**Removed**
+
+- `entity-table`, `topic-explorer` and `knowledge-map` from the palettes, and the archive's table from the visitor's
+  switch. Their code stays until production pages are converted. The views in `cogitaViews.tsx` and the archive's
+  table go in a later cleanup, once the report shows no placements are left.
+
+**Choices**
+
+- **The archive's table, not the whole archive, is retired.** Lista and Drzewo with their aspect chips are the
+  archive's own strength. Tables and matrices go to "Widok".
+- **A view of library material lives in a base.** Views are base documents, and the converter finds or makes a base
+  in the library's area, so readers do not change.
+- **"Add to plan" appends points.** It does not rearrange the plan. The author moves them in the plan editor.
+- **Create-here for library kinds writes into the library.** Statements live in libraries (decision 5). The base
+  only shows them.
+
+**Owner must run**
+
+- Deploy the website. There is no API change and no migration.
+- Biblioteka → Porządki → "Moduły stron → Widok": read the plan and run it. Keep the report with the list of
+  converted pages.
+
+**Test in the browser**
+
+1. Nauka → a base whose source is the sermons library → Wpisy → "Wybór i grupy": Skąd "Rodzaj: Tekst"; "+ Źródło
+   (razem)": "Rodzaj: Komentarz". Then Macierz → rows "Tajemnice", columns the other axis → "Zapisz jako widok".
+2. A page → module "Widok" → that view → "macierz". Click a cell: its sermons and statements appear. Click a
+   statement: it opens below. Copy the address and open it in a private window: the same cell and statement are open.
+3. In Wpisy, an empty cell "+" creates a statement with both topics, and "Dodaj do planu" puts a cell's entries into
+   a sermon plan.

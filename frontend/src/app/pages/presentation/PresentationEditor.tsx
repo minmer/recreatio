@@ -24,7 +24,7 @@ import { newId } from '../../core/ids';
 import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Layout } from '../layout';
 import type { DraftPart } from '../page';
 import { PagePresentation, pieceLabelOf } from './PagePresentation';
-import { PARTS, partLabel, partOf } from '../parts/registry';
+import { palette, partLabel, partOf } from '../parts/registry';
 import { ASPECT, blankScene, ORIGIN_AT, PIECE, PLACE, placeFor, readPiece, readShow, SCENE_CHANGE_LABEL, showJson, stepsNeeded, withPiece, type Piece, type Place, type Scene, type Show, type TallPlace } from './presentation';
 import { ARRANGEMENT_LABEL, ARRANGEMENTS, arrange, depthScale, zonesOf, type Arrangement } from './presentationMotion';
 import { PathsEditor } from './PathsEditor';
@@ -508,7 +508,7 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
             <div className="pe-add">
               <span className="pb-h">Dodaj na scenę</span>
               <div className="pb-palette">
-                {[...PARTS.filter((one) => ['text', 'image', 'shape'].includes(one.kind)), ...PARTS.filter((one) => !['text', 'image', 'shape'].includes(one.kind))].map((one) => (
+                {[...palette().filter((one) => ['text', 'image', 'shape'].includes(one.kind)), ...palette().filter((one) => !['text', 'image', 'shape'].includes(one.kind))].map((one) => (
                   <button key={one.kind} type="button" className="pb-pill" title={one.use} disabled={busy} onClick={() => add(one.kind)}>
                     <span className="pb-pill-name">+ {one.label}</span>
                     <span className="pb-pill-use">{one.use}</span>

@@ -26,7 +26,7 @@ import { type DraftPart } from '../page';
 import { PartSettings } from '../PageBuilder';
 import { deckParts, PageSlides, slideLabelOf } from './PageSlides';
 import { partSize } from '../part';
-import { PARTS, partLabel, partOf } from '../parts/registry';
+import { palette, partLabel, partOf } from '../parts/registry';
 import { usePrefersDark, type DeckControl } from './SlideDeck';
 import { MotionField } from '../motion/MotionField';
 import { COVER_KEY, readSlide, STAGE_FRAME, TRANSITION_LABEL, withSlide, type SlideLook } from './slides';
@@ -280,7 +280,7 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
         <div className="se-add">
           <span className="pb-h">Dodaj slajd</span>
           <div className="pb-palette">
-            {PARTS.map((one) => (
+            {palette().map((one) => (
               <button key={one.kind} type="button" className="pb-pill" title={one.use} disabled={busy} onClick={() => add(one.kind)}>
                 <span className="pb-pill-name">+ {one.label}</span>
                 <span className="pb-pill-use">{one.use}</span>

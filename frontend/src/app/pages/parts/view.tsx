@@ -24,7 +24,7 @@ export interface ViewConfig {
   readonly title: string;
   readonly library: string;
   readonly view: string;
-  /** `tabela` / `drzewo` (auch `table` / `tree`) — leer: wie gespeichert. */
+  /** `tabela` / `drzewo` / `macierz` / `mapa` (auch englisch) — leer: wie gespeichert. */
   readonly mode: string;
 }
 
@@ -32,22 +32,22 @@ const ViewView = later(() => import('./viewViews').then((m) => m.ViewView));
 
 export const viewPart = definePart<ViewConfig>({
   kind: 'view',
-  example: { title: 'Postacie Starego Testamentu', library: '<id-bazy-wiedzy>', view: '<id-widoku>', mode: 'drzewo' },
+  example: { title: 'Tajemnice i okresy', library: '<id-bazy-wiedzy>', view: '<id-widoku>', mode: 'macierz' },
   label: 'Widok',
-  use: 'Zapisany widok bazy wiedzy (Nauka → baza → Wpisy → „Zapisz jako widok"): wybrane wpisy jako tabela albo drzewo z grupami, z wyszukiwaniem; kliknięty wpis rozwija się pod spodem. Widzi go ten, kto może czytać bazę.',
+  use: 'Zapisany widok bazy wiedzy (Nauka → baza → Wpisy → „Zapisz jako widok"): wybrane wpisy — także kazania i komentarze z bibliotek, z których baza korzysta — jako tabela, drzewo z grupami, macierz (np. 20 tajemnic × 12 okresów; pole otwiera swoje wpisy) albo mapa nauki; kliknięty wpis otwiera się pod spodem (komentarz, całe kazanie), droga zostaje w adresie. „Ucz się tego" pyta o pokazane wpisy. Widzi go ten, kto może czytać bazę.',
   box: { colSpan: 6, rowSpan: 4 },
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'puste: nazwa widoku' },
     { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
     { key: 'view', label: 'Który widok', kind: 'libraryEntry', of: 'library', entryKinds: ['view'] },
-    { key: 'mode', label: 'Jak pokazać', kind: 'line', hint: 'tabela albo drzewo — puste: jak zapisano' }
+    { key: 'mode', label: 'Jak pokazać', kind: 'line', hint: 'tabela, drzewo, macierz albo mapa — puste: jak zapisano' }
   ],
   read: (raw: RawConfig): ViewConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), view: text(raw, 'view'), mode: text(raw, 'mode') }),
   hasContent: (c) => c.library !== '' && c.view !== '',
   missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : c.view === '' ? 'Wybierz widok (zapisany w „Wpisach” tej bazy).' : null),
   fullscreen: true,
   shows: (_c, size) => size.height === 'strip' ? 'Jedna linia: nazwa, ile wpisów, przycisk „Zobacz".'
-    : size.height === 'tall' ? 'Cały widok: wyszukiwanie, tabela albo drzewo; kliknięty wpis rozwija się pod spodem.'
+    : size.height === 'tall' ? 'Cały widok: wyszukiwanie, tabela, drzewo, macierz albo mapa; pole macierzy i kliknięty wpis otwierają się pod spodem.'
     : 'Pierwsze wpisy widoku — reszta w pełnym ekranie.',
   View: ViewView
 });
