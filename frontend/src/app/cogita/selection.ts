@@ -13,6 +13,8 @@
  *   source.collection   ein Zbiór (gespeicherter Filter oder Liste)
  *   source.topic        ein Temat mit Unterthemen — und allem, was auf sie zeigt
  *   source.list         genannte Einträge
+ *   source.from         (Schritt 11) worauf ein Eintrag verweist: ein Kazanie — seine Cytaty, Komentarze,
+ *                       Słowa, die Stellen seines Plans; eine Powtórka „z kazania"
  *   follow              weiter entlang eines Verweises: wohin sie zeigen (ein Feld oder alle) —
  *                       oder, rückwärts, wer auf sie zeigt (Felder und Zapis, auch in Bibliotheken)
  *   filter.rule         nur, was die Regel erfüllt (die Regel der Zbiory: Feld, Vergleich, Gruppen)
@@ -130,11 +132,13 @@ export interface SelectContext {
   readonly pointing: (id: string) => ReadonlySet<string>;
   /** Woher ein Eintrag kommt (die Kennung seiner Bibliothek oder Baza). */
   readonly from?: (id: string) => string | undefined;
+  /** 2026-10-22 (Schritt 11) — worauf ein Eintrag verweist (Felder, Zapis, Plan, Gegenstände), auch einer aus einer Bibliothek. */
+  readonly refsOf?: (id: string) => readonly string[];
 }
 
 /* -- Die Schritte ------------------------------------------------------------------------------ */
 
-export const SOURCE_TYPES = ['source.all', 'source.kind', 'source.collection', 'source.topic', 'source.list'] as const;
+export const SOURCE_TYPES = ['source.all', 'source.kind', 'source.collection', 'source.topic', 'source.list', 'source.from'] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 export type StepType = SourceType | 'follow' | 'filter.rule';
 
@@ -150,6 +154,7 @@ export const STEP_WORDS: Readonly<Record<StepType, { readonly label: string; rea
   'source.collection': { label: 'Zbiór', says: 'Wpisy zapisanego zbioru — filtra albo listy.' },
   'source.topic': { label: 'Temat', says: 'Temat i jego podtematy do wybranej głębokości — z tym, co na nie wskazuje (pytania, komentarze, kazania).' },
   'source.list': { label: 'Lista', says: 'Wybrane wpisy (identyfikatory, jeden w wierszu).' },
+  'source.from': { label: 'Z wpisu', says: 'To, na co wskazuje wybrany wpis — np. kazanie: jego cytaty, komentarze, słowa, miejsca z planu.' },
   follow: { label: 'Idź po odwołaniu', says: 'Od wybranych wpisów dalej: do tego, na co wskazują (jedno pole albo wszystkie) — albo wstecz: do tego, co wskazuje na nie.' },
   'filter.rule': { label: 'Filtr', says: 'Zostawia wpisy spełniające regułę: pole, porównanie, grupy warunków (I / LUB).' }
 };
@@ -196,6 +201,7 @@ export function pick(ctx: SelectContext, step: Step, input: ReadonlySet<string> 
       return str(c.topic) === '' ? new Set() : new Set(ctx.topic(str(c.topic), depth));
     }
     case 'source.list': return new Set(lines(c.ids));
+    case 'source.from': return new Set(str(c.entry) === '' ? [] : ctx.refsOf?.(str(c.entry)) ?? []);
     case 'follow': {
       const out = new Set<string>();
       const field = str(c.field);

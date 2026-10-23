@@ -26,6 +26,7 @@ import { fromBase64Url } from '../core/crypto';
 import { blockRefs, blocksOf } from './comment';
 import { libraryWhere, loadEntries, loadLibraries, loadOpen, loadPublicKeyAt, type OpenRead } from './library';
 import { fieldRefs, type LibEntry } from './libraryKinds';
+import { refsOf } from './refIndex';
 import { readOnlyStore, type LibraryStore } from './libraryStore';
 
 let reader: AreaReader | null = null;
@@ -105,7 +106,8 @@ const asked = new Set<string>();
 async function reach(store: LibraryStore): Promise<void> {
   const missing = new Set<string>();
   for (const entry of store.all()) {
-    for (const ref of [...fieldRefs(entry), ...blockRefs(blocksOf(entry.data)).map((r) => r.ref)]) {
+    /* 2026-10-22 (Schritt 11) — auch was der Zapis nennt (ein Słowo, ein Widok einer Baza): `refsOf` liest Felder, Zapis und Plan. */
+    for (const ref of [...fieldRefs(entry), ...blockRefs(blocksOf(entry.data)).map((r) => r.ref), ...refsOf(entry, () => undefined).map((r) => r.target)]) {
       if (!asked.has(ref) && store.get(ref) === undefined) missing.add(ref);
     }
   }

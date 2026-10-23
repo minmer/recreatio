@@ -402,6 +402,8 @@ export const MARKUP_DOC = `## Zapis treści (pola "body" i "further" tekstu, pun
   [[te słowa|@klucz]]      link do wpisu z własnymi słowami (np. [[kazaniu o chlebie|@kazanie-chleb]]) — też nigdy przypis
   ^[treść przypisu]        własny przypis, bez źródła
   ![@klucz-cytatu]         cytat z biblioteki jako osobny blok, z podpisem skąd pochodzi
+  [[house|@id-słowa]]      link do wpisu bazy wiedzy (np. słowa ze słownika) — czytelnik widzi go, jeśli może czytać tę bazę
+  ![@id-widoku]            widok bazy wiedzy jako osobny blok (np. w punkcie planu): lista, która zmienia się razem z danymi — np. „psalmy jutrzni niedzielnej" z psałterza
   > tekst                  wcięty cytat
   - punkt   ·   1. punkt
   ---                      linia oddzielająca

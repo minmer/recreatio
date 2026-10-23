@@ -610,7 +610,14 @@ export const kindOf = (kind: string): LibKind | undefined => BY_KIND.get(kind);
 
 /** Der Name eines Eintrags — gleich welcher Art. */
 export function entryTitle(entry: LibEntry, look: Lookup): string {
-  return kindOf(entry.kind)?.title(entry.data, look) ?? entry.kind;
+  const def = kindOf(entry.kind);
+  if (def !== undefined) return def.title(entry.data, look);
+  /* 2026-10-22 (Schritt 11) — ein Eintrag einer Baza wiedzy (ein Słowo, ein Widok): sein Name aus den Daten. */
+  for (const key of ['name', 'title', 'tekst', 'text', 'nazwa', 'word', 'slowo']) {
+    const value = str(entry.data, key).trim();
+    if (value !== '') return value.length > 80 ? `${value.slice(0, 79)}…` : value;
+  }
+  return entry.kind;
 }
 
 export function entrySort(entry: LibEntry, look: Lookup): string {

@@ -14,6 +14,7 @@ import { WorkspaceError } from '../core/session';
 import { nodeLabel, readAddForm } from './addForm';
 import { NewFormMenu } from './AddFormEditor';
 import { applyImport, courseDescription, exportSchema, planImport } from './json';
+import { SCHEMA_STARTS, type SchemaStart } from './schemaStarts';
 import { isBaseKind, TOPIC_LEARNING } from './kinds';
 import {
   FIELD_KEY, FIELD_ROLES, FIELD_TYPE_LABEL, FIELD_TYPES, MEDIA_TYPES, patternKeys, problemsOf, RANGE_OF, readKind,
@@ -61,6 +62,16 @@ export function SchemaEditor({ chosenId, onChoose, onForm }: { chosenId: string 
     onChoose(null);
   };
   const [removing, setRemoving] = useState<string | null>(null);
+  /* 2026-10-22 (Schritt 11) — ein gotowy schemat: derselbe Import wie eine JSON-Datei, mit dem Plan als Rückfrage. */
+  const addStart = (start: SchemaStart) => void run(async () => {
+    const plan = planImport(lib, start.doc());
+    if ('error' in plan) throw new Error(plan.error);
+    const yes = await ask({ title: `Dodać schemat „${start.label}”?`, body: start.says, list: [...plan.lines, ...plan.warnings], confirm: 'Dodaj schemat' });
+    if (!yes) return;
+    const done = await applyImport(lib, plan, setRemoving);
+    setRemoving(null);
+    toast(done.lines.join(' ') || 'Dodano schemat.');
+  }).finally(() => setRemoving(null));
   /*
     2026-10-18 — JEDEN RODZAJ USUNĄĆ, auch einen eingebauten: erst ausrechnen,
     was alles mitgeht (Einträge, Verweise, Felder, Szablony, Formularze, Zbiory
@@ -116,7 +127,8 @@ export function SchemaEditor({ chosenId, onChoose, onForm }: { chosenId: string 
           {writes && (
             <MenuButton label="Dodaj rodzaj" text="Rodzaj" icon="plus" items={[
               { label: 'Pusty — własne pola', onSelect: create },
-              ...lib.missingBuiltins().map((k) => ({ label: `Gotowy: ${k.name}`, onSelect: () => void run(async () => { await lib.addBuiltin(k.id); onChoose(k.id); }) }))
+              ...lib.missingBuiltins().map((k) => ({ label: `Gotowy: ${k.name}`, onSelect: () => void run(async () => { await lib.addBuiltin(k.id); onChoose(k.id); }) })),
+              ...SCHEMA_STARTS.map((start) => ({ label: `Gotowy schemat — ${start.label}`, onSelect: () => addStart(start) }))
             ]} />
           )}
         </div>
@@ -307,6 +319,8 @@ function FieldMore({ field, targets, disabled, own, onSet }: { field: FieldDef; 
           </fieldset>
           <label className="wk-field"><span>Nazwa po drugiej stronie</span><input value={field.inverse ?? ''} disabled={disabled} placeholder="np. napisane przez" onChange={(e) => onSet({ inverse: e.target.value || undefined })} /></label>
           <label className="pe-check"><input type="checkbox" checked={field.symmetric === true} disabled={disabled} onChange={(e) => onSet({ symmetric: e.target.checked || undefined })} /><span>w obie strony (zapisane raz)</span></label>
+          {/* 2026-10-22 (Schritt 11) — ein Verweis mit Stelle: Psalm = Biblia + „Ps 110". */}
+          <label className="pe-check"><input type="checkbox" checked={field.locator === true} disabled={disabled} onChange={(e) => onSet({ locator: e.target.checked || undefined })} /><span>z miejscem (rozdział, werset, strona)</span></label>
         </>
       )}
       {field.type === 'media' && (

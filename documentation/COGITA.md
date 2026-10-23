@@ -93,6 +93,16 @@ Formula, code and duration are not field types.
 - A **public template library** on recreatio.pl, which you maintain, offers Słownictwo, Katechizm, Historia, Książki and others [B14].
   - The old library templates (vocabulary, knowledge map, course, research, flashcards) become such templates, together with view presets [F05, F45].
 
+**A reference with a place** (step 11): a `ref` field with `locator: true` stores each value as `{value, locator}`. A psalm is the Bible of a source library plus "Ps 110", and an entry of a lexicon is the work plus "s. 23".
+- A Bible place is read and written alike, with the edition's siglum: "Ps 110,1-7 (BT)" (`placeText`, `library/bible.ts`).
+- "Fragment Pisma" finds the entry (`refsOf` reads `{value, locator}`).
+- The Bible's text is not stored (decision 12).
+- In Schemat, a reference field gets a tick "z miejscem", and the entry editor gets a place input next to the picker.
+
+**Ready schemas** (step 11, `schemaStarts.ts`; Schemat → "+ Rodzaj" → "Gotowy schemat"). Each comes through the same import as a JSON file, with its plan as the question:
+- **Słownik**: Język, Słowo (tekst, język), Tłumaczenie (słowa), Synonimy, Antonimy, with four "Słówka" templates. An existing vocabulary base is left as it is (decision 11). Its shape already is Word / Language / Translation, so no migration is needed.
+- **Psałterz**: the breviary schema with "Miejsce w Piśmie" as a reference with a place.
+
 **Schema changes** keep the values of removed or retyped fields, marked “outside the schema”, until someone resolves them [B13].
 
 **The built-in kinds** (person, work, quote, topic, text, delivery, comment, project) become the editable starting schema [B1].
@@ -261,6 +271,7 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 **A revision is a graph that selects cards** [F15]. Its nodes:
 - sources: a kind — also a kind of a source library, optionally only from one library or base ("Skąd", `source.kind` `from`; 2026-10-22) —, a collection, a topic subtree, a list;
 - the steps shared with views (step 9): **Idź po odwołaniu** gives the cards of the entries reached along a reference (or backwards), **Filtr wpisów** keeps the cards whose entry passes the collections' rule;
+- **Z wpisu** (`source.from`, step 11): the cards of what one entry points at. A sermon gives its quotes, statements, linked dictionary words and questions, and the places of its plan. The library's text panel offers **"Powtórka z tego tekstu"** (`fromEntry.ts`), which creates such a revision in a base that draws on the library; a base of the same area gets the library as a source if needed;
 - dependency gates;
 - one strategy node from a fixed list, with its parameters [E6]: random fixed number, whole stack once, levels, time-knowness;
 - order and limits.
@@ -569,6 +580,7 @@ A public, opened base (§13) is served to anyone as the same sealed entries and 
 | Sessions | `live.ts` (keys, events, SignalR client with polling fallback), `Sessions.tsx`, `GamePanel.tsx` |
 | Public pages | `parts/cogita.tsx` (definitions) with `parts/cogitaViews.tsx` (loaded only when shown), `pageBase.ts` (the base as this reader may read it — step 8), `PublicRun.tsx` (a keyless revision), `entitySubject.tsx`, `seatLearn.ts` |
 | Visibility | `visibility.ts` (who reads, in words; what an item needs when it moves), `BaseWho.tsx` ("Kto widzi" with the move, "Kto czyta" in settings), `library/rebuild/baseVisibility.ts` (Porządki tab 5) |
+| Schema connections (step 11) | `schema.ts` (`locator`, `placeText`), `schemaStarts.ts` with `starts/psalterz.json`, `fromEntry.ts` (a revision from a sermon), `ViewEmbed.tsx` (a live view inside a text or plan point); in the library `BasePicker.tsx` and the cross-store lookup in `libraryStore.ts` |
 | Views | `selection.ts` (the steps shared with revisions, the collections' rule, groups), `views.ts` (the view document, its list, groups, columns, matrix; view ↔ revision), `viewActions.ts` (create here, add to plan, learn), `ViewSteps.tsx`, `RuleEditor.tsx` and `MatrixGrid.tsx`; on pages `pages/parts/view.tsx` with `viewViews.tsx` (inner views, map), and `pages/partQuery.ts` (state per module in the address); `library/rebuild/pageModules.ts` converts retired modules |
 | Forms | `LearnStep.tsx`; the step kind `learn` in `steps.ts` and `StepList.tsx` |
 | Service | `backend/Api/`: `Library.Cogita.cs` (versions, files, seat reading), `Cogita.cs` (batches, due, reports, the `c/` addresses), `Cogita.Session.cs`, `CogitaHub.cs` (`/cogita/hub`), `Cogita.Game.cs` (triggers, `CogitaClock`) |

@@ -245,30 +245,41 @@ public static partial class Library
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var caller = await Callers.OfAsync(ctx, db, connection);
 
-        var rows = new List<(Guid Entry, Guid Library, Guid Area)>();
+        /*
+         * 2026-10-22 (Schritt 11) — auch Einträge einer Baza wiedzy (ein Słowo, ein Widok, auf die ein Kazanie
+         * verweist). Für eine Baza gilt ihre Regel (Schritt 8): wer ihren Bereich liest — oder, ohne das,
+         * nur wenn der Bereich öffentlich UND die Baza geöffnet ist. Eine Bibliothek wie bisher.
+         */
+        var rows = new List<(Guid Entry, Guid Library, Guid Area, string Kind)>();
         var names = string.Join(", ", wanted.Select((_, i) => $"@e{i}"));
         await using (var cmd = new SqlCommand($"""
-            SELECT e.id, l.id, l.area_id FROM app.library_entry e JOIN app.library l ON l.id = e.library_id
-            WHERE e.id IN ({names}) AND e.deleted_at IS NULL AND l.kind = N'books';
+            SELECT e.id, l.id, l.area_id, l.kind FROM app.library_entry e JOIN app.library l ON l.id = e.library_id
+            WHERE e.id IN ({names}) AND e.deleted_at IS NULL AND l.kind IN (N'books', N'knowledge');
             """, connection))
         {
             for (var i = 0; i < wanted.Count; i++) cmd.Parameters.AddWithValue($"@e{i}", wanted[i]);
             await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
-            while (await reader.ReadAsync(ctx.RequestAborted)) rows.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetGuid(2)));
+            while (await reader.ReadAsync(ctx.RequestAborted)) rows.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetGuid(2), reader.GetString(3)));
         }
 
-        /* Je Bereich EINE Frage. */
-        var readable = new Dictionary<Guid, bool>();
+        /* Je Bereich EINE Frage — und je Baza, ob sie geöffnet ist. */
+        var member = new Dictionary<Guid, bool>();
+        var open = new Dictionary<Guid, bool>();
         foreach (var area in rows.Select(r => r.Area).Distinct())
         {
-            readable[area] = (caller is not null && await Area.MayAsync(connection, caller, area, Capability.Read, ctx.RequestAborted))
-                || await AreaIsPublicAsync(connection, area, ctx.RequestAborted);
+            member[area] = caller is not null && await Area.MayAsync(connection, caller, area, Capability.Read, ctx.RequestAborted);
+            open[area] = await AreaIsPublicAsync(connection, area, ctx.RequestAborted);
         }
+        var settled = new Dictionary<Guid, bool>();
+        foreach (var base_ in rows.Where(r => r.Kind == "knowledge").Select(r => r.Library).Distinct())
+            settled[base_] = await AreaRuleSetAsync(connection, base_, ctx.RequestAborted);
+        bool Readable((Guid Entry, Guid Library, Guid Area, string Kind) r) =>
+            member[r.Area] || (open[r.Area] && (r.Kind == "books" || settled.GetValueOrDefault(r.Library)));
 
         ctx.Response.Headers.CacheControl = "no-cache";
         await ctx.Response.WriteAsJsonAsync(new
         {
-            found = rows.Where(r => readable[r.Area]).Select(r => new { entryId = Ids.ToText(r.Entry), libraryId = Ids.ToText(r.Library) })
+            found = rows.Where(Readable).Select(r => new { entryId = Ids.ToText(r.Entry), libraryId = Ids.ToText(r.Library) })
         });
     }
 

@@ -320,6 +320,7 @@ try {
     assert.deepEqual(refs({ born: { value: '1999', state: 'disputed', source: { work: BT.id, locator: 'Dz 1,14' } }, _kinds: ['00000000-0000-4000-8000-00000000000f'] }),
       [[BT.id, 'Dz 1,14', 'born', '']], 'Cogita: the source of an uncertain value; bookkeeping (_kinds) does not count');
     assert.deepEqual(refs({ name: 'Powtórka', graph: { nodes: [{ id: 'n1', config: { list: ['k1', 'x', BT.id] } }] } }).map((r) => r[0]), [BT.id], 'a document: every id in it');
+    assert.deepEqual(refs({ miejsce: { value: BT.id, locator: 'Ps 110' }, inne: { value: 'zwykły tekst', locator: 'x' } }), [[BT.id, 'Ps 110', 'miejsce', '']], 'Schritt 11: a value with a place (a psalm: the Bible at Ps 110) is a reference with a place');
 
     /* Das Verzeichnis über zwei Bibliotheken und eine Baza wiedzy — Schlüssel gelten zuerst im eigenen Speicher. */
     const store = (libraryId, entries, books = true) => ({ libraryId, revision: 1, books, all: () => entries, ownByKey: (k) => entries.find((e) => e.key === k) });
@@ -333,9 +334,11 @@ try {
     const maryja = { id: E2, kind: 'entity', key: 'maryja', data: { _kinds: ['person'], name: 'Maryja' } };
     const revision = { id: 'r1', kind: 'revision', data: { name: 'Dzieje', graph: { nodes: [{ id: 'n', config: { list: [E1, E2] } }] } } };
     const merge = { id: 'm1', kind: 'merge', data: { from: E2, to: E1 } };
+    const E3 = '00000000-0000-4000-8000-0000000000e3';
+    const psalmIn = { id: E3, kind: 'entity', data: { _kinds: ['psalm'], miejsce: { value: BT.id, locator: 'Dz 1,13-14' } } };
     const A = store('lib-a', [BT, ...quotes, text, comment, far]);
     const B = store('lib-b', [VG, latin]);
-    const K = store('base-k', [knowledge, maryja, revision, merge], false);
+    const K = store('base-k', [knowledge, maryja, revision, merge, psalmIn], false);
     const index = m.referenceIndex([A, B, K], (s) => s.books);
     assert.deepEqual(index.to(E2).map((h) => h.from.id).sort(), [E1, 'r1'], 'a base entry: a knowledge text links it, a revision uses it — the merge does not count');
     assert.ok(index.to(BT.id).some((h) => h.from.id === E1 && h.ref.locator === 'Dz 1,14'), 'a knowledge base citing a library Bible (key resolved through the libraries)');
@@ -343,11 +346,13 @@ try {
 
     const found = m.passageHits(index, m.parseBible('Dz 1:14'));
     const who = found.map((f) => [f.hit.from.id, f.hit.ref.field, f.hit.ref.at ?? '', f.work.id === VG.id ? 'Vg' : 'BT']);
-    assert.deepEqual(new Set(who.map((w) => w[0])), new Set(['q14', 't1', 'c1', E1, 'qv']), 'Dz 1:14 finds the quote, the sermon (body and plan point), the comment (Dz 1,12-14), the knowledge entry and the Latin quote — not Dz 1,15');
+    assert.deepEqual(new Set(who.map((w) => w[0])), new Set(['q14', 't1', 'c1', E1, 'qv', E3]), 'Dz 1:14 finds the quote, the sermon (body and plan point), the comment (Dz 1,12-14), the knowledge entry, the Latin quote and (Schritt 11) a base entry whose field has the place — not Dz 1,15');
     assert.ok(who.some((w) => w[0] === 't1' && w[1] === 'plan' && w[2] === 'p9'), 'the plan point is named');
     assert.ok(who.some((w) => w[0] === 'qv' && w[3] === 'Vg'), 'in another edition of the Scripture too');
     assert.deepEqual(m.passageHits(index, []), [], 'nothing typed, nothing found');
     assert.ok(m.libraryDescription().includes('Łk 1,26–2,5') && m.libraryDescription().includes('Acts 1:14'), 'the description tells an AI how to write a place in the Scripture');
+    assert.deepEqual([m.entryTitle({ id: 'w', kind: 'entity', data: { _kinds: ['x'], tekst: 'house' } }, look([])), m.entryTitle({ id: 'v', kind: 'view', data: { name: 'Psalmy jutrzni' } }, look([]))], ['house', 'Psalmy jutrzni'], 'Schritt 11: a base entry and a view have names in a text');
+    assert.ok(m.libraryDescription().includes('![@id-widoku]') && m.libraryDescription().includes('[[house|@id-słowa]]'), 'Schritt 11: the description shows linking a dictionary word and embedding a live view');
     /* Die Kästen zeichnen (ohne offene Speicher im Prüfling: nur der Rahmen). */
     const fake = { libraryId: 'lib-a', revision: 1, title: (e) => String(e.data.title ?? e.data.text ?? e.id), get: () => undefined, byKey: () => undefined, readable: () => [], all: () => [], ownByKey: () => undefined };
     const rel = m.renderToStaticMarkup(m.createElement(m.Relations, { store: fake, library: { libraryId: 'lib-a', writes: true }, entry: { ...BT, libraryId: 'lib-a' } }));

@@ -176,7 +176,15 @@ export class LibraryStore implements Lookup {
     const here = this.entries.get(id);
     if (here !== undefined) return here;
     for (const peer of this.peers()) { const there = peer.own(id); if (there !== undefined) return there; }
+    /* 2026-10-22 (Schritt 11) — ein Słowo, ein Widok einer Baza wiedzy, auf die ein Kazanie verweist: über die Kennung (Schlüssel gelten nur unter Bibliotheken). */
+    for (const base of this.bases()) { const there = base.own(id); if (there !== undefined) return there; }
     return undefined;
+  }
+
+  /** 2026-10-22 (Schritt 11) — die geöffneten Bazy wiedzy des Kontos (eine Seite hat sie schon unter ihren Nachbarn). */
+  private bases(): LibraryStore[] {
+    if (this.peerSource !== null || this.ring === null) return [];
+    return [...stores.values()].filter((s) => s !== this && s.loaded && openedLibraryKind(s.libraryId) === 'knowledge');
   }
 
   /** Ein Schlüssel gilt zuerst hier, dann bei den Nachbarn (in einer Bibliothek ist er eindeutig, über sie hinweg nicht). */

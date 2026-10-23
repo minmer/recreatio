@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'schemaStarts'];
 await build({
   entryPoints: names.map((n) => `src/app/cogita/${n}.ts`),
   bundle: true,
@@ -24,7 +24,7 @@ await build({
   logLevel: 'error'
 });
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, SS] = await Promise.all(names.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -915,7 +915,7 @@ check('the stand of the plan before a run', R.levelsOf(plan, () => [], 0), { uns
  * gebaut mit dem, was diese Module mitziehen (der Dienst, die Schlüssel), aber
  * ohne einen Aufruf: nur gerechnet.
  */
-const more = ['logic', 'flow', 'rules', 'game', 'kinds', 'live', 'store', 'sources', 'json', 'pageBase', 'visibility'];
+const more = ['logic', 'flow', 'rules', 'game', 'kinds', 'live', 'store', 'sources', 'json', 'pageBase', 'visibility', 'fromEntry'];
 const moreOut = join(workspace, 'more');
 await build({
   entryPoints: { ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), steps: 'src/app/steps/steps.ts', partQuery: 'src/app/pages/partQuery.ts' },
@@ -930,7 +930,7 @@ await build({
 /* Wie in app-json-check: ein BroadcastChannel des Schlüsselbunds hielte den Lauf sonst am Leben. */
 globalThis.BroadcastChannel = undefined;
 const loadMore = (name) => import(pathToFileURL(join(moreOut, `${name}.js`)).href);
-const [Lg, Fl, Ru, Ga, Ki, Li, So, Src, Js, PB, Vis, St, PQ] = await Promise.all([...more, 'steps', 'partQuery'].map(loadMore));
+const [Lg, Fl, Ru, Ga, Ki, Li, So, Src, Js, PB, Vis, FE, St, PQ] = await Promise.all([...more, 'steps', 'partQuery'].map(loadMore));
 
 /* -- Die eine Logik ------------------------------------------------------------------------------- */
 
@@ -1401,6 +1401,34 @@ check('goals and lines follow the one logic', [
   check('a quote goes into a plan embedded, anything else as a link with its name', [VA.pointFor('quote', 'q', 'x'), VA.pointFor('comment', 'c', 'O [obietnicy] | czasie')], [{ text: '![@q]', kind: 'quote' }, { text: '[[O obietnicy czasie|@c]]', kind: 'thought' }]);
   const added = await VA.addToPlan(lib, txt1, [cm1, daw]);
   const newPlan = bmap.get(txt1).data.plan;
+  /* ══ 2026-10-22 (Schritt 11) — ein Verweis mit Stelle, „Z wpisu", die gotowe schematy ══ */
+  const [bible, lex, psalmKind, psalm] = ['a1', 'a2', 'a3', 'a4'].map((n) => U(n === 'a1' ? 'aa' : n === 'a2' ? 'bb' : n === 'a3' ? 'cc' : 'dd'));
+  B(bible, 'work', { workType: 'bible', title: 'Pismo Święte', siglum: 'BT' });
+  B(lex, 'work', { workType: 'book', title: 'Leksykon liturgiczny' });
+  map.set(psalmKind, { id: psalmKind, kind: 'kind', data: { name: 'Psalm', label: '{miejsce}', fields: [{ key: 'miejsce', label: 'Miejsce w Piśmie', type: 'ref', to: ['work'], locator: true }, { key: 'haslo', label: 'Hasło', type: 'ref', to: ['work'], locator: true }] } });
+  E(psalm, [psalmKind], { miejsce: { value: bible, locator: 'ps 110,1-7' }, haslo: { value: lex, locator: 's. 23' } });
+  const psalmEntity = lib.entity(psalm);
+  const placeField = lib.kind(psalmKind).fields[0];
+  check('a reference with a place keeps its option and its value', [placeField.locator, S.valuesOf(psalmEntity, placeField)[0].locator, KD.kindDoc(lib.kind(psalmKind)).fields[0].locator], [true, 'ps 110,1-7', true]);
+  check('… shown as the place in the Bible, read and written alike, with the edition', S.fieldText(psalmEntity, placeField, lib.look), 'Ps 110,1-7 (BT)');
+  check('… any other work: the work and the place', S.fieldText(psalmEntity, lib.kind(psalmKind).fields[1], lib.look), 'Leksykon liturgiczny, s. 23');
+  check('the label of a psalm is its place', lib.label(psalmEntity), 'Ps 110,1-7 (BT)');
+  check('a text points at what it cites and links: source.from finds the statement and the person', (() => {
+    const got = VW.viewList(lib, VW.readView({ steps: [step('source.from', { entry: txt1 })] })).map((e) => e.id);
+    return [got.includes(cm1), got.includes(daw), got.includes(txt1)];
+  })(), [true, true, false]);
+  const fromPlan = (await R.planOf(G.readGraph(FE.fromEntryGraph(txt1)), lib.revisionContext(cards, () => [], Date.now()))).plan;
+  check('a revision from a sermon: "Z wpisu" → the cards of what it points at', fromPlan.cards.map((c) => c.entity), [daw]);
+
+  const dict = SS.dictionaryDoc();
+  const freshStore = { libraryId: 'D', areaId: 'area-d', revision: 1, loaded: true, all: () => [], get: () => undefined, byKey: () => undefined, save: async (x) => x, subscribe: () => () => undefined };
+  const planned11 = Js.planImport(new So.CogitaLibrary(freshStore, true), dict);
+  truth('the dictionary start imports: five kinds, four templates, no warning', !('error' in planned11) && planned11.kinds.length === 5 && planned11.docs.filter((d) => d.kind === 'template').length === 4 && planned11.warnings.length === 0, 'error' in planned11 ? planned11.error : planned11.warnings);
+  const wordKind = planned11.kinds.find((k) => k.def.name === 'Słowo');
+  const langKind = planned11.kinds.find((k) => k.def.name === 'Język');
+  check('… a word points at its language (the reference resolved inside the document)', wordKind.def.fields.find((f) => f.key === 'jezyk').to, [langKind.id]);
+  const psalter = Js.planImport(new So.CogitaLibrary(freshStore, true), SS.SCHEMA_STARTS.find((x) => x.id === 'psalterz').doc());
+  truth('the psalter start imports with a place in the Scripture', !('error' in psalter) && psalter.kinds.some((k) => k.def.fields.some((f) => f.key === 'miejsce' && f.locator === true && (f.to ?? []).includes('work'))), 'error' in psalter ? psalter.error : '');
   check('add to plan: new points at the end, the old ones stay, ids stay unique', [added, newPlan.length, newPlan[0].id, newPlan[1].text, new Set(newPlan.map((x) => x.id)).size], [2, 3, 'p1', `[[${lib.label(lib.entity(cm1)).replace(/[[\]|]/g, ' ').replace(/\s+/g, ' ').trim()}|@${cm1}]]`, 3]);
 }
 

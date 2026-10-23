@@ -14,8 +14,7 @@ import { GeoMap } from './GeoMap';
 import { WhoSees } from './BaseWho';
 import {
   dateText, FIELD_TYPE_LABEL, fieldsOf, labelOf, outsideOf, parseRange, rangeText, readDate, readRange, VALUE_STATE_LABEL, VALUE_STATES,
-  type Entity, type FieldDef, type GeoPoint, type MediaRef, type RangeValue, type ValueState
-} from './schema';
+  type Entity, type FieldDef, type GeoPoint, type MediaRef, type RangeValue, type ValueState, placeText } from './schema';
 import { linkedOf } from './store';
 import { creatorFor, EntityPicker, Markup, MediaView, entityName, useAsync, useBusy, useCtx } from './ui';
 import { loadVersions, openVersion } from './versions';
@@ -202,8 +201,36 @@ function FieldEditor({ field, raw, writes, onChange, onOpen }: { field: FieldDef
   );
 }
 
-/** Ein Wert — in seiner Hülle, wenn das Feld unsicher sein darf (Stand, Quelle, Notiz). */
+/** 2026-10-22 (Schritt 11) — die Stelle eines Verweises mit Stelle: „Ps 110", „s. 23"; gelesen, wenn das Ziel eine Bibel ist. */
+function PlaceInput({ field, target, locator, writes, onChange }: { field: FieldDef; target: unknown; locator: string; writes: boolean; onChange: (locator: string | undefined) => void }) {
+  const { lib } = useCtx();
+  const entity = typeof target === 'string' ? lib.entity(target) : undefined;
+  const bible = entity?.data.workType === 'bible';
+  return (
+    <span className="cg-row">
+      <input value={locator} disabled={!writes} aria-label={`Miejsce: ${field.label}`} placeholder={bible ? 'Ps 110, Łk 1,46-55' : 's. 23, rozdz. 4'} onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)} />
+      {locator !== '' && <span className="cg-muted">{placeText(entity, locator, entity === undefined ? '' : lib.label(entity))}</span>}
+    </span>
+  );
+}
+
+/** Ein Wert — in seiner Hülle, wenn das Feld unsicher sein darf (Stand, Quelle, Notiz) oder eine Stelle trägt (Schritt 11). */
 function OneValue({ field, raw, writes, onChange, onOpen }: { field: FieldDef; raw: unknown; writes: boolean; onChange: (v: unknown) => void; onOpen: (id: string) => void }) {
+  if (!field.uncertain && field.locator === true) {
+    const env: Record<string, unknown> = isEnvelope(raw) ? raw : raw === undefined ? {} : { value: raw };
+    /* Ohne Stelle bleibt der Wert, was er war — eine Kennung; mit Stelle eine Hülle { value, locator }. */
+    const set = (patch: Record<string, unknown>) => {
+      const next: Record<string, unknown> = { ...env, ...patch };
+      for (const [k, v] of Object.entries(patch)) if (v === undefined || v === '') delete next[k];
+      onChange(typeof next.locator === 'string' && next.locator !== '' ? next : next.value);
+    };
+    return (
+      <span className="cg-row">
+        <PlainValue field={field} value={env.value} writes={writes} onChange={(v) => set({ value: v })} onOpen={onOpen} />
+        <PlaceInput field={field} target={env.value} locator={typeof env.locator === 'string' ? env.locator : ''} writes={writes} onChange={(locator) => set({ locator })} />
+      </span>
+    );
+  }
   if (!field.uncertain) return <PlainValue field={field} value={isEnvelope(raw) ? raw.value : raw} writes={writes} onChange={onChange} onOpen={onOpen} />;
   const env = isEnvelope(raw) ? raw : raw === undefined ? {} : { value: raw };
   const state = (VALUE_STATES as readonly string[]).includes(String(env.state)) ? env.state as ValueState : 'known';
@@ -222,6 +249,7 @@ function OneValue({ field, raw, writes, onChange, onOpen }: { field: FieldDef; r
           {VALUE_STATES.map((s) => <option key={s} value={s}>{VALUE_STATE_LABEL[s]}</option>)}
         </select>
       </div>
+      {field.locator === true && <PlaceInput field={field} target={env.value} locator={typeof env.locator === 'string' ? env.locator : ''} writes={writes} onChange={(locator) => set({ locator })} />}
       <SourceRow source={source} writes={writes} onChange={(s) => set({ source: s })} />
       <input value={typeof env.note === 'string' ? env.note : ''} placeholder="notatka" disabled={!writes} onChange={(e) => set({ note: e.target.value })} />
     </div>

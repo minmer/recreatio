@@ -103,6 +103,8 @@ const REVISION_FIELDS: Record<string, readonly ConfigField[]> = {
   'source.collection': [f('collection', 'Zbiór', 'collection')],
   'source.topic': [f('topic', 'Temat', 'entity', { kinds: ['topic'] }), f('depth', 'Głębokość', 'number')],
   'source.list': [f('ids', 'Wpisy albo pytania', 'lines', { hint: 'identyfikatory, jeden w wierszu' })],
+  /* 2026-10-22 (Schritt 11) — z kazania (albo innego wpisu): to, na co wskazuje. */
+  'source.from': [f('entry', 'Wpis (np. kazanie)', 'entity', { kinds: ['text', 'comment', 'project'] })],
   filter: [f('templates', 'Tylko szablony', 'templates'), f('directions', 'Tylko kierunki', 'lines'), f('forms', 'Tylko formy', 'forms'), f('levels', 'Tylko stany', 'levels'), f('dueOnly', 'Tylko te, na które przyszła pora', 'bool')],
   /* 2026-10-22 (Schritt 9) — dieselben Schritte wie ein Widok (`selection.ts`). */
   follow: [f('field', 'Po którym polu', 'field', { hint: 'puste: po wszystkich odwołaniach' }), f('back', 'Wstecz: do tego, co wskazuje na te wpisy', 'bool')],

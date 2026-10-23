@@ -470,7 +470,13 @@ export class CogitaLibrary {
       collection: (id) => this.members(id),
       topic: (id, depth) => this.topicTree(id, depth),
       pointing: (id) => this.pointing(id),
-      from: (id) => this.origin(id)?.libraryId
+      from: (id) => this.origin(id)?.libraryId,
+      /* 2026-10-22 (Schritt 11) — worauf ein Eintrag verweist: ein Kazanie der Bibliothek, ein Eintrag hier (ohne sich selbst). */
+      refsOf: (id) => {
+        const entry = this.entry(id);
+        if (entry === undefined) return [];
+        return [...new Set(refsOf(entry, (token) => this.resolve(token)).map((r) => r.target))].filter((t) => t !== id && this.entity(t) !== undefined);
+      }
     };
   }
 

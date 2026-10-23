@@ -13,6 +13,7 @@ import { kindOf, str } from './libraryKinds';
 import { RefPicker } from './LibraryPick';
 import { entryLine } from './refLabels';
 import type { Entry, LibraryStore } from './libraryStore';
+import { BasePicker } from './BasePicker';
 
 /** Das Schreibfeld — mit Knöpfen, die an der Schreibmarke einfügen. */
 export function WritingArea({ store, value, readOnly, placeholder, onChange }: {
@@ -23,7 +24,7 @@ export function WritingArea({ store, value, readOnly, placeholder, onChange }: {
   onChange: (next: string) => void;
 }) {
   const area = useRef<HTMLTextAreaElement | null>(null);
-  const [picker, setPicker] = useState<'cite' | 'embed' | null>(null);
+  const [picker, setPicker] = useState<'cite' | 'embed' | 'base' | null>(null);
 
   /* Das Feld wächst mit dem Text. */
   useEffect(() => {
@@ -78,9 +79,18 @@ export function WritingArea({ store, value, readOnly, placeholder, onChange }: {
           <button type="button" title="Własny przypis" onClick={() => edit((b, s, a) => ({ text: `${b}^[${s}]${a}`, caret: [b.length + 2, b.length + 2 + s.length] }))}>Przypis</button>
           <button type="button" className={picker === 'cite' ? 'is-on' : ''} onClick={() => setPicker(picker === 'cite' ? null : 'cite')}>Źródło…</button>
           <button type="button" className={picker === 'embed' ? 'is-on' : ''} onClick={() => setPicker(picker === 'embed' ? null : 'embed')}>Cytat z biblioteki…</button>
+          {/* 2026-10-22 (Schritt 11) — ein Słowo eines Słownik verlinken, einen Widok einbetten. */}
+          <button type="button" className={picker === 'base' ? 'is-on' : ''} onClick={() => setPicker(picker === 'base' ? null : 'base')}>Z bazy wiedzy…</button>
         </div>
       )}
-      {picker !== null && (
+      {picker === 'base' && (
+        <BasePicker
+          onClose={() => setPicker(null)}
+          onLink={(id, name) => { const chosen = selection().trim(); insert(`[[${(chosen || name).replace(/[[\]|]/g, ' ').replace(/\s+/g, ' ').trim()}|@${id}]]`); setPicker(null); }}
+          onEmbed={(id) => { insert(`![@${id}]`, true); setPicker(null); }}
+        />
+      )}
+      {picker !== null && picker !== 'base' && (
         <CitePicker
           store={store}
           mode={picker}

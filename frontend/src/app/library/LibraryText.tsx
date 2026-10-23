@@ -19,6 +19,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { bibliography, originOf } from './libraryCite';
 import { ids, isAspect, ownTitle, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
+import { viewPath } from '../routes';
 import { parseMarkup } from './libraryMarkup';
 import { Blocks, CommentCard, CommentsOn, countNotes, MarkupLinks, NoteList, QuoteBody, Segs } from './markupView';
 import { deliveriesOf, mediaFile, planOf, timeLink } from './sermon';
@@ -190,6 +191,7 @@ export function OpenedEntry({ entry, look, prefix, onClose }: { entry: LibEntry;
       {entry.kind === 'text' ? <TextArticle entry={entry} look={look} prefix={prefix} heading="h3" compact />
         : entry.kind === 'comment' ? <CommentCard comment={entry} look={look} prefix={prefix} about />
         : entry.kind === 'quote' ? <QuoteFigure entry={entry} look={look} />
+        : entry.kind === 'entity' ? <BaseEntry entry={entry} look={look} />
         : (
           <>
             <h3 className="lib-h">{ownTitle(entry, look)}</h3>
@@ -197,6 +199,26 @@ export function OpenedEntry({ entry, look, prefix, onClose }: { entry: LibEntry;
           </>
         )}
     </aside>
+  );
+}
+
+/**
+ * 2026-10-22 (Schritt 11) — EIN EINTRAG EINER BAZA WIEDZY, auf den ein Text
+ * verweist (ein Słowo eines Słownik): sein Name, seine kurzen Werte — und im
+ * Arbeitsbereich der Weg zu ihm in Nauka.
+ */
+function BaseEntry({ entry, look }: { entry: LibEntry; look: Lookup }) {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i;
+  const shown = Object.entries(entry.data)
+    .filter(([key, value]) => !key.startsWith('_') && typeof value === 'string' && value.trim() !== '' && !uuid.test(value) && value.length < 200)
+    .slice(0, 6) as [string, string][];
+  const base = (entry as { libraryId?: string }).libraryId;
+  return (
+    <>
+      <h3 className="lib-h">{ownTitle(entry, look)}</h3>
+      {shown.length > 1 && <ul className="lib-opened-text">{shown.slice(1).map(([key, value]) => <li key={key}>{value}</li>)}</ul>}
+      {base !== undefined && window.location.hash.startsWith('#/workspace') && <p><a className="wk-link" href={viewPath('learn', base, 'wpisy', entry.id)}>Otwórz w Nauce</a></p>}
+    </>
   );
 }
 

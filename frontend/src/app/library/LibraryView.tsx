@@ -97,6 +97,8 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
         /* Die anderen lesbaren Bibliotheken im Hintergrund — sie sind die Nachbarn der offenen. */
         for (const one of books) void storeOf(me.ring, one).sync().catch(() => undefined);
         setKnowledge(new Set(opened.filter((one) => libraryKindOf(one) === 'knowledge').map((one) => one.libraryId)));
+        /* 2026-10-22 (Schritt 11) — und die Bazy wiedzy: worauf ein Kazanie in ihnen verweist (ein Słowo, ein Widok), findet es so. */
+        for (const one of opened.filter((o) => libraryKindOf(o) === 'knowledge')) void storeOf(me.ring, one).sync().then(() => { if (alive) setTick((n) => n + 1); }, () => undefined);
         setEverything(opened);
         setAreas(found.areas);
         setFailed(null);

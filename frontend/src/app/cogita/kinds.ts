@@ -278,6 +278,7 @@ export function kindDoc(kind: KindDef): Record<string, unknown> {
       if (f.to !== undefined && f.to.length > 0) out.to = f.to;
       if (f.inverse !== undefined) out.inverse = f.inverse;
       if (f.symmetric === true) out.symmetric = true;
+      if (f.locator === true) out.locator = true;
       if (f.media !== undefined) out.media = f.media;
       if (f.rangeOf !== undefined) out.rangeOf = f.rangeOf;
       if (f.role !== undefined && !isBaseKind(kind.id)) out.role = f.role;

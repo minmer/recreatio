@@ -385,9 +385,12 @@ const formsSection = (): string => `"forms" — formularze dodawania (należą d
 const kindsSection = (): string => `"kinds" — rodzaje:
   "name" — nazwa, "label" — wzór etykiety, np. "{givenNames} {surname}", "tells" — pole, które odróżnia imienników,
   "builtin" — zmiana wbudowanego rodzaju (person, work, quote, topic, text, project, knowledge, question),
-  "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "options", "to", "inverse", "symmetric", "media", "rangeOf", "says"}]
+  "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "options", "to", "inverse", "symmetric", "locator", "media", "rangeOf", "says"}]
   "options" (wybór z listy) — [{"value", "label"}]
   "to" (odwołanie) — na jakie rodzaje wskazuje: ["@ref rodzaju z tego dokumentu", "Nazwa rodzaju", "topic"]; puste — na dowolne
+  "locator": true (odwołanie z miejscem) — każda wartość to {"value": "@dzielo", "locator": "Ps 110"}: psalm to Biblia z biblioteki + miejsce, hasło to leksykon + „s. 23"; miejsca w Piśmie aplikacja czyta (Ps 110 · Łk 1,46-55) i po nich szuka; tekstu Biblii się nie przechowuje
+    np. {"key": "miejsce", "label": "Miejsce w Piśmie", "type": "ref", "to": ["work"], "locator": true}, a we wpisie: "miejsce": {"value": "@bt", "locator": "Ps 110,1-7"}
+  gotowe schematy (Schemat → „+ Rodzaj" → Gotowy schemat): Słownik (Język, Słowo, Tłumaczenie, Synonimy, Antonimy — z szablonami „Słówka") i Psałterz (psalm z miejscem w Piśmie, miejsca brewiarza)
   typy pól: ${FIELD_TYPES.map((t) => `"${t}" (${FIELD_TYPE_LABEL[t]})`).join(', ')}`;
 
 /** 2026-10-19 — neben dem JSON eines Formulars: nur, was ihn betrifft. */
@@ -452,6 +455,7 @@ ${kindsSection()}
 "collections" — zbiory: {"name", "rule": {"op": "and|or", "items": [{"field", "cmp", "value"}]}, "list": ["@wpis"]}
 "views" — widoki (te same kroki co powtórka, po wpisach): {"name", "mode": "table|tree|matrix|map|canvas", "steps": [krok, …], "query", "group", "matrix", "columns": ["klucz pola" | "#axis:@oś"], "sort": {"key", "dir": 1|-1}}
   na początku źródła — kilka pod rząd sumuje się (np. kazania i komentarze): "source.all" | "source.kind" {"kind": "@rodzaj" albo "text"/"comment" z biblioteki, "from"} | "source.collection" {"collection": "@zbiór"} | "source.topic" {"topic": "@temat", "depth": 9} | "source.list" {"ids": ["@wpis"]};
+  także "source.from" {"entry": "@kazanie"} — to, na co wskazuje wpis (kazanie: jego cytaty, komentarze, słowa ze słownika, miejsca z planu; w powtórce: „Z wpisu" — powtórka z kazania);
   potem "follow" {"field", "back"} i "filter.rule" {"rule"} (źródło po innym kroku zaczyna od nowa);
   grupowanie (drzewo "group", wiersze i kolumny "matrix": {"rows": grupowanie, "cols": grupowanie}): {"by": "kind"} | {"by": "field", "field": "klucz"} | {"by": "topic", "axis": "@oś (temat-aspekt; jego podtematy to wartości)"}
   kolumna "#axis:@oś" — wartości osi, do których należy wpis

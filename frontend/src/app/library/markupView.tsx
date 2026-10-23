@@ -13,6 +13,10 @@ import { blocksOf, commentsAbout, isQuestion, statementRole, statementTokens, su
 import { citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from './libraryCite';
 import { isSource, ownTitle, refTarget, str, type LibEntry, type Lookup } from './libraryKinds';
 import { parseInline, parseMarkup, UNREADABLE, walkBlocks, walkInline, type Block, type Inline } from './libraryMarkup';
+import { later } from '../ui/later';
+
+/* 2026-10-22 (Schritt 11) — ein Widok im Text: der Rechner (Cogita) kommt erst, wenn einer gezeigt wird. */
+const LiveView = later(() => import('../cogita/ViewEmbed').then((m) => m.ViewEmbed));
 
 export function Segs({ segs }: { segs: readonly Seg[] }) {
   return (
@@ -357,7 +361,9 @@ export function Blocks({ blocks, look, notes, prefix, path = new Set() }: { bloc
               if (path.has(quote.id)) return <p key={i} className="lib-missing">[komentarz osadza sam siebie]</p>;
               return <aside key={i} className="lib-comment is-embedded"><CommentBody comment={quote} look={look} notes={notes} prefix={prefix} path={path} /></aside>;
             }
-            if (quote.kind !== 'quote') return <p key={i} className="lib-missing">„{b.key}” to nie cytat ani komentarz.</p>;
+            /* 2026-10-22 (Schritt 11) — ein Widok einer Baza wiedzy: was er jetzt wählt („wszystkie psalmy jutrzni niedzielnej"). */
+            if (quote.kind === 'view') return <LiveView key={i} viewId={quote.id} libraryId={(quote as { libraryId?: string }).libraryId ?? ''} />;
+            if (quote.kind !== 'quote') return <p key={i} className="lib-missing">„{b.key}” to nie cytat, komentarz ani widok.</p>;
             const origin = originOf(quote, look);
             const where = b.locator !== '' ? b.locator : '';
             return (

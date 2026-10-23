@@ -89,6 +89,9 @@ export function refsOf(entry: Pick<IndexedEntry, 'data'>, resolve: (token: strin
     const here = typeof o.id === 'string' && !UUID.test(o.id) ? o.id : at;
     const locator = typeof o.locator === 'string' ? o.locator.trim() : '';
     if (typeof o.ref === 'string') { const id = idOf(o.ref); if (id !== undefined) push(id, locator, field === '' ? 'ref' : field, here); }
+    /* 2026-10-22 (Schritt 11) — ein Wert eines Cogita-Feldes mit Stelle: { value, locator } (ein Psalm: Biblia, „Ps 110"). */
+    const valuePlace = typeof o.value === 'string' && locator !== '' && UUID.test(o.value);
+    if (valuePlace) push((o.value as string).toLowerCase(), locator, field === '' ? 'value' : field, here);
     const withWork = o.work !== undefined && typeof o.locator === 'string';
     if (withWork) {
       for (const w of Array.isArray(o.work) ? o.work : [o.work]) {
@@ -98,7 +101,7 @@ export function refsOf(entry: Pick<IndexedEntry, 'data'>, resolve: (token: strin
       }
     }
     for (const [key, one] of Object.entries(o)) {
-      if (key === 'ref' || key === 'id' || key.startsWith('_') || (key === 'work' && withWork)) continue;
+      if (key === 'ref' || key === 'id' || key.startsWith('_') || (key === 'work' && withWork) || (key === 'value' && valuePlace)) continue;
       walk(one, field === '' ? key : field, here);
     }
   };

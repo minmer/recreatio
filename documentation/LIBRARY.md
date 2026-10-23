@@ -92,6 +92,7 @@ The service never decrypts. A page opens libraries in the browser (`libraryOpen.
 - **public area**: `GET /library/{id}/open?since=` (anonymous) returns all sealed entries under published epoch keys, plus the area id and the sealed name; the browser opens them with `/area/{id}/key?epoch=`. Served only when the area is public **and** the library has been settled (`area_rule_at`, 0122 — see "Migration"). Since step 8 the same holds for a knowledge base (opened explicitly, see below), and its files come sealed through `GET /library/{id}/file/{fileId}/sealed` (only under a published epoch); the old open file copies (`/library/{id}/file/{fileId}`) and the readers of published copies (`/library/{id}/published…`) are gone.
 - **otherwise, as a member** (or through a link or seat): `/workspace/library/{id}/entries` with the keys this browser holds.
 - **references outside**: ids not found are looked up with `GET /library/where?ids=` (only entries the caller can read, or that lie in a public area); those libraries are opened too. What remains is unreadable.
+  - Since step 11 this includes what a text's markup names (`refsOf`, so links in the body and in plan points) and entries of knowledge bases. A base is found only by its own rule: a member, or a public area **and** an opened base.
 - An entry that moved to another library is found there (`findOnPage`), so a page configured with the old library still shows it.
 - The archive filters, searches and counts in the browser (`browseLocal` in `browse.ts`): a topic also finds its sub-topics, OR within an axis, AND between axes. There are no public summaries or browse endpoints any more.
 
@@ -291,6 +292,12 @@ These follow the standing JSON rule.
 - **Collections, views, revisions and flows are documents of the base** that hold entry ids and rules.
 - **One topic system** (2026-10-22, step 7): the library topics with their aspects are the axes; a base sees the topics of its source libraries, a revision "everything under a topic" takes what points at it (backlinks); Cogita's learning fields on topics are an extension of the base, perspectives an aspect "Perspektywy".
 - **Writing is the library's `text` and `project`** with the `[@key]` / `![@key]` markup.
+- **A text reaches into knowledge bases** (step 11). "Z bazy wiedzy…" in the text and plan editors (`BasePicker.tsx`) does two things:
+  - it links an entry of a base with `[[house|@id]]`, for example a word of a dictionary. The link is never a footnote, and it opens below the text with the entry's values and, in the workspace, "Otwórz w Nauce";
+  - it embeds a saved view with `![@view]`, as its own block or plan point. The view shows what it selects **now** (`cogita/ViewEmbed.tsx`, loaded only when shown), so "Psalmy jutrzni niedzielnej" follows the psalter's data.
+
+  In the workspace the account's bases are opened in the background, and their entries are found by id only (`LibraryStore.get`; keys stay a matter of libraries). A reader who cannot read the base sees "[odwołanie niedostępne]".
+- **"Powtórka z tego tekstu"** (step 11, the "Nauka" box of a text): a revision of what the text points at, in a base that draws on this library (`cogita/fromEntry.ts`).
 
 ## Adding a kind
 

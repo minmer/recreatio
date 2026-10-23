@@ -27,6 +27,7 @@
 
 import { plainText } from '../library/libraryMarkup';
 import { blocksOf, firstSentence, type CommentBlock } from '../library/comment';
+import { formatBible, parseBible } from '../library/bible';
 
 /* -- Wörterbücher ------------------------------------------------------------------ */
 
@@ -144,6 +145,13 @@ export interface FieldDef {
   readonly inverse?: string;
   /** `ref`: gilt in beide Richtungen und steht nur einmal da [B10]. */
   readonly symmetric?: boolean;
+  /**
+   * 2026-10-22 (Schritt 11) — `ref` MIT STELLE: jeder Wert nennt dazu ein
+   * Miejsce (`{ value, locator }`) — ein Psalm ist „Biblia, Ps 110", ein
+   * Hasło „Leksykon, s. 23". Der Text der Bibel liegt nicht im Speicher: die
+   * Stelle wird gelesen (`library/bible.ts`), gesucht („Fragment Pisma") und gezeigt.
+   */
+  readonly locator?: boolean;
   /** `media`: welche Dateien. */
   readonly media?: readonly MediaType[];
   /** `range`: woraus die Stücke bestehen. */
@@ -234,6 +242,8 @@ export interface Value {
   readonly state: ValueState;
   readonly source?: SourceRef;
   readonly note?: string;
+  /** 2026-10-22 (Schritt 11) — die Stelle eines Verweises mit Stelle (`FieldDef.locator`). */
+  readonly locator?: string;
 }
 
 /** Wie man Arten und Einträge findet — im Speicher des Browsers. */
@@ -289,6 +299,7 @@ export function readField(raw: unknown): FieldDef | null {
     to: type === 'ref' ? to ?? [] : undefined,
     inverse: type === 'ref' && str(raw.inverse).trim() !== '' ? clip(str(raw.inverse).trim(), 120) : undefined,
     symmetric: type === 'ref' && raw.symmetric === true ? true : undefined,
+    locator: type === 'ref' && raw.locator === true ? true : undefined,
     media: type === 'media' ? (media && media.length > 0 ? media : [...MEDIA_TYPES]) : undefined,
     rangeOf: type === 'range' ? pick(RANGE_OF, raw.rangeOf) ?? 'number' : undefined,
     role: str(raw.role).trim() !== '' ? clip(str(raw.role).trim(), 40) : undefined,
@@ -622,17 +633,20 @@ function readSource(raw: unknown): SourceRef | undefined {
 }
 
 function readOne(field: FieldDef, raw: unknown): Value | undefined {
+  /* 2026-10-22 (Schritt 11) — die Stelle eines Verweises mit Stelle. */
+  const locator = field.locator === true && isEnvelope(raw) ? clip(str(raw.locator).trim(), 120) : '';
+  const place = locator === '' ? {} : { locator };
   if (field.uncertain && isEnvelope(raw)) {
     const state = pick(VALUE_STATES, raw.state) ?? 'known';
     const note = str(raw.note).trim();
     const source = readSource(raw.source);
-    const extra = { ...(source ? { source } : {}), ...(note !== '' ? { note: clip(note, 1000) } : {}) };
+    const extra = { ...(source ? { source } : {}), ...(note !== '' ? { note: clip(note, 1000) } : {}), ...place };
     if (WITHOUT_VALUE.has(state)) return { value: null, state, ...extra };
     const value = readTyped(field, raw.value);
     return value === undefined ? undefined : { value, state, ...extra };
   }
   const value = readTyped(field, isEnvelope(raw) ? raw.value : raw);
-  return value === undefined ? undefined : { value, state: 'known' };
+  return value === undefined ? undefined : { value, state: 'known', ...place };
 }
 
 /**
@@ -764,10 +778,25 @@ export function valueText(field: FieldDef, value: FieldValue | null, look: Looku
 }
 
 /** Alle Werte eines Feldes in Worten, mit Komma getrennt; unsichere tragen ihren Stand. */
+/**
+ * 2026-10-22 (Schritt 11) — ein Verweis mit Stelle in Worten: auf eine Bibel
+ * die Stelle selbst (gelesen und einheitlich geschrieben: „Ps 110,1-7") mit
+ * dem Sigel der Ausgabe, sonst „Werk, s. 23".
+ */
+export function placeText(target: Entity | undefined, locator: string, label: string): string {
+  if (target !== undefined && target.data.workType === 'bible') {
+    const spans = parseBible(locator);
+    const siglum = typeof target.data.siglum === 'string' && target.data.siglum.trim() !== '' ? ` (${target.data.siglum.trim()})` : '';
+    return `${spans.length > 0 ? formatBible(spans) : locator}${siglum}`;
+  }
+  return label === '' || label === '…' ? locator : `${label}, ${locator}`;
+}
+
 export function fieldText(entity: Entity, field: FieldDef, look: Lookup, depth = 0): string {
   return valuesOf(entity, field)
     .map((v) => {
-      const text = valueText(field, v.value, look, depth);
+      const plain = valueText(field, v.value, look, depth);
+      const text = v.locator === undefined || typeof v.value !== 'string' ? plain : placeText(look.entity(v.value), v.locator, plain);
       if (v.value === null) return `(${VALUE_STATE_LABEL[v.state]})`;
       return v.state === 'approximate' ? `ok. ${text}` : v.state === 'disputed' ? `${text} (?)` : text;
     })

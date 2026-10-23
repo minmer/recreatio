@@ -86,6 +86,9 @@ function merge(flows: readonly CardFlow[]): CardFlow {
 }
 
 const port = (id: string, label: string, many = false, type = 'cards'): Port => ({ id, label, type, many });
+
+/** Der Eintrag einer Karte — ein Pytanie ist selbst einer. */
+const entityOfCard = (c: Card): string => c.entity ?? c.question;
 type Kind = NodeKind<RevisionContext>;
 const out = (cards: readonly Card[]) => ({ cards: { cards, gate: null } satisfies CardFlow });
 
@@ -138,6 +141,18 @@ const BY_LIST: Kind = {
   }
 };
 
+/** 2026-10-22 (Schritt 11) — eine Powtórka aus einem Eintrag: die Karten dessen, worauf er verweist (ein Kazanie: Cytaty, Komentarze, Słowa). */
+const BY_FROM: Kind = {
+  type: 'source.from', label: STEP_WORDS['source.from'].label, group: 'Źródła',
+  says: `${STEP_WORDS['source.from'].says} Daje karty tych wpisów.`,
+  ports: () => ({ inputs: [], outputs: [port('cards', 'Karty')] }),
+  run: ({ config, ctx }) => {
+    if (ctx.select === undefined) return out([]);
+    const ids = pick(ctx.select, { type: 'source.from', config }, null);
+    return out(ctx.cards.filter((c) => ids.has(entityOfCard(c))));
+  }
+};
+
 const FILTER: Kind = {
   type: 'filter', label: 'Filtr', group: 'Zawężenie',
   says: 'Zostawia karty z wybranych szablonów, kierunków, form odpowiedzi, stanów (jeszcze nie / w nauce / umiem) albo tylko te, na które przyszła pora.',
@@ -164,9 +179,6 @@ const FILTER: Kind = {
     return { cards: { cards, gate: flow.gate } satisfies CardFlow };
   }
 };
-
-/** Der Eintrag einer Karte — ein Pytanie ist selbst einer. */
-const entityOfCard = (c: Card): string => c.entity ?? c.question;
 
 /**
  * 2026-10-22 (Schritt 9) — EIN SCHRITT DER AUSWAHL über die Einträge der
@@ -267,7 +279,7 @@ const STRATEGY: Kind = {
   }
 };
 
-export const REVISION_PALETTE = paletteOf<RevisionContext>('revision', [ALL, BY_KIND, BY_COLLECTION, BY_TOPIC, BY_LIST, FILTER, FOLLOW, FILTER_RULE, UNION, GATE, STRATEGY]);
+export const REVISION_PALETTE = paletteOf<RevisionContext>('revision', [ALL, BY_KIND, BY_COLLECTION, BY_TOPIC, BY_LIST, BY_FROM, FILTER, FOLLOW, FILTER_RULE, UNION, GATE, STRATEGY]);
 
 /** Der Plan einer Wiederholung aus ihrem Graphen — genau ein „Sposób pytania". */
 export async function planOf(graph: Graph, ctx: RevisionContext): Promise<{ plan: Plan | null; problems: string[] }> {

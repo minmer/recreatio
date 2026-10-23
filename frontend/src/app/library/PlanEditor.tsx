@@ -28,6 +28,7 @@ import { commentsAbout } from './comment';
 import { viewPath } from '../routes';
 import { CitePicker } from './WritingTools';
 import { embedOf, newPointId, planFromText, planOf, planPrompt, pointData, pointNumbers, type PlanPoint } from './sermon';
+import { BasePicker } from './BasePicker';
 
 /** Ein Punkt — das Feld wächst mit seinem Text. */
 function PointText({ point, readOnly, register, onFocus, onChange, onKey }: {
@@ -76,7 +77,7 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
   const areas = useRef(new Map<string, HTMLTextAreaElement>());
   const [focused, setFocused] = useState<string | null>(null);
   const [caret, setCaret] = useState<{ id: string; at: number } | null>(null);
-  const [picker, setPicker] = useState<'cite' | 'embed' | null>(null);
+  const [picker, setPicker] = useState<'cite' | 'embed' | 'base' | null>(null);
   const [paste, setPaste] = useState('');
 
   const write = (next: readonly PlanPoint[]) => set({ plan: next.map(pointData) });
@@ -194,6 +195,26 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
     setCaret({ id: p.id, at: before.length + mark.length + (before === '' ? 0 : 1) });
   };
 
+  /* 2026-10-22 (Schritt 11) — ein Link auf einen Eintrag einer Baza (ein Słowo) in den Punkt, in dem der Cursor steht. */
+  const link = (id: string, name: string) => {
+    const words = (selection().trim() || name).replace(/[[\]|]/g, ' ').replace(/\s+/g, ' ').trim();
+    const mark = `[[${words}|@${id}]]`;
+    const p = index < 0 ? undefined : points[index];
+    if (p === undefined) { insertAt(points.length, [{ text: mark, depth: 0, kind: 'thought', note: '' }]); return; }
+    const el = areas.current.get(p.id);
+    const from = el?.selectionStart ?? p.text.length;
+    const to = el?.selectionEnd ?? p.text.length;
+    update(p.id, { text: `${p.text.slice(0, from)}${mark}${p.text.slice(to)}` });
+    setCaret({ id: p.id, at: from + mark.length });
+  };
+
+  /* … und ein Widok als eigener Punkt darunter: er zeigt, was er jetzt wählt. */
+  const embedView = (id: string) => {
+    const p = index < 0 ? undefined : points[index];
+    const depth = p === undefined ? 0 : (Math.min(2, p.depth + (p.depth === 0 ? 1 : 0)) as 0 | 1 | 2);
+    insertAt(p === undefined ? points.length : index + 1, [{ text: `![@${id}]`, depth, kind: 'thought', note: '' }]);
+  };
+
   const embed = (key: string, replaceSelection: boolean) => {
     const p = index < 0 ? undefined : points[index];
     if (p !== undefined && replaceSelection && selection().trim() === p.text.trim()) {
@@ -212,6 +233,8 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
         <div className="lib-tools" role="toolbar" aria-label="Wstawianie do planu">
           <button type="button" className={picker === 'cite' ? 'is-on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => setPicker(picker === 'cite' ? null : 'cite')}>Źródło…</button>
           <button type="button" className={picker === 'embed' ? 'is-on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => setPicker(picker === 'embed' ? null : 'embed')}>Cytat z biblioteki…</button>
+          {/* 2026-10-22 (Schritt 11) — ein Słowo verlinken, einen Widok als eigenen Punkt einbetten (er lebt mit der Baza). */}
+          <button type="button" className={picker === 'base' ? 'is-on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => setPicker(picker === 'base' ? null : 'base')}>Z bazy wiedzy…</button>
           {index >= 0 && (
             <>
               <button type="button" title="Wyżej w hierarchii (Shift+Tab)" aria-label="Poziom wyżej" onMouseDown={(e) => e.preventDefault()} onClick={() => shift(index, -1)}>←</button>
@@ -223,7 +246,14 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
           )}
         </div>
       )}
-      {picker !== null && (
+      {picker === 'base' && (
+        <BasePicker
+          onClose={() => setPicker(null)}
+          onLink={(id, name) => { link(id, name); setPicker(null); }}
+          onEmbed={(id) => { embedView(id); setPicker(null); }}
+        />
+      )}
+      {picker !== null && picker !== 'base' && (
         <CitePicker
           store={store} mode={picker} selection={selection()}
           onClose={() => setPicker(null)}

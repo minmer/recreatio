@@ -13,10 +13,11 @@ import { viewPath } from '../routes';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import type { OpenLibrary } from './library';
 import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJson';
-import { type LibEntry, isKey, kindOf } from './libraryKinds';
+import { type LibEntry, isKey, kindOf, entryTitle } from './libraryKinds';
 import { latexFileName, missingKeys, planToLatex, projectToLatex, textToLatex } from './libraryLatex';
 import type { Entry, LibraryStore } from './libraryStore';
 import { planOf } from './sermon';
+import { useMe, useWho } from '../core/me';
 
 export const TAB_OF: Record<string, string> = { text: 'teksty', delivery: 'wyglaszenia', comment: 'komentarze', project: 'projekty', quote: 'cytaty', work: 'zrodla', person: 'osoby', topic: 'tematy' };
 
@@ -96,6 +97,44 @@ export function LatexBox({ store, entry }: { store: LibraryStore; entry: LibEntr
         </div>
       )}
       {shown && <pre className="lib-latex">{source()}</pre>}
+    </section>
+  );
+}
+
+/* -- Nauka (Schritt 11) ------------------------------------------------------------------------------ */
+
+/**
+ * 2026-10-22 (Schritt 11) — EINE POWTÓRKA AUS DIESEM TEXT: die Karten dessen,
+ * worauf er verweist (Cytaty, Komentarze, Słowa, Stellen des Plans), in einer
+ * Baza wiedzy, die diese Bibliothek als Quelle nennt (`cogita/fromEntry.ts`,
+ * erst bei Bedarf geladen).
+ */
+export function LearnBox({ library, entry }: { library: OpenLibrary; entry: LibEntry }) {
+  const me = useMe(useWho());
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const make = async () => {
+    if (me == null) return;
+    setBusy(true);
+    setFailed(null);
+    try {
+      const { revisionFromEntry } = await import('../cogita/fromEntry');
+      const done = await revisionFromEntry(me.ring, library.libraryId, entry.id, entryTitle(entry, { get: () => undefined, byKey: () => undefined }));
+      window.location.hash = viewPath('learn', done.baseId, 'powtorki', done.revisionId);
+    } catch (e) {
+      setFailed(e instanceof Error ? e.message : 'Nie udało się utworzyć powtórki.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="lib-box">
+      <h2 className="lib-box-h">Nauka</h2>
+      <p className="lib-meta">Powtórka z tego, na co wskazuje tekst: cytaty, komentarze, słowa ze słownika, miejsca z planu — w bazie wiedzy, która korzysta z tej biblioteki.</p>
+      <div className="wk-actions">
+        <button type="button" className="wk-btn wk-btn-line" disabled={busy || me == null} onClick={() => void make()}>{busy ? 'Tworzenie…' : 'Powtórka z tego tekstu'}</button>
+      </div>
+      {failed !== null && <p className="wk-error">{failed}</p>}
     </section>
   );
 }

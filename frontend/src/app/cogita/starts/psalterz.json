@@ -1,0 +1,1101 @@
+{
+  "format": "recreatio.cogita.schema",
+  "version": 1,
+  "name": "Psałterz (brewiarz)",
+  "kinds": [
+    {
+      "ref": "@tekst",
+      "name": "Psalm lub pieśń",
+      "label": "{nazwa}",
+      "tells": "poczatek",
+      "fields": [
+        {
+          "key": "nazwa",
+          "label": "Psalm lub pieśń (np. Ps 110, Flp 2,6-11)",
+          "type": "line"
+        },
+        {
+          "key": "miejsce",
+          "label": "Miejsce w Piśmie",
+          "type": "ref",
+          "to": [
+            "work"
+          ],
+          "locator": true,
+          "says": "Pismo Święte z biblioteki, z której korzysta baza (dzieło rodzaju Biblia), i miejsce: Ps 110, Flp 2,6-11 — po nim szuka „Fragment Pisma”; tekstu Biblii nie przechowuje się"
+        },
+        {
+          "key": "poczatek",
+          "label": "Początek",
+          "type": "line"
+        },
+        {
+          "key": "rodzaj",
+          "label": "Rodzaj",
+          "type": "choice",
+          "options": [
+            {
+              "value": "psalm",
+              "label": "psalm"
+            },
+            {
+              "value": "pieśń ST",
+              "label": "pieśń ze Starego Testamentu"
+            },
+            {
+              "value": "pieśń NT",
+              "label": "pieśń z Nowego Testamentu"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ref": "@miejsce",
+      "name": "Miejsce w brewiarzu",
+      "label": "{tydzien} {dzien} · {godzina}",
+      "fields": [
+        {
+          "key": "tydzien",
+          "label": "Tydzień psałterza",
+          "says": "Puste — co tydzień (np. kompleta)",
+          "type": "choice",
+          "options": [
+            {
+              "value": "I",
+              "label": "Tydzień I"
+            },
+            {
+              "value": "II",
+              "label": "Tydzień II"
+            },
+            {
+              "value": "III",
+              "label": "Tydzień III"
+            },
+            {
+              "value": "IV",
+              "label": "Tydzień IV"
+            }
+          ]
+        },
+        {
+          "key": "dzien",
+          "label": "Dzień",
+          "type": "choice",
+          "options": [
+            {
+              "value": "niedziela",
+              "label": "niedziela"
+            },
+            {
+              "value": "poniedziałek",
+              "label": "poniedziałek"
+            },
+            {
+              "value": "wtorek",
+              "label": "wtorek"
+            },
+            {
+              "value": "środa",
+              "label": "środa"
+            },
+            {
+              "value": "czwartek",
+              "label": "czwartek"
+            },
+            {
+              "value": "piątek",
+              "label": "piątek"
+            },
+            {
+              "value": "sobota",
+              "label": "sobota"
+            }
+          ]
+        },
+        {
+          "key": "godzina",
+          "label": "Godzina",
+          "type": "choice",
+          "options": [
+            {
+              "value": "I Nieszpory",
+              "label": "I Nieszpory"
+            },
+            {
+              "value": "II Nieszpory",
+              "label": "II Nieszpory"
+            },
+            {
+              "value": "Nieszpory",
+              "label": "Nieszpory"
+            },
+            {
+              "value": "Kompleta",
+              "label": "Kompleta"
+            },
+            {
+              "value": "Jutrznia",
+              "label": "Jutrznia"
+            },
+            {
+              "value": "Godzina czytań",
+              "label": "Godzina czytań"
+            },
+            {
+              "value": "Modlitwa w ciągu dnia",
+              "label": "Modlitwa w ciągu dnia"
+            }
+          ]
+        },
+        {
+          "key": "teksty",
+          "label": "Psalmy i pieśni (po kolei)",
+          "type": "ref",
+          "multi": true,
+          "to": [
+            "@tekst"
+          ]
+        }
+      ]
+    }
+  ],
+  "forms": [
+    {
+      "ref": "@f-nieszpory",
+      "name": "Nieszpory — psałterz czterotygodniowy",
+      "says": "Na początek tydzień psałterza i godzina (w niedzielę: I albo II Nieszpory). W każdym wierszu dzień, dwa psalmy i pieśń z Nowego Testamentu. Psalm lub pieśń, które już są, zostają użyte — Ps 110 jest jeden, gdziekolwiek się go odmawia. Lista do wklejenia: dzień | psalm | psalm | pieśń.",
+      "graph": {
+        "nodes": [
+          {
+            "id": "ps1",
+            "type": "entry",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "kind": "@tekst",
+              "label": "Psalm 1",
+              "many": false,
+              "reuse": "same",
+              "fields": {
+                "nazwa": {
+                  "from": "type"
+                },
+                "rodzaj": {
+                  "from": "fixed",
+                  "value": "psalm"
+                }
+              }
+            }
+          },
+          {
+            "id": "ps2",
+            "type": "entry",
+            "x": 0,
+            "y": 170,
+            "config": {
+              "kind": "@tekst",
+              "label": "Psalm 2",
+              "many": false,
+              "reuse": "same",
+              "fields": {
+                "nazwa": {
+                  "from": "type"
+                },
+                "rodzaj": {
+                  "from": "fixed",
+                  "value": "psalm"
+                }
+              }
+            }
+          },
+          {
+            "id": "piesn",
+            "type": "entry",
+            "x": 0,
+            "y": 340,
+            "config": {
+              "kind": "@tekst",
+              "label": "Pieśń z NT",
+              "many": false,
+              "reuse": "same",
+              "fields": {
+                "nazwa": {
+                  "from": "type"
+                },
+                "rodzaj": {
+                  "from": "fixed",
+                  "value": "pieśń NT"
+                }
+              }
+            }
+          },
+          {
+            "id": "miejsce",
+            "type": "entry",
+            "x": 260,
+            "y": 170,
+            "config": {
+              "kind": "@miejsce",
+              "label": "Dzień",
+              "many": false,
+              "reuse": "same",
+              "fields": {
+                "tydzien": {
+                  "from": "ask",
+                  "value": "I"
+                },
+                "dzien": {
+                  "from": "type"
+                },
+                "godzina": {
+                  "from": "ask",
+                  "value": "Nieszpory"
+                }
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "ps1",
+            "out": "out",
+            "to": "miejsce",
+            "in": "teksty"
+          },
+          {
+            "id": "e2",
+            "from": "ps2",
+            "out": "out",
+            "to": "miejsce",
+            "in": "teksty"
+          },
+          {
+            "id": "e3",
+            "from": "piesn",
+            "out": "out",
+            "to": "miejsce",
+            "in": "teksty"
+          }
+        ]
+      },
+      "order": [
+        "miejsce",
+        "ps1",
+        "ps2",
+        "piesn"
+      ],
+      "keys": {
+        "enter": "next",
+        "ctrlEnter": "more",
+        "shiftEnter": "save"
+      },
+      "paste": {
+        "columns": "|",
+        "values": "/",
+        "header": false
+      }
+    },
+    {
+      "ref": "@f-kompleta",
+      "name": "Kompleta — co tydzień",
+      "says": "Kompleta powtarza się co tydzień, więc bez tygodnia psałterza. W każdym wierszu dzień i psalm; drugi psalm tego samego dnia — Ctrl+Enter. Lista do wklejenia: dzień | psalm / psalm.",
+      "graph": {
+        "nodes": [
+          {
+            "id": "psalmy",
+            "type": "entry",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "kind": "@tekst",
+              "label": "Psalmy",
+              "many": true,
+              "reuse": "same",
+              "fields": {
+                "nazwa": {
+                  "from": "type"
+                },
+                "rodzaj": {
+                  "from": "fixed",
+                  "value": "psalm"
+                }
+              }
+            }
+          },
+          {
+            "id": "miejsce",
+            "type": "entry",
+            "x": 260,
+            "y": 0,
+            "config": {
+              "kind": "@miejsce",
+              "label": "Dzień",
+              "many": false,
+              "reuse": "same",
+              "fields": {
+                "dzien": {
+                  "from": "type"
+                },
+                "godzina": {
+                  "from": "fixed",
+                  "value": "Kompleta"
+                }
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "psalmy",
+            "out": "out",
+            "to": "miejsce",
+            "in": "teksty"
+          }
+        ]
+      },
+      "order": [
+        "miejsce",
+        "psalmy"
+      ],
+      "keys": {
+        "enter": "next",
+        "ctrlEnter": "more",
+        "shiftEnter": "save"
+      },
+      "paste": {
+        "columns": "|",
+        "values": "/",
+        "header": false
+      }
+    }
+  ],
+  "templates": [
+    {
+      "ref": "@t-1",
+      "name": "1. tekst w tym miejscu",
+      "kinds": [
+        "@miejsce"
+      ],
+      "direction": "miejsce→1",
+      "graph": {
+        "nodes": [
+          {
+            "id": "ja",
+            "type": "entity",
+            "x": 0,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "wzor",
+            "type": "pattern",
+            "x": 260,
+            "y": 0,
+            "config": {
+              "text": "{0} — 1. psalm lub pieśń?",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "pyt",
+            "type": "prompt",
+            "x": 520,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "teksty",
+            "type": "field",
+            "x": 0,
+            "y": 160,
+            "config": {
+              "key": "teksty"
+            }
+          },
+          {
+            "id": "p1",
+            "type": "pick",
+            "x": 260,
+            "y": 160,
+            "config": {
+              "position": "first"
+            }
+          },
+          {
+            "id": "odp",
+            "type": "answer.text",
+            "x": 520,
+            "y": 160,
+            "config": {}
+          },
+          {
+            "id": "karta",
+            "type": "card",
+            "x": 780,
+            "y": 80,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "ja",
+            "out": "entities",
+            "to": "wzor",
+            "in": "p0"
+          },
+          {
+            "id": "e2",
+            "from": "wzor",
+            "out": "text",
+            "to": "pyt",
+            "in": "parts"
+          },
+          {
+            "id": "e3",
+            "from": "teksty",
+            "out": "values",
+            "to": "p1",
+            "in": "items"
+          },
+          {
+            "id": "e4",
+            "from": "p1",
+            "out": "chosen",
+            "to": "odp",
+            "in": "expected"
+          },
+          {
+            "id": "e5",
+            "from": "pyt",
+            "out": "prompt",
+            "to": "karta",
+            "in": "prompt"
+          },
+          {
+            "id": "e6",
+            "from": "odp",
+            "out": "answer",
+            "to": "karta",
+            "in": "answer"
+          },
+          {
+            "id": "e7",
+            "from": "p1",
+            "out": "chosen",
+            "to": "karta",
+            "in": "explain"
+          }
+        ]
+      }
+    },
+    {
+      "ref": "@t-2",
+      "name": "2. tekst w tym miejscu",
+      "kinds": [
+        "@miejsce"
+      ],
+      "direction": "miejsce→2",
+      "graph": {
+        "nodes": [
+          {
+            "id": "ja",
+            "type": "entity",
+            "x": 0,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "wzor",
+            "type": "pattern",
+            "x": 260,
+            "y": 0,
+            "config": {
+              "text": "{0} — 2. psalm lub pieśń?",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "pyt",
+            "type": "prompt",
+            "x": 520,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "teksty",
+            "type": "field",
+            "x": 0,
+            "y": 160,
+            "config": {
+              "key": "teksty"
+            }
+          },
+          {
+            "id": "p1",
+            "type": "pick",
+            "x": 260,
+            "y": 160,
+            "config": {
+              "position": "first"
+            }
+          },
+          {
+            "id": "jest",
+            "type": "when",
+            "x": 520,
+            "y": 320,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "p2",
+            "type": "pick",
+            "x": 520,
+            "y": 160,
+            "config": {
+              "position": "first"
+            }
+          },
+          {
+            "id": "odp",
+            "type": "answer.text",
+            "x": 780,
+            "y": 160,
+            "config": {}
+          },
+          {
+            "id": "karta",
+            "type": "card",
+            "x": 1040,
+            "y": 80,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "ja",
+            "out": "entities",
+            "to": "wzor",
+            "in": "p0"
+          },
+          {
+            "id": "e2",
+            "from": "wzor",
+            "out": "text",
+            "to": "pyt",
+            "in": "parts"
+          },
+          {
+            "id": "e3",
+            "from": "teksty",
+            "out": "values",
+            "to": "p1",
+            "in": "items"
+          },
+          {
+            "id": "e4",
+            "from": "p1",
+            "out": "rest",
+            "to": "jest",
+            "in": "items"
+          },
+          {
+            "id": "e5",
+            "from": "p1",
+            "out": "rest",
+            "to": "p2",
+            "in": "items"
+          },
+          {
+            "id": "e6",
+            "from": "p2",
+            "out": "chosen",
+            "to": "odp",
+            "in": "expected"
+          },
+          {
+            "id": "e7",
+            "from": "pyt",
+            "out": "prompt",
+            "to": "karta",
+            "in": "prompt"
+          },
+          {
+            "id": "e8",
+            "from": "odp",
+            "out": "answer",
+            "to": "karta",
+            "in": "answer"
+          },
+          {
+            "id": "e9",
+            "from": "p2",
+            "out": "chosen",
+            "to": "karta",
+            "in": "explain"
+          }
+        ]
+      }
+    },
+    {
+      "ref": "@t-3",
+      "name": "3. tekst w tym miejscu",
+      "kinds": [
+        "@miejsce"
+      ],
+      "direction": "miejsce→3",
+      "graph": {
+        "nodes": [
+          {
+            "id": "ja",
+            "type": "entity",
+            "x": 0,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "wzor",
+            "type": "pattern",
+            "x": 260,
+            "y": 0,
+            "config": {
+              "text": "{0} — 3. psalm lub pieśń?",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "pyt",
+            "type": "prompt",
+            "x": 520,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "teksty",
+            "type": "field",
+            "x": 0,
+            "y": 160,
+            "config": {
+              "key": "teksty"
+            }
+          },
+          {
+            "id": "p1",
+            "type": "pick",
+            "x": 260,
+            "y": 160,
+            "config": {
+              "position": "first"
+            }
+          },
+          {
+            "id": "p2",
+            "type": "pick",
+            "x": 520,
+            "y": 160,
+            "config": {
+              "position": "first"
+            }
+          },
+          {
+            "id": "jest",
+            "type": "when",
+            "x": 780,
+            "y": 320,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "p3",
+            "type": "pick",
+            "x": 780,
+            "y": 160,
+            "config": {
+              "position": "first"
+            }
+          },
+          {
+            "id": "odp",
+            "type": "answer.text",
+            "x": 1040,
+            "y": 160,
+            "config": {}
+          },
+          {
+            "id": "karta",
+            "type": "card",
+            "x": 1300,
+            "y": 80,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "ja",
+            "out": "entities",
+            "to": "wzor",
+            "in": "p0"
+          },
+          {
+            "id": "e2",
+            "from": "wzor",
+            "out": "text",
+            "to": "pyt",
+            "in": "parts"
+          },
+          {
+            "id": "e3",
+            "from": "teksty",
+            "out": "values",
+            "to": "p1",
+            "in": "items"
+          },
+          {
+            "id": "e4",
+            "from": "p1",
+            "out": "rest",
+            "to": "p2",
+            "in": "items"
+          },
+          {
+            "id": "e5",
+            "from": "p2",
+            "out": "rest",
+            "to": "jest",
+            "in": "items"
+          },
+          {
+            "id": "e6",
+            "from": "p2",
+            "out": "rest",
+            "to": "p3",
+            "in": "items"
+          },
+          {
+            "id": "e7",
+            "from": "p3",
+            "out": "chosen",
+            "to": "odp",
+            "in": "expected"
+          },
+          {
+            "id": "e8",
+            "from": "pyt",
+            "out": "prompt",
+            "to": "karta",
+            "in": "prompt"
+          },
+          {
+            "id": "e9",
+            "from": "odp",
+            "out": "answer",
+            "to": "karta",
+            "in": "answer"
+          },
+          {
+            "id": "e10",
+            "from": "p3",
+            "out": "chosen",
+            "to": "karta",
+            "in": "explain"
+          }
+        ]
+      }
+    },
+    {
+      "ref": "@t-wszystkie",
+      "name": "Wszystkie teksty tego miejsca",
+      "kinds": [
+        "@miejsce"
+      ],
+      "direction": "miejsce→teksty",
+      "graph": {
+        "nodes": [
+          {
+            "id": "ja",
+            "type": "entity",
+            "x": 0,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "wzor",
+            "type": "pattern",
+            "x": 260,
+            "y": 0,
+            "config": {
+              "text": "{0} — zaznacz wszystkie psalmy i pieśni.",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "pyt",
+            "type": "prompt",
+            "x": 520,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "teksty",
+            "type": "field",
+            "x": 0,
+            "y": 160,
+            "config": {
+              "key": "teksty"
+            }
+          },
+          {
+            "id": "inne",
+            "type": "entries",
+            "x": 0,
+            "y": 320,
+            "config": {
+              "kind": "@tekst",
+              "count": 12
+            }
+          },
+          {
+            "id": "zle",
+            "type": "distractors",
+            "x": 260,
+            "y": 320,
+            "config": {
+              "from": [
+                "list"
+              ],
+              "count": 4
+            }
+          },
+          {
+            "id": "odp",
+            "type": "answer.many",
+            "x": 520,
+            "y": 160,
+            "config": {}
+          },
+          {
+            "id": "karta",
+            "type": "card",
+            "x": 780,
+            "y": 80,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "ja",
+            "out": "entities",
+            "to": "wzor",
+            "in": "p0"
+          },
+          {
+            "id": "e2",
+            "from": "wzor",
+            "out": "text",
+            "to": "pyt",
+            "in": "parts"
+          },
+          {
+            "id": "e3",
+            "from": "teksty",
+            "out": "values",
+            "to": "odp",
+            "in": "expected"
+          },
+          {
+            "id": "e4",
+            "from": "teksty",
+            "out": "values",
+            "to": "zle",
+            "in": "expected"
+          },
+          {
+            "id": "e5",
+            "from": "inne",
+            "out": "entities",
+            "to": "zle",
+            "in": "list"
+          },
+          {
+            "id": "e6",
+            "from": "zle",
+            "out": "distractors",
+            "to": "odp",
+            "in": "distractors"
+          },
+          {
+            "id": "e7",
+            "from": "pyt",
+            "out": "prompt",
+            "to": "karta",
+            "in": "prompt"
+          },
+          {
+            "id": "e8",
+            "from": "odp",
+            "out": "answer",
+            "to": "karta",
+            "in": "answer"
+          }
+        ]
+      }
+    },
+    {
+      "ref": "@t-kiedy",
+      "name": "Kiedy jest ten psalm lub pieśń?",
+      "kinds": [
+        "@tekst"
+      ],
+      "direction": "tekst→miejsca",
+      "graph": {
+        "nodes": [
+          {
+            "id": "ja",
+            "type": "entity",
+            "x": 0,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "wzor",
+            "type": "pattern",
+            "x": 260,
+            "y": 0,
+            "config": {
+              "text": "{0} — kiedy się go odmawia? Zaznacz wszystkie miejsca.",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "pyt",
+            "type": "prompt",
+            "x": 520,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "gdzie",
+            "type": "entries",
+            "x": 260,
+            "y": 160,
+            "config": {
+              "kind": "@miejsce",
+              "key": "teksty"
+            }
+          },
+          {
+            "id": "inne",
+            "type": "entries",
+            "x": 0,
+            "y": 320,
+            "config": {
+              "kind": "@miejsce",
+              "count": 12
+            }
+          },
+          {
+            "id": "zle",
+            "type": "distractors",
+            "x": 260,
+            "y": 320,
+            "config": {
+              "from": [
+                "list"
+              ],
+              "count": 4
+            }
+          },
+          {
+            "id": "odp",
+            "type": "answer.many",
+            "x": 520,
+            "y": 160,
+            "config": {}
+          },
+          {
+            "id": "karta",
+            "type": "card",
+            "x": 780,
+            "y": 80,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "ja",
+            "out": "entities",
+            "to": "wzor",
+            "in": "p0"
+          },
+          {
+            "id": "e2",
+            "from": "wzor",
+            "out": "text",
+            "to": "pyt",
+            "in": "parts"
+          },
+          {
+            "id": "e3",
+            "from": "ja",
+            "out": "entities",
+            "to": "gdzie",
+            "in": "like"
+          },
+          {
+            "id": "e4",
+            "from": "gdzie",
+            "out": "entities",
+            "to": "odp",
+            "in": "expected"
+          },
+          {
+            "id": "e5",
+            "from": "gdzie",
+            "out": "entities",
+            "to": "zle",
+            "in": "expected"
+          },
+          {
+            "id": "e6",
+            "from": "inne",
+            "out": "entities",
+            "to": "zle",
+            "in": "list"
+          },
+          {
+            "id": "e7",
+            "from": "zle",
+            "out": "distractors",
+            "to": "odp",
+            "in": "distractors"
+          },
+          {
+            "id": "e8",
+            "from": "pyt",
+            "out": "prompt",
+            "to": "karta",
+            "in": "prompt"
+          },
+          {
+            "id": "e9",
+            "from": "odp",
+            "out": "answer",
+            "to": "karta",
+            "in": "answer"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -22,7 +22,7 @@ import { WorkspaceError } from '../core/session';
 import { QuoteIntake } from './QuoteIntake';
 import { CommentForm } from './CommentForm';
 import { AreaBox } from './LibraryAreaBox';
-import { DeleteBox, EntryJson, KeyBox, LatexBox, TAB_OF } from './LibraryEntryBoxes';
+import { DeleteBox, EntryJson, KeyBox, LatexBox, LearnBox, TAB_OF } from './LibraryEntryBoxes';
 import { PassageBox, Relations } from './LibraryRelations';
 import { FieldList, OutlineEditor, TextForm } from './LibraryTextForm';
 import { DeliveriesBox, DeliveryForm } from './DeliveryForm';
@@ -220,6 +220,7 @@ function Editor({ store, library, existing, kind, preset }: {
           {saved !== undefined && <Relations store={store} library={library} entry={saved} />}
           {kind === 'quote' && str(data, 'text') !== '' && <section className="lib-box"><h2 className="lib-box-h">Podgląd</h2><QuoteFigure entry={live} look={store} /></section>}
           {saved !== undefined && (kind === 'text' || kind === 'project') && <LatexBox store={store} entry={live} />}
+          {saved !== undefined && kind === 'text' && <LearnBox library={library} entry={saved} />}
           {!readOnly || saved !== undefined ? <EntryJson store={store} library={library} entry={saved ?? live} isNew={saved === undefined} /> : null}
           {saved !== undefined && !readOnly && <DeleteBox store={store} library={library} entry={saved} />}
         </aside>

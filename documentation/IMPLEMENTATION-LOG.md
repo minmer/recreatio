@@ -808,3 +808,87 @@ the text). LaTeX prints the same with `\emph{…}`.
    statement: it opens below. Copy the address and open it in a private window: the same cell and statement are open.
 3. In Wpisy, an empty cell "+" creates a statement with both topics, and "Dodaj do planu" puts a cell's entries into
    a sermon plan.
+
+## Step 11 — Schema connections: places, ready schemas, sermon ↔ base
+
+**Built**
+
+- **A reference with a place** (decision 12):
+  - a Cogita `ref` field can carry `locator: true`, and each value is then `{ value, locator }` (`schema.ts`
+    `readField`, `Value.locator`, `kindDoc`);
+  - shown by `placeText`: a Bible target gives the place read and written alike with the edition's siglum
+    ("Ps 110,1-7 (BT)"), any other work gives "Leksykon, s. 23";
+  - the reference index reads such values (`refsOf`), so "Fragment Pisma" finds a psalm of the psalter;
+  - the editors: a tick "z miejscem" on a reference field in Schemat, and a place input beside the picker in the entry
+    editor (it also works with "uncertain" values);
+  - the Bible's text is not stored.
+- **Ready schemas** (`schemaStarts.ts`, Schemat → "+ Rodzaj" → "Gotowy schemat"), through the same import as a JSON
+  file, with the plan as the question:
+  - **Słownik** (decision 11): Język, Słowo (tekst, język), Tłumaczenie (słowa), Synonimy, Antonimy, with four
+    "Słówka" templates (both directions, which language, pairs, translate a word);
+  - **Psałterz**: the breviary schema (`starts/psalterz.json`, from the breviary fixture) whose psalm or canticle has
+    "Miejsce w Piśmie" as a reference with a place.
+- **"Z wpisu"** (`source.from`, shared by views and revisions): what one entry points at, in fields, markup, plan
+  points or subjects (`SelectContext.refsOf`). In the revision palette, "Wpis (np. kazanie)" picks the text.
+- **"Powtórka z tego tekstu"** (library text panel, "Nauka" box; `cogita/fromEntry.ts`). It finds a base that draws
+  on the library; failing that, a writable base of the same area, which gets the library as a source. It creates a
+  revision "Z kazania: …" (Z wpisu → Sposób pytania) there and opens it in Powtórki.
+- **A sermon reaches into knowledge bases:**
+  - "Z bazy wiedzy…" in the text and plan editors (`BasePicker.tsx`) links an entry (`[[house|@id]]`, using the
+    selection as the words) or embeds a view (`![@view]`, as a block or as a plan point of its own);
+  - in the workspace the account's bases are opened in the background, and `LibraryStore.get` also looks there, by id
+    only;
+  - names of base entries come from their data (`entryTitle` fallback). An opened link shows the entry's values and
+    "Otwórz w Nauce";
+  - **a live view inside a plan point**: `![@view]` renders `cogita/ViewEmbed.tsx`, loaded on demand. It shows what
+    the view selects now and catches up when the base changes in the same tab, so "Psalmy jutrzni niedzielnej"
+    follows the psalter.
+- **Service:** `GET /library/where` also finds entries of knowledge bases, by the base's rule: a member, or a public
+  area **and** an opened base. A page's reach also follows what the markup names (`refsOf`), so a public sermon
+  reaches the linked word and the embedded view.
+- **Descriptions:**
+  - `courseDescription()`: `"locator": true` with an example value, the ready schemas, and `source.from`;
+  - `libraryDescription()`: `[[house|@id-słowa]]` and `![@id-widoku]`.
+- **Checks:**
+  - `app-cogita-check` (383): the option and value survive, Bible and work wording, a psalm labelled by its place,
+    "Z wpisu" over a sermon's links and plan, a revision from a sermon asks the right card, both starts import (five
+    kinds and four templates, a word's language resolved, the psalter's place field).
+  - `app-library-check`: `{value, locator}` in the index, "Fragment Pisma" finding a base entry, names of base
+    entries and views, the description.
+  - Drives against LocalDB:
+    - `schema-api.mjs`: both starts imported; psalms with places; the view of Sunday Lauds; a word and a question; a
+      sermon embedding the view and linking both; a fourth psalm appears in the embedded list; the revision from the
+      sermon lives in the linked base and asks the question.
+    - `schema-anon.mjs`: a stranger's `/library/where` finds the word in the public base but not the closed base's
+      entry; the sermon reaches the word; the embedded view shows all four psalms; a psalm reads "Ps 63,2-9 (BT)".
+
+**Removed**
+
+- Nothing. The breviary fixture stays for the checks. The start is its copy with the new field.
+
+**Choices**
+
+- **The place sits on the value, not on the field.** One psalm per value with its own place. It is the same pair as
+  the uncertain value's `source: {work, locator}`, but on the value itself.
+- **The dictionary is not migrated.** The existing "Słówka" presets already assume Word / Language / Translation. The
+  production base is sealed and unseen, and decision 11 says to leave it alone. The start serves new bases.
+- **Bases are reached by id only.** Keys stay unique across libraries, not bases (decision 6 leaves base keys to
+  their own warning). A key could also leak across stores a reader cannot open.
+- **A live view is the base's current selection, not a snapshot.** Printing (LaTeX) shows the view's name, not its
+  list.
+
+**Owner must run**
+
+- Deploy the API (`/library/where` for bases) and the website. No migration.
+
+**Test in the browser**
+
+1. Nauka → a base drawing on the sermons library → Schemat → "+ Rodzaj" → "Gotowy schemat — Słownik". Add the language
+   "angielski" and the word "house".
+2. Biblioteka → a sermon → edit → select "dom" → "Z bazy wiedzy…" → "house". The reader shows "dom" as a link, and a
+   click opens the word with "Otwórz w Nauce".
+3. In the same base: "Gotowy schemat — Psałterz". Add psalms with "Miejsce w Piśmie" (BT, "Ps 63,2-9") and a place
+   "Jutrznia, niedziela, I". Save a view (Wpisy → source "Miejsce w brewiarzu", filter godzina = Jutrznia, + "Idź po
+   odwołaniu" teksty). In the sermon's plan, "Z bazy wiedzy…" → that view. The point lists the psalms, and it changes
+   when a psalm is added to the place.
+4. The sermon's "Nauka" box → "Powtórka z tego tekstu": the revision opens in Powtórki.
