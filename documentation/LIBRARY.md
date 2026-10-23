@@ -1,209 +1,180 @@
-# Library — the shared base for sources, quotations, own writing and Cogita
+# Library — the backbone of citation
 
-Status: implemented 2026-10-01 (migration `0064_library.sql`). This file explains the design. The code comments carry the details.
+Status: implemented 2026-10-01 (migration `0064_library.sql`); since 2026-10-23 one of three parts (below). This file
+explains the design; the code comments carry the details.
+
+## Three parts
+
+| part | job | holds | document |
+|---|---|---|---|
+| **Library** (Biblioteka) | normalise every reference; it holds nothing else | works, quotes, persons as authors, media files | this file |
+| **Scriptorium** (Skryptorium) | writing that uses the knowledge and cites the sources | texts, deliveries, projects, text types | [SCRIPTORIUM.md](SCRIPTORIUM.md) |
+| **Cogita** (Nauka) | knowledge: the owner's own kinds, their entries and links; learning | own kinds and entries (places, persons as subjects, events, mysteries, comments…), questions, templates, revisions, flows, views | [COGITA.md](COGITA.md) |
+
+**References run in one direction.** The Scriptorium cites the Library and links to or embeds Cogita; Cogita cites
+the Library; the Library points only at other Library entries (a quote → its work, a work → its authors and its
+container). Backlinks ("Powiązania", "Odwołują się tutaj") show every direction.
+
+**Persons exist twice, on purpose.** A Library person is an author, a target for references. A Cogita person is a
+described subject of an owner-written kind. If the owner wants a bridge, the kind gets a reference field to Library
+persons; reference fields can point into source libraries already.
+
+All three use the same sealed store (`app.library` / `app.library_entry`), told apart by `app.library.kind`:
+`books` (Library), `writing` (Scriptorium, migration 0124) and `knowledge` (Cogita, 0110).
 
 ## What it is for
 
-- **Publishing sermons and other texts** on a page. Each text has footnotes, a "Dalsze informacje" (further information) section and its sources, so readers can follow every reference.
-- **Organising writing.** Projects (a book, a sermon series, a collection) have an outline of parts and texts, a writing status, target lengths, progress, and a bibliography per project.
-- **A collection of quotations**, each with its source, its place in the source and topics; what you think about one is a comment. A page shows them as a collection or as a "thought of the day".
-- **The base for the new Cogita.** A work, an author or a quote exists once. Everything that needs it points at it: a sermon, a book, and later cards, revisions and dependency graphs.
+- **Citing.** A work, an author or a quote exists once. Sermons, statements, cards and pages point at it; footnotes
+  and bibliographies follow Polish humanities practice.
+- **Real shelves.** Books with ISBN scanning, the national catalogues, own numbers and measurements.
+- **A collection of quotations**, each with its source and its place in it. A page shows them as a collection or as a
+  "thought of the day". What one thinks about a quote is a statement in Nauka, not part of the quote.
 
 ## Model
 
-A **library** belongs to an **area**, and an area has at most one library (the service refuses a second). Area access is library access: whoever holds the area's epoch key reads it; write capability on the area means editing. "Tylko ja" (the personal area) is the default.
+A **library** belongs to an **area**, and an area has at most one library (the service refuses a second; the same
+holds for a Scriptorium). Area access is library access: whoever holds the area's epoch key reads it; write
+capability on the area means editing. "Tylko ja" (the personal area) is the default.
 
-**Visibility is decided by the area, and only by it** (since 2026-10-22). Members of the area see its library; if the area is public, everyone does. There is no per-entry publishing and there are no private fields. To make an entry public, move it into the library of a public area ("Przenieś do innej biblioteki" in the entry's "Kto widzi" box); to keep something to yourself, put it in your private area's library. Knowledge bases (Cogita) follow the same rule since step 8 (2026-10-22): see "Knowledge bases follow their area" below.
+**Visibility is decided by the area, and only by it** (since 2026-10-22). Members of the area see its library; if
+the area is public, everyone does. There is no per-entry publishing and there are no private fields. To make an entry
+public, move it into the library of a public area ("Przenieś do innej biblioteki" in the entry's "Kto widzi" box);
+the id stays. Entries move only within their part: library to library, Scriptorium to Scriptorium, base to base
+(`Library.MayMove`).
 
-**All readable libraries work together.** The workspace opens one library and syncs the others in the background (`LibraryStore.peers`): references, embedding, search, backlinks and "comments about this entry" reach across all libraries the user can read. Lists, saving and export stay per library; a kind list can include the other libraries ("też z innych bibliotek"). An entry of another library is edited in its own library.
+**All readable libraries work together.** The workspace opens one library and syncs the others in the background
+(`LibraryStore.peers`): references, embedding, search and backlinks reach across all libraries the user can read. A
+Scriptorium's peers are the libraries and the other Scriptoria; Cogita's bases are found by id. Lists, saving and
+export stay per library. An entry of another library is edited in its own library.
 
-An **entry** is one typed document. The kinds live in `frontend/src/app/library/libraryKinds.ts`:
+An **entry** is one typed document. The kinds live in `frontend/src/app/library/libraryKinds.ts` (`LIBRARY_KINDS`):
 
 | kind | what | key fields |
 |---|---|---|
 | `person` | author, editor, translator, institution | given names, surname or single name, years, description |
 | `work` | a source: book, chapter, article, periodical, Church document, Bible, web page, talk | authors / editors / translators (refs), container (ref), volume, issue, edition, publisher, place, year, series, pages, page count, binding, height / width / thickness, siglum, ISBN, own number, DOI, URL, original title |
-| `quote` | a passage of a work | text, work (ref), locator (`s. 23`, `J 3,16`, `nr 24`), translation, topics |
-| `topic` | a subject heading, nestable; an **aspect** is a topic marked as an axis (see “Sermons”) | name, description, parent (ref), aspect, order |
-| `text` | own writing: sermon, homily, meditation, chapter, article, note | title, date, occasion, readings, summary, **plan** (points), **body** and **further** (markup), project (ref), topics, audio and video links |
-| `delivery` | one time a text was preached or given (2026-10-21) | texts (refs), date, occasion, place, audience, readings, audio, video, duration, summary, **coverage** and **added** (items), transcript (markup), topics |
-| `comment` | own thinking about sources, quotes, Bible passages, plan points or other comments (2026-10-22) | **subjects** (refs with locator and, for a text, a plan point), **blocks**, topics |
-| `project` | a book or series | outline (`{heading}` and `{text: ref}` items), description |
+| `quote` | a passage of a work | text, work (ref), locator (`s. 23`, `J 3,16`, `nr 24`), translation |
 
-What stays on an entry is its own description in the narrow sense: a topic's definition, a person's bio, a project's description, a text's summary. Everything else one thinks about an entry is a comment.
+Media files belong to the library they are uploaded into (`library_file`, sealed under the area key).
 
-Keyed kinds carry a **citation key** (`ratzinger2007`). **The key is a writing aid; the id is what is stored** (2026-10-22): you type `[@ratzinger2007, s. 23]`, the store saves `[@<id of the work>, s. 23]` (`storedMarkup`), and every editor, preview, JSON export and AI description shows the key again (`shownMarkup`) — unless that key, seen from here, would find a different entry (two libraries may use the same key), in which case the id stays visible. Renaming a key therefore orphans nothing; the previous key also stays at the entry as an alias (`_aliases`), so old JSON files and texts in libraries you cannot edit still find it. Texts cite Pandoc-style: `[@ratzinger2007, s. 23]`, several sources in one note as `[@bt, J 6,35; @ratzinger2007]`, an own footnote as `^[…]`, and an embedded quote or comment as `![@key]`. The markup is in `libraryMarkup.ts` and documented in `MARKUP_DOC`. Footnotes follow Polish humanities practice (`libraryCite.ts`): the first mention is full, later ones are short with "dz. cyt.", an immediate repeat is "Tamże", and a bibliography closes the text.
+Keyed kinds carry a **citation key** (`ratzinger2007`). **The key is a writing aid; the id is what is stored**
+(2026-10-22): you type `[@ratzinger2007, s. 23]`, the store saves `[@<id of the work>, s. 23]` (`storedMarkup`), and
+every editor, preview, JSON export and AI description shows the key again (`shownMarkup`) — unless that key, seen
+from here, would find a different entry (two libraries may use the same key), in which case the id stays visible.
+Renaming a key orphans nothing; the previous key stays at the entry as an alias (`_aliases`), so old JSON files and
+texts in libraries you cannot edit still find it. Texts cite Pandoc-style: `[@ratzinger2007, s. 23]`, several sources
+in one note as `[@bt, J 6,35; @ratzinger2007]`, an own footnote as `^[…]`, and an embedded quote or statement as
+`![@key]`. Footnotes follow Polish humanities practice (`libraryCite.ts`): the first mention is full, later ones are
+short with "dz. cyt.", an immediate repeat is "Tamże", and a bibliography closes the text.
 
-**Sources are cited, own entries are linked** (2026-10-22). Only what comes from outside becomes a footnote: a work (a dictionary entry is a work with the headword as locator), a quote, a person (`SOURCE_KINDS`, `isSource` in `libraryKinds.ts`). A citation of an own entry — a text, a comment, a topic, a project, a delivery, an entry of a knowledge base — becomes a link in the line where the footnote would stand: `[@ratzinger2007, s. 183; @kazanie-chleb]` gives a footnote for the book and "(zob. Chleb życia)" as a link. `[[these words|@key]]` links with your own words. A target the reader cannot open stays a footnote "[brak źródła]" in a citation, and "[odwołanie niedostępne]" (or just the words of a `[[…]]`) everywhere else — never its title or key. Where the link goes: in the workspace to the entry's editor (`TextArticle` `hrefOf`), on a page the entry opens under the text (`OpenedEntry`, through the `MarkupLinks` context); in LaTeX and in plan lines it is the title in the line, `(zob. \emph{…})`.
+**Sources are cited, own entries are linked** (2026-10-22). Only what comes from outside becomes a footnote: a work
+(a dictionary entry is a work with the headword as locator), a quote, a person (`SOURCE_KINDS`, `isSource`). A
+citation of an own entry — a text, a project, a delivery, an entry of a knowledge base — becomes a link in the line
+where the footnote would stand: `[@ratzinger2007, s. 183; @kazanie-chleb]` gives a footnote for the book and
+"(zob. Chleb życia)" as a link. `[[these words|@key]]` links with your own words. A target the reader cannot open
+stays a footnote "[brak źródła]" in a citation, and "[odwołanie niedostępne]" (or just the words of a `[[…]]`)
+everywhere else — never its title or key.
 
-**One reader for every text** (2026-10-22). The same parser (`libraryMarkup.ts`: `parseMarkup`, `parseInline`, `safeHref` — the one rule for where a link may go) and the same drawing pieces (`markupView.tsx`: `Blocks`, `Inlines`, `countNotes`, `NoteList`, `OwnRef`) serve library texts, comments, plan points and deliveries, the knowledge of Cogita (`cogita/ui.tsx` `Markup`, looking up through `CogitaLibrary.markupLook`, its plain text `plainOf` from `plainText`), and the page `text` part. The page part keeps its line syntax (`## ` sub-heading, `# ` big line, `> ` quiet line, a line of only links as a row — existing pages stand that way); inside a line the one reader works (`ui/richText.tsx`), and when the text has references or notes it is drawn by `library/LibraryLines.tsx` with the library chosen in the part (`library`, optional), as far as the reader may read it.
+**One reader for every text** (2026-10-22). The markup reader lives here and serves all three parts: the same parser
+(`libraryMarkup.ts`: `parseMarkup`, `parseInline`, `safeHref`) and the same drawing pieces (`markupView.tsx`:
+`Blocks`, `Inlines`, `countNotes`, `NoteList`, `OwnRef`, and for statements `StatementBody`, `StatementMarks`,
+`StatementCard`) draw Scriptorium texts, plan points and deliveries, statements and markup fields of Cogita
+(`cogita/ui.tsx` `Markup`, through `CogitaLibrary.markupLook`), and the page `text` part (`ui/richText.tsx`,
+`LibraryLines.tsx`). The rules for statements — thesis, question, Informacja / Interpretacja — are computed in
+`library/blocks.ts` and `library/statement.ts` for every entry whose kind has a `blocks` field (COGITA.md §3).
 
 ## Storage and cryptography
 
-- `app.library`: area, epoch, sealed name.
-- `app.library_entry`: kind (plaintext), epoch, **one sealed JSON document** (`{v, id, kind, key, data}`) under the area's epoch key, AAD `library:entry:<id>:library_entry:1`. The service never sees fields, references or keys.
-- Concurrency: `version` per entry. A save with a stale version gets 409 `stale`, and the editor offers to load the newer version or overwrite.
-- Sync: the browser holds the whole library in memory (`libraryStore.ts`) and asks only for what changed since its last read (`updated_at`). Deleted entries are tombstones without a body.
-- Search, backlinks ("where is this quote used"), key uniqueness and citation formatting all run in the browser, because only the browser can read entries.
-- **Keys:** unique within a library (a taken key gets a letter); a suggested key avoids every key of the libraries you can read, and choosing a key used in another readable library is a warning, not an error (texts hold ids). Libraries you cannot read are never checked. A typed key resolves in the current library first (its keys, then its aliases), then in the others. The key field takes the new key when you leave it (or press Enter), never the half-typed steps in between; before it does, texts that still name the entry by the old key are rewritten to its id (`LibraryStore.pinCitations`) — the same happens before a move to another library, where the key may be taken and change (the move says so).
-- **Moving** (`POST /workspace/library/{id}/entry/{entryId}/move`, `Library.Areas.cs`): the browser reseals the entry under the target area's key; the id stays, so every reference keeps working. The old version goes to `library_entry_version`; `app.library_moved` (0122) lets the old library's sync report the entry as gone.
+- `app.library`: area, epoch, sealed name, kind (`books`, `knowledge`, `writing`).
+- `app.library_entry`: kind (plaintext), epoch, **one sealed JSON document** (`{v, id, kind, key, data}`) under the
+  area's epoch key, AAD `library:entry:<id>:library_entry:1`. The service never sees fields, references or keys.
+- Concurrency: `version` per entry. A save with a stale version gets 409 `stale`, and the editor offers to load the
+  newer version or overwrite.
+- Sync: the browser holds the whole library in memory (`libraryStore.ts`) and asks only for what changed since its
+  last read (`updated_at`). Deleted entries are tombstones without a body.
+- Search, backlinks, key uniqueness and citation formatting all run in the browser, because only the browser can read
+  entries.
+- **Keys:** unique within a library (a taken key gets a letter); a suggested key avoids every key of the libraries you
+  can read, and choosing a key used in another readable library is a warning, not an error (texts hold ids). A typed
+  key resolves in the current library first (its keys, then its aliases), then in the others. Before a key changes,
+  texts that still name the entry by the old key are rewritten to its id (`LibraryStore.pinCitations`) — the same
+  happens before a move to another library.
+- **Moving** (`POST /workspace/library/{id}/entry/{entryId}/move`, `Library.Areas.cs`): the browser reseals the entry
+  under the target area's key; the id stays, so every reference keeps working. The old version goes to
+  `library_entry_version`; `app.library_moved` (0122) lets the old library's sync report the entry as gone.
 
-## Comments (2026-10-22)
+## Deleting, and entries of kinds that left (2026-10-23)
 
-A comment (`comment.ts`) is its own entry, written once and used in many texts.
-
-- **`subjects`**: what it is about — entries of any kind, each with a `locator` ("Łk 1,35", "s. 23") and, for a text, a plan `point`. A synthesis is a comment whose subjects are comments.
-- **`blocks`**: exactly four types, and the type carries meaning: `paragraph` (prose, in markup), `ordered` (the order matters: a line of thought), `unordered` (equal points), `table` (a comparison: named columns, each row compares the same thing). A list item and a table cell are a sequence of runs: `{text}` (markup) or `{ref, locator}` — a real reference, not text that looks like one. `pairedWith` answers "what was Dz 1,8 set beside?" from the rows.
-- No classification fields (no comment type, no certainty): the weight of a claim lives in its words.
-- **The one kind for statements** (2026-10-22, step 6). What Cogita called "Wiedza" is a comment in a library now (Porządki → "Wiedza → komentarze"). What a statement is, is computed, never stored (`comment.ts`):
-  - **Thesis** = the first sentence of the first paragraph (`firstSentence` skips abbreviations such as "św.", "np.", "zob. s.", initials, and ignores markup and citations). It names the comment in lists and Cogita, and is the front of a card. Missing (the comment starts with a list or table) or longer than 200 characters: a warning in the editor, "brak tezy" / "za długa teza" in the list, and "Komentarze bez dobrej tezy" under Cogita's "Do zrobienia".
-  - **Question** = a comment whose first sentence is a question. It is answered as soon as another readable comment points at it (subject, cell or citation); open questions stand under "Do zrobienia" ("Pytania bez odpowiedzi").
-  - **Information or interpretation** (`statementRole`): information cites a work, a quote or a person and rests on no other comment and no table; everything else is interpretation. Shown as a mark on every comment card ("Informacja" / "Interpretacja"), next to "Pytanie otwarte" / "Pytanie — jest odpowiedź".
-- **In texts**: `![@key]` embeds a comment live (its blocks, tables included; footnotes inside count with the text; a comment that embeds itself through others stops with "[komentarz osadza sam siebie]"); `[@key]` (or `[[words|@key]]`) links to it in the line — "(zob. …)", never a footnote (2026-10-22; the "Zob. komentarz" footnote is gone).
-- **Reachable wherever the entry is shown**, as far as area access allows: under a quote, under each source in "Źródła", at each plan point, at the end of a text ("Komentarze do tekstu"), in the entry's "Powiązania" box with "+ Komentarz". `Lookup.readable()` provides all readable entries for this.
-- **Unreadable targets**: a reference whose target the reader cannot read shows "[odwołanie niedostępne]" — that it exists, nothing about the target, not even its key (`UNREADABLE`, `refLabel`).
-- Editor: `CommentForm.tsx` (subjects with locator and point; blocks with type switch, ↑↓×; cells as runs with "+ tekst" / "+ odwołanie"); preview with `CommentCard`. LaTeX: paragraphs, lists, `tabular`.
+- **A whole library** (also a Scriptorium or a knowledge base) is deleted in its Ustawienia with all its entries,
+  after typing its name.
+- **Many entries at once**: every list has check boxes and a bar with "Usuń (n)" (`EntryPick.tsx`); the question says
+  how many other entries point at them.
+- **"Stare wpisy"**: entries of kinds a part no longer keeps — in a library: texts, deliveries, projects (now in the
+  Scriptorium), comments (now an own kind in Nauka) and topics (gone) — are listed with their name and kind, to look
+  at and delete. Nothing breaks because of them, and they never disappear by themselves (`OldEntries.tsx`,
+  `oldKinds.ts`). The Scriptorium and Nauka have the same list for their own old kinds.
 
 ## References and places in the Scripture (2026-10-22)
 
-**One reference index** (`library/refIndex.ts`) answers "who points here?" over every library and knowledge base this tab has open — computed in the browser from what the reader can already read; nothing is stored, nothing goes to the service. It finds, without knowing the kind (`refsOf`):
+**One reference index** (`library/refIndex.ts`) answers "who points here?" over every library, Scriptorium and
+knowledge base this tab has open — computed in the browser from what the reader can already read; nothing is stored,
+nothing goes to the service. It finds, without knowing the kind (`refsOf`):
 
-- ids in fields (a quote's work, a text's topics, a Cogita reference field);
-- references in markup, with their place: `[@x, Dz 1,14]`, `![@x, s. 3]`, `[[words|@x]]` — in the body, the further information, every plan point (the hit names the point), what a delivery added;
-- a comment's subjects `{ref, locator}` and the references in its list items and table cells;
+- ids in fields (a quote's work, a field of a text type, a Cogita reference field, a reference with a place
+  `{value, locator}`);
+- references in markup, with their place: `[@x, Dz 1,14]`, `![@x, s. 3]`, `[[words|@x]]` — in a text's body, its
+  further information, every plan point (the hit names the point), what a delivery added, the paragraphs of a
+  statement;
+- the references in the cells of a statement's lists and tables;
 - the source of an uncertain Cogita value `{work, locator}`;
-- documents of a knowledge base: revisions, flows, views, collections, card templates, add forms — every id in them. Merges and settings are bookkeeping and do not count; fields starting with `_` neither.
+- documents of a knowledge base: revisions, flows, views, collections, card templates, add forms — every id in them.
+  Merges and settings are bookkeeping and do not count; fields starting with `_` neither.
 
 Keys in markup resolve first in the entry's own store, then in the libraries, then in the other bases.
 
-- **"Powiązania"** under every entry (`LibraryRelations.tsx`): comments about it, quotes, texts with the plan point ("plan, punkt 2.1 · Dz 1,14"), deliveries, projects, comments that mention it, and per knowledge base its entries and documents ("Powtórka: „Dzieje”"). "Szukaj we wszystkich, które możesz czytać" opens every library and base the account may read (`LibraryStore.openEverything`); "Sprawdź strony" looks through the pages this account leads (`pageUses.ts`: `loadDesk` → `loadPage`, sealed pages with this browser's key) and lists the modules that show the entry — other pages are never asked.
-- **Cogita** shows the same under "Odwołują się tutaj" ("Wspominają go": knowledge texts linking with `[[…]]`, revisions, flows, library texts).
-- **The library map** draws comments too, and grey lines for what is not a field (markup, comment subjects and cells, a project's outline).
+- **"Powiązania"** under every entry (`LibraryRelations.tsx`): quotes, texts with the plan point ("plan, punkt 2.1 ·
+  Dz 1,14"), deliveries, projects, and per knowledge base its entries (statements among them) and documents.
+  "Szukaj we wszystkich, które możesz czytać" opens every library and base the account may read
+  (`LibraryStore.openEverything`); "Sprawdź strony" looks through the pages this account leads (`pageUses.ts`) and
+  lists the modules that show the entry — other pages are never asked.
+- **Cogita** shows the same under "Odwołują się tutaj".
+- **The library map** draws grey lines for what is not a field (markup, cells).
 
-**Places in the Scripture** (`library/bible.ts`) are read, never stored: a locator stays the text someone wrote. The book table has the 73 books with Polish (Biblia Tysiąclecia), Latin (Nova Vulgata) and English names and abbreviations ("Dz", "Act", "Acts", "Dzieje Apostolskie", "1 Kor", "I Cor", "1 Corinthians", "Ewangelia według św. Jana"). The parser reads `Dz 1,14`, `Dz 1:14`, ranges `1,14-16`, across chapters `Łk 1,26–2,5`, lists `Dz 1,8.14` (English `Acts 1:8,14`), whole chapters `Ps 23`, `Rdz 1-3`, several places `Mt 5,3-12; 6,1; Łk 6,20` (the book carries on), the second numbering of the psalms `Ps 51(50),3`, parts of a verse `22,2a`, "i następne" `16,9nn`. Only references to a work with `workType: bible` are read this way.
+**Places in the Scripture** (`library/bible.ts`) are read, never stored: a locator stays the text someone wrote. The
+book table has the 73 books with Polish (Biblia Tysiąclecia), Latin (Nova Vulgata) and English names and
+abbreviations. The parser reads `Dz 1,14`, `Dz 1:14`, ranges `1,14-16`, across chapters `Łk 1,26–2,5`, lists
+`Dz 1,8.14` (English `Acts 1:8,14`), whole chapters `Ps 23`, `Rdz 1-3`, several places `Mt 5,3-12; 6,1; Łk 6,20`, the
+second numbering of the psalms `Ps 51(50),3`, parts of a verse `22,2a`, "i następne" `16,9nn`. Only references to a
+work with `workType: bible` are read this way.
 
-- **"Fragment Pisma"** on a Bible work: type a place and see every quote, comment, plan point, text and knowledge entry pointing at an overlapping place ("Dz 1:14" also finds "Dz 1,12-14"), in every edition of the Scripture the reader has (another edition shows its siglum). The library search does the same when the query is a place ("Psalm 23").
-- **Quotes stand in canonical order** (`quoteOrder`, `bibleKey`): "Rdz" before "Mt", "Dz 1,8" before "Dz 1,14"; pages of other works sort as numbers ("s. 9" before "s. 10").
+- **"Fragment Pisma"** on a Bible work: type a place and see every quote, statement, plan point, text and base entry
+  pointing at an overlapping place ("Dz 1:14" also finds "Dz 1,12-14"), in every edition the reader has.
+- **Quotes stand in canonical order** (`quoteOrder`, `bibleKey`): "Rdz" before "Mt", "Dz 1,8" before "Dz 1,14".
 
 ## Reading on pages
 
 The service never decrypts. A page opens libraries in the browser (`libraryOpen.ts`):
 
-- **public area**: `GET /library/{id}/open?since=` (anonymous) returns all sealed entries under published epoch keys, plus the area id and the sealed name; the browser opens them with `/area/{id}/key?epoch=`. Served only when the area is public **and** the library has been settled (`area_rule_at`, 0122 — see "Migration"). Since step 8 the same holds for a knowledge base (opened explicitly, see below), and its files come sealed through `GET /library/{id}/file/{fileId}/sealed` (only under a published epoch); the old open file copies (`/library/{id}/file/{fileId}`) and the readers of published copies (`/library/{id}/published…`) are gone.
-- **otherwise, as a member** (or through a link or seat): `/workspace/library/{id}/entries` with the keys this browser holds.
-- **references outside**: ids not found are looked up with `GET /library/where?ids=` (only entries the caller can read, or that lie in a public area); those libraries are opened too. What remains is unreadable.
-  - Since step 11 this includes what a text's markup names (`refsOf`, so links in the body and in plan points) and entries of knowledge bases. A base is found only by its own rule: a member, or a public area **and** an opened base.
-- An entry that moved to another library is found there (`findOnPage`), so a page configured with the old library still shows it.
-- The archive filters, searches and counts in the browser (`browseLocal` in `browse.ts`): a topic also finds its sub-topics, OR within an axis, AND between axes. There are no public summaries or browse endpoints any more.
-
-## Porządki: migrations in the browser
-
-The service cannot read sealed entries, so every change of their content runs in the browser of someone who holds the keys, on one screen: `#/workspace/library/porzadki` (`rebuild/RebuildView.tsx`). Each migration is a `Rebuild` (`rebuild/rebuild.ts`): `plan()` lists what would change ("Co się zmieni") and what cannot be done ("Czego nie zmienię": read-only libraries, references that do not resolve), `run()` rewrites entry after entry under the same id and returns a report. Every migration is idempotent (what is done no longer appears in the next plan) and never deletes data before it stands in its new place. The owner runs them; nothing happens by itself. The tabs, in order:
-
-1. **Widoczność i komentarze** — the visibility change below.
-2. **Odwołania w tekstach** (`rebuild/refsToIds.ts`) — texts saved before 2026-10-22 name entries by key; this rewrites them to ids, in every library and knowledge base you may write (`[[Wort|@token]]` links of knowledge bases too). Keys that resolve nowhere stay as written and are listed.
-3. **Wiedza → komentarze** (`rebuild/knowledgeToStatements.ts`, step 6) — every "Wiedza" of a knowledge base you may write moves into a library of the SAME area as a comment, under the same id (`LibraryStore.moveTo` with `as`; the service allows moves out of a base only within its area, so nobody reads more than before). `text` → the first paragraph, `source` + `locator` → a citation inside it ("… [@bt, Dz 1,14]."), `about` → subjects, `tags` and every other field stay. The library becomes a source of the base, so flows, questions ("Wyjaśnienie"), topics and progress still find the entries. Without a writable library in the area one is made ("Komentarze — <obszar>"). Not moved, and said why: entries that have other kinds too, published ones (run tab 5 first: it withdraws their old public copy), bases you only read.
-4. **Tematy i perspektywy → biblioteka** (`rebuild/topicsToLibrary.ts`, step 7) — the topics of every base you may write move into the library of its area (same ids; a topic the library already has — same name, same parent — is named, not merged: merge it in Cogita first). Topics with learning fields bring them along, and the base gets the "Pola nauki" extension. Perspectives (the base settings list and the `tags` of entries) become the aspect "Perspektywy" with one topic per perspective; library entries with `tags` (comments moved in step 6, texts) get those topics in "Tematy" and lose `tags` once all are there; the settings list goes. The library and base helpers are shared with tab 3 (`rebuild/areaLibrary.ts`).
-5. **Bazy wiedzy: stare publikacje** (`rebuild/baseVisibility.ts`, step 8) — see "Knowledge bases follow their area".
-6. **Moduły stron → Widok** (`rebuild/pageModules.ts`, step 10). On the pages you lead, it converts the retired modules into the module "Widok" in the same place, with a saved view in a base: entity table → table, topic explorer → tree by the topic's axis, knowledge map → map of what its revision selects. The archive's **table** becomes a table of the library's texts, with the date and the library's aspects as columns. Its view sits in a base of the library's area that draws on the library. Without one, a base "Widoki — <obszar>" is made, and the plan says so, including whether it will be public. Read-only bases and unknown kinds stay and are named. The report lists the converted pages.
-
-### Visibility (2026-10-22)
-
-The first tab (`LibraryTidy.tsx`; plan in `libraryMigrate.ts`, execution in `libraryTidyRun.ts`) runs in two steps; nothing happens without a click, and the hard rule is: **nobody may see anything afterwards that they could not see before.**
-
-| before | after |
-|---|---|
-| `description` of a quote or work | comment about it, in the same library; it moves with its entry |
-| `notes` of any kind | comment about it, in the user's **private** library (created if missing) — unless the entry already lies there |
-| `note` of a plan point | comment about the text with that `point`, private library |
-| status, deadline, targetWords, libraryNumber | unchanged, no longer marked private (decided) |
-| `delivery.hidden` | removed |
-| entry never published, in a public area | would become public → default: move to the private library; "zostaw — niech będą publiczne" is a choice |
-| entry published, in a non-public area | would disappear → default: move to the public library (when there is exactly one); "zostaw" is a choice |
-| old public copies (`public_json`) | withdrawn |
-
-1. **Krok 1** creates the comments as copies; the original values stay. The table shows each value, where it goes and a link once it exists. Re-running finds existing comments (same subject and wording).
-2. **Krok 2** (after "Sprawdziłem…") removes the old fields — before any move, so nothing old travels into a public library — moves the chosen entries (with their description comments), withdraws old public copies and marks each library settled (`POST /workspace/library/{id}/area-rule`). Only then does `/open` serve a public area's library.
-
-Libraries the user can only read are named and left alone. New libraries are created settled. Importing a version-1 file converts the same fields into comments in the target library (with a warning to move private ones).
-
-### Knowledge bases follow their area (step 8, 2026-10-22)
-
-A knowledge base no longer publishes single items (Cogita's "Opublikuj" with a copy in `data.public` and `published_*`). Whoever reads its area reads it; a base in a public area is public **as a whole** — entries, questions with their answers, drafts, revisions, flows. The interface says this in those words wherever a base becomes public: the "Nowa baza wiedzy" form when the chosen area is public, the base's **Ustawienia → Kto czyta**, the "Kto widzi" box of an entry, revision or flow, the move dialog, and the area's "Dla wszystkich" panel.
-
-- **Opening a base** is explicit: `/open` serves a base only when its area is public **and** its `area_rule_at` is set. Migration **0123** clears that mark for every existing base (before step 8 it had no effect on bases), so no existing base becomes public by itself; a writer opens it in **Kto czyta** after ticking "Rozumiem: cała baza będzie publiczna". A base created after step 8 is settled at creation — the creation form has already said what that means in a public area. A base that still holds an old copy inside an entry cannot be opened before Porządki tab 5 (a copy may carry content of a source in another area).
-- **Publishing is moving**: "Kto widzi → Przenieś do innej bazy wiedzy" (`cogita/BaseWho.tsx`) moves an entry, revision or flow into another base under the same id (`POST …/entry/{id}/move`, now also knowledge → knowledge in any area; knowledge → library only in the same area; library → knowledge never — `Library.MayMove`). The plan names what the item needs from the old base (its kind, templates, entries it points at — `needsOf`) and moves them along by default; the old base takes the new one as a source, so it still sees what moved. Learners' answers stay with the old base.
-- **Pages** read the base itself (`cogita/pageBase.ts`): the six modules (revision, flow, entity card, entity table, topics, knowledge map), the page subject "Wpis z bazy wiedzy", keyless sessions (async revisions and stories) and the editor's entry picker. A page shows a base to whoever can read it — publicly, through a link, a seat or as a member — and says "Tej bazy wiedzy nie możesz tu czytać" otherwise.
-- **Porządki tab 5** (`rebuild/baseVisibility.ts`): withdraws old public copies at the service (the entry stays; in a closed area the plan says that afterwards only members read it, and how to keep it public: move it), removes the copy from `data.public` only when everything it shows still stands in the base or its sources (otherwise it stays and is named), withdraws old open file copies (the sealed file stays), and names bases in public areas that wait to be opened — it never opens one.
-- The columns `published_*`, `public_*`, `library_public_ref` and the file columns `public_size/type/at` stay until the owner has run Porządki everywhere; a later migration drops them (IMPLEMENTATION-LOG, step 8).
+- **public area**: `GET /library/{id}/open?since=` (anonymous) returns all sealed entries under published epoch keys,
+  plus the area id and the sealed name; the browser opens them with `/area/{id}/key?epoch=`. Served only when the area
+  is public **and** the library has been settled (`area_rule_at`, 0122). The same holds for a Scriptorium; a
+  knowledge base must also be opened explicitly by a writer (COGITA.md §13).
+- **otherwise, as a member** (or through a link or seat): `/workspace/library/{id}/entries` with the keys this
+  browser holds.
+- **references outside**: ids not found are looked up with `GET /library/where?ids=` (only entries the caller can
+  read, or that lie in a public area); those libraries are opened too. What remains is unreadable.
+- An entry that moved to another library is found there (`findOnPage`), so a page configured with the old library
+  still shows it.
 
 ## Page modules
 
 | kind | shows | sizes |
 |---|---|---|
-| `writing` — Tekst z biblioteki (text from the library) | one text | strip: a button; block: title, date and opening; tall or fullscreen: the full text with notes and sources |
-| `writings` — Archiwum tekstów (text archive) | the texts of a library, project or topic, newest first | strip: the newest; block: recent texts; tall and fullscreen: the whole archive — search, a filter per aspect, list (by year) or tree (the topics of an aspect with counts); the table layout is retired (step 10) — a placement that starts with it keeps it until Porządki converts it to “Widok”, which also gives a matrix (e.g. mysteries × periods); `?t=<id>` opens a text (see “Sermons”) |
-| `quotes` — Zbiór cytatów (quote collection) | the quotes of a library, each with its comments | small: "Myśl dnia" (one or two quotes, changing daily, the same for everyone); tall: search and topic filter |
+| `quotes` — Zbiór cytatów (quote collection) | the quotes of a library, or of one work | small: "Myśl dnia" (one or two quotes, changing daily, the same for everyone); tall: search |
 
-Who sees a module's content is who can read its library (see "Reading on pages"); a reader who cannot sees "Tej biblioteki nie widzisz".
-
-## Sermons: plan, deliveries, aspects (2026-10-21)
-
-A page for a very large number of sermons, built from the existing pieces. The rule: **the order lives in the library, not in the page module.** The page needs no new module, no new page type and no page subject; the two existing modules (`writing`, `writings`) show more, and the archive module gained one setting.
-
-### The model
-
-- **A sermon is a `text`** (as before). It may now have a **plan** (`plan`, field type `items`): the main thoughts in order and, under each, quotes, examples, questions and applications.
-  - A point is `{ id, text, depth, kind }`. `text` is markup, so `[@key, s. 12]` on a source becomes a footnote (on an own entry: a link) and a point that is only `![@key]` is a quote (or comment) from the library, shown in full. `depth` is 0 (main thought), 1 or 2. `kind` is thought, quote, example, question or application. Thoughts about a point are comments with the text and the point as subject.
-  - Every point keeps a **stable id** (`p4k2x`) wherever it moves. Deliveries refer to points by it.
-  - The plan's sources count like the body's: backlinks, the bibliography, LaTeX, the dependency map (`markupsOf` in `libraryKinds.ts` collects all markup of an entry, sub-fields included).
-- **A delivery (`delivery`, "Wygłoszenie") is one time a text was preached** — the "record". One text, many deliveries (every Mass of a Sunday, and again years later). It names its text(s), date, occasion, place, audience, readings, recording (audio/video URL), duration and a summary, and says about the plan:
-  - `coverage`: per point, `said` / `short` (only mentioned) / `skipped`, the time in the recording (`m:ss`) and a note on what was different;
-  - `added`: what was said that is not in the plan, with its time and the point it came after;
-  - `transcript` (markup) and its own topics.
-- **Aspects are topics marked as axes** (`aspect: "yes"`): "Okres liturgiczny", "Temat", "Księga", "Okazja". Their sub-topics, at any depth, are the values; `order` sorts siblings (liturgical seasons in their order). One sermon carries values of several aspects at once. Topics outside any aspect are "Inne tematy"; a library without aspects gets one axis "Tematy".
-- **Series** stay `project` entries (groups).
-
-So the three ways to organise the user asked for are: groups = projects, hierarchies = topic trees, table = aspects as columns.
-
-### Visibility
-
-A delivery is seen by whoever reads its library — there is no "Nie publikuj". A text lists its deliveries from backlinks (`deliveriesOf`), newest first; a delivery the reader cannot read is simply not there. The archive's date is the date a text was **last preached**; filters by a topic also find texts tagged with its sub-topics.
-
-### On the page
-
-- **`writing` (one text)** and an opened text in the archive show: header → **Wygłoszenia** (newest first; choosing one opens its player, summary and transcript) → **Plan** (numbered like on the pulpit: 1, 1.1, 2) → the full text → further information, footnotes, sources, topic chips with their aspect. With a delivery chosen, the plan shows on each point ✓ said / ◐ short / ✕ skipped, the time (a click jumps in the player — or opens YouTube/Vimeo/a file at that place) and the note; what was added stands after its point. Each point also folds out its comments ("Komentarze (n)"). Block size: title, date, main thoughts.
-- **`writings` (the archive)**, tall and fullscreen: search, a select per aspect (values indented, with counts), chips of the chosen filters, and the views the visitor can switch — **Lista** (year headings) and **Drzewo** (tabs per aspect, the topic tree with counts, results beside it); **Tabela** (a column per aspect plus "Cykl") only where it was set as the start before step 10 — tables and matrices are the module "Widok" now. The setting "Na początek" (`layout`: lista, tabela, drzewo) picks the starting view. One value per aspect; different aspects add up (AND); a value of an aspect is counted without that aspect's own filter, so its other values stay visible.
-- The state is in the address: `?t=` (open text), `?tw=` (chosen delivery), `?tu=` (view), `?tq=` (search), `?tf=` (chosen values), `?to=` (order). A link to a delivery opens its sermon with it chosen.
-- Files: `library/LibraryBrowse.tsx` (archive), `browse.ts` and `archiveLayout.ts` (pure logic), `SermonParts.tsx` (plan and deliveries), `LibraryText.tsx` (the text), `markupView.tsx` (markup drawing shared by both), `topics.ts` (tree and aspects), `styles/sermons.css`.
-
-### In the workspace
-
-- **Plan** is the first tab of a text (Plan · Treść · Dalsze informacje), an outliner (`PlanEditor.tsx`): Enter makes a point (splitting at the cursor), Tab / Shift+Tab deeper / higher, Alt+↑↓ moves, Backspace in an empty point removes it, Esc leaves the point. "Źródło…" and "Cytat z biblioteki…" work as in the body; a kind per point; "+ Komentarz do punktu" on the focused point (and links to its comments); "Wklej gotowy plan" reads a typed outline (numbers, letters, indentation, `>` quotes, `?` questions — `planFromText`).
-- A text's side shows its **Wygłoszenia** with "+ Wygłoszenie". The delivery form (`DeliveryForm.tsx`): text, day, place; the recording (a file plays right there, and ⏱ beside a point takes the player's time); "Co z planu zostało powiedziane" point by point (three buttons, time, note; "Resztę oznacz: …"); "Co doszło"; summary, topics, transcript.
-- **Topics per aspect**: every `topics` field shows a row per aspect (values of that aspect only; "+ Utwórz" creates the value under its aspect) and "Inne tematy" (`TopicPick.tsx`). The Tematy tab shows the tree with an "aspekt" badge and "+ Aspekt".
-- A library tab **Wygłoszenia** lists all deliveries by date with what was said.
-
-### AI stays outside
-
-Two prompts to copy into one's own chat, each with an import that fills the **open form** (`patchFromDoc`), not the store behind it:
-- on a delivery, "Z nagrania albo zapisu — przez AI we własnym czacie": the plan with its point ids, the rules and the format; the answer (library JSON for this delivery) fills coverage, added, summary, duration, transcript (`deliveryPrompt`);
-- on a text with a body, "Plan z treści": the body; the answer fills the plan (`planPrompt`).
-
-### Printing
-
-`textToLatex` puts the plan (nested `enumerate`, footnotes) before the body. `planToLatex` prints **only the plan for the pulpit**: one page, 14 pt, quotes in full, the comments of each point on request — "Plan na ambonę (.tex)" in the editor, "Sam plan (LaTeX)" on the page.
-
-### Further expansions this is built for
-
-- Other prepared talks use the same pieces: conferences, catechesis, retreat talks (`textType`) with deliveries; a retreat is a project.
-- `items` is a general field type (a list of objects with declared sub-fields): described, imported and searched like any field.
-- Aspects serve every kind with `topics` (quotes, works), and any later list module can use `browse` the same way.
-- Natural next steps, not built: a delivery linked to a calendar item (the Mass it was preached at), recordings stored as library files instead of URLs, a podcast feed of public deliveries, filtering texts by the topics of their deliveries.
-
-### Checks
-
-`app-library-check.mjs` section 4 (comments, JSON v2, version-1 conversion, embedding with the cycle guard, unreadable refs, the migration plan) and section 7 (plan reading and numbering, pasting, times and links, aspects, marks and comments on the drawn plan, LaTeX, prompts, JSON into the form, archive rows, filters and counts); `Api.Tests` LibraryChecks (`ParseIds`).
+Texts on pages come from the Scriptorium (`writing`, `writings` — SCRIPTORIUM.md). Who sees a module's content is who
+can read its library; a reader who cannot sees "Tej biblioteki nie widzisz". A module whose library has gone shows a
+notice instead of an error.
 
 ## Books on the shelf
 
@@ -217,91 +188,99 @@ The library is meant to work with real shelves:
 - **Scan to get to a book** (`BookLookup.tsx`, "Skanuj kod" beside the library search):
   - The code on the back cover (EAN-13 = ISBN) or on an own label (the library number) opens that book.
   - An unknown ISBN offers "Znajdź w katalogach i dodaj" (find in catalogues and add).
-  - Codes are read from the live camera, from a photo of the code, or by typing. `barcode.ts` uses the browser's `BarcodeDetector` where it exists and ZXing (`@zxing/library`, its own lazy chunk `vendor-barcode`) everywhere else.
+  - Codes are read from the live camera, from a photo of the code, or by typing. `barcode.ts` uses the browser's
+    `BarcodeDetector` where it exists and ZXing (`@zxing/library`, its own lazy chunk `vendor-barcode`) everywhere
+    else.
   - The Android app declares `CAMERA` for this.
 - **The catalogue** (`libraryCatalog.ts`):
-  - `GET /library/catalog/{isbn}` (`LibraryCatalog.cs`) relays the Biblioteka Narodowa union catalogue (MARC 21), e-ISBN (publishers' ONIX) and Open Library. The first two send no CORS headers, so the browser cannot ask them directly.
-  - The browser parses the answer, so mapping the catalogue data onto library fields happens there, like all other library logic.
-  - The browser calls the relay without a session, so no account is tied to a lookup. The service rate-limits by IP and caches answers for an hour.
-  - One ISBN often has several descriptions (editions). All of them are shown, the fullest exact one first, and the reader picks the copy in hand.
+  - `GET /library/catalog/{isbn}` (`LibraryCatalog.cs`) relays the Biblioteka Narodowa union catalogue (MARC 21),
+    e-ISBN (publishers' ONIX) and Open Library. The first two send no CORS headers, so the browser cannot ask them
+    directly.
+  - The browser parses the answer, so mapping the catalogue data onto library fields happens there.
+  - The browser calls the relay without a session, so no account is tied to a lookup. The service rate-limits by IP
+    and caches answers for an hour.
+  - One ISBN often has several descriptions (editions). All of them are shown, the fullest exact one first.
   - Persons already in the library are reused; new ones are created with the work.
-  - In the editor, "Uzupełnij z katalogu" (fill from catalogue) fills **only empty fields**.
-- **Own numbers**:
-  - "Nadaj kolejny" (assign next) proposes the next free number in the style of the last one (`B-0042` → `B-0043`).
-  - A duplicate number is flagged.
-  - A label can be scanned into the field.
+  - In the editor, "Uzupełnij z katalogu" fills **only empty fields**.
+- **Own numbers**: "Nadaj kolejny" proposes the next free number in the style of the last one (`B-0042` → `B-0043`);
+  a duplicate number is flagged; a label can be scanned into the field.
 
 ## Quotes from a book
 
 The usual way of collecting quotes:
 1. Read and mark passages in pencil.
 2. After a few pages, photograph the marked pages.
-3. Give the photos and the prompt to your own AI chat (ChatGPT, Claude, Gemini…). It transcribes them as JSON.
+3. Give the photos and the prompt to your own AI chat. It transcribes them as JSON.
 4. Import that JSON. All the quotes are bound to that book.
 
 The app calls no AI and uploads no photos. Only the JSON comes in.
 
-`QuoteIntake.tsx` sits under a work's fields as "Cytaty z tej książki" (quotes from this book). It has three parts:
-
-- **The list**, sorted by page.
-- **Quick add**: text and page; the page stays for the next quote.
-- **"Import cytatów z JSON"** (import quotes from JSON):
-  1. Choose what counts as a quote: pencil-marked passages, or the whole text of each photo. Copy the prompt (`quotesPrompt`). It names the book, explains the transcription rules and carries the JSON format.
+`QuoteIntake.tsx` sits under a work's fields as "Cytaty z tej książki": the list sorted by page; quick add (text and
+page; the page stays for the next quote); and "Import cytatów z JSON":
+  1. Choose what counts as a quote: pencil-marked passages, or the whole text of each photo. Copy the prompt
+     (`quotesPrompt`). It names the book, explains the transcription rules and carries the JSON format.
   2. Paste the AI's answer, or load it as a file.
-  3. Review each quote:
-     - Uncertain readings are marked "do sprawdzenia" (to check).
-     - Quotes already in the book are unchecked.
-     - Page ranges become `s. 23–24`.
-     - New topic names can become topics.
+  3. Review each quote: uncertain readings are marked "do sprawdzenia"; quotes already in the book are unchecked; page
+     ranges become `s. 23–24`.
   4. Save them all at once.
 
-The format is `recreatio/quotes` (`libraryQuotes.ts`, version 2). Its description is generated from the `quote` kind's fields plus `comment` (becomes a comment about the quote), `check` (what to verify — shown in the review, never saved), `page`, `uncertain` and `id`, and is shown beside the paste box. Version 1's `description` and `notes` are read as `comment`. "Eksportuj cytaty tej książki" (export this book's quotes) writes the same format with ids. Re-importing it changes those quotes in place.
-
-## Printing: LaTeX
-
-Printing goes through LaTeX (`libraryLatex.ts`). The page draws the markup as HTML; the same parse tree is written out as one self-contained `.tex` file for `pdflatex` or `lualatex` (UTF-8, Polish babel, no separate bibliography file).
-
-- **A text** becomes an `article`: title page, the meta line (type, date, occasion, place, readings), `##` → `\section*`, `###` → `\subsection*`, quotes and embedded library quotes as `quotation` with their origin, own notes and citations of sources as `\footnote` in the Polish style (`dz. cyt.`, `Tamże`), citations of own entries by their title in the line (`(zob. \emph{…})`), `[[words|@key]]` as its words, and "Źródła" (sources) at the end.
-- **A project** becomes a `book`: outline headings → `\part*`, texts → `\chapter*` in outline order, one table of contents, footnotes counted over the whole book, sources once at the end.
-- **Where:** the editor's side panel "LaTeX" (download, copy, preview; the author line is remembered). The `writing` module offers "Pobierz do druku (LaTeX)" (download for print) from what the reader can see.
-- **Checks:** `scripts/app-platform-check.mjs` checks escaping, the first full citation, `Tamże`, quotes, lists, notes, sources and the book layout.
+The format is `recreatio/quotes` (`libraryQuotes.ts`, version 3). Its description is generated from the `quote`
+kind's fields plus `check` (what to verify — shown in the review, never saved), `page`, `uncertain` and `id`. Older
+fields (`topics`, `comment`, `description`, `notes`) are named in the review and not saved: topics are gone, and what
+one thinks about a quote is a statement in Nauka. "Eksportuj cytaty tej książki" writes the same format with ids;
+re-importing it changes those quotes in place.
 
 ## JSON
 
-These follow the standing JSON rule.
+- **Library documents** (`recreatio/library`, version 3): sources only — `work`, `quote`, `person`. Export everything
+  or chosen kinds. Import matches entries by id or by key and changes them in place, setting only the fields given.
+  References can be `@keys`, so a whole library can be written by hand or by an AI. Nothing is deleted. A file with
+  other kinds (texts, deliveries, projects, comments, topics — an older file) is refused as a whole, with what is in
+  it and where it belongs: the Scriptorium's format `recreatio/scriptorium`, an own kind in Nauka with
+  `templates/cogita/komentarz.json`, or nowhere (topics).
+- **Lenient values:** numbers may carry units (`"384 s."`, `"20,5 cm"`), and a select field takes its value or its
+  label (`"hard"` or `"Twarda"`).
+- **Where:** the library's "Import / eksport" tab, the bottom of every list (that kind only), and every entry. On a
+  **new** entry, the one entry of its kind in the document becomes this entry, so pasting a book written by an AI opens
+  that book.
+- **Quotes of one book** (`recreatio/quotes`, above) are imported on that book's page.
+- **Description:** every JSON panel shows `libraryDescription()`, generated from the kinds registry; it says that the
+  library holds sources only and where the other things live.
+- **Checks:** `scripts/app-library-check.mjs` enforces that every field is described, that the examples import
+  without warnings, that export followed by import changes nothing, and that a file with other kinds is refused with
+  the right format named. Its section 6 covers the book tools: ISBN rules, a drawn EAN-13 decoded by ZXing, the
+  catalogue parsers against a real BN/e-ISBN answer in `scripts/fixtures/`, person reuse, own numbers, and the quotes
+  format.
 
-- **Library documents** (`recreatio/library`, version 2): export everything or chosen kinds. Import matches entries by id or by key and changes them in place, setting only the fields given. References can be `@keys` — also inside comment blocks (runs in list items and table cells) — so a whole library can be written by hand or by an AI. Nothing is deleted. There are no privacy markers; the description says in one line that the area decides who sees an entry, and carries a worked comment example with a table (`COMMENT_DOC`). A version-1 file is read with `description`/`notes`/plan `note` turned into comments.
-- **Lenient values:** numbers may carry units (`"384 s."`, `"20,5 cm"`), and a select field takes its value or its label (`"hard"` or `"Twarda"`).
-- **Where:** the library's "Import / eksport" tab, the bottom of every list (that kind only), and every entry. On a **new** entry, the one entry of its kind in the document becomes this entry, so pasting a book written by an AI opens that book.
-- **Quotes of one book** (`recreatio/quotes`, see above) are imported on that book's page. The library import refuses them and says where they belong.
-- **Description:** every JSON panel shows `libraryDescription()`, generated from the kinds registry.
-- **Page modules:** `writing`, `writings` and `quotes` take part in the page JSON (examples in their part files).
-- **Checks:** `scripts/app-library-check.mjs` enforces that every field is described, that the examples import without warnings, and that export followed by import changes nothing (block types and references included). Its section 6 covers the book tools:
-  - ISBN rules;
-  - a drawn EAN-13 decoded by ZXing;
-  - the catalogue parsers, against a real BN/e-ISBN answer in `scripts/fixtures/`;
-  - person reuse and own numbers;
-  - the quotes format: plan, import, export → import, and that its description covers every quote field.
+## How the Scriptorium and Cogita build on this
 
-## How Cogita builds on this
+- **The Scriptorium** (SCRIPTORIUM.md) cites works, quotes and persons in its texts and plans, embeds quotes, and its
+  text types may point at Library kinds (`work` with a place: "Fragment Pisma").
+- **A knowledge base reads libraries as sources** (`settings.sources`, `cogita/sources.ts`): their works, quotes and
+  persons are reference targets and card material (a template over quotes makes cards of a library's quotes; a
+  revision can take "Cytaty" from one library); they are never copied. A reference with a place (`locator: true`)
+  stores `{value, locator}`: a psalm is the Bible plus "Ps 110".
+- **Statements** — comments, theses, questions — are entries of the owner's own kinds in Nauka, built on the field
+  type `blocks` (COGITA.md §3). They cite the Library; the Library never points at them.
+- **Cards are computed, not stored.** A card is `template:entry[:value]` plus a direction; answers go into sealed
+  `learn_batch` rows of the storage area, keyed by those ids.
 
-- **A knowledge base is a library of kind `knowledge`** (0110) in the same store: sealed entries, sync, versions, files. Its own kinds are `kind` documents (schema as data, `cogita/schema.ts`), not entries in `KINDS`; the library kinds appear there as built-in kinds (`cogita/kinds.ts` `fromLibrary`).
-- **A base reads libraries as sources** (`settings.sources`, `cogita/sources.ts`): their works, quotes, persons and comments are reference targets and card material (2026-10-22: a template over a library kind makes cards of its entries; a revision can take "Cytaty" from one library); they are never copied.
-- **Visibility is the area's** (step 8): a base is read by whoever reads its area; a public, opened base as a whole. Pages and keyless sessions read the base itself (`pageBase.ts`).
-- **Cards are computed, not stored.** A card is `template:entry[:value]` plus a direction; answers go into sealed `learn_batch` rows of the storage area, keyed by those ids.
-- **Collections, views, revisions and flows are documents of the base** that hold entry ids and rules.
-- **One topic system** (2026-10-22, step 7): the library topics with their aspects are the axes; a base sees the topics of its source libraries, a revision "everything under a topic" takes what points at it (backlinks); Cogita's learning fields on topics are an extension of the base, perspectives an aspect "Perspektywy".
-- **Writing is the library's `text` and `project`** with the `[@key]` / `![@key]` markup.
-- **A text reaches into knowledge bases** (step 11). "Z bazy wiedzy…" in the text and plan editors (`BasePicker.tsx`) does two things:
-  - it links an entry of a base with `[[house|@id]]`, for example a word of a dictionary. The link is never a footnote, and it opens below the text with the entry's values and, in the workspace, "Otwórz w Nauce";
-  - it embeds a saved view with `![@view]`, as its own block or plan point. The view shows what it selects **now** (`cogita/ViewEmbed.tsx`, loaded only when shown), so "Psalmy jutrzni niedzielnej" follows the psalter's data.
+## History
 
-  In the workspace the account's bases are opened in the background, and their entries are found by id only (`LibraryStore.get`; keys stay a matter of libraries). A reader who cannot read the base sees "[odwołanie niedostępne]".
-- **"Powtórka z tego tekstu"** (step 11, the "Nauka" box of a text): a revision of what the text points at, in a base that draws on this library (`cogita/fromEntry.ts`).
+- 2026-10-01: the library with texts, topics and projects (0064).
+- 2026-10-21/22: sermons with plans and deliveries; comments as statements; one topic system; visibility by area;
+  "Porządki", the screen of migrations in the browser.
+- 2026-10-23, three parts (IMPLEMENTATION-LOG, P1–P5): the library holds sources only. Texts, deliveries and projects
+  moved to the Scriptorium (with LaTeX, the plan editor and the archive); the comment became an own kind in Nauka on
+  the field type `blocks`; topics, aspects and perspectives are gone — order comes from own kinds linked by
+  reference fields. All earlier content was test data, so there was no migration; "Porządki" and its rebuilds were
+  removed, and old entries stand under "Stare wpisy".
 
 ## Adding a kind
 
-1. Add a `LibKind` in `libraryKinds.ts`. It needs fields with `says`, `title`, `sort`, and a filled `example`.
+1. Add a `LibKind` in `libraryKinds.ts` and put it into `LIBRARY_KINDS` (a source) or `WRITING_KINDS` (writing). It
+   needs fields with `says`, `title`, `sort`, and a filled `example`.
 2. If it should cite in a special way, add a case to `citeSegs` / `workSegs` in `libraryCite.ts`.
-3. If it gets its own workspace tab, add it to `TABS` in `LibraryView.tsx` (and `TAB_OF` in `LibraryEntryBoxes.tsx`).
+3. If it gets its own workspace tab, add it to `TABS` in `LibraryView.tsx` (and `LIBRARY_TAB` in
+   `LibraryEditor.tsx`), or to the Scriptorium's tabs.
 4. Run `npm run app:check`. The library check fails until every field is described and the example imports cleanly.

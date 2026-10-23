@@ -1,6 +1,6 @@
 # Cogita in the workspace — the decided design
 
-Status: decided on 2026-10-15 from your answers on the page “Cogita rebuild questions” (https://claude.ai/artifact/YQqNZJkSHqu4NQSNhy4bwf). Built on 2026-10-16 (§19). Changed on 2026-10-16: Cogita has its own container, the knowledge base, beside the library (§2.1, §18 row 13).
+Status: decided on 2026-10-15 from your answers on the page “Cogita rebuild questions” (https://claude.ai/artifact/YQqNZJkSHqu4NQSNhy4bwf). Built on 2026-10-16 (§19). Changed on 2026-10-16: Cogita has its own container, the knowledge base, beside the library (§2.1, §18 row 13). Changed on 2026-10-23 (three parts, IMPLEMENTATION-LOG P1–P5): no built-in content schemas — the owner writes the kinds or imports a template file; statements are entries of any kind with a `blocks` field; no topics — views order by kind axes; the Scriptorium (SCRIPTORIUM.md) holds the writing.
 
 - This file is the target and the only Cogita document. The older background documents (`CogitaAim.md`, `cogita-graph.md`, `COGITA_DESIGN_THINKING.md`) were removed on 2026-10-17; the definitions the code still cites from them are kept in Appendix A.
 - A bracketed id such as [B11] points at the question on that page; F01–F47 are the old features and P01–P18 the integrations.
@@ -29,14 +29,17 @@ Status: decided on 2026-10-15 from your answers on the page “Cogita rebuild qu
 
 ### 2.1 The store
 
-- **Two structures side by side** (changed on 2026-10-16):
-  - **The library** (Biblioteka) is a collection of books: works, quotes, texts, persons and topics.
-  - **The knowledge base** (Baza wiedzy) is what Cogita teaches: kinds, knowledge, questions, templates, revisions, flows, sessions and progress.
-- **One storage engine** [N1]. Both use the 0064 store: one sealed document per entry under the area key, incremental sync, and 409 `stale` on version conflicts. They are told apart by `app.library.kind` (`books` or `knowledge`, migration 0110).
+- **Three parts side by side** (2026-10-16; the third on 2026-10-23):
+  - **The library** (Biblioteka) normalises every reference: works, quotes, persons as authors, media files (LIBRARY.md).
+  - **The Scriptorium** (Skryptorium) holds the writing: texts, deliveries, projects, the owner's text types (SCRIPTORIUM.md).
+  - **The knowledge base** (Baza wiedzy) is what Cogita teaches: the owner's kinds and entries (places, persons as subjects, events, mysteries, comments…), questions, templates, revisions, flows, views, sessions and progress.
+- **References run in one direction**: the Scriptorium cites the Library and links to or embeds Cogita; Cogita cites the Library; the Library points only at itself. Backlinks show every direction.
+- **One storage engine** [N1]. All use the 0064 store: one sealed document per entry under the area key, incremental sync, and 409 `stale` on version conflicts. They are told apart by `app.library.kind` (`books`, `knowledge` — migration 0110 —, `writing` — 0124).
   - Area access is knowledge-base access [L1].
   - A course is one knowledge base, and an area may hold several [L7].
 - **References instead of copies** (replaces [B15]). A knowledge base names its sources in its settings, from any area:
-  - **libraries, for references only**: their works, quotes and persons can be pointed at in fields and cited, but never become cards;
+  - **libraries, for references only**: their works, quotes and persons can be pointed at in fields and cited, and card templates over them make cards of their entries;
+  - **Scriptoria** (2026-10-23): their texts, deliveries and projects are material like a library's, and their **text types are kinds of the base** (§2.2);
   - **other knowledge bases, for reuse**: their kinds, entries, templates, revisions, flows, looks, rules, values and dependencies count here, and they are changed only there.
 - **Rules for sources.**
   - A reused base brings its own sources along, up to 12, with no circles.
@@ -54,10 +57,11 @@ Status: decided on 2026-10-15 from your answers on the page “Cogita rebuild qu
 - the **field that tells entries apart** in search results [F4];
 - its fields and its card templates [D8].
 
-**No kind comes by itself** (2026-10-18). A new knowledge base has no kinds. „+ Rodzaj” adds an empty one or a ready-made one (Temat, Wiedza, Pytanie); a built-in kind is listed only where it was added (or changed) or where entries of it exist — the engine still knows all of them. **Every kind can be removed**, a built-in one too. The removal is counted first and listed in the question: entries only of this kind are deleted (with the progress of their cards), entries with another kind lose only this one, entries from source bases stay there, references of other entries to the deleted ones are taken out, reference fields of own kinds pointing only at it are removed (pointing at several: no longer at it), card templates only for it are deleted (for several: without it), add-form steps of this kind are removed (a form without entry steps is deleted), collections lose the deleted entries. A kind that comes from a source base is removed there (`kindRemoval.ts`).
+**No kind comes by itself** (2026-10-18), and **no built-in content schema** (2026-10-23, decision 2). A new knowledge base has no kinds. „+ Rodzaj” adds an empty own kind; ready-made schemas are JSON files in the repository (`templates/cogita/*.json`, below), imported under Schemat → "Schemat jako JSON". Built in are only `question` (the engine's learning item — grading depends on it; offered as "+ Pytanie" in Wpisy) and the kinds of the other parts (`person`, `work`, `quote`; `text`, `delivery`, `project`), which a base points at and learns from. A built-in kind is listed only where it was changed or where entries of it exist — the engine still knows all of them. **Every kind can be removed**, a built-in one too. The removal is counted first and listed in the question: entries only of this kind are deleted (with the progress of their cards), entries with another kind lose only this one, entries from source bases stay there, references of other entries to the deleted ones are taken out, reference fields of own kinds pointing only at it are removed (pointing at several: no longer at it), card templates only for it are deleted (for several: without it), add-form steps of this kind are removed (a form without entry steps is deleted), collections lose the deleted entries. A kind that comes from a source base is removed there (`kindRemoval.ts`).
 
 **Field types** [B2]:
 - line, long text, and markup (with citations and footnotes);
+- **blocks** (2026-10-23, "Treść w blokach"): paragraph, ordered list, unordered list, table; list items and table cells are runs `{text}` or `{ref, locator}` — a real reference with a place. A kind with a `blocks` field is a kind of **statements** (§3);
 - number with a unit and, since step 13, a **quantity** (below), and date with precision (year, month or day);
 - yes / no / unknown, and choice from a list;
 - reference to one or more kinds;
@@ -86,7 +90,7 @@ Formula, code and duration are not field types.
 - A source is a library work plus a locator (`s. 23`, `J 3,16`). The existing citation code formats it as a footnote [B4].
 
 **Relations:**
-- A reference field names the other side (“wrote” / “written by”), and the other side shows it as a backlink [B9]. Since 2026-10-22 "Odwołują się tutaj" also lists what points without a field ("Wspominają go"): `[[…|@…]]` in knowledge texts, revisions, flows, views, collections and texts or comments of libraries — from the one reference index (LIBRARY.md, "References and places in the Scripture").
+- A reference field names the other side (“wrote” / “written by”), and the other side shows it as a backlink [B9]. Since 2026-10-22 "Odwołują się tutaj" also lists what points without a field ("Wspominają go"): `[[…|@…]]` in markup and statements, revisions, flows, views, collections and texts of Scriptoria — from the one reference index (LIBRARY.md, "References and places in the Scripture").
 - A symmetric relation is stored once [B10].
 - A relation with data of its own is an entry of a relation kind [B9].
 
@@ -109,15 +113,19 @@ Formula, code and duration are not field types.
 - The Bible's text is not stored (decision 12).
 - In Schemat, a reference field gets a tick "z miejscem", and the entry editor gets a place input next to the picker.
 
-**Ready schemas** (step 11, `schemaStarts.ts`; Schemat → "+ Rodzaj" → "Gotowy schemat"). Each comes through the same import as a JSON file, with its plan as the question:
-- **Słownik**: Język, Słowo (tekst, język), Tłumaczenie (słowa), Synonimy, Antonimy, with four "Słówka" templates. An existing vocabulary base is left as it is (decision 11). Its shape already is Word / Language / Translation, so no migration is needed.
-- **Psałterz**: the breviary schema with "Miejsce w Piśmie" as a reference with a place.
+**Template files** (2026-10-23, decision 3; before: "Gotowy schemat" in the menu, step 11). Ready schemas with their card templates and add forms live as files in the repository, one per schema, in the schema format (`recreatio.cogita.schema`). The owner imports a file on its own (Schemat → "Schemat jako JSON" → Import, with the plan as the question); nothing of them is in the frontend:
+- **`komentarz.json`**: the kind "Komentarz" — `about` "O czym" (references with a place, several, to any kind in any store the base reads) and `content` "Treść" (`blocks`), named by its thesis — with the card templates "Teza" and "Tabela z treści".
+- **`slownik.json`**: Język, Słowo (tekst, język), Tłumaczenie (słowa), Synonimy, Antonimy, with four "Słówka" templates.
+- **`psalterz.json`**: the breviary schema with "Miejsce w Piśmie" as a reference with a place.
+- `app-cogita-check` imports all three and checks that the templates in `komentarz.json` are the presets.
 
 **Schema changes** keep the values of removed or retyped fields, marked “outside the schema”, until someone resolves them [B13].
 
-**The built-in kinds** (person, work, quote, topic, text, delivery, comment, project) become the editable starting schema [B1].
-- Citations, the ISBN lookup and LaTeX keep running on the existing library code.
+**The kinds of the other parts** (person, work, quote; text, delivery, project) are built in as kinds a base points at [B1].
+- Citations, the ISBN lookup and LaTeX keep running on the library and Scriptorium code.
 - They find their fields through **field roles** (authors, title, year, container, locator…).
+- **Text types are kinds** (2026-10-23, `textTypeKind`): the text types of a Scriptorium the base draws on are kinds of the base (their id, name and fields). A text carries its type as a second kind (`entityOf`), so its type fields ("Tajemnica", "Obszar") stand next to the core fields. They are foreign kinds (`isForeignKind`): material and reference targets, never created in the base.
+- **Old kinds** (`knowledge`, `comment`, `topic`) are gone. Their entries and saved changes stand under the tab **"Stare wpisy"** (shown while there are any; `oldInBase.ts`), to look at and delete; an import naming them as `builtin` is skipped and named.
 
 **What the service sees** [B20]:
 - only `entity`; the kinds and their names stay inside the sealed document;
@@ -134,22 +142,22 @@ Formula, code and duration are not field types.
 - A table with column filters and sorting, a tree by kind, and a graph canvas whose positions all authors share [F2, F3].
 - Saved views (filter, columns, sorting) can be shared by a link [F7].
 - **A view is a selection in steps** (2026-10-22, step 9; `views.ts`, `selection.ts`). The steps are the ones a revision graph uses, with the same settings and the same code:
-  - a source: everything, a kind (also a kind of a source library, optionally from one library), a collection, a topic with its subtopics and what points at them, a list;
+  - a source: everything, a kind (also a kind of a source library or Scriptorium — a text type too —, optionally from one source), a collection, a list, **Z wpisu** (what one entry points at);
   - **Idź po odwołaniu** (`follow`): along one reference field or all of them, or backwards to whatever points at the entries (fields and markup, library material too);
   - **Filtr** (`filter.rule`): the collections' rule.
-- The tree groups by kind (the topic hierarchy as before), by the values of a field, or by an **axis of topics**: a topic marked as an aspect, whose subtopics are the values. An entry can stand in several groups.
+- The tree groups by kind, by the values of a field, or by an **axis** (2026-10-23, decision 8; `selection.ts` `Axis`). **An axis is a kind**: its entries are the values (20 entries of "Tajemnica"), ordered by a number field of the values (`sort: { field }`) or by the order in which another entry lists them in a multi-reference field (`sort: { list, field }`), otherwise by name; optionally under **headings** — a reference field of the values (Tajemnica by "część", Obszar by "grupa"). **An entry belongs to a value** if it points at it through a chosen reference field (`via`; none chosen: any), directly or through one step (`through`: first along this field to another entry, which points at the value). An entry can stand in several groups. Topics and "axes of topics" are gone; an old grouping by topics is shown as a notice in Wpisy and on pages.
 - In **Wpisy**, "Rodzaj" and "Filtr" are short cuts into the steps; "Wybór i grupy" edits them all (`ViewSteps.tsx`). A view saved before step 9 (`kind` + `rule`) reads as steps and is written in the new shape; the JSON export and import do the same.
 - **On a page**: the module **Widok** (`view`) shows a saved view as a table or a tree, with search, sorting and a clicked entry opened below it. Each module keeps its state in the address under its own scope (`?<scope>.q=…`, `pages/partQuery.ts`), so two views on one page do not disturb each other and a link carries the state.
-- **Matrix and map** (step 10). A view can be a **matrix**: rows and columns are two groupings, usually two axes of topics such as 20 mysteries × 12 periods. Every value of an axis gets its row or column, also an empty one, and a cell holds what belongs to both (`viewMatrix`). A view can also be a **map**: the knowledge map's fog over the view's entries.
-  - Sources at the start of a view count together, so one view can hold sermons and statements (`text` and `comment` from a source library).
-  - A table column can be an axis (`#axis:<topic>`), which shows the axis values the entry belongs to.
+- **Matrix and map** (step 10). A view can be a **matrix**: rows and columns are two groupings, usually two axes such as **"Tajemnica × Obszar"** — 20 mysteries of the rosary (under the headings of their part) × 12 Marian areas (under their groups). Every value of an axis gets its row or column, also an empty one; headings stand over the columns and between the rows (`MatrixGrid`); a cell holds what belongs to both (`viewMatrix`), and a click opens it. A view can also be a **map**: the knowledge map's fog over the view's entries.
+  - Sources at the start of a view count together, so one view can hold sermons and statements (`text` from a Scriptorium source — placed by the fields of its text type — and the base's "Komentarz").
+  - A table column can be an axis (`#axis:<kind>`), which shows the values of that kind the entry points at.
 - **Inner views with a path** (step 10). On a page a cell opens its entries below the matrix (`c=<row>~<col>`), and an entry opens itself (`e=`): a statement with its blocks, a sermon whole with its plan and deliveries (`d=`), anything else as a card. A breadcrumb leads back, and the address carries the whole path.
 - **Actions** (step 10, `viewActions.ts`):
   - **Ucz się tego** (pages): the cards of what is shown, asked without an account.
   - **Powtórka z tego widoku / z tego pola** (Wpisy): a revision made of the same steps (`viewToRevision`; leading sources through "Razem").
-  - **+ Nowy wpis tutaj** in a cell, or on an empty "+": a new entry carrying the cell's context (both topics, a field's value). A statement goes into the library it draws from, and an entry of the base stays in the base.
+  - **+ Nowy wpis tutaj** in a cell, or on an empty "+": a new entry carrying the cell's context — the values of both axes go into fitting reference fields (a chosen `via` field, else one pointing at the value's kind, else one pointing at any kind: "O czym"), a field's value into that field. An entry of the base stays in the base; a sermon of a text type is created in the Scriptorium that holds the type, with the values in its fields.
   - **Dodaj do planu** in a cell: the cell's entries become new points at the end of a sermon's plan. A quote is embedded and anything else becomes a link.
-- **Retired** (step 10): `entity-table`, `topic-explorer`, `knowledge-map` and the archive's table layout. They left the palette, and existing placements keep rendering. **Porządki → "Moduły stron → Widok"** (`library/rebuild/pageModules.ts`) converts them on the pages you lead into a saved view plus the module "Widok" in the same place. The report lists the converted pages.
+- **Retired** (step 10): `entity-table`, `topic-explorer`, `knowledge-map` and the archive's table layout. They left the palette, and existing placements keep rendering; since 2026-10-23 the topic explorer shows only a notice (topics are gone). The converter "Porządki → Moduły stron → Widok" was removed with Porządki (2026-10-23).
 - **Choosing many** (2026-10-18): in the table, the box in front of a row, Ctrl+click, Shift+click (everything between), dragging over the boxes, or holding a row on a phone; once something is chosen, a click chooses instead of opening, Esc clears. A bar floating at the bottom (so the list does not move) acts on them: set a field for all (add, replace or remove a value, clear — e.g. the language or a topic), put them into a collection (an existing or a new one), delete them (the question says how many other entries point at them; entries from source bases are left alone).
 - Library content appears in the workspace search, Ctrl K [F5, P12].
 - “Looks per kind” replace the old approaches, such as the citation view and the vocabulary card [F47].
@@ -159,7 +167,7 @@ Formula, code and duration are not field types.
 A **form for adding** (Formularz dodawania, doc kind `addform`) says once what one typed row becomes, so a long list is typed, not clicked: “car” Enter “samochód” Enter, next row.
 
 - **The form is a graph** on the model of §4 (nodes, ports, edges, JSON), drawn in its own React Flow canvas because a node shows the fields of its kind:
-  - `pick` — **chosen on top** (Na początek): an existing entry such as a language or a topic, chosen once and kept for every row until changed; required or optional, one or several, with a default;
+  - `pick` — **chosen on top** (Na początek): an existing entry such as a language or a category, chosen once and kept for every row until changed; required or optional, one or several, with a default;
   - `entry` — **made from each row** (W każdym wierszu): an entry of a kind. Each field gets its value typed in the row, set once on top, or fixed in the form. Every reference field is an input; an edge from another node fills it.
 - **Several in one row.** A node marked “kilka w wierszu” takes several values (Ctrl+Enter or “+ kolejne”). A reference field that takes ONE entry then makes one entry per value (each pair: two English words × one Polish word = two translations); one that takes several takes them all into one entry.
 - **Nothing twice.** An entry that already exists is used instead of a new one, recognised by the single-valued fields the node sets (text and language) or by the fields chosen in the form. What it lacks (another topic) is added; entries from a source base are used, not changed. This holds inside one list too (“zamek” for castle and lock is one word with two translations), so retrying a row is harmless.
@@ -179,20 +187,22 @@ A **form for adding** (Formularz dodawania, doc kind `addform`) says once what o
 
 ## 3. Knowledge layer
 
-These are fixed system kinds that the engine understands. You may add fields to them [C1].
+Since 2026-10-23 the engine knows one fixed learning kind; everything else is the owner's [C1].
 
 | kind | what it is |
 |---|---|
-| `knowledge` | **Superseded by the library comment (2026-10-22, step 6):** new statements are comments of a source library; existing ones move with Porządki → "Wiedza → komentarze" (same id); the kind is no longer offered under "+ Rodzaj". One statement in markup — read by the library's one reader since 2026-10-22 (headings, lists, quotes, notes; `[@work, s. 23]` on a work, quote or person is a footnote, a citation of an own entry is a link "(zob. …)"; LIBRARY.md "One reader for every text"). Words link to entities as `[[Księgi Samuela\|@samuel]]`, inserted from the search overlay [C3]. It carries perspective tags from the library’s own tag set [C8] and a source as in §2.2. |
-| `text` | The existing library text. It embeds knowledge nodes the way it embeds quotes (`![@key]`) and serves as a narrative [C2, K1]. |
-| `topic` | **One topic system (2026-10-22, step 7):** the topic is the library topic (name, description, parent, aspect, order); a base sees the topics of its source libraries as its own (`CogitaLibrary.topics()`), and its own topics move into the library of its area (Porządki → "Tematy i perspektywy → biblioteka", same ids). A topic subtree (`topicTree`, revision source "Temat", ExploreMap) follows **backlinks**: everything that points at the topic or a subtopic — a sermon's `topics`, a statement in its markup, a question's `about` — not only `answers`. **Learning fields are an extension** the base adds (Schemat → Temat → "+ Pola nauki", stored as an override of the built-in topic): answers (comments, texts, quotes), an attached entity, a level for depth [C9], a landmark flag for threshold concepts [C11], dimension, open; a base whose topics already carry them keeps seeing them. **Perspectives are an axis**: the aspect topic "Perspektywy" with one value per perspective; entries get them in "Tematy" (the base settings list and the `tags` fields go). Dimensions (What, Why, How…) are child topics [C10]. |
-| `question` | A hand-written check: an answer form, expected and accepted answers, linked entities, and right and wrong exits used in flows [C4, D1]. |
+| `question` | A hand-written check: an answer form, expected and accepted answers, linked entities, and right and wrong exits used in flows [C4, D1]. It stays built in because grading depends on it: cards, sessions, flows, proposals and the page module "Pytanie" ask it. |
+| **statements** | **Any entry whose kind has a field of type `blocks`** (decision 4; `library/blocks.ts`, `library/statement.ts`, `cogita/statements.ts`) — the ready kind is "Komentarz" from `templates/cogita/komentarz.json`. Computed, never stored: **the thesis** is the first sentence of the first paragraph of the first `blocks` field (`firstSentence` skips abbreviations such as "św.", "np.", initials, and ignores markup and citations); it names the entry and is the front of a card; missing or longer than 200 characters is a warning in the editor and under "Do zrobienia". **A question** is a statement whose thesis ends with "?"; it is answered as soon as another readable statement points at it. **The badge** "Informacja" / "Interpretacja" comes from references only: only Library sources → information; another statement, or no source → interpretation (a table alone no longer makes an interpretation). In texts `![@id]` embeds a statement whole (tables included); `[@id]` or `[[words\|@id]]` links to it. |
+| `text` | A text of a Scriptorium: material and a narrative [C2, K1]; it embeds statements the way it embeds quotes. |
 
-- **Parallel bundles** (“How is David shown in chapter 16, 17, 19?”) are proposed from a pattern for each entity of a set. The author confirms each one [C5].
-- **The pending list**, shared by all authors [C6], collects:
-  - open topics (“expand later”);
-  - knowledge and topics whose linked entity changed since an author last checked them [C7];
-  - cards flagged by learners [D12].
+- The former `knowledge` (one statement in markup), the library `comment` and the `topic` with its learning fields, aspects and perspectives are gone (2026-10-23). Order comes from the owner's kinds linked by reference fields; views order by kind axes (§2.3).
+- **Parallel questions** (“How is David shown in chapter 16, 17, 19?”) are proposed from a pattern for each entity of a set; the author confirms each one, and each becomes a statement of a chosen statement kind with the question as its thesis, pointing at the entry [C5].
+- **The pending list** ("Do zrobienia"), shared by all authors [C6], collects:
+  - questions without an answer (statements ending with "?" nothing points at);
+  - statements without a good thesis;
+  - statements whose targets changed since an author last checked them ("Sprawdzone") [C7];
+  - cards flagged by learners, and cards many get wrong [D12].
+- **Proposals** (Zaproponuj): a reader proposes a question or a statement of a statement kind of the base; an author accepts it into the base.
 
 ## 4. One graph engine
 
@@ -213,9 +223,9 @@ These are fixed system kinds that the engine understands. You may add fields to 
 
 **Where cards come from:** templates per kind, plus hand-written `question` entries [D1].
 
-**Statements** (2026-10-22, step 6). A library comment reads as a Cogita entity of kind `comment`: its `blocks` are a read-only field type `blocks` (one value; the generic "Pole" node gives one item per paragraph, list or table), and it is named by its thesis (first sentence). Template nodes in the group "Komentarz": "Teza komentarza" (`statement.thesis`), "Część komentarza" (`statement.part`, piece n: a paragraph, each list item, each table row), "Tabela komentarza" (`statement.table`, two columns as the left and right side of "dopasowanie par"), "O czym jest komentarz" (`statement.subjects`, with places — the Scripture by its place alone). Two starts for comments: "Teza komentarza" (front: what it is about, back: the thesis, a flash card) and "Tabela komentarza: dopasuj pary". Flows (`line`, `expand`) and a question's "Wyjaśnienie" accept comments and show them whole. "Do zrobienia" lists comments without a good thesis and questions without an answer.
+**Statements** (2026-10-22, step 6; generalised 2026-10-23). Any entry whose kind has a `blocks` field (§3): the generic "Pole" node gives one item per paragraph, list or table, and the entry is named by its thesis. Template nodes in the group "Wypowiedź" work on any such kind: "Teza" (`statement.thesis`), "Część treści" (`statement.part`, piece n: a paragraph, each list item, each table row), "Tabela z treści" (`statement.table`, two columns as the left and right side of "dopasowanie par"), "O czym jest" (`statement.subjects`: the values of the entry's reference fields, with places — the Scripture by its place alone). Two starts offered for every statement kind, whatever its name: "Teza: o czym → teza" (front: "Co mówi ta wypowiedź o: Łk 1,35?", back: the thesis, a flash card) and "Tabela z treści: dopasuj pary". Pickers that ask for statements (a flow's `line` "co mówi", `expand`, a question's "Wyjaśnienie") name the placeholder `@blocks`, which becomes the statement kinds of the base; a flow shows a statement whole.
 
-**Library material** (2026-10-22). A base that reads a library as a source (`settings.sources`) learns from it too: the library's kinds that have entries there (quotes, works, texts, comments, projects, deliveries, persons) are "material kinds" (`CogitaLibrary.materialKinds`, labelled "(z biblioteki)"). A template may target one of them — "Luki w cytacie" over quotes, "Pytanie o pole" on a quote's place — and then makes cards of the library's entries, keyed `template:entry` like every card (entry ids are stable, so progress stays). "Wpisy rodzaju" and "Dystraktory" of such a template draw from the same material (`material(kind)`, `poolFor`). The base's own lists ("Wpisy") still show only its own entries; library topics give no cards yet (step 7).
+**Library and Scriptorium material** (2026-10-22). A base that reads a library or a Scriptorium as a source (`settings.sources`) learns from it too: their kinds that have entries there (quotes, works, persons; texts, deliveries, projects, and the text types) are "material kinds" (`CogitaLibrary.materialKinds`). A template may target one of them — "Luki w cytacie" over quotes, "Pytanie o pole" on a quote's place or a sermon's "Tajemnica" — and then makes cards of their entries, keyed `template:entry` like every card (entry ids are stable, so progress stays). "Wpisy rodzaju" and "Dystraktory" of such a template draw from the same material (`material(kind)`, `poolFor`). The base's own lists ("Wpisy") still show only its own entries.
 
 A template is a graph built from these blocks [D2]:
 - a field of the entity, or a reference followed several steps deep;
@@ -284,9 +294,9 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 ## 6. Revision, collections, knowness, dependencies
 
 **A revision is a graph that selects cards** [F15]. Its nodes:
-- sources: a kind — also a kind of a source library, optionally only from one library or base ("Skąd", `source.kind` `from`; 2026-10-22) —, a collection, a topic subtree, a list;
+- sources: a kind — also a kind of a source library or Scriptorium, optionally only from one source ("Skąd", `source.kind` `from`; 2026-10-22) —, a collection, a list (the source "Temat" is gone since 2026-10-23; an old revision with it says what to use instead);
 - the steps shared with views (step 9): **Idź po odwołaniu** gives the cards of the entries reached along a reference (or backwards), **Filtr wpisów** keeps the cards whose entry passes the collections' rule;
-- **Z wpisu** (`source.from`, step 11): the cards of what one entry points at. A sermon gives its quotes, statements, linked dictionary words and questions, and the places of its plan. The library's text panel offers **"Powtórka z tego tekstu"** (`fromEntry.ts`), which creates such a revision in a base that draws on the library; a base of the same area gets the library as a source if needed;
+- **Z wpisu** (`source.from`, step 11): the cards of what one entry points at. A sermon gives its quotes, statements, linked dictionary words and questions, and the places of its plan. A text's panel in the Scriptorium offers **"Powtórka z tego tekstu"** (`fromEntry.ts`), which creates such a revision in a base that draws on the Scriptorium; a base of the same area gets it as a source if needed;
 - dependency gates;
 - one strategy node from a fixed list, with its parameters [E6]: random fixed number, whole stack once, levels, time-knowness;
 - order and limits.
@@ -300,7 +310,7 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 
 **Knowness:**
 - The spec formula `knowledge(q1, d1, q2, d2, t)` (Appendix A.1), over a card’s latest answers [E1].
-- An entity, topic or collection averages its cards [E2].
+- An entity or collection averages its cards [E2].
 - It is computed in the browser [E7].
 
 ## 7. Answers and progress
@@ -327,11 +337,11 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 There are three separate layers: content (§2–3), flow and look [G1].
 
 **A flow is a sealed library entry.** A page shows it through the module `cogita-flow`, which reads the base itself — whoever can read the base can play it there (§13, step 8) [G2].
-- A flow never holds text of its own. Everything a learner reads is a knowledge node, a text or an entity [G9].
+- A flow never holds text of its own. Everything a learner reads is a statement, a text or an entity [G9].
   - Step titles, choice labels and chapter names are flow data.
 
 **Step types** [G5]:
-- show an entity, knowledge or a topic; show content media;
+- show an entity or a statement; show content media;
 - a question with right and wrong exits; a choice;
 - a condition; changing a value;
 - chapters: split and join, only the remaining chapters offered, restart the chapter, go to its end [F32];
@@ -397,7 +407,7 @@ Each step opens on a new screen or expands in place [G12].
 
 - **Any entry can be a character.** A character line or a “character speaks” step names it; it has a portrait and a voice [H1]. (Until 2026-10-17 a kind had to be marked “can speak”; that flag is gone, and an old `speaks` in a kind document is ignored.)
   - It is realized by a group of values that change for each learner as they use the course.
-  - Its lines are knowledge nodes.
+  - Its lines are statements (entries with a `blocks` field).
   - Lines fire through the logic engine, on values, knowness and visited steps [H2].
 - **Relations between characters are typed links** [H3]. Closeness is a value: flow steps change it, and so does the learner’s progress [H4].
 - **Age** is authoring data only [H5].
@@ -468,6 +478,8 @@ Phones stay awake.
 
 ## 12. Contributing and exploring
 
+*2026-10-23:* the exploring map (Mapa) works on the owner's kinds: the entries of a chosen kind (or all own kinds) with their reference links and the confirmed dependencies — no topics.
+
 - **Contributions** [K2, K3]:
   - Every writer of the library’s area writes into the library directly. That is the library’s own confidence.
   - Everyone else writes explanations, expansions and questions into a contribution area, and an author approves them before they join the course.
@@ -500,8 +512,8 @@ Phones stay awake.
 | Workspace views | The part “Nauka”: due now, progress, open sessions. The alert “Powtórka czeka”. | P01 |
 | Calendar | Revision as a repeating personal task with a link; sessions as appointments | P02 |
 | Notifications | Revision due; a session starting | P03 |
-| Chat | Discuss a card or a topic in a chat topic; turn a message into a question; the dialogue look | P04, P05 |
-| Pages | Modules: revision, live participant, live host, flow player, entity card, and **Widok** (steps 9–10): a saved view as a table, tree, matrix or map. Entity table, topic explorer and knowledge map are retired into it. | P06 |
+| Chat | Discuss a card in a chat topic; turn a message into a question; the dialogue look | P04, P05 |
+| Pages | Modules: revision, live participant, live host, flow player, entity card, and **Widok** (steps 9–10): a saved view as a table, tree, matrix (e.g. Tajemnica × Obszar, with headings) or map. Entity table, topic explorer and knowledge map are retired into it. | P06 |
 | Page subject | A page about one entity (“Kim był Dawid?”) | P07 |
 | Widgets | A revision, a quiz or a quote of the day on other websites | P08 |
 | Forms and steps | Learning targets as steps (“Naucz się: Modlitwy, 80%”), with progress in the office list; enrolling through a form | P09, L5 |
@@ -509,7 +521,7 @@ Phones stay awake.
 | Pages with one module | One common way to put a module on its own page (a form, a revision, a flow…) at `recreatio.pl/#/c/<id>`, owned by whoever creates it, without building a page by hand; the module reads the base itself | F20 |
 | Search | Library and knowledge-base content in Ctrl K | P12 |
 | Nauka | The workspace view of Cogita: due now, sessions, the knowledge bases (each with its tabs at `#/workspace/learn/<id>`), and offline practice. The library itself has no Cogita tab. | A1 |
-| JSON and your AI | Schema, entities, knowledge, questions and flows from a text: a prompt to copy and an import with review | P13 |
+| JSON and your AI | Schema, entities, statements, questions and flows from a text: a prompt to copy and an import with review | P13 |
 | Android app | Reminders, the screen kept awake, offline practice | P17 |
 
 **Not wanted:**
@@ -549,7 +561,7 @@ A public, opened base (§13) is served to anyone as the same sealed entries and 
 4. **Games:** game state the service can read, deleted when the game ends.
 5. **Forms:** the form step kind `learn` with its target.
 6. **Pages:** the register root `c` for modules published directly.
-7. **Knowledge bases (0110):** `app.library.kind` (`books` or `knowledge`).
+7. **Knowledge bases (0110):** `app.library.kind` (`books` or `knowledge`); **Scriptoria (0124):** `writing`.
 
 ## 17. Build order
 
@@ -613,10 +625,11 @@ A public, opened base (§13) is served to anyone as the same sealed entries and 
 | Screens | `LearnView.tsx` (the workspace view **Nauka**: the knowledge bases, due, sessions, offline), `CogitaHome.tsx` (one knowledge base and its tabs), `LearnPart.tsx` (the view part), `AddFormEditor.tsx`, `AddFormRun.tsx` and `AddFormRows.tsx` (forms for adding and editing in their shape, §2.4), and the editors and players beside them |
 | Sessions | `live.ts` (keys, events, SignalR client with polling fallback), `Sessions.tsx`, `GamePanel.tsx` |
 | Public pages | `parts/cogita.tsx` (definitions) with `parts/cogitaViews.tsx` (loaded only when shown), `pageBase.ts` (the base as this reader may read it — step 8), `PublicRun.tsx` (a keyless revision), `entitySubject.tsx`, `seatLearn.ts` |
-| Visibility | `visibility.ts` (who reads, in words; what an item needs when it moves), `BaseWho.tsx` ("Kto widzi" with the move, "Kto czyta" in settings), `library/rebuild/baseVisibility.ts` (Porządki tab 5) |
-| Schema connections (step 11) | `schema.ts` (`locator`, `placeText`), `schemaStarts.ts` with `starts/psalterz.json`, `fromEntry.ts` (a revision from a sermon), `ViewEmbed.tsx` (a live view inside a text or plan point); in the library `BasePicker.tsx` and the cross-store lookup in `libraryStore.ts` |
+| Visibility | `visibility.ts` (who reads, in words; what an item needs when it moves), `BaseWho.tsx` ("Kto widzi" with the move, "Kto czyta" in settings, "Stare kopie publikacji" — `oldCopies.ts`) |
+| Schema connections (step 11) | `schema.ts` (`locator`, `placeText`), the template files `templates/cogita/*.json` (since 2026-10-23; before: `schemaStarts.ts`), `fromEntry.ts` (a revision from a sermon), `ViewEmbed.tsx` (a live view inside a text or plan point); `library/BasePicker.tsx` and the cross-store lookup in `libraryStore.ts` |
+| Statements (2026-10-23) | `library/blocks.ts` (the block model, thesis, question), `library/statement.ts` (role, answers, what it is about), `cogita/statements.ts` (statement kinds, `@blocks`), `library/BlocksEditor.tsx` (in the entity editor), `library/markupView.tsx` (`StatementCard`, `StatementMarks`), the nodes in `cardPalette.ts`, the presets in `presets.ts`; old kinds in `oldInBase.ts` |
 | Quantities (step 13) | `core/quantities.ts` (kinds, units, parsing, SI); in `schema.ts` `fieldKind`, `fieldUnit`, `quantityEnvelope`; in `check.ts` `checkQuantity`; the field input in `EntityEditor.tsx`, the kind choice in `SchemaEditor.tsx`; rows in `addForm.ts`, filters in `selection.ts`; lab readouts `lab/LabFrame.tsx` `labQuantity` |
-| Views | `selection.ts` (the steps shared with revisions, the collections' rule, groups), `views.ts` (the view document, its list, groups, columns, matrix; view ↔ revision), `viewActions.ts` (create here, add to plan, learn), `ViewSteps.tsx`, `RuleEditor.tsx` and `MatrixGrid.tsx`; on pages `pages/parts/view.tsx` with `viewViews.tsx` (inner views, map), and `pages/partQuery.ts` (state per module in the address); `library/rebuild/pageModules.ts` converts retired modules |
+| Views | `selection.ts` (the steps shared with revisions, the collections' rule, groups, kind axes — `Axis`, `axisValues`, `axisMembers`), `views.ts` (the view document, its list, groups, columns, matrix; view ↔ revision), `viewActions.ts` (create here, add to plan, learn), `ViewSteps.tsx` (with `AxisSettings`), `RuleEditor.tsx` and `MatrixGrid.tsx` (headings); on pages `pages/parts/view.tsx` with `viewViews.tsx` (inner views, map), and `pages/partQuery.ts` (state per module in the address) |
 | Forms | `LearnStep.tsx`; the step kind `learn` in `steps.ts` and `StepList.tsx` |
 | Service | `backend/Api/`: `Library.Cogita.cs` (versions, files, seat reading), `Cogita.cs` (batches, due, reports, the `c/` addresses), `Cogita.Session.cs`, `CogitaHub.cs` (`/cogita/hub`), `Cogita.Game.cs` (triggers, `CogitaClock`) |
 
@@ -624,14 +637,14 @@ A public, opened base (§13) is served to anyone as the same sealed entries and 
 
 - **Workspace.**
   - The view **Nauka** (`#/workspace/learn`): the knowledge bases (create one there), due now, sessions and offline practice.
-  - A knowledge base (`#/workspace/learn/<id>`) has these tabs: Nauka, Wpisy, Schemat, Szablony kart, Powtórki, Przebiegi, Sesje, Postępy, Mapa, Do zrobienia, Propozycje, Ustawienia, JSON. Readers see Nauka, Przebiegi, Sesje, Postępy, Mapa and Zaproponuj.
-  - **Ustawienia** holds the name (and deletion) and **Źródła**: add a library or another knowledge base from any area you read.
+  - A knowledge base (`#/workspace/learn/<id>`) has these tabs: Nauka, Wpisy, Schemat, Szablony kart, Powtórki, Przebiegi, Sesje, Postępy, Mapa, Do zrobienia, Propozycje, Ustawienia, JSON, and **Stare wpisy** while there are any. Readers see Nauka, Przebiegi, Sesje, Postępy, Mapa and Zaproponuj.
+  - **Ustawienia** holds the name (and deletion after typing it) and **Źródła**: add a library, a Scriptorium or another knowledge base from any area you read.
   - What comes from a source carries its name. It is read-only here, with a link to where it is changed.
   - The alert **Powtórka czeka** and a daily reminder.
   - A revision becomes a daily task. A session goes into the area's calendar with its join link and code.
   - Ctrl K finds entries and documents of the libraries opened in the tab.
   - The starter **Kurs do nauki** creates an area, a knowledge base, the intake, a daily revision, a learners' role and a link.
-- **Pages.** Nine modules: `cogita-revision`, `cogita-flow`, `cogita-live`, `entity-card`, `entity-table`, `topic-explorer`, `knowledge-map`, `seat-learn`, and `view` (step 9). They pick a knowledge base (field kind `knowledge`).
+- **Pages.** Nine modules: `cogita-revision`, `cogita-flow`, `cogita-live`, `entity-card`, `entity-table`, `topic-explorer` (a notice since 2026-10-23), `knowledge-map`, `seat-learn`, and `view` (step 9). They pick a knowledge base (field kind `knowledge`).
   - In a presentation: the module `question` and the storyboard (§8, built 2026-10-21).
   - The page subject **Wpis z bazy wiedzy** (`entity`).
   - `c/<8 characters>` addresses for pages with one module.
@@ -644,7 +657,7 @@ A public, opened base (§13) is served to anyone as the same sealed entries and 
 - **Schema JSON references** (2026-10-17). A reference field's `to` names kinds by `@ref`, id or name, also kinds further down the same document. Before, it stayed literal, and a schema copied into another base pointed at kind ids that did not exist there.
 - **Files across origins** (2026-10-17). The API exposes `X-Epoch` to the browser (CORS `WithExposedHeaders`); against an API without it, a file is opened by trying the held epochs, newest first.
 - **Stored entries are not rewritten.**
-  - A knowledge base adds the kinds knowledge, question and topic, plus its own. The book kinds (person, work, quote, text, project) live in libraries and are only pointed at.
+  - A knowledge base adds the kind question, plus its own (2026-10-23: knowledge and topic are gone). The kinds of the Library (person, work, quote) and of the Scriptorium (text, delivery, project, and the text types) live there and are only pointed at and learned from.
   - Built-in kinds keep their plaintext kind.
   - Own entities are `entity` entries, with their kinds in `_kinds`.
   - A built-in kind can be renamed by a `kind` entry with `builtin`. Its fields keep their shape.
@@ -663,8 +676,8 @@ A public, opened base (§13) is served to anyone as the same sealed entries and 
 
 | check | count |
 |---|---|
-| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 415 (2026-10-23) |
-| `backend/Api.Tests` (22 of them for the game rules) | 470 (2026-10-22) |
+| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 431 (2026-10-23) |
+| `backend/Api.Tests` (22 of them for the game rules) | 472 (2026-10-23) |
 | `backend/Kernel.Tests` | 122 |
 
 The full `tsc -p tsconfig.json` is clean now that the legacy tree is gone.
@@ -678,6 +691,7 @@ The full `tsc -p tsconfig.json` is clean now that the legacy tree is gone.
 
   The fixture generators `scripts/cogita-home.mjs` and `scripts/presentation-home.mjs` read them. They go in step 3 of the transfer (`documentation/TRANSFER.md`).
 - **Where a library is used.** A library does not know which knowledge bases point at it, because the references are sealed in their settings.
+- **Browser drives** for the three parts (2026-10-23, outside the repository): `komentarz-api/-browser.mjs` (import `komentarz.json`, write a comment with a table, learn its thesis) and `axes-api/-browser.mjs` (Tajemnica × Obszar).
 
 Done on 2026-10-17: the dead `package.json` scripts (`api:types`, `rc:*`, `public:check`, `events:check`) and `_reference/` are removed.
 

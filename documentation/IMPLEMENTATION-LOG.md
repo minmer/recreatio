@@ -1546,3 +1546,46 @@ the owner's explicit, confirmed deletions.
    (Kolejność: według pola Numer, Nagłówki: Część); kolumny: "Obszar" (Nagłówki: Grupa). The matrix shows the
    headings; click a number to open the field; "Zapisz jako widok".
 4. A page → module "Widok" → this view, mode macierz.
+
+## P6 — Documentation
+
+**Updated**
+- `ARCHITECTURE.md`: the three parts in the overview; `templates/cogita/` in the repository layout; the folders
+  `library/` (sources only, the one markup reader, the statement rules), `scriptorium/` (new) and `cogita/` (own kinds
+  only, statements, kind axes, text types as kinds, old kinds); the backend's shared store with three kinds; the
+  `library.kind` values in the data table.
+- `LIBRARY.md`, rewritten:
+  - the Library as the backbone of citation: works, quotes, persons and files;
+  - the three parts, with references in one direction and persons twice;
+  - deleting and "Stare wpisy";
+  - the reference index with statements and text types;
+  - JSON v3 for sources only (refusing other kinds with the right format);
+  - quotes v3;
+  - how the Scriptorium and Cogita build on it;
+  - a short history. The sermon, LaTeX, comment, topic and Porządki sections moved out or went away.
+- `SCRIPTORIUM.md`, new:
+  - the container (one per area, a move to a public area makes a text public);
+  - the four kinds, and text types with the shared schema editor;
+  - the workspace, the editors, the plan and deliveries, the AI prompts, LaTeX and "Plan na ambonę";
+  - the pages: the page-texts rule, and the archive with its axes from the text types' ref fields and why it stays
+    a module;
+  - text types as kinds in Nauka;
+  - the format `recreatio/scriptorium` v1;
+  - files and checks.
+- `COGITA.md`:
+  - the store (three parts, Scriptoria as sources);
+  - the schema (no built-in content schemas, `question` stays and why, the field type `blocks`, the template files,
+    text types as kinds, old kinds under "Stare wpisy");
+  - views (kind axes with order, headings and membership; "Tajemnica × Obszar"; create here);
+  - §3 rewritten (question; statements on any kind with `blocks`; the pending list);
+  - cards (statement nodes and presets on any statement kind; library and Scriptorium material);
+  - revisions without "Temat"; the map without topics; the files, tabs and check counts.
+- `AI-BRIEF.md` (the brief "Recreatio — Library, Scriptorium, Knowledge bases (Cogita) and Pages"), regenerated:
+  - sections 1–12 rewritten for the three parts: who sees what, markup, statements on `blocks`, no topics and kind
+    axes, text types, template files, narrative, units, the rules, what is open, how to hand data to the app;
+  - the four appendices generated from the code: `libraryDescription()`, `scriptoriumDescription()`,
+    `courseDescription()`, and excerpts of `pageDescription()` (the page, texts on pages, the presentation, and the
+    modules of the three parts).
+
+**Checks**
+- Documentation only; the code is unchanged since P5 (all checks passed there).
