@@ -8,10 +8,11 @@
  * Salz am Boden der Kiste zählt mit seiner Enthalpie zu den Feststoffen). Die
  * Änderung von E muss gleich sein: Heizung − Verluste durch Wände − Leitung an
  * offenen Seiten − Entwichenes + Eingriffe der Werkzeuge. Wasser zählt ohne
- * sein gelöstes Salz; das Salz hat eine eigene Bilanz (gelöst, Kruste, Boden,
- * entwichen).
+ * sein gelöstes Salz und mit dem Eis (M3b); das Salz hat eine eigene Bilanz
+ * (gelöst, Kruste, Boden, entwichen).
  */
 
+import { meltsAt, type Body2D } from './body';
 import type { Bubbles } from './bubbles';
 import type { Grid } from './grid';
 import type { Particles } from './particles';
@@ -21,6 +22,8 @@ import { H2O, N2, O2, SOLID, SPECIES_SLOTS } from './units';
 
 export interface WaterByState {
   liquid: number;
+  /** Eis: die Masse der schmelzbaren Körper (M3b). */
+  ice: number;
   vapour: number;
   fog: number;
   film: number;
@@ -94,9 +97,12 @@ export function emptyFlows(): Flows {
 }
 
 const NO_FLOOR: FloorSalt = { mass: 0, energy: 0 };
+/** Schmelzwasser, das noch kein Teilchen ist (bodyMelt.ts): Wasser, Enthalpie, Salz. */
+const NO_MELT = { m: 0, H: 0, s: 0 };
 
 /** Den Inhalt zählen. */
-export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Flows, out: BudgetSnapshot, floor: FloorSalt = NO_FLOOR): BudgetSnapshot {
+export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Flows, out: BudgetSnapshot, floor: FloorSalt = NO_FLOOR, bodies: readonly Body2D[] = [],
+  melt: { readonly m: number; readonly H: number; readonly s: number } = NO_MELT): BudgetSnapshot {
   const n = g.n;
   let solids = 0;
   let gas = 0;
@@ -106,7 +112,9 @@ export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Fl
   let crust = 0;
   let air = 0;
   for (let c = 0; c < n; c += 1) {
-    if (g.kind[c] === SOLID || g.solid[c] !== 0) { solids += g.Es[c]; film += g.film[c]; crust += g.crust[c]; continue; }
+    /* Körperteile in Zellen spiegeln nur die inneren Zellen der Körper (unten gezählt); ein fester Bau zählt hier. */
+    const body = g.owner[c] !== 0 || g.capB[c] > 0;
+    if (g.kind[c] === SOLID || g.solid[c] !== 0) { if (!body) { solids += g.Es[c]; film += g.film[c]; crust += g.crust[c]; } continue; }
     gas += g.Hg[c];
     vapour += g.mg[H2O * n + c];
     fog += g.mfog[c];
@@ -124,6 +132,18 @@ export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Fl
     else otherMass += P.mass[p] - s;
   }
   solids += floor.energy;
+  let ice = 0;
+  for (const b of bodies) {
+    if (b.gone) continue;
+    solids += b.energy();
+    film += b.filmMass();
+    crust += b.crustMass();
+    if (meltsAt(b.mat) > 0) ice += b.m;
+  }
+  /* Schmelzwasser, das noch kein Teilchen ist, zählt zur Flüssigkeit. */
+  liquid += melt.H;
+  liquidMass += melt.m;
+  saltMass += melt.s;
   let bub = 0;
   let bubWater = 0;
   for (let b = 0; b < B.count; b += 1) {
@@ -141,12 +161,13 @@ export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Fl
   out.energy = solids + liquid + gas + bub + pv;
   const w = out.water;
   w.liquid = liquidMass;
+  w.ice = ice;
   w.vapour = vapour;
   w.fog = fog;
   w.film = film;
   w.bubbles = bubWater;
   w.escaped = flows.escapedWater;
-  w.total = liquidMass + vapour + fog + film + bubWater + flows.escapedWater;
+  w.total = liquidMass + ice + vapour + fog + film + bubWater + flows.escapedWater;
   const o = out.other;
   o.liquid = otherMass;
   o.escaped = flows.escapedOther;
@@ -164,7 +185,7 @@ export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Fl
 export function emptySnapshot(): BudgetSnapshot {
   return {
     energy: 0, solids: 0, liquid: 0, gas: 0, bubbles: 0, pv: 0, air: 0,
-    water: { liquid: 0, vapour: 0, fog: 0, film: 0, bubbles: 0, escaped: 0, total: 0 },
+    water: { liquid: 0, ice: 0, vapour: 0, fog: 0, film: 0, bubbles: 0, escaped: 0, total: 0 },
     other: { liquid: 0, escaped: 0, total: 0 },
     salt: { liquid: 0, crust: 0, floor: 0, escaped: 0, total: 0 }
   };

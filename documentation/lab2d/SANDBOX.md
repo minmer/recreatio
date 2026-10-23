@@ -1,14 +1,24 @@
 # 2D lab engine — the sandbox plan (more matter, everything falls, melting, salt, baking)
 
-Status (2026-10-23): a design before the code, as ARCHITECTURE.md was. **M2a, M2b, B and M3a are built** (several
-liquids, rapeseed oil; salt solutions with a crust; baked clips; rigid bodies that fall, float, sink and tip —
-MILESTONES.md §M2a, §M2b, §B, §M3a; ARCHITECTURE.md §17); M3b and M3c are not. The user confirmed the order of §13 and decided (2026-10-21):
+Status (2026-10-23): a design before the code, as ARCHITECTURE.md was. **M2a, M2b, B, M3a and M3b are built** (several
+liquids, rapeseed oil; salt solutions with a crust; baked clips; rigid bodies of exact rectangles that fall, float,
+sink and tip; ice that melts and freezes — MILESTONES.md §M2a, §M2b, §B, §M3a, §M3b; ARCHITECTURE.md §17, §18); M3c
+is not. The user confirmed the order of §13 and decided (2026-10-21):
 
 - every object is one whole — a beaker, a plate, an ice cube moves as one piece; for each object the user decides
   whether it is pinned or reacts to gravity;
 - bodies start asleep: nothing is computed for an object until something moves it (beakers in presets rest on their
   plates without cost; pull the plate away and the beaker falls);
 - clips stay in the browser only (no files, nothing attached to pages).
+
+and (2026-10-23):
+
+- **solids are rectangles.** A body is one or a few exact rectangles in its own frame, not a set of grid cells; inside
+  it is stable as a rectangle. It changes shape only when it melts or ice grows on it, and then a whole side moves: a
+  melting ice cube gets smaller and stays a rectangle, and water appears where the ice was. Painted walls (the "Maluj"
+  and "Ścianka" tools) stay grid cells and can still be painted freehand;
+- melting and freezing come together: an ice side next to water colder than its freezing point grows a whole side at
+  a time; salt stays in the water. New ice appearing by itself in cold water (nucleation) comes later.
 
 It extends
 ARCHITECTURE.md §14 ("Designed for, not built": M2 chemistry, M3 solids) with what the user asked for:
@@ -47,7 +57,7 @@ scene; the engine must be built so that new scenes come from new data and new la
 | Gases (air, vapour) | conserved masses and enthalpy on the grid | yes | low-Mach flow is a field |
 | Liquids of any material, with dissolved species | APIC particles: `mat` = the liquid, solute slots = the composition | water only | particles keep sharp interfaces and carry composition without numerical diffusion |
 | Bubbles | objects | yes (steam and air in water) | below or near cell size |
-| Rigid solids: apparatus, ice cubes, wood, stones, metal | **bodies**: a voxel set (material and enthalpy per voxel) plus convex outlines for contacts | no (solids are static cells) | stiff solids cannot be simulated as a continuum at real-time steps; voxels let a body melt, freeze and conduct heat inside |
+| Rigid solids: apparatus, ice cubes, wood, stones, metal | **bodies**: a few exact rectangles in the body's frame (material; energy, film and crust per internal cell) — since 2026-10-23, a voxel set before | yes (M3a, M3b) | stiff solids cannot be simulated as a continuum at real-time steps; internal cells let a body conduct heat inside, and a melting side moves as a whole |
 | Granular solids: salt crystals, sugar, sand | **grain particles** in the particle store (`kind` = grain, size) | no | thousands of grains — too many for rigid bodies, but a granular continuum on particles fits the grid |
 | Dissolved species (salt in water) | composition of liquid particles | slots exist, unused | exact salt mass, no smearing |
 | Fog | field on the grid | yes | microscopic droplets |
@@ -163,9 +173,10 @@ out in minutes instead of never.
 
 ## 6. Rigid bodies: everything falls
 
-- **A body** = a voxel set in its own frame at the grid's Δx (material and enthalpy per voxel, optional heater role)
-  + its pose (x, y, angle), velocities, mass, centre of mass, inertia, and convex outlines for contacts (the convex
-  hull of each part; a beaker is three boxes). Mass properties and outlines are recomputed when voxels melt or freeze.
+- **A body** = one or a few exact rectangles in its own frame (since 2026-10-23; at first it was a voxel set at the
+  grid's Δx) — material, internal cells of about Δx laid exactly into each rectangle with energy, film and crust,
+  optional heater role — + its pose (x, y, angle), velocities, mass, centre of mass, inertia; each rectangle is a box
+  for contacts (a beaker is three). Mass properties and outlines are recomputed when a side melts or grows.
 - **Dynamics**: gravity; fluid forces from the solved liquid and gas pressure (integrated over the body's boundary
   faces) with viscous drag; contacts with walls and other bodies — reusing the physics lab's contact solver
   (`lab/physics/physCollide.ts`: SAT with clipped manifolds, block solver, warm starting, Coulomb friction), which
@@ -174,36 +185,41 @@ out in minutes instead of never.
 - **Pinned or free, per object; asleep at the start.** Each object has the switch "Przypnij" (pinned: fixed in place,
   infinite mass for contacts) or reacts to gravity. A free object starts asleep and wakes when something touches it,
   its support goes, or the fluid force exceeds its rest; asleep it costs nothing.
-- **Rasterisation each step** (moving bodies only): voxels → solid cells with the body's material and the body's
-  velocity at each solid face, so both projections see a moving wall. `phiS`, `sdf`, regions and cavity faces are
-  refreshed in the bounding box of what moved. Thin walls (a beaker wall is one cell at 2 mm) are rasterised
-  conservatively (every touched cell), so a tilted wall cannot open a gap; particles are pushed out along the distance
-  field with the body's velocity.
+- **Into the grid each step** (moving bodies only): each cell gets the share of it the rectangles cover (exact clipping
+  of the rotated rectangles), the share of each face they cover and the body's velocity there; the liquid and the gas
+  projection use those fractions (Batty, Bertails & Bridson 2007), a cell almost full (99 %), cut in two, or half full
+  next to another solid is closed. `phiS`, `sdf`, regions and cavities are refreshed in the box of what moved;
+  particles and bubbles inside a rectangle go back out through the side they came in by.
 - **Fluid coupling**: two-way, partitioned — the body's velocity is the boundary condition of the solves, the
   resulting pressure the force on the body, with an added-mass term for stability. Good for bodies not much lighter
   than the liquid (ice 0.92, wood 0.5–0.6); very light bodies (a ping-pong ball) need the monolithic coupling of
   Batty, Bertails & Bridson 2007 later (noted as a limit).
-- **Heat**: rasterised voxels join the one implicit heat solve as solid cells; the voxel energies go back through
-  the same weights (identical weights both ways), so the budgets close with moving solids.
+- **Heat**: a cell holds the body's share as one more part (capacity, energy, temperature) next to its fluid; the
+  internal cells give and take energy through the same area weights both ways, so the budgets close with moving
+  solids.
 - **Apparatus are bodies.** A beaker in the air falls onto the plate, a pushed beaker of water tips over and spills.
   Heater voxels keep their heater group.
 - **Cavities** (nucleation) live in the body's frame (drawn from a hash of body and local face), so a falling ice
   cube keeps its sites; static set-ups keep today's numbers.
 
-## 7. Melting and freezing
+## 7. Melting and freezing (built: ARCHITECTURE.md §18)
 
 Treated as an interface process, like evaporation at the liquid–gas surface (ARCHITECTURE.md §9), not as a volume
 rule:
 
-- At every face between a meltable solid voxel (ice) and liquid, the interface is at the **freezing point of the
-  local liquid**, T_f(w) — 0 °C in pure water, lower in brine (§5).
+- At every side of an ice body where liquid lies in front, the interface is at the **freezing point of the local
+  liquid**, T_f(w) — 0 °C in pure water (0.0025 °C at 1 atm), lower in brine (§5).
 - After the heat solve, excess sensible heat on either side turns into latent heat, as the flash does for boiling.
-  - A voxel above T_f(w) melts Δm = C (T − T_f)/h_sl; the melt joins the liquid as particles at T_f, with the body's
-    velocity.
-  - Liquid below T_f(w) next to the ice freezes the same way onto that voxel face (a pending mass per face; a new
-    voxel when it is full). Only the solvent freezes: salt stays in the liquid, so freezing brine gets saltier.
-- A voxel whose mass reaches zero is removed; the body's mass, centre and outline follow. A melting ice cube shrinks,
-  keeps floating with about 92 % under water, and turns over when its shape says so.
+  - An internal cell of the ice above T_f of the nearest side that faces fluid gives its excess C (T − T_f) to that
+    side; a side's excesses together move the **whole side** inward by δ = Q/(ρ D Σ s_k [L + c_p (T_f − T_k)]). The
+    melt joins the particles in front of the side (or becomes a particle there) with exactly the slice's energy, its
+    latent offset and Q. The ice stays a rectangle and never warmer than its interface.
+  - Liquid below T_f(w) in front of a side freezes until its released heat brings it to T_f; the side moves outward
+    by the frozen mass over its length. Only the solvent freezes: salt stays in the liquid, so freezing brine gets
+    saltier.
+- A rectangle thinner than 0.05 Δx melts completely; the body's mass, centre and outline follow. A melting ice cube
+  shrinks, keeps floating with about 92 % under water, and turns over when its shape says so; a carved block stays a
+  few rectangles (a wall made of several rectangles' sides moves as one), and splits into bodies if it melts through.
 - What emerges without special code: ice in warm water melts at the energy balance; ice in salty water melts below
   0 °C and drags the brine below 0 °C (a cooling mixture, bounded by the eutectic); salt sprinkled on ice melts it
   (once grains exist, §8).
@@ -335,8 +351,8 @@ costs most of the step and 20 s of compile time).
 | **M2a** Substances and liquids (**built**) | materials v2, per-material particles, oil, liquid viscosity, drifting droplets, palette and presets | two-layer hydrostatics: dp/dy = ρ_oil g and ρ_w g (±2 %); oil poured under water ends on top with layer heights from the volumes (±1 cell); viscous decay of a shear profile, exp(−ν k² t) (±5 %); oil heated to 150 °C without boiling, budgets closed; steam bubbles rise through an oil layer | — |
 | **M2b** Solutions (**built**) | NaCl dissolved: activity model, colligative properties, density, evaporation concentrates, crust | density at 10 and 20 % (±0.3 %); boiling point at 1 and 3 mol/kg (±0.1 K of the data); freezing point at 1 and 3 mol/kg (±0.1 K); salt mass exact over boiling; crust mass = salt mass after drying | M2a |
 | **B** Baking and recording (**built**, baking only) | clip format, bake runner, cache in the browser, playback, resume from keyframe | playback frame-identical to the recording; seeking to within one frame; CPU resume bit-identical to a straight run; measured size per minute (gate set from the measurement) | — (keyframe sections grow with later steps) |
-| **M3a** Bodies (**built**) | voxel bodies, contacts (physics-lab solver), fluid coupling, heat in bodies, apparatus as bodies, pin | floating depth ρ_b/ρ_l for wood and ice (±2 %); a sinking block reaches a drag-law terminal speed (±15 %) and rests without jitter; a stack of two blocks stands; a full beaker tips at its geometric tipping angle (±3°); budgets close with moving solids | M2a |
-| **M3b** Melting and freezing | ice; interface at T_f(w); melt to particles, freeze onto voxels; salt rejection | Stefan melting front against the Neumann solution (±5 %); ice cube in warm water: energy budget closes; brine with ice settles at T_f(w) (±0.2 K) and approaches the eutectic with enough salt; freezing brine keeps all its salt | M3a, M2b |
+| **M3a** Bodies (**built**) | bodies of exact rectangles (voxels until 2026-10-23), contacts (physics-lab solver), fluid coupling through covered fractions, heat in bodies, apparatus as bodies, pin | floating depth ρ_b/ρ_l for wood and ice (±2 %); a sinking block reaches a drag-law terminal speed (±15 %) and rests without jitter; a stack of two blocks stands; a full beaker tips at its geometric tipping angle (±3°); budgets close with moving solids | M2a |
+| **M3b** Melting and freezing (**built**) | ice; interface at T_f(w); a side melts or grows as a whole; melt to particles, freeze from supercooled water; salt rejection | Stefan melting front against the Neumann solution (±5 %); ice cube in warm water: energy budget closes; brine with ice settles at T_f(w) (±0.2 K) and approaches the eutectic with enough salt; freezing brine keeps all its salt | M3a, M2b |
 | **M3c** Grains | grain particles: settling, dry granular flow, dissolution, crystallisation, cavities on grains | angle of repose of salt (±3° of the cited value); settling speed (±10 %); dissolution time against the mass-transfer correlation (±20 %); temperature drop from Δ_solH; salt mass exact through dissolving and crystallising | M2b, M3a |
 | GPU ports | after each step (or two steps at a time) | test 17 extended by each step's tests | the step |
 

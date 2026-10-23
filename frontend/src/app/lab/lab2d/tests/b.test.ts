@@ -81,6 +81,17 @@ const RESUME: Record<string, { scene: () => unknown; warm: number }> = {
         { op: 'body', region: { rect: [0.06, 0.02, 0.07, 0.028] }, material: 'stone', T: 60 }
       ]
     })
+  },
+  /* M3b: ein Eiswürfel schmilzt in warmem Wasser (die Seiten rücken, Schmelzwasser geht in die Teilchen, die Randreihen ordnen sich neu). */
+  ice: {
+    warm: 300,
+    scene: () => scene({
+      box: { w: 0.08, h: 0.06, depth: 0.01 },
+      ops: [
+        { op: 'fill', region: { rect: [0, 0, 0.08, 0.035] }, composition: { H2O: 1 }, phase: 'liquid', T: 50 },
+        { op: 'body', region: { rect: [0.03, 0.025, 0.045, 0.04] }, material: 'ice', T: -5 }
+      ]
+    })
   }
 };
 
@@ -97,7 +108,9 @@ function frameHash(f: FrameBuffers): string {
   eat(f.liquid);
   eat(f.bubbles.subarray(0, 4 * f.nb));
   eat(f.arrows.subarray(0, 4 * (f.nag + f.nal)));
-  eat(new Float64Array([f.nb, f.nag, f.nal, f.scaleLo, f.scaleHi, f.vLiq, f.tintLiquid]));
+  eat(f.quads.subarray(0, 8 * f.nq));
+  eat(f.edges.subarray(0, 4 * f.ne));
+  eat(new Float64Array([f.nb, f.nag, f.nal, f.scaleLo, f.scaleHi, f.vLiq, f.tintLiquid, f.nq, f.ne]));
   return `${a.toString(16)}:${b.toString(16)}`;
 }
 
@@ -235,14 +248,14 @@ describe('B — test 33: going on from a keyframe is the same run', () => {
 });
 
 describe('B — the scenario page (scripts/fixtures/lab2d-scenariusze.json)', () => {
-  it('one lab with the scene and twelve scenarios to choose, one lab that bakes on opening; every scene reads and builds without a warning', () => {
+  it('one lab with the scene and fourteen scenarios to choose, one lab that bakes on opening; every scene reads and builds without a warning', () => {
     const page = scenarios as { modules: { kind: string; config: { scene?: unknown; start?: string; seconds?: string; scenarios?: { title: string; scene: unknown }[] } }[] };
     const labs = page.modules.filter((m) => m.kind === 'lab2d');
     expect(labs.length).toBe(2);
     expect(labs[0].config.start).toBe('button');
     expect(labs[1].config.start).toBe('bake');
     const scenes = [...labs.map((m) => m.config.scene), ...(labs[0].config.scenarios ?? []).map((x) => x.scene)];
-    expect(scenes.length).toBe(14);
+    expect(scenes.length).toBe(16);
     for (const raw of scenes) {
       const { scene: sc, warnings } = readScene(raw);
       expect(warnings).toEqual([]);

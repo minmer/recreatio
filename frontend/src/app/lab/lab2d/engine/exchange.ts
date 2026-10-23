@@ -107,11 +107,11 @@ export class Exchange {
   /* Je Zelle: Σ m c_p, Σ m c_p T, Σ m c_p α (alle Flüssigkeiten); Σ s und Σ m_w (Wasser ohne Salz) der Wasserteilchen;
      die Anteile f für Wärme und Salz in diesem Schritt (fH = 0: die Zelle tauscht nicht); Salz und Enthalpie, die die
      Spender in der Zelle abgeben; Salz und Enthalpie, die die Zelle von ihren Nachbarn bekommt. */
-  private readonly cap: Float64Array;
-  private readonly capT: Float64Array;
+  readonly cap: Float64Array;
+  readonly capT: Float64Array;
   private readonly capA: Float64Array;
-  private readonly salt: Float64Array;
-  private readonly water: Float64Array;
+  readonly salt: Float64Array;
+  readonly water: Float64Array;
   private readonly fH: Float64Array;
   private readonly fS: Float64Array;
   private readonly outS: Float64Array;
@@ -142,7 +142,7 @@ export class Exchange {
 
   step(dt: number): void {
     const { particles: P, grid: g, liquid: L } = this.e;
-    if (P.count === 0) return;
+    if (P.count === 0) { this.cap.fill(0); this.capT.fill(0); this.salt.fill(0); this.water.fill(0); return; }
     if (this.cell.length < P.cap) {
       this.cell = new Int32Array(P.cap);
       this.cpp = new Float64Array(P.cap);
@@ -271,15 +271,16 @@ export class Exchange {
     inH.fill(0);
     const r = dt / (g.dx * g.dx);
     let any = false;
-    const face = (a: number, b: number): void => {
-      if (fH[b] === 0 || !(water[b] > 0)) return;
+    /* Durch den offenen Anteil der Fläche (alpha: eine dünne Wand eines Körpers lässt nichts durch). */
+    const face = (a: number, b: number, alpha: number): void => {
+      if (fH[b] === 0 || !(water[b] > 0) || !(alpha > 0)) return;
       const ba = salt[a] / water[a];
       const bb = salt[b] / water[b];
       if (ba === bb) return;
       const from = ba > bb ? a : b;
       const to = ba > bb ? b : a;
       const D = saltDiffusivity(0.5 * (capT[a] / cap[a] + capT[b] / cap[b]));
-      const m = D * r * Math.min(water[a], water[b]) * Math.abs(ba - bb);
+      const m = (alpha < 1 ? alpha * D : D) * r * Math.min(water[a], water[b]) * Math.abs(ba - bb);
       const h = hSaltIn(capT[from] / cap[from], salt[from] / (salt[from] + water[from]));
       inS[from] -= m;
       inH[from] -= m * h;
@@ -291,8 +292,8 @@ export class Exchange {
       for (let i = 0; i < nx; i += 1) {
         const c = i + j * nx;
         if (fH[c] === 0 || !(water[c] > 0)) continue;
-        if (i + 1 < nx) face(c, c + 1);
-        if (j + 1 < ny) face(c, c + nx);
+        if (i + 1 < nx) face(c, c + 1, g.au[i + 1 + j * (nx + 1)]);
+        if (j + 1 < ny) face(c, c + nx, g.av[c + nx]);
       }
     }
     return any;

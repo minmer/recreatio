@@ -7,7 +7,7 @@
  * nur, was er meldet, und die Knöpfe.
  */
 
-import { useEffect, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 
 import { Icon } from '../../ui/icons';
 import { LabSection } from '../LabFrame';
@@ -31,7 +31,26 @@ function SecondsPicker({ value, onChange, disabled }: { value: number; onChange:
   );
 }
 
-/** Der Anfang: nichts rechnet, bis man startet, backt oder ein Nachweis abspielt. */
+/** Wo das Startfenster steht: Anteile des freien Platzes über der Bühne (0,5 / 0,5: die Mitte), in diesem Browser gemerkt. */
+const CTA_KEY = 'lab2d.cta';
+const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
+function loadCta(): [number, number] {
+  try {
+    const v = JSON.parse(window.localStorage.getItem(CTA_KEY) ?? 'null') as unknown;
+    if (Array.isArray(v) && v.length === 2 && typeof v[0] === 'number' && typeof v[1] === 'number') return [clamp01(v[0]), clamp01(v[1])];
+  } catch { /* ohne Speicher: die Mitte */ }
+  return [0.5, 0.5];
+}
+function saveCta(p: readonly [number, number]): void {
+  try { window.localStorage.setItem(CTA_KEY, JSON.stringify(p)); } catch { /* ohne Speicher gilt die Lage nur jetzt */ }
+}
+
+/**
+ * Der Anfang: nichts rechnet, bis man startet, backt oder ein Nachweis
+ * abspielt. Das Fenster lässt sich verschieben (am Fenster selbst oder am
+ * Griff ziehen, am Griff auch mit den Pfeiltasten) — darunter kann man
+ * weiterbauen.
+ */
 export function StartPanel({ clip, seconds, onSeconds, onLive, onBake, onPlay, canBake }: {
   clip: ClipInfo | null;
   seconds: number;
@@ -41,8 +60,63 @@ export function StartPanel({ clip, seconds, onSeconds, onLive, onBake, onPlay, c
   onPlay: () => void;
   canBake: boolean;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const pos = useRef<[number, number]>([0.5, 0.5]);
+  const grab = useRef<{ dx: number; dy: number } | null>(null);
+  const place = (p: [number, number]): void => {
+    pos.current = p;
+    ref.current?.style.setProperty('--l2d-cta-x', String(p[0]));
+    ref.current?.style.setProperty('--l2d-cta-y', String(p[1]));
+  };
+  useEffect(() => { place(loadCta()); }, []);
+  const onDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
+    e.stopPropagation();
+    const el = ref.current;
+    if (el === null || e.button !== 0 || (e.target as Element).closest('button:not(.l2d-cta-grip), select, input, a') !== null) return;
+    const r = el.getBoundingClientRect();
+    grab.current = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('is-grabbed');
+  };
+  const onMove = (e: ReactPointerEvent<HTMLDivElement>): void => {
+    const g = grab.current;
+    const el = ref.current;
+    const box = el?.parentElement ?? null;
+    if (g === null || el === null || box === null) return;
+    e.stopPropagation();
+    const b = box.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    place([
+      b.width > r.width ? clamp01((e.clientX - g.dx - b.left) / (b.width - r.width)) : 0.5,
+      b.height > r.height ? clamp01((e.clientY - g.dy - b.top) / (b.height - r.height)) : 0.5
+    ]);
+  };
+  const onUp = (e: ReactPointerEvent<HTMLDivElement>): void => {
+    e.stopPropagation();
+    if (grab.current === null) return;
+    grab.current = null;
+    const el = ref.current;
+    el?.classList.remove('is-grabbed');
+    if (el !== null && el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    saveCta(pos.current);
+  };
+  /* Am Griff mit den Pfeiltasten (je ein Zwanzigstel des freien Platzes); Pos1 zurück in die Mitte. */
+  const onKey = (e: ReactKeyboardEvent<HTMLButtonElement>): void => {
+    const [x, y] = pos.current;
+    const k = 0.05;
+    const next: [number, number] | null = e.key === 'ArrowLeft' ? [clamp01(x - k), y]
+      : e.key === 'ArrowRight' ? [clamp01(x + k), y]
+        : e.key === 'ArrowUp' ? [x, clamp01(y - k)]
+          : e.key === 'ArrowDown' ? [x, clamp01(y + k)]
+            : e.key === 'Home' ? [0.5, 0.5] : null;
+    if (next === null) return;
+    e.preventDefault();
+    place(next);
+    saveCta(next);
+  };
   return (
-    <div className="l2d-cta" onPointerDown={keep}>
+    <div ref={ref} className="l2d-cta" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+      <button type="button" className="l2d-cta-grip" aria-label={t('ctaMove')} title={t('ctaMove')} onKeyDown={onKey}><Icon name="dots" /></button>
       <p>{t('ctaLead')}</p>
       <div className="lab-row">
         {clip !== null && (

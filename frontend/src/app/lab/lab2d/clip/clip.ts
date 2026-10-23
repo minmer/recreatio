@@ -5,7 +5,7 @@
  * schwachen Gerät), vor- und zurückspulen und an jeder Stelle live
  * weiterrechnen.
  *
- * Ein Nachweis („recreatio/lab2d-clip“, Fassung 1):
+ * Ein Nachweis („recreatio/lab2d-clip“, Fassung 2; Fassung 1 ohne die Körper als Rechtecke spielt weiter):
  *
  * - der Kopf: die Szene (mit Auflösung und Samen), das Gitter, 30 Bilder je
  *   Sekunde Simulationszeit, die Stücke und Schlüsselbilder, die Proben der
@@ -28,7 +28,8 @@ import { ChunkReader, ChunkWriter, pack, unpack } from './codec';
 import { layoutOf, takeSnapshot, type SnapshotRoot } from './snapshot';
 
 export const CLIP_FORMAT = 'recreatio/lab2d-clip';
-export const CLIP_VERSION = 1;
+/** Fassung 2 (2026-10-23): die Körper als genaue Rechtecke in den Bildern; Fassung 1 lässt sich weiter abspielen. */
+export const CLIP_VERSION = 2;
 /** Bilder je Sekunde Simulationszeit. */
 export const FPS = 30;
 /** Ein Schlüsselbild alle so viele Sekunden. */
@@ -40,7 +41,7 @@ const SAMPLE_EVERY = 0.25;
 
 export interface ClipHeader {
   readonly format: typeof CLIP_FORMAT;
-  readonly version: typeof CLIP_VERSION;
+  readonly version: number;
   readonly key: string;
   readonly scene: Record<string, unknown>;
   readonly quality: Quality;
@@ -263,7 +264,7 @@ export class Player {
     const h = this.header;
     const job = this.load(i)
       .then((bytes) => (bytes === null ? Promise.reject(new Error('missing chunk')) : unpack(bytes)))
-      .then((raw) => { this.ready.set(i, new ChunkReader(raw, h.nx, h.ny, h.dx)); })
+      .then((raw) => { this.ready.set(i, new ChunkReader(raw, h.nx, h.ny, h.dx, h.version)); })
       .catch((e: unknown) => { this.failed = e instanceof Error ? e.message : String(e); })
       .finally(() => { this.pending.delete(i); });
     this.pending.set(i, job);

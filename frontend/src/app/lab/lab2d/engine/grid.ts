@@ -42,13 +42,25 @@ export class Grid {
   readonly phiS: Float32Array;
   /** Vorzeichenbehafteter Abstand zur Feststoffgrenze in der Zellmitte (m): positiv im Fluid. */
   readonly sdf: Float32Array;
-  /** Körper (M3a): Nummer + 1 des Körpers, dem die feste Zelle gehört (0: keinem — ein fester Bau aus „solid“). */
+  /** Körper (bodyCover.ts): Nummer + 1 des Körpers mit dem grössten Anteil an der Zelle (0: keiner — dann ist eine feste Zelle ein Bau aus „solid“). */
   readonly owner: Int16Array;
-  /** Wärmekapazität des Feststoffs einer Zelle, die ein gedrehter oder bewegter Körper füllt (J/K, aus seinen Voxeln; 0: aus dem Werkstoff). */
+  /** Anteil der Zelle, den Körper bedecken (0–1, genau aus ihren Rechtecken); ab CLOSED (oder durchschnitten) ist die Zelle fest. */
+  readonly fs: Float32Array;
+  /** Wärmekapazität der Körperteile einer Zelle (J/K, aus ihren inneren Zellen; 0: keine — eine feste Zelle hat dann die ihres Werkstoffs). */
   readonly capB: Float64Array;
-  /** Geschwindigkeit fester Seitenflächen (m/s): an Zellen bewegter Körper die des Körpers, sonst 0. */
+  /** Werkstoff + 1 des Körpers mit dem grössten Anteil an der Zelle (0: keiner) — für die Wärmeleitung gemischter Zellen. */
+  readonly matB: Uint8Array;
+  /** Temperatur des festen Anteils einer Zelle (K): in festen Zellen gleich T, in Zellen mit Fluid und Körperteil die des Körperteils. */
+  readonly Ts: Float32Array;
+  /** Offener Anteil jeder Seitenfläche (0–1): was kein Körper bedeckt (feste Zellen und Wandseiten zählen nicht hier). */
+  readonly au: Float32Array;
+  readonly av: Float32Array;
+  /** Geschwindigkeit des festen Teils einer Seitenfläche (m/s): die des Körpers, der sie bedeckt, sonst 0. */
   readonly usol: Float32Array;
   readonly vsol: Float32Array;
+  /** Nachbarn hinter einer dünnen Wand je Zelle (updateThin) und ob es überhaupt welche gibt. */
+  readonly thin: Uint16Array;
+  thinAny = false;
 
   /* -- je Schritt -- */
   readonly phi: Float32Array;
@@ -98,9 +110,15 @@ export class Grid {
     this.phiS = new Float32Array(n);
     this.sdf = new Float32Array(n);
     this.owner = new Int16Array(n);
+    this.fs = new Float32Array(n);
     this.capB = new Float64Array(n);
+    this.matB = new Uint8Array(n);
+    this.Ts = new Float32Array(n);
+    this.au = new Float32Array(this.nu).fill(1);
+    this.av = new Float32Array(this.nv).fill(1);
     this.usol = new Float32Array(this.nu);
     this.vsol = new Float32Array(this.nv);
+    this.thin = new Uint16Array(n);
     this.phi = new Float32Array(n);
     this.alpha = new Float32Array(n);
     this.kind = new Uint8Array(n);
@@ -134,6 +152,82 @@ export class Grid {
     return i < 0 || j < 0 || i >= this.nx || j >= this.ny ? -1 : i + j * this.nx;
   }
 
+  /** Offener Anteil der Seite k (0 links, 1 rechts, 2 unten, 3 oben) der Zelle c: 0, wo ein Körper sie ganz deckt (eine dünne Wand quer durch zwei Zellen). */
+  faceOpen(c: number, k: number): number {
+    const i = c % this.nx;
+    const j = (c - i) / this.nx;
+    return k === 0 ? this.au[i + j * (this.nx + 1)] : k === 1 ? this.au[i + 1 + j * (this.nx + 1)] : k === 2 ? this.av[c] : this.av[c + this.nx];
+  }
+
+  /**
+   * Dünne Wände: je Zelle die Nachbarn ihrer 3×3-Umgebung (Bit k = a + 1 + 3 (b + 1)), die eine ganz bedeckte Fläche
+   * von ihr trennt, obwohl beide nicht fest sind (eine Becherwand quer durch zwei Zellen) — über Eck, wenn beide Wege
+   * durch eine nicht feste Zelle so getrennt sind. Teilchen tragen dorthin nichts (liquid.ts), sonst läge das Wasser
+   * innen auch in der Zelle draussen. Ohne solche Flächen bleibt alles 0 (thinAny false). Nach jeder Änderung der Flächen.
+   */
+  updateThin(): void {
+    const { nx, ny, au, av, solid } = this;
+    if (this.thinAny) this.thin.fill(0);
+    this.thinAny = false;
+    /* Jede dünne Fläche (links bzw. unter einer Zelle) betrifft nur die Zellen, in deren Umgebung ihre beiden Seiten liegen. */
+    for (let j = 0; j < ny; j += 1) {
+      for (let i = 0; i < nx; i += 1) {
+        const c = i + j * nx;
+        if (solid[c] !== 0) continue;
+        if (i > 0 && au[i + j * (nx + 1)] <= 0 && solid[c - 1] === 0) this.thinBlock(i - 1, i, j - 1, j + 1);
+        if (j > 0 && av[c] <= 0 && solid[c - nx] === 0) this.thinBlock(i - 1, i + 1, j - 1, j);
+      }
+    }
+  }
+
+  /** Die Masken der Zellen (i0 … i1, j0 … j1) neu. */
+  private thinBlock(i0: number, i1: number, j0: number, j1: number): void {
+    this.thinAny = true;
+    for (let j = Math.max(0, j0); j <= Math.min(this.ny - 1, j1); j += 1) {
+      for (let i = Math.max(0, i0); i <= Math.min(this.nx - 1, i1); i += 1) this.thinCell(i, j);
+    }
+  }
+
+  /** Die Maske einer Zelle: welche nicht festen Nachbarn eine ganz bedeckte Fläche von ihr trennt (über Eck: beide Wege). */
+  private thinCell(i: number, j: number): void {
+    const { nx, ny, au, av, solid } = this;
+    const su = nx + 1;
+    const c = i + j * nx;
+    let m = 0;
+    if (solid[c] === 0) {
+      for (let k = 0; k < 9; k += 1) {
+        const a = (k % 3) - 1;
+        const b = ((k / 3) | 0) - 1;
+        const ii = i + a;
+        const jj = j + b;
+        if (k === 4 || ii < 0 || jj < 0 || ii >= nx || jj >= ny || solid[ii + jj * nx] !== 0) continue;
+        /* Die Fläche zwischen der Zelle und dem Nachbarn in Richtung a (waagrecht) bzw. b (senkrecht). */
+        const fx = (a > 0 ? 1 : 0) + j * su;
+        const fy = (b > 0 ? 1 : 0) * nx;
+        let cut: boolean;
+        if (b === 0) cut = au[i + fx] <= 0;
+        else if (a === 0) cut = av[i + j * nx + fy] <= 0;
+        else {
+          /* Über (ii, j): fest — wie bisher durchlässig; sonst getrennt, wenn eine der beiden Flächen zu ist. Ebenso über (i, jj). */
+          const viaX = solid[ii + j * nx] === 0 && (au[i + fx] <= 0 || av[ii + j * nx + fy] <= 0);
+          const viaY = solid[i + jj * nx] === 0 && (av[i + j * nx + fy] <= 0 || au[i + (a > 0 ? 1 : 0) + jj * su] <= 0);
+          cut = viaX && viaY;
+        }
+        if (cut) m |= 1 << k;
+      }
+    }
+    this.thin[c] = m;
+  }
+
+  /** Die Gewichte w[o … o + 8] eines Teilchens in Zelle (i, j) ohne die Nachbarn hinter einer dünnen Wand (updateThin): ihr Anteil geht an die übrigen. */
+  cutWeights(i: number, j: number, w: Float32Array, o: number): void {
+    const m = i >= 0 && j >= 0 && i < this.nx && j < this.ny ? this.thin[i + j * this.nx] : 0;
+    if (m === 0) return;
+    let sum = 0;
+    for (let k = 0; k < 9; k += 1) { if ((m >> k) & 1) w[o + k] = 0; else sum += w[o + k]; }
+    if (sum > 0) for (let k = 0; k < 9; k += 1) w[o + k] /= sum;
+  }
+
   /** Ob die Nachbarzelle (i, j) — auch ausserhalb — fest ist: Feststoff, oder hinter einer Wandseite. */
   solidAt(i: number, j: number): boolean {
     if (i < 0) return !this.openL;
@@ -141,6 +235,16 @@ export class Grid {
     if (j < 0) return !this.openB;
     if (j >= this.ny) return !this.openT;
     return this.solid[i + j * this.nx] !== 0;
+  }
+
+  /** Fester Anteil der Zelle (i, j) — auch ausserhalb: 1 hinter einer Wandseite, 0 hinter einer offenen; eine feste Zelle 1, sonst der Anteil der Körper. */
+  solidShare(i: number, j: number): number {
+    if (i < 0) return this.openL ? 0 : 1;
+    if (i >= this.nx) return this.openR ? 0 : 1;
+    if (j < 0) return this.openB ? 0 : 1;
+    if (j >= this.ny) return this.openT ? 0 : 1;
+    const c = i + j * this.nx;
+    return this.solid[c] !== 0 ? 1 : this.fs[c];
   }
 
   /**
@@ -155,12 +259,13 @@ export class Grid {
     const J0 = Math.max(0, rj0);
     const I1 = Math.min(nx - 1, ri1);
     const J1 = Math.min(ny - 1, rj1);
+    /* φ_s: die Glättung des festen Anteils über die Nachbarn (feste Zellen und Wandseiten ganz, Zellen mit einem Körperteil mit seinem Anteil fs) — so viel Volumen fehlt den Teilchen dort. */
     for (let j = J0; j <= J1; j += 1) {
       for (let i = I0; i <= I1; i += 1) {
         const c = i + j * nx;
         if (this.solid[c] !== 0) { this.phiS[c] = 1; continue; }
         let s = 0;
-        for (let b = -1; b <= 1; b += 1) for (let a = -1; a <= 1; a += 1) if ((a !== 0 || b !== 0) && this.solidAt(i + a, j + b)) s += K1[a + 1] * K1[b + 1];
+        for (let b = -1; b <= 1; b += 1) for (let a = -1; a <= 1; a += 1) s += K1[a + 1] * K1[b + 1] * this.solidShare(i + a, j + b);
         this.phiS[c] = s;
       }
     }

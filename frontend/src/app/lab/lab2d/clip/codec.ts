@@ -16,14 +16,20 @@
  * Sekunde) — dazwischen gilt das letzte. Das halbiert einen Nachweis
  * (MILESTONES.md §B).
  *
- *   u32 Bilder F · je Bild: u32 Blasen, f64 t, pmax, vmax, vGas, vLiq ·
+ *   u32 Bilder F · je Bild: u32 Blasen, f64 t, pmax, vmax, vGas, vLiq,
+ *   (ab Fassung 2) u32 Vierecke, u32 Rechtecke der Körper ·
  *   je Ebene: ihre Einträge (der erste roh, dann Unterschiede) ·
- *   je Bild: die Blasen (je 8 Bytes, roh)
+ *   je Bild: die Blasen (je 8 Bytes, roh) ·
+ *   (ab Fassung 2) je Bild die Vierecke der Körper (je 16 Bytes), dann je
+ *   Bild ihre Rechtecke (je 10 Bytes) — als Unterschied zum vorigen Bild,
+ *   wenn es gleich viele sind, sonst roh.
  */
 
-import { allocLayers, arrowPoints, type Layers } from '../render/layers';
+import { allocLayers, arrowPoints, QUAD, RECT, type Layers } from '../render/layers';
 
-const HEAD_BYTES = 44;
+/** Bytes je Bild im Kopf: Fassung 1 (ohne Körper) und ab Fassung 2. */
+const HEAD_V1 = 44;
+const HEAD_BYTES = 52;
 /** Jedes wievielte Bild die Ebenen der Einblendungen trägt. */
 export const OVERLAY_EVERY = 3;
 
@@ -68,8 +74,10 @@ export class ChunkWriter {
   private readonly planes: Plane[];
   /** Je Ebene ihre Einträge (Kopien). */
   private readonly entries: Uint8Array[][];
-  private readonly heads: { nb: number; t: number; pmax: number; vmax: number; vGas: number; vLiq: number }[] = [];
+  private readonly heads: { nb: number; t: number; pmax: number; vmax: number; vGas: number; vLiq: number; nq: number; nr: number }[] = [];
   private readonly bubbles: Uint8Array[] = [];
+  private readonly quads: Uint8Array[] = [];
+  private readonly rects: Uint8Array[] = [];
 
   constructor(nx: number, ny: number, dx: number) {
     this.planes = planes(nx, ny, dx);
@@ -86,8 +94,10 @@ export class ChunkWriter {
       p.get(L, out);
       this.entries[j].push(out);
     });
-    this.heads.push({ nb: L.nb, t: L.t, pmax: L.pmax, vmax: L.vmax, vGas: L.vGas, vLiq: L.vLiq });
+    this.heads.push({ nb: L.nb, t: L.t, pmax: L.pmax, vmax: L.vmax, vGas: L.vGas, vLiq: L.vLiq, nq: L.nq, nr: L.nr });
     this.bubbles.push(bytesOf(L.bubbles).slice(0, 8 * L.nb));
+    this.quads.push(bytesOf(L.quads).slice(0, 2 * QUAD * L.nq));
+    this.rects.push(bytesOf(L.rects).slice(0, 2 * RECT * L.nr));
   }
 
   /** Die Bytes des Stücks (ungepackt). */
@@ -96,6 +106,8 @@ export class ChunkWriter {
     let total = 4 + HEAD_BYTES * F;
     for (const list of this.entries) for (const e of list) total += e.length;
     for (const b of this.bubbles) total += b.length;
+    for (const b of this.quads) total += b.length;
+    for (const b of this.rects) total += b.length;
     const out = new Uint8Array(total);
     const dv = new DataView(out.buffer);
     dv.setUint32(0, F, true);
@@ -107,6 +119,8 @@ export class ChunkWriter {
       dv.setFloat64(o + 20, h.vmax, true);
       dv.setFloat64(o + 28, h.vGas, true);
       dv.setFloat64(o + 36, h.vLiq, true);
+      dv.setUint32(o + 44, h.nq, true);
+      dv.setUint32(o + 48, h.nr, true);
       o += HEAD_BYTES;
     }
     for (const list of this.entries) {
@@ -120,7 +134,42 @@ export class ChunkWriter {
       });
     }
     for (const b of this.bubbles) { out.set(b, o); o += b.length; }
+    /* Die Körper: ändert sich die Zahl nicht, der Unterschied zum vorigen Bild (ein angehefteter Körper wird Null). */
+    for (const list of [this.quads, this.rects]) {
+      list.forEach((cur, k) => {
+        const prev = k > 0 ? list[k - 1] : null;
+        if (prev !== null && prev.length === cur.length) for (let i = 0; i < cur.length; i += 1) out[o + i] = (cur[i] - prev[i]) & 255;
+        else out.set(cur, o);
+        o += cur.length;
+      });
+    }
     return out;
+  }
+}
+
+/** Ein Block je Bild (Vierecke oder Rechtecke der Körper): bei gleicher Grösse wie im Bild davor ein Unterschied, sonst roh. */
+class BlockSeq {
+  private at = -1;
+  private buf = new Uint8Array(0);
+
+  constructor(private readonly bytes: Uint8Array, private readonly start: number[], private readonly size: number[]) {}
+
+  /** Der Block von Bild k (eine Ansicht in einen wiederverwendeten Puffer). */
+  get(k: number): Uint8Array {
+    const { bytes, start, size } = this;
+    let r = k;
+    while (r > 0 && size[r - 1] === size[r]) r -= 1;
+    if (this.at < r || this.at > k || this.buf.length < size[k]) {
+      if (this.buf.length < size[k]) this.buf = new Uint8Array(Math.max(size[k], 2 * this.buf.length));
+      this.buf.set(bytes.subarray(start[r], start[r] + size[r]));
+      this.at = r;
+    }
+    while (this.at < k) {
+      this.at += 1;
+      const o = start[this.at];
+      for (let i = 0; i < size[k]; i += 1) this.buf[i] = (this.buf[i] + bytes[o + i]) & 255;
+    }
+    return this.buf.subarray(0, size[k]);
   }
 }
 
@@ -134,19 +183,34 @@ export class ChunkReader {
   private readonly cur: Uint8Array[];
   private readonly at: number[];
   private readonly bubbleAt: number[] = [];
+  /** Bytes je Bild im Kopf (Fassung 1 ohne Körper). */
+  private readonly head: number;
+  private readonly quadSeq: BlockSeq | null = null;
+  private readonly rectSeq: BlockSeq | null = null;
 
-  constructor(bytes: Uint8Array, nx: number, ny: number, dx: number) {
+  constructor(bytes: Uint8Array, nx: number, ny: number, dx: number, version = 2) {
     this.bytes = bytes;
+    this.head = version >= 2 ? HEAD_BYTES : HEAD_V1;
     this.planes = planes(nx, ny, dx);
     this.cur = this.planes.map((p) => new Uint8Array(p.size));
     this.at = this.planes.map(() => -1);
     const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     this.frames = dv.getUint32(0, true);
-    let o = 4 + HEAD_BYTES * this.frames;
+    let o = 4 + this.head * this.frames;
     for (const p of this.planes) { this.planeAt.push(o); o += p.size * Math.ceil(this.frames / p.every); }
     for (let k = 0; k < this.frames; k += 1) {
       this.bubbleAt.push(o);
-      o += 8 * dv.getUint32(4 + HEAD_BYTES * k, true);
+      o += 8 * dv.getUint32(4 + this.head * k, true);
+    }
+    if (this.head === HEAD_BYTES) {
+      const qs: number[] = [];
+      const qz: number[] = [];
+      for (let k = 0; k < this.frames; k += 1) { qs.push(o); qz.push(2 * QUAD * dv.getUint32(4 + this.head * k + 44, true)); o += qz[k]; }
+      const rs: number[] = [];
+      const rz: number[] = [];
+      for (let k = 0; k < this.frames; k += 1) { rs.push(o); rz.push(2 * RECT * dv.getUint32(4 + this.head * k + 48, true)); o += rz[k]; }
+      this.quadSeq = new BlockSeq(bytes, qs, qz);
+      this.rectSeq = new BlockSeq(bytes, rs, rz);
     }
   }
 
@@ -154,7 +218,7 @@ export class ChunkReader {
   read(k: number, L: Layers): Layers {
     const { bytes } = this;
     const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const h = 4 + HEAD_BYTES * k;
+    const h = 4 + this.head * k;
     const nb = dv.getUint32(h, true);
     let target = L;
     if (target.bubbles.length < 4 * nb) {
@@ -179,7 +243,7 @@ export class ChunkReader {
       p.set(target, cur);
     });
     /* Die Skalen der Einblendungen gehören zum Bild, das ihre Ebenen trägt. */
-    const ho = 4 + HEAD_BYTES * (OVERLAY_EVERY * Math.floor(k / OVERLAY_EVERY));
+    const ho = 4 + this.head * (OVERLAY_EVERY * Math.floor(k / OVERLAY_EVERY));
     target.t = dv.getFloat64(h + 4, true);
     target.pmax = dv.getFloat64(ho + 12, true);
     target.vmax = dv.getFloat64(ho + 20, true);
@@ -187,6 +251,19 @@ export class ChunkReader {
     target.vLiq = dv.getFloat64(ho + 36, true);
     target.nb = nb;
     bytesOf(target.bubbles).set(bytes.subarray(this.bubbleAt[k], this.bubbleAt[k] + 8 * nb));
+    /* Die Körper (Fassung 1: keine — dort zeichnete die Zelltextur sie). */
+    target.nq = 0;
+    target.nr = 0;
+    if (this.quadSeq !== null && this.rectSeq !== null) {
+      const q = this.quadSeq.get(k);
+      const r = this.rectSeq.get(k);
+      if (target.quads.length * 2 < q.length) target.quads = new Uint16Array(Math.ceil((q.length / 2) * 1.25) + QUAD * 16);
+      if (target.rects.length * 2 < r.length) target.rects = new Uint16Array(Math.ceil((r.length / 2) * 1.25) + RECT * 4);
+      bytesOf(target.quads).set(q);
+      bytesOf(target.rects).set(r);
+      target.nq = q.length / (2 * QUAD);
+      target.nr = r.length / (2 * RECT);
+    }
     return target;
   }
 }

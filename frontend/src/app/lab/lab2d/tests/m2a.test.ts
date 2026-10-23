@@ -238,8 +238,10 @@ describe('M2a — test 22: steam bubbles through an oil layer', () => {
     }));
     const m0 = oilMass(e);
     const water0 = e.measureBudget().water.total;
-    while (e.time < 4) e.step();
     const bm = e.bubbleModel;
+    /* Bis die erste Blase an der Oberfläche des Öls platzt (nach gut 4 s; seit 2026-10-23 platzen keine mehr an der Aussenseite des
+       Zlewka-Fusses — dort war eine halb bedeckte Zelle neben der Platte offen, heute ist sie fest). */
+    while (e.time < 6 && bm.burst === 0) e.step();
     /* Where the oil is: its particles stay above the water (oil mean height above the water mean height). */
     const P = e.particles;
     let yo = 0, mo = 0, yw = 0, mw = 0;
@@ -248,7 +250,7 @@ describe('M2a — test 22: steam bubbles through an oil layer', () => {
     }
     const energy = e.energyError();
     const water = e.waterError();
-    console.log(`test 22: nucleated ${bm.nucleated}, burst ${bm.burst}, collapsed ${bm.collapsed}, oil centre ${(1000 * yo / mo).toFixed(1)} mm, water centre ${(1000 * yw / mw).toFixed(1)} mm, oil mass error ${e.otherError().toExponential(2)} kg, water error ${water.toExponential(2)} kg of ${water0.toExponential(3)}, energy error ${energy.toExponential(2)} J`);
+    console.log(`test 22: first burst after ${e.time.toFixed(2)} s, nucleated ${bm.nucleated}, burst ${bm.burst}, collapsed ${bm.collapsed}, oil centre ${(1000 * yo / mo).toFixed(1)} mm, water centre ${(1000 * yw / mw).toFixed(1)} mm, oil mass error ${e.otherError().toExponential(2)} kg, water error ${water.toExponential(2)} kg of ${water0.toExponential(3)}, energy error ${energy.toExponential(2)} J`);
     expect(bm.nucleated).toBeGreaterThan(0);
     expect(bm.burst).toBeGreaterThan(0);
     expect(yo / mo).toBeGreaterThan(yw / mw);

@@ -22,7 +22,6 @@
 import { collide, Contact, prestep, solve, warm, type Collider } from '../../physics/physCollide';
 import type { PolyShape, Shape } from '../../physics/physShapes';
 import type { Body2D } from './body';
-import { SHAPE_DISC } from './body';
 import type { Grid } from './grid';
 import { SOLIDS } from './materials';
 
@@ -56,7 +55,7 @@ class Part implements Collider {
   invM = 0;
   invI = 0;
 
-  constructor(readonly id: number, readonly body: Body2D | null, readonly shape: Shape, readonly material: { readonly friction: number; readonly bounce: number }) {
+  constructor(readonly id: number, readonly body: Body2D | null, public shape: Shape, readonly material: { readonly friction: number; readonly bounce: number }) {
     const n = shape.kind === 'poly' ? shape.n : 0;
     this.wx = new Float64Array(n);
     this.wy = new Float64Array(n);
@@ -121,8 +120,24 @@ export class BodyContacts {
 
   constructor(private readonly grid: () => Grid) {}
 
-  /** Teile neu bauen (nach einer Änderung der Körper, ihrer Voxel oder des Baus). */
+  /** Teile neu bauen (nach einer Änderung der Körper oder des Baus). */
   invalidate(): void { this.builtFor = -1; }
+
+  /**
+   * Die Teile eines Körpers an seine neuen Rechtecke (Schmelzen, Anfrieren:
+   * gleiche Zahl) — an Ort und Stelle, die Berührungen behalten ihren
+   * Warmstart; hat sich die Zahl geändert, alles neu.
+   */
+  reshape(b: Body2D): void {
+    if (this.builtFor < 0) return;
+    const own = this.byBody[b.index];
+    if (own === undefined || own.length !== b.nr) { this.invalidate(); return; }
+    for (let r = 0; r < b.nr; r += 1) {
+      const [x0, y0, x1, y1] = b.bounds(r);
+      own[r].shape = boxShape(x0, y0, x1, y1);
+      own[r].update();
+    }
+  }
 
   private build(bodies: readonly Body2D[], version: number): void {
     const g = this.grid();
@@ -159,15 +174,15 @@ export class BodyContacts {
       }
       open = next;
     }
-    /* Die Körper: ein Teil je Rechteck (oder der Kreis einer Scheibe), relativ zum Schwerpunkt. */
+    /* Die Körper: ein Teil je Rechteck, relativ zum Schwerpunkt. */
     this.byBody = bodies.map(() => []);
     for (const b of bodies) {
       if (b.gone) continue;
-      const mat = this.bodyMaterial(b);
-      for (let k = 0; k < b.np; k += 1) {
-        const shape: Shape = b.shape === SHAPE_DISC ? { kind: 'circle', r: b.radius }
-          : boxShape(b.parts[4 * k], b.parts[4 * k + 1], b.parts[4 * k + 2], b.parts[4 * k + 3]);
-        const p = new Part(100000 + b.index * 1000 + k, b, shape, mat);
+      const mat = this.solidMaterial(b.mat + 1);
+      for (let r = 0; r < b.nr; r += 1) {
+        const [x0, y0, x1, y1] = b.bounds(r);
+        const shape: Shape = boxShape(x0, y0, x1, y1);
+        const p = new Part(100000 + b.index * 1000 + r, b, shape, mat);
         parts.push(p);
         this.byBody[b.index].push(p);
       }
@@ -175,16 +190,6 @@ export class BodyContacts {
     for (const p of parts) p.update();
     this.parts = parts;
     this.builtFor = version;
-  }
-
-  /** Reibung und Rückprall eines Körpers: die seines häufigsten Werkstoffs. */
-  private bodyMaterial(b: Body2D): { friction: number; bounce: number } {
-    const count = new Map<number, number>();
-    for (let k = 0; k < b.nv; k += 1) count.set(b.mat[k], (count.get(b.mat[k]) ?? 0) + 1);
-    let best = b.mat[0];
-    let most = -1;
-    for (const [m, c] of count) if (c > most) { most = c; best = m; }
-    return this.solidMaterial(best + 1);
   }
 
   private solidMaterial(solidPlus1: number): { friction: number; bounce: number } {

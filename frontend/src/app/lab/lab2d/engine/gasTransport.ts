@@ -131,7 +131,8 @@ export class GasTransport {
           for (let q = 0; q < Q; q += 1) fu[q * nu + f] = 0;
           continue;
         }
-        const vol = u * A * h;
+        /* Durch den offenen Teil der Fläche (ein Körper bedeckt den Rest). */
+        const vol = g.au[f] < 1 ? u * A * h * g.au[f] : u * A * h;
         if (i === 0 || i === nx) {
           /* Offene Seite: Zufluss bringt Umgebungsluft, Abfluss trägt die Zelle hinaus. */
           const c = i === 0 ? row : row + nx - 1;
@@ -175,7 +176,7 @@ export class GasTransport {
           for (let q = 0; q < Q; q += 1) fv[q * nv + f] = 0;
           continue;
         }
-        const vol = v * A * h;
+        const vol = g.av[f] < 1 ? v * A * h * g.av[f] : v * A * h;
         if (j === 0 || j === ny) {
           const c = j === 0 ? i : i + (ny - 1) * nx;
           const inflow = j === 0 ? v > 0 : v < 0;

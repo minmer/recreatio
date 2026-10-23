@@ -27,8 +27,8 @@ try {
     if (p === undefined) throw new Error(`preset ${key}`);
     return p;
   };
-  /* Die Reihenfolge der Wahl: vom Erwärmen über das Sieden zu Öl, Salz und Nebel, dann Körper (M3a). */
-  const order = ['zlewka-na-plycie', 'konwekcja', 'wrzenie', 'szybkowar', 'wysoka-gora', 'woda-pod-olejem', 'olej-i-woda', 'solanka-wrze-pozniej', 'solanka-pod-woda', 'odparowanie-solanki', 'mgla', 'co-plywa', 'przewrocona-zlewka'];
+  /* Die Reihenfolge der Wahl: vom Erwärmen über das Sieden zu Öl, Salz und Nebel, dann Körper (M3a) und Eis (M3b). */
+  const order = ['zlewka-na-plycie', 'konwekcja', 'wrzenie', 'szybkowar', 'wysoka-gora', 'woda-pod-olejem', 'olej-i-woda', 'solanka-wrze-pozniej', 'solanka-pod-woda', 'odparowanie-solanki', 'mgla', 'co-plywa', 'lod-w-wodzie', 'lod-z-sola', 'przewrocona-zlewka'];
   const [first, ...rest] = order.map(preset);
   const scenario = (p) => ({ title: p.title, text: p.text, scene: p.scene });
   const boiling = preset('wrzenie');

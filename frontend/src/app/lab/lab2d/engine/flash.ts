@@ -36,7 +36,9 @@ export function flashStep(e: Engine, ph: Phase, dt: number): void {
     const i = c % nx;
     const j = (c - i) / nx;
     const up = j + 1 < ny ? c + nx : -1;
-    const surface = (up >= 0 && kind[up] === GAS) || (i > 0 && kind[c - 1] === GAS) || (i < nx - 1 && kind[c + 1] === GAS) || (j > 0 && kind[c - nx] === GAS);
+    /* Nur durch offene Flächen: hinter einer dünnen Wand eines Körpers liegt keine Oberfläche. */
+    const surface = (up >= 0 && kind[up] === GAS && g.faceOpen(c, 3) > 0) || (i > 0 && kind[c - 1] === GAS && g.faceOpen(c, 0) > 0)
+      || (i < nx - 1 && kind[c + 1] === GAS && g.faceOpen(c, 1) > 0) || (j > 0 && kind[c - nx] === GAS && g.faceOpen(c, 2) > 0);
     if (!surface) continue;
     const Tsat = ph.boilingAt(c, R.pAt(c));
     if (Tl[c] > Tsat) { ts[c] = Tsat; any = true; }
@@ -114,16 +116,16 @@ export function flashStep(e: Engine, ph: Phase, dt: number): void {
     const i = c % nx;
     const j = (c - i) / nx;
     let targets = 0;
-    const up = kind[c] === GAS ? c : j + 1 < ny && kind[c + nx] === GAS ? c + nx : -1;
+    const up = kind[c] === GAS ? c : j + 1 < ny && kind[c + nx] === GAS && g.faceOpen(c, 3) > 0 ? c + nx : -1;
     if (up >= 0) {
       g.mg[H2O * n + up] += vap[c];
       g.Hg[up] += vapH[c];
       gas.deriveCell(up);
     } else {
       const nbs = ph.side;
-      nbs[0] = i > 0 && kind[c - 1] === GAS ? c - 1 : -1;
-      nbs[1] = i < nx - 1 && kind[c + 1] === GAS ? c + 1 : -1;
-      nbs[2] = j > 0 && kind[c - nx] === GAS ? c - nx : -1;
+      nbs[0] = i > 0 && kind[c - 1] === GAS && g.faceOpen(c, 0) > 0 ? c - 1 : -1;
+      nbs[1] = i < nx - 1 && kind[c + 1] === GAS && g.faceOpen(c, 1) > 0 ? c + 1 : -1;
+      nbs[2] = j > 0 && kind[c - nx] === GAS && g.faceOpen(c, 2) > 0 ? c - nx : -1;
       nbs[3] = -1;
       for (let k = 0; k < 3; k += 1) if (nbs[k] >= 0) targets += 1;
       for (let k = 0; k < 3; k += 1) {

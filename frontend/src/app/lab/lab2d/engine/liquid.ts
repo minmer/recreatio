@@ -47,6 +47,12 @@ const EMPTY = 1e-9;
 /** Die Oberfläche rückt höchstens so nah an die Mitte einer Flüssigkeitszelle (Anteil des Abstands der Mitten) — sonst würde das System steif und das Rauschen von φ verstärkt. */
 export const THETA_MIN = 0.1;
 
+/** Volumenfluss einer Fläche (je Δx·D): eine feste ihr Randwert; offen zum Anteil a mit dem Wasser, der von einem Körper bedeckte Rest mit ihm. */
+function flux(u: Float32Array, us: Float32Array, f: number, a: number, known: Uint8Array): number {
+  if (known[f] === 2 || a >= 1) return u[f];
+  return a * u[f] + (1 - a) * us[f];
+}
+
 /** Gewichte des quadratischen B-Splines für eine Koordinate s (in Zellen, Knoten bei ganzen Zahlen): Basis i0 und drei Gewichte. */
 function bspline(s: number, w: Float64Array, o: number): number {
   const i0 = Math.floor(s - 0.5);
@@ -152,11 +158,14 @@ export class Liquid {
   computeWeights(): void {
     const { P, g, w, bi, bj, wr } = this;
     const inv = 1 / g.dx;
+    g.updateThin();
     for (let p = 0; p < P.count; p += 1) {
       bi[p] = bspline(P.x[p] * inv - 0.5, w, 0);
       bj[p] = bspline(P.y[p] * inv - 0.5, w, 3);
       const o = 9 * p;
       for (let b = 0; b < 3; b += 1) for (let a = 0; a < 3; a += 1) wr[o + a + 3 * b] = w[a] * w[3 + b];
+      /* Nichts hinter eine dünne Wand (die Mitte der Umgebung ist die Zelle des Teilchens). */
+      if (g.thinAny) g.cutWeights(bi[p] + 1, bj[p] + 1, wr, o);
     }
     this.weightsDirty = false;
   }
@@ -222,18 +231,15 @@ export class Liquid {
     bi[p] = bspline(P.x[p] * inv - 0.5, w, 0);
     bj[p] = bspline(P.y[p] * inv - 0.5, w, 3);
     const o = 9 * p;
+    for (let b = 0; b < 3; b += 1) for (let a = 0; a < 3; a += 1) wr[o + a + 3 * b] = w[a] * w[3 + b];
+    if (g.thinAny) g.cutWeights(bi[p] + 1, bj[p] + 1, wr, o);
     let sum = 0;
-    for (let b = 0; b < 3; b += 1) {
-      for (let a = 0; a < 3; a += 1) {
-        const k = a + 3 * b;
-        const v = w[a] * w[3 + b];
-        wr[o + k] = v;
-        const i = bi[p] + a;
-        const j = bj[p] + b;
-        const ok = i >= 0 && j >= 0 && i < nx && j < ny && kind[i + j * nx] === LIQUID;
-        wt[o + k] = ok ? v : 0;
-        if (ok) sum += v;
-      }
+    for (let k = 0; k < 9; k += 1) {
+      const i = bi[p] + (k % 3);
+      const j = bj[p] + ((k / 3) | 0);
+      const ok = i >= 0 && j >= 0 && i < nx && j < ny && kind[i + j * nx] === LIQUID;
+      wt[o + k] = ok ? wr[o + k] : 0;
+      if (ok) sum += wr[o + k];
     }
     if (sum > 0) { for (let k = 0; k < 9; k += 1) wt[o + k] /= sum; }
     else { for (let k = 0; k < 9; k += 1) wt[o + k] = 0; wt[o + 4] = 1; }
@@ -285,8 +291,8 @@ export class Liquid {
       if (!isLiquid && prev !== null && prev[c] !== GAS && prev[c] !== SOLID) {
         const i = c % nx;
         const j = (c - i) / nx;
-        const gasNear = (i > 0 ? prev[c - 1] === GAS : g.openL) || (i < nx - 1 ? prev[c + 1] === GAS : g.openR)
-          || (j > 0 ? prev[c - nx] === GAS : g.openB) || (j < ny - 1 ? prev[c + nx] === GAS : g.openT);
+        const gasNear = (i > 0 ? prev[c - 1] === GAS && g.faceOpen(c, 0) > 0 : g.openL) || (i < nx - 1 ? prev[c + 1] === GAS && g.faceOpen(c, 1) > 0 : g.openR)
+          || (j > 0 ? prev[c - nx] === GAS && g.faceOpen(c, 2) > 0 : g.openB) || (j < ny - 1 ? prev[c + nx] === GAS && g.faceOpen(c, 3) > 0 : g.openT);
         if (!gasNear) isLiquid = true;
       }
       g.kind[c] = isLiquid ? LIQUID : GAS;
@@ -455,8 +461,8 @@ export class Liquid {
         const r = i < nx ? kind[i + j * nx] : -1;
         const wallL = i === 0 && !g.openL;
         const wallR = i === nx && !g.openR;
-        /* Fest: die Wand der Kiste ruht, ein bewegter Körper gibt seine Geschwindigkeit an der Fläche (grid.usol, M3a). */
-        if (wallL || wallR || l === SOLID || r === SOLID) { ul[f] = wallL || wallR ? 0 : g.usol[f]; knownU[f] = 2; continue; }
+        /* Fest: die Wand der Kiste ruht, ein Körper gibt seine Geschwindigkeit an der Fläche (grid.usol) — auch eine Fläche, die er ganz bedeckt, zwischen zwei Zellen mit Fluid. */
+        if (wallL || wallR || l === SOLID || r === SOLID || g.au[f] <= 0) { ul[f] = wallL || wallR ? 0 : g.usol[f]; knownU[f] = 2; continue; }
         knownU[f] = l === LIQUID || r === LIQUID ? 1 : 0;
       }
     }
@@ -467,7 +473,7 @@ export class Liquid {
         const t = j < ny ? kind[i + j * nx] : -1;
         const wallB = j === 0 && !g.openB;
         const wallT = j === ny && !g.openT;
-        if (wallB || wallT || b === SOLID || t === SOLID) { vl[f] = wallB || wallT ? 0 : g.vsol[f]; knownV[f] = 2; continue; }
+        if (wallB || wallT || b === SOLID || t === SOLID || g.av[f] <= 0) { vl[f] = wallB || wallT ? 0 : g.vsol[f]; knownV[f] = 2; continue; }
         knownV[f] = b === LIQUID || t === LIQUID ? 1 : 0;
       }
     }
@@ -510,7 +516,13 @@ export class Liquid {
           sys.x[s] = g.pl[c];
           const fl = i + j * nxu;
           const fb = i + j * nx;
-          const div = ul[fl + 1] - ul[fl] + vl[fb + nx] - vl[fb];
+          /* Fluss je Fläche: der offene Teil mit dem Wasser, der von einem Körper bedeckte mit dem Körper (Batty et al. 2007). */
+          const aR = knownU[fl + 1] === 2 ? 0 : g.au[fl + 1];
+          const aL = knownU[fl] === 2 ? 0 : g.au[fl];
+          const aT = knownV[fb + nx] === 2 ? 0 : g.av[fb + nx];
+          const aB = knownV[fb] === 2 ? 0 : g.av[fb];
+          const div = flux(ul, g.usol, fl + 1, aR, knownU) - flux(ul, g.usol, fl, aL, knownU)
+            + flux(vl, g.vsol, fb + nx, aT, knownV) - flux(vl, g.vsol, fb, aB, knownV);
           /* Quelle: Volumenänderungen (m³/s je Zelle) plus Driftausgleich. */
           const phiTot = g.phi[c] + g.phiS[c] + g.alpha[c];
           let src = (this.volSrc[c] * invV);
@@ -518,28 +530,28 @@ export class Liquid {
           const err = phiTot - 1;
           if (err > 0 || !surface) src += (DRIFT_GAIN * err) / dt;
           let b = src * dx * dx - dx * div;
-          /* Rechts. */
+          /* Rechts (mit dem offenen Anteil der Fläche: was ein Körper bedeckt, koppelt nicht). */
           if (i + 1 < nx) {
             const k = kind[c + 1];
-            if (k === LIQUID) { if (i + 1 <= i1) sys.ax[s] = a; }
-            else if (k === GAS) { const q = a / this.theta(c, c + 1); sys.dDx[s] += q; b += q * pGas[c + 1]; }
-          } else if (g.openR) { sys.dDx[s] += 2 * a; }
+            if (k === LIQUID) { if (i + 1 <= i1 && aR > 0) sys.ax[s] = aR < 1 ? a * aR : a; }
+            else if (k === GAS && aR > 0) { const q = (aR < 1 ? a * aR : a) / this.theta(c, c + 1); sys.dDx[s] += q; b += q * pGas[c + 1]; }
+          } else if (g.openR && aR > 0) { sys.dDx[s] += aR < 1 ? 2 * a * aR : 2 * a; }
           /* Links (die Kopplung zu einer flüssigen Nachbarzelle steht bei ihr). */
           if (i > 0) {
             const k = kind[c - 1];
-            if (k === GAS) { const q = a / this.theta(c, c - 1); sys.dDx[s] += q; b += q * pGas[c - 1]; }
-          } else if (g.openL) { sys.dDx[s] += 2 * a; }
+            if (k === GAS && aL > 0) { const q = (aL < 1 ? a * aL : a) / this.theta(c, c - 1); sys.dDx[s] += q; b += q * pGas[c - 1]; }
+          } else if (g.openL && aL > 0) { sys.dDx[s] += aL < 1 ? 2 * a * aL : 2 * a; }
           /* Oben. */
           if (j + 1 < ny) {
             const k = kind[c + nx];
-            if (k === LIQUID) { if (j + 1 <= j1) sys.ay[s] = a; }
-            else if (k === GAS) { const q = a / this.theta(c, c + nx); sys.dDy[s] += q; b += q * pGas[c + nx]; }
-          } else if (g.openT) { sys.dDy[s] += 2 * a; }
+            if (k === LIQUID) { if (j + 1 <= j1 && aT > 0) sys.ay[s] = aT < 1 ? a * aT : a; }
+            else if (k === GAS && aT > 0) { const q = (aT < 1 ? a * aT : a) / this.theta(c, c + nx); sys.dDy[s] += q; b += q * pGas[c + nx]; }
+          } else if (g.openT && aT > 0) { sys.dDy[s] += aT < 1 ? 2 * a * aT : 2 * a; }
           /* Unten. */
           if (j > 0) {
             const k = kind[c - nx];
-            if (k === GAS) { const q = a / this.theta(c, c - nx); sys.dDy[s] += q; b += q * pGas[c - nx]; }
-          } else if (g.openB) { sys.dDy[s] += 2 * a; }
+            if (k === GAS && aB > 0) { const q = (aB < 1 ? a * aB : a) / this.theta(c, c - nx); sys.dDy[s] += q; b += q * pGas[c - nx]; }
+          } else if (g.openB && aB > 0) { sys.dDy[s] += aB < 1 ? 2 * a * aB : 2 * a; }
           sys.b[s] = b;
         }
       }

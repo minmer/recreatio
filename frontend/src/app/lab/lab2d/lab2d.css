@@ -75,13 +75,19 @@
 .l2d-file { display: none; }
 
 /* B — der Anfang (das Labor wartet), das Backen, die Leiste der Wiedergabe: über der Bühne, ohne in die Kiste zu malen. Backen und Wiedergabe oben: unten stehen Platten und Zlewki. */
+/* Das Startfenster steht, wo man es hinzieht: --l2d-cta-x/y sind Anteile des freien Platzes (0,5: Mitte), so bleibt es beim Ändern der Grösse in der Bühne. */
 .l2d-cta {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(30rem, calc(100% - 2 * var(--wk-space-3)));
-  display: grid; gap: var(--wk-space-2); padding: var(--wk-space-3); border-radius: var(--wk-radius);
+  --l2d-cta-x: 0.5; --l2d-cta-y: 0.5;
+  position: absolute; left: calc(var(--l2d-cta-x) * 100%); top: calc(var(--l2d-cta-y) * 100%);
+  transform: translate(calc(var(--l2d-cta-x) * -100%), calc(var(--l2d-cta-y) * -100%)); width: min(30rem, calc(100% - 2 * var(--wk-space-3)));
+  display: grid; gap: var(--wk-space-2); padding: var(--wk-space-1) var(--wk-space-3) var(--wk-space-3); border-radius: var(--wk-radius);
   background: color-mix(in srgb, var(--wk-surface) 92%, transparent); box-shadow: var(--wk-shadow-pop);
-  color: var(--wk-ink); font-size: var(--wk-text-sm); cursor: default;
+  color: var(--wk-ink); font-size: var(--wk-text-sm); cursor: grab; touch-action: none;
 }
+.l2d-cta.is-grabbed { cursor: grabbing; user-select: none; }
 .l2d-cta p { margin: 0; }
+.l2d-cta-grip { justify-self: center; display: inline-flex; padding: 0 var(--wk-space-2); border: 0; background: none; color: var(--wk-muted); cursor: inherit; line-height: 0; }
+.l2d-cta-grip:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
 .l2d-bake-pick { display: inline-flex; gap: var(--wk-space-1); align-items: center; }
 .l2d-bake {
   position: absolute; left: 50%; top: var(--wk-space-2); transform: translateX(-50%); width: min(26rem, calc(100% - 2 * var(--wk-space-3)));

@@ -628,7 +628,8 @@ export class GpuEngine {
     const gas = r?.gas ?? 0;
     const bubbles = r?.bubH ?? 0;
     const water = {
-      liquid: r?.liquidMass ?? 0, vapour: r?.vapour ?? 0, fog: r?.fog ?? 0, film: r?.film ?? 0, bubbles: r?.bubWater ?? 0, escaped: t.escapedWater,
+      /* Eis gibt es auf dem beschleunigten Weg nicht (ein schmelzbarer Körper rechnet auf der CPU). */
+      liquid: r?.liquidMass ?? 0, ice: 0, vapour: r?.vapour ?? 0, fog: r?.fog ?? 0, film: r?.film ?? 0, bubbles: r?.bubWater ?? 0, escaped: t.escapedWater,
       total: (r?.liquidMass ?? 0) + (r?.vapour ?? 0) + (r?.fog ?? 0) + (r?.film ?? 0) + (r?.bubWater ?? 0) + t.escapedWater
     };
     return { energy: solids + liquid + gas + bubbles + pv, solids, liquid, gas, bubbles, pv, water, other: { liquid: 0, escaped: 0, total: 0 }, salt: { liquid: 0, crust: 0, floor: 0, escaped: 0, total: 0 }, air: (r?.air ?? 0) + (r?.bubAir ?? 0) + t.escapedAir };

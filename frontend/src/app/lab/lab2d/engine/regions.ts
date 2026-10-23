@@ -72,7 +72,8 @@ export class Regions {
   /** Die Fluidgebiete neu bestimmen (nach jeder Änderung der Feststoffe oder Seiten). Ein neues verschlossenes Gebiet bekommt p0 aus dem Zustand. */
   label(): void {
     const g = this.g;
-    const { nx, ny, solid } = g;
+    const { nx, ny, solid, au, av } = g;
+    const nxu = nx + 1;
     this.id.fill(-1);
     let k = 0;
     for (let s = 0; s < g.n; s += 1) {
@@ -80,30 +81,39 @@ export class Regions {
       this.grow(k);
       let top = 0;
       let open = 0;
-      let cells = 0;
+      let vol = 0;
       this.stack[top++] = s;
       this.id[s] = k;
       while (top > 0) {
         const c = this.stack[--top];
-        cells += 1;
+        vol += 1 - g.fs[c];
         const i = c % nx;
         const j = (c - i) / nx;
-        if ((i === 0 && g.openL) || (i === nx - 1 && g.openR) || (j === 0 && g.openB) || (j === ny - 1 && g.openT)) open = 1;
-        if (i > 0 && solid[c - 1] === 0 && this.id[c - 1] === -1) { this.id[c - 1] = k; this.stack[top++] = c - 1; }
-        if (i < nx - 1 && solid[c + 1] === 0 && this.id[c + 1] === -1) { this.id[c + 1] = k; this.stack[top++] = c + 1; }
-        if (j > 0 && solid[c - nx] === 0 && this.id[c - nx] === -1) { this.id[c - nx] = k; this.stack[top++] = c - nx; }
-        if (j < ny - 1 && solid[c + nx] === 0 && this.id[c + nx] === -1) { this.id[c + nx] = k; this.stack[top++] = c + nx; }
+        /* Über Seitenflächen verbunden, die ein Körper nicht ganz bedeckt (eine dünne Wand quer durch zwei Zellen trennt). */
+        const fu = i + j * nxu;
+        const fv = i + j * nx;
+        if ((i === 0 && g.openL && au[fu] > 0) || (i === nx - 1 && g.openR && au[fu + 1] > 0) || (j === 0 && g.openB && av[fv] > 0) || (j === ny - 1 && g.openT && av[fv + nx] > 0)) open = 1;
+        if (i > 0 && solid[c - 1] === 0 && this.id[c - 1] === -1 && au[fu] > 0) { this.id[c - 1] = k; this.stack[top++] = c - 1; }
+        if (i < nx - 1 && solid[c + 1] === 0 && this.id[c + 1] === -1 && au[fu + 1] > 0) { this.id[c + 1] = k; this.stack[top++] = c + 1; }
+        if (j > 0 && solid[c - nx] === 0 && this.id[c - nx] === -1 && av[fv] > 0) { this.id[c - nx] = k; this.stack[top++] = c - nx; }
+        if (j < ny - 1 && solid[c + nx] === 0 && this.id[c + nx] === -1 && av[fv + nx] > 0) { this.id[c + nx] = k; this.stack[top++] = c + nx; }
       }
       this.open[k] = open;
-      this.vFluid[k] = cells * g.vCell;
+      this.vFluid[k] = vol * g.vCell;
       k += 1;
     }
     this.count = k;
   }
 
-  /** Volumen der Flüssigkeit und der Blasen je Gebiet. */
+  /** Volumen der Fluidzellen (ohne die Körperstücke darin: ein bewegter Körper ändert es), der Flüssigkeit und der Blasen je Gebiet. */
   private volumes(P: Particles, B: Bubbles): void {
     const g = this.g;
+    this.vFluid.fill(0, 0, this.count);
+    for (let c = 0; c < g.n; c += 1) {
+      const r = this.id[c];
+      if (r >= 0) this.vFluid[r] += 1 - g.fs[c];
+    }
+    for (let r = 0; r < this.count; r += 1) this.vFluid[r] *= g.vCell;
     this.vLiq.fill(0, 0, this.count);
     this.vBub.fill(0, 0, this.count);
     for (let p = 0; p < P.count; p += 1) {

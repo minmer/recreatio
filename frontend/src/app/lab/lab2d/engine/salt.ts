@@ -44,11 +44,12 @@ export class Salt {
     return { mass: m, energy: H };
   }
 
-  /** Salz in den Krusten der Feststoffe (kg). */
+  /** Salz in den Krusten der Feststoffe (kg): Zellen eines festen Baus und die inneren Zellen der Körper (die Zellen mit Körperteilen spiegeln diese nur). */
   crustMass(): number {
     const g = this.e.grid;
     let m = 0;
-    for (let c = 0; c < g.n; c += 1) m += g.crust[c];
+    for (let c = 0; c < g.n; c += 1) if (g.owner[c] === 0 && g.capB[c] === 0) m += g.crust[c];
+    for (const b of this.e.bodies.list) if (!b.gone) m += b.crustMass();
     return m;
   }
 
@@ -61,12 +62,14 @@ export class Salt {
     const i = Math.min(nx - 1, Math.max(0, Math.floor(px / g.dx)));
     const j = Math.min(ny - 1, Math.max(0, Math.floor(py / g.dx)));
     const c0 = i + j * nx;
-    if (g.solid[c0] !== 0) { this.toSolid(c0, x, H); return; }
+    const heat = e.heat;
+    /* Fest ist auch ein Körperstück neben Fluid (die Kruste geht über die Gewichte an seine inneren Zellen). */
+    if (heat.hasSolid(c0)) { this.toSolid(c0, x, H); return; }
     const sides = [j > 0 ? c0 - nx : -1, i > 0 ? c0 - 1 : -1, i < nx - 1 ? c0 + 1 : -1, j < ny - 1 ? c0 + nx : -1];
-    for (const b of sides) if (b >= 0 && g.solid[b] !== 0) { this.toSolid(b, x, H); return; }
+    for (const b of sides) if (b >= 0 && heat.hasSolid(b)) { this.toSolid(b, x, H); return; }
     for (let jj = j - 2; jj >= 0; jj -= 1) {
       const c = i + jj * nx;
-      if (g.solid[c] !== 0) { this.toSolid(c, x, H); return; }
+      if (heat.hasSolid(c)) { this.toSolid(c, x, H); return; }
     }
     if (g.openB) {
       e.flows.escapedSalt += x;

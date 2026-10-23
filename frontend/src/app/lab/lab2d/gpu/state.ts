@@ -14,6 +14,7 @@ import { FORCE_SLOTS } from '../engine/bubbles';
 import { tSat } from '../engine/if97';
 import { H2O, N2, O2, SPECIES_SLOTS } from '../engine/units';
 import type { GpuCtx } from './kernel';
+import { fromStair, stairOf, type Stair } from './staircase';
 import { BUBBLE_WORDS, NONE, PARAMS_WORDS, PARTICLE_WORDS, SITE_WORDS } from './lib';
 import { CSUM_PARTS } from './ksolver';
 import { planLevels, type Plan } from './solver';
@@ -41,6 +42,8 @@ export const MEAS_K = 16;
 const ST = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC;
 
 export class GpuState {
+  /** Die Treppe der Körper beim letzten Hochladen (staircase.ts) — beim Zurückholen gebraucht. */
+  private stair: Stair | null = null;
   readonly ctx: GpuCtx;
   readonly d: Dims;
   readonly plan: Plan;
@@ -184,8 +187,8 @@ export class GpuState {
     this.ctx.device.queue.writeBuffer(this.params, 0, buf);
   }
 
-  /** Die Heizgruppen (nach jeder Änderung der Einstellungen). */
-  writeHeaters(e: Engine): void {
+  /** Die Heizgruppen (nach jeder Änderung der Einstellungen); cells: Zellen je Gruppe auf der GPU (die Treppe der Platte), sonst die der CPU. */
+  writeHeaters(e: Engine, cells: readonly number[] | null = null): void {
     const hs = e.heat.heaters;
     const a = new Float32Array(HEAT_STRIDE * this.d.nheat);
     hs.forEach((h, k) => {
@@ -197,7 +200,7 @@ export class GpuState {
       a[o + H.P] = h.P;
       a[o + H.TMEAN] = h.Tmean;
       a[o + H.INTEGRAL] = h.integral;
-      a[o + H.CELLS] = h.cells;
+      a[o + H.CELLS] = cells !== null ? (cells[k] ?? 0) : (this.stair?.heaterCells[k] ?? h.cells);
     });
     this.ctx.device.queue.writeBuffer(this.heat, 0, a);
   }
@@ -215,8 +218,11 @@ export class GpuState {
     const d = this.d;
     const g = e.grid;
     const n = d.n;
+    /* Körper als Treppen ganzer Zellen (die Rechenkerne kennen keine Anteile). */
+    const st = stairOf(e);
+    this.stair = st;
     this.writeParams(e);
-    this.writeHeaters(e);
+    this.writeHeaters(e, st.heaterCells);
     /* Gebiete: die grössten zuerst (die Summen je Gebiet laufen für die ersten vier über die Arbeitsgruppe). */
     const R0 = e.regions;
     const order = Array.from({ length: R0.count }, (_, k) => k).sort((a, b) => R0.vFluid[b] - R0.vFluid[a]);
@@ -227,7 +233,7 @@ export class GpuState {
     for (let r = 0; r < R0.count; r += 1) {
       const o = REG_STRIDE * this.regionMap[r];
       reg[o + R.OPEN] = R0.open[r];
-      reg[o + R.VFLUID] = R0.vFluid[r];
+      reg[o + R.VFLUID] = R0.vFluid[r] - st.vFix[r];
       reg[o + R.P0] = R0.p0[r];
       reg[o + R.RHOBAR] = R0.rhoBar[r];
       reg[o + R.VLIQ] = R0.vLiq[r];
@@ -239,10 +245,10 @@ export class GpuState {
     /* Zellen. */
     const cu = new Uint32Array(NU * n);
     for (let c = 0; c < n; c += 1) {
-      cu[U.KIND * n + c] = g.kind[c];
-      cu[U.KPREV * n + c] = g.kind[c];
-      cu[U.SOLID * n + c] = g.solid[c];
-      cu[U.HGRP * n + c] = g.role[c] === 1 && g.heater[c] >= 0 ? g.heater[c] + 1 : 0;
+      cu[U.KIND * n + c] = st.kind[c];
+      cu[U.KPREV * n + c] = st.kind[c];
+      cu[U.SOLID * n + c] = st.solid[c];
+      cu[U.HGRP * n + c] = st.hgrp[c];
       const r = R0.id[c];
       cu[U.RID * n + c] = r < 0 ? NONE : this.regionMap[r];
     }
@@ -251,11 +257,11 @@ export class GpuState {
     const put = (field: number, src: ArrayLike<number>, off = 0): void => { for (let c = 0; c < n; c += 1) cf[field * n + c] = src[off + c]; };
     put(F.PHI, g.phi); put(F.ALPHA, g.alpha); put(F.ALPHAOLD, g.alpha); put(F.PL, g.pl); put(F.PG, g.pg);
     put(F.MN, g.mg, N2 * n); put(F.MO, g.mg, O2 * n); put(F.MV, g.mg, H2O * n); put(F.MF, g.mfog); put(F.HG, g.Hg);
-    put(F.ES, g.Es); put(F.FILM, g.film); put(F.T, g.T); put(F.TL, g.Tl); put(F.CL, g.Cl);
+    put(F.ES, st.es); put(F.FILM, st.film); put(F.T, st.T); put(F.TL, g.Tl); put(F.CL, g.Cl);
     const G0 = e.gas;
     put(F.VGAS, G0.vgas); put(F.RHO, G0.rho); put(F.NMOL, G0.nmol); put(F.CAP, G0.cap); put(F.MU, G0.mu);
-    put(F.VEOS, G0.veos); put(F.SRCV, G0.srcV); put(F.VEOSMID, G0.veosMid); put(F.PHIS, g.phiS); put(F.SDF, g.sdf);
-    put(F.PTL, g.T);
+    put(F.VEOS, G0.veos); put(F.SRCV, G0.srcV); put(F.VEOSMID, G0.veosMid); put(F.PHIS, st.phiS); put(F.SDF, st.sdf);
+    put(F.PTL, st.T);
     q.writeBuffer(this.cf, 0, cf);
     const at = new Float32Array(NA * n);
     for (let c = 0; c < n; c += 1) at[A.VOLSRC * n + c] = e.liquid.volSrc[c];
@@ -312,10 +318,21 @@ export class GpuState {
     const sb = new ArrayBuffer(4 * SITE_WORDS * d.nsites);
     const su = new Uint32Array(sb);
     const sf = new Float32Array(sb);
+    /* Die Wandzelle einer Kavität muss auf der GPU fest sein (der Kern nimmt ihr die Wärme): liegt sie in einer Zelle, die die Treppe frei lässt,
+       nimmt die feste Nachbarzelle nach innen ihren Platz ein; gibt es keine, keimt die Kavität dort nicht (winziger Radius). */
+    const nxg = g.nx;
     for (let s = 0; s < cav.count; s += 1) {
       const o = SITE_WORDS * s;
-      su.set([cav.cell[s], cav.fluid[s], cav.dir[s], 0], o);
-      sf.set([cav.r[s], cav.s[s], cav.z[s], 0], o + 4);
+      let wall = cav.cell[s];
+      let r = cav.r[s];
+      if (wall >= 0 && st.solid[wall] === 0) {
+        const k = cav.dir[s];
+        const inward = k === 0 ? wall + 1 : k === 1 ? wall - 1 : k === 2 ? wall + nxg : wall - nxg;
+        if (inward >= 0 && inward < n && st.solid[inward] !== 0) wall = inward;
+        else r = 1e-9;
+      }
+      su.set([wall, cav.fluid[s], cav.dir[s], 0], o);
+      sf.set([r, cav.s[s], cav.z[s], 0], o + 4);
     }
     q.writeBuffer(this.sites, 0, sb);
     const sbub = new Uint32Array(d.nsites);
@@ -488,6 +505,8 @@ export class GpuState {
     e.dt = glob[G.DT];
     const bm = e.bubbleModel;
     bm.watch = cnt[C.WATCH] === NONE ? -1 : cnt[C.WATCH];
+    /* Die Treppen der Körper zurück in ihre inneren Zellen, die Anteile der CPU neu. */
+    fromStair(e, this.stair);
   }
 
   /** Die GPU-Nummer eines CPU-Gebiets. */

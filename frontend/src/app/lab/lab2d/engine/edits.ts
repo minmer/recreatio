@@ -1,17 +1,21 @@
 /**
  * LABOR 2D (v2) — DIE HANDGRIFFE: was eine Szene oder ein Werkzeug in die Welt
- * malt. Eine Zlewka ist eine Form aus Glaszellen, eine Heizplatte eine Form
- * aus Stahlzellen mit Rolle 1 — keine Sonderfälle in der Engine. Seit M3a ist
- * jede von ihnen ein Körper (bodies.ts): dieselben Zellen, dazu ein Ganzes,
- * das angeheftet ist oder frei fällt; ebenso „body“ („Postaw ciało“). Was
- * einen Körper überdeckt (Radieren, ein neuer Bau), nimmt ihm die Voxel.
+ * malt. Ein fester Bau („solid“, Pinsel und Ścianka) besteht aus Zellen des
+ * Gitters. Zlewka, Heizplatte und „body“ („Postaw ciało“) sind Körper
+ * (bodies.ts): genaue Rechtecke, nicht auf das Gitter gerundet — eine Zlewka
+ * aus Boden und zwei Wänden (mit Deckel vier), eine Heizplatte eines mit einer
+ * Wärmequelle, ein Körper eines (aus einer Strecke mit Breite: gedreht; ein
+ * Kreis wird ein Quadrat gleicher Fläche). Was einen Körper überdeckt
+ * (Radieren, ein neuer Bau), schneidet ihn (bodyTools.ts).
  *
  * Was ein Handgriff an Masse und Energie hinzufügt oder wegnimmt, wird als
  * „Eingriff“ gebucht (budget.edits): die Bilanzen schliessen auch über
  * Werkzeuge hinweg.
  */
 
+import { Body2D, meltsAt, type RectWorld } from './body';
 import type { Bodies } from './bodies';
+import { carveBodies, liftBodies, placeBodies } from './bodyTools';
 import type { Bubbles } from './bubbles';
 import type { Gas } from './gas';
 import type { Grid } from './grid';
@@ -53,13 +57,55 @@ export interface World {
   solidsChanged(): void;
 }
 
-/** Den Körpern die Voxel in diesen Zellen nehmen (gebucht), bevor ein neuer Bau sie überschreibt. */
-function carveCells(w: World, cells: readonly number[]): void {
-  if (cells.length === 0 || w.bodies.list.length === 0) return;
+/** Den Körpern nehmen, was eine Fläche bedeckt (gebucht), bevor ein neuer Bau sie überschreibt. */
+function carve(w: World, region: Region): void {
+  if (w.bodies.list.length === 0) return;
+  carveBodies(w.bodies, region, w.ledger);
+}
+
+/** Teilchen und Blasen, die in einem eben gesetzten Körper liegen: entfernen (gebucht) — der Körper ersetzt, was dort war. */
+function clearInside(w: World, b: Body2D): void {
+  const l = new Float64Array(2);
+  const P = w.particles;
+  for (let p = 0; p < P.count; p += 1) {
+    Body2D.toLocal(b.x, b.y, b.a, P.x[p], P.y[p], l);
+    if (!b.insideLocal(l[0], l[1])) continue;
+    unbook(w, p);
+    w.liquid.removeParticle(p);
+    p -= 1;
+  }
+  const B = w.bubbles;
+  for (let k = 0; k < B.count; k += 1) {
+    Body2D.toLocal(b.x, b.y, b.a, B.x[k], B.y[k], l);
+    if (!b.insideLocal(l[0], l[1])) continue;
+    w.ledger.water -= B.m[k * SPECIES_SLOTS + H2O];
+    w.ledger.air -= B.m[k * SPECIES_SLOTS + N2] + B.m[k * SPECIES_SLOTS + O2];
+    w.ledger.energy -= B.H[k];
+    B.remove(k);
+    k -= 1;
+  }
+  w.liquid.weightsDirty = true;
+}
+
+/** Ein Körper aus Rechtecken (Welt, ungedreht) setzen: gebucht mit seiner Energie, gedreht um (px, py), was darin lag, entfernt. */
+function placeBody(w: World, rects: readonly RectWorld[], s: number, T: number, pinned: boolean, angle: number, px: number, py: number, heater = -1): Body2D | null {
+  const b = w.bodies.adopt(rects, s, T, w.opIndex, pinned, heater);
+  if (b === null) return null;
+  if (angle !== 0) w.bodies.turn(b, px, py, (angle * Math.PI) / 180);
+  w.ledger.energy += b.energy();
+  /* Eis ist Wasser (M3b). */
+  if (meltsAt(b.mat) > 0) w.ledger.water += b.m;
+  clearInside(w, b);
+  /* Das Gas, dessen Platz der Körper nun einnimmt, weicht (gebucht) — sonst drückte er es in die Nachbarzellen (ein verschlossenes Gebiet stünde unter Druck). */
   const g = w.grid;
-  const mask = new Uint8Array(g.n);
-  for (const c of cells) mask[c] = 1;
-  w.bodies.carve((x, y) => { const c = g.cellAt(x, y); return c >= 0 && mask[c] === 1; });
+  const cover = new Map<number, number>();
+  const A = g.dx * g.dx;
+  for (let e = 0; e < b.nw; e += 1) {
+    const c = b.wc[e];
+    cover.set(c, (cover.get(c) ?? 0) + (b.ww[e] * b.cellVolume(b.wk[e])) / (b.depth * A));
+  }
+  for (const [c, share] of cover) if (share > 0 && g.solid[c] === 0) dropGasShare(w, c, Math.min(1, share));
+  return b;
 }
 
 /** Zellen, deren Mitte in der Fläche liegt (Rückgabe über den Rückruf). */
@@ -86,12 +132,25 @@ function dropGas(w: World, c: number): void {
   g.Hg[c] = 0;
 }
 
+/** Den Anteil `share` des Gases einer Zelle entfernen (gebucht) — so viel, wie ein eben gesetzter Körper von ihr füllt. */
+function dropGasShare(w: World, c: number, share: number): void {
+  if (share >= 1) { dropGas(w, c); return; }
+  const g = w.grid;
+  const n = g.n;
+  w.ledger.water -= share * (g.mg[H2O * n + c] + g.mfog[c]);
+  w.ledger.air -= share * (g.mg[N2 * n + c] + g.mg[O2 * n + c]);
+  w.ledger.energy -= share * g.Hg[c];
+  for (let k = 0; k < SPECIES_SLOTS; k += 1) g.mg[k * n + c] *= 1 - share;
+  g.mfog[c] *= 1 - share;
+  g.Hg[c] *= 1 - share;
+}
+
 /** Eine Zelle mit Gas der Zusammensetzung Y bei T füllen (gebucht; vorher vorhandenes Gas wird ersetzt). */
 function putGas(w: World, c: number, T: number, Y: Float64Array): void {
   const g = w.grid;
   const n = g.n;
   dropGas(w, c);
-  w.gas.fillCell(c, T, Y, Math.max(1e-3, 1 - g.phi[c] - g.alpha[c]));
+  w.gas.fillCell(c, T, Y, Math.max(1e-3, 1 - g.fs[c] - g.phi[c] - g.alpha[c]));
   w.ledger.water += g.mg[H2O * n + c];
   w.ledger.air += g.mg[N2 * n + c] + g.mg[O2 * n + c];
   w.ledger.energy += g.Hg[c];
@@ -139,6 +198,8 @@ function makeSolid(w: World, cells: readonly number[], s: number, T: number, hea
   const g = w.grid;
   const mat = SOLIDS[s];
   for (const c of cells) {
+    /* Zellen, die ein Körper füllt, bleiben seine (der Aufrufer hat ihn zuvor beschnitten). */
+    if (g.owner[c] !== 0 && g.solid[c] !== 0) continue;
     if (g.solid[c] !== 0) {
       w.ledger.energy -= g.Es[c];
       w.ledger.water -= g.film[c];
@@ -146,6 +207,11 @@ function makeSolid(w: World, cells: readonly number[], s: number, T: number, hea
     } else {
       dropGas(w, c);
     }
+    /* Ein Körperteil in der Zelle gehört weiter dem Körper (seine inneren Zellen): die Zelle selbst wird Bau. */
+    g.owner[c] = 0;
+    g.capB[c] = 0;
+    g.fs[c] = 0;
+    g.crust[c] = 0;
     g.solid[c] = s + 1;
     g.role[c] = heaterGroup >= 0 ? 1 : 0;
     g.heater[c] = heaterGroup;
@@ -189,15 +255,6 @@ function clearSolid(w: World, cells: readonly number[]): void {
   for (const c of cells) if (g.solid[c] === 0 && w.gas.massOf(c) <= 0) putGas(w, c, w.ambientT, w.ambientY);
 }
 
-const cellRect = (g: Grid, x0: number, y0: number, x1: number, y1: number): number[] => {
-  const out: number[] = [];
-  const i0 = Math.max(0, Math.round(x0 / g.dx));
-  const i1 = Math.min(g.nx, Math.max(i0 + 1, Math.round(x1 / g.dx)));
-  const j0 = Math.max(0, Math.round(y0 / g.dx));
-  const j1 = Math.min(g.ny, Math.max(j0 + 1, Math.round(y1 / g.dx)));
-  for (let j = j0; j < j1; j += 1) for (let i = i0; i < i1; i += 1) out.push(i + j * g.nx);
-  return out;
-};
 
 /** Einen Handgriff ausführen. Liefert eine Warnung (oder null). */
 export function applyOp(w: World, op: Op): string | null {
@@ -260,6 +317,8 @@ export function applyOp(w: World, op: Op): string | null {
           const x = (i + 0.25 + 0.5 * a) * g.dx;
           const y = (j + 0.25 + 0.5 * b) * g.dx;
           if (!inside(op.region, x, y)) continue;
+          /* Nicht in einen Körper (eine Zelle kann zum Teil ein Körper sein). */
+          if (g.owner[c] !== 0 && w.bodies.bodyAt(x, y, 0) !== null) continue;
           let l = 0;
           for (let k = 0; k < NL; k += 1) { due[k] += vf[k]; if (due[k] > due[l]) l = k; }
           due[l] -= 1;
@@ -280,19 +339,20 @@ export function applyOp(w: World, op: Op): string | null {
       return full ? 'fill: particle capacity reached' : null;
     }
     case 'erase': {
-      if (w.bodies.list.length > 0) w.bodies.carve((x, y) => inside(op.region, x, y));
+      carve(w, op.region);
       removeLiquid(w, op.region);
       const cells: number[] = [];
-      eachCell(g, op.region, (c) => cells.push(c));
+      eachCell(g, op.region, (c) => { if (g.owner[c] === 0) cells.push(c); });
       clearSolid(w, cells);
       return null;
     }
     case 'move':
-      moveSolids(w, op.region, Math.round(op.dx / g.dx), Math.round(op.dy / g.dx));
+      moveSolids(w, op.region, op.dx, op.dy);
       return null;
     case 'solid': {
       const s = solidIndex(op.material);
       if (s < 0) return `solid: unknown material ${op.material}`;
+      carve(w, op.region);
       const cells: number[] = [];
       eachCell(g, op.region, (c) => cells.push(c));
       /* Eine Strecke dünner als eine Zelle: wenigstens die Zellen auf ihr. */
@@ -304,30 +364,45 @@ export function applyOp(w: World, op: Op): string | null {
           if (c >= 0 && !cells.includes(c)) cells.push(c);
         }
       }
-      carveCells(w, cells);
+      w.bodies.sync();
       makeSolid(w, cells, s, op.T, -1);
       return null;
     }
     case 'body': {
       const s = solidIndex(op.material);
       if (s < 0) return `body: unknown material ${op.material}`;
-      const cells: number[] = [];
-      eachCell(g, op.region, (c) => cells.push(c));
-      if (cells.length === 0) {
-        /* Kleiner als eine Zelle: die Zelle unter der Mitte. */
-        const [x0, y0, x1, y1] = bounds(op.region);
-        const c = g.cellAt((x0 + x1) / 2, (y0 + y1) / 2);
-        if (c >= 0) cells.push(c);
+      carve(w, op.region);
+      const r = op.region;
+      let warning: string | null = null;
+      let rect: RectWorld;
+      let turn = op.angle;
+      let px: number;
+      let py: number;
+      if ('line' in r) {
+        /* Eine Strecke mit Breite: ein Rechteck so lang wie sie, gedreht in ihre Richtung. */
+        const [ax, ay, bx, by] = r.line;
+        const len = Math.max(r.width, Math.hypot(bx - ax, by - ay));
+        px = (ax + bx) / 2;
+        py = (ay + by) / 2;
+        rect = [px - len / 2, py - r.width / 2, px + len / 2, py + r.width / 2];
+        turn += (Math.atan2(by - ay, bx - ax) * 180) / Math.PI;
+      } else if ('circle' in r) {
+        /* Körper sind Rechtecke: ein Kreis wird das Quadrat gleicher Fläche. */
+        const [cx, cy, rad] = r.circle;
+        const h = 0.5 * rad * Math.sqrt(Math.PI);
+        rect = [cx - h, cy - h, cx + h, cy + h];
+        px = cx;
+        py = cy;
+        warning = 'body: bodies are rectangles — the circle became a square of the same area';
+      } else {
+        const [x0, y0, x1, y1] = bounds(r);
+        rect = [x0, y0, x1, y1];
+        px = (x0 + x1) / 2;
+        py = (y0 + y1) / 2;
+        if ('poly' in r) warning = 'body: bodies are rectangles — the polygon became its bounding rectangle';
       }
-      carveCells(w, cells);
-      makeSolid(w, cells, s, op.T, -1);
-      const b = w.bodies.adopt(cells, w.opIndex, op.pinned, 'circle' in op.region ? op.region.circle[2] : 0);
-      if (b !== null && op.angle !== 0) {
-        const [x0, y0, x1, y1] = bounds(op.region);
-        w.bodies.turn(b, (x0 + x1) / 2, (y0 + y1) / 2, (op.angle * Math.PI) / 180);
-        w.solidsChanged();
-      }
-      return null;
+      placeBody(w, [rect], s, op.T, op.pinned, turn, px, py);
+      return warning;
     }
     case 'pin': {
       const b = w.bodies.bodyAt(op.x, op.y);
@@ -338,21 +413,17 @@ export function applyOp(w: World, op: Op): string | null {
     case 'beaker': {
       const s = solidIndex(op.material);
       if (s < 0) return `beaker: unknown material ${op.material}`;
-      const wall = Math.max(g.dx, op.wall);
+      /* Boden und zwei Wände, die auf ihm stehen (mit Deckel: die Wände bis unter ihn) — genau, nicht auf Zellen gerundet. */
+      const wall = Math.min(op.wall, 0.45 * op.w, 0.45 * op.h);
       const x0 = op.x - op.w / 2;
       const x1 = op.x + op.w / 2;
       const y0 = op.y;
       const y1 = op.y + op.h;
-      const cells = [
-        ...cellRect(g, x0, y0, x0 + wall, y1),
-        ...cellRect(g, x1 - wall, y0, x1, y1),
-        ...cellRect(g, x0, y0, x1, y0 + wall),
-        ...(op.lid ? cellRect(g, x0, y1 - wall, x1, y1) : [])
-      ];
-      const all = [...new Set(cells)];
-      carveCells(w, all);
-      makeSolid(w, all, s, op.T, -1);
-      placeBody(w, all, op.pinned, op.angle, op.x, op.y);
+      const top = op.lid ? y1 - wall : y1;
+      const rects: RectWorld[] = [[x0, y0, x1, y0 + wall], [x0, y0 + wall, x0 + wall, top], [x1 - wall, y0 + wall, x1, top]];
+      if (op.lid) rects.push([x0, top, x1, y1]);
+      for (const r of rects) carve(w, { rect: [...r] });
+      placeBody(w, rects, s, op.T, op.pinned, op.angle, op.x, op.y);
       return null;
     }
     case 'hotplate': {
@@ -360,42 +431,37 @@ export function applyOp(w: World, op: Op): string | null {
       if (s < 0) return `hotplate: unknown material ${op.material}`;
       const group = w.heat.heaters.length;
       w.heat.heaters.push({ group, mode: op.mode, power: op.power, target: op.target, on: op.on, P: 0, Tmean: op.T, integral: 0, cells: 0 });
-      const cells = cellRect(g, op.x - op.w / 2, op.y, op.x + op.w / 2, op.y + op.h);
-      carveCells(w, cells);
-      makeSolid(w, cells, s, op.T, group);
-      placeBody(w, cells, op.pinned, op.angle, op.x, op.y);
+      const rect: RectWorld = [op.x - op.w / 2, op.y, op.x + op.w / 2, op.y + op.h];
+      carve(w, { rect: [...rect] });
+      placeBody(w, [rect], s, op.T, op.pinned, op.angle, op.x, op.y, group);
       return null;
     }
   }
 }
 
-/** Zlewka und Heizplatte werden Körper: angeheftet oder frei, gedreht um die Mitte ihrer Unterkante (x, y). */
-function placeBody(w: World, cells: readonly number[], pinned: boolean, angle: number, x: number, y: number): void {
-  const b = w.bodies.adopt(cells, w.opIndex, pinned);
-  if (b === null || angle === 0) return;
-  w.bodies.turn(b, x, y, (angle * Math.PI) / 180);
-  w.solidsChanged();
-}
-
 /**
- * Feste Zellen in der Fläche um (di, dj) Zellen verschieben — jede behält
- * Werkstoff, Temperatur (Energie), Heizgruppe und Belag —, dazu Wasserteilchen
- * und Blasen in der Fläche um denselben Weg (so bleibt das Wasser in seiner
- * Zlewka). Was am Ziel war, weicht (gebucht wie bei makeSolid); frei gewordene
- * Zellen füllt Umgebungsluft. Was die Kiste verlässt, ist weg (gebucht).
+ * Alles Feste in der Fläche verschieben, dazu Wasserteilchen und Blasen in der
+ * Fläche um denselben Weg (so bleibt das Wasser in seiner Zlewka): Körper als
+ * Ganzes, genau um (mx, my); liegen auch Zellen eines festen Baus in der
+ * Fläche, rückt alles um ganze Zellen (der Bau besteht aus Zellen). Jede
+ * Zelle behält Werkstoff, Temperatur (Energie), Heizgruppe und Belag; was am
+ * Ziel war, weicht (gebucht wie bei makeSolid); frei gewordene Zellen füllt
+ * Umgebungsluft. Was die Kiste verlässt, ist weg (gebucht).
  */
-function moveSolids(w: World, region: Region, di: number, dj: number): void {
+function moveSolids(w: World, region: Region, mx: number, my: number): void {
   const g = w.grid;
   const { nx, ny, dx } = g;
-  if (di === 0 && dj === 0) return;
-  /* Körper mit einer Zelle in der Fläche rücken als Ganzes (erst aus dem Gitter, nach dem Bau wieder hinein). */
-  const lifted = w.bodies.list.length > 0 ? w.bodies.lift((c) => inside(region, (c % nx + 0.5) * dx, (Math.floor(c / nx) + 0.5) * dx)) : [];
   const src: number[] = [];
-  eachCell(g, region, (c) => { if (g.solid[c] !== 0) src.push(c); });
+  eachCell(g, region, (c) => { if (g.solid[c] !== 0 && g.owner[c] === 0) src.push(c); });
+  const di = Math.round(mx / dx);
+  const dj = Math.round(my / dx);
+  const ox = src.length > 0 ? di * dx : mx;
+  const oy = src.length > 0 ? dj * dx : my;
+  if (ox === 0 && oy === 0) return;
+  /* Körper, deren Rechteck die Fläche trifft, rücken als Ganzes (erst aus dem Gitter, nach dem Bau wieder hinein). */
+  const lifted = w.bodies.list.length > 0 ? liftBodies(w.bodies, region) : [];
   const P = w.particles;
   const B = w.bubbles;
-  const ox = di * dx;
-  const oy = dj * dx;
   /* Wasser und Blasen mitnehmen. */
   for (let q = 0; q < P.count; q += 1) {
     if (!inside(region, P.x[q], P.y[q])) continue;
@@ -419,9 +485,10 @@ function moveSolids(w: World, region: Region, di: number, dj: number): void {
   w.liquid.weightsDirty = true;
   if (src.length === 0) {
     if (lifted.length === 0) return;
-    w.bodies.place(lifted, di, dj);
+    placeBodies(w.bodies, lifted, ox, oy);
+    w.bodies.sync();
+    for (const b of lifted) w.bodies.cover.pushOut(b, b.x, b.y, b.a);
     removeInSolids(w);
-    w.solidsChanged();
     return;
   }
   /* Die Zustände der festen Zellen merken und die Quellen räumen (gebucht: ihre Energie und ihr Belag gehen hinaus …). */
@@ -463,19 +530,20 @@ function moveSolids(w: World, region: Region, di: number, dj: number): void {
     w.ledger.water += k.film;
     w.ledger.salt += k.crust;
   }
-  w.bodies.place(lifted, di, dj);
-  removeInSolids(w);
+  placeBodies(w.bodies, lifted, ox, oy);
   w.solidsChanged();
+  for (const b of lifted) w.bodies.cover.pushOut(b, b.x, b.y, b.a);
+  removeInSolids(w);
   for (const k of state) if (g.solid[k.c] === 0 && w.gas.massOf(k.c) <= 0) putGas(w, k.c, w.ambientT, w.ambientY);
 }
 
-/** Teilchen, die jetzt in festen Zellen liegen: entfernen (gebucht). */
+/** Teilchen, die jetzt in Zellen eines festen Baus liegen: entfernen (gebucht); aus Körpern schiebt sie bodyCover hinaus. */
 function removeInSolids(w: World): void {
   const g = w.grid;
   const P = w.particles;
   for (let q = 0; q < P.count; q += 1) {
     const c = g.cellAt(P.x[q], P.y[q]);
-    if (c < 0 || g.solid[c] === 0) continue;
+    if (c < 0 || g.solid[c] === 0 || g.owner[c] !== 0) continue;
     unbook(w, q);
     w.liquid.removeParticle(q);
     q -= 1;

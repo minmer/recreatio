@@ -1,5 +1,6 @@
 /**
- * LABOR 2D (v2) — M3a: KÖRPER (SANDBOX.md §6, §13). Schwimmen, Sinken, Stapeln,
+ * LABOR 2D (v2) — M3a: KÖRPER (SANDBOX.md §6, §13; seit 2026-10-23 genaue
+ * Rechtecke). Schwimmen (ohne das Schaukeln der Zellen), Sinken, Stapeln,
  * Kippen, die Bilanzen mit bewegten Körpern, das JSON der neuen Handgriffe.
  */
 
@@ -54,6 +55,8 @@ describe('M3a — test 36: floating depth', () => {
       const spread = Math.max(...drafts) - Math.min(...drafts);
       console.log(`test 36 (${mat}): draft ${(mean * 1000).toFixed(3)} mm, ρ_b/ρ_l H ${(want * 1000).toFixed(3)} mm (${(100 * (mean / want - 1)).toFixed(2)} %), bobbing ${(spread * 500).toFixed(2)} mm; angle ${(b.a * 180 / Math.PI).toFixed(2)}°; added mass (x, y) ${(b.ma6[0] * 1000).toFixed(1)}, ${(b.ma6[3] * 1000).toFixed(1)} g of ${(b.m * 1000).toFixed(1)} g; energy error ${e.energyError().toExponential(2)} J, water error ${e.waterError().toExponential(2)} kg`);
       expect(Math.abs(mean / want - 1)).toBeLessThan(0.02);
+      /* Genaue Rechtecke: das Wasser, das der Körper verdrängt, ändert sich stetig — kein Schaukeln um ganze Zeilen (mit Voxeln ±1,4 mm). */
+      expect(spread * 500).toBeLessThan(0.2e-3 * 1000);
       expect(Math.abs(b.a)).toBeLessThan(0.05);
       expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
       expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
@@ -62,27 +65,31 @@ describe('M3a — test 36: floating depth', () => {
 });
 
 describe('M3a — test 37: sinking and resting', () => {
-  it('a 2 cm ceramic disc sinks at the terminal speed of the drag law, v² = π(ρ_b/ρ_l − 1) g d/(2 C_D), C_D = 1.2 (±15 %)', () => {
-    const d = 0.02;
-    const depth = 0.27;
+  it('a 2 cm ceramic square sinks at the terminal speed of the drag law, v² = 2(ρ_b/ρ_l − 1) g a/C_D, C_D = 2.1 (±15 %), before its wake turns it over', () => {
+    const a = 0.02;
+    const depth = 0.28;
     const e = new Engine(scene({
       box: { w: 0.2, h: 0.3, depth: 0.01 },
       ops: [
         { op: 'fill', region: { rect: [0, 0, 0.2, depth] }, composition: { H2O: 1 }, phase: 'liquid', T: 20 },
-        { op: 'body', region: { circle: [0.1, depth - 0.01 - d / 2, d / 2] }, material: 'ceramic', T: 20 }
+        { op: 'body', region: { rect: [0.1 - a / 2, depth - 0.01 - a, 0.1 + a / 2, depth - 0.01] }, material: 'ceramic', T: 20 }
       ]
     }));
     const b = e.bodies.list[0];
-    const vt = Math.sqrt((Math.PI * (rhoOf('ceramic') / rhoL(T0 + 20) - 1) * 9.81 * d) / (2 * 1.2));
+    /* Lyn et al. (1995): ein Quadratzylinder mit Wirbelstrasse, Re 22 000, C_D = 2,1 (auf die Seite a bezogen). Gemessen von 6 bis 14 cm
+       (drei bis sieben Seitenlängen): danach dreht ihn seine Wirbelstrasse, er taumelt und gleitet seitlich — eine chaotische Bahn, bei 1 mm
+       anders als bei 2 mm, und kein Mass mehr für den Widerstand. */
+    const vt = Math.sqrt((2 * (rhoOf('ceramic') / rhoL(T0 + 20) - 1) * 9.81 * a) / 2.1);
+    const y0 = b.y;
     let sum = 0;
     let time = 0;
-    while (b.y > 0.04 && e.time < 2) {
+    let turn = 0;
+    while (y0 - b.y < 0.14 && e.time < 2) {
       e.step();
-      const sunk = depth - b.y;
-      if (sunk > 0.12 && sunk < 0.22) { sum += -b.vy * e.dt; time += e.dt; }
+      if (y0 - b.y > 0.06) { sum += -b.vy * e.dt; time += e.dt; turn = Math.max(turn, Math.abs(b.a)); }
     }
     const v = sum / time;
-    console.log(`test 37 (disc): mean speed from 12 to 22 cm deep ${v.toFixed(3)} m/s, drag law ${vt.toFixed(3)} m/s (${(100 * (v / vt - 1)).toFixed(1)} %), drift sideways ${((b.x - 0.1) * 1000).toFixed(1)} mm`);
+    console.log(`test 37 (square): mean speed from 6 to 14 cm ${v.toFixed(3)} m/s, drag law ${vt.toFixed(3)} m/s (${(100 * (v / vt - 1)).toFixed(1)} %), turned up to ${(turn * 180 / Math.PI).toFixed(0)}°, drift sideways ${((b.x - 0.1) * 1000).toFixed(1)} mm`);
     expect(Math.abs(v / vt - 1)).toBeLessThan(0.15);
   });
 
@@ -234,7 +241,7 @@ describe('M3a — test 40: budgets close with moving solids', () => {
         { op: 'body', region: { rect: [0.06, 0.05, 0.085, 0.06] }, material: 'wood', T: 40 }
       ]
     }), { insulated: true });
-    const heat = (): number => { let s = 0; for (const b of e.bodies.list) for (let k = 0; k < b.nv; k += 1) s += b.E[k]; return s; };
+    const heat = (): number => { let s = 0; for (const b of e.bodies.list) for (let k = 0; k < b.ncell; k += 1) s += b.E[k]; return s; };
     const E0 = heat();
     const air0 = e.measureBudget().air;
     while (e.time < 2) e.step();
@@ -255,7 +262,7 @@ describe('M3a — bodies in the scene format and on the accelerated view', () =>
         { op: 'hotplate', x: 0.1, y: 0, w: 0.12, h: 0.008, material: 'steel', mode: 'power', power: 40, on: true, T: 20 },
         { op: 'beaker', x: 0.1, y: 0.008, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T: 20 },
         { op: 'body', region: { rect: [0.02, 0.1, 0.05, 0.12] }, material: 'wood', T: 20, angle: 15 },
-        { op: 'body', region: { circle: [0.17, 0.05, 0.01] }, material: 'stone', T: 20, pinned: true },
+        { op: 'body', region: { rect: [0.16, 0.04, 0.18, 0.06] }, material: 'stone', T: 20, pinned: true },
         { op: 'pin', x: 0.1, y: 0.009, pinned: false }
       ]
     });
@@ -279,5 +286,18 @@ describe('M3a — bodies in the scene format and on the accelerated view', () =>
       expect('pinned' in op).toBe(false);
       expect('angle' in op).toBe(false);
     }
+    /* Körper sind Rechtecke: ein Kreis wird das Quadrat gleicher Fläche (mit einer Warnung), eine Strecke mit Breite ein gedrehtes Rechteck. */
+    const round = new Engine(scene({ ops: [
+      { op: 'body', region: { circle: [0.1, 0.05, 0.01] }, material: 'stone', T: 20, pinned: true },
+      { op: 'body', region: { line: [0.02, 0.1, 0.06, 0.14], width: 0.004 }, material: 'wood', T: 20, pinned: true }
+    ] }));
+    expect(round.warnings.some((w) => w.includes('square'))).toBe(true);
+    const [sq, bar] = round.bodies.list;
+    const [x0, y0, x1, y1] = sq.bounds(0);
+    expect((x1 - x0) * (y1 - y0)).toBeCloseTo(Math.PI * 0.01 * 0.01, 12);
+    expect(Math.abs(bar.a - Math.PI / 4)).toBeLessThan(1e-12);
+    const [bx0, by0, bx1, by1] = bar.bounds(0);
+    expect(bx1 - bx0).toBeCloseTo(Math.hypot(0.04, 0.04), 12);
+    expect(by1 - by0).toBeCloseTo(0.004, 12);
   });
 });

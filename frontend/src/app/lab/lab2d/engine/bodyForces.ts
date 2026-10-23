@@ -99,7 +99,9 @@ export class BodyForces {
         re[c] = vol[c] > 0 ? mass[c] / vol[c] : liquid.rhoRef;
         known[c] = 1;
       } else if (k === GAS && g.solid[c] === 0) {
-        pe[c] = regions.pAt(c) - W.pRef + g.pg[c];
+        /* Derselbe Druck p0, den die Flüssigkeit an ihrer Oberfläche sah (liquid.pGas, zu Beginn des Schritts): in einem verschlossenen
+           Gebiet ändert sich p0 im Schritt — gemischt gäbe ein gleichmässiger Druck eine Kraft auf einen schwimmenden Körper. */
+        pe[c] = liquid.pGas[c] + g.pg[c];
         re[c] = gas.rho[c] > 0 ? gas.rho[c] : regions.rhoAmb;
         known[c] = 1;
       } else {
@@ -204,35 +206,41 @@ export class BodyForces {
     return wsum > 0 ? s / wsum : 0;
   }
 
-  /** Kraft (N) und Drehmoment (N·m) des Drucks auf den Körper: über die Mitten seiner Umrisskanten (Ergebnis in out). */
+  /** Kraft (N) und Drehmoment (N·m) des Drucks auf den Körper: über seine freien Seiten, je Stück höchstens eine halbe Zelle lang (Ergebnis in out). */
   force(b: Body2D): Float64Array {
     const out = this.out;
     const cs = Math.cos(b.a);
     const sn = Math.sin(b.a);
-    const A = b.dx * b.depth;
+    const sg = this.sg;
     let fx = 0;
     let fy = 0;
     let tq = 0;
-    for (let e = 0; e < b.ne; e += 1) {
-      const lx = b.ex[e];
-      const ly = b.ey[e];
-      const d = b.ed[e];
-      const nlx = d === 0 ? -1 : d === 1 ? 1 : 0;
-      const nly = d === 2 ? -1 : d === 3 ? 1 : 0;
-      const rx = cs * lx - sn * ly;
-      const ry = sn * lx + cs * ly;
-      const nwx = cs * nlx - sn * nly;
-      const nwy = sn * nlx + cs * nly;
-      const p = this.sideAt(b.x + rx, b.y + ry, nwx, nwy) * A;
-      fx -= p * nwx;
-      fy -= p * nwy;
-      tq -= p * (rx * nwy - ry * nwx);
+    for (let e = 0; e < b.nseg; e += 1) {
+      b.segment(e, sg);
+      const len = Math.hypot(sg[2] - sg[0], sg[3] - sg[1]);
+      const n = Math.max(1, Math.ceil(len / (0.5 * b.dx)));
+      const A = (len / n) * b.depth;
+      const nwx = cs * sg[4] - sn * sg[5];
+      const nwy = sn * sg[4] + cs * sg[5];
+      for (let q = 0; q < n; q += 1) {
+        const t = (q + 0.5) / n;
+        const lx = sg[0] + t * (sg[2] - sg[0]);
+        const ly = sg[1] + t * (sg[3] - sg[1]);
+        const rx = cs * lx - sn * ly;
+        const ry = sn * lx + cs * ly;
+        const p = this.sideAt(b.x + rx, b.y + ry, nwx, nwy) * A;
+        fx -= p * nwx;
+        fy -= p * nwy;
+        tq -= p * (rx * nwy - ry * nwx);
+      }
     }
     out[0] = fx;
     out[1] = fy;
     out[2] = tq;
     return out;
   }
+
+  private readonly sg = new Float64Array(6);
 
   /**
    * Der Druck (über p_ref) an einem Punkt (mx, my) des Umrisses mit der
@@ -278,21 +286,29 @@ export class BodyForces {
     return this.pressureAt(mx, my);
   }
 
-  /** Mitbewegte Masse und Trägheit schätzen (b.ma, b.Ia): nach dem Anteil der Umrisskanten, vor denen Flüssigkeit liegt. */
+  /** Mitbewegte Masse und Trägheit schätzen (b.ma, b.Ia): nach dem Anteil der Seitenlänge, vor der Flüssigkeit liegt. */
   addedMass(b: Body2D): void {
     const W = this.w();
     const g = W.grid;
     const cs = Math.cos(b.a);
     const sn = Math.sin(b.a);
+    const sg = this.sg;
     let wet = 0;
-    for (let e = 0; e < b.ne; e += 1) {
-      const d = b.ed[e];
-      const lx = b.ex[e] + (d === 0 ? -0.5 : d === 1 ? 0.5 : 0) * b.dx;
-      const ly = b.ey[e] + (d === 2 ? -0.5 : d === 3 ? 0.5 : 0) * b.dx;
-      const c = g.cellAt(b.x + cs * lx - sn * ly, b.y + sn * lx + cs * ly);
-      if (c >= 0 && g.kind[c] === LIQUID) wet += 1;
+    let all = 0;
+    for (let e = 0; e < b.nseg; e += 1) {
+      b.segment(e, sg);
+      const len = Math.hypot(sg[2] - sg[0], sg[3] - sg[1]);
+      const n = Math.max(1, Math.ceil(len / b.dx));
+      for (let q = 0; q < n; q += 1) {
+        const t = (q + 0.5) / n;
+        const lx = sg[0] + t * (sg[2] - sg[0]) + 0.5 * b.dx * sg[4];
+        const ly = sg[1] + t * (sg[3] - sg[1]) + 0.5 * b.dx * sg[5];
+        const c = g.cellAt(b.x + cs * lx - sn * ly, b.y + sn * lx + cs * ly);
+        all += len / n;
+        if (c >= 0 && g.kind[c] === LIQUID) wet += len / n;
+      }
     }
-    const f = b.ne > 0 ? wet / b.ne : 0;
+    const f = all > 0 ? wet / all : 0;
     const rho = W.liquid.rhoRef;
     b.ma = ADDED * rho * f * b.hullA * b.depth;
     b.Ia = ADDED_TURN * rho * f * b.hullJ * b.depth;

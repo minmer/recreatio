@@ -130,9 +130,21 @@ export class BubbleModel {
 
   /** Die Kavitäten aller festen Oberflächenflächen neu auslegen (nach jeder Änderung der Feststoffe); hängende Blasen verlieren ihre. */
   rebuildSites(): void {
-    this.sites.rebuild(this.e.grid, this.e.scene.seed);
+    this.sites.rebuild(this.e.grid, this.e.scene.seed, this.e.bodies !== undefined ? this.e.bodies.list : []);
     const B = this.B;
     for (let b = 0; b < B.count; b += 1) B.site[b] = -1;
+  }
+
+  /** Die Kavitäten der wachen Körper (onlyAwake = false: aller) an ihre neue Lage (die Tafel bleibt; hängende Blasen wandern mit ihrer Kavität). */
+  refreshBodySites(onlyAwake = true): void {
+    this.sites.refresh(this.e.grid, this.e.bodies.list, onlyAwake);
+  }
+
+  /** Eine hängende Blase löst sich von ihrer Kavität (ihr Körper rückte weg). */
+  private detach(b: number): void {
+    const s = this.B.site[b];
+    if (s >= 0) this.sites.bubble[s] = 0;
+    this.B.site[b] = -1;
   }
 
   /** Grösster Mündungsradius einer Kavität aus Werkstoff `id` (m) — für Anzeigen und Test 12. */
@@ -249,15 +261,14 @@ export class BubbleModel {
     for (let s = 0; s < this.sites.count; s += 1) {
       if (this.sites.bubble[s] !== 0) continue;
       const fc = this.sites.fluid[s];
-      /* Keime nur im Wasser (der einzigen flüchtigen Flüssigkeit): die Zelle vor der Kavität muss vor allem Wasser sein. */
-      if (g.kind[fc] !== LIQUID || phase.acc[fc] <= 0 || phase.waterShare(fc) < 0.5) continue;
       const sc = this.sites.cell[s];
-      /* Eine Kavität eines Körpers, der eben weiterrückte, bis die Tafel neu ist (M3a). */
-      if (g.solid[sc] === 0) continue;
-      const mat = SOLIDS[g.solid[sc] - 1];
+      /* Keime nur im Wasser (der einzigen flüchtigen Flüssigkeit): die Zelle vor der Kavität muss vor allem Wasser sein, die Wand fest (ein Körper rückte vielleicht weiter). */
+      if (fc < 0 || sc < 0 || g.kind[fc] !== LIQUID || phase.acc[fc] <= 0 || phase.waterShare(fc) < 0.5) continue;
+      if (!e.heat.hasSolid(sc)) continue;
+      const mat = SOLIDS[this.sites.mat[s]];
       const Tl = phase.Tl[fc];
       const kl = kLiq(phase.host[fc], Tl);
-      const Tf = (mat.k * g.T[sc] + kl * Tl) / (mat.k + kl);
+      const Tf = (mat.k * g.Ts[sc] + kl * Tl) / (mat.k + kl);
       const pl = e.pRef + g.pl[fc];
       const Ts = this.tsatCell[fc] > 0 ? this.tsatCell[fc] : tSat(pl);
       if (Tf - Ts < 0) continue;
@@ -321,10 +332,11 @@ export class BubbleModel {
       if (site >= 0) {
         const fc = this.sites.fluid[site];
         const sc = this.sites.cell[site];
-        const mat = SOLIDS[g.solid[sc] - 1];
+        if (fc < 0 || sc < 0 || !e.heat.hasSolid(sc)) { this.detach(b); site = -1; continue; }
+        const mat = SOLIDS[this.sites.mat[site]];
         const Tw = phase.Tl[fc];
         const kl = kLiq(phase.host[fc], Tw);
-        Tl = (mat.k * g.T[sc] + kl * Tw) / (mat.k + kl);
+        Tl = (mat.k * g.Ts[sc] + kl * Tw) / (mat.k + kl);
         srcCell = sc;
       } else {
         k = this.liquidFootprint(b);
@@ -391,8 +403,7 @@ export class BubbleModel {
       /* Begrenzen: keine Zelle durch diesen Austausch über T_sat hinaus (oder darunter). */
       if (site >= 0) {
         const sc = srcCell;
-        const mat = SOLIDS[g.solid[sc] - 1];
-        const cap = mat.rho * mat.cp * g.vCell * Math.max(0, g.T[sc] - Tb);
+        const cap = e.heat.solidCap(sc) * Math.max(0, g.Ts[sc] - Tb);
         if (Q > 0) Q = Math.min(Q, Math.max(0, cap - this.used(sc)));
       } else {
         let avail = 0;
@@ -488,11 +499,10 @@ export class BubbleModel {
   /** Der Fritz-Durchmesser D_d = 0,0208 θ √(σ/(g Δρ)) einer hängenden Blase (m); ohne Schwerkraft unendlich. */
   private fritz(b: number, Tl: number): number {
     const e = this.e;
-    const g = e.grid;
     const B = this.B;
     const s = B.site[b];
     if (s < 0 || e.gy <= 0) return Infinity;
-    const mat = SOLIDS[g.solid[this.sites.cell[s]] - 1];
+    const mat = SOLIDS[this.sites.mat[s]];
     const theta = this.contactAngleOverride ?? mat.contactAngle;
     const rhov = B.totalMass(b) / Math.max(1e-30, B.V[b]);
     const hm = e.phase.host[this.sites.fluid[s]];

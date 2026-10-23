@@ -478,8 +478,11 @@ export class Phase {
         sys.x[s] = Y0[c];
         sys.dH[s] = mtot[c] / dt;
         let b = (mtot[c] * Y0[c]) / dt;
-        if (i + 1 < nx && kind[c + 1] === GAS && mtot[c + 1] > 0) sys.ax[s] = 0.5 * (rd[c] + rd[c + 1]) * depth;
-        if (j + 1 < ny && kind[c + nx] === GAS && mtot[c + nx] > 0) sys.ay[s] = 0.5 * (rd[c] + rd[c + nx]) * depth;
+        /* Durch den offenen Teil der Fläche (eine dünne Wand eines Körpers quer durch zwei Zellen lässt nichts durch). */
+        const au = g.au[i + 1 + j * (nx + 1)];
+        const av = g.av[c + nx];
+        if (i + 1 < nx && kind[c + 1] === GAS && mtot[c + 1] > 0 && au > 0) sys.ax[s] = au * 0.5 * (rd[c] + rd[c + 1]) * depth;
+        if (j + 1 < ny && kind[c + nx] === GAS && mtot[c + nx] > 0 && av > 0) sys.ay[s] = av * 0.5 * (rd[c] + rd[c + nx]) * depth;
         if (edge[c] === 0) { sys.b[s] = b; continue; }
         let gb = 0;
         for (let k = 0; k < 4; k += 1) {
@@ -505,8 +508,10 @@ export class Phase {
         if (kind[c] !== GAS || mtot[c] <= 0) continue;
         const s = i + 1 + (j + 1) * stride;
         const Yc = X[s];
-        if (i + 1 < nx && kind[c + 1] === GAS && mtot[c + 1] > 0) this.exchange(c, c + 1, dt * 0.5 * (rd[c] + rd[c + 1]) * depth * (Yc - X[s + 1]));
-        if (j + 1 < ny && kind[c + nx] === GAS && mtot[c + nx] > 0) this.exchange(c, c + nx, dt * 0.5 * (rd[c] + rd[c + nx]) * depth * (Yc - X[s + stride]));
+        const au = g.au[i + 1 + j * (nx + 1)];
+        const av = g.av[c + nx];
+        if (i + 1 < nx && kind[c + 1] === GAS && mtot[c + 1] > 0 && au > 0) this.exchange(c, c + 1, dt * au * 0.5 * (rd[c] + rd[c + 1]) * depth * (Yc - X[s + 1]));
+        if (j + 1 < ny && kind[c + nx] === GAS && mtot[c + nx] > 0 && av > 0) this.exchange(c, c + nx, dt * av * 0.5 * (rd[c] + rd[c + nx]) * depth * (Yc - X[s + stride]));
         if (edge[c] === 0) continue;
         for (let k = 0; k < 4; k += 1) {
           const G = bG[4 * c + k];
@@ -586,13 +591,16 @@ export class Phase {
     const Y = this.Y0[c];
     const p = this.e.regions.pAt(c);
     if (kn === LIQUID) {
+      /* Nur durch den offenen Teil der Fläche: hinter einer dünnen Wand eines Körpers liegt Wasser, aber keine Oberfläche (sonst verdunstete es durch das Glas). */
+      const open = g.faceOpen(c, k);
+      if (!(open > 0)) return 0;
       /* Nur Wasser verdunstet und nimmt Tau auf: die Fläche zählt mit dem Anteil des Wassers an der Flüssigkeit dieser Zelle (Öl allein: kein Austausch). */
       const fw = this.waterShare(nb);
       /* Ohne Wasserteilchen in der Zelle (nur ihr Platz ist flüssig: Blasen, Öl) verdunstet nichts — sonst entstünde Dampf aus nichts. */
       if (fw <= 0 || !(this.acc[nb] > 0)) return 0;
       /* Über Salzlösung der Dampfdruck a_w p_sat (Raoult für Elektrolyte, mit φ nach Pitzer). */
       this.yb = this.ysat(this.Tl[nb], p, c, this.salty ? this.aw[nb] : 1);
-      return half * (1 - Y) * fw;
+      return open * half * (1 - Y) * fw;
     }
     if (kn === SOLID) {
       const ys = this.ysat(g.T[nb], p, c);

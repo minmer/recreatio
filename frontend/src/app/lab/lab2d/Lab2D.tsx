@@ -445,9 +445,9 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
       window.setTimeout(() => refreshOps(h), 50);
     } else if (tool === 'drag' && d.target !== null) {
       const r = d.target;
-      /* Auf ganze Zellen gerundet (so verschiebt die Engine), nicht unter den Boden. */
-      const dx = Math.round((x - d.start[0]) / cell) * cell;
-      const dy = Math.max(Math.round(-r[1] / cell) * cell, Math.round((y - d.start[1]) / cell) * cell);
+      /* Genau (Körper sind Rechtecke; liegt ein gemalter Bau in der Fläche, rundet die Engine alles auf ganze Zellen), auf 0,1 mm, nicht unter den Boden. */
+      const dx = Math.round((x - d.start[0]) * 1e4) / 1e4;
+      const dy = Math.max(-Math.floor(r[1] * 1e4) / 1e4, Math.round((y - d.start[1]) * 1e4) / 1e4);
       if (dx === 0 && dy === 0) return;
       /* Das Gerät samt Wasser und Blasen darin verschieben (seine Zellen behalten Temperatur und Heizung). */
       h.apply({ op: 'move', region: { rect: r }, dx, dy });

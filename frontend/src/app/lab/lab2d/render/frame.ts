@@ -18,6 +18,8 @@
  *   Kristalls (nach der Dicke der Kruste), Salz am Boden der Kiste färbt die
  *   unterste Zelle seiner Spalte.
  * - Blasen: Mitte, Radius, Anteil Luft — Kreise in wahrer Grösse.
+ * - Körper (seit 2026-10-23): gedrehte Vierecke je innere Zelle (Mitte, halbe
+ *   Seiten, Winkel, Farbe) und die Umrisse ihrer Rechtecke als Strecken.
  * - Wahlweise die rohen Teilchen (x, y, Temperatur auf der Skala) und in der
  *   Einblendung „Prędkość“ Pfeile der Geschwindigkeit auf einem groben Raster —
  *   erst die des Gases, dann die des Wassers (jedes mit eigenem Massstab).
@@ -64,6 +66,11 @@ export interface FrameBuffers {
   nal: number;
   /** Grösste Geschwindigkeit des Wassers an den Pfeilen (m/s; die des Gases steht in scaleHi). */
   vLiq: number;
+  /** Körper: je Viereck x, y, halbe Breite, halbe Höhe, Winkel, R, G, B (0–1); nq Vierecke. Umrisse: je Strecke x0, y0, x1, y1; ne Strecken. */
+  quads: Float32Array;
+  nq: number;
+  edges: Float32Array;
+  ne: number;
 }
 
 export function allocFrame(nx: number, ny: number, bubbles: number, particles = 0): FrameBuffers {
@@ -87,13 +94,17 @@ export function allocFrame(nx: number, ny: number, bubbles: number, particles = 
     arrows: new Float32Array(12 * Math.ceil(nx / 2) * Math.ceil(ny / 2)),
     nag: 0,
     nal: 0,
-    vLiq: 0
+    vLiq: 0,
+    quads: new Float32Array(8 * 64),
+    nq: 0,
+    edges: new Float32Array(16 * 16),
+    ne: 0
   };
 }
 
 /** Die übertragbaren Puffer eines Bildes (Arbeiter ↔ Seite). */
 export function frameTransfer(f: FrameBuffers): ArrayBuffer[] {
-  return [f.cells.buffer, f.field.buffer, f.liquid.buffer, f.bubbles.buffer, f.parts.buffer, f.arrows.buffer] as ArrayBuffer[];
+  return [f.cells.buffer, f.field.buffer, f.liquid.buffer, f.bubbles.buffer, f.parts.buffer, f.arrows.buffer, f.quads.buffer, f.edges.buffer] as ArrayBuffer[];
 }
 
 /** Passt der Puffer noch zu dieser Engine (mit den rohen Teilchen, wenn sie gezeigt werden)? */

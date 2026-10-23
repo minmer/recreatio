@@ -7,7 +7,7 @@ tests measured, and what is not met. Architecture: [ARCHITECTURE.md](ARCHITECTUR
 Reference machine: the development laptop, AMD Ryzen 9 5900HS (8 cores, single-threaded engine), Node 24, Windows 11.
 The prompt's "target school laptop" was never named; a typical school laptop is two to four times slower per core.
 
-Reproduce: `npm run test:lab2d` (fast tests, ~3 min), `npm run test:lab2d:slow` (long runs, ~30 min),
+Reproduce: `npm run test:lab2d` (fast tests, ~5 min), `npm run test:lab2d:slow` (long runs, ~35 min),
 `npm run bench:lab2d` (benchmark, on a quiet machine).
 
 ## Summary
@@ -22,15 +22,16 @@ Reproduce: `npm run test:lab2d` (fast tests, ~3 min), `npm run test:lab2d:slow` 
 | M1e GPU path | test 17, 1 mm in the budget | built (the accelerated view): test 17 met (test 11 was at the edge, as on the CPU, until the particles of a cell shared their heat: now −0.37 K); 2 mm 4.9 ms per step; **1 mm 7.7 ms, above the 6 ms** (§M1e) |
 | M2a liquids (oil) | tests 18–22 (SANDBOX.md §13), water unchanged | built on the CPU (2026-10-21): all met; every M1 number unchanged to the last printed digit; water scenes as fast as before (§M2a); the accelerated view hands oil scenes back to the CPU |
 | M2b solutions (salt) | tests 23–27 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met; then particles of a cell share heat and salt at the diffusion rate and salt diffuses between cells (tests 28–30, met); all M1/M2a tests still met, some numbers moved slightly (§M2b); water +2.4 % per step, brine +12 % over water; the accelerated view shares heat like the CPU and hands salt scenes back to the CPU |
-| M3a bodies | tests 36–40 (SANDBOX.md §13) | built on the CPU (2026-10-23): all met — floating depth −0.13 % (pine) and −0.04 % (ice), a sinking disc +5 % of its drag law and at rest without jitter, a stack stands, a beaker of water falls back 3° below its tipping angle and over 3° above it, budgets exact with moving solids; scenes without free bodies unchanged; the free surface got its sub-cell position, which moved older numbers slightly (§M3a); the accelerated view hands free bodies back to the CPU |
+| M3a bodies | tests 36–40 (SANDBOX.md §13) | built on the CPU (2026-10-23) and the same day remade as exact rectangles (§M3a): all met — floating depth −0.10 % (pine) and −0.01 % (ice), at rest within 0.06 mm, a sinking square +10 % of its drag law and at rest without jitter, a stack stands, a beaker of water falls back 3° below its tipping angle and over 3° above it, budgets exact with moving solids; the free surface got its sub-cell position, which moved older numbers slightly; a beaker wall lying across two cells needed the thin-wall rule (test 11); the accelerated view takes pinned bodies as whole cells and hands free bodies back to the CPU |
+| M3b melting and freezing | tests 41–45 (SANDBOX.md §13) | built on the CPU (2026-10-23): all met — the Stefan fronts within 6 % (melting) and 7 % (freezing) of Neumann at 2 mm, 4 % and 3 % at 1 mm; an ice cube stays one rectangle and becomes water with energy and water exact; brine settles 0.13 K from T_f(w), a cooling mixture stops at the eutectic, freezing brine keeps all its salt, a carved block stays a few rectangles (§M3b); the accelerated view hands ice back to the CPU |
 | B baking and playback | tests 31–34 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met — playback frame-identical to the live view, seeking exact, going on from a keyframe bit for bit; 33.6 MB per simulated minute of boiling at 2 mm (gate set at 40 from it); the lab never starts by itself, a module can bake on opening, one lab offers several scenarios (§B) |
 
-Test 16 (≤ 12 ms of simulation per 60 Hz frame at the default resolution) is the one gate that fails throughout:
-the CPU step of the benchmark scene at 2 mm takes 21.6 ms (budget 6 ms per step, two steps per frame): the
-simulation runs at 0.39 × real time, in slow motion with the same results. The shell shows the tempo and offers 3 mm
-cells, where a step takes 8.5 ms (0.98 × real time on the reference machine, still above the 12 ms per frame of the
-budget); 1 mm takes 102 ms per step (0.08 ×). Details and history under "Benchmark". On the GPU path (M1e) the same
-scene takes 4.9 ms per step at 2 mm — inside the budget — and 7.7 ms at 1 mm.
+Test 16 (≤ 12 ms of simulation per 60 Hz frame at the default resolution) is the one gate that fails throughout: the
+CPU step of the benchmark scene at 2 mm takes 22.9 ms since M3b (21.6 ms after M1d; budget 6 ms per step, two steps
+per frame): the simulation runs at 0.36 × real time, in slow motion with the same results. The shell shows the tempo
+and offers 3 mm cells, where a step takes 10.7 ms (0.78 × real time on the reference machine, above the 12 ms per
+frame of the budget); 1 mm took 102 ms per step after M1d (0.08 ×). Details and history under "Benchmark". On the GPU
+path (M1e) the same scene takes 4.9 ms per step at 2 mm — inside the budget — and 7.7 ms at 1 mm.
 
 ## M0 — Skeleton
 
@@ -533,6 +534,119 @@ were 21 of 50 366), 538 later; test 11 **99.678 °C (−0.30 K)**, vapour 5.314 
 B, Vitest's worker had waited minutes for an answer during the synchronous bake and ended every slow run with two
 "unhandled errors" (a timeout of its `onTaskUpdate` call), although the test's checks held.
 
+### Exact rectangles (2026-10-23)
+
+The user decided (SANDBOX.md, decisions of 2026-10-23): **solids are rectangles** — a body is one or a few exact
+rectangles in its own frame, stable inside, changing only when it melts or ice grows on it, and then a whole side
+moves; painted walls stay cells. The voxel machinery (`bodyRaster.ts`) is gone; ARCHITECTURE.md §17 describes the
+new one: internal cells laid exactly into each rectangle, weights from exact clipping, covered fractions of every
+cell and face (`fs`, `au`, `av`), cut-cell projections for the liquid and the gas (Batty, Bertails & Bridson 2007),
+the heat of a mixed cell as one more part, cells closed at 99 %, when cut in two, or at half next to another solid.
+
+- **Test 36**: pine −0.10 % (bobbing **0.06 mm**, was ±1.4 mm), ice −0.01 % (**0.05 mm**) — the water a body displaces
+  now changes continuously with its position.
+- **Test 37**: a circle region becomes the square of its area, so the sinking test now uses a 2 cm ceramic square in a
+  30 cm tank against the drag law of a square cylinder (C_D = 2.1, Lyn et al. 1995): from 6 to 14 cm **0.456 m/s**
+  against 0.415 (**+9.8 %**), turned up to 24° by then; deeper its wake turns it over and it tumbles and glides
+  sideways — at 1 mm from 16 cm on, at 2 mm from 20 cm, a chaotic path (the earlier window 20–32 cm gave +2 % at 2 mm
+  and −35 % at 1 mm). The stone block rests at 0.000 mm and falls asleep.
+- **Tests 38–40** unchanged in substance: the stack at 40.000 mm (energy 1.2e-14 J); the beaker falls back from
+  43.11° and over from 49.11° (tipping angle 46.11°); with moving bodies energy −1.2e-10 J, water −1.5e-15 kg.
+- **The landing stone** exploded at first (an empty liquid cell under a body landing on the floor, a force of 1444 N):
+  hence the rule that a cell covered to half next to another solid is closed.
+- **A floating body in a sealed box** flew out of it (a wooden block in a closed 4 cm box reached 13.7 m/s — also with
+  voxels, 1.5 m/s and p0 up to 138 kPa): the gas side of the force used p0 after the step's compression, the liquid
+  the p0 before. Both use the start-of-step value now; the block sloshes as in an open box (energy drifts by about
+  10⁻⁸ J per second there, exact in open boxes).
+- **Test 22** counted bursts from the first step on: half-covered air cells at the foot of the beaker, beside the
+  plate, were liquid and let bubbles burst at 10 mm (161 in the first half second). With the half-cell rule they are
+  closed; the test now runs until the first bubble bursts at the oil's surface (2.57 s; 2514 nucleated).
+- **Drawing**: each internal cell a rotated quad, the outlines on top, cells a body closes left empty, the liquid's
+  coverage continued under bodies (else a light gap showed between water and a body between cells). Clips are now
+  version 2 with the quads and outlines per frame (difference to the previous frame when their number stays):
+  test 31 **3.8 kB** per frame (was 3.5); version 1 clips still play.
+- **The accelerated view** gets the bodies as a staircase of whole cells (`gpu/staircase.ts`): every cell covered by
+  more than half or closed by the CPU, and for a face lying wholly inside a body with neither cell qualifying, the one
+  with the larger share; temperature preserved (energy from the whole cell's capacity), heater group, φ_s, distance
+  field, the regions' fluid volume and the cavities' wall cells follow; on download the temperatures go back to the
+  bodies through `collect`. Two traps found on the way: moving the gas of newly solid cells to a neighbour without
+  re-deriving its density let a sealed region's pressure run away (+20 W of phantom energy) — the gas now stays in
+  the solid cell, where the kernels ignore it; and cavities whose wall cell is fluid on the GPU took heat from water
+  (vapour +340 %) — their wall cell moves to the solid neighbour or the cavity is switched off. Test 17 after this:
+  1a −0.013 %, 1b −0.013 %, 2 0.085 %, **3 −2.40 %** (with the bodies' real heat capacity; M1e −2.61 %), 6 939.1 Pa,
+  **11 −0.33 K, vapour −0.3 %** — all as before.
+- **Water evaporated through thin walls** — found by the slow suite: test 11's beaker boiled at **96.10 °C, 3.9 K
+  below T_sat**. Its walls (2 mm, like the presets' beakers at 2 mm) lie across two cells, which become two half-open
+  cells with a closed face between them. The particles' kernels put part of the water of the inner cell into the
+  outer one, which then counted as liquid with a surface to the air outside, and evaporation and flash boiling looked
+  at a neighbour's kind, not at the face between: 1.5–2.3 W evaporated from the wall cells into the room. Now particles
+  put nothing behind a closed face (`grid.updateThin`, their weights renormalised over the rest) and evaporation, flash
+  boiling and the gas test of a cell look only through open faces: 0.2–0.3 W from the wall cells (the two at the
+  waterline). Test 11 now **99.53 °C (−0.45 K**; M3a −0.30 K), vapour −1.6 % of (P − losses)/h_lv; test 10 lets
+  0.16 % of the early bubbles reach the surface (gate 1 %; M3a 0.015 %), test 12 0.27 K with chips and 10.30 K
+  without. A beaker placed on whole cells behaves as in M3a (the same scene shifted by 1 mm: 99.34 °C after 30 s in
+  both engines). The masks cost 0.08 ms per step in the boiling preset at 2 mm (0.4 %).
+- **Particles below the eutectic** — the other failure of that slow run: beside the floating ice of test 43 single
+  particles reached −21.30 °C, 0.1 K below the eutectic, for up to a quarter of a second. Their kernels reached into
+  cells the block almost covers, behind faces it covers whole (such faces appear in half of the steps there: a square
+  floating 77 % deep is not stable lying flat, and in the melting brine it rocks and rolls over). The thin-wall rule
+  ended it: the coldest particle now stays at −21.196 °C. Diluting strong brine with meltwater does absorb heat (5 %
+  of water at the eutectic cools it by 0.11 K), but a step's meltwater is far less.
+- **The drag tool** moves bodies by the exact offset (to 0.1 mm); a painted solid in the region still moves everything
+  by whole cells.
+
+The slow suite after all of it: test 3 **−2.57 %** (M3a −2.33 %) — its Σ m c_p now takes the bodies' own heat
+capacity (14.45 J/K of glass and steel; counting solid cells, as before, missed a wall lying across two half-open
+cells and gave −6.28 %); test 4 with water 1.0e-6 % of ∫P dt, the box of air 7.7e-10 %; tests 10–12 as above; test
+34 **36.0 MB** per simulated minute (keyframes of 1079 kB; were 34.0 MB and 992 kB); tests 41 and 43 in §M3b. 81 fast
+tests in 9 files (~5 minutes).
+
+## M3b — melting and freezing
+
+Built on the CPU (2026-10-23), the fifth step of [SANDBOX.md](SANDBOX.md) §7, with the user's decisions: an ice body
+stays a rectangle and a whole side melts or grows; melting and growth come together; salt stays in the water; new
+ice appearing by itself comes later. ARCHITECTURE.md §18 has the machinery (`bodyMelt.ts`); the short version:
+
+- The interface of every free side is at T_f of the liquid in front (Pitzer, below 0 °C Spencer–Møller–Weare);
+  internal cells above it give their excess to the nearest open side, which moves inward by δ = Q/(ρ D Σ s [L + c_p
+  (T_f − T)]); the meltwater, with exactly the slice's energy, latent offset and Q, joins the particles in front or
+  becomes one; water colder than T_f in front freezes onto the side (with the enthalpy of ice; its salt stays),
+  planned first and taken after the side moved.
+- Bodies of several rectangles (a carved block, an ice beaker) melt along their free segments and are recomposed into
+  horizontal strips; collinear sides are one wall; corners follow their neighbours; a body that melts through splits.
+- Energy: the latent offset m·e0 (IAPWS R10-06, Δh_fus = 333.55 kJ/kg at 273.1525 K) makes ice → water exact; the
+  water budget counts ice (placing, erasing, escaping included).
+
+The gates (SANDBOX.md §13; m3b.test.ts at 2 mm, m3b.slow.test.ts at 1 mm):
+
+| Test | Result |
+|---|---|
+| 41 Stefan, melting (ice at 0 °C under water at 20 °C, the cold water below; Neumann with the water's α and St at 10 °C) | 2 mm: front 1.617 mm after 4 min against 1.526 (**+6.0 %**), its speed from 2 to 4 min **+0.6 %**; 1 mm: 1.584 mm (**+3.8 %**), speed **+1.4 %**; energy −2.0e-11 J |
+| 41 Stefan, freezing (water at T_f on ice at −20 °C; Neumann with the ice's α) | 2 mm: 1.456 mm after 2 min against 1.556 (**−6.4 %**); 1 mm: 1.517 mm (**−2.5 %**); energy −3.9e-12 J |
+| 42 ice cube in warm water | a 2 cm cube at −5 °C in water at 20 °C: 3.667 → 3.420 g in 8 s, still one rectangle (19.06 × 19.57 mm), warmest ice 0.0025 °C (= T_m), energy −1.3e-10 J, water −1.3e-15 kg |
+| 43 brine settles at T_f(w) | a 1.5 cm cube at −5 °C in 3.5 % brine at 0 °C: after 2.5 min the brine at −1.925 °C, T_f of its diluted mean (3.434 %) −2.058 °C (**0.13 K**), the ice −2.058 °C; salt −8.4e-18 kg |
+| 43 with enough salt (slow) | a 2 cm cube at −10 °C in 25 % brine at −10 °C: after 3 min the brine at −19.39 °C (it started at −10 °C), T_f of its mean (22.19 %) −19.68 °C, still melting (1.50 g so far); the coldest particle in any step −21.196 °C, the eutectic −21.2 °C; salt −4.5e-17 kg, energy 8.1e-12 J |
+| 44 freezing brine keeps its salt | 3.5 % brine at −2.10 °C on ice at −20 °C: the ice grows 196 mg in 20 s, the brine's salt changes by 3.7e-15 g (rounding), w 3.5000 → 3.5678 %, no crust on the ice |
+| 45 a carved block | a 3 × 2 cm block with a 1 cm notch in water at 40 °C: three rectangles stay three, 4.584 → 3.884 g in 6 s, no overlap, one body, energy 2.8e-10 J |
+| 33 keyframe | melting ice restored into a fresh engine runs on bit for bit (snapshot 900 kB) |
+
+How the Stefan numbers came about: the front is first order in Δx. At first the melting front ran **+39 %** ahead at
+10 s and freezing lagged −20 % (with a stall at 1 mm: the thin fluid part of a mixed cell held no particle, so nothing
+froze until the ice reached the next cell). What fixed it: sampling the water one cell further when the cell in front
+holds none (freezing), giving meltwater to the cells just in front first (one cell further only if they hold no
+particle — at 1 mm the late melting rate was 9 % too fast while meltwater went two cells deep), and pushing
+particles out of grown ice. The remaining error sits in the first seconds, while the thermal layer is thinner than a
+cell (SIMPLIFICATIONS.md #40).
+
+Presets "Lód w ciepłej wodzie" (a 3 cm cube floating in water at 40 °C; dropped from above it plunged to the bottom
+first, so it starts afloat) and "Lód z solą — mieszanina chłodząca" (three cubes in 23 % brine at 0 °C); "Co pływa?"
+now says the ice melts slowly. Both are among the scenarios of the page fixture (16 scenes). The AI prompt and the
+scene docs say that bodies are rectangles (a circle becomes the square of its area) and that ice bodies melt and grow;
+a painted "solid" of ice stays a wall. The accelerated view hands scenes with ice back to the CPU.
+
+Not modelled (SIMPLIFICATIONS.md #31, #40): new ice in supercooled water, frost, rounded corners, the conduction
+delay inside the ice (an internal cell's heat reaches its side at once).
+
 ## Benchmark
 
 The benchmark scene: the beaker with boiling chips on the hot plate, water at 98 °C (preset "wrzenie": it boils at
@@ -551,12 +665,20 @@ two steps. Budget: 6 ms per step.
 | M1e GPU² | 1 mm | 0.00 | 1.59 | 2.83 | 0.95 | 0.93 | 0.79 | 0.16 | **7.67** | 15.3 |
 | M3a³ | 2 mm | 0.00 | 2.04 | 9.68 | 2.34 | 3.38 | 2.60 | 0.19 | **20.24** | 40.5 |
 | M3a³ | 3 mm | 0.00 | 0.85 | 3.71 | 1.10 | 1.54 | 1.15 | 0.09 | **8.45** | 16.9 |
+| M3b⁴ | 2 mm | 0.00 | 3.03 | 11.24 | 2.50 | 3.27 | 2.62 | 0.21 | **22.90** | 45.8 |
+| M3b⁴ | 3 mm | 0.00 | 1.38 | 4.11 | 2.70 | 1.21 | 1.12 | 0.09 | **10.65** | 21.3 |
 
 ¹ measured inside the test run with other test files in parallel, before bubbles and phase change existed.
 ² the accelerated view on the RTX 3070 (laptop); the step is the throughput, the stages are timestamps (§M1e).
 ³ the CPU with M2a, M2b, B and M3a; the new stage `bodies` (the pinned beaker and plate) takes 0.01 ms. Against the
 committed engine of B on the same machine, alternating, four runs each: 19.22 and 19.04 ms per step (medians, −1 %:
 noise) — bodies and the new free surface cost nothing in a scene without free bodies.
+⁴ the CPU with bodies of exact rectangles and M3b (stage `bodies` 0.04 ms). The committed M3a engine on the same
+machine just before: 19.95 ms at 2 mm and 8.38 ms at 3 mm. At 2 mm (+15 %) the gas solve takes 14.6 iterations instead
+of 10.6 — the preset's beaker walls lie across cells as two half-open cells each — the liquid stage 1.0 ms more, and
+20 % more bubbles are in flight. At 3 mm (+27 %) most of it is boiling: the beaker's bottom is now its true 2 mm with
+the water in the cells it shares (the voxels made it a whole 3 mm row of glass), the water boils on it, and 230
+bubbles are in flight instead of 18.
 
 What the M1d optimisations changed (2 mm): one Gauss–Seidel sweep over the boundary band in the multigrid (gas
 iterations 13.2 → 11.0), the gas transport rewritten without per-face method calls, bubble growth substeps tied to

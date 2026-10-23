@@ -67,11 +67,13 @@ describe('M1b — test 3: heating rate', () => {
     const slope = samples.reduce((a, [t, T]) => a + (t - mt) * (T - mT), 0) / samples.reduce((a, [t]) => a + (t - mt) ** 2, 0);
     let C = 0;
     for (let p = 0; p < e.particles.count; p += 1) C += e.particles.mass[p] * cpL(e.particles.T[p]);
+    /* Feststoffe: die Körper (Zlewka, Platte) mit ihren inneren Zellen — eine Wand quer durch zwei Zellen zählt dort ganz —, gemalte Bauten je Zelle. */
     let Cs = 0;
     let Cg = 0;
     for (let c = 0; c < g.n; c += 1) {
-      if (g.solid[c] !== 0) { const s = SOLIDS[g.solid[c] - 1]; Cs += s.rho * s.cp * g.vCell; } else Cg += e.gas.cap[c];
+      if (g.solid[c] !== 0 && g.owner[c] === 0) { const s = SOLIDS[g.solid[c] - 1]; Cs += s.rho * s.cp * g.vCell; } else if (g.solid[c] === 0) Cg += e.gas.cap[c];
     }
+    for (const b of e.bodies.list) if (!b.gone) for (let k = 0; k < b.ncell; k += 1) Cs += b.cellCap(k);
     const expected = P / (C + Cs + Cg);
     console.log(`test 3: Σ m c_p = ${(C + Cs + Cg).toFixed(2)} J/K (water ${C.toFixed(2)}, solids ${Cs.toFixed(2)}, air ${Cg.toFixed(3)}), dT/dt = ${slope.toFixed(5)} K/s, P/Σ m c_p = ${expected.toFixed(5)} K/s (${(100 * (slope / expected - 1)).toFixed(2)} %)`);
     expect(Math.abs(slope / expected - 1)).toBeLessThan(0.05);

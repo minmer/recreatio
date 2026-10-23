@@ -135,7 +135,7 @@ export class Gas {
   deriveCell(c: number): void {
     const g = this.g;
     const n = g.n;
-    const vg = Math.max(1e-3, 1 - g.phi[c] - g.alpha[c]) * g.vCell;
+    const vg = Math.max(1e-3, 1 - g.fs[c] - g.phi[c] - g.alpha[c]) * g.vCell;
     this.vgas[c] = vg;
     const mN = g.mg[c];
     const mO = g.mg[n + c];
@@ -187,7 +187,7 @@ export class Gas {
       if (g.kind[c] === SOLID) { this.vgas[c] = 0; this.rho[c] = 0; this.veos[c] = 0; continue; }
       const m = g.mg[c] + g.mg[n + c] + g.mg[H2O * n + c];
       if (g.kind[c] === LIQUID && m + g.mfog[c] <= 0) { this.vgas[c] = 0; this.veos[c] = 0; continue; }
-      const vg = Math.max(1e-3, 1 - g.phi[c] - g.alpha[c]) * g.vCell;
+      const vg = Math.max(1e-3, 1 - g.fs[c] - g.phi[c] - g.alpha[c]) * g.vCell;
       this.vgas[c] = vg;
       this.rho[c] = m / vg;
       this.veos[c] = (this.nmol[c] * R_GAS * g.T[c]) / this.R.pAt(c);
@@ -235,7 +235,7 @@ export class Gas {
    */
   transitions(prev: Uint8Array): number {
     const g = this.g;
-    const { nx, ny, n, kind } = g;
+    const { nx, n, kind } = g;
     let changed = 0;
     for (let c = 0; c < n; c += 1) {
       const was = prev[c];
@@ -247,14 +247,14 @@ export class Gas {
       /* Gasnachbarn und ihr Gasvolumen. */
       let wsum = 0;
       for (let k = 0; k < 4; k += 1) {
-        const nb = k === 0 ? (i > 0 ? c - 1 : -1) : k === 1 ? (i < nx - 1 ? c + 1 : -1) : k === 2 ? (j > 0 ? c - nx : -1) : j < ny - 1 ? c + nx : -1;
+        const nb = this.across(c, i, j, k);
         if (nb >= 0 && kind[nb] === GAS && prev[nb] === GAS) wsum += this.vgas[nb] > 0 ? this.vgas[nb] : g.vCell;
       }
       if (wsum <= 0) continue;
       if (now === LIQUID) {
         /* Alles hinaus. */
         for (let k = 0; k < 4; k += 1) {
-          const nb = k === 0 ? (i > 0 ? c - 1 : -1) : k === 1 ? (i < nx - 1 ? c + 1 : -1) : k === 2 ? (j > 0 ? c - nx : -1) : j < ny - 1 ? c + nx : -1;
+          const nb = this.across(c, i, j, k);
           if (nb < 0 || kind[nb] !== GAS || prev[nb] !== GAS) continue;
           const share = (this.vgas[nb] > 0 ? this.vgas[nb] : g.vCell) / wsum;
           this.move(c, nb, share);
@@ -264,15 +264,15 @@ export class Gas {
         let have = this.massOf(c);
         let want = 0;
         for (let k = 0; k < 4; k += 1) {
-          const nb = k === 0 ? (i > 0 ? c - 1 : -1) : k === 1 ? (i < nx - 1 ? c + 1 : -1) : k === 2 ? (j > 0 ? c - nx : -1) : j < ny - 1 ? c + nx : -1;
+          const nb = this.across(c, i, j, k);
           if (nb < 0 || kind[nb] !== GAS || prev[nb] !== GAS) continue;
           const w = (this.vgas[nb] > 0 ? this.vgas[nb] : g.vCell) / wsum;
           want += w * this.rho[nb];
         }
-        want *= Math.max(1e-3, 1 - g.phi[c] - g.alpha[c]) * g.vCell;
+        want *= Math.max(1e-3, 1 - g.fs[c] - g.phi[c] - g.alpha[c]) * g.vCell;
         if (want <= have) continue;
         for (let k = 0; k < 4; k += 1) {
-          const nb = k === 0 ? (i > 0 ? c - 1 : -1) : k === 1 ? (i < nx - 1 ? c + 1 : -1) : k === 2 ? (j > 0 ? c - nx : -1) : j < ny - 1 ? c + nx : -1;
+          const nb = this.across(c, i, j, k);
           if (nb < 0 || kind[nb] !== GAS || prev[nb] !== GAS) continue;
           const w = (this.vgas[nb] > 0 ? this.vgas[nb] : g.vCell) / wsum;
           const mnb = this.massOf(nb);
@@ -287,6 +287,16 @@ export class Gas {
       this.deriveCell(c);
     }
     return changed;
+  }
+
+  /** Die Nachbarzelle über Seite k (0 links, 1 rechts, 2 unten, 3 oben) — nur, wenn kein Körper diese Fläche ganz bedeckt (sonst −1: eine dünne Wand trennt zwei Gebiete). */
+  across(c: number, i: number, j: number, k: number): number {
+    const g = this.g;
+    const { nx, ny } = g;
+    if (k === 0) return i > 0 && g.au[i + j * (nx + 1)] > 0 ? c - 1 : -1;
+    if (k === 1) return i < nx - 1 && g.au[i + 1 + j * (nx + 1)] > 0 ? c + 1 : -1;
+    if (k === 2) return j > 0 && g.av[c] > 0 ? c - nx : -1;
+    return j < ny - 1 && g.av[c + nx] > 0 ? c + nx : -1;
   }
 
   /** Den Anteil `share` des Gases (Arten, Nebel, Enthalpie) von a nach b verschieben. */
@@ -312,7 +322,7 @@ export class Gas {
 
   /* -- Transport ------------------------------------------------------------------------------------ */
 
-  /** Welche Flächen Gasflächen sind (zwischen zwei Gaszellen, oder offene Seite an einer Gaszelle); die übrigen bekommen ihren Randwert. */
+  /** Welche Flächen Gasflächen sind (zwischen zwei Gaszellen, oder offene Seite an einer Gaszelle — nicht ganz von einem Körper bedeckt); die übrigen bekommen ihren Randwert. */
   markFaces(): void {
     const g = this.g;
     const { nx, ny, kind } = g;
@@ -327,6 +337,7 @@ export class Gas {
         let gas = 0;
         if (l === GAS && r === GAS) gas = 1;
         else if ((i === 0 && g.openL && r === GAS) || (i === nx && g.openR && l === GAS)) gas = 1;
+        if (g.au[f] <= 0) gas = 0;
         this.gasU[f] = gas;
         if (gas === 0) ug[f] = l === LIQUID || r === LIQUID ? (l === SOLID || r === SOLID || (i === 0 && !g.openL) || (i === nx && !g.openR) ? 0 : g.ul[f]) : g.usol[f];
       }
@@ -339,6 +350,7 @@ export class Gas {
         let gas = 0;
         if (b === GAS && t === GAS) gas = 1;
         else if ((j === 0 && g.openB && t === GAS) || (j === ny && g.openT && b === GAS)) gas = 1;
+        if (g.av[f] <= 0) gas = 0;
         this.gasV[f] = gas;
         if (gas === 0) vg[f] = b === LIQUID || t === LIQUID ? (b === SOLID || t === SOLID || (j === 0 && !g.openB) || (j === ny && !g.openT) ? 0 : g.vl[f]) : g.vsol[f];
       }
@@ -503,6 +515,19 @@ export class Gas {
     }
   }
 
+  /** Volumenfluss (je Fläche Δx·D) einer u-Fläche: auf einer Gasfläche α u_g + (1 − α) u_Körper, sonst ihr Randwert. */
+  private fluxU(f: number): number {
+    const g = this.g;
+    const a = g.au[f];
+    return this.gasU[f] !== 0 && a < 1 ? a * g.ug[f] + (1 - a) * g.usol[f] : g.ug[f];
+  }
+
+  private fluxV(f: number): number {
+    const g = this.g;
+    const a = g.av[f];
+    return this.gasV[f] !== 0 && a < 1 ? a * g.vg[f] + (1 - a) * g.vsol[f] : g.vg[f];
+  }
+
   /** Projektion der Gasgeschwindigkeit (MGPCG auf dem Rechteck der Gaszellen). */
   project(dt: number, tol: number, maxIter: number): GasStats {
     const g = this.g;
@@ -535,15 +560,16 @@ export class Gas {
         sys.x[s] = g.pg[c];
         const fl = i + j * nxu;
         const fb = i + j * nx;
-        const div = ug[fl + 1] - ug[fl] + vg[fb + nx] - vg[fb];
+        /* Fluss je Fläche: auf Gasflächen der offene Teil mit dem Gas, der bedeckte mit dem Körper (Batty et al. 2007); sonst der Randwert. */
+        const div = this.fluxU(fl + 1) - this.fluxU(fl) + this.fluxV(fb + nx) - this.fluxV(fb);
         sys.b[s] = g.Sg[c] * dx * dx - dx * div;
         const rc = Math.max(RHO_MIN, rho[c]);
-        if (i + 1 < nx) { if (kind[c + 1] === GAS && i + 1 <= i1) sys.ax[s] = (2 * dt) / (rc + Math.max(RHO_MIN, rho[c + 1])); }
-        else if (g.openR) sys.dDx[s] += (2 * dt) / rc;
-        if (i === 0 && g.openL) sys.dDx[s] += (2 * dt) / rc;
-        if (j + 1 < ny) { if (kind[c + nx] === GAS && j + 1 <= j1) sys.ay[s] = (2 * dt) / (rc + Math.max(RHO_MIN, rho[c + nx])); }
-        else if (g.openT) sys.dDy[s] += (2 * dt) / rc;
-        if (j === 0 && g.openB) sys.dDy[s] += (2 * dt) / rc;
+        if (i + 1 < nx) { if (kind[c + 1] === GAS && i + 1 <= i1 && this.gasU[fl + 1] !== 0) sys.ax[s] = (g.au[fl + 1] * 2 * dt) / (rc + Math.max(RHO_MIN, rho[c + 1])); }
+        else if (g.openR && this.gasU[fl + 1] !== 0) sys.dDx[s] += (g.au[fl + 1] * 2 * dt) / rc;
+        if (i === 0 && g.openL && this.gasU[fl] !== 0) sys.dDx[s] += (g.au[fl] * 2 * dt) / rc;
+        if (j + 1 < ny) { if (kind[c + nx] === GAS && j + 1 <= j1 && this.gasV[fb + nx] !== 0) sys.ay[s] = (g.av[fb + nx] * 2 * dt) / (rc + Math.max(RHO_MIN, rho[c + nx])); }
+        else if (g.openT && this.gasV[fb + nx] !== 0) sys.dDy[s] += (g.av[fb + nx] * 2 * dt) / rc;
+        if (j === 0 && g.openB && this.gasV[fb] !== 0) sys.dDy[s] += (g.av[fb] * 2 * dt) / rc;
       }
     }
     const res = S.solve(tol, maxIter, true);

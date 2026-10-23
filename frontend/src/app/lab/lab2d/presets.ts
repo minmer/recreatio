@@ -164,7 +164,7 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
     text: [
       'Nad wodą wiszą trzy ciała: klocek sosnowy, kostka lodu i kamień (granit). Puść czas — spadną do wody.',
       'Drewno (510 kg/m³) zanurza się do połowy, lód (917 kg/m³) prawie cały, a kamień (2630 kg/m³) idzie na dno. Pływające ciało wypiera tyle wody, ile samo waży — zbadaj je narzędziem „Badaj”.',
-      'Lód jeszcze się nie topi — to przyjdzie w kolejnym etapie.'
+      'Woda ma 2 °C, więc lód topi się powoli: zostaje prostokątem, który z czasem robi się mniejszy.'
     ],
     scene: {
       ...BASE,
@@ -174,6 +174,41 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
         { op: 'body', region: { rect: [0.025, 0.085, 0.065, 0.105] }, material: 'wood', T: 15 },
         { op: 'body', region: { rect: [0.09, 0.085, 0.11, 0.105] }, material: 'ice', T: -2 },
         { op: 'body', region: { rect: [0.14, 0.085, 0.16, 0.1] }, material: 'stone', T: 15 }
+      ]
+    }
+  },
+  {
+    key: 'lod-w-wodzie',
+    title: 'Lód w ciepłej wodzie',
+    summary: 'kostka lodu (−10 °C) pływa w wodzie o temperaturze 40 °C i topi się — zostaje prostokątem, a w jej miejscu pojawia się woda',
+    text: [
+      'Kostka lodu (3 cm, −10 °C) pływa w wodzie o temperaturze 40 °C — prawie cała pod wodą. Topi się od wszystkich stron naraz: zostaje prostokątem, który robi się coraz mniejszy, a w jej miejscu pojawia się woda.',
+      'Nakładka „Temperatura” pokazuje zimną wodę z topniejącego lodu: spływa w dół, bo zimna woda jest cięższa od ciepłej. Bilans energii zostaje zamknięty — ciepło wody idzie na stopienie lodu: 334 J na każdy gram.'
+    ],
+    scene: {
+      ...BASE,
+      ops: [
+        { op: 'fill', region: { rect: [0, 0, 0.2, 0.07] }, composition: { H2O: 1 }, phase: 'liquid', T: 40 },
+        { op: 'body', region: { rect: [0.085, 0.0425, 0.115, 0.0725] }, material: 'ice', T: -10 }
+      ]
+    }
+  },
+  {
+    key: 'lod-z-sola',
+    title: 'Lód z solą — mieszanina chłodząca',
+    summary: 'trzy kostki lodu pływają w mocnej solance (23 %) — lód topi się poniżej 0 °C i ochładza solankę daleko pod zero',
+    text: [
+      'W solance z 23 % soli pływają trzy kostki lodu. Sól obniża temperaturę topnienia lodu: w takiej solance lód topi się jeszcze przy −20 °C i zabiera jej ciepło, więc solanka ochładza się daleko poniżej 0 °C. To mieszanina chłodząca — dawniej robiono w niej lody.',
+      'Woda z topniejącego lodu rozcieńcza solankę, a słabsza solanka zamarza w wyższej temperaturze: mieszanina zatrzymuje się na temperaturze zamarzania swojej solanki i nigdy nie zejdzie poniżej eutektyku (−21,2 °C). Narzędzie „Badaj” pokazuje temperaturę zamarzania solanki w danym miejscu.'
+    ],
+    scene: {
+      ...BASE,
+      box: { w: 0.1, h: 0.08, depth: 0.01 },
+      ops: [
+        { op: 'fill', region: { rect: [0, 0, 0.1, 0.04] }, composition: { H2O: 0.77, NaCl: 0.23 }, phase: 'liquid', T: 0 },
+        { op: 'body', region: { rect: [0.012, 0.024, 0.032, 0.044] }, material: 'ice', T: -5 },
+        { op: 'body', region: { rect: [0.04, 0.024, 0.06, 0.044] }, material: 'ice', T: -5 },
+        { op: 'body', region: { rect: [0.068, 0.024, 0.088, 0.044] }, material: 'ice', T: -5 }
       ]
     }
   },
@@ -199,7 +234,7 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
     key: 'pusta-skrzynka',
     title: 'Pusta skrzynka',
     summary: 'skrzynka pełna powietrza — maluj wodę, stawiaj ścianki, zlewki, płyty grzejne i ciała',
-    text: ['Skrzynka jest pełna powietrza. Maluj wodę, rysuj ścianki, stawiaj zlewki, płyty grzejne i ciała (drewno, lód, kamień — spadają, pływają albo toną).'],
+    text: ['Skrzynka jest pełna powietrza. Maluj wodę, rysuj ścianki, stawiaj zlewki, płyty grzejne i ciała (drewno, lód, kamień — spadają, pływają albo toną; lód się topi).'],
     scene: SANDBOX_LAB2D
   }
 ];

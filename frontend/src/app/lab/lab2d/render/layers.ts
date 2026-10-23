@@ -16,11 +16,16 @@
  * - Pfeile: die Geschwindigkeit an den Punkten des groben Pfeilrasters
  *   (8 bit je Richtung, quadratisch).
  * - Blasen: Ort, Radius (µm) und Luftanteil, je 16 bit.
+ * - Körper (seit 2026-10-23 genaue Rechtecke, nicht Zellen): je innere Zelle
+ *   ein gedrehtes Viereck (Mitte, halbe Seiten, Winkel, Werkstoff, Glühen,
+ *   Kruste, Temperatur — je 16 bit) und je Rechteck sein Umriss. Zellen, die
+ *   ein Körper füllt, zeichnet die Zelltextur nicht (sie zeigte Treppen).
  *
  * Live rechnet sampleLayers nur, was die Einblendung braucht; für einen
  * Nachweis alles (overlay = null).
  */
 
+import { Body2D } from '../engine/body';
 import type { Engine } from '../engine/engine';
 import { pSatFast } from '../engine/if97';
 import { MOLAR, SOLIDS, WATER } from '../engine/materials';
@@ -89,6 +94,27 @@ export interface Layers {
   nb: number;
   /** Je Blase: x und y (Bruchteil der Kiste × 65535), Radius (µm), Luftanteil × 65535. */
   bubbles: Uint16Array;
+  /** Je innere Zelle eines Körpers (QUAD Werte): Mitte (Bruchteil der Kiste × 65535), Breite und Höhe (2 µm), Winkel (angleQ), Werkstoff + 1, Glühen | Kruste << 8, Temperatur (wie temp). */
+  nq: number;
+  quads: Uint16Array;
+  /** Je Rechteck eines Körpers (RECT Werte): Mitte, Breite und Höhe (20 µm), Winkel — sein Umriss. */
+  nr: number;
+  rects: Uint16Array;
+}
+
+/** Werte je Viereck und je Rechteck in den Ebenen. */
+export const QUAD = 8;
+export const RECT = 5;
+/** Ein Winkel (rad) in 16 bit: (a/2π + ½) mod 1 — und zurück. */
+const angleQ = (a: number): number => { let t = a / (2 * Math.PI) + 0.5; t -= Math.floor(t); return Math.round(65535 * t) & 65535; };
+export const angleOf = (q: number): number => (q / 65535 - 0.5) * 2 * Math.PI;
+
+/** Wie viele innere Zellen und Rechtecke die Körper der Engine haben (für die Grösse der Puffer). */
+export function bodyCounts(e: Engine): { quads: number; rects: number } {
+  let quads = 0;
+  let rects = 0;
+  for (const b of e.bodies.list) if (!b.gone) { quads += b.ncell; rects += b.nr; }
+  return { quads, rects };
 }
 
 /** Abstand der Pfeile (m): etwa alle 6 mm einer, mindestens alle zwei Zellen. */
@@ -110,7 +136,8 @@ export function allocLayers(nx: number, ny: number, dx: number, bubbles = 64): L
     liquid: new Uint8Array(16 * n),
     arrows: new Int8Array(2 * arrowPoints(nx, ny, dx)),
     pmax: 1, vmax: 0.02, vGas: 0, vLiq: 0,
-    nb: 0, bubbles: new Uint16Array(4 * Math.max(16, bubbles))
+    nb: 0, bubbles: new Uint16Array(4 * Math.max(16, bubbles)),
+    nq: 0, quads: new Uint16Array(QUAD * 64), nr: 0, rects: new Uint16Array(RECT * 16)
   };
 }
 
@@ -144,6 +171,10 @@ let lo = new Float32Array(0);
 /** Volumen mal Salzanteil je Texel. */
 let ls = new Float32Array(0);
 let tmp = new Float32Array(0);
+/** Texel, deren Mitte in einem Körper liegt (1). */
+let inBody = new Uint8Array(0);
+const local = new Float64Array(2);
+const wbox = new Float64Array(4);
 
 /** [1 2 1]/4 in x und in y (Ränder wiederholt) — in place, mit einem Zwischenspeicher. */
 function blur121(a: Float32Array, lx: number, ly: number): void {
@@ -190,12 +221,14 @@ export function sampleLayers(e: Engine, L: Layers, overlay: Overlay | null): voi
     for (let i = 0; i < nx; i += 1) {
       const c = i + j * nx;
       const kind = g.kind[c];
-      L.code[c] = kind + 4 * (kind === SOLID ? g.solid[c] : 0);
-      L.temp[c] = kind === LIQUID ? 0 : Math.min(65535, Math.max(0, Math.round((g.T[c] - T_BASE) / T_STEP)));
+      /* Eine Zelle, die ein Körper füllt, bleibt ohne Werkstoff: der Körper selbst wird gezeichnet (sampleBodies). */
+      const built = kind === SOLID && g.owner[c] === 0;
+      L.code[c] = kind + 4 * (built ? g.solid[c] : 0);
+      L.temp[c] = kind === LIQUID ? 0 : tempQ(g.T[c]);
       /* Heiss: Rot mischt sich bei (mit der Temperatur über 60 °C, voll bei 400 °C). */
-      L.glow[c] = kind === SOLID ? u8((g.T[c] - T0 - 60) / 340) : 0;
+      L.glow[c] = built ? u8((g.T[c] - T0 - 60) / 340) : 0;
       L.flags[c] = wantA && g.alpha[c] > 0.02 ? 1 : 0;
-      L.crust[c] = kind === SOLID ? u8(crustCover(g.crust[c], g.dx, g.depth)) : j === 0 && e.salt.floor[i] > 0 ? u8(crustCover(e.salt.floor[i], g.dx, g.depth)) : 0;
+      L.crust[c] = built ? u8(crustCover(g.crust[c], g.dx, g.depth)) : kind !== SOLID && j === 0 && e.salt.floor[i] > 0 ? u8(crustCover(e.salt.floor[i], g.dx, g.depth)) : 0;
       let p = 128, s = 0, hu = 0, va = 0, fo = 0;
       if (kind === GAS) {
         if (wantP) { p = presQ(g.pg[c]); pmax = Math.max(pmax, Math.abs(presOf(p))); }
@@ -238,6 +271,66 @@ export function sampleLayers(e: Engine, L: Layers, overlay: Overlay | null): voi
   L.vGas = 0;
   L.vLiq = 0;
   if (wantV) sampleArrows(e, L);
+  sampleBodies(e, L);
+}
+
+/** Die Temperatur einer Zelle oder eines Körperstücks in 16 bit (Stufen T_STEP ab T_BASE). */
+const tempQ = (T: number): number => Math.min(65535, Math.max(0, Math.round((T - T_BASE) / T_STEP)));
+
+/** Die Körper: je innere Zelle ein Viereck, je Rechteck ein Umriss (die Puffer wachsen, wenn es mehr werden). */
+function sampleBodies(e: Engine, L: Layers): void {
+  const g = e.grid;
+  const { quads: nq, rects: nr } = bodyCounts(e);
+  if (L.quads.length < QUAD * nq) L.quads = new Uint16Array(QUAD * Math.ceil(nq * 1.25 + 16));
+  if (L.rects.length < RECT * nr) L.rects = new Uint16Array(RECT * Math.ceil(nr * 1.25 + 4));
+  const Q = L.quads;
+  const R = L.rects;
+  const X = (x: number): number => Math.round(65535 * Math.min(1, Math.max(0, x / g.w)));
+  const Y = (y: number): number => Math.round(65535 * Math.min(1, Math.max(0, y / g.h)));
+  let q = 0;
+  let r = 0;
+  for (const b of e.bodies.list) {
+    if (b.gone) continue;
+    const cs = Math.cos(b.a);
+    const sn = Math.sin(b.a);
+    const ang = angleQ(b.a);
+    for (let k = 0; k < b.nr; k += 1) {
+      const xs = b.xs[k];
+      const ys = b.ys[k];
+      const ni = b.ni[k];
+      const nj = b.nj[k];
+      for (let jj = 0; jj < nj; jj += 1) {
+        for (let ii = 0; ii < ni; ii += 1) {
+          const cell = b.off[k] + ii + jj * ni;
+          const lx = 0.5 * (xs[ii] + xs[ii + 1]);
+          const ly = 0.5 * (ys[jj] + ys[jj + 1]);
+          const T = b.cellT(cell);
+          const cover = crustCover(b.crust[cell], Math.max(1e-6, Math.min(xs[ii + 1] - xs[ii], ys[jj + 1] - ys[jj])), g.depth);
+          const o = QUAD * q;
+          Q[o] = X(b.x + cs * lx - sn * ly);
+          Q[o + 1] = Y(b.y + sn * lx + cs * ly);
+          Q[o + 2] = Math.min(65535, Math.round(5e5 * (xs[ii + 1] - xs[ii])));
+          Q[o + 3] = Math.min(65535, Math.round(5e5 * (ys[jj + 1] - ys[jj])));
+          Q[o + 4] = ang;
+          Q[o + 5] = b.mat + 1;
+          Q[o + 6] = u8((T - T0 - 60) / 340) | (u8(cover) << 8);
+          Q[o + 7] = tempQ(T);
+          q += 1;
+        }
+      }
+      const lx = 0.5 * (xs[0] + xs[ni]);
+      const ly = 0.5 * (ys[0] + ys[nj]);
+      const o = RECT * r;
+      R[o] = X(b.x + cs * lx - sn * ly);
+      R[o + 1] = Y(b.y + sn * lx + cs * ly);
+      R[o + 2] = Math.min(65535, Math.round(5e4 * (xs[ni] - xs[0])));
+      R[o + 3] = Math.min(65535, Math.round(5e4 * (ys[nj] - ys[0])));
+      R[o + 4] = ang;
+      r += 1;
+    }
+  }
+  L.nq = q;
+  L.nr = r;
 }
 
 /** Flüssigkeit: Bedeckung auf halben Zellen (quadratischer B-Spline), Temperatur, Öl und Salz gewichtet. */
@@ -289,6 +382,9 @@ function sampleLiquid(e: Engine, L: Layers): void {
       }
     }
   }
+  /* Unter den Körpern die Bedeckung aus den Nachbarn fortsetzen (vor dem Weichzeichner): sonst bliebe zwischen dem Wasser und einem Körper, der
+     zwischen den Zellen steht, ein heller Spalt — der Körper selbst deckt, was darunter liegt. */
+  extendUnderBodies(e, lx, ly, h, other, salty);
   /* Teilchen liegen nie ganz gleichmässig: ohne Weichzeichner zeigen sich einzelne Lücken als Löcher im Wasser (die Oberfläche bei ½ bleibt, wo sie ist). */
   blur121(lw, lx, ly);
   blur121(lt, lx, ly);
@@ -302,6 +398,47 @@ function sampleLiquid(e: Engine, L: Layers): void {
     liq[o + 1] = w > 0 ? Math.min(255, Math.max(0, (255 * (lt[k] / w - T0 - tmin)) / tspan)) : 0;
     liq[o + 2] = other && w > 0 ? Math.min(255, (255 * lo[k]) / w) : 0;
     liq[o + 3] = salty && w > 0 ? Math.min(255, (255 * ls[k]) / (w * SALT_FULL)) : 0;
+  }
+}
+
+/** In die Texel, deren Mitte in einem Körper liegt, drei Lagen weit die grösste Bedeckung eines Nachbarn (mit dessen Temperatur, Öl und Salz). */
+function extendUnderBodies(e: Engine, lx: number, ly: number, h: number, other: boolean, salty: boolean): void {
+  const nl = lx * ly;
+  if (inBody.length < nl) inBody = new Uint8Array(nl);
+  inBody.fill(0, 0, nl);
+  let any = false;
+  for (const b of e.bodies.list) {
+    if (b.gone) continue;
+    b.worldBox(b.x, b.y, b.a, wbox);
+    const i0 = Math.max(0, Math.floor(wbox[0] / h));
+    const i1 = Math.min(lx - 1, Math.floor(wbox[2] / h));
+    const j0 = Math.max(0, Math.floor(wbox[1] / h));
+    const j1 = Math.min(ly - 1, Math.floor(wbox[3] / h));
+    for (let j = j0; j <= j1; j += 1) {
+      for (let i = i0; i <= i1; i += 1) {
+        Body2D.toLocal(b.x, b.y, b.a, (i + 0.5) * h, (j + 0.5) * h, local);
+        if (b.insideLocal(local[0], local[1], 0)) { inBody[i + j * lx] = 1; any = true; }
+      }
+    }
+  }
+  if (!any) return;
+  for (let pass = 0; pass < 3; pass += 1) {
+    for (let j = 0; j < ly; j += 1) {
+      for (let i = 0; i < lx; i += 1) {
+        const k = i + j * lx;
+        if (inBody[k] === 0) continue;
+        let best = -1;
+        if (i > 0 && lw[k - 1] > lw[k] && (best < 0 || lw[k - 1] > lw[best])) best = k - 1;
+        if (i < lx - 1 && lw[k + 1] > lw[k] && (best < 0 || lw[k + 1] > lw[best])) best = k + 1;
+        if (j > 0 && lw[k - lx] > lw[k] && (best < 0 || lw[k - lx] > lw[best])) best = k - lx;
+        if (j < ly - 1 && lw[k + lx] > lw[k] && (best < 0 || lw[k + lx] > lw[best])) best = k + lx;
+        if (best < 0) continue;
+        lw[k] = lw[best];
+        lt[k] = lt[best];
+        if (other) lo[k] = lo[best];
+        if (salty) ls[k] = ls[best];
+      }
+    }
   }
 }
 
@@ -357,6 +494,11 @@ export interface ComposeTarget {
   nag: number;
   nal: number;
   vLiq: number;
+  /** Körper: je Viereck Mitte, halbe Seiten, Winkel und Farbe (RGB 0–1) — 8 Zahlen; Umrisse als Strecken (4 Zahlen). */
+  quads: Float32Array;
+  nq: number;
+  edges: Float32Array;
+  ne: number;
 }
 
 const SOLID_RGB = SOLIDS.map((s) => hex(s.color));
@@ -387,6 +529,8 @@ export function composeFrame(L: Layers, f: ComposeTarget, overlay: Overlay): voi
       cells[o] = 0; cells[o + 1] = 0; cells[o + 2] = 0; cells[o + 3] = 0;
       field[o] = 0; field[o + 1] = 0; field[o + 2] = 0; field[o + 3] = 0;
       if (kind === SOLID) {
+        /* Eine Zelle, die ein Körper füllt: den zeichnen seine Vierecke. */
+        if (code >> 2 === 0) continue;
         const rgb = SOLID_RGB[(code >> 2) - 1] ?? [128, 128, 128];
         const glow = L.glow[c] / 255;
         cells[o] = rgb[0] + (230 - rgb[0]) * glow;
@@ -468,6 +612,70 @@ export function composeFrame(L: Layers, f: ComposeTarget, overlay: Overlay): voi
   f.nal = 0;
   f.vLiq = 0;
   if (overlay === 'velocity') composeArrows(L, f);
+  composeBodies(L, f, overlay);
+}
+
+/** Die Körper: Vierecke in der Farbe ihres Werkstoffs (glühend, mit Kruste) oder der Einblendung, dazu die Umrisse der Rechtecke. */
+function composeBodies(L: Layers, f: ComposeTarget, overlay: Overlay): void {
+  if (f.quads.length < 8 * L.nq) f.quads = new Float32Array(8 * Math.ceil(L.nq * 1.25 + 16));
+  if (f.edges.length < 16 * L.nr) f.edges = new Float32Array(16 * Math.ceil(L.nr * 1.25 + 4));
+  const tmin = T_SCALE[0];
+  const tspan = T_SCALE[1] - T_SCALE[0];
+  const out = f.quads;
+  for (let q = 0; q < L.nq; q += 1) {
+    const i = QUAD * q;
+    const o = 8 * q;
+    out[o] = (L.quads[i] / 65535) * L.boxW;
+    out[o + 1] = (L.quads[i + 1] / 65535) * L.boxH;
+    out[o + 2] = L.quads[i + 2] * 1e-6;
+    out[o + 3] = L.quads[i + 3] * 1e-6;
+    out[o + 4] = angleOf(L.quads[i + 4]);
+    let r: number;
+    let g: number;
+    let b: number;
+    if (overlay === 'temperature') {
+      viridis((T_BASE + T_STEP * L.quads[i + 7] - T0 - tmin) / tspan, scratch, 0);
+      r = scratch[0]; g = scratch[1]; b = scratch[2];
+    } else if (overlay === 'phase') {
+      r = 90; g = 90; b = 90;
+    } else {
+      const rgb = SOLID_RGB[L.quads[i + 5] - 1] ?? [128, 128, 128];
+      const glow = (L.quads[i + 6] & 255) / 255;
+      const cr = (L.quads[i + 6] >> 8) / 255;
+      r = rgb[0] + (230 - rgb[0]) * glow;
+      g = rgb[1] * (1 - 0.6 * glow);
+      b = rgb[2] * (1 - 0.8 * glow);
+      if (cr > 0) { r += (CRYSTAL_RGB[0] - r) * cr; g += (CRYSTAL_RGB[1] - g) * cr; b += (CRYSTAL_RGB[2] - b) * cr; }
+    }
+    out[o + 5] = r / 255;
+    out[o + 6] = g / 255;
+    out[o + 7] = b / 255;
+  }
+  f.nq = L.nq;
+  /* Umrisse: die vier Seiten jedes Rechtecks. */
+  const e = f.edges;
+  for (let k = 0; k < L.nr; k += 1) {
+    const i = RECT * k;
+    const cx = (L.rects[i] / 65535) * L.boxW;
+    const cy = (L.rects[i + 1] / 65535) * L.boxH;
+    const hw = L.rects[i + 2] * 1e-5;
+    const hh = L.rects[i + 3] * 1e-5;
+    const a = angleOf(L.rects[i + 4]);
+    const cs = Math.cos(a);
+    const sn = Math.sin(a);
+    for (let s = 0; s < 4; s += 1) {
+      const ax = s === 0 || s === 3 ? -hw : hw;
+      const ay = s < 2 ? -hh : hh;
+      const bx = s === 0 || s === 1 ? hw : -hw;
+      const by = s === 0 || s === 3 ? -hh : hh;
+      const o = 16 * k + 4 * s;
+      e[o] = cx + cs * ax - sn * ay;
+      e[o + 1] = cy + sn * ax + cs * ay;
+      e[o + 2] = cx + cs * bx - sn * by;
+      e[o + 3] = cy + sn * bx + cs * by;
+    }
+  }
+  f.ne = 4 * L.nr;
 }
 
 /** Pfeile auf dem groben Raster: Gas und Wasser je mit eigenem Massstab (die grösste Geschwindigkeit ist 0,9 Rasterweiten lang). */

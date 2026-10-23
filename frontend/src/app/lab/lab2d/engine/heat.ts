@@ -19,13 +19,24 @@
  * zurück (ΔT_p = Σ_i w_ip ΔE_i/C_i): die Flüssigkeit verschmiert nicht, ihre
  * eigenen Temperaturunterschiede bleiben.
  *
- * Heizung: feste Stahlzellen mit Rolle 1 und innerer Quelle — Leistung (W) oder
- * Thermostat (PI-Regelung der mittleren Temperatur der Platte, begrenzt auf die
- * eingestellte Leistung). Verluste h_ext (T − T_amb) an jeder Wandseite, in
- * Reihe mit der halben Zelle; an offenen Seiten Leitung zur Umgebung (der
- * Rest geht mit dem Gas hinaus). Keine Strahlung (SIMPLIFICATIONS.md #7).
+ * Heizung: eine Heizplatte (ein Körper mit Heizgruppe) mit innerer Quelle,
+ * nach dem Volumen ihrer inneren Zellen über die Gewichte auf die Zellen
+ * verteilt — Leistung (W) oder Thermostat (PI-Regelung ihrer mittleren
+ * Temperatur, begrenzt auf die eingestellte Leistung); feste Zellen mit Rolle 1
+ * heizen ebenso (der beschleunigte Weg legt die Platte so in Zellen). Verluste
+ * h_ext (T − T_amb) an jeder Wandseite, in Reihe mit der halben Zelle; an
+ * offenen Seiten Leitung zur Umgebung (der Rest geht mit dem Gas hinaus).
+ * Keine Strahlung (SIMPLIFICATIONS.md #7).
+ *
+ * Körper (bodyCover.ts): eine Zelle kann zugleich Fluid und ein Stück Körper
+ * enthalten. Das Stück ist ein weiterer Teil der Zelle (Kapazität capB,
+ * Energie Es, Temperatur Ts); die Leitfähigkeit der Zelle mischt sich nach dem
+ * Anteil fs (parallel). In der Zelle gleichen Körperstück und Fluid sich über
+ * ihre Grenzfläche aus (eine Fläche Δx·D, je die halbe Dicke ihres Teils):
+ * ΔT klingt mit τ = C_s C_f / ((C_s + C_f) G) ab, G = D / (½ fs/k_s + ½ (1 − fs)/k_f).
  */
 
+import type { Body2D } from './body';
 import type { Gas } from './gas';
 import type { Grid } from './grid';
 import type { Liquid } from './liquid';
@@ -99,6 +110,8 @@ export class Heat {
   liquidPower = 0;
   hExt = H_EXT;
   readonly last: HeatStats = { solve: { iterations: 0, residual: 0, capped: false }, heater: 0, lossWalls: 0, lossOpen: 0 };
+  /** Die Körper der Szene (von der Engine gesetzt): Heizplatten heizen ihre inneren Zellen. */
+  bodies: readonly Body2D[] = [];
 
   constructor(grid: Grid, particles: Particles, liquid: Liquid, gas: Gas, solver: GridSolver) {
     this.g = grid;
@@ -121,16 +134,31 @@ export class Heat {
     this.q = new Float64Array(n);
     this.Co = new Float64Array(n);
     this.CKo = new Float64Array(n);
+    this.qb = new Float64Array(n);
+    this.kS = new Float64Array(n);
+    this.kF = new Float64Array(n);
+    this.dSF = new Float64Array(n);
   }
+
+  /** Je Zelle in diesem Schritt: Leistung der Heizplatten (W); Leitfähigkeit von Körperstück und Fluid und ihr Temperaturunterschied (gemischte Zellen). */
+  private readonly qb: Float64Array;
+  private readonly kS: Float64Array;
+  private readonly kF: Float64Array;
+  private readonly dSF: Float64Array;
 
   /* -- Feststoffe ------------------------------------------------------------------------------------ */
 
-  /** Wärmekapazität des Feststoffs einer Zelle ohne Film (J/K) — eine Zelle eines gedrehten oder bewegten Körpers aus seinen Voxeln (bodyRaster.ts). */
+  /** Wärmekapazität des Feststoffs einer Zelle ohne Film (J/K) — Körperteile aus ihren inneren Zellen (bodyCover.ts), sonst ein Bau aus seinem Werkstoff. */
   solidCap(c: number): number {
     const cb = this.g.capB[c];
     if (cb > 0) return cb;
     const s = SOLIDS[this.g.solid[c] - 1];
-    return s.rho * s.cp * this.g.vCell;
+    return s !== undefined ? s.rho * s.cp * this.g.vCell : 0;
+  }
+
+  /** Hat die Zelle einen festen Teil (ein Bau, eine feste Körperzelle oder ein Körperstück neben Fluid)? */
+  hasSolid(c: number): boolean {
+    return this.g.solid[c] !== 0 || this.g.capB[c] > 0;
   }
 
   /** Wärmekapazität des Feststoffs einer Zelle mit seiner Salzkruste, ohne Film (J/K). */
@@ -143,23 +171,35 @@ export class Heat {
     return this.solidCapCrust(c) * (T - T0) + this.g.film[c] * hL(T);
   }
 
-  /** T eines Feststoffs aus seiner Energie. */
+  /** T des festen Teils einer Zelle aus seiner Energie (in Ts; in einer festen Zelle auch in T). */
   deriveSolid(c: number): void {
     const g = this.g;
     const cs = this.solidCapCrust(c);
+    if (!(cs > 0)) return;
     const film = g.film[c];
-    if (film <= 0) { g.T[c] = T0 + g.Es[c] / cs; return; }
-    let T = g.T[c] > 100 ? g.T[c] : T0 + g.Es[c] / cs;
-    for (let it = 0; it < 3; it += 1) T -= (this.solidEnergy(c, T) - g.Es[c]) / (cs + film * cpL(T));
-    g.T[c] = T;
+    let T: number;
+    if (film <= 0) T = T0 + g.Es[c] / cs;
+    else {
+      T = g.Ts[c] > 100 ? g.Ts[c] : T0 + g.Es[c] / cs;
+      for (let it = 0; it < 3; it += 1) T -= (this.solidEnergy(c, T) - g.Es[c]) / (cs + film * cpL(T));
+    }
+    g.Ts[c] = T;
+    if (g.solid[c] !== 0) g.T[c] = T;
   }
 
   /* -- Heizung --------------------------------------------------------------------------------------- */
 
-  /** Zellen und mittlere Temperatur jeder Heizgruppe (vor jeder Leistung und nach jedem Handgriff). */
+  /** Zellen und mittlere Temperatur jeder Heizgruppe (vor jeder Leistung und nach jedem Handgriff): Heizplatten (Körper, nach Wärmekapazität gemittelt) und feste Zellen mit Rolle 1. */
   countHeaters(): void {
     const g = this.g;
     for (const h of this.heaters) { h.Tmean = 0; h.cells = 0; }
+    for (const b of this.bodies) {
+      if (b.gone || b.heater < 0) continue;
+      const h = this.heaters[b.heater];
+      if (h === undefined) continue;
+      h.Tmean += b.meanT() * b.ncell;
+      h.cells += b.ncell;
+    }
     for (let c = 0; c < g.n; c += 1) {
       const grp = g.heater[c];
       if (grp < 0 || g.role[c] !== 1) continue;
@@ -169,6 +209,28 @@ export class Heat {
       h.cells += 1;
     }
     for (const h of this.heaters) if (h.cells > 0) h.Tmean /= h.cells;
+  }
+
+  /** Die Leistung der Heizplatten in diesem Schritt auf die Zellen (W je Zelle, in q): nach dem Volumen ihrer inneren Zellen über die Gewichte. */
+  private bodyHeat(q: Float64Array): number {
+    let total = 0;
+    for (const b of this.bodies) {
+      if (b.gone || b.heater < 0 || b.nw === 0) continue;
+      const h = this.heaters[b.heater];
+      if (h === undefined || h.cells === 0 || h.P === 0) continue;
+      /* Der Anteil dieses Körpers an der Gruppe (eine Gruppe hat einen Körper, ausser ein Werkzeug teilte ihn) und seine Leistung je m³. */
+      const share = b.ncell / h.cells;
+      let V = 0;
+      for (let k = 0; k < b.ncell; k += 1) V += b.cellVolume(k);
+      if (!(V > 0)) continue;
+      const perV = (h.P * share) / V;
+      for (let e = 0; e < b.nw; e += 1) {
+        const w = perV * b.ww[e] * b.cellVolume(b.wk[e]);
+        q[b.wc[e]] += w;
+        total += w;
+      }
+    }
+    return total;
   }
 
   /** Leistung jeder Heizgruppe für diesen Schritt (Thermostat: PI auf die mittlere Plattentemperatur). */
@@ -225,13 +287,18 @@ export class Heat {
         if (mat !== WATER) { Co[c] += w * Cp; CKo[c] += w * Cp * kp; }
       }
     }
-    let heaterW = 0;
+    const qb = this.qb;
+    qb.fill(0);
+    let heaterW = this.bodyHeat(qb);
+    const { kS, kF, dSF } = this;
     for (let c = 0; c < n; c += 1) {
       let cs = 0;
-      let kc = 0;
-      if (g.solid[c] !== 0) {
-        cs = this.solidCapCrust(c) + g.film[c] * cpL(g.T[c]);
-        kc = SOLIDS[g.solid[c] - 1].k;
+      let ks = 0;
+      const Tsol = g.solid[c] !== 0 ? g.T[c] : g.Ts[c];
+      if (g.solid[c] !== 0 || g.capB[c] > 0) {
+        cs = this.solidCapCrust(c) + g.film[c] * cpL(Tsol);
+        const sm = g.solid[c] !== 0 ? SOLIDS[g.solid[c] - 1] : SOLIDS[g.matB[c] - 1];
+        ks = sm !== undefined ? sm.k : 0;
       }
       const cg = G.cap[c] > 0 && g.solid[c] === 0 ? G.cap[c] : 0;
       const cl = Cl[c];
@@ -239,16 +306,25 @@ export class Heat {
       Cs[c] = cs;
       Cg[c] = cg;
       C[c] = sum;
+      dSF[c] = 0;
       if (sum <= 0) { Tstar[c] = g.T[c]; k[c] = 0; q[c] = 0; continue; }
-      const T = (cs * g.T[c] + cg * g.T[c] + CTl[c]) / sum;
+      const T = (cs * Tsol + cg * g.T[c] + CTl[c]) / sum;
       Tstar[c] = T;
       if (cl > 0) g.Tl[c] = CTl[c] / cl;
+      let kc = ks;
       if (g.solid[c] === 0) {
-        if (cl >= cg) kc = other && Co[c] > 0 ? ((cl - Co[c]) * kL(T) + CKo[c]) / cl : kL(T);
-        else kc = kMix(g.mg[c], g.mg[n + c], g.mg[H2O * n + c], T);
+        const kf = cl >= cg ? (other && Co[c] > 0 ? ((cl - Co[c]) * kL(T) + CKo[c]) / cl : kL(T)) : kMix(g.mg[c], g.mg[n + c], g.mg[H2O * n + c], T);
+        if (cs > 0) {
+          /* Ein Körperstück neben Fluid: die Leitfähigkeit nach den Anteilen (parallel); der Unterschied der Teile für den Ausgleich in der Zelle. */
+          const fs = Math.min(1, g.fs[c]);
+          kc = fs * ks + (1 - fs) * kf;
+          kS[c] = ks;
+          kF[c] = kf;
+          if (cg + cl > 0) dSF[c] = Tsol - (cg * g.T[c] + CTl[c]) / (cg + cl);
+        } else kc = kf;
       }
       k[c] = kc;
-      let qc = src[c];
+      let qc = src[c] + qb[c];
       if (this.liquidPower !== 0 && cl > 0) { const w = (this.liquidPower * cl) / ClSum; qc += w; heaterW += w; }
       const grp = g.heater[c];
       if (grp >= 0 && g.role[c] === 1) {
@@ -349,10 +425,20 @@ export class Heat {
     for (let c = 0; c < n; c += 1) {
       if (C[c] <= 0) continue;
       const share = dE[c] / C[c];
-      if (Cs[c] > 0) { g.Es[c] += share * Cs[c]; this.deriveSolid(c); }
-      if (Cg[c] > 0) g.Hg[c] += share * Cg[c];
-      /* Für die Teilchen: ΔE/C je Zelle (in Tn zwischengelagert). */
       Tn[c] = share;
+      /* Ein Körperstück neben Fluid gleicht sich mit ihm über ihre Grenzfläche aus (exponentiell, genau erhalten). */
+      let Q = 0;
+      const Cf = Cg[c] + Cl[c];
+      if (dSF[c] !== 0 && Cs[c] > 0 && Cf > 0) {
+        const fs = Math.min(0.999, Math.max(0.001, g.fs[c]));
+        const G = depth / ((0.5 * fs) / Math.max(1e-9, kS[c]) + (0.5 * (1 - fs)) / Math.max(1e-9, kF[c]));
+        const Cr = (Cs[c] * Cf) / (Cs[c] + Cf);
+        Q = (1 - Math.exp((-dt * G) / Cr)) * dSF[c] * Cr;
+      }
+      if (Cs[c] > 0) { g.Es[c] += share * Cs[c] - Q; this.deriveSolid(c); }
+      if (Cg[c] > 0) g.Hg[c] += share * Cg[c] + (Q * Cg[c]) / Cf;
+      /* Für die Teilchen: ΔE/C je Zelle (in Tn zwischengelagert), dazu ihr Teil des Ausgleichs. */
+      if (Q !== 0 && Cl[c] > 0) Tn[c] += Q / Cf;
     }
     for (let p = 0; p < P.count; p += 1) {
       const o = 9 * p;

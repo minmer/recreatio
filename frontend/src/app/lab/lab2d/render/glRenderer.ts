@@ -7,8 +7,9 @@
  * Bedeckung aus den Teilchen, linear gelesen und bei ½ geschnitten — eine
  * Isolinie wie Marching Squares, aber im Shader); Blasen als Kreise in wahrer
  * Grösse; darüber die Feldtextur (Nebel und stetige Einblendungen, weich),
- * die Zelltextur (Feststoffe deckend, scharf); zuletzt die Wände der Kiste
- * (offene Seiten bleiben offen).
+ * die Zelltextur (Feststoffe deckend, scharf), die Körper als gedrehte
+ * Vierecke mit ihren Umrissen; zuletzt die Wände der Kiste (offene Seiten
+ * bleiben offen).
  */
 
 import { LIQUIDS } from '../engine/materials';
@@ -141,6 +142,28 @@ void main() {
   gl_Position = vec4((p - view.xy) / (view.zw - view.xy) * 2.0 - 1.0, 0.0, 1.0);
 }`;
 
+/* Körper: je innere Zelle ein gedrehtes Viereck (Mitte, halbe Seiten; Winkel und Farbe), deckend. */
+const BODY_VS = `#version 300 es
+layout(location = 0) in vec2 corner;
+layout(location = 1) in vec4 box;
+layout(location = 2) in vec4 tint;
+uniform vec4 view;
+out vec3 rgb;
+void main() {
+  vec2 l = (corner * 2.0 - 1.0) * box.zw;
+  float c = cos(tint.x);
+  float s = sin(tint.x);
+  vec2 p = box.xy + vec2(c * l.x - s * l.y, s * l.x + c * l.y);
+  rgb = tint.yzw;
+  gl_Position = vec4((p - view.xy) / (view.zw - view.xy) * 2.0 - 1.0, 0.0, 1.0);
+}`;
+
+const BODY_FS = `#version 300 es
+precision mediump float;
+in vec3 rgb;
+out vec4 color;
+void main() { color = vec4(rgb, 1.0); }`;
+
 const RECT_FS = `#version 300 es
 precision mediump float;
 uniform vec4 fill;
@@ -172,6 +195,9 @@ export class LabRenderer {
   private readonly liquidProg: WebGLProgram;
   private readonly discProg: WebGLProgram;
   private readonly rectProg: WebGLProgram;
+  private readonly bodyProg: WebGLProgram;
+  private readonly bodyVao: WebGLVertexArrayObject;
+  private readonly bodyBuf: WebGLBuffer;
   private readonly pointProg: WebGLProgram;
   private readonly lineProg: WebGLProgram;
   private readonly pointVao: WebGLVertexArrayObject;
@@ -205,6 +231,7 @@ export class LabRenderer {
     this.liquidProg = compile(gl, QUAD_VS, LIQUID_FS);
     this.discProg = compile(gl, DISC_VS, DISC_FS);
     this.rectProg = compile(gl, RECT_VS, RECT_FS);
+    this.bodyProg = compile(gl, BODY_VS, BODY_FS);
     this.pointProg = compile(gl, POINT_VS, POINT_FS);
     this.lineProg = compile(gl, LINE_VS, RECT_FS);
     const pb = gl.createBuffer();
@@ -270,6 +297,23 @@ export class LabRenderer {
     gl.enableVertexAttribArray(1);
     gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 0, 0);
     gl.vertexAttribDivisor(1, 1);
+    /* Körper: Ecken 0…1 (wie die Vierecke), je Instanz zwei vec4 (32 Bytes). */
+    const bb = gl.createBuffer();
+    const bv = gl.createVertexArray();
+    if (bb === null || bv === null) throw new Error('webgl');
+    this.bodyBuf = bb;
+    this.bodyVao = bv;
+    gl.bindVertexArray(bv);
+    gl.bindBuffer(gl.ARRAY_BUFFER, unit);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, bb);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 32, 0);
+    gl.vertexAttribDivisor(1, 1);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 32, 16);
+    gl.vertexAttribDivisor(2, 1);
     gl.bindVertexArray(null);
     /* Die Farbskala als Textur (256 × 1). */
     const lutData = new Uint8Array(256 * 4);
@@ -399,6 +443,24 @@ export class LabRenderer {
     gl.uniform1i(gl.getUniformLocation(this.cellsProg, 'tex'), 0);
     gl.bindVertexArray(this.quadVao);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    /* Körper: genaue Rechtecke (je innere Zelle ein Viereck), dann ihre Umrisse. */
+    if (f.nq > 0) {
+      gl.useProgram(this.bodyProg);
+      gl.uniform4f(gl.getUniformLocation(this.bodyProg, 'view'), view.x0, view.y0, view.x1, view.y1);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.bodyBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, f.quads, gl.STREAM_DRAW, 0, 8 * f.nq);
+      gl.bindVertexArray(this.bodyVao);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, f.nq);
+    }
+    if (f.ne > 0) {
+      gl.useProgram(this.lineProg);
+      gl.uniform4f(gl.getUniformLocation(this.lineProg, 'view'), view.x0, view.y0, view.x1, view.y1);
+      gl.uniform4f(gl.getUniformLocation(this.lineProg, 'fill'), this.wall[0], this.wall[1], this.wall[2], 0.8);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.lineBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, f.edges, gl.STREAM_DRAW, 0, 4 * f.ne);
+      gl.bindVertexArray(this.lineVao);
+      gl.drawArrays(gl.LINES, 0, 2 * f.ne);
+    }
     /* Pfeile der Geschwindigkeit: Gas, dann Wasser. */
     if (f.nag + f.nal > 0) {
       gl.useProgram(this.lineProg);

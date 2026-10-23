@@ -25,6 +25,7 @@
  */
 
 import { Bodies } from './bodies';
+import { BodyMelt } from './bodyMelt';
 import { BubbleModel } from './bubbleModel';
 import { Bubbles } from './bubbles';
 import { emptyFlows, emptySnapshot, measure, type BudgetSnapshot, type Flows } from './budget';
@@ -168,6 +169,7 @@ export class Engine {
   salt!: Salt;
   exchange!: Exchange;
   bodies!: Bodies;
+  melt!: BodyMelt;
   solver!: GridSolver;
   private prevKind!: Uint8Array;
   private p0Start: Float64Array = new Float64Array(8);
@@ -250,6 +252,9 @@ export class Engine {
     this.salt = new Salt(this);
     this.exchange = new Exchange(this);
     this.bodies = new Bodies(this);
+    this.heat.bodies = this.bodies.list;
+    this.melt = new BodyMelt(this);
+    this.bodies.afterCollect = () => { this.melt.step(); };
     this.liquid.bodyHit = (x0, y0, x, y, out) => this.bodies.hitPoint(x0, y0, x, y, out);
     this.liquid.afterSolve = (S, i0, j0, dt) => this.bodies.probe(S, i0, j0, dt);
     this.prevKind = new Uint8Array(grid.n);
@@ -303,7 +308,7 @@ export class Engine {
     this.regions.update(this.particles, this.bubbles);
     this.gas.deriveAll();
     liquid.computeHeatWeights();
-    for (let c = 0; c < grid.n; c += 1) if (grid.solid[c] !== 0) this.heat.deriveSolid(c);
+    for (let c = 0; c < grid.n; c += 1) if (grid.solid[c] !== 0 || grid.capB[c] > 0) this.heat.deriveSolid(c);
     this.heat.countHeaters();
   }
 
@@ -350,6 +355,8 @@ export class Engine {
   }
 
   private solidsChanged(): void {
+    /* Ein fester Bau änderte sich: die Körper neu in die Zellen (ein Bau nimmt keinen Körper auf), dann alles Feste. */
+    this.bodies.reweigh();
     this.grid.updateStatic();
     this.regions.label();
     for (let r = 0; r < this.regions.count; r += 1) if (this.regions.open[r] !== 0) this.regions.p0[r] = this.pRef;
@@ -372,6 +379,7 @@ export class Engine {
      */
     const pv0 = this.regions.pvTerm();
     const warning = applyOp(this.world(), op);
+    this.bodies.sync();
     if (op.op === 'hotplate') this.heaterOps.set(this.heat.heaters.length - 1, this.scene.ops.length);
     this.scene = { ...this.scene, ops: [...this.scene.ops, op] };
     this.settle();
@@ -404,7 +412,9 @@ export class Engine {
         const c = stack.pop() as number;
         const i = c % nx;
         const j = (c - i) / nx;
-        const nbs = [i > 0 ? c - 1 : -1, i < nx - 1 ? c + 1 : -1, j > 0 ? c - nx : -1, j < ny - 1 ? c + nx : -1];
+        /* Über Flächen, die kein Körper ganz bedeckt (eine dünne Wand trennt). */
+        const gas = this.gas;
+        const nbs = [gas.across(c, i, j, 0), gas.across(c, i, j, 1), gas.across(c, i, j, 2), gas.across(c, i, j, 3)];
         if ((i === 0 && g.openL) || (i === nx - 1 && g.openR) || (j === 0 && g.openB) || (j === ny - 1 && g.openT)) free = true;
         for (const nb of nbs) {
           if (nb < 0 || g.solid[nb] !== 0) continue;
@@ -483,7 +493,7 @@ export class Engine {
     /* 1. Eingaben: Werkzeuge kommen zwischen den Schritten (apply); die Heizleistung regelt Stufe 6. Die wachen Körper
        ins Gitter (M3a); füllen oder leeren sie Zellen eines verschlossenen Gebiets, ist der Sprung von −p0·V ihre Arbeit. */
     const pvBodies = regions.pvTerm();
-    if (this.bodies.prepare() > 0) {
+    if (this.bodies.prepare()) {
       regions.update(particles, bubbles);
       this.flows.bodyWork += regions.pvTerm() - pvBodies;
     }
@@ -607,7 +617,7 @@ export class Engine {
     f.editAir = this.ledger.air;
     f.editOther = this.ledger.other;
     f.editSalt = this.ledger.salt;
-    return measure(this.grid, this.particles, this.bubbles, this.regions, this.flows, this.snap, this.salt.floorTotals());
+    return measure(this.grid, this.particles, this.bubbles, this.regions, this.flows, this.snap, this.salt.floorTotals(), this.bodies.list, this.melt.pendingTotals());
   }
 
   /** Abweichung der Energiebilanz seit dem Start (J): ΔE − (Heizung − Verluste − Entwichenes + Eingriffe). */
@@ -629,9 +639,9 @@ export class Engine {
     return s.other.total - this.other0 - this.flows.editOther;
   }
 
-  /** Braucht die Szene den normalen Weg? Andere Flüssigkeiten (M2a), Salz — gelöst oder als Kruste (M2b) — und freie Körper (M3a) kennt der beschleunigte Weg noch nicht. */
+  /** Braucht die Szene den normalen Weg? Andere Flüssigkeiten (M2a), Salz — gelöst oder als Kruste (M2b) —, freie Körper (M3a) und Eis, das schmilzt oder wächst (M3b), kennt der beschleunigte Weg noch nicht. */
   needsCpu(): boolean {
-    return this.particles.hasOther() || this.particles.hasSalt() || this.salt.crustMass() > 0 || this.salt.floorTotals().mass > 0 || this.bodies.anyFree;
+    return this.particles.hasOther() || this.particles.hasSalt() || this.salt.crustMass() > 0 || this.salt.floorTotals().mass > 0 || this.bodies.anyFree || this.melt.any();
   }
 
   /** Abweichung der Salzbilanz seit dem Start (kg): gelöst + Kruste + Boden + entwichen gegen den Anfang und die Eingriffe. */

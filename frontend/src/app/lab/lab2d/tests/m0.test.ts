@@ -115,18 +115,21 @@ describe('M0 — scenes, painting, the loop', () => {
     }
   });
 
-  it('paints water as four particles per cell, apparatus as solid cells', () => {
+  it('paints water as four particles per cell, apparatus as bodies of exact rectangles', () => {
     const e = new Engine(boilingScene());
     const g = e.grid;
     let solid = 0;
     let liquid = 0;
-    let heater = 0;
     for (let c = 0; c < g.n; c += 1) {
       if (g.kind[c] === SOLID) solid += 1;
       if (g.kind[c] === LIQUID) liquid += 1;
-      if (g.role[c] === 1) heater += 1;
     }
+    /* Die Heizplatte: ein Rechteck 12 × 0,8 cm mit Heizung, innere Zellen etwa Δx; die Zlewka: Boden und zwei Wände. */
+    const plate = e.bodies.list.find((b) => b.heater >= 0);
+    const beaker = e.bodies.list.find((b) => b.heater < 0);
+    const heater = plate?.ncell ?? 0;
     expect(heater).toBe(60 * 4);
+    expect(beaker?.nr).toBe(3);
     expect(solid).toBeGreaterThan(heater);
     expect(liquid).toBeGreaterThan(700);
     expect(e.particles.count / liquid).toBeGreaterThan(3.5);
@@ -158,19 +161,23 @@ describe('M0 — scenes, painting, the loop', () => {
     for (let k = 0; k < 20; k += 1) e.step();
     const g = e.grid;
     const count = e.particles.count;
-    const cellsOf = (pred: (c: number) => boolean): number => { let n = 0; for (let c = 0; c < g.n; c += 1) if (pred(c)) n += 1; return n; };
     const GLASS = solidIndex('glass') + 1;
-    const glass = cellsOf((c) => g.solid[c] === GLASS);
+    /* Genaue Rechtecke: die bedeckte Fläche bleibt (die Zahl der festen Zellen nicht — eine halb bedeckte Zelle am Fuss ist neben der Platte fest, in der Luft frei). */
+    const coverOf = (): number => { let a = 0; for (let c = 0; c < g.n; c += 1) if (g.matB[c] === GLASS) a += g.fs[c]; return a; };
+    const glass = coverOf();
     const x0 = e.particles.x[0];
     /* Die Zlewka (Aussenrechteck) samt Wasser 2 cm nach links und 1 cm hinauf; die Heizplatte 1 cm nach rechts. */
     e.apply({ op: 'move', region: { rect: [0.065, 0.008, 0.135, 0.088] }, dx: -0.02, dy: 0.01 });
     expect(e.particles.count).toBe(count);
     expect(e.particles.x[0]).toBeCloseTo(x0 - 0.02, 6);
-    expect(cellsOf((c) => g.solid[c] === GLASS)).toBe(glass);
+    expect(coverOf()).toBeCloseTo(glass, 9);
     e.apply({ op: 'move', region: { rect: [0.04, 0, 0.16, 0.008] }, dx: 0.01, dy: 0 });
-    expect(cellsOf((c) => g.role[c] === 1)).toBe(60 * 4);
+    const plate = e.bodies.list.find((b) => b.heater >= 0 && !b.gone);
+    expect(plate?.ncell).toBe(60 * 4);
     expect(e.stats().heaters.length).toBe(1);
-    expect(g.role[Math.round(0.165 / g.dx) + g.nx]).toBe(1);
+    const box = new Float64Array(4);
+    plate?.worldBox(plate.x, plate.y, plate.a, box);
+    expect(box[2]).toBeCloseTo(0.17, 9);
     for (let k = 0; k < 20; k += 1) e.step();
     const s = e.stats();
     expect(Math.abs(s.waterError)).toBeLessThan(waterTolerance(e));

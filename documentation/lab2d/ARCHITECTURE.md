@@ -139,9 +139,11 @@ and energies Float64, everything else Float32 (as the prompt asks).
 | `T`, `Tl`, `Cl` | f32, f32, f64 | K, K, J/K | cell temperature; temperature and heat capacity of the cell's liquid share |
 | `Sl`, `Sg` | f32 | 1/s | divergence sources of the liquid and the gas |
 | `ul, vl`, `ug, vg` | f32 | m/s | liquid and gas face velocities |
-| `owner` | i16 | — | body index + 1 of a body's cell (M3a; 0: a painted solid or fluid) |
-| `capB` | f64 | J/K | heat capacity of the solid share of a cell written by a turned or moving body (from its voxels; 0: ρ c_p V of the material) |
-| `usol, vsol` | f32 | m/s | velocity of solid faces: a moving body's at its faces, else 0 |
+| `fs` | f32 | — | share of the cell covered by bodies (exact clipping of their rectangles, §17) |
+| `owner`, `matB` | i16, u8 | — | body index + 1 and material + 1 of the body covering most of the cell (0: none) |
+| `capB`, `Ts` | f64, f32 | J/K, K | heat capacity and temperature of the bodies' share of the cell (from their internal cells by area) |
+| `au, av` | f32 | — | open fraction of each u and v face (1 − the share bodies cover; 0 closed) |
+| `usol, vsol` | f32 | m/s | velocity of the covered part of a face: the covering body's there, else 0 |
 
 Cavities live in a flat side table built from the solids (`bubbleModel.rebuildSites`, §8.2).
 
@@ -314,6 +316,13 @@ antisymmetric) plus q_i Δt, then distributed to the cell's parts by their share
 weights: no smearing of the liquid's own temperature differences). Counters record the heat that crosses
 solid–liquid, liquid–gas and solid–gas faces (for the charts and test 11).
 
+**Bodies** (M3a, exact rectangles, §17): a cell may hold fluid and a share of a body at once. The share is one more
+part of the cell — capacity capB from the body's internal cells by area, energy Es, temperature Ts; the cell's
+conductivity mixes by the covered share, fs k_s + (1 − fs) k_f. Inside the cell body share and fluid exchange through
+their interface (an area Δx·D, each half its own thickness): ΔT decays with τ = C_s C_f/((C_s + C_f) G),
+G = D/(½ fs/k_s + ½ (1 − fs)/k_f) — an exact exponential, energy-conserving. A cell a body closes is solid with the
+body's capacity.
+
 **Sharing inside a cell** (`exchange.ts`, after the solve). The particles of a cell still differ — a hot and a cold one
 that the flow brought together, brine beside fresh water — and real diffusion evens that out. Each particle moves
 toward its cell's mean (IEM, interaction by exchange with the mean, from Lagrangian PDF methods):
@@ -341,7 +350,8 @@ the gas does not. Heat between cells stays the solve's. With λ = 1/s salt in a 
 carry the heat of a hot wall into the next cells through the particles' overlapping heat weights (the water in front of
 boiling chips stayed too cold, test 12). SIMPLIFICATIONS.md #28, #32; tests 28–30, 35.
 
-Heaters: static steel cells with role 1 and an internal source — power mode (W per slab depth) or a thermostat (PI on
+Heaters: a hot plate (a body with a heater group, its source spread over its internal cells by volume; on the
+accelerated view steel cells with role 1) with an internal source — power mode (W per slab depth) or a thermostat (PI on
 the mean heater temperature, power-limited, anti-windup). Box walls lose h_ext (T − T_amb) with h_ext = 10 W/(m²·K)
 in series with half a cell; open sides conduct to the room (2k/Δx) and exchange by inflow and outflow. A microwave-like
 volumetric liquid source exists for tests. No radiation (SIMPLIFICATIONS.md).
@@ -530,7 +540,11 @@ worker builds frame buffers and transfers them (a ring of two) to a WebGL2 canva
 - a field texture, read linearly with premultiplied alpha: the continuous overlays (temperature, pressure,
   velocity, humidity, invisible vapour) and fog — white with Beer–Lambert opacity from its water content
   (SIMPLIFICATIONS.md #21), paler under the temperature, pressure and velocity overlays;
-- a cell texture, read crisply: solids in their colour (a hot plate glows above 60 °C) and the phase map;
+- a cell texture, read crisply: painted solids in their colour (glowing above 60 °C) and the phase map;
+- bodies (exact rectangles, §17): every internal cell a rotated quad in its material's colour (a hot plate glows, a
+  crust whitens; the overlay's colour in the temperature and phase overlays) and the outlines of the rectangles on
+  top. Cells a body closes stay empty in the cell texture, and the liquid's coverage is continued under bodies (three
+  layers, before the blur), so no light gap shows between the water and a body that stands between cells;
 - in the velocity overlay, arrows on a grid of about 6 mm: gas (dark) and water (white), each scaled to its own
   largest speed (the legend gives both);
 - the box walls (open sides stay open).
@@ -550,8 +564,9 @@ and answers the same host messages, so the shell, the tools, the inspector and t
 
 ## 12. Tests
 
-Vitest, headless in Node on the engine alone: `npm run test:lab2d` (74 tests, ~10 minutes) and
-`npm run test:lab2d:slow` (tests 3, 4 over ten simulated minutes, 10, 11, 12, 34). MILESTONES.md records the numbers.
+Vitest, headless in Node on the engine alone: `npm run test:lab2d` (81 tests, ~5 minutes) and
+`npm run test:lab2d:slow` (tests 3, 4 over ten simulated minutes, 10, 11, 12, 34, 41 at 1 mm, 43 with enough salt).
+MILESTONES.md records the numbers.
 
 | # | Test | File |
 |---|---|---|
@@ -588,14 +603,19 @@ Vitest, headless in Node on the engine alone: `npm run test:lab2d` (74 tests, ~1
 | 35 | Stirring: under an imposed pure strain λ the in-cell differences of salt decay at (π² D/Δx²)·x/W(x), x = 2(λ − 0.02/s)τ (±1 %); below 0.02/s at the molecular rate; heat at its still rate for every λ | m2b.test.ts |
 | 31 | Playback: every frame of a clip draws the same pixels as the live view did while baking (without overlay every frame, with each overlay every third frame) | b.test.ts |
 | 32 | Seeking: frames read in any order equal frames read in sequence; time t is frame floor(30 t) | b.test.ts |
-| 33 | Going on from a keyframe: the whole state equals the run that never stopped (boiling, brine to a crust, water under oil, a sealed box with fog, moving bodies with contacts); from a clip's keyframe the frames equal the clip | b.test.ts |
-| 34 | Size: a minute of the boiling beaker at 2 mm stays under 40 MB (measured 34.0) | b.slow.test.ts |
+| 33 | Going on from a keyframe: the whole state equals the run that never stopped (boiling, brine to a crust, water under oil, a sealed box with fog, moving bodies with contacts, melting ice); from a clip's keyframe the frames equal the clip | b.test.ts |
+| 34 | Size: a minute of the boiling beaker at 2 mm stays under 40 MB (measured 36.0) | b.slow.test.ts |
 | 36 | Floating: pine and ice float with ρ_b/ρ_l of their height under water (±2 %, mean over 3 s); budgets exact | m3a.test.ts |
-| 37 | Sinking: a ceramic disc reaches the cylinder drag law's terminal speed (C_D = 1.2, ±15 %); a stone block lands and rests without jitter, asleep | m3a.test.ts |
+| 37 | Sinking: a 2 cm ceramic square reaches the drag law's terminal speed (C_D = 2.1 of a square cylinder, ±15 %) before its wake turns it over; a stone block lands and rests without jitter, asleep | m3a.test.ts |
 | 38 | Stacking: a block dropped onto another lands flat on it and both stand still, asleep | m3a.test.ts |
 | 39 | Tipping: a glass beaker of water released 3° below its geometric tipping angle falls back, 3° above it falls over; no water lost | m3a.test.ts |
 | 40 | Budgets with moving solids: a hot stone sinks and a warm block floats in cold water — energy, water and air exact | m3a.test.ts |
-| — | Scene format of bodies (body, pin, pinned, angle round-trip; older scenes write unchanged; free bodies need the CPU) | m3a.test.ts |
+| — | Scene format of bodies (body, pin, pinned, angle round-trip; older scenes write unchanged; free bodies need the CPU; a circle becomes the square of its area, a line with a width a rotated rectangle) | m3a.test.ts |
+| 41 | Stefan: melting under water at 20 °C and freezing on ice at −20 °C follow the Neumann solution (2 mm: front speed ±5 %, position ±10 %; 1 mm: ±5 %) | m3b.test.ts, m3b.slow.test.ts |
+| 42 | Ice cube in warm water: one rectangle, never warmer than its melting point, the lost ice is water in the particles; energy and water exact | m3b.test.ts |
+| 43 | Ice in brine settles at T_f(w) of the diluted brine (±0.2 K); in 25 % brine a cooling mixture below −18 °C whose coldest particle never passes the eutectic (by more than 0.05 K) | m3b.test.ts, m3b.slow.test.ts |
+| 44 | Freezing brine keeps all its salt: the ice grows, the brine gets saltier, salt exact | m3b.test.ts |
+| 45 | A carved ice block melts as a few rectangles that neither overlap nor fall apart; budgets exact | m3b.test.ts |
 | 17 | GPU equivalence on tests 1–3, 6, 11 | browser harness in headless Edge (Node has no WebGPU) and in Firefox (a visible window: headless Firefox gets no WebGPU adapter); numbers in MILESTONES.md (M1e) |
 
 The browser side (tools, overlays, inspector, bubble view, charts, scenes, phone layout) was walked through in
@@ -690,7 +710,7 @@ editor as "Po otwarciu"); a clip already baked then plays at once. `seconds` set
 further scenes to choose from (a picker above the text; each scenario has its own clip and, with `start: "bake"`,
 bakes when chosen). Restart and choosing a scenario also come back paused.
 
-**The clip** (`recreatio/lab2d-clip`, version 1; `clip/clip.ts`):
+**The clip** (`recreatio/lab2d-clip`, version 2 — version 1 clips, without the bodies' quads, still play; `clip/clip.ts`):
 
 - *Header*: the scene (canonical JSON with quality, seed and every operation), the grid, 30 frames per second of
   simulated time, the sizes of the chunks, the keyframes, the chart samples (every 0.25 s) and the layout of the engine
@@ -737,90 +757,148 @@ per simulated minute (34.0 MB since M3a: the grid's body arrays); baking it runs
 calmer scenes several times faster (convection: 0.43×). Baking runs on the CPU only; the accelerated view neither bakes
 nor plays clips (its button is off while a clip plays or bakes).
 
-## 17. Bodies (M3a)
+## 17. Bodies (M3a; exact rectangles since 2026-10-23)
 
-Every object is a whole (SANDBOX.md §6): a beaker, a hot plate, a painted block. Files: `body.ts` (one body),
-`bodyRaster.ts` (into the grid and back), `bodyForces.ts` (pressure and added mass), `bodyContacts.ts` (contacts),
-`bodies.ts` (the set: creation, the two step stages, tools).
+Every object is a whole (SANDBOX.md §6): a beaker, a hot plate, a block, an ice cube. Files: `body.ts` (one body),
+`bodyCover.ts` (into the grid and back), `geom.ts` (exact clipping, recomposition), `bodyForces.ts` (pressure and added
+mass), `bodyContacts.ts` (contacts), `bodyTools.ts` (erase, move, split), `bodies.ts` (the set: creation, the two step
+stages), `bodyMelt.ts` (melting and freezing, §18), `gpu/staircase.ts` (bodies on the accelerated view).
 
-**A body** is a set of voxels at the grid's Δx in its own frame — the grid it was made in, voxel (i, j) centred at
-((i + ½)Δx, (j + ½)Δx), its centre of mass (cx, cy) there; a world point of the frame is at (x, y) + R(a)(L − c).
-Per voxel: solid material, energy (J, film and crust included), heater group, film and crust (kg). Derived: mass,
-inertia, a dense occupancy map of the frame's bounding box, the outline edges (voxel faces towards empty frame cells:
-midpoint and direction), convex parts for contacts (runs per row merged with equal runs above — a beaker becomes three
-boxes; a disc stays a circle while its centre is the centre of mass), the convex hull's area and second moment, the
-farthest corner. Erasing voxels shifts the pose with the centre of mass (no voxel jumps) and splits the rest into
-connected pieces, each its own body. Everything is numbers and typed arrays: keyframes take bodies as they are.
+**A body** is one or a few axis-aligned rectangles in its own frame, exact in metres, not rounded to the grid: a beaker
+three (a bottom and two walls standing on it; four with a lid), everything else one; one material. The frame's origin
+is the centre of mass; a world point L of the frame is at (x, y) + R(a)·L. Inside each rectangle lie internal cells of
+about Δx, laid exactly into it (column and row boundaries `xs`, `ys` — a melting side thins its outer row), each with
+energy (J, with its water film at h_l(T) and its salt crust), film and crust (kg). Derived (`derive`): mass, centre
+(the frame moves into it, so nothing jumps), inertia, the convex hull's area and second moment, the farthest corner and
+the **free segments** — the parts of each rectangle's sides that touch no other rectangle of the body (closer than
+10⁻⁶ Δx counts as joined). A circle region becomes the square of the same area (with a warning), a polygon its bounding
+rectangle, a line with a width a rotated rectangle. Erasing cuts the box the region spans in the body's frame out of
+each rectangle (up to four remain: left, right, below, above); what falls apart becomes separate bodies (`separate`,
+energies by area). Everything is numbers and typed arrays: keyframes take bodies as they are.
 
-**States.** Pinned: infinite mass, never moves. Free and asleep: stands in the grid like any solid, its cells are its
-state (with the weights frozen). Free and awake: its voxels are its state; it is written into the grid every step.
-Beakers and plates are pinned unless the scene says otherwise; free bodies settle for a moment after loading and fall
-asleep after half a second of touching something at under 2 mm/s. A sleeping body wakes when an awake one touches it at
-more than 1 cm/s, when a tool changes the scene, or when the fluid lifts it with more than 1.02 times its weight.
+**States.** Pinned: infinite mass, never moves. Free and asleep: stands in the grid like any solid (its fractions
+frozen). Free and awake: it is written into the grid every step. Beakers and plates are pinned unless the scene says
+otherwise; free bodies settle for a moment after loading and fall asleep after half a second of touching something at
+under 2 mm/s. A sleeping body wakes when an awake one touches it at more than 1 cm/s, when a tool changes the scene,
+when the fluid lifts it with more than 1.02 times its weight, or when it melts or grows.
 
-**Into the grid** (`bodyRaster.ts`, at the start of the step, for awake bodies):
+**Into the grid** (`bodyCover.ts`, at the start of the step for awake bodies, and after any change):
 
-- Cells whose centre lies in a voxel (and that no other solid owns) become the body's (`grid.owner`). A one-cell wall
-  stays tight when tilted: every row (up to 45°) or column (beyond) has a centre inside it, and cells that touch only
-  at corners pass nothing on the staggered grid. Nothing at all inside (a tiny tilted body): the cell under the centre
-  of mass.
-- Cells it enters give their gas — masses, fog, enthalpy — to the free cells around (rings up to three cells, then the
-  nearest free cell through anything: a block landing flat on another squeezes the air out sideways); cells it leaves
-  become liquid when no gas is next to them, otherwise gas taken from their gas neighbours (at most a quarter of each).
-- Energy with the same weights there and back: each cell reads the voxel under its centre; a voxel read by k cells
-  gives each 1/k of its energy, capacity (`grid.capB`, which the heat solve uses instead of ρ c_p V), film and crust;
-  a voxel no cell reads goes whole into the nearest own cell. At the end of the step each cell's change (heat, film,
-  crust) goes back to its voxels by the same weights — energy by capacity, film and crust by share (a loss by what
-  each gave). Nothing is created or lost (test 40).
-- The faces of its cells towards foreign cells get the body's velocity at their centre (`grid.usol`, `vsol`): the
-  liquid and the gas projection see a moving wall (box sides stay what they are).
-- Particles and bubbles that now lie in a voxel go back along their path, in the body's frame, to just before the side
-  they came through (a voxel walk, Amanatides & Woo; already deep inside: the nearest empty frame cell within four);
-  their velocity into the body (relative to it) is removed. The particle transport (`liquidMove.ts`) does the same for
-  particles that move into an awake body themselves; the distance field is only used away from awake bodies (it could
-  push a particle through a thin tilted wall).
-- If cells changed: φ_s and the distance field are recomputed in the box around what moved, regions relabelled
-  (−p0·V of sealed regions jumps: booked as the bodies' work, `flows.bodyWork`), cavities rebuilt.
+- *Weights*: each internal cell's share of every grid cell it overlaps, by exact clipping of the rotated quad against
+  the square (Sutherland–Hodgman, `geom.quadInBox`); a grid cell a rectangle cuts into two separate parts (it meets the
+  cell's border in two arcs, `geom.splitsCell`) is marked.
+- *Cells*: `fs` = the covered share (all bodies), `capB` = Σ w C_k, `Es` = Σ w E_k (film and crust likewise), `owner`
+  and `matB` the body with the largest share. A cell is **closed** (kind solid) if fs ≥ 0.99, if it is cut in two, or if
+  fs ≥ ½ next to solid that is not the same body — a box side, a painted solid, another body's closed or half-covered
+  cell (an unresolved gap: a block landing on the floor squeezes the water out instead of leaving an empty liquid cell
+  under it). Cells that close give their gas to the free cells around (through open faces first: a thin wall passes no
+  gas); cells that open become liquid without gas next to them, else gas taken from their neighbours.
+- *Faces*: per u and v face the share the rectangles cover (exact segment clipping) gives the open fraction
+  α = 1 − share (`au`, `av`), the covered part's velocity (`usol`, `vsol`) and the body covering most (`faceOwner`);
+  when a face closes or opens, the regions are relabelled.
+- *Projections*: the liquid's pressure solve and divergence weight every face by α and take the covered part's
+  velocity as known — the cut cells of Batty, Bertails & Bridson 2007 (the solid part of a face moves with the body);
+  the gas likewise (fluxes and projection × α, gas volume (1 − fs − φ − α_b) V); regions connect through open faces and
+  count V_fluid = Σ (1 − fs) V; vapour and salt diffuse × α.
+- *Thin walls*: a face a body covers whole between two cells that are both open (a 2 mm beaker wall lying across two
+  2 mm cells — the presets' beakers at 2 mm) separates them for everything that looks at neighbours. Particles put no
+  weight into a cell behind such a face (`grid.updateThin` marks them per cell; `cutWeights` gives their share to the
+  rest of the 3 × 3 cells; diagonally when both ways round are cut), and evaporation, flash boiling and the test
+  whether a cell borders gas look only through open faces. Without it the water inside a beaker also stood in the cell
+  outside its wall and evaporated there (test 11 boiled 3.9 K below T_sat), and particles beside a floating ice block
+  reached into cells it almost covers, behind faces it covers whole (single particles 0.1 K below the eutectic).
+- *Heat* (§6.5): the body's share is a part of the cell (capB, Es, Ts); at the end of the step each cell's change goes
+  back to the internal cells — energy by w C_k/capB, film and crust by weight or by what each gave. Nothing is created
+  or lost (test 40).
+- *Particles and bubbles* inside a rectangle after a move go back along their path in the body's frame to just before
+  the side they entered (Liang–Barsky on the rectangles; already deep inside: the nearest side), their velocity into the
+  body removed; the liquid's own transport does the same (`hit`).
+- Then φ_s (the covered shares smoothed like solid cells), the distance field, the regions (−p0·V of sealed regions
+  jumps: booked as `flows.bodyWork`) and the cavities are refreshed in the box of what changed. Cavities sit on the free
+  segments in the body's frame (one draw per piece of about Δx) and move with it; they are drawn anew only when cells
+  flip or the body's sides change their structure (a melting side just moves its cavities along).
 
-**Forces** (`bodyForces.ts`, at the end of the step). The pressure of both projections — liquid p_l, gas
-p0 − ρ̄ g y + p′ — is continued into all solid cells, layer by layer from the fluid with the hydrostatic step ρ g Δy
-(each layer from the layers before it, order-independent). At the midpoint m of every outline edge with outer normal n
-the pressure comes from the fluid cells around m + ½Δx n whose centre lies on the outer side, each brought to the
-height of m with ρ g Δy, liquid and gas separately, the larger of the two at a waterline; an edge with no fluid in front
-(resting on another solid) takes the continued pressure, as if a thin film were in between. F = −Σ p n Δx D, the
-torque with the edge's lever. In water at rest this is exactly the buoyancy of the submerged part wherever the body
-stands between cells, and a one-cell glass wall feels the water inside and the air outside (sampled across the wall,
-water would barely push on a beaker).
+**Forces** (`bodyForces.ts`): the pressure of both projections is continued into the solid cells as before; it is
+integrated over the free segments in pieces of at most ½ Δx, each reading the fluid in front of it at its own height
+(hydrostatic correction), the larger of liquid and gas at a waterline, a piece resting on solid the continued pressure.
+The gas side uses the p0 the liquid saw at its surface at the start of the step: in a sealed region p0 changes within
+the step, and mixing the two gave a floating body a spurious net force that grew into an oscillation (a block floating
+in a closed box flew out of it). In water at rest this is the buoyancy of the submerged part, continuous in the
+position — a floating body no longer bobs by rows of cells (test 36: 0.06 mm instead of ±1.4 mm).
 
-**Coupling** (partitioned). The projections of step n see the body's velocity V^n on its faces; their pressure gives
-F^n, which contains the fluid's answer to the body's last change of velocity, −M_a (V^n − V^{n−1})/Δt. With an
-estimate M̃_a the body steps with (M + M̃_a)(V_free − V^n) = Δt (m g + F^n) + M̃_a D^{n−1}, D = V_free − V the part of
-the last change that came from fluid and gravity (contact impulses excluded: a landing beaker of water would otherwise
-be kicked back into the air). If M̃_a = M_a the fluid's answer cancels exactly and the body moves with its true inertia
-M + M_a; too small an estimate is unstable (amplification (M_a − M̃_a)/(M + M̃_a) beyond one — light bodies in water),
-too large rocks a floating body up. M_a is therefore **measured** after every liquid projection, with its matrix A
-still in the solver: a velocity e_k of the body (x, y, rotation) changes the divergence of the liquid cells at its faces
-by j_k, so three more solves p_k = A⁻¹(−Δx j_k) give M_a = Δt Δx² D Jᵀ A⁻¹ J (symmetric 3 × 3). A body that has just
-woken uses a geometric estimate for one step (1.5 ρ_l f A_hull D, f the wetted share of its edges).
+**Coupling** (partitioned): as before — the projections of step n see V^n, their pressure gives F^n; the added mass is
+measured after every liquid projection with three more solves on the faces the body covers (`faceOwner`, weighted by
+the covered share): (M + M_a)(V_free − V^n) = Δt (m g + F^n) + M_a D^{n−1}.
 
-**Contacts** (`bodyContacts.ts`): the physics lab's solver (`lab/physics/physCollide.ts`: separating axes, clipped
-manifolds, two-point block solver, warm starting, Coulomb friction; typed for any "collider", slop and speculative gap
-per contact — 0.1 Δx and Δx here instead of 4 mm and 2 cm). A part forwards pose and velocity to its body (impulses on
-two parts move the same body). Static: closed box sides, painted solids (cells of one material merged into
-rectangles), pinned and sleeping bodies. Friction √(μ_a μ_b) and restitution max(e_a, e_b) from the materials
-(SIMPLIFICATIONS.md #37). Every step the pairs are found again (awake parts against everything, bounding boxes with the
-gap), solved in key order with ten iterations; the warm-start state (feature ids, impulses, the rebound mark per point)
-is kept in arrays, so a keyframe restores it and the run goes on bit for bit.
+**Contacts** (`bodyContacts.ts`): each rectangle is a box part of the physics lab's solver (separating axes, clipped
+manifolds, two-point block solver, warm starting, Coulomb friction; slop 0.1 Δx, speculative gap Δx). Static: closed
+box sides, painted solids (cells of one material merged into rectangles), pinned and sleeping bodies. When a body melts
+or grows, its parts take the new rectangles in place and keep their warm start.
 
-**Order in the step**: bodies part 1 (into the grid) at the start with the inputs; liquid … heat as before; the
-diagnostics; bodies part 2 (collect, forces, velocities, contacts, positions, sleep) as stage 9 (`bodies`). dt is also
-limited so that no point of an awake body moves more than half a cell per step. A body leaving the box through an
-open side is booked as escaped (energy, film water, crust salt).
+**Order in the step**: bodies part 1 (into the grid) at the start; liquid … heat as before; the diagnostics; bodies
+part 2 (collect, melting and freezing, forces, velocities, contacts, positions, sleep) as stage 9. dt is limited so
+that no point of an awake body moves more than half a cell per step. A body leaving the box through an open side is
+booked as escaped (energy, film water, crust salt; ice as water).
 
-**Tools and format**: `body` (region, material, T, pinned, angle), `pin` (x, y, pinned), `pinned` and `angle` on
-`beaker` and `hotplate` (§10); "Postaw ciało" and "Przypnij" in the shell; "Przesuń" moves a body as a whole (lifted out
-of the grid, shifted, written back); erasing or painting over a body takes its voxels (booked) and may split it. The
-inspector shows the body under the cursor.
+**Tools and format**: `body` (region, material, T, pinned, angle), `pin`, `pinned` and `angle` on `beaker` and
+`hotplate` (§10); "Postaw ciało" and "Przypnij" in the shell; "Przesuń" moves bodies by the exact offset (a painted
+solid in the region moves everything by whole cells); erasing or painting over a body cuts its rectangles (booked; ice
+counts as water) and may split it. The inspector shows the body under the cursor.
 
-**The accelerated view** runs scenes whose bodies are all pinned (they are solid cells); a free body sends the scene
-back to the CPU (`needsCpu`).
+**Drawing** (§11): each internal cell as a rotated quad, the rectangles' outlines on top; cells a body closes stay
+empty in the cell texture.
+
+**The accelerated view** (`gpu/staircase.ts`) knows no fractions: on upload every cell a pinned body covers by more than
+half, or that the CPU closed, becomes a solid cell there (where a face lies wholly inside a body and neither of its
+cells qualifies, the one with the larger share — a thin wall on the boundary of two cells stays tight without doubling)
+with the body's temperature (energy from the whole cell's capacity, as the kernels compute), material and heater group;
+φ_s, the distance field, the regions' fluid volume and the cavities' wall cells follow the staircase, and the gas of a
+cell that turns solid there stays in it. On download the staircase cells give their temperatures back to the bodies
+(their share's energy, then `collect`). In the presets the beaker and the plate lie exactly on the 1 mm cells, so the
+staircase is the body. A free body or ice sends the scene back to the CPU (`needsCpu`).
+
+## 18. Melting and freezing (M3b)
+
+`bodyMelt.ts`, after the bodies' energies are collected and before the forces (stage 9), for every body of a meltable
+material (ice, `meltsAt`):
+
+- **Energy.** Internal cells carry sensible energy c_p (T − 0 °C) (with film and crust); a meltable body adds the
+  latent offset m·e0, e0 = h_l(T_m) − c_p,ice (T_m − 0 °C) − Δh_fus (IAPWS R10-06: Δh_fus = 333.55 kJ/kg at
+  T_m = 273.1525 K), so ice at T_f turns into water at T_f with exactly the latent heat. The water budget counts the
+  ice (`WaterByState.ice`); placing, erasing and losing ice are booked as water.
+- **The interface.** Every side with a free segment gets T_f from the liquid in front of it — the salt and water of the
+  cells just outside and one cell further (the thin fluid part of a mixed cell often holds no particle), `freezingPoint`
+  of their molality; no liquid: pure water. A side is *open* when fluid lies in front of it; a side against a wall, a
+  painted solid or another body is not.
+- **Melting.** Every internal cell warmer than T_f of the nearest open side of its rectangle (no open side: the nearest
+  free side) gives its excess E − E(T_f) to that side — the ice is never warmer than where it melts; a cell inside gives
+  its heat at once (the conduction to the surface is instant, the end state right). A side's excess Q moves it inward by
+  δ = Q/(ρ D Σ_k s_k [L(T_f) + c_p (T_f − T_k)]) over its edge cells k (free length s_k). The slice's energy, film and
+  crust, the offset of its mass and Q become meltwater: added to the water particles in the cells just in front by
+  their mass (one cell further only if those hold none; a particle above twice the nominal mass splits), else held per
+  body and spawned as a particle in front of the side — or at the nearest free spot within three cells — once it
+  reaches a quarter of the nominal mass.
+- **Freezing.** Water in front of a side colder than T_f freezes m = C_l (T_f − T_l)/L, at most half of a particle's
+  water per step; it leaves with the enthalpy of ice (the particles keep the latent heat and warm up), its salt stays.
+  Planned first, taken after the side moved: exactly the mass the body grew by. The new slice is ice at T_f; particles
+  and bubbles it covers are pushed out.
+- **One rectangle**: the sides move directly (`moveSide`); the outer rows thin or thicken; a row thinner than 0.3 Δx
+  merges into its neighbour and one thicker than 1.6 Δx splits (area-weighted regridding); a rectangle thinner than
+  0.05 Δx melts completely, film and crust included.
+- **Several rectangles** (a carved block, an ice beaker): the moves become slabs along the free segments — inside for
+  melting, outside for growth — and the body is recomposed (`geom.recompose`): the old rectangles minus the melt slabs
+  plus the growth slabs, on the grid of all their coordinates, read as horizontal runs per row with equal runs above
+  each other merged — the shape is decomposed the same way every time and stays a few rectangles. Sides of different
+  rectangles on one straight line that meet end to end are one wall and move by one depth (otherwise steps and slivers
+  appeared, and removing a sliver split the body); at a convex corner a growth slab follows the neighbouring side's
+  move, at an inner corner a melt slab reaches as far as the other wall recedes (no ridge stays in the corner). The
+  removed area takes its energy from the old cells by area, the added area gets ice at T_f, the internal cells are
+  regridded by area; if the rectangles fall apart, each further group becomes its own body.
+- **Afterwards**: derive, new weights, the contact parts in place; the body wakes (lighter, it rises or sinks);
+  cavities are drawn anew only if the side structure changed.
+
+Energy and water close to rounding (tests 41–45); salt never enters the ice (test 44). The fronts of the Stefan problem
+follow Neumann within 6 % at 2 mm and 4 % at 1 mm (melting, after 4 min; its speed from 2 to 4 min within 1.5 %), and
+within 7 % and 3 % (freezing, after 2 min). The interface lives in cells — first order in Δx: in the first seconds,
+while the thermal layer is thinner than a cell, melting runs ahead and freezing lags (SIMPLIFICATIONS.md #31, #40;
+MILESTONES.md §M3b).
