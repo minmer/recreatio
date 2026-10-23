@@ -237,7 +237,7 @@ export function DeliveryForm({ store, library, entry, data, set, readOnly }: {
       <CoverageEditor store={store} library={library} entry={entry} data={data} set={set} readOnly={readOnly} now={now} />
       <AddedEditor store={store} entry={entry} data={data} set={set} readOnly={readOnly} now={now} />
 
-      <FieldList store={store} kind="delivery" data={data} set={set} readOnly={readOnly} only={['summary', 'topics']} />
+      <FieldList store={store} kind="delivery" data={data} set={set} readOnly={readOnly} only={['summary']} />
 
       <details className="wk-fold">
         <summary>Zapis wygłoszenia (transkrypcja)</summary>

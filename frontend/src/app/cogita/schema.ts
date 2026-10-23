@@ -122,7 +122,6 @@ export const FIELD_ROLES: readonly { readonly role: string; readonly label: stri
   { role: 'work', label: 'Źródło' },
   { role: 'locator', label: 'Miejsce w źródle' },
   { role: 'description', label: 'Opis' },
-  { role: 'topics', label: 'Tematy' },
   { role: 'body', label: 'Treść' }
 ];
 
@@ -182,7 +181,8 @@ export interface FieldDef {
  * Die Systemarten, die der Motor versteht [C1]. Sie sind fest; Felder darf
  * man ihnen trotzdem hinzufügen.
  */
-export const SYSTEM_KINDS = ['text', 'topic', 'question'] as const;
+/* 2026-10-23 (Schritt 5) — ohne `topic`: Themen gibt es nicht mehr. */
+export const SYSTEM_KINDS = ['text', 'question'] as const;
 export type SystemKind = (typeof SYSTEM_KINDS)[number];
 
 export interface KindDef {

@@ -81,7 +81,8 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
   });
 
   const entry = entityId === null ? undefined : lib.entry(entityId);
-  const knowledgeLike = kinds.includes('topic');
+  /* 2026-10-23 — zu prüfen, wenn sich ändert, worauf er zeigt: eine Aussage (früher: Wiedza, Temat). */
+  const knowledgeLike = blocksField(draft, look) !== undefined;
   const checked = isObject(entry?.data._checked) ? entry!.data._checked as Record<string, string> : {};
   const changedLinks = existing === undefined ? [] : linkedOf(existing, look).map((t) => lib.resolve(t)).filter((id): id is string => id !== undefined)
     .filter((id) => { const at = lib.entry(id)?.updatedAt; return at !== undefined && (checked[id] === undefined || checked[id] < at); });

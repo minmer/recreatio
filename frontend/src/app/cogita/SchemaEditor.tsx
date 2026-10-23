@@ -21,7 +21,7 @@ import { WorkspaceError } from '../core/session';
 import { nodeLabel, readAddForm } from './addForm';
 import { NewFormMenu } from './AddFormEditor';
 import { applyImport, courseDescription, exportSchema, planImport } from './json';
-import { isBaseKind, TOPIC_LEARNING } from './kinds';
+import { isBaseKind } from './kinds';
 import { problemsOf, type KindDef } from './schema';
 import { KindForm } from './KindForm';
 import { OriginTag, useBusy, useCtx } from './ui';
@@ -143,13 +143,6 @@ function BaseKindForm({ draft, writes, busy, onChange, onSave, onRemove }: { dra
   return (
     <KindForm draft={draft} writes={writes} busy={busy} targets={lib.refKinds} fixedKeys={fixedKeys} base={base} problems={problemsOf(draft, lib.look)}
       onChange={onChange} onSave={onSave} onRemove={onRemove}
-      extra={/* 2026-10-22 (Schritt 7) — die Felder des Lernens am Thema sind eine Erweiterung: hier dazunehmen (gespeichert als Änderung des Themas). */
-        draft.id === 'topic' && writes && TOPIC_LEARNING.some((m) => !draft.fields.some((f) => f.key === m.key)) ? (
-          <p className="cg-row">
-            <button type="button" className="wk-btn wk-btn-line" onClick={() => onChange({ ...draft, fields: [...draft.fields, ...TOPIC_LEARNING.filter((m) => !draft.fields.some((f) => f.key === m.key))] })}>+ Pola nauki</button>
-            <span className="cg-muted">odpowiedzi, dotyczy, głębokość, próg, wymiar, do rozwinięcia — tematy w tej bazie wiedzy</span>
-          </p>
-        ) : undefined}
     />
   );
 }

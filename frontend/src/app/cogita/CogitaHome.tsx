@@ -18,7 +18,7 @@
  *   propozycje    Vorschläge von Lesenden
  *   ustawienia    wohin die Antworten gehen, Motivation, Abhängigkeiten, Werte, Regeln, Aussehen
  *   json          der Kurs als JSON, und der Auftrag für die eigene KI
- *   stare         2026-10-23 — Einträge der Rodzaje, die es nicht mehr gibt (Wiedza, Komentarz):
+ *   stare         2026-10-23 — Einträge der Rodzaje, die es nicht mehr gibt (Wiedza, Komentarz, Temat):
  *                 durchsehen und löschen; der Reiter steht nur da, solange es welche gibt
  * </code>
  *
@@ -147,7 +147,7 @@ function Hub({ trail }: { trail: readonly string[] }) {
       {tab === 'ustawienia' && <CogitaSettings />}
       {tab === 'json' && <CogitaJson />}
       {tab === 'stare' && <OldEntries store={lib.store} known={known} writes={writes} labelOf={oldInBaseLabel}
-        where="Rodzajów „Wiedza” i „Komentarz” w Nauce już nie ma: wypowiedź to wpis własnego rodzaju z polem „Treść w blokach” (gotowy schemat: templates/cogita/komentarz.json)." />}
+        where="Rodzajów „Wiedza”, „Komentarz” i „Temat” w Nauce już nie ma: wypowiedź to wpis własnego rodzaju z polem „Treść w blokach” (gotowy schemat: templates/cogita/komentarz.json), a porządek dają własne rodzaje (np. „Tajemnica”, „Obszar”)." />}
     </div>
   );
 }

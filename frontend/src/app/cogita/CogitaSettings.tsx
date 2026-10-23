@@ -68,13 +68,13 @@ export function CogitaSettings() {
         <p className="wk-hint">Rankingi są tylko w sesjach na żywo.</p>
       </section>
 
-      {/* 2026-10-22 (Schritt 7) — Perspektiven sind eine Achse der Themen in der Bibliothek, keine Liste hier. */}
-      <section className="cg-card">
-        <h3>Perspektywy</h3>
-        {settings.tags.length > 0
-          ? <p className="cg-muted">Ta baza ma jeszcze stare perspektywy ({settings.tags.join(', ')}). Perspektyw i tematów już nie będzie — porządek dają własne rodzaje (np. „Tajemnica”, „Obszar”) połączone polami-odwołaniami.</p>
-          : <p className="cg-muted">Perspektyw i tematów już nie ma — porządek dają własne rodzaje (np. „Tajemnica”, „Obszar”) połączone polami-odwołaniami.</p>}
-      </section>
+      {/* 2026-10-23 (Schritt 5) — Perspektywy und Tematy gibt es nicht mehr; eine Baza mit alten Perspektywy hört es hier einmal. */}
+      {settings.tags.length > 0 && (
+        <section className="cg-card">
+          <h3>Perspektywy</h3>
+          <p className="cg-muted">Ta baza ma jeszcze stare perspektywy ({settings.tags.join(', ')}). Perspektyw i tematów już nie ma — porządek dają własne rodzaje (np. „Tajemnica”, „Obszar”) połączone polami-odwołaniami.</p>
+        </section>
+      )}
 
       <section className="cg-card">
         <h3>Strona dołączania do sesji</h3>
@@ -135,8 +135,10 @@ function BaseSection({ areas }: { areas: readonly AreaRow[] }) {
 /**
  * 0110 — ŹRÓDŁA: worauf diese Baza wiedzy verweist, auch aus anderen
  * Bereichen. Eine Bibliothek nur zum Verweisen (Werke, Zitate, Personen in
- * Feldern und Zitaten); eine andere Baza wiedzy zum Wiederverwenden. Jede liest
- * nur, wer ihren Bereich liest — der Verweis gibt nichts frei.
+ * Feldern und Zitaten); (2026-10-23) ein Skryptorium mit seinen Texten und
+ * Rodzajen tekstów (ein Widok zeigt Kazania in der Macierz Tajemnica × Obszar);
+ * eine andere Baza wiedzy zum Wiederverwenden. Jede liest nur, wer ihren
+ * Bereich liest — der Verweis gibt nichts frei.
  */
 function Sources({ libraries, areas }: { libraries: readonly OpenLibrary[]; areas: readonly AreaRow[] }) {
   const { lib, writes, sources } = useCtx();
@@ -156,6 +158,7 @@ function Sources({ libraries, areas }: { libraries: readonly OpenLibrary[]; area
       <h3>Źródła</h3>
       <p className="wk-hint">
         <strong>Biblioteki</strong> — tylko do odwołań: ich dzieła, cytaty i osoby można wskazać w polach i cytować, ale nie stają się kartami.{' '}
+        <strong>Skryptoria</strong> — ich teksty (z polami swojego rodzaju tekstu, np. tajemnica, obszar) można pokazać w widokach i macierzach, wskazać w polach i uczyć się ich przez szablony.{' '}
         <strong>Inne bazy wiedzy</strong> — do wykorzystania: ich rodzaje, wpisy, szablony, powtórki i przebiegi działają tutaj, a zmienia się je u nich.
         Każde źródło widzi tylko ten, kto ma dostęp do jego obszaru.
       </p>
@@ -167,7 +170,7 @@ function Sources({ libraries, areas }: { libraries: readonly OpenLibrary[]; area
             return (
               <li key={s.id} className="cg-row">
                 <strong>{s.name}</strong>
-                <span className="cg-tag">{s.kind === 'books' ? 'biblioteka — do odwołań' : 'baza wiedzy — do wykorzystania'}</span>
+                <span className="cg-tag">{s.kind === 'books' ? 'biblioteka — do odwołań' : s.kind === 'writing' ? 'skryptorium — teksty' : 'baza wiedzy — do wykorzystania'}</span>
                 {where !== null && <span className="cg-muted">{where}</span>}
                 {missing.has(s.id) ? <span className="cg-tag is-warn">niedostępne w tej karcie</span>
                   : open !== undefined ? <span className="cg-tag is-ok">{open.store.all().length} wpisów</span>
@@ -181,7 +184,7 @@ function Sources({ libraries, areas }: { libraries: readonly OpenLibrary[]; area
       {writes && (
         <div className="cg-row">
           <select value={pick} aria-label="Dodaj źródło" onChange={(e) => setPick(e.target.value)}>
-            <option value="">— dodaj bibliotekę albo bazę wiedzy —</option>
+            <option value="">— dodaj bibliotekę, skryptorium albo bazę wiedzy —</option>
             {choices.map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name} ({libraryKindOf(l) === 'knowledge' ? 'baza wiedzy' : libraryKindOf(l) === 'writing' ? 'skryptorium' : 'biblioteka'}{areaName(l.areaId) === null ? '' : ` · ${areaName(l.areaId)}`})</option>)}
           </select>
           <button type="button" className="wk-btn" disabled={busy || pick === ''} onClick={() => {

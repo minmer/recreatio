@@ -10,7 +10,7 @@
  *   cogita-live       an einer Sitzung teilnehmen — mit dem Code oder dem Link
  *   entity-card       die Karte eines Eintrags
  *   entity-table      die Einträge als Tabelle
- *   topic-explorer    die Themen, eins im anderen, mit dem, was zu ihnen gehört
+ *   topic-explorer    (ausgemustert; seit 2026-10-23 ohne Themen: nur noch ein Hinweis)
  *   knowledge-map     die Karte des Wissens einer Powtórka, im eigenen Nebel
  *   seat-learn        hinter einem persönlichen Link: das Lernen dieses Menschen
  * </code>
@@ -140,7 +140,7 @@ export const entityCardPart = definePart<EntityConfig>({
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'puste: nazwa wpisu' },
     { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
-    { key: 'entry', label: 'Który wpis', kind: 'libraryEntry', of: 'library', entryKinds: ['entity', 'person', 'work', 'topic'], optional: true }
+    { key: 'entry', label: 'Który wpis', kind: 'libraryEntry', of: 'library', entryKinds: ['entity', 'person', 'work'], optional: true }
   ],
   read: (raw: RawConfig): EntityConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), entry: text(raw, 'entry') }),
   /* Ohne Eintrag zeigt sie den, den die Seite oben wählt (Wybór na stronie: „Wpis z biblioteki"). */
@@ -194,23 +194,21 @@ export const entityTablePart = definePart<TableConfig>({
 export interface TopicsConfig {
   readonly title: string;
   readonly library: string;
-  readonly topic: string;
 }
 
 export const topicExplorerPart = definePart<TopicsConfig>({
   kind: 'topic-explorer',
-  /* 2026-10-22 (Schritt 10) — ein Widok als Drzewo nach einer Achse von Tematy. */
-  retired: 'zastąpił go moduł „Widok” (drzewo według osi tematów). na stronie dodaj moduł „Widok” i usuń ten',
-  example: { title: 'Tematy katechezy', library: '<id-biblioteki>', topic: '<id-tematu albo puste>' },
+  /* 2026-10-22 (Schritt 10) — ein Widok als Drzewo; 2026-10-23 (Schritt 5): Themen gibt es nicht mehr — der Baustein sagt es nur noch. */
+  retired: 'tematów już nie ma — zastąpił go moduł „Widok” (drzewo albo macierz według osi: własnych rodzajów, np. Tajemnica × Obszar). na stronie dodaj moduł „Widok” i usuń ten',
+  example: { title: 'Tematy katechezy', library: '<id-bazy-wiedzy>' },
   label: 'Tematy',
-  use: 'Tematy bazy wiedzy (i bibliotek, z których czerpie), jeden w drugim — i to, co do nich należy.',
+  use: 'Dawniej: tematy bazy wiedzy. Tematów już nie ma — moduł pokazuje tylko informację; porządek daje moduł „Widok” z osiami (rodzajami).',
   box: { colSpan: 4, rowSpan: 3 },
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Tematy' },
-    { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
-    { key: 'topic', label: 'Zacznij od tematu', kind: 'libraryEntry', of: 'library', entryKinds: ['topic'], optional: true }
+    { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' }
   ],
-  read: (raw: RawConfig): TopicsConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), topic: text(raw, 'topic') }),
+  read: (raw: RawConfig): TopicsConfig => ({ title: text(raw, 'title'), library: text(raw, 'library') }),
   hasContent: (c) => c.library !== '',
   missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : null),
   fullscreen: true,

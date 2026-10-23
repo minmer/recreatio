@@ -33,7 +33,7 @@
 
 import { checkCode, checkDate, checkFlash, checkMany, checkMatch, checkNumber, checkOne, checkOrder, checkPoint, checkText, checkTrueFalse, GAP_RULE, readDateAnswer, readRule, TEXT_RULE, type AnswerForm, type FlashGrade, type Outcome, type PointGiven, type TextRule } from './check';
 import { ancestors, evaluate, readGraph, type Graph, type RunOutput } from './graph';
-import { dateKey, fieldsOf, labelOf, plainOf, readNumber, valuesOf, type DatePrecision, type Entity, type Lookup } from './schema';
+import { dateKey, plainOf, readNumber, type DatePrecision, type Entity } from './schema';
 import { type AnswerSpec, type Card, type Fragment, type Item, type PromptPart, type TemplateContext, cardKey, hashOf, isObject, lines, num, rngOf, shuffle, stable, str } from './cardBasics';
 import { type Draft, TEMPLATE_PALETTE } from './cardPalette';
 import { checkInteractive, interactiveExpected, interactiveSpec } from './interactive';
@@ -331,29 +331,3 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
   };
 }
 
-/**
- * DAS THEMA ALS FRAGE [C4]: sein Text vorn, das Wissen, das es beantwortet,
- * auf der Rückseite — selbst bewertet.
- */
-export function topicCard(topic: Entity, look: Lookup): Card | null {
-  const field = fieldsOf(topic, look).find((f) => f.key === 'answers');
-  const back = field === undefined ? [] : valuesOf(topic, field)
-    .map((v) => (typeof v.value === 'string' ? look.entity(v.value) : undefined))
-    .filter((e): e is Entity => e !== undefined)
-    .map((e) => labelOf(e, look));
-  if (back.length === 0) return null;
-  const text = labelOf(topic, look);
-  const answer: AnswerSpec = { form: 'flash', back };
-  return {
-    question: topic.id,
-    direction: 'topic',
-    key: cardKey(topic.id, 'topic'),
-    entity: topic.id,
-    prompt: [{ text }],
-    answer,
-    explain: [],
-    fingerprint: hashOf(stable(expectedOf(answer))),
-    varies: false,
-    requires: []
-  };
-}

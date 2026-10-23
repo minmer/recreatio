@@ -51,8 +51,6 @@ export interface RevisionContext {
   readonly kindsOf: (entity: string) => readonly string[];
   /** Die Einträge einer Sammlung (gespeicherter Filter oder Liste). */
   readonly collection: (id: string) => ReadonlySet<string> | undefined;
-  /** Die Einträge eines Themas und seiner Unterthemen, bis zur Tiefe. */
-  readonly topic: (id: string, depth: number) => ReadonlySet<string>;
   readonly marks: (key: string) => readonly Mark[];
   readonly now: number;
   /** 2026-10-22 — aus welcher Bibliothek oder Baza wiedzy ein Eintrag kommt (für „Rodzaj … z …"). */
@@ -121,15 +119,7 @@ const BY_COLLECTION: Kind = {
   }
 };
 
-const BY_TOPIC: Kind = {
-  type: 'source.topic', label: 'Temat', group: 'Źródła',
-  says: 'Karty tematu i jego podtematów, do wybranej głębokości.',
-  ports: () => ({ inputs: [], outputs: [port('cards', 'Karty')] }),
-  run: ({ config, ctx }) => {
-    const members = ctx.topic(str(config.topic), Math.max(0, Math.round(num(config.depth, 9))));
-    return out(ctx.cards.filter((c) => c.entity !== undefined && members.has(c.entity)));
-  }
-};
+/* 2026-10-23 (Schritt 5) — die Quelle „Temat" gibt es nicht mehr (keine Themen); ein alter Knoten sagt es (`graph.ts`, RETIRED_NODES). */
 
 const BY_LIST: Kind = {
   type: 'source.list', label: 'Lista', group: 'Źródła',
@@ -279,7 +269,7 @@ const STRATEGY: Kind = {
   }
 };
 
-export const REVISION_PALETTE = paletteOf<RevisionContext>('revision', [ALL, BY_KIND, BY_COLLECTION, BY_TOPIC, BY_LIST, BY_FROM, FILTER, FOLLOW, FILTER_RULE, UNION, GATE, STRATEGY]);
+export const REVISION_PALETTE = paletteOf<RevisionContext>('revision', [ALL, BY_KIND, BY_COLLECTION, BY_LIST, BY_FROM, FILTER, FOLLOW, FILTER_RULE, UNION, GATE, STRATEGY]);
 
 /** Der Plan einer Wiederholung aus ihrem Graphen — genau ein „Sposób pytania". */
 export async function planOf(graph: Graph, ctx: RevisionContext): Promise<{ plan: Plan | null; problems: string[] }> {

@@ -586,7 +586,6 @@ const revCtx = (marks = () => []) => ({
   cards: vocab,
   kindsOf: (id) => byId(id)?.kinds ?? [],
   collection: (id) => (id === 'pets' ? new Set(['v2', 'v3']) : undefined),
-  topic: () => new Set(),
   marks,
   now: 0
 });
@@ -674,29 +673,30 @@ truth('… without "from" the kind comes from everywhere', new Set(anyLib.cards.
   check('… named after what they were', oldOnes.slice(0, 3).map(OLD.oldInBaseLabel), ['Wiedza', 'Wiedza', 'Rodzaj (zmiana wbudowanego): Wiedza']);
 }
 {
-  /* 2026-10-22 (Schritt 7) — ein Themensystem: Themen der Bibliothek, das Thema folgt den Rückverweisen, die Felder des Lernens sind eine Erweiterung. */
+  /* 2026-10-23 (Schritt 5) — keine Themen; die Rodzaje tekstów eines Skryptorium sind Rodzaje der Baza (ihre Felder neben den festen). */
   const U = (tail) => `00000000-0000-4000-8000-00000000${tail}`;
   const fake = (libraryId, entries) => ({ libraryId, areaId: `a-${libraryId}`, revision: 1, all: () => entries, get: (id) => entries.find((x) => x.id === id), byKey: (k) => entries.find((x) => x.key === k) });
-  const root = { id: U('a001'), kind: 'topic', key: 'tajemnice', data: { name: 'Tajemnice różańca', aspect: 'yes' } };
-  const light = { id: U('a002'), kind: 'topic', key: 'swiatla', data: { name: 'Tajemnice światła', parent: [U('a001')] } };
-  const cana = { id: U('a003'), kind: 'topic', key: 'kana', data: { name: 'Cud w Kanie', parent: [U('a002')] } };
-  const sermon = { id: U('b001'), kind: 'text', data: { title: 'Kana', topics: [U('a003')] } };
-  /* 2026-10-23 — ein Komentarz ist keine Art der Bibliothek mehr: ein zweiter Text an seiner Stelle. */
-  const statement = { id: U('b002'), kind: 'text', data: { title: 'Kana — rozważanie', topics: [U('a003')] } };
-  const other = { id: U('b003'), kind: 'text', data: { title: 'Inne', topics: [U('a001')] } };
-  const question = { id: U('b004'), kind: 'entity', data: { _kinds: ['question'], form: 'text', prompt: 'Gdzie był pierwszy cud?', answers: ['w Kanie'], about: [U('a003')] } };
-  const lib7 = new ST.CogitaLibrary(fake('base', [question]), false);
-  lib7.setSources([{ store: fake('lib', [root, light, cana, sermon, statement, other]), kind: 'books', name: 'Biblioteka' }]);
-  check('the topics of a source library are this base\'s topics', lib7.topics().map((t) => t.id).sort(), [U('a001'), U('a002'), U('a003')]);
-  const under = lib7.topicTree(U('a002'), 9);
-  truth('a topic subtree picks up texts and questions tagged there (backlinks)', [U('a002'), U('a003'), U('b001'), U('b002'), U('b004')].every((id) => under.has(id)), [...under]);
-  check('… not what is tagged above it', under.has(U('b003')), false);
-  check('… and depth limits the subtopics', lib7.topicTree(U('a001'), 0).has(U('a003')), false);
-  check('what points at a topic', [...lib7.taggedWith(U('a003'))].sort(), [U('b001'), U('b002'), U('b004')]);
-  const plainTopic = KD.kindDefs([]).find((k) => k.id === 'topic');
-  check('a plain topic has no learning fields', plainTopic.fields.some((f) => f.key === 'answers'), false);
-  check('… a base whose topics carry them still sees them', KD.kindDefs([{ id: 'x', kind: 'topic', data: { name: 'A', level: 2 } }]).find((k) => k.id === 'topic').fields.some((f) => f.key === 'level'), true);
-  check('… and the extension adds them (an override of the topic)', KD.kindDefs([{ id: 'k', kind: 'kind', data: KD.kindDoc({ ...KD.baseKind('topic'), fields: [...KD.TOPIC_LEARNING] }) }]).find((k) => k.id === 'topic').fields.map((f) => f.key).filter((k) => ['answers', 'open', 'landmark'].includes(k)), ['answers', 'landmark', 'open']);
+  const TAJ = { id: U('c001'), kind: 'kind', data: { name: 'Tajemnica', label: '{nazwa}', fields: [{ key: 'nazwa', label: 'Nazwa', type: 'line' }] } };
+  const zw = { id: U('c002'), kind: 'entity', data: { _kinds: [U('c001')], nazwa: 'Zwiastowanie' } };
+  const type = { id: U('d001'), kind: 'texttype', key: 'kazanie-maryjne', data: { name: 'Kazanie maryjne', fields: [{ key: 'tajemnica', label: 'Tajemnica', type: 'ref', to: [U('c001')] }, { key: 'title', label: 'Zajęty klucz', type: 'line' }] } };
+  const sermon = { id: U('d002'), kind: 'text', data: { title: 'Niech mi się stanie', textType: U('d001'), tajemnica: U('c002') } };
+  const plainText = { id: U('d003'), kind: 'text', data: { title: 'Bez rodzaju' } };
+  const oldTopic = { id: U('d004'), kind: 'topic', data: { name: 'Stary temat' } };
+  const lib7 = new ST.CogitaLibrary(fake('base', [TAJ, zw]), false);
+  lib7.setSources([{ store: fake('scr', [type, sermon, plainText, oldTopic]), kind: 'writing', name: 'Skryptorium' }]);
+  const s7 = lib7.entity(U('d002'));
+  check('a text carries its text type as a second kind', s7.kinds, ['text', U('d001')]);
+  const tajField = S.fieldsOf(s7, lib7.look).find((f) => f.key === 'tajemnica');
+  check('… its fields stand next to the fixed ones; a core key of the type stays the text’s', [S.fieldsOf(s7, lib7.look).filter((f) => f.key === 'title').length, tajField?.type, S.fieldText(s7, tajField, lib7.look)], [1, 'ref', 'Zwiastowanie']);
+  check('the type is a kind to point at and to learn from — not one to write in the base',
+    [lib7.refKinds.some((k) => k.id === U('d001')), lib7.kinds.some((k) => k.id === U('d001')), lib7.materialKinds.some((k) => k.id === U('d001')), lib7.isForeignKind(U('d001'))], [true, false, true, true]);
+  check('… its texts are its material; a text without a type is only a text', [lib7.material(U('d001')).map((e) => e.id), lib7.entity(U('d003')).kinds], [[U('d002')], ['text']]);
+  check('no topics: no built-in, an old topic entry is no entry of the base at all', [KD.isBaseKind('topic'), lib7.kind('topic'), lib7.entity(U('d004'))], [false, undefined, undefined]);
+  check('… an old revision with the source „Temat" says what to do instead',
+    G.problemsOf(G.readGraph({ nodes: [n('t', 'source.topic')], edges: [] }), R.REVISION_PALETTE).map((p) => p.text), ['Źródło „Temat” już nie istnieje — tematów nie ma. Wybierz rodzaj, zbiór albo listę.']);
+  check('… an old view step „Temat" selects nothing and is named',
+    [SEL.readSteps([{ type: 'source.topic', config: { topic: 'x' } }]).map((st) => [st.type, st.config.retired]), VW.readView({ steps: [{ type: 'source.topic', config: {} }], group: { by: 'topic', axis: 'x' } }).retired.length], [[['source.list', 'source.topic']], 2]);
+  check('… and an old topic in a base is under „Stare wpisy"', OLD.isOldInBase({ id: 'x', kind: 'entity', data: { _kinds: ['topic'], name: 'A' } }, () => undefined), true);
 }
 check('a revision without a strategy is refused', (await R.planOf(G.readGraph({ nodes: [n('src', 'source.all')] }), revCtx())).problems, ['Powtórka nie ma kroku „Sposób pytania".']);
 
@@ -1338,8 +1338,12 @@ check('goals and lines follow the one logic', [
 
 {
   const U = (n) => `${String(n).repeat(8)}-${String(n).repeat(4)}-4${String(n).repeat(3)}-8${String(n).repeat(3)}-${String(n).repeat(12)}`;
-  const [abr, iza, jak, daw, tOs, tObiet, tKrol, q1] = [1, 2, 3, 4, 5, 6, 7, 8].map(U);
+  const [abr, iza, jak, daw, tOs, tObiet, tKrol, q1, ord] = [1, 2, 3, 4, 5, 6, 7, 8, 'e'].map(U);
   const kP = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
+  /* 2026-10-23 (Schritt 5) — die Achse ist ein Rodzaj: Wątek (mit Nummer und Grupa), keine Themen mehr. */
+  const kW = 'c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1';
+  const kG = 'd1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1';
+  const kL = 'f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1';
   const map = new Map();
   const store = {
     libraryId: 'V', areaId: 'area-v', revision: 1, loaded: true,
@@ -1349,14 +1353,18 @@ check('goals and lines follow the one logic', [
   const E = (id, kinds, data) => map.set(id, { id, kind: 'entity', data: { _kinds: kinds, ...data } });
   map.set(kP, { id: kP, kind: 'kind', data: { name: 'Postać', label: '{name}', fields: [
     { key: 'name', label: 'Imię', type: 'line' }, { key: 'father', label: 'Ojciec', type: 'ref', to: [kP] },
-    { key: 'era', label: 'Epoka', type: 'line' }, { key: 'topics', label: 'Tematy', type: 'ref', multi: true, to: ['topic'] }] } });
+    { key: 'era', label: 'Epoka', type: 'line' }, { key: 'watki', label: 'Wątki', type: 'ref', multi: true, to: [kW] }] } });
+  map.set(kW, { id: kW, kind: 'kind', data: { name: 'Wątek', label: '{name}', fields: [{ key: 'name', label: 'Nazwa', type: 'line' }, { key: 'numer', label: 'Numer', type: 'number' }, { key: 'grupa', label: 'Grupa', type: 'ref', to: [kG] }] } });
+  map.set(kG, { id: kG, kind: 'kind', data: { name: 'Grupa wątków', label: '{name}', fields: [{ key: 'name', label: 'Nazwa', type: 'line' }] } });
+  map.set(kL, { id: kL, kind: 'kind', data: { name: 'Porządek', label: '{name}', fields: [{ key: 'name', label: 'Nazwa', type: 'line' }, { key: 'watki', label: 'Wątki', type: 'ref', multi: true, to: [kW] }] } });
   E(abr, [kP], { name: 'Abraham', era: 'patriarchowie' });
   E(iza, [kP], { name: 'Izaak', father: abr, era: 'patriarchowie' });
-  E(jak, [kP], { name: 'Jakub', father: iza, era: 'patriarchowie', topics: [tObiet] });
-  E(daw, [kP], { name: 'Dawid', era: 'królowie', topics: [tKrol] });
-  E(tOs, ['topic'], { name: 'Wątki', aspect: 'yes' });
-  E(tObiet, ['topic'], { name: 'Obietnica', parent: [tOs], order: 1 });
-  E(tKrol, ['topic'], { name: 'Królestwo', parent: [tOs], order: 2 });
+  E(jak, [kP], { name: 'Jakub', father: iza, era: 'patriarchowie', watki: [tObiet] });
+  E(daw, [kP], { name: 'Dawid', era: 'królowie', watki: [tKrol] });
+  E(tOs, [kG], { name: 'Wątki' });
+  E(tObiet, [kW], { name: 'Obietnica', numer: 1, grupa: tOs });
+  E(tKrol, [kW], { name: 'Królestwo', numer: 2, grupa: tOs });
+  E(ord, [kL], { name: 'Odwrotnie', watki: [tKrol, tObiet] });
   E(q1, ['question'], { form: 'text', prompt: 'Kto był ojcem Jakuba?', answers: ['Izaak'], about: [jak] });
   map.set('c1', { id: 'c1', kind: 'collection', data: { name: 'Pierwsi', list: [abr, iza] } });
   const lib = new ST.CogitaLibrary(store, true);
@@ -1368,23 +1376,31 @@ check('goals and lines follow the one logic', [
   const json = VW.viewJson(old);
   check('… and is written in the new shape only', [Object.keys(json).includes('kind'), Object.keys(json).includes('rule'), VW.readView(json).steps.length], [false, false, 2]);
   check('a view of one kind, by label', names([step('source.kind', { kind: kP })]), ['Abraham', 'Dawid', 'Izaak', 'Jakub']);
-  check('no source: everything the base knows', names([]).length, 8);
+  check('no source: everything the base knows', names([]).length, 9);
   check('follow a field forward, twice', [names([step('source.list', { ids: [jak] }), step('follow', { field: 'father' })]), names([step('source.list', { ids: [jak] }), step('follow', { field: 'father' }), step('follow', { field: 'father' })])], [['Izaak'], ['Abraham']]);
   check('follow backwards along one field: the children', names([step('source.list', { ids: [abr] }), step('follow', { field: 'father', back: true })]), ['Izaak']);
   truth('backwards along anything: the question about him', names([step('source.list', { ids: [jak] }), step('follow', { back: true })]).includes('Kto był ojcem Jakuba?'), names([step('source.list', { ids: [jak] }), step('follow', { back: true })]));
   check('a filter with the collections’ rule', names([step('source.kind', { kind: kP }), step('filter.rule', { rule: { op: 'and', items: [{ field: 'era', cmp: 'eq', value: 'królowie' }] } })]), ['Dawid']);
   check('a collection as the source', names([step('source.collection', { collection: 'c1' })]), ['Abraham', 'Izaak']);
-  truth('a topic as the source: what points at it', names([step('source.topic', { topic: tObiet })]).includes('Jakub'));
   check('the search narrows; the order follows a field, both ways', [names([step('source.kind', { kind: kP })], { query: 'iza' }), names([step('source.kind', { kind: kP })], { sort: { key: 'era', dir: 1 } })[0], names([step('source.kind', { kind: kP })], { sort: { key: 'era', dir: -1 } })[3]], [['Izaak'], 'Dawid', 'Dawid']);
   const view = VW.readView({ steps: [step('source.kind', { kind: kP })] });
   const list = VW.viewList(lib, view);
   check('groups by a field', VW.viewGroups(lib, { ...view, group: { by: 'field', field: 'era' } }, list).map((g) => [g.label, g.ids.length]), [['królowie', 1], ['patriarchowie', 3]]);
-  check('groups by an axis of topics, in its order; the rest last', VW.viewGroups(lib, { ...view, group: { by: 'topic', axis: tOs } }, list).map((g) => [g.label, g.ids.map((id) => lib.label(lib.entity(id)))]),
+  const axis = (more = {}) => ({ by: 'axis', kind: kW, via: [], ...more });
+  const grouped = (g, of = list) => VW.viewGroups(lib, { ...view, group: g }, of).map((x) => [x.label, x.ids.map((id) => lib.label(lib.entity(id)))]);
+  check('groups by an axis — a kind: its entries are the values, ordered by a number field; the rest last', grouped(axis({ sort: { field: 'numer' } })),
     [['Obietnica', ['Jakub']], ['Królestwo', ['Dawid']], ['bez wartości na tej osi', ['Abraham', 'Izaak']]]);
-  check('the axes: topics marked as aspects', VW.axesOf(lib).map((t) => lib.label(t)), ['Wątki']);
+  check('… ordered as another entry lists them', grouped(axis({ sort: { field: 'watki', list: ord } })).map((x) => x[0]), ['Królestwo', 'Obietnica', 'bez wartości na tej osi']);
+  check('… under headings: a reference field of the values', VW.viewGroups(lib, { ...view, group: axis({ sort: { field: 'numer' }, group: 'grupa' }) }, list).map((x) => x.head?.label ?? null), ['Wątki', 'Wątki', null]);
+  check('… membership through one chosen field only', grouped(axis({ via: ['father'] })).map((x) => x[0]), ['bez wartości na tej osi']);
+  const asked = [lib.entity(q1)];
+  check('… or one step further: the question about Jakub belongs to his thread', [grouped(axis({ via: ['watki'] }), asked), grouped(axis({ via: ['watki'], through: 'about' }), asked)],
+    [[['bez wartości na tej osi', ['Kto był ojcem Jakuba?']]], [['Obietnica', ['Kto był ojcem Jakuba?']]]]);
+  check('the axes: kinds with entries (not questions)', VW.axesOf(lib).map((k) => k.name), ['Postać', 'Wątek', 'Grupa wątków', 'Porządek']);
+  check('a grouping by topics (until 2026-10-23) is read as none', SEL.readGrouping({ by: 'topic', axis: tOs }), null);
   check('the quick kind and the first filter are views into the steps', [VW.sourceKind(view), VW.sourceKind(VW.readView({ steps: [step('source.collection', { collection: 'c1' })] })), VW.ruleOf(VW.withRule(view, { op: 'or', items: [] }))?.op, VW.withSourceKind(view, '').steps[0].type],
     [kP, null, 'or', 'source.all']);
-  check('columns: the first fields that are not long text', VW.viewColumns(lib, view, list).map((f) => f.key), ['name', 'father', 'era', 'topics']);
+  check('columns: the first fields that are not long text', VW.viewColumns(lib, view, list).map((f) => f.key), ['name', 'father', 'era', 'watki']);
 
   /* Dieselben Schritte als Knoten der Powtórka. */
   const card = (id) => ({ key: `k-${id}`, entity: id, question: id, direction: 'a→b', answer: { form: 'flash' }, explain: [] });
@@ -1406,7 +1422,8 @@ check('goals and lines follow the one logic', [
   check('clearing a key removes only that one', PQ.readScope(PQ.withScope(hash, a, { e: null }), a), { q: 'Józef' });
 
   /* ══ 2026-10-22 (Schritt 10) — die Macierz, Achsen als Spalten, ein Widok als Powtórka, die Taten ══ */
-  const [tOkres, tAdw, tPost, tZwykly, txt1, txt2, cm1] = [9, 'a', 'b', 'c', 'd', 'e', 'f'].map(U);
+  const [tType, tAdw, tPost, tZwykly, txt1, txt2, cm1] = [9, 'a', 'b', 'c', 'd', 'e', 'f'].map(U);
+  const kO = 'e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1';
   const bmap = new Map();
   const books = {
     libraryId: 'B', areaId: 'area-b', revision: 1, loaded: true, saved: [],
@@ -1415,25 +1432,30 @@ check('goals and lines follow the one logic', [
     subscribe: () => () => undefined
   };
   const B = (id, kind, data) => bmap.set(id, { id, kind, data });
-  B(tOkres, 'topic', { name: 'Okres', aspect: 'yes' });
-  B(tAdw, 'topic', { name: 'Adwent', parent: [tOkres], order: 1 });
-  B(tPost, 'topic', { name: 'Wielki Post', parent: [tOkres], order: 2 });
-  B(tZwykly, 'topic', { name: 'Okres zwykły', parent: [tOkres], order: 3 });
-  B(txt1, 'text', { title: 'Kazanie o obietnicy', date: '2026-12-01', topics: [tAdw, tObiet], plan: [{ id: 'p1', text: 'Wstęp', depth: 0 }] });
-  B(txt2, 'text', { title: 'Kazanie o królestwie', date: '2026-03-01', topics: [tPost, tKrol] });
-  /* 2026-10-23 — eine Aussage ist ein Eintrag der Baza (ein Rodzaj mit Feld blocks), kein Komentarz der Bibliothek. */
+  /* 2026-10-23 (Schritt 5) — die Achsen sind Rodzaje der Baza (Wątek, Okres); Kazania zeigen über die Felder ihres Rodzaj tekstu auf sie, ein Komentarz über „O czym". */
+  map.set(kO, { id: kO, kind: 'kind', data: { name: 'Okres', label: '{name}', fields: [{ key: 'name', label: 'Nazwa', type: 'line' }, { key: 'numer', label: 'Numer', type: 'number' }] } });
+  E(tAdw, [kO], { name: 'Adwent', numer: 1 });
+  E(tPost, [kO], { name: 'Wielki Post', numer: 2 });
+  E(tZwykly, [kO], { name: 'Okres zwykły', numer: 3 });
+  B(tType, 'texttype', { name: 'Kazanie', fields: [{ key: 'watek', label: 'Wątek', type: 'ref', to: [kW] }, { key: 'okres', label: 'Okres', type: 'ref', to: [kO] }] });
+  B(txt1, 'text', { title: 'Kazanie o obietnicy', date: '2026-12-01', textType: tType, watek: tObiet, okres: tAdw, plan: [{ id: 'p1', text: 'Wstęp', depth: 0 }] });
+  B(txt2, 'text', { title: 'Kazanie o królestwie', date: '2026-03-01', textType: tType, watek: tKrol, okres: tPost });
+  /* Eine Aussage ist ein Eintrag der Baza (ein Rodzaj mit Feld blocks), kein Komentarz der Bibliothek. */
   const kS = 'b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1';
-  map.set(kS, { id: kS, kind: 'kind', data: { name: 'Komentarz', label: '{content}', fields: [{ key: 'tematy', label: 'Tematy', type: 'ref', multi: true, to: ['topic'] }, { key: 'content', label: 'Treść', type: 'blocks' }] } });
-  E(cm1, [kS], { content: [{ type: 'paragraph', text: 'Obietnica dojrzewa w czasie.' }], tematy: [tAdw, tObiet] });
+  map.set(kS, { id: kS, kind: 'kind', data: { name: 'Komentarz', label: '{content}', fields: [{ key: 'about', label: 'O czym', type: 'ref', multi: true, locator: true }, { key: 'content', label: 'Treść', type: 'blocks' }] } });
+  E(cm1, [kS], { content: [{ type: 'paragraph', text: 'Obietnica dojrzewa w czasie.' }], about: [tAdw, tObiet] });
   lib.setSources([{ store: books, kind: 'writing', name: 'Kazania' }]);
-  const both = VW.readView({ name: 'Kazania i komentarze', mode: 'matrix', steps: [step('source.kind', { kind: 'text' }), step('source.kind', { kind: kS })], matrix: { rows: { by: 'topic', axis: tOs }, cols: { by: 'topic', axis: tOkres } } });
+  const rowsAxis = { by: 'axis', kind: kW, via: [], sort: { field: 'numer' } };
+  const colsAxis = { by: 'axis', kind: kO, via: [], sort: { field: 'numer' } };
+  const both = VW.readView({ name: 'Kazania i komentarze', mode: 'matrix', steps: [step('source.kind', { kind: 'text' }), step('source.kind', { kind: kS })], matrix: { rows: rowsAxis, cols: colsAxis } });
   const bothList = VW.viewList(lib, both);
   check('two sources at the start count together: sermons and statements', bothList.map((e) => lib.label(e)).sort(), [lib.label(lib.entity(cm1)), 'Kazanie o królestwie', 'Kazanie o obietnicy'].sort());
   truth('a source after a step starts anew', names([step('source.kind', { kind: kP }), step('filter.rule', { rule: { op: 'and', items: [] } }), step('source.list', { ids: [daw] })]).join() === 'Dawid');
   const mx = VW.viewMatrix(lib, both, bothList);
   check('the matrix shows every value of both axes, also empty ones', [mx.rows.map((g) => g.label), mx.cols.map((g) => g.label)], [['Obietnica', 'Królestwo'], ['Adwent', 'Wielki Post', 'Okres zwykły']]);
   check('a cell holds what belongs to both — a sermon and a statement', mx.cell(tObiet, tAdw).length === 2 && mx.cell(tKrol, tPost).length === 1 && mx.cell(tObiet, tZwykly).length === 0, true);
-  check('an axis as a column: the values the entry belongs to', VW.cellText(lib, lib.entity(txt1), `#axis:${tOkres}`), 'Adwent');
+  check('an axis as a column: the values (of a kind) the entry points at — a sermon through its type field', VW.cellText(lib, lib.entity(txt1), `#axis:${kO}`), 'Adwent');
+  check('a sermon carries its text type as a kind, its fields are fields', [lib.entity(txt1).kinds, lib.kinds.some((k) => k.id === tType)], [['text', tType], false]);
   check('the address of a cell', VW.cellKey('r', 'c'), 'r~c');
 
   const rev = VW.viewToRevision(both);
@@ -1442,12 +1464,13 @@ check('goals and lines follow the one logic', [
   const planned = (await R.planOf(G.readGraph(VW.viewToRevision(VW.readView({ steps: [step('source.list', { ids: [jak] }), step('follow', { field: 'father' })] })).graph), lib.revisionContext(cards, () => [], Date.now()))).plan;
   check('the revision made from a view asks the cards of its entries', planned.cards.map((c) => c.entity), [iza]);
 
-  const here = VA.contextOf([{ grouping: { by: 'topic', axis: tOs }, group: mx.rows[0] }, { grouping: { by: 'topic', axis: tOkres }, group: mx.cols[1] }]);
-  check('a cell’s context: both topics, in words', [here.topics, here.words], [[tObiet, tPost], ['Obietnica', 'Wielki Post']]);
+  const here = VA.contextOf([{ grouping: both.matrix.rows, group: mx.rows[0] }, { grouping: both.matrix.cols, group: mx.cols[1] }]);
+  check('a cell’s context: the values of both axes, in words', [here.links.map((x) => x.id), here.words], [[tObiet, tPost], ['Obietnica', 'Wielki Post']]);
   const madeComment = await VA.createHere(lib, VW.readView({ steps: [step('source.kind', { kind: kS })] }), here);
-  check('a statement created in a cell is an entry of the base, with both topics', [madeComment.inLibrary, map.get(madeComment.id)?.data._kinds, map.get(madeComment.id)?.data.tematy], [false, [kS], [tObiet, tPost]]);
-  const sermonHere = await VA.createHere(lib, VW.readView({ steps: [step('source.kind', { kind: 'text' })] }), here);
-  check('… a text created there goes to the scriptorium the base draws on', [sermonHere.inLibrary, sermonHere.libraryId, bmap.get(sermonHere.id)?.kind], [true, 'B', 'text']);
+  check('a statement created in a cell is an entry of the base, pointing at both values („O czym")', [madeComment.inLibrary, map.get(madeComment.id)?.data._kinds, map.get(madeComment.id)?.data.about], [false, [kS], [tObiet, tPost]]);
+  const sermonHere = await VA.createHere(lib, VW.readView({ steps: [step('source.kind', { kind: tType })] }), here);
+  const madeSermon = bmap.get(sermonHere.id);
+  check('… a sermon of a text type goes to its scriptorium, with the values in the fields of its type', [sermonHere.inLibrary, sermonHere.libraryId, madeSermon?.kind, madeSermon?.data.textType, madeSermon?.data.watek, madeSermon?.data.okres], [true, 'B', 'text', tType, tObiet, tPost]);
   const field = VA.contextOf([{ grouping: { by: 'field', field: 'era' }, group: { key: 't:krolowie', label: 'królowie', ids: [] } }]);
   const madePerson = await VA.createHere(lib, VW.readView({ steps: [step('source.kind', { kind: kP })] }), field);
   check('an entry of the base created in a group gets the group’s value', [madePerson.inLibrary, map.get(madePerson.id)?.data.era], [false, 'królowie']);

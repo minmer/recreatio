@@ -63,7 +63,7 @@ export const STEP_LABEL: Record<StepType, string> = {
 
 /** Was ein Schritt im Ablauf-Editor bedeutet — ein Satz, auch für die Beschreibung des JSON. */
 export const STEP_SAYS: Record<StepType, string> = {
-  show: 'Pokazuje wpis, wypowiedź albo temat ("of"), albo plik ("media"); "title" — nagłówek ekranu.',
+  show: 'Pokazuje wpis albo wypowiedź ("of"), albo plik ("media"); "title" — nagłówek ekranu.',
   question: 'Zadaje pytanie ("of": pytanie albo klucz karty); wyjścia "right" i "wrong".',
   choice: 'Daje wybór: "options" [{"label", "condition"?}]; wyjście "o0", "o1", … dla każdej możliwości.',
   condition: 'Sprawdza warunek ("condition" — jedna logika); wyjścia "yes" i "no".',

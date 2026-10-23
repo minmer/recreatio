@@ -15,7 +15,7 @@
  * Kazanie, eine Powtórka aus dem Widok oder aus einem Feld.
  */
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import ReactFlow, { Background, Controls, type Edge, type Node, type NodeChange } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -75,10 +75,10 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
   const chooserFields = [
     ...(kind !== undefined ? kind.fields.map((f) => ({ key: f.key, label: f.label }))
       : [...new Map(list.slice(0, 200).flatMap((e) => fieldsOf(e, look)).filter((f) => f.type !== 'markup' && f.type !== 'blocks').map((f) => [f.key, { key: f.key, label: f.label }])).values()]),
-    /* 2026-10-22 (Schritt 10) — eine Achse von Tematy als Spalte: ihre Werte, zu denen der Eintrag gehört. */
+    /* 2026-10-22 (Schritt 10) — eine Achse als Spalte; 2026-10-23: ein Rodzaj — die Werte, auf die der Eintrag zeigt. */
     ...axisColumns(lib)
   ];
-  const label = (key: string) => (key.startsWith(AXIS_COLUMN) ? chooserFields.find((f) => f.key === key)?.label.replace(/ \(oś tematów\)$/, '') ?? key : undefined);
+  const label = (key: string) => (key.startsWith(AXIS_COLUMN) ? chooserFields.find((f) => f.key === key)?.label.replace(/ \(oś\)$/, '') ?? key : undefined);
 
   /* Die Taten (Schritt 10) — nur, wer schreiben darf. */
   const here = (row: string, col: string) => run(async () => {
@@ -128,7 +128,8 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
         <span className="cg-subtabs">
           {(['table', 'tree', 'matrix', 'canvas'] as const).map((m) => <button key={m} type="button" className={view.mode === m ? 'is-on' : ''} onClick={() => setV({ mode: m, ...(m === 'matrix' && view.matrix === null ? { matrix: { rows: view.group ?? { by: 'kind' }, cols: { by: 'kind' } } } : {}) })}>{{ table: 'Tabela', tree: 'Drzewo', matrix: 'Macierz', canvas: 'Płótno' }[m]}</button>)}
         </span>
-        {writes && <button type="button" className="wk-btn" disabled={lib.kinds.length === 0} title={lib.kinds.length === 0 ? 'Najpierw dodaj rodzaj w Schemacie' : undefined} onClick={() => onNew(kind?.id ?? lib.kinds[0]?.id ?? 'question')}>+ Wpis{kind === undefined ? '' : `: ${kind.name}`}</button>}
+        {/* 2026-10-23 — ein Rodzaj der anderen Teile (Tekst, Cytat, ein Rodzaj tekstu) entsteht dort, nicht hier: dann „+ Wpis" für den ersten eigenen. */}
+        {writes && (() => { const own = kind !== undefined && !lib.isForeignKind(kind.id) ? kind : undefined; return <button type="button" className="wk-btn" disabled={lib.kinds.length === 0} title={lib.kinds.length === 0 ? 'Najpierw dodaj rodzaj w Schemacie' : undefined} onClick={() => onNew(own?.id ?? lib.kinds[0]?.id ?? 'question')}>+ Wpis{own === undefined ? '' : `: ${own.name}`}</button>; })()}
         {/* 2026-10-23 — Pytanie bleibt eingebaut (Karten, Sitzungen, Abläufe stellen es); angeboten wird es hier, nicht als „gotowy rodzaj". */}
         {writes && kind?.id !== 'question' && <button type="button" className="wk-link-btn" onClick={() => onNew('question')}>+ Pytanie</button>}
         {writes && (
@@ -162,6 +163,7 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
       {picked.size > 0 && <SelectionBar ids={picked} total={list.length} onAll={() => setPicked(new Set(list.map((e) => e.id)))} onClear={() => setPicked(new Set())} onKept={setPicked} />}
       {view.mode === 'table' && <Table list={list} picked={picked} onPick={setPicked} columns={columns} sort={view.sort} onSort={(key) => setV({ sort: view.sort?.key === key ? { key, dir: view.sort.dir === 1 ? -1 : 1 } : { key, dir: 1 } })} onOpen={onOpen}
         onColumns={(cols) => setV({ columns: cols })} kindFields={chooserFields} label={label} />}
+      {view.retired.map((line) => <p key={line} className="wk-warn">{line}</p>)}
       {view.mode === 'matrix' && matrix === null && <p className="cg-muted">Wybierz wiersze i kolumny macierzy w „Wybór i grupy".</p>}
       {view.mode === 'matrix' && matrix !== null && (
         <>
@@ -336,37 +338,20 @@ function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns,
 
 function Tree({ list, onOpen }: { list: readonly Entity[]; onOpen: (id: string) => void }) {
   const { lib } = useCtx();
-  const look = lib.look;
-  const shown = new Set(list.map((e) => e.id));
-  /* Themen als Baum (Oberthema → Unterthemen); alles andere nach seiner ersten Art. */
-  const parentOf = (e: Entity): string | null => {
-    const f = fieldsOf(e, look).find((x) => x.key === 'parent');
-    const v = f === undefined ? undefined : valuesOf(e, f)[0]?.value;
-    return typeof v === 'string' && shown.has(v) ? v : null;
-  };
-  const children = new Map<string, Entity[]>();
-  for (const e of list) if (e.kinds.includes('topic')) { const p = parentOf(e); if (p !== null) children.set(p, [...(children.get(p) ?? []), e]); }
-  const branch = (e: Entity, depth: number): JSX.Element => {
-    const kids = children.get(e.id) ?? [];
-    return (
-      <li key={e.id}>
-        {kids.length > 0 && depth < 8
-          ? <details open={depth === 0}><summary><button type="button" className="cg-ref" onClick={() => onOpen(e.id)}>{lib.label(e)}</button></summary><ul className="cg-tree">{kids.map((k) => branch(k, depth + 1))}</ul></details>
-          : <><button type="button" className="cg-ref" onClick={() => onOpen(e.id)}>{lib.label(e)}</button> <OriginTag id={e.id} /></>}
-      </li>
-    );
-  };
+  /* Nach der ersten Art (2026-10-23: Themen als Baum gibt es nicht mehr — Gruppen nach einer Achse gibt der Widok). */
+  const branch = (e: Entity): JSX.Element => (
+    <li key={e.id}><button type="button" className="cg-ref" onClick={() => onOpen(e.id)}>{lib.label(e)}</button> <OriginTag id={e.id} /></li>
+  );
   return (
     <ul className="cg-tree">
       {lib.kinds.map((k) => {
         const of = list.filter((e) => e.kinds[0] === k.id);
         if (of.length === 0) return null;
-        const roots = k.id === 'topic' ? of.filter((e) => parentOf(e) === null) : of;
         return (
           <li key={k.id}>
             <details open={of.length < 30}>
               <summary><strong>{k.name}</strong> <span className="cg-muted">({of.length})</span></summary>
-              <ul className="cg-tree">{roots.slice(0, 500).map((e) => branch(e, 0))}</ul>
+              <ul className="cg-tree">{of.slice(0, 500).map(branch)}</ul>
             </details>
           </li>
         );
@@ -375,13 +360,15 @@ function Tree({ list, onOpen }: { list: readonly Entity[]; onOpen: (id: string) 
   );
 }
 
-/** 2026-10-22 (Schritt 9) — das Drzewo nach den Gruppen des Widoku: nach einem Feld oder einer Achse von Tematy. */
+/** 2026-10-22 (Schritt 9) — das Drzewo nach den Gruppen des Widoku: nach einem Feld oder (2026-10-23) einer Achse — mit ihren Überschriften. */
 function GroupTree({ groups, onOpen }: { groups: readonly Group[]; onOpen: (id: string) => void }) {
   const { lib } = useCtx();
   return (
     <ul className="cg-tree">
-      {groups.map((g) => (
-        <li key={g.key || '#reszta'}>
+      {groups.map((g, i) => (
+        <Fragment key={g.key || '#reszta'}>
+          {g.head !== undefined && g.head.key !== groups[i - 1]?.head?.key && <li className="cg-tree-head"><span className="cg-muted">{g.head.label}</span></li>}
+        <li>
           <details open={groups.length < 8}>
             <summary><strong>{g.label}</strong> <span className="cg-muted">({g.ids.length})</span></summary>
             <ul className="cg-tree">
@@ -392,6 +379,7 @@ function GroupTree({ groups, onOpen }: { groups: readonly Group[]; onOpen: (id: 
             </ul>
           </details>
         </li>
+        </Fragment>
       ))}
     </ul>
   );

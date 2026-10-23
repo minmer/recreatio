@@ -106,7 +106,6 @@ const REVISION_FIELDS: Record<string, readonly ConfigField[]> = {
   'source.all': [],
   'source.kind': [f('kind', 'Rodzaj', 'kind'), f('from', 'Skąd', 'source', { hint: 'puste: z tej bazy i ze wszystkich źródeł' })],
   'source.collection': [f('collection', 'Zbiór', 'collection')],
-  'source.topic': [f('topic', 'Temat', 'entity', { kinds: ['topic'] }), f('depth', 'Głębokość', 'number')],
   'source.list': [f('ids', 'Wpisy albo pytania', 'lines', { hint: 'identyfikatory, jeden w wierszu' })],
   /* 2026-10-22 (Schritt 11) — z kazania (albo innego wpisu): to, na co wskazuje. */
   'source.from': [f('entry', 'Wpis (np. kazanie)', 'entity', { kinds: ['text', 'project', STATEMENT_KINDS] })],

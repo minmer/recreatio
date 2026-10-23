@@ -1440,3 +1440,109 @@ the owner's explicit, confirmed deletions.
    "Dz 1,8" → "Zapisz". The entry is named by its first sentence and marked Informacja.
 3. Nauka → "Utwórz „Powtórkę codzienną” ze wszystkich kart" → the card "Co mówi ta wypowiedź o: Łk 1,35?" →
    "Pokaż odpowiedź" shows the thesis.
+
+## P5 — Views without topics
+
+**Built**
+- **An axis is a kind** (`cogita/selection.ts`: `Axis`, `axisValues`, `axisMembers`). A grouping
+  `{ by: "axis", kind, via, through, sort, group }` replaces the grouping by a topic axis:
+  - the values are the entries of the kind (own entries, or entries of a source);
+  - they are ordered by a number field of the values (`sort: { field: "numer" }`), or by the order in which another
+    entry lists them in a multi-ref field (`sort: { list, field }`), otherwise by name;
+  - `group` is a ref field of the values. The values then stand under headings (Tajemnica by "Część", Obszar by
+    "Grupa"), in the order of their first value;
+  - an entry belongs to a value if it points at it through a chosen ref field (`via`; empty means any ref field), or
+    one step further (`through`: first through this field to another entry, which points at the value);
+  - a value belongs to itself.
+- **Matrix and tree**:
+  - the matrix shows a heading row over the columns (each heading spans its columns) and a heading row where a new
+    row heading begins, in the workspace and on pages (`MatrixGrid`);
+  - the tree in Wpisy shows the headings too;
+  - a column `#axis:<kind>` lists the values of that kind an entry points at.
+- **Editing an axis** ("Wybór i grupy" → `AxisSettings`):
+  - "Drzewo grupuje", "Macierz — wiersze" and "Macierz — kolumny" offer kinds with entries ("według osi — rodzaju");
+  - for an axis: the field an entry belongs through (or any), one step further (no / any field / a field), the order
+    (by name / by a number field / by the list in another entry's field, with that entry picked), and the headings
+    field.
+- **Text types are kinds in Nauka** (`textTypeKind`). The text types of a Scriptorium the base draws on are kinds of
+  the base:
+  - a text carries its type as a second kind, so its type fields (`tajemnica`, `obszar`) stand next to the fixed
+    ones. Views group by them, matrices place sermons by them, and filters, columns and templates read them;
+  - they are kinds of another part (`isForeignKind`): they can be pointed at and learned from, never created in the
+    base. "+ Wpis" in Wpisy no longer offers a foreign kind;
+  - **Scriptoria are sources of a base** next to libraries and other bases (Ustawienia → Źródła names them; the
+    revision source "Rodzaj … z …" lists them).
+- **"+ here" in a cell** (`createHere`):
+  - the values of both axes go into fitting ref fields: first a chosen `via` field, then a field pointing at the
+    value's kind, then a field pointing at any kind ("O czym");
+  - a sermon of a text type is created in the Scriptorium that holds the type, with the values in the type's fields.
+- **The archive (`writings`) filters by the ref fields of the text types**, not by aspects. Every ref field of a text
+  type is an axis (the same key in several types is one axis), and its values are the entries the texts point at, by
+  name. A target the reader cannot open is not a value. Projects stay an axis. Lista, Tabela and Drzewo work on
+  these axes. **Decided: the archive stays its own module, not a preset of "Widok"**: a visitor needs only the
+  Scriptorium, no knowledge base, and the Widok module already gives the table and matrix over Nauka.
+
+**Removed, and why** (decision 1: no topic mechanism at all)
+- The Library kind `topic` with `aspect` and `order`. `library/topics.ts` and `TopicPick` / `TopicsField` are
+  deleted. Old topic entries are listed under "Stare wpisy" in the Library, the Scriptorium and Nauka.
+- The last `topics` field (the delivery form). Works, quotes and texts lost theirs in P2 and P3.
+- The "Perspektywy" axis. Ustawienia mentions old perspectives only when a base still has some.
+- The Cogita built-in `topic` with its learning extension: Odpowiedzi, Dotyczy, Głębokość, Próg, Wymiar, Do
+  rozwinięcia, the "+ Pola nauki" button, and topic cards. A saved change of the topic built-in, or an import with
+  `"builtin": "topic"`, is skipped and named.
+- The revision source `source.topic`. An old revision says: "Źródło „Temat” już nie istnieje — tematów nie ma.
+  Wybierz rodzaj, zbiór albo listę." An old view step "Temat" becomes an empty list with the same notice.
+- Every grouping by a topic axis. An old view says so in Wpisy and on its page ("Macierz miała osie z tematów…")
+  instead of failing or showing nothing.
+- The topic tree in Wpisy (topics nested by their parent).
+- **Features that depended on topics:**
+  - ExploreMap (Mapa) now works on owner kinds: the entries of a chosen kind (or all own kinds) with their ref
+    links and the confirmed dependencies.
+  - "Do zrobienia": the "Tematy do rozwinięcia" list is removed. Open questions are statements whose thesis ends
+    with "?" ("Pytania bez odpowiedzi", P4). "Do sprawdzenia" now covers statements whose targets changed. A
+    parallel question becomes a statement (the question as its thesis, pointing at the entry), not a topic.
+  - Archive filters: as above.
+  - The page module "Tematy" (`topic-explorer`, retired since step 10) now shows only a notice on pages that still
+    have it.
+  - The archive module's setting "Tylko z tematu" is dropped; an old setting is ignored.
+
+**Checks**
+- All check scripts and both builds pass; Api.Tests 472. The style ratchet is locked at `wk-hint` 565.
+- `app-cogita-check` (431):
+  - text types as kinds: a second kind, fields next to the fixed ones, foreign, material;
+  - no topics: no built-in, an old revision node and an old view step named, old topics in "Stare wpisy";
+  - axes: order by a number field and by another entry's list, headings, membership through one field, one step
+    further, axes = kinds with entries, a topic grouping read as none;
+  - the matrix: sermons of a text type (through their type fields) and comments ("O czym") per cell, an axis
+    column;
+  - "+ here" placing values into "O czym" and into the fields of a text type, in its Scriptorium.
+- `app-library-check`: archive axes from text-type ref fields, values by name, OR/AND filters, counts, one value
+  per axis, an unreadable target is not a value.
+- `axes-api.mjs` (LocalDB), 8 checks. It builds a public area with a library (Bible), a Scriptorium (text type
+  "Kazanie maryjne" with `tajemnica` → Tajemnica and `obszar` → Obszar, three sermons) and a base. The base has own
+  kinds Część / Tajemnica (20, numbered, saved shuffled) and Grupa obszarów / Obszar (12), imports
+  `komentarz.json`, adds two comments, and lists the library and the Scriptorium as sources. It saves the view
+  "Tajemnica × Obszar" and a page with it. Read back from the service:
+  - 20 × 12 values in "numer" order, under the headings;
+  - Zwiastowanie × Wiara holds a sermon and a comment.
+- `axes-browser.mjs` (headless Edge, built app), the step's test, 10 checks:
+  - in Wpisy the matrix has 20 rows under the część headings and 12 columns under the grupa headings;
+  - the settings show both axes (by "Numer", headings by Część / Grupa);
+  - a click on Zwiastowanie × Wiara opens the field with the sermon and the comment;
+  - a visitor without an account sees the same matrix on the page, a click opens the field (with crumbs), and a
+    click on the sermon opens it;
+  - no console errors.
+
+**Owner must run**
+- No migration. Deploy the website.
+- Old topics, if any, are under "Stare wpisy" (test data).
+
+**Test in the browser**
+1. Nauka → a base → Schemat: own kinds "Część" (Nazwa), "Tajemnica" (Nazwa, Numer — number, Część — ref → Część),
+   "Grupa obszarów", "Obszar" (Nazwa, Numer, Grupa — ref). Add a few entries.
+2. Ustawienia → Źródła → add your Scriptorium. In the Scriptorium: a text type with `tajemnica` (→ Tajemnica) and
+   `obszar` (→ Obszar); a sermon of that type.
+3. Wpisy → Macierz → "Wybór i grupy": Skąd "Rodzaj: Tekst" + "Razem z: Komentarz"; Macierz — wiersze: "Tajemnica"
+   (Kolejność: według pola Numer, Nagłówki: Część); kolumny: "Obszar" (Nagłówki: Grupa). The matrix shows the
+   headings; click a number to open the field; "Zapisz jako widok".
+4. A page → module "Widok" → this view, mode macierz.

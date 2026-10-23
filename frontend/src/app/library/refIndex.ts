@@ -6,7 +6,7 @@
  * und Bazy wiedzy, die dieser Tab offen hat:
  *
  * <code>
- *   Felder         ein Verweis (`work`, `topics`, ein Verweisfeld der Cogita)
+ *   Felder         ein Verweis (`work`, ein Feld eines Rodzaj tekstu, ein Verweisfeld der Cogita)
  *   Zapis          [@x, Stelle], ![@x], [[Wort|@x]] — in jedem Text, auch im Plan
  *   Bausteine      Gegenstände eines Komentarza {ref, locator}, Stücke einer Zelle
  *   Quellen        die Quelle eines unsicheren Wertes {work, locator} (Cogita)

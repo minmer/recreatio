@@ -339,7 +339,7 @@ export function ConditionEditor({ value, onChange, name, depth = 0 }: {
           <>
             {c.type === 'value'
               ? <input value={c.value ?? ''} placeholder="nazwa wartości" onChange={(e) => set({ value: e.target.value })} />
-              : <input value={c.of ?? ''} placeholder="wpis, temat albo karta" onChange={(e) => set({ of: e.target.value })} />}
+              : <input value={c.of ?? ''} placeholder="wpis albo karta" onChange={(e) => set({ of: e.target.value })} />}
             <select value={c.op ?? 'ge'} onChange={(e) => set({ op: e.target.value as CompareOp })}>
               {COMPARE_OPS.filter((o) => o !== 'contains' && o !== 'filled' && o !== 'empty').map((o) => <option key={o} value={o}>{COMPARE_LABEL[o]}</option>)}
             </select>

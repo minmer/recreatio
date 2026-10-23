@@ -117,6 +117,10 @@ function partsOf(field: TypeField, raw: unknown): { id?: string; text: string; l
   }).filter((p) => p.id !== undefined || p.text.trim() !== '');
 }
 
+/** Wie ein Ziel heisst — mit dem Namen, den dieser Leser lesen kann. */
+const nameOf = (target: LibEntry, look: Lookup): string =>
+  look.title?.(target) ?? kindOf(target.kind)?.title(target.data, look) ?? str(target.data, 'name');
+
 /**
  * Die eigenen Felder eines Textes in Worten — „Tajemnica: Zwiastowanie" —,
  * für den Kopf des Textes, das Archiv und LaTeX. Ein Verweis, den der Leser
@@ -131,10 +135,30 @@ export function typeLines(data: EntryData, look: Lookup): { label: string; value
       if (p.id === undefined) return [p.text];
       const target = look.get(p.id);
       if (target === undefined) return [];
-      const name = look.title?.(target) ?? kindOf(target.kind)?.title(target.data, look) ?? str(target.data, 'name');
+      const name = nameOf(target, look);
       return [p.locator === undefined ? name : `${name}, ${p.locator}`];
     }).filter((t) => t.trim() !== '');
     if (parts.length > 0) out.push({ label: field.label, value: parts.join(', ') });
+  }
+  return out;
+}
+
+/**
+ * 2026-10-23 (Schritt 5) — WORAUF DIE VERWEISFELDER EINES TEXTES ZEIGEN, je
+ * Feld, mit dem Namen des Ziels: die Filter des Archivs (statt der Themen).
+ * Ein Ziel, das dieser Leser nicht lesen kann, fehlt.
+ */
+export function typeMarks(data: EntryData, look: Lookup): { key: string; label: string; id: string; name: string }[] {
+  const type = textTypeOf(data, look);
+  if (type === null) return [];
+  const out: { key: string; label: string; id: string; name: string }[] = [];
+  for (const field of type.fields) {
+    if (field.type !== 'ref') continue;
+    for (const p of partsOf(field, data[field.key])) {
+      const target = p.id === undefined ? undefined : look.get(p.id);
+      if (target === undefined || out.some((m) => m.key === field.key && m.id === target.id)) continue;
+      out.push({ key: field.key, label: field.label, id: target.id, name: nameOf(target, look) });
+    }
   }
   return out;
 }

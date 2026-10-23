@@ -170,6 +170,8 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
     return (
       <CogitaContext.Provider value={cg}>
         <h2 className="wk-card-title">{title}</h2>
+        {/* 2026-10-23 (Schritt 5) — was der Widok nach Tematy tat: ein Hinweis statt einer stillen Lücke. */}
+        {saved.retired.length > 0 && <p className="wk-card-muted">{saved.retired.join(' ')}</p>}
         <ul className="cg-plain-list">{list.slice(0, 8).map((e) => <li key={e.id}><button type="button" className="cg-ref" onClick={() => open(e.id)}>{lib.label(e)}</button></li>)}</ul>
         {list.length > 8 && <p className="wk-card-muted">i {list.length - 8} więcej{ctx.openWhole !== undefined ? ' — ' : ''}{ctx.openWhole !== undefined && <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>cały widok</button>}</p>}
         {state.e !== undefined && <EntryCard lib={lib} id={state.e} ctx={ctx} scope={scope} delivery={state.d ?? null} onDelivery={(d) => setState({ d })} />}
@@ -197,6 +199,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
   return (
     <CogitaContext.Provider value={cg}>
       <h2 className="wk-card-title">{title}</h2>
+      {saved.retired.length > 0 && <p className="wk-card-muted">{saved.retired.join(' ')}</p>}
       {(cellIds !== null || openEntity !== undefined) && (
         <nav className="cg-crumbs cg-muted" aria-label="Ścieżka w widoku">
           <button type="button" className="wk-link-btn" onClick={() => setState({ c: null, e: null, d: null })}>{title}</button>

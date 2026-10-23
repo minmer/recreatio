@@ -92,8 +92,9 @@ const docName = (data: Readonly<Record<string, unknown>>, kind: string): string 
 /**
  * Was ein Seitenbaustein aus einer Baza wiedzy wählen kann — nach den Arten
  * des Feldes (`entryKinds`): Powtórki und Przebiegi (auch aus Quellen),
- * Einträge (`entity`: alle, die die Baza kennt), Tematy, und Werke, Personen …
- * aus den Bibliotheken, aus denen sie schöpft.
+ * Einträge (`entity`: alle, die die Baza kennt), und Werke, Personen, Texte …
+ * aus den Bibliotheken und Skryptoria, aus denen sie schöpft (Tematy gibt es
+ * seit 2026-10-23 nicht mehr).
  */
 export function baseChoices(lib: CogitaLibrary, kinds: readonly string[]): BaseChoice[] {
   const out = new Map<string, BaseChoice>();
@@ -104,7 +105,6 @@ export function baseChoices(lib: CogitaLibrary, kinds: readonly string[]): BaseC
     if (isDoc(kind)) {
       for (const e of lib.docs(kind)) if (!out.has(e.id)) out.set(e.id, { id: e.id, label: docName(e.data, kind), kinds: [] });
     } else if (kind === 'entity') lib.entities().forEach(entity);
-    else if (kind === 'topic') lib.topics().forEach(entity);
     else lib.material(kind).forEach(entity);
   }
   return [...out.values()].sort((a, b) => a.label.localeCompare(b.label, 'pl'));

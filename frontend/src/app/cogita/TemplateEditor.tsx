@@ -44,7 +44,7 @@ export function TemplateEditor({ chosenId, onChoose }: { chosenId: string | null
 function NewTemplate({ onMade }: { onMade: (id: string) => void }) {
   const { lib } = useCtx();
   /* Zuerst eine eigene Art, die keine der Bibliotheken ist — die Bibliotheken stehen darunter (2026-10-22: auch ihr Stoff gibt Karten). */
-  const [kind, setKind] = useState(lib.materialKinds.find((k) => !BOOK_KINDS.has(k.id) && k.id !== 'topic')?.id ?? lib.materialKinds[0]?.id ?? 'question');
+  const [kind, setKind] = useState(lib.materialKinds.find((k) => !lib.isForeignKind(k.id))?.id ?? lib.materialKinds[0]?.id ?? 'question');
   const [preset, setPreset] = useState('ask');
   const [field, setField] = useState('');
   const [second, setSecond] = useState('');

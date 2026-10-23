@@ -33,7 +33,8 @@
  *   6. Bücher: ISBN, Strichcode (ZXing), Katalog (MARC, ONIX), eigene Nummer,
  *      Zitate eines Buches (Format, Polecenie, Plan, Import, Export).
  *   7. Kazania (2026-10-21): der Plan (Lesen, Nummern, Einfügen), Wygłoszenia
- *      (was gesagt wurde, Zeiten, Links an die Stelle), Aspekte der Themen,
+ *      (was gesagt wurde, Zeiten, Links an die Stelle), die Achsen des Archivs
+ *      aus den Verweisfeldern der Rodzaje tekstów (2026-10-23 statt der Themen),
  *      die Zeichnung mit gewähltem Wygłoszenie (Aussagen stehen nicht mehr an
  *      den Punkten), LaTeX, das Polecenie, JSON ins offene Formular, das Archiv
  *      (Zeilen, Filter samt Oberthemen, Zahlen — im Browser gerechnet).
@@ -58,7 +59,7 @@ export { planLibraryImport, exportLibrary, libraryDescription, kindsDoc, LIBRARY
 export { QuoteFigure } from '${app}library/LibraryText';
 export { TextArticle } from '${app}scriptorium/TextArticle';
 export { planScriptoriumImport, exportScriptorium, scriptoriumDescription, scriptoriumSpec, SCRIPTORIUM_FORMAT, SCRIPTORIUM_SPEC, SCRIPTORIUM_VERSION } from '${app}scriptorium/scriptoriumJson';
-export { typeLines, typeFieldsOf, textTypeOf, typeRefs, CORE_KEYS, TEXT_TYPE_FIELD_TYPES } from '${app}scriptorium/textTypes';
+export { typeLines, typeMarks, typeFieldsOf, textTypeOf, typeRefs, CORE_KEYS, TEXT_TYPE_FIELD_TYPES } from '${app}scriptorium/textTypes';
 export { LibraryLines } from '${app}library/LibraryLines';
 export { Markup as CogitaMarkup } from '${app}cogita/ui';
 export { plainOf } from '${app}cogita/schema';
@@ -69,7 +70,6 @@ export * from '${app}library/libraryQuotes';
 export { decodeGray } from '${app}library/barcode';
 export { readAmount, patchFromDoc } from '${app}library/libraryJson';
 export * from '${app}scriptorium/sermon';
-export * from '${app}library/topics';
 export * from '${app}library/bible';
 export * from '${app}library/refIndex';
 export { Relations, PassageBox, PassageList } from '${app}library/LibraryRelations';
@@ -77,7 +77,7 @@ export { StatementMarks } from '${app}library/markupView';
 export { hasOldCopies, missingIn, oldCopiesLine, oldCopyOf, withdrawOldCopies, withoutCopy } from '${app}cogita/oldCopies';
 export { palette, PARTS } from '${app}pages/parts/registry';
 export { textToLatex, planToLatex } from '${app}scriptorium/latex';
-export { archiveRow, browseLocal, choose, facetKey, PROJECTS } from '${app}scriptorium/archive';
+export { archiveRow, browseLocal, choose, facetKey, facetsOf, fieldFacet, PROJECTS } from '${app}scriptorium/archive';
 export { layoutOf } from '${app}scriptorium/archiveLayout';
 export { renderToStaticMarkup } from 'react-dom/server';
 export { createElement } from 'react';
@@ -881,19 +881,16 @@ try {
     assert.equal(m.timeLink('https://example.pl/kazanie', 95), null, 'a page has no place');
     assert.deepEqual(['https://x.pl/a.mp3', 'https://x.pl/a.MP4?x=1', 'https://youtu.be/a', 'ftp://x/a.mp3'].map(m.mediaFile), ['audio', 'video', null, null]);
 
-    /* Eine kleine Bibliothek mit Aspekten, einem Kazanie, drei Wygłoszenia und einem Komentarz an einem Punkt. */
+    /* Ein kleines Skryptorium: ein Rodzaj tekstu mit zwei Verweisfeldern (Okres, Temat — Einträge in Nauka), ein Kazanie, drei Wygłoszenia. */
     const E = (id, kind, data, key) => ({ id, kind, ...(key === undefined ? {} : { key }), data });
     const entries = [
       ...lib.all(),
-      E('t-okres', 'topic', { name: 'Okres liturgiczny', aspect: 'yes', order: 1 }, 'okres'),
-      E('t-adwent', 'topic', { name: 'Adwent', parent: 't-okres', order: 1 }, 'adwent'),
-      E('t-adwent1', 'topic', { name: 'I Niedziela Adwentu', parent: 't-adwent' }, 'adwent1'),
-      E('t-post', 'topic', { name: 'Wielki Post', parent: 't-okres', order: 3 }, 'post'),
-      E('t-temat', 'topic', { name: 'Temat', aspect: 'yes', order: 2 }, 'temat'),
-      E('t-nadzieja', 'topic', { name: 'Nadzieja', parent: 't-temat' }, 'nadzieja'),
-      E('t-rozne', 'topic', { name: 'Różne' }, 'rozne'),
+      E('o-adwent1', 'entity', { _kinds: ['k-okres'], name: 'I Niedziela Adwentu' }),
+      E('o-post', 'entity', { _kinds: ['k-okres'], name: 'Wielki Post' }),
+      E('o-nadzieja', 'entity', { _kinds: ['k-temat'], name: 'Nadzieja' }),
+      E('tt-kazanie', 'texttype', { name: 'Kazanie', fields: [{ key: 'okres', label: 'Okres', type: 'ref', to: ['k-okres'] }, { key: 'temat', label: 'Temat', type: 'ref', to: ['k-temat'] }] }, 'kazanie'),
       E('sermon', 'text', {
-        textType: 'sermon', title: 'Chleb', date: '2020-01-01', topics: ['t-adwent1', 't-nadzieja'],
+        textType: 'tt-kazanie', title: 'Chleb', date: '2020-01-01', okres: 'o-adwent1', temat: 'o-nadzieja',
         plan: [
           { id: 'p1', text: 'Głód, którego nie nasyci chleb [@bt, J 6,35]', depth: 0 },
           { id: 'p2', text: '![@q]', depth: 1, kind: 'quote' },
@@ -928,14 +925,9 @@ try {
     assert.equal(m.countsLine(counts), 'powiedziane 1 z 5 · krótko 1 · pominięte 1 · bez oznaczenia 2 · dodane 1');
     assert.equal(m.kindOf('delivery').title(L.get('d1').data, L), 'Chleb · 2026-08-02 · XVIII Niedziela zwykła', 'a delivery is named after its text');
 
-    /* Aspekte: Achsen aus Themen. */
-    const tree = m.topicTree(entries.filter((e) => e.kind === 'topic').map(m.topicNode));
-    assert.deepEqual(tree.aspects.map((a) => a.name), ['Okres liturgiczny', 'Temat'], 'aspects in their order');
-    assert.equal(tree.aspectOf('t-adwent1').id, 't-okres', 'a value belongs to the aspect above it');
-    assert.equal(tree.aspectOf('t-rozne'), null);
-    assert.deepEqual(tree.flat('t-okres').map((v) => [v.node.name, v.depth]), [['Adwent', 0], ['I Niedziela Adwentu', 1], ['Wielki Post', 0]], 'values in tree order with depth');
-    assert.deepEqual(m.facetsOf(tree).map((f) => f.name), ['Okres liturgiczny', 'Temat', 'Inne tematy'], 'facets: the aspects, then loose topics');
-    assert.deepEqual(m.facetsOf(m.topicTree([{ id: 'a', name: 'A', parent: null, aspect: false, order: null }])).map((f) => f.name), ['Tematy'], 'without aspects one facet over all topics');
+    /* Achsen (2026-10-23): die Verweisfelder des Rodzaj tekstu — keine Themen. */
+    assert.deepEqual(m.typeMarks(sermon.data, L).map((x) => [x.key, x.label, x.name]), [['okres', 'Okres', 'I Niedziela Adwentu'], ['temat', 'Temat', 'Nadzieja']], 'a sermon: what the reference fields of its type point at, by name');
+    assert.deepEqual(m.typeLines(sermon.data, L).map((x) => `${x.label}: ${x.value}`), ['Okres: I Niedziela Adwentu', 'Temat: Nadzieja'], 'and as lines over the text');
 
     /* Gezeichnet: der Plan, und auf ihm das gewählte Wygłoszenie. */
     const plain = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: sermon, look: L }));
@@ -982,26 +974,29 @@ try {
     const writingDoc = m.kindsDoc(m.WRITING_KINDS);
     for (const sub of ['"depth" — Poziom', '"state" — Jak', '"after" — Po punkcie', '"texts" — Kazanie (tekst)']) assert.ok(writingDoc.includes(sub), `description explains ${sub}`);
 
-    /* Das Archiv: Zeilen aus den Texten, Filter je Achse (ein Thema trifft auch, was darunter liegt), Zahlen. */
+    /* Das Archiv: Zeilen aus den Texten, Achsen aus den Verweisfeldern der Rodzaje tekstów (2026-10-23), Filter, Zahlen. */
     const row = m.archiveRow(sermon, L);
-    assert.deepEqual([row.title, row.date, row.occasion, row.held, row.recorded, row.topics.length, row.plan.length], ['Chleb', '2026-08-02', 'XVIII Niedziela zwykła', 3, true, 2, 3]);
-    const other = { ...row, id: 'x', title: 'Inny', date: '2019-01-01', topics: [{ id: 't-post', name: 'Wielki Post' }], project: null };
-    const found = (groups, order = '-sort', matching = null) => m.browseLocal([row, other], tree, { groups, matching, order });
-    assert.deepEqual(found([['t-okres']]).rows.map((r) => r.id), ['sermon', 'x'], 'an aspect finds everything under it');
-    assert.deepEqual(found([['t-adwent']]).rows.map((r) => r.id), ['sermon'], 'a topic finds its sub-topics');
-    assert.deepEqual(found([['t-adwent', 't-post'], ['t-nadzieja']]).rows.map((r) => r.id), ['sermon'], 'OR within a group, AND between groups');
+    assert.deepEqual([row.title, row.date, row.occasion, row.held, row.recorded, row.marks.length, row.plan.length], ['Chleb', '2026-08-02', 'XVIII Niedziela zwykła', 3, true, 2, 3]);
+    const other = { ...row, id: 'x', title: 'Inny', date: '2019-01-01', marks: [{ facet: m.fieldFacet('okres'), facetName: 'Okres', id: 'o-post', name: 'Wielki Post' }], project: null };
+    const facets = m.facetsOf([row, other], [{ id: 'proj', title: 'Cykl A' }]);
+    assert.deepEqual(facets.map((f) => [f.id, f.name, f.values.map((v) => v.name)]), [['@okres', 'Okres', ['I Niedziela Adwentu', 'Wielki Post']], ['@temat', 'Temat', ['Nadzieja']], [m.PROJECTS, 'Cykl', ['Cykl A']]],
+      'one axis per reference field of the text types (the same key in several types is one), values by name, then the projects');
+    const found = (groups, order = '-sort', matching = null) => m.browseLocal([row, other], { groups, matching, order });
+    assert.deepEqual(found([['o-adwent1']]).rows.map((r) => r.id), ['sermon'], 'a value finds the texts that point at it');
+    assert.deepEqual(found([['o-adwent1', 'o-post'], ['o-nadzieja']]).rows.map((r) => r.id), ['sermon'], 'OR within a group, AND between groups');
     assert.deepEqual(found([], 'sort').rows.map((r) => r.id), ['x', 'sermon'], 'oldest first');
     assert.deepEqual(found([], '-sort', new Set(['x'])).rows.map((r) => r.id), ['x'], 'search narrows');
-    assert.deepEqual([found([]).counts.get('t-okres'), found([]).counts.get('t-adwent'), found([]).counts.get('t-post')], [2, 1, 1], 'counts include the topics above');
-    const keyOf = (id) => m.facetKey(id, tree, new Set(['proj']));
-    assert.deepEqual([keyOf('t-adwent1'), keyOf('t-nadzieja'), keyOf('t-rozne'), keyOf('proj')], ['t-okres', 't-temat', '', m.PROJECTS]);
-    assert.deepEqual(m.choose([], 't-adwent', keyOf, false), ['t-adwent']);
-    assert.deepEqual(m.choose(['t-adwent'], 't-post', keyOf, false), ['t-post'], 'one value per aspect: another replaces it');
-    assert.deepEqual(m.choose(['t-adwent'], 't-nadzieja', keyOf, false), ['t-adwent', 't-nadzieja'], 'different aspects add up');
-    assert.deepEqual(m.choose(['t-adwent', 't-nadzieja'], 't-adwent', keyOf, false), ['t-nadzieja'], 'the same value again removes it');
-    assert.deepEqual(m.choose(['t-adwent'], 't-nadzieja', keyOf, true), ['t-nadzieja'], 'an older service takes one filter');
+    assert.deepEqual([found([]).counts.get('o-adwent1'), found([]).counts.get('o-post'), found([]).counts.get('o-nadzieja')], [1, 1, 1], 'counts per value');
+    const keyOf = (id) => m.facetKey(id, facets, new Set(['proj']));
+    assert.deepEqual([keyOf('o-adwent1'), keyOf('o-nadzieja'), keyOf('nic'), keyOf('proj')], ['@okres', '@temat', '', m.PROJECTS]);
+    assert.deepEqual(m.choose([], 'o-adwent1', keyOf, false), ['o-adwent1']);
+    assert.deepEqual(m.choose(['o-adwent1'], 'o-post', keyOf, false), ['o-post'], 'one value per axis: another replaces it');
+    assert.deepEqual(m.choose(['o-adwent1'], 'o-nadzieja', keyOf, false), ['o-adwent1', 'o-nadzieja'], 'different axes add up');
+    assert.deepEqual(m.choose(['o-adwent1', 'o-nadzieja'], 'o-adwent1', keyOf, false), ['o-nadzieja'], 'the same value again removes it');
+    assert.deepEqual(m.choose(['o-adwent1'], 'o-nadzieja', keyOf, true), ['o-nadzieja'], 'an older service takes one filter');
+    assert.deepEqual(m.archiveRow({ ...sermon, data: { ...sermon.data, temat: 'o-tajne' } }, L).marks.map((x) => x.id), ['o-adwent1'], 'a target this reader cannot open is no filter value — nothing about it shows');
     assert.deepEqual(['Tabela', 'drzewo', 'list', ''].map(m.layoutOf), ['table', 'tree', 'list', 'list']);
-    ok('sermons: plan (depth, numbers, paste), times and links, aspects, marks on the plan, LaTeX, prompts, JSON into the form, archive rows, filters and counts');
+    ok('sermons: plan (depth, numbers, paste), times and links, the text type’s fields as archive axes, marks on the plan, LaTeX, prompts, JSON into the form, archive rows, filters and counts');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

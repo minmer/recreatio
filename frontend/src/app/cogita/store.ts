@@ -23,9 +23,12 @@ import { newId } from '../core/ids';
 import type { Entry, LibraryStore } from '../library/libraryStore';
 import { entryTitle, KINDS as LIBRARY_KINDS, type Lookup as MarkupLookup } from '../library/libraryKinds';
 import { refsOf } from '../library/refIndex';
-import { cardsOf, questionCard, readTemplate, templatesFor, topicCard, type Template } from './cards';
+import { cardsOf, questionCard, readTemplate, templatesFor, type Template } from './cards';
+import { blockMarkups, blockRefs } from '../library/blocks';
+import { citedKeys } from '../library/libraryMarkup';
+import { entityBlocks } from './statements';
 import { type Card } from './cardBasics';
-import { DOC_KINDS, entityOf, entryData, isBaseKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, type DocKind } from './kinds';
+import { DOC_KINDS, entityOf, entryData, isBaseKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, textTypeKind, type DocKind } from './kinds';
 import { planKindRemoval, type KindRemoval } from './kindRemoval';
 import type { Dependency, DependencyKind, Mark } from './knowness';
 import type { RevisionContext } from './revision';
@@ -143,9 +146,8 @@ export function readSources(raw: unknown): SourceRef[] {
   return out;
 }
 
-/** Was eine Bibliothek ist und keine Baza wiedzy: diese Arten legt man in der Bibliothek an — hier verweist man auf sie. */
-/** 2026-10-22 — die Arten der Bibliothek ausser dem Thema (Themen gehören beiden Seiten) — aus `libraryKinds.ts`, keine eigene Liste. */
-export const BOOK_KINDS: ReadonlySet<string> = new Set(LIBRARY_KINDS.map((k) => k.kind).filter((k) => k !== 'topic'));
+/** Was eine Bibliothek oder ein Skryptorium ist und keine Baza wiedzy: diese Arten legt man dort an — hier verweist man auf sie (aus `libraryKinds.ts`). */
+export const BOOK_KINDS: ReadonlySet<string> = new Set(LIBRARY_KINDS.map((k) => k.kind));
 
 /** Was eine wiederverwendete Baza wiedzy mitbringt — Einstellungen, Widoki, Vorschläge und Arten (die kommen über das Schema) bleiben ihre. */
 const SHARED_DOCS: ReadonlySet<string> = new Set<DocKind>(['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'merge', 'addform']);
@@ -189,8 +191,8 @@ interface Memo {
   markup: MarkupLookup | null;
   /** 2026-10-22 — die eigenen Arten und die der Bibliotheken, aus denen Stoff kommt. */
   materialKinds: readonly KindDef[] | null;
-  /** 2026-10-22 (Schritt 7) — wer auf welches Thema zeigt (Feld oder Zapis), über Eigenes und Stoff. */
-  topicLinks: Map<string, Set<string>> | null;
+  /** 2026-10-23 (Schritt 5) — die Arten der anderen Teile: der Bibliothek, des Skryptorium und seine Rodzaje tekstów. */
+  foreign: ReadonlySet<string>;
   /** 2026-10-22 (Schritt 9) — wer auf welchen Eintrag zeigt, überhaupt (für „Idź po odwołaniu" rückwärts). */
   links: Map<string, Set<string>> | null;
 }
@@ -246,7 +248,10 @@ export class CogitaLibrary {
     const merged = new Set<string>();
     for (const e of [...own, ...theirs]) if (e.kind === 'merge' && typeof e.data.from === 'string') merged.add(e.data.from);
     /* Zuerst die Quellen, dann die eigenen: wer hier eine eingebaute Art ändert, gewinnt. */
-    const kinds = kindDefs([...theirs, ...own]);
+    /* 2026-10-23 (Schritt 5) — die Rodzaje tekstów der Skryptoria, aus denen die Baza schöpft, sind Rodzaje wie andere (ihre Kennung). */
+    const types = books.filter((e) => e.kind === 'texttype').map(textTypeKind);
+    const kinds = [...kindDefs([...theirs, ...own]), ...types];
+    const foreign = new Set([...BOOK_KINDS, ...types.map((k) => k.id)]);
     const entities = [...own, ...theirs].map(entityOf).filter((e): e is Entity => e !== null && !merged.has(e.id));
     const refs = books.map(entityOf).filter((e): e is Entity => e !== null);
     const added = new Set([...theirs, ...own].flatMap((e) => (e.kind === 'kind' && typeof e.data.builtin === 'string' ? [e.data.builtin] : [])));
@@ -264,12 +269,12 @@ export class CogitaLibrary {
     for (const s of this.sources) mark(s.store, s.name, s.kind, false);
     this.memo = {
       /*
-        2026-10-18 — KEIN RODZAJ VON SICH AUS: die eingebauten (Temat, Wiedza,
-        Pytanie) stehen nur da, wo man sie hinzugefügt (oder geändert) hat oder
+        2026-10-18 — KEIN RODZAJ VON SICH AUS: die eingebauten (seit
+        2026-10-23 nur noch Pytanie) stehen nur da, wo man sie hinzugefügt (oder geändert) hat oder
         wo es Einträge von ihnen gibt. Die Maschine kennt sie trotzdem (`look`).
       */
-      stamp, kinds, contentKinds: kinds.filter((k) => !BOOK_KINDS.has(k.id) && (!isBaseKind(k.id) || byKind.has(k.id) || added.has(k.id))), entities, refs,
-      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, search: null, refSearch: null, markup: null, materialKinds: null, topicLinks: null, links: null
+      stamp, kinds, contentKinds: kinds.filter((k) => !foreign.has(k.id) && (!isBaseKind(k.id) || byKind.has(k.id) || added.has(k.id))), entities, refs,
+      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, search: null, refSearch: null, markup: null, materialKinds: null, foreign, links: null
     };
     return this.memo;
   }
@@ -287,16 +292,19 @@ export class CogitaLibrary {
    */
   get materialKinds(): readonly KindDef[] {
     const m = this.fresh();
-    m.materialKinds ??= [...m.contentKinds, ...m.kinds.filter((k) => BOOK_KINDS.has(k.id) && m.refs.some((r) => r.kinds.includes(k.id)))];
+    m.materialKinds ??= [...m.contentKinds, ...m.kinds.filter((k) => m.foreign.has(k.id) && m.refs.some((r) => r.kinds.includes(k.id)))];
     return m.materialKinds;
   }
 
-  /** Die Einträge einer Art als Stoff: die eigenen (und die der Bazy wiedzy) — bei einer Art der Bibliotheken auch deren Einträge. */
+  /** Die Einträge einer Art als Stoff: die eigenen (und die der Bazy wiedzy) — bei einer Art der Bibliotheken und Skryptoria (auch einem Rodzaj tekstu) deren Einträge. */
   material(kindId: string): readonly Entity[] {
     const own = this.ofKind(kindId);
-    if (!BOOK_KINDS.has(kindId)) return own;
+    if (!this.isForeignKind(kindId)) return own;
     return [...own, ...this.fresh().refs.filter((r) => r.kinds.includes(kindId))];
   }
+
+  /** 2026-10-23 (Schritt 5) — eine Art der anderen Teile (Bibliothek, Skryptorium, ein Rodzaj tekstu): man verweist auf sie, man legt sie hier nicht an. */
+  isForeignKind(kindId: string): boolean { return this.fresh().foreign.has(kindId); }
 
   /** Woraus die Wpisy rodzaju und Dystraktory eines Szablons schöpfen: für Stoff einer Bibliothek aus dem Stoff, sonst aus dem Eigenen. */
   poolFor(entity: Entity): (kindId: string) => readonly Entity[] {
@@ -313,7 +321,6 @@ export class CogitaLibrary {
       cards,
       kindsOf: (id) => this.entity(id)?.kinds ?? [],
       collection: (id) => this.members(id),
-      topic: (id, depth) => this.topicTree(id, depth),
       marks,
       now,
       from: (id) => this.origin(id)?.libraryId,
@@ -407,35 +414,6 @@ export class CogitaLibrary {
   }
 
   /**
-   * 2026-10-22 (Schritt 7) — ALLE THEMEN, die diese Baza kennt: die eigenen
-   * (bis zum Umzug), die ihrer Bazy-Quellen und die der Bibliotheken, aus denen
-   * sie schöpft — EIN Themensystem mit den Achsen der Bibliothek.
-   */
-  topics(): readonly Entity[] {
-    return [...this.ofKind('topic'), ...this.fresh().refs.filter((r) => r.kinds.includes('topic'))];
-  }
-
-  /** Wer auf ein Thema zeigt — ein Feld (`topics`, `about`, `subjects` …) oder der Zapis —, unter allem Eigenen und dem Stoff der Quellen. */
-  private topicLinks(): Map<string, Set<string>> {
-    const m = this.fresh();
-    if (m.topicLinks === null) {
-      const topics = new Set(this.topics().map((t) => t.id));
-      const links = new Map<string, Set<string>>();
-      const resolve = (token: string) => this.resolve(token);
-      for (const e of [...m.entities, ...m.refs]) {
-        for (const ref of refsOf(e, resolve)) {
-          if (!topics.has(ref.target) || ref.target === e.id) continue;
-          let set = links.get(ref.target);
-          if (set === undefined) { set = new Set(); links.set(ref.target, set); }
-          set.add(e.id);
-        }
-      }
-      m.topicLinks = links;
-    }
-    return m.topicLinks;
-  }
-
-  /**
    * 2026-10-22 (Schritt 9) — WER AUF EINEN EINTRAG ZEIGT, gleich welcher Art:
    * Felder und Zapis, über Eigenes und den Stoff der Bibliotheken.
    */
@@ -469,7 +447,6 @@ export class CogitaLibrary {
       entity: (id) => this.entity(id),
       look: this.look,
       collection: (id) => this.members(id),
-      topic: (id, depth) => this.topicTree(id, depth),
       pointing: (id) => this.pointing(id),
       from: (id) => this.origin(id)?.libraryId,
       /* 2026-10-22 (Schritt 11) — worauf ein Eintrag verweist: ein Kazanie der Bibliothek, ein Eintrag hier (ohne sich selbst). */
@@ -479,47 +456,6 @@ export class CogitaLibrary {
         return [...new Set(refsOf(entry, (token) => this.resolve(token)).map((r) => r.target))].filter((t) => t !== id && this.entity(t) !== undefined);
       }
     };
-  }
-
-  /** Was auf ein Thema zeigt (ohne seine Unterthemen). */
-  taggedWith(topicId: string): ReadonlySet<string> {
-    return this.topicLinks().get(topicId) ?? new Set();
-  }
-
-  /**
-   * Ein Thema und seine Unterthemen bis zur Tiefe — mit dem, was auf sie zeigt
-   * (2026-10-22: Rückverweise — eine Frage über `about`, ein Kazanie über
-   * `topics`, ein Komentarz in seinem Zapis), was sie beantworten und woran
-   * sie hängen. Themen auch aus den Bibliotheken der Quellen.
-   */
-  topicTree(topicId: string, depth: number): ReadonlySet<string> {
-    const out = new Set<string>();
-    const look = this.look;
-    const children = new Map<string, string[]>();
-    const links = this.topicLinks();
-    for (const t of this.topics()) {
-      const field = fieldsOf(t, look).find((f) => f.key === 'parent');
-      for (const v of field === undefined ? [] : valuesOf(t, field)) if (typeof v.value === 'string') children.set(v.value, [...(children.get(v.value) ?? []), t.id]);
-    }
-    /* Besucht wird je Thema einmal — ein Unterthema zeigt über \`parent\` auf sein Oberthema und steht so schon in \`out\`, bevor es selbst dran ist. */
-    const seen = new Set<string>();
-    const walk = (id: string, left: number) => {
-      if (seen.has(id)) return;
-      seen.add(id);
-      out.add(id);
-      const topic = this.entity(id);
-      for (const linked of links.get(id) ?? []) out.add(linked);
-      if (topic !== undefined) {
-        for (const key of ['answers', 'entity']) {
-          const field = fieldsOf(topic, look).find((f) => f.key === key);
-          for (const v of field === undefined ? [] : valuesOf(topic, field)) if (typeof v.value === 'string') out.add(v.value);
-        }
-      }
-      if (left <= 0) return;
-      for (const child of children.get(id) ?? []) walk(child, left - 1);
-    };
-    walk(topicId, depth);
-    return out;
   }
 
   /** Die eigenen Einstellungen — die einer Quelle gelten dort. */
@@ -699,12 +635,12 @@ export class CogitaLibrary {
 
   /**
    * ALLE KARTEN dieser Baza wiedzy: jede Vorlage für jede Entität ihrer Arten,
-   * jede von Hand geschriebene Frage, jedes Thema mit Antworten — die eigenen
-   * und die wiederverwendeter Quellen. 2026-10-22: dazu der Stoff der
-   * Bibliotheken — ein Szablon für eine ihrer Arten (Cytat, Dzieło, Tekst,
-   * Komentarz …) gibt Karten ihrer Einträge, mit Schlüsseln `szablon:wpis` wie
-   * sonst; ihre Themen geben (noch) keine. Je Stand der Speicher und Samen
-   * einmal gerechnet.
+   * jede von Hand geschriebene Frage — die eigenen und die wiederverwendeter
+   * Quellen. 2026-10-22: dazu der Stoff der Bibliotheken und Skryptoria — ein
+   * Szablon für eine ihrer Arten (Cytat, Dzieło, Tekst, ein Rodzaj tekstu …)
+   * gibt Karten ihrer Einträge, mit Schlüsseln `szablon:wpis` wie sonst.
+   * (Themen mit Odpowiedzi gaben bis 2026-10-23 eigene Karten — Themen gibt
+   * es nicht mehr.) Je Stand der Speicher und Samen einmal gerechnet.
    */
   cards(seed = ''): Promise<{ cards: Card[]; problems: Map<string, string[]> }> {
     const revision = this.revision;
@@ -725,19 +661,11 @@ export class CogitaLibrary {
           const card = questionCard(entity, seed);
           if (card !== null) cards.push(card);
         }
-        if (entity.kinds.includes('topic')) {
-          const card = topicCard(entity, look);
-          if (card !== null) cards.push(card);
-        }
       }
       const material = (kind: string) => this.material(kind);
+      const foreign = this.fresh().foreign;
       for (const entity of this.fresh().refs) {
-        /* 2026-10-22 (Schritt 7) — ein Thema der Bibliothek mit Odpowiedzi (ein umgezogenes) gibt seine Karte wie vorher. */
-        if (entity.kinds.includes('topic')) {
-          const card = topicCard(entity, look);
-          if (card !== null) cards.push(card);
-        }
-        for (const template of templatesFor(entity, templates).filter((t) => t.kinds.some((k) => BOOK_KINDS.has(k) && entity.kinds.includes(k)))) {
+        for (const template of templatesFor(entity, templates).filter((t) => t.kinds.some((k) => foreign.has(k) && entity.kinds.includes(k)))) {
           const done = await cardsOf(template, { look, entity, pool: material, seed, ...(this.python === undefined ? {} : { python: this.python }) });
           cards.push(...done.cards);
           if (done.problems.length > 0) problems.set(template.id, [...(problems.get(template.id) ?? []), ...done.problems]);
@@ -757,13 +685,19 @@ export class CogitaLibrary {
   newId(): string { return newId(); }
 }
 
-/** Woran ein Wissenssatz oder Thema hängt: Verweisfelder und die Verweise im Zapis (`[[…|@id]]`). */
+/**
+ * Woran ein Eintrag hängt: Verweisfelder, die Verweise im Zapis (`[[…|@id]]`)
+ * und (2026-10-23) die Verweise einer Aussage — ihre Zellen und ihr Zapis.
+ */
 export function linkedOf(entity: Entity, look: Lookup): string[] {
   const out = new Set<string>();
   for (const field of fieldsOf(entity, look)) {
     if (field.type === 'ref') for (const v of valuesOf(entity, field)) if (typeof v.value === 'string') out.add(v.value);
     if (field.type === 'markup') for (const v of valuesOf(entity, field)) if (typeof v.value === 'string') for (const m of v.value.matchAll(/\[\[[^\]|]+\|@([^\]]+)\]\]/g)) out.add(m[1].trim());
   }
+  const blocks = entityBlocks(entity, look);
+  for (const r of blockRefs(blocks)) out.add(r.ref);
+  for (const key of citedKeys(...blockMarkups(blocks))) out.add(key);
   out.delete(entity.id);
   return [...out];
 }

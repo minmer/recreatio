@@ -12,8 +12,16 @@
  *   work · quote · person    die Quellen der Bibliothek: Verweise, Szablony und
  *                            Powtórki über Bibliotheken lesen ihre Felder
  *   text · delivery · project  die Texte des Skryptorium (als Quelle einer Baza)
- *   topic                    nur noch bis Schritt 5 (Themen fallen ganz weg)
  * </code>
+ *
+ * <b>2026-10-23 (Schritt 5) — keine Themen mehr</b> (`topic`, seine Felder des
+ * Lernens, Perspektywy): Ordnung geben eigene Rodzaje, verbunden über
+ * Verweisfelder. Alte Themen stehen unter „Stare wpisy" (`oldInBase.ts`).
+ *
+ * <b>Rodzaje tekstów</b> eines Skryptorium, aus dem die Baza schöpft, sind hier
+ * Rodzaje wie andere (`textTypeKind`): ein Text trägt seinen Rodzaj als zweite
+ * Art (`entityOf`), seine Felder („Tajemnica", „Obszar") stehen neben den
+ * festen — Widoki gruppieren und Macierze ordnen nach ihnen.
  *
  * `knowledge` (ein Satz Wissen) und der Komentarz der Bibliothek sind fort:
  * eine Aussage ist jetzt jeder Eintrag eines Rodzaj mit Feld `blocks`
@@ -27,7 +35,7 @@
  * <b>Wie es gespeichert liegt</b> (was der Dienst sieht [B20]):
  *
  * <code>
- *   person · work · quote · topic · text · project   die eingebauten — wie bisher
+ *   person · work · quote · text · delivery · project · texttype   die Arten der Bibliothek und des Skryptorium
  *   entity                                            jeder andere Eintrag; seine Arten in `_kinds`
  *   kind · template · revision · flow · look · rules · values · collection · view · settings · merge · contribution · addform
  *                                                     was das Schema, die Karten und die Abläufe beschreibt
@@ -104,7 +112,6 @@ const PATTERNS: Record<string, { label: string; tells?: string }> = {
   person: { label: '{name} {givenNames} {surname}', tells: 'years' },
   work: { label: '{title}: {subtitle}', tells: 'year' },
   quote: { label: '{text}', tells: 'locator' },
-  topic: { label: '{name}', tells: 'parent' },
   text: { label: '{title}', tells: 'date' },
   project: { label: '{title}', tells: 'projectType' },
   delivery: { label: '{date} {occasion}', tells: 'place' }
@@ -112,35 +119,6 @@ const PATTERNS: Record<string, { label: string; tells?: string }> = {
 
 const field = (key: string, label: string, type: FieldType, more: Partial<FieldDef> = {}): FieldDef =>
   ({ key, label, type, multi: false, uncertain: false, ...more });
-
-/**
- * Was das Wissen am THEMA braucht [C4, C9–C11]: was es beantwortet, woran es
- * hängt, wie tief es geht, ob es eine Schwelle ist, ob es noch offen ist —
- * zusätzlich zu Name, Beschreibung und Oberthema der Bibliothek.
- */
-const TOPIC_MORE: readonly FieldDef[] = [
-  field('answers', 'Odpowiedzi', 'ref', { multi: true, to: ['text', 'quote'], inverse: 'odpowiada na', says: 'Teksty, cytaty i wypowiedzi, które odpowiadają na ten temat (pytanie)' }),
-  field('entity', 'Dotyczy', 'ref', { inverse: 'tematy', says: 'Wpis, o którym jest ten temat (np. osoba)' }),
-  field('level', 'Głębokość', 'number', { says: 'Jak głęboko sięga (1 — podstawy, 2, 3 … — dalej)' }),
-  field('landmark', 'Próg', 'bool', { says: 'Pojęcie progowe: bez niego dalej się nie da (tak/nie)' }),
-  field('dimension', 'Wymiar', 'bool', { says: 'Ten podtemat jest wymiarem tematu nadrzędnego (Co? Dlaczego? Jak?)' }),
-  field('open', 'Do rozwinięcia', 'bool', { says: 'Temat jeszcze otwarty — stoi na liście „Do zrobienia" (tak/nie)' }),
-  field('tags', 'Perspektywy', 'list', { says: 'Perspektywy z listy bazy wiedzy (np. historyczna, duchowa)' })
-];
-
-/**
- * 2026-10-22 (Schritt 7) — EIN THEMENSYSTEM: das Thema ist das der Bibliothek
- * (Name, Beschreibung, Oberthema, Aspekt, Ordnung). Was Cogita am Thema lernt
- * — Odpowiedzi, Dotyczy, Głębokość, Próg, Wymiar, Do rozwinięcia — ist eine
- * ERWEITERUNG, die eine Baza dazunimmt (Schemat → Temat → „+ Pola nauki"; sie
- * steht dann als Änderung des eingebauten Themas in ihrem Schema). Perspektiven
- * sind keine Felder mehr (2026-10-23: Themen fallen in Schritt 5 ganz weg).
- * Eine Baza, deren Themen die Felder schon tragen, sieht sie weiter (`kindDefs`).
- */
-export const TOPIC_LEARNING: readonly FieldDef[] = TOPIC_MORE.filter((f) => f.key !== 'tags');
-
-/** Trägt ein Thema schon Felder des Lernens (aus der Zeit, als sie zum Thema gehörten)? */
-const usesLearning = (entry: LibEntry): boolean => entry.kind === 'topic' && TOPIC_MORE.some((f) => entry.data[f.key] !== undefined);
 
 function builtin(id: string): KindDef {
   const lib = LIBRARY_KINDS.find((k) => k.kind === id)!;
@@ -152,7 +130,7 @@ function builtin(id: string): KindDef {
     label: PATTERNS[id]?.label ?? `{${fields[0]?.key ?? 'title'}}`,
     tells: PATTERNS[id]?.tells,
     fields: [...fields, ...more.filter((m) => !fields.some((f) => f.key === m.key))],
-    ...(id === 'topic' ? { system: 'topic' as const } : id === 'text' ? { system: 'text' as const } : {})
+    ...(id === 'text' ? { system: 'text' as const } : {})
   };
 }
 
@@ -205,7 +183,7 @@ export const QUESTION: KindDef = {
 
 /** In dieser Reihenfolge stehen sie in Listen. */
 const BASE: readonly KindDef[] = [
-  ...['person', 'work', 'quote', 'topic', 'text', 'delivery', 'project'].map(builtin),
+  ...['person', 'work', 'quote', 'text', 'delivery', 'project'].map(builtin),
   QUESTION
 ];
 
@@ -239,19 +217,27 @@ function overridden(base: KindDef, doc: KindDef): KindDef {
 export function kindDefs(entries: Iterable<LibEntry>): KindDef[] {
   const overrides = new Map<string, KindDef>();
   const own: KindDef[] = [];
-  let learning = false;
   for (const entry of entries) {
-    if (usesLearning(entry)) learning = true;
     if (entry.kind !== 'kind') continue;
     const builtinId = typeof entry.data.builtin === 'string' ? entry.data.builtin : null;
     const base = builtinId === null ? undefined : BASE_BY_ID.get(builtinId);
     if (base !== undefined) overrides.set(base.id, overridden(base, readKind(base.id, entry.data)));
-    /* 2026-10-23 — die Änderung eines eingebauten Rodzaj, den es nicht mehr gibt (Wiedza, Komentarz): kein eigener Rodzaj — sie steht unter „Stare wpisy". */
+    /* 2026-10-23 — die Änderung eines eingebauten Rodzaj, den es nicht mehr gibt (Wiedza, Komentarz, Temat): kein eigener Rodzaj — sie steht unter „Stare wpisy". */
     else if (builtinId === null) own.push(readKind(entry.id, entry.data));
   }
-  /* Die Felder des Lernens: wo die Baza sie dazugenommen hat (eine Änderung des Themas) — oder wo Themen sie schon tragen. */
-  const topic = (k: KindDef): KindDef => (!learning ? k : { ...k, fields: [...k.fields, ...TOPIC_MORE.filter((m) => !k.fields.some((f) => f.key === m.key))] });
-  return [...BASE.map((k) => { const done = overrides.get(k.id) ?? k; return k.id === 'topic' ? topic(done) : done; }), ...own];
+  return [...BASE.map((k) => overrides.get(k.id) ?? k), ...own];
+}
+
+/**
+ * 2026-10-23 (Schritt 5) — EIN RODZAJ TEKSTU ALS RODZAJ: seine Kennung, sein
+ * Name, seine Felder (dieselben `FieldDef` wie in Nauka). Ein Text dieses
+ * Rodzaju hat dann beide Arten — die festen Felder des Textes und diese.
+ */
+export function textTypeKind(entry: Pick<LibEntry, 'id' | 'data'>): KindDef {
+  const kind = readKind(entry.id, { name: entry.data.name, label: '{title}', fields: entry.data.fields });
+  /* Die festen Schlüssel eines Textes gehören dem Text (der Editor des Rodzaju weist sie ab — hier für alte Einträge). */
+  const core = new Set(BASE_BY_ID.get('text')?.fields.map((f) => f.key) ?? []);
+  return { ...kind, label: '{title}', fields: kind.fields.filter((f) => !core.has(f.key)), system: undefined };
 }
 
 /** Der Eintrag, der eine eingebaute Art ändert — damit ein zweites Speichern ihn trifft und nicht einen neuen anlegt. */
@@ -310,8 +296,10 @@ export function entityOf(entry: LibEntry): Entity | null {
     return { id: entry.id, kinds: kinds.length === 0 ? [LEGACY_KNOWLEDGE] : kinds, data: fieldData(entry.data) };
   }
   if (LIBRARY_KIND_IDS.has(entry.kind)) {
-    const more = strings(entry.data._kinds).filter((k) => k !== entry.kind);
-    return { id: entry.id, kinds: [entry.kind, ...more], data: fieldData(entry.data) };
+    /* 2026-10-23 (Schritt 5) — ein Text trägt seinen Rodzaj tekstu als zweite Art (`textTypeKind`). */
+    const type = entry.kind === 'text' && typeof entry.data.textType === 'string' && entry.data.textType !== '' ? [entry.data.textType] : [];
+    const more = strings(entry.data._kinds).filter((k) => k !== entry.kind && !type.includes(k));
+    return { id: entry.id, kinds: [entry.kind, ...type, ...more], data: fieldData(entry.data) };
   }
   return null;
 }

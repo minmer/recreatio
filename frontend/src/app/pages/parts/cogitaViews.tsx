@@ -319,71 +319,16 @@ function OneEntity({ lib, entry }: { lib: CogitaLibrary; entry: string }) {
   return <div className="cg-card"><EntityView entity={publicEntity(lib, entity)} /></div>;
 }
 
-interface TopicNode {
-  readonly id: string;
-  readonly name: string;
-  readonly parent: string | null;
-}
-
-/** Die Themen, eins im anderen (aus dem einen Themensystem, Schritt 7) — und was auf ein Thema zeigt. */
-export function TopicExplorerView({ config, ctx }: { config: TopicsConfig; ctx: PartContext }) {
-  const [chosen, setChosen] = useState<string | null>(null);
-  const [open, setOpen] = useState<string | null>(null);
-  const { lib, ctx: cg } = usePageBase(config.library);
-  const topics = useMemo((): TopicNode[] | null => (lib == null ? null : lib.topics().map((t) => ({
-    id: t.id, name: lib.label(t), parent: Array.isArray(t.data.parent) && typeof t.data.parent[0] === 'string' ? t.data.parent[0] : typeof t.data.parent === 'string' ? t.data.parent : null
-  }))),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  [lib, lib?.revision]);
-  const title = config.title || 'Tematy';
-  if (lib == null || cg === null || topics === null) return <Closed title={title} lib={lib} />;
-
-  const known = new Set(topics.map((t) => t.id));
-  const root = config.topic !== '' && known.has(config.topic) ? config.topic : null;
-  const under = (id: string | null) => topics.filter((t) => (id === null ? t.parent === null || !known.has(t.parent) : t.parent === id));
-  const top = under(root);
-  /* Der Weg vom Anfang zum gewählten Thema — höchstens zwanzig Stufen (ein Kreis in den Daten hält hier nicht fest). */
-  const path: TopicNode[] = [];
-  let step = chosen === null ? undefined : topics.find((t) => t.id === chosen);
-  while (step !== undefined && step.id !== root && path.length < 20) {
-    path.unshift(step);
-    const parent: string | null = step.parent;
-    step = parent === null ? undefined : topics.find((t) => t.id === parent);
-  }
-
-  if (ctx.size.height === 'strip' && ctx.whole !== true) {
-    return (
-      <p className="cg-row">
-        <strong>{title}</strong><span className="wk-card-muted">{topics.length} tematów</span>
-        {ctx.openWhole !== undefined && <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>Przeglądaj</button>}
-      </p>
-    );
-  }
-  const chips = (list: readonly TopicNode[]) => (
-    <div className="cg-chips">{list.map((t) => <button key={t.id} type="button" className={`cg-chip${chosen === t.id ? ' is-on' : ''}`} onClick={() => { setChosen(t.id); setOpen(null); }}>{t.name}</button>)}</div>
-  );
-  const items = chosen === null ? [] : [...lib.taggedWith(chosen)].map((id) => lib.entity(id)).filter((e): e is NonNullable<typeof e> => e !== undefined && !e.kinds.includes('topic'));
+/**
+ * 2026-10-23 (Schritt 5) — TEMATY GIBT ES NICHT MEHR: eine Seite mit dem alten
+ * Baustein zeigt einen Hinweis statt eines Fehlers oder einer leeren Fläche.
+ */
+export function TopicExplorerView({ config }: { config: TopicsConfig; ctx: PartContext }) {
   return (
-    <CogitaContext.Provider value={cg}>
-      <Head title={title} />
-      {path.length > 0 && (
-        <nav className="cg-row cg-muted" aria-label="Ścieżka tematu">
-          <button type="button" className="wk-link-btn" onClick={() => { setChosen(null); setOpen(null); }}>Wszystkie</button>
-          {path.map((t) => <span key={t.id}>› <button type="button" className="wk-link-btn" onClick={() => setChosen(t.id)}>{t.name}</button></span>)}
-        </nav>
-      )}
-      {chips(chosen === null ? top : under(chosen))}
-      {chosen !== null && under(chosen).length === 0 && <p className="wk-card-muted">Bez podtematów.</p>}
-      {chosen !== null && isTall(ctx) && (
-        <section>
-          {items.length === 0 ? <p className="wk-card-muted">Nic jeszcze nie wskazuje na ten temat.</p> : (
-            <ul className="cg-plain-list">{items.map((e) => <li key={e.id}><button type="button" className="cg-ref" onClick={() => setOpen(open === e.id ? null : e.id)}>{lib.label(e)}</button> <span className="cg-muted">{e.kinds.map((k) => lib.kind(k)?.name ?? k).join(', ')}</span></li>)}</ul>
-          )}
-          {open !== null && <OneEntity lib={lib} entry={open} />}
-        </section>
-      )}
-      {chosen !== null && !isTall(ctx) && items.length > 0 && <p className="wk-card-muted">{items.length} wpisów w tym temacie{ctx.openWhole !== undefined && <> — <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>zobacz</button></>}</p>}
-    </CogitaContext.Provider>
+    <div className="wk-card-text">
+      <Head title={config.title || 'Tematy'} />
+      <p className="wk-card-muted">Tematów już nie ma — porządek dają teraz własne rodzaje (np. „Tajemnica”, „Obszar”). Ten moduł zastępuje moduł „Widok”: drzewo albo macierz według osi.</p>
+    </div>
   );
 }
 

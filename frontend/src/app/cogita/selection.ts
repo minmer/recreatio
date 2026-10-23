@@ -11,7 +11,6 @@
  *   source.all          alles, was die Baza kennt (eigene Einträge und die ihrer Bazy-Quellen)
  *   source.kind         ein Rodzaj — auch einer der Bibliotheken, aus denen sie schöpft; `from`: nur aus einer
  *   source.collection   ein Zbiór (gespeicherter Filter oder Liste)
- *   source.topic        ein Temat mit Unterthemen — und allem, was auf sie zeigt
  *   source.list         genannte Einträge
  *   source.from         (Schritt 11) worauf ein Eintrag verweist: ein Kazanie — seine Cytaty, Komentarze,
  *                       Słowa, die Stellen seines Plans; eine Powtórka „z kazania"
@@ -25,8 +24,10 @@
  * nach einem anderen Schritt beginnt neu.
  *
  * Dazu, nur für Widoki: <b>Gruppen</b> (`groupsOf`) — nach Rodzaj, nach den
- * Werten eines Feldes oder nach einer Achse von Tematy (ein Temat-Aspekt, seine
- * Unterthemen sind die Werte). Ein Eintrag kann in mehreren Gruppen stehen.
+ * Werten eines Feldes oder (2026-10-23, Schritt 5) nach einer ACHSE: einem
+ * Rodzaj, dessen Einträge die Werte sind (`Axis`). Ein Eintrag kann in
+ * mehreren Gruppen stehen. Themen (`source.topic`, Achsen von Tematy) gibt es
+ * nicht mehr; ein alter Schritt „Temat" wird zu einer leeren Liste mit Hinweis.
  *
  * Die Regel der Zbiory (`RuleGroup`) steht jetzt hier; `store.ts` gibt sie
  * weiter, damit alte Importe gelten. Bedingungen über Menschen (`logic.ts`)
@@ -147,8 +148,6 @@ export interface SelectContext {
   readonly entity: (id: string) => Entity | undefined;
   readonly look: Lookup;
   readonly collection: (id: string) => ReadonlySet<string> | undefined;
-  /** Ein Thema und seine Unterthemen, mit allem, was auf sie zeigt. */
-  readonly topic: (id: string, depth: number) => ReadonlySet<string>;
   /** Wer auf einen Eintrag zeigt — Felder und Zapis, in der Baza und im Stoff der Bibliotheken. */
   readonly pointing: (id: string) => ReadonlySet<string>;
   /** Woher ein Eintrag kommt (die Kennung seiner Bibliothek oder Baza). */
@@ -159,7 +158,7 @@ export interface SelectContext {
 
 /* -- Die Schritte ------------------------------------------------------------------------------ */
 
-export const SOURCE_TYPES = ['source.all', 'source.kind', 'source.collection', 'source.topic', 'source.list', 'source.from'] as const;
+export const SOURCE_TYPES = ['source.all', 'source.kind', 'source.collection', 'source.list', 'source.from'] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 export type StepType = SourceType | 'follow' | 'filter.rule';
 
@@ -171,9 +170,8 @@ export interface Step {
 /** Wie ein Schritt heisst und was er tut — derselbe Satz im Widok und am Knoten der Powtórka. */
 export const STEP_WORDS: Readonly<Record<StepType, { readonly label: string; readonly says: string }>> = {
   'source.all': { label: 'Wszystko', says: 'Każdy wpis tej bazy wiedzy (i baz, z których korzysta).' },
-  'source.kind': { label: 'Rodzaj', says: 'Wpisy jednego rodzaju — także z biblioteki, z której korzysta ta baza (np. cytaty, komentarze); „Skąd" zawęża do jednej biblioteki albo bazy.' },
+  'source.kind': { label: 'Rodzaj', says: 'Wpisy jednego rodzaju — także z biblioteki albo skryptorium, z których korzysta ta baza (np. cytaty, kazania jednego rodzaju tekstu); „Skąd" zawęża do jednego źródła.' },
   'source.collection': { label: 'Zbiór', says: 'Wpisy zapisanego zbioru — filtra albo listy.' },
-  'source.topic': { label: 'Temat', says: 'Temat i jego podtematy do wybranej głębokości — z tym, co na nie wskazuje (pytania, komentarze, kazania).' },
   'source.list': { label: 'Lista', says: 'Wybrane wpisy (identyfikatory, jeden w wierszu).' },
   'source.from': { label: 'Z wpisu', says: 'To, na co wskazuje wybrany wpis — np. kazanie: jego cytaty, komentarze, słowa, miejsca z planu.' },
   follow: { label: 'Idź po odwołaniu', says: 'Od wybranych wpisów dalej: do tego, na co wskazują (jedno pole albo wszystkie) — albo wstecz: do tego, co wskazuje na nie.' },
@@ -183,9 +181,14 @@ export const STEP_WORDS: Readonly<Record<StepType, { readonly label: string; rea
 const STEP_TYPES: readonly StepType[] = [...SOURCE_TYPES, 'follow', 'filter.rule'];
 export const isSource = (type: string): type is SourceType => (SOURCE_TYPES as readonly string[]).includes(type);
 
+/** 2026-10-23 (Schritt 5) — ein Schritt, den es nicht mehr gibt: was er war, für den Hinweis. */
+export const RETIRED_STEP = 'retired';
+
 export function readSteps(raw: unknown): Step[] {
   const out: Step[] = [];
   for (const one of Array.isArray(raw) ? raw : []) {
+    /* Ein alter Schritt „Temat": eine leere Liste — er wählt nichts mehr, und der Widok sagt, warum. */
+    if (isObject(one) && one.type === 'source.topic') { out.push({ type: 'source.list', config: { ids: [], [RETIRED_STEP]: 'source.topic' } }); continue; }
     if (!isObject(one) || !(STEP_TYPES as readonly string[]).includes(str(one.type))) continue;
     out.push({ type: str(one.type) as StepType, config: isObject(one.config) ? one.config : {} });
     if (out.length >= 24) break;
@@ -217,10 +220,6 @@ export function pick(ctx: SelectContext, step: Step, input: ReadonlySet<string> 
       return new Set(ctx.material(str(c.kind)).filter((e) => from === '' || ctx.from?.(e.id) === from).map((e) => e.id));
     }
     case 'source.collection': return new Set(ctx.collection(str(c.collection)) ?? []);
-    case 'source.topic': {
-      const depth = typeof c.depth === 'number' && Number.isFinite(c.depth) ? Math.max(0, Math.round(c.depth)) : 9;
-      return str(c.topic) === '' ? new Set() : new Set(ctx.topic(str(c.topic), depth));
-    }
     case 'source.list': return new Set(lines(c.ids));
     case 'source.from': return new Set(str(c.entry) === '' ? [] : ctx.refsOf?.(str(c.entry)) ?? []);
     case 'follow': {
@@ -248,6 +247,9 @@ export function pick(ctx: SelectContext, step: Step, input: ReadonlySet<string> 
   }
 }
 
+/** Was ein alter Schritt „Temat" sagt. */
+export const RETIRED_TOPIC = 'Źródło „Temat” już nie istnieje — tematów nie ma. Wybierz rodzaj, zbiór albo listę.';
+
 /**
  * Die Schritte der Reihe nach — ohne Quelle beginnt es bei allem. Quellen am
  * Anfang zählen zusammen (Kazania UND Komentarze); eine spätere beginnt neu.
@@ -259,6 +261,7 @@ export function runSteps(ctx: SelectContext, steps: readonly Step[]): { ids: str
   let leading = true;
   for (const step of steps) {
     if (step.type === 'source.collection' && ctx.collection(str(step.config.collection)) === undefined) problems.push('Nie ma takiego zbioru.');
+    if (step.config[RETIRED_STEP] === 'source.topic') problems.push(RETIRED_TOPIC);
     const got = pick(ctx, step, now);
     if (leading && isSource(step.type) && now !== null) { for (const id of got) now.add(id); continue; }
     if (!isSource(step.type)) leading = false;
@@ -270,42 +273,143 @@ export function runSteps(ctx: SelectContext, steps: readonly Step[]): { ids: str
 
 /* -- Gruppen (nur Widoki) ----------------------------------------------------------------------- */
 
+/**
+ * 2026-10-23 (Schritt 5) — DIE REIHENFOLGE DER WERTE EINER ACHSE: nach einem
+ * Zahlenfeld der Werte (`field`) — oder nach der Reihenfolge, in der ein
+ * Eintrag sie in einem Verweisfeld nennt (`list` + `field`: „Różaniec" →
+ * „Tajemnice"). Ohne: nach dem Namen.
+ */
+export interface AxisSort {
+  readonly field: string;
+  readonly list?: string;
+}
+
+/**
+ * EINE ACHSE IST EIN RODZAJ: seine Einträge sind die Werte (Tajemnica: 20
+ * Tajemnice). Ein Eintrag gehört zu einem Wert, wenn er über ein gewähltes
+ * Verweisfeld auf ihn zeigt (`via`; leer: über irgendeines) — direkt oder über
+ * EINEN Schritt (`through`: erst über dieses Feld zu einem anderen Eintrag,
+ * der dann auf den Wert zeigt; `*`: über irgendeines). `group`: ein
+ * Verweisfeld der Werte, nach dem sie unter Überschriften stehen
+ * (Tajemnica → „część": radosne, światła, bolesne, chwalebne).
+ */
+export interface Axis {
+  readonly kind: string;
+  readonly via: readonly string[];
+  readonly through?: string;
+  readonly sort?: AxisSort;
+  readonly group?: string;
+}
+
 export type Grouping =
   | { readonly by: 'kind' }
   | { readonly by: 'field'; readonly field: string }
-  /** Eine Achse: ein Temat-Aspekt; seine direkten Unterthemen sind die Werte (mit ihren Unterthemen). */
-  | { readonly by: 'topic'; readonly axis: string };
+  | ({ readonly by: 'axis' } & Axis);
 
+const strings = (v: unknown): string[] => (Array.isArray(v) ? v.map(str).filter((x) => x !== '') : str(v) === '' ? [] : [str(v)]);
+
+export function readAxis(raw: Record<string, unknown>): Axis | null {
+  const kind = str(raw.kind);
+  if (kind === '') return null;
+  const sort = isObject(raw.sort) && str(raw.sort.field) !== '' ? { field: str(raw.sort.field), ...(str(raw.sort.list) !== '' ? { list: str(raw.sort.list) } : {}) } : undefined;
+  return {
+    kind,
+    via: strings(raw.via),
+    ...(str(raw.through) !== '' ? { through: str(raw.through) } : {}),
+    ...(sort === undefined ? {} : { sort }),
+    ...(str(raw.group) !== '' ? { group: str(raw.group) } : {})
+  };
+}
+
+/** Eine Gruppierung aus ihrem JSON — eine alte nach einer Achse von Tematy (`by: "topic"`) gibt es nicht mehr: `null`. */
 export function readGrouping(raw: unknown): Grouping | null {
   if (!isObject(raw)) return null;
   if (raw.by === 'kind') return { by: 'kind' };
   if (raw.by === 'field' && str(raw.field) !== '') return { by: 'field', field: str(raw.field) };
-  if (raw.by === 'topic' && str(raw.axis) !== '') return { by: 'topic', axis: str(raw.axis) };
+  if (raw.by === 'axis') { const axis = readAxis(raw); return axis === null ? null : { by: 'axis', ...axis }; }
   return null;
 }
+
+/** War das eine Gruppierung nach Tematy (bis 2026-10-23)? — für den Hinweis in Widok und Macierz. */
+export const wasTopicGrouping = (raw: unknown): boolean => isObject(raw) && raw.by === 'topic';
 
 export interface Group {
   readonly key: string;
   readonly label: string;
   readonly ids: readonly string[];
+  /** 2026-10-23 — die Überschrift, unter der die Gruppe steht (der Wert ihres Feldes `group`). */
+  readonly head?: { readonly key: string; readonly label: string };
 }
 
-/** Die Unterthemen eines Themas (über `parent`) — nach `order`, dann nach dem Namen, wie in der Bibliothek. */
-export function childTopics(ctx: Pick<SelectContext, 'look'>, topics: readonly Entity[], parent: string): Entity[] {
-  const orderOf = (t: Entity): number => (typeof t.data.order === 'number' && Number.isFinite(t.data.order) ? t.data.order : Number.MAX_SAFE_INTEGER);
-  return topics.filter((t) => {
-    const f = fieldsOf(t, ctx.look).find((x) => x.key === 'parent');
-    return f !== undefined && valuesOf(t, f).some((v) => v.value === parent);
-  }).sort((a, b) => orderOf(a) - orderOf(b) || labelOf(a, ctx.look).localeCompare(labelOf(b, ctx.look), 'pl'));
+/** Wohin ein Eintrag über ein Feld zeigt — mehrere Felder, keins: über alle Verweisfelder. */
+const targetsVia = (entity: Entity, look: Lookup, fields: readonly string[]): string[] =>
+  fields.length === 0 ? targetsOf(entity, look, '') : fields.flatMap((f) => targetsOf(entity, look, f));
+
+/**
+ * DIE WERTE EINER ACHSE in ihrer Reihenfolge: die Einträge des Rodzaj, nach
+ * dem Zahlenfeld, nach der Liste eines Eintrags oder nach dem Namen — und,
+ * mit `group`, unter ihren Überschriften (in der Reihenfolge, in der die
+ * erste ihrer Werte steht).
+ */
+export function axisValues(ctx: SelectContext, axis: Axis): { value: Entity; head: { key: string; label: string } | null }[] {
+  const look = ctx.look;
+  const values = [...ctx.material(axis.kind)];
+  const name = (e: Entity) => labelOf(e, look);
+  let rank: (e: Entity) => number = () => 0;
+  if (axis.sort !== undefined && axis.sort.list !== undefined) {
+    const holder = ctx.entity(axis.sort.list);
+    const order = holder === undefined ? [] : targetsOf(holder, look, axis.sort.field);
+    rank = (e) => { const i = order.indexOf(e.id); return i < 0 ? Number.MAX_SAFE_INTEGER : i; };
+  } else if (axis.sort !== undefined) {
+    const key = axis.sort.field;
+    rank = (e) => {
+      const f = fieldsOf(e, look).find((x) => x.key === key);
+      const v = f === undefined ? undefined : valuesOf(e, f)[0]?.value;
+      return typeof v === 'number' && Number.isFinite(v) ? v : Number.MAX_SAFE_INTEGER;
+    };
+  }
+  values.sort((a, b) => rank(a) - rank(b) || name(a).localeCompare(name(b), 'pl', { numeric: true }));
+  const headOf = (e: Entity): { key: string; label: string } | null => {
+    if (axis.group === undefined) return null;
+    const target = targetsOf(e, look, axis.group)[0];
+    const head = target === undefined ? undefined : ctx.entity(target);
+    return head === undefined ? { key: '', label: 'bez grupy' } : { key: head.id, label: labelOf(head, look) };
+  };
+  const placed = values.map((value) => ({ value, head: headOf(value) }));
+  if (axis.group === undefined) return placed;
+  /* Unter Überschriften: in der Reihenfolge ihres ersten Wertes, die Werte darin wie sortiert. */
+  const heads: string[] = [];
+  for (const p of placed) if (!heads.includes(p.head!.key)) heads.push(p.head!.key);
+  return heads.flatMap((h) => placed.filter((p) => p.head!.key === h));
+}
+
+/**
+ * ZU WELCHEN WERTEN EINER ACHSE EIN EINTRAG GEHÖRT: er zeigt über `via` auf
+ * sie — oder (mit `through`) über ein Feld auf einen anderen Eintrag, der über
+ * `via` auf sie zeigt. Ein Wert gehört zu sich selbst.
+ */
+export function axisMembers(ctx: SelectContext, entity: Entity, axis: Axis, values: ReadonlySet<string>): string[] {
+  const look = ctx.look;
+  const out = new Set<string>();
+  if (values.has(entity.id)) out.add(entity.id);
+  for (const t of targetsVia(entity, look, axis.via)) if (values.has(t)) out.add(t);
+  if (axis.through !== undefined) {
+    for (const mid of targetsOf(entity, look, axis.through === '*' ? '' : axis.through)) {
+      const between = ctx.entity(mid);
+      if (between === undefined || between.id === entity.id) continue;
+      for (const t of targetsVia(between, look, axis.via)) if (values.has(t)) out.add(t);
+    }
+  }
+  return [...out];
 }
 
 /**
  * IN GRUPPEN: nach Rodzaj (der erste), nach den Werten eines Feldes (ein
- * Verweis mit dem Etikett seines Ziels), nach einer Achse von Tematy. Was in
- * keine passt, steht zuletzt unter „bez …". Die Reihenfolge der Werte: nach dem
- * Etikett (eine Achse: wie ihre Unterthemen stehen).
+ * Verweis mit dem Etikett seines Ziels), nach einer Achse (einem Rodzaj). Was
+ * in keine passt, steht zuletzt unter „bez …". Die Reihenfolge der Werte: nach
+ * dem Etikett — eine Achse, wie ihre Werte geordnet sind (mit Überschriften).
  */
-export function groupsOf(ctx: SelectContext, ids: readonly string[], grouping: Grouping, topics: readonly Entity[] = [], options: { readonly all?: boolean } = {}): Group[] {
+export function groupsOf(ctx: SelectContext, ids: readonly string[], grouping: Grouping, options: { readonly all?: boolean } = {}): Group[] {
   const look = ctx.look;
   const groups = new Map<string, { label: string; ids: string[] }>();
   const rest: string[] = [];
@@ -314,19 +418,19 @@ export function groupsOf(ctx: SelectContext, ids: readonly string[], grouping: G
     if (!g.ids.includes(id)) g.ids.push(id);
     groups.set(key, g);
   };
-  if (grouping.by === 'topic') {
-    const values = childTopics(ctx, topics, grouping.axis);
-    const inValue = values.map((v) => ({ v, members: ctx.topic(v.id, 9) }));
+  if (grouping.by === 'axis') {
+    const values = axisValues(ctx, grouping);
+    const known = new Set(values.map((v) => v.value.id));
     for (const id of ids) {
-      let placed = false;
-      for (const { v, members } of inValue) if (members.has(id) && id !== v.id) { put(v.id, labelOf(v, look), id); placed = true; }
-      if (!placed) rest.push(id);
+      const e = ctx.entity(id);
+      const hits = e === undefined ? [] : axisMembers(ctx, e, grouping, known);
+      for (const hit of hits) put(hit, labelOf(ctx.entity(hit)!, look), id);
+      if (hits.length === 0) rest.push(id);
     }
     /* `all`: auch die Werte ohne Einträge — eine Macierz zeigt alle Zeilen ihrer Achse (20 × 12, auch leere Felder). */
-    if (options.all === true) for (const v of values) if (!groups.has(v.id)) groups.set(v.id, { label: labelOf(v, look), ids: [] });
-    const order = new Map(values.map((v, i) => [v.id, i]));
+    const shown = values.filter((v) => options.all === true || groups.has(v.value.id));
     return [
-      ...[...groups.entries()].sort((a, b) => (order.get(a[0]) ?? 0) - (order.get(b[0]) ?? 0)).map(([key, g]) => ({ key, label: g.label, ids: g.ids })),
+      ...shown.map(({ value, head }) => ({ key: value.id, label: labelOf(value, look), ids: groups.get(value.id)?.ids ?? [], ...(head === null ? {} : { head }) })),
       ...(rest.length > 0 ? [{ key: '', label: 'bez wartości na tej osi', ids: rest }] : [])
     ];
   }

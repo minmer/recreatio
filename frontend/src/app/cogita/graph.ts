@@ -256,11 +256,16 @@ export function connect<C>(graph: Graph, palette: Palette<C>, edge: GraphEdge, c
 }
 
 /** Was am Graphen nicht stimmt — für den Editor, den Import und die Prüfung vor dem Lauf. */
+/** 2026-10-23 (Schritt 5) — Knoten, die es nicht mehr gibt, und was ein alter Graph dazu sagt. */
+export const RETIRED_NODES: Readonly<Record<string, string>> = {
+  'source.topic': 'Źródło „Temat” już nie istnieje — tematów nie ma. Wybierz rodzaj, zbiór albo listę.'
+};
+
 export function problemsOf<C>(graph: Graph, palette: Palette<C>, cycles = false): { readonly node?: string; readonly text: string }[] {
   const out: { node?: string; text: string }[] = [];
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
   for (const node of graph.nodes) {
-    if (!palette.kinds.has(node.type)) out.push({ node: node.id, text: `Nieznany rodzaj kroku: „${node.type}".` });
+    if (!palette.kinds.has(node.type)) out.push({ node: node.id, text: RETIRED_NODES[node.type] ?? `Nieznany rodzaj kroku: „${node.type}".` });
   }
   const taken = new Map<string, number>();
   for (const edge of graph.edges) {

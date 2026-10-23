@@ -8,17 +8,23 @@
  * Einträgen (`browseLocal`): der Dienst sieht keine Kurzfassungen mehr, nur
  * Hüllen; die Seite öffnet die ganze Bibliothek eines öffentlichen Bereichs.
  *
+ * 2026-10-23 (Schritt 5) — DIE ACHSEN SIND DIE VERWEISFELDER DER RODZAJE
+ * TEKSTÓW, nicht mehr Themen: je Feld (über alle Rodzaje mit demselben
+ * Schlüssel) eine Achse — „Tajemnica", „Obszar" —, ihre Werte sind die
+ * Einträge, auf die die Texte dort zeigen (nur, was dieser Leser lesen kann).
+ * Dazu die Projekte. Werte stehen flach, nach ihrem Namen.
+ *
  * <code>
  *   ?t=<text>       ein Text ist offen          ?tw=<wygłoszenie>  … mit diesem Wygłoszenie auf dem Plan
  *   ?tu=tabela      Lista · Tabela · Drzewo      ?tq=…              die Suche
- *   ?tf=<a>,<b>     gewählte Werte (Themen, Projekte) — je Achse einer
+ *   ?tf=<a>,<b>     gewählte Werte (Einträge, Projekte) — je Achse einer
  *   ?to=-sort       Reihenfolge: sort / -sort (Datum), key / -key (Titel)
  * </code>
  */
 
 import { ids, str, type LibEntry, type Lookup } from '../library/libraryKinds';
 import { deliveriesOf, lastHeld, planOf, pointLine } from './sermon';
-import { facetOf, type TopicTree } from '../library/topics';
+import { typeMarks } from './textTypes';
 
 /* Lista · Tabela · Drzewo stehen in `archiveLayout.ts` — ohne Importe, für die Beschreibung des Bausteins. */
 
@@ -27,8 +33,18 @@ export type Order = 'sort' | '-sort' | 'key' | '-key';
 export const orderOf = (word: string | null | undefined): Order | null =>
   word === 'sort' || word === '-sort' || word === 'key' || word === '-key' ? word : null;
 
-/** Die Achse der Projekte (Cykle kazań, Bücher) — neben den Aspekten. */
+/** Die Achse der Projekte (Cykle kazań, Bücher) — neben den Feldern der Rodzaje tekstów. */
 export const PROJECTS = '#cykle';
+
+/** Eine Achse des Archivs: ein Verweisfeld der Rodzaje tekstów (`@<klucz>`) oder die Projekte. */
+export interface Facet {
+  readonly id: string;
+  readonly name: string;
+  readonly values: readonly { readonly id: string; readonly name: string }[];
+}
+
+/** Die Achse eines Feldes — derselbe Schlüssel in mehreren Rodzajach ist EINE Achse. */
+export const fieldFacet = (key: string): string => `@${key}`;
 
 /* -- Eine Zeile aus einem Text ------------------------------------------------------------------- */
 
@@ -44,7 +60,8 @@ export interface ArchiveRow {
   readonly held: number;
   /** Ob es eine Aufnahme gibt — beim Text selbst oder bei einem Wygłoszenie. */
   readonly recorded: boolean;
-  readonly topics: readonly { readonly id: string; readonly name: string }[];
+  /** Worauf die Verweisfelder seines Rodzaj zeigen — je Achse (`@<klucz>`). */
+  readonly marks: readonly { readonly facet: string; readonly facetName: string; readonly id: string; readonly name: string }[];
   readonly project: { readonly id: string; readonly title: string } | null;
   /** Die Hauptgedanken des Plans. */
   readonly plan: readonly string[];
@@ -53,7 +70,6 @@ export interface ArchiveRow {
 export function archiveRow(entry: LibEntry, look: Lookup): ArchiveRow {
   const d = entry.data;
   const held = deliveriesOf(entry, look);
-  const topics = ids(d, 'topics').flatMap((id) => { const t = look.get(id); return t === undefined ? [] : [{ id, name: str(t.data, 'name') }]; });
   const projectEntry = look.get(ids(d, 'project')[0] ?? '');
   return {
     id: entry.id,
@@ -64,16 +80,34 @@ export function archiveRow(entry: LibEntry, look: Lookup): ArchiveRow {
     summary: str(d, 'summary'),
     held: held.length,
     recorded: str(d, 'audio') !== '' || str(d, 'video') !== '' || held.some((one) => str(one.data, 'audio') !== '' || str(one.data, 'video') !== ''),
-    topics,
+    marks: typeMarks(d, look).map((m) => ({ facet: fieldFacet(m.key), facetName: m.label, id: m.id, name: m.name })),
     project: projectEntry === undefined ? null : { id: projectEntry.id, title: str(projectEntry.data, 'title') },
     plan: planOf(d).filter((p) => p.depth === 0).map((p) => pointLine(p.text, look, 140)).filter((s) => s !== '').slice(0, 6)
   };
 }
 
+/** Die Achsen aus den Zeilen: je Feld seine Werte (nach dem Namen), zuletzt die Projekte. */
+export function facetsOf(rows: readonly ArchiveRow[], projects: readonly { readonly id: string; readonly title: string }[]): Facet[] {
+  const byFacet = new Map<string, { name: string; values: Map<string, string> }>();
+  for (const row of rows) {
+    for (const m of row.marks) {
+      const facet = byFacet.get(m.facet) ?? { name: m.facetName, values: new Map<string, string>() };
+      facet.values.set(m.id, m.name);
+      byFacet.set(m.facet, facet);
+    }
+  }
+  const out: Facet[] = [...byFacet.entries()].map(([id, f]) => ({
+    id, name: f.name,
+    values: [...f.values.entries()].map(([value, name]) => ({ id: value, name })).sort((a, b) => a.name.localeCompare(b.name, 'pl', { numeric: true }))
+  }));
+  if (projects.length > 0) out.push({ id: PROJECTS, name: 'Cykl', values: projects.map((p) => ({ id: p.id, name: p.title })) });
+  return out;
+}
+
 /* -- Suchen, filtern, zählen ---------------------------------------------------------------------- */
 
 export interface LocalQuery {
-  /** Die Filter: innerhalb einer Gruppe ODER, zwischen den Gruppen UND; ein Thema trifft auch seine Unterthemen. */
+  /** Die Filter: innerhalb einer Gruppe ODER, zwischen den Gruppen UND. */
   readonly groups: readonly (readonly string[])[];
   /** Die Treffer der Suche (Kennungen) — `null`: keine Suche. */
   readonly matching: ReadonlySet<string> | null;
@@ -82,30 +116,26 @@ export interface LocalQuery {
 
 export interface LocalResult {
   readonly rows: readonly ArchiveRow[];
-  /** Je Wert (Thema, Projekt): wie viele der gefundenen Texte ihn tragen — ein Thema zählt auch für seine Oberthemen. */
+  /** Je Wert (Eintrag, Projekt): wie viele der gefundenen Texte ihn tragen. */
   readonly counts: ReadonlyMap<string, number>;
 }
 
-/** Wofür ein Text steht: seine Themen mit ihren Oberthemen, und sein Projekt. */
-function marks(row: ArchiveRow, tree: TopicTree | null): Set<string> {
-  const out = new Set<string>();
-  for (const t of row.topics) {
-    out.add(t.id);
-    for (const a of tree?.ancestors(t.id) ?? []) out.add(a.id);
-  }
+/** Wofür ein Text steht: worauf seine Felder zeigen, und sein Projekt. */
+function marks(row: ArchiveRow): Set<string> {
+  const out = new Set(row.marks.map((m) => m.id));
   if (row.project !== null) out.add(row.project.id);
   return out;
 }
 
-export function browseLocal(rows: readonly ArchiveRow[], tree: TopicTree | null, query: LocalQuery): LocalResult {
+export function browseLocal(rows: readonly ArchiveRow[], query: LocalQuery): LocalResult {
   const groups = query.groups.map((g) => g.filter((one) => one !== '')).filter((g) => g.length > 0);
   const found = rows.filter((row) => {
     if (query.matching !== null && !query.matching.has(row.id)) return false;
-    const has = marks(row, tree);
+    const has = marks(row);
     return groups.every((g) => g.some((id) => has.has(id)));
   });
   const counts = new Map<string, number>();
-  for (const row of found) for (const id of marks(row, tree)) counts.set(id, (counts.get(id) ?? 0) + 1);
+  for (const row of found) for (const id of marks(row)) counts.set(id, (counts.get(id) ?? 0) + 1);
   const by = query.order === 'key' || query.order === '-key'
     ? (a: ArchiveRow, b: ArchiveRow) => a.title.localeCompare(b.title, 'pl')
     : (a: ArchiveRow, b: ArchiveRow) => (a.date || '0000').localeCompare(b.date || '0000') || a.title.localeCompare(b.title, 'pl');
@@ -114,10 +144,10 @@ export function browseLocal(rows: readonly ArchiveRow[], tree: TopicTree | null,
   return { rows: sorted, counts };
 }
 
-/** Zu welcher Achse ein gewählter Wert gehört — ein Projekt, sonst der Aspekt seines Themas. */
-export function facetKey(id: string, tree: TopicTree | null, projects: ReadonlySet<string>): string {
+/** Zu welcher Achse ein gewählter Wert gehört — ein Projekt, sonst die erste Achse, die ihn hat. */
+export function facetKey(id: string, facets: readonly Facet[], projects: ReadonlySet<string>): string {
   if (projects.has(id)) return PROJECTS;
-  return tree === null ? '' : facetOf(tree, id);
+  return facets.find((f) => f.values.some((v) => v.id === id))?.id ?? '';
 }
 
 /** Einen Wert wählen: je Achse einer — der neue ersetzt den alten derselben Achse; derselbe noch einmal nimmt ihn weg. */

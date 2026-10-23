@@ -26,7 +26,7 @@ import { WorkspaceError, type Who } from '../core/session';
 import { Loading } from '../ui/Loading';
 
 /** Das Feld, das beim schnellen Anlegen den getippten Namen bekommt. */
-const NAME_FIELD: Record<string, string> = { person: 'name', topic: 'name', work: 'title', project: 'title', text: 'title', quote: 'text' };
+const NAME_FIELD: Record<string, string> = { person: 'name', work: 'title', project: 'title', text: 'title', quote: 'text' };
 
 export function RefPicker({ store, kinds, value, multiple, busy, onChange, placeholder, only, makeWith, canMake = true }: {
   store: LibraryStore;

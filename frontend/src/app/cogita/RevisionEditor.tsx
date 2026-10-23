@@ -17,8 +17,7 @@ import { REVISION_PALETTE, MODE_LABEL } from './revision';
 import { REVISION_PRESETS } from './presets';
 import { planFor } from './RevisionRun';
 import { saveTask } from '../calendar/tasks';
-import { BOOK_KINDS } from './store';
-import { EntityPicker, ForeignOnly, kindLabel, useAsync, useBusy, useCtx } from './ui';
+import { ForeignOnly, kindLabel, useAsync, useBusy, useCtx } from './ui';
 import { askText } from '../ui/dialogs';
 
 export function RevisionEditor({ chosenId, onChoose, onRun }: { chosenId: string | null; onChoose: (id: string | null) => void; onRun: (id: string) => void }) {
@@ -34,7 +33,7 @@ export function RevisionEditor({ chosenId, onChoose, onRun }: { chosenId: string
         {writes && <NewRevision onMade={onChoose} />}
       </div>
       {entry === undefined
-        ? <p className="wk-hint">Powtórka wybiera karty (wszystkie, z rodzaju, zbioru, tematu albo listy), może je zawęzić i zablokować te, do których brakuje podstaw — i pyta wybranym sposobem.</p>
+        ? <p className="wk-hint">Powtórka wybiera karty (wszystkie, z rodzaju, zbioru albo listy), może je zawęzić i zablokować te, do których brakuje podstaw — i pyta wybranym sposobem.</p>
         : <ForeignOnly id={entry.id} tab="powtorki"><RevisionForm key={entry.id} id={entry.id} onRun={() => onRun(entry.id)} /></ForeignOnly>}
     </div>
   );
@@ -43,12 +42,12 @@ export function RevisionEditor({ chosenId, onChoose, onRun }: { chosenId: string
 function NewRevision({ onMade }: { onMade: (id: string) => void }) {
   const { lib } = useCtx();
   const [preset, setPreset] = useState('temporal');
-  const [from, setFrom] = useState<'all' | 'kind' | 'topic' | 'collection'>('all');
+  const [from, setFrom] = useState<'all' | 'kind' | 'collection'>('all');
   const [kind, setKind] = useState(lib.materialKinds[0]?.id ?? '');
   /* 2026-10-22 — „Rodzaj … z …": eine Art der Bibliotheken (Cytaty) aus einer bestimmten Bibliothek. */
   const [library, setLibrary] = useState('');
-  const books = lib.sourceList().filter((s) => s.kind === 'books');
-  const [topic, setTopic] = useState<string | null>(null);
+  /* 2026-10-23 — Bibliotheken und Skryptoria (ihre Texte, ihre Rodzaje tekstów). */
+  const books = lib.sourceList().filter((s) => s.kind === 'books' || s.kind === 'writing');
   const [collection, setCollection] = useState(lib.collections()[0]?.id ?? '');
   const { busy, failed, run } = useBusy();
   const p = REVISION_PRESETS.find((x) => x.id === preset)!;
@@ -62,23 +61,22 @@ function NewRevision({ onMade }: { onMade: (id: string) => void }) {
         <p className="wk-hint">{p.says}</p>
         <label className="wk-field"><span>Z czego</span>
           <select value={from} onChange={(e) => setFrom(e.target.value as typeof from)}>
-            <option value="all">wszystkie karty</option><option value="kind">rodzaj</option><option value="topic">temat z podtematami</option><option value="collection">zbiór</option>
+            <option value="all">wszystkie karty</option><option value="kind">rodzaj</option><option value="collection">zbiór</option>
           </select>
         </label>
         {from === 'kind' && <select value={kind} aria-label="Rodzaj" onChange={(e) => { setKind(e.target.value); setLibrary(''); }}>{lib.materialKinds.map((k) => <option key={k.id} value={k.id}>{kindLabel(k)}</option>)}</select>}
-        {from === 'kind' && BOOK_KINDS.has(kind) && books.length > 1 && (
+        {from === 'kind' && lib.isForeignKind(kind) && books.length > 1 && (
           <select value={library} aria-label="Z której biblioteki" onChange={(e) => setLibrary(e.target.value)}>
-            <option value="">ze wszystkich bibliotek</option>
+            <option value="">ze wszystkich źródeł</option>
             {books.map((s) => <option key={s.store.libraryId} value={s.store.libraryId}>{s.name}</option>)}
           </select>
         )}
-        {from === 'kind' && BOOK_KINDS.has(kind) && lib.templates().every((t) => !t.kinds.includes(kind)) && (
+        {from === 'kind' && lib.isForeignKind(kind) && lib.templates().every((t) => !t.kinds.includes(kind)) && (
           <p className="wk-warn">Z tego rodzaju nie powstają jeszcze karty — dodaj w „Karty” szablon dla niego (np. „Luki w cytacie”).</p>
         )}
-        {from === 'topic' && <EntityPicker lib={lib} kinds={['topic']} refs value={topic} onPick={setTopic} />}
         {from === 'collection' && <select value={collection} onChange={(e) => setCollection(e.target.value)}>{lib.collections().map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>}
         <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => {
-          const doc = p.make(from === 'kind' ? { kind, library } : from === 'topic' && topic !== null ? { topic } : from === 'collection' && collection !== '' ? { collection } : undefined);
+          const doc = p.make(from === 'kind' ? { kind, library } : from === 'collection' && collection !== '' ? { collection } : undefined);
           const made = await lib.saveDoc('revision', doc);
           onMade(made.id);
         })}>Utwórz</button>

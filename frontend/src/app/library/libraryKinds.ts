@@ -521,30 +521,10 @@ const PROJECT: LibKind = {
   }
 };
 
-/* -- ÜBERGANG (2026-10-23): das Thema, nur noch für Cogita ------------------------------------
- * Die Bibliothek bietet es nicht mehr an (weder Reiter noch Format); alte
- * Einträge stehen unter „Stare wpisy". Cogita baut daraus noch eine eingebaute
- * Art — sie fällt in Schritt 5 ganz weg, dann geht sie auch hier. Den
- * Komentarz gibt es seit Schritt 4 nicht mehr: er ist ein eigener Rodzaj in
- * Nauka mit einem Feld `blocks` (`templates/cogita/komentarz.json`). */
-
-const TOPIC: LibKind = {
-  kind: 'topic',
-  label: 'Temat',
-  plural: 'Tematy',
-  says: 'Hasło, według którego porządkuje się wpisy; tematy mogą mieć nadrzędne.',
-  keyed: true,
-  fields: [
-    { key: 'name', label: 'Nazwa', type: 'line', says: 'Nazwa tematu' },
-    { key: 'description', label: 'Opis', type: 'text', says: 'Opis tematu' },
-    { key: 'parent', label: 'Temat nadrzędny', type: 'ref', to: ['topic'], says: 'Temat nadrzędny — odwołanie' },
-    { key: 'aspect', label: 'Aspekt', type: 'select', options: [{ value: 'yes', label: 'Tak — oś podziału' }], says: '"yes" — ten temat jest osią podziału: jego podtematy to wartości' },
-    { key: 'order', label: 'Kolejność', type: 'number', says: 'Miejsce wśród tematów o tym samym nadrzędnym', hint: 'np. 1' }
-  ],
-  title: (data) => str(data, 'name').trim() || 'Temat',
-  sort: (entry) => str(entry.data, 'name').toLowerCase(),
-  example: { key: 'modlitwa', data: { name: 'Modlitwa', description: 'Rozmowa z Bogiem.' } }
-};
+/* 2026-10-23 (Schritt 5) — KEINE THEMEN MEHR, nirgends: Ordnung geben eigene Rodzaje in Nauka
+ * („Tajemnica", „Obszar"), verbunden über Verweisfelder. Alte Einträge der Art `topic` stehen
+ * unter „Stare wpisy" (Bibliothek, Skryptorium, Nauka). Den Komentarz gibt es seit Schritt 4
+ * nicht mehr: er ist ein eigener Rodzaj in Nauka mit einem Feld `blocks`. */
 
 /* -- Rodzaje tekstów (2026-10-23): eigene Felder eines Textes ------------------------------------
  * Ein Rodzaj tekstu (Art `texttype`) gehört dem Besitzer des Skryptorium: ein Name und die
@@ -590,11 +570,8 @@ export const LIBRARY_KINDS: readonly LibKind[] = [WORK, QUOTE, PERSON];
 /** Das Skryptorium (2026-10-23): das Schreiben — Texte, Wygłoszenia, Projekte und die eigenen Rodzaje tekstów. */
 export const WRITING_KINDS: readonly LibKind[] = [TEXT, DELIVERY, PROJECT, TEXT_TYPE];
 
-/** Nur für Cogita, bis Schritt 5 (oben). */
-export const COGITA_LEGACY_KINDS: readonly LibKind[] = [TOPIC];
-
 /** Alle Arten, die diese Fassung kennt — gelesen, zitiert und gezeigt wird über die Teile hinweg. */
-export const KINDS: readonly LibKind[] = [...WRITING_KINDS, ...LIBRARY_KINDS, ...COGITA_LEGACY_KINDS];
+export const KINDS: readonly LibKind[] = [...WRITING_KINDS, ...LIBRARY_KINDS];
 
 export const isLibraryKind = (kind: string): boolean => LIBRARY_KINDS.some((k) => k.kind === kind);
 export const isWritingKind = (kind: string): boolean => WRITING_KINDS.some((k) => k.kind === kind);

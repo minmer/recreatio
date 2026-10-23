@@ -433,7 +433,7 @@ export function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
     }
     case 'entity':
       /* 2026-10-23 — „@blocks" steht für die Rodzaje mit Feld blocks dieser Baza (Aussagen). */
-      return <div className="wk-field">{label}<EntityPicker lib={lib} kinds={resolveKinds(field.kinds, lib.refKinds)} refs={field.kinds?.some((k) => BOOK_KINDS.has(k) || k === 'topic') === true} value={typeof value === 'string' && value !== '' ? value : null} onPick={(id) => onSet(id ?? undefined)} /></div>;
+      return <div className="wk-field">{label}<EntityPicker lib={lib} kinds={resolveKinds(field.kinds, lib.refKinds)} refs={field.kinds?.some((k) => BOOK_KINDS.has(k)) === true} value={typeof value === 'string' && value !== '' ? value : null} onPick={(id) => onSet(id ?? undefined)} /></div>;
     case 'collection':
       return (
         <label className="wk-field">{label}

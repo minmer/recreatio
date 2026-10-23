@@ -8,17 +8,20 @@
  *   { name, mode: "table" | "tree" | "canvas" | "matrix" | "map",
  *     steps: [{ type: "source.kind", config: { kind } }, { type: "follow", config: { field, back } },
  *             { type: "filter.rule", config: { rule } }],
- *     query, group: { by: "kind" | "field" | "topic", field?, axis? },
- *     columns: [klucze pól | "#axis:<temat>"], sort: { key, dir }, positions: { id: { x, y } },
+ *     query, group: { by: "kind" } | { by: "field", field } | { by: "axis", kind, via, through?, sort?, group? },
+ *     columns: [klucze pól | "#axis:<rodzaj>"], sort: { key, dir }, positions: { id: { x, y } },
  *     matrix: { rows: grupowanie, cols: grupowanie } }
  * </code>
  *
  * 2026-10-22 (Schritt 10) — <b>Macierz</b>: Zeilen und Spalten sind zwei
- * Gruppierungen (meist zwei Achsen von Tematy: 20 Tajemnice × 12 …), ein Feld
- * hält, was zu beiden gehört. <b>Mapa</b>: die Einträge im Nebel des Lernens
- * (aus „Mapa wiedzy"). Eine Spalte kann eine Achse sein (`#axis:<id>`): ihre
- * Werte, zu denen der Eintrag gehört. Und ein Widok wird eine Powtórka
- * (`viewToRevision`) — dieselben Schritte als Knoten.
+ * Gruppierungen, ein Feld hält, was zu beiden gehört. 2026-10-23 (Schritt 5):
+ * eine Achse ist ein RODZAJ (`selection.ts`, `Axis`) — 20 Tajemnice × 12
+ * Obszary, nach einem Feld geordnet, unter Überschriften (część, grupa); ein
+ * Eintrag gehört zu einem Wert, wenn er über ein Verweisfeld auf ihn zeigt
+ * (direkt oder über einen Schritt). Themen gibt es nicht mehr. <b>Mapa</b>:
+ * die Einträge im Nebel des Lernens (aus „Mapa wiedzy"). Eine Spalte kann eine
+ * Achse sein (`#axis:<rodzaj>`): die Werte, auf die der Eintrag zeigt. Und ein
+ * Widok wird eine Powtórka (`viewToRevision`) — dieselben Schritte als Knoten.
  *
  * Gezeigt wird er in „Wpisy" (`EntityList.tsx`) und auf einer Seite (der
  * Baustein „Widok", `pages/parts/view.tsx`). Die alte Gestalt (bis Schritt 9:
@@ -27,9 +30,9 @@
  */
 
 import { readGraph, type Graph } from './graph';
-import { fieldsOf, fieldText, labelOf, valuesOf, type Entity, type FieldDef, type Lookup } from './schema';
+import { fieldsOf, fieldText, labelOf, valuesOf, type Entity, type FieldDef, type KindDef, type Lookup } from './schema';
 import {
-  childTopics, groupsOf, readGrouping, readRule, readSteps, runSteps, isSource,
+  axisMembers, groupsOf, readGrouping, readRule, readSteps, runSteps, isSource, wasTopicGrouping, RETIRED_STEP, RETIRED_TOPIC,
   type Group, type Grouping, type RuleGroup, type SelectContext, type Step
 } from './selection';
 
@@ -51,6 +54,8 @@ export interface ViewDoc {
   readonly sort: { readonly key: string; readonly dir: 1 | -1 } | null;
   readonly positions: Readonly<Record<string, { x: number; y: number }>>;
   readonly matrix: MatrixDef | null;
+  /** 2026-10-23 (Schritt 5) — was dieser Widok nach Tematy tat und nicht mehr tut: Hinweise für den Autor und die Seite. */
+  readonly retired: readonly string[];
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -72,6 +77,12 @@ export function readView(raw: unknown): ViewDoc {
     ];
   }
   if (steps.length === 0 || !isSource(steps[0].type)) steps = [{ type: 'source.all', config: {} }, ...steps];
+  const matrixRaw = isObject(d.matrix) ? d.matrix : {};
+  const retired = [
+    ...(steps.some((st) => st.config[RETIRED_STEP] === 'source.topic') ? [RETIRED_TOPIC] : []),
+    ...(wasTopicGrouping(d.group) ? ['Drzewo grupowało według tematów — tematów już nie ma. Wybierz oś (rodzaj) albo pole.'] : []),
+    ...(wasTopicGrouping(matrixRaw.rows) || wasTopicGrouping(matrixRaw.cols) ? ['Macierz miała osie z tematów — tematów już nie ma. Wybierz osie: rodzaje (np. Tajemnica × Obszar).'] : [])
+  ];
   return {
     name: typeof d.name === 'string' ? d.name : 'Widok',
     mode: d.mode === 'tree' || d.mode === 'canvas' || d.mode === 'matrix' || d.mode === 'map' ? d.mode : 'table',
@@ -81,7 +92,8 @@ export function readView(raw: unknown): ViewDoc {
     columns: Array.isArray(d.columns) ? d.columns.filter((c): c is string => typeof c === 'string') : [],
     sort,
     positions,
-    matrix: readMatrix(d.matrix)
+    matrix: readMatrix(d.matrix),
+    retired
   };
 }
 
@@ -106,7 +118,7 @@ export function viewJson(view: ViewDoc): Record<string, unknown> {
   };
 }
 
-/** Die schnelle Wahl „Rodzaj": `''` alles, eine Art — oder `null`: die Quelle ist eine andere (Zbiór, Temat, Lista). */
+/** Die schnelle Wahl „Rodzaj": `''` alles, eine Art — oder `null`: die Quelle ist eine andere (Zbiór, Lista, Z wpisu). */
 export function sourceKind(view: ViewDoc): string | null {
   const first = view.steps[0];
   if (first === undefined || first.type === 'source.all') return '';
@@ -136,7 +148,9 @@ export interface ViewLib {
   selectContext(): SelectContext;
   search(query: string): Entity[];
   label(entity: Entity): string;
-  topics(): readonly Entity[];
+  /** 2026-10-23 — die Rodzaje mit ihren Einträgen (auch der Quellen): die möglichen Achsen. */
+  readonly materialKinds: readonly KindDef[];
+  material(kindId: string): readonly Entity[];
   readonly look: Lookup;
 }
 
@@ -174,7 +188,7 @@ export function viewList(lib: ViewLib, view: ViewDoc): Entity[] {
 
 /** Die Gruppen eines Widoku (Drzewo) — nach dem, was der Widok sagt; ohne Gruppen: nach Rodzaj. */
 export function viewGroups(lib: ViewLib, view: ViewDoc, list: readonly Entity[]): Group[] {
-  return groupsOf(lib.selectContext(), list.map((e) => e.id), view.group ?? { by: 'kind' }, lib.topics());
+  return groupsOf(lib.selectContext(), list.map((e) => e.id), view.group ?? { by: 'kind' });
 }
 
 export interface ViewColumn {
@@ -184,12 +198,14 @@ export interface ViewColumn {
 
 export const AXIS_COLUMN = '#axis:';
 
-/** Was in einer Zelle steht: ein Feld in Worten — oder die Werte einer Achse, zu denen der Eintrag gehört. */
+/** Was in einer Zelle steht: ein Feld in Worten — oder die Werte einer Achse (eines Rodzaj), auf die der Eintrag zeigt. */
 export function cellText(lib: ViewLib, e: Entity, key: string): string {
   if (key === '_label') return lib.label(e);
   if (key.startsWith(AXIS_COLUMN)) {
     const ctx = lib.selectContext();
-    return childTopics(ctx, lib.topics(), key.slice(AXIS_COLUMN.length)).filter((v) => ctx.topic(v.id, 9).has(e.id)).map((v) => labelOf(v, lib.look)).join(', ');
+    const kind = key.slice(AXIS_COLUMN.length);
+    const values = new Set(lib.material(kind).map((v) => v.id));
+    return axisMembers(ctx, e, { kind, via: [] }, values).map((id) => { const v = ctx.entity(id); return v === undefined ? '' : labelOf(v, lib.look); }).filter(Boolean).join(', ');
   }
   const f = fieldsOf(e, lib.look).find((x) => x.key === key);
   return f === undefined ? '' : fieldText(e, f, lib.look);
@@ -202,8 +218,8 @@ export function viewColumns(lib: ViewLib, view: ViewDoc, list: readonly Entity[]
   if (view.columns.length > 0) {
     return view.columns.flatMap((key): ViewColumn[] => {
       if (key.startsWith(AXIS_COLUMN)) {
-        const axis = lib.selectContext().entity(key.slice(AXIS_COLUMN.length));
-        return axis === undefined ? [] : [{ key, label: labelOf(axis, lib.look) }];
+        const kind = lib.materialKinds.find((k) => k.id === key.slice(AXIS_COLUMN.length));
+        return kind === undefined ? [] : [{ key, label: kind.name }];
       }
       const f = fields.get(key);
       return f === undefined ? [] : [{ key, label: f.label }];
@@ -233,8 +249,8 @@ export function viewMatrix(lib: ViewLib, view: ViewDoc, list: readonly Entity[])
   if (view.matrix === null) return null;
   const ctx = lib.selectContext();
   const ids = list.map((e) => e.id);
-  const rows = groupsOf(ctx, ids, view.matrix.rows, lib.topics(), { all: true });
-  const cols = groupsOf(ctx, ids, view.matrix.cols, lib.topics(), { all: true });
+  const rows = groupsOf(ctx, ids, view.matrix.rows, { all: true });
+  const cols = groupsOf(ctx, ids, view.matrix.cols, { all: true });
   const colSets = new Map(cols.map((c) => [c.key, new Set(c.ids)]));
   const cells = new Map<string, string[]>();
   for (const r of rows) for (const c of cols) cells.set(cellKey(r.key, c.key), r.ids.filter((id) => colSets.get(c.key)!.has(id)));
@@ -298,12 +314,7 @@ export function stepsOfRevision(raw: unknown): Step[] {
   return [...(sources.length === 0 ? [{ type: 'source.all' as const, config: {} }] : sources), ...chain];
 }
 
-/** Achsen zum Gruppieren: Tematy-Aspekte (`aspect: "yes"`) — sonst oberste Themen mit Unterthemen. */
-export function axesOf(lib: ViewLib): Entity[] {
-  const topics = lib.topics();
-  const aspects = topics.filter((t) => t.data.aspect === 'yes');
-  if (aspects.length > 0) return aspects;
-  const parents = new Set<string>();
-  for (const t of topics) for (const f of fieldsOf(t, lib.look)) if (f.key === 'parent') for (const v of valuesOf(t, f)) if (typeof v.value === 'string') parents.add(v.value);
-  return topics.filter((t) => parents.has(t.id) && !fieldsOf(t, lib.look).some((f) => f.key === 'parent' && valuesOf(t, f).length > 0));
+/** 2026-10-23 (Schritt 5) — die Rodzaje, die eine Achse sein können: die mit Einträgen (eigene und der Quellen), ohne Pytanie. */
+export function axesOf(lib: ViewLib): KindDef[] {
+  return lib.materialKinds.filter((k) => k.id !== 'question' && lib.material(k.id).length > 0);
 }

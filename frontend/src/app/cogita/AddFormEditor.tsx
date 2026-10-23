@@ -771,7 +771,7 @@ function PickPanel({ form, node, readOnly, onConfig }: {
           )}
         </span>
       </div>
-      <label className="pe-check"><input type="checkbox" checked={c.many} disabled={readOnly} onChange={(e) => onConfig({ many: e.target.checked })} /><span>Kilka wpisów (np. kilka tematów)</span></label>
+      <label className="pe-check"><input type="checkbox" checked={c.many} disabled={readOnly} onChange={(e) => onConfig({ many: e.target.checked })} /><span>Kilka wpisów (np. kilka słów)</span></label>
       <label className="pe-check"><input type="checkbox" checked={c.optional} disabled={readOnly} onChange={(e) => onConfig({ optional: e.target.checked })} /><span>Można zostawić puste</span></label>
       <div className="wk-field">
         <span>Wybrane od razu</span>

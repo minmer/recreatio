@@ -1,8 +1,13 @@
 /**
- * COGITA — DIE KARTE ZUM ENTDECKEN (COGITA.md §12, [K5]): Themen und Einträge
- * als Landschaft — was sitzt, ist hell; was nachlässt, verblasst; die Grenze
- * zum Unbekannten lässt sich betreten; der Rest liegt im Nebel. Schwellen
- * sieht man immer. Ein Klick auf die Grenze: lernen, was dort liegt.
+ * COGITA — DIE KARTE ZUM ENTDECKEN (COGITA.md §12, [K5]): Einträge als
+ * Landschaft — was sitzt, ist hell; was nachlässt, verblasst; die Grenze zum
+ * Unbekannten lässt sich betreten; der Rest liegt im Nebel. Schwellen sieht
+ * man immer. Ein Klick auf die Grenze: lernen, was dort liegt.
+ *
+ * 2026-10-23 (Schritt 5) — ohne Themen: die Einträge der gewählten Rodzaje
+ * (oder aller eigenen) mit dem, worauf ihre Verweisfelder zeigen, und die
+ * bestätigten Abhängigkeiten. Das Ziel eines Verweises liegt näher an der
+ * Wurzel (die Część vor ihren Tajemnice).
  */
 
 import { useMemo, useState } from 'react';
@@ -22,22 +27,25 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
   const look = lib.look;
   const [chosen, setChosen] = useState<string | null>(null);
   const [learning, setLearning] = useState<string | null>(null);
+  const [kindId, setKindId] = useState('');
+  const kinds = lib.kinds.filter((k) => k.id !== 'question' && lib.ofKind(k.id).length > 0);
 
   const { nodes, edges, place } = useMemo(() => {
-    /* 2026-10-22 — die Themen aus allen Quellen (ein Themensystem). */
-    const topics = lib.topics();
-    const ids = new Set<string>(topics.map((t) => t.id));
+    const chosenKinds = kindId === '' ? kinds : kinds.filter((k) => k.id === kindId);
+    const base = chosenKinds.flatMap((k) => lib.ofKind(k.id)).slice(0, 300);
+    const ids = new Set<string>(base.map((e) => e.id));
     const links: { from: string; to: string }[] = [];
-    for (const t of topics) {
-      for (const f of fieldsOf(t, look)) {
-        if (f.type !== 'ref' || !['parent', 'answers', 'entity'].includes(f.key)) continue;
-        for (const v of valuesOf(t, f)) {
-          if (typeof v.value !== 'string' || lib.entity(v.value) === undefined) continue;
+    for (const e of base) {
+      for (const f of fieldsOf(e, look)) {
+        if (f.type !== 'ref') continue;
+        for (const v of valuesOf(e, f)) {
+          if (typeof v.value !== 'string' || v.value === e.id || lib.entity(v.value) === undefined) continue;
           ids.add(v.value);
-          links.push(f.key === 'parent' ? { from: v.value, to: t.id } : { from: t.id, to: v.value });
+          links.push({ from: v.value, to: e.id });
         }
       }
     }
+    for (const d of lib.dependencies()) if (ids.has(d.parent) && ids.has(d.child)) links.push({ from: d.parent, to: d.child });
     if (ids.size === 0) for (const e of lib.entities().slice(0, 120)) ids.add(e.id);
     const list = [...ids].slice(0, 300).map((id) => {
       const e = lib.entity(id)!;
@@ -46,7 +54,8 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
     });
     /* Ringe nach der Tiefe von den Wurzeln her — ohne gespeicherte Plätze. */
     return { nodes: list, edges: links, place: ringsOf(list.map((n) => n.id), links) };
-  }, [lib, look, lib.revision]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lib, look, lib.revision, kindId]);
 
   const knowness = (id: string) => {
     const of = cards.filter((c) => c.entity === id);
@@ -72,6 +81,14 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
   return (
     <div className="cg">
       <p className="wk-hint">Jasne — umiesz; bladnie — zaciera się; przerywana obwódka — granica, którą możesz przekroczyć; mgła — jeszcze nieodkryte.</p>
+      {kinds.length > 1 && (
+        <label className="wk-field"><span>Na mapie</span>
+          <select value={kindId} onChange={(e) => { setKindId(e.target.value); setChosen(null); }}>
+            <option value="">wszystkie rodzaje</option>
+            {kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
+          </select>
+        </label>
+      )}
       <div className="cg-explore">
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
           {edges.map((e, i) => {

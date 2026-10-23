@@ -1,21 +1,24 @@
 /**
  * COGITA — DO ZROBIENIA, gemeinsam für alle Autoren (COGITA.md §3, [C5–C7,
- * D12, K4]): offene Themen, Wissen, dessen Eintrag sich seither geändert hat,
- * Karten, die Lernende gemeldet haben, und Zahlen ohne Namen („tu wielu się
- * myli"). Dazu die parallelen Fragen: ein Muster für jeden Eintrag einer Menge,
- * je einzeln bestätigt.
+ * D12, K4]): offene Fragen, Aussagen ohne gute Teza, Aussagen, deren Ziele
+ * sich seither geändert haben, Karten, die Lernende gemeldet haben, und Zahlen
+ * ohne Namen („tu wielu się myli"). Dazu die parallelen Fragen: ein Muster für
+ * jeden Eintrag einer Menge, je einzeln bestätigt.
+ *
+ * 2026-10-23 (Schritt 5) — ohne Themen: „Tematy do rozwinięcia" ist fort (offene
+ * Fragen sind Aussagen, deren Teza mit „?" endet — „Pytania bez odpowiedzi");
+ * eine parallele Frage wird eine solche Aussage, kein Thema.
  */
 
 import { useMemo, useState } from 'react';
 
 import { loadIntake, openIntakeKey } from '../forms/intake';
 import { loadReports, type Report } from './learn';
-import { fieldsOf, valuesOf } from './schema';
 import { linkedOf } from './store';
 import { EntityPicker, entityName, originPath, useAsync, useBusy, useCtx } from './ui';
 import { blockMarkups, blockRefs, isQuestion, thesisProblem, THESIS_LIMIT } from '../library/blocks';
 import { citedKeys } from '../library/libraryMarkup';
-import { blocksField, entityAbout, entityBlocks } from './statements';
+import { blocksField, entityAbout, entityBlocks, isStatementKind } from './statements';
 import { Loading } from '../ui/Loading';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -24,17 +27,11 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
   const { lib, me, writes } = useCtx();
   const look = lib.look;
 
-  /* 0110 — was offen ist, in DIESER Baza wiedzy; was eine Quelle offen hat, ist dort zu tun. */
-  /* 2026-10-22 (Schritt 7) — Themen aus allen Quellen: als offen markierte; dazu eigene, auf die nichts zeigt. */
-  const open = lib.topics().filter((t) => {
-    const f = fieldsOf(t, look);
-    const flag = f.find((x) => x.key === 'open');
-    const answers = f.find((x) => x.key === 'answers');
-    return (flag !== undefined && valuesOf(t, flag)[0]?.value === true)
-      || (lib.isOwn(t.id) && (answers === undefined || valuesOf(t, answers).length === 0) && lib.taggedWith(t.id).size === 0);
-  });
-
-  const stale = lib.ofKind('topic').filter((e) => lib.isOwn(e.id)).filter((e) => {
+  /*
+    0110 — was offen ist, in DIESER Baza wiedzy; was eine Quelle offen hat, ist dort zu tun.
+    2026-10-23 — zu prüfen: eigene Aussagen, deren Ziele (Zellen, Zapis, Verweisfelder) sich geändert haben, seit ein Autor nachsah.
+  */
+  const stale = lib.entities().filter((e) => lib.isOwn(e.id) && blocksField(e, look) !== undefined).filter((e) => {
     const entry = lib.entry(e.id);
     const checked = isObject(entry?.data._checked) ? entry!.data._checked as Record<string, string> : {};
     return linkedOf(e, look).some((token) => {
@@ -83,10 +80,6 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
   return (
     <div className="cg">
       <section className="cg-card">
-        <h3>Tematy do rozwinięcia ({open.length})</h3>
-        {open.length === 0 ? <span className="wk-hint">Nic otwartego.</span> : <ul>{open.slice(0, 60).map((t) => <li key={t.id}><button type="button" className="cg-ref" onClick={() => onOpen(t.id)}>{lib.label(t)}</button></li>)}</ul>}
-      </section>
-      <section className="cg-card">
         <h3>Pytania bez odpowiedzi ({openQuestions.length})</h3>
         {openQuestions.length === 0 ? <span className="cg-muted">Na każde pytanie odpowiada jakaś wypowiedź.</span>
           : <ul>{openQuestions.slice(0, 60).map((e) => <li key={e.id}><a className="cg-ref" href={pathOf(e.id)}>{lib.label(e).slice(0, 160)}</a></li>)}</ul>}
@@ -102,7 +95,7 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
           ))}</ul>}
       </section>
       <section className="cg-card">
-        <h3>Do sprawdzenia — wpis zmienił się od ostatniego razu ({stale.length})</h3>
+        <h3>Do sprawdzenia — coś, na co wskazuje wypowiedź, zmieniło się ({stale.length})</h3>
         {stale.length === 0 ? <span className="wk-hint">Wszystko aktualne.</span> : <ul>{stale.slice(0, 60).map((e) => <li key={e.id}><button type="button" className="cg-ref" onClick={() => onOpen(e.id)}>{lib.label(e).slice(0, 120)}</button></li>)}</ul>}
       </section>
       {writes && (
@@ -130,9 +123,17 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
   );
 }
 
-/** Parallele Fragen [C5]: „Jak Dawid jest pokazany w rozdziale 16, 17, 19?" — je Eintrag eine, der Autor bestätigt. */
+/**
+ * Parallele Fragen [C5]: „Jak Dawid jest pokazany w rozdziale 16, 17, 19?" — je
+ * Eintrag eine, der Autor bestätigt. 2026-10-23: jede wird eine Aussage eines
+ * Rodzaj mit Feld `blocks` (ihre Teza ist die Frage), die über ihr erstes
+ * Verweisfeld auf den Eintrag (und „{t}") zeigt.
+ */
 function Parallel() {
   const { lib } = useCtx();
+  const statementKinds = lib.kinds.filter(isStatementKind);
+  const [into, setInto] = useState(statementKinds[0]?.id ?? '');
+  const statementKind = statementKinds.find((k) => k.id === into) ?? statementKinds[0];
   const [pattern, setPattern] = useState('Jak {e} jest pokazany w {t}?');
   const [kind, setKind] = useState(lib.kinds.find((k) => lib.ofKind(k.id).length > 0)?.id ?? 'person');
   const [about, setAbout] = useState<string | null>(null);
@@ -143,7 +144,14 @@ function Parallel() {
   return (
     <section className="cg-card">
       <h3>Pytania równoległe</h3>
-      <p className="wk-hint">Jeden wzór dla każdego wpisu rodzaju — zaznacz, które tematy mają powstać.</p>
+      <p className="wk-hint">Jeden wzór dla każdego wpisu rodzaju — zaznacz, które pytania mają powstać. Każde staje się wypowiedzią z pytaniem jako tezą (otwartą, dopóki nic na nią nie odpowie).</p>
+      {statementKind === undefined
+        ? <p className="wk-warn">Najpierw dodaj rodzaj z polem „Treść w blokach” (np. zaimportuj templates/cogita/komentarz.json).</p>
+        : statementKinds.length > 1 && (
+          <label className="wk-field"><span>Jako</span>
+            <select value={statementKind.id} onChange={(e) => setInto(e.target.value)}>{statementKinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
+          </label>
+        )}
       <div className="cg-row">
         <input value={pattern} onChange={(e) => setPattern(e.target.value)} aria-label="Wzór" />
         <select value={kind} onChange={(e) => setKind(e.target.value)}>{lib.kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
@@ -154,13 +162,19 @@ function Parallel() {
           <li key={p.id}><label className="pe-check"><input type="checkbox" checked={chosen.has(p.id)} onChange={(e) => setChosen((was) => { const n = new Set(was); if (e.target.checked) n.add(p.id); else n.delete(p.id); return n; })} /><span>{p.text}</span></label></li>
         ))}
       </ul>
-      <button type="button" className="wk-btn" disabled={busy || chosen.size === 0} onClick={() => void run(async () => {
+      <button type="button" className="wk-btn" disabled={busy || chosen.size === 0 || statementKind === undefined} onClick={() => void run(async () => {
+        if (statementKind === undefined) return;
+        const blocks = statementKind.fields.find((f) => f.type === 'blocks');
+        const refField = statementKind.fields.find((f) => f.type === 'ref');
         for (const p of proposals.filter((x) => chosen.has(x.id))) {
-          /* Ein Thema darüber nur, wenn „{t}" selbst ein Thema ist — das Feld „parent" zeigt auf Themen. */
-          await lib.saveEntity({ kinds: ['topic'], data: { name: p.text, entity: p.id, open: true, ...(target?.kinds.includes('topic') === true ? { parent: target.id } : {}) } });
+          const about = [p.id, ...(target === undefined ? [] : [target.id])];
+          await lib.saveEntity({ kinds: [statementKind.id], data: {
+            ...(blocks === undefined ? {} : { [blocks.key]: [{ type: 'paragraph', text: p.text }] }),
+            ...(refField === undefined ? {} : { [refField.key]: refField.multi ? about : about[0] })
+          } });
         }
         setChosen(new Set());
-      })}>Utwórz zaznaczone tematy</button>
+      })}>Utwórz zaznaczone pytania</button>
       {failed !== null && <p className="wk-error">{failed}</p>}
     </section>
   );
