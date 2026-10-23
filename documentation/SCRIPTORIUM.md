@@ -153,6 +153,10 @@ them through `writing` and `writings`. Short layout copy (headlines, notices, ho
 - `scriptoriumDescription()` (Polish) describes all four kinds, text types with a worked example ("Kazanie maryjne"
   with Tajemnica, Obszar and a Scripture place), the markup and Scripture places. Every JSON panel of the Scriptorium
   shows it.
+- **Read by an AI** (0126): the area's AI link (area → Dostęp → "Dostęp dla AI") can include the Scriptorium; the
+  assistant then searches the texts, deliveries, projects and text types and reads each with its references
+  (LIBRARY.md → "An AI reads the three parts"). A text's text type is its second kind there, and the type's fields
+  are described like any kind's.
 
 ## Files
 

@@ -79,6 +79,7 @@ export { palette, PARTS } from '${app}pages/parts/registry';
 export { textToLatex, planToLatex } from '${app}scriptorium/latex';
 export { archiveRow, browseLocal, choose, facetKey, facetsOf, fieldFacet, PROJECTS } from '${app}scriptorium/archive';
 export { layoutOf } from '${app}scriptorium/archiveLayout';
+export { snapshotDoc, refsOf as snapshotRefs, gzip, SNAPSHOT_VERSION } from '${app}aiAccess/aiSnapshot';
 export { renderToStaticMarkup } from 'react-dom/server';
 export { createElement } from 'react';
 `);
@@ -997,6 +998,55 @@ try {
     assert.deepEqual(m.archiveRow({ ...sermon, data: { ...sermon.data, temat: 'o-tajne' } }, L).marks.map((x) => x.id), ['o-adwent1'], 'a target this reader cannot open is no filter value — nothing about it shows');
     assert.deepEqual(['Tabela', 'drzewo', 'list', ''].map(m.layoutOf), ['table', 'tree', 'list', 'list']);
     ok('sermons: plan (depth, numbers, paste), times and links, the text type’s fields as archive axes, marks on the plan, LaTeX, prompts, JSON into the form, archive rows, filters and counts');
+  }
+
+  /* -- 2j. Dostęp dla AI (0126): die Abschrift eines Behälters — lesbar, und nur innerhalb des Links ------- */
+  {
+    const store = (libraryId, entries) => ({ libraryId, areaId: 'area', revision: 1, all: () => entries, get: (id) => entries.find((e) => e.id === id), byKey: (k) => entries.find((e) => e.key === k) });
+    const U = (n) => `01a00000-0000-7000-8000-${String(n).padStart(12, '0')}`;
+    const person = { id: U(1), kind: 'person', key: 'augustyn', data: { givenNames: 'Aureliusz', surname: 'Augustyn' }, updatedAt: '2026-10-24T10:00:00Z' };
+    const work = { id: U(2), kind: 'work', key: 'wyznania', data: { title: 'Wyznania', authors: [U(1)] } };
+    const quote = { id: U(3), kind: 'quote', key: 'niespokojne', data: { text: 'Niespokojne jest serce nasze.', work: U(2), locator: 'I,1' } };
+    const oldTopic = { id: U(4), kind: 'topic', data: { name: 'Stary temat' } };
+    const pojecie = { id: U(10), kind: 'kind', data: { name: 'Pojęcie', label: '{nazwa}', fields: [{ key: 'nazwa', label: 'Nazwa', type: 'line' }, { key: 'zrodlo', label: 'Źródło', type: 'ref', to: ['work'], says: 'Skąd to wiemy' }] } };
+    const laska = { id: U(11), kind: 'entity', data: { _kinds: [U(10)], nazwa: 'Łaska', zrodlo: U(2) } };
+    const view = { id: U(12), kind: 'view', data: { name: 'Widok' } };
+    const type = { id: U(20), kind: 'texttype', key: 'kazanie', data: { name: 'Kazanie', fields: [{ key: 'pojecie', label: 'Pojęcie', type: 'ref', to: [U(10)] }] } };
+    const sermon = { id: U(21), kind: 'text', key: 'chleb', data: { title: 'O chlebie', textType: U(20), body: `Serce [@${U(3)}, s. 3], obok [@${U(99)}] i [[słowa|@${U(11)}]].`, pojecie: U(11), _aliases: ['stary'] } };
+    const parts = [
+      { store: store('L', [person, work, quote, oldTopic]), kind: 'books', name: 'Źródła' },
+      { store: store('S', [type, sermon]), kind: 'writing', name: 'Kazania' },
+      { store: store('K', [pojecie, laska, view]), kind: 'knowledge', name: 'Pojęcia' }
+    ];
+    const lib = m.snapshotDoc(parts, 'L', '2026-10-24T12:00:00Z');
+    assert.deepEqual([lib.v, lib.library, lib.part, lib.name, lib.madeAt], [m.SNAPSHOT_VERSION, 'L', 'books', 'Źródła', '2026-10-24T12:00:00Z']);
+    assert.deepEqual(lib.entries.map((e) => [e.kind, e.kindName, e.title, e.key]), [['person', 'Osoba', 'Aureliusz Augustyn', 'augustyn'], ['work', 'Źródło', 'Wyznania', 'wyznania'], ['quote', 'Cytat', 'Niespokojne jest serce nasze.', 'niespokojne']],
+      'library: sources only, titles and kind names as the app shows them; an old kind stays under „Stare wpisy", not here');
+    assert.deepEqual([lib.entries[0].updatedAt, lib.entries[2].refs], ['2026-10-24T10:00:00Z', [U(2)]], 'when it changed; what it points at');
+    assert.deepEqual(lib.kinds.map((k) => k.id), ['work', 'quote', 'person'], 'the kinds in use, with every field described');
+    assert.ok(lib.kinds.every((k) => k.fields.every((f) => typeof f.says === 'string' && f.says.length > 3)) && lib.notes.includes('Ps 23') && !lib.notes.includes('## Zapis treści'), 'notes for a library: how it is cited and the places in the Scripture (BIBLE_DOC) — the markup of texts is the Scriptorium’s');
+
+    const scr = m.snapshotDoc(parts, 'S', 'now');
+    const text = scr.entries.find((e) => e.id === U(21));
+    assert.deepEqual([text.kinds, text.typeName, text.refs], [['text', U(20)], 'Kazanie', [U(20), U(3), U(11)]], 'a text carries its text type as a second kind; refs inside the link (also into a base)');
+    assert.equal(text.data.body, `Serce [@niespokojne, s. 3], obok [@${U(99)}] i [[słowa|@${U(11)}]].`, 'markup shows keys where they find the entry again — outside the link a bare id');
+    assert.ok(!('_aliases' in text.data), 'internal fields (_…) are left out');
+    assert.ok(scr.kinds.some((k) => k.id === U(20) && k.name === 'Kazanie' && k.fields.some((f) => f.key === 'pojecie')) && scr.notes.includes('[@klucz, s. 23]'), 'the text type is a kind; the notes explain the markup (MARKUP_DOC)');
+
+    const base = m.snapshotDoc(parts, 'K', 'now');
+    assert.deepEqual(base.entries.map((e) => [e.title, e.kindName, e.refs]), [['Łaska', 'Pojęcie', [U(2)]]], 'a base: its own entries (no views or other tools), labels from Nauka, references resolved');
+    assert.deepEqual(base.kinds.map((k) => [k.name, k.fields.map((f) => f.key)]), [['Pojęcie', ['nazwa', 'zrodlo']]], 'its kinds with their fields');
+    assert.equal(base.kinds[0].fields[1].says, 'Skąd to wiemy');
+
+    /* The same Scriptorium in a link without the library and the base: nothing of them shows. */
+    const alone = m.snapshotDoc([parts[1]], 'S', 'now').entries.find((e) => e.id === U(21));
+    assert.deepEqual([alone.refs, alone.data.body.includes('niespokojne')], [[U(20)], false], 'what the link does not hold is never resolved — no title, no key');
+    assert.throws(() => m.snapshotDoc([parts[1]], 'L', 'now'), /nie należy/, 'only a collection of the link');
+    assert.deepEqual(m.snapshotRefs({ id: 'x', data: { a: { value: U(3) }, b: [{ ref: U(2) }], _c: U(1), d: `[[t|@augustyn]]` } }, { get: (id) => [person, work, quote].find((e) => e.id === id), byKey: (k) => [person, work, quote].find((e) => e.key === k) }),
+      [U(3), U(2), U(1)], 'references anywhere in the data: envelopes, cells, markup by key — not in internal fields');
+    const packed = await m.gzip('{"v":1}');
+    assert.deepEqual([packed[0], packed[1]], [0x1f, 0x8b], 'packed as gzip (the service unpacks with a limit)');
+    ok('AI access: a readable snapshot per collection — titles, kinds with field meanings, notes from the app, references only inside the link');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

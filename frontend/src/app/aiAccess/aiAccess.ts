@@ -26,6 +26,7 @@ import { areaKeys, newestKey } from '../chat/chat';
 import { aad, derive, Field, fromBase64Url, KEY_SIZE, open, openText, seal, sealText, toBase64Url } from '../core/crypto';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
+import { plural } from '../core/plural';
 import { API, call, WorkspaceError } from '../core/session';
 import { libraryKindOf, loadLibraries, openLibraries, type LibraryKind } from '../library/library';
 import { storeOf, type LibraryStore } from '../library/libraryStore';
@@ -115,7 +116,20 @@ export interface CreatedAccess {
   readonly id: string;
   readonly link: string;
   readonly expiresAt: string;
+  /** Wie die ersten Abschriften gerieten. */
+  readonly refresh: Refreshed;
 }
+
+/** Was ein Auffrischen getan hat — und, wenn etwas misslang, warum (das erste). */
+export interface Refreshed {
+  readonly refreshed: number;
+  readonly failed: number;
+  readonly reason?: string;
+}
+
+/** In Worten, wenn etwas misslang — sonst `null`. */
+export const failedWords = (r: Refreshed): string | null => r.failed === 0 ? null
+  : `Nie udało się przygotować ${r.failed} ${plural(r.failed, 'odpisu', 'odpisów', 'odpisów')}${r.reason === undefined ? '' : ` (${r.reason})`}. Spróbuj „Odśwież teraz”.`;
 
 /**
  * EINEN LINK ANLEGEN — zwei Schritte: der Dienst würfelt das Geheimnis, dieser
@@ -149,8 +163,8 @@ export async function createAiAccess(
     throw e;
   }
   forgetAiWatch(areaId);
-  await refreshAiAccess(ring, areaId, { accessId: id, all: true, progress });
-  return { id, link: aiLink(made.token), expiresAt: made.expiresAt };
+  const refresh = await refreshAiAccess(ring, areaId, { accessId: id, all: true, progress });
+  return { id, link: aiLink(made.token), expiresAt: made.expiresAt, refresh };
 }
 
 /* -- Öffnen, was der Bereich hält ------------------------------------------------------------- */
@@ -215,7 +229,7 @@ async function openScope(ring: Ring, areaId: string, libraryIds: readonly string
 export async function refreshAiAccess(
   ring: Ring, areaId: string,
   opts: { readonly only?: string; readonly accessId?: string; readonly all?: boolean; readonly progress?: (done: number, total: number) => void } = {}
-): Promise<{ refreshed: number; failed: number }> {
+): Promise<Refreshed> {
   const list = await loadAiAccess(areaId);
   if (!list.writes) return { refreshed: 0, failed: 0 };
   const jobs = list.accesses
@@ -229,10 +243,11 @@ export async function refreshAiAccess(
   const scopes = new Map<string, ScopePart[]>();
   let refreshed = 0;
   let failed = 0;
+  let reason: string | undefined;
   opts.progress?.(0, total);
   for (const job of jobs) {
     const key = await accessKey(ring, areaId, job.access);
-    if (key === null) { failed += job.parts.length; continue; }
+    if (key === null) { failed += job.parts.length; reason ??= 'brak klucza tego obszaru na tym urządzeniu'; continue; }
     /* Titel und Verweise nur innerhalb der Behälter DIESES Links. */
     const scopeIds = job.access.parts.map((p) => p.libraryId).sort();
     let parts = scopes.get(scopeIds.join(','));
@@ -243,13 +258,14 @@ export async function refreshAiAccess(
         const sealed = await seal(key, snapshotAad(part.libraryId), await gzip(JSON.stringify(doc)));
         await uploadSnapshot(areaId, job.access.id, part.libraryId, part.mark, doc.entries.length, sealed);
         refreshed += 1;
-      } catch {
+      } catch (e) {
         failed += 1;
+        reason ??= e instanceof Error && e.message !== '' ? e.message : undefined;
       }
       opts.progress?.(refreshed + failed, total);
     }
   }
-  return { refreshed, failed };
+  return { refreshed, failed, ...(reason === undefined ? {} : { reason }) };
 }
 
 /* -- Nach dem Schreiben ------------------------------------------------------------------------- */

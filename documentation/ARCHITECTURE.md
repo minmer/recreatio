@@ -18,6 +18,11 @@ way — the Scriptorium cites the Library and links to or embeds Cogita, Cogita 
 only at itself — and backlinks show every direction. All three share one sealed store, told apart by
 `app.library.kind`.
 
+**One explicit exception: the AI link** (0126, 2026-10-24). Whoever leads an area can make a read-only link for an
+AI assistant to the area's Library, Scriptorium and knowledge bases (the ones chosen, nothing else). Its browser
+builds a readable snapshot per collection, sealed under a key that only the link opens; the service opens those
+snapshots only while a request carries the link. See **Keys → AI access** below.
+
 ## Repository layout
 
 | Path | What |
@@ -50,6 +55,7 @@ Entry: `src/main.tsx` keeps an access link out of the address, starts the Androi
 | `roles/` | role graph, creating roles and holders, signing edges, member roles of forms |
 | `areas/` | areas: people, access, settings, data controller, audiences |
 | `links/` | access links (a link is a role), joining, sharing |
+| `aiAccess/` | the AI link of an area (0126): the panel "Dostęp dla AI" in the area's Dostęp tab (on a private area under its name) — make, show again, extend, change collections, delete (`AiAccessPanel.tsx`, lazy); keys, service calls and refreshing (`aiAccess.ts`; after every write to a collection that a link copies, the snapshot is rebuilt when things are quiet — hooked in `libraryStore.ts`); the snapshot itself, computed from the open stores with titles and references resolved only inside the link (`aiSnapshot.ts`) |
 | `seats/` | a person's place behind a personal link: portal, verification, seat chat |
 | `forms/` | forms: fields, layout and logic, submissions (`submissions.ts`, `revisions.ts`, `valueCheck.ts`), the office (`FormOffice.tsx` + `useFormOffice.tsx`), SMS, tables, JSON |
 | `steps/` | steps of a person after a form: marks, tasks, bookings, chats, learning |
@@ -97,14 +103,14 @@ Conventions:
 | `Forms/` | forms (fields, design, submissions, office, links, steps, tasks, rounds) and seats |
 | `Calendar/`, `Bookings/`, `Masses/` | calendars, agenda and tasks; resources and claims; masses and intentions |
 | `Chat/` | chats, messages, features (scheduling, presence, marks), topics, seat chats, delivery worker |
-| `Library/`, `Cogita/` | the shared store for libraries (`books`), Scriptoria (`writing`) and knowledge bases (`knowledge`): one Library and one Scriptorium per area, moves only within a part, opening a public one, catalogue; Cogita batches, sessions, games and the SignalR hub |
+| `Library/`, `Cogita/` | the shared store for libraries (`books`), Scriptoria (`writing`) and knowledge bases (`knowledge`): one Library and one Scriptorium per area, moves only within a part, opening a public one, catalogue; Cogita batches, sessions, games and the SignalR hub; the AI link (0126): `AiAccess.cs` (make in two steps, list, extend, change collections, delete, upload snapshots — under the area's rights) and `AiAccess.Read.cs` (the assistant's read-only `GET /ai/{secret}`, `/search`, `/entry/{id or key}`, `/kinds`, `/openapi.json`) |
 | `Notifications/`, `Registry/` | digest and push; postal registry |
 | `Phone/` | the SMS edition's storage: sealed contacts (with tombstones) in the own area; SMS archive batches (one conversation each, with message prints and a sealed outline, 0115) in the area of the role that owns the archive; sealed MMS files on disk; which archives a caller can read; the outbox of replies written in the browser (0116: sealed, waiting → taken → sent or failed, cancelled; `Push.Phone` wakes the phones); files behind a link (0117: sealed in the browser under a key that only the link holds, on disk next to the MMS files, with an expiry; anyone with the id may fetch the sealed file, `GET /share/{id}`); connections that put files behind links without an account (0125, `Phone.ShareDevice.cs`: Thunderbird; a bearer secret hashed like a session, the key of its labels sealed under the area key; they may only add files and withdraw their own, with the rights of the account that connected them); lamps (0118: one sealed document per device with its BLE signals, versioned, `Phone.Lamps.cs`) |
 | `Transfer/` | what is left of the transfer: answers in RSA envelopes, server clean-up counts (goes when all are 0) |
 
 Conventions: authorization in every handler (`Auth.WhoAsync`, `Area.MayAsync`, role reach); the service never
-decrypts — it verifies signatures (`Kernel` records) and stores blobs; SQL is parameterized; errors go out as
-`{ error }` with a Polish message.
+decrypts — it verifies signatures (`Kernel` records) and stores blobs — with one explicit exception, the AI link
+(0126, Keys → AI access); SQL is parameterized; errors go out as `{ error }` with a Polish message.
 
 ## Data
 
@@ -119,7 +125,7 @@ One SQL Server database, schema `app` (0113 drops the empty schemas the old syst
 | forms and seats | `slug_field`, `form_design`, `registration`, `registration_value`, `access` (seats), `access_holder`, `access_role`, `access_grant`, `form_step`, `task_*`; 0120: `module_role` (the roles a form gives), `virtual_area` (a form's rule for each person's own area), `area_instance` (one mini area per submission and rule) — see [MINI-AREAS.md](MINI-AREAS.md) |
 | calendar | `calendar`, `calendar_item`, `calendar_field`, `calendar_exception`, `claim`, `item_slot`, `mass_intention` |
 | chat | `chat`, `chat_message`, `chat_message_version`, `chat_seat_key`, `chat_read`, `chat_presence`, `chat_mark`, `chat_preference`, `chat_attachment`, `online` |
-| Library, Scriptorium and Cogita | `library` (`kind`: `books`, `knowledge` — 0110, `writing` — 0124), `library_entry`, `library_entry_version`, `library_file`, `library_moved`, `learn_batch`, `learn_due`, `cogita_*` |
+| Library, Scriptorium and Cogita | `library` (`kind`: `books`, `knowledge` — 0110, `writing` — 0124), `library_entry`, `library_entry_version`, `library_file`, `library_moved`, `learn_batch`, `learn_due`, `cogita_*`; the AI link (0126): `ai_access` (hash of the secret, the snapshot key sealed three ways, expiry, use count) and `ai_access_part` (one sealed snapshot per collection and the state it was made from) — both deleted with their area or collection (`ON DELETE CASCADE`) |
 | phone (SMS edition) | `phone_contact`, `phone_sms_batch`, `phone_file`, `phone_outbox`, `phone_share`, `phone_lamp` (0118), `phone_share_device` (0125) |
 
 Migrations: `NNNN_name.sql`, idempotent (guarded), recorded in `app.schema_version` with a checksum. Applied
@@ -165,6 +171,31 @@ epoch key ──opens──► everything sealed in the area (names, fields, pag
   Files (images, media) are not sealed yet. Code: `pages/pageSeal.ts` (envelopes, wraps, opening),
   `pages/pageSealing.ts` (the whole-page step), `pages/page.ts` (load opens, save seals); service
   `Pages/Page.Seal.cs`.
+- **AI access** (0126) — the one place where the service reads content, and only with the link in hand. An AI
+  assistant cannot open envelopes; it fetches addresses and reads JSON. So:
+  - the service draws the secret `T` (`Kernel.Token`, 18 bytes), returns it once and keeps only its SHA-256;
+  - the browser of whoever leads the area draws a snapshot key `C` and seals it three ways: under
+    `HKDF(UTF-8(T), "recreatio:v1:ai-access:<id>")` (`Crypto.InfoAiAccess`, AAD field `ai_access_wrap`) for the
+    service, under the area's newest epoch key (`ai_access_key`) so that anyone who writes there can refresh, and
+    `T` itself under the epoch key (`ai_access_link`) so that leaders can copy the link again. Making it takes two
+    calls because `T` must exist before `C` can be wrapped; the service test-opens the wrap once and keeps only
+    `C`'s key id, which every uploaded snapshot must carry;
+  - per chosen collection the browser builds a readable snapshot (`aiAccess/aiSnapshot.ts`: titles, kinds with the
+    meaning of every field, notes on markup — all from the same code the app shows entries with; references resolved
+    only inside the link, everything else stays a bare id), gzips it and seals it under `C` (`ai_snapshot`). The
+    service compares each collection's state (`count.checksum.newest.renamed`, computed without keys) with the state
+    a snapshot was built from; after a write, the writer's browser rebuilds a stale snapshot when things are quiet;
+  - `GET /ai/{T}/…` (no session): hash → row; valid only if made completely, not expired, and its creator still
+    leads the area; then `C` is unwrapped, the snapshots are opened, searched and answered from, and everything is
+    dropped with the request. Nothing is logged but route templates. Wrong, expired and revoked links get the same 404;
+    misses per address are limited after the lookup (a shared AI address never blocks a valid link), and each link
+    to 120 requests a minute.
+  - Every member of the area sees that a link exists, what it shows and how often it was used; writers get `C`
+    (to refresh), leaders also `T` (to copy). Deleting a link removes its snapshots at once.
+  - Limits that come with a bearer link: whoever has it reads until it is deleted or expires — after removing a
+    leader who could copy it, delete it and make a new one; the secret travels in the path (like seat links), so the
+    host's access log may record it. `C` lies under the epoch current when the link was made; epochs do not rotate
+    today — when they do, a leader will have to re-seal `C` under the new epoch (not built) or make a new link.
 
 ## Checks
 

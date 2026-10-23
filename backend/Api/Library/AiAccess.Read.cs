@@ -381,9 +381,6 @@ public static partial class AiAccess
         return count;
     }
 
-    private static int Peek(string key) =>
-        Calls.TryGetValue(key, out var was) && DateTime.UtcNow - was.Window <= TimeSpan.FromMinutes(1) ? was.Count : 0;
-
     private static Task Say(HttpContext ctx, int status, object body)
     {
         ctx.Response.StatusCode = status;
@@ -418,16 +415,24 @@ public static partial class AiAccess
     /// </summary>
     private static async Task<Opened?> OpenAsync(HttpContext ctx, Db db, string token)
     {
+        /*
+         * Fehlversuche zählen je Adresse — aber erst NACH dem Nachschlagen: ein
+         * gültiger Link wird nie abgewiesen, weil von derselben Adresse (bei einem
+         * Anbieter von KI teilen sich viele eine) jemand Falsches probierte.
+         */
         var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "?";
-        if (Peek($"miss:{ip}") >= MissesPerMinute)
+        async Task Miss()
         {
-            ctx.Response.Headers.RetryAfter = "60";
-            await Say(ctx, StatusCodes.Status429TooManyRequests, new { error = "Za dużo nieudanych prób — spróbuj za minutę." });
-            return null;
+            if (Count($"miss:{ip}") > MissesPerMinute)
+            {
+                ctx.Response.Headers.RetryAfter = "60";
+                await Say(ctx, StatusCodes.Status429TooManyRequests, new { error = "Za dużo nieudanych prób — spróbuj za minutę." });
+            }
+            else await Gone(ctx);
         }
 
         var secret = TokenOf(token);
-        if (secret is null) { Count($"miss:{ip}"); await Gone(ctx); return null; }
+        if (secret is null) { await Miss(); return null; }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         Guid id = Guid.Empty, areaId = Guid.Empty, creator = Guid.Empty;
@@ -455,8 +460,7 @@ public static partial class AiAccess
 
         if (wrapped is null || expires <= DateTimeOffset.UtcNow)
         {
-            Count($"miss:{ip}");
-            await Gone(ctx);
+            await Miss();
             return null;
         }
 

@@ -252,6 +252,32 @@ re-importing it changes those quotes in place.
   catalogue parsers against a real BN/e-ISBN answer in `scripts/fixtures/`, person reuse, own numbers, and the quotes
   format.
 
+## An AI reads the three parts — the AI link (0126)
+
+The JSON above goes **into** the app; the AI link lets an assistant **read** what is already written, without
+copying files. Whoever leads an area opens the area → Dostęp → "Dostęp dla AI" (on a private area, right under its
+name), ticks the collections (the Library, the Scriptorium, any knowledge base of that area — nothing else of the
+area, and nothing of other areas), chooses how long it lasts (a week, a month, three months, a year) and gets a link
+`https://api.<domain>/ai/<secret>` to copy into ChatGPT, Claude or any assistant that can fetch addresses.
+
+- **What the assistant gets** (read-only, `GET` only): the guide at the link itself (what is there, how fresh, how
+  to ask, the markup notes), `/search?q=…` (all words, any case and Polish letters; `part`, `kind`, `limit`,
+  `offset`; without `q` it browses everything page by page; also `/search/<words>` for tools that cannot add
+  parameters), `/entry/<id or key>` (all fields, what it cites with titles, what cites it), `/kinds` (each kind with
+  the meaning of its fields), `/openapi.json` (for a ChatGPT action: Create a GPT → Configure → Actions → Import from
+  URL).
+- **What a snapshot is:** per collection, the entries of its own kinds as the app shows them — the title, the kind
+  (and a text's text type), the citation key, the fields (markup with keys where they find the entry again), the
+  references; for a base, its own entries (no views, revisions or other tools). Old kinds ("Stare wpisy") are left
+  out. Titles, keys and references resolve **only inside the link**: a quote from another area's library stays a
+  bare id.
+- **Fresh by itself:** after a write to a collection that a link copies, the writer's browser rebuilds that snapshot
+  when things are quiet (45 s); opening the Dostęp tab also refreshes stale ones, and "Odśwież teraz" forces it.
+- **Who:** leaders make, show again, extend, change the collections and delete; writers refresh; every member sees
+  that a link exists, what it shows and how often it was used. The link works only while its creator still leads the
+  area. Deleting it stops it at once and removes its snapshots.
+- **How it stays sealed:** ARCHITECTURE.md → Keys → AI access.
+
 ## How the Scriptorium and Cogita build on this
 
 - **The Scriptorium** (SCRIPTORIUM.md) cites works, quotes and persons in its texts and plans, embeds quotes, and its

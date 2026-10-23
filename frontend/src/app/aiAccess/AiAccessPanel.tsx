@@ -11,12 +11,13 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import type { AreaRow } from '../areas/area';
 import type { Ring } from '../core/keys';
+import { plural } from '../core/plural';
 import { WorkspaceError } from '../core/session';
 import { libraryKindOf, loadLibraries, openLibraries, type LibraryKind } from '../library/library';
 import { ask } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
 import {
-  aiLinkOf, createAiAccess, deleteAiAccess, extendAiAccess, forgetAiWatch, loadAiAccess, refreshAiAccess, setAiParts,
+  aiLinkOf, createAiAccess, deleteAiAccess, extendAiAccess, failedWords, forgetAiWatch, loadAiAccess, refreshAiAccess, setAiParts,
   type AiAccessList, type AiAccessRow, type AiPart
 } from './aiAccess';
 
@@ -39,6 +40,8 @@ export function AiAccessPanel({ area, ring }: { area: AreaRow; ring: Ring | null
   const [containers, setContainers] = useState<readonly Container[] | null>(null);
   const [working, setWorking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Der Dienst kennt den Dostęp dla AI (noch) nicht — ein älterer Dienst: dann still, statt rot. */
+  const [unavailable, setUnavailable] = useState(false);
   /** Der eben angelegte Link — einmal offen gezeigt. */
   const [made, setMade] = useState<{ readonly id: string; readonly link: string } | null>(null);
 
@@ -52,9 +55,12 @@ export function AiAccessPanel({ area, ring }: { area: AreaRow; ring: Ring | null
     let alive = true;
     setList(null);
     setContainers(null);
+    setUnavailable(false);
+    let listed = false;
     void (async () => {
       try {
         const next = await reload();
+        listed = true;
         const rows = (await loadLibraries()).libraries.filter((r) => r.areaId === area.areaId);
         const named = ring === null ? rows.map((r) => ({ ...r, name: PART_NAME[libraryKindOf(r)] })) : await openLibraries(ring, rows);
         if (!alive) return;
@@ -65,11 +71,11 @@ export function AiAccessPanel({ area, ring }: { area: AreaRow; ring: Ring | null
         /* Wer hier schreibt und die Karte öffnet, frischt alte Abschriften auf — still, mit Stand. */
         if (ring !== null && next.writes && next.accesses.some((a) => a.works && a.parts.some((p) => !p.fresh))) {
           setWorking('Odświeżam odpisy dla AI…');
-          await refreshAiAccess(ring, area.areaId, { progress: (done, total) => { if (alive) setWorking(`Odświeżam odpisy dla AI… ${done}/${total}`); } });
-          if (alive) await reload();
+          const done = await refreshAiAccess(ring, area.areaId, { progress: (d, total) => { if (alive) setWorking(`Odświeżam odpisy dla AI… ${d}/${total}`); } });
+          if (alive) { await reload(); setError(failedWords(done)); }
         }
       } catch (e) {
-        if (alive) setError(said(e));
+        if (alive) { if (listed) setError(said(e)); else setUnavailable(true); }
       } finally {
         if (alive) setWorking(null);
       }
@@ -77,15 +83,16 @@ export function AiAccessPanel({ area, ring }: { area: AreaRow; ring: Ring | null
     return () => { alive = false; };
   }, [area.areaId, ring, reload]);
 
+  /* Die Liste kommt danach immer neu — auch wenn etwas misslang (ein Link kann trotzdem entstanden sein). */
   const run = async (label: string, todo: () => Promise<unknown>): Promise<void> => {
     setWorking(label);
     setError(null);
     try {
       await todo();
-      await reload();
     } catch (e) {
       setError(said(e));
     } finally {
+      await reload().catch(() => undefined);
       setWorking(null);
     }
   };
@@ -101,6 +108,8 @@ export function AiAccessPanel({ area, ring }: { area: AreaRow; ring: Ring | null
     await run('Tworzę link…', async () => {
       const out = await createAiAccess(ring, area.areaId, libraries, days, (done, total) => setWorking(`Przygotowuję odpisy… ${done}/${total}`));
       setMade({ id: out.id, link: out.link });
+      const failed = failedWords(out.refresh);
+      if (failed !== null) throw new WorkspaceError(failed);
     });
   };
 
@@ -115,7 +124,7 @@ export function AiAccessPanel({ area, ring }: { area: AreaRow; ring: Ring | null
       </p>
 
       {list === null ? (
-        error === null ? <Loading lines={2} /> : null
+        unavailable ? <p className="wk-empty">Dostęp dla AI jest teraz niedostępny — spróbuj później.</p> : error === null ? <Loading lines={2} /> : null
       ) : (
         <>
           {list.accesses.length > 0 && (
@@ -196,7 +205,7 @@ function AccessItem({ row, list, area, ring, containers, justMade, busy, nameOf,
             <strong>{nameOf(part)}</strong>{' '}
             <span className="wk-tag">{PART_NAME[part.kind]}</span>{' '}
             {part.madeFrom === null ? 'odpis jeszcze nie gotowy'
-              : `${part.entries ?? 0} wpisów · ${part.fresh ? 'aktualny' : 'do odświeżenia'} (z ${day(part.madeAt ?? row.createdAt)})`}
+              : `${part.entries ?? 0} ${plural(part.entries ?? 0, 'wpis', 'wpisy', 'wpisów')} · ${part.fresh ? 'aktualny' : 'do odświeżenia'} (z ${day(part.madeAt ?? row.createdAt)})`}
           </li>
         ))}
       </ul>
@@ -215,9 +224,12 @@ function AccessItem({ row, list, area, ring, containers, justMade, busy, nameOf,
         )}
         {list.writes && row.works && ring !== null && (
           <button type="button" className="wk-link-btn" disabled={busy}
-            onClick={() => void run('Odświeżam odpisy…', () => refreshAiAccess(ring, area.areaId, {
-              accessId: row.id, all: true, progress: (done, total) => setWorking(`Odświeżam odpisy… ${done}/${total}`)
-            }))}>
+            onClick={() => void run('Odświeżam odpisy…', async () => {
+              const failed = failedWords(await refreshAiAccess(ring, area.areaId, {
+                accessId: row.id, all: true, progress: (done, total) => setWorking(`Odświeżam odpisy… ${done}/${total}`)
+              }));
+              if (failed !== null) throw new WorkspaceError(failed);
+            })}>
             Odśwież teraz
           </button>
         )}
@@ -264,7 +276,8 @@ function AccessItem({ row, list, area, ring, containers, justMade, busy, nameOf,
             await setAiParts(area.areaId, row.id, libraries);
             setEditParts(false);
             forgetAiWatch(area.areaId);
-            await refreshAiAccess(ring, area.areaId, { accessId: row.id, progress: (done, total) => setWorking(`Przygotowuję odpisy… ${done}/${total}`) });
+            const failed = failedWords(await refreshAiAccess(ring, area.areaId, { accessId: row.id, progress: (done, total) => setWorking(`Przygotowuję odpisy… ${done}/${total}`) }));
+            if (failed !== null) throw new WorkspaceError(failed);
           })}
         />
       )}

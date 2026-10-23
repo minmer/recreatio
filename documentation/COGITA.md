@@ -547,6 +547,12 @@ Phones stay awake.
 
 A public, opened base (§13) is served to anyone as the same sealed entries and files (`/library/{id}/open`, `/library/{id}/file/{fileId}/sealed`); the browser opens them with the area's published key. The service still reads none of it.
 
+**The AI link** (0126) is the one exception, made explicitly by whoever leads the area: a base chosen for it is
+copied by a writer's browser into a readable snapshot (its own entries with labels from Nauka, kinds with the meaning
+of every field; no views, revisions or other tools), sealed under a key only the link opens. The service reads that
+snapshot only while an assistant's request carries the link (LIBRARY.md → "An AI reads the three parts";
+ARCHITECTURE.md → Keys → AI access).
+
 ## 16. New storage (migrations)
 
 1. **Library:**

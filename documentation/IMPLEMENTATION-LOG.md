@@ -1589,3 +1589,88 @@ the owner's explicit, confirmed deletions.
 
 **Checks**
 - Documentation only; the code is unchanged since P5 (all checks passed there).
+
+# Part three: the AI link (2026-10-24)
+
+The owner's request: "There should be only an explicit AI access point by a link copyable — and it is read-only for
+these three [parts]." An assistant (ChatGPT, Claude …) should look up and search what is already written in an
+area's Library, Scriptorium and knowledge bases, without files being copied by hand, and without the service
+gaining a general way to read sealed content.
+
+## AI1 — The AI link (0126)
+
+**Decided**
+- **Snapshots, not area keys.** The link never carries or unlocks an area key. The browser builds a readable snapshot
+  per chosen collection and seals it under a random key `C`; the service holds `C` only wrapped under a key derived
+  from the secret in the link. So the link can open exactly the chosen collections and nothing else of the area (no
+  chats, forms, calendars), and the service reads a snapshot only while a request carries the link.
+- **The service draws the secret** (`Kernel.Token`, the one token building block), returns it once and keeps its
+  hash. Because `C` must be wrapped under a key from that secret, making a link takes two calls; the second one
+  test-opens the wrap and keeps only `C`'s key id, which every uploaded snapshot must carry.
+- **Explicit and visible.** Only leaders make, extend, change and delete links; writers refresh snapshots; every
+  member sees that a link exists, what it shows and how often it was used. A link lives on its creator's right to
+  lead the area, and lasts 7, 30, 90 or 365 days (at most 10 per area).
+- **Resolved only inside the link.** Titles, citation keys and references in a snapshot resolve only through the
+  collections of that link; anything else stays a bare id.
+- **Descriptions from the code.** The kinds with the meaning of every field and the markup notes in a snapshot come
+  from the same definitions the app shows entries with (`libraryKinds.ts`, the Cogita schema, `MARKUP_DOC`,
+  `BIBLE_DOC`), so the assistant's description cannot drift from the app.
+
+**Built**
+- Migration `0126_ai_access.sql`: `app.ai_access` (the hash of the secret, `C` sealed three ways, its key id, the
+  epoch, expiry, uses, last use; a check that a link is either complete or empty) and `app.ai_access_part` (one sealed
+  snapshot per collection with the state it was made from and its entry count). Both cascade with their area and
+  collection, so account and library deletion need no change. Idempotent (re-run on LocalDB: no change).
+- Kernel: `Crypto.InfoAiAccess(id)` in the closed list; AAD fields `AiAccessKey`, `AiAccessWrap`, `AiAccessLink`,
+  `AiSnapshot` (`ai_access_key`, `ai_access_wrap`, `ai_access_link`, `ai_snapshot`, the same in `core/crypto.ts`).
+- Service `Library/AiAccess.cs`: `GET/POST /workspace/area/{id}/ai-access`, `PUT …/{access}/key` (second step),
+  `POST …/{access}` (extend, change collections), `DELETE …/{access}`, `PUT …/{access}/part/{library}` (a sealed
+  snapshot, octet-stream, up to 32 MB, with the state it was made from). Unfinished links go after an hour, expired
+  ones 30 days after expiry. The state of a collection is computed without keys: count, a checksum over ids and
+  versions, the newest change, the collection's own change (`count.checksum.newest.renamed`).
+- Service `Library/AiAccess.Read.cs`, for the assistant (GET only, no session): `/ai/{secret}` (the guide in Polish:
+  the area, the collections, freshness, how to ask, rules, the notes from the snapshots), `/search` (all words, folded
+  like the browser's search; `part`, `kind`, `limit`, `offset`; without words a list in order with `next`; also
+  `/search/{words}`), `/entry/{id or key}` (fields, the meaning of its fields, refs with titles, what points at it),
+  `/kinds`, `/openapi.json` (servers = the link, for ChatGPT actions). Readable Polish JSON, `no-store`, `noindex`.
+  Wrong, expired and revoked links get the same 404; misses per address are limited after the lookup (a shared AI
+  address never blocks a valid link); 120 requests a minute per link; gzip unpacked with a limit.
+- Frontend `aiAccess/`: `aiAccess.ts` (keys and labels like the service, the two-step making, opening `C` and the
+  secret, refreshing what is stale — the state is read before the stores sync, so nothing is lost; after a write, a
+  rebuild when things are quiet), `aiSnapshot.ts` (the snapshot, pure, checkable in node), `AiAccessPanel.tsx` (the
+  panel: links with their collections and freshness, "Pokaż link", "Odśwież teraz", "Przedłuż", "Zbiory", "Usuń", and
+  the form; quiet when an older service has no AI link yet). `libraryStore.ts` reports its writes (lazy import).
+  `areas/AreaPage.tsx` shows the panel in the Dostęp tab, and on a private area under its name.
+
+**Checks**
+- `app-library-check.mjs` 2j: the snapshot of a library, a Scriptorium and a base (titles and kind names as the app
+  shows them, old kinds left out, text types as second kinds, field meanings, notes), references only inside the
+  link (the same Scriptorium alone resolves nothing of the others), references found anywhere in the data, gzip.
+- `Api.Tests` `AiAccessChecks.cs` (503 checks in all): the labels are the browser's; the key from the link against a
+  vector from the browser's HKDF; wraps open only with their secret and access; what comes in (secret, envelopes,
+  state, collections, days); folding, search (all words, then any; keys; filters; order), snippets, reading a
+  snapshot (another collection or format refused), unpacking with a limit.
+- LocalDB drive `ai-api.mjs` (47 checks): content in three collections plus a base outside the link and a library in
+  another area; the link made in two steps; the guide, search (words, no Polish letters, path form, filters, browse
+  with `next`), entries by key and id, kinds, OpenAPI — all without an account; nothing from outside the link in any
+  answer; reader / writer / leader rights; a stale part after a write, refreshed by the writer; foreign uploads
+  refused; the second step not repeatable; the link dead when its creator no longer leads, and when expired, alive
+  again when extended; collections changed and a deleted base cascading; deletion; the miss limit.
+- Browser drive `ai-browser.mjs` (headless Edge on the built app): the panel lists the link, the form offers the
+  area's collections, the confirmation names the AI provider, the new link is shown at once and works through the
+  proxy, an older link is shown again and deleted; no console errors.
+- tsc, all `app-*-check` scripts, vite build, `dotnet build`.
+
+**Open**
+- A bearer link reads until it is deleted or expires: after removing a leader who could copy it, make a new one.
+  The secret is in the path, so the host's access log may record it (as with seat links).
+- `C` lies under the area epoch of the day the link was made. Epochs do not rotate today; if they ever do, a re-seal
+  by a leader is needed (not built) — until then a new link.
+- Browser-based tools calling the link from another origin would need CORS for `/ai/*` (not opened; assistants fetch
+  server-side).
+
+**For the owner**
+- Apply 0123–0126 (0125 is the Thunderbird connections), deploy the API, then the website. Until the API has 0126,
+  the panel says that the AI link is not available now.
+- Making a link: an area → Dostęp → "Dostęp dla AI" → tick the collections → "Utwórz link dla AI". Paste the link into
+  the assistant's chat ("Przeczytaj <link> i znajdź …"), or add `<link>/openapi.json` as a ChatGPT action.

@@ -1,14 +1,15 @@
 # Recreatio — Library, Scriptorium, Knowledge bases (Cogita) and Pages
 
-*A brief for an AI assistant. As of 2026-10-23: the target-architecture work (13 steps) and the division into three
-parts (P1–P5, commits `799a87da` … `453fc53f`).*
+*A brief for an AI assistant. As of 2026-10-24: the target-architecture work (13 steps), the division into three
+parts (P1–P5, commits `799a87da` … `453fc53f`) and the read-only AI link (0126).*
 
 You are helping the owner of Recreatio (recreatio.pl), a platform for parishes and organisations. This document
 says what the content model is now, how its JSON looks, and which rules hold, so you can discuss changes, prepare
 data or write JSON for import. The app itself never calls an AI: the owner pastes your JSON into the app's JSON
-import, reviews the plan and confirms.
+import, reviews the plan and confirms. To let you **read** what is already written, the owner can give you a
+read-only link to an area's Library, Scriptorium and knowledge bases (section 13).
 
-- Sections 1–12 are an overview in English.
+- Sections 1–13 are an overview in English.
 - The appendices are the app's own JSON descriptions, generated from the code (in Polish, like the user interface).
   They are the exact contract for import. Where this overview and an appendix disagree, the appendix wins.
 
@@ -31,7 +32,8 @@ import, reviews the plan and confirms.
 - **A knowledge base reads sources** without copying them: libraries (references and card material), Scriptoria
   (texts and their text types) and other knowledge bases (reuse of kinds, entries, templates, revisions, flows).
 - Everything is encrypted in the browser. The service stores sealed entries and never sees content in plaintext,
-  except public pages.
+  except public pages — and the snapshots an owner explicitly opens to an AI with an AI link (section 13), which the
+  service reads only while a request carries that link.
 
 ## 2. Who sees what — one rule
 
@@ -169,8 +171,8 @@ Texts (a body, plan points, the paragraphs of a statement, markup fields) use on
 
 ## 11. Open, and waiting for the owner
 
-- **To run:** the migrations not yet applied (0123 from step 8, 0124 for the Scriptorium), then the API and website
-  deploys; creating a Scriptorium in each area that writes; importing `komentarz.json` where comments are wanted;
+- **To run:** the migrations not yet applied (0123 from step 8, 0124 for the Scriptorium, 0125 for Thunderbird
+  connections, 0126 for the AI link), then the API and website deploys; creating a Scriptorium in each area that writes; importing `komentarz.json` where comments are wanted;
   deleting the old test data with the new tools (libraries with texts, topics and comments; test bases).
 - **Not built:** a delivery linked to a calendar item; recordings stored as files instead of URLs; a podcast feed;
   progress of a presentation made without an account is not taken over after signing in.
@@ -186,6 +188,26 @@ Texts (a body, plan points, the paragraphs of a statement, markup fields) use on
 - **Page**: the page editor → JSON (Appendix D has the page structure, the page-texts rule, the presentation, and the
   modules of the three parts; the full page description covers every module kind and is too long to include).
 - Return **one JSON object, without comments**. Use `@keys` to refer between entries of the same document.
+
+## 13. Reading the owner's data: the AI link
+
+If the owner gives you a link `https://api.recreatio.pl/ai/<secret>`, it is a read-only view of chosen collections
+(Library, Scriptorium, knowledge bases) of **one** area — nothing else of that area, nothing of other areas, and no
+way to change anything.
+
+- `GET <link>` — the guide: the area, each collection with its entry count and the time its snapshot was made,
+  how to ask, the markup notes. Start here.
+- `GET <link>/search?q=<words>` — all words must occur (title, key, kind or content); case and Polish letters do not
+  matter. Optional `part=books|writing|knowledge` (or a collection id), `kind=<kind or text type name>`,
+  `limit=1..50`, `offset`. Without `q` it lists everything in order; follow `next`. The same as a path:
+  `<link>/search/<words>`.
+- `GET <link>/entry/<id or key>` — one entry: `data` (its fields, markup with citation keys), `schema` (what the
+  fields mean), `refs` (what it points at, with titles) and `usedBy` (what points at it).
+- `GET <link>/kinds` — every kind with the meaning of its fields; `GET <link>/openapi.json` — for tools that take
+  an OpenAPI description (ChatGPT actions).
+- Snapshots are rebuilt after changes, but may lag; quote titles and links (`url`) from the answers, and never
+  invent entries. A reference to something outside the link is a bare id — say that it is not readable here.
+- Writing still goes through the JSON import (section 12): the link reads, it never writes.
 
 ---
 
