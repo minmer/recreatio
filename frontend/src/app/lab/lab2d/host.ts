@@ -9,6 +9,7 @@
 
 import type { ClipInfo } from './clip/clip';
 import type { ProbeInfo } from './engine/engine';
+import type { ObjectPatch } from './engine/objects';
 import type { HostMessage, HostStats, WorkerMessage } from './engine/protocol';
 import type { HeaterMode, Op, Quality, Side, SideName } from './engine/scene';
 import type { Region } from './engine/shapes';
@@ -184,6 +185,11 @@ export class LabHost {
   particles(on: boolean): void { this.post({ type: 'particles', on }); }
   setBoundary(side: SideName, value: Side): void { this.post({ type: 'setBoundary', side, value }); }
   select(bubble: number | null): void { this.post({ type: 'select', bubble }); }
+  selectObject(object: string | null): void { this.post({ type: 'selectObject', object }); }
+  /** Einstellungen eines Gegenstands ändern; die Antwort sagt, ob die Szene neu aufgebaut wurde, und warnt (beginnt die Warnung mit „refused“, geschah nichts). */
+  editObject(object: string, patch: ObjectPatch): Promise<{ rebuilt: boolean; warning: string | null } | null> {
+    return this.ask((id) => ({ type: 'editObject', id, object, patch }));
+  }
   overlay(overlay: Overlay): void { this.post({ type: 'overlay', overlay }); }
   pause(paused: boolean): void { this.post({ type: 'pause', paused }); }
   step(): void { this.post({ type: 'step' }); }

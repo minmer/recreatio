@@ -1,0 +1,35 @@
+{
+  "manifest_version": 2,
+  "name": "recreatio.pl — Pliki przez link",
+  "short_name": "recreatio.pl",
+  "description": "Duże załączniki jako zaszyfrowany link recreatio.pl (Pliki przez link): klucz jest tylko w linku, po terminie plik znika.",
+  "version": "1.0.0",
+  "author": "recreatio.pl",
+  "homepage_url": "https://recreatio.pl",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "filelink@recreatio.pl",
+      "strict_min_version": "128.0"
+    }
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "cloud_file": {
+    "name": "recreatio.pl",
+    "management_url": "settings.html",
+    "reuse_uploads": false,
+    "browser_style": false
+  },
+  "permissions": [
+    "storage",
+    "https://api.recreatio.pl/*"
+  ],
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "64": "icons/64.png",
+    "128": "icons/128.png"
+  }
+}

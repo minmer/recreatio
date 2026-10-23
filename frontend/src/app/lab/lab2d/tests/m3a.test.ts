@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Engine } from '../engine/engine';
 import { rhoL, SOLIDS } from '../engine/materials';
+import { editObject } from '../engine/objects';
 import { readScene, writeScene } from '../engine/scene';
 import { T0 } from '../engine/units';
 import { scene, waterTolerance } from './scenes';
@@ -212,8 +213,8 @@ describe('M3a — test 39: a beaker of water tips at its geometric tipping angle
       /* Angeheftet, bis das Wasser waagrecht steht; dann los. */
       while (e.time < 1.5) e.step();
       const water0 = mass();
-      /* „Przypnij“ auf den Boden der Zlewka (ihr Schwerpunkt liegt im Hohlraum). */
-      e.apply({ op: 'pin', x: X - Math.sin(t) * WALL / 2, y: y0 + Math.cos(t) * WALL / 2, pinned: false });
+      /* Die Einstellung „Przypięty“ der Zlewka aus — während es läuft (sie heisst beaker-1). */
+      expect(editObject(e, 'beaker-1', { pinned: false })).toEqual({ rebuilt: false, warning: null });
       expect(b.awake).toBe(true);
       while (e.time < 3.5) e.step();
       return { angle: (b.a * 180) / Math.PI, water: mass(), water0, error: e.waterError(), tolerance: waterTolerance(e) };
@@ -256,7 +257,7 @@ describe('M3a — test 40: budgets close with moving solids', () => {
 });
 
 describe('M3a — bodies in the scene format and on the accelerated view', () => {
-  it('body and pin round-trip through JSON; beakers and plates stay pinned unless told; a scene of a version before M3a writes unchanged', () => {
+  it('body and pin round-trip through JSON; beakers and plates stay pinned unless told; older scenes write without the settings they do not use', () => {
     const raw = scene({
       ops: [
         { op: 'hotplate', x: 0.1, y: 0, w: 0.12, h: 0.008, material: 'steel', mode: 'power', power: 40, on: true, T: 20 },
@@ -299,5 +300,65 @@ describe('M3a — bodies in the scene format and on the accelerated view', () =>
     const [bx0, by0, bx1, by1] = bar.bounds(0);
     expect(bx1 - bx0).toBeCloseTo(Math.hypot(0.04, 0.04), 12);
     expect(by1 - by0).toBeCloseTo(0.004, 12);
+  });
+
+  it('objects: every object has a name; its settings change in place (pinned at any time, the set-up only at the start); move and remove by name, budgets exact', () => {
+    const { scene: sc, warnings } = readScene(scene({
+      ops: [
+        { op: 'hotplate', x: 0.1, y: 0, w: 0.12, h: 0.008, material: 'steel', mode: 'power', power: 0, on: false, T: 20 },
+        { op: 'beaker', x: 0.1, y: 0.008, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T: 20 },
+        { op: 'fill', region: { rect: [0.067, 0.01, 0.133, 0.05] }, composition: { H2O: 1 }, phase: 'liquid', T: 20 },
+        { op: 'body', id: 'kostka', region: { rect: [0.09, 0.045, 0.11, 0.065] }, material: 'ice', T: -5 },
+        { op: 'body', region: { rect: [0.01, 0.1, 0.05, 0.12] }, material: 'wood', T: 20, pinned: true },
+        { op: 'body', id: 'kostka', region: { rect: [0.16, 0.1, 0.18, 0.12] }, material: 'stone', T: 20, pinned: true },
+        { op: 'move', id: 'nikt', dx: 0.01, dy: 0 }
+      ]
+    }));
+    /* Namen: vergeben, wo keiner stand; ein doppelter umbenannt; ein Schritt mit unbekanntem Namen fällt weg. */
+    const names = sc.ops.map((o) => ('id' in o ? o.id : null));
+    expect(names).toEqual(['hotplate-1', 'beaker-1', null, 'kostka', 'body-1', 'body-2']);
+    expect(warnings.length).toBe(2);
+    expect(readScene(writeScene(sc)).scene).toEqual(sc);
+    const e = new Engine(sc);
+    const ops = e.scene.ops.length;
+    const ice = (): typeof e.bodies.list => e.bodies.list.filter((b) => !b.gone && b.key === 3);
+    /* „Przypięty“ ändert den Gegenstand an seiner Stelle — kein Handgriff kommt hinzu. */
+    expect(editObject(e, 'kostka', { pinned: true })).toEqual({ rebuilt: false, warning: null });
+    expect(e.scene.ops.length).toBe(ops);
+    expect((e.scene.ops[3] as { pinned: boolean }).pinned).toBe(true);
+    expect(ice()[0].pinned).toBe(true);
+    /* Am Anfang ändert eine Temperatur den Aufbau: die Szene entsteht neu, mit dem Würfel bei −20 °C, weiter angeheftet. */
+    expect(editObject(e, 'kostka', { T: T0 - 20 })).toEqual({ rebuilt: true, warning: null });
+    expect(e.scene.ops.length).toBe(ops);
+    expect(ice()[0].meanT()).toBeCloseTo(T0 - 20, 6);
+    expect(ice()[0].pinned).toBe(true);
+    for (let k = 0; k < 30; k += 1) e.step();
+    /* Läuft es, lehnt die Engine den Aufbau ab; „Przypięty“ geht weiter: der Würfel ist frei. */
+    expect(editObject(e, 'kostka', { T: T0 })?.warning?.startsWith('refused')).toBe(true);
+    expect(editObject(e, 'kostka', { pinned: false })).toEqual({ rebuilt: false, warning: null });
+    expect(ice()[0].pinned).toBe(false);
+    /* Die Zlewka mit allem darin 1 cm nach rechts: ihr Wasser und der Würfel darin gehen mit, die Platte nicht. */
+    const beaker = e.bodies.list.find((b) => b.key === 1) as (typeof e.bodies.list)[number];
+    const plate = e.bodies.list.find((b) => b.key === 0) as (typeof e.bodies.list)[number];
+    const bx = beaker.x;
+    const px = plate.x;
+    const cx = ice()[0].x;
+    const inside = (): number => { let n = 0; for (let p = 0; p < e.particles.count; p += 1) if (e.particles.x[p] > beaker.x - 0.033 && e.particles.x[p] < beaker.x + 0.033) n += 1; return n; };
+    const before = inside();
+    const err0 = e.energyError();
+    e.apply({ op: 'move', region: null, id: 'beaker-1', dx: 0.01, dy: 0 });
+    expect(beaker.x - bx).toBeCloseTo(0.01, 12);
+    expect(plate.x).toBe(px);
+    expect(ice()[0].x - cx).toBeCloseTo(0.01, 9);
+    expect(inside()).toBe(before);
+    /* Wegnehmen ist gebucht: Energie und Wasser (Eis zählt als Wasser) schliessen. */
+    e.apply({ op: 'remove', id: 'kostka' });
+    e.apply({ op: 'remove', id: 'body-1' });
+    expect(ice().length).toBe(0);
+    expect(Math.abs(e.energyError() - err0)).toBeLessThan(1e-9);
+    expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
+    /* Verschieben und Wegnehmen stehen mit Namen im JSON. */
+    const back = readScene(e.serialize()).scene.ops;
+    expect(back.slice(-3)).toEqual([{ op: 'move', region: null, id: 'beaker-1', dx: 0.01, dy: 0 }, { op: 'remove', id: 'kostka' }, { op: 'remove', id: 'body-1' }]);
   });
 });

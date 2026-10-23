@@ -40,6 +40,7 @@ public static partial class Phone
         MapFiles(app);
         MapOutbox(app);
         MapShares(app);
+        MapShareDevices(app);
         MapLamps(app);
     }
 

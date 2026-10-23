@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>recreatio.pl — Pliki przez link</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <main class="rc">
+    <header class="rc-head">
+      <img src="icons/48.png" width="32" height="32" alt="">
+      <div>
+        <h1>recreatio.pl — Pliki przez link</h1>
+        <p class="rc-muted">Duże załączniki wysyłasz jako zaszyfrowany link, ważny tyle, ile wybierzesz.</p>
+      </div>
+    </header>
+
+    <p id="loading" class="rc-muted">Sprawdzanie połączenia…</p>
+
+    <section id="connected" class="rc-box" hidden>
+      <p class="rc-state"><span class="rc-dot" aria-hidden="true"></span>Połączono z recreatio.pl jako <strong id="name"></strong></p>
+      <p id="usage" class="rc-muted"></p>
+      <div class="rc-row">
+        <label for="days">Linki ważne</label>
+        <select id="days">
+          <option value="7">7 dni</option>
+          <option value="30">30 dni</option>
+          <option value="365">1 rok</option>
+        </select>
+      </div>
+      <div class="rc-actions">
+        <button type="button" id="replace" class="rc-quiet">Wklej nowy kod</button>
+        <button type="button" id="disconnect" class="rc-quiet rc-danger">Odłącz ten Thunderbird</button>
+      </div>
+    </section>
+
+    <section id="pairing" class="rc-box" hidden>
+      <ol class="rc-steps">
+        <li>Na <a href="https://recreatio.pl/#/workspace/sms/pliki" target="_blank" rel="noopener noreferrer">recreatio.pl → Pliki przez link</a> wybierz <b>Połącz Thunderbirda</b>.</li>
+        <li>Skopiuj kod połączenia i wklej go poniżej.</li>
+      </ol>
+      <label for="code">Kod połączenia</label>
+      <textarea id="code" rows="3" spellcheck="false" autocomplete="off" placeholder="RCFL1.…"></textarea>
+      <div class="rc-row">
+        <label for="days-new">Linki ważne</label>
+        <select id="days-new">
+          <option value="7">7 dni</option>
+          <option value="30" selected>30 dni</option>
+          <option value="365">1 rok</option>
+        </select>
+      </div>
+      <div class="rc-actions">
+        <button type="button" id="connect">Połącz</button>
+        <button type="button" id="cancel" class="rc-quiet" hidden>Anuluj</button>
+      </div>
+    </section>
+
+    <p id="error" class="rc-error" role="alert" hidden></p>
+    <p id="note" class="rc-note" role="status" hidden></p>
+
+    <p class="rc-muted rc-small">
+      Plik jest szyfrowany w Thunderbirdzie, zanim opuści komputer. Klucz jest tylko w linku — recreatio.pl go nie zna;
+      kto ma link, może otworzyć plik. Zdjęcia JPEG idą bez danych EXIF (miejsce, aparat). Po terminie plik znika.
+      Ten dodatek nie loguje się na Twoje konto: kod pozwala tylko dodawać pliki i usuwać te, które sam dodał.
+    </p>
+  </main>
+  <script src="settings.js"></script>
+</body>
+</html>

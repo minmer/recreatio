@@ -20,8 +20,8 @@ const BASE = {
 /** Eine leere Kiste voll Luft (Piaskownica). */
 export const SANDBOX_LAB2D: Readonly<Record<string, unknown>> = { ...BASE, ops: [] };
 
-const plate = (power: number, T = 20) => ({ op: 'hotplate', x: 0.1, y: 0, w: 0.12, h: 0.008, material: 'steel', mode: 'power', power, target: 150, on: true, T });
-const beaker = (T = 20, lid = false) => ({ op: 'beaker', x: 0.1, y: 0.008, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T, ...(lid ? { lid: true } : {}) });
+const plate = (power: number, T = 20) => ({ op: 'hotplate', id: 'plyta', x: 0.1, y: 0, w: 0.12, h: 0.008, material: 'steel', mode: 'power', power, target: 150, on: true, T });
+const beaker = (T = 20, lid = false) => ({ op: 'beaker', id: 'zlewka', x: 0.1, y: 0.008, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T, ...(lid ? { lid: true } : {}) });
 const water = (T: number) => ({ op: 'fill', region: { rect: [0.067, 0.010, 0.133, 0.06] }, composition: { H2O: 1 }, phase: 'liquid', T });
 /** Eine Schicht einer Flüssigkeit in der Zlewka, von y0 bis y1 (M2a: jede Flüssigkeit der Datenbank). */
 const layer = (composition: Record<string, number>, T: number, y0: number, y1: number) => ({ op: 'fill', region: { rect: [0.067, y0, 0.133, y1] }, composition, phase: 'liquid', T });
@@ -95,10 +95,10 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
     scene: {
       ...BASE,
       ops: [
-        { op: 'hotplate', x: 0.05, y: 0, w: 0.08, h: 0.008, material: 'steel', mode: 'power', power: 30, target: 150, on: true, T: 140 },
-        { op: 'hotplate', x: 0.15, y: 0, w: 0.08, h: 0.008, material: 'steel', mode: 'power', power: 30, target: 150, on: true, T: 140 },
-        { op: 'beaker', x: 0.05, y: 0.008, w: 0.06, h: 0.07, wall: 0.002, material: 'glass', T: 105 },
-        { op: 'beaker', x: 0.15, y: 0.008, w: 0.06, h: 0.07, wall: 0.002, material: 'glass', T: 105 },
+        { op: 'hotplate', id: 'plyta-lewa', x: 0.05, y: 0, w: 0.08, h: 0.008, material: 'steel', mode: 'power', power: 30, target: 150, on: true, T: 140 },
+        { op: 'hotplate', id: 'plyta-prawa', x: 0.15, y: 0, w: 0.08, h: 0.008, material: 'steel', mode: 'power', power: 30, target: 150, on: true, T: 140 },
+        { op: 'beaker', id: 'zlewka-lewa', x: 0.05, y: 0.008, w: 0.06, h: 0.07, wall: 0.002, material: 'glass', T: 105 },
+        { op: 'beaker', id: 'zlewka-prawa', x: 0.15, y: 0.008, w: 0.06, h: 0.07, wall: 0.002, material: 'glass', T: 105 },
         { op: 'fill', region: { rect: [0.022, 0.010, 0.078, 0.05] }, composition: { H2O: 1 }, phase: 'liquid', T: 97 },
         { op: 'fill', region: { rect: [0.122, 0.010, 0.178, 0.05] }, composition: { H2O: 0.85, NaCl: 0.15 }, phase: 'liquid', T: 97 },
         { op: 'solid', region: { rect: [0.036, 0.010, 0.040, 0.012] }, material: 'ceramic', T: 97 },
@@ -145,7 +145,7 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
       'W zimnej wodzie, przy dnie po lewej, leży mała grzałka (6 W). Ogrzana woda jest lżejsza i unosi się nad nią, chłodniejsza opada po drugiej stronie — powstaje wir.',
       'Włącz nakładkę „Temperatura”, a potem „Prędkość” (białe strzałki pokazują, jak płynie woda).'
     ],
-    scene: { ...BASE, ops: [beaker(20), water(20), { op: 'hotplate', x: 0.08, y: 0.012, w: 0.012, h: 0.004, material: 'steel', mode: 'power', power: 6, target: 150, on: true, T: 20 }] }
+    scene: { ...BASE, ops: [beaker(20), water(20), { op: 'hotplate', id: 'grzalka', x: 0.08, y: 0.012, w: 0.012, h: 0.004, material: 'steel', mode: 'power', power: 6, target: 150, on: true, T: 20 }] }
   },
   {
     key: 'solanka-pod-woda',
@@ -164,16 +164,16 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
     text: [
       'Nad wodą wiszą trzy ciała: klocek sosnowy, kostka lodu i kamień (granit). Puść czas — spadną do wody.',
       'Drewno (510 kg/m³) zanurza się do połowy, lód (917 kg/m³) prawie cały, a kamień (2630 kg/m³) idzie na dno. Pływające ciało wypiera tyle wody, ile samo waży — zbadaj je narzędziem „Badaj”.',
-      'Woda ma 2 °C, więc lód topi się powoli: zostaje prostokątem, który z czasem robi się mniejszy.'
+      'Woda ma 2 °C, więc lód topi się powoli: zostaje prostokątem, który z czasem robi się mniejszy. Kliknij przedmiot narzędziem „Wybierz”: w panelu „Przedmiot” zaznacz „Przypięty”, a zostanie tam, gdzie wisi.'
     ],
     scene: {
       ...BASE,
       ambient: { p: 101.325, T: 15, rh: 0.5, g: 9.81 },
       ops: [
         { op: 'fill', region: { rect: [0, 0, 0.2, 0.07] }, composition: { H2O: 1 }, phase: 'liquid', T: 2 },
-        { op: 'body', region: { rect: [0.025, 0.085, 0.065, 0.105] }, material: 'wood', T: 15 },
-        { op: 'body', region: { rect: [0.09, 0.085, 0.11, 0.105] }, material: 'ice', T: -2 },
-        { op: 'body', region: { rect: [0.14, 0.085, 0.16, 0.1] }, material: 'stone', T: 15 }
+        { op: 'body', id: 'drewno', region: { rect: [0.025, 0.085, 0.065, 0.105] }, material: 'wood', T: 15 },
+        { op: 'body', id: 'lod', region: { rect: [0.09, 0.085, 0.11, 0.105] }, material: 'ice', T: -2 },
+        { op: 'body', id: 'kamien', region: { rect: [0.14, 0.085, 0.16, 0.1] }, material: 'stone', T: 15 }
       ]
     }
   },
@@ -189,7 +189,7 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
       ...BASE,
       ops: [
         { op: 'fill', region: { rect: [0, 0, 0.2, 0.07] }, composition: { H2O: 1 }, phase: 'liquid', T: 40 },
-        { op: 'body', region: { rect: [0.085, 0.0425, 0.115, 0.0725] }, material: 'ice', T: -10 }
+        { op: 'body', id: 'kostka', region: { rect: [0.085, 0.0425, 0.115, 0.0725] }, material: 'ice', T: -10 }
       ]
     }
   },
@@ -206,9 +206,9 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
       box: { w: 0.1, h: 0.08, depth: 0.01 },
       ops: [
         { op: 'fill', region: { rect: [0, 0, 0.1, 0.04] }, composition: { H2O: 0.77, NaCl: 0.23 }, phase: 'liquid', T: 0 },
-        { op: 'body', region: { rect: [0.012, 0.024, 0.032, 0.044] }, material: 'ice', T: -5 },
-        { op: 'body', region: { rect: [0.04, 0.024, 0.06, 0.044] }, material: 'ice', T: -5 },
-        { op: 'body', region: { rect: [0.068, 0.024, 0.088, 0.044] }, material: 'ice', T: -5 }
+        { op: 'body', id: 'kostka-1', region: { rect: [0.012, 0.024, 0.032, 0.044] }, material: 'ice', T: -5 },
+        { op: 'body', id: 'kostka-2', region: { rect: [0.04, 0.024, 0.06, 0.044] }, material: 'ice', T: -5 },
+        { op: 'body', id: 'kostka-3', region: { rect: [0.068, 0.024, 0.088, 0.044] }, material: 'ice', T: -5 }
       ]
     }
   },
@@ -218,14 +218,14 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
     summary: 'zlewka z wodą stoi na krawędzi kamiennego stopnia, za daleko — przewraca się, a woda się wylewa',
     text: [
       'Zlewka z wodą (swobodna, nie przypięta) stoi na krawędzi stopnia tak, że jej środek ciężkości jest już poza krawędzią. Puść czas — zlewka obróci się wokół krawędzi i spadnie, a woda się wyleje.',
-      'Narzędziem „Przypnij” możesz ciało przypiąć (stoi w miejscu) albo odpiąć: przypiętą zlewkę ustaw „Przesuń” bliżej ściany stopnia i odepnij — jeśli jej środek ciężkości jest nad stopniem, zostanie.'
+      'Narzędziem „Wybierz” kliknij zlewkę: w panelu „Przedmiot” zaznacz „Przypięty”, a zlewka zostanie w miejscu. Przeciągnij ją bliżej ściany stopnia i odznacz „Przypięty” — jeśli jej środek ciężkości jest nad stopniem, zostanie.'
     ],
     scene: {
       ...BASE,
       box: { w: 0.24, h: 0.15, depth: 0.01 },
       ops: [
         { op: 'solid', region: { rect: [0, 0, 0.1, 0.03] }, material: 'stone', T: 20 },
-        { op: 'beaker', x: 0.11, y: 0.03, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T: 20, pinned: false },
+        { op: 'beaker', id: 'zlewka', x: 0.11, y: 0.03, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T: 20, pinned: false },
         { op: 'fill', region: { rect: [0.077, 0.032, 0.143, 0.07] }, composition: { H2O: 1 }, phase: 'liquid', T: 20 }
       ]
     }
@@ -233,8 +233,8 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
   {
     key: 'pusta-skrzynka',
     title: 'Pusta skrzynka',
-    summary: 'skrzynka pełna powietrza — maluj wodę, stawiaj ścianki, zlewki, płyty grzejne i ciała',
-    text: ['Skrzynka jest pełna powietrza. Maluj wodę, rysuj ścianki, stawiaj zlewki, płyty grzejne i ciała (drewno, lód, kamień — spadają, pływają albo toną; lód się topi).'],
+    summary: 'skrzynka pełna powietrza — maluj wodę, rysuj ścianki, dodawaj przedmioty: kostki lodu, klocki, zlewki, płyty grzejne',
+    text: ['Skrzynka jest pełna powietrza. Maluj wodę, rysuj ścianki i dodawaj przedmioty (kostkę lodu, klocek drewna, kamień, zlewkę, płytę grzejną) — swobodne spadają, pływają albo toną, lód się topi. Kliknij przedmiot narzędziem „Wybierz”, by zmienić jego ustawienia, np. „Przypięty” — wtedy nie spada.'],
     scene: SANDBOX_LAB2D
   }
 ];

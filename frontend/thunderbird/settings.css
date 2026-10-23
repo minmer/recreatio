@@ -1,0 +1,51 @@
+/* Die Seite in Thunderbirds Einstellungen (Redagowanie → Załączniki): seine Farben, hell wie dunkel.
+   Ohne eigenen Grund — Thunderbird bettet sie durchsichtig ein, sein Hintergrund scheint durch. */
+:root {
+  color-scheme: light dark;
+  --rc-ink: CanvasText;
+  --rc-back: Canvas;
+  --rc-muted: color-mix(in srgb, CanvasText 62%, Canvas);
+  --rc-line: color-mix(in srgb, CanvasText 18%, Canvas);
+  --rc-box: color-mix(in srgb, CanvasText 4%, Canvas);
+  --rc-accent: #2f6f4f;
+  --rc-danger: #b3261e;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --rc-accent: #7fc8a0; --rc-danger: #f2b8b5; }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: transparent; color: var(--rc-ink); }
+body { font: menu; font-size: 0.95rem; line-height: 1.45; }
+
+.rc { display: grid; gap: 0.75rem; max-width: 40rem; padding: 0.75rem 0.25rem; }
+.rc-head { display: flex; gap: 0.75rem; align-items: flex-start; }
+.rc-head img { flex: none; }
+.rc-head h1 { margin: 0; font-size: 1.05rem; }
+.rc-head p { margin: 0.125rem 0 0; }
+
+.rc-box { display: grid; gap: 0.625rem; padding: 0.75rem; border: 1px solid var(--rc-line); border-radius: 0.5rem; background: var(--rc-box); }
+.rc-box[hidden], .rc [hidden] { display: none; }
+.rc-state { margin: 0; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.rc-dot { width: 0.625rem; height: 0.625rem; border-radius: 50%; background: var(--rc-accent); }
+.rc-steps { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.25rem; }
+.rc-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.rc-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+label { font-weight: 600; }
+textarea { width: 100%; min-height: 4.5rem; resize: vertical; font: 0.85rem ui-monospace, Consolas, monospace; padding: 0.5rem; word-break: break-all;
+  border: 1px solid var(--rc-line); border-radius: 0.375rem; background: var(--rc-back); color: var(--rc-ink); }
+select { font: inherit; padding: 0.25rem 0.375rem; }
+
+button { font: inherit; padding: 0.375rem 0.875rem; border-radius: 0.375rem; border: 1px solid var(--rc-accent);
+  background: var(--rc-accent); color: var(--rc-back); cursor: pointer; }
+button.rc-quiet { background: transparent; color: var(--rc-ink); border-color: var(--rc-line); }
+button.rc-danger { color: var(--rc-danger); }
+button:disabled { opacity: 0.6; cursor: progress; }
+button:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: 2px; }
+
+a { color: var(--rc-accent); }
+.rc-muted { color: var(--rc-muted); margin: 0; }
+.rc-small { font-size: 0.85rem; }
+.rc-error { margin: 0; padding: 0.5rem 0.75rem; border-radius: 0.375rem; border: 1px solid var(--rc-danger); color: var(--rc-danger); }
+.rc-note { margin: 0; padding: 0.5rem 0.75rem; border-radius: 0.375rem; border: 1px solid var(--rc-line); }

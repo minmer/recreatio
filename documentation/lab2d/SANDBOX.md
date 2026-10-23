@@ -17,8 +17,13 @@ and (2026-10-23):
   it is stable as a rectangle. It changes shape only when it melts or ice grows on it, and then a whole side moves: a
   melting ice cube gets smaller and stays a rectangle, and water appears where the ice was. Painted walls (the "Maluj"
   and "Ścianka" tools) stay grid cells and can still be painted freehand;
-- melting and freezing come together: an ice side next to water colder than its freezing point grows a whole side at
-  a time; salt stays in the water. New ice appearing by itself in cold water (nucleation) comes later.
+- melting and freezing come together: an ice side next to water colder than its freezing point grows by a whole
+  side; salt stays in the water. New ice appearing by itself in cold water (nucleation) comes later;
+- melting can happen on one side or on several at once — the side the heat comes through — but each side that melts
+  gets smaller as a whole;
+- objects instead of separate tools: a movable thing (an ice cube, a block, a beaker, a hot plate) is an object with a
+  name and its own settings; whether it is pinned (does not fall) is one of them, set in the object's panel — there is
+  no separate "Przypnij" tool.
 
 It extends
 ARCHITECTURE.md §14 ("Designed for, not built": M2 chemistry, M3 solids) with what the user asked for:

@@ -25,7 +25,8 @@ import { toast } from '../ui/dialogs';
 import { Phone, type PhoneStatus } from './native';
 import { smsParts } from './numbers';
 import { openPhone } from './phoneContext';
-import { daysLabel, SHARE_DAYS, SHARE_MAX, shareFile, shareLink, sizeText } from './share';
+import { shareFile } from './share';
+import { daysLabel, SHARE_DAYS, SHARE_MAX, shareLink, sizeText } from './shareSeal';
 import { PlanDialog } from './smsChat';
 import { aheadWhen } from './smsShared';
 

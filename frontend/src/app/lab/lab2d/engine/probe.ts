@@ -8,6 +8,7 @@
 import type { Engine, ProbeInfo } from './engine';
 import { pSat, tSat } from './if97';
 import { LIQUIDS, MOLAR, rhoLiq, SOLIDS } from './materials';
+import { isObjectOp } from './scene';
 import { boilingPoint, freezingPoint, M_S, rhoSol } from './solution';
 import { GAS_SPECIES, H2O, LIQUID, SOLID } from './units';
 
@@ -118,8 +119,10 @@ export function probe(e: Engine, x: number, y: number): ProbeInfo | null {
 function bodyInfo(e: Engine, x: number, y: number): ProbeInfo['body'] {
   const b = e.bodies.bodyAt(x, y);
   if (b === null) return null;
+  const op = e.scene.ops[b.key];
   return {
     index: b.index,
+    id: op !== undefined && isObjectOp(op) ? op.id : '',
     material: SOLIDS[b.mat].id,
     mass: b.m,
     T: b.meanT(),

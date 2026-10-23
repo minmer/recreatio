@@ -9,6 +9,11 @@
  * sich nur einmal an einen Arbeiter übergeben, und React ruft Effekte im
  * StrictMode zweimal auf.
  *
+ * Gegenstände (seit 2026-10-23): „Przedmioty“ fügt Klötze, Eiswürfel, eine
+ * Zlewka oder Platte hinzu; „Wybierz“ wählt einen (sein Umriss leuchtet) und
+ * verschiebt ihn, das Feld „Przedmiot“ zeigt seine Einstellungen — auch, ob er
+ * angeheftet ist (ObjectPanel.tsx).
+ *
  * Das Labor startet nie von selbst (B): es zeigt den Anfang und wartet auf
  * „Uruchom na żywo“ oder „Upiecz“ — ausser der Baustein sagt, dass das Backen
  * beim Öffnen beginnt (config.start = 'bake'; ein schon gebackener Nachweis
@@ -23,12 +28,15 @@ import { LabFrame, LabSection } from '../LabFrame';
 import { BakePanel, ClipSection, PlayerBar, StartPanel, type BakeProgress } from './ClipControls';
 import type { ClipInfo } from './clip/clip';
 import type { ProbeInfo } from './engine/engine';
-import { LIQUIDS, SOLIDS } from './engine/materials';
+import { LIQUIDS } from './engine/materials';
+import type { ObjectPatch } from './engine/objects';
 import type { ChartSample, HostStats } from './engine/protocol';
-import { CELL, QUALITIES, isQuality, readScene, writeScene, type Op, type Quality, type SideName } from './engine/scene';
+import { CELL, QUALITIES, isQuality, readScene, writeScene, type Quality, type SideName } from './engine/scene';
 import type { Region } from './engine/shapes';
 import { LabHost } from './host';
 import { num, t, type TextKey } from './i18n';
+import { ObjectPanel } from './ObjectPanel';
+import { KindIcon, newObjectOp, OBJECT_KINDS, type ObjectKind } from './objectKinds';
 import { About, BubblePanel, Charts, forcesOf, Hud, Inspector, Legend, type Level } from './panels';
 import { OVERLAYS, type Overlay } from './render/frame';
 import type { Walls } from './render/glRenderer';
@@ -56,8 +64,8 @@ export interface Lab2DConfig {
   readonly scenarios?: readonly Lab2DScenario[];
 }
 
-type Tool = 'paint' | 'erase' | 'place' | 'body' | 'pin' | 'drag' | 'wall' | 'inspect';
-type ApparatusKey = 'beaker' | 'hotplate';
+/** „add“: einen Gegenstand aus „Przedmioty“ hinzufügen (gewählt dort, nicht in der Werkzeugleiste). */
+type Tool = 'select' | 'paint' | 'erase' | 'add' | 'wall' | 'inspect';
 
 interface Material {
   readonly key: string;
@@ -80,19 +88,11 @@ const MATERIALS: readonly Material[] = [
   { key: 'chips', label: 'matChips', solid: 'ceramic', color: '#d8ccb4' }
 ];
 
-/** Stoffe für Körper (M3a, „Postaw ciało“). */
-const BODY_MATERIALS: readonly { readonly key: string; readonly label: TextKey }[] = [
-  { key: 'wood', label: 'matWood' }, { key: 'ice', label: 'matIce' }, { key: 'stone', label: 'matStone' }, { key: 'glass', label: 'matGlass' }, { key: 'steel', label: 'matSteel' }
-];
-const solidColor = (id: string): string => SOLIDS.find((s) => s.id === id)?.color ?? '#888888';
 
 const TOOLS: readonly { readonly key: Tool; readonly label: TextKey; readonly icon: IconName; readonly hint: TextKey }[] = [
+  { key: 'select', label: 'toolSelect', icon: 'shuffle', hint: 'hintSelect' },
   { key: 'paint', label: 'toolPaint', icon: 'edit', hint: 'hintPaint' },
   { key: 'erase', label: 'toolErase', icon: 'x', hint: 'hintErase' },
-  { key: 'place', label: 'toolPlace', icon: 'plus', hint: 'hintPlace' },
-  { key: 'body', label: 'toolBody', icon: 'blocks', hint: 'hintBody' },
-  { key: 'pin', label: 'toolPin', icon: 'pin', hint: 'hintPin' },
-  { key: 'drag', label: 'toolDrag', icon: 'shuffle', hint: 'hintDrag' },
   { key: 'wall', label: 'toolWall', icon: 'minus', hint: 'hintWall' },
   { key: 'inspect', label: 'toolInspect', icon: 'search', hint: 'hintInspect' }
 ];
@@ -132,60 +132,8 @@ function withQuality(raw: unknown, q: Quality): unknown {
 /** Kann dieser Browser WebGPU (der beschleunigte Weg)? Ob die Karte mitspielt, sagt erst der Arbeiter. */
 const HAS_WEBGPU = typeof navigator !== 'undefined' && 'gpu' in navigator;
 
-type Rect = [number, number, number, number];
-
-/** So nah (m) über dem Boden oder einem Gerät rastet ein neues Gerät darauf ein. */
-const SNAP = 0.012;
-
-/**
- * Ein Gerät an der Stelle (x, y): Mitte und Unterkante. Dicht über dem Boden
- * oder über einem Gerät darunter (eine Zlewka über der Heizplatte) steht es
- * darauf — nie in ihm.
- */
-function apparatusOp(kind: ApparatusKey, x: number, y: number, rects: readonly Rect[]): Op {
-  const half = (kind === 'beaker' ? 0.07 : 0.12) / 2;
-  let base = 0;
-  for (const r of rects) if (r[2] > x - half && r[0] < x + half && r[3] <= y + SNAP && r[3] > base) base = r[3];
-  const yy = y - base < SNAP ? base : y;
-  return kind === 'beaker'
-    ? { op: 'beaker', x, y: yy, w: 0.07, h: 0.08, wall: 0.002, material: 'glass', T: T0 + 20, lid: false, pinned: true, angle: 0 }
-    : { op: 'hotplate', x, y: yy, w: 0.12, h: 0.008, material: 'steel', T: T0 + 20, mode: 'power', power: 40, target: T0 + 150, on: true, pinned: true, angle: 0 };
-}
-
-/** Das Rechteck eines Geräts aus seinem JSON (für „Przesuń“). */
-function apparatusRect(op: Record<string, unknown>): Rect | null {
-  if ((op.op !== 'beaker' && op.op !== 'hotplate') || typeof op.x !== 'number' || typeof op.y !== 'number' || typeof op.w !== 'number' || typeof op.h !== 'number') return null;
-  return [op.x - op.w / 2, op.y, op.x + op.w / 2, op.y + op.h];
-}
-
-/** Wo die Geräte jetzt stehen: ihre Rechtecke, verschoben von den späteren „move“-Handgriffen (deren Fläche ihre Mitte enthält). */
-function apparatusRects(ops: readonly Record<string, unknown>[]): Rect[] {
-  const rects: Rect[] = [];
-  for (const op of ops) {
-    const r = apparatusRect(op);
-    if (r !== null) { rects.push(r); continue; }
-    if (op.op !== 'move' || typeof op.dx !== 'number' || typeof op.dy !== 'number') continue;
-    const region = op.region as { rect?: unknown } | undefined;
-    const m = Array.isArray(region?.rect) ? (region?.rect as number[]) : null;
-    if (m === null || m.length !== 4) continue;
-    for (const q of rects) {
-      const cx = (q[0] + q[2]) / 2;
-      const cy = (q[1] + q[3]) / 2;
-      if (cx < m[0] || cx > m[2] || cy < m[1] || cy > m[3]) continue;
-      q[0] += op.dx; q[2] += op.dx; q[1] += op.dy; q[3] += op.dy;
-    }
-  }
-  return rects;
-}
-
 function Swatch({ color }: { color: string }) {
   return <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill={color} stroke="currentColor" strokeOpacity="0.35" /></svg>;
-}
-
-function ApparatusIcon({ kind }: { kind: ApparatusKey }) {
-  return kind === 'beaker'
-    ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v17h12V3" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M7 12h10v7H7z" fill="#3d8fd8" opacity="0.6" /></svg>
-    : <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="14" width="20" height="6" rx="1" fill="#7d858e" /><path d="M6 17h12" stroke="#e8823a" strokeWidth="2" /></svg>;
 }
 
 export function Lab2D({ config, whole = false, createWorker = createLabWorker, createAccelWorker = createGpuWorker }: {
@@ -197,7 +145,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
 }) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<LabHost | null>(null);
-  const drag = useRef<{ start: [number, number]; startPx: [number, number]; last: [number, number]; at: number; target: Rect | null } | null>(null);
+  const drag = useRef<{ start: [number, number]; startPx: [number, number]; last: [number, number]; at: number; target: string | null } | null>(null);
   const samplesRef = useRef<ChartSample[]>([]);
   const opsRef = useRef<Record<string, unknown>[]>([]);
   const [ready, setReady] = useState(false);
@@ -210,8 +158,10 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   const [hud, setHud] = useState(false);
   const [tool, setTool] = useState<Tool>('paint');
   const [material, setMaterial] = useState('water');
-  const [apparatus, setApparatus] = useState<ApparatusKey>('beaker');
-  const [bodyMat, setBodyMat] = useState('wood');
+  /* Gegenstände: welcher hinzugefügt wird, welcher gewählt ist (sein Name), die Handgriffe der Szene (für sein Feld). */
+  const [addKind, setAddKind] = useState<ObjectKind>('ice');
+  const [selected, setSelected] = useState<string | null>(null);
+  const [ops, setOps] = useState<readonly Record<string, unknown>[]>([]);
   const [brushMm, setBrushMm] = useState(8);
   const [tempC, setTempC] = useState(20);
   /* Massenanteil des Salzes in gemalter Solanka (%). */
@@ -255,9 +205,14 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   settingsRef.current = { paused, overlay, particles };
   const lagRef = useRef(0);
 
-  const refreshOps = (h: LabHost): void => {
-    void h.serialize().then((s) => { const ops = s?.ops; opsRef.current = Array.isArray(ops) ? (ops as Record<string, unknown>[]) : []; });
-  };
+  const refreshOps = (h: LabHost): Promise<readonly Record<string, unknown>[]> => h.serialize().then((s) => {
+    const list = Array.isArray(s?.ops) ? (s?.ops as Record<string, unknown>[]) : [];
+    opsRef.current = list;
+    setOps(list);
+    return list;
+  });
+  /** Einen Gegenstand wählen (null: keinen) — sein Umriss und sein Feld kommen mit den Kennzahlen. */
+  const choose = (id: string | null): void => { setSelected(id); hostRef.current?.selectObject(id); };
 
   useEffect(() => {
     const box = boxRef.current;
@@ -286,7 +241,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
     const host = new LabHost(canvas, accel ? createAccelWorker : createWorker, {
       onReady: () => {
         setReady(true);
-        refreshOps(host);
+        void refreshOps(host);
         const s = settingsRef.current;
         if (speedRef.current !== 1) host.setSpeed(speedRef.current);
         if (s.overlay !== 'none') host.overlay(s.overlay);
@@ -367,16 +322,6 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
     else h.apply({ op: 'fill', region, phase: 'gas', T: T0 + tempC, composition: { N2: 0.7676, O2: 0.2324 } });
   };
 
-  /** Das oberste Gerät an (x, y) — sein jetziges Rechteck — oder null. */
-  const apparatusAt = (x: number, y: number): Rect | null => {
-    const rects = apparatusRects(opsRef.current);
-    for (let k = rects.length - 1; k >= 0; k -= 1) {
-      const r = rects[k];
-      if (x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]) return r;
-    }
-    return null;
-  };
-
   const onDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
     const h = host();
     if (h === null || !ready) return;
@@ -385,27 +330,25 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
     e.currentTarget.setPointerCapture(e.pointerId);
     const px = local(e);
     const w = h.toWorld(px[0], px[1]);
-    drag.current = { start: w, startPx: px, last: w, at: performance.now(), target: null };
+    const d = { start: w, startPx: px, last: w, at: performance.now(), target: null as string | null };
+    drag.current = d;
     if (tool === 'paint' || tool === 'erase') brushAt(w[0], w[1]);
-    else if (tool === 'place') { h.apply(apparatusOp(apparatus, w[0], w[1], apparatusRects(opsRef.current))); drag.current = null; window.setTimeout(() => refreshOps(h), 50); }
     else if (tool === 'inspect') {
       void h.query(w[0], w[1]).then((q) => { setInfo(q); h.select(q?.bubble?.id ?? null); });
       drag.current = null;
-    } else if (tool === 'wall' || tool === 'body') setLine([px[0], px[1], px[0], px[1]]);
-    else if (tool === 'pin') {
-      /* Anheften oder lösen: was der Körper an dieser Stelle gerade ist, entscheidet. */
-      void h.query(w[0], w[1]).then((q) => {
-        const b = q?.body ?? null;
-        if (b === null) { setNote(t('noteNoBody')); return; }
-        h.apply({ op: 'pin', x: w[0], y: w[1], pinned: b.state !== 'pinned' });
-        window.setTimeout(() => refreshOps(h), 50);
-      });
-      drag.current = null;
+    } else if (tool === 'wall' || tool === 'add') {
+      setLine([px[0], px[1], px[0], px[1]]);
+      /* Ein Klick auf einen Gegenstand wählt ihn, statt einen neuen in ihn zu setzen. */
+      if (tool === 'add') void h.query(w[0], w[1]).then((q) => { if ((q?.body?.id ?? '') !== '') d.target = q?.body?.id ?? null; });
     }
-    else if (tool === 'drag') {
-      const r = apparatusAt(w[0], w[1]);
-      if (r === null) drag.current = null;
-      else { drag.current.target = r; setLine([px[0], px[1], px[0], px[1]]); }
+    else if (tool === 'select') {
+      /* Den Gegenstand unter dem Zeiger wählen (daneben: keinen); zieht man ihn, rückt er beim Loslassen dorthin. */
+      void h.query(w[0], w[1]).then((q) => {
+        const id = q?.body?.id ?? '';
+        choose(id !== '' ? id : null);
+        if (id !== '') d.target = id;
+      });
+      setLine([px[0], px[1], px[0], px[1]]);
     }
   };
 
@@ -415,7 +358,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
     if (d === null || h === null) return;
     const px = local(e);
     const w = h.toWorld(px[0], px[1]);
-    if (tool === 'wall' || tool === 'drag' || tool === 'body') { setLine([d.startPx[0], d.startPx[1], px[0], px[1]]); return; }
+    if (tool === 'wall' || tool === 'add' || tool === 'select') { setLine([d.startPx[0], d.startPx[1], px[0], px[1]]); return; }
     const moved = Math.hypot(w[0] - d.last[0], w[1] - d.last[1]);
     const now = performance.now();
     if (moved < brushMm / 3000 && now - d.at < 60) return;
@@ -437,22 +380,44 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
       if (Math.hypot(x - d.start[0], y - d.start[1]) < cell) return;
       const m = MATERIALS.find((k) => k.key === material);
       h.addSolid({ line: [d.start[0], d.start[1], x, y], width: Math.max(2 * cell, 0.004) }, m?.solid ?? 'glass', T0 + tempC);
-    } else if (tool === 'body') {
-      /* Ein Körper aus dem gezogenen Rechteck (wenigstens eine Zelle), frei: er fällt, schwimmt oder sinkt. */
-      if (Math.abs(x - d.start[0]) < cell || Math.abs(y - d.start[1]) < cell) return;
-      const rect: [number, number, number, number] = [Math.min(x, d.start[0]), Math.max(0, Math.min(y, d.start[1])), Math.max(x, d.start[0]), Math.max(y, d.start[1])];
-      h.apply({ op: 'body', region: { rect }, material: bodyMat, T: T0 + tempC, pinned: false, angle: 0 });
-      window.setTimeout(() => refreshOps(h), 50);
-    } else if (tool === 'drag' && d.target !== null) {
-      const r = d.target;
-      /* Genau (Körper sind Rechtecke; liegt ein gemalter Bau in der Fläche, rundet die Engine alles auf ganze Zellen), auf 0,1 mm, nicht unter den Boden. */
+    } else if (tool === 'add') {
+      /* Ein Klick: übliche Grösse; ein gezogenes Rechteck: Lage und Grösse. Der neue Gegenstand ist gleich gewählt (unter dem Namen, den ihm die Engine gab). */
+      const dragged = Math.abs(x - d.start[0]) >= cell && Math.abs(y - d.start[1]) >= cell;
+      if (!dragged && d.target !== null) { choose(d.target); return; }
+      h.apply(newObjectOp(addKind, d.start, [x, y], dragged, opsRef.current));
+      void refreshOps(h).then((list) => {
+        const last = [...list].reverse().find((o) => o.op === 'body' || o.op === 'beaker' || o.op === 'hotplate');
+        if (typeof last?.id === 'string') choose(last.id);
+      });
+    } else if (tool === 'select' && d.target !== null) {
+      /* Genau (auf 0,1 mm), nicht unter den Boden; liegt ein gemalter Bau im Umriss (Siedesteinchen in der Zlewka), rundet die Engine auf ganze Zellen. */
+      const view = stats?.object ?? null;
+      let floor = 0;
+      if (view !== null && view.id === d.target) { floor = Infinity; for (let k = 1; k < view.outline.length; k += 2) floor = Math.min(floor, view.outline[k]); }
       const dx = Math.round((x - d.start[0]) * 1e4) / 1e4;
-      const dy = Math.max(-Math.floor(r[1] * 1e4) / 1e4, Math.round((y - d.start[1]) * 1e4) / 1e4);
-      if (dx === 0 && dy === 0) return;
-      /* Das Gerät samt Wasser und Blasen darin verschieben (seine Zellen behalten Temperatur und Heizung). */
-      h.apply({ op: 'move', region: { rect: r }, dx, dy });
-      window.setTimeout(() => refreshOps(h), 50);
+      const dy = Math.max(-Math.floor(Math.max(0, floor) * 1e4) / 1e4, Math.round((y - d.start[1]) * 1e4) / 1e4);
+      if (Math.hypot(dx, dy) < 0.5 * cell) return;
+      h.apply({ op: 'move', region: null, id: d.target, dx, dy });
+      window.setTimeout(() => { void refreshOps(h); }, 50);
     }
+  };
+
+  /* Einstellungen des gewählten Gegenstands: „Przypięty“ und die Heizung sofort, der Aufbau nur am Anfang (dann entsteht die Szene neu). */
+  const patchObject = (patch: ObjectPatch): void => {
+    const h = host();
+    if (h === null || selected === null) return;
+    void h.editObject(selected, patch).then((r) => {
+      if (r?.warning?.startsWith('refused') === true) setNote(t('objAtStart'));
+      if (r?.rebuilt === true) { samplesRef.current = []; setSamples([]); }
+      void refreshOps(h);
+    });
+  };
+  const removeObject = (): void => {
+    const h = host();
+    if (h === null || selected === null) return;
+    h.apply({ op: 'remove', id: selected });
+    choose(null);
+    window.setTimeout(() => { void refreshOps(h); }, 50);
   };
 
   const togglePause = (): void => { const next = !paused; setPaused(next); host()?.pause(next); };
@@ -488,13 +453,14 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   const changeParticles = (on: boolean): void => { setParticles(on); host()?.particles(on); };
   /* Neu laden beginnt ruhend am Anfang (das Labor startet nie von selbst). */
   const reload = (scene: unknown): void => {
+    choose(null);
     samplesRef.current = [];
     setSamples([]);
     setPaused(true);
     const h = host();
     h?.pause(true);
     h?.load(withQuality(scene, quality));
-    if (h !== null) window.setTimeout(() => refreshOps(h), 100);
+    if (h !== null) window.setTimeout(() => { void refreshOps(h); }, 100);
   };
   const pickScenario = (i: number): void => {
     const next = scenarios[i];
@@ -542,10 +508,13 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   const shownSamples = mode === 'playback' && clip !== null && clipStats !== null ? clip.samples.filter((x) => x.t <= clipStats.t + 1e-9) : samples;
   /* Andere Flüssigkeiten (Öl) und Salz kennt der beschleunigte Weg noch nicht: dann bleibt der normale Weg. */
   const otherLiquid = (stats?.engine.otherMass ?? 0) > 0 || (stats?.engine.saltMass ?? 0) > 0 || (stats?.engine.saltSolid ?? 0) > 0;
-  const hint = TOOLS.find((k) => k.key === tool)?.hint ?? 'hintPaint';
+  const hint: TextKey = tool === 'add' ? 'hintAdd' : TOOLS.find((k) => k.key === tool)?.hint ?? 'hintPaint';
   const lower: Quality | undefined = QUALITIES[QUALITIES.indexOf(quality) + 1];
   const heaters = stats?.engine.heaters ?? [];
   const bubble = stats?.bubble ?? null;
+  const objectView = stats?.object ?? null;
+  const selectedOp = selected === null ? null : ops.find((o) => o.id === selected && (o.op === 'body' || o.op === 'beaker' || o.op === 'hotplate')) ?? null;
+  const atStart = mode === 'live' && bake === null && (stats?.engine.time ?? 0) === 0;
 
   /* Pfeile der Kräfte an der gewählten Blase (Bildschirmkoordinaten, auf die grösste Kraft normiert). */
   let arrows: { key: string; x1: number; y1: number; x2: number; y2: number; label: string }[] = [];
@@ -559,6 +528,19 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
       const a = Math.atan2(f.y, f.x);
       return { key: f.key, x1: bx, y1: by, x2: bx + len * Math.cos(a), y2: by - len * Math.sin(a), label: t(f.key) };
     });
+  }
+
+  const outline: string[] = [];
+  if (objectView !== null && h0 !== null && view !== null && objectView.id === selected) {
+    const pts = objectView.outline;
+    const moving = line !== null && tool === 'select';
+    const sx = moving ? line[2] - line[0] : 0;
+    const sy = moving ? line[3] - line[1] : 0;
+    for (let k = 0; k + 7 < pts.length; k += 8) {
+      const corners: string[] = [];
+      for (let c = 0; c < 8; c += 2) { const [px, py] = h0.toScreen(pts[k + c], pts[k + c + 1]); corners.push(`${px + sx},${py + sy}`); }
+      outline.push(corners.join(' '));
+    }
   }
 
   const bar = (
@@ -588,8 +570,9 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
         <defs>
           <marker id="l2d-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" className="l2d-arrowhead" /></marker>
         </defs>
-        {line !== null && tool === 'body' && <rect className="l2d-preview l2d-preview-box" x={Math.min(line[0], line[2])} y={Math.min(line[1], line[3])} width={Math.abs(line[2] - line[0])} height={Math.abs(line[3] - line[1])} />}
-        {line !== null && tool !== 'body' && <line className="l2d-preview" x1={line[0]} y1={line[1]} x2={line[2]} y2={line[3]} />}
+        {outline.map((p, k) => <polygon key={k} className="l2d-selected" points={p} />)}
+        {line !== null && tool === 'add' && <rect className="l2d-preview l2d-preview-box" x={Math.min(line[0], line[2])} y={Math.min(line[1], line[3])} width={Math.abs(line[2] - line[0])} height={Math.abs(line[3] - line[1])} />}
+        {line !== null && tool === 'wall' && <line className="l2d-preview" x1={line[0]} y1={line[1]} x2={line[2]} y2={line[3]} />}
         {arrows.map((a) => (
           <g key={a.key} className={`l2d-force l2d-force-${a.key}`}>
             <line x1={a.x1} y1={a.y1} x2={a.x2} y2={a.y2} markerEnd="url(#l2d-head)" />
@@ -639,6 +622,20 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
         </div>
         <p className="lab-muted">{t(hint)}</p>
       </LabSection>
+      {selectedOp !== null && (
+        <LabSection title={t('objSection')}>
+          <ObjectPanel op={selectedOp} view={objectView !== null && objectView.id === selected ? objectView : null} atStart={atStart} onPatch={patchObject} onRemove={removeObject} />
+        </LabSection>
+      )}
+      <LabSection title={t('objects')}>
+        <div className="lab-palette">
+          {OBJECT_KINDS.map((k) => (
+            <button key={k.key} type="button" className={`lab-item${tool === 'add' && addKind === k.key ? ' is-on' : ''}`} onClick={() => { setAddKind(k.key); setTool('add'); }}>
+              <KindIcon kind={k.key} />{t(k.label)}
+            </button>
+          ))}
+        </div>
+      </LabSection>
       <LabSection title={t('materials')}>
         <div className="lab-palette">
           {MATERIALS.map((m) => (
@@ -658,25 +655,6 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
         <label className="lab-field">{t('paintTemp')}: {tempC} °C
           <input type="range" min={0} max={200} step={1} value={tempC} onChange={(e) => setTempC(Number(e.currentTarget.value))} />
         </label>
-      </LabSection>
-      <LabSection title={t('apparatus')}>
-        <div className="lab-palette">
-          {(['beaker', 'hotplate'] as const).map((k) => (
-            <button key={k} type="button" className={`lab-item${apparatus === k && tool === 'place' ? ' is-on' : ''}`} onClick={() => { setApparatus(k); setTool('place'); }}>
-              <ApparatusIcon kind={k} />{t(k === 'beaker' ? 'appBeaker' : 'appHotplate')}
-            </button>
-          ))}
-        </div>
-      </LabSection>
-      <LabSection title={t('bodies')}>
-        <div className="lab-palette">
-          {BODY_MATERIALS.map((m) => (
-            <button key={m.key} type="button" className={`lab-item${bodyMat === m.key && tool === 'body' ? ' is-on' : ''}`} onClick={() => { setBodyMat(m.key); setTool('body'); }}>
-              <Swatch color={solidColor(m.key)} />{t(m.label)}
-            </button>
-          ))}
-          <button type="button" className={`lab-item${tool === 'pin' ? ' is-on' : ''}`} onClick={() => setTool('pin')}><Icon name="pin" />{t('toolPin')}</button>
-        </div>
       </LabSection>
       <LabSection title={t('heater')}>
         {heaters.length === 0 && <p className="lab-muted">{t('heaterNone')}</p>}

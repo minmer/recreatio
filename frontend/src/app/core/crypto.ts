@@ -233,7 +233,13 @@ export const Field = {
   PageSubject: 'page_subject',
   PagePartLayout: 'page_part_layout',
   PageModuleConfig: 'page_module_config',
-  PageMenu: 'page_menu'
+  PageMenu: 'page_menu',
+
+  /**
+   * 0125 — ein Programm, das Pliki przez link anlegt (Thunderbird, `phone/shareSeal.ts`):
+   * der Schlüssel seiner Etiketten und sein Name, unter dem Schlüssel des Bereichs.
+   */
+  ShareDevice: 'share_device'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

@@ -10,6 +10,13 @@ if not exist node_modules (
   echo Installing dependencies...
   call npm install
 )
+rem The Thunderbird add-on goes with the site (public\thunderbird\recreatio-filelink.xpi, offered in Pliki przez link).
+call npm run thunderbird:xpi
+if errorlevel 1 (
+  echo Thunderbird add-on build failed.
+  popd
+  exit /b 1
+)
 call npm run build
 if errorlevel 1 (
   echo Build failed.

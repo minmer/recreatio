@@ -261,12 +261,12 @@ export function separate(bodies: Bodies, b: Body2D, rects: readonly RectLocal[],
 }
 
 /** Werkzeug „Przesuń“, erster Teil: jeder Körper, dessen Rechteck die Fläche trifft, wird aus dem Gitter gehoben (liefert sie). */
-export function liftBodies(bodies: Bodies, region: Region): Body2D[] {
+export function liftBodies(bodies: Bodies, region: Region, pick?: (b: Body2D) => boolean): Body2D[] {
   const [x0, y0, x1, y1] = bounds(region);
   const out: Body2D[] = [];
   const box = new Float64Array(4);
   for (const b of bodies.list) {
-    if (b.gone) continue;
+    if (b.gone || (pick !== undefined && !pick(b))) continue;
     b.worldBox(b.x, b.y, b.a, box);
     /* Nur, was wirklich in der Fläche liegt (eine Platte, auf der die Zlewka steht, berührt deren Fläche nur). */
     const tol = 1e-3 * b.dx;
@@ -275,6 +275,18 @@ export function liftBodies(bodies: Bodies, region: Region): Body2D[] {
     out.push(b);
   }
   return out;
+}
+
+/** Einen Körper ganz wegnehmen (Handgriff „remove“): seine Energie, sein Film, seine Kruste und Eis als Wasser gehen hinaus (gebucht). */
+export function removeBody(bodies: Bodies, b: Body2D, ledger: { energy: number; water: number; salt: number }): void {
+  if (b.gone) return;
+  bodies.cover.release(b);
+  ledger.energy -= b.energy();
+  ledger.water -= b.filmMass() + (meltsAt(b.mat) > 0 ? b.m : 0);
+  ledger.salt -= b.crustMass();
+  b.gone = true;
+  b.ncell = 0;
+  bodies.changed();
 }
 
 /** Zweiter Teil: um (dx, dy) Meter versetzt wieder hinein (die Teilchen hat der Aufrufer mit verschoben); was dann in einem Rechteck liegt, hinaus. */

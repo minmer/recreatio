@@ -64,6 +64,7 @@
           "ops": [
             {
               "op": "hotplate",
+              "id": "plyta",
               "x": 0.1,
               "y": 0,
               "w": 0.12,
@@ -77,6 +78,7 @@
             },
             {
               "op": "beaker",
+              "id": "zlewka",
               "x": 0.1,
               "y": 0.008,
               "w": 0.07,
@@ -163,6 +165,7 @@
               "ops": [
                 {
                   "op": "beaker",
+                  "id": "zlewka",
                   "x": 0.1,
                   "y": 0.008,
                   "w": 0.07,
@@ -189,6 +192,7 @@
                 },
                 {
                   "op": "hotplate",
+                  "id": "grzalka",
                   "x": 0.08,
                   "y": 0.012,
                   "w": 0.012,
@@ -234,6 +238,7 @@
               "ops": [
                 {
                   "op": "hotplate",
+                  "id": "plyta",
                   "x": 0.1,
                   "y": 0,
                   "w": 0.12,
@@ -247,6 +252,7 @@
                 },
                 {
                   "op": "beaker",
+                  "id": "zlewka",
                   "x": 0.1,
                   "y": 0.008,
                   "w": 0.07,
@@ -331,6 +337,7 @@
               "ops": [
                 {
                   "op": "hotplate",
+                  "id": "plyta",
                   "x": 0.1,
                   "y": 0,
                   "w": 0.12,
@@ -344,6 +351,7 @@
                 },
                 {
                   "op": "beaker",
+                  "id": "zlewka",
                   "x": 0.1,
                   "y": 0.008,
                   "w": 0.07,
@@ -428,6 +436,7 @@
               "ops": [
                 {
                   "op": "hotplate",
+                  "id": "plyta",
                   "x": 0.1,
                   "y": 0,
                   "w": 0.12,
@@ -441,6 +450,7 @@
                 },
                 {
                   "op": "beaker",
+                  "id": "zlewka",
                   "x": 0.1,
                   "y": 0.008,
                   "w": 0.07,
@@ -525,6 +535,7 @@
               "ops": [
                 {
                   "op": "hotplate",
+                  "id": "plyta",
                   "x": 0.1,
                   "y": 0,
                   "w": 0.12,
@@ -538,6 +549,7 @@
                 },
                 {
                   "op": "beaker",
+                  "id": "zlewka",
                   "x": 0.1,
                   "y": 0.008,
                   "w": 0.07,
@@ -638,6 +650,7 @@
               "ops": [
                 {
                   "op": "beaker",
+                  "id": "zlewka",
                   "x": 0.1,
                   "y": 0.008,
                   "w": 0.07,
@@ -698,6 +711,7 @@
               "ops": [
                 {
                   "op": "hotplate",
+                  "id": "plyta-lewa",
                   "x": 0.05,
                   "y": 0,
                   "w": 0.08,
@@ -711,6 +725,7 @@
                 },
                 {
                   "op": "hotplate",
+                  "id": "plyta-prawa",
                   "x": 0.15,
                   "y": 0,
                   "w": 0.08,
@@ -724,6 +739,7 @@
                 },
                 {
                   "op": "beaker",
+                  "id": "zlewka-lewa",
                   "x": 0.05,
                   "y": 0.008,
                   "w": 0.06,
@@ -734,6 +750,7 @@
                 },
                 {
                   "op": "beaker",
+                  "id": "zlewka-prawa",
                   "x": 0.15,
                   "y": 0.008,
                   "w": 0.06,
@@ -835,6 +852,7 @@
               "ops": [
                 {
                   "op": "hotplate",
+                  "id": "plyta",
                   "x": 0.1,
                   "y": 0,
                   "w": 0.12,
@@ -848,6 +866,7 @@
                 },
                 {
                   "op": "beaker",
+                  "id": "zlewka",
                   "x": 0.1,
                   "y": 0.008,
                   "w": 0.07,
@@ -924,6 +943,7 @@
               "ops": [
                 {
                   "op": "hotplate",
+                  "id": "plyta",
                   "x": 0.1,
                   "y": 0,
                   "w": 0.12,
@@ -937,6 +957,7 @@
                 },
                 {
                   "op": "beaker",
+                  "id": "zlewka",
                   "x": 0.1,
                   "y": 0.008,
                   "w": 0.07,
@@ -996,6 +1017,7 @@
               "ops": [
                 {
                   "op": "hotplate",
+                  "id": "plyta",
                   "x": 0.1,
                   "y": 0,
                   "w": 0.12,
@@ -1009,6 +1031,7 @@
                 },
                 {
                   "op": "beaker",
+                  "id": "zlewka",
                   "x": 0.1,
                   "y": 0.008,
                   "w": 0.07,
@@ -1041,7 +1064,7 @@
             "text": [
               "Nad wodą wiszą trzy ciała: klocek sosnowy, kostka lodu i kamień (granit). Puść czas — spadną do wody.",
               "Drewno (510 kg/m³) zanurza się do połowy, lód (917 kg/m³) prawie cały, a kamień (2630 kg/m³) idzie na dno. Pływające ciało wypiera tyle wody, ile samo waży — zbadaj je narzędziem „Badaj”.",
-              "Woda ma 2 °C, więc lód topi się powoli: zostaje prostokątem, który z czasem robi się mniejszy."
+              "Woda ma 2 °C, więc lód topi się powoli: zostaje prostokątem, który z czasem robi się mniejszy. Kliknij przedmiot narzędziem „Wybierz”: w panelu „Przedmiot” zaznacz „Przypięty”, a zostanie tam, gdzie wisi."
             ],
             "scene": {
               "format": "recreatio/lab2d",
@@ -1084,6 +1107,7 @@
                 },
                 {
                   "op": "body",
+                  "id": "drewno",
                   "region": {
                     "rect": [
                       0.025,
@@ -1097,6 +1121,7 @@
                 },
                 {
                   "op": "body",
+                  "id": "lod",
                   "region": {
                     "rect": [
                       0.09,
@@ -1110,6 +1135,7 @@
                 },
                 {
                   "op": "body",
+                  "id": "kamien",
                   "region": {
                     "rect": [
                       0.14,
@@ -1171,6 +1197,7 @@
                 },
                 {
                   "op": "body",
+                  "id": "kostka",
                   "region": {
                     "rect": [
                       0.085,
@@ -1233,6 +1260,7 @@
                 },
                 {
                   "op": "body",
+                  "id": "kostka-1",
                   "region": {
                     "rect": [
                       0.012,
@@ -1246,6 +1274,7 @@
                 },
                 {
                   "op": "body",
+                  "id": "kostka-2",
                   "region": {
                     "rect": [
                       0.04,
@@ -1259,6 +1288,7 @@
                 },
                 {
                   "op": "body",
+                  "id": "kostka-3",
                   "region": {
                     "rect": [
                       0.068,
@@ -1277,7 +1307,7 @@
             "title": "Przewrócona zlewka",
             "text": [
               "Zlewka z wodą (swobodna, nie przypięta) stoi na krawędzi stopnia tak, że jej środek ciężkości jest już poza krawędzią. Puść czas — zlewka obróci się wokół krawędzi i spadnie, a woda się wyleje.",
-              "Narzędziem „Przypnij” możesz ciało przypiąć (stoi w miejscu) albo odpiąć: przypiętą zlewkę ustaw „Przesuń” bliżej ściany stopnia i odepnij — jeśli jej środek ciężkości jest nad stopniem, zostanie."
+              "Narzędziem „Wybierz” kliknij zlewkę: w panelu „Przedmiot” zaznacz „Przypięty”, a zlewka zostanie w miejscu. Przeciągnij ją bliżej ściany stopnia i odznacz „Przypięty” — jeśli jej środek ciężkości jest nad stopniem, zostanie."
             ],
             "scene": {
               "format": "recreatio/lab2d",
@@ -1317,6 +1347,7 @@
                 },
                 {
                   "op": "beaker",
+                  "id": "zlewka",
                   "x": 0.11,
                   "y": 0.03,
                   "w": 0.07,
@@ -1388,6 +1419,7 @@
           "ops": [
             {
               "op": "hotplate",
+              "id": "plyta",
               "x": 0.1,
               "y": 0,
               "w": 0.12,
@@ -1401,6 +1433,7 @@
             },
             {
               "op": "beaker",
+              "id": "zlewka",
               "x": 0.1,
               "y": 0.008,
               "w": 0.07,

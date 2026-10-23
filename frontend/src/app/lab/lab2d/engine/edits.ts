@@ -15,7 +15,7 @@
 
 import { Body2D, meltsAt, type RectWorld } from './body';
 import type { Bodies } from './bodies';
-import { carveBodies, liftBodies, placeBodies } from './bodyTools';
+import { carveBodies, liftBodies, placeBodies, removeBody } from './bodyTools';
 import type { Bubbles } from './bubbles';
 import type { Gas } from './gas';
 import type { Grid } from './grid';
@@ -53,6 +53,8 @@ export interface World {
   /** Die Körper (M3a) und die Nummer des Handgriffs, der gerade ausgeführt wird (sein Schlüssel). */
   readonly bodies: Bodies;
   readonly opIndex: number;
+  /** Der Schlüssel (Nummer des Handgriffs, der ihn anlegte) des Gegenstands mit diesem Namen; −1: keiner. */
+  objectKey(id: string): number;
   /** Nach einer Änderung der Feststoffe: feste Daten, Gebiete, Kavitäten neu. */
   solidsChanged(): void;
 }
@@ -346,9 +348,37 @@ export function applyOp(w: World, op: Op): string | null {
       clearSolid(w, cells);
       return null;
     }
-    case 'move':
-      moveSolids(w, op.region, op.dx, op.dy);
+    case 'move': {
+      if (op.region !== null) { moveSolids(w, op.region, op.dx, op.dy); return null; }
+      /* Ein Gegenstand samt dem, was in seinem Umriss liegt: Wasser, Blasen, ein gemalter Bau (Siedesteinchen in der Zlewka) und Gegenstände, die ganz darin liegen. */
+      const own = w.bodies.list.filter((b) => !b.gone && b.key === w.objectKey(op.id ?? ''));
+      if (own.length === 0) return `move: no object "${op.id ?? ''}"`;
+      const box = new Float64Array(4);
+      const out: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];
+      for (const b of own) {
+        b.worldBox(b.x, b.y, b.a, box);
+        out[0] = Math.min(out[0], box[0]); out[1] = Math.min(out[1], box[1]); out[2] = Math.max(out[2], box[2]); out[3] = Math.max(out[3], box[3]);
+      }
+      const tol = 1e-3 * g.dx;
+      const inside = (b: Body2D): boolean => {
+        if (own.includes(b)) return true;
+        b.worldBox(b.x, b.y, b.a, box);
+        return box[0] >= out[0] - tol && box[1] >= out[1] - tol && box[2] <= out[2] + tol && box[3] <= out[3] + tol;
+      };
+      moveSolids(w, { rect: out }, op.dx, op.dy, inside);
       return null;
+    }
+    case 'remove': {
+      const key = w.objectKey(op.id);
+      let any = false;
+      for (const b of w.bodies.list) {
+        if (b.gone || b.key !== key) continue;
+        removeBody(w.bodies, b, w.ledger);
+        if (b.heater >= 0) { const h = w.heat.heaters[b.heater]; if (h !== undefined) h.on = false; }
+        any = true;
+      }
+      return any ? null : `remove: no object "${op.id}"`;
+    }
     case 'solid': {
       const s = solidIndex(op.material);
       if (s < 0) return `solid: unknown material ${op.material}`;
@@ -448,7 +478,7 @@ export function applyOp(w: World, op: Op): string | null {
  * Ziel war, weicht (gebucht wie bei makeSolid); frei gewordene Zellen füllt
  * Umgebungsluft. Was die Kiste verlässt, ist weg (gebucht).
  */
-function moveSolids(w: World, region: Region, mx: number, my: number): void {
+function moveSolids(w: World, region: Region, mx: number, my: number, pick?: (b: Body2D) => boolean): void {
   const g = w.grid;
   const { nx, ny, dx } = g;
   const src: number[] = [];
@@ -459,7 +489,7 @@ function moveSolids(w: World, region: Region, mx: number, my: number): void {
   const oy = src.length > 0 ? dj * dx : my;
   if (ox === 0 && oy === 0) return;
   /* Körper, deren Rechteck die Fläche trifft, rücken als Ganzes (erst aus dem Gitter, nach dem Bau wieder hinein). */
-  const lifted = w.bodies.list.length > 0 ? liftBodies(w.bodies, region) : [];
+  const lifted = w.bodies.list.length > 0 ? liftBodies(w.bodies, region, pick) : [];
   const P = w.particles;
   const B = w.bubbles;
   /* Wasser und Blasen mitnehmen. */

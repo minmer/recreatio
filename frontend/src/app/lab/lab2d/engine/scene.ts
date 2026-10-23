@@ -5,8 +5,9 @@
  * Meter, °C, kPa und W; die Engine bekommt SI (K, Pa).
  *
  * Nichts hier ist eine Voreinstellung für einen Stoff oder ein Gerät: eine
- * Zlewka ist eine Form aus Glaszellen, eine Heizplatte eine Form aus
- * Stahlzellen mit innerer Wärmequelle (ARCHITECTURE.md §10).
+ * Zlewka ist ein Gegenstand aus Glasrechtecken, eine Heizplatte einer aus
+ * Stahl mit innerer Wärmequelle (ARCHITECTURE.md §10). Gegenstände haben einen
+ * Namen (`id`) und tragen ihre Einstellungen selbst (siehe Op).
  */
 
 import { readRegion, writeRegion, type Region } from './shapes';
@@ -30,19 +31,38 @@ export const isQuality = (v: unknown): v is Quality => v === 'very-high' || v ==
 /** Höchstens so viele Zellen (sonst wird die Stufe gröber, mit Warnung). */
 export const MAX_CELLS = 160_000;
 
+/**
+ * Die Handgriffe der Reihe nach. Gegenstände (seit 2026-10-23: „body“, „beaker“, „hotplate“) tragen einen Namen `id`
+ * und ihre Einstellungen (pinned, T, angle, Werkstoff, Grösse, Heizung): ändert man eine Einstellung, ändert sich der
+ * Gegenstand an seiner Stelle — es kommt kein Handgriff hinzu. Verschieben (`move` mit `id`) und Wegnehmen
+ * (`remove`) sind Handgriffe, weil später Gemaltes von der Lage abhängt.
+ */
 export type Op =
   | { readonly op: 'fill'; readonly region: Region; readonly phase: 'liquid' | 'gas'; readonly T: number; readonly composition: Readonly<Record<string, number>> }
   | { readonly op: 'erase'; readonly region: Region }
-  /** Alles Feste in der Fläche samt Wasser und Blasen darin um (dx, dy) verschieben (auf ganze Zellen gerundet) — „Przesuń“. */
-  | { readonly op: 'move'; readonly region: Region; readonly dx: number; readonly dy: number }
+  /** Verschieben um (dx, dy): mit `id` den Gegenstand samt dem, was in seinem Umriss liegt (Wasser, Blasen, Gegenstände darin); sonst alles Feste in der Fläche (ein gemalter Bau auf ganze Zellen gerundet). */
+  | { readonly op: 'move'; readonly region: Region | null; readonly id: string | null; readonly dx: number; readonly dy: number }
   | { readonly op: 'solid'; readonly region: Region; readonly material: string; readonly T: number }
-  /** Zlewka und Heizplatte sind Körper (M3a): angeheftet, wenn nicht `pinned: false`; `angle` (Grad, gegen den Uhrzeigersinn) dreht um die Mitte ihrer Unterkante. */
-  | { readonly op: 'beaker'; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly wall: number; readonly material: string; readonly T: number; readonly lid: boolean; readonly pinned: boolean; readonly angle: number }
-  | { readonly op: 'hotplate'; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly material: string; readonly T: number; readonly mode: HeaterMode; readonly power: number; readonly target: number; readonly on: boolean; readonly pinned: boolean; readonly angle: number }
-  /** Ein Körper (M3a) — „Postaw ciało“: die Fläche aus einem Werkstoff, frei (fällt, schwimmt, kippt) oder angeheftet; `angle` dreht um die Mitte der Fläche. */
-  | { readonly op: 'body'; readonly region: Region; readonly material: string; readonly T: number; readonly pinned: boolean; readonly angle: number }
-  /** „Przypnij“: den Körper unter (x, y) anheften oder lösen. */
+  /** Zlewka und Heizplatte sind Gegenstände (M3a): angeheftet, wenn nicht `pinned: false`; `angle` (Grad, gegen den Uhrzeigersinn) dreht um die Mitte ihrer Unterkante. */
+  | { readonly op: 'beaker'; readonly id: string; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly wall: number; readonly material: string; readonly T: number; readonly lid: boolean; readonly pinned: boolean; readonly angle: number }
+  | { readonly op: 'hotplate'; readonly id: string; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly material: string; readonly T: number; readonly mode: HeaterMode; readonly power: number; readonly target: number; readonly on: boolean; readonly pinned: boolean; readonly angle: number }
+  /** Ein Gegenstand aus einem Werkstoff (Klotz, Eiswürfel, Stein): frei (fällt, schwimmt, kippt) oder angeheftet; `angle` dreht um die Mitte der Fläche. */
+  | { readonly op: 'body'; readonly id: string; readonly region: Region; readonly material: string; readonly T: number; readonly pinned: boolean; readonly angle: number }
+  /** Den Gegenstand `id` wegnehmen (gebucht). */
+  | { readonly op: 'remove'; readonly id: string }
+  /** Ältere Szenen: den Körper unter (x, y) anheften oder lösen (heute: `pinned` am Gegenstand). */
   | { readonly op: 'pin'; readonly x: number; readonly y: number; readonly pinned: boolean };
+
+/** Die Handgriffe, die einen Gegenstand anlegen. */
+export type ObjectOp = Extract<Op, { readonly op: 'body' | 'beaker' | 'hotplate' }>;
+export const isObjectOp = (op: Op): op is ObjectOp => op.op === 'body' || op.op === 'beaker' || op.op === 'hotplate';
+
+/** Ein Name aus Buchstaben, Ziffern und - _ (höchstens 40 Zeichen); sonst leer (dann vergibt readScene einen). */
+export function cleanId(v: unknown): string {
+  if (typeof v !== 'string') return '';
+  const s = v.trim().replace(/\s+/g, '-').replace(/[^\p{L}\p{N}_-]/gu, '').slice(0, 40);
+  return s;
+}
 
 export interface Ambient {
   /** Druck (Pa) auf Höhe des Kistenbodens. */
@@ -122,9 +142,18 @@ function readOp(raw: unknown, warnings: string[], at: number): Op | null {
       return { op: 'erase', region };
     }
     case 'move': {
+      const dx = clamp(num(r.dx, 0), -1, 1);
+      const dy = clamp(num(r.dy, 0), -1, 1);
+      const id = cleanId(r.id);
+      if (id !== '') return { op: 'move', region: null, id, dx, dy };
       const region = readRegion(r.region);
       if (region === null) break;
-      return { op: 'move', region, dx: clamp(num(r.dx, 0), -1, 1), dy: clamp(num(r.dy, 0), -1, 1) };
+      return { op: 'move', region, id: null, dx, dy };
+    }
+    case 'remove': {
+      const id = cleanId(r.id);
+      if (id === '') break;
+      return { op: 'remove', id };
     }
     case 'solid': {
       const region = readRegion(r.region);
@@ -133,13 +162,13 @@ function readOp(raw: unknown, warnings: string[], at: number): Op | null {
     }
     case 'beaker':
       return {
-        op: 'beaker', x: num(r.x, 0.1), y: num(r.y, 0), w: clamp(num(r.w, 0.07), 0.01, 1), h: clamp(num(r.h, 0.09), 0.01, 1),
+        op: 'beaker', id: cleanId(r.id), x: num(r.x, 0.1), y: num(r.y, 0), w: clamp(num(r.w, 0.07), 0.01, 1), h: clamp(num(r.h, 0.09), 0.01, 1),
         wall: clamp(num(r.wall, 0.002), 0.0005, 0.02), material: material('glass'), T, lid: r.lid === true,
         pinned: r.pinned !== false, angle: clamp(num(r.angle, 0), -180, 180)
       };
     case 'hotplate':
       return {
-        op: 'hotplate', x: num(r.x, 0.1), y: num(r.y, 0), w: clamp(num(r.w, 0.12), 0.005, 1), h: clamp(num(r.h, 0.008), 0.002, 0.1),
+        op: 'hotplate', id: cleanId(r.id), x: num(r.x, 0.1), y: num(r.y, 0), w: clamp(num(r.w, 0.12), 0.005, 1), h: clamp(num(r.h, 0.008), 0.002, 0.1),
         material: material('steel'), T, mode: r.mode === 'thermostat' ? 'thermostat' : 'power',
         power: clamp(num(r.power, 40), 0, 2000), target: T0 + clamp(num(r.target, 150), 0, 600), on: r.on !== false,
         pinned: r.pinned !== false, angle: clamp(num(r.angle, 0), -180, 180)
@@ -147,7 +176,7 @@ function readOp(raw: unknown, warnings: string[], at: number): Op | null {
     case 'body': {
       const region = readRegion(r.region);
       if (region === null) break;
-      return { op: 'body', region, material: material('wood'), T, pinned: r.pinned === true, angle: clamp(num(r.angle, 0), -180, 180) };
+      return { op: 'body', id: cleanId(r.id), region, material: material('wood'), T, pinned: r.pinned === true, angle: clamp(num(r.angle, 0), -180, 180) };
     }
     case 'pin':
       return { op: 'pin', x: num(r.x, 0), y: num(r.y, 0), pinned: r.pinned !== false };
@@ -156,6 +185,47 @@ function readOp(raw: unknown, warnings: string[], at: number): Op | null {
   }
   warnings.push(`ops[${at}]: not understood (${String(r.op)})`);
   return null;
+}
+
+/** Ein Name „Art-Nummer“, den keiner der Gegenstände in `ops` (und kein Name in `taken`) trägt. */
+export function freshId(ops: readonly Op[], kind: string, taken: ReadonlySet<string> = new Set()): string {
+  const used = new Set<string>(taken);
+  for (const op of ops) if (isObjectOp(op)) used.add(op.id);
+  let n = 1;
+  while (used.has(`${kind}-${n}`)) n += 1;
+  return `${kind}-${n}`;
+}
+
+/**
+ * Jeder Gegenstand bekommt einen eindeutigen Namen (ohne einen: Art und Nummer, „body-1“, „beaker-1“); ein doppelter
+ * wird umbenannt. Verschieben und Wegnehmen müssen einen Gegenstand nennen, der vorher entstand.
+ */
+function nameObjects(ops: readonly Op[], warnings: string[]): Op[] {
+  const taken = new Set<string>();
+  for (const op of ops) if (isObjectOp(op) && op.id !== '') taken.add(op.id);
+  const used = new Set<string>();
+  const fresh = (kind: string): string => freshId([], kind, new Set([...used, ...taken]));
+  const out: Op[] = [];
+  ops.forEach((op, k) => {
+    if (isObjectOp(op)) {
+      let id = op.id;
+      if (id === '') id = fresh(op.op);
+      else if (used.has(id)) {
+        const again = fresh(op.op);
+        warnings.push(`ops[${k}]: the name "${id}" is used twice, renamed to "${again}"`);
+        id = again;
+      }
+      used.add(id);
+      out.push({ ...op, id });
+      return;
+    }
+    if (op.op === 'remove' || (op.op === 'move' && op.id !== null)) {
+      const id = op.id as string;
+      if (!used.has(id)) { warnings.push(`ops[${k}]: no object "${id}" before this step`); return; }
+    }
+    out.push(op);
+  });
+  return out;
 }
 
 /** Eine Szene aus JSON lesen; Unbekanntes fällt weg (mit Warnung), Fehlendes bekommt den üblichen Wert. */
@@ -173,8 +243,9 @@ export function readScene(raw: unknown, options: ReadOptions = {}): { scene: Sce
   const n2 = num(air.N2, 0.7676);
   const o2 = num(air.O2, 0.2324);
   const airSum = n2 + o2 > 0 ? n2 + o2 : 1;
-  const ops: Op[] = [];
-  if (Array.isArray(r.ops)) r.ops.forEach((o, k) => { const op = readOp(o, warnings, k); if (op !== null) ops.push(op); });
+  const read: Op[] = [];
+  if (Array.isArray(r.ops)) r.ops.forEach((o, k) => { const op = readOp(o, warnings, k); if (op !== null) read.push(op); });
+  const ops = nameObjects(read, warnings);
   return {
     scene: {
       seed: Math.floor(num(r.seed, 1)) >>> 0,
@@ -208,21 +279,25 @@ export function writeOp(op: Op): Record<string, unknown> {
     case 'erase':
       return { op: 'erase', region: writeRegion(op.region) };
     case 'move':
-      return { op: 'move', region: writeRegion(op.region), dx: round(op.dx), dy: round(op.dy) };
+      return op.id !== null || op.region === null
+        ? { op: 'move', id: op.id ?? '', dx: round(op.dx), dy: round(op.dy) }
+        : { op: 'move', region: writeRegion(op.region), dx: round(op.dx), dy: round(op.dy) };
+    case 'remove':
+      return { op: 'remove', id: op.id };
     case 'solid':
       return { op: 'solid', region: writeRegion(op.region), material: op.material, T: round(op.T - T0, 3) };
     case 'beaker':
-      return { op: 'beaker', x: op.x, y: op.y, w: op.w, h: op.h, wall: op.wall, material: op.material, T: round(op.T - T0, 3), ...(op.lid ? { lid: true } : {}), ...placement(op) };
+      return { op: 'beaker', id: op.id, x: op.x, y: op.y, w: op.w, h: op.h, wall: op.wall, material: op.material, T: round(op.T - T0, 3), ...(op.lid ? { lid: true } : {}), ...placement(op) };
     case 'hotplate':
-      return { op: 'hotplate', x: op.x, y: op.y, w: op.w, h: op.h, material: op.material, mode: op.mode, power: op.power, target: round(op.target - T0, 3), on: op.on, T: round(op.T - T0, 3), ...placement(op) };
+      return { op: 'hotplate', id: op.id, x: op.x, y: op.y, w: op.w, h: op.h, material: op.material, mode: op.mode, power: op.power, target: round(op.target - T0, 3), on: op.on, T: round(op.T - T0, 3), ...placement(op) };
     case 'body':
-      return { op: 'body', region: writeRegion(op.region), material: op.material, T: round(op.T - T0, 3), ...(op.pinned ? { pinned: true } : {}), ...(op.angle !== 0 ? { angle: round(op.angle, 4) } : {}) };
+      return { op: 'body', id: op.id, region: writeRegion(op.region), material: op.material, T: round(op.T - T0, 3), ...(op.pinned ? { pinned: true } : {}), ...(op.angle !== 0 ? { angle: round(op.angle, 4) } : {}) };
     case 'pin':
       return { op: 'pin', x: round(op.x), y: round(op.y), pinned: op.pinned };
   }
 }
 
-/** Lose oder gedreht — nur, wenn es so ist (eine Szene von vor M3a schreibt sich so unverändert, und ihr Schlüssel im Speicher der Clips bleibt). */
+/** Lose oder gedreht — nur, wenn es so ist (das JSON bleibt kurz). */
 const placement = (op: { readonly pinned: boolean; readonly angle: number }): Record<string, unknown> => ({ ...(op.pinned ? {} : { pinned: false }), ...(op.angle !== 0 ? { angle: round(op.angle, 4) } : {}) });
 
 /** Eine Szene als JSON (°C, kPa) — so, wie readScene sie wieder liest. */

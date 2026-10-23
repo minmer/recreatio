@@ -5,14 +5,17 @@
  *
  * <b>Schmelzen.</b> Die Wärme kommt wie jede Wärme über das Gitter und den
  * Ausgleich in gemischten Zellen in die inneren Zellen des Körpers
- * (bodyCover.collect). Liegt eine innere Zelle über der Schmelztemperatur T_f
- * der nächsten offenen Seite ihres Rechtecks (vor der Fluid liegt; eine Seite
- * an einer Wand, einem Bau oder einem anderen Körper nur, wenn das Rechteck
- * keine offene hat), wird der Überschuss zu Schmelzwärme dieser Seite: Eis
- * wird nie wärmer als die Grenzfläche, an der es schmilzt (eine Zelle im
- * Inneren gibt ihre Wärme sofort an die Seite — die Leitung dorthin ist dann
- * unendlich schnell, das Ende stimmt). Alle Überschüsse einer Seite zusammen
- * schieben sie um
+ * (bodyCover.collect). Liegt eine innere Zelle über der Schmelztemperatur T_f,
+ * wird der Überschuss zu Schmelzwärme der Seite, durch die die Wärme kommt:
+ * eine Randzelle gibt ihn ihren anliegenden Seiten, vor denen etwas Wärmeres
+ * liegt (Wasser, Luft oder ein warmer Feststoff — eine Heizplatte, die Wand
+ * einer Zlewka), nach deren Zufuhr k (T − T_f) (meltSides.supplyAt); eine
+ * Zelle ohne solche Seite und eine im Inneren der nächsten offenen Seite (vor
+ * der Fluid liegt; ohne offene der nächsten freien). Eine oder mehrere Seiten
+ * schmelzen so zugleich, jede als Ganzes; Eis wird nie wärmer als die
+ * Grenzfläche, an der es schmilzt (eine Zelle im Inneren gibt ihre Wärme
+ * sofort an die Seite — die Leitung dorthin ist dann unendlich schnell, das
+ * Ende stimmt). Alle Überschüsse einer Seite zusammen schieben sie um
  *
  *   δ = Q / (ρ_Eis D Σ_k s_k [L(T_f) + c_p,Eis (T_f − T_k)])
  *
@@ -49,8 +52,9 @@
  *
  * Schmelzwasser geht in die Teilchen vor der Seite (sie werden schwerer; ein
  * Teilchen über der doppelten Nennmasse teilt sich); ist dort keine
- * Flüssigkeit, sammelt es sich und wird ein neues Teilchen vor der Seite (oder
- * am nächsten freien Ort), sobald es ein Viertel der Nennmasse erreicht. Wird
+ * Flüssigkeit (eine Seite auf der Heizplatte), sammelt es sich und wird ein
+ * neues Teilchen vor der Seite oder am nächsten freien Ort neben dem Block,
+ * sobald es ein Viertel der Nennmasse erreicht; der Block sinkt nach. Wird
  * eine Randreihe dünner als 0,3 Δx, geht sie in der Nachbarreihe auf; ein
  * Rechteck, das dünner als 0,05 Δx wird, schmilzt ganz.
  */
@@ -59,7 +63,8 @@ import { latentPerKg, meltsAt, solidEnergy, type Body2D } from './body';
 import { regrid, separate, type RectLocal } from './bodyTools';
 import { recompose, type Rect4, type Slab } from './geom';
 import { hL, SOLIDS, WATER } from './materials';
-import { freezingPoint, M_S, NACL } from './solution';
+import { edgeCells, fluidFront, freeLength, freeOn, freezingAt, sideLength, supplyAt, widestFree } from './meltSides';
+import { NACL } from './solution';
 import { LIQUID, T0 } from './units';
 import type { Engine } from './engine';
 
@@ -91,7 +96,6 @@ export class BodyMelt {
   /** Seit dem Start geschmolzen und angefroren (kg) — für die Anzeige und die Prüfungen. */
   melted = 0;
   frozen = 0;
-  private readonly sg = new Float64Array(6);
   /* Teilchen je Zelle (einmal je Schritt gebaut, wenn gebraucht): Kopf je Zelle, Nachfolger je Teilchen. */
   private head = new Int32Array(0);
   private next = new Int32Array(0);
@@ -135,15 +139,19 @@ export class BodyMelt {
     const rho = SOLIDS[b.mat].rho;
     const cp = SOLIDS[b.mat].cp;
     const e0 = latentPerKg(b.mat);
-    /* Die Seiten mit einem freien Stück, ihr T_f und ob Fluid vor ihnen liegt; die Überschüsse jeder inneren Zelle an die nächste offene Seite. */
+    /* Die Seiten mit einem freien Stück: ihr T_f, ob Fluid vor ihnen liegt und wie viel Wärme dort ansteht; die Überschüsse der inneren Zellen an die Seiten, durch die sie kommen. */
     const Tf = new Map<number, number>();
     const open = new Set<number>();
+    const supply = new Map<number, number>();
     for (let e = 0; e < b.nseg; e += 1) {
       const key = 4 * b.segR[e] + b.segS[e];
-      if (!Tf.has(key)) Tf.set(key, this.freezingAt(b, b.segR[e], b.segS[e], open));
+      if (Tf.has(key)) continue;
+      const tf = freezingAt(this.e, b, b.segR[e], b.segS[e], open);
+      Tf.set(key, tf);
+      supply.set(key, supplyAt(this.e, b, b.segR[e], b.segS[e], tf));
     }
     const Q = new Map<number, number>();
-    for (let r = 0; r < b.nr; r += 1) this.excess(b, r, Tf, open, Q);
+    for (let r = 0; r < b.nr; r += 1) this.excess(b, r, Tf, open, supply, Q);
     /* Je Wand (Seiten auf einer Geraden, die aneinanderstossen): Schmelzwärme, Nenner und geplantes Anfrieren zusammen — eine Tiefe für alle ihre Seiten. */
     const wall = this.walls(b, [...Tf.keys()]);
     const side = new Map<number, { L: number; hIce: number; denom: number; plan: Freeze | null }>();
@@ -157,14 +165,14 @@ export class BodyMelt {
       const hIce = cp * (tf - T0) + e0;
       const L = hL(tf) - hIce;
       let denom = 0;
-      this.edge(b, r, s, (k, len, free) => { if (free > 0) denom += free * len * (L + cp * (tf - Math.min(tf, b.cellT(k)))); });
+      edgeCells(b, r, s, (k, len, free) => { if (free > 0) denom += free * len * (L + cp * (tf - Math.min(tf, b.cellT(k)))); });
       const plan = this.planFreeze(b, r, s, tf, L);
       side.set(key, { L, hIce, denom, plan });
       const w = wall.get(key) as number;
       sumQ.set(w, (sumQ.get(w) ?? 0) + (Q.get(key) ?? 0));
       sumD.set(w, (sumD.get(w) ?? 0) + denom);
       sumF.set(w, (sumF.get(w) ?? 0) + (plan?.total ?? 0));
-      sumLen.set(w, (sumLen.get(w) ?? 0) + this.freeLength(b, r, s));
+      sumLen.set(w, (sumLen.get(w) ?? 0) + freeLength(b, r, s));
     }
     const moves: Move[] = [];
     for (const [key, tf] of Tf) {
@@ -209,23 +217,54 @@ export class BodyMelt {
     return true;
   }
 
-  /** Die Überschüsse über T_f der inneren Zellen des Rechtecks r, je an die nächste offene Seite (ohne offene: die nächste freie). */
-  private excess(b: Body2D, r: number, Tf: Map<number, number>, open: Set<number>, Q: Map<number, number>): void {
+  /**
+   * Die Überschüsse über T_f der inneren Zellen des Rechtecks r an die Seiten, durch die die Wärme kommt: eine Randzelle
+   * an ihre anliegenden freien Seiten mit Zufuhr (supply), nach deren Anteil — so schmelzen eine oder mehrere Seiten,
+   * auch eine, die auf einer warmen Platte liegt; ohne solche Seite (und im Inneren) an die nächste offene Seite (ohne
+   * offene: die nächste freie).
+   */
+  private excess(b: Body2D, r: number, Tf: Map<number, number>, open: Set<number>, supply: Map<number, number>, Q: Map<number, number>): void {
     const sides: number[] = [];
     for (let s = 0; s < 4; s += 1) if (open.has(4 * r + s)) sides.push(s);
     if (sides.length === 0) for (let s = 0; s < 4; s += 1) if (Tf.has(4 * r + s)) sides.push(s);
-    if (sides.length === 0) return;
     let lowest = Infinity;
-    for (const s of sides) lowest = Math.min(lowest, Tf.get(4 * r + s) as number);
+    for (let s = 0; s < 4; s += 1) lowest = Math.min(lowest, Tf.get(4 * r + s) ?? Infinity);
+    if (lowest === Infinity) return;
     const xs = b.xs[r];
     const ys = b.ys[r];
     const ni = b.ni[r];
     const nj = b.nj[r];
+    const cs = [0, 0];
+    const cw = [0, 0];
     for (let q = 0; q < nj; q += 1) {
       for (let p = 0; p < ni; p += 1) {
         const k = b.off[r] + p + q * ni;
         const T = b.cellT(k);
         if (!(T > lowest)) continue;
+        /* Die anliegenden freien Seiten, vor denen Wärmeres liegt (höchstens zwei: an einer Ecke). */
+        let n = 0;
+        let wsum = 0;
+        for (let s = 0; s < 4 && n < 2; s += 1) {
+          if (!(s === 0 ? p === 0 : s === 1 ? p === ni - 1 : s === 2 ? q === 0 : q === nj - 1)) continue;
+          const w = supply.get(4 * r + s) ?? 0;
+          if (!(w > 0) || !(freeOn(b, r, s, s < 2 ? ys[q] : xs[p], s < 2 ? ys[q + 1] : xs[p + 1]) > 0)) continue;
+          cs[n] = s;
+          cw[n] = w;
+          wsum += w;
+          n += 1;
+        }
+        if (n > 0) {
+          const E = b.E[k];
+          for (let i = 0; i < n; i += 1) {
+            const key = 4 * r + cs[i];
+            const ex = (cw[i] / wsum) * (E - solidEnergy(b.cellCap(k), b.film[k], b.crust[k], Tf.get(key) as number));
+            if (!(ex > 0)) continue;
+            b.E[k] -= ex;
+            Q.set(key, (Q.get(key) ?? 0) + ex);
+          }
+          continue;
+        }
+        if (sides.length === 0) continue;
         const cx = 0.5 * (xs[p] + xs[p + 1]);
         const cy = 0.5 * (ys[q] + ys[q + 1]);
         let best = sides[0];
@@ -242,108 +281,6 @@ export class BodyMelt {
         b.E[k] -= ex;
         Q.set(key, (Q.get(key) ?? 0) + ex);
       }
-    }
-  }
-
-  /**
-   * Die inneren Randzellen der Seite s des Rechtecks r: je Zelle ihre Länge
-   * längs der Seite und der Anteil davon, der frei liegt (nicht in einer Fuge).
-   */
-  private edge(b: Body2D, r: number, s: number, fn: (k: number, len: number, free: number) => void): void {
-    const ni = b.ni[r];
-    const nj = b.nj[r];
-    const along = s < 2 ? nj : ni;
-    for (let t = 0; t < along; t += 1) {
-      const p = s === 0 ? 0 : s === 1 ? ni - 1 : t;
-      const q = s === 2 ? 0 : s === 3 ? nj - 1 : t;
-      const k = b.off[r] + p + q * ni;
-      const lo = s < 2 ? b.ys[r][q] : b.xs[r][p];
-      const hi = s < 2 ? b.ys[r][q + 1] : b.xs[r][p + 1];
-      let free = 0;
-      for (let e = 0; e < b.nseg; e += 1) {
-        if (b.segR[e] !== r || b.segS[e] !== s) continue;
-        free += Math.max(0, Math.min(hi, b.segT1[e]) - Math.max(lo, b.segT0[e]));
-      }
-      fn(k, hi - lo, hi > lo ? free / (hi - lo) : 0);
-    }
-  }
-
-  /** Länge der ganzen Seite s des Rechtecks r (m). */
-  private sideLength(b: Body2D, r: number, s: number): number {
-    const [x0, y0, x1, y1] = b.bounds(r);
-    return s < 2 ? y1 - y0 : x1 - x0;
-  }
-
-  /** Freie Länge der Seite s des Rechtecks r (m). */
-  private freeLength(b: Body2D, r: number, s: number): number {
-    let len = 0;
-    for (let e = 0; e < b.nseg; e += 1) if (b.segR[e] === r && b.segS[e] === s) len += b.segT1[e] - b.segT0[e];
-    return len;
-  }
-
-  /** Die Seite von r mit der längsten freien Strecke (sonst oben). */
-  private widestFree(b: Body2D, r: number): number {
-    let best = 3;
-    let len = 0;
-    for (let s = 0; s < 4; s += 1) {
-      const l = this.freeLength(b, r, s);
-      if (l > len) { len = l; best = s; }
-    }
-    return best;
-  }
-
-  /** Der Gefrierpunkt vor der Seite s des Rechtecks r (K): aus dem Salz der Flüssigkeit in den Zellen davor (ohne Flüssigkeit: reines Wasser); liegt Fluid davor, kommt die Seite nach open. */
-  private freezingAt(b: Body2D, r: number, s: number, open: Set<number>): number {
-    const ex = this.e.exchange;
-    let salt = 0;
-    let water = 0;
-    for (let e = 0; e < b.nseg; e += 1) {
-      if (b.segR[e] !== r || b.segS[e] !== s) continue;
-      this.samples(b, e, (c) => { salt += ex.salt[c]; water += ex.water[c]; open.add(4 * r + s); });
-    }
-    if (!(water > 0) || !(salt > 0)) return meltsAt(b.mat);
-    return freezingPoint(salt / (water * M_S));
-  }
-
-  /**
-   * Die Fluidzellen vor einem Seitenstück: knapp aussen und eine Zelle weiter
-   * (der dünne Fluidteil einer gemischten Zelle hat oft kein Teilchen); dazu die
-   * Zelle knapp innen, wenn sie Flüssigkeit enthält — alles nur, wo aussen
-   * Fluid ist (an einer Wand gehört eine gemischte Zelle innen zur
-   * Nachbarseite). Jede Zelle einmal je Lauf, mit der Länge, die auf sie fällt.
-   */
-  private samples(b: Body2D, e: number, fn: (c: number, len: number) => void, far = true): void {
-    const g = this.e.grid;
-    b.segment(e, this.sg);
-    const sg = this.sg;
-    const len = Math.hypot(sg[2] - sg[0], sg[3] - sg[1]);
-    const n = Math.max(1, Math.ceil(len / (0.5 * g.dx)));
-    const cs = Math.cos(b.a);
-    const sn = Math.sin(b.a);
-    const nwx = cs * sg[4] - sn * sg[5];
-    const nwy = sn * sg[4] + cs * sg[5];
-    const eps = 0.05 * g.dx;
-    let last = -1;
-    let lastIn = -1;
-    let lastFar = -1;
-    for (let q = 0; q < n; q += 1) {
-      const t = (q + 0.5) / n;
-      const lx = sg[0] + t * (sg[2] - sg[0]);
-      const ly = sg[1] + t * (sg[3] - sg[1]);
-      const wx = b.x + cs * lx - sn * ly;
-      const wy = b.y + sn * lx + cs * ly;
-      const out = g.cellAt(wx + eps * nwx, wy + eps * nwy);
-      if (out < 0 || g.solid[out] !== 0) { last = out; continue; }
-      if (out !== last) fn(out, len / n);
-      last = out;
-      if (far) {
-        const fc = g.cellAt(wx + (g.dx + eps) * nwx, wy + (g.dx + eps) * nwy);
-        if (fc >= 0 && fc !== out && fc !== lastFar && g.solid[fc] === 0) fn(fc, len / n);
-        lastFar = fc;
-      }
-      const inn = g.cellAt(wx - eps * nwx, wy - eps * nwy);
-      if (inn >= 0 && inn !== out && inn !== lastIn && g.solid[inn] === 0 && g.kind[inn] === LIQUID) fn(inn, len / n);
-      lastIn = inn;
     }
   }
 
@@ -402,7 +339,7 @@ export class BodyMelt {
       ex.cap[c] = 0;
       plan.total += planned;
     };
-    for (let e = 0; e < b.nseg; e += 1) if (b.segR[e] === r && b.segS[e] === s) this.samples(b, e, each);
+    for (let e = 0; e < b.nseg; e += 1) if (b.segR[e] === r && b.segS[e] === s) fluidFront(this.e, b, e, each);
     return plan.total > 0 ? plan : null;
   }
 
@@ -450,7 +387,7 @@ export class BodyMelt {
     let E = 0;
     let film = 0;
     let crust = 0;
-    this.edge(b, r, s, (k, len) => {
+    edgeCells(b, r, s, (k, len) => {
       const V = b.cellVolume(k);
       if (!(V > 0)) return;
       const f = (len * dd * b.depth) / V;
@@ -472,9 +409,9 @@ export class BodyMelt {
   private grow(b: Body2D, r: number, s: number, m: number, Tf: number): void {
     const rho = SOLIDS[b.mat].rho;
     const cp = SOLIDS[b.mat].cp;
-    const len = this.sideLength(b, r, s);
+    const len = sideLength(b, r, s);
     const d = m / (rho * b.depth * len);
-    this.edge(b, r, s, (k, l) => { b.E[k] += rho * l * d * b.depth * cp * (Tf - T0); });
+    edgeCells(b, r, s, (k, l) => { b.E[k] += rho * l * d * b.depth * cp * (Tf - T0); });
     this.moveSide(b, r, s, d);
   }
 
@@ -498,9 +435,9 @@ export class BodyMelt {
 
   /** Wärme Q zurück in die Randzellen der Seite (nach Länge). */
   private giveBack(b: Body2D, r: number, s: number, Q: number): void {
-    const len = this.sideLength(b, r, s);
+    const len = sideLength(b, r, s);
     if (!(len > 0)) { b.E[b.off[r]] += Q; return; }
-    this.edge(b, r, s, (k, l) => { b.E[k] += (Q * l) / len; });
+    edgeCells(b, r, s, (k, l) => { b.E[k] += (Q * l) / len; });
   }
 
   /* -- Mehrere Rechtecke: Scheiben und neue Streifen ------------------------------------------------- */
@@ -718,7 +655,7 @@ export class BodyMelt {
     for (let pass = 0; pass < 2 && takers.length === 0; pass += 1) {
       for (let e = 0; e < b.nseg; e += 1) {
         if (b.segR[e] !== r || b.segS[e] !== s) continue;
-        this.samples(b, e, (c) => {
+        fluidFront(this.e, b, e, (c) => {
           if (g.kind[c] !== LIQUID || seen.has(c)) return;
           seen.add(c);
           this.inCell(c, (p) => { if (P.mat[p] === WATER) { takers.push(p); wsum += P.mass[p]; } });
@@ -856,7 +793,7 @@ export class BodyMelt {
       let K = 0;
       for (let k = b.off[r]; k < b.off[r] + b.ni[r] * b.nj[r]; k += 1) { E += b.E[k]; F += b.film[k]; K += b.crust[k]; }
       this.melted += m;
-      this.give(b, r, this.widestFree(b, r), m + F + K, E + m * e0, K);
+      this.give(b, r, widestFree(b, r), m + F + K, E + m * e0, K);
     }
     regrid(b, rects);
     if (b.nr === 0 || b.ncell === 0) {

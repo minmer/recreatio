@@ -22,7 +22,7 @@ Reproduce: `npm run test:lab2d` (fast tests, ~5 min), `npm run test:lab2d:slow` 
 | M1e GPU path | test 17, 1 mm in the budget | built (the accelerated view): test 17 met (test 11 was at the edge, as on the CPU, until the particles of a cell shared their heat: now −0.37 K); 2 mm 4.9 ms per step; **1 mm 7.7 ms, above the 6 ms** (§M1e) |
 | M2a liquids (oil) | tests 18–22 (SANDBOX.md §13), water unchanged | built on the CPU (2026-10-21): all met; every M1 number unchanged to the last printed digit; water scenes as fast as before (§M2a); the accelerated view hands oil scenes back to the CPU |
 | M2b solutions (salt) | tests 23–27 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met; then particles of a cell share heat and salt at the diffusion rate and salt diffuses between cells (tests 28–30, met); all M1/M2a tests still met, some numbers moved slightly (§M2b); water +2.4 % per step, brine +12 % over water; the accelerated view shares heat like the CPU and hands salt scenes back to the CPU |
-| M3a bodies | tests 36–40 (SANDBOX.md §13) | built on the CPU (2026-10-23) and the same day remade as exact rectangles (§M3a): all met — floating depth −0.10 % (pine) and −0.01 % (ice), at rest within 0.06 mm, a sinking square +10 % of its drag law and at rest without jitter, a stack stands, a beaker of water falls back 3° below its tipping angle and over 3° above it, budgets exact with moving solids; the free surface got its sub-cell position, which moved older numbers slightly; a beaker wall lying across two cells needed the thin-wall rule (test 11); the accelerated view takes pinned bodies as whole cells and hands free bodies back to the CPU |
+| M3a bodies | tests 36–40 (SANDBOX.md §13) | built on the CPU (2026-10-23) and the same day remade as exact rectangles (§M3a): all met — floating depth −0.10 % (pine) and −0.01 % (ice), at rest within 0.06 mm, a sinking square +10 % of its drag law and at rest without jitter, a stack stands, a beaker of water falls back 3° below its tipping angle and over 3° above it, budgets exact with moving solids; the free surface got its sub-cell position, which moved older numbers slightly; a beaker wall lying across two cells needed the thin-wall rule (test 11); the accelerated view takes pinned bodies as whole cells and hands free bodies back to the CPU; objects carry names and settings — pinned among them — set in their own panel (§Objects and their settings) |
 | M3b melting and freezing | tests 41–45 (SANDBOX.md §13) | built on the CPU (2026-10-23): all met — the Stefan fronts within 6 % (melting) and 7 % (freezing) of Neumann at 2 mm, 4 % and 3 % at 1 mm; an ice cube stays one rectangle and becomes water with energy and water exact; brine settles 0.13 K from T_f(w), a cooling mixture stops at the eutectic, freezing brine keeps all its salt, a carved block stays a few rectangles (§M3b); the accelerated view hands ice back to the CPU |
 | B baking and playback | tests 31–34 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met — playback frame-identical to the live view, seeking exact, going on from a keyframe bit for bit; 33.6 MB per simulated minute of boiling at 2 mm (gate set at 40 from it); the lab never starts by itself, a module can bake on opening, one lab offers several scenarios (§B) |
 
@@ -590,7 +590,7 @@ the heat of a mixed cell as one more part, cells closed at 99 %, when cut in two
   particles reached −21.30 °C, 0.1 K below the eutectic, for up to a quarter of a second. Their kernels reached into
   cells the block almost covers, behind faces it covers whole (such faces appear in half of the steps there: a square
   floating 77 % deep is not stable lying flat, and in the melting brine it rocks and rolls over). The thin-wall rule
-  ended it: the coldest particle now stays at −21.196 °C. Diluting strong brine with meltwater does absorb heat (5 %
+  ended it: the coldest particle now stays within 0.02 K of it. Diluting strong brine with meltwater does absorb heat (5 %
   of water at the eutectic cools it by 0.11 K), but a step's meltwater is far less.
 - **The drag tool** moves bodies by the exact offset (to 0.1 mm); a painted solid in the region still moves everything
   by whole cells.
@@ -623,11 +623,12 @@ The gates (SANDBOX.md §13; m3b.test.ts at 2 mm, m3b.slow.test.ts at 1 mm):
 |---|---|
 | 41 Stefan, melting (ice at 0 °C under water at 20 °C, the cold water below; Neumann with the water's α and St at 10 °C) | 2 mm: front 1.617 mm after 4 min against 1.526 (**+6.0 %**), its speed from 2 to 4 min **+0.6 %**; 1 mm: 1.584 mm (**+3.8 %**), speed **+1.4 %**; energy −2.0e-11 J |
 | 41 Stefan, freezing (water at T_f on ice at −20 °C; Neumann with the ice's α) | 2 mm: 1.456 mm after 2 min against 1.556 (**−6.4 %**); 1 mm: 1.517 mm (**−2.5 %**); energy −3.9e-12 J |
-| 42 ice cube in warm water | a 2 cm cube at −5 °C in water at 20 °C: 3.667 → 3.420 g in 8 s, still one rectangle (19.06 × 19.57 mm), warmest ice 0.0025 °C (= T_m), energy −1.3e-10 J, water −1.3e-15 kg |
-| 43 brine settles at T_f(w) | a 1.5 cm cube at −5 °C in 3.5 % brine at 0 °C: after 2.5 min the brine at −1.925 °C, T_f of its diluted mean (3.434 %) −2.058 °C (**0.13 K**), the ice −2.058 °C; salt −8.4e-18 kg |
-| 43 with enough salt (slow) | a 2 cm cube at −10 °C in 25 % brine at −10 °C: after 3 min the brine at −19.39 °C (it started at −10 °C), T_f of its mean (22.19 %) −19.68 °C, still melting (1.50 g so far); the coldest particle in any step −21.196 °C, the eutectic −21.2 °C; salt −4.5e-17 kg, energy 8.1e-12 J |
+| 42 ice cube in warm water | a 2 cm cube at −5 °C in water at 20 °C: 3.667 → 3.421 g in 8 s, still one rectangle (19.17 × 19.47 mm), warmest ice 0.0025 °C (= T_m), energy −1.4e-10 J, water −1.2e-15 kg |
+| 43 brine settles at T_f(w) | a 1.5 cm cube at −5 °C in 3.5 % brine at 0 °C: after 2.5 min the brine at −1.929 °C, T_f of its diluted mean (3.433 %) −2.058 °C (**0.13 K**), the ice −2.058 °C; salt −7.9e-18 kg |
+| 43 with enough salt (slow) | a 2 cm cube at −10 °C in 25 % brine at −10 °C: after 3 min the brine at −19.39 °C (it started at −10 °C), T_f of its mean (22.19 %) −19.68 °C, still melting (1.49 g so far); the coldest particle in any step −21.217 °C, the eutectic −21.2 °C; salt −4.4e-17 kg, energy 3.1e-12 J |
 | 44 freezing brine keeps its salt | 3.5 % brine at −2.10 °C on ice at −20 °C: the ice grows 196 mg in 20 s, the brine's salt changes by 3.7e-15 g (rounding), w 3.5000 → 3.5678 %, no crust on the ice |
-| 45 a carved block | a 3 × 2 cm block with a 1 cm notch in water at 40 °C: three rectangles stay three, 4.584 → 3.884 g in 6 s, no overlap, one body, energy 2.8e-10 J |
+| 45 a carved block | a 3 × 2 cm block with a 1 cm notch in water at 40 °C: three rectangles stay three, 4.584 → 3.888 g in 6 s, no overlap, one body, energy 3.0e-10 J |
+| 46 the side the heat comes through | a 2 × 1 cm block at −2 °C on a steel plate at 60 °C, in air: after 10 s **18.27 × 8.19 mm**, its bottom on the plate (0.000 mm), energy −7e-14 J, water 8e-18 kg |
 | 33 keyframe | melting ice restored into a fresh engine runs on bit for bit (snapshot 900 kB) |
 
 How the Stefan numbers came about: the front is first order in Δx. At first the melting front ran **+39 %** ahead at
@@ -646,6 +647,50 @@ a painted "solid" of ice stays a wall. The accelerated view hands scenes with ic
 
 Not modelled (SIMPLIFICATIONS.md #31, #40): new ice in supercooled water, frost, rounded corners, the conduction
 delay inside the ice (an internal cell's heat reaches its side at once).
+
+### The side the heat comes through (2026-10-23)
+
+The user's rule: melting can happen on one side or on several, but each side that melts gets smaller as a whole. With
+the first rule — the heat of every internal cell went to the nearest *open* side (fluid in front) — a block lying on a
+warm plate never melted from below: its heat went to the sides. A 2 × 1 cm block at −2 °C on a steel plate at 60 °C
+(in air) was **12.80 × 10.00 mm** after 20 s: narrower, its full height kept. Now every side gets a supply,
+Σ k (T − T_f)⁺ · length over the cells just in front — water, air or a solid such as the plate — and an edge cell gives
+its excess to its adjacent sides with a supply, shared by it (`meltSides.ts`; ARCHITECTURE.md §18): the same block is
+**16.79 × 6.71 mm** after 20 s (bottom 2.85 mm, left and right 1.7 and 1.5 mm — the meltwater pooling beside it on the
+hot plate melts the sides too —, top in air 0.45 mm), sinking onto the plate as its bottom recedes; its meltwater
+appears beside it. The floating cube of "Lód w ciepłej wodzie" melts as before on its three sides in water (2.1, 2.1
+and 1.7 mm in 20 s; its top in air 0.015 mm). Test 46 holds it; the other M3b numbers moved within their last digits
+(test 42 19.17 × 19.47 mm, test 43 0.13 K, test 45 3.888 g); in the slow suite test 41 is unchanged and the
+cooling mixture's coldest particle went from −21.196 to −21.217 °C (the gate allows 0.05 K below the eutectic).
+
+## Objects and their settings (2026-10-23)
+
+The user asked how "Przypnij" works ("there seems no possibility") and to rethink the adding of parts and the format:
+objects that can move — the ice cube — with a setting that pins them, so they do not fall. Before, "Przypnij" was a tool
+of its own: pick it, click a body, and it silently toggled — nothing showed whether a body was pinned, a new body was
+always free, and "Przesuń" moved only beakers and plates.
+
+- **Format** (still version 1, additive): `body`, `beaker` and `hotplate` are *objects* with a name `id` (given where
+  missing, `body-1`, `beaker-1`; a duplicate is renamed with a warning) and their settings — `pinned`, `T`, `angle`,
+  material, size, lid, heater — on themselves. `move` takes an `id` (the object with what lies in its box: the water
+  of a beaker, an ice cube floating in it), `remove` takes an object away (booked); a step naming an unknown object is
+  dropped with a warning. The old `pin` is still read. The presets name their objects (`plyta`, `zlewka`, `kostka`,
+  `drewno`, `lod`, `kamien` …); the AI prompt and the scene docs describe names and settings.
+- **Settings change the object where it stands** (`engine/objects.ts`): no step is appended. "Przypięty" and the
+  heater act at once, also while it runs — a released beaker falls; material, temperature, size, angle and lid change
+  the set-up, so at time 0 the scene is rebuilt from the changed list (exactly what loading it would give), later the
+  engine refuses and the panel says to change them at the start.
+- **Shell**: "Przedmioty" adds an ice cube, a block of wood, stone, glass or steel, a beaker or a hot plate (a click:
+  the usual size — the cube 2 cm at −5 °C, a beaker or plate standing on what is below; a dragged rectangle: position
+  and size; a click on an object selects it). The new object is selected at once. "Wybierz" selects an object (its
+  outline is drawn) and drags it; the panel "Przedmiot", right below the tools, shows what it is now (temperature,
+  mass, pinned / at rest / moving), "Przypięty", material, temperature, size, angle, lid and heater, and "Usuń
+  przedmiot". The tools "Postaw", "Ciało", "Przypnij" and "Przesuń" are gone.
+- **Checked**: a test (names, a pin in place without a new step, a rebuild at time 0, the refusal while running, a
+  move of the beaker carrying its water and the floating cube but not the plate, removal with exact budgets, the steps
+  in JSON); test 39 releases its beaker through the setting instead of `pin`; a drive in headless Edge (add a cube, see
+  its panel, pin it, run — it stays —, release it — it falls —, add a beaker, drag it, remove it; no console errors).
+  83 fast tests in 9 files.
 
 ## Benchmark
 

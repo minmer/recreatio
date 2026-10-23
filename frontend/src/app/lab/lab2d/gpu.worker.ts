@@ -14,6 +14,7 @@
 
 import { Engine } from './engine/engine';
 import { tSat } from './engine/if97';
+import { editObject, objectView } from './engine/objects';
 import type { BubbleView, ChartSample, HostMessage, HostStats, WorkerMessage } from './engine/protocol';
 import type { Op } from './engine/scene';
 import { GpuCharts } from './gpu/charts';
@@ -69,6 +70,8 @@ let stepsSince = 0;
 let started = false;
 let nextSample = 0;
 let lastBubble: BubbleView | null = null;
+/** Der gewählte Gegenstand (sein Name). */
+let selectedObject: string | null = null;
 const pendingSamples: ChartSample[] = [];
 /* Aufgaben, die den Zustand brauchen (Handgriffe, Fragen), der Reihe nach; währenddessen ruht die Rechnung. */
 const tasks: (() => Promise<void>)[] = [];
@@ -216,6 +219,7 @@ function onReadout(r: Readout, now: number): void {
     paused,
     samples: pendingSamples.splice(0, pendingSamples.length),
     bubble: bubbleView(r),
+    object: selectedObject !== null && cpu !== null ? objectView(cpu, selectedObject) : null,
     overlayScale: overlayScale(r)
   };
   post({ type: 'stats', stats });
@@ -402,6 +406,23 @@ scope.addEventListener('message', (event) => {
         break;
       case 'load':
         task(async () => { if (cpu === null) return; cpu.load(m.scene); if (refuseOther()) return; restart(); });
+        break;
+      case 'selectObject':
+        selectedObject = m.object;
+        break;
+      case 'editObject':
+        task(async () => {
+          if (gpu === null || cpu === null) { post({ type: 'reply', id: m.id, data: null }); return; }
+          await settleGpu();
+          await gpu.download();
+          const result = editObject(cpu, m.object, m.patch);
+          post({ type: 'reply', id: m.id, data: result });
+          if (refuseOther()) return;
+          if (result.rebuilt) { restart(); return; }
+          const v = gpu.stateVersion;
+          gpu.upload();
+          afterUpload(v);
+        });
         break;
       case 'theme':
         theme(m.dark);

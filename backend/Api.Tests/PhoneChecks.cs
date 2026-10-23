@@ -45,5 +45,20 @@ internal static class PhoneChecks
             && !Phone.SealedLamp(null, out _) && !Phone.SealedLamp("not base64!", out _),
             "0118: a sealed lamp between 48 bytes and 256 KB, readable");
         check(Kernel.Aad.FieldName(Kernel.Field.PhoneLamp) == "phone_lamp", "0118: the lamp label is the browser's");
+
+        check(Phone.DeviceSealed(Kernel.Base64Url.Encode(new byte[48]), out var device) && device.Length == 48
+            && Phone.DeviceSealed(Kernel.Base64Url.Encode(new byte[2000]), out _)
+            && !Phone.DeviceSealed(Kernel.Base64Url.Encode(new byte[47]), out _)
+            && !Phone.DeviceSealed(Kernel.Base64Url.Encode(new byte[2001]), out _)
+            && !Phone.DeviceSealed(null, out _) && !Phone.DeviceSealed("not base64!", out _),
+            "0125: a connection's sealed key and name between 48 bytes and 2000, readable");
+        var secret = Kernel.Token.NewSecret();
+        check(Phone.DeviceSecret("Bearer " + secret) == secret && Phone.DeviceSecret("bearer  " + secret + " ") == secret,
+            "the connection's secret comes as a bearer token, as the kernel made it");
+        check(Phone.DeviceSecret(null) is null && Phone.DeviceSecret(secret) is null && Phone.DeviceSecret("Basic " + secret) is null
+            && Phone.DeviceSecret("Bearer short") is null && Phone.DeviceSecret("Bearer " + new string('a', 129)) is null
+            && Phone.DeviceSecret("Bearer abc/def+ghi=jklmnopqrstu") is null,
+            "anything else is no secret (no scheme, another scheme, too short, too long, not base64url)");
+        check(Kernel.Aad.FieldName(Kernel.Field.ShareDevice) == "share_device", "0125: the connection label is the browser's");
     }
 }

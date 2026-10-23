@@ -428,7 +428,13 @@ public enum Field
     PageSubject,
     PagePartLayout,
     PageModuleConfig,
-    PageMenu
+    PageMenu,
+
+    /// <summary>
+    /// 0125 — ein Programm, das Pliki przez link anlegt (Thunderbird): der Schlüssel
+    /// seiner Etiketten und sein Name, unter dem Schlüssel des Bereichs.
+    /// </summary>
+    ShareDevice
 }
 
 /// <summary>
@@ -625,6 +631,7 @@ public readonly record struct Aad
         Field.PagePartLayout          => "page_part_layout",
         Field.PageModuleConfig        => "page_module_config",
         Field.PageMenu                => "page_menu",
+        Field.ShareDevice             => "share_device",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

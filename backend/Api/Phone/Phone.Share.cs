@@ -21,6 +21,12 @@ namespace Api;
 /// Zurückziehen darf, wer im Bereich schreibt, der ihn teilt (DELETE). Holen
 /// darf jeder, der die Kennung nennt — ohne Konto; gezählt wird, wie oft.
 /// </para>
+///
+/// <para>
+/// <b>Auch aus Thunderbird</b> (0125, <c>Phone.ShareDevice.cs</c>): dieselbe Hülle,
+/// dieselbe Ablage, dieselben Grenzen — nur weist sich dort ein Połączenie aus statt
+/// einer Sitzung.
+/// </para>
 /// </summary>
 public static partial class Phone
 {
@@ -76,24 +82,7 @@ public static partial class Phone
     /// </summary>
     private static async Task ShareAsync(HttpContext ctx, Db db, IConfiguration config, Guid areaId, Guid id, int? epoch, int? days)
     {
-        var limit = ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
-        if (limit is { IsReadOnly: false }) limit.MaxRequestBodySize = MaxShareSealed;
-
-        if (ctx.Request.ContentType != "application/octet-stream" || ctx.Request.ContentLength is not long size || size < 32 || size > MaxShareSealed)
-        {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Plik przez link może mieć najwyżej 25 MB.");
-            return;
-        }
-        if (ShareDays(days) is not int keep)
-        {
-            await Fail(ctx, StatusCodes.Status400BadRequest, $"Link może być ważny od 1 do {MaxShareDays} dni.");
-            return;
-        }
-        if (!ShareLabel(ctx.Request.Headers[ShareLabelHeader].ToString(), out var label))
-        {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Brak zapieczętowanego opisu pliku.");
-            return;
-        }
+        if (await ShareRequestAsync(ctx, days) is not { } request) return;
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var allowed = await AllowedAsync(ctx, db, connection, areaId, Capability.Write);
@@ -104,6 +93,48 @@ public static partial class Phone
             return;
         }
 
+        await StoreShareAsync(ctx, config, connection, areaId, e, null, id, request);
+    }
+
+    /// <summary>Was ein Hinauf mitbringt, schon geprüft: wie gross die Hülle, wie viele Tage, das versiegelte Etikett.</summary>
+    private sealed record ShareRequest(long Size, int Keep, byte[] Label);
+
+    /// <summary>
+    /// Körper, Tage und Etikett eines Hinaufs prüfen — für den Browser wie für ein
+    /// Połączenie (0125) dieselben Regeln. Sonst steht die Antwort schon da (400).
+    /// </summary>
+    private static async Task<ShareRequest?> ShareRequestAsync(HttpContext ctx, int? days)
+    {
+        var limit = ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+        if (limit is { IsReadOnly: false }) limit.MaxRequestBodySize = MaxShareSealed;
+
+        if (ctx.Request.ContentType != "application/octet-stream" || ctx.Request.ContentLength is not long size || size < 32 || size > MaxShareSealed)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Plik przez link może mieć najwyżej 25 MB.");
+            return null;
+        }
+        if (ShareDays(days) is not int keep)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, $"Link może być ważny od 1 do {MaxShareDays} dni.");
+            return null;
+        }
+        if (!ShareLabel(ctx.Request.Headers[ShareLabelHeader].ToString(), out var label))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Brak zapieczętowanego opisu pliku.");
+            return null;
+        }
+        return new ShareRequest(size, keep, label);
+    }
+
+    /// <summary>
+    /// Die Hülle ablegen und die Zeile schreiben — mit den Grenzen des Bereichs (am
+    /// Tag, zugleich). <paramref name="deviceId"/>: das Połączenie, das ihn anlegt
+    /// (0125); sein Etikett liegt dann unter dessen Schlüssel, nicht unter dem des Bereichs.
+    /// </summary>
+    private static async Task StoreShareAsync(
+        HttpContext ctx, IConfiguration config, SqlConnection connection, Guid areaId, int e, Guid? deviceId, Guid id, ShareRequest request)
+    {
+        var (size, keep, label) = request;
         var expires = DateTimeOffset.UtcNow.AddDays(keep);
         await using (var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted))
         {
@@ -164,8 +195,8 @@ public static partial class Phone
                 }
 
                 await using var insert = new SqlCommand("""
-                    INSERT INTO app.phone_share (id, area_id, epoch, label, byte_length, created_at, expires_at)
-                    VALUES (@id, @area, @epoch, @label, @size, SYSDATETIMEOFFSET(), @expires);
+                    INSERT INTO app.phone_share (id, area_id, epoch, label, byte_length, created_at, expires_at, device_id)
+                    VALUES (@id, @area, @epoch, @label, @size, SYSDATETIMEOFFSET(), @expires, @device);
                     """, connection, tx);
                 insert.Parameters.AddWithValue("@id", id);
                 insert.Parameters.AddWithValue("@area", areaId);
@@ -173,6 +204,7 @@ public static partial class Phone
                 insert.Parameters.Add("@label", System.Data.SqlDbType.VarBinary, MaxShareLabel).Value = label;
                 insert.Parameters.AddWithValue("@size", size);
                 insert.Parameters.AddWithValue("@expires", expires);
+                insert.Parameters.Add("@device", System.Data.SqlDbType.UniqueIdentifier).Value = (object?)deviceId ?? DBNull.Value;
                 await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
                 await tx.CommitAsync(ctx.RequestAborted);
             }
@@ -187,7 +219,12 @@ public static partial class Phone
         await ctx.Response.WriteAsJsonAsync(new { id = Ids.ToText(id), size, expiresAt = expires, stored = true });
     }
 
-    /// <summary>Die Links eines Bereichs, die noch gelten — neueste zuerst, mit ihrem versiegelten Etikett.</summary>
+    /// <summary>
+    /// Die Links eines Bereichs, die noch gelten — neueste zuerst, mit ihrem versiegelten
+    /// Etikett. Hat ein Połączenie (0125) einen angelegt, steht es daneben (<c>device</c>),
+    /// und seine versiegelte Zeile kommt unter <c>devices</c> mit: unter ihr liegt der
+    /// Schlüssel, der das Etikett öffnet — auch wenn das Połączenie schon getrennt ist.
+    /// </summary>
     private static async Task SharesAsync(HttpContext ctx, Db db, IConfiguration config, Guid areaId)
     {
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
@@ -195,14 +232,21 @@ public static partial class Phone
         await SweepSharesAsync(config, connection, ctx.RequestAborted);
 
         await using var cmd = new SqlCommand("""
-            SELECT id, epoch, label, byte_length, created_at, expires_at, downloads, last_download_at
+            SELECT id, epoch, label, byte_length, created_at, expires_at, downloads, last_download_at, device_id
             FROM app.phone_share
             WHERE area_id = @area AND deleted_at IS NULL AND expires_at > SYSDATETIMEOFFSET()
             ORDER BY created_at DESC, id;
+
+            SELECT d.id, d.epoch, d.sealed
+            FROM app.phone_share_device d
+            WHERE d.area_id = @area
+              AND EXISTS (SELECT 1 FROM app.phone_share s
+                           WHERE s.device_id = d.id AND s.deleted_at IS NULL AND s.expires_at > SYSDATETIMEOFFSET());
             """, connection);
         cmd.Parameters.AddWithValue("@area", areaId);
 
         var shares = new List<object>();
+        var devices = new List<object>();
         await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
         {
             while (await reader.ReadAsync(ctx.RequestAborted))
@@ -216,11 +260,22 @@ public static partial class Phone
                     createdAt = reader.GetDateTimeOffset(4),
                     expiresAt = reader.GetDateTimeOffset(5),
                     downloads = reader.GetInt32(6),
-                    lastDownloadAt = reader.IsDBNull(7) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(7)
+                    lastDownloadAt = reader.IsDBNull(7) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(7),
+                    device = reader.IsDBNull(8) ? null : Ids.ToText(reader.GetGuid(8))
+                });
+            }
+            await reader.NextResultAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                devices.Add(new
+                {
+                    id = Ids.ToText(reader.GetGuid(0)),
+                    epoch = reader.GetInt32(1),
+                    @sealed = Base64Url.Encode((byte[])reader[2])
                 });
             }
         }
-        await ctx.Response.WriteAsJsonAsync(new { shares });
+        await ctx.Response.WriteAsJsonAsync(new { shares, devices });
     }
 
     /// <summary>Zurückziehen: die Datei ist sofort fort, der Link sagt danach „nie ma".</summary>

@@ -10,6 +10,10 @@
 # Built APKs and bundles (npm run android:apk)
 android-out/
 
+# The Thunderbird add-on (npm run thunderbird:xpi); the copy in public/ ships with the site build
+thunderbird-out/
+/frontend/public/thunderbird/
+
 # Secrets never go into the tree:
 #   development  dotnet user-secrets (outside the repository) and frontend/.env
 #   production   appsettings.Production.json on the server

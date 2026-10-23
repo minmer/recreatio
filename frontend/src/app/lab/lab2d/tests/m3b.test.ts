@@ -3,8 +3,9 @@
  * 2026-10-23 bleibt ein Eisblock ein Rechteck, seine Seiten rücken). Die
  * Fronten gegen Neumann, der Eiswürfel in warmem Wasser, Eis in Sole an ihrem
  * Gefrierpunkt, gefrierende Sole behält ihr Salz, ein ausgeschnittener Block
- * schmilzt als Rechtecke. Die genaueren Fronten (1 mm) und die Kältemischung
- * bis ans Eutektikum stehen in m3b.slow.test.ts.
+ * schmilzt als Rechtecke, Eis auf einer warmen Platte schmilzt von unten. Die
+ * genaueren Fronten (1 mm) und die Kältemischung bis ans Eutektikum stehen in
+ * m3b.slow.test.ts.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -142,6 +143,31 @@ describe('M3b — test 45: a carved ice block melts as rectangles', () => {
     expect(overlap).toBeLessThan(1e-14);
     expect(ICE.rho * area * b.depth).toBeCloseTo(b.m, 12);
     expect(m0 - b.m).toBeGreaterThan(1e-5);
+    expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
+    expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
+  });
+});
+
+describe('M3b — test 46: the side the heat comes through melts', () => {
+  it('a 2 × 1 cm ice block at −2 °C on a steel plate at 60 °C, in air: it melts from below and sinks onto the plate as its bottom recedes; the top in air hardly melts; energy and water exact', () => {
+    const e = new Engine(scene({
+      box: { w: 0.06, h: 0.05, depth: 0.01 },
+      ambient: { p: 101.325, T: 20, rh: 0.5, g: 9.81 },
+      ops: [
+        { op: 'hotplate', x: 0.03, y: 0, w: 0.05, h: 0.006, material: 'steel', mode: 'power', power: 4, target: 150, on: true, T: 60 },
+        { op: 'body', region: { rect: [0.02, 0.006, 0.04, 0.016] }, material: 'ice', T: -2 }
+      ]
+    }));
+    const [plate, b] = e.bodies.list;
+    while (e.time < 10) e.step();
+    const [x0, y0, x1, y1] = b.bounds(0);
+    const top = (plate.y + plate.bounds(0)[3]) * 1000;
+    const bottom = (b.y + y0) * 1000;
+    console.log(`test 46: block ${((x1 - x0) * 1000).toFixed(2)} × ${((y1 - y0) * 1000).toFixed(2)} mm (was 20 × 10), its bottom ${(bottom - top).toFixed(3)} mm above the plate, ice ${(b.m * 1000).toFixed(3)} g, energy error ${e.energyError().toExponential(2)} J, water error ${e.waterError().toExponential(2)} kg`);
+    /* Unten schmilzt es (der Block wird niedriger), und er sitzt weiter auf der Platte. */
+    expect(10 - (y1 - y0) * 1000).toBeGreaterThan(1);
+    expect(Math.abs(bottom - top)).toBeLessThan(0.2);
+    expect(b.nr).toBe(1);
     expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
     expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
   });

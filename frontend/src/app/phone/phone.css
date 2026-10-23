@@ -182,6 +182,14 @@
 .ph-share small { color: var(--wk-muted); font-size: var(--wk-text-xs); }
 .ph-share-tools { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); }
 
+/* 0125 — Thunderbird: verbundene Programme und der Kod połączenia (einmal gezeigt). */
+.ph-conn { display: grid; gap: var(--wk-space-2); margin-top: var(--wk-space-5); }
+.ph-conn > .wk-h2 { margin: 0; }
+.ph-conn .ph-shares-intro { margin: 0; }
+.ph-conn .wk-actions { margin: 0; }
+.ph-conn-steps { margin: 0; padding-left: var(--wk-space-5); display: grid; gap: var(--wk-space-1); }
+.ph-conn-code { font-family: var(--wk-mono); font-size: var(--wk-text-sm); word-break: break-all; resize: vertical; }
+
 /* -- Wie die Rozmowy (2026-10-19): Liste, Gespräch und Feld mit den Bausteinen des Chats ---------- */
 
 /* Die Liste: dieselben Zeilen wie die Rozmowy, ohne eigenen Rollbalken — die Seite rollt. Breiten mit

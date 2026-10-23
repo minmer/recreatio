@@ -3,52 +3,23 @@
  * hundert KB drückt, eine SMS mit einem Link: das Zdjęcie in voller Grösse, ein
  * Film, ein PDF, bis 25 MB.
  *
- * <code>
- *   Geheimnis  16 Zufallsbytes — nur im Link, hinter der Raute (#/plik/<geheimnis>)
- *   Kennung    HKDF(Geheimnis, „share id")  — darunter legt der Dienst die Hülle ab
- *   Schlüssel  HKDF(Geheimnis, „share key") — nur hier; die Hülle: Kopf (Name, Art,
- *              Grösse) und Datei, AES-GCM
- *   Etikett    Name, Art, Grösse, Geheimnis, an wen — unter dem Schlüssel des eigenen
- *              Bereichs, für „Pliki przez link" (noch einmal kopieren, zurückziehen)
- * </code>
+ * Hier der Weg zum Dienst: hinauf, die eigenen Links, zurückziehen, herunter.
+ * Was aus dem Geheimnis folgt, die Hülle und das Etikett stehen in `shareSeal.ts`
+ * — ohne Sitzung, damit der Dodatek für Thunderbird dieselben Bytes bündelt.
  *
- * Der Dienst sieht die Kennung, nie den Schlüssel; eine statische Seite sieht von
- * der Raute gar nichts. Wer den Link hat, öffnet die Datei — wie bei einer MMS, die
- * jeder liest, der das Telefon hat.
- *
- * Fotos (JPEG) gehen ohne ihre EXIF-Angaben hinaus — der Ort der Aufnahme bleibt
- * hier; nur die Drehung wird neu vermerkt. Neu gerechnet wird nichts: volle Qualität.
+ * 0125 — POŁĄCZENIA: Programme, die Links anlegen, ohne ein Konto anzumelden
+ * (Thunderbird). Hier entstehen sie (`connectDevice` → der Kod połączenia), hier
+ * werden sie gezeigt und getrennt; ihre Links stehen mit den anderen in der Liste.
  */
 
-import { aad, derive, Field, fromBase64Url, open, openText, seal, sealText, toBase64Url } from '../core/crypto';
+import { fromBase64Url, toBase64Url } from '../core/crypto';
+import { newId } from '../core/ids';
 import { API, call, WorkspaceError } from '../core/session';
-import { PRIMARY_HOST } from '../routes';
 import type { PhoneCtx } from './phoneContext';
-
-/** So gross darf eine Datei sein (der Dienst nimmt die Hülle mit 64 KB Kopf dazu). */
-export const SHARE_MAX = 25 * 1024 * 1024;
-
-/** Wie lange ein Link gilt — zur Wahl. */
-export const SHARE_DAYS = [7, 30, 365] as const;
-
-export const daysLabel = (days: number): string => (days === 365 ? '1 rok' : days === 1 ? '1 dzień' : `${days} dni`);
-
-const SECRET_BYTES = 16;
-const SECRET_TEXT = /^[A-Za-z0-9_-]{22}$/;
-
-/** Was in der Hülle vor der Datei steht. */
-export interface ShareHead {
-  readonly name: string;
-  readonly type: string;
-  readonly size: number;
-}
-
-/** Was der Absender über einen seiner Links weiss (das geöffnete Etikett). */
-export interface ShareLabel extends ShareHead {
-  /** Das Geheimnis (base64url) — der Link lässt sich daraus noch einmal bilden. */
-  readonly secret: string;
-  readonly to: readonly string[];
-}
+import {
+  deviceName, newDeviceKey, newSecret, openDevice, openLabel, pairingCode, sealDevice, sealLabel, sealShare, SHARE_MAX, shareHeadOf, shareLink,
+  type DeviceDoc, type ShareLabel
+} from './shareSeal';
 
 export interface ShareEntry {
   readonly id: string;
@@ -57,179 +28,10 @@ export interface ShareEntry {
   readonly expiresAt: string;
   readonly downloads: number;
   readonly lastDownloadAt: string | null;
-  /** Geöffnet — `null`: geht nicht auf (fremde Epoche). */
+  /** Geöffnet — `null`: geht nicht auf (fremde Epoche, ein Połączenie ohne lesbaren Schlüssel). */
   readonly label: ShareLabel | null;
-}
-
-/* -- Geheimnis, Kennung, Schlüssel ------------------------------------------------------------- */
-
-export const newSecret = (): Uint8Array => crypto.getRandomValues(new Uint8Array(SECRET_BYTES));
-
-const hex = (bytes: Uint8Array): string => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
-
-/** 16 Bytes als Kennung in der Form, die der Dienst liest (`8-4-4-4-12`). */
-export function guidText(bytes: Uint8Array): string {
-  const h = hex(bytes);
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
-}
-
-/** Kennung und Schlüssel aus dem Geheimnis — mit verschiedenen Etiketten: das eine verrät das andere nicht. */
-export async function shareKeys(secret: Uint8Array): Promise<{ id: string; key: Uint8Array }> {
-  if (secret.length !== SECRET_BYTES) throw new Error('Geheimnis muss 16 Byte lang sein.');
-  const [id, key] = await Promise.all([derive(secret, 'recreatio share id v1', 16), derive(secret, 'recreatio share key v1', 32)]);
-  return { id: guidText(id), key };
-}
-
-/** Der Link — immer auf recreatio.pl: auch aus der App, auch von einer eigenen Domain. */
-export const shareLink = (secret: Uint8Array | string): string =>
-  `https://${PRIMARY_HOST}/#/plik/${typeof secret === 'string' ? secret : toBase64Url(secret)}`;
-
-/** Das Geheimnis aus der Adresse (22 Zeichen base64url) — sonst `null`. */
-export function secretOf(text: string | null | undefined): Uint8Array | null {
-  const t = (text ?? '').trim();
-  if (!SECRET_TEXT.test(t)) return null;
-  const bytes = fromBase64Url(t);
-  return bytes.length === SECRET_BYTES ? bytes : null;
-}
-
-const fileAad = (id: string) => aad('share', 'file', id, Field.ShareFile, 1);
-const labelAad = (id: string) => aad('share', 'label', id, Field.ShareLabel, 1);
-
-/* -- Kopf und Datei ---------------------------------------------------------------------------- */
-
-/** Ein Dateiname ohne Pfad und Steuerzeichen, höchstens 120 Zeichen. */
-export function cleanName(name: string): string {
-  const base = name.split(/[\\/]/).pop() ?? '';
-  // eslint-disable-next-line no-control-regex
-  const clean = base.replace(/[\u0000-\u001f\u007f]/g, '').trim();
-  return (clean === '' ? 'plik' : clean).slice(0, 120);
-}
-
-/** Kopf und Datei in einem: 4 Bytes Länge (big-endian), der Kopf als JSON, die Datei. */
-export function packShare(head: ShareHead, bytes: Uint8Array): Uint8Array {
-  const json = new TextEncoder().encode(JSON.stringify({ v: 1, name: head.name, type: head.type, size: head.size }));
-  const out = new Uint8Array(4 + json.length + bytes.length);
-  new DataView(out.buffer).setUint32(0, json.length);
-  out.set(json, 4);
-  out.set(bytes, 4 + json.length);
-  return out;
-}
-
-export function unpackShare(plain: Uint8Array): { head: ShareHead; bytes: Uint8Array } {
-  if (plain.length < 4) throw new Error('Plik jest uszkodzony.');
-  const length = new DataView(plain.buffer, plain.byteOffset, plain.byteLength).getUint32(0);
-  if (length > 8192 || 4 + length > plain.length) throw new Error('Plik jest uszkodzony.');
-  const o = JSON.parse(new TextDecoder().decode(plain.subarray(4, 4 + length))) as Partial<ShareHead>;
-  const bytes = plain.subarray(4 + length);
-  return {
-    head: {
-      name: cleanName(typeof o.name === 'string' ? o.name : 'plik'),
-      type: typeof o.type === 'string' && o.type !== '' ? o.type : 'application/octet-stream',
-      size: bytes.length
-    },
-    bytes
-  };
-}
-
-/** Die Hülle: Kopf und Datei unter dem Schlüssel aus dem Geheimnis. */
-export async function sealShare(secret: Uint8Array, head: ShareHead, bytes: Uint8Array): Promise<{ id: string; sealed: Uint8Array }> {
-  const { id, key } = await shareKeys(secret);
-  return { id, sealed: await seal(key, fileAad(id), packShare(head, bytes)) };
-}
-
-export async function openShare(secret: Uint8Array, sealed: Uint8Array): Promise<{ head: ShareHead; bytes: Uint8Array }> {
-  const { id, key } = await shareKeys(secret);
-  return unpackShare(await open(key, fileAad(id), sealed));
-}
-
-/* -- Fotos ohne den Ort ------------------------------------------------------------------------- */
-
-const ascii = (bytes: Uint8Array, at: number, text: string): boolean => {
-  if (at + text.length > bytes.length) return false;
-  for (let i = 0; i < text.length; i++) if (bytes[at + i] !== text.charCodeAt(i)) return false;
-  return true;
-};
-
-/** Die Drehung aus einem TIFF-Block (EXIF), 1–8 — oder `null`. */
-function orientationIn(tiff: Uint8Array): number | null {
-  if (tiff.length < 8) return null;
-  const little = tiff[0] === 0x49 && tiff[1] === 0x49;
-  if (!little && !(tiff[0] === 0x4d && tiff[1] === 0x4d)) return null;
-  const u16 = (o: number) => (little ? tiff[o] | (tiff[o + 1] << 8) : (tiff[o] << 8) | tiff[o + 1]);
-  const u32 = (o: number) => (little
-    ? (tiff[o] | (tiff[o + 1] << 8) | (tiff[o + 2] << 16) | (tiff[o + 3] << 24)) >>> 0
-    : ((tiff[o] << 24) | (tiff[o + 1] << 16) | (tiff[o + 2] << 8) | tiff[o + 3]) >>> 0);
-  if (u16(2) !== 42) return null;
-  const ifd = u32(4);
-  if (ifd + 2 > tiff.length) return null;
-  const count = u16(ifd);
-  for (let i = 0; i < count; i++) {
-    const e = ifd + 2 + i * 12;
-    if (e + 12 > tiff.length) return null;
-    if (u16(e) === 0x0112) {
-      const v = u16(e + 8);
-      return v >= 1 && v <= 8 ? v : null;
-    }
-  }
-  return null;
-}
-
-/** Ein EXIF-Block mit nichts als der Drehung. */
-function orientationSegment(orientation: number): Uint8Array {
-  return new Uint8Array([
-    0xff, 0xe1, 0x00, 0x22,
-    0x45, 0x78, 0x69, 0x66, 0x00, 0x00,                 // "Exif\0\0"
-    0x4d, 0x4d, 0x00, 0x2a, 0x00, 0x00, 0x00, 0x08,     // TIFF, big-endian, IFD0 bei 8
-    0x00, 0x01,                                         // ein Eintrag
-    0x01, 0x12, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, orientation, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00                              // kein weiteres IFD
-  ]);
-}
-
-/**
- * EIN JPEG OHNE SEINE ANGABEN: EXIF (Ort, Gerät, Zeit), XMP und IPTC fallen fort,
- * die Drehung wird neu vermerkt. Die Bilddaten bleiben Byte für Byte, wie sie
- * waren. Was kein JPEG ist oder unerwartet aussieht, bleibt unverändert.
- */
-export function withoutPlace(jpeg: Uint8Array): Uint8Array {
-  if (jpeg.length < 4 || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) return jpeg;
-  const kept: Uint8Array[] = [];
-  let orientation = 1;
-  let dropped = false;
-  let at = 2;
-  while (at + 4 <= jpeg.length) {
-    if (jpeg[at] !== 0xff) return jpeg;
-    const marker = jpeg[at + 1];
-    if (marker === 0xff) { at += 1; continue; }
-    if (marker === 0xda || marker === 0xd9) break;
-    if ((marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) { kept.push(jpeg.subarray(at, at + 2)); at += 2; continue; }
-    const length = (jpeg[at + 2] << 8) | jpeg[at + 3];
-    if (length < 2 || at + 2 + length > jpeg.length) return jpeg;
-    const segment = jpeg.subarray(at, at + 2 + length);
-    if (marker === 0xe1 && ascii(segment, 4, 'Exif\0\0')) {
-      orientation = orientationIn(segment.subarray(10)) ?? orientation;
-      dropped = true;
-    } else if ((marker === 0xe1 && ascii(segment, 4, 'http://ns.adobe.com/')) || marker === 0xed) {
-      dropped = true;
-    } else {
-      kept.push(segment);
-    }
-    at += 2 + length;
-  }
-  if (!dropped) return jpeg;
-
-  const head = kept.length > 0 && kept[0][1] === 0xe0 ? [kept[0]] : [];
-  const parts = [
-    jpeg.subarray(0, 2),
-    ...head,
-    ...(orientation === 1 ? [] : [orientationSegment(orientation)]),
-    ...kept.slice(head.length),
-    jpeg.subarray(at)
-  ];
-  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
-  let to = 0;
-  for (const p of parts) { out.set(p, to); to += p.length; }
-  return out;
+  /** 0125 — das Połączenie, das ihn anlegte (mit seinem Namen, wenn er aufgeht); `null`: aus der App. */
+  readonly device: { readonly id: string; readonly name: string | null } | null;
 }
 
 /* -- Hinauf (der Absender) --------------------------------------------------------------------- */
@@ -266,15 +68,12 @@ export async function shareFile(
   options: { readonly days: number; readonly to?: readonly string[]; readonly onProgress?: (done: number, total: number) => void }
 ): Promise<{ id: string; link: string; expiresAt: string }> {
   if (file.size > SHARE_MAX) throw new WorkspaceError('Plik przez link może mieć najwyżej 25 MB.');
-  const type = file.type || 'application/octet-stream';
-  let bytes: Uint8Array = new Uint8Array(await file.arrayBuffer());
-  if (type === 'image/jpeg') bytes = withoutPlace(bytes);
-  const head: ShareHead = { name: cleanName(file.name), type, size: bytes.length };
+  const { head, bytes } = shareHeadOf(file.name, file.type, new Uint8Array(await file.arrayBuffer()));
 
   const secret = newSecret();
   const { id, sealed } = await sealShare(secret, head, bytes);
   const label: ShareLabel = { ...head, secret: toBase64Url(secret), to: [...(options.to ?? [])] };
-  const sealedLabel = await sealText(ctx.newest.key, labelAad(id), JSON.stringify({ v: 1, ...label }));
+  const sealedLabel = await sealLabel(ctx.newest.key, id, label);
   const said = await put(
     `/workspace/phone/${encodeURIComponent(ctx.areaId)}/share/${id}?epoch=${ctx.newest.epoch}&days=${options.days}`,
     sealed, { 'X-Share-Label': toBase64Url(sealedLabel) }, options.onProgress
@@ -282,34 +81,41 @@ export async function shareFile(
   return { id, link: shareLink(secret), expiresAt: said?.expiresAt ?? '' };
 }
 
-function readLabel(json: string): ShareLabel | null {
-  try {
-    const o = JSON.parse(json) as Partial<ShareLabel>;
-    if (typeof o.secret !== 'string' || secretOf(o.secret) === null) return null;
-    return {
-      name: cleanName(typeof o.name === 'string' ? o.name : 'plik'),
-      type: typeof o.type === 'string' ? o.type : 'application/octet-stream',
-      size: typeof o.size === 'number' ? o.size : 0,
-      secret: o.secret,
-      to: Array.isArray(o.to) ? o.to.filter((t): t is string => typeof t === 'string') : []
-    };
-  } catch {
-    return null;
-  }
+interface SealedDevice {
+  readonly id: string;
+  readonly epoch: number;
+  readonly sealed: string;
 }
 
-/** Die eigenen Links, die noch gelten — neueste zuerst. */
+/** Den versiegelten Teil eines Połączenie öffnen — mit der Epoche, unter der er liegt. */
+async function deviceDoc(ctx: PhoneCtx, d: SealedDevice): Promise<DeviceDoc | null> {
+  const key = ctx.keys.get(d.epoch);
+  return key === undefined ? null : openDevice(key, d.id, fromBase64Url(d.sealed));
+}
+
+/**
+ * Die eigenen Links, die noch gelten — neueste zuerst. Was ein Połączenie anlegte,
+ * öffnet sich unter seinem Schlüssel; den bringt der Dienst mit (`devices`). Ein Dienst
+ * vor 0125 schickt beides nicht — dann ist alles aus der App.
+ */
 export async function loadShares(ctx: PhoneCtx): Promise<ShareEntry[]> {
-  const { shares } = await call<{ shares: readonly (Omit<ShareEntry, 'label'> & { epoch: number; label: string })[] }>(
-    `/workspace/phone/${encodeURIComponent(ctx.areaId)}/shares`);
+  const { shares, devices } = await call<{
+    shares: readonly (Omit<ShareEntry, 'label' | 'device'> & { epoch: number; label: string; device?: string | null })[];
+    devices?: readonly SealedDevice[];
+  }>(`/workspace/phone/${encodeURIComponent(ctx.areaId)}/shares`);
+
+  const docs = new Map<string, DeviceDoc | null>();
+  for (const d of devices ?? []) docs.set(d.id, await deviceDoc(ctx, d));
+
   const out: ShareEntry[] = [];
   for (const s of shares) {
-    const key = ctx.keys.get(s.epoch);
-    let label: ShareLabel | null = null;
-    if (key !== undefined) {
-      try { label = readLabel(await openText(key, labelAad(s.id), fromBase64Url(s.label))); } catch { label = null; }
-    }
-    out.push({ id: s.id, size: s.size, createdAt: s.createdAt, expiresAt: s.expiresAt, downloads: s.downloads, lastDownloadAt: s.lastDownloadAt, label });
+    const deviceId = s.device ?? null;
+    const key = deviceId === null ? ctx.keys.get(s.epoch) : docs.get(deviceId)?.key;
+    const label = key === undefined ? null : await openLabel(key, s.id, fromBase64Url(s.label));
+    out.push({
+      id: s.id, size: s.size, createdAt: s.createdAt, expiresAt: s.expiresAt, downloads: s.downloads, lastDownloadAt: s.lastDownloadAt, label,
+      device: deviceId === null ? null : { id: deviceId, name: docs.get(deviceId)?.name ?? null }
+    });
   }
   return out;
 }
@@ -317,6 +123,63 @@ export async function loadShares(ctx: PhoneCtx): Promise<ShareEntry[]> {
 /** Zurückziehen: die Datei ist sofort fort. */
 export const unshare = (ctx: PhoneCtx, id: string): Promise<unknown> =>
   call(`/workspace/phone/${encodeURIComponent(ctx.areaId)}/share/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
+/* -- Połączenia (0125) ------------------------------------------------------------------------- */
+
+/** Ein Programm, das Links anlegt — so, wie es in der Liste steht. */
+export interface ShareDevice {
+  readonly id: string;
+  /** `null`: der Name geht nicht auf (eine Epoche, die ich nicht halte). */
+  readonly name: string | null;
+  readonly createdAt: string;
+  readonly lastUsedAt: string | null;
+  /** Was es gerade teilt: wie viele Links, wie viele Bytes. */
+  readonly shares: number;
+  readonly bytes: number;
+}
+
+/**
+ * Die Adresse des Dienstes, ganz ausgeschrieben — für den Kod: Thunderbird kennt
+ * keine Seite, gegen die sich `/api` auflösen liesse.
+ */
+const serviceUrl = (): string => new URL(API, window.location.href).href.replace(/\/+$/, '');
+
+/** Die Połączenia des eigenen Bereichs. Ein Dienst vor 0125 kennt sie nicht — dann `null`. */
+export async function loadDevices(ctx: PhoneCtx): Promise<ShareDevice[] | null> {
+  let said: { devices: readonly (SealedDevice & Omit<ShareDevice, 'id' | 'name'>)[] };
+  try {
+    said = await call(`/workspace/phone/${encodeURIComponent(ctx.areaId)}/share-devices`);
+  } catch (e) {
+    if (e instanceof WorkspaceError && e.message === 'Nie udało się.') return null;
+    throw e;
+  }
+  const out: ShareDevice[] = [];
+  for (const d of said.devices) {
+    const doc = await deviceDoc(ctx, d);
+    out.push({ id: d.id, name: doc?.name ?? null, createdAt: d.createdAt, lastUsedAt: d.lastUsedAt, shares: d.shares, bytes: d.bytes });
+  }
+  return out;
+}
+
+/**
+ * EIN PROGRAMM VERBINDEN: Kennung und Schlüssel der Etiketten entstehen hier, der
+ * Dienst gibt das Geheimnis einmal heraus — zusammen der Kod połączenia. Er wird
+ * nur jetzt gezeigt; wer ihn verliert, verbindet neu (und trennt das alte).
+ */
+export async function connectDevice(ctx: PhoneCtx, name: string): Promise<{ id: string; code: string }> {
+  const id = newId();
+  const doc: DeviceDoc = { key: newDeviceKey(), name: deviceName(name) };
+  const sealed = await sealDevice(ctx.newest.key, id, doc);
+  const said = await call<{ id: string; token: string }>(`/workspace/phone/${encodeURIComponent(ctx.areaId)}/share-devices`, {
+    method: 'POST',
+    body: JSON.stringify({ id, epoch: ctx.newest.epoch, sealed: toBase64Url(sealed) })
+  });
+  return { id, code: pairingCode({ api: serviceUrl(), id, token: said.token, key: doc.key, name: doc.name }) };
+}
+
+/** Trennen: das Programm weist sich ab sofort nicht mehr aus; seine Links gelten bis zu ihrem Ablauf. */
+export const disconnectDevice = (ctx: PhoneCtx, id: string): Promise<unknown> =>
+  call(`/workspace/phone/${encodeURIComponent(ctx.areaId)}/share-device/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
 /* -- Herunter (wer den Link hat, ohne Konto) ------------------------------------------------- */
 
@@ -367,23 +230,4 @@ export async function fetchShare(id: string, onProgress?: (done: number, total: 
   let at = 0;
   for (const c of chunks) { out.set(c, at); at += c.length; }
   return out;
-}
-
-/**
- * Was der Browser zeigen darf — und wie. Alles andere nur zum Herunterladen: eine
- * HTML- oder SVG-Datei, im Browser geöffnet, liefe unter recreatio.pl.
- */
-export function shownAs(type: string): 'image' | 'video' | 'audio' | 'pdf' | null {
-  const t = type.toLowerCase();
-  if (['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif', 'image/bmp'].includes(t)) return 'image';
-  if (['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/3gpp'].includes(t)) return 'video';
-  if (['audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/aac', 'audio/x-m4a', 'audio/flac'].includes(t)) return 'audio';
-  if (t === 'application/pdf') return 'pdf';
-  return null;
-}
-
-/** „3,2 MB", „240 KB". */
-export function sizeText(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toLocaleString('pl-PL', { maximumFractionDigits: 1 })} MB`;
-  return `${Math.max(1, Math.round(bytes / 1024)).toLocaleString('pl-PL')} KB`;
 }

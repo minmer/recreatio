@@ -12,6 +12,7 @@ import type { FrameBuffers, Overlay } from '../render/frame';
 import type { Walls } from '../render/glRenderer';
 import type { View } from '../render/view';
 import type { EngineStats, ProbeInfo } from './engine';
+import type { ObjectPatch, ObjectView } from './objects';
 import type { HeaterMode, Op, Quality, Side, SideName } from './scene';
 import type { Region } from './shapes';
 
@@ -28,6 +29,9 @@ export type HostMessage =
   | { readonly type: 'setBoundary'; readonly side: SideName; readonly value: Side }
   | { readonly type: 'query'; readonly id: number; readonly x: number; readonly y: number }
   | { readonly type: 'select'; readonly bubble: number | null }
+  /** Gegenstände (seit 2026-10-23): einen wählen (seine Daten kommen mit den Kennzahlen) und seine Einstellungen ändern (Antwort: neu aufgebaut?, Warnung). */
+  | { readonly type: 'selectObject'; readonly object: string | null }
+  | { readonly type: 'editObject'; readonly id: number; readonly object: string; readonly patch: ObjectPatch }
   | { readonly type: 'overlay'; readonly overlay: Overlay }
   | { readonly type: 'particles'; readonly on: boolean }
   | { readonly type: 'pause'; readonly paused: boolean }
@@ -104,6 +108,8 @@ export interface HostStats {
   readonly paused: boolean;
   readonly samples: readonly ChartSample[];
   readonly bubble: BubbleView | null;
+  /** Der gewählte Gegenstand (null: keiner oder nicht mehr da). */
+  readonly object?: ObjectView | null;
   /** Anfang und Ende der Farbskala der Einblendung im letzten Bild (SI-Einheiten); dazu die grösste Geschwindigkeit des Wassers (Pfeile). */
   readonly overlayScale: readonly [number, number, number];
   /** Backen oder Wiedergabe (null: live). */

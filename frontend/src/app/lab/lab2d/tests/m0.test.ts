@@ -167,11 +167,11 @@ describe('M0 — scenes, painting, the loop', () => {
     const glass = coverOf();
     const x0 = e.particles.x[0];
     /* Die Zlewka (Aussenrechteck) samt Wasser 2 cm nach links und 1 cm hinauf; die Heizplatte 1 cm nach rechts. */
-    e.apply({ op: 'move', region: { rect: [0.065, 0.008, 0.135, 0.088] }, dx: -0.02, dy: 0.01 });
+    e.apply({ op: 'move', region: { rect: [0.065, 0.008, 0.135, 0.088] }, id: null, dx: -0.02, dy: 0.01 });
     expect(e.particles.count).toBe(count);
     expect(e.particles.x[0]).toBeCloseTo(x0 - 0.02, 6);
     expect(coverOf()).toBeCloseTo(glass, 9);
-    e.apply({ op: 'move', region: { rect: [0.04, 0, 0.16, 0.008] }, dx: 0.01, dy: 0 });
+    e.apply({ op: 'move', region: { rect: [0.04, 0, 0.16, 0.008] }, id: null, dx: 0.01, dy: 0 });
     const plate = e.bodies.list.find((b) => b.heater >= 0 && !b.gone);
     expect(plate?.ncell).toBe(60 * 4);
     expect(e.stats().heaters.length).toBe(1);

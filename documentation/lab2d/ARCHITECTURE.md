@@ -512,12 +512,20 @@ condenses away (collapse) gives the rest to the liquid of its footprint.
 
 A scene is a starting layout: box (w, h, depth), ambient (p, T, relative humidity, dry-air composition, g — all
 adjustable while it runs; a new composition enters through open sides, the gas in the box keeps its own), sides,
-quality, seed and an ordered list of operations — `fill` (liquid water, or gas of a composition), `erase`, `move`
-(everything solid in a region, with the water and bubbles inside, by whole cells — the drag tool; a body moves as a
-whole), `solid` (a painted, static solid), `body` (a body of a region and material, free unless `pinned`, turned by
-`angle` about the region's centre; M3a, §17), `beaker` (with an optional lid), `hotplate` (power or thermostat) —
-both bodies, pinned unless `"pinned": false`, turned by `angle` about the middle of their base — and `pin` (pin or
-release the body at a point; the tool "Przypnij"). `fill` takes any liquid of the database (`H2O`, `oil-rapeseed`) with mass fractions; several immiscible liquids are
+quality, seed and an ordered list of operations — `fill` (liquid water, or gas of a composition), `erase`, `solid` (a
+painted, static solid of cells), the **objects** `body` (a block of a region and material — an ice cube, wood, stone —
+free unless `pinned`, turned by `angle` about the region's centre; M3a, §17), `beaker` (with an optional lid) and
+`hotplate` (power or thermostat) — both pinned unless `"pinned": false`, turned by `angle` about the middle of their
+base —, `move` and `remove`. Since 2026-10-23 every object has a name (`id`; `readScene` gives one where it is
+missing — `body-1`, `beaker-1` — and renames a duplicate) and carries its own settings: `pinned`, `T`, `angle`,
+material, size, lid, heater. Changing a setting changes the object where it stands in the list (`objects.ts`,
+`editObject`); no operation is appended. `pinned` and the heater act at once, even while it runs (a released beaker
+falls); material, temperature, size, angle and lid change the set-up: at time 0 the scene is rebuilt with the changed
+object, later the engine refuses. `move` with an `id` moves that object together with what lies in its box (the
+water and bubbles of a beaker, a painted solid in it, objects lying wholly inside it); `move` with a `region` moves
+everything solid there (a painted solid by whole cells). `remove` takes an object away (booked). Both are operations
+in the order, because what was painted later depends on where things stood. The old `pin` (pin or release the body
+at a point) is still read. `fill` takes any liquid of the database (`H2O`, `oil-rapeseed`) with mass fractions; several immiscible liquids are
 spread evenly by volume, each particle being one of them; `NaCl` dissolves in the water of the fill
 (`{ "H2O": 0.9, "NaCl": 0.1 }` is 10 % brine; without water it is dropped with a warning). JSON, `format: "recreatio/lab2d"`, version 1, in m / °C /
 kPa / W (`scene.ts`; unknown parts are dropped with a warning). Every tool is an operation appended to the scene, so
@@ -564,7 +572,7 @@ and answers the same host messages, so the shell, the tools, the inspector and t
 
 ## 12. Tests
 
-Vitest, headless in Node on the engine alone: `npm run test:lab2d` (81 tests, ~5 minutes) and
+Vitest, headless in Node on the engine alone: `npm run test:lab2d` (83 tests, ~5 minutes) and
 `npm run test:lab2d:slow` (tests 3, 4 over ten simulated minutes, 10, 11, 12, 34, 41 at 1 mm, 43 with enough salt).
 MILESTONES.md records the numbers.
 
@@ -610,12 +618,13 @@ MILESTONES.md records the numbers.
 | 38 | Stacking: a block dropped onto another lands flat on it and both stand still, asleep | m3a.test.ts |
 | 39 | Tipping: a glass beaker of water released 3° below its geometric tipping angle falls back, 3° above it falls over; no water lost | m3a.test.ts |
 | 40 | Budgets with moving solids: a hot stone sinks and a warm block floats in cold water — energy, water and air exact | m3a.test.ts |
-| — | Scene format of bodies (body, pin, pinned, angle round-trip; older scenes write unchanged; free bodies need the CPU; a circle becomes the square of its area, a line with a width a rotated rectangle) | m3a.test.ts |
+| — | Scene format of bodies (body, pin, pinned, angle round-trip; free bodies need the CPU; a circle becomes the square of its area, a line with a width a rotated rectangle); objects: names given and made unique, settings changed in place (pinned at any time, the set-up at the start), move and remove by name with budgets exact | m3a.test.ts |
 | 41 | Stefan: melting under water at 20 °C and freezing on ice at −20 °C follow the Neumann solution (2 mm: front speed ±5 %, position ±10 %; 1 mm: ±5 %) | m3b.test.ts, m3b.slow.test.ts |
 | 42 | Ice cube in warm water: one rectangle, never warmer than its melting point, the lost ice is water in the particles; energy and water exact | m3b.test.ts |
 | 43 | Ice in brine settles at T_f(w) of the diluted brine (±0.2 K); in 25 % brine a cooling mixture below −18 °C whose coldest particle never passes the eutectic (by more than 0.05 K) | m3b.test.ts, m3b.slow.test.ts |
 | 44 | Freezing brine keeps all its salt: the ice grows, the brine gets saltier, salt exact | m3b.test.ts |
 | 45 | A carved ice block melts as a few rectangles that neither overlap nor fall apart; budgets exact | m3b.test.ts |
+| 46 | The side the heat comes through melts: an ice block on a warm plate melts from below and stays on the plate; budgets exact | m3b.test.ts |
 | 17 | GPU equivalence on tests 1–3, 6, 11 | browser harness in headless Edge (Node has no WebGPU) and in Firefox (a visible window: headless Firefox gets no WebGPU adapter); numbers in MILESTONES.md (M1e) |
 
 The browser side (tools, overlays, inspector, bubble view, charts, scenes, phone layout) was walked through in
@@ -840,10 +849,13 @@ part 2 (collect, melting and freezing, forces, velocities, contacts, positions, 
 that no point of an awake body moves more than half a cell per step. A body leaving the box through an open side is
 booked as escaped (energy, film water, crust salt; ice as water).
 
-**Tools and format**: `body` (region, material, T, pinned, angle), `pin`, `pinned` and `angle` on `beaker` and
-`hotplate` (§10); "Postaw ciało" and "Przypnij" in the shell; "Przesuń" moves bodies by the exact offset (a painted
-solid in the region moves everything by whole cells); erasing or painting over a body cuts its rectangles (booked; ice
-counts as water) and may split it. The inspector shows the body under the cursor.
+**Tools and format**: objects with names and settings (§10). In the shell, "Przedmioty" adds an ice cube, a block
+of wood, stone, glass or steel, a beaker or a hot plate (a click: the usual size; a dragged rectangle: position and
+size; a click on an existing object selects it instead); "Wybierz" selects an object (its outline is drawn from the
+worker's `ObjectView`, sent with the statistics) and drags it (`move` with its `id`, by the exact offset); the panel
+"Przedmiot" shows its settings — "Przypięty", material, temperature, size, angle, lid, heater — and removes it
+(`ObjectPanel.tsx`). Erasing or painting over a body cuts its rectangles (booked; ice counts as water) and may split
+it; the pieces keep the object's name. The inspector shows the body under the cursor.
 
 **Drawing** (§11): each internal cell as a rotated quad, the rectangles' outlines on top; cells a body closes stay
 empty in the cell texture.
@@ -870,14 +882,20 @@ material (ice, `meltsAt`):
   cells just outside and one cell further (the thin fluid part of a mixed cell often holds no particle), `freezingPoint`
   of their molality; no liquid: pure water. A side is *open* when fluid lies in front of it; a side against a wall, a
   painted solid or another body is not.
-- **Melting.** Every internal cell warmer than T_f of the nearest open side of its rectangle (no open side: the nearest
-  free side) gives its excess E − E(T_f) to that side — the ice is never warmer than where it melts; a cell inside gives
-  its heat at once (the conduction to the surface is instant, the end state right). A side's excess Q moves it inward by
+- **Melting — the side the heat comes through.** Every side also gets its *supply*: Σ k (T − T_f)⁺ · length over the
+  cells just in front (`meltSides.supplyAt`) — water, air, or a solid such as a hot plate or the wall of a warm beaker
+  (outside the box: nothing). An edge cell warmer than T_f gives its excess E − E(T_f) to its adjacent free sides that
+  have a supply, shared by it (a corner cell between water and air gives almost all to the water side); a cell with no
+  such side, and a cell inside, gives it to the nearest open side of its rectangle (no open side: the nearest free
+  side). So one or several sides melt at once, each as a whole, and a block lying on a warm plate melts from below and
+  sinks onto it (before 2026-10-23 the plate's heat went to the nearest open side: such a block got narrower, not
+  flatter). The ice is never warmer than where it melts; a cell inside gives its heat at once (the conduction to the
+  surface is instant, the end state right). A side's excess Q moves it inward by
   δ = Q/(ρ D Σ_k s_k [L(T_f) + c_p (T_f − T_k)]) over its edge cells k (free length s_k). The slice's energy, film and
   crust, the offset of its mass and Q become meltwater: added to the water particles in the cells just in front by
   their mass (one cell further only if those hold none; a particle above twice the nominal mass splits), else held per
-  body and spawned as a particle in front of the side — or at the nearest free spot within three cells — once it
-  reaches a quarter of the nominal mass.
+  body and spawned as a particle in front of the side — or at the nearest free spot within three cells (beside a block
+  on a plate) — once it reaches a quarter of the nominal mass.
 - **Freezing.** Water in front of a side colder than T_f freezes m = C_l (T_f − T_l)/L, at most half of a particle's
   water per step; it leaves with the enthalpy of ice (the particles keep the latent heat and warm up), its salt stays.
   Planned first, taken after the side moved: exactly the mass the body grew by. The new slice is ice at T_f; particles

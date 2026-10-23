@@ -23,6 +23,7 @@
 import { ClipSession } from './clip/session';
 import { Charts } from './engine/charts';
 import { Engine } from './engine/engine';
+import { editObject, objectView } from './engine/objects';
 import type { BubbleView, ChartSample, HostMessage, HostStats, WorkerMessage } from './engine/protocol';
 import { allocFrame, buildFrame, frameFits, frameFitsLayers, frameFromLayers, frameTransfer, type FrameBuffers, type Overlay } from './render/frame';
 import type { Layers } from './render/layers';
@@ -63,6 +64,8 @@ let speed = 1;
 let overlay: Overlay = 'none';
 /** Der letzte Zustand der gewählten Blase (nach ihrem Ende bleibt er stehen, mit dem, was aus ihr wurde). */
 let lastBubble: BubbleView | null = null;
+/** Der gewählte Gegenstand (sein Name) — seine Daten gehen mit den Kennzahlen. */
+let selectedObject: string | null = null;
 /** Die Skala der Einblendung im zuletzt gezeichneten Bild (für die Legende). */
 const scale: [number, number, number] = [0, 1, 0];
 /** Die rohen Teilchen zeigen (statt der glatten Fläche). */
@@ -195,6 +198,7 @@ function sendStats(t: number): void {
     paused,
     samples: pendingSamples.splice(0, pendingSamples.length),
     bubble: bubbleView(),
+    object: selectedObject !== null ? objectView(engine, selectedObject) : null,
     overlayScale: [scale[0], scale[1], scale[2]],
     clip: session?.stats() ?? null
   };
@@ -390,6 +394,17 @@ scope.addEventListener('message', (event) => {
       case 'select':
         select(m.bubble);
         break;
+      case 'selectObject':
+        selectedObject = m.object;
+        break;
+      case 'editObject': {
+        const e = live();
+        const result = e === null ? { rebuilt: false, warning: 'refused: not live' } : editObject(e, m.object, m.patch);
+        if (result.rebuilt) restart();
+        post({ type: 'reply', id: m.id, data: result });
+        session?.checkSoon();
+        break;
+      }
       case 'overlay':
         overlay = m.overlay;
         shown = '';

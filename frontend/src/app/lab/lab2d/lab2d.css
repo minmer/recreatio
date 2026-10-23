@@ -10,6 +10,9 @@
 .l2d-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .l2d-preview { stroke: var(--wk-accent); stroke-width: 3; stroke-dasharray: 6 4; stroke-linecap: round; }
 .l2d-preview-box { fill: none; stroke-width: 2; }
+/* Der gewählte Gegenstand: sein Umriss (beim Ziehen versetzt). */
+.l2d-selected { fill: color-mix(in srgb, var(--wk-accent) 12%, transparent); stroke: var(--wk-accent); stroke-width: 2; stroke-dasharray: 5 3; stroke-linejoin: round; }
+.l2d-obj-title { display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-2); align-items: baseline; margin: 0; }
 .l2d-arrowhead { fill: currentColor; }
 .l2d-force { color: var(--wk-ink); }
 .l2d-force line { stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; }

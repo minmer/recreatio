@@ -124,7 +124,7 @@ export { tidyContact, sameContact, planImport, contactMatches, nameIndex, phoneK
 export { canonical, fromNative, archiveThreads, conversationKey, outlineOf, conversationsOf, choiceIncludes, lineFinder } from '${app}phone/smsArchive';
 export { readMessage, pendingOf } from '${app}phone/outbox';
 export { aheadWhen, localInput } from '${app}phone/smsShared';
-export { shareKeys, guidText, shareLink, secretOf, packShare, unpackShare, sealShare, openShare, withoutPlace, shownAs, sizeText, cleanName } from '${app}phone/share';
+export { shareKeys, guidText, shareLink, secretOf, packShare, unpackShare, sealShare, openShare, withoutPlace, shownAs, sizeText, cleanName, sealLabel, openLabel, shareHeadOf, sealDevice, openDevice, deviceName, newDeviceKey, pairingCode, readPairing, serviceAddress } from '${app}phone/shareSeal';
 export { ROUTES } from '${app}routes';
 export { chooseLine, ruledNumber, readRules, lineKeyOf, findLine, lineText as simLineText } from '${app}phone/lines';
 export { readSettings, settingsText } from '${app}phone/archiveSettings';
@@ -2130,6 +2130,46 @@ try {
     const parts = /Parts = new\(StringComparer\.Ordinal\) \{([^}]*)\}/.exec(claim)?.[1].split(',').map((p) => p.trim().replace(/"/g, '')).filter(Boolean).sort();
     assert.deepEqual(parts, Object.keys(m.ROUTES).sort(), 'Slug.IsReserved knows every route word of the browser');
     ok('Pliki przez link (0117): id and key from the link secret (HKDF), sealed and opened with the link alone, photos without their place, only safe types shown, route word reserved');
+
+    /* 0125 — Thunderbird: the connection code, the key of its labels under the area key, a label from the mail. */
+    const areaKey = Uint8Array.from({ length: 32 }, (_, i) => 255 - i);
+    const deviceId = '0198f3c2-1a2b-7c3d-8e4f-5a6b7c8d9e0f';
+    const deviceKey = m.newDeviceKey();
+    assert.equal(deviceKey.length, 32, 'a fresh key of 32 bytes for the labels');
+    const doc = await m.sealDevice(areaKey, deviceId, { key: deviceKey, name: '  Thunderbird\n— laptop ' });
+    const docOpened = await m.openDevice(areaKey, deviceId, doc);
+    assert.deepEqual([[...docOpened.key], docOpened.name], [[...deviceKey], 'Thunderbird — laptop'], 'key and name under the area key, the name tidied');
+    assert.equal(await m.openDevice(areaKey, '0198f3c2-1a2b-7c3d-8e4f-5a6b7c8d9e10', doc), null, 'bound to its own id: under another one it does not open');
+    assert.equal(await m.openDevice(Uint8Array.from(areaKey, (b) => b ^ 1), deviceId, doc), null, 'nor under another key');
+    assert.equal(m.deviceName(''), 'Thunderbird', 'no name: Thunderbird');
+    assert.equal(m.deviceName('x'.repeat(80)).length, 60, 'at most 60 characters');
+
+    const pairing = { api: 'https://api.recreatio.pl', id: deviceId, token: 'AbCdEfGhIjKlMnOpQrStUvWx', key: deviceKey, name: 'Thunderbird' };
+    const code = m.pairingCode(pairing);
+    assert.match(code, /^RCFL1\.[A-Za-z0-9_-]+$/, 'one word to copy');
+    const back = m.readPairing(`  ${code.slice(0, 40)}\n${code.slice(40)}  `);
+    assert.deepEqual([back.api, back.id, back.token, [...back.key], back.name], [pairing.api, deviceId, pairing.token, [...deviceKey], 'Thunderbird'],
+      'read back whole — spaces and line breaks from copying do not matter');
+    const forged = (o) => 'RCFL1.' + Buffer.from(JSON.stringify({ v: 1, api: pairing.api, id: deviceId, token: pairing.token, key: Buffer.from(deviceKey).toString('base64url'), name: 'x', ...o })).toString('base64url');
+    assert.ok(m.readPairing(forged({})) !== null, 'the forged code itself is fine');
+    assert.ok([
+      m.readPairing('RCFL2.' + code.slice(6)), m.readPairing(code.slice(6)), m.readPairing('RCFL1.!!!'),
+      m.readPairing(forged({ api: 'http://api.recreatio.pl' })), m.readPairing(forged({ api: 'https://u:p@api.recreatio.pl' })),
+      m.readPairing(forged({ id: deviceId.toUpperCase() })), m.readPairing(forged({ token: 'short' })), m.readPairing(forged({ token: 'a/b+c'.repeat(5) })),
+      m.readPairing(forged({ key: Buffer.from(new Uint8Array(16)).toString('base64url') })), m.readPairing(forged({ v: 2 }))
+    ].every((x) => x === null), 'anything else is no code: another prefix, http to a server, credentials in the address, another id form, a bad token or key, another version');
+    assert.deepEqual([m.serviceAddress('https://api.recreatio.pl/'), m.serviceAddress('http://localhost:5173/api/'), m.serviceAddress('http://127.0.0.1:50999'), m.serviceAddress('http://example.org'), m.serviceAddress('https://x.pl/?a=1')],
+      ['https://api.recreatio.pl', 'http://localhost:5173/api', 'http://127.0.0.1:50999', null, null], 'a service is https — or http on this machine while developing');
+
+    const mailHead = m.shareHeadOf('C:\\Users\\a\\umowa.pdf', '', new Uint8Array([1, 2, 3]));
+    assert.deepEqual([mailHead.head, [...mailHead.bytes]], [{ name: 'umowa.pdf', type: 'application/octet-stream', size: 3 }, [1, 2, 3]], 'a file from the mail: its name, a type also when none is known');
+    assert.ok(!Buffer.from(m.shareHeadOf('x.jpg', 'image/jpeg', photo).bytes).toString('latin1').includes('GPS'), 'a photo from the mail goes without its place, like one from an SMS');
+    const mailLabel = { name: 'umowa.pdf', type: 'application/pdf', size: 3, secret: m.shareLink(secret).split('/').pop(), to: [], via: 'thunderbird' };
+    const sealedLabel = await m.sealLabel(deviceKey, keys.id, mailLabel);
+    assert.deepEqual(await m.openLabel(deviceKey, keys.id, sealedLabel), mailLabel, 'the label from the mail opens under the key of its connection, with `via`');
+    assert.equal(await m.openLabel(areaKey, keys.id, sealedLabel), null, 'not under the area key');
+    assert.equal(await m.openLabel(deviceKey, '0198f3c2-0000-7000-8000-000000000000', sealedLabel), null, 'and only for its own link');
+    ok('Thunderbird (0125): connection code read back whole and nothing else, the label key under the area key, labels from the mail under it, photos without their place');
 
     /* 2026-10-19 — two SIMs: one number for everyone, the other for a group. */
     const orange = { subId: 1, slot: 0, name: 'Orange', number: null, known: false };

@@ -48,7 +48,8 @@ import {
   archivedFileUrl, archiveIndex, conversationKey, loadAll, loadConversation, readableArchives,
   type ArchivedConversation, type ArchivedMessage, type ArchivedPart, type ArchiveProgress, type ArchiveSummary
 } from './smsArchive';
-import { daysLabel, SHARE_DAYS, SHARE_MAX, shareFile, shareLink, sizeText } from './share';
+import { shareFile } from './share';
+import { daysLabel, SHARE_DAYS, SHARE_MAX, shareLink, sizeText } from './shareSeal';
 import { PlanDialog, PlannedRow, SmsHeader, SmsLog, useRoomFrame, type SmsItem } from './smsChat';
 import { aheadWhen, around, barStyle, conversationMatches, isMode, SEARCH, timeOf, type SearchMode } from './smsShared';
 import './phone.css';

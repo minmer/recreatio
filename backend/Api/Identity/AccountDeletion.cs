@@ -509,6 +509,16 @@ public static class AccountDeletion
              WHERE area_id IN (SELECT id FROM #dead) AND area_id NOT IN (SELECT id FROM #phone);
             DELETE FROM app.phone_share WHERE area_id IN (SELECT id FROM #dead);
         END
+        -- 0125: Połączenia, die Pliki przez link anlegen (Thunderbird) — die eines toten Bereichs und alle des Kontos;
+        -- ihre Links in Bereichen, die bleiben, gelten weiter, nur ohne lesbares Etikett. Dynamisch: vor der
+        -- Migration fehlt die SPALTE `device_id`, und eine fehlende Spalte liesse den ganzen Stapel nicht übersetzen.
+        IF OBJECT_ID('app.phone_share_device', 'U') IS NOT NULL
+            EXEC sp_executesql N'
+                UPDATE app.phone_share SET device_id = NULL
+                 WHERE device_id IN (SELECT id FROM app.phone_share_device
+                                      WHERE account_id = @account OR area_id IN (SELECT id FROM #dead));
+                DELETE FROM app.phone_share_device WHERE account_id = @account OR area_id IN (SELECT id FROM #dead);',
+                N'@account uniqueidentifier', @account = @account;
         -- 0118: Lampy — die Geräte und ihre Sygnały gehen mit dem Bereich.
         IF OBJECT_ID('app.phone_lamp', 'U') IS NOT NULL
             DELETE FROM app.phone_lamp WHERE area_id IN (SELECT id FROM #dead);

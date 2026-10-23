@@ -30,6 +30,7 @@ import { BubbleModel } from './bubbleModel';
 import { Bubbles } from './bubbles';
 import { emptyFlows, emptySnapshot, measure, type BudgetSnapshot, type Flows } from './budget';
 import { applyOp, type EditLedger, type World } from './edits';
+import { objectKey } from './objects';
 import { Exchange } from './exchange';
 import { Gas } from './gas';
 import { Grid } from './grid';
@@ -43,7 +44,7 @@ import { liquidsAt, probe } from './probe';
 import { Regions } from './regions';
 import { Rng } from './rng';
 import { Salt } from './salt';
-import { CELL, MAX_CELLS, readScene, writeScene, type HeaterMode, type Op, type Quality, type ReadOptions, type Scene, type Side, type SideName } from './scene';
+import { CELL, freshId, isObjectOp, MAX_CELLS, readScene, writeScene, type HeaterMode, type Op, type Quality, type ReadOptions, type Scene, type Side, type SideName } from './scene';
 import { inside } from './shapes';
 import { GridSolver } from './solver';
 import { STAGE_COUNT } from './stages';
@@ -146,8 +147,8 @@ export interface ProbeInfo {
   /** Das nächste Teilchen; salt: Massenanteil des gelösten Salzes (0: reine Flüssigkeit). */
   particle: { id: number; T: number; vx: number; vy: number; mass: number; rho: number; dist: number; liquid: string; salt: number } | null;
   bubble: { id: number; r: number; T: number; pb: number; pv: number; Tsat: number; mv: number; ma: number; vx: number; vy: number; dmdt: number; attached: boolean; force: number[] } | null;
-  /** Der Körper an diesem Punkt (M3a): sein häufigster Werkstoff, Masse (kg), mittlere Temperatur (K), Geschwindigkeit (m/s), Drehung (rad, rad/s), Zustand. */
-  body: { index: number; material: string; mass: number; T: number; vx: number; vy: number; angle: number; w: number; state: 'pinned' | 'asleep' | 'moving' } | null;
+  /** Der Körper an diesem Punkt (M3a): der Name seines Gegenstands, sein häufigster Werkstoff, Masse (kg), mittlere Temperatur (K), Geschwindigkeit (m/s), Drehung (rad, rad/s), Zustand. */
+  body: { index: number; id: string; material: string; mass: number; T: number; vx: number; vy: number; angle: number; w: number; state: 'pinned' | 'asleep' | 'moving' } | null;
 }
 
 const DT_MAX = 1 / 120;
@@ -350,6 +351,7 @@ export class Engine {
       ledger: this.ledger,
       bodies: this.bodies,
       opIndex: this.scene.ops.length,
+      objectKey: (id: string) => objectKey(this, id),
       solidsChanged: () => this.solidsChanged()
     };
   }
@@ -368,7 +370,9 @@ export class Engine {
   /* -- Befehle --------------------------------------------------------------------------------------- */
 
   /** Einen Handgriff ausführen (Szene und Werkzeuge). Liefert eine Warnung oder null; eine Flüssigkeit ohne freie Oberfläche wird abgelehnt. */
-  apply(op: Op): string | null {
+  apply(given: Op): string | null {
+    /* Ein Gegenstand ohne Namen oder mit einem schon vergebenen bekommt einen neuen. */
+    const op: Op = isObjectOp(given) && (given.id === '' || objectKey(this, given.id) >= 0) ? { ...given, id: freshId(this.scene.ops, given.op) } : given;
     if (op.op === 'fill' && op.phase === 'liquid' && !this.surfaceAfterFill(op)) {
       return 'refused: the liquid would have no free surface (no pressure law for a region filled with liquid in M1)';
     }

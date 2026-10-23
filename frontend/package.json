@@ -14,6 +14,7 @@
     "android:icons": "node scripts/android-icons.mjs",
     "android:release": "node scripts/android-apk.mjs --bundle",
     "android:publish": "node scripts/android-publish.mjs",
+    "thunderbird:xpi": "node scripts/thunderbird-xpi.mjs",
     "test:particles": "vitest run src/app/lab/particles",
     "test:particles:slow": "vitest run --config vitest.slow.config.ts",
     "test:lab2d": "vitest run src/app/lab/lab2d",

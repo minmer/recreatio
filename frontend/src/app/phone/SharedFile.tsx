@@ -12,7 +12,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Icon } from '../ui/icons';
 import { Loading } from '../ui/Loading';
-import { fetchShare, openShare, secretOf, ShareGone, shareInfo, shareKeys, shownAs, sizeText, type ShareHead } from './share';
+import { fetchShare, ShareGone, shareInfo } from './share';
+import { openShare, secretOf, shareKeys, shownAs, sizeText, type ShareHead } from './shareSeal';
 import './phone.css';
 
 /** Bis hierhin wird gleich geholt; darüber fragt die Seite. */
