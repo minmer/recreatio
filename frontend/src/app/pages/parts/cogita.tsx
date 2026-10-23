@@ -165,7 +165,7 @@ export interface TableConfig {
 export const entityTablePart = definePart<TableConfig>({
   kind: 'entity-table',
   /* 2026-10-22 (Schritt 10) — ein Widok als Tabela kann alles, was sie konnte (und mehr). */
-  retired: 'zastąpił go moduł „Widok” (tabela). Biblioteka → Porządki → „Moduły stron → Widok” zamienia go na moduł „Widok”',
+  retired: 'zastąpił go moduł „Widok” (tabela). na stronie dodaj moduł „Widok” i usuń ten',
   example: { title: 'Postacie Starego Testamentu', library: '<id-biblioteki>', kind: 'Postać', columns: 'Kiedy żył, Księga' },
   label: 'Tabela wpisów',
   use: 'Wpisy bazy wiedzy jako tabela — z wyszukiwaniem; mały kafelek pokazuje listę. Widzą je ci, którzy mogą czytać bazę.',
@@ -200,7 +200,7 @@ export interface TopicsConfig {
 export const topicExplorerPart = definePart<TopicsConfig>({
   kind: 'topic-explorer',
   /* 2026-10-22 (Schritt 10) — ein Widok als Drzewo nach einer Achse von Tematy. */
-  retired: 'zastąpił go moduł „Widok” (drzewo według osi tematów). Biblioteka → Porządki → „Moduły stron → Widok” zamienia go na moduł „Widok”',
+  retired: 'zastąpił go moduł „Widok” (drzewo według osi tematów). na stronie dodaj moduł „Widok” i usuń ten',
   example: { title: 'Tematy katechezy', library: '<id-biblioteki>', topic: '<id-tematu albo puste>' },
   label: 'Tematy',
   use: 'Tematy bazy wiedzy (i bibliotek, z których czerpie), jeden w drugim — i to, co do nich należy.',
@@ -231,7 +231,7 @@ export interface MapConfig {
 export const knowledgeMapPart = definePart<MapConfig>({
   kind: 'knowledge-map',
   /* 2026-10-22 (Schritt 10) — die Mapa ist jetzt eine Gestalt jedes Widoku. */
-  retired: 'zastąpił go moduł „Widok” (mapa). Biblioteka → Porządki → „Moduły stron → Widok” zamienia go na moduł „Widok”',
+  retired: 'zastąpił go moduł „Widok” (mapa). na stronie dodaj moduł „Widok” i usuń ten',
   example: { title: 'Mapa: Dzieje Apostolskie', library: '<id-biblioteki>', revision: '<id-powtórki>' },
   label: 'Mapa wiedzy',
   use: 'Wpisy powtórki jako mapa: co już umiesz, jest jasne; granica do odkrycia; reszta we mgle. Widzą ją ci, którzy mogą czytać bazę (jawny obszar: każdy, bez konta).',

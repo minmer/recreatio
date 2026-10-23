@@ -182,7 +182,7 @@ export interface PartModule {
   /**
    * 2026-10-22 (Schritt 10) — AUSGEMUSTERT, mit dem Grund in Worten (wohin er
    * gegangen ist). Er steht nicht mehr in den Listen zum Hinzufügen; wo er
-   * schon steht, zeichnet er weiter, bis Porządki ihn umstellt.
+   * schon steht, zeichnet er weiter — der Grund sagt, womit man ihn ersetzt.
    */
   readonly retired?: string;
 

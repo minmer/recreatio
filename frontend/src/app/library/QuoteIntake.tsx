@@ -19,7 +19,7 @@ import type { OpenLibrary } from './library';
 import { locatorKey } from './bible';
 import { ids, str } from './libraryKinds';
 import {
-  exportQuotes, importQuotes, locatorOf, newTopics, planQuotes, quotesDescription, quotesPrompt,
+  exportQuotes, importQuotes, locatorOf, planQuotes, quotesDescription, quotesPrompt,
   type MarkMode, type QuoteItem
 } from './libraryQuotes';
 import type { Entry, LibraryStore } from './libraryStore';
@@ -129,7 +129,6 @@ function JsonIntake({ store, work, onClose }: { store: LibraryStore; work: Entry
   const [done, setDone] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
-  const [createTopics, setCreateTopics] = useState(true);
   const file = useRef<HTMLInputElement | null>(null);
 
   const markMode: MarkMode = mode === 'whole' ? 'whole' : 'marked';
@@ -159,8 +158,8 @@ function JsonIntake({ store, work, onClose }: { store: LibraryStore; work: Entry
     setFailed(null);
     setStage('Zapisywanie…');
     try {
-      const result = await importQuotes(items, work, store, (input) => store.save(input), { createTopics, stage: setStage });
-      setDone(`Zapisano ${result.saved} ${result.saved === 1 ? 'cytat' : result.saved < 5 && result.saved > 1 ? 'cytaty' : 'cytatów'}${result.topics > 0 ? `, nowe tematy: ${result.topics}` : ''}.`
+      const result = await importQuotes(items, work, store, (input) => store.save(input), { stage: setStage });
+      setDone(`Zapisano ${result.saved} ${result.saved === 1 ? 'cytat' : result.saved < 5 && result.saved > 1 ? 'cytaty' : 'cytatów'}.`
         + (result.failed.length > 0 ? ` Nie udało się: ${result.failed.join(', ')}.` : ''));
       setItems(null);
       setPasted('');
@@ -172,7 +171,6 @@ function JsonIntake({ store, work, onClose }: { store: LibraryStore; work: Entry
   };
 
   const chosen = items?.filter((i) => i.keep).length ?? 0;
-  const topicsToMake = items === null ? [] : newTopics(items);
 
   return (
     <div className="lib-intake">
@@ -239,28 +237,11 @@ function JsonIntake({ store, work, onClose }: { store: LibraryStore; work: Entry
                     {item.id !== undefined && <span className="lib-badge">zmiana istniejącego</span>}
                   </div>
                   <textarea rows={Math.min(8, Math.max(2, Math.ceil(item.text.length / 90)))} value={item.text} aria-label="Tekst cytatu" onChange={(e) => change(item.n, { text: e.target.value })} />
-                  <input value={item.comment} placeholder="Komentarz (o czym jest fragment) — osobny wpis o tym cytacie" aria-label="Komentarz" onChange={(e) => change(item.n, { comment: e.target.value })} />
-                  {item.topics.length > 0 && (
-                    <p className="lib-review-topics">
-                      {item.topics.map((t) => (
-                        <button key={t.id ?? t.name} type="button" className={`lib-chip${t.id === undefined ? ' is-new' : ''}`} title="Usuń temat"
-                          onClick={() => change(item.n, { topics: item.topics.filter((x) => x !== t) })}>
-                          {t.id === undefined ? '+ ' : '#'}{t.name} ×
-                        </button>
-                      ))}
-                    </p>
-                  )}
                   {item.check !== '' && <p className="wk-warn">Do sprawdzenia: {item.check}</p>}
                 </div>
               </li>
             ))}
           </ol>
-          {topicsToMake.length > 0 && (
-            <label className="pe-check">
-              <input type="checkbox" checked={createTopics} onChange={(e) => setCreateTopics(e.target.checked)} />
-              <span>Utwórz nowe tematy: {topicsToMake.join(', ')}</span>
-            </label>
-          )}
           <div className="wk-actions">
             <button type="button" className="wk-btn" disabled={chosen === 0 || stage !== null} onClick={() => void save()}>
               {stage ?? `Zapisz ${chosen} ${chosen === 1 ? 'cytat' : chosen > 1 && chosen < 5 ? 'cytaty' : 'cytatów'}`}

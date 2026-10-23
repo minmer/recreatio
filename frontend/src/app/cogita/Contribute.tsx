@@ -11,7 +11,6 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { loadLibraries, openLibraries, type OpenLibrary } from '../library/library';
 import { storeOf, useLibraryStore } from '../library/libraryStore';
-import { knowledgeAsStatement } from '../library/rebuild/knowledgeToStatements';
 import { entityOf } from './kinds';
 import { EntityPicker, Markup, entityName, useBusy, useCtx } from './ui';
 import { Loading } from '../ui/Loading';
@@ -90,13 +89,8 @@ export function Contributions() {
               <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => {
                 const data: Record<string, unknown> = {};
                 for (const [k, v] of Object.entries(p.data)) if (!k.startsWith('_')) data[k] = v;
-                /*
-                  2026-10-22 (Schritt 6) — ein Wiedza wird ein Komentarz der Bibliothek, aus der diese
-                  Baza schöpft und die im SELBEN Bereich liegt (dieselben Leser); ohne sie wie bisher.
-                */
-                const home = lib.sourceList().find((s) => s.kind === 'books' && s.store.areaId === lib.areaId);
-                if ((entity?.kinds ?? ['knowledge']).every((k) => k === 'knowledge') && home !== undefined) await home.store.save({ kind: 'comment', data: knowledgeAsStatement(data) });
-                else await lib.saveEntity({ kinds: entity?.kinds ?? ['knowledge'], data });
+                /* 2026-10-23 — die Bibliothek hält nur Quellen: was angenommen wird, bleibt in dieser Baza. */
+                await lib.saveEntity({ kinds: entity?.kinds ?? ['knowledge'], data });
                 await store.save({ id: p.id, kind: p.kind, data: { ...p.data, _acceptedAt: new Date().toISOString() } });
               })}>Przyjmij do kursu</button>
               <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => store.remove(p.id))}>Odrzuć</button>

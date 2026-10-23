@@ -7,8 +7,12 @@
  *   #/workspace/library/&lt;id&gt;/cytaty           ein Reiter
  *   #/workspace/library/&lt;id&gt;/&lt;eintrag&gt;        ein Eintrag, ganz
  *   #/workspace/library/&lt;id&gt;/nowy/&lt;art&gt;      ein neuer
- *   #/workspace/library/porzadki             die Umbauten (rebuild/RebuildView): Sichtbarkeit, Verweise, …
+ *   #/workspace/library/&lt;id&gt;/stare           Einträge alter Arten (2026-10-23), zum Löschen
  * </code>
+ *
+ * 2026-10-23 — DIE BIBLIOTHEK HÄLT NUR QUELLEN: Źródła, Cytaty, Osoby (dazu
+ * die Mapa, Import / eksport, Ustawienia). Texte schreibt man im Skryptorium,
+ * Komentarze und Ordnungen sind eigene Arten in Nauka; Themen gibt es keine.
  *
  * 2026-10-22 — alle lesbaren Bibliotheken zusammen: geöffnet wird eine,
  * die anderen gleichen im Hintergrund ab; Verweise, Suche und Rückverweise
@@ -28,20 +32,16 @@ import { ScanBook } from './BookLookup';
 import { useCrumbs } from '../shell/crumbTrail';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import {
-  createLibrary, deleteLibrary, isUuid, libraryKindOf, loadLibraries, openedLibraryNames, openLibraries, renameLibrary, type OpenLibrary
+  createLibrary, deleteLibrary, isUuid, libraryKindOf, loadLibraries, openedLibraryNames, openLibraries, renameLibrary, settleLibrary, type OpenLibrary
 } from './library';
 import { originOf } from './libraryCite';
-import { isQuestion, statementRole, thesisProblem } from './comment';
 import { LibraryEditor } from './LibraryEditor';
 import { PassageList } from './LibraryRelations';
 import { parseBible } from './bible';
 import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJson';
-import { ids, KINDS, kindOf, quoteOrder, refTarget, str, TEXT_STATUS, TEXT_TYPES, wordCount, type LibEntry } from './libraryKinds';
+import { ids, isLibraryKind, kindOf, LIBRARY_KINDS, quoteOrder, str, type LibEntry } from './libraryKinds';
 import { storeOf, useLibraryStore, type Entry, type LibraryStore } from './libraryStore';
 import { audienceWords } from './LibraryAreaBox';
-import { RebuildView } from './rebuild/RebuildView';
-import { countsLine, coverageCounts, coverageOf, addedOf, deliveryPlan, lastHeld, planOf, deliveriesOf } from './sermon';
-import { topicNode, topicTree } from './topics';
 import { useMe, type Me } from '../core/me';
 import { viewPath } from '../routes';
 import { LibraryMap } from './LibraryMap';
@@ -50,21 +50,14 @@ import { OldEntries, oldEntriesOf } from './OldEntries';
 import { WorkspaceError, type Who } from '../core/session';
 import { Loading } from '../ui/Loading';
 
-/** Die Reiter einer Bibliothek — Wort in der Adresse, Art, Name. */
+/** Die Reiter einer Bibliothek — Wort in der Adresse, Art (2026-10-23: nur Quellen). */
 export const TABS = [
-  { slug: 'teksty', kind: 'text' },
-  /* 2026-10-21 — jedes Mal, wenn ein Text gehalten wurde: wann, wo, was aus dem Plan. */
-  { slug: 'wyglaszenia', kind: 'delivery' },
-  /* 2026-10-22 — eigene Gedanken zu Quellen, Zitaten, Stellen: ein Eintrag, viele Texte. */
-  { slug: 'komentarze', kind: 'comment' },
-  { slug: 'projekty', kind: 'project' },
-  { slug: 'cytaty', kind: 'quote' },
   { slug: 'zrodla', kind: 'work' },
-  { slug: 'osoby', kind: 'person' },
-  { slug: 'tematy', kind: 'topic' }
+  { slug: 'cytaty', kind: 'quote' },
+  { slug: 'osoby', kind: 'person' }
 ] as const;
 
-const tabOfKind = (kind: string) => TABS.find((t) => t.kind === kind)?.slug ?? 'teksty';
+const tabOfKind = (kind: string) => TABS.find((t) => t.kind === kind)?.slug ?? 'zrodla';
 
 export function LibraryView({ who, trail }: { who: Who; trail: readonly string[] }) {
   const me = useMe(who);
@@ -81,8 +74,7 @@ export function LibraryView({ who, trail }: { who: Who; trail: readonly string[]
 function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
   const [libraries, setLibraries] = useState<readonly OpenLibrary[] | null>(null);
   const [knowledge, setKnowledge] = useState<ReadonlySet<string>>(new Set());
-  /* 2026-10-22 — alle lesbaren, auch die Bazy wiedzy: die Umbauten (Porządki) gehen über beide. */
-  const [everything, setEverything] = useState<readonly OpenLibrary[]>([]);
+  const [writing, setWriting] = useState<ReadonlySet<string>>(new Set());
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -99,9 +91,9 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
         /* Die anderen lesbaren Bibliotheken im Hintergrund — sie sind die Nachbarn der offenen. */
         for (const one of books) void storeOf(me.ring, one).sync().catch(() => undefined);
         setKnowledge(new Set(opened.filter((one) => libraryKindOf(one) === 'knowledge').map((one) => one.libraryId)));
+        setWriting(new Set(opened.filter((one) => libraryKindOf(one) === 'writing').map((one) => one.libraryId)));
         /* 2026-10-22 (Schritt 11) — und die Bazy wiedzy: worauf ein Kazanie in ihnen verweist (ein Słowo, ein Widok), findet es so. */
         for (const one of opened.filter((o) => libraryKindOf(o) === 'knowledge')) void storeOf(me.ring, one).sync().then(() => { if (alive) setTick((n) => n + 1); }, () => undefined);
-        setEverything(opened);
         setAreas(found.areas);
         setFailed(null);
       } catch (e) {
@@ -123,10 +115,9 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
   if (failed !== null) return <p className="wk-error">{failed}</p>;
   if (libraries === null) return <Loading label="Wczytywanie…" />;
 
-  if (libraryId === 'porzadki') return <RebuildView me={me} libraries={everything} areas={areas} onChanged={() => setTick((n) => n + 1)} />;
-
   if (libraryId !== undefined) {
     if (current === null && knowledge.has(libraryId)) return <p className="wk-note">To jest baza wiedzy — jest w Nauce. <a href={viewPath('learn', libraryId)}>Otwórz ją</a></p>;
+    if (current === null && writing.has(libraryId)) return <p className="wk-note">To jest skryptorium — teksty, wygłoszenia i projekty.</p>;
     if (current === null) return <p className="wk-empty">Tej biblioteki nie ma albo nie masz do niej klucza. <a href={viewPath('library')}>Wszystkie biblioteki</a></p>;
     return <LibraryHome me={me} library={current} areas={areas} trail={trail.slice(1)} onChanged={() => setTick((n) => n + 1)} />;
   }
@@ -170,15 +161,11 @@ function LibraryList({ me, libraries, areas, onChanged }: {
     <>
       <h1 className="wk-h1">Biblioteka</h1>
       <p className="wk-lede">
-        Źródła, cytaty, autorzy, tematy i Twoje teksty — kazania, rozważania, rozdziały książek — w jednym miejscu.
+        Źródła, cytaty i ich autorzy — jedno miejsce dla każdego odwołania. Teksty piszesz w Skryptorium, a wiedzę
+        (komentarze, postacie, miejsca, wydarzenia) układasz w Nauce; jedno i drugie cytuje stąd.
         Wszystko jest szyfrowane w przeglądarce. Każdy obszar ma swoją bibliotekę: widzą ją członkowie obszaru, a gdy obszar jest publiczny — wszyscy.
-        Pracujesz ze wszystkimi naraz: odwołania, wyszukiwanie i osadzanie sięgają do każdej biblioteki, którą widzisz.
+        Pracujesz ze wszystkimi naraz: odwołania i wyszukiwanie sięgają do każdej biblioteki, którą widzisz.
       </p>
-      {libraries.some((one) => one.writes && one.areaRuleAt == null) ? (
-        <p className="wk-note">Po zmianie zasad widoczności czekają porządki (opisy i notatki → komentarze). <a href={viewPath('library', 'porzadki')}>Przejrzyj je</a></p>
-      ) : (
-        <p className="lib-key-hint"><a href={viewPath('library', 'porzadki')}>Porządki</a> — przebudowa danych biblioteki i Cogity: każda zmiana najpierw pokazuje, co się zmieni.</p>
-      )}
 
       {libraries.length > 0 && (
         <ul className="lib-libraries">
@@ -206,7 +193,7 @@ function LibraryList({ me, libraries, areas, onChanged }: {
             extras={[{ value: '', label: personal === undefined ? 'Tylko ja (utworzy się prywatny obszar)' : 'Tylko ja' }]}
           />
         </label>
-        <p className="wk-hint">Wspólną bibliotekę czytają i uzupełniają wszyscy, którzy mają klucz obszaru.</p>
+        <p className="wk-hint">Wspólną bibliotekę czytają i uzupełniają wszyscy, którzy mają klucz obszaru. Każdy obszar ma jedną bibliotekę.</p>
         {failed !== null && <p className="wk-error">{failed}</p>}
         <div className="wk-actions"><button type="submit" className="wk-btn" disabled={busy}>{busy ? 'Zakładanie…' : 'Załóż'}</button></div>
       </form>
@@ -224,7 +211,7 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
   onChanged: () => void;
 }) {
   const { store, failed } = useLibraryStore(me.ring, library);
-  const first = trail[0] ?? 'teksty';
+  const first = trail[0] ?? 'zrodla';
 
   if (store === null) return null;
   if (failed !== null && !store.loaded) return <p className="wk-error">{failed}</p>;
@@ -234,13 +221,13 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
   if (isUuid(first)) {
     return <LibraryEditor store={store} library={library} entryId={first} kind={store.get(first)?.kind ?? null} />;
   }
-  if (first === 'nowy' && kindOf(trail[1] ?? '') !== undefined) {
+  if (first === 'nowy' && isLibraryKind(trail[1] ?? '')) {
     return <LibraryEditor store={store} library={library} entryId={null} kind={trail[1]!} preset={presetFrom(trail[2])} />;
   }
 
-  const tab = first === 'ustawienia' || first === 'json' || first === 'mapa' || first === 'stare' ? first : (TABS.find((t) => t.slug === first)?.slug ?? 'teksty');
-  /* 2026-10-23 — Wpisy rodzajów, których ta wersja nie zna: do przejrzenia i usunięcia. */
-  const known = (kind: string) => kindOf(kind) !== undefined;
+  const tab = first === 'ustawienia' || first === 'json' || first === 'mapa' || first === 'stare' ? first : (TABS.find((t) => t.slug === first)?.slug ?? 'zrodla');
+  /* 2026-10-23 — Einträge der Arten, die die Bibliothek nicht mehr hält: zum Durchsehen und Löschen. */
+  const known = isLibraryKind;
   const old = oldEntriesOf(store, known).length;
 
   return (
@@ -260,7 +247,7 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
         {(old > 0 || tab === 'stare') && <a className={tab === 'stare' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'stare')}>Stare wpisy <span className="lib-count">{old}</span></a>}
       </nav>
       <div className="wk-panel">
-        {tab === 'ustawienia' ? <Settings me={me} library={library} areas={areas} onChanged={onChanged} />
+        {tab === 'ustawienia' ? <Settings me={me} store={store} library={library} areas={areas} onChanged={onChanged} />
           : tab === 'json' ? <LibraryJson store={store} library={library} />
           : tab === 'mapa' ? <LibraryMap store={store} libraryId={library.libraryId} />
           : tab === 'stare' ? <OldEntries store={store} known={known} writes={library.writes} where="Teksty, wygłoszenia i projekty są teraz w Skryptorium, komentarze to rodzaj w Nauce." />
@@ -292,7 +279,7 @@ function SearchAll({ store, library }: { store: LibraryStore; library: OpenLibra
   return (
     <div className="lib-search">
       <div className="lib-search-bar">
-        <input type="search" value={query} placeholder="Szukaj w całej bibliotece — tytuł, autor, fragment cytatu, temat, ISBN, numer…" onChange={(e) => setQuery(e.target.value)} aria-label="Szukaj w bibliotece" />
+        <input type="search" value={query} placeholder="Szukaj w całej bibliotece — tytuł, autor, fragment cytatu, ISBN, numer…" onChange={(e) => setQuery(e.target.value)} aria-label="Szukaj w bibliotece" />
         <ScanBook store={store} library={library} onSearch={setQuery} />
       </div>
       {found.length > 0 && (
@@ -312,9 +299,6 @@ function SearchAll({ store, library }: { store: LibraryStore; library: OpenLibra
   );
 }
 
-const statusLabel = (value: string) => TEXT_STATUS.find((s) => s.value === value)?.label ?? '';
-const typeLabel = (value: string) => TEXT_TYPES.find((s) => s.value === value)?.label ?? '';
-
 /** Was in einer Liste unter dem Titel steht. */
 function lineOf(entry: LibEntry, store: LibraryStore): string {
   const d = entry.data;
@@ -330,8 +314,6 @@ function lineOf(entry: LibEntry, store: LibraryStore): string {
 
 function KindList({ store, library, kind }: { store: LibraryStore; library: OpenLibrary; kind: string }) {
   const def = kindOf(kind)!;
-  const [topic, setTopic] = useState('');
-  const [project, setProject] = useState('');
   const [query, setQuery] = useState('');
   /* 2026-10-22 — auch die anderen lesbaren Bibliotheken (jede Zeile sagt, in welcher sie liegt). */
   const [everywhere, setEverywhere] = useState(false);
@@ -339,34 +321,11 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
   const here = (e: Entry) => everywhere || e.libraryId === store.libraryId;
 
   const all = everywhere ? store.readable().filter((e) => e.kind === kind) : store.ofKind(kind);
-  /* 2026-10-21 — die Themen als Baum (Aspekte mit ihren Werten), auch in der Auswahl. */
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const tree = useMemo(() => topicTree(store.ofKind('topic').map(topicNode)), [store, store.revision]);
-  const topicRows = tree.flat(null);
-  const projects = store.ofKind('project');
 
   let list = query.trim() === '' ? all : store.search(query, [kind]).filter(here);
-  if (topic !== '') {
-    const under = new Set([topic, ...tree.flat(topic).map((one) => one.node.id)]);
-    list = list.filter((e) => ids(e.data, 'topics').some((id) => under.has(id)) || (kind === 'topic' && under.has(e.id) && e.id !== topic));
-  }
-  if (project !== '' && kind === 'text') list = list.filter((e) => ids(e.data, 'project').includes(project));
-
-  const when = (e: Entry) => (kind === 'text' ? lastHeld(e, store) : str(e.data, 'date')) || e.updatedAt;
-  list = [...list].sort((a, b) => kind === 'text' || kind === 'delivery'
-    ? when(b).localeCompare(when(a))
-    : (store.title(a)).localeCompare(store.title(b), 'pl'));
-  if (kind === 'work' || kind === 'quote' || kind === 'person') {
-    /* 2026-10-22 — Zitate nach Werk und Stelle (die Schrift nach dem Kanon), nicht nach dem Wortlaut ihrer Herkunft. */
-    const sortKey = (e: Entry) => (kind === 'quote' ? quoteOrder(e, store) : lineOf(e, store).toLowerCase());
-    list.sort((a, b) => sortKey(a).localeCompare(sortKey(b), 'pl'));
-  }
-  /* Die Themen stehen in der Ordnung ihres Baums, eingerückt. */
-  const depth = new Map(topicRows.map((one) => [one.node.id, one.depth]));
-  if (kind === 'topic' && query.trim() === '') {
-    const shown = new Set(list.map((e) => e.id));
-    list = topicRows.map((one) => store.get(one.node.id)).filter((e): e is Entry => e !== undefined && shown.has(e.id));
-  }
+  /* 2026-10-22 — Zitate nach Werk und Stelle (die Schrift nach dem Kanon), nicht nach dem Wortlaut ihrer Herkunft. */
+  const sortKey = (e: Entry) => (kind === 'quote' ? quoteOrder(e, store) : lineOf(e, store).toLowerCase());
+  list = [...list].sort((a, b) => sortKey(a).localeCompare(sortKey(b), 'pl'));
 
   const add = viewPath('library', library.libraryId, 'nowy', kind);
   /* 2026-10-23 — zaznaczyć wiele i usunąć (tylko własne wpisy tej biblioteki). */
@@ -376,18 +335,6 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
     <>
       <div className="lib-toolbar">
         <input type="search" value={query} placeholder={`Szukaj: ${def.plural.toLowerCase()}`} onChange={(e) => setQuery(e.target.value)} aria-label={`Szukaj: ${def.plural}`} />
-        {kind !== 'person' && topicRows.length > 0 && (
-          <select value={topic} onChange={(e) => setTopic(e.target.value)} aria-label="Temat">
-            <option value="">wszystkie tematy</option>
-            {topicRows.map((t) => <option key={t.node.id} value={t.node.id}>{'— '.repeat(t.depth)}{t.node.name}{t.node.aspect ? ' (aspekt)' : ''}</option>)}
-          </select>
-        )}
-        {kind === 'text' && projects.length > 0 && (
-          <select value={project} onChange={(e) => setProject(e.target.value)} aria-label="Projekt">
-            <option value="">wszystkie projekty</option>
-            {projects.map((p) => <option key={p.id} value={p.id}>{store.title(p)}</option>)}
-          </select>
-        )}
         {peers.length > 0 && (
           <label className="pe-check">
             <input type="checkbox" checked={everywhere} onChange={(e) => setEverywhere(e.target.checked)} />
@@ -395,7 +342,6 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
           </label>
         )}
         {library.writes && <a className="wk-btn" href={add}>+ {def.label}</a>}
-        {library.writes && kind === 'topic' && <a className="wk-btn wk-btn-line" href={viewPath('library', library.libraryId, 'nowy', 'topic', 'aspect=yes')}>+ Aspekt</a>}
       </div>
       <p className="wk-hint">{def.says}</p>
 
@@ -404,12 +350,11 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
       ) : (
         <ul className="lib-list">
           {list.map((entry) => (
-            <li key={entry.id} className={[kind === 'topic' ? `lib-topic-row is-d${Math.min(4, depth.get(entry.id) ?? 0)}` : '', library.writes ? 'has-pick' : ''].filter(Boolean).join(' ') || undefined}>
+            <li key={entry.id} className={library.writes ? 'has-pick' : undefined}>
               {library.writes && (entry.libraryId === store.libraryId ? <PickBox checked={picked.has(entry.id)} label={store.title(entry)} onToggle={() => toggle(entry.id)} /> : <span />)}
               <a className="lib-row" href={viewPath('library', entry.libraryId, entry.id)}>
                 <span className="lib-row-title">
                   {kind === 'quote' ? <q>{store.title(entry)}</q> : store.title(entry)}
-                  {kind === 'topic' && tree.nodes.get(entry.id)?.aspect === true && <span className="lib-badge is-aspect">aspekt</span>}
                   {entry.libraryId !== store.libraryId && <span className="lib-badge is-implicit">{openedLibraryNames().get(entry.libraryId) ?? 'inna biblioteka'}</span>}
                 </span>
                 <span className="lib-row-meta">{metaOf(entry, store)}</span>
@@ -427,44 +372,23 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
 function metaOf(entry: Entry, store: LibraryStore): string {
   const d = entry.data;
   switch (entry.kind) {
-    case 'text': {
-      const points = planOf(d).length;
-      const held = deliveriesOf(entry, store).length;
-      return [typeLabel(str(d, 'textType')), str(d, 'date'), str(d, 'occasion'), statusLabel(str(d, 'status')),
-        points > 0 ? `plan: ${points} pkt` : '', `${wordCount(str(d, 'body'))} słów`, held > 0 ? `wygłoszony ${held}×, ostatnio ${lastHeld(entry, store)}` : '']
-        .filter(Boolean).join(' · ');
-    }
-    case 'delivery': {
-      const counts = countsLine(coverageCounts(deliveryPlan(entry, store).flatMap((p) => p.points), coverageOf(d), addedOf(d)));
-      return [str(d, 'occasion'), str(d, 'place'), str(d, 'duration'), counts, str(d, 'audio') !== '' || str(d, 'video') !== '' ? 'nagranie' : ''].filter(Boolean).join(' · ');
-    }
-    case 'quote': return [originOf(entry, store), ...ids(d, 'topics').map((id) => store.get(id)).filter((t): t is Entry => t !== undefined).map((t) => `#${store.title(t)}`)].join(' · ');
+    case 'quote': return originOf(entry, store);
     case 'work': {
       const quotes = store.backlinks(entry.id).filter((e) => e.kind === 'quote').length;
       const number = str(d, 'libraryNumber');
       return [number === '' ? '' : `nr ${number}`, lineOf(entry, store).replace(`${store.title(entry)} · `, ''), quotes > 0 ? `${quotes} cytatów` : '', entry.key === undefined ? '' : `[@${entry.key}]`].filter(Boolean).join(' · ');
     }
     case 'person': return [str(d, 'years'), `${store.backlinks(entry.id).filter((e) => e.kind === 'work').length} źródeł`].filter(Boolean).join(' · ');
-    case 'topic': return `${store.backlinks(entry.id).length} wpisów`;
-    /* 2026-10-22 — was eine Aussage ist, gerechnet: Rolle, Frage, Teza (Schritt 6). */
-    case 'comment': {
-      const problem = thesisProblem(d);
-      return [statementRole(d, (t) => refTarget(store, t)?.kind) === 'information' ? 'informacja' : 'interpretacja', isQuestion(d) ? 'pytanie' : '',
-        problem === 'missing' ? 'brak tezy' : problem === 'long' ? 'za długa teza' : ''].filter(Boolean).join(' · ');
-    }
-    case 'project': {
-      const texts = store.ofKind('text').filter((t) => ids(t.data, 'project').includes(entry.id));
-      const words = texts.reduce((n, t) => n + wordCount(str(t.data, 'body')), 0);
-      return `${texts.length} tekstów · ${words} słów`;
-    }
     default: return '';
   }
 }
 
 /* -- Einstellungen ---------------------------------------------------------------------------- */
 
-function Settings({ me, library, areas, onChanged }: { me: Me; library: OpenLibrary; areas: readonly AreaRow[]; onChanged: () => void }) {
+function Settings({ me, store, library, areas, onChanged }: { me: Me; store: LibraryStore; library: OpenLibrary; areas: readonly AreaRow[]; onChanged: () => void }) {
   const [name, setName] = useState(library.name);
+  const [understood, setUnderstood] = useState(false);
+  const published = store.all().filter((e) => e.publishedAs !== null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [confirm, setConfirm] = useState('');
@@ -487,7 +411,14 @@ function Settings({ me, library, areas, onChanged }: { me: Me; library: OpenLibr
       <section className="wk-form">
         <h2 className="wk-h2">Kto widzi</h2>
         <p>Widzą: {audienceWords(library)}. Żeby wpis stał się publiczny (albo przestał), przenieś go do biblioteki innego obszaru — przy wpisie, w ramce „Kto widzi”.</p>
-        {library.writes && library.areaRuleAt == null && <p className="wk-note">Ta biblioteka czeka na porządki po zmianie zasad. <a href={viewPath('library', 'porzadki')}>Przejrzyj je</a></p>}
+        {/* 2026-10-23 — statt Porządki: wer schreibt, bestätigt die Regel des Bereichs (vorher liest ein öffentlicher Bereich nichts offen). */}
+        <SettleBox store={store} library={library} busy={busy} understood={understood} onUnderstood={setUnderstood} onSettle={() => void act(() => settleLibrary(library.libraryId))} />
+        {library.writes && published.length > 0 && (
+          <div className="wk-note">
+            <p>{published.length} wpisów ma jeszcze stare, osobno opublikowane kopie (sprzed 22.10.2026). Nikt ich już nie czyta; można je wycofać.</p>
+            <div className="wk-actions"><button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => void act(() => store.withdraw(published.map((e) => e.id)))}>Wycofaj stare kopie</button></div>
+          </div>
+        )}
       </section>
 
       {library.writes && (
@@ -508,11 +439,39 @@ function Settings({ me, library, areas, onChanged }: { me: Me; library: OpenLibr
   );
 }
 
+/**
+ * 2026-10-23 — DIE REGEL DES BEREICHS BESTÄTIGEN (statt Porządki): eine
+ * Bibliothek von vor dem 22.10. liest bis dahin niemand ausserhalb des
+ * Bereichs; gesagt wird vorher, wer sie danach liest.
+ */
+export function SettleBox({ store, library, busy, understood, onUnderstood, onSettle }: {
+  store: LibraryStore;
+  library: OpenLibrary;
+  busy: boolean;
+  understood: boolean;
+  onUnderstood: (on: boolean) => void;
+  onSettle: () => void;
+}) {
+  if (!library.writes || library.areaRuleAt != null) return null;
+  return (
+    <div className="wk-note" data-settle="">
+      <p>
+        Ten zbiór powstał przed zasadą „widzi go ten, kto widzi obszar”, więc dziś nikt spoza obszaru go nie czyta.
+        {library.areaPublic === true
+          ? ` Obszar jest publiczny: po potwierdzeniu wszystkie wpisy (${store.all().length}) zobaczy każdy, także bez konta.`
+          : ' Obszar nie jest publiczny: po potwierdzeniu nic się nie zmieni dla nikogo spoza obszaru.'}
+      </p>
+      <label className="pe-check"><input type="checkbox" checked={understood} onChange={(e) => onUnderstood(e.target.checked)} /><span>Rozumiem, kto będzie to widział</span></label>
+      <div className="wk-actions"><button type="button" className="wk-btn" disabled={busy || !understood} onClick={onSettle}>Potwierdź widoczność według obszaru</button></div>
+    </div>
+  );
+}
+
 /* -- JSON ------------------------------------------------------------------------------------------ */
 
 /** `only`: unter einer Liste — nur diese Art (mit dem, worauf sie zeigt, beim Import). */
 function LibraryJson({ store, library, only }: { store: LibraryStore; library: OpenLibrary; only?: string }) {
-  const [kinds, setKinds] = useState<readonly string[]>(only === undefined ? KINDS.map((k) => k.kind) : [only]);
+  const [kinds, setKinds] = useState<readonly string[]>(only === undefined ? LIBRARY_KINDS.map((k) => k.kind) : [only]);
   const onlyDef = only === undefined ? undefined : kindOf(only);
 
   const preview = (doc: unknown): JsonPreview | { error: string } => {
@@ -524,7 +483,7 @@ function LibraryJson({ store, library, only }: { store: LibraryStore; library: O
     <>
       {only === undefined && <fieldset className="lib-kinds">
         <legend>Co eksportować</legend>
-        {KINDS.map((k) => (
+        {LIBRARY_KINDS.map((k) => (
           <label key={k.kind} className="pe-check">
             <input type="checkbox" checked={kinds.includes(k.kind)} onChange={(e) => setKinds(e.target.checked ? [...kinds, k.kind] : kinds.filter((x) => x !== k.kind))} />
             <span>{k.plural} ({store.ofKind(k.kind).length})</span>
@@ -535,9 +494,9 @@ function LibraryJson({ store, library, only }: { store: LibraryStore; library: O
         summary={onlyDef === undefined ? 'JSON biblioteki — eksport i import' : `Import / eksport JSON: ${onlyDef.plural.toLowerCase()}`}
         lead={onlyDef === undefined
           ? <>Wszystkie wpisy (albo wybrane rodzaje) jako jeden dokument — kopia zapasowa, przeniesienie, praca z AI. Import zmienia istniejące wpisy w miejscu i dodaje nowe; niczego nie usuwa.</>
-          : <>{onlyDef.plural} jako JSON — np. kilka książek naraz przygotowanych przez AI. Import przyjmuje też osoby i tematy, na które wskazują; istniejące wpisy zmienia w miejscu, niczego nie usuwa.</>}
+          : <>{onlyDef.plural} jako JSON — np. kilka książek naraz przygotowanych przez AI. Import przyjmuje też osoby i źródła, na które wskazują; istniejące wpisy zmienia w miejscu, niczego nie usuwa.</>}
         fileName={`biblioteka-${library.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}${only === undefined ? '' : `-${only}`}.json`}
-        exportDoc={() => exportLibrary(library.name, store.all().filter((e) => kinds.includes(e.kind)), store)}
+        exportDoc={() => exportLibrary(library.name, store.all().filter((e) => kinds.includes(e.kind) && isLibraryKind(e.kind)), store)}
         description={libraryDescription}
         preview={preview}
         importLabel="Importuj i zapisz"

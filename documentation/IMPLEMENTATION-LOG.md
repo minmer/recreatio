@@ -1157,3 +1157,80 @@ the owner's explicit, confirmed deletions.
 1. Biblioteka → a library → Osoby: tick two entries, "Usuń (2)", confirm. Both are gone.
 2. Biblioteka → a test library → Ustawienia → type its name → "Usuń na zawsze". The list no longer shows it.
 3. Nauka → a test base → Ustawienia → "Usuń bazę wiedzy" → type its name → "Usuń na zawsze".
+
+## P2 — The Library holds sources only
+
+**Built**
+- **Kinds** (`libraryKinds.ts`): the Library keeps `work`, `quote` and `person` (`LIBRARY_KINDS`). Texts, deliveries
+  and projects are `WRITING_KINDS`; they move to the Scriptorium in P3. Works, quotes and texts lose their `topics`
+  field.
+- **Tabs** (`LibraryView.tsx`): Źródła, Cytaty, Osoby, Mapa, Import / eksport, Ustawienia. "Stare wpisy" appears only
+  while the library still holds entries of other kinds. A new entry can only be of a source kind; the editor shows a
+  notice with a link to "Stare wpisy" for an old one instead of a form.
+- **Format** (`libraryJson.ts`): `recreatio/library` version 3 takes only work, quote and person. One machine serves
+  every part's format (`FormatSpec`). A file with other kinds is refused as a whole, with where each kind belongs:
+  - texts, deliveries, projects: the Scriptorium, format `recreatio/scriptorium`;
+  - comments: the Cogita template `templates/cogita/komentarz.json`;
+  - topics: there are none; the owner's own kinds take their place.
+- **The description for an AI** (`libraryDescription()`) describes sources only. The markup description moves to the
+  Scriptorium in P3.
+- **Quotes of a book** (`libraryQuotes.ts`, `QuoteIntake.tsx`): format `recreatio/quotes` version 3, without
+  `topics` and `comment`. An older file is still read. Its old fields are named in a warning and not saved; an old
+  comment is shown under "Do sprawdzenia" before saving, so nothing disappears unseen. The prompt asks the AI to put
+  a handwritten note in `check`.
+- **Page module "Zbiór cytatów"**: "Tylko ze źródła" (a work) instead of "Tylko z tematu". The large view offers the
+  works as chips. A page with the old `topic` setting shows all quotes.
+- **Map and relations**: the Library map has quote, work and person columns. The relations box no longer offers
+  "+ Komentarz".
+- **Confirming the area rule** without Porządki: Ustawienia → "Kto widzi" shows a box for a library created before
+  0122. It says who reads the library afterwards (in a public area: everyone, with the number of entries). Confirming
+  needs a ticked "Rozumiem, kto będzie to widział".
+- **Old copies in a knowledge base** without Porządki (`cogita/oldCopies.ts`): Ustawienia → "Kto czyta" →
+  "Wycofaj stare kopie". It withdraws old public versions and old file copies. It removes a copy stored in an entry
+  only when everything the copy shows still exists, and says how many copies stay and why. While copies stay, the
+  base cannot be opened for everyone.
+- **Contributions** (Cogita → Propozycje): an accepted proposal stays in the base. It no longer becomes a Library
+  comment.
+
+**Removed, and why**
+- Porządki (`library/rebuild/*`, `LibraryTidy.tsx`, `libraryMigrate.ts`, `libraryTidyRun.ts`). They converted old
+  content into topics and comments in the Library, which no longer exist, and all content is test data (no
+  migration). The two parts still needed (the area rule, old copies in a base) are now in the settings, as above.
+  The converter of retired page modules went with them; a retired module now says which module replaces it.
+- The Library's `topic` and `comment` kinds, in the editor, tabs, map, format and description.
+
+**Kept for now, and why**
+- The `topic` and `comment` definitions stay as `COGITA_LEGACY_KINDS`, only so that Cogita can build its two
+  built-in kinds from them. Cogita drops the comment in P4 and topics in P5; then these definitions go too.
+- The text, delivery and project editors stay in `library/` until P3 moves them to the Scriptorium. Until then they
+  open only in a `writing` container, which cannot be created yet.
+
+**Checks**
+- All check scripts and both builds pass; the style ratchet is locked one lower (`wk-hint` 568).
+- `app-library-check`:
+  - the library kinds are only sources, and their references point only at sources;
+  - a file with text, delivery, comment and topic entries is refused, naming the Scriptorium, the Cogita template
+    and "no topics";
+  - quotes format 3: old `topics` and `notes` are named and not saved, and only the quote is written;
+  - old copies are withdrawn without Porządki, a copy that is the last trace stays, and the action can be repeated;
+  - retired page modules say what replaces them.
+- `sources-api.mjs` + `sources-browser.mjs` (LocalDB, headless Edge, the built app):
+  - the tabs are Źródła, Cytaty, Osoby, Mapa, Import / eksport, Ustawienia and, while old entries exist, Stare wpisy;
+  - Stare wpisy lists a text, a delivery, a project, a comment and a topic, and says where such things live now;
+  - all five are deleted after a confirmation, and then the tabs are exactly the six;
+  - an old file with a text and a comment is refused in Import / eksport;
+  - the settle box says that everyone will read the 5 entries; after confirming it says "wszyscy";
+  - no console errors.
+
+**Owner must run**
+- Deploy the website (no API change in P2).
+- In each library: open "Stare wpisy" and delete what is there once the Scriptorium (P3) has what is still needed.
+  The old entries cause no harm meanwhile.
+
+**Test in the browser**
+1. Biblioteka → the library: the tabs are Źródła, Cytaty, Osoby, Mapa, Import / eksport, Ustawienia (and Stare wpisy
+   while old texts, comments or topics are there).
+2. Stare wpisy: tick everything → "Usuń (N)" → confirm. The tab disappears.
+3. Import / eksport: paste `{"format":"recreatio/library","entries":[{"kind":"text","data":{}}]}`. The message names
+   the Scriptorium.
+4. A book → "Cytaty z tej książki" → JSON: the copied prompt no longer asks for topics.

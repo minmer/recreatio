@@ -3,10 +3,16 @@
  *
  *   1. Jede Art: jedes Feld beschrieben, das Beispiel nur aus Feldern, und
  *      alle Beispiele zusammen lassen sich importieren — Verweise per @schlüssel.
+ *      2026-10-23 (drei Teile): die Bibliothek nimmt nur Quellen; eine Datei mit
+ *      Texten, Komentarzen oder Themen wird abgewiesen, mit dem Ort, wohin sie gehört.
  *   2. Der Zapis: Überschriften, Absätze, Listen, Zitate, eingebettete Zitate,
  *      Verweise mit Stellen, eigene Fussnoten, Links, Escapes.
  *  2e. Aussagen (2026-10-22, Schritt 6): Teza = erster Satz (Abkürzungen), Frage,
- *      Rolle (Informacja / Interpretacja), Wiedza → Komentarz, die Marken.
+ *      Rolle (Informacja / Interpretacja), die Marken.
+ *  2g. Alte Kopien einer Baza (2026-10-23 direkt in „Kto czyta"): zurückziehen,
+ *      Abschriften nur ohne Verlust heraus, wiederholbar.
+ *  2h. Ausgemusterte Bausteine: nicht in der Palette, zeichnen weiter, sagen womit
+ *      man sie ersetzt.
  *  2d. Stellen der Schrift und das Verzeichnis der Verweise (2026-10-22): Bücher
  *      polnisch, lateinisch, englisch; Bereiche, Listen, Kapitel; Ordnung nach
  *      dem Kanon; wer auf eine Stelle zeigt — über Bibliotheken und Bazy wiedzy.
@@ -15,10 +21,9 @@
  *      nichts; LaTeX, Planzeilen, der Baustein „Tekst" und Cogita ebenso.
  *   3. Die Angaben: Buch, Kapitel, Artikel, Dokument, Pismo Święte, Netz —
  *      voll, „dz. cyt.", „Tamże", Bibliografie.
- *   4. Komentarze und Bereiche (2026-10-22): Bausteine mit echten Verweisen,
- *      Import/Export (Fassung 2, alte Felder → Komentarze), Einbetten mit
- *      Kreisschutz, unlesbare Ziele ohne Titel, die Umstellung (wohin jeder
- *      alte Wert geht, was umziehen muss, damit niemand mehr sieht als vorher).
+ *   4. Komentarze (2026-10-22): Bausteine mit echten Verweisen, Einbetten mit
+ *      Kreisschutz, unlesbare Ziele ohne Titel. (Seit 2026-10-23 nicht mehr im
+ *      Format der Bibliothek — Schritt 4 macht sie zu einer Art in Cogita.)
  *   5. Der Text, gezeichnet: Fussnoten in Reihenfolge, Quellen darunter.
  *   6. Bücher: ISBN, Strichcode (ZXing), Katalog (MARC, ONIX), eigene Nummer,
  *      Zitate eines Buches (Format, Polecenie, Plan, Import, Export).
@@ -43,8 +48,7 @@ export * from '${app}library/libraryKinds';
 export * from '${app}library/libraryMarkup';
 export * from '${app}library/libraryCite';
 export * from '${app}library/comment';
-export * from '${app}library/libraryMigrate';
-export { planLibraryImport, exportLibrary, libraryDescription, LIBRARY_FORMAT, LIBRARY_VERSION } from '${app}library/libraryJson';
+export { planLibraryImport, exportLibrary, libraryDescription, kindsDoc, LIBRARY_FORMAT, LIBRARY_SPEC, LIBRARY_VERSION, MARKUP_DOC } from '${app}library/libraryJson';
 export { QuoteFigure, TextArticle } from '${app}library/LibraryText';
 export { LibraryLines } from '${app}library/LibraryLines';
 export { Markup as CogitaMarkup } from '${app}cogita/ui';
@@ -61,10 +65,7 @@ export * from '${app}library/bible';
 export * from '${app}library/refIndex';
 export { Relations, PassageBox, PassageList } from '${app}library/LibraryRelations';
 export { StatementMarks } from '${app}library/markupView';
-export { knowledgeAsStatement, isKnowledge } from '${app}library/rebuild/knowledgeToStatements';
-export { topicsToLibrary, PERSPECTIVES } from '${app}library/rebuild/topicsToLibrary';
-export { baseVisibility, hasOldCopies, missingIn, oldCopyOf, withoutCopy } from '${app}library/rebuild/baseVisibility';
-export { convertPart, retiredKind } from '${app}library/rebuild/pageModules';
+export { hasOldCopies, missingIn, oldCopiesLine, oldCopyOf, withdrawOldCopies, withoutCopy } from '${app}cogita/oldCopies';
 export { palette, PARTS } from '${app}pages/parts/registry';
 export { textToLatex, planToLatex } from '${app}library/libraryLatex';
 export { archiveRow, browseLocal, choose, facetKey, PROJECTS } from '${app}library/browse';
@@ -101,29 +102,48 @@ try {
 
   /* -- 1. Die Arten ------------------------------------------------------------------- */
   const description = m.libraryDescription();
-  for (const def of m.KINDS) {
+  for (const def of m.LIBRARY_KINDS) {
     for (const field of def.fields) {
       assert.ok(typeof field.says === 'string' && field.says.length > 3, `${def.kind}.${field.key} is described`);
       assert.ok(description.includes(`"${field.key}" — ${field.label}`), `description explains ${def.kind}.${field.key}`);
-      if (field.type === 'ref' || field.type === 'refs') assert.ok(field.to?.every((k) => m.kindOf(k)), `${def.kind}.${field.key} points at known kinds`);
+      if (field.type === 'ref' || field.type === 'refs') assert.ok(field.to?.every((k) => m.LIBRARY_KINDS.some((x) => x.kind === k)), `${def.kind}.${field.key} points only at sources`);
     }
     for (const key of Object.keys(def.example.data)) assert.ok(def.fields.some((f) => f.key === key), `${def.kind} example uses only fields (${key})`);
     assert.ok(description.includes(`### "${def.kind}" — ${def.label}`), `description lists ${def.kind}`);
   }
-  assert.ok(description.includes('[@klucz, s. 23]'), 'description explains the markup');
+  assert.deepEqual(m.LIBRARY_KINDS.map((k) => k.kind), ['work', 'quote', 'person'], 'the library holds sources only');
+  assert.ok(description.includes('[@ratzinger2007, s. 23]') && !description.includes('### "text"') && !description.includes('### "comment"') && !description.includes('### "topic"'), 'the description: how one cites the library, and no other kinds');
+  const writingDoc = m.kindsDoc(m.WRITING_KINDS);
+  for (const def of m.WRITING_KINDS) for (const field of def.fields) assert.ok(writingDoc.includes(`"${field.key}" — ${field.label}`), `the writing kinds are described too (${def.kind}.${field.key})`);
 
-  const exampleDoc = { format: m.LIBRARY_FORMAT, version: 1, entries: m.KINDS.map((def) => ({ kind: def.kind, key: def.example.key, data: def.example.data })) };
+  const exampleDoc = { format: m.LIBRARY_FORMAT, version: m.LIBRARY_VERSION, entries: m.LIBRARY_KINDS.map((def) => ({ kind: def.kind, key: def.example.key, data: def.example.data })) };
   const empty = { get: () => undefined, byKey: () => undefined };
   const planned = m.planLibraryImport(exampleDoc, empty);
   assert.ok(!('error' in planned), 'all examples import');
   assert.deepEqual(planned.warnings, [], 'the examples import without a warning');
-  assert.equal(planned.created, m.KINDS.length);
+  assert.equal(planned.created, m.LIBRARY_KINDS.length);
   const byKind = Object.fromEntries(planned.drafts.map((d) => [d.kind, d]));
   assert.equal(byKind.quote.data.work, byKind.work.id, '@key references resolve to the new ids');
   assert.deepEqual(byKind.work.data.authors, [byKind.person.id]);
-  assert.equal(byKind.project.data.outline[1].text, byKind.text.id, 'the outline of a project resolves too');
-  assert.deepEqual(planned.drafts.map((d) => d.kind).slice(0, 3), ['person', 'topic', 'work'], 'what is named is saved first');
-  ok(`${m.KINDS.length} kinds: every field described, examples import cleanly with @key references`);
+  assert.deepEqual(planned.drafts.map((d) => d.kind), ['person', 'work', 'quote'], 'what is named is saved first');
+  ok(`${m.LIBRARY_KINDS.length} kinds: every field described, examples import cleanly with @key references`);
+
+  /* 2026-10-23 — nur Quellen: eine Datei mit anderen Arten wird abgewiesen, mit dem Ort, wohin sie gehört. */
+  {
+    const mixed = m.planLibraryImport({ format: m.LIBRARY_FORMAT, version: 2, entries: [
+      { kind: 'work', data: { title: 'A' } }, { kind: 'text', data: { title: 'T' } }, { kind: 'delivery', data: {} }, { kind: 'comment', data: {} }, { kind: 'topic', data: { name: 'X' } }
+    ] }, empty);
+    assert.ok('error' in mixed, 'an old file with texts, comments and topics is refused as a whole');
+    assert.ok(mixed.error.includes('"recreatio/scriptorium"') && mixed.error.includes('Skryptorium'), `texts and deliveries: the Scriptorium is named (${mixed.error})`);
+    assert.ok(mixed.error.includes('templates/cogita/komentarz.json'), 'comments: the Cogita template is named');
+    assert.ok(mixed.error.includes('tematów już nie ma'), 'topics: said that there are none');
+    assert.ok(mixed.error.includes('text (1)') && mixed.error.includes('topic (1)'), 'what is in the file is counted');
+    const other = m.planLibraryImport({ format: 'recreatio/scriptorium', entries: [{ kind: 'text', data: {} }] }, empty);
+    assert.ok('error' in other && other.error.includes('w Skryptorium'), 'another part\'s format says where it is imported');
+    const cogita = m.planLibraryImport({ format: 'recreatio.cogita.base', entries: [{ kind: 'entity', data: {} }] }, empty);
+    assert.ok('error' in cogita && cogita.error.includes('w Nauce'), 'a Cogita file says where it is imported');
+  }
+  ok('sources only: a file with texts, deliveries, comments or topics is refused, naming where each belongs; other formats name their part');
 
   /* Herein: an Ort und Stelle, nur was gesagt ist. */
   const stored = planned.drafts.map((d) => ({ id: d.id, kind: d.kind, key: d.key, data: d.data }));
@@ -200,18 +220,20 @@ try {
     assert.deepEqual(m.nextAliases('ratz', 'ratzinger-jezus', []), ['ratz'], 'the old key stays as a second key');
     assert.deepEqual(m.nextAliases('b', 'a', ['a', 'c', 'C']), ['c', 'b'], 'never the new key, each once');
 
-    /* JSON: hinaus mit Schlüsseln, herein wieder Kennungen — und nichts ändert sich. */
+    /* JSON: hinaus mit Schlüsseln, herein wieder Kennungen — und nichts ändert sich (Texte: das Format der Schreibarten, 2026-10-23). */
+    const WRITING = { format: 'recreatio/scriptorium', version: 1, kinds: m.WRITING_KINDS, saveOrder: ['text', 'project', 'delivery'], elsewhere: () => null };
     const shelf = [W, { id: 's2', kind: 'text', key: 'kaz', data: { title: 'K', body: `Tekst [@${W.id}, s. 9].` } }];
     const S2 = look(shelf);
-    const out = m.exportLibrary('x', shelf, S2);
+    const out = m.exportLibrary('x', shelf, S2, WRITING);
+    assert.deepEqual(out.entries.map((e) => e.id), ['s2'], 'a format exports only its own kinds');
     const outText = out.entries.find((e) => e.id === 's2');
     assert.equal(outText.data.body, 'Tekst [@ratz, s. 9].', 'the JSON shows keys');
-    const back = m.planLibraryImport(out, S2);
-    assert.equal(back.unchanged, shelf.length, 'export → import: the keys turn back into the same ids');
-    const fresh = m.planLibraryImport({ entries: [{ kind: 'work', key: 'nowe', data: { title: 'Nowe' } }, { kind: 'text', data: { title: 'T', body: 'Cytuję [@nowe] i [@brak].' } }] }, look([]));
-    const made = fresh.drafts.find((d) => d.kind === 'text');
-    const work = fresh.drafts.find((d) => d.kind === 'work');
-    assert.equal(made.data.body, `Cytuję [@${work.id}] i [@brak].`, 'import stores ids for keys of the same document');
+    const back = m.planLibraryImport(out, S2, WRITING);
+    assert.equal(back.unchanged, 1, 'export → import: the keys turn back into the same ids');
+    const fresh = m.planLibraryImport({ entries: [{ kind: 'text', key: 'nowy', data: { title: 'N' } }, { kind: 'text', data: { title: 'T', body: 'Cytuję [@ratz], zob. [@nowy] i [@brak].' } }] }, L1, WRITING);
+    const made = fresh.drafts.find((d) => d.data.title === 'T');
+    const sibling = fresh.drafts.find((d) => d.key === 'nowy');
+    assert.equal(made.data.body, `Cytuję [@${W.id}], zob. [@${sibling.id}] i [@brak].`, 'import stores ids: a work of the library, a text of the same document');
     assert.ok(fresh.warnings.some((w) => w.includes('@brak')), 'an unknown key is reported');
     const aliased = m.planLibraryImport({ entries: [{ id: W.id, kind: 'work', key: 'ratz', data: { _aliases: ['stary'] } }] }, L1);
     assert.deepEqual(aliased.drafts[0].data._aliases, ['stary'], 'old keys travel through JSON without a warning');
@@ -261,8 +283,8 @@ try {
     const cg = m.renderToStaticMarkup(m.createElement(m.CogitaMarkup, { text: '## Teza\n\nZdanie [@ratz, s. 3] i [[tekst|@inny]].', lib: { markupLook: L } }));
     assert.ok(cg.includes('lib-h') && cg.includes('lib-own-ref') && cg.includes('Jezus z Nazaretu') && cg.includes('Przypisy'), 'Cogita: headings, a source footnote, a link — the same pieces');
     assert.equal(m.plainOf('Księgi [[Samuela|@samuel]] to część Biblii [@bt, J 3,16].'), 'Księgi Samuela to część Biblii.', 'Cogita plain text from the same reader');
-    const told = m.libraryDescription();
-    assert.ok(told.includes('[[te słowa|@klucz]]') && told.includes('nigdy przypis') && told.includes('[odwołanie niedostępne]'), 'the library description tells an AI: sources are cited, own entries linked');
+    const told = m.MARKUP_DOC;
+    assert.ok(told.includes('[[te słowa|@klucz]]') && told.includes('nigdy przypis') && told.includes('[odwołanie niedostępne]'), 'the markup description tells an AI: sources are cited, own entries linked');
     assert.ok(m.courseDescription().includes('[[słowo|@wpis]]') && m.courseDescription().includes('staje się przypisem'), 'the Cogita description says the same');
     assert.ok(m.courseDescription().includes('"kinds": ["quote"]') && m.courseDescription().includes('"from": "<identyfikator biblioteki>"'), 'the Cogita description shows templates and revisions over library material (step 5)');
   }
@@ -352,7 +374,7 @@ try {
     assert.deepEqual(m.passageHits(index, []), [], 'nothing typed, nothing found');
     assert.ok(m.libraryDescription().includes('Łk 1,26–2,5') && m.libraryDescription().includes('Acts 1:14'), 'the description tells an AI how to write a place in the Scripture');
     assert.deepEqual([m.entryTitle({ id: 'w', kind: 'entity', data: { _kinds: ['x'], tekst: 'house' } }, look([])), m.entryTitle({ id: 'v', kind: 'view', data: { name: 'Psalmy jutrzni' } }, look([]))], ['house', 'Psalmy jutrzni'], 'Schritt 11: a base entry and a view have names in a text');
-    assert.ok(m.libraryDescription().includes('![@id-widoku]') && m.libraryDescription().includes('[[house|@id-słowa]]'), 'Schritt 11: the description shows linking a dictionary word and embedding a live view');
+    assert.ok(m.MARKUP_DOC.includes('![@id-widoku]') && m.MARKUP_DOC.includes('[[house|@id-słowa]]'), 'Schritt 11: the description shows linking a dictionary word and embedding a live view');
     /* Die Kästen zeichnen (ohne offene Speicher im Prüfling: nur der Rahmen). */
     const fake = { libraryId: 'lib-a', revision: 1, title: (e) => String(e.data.title ?? e.data.text ?? e.id), get: () => undefined, byKey: () => undefined, readable: () => [], all: () => [], ownByKey: () => undefined };
     const rel = m.renderToStaticMarkup(m.createElement(m.Relations, { store: fake, library: { libraryId: 'lib-a', writes: true }, entry: { ...BT, libraryId: 'lib-a' } }));
@@ -380,63 +402,26 @@ try {
     assert.equal(role({ blocks: [{ type: 'paragraph', text: 'Porównanie [@bt].' }, { type: 'table', columns: ['a', 'b'], rows: [] }] }), 'interpretation', 'a table compares: interpretation');
     assert.equal(m.blocksMarkup([{ type: 'table', columns: ['Łk', 'Dz'], rows: [[[{ ref: 'bt', locator: 'Łk 1,35' }], [{ ref: 'bt', locator: 'Dz 1,8' }]]] }]), '- [[Łk 1,35|@bt]] — [[Dz 1,8|@bt]]', 'a table row as markup links');
 
-    /* Wiedza → Komentarz: dieselbe Kennung, nichts geht verloren. */
-    const k = { _kinds: ['knowledge'], text: 'Dawid był królem.', about: ['p1', { value: 'p2', state: 'known' }], source: 'w1', locator: 's. 3', tags: ['historyczna'], extra: 1, _checked: { p1: 'x' } };
-    assert.deepEqual(m.knowledgeAsStatement(k), { tags: ['historyczna'], extra: 1, _checked: { p1: 'x' }, subjects: [{ ref: 'p1' }, { ref: 'p2' }], blocks: [{ type: 'paragraph', text: 'Dawid był królem [@w1, s. 3].' }] }, 'text → paragraph, source → citation inside it, about → subjects, the rest stays');
-    assert.deepEqual(m.knowledgeAsStatement({ source: 'w1' }).subjects, [{ ref: 'w1' }], 'no text but a source: the source stays as a subject');
-    assert.ok(m.isKnowledge({ id: 'x', kind: 'entity', data: { _kinds: ['knowledge'] } }) && m.isKnowledge({ id: 'y', kind: 'entity', data: {} }) && !m.isKnowledge({ id: 'z', kind: 'entity', data: { _kinds: ['knowledge', 'k-x'] } }), 'only pure knowledge moves');
-
     /* Die Marken: eine Frage, auf die eine andere Aussage zeigt, ist beantwortet. */
     const Q = { id: 'cq', kind: 'comment', key: 'cq', data: para('Dlaczego Duch zstępuje dwa razy? Szukam.') };
     const A1 = { id: 'ca', kind: 'comment', key: 'ca', data: { subjects: [{ ref: 'cq' }], blocks: [{ type: 'paragraph', text: 'Bo Kościół rodzi się jak Chrystus.' }] } };
     const marks = (entries) => m.renderToStaticMarkup(m.createElement(m.StatementMarks, { comment: Q, look: { ...look(entries), readable: () => entries }, author: true }));
     assert.ok(marks([Q]).includes('Pytanie otwarte') && marks([Q, A1]).includes('Pytanie — jest odpowiedź'), 'open until another statement points at it');
     assert.ok(marks([Q]).includes('Interpretacja') && !marks([Q]).includes('Brak tezy'));
-    const told = m.libraryDescription();
-    assert.ok(told.includes('pierwsze zdanie pierwszego akapitu jest tezą') && told.includes('Pytanie to komentarz') && told.includes('aplikacja wylicza sama'), 'the description tells an AI how statements work');
     assert.ok(m.courseDescription().includes('"statement.thesis"') && m.courseDescription().includes('"kinds": ["comment"]'), 'the Cogita description shows statement templates');
   }
-  /* -- 2f. Themen und Perspektiven → Bibliothek: der Plan (Schritt 7) ------------------------------------ */
-  {
-    const store = (libraryId, areaId, entries) => ({ libraryId, areaId, all: () => entries, ofKind: (k) => entries.filter((e) => e.kind === k), title: (e) => String(e.data.name ?? e.data.title ?? e.id) });
-    const base = store('base', 'area-1', [
-      { id: 't1', kind: 'topic', data: { name: 'Modlitwa', level: 2 } },
-      { id: 't2', kind: 'topic', data: { name: 'Post' } },
-      { id: 'e1', kind: 'entity', data: { _kinds: ['question'], tags: ['duchowa'] } },
-      { id: 'set', kind: 'settings', data: { tags: ['historyczna', 'duchowa'], sources: [{ id: 'lib', kind: 'books', name: 'B' }] } }
-    ]);
-    const lib = store('lib', 'area-1', [
-      { id: 'twin', kind: 'topic', data: { name: 'post' } },
-      { id: 'c1', kind: 'comment', data: { blocks: [], tags: ['Historyczna'] } }
-    ]);
-    const ctx = {
-      me: { ring: null }, areas: [{ areaId: 'area-1', name: 'Parafia' }], progress: () => undefined,
-      libraries: [{ libraryId: 'base', areaId: 'area-1', kind: 'knowledge', writes: true, name: 'Baza' }, { libraryId: 'lib', areaId: 'area-1', kind: 'books', writes: true, name: 'Biblioteka' }],
-      stores: new Map([['base', base], ['lib', lib]])
-    };
-    const plan = await m.topicsToLibrary.plan(ctx);
-    const by = (key) => plan.changes.find((c) => c.key === key);
-    assert.ok(by('t:t1').ok && by('t:t1').what.includes('Biblioteka'), 'a topic moves into the library of its area');
-    assert.ok(!by('t:t2').ok && by('t:t2').what.includes('Połącz z duplikatem'), 'a topic the library already has is not guessed — merge first');
-    assert.ok(by('l:base')?.ok, 'learning fields in use: the base gets the extension');
-    assert.ok(by('p:base').what.includes('historyczna') && by('p:base').what.includes('duchowa') && !by('p:base').what.includes('Historyczna'), 'one axis value per perspective, case-insensitive');
-    assert.ok(by('e:c1')?.ok, 'a library comment with perspectives gets topics');
-    assert.ok(by('e:e1')?.ok === false, 'a base entry with perspectives stays (its kind has no topics)');
-    assert.ok(m.courseDescription().includes('perspektywy to oś') && m.courseDescription().includes('"builtin": "topic"'), 'the Cogita description explains one topic system');
-    /* 2026-10-22 (Schritt 12) — eine Erzählung: Przebieg aus einer Präsentation, Erzähler, der Schritt „scene". */
-    assert.ok(['"presentation": "parafia/droga"', '"narrators"', 'krok "scene"', '"b0"'].every((one) => m.courseDescription().includes(one)), 'the Cogita description shows presentation flows, narrators and the scene step');
-  }
-  ok('topics and perspectives → library: plan (move, twins named not merged, learning extension, one axis, entries)');
+  /* -- 2f. Die Beschreibung von Cogita (Schritt 12): Przebieg aus einer Präsentation, Erzähler, der Schritt „scene". */
+  assert.ok(['"presentation": "parafia/droga"', '"narrators"', 'krok "scene"', '"b0"'].every((one) => m.courseDescription().includes(one)), 'the Cogita description shows presentation flows, narrators and the scene step');
 
-  /* -- 2g. Bazy wiedzy: stare publikacje (Schritt 8) ---------------------------------------------------- */
+  /* -- 2g. Bazy wiedzy: stare publikacje (2026-10-23 direkt in „Kto czyta") ---------------------------- */
   {
     const U = (n) => `${String(n).repeat(8)}-${String(n).repeat(4)}-4${String(n).repeat(3)}-8${String(n).repeat(3)}-${String(n).repeat(12)}`;
     const [A, B, GONE] = [1, 2, 3].map(U);
-    const fake = (libraryId, entries) => {
+    const fake = (entries) => {
       const map = new Map(entries.map((e) => [e.id, e]));
       const store = {
-        libraryId, withdrawn: [], saved: [],
-        all: () => [...map.values()], get: (id) => map.get(id), title: (e) => String(e.data.name ?? e.id),
+        withdrawn: [], saved: [],
+        all: () => [...map.values()], get: (id) => map.get(id),
         withdraw: async (ids) => { store.withdrawn.push(...ids); for (const id of ids) map.set(id, { ...map.get(id), publishedAs: null }); return ids.length; },
         save: async (input) => { const was = map.get(input.id); map.set(input.id, { ...was, ...input }); store.saved.push(input.id); return map.get(input.id); }
       };
@@ -444,75 +429,39 @@ try {
     };
     const copyOk = { format: 'recreatio.cogita.revision', cards: [{ entity: A, question: A }], explain: { [B]: { label: 'x' } } };
     const copyLost = { format: 'recreatio.cogita.flow', entities: { [GONE]: { label: 'skasowany' } } };
-    const open = fake('open', [
+    const base = fake([
       { id: A, kind: 'entity', publishedAs: 'explicit', data: { name: 'Józef', public: copyOk } },
       { id: B, kind: 'entity', publishedAs: null, data: { name: 'Maryja' } },
       { id: 'f1', kind: 'flow', publishedAs: null, data: { name: 'Droga', public: copyLost } }
     ]);
-    const closed = fake('closed', [{ id: 'c1', kind: 'revision', publishedAs: 'explicit', data: { name: 'Stara powtórka' } }]);
-    const other = fake('other', [{ id: 'o1', kind: 'revision', publishedAs: 'explicit', data: { name: 'Cudza' } }]);
-    const ctx = {
-      me: { ring: null }, areas: [], progress: () => undefined,
-      libraries: [
-        { libraryId: 'open', areaId: 'a1', kind: 'knowledge', writes: true, name: 'Parafia', areaPublic: true, areaRuleAt: null },
-        { libraryId: 'closed', areaId: 'a2', kind: 'knowledge', writes: true, name: 'Klasa', areaPublic: false, areaRuleAt: null },
-        { libraryId: 'other', areaId: 'a3', kind: 'knowledge', writes: false, name: 'Cudza baza', areaPublic: true, areaRuleAt: 'x' }
-      ],
-      stores: new Map([['open', open], ['closed', closed], ['other', other]])
-    };
     assert.deepEqual(m.missingIn(copyOk, (id) => id === A || id === B), [], 'everything the copy shows is still there');
     assert.deepEqual(m.missingIn(copyLost, () => false), [GONE], 'the copy shows an entry that is gone');
     assert.deepEqual(m.withoutCopy({ name: 'x', public: {}, more: 1 }), { name: 'x', more: 1 }, 'only the copy leaves the entry');
-    assert.ok(m.hasOldCopies(open) && !m.hasOldCopies(closed), 'a base with an old copy inside an entry is not opened before Porządki');
+    assert.ok(m.hasOldCopies(base) && !m.hasOldCopies(fake([{ id: 'c1', kind: 'revision', publishedAs: 'explicit', data: { name: 'x' } }])), 'a base with an old copy inside an entry is not opened before the copies are withdrawn');
 
-    const plan = await m.baseVisibility.plan(ctx);
-    const by = (key) => plan.changes.find((c) => c.key === key);
-    assert.ok(by(`withdraw:${A}`)?.ok && !by(`withdraw:${A}`).what.includes('członkowie'), 'an old public copy in a public area is withdrawn — the entry stays');
-    assert.ok(by('withdraw:c1')?.ok && by('withdraw:c1').what.includes('tylko członkowie') && by('withdraw:c1').what.includes('Przenieś'), 'in a closed area: said plainly who reads it afterwards, and how to keep it public');
-    assert.ok(by(`strip:${A}`)?.ok, 'a copy whose content is all still in the base leaves the entry');
-    assert.equal(by('strip:f1')?.ok, false, 'a copy that holds the only trace of a deleted entry stays');
-    assert.equal(plan.changes.some((c) => c.libraryId === 'other'), false, 'a base I only read: nothing planned …');
-    assert.ok(plan.notes.some((n) => n.includes('Cudza baza') && n.includes('tylko czytać')), '… but named');
-    assert.ok(plan.notes.some((n) => n.includes('Parafia') && n.includes('nie jest otwarta') && n.includes('Kto czyta')), 'a base in a public area is not opened here — where to open it is said');
-    assert.equal(plan.changes.some((c) => c.key.startsWith('open')), false, 'opening is never part of this plan');
-
-    const report = await m.baseVisibility.run(plan, ctx);
-    assert.deepEqual([open.withdrawn, closed.withdrawn, open.saved], [[A], ['c1'], [A]], 'withdrawn per base, one copy removed');
-    assert.equal(m.oldCopyOf(open.get(A)), null, 'the copy is gone from the entry …');
-    assert.equal(open.get(A).data.name, 'Józef', '… the entry itself is not');
-    assert.ok(m.oldCopyOf(open.get('f1')) !== null, 'the kept copy is still there');
-    assert.ok(report[0].includes('Wycofane stare kopie publiczne: 2') && report[0].includes('Usunięte kopie we wpisach: 1') && report.some((r) => r.includes('Nie zmieniono: 1')), report.join(' | '));
-    const again = await m.baseVisibility.plan(ctx);
-    assert.deepEqual(again.changes.map((c) => c.key), ['strip:f1'], 'run again: only what could not be done is left (resumable)');
+    const known = (id) => base.get(id) !== undefined;
+    const report = await m.withdrawOldCopies(base, known, null);
+    assert.deepEqual([base.withdrawn, base.saved], [[A], [A]], 'the old public version withdrawn, one copy removed');
+    assert.equal(m.oldCopyOf(base.get(A)), null, 'the copy is gone from the entry …');
+    assert.equal(base.get(A).data.name, 'Józef', '… the entry itself is not');
+    assert.ok(m.oldCopyOf(base.get('f1')) !== null, 'a copy that holds the only trace of a deleted entry stays');
+    assert.deepEqual(report.kept, [{ id: 'f1', missing: 1 }]);
+    const said = m.oldCopiesLine(report);
+    assert.ok(said.includes('Wycofane stare kopie publiczne: 1') && said.includes('usunięte kopie we wpisach: 1') && said.includes('Zostało kopii: 1'), said);
+    const again = await m.withdrawOldCopies(base, known, null);
+    assert.deepEqual([again.withdrawn, again.stripped, again.kept.length], [0, 0, 1], 'run again: only what could not be done is left');
   }
-  ok('knowledge bases, old publications: withdraw per base (closed area said plainly), copies out of entries only when nothing is lost, bases never opened here, resumable');
+  ok('knowledge bases, old publications: withdrawn, copies out of entries only when nothing is lost, repeatable — without Porządki');
 
-  /* -- 2h. Moduły stron → Widok (Schritt 10) ---------------------------------------------------------- */
+  /* -- 2h. Ausgemusterte Bausteine ------------------------------------------------------------------- */
   {
-    const facts = {
-      kindByName: (name) => (name.toLowerCase() === 'postać' ? { id: 'kP', fields: [{ key: 'name', label: 'Imię' }, { key: 'era', label: 'Epoka' }] } : undefined),
-      revisionGraph: (id) => (id === 'r1' ? { nodes: [{ id: 's', type: 'source.topic', x: 0, y: 0, config: { topic: 'T', depth: 2 } }, { id: 'f', type: 'filter', x: 1, y: 0, config: {} }, { id: 'g', type: 'strategy', x: 2, y: 0, config: {} }], edges: [{ id: 'e1', from: 's', out: 'cards', to: 'f', in: 'cards' }, { id: 'e2', from: 'f', out: 'cards', to: 'g', in: 'cards' }] } : undefined),
-      aspects: ['A1', 'A2']
-    };
-    assert.deepEqual([m.retiredKind('entity-table', {}), m.retiredKind('writings', { layout: 'tabela' }), m.retiredKind('writings', { layout: 'lista' }), m.retiredKind('text', {})], ['entity-table', 'writings', null, null], 'what is retired: three modules and the archive’s table');
-    const table = m.convertPart('entity-table', { title: 'Postacie', kind: 'Postać', columns: 'Epoka, nie-ma' }, facts);
-    assert.deepEqual([table.mode, table.view.mode, table.view.steps[0], table.view.columns, table.view.name], ['tabela', 'table', { type: 'source.kind', config: { kind: 'kP' } }, ['era'], 'Postacie'], 'entity table → a table view of the kind, columns by their names');
-    assert.ok('problem' in m.convertPart('entity-table', { kind: 'Miejsce' }, facts), 'a kind the base does not have is reported, not guessed');
-    const topics = m.convertPart('topic-explorer', { topic: 'T' }, facts);
-    assert.deepEqual([topics.mode, topics.view.steps[0].type, topics.view.group], ['drzewo', 'source.topic', { by: 'topic', axis: 'T' }], 'topic explorer → a tree grouped by the topic as an axis');
-    const map = m.convertPart('knowledge-map', { revision: 'r1' }, facts);
-    assert.deepEqual([map.mode, map.view.mode, map.view.steps.map((x) => x.type)], ['mapa', 'map', ['source.topic']], 'knowledge map → a map view of what the revision selects (card filters dropped)');
-    assert.ok('problem' in m.convertPart('knowledge-map', { revision: 'gone' }, facts), 'a missing revision is reported');
-    const archive = m.convertPart('writings', { title: 'Kazania', library: 'L', topic: 'T', project: 'P', layout: 'tabela' }, facts);
-    assert.deepEqual([archive.view.steps.map((x) => x.type), archive.view.columns, archive.view.sort], [['source.topic', 'filter.rule', 'filter.rule'], ['date', '#axis:A1', '#axis:A2'], { key: 'date', dir: -1 }], 'the archive’s table → texts of the topic and project, date and the aspects as columns, newest first');
-    const plain = m.convertPart('writings', { library: 'L' }, facts);
-    assert.deepEqual(plain.view.steps[0], { type: 'source.kind', config: { kind: 'text', from: 'L' } }, 'without a topic: the texts of that library');
     const offered = m.palette().map((x) => x.kind);
     assert.ok(!offered.includes('entity-table') && !offered.includes('topic-explorer') && !offered.includes('knowledge-map') && offered.includes('view') && m.PARTS.some((x) => x.kind === 'entity-table'), 'retired modules leave the palette but still render');
+    assert.ok(m.PARTS.filter((x) => x.retired !== undefined).every((x) => !x.retired.includes('Porządki') && x.retired.includes('„Widok”')), 'a retired module says what replaces it — and names no tool that is gone');
   }
-  ok('page modules → View: what is retired, each conversion (kind by name, topic axis, revision steps, archive with aspects), problems reported, palette without the retired');
+  ok('page modules: retired ones leave the palette, still render, and say what replaces them');
 
-  ok('statements: the thesis is the first sentence (abbreviations, markup), questions, information vs interpretation, knowledge → comment under the same id, the marks');
+  ok('statements: the thesis is the first sentence (abbreviations, markup), questions, information vs interpretation, the marks');
 
   ok('Scripture: books in Polish, Latin and English, ranges, lists, chapters, canonical order; the reference index over libraries and knowledge bases (fields, markup with places, comment subjects and cells, sources of values, documents); a passage found in every edition');
 
@@ -571,49 +520,15 @@ try {
     assert.deepEqual(m.commentsAbout('sermon', [c1], '').map((c) => c.id), [], '… is not one about the whole text');
     assert.deepEqual(m.fieldRefs(c1).sort(), ['bt', 'q', 'sermon'], 'subjects and cell refs are references (backlinks, reach)');
 
-    /* JSON: Fassung 2, Bausteine mit Verweisen per @schlüssel, Export → Import ändert nichts. */
     const shelf = [
       { id: 'bt', kind: 'work', key: 'bt', data: { workType: 'bible', title: 'Pismo Święte', siglum: 'BT' } },
       { id: 'q', kind: 'quote', key: 'q', data: { text: 'Modlitwa jest rozmową.', work: 'bt', locator: 'J 1,1' } }
     ];
-    const S = look(shelf);
-    const doc = { format: m.LIBRARY_FORMAT, version: m.LIBRARY_VERSION, entries: [{ kind: 'comment', key: 'nowy', data: {
-      subjects: [{ ref: '@bt', locator: 'Łk 1,35' }],
-      blocks: [{ type: 'table', columns: ['A', 'B'], rows: [[[{ ref: '@bt', locator: 'Łk 1,35' }], [{ ref: '@q' }, { text: ' i więcej' }]]] }, { type: 'unordered', items: [[{ ref: '@nieznany' }]] }]
-    } }] };
-    const planned = m.planLibraryImport(doc, S);
-    const made = planned.drafts[0];
-    assert.equal(made.kind, 'comment');
-    assert.deepEqual(made.data.subjects, [{ ref: 'bt', locator: 'Łk 1,35' }], 'subjects resolve @keys');
-    assert.deepEqual(made.data.blocks[0].rows[0], [[{ ref: 'bt', locator: 'Łk 1,35' }], [{ ref: 'q' }, { text: ' i więcej' }]], 'refs inside table cells resolve, text runs stay');
-    assert.ok(planned.warnings.some((w) => w.includes('nieznany')), 'an unknown ref is reported, not kept as text');
-    const stored = [...shelf, { id: made.id, kind: 'comment', key: made.key, data: made.data }];
-    const again = m.planLibraryImport(m.exportLibrary('x', stored), look(stored));
-    assert.equal(again.unchanged, stored.length, 'export → import keeps block types and references');
-    assert.equal(m.exportLibrary('x', stored).version, 2, 'the format version is 2');
 
-    /* Fassung 1: was in description/notes stand (und die Notiz am Punkt), wird ein Komentarz. */
-    const old = m.planLibraryImport({ format: m.LIBRARY_FORMAT, version: 1, entries: [
-      { kind: 'quote', key: 'q2', data: { text: 'Y', work: '@bt', description: 'Opis.\n\nDrugi akapit.', notes: 'Moja notatka' } },
-      { kind: 'text', key: 't2', data: { title: 'T', plan: [{ id: 'p1', text: 'Myśl', note: 'tu pauza' }, { text: 'Bez notatki' }] } }
-    ] }, S);
-    const quote = old.drafts.find((d) => d.kind === 'quote');
-    const text = old.drafts.find((d) => d.kind === 'text');
-    const comments = old.drafts.filter((d) => d.kind === 'comment');
-    assert.equal(quote.data.description, undefined, 'no description on a quote any more');
-    assert.equal(quote.data.notes, undefined);
-    assert.equal(text.data.plan[0].note, undefined, 'no note on a point any more');
-    assert.equal(comments.length, 3, 'description, notes and the point note became comments');
-    assert.deepEqual(comments.map((c) => c.data.subjects[0]).map((s) => [s.ref === quote.id || s.ref === text.id, s.point ?? '']).sort(), [[true, ''], [true, ''], [true, 'p1']]);
-    assert.deepEqual(comments.find((c) => c.data.blocks.length === 2).data.blocks.map((x) => x.text), ['Opis.', 'Drugi akapit.'], 'paragraphs stay paragraphs');
-    assert.ok(old.warnings.some((w) => w.includes('komentarz')), 'the conversion is said');
-    assert.deepEqual(old.drafts.map((d) => d.kind).slice(-3), ['comment', 'comment', 'comment'], 'comments are saved last (after what they name)');
-
-    /* Die Beschreibung für die KI: kein „prywatne", die Regel des Bereichs, ein Beispiel mit Tabelle. */
+    /* Die Beschreibung für die KI: kein „prywatne", die Regel des Bereichs. */
     const said = m.libraryDescription();
     assert.ok(!said.includes('prywatne — nigdy') && !said.includes('co opublikujesz'), 'no privacy markers, no publishing');
     assert.ok(said.includes('decyduje wyłącznie obszar'), 'the area rule in one line');
-    assert.ok(said.includes('"type": "table"') && said.includes('"comment"'), 'a worked comment example with a table');
 
     /* Gezeichnet: eingebettet, mit Tabelle; ein Kreis wird erkannt; ein unlesbares Ziel bleibt ohne Titel. */
     const ring = [
@@ -634,47 +549,8 @@ try {
     assert.ok(quoteHtml.includes('Komentarze (1)'), 'comments about a quote are reachable where it is shown');
     assert.ok(m.textToLatex(sermon, R).includes('\\begin{tabular}'), 'LaTeX: a comment table is a tabular');
 
-    /* Die Umstellung: wohin jeder alte Wert geht, was umzieht. */
-    const lib = (id, extra) => ({ libraryId: id, areaId: `a-${id}`, name: id, writes: true, areaPublic: false, areaRuleAt: null, kind: 'books', ...extra });
-    const store = (entries) => ({ all: () => entries, own: (id) => entries.find((e) => e.id === id), title: (e) => e.id });
-    const E = (id, kind, data, publishedAs = null) => ({ id, kind, data, publishedAs, libraryId: '', version: 1 });
-    const pub = { library: lib('pub', { areaPublic: true }), store: store([
-      E('qa', 'quote', { text: 'a', description: 'Opis A', notes: 'Prywatne A' }),
-      E('qb', 'quote', { text: 'b' }, 'explicit'),
-      E('dh', 'delivery', { date: '2026-01-01', hidden: 'yes' })
-    ]) };
-    const shared = { library: lib('shared'), store: store([
-      E('proj', 'project', { title: 'Kazania Maryjne', notes: 'plan' }, 'explicit'),
-      E('tx', 'text', { title: 'T', plan: [{ id: 'p1', text: 'A', note: 'pauza' }] })
-    ]) };
-    const mine = { library: lib('mine', { areaId: 'me' }), store: store([E('pt', 'topic', { name: 'X', notes: 'tylko ja' })]) };
-    const done = { library: lib('done', { areaPublic: true, areaRuleAt: '2026-10-22', writes: false }), store: store([E('ok', 'quote', { text: 'c' })]) };
-    const tidy = m.planTidy([pub, shared, mine, done], 'me');
-    const where = Object.fromEntries(tidy.comments.map((c) => [c.key, c.target]));
-    assert.equal(where['qa:description'], 'with-entry', 'a description goes with its entry');
-    assert.equal(where['qa:notes'], 'mine', 'a private note goes to the private library');
-    assert.equal(where['proj:notes'], 'mine');
-    assert.equal(where['tx:plan:p1'], 'mine', 'the note of a point too, with its point');
-    assert.equal(where['pt:notes'], 'mine', 'a note already in the private library stays there');
-    const moves = Object.fromEntries(tidy.moves.map((x) => [x.entryId, [x.reason, x.target]]));
-    assert.deepEqual(moves.qa, ['exposure', 'mine'], 'never published in a public area: would become public → private by default');
-    assert.deepEqual(moves.dh, ['exposure', 'mine'], 'a hidden delivery in a public area too');
-    assert.equal(moves.qb, undefined, 'published in a public area: nothing changes');
-    assert.deepEqual(moves.proj, ['publicity', 'pub'], 'published in a closed area: would disappear → the public library by default');
-    assert.ok(tidy.moves.find((x) => x.entryId === 'qa').options.includes(null), '… and either can stay, by choice');
-    assert.equal(moves.ok, undefined, 'a library already settled is left alone');
-    assert.deepEqual([...tidy.settle].sort(), ['mine', 'pub', 'shared'], 'every library not yet settled is settled at the end');
-    assert.deepEqual(tidy.unpublish.get('pub'), ['qb'], 'old public copies are withdrawn');
-    assert.deepEqual(m.legacyFields(pub.store.own('dh')), ['hidden']);
-    const clean = m.stripped(shared.store.own('tx'));
-    assert.deepEqual(clean.plan, [{ id: 'p1', text: 'A' }], 'step 2 removes the note from the point');
-    assert.equal(m.stripped(pub.store.own('qa')).description, undefined);
-    const ro = m.planTidy([{ ...shared, library: { ...shared.library, writes: false } }], 'me');
-    assert.deepEqual([ro.blocked, ro.comments.length, ro.moves.length], [['shared'], 0, 0], 'a library I only read is not touched — it is named');
-    const noPrivate = m.planTidy([pub], null);
-    assert.equal(noPrivate.comments.find((c) => c.key === 'qa:notes').target, m.PERSONAL, 'without a private library one is made');
   }
-  ok('comments: four blocks with real refs, JSON v2 round trip, v1 fields → comments, embed + cycle guard, unreadable refs, the migration plan');
+  ok('comments: four blocks with real refs, embed + cycle guard, unreadable refs');
 
   /* -- 5. Der Text, gezeichnet ------------------------------------------------------------------- */
   const sermon = { id: 'sermon', kind: 'text', key: 'sermon', data: {
@@ -799,13 +675,12 @@ try {
     assert.ok(m.planLibraryImport({ format: m.QUOTES_FORMAT, quotes: [] }, empty).error.includes('na stronie tej książki'));
     ok('books: isbn, an EAN-13 read by ZXing, catalogue (MARC ×3, ONIX, Open Library), persons reused, own numbers, amounts with units');
 
-    /* Die Zitate eines Buches. */
+    /* Die Zitate eines Buches (Fassung 3, 2026-10-23: ohne Themen, ohne Komentarz). */
     const book = { id: 'w-ricci', kind: 'work', key: 'ricci2016', data: { workType: 'book', title: 'Wielkość świętego Michała Archanioła', authors: ['p-ricci'], place: 'Poznań', year: '2016', isbn: '978-83-63110-45-1' } };
-    const prayer = { id: 't-modlitwa', kind: 'topic', key: 'modlitwa', data: { name: 'Modlitwa' } };
     const had = { id: 'q-had', kind: 'quote', key: 'ricci2016-1', data: { text: 'Święty Michale Archaniele, broń nas w walce.', work: 'w-ricci', locator: 's. 12' } };
-    const shelf = look([ricci, book, prayer, had]);
+    const shelf = look([ricci, book, had]);
     const doc = {
-      format: m.QUOTES_FORMAT, version: 1, work: { title: 'Wielkość świętego Michała Archanioła' },
+      format: m.QUOTES_FORMAT, version: 2, work: { title: 'Wielkość świętego Michała Archanioła' },
       quotes: [
         { text: 'Święty Michale Archaniele,\nbroń nas w walce.', page: '12' },
         { text: 'Kto jak Bóg? Nikt jak Bóg — to imię jest modli-\ntwą.', page: '23-24', topics: ['Modlitwa', 'Aniołowie'], photo: 2, uncertain: true, notes: 'por. Dn 10' },
@@ -820,33 +695,32 @@ try {
     const fresh = qp.items[1];
     assert.equal(fresh.text, 'Kto jak Bóg? Nikt jak Bóg — to imię jest modlitwą.', 'hyphenation and line breaks are joined');
     assert.equal(fresh.locator, 's. 23–24');
-    assert.deepEqual(fresh.topics, [{ id: 't-modlitwa', name: 'Modlitwa' }, { name: 'Aniołowie' }], 'known topics by name, new ones stay names');
+    assert.equal(fresh.topics, undefined, 'a quote has no topics any more');
+    assert.ok(fresh.check.includes('por. Dn 10') && fresh.check.includes('nie zostanie zapisane'), 'an old note is shown before saving — and said not to be saved');
+    assert.ok(qp.warnings.some((w) => w.includes('„topics”') && w.includes('tematów już nie ma')) && qp.warnings.some((w) => w.includes('„notes”') && w.includes('Nauce')), 'old fields are named, with the reason');
     assert.equal(fresh.photo, undefined, 'no photo numbers: the photos stay in the own chat');
     assert.equal(fresh.uncertain, true);
-    assert.deepEqual(m.newTopics(qp.items), ['Aniołowie']);
     assert.ok(m.planQuotes({ quotes: [{ text: 'x' }], work: { title: 'Zupełnie inna' } }, book, shelf).warnings.some((w) => w.includes('Zupełnie inna')), 'written for another book: said, not refused');
     assert.ok('error' in m.planQuotes({ format: 'recreatio/page', quotes: [] }, book, shelf));
 
     const saved = [];
     const fake = async (input) => { const id = input.id ?? `new-${saved.length}`; saved.push({ ...input, id }); return { id }; };
-    const result = await m.importQuotes(qp.items, book, shelf, fake, { createTopics: true });
-    assert.deepEqual([result.saved, result.topics, result.failed.length], [1, 1, 0], 'one new topic, one quote (the duplicate stays out)');
-    assert.deepEqual(saved[0], { kind: 'topic', data: { name: 'Aniołowie' }, id: 'new-0' });
-    assert.equal(saved[1].kind, 'quote');
-    assert.equal(saved[1].data.work, 'w-ricci', 'every quote belongs to this book');
-    assert.deepEqual(saved[1].data.topics, ['t-modlitwa', 'new-0']);
-    assert.equal(saved[1].data.notes, undefined, 'a quote has no notes any more (v1 notes → a comment)');
-    assert.deepEqual(saved[2], { kind: 'comment', data: { subjects: [{ ref: saved[1].id }], blocks: [{ type: 'paragraph', text: 'por. Dn 10' }] }, id: 'new-2' }, 'the comment about the quote');
-    assert.equal(saved[1].data.description, undefined, 'empty fields are not written');
+    const result = await m.importQuotes(qp.items, book, shelf, fake);
+    assert.deepEqual([result.saved, result.failed.length, saved.length], [1, 0, 1], 'one quote (the duplicate stays out), nothing else saved — no topic, no comment');
+    assert.equal(saved[0].kind, 'quote');
+    assert.equal(saved[0].data.work, 'w-ricci', 'every quote belongs to this book');
+    assert.deepEqual([saved[0].data.topics, saved[0].data.notes, saved[0].data.description, saved[0].data.check], [undefined, undefined, undefined, undefined], 'only the fields of a quote are written');
 
     const exported = m.exportQuotes(book, shelf);
-    assert.equal(exported.format, m.QUOTES_FORMAT);
+    assert.deepEqual([exported.format, exported.version], [m.QUOTES_FORMAT, 3]);
     assert.deepEqual(exported.work, { title: 'Wielkość świętego Michała Archanioła', key: 'ricci2016', isbn: '978-83-63110-45-1' });
+    assert.deepEqual(Object.keys(exported.quotes[0]).sort(), ['id', 'locator', 'text'], 'an exported quote: its own fields only');
     const back = m.planQuotes(exported, book, shelf);
     assert.equal(back.items[0].id, 'q-had', 'an exported quote comes back as itself');
     assert.equal(back.items[0].duplicateOf, undefined);
+    assert.deepEqual(back.warnings, []);
     const resaved = [];
-    await m.importQuotes(back.items, book, shelf, async (input) => { resaved.push(input); return { id: input.id }; }, { createTopics: false });
+    await m.importQuotes(back.items, book, shelf, async (input) => { resaved.push(input); return { id: input.id }; });
     assert.deepEqual(resaved[0].data, had.data, 'export → import keeps a quote as it was');
 
     const description = m.quotesDescription(book);
@@ -854,15 +728,15 @@ try {
       if (field.key === 'work') assert.ok(!description.includes(`"work" — `), 'the book is not a field of a quote here');
       else assert.ok(description.includes(`"${field.key}" — `), `quotes description explains ${field.key}`);
     }
-    assert.ok(!description.includes('"photo" — '), 'no photo field any more');
-    for (const extra of ['page', 'uncertain', 'id']) assert.ok(description.includes(`"${extra}" — `), `quotes description explains ${extra}`);
+    assert.ok(!description.includes('"photo" — ') && !description.includes('"topics" — ') && !description.includes('"comment" — '), 'no photo, topics or comment fields');
+    for (const extra of ['page', 'uncertain', 'id', 'check']) assert.ok(description.includes(`"${extra}" — `), `quotes description explains ${extra}`);
     const promptMarked = m.quotesPrompt(book, shelf, 'marked');
-    assert.ok(promptMarked.includes('ołówkiem') && promptMarked.includes('Wielkość świętego Michała Archanioła') && promptMarked.includes('Modlitwa'), 'the prompt names the book, the pencil and the topics');
-    assert.ok(promptMarked.includes(m.QUOTES_FORMAT), 'the format goes along to the own chat');
+    assert.ok(promptMarked.includes('ołówkiem') && promptMarked.includes('Wielkość świętego Michała Archanioła') && promptMarked.includes('dopisek'), 'the prompt names the book, the pencil, and where a handwritten note goes');
+    assert.ok(promptMarked.includes(m.QUOTES_FORMAT) && !promptMarked.includes('"topics": [') && !promptMarked.includes('krótkie tematy'), 'the format goes along to the own chat — no topics asked for');
     const promptWhole = m.quotesPrompt(book, shelf, 'whole');
     assert.ok(promptWhole.includes('cały tekst') && promptWhole.includes(m.QUOTES_FORMAT), 'also when the whole photo is the quote');
     assert.equal(m.QUOTES_TOOL, undefined, 'no AI is called from the app');
-    ok('quotes of a book: duplicates, hyphenation, pages, topics by name, import with new topics, export → import, description from the kind, prompt');
+    ok('quotes of a book (v3): duplicates, hyphenation, pages, old topics/notes named and not saved, export → import, description from the kind, prompt');
   }
 
   /* -- 7. Kazania: Plan, Wygłoszenia, Aspekte ------------------------------------------------- */
@@ -979,24 +853,26 @@ try {
     const prompt = m.deliveryPrompt(L.get('d1'), L);
     assert.ok(prompt.includes('[p1] 1 Głód') && prompt.includes('[p2]') && prompt.includes('Modlitwa jest rozmową.') && prompt.includes('"id": "d1"') && prompt.includes('"coverage"'), 'the delivery prompt carries the plan with ids and the format');
     assert.ok(m.planPrompt(sermon).includes('Treść [@jezus, s. 5].') && m.planPrompt(sermon).includes('"id": "sermon"'), 'the plan prompt carries the text');
-    const answer = { format: m.LIBRARY_FORMAT, version: 1, entries: [
+    const WRITING = { format: 'recreatio/scriptorium', version: 1, kinds: m.WRITING_KINDS, saveOrder: ['text', 'project', 'delivery'], elsewhere: () => null };
+    const answer = { format: WRITING.format, version: 1, entries: [
       { id: 'd1', kind: 'delivery', data: { coverage: [{ point: 'p4', state: 'Pominięte', at: '9:00' }], summary: 'Nowe' } },
       { kind: 'topic', data: { name: 'x' } }
     ] };
-    const patch = m.patchFromDoc(answer, { id: 'd1', kind: 'delivery' }, L);
+    const patch = m.patchFromDoc(answer, { id: 'd1', kind: 'delivery' }, L, WRITING);
     assert.deepEqual(Object.keys(patch.patch).sort(), ['coverage', 'summary'], 'only the fields the answer gives');
     assert.deepEqual(patch.patch.coverage, [{ point: 'p4', state: 'skipped', at: '9:00' }], 'a state by its label means its value');
     assert.ok(patch.warnings.some((w) => w.includes('Pozostałe wpisy')), 'other entries are named, not imported');
-    assert.ok('error' in m.patchFromDoc({ format: 'recreatio/page' }, { id: 'd1', kind: 'delivery' }, L));
+    assert.ok('error' in m.patchFromDoc({ format: 'recreatio/page' }, { id: 'd1', kind: 'delivery' }, L, WRITING));
 
     /* JSON der Bibliothek: Punkte ohne Kennung bekommen eine, Werte beim Namen, Unbekanntes wird gemeldet. */
-    const imported = m.planLibraryImport({ entries: [{ kind: 'text', key: 'nowy', data: { plan: [{ text: 'A' }, { text: 'B', depth: '1', kind: 'Przykład' }, 'C', { text: 'D', bogus: 1 }, { id: 'same', text: 'E' }, { id: 'same', text: 'F' }] } }] }, empty);
+    const imported = m.planLibraryImport({ entries: [{ kind: 'text', key: 'nowy', data: { plan: [{ text: 'A' }, { text: 'B', depth: '1', kind: 'Przykład' }, 'C', { text: 'D', bogus: 1 }, { id: 'same', text: 'E' }, { id: 'same', text: 'F' }] } }] }, empty, WRITING);
     const iplan = imported.drafts[0].data.plan;
     assert.equal(iplan.length, 6);
     assert.ok(iplan.every((p) => typeof p.id === 'string' && p.id !== '') && new Set(iplan.map((p) => p.id)).size === 6, 'every point gets a unique id');
     assert.deepEqual([iplan[1].depth, iplan[1].kind, iplan[2].text, iplan[4].id], [1, 'example', 'C', 'same']);
     assert.ok(imported.warnings.some((w) => w.includes('bogus')), 'unknown point fields are reported');
-    for (const sub of ['"depth" — Poziom', '"state" — Jak', '"after" — Po punkcie', '"aspect" — Aspekt', '"texts" — Kazanie (tekst)']) assert.ok(description.includes(sub), `description explains ${sub}`);
+    const writingDoc = m.kindsDoc(m.WRITING_KINDS);
+    for (const sub of ['"depth" — Poziom', '"state" — Jak', '"after" — Po punkcie', '"texts" — Kazanie (tekst)']) assert.ok(writingDoc.includes(sub), `description explains ${sub}`);
 
     /* Das Archiv: Zeilen aus den Texten, Filter je Achse (ein Thema trifft auch, was darunter liegt), Zahlen. */
     const row = m.archiveRow(sermon, L);

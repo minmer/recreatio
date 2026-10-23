@@ -66,7 +66,7 @@ import { viewPart } from './view';
  * 2026-10-22 (Schritt 10) — WAS MAN HINZUFÜGEN KANN: alle ausser den
  * ausgemusterten (`retired`). Gezeichnet, gelesen und beschrieben werden
  * weiter alle (`PARTS`) — eine Seite, die einen ausgemusterten trägt, bleibt,
- * wie sie ist, bis Porządki ihn umstellt.
+ * wie sie ist, bis ihr Autor ihn ersetzt (der Grund sagt womit).
  */
 export const palette = (): readonly PartModule[] => PARTS.filter((one) => one.retired === undefined);
 

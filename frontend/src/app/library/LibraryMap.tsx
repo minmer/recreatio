@@ -9,8 +9,11 @@
  * stehen im Text und werden dort geändert.
  *
  * 2026-10-22 — die grauen Linien kommen aus dem Verzeichnis der Verweise
- * (`refsOf`): auch Komentarze (worüber, und was ihre Tabellen nennen), der
- * Zarys eines Projekts und die Punkte eines Plans.
+ * (`refsOf`): der Zarys eines Projekts und die Punkte eines Plans.
+ *
+ * 2026-10-23 — dieselbe Karte für die Bibliothek (Zitate, Werke, Personen)
+ * und das Skryptorium (Wygłoszenia, Projekte, Texte): `kinds` sagt, welche
+ * Arten, in welchen Spalten; `hrefOf`, wohin ein Doppelklick führt.
  */
 
 import { useMemo, useState } from 'react';
@@ -26,12 +29,13 @@ import type { Entry, LibraryStore } from './libraryStore';
 import { viewPath } from '../routes';
 import { WorkspaceError } from '../core/session';
 
-/* 2026-10-21 — die Wygłoszenia links neben ihren Texten. */
-const COLUMN: Record<string, number> = { delivery: 0, project: 0, text: 1, topic: 1, quote: 2, comment: 2, work: 3, person: 4 };
-const MAP_KINDS = ['project', 'delivery', 'text', 'topic', 'comment', 'quote', 'work', 'person'];
+/** Die Arten der Karte, von links nach rechts (2026-10-21: die Wygłoszenia links neben ihren Texten). */
+export const LIBRARY_MAP = ['quote', 'work', 'person'] as const;
+export const WRITING_MAP = ['delivery', 'project', 'text'] as const;
+const COLUMN: Record<string, number> = { delivery: 0, project: 0, text: 1, quote: 0, work: 1, person: 2 };
 
 /** Wie eine graue Linie heisst — nach dem Ort im Zeigenden. */
-const FIXED_LABEL: Record<string, string> = { subjects: 'o', blocks: 'wymienia', outline: 'w zarysie', plan: 'cytuje (plan)' };
+const FIXED_LABEL: Record<string, string> = { outline: 'w zarysie', plan: 'cytuje (plan)' };
 
 interface Data { readonly label: string; readonly kind: string; readonly id: string }
 
@@ -54,8 +58,13 @@ function fieldFor(kind: string, target: string): { key: string; many: boolean; l
   return field === undefined ? null : { key: field.key, many: field.type === 'refs', label: field.label };
 }
 
-export function LibraryMap({ store, libraryId }: { store: LibraryStore; libraryId: string }) {
-  const [kinds, setKinds] = useState<ReadonlySet<string>>(new Set(MAP_KINDS));
+export function LibraryMap({ store, libraryId, mapKinds = LIBRARY_MAP, hrefOf }: {
+  store: LibraryStore;
+  libraryId: string;
+  mapKinds?: readonly string[];
+  hrefOf?: (id: string) => string;
+}) {
+  const [kinds, setKinds] = useState<ReadonlySet<string>>(new Set(mapKinds));
   const [failed, setFailed] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const revision = store.revision;
@@ -68,12 +77,8 @@ export function LibraryMap({ store, libraryId }: { store: LibraryStore; libraryI
       const col = COLUMN[e.kind] ?? 2;
       const row = rows.get(col) ?? 0;
       rows.set(col, row + 1);
-      return { id: e.id, type: 'box', position: { x: col * 300, y: row * 70 + (e.kind === 'topic' ? 4000 : 0) }, data: { label: store.title(e), kind: e.kind, id: e.id } };
+      return { id: e.id, type: 'box', position: { x: col * 300, y: row * 70 }, data: { label: store.title(e), kind: e.kind, id: e.id } };
     });
-
-    /* Themen unter die Texte, nicht dazwischen. */
-    const textRows = rows.get(1) ?? 0;
-    for (const n of out) if (n.data.kind === 'topic') n.position = { x: n.position.x, y: n.position.y - 4000 + textRows * 70 + 80 };
 
     const lines: Edge[] = [];
     for (const e of entries) {
@@ -85,7 +90,7 @@ export function LibraryMap({ store, libraryId }: { store: LibraryStore; libraryI
           lines.push({ id: `f:${e.id}:${field.key}:${target}`, source: e.id, target, label: field.label, data: { field: field.key, many: field.type === 'refs' } });
         }
       }
-      /* Was kein Verweisfeld ist: der Zapis (Treść, Plan, „co doszło"), die Gegenstände und Zellen eines Komentarza, der Zarys. */
+      /* Was kein Verweisfeld ist: der Zapis (Treść, Plan, „co doszło"), der Zarys. */
       {
         const fields = new Set((def?.fields ?? []).filter((f) => f.type === 'ref' || f.type === 'refs').map((f) => f.key));
         const drawn = new Set<string>();
@@ -137,11 +142,11 @@ export function LibraryMap({ store, libraryId }: { store: LibraryStore; libraryI
   return (
     <div className="wk-dep">
       <p className="wk-hint">
-        Przeciągnij linię, żeby ustawić odwołanie (tekst → projekt lub temat, cytat → źródło, źródło → autor). Zaznacz linię i naciśnij Delete,
-        żeby je usunąć. Szare linie („cytuje”, „o”, „wymienia”, „w zarysie”) pochodzą z treści tekstów i komentarzy. Dwuklik otwiera wpis.
+        Przeciągnij linię, żeby ustawić odwołanie (cytat → źródło, źródło → autor, tekst → projekt, wygłoszenie → tekst). Zaznacz linię i naciśnij Delete,
+        żeby je usunąć. Szare linie („cytuje”, „w zarysie”) pochodzą z treści tekstów. Dwuklik otwiera wpis.
       </p>
       <div className="lib-map-kinds">
-        {MAP_KINDS.map((k) => (
+        {mapKinds.map((k) => (
           <label key={k} className="wk-check">
             <input type="checkbox" checked={kinds.has(k)} onChange={(e) => setKinds((was) => {
               const next = new Set(was); if (e.target.checked) next.add(k); else next.delete(k); return next;
@@ -153,7 +158,7 @@ export function LibraryMap({ store, libraryId }: { store: LibraryStore; libraryI
       {busy && <p className="wk-working">Zapisywanie…</p>}
       <div className="wk-dep-canvas">
         <ReactFlow nodes={nodes} edges={edges} nodeTypes={NODE_TYPES} onConnect={onConnect} onEdgesDelete={onEdgesDelete}
-          onNodeDoubleClick={(_, node) => { window.location.hash = viewPath('library', libraryId, (node.data as Data).id); }}
+          onNodeDoubleClick={(_, node) => { window.location.hash = hrefOf?.((node.data as Data).id) ?? viewPath('library', libraryId, (node.data as Data).id); }}
           fitView minZoom={0.15} proOptions={{ hideAttribution: true }}>
           <Background />
           <MiniMap pannable zoomable />

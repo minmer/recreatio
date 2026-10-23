@@ -32,8 +32,11 @@ export type PublishedAs = 'explicit' | 'implicit';
  * Themen), `knowledge` eine Baza wiedzy für Cogita (Arten, Wissen, Fragen,
  * Vorlagen, Wiederholungen, Abläufe). Sie verweist auf Bibliotheken und andere
  * Bazy wiedzy, auch in anderen Bereichen (`cogita/sources.ts`).
+ *
+ * 2026-10-23 — und `writing`: ein Skryptorium (Texte, Wygłoszenia, Projekte,
+ * eigene Rodzaje tekstów); die Bibliothek hält seitdem nur Quellen.
  */
-export type LibraryKind = 'books' | 'knowledge';
+export type LibraryKind = 'books' | 'knowledge' | 'writing';
 
 export interface LibraryRow {
   readonly libraryId: string;
@@ -53,7 +56,7 @@ export interface LibraryRow {
   readonly areaRuleAt?: string | null;
 }
 
-export const libraryKindOf = (row: { readonly kind?: string | null }): LibraryKind => (row.kind === 'knowledge' ? 'knowledge' : 'books');
+export const libraryKindOf = (row: { readonly kind?: string | null }): LibraryKind => (row.kind === 'knowledge' ? 'knowledge' : row.kind === 'writing' ? 'writing' : 'books');
 
 export interface OpenLibrary extends LibraryRow {
   readonly name: string;

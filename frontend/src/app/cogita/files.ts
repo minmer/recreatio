@@ -9,7 +9,7 @@
  * 2026-10-22 (Schritt 8) — keine offenen Kopien mehr: ein Besucher ohne Konto
  * holt die Hülle einer öffentlichen Baza (`/library/{id}/file/{fileId}/sealed`)
  * und öffnet sie mit dem offengelegten Schlüssel ihres Bereichs — dieselbe
- * Regel wie für ihre Einträge. Alte Kopien zieht Porządki zurück.
+ * Regel wie für ihre Einträge. Alte Kopien zieht „Kto czyta → Wycofaj stare kopie" zurück (`oldCopies.ts`).
  */
 
 import { aad, Field, open, seal } from '../core/crypto';

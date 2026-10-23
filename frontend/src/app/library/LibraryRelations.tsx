@@ -1,9 +1,12 @@
 /**
  * 2026-10-22 — WER AUF DIESEN EINTRAG ZEIGT (Schritt 4) — über alle offenen
- * Bibliotheken und Bazy wiedzy (`refIndex.ts`): Komentarze über ihn, Zitate,
+ * Bibliotheken, Skryptoria und Bazy wiedzy (`refIndex.ts`): Zitate, Werke,
  * Texte (mit dem Punkt des Plans), Wygłoszenia, Projekte, Einträge der Bazy
- * wiedzy, ihre Powtórki, Przebiegi, Widoki, Zbiory und Szablony — und auf
- * Wunsch die Seiten, die dieses Konto führt (`pageUses.ts`).
+ * wiedzy (auch Komentarze — seit 2026-10-23 eine eigene Art dort), ihre
+ * Powtórki, Przebiegi, Widoki, Zbiory und Szablony — und auf Wunsch die
+ * Seiten, die dieses Konto führt (`pageUses.ts`). Verweise laufen in eine
+ * Richtung (Skryptorium → Bibliothek und Nauka, Nauka → Bibliothek); hier
+ * sieht man sie alle, rückwärts.
  *
  * Ein Werk der Schrift bekommt dazu „Fragment Pisma": eine Stelle eintippen
  * („Dz 1:14", „Acts 1,14") und sehen, was auf sie zeigt — in jeder Ausgabe.
@@ -20,7 +23,6 @@ import { openedLibraryNames, type OpenLibrary } from './library';
 import { kindOf, markupsOf, refTarget, str } from './libraryKinds';
 import { citedKeys } from './libraryMarkup';
 import { loadedStores, type Entry, type LibraryStore } from './libraryStore';
-import { commentsOn } from './markupView';
 import { pagesUsing, type PageUse } from './pageUses';
 import { hitHref, hitTitle, isBooksStore, whereText } from './refLabels';
 import { passageHits, referenceIndex, type Hit } from './refIndex';
@@ -106,15 +108,12 @@ function UsedOnPages({ store, entry }: { store: LibraryStore; entry: Entry }) {
 
 /* -- Powiązania ------------------------------------------------------------------------------------ */
 
-const KIND_ORDER = ['quote', 'text', 'delivery', 'project', 'comment', 'work', 'topic', 'person'];
+const KIND_ORDER = ['quote', 'text', 'delivery', 'project', 'work', 'person'];
 
 export function Relations({ store, library, entry }: { store: LibraryStore; library: OpenLibrary; entry: Entry }) {
   const index = referenceIndex(loadedStores(), isBooks);
   const hits = index.to(entry.id).filter((h) => h.from.id !== entry.id);
-  /* Die Komentarze ÜBER ihn stehen oben; die, die ihn nur in einer Zelle nennen, bei den anderen Komentarzen. */
-  const about = commentsOn(entry.id, store) as Entry[];
-  const aboutIds = new Set(about.map((c) => c.id));
-  const fromBooks = hits.filter((h) => isBooks(h.store) && !aboutIds.has(h.from.id));
+  const fromBooks = hits.filter((h) => isBooks(h.store));
   const fromBases = hits.filter((h) => !isBooks(h.store));
   const quotes = fromBooks.filter((h) => h.from.kind === 'quote');
   const byKind = KIND_ORDER.map((kind) => ({ kind, rows: rowsOf(fromBooks.filter((h) => h.from.kind === kind)) }))
@@ -128,9 +127,6 @@ export function Relations({ store, library, entry }: { store: LibraryStore; libr
   return (
     <section className="lib-box">
       <h2 className="lib-box-h">Powiązania</h2>
-      <p className="lib-box-sub">Komentarze o tym wpisie: {about.length}</p>
-      {about.length > 0 && <RowList rows={about.map((c) => ({ entry: c, store, places: [] }))} />}
-      {library.writes && <a className="wk-link-btn" href={viewPath('library', library.libraryId, 'nowy', 'comment', `o=${entry.id}`)}>+ Komentarz</a>}
       {entry.kind === 'work' && (
         <>
           <p className="lib-box-sub">Cytaty z tego źródła: {new Set(quotes.map((q) => q.from.id)).size} <span className="lib-rel-where">— lista i dodawanie pod polami</span></p>
@@ -139,7 +135,7 @@ export function Relations({ store, library, entry }: { store: LibraryStore; libr
       )}
       {byKind.map((g) => (
         <div key={g.kind}>
-          <p className="lib-box-sub">{g.kind === 'comment' ? 'Wspominają go komentarze' : g.kind === 'text' ? 'Przywołują go teksty' : kindOf(g.kind)?.plural ?? g.kind}</p>
+          <p className="lib-box-sub">{g.kind === 'text' ? 'Przywołują go teksty' : kindOf(g.kind)?.plural ?? g.kind}</p>
           <RowList rows={g.rows} />
         </div>
       ))}

@@ -18,7 +18,7 @@
  *
  * 2026-10-22 (Schritt 10) — die TABELA ist ausgemustert: Tabelle und Macierz
  * gibt der Baustein „Widok" (mit dem Kazanie als innerer Ansicht). Wer sie
- * schon eingestellt hat, behält sie, bis Porządki ihn umstellt.
+ * schon eingestellt hat, behält sie.
  */
 
 import { definePart, text, type RawConfig } from '../part';

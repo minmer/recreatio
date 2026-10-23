@@ -22,7 +22,7 @@ import { storeOf, type Entry, type LibraryStore } from './libraryStore';
 /** Wer eine Bibliothek liest — in Worten. */
 export function audienceWords(library: Pick<OpenLibrary, 'areaPublic' | 'areaRuleAt'>): string {
   if (library.areaPublic !== true) return 'członkowie jej obszaru';
-  if (library.areaRuleAt == null) return 'członkowie obszaru — obszar jest publiczny, ale biblioteka czeka na przegląd (Ustawienia → Porządki)';
+  if (library.areaRuleAt == null) return 'członkowie obszaru — obszar jest publiczny, ale biblioteka czeka na potwierdzenie w Ustawieniach';
   return 'wszyscy — obszar jest publiczny';
 }
 

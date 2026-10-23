@@ -18,7 +18,7 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { bibliography, originOf } from './libraryCite';
-import { ids, isAspect, ownTitle, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
+import { ids, ownTitle, str, TEXT_TYPES, type LibEntry, type Lookup } from './libraryKinds';
 import { viewPath } from '../routes';
 import { parseMarkup } from './libraryMarkup';
 import { Blocks, CommentCard, CommentsOn, countNotes, MarkupLinks, NoteList, QuoteBody, Segs } from './markupView';
@@ -31,20 +31,6 @@ export function dateWords(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   if (m === null) return iso;
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
-/**
- * 2026-10-21 — DER ASPEKT EINES THEMAS, über die Sammlung nach oben gelesen
- * („Adwent" → „Okres liturgiczny"). Ein Thema, das selbst Aspekt ist, oder
- * eines ohne Aspekt darüber: leer.
- */
-function aspectName(topic: LibEntry, look: Lookup): string {
-  let at = look.get(ids(topic.data, 'parent')[0] ?? '');
-  for (let step = 0; step < 20 && at !== undefined && at.id !== topic.id; step += 1) {
-    if (isAspect(at.data)) return str(at.data, 'name');
-    at = look.get(ids(at.data, 'parent')[0] ?? '');
-  }
-  return '';
 }
 
 export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, compact = false, delivery = null, onDelivery }: {
@@ -98,7 +84,6 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
     if (link !== null) window.open(link, '_blank', 'noopener,noreferrer');
   };
 
-  const topics = ids(d, 'topics').map((id) => look.get(id)).filter((t): t is LibEntry => t !== undefined);
   const project = look.get(ids(d, 'project')[0] ?? '');
   const H = heading;
 
@@ -160,14 +145,6 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
         </section>
       )}
 
-      {!compact && topics.length > 0 && (
-        <p className="lib-topics">
-          {topics.map((t) => {
-            const aspect = aspectName(t, look);
-            return <span key={t.id} className="lib-chip">{aspect !== '' && <span className="lib-chip-aspect">{aspect}:</span>}{str(t.data, 'name')}</span>;
-          })}
-        </p>
-      )}
     </article>
     </MarkupLinks.Provider>
   );
@@ -225,14 +202,12 @@ function BaseEntry({ entry, look }: { entry: LibEntry; look: Lookup }) {
 /** Ein Zitat mit Herkunft und den Komentarzen über es — in der Sammlung, in der Bibliothek. */
 export function QuoteFigure({ entry, look, full = true }: { entry: LibEntry; look: Lookup; full?: boolean }) {
   const d = entry.data;
-  const topics = ids(d, 'topics').map((id) => look.get(id)).filter((t): t is LibEntry => t !== undefined);
   return (
     <figure className="lib-quote">
       <blockquote><QuoteBody text={str(d, 'text')} /></blockquote>
       {str(d, 'translation') !== '' && <p className="lib-embed-translation">{str(d, 'translation')}</p>}
       <figcaption>— {originOf(entry, look)}</figcaption>
       {full && <CommentsOn id={entry.id} look={look} prefix={`q${entry.id.slice(0, 8)}-`} folded />}
-      {full && topics.length > 0 && <p className="lib-topics">{topics.map((t) => <span key={t.id} className="lib-chip">{str(t.data, 'name')}</span>)}</p>}
     </figure>
   );
 }

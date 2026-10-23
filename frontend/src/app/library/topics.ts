@@ -12,7 +12,10 @@
  * öffentlichen Seite (Kurzfassungen der veröffentlichten Themen).
  */
 
-import { ids, isAspect, num, str, type LibEntry } from './libraryKinds';
+import { ids, num, str, type EntryData, type LibEntry } from './libraryKinds';
+
+/** Ist dieses Thema ein Aspekt? (bis P5 nur noch für alte Einträge und Cogita) */
+const isAspect = (data: EntryData): boolean => str(data, 'aspect') === 'yes';
 
 export interface TopicNode {
   readonly id: string;

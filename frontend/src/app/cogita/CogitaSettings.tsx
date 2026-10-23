@@ -72,8 +72,8 @@ export function CogitaSettings() {
       <section className="cg-card">
         <h3>Perspektywy</h3>
         {settings.tags.length > 0
-          ? <p className="cg-muted">Perspektywy tej bazy ({settings.tags.join(', ')}) staną się osią tematów „Perspektywy” w bibliotece obszaru: Biblioteka → Porządki → „Tematy i perspektywy → biblioteka”.</p>
-          : <p className="cg-muted">Perspektywy to oś tematów „Perspektywy” w bibliotece obszaru — wartości dodaje się tam jak każdy temat, a wpisy dostają je w polu „Tematy”.</p>}
+          ? <p className="cg-muted">Ta baza ma jeszcze stare perspektywy ({settings.tags.join(', ')}). Perspektyw i tematów już nie będzie — porządek dają własne rodzaje (np. „Tajemnica”, „Obszar”) połączone polami-odwołaniami.</p>
+          : <p className="cg-muted">Perspektyw i tematów już nie ma — porządek dają własne rodzaje (np. „Tajemnica”, „Obszar”) połączone polami-odwołaniami.</p>}
       </section>
 
       <section className="cg-card">
@@ -182,7 +182,7 @@ function Sources({ libraries, areas }: { libraries: readonly OpenLibrary[]; area
         <div className="cg-row">
           <select value={pick} aria-label="Dodaj źródło" onChange={(e) => setPick(e.target.value)}>
             <option value="">— dodaj bibliotekę albo bazę wiedzy —</option>
-            {choices.map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name} ({libraryKindOf(l) === 'knowledge' ? 'baza wiedzy' : 'biblioteka'}{areaName(l.areaId) === null ? '' : ` · ${areaName(l.areaId)}`})</option>)}
+            {choices.map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name} ({libraryKindOf(l) === 'knowledge' ? 'baza wiedzy' : libraryKindOf(l) === 'writing' ? 'skryptorium' : 'biblioteka'}{areaName(l.areaId) === null ? '' : ` · ${areaName(l.areaId)}`})</option>)}
           </select>
           <button type="button" className="wk-btn" disabled={busy || pick === ''} onClick={() => {
             const row = libraries.find((l) => l.libraryId === pick);

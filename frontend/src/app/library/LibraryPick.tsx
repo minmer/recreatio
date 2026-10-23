@@ -186,7 +186,7 @@ export function PickLibrary({ value, busy, onPick, kind = 'books' }: { value: st
 /** Wer liest, was dieser Baustein zeigt — kurz, hinter dem Namen in der Wahl. */
 function audienceTag(one: OpenLibrary, knowledge: boolean): string {
   if (one.areaPublic !== true) return ' — dla członków obszaru';
-  if (one.areaRuleAt == null) return knowledge ? ' — obszar publiczny, baza jeszcze nie otwarta' : ' — obszar publiczny, czeka na porządki';
+  if (one.areaRuleAt == null) return knowledge ? ' — obszar publiczny, baza jeszcze nie otwarta' : ' — obszar publiczny, czeka na potwierdzenie';
   return knowledge ? ' — publiczna w całości' : ' — publiczna';
 }
 

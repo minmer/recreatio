@@ -15,8 +15,14 @@
  *
  * <b>Wer einen Eintrag liest, entscheidet sein Bereich — und nur er</b>
  * (2026-10-22). Es gibt keine privaten Felder und kein einzelnes
- * Veröffentlichen mehr: was nur für einen selbst ist, steht als Komentarz
- * (`comment`) in einem privaten Bereich und zeigt auf das, worum es geht.
+ * Veröffentlichen.
+ *
+ * <b>2026-10-23 — DREI TEILE.</b> Die Bibliothek hält nur noch Quellen
+ * (`LIBRARY_KINDS`: Werke, Zitate, Personen) und zeigt nur auf Quellen. Das
+ * Schreiben (`WRITING_KINDS`: Texte, Wygłoszenia, Projekte) steht im
+ * Skryptorium; Komentarze und alles Geordnete sind eigene Arten in Cogita.
+ * Themen gibt es keine mehr. `kindOf` kennt beide Gruppen — gelesen und
+ * zitiert wird über die Teile hinweg.
  */
 
 import { locatorKey } from './bible';
@@ -245,8 +251,7 @@ const WORK: LibKind = {
     { key: 'doi', label: 'DOI', type: 'line', says: 'Identyfikator DOI publikacji' },
     { key: 'url', label: 'Adres', type: 'url', says: 'Adres w sieci' },
     { key: 'accessed', label: 'Dostęp', type: 'date', says: 'Kiedy strona była czytana (RRRR-MM-DD)', when: (d) => str(d, 'workType') === 'web' || str(d, 'url') !== '' },
-    { key: 'language', label: 'Język', type: 'line', says: 'Język (np. "pl", "la")' },
-    { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy — odwołania' }
+    { key: 'language', label: 'Język', type: 'line', says: 'Język (np. "pl", "la")' }
   ],
   title: (data) => workTitle(data),
   sort: (entry, look) => {
@@ -261,7 +266,7 @@ const WORK: LibKind = {
       workType: 'book', title: 'Jezus z Nazaretu', subtitle: 'Część 1: Od chrztu w Jordanie do Przemienienia',
       originalTitle: 'Jesus von Nazareth', authors: ['@ratzinger'], volume: '1', publisher: 'Wydawnictwo M', place: 'Kraków', year: '2007',
       series: 'Dzieła wybrane, t. 1', pageCount: 384, binding: 'hard', height: 24, width: 16.5, length: 3,
-      isbn: '978-83-7595-061-8', libraryNumber: 'B-0042', topics: ['@modlitwa']
+      isbn: '978-83-7595-061-8', libraryNumber: 'B-0042'
     }
   }
 };
@@ -279,8 +284,7 @@ const QUOTE: LibKind = {
     { key: 'work', label: 'Źródło', type: 'ref', to: ['work'], says: 'Z jakiego źródła — odwołanie' },
     { key: 'locator', label: 'Miejsce', type: 'line', says: 'Gdzie w źródle: "s. 23", "J 3,16", "nr 24"', hint: 's. 23 · J 3,16 · nr 24' },
     { key: 'language', label: 'Język', type: 'line', says: 'Język cytatu (np. "pl", "la")' },
-    { key: 'translation', label: 'Przekład', type: 'text', says: 'Przekład cytatu (gdy tekst jest w innym języku)' },
-    { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy — odwołania' }
+    { key: 'translation', label: 'Przekład', type: 'text', says: 'Przekład cytatu (gdy tekst jest w innym języku)' }
   ],
   title: (data) => clip(str(data, 'text').replace(/\s+/g, ' ').trim() || 'Cytat', 90),
   sort: (entry, look) => quoteOrder(entry, look).slice(0, 64),
@@ -288,7 +292,7 @@ const QUOTE: LibKind = {
     key: 'ratzinger2007-1',
     data: {
       text: 'Modlitwa jest rozmową z Bogiem, w której człowiek staje się sobą.',
-      work: '@ratzinger2007', locator: 's. 168', topics: ['@modlitwa']
+      work: '@ratzinger2007', locator: 's. 168'
     }
   }
 };
@@ -303,40 +307,6 @@ export function quoteOrder(entry: LibEntry, look: Lookup): string {
   const bible = work !== undefined && str(work.data, 'workType') === 'bible';
   return `${work === undefined ? '~' : WORK.sort(work, look).slice(0, 36)}|${locatorKey(str(entry.data, 'locator'), bible)}`;
 }
-
-/* -- Themen -------------------------------------------------------------------------------- */
-
-/*
- * 2026-10-21 — ASPEKTE: ein Thema kann eine ACHSE sein („Okres liturgiczny",
- * „Księga", „Okazja") — seine Unterthemen sind ihre Werte. Ein Text liegt so
- * zugleich in mehreren Ordnungen; die Seite macht daraus Spalten einer
- * Tabelle, Filter und Bäume, ohne dass ein Baustein etwas davon wissen muss.
- */
-export const ASPECT_YES = [{ value: 'yes', label: 'Tak — oś podziału' }] as const;
-
-/** Ist dieses Thema ein Aspekt? */
-export const isAspect = (data: EntryData): boolean => str(data, 'aspect') === 'yes';
-
-const TOPIC: LibKind = {
-  kind: 'topic',
-  label: 'Temat',
-  plural: 'Tematy',
-  says: 'Hasło, według którego porządkuje się cytaty, źródła i teksty; tematy mogą mieć nadrzędne. Temat-aspekt (np. „Okres liturgiczny”) jest osią podziału: jego podtematy to wartości.',
-  keyed: true,
-  fields: [
-    { key: 'name', label: 'Nazwa', type: 'line', says: 'Nazwa tematu' },
-    { key: 'description', label: 'Opis', type: 'text', says: 'Opis tematu' },
-    { key: 'parent', label: 'Temat nadrzędny', type: 'ref', to: ['topic'], says: 'Temat nadrzędny — odwołanie' },
-    {
-      key: 'aspect', label: 'Aspekt', type: 'select', options: ASPECT_YES,
-      says: '"yes" — ten temat jest aspektem, osią podziału (np. „Okres liturgiczny”, „Księga”, „Okazja”): jego podtematy to wartości; na stronie — kolumna tabeli, filtr i drzewo'
-    },
-    { key: 'order', label: 'Kolejność', type: 'number', says: 'Miejsce wśród tematów o tym samym nadrzędnym (np. okresy liturgiczne po kolei); puste — według nazwy', hint: 'np. 1' }
-  ],
-  title: (data) => str(data, 'name').trim() || 'Temat',
-  sort: (entry) => str(entry.data, 'name').toLowerCase(),
-  example: { key: 'modlitwa', data: { name: 'Modlitwa', description: 'Rozmowa z Bogiem.', order: 2 } }
-};
 
 /* -- Eigene Texte ------------------------------------------------------------------------- */
 
@@ -427,7 +397,6 @@ const TEXT: LibKind = {
     },
     { key: 'body', label: 'Treść', type: 'markup', says: 'Treść w prostym zapisie (niżej: "Zapis treści") — z odwołaniami [@klucz, s. 12]' },
     { key: 'further', label: 'Dalsze informacje', type: 'markup', says: 'Dalsze informacje pod tekstem — w tym samym zapisie' },
-    { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy — odwołania' },
     { key: 'audio', label: 'Nagranie (adres)', type: 'url', says: 'Adres nagrania audio' },
     { key: 'video', label: 'Wideo (adres)', type: 'url', says: 'Adres nagrania wideo' },
     { key: 'targetWords', label: 'Docelowa liczba słów', type: 'number', says: 'Ile słów ma mieć' }
@@ -448,7 +417,7 @@ const TEXT: LibKind = {
         { id: 'p5', text: 'Gdzie w tym tygodniu będę szukać chleba?', depth: 0, kind: 'question' }
       ],
       body: '## Głód\nJezus mówi, że jest chlebem życia — a prośba o chleb sięga dalej niż pokarm [@ratzinger2007, s. 183].\n\n![@ratzinger2007-1]\n\nModlitwa to nie technika^[Por. też Katechizm, nr 2559.].',
-      further: 'Do czytania: [@ratzinger2007].', topics: ['@modlitwa'], project: '@niedziele-2026'
+      further: 'Do czytania: [@ratzinger2007].', project: '@niedziele-2026'
     }
   }
 };
@@ -483,9 +452,7 @@ const DELIVERY: LibKind = {
       key: 'added', label: 'Co doszło', type: 'items', item: ADDED_ITEM,
       says: 'Co zostało powiedziane, a nie było w planie: { "text", "at", "after" }'
     },
-    { key: 'transcript', label: 'Zapis (transkrypcja)', type: 'markup', says: 'To, co zostało powiedziane, spisane słowo w słowo — w zapisie treści' },
-    { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy i aspekty tego wygłoszenia (np. okazja) — odwołania' }
-
+    { key: 'transcript', label: 'Zapis (transkrypcja)', type: 'markup', says: 'To, co zostało powiedziane, spisane słowo w słowo — w zapisie treści' }
   ],
   title: (data, look) => {
     const text = deliveredText(data, look);
@@ -550,59 +517,69 @@ const PROJECT: LibKind = {
   }
 };
 
-/* -- Komentarze: eigene Gedanken als eigener Eintrag (2026-10-22, `comment.ts`) ---------------- */
+/* -- ÜBERGANG (2026-10-23): Thema und Komentarz, nur noch für Cogita ------------------------
+ * Die Bibliothek bietet beide nicht mehr an (weder Reiter noch Format); ihre
+ * alten Einträge stehen unter „Stare wpisy". Cogita baut aus ihnen noch zwei
+ * eingebaute Arten — der Komentarz wird dort in Schritt 4 eine eigene Art mit
+ * einem Feld `blocks`, das Thema fällt in Schritt 5 ganz weg. Dann gehen sie
+ * auch hier. */
 
-const ALL_KINDS = ['work', 'quote', 'person', 'topic', 'text', 'delivery', 'project', 'comment'];
+const TOPIC: LibKind = {
+  kind: 'topic',
+  label: 'Temat',
+  plural: 'Tematy',
+  says: 'Hasło, według którego porządkuje się wpisy; tematy mogą mieć nadrzędne.',
+  keyed: true,
+  fields: [
+    { key: 'name', label: 'Nazwa', type: 'line', says: 'Nazwa tematu' },
+    { key: 'description', label: 'Opis', type: 'text', says: 'Opis tematu' },
+    { key: 'parent', label: 'Temat nadrzędny', type: 'ref', to: ['topic'], says: 'Temat nadrzędny — odwołanie' },
+    { key: 'aspect', label: 'Aspekt', type: 'select', options: [{ value: 'yes', label: 'Tak — oś podziału' }], says: '"yes" — ten temat jest osią podziału: jego podtematy to wartości' },
+    { key: 'order', label: 'Kolejność', type: 'number', says: 'Miejsce wśród tematów o tym samym nadrzędnym', hint: 'np. 1' }
+  ],
+  title: (data) => str(data, 'name').trim() || 'Temat',
+  sort: (entry) => str(entry.data, 'name').toLowerCase(),
+  example: { key: 'modlitwa', data: { name: 'Modlitwa', description: 'Rozmowa z Bogiem.' } }
+};
 
 const SUBJECT_ITEM: readonly LibField[] = [
-  { key: 'ref', label: 'O czym', type: 'ref', to: ALL_KINDS, says: 'Wpis, którego dotyczy: źródło, cytat, osoba, temat, tekst, wygłoszenie, projekt albo inny komentarz — kennung albo "@klucz"' },
-  { key: 'locator', label: 'Miejsce', type: 'line', says: 'Gdzie w nim: "s. 23", "J 3,16", "nr 24" — fragment Pisma to Pismo Święte jako źródło plus miejsce', hint: 'J 3,16 · s. 23' },
-  { key: 'point', label: 'Punkt planu', type: 'line', says: 'Przy tekście: "id" punktu jego planu, którego dotyczy komentarz' }
+  { key: 'ref', label: 'O czym', type: 'ref', to: ['work', 'quote', 'person', 'text', 'delivery', 'project', 'comment'], says: 'Wpis, którego dotyczy — kennung albo "@klucz"' },
+  { key: 'locator', label: 'Miejsce', type: 'line', says: 'Gdzie w nim: "s. 23", "J 3,16"', hint: 'J 3,16 · s. 23' },
+  { key: 'point', label: 'Punkt planu', type: 'line', says: 'Przy tekście: "id" punktu jego planu' }
 ];
 
 const COMMENT: LibKind = {
   kind: 'comment',
   label: 'Komentarz',
   plural: 'Komentarze',
-  says: 'Własne przemyślenia o źródłach, cytatach, fragmentach Pisma i innych komentarzach — osobny wpis, który można osadzić w wielu tekstach. Synteza to komentarz o komentarzach.',
+  says: 'Własne przemyślenia o źródłach i innych wpisach (stary rodzaj — teraz własny rodzaj w Nauce).',
   keyed: true,
   fields: [
-    {
-      key: 'subjects', label: 'O czym', type: 'items', item: SUBJECT_ITEM,
-      says: 'O czym jest komentarz: lista { "ref", "locator", "point" } — jeden albo więcej wpisów, każdy z miejscem'
-    },
-    {
-      key: 'blocks', label: 'Treść', type: 'blocks',
-      says: 'Treść jako bloki, których forma coś znaczy: {"type":"paragraph","text"} — proza; {"type":"ordered","items"} — kolejność ma znaczenie (tok myśli); {"type":"unordered","items"} — równorzędne punkty; {"type":"table","columns","rows"} — porównanie: nazwane kolumny, każdy wiersz porównuje to samo. Punkt listy i komórka tabeli to lista kawałków: {"text": "zapis treści"} albo {"ref": "@klucz", "locator": "Dz 1,8"} — prawdziwe odwołanie; sam napis "…" znaczy {"text": "…"}'
-    },
-    { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy — odwołania' }
+    { key: 'subjects', label: 'O czym', type: 'items', item: SUBJECT_ITEM, says: 'O czym jest komentarz: lista { "ref", "locator", "point" }' },
+    { key: 'blocks', label: 'Treść', type: 'blocks', says: 'Treść jako bloki: paragraph, ordered, unordered, table' }
   ],
   title: (data, look) => commentTitle(data, (id) => {
     const target = look.get(id);
     return target === undefined ? undefined : kindOf(target.kind)?.title(target.data, look);
   }),
   sort: (entry, look) => (COMMENT.title(entry.data, look)).toLowerCase().slice(0, 64),
-  example: {
-    key: 'chleb-dwie-prosby',
-    data: {
-      subjects: [{ ref: '@ratzinger2007-1' }],
-      blocks: [
-        { type: 'paragraph', text: 'Ratzinger czyta prośbę o chleb razem z mową eucharystyczną [@ratzinger2007, s. 183].' },
-        {
-          type: 'table', columns: ['Prośba', 'Odpowiedź'],
-          rows: [
-            [[{ ref: '@ratzinger2007-1' }], [{ text: 'chleb powszedni' }]],
-            [[{ ref: '@ratzinger2007', locator: 's. 185' }], [{ text: 'chleb z nieba' }]]
-          ]
-        },
-        { type: 'ordered', items: [[{ text: 'Najpierw prośba' }], [{ text: 'potem dar — ' }, { ref: '@kazanie-chleb' }]] }
-      ],
-      topics: ['@modlitwa']
-    }
-  }
+  example: { key: 'komentarz', data: { subjects: [], blocks: [{ type: 'paragraph', text: 'Teza.' }] } }
 };
 
-export const KINDS: readonly LibKind[] = [TEXT, DELIVERY, COMMENT, PROJECT, QUOTE, WORK, PERSON, TOPIC];
+/** Die Bibliothek (2026-10-23): nur Quellen — in dieser Reihenfolge stehen ihre Reiter. */
+export const LIBRARY_KINDS: readonly LibKind[] = [WORK, QUOTE, PERSON];
+
+/** Das Skryptorium (2026-10-23): das Schreiben. */
+export const WRITING_KINDS: readonly LibKind[] = [TEXT, DELIVERY, PROJECT];
+
+/** Nur für Cogita, bis Schritt 4/5 (oben). */
+export const COGITA_LEGACY_KINDS: readonly LibKind[] = [TOPIC, COMMENT];
+
+/** Alle Arten, die diese Fassung kennt — gelesen, zitiert und gezeigt wird über die Teile hinweg. */
+export const KINDS: readonly LibKind[] = [...WRITING_KINDS, ...LIBRARY_KINDS, ...COGITA_LEGACY_KINDS];
+
+export const isLibraryKind = (kind: string): boolean => LIBRARY_KINDS.some((k) => k.kind === kind);
+export const isWritingKind = (kind: string): boolean => WRITING_KINDS.some((k) => k.kind === kind);
 
 const BY_KIND = new Map(KINDS.map((one) => [one.kind, one]));
 
@@ -826,10 +803,6 @@ export function suggestKey(entry: LibEntry, look: Lookup): string {
       return slug(str(data, 'title')).slice(0, 40) || 'tekst';
     case 'project':
       return slug(str(data, 'title')).slice(0, 40) || 'projekt';
-    case 'topic':
-      return slug(str(data, 'name')).slice(0, 40) || 'temat';
-    case 'comment':
-      return `komentarz-${slug(entryTitle(entry, look)).split('-').slice(0, 4).join('-')}`.slice(0, 40).replace(/-+$/, '') || 'komentarz';
     default:
       return entry.kind;
   }

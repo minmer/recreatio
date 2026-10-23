@@ -25,10 +25,10 @@ import { useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
 import { libraryKindOf, settleLibrary, type OpenLibrary } from '../library/library';
-import { hasOldCopies } from '../library/rebuild/baseVisibility';
 import { useLibraries } from '../library/LibraryPick';
 import { storeOf } from '../library/libraryStore';
 import { viewPath } from '../routes';
+import { hasOldCopies, hasOldPublications, oldCopiesLine, withdrawOldCopies } from './oldCopies';
 import { BASES_CHANGED, MAX_SOURCES } from './sources';
 import { useBusy, useCtx } from './ui';
 import { audience, isPublicBase, nameIn, needsOf, WHOLE_BASE } from './visibility';
@@ -137,6 +137,7 @@ export function WhoSees({ id, title = 'Kto widzi' }: { id: string; title?: strin
 export function BaseVisibility({ libraries, areas, onChanged }: { libraries: readonly OpenLibrary[]; areas: readonly AreaRow[]; onChanged: () => void }) {
   const { lib, writes } = useCtx();
   const [understood, setUnderstood] = useState(false);
+  const [report, setReport] = useState<string | null>(null);
   const { busy, failed, run } = useBusy();
   const row = libraries.find((l) => l.libraryId === lib.libraryId);
   const area = areas.find((a) => a.areaId === lib.areaId);
@@ -149,8 +150,10 @@ export function BaseVisibility({ libraries, areas, onChanged }: { libraries: rea
   };
   const inside = `${counts.entries} wpisów (w tym ${counts.questions} pytań z odpowiedziami), ${counts.revisions} powtórek, ${counts.flows} przebiegów`;
   const areaName = area?.personal === true ? 'tylko Ty' : area?.name ?? 'obszar tej bazy';
-  /* Eine alte Abschrift kann Inhalt aus einer Quelle tragen, die nicht öffentlich ist — erst Porządki. */
+  /* Eine alte Abschrift kann Inhalt aus einer Quelle tragen, die nicht öffentlich ist — erst zurücknehmen (unten). */
   const copies = hasOldCopies(lib.store);
+  const old = hasOldPublications(lib.store);
+  const known = (id: string) => lib.store.get(id) !== undefined || lib.sourceList().some((s) => s.store.get(id) !== undefined);
 
   return (
     <section className="cg-card">
@@ -174,7 +177,7 @@ export function BaseVisibility({ libraries, areas, onChanged }: { libraries: rea
                 <h4>Co się zmieni</h4>
                 <p className="wk-warn">Po otwarciu każdy — bez konta — przeczyta {WHOLE_BASE}: teraz {inside}. Moduły na stronach pokażą ją wszystkim.</p>
                 <p className="cg-muted">Jeśli publiczna ma być tylko część, nie otwieraj tej bazy: załóż osobną w tym obszarze i przenieś do niej wybrane wpisy.</p>
-                {copies && <p className="wk-warn">Najpierw Porządki: ta baza ma jeszcze stare kopie publikacji we wpisach (<a href={viewPath('library', 'porzadki')}>Biblioteka → Porządki → „Bazy wiedzy: stare publikacje”</a>).</p>}
+                {copies && <p className="wk-warn">Najpierw wycofaj stare kopie publikacji (niżej): ta baza ma jeszcze kopie zapisane we wpisach.</p>}
                 <label className="wk-check">
                   <input type="checkbox" checked={understood} disabled={busy || copies} onChange={(e) => setUnderstood(e.target.checked)} />
                   <span>Rozumiem: cała baza będzie publiczna.</span>
@@ -188,6 +191,18 @@ export function BaseVisibility({ libraries, areas, onChanged }: { libraries: rea
             )}
           </>
         )}
+      {writes && old && (
+        <>
+          <h4>Stare kopie publikacji</h4>
+          <p className="cg-muted">Z czasów, gdy baza publikowała pojedyncze wpisy, zostały kopie — u serwera i zapisane we wpisach. Nic z nich już nie korzysta. Wycofanie zostawia same wpisy; kopia, która pokazuje wpis, którego już nie ma, zostaje.</p>
+          <div className="wk-actions">
+            <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => { setReport(oldCopiesLine(await withdrawOldCopies(lib.store, known, { libraryId: lib.libraryId }))); onChanged(); })}>
+              Wycofaj stare kopie
+            </button>
+          </div>
+        </>
+      )}
+      {report !== null && <p className="wk-note">{report}</p>}
       {failed !== null && <p className="wk-error">{failed}</p>}
     </section>
   );

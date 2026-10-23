@@ -19,7 +19,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { ids, str, type LibEntry, type Lookup } from './libraryKinds';
+import { entryTitle, ids, str, type LibEntry, type Lookup } from './libraryKinds';
 import { excerpt } from './libraryMarkup';
 import { dateWords, OpenedEntry, QuoteFigure, TextArticle } from './LibraryText';
 import { latexFileName, planToLatex, textToLatex } from './libraryLatex';
@@ -126,10 +126,11 @@ export function WritingCard({ library, entryId, size, whole = false, prefix, del
 
 const dayNumber = (): number => Math.floor((Date.now() - new Date().getTimezoneOffset() * 60_000) / 86_400_000);
 
-export function QuotesCard({ library, title, topic, size, whole = false }: {
+export function QuotesCard({ library, title, work, size, whole = false }: {
   library: string;
   title: string;
-  topic: string;
+  /** 2026-10-23 — nur Zitate dieses Werks (statt eines Themas). */
+  work: string;
   size: PartSize;
   whole?: boolean;
 }) {
@@ -138,27 +139,28 @@ export function QuotesCard({ library, title, topic, size, whole = false }: {
   const take = size.height === 'strip' ? 1 : daily ? (size.width === 'narrow' || size.width === 'medium' ? 1 : 2) : 20;
   const { store, revision, state } = usePageLibrary(library === '' ? null : library);
   const [query, setQuery] = useState('');
-  const [chosenTopic, setChosenTopic] = useState(topic);
+  const [chosenWork, setChosenWork] = useState(work);
   const [shown, setShown] = useState(take);
 
-  useEffect(() => { setChosenTopic(topic); }, [topic]);
-  useEffect(() => { setShown(take); }, [take, chosenTopic, query]);
+  useEffect(() => { setChosenWork(work); }, [work]);
+  useEffect(() => { setShown(take); }, [take, chosenWork, query]);
 
   /* Die Zitate dieser Bibliothek, in fester Ordnung — „Myśl dnia" ist so für alle dieselbe. */
   const all = useMemo(() => (store === null ? [] : [...store.ofKind('quote')].sort((a, b) => a.id.localeCompare(b.id))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [store, revision]);
-  const topics = useMemo(() => {
+  /* Die Werke, aus denen Zitate stammen — zum Wählen in der grossen Ansicht. */
+  const works = useMemo(() => {
     if (store === null) return [];
     const found = new Map<string, string>();
-    for (const q of all) for (const id of ids(q.data, 'topics')) { const t = store.get(id); if (t !== undefined) found.set(id, str(t.data, 'name')); }
+    for (const q of all) for (const id of ids(q.data, 'work')) { const w = store.get(id); if (w !== undefined) found.set(id, entryTitle(w, store)); }
     return [...found].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   }, [store, all]);
   const matching = useMemo(() => {
-    let list = chosenTopic === '' ? all : all.filter((q) => ids(q.data, 'topics').includes(chosenTopic));
+    let list = chosenWork === '' ? all : all.filter((q) => ids(q.data, 'work').includes(chosenWork));
     if (query.trim() !== '' && store !== null) { const hit = new Set(store.ownSearch(query, ['quote']).map((e) => e.id)); list = list.filter((q) => hit.has(q.id)); }
     return list;
-  }, [all, chosenTopic, query, store]);
+  }, [all, chosenWork, query, store]);
 
   if (state === 'loading') return <Loading label="Wczytywanie…" />;
   if (store === null) return <p className="wk-card-text">Tej biblioteki nie widzisz — jej obszar nie jest publiczny.</p>;
@@ -173,10 +175,10 @@ export function QuotesCard({ library, title, topic, size, whole = false }: {
       {big && (
         <div className="lib-quotes-tools">
           <input type="search" value={query} placeholder="Szukaj w cytatach…" aria-label="Szukaj w cytatach" onChange={(e) => setQuery(e.target.value)} />
-          {topics.length > 0 && topic === '' && (
-            <div className="lib-topics" role="group" aria-label="Tematy">
-              <button type="button" className={chosenTopic === '' ? 'lib-chip is-on' : 'lib-chip'} onClick={() => setChosenTopic('')}>wszystkie</button>
-              {topics.map((t) => <button key={t.id} type="button" className={chosenTopic === t.id ? 'lib-chip is-on' : 'lib-chip'} onClick={() => setChosenTopic(t.id)}>{t.name}</button>)}
+          {works.length > 1 && work === '' && (
+            <div className="lib-topics" role="group" aria-label="Źródła">
+              <button type="button" className={chosenWork === '' ? 'lib-chip is-on' : 'lib-chip'} onClick={() => setChosenWork('')}>wszystkie</button>
+              {works.map((w) => <button key={w.id} type="button" className={chosenWork === w.id ? 'lib-chip is-on' : 'lib-chip'} onClick={() => setChosenWork(w.id)}>{w.name}</button>)}
             </div>
           )}
         </div>

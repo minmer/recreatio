@@ -12,15 +12,14 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { IsbnTools, NumberTools, savePersons } from './BookLookup';
-import type { OpenLibrary } from './library';
-import { kindOf, outline, str, type EntryData, type LibEntry, shownMarkup } from './libraryKinds';
+import { libraryKindOf, type OpenLibrary } from './library';
+import { isLibraryKind, isWritingKind, kindOf, outline, str, type EntryData, type LibEntry, shownMarkup } from './libraryKinds';
 import type { Entry, LibraryStore } from './libraryStore';
 import { QuoteFigure } from './LibraryText';
 import { newId } from '../core/ids';
 import { viewPath } from '../routes';
 import { WorkspaceError } from '../core/session';
 import { QuoteIntake } from './QuoteIntake';
-import { CommentForm } from './CommentForm';
 import { AreaBox } from './LibraryAreaBox';
 import { DeleteBox, EntryJson, KeyBox, LatexBox, LearnBox, TAB_OF } from './LibraryEntryBoxes';
 import { PassageBox, Relations } from './LibraryRelations';
@@ -45,14 +44,6 @@ function defaults(kind: string, preset: Record<string, unknown>): EntryData {
     : {};
   const out: EntryData = { ...base, ...preset };
   if (kind === 'delivery' && typeof out.texts === 'string') out.texts = out.texts.split(',').filter(Boolean);
-  /* 2026-10-22 — ein Komentarz über das, von dem man kommt (`nowy/comment/o=<id>&p=<punkt>`). */
-  if (kind === 'comment') {
-    const about = typeof preset.o === 'string' ? preset.o : '';
-    const point = typeof preset.p === 'string' ? preset.p : '';
-    delete out.o;
-    delete out.p;
-    if (about !== '') out.subjects = [{ ref: about, ...(point === '' ? {} : { point }) }];
-  }
   return out;
 }
 
@@ -71,6 +62,12 @@ export function LibraryEditor({ store, library, entryId, kind, preset = {} }: {
   }
   if (entryId !== null && existing === undefined) {
     return <p className="wk-empty">Tego wpisu nie ma (albo został usunięty). <a href={viewPath('library', library.libraryId)}>Wróć do biblioteki</a></p>;
+  }
+  /* 2026-10-23 — jeder Teil hält seine Arten: die Bibliothek Quellen, das Skryptorium das Schreiben; was sonst noch liegt, steht unter „Stare wpisy". */
+  const shownKind = existing?.kind ?? kind ?? '';
+  const fits = libraryKindOf(library) === 'writing' ? isWritingKind(shownKind) : isLibraryKind(shownKind);
+  if (!fits) {
+    return <p className="wk-note">Ten wpis jest rodzaju, którego {libraryKindOf(library) === 'writing' ? 'skryptorium' : 'biblioteka'} już nie prowadzi. Można go przejrzeć i usunąć w zakładce „Stare wpisy”. <a href={viewPath('library', library.libraryId, 'stare')}>Stare wpisy</a></p>;
   }
   return <Editor key={entryId ?? `new-${kind}`} store={store} library={library} existing={existing} kind={existing?.kind ?? kind!} preset={preset} />;
 }
@@ -190,8 +187,6 @@ function Editor({ store, library, existing, kind, preset }: {
             <TextForm store={store} entry={live} data={data} set={set} readOnly={readOnly} />
           ) : kind === 'delivery' ? (
             <DeliveryForm store={store} library={library} entry={live} data={data} set={set} readOnly={readOnly} />
-          ) : kind === 'comment' ? (
-            <CommentForm store={store} entry={live} data={data} set={set} readOnly={readOnly} />
           ) : (
             <FieldList store={store} kind={kind} data={data} set={set} readOnly={readOnly} extras={extras} />
           )}

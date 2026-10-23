@@ -10,16 +10,18 @@
  * oder abwählen.
  *
  * <code>
- *   { "format": "recreatio/quotes", "version": 2,
+ *   { "format": "recreatio/quotes", "version": 3,
  *     "work": { "key", "title", "isbn" },
- *     "quotes": [ { "text", "page", "topics", "comment", "check", "uncertain" } ] }
+ *     "quotes": [ { "text", "page", "language", "translation", "check", "uncertain" } ] }
  * </code>
  *
- * 2026-10-22 (Fassung 2) — ein Zitat hat keine `description` und keine
- * `notes` mehr: was man über es denkt (und ein Bleistift-Dopisek), wird ein
- * Komentarz über das Zitat (`comment`); was die KI nicht sicher lesen konnte,
- * steht in `check` — nur zum Nachsehen vor dem Speichern, nie gespeichert.
- * Fassung 1 wird so gelesen: `description` und `notes` → `comment`.
+ * 2026-10-23 (Fassung 3, drei Teile) — die Bibliothek hält nur Quellen: ein
+ * Zitat hat keine Themen und bringt keinen Komentarz mehr mit. Was die KI
+ * nicht sicher lesen konnte (und ein Bleistift-Dopisek), steht in `check` —
+ * nur zum Nachsehen vor dem Speichern, nie gespeichert. Ältere Dateien mit
+ * `topics`, `comment`, `description` oder `notes` werden gelesen; diese
+ * Felder werden genannt und nicht gespeichert (der Text des Komentarza
+ * erscheint als „Do sprawdzenia", damit man ihn sieht, bevor er wegfällt).
  *
  * Alle Zitate gehören dem Buch, auf dessen Seite importiert wird — das
  * „work" im Dokument sagt nur, wofür es geschrieben wurde. Die Felder sind
@@ -28,24 +30,16 @@
  */
 
 import { locatorKey } from './bible';
-import { blockData, blocksOf, commentsAbout, legacyBlocks } from './comment';
 import { isUuid } from './library';
 import { citeSegs, newCiteState, segText } from './libraryCite';
 import { ids, kindOf, slug, str, type EntryData, type LibEntry, type Lookup } from './libraryKinds';
 
 export const QUOTES_FORMAT = 'recreatio/quotes';
-export const QUOTES_VERSION = 2;
+export const QUOTES_VERSION = 3;
 
 /** Was ein Plan vom Bestand wissen muss. */
 export interface QuoteBase extends Lookup {
   all(): readonly LibEntry[];
-}
-
-export interface TopicRef {
-  /** Ein Thema, das es schon gibt … */
-  readonly id?: string;
-  /** … oder der Name eines neuen. */
-  readonly name: string;
 }
 
 export interface QuoteItem {
@@ -54,11 +48,8 @@ export interface QuoteItem {
   readonly id?: string;
   readonly text: string;
   readonly locator: string;
-  readonly topics: readonly TopicRef[];
   readonly language: string;
   readonly translation: string;
-  /** Was man über den Fragment denkt — wird ein Komentarz über das Zitat (in derselben Bibliothek). */
-  readonly comment: string;
   /** Was vor dem Speichern nachzusehen ist — nur hier, nie gespeichert. */
   readonly check: string;
   /** Die KI war sich nicht sicher — Wort, Seite oder Grenze des Anstrichs. */
@@ -107,23 +98,13 @@ const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const line = (value: unknown): string => (typeof value === 'string' ? value.trim() : typeof value === 'number' ? String(value) : '');
 
-/** Themen: Namen („Modlitwa"), Schlüssel („@modlitwa") oder Kennungen — bekannte werden gefunden, die anderen neu. */
-export function topicsOf(value: unknown, base: QuoteBase): TopicRef[] {
-  const list = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[,;]/) : [];
-  const topics = base.all().filter((e) => e.kind === 'topic');
-  const out: TopicRef[] = [];
-  for (const raw of list) {
-    const t = line(raw);
-    if (t === '') continue;
-    const byId = isUuid(t) ? base.get(t) : undefined;
-    const byKey = t.startsWith('@') ? base.byKey(t.slice(1)) : base.byKey(t);
-    const byName = topics.find((e) => fold(str(e.data, 'name')) === fold(t.replace(/^@/, '')));
-    const found = [byId, byKey, byName].find((e) => e?.kind === 'topic');
-    const ref: TopicRef = found !== undefined ? { id: found.id, name: str(found.data, 'name') } : { name: t.replace(/^@/, '').trim() };
-    if (!out.some((o) => (o.id !== undefined && o.id === ref.id) || fold(o.name) === fold(ref.name))) out.push(ref);
-  }
-  return out;
-}
+/** Felder älterer Fassungen, die nicht mehr gespeichert werden — mit dem Grund. */
+const DROPPED: Readonly<Record<string, string>> = {
+  topics: 'tematów już nie ma',
+  comment: 'komentarze są teraz własnym rodzajem w Nauce',
+  description: 'komentarze są teraz własnym rodzajem w Nauce',
+  notes: 'komentarze są teraz własnym rodzajem w Nauce'
+};
 
 /**
  * Was ein Dokument für dieses Buch bedeuten würde. Nimmt das eigene Format,
@@ -152,6 +133,7 @@ export function planQuotes(doc: unknown, work: LibEntry, base: QuoteBase): Quote
   const mine = base.all().filter((e) => e.kind === 'quote' && ids(e.data, 'work').includes(work.id));
   const seen = new Map(mine.map((q) => [quoteKey(str(q.data, 'text')), q.id]));
   const items: QuoteItem[] = [];
+  const dropped = new Map<string, number>();
 
   list.forEach((one, index) => {
     const raw = asRecord(one);
@@ -164,72 +146,51 @@ export function planQuotes(doc: unknown, work: LibEntry, base: QuoteBase): Quote
     const key = quoteKey(text);
     const duplicateOf = update === undefined ? seen.get(key) : undefined;
     if (update === undefined && duplicateOf === undefined) seen.set(key, `doc:${index}`);
+    for (const old of Object.keys(DROPPED)) {
+      const value = raw[old];
+      if (value !== undefined && value !== null && value !== '' && !(Array.isArray(value) && value.length === 0)) dropped.set(old, (dropped.get(old) ?? 0) + 1);
+    }
+    /* Ein alter Komentarz (Fassung 1/2) wird nicht gespeichert — aber vor dem Speichern gezeigt. */
+    const oldThoughts = [line(raw.comment), line(raw.description), line(raw.notes)].filter(Boolean).join(' · ');
+    const check = [line(raw.check), oldThoughts === '' ? '' : `(nie zostanie zapisane) ${oldThoughts}`].filter(Boolean).join(' — ');
     items.push({
       n: index,
       ...(update === undefined ? {} : { id: update.id }),
       text,
       locator: locatorOf(raw.page, raw.locator),
-      topics: topicsOf(raw.topics, base),
       language: line(raw.language),
       translation: line(raw.translation),
-      /* Fassung 1: description und notes werden der Komentarz — nichts geht verloren. */
-      comment: [line(raw.comment), line(raw.description), line(raw.notes)].filter(Boolean).join('\n\n'),
-      check: line(raw.check),
+      check,
       uncertain: raw.uncertain === true,
       keep: duplicateOf === undefined,
       ...(duplicateOf === undefined ? {} : { duplicateOf })
     });
   });
 
+  for (const [old, count] of dropped) warnings.push(`„${old}” (${count}×) nie jest już zapisywane — ${DROPPED[old]}.`);
   const doubled = items.filter((i) => i.duplicateOf !== undefined).length;
   if (doubled > 0) warnings.push(`${doubled} z nich już jest w tej książce — odznaczone (można zaznaczyć mimo to).`);
   return { items, warnings };
 }
 
-/** Neue Themen, die die gewählten Zitate brauchen. */
-export const newTopics = (items: readonly QuoteItem[]): string[] => {
-  const out: string[] = [];
-  for (const item of items) {
-    if (!item.keep) continue;
-    for (const t of item.topics) if (t.id === undefined && !out.some((o) => fold(o) === fold(t.name))) out.push(t.name);
-  }
-  return out;
-};
-
 /**
- * Speichern: erst die neuen Themen (wenn gewollt), dann die Zitate — neue mit
- * dem Buch als Quelle, geänderte an Ort und Stelle (nur die Felder, die
- * etwas sagen) —, dann je `comment` ein Komentarz über das Zitat (nicht,
- * wenn es genau diesen schon gibt). `save` ist der Speicher der Bibliothek;
- * der Schlüssel (`ricci2016-3`) entsteht dort.
+ * Speichern: die Zitate — neue mit dem Buch als Quelle, geänderte an Ort und
+ * Stelle (nur die Felder, die etwas sagen). `save` ist der Speicher der
+ * Bibliothek; der Schlüssel (`ricci2016-3`) entsteht dort.
  */
 export async function importQuotes(
   items: readonly QuoteItem[],
   work: LibEntry,
   base: QuoteBase,
   save: (input: { id?: string; kind: string; data: EntryData }) => Promise<{ id: string }>,
-  options: { createTopics: boolean; stage?: (what: string) => void }
-): Promise<{ saved: number; topics: number; failed: string[] }> {
+  options: { stage?: (what: string) => void } = {}
+): Promise<{ saved: number; failed: string[] }> {
   const chosen = items.filter((i) => i.keep);
-  const topicIds = new Map<string, string>();
-  let topics = 0;
   const failed: string[] = [];
-  if (options.createTopics) {
-    for (const name of newTopics(chosen)) {
-      try {
-        const done = await save({ kind: 'topic', data: { name } });
-        topicIds.set(fold(name), done.id);
-        topics += 1;
-      } catch {
-        failed.push(`Temat „${name}”`);
-      }
-    }
-  }
 
   let saved = 0;
   for (const [index, item] of chosen.entries()) {
     options.stage?.(`Zapisywanie ${index + 1} z ${chosen.length}…`);
-    const topicList = item.topics.map((t) => t.id ?? topicIds.get(fold(t.name))).filter((id): id is string => id !== undefined);
     const fields: EntryData = {
       text: item.text,
       locator: item.locator,
@@ -242,18 +203,14 @@ export async function importQuotes(
       if (typeof v === 'string' && v !== '') data[k] = v;
       else if (before === undefined) delete data[k];
     }
-    if (topicList.length > 0) data.topics = topicList;
     try {
-      const done = await save({ ...(item.id === undefined ? {} : { id: item.id }), kind: 'quote', data });
+      await save({ ...(item.id === undefined ? {} : { id: item.id }), kind: 'quote', data });
       saved += 1;
-      const blocks = legacyBlocks(item.comment).map(blockData);
-      const had = commentsAbout(done.id, base.all()).some((c) => JSON.stringify(blocksOf(c.data).map(blockData)) === JSON.stringify(blocks));
-      if (blocks.length > 0 && !had) await save({ kind: 'comment', data: { subjects: [{ ref: done.id }], blocks } });
     } catch {
       failed.push(`„${item.text.slice(0, 40)}…”`);
     }
   }
-  return { saved, topics, failed };
+  return { saved, failed };
 }
 
 /* -- Hinaus ------------------------------------------------------------------------------- */
@@ -263,12 +220,6 @@ export function exportQuotes(work: LibEntry, base: QuoteBase): Record<string, un
   const bible = str(work.data, 'workType') === 'bible';
   const quotes = base.all().filter((e) => e.kind === 'quote' && ids(e.data, 'work').includes(work.id))
     .sort((a, b) => locatorKey(str(a.data, 'locator'), bible).localeCompare(locatorKey(str(b.data, 'locator'), bible)));
-  const topicName = (id: string) => { const t = base.get(id); return t === undefined ? null : str(t.data, 'name'); };
-  /* Ein Komentarz aus Absätzen über genau dieses Zitat reist als `comment` mit; reichere (Listen, Tabellen) bleiben in der Bibliothek. */
-  const commentOf = (id: string): string => commentsAbout(id, base.all())
-    .map((c) => blocksOf(c.data))
-    .filter((blocks) => blocks.length > 0 && blocks.every((b) => b.type === 'paragraph'))
-    .map((blocks) => blocks.map((b) => (b.type === 'paragraph' ? b.text : '')).join('\n\n'))[0] ?? '';
   return {
     format: QUOTES_FORMAT,
     version: QUOTES_VERSION,
@@ -276,10 +227,6 @@ export function exportQuotes(work: LibEntry, base: QuoteBase): Record<string, un
     quotes: quotes.map((q) => {
       const out: Record<string, unknown> = { id: q.id };
       for (const k of ['text', 'locator', 'language', 'translation']) if (str(q.data, k) !== '') out[k] = str(q.data, k);
-      const topics = ids(q.data, 'topics').map(topicName).filter((n): n is string => n !== null);
-      if (topics.length > 0) out.topics = topics;
-      const comment = commentOf(q.id);
-      if (comment !== '') out.comment = comment;
       return out;
     })
   };
@@ -295,8 +242,7 @@ const workSummary = (work: LibEntry): Record<string, string> => {
 /* -- Die Beschreibung und das Polecenie ------------------------------------------------------- */
 
 const EXTRA_SAYS: readonly [string, string][] = [
-  ['comment', 'Komentarz: krótko, o czym jest fragment, i odręczny dopisek czytelnika — staje się osobnym wpisem „Komentarz” o tym cytacie'],
-  ['check', 'Co sprawdzić przed zapisem (niepewne słowo, strona, granica zaznaczenia) — widać to tylko przy przeglądaniu, nie jest zapisywane'],
+  ['check', 'Co sprawdzić przed zapisem (niepewne słowo, strona, granica zaznaczenia; odręczny dopisek czytelnika przy fragmencie) — widać to tylko przy przeglądaniu, nie jest zapisywane'],
   ['page', 'Strona, np. "23" albo "23–24" — zamiast "locator" (staje się „s. 23”)'],
   ['uncertain', 'true, gdy odczyt słowa, strona albo granica zaznaczenia jest niepewna (do sprawdzenia przed zapisem)'],
   ['id', 'Tylko przy poprawianiu wyeksportowanych cytatów: ich "id" — wtedy cytat jest zmieniany, nie dodawany']
@@ -305,17 +251,13 @@ const EXTRA_SAYS: readonly [string, string][] = [
 const QUOTE_EXAMPLE = {
   text: 'Modlitwa jest rozmową z Bogiem, w której człowiek staje się sobą.',
   page: '168',
-  topics: ['Modlitwa'],
-  comment: 'O modlitwie Jezusa na górze. Dopisek: do kazania na XVII niedzielę.'
+  check: 'Dopisek ołówkiem: „do kazania na XVII niedzielę”.'
 };
 
 /** Was ein Zitat im Dokument haben kann — aus den Feldern der Art „Cytat" (ohne „work": das ist das Buch). */
 export function quoteFieldsDoc(): string {
   const def = kindOf('quote')!;
-  const own = def.fields.filter((f) => f.key !== 'work').map((f) => {
-    const says = f.key === 'topics' ? 'Tematy — nazwy ("Modlitwa") albo klucze ("@modlitwa"); nowe nazwy mogą stać się nowymi tematami' : f.says;
-    return `  "${f.key}" — ${f.label}: ${says}`;
-  });
+  const own = def.fields.filter((f) => f.key !== 'work').map((f) => `  "${f.key}" — ${f.label}: ${f.says}`);
   const extra = EXTRA_SAYS.map(([k, s]) => `  "${k}" — ${s}`);
   return [...own, ...extra].join('\n');
 }
@@ -328,7 +270,8 @@ Co robi import (na stronie książki „${summary.title}”):
 - Każdy cytat staje się wpisem „Cytat” z tą książką jako źródłem; klucz cytowania nadaje się sam (${work.key ?? 'klucz'}-1, ${work.key ?? 'klucz'}-2, …).
 - Przed zapisem widać listę: każdy cytat można poprawić albo odznaczyć.
 - Cytat, który już jest w tej książce (ten sam tekst), jest odznaczony. Cytat z "id" z eksportu jest zmieniany w miejscu.
-- "comment" staje się osobnym wpisem „Komentarz” o tym cytacie. Cytaty i komentarze trafiają do biblioteki tej książki — widzą je ci, którzy widzą jej obszar.
+- Cytaty trafiają do biblioteki tej książki — widzą je ci, którzy widzą jej obszar. Biblioteka trzyma tylko źródła: cytaty nie mają tematów ani komentarzy (własne myśli to rodzaj w Nauce).
+- Starsze pola ("topics", "comment", "description", "notes") są tylko pokazywane przy sprawdzaniu — nie są zapisywane.
 - Nic nie jest usuwane.
 Zwróć JEDEN obiekt JSON, bez komentarzy.
 
@@ -358,7 +301,6 @@ const bookLineFor = (work: LibEntry, look: Lookup): string => segText(citeSegs(w
  * und wie — und darunter die Beschreibung des JSON, das zurückkommen soll.
  */
 export function quotesPrompt(work: LibEntry, look: QuoteBase, mode: MarkMode): string {
-  const topics = look.all().filter((e) => e.kind === 'topic').map((e) => str(e.data, 'name')).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pl')).slice(0, 120);
   const what = mode === 'marked'
     ? `Czytelnik zaznaczył w książce ołówkiem fragmenty, które chce zachować: podkreślenia, pionowe kreski albo nawiasy na marginesie, wykrzykniki, haczyki. Przepisz KAŻDY zaznaczony fragment jako osobny cytat. Tekstu niezaznaczonego nie przepisuj.`
     : `Każde zdjęcie pokazuje fragment do zachowania. Przepisz cały tekst główny z każdego zdjęcia jako cytat (bez żywej paginy, numeru strony i przypisów u dołu strony).`;
@@ -371,9 +313,8 @@ Zasady:
 - Jeśli zaznaczenie zaczyna się albo kończy w środku zdania, przepisz dokładnie zaznaczony zakres. Pominięty środek oznacz „[…]”.
 - Fragment, który przechodzi na następną stronę, to JEDEN cytat — "page": "23–24".
 - Numer strony bierz z nadrukowanej paginy tej strony. Gdy go nie widać, zostaw "page" puste i ustaw "uncertain": true.
-- "comment": jedno krótkie zdanie po polsku — o czym jest fragment; odręczny dopisek czytelnika przy fragmencie dopisz tu (sam fragment bez dopisku).
+- Odręczny dopisek czytelnika przy fragmencie przepisz w "check" (sam fragment bez dopisku).
 - Gdy nie masz pewności co do słowa albo granic zaznaczenia: "uncertain": true i krótko w "check", co sprawdzić.
-- "topics": 1–3 krótkie tematy${topics.length > 0 ? `; jeśli pasują, użyj istniejących: ${topics.join(', ')}` : ''}.
 - Kolejność cytatów: według stron.
 
 ${quotesDescription(work)}`;

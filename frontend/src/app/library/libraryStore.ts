@@ -38,7 +38,7 @@ export interface Entry extends LibEntry {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly publishedAt: string | null;
-  /** Eine alte offene Fassung (bis 2026-10-22) — nur noch, damit Porządki sie zurückzieht. */
+  /** Eine alte offene Fassung (bis 2026-10-22) — nur noch, damit „Wycofaj stare kopie" sie zurückzieht. */
   readonly publishedAs: PublishedAs | null;
 }
 
@@ -617,7 +617,7 @@ export class LibraryStore implements Lookup {
   /* -- Alte offene Fassungen (bis 2026-10-22) ------------------------------------------------- */
 
   /**
-   * 2026-10-22 (Schritt 8) — alte offene Fassungen zurückziehen (Porządki).
+   * 2026-10-22 (Schritt 8) — alte offene Fassungen zurückziehen („Wycofaj stare kopie" in den Einstellungen).
    * Hinaus geht nichts mehr: wer liest, sagt der Bereich.
    */
   async withdraw(ids: readonly string[]): Promise<number> {

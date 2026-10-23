@@ -121,7 +121,7 @@ const TOPIC_MORE: readonly FieldDef[] = [
  * — Odpowiedzi, Dotyczy, Głębokość, Próg, Wymiar, Do rozwinięcia — ist eine
  * ERWEITERUNG, die eine Baza dazunimmt (Schemat → Temat → „+ Pola nauki"; sie
  * steht dann als Änderung des eingebauten Themas in ihrem Schema). Perspektiven
- * sind keine Felder mehr: sie werden Aspekte (Porządki → „Tematy i perspektywy").
+ * sind keine Felder mehr (2026-10-23: Themen fallen in Schritt 5 ganz weg).
  * Eine Baza, deren Themen die Felder schon tragen, sieht sie weiter (`kindDefs`).
  */
 export const TOPIC_LEARNING: readonly FieldDef[] = TOPIC_MORE.filter((f) => f.key !== 'tags');

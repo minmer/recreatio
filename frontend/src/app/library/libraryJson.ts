@@ -16,24 +16,62 @@
  *
  * Die Beschreibung entsteht aus `libraryKinds.ts`; `app-library-check.mjs`
  * prüft, dass jedes Feld beschrieben ist.
+ *
+ * 2026-10-23 — EIN FORMAT JE TEIL, DIESELBE MASCHINE (`FormatSpec`): die
+ * Bibliothek nimmt nur Quellen (`recreatio/library`: work, quote, person);
+ * das Skryptorium (`recreatio/scriptorium`) seine Texte, Wygłoszenia,
+ * Projekte und Rodzaje tekstów. Eine alte Datei mit anderen Arten wird
+ * abgewiesen — mit dem Format, in das sie gehört.
  */
 
 import { newId } from '../core/ids';
-import { blockData, blockOf, LEGACY_COMMENT_FIELDS, legacyBlocks, type CommentBlock, type Run } from './comment';
+import { blockData, blockOf, type CommentBlock, type Run } from './comment';
 import { isUuid } from './library';
 import { mapRefTokens } from './libraryMarkup';
-import { KINDS, kindOf, outline, slug, type EntryData, type LibEntry, type LibField, ALIASES, aliasesOf, mapMarkups, shownMarkup, type Lookup } from './libraryKinds';
+import { kindOf, LIBRARY_KINDS, outline, slug, type EntryData, type LibEntry, type LibField, type LibKind, ALIASES, aliasesOf, mapMarkups, shownMarkup, type Lookup } from './libraryKinds';
 
 export const LIBRARY_FORMAT = 'recreatio/library';
 
 /**
- * 2: seit 2026-10-22 — Komentarze als eigene Art, keine privaten Felder und
- * kein Veröffentlichen mehr. Eine Datei der Fassung 1 wird so gelesen: was
- * dort in `description`/`notes` eines Zitats, Werks (und `notes` jeder
- * anderen Art, `note` eines Planpunkts) stand, wird ein Komentarz über
- * diesen Eintrag.
+ * 3: seit 2026-10-23 — nur Quellen (work, quote, person), ohne Themen. Eine
+ * Datei mit Texten, Komentarzen oder Themen wird abgewiesen (sie gehören ins
+ * Skryptorium bzw. als eigene Arten nach Nauka).
  */
-export const LIBRARY_VERSION = 2;
+export const LIBRARY_VERSION = 3;
+
+/** 2026-10-23 — das Format des Skryptorium (`scriptorium/scriptoriumJson.ts` beschreibt es). */
+export const SCRIPTORIUM_FORMAT = 'recreatio/scriptorium';
+
+/**
+ * WAS EIN FORMAT ANNIMMT (2026-10-23): seine Arten, in welcher Reihenfolge
+ * gespeichert wird (wer genannt wird, zuerst), wohin eine fremde Art gehört,
+ * und — im Skryptorium — die Felder, die ein Eintrag zusätzlich hat (die
+ * seines Rodzaj tekstu).
+ */
+export interface FormatSpec {
+  readonly format: string;
+  readonly version: number;
+  readonly kinds: readonly LibKind[];
+  readonly saveOrder: readonly string[];
+  /** Ein Satz, wohin eine Art gehört, die dieses Format nicht nimmt — `null`: einfach unbekannt. */
+  readonly elsewhere: (kind: string) => string | null;
+  /** Zusätzliche Felder eines Eintrags (im Skryptorium: die seines Rodzaj tekstu), aus seinen Daten und dem Dokument. */
+  readonly extraFields?: (kind: string, data: Readonly<Record<string, unknown>>, resolve: (token: string) => string | null) => readonly LibField[];
+}
+
+const WRITING_KINDS_NAMED: Readonly<Record<string, string>> = { text: 'teksty', delivery: 'wygłoszenia', project: 'projekty', textType: 'rodzaje tekstów' };
+
+export const LIBRARY_SPEC: FormatSpec = {
+  format: LIBRARY_FORMAT,
+  version: LIBRARY_VERSION,
+  kinds: LIBRARY_KINDS,
+  saveOrder: ['person', 'work', 'quote'],
+  elsewhere: (kind) => WRITING_KINDS_NAMED[kind] !== undefined
+    ? `${WRITING_KINDS_NAMED[kind]} są teraz w Skryptorium — importuje się je tam (format "${SCRIPTORIUM_FORMAT}")`
+    : kind === 'comment' ? 'komentarze są teraz własnym rodzajem w Nauce — gotowy schemat: plik templates/cogita/komentarz.json, a komentarze w JSON bazy wiedzy'
+    : kind === 'topic' ? 'tematów już nie ma — porządek dają własne rodzaje w Nauce (np. „Tajemnica”, „Obszar”), połączone polami-odwołaniami'
+    : null
+};
 
 /** Die Zitate EINES Buches (`libraryQuotes.ts`) — sie gehören auf die Seite dieses Buches. */
 const QUOTES_FORMAT = 'recreatio/quotes';
@@ -63,12 +101,12 @@ export interface ExportEntry {
  * (2026-10-22). Wo ein Schlüssel von hier aus nicht eindeutig ist, bleibt die
  * Kennung stehen; der Import nimmt beides.
  */
-export function exportLibrary(name: string, entries: readonly LibEntry[], look?: Lookup): Record<string, unknown> {
-  const order = new Map(KINDS.map((k, i) => [k.kind, i]));
-  const sorted = [...entries].sort((a, b) => (order.get(a.kind) ?? 99) - (order.get(b.kind) ?? 99));
+export function exportLibrary(name: string, entries: readonly LibEntry[], look?: Lookup, spec: FormatSpec = LIBRARY_SPEC): Record<string, unknown> {
+  const order = new Map(spec.kinds.map((k, i) => [k.kind, i]));
+  const sorted = [...entries].filter((e) => order.has(e.kind)).sort((a, b) => (order.get(a.kind) ?? 99) - (order.get(b.kind) ?? 99));
   return {
-    format: LIBRARY_FORMAT,
-    version: LIBRARY_VERSION,
+    format: spec.format,
+    version: spec.version,
     name,
     entries: sorted.map((e): ExportEntry => ({
       id: e.id, kind: e.kind, ...(e.key === undefined ? {} : { key: e.key }),
@@ -102,9 +140,6 @@ export interface ImportBase {
   byKey(key: string): LibEntry | undefined;
 }
 
-/** In welcher Reihenfolge gespeichert wird: wer genannt wird, zuerst (der Schlüssel eines Zitats folgt seinem Werk; ein Wygłoszenie seinem Text). */
-const SAVE_ORDER = ['person', 'topic', 'work', 'quote', 'project', 'text', 'delivery', 'comment'];
-
 /** Eine Kennung für einen Punkt einer Liste — „p" und fünf Zeichen, eindeutig in der Liste. */
 function itemId(taken: Set<string>): string {
   for (;;) {
@@ -116,7 +151,7 @@ function itemId(taken: Set<string>): string {
 const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
-export function planLibraryImport(doc: unknown, base: ImportBase): LibraryImportPlan | { error: string } {
+export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSpec = LIBRARY_SPEC): LibraryImportPlan | { error: string } {
   const root = asRecord(doc);
   const list: unknown[] = Array.isArray(doc) ? doc
     : Array.isArray(root.entries) ? root.entries
@@ -125,8 +160,21 @@ export function planLibraryImport(doc: unknown, base: ImportBase): LibraryImport
   if (root.format === QUOTES_FORMAT) {
     return { error: `To są cytaty jednej książki ("${QUOTES_FORMAT}") — importuje się je na stronie tej książki: Źródła → książka → „Cytaty z tej książki”.` };
   }
-  if (list.length === 0) return { error: 'To nie jest dokument biblioteki — brakuje "entries" (albo "kind" i "data").' };
-  if (root.format !== undefined && root.format !== LIBRARY_FORMAT) return { error: `Inny format: „${String(root.format)}”, a tu przyjmowany jest "${LIBRARY_FORMAT}".` };
+  if (list.length === 0) return { error: `To nie jest dokument w formacie "${spec.format}" — brakuje "entries" (albo "kind" i "data").` };
+  if (root.format !== undefined && root.format !== spec.format) {
+    const where = root.format === LIBRARY_FORMAT ? 'w Bibliotece' : root.format === SCRIPTORIUM_FORMAT ? 'w Skryptorium' : String(root.format).startsWith('recreatio.cogita') ? 'w Nauce (baza wiedzy → JSON)' : '';
+    return { error: `Inny format: „${String(root.format)}”${where === '' ? '' : ` — ten importuje się ${where}`}; tu przyjmowany jest "${spec.format}".` };
+  }
+  const allowed = new Set(spec.kinds.map((k) => k.kind));
+  /* 2026-10-23 — Arten, die dieses Format nicht nimmt, aber ein anderer Teil: die Datei gehört dorthin. */
+  const foreign = new Map<string, number>();
+  for (const one of list) {
+    const kind = typeof asRecord(one).kind === 'string' ? String(asRecord(one).kind) : '';
+    if (!allowed.has(kind) && spec.elsewhere(kind) !== null) foreign.set(kind, (foreign.get(kind) ?? 0) + 1);
+  }
+  if (foreign.size > 0) {
+    return { error: `Ten plik ma wpisy, których tu się nie prowadzi: ${[...foreign].map(([kind, n]) => `${kind} (${n})`).join(', ')}. ${[...new Set([...foreign.keys()].map(spec.elsewhere))].join('; ')}.` };
+  }
 
   const warnings: string[] = [];
 
@@ -138,7 +186,7 @@ export function planLibraryImport(doc: unknown, base: ImportBase): LibraryImport
   list.forEach((one, index) => {
     const raw = asRecord(one);
     const kind = typeof raw.kind === 'string' ? raw.kind : '';
-    if (kindOf(kind) === undefined) { warnings.push(`Wpis ${index + 1}: nieznany rodzaj „${kind}” — pominięty.`); return; }
+    if (kindOf(kind) === undefined || !allowed.has(kind)) { warnings.push(`Wpis ${index + 1}: nieznany rodzaj „${kind}” — pominięty.`); return; }
     const givenId = typeof raw.id === 'string' ? raw.id.trim() : '';
     const givenKey = typeof raw.key === 'string' && raw.key.trim() !== '' ? raw.key.trim().replace(/^@/, '') : undefined;
 
@@ -255,45 +303,15 @@ export function planLibraryImport(doc: unknown, base: ImportBase): LibraryImport
   let updated = 0;
   let unchanged = 0;
 
-  const legacy: ImportDraft[] = [];
-  const legacyComment = (about: string, value: string, point?: string) => {
-    const blocks = legacyBlocks(value);
-    if (blocks.length === 0) return;
-    legacy.push({ id: newId(), kind: 'comment', data: { subjects: [{ ref: about, ...(point === undefined ? {} : { point }) }], blocks: blocks.map(blockData) }, existing: false });
-  };
-
   for (const one of placed) {
     const def = kindOf(one.kind)!;
     const given = { ...asRecord(one.raw.data) };
     const data: EntryData = { ...(one.existing?.data ?? {}) };
 
-    /*
-     * 2026-10-22 — was in einer alten Datei in `description`/`notes` stand,
-     * wird ein Komentarz über diesen Eintrag (derselbe Wert, der schon am
-     * Eintrag liegt, gehört der Umstellung, nicht dem Import).
-     */
-    for (const { key } of LEGACY_COMMENT_FIELDS[one.kind] ?? []) {
-      const value = given[key];
-      delete given[key];
-      if (typeof value !== 'string' || value.trim() === '' || value === one.existing?.data[key]) continue;
-      legacyComment(one.id, value);
-      warnings.push(`${def.label} · ${key}: z dawnego pola powstał komentarz w tej bibliotece — jeśli był prywatny, przenieś go do prywatnego obszaru.`);
-    }
-    if (one.kind === 'text' && Array.isArray(given.plan)) {
-      const taken = new Set<string>();
-      given.plan = given.plan.map((raw) => {
-        const item = asRecord(raw);
-        if (typeof item.note !== 'string' || item.note.trim() === '') return raw;
-        const { note, ...rest } = item;
-        const id = typeof rest.id === 'string' && rest.id.trim() !== '' ? rest.id.trim() : itemId(taken);
-        taken.add(id);
-        legacyComment(one.id, note as string, id);
-        return { ...rest, id };
-      });
-    }
-
+    /* 2026-10-23 — die Felder der Art und (im Skryptorium) die ihres Rodzaj tekstu. */
+    const extra = spec.extraFields?.(one.kind, { ...data, ...given }, (token) => resolve(token, def.label)) ?? [];
     for (const [name, value] of Object.entries(given)) {
-      const field = def.fields.find((f) => f.key === name);
+      const field = def.fields.find((f) => f.key === name) ?? extra.find((f) => f.key === name);
       const where = `${def.label} „${String(given.title ?? given.name ?? given.text ?? one.key ?? '').slice(0, 40)}” · ${name}`;
       /* 2026-10-22 — alte Schlüssel (`_aliases`) reisen mit, ohne Warnung. */
       if (field === undefined && name === ALIASES) { const aliases = aliasesOf(given); if (aliases.length > 0) data[name] = aliases; else delete data[name]; continue; }
@@ -328,11 +346,9 @@ export function planLibraryImport(doc: unknown, base: ImportBase): LibraryImport
     if (one.existing === undefined) created += 1; else updated += 1;
   }
 
-  drafts.push(...legacy);
-  created += legacy.length;
-  drafts.sort((a, b) => SAVE_ORDER.indexOf(a.kind) - SAVE_ORDER.indexOf(b.kind));
+  drafts.sort((a, b) => spec.saveOrder.indexOf(a.kind) - spec.saveOrder.indexOf(b.kind));
 
-  const byKind = KINDS.map((k) => [k.plural, drafts.filter((d) => d.kind === k.kind).length] as const).filter(([, n]) => n > 0);
+  const byKind = spec.kinds.map((k) => [k.plural, drafts.filter((d) => d.kind === k.kind).length] as const).filter(([, n]) => n > 0);
   const lines = [
     `Nowe: ${created}, zmienione: ${updated}, bez zmian: ${unchanged}.`,
     ...(byKind.length === 0 ? [] : [byKind.map(([label, n]) => `${label}: ${n}`).join(' · ')])
@@ -348,18 +364,18 @@ export function planLibraryImport(doc: unknown, base: ImportBase): LibraryImport
  * wie beim Import (`planLibraryImport`); heraus kommen nur die Felder, die
  * das Dokument nennt (`null`: leeren).
  */
-export function patchFromDoc(doc: unknown, target: { readonly id: string; readonly kind: string }, base: ImportBase):
+export function patchFromDoc(doc: unknown, target: { readonly id: string; readonly kind: string }, base: ImportBase, spec: FormatSpec = LIBRARY_SPEC):
   { patch: EntryData; lines: readonly string[]; warnings: readonly string[] } | { error: string } {
   const root = asRecord(doc);
   const list: unknown[] = Array.isArray(doc) ? doc : Array.isArray(root.entries) ? root.entries : typeof root.kind === 'string' || typeof root.data === 'object' ? [root] : [];
-  if (root.format !== undefined && root.format !== LIBRARY_FORMAT) return { error: `Inny format: „${String(root.format)}”, a tu przyjmowany jest "${LIBRARY_FORMAT}".` };
+  if (root.format !== undefined && root.format !== spec.format) return { error: `Inny format: „${String(root.format)}”, a tu przyjmowany jest "${spec.format}".` };
   const records = list.map(asRecord);
   const mine = records.find((one) => one.id === target.id) ?? (records.filter((one) => one.kind === target.kind || one.kind === undefined).length === 1
     ? records.find((one) => one.kind === target.kind || one.kind === undefined) : undefined);
   if (mine === undefined) return { error: records.length === 0 ? 'Brak wpisu — dokument powinien mieć "entries" z jednym wpisem.' : 'Nie ma tu wpisu dla tego formularza (sprawdź "id" i "kind").' };
   const given = asRecord(mine.data);
   if (Object.keys(given).length === 0) return { error: 'Wpis nie ma pól ("data").' };
-  const planned = planLibraryImport({ format: LIBRARY_FORMAT, entries: [{ id: target.id, kind: target.kind, data: given }] }, base);
+  const planned = planLibraryImport({ format: spec.format, entries: [{ id: target.id, kind: target.kind, data: given }] }, base, spec);
   if ('error' in planned) return planned;
   const draft = planned.drafts[0];
   const patch: EntryData = {};
@@ -391,6 +407,9 @@ function fieldDoc(f: LibField, indent: string): string {
   return [head, ...(f.item ?? []).map((sub) => fieldDoc(sub, `${indent}    `))].join('\n');
 }
 
+/** 2026-10-23 — wie man eine Stelle der Schrift schreibt: im "locator" eines Zitats, in einem Przypis, im Feld z miejscem w Nauce. */
+export const BIBLE_DOC = `Miejsce w Piśmie Świętym (odwołanie do dzieła z "workType": "bible" — w "locator" cytatu, w przypisie tekstu, w polu z miejscem w Nauce) pisz razem z księgą: Dz 1,14 · Dz 1,14-16 · Łk 1,26–2,5 · Dz 1,8.14 · Ps 23 · Mt 5,3-12; 6,1. Księgi mogą być po polsku (BT), łacinie (Nova Vulgata) albo angielsku (Acts 1:14) — aplikacja je rozpoznaje, porządkuje cytaty w kolejności Biblii i znajduje wszystko, co wskazuje na dany werset, we wszystkich przekładach.`;
+
 export const MARKUP_DOC = `## Zapis treści (pola "body" i "further" tekstu, punkty planu "plan[].text", "transcript" i "added[].text" wygłoszenia)
   ## Śródtytuł            (# albo ## — śródtytuł, ### — mniejszy)
   Akapity oddziela pusta linia; pojedyncze przejście do nowej linii zostaje (psalmy, pieśni).
@@ -398,10 +417,11 @@ export const MARKUP_DOC = `## Zapis treści (pola "body" i "further" tekstu, pun
   [@klucz]                 odwołanie do źródła (dzieło, cytat, osoba) — staje się przypisem
   [@klucz, s. 23]          z miejscem w źródle
   [@bt, J 6,35; @klucz2]   kilka odwołań w jednym przypisie
-  [@klucz-tekstu]          odwołanie do WŁASNEGO wpisu (tekst, komentarz, temat, projekt, wpis bazy wiedzy) — nigdy przypis: w tekście staje się linkiem „(zob. jego tytuł)”
+  [@klucz-tekstu]          odwołanie do WŁASNEGO wpisu (tekst, projekt, wpis bazy wiedzy — np. komentarz) — nigdy przypis: w tekście staje się linkiem „(zob. jego tytuł)”
   [[te słowa|@klucz]]      link do wpisu z własnymi słowami (np. [[kazaniu o chlebie|@kazanie-chleb]]) — też nigdy przypis
   ^[treść przypisu]        własny przypis, bez źródła
   ![@klucz-cytatu]         cytat z biblioteki jako osobny blok, z podpisem skąd pochodzi
+  ![@id-wpisu]             wpis bazy wiedzy z treścią w blokach (np. komentarz) jako osobny blok — cały, z tabelami
   [[house|@id-słowa]]      link do wpisu bazy wiedzy (np. słowa ze słownika) — czytelnik widzi go, jeśli może czytać tę bazę
   ![@id-widoku]            widok bazy wiedzy jako osobny blok (np. w punkcie planu): lista, która zmienia się razem z danymi — np. „psalmy jutrzni niedzielnej" z psałterza
   > tekst                  wcięty cytat
@@ -409,25 +429,30 @@ export const MARKUP_DOC = `## Zapis treści (pola "body" i "further" tekstu, pun
   ---                      linia oddzielająca
   \\znak                    znak bez znaczenia (np. \\* zamiast kursywy)
 Przypisy liczą się same; pierwszy raz źródło jest podane w całości, potem skrótem z „dz. cyt.”, a tuż po sobie — „Tamże”. Pod tekstem pojawia się bibliografia.
-Miejsce w Piśmie Świętym (odwołanie do dzieła z "workType": "bible" — w przypisie, w "locator" cytatu, w "subjects" komentarza) pisz razem z księgą: Dz 1,14 · Dz 1,14-16 · Łk 1,26–2,5 · Dz 1,8.14 · Ps 23 · Mt 5,3-12; 6,1. Księgi mogą być po polsku (BT), łacinie (Nova Vulgata) albo angielsku (Acts 1:14) — aplikacja je rozpoznaje, porządkuje cytaty w kolejności Biblii i znajduje wszystko, co wskazuje na dany werset, we wszystkich przekładach.
+${BIBLE_DOC}
 Źródło (to, co przyszło z zewnątrz) się cytuje, własne wpisy się linkuje: [@ratzinger2007, s. 183; @kazanie-chleb] daje przypis do książki i w tekście link „(zob. Chleb życia)”. Czego czytelnik nie może otworzyć, pokazuje się jako „[odwołanie niedostępne]” (albo same słowa z [[…|@…]]) — bez tytułu i bez klucza.
 Klucz to pomoc przy pisaniu: aplikacja zapamiętuje stały odnośnik do wpisu (jego kennungę), więc późniejsza zmiana klucza nie psuje tekstu. Zamiast klucza można też podać kennungę wpisu: [@01a1…-…, s. 3]. Klucz, którego nie ma, zostaje w tekście, jak jest (z ostrzeżeniem przy imporcie).`;
 
-export function libraryDescription(): string {
-  const kinds = KINDS.map((def) => {
+/** Die Arten eines Formats in der Beschreibung — Felder und ein ausgefülltes Beispiel. */
+export function kindsDoc(kinds: readonly LibKind[]): string {
+  return kinds.map((def) => {
     const fields = def.fields.map((f) => fieldDoc(f, '  ')).join('\n');
     const example = { kind: def.kind, ...(def.example.key === undefined ? {} : { key: def.example.key }), data: def.example.data };
     return `### "${def.kind}" — ${def.label}\n${def.says}${def.keyed ? ' Ma klucz cytowania.' : ''}\n"data":\n${fields}\nPrzykład:\n${JSON.stringify(example, null, 2)}`;
   }).join('\n\n');
+}
+
+export function libraryDescription(): string {
+  const kinds = kindsDoc(LIBRARY_KINDS);
 
   return `# Biblioteka jako JSON ("${LIBRARY_FORMAT}", wersja ${LIBRARY_VERSION})
 
 Co robi import:
+Biblioteka to kręgosłup cytowania: trzyma TYLKO źródła — dzieła ("work"), cytaty ("quote") i osoby jako autorów ("person"); wpis biblioteki wskazuje tylko inne wpisy biblioteki (cytat → swoje dzieło, dzieło → autorzy, tłumacze, książka albo czasopismo, w którym jest). Własne teksty (kazania, konferencje, artykuły) są w Skryptorium (format "${SCRIPTORIUM_FORMAT}"), a wiedza — komentarze, postacie, miejsca, wydarzenia — w Nauce, jako własne rodzaje; oba te miejsca cytują stąd. Tematów nie ma.
 - Każdy wpis to { "id", "kind", "key", "data" }. Wpis z kennung z eksportu (albo z kluczem istniejącego wpisu tego samego rodzaju) jest ZMIENIANY — tylko pola podane w "data"; pola, których nie ma, zostają. Żeby wyczyścić pole, podaj null.
 - Wpis bez kennung (albo z nieznaną) powstaje nowy. Import niczego nie usuwa.
-- Odwołania ("authors", "work", "topics", "project", plan projektu, "texts" wygłoszenia) mogą być kennungami albo kluczami: "@ratzinger2007". Klucze z tego samego dokumentu też działają — można opisać całą bibliotekę, nie znając żadnej kennung.
-- Plan tekstu ("plan") to lista punktów; punkt bez "id" dostaje go sam. Wygłoszenie ("delivery") mówi o punktach po ich "id": co powiedziano ("coverage"), co doszło ("added"). Lista podana w imporcie zastępuje całą dotychczasową.
-- Własne przemyślenia o źródłach, cytatach, fragmentach Pisma i innych komentarzach to osobne wpisy "comment" (niżej: „Komentarz”) — nie opisy w polach innych wpisów. Tekst osadza komentarz blokiem ![@klucz] albo linkuje do niego: [@klucz] (tytuł komentarza) lub [[własnymi słowami|@klucz]] — komentarz nigdy nie jest przypisem.
+- Odwołania ("authors", "editors", "translators", "container", "work") mogą być kennungami albo kluczami: "@ratzinger2007". Klucze z tego samego dokumentu też działają — można opisać całą bibliotekę, nie znając żadnej kennung.
+- Plik z innymi rodzajami (teksty, wygłoszenia, projekty, komentarze, tematy) zostanie odrzucony — z informacją, gdzie go zaimportować.
 - "key" to klucz cytowania: krótki, bez spacji (np. "ratzinger2007"); w tekstach odwołuje się do niego [@ratzinger2007, s. 23]. Pominięty — zostanie zaproponowany sam.
 - Liczby mogą mieć jednostkę ("384 s.", "20,5 cm"); pole wyboru przyjmuje wartość ("hard") albo jej nazwę ("Twarda").
 - Cytaty z jednej książki (np. odczytane przez AI ze zdjęć) mają własny format "${QUOTES_FORMAT}" — importuje się je na stronie tej książki.
@@ -444,51 +469,8 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
 ## Rodzaje wpisów
 ${kinds}
 
-${COMMENT_DOC}
-
-${MARKUP_DOC}
+## Miejsce w źródle
+${BIBLE_DOC}
+Inne miejsca: "s. 23", "nr 24", "rozdz. 4".
 `;
 }
-
-/** Wie ein Komentarz gebaut ist — mit einem ganzen Beispiel samt Tabelą (dla AI, które przygotowuje import). */
-export const COMMENT_DOC = `## Komentarz ("comment") — jak go zbudować
-Komentarz to osobny wpis: przemyślenie, które można osadzić w wielu tekstach. Ma dwie części.
-1. "subjects" — o czym jest: jeden albo więcej wpisów, każdy z miejscem. { "ref": "@klucz", "locator": "Łk 1,35" }. Fragment Pisma to Pismo Święte (wpis "work" z "workType": "bible") plus miejsce. Przy tekście można wskazać punkt jego planu: { "ref": "@klucz-tekstu", "point": "p4k2x" }. Synteza to komentarz, którego "subjects" (albo bloki) wskazują inne komentarze.
-2. "blocks" — treść jako bloki; forma niesie znaczenie, innych bloków (np. nagłówków) nie ma:
-  { "type": "paragraph", "text": "…" }                         proza, w zapisie treści (pogrubienie, kursywa, przypisy [@klucz, s. 3])
-  { "type": "ordered", "items": [ komórka, … ] }               kolejność ma znaczenie: tok myśli, następstwo
-  { "type": "unordered", "items": [ komórka, … ] }             równorzędne punkty
-  { "type": "table", "columns": ["…", "…"], "rows": [ [komórka, komórka], … ] }   porównanie: każdy wiersz porównuje to samo w kolumnach
-Komórka (i punkt listy) to lista kawałków: { "text": "zapis treści" } albo { "ref": "@klucz", "locator": "Dz 1,8" } — PRAWDZIWE odwołanie, nie tekst, który je udaje. Sam napis "…" znaczy { "text": "…" }.
-Nie dodawaj rodzaju komentarza ani stopnia pewności — waga twierdzenia należy do jego słów.
-Zacznij od tezy: pierwsze zdanie pierwszego akapitu jest tezą komentarza (jego nazwą i przodem karty w nauce) — jedno krótkie zdanie, najwyżej 200 znaków; rozwinięcie w dalszych zdaniach.
-Pytanie to komentarz, którego pierwsze zdanie jest pytaniem („Dlaczego Duch zstępuje dwa razy?”); odpowiedzią jest komentarz, który się do niego odwołuje (w "subjects" albo w tekście [@klucz-pytania]).
-Czy komentarz jest informacją, czy interpretacją, aplikacja wylicza sama: informacja cytuje dzieło, cytat albo osobę (np. [@bt, Łk 1,35]) i nie opiera się na innym komentarzu ani tabeli; reszta to interpretacja. Tego się nie wpisuje.
-Stwierdzenia wiedzy (dawne "knowledge" z baz wiedzy) zapisuj jako komentarze; źródło stwierdzenia to przypis w jego akapicie: "Apostołowie trwali na modlitwie [@bt, Dz 1,14]."
-
-Przykład — całość w jednym dokumencie (Pismo Święte jako źródło i komentarz z tabelą zestawiającą fragmenty):
-${JSON.stringify({
-  format: LIBRARY_FORMAT,
-  version: LIBRARY_VERSION,
-  entries: [
-    { kind: 'work', key: 'bt', data: { workType: 'bible', title: 'Pismo Święte Starego i Nowego Testamentu', siglum: 'BT' } },
-    {
-      kind: 'comment', key: 'wniebowstapienie-paralele',
-      data: {
-        subjects: [{ ref: '@bt', locator: 'Łk 1,35' }, { ref: '@bt', locator: 'Dz 1,8' }],
-        blocks: [
-          { type: 'paragraph', text: 'Łukasz opisuje zstąpienie Ducha na Maryję i na Kościół tymi samymi słowami.' },
-          {
-            type: 'table', columns: ['Łk 1–2', 'Łk 24 / Dz 1'],
-            rows: [
-              [[{ ref: '@bt', locator: 'Łk 1,35' }], [{ ref: '@bt', locator: 'Dz 1,8' }]],
-              [[{ ref: '@bt', locator: 'Łk 2,19' }], [{ ref: '@bt', locator: 'Dz 1,14' }]],
-              ['Duch Święty zstąpi na ciebie', 'gdy Duch Święty zstąpi na was']
-            ]
-          },
-          { type: 'ordered', items: ['Najpierw Maryja przyjmuje Ducha', [{ text: 'potem Kościół: ' }, { ref: '@bt', locator: 'Dz 2,1-4' }]] }
-        ]
-      }
-    }
-  ]
-}, null, 2)}`;

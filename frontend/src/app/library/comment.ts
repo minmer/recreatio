@@ -28,7 +28,7 @@
  *
  * <b>2026-10-22 — DIE AUSSAGE (Schritt 6).</b> Der Komentarz ist die eine Art
  * für Aussagen: was Cogita „Wiedza" nannte, wird ein Komentarz in einer
- * Bibliothek (Porządki: „Wiedza → komentarze"). Was eine Aussage ist, wird
+ * Bibliothek. (2026-10-23: der Komentarz zieht als eigene Art nach Cogita — Schritt 4.) Was eine Aussage ist, wird
  * gerechnet, nicht gespeichert:
  *
  * <code>
@@ -225,8 +225,8 @@ export function pairedWith<E extends EntryLike>(ref: string, locator: string, en
 
 /**
  * Bis 2026-10-22 standen solche Gedanken in Feldern eines einzelnen
- * Eintrags. Diese werden Komentarze ÜBER ihn (`libraryMigrate.ts`; ein
- * Import alter Dateien macht dasselbe).
+ * Eintrags. (2026-10-23: die Umstellung ist weg — alte Werte reisen
+ * unverändert mit, gezeigt werden sie nicht.)
  */
 export const LEGACY_COMMENT_FIELDS: Readonly<Record<string, readonly { key: string; private: boolean }[]>> = {
   quote: [{ key: 'description', private: false }, { key: 'notes', private: true }],

@@ -40,9 +40,8 @@ export interface PlanPoint {
   readonly kind: PointKind;
   /**
    * ALT (bis 2026-10-22): eine Notiz am Punkt. Sie wird bei der Umstellung
-   * ein Komentarz über diesen Punkt (`libraryMigrate.ts`); bis die
-   * Umstellung bestätigt ist, reist sie unverändert mit — gezeigt wird sie
-   * nirgends mehr.
+   * gezeigt wird sie nirgends mehr; sie reist unverändert mit
+   * (2026-10-23: keine Umstellung mehr).
    */
   readonly note: string;
 }

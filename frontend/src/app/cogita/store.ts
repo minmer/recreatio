@@ -105,7 +105,7 @@ export function readSettings(raw: unknown): CogitaSettings {
  * Wiederverwenden: ihre Arten, Einträge, Vorlagen, Wiederholungen und Abläufe
  * gelten hier mit — geändert werden sie dort.
  */
-export type SourceKind = 'books' | 'knowledge';
+export type SourceKind = 'books' | 'knowledge' | 'writing';
 
 export interface SourceRef {
   readonly id: string;
@@ -136,8 +136,9 @@ export function readSources(raw: unknown): SourceRef[] {
     if (!isObject(one) || out.length >= 20) continue;
     const id = str(one.id).trim();
     if (id === '' || out.some((s) => s.id === id)) continue;
-    const kind: SourceKind = one.kind === 'books' ? 'books' : 'knowledge';
-    out.push({ id, kind, name: str(one.name).trim().slice(0, 120) || (kind === 'books' ? 'Biblioteka' : 'Baza wiedzy') });
+    /* 2026-10-23 — auch ein Skryptorium (`writing`): seine Texte sind Stoff wie die Einträge einer Bibliothek. */
+    const kind: SourceKind = one.kind === 'books' ? 'books' : one.kind === 'writing' ? 'writing' : 'knowledge';
+    out.push({ id, kind, name: str(one.name).trim().slice(0, 120) || (kind === 'books' ? 'Biblioteka' : kind === 'writing' ? 'Skryptorium' : 'Baza wiedzy') });
   }
   return out;
 }
@@ -241,7 +242,7 @@ export class CogitaLibrary {
     if (this.memo !== null && this.memo.stamp === stamp) return this.memo;
     const own = this.store.all();
     const theirs = this.sources.filter((s) => s.kind === 'knowledge').flatMap((s) => s.store.all());
-    const books = this.sources.filter((s) => s.kind === 'books').flatMap((s) => s.store.all());
+    const books = this.sources.filter((s) => s.kind === 'books' || s.kind === 'writing').flatMap((s) => s.store.all());
     const merged = new Set<string>();
     for (const e of [...own, ...theirs]) if (e.kind === 'merge' && typeof e.data.from === 'string') merged.add(e.data.from);
     /* Zuerst die Quellen, dann die eigenen: wer hier eine eingebaute Art ändert, gewinnt. */
